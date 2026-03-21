@@ -14,25 +14,34 @@
  * - v2 Refactor PR   : https://github.com/CherryHQ/cherry-studio/pull/10162
  * --------------------------------------------------------------------------
  */
-import { loggerService } from '@logger'
-import { nanoid } from '@reduxjs/toolkit'
+import { loggerService } from "@logger";
+import { nanoid } from "@reduxjs/toolkit";
 import {
   DEFAULT_CONTEXTCOUNT,
   DEFAULT_STREAM_OPTIONS_INCLUDE_USAGE,
   DEFAULT_TEMPERATURE,
-  isMac
-} from '@renderer/config/constant'
-import { allMinApps } from '@renderer/config/minapps'
-import { isFunctionCallingModel, isNotSupportTextDeltaModel, qwenModel, SYSTEM_MODELS } from '@renderer/config/models'
-import { BUILTIN_OCR_PROVIDERS, BUILTIN_OCR_PROVIDERS_MAP, DEFAULT_OCR_PROVIDER } from '@renderer/config/ocr'
-import { TRANSLATE_PROMPT } from '@renderer/config/prompts'
-import { SYSTEM_PROVIDERS } from '@renderer/config/providers'
-import { DEFAULT_SIDEBAR_ICONS } from '@renderer/config/sidebar'
-import db from '@renderer/databases'
-import { getModel } from '@renderer/hooks/useModel'
-import i18n from '@renderer/i18n'
-import { DEFAULT_ASSISTANT_SETTINGS } from '@renderer/services/AssistantService'
-import { defaultPreprocessProviders } from '@renderer/store/preprocess'
+  isMac,
+} from "@renderer/config/constant";
+import { allMinApps } from "@renderer/config/minapps";
+import {
+  isFunctionCallingModel,
+  isNotSupportTextDeltaModel,
+  qwenModel,
+  SYSTEM_MODELS,
+} from "@renderer/config/models";
+import {
+  BUILTIN_OCR_PROVIDERS,
+  BUILTIN_OCR_PROVIDERS_MAP,
+  DEFAULT_OCR_PROVIDER,
+} from "@renderer/config/ocr";
+import { TRANSLATE_PROMPT } from "@renderer/config/prompts";
+import { SYSTEM_PROVIDERS } from "@renderer/config/providers";
+import { DEFAULT_SIDEBAR_ICONS } from "@renderer/config/sidebar";
+import db from "@renderer/databases";
+import { getModel } from "@renderer/hooks/useModel";
+import i18n from "@renderer/i18n";
+import { DEFAULT_ASSISTANT_SETTINGS } from "@renderer/services/AssistantService";
+import { defaultPreprocessProviders } from "@renderer/store/preprocess";
 import type {
   Assistant,
   BuiltinOcrProvider,
@@ -40,64 +49,77 @@ import type {
   Provider,
   ProviderApiOptions,
   TranslateLanguageCode,
-  WebSearchProvider
-} from '@renderer/types'
-import { isBuiltinMCPServer, isSystemProvider, SystemProviderIds } from '@renderer/types'
-import { getDefaultGroupName, getLeadingEmoji, runAsyncFunction, uuid } from '@renderer/utils'
+  WebSearchProvider,
+} from "@renderer/types";
+import {
+  isBuiltinMCPServer,
+  isSystemProvider,
+  SystemProviderIds,
+} from "@renderer/types";
+import {
+  getDefaultGroupName,
+  getLeadingEmoji,
+  runAsyncFunction,
+  uuid,
+} from "@renderer/utils";
 import {
   isSupportArrayContentProvider,
   isSupportDeveloperRoleProvider,
-  isSupportStreamOptionsProvider
-} from '@renderer/utils/provider'
-import { API_SERVER_DEFAULTS } from '@shared/config/constant'
-import { defaultByPassRules, UpgradeChannel } from '@shared/config/constant'
-import { isEmpty } from 'lodash'
-import { createMigrate } from 'redux-persist'
+  isSupportStreamOptionsProvider,
+} from "@renderer/utils/provider";
+import { API_SERVER_DEFAULTS } from "@shared/config/constant";
+import { defaultByPassRules, UpgradeChannel } from "@shared/config/constant";
+import { isEmpty } from "lodash";
+import { createMigrate } from "redux-persist";
 
-import type { RootState } from '.'
-import { DEFAULT_TOOL_ORDER, DEFAULT_TOOL_ORDER_BY_SCOPE } from './inputTools'
-import { initialState as llmInitialState, moveProvider } from './llm'
-import { mcpSlice } from './mcp'
-import { initialState as notesInitialState } from './note'
-import { defaultActionItems } from './selectionStore'
-import { initialState as settingsInitialState } from './settings'
-import { initialState as shortcutsInitialState } from './shortcuts'
-import { defaultWebSearchProviders } from './websearch'
+import type { RootState } from ".";
+import { DEFAULT_TOOL_ORDER, DEFAULT_TOOL_ORDER_BY_SCOPE } from "./inputTools";
+import { initialState as llmInitialState, moveProvider } from "./llm";
+import { mcpSlice } from "./mcp";
+import { initialState as notesInitialState } from "./note";
+import { defaultActionItems } from "./selectionStore";
+import { initialState as settingsInitialState } from "./settings";
+import { initialState as shortcutsInitialState } from "./shortcuts";
+import { defaultWebSearchProviders } from "./websearch";
 
-const logger = loggerService.withContext('Migrate')
+const logger = loggerService.withContext("Migrate");
 
 // remove logo base64 data to reduce the size of the state
 function removeMiniAppIconsFromState(state: RootState) {
   if (state.minapps) {
     state.minapps.enabled = state.minapps.enabled.map((app) => ({
       ...app,
-      logo: undefined
-    }))
+      logo: undefined,
+    }));
     state.minapps.disabled = state.minapps.disabled.map((app) => ({
       ...app,
-      logo: undefined
-    }))
+      logo: undefined,
+    }));
     state.minapps.pinned = state.minapps.pinned.map((app) => ({
       ...app,
-      logo: undefined
-    }))
+      logo: undefined,
+    }));
   }
 }
 
 function removeMiniAppFromState(state: RootState, id: string) {
   if (state.minapps) {
-    state.minapps.pinned = state.minapps.pinned.filter((app) => app.id !== id)
-    state.minapps.enabled = state.minapps.enabled.filter((app) => app.id !== id)
-    state.minapps.disabled = state.minapps.disabled.filter((app) => app.id !== id)
+    state.minapps.pinned = state.minapps.pinned.filter((app) => app.id !== id);
+    state.minapps.enabled = state.minapps.enabled.filter(
+      (app) => app.id !== id,
+    );
+    state.minapps.disabled = state.minapps.disabled.filter(
+      (app) => app.id !== id,
+    );
   }
 }
 
 function addMiniApp(state: RootState, id: string) {
   if (state.minapps) {
-    const app = allMinApps.find((app) => app.id === id)
+    const app = allMinApps.find((app) => app.id === id);
     if (app) {
       if (!state.minapps.enabled.find((app) => app.id === id)) {
-        state.minapps.enabled.push(app)
+        state.minapps.enabled.push(app);
       }
     }
   }
@@ -106,9 +128,9 @@ function addMiniApp(state: RootState, id: string) {
 // add provider to state
 function addProvider(state: RootState, id: string) {
   if (!state.llm.providers.find((p) => p.id === id)) {
-    const _provider = SYSTEM_PROVIDERS.find((p) => p.id === id)
+    const _provider = SYSTEM_PROVIDERS.find((p) => p.id === id);
     if (_provider) {
-      state.llm.providers.push(_provider)
+      state.llm.providers.push(_provider);
     }
   }
 }
@@ -117,26 +139,30 @@ function addProvider(state: RootState, id: string) {
 function fixMissingProvider(state: RootState) {
   SYSTEM_PROVIDERS.forEach((p) => {
     if (!state.llm.providers.find((provider) => provider.id === p.id)) {
-      state.llm.providers.push(p)
+      state.llm.providers.push(p);
     }
-  })
+  });
 }
 
 // add ocr provider
 function addOcrProvider(state: RootState, provider: BuiltinOcrProvider) {
   if (!state.ocr.providers.find((p) => p.id === provider.id)) {
-    state.ocr.providers.push(provider)
+    state.ocr.providers.push(provider);
   }
 }
 
-function updateProvider(state: RootState, id: string, provider: Partial<Provider>) {
+function updateProvider(
+  state: RootState,
+  id: string,
+  provider: Partial<Provider>,
+) {
   if (state.llm.providers) {
-    const index = state.llm.providers.findIndex((p) => p.id === id)
+    const index = state.llm.providers.findIndex((p) => p.id === id);
     if (index !== -1) {
       state.llm.providers[index] = {
         ...state.llm.providers[index],
-        ...provider
-      }
+        ...provider,
+      };
     }
   }
 }
@@ -144,24 +170,29 @@ function updateProvider(state: RootState, id: string, provider: Partial<Provider
 function addWebSearchProvider(state: RootState, id: string) {
   if (state.websearch && state.websearch.providers) {
     if (!state.websearch.providers.find((p) => p.id === id)) {
-      const provider = defaultWebSearchProviders.find((p) => p.id === id)
+      const provider = defaultWebSearchProviders.find((p) => p.id === id);
       if (provider) {
         // Prevent mutating read only property of object
         // Otherwise, it will cause the error: Cannot assign to read only property 'apiKey' of object '#<Object>'
-        state.websearch.providers.push({ ...provider })
+        state.websearch.providers.push({ ...provider });
       }
     }
   }
 }
 
-function updateWebSearchProvider(state: RootState, provider: Partial<WebSearchProvider>) {
+function updateWebSearchProvider(
+  state: RootState,
+  provider: Partial<WebSearchProvider>,
+) {
   if (state.websearch && state.websearch.providers) {
-    const index = state.websearch.providers.findIndex((p) => p.id === provider.id)
+    const index = state.websearch.providers.findIndex(
+      (p) => p.id === provider.id,
+    );
     if (index !== -1) {
       state.websearch.providers[index] = {
         ...state.websearch.providers[index],
-        ...provider
-      }
+        ...provider,
+      };
     }
   }
 }
@@ -169,9 +200,9 @@ function updateWebSearchProvider(state: RootState, provider: Partial<WebSearchPr
 function addSelectionAction(state: RootState, id: string) {
   if (state.selectionStore && state.selectionStore.actionItems) {
     if (!state.selectionStore.actionItems.some((item) => item.id === id)) {
-      const action = defaultActionItems.find((item) => item.id === id)
+      const action = defaultActionItems.find((item) => item.id === id);
       if (action) {
-        state.selectionStore.actionItems.push(action)
+        state.selectionStore.actionItems.push(action);
       }
     }
   }
@@ -183,38 +214,44 @@ function addSelectionAction(state: RootState, id: string) {
  * if afterId is 'last', add to the last
  */
 function addShortcuts(state: RootState, ids: string[], afterId: string) {
-  const defaultShortcuts = shortcutsInitialState.shortcuts
+  const defaultShortcuts = shortcutsInitialState.shortcuts;
 
   // 确保 state.shortcuts 存在
   if (!state.shortcuts) {
-    return
+    return;
   }
 
   // 从 defaultShortcuts 中找到要添加的快捷键
-  const shortcutsToAdd = defaultShortcuts.filter((shortcut) => ids.includes(shortcut.key))
+  const shortcutsToAdd = defaultShortcuts.filter((shortcut) =>
+    ids.includes(shortcut.key),
+  );
 
   // 过滤掉已经存在的快捷键
-  const existingKeys = state.shortcuts.shortcuts.map((s) => s.key)
-  const newShortcuts = shortcutsToAdd.filter((shortcut) => !existingKeys.includes(shortcut.key))
+  const existingKeys = state.shortcuts.shortcuts.map((s) => s.key);
+  const newShortcuts = shortcutsToAdd.filter(
+    (shortcut) => !existingKeys.includes(shortcut.key),
+  );
 
   if (newShortcuts.length === 0) {
-    return
+    return;
   }
 
-  if (afterId === 'first') {
+  if (afterId === "first") {
     // 添加到最前面
-    state.shortcuts.shortcuts.unshift(...newShortcuts)
-  } else if (afterId === 'last') {
+    state.shortcuts.shortcuts.unshift(...newShortcuts);
+  } else if (afterId === "last") {
     // 添加到最后面
-    state.shortcuts.shortcuts.push(...newShortcuts)
+    state.shortcuts.shortcuts.push(...newShortcuts);
   } else {
     // 添加到指定快捷键后面
-    const afterIndex = state.shortcuts.shortcuts.findIndex((shortcut) => shortcut.key === afterId)
+    const afterIndex = state.shortcuts.shortcuts.findIndex(
+      (shortcut) => shortcut.key === afterId,
+    );
     if (afterIndex !== -1) {
-      state.shortcuts.shortcuts.splice(afterIndex + 1, 0, ...newShortcuts)
+      state.shortcuts.shortcuts.splice(afterIndex + 1, 0, ...newShortcuts);
     } else {
       // 如果找不到指定的快捷键，则添加到最后
-      state.shortcuts.shortcuts.push(...newShortcuts)
+      state.shortcuts.shortcuts.push(...newShortcuts);
     }
   }
 }
@@ -223,142 +260,148 @@ function addShortcuts(state: RootState, ids: string[], afterId: string) {
 function addPreprocessProviders(state: RootState, id: string) {
   if (state.preprocess && state.preprocess.providers) {
     if (!state.preprocess.providers.find((p) => p.id === id)) {
-      const provider = defaultPreprocessProviders.find((p) => p.id === id)
+      const provider = defaultPreprocessProviders.find((p) => p.id === id);
       if (provider) {
-        state.preprocess.providers.push({ ...provider })
+        state.preprocess.providers.push({ ...provider });
       }
     }
   }
 }
 
 const migrateConfig = {
-  '2': (state: RootState) => {
+  "2": (state: RootState) => {
     try {
-      addProvider(state, 'yi')
-      return state
+      addProvider(state, "yi");
+      return state;
     } catch (error) {
-      return state
+      return state;
     }
   },
-  '3': (state: RootState) => {
+  "3": (state: RootState) => {
     try {
-      addProvider(state, 'zhipu')
-      return state
+      addProvider(state, "zhipu");
+      return state;
     } catch (error) {
-      return state
+      return state;
     }
   },
-  '4': (state: RootState) => {
+  "4": (state: RootState) => {
     try {
-      addProvider(state, 'ollama')
-      return state
+      addProvider(state, "ollama");
+      return state;
     } catch (error) {
-      return state
+      return state;
     }
   },
-  '5': (state: RootState) => {
+  "5": (state: RootState) => {
     try {
-      addProvider(state, 'moonshot')
-      return state
+      addProvider(state, "moonshot");
+      return state;
     } catch (error) {
-      return state
+      return state;
     }
   },
-  '6': (state: RootState) => {
+  "6": (state: RootState) => {
     try {
-      addProvider(state, 'openrouter')
-      return state
+      addProvider(state, "openrouter");
+      return state;
     } catch (error) {
-      return state
+      return state;
     }
   },
-  '7': (state: RootState) => {
+  "7": (state: RootState) => {
     try {
       return {
         ...state,
         settings: {
           ...state.settings,
-          language: navigator.language
-        }
-      }
+          language: navigator.language,
+        },
+      };
     } catch (error) {
-      return state
+      return state;
     }
   },
-  '8': (state: RootState) => {
+  "8": (state: RootState) => {
     try {
       const fixAssistantName = (assistant: Assistant) => {
         // 2025/07/25 这俩键早没了，从远古版本迁移包出错的
         if (isEmpty(assistant.name)) {
-          assistant.name = i18n.t('chat.default.name')
+          assistant.name = i18n.t("chat.default.name");
         }
 
         assistant.topics = assistant.topics.map((topic) => {
           if (isEmpty(topic.name)) {
-            topic.name = i18n.t('chat.default.topic.name')
+            topic.name = i18n.t("chat.default.topic.name");
           }
-          return topic
-        })
+          return topic;
+        });
 
-        return assistant
-      }
+        return assistant;
+      };
 
       return {
         ...state,
         assistants: {
           ...state.assistants,
           defaultAssistant: fixAssistantName(state.assistants.defaultAssistant),
-          assistants: state.assistants.assistants.map((assistant) => fixAssistantName(assistant))
-        }
-      }
+          assistants: state.assistants.assistants.map((assistant) =>
+            fixAssistantName(assistant),
+          ),
+        },
+      };
     } catch (error) {
-      return state
+      return state;
     }
   },
-  '9': (state: RootState) => {
+  "9": (state: RootState) => {
     try {
       return {
         ...state,
         llm: {
           ...state.llm,
           providers: state.llm.providers.map((provider) => {
-            if (provider.id === 'zhipu' && provider.models[0] && provider.models[0].id === 'llama3-70b-8192') {
-              provider.models = SYSTEM_MODELS.zhipu
+            if (
+              provider.id === "zhipu" &&
+              provider.models[0] &&
+              provider.models[0].id === "llama3-70b-8192"
+            ) {
+              provider.models = SYSTEM_MODELS.zhipu;
             }
-            return provider
-          })
-        }
-      }
+            return provider;
+          }),
+        },
+      };
     } catch (error) {
-      return state
+      return state;
     }
   },
-  '10': (state: RootState) => {
+  "10": (state: RootState) => {
     try {
-      addProvider(state, 'baichuan')
-      return state
+      addProvider(state, "baichuan");
+      return state;
     } catch (error) {
-      return state
+      return state;
     }
   },
-  '11': (state: RootState) => {
+  "11": (state: RootState) => {
     try {
-      addProvider(state, 'dashscope')
-      addProvider(state, 'anthropic')
-      return state
+      addProvider(state, "dashscope");
+      addProvider(state, "anthropic");
+      return state;
     } catch (error) {
-      return state
+      return state;
     }
   },
-  '12': (state: RootState) => {
+  "12": (state: RootState) => {
     try {
-      addProvider(state, 'aihubmix')
-      return state
+      addProvider(state, "aihubmix");
+      return state;
     } catch (error) {
-      return state
+      return state;
     }
   },
-  '13': (state: RootState) => {
+  "13": (state: RootState) => {
     try {
       return {
         ...state,
@@ -366,137 +409,139 @@ const migrateConfig = {
           ...state.assistants,
           defaultAssistant: {
             ...state.assistants.defaultAssistant,
-            name: ['Default Assistant', '默认助手'].includes(state.assistants.defaultAssistant.name)
-              ? i18n.t('settings.assistant.label')
-              : state.assistants.defaultAssistant.name
-          }
-        }
-      }
+            name: ["Default Assistant", "默认助手"].includes(
+              state.assistants.defaultAssistant.name,
+            )
+              ? i18n.t("settings.assistant.label")
+              : state.assistants.defaultAssistant.name,
+          },
+        },
+      };
     } catch (error) {
-      return state
+      return state;
     }
   },
-  '14': (state: RootState) => {
+  "14": (state: RootState) => {
     try {
       return {
         ...state,
         settings: {
           ...state.settings,
           showAssistants: true,
-          proxyUrl: undefined
-        }
-      }
+          proxyUrl: undefined,
+        },
+      };
     } catch (error) {
-      return state
+      return state;
     }
   },
-  '15': (state: RootState) => {
+  "15": (state: RootState) => {
     try {
       return {
         ...state,
         settings: {
           ...state.settings,
-          userName: '',
-          showMessageDivider: true
-        }
-      }
+          userName: "",
+          showMessageDivider: true,
+        },
+      };
     } catch (error) {
-      return state
+      return state;
     }
   },
-  '16': (state: RootState) => {
+  "16": (state: RootState) => {
     try {
       return {
         ...state,
         settings: {
           ...state.settings,
-          messageFont: 'system',
-          showInputEstimatedTokens: false
-        }
-      }
+          messageFont: "system",
+          showInputEstimatedTokens: false,
+        },
+      };
     } catch (error) {
-      return state
+      return state;
     }
   },
-  '17': (state: RootState) => {
+  "17": (state: RootState) => {
     try {
       return {
         ...state,
         settings: {
           ...state.settings,
-          theme: 'auto'
-        }
-      }
+          theme: "auto",
+        },
+      };
     } catch (error) {
-      return state
+      return state;
     }
   },
-  '19': (state: RootState) => {
+  "19": (state: RootState) => {
     try {
       return {
         ...state,
         agents: {
-          agents: []
+          agents: [],
         },
         llm: {
           ...state.llm,
           settings: {
             ollama: {
-              keepAliveTime: 5
-            }
-          }
-        }
-      }
+              keepAliveTime: 5,
+            },
+          },
+        },
+      };
     } catch (error) {
-      return state
+      return state;
     }
   },
-  '20': (state: RootState) => {
+  "20": (state: RootState) => {
     try {
       return {
         ...state,
         settings: {
           ...state.settings,
-          fontSize: 14
-        }
-      }
+          fontSize: 14,
+        },
+      };
     } catch (error) {
-      return state
+      return state;
     }
   },
-  '21': (state: RootState) => {
+  "21": (state: RootState) => {
     try {
-      addProvider(state, 'gemini')
-      addProvider(state, 'stepfun')
-      addProvider(state, 'doubao')
-      return state
+      addProvider(state, "gemini");
+      addProvider(state, "stepfun");
+      addProvider(state, "doubao");
+      return state;
     } catch (error) {
-      return state
+      return state;
     }
   },
-  '22': (state: RootState) => {
+  "22": (state: RootState) => {
     try {
-      addProvider(state, 'minimax')
-      return state
+      addProvider(state, "minimax");
+      return state;
     } catch (error) {
-      return state
+      return state;
     }
   },
-  '23': (state: RootState) => {
+  "23": (state: RootState) => {
     try {
       return {
         ...state,
         settings: {
           ...state.settings,
           showTopics: true,
-          windowStyle: 'transparent'
-        }
-      }
+          windowStyle: "transparent",
+        },
+      };
     } catch (error) {
-      return state
+      return state;
     }
   },
-  '24': (state: RootState) => {
+  "24": (state: RootState) => {
     try {
       return {
         ...state,
@@ -507,61 +552,61 @@ const migrateConfig = {
             topics: assistant.topics.map((topic) => ({
               ...topic,
               createdAt: new Date().toISOString(),
-              updatedAt: new Date().toISOString()
-            }))
-          }))
+              updatedAt: new Date().toISOString(),
+            })),
+          })),
         },
         settings: {
           ...state.settings,
-          topicPosition: 'right'
-        }
-      }
+          topicPosition: "right",
+        },
+      };
     } catch (error) {
-      return state
+      return state;
     }
   },
-  '25': (state: RootState) => {
+  "25": (state: RootState) => {
     try {
-      addProvider(state, 'github')
-      return state
+      addProvider(state, "github");
+      return state;
     } catch (error) {
-      return state
+      return state;
     }
   },
-  '26': (state: RootState) => {
+  "26": (state: RootState) => {
     try {
-      addProvider(state, 'ocoolai')
-      return state
+      addProvider(state, "ocoolai");
+      return state;
     } catch (error) {
-      return state
+      return state;
     }
   },
-  '27': (state: RootState) => {
+  "27": (state: RootState) => {
     try {
       return {
         ...state,
         settings: {
           ...state.settings,
-          renderInputMessageAsMarkdown: true
-        }
-      }
+          renderInputMessageAsMarkdown: true,
+        },
+      };
     } catch (error) {
-      return state
+      return state;
     }
   },
-  '28': (state: RootState) => {
+  "28": (state: RootState) => {
     try {
-      addProvider(state, 'together')
-      addProvider(state, 'fireworks')
-      addProvider(state, 'zhinao')
-      addProvider(state, 'hunyuan')
-      addProvider(state, 'nvidia')
-      return state
+      addProvider(state, "together");
+      addProvider(state, "fireworks");
+      addProvider(state, "zhinao");
+      addProvider(state, "hunyuan");
+      addProvider(state, "nvidia");
+      return state;
     } catch (error) {
-      return state
+      return state;
     }
   },
-  '29': (state: RootState) => {
+  "29": (state: RootState) => {
     try {
       return {
         ...state,
@@ -570,63 +615,63 @@ const migrateConfig = {
           assistants: state.assistants.assistants.map((assistant) => {
             assistant.topics = assistant.topics.map((topic) => ({
               ...topic,
-              assistantId: assistant.id
-            }))
-            return assistant
-          })
-        }
-      }
+              assistantId: assistant.id,
+            }));
+            return assistant;
+          }),
+        },
+      };
     } catch (error) {
-      return state
+      return state;
     }
   },
-  '30': (state: RootState) => {
+  "30": (state: RootState) => {
     try {
-      addProvider(state, 'azure-openai')
-      return state
+      addProvider(state, "azure-openai");
+      return state;
     } catch (error) {
-      return state
+      return state;
     }
   },
-  '31': (state: RootState) => {
+  "31": (state: RootState) => {
     try {
       return {
         ...state,
         llm: {
           ...state.llm,
           providers: state.llm.providers.map((provider) => {
-            if (provider.id === 'azure-openai') {
+            if (provider.id === "azure-openai") {
               provider.models = provider.models.map((model) => ({
                 ...model,
-                provider: 'azure-openai'
-              }))
+                provider: "azure-openai",
+              }));
             }
-            return provider
-          })
-        }
-      }
+            return provider;
+          }),
+        },
+      };
     } catch (error) {
-      return state
+      return state;
     }
   },
-  '32': (state: RootState) => {
+  "32": (state: RootState) => {
     try {
-      addProvider(state, 'hunyuan')
-      return state
+      addProvider(state, "hunyuan");
+      return state;
     } catch (error) {
-      return state
+      return state;
     }
   },
-  '33': (state: RootState) => {
+  "33": (state: RootState) => {
     try {
-      state.assistants.defaultAssistant.type = 'assistant'
+      state.assistants.defaultAssistant.type = "assistant";
 
       // @ts-ignore
       state.agents.agents.forEach((agent) => {
-        agent.type = 'agent'
+        agent.type = "agent";
         // @ts-ignore eslint-disable-next-line
-        delete agent.group
-      })
+        delete agent.group;
+      });
 
       return {
         ...state,
@@ -634,1117 +679,1169 @@ const migrateConfig = {
           ...state.assistants,
           assistants: [...state.assistants.assistants].map((assistant) => {
             // @ts-ignore eslint-disable-next-line
-            delete assistant.group
+            delete assistant.group;
             return {
               ...assistant,
               id: assistant.id.length === 36 ? assistant.id : uuid(),
-              type: assistant.type === 'system' ? assistant.type : 'assistant'
-            }
-          })
-        }
-      }
+              type: assistant.type === "system" ? assistant.type : "assistant",
+            };
+          }),
+        },
+      };
     } catch (error) {
-      return state
+      return state;
     }
   },
-  '34': (state: RootState) => {
+  "34": (state: RootState) => {
     try {
       state.assistants.assistants.forEach((assistant) => {
         assistant.topics.forEach((topic) => {
-          topic.assistantId = assistant.id
+          topic.assistantId = assistant.id;
           runAsyncFunction(async () => {
-            const _topic = await db.topics.get(topic.id)
+            const _topic = await db.topics.get(topic.id);
             if (_topic) {
               const messages = (_topic?.messages || []).map((message) => ({
                 ...message,
-                assistantId: assistant.id
-              }))
-              db.topics.put({ ..._topic, messages }, topic.id)
+                assistantId: assistant.id,
+              }));
+              db.topics.put({ ..._topic, messages }, topic.id);
             }
-          })
-        })
-      })
-      return state
+          });
+        });
+      });
+      return state;
     } catch (error) {
-      return state
+      return state;
     }
   },
-  '35': (state: RootState) => {
+  "35": (state: RootState) => {
     try {
-      state.settings.mathEngine = 'KaTeX'
-      return state
+      state.settings.mathEngine = "KaTeX";
+      return state;
     } catch (error) {
-      return state
+      return state;
     }
   },
-  '36': (state: RootState) => {
+  "36": (state: RootState) => {
     try {
-      state.settings.topicPosition = 'left'
-      return state
+      state.settings.topicPosition = "left";
+      return state;
     } catch (error) {
-      return state
+      return state;
     }
   },
-  '37': (state: RootState) => {
+  "37": (state: RootState) => {
     try {
-      state.settings.messageStyle = 'plain'
-      return state
+      state.settings.messageStyle = "plain";
+      return state;
     } catch (error) {
-      return state
+      return state;
     }
   },
-  '38': (state: RootState) => {
+  "38": (state: RootState) => {
     try {
-      addProvider(state, 'grok')
-      addProvider(state, 'hyperbolic')
-      addProvider(state, 'mistral')
-      return state
+      addProvider(state, "grok");
+      addProvider(state, "hyperbolic");
+      addProvider(state, "mistral");
+      return state;
     } catch (error) {
-      return state
+      return state;
     }
   },
-  '39': (state: RootState) => {
+  "39": (state: RootState) => {
     try {
       // @ts-ignore eslint-disable-next-line
-      state.settings.codeStyle = 'auto'
-      return state
+      state.settings.codeStyle = "auto";
+      return state;
     } catch (error) {
-      return state
+      return state;
     }
   },
-  '40': (state: RootState) => {
+  "40": (state: RootState) => {
     try {
-      state.settings.tray = true
-      return state
+      state.settings.tray = true;
+      return state;
     } catch (error) {
-      return state
+      return state;
     }
   },
-  '41': (state: RootState) => {
+  "41": (state: RootState) => {
     try {
       state.llm.providers.forEach((provider) => {
-        if (provider.id === 'gemini') {
-          provider.type = 'gemini'
-        } else if (provider.id === 'anthropic') {
-          provider.type = 'anthropic'
+        if (provider.id === "gemini") {
+          provider.type = "gemini";
+        } else if (provider.id === "anthropic") {
+          provider.type = "anthropic";
         } else {
-          provider.type = 'openai'
+          provider.type = "openai";
         }
-      })
-      return state
+      });
+      return state;
     } catch (error) {
-      return state
+      return state;
     }
   },
-  '42': (state: RootState) => {
+  "42": (state: RootState) => {
     try {
-      state.settings.proxyMode = state.settings.proxyUrl ? 'custom' : 'none'
-      return state
+      state.settings.proxyMode = state.settings.proxyUrl ? "custom" : "none";
+      return state;
     } catch (error) {
-      return state
+      return state;
     }
   },
-  '43': (state: RootState) => {
+  "43": (state: RootState) => {
     try {
-      if (state.settings.proxyMode === 'none') {
-        state.settings.proxyMode = 'system'
+      if (state.settings.proxyMode === "none") {
+        state.settings.proxyMode = "system";
       }
-      return state
+      return state;
     } catch (error) {
-      return state
+      return state;
     }
   },
-  '44': (state: RootState) => {
+  "44": (state: RootState) => {
     try {
-      state.settings.translateModelPrompt = TRANSLATE_PROMPT
-      return state
+      state.settings.translateModelPrompt = TRANSLATE_PROMPT;
+      return state;
     } catch (error) {
-      return state
+      return state;
     }
   },
-  '45': (state: RootState) => {
-    state.settings.enableTopicNaming = true
-    return state
+  "45": (state: RootState) => {
+    state.settings.enableTopicNaming = true;
+    return state;
   },
-  '46': (state: RootState) => {
+  "46": (state: RootState) => {
     try {
       if (
         state.settings?.translateModelPrompt?.includes(
-          'If the target language is the same as the source language, do not translate'
+          "If the target language is the same as the source language, do not translate",
         )
       ) {
-        state.settings.translateModelPrompt = TRANSLATE_PROMPT
+        state.settings.translateModelPrompt = TRANSLATE_PROMPT;
       }
-      return state
+      return state;
     } catch (error) {
-      return state
+      return state;
     }
   },
-  '47': (state: RootState) => {
+  "47": (state: RootState) => {
     try {
       state.llm.providers.forEach((provider) => {
         provider.models.forEach((model) => {
-          model.group = getDefaultGroupName(model.id)
-        })
-      })
-      return state
+          model.group = getDefaultGroupName(model.id);
+        });
+      });
+      return state;
     } catch (error) {
-      return state
+      return state;
     }
   },
-  '48': (state: RootState) => {
+  "48": (state: RootState) => {
     try {
       if (state.shortcuts) {
         state.shortcuts.shortcuts.forEach((shortcut) => {
-          shortcut.system = shortcut.key !== 'new_topic'
-        })
+          shortcut.system = shortcut.key !== "new_topic";
+        });
         state.shortcuts.shortcuts.push({
-          key: 'toggle_show_assistants',
-          shortcut: [isMac ? 'Command' : 'Ctrl', '['],
+          key: "toggle_show_assistants",
+          shortcut: [isMac ? "Command" : "Ctrl", "["],
           editable: true,
           enabled: true,
-          system: false
-        })
+          system: false,
+        });
         state.shortcuts.shortcuts.push({
-          key: 'toggle_show_topics',
-          shortcut: [isMac ? 'Command' : 'Ctrl', ']'],
+          key: "toggle_show_topics",
+          shortcut: [isMac ? "Command" : "Ctrl", "]"],
           editable: true,
           enabled: true,
-          system: false
-        })
+          system: false,
+        });
       }
-      return state
+      return state;
     } catch (error) {
-      return state
+      return state;
     }
   },
-  '49': (state: RootState) => {
+  "49": (state: RootState) => {
     try {
-      state.settings.pasteLongTextThreshold = 1500
+      state.settings.pasteLongTextThreshold = 1500;
       if (state.shortcuts) {
         state.shortcuts.shortcuts = [
           ...state.shortcuts.shortcuts,
           {
-            key: 'copy_last_message',
-            shortcut: [isMac ? 'Command' : 'Ctrl', 'Shift', 'C'],
+            key: "copy_last_message",
+            shortcut: [isMac ? "Command" : "Ctrl", "Shift", "C"],
             editable: true,
             enabled: false,
-            system: false
-          }
-        ]
+            system: false,
+          },
+        ];
       }
-      return state
+      return state;
     } catch (error) {
-      return state
+      return state;
     }
   },
-  '50': (state: RootState) => {
+  "50": (state: RootState) => {
     try {
-      addProvider(state, 'jina')
-      return state
+      addProvider(state, "jina");
+      return state;
     } catch (error) {
-      return state
+      return state;
     }
   },
-  '51': (state: RootState) => {
-    state.settings.topicNamingPrompt = ''
-    return state
+  "51": (state: RootState) => {
+    state.settings.topicNamingPrompt = "";
+    return state;
   },
-  '54': (state: RootState) => {
+  "54": (state: RootState) => {
     try {
       if (state.shortcuts) {
         state.shortcuts.shortcuts.push({
-          key: 'search_message',
-          shortcut: [isMac ? 'Command' : 'Ctrl', 'F'],
+          key: "search_message",
+          shortcut: [isMac ? "Command" : "Ctrl", "F"],
           editable: true,
           enabled: true,
-          system: false
-        })
+          system: false,
+        });
       }
       state.settings.sidebarIcons = {
         visible: DEFAULT_SIDEBAR_ICONS,
-        disabled: []
-      }
-      return state
+        disabled: [],
+      };
+      return state;
     } catch (error) {
-      return state
+      return state;
     }
   },
-  '55': (state: RootState) => {
+  "55": (state: RootState) => {
     try {
       if (!state.settings.sidebarIcons) {
         state.settings.sidebarIcons = {
           visible: DEFAULT_SIDEBAR_ICONS,
-          disabled: []
-        }
+          disabled: [],
+        };
       }
-      return state
+      return state;
     } catch (error) {
-      return state
+      return state;
     }
   },
-  '57': (state: RootState) => {
+  "57": (state: RootState) => {
     try {
       if (state.shortcuts) {
         state.shortcuts.shortcuts.push({
-          key: 'mini_window',
-          shortcut: [isMac ? 'Command' : 'Ctrl', 'E'],
+          key: "mini_window",
+          shortcut: [isMac ? "Command" : "Ctrl", "E"],
           editable: true,
           enabled: false,
-          system: true
-        })
+          system: true,
+        });
       }
 
       state.llm.providers.forEach((provider) => {
-        if (provider.id === 'qwenlm') {
+        if (provider.id === "qwenlm") {
           // @ts-ignore eslint-disable-next-line
-          provider.type = 'qwenlm'
+          provider.type = "qwenlm";
         }
-      })
+      });
 
-      state.settings.enableQuickAssistant = false
-      state.settings.clickTrayToShowQuickAssistant = true
+      state.settings.enableQuickAssistant = false;
+      state.settings.clickTrayToShowQuickAssistant = true;
 
-      return state
+      return state;
     } catch (error) {
-      return state
+      return state;
     }
   },
-  '58': (state: RootState) => {
+  "58": (state: RootState) => {
     try {
       if (state.shortcuts) {
         state.shortcuts.shortcuts.push(
           {
-            key: 'clear_topic',
-            shortcut: [isMac ? 'Command' : 'Ctrl', 'L'],
+            key: "clear_topic",
+            shortcut: [isMac ? "Command" : "Ctrl", "L"],
             editable: true,
             enabled: true,
-            system: false
+            system: false,
           },
           {
-            key: 'toggle_new_context',
-            shortcut: [isMac ? 'Command' : 'Ctrl', 'R'],
+            key: "toggle_new_context",
+            shortcut: [isMac ? "Command" : "Ctrl", "R"],
             editable: true,
             enabled: true,
-            system: false
-          }
-        )
+            system: false,
+          },
+        );
       }
-      return state
+      return state;
     } catch (error) {
-      return state
+      return state;
     }
   },
-  '59': (state: RootState) => {
+  "59": (state: RootState) => {
     try {
-      addMiniApp(state, 'flowith')
-      return state
+      addMiniApp(state, "flowith");
+      return state;
     } catch (error) {
-      return state
+      return state;
     }
   },
-  '60': (state: RootState) => {
+  "60": (state: RootState) => {
     try {
-      state.settings.multiModelMessageStyle = 'fold'
-      return state
+      state.settings.multiModelMessageStyle = "fold";
+      return state;
     } catch (error) {
-      return state
+      return state;
     }
   },
-  '61': (state: RootState) => {
+  "61": (state: RootState) => {
     try {
       state.llm.providers.forEach((provider) => {
-        if (provider.id === 'qwenlm') {
+        if (provider.id === "qwenlm") {
           // @ts-ignore eslint-disable-next-line
-          provider.type = 'qwenlm'
+          provider.type = "qwenlm";
         }
-      })
-      return state
+      });
+      return state;
     } catch (error) {
-      return state
+      return state;
     }
   },
-  '62': (state: RootState) => {
+  "62": (state: RootState) => {
     try {
       state.llm.providers.forEach((provider) => {
-        if (provider.id === 'azure-openai') {
-          provider.type = 'azure-openai'
+        if (provider.id === "azure-openai") {
+          provider.type = "azure-openai";
         }
-      })
-      state.settings.translateModelPrompt = TRANSLATE_PROMPT
-      return state
+      });
+      state.settings.translateModelPrompt = TRANSLATE_PROMPT;
+      return state;
     } catch (error) {
-      return state
+      return state;
     }
   },
-  '63': (state: RootState) => {
+  "63": (state: RootState) => {
     try {
-      addMiniApp(state, '3mintop')
-      return state
+      addMiniApp(state, "3mintop");
+      return state;
     } catch (error) {
-      return state
+      return state;
     }
   },
-  '64': (state: RootState) => {
+  "64": (state: RootState) => {
     try {
-      state.llm.providers = state.llm.providers.filter((provider) => provider.id !== 'qwenlm')
-      addProvider(state, 'baidu-cloud')
-      return state
+      state.llm.providers = state.llm.providers.filter(
+        (provider) => provider.id !== "qwenlm",
+      );
+      addProvider(state, "baidu-cloud");
+      return state;
     } catch (error) {
-      return state
+      return state;
     }
   },
-  '65': (state: RootState) => {
+  "65": (state: RootState) => {
     try {
       // @ts-ignore expect error
-      state.settings.targetLanguage = 'english'
-      return state
+      state.settings.targetLanguage = "english";
+      return state;
     } catch (error) {
-      return state
+      return state;
     }
   },
-  '66': (state: RootState) => {
+  "66": (state: RootState) => {
     try {
-      addProvider(state, 'gitee-ai')
-      addProvider(state, 'ppio')
-      addMiniApp(state, 'aistudio')
-      state.llm.providers = state.llm.providers.filter((provider) => provider.id !== 'graphrag-kylin-mountain')
+      addProvider(state, "gitee-ai");
+      addProvider(state, "ppio");
+      addMiniApp(state, "aistudio");
+      state.llm.providers = state.llm.providers.filter(
+        (provider) => provider.id !== "graphrag-kylin-mountain",
+      );
 
-      return state
+      return state;
     } catch (error) {
-      return state
+      return state;
     }
   },
-  '67': (state: RootState) => {
+  "67": (state: RootState) => {
     try {
-      addMiniApp(state, 'xiaoyi')
-      addProvider(state, 'modelscope')
-      addProvider(state, 'lmstudio')
-      addProvider(state, 'perplexity')
-      addProvider(state, 'infini')
-      addProvider(state, 'dmxapi')
+      addMiniApp(state, "xiaoyi");
+      addProvider(state, "modelscope");
+      addProvider(state, "lmstudio");
+      addProvider(state, "perplexity");
+      addProvider(state, "infini");
+      addProvider(state, "dmxapi");
 
       state.llm.settings.lmstudio = {
-        keepAliveTime: 5
-      }
+        keepAliveTime: 5,
+      };
 
-      return state
+      return state;
     } catch (error) {
-      return state
+      return state;
     }
   },
-  '68': (state: RootState) => {
+  "68": (state: RootState) => {
     try {
-      addMiniApp(state, 'notebooklm')
-      addProvider(state, 'modelscope')
-      addProvider(state, 'lmstudio')
-      return state
+      addMiniApp(state, "notebooklm");
+      addProvider(state, "modelscope");
+      addProvider(state, "lmstudio");
+      return state;
     } catch (error) {
-      return state
+      return state;
     }
   },
-  '69': (state: RootState) => {
+  "69": (state: RootState) => {
     try {
-      addMiniApp(state, 'coze')
-      state.settings.gridColumns = 2
-      state.settings.gridPopoverTrigger = 'hover'
-      return state
+      addMiniApp(state, "coze");
+      state.settings.gridColumns = 2;
+      state.settings.gridPopoverTrigger = "hover";
+      return state;
     } catch (error) {
-      return state
+      return state;
     }
   },
-  '70': (state: RootState) => {
+  "70": (state: RootState) => {
     try {
       state.llm.providers.forEach((provider) => {
-        if (provider.id === 'dmxapi') {
-          provider.apiHost = 'https://www.dmxapi.cn'
+        if (provider.id === "dmxapi") {
+          provider.apiHost = "https://www.dmxapi.cn";
         }
-      })
-      return state
+      });
+      return state;
     } catch (error) {
-      return state
+      return state;
     }
   },
-  '71': (state: RootState) => {
+  "71": (state: RootState) => {
     try {
-      const appIds = ['dify', 'wpslingxi', 'lechat', 'abacus', 'lambdachat', 'baidu-ai-search']
+      const appIds = [
+        "dify",
+        "wpslingxi",
+        "lechat",
+        "abacus",
+        "lambdachat",
+        "baidu-ai-search",
+      ];
 
       if (state.minapps) {
         appIds.forEach((id) => {
-          const app = allMinApps.find((app) => app.id === id)
+          const app = allMinApps.find((app) => app.id === id);
           if (app) {
-            state.minapps.enabled.push(app)
+            state.minapps.enabled.push(app);
           }
-        })
+        });
         // remove zhihu-zhiada
-        state.minapps.enabled = state.minapps.enabled.filter((app) => app.id !== 'zhihu-zhiada')
-        state.minapps.disabled = state.minapps.disabled.filter((app) => app.id !== 'zhihu-zhiada')
+        state.minapps.enabled = state.minapps.enabled.filter(
+          (app) => app.id !== "zhihu-zhiada",
+        );
+        state.minapps.disabled = state.minapps.disabled.filter(
+          (app) => app.id !== "zhihu-zhiada",
+        );
       }
 
-      state.settings.thoughtAutoCollapse = true
+      state.settings.thoughtAutoCollapse = true;
 
-      return state
+      return state;
     } catch (error) {
-      return state
+      return state;
     }
   },
-  '72': (state: RootState) => {
+  "72": (state: RootState) => {
     try {
-      addMiniApp(state, 'monica')
+      addMiniApp(state, "monica");
 
       // remove duplicate lmstudio providers
       const emptyLmStudioProviderIndex = state.llm.providers.findLastIndex(
-        (provider) => provider.id === 'lmstudio' && provider.models.length === 0
-      )
+        (provider) =>
+          provider.id === "lmstudio" && provider.models.length === 0,
+      );
 
       if (emptyLmStudioProviderIndex !== -1) {
-        state.llm.providers.splice(emptyLmStudioProviderIndex, 1)
+        state.llm.providers.splice(emptyLmStudioProviderIndex, 1);
       }
 
-      return state
+      return state;
     } catch (error) {
-      return state
+      return state;
     }
   },
-  '73': (state: RootState) => {
+  "73": (state: RootState) => {
     try {
       if (state.websearch) {
-        state.websearch.searchWithTime = true
-        state.websearch.maxResults = 5
-        state.websearch.excludeDomains = []
+        state.websearch.searchWithTime = true;
+        state.websearch.maxResults = 5;
+        state.websearch.excludeDomains = [];
       }
 
-      addProvider(state, 'lmstudio')
-      addProvider(state, 'o3')
-      state.llm.providers = moveProvider(state.llm.providers, 'o3', 2)
+      addProvider(state, "lmstudio");
+      addProvider(state, "o3");
+      state.llm.providers = moveProvider(state.llm.providers, "o3", 2);
 
       state.assistants.assistants.forEach((assistant) => {
-        const leadingEmoji = getLeadingEmoji(assistant.name)
+        const leadingEmoji = getLeadingEmoji(assistant.name);
         if (leadingEmoji) {
-          assistant.emoji = leadingEmoji
-          assistant.name = assistant.name.replace(leadingEmoji, '').trim()
+          assistant.emoji = leadingEmoji;
+          assistant.name = assistant.name.replace(leadingEmoji, "").trim();
         }
-      })
+      });
 
       // @ts-ignore
       state.agents.agents.forEach((agent) => {
-        const leadingEmoji = getLeadingEmoji(agent.name)
+        const leadingEmoji = getLeadingEmoji(agent.name);
         if (leadingEmoji) {
-          agent.emoji = leadingEmoji
-          agent.name = agent.name.replace(leadingEmoji, '').trim()
+          agent.emoji = leadingEmoji;
+          agent.name = agent.name.replace(leadingEmoji, "").trim();
         }
-      })
+      });
 
-      const defaultAssistantEmoji = getLeadingEmoji(state.assistants.defaultAssistant.name)
+      const defaultAssistantEmoji = getLeadingEmoji(
+        state.assistants.defaultAssistant.name,
+      );
 
       if (defaultAssistantEmoji) {
-        state.assistants.defaultAssistant.emoji = defaultAssistantEmoji
-        state.assistants.defaultAssistant.name = state.assistants.defaultAssistant.name
-          .replace(defaultAssistantEmoji, '')
-          .trim()
+        state.assistants.defaultAssistant.emoji = defaultAssistantEmoji;
+        state.assistants.defaultAssistant.name =
+          state.assistants.defaultAssistant.name
+            .replace(defaultAssistantEmoji, "")
+            .trim();
       }
 
-      return state
+      return state;
     } catch (error) {
-      return state
+      return state;
     }
   },
-  '74': (state: RootState) => {
+  "74": (state: RootState) => {
     try {
-      addProvider(state, 'xirang')
-      return state
+      addProvider(state, "xirang");
+      return state;
     } catch (error) {
-      return state
+      return state;
     }
   },
-  '75': (state: RootState) => {
+  "75": (state: RootState) => {
     try {
-      addMiniApp(state, 'you')
-      addMiniApp(state, 'cici')
-      addMiniApp(state, 'zhihu')
-      return state
+      addMiniApp(state, "you");
+      addMiniApp(state, "cici");
+      addMiniApp(state, "zhihu");
+      return state;
     } catch (error) {
-      return state
+      return state;
     }
   },
-  '76': (state: RootState) => {
+  "76": (state: RootState) => {
     try {
-      addProvider(state, 'tencent-cloud-ti')
-      return state
+      addProvider(state, "tencent-cloud-ti");
+      return state;
     } catch (error) {
-      return state
+      return state;
     }
   },
-  '77': (state: RootState) => {
+  "77": (state: RootState) => {
     try {
-      addWebSearchProvider(state, 'searxng')
-      addWebSearchProvider(state, 'exa')
+      addWebSearchProvider(state, "searxng");
+      addWebSearchProvider(state, "exa");
       if (state.websearch) {
         state.websearch.providers.forEach((p) => {
           // @ts-ignore eslint-disable-next-line
-          delete p.enabled
-        })
+          delete p.enabled;
+        });
       }
-      return state
+      return state;
     } catch (error) {
-      return state
+      return state;
     }
   },
-  '78': (state: RootState) => {
+  "78": (state: RootState) => {
     try {
-      state.llm.providers = moveProvider(state.llm.providers, 'ppio', 9)
-      state.llm.providers = moveProvider(state.llm.providers, 'infini', 10)
-      removeMiniAppIconsFromState(state)
-      return state
+      state.llm.providers = moveProvider(state.llm.providers, "ppio", 9);
+      state.llm.providers = moveProvider(state.llm.providers, "infini", 10);
+      removeMiniAppIconsFromState(state);
+      return state;
     } catch (error) {
-      return state
+      return state;
     }
   },
-  '79': (state: RootState) => {
+  "79": (state: RootState) => {
     try {
-      addProvider(state, 'gpustack')
-      return state
+      addProvider(state, "gpustack");
+      return state;
     } catch (error) {
-      return state
+      return state;
     }
   },
-  '80': (state: RootState) => {
+  "80": (state: RootState) => {
     try {
-      addProvider(state, 'alayanew')
-      state.llm.providers = moveProvider(state.llm.providers, 'alayanew', 10)
-      return state
+      addProvider(state, "alayanew");
+      state.llm.providers = moveProvider(state.llm.providers, "alayanew", 10);
+      return state;
     } catch (error) {
-      return state
+      return state;
     }
   },
-  '81': (state: RootState) => {
+  "81": (state: RootState) => {
     try {
-      addProvider(state, 'copilot')
-      return state
+      addProvider(state, "copilot");
+      return state;
     } catch (error) {
-      return state
+      return state;
     }
   },
-  '82': (state: RootState) => {
+  "82": (state: RootState) => {
     try {
-      const runtimeState = state.runtime as any
+      const runtimeState = state.runtime as any;
       if (runtimeState?.webdavSync) {
-        state.backup = state.backup || {}
+        state.backup = state.backup || {};
         state.backup = {
           ...state.backup,
           webdavSync: {
             lastSyncTime: runtimeState.webdavSync.lastSyncTime || null,
             syncing: runtimeState.webdavSync.syncing || false,
-            lastSyncError: runtimeState.webdavSync.lastSyncError || null
-          }
-        }
-        delete runtimeState.webdavSync
+            lastSyncError: runtimeState.webdavSync.lastSyncError || null,
+          },
+        };
+        delete runtimeState.webdavSync;
       }
-      return state
+      return state;
     } catch (error) {
-      return state
+      return state;
     }
   },
-  '83': (state: RootState) => {
+  "83": (state: RootState) => {
     try {
-      state.settings.messageNavigation = 'buttons'
-      state.settings.launchOnBoot = false
-      state.settings.launchToTray = false
-      state.settings.trayOnClose = true
-      return state
+      state.settings.messageNavigation = "buttons";
+      state.settings.launchOnBoot = false;
+      state.settings.launchToTray = false;
+      state.settings.trayOnClose = true;
+      return state;
     } catch (error) {
-      logger.error('migrate 83 error', error as Error)
-      return state
+      logger.error("migrate 83 error", error as Error);
+      return state;
     }
   },
-  '84': (state: RootState) => {
+  "84": (state: RootState) => {
     try {
-      addProvider(state, 'voyageai')
-      return state
+      addProvider(state, "voyageai");
+      return state;
     } catch (error) {
-      logger.error('migrate 84 error', error as Error)
-      return state
+      logger.error("migrate 84 error", error as Error);
+      return state;
     }
   },
-  '85': (state: RootState) => {
+  "85": (state: RootState) => {
     try {
       // @ts-ignore eslint-disable-next-line
-      state.settings.autoCheckUpdate = !state.settings.manualUpdateCheck
+      state.settings.autoCheckUpdate = !state.settings.manualUpdateCheck;
       // @ts-ignore eslint-disable-next-line
-      delete state.settings.manualUpdateCheck
-      state.settings.gridPopoverTrigger = 'click'
-      return state
+      delete state.settings.manualUpdateCheck;
+      state.settings.gridPopoverTrigger = "click";
+      return state;
     } catch (error) {
-      return state
+      return state;
     }
   },
-  '86': (state: RootState) => {
+  "86": (state: RootState) => {
     try {
       if (state?.mcp?.servers) {
         state.mcp.servers = state.mcp.servers.map((server) => ({
           ...server,
-          id: nanoid()
-        }))
+          id: nanoid(),
+        }));
       }
     } catch (error) {
-      return state
+      return state;
     }
-    return state
+    return state;
   },
-  '87': (state: RootState) => {
+  "87": (state: RootState) => {
     try {
-      state.settings.maxKeepAliveMinapps = 3
-      state.settings.showOpenedMinappsInSidebar = true
-      return state
+      state.settings.maxKeepAliveMinapps = 3;
+      state.settings.showOpenedMinappsInSidebar = true;
+      return state;
     } catch (error) {
-      return state
+      return state;
     }
   },
-  '88': (state: RootState) => {
+  "88": (state: RootState) => {
     try {
       if (state?.mcp?.servers) {
-        const hasAutoInstall = state.mcp.servers.some((server) => server.name === '@cherry/mcp-auto-install')
+        const hasAutoInstall = state.mcp.servers.some(
+          (server) => server.name === "@cherry/mcp-auto-install",
+        );
         if (!hasAutoInstall) {
-          const defaultServer = mcpSlice.getInitialState().servers[0]
-          state.mcp.servers = [{ ...defaultServer, id: nanoid() }, ...state.mcp.servers]
+          const defaultServer = mcpSlice.getInitialState().servers[0];
+          state.mcp.servers = [
+            { ...defaultServer, id: nanoid() },
+            ...state.mcp.servers,
+          ];
         }
       }
-      return state
+      return state;
     } catch (error) {
-      return state
+      return state;
     }
   },
-  '89': (state: RootState) => {
+  "89": (state: RootState) => {
     try {
-      removeMiniAppFromState(state, 'aistudio')
-      return state
+      removeMiniAppFromState(state, "aistudio");
+      return state;
     } catch (error) {
-      return state
+      return state;
     }
   },
-  '90': (state: RootState) => {
+  "90": (state: RootState) => {
     try {
-      state.settings.enableDataCollection = true
-      return state
+      state.settings.enableDataCollection = true;
+      return state;
     } catch (error) {
-      return state
+      return state;
     }
   },
-  '91': (state: RootState) => {
+  "91": (state: RootState) => {
     try {
       // @ts-ignore eslint-disable-next-line
-      state.settings.codeCacheable = false
+      state.settings.codeCacheable = false;
       // @ts-ignore eslint-disable-next-line
-      state.settings.codeCacheMaxSize = 1000
+      state.settings.codeCacheMaxSize = 1000;
       // @ts-ignore eslint-disable-next-line
-      state.settings.codeCacheTTL = 15
+      state.settings.codeCacheTTL = 15;
       // @ts-ignore eslint-disable-next-line
-      state.settings.codeCacheThreshold = 2
-      addProvider(state, 'qiniu')
-      return state
+      state.settings.codeCacheThreshold = 2;
+      addProvider(state, "qiniu");
+      return state;
     } catch (error) {
-      return state
+      return state;
     }
   },
-  '92': (state: RootState) => {
+  "92": (state: RootState) => {
     try {
-      addMiniApp(state, 'dangbei')
-      state.llm.providers = moveProvider(state.llm.providers, 'qiniu', 12)
-      return state
+      addMiniApp(state, "dangbei");
+      state.llm.providers = moveProvider(state.llm.providers, "qiniu", 12);
+      return state;
     } catch (error) {
-      return state
+      return state;
     }
   },
-  '93': (state: RootState) => {
+  "93": (state: RootState) => {
     try {
       if (!state?.settings?.exportMenuOptions) {
-        state.settings.exportMenuOptions = settingsInitialState.exportMenuOptions
-        return state
+        state.settings.exportMenuOptions =
+          settingsInitialState.exportMenuOptions;
+        return state;
       }
-      return state
+      return state;
     } catch (error) {
-      return state
+      return state;
     }
   },
-  '94': (state: RootState) => {
+  "94": (state: RootState) => {
     try {
-      state.settings.enableQuickPanelTriggers = false
-      return state
+      state.settings.enableQuickPanelTriggers = false;
+      return state;
     } catch (error) {
-      return state
+      return state;
     }
   },
-  '95': (state: RootState) => {
+  "95": (state: RootState) => {
     try {
-      addWebSearchProvider(state, 'local-google')
-      addWebSearchProvider(state, 'local-bing')
-      addWebSearchProvider(state, 'local-baidu')
+      addWebSearchProvider(state, "local-google");
+      addWebSearchProvider(state, "local-bing");
+      addWebSearchProvider(state, "local-baidu");
 
       if (state.websearch) {
         if (isEmpty(state.websearch.subscribeSources)) {
-          state.websearch.subscribeSources = []
+          state.websearch.subscribeSources = [];
         }
       }
 
-      const qiniuProvider = state.llm.providers.find((provider) => provider.id === 'qiniu')
+      const qiniuProvider = state.llm.providers.find(
+        (provider) => provider.id === "qiniu",
+      );
       if (qiniuProvider && isEmpty(qiniuProvider.models)) {
-        qiniuProvider.models = SYSTEM_MODELS.qiniu
+        qiniuProvider.models = SYSTEM_MODELS.qiniu;
       }
-      return state
+      return state;
     } catch (error) {
-      return state
+      return state;
     }
   },
-  '96': (state: RootState) => {
+  "96": (state: RootState) => {
     try {
       // @ts-ignore eslint-disable-next-line
-      state.settings.assistantIconType = state.settings?.showAssistantIcon ? 'model' : 'emoji'
+      state.settings.assistantIconType = state.settings?.showAssistantIcon
+        ? "model"
+        : "emoji";
       // @ts-ignore eslint-disable-next-line
-      delete state.settings.showAssistantIcon
-      return state
+      delete state.settings.showAssistantIcon;
+      return state;
     } catch (error) {
-      return state
+      return state;
     }
   },
-  '97': (state: RootState) => {
+  "97": (state: RootState) => {
     try {
-      addMiniApp(state, 'zai')
-      state.settings.webdavMaxBackups = 0
+      addMiniApp(state, "zai");
+      state.settings.webdavMaxBackups = 0;
       if (state.websearch && state.websearch.providers) {
         state.websearch.providers.forEach((provider) => {
-          provider.basicAuthUsername = ''
-          provider.basicAuthPassword = ''
-        })
+          provider.basicAuthUsername = "";
+          provider.basicAuthPassword = "";
+        });
       }
-      return state
+      return state;
     } catch (error) {
-      return state
+      return state;
     }
   },
-  '98': (state: RootState) => {
+  "98": (state: RootState) => {
     try {
       state.llm.providers.forEach((provider) => {
-        if (provider.type === 'openai' && provider.id !== 'openai') {
+        if (provider.type === "openai" && provider.id !== "openai") {
           // @ts-ignore eslint-disable-next-line
-          provider.type = 'openai-compatible'
+          provider.type = "openai-compatible";
         }
-      })
-      return state
+      });
+      return state;
     } catch (error) {
-      return state
+      return state;
     }
   },
-  '99': (state: RootState) => {
+  "99": (state: RootState) => {
     try {
-      state.settings.showPrompt = true
+      state.settings.showPrompt = true;
 
-      addWebSearchProvider(state, 'bocha')
-
-      updateWebSearchProvider(state, {
-        id: 'exa',
-        apiHost: 'https://api.exa.ai'
-      })
+      addWebSearchProvider(state, "bocha");
 
       updateWebSearchProvider(state, {
-        id: 'tavily',
-        apiHost: 'https://api.tavily.com'
-      })
+        id: "exa",
+        apiHost: "https://api.exa.ai",
+      });
+
+      updateWebSearchProvider(state, {
+        id: "tavily",
+        apiHost: "https://api.tavily.com",
+      });
 
       // Remove basic auth fields from exa and tavily
       if (state.websearch?.providers) {
-        state.websearch.providers = state.websearch.providers.map((provider) => {
-          if (provider.id === 'exa' || provider.id === 'tavily') {
-            // oxlint-disable-next-line @typescript-eslint/no-unused-vars
-            const { basicAuthUsername, basicAuthPassword, ...rest } = provider
-            return rest
-          }
-          return provider
-        })
+        state.websearch.providers = state.websearch.providers.map(
+          (provider) => {
+            if (provider.id === "exa" || provider.id === "tavily") {
+              // oxlint-disable-next-line @typescript-eslint/no-unused-vars
+              const { basicAuthUsername, basicAuthPassword, ...rest } =
+                provider;
+              return rest;
+            }
+            return provider;
+          },
+        );
       }
-      return state
+      return state;
     } catch (error) {
-      return state
+      return state;
     }
   },
-  '100': (state: RootState) => {
+  "100": (state: RootState) => {
     try {
       state.llm.providers.forEach((provider) => {
         // @ts-ignore eslint-disable-next-line
-        if (['openai-compatible', 'openai'].includes(provider.type)) {
-          provider.type = 'openai'
+        if (["openai-compatible", "openai"].includes(provider.type)) {
+          provider.type = "openai";
         }
-        if (provider.id === 'openai') {
-          provider.type = 'openai-response'
+        if (provider.id === "openai") {
+          provider.type = "openai-response";
         }
-      })
+      });
       state.assistants.assistants.forEach((assistant) => {
-        assistant.knowledgeRecognition = 'off'
-      })
-      return state
+        assistant.knowledgeRecognition = "off";
+      });
+      return state;
     } catch (error) {
-      logger.error('migrate 100 error', error as Error)
-      return state
+      logger.error("migrate 100 error", error as Error);
+      return state;
     }
   },
-  '101': (state: RootState) => {
+  "101": (state: RootState) => {
     try {
       state.assistants.assistants.forEach((assistant) => {
         if (assistant.settings) {
           // @ts-ignore eslint-disable-next-line
           if (assistant.settings.enableToolUse) {
             // @ts-ignore eslint-disable-next-line
-            assistant.settings.toolUseMode = assistant.settings.enableToolUse ? 'function' : 'prompt'
+            assistant.settings.toolUseMode = assistant.settings.enableToolUse
+              ? "function"
+              : "prompt";
             // @ts-ignore eslint-disable-next-line
-            delete assistant.settings.enableToolUse
+            delete assistant.settings.enableToolUse;
           }
         }
-      })
+      });
       if (state.shortcuts) {
         state.shortcuts.shortcuts.push({
-          key: 'exit_fullscreen',
-          shortcut: ['Escape'],
+          key: "exit_fullscreen",
+          shortcut: ["Escape"],
           editable: false,
           enabled: true,
-          system: true
-        })
+          system: true,
+        });
       }
-      return state
+      return state;
     } catch (error) {
-      logger.error('migrate 101 error', error as Error)
-      return state
+      logger.error("migrate 101 error", error as Error);
+      return state;
     }
   },
-  '102': (state: RootState) => {
+  "102": (state: RootState) => {
     try {
       state.settings.openAI = {
         // @ts-expect-error it's a removed type. migrated on 177
-        summaryText: 'off',
-        serviceTier: 'auto',
-        verbosity: 'medium'
-      }
+        summaryText: "off",
+        serviceTier: "auto",
+        verbosity: "medium",
+      };
 
       state.settings.codeExecution = {
         enabled: false,
-        timeoutMinutes: 1
-      }
+        timeoutMinutes: 1,
+      };
       state.settings.codeEditor = {
         enabled: false,
-        themeLight: 'auto',
-        themeDark: 'auto',
+        themeLight: "auto",
+        themeDark: "auto",
         highlightActiveLine: false,
         foldGutter: false,
         autocompletion: true,
-        keymap: false
-      }
+        keymap: false,
+      };
       // @ts-ignore eslint-disable-next-line
       state.settings.codePreview = {
-        themeLight: 'auto',
-        themeDark: 'auto'
-      }
+        themeLight: "auto",
+        themeDark: "auto",
+      };
 
       // @ts-ignore eslint-disable-next-line
       if (state.settings.codeStyle) {
         // @ts-ignore eslint-disable-next-line
-        state.settings.codePreview.themeLight = state.settings.codeStyle
+        state.settings.codePreview.themeLight = state.settings.codeStyle;
         // @ts-ignore eslint-disable-next-line
-        state.settings.codePreview.themeDark = state.settings.codeStyle
+        state.settings.codePreview.themeDark = state.settings.codeStyle;
       }
 
       // @ts-ignore eslint-disable-next-line
-      delete state.settings.codeStyle
+      delete state.settings.codeStyle;
       // @ts-ignore eslint-disable-next-line
-      delete state.settings.codeCacheable
+      delete state.settings.codeCacheable;
       // @ts-ignore eslint-disable-next-line
-      delete state.settings.codeCacheMaxSize
+      delete state.settings.codeCacheMaxSize;
       // @ts-ignore eslint-disable-next-line
-      delete state.settings.codeCacheTTL
+      delete state.settings.codeCacheTTL;
       // @ts-ignore eslint-disable-next-line
-      delete state.settings.codeCacheThreshold
-      return state
+      delete state.settings.codeCacheThreshold;
+      return state;
     } catch (error) {
-      logger.error('migrate 102 error', error as Error)
-      return state
+      logger.error("migrate 102 error", error as Error);
+      return state;
     }
   },
-  '103': (state: RootState) => {
+  "103": (state: RootState) => {
     try {
       if (state.shortcuts) {
-        if (!state.shortcuts.shortcuts.find((shortcut) => shortcut.key === 'search_message_in_chat')) {
+        if (
+          !state.shortcuts.shortcuts.find(
+            (shortcut) => shortcut.key === "search_message_in_chat",
+          )
+        ) {
           state.shortcuts.shortcuts.push({
-            key: 'search_message_in_chat',
-            shortcut: [isMac ? 'Command' : 'Ctrl', 'F'],
+            key: "search_message_in_chat",
+            shortcut: [isMac ? "Command" : "Ctrl", "F"],
             editable: true,
             enabled: true,
-            system: false
-          })
+            system: false,
+          });
         }
-        const searchMessageShortcut = state.shortcuts.shortcuts.find((shortcut) => shortcut.key === 'search_message')
-        const targetShortcut = [isMac ? 'Command' : 'Ctrl', 'F']
+        const searchMessageShortcut = state.shortcuts.shortcuts.find(
+          (shortcut) => shortcut.key === "search_message",
+        );
+        const targetShortcut = [isMac ? "Command" : "Ctrl", "F"];
         if (
           searchMessageShortcut &&
           Array.isArray(searchMessageShortcut.shortcut) &&
           searchMessageShortcut.shortcut.length === targetShortcut.length &&
-          searchMessageShortcut.shortcut.every((v, i) => v === targetShortcut[i])
+          searchMessageShortcut.shortcut.every(
+            (v, i) => v === targetShortcut[i],
+          )
         ) {
-          searchMessageShortcut.shortcut = [isMac ? 'Command' : 'Ctrl', 'Shift', 'F']
+          searchMessageShortcut.shortcut = [
+            isMac ? "Command" : "Ctrl",
+            "Shift",
+            "F",
+          ];
         }
       }
-      return state
+      return state;
     } catch (error) {
-      logger.error('migrate 103 error', error as Error)
-      return state
+      logger.error("migrate 103 error", error as Error);
+      return state;
     }
   },
-  '104': (state: RootState) => {
+  "104": (state: RootState) => {
     try {
-      addProvider(state, 'burncloud')
-      state.llm.providers = moveProvider(state.llm.providers, 'burncloud', 10)
-      return state
+      addProvider(state, "burncloud");
+      state.llm.providers = moveProvider(state.llm.providers, "burncloud", 10);
+      return state;
     } catch (error) {
-      logger.error('migrate 104 error', error as Error)
-      return state
+      logger.error("migrate 104 error", error as Error);
+      return state;
     }
   },
-  '105': (state: RootState) => {
+  "105": (state: RootState) => {
     try {
-      state.settings.notification = settingsInitialState.notification
-      addMiniApp(state, 'google')
+      state.settings.notification = settingsInitialState.notification;
+      addMiniApp(state, "google");
       if (!state.settings.openAI) {
         state.settings.openAI = {
           // @ts-expect-error it's a removed type. migrated on 177
-          summaryText: 'off',
-          serviceTier: 'auto',
-          verbosity: 'medium'
-        }
+          summaryText: "off",
+          serviceTier: "auto",
+          verbosity: "medium",
+        };
       }
-      return state
+      return state;
     } catch (error) {
-      logger.error('migrate 105 error', error as Error)
-      return state
+      logger.error("migrate 105 error", error as Error);
+      return state;
     }
   },
-  '106': (state: RootState) => {
+  "106": (state: RootState) => {
     try {
-      addProvider(state, 'tokenflux')
-      state.llm.providers = moveProvider(state.llm.providers, 'tokenflux', 15)
-      return state
+      addProvider(state, "tokenflux");
+      state.llm.providers = moveProvider(state.llm.providers, "tokenflux", 15);
+      return state;
     } catch (error) {
-      logger.error('migrate 106 error', error as Error)
-      return state
+      logger.error("migrate 106 error", error as Error);
+      return state;
     }
   },
-  '107': (state: RootState) => {
+  "107": (state: RootState) => {
     try {
       if (state.paintings && !state.paintings.dmxapi_paintings) {
-        state.paintings.dmxapi_paintings = []
+        state.paintings.dmxapi_paintings = [];
       }
-      return state
+      return state;
     } catch (error) {
-      logger.error('migrate 107 error', error as Error)
-      return state
+      logger.error("migrate 107 error", error as Error);
+      return state;
     }
   },
-  '108': (state: RootState) => {
+  "108": (state: RootState) => {
     try {
       // @ts-ignore
-      state.inputTools.toolOrder = DEFAULT_TOOL_ORDER
-      state.inputTools.isCollapsed = false
-      return state
+      state.inputTools.toolOrder = DEFAULT_TOOL_ORDER;
+      state.inputTools.isCollapsed = false;
+      return state;
     } catch (error) {
-      logger.error('migrate 108 error', error as Error)
-      return state
+      logger.error("migrate 108 error", error as Error);
+      return state;
     }
   },
-  '109': (state: RootState) => {
+  "109": (state: RootState) => {
     try {
-      state.settings.userTheme = settingsInitialState.userTheme
-      return state
+      state.settings.userTheme = settingsInitialState.userTheme;
+      return state;
     } catch (error) {
-      logger.error('migrate 109 error', error as Error)
-      return state
+      logger.error("migrate 109 error", error as Error);
+      return state;
     }
   },
-  '110': (state: RootState) => {
+  "110": (state: RootState) => {
     try {
       if (state.paintings && !state.paintings.tokenflux_paintings) {
-        state.paintings.tokenflux_paintings = []
+        state.paintings.tokenflux_paintings = [];
       }
-      state.settings.testPlan = false
-      return state
+      state.settings.testPlan = false;
+      return state;
     } catch (error) {
-      logger.error('migrate 110 error', error as Error)
-      return state
+      logger.error("migrate 110 error", error as Error);
+      return state;
     }
   },
-  '111': (state: RootState) => {
+  "111": (state: RootState) => {
     try {
-      addSelectionAction(state, 'quote')
+      addSelectionAction(state, "quote");
       if (
-        state.llm.translateModel.provider === 'silicon' &&
-        state.llm.translateModel.id === 'meta-llama/Llama-3.3-70B-Instruct'
+        state.llm.translateModel.provider === "silicon" &&
+        state.llm.translateModel.id === "meta-llama/Llama-3.3-70B-Instruct"
       ) {
-        state.llm.translateModel = SYSTEM_MODELS.defaultModel[2]
+        state.llm.translateModel = SYSTEM_MODELS.defaultModel[2];
       }
 
       // add selection_assistant_toggle and selection_assistant_select_text shortcuts after mini_window
-      addShortcuts(state, ['selection_assistant_toggle', 'selection_assistant_select_text'], 'mini_window')
+      addShortcuts(
+        state,
+        ["selection_assistant_toggle", "selection_assistant_select_text"],
+        "mini_window",
+      );
 
-      return state
+      return state;
     } catch (error) {
-      logger.error('migrate 111 error', error as Error)
-      return state
+      logger.error("migrate 111 error", error as Error);
+      return state;
     }
   },
-  '112': (state: RootState) => {
+  "112": (state: RootState) => {
     try {
-      addProvider(state, 'cephalon')
-      addProvider(state, '302ai')
-      addProvider(state, 'lanyun')
-      state.llm.providers = moveProvider(state.llm.providers, 'cephalon', 13)
-      state.llm.providers = moveProvider(state.llm.providers, '302ai', 14)
-      state.llm.providers = moveProvider(state.llm.providers, 'lanyun', 15)
-      return state
+      addProvider(state, "cephalon");
+      addProvider(state, "302ai");
+      addProvider(state, "lanyun");
+      state.llm.providers = moveProvider(state.llm.providers, "cephalon", 13);
+      state.llm.providers = moveProvider(state.llm.providers, "302ai", 14);
+      state.llm.providers = moveProvider(state.llm.providers, "lanyun", 15);
+      return state;
     } catch (error) {
-      logger.error('migrate 112 error', error as Error)
-      return state
+      logger.error("migrate 112 error", error as Error);
+      return state;
     }
   },
-  '113': (state: RootState) => {
+  "113": (state: RootState) => {
     try {
-      addProvider(state, 'vertexai')
+      addProvider(state, "vertexai");
       if (!state.llm.settings.vertexai) {
-        state.llm.settings.vertexai = llmInitialState.settings.vertexai
+        state.llm.settings.vertexai = llmInitialState.settings.vertexai;
       }
-      updateProvider(state, 'gemini', {
-        isVertex: false
-      })
-      updateProvider(state, 'vertexai', {
-        isVertex: true
-      })
-      return state
+      updateProvider(state, "gemini", {
+        isVertex: false,
+      });
+      updateProvider(state, "vertexai", {
+        isVertex: true,
+      });
+      return state;
     } catch (error) {
-      logger.error('migrate 113 error', error as Error)
-      return state
+      logger.error("migrate 113 error", error as Error);
+      return state;
     }
   },
-  '114': (state: RootState) => {
+  "114": (state: RootState) => {
     try {
       if (state.settings && state.settings.exportMenuOptions) {
-        if (typeof state.settings.exportMenuOptions.plain_text === 'undefined') {
-          state.settings.exportMenuOptions.plain_text = true
+        if (
+          typeof state.settings.exportMenuOptions.plain_text === "undefined"
+        ) {
+          state.settings.exportMenuOptions.plain_text = true;
         }
       }
       if (state.settings) {
-        state.settings.enableSpellCheck = false
-        state.settings.spellCheckLanguages = []
+        state.settings.enableSpellCheck = false;
+        state.settings.spellCheckLanguages = [];
       }
-      return state
+      return state;
     } catch (error) {
-      logger.error('migrate 114 error', error as Error)
-      return state
+      logger.error("migrate 114 error", error as Error);
+      return state;
     }
   },
-  '115': (state: RootState) => {
+  "115": (state: RootState) => {
     try {
       state.assistants.assistants.forEach((assistant) => {
         if (!assistant.settings) {
@@ -1752,299 +1849,322 @@ const migrateConfig = {
             temperature: DEFAULT_TEMPERATURE,
             contextCount: DEFAULT_CONTEXTCOUNT,
             topP: 1,
-            toolUseMode: 'prompt',
+            toolUseMode: "prompt",
             customParameters: [],
             streamOutput: true,
-            enableMaxTokens: false
-          }
+            enableMaxTokens: false,
+          };
         }
-      })
-      return state
+      });
+      return state;
     } catch (error) {
-      logger.error('migrate 115 error', error as Error)
-      return state
+      logger.error("migrate 115 error", error as Error);
+      return state;
     }
   },
-  '116': (state: RootState) => {
+  "116": (state: RootState) => {
     try {
       if (state.websearch) {
         // migrate contentLimit to cutoffLimit
         // @ts-ignore eslint-disable-next-line
         if (state.websearch.contentLimit) {
           state.websearch.compressionConfig = {
-            method: 'cutoff',
-            cutoffUnit: 'char',
+            method: "cutoff",
+            cutoffUnit: "char",
             // @ts-ignore eslint-disable-next-line
-            cutoffLimit: state.websearch.contentLimit
-          }
+            cutoffLimit: state.websearch.contentLimit,
+          };
         } else {
           state.websearch.compressionConfig = {
-            method: 'none',
-            cutoffUnit: 'char'
-          }
+            method: "none",
+            cutoffUnit: "char",
+          };
         }
 
         // @ts-ignore eslint-disable-next-line
-        delete state.websearch.contentLimit
+        delete state.websearch.contentLimit;
       }
       if (state.settings) {
-        state.settings.testChannel = UpgradeChannel.LATEST
+        state.settings.testChannel = UpgradeChannel.LATEST;
       }
 
-      return state
+      return state;
     } catch (error) {
-      logger.error('migrate 116 error', error as Error)
-      return state
+      logger.error("migrate 116 error", error as Error);
+      return state;
     }
   },
-  '117': (state: RootState) => {
+  "117": (state: RootState) => {
     try {
-      const ppioProvider = state.llm.providers.find((provider) => provider.id === 'ppio')
+      const ppioProvider = state.llm.providers.find(
+        (provider) => provider.id === "ppio",
+      );
       const modelsToRemove = [
-        'qwen/qwen-2.5-72b-instruct',
-        'qwen/qwen2.5-32b-instruct',
-        'meta-llama/llama-3.1-70b-instruct',
-        'meta-llama/llama-3.1-8b-instruct',
-        '01-ai/yi-1.5-34b-chat',
-        '01-ai/yi-1.5-9b-chat',
-        'thudm/glm-z1-32b-0414',
-        'thudm/glm-z1-9b-0414'
-      ]
+        "qwen/qwen-2.5-72b-instruct",
+        "qwen/qwen2.5-32b-instruct",
+        "meta-llama/llama-3.1-70b-instruct",
+        "meta-llama/llama-3.1-8b-instruct",
+        "01-ai/yi-1.5-34b-chat",
+        "01-ai/yi-1.5-9b-chat",
+        "thudm/glm-z1-32b-0414",
+        "thudm/glm-z1-9b-0414",
+      ];
       if (ppioProvider) {
-        updateProvider(state, 'ppio', {
+        updateProvider(state, "ppio", {
           models: [
-            ...ppioProvider.models.filter((model) => !modelsToRemove.includes(model.id)),
+            ...ppioProvider.models.filter(
+              (model) => !modelsToRemove.includes(model.id),
+            ),
             ...SYSTEM_MODELS.ppio.filter(
-              (systemModel) => !ppioProvider.models.some((existingModel) => existingModel.id === systemModel.id)
-            )
+              (systemModel) =>
+                !ppioProvider.models.some(
+                  (existingModel) => existingModel.id === systemModel.id,
+                ),
+            ),
           ],
-          apiHost: 'https://api.ppinfra.com/v3/openai/'
-        })
+          apiHost: "https://api.ppinfra.com/v3/openai/",
+        });
       }
       state.assistants.assistants.forEach((assistant) => {
-        if (assistant.settings && assistant.settings.streamOutput === undefined) {
+        if (
+          assistant.settings &&
+          assistant.settings.streamOutput === undefined
+        ) {
           assistant.settings = {
             ...assistant.settings,
-            streamOutput: true
-          }
+            streamOutput: true,
+          };
         }
-      })
-      return state
+      });
+      return state;
     } catch (error) {
-      logger.error('migrate 117 error', error as Error)
-      return state
+      logger.error("migrate 117 error", error as Error);
+      return state;
     }
   },
-  '118': (state: RootState) => {
+  "118": (state: RootState) => {
     try {
-      addProvider(state, 'ph8')
-      state.llm.providers = moveProvider(state.llm.providers, 'ph8', 14)
+      addProvider(state, "ph8");
+      state.llm.providers = moveProvider(state.llm.providers, "ph8", 14);
 
       if (!state.settings.userId) {
-        state.settings.userId = uuid()
+        state.settings.userId = uuid();
       }
 
       state.llm.providers.forEach((provider) => {
-        if (provider.id === 'mistral') {
-          provider.type = 'mistral'
+        if (provider.id === "mistral") {
+          provider.type = "mistral";
         }
-      })
+      });
 
-      return state
+      return state;
     } catch (error) {
-      logger.error('migrate 118 error', error as Error)
-      return state
+      logger.error("migrate 118 error", error as Error);
+      return state;
     }
   },
-  '119': (state: RootState) => {
+  "119": (state: RootState) => {
     try {
-      addProvider(state, 'new-api')
-      state.llm.providers = moveProvider(state.llm.providers, 'new-api', 16)
-      state.settings.disableHardwareAcceleration = false
+      addProvider(state, "new-api");
+      state.llm.providers = moveProvider(state.llm.providers, "new-api", 16);
+      state.settings.disableHardwareAcceleration = false;
       // migrate to enable memory feature on sidebar
       if (state.settings && state.settings.sidebarIcons) {
         // Check if 'memory' is not already in visible icons
-        if (!state.settings.sidebarIcons.visible.includes('memory' as any)) {
-          state.settings.sidebarIcons.visible = [...state.settings.sidebarIcons.visible, 'memory' as any]
+        if (!state.settings.sidebarIcons.visible.includes("memory" as any)) {
+          state.settings.sidebarIcons.visible = [
+            ...state.settings.sidebarIcons.visible,
+            "memory" as any,
+          ];
         }
       }
-      return state
+      return state;
     } catch (error) {
-      logger.error('migrate 119 error', error as Error)
-      return state
+      logger.error("migrate 119 error", error as Error);
+      return state;
     }
   },
-  '120': (state: RootState) => {
+  "120": (state: RootState) => {
     try {
       // migrate to remove memory feature from sidebar (moved to settings)
       if (state.settings && state.settings.sidebarIcons) {
         // Remove 'memory' from visible icons if present
-        state.settings.sidebarIcons.visible = state.settings.sidebarIcons.visible.filter(
-          (icon) => icon !== ('memory' as any)
-        )
+        state.settings.sidebarIcons.visible =
+          state.settings.sidebarIcons.visible.filter(
+            (icon) => icon !== ("memory" as any),
+          );
         // Remove 'memory' from disabled icons if present
-        state.settings.sidebarIcons.disabled = state.settings.sidebarIcons.disabled.filter(
-          (icon) => icon !== ('memory' as any)
-        )
+        state.settings.sidebarIcons.disabled =
+          state.settings.sidebarIcons.disabled.filter(
+            (icon) => icon !== ("memory" as any),
+          );
       }
 
       if (!state.settings.s3) {
-        state.settings.s3 = settingsInitialState.s3
+        state.settings.s3 = settingsInitialState.s3;
       }
 
       const langMap: Record<string, TranslateLanguageCode> = {
-        english: 'en-us',
-        chinese: 'zh-cn',
-        'chinese-traditional': 'zh-tw',
-        japanese: 'ja-jp',
-        russian: 'ru-ru'
-      }
+        english: "en-us",
+        chinese: "zh-cn",
+        "chinese-traditional": "zh-tw",
+        japanese: "ja-jp",
+        russian: "ru-ru",
+      };
 
-      const origin = state.settings.targetLanguage
-      const newLang = langMap[origin]
-      if (newLang) state.settings.targetLanguage = newLang
-      else state.settings.targetLanguage = 'en-us'
+      const origin = state.settings.targetLanguage;
+      const newLang = langMap[origin];
+      if (newLang) state.settings.targetLanguage = newLang;
+      else state.settings.targetLanguage = "en-us";
 
       state.llm.providers.forEach((provider) => {
-        if (provider.id === 'azure-openai') {
-          provider.type = 'azure-openai'
+        if (provider.id === "azure-openai") {
+          provider.type = "azure-openai";
         }
-      })
+      });
 
-      state.settings.localBackupMaxBackups = 0
-      state.settings.localBackupSkipBackupFile = false
-      state.settings.localBackupDir = ''
-      state.settings.localBackupAutoSync = false
-      state.settings.localBackupSyncInterval = 0
-      return state
+      state.settings.localBackupMaxBackups = 0;
+      state.settings.localBackupSkipBackupFile = false;
+      state.settings.localBackupDir = "";
+      state.settings.localBackupAutoSync = false;
+      state.settings.localBackupSyncInterval = 0;
+      return state;
     } catch (error) {
-      logger.error('migrate 120 error', error as Error)
-      return state
+      logger.error("migrate 120 error", error as Error);
+      return state;
     }
   },
-  '121': (state: RootState) => {
+  "121": (state: RootState) => {
     try {
-      const { toolOrder } = state.inputTools
-      const urlContextKey = 'url_context'
+      const { toolOrder } = state.inputTools;
+      const urlContextKey = "url_context";
       // @ts-ignore
       if (!toolOrder.visible.includes(urlContextKey)) {
         // @ts-ignore
-        const webSearchIndex = toolOrder.visible.indexOf('web_search')
+        const webSearchIndex = toolOrder.visible.indexOf("web_search");
         // @ts-ignore
-        const knowledgeBaseIndex = toolOrder.visible.indexOf('knowledge_base')
+        const knowledgeBaseIndex = toolOrder.visible.indexOf("knowledge_base");
         if (webSearchIndex !== -1) {
           // @ts-ignore
-          toolOrder.visible.splice(webSearchIndex, 0, urlContextKey)
+          toolOrder.visible.splice(webSearchIndex, 0, urlContextKey);
         } else if (knowledgeBaseIndex !== -1) {
           // @ts-ignore
-          toolOrder.visible.splice(knowledgeBaseIndex, 0, urlContextKey)
+          toolOrder.visible.splice(knowledgeBaseIndex, 0, urlContextKey);
         } else {
           // @ts-ignore
-          toolOrder.visible.push(urlContextKey)
+          toolOrder.visible.push(urlContextKey);
         }
       }
 
       for (const assistant of state.assistants.assistants) {
-        if (assistant.settings?.toolUseMode === 'prompt' && isFunctionCallingModel(assistant.model)) {
-          assistant.settings.toolUseMode = 'function'
+        if (
+          assistant.settings?.toolUseMode === "prompt" &&
+          isFunctionCallingModel(assistant.model)
+        ) {
+          assistant.settings.toolUseMode = "function";
         }
       }
 
-      if (state.settings && typeof state.settings.webdavDisableStream === 'undefined') {
-        state.settings.webdavDisableStream = false
+      if (
+        state.settings &&
+        typeof state.settings.webdavDisableStream === "undefined"
+      ) {
+        state.settings.webdavDisableStream = false;
       }
 
-      return state
+      return state;
     } catch (error) {
-      logger.error('migrate 121 error', error as Error)
-      return state
+      logger.error("migrate 121 error", error as Error);
+      return state;
     }
   },
-  '122': (state: RootState) => {
+  "122": (state: RootState) => {
     try {
-      state.settings.navbarPosition = 'left'
-      return state
+      state.settings.navbarPosition = "left";
+      return state;
     } catch (error) {
-      logger.error('migrate 122 error', error as Error)
-      return state
+      logger.error("migrate 122 error", error as Error);
+      return state;
     }
   },
 
-  '123': (state: RootState) => {
+  "123": (state: RootState) => {
     try {
       state.llm.providers.forEach((provider) => {
         provider.models.forEach((model) => {
           if (model.type && Array.isArray(model.type)) {
             model.capabilities = model.type.map((t) => ({
               type: t,
-              isUserSelected: true
-            }))
-            delete model.type
+              isUserSelected: true,
+            }));
+            delete model.type;
           }
-        })
-      })
+        });
+      });
 
-      const lanyunProvider = state.llm.providers.find((provider) => provider.id === 'lanyun')
+      const lanyunProvider = state.llm.providers.find(
+        (provider) => provider.id === "lanyun",
+      );
       if (lanyunProvider && lanyunProvider.models.length === 0) {
-        updateProvider(state, 'lanyun', { models: SYSTEM_MODELS.lanyun })
+        updateProvider(state, "lanyun", { models: SYSTEM_MODELS.lanyun });
       }
 
-      return state
+      return state;
     } catch (error) {
-      logger.error('migrate 123 error', error as Error)
-      return state
+      logger.error("migrate 123 error", error as Error);
+      return state;
     }
   }, // 1.5.4
-  '124': (state: RootState) => {
+  "124": (state: RootState) => {
     try {
       state.assistants.assistants.forEach((assistant) => {
         if (assistant.settings && !assistant.settings.toolUseMode) {
-          assistant.settings.toolUseMode = 'prompt'
+          assistant.settings.toolUseMode = "prompt";
         }
-      })
+      });
 
       const updateModelTextDelta = (model?: Model) => {
         if (model) {
-          model.supported_text_delta = true
+          model.supported_text_delta = true;
           if (isNotSupportTextDeltaModel(model)) {
-            model.supported_text_delta = false
+            model.supported_text_delta = false;
           }
         }
-      }
+      };
 
       state.llm.providers.forEach((provider) => {
         provider.models.forEach((model) => {
-          updateModelTextDelta(model)
-        })
-      })
+          updateModelTextDelta(model);
+        });
+      });
       state.assistants.assistants.forEach((assistant) => {
-        updateModelTextDelta(assistant.defaultModel)
-        updateModelTextDelta(assistant.model)
-      })
+        updateModelTextDelta(assistant.defaultModel);
+        updateModelTextDelta(assistant.model);
+      });
 
-      updateModelTextDelta(state.llm.defaultModel)
-      updateModelTextDelta(state.llm.topicNamingModel)
-      updateModelTextDelta(state.llm.translateModel)
+      updateModelTextDelta(state.llm.defaultModel);
+      updateModelTextDelta(state.llm.topicNamingModel);
+      updateModelTextDelta(state.llm.translateModel);
 
       if (state.assistants.defaultAssistant.model) {
-        updateModelTextDelta(state.assistants.defaultAssistant.model)
-        updateModelTextDelta(state.assistants.defaultAssistant.defaultModel)
+        updateModelTextDelta(state.assistants.defaultAssistant.model);
+        updateModelTextDelta(state.assistants.defaultAssistant.defaultModel);
       }
 
-      addProvider(state, 'aws-bedrock')
+      addProvider(state, "aws-bedrock");
 
       // 初始化 awsBedrock 设置
       if (!state.llm.settings.awsBedrock) {
-        state.llm.settings.awsBedrock = llmInitialState.settings.awsBedrock
+        state.llm.settings.awsBedrock = llmInitialState.settings.awsBedrock;
       }
 
-      return state
+      return state;
     } catch (error) {
-      logger.error('migrate 124 error', error as Error)
-      return state
+      logger.error("migrate 124 error", error as Error);
+      return state;
     }
   },
-  '125': (state: RootState) => {
+  "125": (state: RootState) => {
     try {
       // Initialize API server configuration if not present
       if (!state.settings.apiServer) {
@@ -2052,40 +2172,40 @@ const migrateConfig = {
           enabled: false,
           host: API_SERVER_DEFAULTS.HOST,
           port: API_SERVER_DEFAULTS.PORT,
-          apiKey: `cs-sk-${uuid()}`
-        }
+          apiKey: `cs-sk-${uuid()}`,
+        };
       }
-      return state
+      return state;
     } catch (error) {
-      logger.error('migrate 125 error', error as Error)
-      return state
+      logger.error("migrate 125 error", error as Error);
+      return state;
     }
   },
-  '126': (state: RootState) => {
+  "126": (state: RootState) => {
     try {
       state.knowledge.bases.forEach((base) => {
         // @ts-ignore eslint-disable-next-line
         if (base.preprocessOrOcrProvider) {
           // @ts-ignore eslint-disable-next-line
-          base.preprocessProvider = base.preprocessOrOcrProvider
+          base.preprocessProvider = base.preprocessOrOcrProvider;
           // @ts-ignore eslint-disable-next-line
-          delete base.preprocessOrOcrProvider
+          delete base.preprocessOrOcrProvider;
           // @ts-ignore eslint-disable-next-line
-          if (base.preprocessProvider.type === 'ocr') {
+          if (base.preprocessProvider.type === "ocr") {
             // @ts-ignore eslint-disable-next-line
-            delete base.preprocessProvider
+            delete base.preprocessProvider;
           }
         }
-      })
-      return state
+      });
+      return state;
     } catch (error) {
-      logger.error('migrate 126 error', error as Error)
-      return state
+      logger.error("migrate 126 error", error as Error);
+      return state;
     }
   },
-  '127': (state: RootState) => {
+  "127": (state: RootState) => {
     try {
-      addProvider(state, 'poe')
+      addProvider(state, "poe");
 
       // 迁移api选项设置
       state.llm.providers.forEach((provider) => {
@@ -2093,242 +2213,262 @@ const migrateConfig = {
         const changes = {
           isNotSupportArrayContent: false,
           isNotSupportDeveloperRole: false,
-          isNotSupportStreamOptions: false
-        }
-        if (!isSupportArrayContentProvider(provider) || provider.isNotSupportArrayContent) {
+          isNotSupportStreamOptions: false,
+        };
+        if (
+          !isSupportArrayContentProvider(provider) ||
+          provider.isNotSupportArrayContent
+        ) {
           // 原本开启了兼容模式的provider不受影响
-          changes.isNotSupportArrayContent = true
+          changes.isNotSupportArrayContent = true;
         }
         if (!isSupportDeveloperRoleProvider(provider)) {
-          changes.isNotSupportDeveloperRole = true
+          changes.isNotSupportDeveloperRole = true;
         }
         if (!isSupportStreamOptionsProvider(provider)) {
-          changes.isNotSupportStreamOptions = true
+          changes.isNotSupportStreamOptions = true;
         }
-        updateProvider(state, provider.id, changes)
-      })
+        updateProvider(state, provider.id, changes);
+      });
 
       // 迁移以前删除掉的内置提供商
       for (const provider of state.llm.providers) {
         if (provider.isSystem && !isSystemProvider(provider)) {
-          updateProvider(state, provider.id, { isSystem: false })
+          updateProvider(state, provider.id, { isSystem: false });
         }
       }
 
       if (!state.settings.proxyBypassRules) {
-        state.settings.proxyBypassRules = defaultByPassRules
+        state.settings.proxyBypassRules = defaultByPassRules;
       }
-      return state
+      return state;
     } catch (error) {
-      logger.error('migrate 127 error', error as Error)
-      return state
+      logger.error("migrate 127 error", error as Error);
+      return state;
     }
   },
-  '128': (state: RootState) => {
+  "128": (state: RootState) => {
     try {
       // 迁移 service tier 设置
-      const openai = state.llm.providers.find((provider) => provider.id === SystemProviderIds.openai)
-      const serviceTier = state.settings.openAI.serviceTier
+      const openai = state.llm.providers.find(
+        (provider) => provider.id === SystemProviderIds.openai,
+      );
+      const serviceTier = state.settings.openAI.serviceTier;
       if (openai) {
-        openai.serviceTier = serviceTier
+        openai.serviceTier = serviceTier;
       }
 
       // @ts-ignore eslint-disable-next-line
       if (state.settings.codePreview) {
         // @ts-ignore eslint-disable-next-line
-        state.settings.codeViewer = state.settings.codePreview
+        state.settings.codeViewer = state.settings.codePreview;
       } else {
         state.settings.codeViewer = {
-          themeLight: 'auto',
-          themeDark: 'auto'
-        }
+          themeLight: "auto",
+          themeDark: "auto",
+        };
       }
 
-      return state
+      state.llm.providers.forEach((provider) => {
+        if (
+          provider.id !== "poe" ||
+          !Number.isFinite(provider.apiKeyExpiresAt)
+        ) {
+          delete provider.apiKeyExpiresAt;
+        }
+      });
+
+      return state;
     } catch (error) {
-      logger.error('migrate 128 error', error as Error)
-      return state
+      logger.error("migrate 128 error", error as Error);
+      return state;
     }
   },
-  '129': (state: RootState) => {
+  "129": (state: RootState) => {
     try {
       // 聚合 api options
       state.llm.providers.forEach((p) => {
         if (isSystemProvider(p)) {
-          updateProvider(state, p.id, { apiOptions: undefined })
+          updateProvider(state, p.id, { apiOptions: undefined });
         } else {
           const changes: ProviderApiOptions = {
             isNotSupportArrayContent: p.isNotSupportArrayContent,
             isNotSupportServiceTier: p.isNotSupportServiceTier,
             isNotSupportDeveloperRole: p.isNotSupportDeveloperRole,
-            isNotSupportStreamOptions: p.isNotSupportStreamOptions
-          }
-          updateProvider(state, p.id, { apiOptions: changes })
+            isNotSupportStreamOptions: p.isNotSupportStreamOptions,
+          };
+          updateProvider(state, p.id, { apiOptions: changes });
         }
-      })
-      return state
+      });
+      return state;
     } catch (error) {
-      logger.error('migrate 129 error', error as Error)
-      return state
+      logger.error("migrate 129 error", error as Error);
+      return state;
     }
   },
-  '130': (state: RootState) => {
+  "130": (state: RootState) => {
     try {
-      if (state.settings && state.settings.openAI && !state.settings.openAI.verbosity) {
-        state.settings.openAI.verbosity = 'medium'
+      if (
+        state.settings &&
+        state.settings.openAI &&
+        !state.settings.openAI.verbosity
+      ) {
+        state.settings.openAI.verbosity = "medium";
       }
       // 为 nutstore 添加备份数量限制的默认值
       if (state.nutstore && state.nutstore.nutstoreMaxBackups === undefined) {
-        state.nutstore.nutstoreMaxBackups = 0
+        state.nutstore.nutstoreMaxBackups = 0;
       }
-      return state
+      return state;
     } catch (error) {
-      logger.error('migrate 130 error', error as Error)
-      return state
+      logger.error("migrate 130 error", error as Error);
+      return state;
     }
   },
-  '131': (state: RootState) => {
+  "131": (state: RootState) => {
     try {
-      state.settings.mathEnableSingleDollar = true
-      return state
+      state.settings.mathEnableSingleDollar = true;
+      return state;
     } catch (error) {
-      logger.error('migrate 131 error', error as Error)
-      return state
+      logger.error("migrate 131 error", error as Error);
+      return state;
     }
   },
-  '132': (state: RootState) => {
+  "132": (state: RootState) => {
     try {
       state.llm.providers.forEach((p) => {
         // 如果原本是undefined则不做改动，静默从默认支持改为默认不支持
         if (p.apiOptions?.isNotSupportDeveloperRole) {
-          p.apiOptions.isSupportDeveloperRole = !p.apiOptions.isNotSupportDeveloperRole
+          p.apiOptions.isSupportDeveloperRole =
+            !p.apiOptions.isNotSupportDeveloperRole;
         }
         if (p.apiOptions?.isNotSupportServiceTier) {
-          p.apiOptions.isSupportServiceTier = !p.apiOptions.isNotSupportServiceTier
+          p.apiOptions.isSupportServiceTier =
+            !p.apiOptions.isNotSupportServiceTier;
         }
-      })
-      return state
+      });
+      return state;
     } catch (error) {
-      logger.error('migrate 132 error', error as Error)
-      return state
+      logger.error("migrate 132 error", error as Error);
+      return state;
     }
   },
-  '133': (state: RootState) => {
+  "133": (state: RootState) => {
     try {
-      state.settings.sidebarIcons.visible.push('code_tools')
+      state.settings.sidebarIcons.visible.push("code_tools");
       if (state.codeTools) {
         state.codeTools.environmentVariables = {
-          'qwen-code': '',
-          'claude-code': '',
-          'gemini-cli': ''
-        }
+          "qwen-code": "",
+          "claude-code": "",
+          "gemini-cli": "",
+        };
       }
-      return state
+      return state;
     } catch (error) {
-      logger.error('migrate 133 error', error as Error)
-      return state
+      logger.error("migrate 133 error", error as Error);
+      return state;
     }
   },
-  '134': (state: RootState) => {
+  "134": (state: RootState) => {
     try {
-      state.llm.quickModel = state.llm.topicNamingModel
+      state.llm.quickModel = state.llm.topicNamingModel;
 
-      return state
+      return state;
     } catch (error) {
-      logger.error('migrate 134 error', error as Error)
-      return state
+      logger.error("migrate 134 error", error as Error);
+      return state;
     }
   },
-  '135': (state: RootState) => {
+  "135": (state: RootState) => {
     try {
       if (!state.assistants.defaultAssistant.settings) {
-        state.assistants.defaultAssistant.settings = DEFAULT_ASSISTANT_SETTINGS
+        state.assistants.defaultAssistant.settings = DEFAULT_ASSISTANT_SETTINGS;
       } else if (!state.assistants.defaultAssistant.settings.toolUseMode) {
-        state.assistants.defaultAssistant.settings.toolUseMode = 'prompt'
+        state.assistants.defaultAssistant.settings.toolUseMode = "prompt";
       }
-      return state
+      return state;
     } catch (error) {
-      logger.error('migrate 135 error', error as Error)
-      return state
+      logger.error("migrate 135 error", error as Error);
+      return state;
     }
   },
-  '136': (state: RootState) => {
+  "136": (state: RootState) => {
     try {
-      state.settings.sidebarIcons.visible = [...new Set(state.settings.sidebarIcons.visible)].filter((icon) =>
-        DEFAULT_SIDEBAR_ICONS.includes(icon)
-      )
-      state.settings.sidebarIcons.disabled = [...new Set(state.settings.sidebarIcons.disabled)].filter((icon) =>
-        DEFAULT_SIDEBAR_ICONS.includes(icon)
-      )
-      return state
+      state.settings.sidebarIcons.visible = [
+        ...new Set(state.settings.sidebarIcons.visible),
+      ].filter((icon) => DEFAULT_SIDEBAR_ICONS.includes(icon));
+      state.settings.sidebarIcons.disabled = [
+        ...new Set(state.settings.sidebarIcons.disabled),
+      ].filter((icon) => DEFAULT_SIDEBAR_ICONS.includes(icon));
+      return state;
     } catch (error) {
-      logger.error('migrate 136 error', error as Error)
-      return state
+      logger.error("migrate 136 error", error as Error);
+      return state;
     }
   },
-  '137': (state: RootState) => {
+  "137": (state: RootState) => {
     try {
       state.ocr = {
         providers: BUILTIN_OCR_PROVIDERS,
-        imageProviderId: DEFAULT_OCR_PROVIDER.image.id
-      }
-      state.translate.translateInput = ''
-      return state
+        imageProviderId: DEFAULT_OCR_PROVIDER.image.id,
+      };
+      state.translate.translateInput = "";
+      return state;
     } catch (error) {
-      logger.error('migrate 137 error', error as Error)
-      return state
+      logger.error("migrate 137 error", error as Error);
+      return state;
     }
   },
-  '138': (state: RootState) => {
+  "138": (state: RootState) => {
     try {
-      addOcrProvider(state, BUILTIN_OCR_PROVIDERS_MAP.system)
-      return state
+      addOcrProvider(state, BUILTIN_OCR_PROVIDERS_MAP.system);
+      return state;
     } catch (error) {
-      logger.error('migrate 138 error', error as Error)
-      return state
+      logger.error("migrate 138 error", error as Error);
+      return state;
     }
   },
-  '139': (state: RootState) => {
+  "139": (state: RootState) => {
     try {
-      addProvider(state, 'cherryin')
-      state.llm.providers = moveProvider(state.llm.providers, 'cherryin', 1)
+      addProvider(state, "cherryin");
+      state.llm.providers = moveProvider(state.llm.providers, "cherryin", 1);
 
-      const zhipuProvider = state.llm.providers.find((p) => p.id === 'zhipu')
+      const zhipuProvider = state.llm.providers.find((p) => p.id === "zhipu");
 
       if (zhipuProvider) {
         // Update zhipu model list
         if (!zhipuProvider.enabled) {
-          zhipuProvider.models = SYSTEM_MODELS.zhipu
+          zhipuProvider.models = SYSTEM_MODELS.zhipu;
         }
 
         // Update zhipu model list
         if (zhipuProvider.models.length === 0) {
-          zhipuProvider.models = SYSTEM_MODELS.zhipu
+          zhipuProvider.models = SYSTEM_MODELS.zhipu;
         }
 
         // Update default painting provider to zhipu
-        state.settings.defaultPaintingProvider = 'zhipu'
+        state.settings.defaultPaintingProvider = "zhipu";
 
         // Add zhipu web search provider
-        addWebSearchProvider(state, 'zhipu')
+        addWebSearchProvider(state, "zhipu");
 
         // Update zhipu web search provider api key
         if (zhipuProvider.apiKey) {
           state?.websearch?.providers.forEach((provider) => {
-            if (provider.id === 'zhipu') {
-              provider.apiKey = zhipuProvider.apiKey
+            if (provider.id === "zhipu") {
+              provider.apiKey = zhipuProvider.apiKey;
             }
-          })
+          });
         }
       }
 
-      return state
+      return state;
     } catch (error) {
-      logger.error('migrate 139 error', error as Error)
-      return state
+      logger.error("migrate 139 error", error as Error);
+      return state;
     }
   },
-  '140': (state: RootState) => {
+  "140": (state: RootState) => {
     try {
       // @ts-ignore
       state.paintings = {
@@ -2349,1031 +2489,1116 @@ const migrateConfig = {
         aihubmix_image_upscale: state?.paintings?.upscale || [],
         openai_image_generate: state?.paintings?.openai_image_generate || [],
         openai_image_edit: state?.paintings?.openai_image_edit || [],
-        ovms_paintings: []
-      }
+        ovms_paintings: [],
+      };
 
-      return state
+      return state;
     } catch (error) {
-      logger.error('migrate 140 error', error as Error)
-      return state
+      logger.error("migrate 140 error", error as Error);
+      return state;
     }
   },
-  '141': (state: RootState) => {
+  "141": (state: RootState) => {
     try {
       if (state.settings && state.settings.sidebarIcons) {
         // Check if 'notes' is not already in visible icons
-        if (!state.settings.sidebarIcons.visible.includes('notes')) {
-          state.settings.sidebarIcons.visible = [...state.settings.sidebarIcons.visible, 'notes']
+        if (!state.settings.sidebarIcons.visible.includes("notes")) {
+          state.settings.sidebarIcons.visible = [
+            ...state.settings.sidebarIcons.visible,
+            "notes",
+          ];
         }
       }
-      return state
+      return state;
     } catch (error) {
-      logger.error('migrate 141 error', error as Error)
-      return state
+      logger.error("migrate 141 error", error as Error);
+      return state;
     }
   },
-  '142': (state: RootState) => {
+  "142": (state: RootState) => {
     try {
       // Initialize notes settings if not present
       if (!state.note) {
-        state.note = notesInitialState
+        state.note = notesInitialState;
       }
-      return state
+      return state;
     } catch (error) {
-      logger.error('migrate 142 error', error as Error)
-      return state
+      logger.error("migrate 142 error", error as Error);
+      return state;
     }
   },
-  '143': (state: RootState) => {
+  "143": (state: RootState) => {
     try {
-      addMiniApp(state, 'longcat')
-      return state
+      addMiniApp(state, "longcat");
+      return state;
     } catch (error) {
-      return state
+      return state;
     }
   },
-  '144': (state: RootState) => {
+  "144": (state: RootState) => {
     try {
       if (state.settings) {
-        state.settings.confirmDeleteMessage = settingsInitialState.confirmDeleteMessage
-        state.settings.confirmRegenerateMessage = settingsInitialState.confirmRegenerateMessage
+        state.settings.confirmDeleteMessage =
+          settingsInitialState.confirmDeleteMessage;
+        state.settings.confirmRegenerateMessage =
+          settingsInitialState.confirmRegenerateMessage;
       }
-      return state
+      return state;
     } catch (error) {
-      logger.error('migrate 144 error', error as Error)
-      return state
+      logger.error("migrate 144 error", error as Error);
+      return state;
     }
   },
-  '145': (state: RootState) => {
+  "145": (state: RootState) => {
     try {
       if (state.settings) {
-        if (state.settings.showMessageOutline === undefined || state.settings.showMessageOutline === null) {
-          state.settings.showMessageOutline = false
+        if (
+          state.settings.showMessageOutline === undefined ||
+          state.settings.showMessageOutline === null
+        ) {
+          state.settings.showMessageOutline = false;
         }
       }
-      return state
+      return state;
     } catch (error) {
-      logger.error('migrate 145 error', error as Error)
-      return state
+      logger.error("migrate 145 error", error as Error);
+      return state;
     }
   },
-  '146': (state: RootState) => {
+  "146": (state: RootState) => {
     try {
       // Migrate showWorkspace from settings to note store
       if (state.settings && state.note) {
-        const showWorkspaceValue = (state.settings as any)?.showWorkspace
+        const showWorkspaceValue = (state.settings as any)?.showWorkspace;
         if (showWorkspaceValue !== undefined) {
           // @ts-ignore eslint-disable-next-line
-          state.note.settings.showWorkspace = showWorkspaceValue
+          state.note.settings.showWorkspace = showWorkspaceValue;
           // Remove from settings
-          delete (state.settings as any).showWorkspace
+          delete (state.settings as any).showWorkspace;
           // @ts-ignore eslint-disable-next-line
         } else if (state.note.settings.showWorkspace === undefined) {
           // Set default value if not exists
           // @ts-ignore eslint-disable-next-line
-          state.note.settings.showWorkspace = true
+          state.note.settings.showWorkspace = true;
         }
       }
-      return state
+      return state;
     } catch (error) {
-      logger.error('migrate 146 error', error as Error)
-      return state
+      logger.error("migrate 146 error", error as Error);
+      return state;
     }
   },
-  '147': (state: RootState) => {
+  "147": (state: RootState) => {
     try {
       state.knowledge.bases.forEach((base) => {
         if ((base as any).framework) {
-          delete (base as any).framework
+          delete (base as any).framework;
         }
-      })
-      return state
+      });
+      return state;
     } catch (error) {
-      logger.error('migrate 147 error', error as Error)
-      return state
+      logger.error("migrate 147 error", error as Error);
+      return state;
     }
   },
-  '148': (state: RootState) => {
+  "148": (state: RootState) => {
     try {
-      addOcrProvider(state, BUILTIN_OCR_PROVIDERS_MAP.paddleocr)
-      return state
+      addOcrProvider(state, BUILTIN_OCR_PROVIDERS_MAP.paddleocr);
+      return state;
     } catch (error) {
-      logger.error('migrate 148 error', error as Error)
-      return state
+      logger.error("migrate 148 error", error as Error);
+      return state;
     }
   },
-  '149': (state: RootState) => {
+  "149": (state: RootState) => {
     try {
       state.knowledge.bases.forEach((base) => {
         if ((base as any).framework) {
-          delete (base as any).framework
+          delete (base as any).framework;
         }
-      })
-      return state
+      });
+      return state;
     } catch (error) {
-      logger.error('migrate 149 error', error as Error)
-      return state
+      logger.error("migrate 149 error", error as Error);
+      return state;
     }
   },
-  '150': (state: RootState) => {
+  "150": (state: RootState) => {
     try {
-      addShortcuts(state, ['rename_topic'], 'new_topic')
-      addShortcuts(state, ['edit_last_user_message'], 'copy_last_message')
-      return state
+      addShortcuts(state, ["rename_topic"], "new_topic");
+      addShortcuts(state, ["edit_last_user_message"], "copy_last_message");
+      return state;
     } catch (error) {
-      logger.error('migrate 150 error', error as Error)
-      return state
+      logger.error("migrate 150 error", error as Error);
+      return state;
     }
   },
-  '151': (state: RootState) => {
+  "151": (state: RootState) => {
     try {
       if (state.settings) {
-        state.settings.codeFancyBlock = true
+        state.settings.codeFancyBlock = true;
       }
-      return state
+      return state;
     } catch (error) {
-      logger.error('migrate 151 error', error as Error)
-      return state
+      logger.error("migrate 151 error", error as Error);
+      return state;
     }
   },
-  '152': (state: RootState) => {
+  "152": (state: RootState) => {
     try {
       state.translate.settings = {
-        autoCopy: false
-      }
-      return state
+        autoCopy: false,
+      };
+      return state;
     } catch (error) {
-      logger.error('migrate 152 error', error as Error)
-      return state
+      logger.error("migrate 152 error", error as Error);
+      return state;
     }
   },
-  '153': (state: RootState) => {
+  "153": (state: RootState) => {
     try {
       if (state.note.settings) {
-        state.note.settings.fontSize = notesInitialState.settings.fontSize
-        state.note.settings.showTableOfContents = notesInitialState.settings.showTableOfContents
+        state.note.settings.fontSize = notesInitialState.settings.fontSize;
+        state.note.settings.showTableOfContents =
+          notesInitialState.settings.showTableOfContents;
       }
-      return state
+      return state;
     } catch (error) {
-      logger.error('migrate 153 error', error as Error)
-      return state
+      logger.error("migrate 153 error", error as Error);
+      return state;
     }
   },
-  '154': (state: RootState) => {
+  "154": (state: RootState) => {
     try {
       if (state.settings.userTheme) {
-        state.settings.userTheme.userFontFamily = settingsInitialState.userTheme.userFontFamily
-        state.settings.userTheme.userCodeFontFamily = settingsInitialState.userTheme.userCodeFontFamily
+        state.settings.userTheme.userFontFamily =
+          settingsInitialState.userTheme.userFontFamily;
+        state.settings.userTheme.userCodeFontFamily =
+          settingsInitialState.userTheme.userCodeFontFamily;
       }
-      return state
+      return state;
     } catch (error) {
-      logger.error('migrate 154 error', error as Error)
-      return state
+      logger.error("migrate 154 error", error as Error);
+      return state;
     }
   },
-  '155': (state: RootState) => {
+  "155": (state: RootState) => {
     try {
       state.knowledge.bases.forEach((base) => {
         if ((base as any).framework) {
-          delete (base as any).framework
+          delete (base as any).framework;
         }
-      })
-      return state
+      });
+      return state;
     } catch (error) {
-      logger.error('migrate 155 error', error as Error)
-      return state
+      logger.error("migrate 155 error", error as Error);
+      return state;
     }
   },
-  '156': (state: RootState) => {
+  "156": (state: RootState) => {
     try {
       state.llm.providers.forEach((provider) => {
         if (provider.id === SystemProviderIds.anthropic) {
-          if (provider.apiHost.endsWith('/')) {
-            provider.apiHost = provider.apiHost.slice(0, -1)
+          if (provider.apiHost.endsWith("/")) {
+            provider.apiHost = provider.apiHost.slice(0, -1);
           }
         }
-      })
-      return state
+      });
+      return state;
     } catch (error) {
-      logger.error('migrate 156 error', error as Error)
-      return state
+      logger.error("migrate 156 error", error as Error);
+      return state;
     }
   },
-  '157': (state: RootState) => {
+  "157": (state: RootState) => {
     try {
-      addProvider(state, 'aionly')
-      state.llm.providers = moveProvider(state.llm.providers, 'aionly', 10)
+      addProvider(state, "aionly");
+      state.llm.providers = moveProvider(state.llm.providers, "aionly", 10);
 
-      const cherryinProvider = state.llm.providers.find((provider) => provider.id === 'cherryin')
+      const cherryinProvider = state.llm.providers.find(
+        (provider) => provider.id === "cherryin",
+      );
 
       if (cherryinProvider) {
-        updateProvider(state, 'cherryin', {
-          apiHost: 'https://open.cherryin.ai',
-          models: []
-        })
+        updateProvider(state, "cherryin", {
+          apiHost: "https://open.cherryin.ai",
+          models: [],
+        });
       }
 
-      if (state.llm.defaultModel?.provider === 'cherryin') {
-        state.llm.defaultModel.provider = 'cherryai'
+      if (state.llm.defaultModel?.provider === "cherryin") {
+        state.llm.defaultModel.provider = "cherryai";
       }
 
-      if (state.llm.quickModel?.provider === 'cherryin') {
-        state.llm.quickModel.provider = 'cherryai'
+      if (state.llm.quickModel?.provider === "cherryin") {
+        state.llm.quickModel.provider = "cherryai";
       }
 
-      if (state.llm.translateModel?.provider === 'cherryin') {
-        state.llm.translateModel.provider = 'cherryai'
+      if (state.llm.translateModel?.provider === "cherryin") {
+        state.llm.translateModel.provider = "cherryai";
       }
 
       state.assistants.assistants.forEach((assistant) => {
-        if (assistant.model?.provider === 'cherryin') {
-          assistant.model.provider = 'cherryai'
+        if (assistant.model?.provider === "cherryin") {
+          assistant.model.provider = "cherryai";
         }
-        if (assistant.defaultModel?.provider === 'cherryin') {
-          assistant.defaultModel.provider = 'cherryai'
+        if (assistant.defaultModel?.provider === "cherryin") {
+          assistant.defaultModel.provider = "cherryai";
         }
-      })
+      });
 
       // @ts-ignore
       state.agents.agents.forEach((agent) => {
         // @ts-ignore model is not defined in Agent
-        if (agent.model?.provider === 'cherryin') {
+        if (agent.model?.provider === "cherryin") {
           // @ts-ignore model is not defined in Agent
-          agent.model.provider = 'cherryai'
+          agent.model.provider = "cherryai";
         }
-        if (agent.defaultModel?.provider === 'cherryin') {
-          agent.defaultModel.provider = 'cherryai'
+        if (agent.defaultModel?.provider === "cherryin") {
+          agent.defaultModel.provider = "cherryai";
         }
-      })
-      return state
+      });
+      return state;
     } catch (error) {
-      logger.error('migrate 157 error', error as Error)
-      return state
+      logger.error("migrate 157 error", error as Error);
+      return state;
     }
   },
-  '158': (state: RootState) => {
+  "158": (state: RootState) => {
     try {
-      state.llm.providers = state.llm.providers.filter((provider) => provider.id !== 'cherryin')
-      addProvider(state, 'longcat')
-      return state
+      state.llm.providers = state.llm.providers.filter(
+        (provider) => provider.id !== "cherryin",
+      );
+      addProvider(state, "longcat");
+      return state;
     } catch (error) {
-      logger.error('migrate 158 error', error as Error)
-      return state
+      logger.error("migrate 158 error", error as Error);
+      return state;
     }
   },
-  '159': (state: RootState) => {
+  "159": (state: RootState) => {
     try {
-      addProvider(state, 'ovms')
-      fixMissingProvider(state)
-      return state
+      addProvider(state, "ovms");
+      fixMissingProvider(state);
+      return state;
     } catch (error) {
-      logger.error('migrate 158 error', error as Error)
-      return state
+      logger.error("migrate 158 error", error as Error);
+      return state;
     }
   },
-  '161': (state: RootState) => {
+  "161": (state: RootState) => {
     try {
-      removeMiniAppFromState(state, 'nm-search')
-      removeMiniAppFromState(state, 'hika')
-      removeMiniAppFromState(state, 'hugging-chat')
-      addProvider(state, 'cherryin')
-      state.llm.providers = moveProvider(state.llm.providers, 'cherryin', 1)
-      return state
+      removeMiniAppFromState(state, "nm-search");
+      removeMiniAppFromState(state, "hika");
+      removeMiniAppFromState(state, "hugging-chat");
+      addProvider(state, "cherryin");
+      state.llm.providers = moveProvider(state.llm.providers, "cherryin", 1);
+      return state;
     } catch (error) {
-      logger.error('migrate 161 error', error as Error)
-      return state
+      logger.error("migrate 161 error", error as Error);
+      return state;
     }
   },
-  '167': (state: RootState) => {
+  "167": (state: RootState) => {
     try {
-      addProvider(state, 'huggingface')
-      return state
+      addProvider(state, "huggingface");
+      return state;
     } catch (error) {
-      logger.error('migrate 167 error', error as Error)
-      return state
+      logger.error("migrate 167 error", error as Error);
+      return state;
     }
   },
-  '168': (state: RootState) => {
+  "168": (state: RootState) => {
     try {
-      addPreprocessProviders(state, 'open-mineru')
-      return state
+      addPreprocessProviders(state, "open-mineru");
+      return state;
     } catch (error) {
-      logger.error('migrate 168 error', error as Error)
-      return state
+      logger.error("migrate 168 error", error as Error);
+      return state;
     }
   },
-  '169': (state: RootState) => {
+  "169": (state: RootState) => {
     try {
       if (state?.mcp?.servers) {
         state.mcp.servers = state.mcp.servers.map((server) => {
-          const inferredSource = isBuiltinMCPServer(server) ? 'builtin' : 'unknown'
+          const inferredSource = isBuiltinMCPServer(server)
+            ? "builtin"
+            : "unknown";
           return {
             ...server,
-            installSource: inferredSource
-          }
-        })
+            installSource: inferredSource,
+          };
+        });
       }
-      return state
+      return state;
     } catch (error) {
-      logger.error('migrate 169 error', error as Error)
-      return state
+      logger.error("migrate 169 error", error as Error);
+      return state;
     }
   },
-  '170': (state: RootState) => {
+  "170": (state: RootState) => {
     try {
-      addProvider(state, 'sophnet')
-      state.llm.providers = moveProvider(state.llm.providers, 'sophnet', 17)
-      state.settings.defaultPaintingProvider = 'cherryin'
-      return state
+      addProvider(state, "sophnet");
+      state.llm.providers = moveProvider(state.llm.providers, "sophnet", 17);
+      state.settings.defaultPaintingProvider = "cherryin";
+      return state;
     } catch (error) {
-      logger.error('migrate 170 error', error as Error)
-      return state
+      logger.error("migrate 170 error", error as Error);
+      return state;
     }
   },
-  '171': (state: RootState) => {
+  "171": (state: RootState) => {
     try {
       // Ensure aws-bedrock provider exists
-      addProvider(state, 'aws-bedrock')
+      addProvider(state, "aws-bedrock");
 
       // Ensure awsBedrock settings exist and have all required fields
       if (!state.llm.settings.awsBedrock) {
-        state.llm.settings.awsBedrock = llmInitialState.settings.awsBedrock
+        state.llm.settings.awsBedrock = llmInitialState.settings.awsBedrock;
       } else {
         // For users who have awsBedrock but missing new fields (authType and apiKey)
         if (!state.llm.settings.awsBedrock.authType) {
-          state.llm.settings.awsBedrock.authType = 'iam'
+          state.llm.settings.awsBedrock.authType = "iam";
         }
         if (state.llm.settings.awsBedrock.apiKey === undefined) {
-          state.llm.settings.awsBedrock.apiKey = ''
+          state.llm.settings.awsBedrock.apiKey = "";
         }
       }
-      return state
+      return state;
     } catch (error) {
-      logger.error('migrate 171 error', error as Error)
-      return state
+      logger.error("migrate 171 error", error as Error);
+      return state;
     }
   },
-  '172': (state: RootState) => {
+  "172": (state: RootState) => {
     try {
       // Add ling and huggingchat mini apps
-      addMiniApp(state, 'ling')
-      addMiniApp(state, 'huggingchat')
+      addMiniApp(state, "ling");
+      addMiniApp(state, "huggingchat");
 
       // Add ovocr provider and clear ovms paintings
-      addOcrProvider(state, BUILTIN_OCR_PROVIDERS_MAP.ovocr)
+      addOcrProvider(state, BUILTIN_OCR_PROVIDERS_MAP.ovocr);
       if (isEmpty(state.paintings.ovms_paintings)) {
-        state.paintings.ovms_paintings = []
+        state.paintings.ovms_paintings = [];
       }
 
       // Migrate agents to assistants presets
       // @ts-ignore
       if (state?.agents?.agents) {
         // @ts-ignore
-        state.assistants.presets = [...state.agents.agents]
+        state.assistants.presets = [...state.agents.agents];
         // @ts-ignore
-        delete state.agents.agents
+        delete state.agents.agents;
       }
 
       // Initialize assistants presets
       if (state.assistants.presets === undefined) {
-        state.assistants.presets = []
+        state.assistants.presets = [];
       }
 
       // Migrate assistants presets
       state.assistants.presets.forEach((preset) => {
         if (!preset.settings) {
-          preset.settings = DEFAULT_ASSISTANT_SETTINGS
+          preset.settings = DEFAULT_ASSISTANT_SETTINGS;
         } else if (!preset.settings.toolUseMode) {
-          preset.settings.toolUseMode = DEFAULT_ASSISTANT_SETTINGS.toolUseMode
+          preset.settings.toolUseMode = DEFAULT_ASSISTANT_SETTINGS.toolUseMode;
         }
-      })
+      });
 
       // Migrate sidebar icons
       if (state.settings.sidebarIcons) {
-        state.settings.sidebarIcons.visible = state.settings.sidebarIcons.visible.map((icon) => {
-          // @ts-ignore
-          return icon === 'agents' ? 'store' : icon
-        })
-        state.settings.sidebarIcons.disabled = state.settings.sidebarIcons.disabled.map((icon) => {
-          // @ts-ignore
-          return icon === 'agents' ? 'store' : icon
-        })
+        state.settings.sidebarIcons.visible =
+          state.settings.sidebarIcons.visible.map((icon) => {
+            // @ts-ignore
+            return icon === "agents" ? "store" : icon;
+          });
+        state.settings.sidebarIcons.disabled =
+          state.settings.sidebarIcons.disabled.map((icon) => {
+            // @ts-ignore
+            return icon === "agents" ? "store" : icon;
+          });
       }
 
       // Migrate llm providers
       state.llm.providers.forEach((provider) => {
-        if (provider.id === SystemProviderIds['new-api'] && provider.type !== 'new-api') {
-          provider.type = 'new-api'
+        if (
+          provider.id === SystemProviderIds["new-api"] &&
+          provider.type !== "new-api"
+        ) {
+          provider.type = "new-api";
         }
 
         switch (provider.id) {
-          case 'deepseek':
-            provider.anthropicApiHost = 'https://api.deepseek.com/anthropic'
-            break
-          case 'moonshot':
-            provider.anthropicApiHost = 'https://api.moonshot.cn/anthropic'
-            break
-          case 'zhipu':
-            provider.anthropicApiHost = 'https://open.bigmodel.cn/api/anthropic'
-            break
-          case 'dashscope':
-            provider.anthropicApiHost = 'https://dashscope.aliyuncs.com/apps/anthropic'
-            break
-          case 'modelscope':
-            provider.anthropicApiHost = 'https://api-inference.modelscope.cn'
-            break
-          case 'aihubmix':
-            provider.anthropicApiHost = 'https://aihubmix.com'
-            break
-          case 'new-api':
-            provider.anthropicApiHost = provider.apiHost
-            break
-          case 'grok':
-            provider.anthropicApiHost = 'https://api.x.ai'
-            break
-          case 'cherryin':
-            provider.anthropicApiHost = 'https://open.cherryin.net'
-            break
-          case 'longcat':
-            provider.anthropicApiHost = 'https://api.longcat.chat/anthropic'
-            break
+          case "deepseek":
+            provider.anthropicApiHost = "https://api.deepseek.com/anthropic";
+            break;
+          case "moonshot":
+            provider.anthropicApiHost = "https://api.moonshot.cn/anthropic";
+            break;
+          case "zhipu":
+            provider.anthropicApiHost =
+              "https://open.bigmodel.cn/api/anthropic";
+            break;
+          case "dashscope":
+            provider.anthropicApiHost =
+              "https://dashscope.aliyuncs.com/apps/anthropic";
+            break;
+          case "modelscope":
+            provider.anthropicApiHost = "https://api-inference.modelscope.cn";
+            break;
+          case "aihubmix":
+            provider.anthropicApiHost = "https://aihubmix.com";
+            break;
+          case "new-api":
+            provider.anthropicApiHost = provider.apiHost;
+            break;
+          case "grok":
+            provider.anthropicApiHost = "https://api.x.ai";
+            break;
+          case "cherryin":
+            provider.anthropicApiHost = "https://open.cherryin.net";
+            break;
+          case "longcat":
+            provider.anthropicApiHost = "https://api.longcat.chat/anthropic";
+            break;
         }
-      })
-      return state
+      });
+      return state;
     } catch (error) {
-      logger.error('migrate 172 error', error as Error)
-      return state
+      logger.error("migrate 172 error", error as Error);
+      return state;
     }
   },
-  '173': (state: RootState) => {
+  "173": (state: RootState) => {
     try {
       // Migrate toolOrder from global state to scope-based state
       if (state.inputTools && !state.inputTools.sessionToolOrder) {
-        state.inputTools.sessionToolOrder = DEFAULT_TOOL_ORDER_BY_SCOPE.session
+        state.inputTools.sessionToolOrder = DEFAULT_TOOL_ORDER_BY_SCOPE.session;
       }
-      return state
+      return state;
     } catch (error) {
-      logger.error('migrate 173 error', error as Error)
-      return state
+      logger.error("migrate 173 error", error as Error);
+      return state;
     }
   },
-  '174': (state: RootState) => {
+  "174": (state: RootState) => {
     try {
-      addProvider(state, SystemProviderIds.longcat)
+      addProvider(state, SystemProviderIds.longcat);
 
-      addProvider(state, 'gateway')
-      addProvider(state, 'cerebras')
+      addProvider(state, "gateway");
+      addProvider(state, "cerebras");
       state.llm.providers.forEach((provider) => {
         if (provider.id === SystemProviderIds.minimax) {
-          provider.anthropicApiHost = 'https://api.minimaxi.com/anthropic'
+          provider.anthropicApiHost = "https://api.minimaxi.com/anthropic";
         }
-      })
-      return state
+      });
+      return state;
     } catch (error) {
-      logger.error('migrate 174 error', error as Error)
-      return state
+      logger.error("migrate 174 error", error as Error);
+      return state;
     }
   },
-  '175': (state: RootState) => {
+  "175": (state: RootState) => {
     try {
       state.assistants.assistants.forEach((assistant) => {
         // @ts-ignore
-        if (assistant.settings?.reasoning_effort === 'off') {
+        if (assistant.settings?.reasoning_effort === "off") {
           // @ts-ignore
-          assistant.settings.reasoning_effort = 'none'
+          assistant.settings.reasoning_effort = "none";
         }
         // @ts-ignore
-        if (assistant.settings?.reasoning_effort_cache === 'off') {
+        if (assistant.settings?.reasoning_effort_cache === "off") {
           // @ts-ignore
-          assistant.settings.reasoning_effort_cache = 'none'
+          assistant.settings.reasoning_effort_cache = "none";
         }
-      })
-      logger.info('migrate 175 success')
-      return state
+      });
+      logger.info("migrate 175 success");
+      return state;
     } catch (error) {
-      logger.error('migrate 175 error', error as Error)
-      return state
+      logger.error("migrate 175 error", error as Error);
+      return state;
     }
   },
-  '176': (state: RootState) => {
+  "176": (state: RootState) => {
     try {
       state.llm.providers.forEach((provider) => {
         if (provider.id === SystemProviderIds.qiniu) {
-          provider.anthropicApiHost = 'https://api.qnaigc.com'
+          provider.anthropicApiHost = "https://api.qnaigc.com";
         }
         if (provider.id === SystemProviderIds.longcat) {
-          provider.anthropicApiHost = 'https://api.longcat.chat/anthropic'
+          provider.anthropicApiHost = "https://api.longcat.chat/anthropic";
         }
-      })
-      return state
+      });
+      return state;
     } catch (error) {
-      logger.error('migrate 176 error', error as Error)
-      return state
+      logger.error("migrate 176 error", error as Error);
+      return state;
     }
   },
-  '177': (state: RootState) => {
+  "177": (state: RootState) => {
     try {
       // @ts-expect-error it's a removed type
-      if (state.settings.openAI.summaryText === 'off') {
-        state.settings.openAI.summaryText = 'auto'
+      if (state.settings.openAI.summaryText === "off") {
+        state.settings.openAI.summaryText = "auto";
       }
-      logger.info('migrate 177 success')
-      return state
+      logger.info("migrate 177 success");
+      return state;
     } catch (error) {
-      logger.error('migrate 177 error', error as Error)
-      return state
+      logger.error("migrate 177 error", error as Error);
+      return state;
     }
   },
-  '178': (state: RootState) => {
+  "178": (state: RootState) => {
     try {
-      const groq = state.llm.providers.find((p) => p.id === SystemProviderIds.groq)
+      const groq = state.llm.providers.find(
+        (p) => p.id === SystemProviderIds.groq,
+      );
       if (groq) {
-        groq.verbosity = undefined
+        groq.verbosity = undefined;
       }
-      logger.info('migrate 178 success')
-      return state
+      logger.info("migrate 178 success");
+      return state;
     } catch (error) {
-      logger.error('migrate 178 error', error as Error)
-      return state
+      logger.error("migrate 178 error", error as Error);
+      return state;
     }
   },
-  '179': (state: RootState) => {
+  "179": (state: RootState) => {
     try {
       state.llm.providers.forEach((provider) => {
         switch (provider.id) {
           case SystemProviderIds.silicon:
-            provider.anthropicApiHost = 'https://api.siliconflow.cn'
-            break
+            provider.anthropicApiHost = "https://api.siliconflow.cn";
+            break;
           case SystemProviderIds.qiniu:
-            provider.anthropicApiHost = 'https://api.qnaigc.com'
-            break
+            provider.anthropicApiHost = "https://api.qnaigc.com";
+            break;
           case SystemProviderIds.dmxapi:
-            provider.anthropicApiHost = provider.apiHost
-            break
+            provider.anthropicApiHost = provider.apiHost;
+            break;
         }
-      })
-      logger.info('migrate 179 success')
-      return state
+      });
+      logger.info("migrate 179 success");
+      return state;
     } catch (error) {
-      logger.error('migrate 179 error', error as Error)
-      return state
+      logger.error("migrate 179 error", error as Error);
+      return state;
     }
   },
-  '181': (state: RootState) => {
+  "181": (state: RootState) => {
     try {
       state.llm.providers.forEach((provider) => {
-        if (provider.id === 'ai-gateway') {
-          provider.id = SystemProviderIds.gateway
+        if (provider.id === "ai-gateway") {
+          provider.id = SystemProviderIds.gateway;
         }
         // Also update model.provider references to avoid orphaned models
         provider.models?.forEach((model) => {
-          if (model.provider === 'ai-gateway') {
-            model.provider = SystemProviderIds.gateway
+          if (model.provider === "ai-gateway") {
+            model.provider = SystemProviderIds.gateway;
           }
-        })
+        });
         // @ts-ignore
-        if (provider.type === 'ai-gateway') {
-          provider.type = 'gateway'
+        if (provider.type === "ai-gateway") {
+          provider.type = "gateway";
         }
-      })
-      logger.info('migrate 181 success')
-      return state
+      });
+      logger.info("migrate 181 success");
+      return state;
     } catch (error) {
-      logger.error('migrate 181 error', error as Error)
-      return state
+      logger.error("migrate 181 error", error as Error);
+      return state;
     }
   },
-  '182': (state: RootState) => {
+  "182": (state: RootState) => {
     try {
       // Initialize streamOptions in settings.openAI if not exists
       if (!state.settings.openAI.streamOptions) {
         state.settings.openAI.streamOptions = {
-          includeUsage: DEFAULT_STREAM_OPTIONS_INCLUDE_USAGE
-        }
+          includeUsage: DEFAULT_STREAM_OPTIONS_INCLUDE_USAGE,
+        };
       }
-      logger.info('migrate 182 success')
-      return state
+      logger.info("migrate 182 success");
+      return state;
     } catch (error) {
-      logger.error('migrate 182 error', error as Error)
-      return state
+      logger.error("migrate 182 error", error as Error);
+      return state;
     }
   },
-  '183': (state: RootState) => {
+  "183": (state: RootState) => {
     try {
       state.llm.providers.forEach((provider) => {
         if (provider.id === SystemProviderIds.cherryin) {
-          provider.apiHost = 'https://open.cherryin.cc'
-          provider.anthropicApiHost = 'https://open.cherryin.cc'
+          provider.apiHost = "https://open.cherryin.cc";
+          provider.anthropicApiHost = "https://open.cherryin.cc";
         }
-      })
-      state.llm.providers = moveProvider(state.llm.providers, SystemProviderIds.poe, 10)
-      logger.info('migrate 183 success')
-      return state
+      });
+      state.llm.providers = moveProvider(
+        state.llm.providers,
+        SystemProviderIds.poe,
+        10,
+      );
+      logger.info("migrate 183 success");
+      return state;
     } catch (error) {
-      logger.error('migrate 183 error', error as Error)
-      return state
+      logger.error("migrate 183 error", error as Error);
+      return state;
     }
   },
-  '184': (state: RootState) => {
+  "184": (state: RootState) => {
     try {
       // Add exa-mcp (free) web search provider if not exists
-      const exaMcpExists = state.websearch.providers.some((p) => p.id === 'exa-mcp')
+      const exaMcpExists = state.websearch.providers.some(
+        (p) => p.id === "exa-mcp",
+      );
       if (!exaMcpExists) {
         // Find the index of 'exa' provider to insert after it
-        const exaIndex = state.websearch.providers.findIndex((p) => p.id === 'exa')
+        const exaIndex = state.websearch.providers.findIndex(
+          (p) => p.id === "exa",
+        );
         const newProvider = {
-          id: 'exa-mcp' as const,
-          name: 'ExaMCP',
-          apiHost: 'https://mcp.exa.ai/mcp'
-        }
+          id: "exa-mcp" as const,
+          name: "ExaMCP",
+          apiHost: "https://mcp.exa.ai/mcp",
+        };
         if (exaIndex !== -1) {
-          state.websearch.providers.splice(exaIndex + 1, 0, newProvider)
+          state.websearch.providers.splice(exaIndex + 1, 0, newProvider);
         } else {
-          state.websearch.providers.push(newProvider)
+          state.websearch.providers.push(newProvider);
         }
       }
-      logger.info('migrate 184 success')
-      return state
+      logger.info("migrate 184 success");
+      return state;
     } catch (error) {
-      logger.error('migrate 184 error', error as Error)
-      return state
+      logger.error("migrate 184 error", error as Error);
+      return state;
     }
   },
-  '185': (state: RootState) => {
+  "185": (state: RootState) => {
     try {
       // Reset toolUseMode to function for default assistant
       if (state.assistants.defaultAssistant.settings?.toolUseMode) {
-        state.assistants.defaultAssistant.settings.toolUseMode = 'function'
+        state.assistants.defaultAssistant.settings.toolUseMode = "function";
       }
       // Reset toolUseMode to function for assistants
       state.assistants.assistants.forEach((assistant) => {
-        if (assistant.settings?.toolUseMode === 'prompt') {
+        if (assistant.settings?.toolUseMode === "prompt") {
           if (assistant.model && isFunctionCallingModel(assistant.model)) {
-            assistant.settings.toolUseMode = 'function'
+            assistant.settings.toolUseMode = "function";
           }
         }
-      })
-      logger.info('migrate 185 success')
-      return state
+      });
+      logger.info("migrate 185 success");
+      return state;
     } catch (error) {
-      logger.error('migrate 185 error', error as Error)
-      return state
+      logger.error("migrate 185 error", error as Error);
+      return state;
     }
   },
-  '186': (state: RootState) => {
+  "186": (state: RootState) => {
     try {
       if (state.settings.apiServer) {
-        state.settings.apiServer.host = API_SERVER_DEFAULTS.HOST
+        state.settings.apiServer.host = API_SERVER_DEFAULTS.HOST;
       }
       // @ts-expect-error
-      if (state.settings.openAI.summaryText === 'undefined') {
-        state.settings.openAI.summaryText = undefined
+      if (state.settings.openAI.summaryText === "undefined") {
+        state.settings.openAI.summaryText = undefined;
       }
       // @ts-expect-error
-      if (state.settings.openAI.verbosity === 'undefined') {
-        state.settings.openAI.verbosity = undefined
+      if (state.settings.openAI.verbosity === "undefined") {
+        state.settings.openAI.verbosity = undefined;
       }
       state.llm.providers.forEach((provider) => {
         if (provider.id === SystemProviderIds.ollama) {
-          provider.type = 'ollama'
+          provider.type = "ollama";
         }
-      })
-      logger.info('migrate 186 success')
-      return state
+      });
+      logger.info("migrate 186 success");
+      return state;
     } catch (error) {
-      logger.error('migrate 186 error', error as Error)
-      return state
+      logger.error("migrate 186 error", error as Error);
+      return state;
     }
   },
-  '187': (state: RootState) => {
+  "187": (state: RootState) => {
     try {
       state.assistants.assistants.forEach((assistant) => {
-        if (assistant.settings && assistant.settings.reasoning_effort === undefined) {
-          assistant.settings.reasoning_effort = 'default'
+        if (
+          assistant.settings &&
+          assistant.settings.reasoning_effort === undefined
+        ) {
+          assistant.settings.reasoning_effort = "default";
         }
-      })
-      addProvider(state, 'mimo')
-      logger.info('migrate 187 success')
-      return state
+      });
+      addProvider(state, "mimo");
+      logger.info("migrate 187 success");
+      return state;
     } catch (error) {
-      logger.error('migrate 187 error', error as Error)
-      return state
+      logger.error("migrate 187 error", error as Error);
+      return state;
     }
   },
   // 1.7.7
-  '188': (state: RootState) => {
+  "188": (state: RootState) => {
     try {
       state.llm.providers.forEach((provider) => {
         if (provider.id === SystemProviderIds.openrouter) {
-          provider.anthropicApiHost = 'https://openrouter.ai/api'
+          provider.anthropicApiHost = "https://openrouter.ai/api";
         }
-      })
-      logger.info('migrate 188 success')
-      return state
+      });
+      logger.info("migrate 188 success");
+      return state;
     } catch (error) {
-      logger.error('migrate 188 error', error as Error)
-      return state
+      logger.error("migrate 188 error", error as Error);
+      return state;
     }
   },
   // 1.7.7
-  '189': (state: RootState) => {
+  "189": (state: RootState) => {
     try {
-      window.api.memory.migrateMemoryDb()
+      window.api.memory.migrateMemoryDb();
       // @ts-ignore
-      const memoryLlmApiClient = state?.memory?.memoryConfig?.llmApiClient
+      const memoryLlmApiClient = state?.memory?.memoryConfig?.llmApiClient;
       // @ts-ignore
-      const memoryEmbeddingApiClient = state?.memory?.memoryConfig?.embedderApiClient
+      const memoryEmbeddingApiClient =
+        state?.memory?.memoryConfig?.embedderApiClient;
 
       if (memoryLlmApiClient) {
-        state.memory.memoryConfig.llmModel = getModel(memoryLlmApiClient.model, memoryLlmApiClient.provider)
+        state.memory.memoryConfig.llmModel = getModel(
+          memoryLlmApiClient.model,
+          memoryLlmApiClient.provider,
+        );
         // @ts-ignore
-        delete state.memory.memoryConfig.llmApiClient
+        delete state.memory.memoryConfig.llmApiClient;
       }
 
       if (memoryEmbeddingApiClient) {
         state.memory.memoryConfig.embeddingModel = getModel(
           memoryEmbeddingApiClient.model,
-          memoryEmbeddingApiClient.provider
-        )
+          memoryEmbeddingApiClient.provider,
+        );
         // @ts-ignore
-        delete state.memory.memoryConfig.embedderApiClient
+        delete state.memory.memoryConfig.embedderApiClient;
       }
-      return state
+      return state;
     } catch (error) {
-      logger.error('migrate 189 error', error as Error)
-      return state
+      logger.error("migrate 189 error", error as Error);
+      return state;
     }
   },
   // 1.7.8
-  '190': (state: RootState) => {
+  "190": (state: RootState) => {
     try {
       state.llm.providers.forEach((provider) => {
         if (provider.id === SystemProviderIds.ollama) {
-          provider.type = 'ollama'
+          provider.type = "ollama";
         }
-      })
-      logger.info('migrate 190 success')
-      return state
+      });
+      logger.info("migrate 190 success");
+      return state;
     } catch (error) {
-      logger.error('migrate 190 error', error as Error)
-      return state
+      logger.error("migrate 190 error", error as Error);
+      return state;
     }
   },
-  '191': (state: RootState) => {
+  "191": (state: RootState) => {
     try {
       state.llm.providers.forEach((provider) => {
-        if (provider.id === 'tokenflux') {
-          provider.apiHost = 'https://api.tokenflux.ai/openai/v1'
-          provider.anthropicApiHost = 'https://api.tokenflux.ai/anthropic'
+        if (provider.id === "tokenflux") {
+          provider.apiHost = "https://api.tokenflux.ai/openai/v1";
+          provider.anthropicApiHost = "https://api.tokenflux.ai/anthropic";
         }
-      })
-      logger.info('migrate 191 success')
-      return state
+      });
+      logger.info("migrate 191 success");
+      return state;
     } catch (error) {
-      logger.error('migrate 191 error', error as Error)
-      return state
+      logger.error("migrate 191 error", error as Error);
+      return state;
     }
   },
-  '192': (state: RootState) => {
+  "192": (state: RootState) => {
     try {
       state.llm.providers.forEach((provider) => {
-        if (provider.id === '302ai') {
-          provider.anthropicApiHost = 'https://api.302.ai'
+        if (provider.id === "302ai") {
+          provider.anthropicApiHost = "https://api.302.ai";
         }
-      })
-      state.settings.readClipboardAtStartup = false
-      logger.info('migrate 192 success')
-      return state
+      });
+      state.settings.readClipboardAtStartup = false;
+      logger.info("migrate 192 success");
+      return state;
     } catch (error) {
-      logger.error('migrate 192 error', error as Error)
-      return state
+      logger.error("migrate 192 error", error as Error);
+      return state;
     }
   },
-  '193': (state: RootState) => {
+  "193": (state: RootState) => {
     try {
-      addPreprocessProviders(state, 'paddleocr')
-      logger.info('migrate 193 success')
-      return state
+      addPreprocessProviders(state, "paddleocr");
+      logger.info("migrate 193 success");
+      return state;
     } catch (error) {
-      logger.error('migrate 193 error', error as Error)
-      return state
+      logger.error("migrate 193 error", error as Error);
+      return state;
     }
   },
-  '194': (state: RootState) => {
+  "194": (state: RootState) => {
     try {
-      const GLM_4_5_FLASH_MODEL = 'glm-4.5-flash'
-      if (state.llm.defaultModel?.provider === 'cherryai' && state.llm.defaultModel?.id === GLM_4_5_FLASH_MODEL) {
-        state.llm.defaultModel = qwenModel
+      const GLM_4_5_FLASH_MODEL = "glm-4.5-flash";
+      if (
+        state.llm.defaultModel?.provider === "cherryai" &&
+        state.llm.defaultModel?.id === GLM_4_5_FLASH_MODEL
+      ) {
+        state.llm.defaultModel = qwenModel;
       }
-      if (state.llm.quickModel?.provider === 'cherryai' && state.llm.quickModel?.id === GLM_4_5_FLASH_MODEL) {
-        state.llm.quickModel = qwenModel
+      if (
+        state.llm.quickModel?.provider === "cherryai" &&
+        state.llm.quickModel?.id === GLM_4_5_FLASH_MODEL
+      ) {
+        state.llm.quickModel = qwenModel;
       }
-      if (state.llm.translateModel?.provider === 'cherryai' && state.llm.translateModel?.id === GLM_4_5_FLASH_MODEL) {
-        state.llm.translateModel = qwenModel
+      if (
+        state.llm.translateModel?.provider === "cherryai" &&
+        state.llm.translateModel?.id === GLM_4_5_FLASH_MODEL
+      ) {
+        state.llm.translateModel = qwenModel;
       }
       state.assistants.assistants.forEach((assistant) => {
-        if (assistant.model?.provider === 'cherryai' && assistant.model?.id === GLM_4_5_FLASH_MODEL) {
-          assistant.model = qwenModel
+        if (
+          assistant.model?.provider === "cherryai" &&
+          assistant.model?.id === GLM_4_5_FLASH_MODEL
+        ) {
+          assistant.model = qwenModel;
         }
-        if (assistant.defaultModel?.provider === 'cherryai' && assistant.defaultModel?.id === GLM_4_5_FLASH_MODEL) {
-          assistant.defaultModel = qwenModel
+        if (
+          assistant.defaultModel?.provider === "cherryai" &&
+          assistant.defaultModel?.id === GLM_4_5_FLASH_MODEL
+        ) {
+          assistant.defaultModel = qwenModel;
         }
-      })
+      });
       // Initialize mini app region filter setting
-      state.settings.minAppRegion ??= 'auto'
-      return state
+      state.settings.minAppRegion ??= "auto";
+      return state;
     } catch (error) {
-      logger.error('migrate 194 error', error as Error)
-      return state
+      logger.error("migrate 194 error", error as Error);
+      return state;
     }
   },
-  '195': (state: RootState) => {
+  "195": (state: RootState) => {
     try {
       if (state.settings && state.settings.sidebarIcons) {
         // Add 'openclaw' to visible icons if not already present
-        if (!state.settings.sidebarIcons.visible.includes('openclaw')) {
-          state.settings.sidebarIcons.visible = [...state.settings.sidebarIcons.visible, 'openclaw']
+        if (!state.settings.sidebarIcons.visible.includes("openclaw")) {
+          state.settings.sidebarIcons.visible = [
+            ...state.settings.sidebarIcons.visible,
+            "openclaw",
+          ];
         }
       }
-      logger.info('migrate 195 success')
-      return state
+      logger.info("migrate 195 success");
+      return state;
     } catch (error) {
-      logger.error('migrate 195 error', error as Error)
-      return state
+      logger.error("migrate 195 error", error as Error);
+      return state;
     }
   },
-  '196': (state: RootState) => {
+  "196": (state: RootState) => {
     try {
       if (state.paintings && !state.paintings.ppio_draw) {
-        state.paintings.ppio_draw = []
+        state.paintings.ppio_draw = [];
       }
       if (state.paintings && !state.paintings.ppio_edit) {
-        state.paintings.ppio_edit = []
+        state.paintings.ppio_edit = [];
       }
-      logger.info('migrate 196 success')
-      return state
+      logger.info("migrate 196 success");
+      return state;
     } catch (error) {
-      logger.error('migrate 196 error', error as Error)
-      return state
+      logger.error("migrate 196 error", error as Error);
+      return state;
     }
   },
-  '197': (state: RootState) => {
+  "197": (state: RootState) => {
     try {
       if (state.openclaw.gatewayPort === 18789) {
-        state.openclaw.gatewayPort = 18790
+        state.openclaw.gatewayPort = 18790;
       }
-      logger.info('migrate 197 success')
-      return state
+      logger.info("migrate 197 success");
+      return state;
     } catch (error) {
-      logger.error('migrate 197 error', error as Error)
-      return state
+      logger.error("migrate 197 error", error as Error);
+      return state;
     }
   },
-  '198': (state: RootState) => {
+  "198": (state: RootState) => {
     try {
       state.llm.providers.forEach((provider) => {
-        if (provider.id === 'minimax') {
-          provider.models = SYSTEM_MODELS['minimax']
-          provider.apiHost = 'https://api.minimaxi.com/v1/'
+        if (provider.id === "minimax") {
+          provider.models = SYSTEM_MODELS["minimax"];
+          provider.apiHost = "https://api.minimaxi.com/v1/";
         }
-      })
-      return state
+      });
+      return state;
     } catch (error) {
-      logger.error('migrate 198 error', error as Error)
-      return state
+      logger.error("migrate 198 error", error as Error);
+      return state;
     }
   },
-  '199': (state: RootState) => {
+  "199": (state: RootState) => {
     try {
-      addShortcuts(state, ['select_model'], 'toggle_new_context')
-      return state
+      addShortcuts(state, ["select_model"], "toggle_new_context");
+      return state;
     } catch (error) {
-      logger.error('migrate 199 error', error as Error)
-      return state
+      logger.error("migrate 199 error", error as Error);
+      return state;
     }
   },
-  '200': (state: RootState) => {
+  "200": (state: RootState) => {
     try {
       state.llm.providers.forEach((provider) => {
-        if (provider.type === 'ollama') {
-          provider.anthropicApiHost = provider.apiHost || 'http://localhost:11434'
+        if (provider.type === "ollama") {
+          provider.anthropicApiHost =
+            provider.apiHost || "http://localhost:11434";
         }
-      })
+      });
 
       // Migrate minimax app id to hailuo
       if (state.minapps) {
-        const lists: Array<'enabled' | 'disabled' | 'pinned'> = ['enabled', 'disabled', 'pinned']
+        const lists: Array<"enabled" | "disabled" | "pinned"> = [
+          "enabled",
+          "disabled",
+          "pinned",
+        ];
         lists.forEach((list) => {
           state.minapps[list] = state.minapps[list].map((app) =>
-            app.id === 'minimax' ? { ...app, id: 'hailuo' } : app
-          )
-        })
+            app.id === "minimax" ? { ...app, id: "hailuo" } : app,
+          );
+        });
       }
       // Add new MiniMax Agent apps
-      addMiniApp(state, 'minimax-agent')
-      addMiniApp(state, 'minimax-agent-global')
-      addMiniApp(state, 'ima')
+      addMiniApp(state, "minimax-agent");
+      addMiniApp(state, "minimax-agent-global");
+      addMiniApp(state, "ima");
       // Add new providers: minimax-global and zai
-      addProvider(state, 'minimax-global')
-      addProvider(state, 'zai')
+      addProvider(state, "minimax-global");
+      addProvider(state, "zai");
       // Update grok provider type to openai-response
       state.llm.providers.forEach((provider) => {
         if (provider.id === SystemProviderIds.grok) {
-          provider.type = 'openai-response'
+          provider.type = "openai-response";
         }
-      })
+      });
 
-      return state
+      return state;
     } catch (error) {
-      logger.error('migrate 200 error', error as Error)
-      return state
+      logger.error("migrate 200 error", error as Error);
+      return state;
     }
   },
-  '201': (state: RootState) => {
+  "201": (state: RootState) => {
     try {
-      addWebSearchProvider(state, 'querit')
-      return state
+      addWebSearchProvider(state, "querit");
+      return state;
     } catch (error) {
-      logger.error('migrate 201 error', error as Error)
-      return state
+      logger.error("migrate 201 error", error as Error);
+      return state;
     }
   },
-  '202': (state: RootState) => {
+  "202": (state: RootState) => {
     try {
-      const filesystemServer = state.mcp?.servers?.find((s: any) => s.name === '@cherry/filesystem')
-      if (filesystemServer && filesystemServer.disabledAutoApproveTools === undefined) {
-        filesystemServer.disabledAutoApproveTools = ['write', 'edit', 'delete']
+      const filesystemServer = state.mcp?.servers?.find(
+        (s: any) => s.name === "@cherry/filesystem",
+      );
+      if (
+        filesystemServer &&
+        filesystemServer.disabledAutoApproveTools === undefined
+      ) {
+        filesystemServer.disabledAutoApproveTools = ["write", "edit", "delete"];
       }
-      return state
+      return state;
     } catch (error) {
-      logger.error('migrate 202 error', error as Error)
-      return state
+      logger.error("migrate 202 error", error as Error);
+      return state;
     }
   },
-  '203': (state: RootState) => {
+  "203": (state: RootState) => {
     try {
       if (state.settings && state.settings.sidebarIcons) {
         // Add 'agents' to visible icons if not already present
-        if (!state.settings.sidebarIcons.visible.includes('agents')) {
+        if (!state.settings.sidebarIcons.visible.includes("agents")) {
           // Insert after 'assistants' if present, otherwise append
-          const assistantsIndex = state.settings.sidebarIcons.visible.indexOf('assistants')
+          const assistantsIndex =
+            state.settings.sidebarIcons.visible.indexOf("assistants");
           if (assistantsIndex !== -1) {
             state.settings.sidebarIcons.visible = [
-              ...state.settings.sidebarIcons.visible.slice(0, assistantsIndex + 1),
-              'agents',
-              ...state.settings.sidebarIcons.visible.slice(assistantsIndex + 1)
-            ]
+              ...state.settings.sidebarIcons.visible.slice(
+                0,
+                assistantsIndex + 1,
+              ),
+              "agents",
+              ...state.settings.sidebarIcons.visible.slice(assistantsIndex + 1),
+            ];
           } else {
-            state.settings.sidebarIcons.visible = [...state.settings.sidebarIcons.visible, 'agents']
+            state.settings.sidebarIcons.visible = [
+              ...state.settings.sidebarIcons.visible,
+              "agents",
+            ];
           }
         }
       }
 
       // Add 'agents' tab if not already present
-      if (state.tabs && !state.tabs.tabs.some((tab: { id: string }) => tab.id === 'agents')) {
-        const homeIndex = state.tabs.tabs.findIndex((tab: { id: string }) => tab.id === 'home')
-        const insertIndex = homeIndex !== -1 ? homeIndex + 1 : state.tabs.tabs.length
-        state.tabs.tabs.splice(insertIndex, 0, { id: 'agents', path: '/agents' })
+      if (
+        state.tabs &&
+        !state.tabs.tabs.some((tab: { id: string }) => tab.id === "agents")
+      ) {
+        const homeIndex = state.tabs.tabs.findIndex(
+          (tab: { id: string }) => tab.id === "home",
+        );
+        const insertIndex =
+          homeIndex !== -1 ? homeIndex + 1 : state.tabs.tabs.length;
+        state.tabs.tabs.splice(insertIndex, 0, {
+          id: "agents",
+          path: "/agents",
+        });
       }
 
-      logger.info('migrate 203 success')
-      return state
+      logger.info("migrate 203 success");
+      return state;
     } catch (error) {
-      logger.error('migrate 203 error', error as Error)
-      return state
+      logger.error("migrate 203 error", error as Error);
+      return state;
     }
   },
-  '204': (state: RootState) => {
+  "204": (state: RootState) => {
     try {
-      if (state.llm.defaultModel?.provider === 'cherryai') {
-        state.llm.defaultModel = qwenModel
+      if (state.llm.defaultModel?.provider === "cherryai") {
+        state.llm.defaultModel = qwenModel;
       }
-      if (state.llm.quickModel?.provider === 'cherryai') {
-        state.llm.quickModel = qwenModel
+      if (state.llm.quickModel?.provider === "cherryai") {
+        state.llm.quickModel = qwenModel;
       }
-      if (state.llm.translateModel?.provider === 'cherryai') {
-        state.llm.translateModel = qwenModel
+      if (state.llm.translateModel?.provider === "cherryai") {
+        state.llm.translateModel = qwenModel;
       }
       state.assistants.assistants.forEach((assistant) => {
-        if (assistant.model?.provider === 'cherryai') {
-          assistant.model = qwenModel
+        if (assistant.model?.provider === "cherryai") {
+          assistant.model = qwenModel;
         }
-        if (assistant.defaultModel?.provider === 'cherryai') {
-          assistant.defaultModel = qwenModel
+        if (assistant.defaultModel?.provider === "cherryai") {
+          assistant.defaultModel = qwenModel;
         }
-      })
-      logger.info('migrate 204 success')
-      return state
+      });
+      logger.info("migrate 204 success");
+      return state;
     } catch (error) {
-      logger.error('migrate 204 error', error as Error)
-      return state
+      logger.error("migrate 204 error", error as Error);
+      return state;
     }
-  }
-}
+  },
+};
 
 // 注意：添加新迁移时，记得同时更新 persistReducer
 // file://./index.ts
 
-const migrate = createMigrate(migrateConfig as any)
+const migrate = createMigrate(migrateConfig as any);
 
-export default migrate
+export default migrate;

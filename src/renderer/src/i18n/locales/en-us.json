@@ -5123,6 +5123,7 @@
           "title": "OAuth Login"
         },
         "connect": "Connect {{provider}}",
+        "connected": "Connected",
         "description": "This service is provided by <website>{{provider}}</website>",
         "error": "Authentication failed",
         "logged_in": "Logged in",
@@ -5131,8 +5132,50 @@
         "logout_success": "Successfully logged out",
         "logout_warning": "Logged out locally, but server token revocation may have failed",
         "official_website": "Official Website",
+        "open_api_keys": "Open API Keys",
+        "open_provider_website": "Open Provider Website",
+        "poe": {
+          "error": {
+            "access_denied": "Poe authorization was denied. Please approve access to continue.",
+            "authorization_failed": "Poe sign-in failed during authorization.",
+            "browser_open_failed": "Cherry Studio could not open your browser for Poe sign-in. Please check your system browser settings and try again.",
+            "callback_port_unavailable": "Poe sign-in could not determine the callback port.",
+            "callback_processing_failed": "Failed to process the Poe callback.",
+            "callback_server_error": "Poe sign-in could not start the local callback server.",
+            "callback_timeout": "Timed out waiting for the Poe authorization response. Please try signing in again.",
+            "invalid_grant": "The Poe authorization expired or could not be verified. Please sign in again.",
+            "invalid_request": "Poe could not process the sign-in request. Please try again.",
+            "invalid_scope": "Poe rejected the requested permissions.",
+            "missing_api_key": "Poe sign-in completed, but no API key was returned.",
+            "missing_code": "Poe did not return an authorization code.",
+            "missing_state": "Poe sign-in did not return a valid state value.",
+            "server_error": "Poe temporarily failed to finish sign-in. Please try again.",
+            "state_mismatch": "The Poe sign-in request could not be verified. Please try again.",
+            "token_exchange_failed": "Poe sign-in failed while requesting an API key.",
+            "token_invalid_request": "Poe could not complete the token exchange. Please try again.",
+            "token_request_failed": "Cherry Studio could not reach Poe to finish sign-in. Please check your network connection and try again.",
+            "unsupported_grant_type": "Poe rejected the requested token grant type.",
+            "unsupported_response_type": "Poe did not accept the requested authorization flow."
+          },
+          "expired": {
+            "description": "This Poe API key expired at {{date}}. Reconnect to continue using Poe models.",
+            "title": "Poe API key expired"
+          },
+          "expiring_soon": {
+            "description": "This Poe API key will expire at {{date}}. Reconnect now to avoid interruptions.",
+            "title": "Poe API key expires soon"
+          },
+          "failure": {
+            "title": "Poe sign-in failed"
+          },
+          "success": {
+            "description": "You can return to Cherry Studio now.",
+            "title": "Connected to Poe"
+          }
+        },
         "provided_by": "Provided by",
         "provided_by_suffix": "",
+        "reconnect": "Reconnect",
         "requests": "Requests",
         "topup": "Top Up",
         "usage_title": "Usage"
