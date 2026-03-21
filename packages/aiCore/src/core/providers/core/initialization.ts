@@ -27,7 +27,6 @@ import { customProvider } from 'ai'
 
 import { createOpenRouterOptions } from '../../options'
 import type { OpenRouterSearchConfig } from '../../plugins/built-in/webSearchPlugin/openrouter'
-
 import type {
   ExtensionConfigToIdResolutionMap,
   ExtensionStorage,

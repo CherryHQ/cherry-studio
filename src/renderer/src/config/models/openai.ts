@@ -1,5 +1,5 @@
 import type { Model } from '@renderer/types'
-import { getLowerBaseModelName } from '@renderer/utils'
+import { getLowerBaseModelName } from '@renderer/utils/naming'
 
 export const OPENAI_NO_SUPPORT_DEV_ROLE_MODELS = ['o1-preview', 'o1-mini']
 

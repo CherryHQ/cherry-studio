@@ -1,5 +1,4 @@
 import type { WebSearchToolConfigMap } from '../../../providers'
-
 import type { OpenRouterSearchConfig } from './openrouter'
 
 /**

@@ -19,8 +19,8 @@ import {
 import type { EmbeddingModelV3, ImageModelV3, LanguageModelV3, ProviderV3 } from '@ai-sdk/provider'
 import type { FetchFunction } from '@ai-sdk/provider-utils'
 import { loadApiKey, withoutTrailingSlash } from '@ai-sdk/provider-utils'
-import { isOpenAIChatCompletionOnlyModel, isOpenAILLMModel } from '@renderer/config/models'
-import { getModelById } from '@renderer/services/ModelService'
+import { isOpenAIChatCompletionOnlyModel, isOpenAILLMModel } from '@renderer/config/models/openai'
+import type { Model } from '@renderer/types'
 
 export const AIHUBMIX_PROVIDER_NAME = 'aihubmix' as const
 const APP_CODE_HEADER = { 'APP-Code': 'MLTG2087' }
@@ -114,7 +114,7 @@ export function createAihubmix(options: AihubmixProviderSettings = {}): Aihubmix
     ) {
       return createGeminiModel(modelId)
     }
-    const model = getModelById(modelId)
+    const model = { id: modelId } as Model
     if (isOpenAILLMModel(model)) {
       if (isOpenAIChatCompletionOnlyModel(model)) {
         return createOpenAIChatModel(modelId)
