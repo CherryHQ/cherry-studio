@@ -525,7 +525,7 @@ export type MinAppType = {
   nameKey?: string
   /** Regions where this app is available. If includes 'Global', shown to international users. */
   supportedRegions?: MinAppRegion[]
-  logo?: string | object
+  logo?: string
   url: string
   bordered?: boolean
   background?: string

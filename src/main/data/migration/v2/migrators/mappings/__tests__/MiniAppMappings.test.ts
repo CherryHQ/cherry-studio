@@ -37,10 +37,89 @@ describe('MiniAppMappings', () => {
       expect(result.bordered).toBe(false)
     })
 
-    it('should filter out empty or non-string logos', () => {
-      expect(transformMiniApp(createSource({ logo: '' }), 'enabled' as MiniAppStatus, 0).logo).toBeNull()
-      expect(transformMiniApp(createSource({ logo: null }), 'enabled' as MiniAppStatus, 0).logo).toBeNull()
-      expect(transformMiniApp(createSource({ logo: { src: 'x' } }), 'enabled' as MiniAppStatus, 0).logo).toBeNull()
+    describe('logo handling [v2]', () => {
+      it('should preserve custom app URL logos (http/https)', () => {
+        const httpLogo = transformMiniApp(
+          createSource({ logo: 'https://example.com/logo.png' }),
+          'enabled' as MiniAppStatus,
+          0
+        )
+        expect(httpLogo.logo).toBe('https://example.com/logo.png')
+
+        const dataUri = transformMiniApp(
+          createSource({ logo: 'data:image/png;base64,abc123' }),
+          'enabled' as MiniAppStatus,
+          0
+        )
+        expect(dataUri.logo).toBe('data:image/png;base64,abc123')
+      })
+
+      it('should preserve string key logos', () => {
+        const result = transformMiniApp(createSource({ logo: 'custom-key' }), 'enabled' as MiniAppStatus, 0)
+        expect(result.logo).toBe('custom-key')
+      })
+
+      it('should resolve built-in app logos from ID mapping when logo is object/invalid', () => {
+        // Built-in apps should get their logo key from the mapping table
+        const openai = transformMiniApp(
+          { id: 'openai', name: 'ChatGPT', url: 'https://chatgpt.com', logo: { component: 'Openai' } },
+          'enabled' as MiniAppStatus,
+          0
+        )
+        expect(openai.logo).toBe('openai')
+
+        const gemini = transformMiniApp(
+          { id: 'gemini', name: 'Gemini', url: 'https://gemini.google.com', logo: null },
+          'enabled' as MiniAppStatus,
+          0
+        )
+        expect(gemini.logo).toBe('gemini')
+
+        const deepseek = transformMiniApp(
+          { id: 'deepseek', name: 'DeepSeek', url: 'https://chat.deepseek.com', logo: '' },
+          'enabled' as MiniAppStatus,
+          0
+        )
+        expect(deepseek.logo).toBe('deepseek')
+      })
+
+      it('should fallback to application default for unknown app IDs', () => {
+        const unknown = transformMiniApp(
+          createSource({ id: 'unknown-app', logo: { invalid: true } }),
+          'enabled' as MiniAppStatus,
+          0
+        )
+        expect(unknown.logo).toBe('application')
+
+        const emptyLogo = transformMiniApp(
+          createSource({ id: 'my-custom-app', logo: '' }),
+          'enabled' as MiniAppStatus,
+          0
+        )
+        expect(emptyLogo.logo).toBe('application')
+      })
+
+      it('should handle all built-in app logo mappings', () => {
+        const testCases = [
+          { id: 'openai', expected: 'openai' },
+          { id: 'moonshot', expected: 'kimi' },
+          { id: 'dashscope', expected: 'qwen' },
+          { id: 'anthropic', expected: 'claude' },
+          { id: 'yi', expected: 'zeroone' },
+          { id: 'cici', expected: 'bytedance' },
+          { id: 'spark-desk', expected: 'xinghuo' },
+          { id: 'grok-x', expected: 'twitter' }
+        ]
+
+        for (const { id, expected } of testCases) {
+          const result = transformMiniApp(
+            { id, name: 'Test', url: 'https://test.com', logo: null },
+            'enabled' as MiniAppStatus,
+            0
+          )
+          expect(result.logo).toBe(expected)
+        }
+      })
     })
 
     it('should parse addTime correctly', () => {
