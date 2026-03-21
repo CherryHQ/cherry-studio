@@ -31,12 +31,14 @@ import { Route as SettingsDataRouteImport } from './routes/settings/data'
 import { Route as SettingsApiServerRouteImport } from './routes/settings/api-server'
 import { Route as SettingsAboutRouteImport } from './routes/settings/about'
 import { Route as AppTranslateRouteImport } from './routes/app/translate'
+import { Route as AppOpenclawRouteImport } from './routes/app/openclaw'
 import { Route as AppNotesRouteImport } from './routes/app/notes'
 import { Route as AppKnowledgeRouteImport } from './routes/app/knowledge'
 import { Route as AppFilesRouteImport } from './routes/app/files'
 import { Route as AppCodeRouteImport } from './routes/app/code'
 import { Route as AppChatRouteImport } from './routes/app/chat'
 import { Route as AppAssistantRouteImport } from './routes/app/assistant'
+import { Route as AppAgentsRouteImport } from './routes/app/agents'
 import { Route as SettingsWebsearchIndexRouteImport } from './routes/settings/websearch/index'
 import { Route as SettingsMcpIndexRouteImport } from './routes/settings/mcp/index'
 import { Route as AppPaintingsIndexRouteImport } from './routes/app/paintings/index'
@@ -164,6 +166,11 @@ const AppTranslateRoute = AppTranslateRouteImport.update({
   path: '/translate',
   getParentRoute: () => AppRoute,
 } as any)
+const AppOpenclawRoute = AppOpenclawRouteImport.update({
+  id: '/openclaw',
+  path: '/openclaw',
+  getParentRoute: () => AppRoute,
+} as any)
 const AppNotesRoute = AppNotesRouteImport.update({
   id: '/notes',
   path: '/notes',
@@ -192,6 +199,11 @@ const AppChatRoute = AppChatRouteImport.update({
 const AppAssistantRoute = AppAssistantRouteImport.update({
   id: '/assistant',
   path: '/assistant',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppAgentsRoute = AppAgentsRouteImport.update({
+  id: '/agents',
+  path: '/agents',
   getParentRoute: () => AppRoute,
 } as any)
 const SettingsWebsearchIndexRoute = SettingsWebsearchIndexRouteImport.update({
@@ -278,12 +290,14 @@ export interface FileRoutesByFullPath {
   '/app': typeof AppRouteWithChildren
   '/home': typeof HomeRoute
   '/settings': typeof SettingsRouteWithChildren
+  '/app/agents': typeof AppAgentsRoute
   '/app/assistant': typeof AppAssistantRoute
   '/app/chat': typeof AppChatRoute
   '/app/code': typeof AppCodeRoute
   '/app/files': typeof AppFilesRoute
   '/app/knowledge': typeof AppKnowledgeRoute
   '/app/notes': typeof AppNotesRoute
+  '/app/openclaw': typeof AppOpenclawRoute
   '/app/translate': typeof AppTranslateRoute
   '/settings/about': typeof SettingsAboutRoute
   '/settings/api-server': typeof SettingsApiServerRoute
@@ -322,12 +336,14 @@ export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/app': typeof AppRouteWithChildren
   '/home': typeof HomeRoute
+  '/app/agents': typeof AppAgentsRoute
   '/app/assistant': typeof AppAssistantRoute
   '/app/chat': typeof AppChatRoute
   '/app/code': typeof AppCodeRoute
   '/app/files': typeof AppFilesRoute
   '/app/knowledge': typeof AppKnowledgeRoute
   '/app/notes': typeof AppNotesRoute
+  '/app/openclaw': typeof AppOpenclawRoute
   '/app/translate': typeof AppTranslateRoute
   '/settings/about': typeof SettingsAboutRoute
   '/settings/api-server': typeof SettingsApiServerRoute
@@ -366,12 +382,14 @@ export interface FileRoutesById {
   '/app': typeof AppRouteWithChildren
   '/home': typeof HomeRoute
   '/settings': typeof SettingsRouteWithChildren
+  '/app/agents': typeof AppAgentsRoute
   '/app/assistant': typeof AppAssistantRoute
   '/app/chat': typeof AppChatRoute
   '/app/code': typeof AppCodeRoute
   '/app/files': typeof AppFilesRoute
   '/app/knowledge': typeof AppKnowledgeRoute
   '/app/notes': typeof AppNotesRoute
+  '/app/openclaw': typeof AppOpenclawRoute
   '/app/translate': typeof AppTranslateRoute
   '/settings/about': typeof SettingsAboutRoute
   '/settings/api-server': typeof SettingsApiServerRoute
@@ -413,12 +431,14 @@ export interface FileRouteTypes {
     | '/app'
     | '/home'
     | '/settings'
+    | '/app/agents'
     | '/app/assistant'
     | '/app/chat'
     | '/app/code'
     | '/app/files'
     | '/app/knowledge'
     | '/app/notes'
+    | '/app/openclaw'
     | '/app/translate'
     | '/settings/about'
     | '/settings/api-server'
@@ -457,12 +477,14 @@ export interface FileRouteTypes {
     | '/'
     | '/app'
     | '/home'
+    | '/app/agents'
     | '/app/assistant'
     | '/app/chat'
     | '/app/code'
     | '/app/files'
     | '/app/knowledge'
     | '/app/notes'
+    | '/app/openclaw'
     | '/app/translate'
     | '/settings/about'
     | '/settings/api-server'
@@ -500,12 +522,14 @@ export interface FileRouteTypes {
     | '/app'
     | '/home'
     | '/settings'
+    | '/app/agents'
     | '/app/assistant'
     | '/app/chat'
     | '/app/code'
     | '/app/files'
     | '/app/knowledge'
     | '/app/notes'
+    | '/app/openclaw'
     | '/app/translate'
     | '/settings/about'
     | '/settings/api-server'
@@ -704,6 +728,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppTranslateRouteImport
       parentRoute: typeof AppRoute
     }
+    '/app/openclaw': {
+      id: '/app/openclaw'
+      path: '/openclaw'
+      fullPath: '/app/openclaw'
+      preLoaderRoute: typeof AppOpenclawRouteImport
+      parentRoute: typeof AppRoute
+    }
     '/app/notes': {
       id: '/app/notes'
       path: '/notes'
@@ -744,6 +775,13 @@ declare module '@tanstack/react-router' {
       path: '/assistant'
       fullPath: '/app/assistant'
       preLoaderRoute: typeof AppAssistantRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/app/agents': {
+      id: '/app/agents'
+      path: '/agents'
+      fullPath: '/app/agents'
+      preLoaderRoute: typeof AppAgentsRouteImport
       parentRoute: typeof AppRoute
     }
     '/settings/websearch/': {
@@ -855,12 +893,14 @@ declare module '@tanstack/react-router' {
 }
 
 interface AppRouteChildren {
+  AppAgentsRoute: typeof AppAgentsRoute
   AppAssistantRoute: typeof AppAssistantRoute
   AppChatRoute: typeof AppChatRoute
   AppCodeRoute: typeof AppCodeRoute
   AppFilesRoute: typeof AppFilesRoute
   AppKnowledgeRoute: typeof AppKnowledgeRoute
   AppNotesRoute: typeof AppNotesRoute
+  AppOpenclawRoute: typeof AppOpenclawRoute
   AppTranslateRoute: typeof AppTranslateRoute
   AppMinappAppIdRoute: typeof AppMinappAppIdRoute
   AppPaintingsSplatRoute: typeof AppPaintingsSplatRoute
@@ -869,12 +909,14 @@ interface AppRouteChildren {
 }
 
 const AppRouteChildren: AppRouteChildren = {
+  AppAgentsRoute: AppAgentsRoute,
   AppAssistantRoute: AppAssistantRoute,
   AppChatRoute: AppChatRoute,
   AppCodeRoute: AppCodeRoute,
   AppFilesRoute: AppFilesRoute,
   AppKnowledgeRoute: AppKnowledgeRoute,
   AppNotesRoute: AppNotesRoute,
+  AppOpenclawRoute: AppOpenclawRoute,
   AppTranslateRoute: AppTranslateRoute,
   AppMinappAppIdRoute: AppMinappAppIdRoute,
   AppPaintingsSplatRoute: AppPaintingsSplatRoute,
