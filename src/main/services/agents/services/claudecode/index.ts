@@ -20,6 +20,7 @@ import { isWin } from '@main/constant'
 import { pluginService } from '@main/services/agents/plugins/PluginService'
 import { configManager } from '@main/services/ConfigManager'
 import { autoDiscoverGitBash } from '@main/utils/process'
+import { rtkRewrite } from '@main/utils/rtk'
 import getLoginShellEnvironment from '@main/utils/shell-env'
 import { languageEnglishNameMap } from '@shared/config/languages'
 import { withoutTrailingApiVersion } from '@shared/utils'
@@ -305,6 +306,39 @@ class ClaudeCodeService implements AgentServiceInterface {
       return {}
     }
 
+    const rtkRewriteHook: HookCallback = async (input) => {
+      if (input.hook_event_name !== 'PreToolUse') {
+        return {}
+      }
+
+      const hookInput = input as PreToolUseHookInput
+
+      // Only rewrite Bash tool commands
+      if (hookInput.tool_name !== 'Bash' && hookInput.tool_name !== 'builtin_Bash') {
+        return {}
+      }
+
+      const toolInput = hookInput.tool_input as Record<string, unknown> | undefined
+      const command = toolInput?.command
+      if (typeof command !== 'string' || !command.trim()) {
+        return {}
+      }
+
+      const rewritten = await rtkRewrite(command)
+      if (!rewritten) {
+        return {}
+      }
+
+      logger.info('rtk rewrote Bash command', { original: command, rewritten })
+
+      return {
+        hookSpecificOutput: {
+          hookEventName: 'PreToolUse',
+          updatedInput: { ...toolInput, command: rewritten }
+        }
+      }
+    }
+
     // Build SDK options from parameters
     const options: Options = {
       abortController,
@@ -337,7 +371,7 @@ class ClaudeCodeService implements AgentServiceInterface {
       hooks: {
         PreToolUse: [
           {
-            hooks: [preToolUseHook]
+            hooks: [rtkRewriteHook, preToolUseHook]
           }
         ]
       },
