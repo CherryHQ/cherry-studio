@@ -18,7 +18,8 @@ export enum AgentToolsType {
   BashOutput = 'BashOutput',
   NotebookEdit = 'NotebookEdit',
   ExitPlanMode = 'ExitPlanMode',
-  AskUserQuestion = 'AskUserQuestion'
+  AskUserQuestion = 'AskUserQuestion',
+  ToolSearch = 'ToolSearch'
 }
 
 export type TextOutput = {
@@ -327,6 +328,19 @@ export type ExitPlanModeToolInput = {
 }
 export type ExitPlanModeToolOutput = string
 
+// ToolSearch 工具的类型定义
+export interface ToolSearchToolInput {
+  /**
+   * Query to find deferred tools
+   */
+  query: string
+  /**
+   * Maximum number of results to return
+   */
+  max_results?: number
+}
+export type ToolSearchToolOutput = string
+
 // AskUserQuestion 工具的类型定义 (使用 Zod)
 export const AskUserQuestionOptionSchema = z.object({
   /** The display text for this option */
@@ -413,6 +427,7 @@ export type ToolInput =
   | ListMcpResourcesToolInput
   | ReadMcpResourceToolInput
   | AskUserQuestionToolInput
+  | ToolSearchToolInput
 
 export type ToolOutput =
   | ReadToolOutput
@@ -430,6 +445,7 @@ export type ToolOutput =
   | BashOutputToolOutput
   | NotebookEditToolOutput
   | ExitPlanModeToolOutput
+  | ToolSearchToolOutput
 // 工具渲染器接口
 export interface ToolRenderer {
   render: (props: { input: ToolInput; output?: ToolOutput }) => React.ReactElement
@@ -453,6 +469,7 @@ export interface ToolInputMap {
   [AgentToolsType.BashOutput]: BashOutputToolInput
   [AgentToolsType.NotebookEdit]: NotebookEditToolInput
   [AgentToolsType.ExitPlanMode]: ExitPlanModeToolInput
+  [AgentToolsType.ToolSearch]: ToolSearchToolInput
 }
 
 // 工具类型到输出类型的映射
@@ -473,6 +490,7 @@ export interface ToolOutputMap {
   [AgentToolsType.BashOutput]: BashOutputToolOutput
   [AgentToolsType.NotebookEdit]: NotebookEditToolOutput
   [AgentToolsType.ExitPlanMode]: ExitPlanModeToolOutput
+  [AgentToolsType.ToolSearch]: ToolSearchToolOutput
 }
 
 // 通用工具渲染器函数类型 - 接受宽松的输入类型
