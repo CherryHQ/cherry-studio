@@ -10,7 +10,6 @@ import { QuickPanelProvider } from '@renderer/components/QuickPanel'
 import { isEmbeddingModel, isRerankModel, isWebSearchModel } from '@renderer/config/models'
 import { useAssistant } from '@renderer/hooks/useAssistant'
 import { useChatContext } from '@renderer/hooks/useChatContext'
-import { useSettings } from '@renderer/hooks/useSettings'
 import { useShortcut } from '@renderer/hooks/useShortcuts'
 import { useShowTopics } from '@renderer/hooks/useStore'
 import { useTimer } from '@renderer/hooks/useTimer'
@@ -47,7 +46,6 @@ const Chat: FC<Props> = (props) => {
   const [topicPosition] = usePreference('topic.position')
   const [messageStyle] = usePreference('chat.message.style')
   const [messageNavigation] = usePreference('chat.message.navigation_mode')
-  const { apiGateway } = useSettings()
   const { showTopics } = useShowTopics()
   const { isMultiSelectMode } = useChatContext(props.activeTopic)
   const [isTopNavbar] = usePreference('ui.navbar.position')
@@ -179,47 +177,23 @@ const Chat: FC<Props> = (props) => {
               <div
                 className="flex flex-1 flex-col justify-between"
                 style={{ height: `calc(${mainHeight} - var(--navbar-height))` }}>
-                {activeTopicOrSession === 'topic' && (
-                  <>
-                    <Messages
-                      key={props.activeTopic.id}
-                      assistant={assistant}
-                      topic={props.activeTopic}
-                      setActiveTopic={props.setActiveTopic}
-                      onComponentUpdate={messagesComponentUpdateHandler}
-                      onFirstUpdate={messagesComponentFirstUpdateHandler}
-                    />
-                    <ContentSearch
-                      ref={contentSearchRef}
-                      searchTarget={mainRef as React.RefObject<HTMLElement>}
-                      filter={contentSearchFilter}
-                      includeUser={filterIncludeUser}
-                      onIncludeUserChange={userOutlinedItemClickHandler}
-                    />
-                    {messageNavigation === 'buttons' && <ChatNavigation containerId="messages" />}
-                    <Inputbar assistant={assistant} setActiveTopic={props.setActiveTopic} topic={props.activeTopic} />
-                  </>
-                )}
-                {activeTopicOrSession === 'session' && !activeAgentId && <AgentInvalid />}
-                {activeTopicOrSession === 'session' && activeAgentId && !activeSessionId && <SessionInvalid />}
-                {activeTopicOrSession === 'session' && activeAgentId && activeSessionId && (
-                  <>
-                    {!apiGateway.enabled ? (
-                      <Alert type="warning" message={t('agent.warning.enable_server')} style={{ margin: '5px 16px' }} />
-                    ) : (
-                      <>
-                        <AgentSessionMessages agentId={activeAgentId} sessionId={activeSessionId} />
-                        <PinnedTodoPanelWrapper>
-                          <NarrowLayout>
-                            <PinnedTodoPanel topicId={buildAgentSessionTopicId(activeSessionId)} />
-                          </NarrowLayout>
-                        </PinnedTodoPanelWrapper>
-                      </>
-                    )}
-                    {messageNavigation === 'buttons' && <ChatNavigation containerId="messages" />}
-                    <AgentSessionInputbar agentId={activeAgentId} sessionId={activeSessionId} />
-                  </>
-                )}
+                <Messages
+                  key={props.activeTopic.id}
+                  assistant={assistant}
+                  topic={props.activeTopic}
+                  setActiveTopic={props.setActiveTopic}
+                  onComponentUpdate={messagesComponentUpdateHandler}
+                  onFirstUpdate={messagesComponentFirstUpdateHandler}
+                />
+                <ContentSearch
+                  ref={contentSearchRef}
+                  searchTarget={mainRef as React.RefObject<HTMLElement>}
+                  filter={contentSearchFilter}
+                  includeUser={filterIncludeUser}
+                  onIncludeUserChange={userOutlinedItemClickHandler}
+                />
+                {messageNavigation === 'buttons' && <ChatNavigation containerId="messages" />}
+                <Inputbar assistant={assistant} setActiveTopic={props.setActiveTopic} topic={props.activeTopic} />
                 {isMultiSelectMode && <MultiSelectActionPopup topic={props.activeTopic} />}
               </div>
             </QuickPanelProvider>
