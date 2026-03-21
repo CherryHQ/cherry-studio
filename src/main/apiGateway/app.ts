@@ -11,7 +11,7 @@ import { setupOpenAPIDocumentation } from './middleware/openapi'
 import { agentsRoutes } from './routes/agents'
 import { chatRoutes } from './routes/chat'
 import { mcpRoutes } from './routes/mcp'
-import { messagesProviderRoutes, messagesRoutes } from './routes/messages'
+import { messagesRoutes, messagesTargetRoutes } from './routes/messages'
 import { modelsRoutes } from './routes/models'
 import { responsesRoutes } from './routes/responses'
 
@@ -142,20 +142,6 @@ app.get('/', (_req, res) => {
 // Setup OpenAPI documentation before protected routes so docs remain public
 setupOpenAPIDocumentation(app)
 
-// Model group routes: /{groupId}/v1/... - uses the group's configured model
-// Must be registered before provider-specific routes, otherwise '/:provider/v1/messages'
-// will swallow '/:groupId/v1/messages' requests.
-const groupRouter = express.Router({ mergeParams: true })
-groupRouter.use(authMiddleware)
-groupRouter.use(gatewayMiddleware)
-groupRouter.use('/v1/chat', chatRoutes)
-groupRouter.use('/v1/messages', extendMessagesTimeout, messagesRoutes)
-groupRouter.use('/v1/responses', extendMessagesTimeout, responsesRoutes)
-app.use('/:groupId', groupRouter)
-
-// Provider-specific messages route requires authentication
-app.use('/:provider/v1/messages', authMiddleware, gatewayMiddleware, extendMessagesTimeout, messagesProviderRoutes)
-
 // Internal API routes (auth only, no gateway endpoint restrictions)
 // Must be before /:groupId to prevent '/v1' being matched as groupId
 const internalRouter = express.Router()
@@ -173,6 +159,19 @@ apiRouter.use('/messages', extendMessagesTimeout, messagesRoutes)
 apiRouter.use('/models', modelsRoutes)
 apiRouter.use('/responses', extendMessagesTimeout, responsesRoutes)
 app.use('/v1', apiRouter)
+
+// Unified target messages routes with provider-first resolution.
+// Handles both '/:provider/v1/messages' and '/:groupId/v1/messages' while preserving compatibility.
+app.use('/:target/v1/messages', authMiddleware, extendMessagesTimeout, messagesTargetRoutes)
+
+// Model group routes: /{groupId}/v1/... - uses the group's configured model
+// Must be registered after static /v1 routes, otherwise '/v1' will be matched as groupId.
+const groupRouter = express.Router({ mergeParams: true })
+groupRouter.use(authMiddleware)
+groupRouter.use(gatewayMiddleware)
+groupRouter.use('/v1/chat', chatRoutes)
+groupRouter.use('/v1/responses', extendMessagesTimeout, responsesRoutes)
+app.use('/:groupId', groupRouter)
 
 // Error handling (must be last)
 app.use(errorHandler)

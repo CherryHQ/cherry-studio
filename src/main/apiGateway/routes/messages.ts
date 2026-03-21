@@ -7,6 +7,7 @@ import type { Request, Response } from 'express'
 import express from 'express'
 import { approximateTokenSize } from 'tokenx'
 
+import { config } from '../config'
 import { messagesService } from '../services/messages'
 import { getProviderById, isModelAnthropicCompatible, validateModelId } from '../utils'
 
@@ -42,6 +43,7 @@ const logger = loggerService.withContext('ApiGatewayMessagesRoutes')
 
 const router = express.Router()
 const providerRouter = express.Router({ mergeParams: true })
+const targetRouter = express.Router({ mergeParams: true })
 
 const asyncHandler =
   (handler: (req: Request, res: Response) => Promise<void | Response>) =>
@@ -216,6 +218,46 @@ async function handleCountTokens(
         message: error.message || 'Internal server error'
       }
     })
+  }
+}
+
+async function resolveTarget(
+  target: string | undefined
+): Promise<
+  | { kind: 'provider'; provider: Provider }
+  | { kind: 'group'; group: Awaited<ReturnType<typeof config.get>>['modelGroups'][number] }
+  | null
+> {
+  if (!target) {
+    return null
+  }
+
+  const provider = await getProviderById(target)
+  if (provider) {
+    return { kind: 'provider', provider }
+  }
+
+  const gatewayConfig = await config.get()
+  const group = gatewayConfig.modelGroups.find((item) => item.id === target)
+  if (group) {
+    return { kind: 'group', group }
+  }
+
+  return null
+}
+
+async function injectGroupModel(req: Request, group: Awaited<ReturnType<typeof config.get>>['modelGroups'][number]) {
+  if (group.mode === 'assistant' && group.assistantId) {
+    req.body = {
+      ...req.body,
+      model: `assistant:${group.assistantId}`
+    }
+    return
+  }
+
+  req.body = {
+    ...req.body,
+    model: `${group.providerId}:${group.modelId}`
   }
 }
 
@@ -584,6 +626,69 @@ providerRouter.post(
   })
 )
 
+// Unified target messages endpoint with provider-first semantics.
+targetRouter.post(
+  '/',
+  asyncHandler(async (req: Request, res: Response) => {
+    const bodyValidation = await validateRequestBody(req)
+    if (!bodyValidation.valid) {
+      return res.status(400).json(bodyValidation.error)
+    }
+
+    try {
+      const target = req.params.target
+      const resolvedTarget = await resolveTarget(target)
+
+      if (!resolvedTarget) {
+        return res.status(400).json({
+          type: 'error',
+          error: {
+            type: 'invalid_request_error',
+            message: `Target '${target}' not found as provider or model group`
+          }
+        })
+      }
+
+      if (resolvedTarget.kind === 'provider') {
+        const request: MessageCreateParams = req.body
+        return handleMessageProcessing({ res, provider: resolvedTarget.provider, request })
+      }
+
+      await injectGroupModel(req, resolvedTarget.group)
+      const request: MessageCreateParams = req.body
+
+      const modelValidation = await validateModelId(request.model)
+      if (!modelValidation.valid) {
+        const error = modelValidation.error!
+        logger.warn('Model validation failed for group target', {
+          target,
+          groupId: resolvedTarget.group.id,
+          model: request.model,
+          error
+        })
+        return res.status(400).json({
+          type: 'error',
+          error: {
+            type: 'invalid_request_error',
+            message: error.message
+          }
+        })
+      }
+
+      return handleMessageProcessing({
+        res,
+        provider: modelValidation.provider!,
+        request,
+        modelId: modelValidation.modelId!
+      })
+    } catch (error: any) {
+      logger.error('Unified target message processing error', { error })
+      const { statusCode, errorResponse } = messagesService.transformError(error)
+      return res.status(statusCode).json(errorResponse)
+    }
+  })
+)
+
 /**
  * @swagger
  * /v1/messages/count_tokens:
@@ -644,4 +749,35 @@ providerRouter.post(
   })
 )
 
-export { providerRouter as messagesProviderRoutes, router as messagesRoutes }
+targetRouter.post(
+  '/count_tokens',
+  asyncHandler(async (req: Request, res: Response) => {
+    const target = req.params.target
+    const resolvedTarget = await resolveTarget(target)
+
+    if (!resolvedTarget) {
+      return res.status(400).json({
+        type: 'error',
+        error: {
+          type: 'invalid_request_error',
+          message: `Target '${target}' not found as provider or model group`
+        }
+      })
+    }
+
+    if (resolvedTarget.kind === 'group') {
+      await injectGroupModel(req, resolvedTarget.group)
+      return handleCountTokens(req, res, {
+        requireModel: false,
+        logContext: { groupId: resolvedTarget.group.id }
+      })
+    }
+
+    return handleCountTokens(req, res, {
+      requireModel: false,
+      logContext: { providerId: resolvedTarget.provider.id }
+    })
+  })
+)
+
+export { providerRouter as messagesProviderRoutes, router as messagesRoutes, targetRouter as messagesTargetRoutes }
