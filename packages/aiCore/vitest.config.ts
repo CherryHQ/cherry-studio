@@ -16,8 +16,5 @@ export default defineConfig({
       // Mock external packages that may not be available in test environment
       '@cherrystudio/ai-sdk-provider': path.resolve(__dirname, './src/__tests__/mocks/ai-sdk-provider.ts')
     }
-  },
-  esbuild: {
-    target: 'node18'
   }
 })
