@@ -4846,6 +4846,7 @@
         "setting_title": "Γρήγορη ρύθμιση μοντέλου",
         "tooltip": "Προτείνεται να επιλέξετε ένα ελαφρύ μοντέλο και δεν συνιστάται να επιλέξετε ένα μοντέλο σκέψης"
       },
+      "show_cherry_ai_models": "[to be translated]:Show CherryAI Models",
       "topic_naming": {
         "auto": "Αυτόματη αναδόμηση θεμάτων",
         "label": "Ονομασία θέματος",

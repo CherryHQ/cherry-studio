@@ -195,6 +195,7 @@ export interface SettingsState {
   /** Mini app region filter: 'auto' (detect from IP), 'CN', or 'Global' */
   minAppRegion: MinAppRegionFilter
   // 隐私设置
+  showCherryAiModels: boolean
   enableDataCollection: boolean
   enableSpellCheck: boolean
   spellCheckLanguages: string[]
@@ -380,6 +381,7 @@ export const initialState: SettingsState = {
   showOpenedMinappsInSidebar: true,
   minappsOpenLinkExternal: false,
   minAppRegion: 'auto',
+  showCherryAiModels: true,
   enableDataCollection: false,
   enableSpellCheck: false,
   spellCheckLanguages: [],
@@ -805,6 +807,9 @@ const settingsSlice = createSlice({
     setMinAppRegion: (state, action: PayloadAction<MinAppRegionFilter>) => {
       state.minAppRegion = action.payload
     },
+    setShowCherryAiModels: (state, action: PayloadAction<boolean>) => {
+      state.showCherryAiModels = action.payload
+    },
     setEnableDataCollection: (state, action: PayloadAction<boolean>) => {
       state.enableDataCollection = action.payload
     },
@@ -1005,6 +1010,7 @@ export const {
   setShowOpenedMinappsInSidebar,
   setMinappsOpenLinkExternal,
   setMinAppRegion,
+  setShowCherryAiModels,
   setEnableDataCollection,
   setEnableSpellCheck,
   setSpellCheckLanguages,

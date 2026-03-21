@@ -4846,6 +4846,7 @@
         "setting_title": "Configurare model rapid",
         "tooltip": "Se recomandă alegerea unui model ușor, nu a unui model de raționament complex."
       },
+      "show_cherry_ai_models": "[to be translated]:Show CherryAI Models",
       "topic_naming": {
         "auto": "Numire automată subiect",
         "label": "Numire subiect",
