@@ -26,6 +26,7 @@ export async function clearWebSearchStatus(requestId: string) {
     return
   }
 
-  const { [requestId]: _removed, ...remaining } = activeSearches
+  const remaining = { ...activeSearches }
+  delete remaining[requestId]
   cacheService.setShared('chat.web_search.active_searches', remaining)
 }
