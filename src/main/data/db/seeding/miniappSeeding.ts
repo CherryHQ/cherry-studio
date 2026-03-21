@@ -16,8 +16,7 @@ const presetToDbRow = (preset: MiniappPreset, sortOrder: number) => ({
   bordered: preset.bordered ?? true,
   background: preset.background || null,
   supportedRegions: preset.supportedRegions || ['CN', 'Global'],
-  configuration: null,
-  addedAt: Date.now()
+  configuration: null
 })
 
 class MiniAppSeed implements ISeed {

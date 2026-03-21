@@ -62,7 +62,7 @@ export interface UpdateMiniappDto {
  * DTO for batch reordering miniapps
  */
 export interface ReorderMiniappsDto {
-  items: Array<{ id: string; sortOrder: number }>
+  items: Array<{ appId: string; sortOrder: number }>
 }
 
 /**
@@ -110,7 +110,7 @@ export interface MiniappSchemas {
 
   /**
    * Batch reorder endpoint
-   * @example PATCH /miniapps/reorder { "items": [{ "id": "abc", "sortOrder": 1 }] }
+   * @example PATCH /miniapps/reorder { "items": [{ "appId": "qwen", "sortOrder": 1 }] }
    */
   '/miniapps/reorder': {
     PATCH: {
@@ -125,21 +125,21 @@ export interface MiniappSchemas {
    * @example PATCH /miniapps/qwen { "name": "Qwen" }
    * @example DELETE /miniapps/qwen
    */
-  '/miniapps/:id': {
-    /** Get a miniapp by ID */
+  '/miniapps/:appId': {
+    /** Get a miniapp by appId */
     GET: {
-      params: { id: string }
+      params: { appId: string }
       response: MiniApp
     }
     /** Update a miniapp */
     PATCH: {
-      params: { id: string }
+      params: { appId: string }
       body: UpdateMiniappDto
       response: MiniApp
     }
     /** Delete a miniapp */
     DELETE: {
-      params: { id: string }
+      params: { appId: string }
       response: void
     }
   }
@@ -147,12 +147,12 @@ export interface MiniappSchemas {
   /**
    * Status sub-resource endpoint
    * High-frequency operation for toggling app status
-   * @example PUT /miniapps/abc123/status { "status": "pinned" }
+   * @example PUT /miniapps/qwen/status { "status": "pinned" }
    */
-  '/miniapps/:id/status': {
+  '/miniapps/:appId/status': {
     /** Set the status for a miniapp */
     PUT: {
-      params: { id: string }
+      params: { appId: string }
       body: SetMiniappStatusDto
       response: StatusUpdateResponse
     }

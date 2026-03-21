@@ -7,7 +7,7 @@
 
 import { index, integer, sqliteTable, text } from 'drizzle-orm/sqlite-core'
 
-import { createUpdateDeleteTimestamps, uuidPrimaryKey } from './_columnHelpers'
+import { createUpdateTimestamps } from './_columnHelpers'
 
 export type MiniAppStatus = 'enabled' | 'disabled' | 'pinned'
 
@@ -18,11 +18,9 @@ export type MiniAppRegion = 'CN' | 'Global'
 export const miniappTable = sqliteTable(
   'miniapp',
   {
-    id: uuidPrimaryKey(),
+    appId: text('app_id').primaryKey(),
     // Display name
     name: text().notNull(),
-    // App identifier
-    appId: text('app_id').notNull(),
     // App URL (webview source)
     url: text().notNull(),
 
@@ -50,17 +48,13 @@ export const miniappTable = sqliteTable(
     // Custom configuration
     configuration: text({ mode: 'json' }),
 
-    // Metadata
+    // i18n key for translatable names
     nameKey: text(),
 
-    // Additional timestamps
-    addedAt: integer('added_at'),
-
-    ...createUpdateDeleteTimestamps
+    ...createUpdateTimestamps
   },
   (t) => [
     index('miniapp_status_sort_idx').on(t.status, t.sortOrder),
-    index('miniapp_app_id_idx').on(t.appId),
     index('miniapp_type_idx').on(t.type),
     index('miniapp_status_type_idx').on(t.status, t.type)
   ]

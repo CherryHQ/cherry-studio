@@ -6,7 +6,6 @@
  */
 
 export interface MiniApp {
-  id: string
   appId: string
   name: string
   url: string
@@ -19,8 +18,6 @@ export interface MiniApp {
   supportedRegions?: ('CN' | 'Global')[]
   configuration?: unknown
   nameKey?: string
-  addedAt?: number
   createdAt: string
   updatedAt: string
-  deletedAt?: string
 }
