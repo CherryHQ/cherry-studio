@@ -1,5 +1,5 @@
 import { isOpenAIChatCompletionOnlyModel } from '@renderer/config/models'
-import { type Model, type Provider, SystemProviderIds } from '@renderer/types'
+import { type Model, type Provider } from '@renderer/types'
 
 import { getAiSdkProviderId } from './factory'
 
@@ -17,14 +17,6 @@ export interface AiSdkTransport {
  */
 export function resolveAiSdkTransport(actualProvider: Provider, model: Model): AiSdkTransport {
   const providerId = getAiSdkProviderId(actualProvider)
-
-  // Poe 当前提供统一的 /responses 入口，因此这里有意让所有 Poe 模型
-  // 暂时统一复用 OpenAI Responses transport。
-  // 如果后续确认某些 Poe 模型在 /responses 下存在兼容性问题，再根据
-  // 实际观测到的错误模式补模型级例外或回退逻辑。
-  if (actualProvider.id === SystemProviderIds.poe) {
-    return { providerId, mode: 'responses' }
-  }
 
   // About mode of azure:
   // https://learn.microsoft.com/en-us/azure/ai-foundry/openai/latest
