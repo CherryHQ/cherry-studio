@@ -8,9 +8,11 @@ import { reduxService } from '../services/ReduxService'
 const logger = loggerService.withContext('ApiGatewayConfig')
 
 const DEFAULT_ENABLED_ENDPOINTS: GatewayEndpoint[] = ['/v1/chat/completions', '/v1/messages', '/v1/responses']
+const CONFIG_CACHE_TTL_MS = 5000
 
 class ConfigManager {
   private _config: ApiGatewayConfig | null = null
+  private _lastLoadedAt = 0
 
   private generateApiKey(): string {
     return `cs-sk-${uuidv4()}`
@@ -37,6 +39,7 @@ class ConfigManager {
         enabledEndpoints: serverSettings?.enabledEndpoints ?? DEFAULT_ENABLED_ENDPOINTS,
         exposeToNetwork: serverSettings?.exposeToNetwork ?? false
       }
+      this._lastLoadedAt = Date.now()
       return this._config
     } catch (error: any) {
       logger.warn('Failed to load config from Redux, using defaults', { error })
@@ -64,8 +67,10 @@ class ConfigManager {
   }
 
   async get(): Promise<ApiGatewayConfig> {
-    // Always reload to get fresh config from Redux
-    // This ensures UI changes (like group ID updates) are reflected immediately
+    if (this._config && Date.now() - this._lastLoadedAt < CONFIG_CACHE_TTL_MS) {
+      return this._config
+    }
+
     return await this.load()
   }
 
