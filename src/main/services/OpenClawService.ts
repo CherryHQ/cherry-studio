@@ -100,48 +100,6 @@ const ANTHROPIC_ONLY_PROVIDERS: ProviderType[] = ['anthropic', 'vertex-anthropic
 const ANTHROPIC_ENDPOINT_TYPES = ['anthropic']
 
 /**
- * Known context window sizes for common models.
- * Used as defaults when syncing to OpenClaw config.
- * Values aligned with OpenClaw's MODEL_CONTEXT_WINDOWS in opencode-zen-models.ts.
- */
-const MODEL_CONTEXT_WINDOWS: Record<string, number> = {
-  'claude-opus-4': 1000000,
-  'claude-sonnet-4': 200000,
-  'claude-haiku-4': 200000,
-  'claude-3.5': 200000,
-  'claude-3-opus': 200000,
-  'claude-3-sonnet': 200000,
-  'claude-3-haiku': 200000,
-  'gpt-5': 400000,
-  'gpt-4.1': 1047576,
-  'gpt-4.5': 128000,
-  'gpt-4o': 128000,
-  'gpt-4-turbo': 128000,
-  o1: 200000,
-  o3: 200000,
-  o4: 200000,
-  'gemini-3': 1048576,
-  'gemini-2.5': 1048576,
-  'gemini-2.0': 1048576,
-  'gemini-1.5-pro': 2097152,
-  'gemini-1.5-flash': 1048576,
-  'deepseek-r1': 65536,
-  'deepseek-v3': 65536,
-  'deepseek-chat': 65536,
-  qwen3: 131072,
-  'qwen2.5': 131072,
-  'glm-4': 131072
-}
-
-function getContextWindow(modelId: string): number {
-  const lower = modelId.toLowerCase()
-  for (const [prefix, size] of Object.entries(MODEL_CONTEXT_WINDOWS)) {
-    if (lower.startsWith(prefix)) return size
-  }
-  return 128000
-}
-
-/**
  * Check if a model should use Anthropic API based on endpoint_type
  */
 function isAnthropicEndpointType(model: Model): boolean {
@@ -844,7 +802,7 @@ class OpenClawService {
             ...existing,
             id: m.id,
             name: m.name,
-            contextWindow: existing?.contextWindow ?? getContextWindow(m.id)
+            contextWindow: existing?.contextWindow ?? 128000
           }
         })
       }
