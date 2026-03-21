@@ -50,6 +50,13 @@ const getAppropriateTag = (model?: Model): TagConfig => {
  * 3. 将标签外的内容作为正常文本输出
  * 4. 处理不同模型的思考标签格式
  * 5. 在思考内容结束时生成 THINKING_COMPLETE 事件
+ *
+ * Note: This middleware auto-detects native thinking support from upstream.
+ * When the upstream SDK/provider already sends THINKING_START/THINKING_DELTA
+ * chunks (e.g. Anthropic Claude, OpenAI o-series with reasoning tokens),
+ * tag extraction is automatically disabled to prevent false positives where
+ * body text containing tag-like patterns (e.g. "<think>") is incorrectly
+ * parsed as thinking content. See: #13338
  */
 export const ThinkingTagExtractionMiddleware: CompletionsMiddleware =
   () =>
@@ -77,12 +84,40 @@ export const ThinkingTagExtractionMiddleware: CompletionsMiddleware =
 
         let accumulatingText = false
         let accumulatedThinkingContent = ''
+
+        // Track whether upstream already provides native thinking chunks.
+        // When the SDK/provider sends THINKING_START or THINKING_DELTA directly
+        // (e.g. Anthropic, OpenAI reasoning models), we must NOT parse text
+        // for <think> tags — doing so causes false positives when body text
+        // happens to contain tag-like patterns. See: #13338
+        let hasNativeThinking = false
+
         const processedStream = resultFromUpstream.pipeThrough(
           new TransformStream<GenericChunk, GenericChunk>({
             transform(chunk: GenericChunk, controller) {
               logger.silly('chunk', chunk)
 
+              // Detect native thinking chunks from upstream (ThinkChunkMiddleware).
+              // Once detected, all subsequent TEXT_DELTA chunks are passed through
+              // without tag extraction to avoid false positives.
+              if (chunk.type === ChunkType.THINKING_START || chunk.type === ChunkType.THINKING_DELTA) {
+                hasNativeThinking = true
+                controller.enqueue(chunk)
+                return
+              }
+
               if (chunk.type === ChunkType.TEXT_DELTA) {
+                // If upstream already provides native thinking, pass text through
+                // without tag extraction to prevent false positives (#13338)
+                if (hasNativeThinking) {
+                  if (!accumulatingText) {
+                    controller.enqueue({ type: ChunkType.TEXT_START })
+                    accumulatingText = true
+                  }
+                  controller.enqueue(chunk)
+                  return
+                }
+
                 const textChunk = chunk as TextDeltaChunk
 
                 // 使用 TagExtractor 处理文本
@@ -91,9 +126,6 @@ export const ThinkingTagExtractionMiddleware: CompletionsMiddleware =
                 for (const extractionResult of extractionResults) {
                   if (extractionResult.complete && extractionResult.tagContentExtracted?.trim()) {
                     // 完成思考
-                    // logger.silly(
-                    //   'since extractionResult.complete and extractionResult.tagContentExtracted is not empty, THINKING_COMPLETE chunk is generated'
-                    // )
                     // 如果完成思考，更新状态
                     accumulatingText = false
 
@@ -109,9 +141,6 @@ export const ThinkingTagExtractionMiddleware: CompletionsMiddleware =
                     hasThinkingContent = false
                     thinkingStartTime = 0
                   } else if (extractionResult.content.length > 0) {
-                    // logger.silly(
-                    //   'since extractionResult.content is not empty, try to generate THINKING_START/THINKING_DELTA chunk'
-                    // )
                     if (extractionResult.isTagContent) {
                       // 如果提取到思考内容，更新状态
                       accumulatingText = false
@@ -136,12 +165,8 @@ export const ThinkingTagExtractionMiddleware: CompletionsMiddleware =
                       }
                     } else {
                       // 如果没有思考内容，直接输出文本
-                      // logger.silly(
-                      //   'since extractionResult.isTagContent is falsy, try to generate TEXT_START/TEXT_DELTA chunk'
-                      // )
                       // 在非组成文本状态下接收到非思考内容时，生成 TEXT_START chunk 并更新状态
                       if (!accumulatingText) {
-                        // logger.silly('since accumulatingText is false, TEXT_START chunk is generated')
                         controller.enqueue({
                           type: ChunkType.TEXT_START
                         })
@@ -155,22 +180,24 @@ export const ThinkingTagExtractionMiddleware: CompletionsMiddleware =
                       controller.enqueue(cleanTextChunk)
                     }
                   } else {
-                    // logger.silly('since both condition is false, skip')
+                    // empty content, skip
                   }
                 }
               } else if (chunk.type !== ChunkType.TEXT_START) {
-                // logger.silly('since chunk.type is not TEXT_START and not TEXT_DELTA, pass through')
-
-                // logger.silly('since chunk.type is not TEXT_START and not TEXT_DELTA, accumulatingText is set to false')
                 accumulatingText = false
                 // 其他类型的chunk直接传递（包括 THINKING_DELTA, THINKING_COMPLETE 等）
                 controller.enqueue(chunk)
               } else {
                 // 接收到的 TEXT_START chunk 直接丢弃
-                // logger.silly('since chunk.type is TEXT_START, passed')
               }
             },
             flush(controller) {
+              // If native thinking was active, no tag extraction was performed,
+              // so there's nothing to finalize
+              if (hasNativeThinking) {
+                return
+              }
+
               // 处理可能剩余的思考内容
               const finalResult = tagExtractor.finalize()
               if (finalResult?.tagContentExtracted) {
