@@ -1,4 +1,4 @@
-import { cacheService } from '@data/CacheService'
+import { useSharedCache } from '@data/hooks/useCache'
 import type { GroundingMetadata } from '@google/genai'
 import Spinner from '@renderer/components/Spinner'
 import type { RootState } from '@renderer/store'
@@ -18,6 +18,7 @@ function CitationBlock({ block }: { block: CitationMessageBlock }) {
   // const { websearch } = useSelector((state: RootState) => state.runtime)
   const message = useSelector((state: RootState) => state.messages.entities[block.messageId])
   const userMessageId = message?.askId || block.messageId // 如果没有 askId 则回退到 messageId
+  const [activeSearches] = useSharedCache('chat.web_search.active_searches')
 
   const hasGeminiBlock = block.response?.source === WEB_SEARCH_SOURCE.GEMINI
   const hasCitations = useMemo(() => {
@@ -30,7 +31,7 @@ function CitationBlock({ block }: { block: CitationMessageBlock }) {
   }, [formattedCitations, block.knowledge, block.memories, hasGeminiBlock])
 
   const getWebSearchStatusText = (requestId: string) => {
-    const status = cacheService.getCasual('activeSearches')?.[requestId] ?? { phase: 'default' }
+    const status = activeSearches[requestId] ?? { phase: 'default' }
 
     switch (status.phase) {
       case 'fetch_complete':
