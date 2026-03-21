@@ -1,4 +1,44 @@
-import { PDFParse } from 'pdf-parse'
+type PDFParseConstructor = typeof import('pdf-parse').PDFParse
+
+let PDFParse: PDFParseConstructor | null = null
+
+function ensureNodeDOMMatrixPolyfill() {
+  if (typeof DOMMatrix !== 'undefined') {
+    return
+  }
+
+  // Minimal DOMMatrix shim for Node/Electron main process.
+  class NodeDOMMatrix {
+    multiplySelf() {
+      return this
+    }
+    preMultiplySelf() {
+      return this
+    }
+    invertSelf() {
+      return this
+    }
+    translate() {
+      return this
+    }
+    scale() {
+      return this
+    }
+  }
+
+  ;(globalThis as { DOMMatrix?: unknown }).DOMMatrix = NodeDOMMatrix
+}
+
+async function getPDFParse(): Promise<PDFParseConstructor> {
+  if (PDFParse) {
+    return PDFParse
+  }
+
+  ensureNodeDOMMatrixPolyfill()
+  const mod = await import('pdf-parse')
+  PDFParse = mod.PDFParse
+  return PDFParse
+}
 
 /**
  * Extract text content from PDF data.
@@ -8,6 +48,8 @@ import { PDFParse } from 'pdf-parse'
  * @returns Extracted text content
  */
 export async function extractPdfText(data: Uint8Array | ArrayBuffer | string | URL): Promise<string> {
+  const PDFParse = await getPDFParse()
+
   if (data instanceof URL) {
     const parser = new PDFParse({ url: data.href })
     try {
