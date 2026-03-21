@@ -103,6 +103,23 @@ describe('authMiddleware', () => {
       expect(jsonMock).toHaveBeenCalledWith({ error: 'Forbidden' })
       expect(next).not.toHaveBeenCalled()
     })
+
+    it('should delegate config loading failures to express error handling', async () => {
+      const configError = new Error('store not ready')
+
+      ;(req.header as any).mockImplementation((header: string) => {
+        if (header === 'x-api-key') return 'some-key'
+        return ''
+      })
+
+      mockConfig.get.mockRejectedValue(configError)
+
+      await authMiddleware(req as Request, res as Response, next)
+
+      expect(next).toHaveBeenCalledWith(configError)
+      expect(statusMock).not.toHaveBeenCalled()
+      expect(jsonMock).not.toHaveBeenCalled()
+    })
   })
 
   describe('API Key authentication (priority)', () => {

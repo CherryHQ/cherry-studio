@@ -178,19 +178,31 @@ router.get('/:server_id', async (req: Request, res: Response) => {
  */
 // Connect to MCP server
 router.all('/:server_id/mcp', async (req: Request, res: Response) => {
-  const server = await mcpApiService.getServerById(req.params.server_id)
-  if (!server) {
-    logger.warn('MCP server not found', { serverId: req.params.server_id })
-    return res.status(404).json({
+  try {
+    const server = await mcpApiService.getServerById(req.params.server_id)
+    if (!server) {
+      logger.warn('MCP server not found', { serverId: req.params.server_id })
+      return res.status(404).json({
+        success: false,
+        error: {
+          message: 'MCP server not found',
+          type: 'not_found',
+          code: 'server_not_found'
+        }
+      })
+    }
+    return await mcpApiService.handleRequest(req, res, server)
+  } catch (error: any) {
+    logger.error('Error proxying MCP request', { error, serverId: req.params.server_id })
+    return res.status(503).json({
       success: false,
       error: {
-        message: 'MCP server not found',
-        type: 'not_found',
-        code: 'server_not_found'
+        message: `Failed to proxy MCP request: ${error.message}`,
+        type: 'service_unavailable',
+        code: 'mcp_proxy_unavailable'
       }
     })
   }
-  return await mcpApiService.handleRequest(req, res, server)
 })
 
 export { router as mcpRoutes }
