@@ -18,13 +18,56 @@ const logger = loggerService.withContext('AnthropicImporter')
 /**
  * Anthropic Claude Export Format Types
  */
+interface AnthropicCitation {
+  uuid: string
+  start_index: number
+  end_index: number
+  details: {
+    type: string
+    url: string
+  }
+}
+
+interface AnthropicAttachment {
+  file_name: string
+  file_size?: number
+  file_type?: string
+  extracted_content?: string
+}
+
+interface AnthropicFile {
+  file_name: string
+}
+
+interface AnthropicToolResultItem {
+  type: string
+  title?: string
+  url?: string
+  text?: string
+  is_missing?: boolean
+  metadata?: {
+    type: string
+    site_domain?: string
+    favicon_url?: string
+    site_name?: string
+  }
+}
+
 interface AnthropicContentBlock {
   type: string
-  text: string
-  start_timestamp?: string
-  stop_timestamp?: string
-  flags?: unknown
-  citations?: unknown[]
+  text?: string
+  start_timestamp?: string | null
+  stop_timestamp?: string | null
+  flags?: null
+  citations?: AnthropicCitation[]
+  // tool_use fields
+  id?: string
+  name?: string
+  input?: Record<string, string | number | boolean | null>
+  message?: string | null
+  // tool_result fields
+  tool_use_id?: string
+  content?: AnthropicToolResultItem[]
 }
 
 interface AnthropicMessage {
@@ -34,8 +77,8 @@ interface AnthropicMessage {
   sender: 'human' | 'assistant'
   created_at: string
   updated_at: string
-  attachments?: unknown[]
-  files?: unknown[]
+  attachments?: AnthropicAttachment[]
+  files?: AnthropicFile[]
 }
 
 interface AnthropicConversation {
@@ -131,7 +174,7 @@ export class AnthropicImporter implements ConversationImporter {
     if (message.content && message.content.length > 0) {
       const textParts = message.content
         .filter((block) => block.type === 'text' && block.text && block.text.trim().length > 0)
-        .map((block) => block.text.trim())
+        .map((block) => block.text!.trim())
 
       if (textParts.length > 0) {
         return textParts.join('\n\n')
