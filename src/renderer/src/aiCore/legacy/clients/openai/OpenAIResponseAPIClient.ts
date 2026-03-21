@@ -35,6 +35,7 @@ import type {
   OpenAIResponseSdkToolCall
 } from '@renderer/types/sdk'
 import { addImageFileToContents } from '@renderer/utils/formats'
+import { mcpToolCallResponseToOpenAIResponsesOutput } from '@renderer/utils/mcp-tool-content'
 import {
   isSupportedToolUse,
   mcpToolCallResponseToOpenAIMessage,
@@ -290,7 +291,7 @@ export class OpenAIResponseAPIClient extends OpenAIBaseClient<
       return {
         type: 'function_call_output',
         call_id: mcpToolResponse.toolCallId,
-        output: JSON.stringify(resp.content)
+        output: mcpToolCallResponseToOpenAIResponsesOutput(resp, isVisionModel(model))
       }
     }
     return
