@@ -56,4 +56,69 @@ describe('CodeToolsService - escapeBatchText', () => {
     const result = escapeBatchText(input)
     expect(result).toBe('Error: 100%% failed Check %%APPDATA%%')
   })
+
+  // Chinese characters tests
+  it('preserves Chinese characters in paths', () => {
+    const input = 'C:\\用户\\张三\\文档'
+    const result = escapeBatchText(input)
+    expect(result).toBe('C:\\用户\\张三\\文档')
+  })
+
+  it('handles Chinese text with newlines', () => {
+    const input = '安装路径：C:\\用户\\张三\n版本号：1.0'
+    const result = escapeBatchText(input)
+    expect(result).toBe('安装路径：C:\\用户\\张三 版本号：1.0')
+  })
+
+  it('handles Chinese text with percent signs', () => {
+    const input = '进度：50%'
+    const result = escapeBatchText(input)
+    expect(result).toBe('进度：50%%')
+  })
+
+  // Path with spaces tests
+  it('preserves spaces in paths', () => {
+    const input = 'C:\\Program Files\\App'
+    const result = escapeBatchText(input)
+    expect(result).toBe('C:\\Program Files\\App')
+  })
+
+  it('handles paths with spaces and percent signs', () => {
+    const input = 'C:\\Program Files\\50% off'
+    const result = escapeBatchText(input)
+    expect(result).toBe('C:\\Program Files\\50%% off')
+  })
+
+  // Real-world npm/bun error scenarios
+  it('handles multiline npm error messages', () => {
+    const input = 'npm WARN deprecated\nnpm ERR! code ENOENT'
+    const result = escapeBatchText(input)
+    expect(result).toBe('npm WARN deprecated npm ERR! code ENOENT')
+  })
+
+  it('handles multiline bun error messages', () => {
+    const input = 'bun error\nResolving...'
+    const result = escapeBatchText(input)
+    expect(result).toBe('bun error Resolving...')
+  })
+
+  it('handles realistic npm update warning message', () => {
+    const input = 'npm warn deprecated\nResolving dependency'
+    const result = escapeBatchText(input)
+    expect(result).toBe('npm warn deprecated Resolving dependency')
+  })
+
+  // Consecutive newlines test - each newline becomes a space
+  it('converts each newline to a space (not collapsing)', () => {
+    const input = 'line1\n\n\nline2'
+    const result = escapeBatchText(input)
+    expect(result).toBe('line1   line2')
+  })
+
+  // Mixed complex scenario
+  it('handles complex Chinese path with spaces and newlines', () => {
+    const input = 'C:\\Users\\张三\\My Documents\nVersion: 50%'
+    const result = escapeBatchText(input)
+    expect(result).toBe('C:\\Users\\张三\\My Documents Version: 50%%')
+  })
 })
