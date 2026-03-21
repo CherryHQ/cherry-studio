@@ -1,6 +1,7 @@
 import {
   AgentIdParamSchema,
   CreateAgentRequestSchema,
+  ReorderAgentsRequestSchema,
   ReplaceAgentRequestSchema,
   UpdateAgentRequestSchema
 } from '@types'
@@ -21,4 +22,8 @@ export const validateAgentUpdate = createZodValidator({
 
 export const validateAgentId = createZodValidator({
   params: AgentIdParamSchema
+})
+
+export const validateReorderAgents = createZodValidator({
+  body: ReorderAgentsRequestSchema
 })
