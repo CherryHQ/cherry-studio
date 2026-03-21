@@ -26,36 +26,54 @@ const createTestProvider = (id: string, type: string): Provider => ({
 
 // Mock 所有客户端模块
 vi.mock('../aihubmix/AihubmixAPIClient', () => ({
-  AihubmixAPIClient: vi.fn().mockImplementation(() => ({}))
+  AihubmixAPIClient: vi.fn().mockImplementation(function () {
+    return {}
+  })
 }))
 vi.mock('../anthropic/AnthropicAPIClient', () => ({
-  AnthropicAPIClient: vi.fn().mockImplementation(() => ({}))
+  AnthropicAPIClient: vi.fn().mockImplementation(function () {
+    return {}
+  })
 }))
 vi.mock('../anthropic/AnthropicVertexClient', () => ({
-  AnthropicVertexClient: vi.fn().mockImplementation(() => ({}))
+  AnthropicVertexClient: vi.fn().mockImplementation(function () {
+    return {}
+  })
 }))
 vi.mock('../gemini/GeminiAPIClient', () => ({
-  GeminiAPIClient: vi.fn().mockImplementation(() => ({}))
+  GeminiAPIClient: vi.fn().mockImplementation(function () {
+    return {}
+  })
 }))
 vi.mock('../gemini/VertexAPIClient', () => ({
-  VertexAPIClient: vi.fn().mockImplementation(() => ({}))
+  VertexAPIClient: vi.fn().mockImplementation(function () {
+    return {}
+  })
 }))
 vi.mock('../newapi/NewAPIClient', () => ({
-  NewAPIClient: vi.fn().mockImplementation(() => ({}))
+  NewAPIClient: vi.fn().mockImplementation(function () {
+    return {}
+  })
 }))
 vi.mock('../openai/OpenAIApiClient', () => ({
-  OpenAIAPIClient: vi.fn().mockImplementation(() => ({}))
+  OpenAIAPIClient: vi.fn().mockImplementation(function () {
+    return {}
+  })
 }))
 vi.mock('../openai/OpenAIResponseAPIClient', () => ({
-  OpenAIResponseAPIClient: vi.fn().mockImplementation(() => ({
-    getClient: vi.fn().mockReturnThis()
-  }))
+  OpenAIResponseAPIClient: vi.fn().mockImplementation(function () {
+    return { getClient: vi.fn().mockReturnThis() }
+  })
 }))
 vi.mock('../ppio/PPIOAPIClient', () => ({
-  PPIOAPIClient: vi.fn().mockImplementation(() => ({}))
+  PPIOAPIClient: vi.fn().mockImplementation(function () {
+    return {}
+  })
 }))
 vi.mock('../aws/AwsBedrockAPIClient', () => ({
-  AwsBedrockAPIClient: vi.fn().mockImplementation(() => ({}))
+  AwsBedrockAPIClient: vi.fn().mockImplementation(function () {
+    return {}
+  })
 }))
 
 vi.mock('@renderer/services/AssistantService.ts', () => ({

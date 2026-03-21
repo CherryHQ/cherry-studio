@@ -2,18 +2,22 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 // Mock 外部依赖
 vi.mock('turndown', () => ({
-  default: vi.fn(() => ({
-    turndown: vi.fn(() => '# Test content')
-  }))
+  default: vi.fn(function () {
+    return {
+      turndown: vi.fn(() => '# Test content')
+    }
+  })
 }))
 vi.mock('@mozilla/readability', () => ({
-  Readability: vi.fn(() => ({
-    parse: vi.fn(() => ({
-      title: 'Test Article',
-      content: '<p>Test content</p>',
-      textContent: 'Test content'
-    }))
-  }))
+  Readability: vi.fn(function () {
+    return {
+      parse: vi.fn(() => ({
+        title: 'Test Article',
+        content: '<p>Test content</p>',
+        textContent: 'Test content'
+      }))
+    }
+  })
 }))
 vi.mock('@reduxjs/toolkit', () => ({
   nanoid: vi.fn(() => 'test-id')
@@ -22,9 +26,11 @@ vi.mock('@reduxjs/toolkit', () => ({
 import { fetchRedirectUrl, fetchWebContent, fetchWebContents } from '../fetch'
 
 // 设置基础 mocks
-global.DOMParser = vi.fn().mockImplementation(() => ({
-  parseFromString: vi.fn(() => ({}))
-})) as any
+global.DOMParser = vi.fn().mockImplementation(function () {
+  return {
+    parseFromString: vi.fn(() => ({}))
+  }
+}) as any
 
 global.window = {
   api: {

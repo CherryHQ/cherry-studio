@@ -38,7 +38,9 @@ vi.mock('../WindowService', () => ({
 }))
 
 vi.mock('bonjour-service', () => ({
-  default: vi.fn(() => mockBonjour)
+  default: vi.fn(function () {
+    return mockBonjour
+  })
 }))
 
 describe('LocalTransferService', () => {

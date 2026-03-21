@@ -109,24 +109,36 @@ vi.mock('@renderer/utils/abortController', () => ({
 }))
 
 vi.mock('@anthropic-ai/sdk', () => ({
-  default: vi.fn().mockImplementation(() => ({}))
+  default: vi.fn().mockImplementation(function () {
+    return {}
+  })
 }))
 
 vi.mock('@anthropic-ai/vertex-sdk', () => ({
-  default: vi.fn().mockImplementation(() => ({}))
+  default: vi.fn().mockImplementation(function () {
+    return {}
+  })
 }))
 
 vi.mock('openai', () => ({
-  default: vi.fn().mockImplementation(() => ({})),
-  AzureOpenAI: vi.fn().mockImplementation(() => ({}))
+  default: vi.fn().mockImplementation(function () {
+    return {}
+  }),
+  AzureOpenAI: vi.fn().mockImplementation(function () {
+    return {}
+  })
 }))
 
 vi.mock('@google/generative-ai', () => ({
-  GoogleGenerativeAI: vi.fn().mockImplementation(() => ({}))
+  GoogleGenerativeAI: vi.fn().mockImplementation(function () {
+    return {}
+  })
 }))
 
 vi.mock('@google-cloud/vertexai', () => ({
-  VertexAI: vi.fn().mockImplementation(() => ({}))
+  VertexAI: vi.fn().mockImplementation(function () {
+    return {}
+  })
 }))
 
 // Mock the circular dependency between VertexAPIClient and AnthropicVertexClient
