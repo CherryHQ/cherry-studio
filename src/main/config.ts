@@ -1,11 +1,6 @@
-import { isDev, isWin } from '@main/constant'
-import { app } from 'electron'
+import { isWin } from '@main/constant'
 
 import { getDataPath } from './utils'
-
-if (isDev) {
-  app.setPath('userData', app.getPath('userData') + 'Dev')
-}
 
 export const DATA_PATH = getDataPath()
 
