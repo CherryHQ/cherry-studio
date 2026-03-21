@@ -17,7 +17,7 @@
 import type { PayloadAction } from '@reduxjs/toolkit'
 import { createSlice } from '@reduxjs/toolkit'
 import { DEFAULT_STREAM_OPTIONS_INCLUDE_USAGE, isMac } from '@renderer/config/constant'
-import { TRANSLATE_PROMPT } from '@renderer/config/prompts'
+import { PROMPT_METAPROMPT, TRANSLATE_PROMPT } from '@renderer/config/prompts'
 import { DEFAULT_SIDEBAR_ICONS } from '@renderer/config/sidebar'
 import type {
   ApiServerConfig,
@@ -141,6 +141,7 @@ export interface SettingsState {
   webdavSkipBackupFile: boolean
   webdavDisableStream: boolean
   translateModelPrompt: string
+  promptMetaprompt: string
   autoTranslateWithSpace: boolean
   showTranslateConfirm: boolean
   enableTopicNaming: boolean
@@ -336,6 +337,7 @@ export const initialState: SettingsState = {
   webdavSkipBackupFile: false,
   webdavDisableStream: false,
   translateModelPrompt: TRANSLATE_PROMPT,
+  promptMetaprompt: PROMPT_METAPROMPT,
   autoTranslateWithSpace: false,
   showTranslateConfirm: true,
   enableTopicNaming: true,
@@ -677,6 +679,9 @@ const settingsSlice = createSlice({
     setTranslateModelPrompt: (state, action: PayloadAction<string>) => {
       state.translateModelPrompt = action.payload
     },
+    setPromptMetaprompt: (state, action: PayloadAction<string>) => {
+      state.promptMetaprompt = action.payload
+    },
     setAutoTranslateWithSpace: (state, action: PayloadAction<boolean>) => {
       state.autoTranslateWithSpace = action.payload
     },
@@ -965,6 +970,7 @@ export const {
   setGridPopoverTrigger,
   setMessageStyle,
   setTranslateModelPrompt,
+  setPromptMetaprompt,
   setAutoTranslateWithSpace,
   setShowTranslateConfirm,
   setEnableTopicNaming,
