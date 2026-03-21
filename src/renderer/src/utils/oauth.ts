@@ -1,201 +1,228 @@
-import { loggerService } from '@logger'
-import { PPIO_APP_SECRET, PPIO_CLIENT_ID, SILICON_CLIENT_ID, TOKENFLUX_HOST } from '@renderer/config/constant'
-import i18n, { getLanguageCode } from '@renderer/i18n'
+import { loggerService } from "@logger";
+import {
+  PPIO_APP_SECRET,
+  PPIO_CLIENT_ID,
+  SILICON_CLIENT_ID,
+  TOKENFLUX_HOST,
+} from "@renderer/config/constant";
+import i18n, { getLanguageCode } from "@renderer/i18n";
 
-const logger = loggerService.withContext('Utils:oauth')
+const logger = loggerService.withContext("Utils:oauth");
 
-export const oauthWithSiliconFlow = async (setKey) => {
-  const authUrl = `https://account.siliconflow.cn/oauth?client_id=${SILICON_CLIENT_ID}`
+export type ProviderOAuthResult = {
+  apiKey: string;
+  apiKeyExpiresAt?: number;
+};
+
+type SetKeyHandler = (result: ProviderOAuthResult) => void;
+
+export const oauthWithSiliconFlow = async (setKey?: SetKeyHandler) => {
+  const authUrl = `https://account.siliconflow.cn/oauth?client_id=${SILICON_CLIENT_ID}`;
 
   const popup = window.open(
     authUrl,
-    'oauth',
-    'width=720,height=720,toolbar=no,location=no,status=no,menubar=no,scrollbars=yes,resizable=yes,alwaysOnTop=yes,alwaysRaised=yes'
-  )
+    "oauth",
+    "width=720,height=720,toolbar=no,location=no,status=no,menubar=no,scrollbars=yes,resizable=yes,alwaysOnTop=yes,alwaysRaised=yes",
+  );
 
   const messageHandler = (event) => {
-    if (event.data.length > 0 && event.data[0]['secretKey'] !== undefined) {
-      setKey(event.data[0]['secretKey'])
-      popup?.close()
-      window.removeEventListener('message', messageHandler)
+    if (event.data.length > 0 && event.data[0]["secretKey"] !== undefined) {
+      setKey?.({ apiKey: event.data[0]["secretKey"] });
+      popup?.close();
+      window.removeEventListener("message", messageHandler);
     }
-  }
+  };
 
-  window.removeEventListener('message', messageHandler)
-  window.addEventListener('message', messageHandler)
-}
+  window.removeEventListener("message", messageHandler);
+  window.addEventListener("message", messageHandler);
+};
 
-export const oauthWithAihubmix = async (setKey) => {
-  const authUrl = ` https://console.aihubmix.com/token?client_id=cherry_studio_oauth&lang=${getLanguageCode()}&aff=SJyh`
+export const oauthWithAihubmix = async (setKey?: SetKeyHandler) => {
+  const authUrl = ` https://console.aihubmix.com/token?client_id=cherry_studio_oauth&lang=${getLanguageCode()}&aff=SJyh`;
 
   const popup = window.open(
     authUrl,
-    'oauth',
-    'width=720,height=720,toolbar=no,location=no,status=no,menubar=no,scrollbars=yes,resizable=yes,alwaysOnTop=yes,alwaysRaised=yes'
-  )
+    "oauth",
+    "width=720,height=720,toolbar=no,location=no,status=no,menubar=no,scrollbars=yes,resizable=yes,alwaysOnTop=yes,alwaysRaised=yes",
+  );
 
   const messageHandler = async (event) => {
-    const data = event.data
+    const data = event.data;
 
-    if (data && data.key === 'cherry_studio_oauth_callback') {
-      const { iv, encryptedData } = data.data
+    if (data && data.key === "cherry_studio_oauth_callback") {
+      const { iv, encryptedData } = data.data;
 
       try {
-        const secret = import.meta.env.RENDERER_VITE_AIHUBMIX_SECRET || ''
-        const decryptedData: any = await window.api.aes.decrypt(encryptedData, iv, secret)
-        const { api_keys } = JSON.parse(decryptedData)
+        const secret = import.meta.env.RENDERER_VITE_AIHUBMIX_SECRET || "";
+        const decryptedData: any = await window.api.aes.decrypt(
+          encryptedData,
+          iv,
+          secret,
+        );
+        const { api_keys } = JSON.parse(decryptedData);
         if (api_keys && api_keys.length > 0) {
-          setKey(api_keys[0].value)
-          popup?.close()
-          window.removeEventListener('message', messageHandler)
+          setKey?.({ apiKey: api_keys[0].value });
+          popup?.close();
+          window.removeEventListener("message", messageHandler);
         }
       } catch (error) {
-        logger.error('[oauthWithAihubmix] error', error as Error)
-        popup?.close()
-        window.toast.error(i18n.t('settings.provider.oauth.error'))
+        logger.error("[oauthWithAihubmix] error", error as Error);
+        popup?.close();
+        window.toast.error(i18n.t("settings.provider.oauth.error"));
       }
     }
-  }
+  };
 
-  window.removeEventListener('message', messageHandler)
-  window.addEventListener('message', messageHandler)
-}
+  window.removeEventListener("message", messageHandler);
+  window.addEventListener("message", messageHandler);
+};
 
-export const oauthWithPPIO = async (setKey) => {
-  const redirectUri = 'cherrystudio://'
-  const authUrl = `https://ppio.com/oauth/authorize?invited_by=JYT9GD&client_id=${PPIO_CLIENT_ID}&scope=api%20openid&response_type=code&redirect_uri=${encodeURIComponent(redirectUri)}`
+export const oauthWithPPIO = async (setKey?: SetKeyHandler) => {
+  const redirectUri = "cherrystudio://";
+  const authUrl = `https://ppio.com/oauth/authorize?invited_by=JYT9GD&client_id=${PPIO_CLIENT_ID}&scope=api%20openid&response_type=code&redirect_uri=${encodeURIComponent(redirectUri)}`;
 
   window.open(
     authUrl,
-    'oauth',
-    'width=720,height=720,toolbar=no,location=no,status=no,menubar=no,scrollbars=yes,resizable=yes,alwaysOnTop=yes,alwaysRaised=yes'
-  )
+    "oauth",
+    "width=720,height=720,toolbar=no,location=no,status=no,menubar=no,scrollbars=yes,resizable=yes,alwaysOnTop=yes,alwaysRaised=yes",
+  );
 
   if (!setKey) {
-    logger.debug('[PPIO OAuth] No setKey callback provided, returning early')
-    return
+    logger.debug("[PPIO OAuth] No setKey callback provided, returning early");
+    return;
   }
 
-  logger.debug('[PPIO OAuth] Setting up protocol listener')
+  logger.debug("[PPIO OAuth] Setting up protocol listener");
 
-  return new Promise<string>((resolve, reject) => {
+  return new Promise<ProviderOAuthResult>((resolve, reject) => {
     const removeListener = window.api.protocol.onReceiveData(async (data) => {
       try {
-        const url = new URL(data.url)
-        const params = new URLSearchParams(url.search)
-        const code = params.get('code')
+        const url = new URL(data.url);
+        const params = new URLSearchParams(url.search);
+        const code = params.get("code");
 
         if (!code) {
-          reject(new Error('No authorization code received'))
-          return
+          reject(new Error("No authorization code received"));
+          return;
         }
 
         if (!PPIO_APP_SECRET) {
           reject(
-            new Error('PPIO_APP_SECRET not configured. Please set RENDERER_VITE_PPIO_APP_SECRET environment variable.')
-          )
-          return
+            new Error(
+              "PPIO_APP_SECRET not configured. Please set RENDERER_VITE_PPIO_APP_SECRET environment variable.",
+            ),
+          );
+          return;
         }
         const formData = new URLSearchParams({
           client_id: PPIO_CLIENT_ID,
           client_secret: PPIO_APP_SECRET,
           code: code,
-          grant_type: 'authorization_code',
-          redirect_uri: redirectUri
-        })
-        const tokenResponse = await fetch('https://ppio.com/oauth/token', {
-          method: 'POST',
+          grant_type: "authorization_code",
+          redirect_uri: redirectUri,
+        });
+        const tokenResponse = await fetch("https://ppio.com/oauth/token", {
+          method: "POST",
           headers: {
-            'Content-Type': 'application/x-www-form-urlencoded'
+            "Content-Type": "application/x-www-form-urlencoded",
           },
-          body: formData.toString()
-        })
+          body: formData.toString(),
+        });
 
         if (!tokenResponse.ok) {
-          const errorText = await tokenResponse.text()
-          logger.error(`[PPIO OAuth] Token exchange failed: ${tokenResponse.status} ${errorText}`)
-          throw new Error(`Failed to exchange code for token: ${tokenResponse.status} ${errorText}`)
+          const errorText = await tokenResponse.text();
+          logger.error(
+            `[PPIO OAuth] Token exchange failed: ${tokenResponse.status} ${errorText}`,
+          );
+          throw new Error(
+            `Failed to exchange code for token: ${tokenResponse.status} ${errorText}`,
+          );
         }
 
-        const tokenData = await tokenResponse.json()
-        const accessToken = tokenData.access_token
+        const tokenData = await tokenResponse.json();
+        const accessToken = tokenData.access_token;
 
         if (accessToken) {
-          setKey(accessToken)
-          resolve(accessToken)
+          const result = { apiKey: accessToken };
+          setKey?.(result);
+          resolve(result);
         } else {
-          reject(new Error('No access token received'))
+          reject(new Error("No access token received"));
         }
       } catch (error) {
-        logger.error('[PPIO OAuth] Error processing callback:', error as Error)
-        reject(error)
+        logger.error("[PPIO OAuth] Error processing callback:", error as Error);
+        reject(error);
       } finally {
-        removeListener()
+        removeListener();
       }
-    })
-  })
-}
+    });
+  });
+};
 
 export const oauthWithTokenFlux = async () => {
-  const callbackUrl = `${TOKENFLUX_HOST}/auth/callback?redirect_to=/dashboard/api-keys`
-  const resp = await fetch(`${TOKENFLUX_HOST}/api/auth/auth-url?type=login&callback=${callbackUrl}`, {})
+  const callbackUrl = `${TOKENFLUX_HOST}/auth/callback?redirect_to=/dashboard/api-keys`;
+  const resp = await fetch(
+    `${TOKENFLUX_HOST}/api/auth/auth-url?type=login&callback=${callbackUrl}`,
+    {},
+  );
   if (!resp.ok) {
-    window.toast.error(i18n.t('settings.provider.oauth.error'))
-    return
+    window.toast.error(i18n.t("settings.provider.oauth.error"));
+    return;
   }
-  const data = await resp.json()
-  const authUrl = data.data.url
+  const data = await resp.json();
+  const authUrl = data.data.url;
   window.open(
     authUrl,
-    'oauth',
-    'width=720,height=720,toolbar=no,location=no,status=no,menubar=no,scrollbars=yes,resizable=yes,alwaysOnTop=yes,alwaysRaised=yes'
-  )
-}
+    "oauth",
+    "width=720,height=720,toolbar=no,location=no,status=no,menubar=no,scrollbars=yes,resizable=yes,alwaysOnTop=yes,alwaysRaised=yes",
+  );
+};
 export const oauthWith302AI = async (setKey) => {
-  const authUrl = 'https://dash.302.ai/sso/login?app=cherry-ai.com&name=Cherry%20Studio'
+  const authUrl =
+    "https://dash.302.ai/sso/login?app=cherry-ai.com&name=Cherry%20Studio";
 
   const popup = window.open(
     authUrl,
-    'oauth',
-    'width=720,height=720,toolbar=no,location=no,status=no,menubar=no,scrollbars=yes,resizable=yes,alwaysOnTop=yes,alwaysRaised=yes'
-  )
+    "oauth",
+    "width=720,height=720,toolbar=no,location=no,status=no,menubar=no,scrollbars=yes,resizable=yes,alwaysOnTop=yes,alwaysRaised=yes",
+  );
 
   const messageHandler = (event) => {
     if (event.data && event.data.data.apikey !== undefined) {
-      setKey(event.data.data.apikey)
-      popup?.close()
-      window.removeEventListener('message', messageHandler)
+      setKey(event.data.data.apikey);
+      popup?.close();
+      window.removeEventListener("message", messageHandler);
     }
-  }
+  };
 
-  window.removeEventListener('message', messageHandler)
-  window.addEventListener('message', messageHandler)
-}
+  window.removeEventListener("message", messageHandler);
+  window.addEventListener("message", messageHandler);
+};
 
 export const oauthWithAiOnly = async (setKey) => {
-  const authUrl = `https://maas.aiionly.com/login?inviteCode=1755481173663DrZBBOC0&cherryCode=01`
+  const authUrl = `https://maas.aiionly.com/login?inviteCode=1755481173663DrZBBOC0&cherryCode=01`;
 
   const popup = window.open(
     authUrl,
-    'login',
-    'width=720,height=720,toolbar=no,location=no,status=no,menubar=no,scrollbars=yes,resizable=yes,alwaysOnTop=yes,alwaysRaised=yes'
-  )
+    "login",
+    "width=720,height=720,toolbar=no,location=no,status=no,menubar=no,scrollbars=yes,resizable=yes,alwaysOnTop=yes,alwaysRaised=yes",
+  );
 
   const messageHandler = (event) => {
-    if (event.data.length > 0 && event.data[0]['secretKey'] !== undefined) {
-      setKey(event.data[0]['secretKey'])
-      popup?.close()
-      window.removeEventListener('message', messageHandler)
+    if (event.data.length > 0 && event.data[0]["secretKey"] !== undefined) {
+      setKey(event.data[0]["secretKey"]);
+      popup?.close();
+      window.removeEventListener("message", messageHandler);
     }
-  }
+  };
 
-  window.removeEventListener('message', messageHandler)
-  window.addEventListener('message', messageHandler)
-}
+  window.removeEventListener("message", messageHandler);
+  window.addEventListener("message", messageHandler);
+};
 
 export interface NewApiOAuthConfig {
-  oauthServer: string
-  apiHost?: string
+  oauthServer: string;
+  apiHost?: string;
 }
 
 /**
@@ -204,182 +231,223 @@ export interface NewApiOAuthConfig {
  * @param setKey - Callback to set the API key
  * @param config - OAuth configuration (oauthServer, apiHost)
  */
-export const oauthWithCherryIn = async (setKey: (key: string) => void, config: NewApiOAuthConfig): Promise<string> => {
-  const { oauthServer, apiHost } = config
+export const oauthWithCherryIn = async (
+  setKey: (key: string) => void,
+  config: NewApiOAuthConfig,
+): Promise<string> => {
+  const { oauthServer, apiHost } = config;
 
   // Start OAuth flow in main process (generates PKCE params and returns auth URL)
-  const { authUrl, state } = await window.api.cherryin.startOAuthFlow(oauthServer, apiHost)
+  const { authUrl, state } = await window.api.cherryin.startOAuthFlow(
+    oauthServer,
+    apiHost,
+  );
 
-  logger.debug('Opening authorization URL')
+  logger.debug("Opening authorization URL");
 
   // Open in popup window
   window.open(
     authUrl,
-    'oauth',
-    'width=720,height=720,toolbar=no,location=no,status=no,menubar=no,scrollbars=yes,resizable=yes,alwaysOnTop=yes,alwaysRaised=yes'
-  )
+    "oauth",
+    "width=720,height=720,toolbar=no,location=no,status=no,menubar=no,scrollbars=yes,resizable=yes,alwaysOnTop=yes,alwaysRaised=yes",
+  );
 
   return new Promise<string>((resolve, reject) => {
-    let timeoutId: ReturnType<typeof setTimeout> | null = null
+    let timeoutId: ReturnType<typeof setTimeout> | null = null;
 
     const removeListener = window.api.protocol.onReceiveData(async (data) => {
       try {
-        const url = new URL(data.url)
+        const url = new URL(data.url);
 
         // Only handle our OAuth callback
-        if (url.hostname !== 'oauth' || url.pathname !== '/callback') {
-          return
+        if (url.hostname !== "oauth" || url.pathname !== "/callback") {
+          return;
         }
 
-        const params = new URLSearchParams(url.search)
-        const code = params.get('code')
-        const returnedState = params.get('state')
-        const error = params.get('error')
+        const params = new URLSearchParams(url.search);
+        const code = params.get("code");
+        const returnedState = params.get("state");
+        const error = params.get("error");
 
         // Handle OAuth errors
         if (error) {
-          const errorDesc = params.get('error_description') || error
-          logger.error(`Error: ${errorDesc}`)
-          reject(new Error(`OAuth error: ${errorDesc}`))
-          cleanup()
-          return
+          const errorDesc = params.get("error_description") || error;
+          logger.error(`Error: ${errorDesc}`);
+          reject(new Error(`OAuth error: ${errorDesc}`));
+          cleanup();
+          return;
         }
 
         if (!code) {
-          reject(new Error('No authorization code received'))
-          cleanup()
-          return
+          reject(new Error("No authorization code received"));
+          cleanup();
+          return;
         }
 
         // Verify state matches (CSRF protection)
         if (returnedState !== state) {
-          logger.debug('State mismatch, ignoring callback')
-          return
+          logger.debug("State mismatch, ignoring callback");
+          return;
         }
 
-        logger.debug('Exchanging code for token via main process')
+        logger.debug("Exchanging code for token via main process");
 
         // Exchange code for tokens in main process (has PKCE code_verifier)
-        const { apiKeys } = await window.api.cherryin.exchangeToken(code, state)
+        const { apiKeys } = await window.api.cherryin.exchangeToken(
+          code,
+          state,
+        );
 
         if (apiKeys) {
-          logger.debug('Successfully obtained API keys')
-          setKey(apiKeys)
-          resolve(apiKeys)
+          logger.debug("Successfully obtained API keys");
+          setKey(apiKeys);
+          resolve(apiKeys);
         } else {
-          reject(new Error('No API keys received'))
+          reject(new Error("No API keys received"));
         }
 
-        cleanup()
+        cleanup();
       } catch (error) {
-        logger.error('Error processing callback:', error as Error)
-        reject(error)
-        cleanup()
+        logger.error("Error processing callback:", error as Error);
+        reject(error);
+        cleanup();
       }
-    })
+    });
 
     function cleanup(): void {
-      removeListener()
+      removeListener();
       if (timeoutId) {
-        clearTimeout(timeoutId)
-        timeoutId = null
+        clearTimeout(timeoutId);
+        timeoutId = null;
       }
     }
 
     // Timeout after 10 minutes
     timeoutId = setTimeout(
       () => {
-        logger.warn('Flow timed out')
-        cleanup()
-        reject(new Error('OAuth flow timed out'))
+        logger.warn("Flow timed out");
+        cleanup();
+        reject(new Error("OAuth flow timed out"));
       },
-      10 * 60 * 1000
-    )
-  })
-}
+      10 * 60 * 1000,
+    );
+  });
+};
+
+export const oauthWithPoe = async (setKey?: SetKeyHandler) => {
+  try {
+    const result = await window.api.provider.poeOAuthLogin();
+    const apiKey = result?.apiKey?.trim();
+    const apiKeyExpiresAt =
+      typeof result?.expiresIn === "number" &&
+      Number.isFinite(result.expiresIn) &&
+      result.expiresIn > 0
+        ? Date.now() + result.expiresIn * 1000
+        : undefined;
+
+    if (!apiKey) {
+      throw new Error(i18n.t("settings.provider.oauth.error"));
+    }
+
+    const oauthResult = {
+      apiKey,
+      apiKeyExpiresAt,
+    };
+
+    setKey?.(oauthResult);
+    return oauthResult;
+  } catch (error) {
+    logger.error("[Poe OAuth] error", error as Error);
+    if (error instanceof Error && error.message) {
+      throw error;
+    }
+
+    throw new Error(i18n.t("settings.provider.oauth.error"));
+  }
+};
 
 export const providerCharge = async (provider: string) => {
   const chargeUrlMap = {
     silicon: {
-      url: 'https://cloud.siliconflow.cn/expensebill',
+      url: "https://cloud.siliconflow.cn/expensebill",
       width: 900,
-      height: 700
+      height: 700,
     },
     aihubmix: {
       url: `https://console.aihubmix.com/topup?client_id=cherry_studio_oauth&lang=${getLanguageCode()}&aff=SJyh`,
       width: 720,
-      height: 900
+      height: 900,
     },
     tokenflux: {
       url: `https://tokenflux.ai/dashboard/billing`,
       width: 900,
-      height: 700
+      height: 700,
     },
     ppio: {
-      url: 'https://ppio.com/user/register?invited_by=JYT9GD&utm_source=github_cherry-studio&redirect=/billing',
+      url: "https://ppio.com/user/register?invited_by=JYT9GD&utm_source=github_cherry-studio&redirect=/billing",
       width: 900,
-      height: 700
+      height: 700,
     },
-    '302ai': {
-      url: 'https://dash.302.ai/charge',
+    "302ai": {
+      url: "https://dash.302.ai/charge",
       width: 900,
-      height: 700
+      height: 700,
     },
     aionly: {
       url: `https://maas.aiionly.com/recharge`,
       width: 900,
-      height: 700
-    }
-  }
+      height: 700,
+    },
+  };
 
-  const { url, width, height } = chargeUrlMap[provider]
+  const { url, width, height } = chargeUrlMap[provider];
 
   window.open(
     url,
-    'oauth',
-    `width=${width},height=${height},toolbar=no,location=no,status=no,menubar=no,scrollbars=yes,resizable=yes,alwaysOnTop=yes,alwaysRaised=yes`
-  )
-}
+    "oauth",
+    `width=${width},height=${height},toolbar=no,location=no,status=no,menubar=no,scrollbars=yes,resizable=yes,alwaysOnTop=yes,alwaysRaised=yes`,
+  );
+};
 
 export const providerBills = async (provider: string) => {
   const billsUrlMap = {
     silicon: {
-      url: 'https://cloud.siliconflow.cn/bills',
+      url: "https://cloud.siliconflow.cn/bills",
       width: 900,
-      height: 700
+      height: 700,
     },
     aihubmix: {
       url: `https://console.aihubmix.com/statistics?client_id=cherry_studio_oauth&lang=${getLanguageCode()}&aff=SJyh`,
       width: 900,
-      height: 700
+      height: 700,
     },
     tokenflux: {
       url: `https://tokenflux.ai/dashboard/billing`,
       width: 900,
-      height: 700
+      height: 700,
     },
     ppio: {
-      url: 'https://ppio.com/user/register?invited_by=JYT9GD&utm_source=github_cherry-studio&redirect=/billing/billing-details',
+      url: "https://ppio.com/user/register?invited_by=JYT9GD&utm_source=github_cherry-studio&redirect=/billing/billing-details",
       width: 900,
-      height: 700
+      height: 700,
     },
-    '302ai': {
-      url: 'https://dash.302.ai/charge',
+    "302ai": {
+      url: "https://dash.302.ai/charge",
       width: 900,
-      height: 700
+      height: 700,
     },
     aionly: {
       url: `https://maas.aiionly.com/billManagement`,
       width: 900,
-      height: 700
-    }
-  }
+      height: 700,
+    },
+  };
 
-  const { url, width, height } = billsUrlMap[provider]
+  const { url, width, height } = billsUrlMap[provider];
 
   window.open(
     url,
-    'oauth',
-    `width=${width},height=${height},toolbar=no,location=no,status=no,menubar=no,scrollbars=yes,resizable=yes,alwaysOnTop=yes,alwaysRaised=yes`
-  )
-}
+    "oauth",
+    `width=${width},height=${height},toolbar=no,location=no,status=no,menubar=no,scrollbars=yes,resizable=yes,alwaysOnTop=yes,alwaysRaised=yes`,
+  );
+};
