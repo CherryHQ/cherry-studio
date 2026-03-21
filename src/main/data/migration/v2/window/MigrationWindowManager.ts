@@ -4,10 +4,19 @@
 
 import { loggerService } from '@logger'
 import { isDev } from '@main/constant'
-import { app, BrowserWindow, dialog } from 'electron'
+import { app, BrowserWindow, dialog, screen } from 'electron'
 import { join } from 'path'
 
 const logger = loggerService.withContext('MigrationWindowManager')
+const DEFAULT_WINDOW_WIDTH = 980
+const DEFAULT_WINDOW_HEIGHT = 720
+
+export function getMigrationWindowSize(workAreaSize: { width: number; height: number }) {
+  return {
+    width: Math.min(DEFAULT_WINDOW_WIDTH, workAreaSize.width),
+    height: Math.min(DEFAULT_WINDOW_HEIGHT, workAreaSize.height)
+  }
+}
 
 export class MigrationWindowManager {
   private window: BrowserWindow | null = null
@@ -36,10 +45,13 @@ export class MigrationWindowManager {
     }
 
     logger.info('Creating migration window')
+    const display = screen.getDisplayNearestPoint(screen.getCursorScreenPoint())
+    const { width, height } = getMigrationWindowSize(display.workAreaSize)
 
     this.window = new BrowserWindow({
-      width: 640,
-      height: 480,
+      width,
+      height,
+      center: true,
       resizable: false,
       maximizable: false,
       minimizable: false,
