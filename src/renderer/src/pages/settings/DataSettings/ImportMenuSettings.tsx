@@ -1,4 +1,5 @@
 import { HStack } from '@renderer/components/Layout'
+import AnthropicImportPopup from '@renderer/components/Popups/AnthropicImportPopup'
 import ImportPopup from '@renderer/components/Popups/ImportPopup'
 import { useTheme } from '@renderer/context/ThemeProvider'
 import { Button } from 'antd'
@@ -20,6 +21,13 @@ const ImportMenuOptions: FC = () => {
         <SettingRowTitle>{t('settings.data.import_settings.chatgpt')}</SettingRowTitle>
         <HStack gap="5px" justifyContent="space-between">
           <Button onClick={ImportPopup.show}>{t('settings.data.import_settings.button')}</Button>
+        </HStack>
+      </SettingRow>
+      <SettingDivider />
+      <SettingRow>
+        <SettingRowTitle>{t('settings.data.import_settings.claude')}</SettingRowTitle>
+        <HStack gap="5px" justifyContent="space-between">
+          <Button onClick={AnthropicImportPopup.show}>{t('settings.data.import_settings.button')}</Button>
         </HStack>
       </SettingRow>
     </SettingGroup>

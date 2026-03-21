@@ -1674,6 +1674,28 @@
       "title": "导入 ChatGPT 对话",
       "untitled_conversation": "未命名对话"
     },
+    "claude": {
+      "assistant_name": "Claude 导入",
+      "button": "选择文件",
+      "description": "仅导入对话文字，不携带图片和附件",
+      "error": {
+        "invalid_json": "无效的 JSON 文件格式",
+        "no_conversations": "文件中未找到任何对话",
+        "no_valid_conversations": "没有可导入的有效对话",
+        "unknown": "导入失败，请检查文件格式"
+      },
+      "help": {
+        "step1": "1. 登录 Claude，进入设置 > 隐私 > 导出数据",
+        "step2": "2. 等待邮件接收导出文件",
+        "step3": "3. 解压下载的文件，找到 conversations.json",
+        "title": "如何导出 Claude 对话？"
+      },
+      "importing": "正在导入对话...",
+      "selecting": "正在选择文件...",
+      "success": "成功导入 {{topics}} 个对话，共 {{messages}} 条消息",
+      "title": "导入 Claude 对话",
+      "untitled_conversation": "未命名对话"
+    },
     "confirm": {
       "button": "选择导入文件",
       "label": "确定要导入外部数据吗？"
@@ -3783,6 +3805,7 @@
       "import_settings": {
         "button": "导入文件",
         "chatgpt": "导入 ChatGPT 数据",
+        "claude": "导入 Claude 数据",
         "title": "导入外部应用数据"
       },
       "joplin": {
