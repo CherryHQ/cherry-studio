@@ -1,7 +1,7 @@
 import { Button, ColFlex, Flex, RowFlex, Tooltip } from '@cherrystudio/ui'
+import { Tag } from '@cherrystudio/ui'
 import CollapsibleSearchBar from '@renderer/components/CollapsibleSearchBar'
 import { LoadingIcon, StreamlineGoodHealthAndWellBeing } from '@renderer/components/Icons'
-import CustomTag from '@renderer/components/Tags/CustomTag'
 import { PROVIDER_URLS } from '@renderer/config/providers'
 import { useProvider } from '@renderer/hooks/useProvider'
 import { getProviderLabel } from '@renderer/i18n/label'
@@ -116,11 +116,7 @@ const ModelList: React.FC<ModelListProps> = ({ providerId }) => {
         <RowFlex className="w-full items-center justify-between">
           <RowFlex className="items-center gap-2">
             <SettingSubtitle className="mt-0">{t('common.models')}</SettingSubtitle>
-            {modelCount > 0 && (
-              <CustomTag color="#8c8c8c" size={10}>
-                {modelCount}
-              </CustomTag>
-            )}
+            {modelCount > 0 && <Tag color="#8c8c8c">{modelCount}</Tag>}
             <CollapsibleSearchBar
               onSearch={setSearchText}
               placeholder={t('models.search.placeholder')}

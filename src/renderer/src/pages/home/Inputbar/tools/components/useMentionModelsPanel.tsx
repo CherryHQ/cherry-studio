@@ -142,7 +142,7 @@ export const useMentionModelsPanel = (params: Params, role: 'button' | 'manager'
                 <span style={{ opacity: 0.8 }}> | {model.name}</span>
               </>
             ),
-            description: <ModelTagsWithLabel model={model} showLabel={false} size={10} style={{ opacity: 0.8 }} />,
+            description: <ModelTagsWithLabel model={model} showLabel={false} size="sm" style={{ opacity: 0.8 }} />,
             icon: (() => {
               const Icon = getModelLogo(model)
               return Icon ? <Icon.Avatar size={20} /> : <Avatar size={20}>{first(model.name)}</Avatar>
@@ -174,7 +174,7 @@ export const useMentionModelsPanel = (params: Params, role: 'button' | 'manager'
             <span style={{ opacity: 0.8 }}> | {model.name}</span>
           </>
         ),
-        description: <ModelTagsWithLabel model={model} showLabel={false} size={10} style={{ opacity: 0.8 }} />,
+        description: <ModelTagsWithLabel model={model} showLabel={false} size="sm" style={{ opacity: 0.8 }} />,
         icon: (() => {
           const Icon = getModelLogo(model)
           return Icon ? <Icon.Avatar size={20} /> : <Avatar size={20}>{first(model.name)}</Avatar>

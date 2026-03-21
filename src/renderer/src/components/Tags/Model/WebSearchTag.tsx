@@ -1,26 +1,27 @@
 import { GlobalOutlined } from '@ant-design/icons'
+import { Tag, type TagProps, Tooltip } from '@cherrystudio/ui'
 import { useTranslation } from 'react-i18next'
 
-import type { CustomTagProps } from '../CustomTag'
-import CustomTag from '../CustomTag'
-
 type Props = {
-  size?: number
+  size?: TagProps['size']
   showTooltip?: boolean
   showLabel?: boolean
-} & Omit<CustomTagProps, 'size' | 'tooltip' | 'icon' | 'color' | 'children'>
+} & Omit<TagProps, 'size' | 'icon' | 'color' | 'children'>
 
 export const WebSearchTag = ({ size, showTooltip, showLabel, ...restProps }: Props) => {
   const { t } = useTranslation()
 
-  return (
-    <CustomTag
-      size={size}
-      color="#1677ff"
-      icon={<GlobalOutlined style={{ fontSize: size }} />}
-      tooltip={showTooltip ? t('models.type.websearch') : undefined}
-      {...restProps}>
+  const tag = (
+    <Tag size={size} color="#1677ff" icon={<GlobalOutlined />} {...restProps}>
       {showLabel ? t('models.type.websearch') : ''}
-    </CustomTag>
+    </Tag>
+  )
+
+  return showTooltip ? (
+    <Tooltip content={t('models.type.websearch')} delay={300}>
+      {tag}
+    </Tooltip>
+  ) : (
+    tag
   )
 }

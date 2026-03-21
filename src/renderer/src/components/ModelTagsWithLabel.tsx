@@ -1,3 +1,4 @@
+import type { TagProps } from '@cherrystudio/ui'
 import {
   isEmbeddingModel,
   isFunctionCallingModel,
@@ -28,7 +29,7 @@ interface ModelTagsProps {
   showFree?: boolean
   showReasoning?: boolean
   showToolsCalling?: boolean
-  size?: number
+  size?: TagProps['size']
   showLabel?: boolean
   showTooltip?: boolean
   style?: React.CSSProperties
@@ -39,7 +40,7 @@ const ModelTagsWithLabel: FC<ModelTagsProps> = ({
   showFree = true,
   showReasoning = true,
   showToolsCalling = true,
-  size = 12,
+  size,
   showLabel = true,
   showTooltip = true,
   style

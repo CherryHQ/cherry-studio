@@ -1,5 +1,5 @@
+import { Tag } from '@cherrystudio/ui'
 import HorizontalScrollContainer from '@renderer/components/HorizontalScrollContainer'
-import CustomTag from '@renderer/components/Tags/CustomTag'
 import { useProviders } from '@renderer/hooks/useProvider'
 import { getModelUniqId } from '@renderer/services/ModelService'
 import type { Model } from '@renderer/types'
@@ -22,14 +22,14 @@ const MentionModelsInput: FC<{
     <Container>
       <HorizontalScrollContainer dependencies={[selectedModels]} expandable>
         {selectedModels.map((model) => (
-          <CustomTag
+          <Tag
             icon={<i className="iconfont icon-at" />}
             color="#1677ff"
             key={getModelUniqId(model)}
             closable
             onClose={() => onRemoveModel(model)}>
             {model.name} ({getProviderName(model)})
-          </CustomTag>
+          </Tag>
         ))}
       </HorizontalScrollContainer>
     </Container>

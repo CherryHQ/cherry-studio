@@ -1,6 +1,6 @@
 import { Button } from '@cherrystudio/ui'
+import { Tag } from '@cherrystudio/ui'
 import { DeleteIcon, EditIcon } from '@renderer/components/Icons'
-import CustomTag from '@renderer/components/Tags/CustomTag'
 import { useAssistantPresets } from '@renderer/hooks/useAssistantPresets'
 import AssistantSettingsPopup from '@renderer/pages/settings/AssistantSettings'
 import { createAssistantFromAgent } from '@renderer/services/AssistantService'
@@ -139,16 +139,12 @@ const AssistantPresetCard: FC<Props> = ({ preset, onClick, activegroup, getLocal
             <AgentCardHeaderInfo>
               <AgentCardHeaderInfoTitle>{preset.name}</AgentCardHeaderInfoTitle>
               <AgentCardHeaderInfoTags>
-                {activegroup === '我的' && (
-                  <CustomTag color="#A0A0A0" size={11}>
-                    {getLocalizedGroupName('我的')}
-                  </CustomTag>
-                )}
+                {activegroup === '我的' && <Tag color="#A0A0A0">{getLocalizedGroupName('我的')}</Tag>}
                 {isArray(preset.group) &&
                   preset.group.map((group) => (
-                    <CustomTag key={group} color="#A0A0A0" size={11}>
+                    <Tag key={group} color="#A0A0A0">
                       {getLocalizedGroupName(group)}
-                    </CustomTag>
+                    </Tag>
                   ))}
               </AgentCardHeaderInfoTags>
             </AgentCardHeaderInfo>

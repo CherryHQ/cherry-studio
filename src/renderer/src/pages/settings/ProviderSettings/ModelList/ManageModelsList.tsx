@@ -1,7 +1,7 @@
 import { Avatar, AvatarFallback, Button, Flex, Tooltip } from '@cherrystudio/ui'
+import { Tag } from '@cherrystudio/ui'
 import ExpandableText from '@renderer/components/ExpandableText'
 import ModelIdWithTags from '@renderer/components/ModelIdWithTags'
-import CustomTag from '@renderer/components/Tags/CustomTag'
 import { DynamicVirtualList } from '@renderer/components/VirtualList'
 import { getModelLogo } from '@renderer/config/models'
 import FileItem from '@renderer/pages/files/FileItem'
@@ -153,9 +153,7 @@ const ManageModelsList: React.FC<ManageModelsListProps> = ({ modelGroups, provid
                     className={isCollapsed ? '' : 'rotate-90'}
                   />
                   <span className="font-bold text-sm">{row.groupName}</span>
-                  <CustomTag color="#02B96B" size={10}>
-                    {row.models.length}
-                  </CustomTag>
+                  <Tag color="#02B96B">{row.models.length}</Tag>
                 </Flex>
                 {renderGroupTools(row.models)}
               </GroupHeader>

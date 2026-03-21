@@ -30,7 +30,7 @@ const ModelIdWithTags = ({
         delay={500}>
         <NameSpan>{model.name}</NameSpan>
       </Tooltip>
-      <ModelTagsWithLabel model={model} size={11} style={{ flexShrink: 0 }} />
+      <ModelTagsWithLabel model={model} size="sm" style={{ flexShrink: 0 }} />
     </ListItemName>
   )
 }

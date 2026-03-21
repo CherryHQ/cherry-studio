@@ -122,7 +122,7 @@ const PopupContainer: React.FC<Props> = ({ model, filter: baseFilter, showTagFil
         ),
         tags: (
           <TagsContainer>
-            <ModelTagsWithLabel model={model} size={11} showLabel={true} />
+            <ModelTagsWithLabel model={model} size="sm" showLabel={true} />
           </TagsContainer>
         ),
         icon: (() => {
