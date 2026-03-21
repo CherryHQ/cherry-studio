@@ -1,6 +1,6 @@
 import { extensionRegistry } from '@cherrystudio/ai-core/provider'
 import { loggerService } from '@logger'
-import { type Provider,SystemProviderIds } from '@renderer/types'
+import { type Provider, SystemProviderIds } from '@renderer/types'
 import { isAzureOpenAIProvider, isAzureResponsesEndpoint } from '@renderer/utils/provider'
 
 import { type AppProviderId, appProviderIds } from '../types'
