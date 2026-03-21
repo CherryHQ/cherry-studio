@@ -45,7 +45,7 @@ import { merge } from 'lodash'
 import type { OllamaProviderOptions } from 'ollama-ai-provider-v2'
 
 import { addAnthropicHeaders } from '../prepareParams/header'
-import { getAiSdkProviderId } from '../provider/factory'
+import { resolveAiSdkTransport } from '../provider/transport'
 import { buildGeminiGenerateImageParams } from './image'
 import {
   getAnthropicReasoningParams,
@@ -164,14 +164,22 @@ export function buildProviderOptions(
   providerOptions: Record<string, Record<string, JSONValue>>
   standardParams: Partial<Record<AiSdkParam, any>>
 } {
-  const rawProviderId = getAiSdkProviderId(actualProvider)
-  logger.debug('buildProviderOptions', { assistant, model, actualProvider, capabilities, rawProviderId })
+  const actualProviderId = actualProvider.id
+  const { providerId: transportProviderId } = resolveAiSdkTransport(actualProvider, model)
+  logger.debug('buildProviderOptions', {
+    assistant,
+    model,
+    actualProvider,
+    capabilities,
+    actualProviderId,
+    transportProviderId
+  })
   // 构建 provider 特定的选项
   let providerSpecificOptions: Record<string, any> = {}
   const serviceTier = getServiceTier(model, actualProvider)
   const textVerbosity = getVerbosity(model)
   // 根据 provider 类型分离构建逻辑
-  const { data: baseProviderId, success } = baseProviderIdSchema.safeParse(rawProviderId)
+  const { data: baseProviderId, success } = baseProviderIdSchema.safeParse(transportProviderId)
   if (success) {
     // 应该覆盖所有类型
     switch (baseProviderId) {
@@ -204,10 +212,10 @@ export function buildProviderOptions(
       case 'openrouter':
       case 'openai-compatible': {
         // 对于其他 provider，使用通用的构建逻辑
-        const genericOptions = buildGenericProviderOptions(rawProviderId, assistant, model, capabilities)
+        const genericOptions = buildGenericProviderOptions(transportProviderId, assistant, model, capabilities)
         providerSpecificOptions = {
-          [rawProviderId]: {
-            ...genericOptions[rawProviderId],
+          [transportProviderId]: {
+            ...genericOptions[transportProviderId],
             serviceTier,
             textVerbosity
           }
@@ -229,7 +237,7 @@ export function buildProviderOptions(
     }
   } else {
     // 处理自定义 provider
-    const { data: providerId, success, error } = customProviderIdSchema.safeParse(rawProviderId)
+    const { data: providerId, success, error } = customProviderIdSchema.safeParse(transportProviderId)
     if (success) {
       switch (providerId) {
         // 非 base provider 的单独处理逻辑
@@ -254,12 +262,12 @@ export function buildProviderOptions(
           break
         default:
           // 对于其他 provider，使用通用的构建逻辑
-          providerSpecificOptions = buildGenericProviderOptions(rawProviderId, assistant, model, capabilities)
+          providerSpecificOptions = buildGenericProviderOptions(transportProviderId, assistant, model, capabilities)
           // Merge serviceTier and textVerbosity
           providerSpecificOptions = {
             ...providerSpecificOptions,
-            [rawProviderId]: {
-              ...providerSpecificOptions[rawProviderId],
+            [transportProviderId]: {
+              ...providerSpecificOptions[transportProviderId],
               serviceTier,
               textVerbosity
             }
@@ -270,6 +278,7 @@ export function buildProviderOptions(
     }
   }
   logger.debug('Built providerSpecificOptions', { providerSpecificOptions })
+
   /**
    * Retrieve custom parameters and separate standard parameters from provider-specific parameters.
    */
@@ -299,9 +308,9 @@ export function buildProviderOptions(
    * Merge custom parameters into providerSpecificOptions.
    * Simple logic:
    * 1. If key is in actualAiSdkProviderIds → merge directly (user knows the actual AI SDK provider ID)
-   * 2. If key == rawProviderId:
+   * 2. If key == actualProviderId:
    *    - If it's gateway/ollama → preserve (they need their own config for routing/options)
-   *    - Otherwise → map to primary (this is a proxy provider like cherryin)
+   *    - Otherwise → map to primary (this is a proxy provider like cherryin/poe)
    * 3. Otherwise → treat as regular parameter, merge to primary provider
    *
    * Example:
@@ -320,7 +329,7 @@ export function buildProviderOptions(
           ...providerParams[key]
         }
       }
-    } else if (key === rawProviderId && !actualAiSdkProviderIds.includes(rawProviderId)) {
+    } else if (key === actualProviderId && !actualAiSdkProviderIds.includes(actualProviderId)) {
       // Case 2: Key is the current provider (not in actualAiSdkProviderIds, so it's a proxy or special provider)
       // Gateway is special: it needs routing config preserved
       if (key === SystemProviderIds.gateway) {

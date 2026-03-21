@@ -88,27 +88,38 @@ export function getAiSdkProviderId(provider: Provider): string {
   return provider.id
 }
 
+export function resolveAiSdkRuntimeProviderIdByMode(providerId: string, mode?: 'responses' | 'chat'): string {
+  if (providerId === 'openai' && mode === 'chat') {
+    return 'openai-chat'
+  }
+
+  if (providerId === 'azure' && mode === 'responses') {
+    return 'azure-responses'
+  }
+
+  if (providerId === 'cherryin' && mode === 'chat') {
+    return 'cherryin-chat'
+  }
+
+  return providerId
+}
+
 export async function createAiSdkProvider(config: AiSdkConfig): Promise<AiSdkProvider | null> {
   let localProvider: Awaited<AiSdkProvider> | null = null
+  let runtimeProviderId = config.providerId
   try {
-    if (config.providerId === 'openai' && config.options?.mode === 'chat') {
-      config.providerId = `${config.providerId}-chat`
-    } else if (config.providerId === 'azure' && config.options?.mode === 'responses') {
-      config.providerId = `${config.providerId}-responses`
-    } else if (config.providerId === 'cherryin' && config.options?.mode === 'chat') {
-      config.providerId = 'cherryin-chat'
-    }
-    localProvider = await createProviderCore(config.providerId, config.options)
+    runtimeProviderId = resolveAiSdkRuntimeProviderIdByMode(config.providerId, config.options?.mode)
+    localProvider = await createProviderCore(runtimeProviderId, config.options)
 
     logger.debug('Local provider created successfully', {
-      providerId: config.providerId,
+      providerId: runtimeProviderId,
       hasOptions: !!config.options,
       localProvider: localProvider,
       options: config.options
     })
   } catch (error) {
     logger.error('Failed to create local provider', error as Error, {
-      providerId: config.providerId
+      providerId: runtimeProviderId
     })
     throw error
   }

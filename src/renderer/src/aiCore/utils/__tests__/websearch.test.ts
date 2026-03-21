@@ -68,20 +68,28 @@ describe('websearch utils', () => {
       })
     })
 
-    it('should return extra_body with web_search for poe provider', () => {
+    it('should return empty object for OpenAI models on Poe provider', () => {
       const model: Model = {
-        id: 'Gemini-3-Flash',
-        name: 'Gemini 3 Flash',
+        id: 'openai/gpt-4',
+        name: 'GPT-4',
         provider: 'poe'
       } as Model
 
       const result = getWebSearchParams(model)
 
-      expect(result).toEqual({
-        extra_body: {
-          web_search: true
-        }
-      })
+      expect(result).toEqual({})
+    })
+
+    it('should return empty object for other Poe models', () => {
+      const model: Model = {
+        id: 'claude-sonnet-4',
+        name: 'Claude Sonnet 4',
+        provider: 'poe'
+      } as Model
+
+      const result = getWebSearchParams(model)
+
+      expect(result).toEqual({})
     })
 
     it('should return empty object for other providers', () => {

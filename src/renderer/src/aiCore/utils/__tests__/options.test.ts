@@ -445,26 +445,18 @@ describe('options utils', () => {
       } as Provider
 
       const poeModel: Model = {
-        id: 'openai/gpt-4',
+        id: 'gpt-4',
         name: 'GPT-4',
         provider: SystemProviderIds.poe
       } as Model
 
-      it('should deep merge Poe extra_body reasoning and web search parameters', async () => {
-        const { getReasoningEffort } = await import('../reasoning')
-        const { getWebSearchParams } = await import('../websearch')
+      const poeClaudeModel: Model = {
+        id: 'claude-sonnet-4',
+        name: 'Claude Sonnet 4',
+        provider: SystemProviderIds.poe
+      } as Model
 
-        vi.mocked(getReasoningEffort).mockReturnValue({
-          extra_body: {
-            reasoning_effort: 'medium'
-          }
-        })
-        vi.mocked(getWebSearchParams).mockReturnValue({
-          extra_body: {
-            web_search: true
-          }
-        })
-
+      it('should build Poe providerOptions for Poe OpenAI models', () => {
         const result = buildProviderOptions(mockAssistant, poeModel, poeProvider, {
           enableReasoning: true,
           enableWebSearch: true,
@@ -472,11 +464,29 @@ describe('options utils', () => {
         })
 
         expect(result.providerOptions).toHaveProperty('poe')
+        expect(result.providerOptions).not.toHaveProperty('openai')
         expect(result.providerOptions.poe).toMatchObject({
-          extra_body: {
-            reasoning_effort: 'medium',
-            web_search: true
-          }
+          reasoningEffort: 'medium',
+          enable_search: true,
+          serviceTier: undefined,
+          textVerbosity: undefined
+        })
+      })
+
+      it('should build Poe providerOptions for non OpenAI Poe models', () => {
+        const result = buildProviderOptions(mockAssistant, poeClaudeModel, poeProvider, {
+          enableReasoning: true,
+          enableWebSearch: true,
+          enableGenerateImage: false
+        })
+
+        expect(result.providerOptions).toHaveProperty('poe')
+        expect(result.providerOptions).not.toHaveProperty('openai')
+        expect(result.providerOptions.poe).toMatchObject({
+          reasoningEffort: 'medium',
+          enable_search: true,
+          serviceTier: undefined,
+          textVerbosity: undefined
         })
       })
     })
