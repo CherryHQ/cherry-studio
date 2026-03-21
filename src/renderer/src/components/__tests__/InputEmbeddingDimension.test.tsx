@@ -81,9 +81,11 @@ vi.mock('antd', () => {
 
 // Mock dependencies
 vi.mock('@renderer/aiCore/index_new', () => ({
-  default: vi.fn().mockImplementation(() => ({
-    getEmbeddingDimensions: mocks.aiCore.getEmbeddingDimensions
-  }))
+  default: vi.fn().mockImplementation(function () {
+    return {
+      getEmbeddingDimensions: mocks.aiCore.getEmbeddingDimensions
+    }
+  })
 }))
 
 vi.mock('@renderer/hooks/useProvider', () => ({
