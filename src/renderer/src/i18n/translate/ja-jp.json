@@ -389,6 +389,9 @@
         "TodoWrite": {
           "description": "構造化されたタスクリストを作成し、管理します"
         },
+        "ToolSearch": {
+          "description": "[to be translated]:Discovers deferred tools from large libraries"
+        },
         "WebFetch": {
           "description": "指定されたURLからコンテンツを取得します"
         },
