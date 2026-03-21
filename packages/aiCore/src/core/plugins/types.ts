@@ -23,7 +23,6 @@ export interface AiRequestMetadata {
   enableGenerateImage?: boolean
   isPromptToolUse?: boolean
   isSupportedToolUse?: boolean
-  isImageGenerationEndpoint?: boolean
   // 自定义元数据，使用 JSONValue 确保类型安全
   custom?: JSONObject
 }

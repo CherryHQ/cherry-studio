@@ -305,25 +305,6 @@ export class AiSdkToChunkAdapter {
         this.toolCallHandler.handleToolResult(chunk)
         break
 
-      // === 步骤相关事件 ===
-      // case 'start':
-      //   this.onChunk({
-      //     type: ChunkType.LLM_RESPONSE_CREATED
-      //   })
-      //   break
-      // case 'start-step':
-      //   this.onChunk({
-      //     type: ChunkType.BLOCK_CREATED
-      //   })
-      //   break
-      // case 'step-finish':
-      //   this.onChunk({
-      //     type: ChunkType.TEXT_COMPLETE,
-      //     text: final.text || '' // TEXT_COMPLETE 需要 text 字段
-      //   })
-      //   final.text = ''
-      //   break
-
       case 'finish-step': {
         const { providerMetadata, finishReason } = chunk
         // googel web search

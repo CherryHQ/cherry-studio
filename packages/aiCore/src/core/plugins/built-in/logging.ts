@@ -36,7 +36,7 @@ export function createLoggingPlugin(config: LoggingConfig = {}) {
       logger(level, `🚀 AI Request Started`, {
         requestId,
         providerId: context.providerId,
-        modelId: context.modelId,
+        modelId: typeof context.model === 'string' ? context.model : (context.model?.modelId ?? 'unknown'),
         originalParams: logParams ? context.originalParams : '[hidden]'
       })
     },
@@ -50,7 +50,7 @@ export function createLoggingPlugin(config: LoggingConfig = {}) {
       const logData: any = {
         requestId,
         providerId: context.providerId,
-        modelId: context.modelId
+        modelId: typeof context.model === 'string' ? context.model : (context.model?.modelId ?? 'unknown')
       }
 
       if (logPerformance && duration) {
@@ -73,7 +73,7 @@ export function createLoggingPlugin(config: LoggingConfig = {}) {
       logger('error', `❌ AI Request Failed`, {
         requestId,
         providerId: context.providerId,
-        modelId: context.modelId,
+        modelId: typeof context.model === 'string' ? context.model : (context.model?.modelId ?? 'unknown'),
         duration: duration ? `${duration}ms` : undefined,
         error: {
           name: error.name,

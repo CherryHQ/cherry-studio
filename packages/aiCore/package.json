@@ -10,6 +10,10 @@
     "build": "tsdown",
     "dev": "tsc -w",
     "typecheck": "tsc --noEmit",
+    "lint": "oxlint --fix && eslint . --fix --cache",
+    "lint:check": "oxlint && eslint . --cache",
+    "format": "biome format --write && biome lint --write",
+    "format:check": "biome format && biome lint",
     "clean": "rm -rf dist",
     "test": "vitest run",
     "test:watch": "vitest"
@@ -26,22 +30,27 @@
   },
   "homepage": "https://github.com/CherryHQ/cherry-studio#readme",
   "peerDependencies": {
-    "@ai-sdk/google": "^3.0.33",
-    "@ai-sdk/openai": "^3.0.36",
-    "ai": "^6.0.103"
+    "@ai-sdk/google": "^3.0.43",
+    "@ai-sdk/openai": "^3.0.41",
+    "ai": "^6.0.116"
   },
   "dependencies": {
     "@cherrystudio/ai-sdk-provider": "workspace:*",
-    "@ai-sdk/anthropic": "^3.0.48",
-    "@ai-sdk/azure": "^3.0.37",
-    "@ai-sdk/deepseek": "^2.0.20",
-    "@ai-sdk/openai-compatible": "^2.0.30",
+    "@ai-sdk/anthropic": "^3.0.58",
+    "@ai-sdk/azure": "^3.0.42",
+    "@ai-sdk/deepseek": "^2.0.24",
+    "@ai-sdk/openai-compatible": "^2.0.35",
+    "@openrouter/ai-sdk-provider": "^2.3.3",
     "@ai-sdk/provider": "^3.0.8",
-    "@ai-sdk/provider-utils": "^4.0.15",
-    "@ai-sdk/xai": "^3.0.59",
+    "@ai-sdk/provider-utils": "^4.0.19",
+    "@ai-sdk/xai": "^3.0.67",
+    "lru-cache": "^11.2.4",
     "zod": "^4.1.5"
   },
   "devDependencies": {
+    "@cherrystudio/ai-sdk-provider": "workspace:*",
+    "biome": "^0.3.3",
+    "oxlint": "^1.36.0",
     "tsdown": "^0.20.3",
     "typescript": "^5.0.0",
     "vitest": "^3.2.4"

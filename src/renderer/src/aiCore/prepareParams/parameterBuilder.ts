@@ -3,16 +3,11 @@
  * 构建AI SDK的流式和非流式参数
  */
 
-import { anthropic } from '@ai-sdk/anthropic'
-import { azure } from '@ai-sdk/azure'
-import { google } from '@ai-sdk/google'
-import { vertexAnthropic } from '@ai-sdk/google-vertex/anthropic/edge'
-import { vertex } from '@ai-sdk/google-vertex/edge'
 import { combineHeaders } from '@ai-sdk/provider-utils'
-import type { AnthropicSearchConfig, WebSearchPluginConfig } from '@cherrystudio/ai-core/built-in/plugins'
-import { isBaseProvider } from '@cherrystudio/ai-core/core/providers/schemas'
-import type { BaseProviderId } from '@cherrystudio/ai-core/provider'
+import type { WebSearchPluginConfig } from '@cherrystudio/ai-core/built-in/plugins'
+import { extensionRegistry } from '@cherrystudio/ai-core/provider'
 import { loggerService } from '@logger'
+import type { AppProviderId } from '@renderer/aiCore/types'
 import { MAX_TOOL_CALLS, MIN_TOOL_CALLS } from '@renderer/config/constant'
 import {
   isAnthropicModel,
@@ -34,15 +29,15 @@ import type { CherryWebSearchConfig } from '@renderer/store/websearch'
 import type { Model } from '@renderer/types'
 import { type Assistant, getEffectiveMcpMode, type MCPTool, type Provider, SystemProviderIds } from '@renderer/types'
 import type { StreamTextParams } from '@renderer/types/aiCoreTypes'
-import { mapRegexToPatterns } from '@renderer/utils/blacklistMatchPattern'
 import { IdleTimeoutController, type IdleTimeoutHandle } from '@renderer/utils/IdleTimeoutController'
 import { replacePromptVariables } from '@renderer/utils/prompt'
 import { isAIGatewayProvider, isAwsBedrockProvider, isSupportUrlContextProvider } from '@renderer/utils/provider'
 import { DEFAULT_TIMEOUT } from '@shared/config/constant'
-import type { ModelMessage, Tool } from 'ai'
+import type { ModelMessage } from 'ai'
 import { stepCountIs } from 'ai'
 
 import { getAiSdkProviderId } from '../provider/factory'
+import type { ProviderCapabilities } from '../types'
 import { setupToolsConfig } from '../utils/mcp'
 import { buildProviderOptions } from '../utils/options'
 import { buildProviderBuiltinWebSearchConfig } from '../utils/websearch'
@@ -64,9 +59,7 @@ function validateMaxToolCalls(value: number | undefined): number {
   return value
 }
 
-type ProviderDefinedTool = Extract<Tool<any, any>, { type: 'provider' }>
-
-function mapVertexAIGatewayModelToProviderId(model: Model): BaseProviderId | undefined {
+function mapVertexAIGatewayModelToProviderId(model: Model): AppProviderId | undefined {
   if (isAnthropicModel(model)) {
     return 'anthropic'
   }
@@ -105,12 +98,7 @@ export async function buildStreamTextParams(
 ): Promise<{
   params: StreamTextParams
   modelId: string
-  capabilities: {
-    enableReasoning: boolean
-    enableWebSearch: boolean
-    enableGenerateImage: boolean
-    enableUrlContext: boolean
-  }
+  capabilities: ProviderCapabilities
   webSearchPluginConfig?: WebSearchPluginConfig
   idleTimeout: IdleTimeoutHandle
 }> {
@@ -157,7 +145,7 @@ export async function buildStreamTextParams(
 
   const enableGenerateImage = !!(isGenerateImageModel(model) && assistant.enableGenerateImage)
 
-  let tools = setupToolsConfig(mcpTools, options.allowedTools)
+  const tools = setupToolsConfig(mcpTools, options.allowedTools)
 
   // 构建真正的 providerOptions
   const webSearchConfig: CherryWebSearchConfig = {
@@ -172,64 +160,19 @@ export async function buildStreamTextParams(
     enableGenerateImage
   })
 
+  // Web search + URL context 的工具注入由 plugin 系统处理：
+  // - webSearchPlugin: 根据 provider 的 toolFactories.webSearch 自动注入
+  // - urlContextPlugin: 根据 provider 的 toolFactories.urlContext 自动注入
+  // parameterBuilder 只构建 config，传给 plugin
   let webSearchPluginConfig: WebSearchPluginConfig | undefined = undefined
   if (enableWebSearch) {
-    if (isBaseProvider(aiSdkProviderId)) {
+    if (extensionRegistry.has(aiSdkProviderId)) {
       webSearchPluginConfig = buildProviderBuiltinWebSearchConfig(aiSdkProviderId, webSearchConfig, model)
     } else if (isAIGatewayProvider(provider) || SystemProviderIds.gateway === provider.id) {
-      const aiSdkProviderId = mapVertexAIGatewayModelToProviderId(model)
-      if (aiSdkProviderId) {
-        webSearchPluginConfig = buildProviderBuiltinWebSearchConfig(aiSdkProviderId, webSearchConfig, model)
+      const gatewayProviderId = mapVertexAIGatewayModelToProviderId(model)
+      if (gatewayProviderId) {
+        webSearchPluginConfig = buildProviderBuiltinWebSearchConfig(gatewayProviderId, webSearchConfig, model)
       }
-    }
-    if (!tools) {
-      tools = {}
-    }
-    if (aiSdkProviderId === 'google-vertex') {
-      tools.google_search = vertex.tools.googleSearch({}) as ProviderDefinedTool
-    } else if (aiSdkProviderId === 'google-vertex-anthropic') {
-      const blockedDomains = mapRegexToPatterns(webSearchConfig.excludeDomains)
-      tools.web_search = vertexAnthropic.tools.webSearch_20250305({
-        maxUses: webSearchConfig.maxResults,
-        blockedDomains: blockedDomains.length > 0 ? blockedDomains : undefined
-      }) as ProviderDefinedTool
-    } else if (aiSdkProviderId === 'azure-responses') {
-      tools.web_search_preview = azure.tools.webSearchPreview({
-        searchContextSize: webSearchPluginConfig?.openai!.searchContextSize
-      }) as ProviderDefinedTool
-    } else if (aiSdkProviderId === 'azure-anthropic') {
-      const blockedDomains = mapRegexToPatterns(webSearchConfig.excludeDomains)
-      const anthropicSearchOptions: AnthropicSearchConfig = {
-        maxUses: webSearchConfig.maxResults,
-        blockedDomains: blockedDomains.length > 0 ? blockedDomains : undefined
-      }
-      tools.web_search = anthropic.tools.webSearch_20250305(anthropicSearchOptions) as ProviderDefinedTool
-    }
-  }
-
-  if (enableUrlContext) {
-    if (!tools) {
-      tools = {}
-    }
-    const blockedDomains = mapRegexToPatterns(webSearchConfig.excludeDomains)
-
-    switch (aiSdkProviderId) {
-      case 'google-vertex':
-        tools.url_context = vertex.tools.urlContext({}) as ProviderDefinedTool
-        break
-      case 'google':
-        tools.url_context = google.tools.urlContext({}) as ProviderDefinedTool
-        break
-      case 'anthropic':
-      case 'azure-anthropic':
-      case 'google-vertex-anthropic':
-        if (['anthropic', 'azure-anthropic'].includes(aiSdkProviderId)) {
-          tools.web_fetch = anthropic.tools.webFetch_20250910({
-            maxUses: webSearchConfig.maxResults,
-            blockedDomains: blockedDomains.length > 0 ? blockedDomains : undefined
-          }) as ProviderDefinedTool
-        }
-        break
     }
   }
 

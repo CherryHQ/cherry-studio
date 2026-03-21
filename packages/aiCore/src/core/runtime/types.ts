@@ -1,24 +1,43 @@
 /**
  * Runtime 层类型定义
  */
-import type { ImageModelV3 } from '@ai-sdk/provider'
-import type { generateImage, generateText, streamText } from 'ai'
+import type { EmbeddingModelV3, ImageModelV3, ProviderV3 } from '@ai-sdk/provider'
+import type { embedMany, generateImage, generateText, streamText } from 'ai'
 
-import { type ModelConfig } from '../models/types'
 import { type AiPlugin } from '../plugins'
-import { type ProviderId } from '../providers/types'
+import type { CoreProviderSettingsMap, StringKeys } from '../providers/types'
 
 /**
  * 运行时执行器配置
+ *
+ * @typeParam TSettingsMap - Provider Settings Map（默认 CoreProviderSettingsMap）
+ * @typeParam T - Provider ID 类型（从 TSettingsMap 的键推断）
  */
-export interface RuntimeConfig<T extends ProviderId = ProviderId> {
+export interface RuntimeConfig<
+  TSettingsMap extends Record<string, any> = CoreProviderSettingsMap,
+  T extends StringKeys<TSettingsMap> = StringKeys<TSettingsMap>
+> {
   providerId: T
-  providerSettings: ModelConfig<T>['providerSettings'] & { mode?: 'chat' | 'responses' }
+  provider: ProviderV3
+  providerSettings: TSettingsMap[T]
   plugins?: AiPlugin[]
+  /**
+   * 模型解析函数
+   * 从 variant 的 resolveModel 声明中提取（类型安全在 extension 声明处保证）。
+   * 不提供时使用 AI SDK 默认的 provider.languageModel()。
+   */
+  modelResolver?: (modelId: string) => any
 }
 
 export type generateImageParams = Omit<Parameters<typeof generateImage>[0], 'model'> & {
   model: string | ImageModelV3
 }
+export type generateImageResult = Awaited<ReturnType<typeof generateImage>>
 export type generateTextParams = Parameters<typeof generateText>[0]
 export type streamTextParams = Parameters<typeof streamText>[0]
+
+// Embedding types (AI SDK v6 only has embedMany, no embed)
+export type EmbedManyParams = Omit<Parameters<typeof embedMany>[0], 'model'> & {
+  model: string | EmbeddingModelV3
+}
+export type EmbedManyResult = Awaited<ReturnType<typeof embedMany>>

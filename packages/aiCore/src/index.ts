@@ -9,13 +9,17 @@
 export {
   createExecutor,
   createOpenAICompatibleExecutor,
+  embedMany,
   generateImage,
   generateText,
   streamText
 } from './core/runtime'
 
+// ==================== Embedding 类型 ====================
+export type { EmbedManyParams, EmbedManyResult } from './core/runtime'
+
 // ==================== 高级API ====================
-export { isV2Model, isV3Model, globalModelResolver as modelResolver } from './core/models'
+export { isV2Model, isV3Model } from './core/models'
 
 // ==================== 插件系统 ====================
 export type {
@@ -34,7 +38,17 @@ export { createContext, definePlugin, PluginManager } from './core/plugins'
 export { PluginEngine } from './core/runtime/pluginEngine'
 
 // ==================== 类型工具 ====================
-export type { AiSdkModel } from './core/providers'
+export type {
+  AiSdkModel,
+  ExtractToolConfig,
+  ExtractToolConfigMap,
+  ProviderId,
+  ToolCapability,
+  ToolFactory,
+  ToolFactoryMap,
+  ToolFactoryPatch,
+  WebSearchToolConfigMap
+} from './core/providers'
 
 // ==================== 选项 ====================
 export {
@@ -53,7 +67,6 @@ export {
   ModelResolutionError,
   ParameterValidationError,
   PluginExecutionError,
-  ProviderConfigError,
   RecursiveDepthError,
   TemplateLoadError
 } from './core/errors'

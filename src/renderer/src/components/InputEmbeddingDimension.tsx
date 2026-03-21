@@ -7,7 +7,7 @@ import { Button, InputNumber, Space, Tooltip } from 'antd'
 import { memo, useCallback, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import AiProviderNew from '../aiCore/index_new'
+import { AiProvider } from '../aiCore'
 
 const logger = loggerService.withContext('DimensionsInput')
 
@@ -48,7 +48,7 @@ const InputEmbeddingDimension = ({
 
     setLoading(true)
     try {
-      const aiProvider = new AiProviderNew(provider)
+      const aiProvider = new AiProvider(provider)
       const dimension = await aiProvider.getEmbeddingDimensions(model)
       // for controlled input
       if (ref?.current) {
