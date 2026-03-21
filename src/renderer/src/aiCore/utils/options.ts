@@ -315,7 +315,6 @@ export function buildProviderOptions(
    *
    * Example:
    * - User writes `cherryin: { opt: 'val' }` → mapped to `google: { opt: 'val' }` (case 2, proxy)
-   * - User writes `poe: { opt: 'val' }` → mapped to `openai: { opt: 'val' }` (case 2, proxy)
    * - User writes `gateway: { order: [...] }` → stays as `gateway: { order: [...] }` (case 2, routing config)
    * - User writes `google: { opt: 'val' }` → stays as `google: { opt: 'val' }` (case 1)
    * - User writes `customKey: 'val'` → merged to `google: { customKey: 'val' }` (case 3)
@@ -343,7 +342,7 @@ export function buildProviderOptions(
           }
         }
       } else {
-        // Proxy provider (cherryin, poe, etc.) - map to actual AI SDK provider
+        // Proxy provider (cherryin, etc.) - map to actual AI SDK provider
         providerSpecificOptions = {
           ...providerSpecificOptions,
           [primaryAiSdkProviderId]: {
