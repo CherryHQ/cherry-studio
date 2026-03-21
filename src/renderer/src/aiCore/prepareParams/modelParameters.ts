@@ -4,6 +4,7 @@
  */
 
 import {
+  isClaude46SeriesModel,
   isClaudeReasoningModel,
   isMaxTemperatureOneModel,
   isSupportedFlexServiceTier,
@@ -113,7 +114,13 @@ export function getMaxTokens(assistant: Assistant, model: Model): number | undef
   }
 
   const provider = getProviderByModel(model)
-  if (isSupportedThinkingTokenClaudeModel(model) && ['anthropic', 'aws-bedrock'].includes(provider.type)) {
+  // Claude 4.6 uses adaptive thinking (no budgetTokens), so the AI SDK does not add budget back
+  // to maxOutputTokens. Skip the subtraction to avoid incorrectly reducing max_tokens.
+  if (
+    isSupportedThinkingTokenClaudeModel(model) &&
+    !isClaude46SeriesModel(model) &&
+    ['anthropic', 'aws-bedrock'].includes(provider.type)
+  ) {
     const { reasoning_effort: reasoningEffort } = assistantSettings
     const budget = getThinkingBudget(maxTokens, reasoningEffort, model.id)
     if (budget) {

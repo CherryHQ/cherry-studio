@@ -3,7 +3,7 @@ import { TopicType } from '@renderer/types'
 import { DEFAULT_TIMEOUT } from '@shared/config/constant'
 import { describe, expect, it, vi } from 'vitest'
 
-import { getTemperature, getTimeout, getTopP } from '../modelParameters'
+import { getMaxTokens, getTemperature, getTimeout, getTopP } from '../modelParameters'
 
 vi.mock('@renderer/services/AssistantService', () => ({
   getAssistantSettings: (assistant: Assistant): AssistantSettings => ({
@@ -21,7 +21,9 @@ vi.mock('@renderer/services/AssistantService', () => ({
     reasoning_effort: assistant.settings?.reasoning_effort ?? 'default',
     reasoning_effort_cache: assistant.settings?.reasoning_effort_cache,
     qwenThinkMode: assistant.settings?.qwenThinkMode
-  })
+  }),
+  getProviderByModel: (model: Model) => ({ id: model.provider, type: model.provider, models: [] }),
+  DEFAULT_ASSISTANT_SETTINGS: { enableTemperature: true, enableTopP: false, enableMaxTokens: false }
 }))
 
 vi.mock('@renderer/hooks/useSettings', () => ({
@@ -213,6 +215,46 @@ describe('modelParameters', () => {
       const model = createModel({ id: 'gpt-4o', provider: 'openai', group: 'openai' })
 
       expect(getTimeout(model)).toBe(DEFAULT_TIMEOUT)
+    })
+  })
+
+  describe('getMaxTokens', () => {
+    it('returns undefined when maxTokens is not enabled', () => {
+      const assistant = createAssistant({ enableMaxTokens: false, maxTokens: 128000 })
+      const model = createModel({ id: 'claude-opus-4-6', provider: 'anthropic', group: 'claude' })
+
+      expect(getMaxTokens(assistant, model)).toBeUndefined()
+    })
+
+    it('returns user-configured maxTokens for Claude 4.6 without subtraction', () => {
+      const assistant = createAssistant({ enableMaxTokens: true, maxTokens: 128000 })
+      const model = createModel({ id: 'claude-opus-4-6', provider: 'anthropic', group: 'claude' })
+
+      expect(getMaxTokens(assistant, model)).toBe(128000)
+    })
+
+    it('returns user-configured maxTokens for Claude Sonnet 4.6 without subtraction', () => {
+      const assistant = createAssistant({ enableMaxTokens: true, maxTokens: 64000 })
+      const model = createModel({ id: 'claude-sonnet-4-6', provider: 'anthropic', group: 'claude' })
+
+      expect(getMaxTokens(assistant, model)).toBe(64000)
+    })
+
+    it('subtracts thinking budget for non-4.6 Claude models with anthropic provider', () => {
+      const assistant = createAssistant({ enableMaxTokens: true, maxTokens: 16384 })
+      const model = createModel({ id: 'claude-sonnet-4', provider: 'anthropic', group: 'claude' })
+
+      const result = getMaxTokens(assistant, model)
+      // Non-4.6 Claude thinking models should have budget subtracted
+      expect(result).toBeDefined()
+      expect(result!).toBeLessThan(16384)
+    })
+
+    it('returns maxTokens as-is for non-Claude models', () => {
+      const assistant = createAssistant({ enableMaxTokens: true, maxTokens: 4096 })
+      const model = createModel({ id: 'gpt-4o', provider: 'openai', group: 'openai' })
+
+      expect(getMaxTokens(assistant, model)).toBe(4096)
     })
   })
 })
