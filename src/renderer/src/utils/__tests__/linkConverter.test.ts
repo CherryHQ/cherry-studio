@@ -31,6 +31,13 @@ describe('linkConverter', () => {
       expect(result.hasBufferedContent).toBe(false)
     })
 
+    it('should not handle impossible parenthesized grounding link', () => {
+      const input = 'await sendBatch([1], topicData.topicID, topicData.csrfToken);'
+      const result = convertLinks(input, true)
+      expect(result.text).toBe(input)
+      expect(result.hasBufferedContent).toBe(false)
+    })
+
     it('should use the same counter for duplicate URLs', () => {
       const input =
         '第一个链接 [example.com](https://example.com) 和第二个相同链接 [subdomain.example.com](https://example.com)'
