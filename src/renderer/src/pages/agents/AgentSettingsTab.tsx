@@ -47,7 +47,7 @@ const AgentSettingsTab = () => {
   const [confirmDeleteMessage, setConfirmDeleteMessage] = usePreference('chat.message.confirm_delete')
   const [confirmRegenerateMessage, setConfirmRegenerateMessage] = usePreference('chat.message.confirm_regenerate')
   const [sendMessageShortcut, setSendMessageShortcut] = usePreference('chat.input.send_message_shortcut')
-  const [targetLanguage, setTargetLanguage] = usePreference('feature.translate.target_language')
+  const [targetLanguage, setTargetLanguage] = usePreference('feature.translate.chat.target_language')
 
   const [codeEditor, setCodeEditor] = useMultiplePreferences({
     enabled: 'chat.code.editor.enabled',

@@ -21,6 +21,13 @@
       "when": 1772954746790,
       "tag": "0002_tired_glorian",
       "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "6",
+      "when": 1773896975667,
+      "tag": "0003_material_pestilence",
+      "breakpoints": true
     }
   ],
   "version": "7"

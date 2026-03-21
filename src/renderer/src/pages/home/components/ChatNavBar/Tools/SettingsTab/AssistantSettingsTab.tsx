@@ -54,7 +54,7 @@ const AssistantSettingsTab: FC<Props> = (props) => {
   const [messageStyle, setMessageStyle] = usePreference('chat.message.style')
   const [fontSize, setFontSize] = usePreference('chat.message.font_size')
   const [language] = usePreference('app.language')
-  const [targetLanguage, setTargetLanguage] = usePreference('feature.translate.target_language')
+  const [targetLanguage, setTargetLanguage] = usePreference('feature.translate.chat.target_language')
   const [sendMessageShortcut, setSendMessageShortcut] = usePreference('chat.input.send_message_shortcut')
   const [messageFont, setMessageFont] = usePreference('chat.message.font')
   const [showPrompt, setShowPrompt] = usePreference('chat.message.show_prompt')
