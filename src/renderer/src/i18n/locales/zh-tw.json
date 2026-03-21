@@ -5123,6 +5123,7 @@
           "title": "OAuth 登入"
         },
         "connect": "關聯 {{provider}} 帳號",
+        "connected": "已連接",
         "description": "本服務由 <website>{{provider}}</website> 提供",
         "error": "認證失敗",
         "logged_in": "已登入",
@@ -5131,8 +5132,50 @@
         "logout_success": "已成功登出",
         "logout_warning": "已在本機登出，但伺服器端權杖撤銷可能失敗",
         "official_website": "官方網站",
+        "open_api_keys": "開啟 API Keys",
+        "open_provider_website": "開啟服務商網站",
+        "poe": {
+          "error": {
+            "access_denied": "Poe 授權已被拒絕。請先核准存取後再繼續。",
+            "authorization_failed": "Poe 在授權過程中登入失敗。",
+            "browser_open_failed": "Cherry Studio 無法為 Poe 登入開啟瀏覽器，請檢查系統預設瀏覽器設定後重試。",
+            "callback_port_unavailable": "Poe 登入無法確定回呼連接埠。",
+            "callback_processing_failed": "處理 Poe 回呼失敗。",
+            "callback_server_error": "Poe 登入無法啟動本機回呼伺服器。",
+            "callback_timeout": "等待 Poe 授權回應逾時，請重新登入。",
+            "invalid_grant": "Poe 授權已過期或無法驗證，請重新登入。",
+            "invalid_request": "Poe 無法處理此次登入請求，請重試。",
+            "invalid_scope": "Poe 拒絕了所請求的權限範圍。",
+            "missing_api_key": "Poe 登入已完成，但未傳回 API Key。",
+            "missing_code": "Poe 未傳回授權碼。",
+            "missing_state": "Poe 登入未傳回有效的 state 值。",
+            "server_error": "Poe 暫時無法完成登入，請重試。",
+            "state_mismatch": "此次 Poe 登入請求無法通過校驗，請重試。",
+            "token_exchange_failed": "Poe 在請求 API Key 時登入失敗。",
+            "token_invalid_request": "Poe 無法完成權杖交換，請重試。",
+            "token_request_failed": "Cherry Studio 無法連線 Poe 完成登入，請檢查網路連線後重試。",
+            "unsupported_grant_type": "Poe 拒絕了目前請求的權杖授權類型。",
+            "unsupported_response_type": "Poe 不接受目前請求的授權流程。"
+          },
+          "expired": {
+            "description": "此 Poe API 金鑰已於 {{date}} 過期。請重新連接以繼續使用 Poe 模型。",
+            "title": "Poe API 金鑰已過期"
+          },
+          "expiring_soon": {
+            "description": "此 Poe API 金鑰將於 {{date}} 過期。請立即重新連接以避免中斷。",
+            "title": "Poe API 金鑰即將過期"
+          },
+          "failure": {
+            "title": "Poe 登入失敗"
+          },
+          "success": {
+            "description": "現在可以返回 Cherry Studio 繼續操作。",
+            "title": "已連接到 Poe"
+          }
+        },
         "provided_by": "本服務由",
         "provided_by_suffix": " 提供",
+        "reconnect": "重新連接",
         "requests": "請求數",
         "topup": "儲值",
         "usage_title": "用量"

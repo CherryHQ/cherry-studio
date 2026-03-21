@@ -5123,6 +5123,7 @@
           "title": "Login OAuth"
         },
         "connect": "Conectar {{provider}}",
+        "connected": "[to be translated]:已连接",
         "description": "Este serviço é fornecido por <website>{{provider}}</website>",
         "error": "Falha na autenticação",
         "logged_in": "Conectado",
@@ -5131,8 +5132,42 @@
         "logout_success": "Desconectado com sucesso",
         "logout_warning": "Desconectado localmente, mas a revogação do token do servidor pode ter falhado",
         "official_website": "Site Oficial",
+        "open_api_keys": "[to be translated]:打开 API Keys",
+        "open_provider_website": "[to be translated]:打开服务商网站",
+        "poe": {
+          "error": {
+            "access_denied": "[to be translated]:Poe 授权已被拒绝。请先批准访问后再继续。",
+            "authorization_failed": "[to be translated]:Poe 在授权过程中登录失败。",
+            "browser_open_failed": "[to be translated]:Cherry Studio 无法为 Poe 登录打开浏览器，请检查系统默认浏览器设置后重试。",
+            "callback_port_unavailable": "[to be translated]:Poe 登录无法确定回调端口。",
+            "callback_processing_failed": "[to be translated]:处理 Poe 回调失败。",
+            "callback_server_error": "[to be translated]:Poe 登录无法启动本地回调服务器。",
+            "callback_timeout": "[to be translated]:等待 Poe 授权响应超时，请重新登录。",
+            "invalid_grant": "[to be translated]:Poe 授权已过期或无法验证，请重新登录。",
+            "invalid_request": "[to be translated]:Poe 无法处理此次登录请求，请重试。",
+            "invalid_scope": "[to be translated]:Poe 拒绝了所请求的权限范围。",
+            "missing_api_key": "[to be translated]:Poe 登录已完成，但未返回 API Key。",
+            "missing_code": "[to be translated]:Poe 未返回授权码。",
+            "missing_state": "[to be translated]:Poe 登录未返回有效的 state 值。",
+            "server_error": "[to be translated]:Poe 暂时无法完成登录，请重试。",
+            "state_mismatch": "[to be translated]:此次 Poe 登录请求无法通过校验，请重试。",
+            "token_exchange_failed": "[to be translated]:Poe 在请求 API Key 时登录失败。",
+            "token_invalid_request": "[to be translated]:Poe 无法完成令牌交换，请重试。",
+            "token_request_failed": "[to be translated]:Cherry Studio 无法连接 Poe 完成登录，请检查网络连接后重试。",
+            "unsupported_grant_type": "[to be translated]:Poe 拒绝了当前请求的令牌授权类型。",
+            "unsupported_response_type": "[to be translated]:Poe 不接受当前请求的授权流程。"
+          },
+          "failure": {
+            "title": "[to be translated]:Poe 登录失败"
+          },
+          "success": {
+            "description": "[to be translated]:现在可以返回 Cherry Studio 继续操作。",
+            "title": "[to be translated]:已连接到 Poe"
+          }
+        },
         "provided_by": "Fornecido por",
         "provided_by_suffix": "I'm ready to translate. Please provide the text you'd like me to translate into Portuguese.",
+        "reconnect": "[to be translated]:重新连接",
         "requests": "Solicitações",
         "topup": "Recarregar",
         "usage_title": "Uso"

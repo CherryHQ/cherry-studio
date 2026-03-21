@@ -5123,6 +5123,7 @@
           "title": "OAuthログイン"
         },
         "connect": "{{provider}}に接続",
+        "connected": "接続済み",
         "description": "本サービスは<website>{{provider}}</website>によって提供されます",
         "error": "認証失敗",
         "logged_in": "ログインしました",
@@ -5131,8 +5132,50 @@
         "logout_success": "正常にログアウトしました",
         "logout_warning": "ローカルではログアウトしましたが、サーバートークンの失効に失敗した可能性があります",
         "official_website": "公式サイト",
+        "open_api_keys": "API Keys を開く",
+        "open_provider_website": "プロバイダーのサイトを開く",
+        "poe": {
+          "error": {
+            "access_denied": "Poe の認可が拒否されました。アクセスを承認してから再度お試しください。",
+            "authorization_failed": "Poe の認可中にサインインに失敗しました。",
+            "browser_open_failed": "Cherry Studio は Poe サインイン用のブラウザを開けませんでした。システムのデフォルトブラウザの設定を確認して再度お試しください。",
+            "callback_port_unavailable": "Poe サインインでコールバックポートを特定できませんでした。",
+            "callback_processing_failed": "Poe コールバックの処理に失敗しました。",
+            "callback_server_error": "Poe サインインでローカルコールバックサーバーを起動できませんでした。",
+            "callback_timeout": "Poe 認可応答の待機がタイムアウトしました。再度サインインしてください。",
+            "invalid_grant": "Poe の認可が期限切れまたは検証できませんでした。再度サインインしてください。",
+            "invalid_request": "Poe がこのサインインリクエストを処理できませんでした。再度お試しください。",
+            "invalid_scope": "Poe がリクエストされた権限を拒否しました。",
+            "missing_api_key": "Poe サインインは完了しましたが、API Key が返されませんでした。",
+            "missing_code": "Poe が認可コードを返しませんでした。",
+            "missing_state": "Poe サインインが有効な state 値を返しませんでした。",
+            "server_error": "Poe が一時的にサインインを完了できませんでした。再度お試しください。",
+            "state_mismatch": "Poe サインインリクエストを検証できませんでした。再度お試しください。",
+            "token_exchange_failed": "Poe が API Key のリクエスト中にサインインに失敗しました。",
+            "token_invalid_request": "Poe がトークン交換を完了できませんでした。再度お試しください。",
+            "token_request_failed": "Cherry Studio が Poe に接続してサインインを完了できませんでした。ネットワーク接続を確認して再度お試しください。",
+            "unsupported_grant_type": "Poe がリクエストされたトークン付与タイプを拒否しました。",
+            "unsupported_response_type": "Poe がリクエストされた認可フローを受け付けませんでした。"
+          },
+          "expired": {
+            "description": "この Poe API キーは {{date}} に期限切れになりました。Poe モデルを引き続き使用するには再接続してください。",
+            "title": "Poe API キーの期限切れ"
+          },
+          "expiring_soon": {
+            "description": "この Poe API キーは {{date}} に期限切れになります。中断を避けるため、今すぐ再接続してください。",
+            "title": "Poe API キーがまもなく期限切れ"
+          },
+          "failure": {
+            "title": "Poe サインイン失敗"
+          },
+          "success": {
+            "description": "Cherry Studio に戻って操作を続行できます。",
+            "title": "Poe に接続しました"
+          }
+        },
         "provided_by": "提供",
-        "provided_by_suffix": "I’m ready—please provide the text you’d like translated into Japanese.",
+        "provided_by_suffix": "I'm ready—please provide the text you'd like translated into Japanese.",
+        "reconnect": "再接続",
         "requests": "リクエスト",
         "topup": "チャージ",
         "usage_title": "使用"

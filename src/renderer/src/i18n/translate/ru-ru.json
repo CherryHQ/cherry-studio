@@ -5123,6 +5123,7 @@
           "title": "Вход через OAuth"
         },
         "connect": "Подключить {{provider}}",
+        "connected": "Подключено",
         "description": "Сервис предоставляется <website>{{provider}}</website>",
         "error": "Ошибка аутентификации",
         "logged_in": "Вошёл в систему",
@@ -5131,8 +5132,50 @@
         "logout_success": "Выход из системы выполнен успешно",
         "logout_warning": "Вышел из системы локально, но отзыв токена на сервере, возможно, не удался",
         "official_website": "Официальный сайт",
+        "open_api_keys": "Открыть API Keys",
+        "open_provider_website": "Открыть сайт провайдера",
+        "poe": {
+          "error": {
+            "access_denied": "Авторизация Poe была отклонена. Пожалуйста, одобрите доступ и повторите попытку.",
+            "authorization_failed": "Не удалось войти в Poe во время авторизации.",
+            "browser_open_failed": "Cherry Studio не смог открыть браузер для входа в Poe. Проверьте настройки браузера по умолчанию и повторите попытку.",
+            "callback_port_unavailable": "Не удалось определить порт обратного вызова при входе в Poe.",
+            "callback_processing_failed": "Не удалось обработать обратный вызов Poe.",
+            "callback_server_error": "Не удалось запустить локальный сервер обратного вызова при входе в Poe.",
+            "callback_timeout": "Время ожидания ответа авторизации Poe истекло. Пожалуйста, повторите вход.",
+            "invalid_grant": "Авторизация Poe истекла или не может быть проверена. Пожалуйста, войдите снова.",
+            "invalid_request": "Poe не смог обработать запрос на вход. Пожалуйста, повторите попытку.",
+            "invalid_scope": "Poe отклонил запрашиваемые разрешения.",
+            "missing_api_key": "Вход в Poe выполнен, но API-ключ не был возвращён.",
+            "missing_code": "Poe не вернул код авторизации.",
+            "missing_state": "Вход в Poe не вернул допустимое значение state.",
+            "server_error": "Poe временно не смог завершить вход. Пожалуйста, повторите попытку.",
+            "state_mismatch": "Не удалось проверить запрос на вход в Poe. Пожалуйста, повторите попытку.",
+            "token_exchange_failed": "Не удалось войти в Poe при запросе API-ключа.",
+            "token_invalid_request": "Poe не смог завершить обмен токенов. Пожалуйста, повторите попытку.",
+            "token_request_failed": "Cherry Studio не смог подключиться к Poe для завершения входа. Проверьте сетевое подключение и повторите попытку.",
+            "unsupported_grant_type": "Poe отклонил запрашиваемый тип предоставления токена.",
+            "unsupported_response_type": "Poe не принял запрашиваемый поток авторизации."
+          },
+          "expired": {
+            "description": "Срок действия этого API-ключа Poe истёк {{date}}. Переподключитесь, чтобы продолжить использование моделей Poe.",
+            "title": "API-ключ Poe истёк"
+          },
+          "expiring_soon": {
+            "description": "Срок действия этого API-ключа Poe истекает {{date}}. Переподключитесь сейчас, чтобы избежать перебоев.",
+            "title": "API-ключ Poe скоро истечёт"
+          },
+          "failure": {
+            "title": "Не удалось войти в Poe"
+          },
+          "success": {
+            "description": "Теперь вы можете вернуться в Cherry Studio.",
+            "title": "Подключено к Poe"
+          }
+        },
         "provided_by": "Предоставлено",
-        "provided_by_suffix": "I’m ready—please provide the text you’d like translated into Russian.",
+        "provided_by_suffix": "I'm ready—please provide the text you'd like translated into Russian.",
+        "reconnect": "Переподключиться",
         "requests": "Запросы",
         "topup": "Пополнить",
         "usage_title": "Использование"
