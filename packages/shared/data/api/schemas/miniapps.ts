@@ -1,7 +1,8 @@
 /**
  * MiniApp API Schema definitions
  *
- * Contains all miniapp-related endpoints for CRUD operations and status management.
+ * System default apps are runtime-defined (not managed via API).
+ * API only manages user preferences for default apps and full CRUD for custom apps.
  */
 
 import type { MiniApp } from '@shared/data/types/miniapp'
@@ -11,7 +12,7 @@ import type { MiniApp } from '@shared/data/types/miniapp'
 // ============================================================================
 
 /**
- * DTO for creating a new miniapp
+ * DTO for creating a new custom miniapp
  */
 export interface CreateMiniappDto {
   /** App identifier */
@@ -20,12 +21,10 @@ export interface CreateMiniappDto {
   name: string
   /** App URL */
   url: string
-  /** Logo */
+  /** Logo URL or base64 */
   logo?: string
   /** App type: default or custom */
   type?: 'default' | 'custom'
-  /** User status for this app */
-  status?: 'enabled' | 'disabled' | 'pinned'
   /** Whether the app shows a border */
   bordered?: boolean
   /** Background color */
@@ -90,7 +89,7 @@ export interface MiniappSchemas {
   /**
    * Miniapps collection endpoint
    * @example GET /miniapps?status=enabled
-   * @example POST /miniapps { "appId": "qwen", "name": "Qwen", "url": "https://qwen.ai" }
+   * @example POST /miniapps { "appId": "my-app", "name": "My App", "url": "https://example.com" }
    */
   '/miniapps': {
     /** Get all miniapps (optionally filtered by status/type) */
@@ -101,7 +100,7 @@ export interface MiniappSchemas {
       }
       response: MiniApp[]
     }
-    /** Create a new miniapp (for custom apps) */
+    /** Create a new miniapp (for custom apps or default app preference rows) */
     POST: {
       body: CreateMiniappDto
       response: MiniApp
@@ -122,7 +121,7 @@ export interface MiniappSchemas {
   /**
    * Individual miniapp endpoint
    * @example GET /miniapps/qwen
-   * @example PATCH /miniapps/qwen { "name": "Qwen" }
+   * @example PATCH /miniapps/qwen { "status": "disabled" }
    * @example DELETE /miniapps/qwen
    */
   '/miniapps/:appId': {
