@@ -1,7 +1,7 @@
 import { SearxngClient } from '@agentic/searxng'
 import { loggerService } from '@logger'
 import type { WebSearchState } from '@renderer/store/websearch'
-import type { WebSearchProvider, WebSearchProviderResponse } from '@renderer/types'
+import type { WebSearchProvider, WebSearchProviderResponse, WebSearchProviderResult } from '@renderer/types'
 import { fetchWebContent, noContent } from '@renderer/utils/fetch'
 import axios from 'axios'
 import ky from 'ky'
@@ -45,6 +45,15 @@ export default class SearxngProvider extends BaseWebSearchProvider {
     }
     this.initEngines().catch((err) => logger.error('Failed to initialize SearxNG engines:', err))
   }
+
+  private buildFallbackResult(item: { title?: string; content?: string; url: string }): WebSearchProviderResult {
+    return {
+      title: item.title || item.url,
+      url: item.url,
+      content: item.content?.trim() || item.title || item.url
+    }
+  }
+
   private async initEngines(): Promise<void> {
     try {
       logger.info(`Initializing SearxNG with API host: ${this.apiHost}`)
@@ -56,7 +65,7 @@ export default class SearxngProvider extends BaseWebSearchProvider {
         : undefined
       const response = await axios.get(`${this.apiHost}/config`, {
         timeout: 5000,
-        validateStatus: (status) => status === 200, // 仅接受 200 状态码
+        validateStatus: (status) => status === 200,
         auth
       })
 
@@ -101,9 +110,8 @@ export default class SearxngProvider extends BaseWebSearchProvider {
         throw new Error('Search query cannot be empty')
       }
 
-      // Wait for initialization if it's the first search
       if (!this.isInitialized) {
-        await this.initEngines().catch(() => {}) // Ignore errors
+        await this.initEngines().catch(() => {})
       }
 
       const result = await this.searxng.search({
@@ -119,23 +127,39 @@ export default class SearxngProvider extends BaseWebSearchProvider {
       const validItems = result.results
         .filter((item) => item.url.startsWith('http') || item.url.startsWith('https'))
         .slice(0, websearch.maxResults)
-      // Logger.log('Valid search items:', validItems)
 
-      // Fetch content for each URL concurrently
       const fetchPromises = validItems.map(async (item) => {
-        // Logger.log(`Fetching content for ${item.url}...`)
-        return await fetchWebContent(item.url, 'markdown', this.provider.usingBrowser)
+        const timeoutMs = this.provider.timeout || 10000
+        const controller = new AbortController()
+        const timeoutId = setTimeout(() => controller.abort(), timeoutMs)
+
+        try {
+          const fetched = await fetchWebContent(item.url, 'markdown', this.provider.usingBrowser, {
+            signal: controller.signal
+          })
+          clearTimeout(timeoutId)
+
+          if (fetched.content === noContent) {
+            return this.buildFallbackResult(item)
+          }
+
+          return fetched
+        } catch (error) {
+          clearTimeout(timeoutId)
+          logger.warn(`Failed to fetch ${item.url} after ${timeoutMs}ms`, error as Error)
+          return this.buildFallbackResult(item)
+        }
       })
 
-      // Wait for all fetches to complete
       const results = await Promise.all(fetchPromises)
 
       return {
         query: query,
-        results: results.filter((result) => result.content != noContent)
+        results: results.filter((result) => result.content.trim().length > 0)
       }
     } catch (error) {
-      logger.error('Searxng search failed:', error as Error)
+      const logError = error instanceof Error ? error : { error }
+      logger.error('Searxng search failed:', logError)
       throw new Error(`Search failed: ${error instanceof Error ? error.message : 'Unknown error'}`)
     }
   }
