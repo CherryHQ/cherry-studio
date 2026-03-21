@@ -67,7 +67,7 @@ const IdentifierSpan = styled.span`
   overflow: hidden;
   color: var(--color-text-3);
   font-family: monospace;
-  font-size: 12px !important;
+  font-size: 12px;
   line-height: 1.2;
   text-overflow: ellipsis;
   white-space: nowrap;

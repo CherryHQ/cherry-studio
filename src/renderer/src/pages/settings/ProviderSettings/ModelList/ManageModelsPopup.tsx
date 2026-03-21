@@ -74,8 +74,10 @@ const PopupContainer: React.FC<Props> = ({ providerId, resolve }) => {
   const { t, i18n } = useTranslation()
   const searchInputRef = useRef<any>(null)
 
-  const systemModels = SYSTEM_MODELS[provider.id] || []
-  const allModels = uniqBy([...systemModels, ...listModels, ...models], 'id')
+  const allModels = useMemo(
+    () => uniqBy([...(SYSTEM_MODELS[provider.id] || []), ...listModels, ...models], 'id'),
+    [provider.id, listModels, models]
+  )
   const duplicateModelNames = useMemo(() => getDuplicateModelNames(allModels), [allModels])
 
   const isLoading = useMemo(
