@@ -371,6 +371,7 @@ export const SYSTEM_PROVIDERS_CONFIG: Record<SystemProviderId, SystemProvider> =
     type: 'openai',
     apiKey: '',
     apiHost: 'http://localhost:1234',
+    anthropicApiHost: 'http://localhost:1234',
     models: SYSTEM_MODELS.lmstudio,
     isSystem: true,
     enabled: false
