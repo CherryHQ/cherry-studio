@@ -2028,8 +2028,8 @@
       },
       "fetchTopicName": "Error al asignar nombre al tema",
       "file": {
-        "process_failed": "[to be translated]:File {{name}} could not be processed",
-        "text_extraction_failed": "[to be translated]:Failed to extract text from {{name}}"
+        "process_failed": "El archivo {{name}} no pudo ser procesado",
+        "text_extraction_failed": "Error al extraer el texto de {{name}}"
       },
       "get_embedding_dimensions": "Fallo al obtener las dimensiones de incrustación",
       "invalid": {
@@ -2275,9 +2275,9 @@
     },
     "warning": {
       "file": {
-        "pdf_exceeds_limit": "[to be translated]:PDF file {{name}} exceeds size limit ({{limit}}), falling back to text extraction",
-        "pdf_text_extraction_failed": "[to be translated]:Failed to extract text from PDF {{name}}",
-        "pdf_upload_failed": "[to be translated]:Failed to upload PDF {{name}}, falling back to text extraction"
+        "pdf_exceeds_limit": "El archivo PDF {{name}} excede el límite de tamaño ({{limit}}), recurriendo a la extracción de texto",
+        "pdf_text_extraction_failed": "Error al extraer el texto del PDF {{name}}",
+        "pdf_upload_failed": "Error al subir el PDF {{name}}, recurriendo a la extracción de texto"
       },
       "rate": {
         "limit": "Envío demasiado frecuente, espere {{seconds}} segundos antes de intentarlo de nuevo"
