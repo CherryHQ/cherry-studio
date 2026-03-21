@@ -1,4 +1,4 @@
-import type { NextFunction, Request, Response } from 'express'
+import type { Request, Response } from 'express'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { authMiddleware } from '../auth'
@@ -25,22 +25,15 @@ vi.mock('@logger', () => ({
 }))
 
 describe('authMiddleware', () => {
-  let req: Partial<Request>
-  let res: Partial<Response>
-  let next: NextFunction
-  let jsonMock: ReturnType<typeof vi.fn>
-  let statusMock: ReturnType<typeof vi.fn>
+  const headerMock = vi.fn<(name: string) => string | undefined>()
+  const jsonMock = vi.fn()
+  const statusMock = vi.fn<(code: number) => { json: typeof jsonMock }>().mockReturnValue({ json: jsonMock })
+  let next: ReturnType<typeof vi.fn>
+
+  const req = { header: headerMock } as unknown as Request
+  const res = { status: statusMock } as unknown as Response
 
   beforeEach(() => {
-    jsonMock = vi.fn()
-    statusMock = vi.fn(() => ({ json: jsonMock }))
-
-    req = {
-      header: vi.fn()
-    }
-    res = {
-      status: statusMock
-    }
     next = vi.fn()
 
     vi.clearAllMocks()
@@ -48,7 +41,7 @@ describe('authMiddleware', () => {
 
   describe('Missing credentials', () => {
     it('should return 401 when both auth headers are missing', () => {
-      ;(req.header as any).mockReturnValue('')
+      headerMock.mockReturnValue('')
 
       authMiddleware(req as Request, res as Response, next)
 
@@ -58,7 +51,7 @@ describe('authMiddleware', () => {
     })
 
     it('should return 401 when both auth headers are empty strings', () => {
-      ;(req.header as any).mockImplementation((header: string) => {
+      headerMock.mockImplementation((header: string) => {
         if (header === 'authorization') return ''
         if (header === 'x-api-key') return ''
         return ''
@@ -74,7 +67,7 @@ describe('authMiddleware', () => {
 
   describe('Server configuration', () => {
     it('should return 403 when API key is not configured', () => {
-      ;(req.header as any).mockImplementation((header: string) => {
+      headerMock.mockImplementation((header: string) => {
         if (header === 'x-api-key') return 'some-key'
         return ''
       })
@@ -89,7 +82,7 @@ describe('authMiddleware', () => {
     })
 
     it('should return 403 when API key is null', () => {
-      ;(req.header as any).mockImplementation((header: string) => {
+      headerMock.mockImplementation((header: string) => {
         if (header === 'x-api-key') return 'some-key'
         return ''
       })
@@ -112,7 +105,7 @@ describe('authMiddleware', () => {
     })
 
     it('should authenticate successfully with valid API key', () => {
-      ;(req.header as any).mockImplementation((header: string) => {
+      headerMock.mockImplementation((header: string) => {
         if (header === 'x-api-key') return validApiKey
         return ''
       })
@@ -124,7 +117,7 @@ describe('authMiddleware', () => {
     })
 
     it('should return 403 with invalid API key', () => {
-      ;(req.header as any).mockImplementation((header: string) => {
+      headerMock.mockImplementation((header: string) => {
         if (header === 'x-api-key') return 'invalid-key'
         return ''
       })
@@ -137,7 +130,7 @@ describe('authMiddleware', () => {
     })
 
     it('should return 401 with empty API key', () => {
-      ;(req.header as any).mockImplementation((header: string) => {
+      headerMock.mockImplementation((header: string) => {
         if (header === 'x-api-key') return '   '
         return ''
       })
@@ -150,7 +143,7 @@ describe('authMiddleware', () => {
     })
 
     it('should handle API key with whitespace', () => {
-      ;(req.header as any).mockImplementation((header: string) => {
+      headerMock.mockImplementation((header: string) => {
         if (header === 'x-api-key') return `  ${validApiKey}  `
         return ''
       })
@@ -162,7 +155,7 @@ describe('authMiddleware', () => {
     })
 
     it('should prioritize API key over Bearer token when both are present', () => {
-      ;(req.header as any).mockImplementation((header: string) => {
+      headerMock.mockImplementation((header: string) => {
         if (header === 'x-api-key') return validApiKey
         if (header === 'authorization') return 'Bearer invalid-token'
         return ''
@@ -175,7 +168,7 @@ describe('authMiddleware', () => {
     })
 
     it('should return 403 when API key is invalid even if Bearer token is valid', () => {
-      ;(req.header as any).mockImplementation((header: string) => {
+      headerMock.mockImplementation((header: string) => {
         if (header === 'x-api-key') return 'invalid-key'
         if (header === 'authorization') return `Bearer ${validApiKey}`
         return ''
@@ -197,7 +190,7 @@ describe('authMiddleware', () => {
     })
 
     it('should authenticate successfully with valid Bearer token when no API key', () => {
-      ;(req.header as any).mockImplementation((header: string) => {
+      headerMock.mockImplementation((header: string) => {
         if (header === 'authorization') return `Bearer ${validApiKey}`
         return ''
       })
@@ -209,7 +202,7 @@ describe('authMiddleware', () => {
     })
 
     it('should return 403 with invalid Bearer token', () => {
-      ;(req.header as any).mockImplementation((header: string) => {
+      headerMock.mockImplementation((header: string) => {
         if (header === 'authorization') return 'Bearer invalid-token'
         return ''
       })
@@ -222,7 +215,7 @@ describe('authMiddleware', () => {
     })
 
     it('should return 401 with malformed authorization header', () => {
-      ;(req.header as any).mockImplementation((header: string) => {
+      headerMock.mockImplementation((header: string) => {
         if (header === 'authorization') return 'Basic sometoken'
         return ''
       })
@@ -235,7 +228,7 @@ describe('authMiddleware', () => {
     })
 
     it('should return 401 with Bearer without space', () => {
-      ;(req.header as any).mockImplementation((header: string) => {
+      headerMock.mockImplementation((header: string) => {
         if (header === 'authorization') return 'Bearer'
         return ''
       })
@@ -248,7 +241,7 @@ describe('authMiddleware', () => {
     })
 
     it('should handle Bearer token with only trailing spaces (edge case)', () => {
-      ;(req.header as any).mockImplementation((header: string) => {
+      headerMock.mockImplementation((header: string) => {
         if (header === 'authorization') return 'Bearer    ' // This will be trimmed to "Bearer" and fail format check
         return ''
       })
@@ -261,7 +254,7 @@ describe('authMiddleware', () => {
     })
 
     it('should handle Bearer token with case insensitive prefix', () => {
-      ;(req.header as any).mockImplementation((header: string) => {
+      headerMock.mockImplementation((header: string) => {
         if (header === 'authorization') return `bearer ${validApiKey}`
         return ''
       })
@@ -273,7 +266,7 @@ describe('authMiddleware', () => {
     })
 
     it('should handle Bearer token with whitespace', () => {
-      ;(req.header as any).mockImplementation((header: string) => {
+      headerMock.mockImplementation((header: string) => {
         if (header === 'authorization') return `  Bearer   ${validApiKey}  `
         return ''
       })
@@ -293,7 +286,7 @@ describe('authMiddleware', () => {
     })
 
     it('should use timing-safe comparison for different length tokens', () => {
-      ;(req.header as any).mockImplementation((header: string) => {
+      headerMock.mockImplementation((header: string) => {
         if (header === 'x-api-key') return 'short'
         return ''
       })
@@ -306,7 +299,7 @@ describe('authMiddleware', () => {
     })
 
     it('should return 401 when neither credential format is valid', () => {
-      ;(req.header as any).mockImplementation((header: string) => {
+      headerMock.mockImplementation((header: string) => {
         if (header === 'authorization') return 'Invalid format'
         return ''
       })
@@ -329,7 +322,7 @@ describe('authMiddleware', () => {
     it('should handle similar length but different API keys securely', () => {
       const similarKey = 'valid-api-key-124' // Same length, different last char
 
-      ;(req.header as any).mockImplementation((header: string) => {
+      headerMock.mockImplementation((header: string) => {
         if (header === 'x-api-key') return similarKey
         return ''
       })
@@ -344,7 +337,7 @@ describe('authMiddleware', () => {
     it('should handle similar length but different Bearer tokens securely', () => {
       const similarKey = 'valid-api-key-124' // Same length, different last char
 
-      ;(req.header as any).mockImplementation((header: string) => {
+      headerMock.mockImplementation((header: string) => {
         if (header === 'authorization') return `Bearer ${similarKey}`
         return ''
       })
