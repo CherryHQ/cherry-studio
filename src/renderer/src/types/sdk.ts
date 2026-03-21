@@ -102,6 +102,7 @@ export type ReasoningEffortOptionalParams = {
     }
     thinking_budget?: number
     reasoning_effort?: OpenAIReasoningEffort
+    thinking_level?: OpenAIReasoningEffort
   }
   disable_reasoning?: boolean
   // Add any other potential reasoning-related keys here if they exist

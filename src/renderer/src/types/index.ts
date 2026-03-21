@@ -115,6 +115,7 @@ const ThinkModelTypes = [
   'gemini3_flash',
   'gemini3_pro',
   'gemini3_1_pro',
+  'gemini3_1_flash_lite',
   'qwen',
   'qwen_thinking',
   'doubao',
