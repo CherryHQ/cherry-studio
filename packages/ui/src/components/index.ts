@@ -11,7 +11,15 @@ export { ErrorBoundary } from './primitives/ErrorBoundary'
 export { default as IndicatorLight } from './primitives/indicatorLight'
 export { default as Spinner } from './primitives/spinner'
 export { DescriptionSwitch, Switch } from './primitives/switch'
-export { Tooltip, type TooltipProps } from './primitives/tooltip'
+export {
+  NormalTooltip,
+  Tooltip,
+  TooltipContent,
+  type TooltipProps,
+  TooltipProvider,
+  TooltipRoot,
+  TooltipTrigger
+} from './primitives/tooltip'
 
 // Composite Components
 export { ConfirmDialog, type ConfirmDialogProps } from './composites/ConfirmDialog'

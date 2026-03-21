@@ -51,7 +51,6 @@
   },
   "homepage": "https://github.com/CherryHQ/cherry-studio#readme",
   "peerDependencies": {
-    "@heroui/react": "^2.8.4",
     "framer-motion": "^11.0.0 || ^12.0.0",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
@@ -86,7 +85,6 @@
     "tailwind-merge": "^2.5.5"
   },
   "devDependencies": {
-    "@heroui/react": "^2.8.4",
     "@neplex/vectorizer": "^0.0.5",
     "@storybook/addon-docs": "^10.0.5",
     "@storybook/addon-themes": "^10.0.5",
