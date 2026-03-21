@@ -4889,6 +4889,25 @@
       "enable_privacy_mode": "Enviar informes de errores y estadísticas de forma anónima",
       "title": "Configuración de privacidad"
     },
+    "prompts": {
+      "add": "Añadir Prompt",
+      "assistant": "Prompts del asistente",
+      "contentLabel": "Contenido",
+      "contentPlaceholder": "Introduce el contenido del prompt. Usa ${variable} para variables de plantilla.\nEjemplo: Ayúdame a planificar una ruta de ${from} a ${to} y envíala a ${email}",
+      "current": "Actual",
+      "delete": "Eliminar Prompt",
+      "deleteConfirm": "Tras la eliminación, el prompt no se podrá recuperar y se borrará todo el historial de versiones. ¿Continuar?",
+      "edit": "Editar Prompt",
+      "global": "Prompts globales",
+      "locationLabel": "Ubicación de inserción",
+      "restoredFromVersion": "[to be translated]:restored from v{{version}}",
+      "rollback": "Revertir",
+      "rollbackConfirm": "¿Confirmas que quieres revertir a esta versión? Se creará una nueva versión con este contenido.",
+      "title": "Gestión de Prompts",
+      "titleLabel": "Título",
+      "titlePlaceholder": "Introduce el título del prompt",
+      "versionHistory": "Historial de versiones"
+    },
     "provider": {
       "add": {
         "name": {

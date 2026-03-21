@@ -4889,6 +4889,25 @@
       "enable_privacy_mode": "Αποστολή ανώνυμων αναφορών σφαλμάτων και στατιστικών δεδομένων",
       "title": "Ρυθμίσεις Απορρήτου"
     },
+    "prompts": {
+      "add": "Προσθήκη Prompt",
+      "assistant": "Prompts Βοηθού",
+      "contentLabel": "Περιεχόμενο",
+      "contentPlaceholder": "Εισαγάγετε το περιεχόμενο του prompt. Χρησιμοποιήστε το ${variable} για μεταβλητές προτύπου.\nΠαράδειγμα: Βοήθησέ με να σχεδιάσω μια διαδρομή από ${from} προς ${to} και στείλε τη στο ${email}",
+      "current": "Τρέχον",
+      "delete": "Διαγραφή Prompt",
+      "deleteConfirm": "Μετά τη διαγραφή, το prompt δεν μπορεί να ανακτηθεί και όλο το ιστορικό εκδόσεων θα διαγραφεί. Συνέχεια;",
+      "edit": "Επεξεργασία Prompt",
+      "global": "Καθολικά Prompts",
+      "locationLabel": "Θέση Προσθήκης",
+      "restoredFromVersion": "[to be translated]:restored from v{{version}}",
+      "rollback": "Επαναφορά",
+      "rollbackConfirm": "Επιβεβαίωση επαναφοράς σε αυτή την έκδοση; Θα δημιουργηθεί μια νέα έκδοση με αυτό το περιεχόμενο.",
+      "title": "Διαχείριση Prompts",
+      "titleLabel": "Τίτλος",
+      "titlePlaceholder": "Εισαγάγετε τίτλο prompt",
+      "versionHistory": "Ιστορικό Εκδόσεων"
+    },
     "provider": {
       "add": {
         "name": {

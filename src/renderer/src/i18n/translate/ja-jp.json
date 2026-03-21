@@ -4889,6 +4889,25 @@
       "enable_privacy_mode": "匿名エラーレポートとデータ統計の送信",
       "title": "プライバシー設定"
     },
+    "prompts": {
+      "add": "プロンプトを追加",
+      "assistant": "アシスタントプロンプト",
+      "contentLabel": "内容",
+      "contentPlaceholder": "プロンプトの内容を入力してください。テンプレート変数として ${変数名} が使用可能です。\n例：${from} から ${to} までのルートを計画し、${email} に送信してください。",
+      "current": "現在",
+      "delete": "プロンプトを削除",
+      "deleteConfirm": "プロンプトを削除すると元に戻すことはできません。すべてのバージョン履歴も削除されます。続行しますか？",
+      "edit": "プロンプトを編集",
+      "global": "グローバルプロンプト",
+      "locationLabel": "挿入位置",
+      "restoredFromVersion": "[to be translated]:restored from v{{version}}",
+      "rollback": "ロールバック",
+      "rollbackConfirm": "このバージョンにロールバックしますか？この内容で新しいバージョンが作成されます。",
+      "title": "プロンプト管理",
+      "titleLabel": "タイトル",
+      "titlePlaceholder": "プロンプトのタイトルを入力してください",
+      "versionHistory": "バージョン履歴"
+    },
     "provider": {
       "add": {
         "name": {
