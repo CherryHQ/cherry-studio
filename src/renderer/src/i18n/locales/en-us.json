@@ -1674,6 +1674,28 @@
       "title": "Import ChatGPT Conversations",
       "untitled_conversation": "Untitled Conversation"
     },
+    "claude": {
+      "assistant_name": "Claude Import",
+      "button": "Select File",
+      "description": "Only imports conversation text, does not include images and attachments",
+      "error": {
+        "invalid_json": "Invalid JSON file format",
+        "no_conversations": "No conversations found in file",
+        "no_valid_conversations": "No valid conversations to import",
+        "unknown": "Import failed, please check file format"
+      },
+      "help": {
+        "step1": "1. Log in to Claude, go to Settings > Privacy > Export Data",
+        "step2": "2. Wait for the export file via email",
+        "step3": "3. Extract the downloaded file and find conversations.json",
+        "title": "How to export Claude conversations?"
+      },
+      "importing": "Importing conversations...",
+      "selecting": "Selecting file...",
+      "success": "Successfully imported {{topics}} conversations with {{messages}} messages",
+      "title": "Import Claude Conversations",
+      "untitled_conversation": "Untitled Conversation"
+    },
     "confirm": {
       "button": "Select Import File",
       "label": "Are you sure you want to import external data?"
@@ -3783,6 +3805,7 @@
       "import_settings": {
         "button": "Import Json File",
         "chatgpt": "Import from ChatGPT",
+        "claude": "Import from Claude",
         "title": "Import Outside Application Data"
       },
       "joplin": {
