@@ -527,8 +527,7 @@ export type MinAppType = {
   supportedRegions?: MinAppRegion[]
   logo?: string | object
   url: string
-  // FIXME: It should be `bordered`
-  bodered?: boolean
+  bordered?: boolean
   background?: string
   style?: CSSProperties
   addTime?: string

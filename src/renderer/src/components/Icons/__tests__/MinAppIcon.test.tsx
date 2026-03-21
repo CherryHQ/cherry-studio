@@ -10,7 +10,7 @@ vi.mock('@renderer/config/minapps', () => ({
       name: 'Test App 1',
       logo: '/test-logo-1.png',
       url: 'https://test1.com',
-      bodered: true,
+      bordered: true,
       background: '#f0f0f0'
     },
     {
@@ -18,7 +18,7 @@ vi.mock('@renderer/config/minapps', () => ({
       name: 'Test App 2',
       logo: '/test-logo-2.png',
       url: 'https://test2.com',
-      bodered: false,
+      bordered: false,
       background: undefined
     }
   ]

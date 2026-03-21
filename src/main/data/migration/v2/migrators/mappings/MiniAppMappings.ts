@@ -60,6 +60,7 @@ export function transformMiniApp(
     type: normalizeType(source.type),
     status,
     sortOrder,
+    // v2 fix: Handle typo 'bodered' → 'bordered' during migration
     bordered: toRequired(source.bodered ?? source.bordered, true),
     background: toNullable<string>(source.background),
     supportedRegions: toNullableRegions(source.supportedRegions),

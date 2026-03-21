@@ -32,7 +32,7 @@ export interface CreateMiniappDto {
   /** Region availability */
   supportedRegions?: ('CN' | 'Global')[]
   /** Custom configuration */
-  configuration?: Record<string, any>
+  configuration?: unknown
 }
 
 /**
@@ -54,7 +54,7 @@ export interface UpdateMiniappDto {
   /** Updated region availability */
   supportedRegions?: ('CN' | 'Global')[]
   /** Updated custom configuration */
-  configuration?: Record<string, any>
+  configuration?: unknown
 }
 
 /**
