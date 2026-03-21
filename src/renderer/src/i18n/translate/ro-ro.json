@@ -2649,8 +2649,11 @@
       "provider": "Furnizor",
       "select_model": "Selectați un model",
       "select_provider": "Selectați un furnizor",
+      "select_vision_model": "[to be translated]:Select a vision model",
       "sync_hint": "Furnizorul și modelul selectate vor fi sincronizate în fișierul de configurare OpenClaw.",
-      "title": "Configurare model"
+      "title": "Configurare model",
+      "vision_model": "[to be translated]:Vision Model",
+      "vision_model_hint": "[to be translated]:The selected model does not support image recognition. You can select a vision model as a fallback."
     },
     "node_missing": {
       "description": "OpenClaw necesită Node.js 22+. Te rugăm să instalezi mai întâi Node.js, apoi apasă din nou pe Instalare.",

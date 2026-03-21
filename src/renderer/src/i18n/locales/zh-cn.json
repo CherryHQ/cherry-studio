@@ -2649,8 +2649,11 @@
       "provider": "服务商",
       "select_model": "选择模型",
       "select_provider": "选择服务商",
+      "select_vision_model": "选择图像识别模型",
       "sync_hint": "选择的服务商和模型将同步到 OpenClaw 配置文件",
-      "title": "模型配置"
+      "title": "模型配置",
+      "vision_model": "图像识别模型",
+      "vision_model_hint": "当前选择的模型不支持图像识别，可选择一个视觉模型作为备用。"
     },
     "node_missing": {
       "description": "OpenClaw 需要 Node.js/npm。请先安装 Node.js，然后再次点击安装。",

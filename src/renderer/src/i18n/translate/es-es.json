@@ -2649,8 +2649,11 @@
       "provider": "Proveedor",
       "select_model": "Selecciona un modelo",
       "select_provider": "Seleccione un proveedor",
+      "select_vision_model": "[to be translated]:Select a vision model",
       "sync_hint": "El proveedor y el modelo seleccionados se sincronizarán con el archivo de configuración de OpenClaw.",
-      "title": "Configuración del modelo"
+      "title": "Configuración del modelo",
+      "vision_model": "[to be translated]:Vision Model",
+      "vision_model_hint": "[to be translated]:The selected model does not support image recognition. You can select a vision model as a fallback."
     },
     "node_missing": {
       "description": "OpenClaw requiere Node.js/npm. Por favor, instala Node.js primero y luego reinicia Cherry Studio.",

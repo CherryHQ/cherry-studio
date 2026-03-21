@@ -298,7 +298,7 @@ export const isGrokModel = (model: Model) => {
 // zhipu 视觉推理模型用这组 special token 标记推理结果
 export const ZHIPU_RESULT_TOKENS = ['<|begin_of_box|>', '<|end_of_box|>'] as const
 
-export const agentModelFilter = (model: Model): boolean => {
+export const isLLMModel = (model: Model): boolean => {
   return !isEmbeddingModel(model) && !isRerankModel(model) && !isTextToImageModel(model)
 }
 

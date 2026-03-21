@@ -1,6 +1,6 @@
 import ModelAvatar from '@renderer/components/Avatar/ModelAvatar'
 import { SelectAgentModelPopup } from '@renderer/components/Popups/SelectModelPopup'
-import { agentModelFilter } from '@renderer/config/models'
+import { isLLMModel } from '@renderer/config/models'
 import { useApiModel } from '@renderer/hooks/agents/useModel'
 import { getProviderNameById } from '@renderer/services/ProviderService'
 import type { AgentBaseWithId, ApiModel } from '@renderer/types'
@@ -61,7 +61,7 @@ const SelectAgentBaseModelButton = ({
     const selectedModel = await SelectAgentModelPopup.show({
       model,
       apiFilter: apiFilter,
-      modelFilter: agentModelFilter
+      modelFilter: isLLMModel
     })
     if (selectedModel && selectedModel.id !== agent.model) {
       onSelect(selectedModel)
