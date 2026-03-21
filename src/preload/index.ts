@@ -24,6 +24,7 @@ import type {
   SelectionActionItem
 } from '@shared/data/preference/preferenceTypes'
 import type { UpgradeChannel } from '@shared/data/preference/preferenceTypes'
+import type { WebSearchRequest, WebSearchResponse } from '@shared/data/types/webSearch'
 import type { ExternalAppInfo } from '@shared/externalApp/types'
 import { IpcChannel } from '@shared/IpcChannel'
 import type { Notification } from '@types'
@@ -492,6 +493,10 @@ const api = {
     openSearchWindow: (uid: string, show?: boolean) => ipcRenderer.invoke(IpcChannel.SearchWindow_Open, uid, show),
     closeSearchWindow: (uid: string) => ipcRenderer.invoke(IpcChannel.SearchWindow_Close, uid),
     openUrlInSearchWindow: (uid: string, url: string) => ipcRenderer.invoke(IpcChannel.SearchWindow_OpenUrl, uid, url)
+  },
+  webSearch: {
+    mainSearch: (request: WebSearchRequest): Promise<WebSearchResponse> =>
+      ipcRenderer.invoke(IpcChannel.WebSearch_MainSearch, request)
   },
   webview: {
     setOpenLinkExternal: (webviewId: number, isExternal: boolean) =>

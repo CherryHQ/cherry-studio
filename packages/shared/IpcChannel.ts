@@ -306,6 +306,9 @@ export enum IpcChannel {
   SearchWindow_Close = 'search-window:close',
   SearchWindow_OpenUrl = 'search-window:open-url',
 
+  // WebSearch
+  WebSearch_MainSearch = 'websearch:main-search',
+
   //Store Sync
   StoreSync_Subscribe = 'store-sync:subscribe',
   StoreSync_Unsubscribe = 'store-sync:unsubscribe',

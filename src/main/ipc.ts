@@ -88,6 +88,7 @@ import {
 } from './services/SpanCacheService'
 import storeSyncService from './services/StoreSyncService'
 import VertexAIService from './services/VertexAIService'
+import { WebSearchRequestSchema, webSearchService } from './services/webSearch'
 import { setOpenLinkExternal } from './services/WebviewService'
 import { windowService } from './services/WindowService'
 import { calculateDirectorySize, getDataPath, getResourcePath } from './utils'
@@ -895,6 +896,11 @@ export async function registerIpc(mainWindow: BrowserWindow, app: Electron.App) 
   })
   ipcMain.handle(IpcChannel.SearchWindow_OpenUrl, async (_, uid: string, url: string) => {
     return await searchService.openUrlInSearchWindow(uid, url)
+  })
+
+  ipcMain.handle(IpcChannel.WebSearch_MainSearch, async (_, request: unknown) => {
+    const validatedRequest = WebSearchRequestSchema.parse(request)
+    return await webSearchService.search(validatedRequest)
   })
 
   // webview
