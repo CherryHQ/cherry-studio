@@ -1,42 +1,33 @@
-import { Avatar, AvatarImage, EmojiAvatar, Tooltip } from '@cherrystudio/ui'
+import { Input } from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
-import { isMac } from '@renderer/config/constant'
-import { UserAvatar } from '@renderer/config/env'
-import { useTheme } from '@renderer/context/ThemeProvider'
-import useAvatar from '@renderer/hooks/useAvatar'
-import { useFullscreen } from '@renderer/hooks/useFullscreen'
+import { AppLogo } from '@renderer/config/env'
 import { useMinappPopup } from '@renderer/hooks/useMinappPopup'
 import { useMinapps } from '@renderer/hooks/useMinapps'
 import { modelGenerating } from '@renderer/hooks/useModel'
-import useNavBackgroundColor from '@renderer/hooks/useNavBackgroundColor'
 import { useSettings } from '@renderer/hooks/useSettings'
-import { getSidebarIconLabel, getThemeModeLabel } from '@renderer/i18n/label'
-import { isEmoji } from '@renderer/utils'
+import { getSidebarIconLabel } from '@renderer/i18n/label'
+import { cn } from '@renderer/utils'
 import { getDefaultRouteTitle } from '@renderer/utils/routeTitle'
-import { ThemeMode } from '@shared/data/preference/preferenceTypes'
 import {
+  BarChart3,
   Code,
+  Compass,
   FileSearch,
-  Folder,
   Languages,
   LayoutGrid,
   MessageSquare,
-  Monitor,
-  Moon,
   MousePointerClick,
   NotepadText,
   Palette,
-  Settings,
-  Sparkle,
-  Sun
+  Search,
+  Sparkle
 } from 'lucide-react'
 import type { FC } from 'react'
+import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import styled from 'styled-components'
 
 import { useTabs } from '../../hooks/useTabs'
 import { OpenClawSidebarIcon } from '../Icons/SVGIcon'
-import UserPopup from '../Popups/UserPopup'
 import { SidebarOpenedMinappTabs, SidebarPinnedApps } from './PinnedMinapps'
 
 const Sidebar: FC = () => {
@@ -44,22 +35,16 @@ const Sidebar: FC = () => {
   const { pinned, minappShow } = useMinapps()
   const [visibleSidebarIcons] = usePreference('ui.sidebar.icons.visible')
   const { tabs, activeTabId, updateTab } = useTabs()
+  const [searchValue, setSearchValue] = useState('')
+  const { t } = useTranslation()
 
-  // 获取当前 Tab 的 URL 作为 pathname
+  // Get current Tab's URL as pathname
   const activeTab = tabs.find((t) => t.id === activeTabId)
   const pathname = activeTab?.url || '/'
 
-  const { theme, settedTheme, toggleTheme } = useTheme()
-  const avatar = useAvatar()
-  const { t } = useTranslation()
-
-  const onEditUser = () => UserPopup.show()
-
-  const backgroundColor = useNavBackgroundColor()
-
   const showPinnedApps = pinned.length > 0 && visibleSidebarIcons.includes('minapp')
 
-  // 在当前 Tab 内跳转
+  // Navigate within current Tab
   const to = async (path: string) => {
     await modelGenerating()
     if (activeTabId) {
@@ -67,94 +52,102 @@ const Sidebar: FC = () => {
     }
   }
 
-  const isFullscreen = useFullscreen()
-
   return (
-    <Container
-      $isFullscreen={isFullscreen}
+    <div
       id="app-sidebar"
-      style={{ backgroundColor, zIndex: minappShow ? 10000 : 'initial' }}>
-      {isEmoji(avatar) ? (
-        <EmojiAvatar onClick={onEditUser} className="sidebar-avatar" size={31} fontSize={18}>
-          {avatar}
-        </EmojiAvatar>
-      ) : (
-        <AvatarImg className="nodrag" onClick={onEditUser}>
-          <AvatarImage src={avatar || UserAvatar} draggable={false} />
-        </AvatarImg>
-      )}
-      <MainMenusContainer>
-        <Menus onClick={hideMinappPopup}>
-          <MainMenus />
-        </Menus>
+      className="flex h-full w-(--sidebar-width) min-w-(--sidebar-width) flex-col [-webkit-app-region:drag]">
+      {/* Logo Area */}
+      <div className="flex items-center gap-2 px-4 py-5 [-webkit-app-region:no-drag]">
+        <img src={AppLogo} alt="Cherry Studio" className="h-9 w-9 rounded-lg" draggable={false} />
+        <span className="font-semibold text-(--color-text-1) text-[15px]">Cherry Studio</span>
+      </div>
+
+      {/* Search Box */}
+      <div className="mb-3 px-3 [-webkit-app-region:no-drag]">
+        <div className="flex h-8 items-center gap-2 rounded-lg border border-(--color-border) px-2.5">
+          <Search size={14} className="shrink-0 text-(--color-text-3)" />
+          <Input
+            placeholder={t('common.search')}
+            value={searchValue}
+            onChange={(e) => setSearchValue(e.target.value)}
+            className="h-full border-none bg-transparent p-0 text-sm shadow-none focus-visible:ring-0"
+          />
+        </div>
+      </div>
+
+      {/* Main Menu Area */}
+      <div className="flex flex-1 flex-col overflow-hidden px-2">
+        <nav className="flex flex-col [-webkit-app-region:no-drag]" onClick={hideMinappPopup}>
+          <MainMenus pathname={pathname} minappShow={minappShow} onNavigate={to} />
+        </nav>
         <SidebarOpenedMinappTabs />
         {showPinnedApps && (
-          <AppsContainer>
-            <Divider />
-            <Menus>
+          <div className="mt-2 flex flex-1 flex-col overflow-y-auto overflow-x-hidden [-webkit-app-region:no-drag] [&::-webkit-scrollbar]:hidden">
+            <div className="my-2 border-(--color-border) border-b" />
+            <nav className="flex flex-col">
               <SidebarPinnedApps />
-            </Menus>
-          </AppsContainer>
+            </nav>
+          </div>
         )}
-      </MainMenusContainer>
-      <Menus>
-        <Tooltip placement="right" content={t('settings.theme.title') + ': ' + getThemeModeLabel(settedTheme)}>
-          <Icon theme={theme} onClick={toggleTheme}>
-            {settedTheme === ThemeMode.dark ? (
-              <Moon size={20} className="icon" />
-            ) : settedTheme === ThemeMode.light ? (
-              <Sun size={20} className="icon" />
-            ) : (
-              <Monitor size={20} className="icon" />
-            )}
-          </Icon>
-        </Tooltip>
-        <Tooltip placement="right" content={t('settings.title')} delay={800}>
-          <StyledLink
-            onClick={async () => {
-              hideMinappPopup()
-              await to('/settings/provider')
-            }}>
-            <Icon theme={theme} className={pathname.startsWith('/settings') && !minappShow ? 'active' : ''}>
-              <Settings size={20} className="icon" />
-            </Icon>
-          </StyledLink>
-        </Tooltip>
-      </Menus>
-    </Container>
+      </div>
+    </div>
   )
 }
 
-const MainMenus: FC = () => {
+interface SidebarMenuItemProps {
+  icon: React.ReactNode
+  label: string
+  isActive?: boolean
+  onClick?: () => void
+}
+
+const SidebarMenuItem: FC<SidebarMenuItemProps> = ({ icon, label, isActive, onClick }) => {
+  return (
+    <div
+      onClick={onClick}
+      className={cn(
+        'relative flex cursor-pointer items-center gap-3 rounded-xl px-3 py-2.5 transition-all [-webkit-app-region:no-drag]',
+        isActive
+          ? 'before:-translate-y-1/2 bg-[linear-gradient(90deg,var(--color-background-soft)_0%,var(--color-background-soft)_70%,rgba(0,185,107,0.15)_100%)] before:absolute before:top-1/2 before:left-0 before:h-1/2 before:w-0.75 before:rounded-r-sm before:bg-(--color-primary)'
+          : 'hover:bg-(--color-background-soft)/50'
+      )}>
+      <span className={cn('shrink-0 text-(--color-text-2)', isActive && 'text-(--color-text-1)')}>{icon}</span>
+      <span className={cn('text-[13px]', isActive ? 'font-medium text-(--color-text-1)' : 'text-(--color-text-2)')}>
+        {label}
+      </span>
+    </div>
+  )
+}
+
+interface MainMenusProps {
+  pathname: string
+  minappShow: boolean
+  onNavigate: (path: string) => Promise<void>
+}
+
+const MainMenus: FC<MainMenusProps> = ({ pathname, minappShow, onNavigate }) => {
   const { hideMinappPopup } = useMinappPopup()
-  const { minappShow } = useMinapps()
-  const { tabs, activeTabId, updateTab } = useTabs()
-
-  // 获取当前 Tab 的 URL 作为 pathname
-  const activeTab = tabs.find((t) => t.id === activeTabId)
-  const pathname = activeTab?.url || '/'
-
   const [visibleSidebarIcons] = usePreference('ui.sidebar.icons.visible')
   const { defaultPaintingProvider } = useSettings()
-  const { theme } = useTheme()
 
-  const isRoutes = (path: string): string => (pathname.startsWith(path) && path !== '/' && !minappShow ? 'active' : '')
+  const isRoutes = (path: string): boolean => pathname.startsWith(path) && path !== '/' && !minappShow
 
-  const iconMap = {
-    assistants: <MessageSquare size={18} className="icon" />,
-    agents: <MousePointerClick size={18} className="icon" />,
-    store: <Sparkle size={18} className="icon" />,
-    paintings: <Palette size={18} className="icon" />,
-    translate: <Languages size={18} className="icon" />,
-    minapp: <LayoutGrid size={18} className="icon" />,
-    knowledge: <FileSearch size={18} className="icon" />,
-    files: <Folder size={18} className="icon" />,
-    notes: <NotepadText size={18} className="icon" />,
-    code_tools: <Code size={18} className="icon" />,
-    openclaw: <OpenClawSidebarIcon style={{ width: 18, height: 18 }} className="icon" />
+  const iconMap: Record<string, React.ReactNode> = {
+    assistants: <MessageSquare size={18} strokeWidth={1.5} />,
+    agents: <MousePointerClick size={18} strokeWidth={1.5} />,
+    store: <Sparkle size={18} strokeWidth={1.5} />,
+    paintings: <Palette size={18} strokeWidth={1.5} />,
+    translate: <Languages size={18} strokeWidth={1.5} />,
+    minapp: <LayoutGrid size={18} strokeWidth={1.5} />,
+    knowledge: <FileSearch size={18} strokeWidth={1.5} />,
+    files: <BarChart3 size={18} strokeWidth={1.5} />,
+    notes: <NotepadText size={18} strokeWidth={1.5} />,
+    code_tools: <Code size={18} strokeWidth={1.5} />,
+    openclaw: <OpenClawSidebarIcon style={{ width: 18, height: 18 }} />,
+    explore: <Compass size={18} strokeWidth={1.5} />
   }
 
-  const pathMap = {
+  const pathMap: Record<string, string> = {
     assistants: '/app/chat',
     agents: '/app/agents',
     store: '/app/assistant',
@@ -165,163 +158,31 @@ const MainMenus: FC = () => {
     files: '/app/files',
     code_tools: '/app/code',
     notes: '/app/notes',
-    openclaw: '/openclaw'
+    openclaw: '/app/openclaw',
+    explore: '/app/explore'
   }
 
-  // 在当前 Tab 内跳转
-  const to = async (path: string) => {
-    await modelGenerating()
-    if (activeTabId) {
-      updateTab(activeTabId, { url: path, title: getDefaultRouteTitle(path) })
-    }
-  }
+  return (
+    <>
+      {visibleSidebarIcons.map((icon) => {
+        const path = pathMap[icon]
+        const isActive = isRoutes(path)
 
-  return visibleSidebarIcons.map((icon) => {
-    const path = pathMap[icon]
-    const isActive = isRoutes(path)
-
-    return (
-      <Tooltip key={icon} placement="right" content={getSidebarIconLabel(icon)} delay={800}>
-        <StyledLink
-          onClick={async () => {
-            hideMinappPopup()
-            await to(path)
-          }}>
-          <Icon theme={theme} className={isActive}>
-            {iconMap[icon]}
-          </Icon>
-        </StyledLink>
-      </Tooltip>
-    )
-  })
+        return (
+          <SidebarMenuItem
+            key={icon}
+            icon={iconMap[icon]}
+            label={getSidebarIconLabel(icon)}
+            isActive={isActive}
+            onClick={async () => {
+              hideMinappPopup()
+              await onNavigate(path)
+            }}
+          />
+        )
+      })}
+    </>
+  )
 }
-
-const Container = styled.div<{ $isFullscreen: boolean }>`
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  padding: 8px 0;
-  padding-bottom: 12px;
-  width: var(--sidebar-width);
-  min-width: var(--sidebar-width);
-  height: ${({ $isFullscreen }) => (isMac && !$isFullscreen ? 'calc(100vh - var(--navbar-height))' : '100vh')};
-  -webkit-app-region: drag !important;
-  margin-top: ${({ $isFullscreen }) => (isMac && !$isFullscreen ? 'env(titlebar-area-height)' : 0)};
-
-  .sidebar-avatar {
-    margin-bottom: ${isMac ? '12px' : '12px'};
-    margin-top: ${isMac ? '0px' : '2px'};
-    -webkit-app-region: none;
-  }
-`
-
-const AvatarImg = styled(Avatar)`
-  width: 31px;
-  height: 31px;
-  background-color: var(--color-background-soft);
-  margin-bottom: ${isMac ? '12px' : '12px'};
-  margin-top: ${isMac ? '0px' : '2px'};
-  border: none;
-  cursor: pointer;
-`
-
-const MainMenusContainer = styled.div`
-  display: flex;
-  flex: 1;
-  flex-direction: column;
-  overflow: hidden;
-`
-
-const Menus = styled.div`
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 5px;
-`
-
-const Icon = styled.div<{ theme: string }>`
-  width: 35px;
-  height: 35px;
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  border-radius: 50%;
-  box-sizing: border-box;
-  -webkit-app-region: none;
-  border: 0.5px solid transparent;
-  .icon {
-    color: var(--color-icon);
-  }
-  &:hover {
-    background-color: ${({ theme }) => (theme === 'dark' ? 'var(--color-black)' : 'var(--color-white)')};
-    opacity: 0.8;
-    cursor: pointer;
-    .icon {
-      color: var(--color-icon-white);
-    }
-  }
-  &.active {
-    background-color: ${({ theme }) => (theme === 'dark' ? 'var(--color-black)' : 'var(--color-white)')};
-    border: 0.5px solid var(--color-border);
-    .icon {
-      color: var(--color-primary);
-    }
-  }
-
-  @keyframes borderBreath {
-    0% {
-      opacity: 0.1;
-    }
-    50% {
-      opacity: 1;
-    }
-    100% {
-      opacity: 0.1;
-    }
-  }
-
-  &.opened-minapp {
-    position: relative;
-  }
-  &.opened-minapp::after {
-    content: '';
-    position: absolute;
-    width: 100%;
-    height: 100%;
-    top: 0;
-    left: 0;
-    border-radius: inherit;
-    opacity: 0.3;
-    border: 0.5px solid var(--color-primary);
-  }
-`
-
-const StyledLink = styled.div`
-  text-decoration: none;
-  -webkit-app-region: none;
-  &* {
-    user-select: none;
-  }
-`
-
-const AppsContainer = styled.div`
-  display: flex;
-  flex: 1;
-  flex-direction: column;
-  align-items: center;
-  overflow-y: auto;
-  overflow-x: hidden;
-  margin-bottom: 10px;
-  -webkit-app-region: none;
-  &::-webkit-scrollbar {
-    display: none;
-  }
-`
-
-const Divider = styled.div`
-  width: 50%;
-  margin: 8px 0;
-  border-bottom: 0.5px solid var(--color-border);
-`
 
 export default Sidebar

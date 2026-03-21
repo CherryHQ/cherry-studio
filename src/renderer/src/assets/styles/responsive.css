@@ -1,7 +1,7 @@
 /* xl, xxl, default style */
 :root {
   --navbar-height: 44px;
-  --sidebar-width: 50px;
+  --sidebar-width: 200px;
   --status-bar-height: 40px;
   --input-bar-height: 100px;
 
