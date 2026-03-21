@@ -9,10 +9,11 @@ import { AssistantMigrator } from './AssistantMigrator'
 import { ChatMigrator } from './ChatMigrator'
 import { KnowledgeMigrator } from './KnowledgeMigrator'
 import { McpServerMigrator } from './McpServerMigrator'
+import { MiniAppMigrator } from './MiniAppMigrator'
 import { PreferencesMigrator } from './PreferencesMigrator'
 
 // Export migrator classes
-export { AssistantMigrator, ChatMigrator, KnowledgeMigrator, McpServerMigrator, PreferencesMigrator }
+export { AssistantMigrator, ChatMigrator, KnowledgeMigrator, McpServerMigrator, MiniAppMigrator, PreferencesMigrator }
 
 /**
  * Get all registered migrators in execution order
@@ -20,6 +21,7 @@ export { AssistantMigrator, ChatMigrator, KnowledgeMigrator, McpServerMigrator, 
 export function getAllMigrators() {
   return [
     new PreferencesMigrator(),
+    new MiniAppMigrator(),
     new McpServerMigrator(),
     new AssistantMigrator(),
     new KnowledgeMigrator(),

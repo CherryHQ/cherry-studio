@@ -29,7 +29,7 @@ const MinAppIcon: FC<Props> = ({ app, size = 48, style, sidebar = false }) => {
         src={logo}
         className="select-none rounded-2xl"
         style={{
-          border: _app.bodered ? '0.5px solid var(--color-border)' : 'none',
+          border: _app.bordered ? '0.5px solid var(--color-border)' : 'none',
           width: `${size}px`,
           height: `${size}px`,
           backgroundColor: _app.background,
