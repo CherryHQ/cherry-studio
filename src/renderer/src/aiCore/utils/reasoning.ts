@@ -49,7 +49,7 @@ import { toInteger } from 'lodash'
 const logger = loggerService.withContext('reasoning')
 
 // The function is only for generic providers.
-// Transport-specific OpenAI Responses providers, including Poe, should use getOpenAIReasoningParams instead.
+// Transport-specific OpenAI Responses providers should use getOpenAIReasoningParams instead.
 export function getReasoningEffort(assistant: Assistant, model: Model): ReasoningEffortOptionalParams {
   const provider = getProviderByModel(model)
   if (provider.id === 'groq') {
@@ -458,12 +458,8 @@ export function getOpenAIReasoningParams(
     reasoningEffort = 'medium'
   }
 
-  // 非OpenAI模型，但是Provider类型是responses/azure openai的情况
-  const isNotOpenAIModel = !isOpenAIModel(model)
-  // poe 的非 OpenAI 模型支持 summary 参数
-  // https://creator.poe.com/docs/external-applications/responses-api#reasoning
-  const isPoeProvider = model.provider === SystemProviderIds.poe
-  if (isNotOpenAIModel && !isPoeProvider) {
+  // 非 OpenAI 模型通过 OpenAI 兼容接口暴露 reasoning 时，仅透传 effort。
+  if (!isOpenAIModel(model)) {
     return {
       reasoningEffort
     }
@@ -480,11 +476,8 @@ export function getOpenAIReasoningParams(
     reasoningSummary = summaryText
   }
 
-  if (
-    // OpenAI 推理参数
-    isSupportedReasoningEffortOpenAIModel(model) ||
-    (isNotOpenAIModel && isPoeProvider)
-  ) {
+  // OpenAI 推理参数
+  if (isSupportedReasoningEffortOpenAIModel(model)) {
     return {
       reasoningEffort,
       reasoningSummary

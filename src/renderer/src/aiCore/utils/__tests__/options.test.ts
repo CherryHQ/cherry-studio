@@ -445,7 +445,7 @@ describe('options utils', () => {
       } as Provider
 
       const poeModel: Model = {
-        id: 'openai/gpt-4',
+        id: 'gpt-4',
         name: 'GPT-4',
         provider: SystemProviderIds.poe
       } as Model
@@ -456,36 +456,37 @@ describe('options utils', () => {
         provider: SystemProviderIds.poe
       } as Model
 
-      it('should build OpenAI providerOptions for Poe OpenAI models', () => {
+      it('should build Poe providerOptions for Poe OpenAI models', () => {
         const result = buildProviderOptions(mockAssistant, poeModel, poeProvider, {
           enableReasoning: true,
           enableWebSearch: true,
           enableGenerateImage: false
         })
 
-        expect(result.providerOptions).toHaveProperty('openai')
-        expect(result.providerOptions).not.toHaveProperty('poe')
-        expect(result.providerOptions.openai).toMatchObject({
+        expect(result.providerOptions).toHaveProperty('poe')
+        expect(result.providerOptions).not.toHaveProperty('openai')
+        expect(result.providerOptions.poe).toMatchObject({
           reasoningEffort: 'medium',
+          enable_search: true,
           serviceTier: undefined,
-          textVerbosity: undefined,
-          store: false
+          textVerbosity: undefined
         })
       })
 
-      it('should build OpenAI providerOptions for non OpenAI Poe models', () => {
+      it('should build Poe providerOptions for non OpenAI Poe models', () => {
         const result = buildProviderOptions(mockAssistant, poeClaudeModel, poeProvider, {
           enableReasoning: true,
           enableWebSearch: true,
           enableGenerateImage: false
         })
 
-        expect(result.providerOptions).toHaveProperty('openai')
-        expect(result.providerOptions).not.toHaveProperty('poe')
-        expect(result.providerOptions.openai).toMatchObject({
+        expect(result.providerOptions).toHaveProperty('poe')
+        expect(result.providerOptions).not.toHaveProperty('openai')
+        expect(result.providerOptions.poe).toMatchObject({
           reasoningEffort: 'medium',
-          forceReasoning: true,
-          store: false
+          enable_search: true,
+          serviceTier: undefined,
+          textVerbosity: undefined
         })
       })
     })
