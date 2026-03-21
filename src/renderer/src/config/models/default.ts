@@ -2084,5 +2084,63 @@ export const SYSTEM_MODELS: Record<SystemProviderId | 'defaultModel', Model[]> =
       name: 'GLM-4.5V',
       group: 'GLM-4.5V'
     }
+  ],
+  'volcano-coding': [
+    {
+      id: 'ark-code-latest',
+      name: 'ark-code-latest',
+      provider: 'volcano-coding',
+      group: 'Volcano Engine Coding Plan'
+    },
+    {
+      id: 'doubao-seed-2.0-code',
+      name: 'doubao-seed-2.0-code',
+      provider: 'volcano-coding',
+      group: 'Volcano Engine Coding Plan'
+    },
+    {
+      id: 'glm-4.7',
+      name: 'glm-4.7',
+      provider: 'volcano-coding',
+      group: 'Volcano Engine Coding Plan'
+    },
+    {
+      id: 'deepseek-v3.2',
+      name: 'deepseek-v3.2',
+      provider: 'volcano-coding',
+      group: 'Volcano Engine Coding Plan'
+    },
+    {
+      id: 'kimi-k2.5',
+      name: 'kimi-k2.5',
+      provider: 'volcano-coding',
+      group: 'Volcano Engine Coding Plan'
+    }
+  ],
+  'byteplus-coding': [
+    {
+      id: 'ark-code-latest',
+      name: 'ark-code-latest',
+      provider: 'byteplus-coding',
+      group: 'BytePlus Coding Plan'
+    },
+    {
+      id: 'bytedance-seed-code',
+      name: 'bytedance-seed-code',
+      provider: 'byteplus-coding',
+      group: 'BytePlus Coding Plan'
+    },
+    {
+      id: 'glm-4.7',
+      name: 'glm-4.7',
+      provider: 'byteplus-coding',
+      group: 'BytePlus Coding Plan'
+    },
+    {
+      id: 'kimi-k2.5',
+      name: 'kimi-k2.5',
+      provider: 'byteplus-coding',
+      group: 'BytePlus Coding Plan'
+    }
   ]
 }
