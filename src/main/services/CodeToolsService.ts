@@ -1272,12 +1272,17 @@ class CodeToolsService {
 
 /**
  * Escape text for safe use in Windows batch files
- * Only handles critical issues: newlines and % characters
+ * Handles all cmd.exe metacharacters to prevent command injection
  */
 export function escapeBatchText(text: string): string {
   if (!text) return ''
   return text
+    .replace(/\^/g, '^^') // Escape caret first (before other escapes)
     .replace(/%/g, '%%') // Escape % to avoid variable expansion
+    .replace(/&/g, '^&') // Escape & command separator
+    .replace(/\|/g, '^|') // Escape | pipe
+    .replace(/>/g, '^>') // Escape > output redirect
+    .replace(/</g, '^<') // Escape < input redirect
     .replace(/\r\n/g, ' ') // Windows newline to space
     .replace(/\n/g, ' ') // Unix newline to space
 }

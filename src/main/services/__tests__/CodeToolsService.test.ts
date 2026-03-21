@@ -121,4 +121,53 @@ describe('CodeToolsService - escapeBatchText', () => {
     const result = escapeBatchText(input)
     expect(result).toBe('C:\\Users\\张三\\My Documents Version: 50%%')
   })
+
+  // Cmd metacharacter escaping tests (Review Bot concerns)
+  it('escapes pipe character', () => {
+    const input = 'error | pipe'
+    const result = escapeBatchText(input)
+    expect(result).toBe('error ^| pipe')
+  })
+
+  it('escapes output redirect character', () => {
+    const input = 'error > file'
+    const result = escapeBatchText(input)
+    expect(result).toBe('error ^> file')
+  })
+
+  it('escapes input redirect character', () => {
+    const input = 'error < file'
+    const result = escapeBatchText(input)
+    expect(result).toBe('error ^< file')
+  })
+
+  it('escapes caret character', () => {
+    const input = 'path^file'
+    const result = escapeBatchText(input)
+    expect(result).toBe('path^^file')
+  })
+
+  it('escapes command separator ampersand', () => {
+    const input = 'cmd1 & cmd2'
+    const result = escapeBatchText(input)
+    expect(result).toBe('cmd1 ^& cmd2')
+  })
+
+  it('escapes multiple cmd metacharacters', () => {
+    const input = 'error & | > <'
+    const result = escapeBatchText(input)
+    expect(result).toBe('error ^& ^| ^> ^<')
+  })
+
+  it('escapes real npm error with pipe character', () => {
+    const input = 'npm ERR! command failed | npm ERR! path'
+    const result = escapeBatchText(input)
+    expect(result).toBe('npm ERR! command failed ^| npm ERR! path')
+  })
+
+  it('escapes bun error with redirect character', () => {
+    const input = 'bun error > debug.log'
+    const result = escapeBatchText(input)
+    expect(result).toBe('bun error ^> debug.log')
+  })
 })
