@@ -2028,8 +2028,8 @@
       },
       "fetchTopicName": "Nu s-a putut numi subiectul",
       "file": {
-        "process_failed": "[to be translated]:File {{name}} could not be processed",
-        "text_extraction_failed": "[to be translated]:Failed to extract text from {{name}}"
+        "process_failed": "Fișierul {{name}} nu a putut fi procesat",
+        "text_extraction_failed": "Nu s-a putut extrage textul din {{name}}"
       },
       "get_embedding_dimensions": "Nu s-au putut obține dimensiunile embedding",
       "invalid": {
@@ -2275,9 +2275,9 @@
     },
     "warning": {
       "file": {
-        "pdf_exceeds_limit": "[to be translated]:PDF file {{name}} exceeds size limit ({{limit}}), falling back to text extraction",
-        "pdf_text_extraction_failed": "[to be translated]:Failed to extract text from PDF {{name}}",
-        "pdf_upload_failed": "[to be translated]:Failed to upload PDF {{name}}, falling back to text extraction"
+        "pdf_exceeds_limit": "Fișierul PDF {{name}} depășește limita de dimensiune ({{limit}}), se revine la extragerea textului",
+        "pdf_text_extraction_failed": "Nu s-a putut extrage textul din PDF {{name}}",
+        "pdf_upload_failed": "Încărcarea PDF-ului {{name}} a eșuat, se revine la extragerea textului"
       },
       "rate": {
         "limit": "Prea multe cereri. Te rugăm să aștepți {{seconds}} secunde înainte de a încerca din nou."

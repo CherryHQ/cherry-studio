@@ -2028,8 +2028,8 @@
       },
       "fetchTopicName": "トピック名の取得に失敗しました",
       "file": {
-        "process_failed": "[to be translated]:File {{name}} could not be processed",
-        "text_extraction_failed": "[to be translated]:Failed to extract text from {{name}}"
+        "process_failed": "ファイル {{name}} を処理できませんでした",
+        "text_extraction_failed": "{{name}}からテキストの抽出に失敗しました"
       },
       "get_embedding_dimensions": "埋込み次元を取得できませんでした",
       "invalid": {
@@ -2275,9 +2275,9 @@
     },
     "warning": {
       "file": {
-        "pdf_exceeds_limit": "[to be translated]:PDF file {{name}} exceeds size limit ({{limit}}), falling back to text extraction",
-        "pdf_text_extraction_failed": "[to be translated]:Failed to extract text from PDF {{name}}",
-        "pdf_upload_failed": "[to be translated]:Failed to upload PDF {{name}}, falling back to text extraction"
+        "pdf_exceeds_limit": "PDFファイル {{name}} はサイズ制限（{{limit}}）を超えているため、テキスト抽出にフォールバックします",
+        "pdf_text_extraction_failed": "PDF「{{name}}」からテキストを抽出できませんでした",
+        "pdf_upload_failed": "PDF「{{name}}」のアップロードに失敗しました。テキスト抽出にフォールバックします。"
       },
       "rate": {
         "limit": "送信が頻繁すぎます。{{seconds}} 秒待ってから再試行してください。"

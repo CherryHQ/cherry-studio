@@ -2028,8 +2028,8 @@
       },
       "fetchTopicName": "Не удалось назвать топик",
       "file": {
-        "process_failed": "[to be translated]:File {{name}} could not be processed",
-        "text_extraction_failed": "[to be translated]:Failed to extract text from {{name}}"
+        "process_failed": "Файл {{name}} не удалось обработать",
+        "text_extraction_failed": "Не удалось извлечь текст из {{name}}"
       },
       "get_embedding_dimensions": "Не удалось получить размерность встраивания",
       "invalid": {
@@ -2275,9 +2275,9 @@
     },
     "warning": {
       "file": {
-        "pdf_exceeds_limit": "[to be translated]:PDF file {{name}} exceeds size limit ({{limit}}), falling back to text extraction",
-        "pdf_text_extraction_failed": "[to be translated]:Failed to extract text from PDF {{name}}",
-        "pdf_upload_failed": "[to be translated]:Failed to upload PDF {{name}}, falling back to text extraction"
+        "pdf_exceeds_limit": "Файл PDF {{name}} превышает ограничение по размеру ({{limit}}), выполняется извлечение текста",
+        "pdf_text_extraction_failed": "Не удалось извлечь текст из PDF {{name}}",
+        "pdf_upload_failed": "Не удалось загрузить PDF {{name}}, выполняется извлечение текста"
       },
       "rate": {
         "limit": "Отправка слишком частая, пожалуйста, подождите {{seconds}} секунд, прежде чем попробовать снова."
