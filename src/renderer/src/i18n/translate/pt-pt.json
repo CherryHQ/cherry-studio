@@ -417,35 +417,80 @@
       "server_not_running_description": "O servidor da API precisa estar em execução para que os agentes funcionem. Você pode iniciá-lo diretamente ou verificar as configurações."
     }
   },
-  "apiServer": {
+  "apiGateway": {
     "actions": {
+      "addGroup": "Adicionar grupo",
       "copy": "Copiar",
+      "copyEnvVars": "Copiar como variáveis de ambiente",
       "regenerate": "Regenerar",
       "restart": {
         "button": "Reiniciar",
-        "tooltip": "Reiniciar Servidor"
+        "tooltip": "Reiniciar servidor"
       },
-      "start": "iniciar",
-      "stop": "parar"
+      "start": "Iniciar",
+      "stop": "Parar"
     },
     "authHeader": {
       "title": "Cabeçalho de autorização"
     },
-    "authHeaderText": "Usar no cabeçalho de autorização:",
+    "authHeaderText": "Usar no cabeçalho Authorization:",
     "configuration": "Configuração",
-    "description": "Expõe as capacidades de IA do Cherry Studio através de APIs HTTP compatíveis com OpenAI",
+    "description": "Exponha as capacidades de IA do Cherry Studio através de APIs HTTP compatíveis com OpenAI",
     "documentation": {
-      "title": "Documentação API"
+      "title": "Documentação da API"
+    },
+    "endpoints": {
+      "chatCompletions": "Chat completions compatíveis com OpenAI",
+      "messages": "API de mensagens compatível com Anthropic",
+      "responses": "OpenAI Responses API (novo formato)"
     },
     "fields": {
       "apiKey": {
-        "copyTooltip": "Copiar Chave API",
+        "copyTooltip": "Copiar chave API",
         "description": "Token de autenticação seguro para acesso à API",
         "label": "Chave API",
         "placeholder": "A chave API será gerada automaticamente"
       },
+      "baseUrl": {
+        "copyTooltip": "Copiar URL base",
+        "description": "Use este URL como URL base da API em aplicações externas",
+        "label": "URL base"
+      },
+      "copyAsEnv": {
+        "description": "Copiar a configuração como variáveis de ambiente para integração fácil",
+        "format": "Formato",
+        "label": "Variáveis de ambiente"
+      },
+      "defaultModel": {
+        "description": "Selecione o fornecedor e o modelo predefinidos para aplicações externas",
+        "label": "Modelo predefinido",
+        "modelPlaceholder": "Selecionar modelo",
+        "providerPlaceholder": "Selecionar fornecedor"
+      },
+      "enabledEndpoints": {
+        "description": "Escolha quais endpoints da API devem ser expostos para cada grupo de modelos",
+        "label": "Endpoints ativados"
+      },
+      "modelGroups": {
+        "description": "Crie grupos de modelos com URLs únicas para diferentes combinações de fornecedor/modelo",
+        "empty": "Nenhum grupo de modelos configurado. Clique em 'Adicionar grupo' para criar um.",
+        "label": "Grupos de modelos",
+        "mode": {
+          "assistant": "Predefinição do assistente",
+          "assistantHint": "A predefinição do assistente substitui os parâmetros do pedido.",
+          "assistantPlaceholder": "Selecionar assistente",
+          "label": "Modo",
+          "model": "Modelo direto"
+        },
+        "namePlaceholder": "Nome do grupo"
+      },
+      "networkAccess": {
+        "description": "Permitir ligações a partir de outros dispositivos na sua rede",
+        "label": "Expor à rede",
+        "warning": "Aviso: isto tornará a API acessível a partir de outros dispositivos na sua rede. Ative apenas se confiar na sua rede."
+      },
       "port": {
-        "description": "Número de porta TCP do servidor HTTP (1000-65535)",
+        "description": "Número da porta TCP do servidor HTTP (1000-65535)",
         "helpText": "Pare o servidor para alterar a porta",
         "label": "Porta"
       },
@@ -457,19 +502,24 @@
     "messages": {
       "apiKeyCopied": "Chave API copiada para a área de transferência",
       "apiKeyRegenerated": "Chave API regenerada",
-      "notEnabled": "O Servidor de API não está habilitado.",
-      "operationFailed": "Operação do Servidor API falhou: ",
-      "restartError": "Falha ao reiniciar o Servidor API: ",
-      "restartFailed": "Reinício do Servidor API falhou: ",
+      "baseUrlCopied": "URL base copiado para a área de transferência",
+      "envVarsCopied": "Variáveis de ambiente copiadas para a área de transferência",
+      "nameDuplicate": "Já existe um grupo com o mesmo caminho de URL",
+      "nameRequired": "O nome do grupo não pode estar vazio",
+      "nameUpdated": "Nome do grupo atualizado",
+      "notEnabled": "O servidor API não está ativado.",
+      "operationFailed": "A operação do servidor API falhou: ",
+      "restartError": "Falha ao reiniciar o servidor API: ",
+      "restartFailed": "A reinicialização do servidor API falhou: ",
       "restartSuccess": "Servidor API reiniciado com sucesso",
-      "startError": "Falha ao iniciar o Servidor API: ",
+      "startError": "Falha ao iniciar o servidor API: ",
       "startSuccess": "Servidor API iniciado com sucesso",
-      "stopError": "Falha ao parar o Servidor API: ",
+      "stopError": "Falha ao parar o servidor API: ",
       "stopSuccess": "Servidor API parado com sucesso",
-      "urlCopied": "URL do servidor copiada para a área de transferência"
+      "urlCopied": "URL do servidor copiado para a área de transferência"
     },
     "status": {
-      "running": "A executar",
+      "running": "Em execução",
       "stopped": "Parado"
     },
     "title": "Servidor API"

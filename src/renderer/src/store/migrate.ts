@@ -54,8 +54,7 @@ import {
   isSupportDeveloperRoleProvider,
   isSupportStreamOptionsProvider
 } from '@renderer/utils/provider'
-import { API_SERVER_DEFAULTS } from '@shared/config/constant'
-import { defaultByPassRules } from '@shared/config/constant'
+import { API_GATEWAY_DEFAULTS, defaultByPassRules } from '@shared/config/constant'
 import { TRANSLATE_PROMPT } from '@shared/config/prompts'
 import { DefaultPreferences } from '@shared/data/preference/preferenceSchemas'
 import { UpgradeChannel } from '@shared/data/preference/preferenceTypes'
@@ -2055,12 +2054,15 @@ const migrateConfig = {
   '125': (state: RootState) => {
     try {
       // Initialize API server configuration if not present
-      if (!state.settings.apiServer) {
-        state.settings.apiServer = {
+      if (!state.settings.apiGateway) {
+        state.settings.apiGateway = {
           enabled: false,
-          host: API_SERVER_DEFAULTS.HOST,
-          port: API_SERVER_DEFAULTS.PORT,
-          apiKey: `cs-sk-${uuid()}`
+          host: API_GATEWAY_DEFAULTS.HOST,
+          port: API_GATEWAY_DEFAULTS.PORT,
+          apiKey: `cs-sk-${uuid()}`,
+          modelGroups: [],
+          enabledEndpoints: ['/v1/chat/completions', '/v1/messages'],
+          exposeToNetwork: false
         }
       }
       return state
@@ -2959,6 +2961,11 @@ const migrateConfig = {
           includeUsage: DEFAULT_STREAM_OPTIONS_INCLUDE_USAGE
         }
       }
+      state.llm.providers.forEach((provider) => {
+        if (provider.id === SystemProviderIds.ppio) {
+          provider.anthropicApiHost = 'https://api.ppinfra.com/anthropic'
+        }
+      })
       logger.info('migrate 182 success')
       return state
     } catch (error) {
@@ -3030,8 +3037,8 @@ const migrateConfig = {
   },
   '186': (state: RootState) => {
     try {
-      if (state.settings.apiServer) {
-        state.settings.apiServer.host = API_SERVER_DEFAULTS.HOST
+      if (state.settings.apiGateway) {
+        state.settings.apiGateway.host = API_GATEWAY_DEFAULTS.HOST
       }
       // @ts-expect-error
       if (state.settings.openAI.summaryText === 'undefined') {
@@ -3160,6 +3167,29 @@ const migrateConfig = {
   '193': (state: RootState) => {
     try {
       addPreprocessProviders(state, 'paddleocr')
+      // Migrate apiServer to apiGateway (rename)
+      // @ts-ignore - apiServer is the old key name
+      if (state.settings.apiServer) {
+        // @ts-ignore
+        state.settings.apiGateway = state.settings.apiServer
+        // @ts-ignore
+        delete state.settings.apiServer
+      }
+
+      if (state.settings.apiGateway) {
+        const apiGateway = state.settings.apiGateway
+        if (!Array.isArray(apiGateway.modelGroups)) {
+          apiGateway.modelGroups = []
+        }
+        if (!Array.isArray(apiGateway.enabledEndpoints)) {
+          apiGateway.enabledEndpoints = ['/v1/chat/completions', '/v1/messages', '/v1/responses']
+        } else {
+          apiGateway.enabledEndpoints = apiGateway.enabledEndpoints.filter((e: string) => e !== '/v1/models')
+        }
+        if (apiGateway.exposeToNetwork === undefined) {
+          apiGateway.exposeToNetwork = false
+        }
+      }
       logger.info('migrate 193 success')
       return state
     } catch (error) {

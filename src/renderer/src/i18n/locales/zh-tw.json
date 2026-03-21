@@ -417,9 +417,11 @@
       "server_not_running_description": "智能體功能需要 API 伺服器運行。你可以直接啟動伺服器，或前往設定頁面檢查配置。"
     }
   },
-  "apiServer": {
+  "apiGateway": {
     "actions": {
+      "addGroup": "新增群組",
       "copy": "複製",
+      "copyEnvVars": "複製為環境變數",
       "regenerate": "重新產生",
       "restart": {
         "button": "重新啟動",
@@ -437,12 +439,55 @@
     "documentation": {
       "title": "API 文件"
     },
+    "endpoints": {
+      "chatCompletions": "OpenAI 相容的 chat completions",
+      "messages": "Anthropic 相容的 messages API",
+      "responses": "OpenAI Responses API（新格式）"
+    },
     "fields": {
       "apiKey": {
         "copyTooltip": "複製 API 金鑰",
         "description": "用於 API 存取的安全認證權杖",
         "label": "API 金鑰",
         "placeholder": "API 金鑰會自動產生"
+      },
+      "baseUrl": {
+        "copyTooltip": "複製基礎 URL",
+        "description": "在外部應用程式中將此 URL 用作 API 基礎 URL",
+        "label": "基礎 URL"
+      },
+      "copyAsEnv": {
+        "description": "將設定複製為環境變數，方便整合使用",
+        "format": "格式",
+        "label": "環境變數"
+      },
+      "defaultModel": {
+        "description": "選擇供外部應用程式使用的預設服務商與模型",
+        "label": "預設模型",
+        "modelPlaceholder": "選擇模型",
+        "providerPlaceholder": "選擇服務商"
+      },
+      "enabledEndpoints": {
+        "description": "選擇每個模型群組要公開哪些 API 端點",
+        "label": "已啟用的端點"
+      },
+      "modelGroups": {
+        "description": "為不同的服務商／模型組合建立具有唯一 URL 的模型群組",
+        "empty": "尚未設定任何模型群組。點擊「新增群組」來建立。",
+        "label": "模型群組",
+        "mode": {
+          "assistant": "助理預設",
+          "assistantHint": "助理預設會覆寫請求參數。",
+          "assistantPlaceholder": "選擇助理",
+          "label": "模式",
+          "model": "直接模型"
+        },
+        "namePlaceholder": "群組名稱"
+      },
+      "networkAccess": {
+        "description": "允許來自你網路中其他裝置的連線",
+        "label": "對網路公開",
+        "warning": "警告：這會讓你的 API 可被網路中的其他裝置存取。僅在你信任目前網路時才啟用。"
       },
       "port": {
         "description": "HTTP 伺服器的 TCP 連接埠 (1000-65535)",
@@ -457,6 +502,11 @@
     "messages": {
       "apiKeyCopied": "API 金鑰已複製到剪貼簿",
       "apiKeyRegenerated": "API 金鑰已重新產生",
+      "baseUrlCopied": "基礎 URL 已複製到剪貼簿",
+      "envVarsCopied": "環境變數已複製到剪貼簿",
+      "nameDuplicate": "已存在相同 URL 路徑的群組",
+      "nameRequired": "群組名稱不能為空",
+      "nameUpdated": "群組名稱已更新",
       "notEnabled": "API 伺服器未啟用。",
       "operationFailed": "API 伺服器操作失敗：",
       "restartError": "重新啟動 API 伺服器失敗：",

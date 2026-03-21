@@ -172,8 +172,8 @@ const swaggerOptions: swaggerJSDoc.Options = {
     ]
   },
   apis: [
-    path.resolve(ROOT_DIR, 'src/main/apiServer/routes/**/*.ts'),
-    path.resolve(ROOT_DIR, 'src/main/apiServer/app.ts')
+    path.resolve(ROOT_DIR, 'src/main/apiGateway/routes/**/*.ts'),
+    path.resolve(ROOT_DIR, 'src/main/apiGateway/app.ts')
   ]
 }
 

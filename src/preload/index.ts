@@ -33,7 +33,7 @@ import type {
   FileListResponse,
   FileMetadata,
   FileUploadResponse,
-  GetApiServerStatusResult,
+  GetApiGatewayStatusResult,
   KnowledgeBaseParams,
   KnowledgeItem,
   KnowledgeSearchResult,
@@ -45,11 +45,11 @@ import type {
   OcrProvider,
   OcrResult,
   Provider,
-  RestartApiServerStatusResult,
+  RestartApiGatewayStatusResult,
   S3Config,
   Shortcut,
-  StartApiServerStatusResult,
-  StopApiServerStatusResult,
+  StartApiGatewayStatusResult,
+  StopApiGatewayStatusResult,
   SupportedOcrFile,
   WebDavConfig
 } from '@types'
@@ -657,18 +657,18 @@ const api = {
       return () => ipcRenderer.off(channel, listener)
     }
   },
-  apiServer: {
-    getStatus: (): Promise<GetApiServerStatusResult> => ipcRenderer.invoke(IpcChannel.ApiServer_GetStatus),
-    start: (): Promise<StartApiServerStatusResult> => ipcRenderer.invoke(IpcChannel.ApiServer_Start),
-    restart: (): Promise<RestartApiServerStatusResult> => ipcRenderer.invoke(IpcChannel.ApiServer_Restart),
-    stop: (): Promise<StopApiServerStatusResult> => ipcRenderer.invoke(IpcChannel.ApiServer_Stop),
+  apiGateway: {
+    getStatus: (): Promise<GetApiGatewayStatusResult> => ipcRenderer.invoke(IpcChannel.ApiGateway_GetStatus),
+    start: (): Promise<StartApiGatewayStatusResult> => ipcRenderer.invoke(IpcChannel.ApiGateway_Start),
+    restart: (): Promise<RestartApiGatewayStatusResult> => ipcRenderer.invoke(IpcChannel.ApiGateway_Restart),
+    stop: (): Promise<StopApiGatewayStatusResult> => ipcRenderer.invoke(IpcChannel.ApiGateway_Stop),
     onReady: (callback: () => void): (() => void) => {
       const listener = () => {
         callback()
       }
-      ipcRenderer.on(IpcChannel.ApiServer_Ready, listener)
+      ipcRenderer.on(IpcChannel.ApiGateway_Ready, listener)
       return () => {
-        ipcRenderer.removeListener(IpcChannel.ApiServer_Ready, listener)
+        ipcRenderer.removeListener(IpcChannel.ApiGateway_Ready, listener)
       }
     }
   },

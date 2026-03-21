@@ -6,7 +6,7 @@ import { useCallback } from 'react'
 import { useTranslation } from 'react-i18next'
 import useSWR from 'swr'
 
-import { useApiServer } from '../useApiServer'
+import { useApiGateway } from '../useApiGateway'
 import { useAgentClient } from './useAgentClient'
 
 type Result<T> =
@@ -23,23 +23,23 @@ export const useAgents = () => {
   const { t } = useTranslation()
   const client = useAgentClient()
   const key = client.agentPaths.base
-  const { apiServerConfig, apiServerRunning } = useApiServer()
+  const { apiGatewayConfig, apiGatewayRunning } = useApiGateway()
 
   // Disable SWR fetching when server is not running by setting key to null
-  const swrKey = apiServerRunning ? key : null
+  const swrKey = apiGatewayRunning ? key : null
 
   const fetcher = useCallback(async () => {
     // API server will start on startup if enabled OR there are agents
-    if (!apiServerConfig.enabled && !apiServerRunning) {
-      throw new Error(t('apiServer.messages.notEnabled'))
+    if (!apiGatewayConfig.enabled && !apiGatewayRunning) {
+      throw new Error(t('apiGateway.messages.notEnabled'))
     }
-    if (!apiServerRunning) {
+    if (!apiGatewayRunning) {
       throw new Error(t('agent.server.error.not_running'))
     }
     const result = await client.listAgents({ sortBy: 'sort_order', orderBy: 'asc' })
     // NOTE: We only use the array for now. useUpdateAgent depends on this behavior.
     return result.data
-  }, [apiServerConfig.enabled, apiServerRunning, client, t])
+  }, [apiGatewayConfig.enabled, apiGatewayRunning, client, t])
 
   const { data, error, isLoading, mutate } = useSWR(swrKey, fetcher)
   const [activeAgentId] = useCache('agent.active_id')

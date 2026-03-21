@@ -4,7 +4,7 @@ import path from 'node:path'
 
 import { cacheService } from '@data/CacheService'
 import { loggerService } from '@logger'
-import { getMCPServersFromRedux } from '@main/apiServer/utils/mcp'
+import { getMCPServersFromRedux } from '@main/apiGateway/utils/mcp'
 import { createInMemoryMCPServer } from '@main/mcpServers/factory'
 import { makeSureDirExists, removeEnvProxy } from '@main/utils'
 import { findCommandInShellEnv, getBinaryName, getBinaryPath, isBinaryExists } from '@main/utils/process'

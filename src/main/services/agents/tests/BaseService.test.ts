@@ -5,7 +5,7 @@ import { describe, expect, it, vi } from 'vitest'
 
 import type { AgentModelField } from '../errors'
 
-vi.mock('@main/apiServer/services/mcp', () => ({
+vi.mock('@main/apiGateway/services/mcp', () => ({
   mcpApiService: {
     getServerInfo: vi.fn()
   }
@@ -16,7 +16,8 @@ vi.mock('@main/utils', () => ({
 }))
 
 const mockValidateModelId = vi.fn()
-vi.mock('@main/apiServer/utils', () => ({
+
+vi.mock('@main/apiGateway/utils', () => ({
   validateModelId: (...args: unknown[]) => mockValidateModelId(...args)
 }))
 

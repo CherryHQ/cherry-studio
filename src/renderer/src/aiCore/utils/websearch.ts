@@ -4,7 +4,7 @@ import type {
   WebSearchPluginConfig,
   XAIWebSearchConfig,
   XAIXSearchConfig
-} from '@cherrystudio/ai-core/core/plugins/built-in/webSearchPlugin/helper'
+} from '@cherrystudio/ai-core/built-in/plugins'
 import type { BaseProviderId } from '@cherrystudio/ai-core/provider'
 import { isOpenAIDeepResearchModel, isOpenAIWebSearchChatCompletionOnlyModel } from '@renderer/config/models'
 import type { CherryWebSearchConfig } from '@renderer/store/websearch'

@@ -417,32 +417,77 @@
       "server_not_running_description": "Le serveur API doit être en cours d'exécution pour que les agents fonctionnent. Vous pouvez le démarrer directement ou vérifier les paramètres."
     }
   },
-  "apiServer": {
+  "apiGateway": {
     "actions": {
+      "addGroup": "Ajouter un groupe",
       "copy": "Copier",
+      "copyEnvVars": "Copier comme variables d'environnement",
       "regenerate": "Régénérer",
       "restart": {
         "button": "Redémarrer",
-        "tooltip": "Redémarrer le Serveur"
+        "tooltip": "Redémarrer le serveur"
       },
       "start": "Démarrer",
-      "stop": "Arrêtez"
+      "stop": "Arrêter"
     },
     "authHeader": {
       "title": "En-tête d'autorisation"
     },
-    "authHeaderText": "Utiliser dans l'en-tête d'autorisation :",
+    "authHeaderText": "À utiliser dans l'en-tête Authorization :",
     "configuration": "Configuration",
-    "description": "Expose les capacités IA de Cherry Studio via des APIs HTTP compatibles OpenAI",
+    "description": "Exposez les capacités IA de Cherry Studio via des API HTTP compatibles OpenAI",
     "documentation": {
-      "title": "Documentation API"
+      "title": "Documentation de l'API"
+    },
+    "endpoints": {
+      "chatCompletions": "Chat completions compatibles OpenAI",
+      "messages": "API de messages compatible Anthropic",
+      "responses": "OpenAI Responses API (nouveau format)"
     },
     "fields": {
       "apiKey": {
-        "copyTooltip": "Copier la Clé API",
+        "copyTooltip": "Copier la clé API",
         "description": "Jeton d'authentification sécurisé pour l'accès à l'API",
         "label": "Clé API",
         "placeholder": "La clé API sera générée automatiquement"
+      },
+      "baseUrl": {
+        "copyTooltip": "Copier l'URL de base",
+        "description": "Utilisez cette URL comme URL de base de l'API dans des applications externes",
+        "label": "URL de base"
+      },
+      "copyAsEnv": {
+        "description": "Copier la configuration en variables d'environnement pour une intégration facile",
+        "format": "Format",
+        "label": "Variables d'environnement"
+      },
+      "defaultModel": {
+        "description": "Sélectionnez le fournisseur et le modèle par défaut pour les applications externes",
+        "label": "Modèle par défaut",
+        "modelPlaceholder": "Sélectionner un modèle",
+        "providerPlaceholder": "Sélectionner un fournisseur"
+      },
+      "enabledEndpoints": {
+        "description": "Choisissez les points de terminaison API à exposer pour chaque groupe de modèles",
+        "label": "Points de terminaison activés"
+      },
+      "modelGroups": {
+        "description": "Créez des groupes de modèles avec des URL uniques pour différentes combinaisons fournisseur/modèle",
+        "empty": "Aucun groupe de modèles configuré. Cliquez sur « Ajouter un groupe » pour en créer un.",
+        "label": "Groupes de modèles",
+        "mode": {
+          "assistant": "Préréglage d'assistant",
+          "assistantHint": "Le préréglage d'assistant remplace les paramètres de la requête.",
+          "assistantPlaceholder": "Sélectionner un assistant",
+          "label": "Mode",
+          "model": "Modèle direct"
+        },
+        "namePlaceholder": "Nom du groupe"
+      },
+      "networkAccess": {
+        "description": "Autoriser les connexions depuis d'autres appareils de votre réseau",
+        "label": "Exposer au réseau",
+        "warning": "Avertissement : cela rendra l'API accessible depuis d'autres appareils de votre réseau. Activez cette option uniquement si vous faites confiance à votre réseau."
       },
       "port": {
         "description": "Numéro de port TCP pour le serveur HTTP (1000-65535)",
@@ -457,14 +502,19 @@
     "messages": {
       "apiKeyCopied": "Clé API copiée dans le presse-papiers",
       "apiKeyRegenerated": "Clé API régénérée",
+      "baseUrlCopied": "URL de base copiée dans le presse-papiers",
+      "envVarsCopied": "Variables d'environnement copiées dans le presse-papiers",
+      "nameDuplicate": "Un groupe avec le même chemin d'URL existe déjà",
+      "nameRequired": "Le nom du groupe ne peut pas être vide",
+      "nameUpdated": "Nom du groupe mis à jour",
       "notEnabled": "Le serveur API n'est pas activé.",
-      "operationFailed": "Opération du Serveur API échouée : ",
-      "restartError": "Échec du redémarrage du Serveur API : ",
-      "restartFailed": "Redémarrage du Serveur API échoué : ",
+      "operationFailed": "Échec de l'opération du serveur API : ",
+      "restartError": "Échec du redémarrage du serveur API : ",
+      "restartFailed": "Le redémarrage du serveur API a échoué : ",
       "restartSuccess": "Serveur API redémarré avec succès",
-      "startError": "Échec du démarrage du Serveur API : ",
+      "startError": "Échec du démarrage du serveur API : ",
       "startSuccess": "Serveur API démarré avec succès",
-      "stopError": "Échec de l'arrêt du Serveur API : ",
+      "stopError": "Échec de l'arrêt du serveur API : ",
       "stopSuccess": "Serveur API arrêté avec succès",
       "urlCopied": "URL du serveur copiée dans le presse-papiers"
     },

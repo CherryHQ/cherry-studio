@@ -417,9 +417,11 @@
       "server_not_running_description": "智能体功能需要 API 服务器运行。你可以直接启动服务器，或前往设置页面检查配置。"
     }
   },
-  "apiServer": {
+  "apiGateway": {
     "actions": {
+      "addGroup": "添加分组",
       "copy": "复制",
+      "copyEnvVars": "复制为环境变量",
       "regenerate": "重新生成",
       "restart": {
         "button": "重启",
@@ -437,12 +439,55 @@
     "documentation": {
       "title": "API 文档"
     },
+    "endpoints": {
+      "chatCompletions": "OpenAI 兼容的 chat completions 端点",
+      "messages": "Anthropic 兼容的 messages API",
+      "responses": "OpenAI Responses API（新格式）"
+    },
     "fields": {
       "apiKey": {
         "copyTooltip": "复制 API 密钥",
         "description": "用于 API 访问的安全认证令牌",
         "label": "API 密钥",
         "placeholder": "API 密钥将自动生成"
+      },
+      "baseUrl": {
+        "copyTooltip": "复制基础 URL",
+        "description": "在外部应用中使用此 URL 作为 API 基础地址",
+        "label": "基础 URL"
+      },
+      "copyAsEnv": {
+        "description": "将配置复制为环境变量以便于集成",
+        "format": "格式",
+        "label": "环境变量"
+      },
+      "defaultModel": {
+        "description": "为外部应用选择默认的提供商和模型",
+        "label": "默认模型",
+        "modelPlaceholder": "选择模型",
+        "providerPlaceholder": "选择提供商"
+      },
+      "enabledEndpoints": {
+        "description": "选择为每个模型分组暴露哪些 API 端点",
+        "label": "已启用的端点"
+      },
+      "modelGroups": {
+        "description": "为不同的提供商/模型组合创建具有唯一 URL 的模型分组",
+        "empty": "暂无模型分组。点击'添加分组'创建一个。",
+        "label": "模型分组",
+        "mode": {
+          "assistant": "助手预设",
+          "assistantHint": "助手预设会覆盖请求参数。",
+          "assistantPlaceholder": "选择助手",
+          "label": "模式",
+          "model": "直接模型"
+        },
+        "namePlaceholder": "分组名称"
+      },
+      "networkAccess": {
+        "description": "允许网络上其他设备的连接",
+        "label": "暴露到网络",
+        "warning": "警告：这将使 API 可以从网络上的其他设备访问。仅在信任网络时启用。"
       },
       "port": {
         "description": "HTTP 服务器的 TCP 端口号 (1000-65535)",
@@ -457,6 +502,11 @@
     "messages": {
       "apiKeyCopied": "API 密钥已复制到剪贴板",
       "apiKeyRegenerated": "API 密钥已重新生成",
+      "baseUrlCopied": "基础 URL 已复制到剪贴板",
+      "envVarsCopied": "环境变量已复制到剪贴板",
+      "nameDuplicate": "已存在相同 URL 路径的分组",
+      "nameRequired": "分组名称不能为空",
+      "nameUpdated": "分组名称已更新",
       "notEnabled": "API 服务器未启用。",
       "operationFailed": "API 服务器操作失败：",
       "restartError": "重启 API 服务器失败：",

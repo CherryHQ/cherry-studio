@@ -3,7 +3,7 @@
  * @see https://ai-sdk.dev/providers/ai-sdk-providers/anthropic#cache-control
  */
 import type { LanguageModelV3Message } from '@ai-sdk/provider'
-import { definePlugin } from '@cherrystudio/ai-core/core/plugins'
+import { definePlugin } from '@cherrystudio/ai-core'
 import { estimateTextTokens } from '@renderer/services/TokenService'
 import type { Provider } from '@renderer/types'
 import type { LanguageModelMiddleware } from 'ai'

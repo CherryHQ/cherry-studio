@@ -91,6 +91,7 @@ export class ClaudeStreamState {
    * skill content injected after a Skill tool result.
    */
   private expectingSkillContent = false
+  private _streamFinished = false
 
   constructor(options: ClaudeStreamStateOptions) {
     this.logger = loggerService.withContext('ClaudeStreamState')
@@ -280,6 +281,7 @@ export class ClaudeStreamState {
     this.resetPendingUsage()
     this.stepActive = false
     this.expectingSkillContent = false
+    this._streamFinished = false
   }
 
   getNamespacedToolCallId(rawToolCallId: string): string {
@@ -302,6 +304,16 @@ export class ClaudeStreamState {
     const wasExpecting = this.expectingSkillContent
     this.expectingSkillContent = false
     return wasExpecting
+  }
+
+  /** Marks the stream as finished (either completed or errored). */
+  markFinished(): void {
+    this._streamFinished = true
+  }
+
+  /** Returns true if the stream has already emitted a terminal event. */
+  isFinished(): boolean {
+    return this._streamFinished
   }
 }
 
