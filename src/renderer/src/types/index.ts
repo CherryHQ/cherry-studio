@@ -126,6 +126,7 @@ const ThinkModelTypes = [
   'perplexity',
   'deepseek_hybrid',
   'kimi_k2_5',
+  'claude',
   'claude46'
 ] as const
 

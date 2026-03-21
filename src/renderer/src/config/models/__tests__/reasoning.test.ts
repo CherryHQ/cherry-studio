@@ -2436,46 +2436,73 @@ describe('isInterleavedThinkingModel', () => {
 })
 
 describe('Claude Models', () => {
-  describe('getThinkModelType for Claude 4.6 series models', () => {
+  describe('getThinkModelType for Claude reasoning models', () => {
+    it('should return claude for Claude 3.7 models', () => {
+      expect(getThinkModelType(createModel({ id: 'claude-3.7-sonnet' }))).toBe('claude')
+      expect(getThinkModelType(createModel({ id: 'claude-3-7-sonnet' }))).toBe('claude')
+      expect(getThinkModelType(createModel({ id: 'claude-3-7-sonnet-20250219' }))).toBe('claude')
+    })
+
+    it('should return claude for Claude 4.0 models', () => {
+      expect(getThinkModelType(createModel({ id: 'claude-sonnet-4' }))).toBe('claude')
+      expect(getThinkModelType(createModel({ id: 'claude-opus-4' }))).toBe('claude')
+      expect(getThinkModelType(createModel({ id: 'claude-sonnet-4@20250514' }))).toBe('claude')
+      expect(getThinkModelType(createModel({ id: 'anthropic.claude-sonnet-4-20250514-v1:0' }))).toBe('claude')
+    })
+
+    it('should return claude for Claude 4.5 models', () => {
+      expect(getThinkModelType(createModel({ id: 'claude-sonnet-4.5' }))).toBe('claude')
+      expect(getThinkModelType(createModel({ id: 'claude-opus-4.5' }))).toBe('claude')
+      expect(getThinkModelType(createModel({ id: 'claude-haiku-4.5' }))).toBe('claude')
+      expect(getThinkModelType(createModel({ id: 'claude-sonnet-4-5-20250929' }))).toBe('claude')
+    })
+
     it('should return claude46 for Claude 4.6 models', () => {
       expect(getThinkModelType(createModel({ id: 'claude-opus-4-6' }))).toBe('claude46')
       expect(getThinkModelType(createModel({ id: 'claude-sonnet-4-6' }))).toBe('claude46')
       expect(getThinkModelType(createModel({ id: 'anthropic.claude-opus-4-6-v1' }))).toBe('claude46')
     })
+
+    it('should return default for non-reasoning Claude models', () => {
+      expect(getThinkModelType(createModel({ id: 'claude-3-opus' }))).toBe('default')
+      expect(getThinkModelType(createModel({ id: 'claude-3-haiku' }))).toBe('default')
+      expect(getThinkModelType(createModel({ id: 'claude-3.5-sonnet' }))).toBe('default')
+    })
   })
 
-  describe('MODEL_SUPPORTED_OPTIONS for Claude 4.6', () => {
+  describe('MODEL_SUPPORTED_OPTIONS for Claude', () => {
+    it('should have correct options for claude (3.7/4.0/4.5)', () => {
+      expect(MODEL_SUPPORTED_OPTIONS.claude).toEqual(['default', 'none', 'low', 'medium', 'high'])
+    })
+
     it('should have correct options for claude46', () => {
       expect(MODEL_SUPPORTED_OPTIONS.claude46).toEqual(['default', 'none', 'low', 'medium', 'high', 'xhigh'])
     })
   })
 
-  describe('MODEL_SUPPORTED_REASONING_EFFORT for Claude 4.6', () => {
+  describe('MODEL_SUPPORTED_REASONING_EFFORT for Claude', () => {
+    it('should have correct effort levels for claude (3.7/4.0/4.5)', () => {
+      expect(MODEL_SUPPORTED_REASONING_EFFORT.claude).toEqual(['low', 'medium', 'high'])
+    })
+
     it('should have correct effort levels for claude46', () => {
       expect(MODEL_SUPPORTED_REASONING_EFFORT.claude46).toEqual(['low', 'medium', 'high', 'xhigh'])
     })
   })
 
-  describe('getModelSupportedReasoningEffortOptions for Claude 4.6', () => {
-    it('should return correct options for Opus 4.6 models', () => {
-      expect(getModelSupportedReasoningEffortOptions(createModel({ id: 'claude-opus-4-6' }))).toEqual([
-        'default',
-        'none',
-        'low',
-        'medium',
-        'high',
-        'xhigh'
-      ])
+  describe('getModelSupportedReasoningEffortOptions for Claude', () => {
+    it('should return correct options for Claude 3.7/4.0/4.5 models', () => {
+      const expected = ['default', 'none', 'low', 'medium', 'high']
+      expect(getModelSupportedReasoningEffortOptions(createModel({ id: 'claude-3.7-sonnet' }))).toEqual(expected)
+      expect(getModelSupportedReasoningEffortOptions(createModel({ id: 'claude-sonnet-4' }))).toEqual(expected)
+      expect(getModelSupportedReasoningEffortOptions(createModel({ id: 'claude-sonnet-4.5' }))).toEqual(expected)
+      expect(getModelSupportedReasoningEffortOptions(createModel({ id: 'claude-opus-4' }))).toEqual(expected)
     })
-    it('should return correct options for Sonnet 4.6 models', () => {
-      expect(getModelSupportedReasoningEffortOptions(createModel({ id: 'claude-sonnet-4-6' }))).toEqual([
-        'default',
-        'none',
-        'low',
-        'medium',
-        'high',
-        'xhigh'
-      ])
+
+    it('should return correct options for Claude 4.6 models', () => {
+      const expected = ['default', 'none', 'low', 'medium', 'high', 'xhigh']
+      expect(getModelSupportedReasoningEffortOptions(createModel({ id: 'claude-opus-4-6' }))).toEqual(expected)
+      expect(getModelSupportedReasoningEffortOptions(createModel({ id: 'claude-sonnet-4-6' }))).toEqual(expected)
     })
   })
 
