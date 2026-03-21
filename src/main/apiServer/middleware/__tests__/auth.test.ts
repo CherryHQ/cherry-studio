@@ -26,13 +26,13 @@ describe('authMiddleware', () => {
   const headerMock = vi.fn<(name: string) => string | undefined>()
   const jsonMock = vi.fn()
   const statusMock = vi.fn<(code: number) => { json: typeof jsonMock }>().mockReturnValue({ json: jsonMock })
-  let next: ReturnType<typeof vi.fn>
+  let next: ReturnType<typeof vi.fn<(err?: unknown) => void>>
 
   const req = { header: headerMock } as unknown as Request
   const res = { status: statusMock } as unknown as Response
 
   beforeEach(() => {
-    next = vi.fn()
+    next = vi.fn<(err?: unknown) => void>()
 
     vi.clearAllMocks()
   })
