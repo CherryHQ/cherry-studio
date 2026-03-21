@@ -24,7 +24,7 @@ export class VertexAPIClient extends GeminiAPIClient {
     this.anthropicVertexClient = new AnthropicVertexClient(provider)
     // 如果传入的是普通 Provider，转换为 VertexProvider
     if (isVertexProvider(provider)) {
-      this.vertexProvider = provider as VertexProvider
+      this.vertexProvider = provider
     } else {
       this.vertexProvider = createVertexProvider(provider)
     }

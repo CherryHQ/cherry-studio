@@ -1,7 +1,11 @@
 import { CLAUDE_SUPPORTED_PROVIDERS } from '@renderer/pages/code'
-import type { ProviderType } from '@renderer/types'
+import type { ProviderType, VertexProvider } from '@renderer/types'
 import { isSystemProvider, type Provider, type SystemProviderId, SystemProviderIds } from '@renderer/types'
-import { isAzureOpenAIProvider, isNewApiProvider } from '@shared/utils/provider'
+import {
+  isAzureOpenAIProvider,
+  isNewApiProvider,
+  isVertexProvider as sharedIsVertexProvider
+} from '@shared/utils/provider'
 export {
   isAIGatewayProvider,
   isAnthropicProvider,
@@ -14,9 +18,12 @@ export {
   isOllamaProvider,
   isOpenAICompatibleProvider,
   isOpenAIProvider,
-  isPerplexityProvider,
-  isVertexProvider
+  isPerplexityProvider
 } from '@shared/utils/provider'
+
+export const isVertexProvider = (provider: Provider): provider is VertexProvider => {
+  return sharedIsVertexProvider(provider)
+}
 
 export const getClaudeSupportedProviders = (providers: Provider[]) => {
   return providers.filter(
