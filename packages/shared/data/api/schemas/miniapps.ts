@@ -13,6 +13,7 @@ import type { MiniApp } from '@shared/data/types/miniapp'
 
 /**
  * DTO for creating a new custom miniapp
+ * Note: User-created apps are always type 'custom', cannot create type 'default'
  */
 export interface CreateMiniappDto {
   /** App identifier */
@@ -23,8 +24,6 @@ export interface CreateMiniappDto {
   url: string
   /** Logo URL or base64 */
   logo?: string
-  /** App type: default or custom */
-  type?: 'default' | 'custom'
   /** Whether the app shows a border */
   bordered?: boolean
   /** Background color */

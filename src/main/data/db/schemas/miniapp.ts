@@ -28,7 +28,7 @@ export const miniappTable = sqliteTable(
     logo: text(),
 
     // App type: default (system) or custom (user-added)
-    type: text().$type<MiniAppType>().notNull().default('default'),
+    type: text().$type<MiniAppType>().notNull().default('custom'),
 
     // User status for this app
     status: text().$type<MiniAppStatus>().notNull().default('enabled'),
