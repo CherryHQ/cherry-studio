@@ -1,7 +1,6 @@
 CREATE TABLE `miniapp` (
-	`id` text PRIMARY KEY NOT NULL,
+	`app_id` text PRIMARY KEY NOT NULL,
 	`name` text NOT NULL,
-	`app_id` text NOT NULL,
 	`url` text NOT NULL,
 	`logo` text,
 	`type` text DEFAULT 'default' NOT NULL,
@@ -12,14 +11,11 @@ CREATE TABLE `miniapp` (
 	`supported_regions` text,
 	`configuration` text,
 	`name_key` text,
-	`added_at` integer,
 	`created_at` integer,
-	`updated_at` integer,
-	`deleted_at` integer
+	`updated_at` integer
 );
 --> statement-breakpoint
 CREATE INDEX `miniapp_status_sort_idx` ON `miniapp` (`status`,`sort_order`);--> statement-breakpoint
-CREATE INDEX `miniapp_app_id_idx` ON `miniapp` (`app_id`);--> statement-breakpoint
 CREATE INDEX `miniapp_type_idx` ON `miniapp` (`type`);--> statement-breakpoint
 CREATE INDEX `miniapp_status_type_idx` ON `miniapp` (`status`,`type`);--> statement-breakpoint
 PRAGMA foreign_keys=OFF;--> statement-breakpoint

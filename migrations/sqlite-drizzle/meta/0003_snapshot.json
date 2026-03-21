@@ -1,7 +1,7 @@
 {
   "version": "6",
   "dialect": "sqlite",
-  "id": "32b32f0b-91ef-4910-a027-78fa01e5e3f2",
+  "id": "057e65aa-f84d-48d6-9ac5-d7a28858efca",
   "prevId": "f283d5d9-7eaa-40ff-8f9f-fbad46e536fd",
   "tables": {
     "app_state": {
@@ -533,8 +533,8 @@
     "miniapp": {
       "name": "miniapp",
       "columns": {
-        "id": {
-          "name": "id",
+        "app_id": {
+          "name": "app_id",
           "type": "text",
           "primaryKey": true,
           "notNull": true,
@@ -542,13 +542,6 @@
         },
         "name": {
           "name": "name",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "app_id": {
-          "name": "app_id",
           "type": "text",
           "primaryKey": false,
           "notNull": true,
@@ -628,13 +621,6 @@
           "notNull": false,
           "autoincrement": false
         },
-        "added_at": {
-          "name": "added_at",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
-        },
         "created_at": {
           "name": "created_at",
           "type": "integer",
@@ -648,24 +634,12 @@
           "primaryKey": false,
           "notNull": false,
           "autoincrement": false
-        },
-        "deleted_at": {
-          "name": "deleted_at",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
         }
       },
       "indexes": {
         "miniapp_status_sort_idx": {
           "name": "miniapp_status_sort_idx",
           "columns": ["status", "sort_order"],
-          "isUnique": false
-        },
-        "miniapp_app_id_idx": {
-          "name": "miniapp_app_id_idx",
-          "columns": ["app_id"],
           "isUnique": false
         },
         "miniapp_type_idx": {
