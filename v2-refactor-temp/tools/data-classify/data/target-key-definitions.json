@@ -34,6 +34,13 @@
       "description": "Window height (from complex mapping) - Example, not active"
     },
     {
+      "targetKey": "feature.file_processing.overrides",
+      "type": "PreferenceTypes.FileProcessorOverrides",
+      "defaultValue": "VALUE: {} as PreferenceTypes.FileProcessorOverrides",
+      "status": "classified",
+      "description": "复杂迁移：合并 redux/preprocess.providers 与 redux/ocr.providers 为 file processing overrides"
+    },
+    {
       "targetKey": "chat.web_search.compression.cutoff_limit",
       "type": "number",
       "defaultValue": null,

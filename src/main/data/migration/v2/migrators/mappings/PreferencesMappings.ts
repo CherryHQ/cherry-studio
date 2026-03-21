@@ -745,6 +745,12 @@ export const REDUX_STORE_MAPPINGS = {
       targetKey: 'data.backup.nutstore.max_backups'
     }
   ],
+  preprocess: [
+    {
+      originalKey: 'defaultProvider',
+      targetKey: 'feature.file_processing.default.markdown_conversion'
+    }
+  ],
   shortcuts: [
     {
       originalKey: 'shortcuts.zoom_in',
@@ -823,6 +829,12 @@ export const REDUX_STORE_MAPPINGS = {
     {
       originalKey: 'excludeDomains',
       targetKey: 'chat.web_search.exclude_domains'
+    }
+  ],
+  ocr: [
+    {
+      originalKey: 'imageProviderId',
+      targetKey: 'feature.file_processing.default.text_extraction'
     }
   ],
   note: [

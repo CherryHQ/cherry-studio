@@ -334,6 +334,12 @@ export interface PreferenceSchemas {
     'feature.csaas.host': string
     // redux/settings/apiServer.port
     'feature.csaas.port': number
+    // redux/preprocess/defaultProvider
+    'feature.file_processing.default.markdown_conversion': PreferenceTypes.FileProcessorId
+    // redux/ocr/imageProviderId
+    'feature.file_processing.default.text_extraction': PreferenceTypes.FileProcessorId | null
+    // target-key-definitions/complex/complex
+    'feature.file_processing.overrides': PreferenceTypes.FileProcessorOverrides
     // redux/memory/memoryConfig.isAutoDimensions
     'feature.memory.auto_dimensions': boolean
     // redux/memory/currentUserId
@@ -621,6 +627,9 @@ export const DefaultPreferences: PreferenceSchemas = {
     'feature.csaas.enabled': false,
     'feature.csaas.host': '127.0.0.1',
     'feature.csaas.port': 23333,
+    'feature.file_processing.default.markdown_conversion': 'mineru',
+    'feature.file_processing.default.text_extraction': null,
+    'feature.file_processing.overrides': {} as PreferenceTypes.FileProcessorOverrides,
     'feature.memory.auto_dimensions': true,
     'feature.memory.current_user_id': 'default-user',
     'feature.memory.embedder_dimensions': 1536,
@@ -751,9 +760,9 @@ export const DefaultPreferences: PreferenceSchemas = {
 
 /**
  * 生成统计:
- * - 总配置项: 215
+ * - 总配置项: 218
  * - electronStore项: 1
- * - redux项: 203
+ * - redux项: 205
  * - localStorage项: 0
  * - dexieSettings项: 0
  */
