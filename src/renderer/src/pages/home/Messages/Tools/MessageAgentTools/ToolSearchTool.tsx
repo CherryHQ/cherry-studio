@@ -1,14 +1,16 @@
 import type { CollapseProps } from 'antd'
 import { useTranslation } from 'react-i18next'
 
-import { countLines, truncateOutput } from '../shared/truncateOutput'
-import { StringInputTool, StringOutputTool, ToolHeader, TruncatedIndicator } from './GenericTools'
-import { AgentToolsType, type ToolSearchToolInput } from './types'
+import { ToolArgsTable } from '../shared/ArgsTable'
+import { ToolHeader } from './GenericTools'
+import { AgentToolsType, type ToolSearchToolInput, ToolSearchToolOutputSchema } from './types'
 
-function normalizeOutput(output: unknown): string | undefined {
-  if (output === undefined || output === null) return undefined
-  if (typeof output === 'string') return output
-  return JSON.stringify(output, null, 2)
+function parseOutput(output: unknown): { matches: string[]; message?: string } {
+  if (!output) return { matches: [] }
+  const result = ToolSearchToolOutputSchema.safeParse(output)
+  if (!result.success) return { matches: [], message: JSON.stringify(output, null, 2) }
+  if (typeof result.data === 'string') return { matches: [], message: result.data }
+  return { matches: result.data.map((item) => item.tool_name) }
 }
 
 export function ToolSearchTool({
@@ -19,9 +21,11 @@ export function ToolSearchTool({
   output?: unknown
 }): NonNullable<CollapseProps['items']>[number] {
   const { t } = useTranslation()
-  const outputStr = normalizeOutput(output)
-  const resultCount = countLines(outputStr)
-  const { data: truncatedOutput, isTruncated, originalLength } = truncateOutput(outputStr)
+  const { matches, message } = parseOutput(output)
+
+  const normalizedInput: Record<string, unknown> | null = input ? { ...input } : null
+  const normalizedOutput: Record<string, unknown> | null =
+    matches.length > 0 ? { matches: matches.join(', ') } : message ? { value: message } : null
 
   return {
     key: AgentToolsType.ToolSearch,
@@ -29,24 +33,15 @@ export function ToolSearchTool({
       <ToolHeader
         toolName={AgentToolsType.ToolSearch}
         params={input?.query ? `"${input.query}"` : undefined}
-        stats={outputStr ? t('message.tools.units.result', { count: resultCount }) : undefined}
+        stats={matches.length > 0 ? t('message.tools.units.result', { count: matches.length }) : undefined}
         variant="collapse-label"
         showStatus={false}
       />
     ),
     children: (
-      <div>
-        {input?.query && <StringInputTool input={input.query} label={t('message.tools.sections.searchQuery')} />}
-        {truncatedOutput && (
-          <div>
-            <StringOutputTool
-              output={truncatedOutput}
-              label={t('message.tools.sections.searchResults')}
-              textColor="text-yellow-600 dark:text-yellow-400"
-            />
-            {isTruncated && <TruncatedIndicator originalLength={originalLength} />}
-          </div>
-        )}
+      <div className="space-y-1">
+        {normalizedInput && <ToolArgsTable args={normalizedInput} title={t('message.tools.sections.input')} />}
+        {normalizedOutput && <ToolArgsTable args={normalizedOutput} title={t('message.tools.sections.output')} />}
       </div>
     )
   }

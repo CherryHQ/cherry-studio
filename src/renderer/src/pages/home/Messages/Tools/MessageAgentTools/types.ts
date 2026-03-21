@@ -339,7 +339,15 @@ export interface ToolSearchToolInput {
    */
   max_results?: number
 }
-export type ToolSearchToolOutput = string
+/**
+ * ToolSearch output is an array of tool_reference objects when matches are found,
+ * or a string message when no matches are found.
+ */
+export const ToolSearchToolOutputSchema = z.union([
+  z.array(z.object({ type: z.literal('tool_reference'), tool_name: z.string() })),
+  z.string()
+])
+export type ToolSearchToolOutput = z.infer<typeof ToolSearchToolOutputSchema>
 
 // AskUserQuestion 工具的类型定义 (使用 Zod)
 export const AskUserQuestionOptionSchema = z.object({
