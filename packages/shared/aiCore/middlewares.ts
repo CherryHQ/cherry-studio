@@ -7,7 +7,7 @@
 import type { LanguageModelMiddleware } from 'ai'
 import { extractReasoningMiddleware } from 'ai'
 
-import { isGemini3ModelId } from './utils'
+import { getReasoningTagName, isGemini3ModelId } from './utils'
 
 /**
  * Configuration for building shared middlewares
@@ -41,24 +41,6 @@ export interface SharedMiddlewareConfig {
    * e.g., 'google', 'google-vertex'
    */
   aiSdkProviderId?: string
-}
-
-/**
- * Get the default reasoning tag name based on model ID
- *
- * Different models use different tags for reasoning content:
- * - Most models: 'think'
- * - GPT-OSS models: 'reasoning'
- * - Gemini models: 'thought'
- * - Seed models: 'seed:think'
- */
-export function getReasoningTagName(modelId?: string): string {
-  if (!modelId) return 'think'
-  const lowerModelId = modelId.toLowerCase()
-  if (lowerModelId.includes('gpt-oss')) return 'reasoning'
-  if (lowerModelId.includes('gemini')) return 'thought'
-  if (lowerModelId.includes('seed-oss-36b')) return 'seed:think'
-  return 'think'
 }
 
 /**

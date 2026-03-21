@@ -113,6 +113,27 @@ export function isGemini3ModelId(modelId?: string): boolean {
   return lowerModelId.includes('gemini-3')
 }
 
+/**
+ * Get the default reasoning tag name based on model ID.
+ *
+ * Different models use different tags for reasoning content:
+ * - Most models: 'think'
+ * - GPT-OSS models: 'reasoning'
+ * - Gemini models: 'thought'
+ * - Seed models: 'seed:think'
+ *
+ * @param modelId The model ID string.
+ * @returns The default reasoning tag name for the model.
+ */
+export function getReasoningTagName(modelId?: string): string {
+  if (!modelId) return 'think'
+  const lowerModelId = modelId.toLowerCase()
+  if (lowerModelId.includes('gpt-oss')) return 'reasoning'
+  if (lowerModelId.includes('gemini')) return 'thought'
+  if (lowerModelId.includes('seed-oss-36b')) return 'seed:think'
+  return 'think'
+}
+
 export interface ResolveActualProviderOptions<P extends MinimalProvider> {
   isSystemProvider?: (provider: P) => boolean
 }
