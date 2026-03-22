@@ -76,9 +76,9 @@
         },
         "title": "频道",
         "wechat": {
-          "connected": "已连接",
+          "connected": "已登录",
           "description": "通过微信 iLink Bot API 接收和回复消息。",
-          "disconnected": "未连接",
+          "disconnected": "未登录",
           "loginHint": "首次登录需要扫描二维码，启用频道后将自动弹出二维码。",
           "qrHint": "请使用手机微信扫描二维码完成登录。",
           "qrTitle": "微信扫码登录",

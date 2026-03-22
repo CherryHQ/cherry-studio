@@ -351,6 +351,12 @@ const WeChatChannelCard: FC<ChannelCardProps> = ({ channel, onConfigChange }) =>
   const [status, setStatus] = useState<WeChatStatus>('idle')
 
   useEffect(() => {
+    window.api.wechat.hasCredentials(channel.id).then((has) => {
+      if (has) setStatus('confirmed')
+    })
+  }, [channel.id])
+
+  useEffect(() => {
     const cleanup = window.api.wechat.onQrLogin((data) => {
       if (data.channelId !== channel.id) return
 
