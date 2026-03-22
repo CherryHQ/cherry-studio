@@ -323,7 +323,7 @@ export class MemoryService {
       if (this.config?.embeddingModel) {
         try {
           const queryEmbedding = await this.generateEmbedding(query)
-          const vectorResult = await this.hybridSearch(query, queryEmbedding, { limit, userId, agentId, filters })
+          const vectorResult = await this.hybridSearch(query, queryEmbedding, { limit, userId, agentId })
           // Only return vector results if they exist; otherwise fall through to text search
           if (vectorResult.memories.length > 0) {
             return vectorResult
