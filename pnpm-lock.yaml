@@ -106,9 +106,6 @@ importers:
       '@paymoapp/electron-shutdown-handler':
         specifier: 1.1.2
         version: 1.1.2
-      '@pinixai/weixin-bot':
-        specifier: ^1.2.0
-        version: 1.2.0
       cron-parser:
         specifier: ^5.5.0
         version: 5.5.0
@@ -139,9 +136,6 @@ importers:
       os-proxy-config:
         specifier: 1.1.2
         version: 1.1.2
-      qrcode.react:
-        specifier: ^4.2.0
-        version: 4.2.0(react@19.2.3)
       selection-hook:
         specifier: 1.0.12
         version: 1.0.12
@@ -410,6 +404,9 @@ importers:
       '@opeoginni/github-copilot-openai-compatible':
         specifier: ^1.0.0
         version: 1.0.0(zod@4.3.4)
+      '@pinixai/weixin-bot':
+        specifier: ^1.2.0
+        version: 1.2.0
       '@playwright/test':
         specifier: ^1.55.1
         version: 1.57.0
@@ -947,6 +944,9 @@ importers:
       proxy-agent:
         specifier: ^6.5.0
         version: 6.5.0
+      qrcode.react:
+        specifier: ^4.2.0
+        version: 4.2.0(react@19.2.3)
       rc-input:
         specifier: 1.8.0
         version: 1.8.0(react-dom@19.2.3(react@19.2.3))(react@19.2.3)
