@@ -4,6 +4,7 @@ import path from 'node:path'
 
 import { loggerService } from '@logger'
 import { isMac, isWin } from '@main/constant'
+import { buildOpenAICodexConfigParams } from '@main/services/CodeToolsConfig'
 import { removeEnvProxy } from '@main/utils'
 import { isUserInChina } from '@main/utils/ipService'
 import { getBinaryName } from '@main/utils/process'
@@ -937,19 +938,12 @@ class CodeToolsService {
 
     // Add configuration parameters for OpenAI Codex using command line args
     if (cliTool === codeTools.openaiCodex && env.OPENAI_MODEL_PROVIDER) {
-      const providerId = env.OPENAI_MODEL_PROVIDER
-      const providerName = env.OPENAI_MODEL_PROVIDER_NAME || providerId
-      const normalizedBaseUrl = env.OPENAI_BASE_URL.replace(/\/$/, '')
-      const model = _model
-
-      const configParams = [
-        `--config model_provider="${providerId}"`,
-        `--config model_providers.${providerId}.name="${providerName}"`,
-        `--config model_providers.${providerId}.base_url="${normalizedBaseUrl}"`,
-        `--config model_providers.${providerId}.env_key="OPENAI_API_KEY"`,
-        `--config model_providers.${providerId}.wire_api="responses"`,
-        `--config model="${model}"`
-      ].join(' ')
+      const configParams = buildOpenAICodexConfigParams({
+        providerId: env.OPENAI_MODEL_PROVIDER,
+        providerName: env.OPENAI_MODEL_PROVIDER_NAME,
+        baseUrl: env.OPENAI_BASE_URL,
+        model: _model
+      })
       baseCommand = `${baseCommand} ${configParams}`
     }
 
