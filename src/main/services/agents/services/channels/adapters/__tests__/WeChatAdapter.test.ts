@@ -16,6 +16,12 @@ vi.mock('electron', () => ({
   }
 }))
 
+vi.mock('../../../../../WindowService', () => ({
+  windowService: {
+    getMainWindow: () => null
+  }
+}))
+
 let messageHandler: ((msg: any) => void | Promise<void>) | null = null
 
 const mockBot = {
