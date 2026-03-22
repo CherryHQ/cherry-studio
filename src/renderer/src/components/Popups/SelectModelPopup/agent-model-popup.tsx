@@ -77,7 +77,13 @@ const PopupContainer: React.FC<Props> = ({ model, apiFilter, modelFilter, showTa
       showTagFilter={showTagFilter}
       showPinnedModels={false}
       prioritizedProviderIds={['cherryin']}
-      resolve={(value) => resolve((value as AdaptedApiModel | undefined)?.origin)}
+      resolve={(value) => {
+        if (value && 'origin' in value) {
+          resolve((value as AdaptedApiModel).origin)
+        } else {
+          resolve(undefined)
+        }
+      }}
     />
   )
 }
