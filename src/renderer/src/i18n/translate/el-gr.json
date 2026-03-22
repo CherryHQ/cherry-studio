@@ -390,7 +390,7 @@
           "description": "Δημιουργεί και διαχειρίζεται δομημένες λίστες εργασιών"
         },
         "ToolSearch": {
-          "description": "Ανακαλύπτει αναβλημένα εργαλεία από μεγάλες βιβλιοθήκες"
+          "description": "Ανακαλύπτει αναβαλλόμενα εργαλεία από μεγάλες βιβλιοθήκες"
         },
         "WebFetch": {
           "description": "Ανάκτηση περιεχομένου από καθορισμένη διεύθυνση URL"
@@ -5164,7 +5164,7 @@
           "title": "Σύνδεση μέσω OAuth"
         },
         "connect": "Σύνδεση {{provider}}",
-        "connected": "[to be translated]:已连接",
+        "connected": "Συνδεδεμένο",
         "description": "Η υπηρεσία παρέχεται από την ιστοσελίδα {{provider}}",
         "error": "Αποτυχία πιστοποίησης",
         "logged_in": "Συνδεδεμένος",
@@ -5173,42 +5173,50 @@
         "logout_success": "Η αποσύνδεση πραγματοποιήθηκε με επιτυχία",
         "logout_warning": "Αποσυνδέθηκε τοπικά, αλλά η ανάκληση του διακριτικού διακομιστή ενδέχεται να απέτυχε",
         "official_website": "Επίσημη ιστοσελίδα",
-        "open_api_keys": "[to be translated]:打开 API Keys",
-        "open_provider_website": "[to be translated]:打开服务商网站",
+        "open_api_keys": "Άνοιγμα κλειδιών API",
+        "open_provider_website": "Άνοιγμα ιστοσελίδας παρόχου",
         "poe": {
           "error": {
-            "access_denied": "[to be translated]:Poe 授权已被拒绝。请先批准访问后再继续。",
-            "authorization_failed": "[to be translated]:Poe 在授权过程中登录失败。",
-            "browser_open_failed": "[to be translated]:Cherry Studio 无法为 Poe 登录打开浏览器，请检查系统默认浏览器设置后重试。",
-            "callback_port_unavailable": "[to be translated]:Poe 登录无法确定回调端口。",
-            "callback_processing_failed": "[to be translated]:处理 Poe 回调失败。",
-            "callback_server_error": "[to be translated]:Poe 登录无法启动本地回调服务器。",
-            "callback_timeout": "[to be translated]:等待 Poe 授权响应超时，请重新登录。",
-            "invalid_grant": "[to be translated]:Poe 授权已过期或无法验证，请重新登录。",
-            "invalid_request": "[to be translated]:Poe 无法处理此次登录请求，请重试。",
-            "invalid_scope": "[to be translated]:Poe 拒绝了所请求的权限范围。",
-            "missing_api_key": "[to be translated]:Poe 登录已完成，但未返回 API Key。",
-            "missing_code": "[to be translated]:Poe 未返回授权码。",
-            "missing_state": "[to be translated]:Poe 登录未返回有效的 state 值。",
-            "server_error": "[to be translated]:Poe 暂时无法完成登录，请重试。",
-            "state_mismatch": "[to be translated]:此次 Poe 登录请求无法通过校验，请重试。",
-            "token_exchange_failed": "[to be translated]:Poe 在请求 API Key 时登录失败。",
-            "token_invalid_request": "[to be translated]:Poe 无法完成令牌交换，请重试。",
-            "token_request_failed": "[to be translated]:Cherry Studio 无法连接 Poe 完成登录，请检查网络连接后重试。",
-            "unsupported_grant_type": "[to be translated]:Poe 拒绝了当前请求的令牌授权类型。",
-            "unsupported_response_type": "[to be translated]:Poe 不接受当前请求的授权流程。"
+            "access_denied": "Η εξουσιοδότηση του Poe απορρίφθηκε. Εγκρίνετε την πρόσβαση για να συνεχίσετε.",
+            "authorization_failed": "Η σύνδεση στο Poe απέτυχε κατά την εξουσιοδότηση.",
+            "browser_open_failed": "Το Cherry Studio δεν μπόρεσε να ανοίξει τον περιηγητή για σύνδεση στο Poe. Ελέγξτε τις ρυθμίσεις του προεπιλεγμένου περιηγητή και δοκιμάστε ξανά.",
+            "callback_port_unavailable": "Η σύνδεση στο Poe δεν μπόρεσε να προσδιορίσει τη θύρα επανάκλησης.",
+            "callback_processing_failed": "Αποτυχία επεξεργασίας της επανάκλησης του Poe.",
+            "callback_server_error": "Η σύνδεση στο Poe δεν μπόρεσε να εκκινήσει τον τοπικό διακομιστή επανάκλησης.",
+            "callback_timeout": "Λήξη χρονικού ορίου αναμονής απόκρισης εξουσιοδότησης Poe. Δοκιμάστε να συνδεθείτε ξανά.",
+            "invalid_grant": "Η εξουσιοδότηση του Poe έληξε ή δεν μπόρεσε να επαληθευτεί. Συνδεθείτε ξανά.",
+            "invalid_request": "Το Poe δεν μπόρεσε να επεξεργαστεί το αίτημα σύνδεσης. Δοκιμάστε ξανά.",
+            "invalid_scope": "Το Poe απέρριψε τα ζητούμενα δικαιώματα.",
+            "missing_api_key": "Η σύνδεση στο Poe ολοκληρώθηκε, αλλά δεν επιστράφηκε κλειδί API.",
+            "missing_code": "Το Poe δεν επέστρεψε κωδικό εξουσιοδότησης.",
+            "missing_state": "Η σύνδεση στο Poe δεν επέστρεψε έγκυρη τιμή state.",
+            "server_error": "Το Poe απέτυχε προσωρινά να ολοκληρώσει τη σύνδεση. Δοκιμάστε ξανά.",
+            "state_mismatch": "Το αίτημα σύνδεσης στο Poe δεν μπόρεσε να επαληθευτεί. Δοκιμάστε ξανά.",
+            "token_exchange_failed": "Η σύνδεση στο Poe απέτυχε κατά την αίτηση κλειδιού API.",
+            "token_invalid_request": "Το Poe δεν μπόρεσε να ολοκληρώσει την ανταλλαγή διακριτικών. Δοκιμάστε ξανά.",
+            "token_request_failed": "Το Cherry Studio δεν μπόρεσε να συνδεθεί στο Poe για να ολοκληρώσει τη σύνδεση. Ελέγξτε τη σύνδεση δικτύου και δοκιμάστε ξανά.",
+            "unsupported_grant_type": "Το Poe απέρριψε τον ζητούμενο τύπο χορήγησης διακριτικού.",
+            "unsupported_response_type": "Το Poe δεν αποδέχτηκε τη ζητούμενη ροή εξουσιοδότησης."
+          },
+          "expired": {
+            "description": "Αυτό το κλειδί API του Poe έληξε στις {{date}}. Επανασυνδεθείτε για να συνεχίσετε να χρησιμοποιείτε τα μοντέλα Poe.",
+            "title": "Το κλειδί API του Poe έληξε"
+          },
+          "expiring_soon": {
+            "description": "Αυτό το κλειδί API του Poe θα λήξει στις {{date}}. Επανασυνδεθείτε τώρα για να αποφύγετε διακοπές.",
+            "title": "Το κλειδί API του Poe λήγει σύντομα"
           },
           "failure": {
-            "title": "[to be translated]:Poe 登录失败"
+            "title": "Η σύνδεση στο Poe απέτυχε"
           },
           "success": {
-            "description": "[to be translated]:现在可以返回 Cherry Studio 继续操作。",
-            "title": "[to be translated]:已连接到 Poe"
+            "description": "Μπορείτε να επιστρέψετε στο Cherry Studio τώρα.",
+            "title": "Συνδεδεμένο στο Poe"
           }
         },
         "provided_by": "Παρέχεται από",
         "provided_by_suffix": "I'm ready—please provide the text you'd like translated into Greek.",
-        "reconnect": "[to be translated]:重新连接",
+        "reconnect": "Επανασύνδεση",
         "requests": "Αιτήματα",
         "topup": "Αναπλήρωση",
         "usage_title": "Χρήση"
