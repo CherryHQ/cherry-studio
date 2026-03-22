@@ -92,18 +92,7 @@ export function formatErrorMessageWithPrefix(error: unknown, prefix: string): st
   return `${prefix}: ${msg}`
 }
 
-export const isTimeoutError = (error: any): boolean => {
-  if (error instanceof DOMException && error.name === 'TimeoutError') {
-    return true
-  }
-
-  const cause = error?.cause
-  if (cause instanceof DOMException && cause.name === 'TimeoutError') {
-    return true
-  }
-
-  return false
-}
+import { isTimeoutError } from '@cherrystudio/utils'
 
 export const isAbortError = (error: any): boolean => {
   // Timeout errors should not be treated as user-initiated aborts

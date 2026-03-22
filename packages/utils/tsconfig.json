@@ -1,0 +1,29 @@
+{
+  "compilerOptions": {
+    // 输出声明文件
+    "declaration": true,
+    "declarationMap": true,
+    "exactOptionalPropertyTypes": true,
+    "isolatedModules": true,
+
+    // 兼容 browser + Node.js
+    "lib": ["ESNext", "DOM", "DOM.Iterable"],
+
+    // ESM only
+    "module": "ESNext",
+    "moduleDetection": "force",
+    "moduleResolution": "bundler",
+    "noUncheckedIndexedAccess": true,
+    "noUncheckedSideEffectImports": true,
+    "skipLibCheck": true,
+
+    // Source map
+    "sourceMap": true,
+
+    // 严格模式
+    "strict": true,
+    "target": "ESNext",
+    "types": [],
+    "verbatimModuleSyntax": true
+  }
+}

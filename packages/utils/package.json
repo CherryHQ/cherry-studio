@@ -1,0 +1,25 @@
+{
+  "name": "@cherrystudio/utils",
+  "version": "0.0.1",
+  "description": "",
+  "main": "dist/index.js",
+  "module": "dist/index.mjs",
+  "types": "dist/index.d.mts",
+  "type": "module",
+  "scripts": {
+    "build": "tsdown",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "lint": "",
+    "format": "biome format --write"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "MIT",
+  "packageManager": "pnpm@10.27.0",
+  "devDependencies": {
+    "tsdown": "^0.20.3",
+    "typescript": "^5.9.3",
+    "vitest": "^3.2.4"
+  }
+}
