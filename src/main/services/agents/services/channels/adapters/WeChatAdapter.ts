@@ -55,8 +55,8 @@ class WeChatAdapter extends ChannelAdapter {
   constructor(config: ChannelAdapterConfig) {
     super(config)
     const { token_path, allowed_chat_ids } = config.channelConfig
-    const customPath = (token_path as string) ?? ''
-    this.tokenPath = customPath || path.join(app.getPath('userData'), 'Data', `weixin_bot_${config.channelId}.json`)
+    this.tokenPath =
+      (token_path as string) || path.join(app.getPath('userData'), 'Data', `weixin_bot_${config.channelId}.json`)
     const rawIds = allowed_chat_ids as string[] | undefined
     this.allowedChatIds = Array.isArray(rawIds) ? rawIds.map(String) : []
     this.notifyChatIds = [...this.allowedChatIds]

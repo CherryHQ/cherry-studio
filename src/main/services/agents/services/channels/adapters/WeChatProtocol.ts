@@ -17,22 +17,22 @@ const logger = loggerService.withContext('WeChatProtocol')
 
 // --------------- Types ---------------
 
-export interface BaseInfo {
+interface BaseInfo {
   channel_version: string
 }
 
-export enum MessageType {
+enum MessageType {
   USER = 1,
   BOT = 2
 }
 
-export enum MessageState {
+enum MessageState {
   NEW = 0,
   GENERATING = 1,
   FINISH = 2
 }
 
-export enum MessageItemType {
+enum MessageItemType {
   TEXT = 1,
   IMAGE = 2,
   VOICE = 3,
@@ -40,64 +40,17 @@ export enum MessageItemType {
   VIDEO = 5
 }
 
-export interface TextItem {
-  text: string
-}
-
-export interface CDNMedia {
-  encrypt_query_param: string
-  aes_key: string
-  encrypt_type?: 0 | 1
-}
-
-export interface ImageItem {
-  media: CDNMedia
-  aeskey?: string
-  url?: string
-  mid_size?: string | number
-  thumb_size?: string | number
-  thumb_height?: number
-  thumb_width?: number
-  hd_size?: string | number
-}
-
-export interface VoiceItem {
-  media: CDNMedia
-  encode_type?: number
-  text?: string
-  playtime?: number
-}
-
-export interface FileItem {
-  media: CDNMedia
-  file_name?: string
-  md5?: string
-  len?: string
-}
-
-export interface VideoItem {
-  media: CDNMedia
-  video_size?: string | number
-  play_length?: number
-  thumb_media?: CDNMedia
-}
-
-export interface RefMessage {
-  title?: string
-  message_item?: MessageItem
-}
-
-export interface MessageItem {
+interface MessageItem {
   type: MessageItemType
-  text_item?: TextItem
-  image_item?: ImageItem
-  voice_item?: VoiceItem
-  file_item?: FileItem
-  video_item?: VideoItem
-  ref_msg?: RefMessage
+  text_item?: { text: string }
+  image_item?: { url?: string }
+  voice_item?: { text?: string }
+  file_item?: { file_name?: string }
+  video_item?: unknown
+  ref_msg?: unknown
 }
 
-export interface WeixinMessage {
+interface WeixinMessage {
   message_id: number
   from_user_id: string
   to_user_id: string
@@ -113,7 +66,6 @@ export interface IncomingMessage {
   userId: string
   text: string
   type: 'text' | 'image' | 'voice' | 'file' | 'video'
-  raw: WeixinMessage
   _contextToken: string
   timestamp: Date
 }
@@ -126,8 +78,20 @@ const ApiErrorBodySchema = z.object({
   errmsg: z.string().optional()
 })
 
+const WeixinMessageSchema = z.object({
+  message_id: z.number(),
+  from_user_id: z.string(),
+  to_user_id: z.string(),
+  client_id: z.string(),
+  create_time_ms: z.number(),
+  message_type: z.number(),
+  message_state: z.number(),
+  context_token: z.string(),
+  item_list: z.array(z.unknown())
+})
+
 const GetUpdatesRespSchema = z.object({
-  msgs: z.array(z.record(z.string(), z.unknown())).default([]),
+  msgs: z.array(WeixinMessageSchema).default([]),
   get_updates_buf: z.string().default('')
 })
 
@@ -157,7 +121,6 @@ const CredentialsSchema = z.object({
 
 // --------------- Derived & request types ---------------
 
-type GetUpdatesResp = { msgs: WeixinMessage[]; get_updates_buf: string }
 type QrCodeResponse = z.infer<typeof QrCodeResponseSchema>
 type QrStatusResponse = z.infer<typeof QrStatusResponseSchema>
 type GetConfigResp = z.infer<typeof GetConfigRespSchema>
@@ -175,6 +138,7 @@ interface SendTypingReq {
 const DEFAULT_BASE_URL = 'https://ilinkai.weixin.qq.com'
 const CHANNEL_VERSION = '1.0.0'
 const QR_POLL_INTERVAL_MS = 2_000
+const MAX_CONTEXT_TOKENS = 1000
 
 // --------------- API helpers ---------------
 
@@ -190,10 +154,6 @@ class ApiError extends Error {
     this.code = options.code
     this.payload = options.payload
   }
-}
-
-function normalizeBaseUrl(baseUrl: string): string {
-  return baseUrl.replace(/\/+$/, '')
 }
 
 function buildBaseInfo(): BaseInfo {
@@ -226,34 +186,30 @@ async function parseJsonResponse(response: Response, label: string): Promise<unk
   return raw
 }
 
-function randomWechatUin(): string {
-  const value = randomBytes(4).readUInt32BE(0)
-  return Buffer.from(String(value), 'utf8').toString('base64')
-}
-
-function buildHeaders(token: string): Record<string, string> {
+function buildHeaders(token: string, uin: string): Record<string, string> {
   return {
     'Content-Type': 'application/json',
     AuthorizationType: 'ilink_bot_token',
     Authorization: `Bearer ${token}`,
-    'X-WECHAT-UIN': randomWechatUin()
+    'X-WECHAT-UIN': uin
   }
 }
 
 async function apiFetch(
-  baseUrl: string,
+  baseUrlOrigin: string,
   endpoint: string,
   body: unknown,
   token: string,
+  uin: string,
   timeoutMs = 40_000,
   signal?: AbortSignal
 ): Promise<unknown> {
-  const url = new URL(endpoint, `${normalizeBaseUrl(baseUrl)}/`).toString()
+  const url = `${baseUrlOrigin}${endpoint}`
   const timeoutSignal = AbortSignal.timeout(timeoutMs)
   const requestSignal = signal ? AbortSignal.any([signal, timeoutSignal]) : timeoutSignal
   const response = await net.fetch(url, {
     method: 'POST',
-    headers: buildHeaders(token),
+    headers: buildHeaders(token, uin),
     body: JSON.stringify(body),
     signal: requestSignal
   })
@@ -261,28 +217,36 @@ async function apiFetch(
   return parseJsonResponse(response, endpoint)
 }
 
-async function apiGet(baseUrl: string, urlPath: string, headers: Record<string, string> = {}): Promise<unknown> {
-  const url = new URL(urlPath, `${normalizeBaseUrl(baseUrl)}/`).toString()
+async function apiGet(baseUrlOrigin: string, urlPath: string, headers: Record<string, string> = {}): Promise<unknown> {
+  const url = `${baseUrlOrigin}${urlPath}`
   const response = await fetch(url, { method: 'GET', headers })
   return parseJsonResponse(response, urlPath)
 }
 
-async function getUpdates(baseUrl: string, token: string, buf: string, signal?: AbortSignal): Promise<GetUpdatesResp> {
+async function getUpdates(
+  baseUrl: string,
+  token: string,
+  uin: string,
+  buf: string,
+  signal?: AbortSignal
+): Promise<{ msgs: WeixinMessage[]; get_updates_buf: string }> {
   const raw = await apiFetch(
     baseUrl,
     '/ilink/bot/getupdates',
     { get_updates_buf: buf, base_info: buildBaseInfo() },
     token,
+    uin,
     40_000,
     signal
   )
   const parsed = GetUpdatesRespSchema.parse(raw)
-  return { msgs: parsed.msgs as unknown as WeixinMessage[], get_updates_buf: parsed.get_updates_buf }
+  return { msgs: parsed.msgs as WeixinMessage[], get_updates_buf: parsed.get_updates_buf }
 }
 
 async function apiSendMessage(
   baseUrl: string,
   token: string,
+  uin: string,
   msg: {
     from_user_id: string
     to_user_id: string
@@ -293,12 +257,13 @@ async function apiSendMessage(
     item_list: MessageItem[]
   }
 ): Promise<void> {
-  await apiFetch(baseUrl, '/ilink/bot/sendmessage', { msg, base_info: buildBaseInfo() }, token, 15_000)
+  await apiFetch(baseUrl, '/ilink/bot/sendmessage', { msg, base_info: buildBaseInfo() }, token, uin, 15_000)
 }
 
 async function apiGetConfig(
   baseUrl: string,
   token: string,
+  uin: string,
   userId: string,
   contextToken: string
 ): Promise<GetConfigResp> {
@@ -307,6 +272,7 @@ async function apiGetConfig(
     '/ilink/bot/getconfig',
     { ilink_user_id: userId, context_token: contextToken, base_info: buildBaseInfo() },
     token,
+    uin,
     15_000
   )
   return GetConfigRespSchema.parse(raw)
@@ -315,6 +281,7 @@ async function apiGetConfig(
 async function apiSendTyping(
   baseUrl: string,
   token: string,
+  uin: string,
   userId: string,
   ticket: string,
   status: SendTypingReq['status']
@@ -325,7 +292,7 @@ async function apiSendTyping(
     status,
     base_info: buildBaseInfo()
   }
-  await apiFetch(baseUrl, '/ilink/bot/sendtyping', body, token, 15_000)
+  await apiFetch(baseUrl, '/ilink/bot/sendtyping', body, token, uin, 15_000)
 }
 
 async function fetchQrCode(baseUrl: string): Promise<QrCodeResponse> {
@@ -399,7 +366,7 @@ interface LoginOptions {
   onQrUrl?: (url: string) => void
 }
 
-async function login(options: LoginOptions): Promise<Credentials> {
+async function loginFlow(options: LoginOptions): Promise<Credentials> {
   if (!options.force) {
     const existing = await loadCredentials(options.tokenPath)
     if (existing) return existing
@@ -459,8 +426,14 @@ export interface WeixinBotOptions {
   onQrUrl?: (url: string) => void
 }
 
+/** Normalize a base URL to origin form (no trailing slash). */
+function normalizeBaseUrl(baseUrl: string): string {
+  return baseUrl.replace(/\/+$/, '')
+}
+
 export class WeixinBot {
   private baseUrl: string
+  private readonly uin: string
   private readonly tokenPath?: string
   private readonly onErrorCallback?: (error: unknown) => void
   private readonly onQrUrlCallback?: (url: string) => void
@@ -473,7 +446,8 @@ export class WeixinBot {
   private runPromise: Promise<void> | null = null
 
   constructor(options: WeixinBotOptions = {}) {
-    this.baseUrl = options.baseUrl ?? DEFAULT_BASE_URL
+    this.baseUrl = normalizeBaseUrl(options.baseUrl ?? DEFAULT_BASE_URL)
+    this.uin = Buffer.from(String(randomBytes(4).readUInt32BE(0)), 'utf8').toString('base64')
     this.tokenPath = options.tokenPath
     this.onErrorCallback = options.onError
     this.onQrUrlCallback = options.onQrUrl
@@ -481,7 +455,7 @@ export class WeixinBot {
 
   async login(options: { force?: boolean } = {}): Promise<Credentials> {
     const previousToken = this.credentials?.token
-    const credentials = await login({
+    const credentials = await loginFlow({
       baseUrl: this.baseUrl,
       tokenPath: this.tokenPath!,
       force: options.force,
@@ -489,7 +463,7 @@ export class WeixinBot {
     })
 
     this.credentials = credentials
-    this.baseUrl = credentials.baseUrl
+    this.baseUrl = normalizeBaseUrl(credentials.baseUrl)
 
     if (previousToken && previousToken !== credentials.token) {
       this.cursor = ''
@@ -518,10 +492,10 @@ export class WeixinBot {
     }
 
     const credentials = await this.ensureCredentials()
-    const config = await apiGetConfig(this.baseUrl, credentials.token, userId, contextToken)
+    const config = await apiGetConfig(this.baseUrl, credentials.token, this.uin, userId, contextToken)
     if (!config.typing_ticket) return
 
-    await apiSendTyping(this.baseUrl, credentials.token, userId, config.typing_ticket, 1)
+    await apiSendTyping(this.baseUrl, credentials.token, this.uin, userId, config.typing_ticket, 1)
   }
 
   async stopTyping(userId: string): Promise<void> {
@@ -529,10 +503,10 @@ export class WeixinBot {
     if (!contextToken) return
 
     const credentials = await this.ensureCredentials()
-    const config = await apiGetConfig(this.baseUrl, credentials.token, userId, contextToken)
+    const config = await apiGetConfig(this.baseUrl, credentials.token, this.uin, userId, contextToken)
     if (!config.typing_ticket) return
 
-    await apiSendTyping(this.baseUrl, credentials.token, userId, config.typing_ticket, 2)
+    await apiSendTyping(this.baseUrl, credentials.token, this.uin, userId, config.typing_ticket, 2)
   }
 
   async send(userId: string, text: string): Promise<void> {
@@ -575,6 +549,7 @@ export class WeixinBot {
         const updates = await getUpdates(
           this.baseUrl,
           credentials.token,
+          this.uin,
           this.cursor,
           this.currentPollController.signal
         )
@@ -627,7 +602,7 @@ export class WeixinBot {
     const stored = await loadCredentials(this.tokenPath!)
     if (stored) {
       this.credentials = stored
-      this.baseUrl = stored.baseUrl
+      this.baseUrl = normalizeBaseUrl(stored.baseUrl)
       return stored
     }
 
@@ -640,7 +615,7 @@ export class WeixinBot {
     }
 
     const credentials = await this.ensureCredentials()
-    await apiSendMessage(this.baseUrl, credentials.token, buildTextMessage(userId, contextToken, text))
+    await apiSendMessage(this.baseUrl, credentials.token, this.uin, buildTextMessage(userId, contextToken, text))
   }
 
   private async dispatchMessage(message: IncomingMessage): Promise<void> {
@@ -657,6 +632,11 @@ export class WeixinBot {
   private rememberContext(message: WeixinMessage): void {
     const userId = message.message_type === MessageType.USER ? message.from_user_id : message.to_user_id
     if (userId && message.context_token) {
+      // Evict oldest entry when map exceeds max size
+      if (this.contextTokens.size >= MAX_CONTEXT_TOKENS && !this.contextTokens.has(userId)) {
+        const oldest = this.contextTokens.keys().next().value
+        if (oldest !== undefined) this.contextTokens.delete(oldest)
+      }
       this.contextTokens.set(userId, message.context_token)
     }
   }
@@ -668,7 +648,6 @@ export class WeixinBot {
       userId: message.from_user_id,
       text: extractText(message.item_list),
       type: detectType(message.item_list),
-      raw: message,
       _contextToken: message.context_token,
       timestamp: new Date(message.create_time_ms)
     }
