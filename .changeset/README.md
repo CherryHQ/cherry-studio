@@ -28,32 +28,11 @@ This will:
 3. Ask for a description of the change
 4. Create a changeset file in `.changeset/`
 
-### Versioning packages
+> **Note**: CI will check that PRs modifying packages include a changeset.
 
-When ready to release:
+### Versioning and publishing
 
-```bash
-pnpm changeset version
-```
-
-This will:
-
-1. Bump package versions based on accumulated changesets
-2. Update CHANGELOG.md files
-3. Update internal dependencies
-4. Delete consumed changeset files
-
-### Publishing packages
-
-```bash
-pnpm packages:release
-```
-
-This will:
-
-1. Build all packages
-2. Publish to npm
-3. Create GitHub releases
+Versioning and publishing are handled automatically by CI — you do **not** need to run `changeset version` or `changeset publish` locally. See the [CI/CD Integration](#cicd-integration) section below.
 
 ## Configuration
 
@@ -63,17 +42,16 @@ See `config.json` for the changeset configuration:
 - **access**: `public` - packages are published publicly
 - **baseBranch**: `main` - PRs target this branch
 - **updateInternalDependencies**: `patch` - internal deps are updated on any change
-- **ignore**: Packages not for publishing (shared, mcp-trace, ui)
 
 ## Packages managed
 
-| Package                              | Current Version | Description                                  |
-| ------------------------------------ | --------------- | -------------------------------------------- |
-| `@cherrystudio/ai-core`              | 1.0.9           | Unified AI Provider Interface                |
-| `@cherrystudio/ai-sdk-provider`      | 0.1.3           | AI SDK provider bundle with CherryIN routing |
-| `@cherrystudio/extension-table-plus` | 3.0.11          | Table extension for Tiptap                   |
+| Package | Description |
+| --- | --- |
+| `@cherrystudio/ai-core` | Unified AI Provider Interface |
+| `@cherrystudio/ai-sdk-provider` | AI SDK provider bundle with CherryIN routing |
+| `@cherrystudio/extension-table-plus` | Table extension for Tiptap |
 
-## Dependency relationships
+### Dependency relationships
 
 ```
 ai-core (peer-depends on) → ai-sdk-provider
@@ -83,11 +61,23 @@ Changeset automatically handles updating peer dependency ranges when `ai-sdk-pro
 
 ## CI/CD Integration
 
-The `.github/workflows/release-packages.yml` workflow automatically:
+The release workflow (`.github/workflows/release-packages.yml`) uses [changesets/action](https://github.com/changesets/changesets/blob/main/packages/action/README.md) and works in two phases:
 
-1. Creates a "Version Packages" PR when changesets are merged to main
-2. Publishes packages when the Version Packages PR is merged
-3. Creates GitHub releases with changelogs
+### Phase 1 — Accumulate changes
+
+When a PR containing changeset files is merged to `main`, the action detects pending changesets and **creates or updates** a "Version Packages" PR. This PR:
+
+- Bumps package versions based on all accumulated changesets
+- Generates/updates `CHANGELOG.md` for each package
+- Deletes consumed changeset files
+
+Multiple PRs with changesets can merge before a release — the Version Packages PR keeps updating to include all of them.
+
+### Phase 2 — Publish
+
+When a maintainer decides it's time to release, they **merge the Version Packages PR**. This triggers the workflow again, and since there are no more pending changesets, the action runs `pnpm changeset:publish` to publish the updated packages to npm.
+
+**In short**: changesets accumulate automatically; you control when to release by merging the Version Packages PR.
 
 ## Learn more
 
