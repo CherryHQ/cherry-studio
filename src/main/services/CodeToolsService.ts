@@ -856,7 +856,7 @@ class CodeToolsService {
           if (versionInfo.needsUpdate) {
             logger.info(`Update available for ${cliTool}: ${versionInfo.installed} -> ${versionInfo.latest}`)
             logger.info(`Auto-updating ${cliTool} to latest version`)
-            updateMessage = ` && echo "Updating ${cliTool} from ${versionInfo.installed} to ${versionInfo.latest}..."`
+            updateMessage = ` && echo "Updating ${escapeBatchText(cliTool)} from ${escapeBatchText(versionInfo.installed || '')} to ${escapeBatchText(versionInfo.latest || '')}..."`
             const updateResult = await this.updatePackage(cliTool)
             if (updateResult.success) {
               logger.info(`Update completed successfully for ${cliTool}`)
