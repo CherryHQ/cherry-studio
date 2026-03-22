@@ -76,16 +76,11 @@
         },
         "title": "Κανάλια",
         "wechat": {
-          "chatIds": "[to be translated]:Allowed User IDs",
-          "chatIdsHint": "[to be translated]:Comma-separated WeChat user IDs. Leave empty to allow all.",
-          "chatIdsPlaceholder": "[to be translated]:user_id_1, user_id_2",
           "description": "[to be translated]:Receive and respond to messages via WeChat using the iLink Bot API.",
           "loginHint": "[to be translated]:First login requires scanning a QR code. Check the app logs for the login URL.",
           "qrHint": "[to be translated]:Open WeChat on your phone, scan the QR code to log in.",
           "qrTitle": "[to be translated]:WeChat QR Login",
-          "title": "[to be translated]:WeChat",
-          "tokenPath": "[to be translated]:Token Path (optional)",
-          "tokenPathPlaceholder": "[to be translated]:Leave empty to use default location"
+          "title": "[to be translated]:WeChat"
         }
       },
       "heartbeat": {
