@@ -6,9 +6,9 @@ import { TopView } from '@renderer/components/TopView'
 import { DynamicVirtualList, type DynamicVirtualListRef } from '@renderer/components/VirtualList'
 import { getModelLogo } from '@renderer/config/models'
 import { usePinnedModels } from '@renderer/hooks/usePinnedModels'
-import { useProviders } from '@renderer/hooks/useProvider'
 import { getModelUniqId } from '@renderer/services/ModelService'
-import type { Model, ModelType, Provider } from '@renderer/types'
+import { getProviderById } from '@renderer/services/ProviderService'
+import type { Model, Provider } from '@renderer/types'
 import { objectEntries } from '@renderer/types'
 import { classNames, filterModelsByKeywords, getFancyProviderName } from '@renderer/utils'
 import { getModelTags } from '@renderer/utils/model'
@@ -33,29 +33,37 @@ import SelectModelSearchBar from './searchbar'
 import TagFilterSection from './TagFilterSection'
 import type { FlatListItem, FlatListModel } from './types'
 
+// const logger = loggerService.withContext('SelectModelPopup')
+
 const PAGE_SIZE = 12
 const ITEM_HEIGHT = 36
 
-interface PopupParams {
+export interface SelectModelPopupParams {
+  providers: Provider[]
   model?: Model
-  /** Basic model filter */
-  filter?: (model: Model) => boolean
+  loading?: boolean
   /** Show tag filter section */
   showTagFilter?: boolean
+  showPinnedModels?: boolean
+  prioritizedProviderIds?: string[]
 }
 
-interface Props extends PopupParams {
+interface Props extends SelectModelPopupParams {
   resolve: (value: Model | undefined) => void
 }
 
-export type FilterType = Exclude<ModelType, 'text'> | 'free'
-
-// const logger = loggerService.withContext('SelectModelPopup')
-
-const PopupContainer: React.FC<Props> = ({ model, filter: baseFilter, showTagFilter = true, resolve }) => {
+const SelectModelPopupView: React.FC<Props> = ({
+  providers,
+  model,
+  loading = false,
+  showTagFilter = true,
+  showPinnedModels = true,
+  prioritizedProviderIds = [],
+  resolve
+}) => {
   const { t } = useTranslation()
-  const { providers } = useProviders()
-  const { pinnedModels, togglePinnedModel, loading } = usePinnedModels()
+  const { pinnedModels, togglePinnedModel, loading: pinnedLoading } = usePinnedModels()
+  const isLoading = loading || (showPinnedModels && pinnedLoading)
   const [open, setOpen] = useState(true)
   const listRef = useRef<DynamicVirtualListRef>(null)
   const [_searchText, setSearchText] = useState('')
@@ -77,13 +85,32 @@ const PopupContainer: React.FC<Props> = ({ model, filter: baseFilter, showTagFil
 
   const { tagSelection, selectedTags, tagFilter, toggleTag } = useModelTagFilter()
 
+  // 把需要优先展示的服务商排到最前面
+  const sortedProviders = useMemo(() => {
+    if (prioritizedProviderIds.length === 0) {
+      return providers
+    }
+
+    const priorityMap = new Map(prioritizedProviderIds.map((id, index) => [id, index]))
+
+    return [...providers].sort((a, b) => {
+      const aPriority = priorityMap.get(a.id)
+      const bPriority = priorityMap.get(b.id)
+
+      if (aPriority === undefined && bPriority === undefined) return 0
+      if (aPriority === undefined) return 1
+      if (bPriority === undefined) return -1
+      return aPriority - bPriority
+    })
+  }, [providers, prioritizedProviderIds])
+
   // 计算要显示的可用标签列表
   const availableTags = useMemo(() => {
-    const models = providers.flatMap((p) => p.models).filter(baseFilter ?? (() => true))
+    const models = sortedProviders.flatMap((provider) => provider.models)
     return objectEntries(getModelTags(models))
       .filter(([, state]) => state)
       .map(([tag]) => tag)
-  }, [providers, baseFilter])
+  }, [sortedProviders])
 
   // 根据输入的文本筛选模型
   const searchFilter = useCallback(
@@ -113,7 +140,7 @@ const PopupContainer: React.FC<Props> = ({ model, filter: baseFilter, showTagFil
           <ModelName>
             <HStack alignItems="center">
               {model.name}
-              {isPinned && <span style={{ color: 'var(--color-text-3)' }}> | {groupName}</span>}
+              {isPinned && <span style={{ color: 'var(--color-text-3)', whiteSpace: 'pre-wrap' }}> | {groupName}</span>}
             </HStack>
             {isCherryAi && <FreeTrialModelTag model={model} showLabel={false} />}
           </ModelName>
@@ -140,19 +167,15 @@ const PopupContainer: React.FC<Props> = ({ model, filter: baseFilter, showTagFil
   const { listItems, modelItems } = useMemo(() => {
     const items: FlatListItem[] = []
     const pinnedModelIds = new Set(pinnedModels)
-    const finalModelFilter = (model: Model) => {
-      const _tagFilter = !showTagFilter || tagFilter(model)
-      const _baseFilter = baseFilter === undefined || baseFilter(model)
-      return _tagFilter && _baseFilter
-    }
+    const finalModelFilter = (model: Model) => !showTagFilter || tagFilter(model)
 
     // 添加置顶模型分组（仅在无搜索文本时）
-    if (searchText.length === 0 && pinnedModelIds.size > 0) {
-      const pinnedItems = providers.flatMap((p) =>
-        p.models
-          .filter((m) => pinnedModelIds.has(getModelUniqId(m)))
+    if (searchText.length === 0 && showPinnedModels && pinnedModelIds.size > 0) {
+      const pinnedItems = sortedProviders.flatMap((provider) =>
+        provider.models
+          .filter((item) => pinnedModelIds.has(getModelUniqId(item)))
           .filter(finalModelFilter)
-          .map((m) => createModelItem(m, p, true))
+          .map((item) => createModelItem(item, provider, true))
       )
 
       if (pinnedItems.length > 0) {
@@ -169,19 +192,21 @@ const PopupContainer: React.FC<Props> = ({ model, filter: baseFilter, showTagFil
     }
 
     // 添加常规模型分组
-    providers.forEach((p) => {
-      const filteredModels = searchFilter(p)
-        .filter((m) => searchText.length > 0 || !pinnedModelIds.has(getModelUniqId(m)))
+    sortedProviders.forEach((provider) => {
+      const filteredModels = searchFilter(provider)
+        .filter((item) => !showPinnedModels || searchText.length > 0 || !pinnedModelIds.has(getModelUniqId(item)))
         .filter(finalModelFilter)
 
       if (filteredModels.length === 0) return
 
+      const canNavigateToSettings = provider.id !== 'cherryai' && !!getProviderById(provider.id)
+
       // 添加 provider 分组标题
       items.push({
-        key: `provider-${p.id}`,
+        key: `provider-${provider.id}`,
         type: 'group',
-        name: getFancyProviderName(p),
-        actions: p.id !== 'cherryai' && (
+        name: getFancyProviderName(provider),
+        actions: canNavigateToSettings && (
           <Tooltip title={t('navigate.provider_settings')} mouseEnterDelay={0.5} mouseLeaveDelay={0}>
             <Settings2
               size={12}
@@ -191,7 +216,7 @@ const PopupContainer: React.FC<Props> = ({ model, filter: baseFilter, showTagFil
                 e.stopPropagation()
                 setOpen(false)
                 resolve(undefined)
-                window.navigate(`/settings/provider?id=${p.id}`)
+                window.navigate(`/settings/provider?id=${provider.id}`)
               }}
             />
           </Tooltip>
@@ -199,7 +224,11 @@ const PopupContainer: React.FC<Props> = ({ model, filter: baseFilter, showTagFil
         isSelected: false
       })
 
-      items.push(...filteredModels.map((m) => createModelItem(m, p, pinnedModelIds.has(getModelUniqId(m)))))
+      items.push(
+        ...filteredModels.map((item) =>
+          createModelItem(item, provider, showPinnedModels && pinnedModelIds.has(getModelUniqId(item)))
+        )
+      )
     })
 
     // 获取可选择的模型项（过滤掉分组标题）
@@ -207,11 +236,11 @@ const PopupContainer: React.FC<Props> = ({ model, filter: baseFilter, showTagFil
     return { listItems: items, modelItems }
   }, [
     pinnedModels,
+    showPinnedModels,
     searchText.length,
-    providers,
+    sortedProviders,
     showTagFilter,
     tagFilter,
-    baseFilter,
     createModelItem,
     t,
     searchFilter,
@@ -224,7 +253,7 @@ const PopupContainer: React.FC<Props> = ({ model, filter: baseFilter, showTagFil
 
   // 处理程序化滚动（加载、搜索开始、搜索清空、tag 筛选）
   useLayoutEffect(() => {
-    if (loading) return
+    if (isLoading) return
 
     if (preventScrollToIndex.current) {
       preventScrollToIndex.current = false
@@ -255,7 +284,7 @@ const PopupContainer: React.FC<Props> = ({ model, filter: baseFilter, showTagFil
         })
       }
     }
-  }, [searchText, listItems, modelItems, loading, setFocusedItemKey, listHeight, selectedTags.length])
+  }, [searchText, listItems, modelItems, isLoading, setFocusedItemKey, listHeight, selectedTags.length])
 
   const handleItemClick = useCallback(
     (item: FlatListItem) => {
@@ -287,22 +316,18 @@ const PopupContainer: React.FC<Props> = ({ model, filter: baseFilter, showTagFil
       let nextIndex = -1
 
       switch (e.key) {
-        case 'ArrowUp': {
+        case 'ArrowUp':
           nextIndex = (currentIndex < 0 ? 0 : currentIndex - 1 + modelCount) % modelCount
           break
-        }
-        case 'ArrowDown': {
+        case 'ArrowDown':
           nextIndex = (currentIndex < 0 ? 0 : currentIndex + 1) % modelCount
           break
-        }
-        case 'PageUp': {
+        case 'PageUp':
           nextIndex = Math.max(0, (currentIndex < 0 ? 0 : currentIndex) - PAGE_SIZE)
           break
-        }
-        case 'PageDown': {
+        case 'PageDown':
           nextIndex = Math.min(modelCount - 1, (currentIndex < 0 ? 0 : currentIndex) + PAGE_SIZE)
           break
-        }
         case 'Enter':
           if (currentIndex >= 0) {
             const selectedItem = modelItems[currentIndex]
@@ -384,21 +409,21 @@ const PopupContainer: React.FC<Props> = ({ model, filter: baseFilter, showTagFil
             {item.name}
             {item.tags}
           </ModelItemLeft>
-          <PinIconWrapper
-            onClick={(e) => {
-              e.stopPropagation()
-              if (item.model) {
+          {showPinnedModels && (
+            <PinIconWrapper
+              onClick={(e) => {
+                e.stopPropagation()
                 togglePin(getModelUniqId(item.model))
-              }
-            }}
-            data-pinned={item.isPinned}
-            $isPinned={item.isPinned}>
-            <PushpinOutlined />
-          </PinIconWrapper>
+              }}
+              data-pinned={item.isPinned}
+              $isPinned={item.isPinned}>
+              <PushpinOutlined />
+            </PinIconWrapper>
+          )}
         </ModelItem>
       )
     },
-    [focusedItemKey, handleItemClick, setFocusedItemKey, togglePin]
+    [focusedItemKey, handleItemClick, setFocusedItemKey, showPinnedModels, togglePin]
   )
 
   return (
@@ -590,15 +615,22 @@ const PinIconWrapper = styled.div.attrs({ className: 'pin-icon' })<{ $isPinned?:
 
 const TopViewKey = 'SelectModelPopup'
 
-export class SelectModelPopup {
-  static topviewId = 0
-  static hide() {
-    TopView.hide(TopViewKey)
-  }
+export const createModelPopup = <TProps, TResult>(
+  Component: React.ComponentType<TProps & { resolve: (value: TResult | undefined) => void }>
+) => {
+  return class {
+    static hide() {
+      TopView.hide(TopViewKey)
+    }
 
-  static show(params: PopupParams) {
-    return new Promise<Model | undefined>((resolve) => {
-      TopView.show(<PopupContainer {...params} resolve={(v) => resolve(v)} />, TopViewKey)
-    })
+    static show(params: TProps) {
+      return new Promise<TResult | undefined>((resolve) => {
+        TopView.show(<Component {...(params as any)} resolve={(v: TResult | undefined) => resolve(v)} />, TopViewKey)
+      })
+    }
   }
 }
+
+export const SelectModelPopup = createModelPopup<SelectModelPopupParams, Model>(SelectModelPopupView)
+
+export default SelectModelPopupView
