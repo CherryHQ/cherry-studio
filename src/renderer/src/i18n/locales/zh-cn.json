@@ -76,16 +76,11 @@
         },
         "title": "频道",
         "wechat": {
-          "chatIds": "允许的用户 ID",
-          "chatIdsHint": "用逗号分隔的微信用户 ID。留空表示允许所有用户。",
-          "chatIdsPlaceholder": "user_id_1, user_id_2",
           "description": "通过微信 iLink Bot API 接收和回复消息。",
           "loginHint": "首次登录需要扫描二维码，启用频道后将自动弹出二维码。",
           "qrHint": "请使用手机微信扫描二维码完成登录。",
           "qrTitle": "微信扫码登录",
-          "title": "微信",
-          "tokenPath": "Token 路径（可选）",
-          "tokenPathPlaceholder": "留空使用默认位置"
+          "title": "微信"
         }
       },
       "heartbeat": {

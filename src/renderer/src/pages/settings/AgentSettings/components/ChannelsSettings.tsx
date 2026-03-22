@@ -380,26 +380,11 @@ const WeChatChannelCard: FC<ChannelCardProps> = ({ channel, onConfigChange }) =>
   const { t } = useTranslation()
 
   return (
-    <>
-      <ChannelFieldsCard
-        channel={channel}
-        onConfigChange={onConfigChange}
-        fields={[
-          {
-            key: 'token_path',
-            label: t('agent.cherryClaw.channels.wechat.tokenPath'),
-            placeholder: t('agent.cherryClaw.channels.wechat.tokenPathPlaceholder')
-          }
-        ]}
-        chatIds={{
-          label: t('agent.cherryClaw.channels.wechat.chatIds'),
-          placeholder: t('agent.cherryClaw.channels.wechat.chatIdsPlaceholder'),
-          hint: t('agent.cherryClaw.channels.wechat.chatIdsHint'),
-          extraHint: t('agent.cherryClaw.channels.wechat.loginHint')
-        }}
-      />
+    <div className="flex flex-col gap-3 pb-3">
+      <span className="text-blue-400 text-xs">{t('agent.cherryClaw.channels.wechat.loginHint')}</span>
+      <NotifyCheckbox channel={channel} onConfigChange={onConfigChange} />
       <WeChatQrModal channelId={channel.id} />
-    </>
+    </div>
   )
 }
 
