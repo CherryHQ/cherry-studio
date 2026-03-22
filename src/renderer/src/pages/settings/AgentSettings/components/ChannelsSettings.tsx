@@ -343,47 +343,66 @@ const QQChannelCard: FC<ChannelCardProps> = ({ channel, onConfigChange }) => {
 
 // --------------- WeChat inline config ---------------
 
-const WeChatQrModal: FC<{ channelId: string }> = ({ channelId }) => {
-  const { t } = useTranslation()
-  const [qrUrl, setQrUrl] = useState<string | null>(null)
-
-  useEffect(() => {
-    const cleanup = window.api.wechat.onQrLogin((data) => {
-      if (data.channelId !== channelId) return
-
-      if (data.status === 'confirmed' || data.status === 'expired') {
-        setQrUrl(null)
-      } else if (data.url) {
-        setQrUrl(data.url)
-      }
-    })
-    return cleanup
-  }, [channelId])
-
-  return (
-    <Modal
-      open={!!qrUrl}
-      title={t('agent.cherryClaw.channels.wechat.qrTitle')}
-      footer={null}
-      onCancel={() => setQrUrl(null)}
-      centered
-      width={360}>
-      <div className="flex flex-col items-center gap-4 py-4">
-        {qrUrl && <QRCodeSVG value={qrUrl} size={240} level="M" />}
-        <span className="text-center text-foreground-500 text-xs">{t('agent.cherryClaw.channels.wechat.qrHint')}</span>
-      </div>
-    </Modal>
-  )
-}
+type WeChatStatus = 'idle' | 'pending' | 'confirmed' | 'disconnected'
 
 const WeChatChannelCard: FC<ChannelCardProps> = ({ channel, onConfigChange }) => {
   const { t } = useTranslation()
+  const [qrUrl, setQrUrl] = useState<string | null>(null)
+  const [status, setStatus] = useState<WeChatStatus>('idle')
+
+  useEffect(() => {
+    const cleanup = window.api.wechat.onQrLogin((data) => {
+      if (data.channelId !== channel.id) return
+
+      if (data.status === 'confirmed') {
+        setQrUrl(null)
+        setStatus('confirmed')
+      } else if (data.status === 'expired') {
+        setQrUrl(null)
+      } else if (data.status === 'disconnected') {
+        setStatus('disconnected')
+      } else if (data.url) {
+        setQrUrl(data.url)
+        setStatus('pending')
+      }
+    })
+    return cleanup
+  }, [channel.id])
 
   return (
     <div className="flex flex-col gap-3 pb-3">
-      <span className="text-blue-400 text-xs">{t('agent.cherryClaw.channels.wechat.loginHint')}</span>
+      <div className="flex items-center gap-2">
+        {status === 'confirmed' && (
+          <>
+            <span className="inline-block h-2 w-2 rounded-full bg-green-500" />
+            <span className="text-green-600 text-xs">{t('agent.cherryClaw.channels.wechat.connected')}</span>
+          </>
+        )}
+        {status === 'disconnected' && (
+          <>
+            <span className="inline-block h-2 w-2 rounded-full bg-red-500" />
+            <span className="text-red-500 text-xs">{t('agent.cherryClaw.channels.wechat.disconnected')}</span>
+          </>
+        )}
+        {(status === 'idle' || status === 'pending') && (
+          <span className="text-blue-400 text-xs">{t('agent.cherryClaw.channels.wechat.loginHint')}</span>
+        )}
+      </div>
       <NotifyCheckbox channel={channel} onConfigChange={onConfigChange} />
-      <WeChatQrModal channelId={channel.id} />
+      <Modal
+        open={!!qrUrl}
+        title={t('agent.cherryClaw.channels.wechat.qrTitle')}
+        footer={null}
+        onCancel={() => setQrUrl(null)}
+        centered
+        width={360}>
+        <div className="flex flex-col items-center gap-4 py-4">
+          {qrUrl && <QRCodeSVG value={qrUrl} size={240} level="M" />}
+          <span className="text-center text-foreground-500 text-xs">
+            {t('agent.cherryClaw.channels.wechat.qrHint')}
+          </span>
+        </div>
+      </Modal>
     </div>
   )
 }

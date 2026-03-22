@@ -133,6 +133,7 @@ class WeChatAdapter extends ChannelAdapter {
     if (this.bot) {
       this.bot.stop()
       this.bot = null
+      this.sendQrToRenderer('', 'disconnected')
       logger.info('WeChat bot stopped', { agentId: this.agentId, channelId: this.channelId })
     }
   }
@@ -170,7 +171,7 @@ class WeChatAdapter extends ChannelAdapter {
     }
   }
 
-  private sendQrToRenderer(url: string, status: 'pending' | 'confirmed' | 'expired'): void {
+  private sendQrToRenderer(url: string, status: 'pending' | 'confirmed' | 'expired' | 'disconnected'): void {
     const mainWindow = windowService.getMainWindow()
     if (mainWindow && !mainWindow.isDestroyed()) {
       mainWindow.webContents.send(IpcChannel.WeChat_QrLogin, {
