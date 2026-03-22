@@ -222,7 +222,7 @@ export const TopicManager = {
 
     if (topic) {
       for (const message of topic?.messages ?? []) {
-        await deleteMessageFiles(message)
+        deleteMessageFiles(message)
       }
 
       // 删除关联的 message_blocks 记录
