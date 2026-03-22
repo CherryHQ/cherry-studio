@@ -21,6 +21,12 @@ interface Props extends PopupParams {
   resolve: (value: ApiModel | undefined) => void
 }
 
+// TODO(v2): This is a workaround for a data synchronization issue where agent models (from the
+// agents API) may reference providers that no longer exist in the user's local provider settings
+// (e.g., imported/shared agents, or providers deleted after agent creation). The fallback provider
+// is synthesized on-the-fly to keep the UI functional. This should be properly addressed in the
+// v2 data refactoring — ideally by ensuring agent model configs and provider settings stay in sync
+// at the data layer (e.g., cascading updates/deletions, or validation at import time).
 const buildFallbackProvider = (providerId: string, model: AdaptedApiModel): Provider => {
   return {
     id: providerId,
