@@ -74,7 +74,19 @@
           "description": "Receive and respond to messages via a Telegram bot using long polling.",
           "title": "Telegram"
         },
-        "title": "Channels"
+        "title": "Channels",
+        "wechat": {
+          "chatIds": "Allowed User IDs",
+          "chatIdsHint": "Comma-separated WeChat user IDs. Leave empty to allow all.",
+          "chatIdsPlaceholder": "user_id_1, user_id_2",
+          "description": "Receive and respond to messages via WeChat using the iLink Bot API.",
+          "loginHint": "First login requires scanning a QR code. A QR code will appear automatically when the channel connects.",
+          "qrHint": "Open WeChat on your phone, scan the QR code to log in.",
+          "qrTitle": "WeChat QR Login",
+          "title": "WeChat",
+          "tokenPath": "Token Path (optional)",
+          "tokenPathPlaceholder": "Leave empty to use default location"
+        }
       },
       "heartbeat": {
         "enabled": "Enable Heartbeat",

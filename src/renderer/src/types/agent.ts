@@ -61,12 +61,24 @@ export const FeishuChannelConfigSchema = z.object({
 
 export type FeishuChannelConfig = z.infer<typeof FeishuChannelConfigSchema>
 
+export const WeChatChannelConfigSchema = z.object({
+  token_path: z.string().default(''),
+  allowed_chat_ids: z.array(z.string()).default([])
+})
+
+export type WeChatChannelConfig = z.infer<typeof WeChatChannelConfigSchema>
+
 export const CherryClawChannelSchema = z.object({
   id: z.string(),
-  type: z.enum(['telegram', 'feishu', 'qq']),
+  type: z.enum(['telegram', 'feishu', 'qq', 'wechat']),
   name: z.string(),
   enabled: z.boolean().default(true),
-  config: z.union([TelegramChannelConfigSchema, FeishuChannelConfigSchema, QQChannelConfigSchema]),
+  config: z.union([
+    TelegramChannelConfigSchema,
+    FeishuChannelConfigSchema,
+    QQChannelConfigSchema,
+    WeChatChannelConfigSchema
+  ]),
   is_notify_receiver: z.boolean().default(false)
 })
 

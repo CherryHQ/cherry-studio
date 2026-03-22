@@ -540,6 +540,20 @@ const api = {
       updatedPermissions?: PermissionUpdate[]
     }) => ipcRenderer.invoke(IpcChannel.AgentToolPermission_Response, payload)
   },
+  wechat: {
+    onQrLogin: (
+      callback: (data: { channelId: string; agentId: string; url: string; status: string }) => void
+    ): (() => void) => {
+      const listener = (
+        _event: Electron.IpcRendererEvent,
+        data: { channelId: string; agentId: string; url: string; status: string }
+      ) => {
+        callback(data)
+      }
+      ipcRenderer.on(IpcChannel.WeChat_QrLogin, listener)
+      return () => ipcRenderer.off(IpcChannel.WeChat_QrLogin, listener)
+    }
+  },
   quoteToMainWindow: (text: string) => ipcRenderer.invoke(IpcChannel.App_QuoteToMain, text),
   setDisableHardwareAcceleration: (isDisable: boolean) =>
     ipcRenderer.invoke(IpcChannel.App_SetDisableHardwareAcceleration, isDisable),

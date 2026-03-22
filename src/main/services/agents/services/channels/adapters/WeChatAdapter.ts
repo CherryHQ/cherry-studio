@@ -1,0 +1,249 @@
+import path from 'node:path'
+
+import { loggerService } from '@logger'
+import { type IncomingMessage, WeixinBot } from '@pinixai/weixin-bot'
+import { IpcChannel } from '@shared/IpcChannel'
+import type { CherryClawChannel } from '@types'
+import { app } from 'electron'
+
+import { ChannelAdapter, type ChannelAdapterConfig, type SendMessageOptions } from '../ChannelAdapter'
+import { registerAdapterFactory } from '../ChannelManager'
+
+const logger = loggerService.withContext('WeChatAdapter')
+
+const WECHAT_MAX_LENGTH = 2000
+
+/**
+ * Split a long message into chunks that fit within WeChat's 2000 character limit.
+ * Tries to split on paragraph boundaries first, then line boundaries, then hard-splits.
+ */
+function splitMessage(text: string): string[] {
+  if (text.length <= WECHAT_MAX_LENGTH) {
+    return [text]
+  }
+
+  const chunks: string[] = []
+  let remaining = text
+
+  while (remaining.length > 0) {
+    if (remaining.length <= WECHAT_MAX_LENGTH) {
+      chunks.push(remaining)
+      break
+    }
+
+    let splitIndex = remaining.lastIndexOf('\n\n', WECHAT_MAX_LENGTH)
+    if (splitIndex <= 0) {
+      splitIndex = remaining.lastIndexOf('\n', WECHAT_MAX_LENGTH)
+    }
+    if (splitIndex <= 0) {
+      splitIndex = WECHAT_MAX_LENGTH
+    }
+
+    chunks.push(remaining.slice(0, splitIndex))
+    remaining = remaining.slice(splitIndex).replace(/^\n+/, '')
+  }
+
+  return chunks
+}
+
+class WeChatAdapter extends ChannelAdapter {
+  private bot: WeixinBot | null = null
+  private readonly tokenPath: string
+  private readonly allowedChatIds: string[]
+
+  constructor(config: ChannelAdapterConfig) {
+    super(config)
+    const { token_path, allowed_chat_ids } = config.channelConfig
+    const customPath = (token_path as string) ?? ''
+    this.tokenPath = customPath || path.join(app.getPath('userData'), 'Data', `weixin_bot_${config.channelId}.json`)
+    const rawIds = allowed_chat_ids as string[] | undefined
+    this.allowedChatIds = Array.isArray(rawIds) ? rawIds.map(String) : []
+    this.notifyChatIds = [...this.allowedChatIds]
+  }
+
+  async connect(): Promise<void> {
+    const bot = new WeixinBot({
+      tokenPath: this.tokenPath,
+      onError: (error) => {
+        logger.error('WeChat bot error', {
+          agentId: this.agentId,
+          channelId: this.channelId,
+          error: error instanceof Error ? error.message : String(error)
+        })
+      }
+    })
+    this.bot = bot
+
+    const credentials = await this.loginWithQrNotification(bot)
+    logger.info('WeChat bot logged in', { agentId: this.agentId, userId: credentials.userId })
+
+    bot.onMessage((msg: IncomingMessage) => {
+      if (this.allowedChatIds.length > 0 && !this.allowedChatIds.includes(msg.userId)) {
+        logger.debug('Dropping message from unauthorized user', { userId: msg.userId })
+        return
+      }
+
+      const text = msg.text.trim()
+      if (!text) return
+
+      if (this.isCommand(text)) {
+        if (text.startsWith('/whoami')) {
+          this.sendWhoami(msg).catch((err) => {
+            logger.error('Failed to send whoami response', {
+              agentId: this.agentId,
+              error: err instanceof Error ? err.message : String(err)
+            })
+          })
+          return
+        }
+
+        const cmd = text.split(/\s+/)[0].slice(1) as 'new' | 'compact' | 'help'
+        this.emit('command', {
+          chatId: msg.userId,
+          userId: msg.userId,
+          userName: msg.userId,
+          command: cmd
+        })
+      } else {
+        this.emit('message', {
+          chatId: msg.userId,
+          userId: msg.userId,
+          userName: msg.userId,
+          text
+        })
+      }
+    })
+
+    // Start long-polling (fire-and-forget)
+    bot.run().catch((err) => {
+      logger.error('WeChat bot polling stopped with error', {
+        agentId: this.agentId,
+        channelId: this.channelId,
+        error: err instanceof Error ? err.message : String(err)
+      })
+    })
+
+    logger.info('WeChat bot started', { agentId: this.agentId, channelId: this.channelId })
+  }
+
+  async disconnect(): Promise<void> {
+    if (this.bot) {
+      this.bot.stop()
+      this.bot = null
+      logger.info('WeChat bot stopped', { agentId: this.agentId, channelId: this.channelId })
+    }
+  }
+
+  async sendMessage(chatId: string, text: string, _opts?: SendMessageOptions): Promise<void> {
+    if (!this.bot) {
+      throw new Error('Bot is not connected')
+    }
+
+    const chunks = splitMessage(text)
+
+    for (let i = 0; i < chunks.length; i++) {
+      await this.bot.send(chatId, chunks[i])
+
+      if (i < chunks.length - 1) {
+        await new Promise((resolve) => setTimeout(resolve, 100))
+      }
+    }
+  }
+
+  async sendMessageDraft(_chatId: string, _draftId: number, _text: string): Promise<void> {
+    // WeChat does not have a native draft/streaming API
+  }
+
+  async sendTypingIndicator(chatId: string): Promise<void> {
+    if (!this.bot) {
+      throw new Error('Bot is not connected')
+    }
+
+    try {
+      await this.bot.sendTyping(chatId)
+    } catch {
+      // sendTyping requires a cached context_token from a prior message;
+      // silently ignore if not yet available
+    }
+  }
+
+  /**
+   * Intercept process.stderr during bot.login() to capture the QR code URL
+   * and forward it to the renderer for in-app display.
+   */
+  private async loginWithQrNotification(bot: WeixinBot): Promise<{ userId: string }> {
+    const originalWrite = process.stderr.write
+    const qrUrlPattern = /^https?:\/\/.*qrcode=/
+
+    process.stderr.write = ((chunk: any, ...args: any[]) => {
+      const text = typeof chunk === 'string' ? chunk : chunk.toString()
+      const trimmed = text.trim()
+
+      if (qrUrlPattern.test(trimmed)) {
+        this.sendQrToRenderer(trimmed, 'pending')
+      }
+
+      return originalWrite.call(process.stderr, chunk, ...args)
+    }) as typeof process.stderr.write
+
+    try {
+      const credentials = await bot.login()
+      this.sendQrToRenderer('', 'confirmed')
+      return credentials
+    } finally {
+      process.stderr.write = originalWrite
+    }
+  }
+
+  private sendQrToRenderer(url: string, status: 'pending' | 'confirmed' | 'expired'): void {
+    // Use dynamic import to avoid pulling WindowService into the module graph at load time,
+    // which causes ESM/CJS interop issues in vitest when mocking electron.
+    import('../../../../WindowService')
+      .then(({ windowService }) => {
+        const mainWindow = windowService.getMainWindow()
+        if (mainWindow && !mainWindow.isDestroyed()) {
+          mainWindow.webContents.send(IpcChannel.WeChat_QrLogin, {
+            channelId: this.channelId,
+            agentId: this.agentId,
+            url,
+            status
+          })
+        }
+      })
+      .catch(() => {
+        // Window may not be available during tests or headless operation
+      })
+  }
+
+  private isCommand(text: string): boolean {
+    return (
+      text.startsWith('/new') || text.startsWith('/compact') || text.startsWith('/help') || text.startsWith('/whoami')
+    )
+  }
+
+  private async sendWhoami(msg: IncomingMessage): Promise<void> {
+    const message = [
+      `Chat Info`,
+      ``,
+      `User ID: ${msg.userId}`,
+      ``,
+      `To enable notifications for this user:`,
+      `1. Go to Agent Settings > Channels > WeChat`,
+      `2. Add "${msg.userId}" to Allowed User IDs`,
+      `3. Enable "Receive Notifications"`,
+      ``,
+      `Then use the notify tool or scheduled tasks will send messages here.`
+    ].join('\n')
+
+    await this.bot!.reply(msg, message)
+  }
+}
+
+// Self-registration
+registerAdapterFactory('wechat', (channel: CherryClawChannel, agentId: string) => {
+  return new WeChatAdapter({
+    channelId: channel.id,
+    agentId,
+    channelConfig: channel.config
+  })
+})

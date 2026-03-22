@@ -1,6 +1,7 @@
 import type { CherryClawChannel, CherryClawConfiguration, FeishuChannelConfig, FeishuDomain } from '@renderer/types'
 import type { CardProps } from 'antd'
-import { Card, Checkbox, Input, Select, Switch } from 'antd'
+import { Card, Checkbox, Input, Modal, Select, Switch } from 'antd'
+import { QRCodeSVG } from 'qrcode.react'
 import type { ReactNode } from 'react'
 import { type FC, useCallback, useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -10,7 +11,7 @@ import { type AgentOrSessionSettingsProps, SettingsContainer, SettingsItem, Sett
 // --------------- Channel catalog registry ---------------
 
 type AvailableChannel = {
-  type: 'telegram' | 'feishu' | 'qq' // extend later: | 'discord' | 'slack'
+  type: 'telegram' | 'feishu' | 'qq' | 'wechat' // extend later: | 'discord' | 'slack'
   name: string
   description: string // i18n key
   icon: string
@@ -49,6 +50,14 @@ const AVAILABLE_CHANNELS: AvailableChannel[] = [
     icon: '🐧',
     available: true,
     defaultConfig: { app_id: '', client_secret: '', allowed_chat_ids: [] }
+  },
+  {
+    type: 'wechat',
+    name: 'WeChat',
+    description: 'agent.cherryClaw.channels.wechat.description',
+    icon: '💬',
+    available: true,
+    defaultConfig: { token_path: '', allowed_chat_ids: [] }
   }
 ]
 
@@ -332,6 +341,68 @@ const QQChannelCard: FC<ChannelCardProps> = ({ channel, onConfigChange }) => {
   )
 }
 
+// --------------- WeChat inline config ---------------
+
+const WeChatQrModal: FC<{ channelId: string }> = ({ channelId }) => {
+  const { t } = useTranslation()
+  const [qrUrl, setQrUrl] = useState<string | null>(null)
+
+  useEffect(() => {
+    const cleanup = window.api.wechat.onQrLogin((data) => {
+      if (data.channelId !== channelId) return
+
+      if (data.status === 'confirmed' || data.status === 'expired') {
+        setQrUrl(null)
+      } else if (data.url) {
+        setQrUrl(data.url)
+      }
+    })
+    return cleanup
+  }, [channelId])
+
+  return (
+    <Modal
+      open={!!qrUrl}
+      title={t('agent.cherryClaw.channels.wechat.qrTitle')}
+      footer={null}
+      onCancel={() => setQrUrl(null)}
+      centered
+      width={360}>
+      <div className="flex flex-col items-center gap-4 py-4">
+        {qrUrl && <QRCodeSVG value={qrUrl} size={240} level="M" />}
+        <span className="text-center text-foreground-500 text-xs">{t('agent.cherryClaw.channels.wechat.qrHint')}</span>
+      </div>
+    </Modal>
+  )
+}
+
+const WeChatChannelCard: FC<ChannelCardProps> = ({ channel, onConfigChange }) => {
+  const { t } = useTranslation()
+
+  return (
+    <>
+      <ChannelFieldsCard
+        channel={channel}
+        onConfigChange={onConfigChange}
+        fields={[
+          {
+            key: 'token_path',
+            label: t('agent.cherryClaw.channels.wechat.tokenPath'),
+            placeholder: t('agent.cherryClaw.channels.wechat.tokenPathPlaceholder')
+          }
+        ]}
+        chatIds={{
+          label: t('agent.cherryClaw.channels.wechat.chatIds'),
+          placeholder: t('agent.cherryClaw.channels.wechat.chatIdsPlaceholder'),
+          hint: t('agent.cherryClaw.channels.wechat.chatIdsHint'),
+          extraHint: t('agent.cherryClaw.channels.wechat.loginHint')
+        }}
+      />
+      <WeChatQrModal channelId={channel.id} />
+    </>
+  )
+}
+
 // --------------- Main component ---------------
 
 const ChannelsSettings: FC<AgentOrSessionSettingsProps> = ({ agentBase, update }) => {
@@ -437,6 +508,12 @@ const ChannelsSettings: FC<AgentOrSessionSettingsProps> = ({ agentBase, update }
               )}
               {isEnabled && channel && channel.type === 'qq' && (
                 <QQChannelCard
+                  channel={channel}
+                  onConfigChange={(updates) => handleConfigChange(channel.type, updates)}
+                />
+              )}
+              {isEnabled && channel && channel.type === 'wechat' && (
+                <WeChatChannelCard
                   channel={channel}
                   onConfigChange={(updates) => handleConfigChange(channel.type, updates)}
                 />
