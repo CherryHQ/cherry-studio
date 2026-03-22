@@ -1,8 +1,8 @@
 import { loggerService } from '@logger'
 import { getConfigDir } from '@main/utils/file'
-import { TraceMethod } from '@mcp-trace/trace-core'
 import { Server } from '@modelcontextprotocol/sdk/server/index.js'
 import { CallToolRequestSchema, ErrorCode, ListToolsRequestSchema, McpError } from '@modelcontextprotocol/sdk/types.js'
+import { TraceMethod } from '@shared/trace'
 import { Mutex } from 'async-mutex' // 引入 Mutex
 import { promises as fs } from 'fs'
 import path from 'path'

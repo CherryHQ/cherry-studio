@@ -3,9 +3,9 @@ import { OTLPTraceExporter } from '@opentelemetry/exporter-trace-otlp-http'
 import type { SpanProcessor } from '@opentelemetry/sdk-trace-base'
 import { BatchSpanProcessor, ConsoleSpanExporter } from '@opentelemetry/sdk-trace-base'
 import { WebTracerProvider } from '@opentelemetry/sdk-trace-web'
+import type { TraceConfig } from '@shared/trace'
+import { defaultConfig } from '@shared/trace'
 
-import type { TraceConfig } from '../trace-core/types/config'
-import { defaultConfig } from '../trace-core/types/config'
 import { TopicContextManager } from './TopicContextManager'
 
 export const contextManager = new TopicContextManager()

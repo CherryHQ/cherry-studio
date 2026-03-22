@@ -1,7 +1,7 @@
 import './Trace.css'
 
-import type { SpanEntity } from '@mcp-trace/trace-core'
 import type { TraceModal } from '@renderer/trace/pages/TraceModel'
+import type { SpanEntity } from '@shared/trace'
 import { Divider } from 'antd/lib'
 import React, { useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'

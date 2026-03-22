@@ -1,9 +1,8 @@
 import type { Context } from '@opentelemetry/api'
 import type { BufferConfig, ReadableSpan, Span, SpanExporter } from '@opentelemetry/sdk-trace-base'
 import { BatchSpanProcessor } from '@opentelemetry/sdk-trace-base'
+import { convertSpanToSpanEntity } from '@shared/trace'
 import type { EventEmitter } from 'stream'
-
-import { convertSpanToSpanEntity } from '../core/spanConvert'
 
 export const TRACE_DATA_EVENT = 'trace_data_event'
 export const ON_START = 'start'

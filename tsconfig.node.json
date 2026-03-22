@@ -8,7 +8,6 @@
     "src/preload/**/*",
     "src/renderer/src/services/traceApi.ts",
     "src/renderer/src/types/*",
-    "packages/mcp-trace/**/*",
     "packages/shared/**/*"
   ],
   "compilerOptions": {
@@ -22,7 +21,7 @@
       "@main/*": ["./src/main/*"],
       "@types": ["./src/renderer/src/types/index.ts"],
       "@shared/*": ["./packages/shared/*"],
-      "@mcp-trace/*": ["./packages/mcp-trace/*"],
+      "@shared/trace": ["./packages/shared/trace/index.ts"],
       "@modelcontextprotocol/sdk/*": ["./node_modules/@modelcontextprotocol/sdk/dist/esm/*"]
     },
     "experimentalDecorators": true,
