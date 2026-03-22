@@ -21,6 +21,8 @@ interface Props extends PopupParams {
   resolve: (value: ApiModel | undefined) => void
 }
 
+const isAdaptedApiModel = (value: Model): value is AdaptedApiModel => 'origin' in value
+
 // TODO(v2): This is a workaround for a data synchronization issue where agent models (from the
 // agents API) may reference providers that no longer exist in the user's local provider settings
 // (e.g., imported/shared agents, or providers deleted after agent creation). The fallback provider
@@ -84,8 +86,8 @@ const PopupContainer: React.FC<Props> = ({ model, apiFilter, modelFilter, showTa
       showPinnedModels={false}
       prioritizedProviderIds={['cherryin']}
       resolve={(value) => {
-        if (value && 'origin' in value) {
-          resolve((value as AdaptedApiModel).origin)
+        if (value && isAdaptedApiModel(value)) {
+          resolve(value.origin)
         } else {
           resolve(undefined)
         }
