@@ -111,20 +111,18 @@
   will-change: background-position;
 }
 
-/* 打字机动画 */
-@keyframes animation-typewriter {
+/* Reveal 动画 */
+@keyframes animation-reveal {
   from {
-    width: 0;
+    clip-path: inset(0 100% 0 0);
   }
   to {
-    width: 100%;
+    clip-path: inset(0 0 0 0);
   }
 }
 
-.animation-typewriter {
+.animation-reveal {
   display: block;
   white-space: nowrap;
-  overflow: hidden;
-  animation: animation-typewriter 0.5s steps(40, end);
-  will-change: width;
+  animation: animation-reveal 0.5s linear both;
 }

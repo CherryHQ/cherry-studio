@@ -71,7 +71,7 @@ const TreeNode = memo<TreeNodeProps>(({ node, depth, renderChildren = true, onHi
 
   const getNodeNameClassName = () => {
     if (isRenaming) return 'animation-shimmer'
-    if (isNewlyRenamed) return 'animation-typewriter'
+    if (isNewlyRenamed) return 'animation-reveal'
     return ''
   }
 

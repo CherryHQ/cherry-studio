@@ -201,7 +201,7 @@ const SessionItem = ({ session, agentId, onDelete, onPress }: SessionItemProps) 
               <div className="truncate text-[13px]">
                 <SessionLabel
                   session={session}
-                  className={isRenaming ? 'animation-shimmer' : isNewlyRenamed ? 'animation-typewriter' : ''}
+                  className={isRenaming ? 'animation-shimmer' : isNewlyRenamed ? 'animation-reveal' : ''}
                 />
               </div>
               <DeleteButton />

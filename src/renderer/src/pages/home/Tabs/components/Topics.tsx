@@ -599,7 +599,7 @@ export const Topics: React.FC<Props> = ({ assistant: _assistant, activeTopic, se
 
           const getTopicNameClassName = () => {
             if (isRenaming(topic.id)) return 'animation-shimmer'
-            if (isNewlyRenamed(topic.id)) return 'animation-typewriter'
+            if (isNewlyRenamed(topic.id)) return 'animation-reveal'
             return ''
           }
 
@@ -796,11 +796,10 @@ const TopicName = styled.div`
   overflow: hidden;
   font-size: 13px;
   position: relative;
-  will-change: background-position, width;
   flex: 1;
   text-align: left;
 
-  &.animation-typewriter {
+  &.animation-reveal {
     -webkit-line-clamp: unset;
     -webkit-box-orient: unset;
   }
