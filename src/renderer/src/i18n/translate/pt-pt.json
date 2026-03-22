@@ -5160,14 +5160,6 @@
             "unsupported_grant_type": "O Poe rejeitou o tipo de concessão de token solicitado.",
             "unsupported_response_type": "O Poe não aceitou o fluxo de autorização solicitado."
           },
-          "expired": {
-            "description": "Esta chave API do Poe expirou em {{date}}. Reconecte para continuar a usar os modelos Poe.",
-            "title": "Chave API do Poe expirada"
-          },
-          "expiring_soon": {
-            "description": "Esta chave API do Poe expirará em {{date}}. Reconecte agora para evitar interrupções.",
-            "title": "Chave API do Poe expira em breve"
-          },
           "failure": {
             "title": "Início de sessão no Poe falhou"
           },

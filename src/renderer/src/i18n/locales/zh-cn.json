@@ -5160,14 +5160,6 @@
             "unsupported_grant_type": "Poe 拒绝了当前请求的令牌授权类型。",
             "unsupported_response_type": "Poe 不接受当前请求的授权流程。"
           },
-          "expired": {
-            "description": "此 Poe API 密钥已于 {{date}} 过期。请重新连接以继续使用 Poe 模型。",
-            "title": "Poe API 密钥已过期"
-          },
-          "expiring_soon": {
-            "description": "此 Poe API 密钥将于 {{date}} 过期。请立即重新连接以避免中断。",
-            "title": "Poe API 密钥即将过期"
-          },
           "failure": {
             "title": "Poe 登录失败"
           },

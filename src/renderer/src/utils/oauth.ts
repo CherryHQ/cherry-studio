@@ -6,7 +6,6 @@ const logger = loggerService.withContext('Utils:oauth')
 
 export type ProviderOAuthResult = {
   apiKey: string
-  apiKeyExpiresAt?: number
 }
 
 type SetKeyHandler = (result: ProviderOAuthResult) => void
@@ -310,19 +309,12 @@ export const oauthWithPoe = async (setKey?: SetKeyHandler) => {
   try {
     const result = await window.api.provider.poeOAuthLogin()
     const apiKey = result?.apiKey?.trim()
-    const apiKeyExpiresAt =
-      typeof result?.expiresIn === 'number' && Number.isFinite(result.expiresIn) && result.expiresIn > 0
-        ? Date.now() + result.expiresIn * 1000
-        : undefined
 
     if (!apiKey) {
       throw new Error(i18n.t('settings.provider.oauth.error'))
     }
 
-    const oauthResult = {
-      apiKey,
-      apiKeyExpiresAt
-    }
+    const oauthResult = { apiKey }
 
     setKey?.(oauthResult)
     return oauthResult

@@ -5160,14 +5160,6 @@
             "unsupported_grant_type": "Poe 拒絕了目前請求的權杖授權類型。",
             "unsupported_response_type": "Poe 不接受目前請求的授權流程。"
           },
-          "expired": {
-            "description": "此 Poe API 金鑰已於 {{date}} 過期。請重新連接以繼續使用 Poe 模型。",
-            "title": "Poe API 金鑰已過期"
-          },
-          "expiring_soon": {
-            "description": "此 Poe API 金鑰將於 {{date}} 過期。請立即重新連接以避免中斷。",
-            "title": "Poe API 金鑰即將過期"
-          },
           "failure": {
             "title": "Poe 登入失敗"
           },

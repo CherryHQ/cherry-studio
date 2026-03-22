@@ -55,7 +55,6 @@ interface PoeCallbackServer {
 
 export interface PoeOAuthResult {
   apiKey: string
-  expiresIn: number | null
 }
 
 export interface PoeAuthorizationUrlOptions {
@@ -384,10 +383,7 @@ class PoeOAuthService {
         )
       }
 
-      return {
-        apiKey,
-        expiresIn: typeof payload?.api_key_expires_in === 'number' ? payload.api_key_expires_in : null
-      }
+      return { apiKey }
     }
 
     throw new PoeOAuthServiceError(

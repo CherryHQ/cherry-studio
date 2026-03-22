@@ -56,7 +56,7 @@ describe('OAuthButton', () => {
       models: []
     } as any
 
-    mocks.authHandler.mockResolvedValue({ apiKey: 'poe-api-key', apiKeyExpiresAt: 1234 })
+    mocks.authHandler.mockResolvedValue({ apiKey: 'poe-api-key' })
 
     render(<OAuthButton provider={provider} onSuccess={mocks.onSuccess} />)
 
@@ -64,7 +64,7 @@ describe('OAuthButton', () => {
 
     expect(mocks.authHandler).toHaveBeenCalledTimes(1)
     expect(mocks.authHandler).toHaveBeenCalledWith(expect.any(Function))
-    expect(mocks.onSuccess).toHaveBeenCalledWith({ apiKey: 'poe-api-key', apiKeyExpiresAt: 1234 })
+    expect(mocks.onSuccess).toHaveBeenCalledWith({ apiKey: 'poe-api-key' })
     expect(window.toast.success).toHaveBeenCalledWith('Key added')
   })
 })

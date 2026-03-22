@@ -5160,14 +5160,6 @@
             "unsupported_grant_type": "Poe がリクエストされたトークン付与タイプを拒否しました。",
             "unsupported_response_type": "Poe がリクエストされた認可フローを受け付けませんでした。"
           },
-          "expired": {
-            "description": "この Poe API キーは {{date}} に期限切れになりました。Poe モデルを引き続き使用するには再接続してください。",
-            "title": "Poe API キーの期限切れ"
-          },
-          "expiring_soon": {
-            "description": "この Poe API キーは {{date}} に期限切れになります。中断を避けるため、今すぐ再接続してください。",
-            "title": "Poe API キーがまもなく期限切れ"
-          },
           "failure": {
             "title": "Poe サインイン失敗"
           },

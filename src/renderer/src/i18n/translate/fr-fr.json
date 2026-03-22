@@ -5160,14 +5160,6 @@
             "unsupported_grant_type": "Poe a refusé le type d'octroi de jeton demandé.",
             "unsupported_response_type": "Poe n'a pas accepté le flux d'autorisation demandé."
           },
-          "expired": {
-            "description": "Cette clé API Poe a expiré le {{date}}. Reconnectez-vous pour continuer à utiliser les modèles Poe.",
-            "title": "Clé API Poe expirée"
-          },
-          "expiring_soon": {
-            "description": "Cette clé API Poe expirera le {{date}}. Reconnectez-vous maintenant pour éviter les interruptions.",
-            "title": "La clé API Poe expire bientôt"
-          },
           "failure": {
             "title": "Échec de la connexion à Poe"
           },
