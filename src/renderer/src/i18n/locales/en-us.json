@@ -389,6 +389,9 @@
         "TodoWrite": {
           "description": "Creates and manages structured task lists"
         },
+        "ToolSearch": {
+          "description": "Discovers deferred tools from large libraries"
+        },
         "WebFetch": {
           "description": "Fetches content from a specified URL"
         },
