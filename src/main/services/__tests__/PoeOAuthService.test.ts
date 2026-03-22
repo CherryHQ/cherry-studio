@@ -3,7 +3,8 @@ import http from 'node:http'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
-  openExternal: vi.fn()
+  openExternal: vi.fn(),
+  netFetch: vi.fn()
 }))
 
 vi.mock('electron', () => ({
@@ -22,6 +23,9 @@ vi.mock('electron', () => ({
       }
     }),
     getVersion: vi.fn(() => '1.0.0')
+  },
+  net: {
+    fetch: mocks.netFetch
   },
   shell: {
     openExternal: mocks.openExternal
@@ -77,14 +81,12 @@ describe('PoeOAuthService', () => {
   })
 
   it('parses the localhost callback and returns a normalized API key result', async () => {
-    const fetchMock = vi.fn().mockResolvedValue(
+    mocks.netFetch.mockResolvedValue(
       new Response(JSON.stringify({ api_key: 'poe-api-key', api_key_expires_in: 3600 }), {
         status: 200,
         headers: { 'Content-Type': 'application/json' }
       })
     )
-
-    vi.stubGlobal('fetch', fetchMock)
 
     mocks.openExternal.mockImplementation(async (url) => {
       const authorizationUrl = new URL(url)
@@ -107,9 +109,9 @@ describe('PoeOAuthService', () => {
 
     expect(result).toEqual({ apiKey: 'poe-api-key' })
     expect(mocks.openExternal).toHaveBeenCalledTimes(1)
-    expect(fetchMock).toHaveBeenCalledTimes(1)
+    expect(mocks.netFetch).toHaveBeenCalledTimes(1)
 
-    const [tokenUrl, requestInit] = fetchMock.mock.calls[0]
+    const [tokenUrl, requestInit] = mocks.netFetch.mock.calls[0]
     expect(tokenUrl).toBe('https://api.poe.com/token')
     expect(requestInit.method).toBe('POST')
     expect(requestInit.headers).toEqual({
@@ -126,10 +128,6 @@ describe('PoeOAuthService', () => {
   })
 
   it('surfaces Poe callback errors with a user-friendly message', async () => {
-    const fetchMock = vi.fn()
-
-    vi.stubGlobal('fetch', fetchMock)
-
     mocks.openExternal.mockImplementation(async (url) => {
       const authorizationUrl = new URL(url)
       const redirectUri = authorizationUrl.searchParams.get('redirect_uri')
@@ -148,12 +146,11 @@ describe('PoeOAuthService', () => {
     await expect(PoeOAuthService.login()).rejects.toThrow(
       'Poe authorization was denied. Please approve access to continue. User denied request'
     )
-    expect(fetchMock).not.toHaveBeenCalled()
+    expect(mocks.netFetch).not.toHaveBeenCalled()
   })
 
   it('retries the token exchange once when Poe returns server_error', async () => {
-    const fetchMock = vi
-      .fn()
+    mocks.netFetch
       .mockResolvedValueOnce(
         new Response(JSON.stringify({ error: 'server_error', error_description: 'temporary issue' }), {
           status: 500,
@@ -167,8 +164,6 @@ describe('PoeOAuthService', () => {
         })
       )
 
-    vi.stubGlobal('fetch', fetchMock)
-
     mocks.openExternal.mockImplementation(async (url) => {
       const authorizationUrl = new URL(url)
       const redirectUri = authorizationUrl.searchParams.get('redirect_uri')
@@ -179,18 +174,16 @@ describe('PoeOAuthService', () => {
     })
 
     await expect(PoeOAuthService.login()).resolves.toEqual({ apiKey: 'retry-success' })
-    expect(fetchMock).toHaveBeenCalledTimes(2)
+    expect(mocks.netFetch).toHaveBeenCalledTimes(2)
   })
 
   it('surfaces non-200 token exchange responses', async () => {
-    const fetchMock = vi.fn().mockResolvedValue(
+    mocks.netFetch.mockResolvedValue(
       new Response(JSON.stringify({ error: 'invalid_grant', error_description: 'expired code' }), {
         status: 400,
         headers: { 'Content-Type': 'application/json' }
       })
     )
-
-    vi.stubGlobal('fetch', fetchMock)
 
     mocks.openExternal.mockImplementation(async (url) => {
       const authorizationUrl = new URL(url)
@@ -204,18 +197,16 @@ describe('PoeOAuthService', () => {
     await expect(PoeOAuthService.login()).rejects.toThrow(
       'The Poe authorization expired or could not be verified. Please sign in again. expired code'
     )
-    expect(fetchMock).toHaveBeenCalledTimes(1)
+    expect(mocks.netFetch).toHaveBeenCalledTimes(1)
   })
 
   it('fails when the token response does not include an api_key', async () => {
-    const fetchMock = vi.fn().mockResolvedValue(
+    mocks.netFetch.mockResolvedValue(
       new Response(JSON.stringify({ api_key_expires_in: 1800 }), {
         status: 200,
         headers: { 'Content-Type': 'application/json' }
       })
     )
-
-    vi.stubGlobal('fetch', fetchMock)
 
     mocks.openExternal.mockImplementation(async (url) => {
       const authorizationUrl = new URL(url)
@@ -230,11 +221,9 @@ describe('PoeOAuthService', () => {
   })
 
   it('times out waiting for the callback and closes the callback server', async () => {
-    const fetchMock = vi.fn()
     let redirectUri = ''
     const clearTimeoutSpy = vi.spyOn(globalThis, 'clearTimeout')
 
-    vi.stubGlobal('fetch', fetchMock)
     vi.spyOn(globalThis, 'setTimeout').mockImplementation(((callback: TimerHandler) => {
       queueMicrotask(() => {
         if (typeof callback === 'function') {
@@ -255,21 +244,19 @@ describe('PoeOAuthService', () => {
     await expect(loginPromise).rejects.toThrow(
       'Timed out waiting for the Poe authorization response. Please try signing in again.'
     )
-    expect(fetchMock).not.toHaveBeenCalled()
+    expect(mocks.netFetch).not.toHaveBeenCalled()
     expect(clearTimeoutSpy).toHaveBeenCalled()
     await expectLoopbackServerClosed(redirectUri)
   })
 
   it('closes the callback server after a successful login', async () => {
-    const fetchMock = vi.fn().mockResolvedValue(
+    mocks.netFetch.mockResolvedValue(
       new Response(JSON.stringify({ api_key: 'poe-api-key', api_key_expires_in: 3600 }), {
         status: 200,
         headers: { 'Content-Type': 'application/json' }
       })
     )
     let redirectUri = ''
-
-    vi.stubGlobal('fetch', fetchMock)
 
     mocks.openExternal.mockImplementation(async (url) => {
       const authorizationUrl = new URL(url)
@@ -285,15 +272,13 @@ describe('PoeOAuthService', () => {
   })
 
   it('closes the callback server after a failed token exchange', async () => {
-    const fetchMock = vi.fn().mockResolvedValue(
+    mocks.netFetch.mockResolvedValue(
       new Response(JSON.stringify({ error: 'invalid_grant' }), {
         status: 400,
         headers: { 'Content-Type': 'application/json' }
       })
     )
     let redirectUri = ''
-
-    vi.stubGlobal('fetch', fetchMock)
 
     mocks.openExternal.mockImplementation(async (url) => {
       const authorizationUrl = new URL(url)

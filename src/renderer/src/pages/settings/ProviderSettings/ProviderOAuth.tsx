@@ -11,8 +11,16 @@ import {
 import { providerBills, providerCharge, type ProviderOAuthResult } from '@renderer/utils/oauth'
 import { Button } from 'antd'
 import { isEmpty } from 'lodash'
-import { CheckCircle2, CircleDollarSign, KeyRound, ReceiptText, RotateCcw, SquareArrowOutUpRight } from 'lucide-react'
-import type { FC } from 'react'
+import {
+  CheckCircle2,
+  CircleDollarSign,
+  KeyRound,
+  Loader2,
+  ReceiptText,
+  RotateCcw,
+  SquareArrowOutUpRight
+} from 'lucide-react'
+import { type FC, useState } from 'react'
 import { Trans, useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
@@ -26,6 +34,7 @@ const ProviderOAuth: FC<Props> = ({ providerId }) => {
   const providerConfig = PROVIDER_URLS[provider.id]
   const providerActions = getProviderOAuthActions(provider)
   const authHandler = getProviderAuthHandler(provider)
+  const [loading, setLoading] = useState(false)
 
   const setOAuthResult = ({ apiKey }: ProviderOAuthResult) => {
     updateProvider({ apiKey: apiKey.trim() })
@@ -51,6 +60,7 @@ const ProviderOAuth: FC<Props> = ({ providerId }) => {
     }
 
     try {
+      setLoading(true)
       const result = await authHandler(handleSuccess)
       if (!handled && result && typeof result === 'object' && 'apiKey' in result) {
         handleSuccess(result as ProviderOAuthResult)
@@ -58,6 +68,8 @@ const ProviderOAuth: FC<Props> = ({ providerId }) => {
     } catch (error) {
       const content = error instanceof Error && error.message ? error.message : t('settings.provider.oauth.error')
       window.toast.error(content)
+    } finally {
+      setLoading(false)
     }
   }
 
@@ -156,7 +168,10 @@ const ProviderOAuth: FC<Props> = ({ providerId }) => {
           </ConnectedState>
           <ActionsRow gap={10} justifyContent="center">
             {providerActions.map(renderProviderAction)}
-            <Button shape="round" icon={<RotateCcw size={16} />} onClick={isPoe ? reconnect : clearApiKey}>
+            <Button
+              shape="round"
+              icon={loading ? <Loader2 size={16} className="animate-spin" /> : <RotateCcw size={16} />}
+              onClick={isPoe ? reconnect : clearApiKey}>
               {t('settings.provider.oauth.reconnect')}
             </Button>
           </ActionsRow>

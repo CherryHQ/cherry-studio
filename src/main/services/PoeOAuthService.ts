@@ -345,13 +345,15 @@ class PoeOAuthService {
       let response: Response
 
       try {
-        response = await fetch(POE_OAUTH_TOKEN_URL, {
+        const { net } = await import('electron')
+        response = await net.fetch(POE_OAUTH_TOKEN_URL, {
           method: 'POST',
           headers: {
             Accept: 'application/json',
             'Content-Type': 'application/x-www-form-urlencoded'
           },
-          body: body.toString()
+          body: body.toString(),
+          signal: AbortSignal.timeout(15_000)
         })
       } catch (error) {
         logger.error('Failed to reach the Poe token endpoint.', error as Error)
