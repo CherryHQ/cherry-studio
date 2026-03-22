@@ -38,7 +38,7 @@ const mockBot = {
   stopTyping: vi.fn().mockResolvedValue(undefined)
 }
 
-vi.mock('@pinixai/weixin-bot', () => ({
+vi.mock('../WeChatProtocol', () => ({
   WeixinBot: vi.fn().mockImplementation(() => mockBot)
 }))
 

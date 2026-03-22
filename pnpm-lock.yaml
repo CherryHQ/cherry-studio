@@ -404,9 +404,6 @@ importers:
       '@opeoginni/github-copilot-openai-compatible':
         specifier: ^1.0.0
         version: 1.0.0(zod@4.3.4)
-      '@pinixai/weixin-bot':
-        specifier: ^1.2.0
-        version: 1.2.0
       '@playwright/test':
         specifier: ^1.55.1
         version: 1.57.0
@@ -3620,10 +3617,6 @@ packages:
 
   '@pdf-lib/upng@1.0.1':
     resolution: {integrity: sha512-dQK2FUMQtowVP00mtIksrlZhdFXQZPC+taih1q4CvPZ5vqdxR/LKBaFg0oAfzd1GlHZXXSPdQfzQnt+ViGvEIQ==}
-
-  '@pinixai/weixin-bot@1.2.0':
-    resolution: {integrity: sha512-NqazkkVK3ncnF/R+jP/GeOxG5Vr7iECXB8OZsaZJcKyjdYDzUs9ijbiVQzIflWVl4l7fNM/uQgrlrbxdrt0yNQ==}
-    engines: {node: '>=22'}
 
   '@pkgjs/parseargs@0.11.0':
     resolution: {integrity: sha512-+1VkjdD0QBLPodGrJUeqarH8VAIvQODIbwh9XpP5Syisf7YoQgsJKPNFoqqLQlu+VQ/tVSshMR6loPMn8U+dPg==}
@@ -14993,8 +14986,6 @@ snapshots:
   '@pdf-lib/upng@1.0.1':
     dependencies:
       pako: 1.0.11
-
-  '@pinixai/weixin-bot@1.2.0': {}
 
   '@pkgjs/parseargs@0.11.0':
     optional: true
