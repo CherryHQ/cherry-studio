@@ -6,7 +6,13 @@ import { loggerService } from '@logger'
 import { getMCPServersFromRedux } from '@main/apiServer/utils/mcp'
 import { createInMemoryMCPServer } from '@main/mcpServers/factory'
 import { makeSureDirExists, removeEnvProxy } from '@main/utils'
-import { findCommandInShellEnv, getBinaryName, getBinaryPath, isBinaryExists } from '@main/utils/process'
+import {
+  decodeBufferFromShell,
+  findCommandInShellEnv,
+  getBinaryName,
+  getBinaryPath,
+  isBinaryExists
+} from '@main/utils/process'
 import getLoginShellEnvironment from '@main/utils/shell-env'
 import { TraceMethod, withSpanFunc } from '@mcp-trace/trace-core'
 import { Client } from '@modelcontextprotocol/sdk/client/index.js'
@@ -453,7 +459,10 @@ class McpService {
                 // if the server name is mcp-auto-install, use the mcp-registry.json file in the bin directory
                 if (server.name.includes('mcp-auto-install')) {
                   const binPath = await getBinaryPath()
-                  makeSureDirExists(binPath)
+                  const dirResult = makeSureDirExists(binPath)
+                  if (!dirResult.success) {
+                    throw new Error(`Failed to create bin directory: ${dirResult.error?.message}`)
+                  }
                   server.env.MCP_REGISTRY_PATH = path.join(binPath, '..', 'config', 'mcp-registry.json')
                 }
               }
@@ -522,8 +531,9 @@ class McpService {
             }
 
             const stdioTransport = new StdioClientTransport(transportOptions)
-            stdioTransport.stderr?.on('data', (data) => {
-              const msg = data.toString()
+            stdioTransport.stderr?.on('data', (data: Buffer) => {
+              // Use decodeBufferFromShell to handle Windows GBK/CP936 encoding properly
+              const msg = decodeBufferFromShell(data)
               getServerLogger(server).debug(`Stdio stderr`, { data: msg })
               this.emitServerLog(server, {
                 timestamp: Date.now(),

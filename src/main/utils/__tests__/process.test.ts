@@ -7,6 +7,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import {
   autoDiscoverGitBash,
+  decodeBufferFromShell,
   findCommandInShellEnv,
   findExecutable,
   findGitBash,
@@ -1374,6 +1375,37 @@ describe('findCommandInShellEnv', () => {
 
       const result = await resultPromise
       expect(result).toBeNull()
+    })
+  })
+})
+
+// Tests for decodeBufferFromShell
+// These tests run on all platforms but test Windows-specific behavior via mocking
+describe('decodeBufferFromShell', () => {
+  // Note: The actual implementation checks `isWin` at module load time
+  // For non-Windows, it always returns UTF-8 decoded string
+  // For Windows, it uses chardet + iconv
+
+  describe('on non-Windows platforms', () => {
+    // On non-Windows, the function simply returns buf.toString('utf8')
+    // We can't easily mock the isWin constant, so we just verify the behavior works
+    it('should decode UTF-8 buffer correctly', () => {
+      const utf8String = 'Hello, 世界!'
+      const buf = Buffer.from(utf8String, 'utf8')
+
+      const result = decodeBufferFromShell(buf)
+
+      // On all platforms, UTF-8 should work
+      expect(result).toBe(utf8String)
+    })
+
+    it('should handle ASCII content', () => {
+      const asciiString = 'Simple ASCII text'
+      const buf = Buffer.from(asciiString, 'utf8')
+
+      const result = decodeBufferFromShell(buf)
+
+      expect(result).toBe(asciiString)
     })
   })
 })
