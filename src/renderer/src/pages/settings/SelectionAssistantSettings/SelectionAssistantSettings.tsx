@@ -147,22 +147,6 @@ const SelectionAssistantSettings: FC = () => {
                 {t('selection.settings.linux.wayland_checklist_subtitle')}
               </SettingDescription>
               <ChecklistItem style={{ marginTop: 6 }}>
-                {linuxEnvInfo.isLinuxXWaylandMode ? (
-                  <CircleCheck
-                    size={13}
-                    style={{ color: 'var(--color-status-success)', marginRight: 6, flexShrink: 0 }}
-                  />
-                ) : (
-                  <CircleX size={13} style={{ color: 'var(--color-status-error)', marginRight: 6, flexShrink: 0 }} />
-                )}
-                <span>
-                  {t('selection.settings.linux.xwayland_label')}
-                  {linuxEnvInfo.isLinuxXWaylandMode
-                    ? t('selection.settings.linux.xwayland_pass')
-                    : t('selection.settings.linux.xwayland_fail')}
-                </span>
-              </ChecklistItem>
-              <ChecklistItem>
                 {linuxEnvInfo.hasLinuxInputDeviceAccess ? (
                   <CircleCheck
                     size={13}
