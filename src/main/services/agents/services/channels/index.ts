@@ -12,3 +12,4 @@ export { ChannelMessageHandler, channelMessageHandler } from './ChannelMessageHa
 import './adapters/FeishuAdapter'
 import './adapters/QQAdapter'
 import './adapters/TelegramAdapter'
+import './adapters/WeChatAdapter'
