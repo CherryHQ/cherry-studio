@@ -75,6 +75,7 @@ if (isWin) {
  */
 if (isLinux && process.env.XDG_SESSION_TYPE === 'wayland') {
   app.commandLine.appendSwitch('enable-features', 'GlobalShortcutsPortal')
+  app.commandLine.appendSwitch('ozone-platform', 'x11')
 }
 
 /**
