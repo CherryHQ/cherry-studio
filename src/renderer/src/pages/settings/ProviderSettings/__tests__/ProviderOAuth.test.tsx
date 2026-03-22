@@ -1,7 +1,6 @@
-import type { ReactNode } from 'react'
-
 import { render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
+import type { ReactNode } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import ProviderOAuth from '../ProviderOAuth'
@@ -51,7 +50,7 @@ vi.mock('@renderer/components/OAuth/OAuthButton', () => ({
 }))
 
 vi.mock('@renderer/config/providers', () => ({
-  PROVIDER_CONFIG: {
+  PROVIDER_URLS: {
     poe: {
       api: { url: 'https://api.poe.com' },
       websites: {
@@ -117,7 +116,7 @@ describe('ProviderOAuth', () => {
     }
     mocks.oauthButtonResult = { apiKey: '  poe-api-key  ', apiKeyExpiresAt: 1234 }
     window.open = vi.fn()
-    window.message = {
+    window.toast = {
       success: vi.fn(),
       error: vi.fn()
     } as any
@@ -151,7 +150,7 @@ describe('ProviderOAuth', () => {
     await user.click(screen.getByRole('button', { name: 'Reconnect' }))
 
     expect(mocks.authHandler).toHaveBeenCalledTimes(1)
-    expect(window.message.error).toHaveBeenCalledWith({ content: 'Poe reconnect failed', key: 'auth-error' })
+    expect(window.toast.error).toHaveBeenCalledWith('Poe reconnect failed')
   })
 
   it('renders the Poe post-auth connected state and actions', async () => {
