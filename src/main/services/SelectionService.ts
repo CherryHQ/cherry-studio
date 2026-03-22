@@ -956,8 +956,8 @@ export class SelectionService {
     }
 
     if (!isLogical) {
-      // [macOS/Linux] don't need to convert by screenToDipPoint
-      if (isWin) {
+      // [Windows/Linux] selection-hook returns physical pixels; convert to logical (DIP)
+      if (isWin || isLinux) {
         refPoint = screen.screenToDipPoint(refPoint)
       }
       //screenToDipPoint can be float, so we need to round it
@@ -1026,15 +1026,8 @@ export class SelectionService {
       return
     }
 
-    // [Linux/Wayland] selection-hook coordinates and Electron getBounds() use different
-    // coordinate spaces on Wayland. Use screen.getCursorScreenPoint() instead, which
-    // is guaranteed to be in the same coordinate space as getBounds().
-    // [Windows] selection-hook coordinates need screenToDipPoint conversion.
-    const mousePoint = isLinux
-      ? screen.getCursorScreenPoint()
-      : isWin
-        ? screen.screenToDipPoint({ x: data.x, y: data.y })
-        : { x: data.x, y: data.y }
+    // [Windows/Linux] selection-hook returns physical pixels; convert to logical (DIP)
+    const mousePoint = isWin || isLinux ? screen.screenToDipPoint({ x: data.x, y: data.y }) : { x: data.x, y: data.y }
 
     const bounds = this.toolbarWindow!.getBounds()
 
