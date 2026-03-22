@@ -22,6 +22,7 @@ pnpm changeset add
 ```
 
 This will:
+
 1. Ask which packages have changed
 2. Ask for the type of change (patch/minor/major)
 3. Ask for a description of the change
@@ -36,6 +37,7 @@ pnpm changeset version
 ```
 
 This will:
+
 1. Bump package versions based on accumulated changesets
 2. Update CHANGELOG.md files
 3. Update internal dependencies
@@ -44,10 +46,11 @@ This will:
 ### Publishing packages
 
 ```bash
-pnpm release:packages
+pnpm packages:release
 ```
 
 This will:
+
 1. Build all packages
 2. Publish to npm
 3. Create GitHub releases
@@ -64,11 +67,11 @@ See `config.json` for the changeset configuration:
 
 ## Packages managed
 
-| Package | Current Version | Description |
-|---------|----------------|-------------|
-| `@cherrystudio/ai-core` | 1.0.9 | Unified AI Provider Interface |
-| `@cherrystudio/ai-sdk-provider` | 0.1.3 | AI SDK provider bundle with CherryIN routing |
-| `@cherrystudio/extension-table-plus` | 3.0.11 | Table extension for Tiptap |
+| Package                              | Current Version | Description                                  |
+| ------------------------------------ | --------------- | -------------------------------------------- |
+| `@cherrystudio/ai-core`              | 1.0.9           | Unified AI Provider Interface                |
+| `@cherrystudio/ai-sdk-provider`      | 0.1.3           | AI SDK provider bundle with CherryIN routing |
+| `@cherrystudio/extension-table-plus` | 3.0.11          | Table extension for Tiptap                   |
 
 ## Dependency relationships
 

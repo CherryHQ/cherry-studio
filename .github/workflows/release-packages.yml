@@ -5,8 +5,8 @@ on:
     branches:
       - main
     paths:
-      - '.changeset/**'
-      - 'packages/**'
+      - ".changeset/**"
+      - "packages/**"
   workflow_dispatch:
 
 concurrency: ${{ github.workflow }}-${{ github.ref }}
@@ -30,7 +30,7 @@ jobs:
         uses: actions/setup-node@v6
         with:
           node-version: 22
-          registry-url: 'https://registry.npmjs.org'
+          registry-url: "https://registry.npmjs.org"
 
       - name: Install pnpm
         uses: pnpm/action-setup@v4
@@ -52,7 +52,7 @@ jobs:
         run: pnpm install
 
       - name: Build Packages
-        run: pnpm build:packages
+        run: pnpm packages:build
 
       - name: Create Release Pull Request or Publish to npm
         id: changesets
@@ -60,8 +60,8 @@ jobs:
         with:
           publish: pnpm changeset:publish
           version: pnpm changeset:version
-          commit: 'chore: version packages'
-          title: 'chore: version packages'
+          commit: "chore: version packages"
+          title: "chore: version packages"
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
