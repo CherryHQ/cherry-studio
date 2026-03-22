@@ -3454,6 +3454,18 @@
           "windows": "請輸入應用程式的執行檔名稱（每行一個、不區分大小寫，可模糊比對）。例如：chrome.exe、weixin.exe、Cherry Studio.exe 等"
         }
       },
+      "linux": {
+        "filter_warning_text": "Wayland 環境下不生效",
+        "input_group_fail": "未取得，請執行 `sudo usermod -aG input $USER` 並重新登入生效",
+        "input_group_label": "input 組權限：",
+        "input_group_pass": "已取得",
+        "wayland_checklist_subtitle": "確認以下條件已滿足，以盡可能優化 Wayland 下的體驗：",
+        "wayland_description": "目前為 Wayland 環境，受系統限制，部分桌面環境下工具列只能顯示在螢幕中央，無法跟隨選取文字定位。建議使用 X11 環境以獲得完整體驗。",
+        "wayland_title": "Wayland 環境提示",
+        "xwayland_fail": "未啟用，請使用 `--ozone-platform=x11` 參數啟動 Cherry Studio",
+        "xwayland_label": "XWayland 模式：",
+        "xwayland_pass": "已啟用"
+      },
       "search_modal": {
         "custom": {
           "name": {

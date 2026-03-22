@@ -3454,6 +3454,18 @@
           "windows": "Please enter the executable file name of the application, one per line, case insensitive, can be fuzzy matched. For example: chrome.exe, weixin.exe, Cherry Studio.exe, etc."
         }
       },
+      "linux": {
+        "filter_warning_text": "Not available in Wayland environment",
+        "input_group_fail": "Not granted, please run `sudo usermod -aG input $USER` and re-login",
+        "input_group_label": "input group permission: ",
+        "input_group_pass": "Granted",
+        "wayland_checklist_subtitle": "Ensure the following conditions are met to optimize the Wayland experience:",
+        "wayland_description": "You are in a Wayland environment. Due to system limitations, the toolbar may only appear at the center of the screen instead of following the selected text on some desktop environments. It is recommended to use X11 for the full experience.",
+        "wayland_title": "Wayland Environment Notice",
+        "xwayland_fail": "Not enabled, please launch Cherry Studio with the `--ozone-platform=x11` flag",
+        "xwayland_label": "XWayland mode: ",
+        "xwayland_pass": "Enabled"
+      },
       "search_modal": {
         "custom": {
           "name": {
