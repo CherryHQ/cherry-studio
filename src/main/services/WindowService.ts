@@ -13,6 +13,7 @@ import windowStateKeeper from 'electron-window-state'
 import { join } from 'path'
 
 import iconPath from '../../../build/icon.png?asset'
+import logoDevPath from '../../../build/logo-dev.png?asset'
 import { titleBarOverlayDark, titleBarOverlayLight } from '../config'
 import { configManager } from './ConfigManager'
 import { contextMenu } from './ContextMenu'
@@ -24,8 +25,16 @@ const DEFAULT_MINIWINDOW_HEIGHT = 400
 // const logger = loggerService.withContext('WindowService')
 const logger = loggerService.withContext('WindowService')
 
-// Create nativeImage for Linux window icon (required for Wayland)
-const linuxIcon = isLinux ? nativeImage.createFromPath(iconPath) : undefined
+// Window icon for taskbar/title bar — only meaningful on Windows and Linux.
+// macOS ignores the BrowserWindow `icon` option; dock icon is managed separately via app.dock.setIcon().
+// Windows production: icon is embedded in the .exe by electron-builder, no override needed.
+function createAppIcon() {
+  if (isMac) return undefined
+  if (isDev) return nativeImage.createFromPath(logoDevPath)
+  if (isLinux) return nativeImage.createFromPath(iconPath)
+  return undefined
+}
+const appIcon = createAppIcon()
 
 export class WindowService {
   private static instance: WindowService | null = null
@@ -91,7 +100,7 @@ export class WindowService {
       ...(windowsBackgroundMaterial ? { backgroundMaterial: windowsBackgroundMaterial } : {}),
       ...(mainWindowBackgroundColor ? { backgroundColor: mainWindowBackgroundColor } : {}),
       darkTheme: nativeTheme.shouldUseDarkColors,
-      ...(isLinux ? { icon: linuxIcon } : {}),
+      ...(appIcon ? { icon: appIcon } : {}),
       webPreferences: {
         preload: join(__dirname, '../preload/index.js'),
         sandbox: false,
@@ -104,6 +113,11 @@ export class WindowService {
     })
 
     this.setupMainWindow(this.mainWindow, mainWindowState)
+
+    // Set macOS dock icon in dev mode (production uses the .icns from the app bundle).
+    if (isDev && isMac) {
+      app.dock?.setIcon(logoDevPath)
+    }
 
     //preload miniWindow to resolve series of issues about miniWindow in Mac
     const enableQuickAssistant = configManager.getEnableQuickAssistant()
