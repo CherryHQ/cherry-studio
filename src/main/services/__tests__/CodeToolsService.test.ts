@@ -45,6 +45,17 @@ describe('CodeToolsService - escapeBatchText', () => {
     expect(result).toBe('')
   })
 
+  it('handles null-like values', () => {
+    // @ts-expect-error - testing edge cases
+    expect(escapeBatchText(null)).toBe('')
+    // @ts-expect-error - testing edge cases
+    expect(escapeBatchText(undefined)).toBe('')
+  })
+
+  it('handles whitespace-only input', () => {
+    expect(escapeBatchText('   ')).toBe('   ')
+  })
+
   it('handles npm error message with newlines', () => {
     const input = 'npm error code ECONNREFUSED\nResolving dependencies'
     const result = escapeBatchText(input)

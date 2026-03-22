@@ -1258,8 +1258,11 @@ class CodeToolsService {
   }
 
   /**
-   * Escape text for safe use in Windows batch files
+   * Escape text for safe use in batch echo statements
    * Only handles critical issues: newlines and % characters
+   * Preserves command syntax (e.g., &&) - use for constructed command strings
+   * @param text - Raw text from command output or user input
+   * @returns Escaped text safe for batch echo statements
    */
   private static escapeBatchText(text: string): string {
     if (!text) return ''
@@ -1272,7 +1275,10 @@ class CodeToolsService {
 
 /**
  * Escape text for safe use in Windows batch files
- * Handles all cmd.exe metacharacters to prevent command injection
+ * Handles ALL cmd.exe metacharacters to prevent command injection
+ * Use this for arbitrary untrusted input that may contain any characters
+ * @param text - Raw text that may contain user input or error messages
+ * @returns Fully escaped text safe for batch files
  */
 export function escapeBatchText(text: string): string {
   if (!text) return ''
