@@ -5010,6 +5010,10 @@
         "label": "API 密钥",
         "tip": "多个密钥使用逗号分隔"
       },
+      "timeout": {
+        "label": "请求超时（毫秒）",
+        "tip": "网络搜索请求的超时时间，默认 10000 毫秒"
+      },
       "api_version": "API 版本",
       "aws-bedrock": {
         "access_key_id": "AWS 访问密钥 ID",
