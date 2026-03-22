@@ -170,6 +170,12 @@ describe('CodeToolsService - escapeBatchText', () => {
     expect(result).toBe('error ^& ^| ^> ^<')
   })
 
+  it('escapes double quotes to prevent echo injection', () => {
+    const input = 'npm error "ECONNREFUSED"'
+    const result = escapeBatchText(input)
+    expect(result).toBe('npm error ""ECONNREFUSED""')
+  })
+
   it('escapes real npm error with pipe character', () => {
     const input = 'npm ERR! command failed | npm ERR! path'
     const result = escapeBatchText(input)

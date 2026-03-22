@@ -1291,6 +1291,7 @@ export function escapeBatchText(text: string): string {
     .replace(/\|/g, '^|') // Escape | pipe
     .replace(/>/g, '^>') // Escape > output redirect
     .replace(/</g, '^<') // Escape < input redirect
+    .replace(/"/g, '""') // Escape double quotes to prevent echo injection
     .replace(/\r\n/g, ' ') // Windows newline to space
     .replace(/\n/g, ' ') // Unix newline to space
 }
