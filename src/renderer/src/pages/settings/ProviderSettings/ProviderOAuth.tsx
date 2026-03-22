@@ -9,8 +9,7 @@ import {
   type ProviderOAuthAction
 } from '@renderer/services/ProviderService'
 import { providerBills, providerCharge, type ProviderOAuthResult } from '@renderer/utils/oauth'
-import { Alert, Button } from 'antd'
-import dayjs from 'dayjs'
+import { Button } from 'antd'
 import { isEmpty } from 'lodash'
 import { CheckCircle2, CircleDollarSign, KeyRound, ReceiptText, RotateCcw, SquareArrowOutUpRight } from 'lucide-react'
 import type { FC } from 'react'
@@ -21,8 +20,6 @@ interface Props {
   providerId: string
 }
 
-const POE_EXPIRING_SOON_MS = 24 * 60 * 60 * 1000
-
 const ProviderOAuth: FC<Props> = ({ providerId }) => {
   const { t } = useTranslation()
   const { provider, updateProvider } = useProvider(providerId)
@@ -30,15 +27,12 @@ const ProviderOAuth: FC<Props> = ({ providerId }) => {
   const providerActions = getProviderOAuthActions(provider)
   const authHandler = getProviderAuthHandler(provider)
 
-  const setOAuthResult = ({ apiKey, apiKeyExpiresAt }: ProviderOAuthResult) => {
-    updateProvider({
-      apiKey: apiKey.trim(),
-      apiKeyExpiresAt
-    })
+  const setOAuthResult = ({ apiKey }: ProviderOAuthResult) => {
+    updateProvider({ apiKey: apiKey.trim() })
   }
 
   const clearApiKey = () => {
-    updateProvider({ apiKey: '', apiKeyExpiresAt: undefined })
+    updateProvider({ apiKey: '' })
   }
 
   const reconnect = async () => {
@@ -100,13 +94,6 @@ const ProviderOAuth: FC<Props> = ({ providerId }) => {
   }
 
   const isPoe = provider.id === 'poe'
-  const expiresAt = provider.apiKeyExpiresAt
-  const hasExpiry = isPoe && typeof expiresAt === 'number'
-  const remainingMs = hasExpiry ? expiresAt - Date.now() : undefined
-  const isExpired = typeof remainingMs === 'number' && remainingMs <= 0
-  const isExpiringSoon = typeof remainingMs === 'number' && remainingMs > 0 && remainingMs <= POE_EXPIRING_SOON_MS
-  const showExpiryWarning = !isEmpty(provider.apiKey) && hasExpiry && (isExpired || isExpiringSoon)
-  const expiresAtLabel = hasExpiry ? dayjs(expiresAt).format('YYYY-MM-DD HH:mm') : ''
 
   const renderProviderAction = (action: ProviderOAuthAction) => {
     if (action === 'charge') {
@@ -167,31 +154,6 @@ const ProviderOAuth: FC<Props> = ({ providerId }) => {
             <CheckCircle2 size={16} />
             <span>{t('settings.provider.oauth.connected')}</span>
           </ConnectedState>
-          {showExpiryWarning && (
-            <WarningAlert
-              type={isExpired ? 'error' : 'warning'}
-              showIcon
-              message={
-                isExpired
-                  ? t('settings.provider.oauth.poe.expired.title')
-                  : t('settings.provider.oauth.poe.expiring_soon.title')
-              }
-              description={
-                isExpired
-                  ? t('settings.provider.oauth.poe.expired.description', {
-                      date: expiresAtLabel
-                    })
-                  : t('settings.provider.oauth.poe.expiring_soon.description', {
-                      date: expiresAtLabel
-                    })
-              }
-              action={
-                <Button size="small" type={isExpired ? 'primary' : 'default'} onClick={reconnect}>
-                  {t('settings.provider.oauth.reconnect')}
-                </Button>
-              }
-            />
-          )}
           <ActionsRow gap={10} justifyContent="center">
             {providerActions.map(renderProviderAction)}
             <Button shape="round" icon={<RotateCcw size={16} />} onClick={isPoe ? reconnect : clearApiKey}>
@@ -259,11 +221,6 @@ const Description = styled.div`
 const OfficialWebsite = styled.a`
   text-decoration: none;
   color: var(--color-text-2);
-`
-
-const WarningAlert = styled(Alert)`
-  width: min(100%, 420px);
-  text-align: left;
 `
 
 const ActionsRow = styled(HStack)`

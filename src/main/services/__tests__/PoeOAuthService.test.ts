@@ -105,7 +105,7 @@ describe('PoeOAuthService', () => {
 
     const result = await PoeOAuthService.login()
 
-    expect(result).toEqual({ apiKey: 'poe-api-key', expiresIn: 3600 })
+    expect(result).toEqual({ apiKey: 'poe-api-key' })
     expect(mocks.openExternal).toHaveBeenCalledTimes(1)
     expect(fetchMock).toHaveBeenCalledTimes(1)
 
@@ -178,7 +178,7 @@ describe('PoeOAuthService', () => {
       return
     })
 
-    await expect(PoeOAuthService.login()).resolves.toEqual({ apiKey: 'retry-success', expiresIn: null })
+    await expect(PoeOAuthService.login()).resolves.toEqual({ apiKey: 'retry-success' })
     expect(fetchMock).toHaveBeenCalledTimes(2)
   })
 
@@ -280,7 +280,7 @@ describe('PoeOAuthService', () => {
       return
     })
 
-    await expect(PoeOAuthService.login()).resolves.toEqual({ apiKey: 'poe-api-key', expiresIn: 3600 })
+    await expect(PoeOAuthService.login()).resolves.toEqual({ apiKey: 'poe-api-key' })
     await expectLoopbackServerClosed(redirectUri)
   })
 

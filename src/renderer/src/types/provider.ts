@@ -105,7 +105,6 @@ export type Provider = {
   type: ProviderType
   name: string
   apiKey: string
-  apiKeyExpiresAt?: number
   apiHost: string
   anthropicApiHost?: string
   isAnthropicModel?: (m: Model) => boolean

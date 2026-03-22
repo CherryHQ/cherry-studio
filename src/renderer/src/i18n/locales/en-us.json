@@ -5198,14 +5198,6 @@
             "unsupported_grant_type": "Poe rejected the requested token grant type.",
             "unsupported_response_type": "Poe did not accept the requested authorization flow."
           },
-          "expired": {
-            "description": "This Poe API key expired at {{date}}. Reconnect to continue using Poe models.",
-            "title": "Poe API key expired"
-          },
-          "expiring_soon": {
-            "description": "This Poe API key will expire at {{date}}. Reconnect now to avoid interruptions.",
-            "title": "Poe API key expires soon"
-          },
           "failure": {
             "title": "Poe sign-in failed"
           },

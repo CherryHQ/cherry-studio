@@ -2144,12 +2144,6 @@ const migrateConfig = {
         }
       }
 
-      state.llm.providers.forEach((provider) => {
-        if (provider.id !== 'poe' || !Number.isFinite(provider.apiKeyExpiresAt)) {
-          delete provider.apiKeyExpiresAt
-        }
-      })
-
       return state
     } catch (error) {
       logger.error('migrate 128 error', error as Error)

@@ -16,7 +16,7 @@ const mocks = vi.hoisted(() => ({
   } as any,
   updateProvider: vi.fn(),
   authHandler: vi.fn(),
-  oauthButtonResult: { apiKey: '  poe-api-key  ', apiKeyExpiresAt: 1234 },
+  oauthButtonResult: { apiKey: '  poe-api-key  ' },
   t: vi.fn((key: string, values?: Record<string, string>) => {
     const translations: Record<string, string> = {
       'settings.provider.oauth.connected': 'Connected',
@@ -114,7 +114,7 @@ describe('ProviderOAuth', () => {
       apiHost: 'https://api.poe.com',
       models: []
     }
-    mocks.oauthButtonResult = { apiKey: '  poe-api-key  ', apiKeyExpiresAt: 1234 }
+    mocks.oauthButtonResult = { apiKey: '  poe-api-key  ' }
     window.open = vi.fn()
     window.toast = {
       success: vi.fn(),
@@ -130,8 +130,7 @@ describe('ProviderOAuth', () => {
     await user.click(screen.getByRole('button', { name: 'Login with Poe' }))
 
     expect(mocks.updateProvider).toHaveBeenCalledWith({
-      apiKey: 'poe-api-key',
-      apiKeyExpiresAt: 1234
+      apiKey: 'poe-api-key'
     })
   })
 
@@ -140,8 +139,7 @@ describe('ProviderOAuth', () => {
 
     mocks.provider = {
       ...mocks.provider,
-      apiKey: 'existing-poe-key',
-      apiKeyExpiresAt: Date.now() + 3 * 24 * 60 * 60 * 1000
+      apiKey: 'existing-poe-key'
     }
     mocks.authHandler.mockRejectedValue(new Error('Poe reconnect failed'))
 
@@ -158,8 +156,7 @@ describe('ProviderOAuth', () => {
 
     mocks.provider = {
       ...mocks.provider,
-      apiKey: 'existing-poe-key',
-      apiKeyExpiresAt: Date.now() + 3 * 24 * 60 * 60 * 1000
+      apiKey: 'existing-poe-key'
     }
 
     render(<ProviderOAuth providerId="poe" />)
