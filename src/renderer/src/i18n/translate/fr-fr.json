@@ -2028,8 +2028,8 @@
       },
       "fetchTopicName": "Échec de la nomination du sujet",
       "file": {
-        "process_failed": "[to be translated]:File {{name}} could not be processed",
-        "text_extraction_failed": "[to be translated]:Failed to extract text from {{name}}"
+        "process_failed": "Le fichier {{name}} n'a pas pu être traité",
+        "text_extraction_failed": "Impossible d'extraire le texte de {{name}}"
       },
       "get_embedding_dimensions": "Impossible d'obtenir les dimensions d'encodage",
       "invalid": {
@@ -2275,9 +2275,9 @@
     },
     "warning": {
       "file": {
-        "pdf_exceeds_limit": "[to be translated]:PDF file {{name}} exceeds size limit ({{limit}}), falling back to text extraction",
-        "pdf_text_extraction_failed": "[to be translated]:Failed to extract text from PDF {{name}}",
-        "pdf_upload_failed": "[to be translated]:Failed to upload PDF {{name}}, falling back to text extraction"
+        "pdf_exceeds_limit": "Le fichier PDF {{name}} dépasse la limite de taille ({{limit}}), passage à l'extraction de texte",
+        "pdf_text_extraction_failed": "Échec de l'extraction du texte du PDF {{name}}",
+        "pdf_upload_failed": "Échec du téléversement du PDF {{name}}, passage à l'extraction de texte"
       },
       "rate": {
         "limit": "Vous envoyez trop souvent, veuillez attendre {{seconds}} secondes avant de réessayer"

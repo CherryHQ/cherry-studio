@@ -2028,8 +2028,8 @@
       },
       "fetchTopicName": "Αποτυχία ονομασίας θέματος",
       "file": {
-        "process_failed": "[to be translated]:File {{name}} could not be processed",
-        "text_extraction_failed": "[to be translated]:Failed to extract text from {{name}}"
+        "process_failed": "Το αρχείο {{name}} δεν ήταν δυνατό να επεξεργαστεί",
+        "text_extraction_failed": "Αποτυχία εξαγωγής κειμένου από {{name}}"
       },
       "get_embedding_dimensions": "Απέτυχε η πρόσληψη διαστάσεων ενσωμάτωσης",
       "invalid": {
@@ -2275,9 +2275,9 @@
     },
     "warning": {
       "file": {
-        "pdf_exceeds_limit": "[to be translated]:PDF file {{name}} exceeds size limit ({{limit}}), falling back to text extraction",
-        "pdf_text_extraction_failed": "[to be translated]:Failed to extract text from PDF {{name}}",
-        "pdf_upload_failed": "[to be translated]:Failed to upload PDF {{name}}, falling back to text extraction"
+        "pdf_exceeds_limit": "Το αρχείο PDF {{name}} υπερβαίνει το όριο μεγέθους ({{limit}}), επαναφορά σε εξαγωγή κειμένου",
+        "pdf_text_extraction_failed": "Αποτυχία εξαγωγής κειμένου από το PDF {{name}}",
+        "pdf_upload_failed": "Αποτυχία μεταφόρτωσης PDF {{name}}, επαναφορά σε εξαγωγή κειμένου"
       },
       "rate": {
         "limit": "Υπερβολική συχνότητα στείλατε παρακαλώ περιμένετε {{seconds}} δευτερόλεπτα και προσπαθήστε ξανά"
