@@ -188,7 +188,7 @@ class PoeOAuthService {
         const requestUrl = new URL(req.url || '/', `http://${POE_OAUTH_CALLBACK_HOST}`)
 
         if (requestUrl.pathname !== POE_OAUTH_CALLBACK_PATH) {
-          res.writeHead(404, { 'Content-Type': 'text/plain; charset=utf-8' })
+          res.writeHead(404, { 'Content-Type': 'text/plain; charset=utf-8', Connection: 'close' })
           res.end('Not Found')
           return
         }
@@ -201,13 +201,16 @@ class PoeOAuthService {
         }
 
         const isSuccess = Boolean(payload.code) && !payload.error
-        res.writeHead(isSuccess ? 200 : 400, { 'Content-Type': 'text/html; charset=utf-8' })
+        res.writeHead(isSuccess ? 200 : 400, {
+          'Content-Type': 'text/html; charset=utf-8',
+          Connection: 'close'
+        })
         res.end(isSuccess ? renderSuccessHtml() : this.renderFailureHtml(payload))
 
         settleSuccess?.(payload)
       } catch (error) {
         logger.error('Failed to process Poe OAuth callback.', error as Error)
-        res.writeHead(500, { 'Content-Type': 'text/plain; charset=utf-8' })
+        res.writeHead(500, { 'Content-Type': 'text/plain; charset=utf-8', Connection: 'close' })
         res.end('Internal Server Error')
         settleFailure?.(
           new PoeOAuthServiceError(
