@@ -6,6 +6,7 @@ import { IpcChannel } from '@shared/IpcChannel'
 import type { CherryClawChannel } from '@types'
 import { app } from 'electron'
 
+import { windowService } from '../../../../WindowService'
 import { ChannelAdapter, type ChannelAdapterConfig, type SendMessageOptions } from '../ChannelAdapter'
 import { registerAdapterFactory } from '../ChannelManager'
 
@@ -196,23 +197,15 @@ class WeChatAdapter extends ChannelAdapter {
   }
 
   private sendQrToRenderer(url: string, status: 'pending' | 'confirmed' | 'expired'): void {
-    // Use dynamic import to avoid pulling WindowService into the module graph at load time,
-    // which causes ESM/CJS interop issues in vitest when mocking electron.
-    import('../../../../WindowService')
-      .then(({ windowService }) => {
-        const mainWindow = windowService.getMainWindow()
-        if (mainWindow && !mainWindow.isDestroyed()) {
-          mainWindow.webContents.send(IpcChannel.WeChat_QrLogin, {
-            channelId: this.channelId,
-            agentId: this.agentId,
-            url,
-            status
-          })
-        }
+    const mainWindow = windowService.getMainWindow()
+    if (mainWindow && !mainWindow.isDestroyed()) {
+      mainWindow.webContents.send(IpcChannel.WeChat_QrLogin, {
+        channelId: this.channelId,
+        agentId: this.agentId,
+        url,
+        status
       })
-      .catch(() => {
-        // Window may not be available during tests or headless operation
-      })
+    }
   }
 
   private isCommand(text: string): boolean {
