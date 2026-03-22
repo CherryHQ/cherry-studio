@@ -889,8 +889,9 @@ class CodeToolsService {
 
       if (isWindows) {
         // Windows uses set command
+        // Escape all cmd.exe metacharacters in env values to prevent command injection
         return Object.entries(env)
-          .map(([key, value]) => `set "${key}=${value.replace(/"/g, '\\"')}"`)
+          .map(([key, value]) => `set "${key}=${escapeBatchText(value)}"`)
           .join(' && ')
       } else {
         // Unix-like systems use export command
@@ -991,7 +992,8 @@ class CodeToolsService {
     } else if (isInstalled) {
       // If already installed, run executable directly (with optional update message)
       if (updateMessage) {
-        baseCommand = `echo "Checking ${cliTool} version..."${CodeToolsService.escapeBatchText(updateMessage)} && ${baseCommand}`
+        // Use exported escapeBatchText to handle all cmd metacharacters in updateMessage
+        baseCommand = `echo "Checking ${cliTool} version..."${escapeBatchText(updateMessage)} && ${baseCommand}`
       }
     } else {
       // If not installed, install first then run
@@ -1084,7 +1086,7 @@ class CodeToolsService {
           'cls',
           '',
           ':: Execute command',
-          CodeToolsService.escapeBatchText(command),
+          command,
           '',
           'goto :end',
           '',
