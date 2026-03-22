@@ -23,7 +23,7 @@ import Sessions from './components/Sessions'
 
 const AgentChat = () => {
   const { t } = useTranslation()
-  const { messageNavigation, topicPosition } = useSettings()
+  const { messageNavigation, messageStyle, topicPosition } = useSettings()
   const { showTopics } = useShowTopics()
   const { chat } = useRuntime()
   const { activeAgentId, activeSessionIdMap } = chat
@@ -83,7 +83,7 @@ const AgentChat = () => {
   }
 
   return (
-    <Container>
+    <Container className={cn(messageStyle)}>
       <QuickPanelProvider>
         {/* Main Chat */}
         <div className="flex min-w-0 flex-1 flex-col">
