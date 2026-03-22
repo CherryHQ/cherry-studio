@@ -76,7 +76,9 @@
         },
         "title": "Channels",
         "wechat": {
+          "connected": "Connected",
           "description": "Receive and respond to messages via WeChat using the iLink Bot API.",
+          "disconnected": "Disconnected",
           "loginHint": "First login requires scanning a QR code. A QR code will appear automatically when the channel connects.",
           "qrHint": "Open WeChat on your phone, scan the QR code to log in.",
           "qrTitle": "WeChat QR Login",

@@ -76,7 +76,9 @@
         },
         "title": "頻道",
         "wechat": {
+          "connected": "[to be translated]:Connected",
           "description": "[to be translated]:Receive and respond to messages via WeChat using the iLink Bot API.",
+          "disconnected": "[to be translated]:Disconnected",
           "loginHint": "[to be translated]:First login requires scanning a QR code. Check the app logs for the login URL.",
           "qrHint": "[to be translated]:Open WeChat on your phone, scan the QR code to log in.",
           "qrTitle": "[to be translated]:WeChat QR Login",
