@@ -33,8 +33,6 @@ import SelectModelSearchBar from './searchbar'
 import TagFilterSection from './TagFilterSection'
 import type { FlatListItem, FlatListModel } from './types'
 
-// const logger = loggerService.withContext('SelectModelPopup')
-
 const PAGE_SIZE = 12
 const ITEM_HEIGHT = 36
 
