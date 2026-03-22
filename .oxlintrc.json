@@ -82,7 +82,7 @@
     "oxc/number-arg-out-of-range": "warn",
     "oxc/only-used-in-recursion": "off",
     "oxc/uninvoked-array-callback": "warn",
-    "typescript/await-thenable": "off", // TODO: warn
+    "typescript/await-thenable": "warn",
     "typescript/consistent-type-imports": "error",
     "typescript/no-array-constructor": "error",
     "typescript/no-array-delete": "warn",
