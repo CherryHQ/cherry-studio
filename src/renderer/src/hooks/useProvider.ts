@@ -1,5 +1,5 @@
 import { createSelector } from '@reduxjs/toolkit'
-import { CHERRYAI_PROVIDER } from '@renderer/config/providers'
+import { CHERRYAI_PROVIDER, SYSTEM_PROVIDERS } from '@renderer/config/providers'
 import { getDefaultProvider } from '@renderer/services/AssistantService'
 import { type RootState, useAppDispatch, useAppSelector } from '@renderer/store'
 import {
@@ -29,27 +29,39 @@ function normalizeProvider<T extends Provider>(provider: T): T {
   }
 }
 
+function mergeSystemProviders(providers: Provider[]): Provider[] {
+  const missingSystemProviders = SYSTEM_PROVIDERS.filter((systemProvider) =>
+    !providers.some((provider) => provider.id === systemProvider.id)
+  )
+
+  return [...providers, ...missingSystemProviders]
+}
+
 const selectProviders = (state: RootState) => state.llm.providers
 
 const selectEnabledProviders = createSelector(selectProviders, (providers) =>
-  providers
+  mergeSystemProviders(providers)
     .map(normalizeProvider)
     .filter((p) => p.enabled)
     .concat(CHERRYAI_PROVIDER)
 )
 
 const selectSystemProviders = createSelector(selectProviders, (providers) =>
-  providers.filter((p) => isSystemProvider(p)).map(normalizeProvider)
+  mergeSystemProviders(providers)
+    .filter((p) => isSystemProvider(p))
+    .map(normalizeProvider)
 )
 
 const selectUserProviders = createSelector(selectProviders, (providers) =>
   providers.filter((p) => !isSystemProvider(p)).map(normalizeProvider)
 )
 
-const selectAllProviders = createSelector(selectProviders, (providers) => providers.map(normalizeProvider))
+const selectAllProviders = createSelector(selectProviders, (providers) =>
+  mergeSystemProviders(providers).map(normalizeProvider)
+)
 
 const selectAllProvidersWithCherryAI = createSelector(selectProviders, (providers) =>
-  [...providers, CHERRYAI_PROVIDER].map(normalizeProvider)
+  [...mergeSystemProviders(providers), CHERRYAI_PROVIDER].map(normalizeProvider)
 )
 
 export function useProviders() {

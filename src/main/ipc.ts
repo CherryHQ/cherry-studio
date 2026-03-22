@@ -22,7 +22,6 @@ import type { UpgradeChannel } from '@shared/config/constant'
 import { MIN_WINDOW_HEIGHT, MIN_WINDOW_WIDTH } from '@shared/config/constant'
 import type { LocalTransferConnectPayload } from '@shared/config/types'
 import { IpcChannel } from '@shared/IpcChannel'
-import { extractPdfText } from '@shared/utils/pdf'
 import type {
   AgentPersistedMessage,
   FileMetadata,
@@ -47,6 +46,7 @@ import appService from './services/AppService'
 import AppUpdater from './services/AppUpdater'
 import BackupManager from './services/BackupManager'
 import CherryINOAuthService from './services/CherryINOAuthService'
+import CodexAuthService from './services/CodexAuthService'
 import { codeToolsService } from './services/CodeToolsService'
 import { ConfigKeys, configManager } from './services/ConfigManager'
 import CopilotService from './services/CopilotService'
@@ -650,7 +650,10 @@ export async function registerIpc(mainWindow: BrowserWindow, app: Electron.App) 
   ipcMain.handle(IpcChannel.File_ShowInFolder, fileManager.showInFolder.bind(fileManager))
 
   // pdf
-  ipcMain.handle(IpcChannel.Pdf_ExtractText, (_, data: Uint8Array | ArrayBuffer | string) => extractPdfText(data))
+  ipcMain.handle(IpcChannel.Pdf_ExtractText, async (_, data: Uint8Array | ArrayBuffer | string) => {
+    const { extractPdfText } = await import('@shared/utils/pdf')
+    return extractPdfText(data)
+  })
 
   // file service
   ipcMain.handle(IpcChannel.FileService_Upload, async (_, provider: Provider, file: FileMetadata) => {
@@ -870,6 +873,18 @@ export async function registerIpc(mainWindow: BrowserWindow, app: Electron.App) 
   ipcMain.handle(IpcChannel.CherryIN_Logout, CherryINOAuthService.logout.bind(CherryINOAuthService))
   ipcMain.handle(IpcChannel.CherryIN_StartOAuthFlow, CherryINOAuthService.startOAuthFlow.bind(CherryINOAuthService))
   ipcMain.handle(IpcChannel.CherryIN_ExchangeToken, CherryINOAuthService.exchangeToken.bind(CherryINOAuthService))
+
+  // Codex OAuth
+  ipcMain.handle(IpcChannel.Codex_StartLogin, CodexAuthService.startLogin.bind(CodexAuthService))
+  ipcMain.handle(IpcChannel.Codex_HandleCallback, CodexAuthService.handleCallback.bind(CodexAuthService))
+  ipcMain.handle(IpcChannel.Codex_GetAuthStatus, CodexAuthService.getAuthStatus.bind(CodexAuthService))
+  ipcMain.handle(IpcChannel.Codex_GetAccessHeaders, CodexAuthService.getAccessHeaders.bind(CodexAuthService))
+  ipcMain.handle(IpcChannel.Codex_RefreshToken, CodexAuthService.refreshTokenIfNeeded.bind(CodexAuthService))
+  ipcMain.handle(IpcChannel.Codex_Logout, CodexAuthService.logout.bind(CodexAuthService))
+  ipcMain.handle(IpcChannel.Codex_FetchModels, CodexAuthService.fetchModels.bind(CodexAuthService))
+  ipcMain.handle(IpcChannel.Codex_ClearModelsCache, CodexAuthService.clearModelsCache.bind(CodexAuthService))
+  ipcMain.handle(IpcChannel.Codex_SetAccessToken, CodexAuthService.setAccessToken.bind(CodexAuthService))
+  ipcMain.handle(IpcChannel.Codex_SetAccountId, CodexAuthService.setAccountId.bind(CodexAuthService))
 
   // Obsidian service
   ipcMain.handle(IpcChannel.Obsidian_GetVaults, () => {

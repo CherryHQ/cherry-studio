@@ -90,6 +90,17 @@ export const SYSTEM_PROVIDERS_CONFIG: Record<SystemProviderId, SystemProvider> =
     isSystem: true,
     enabled: true
   },
+  codex: {
+    id: 'codex',
+    name: 'Codex',
+    type: 'openai-response',
+    apiKey: '',
+    apiHost: 'https://chatgpt.com/backend-api/codex',
+    models: [],
+    isSystem: true,
+    enabled: false,
+    isAuthed: false
+  },
   silicon: {
     id: 'silicon',
     name: 'Silicon',
@@ -739,6 +750,7 @@ export const SYSTEM_PROVIDERS: SystemProvider[] = Object.values(SYSTEM_PROVIDERS
 
 export const PROVIDER_LOGO_MAP: AtLeast<SystemProviderId, string> = {
   cherryin: CherryInProviderLogo,
+  codex: OpenAiProviderLogo,
   ph8: Ph8ProviderLogo,
   '302ai': Ai302ProviderLogo,
   openai: OpenAiProviderLogo,
@@ -836,6 +848,15 @@ export const PROVIDER_URLS: Record<SystemProviderId, ProviderUrls> = {
       apiKey: 'https://open.cherryin.ai/console/token',
       docs: 'https://open.cherryin.ai',
       models: 'https://open.cherryin.ai/pricing'
+    }
+  },
+  codex: {
+    api: {
+      url: 'https://chatgpt.com/backend-api/codex'
+    },
+    websites: {
+      official: 'https://chatgpt.com/codex',
+      docs: 'https://developers.openai.com/codex'
     }
   },
   ph8: {
