@@ -69,7 +69,7 @@ interface TopicManagePanelProps {
   assistants: Assistant[]
   activeTopic: Topic
   setActiveTopic: (topic: Topic) => void
-  removeTopic: (topic: Topic) => void
+  updateTopics: (topics: Topic[]) => void
   moveTopic: (topic: Topic, toAssistant: Assistant) => void
   manageState: TopicManageModeState
   filteredTopics: Topic[]
@@ -83,7 +83,7 @@ export const TopicManagePanel: React.FC<TopicManagePanelProps> = ({
   assistants,
   activeTopic,
   setActiveTopic,
-  removeTopic,
+  updateTopics,
   moveTopic,
   manageState,
   filteredTopics
@@ -143,13 +143,12 @@ export const TopicManagePanel: React.FC<TopicManagePanelProps> = ({
     await modelGenerating()
 
     const deletedCount = selectedIds.size
-    for (const id of selectedIds) {
-      const topic = assistant.topics.find((t) => t.id === id)
-      if (topic) {
-        await TopicManager.removeTopic(id)
-        removeTopic(topic)
-      }
-    }
+
+    // Deletion DB records and files
+    await Promise.all(Array.from(selectedIds).map((id) => TopicManager.removeTopic(id)))
+
+    // Batch update UI state
+    updateTopics(remainingTopics)
 
     // Switch to first remaining topic if current topic was deleted
     if (selectedIds.has(activeTopic.id)) {
@@ -158,7 +157,7 @@ export const TopicManagePanel: React.FC<TopicManagePanelProps> = ({
 
     window.toast.success(t('chat.topics.manage.delete.success', { count: deletedCount }))
     exitManageMode()
-  }, [selectedIds, assistant.topics, removeTopic, activeTopic.id, setActiveTopic, t, exitManageMode])
+  }, [selectedIds, assistant.topics, activeTopic.id, setActiveTopic, t, exitManageMode, updateTopics])
 
   // Handle move selected topics to another assistant
   const handleMoveSelected = useCallback(
