@@ -219,7 +219,7 @@ async function apiFetch(
 
 async function apiGet(baseUrlOrigin: string, urlPath: string, headers: Record<string, string> = {}): Promise<unknown> {
   const url = `${baseUrlOrigin}${urlPath}`
-  const response = await fetch(url, { method: 'GET', headers })
+  const response = await net.fetch(url, { method: 'GET', headers })
   return parseJsonResponse(response, urlPath)
 }
 
