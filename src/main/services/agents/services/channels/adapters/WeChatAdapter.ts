@@ -100,6 +100,7 @@ class WeChatAdapter extends ChannelAdapter {
           return
         }
 
+        // 'whoami' is handled above and returns early, so it won't reach here
         const cmd = text.split(/\s+/)[0].slice(1) as 'new' | 'compact' | 'help'
         this.emit('command', {
           chatId: msg.userId,
