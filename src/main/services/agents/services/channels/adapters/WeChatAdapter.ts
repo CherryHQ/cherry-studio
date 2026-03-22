@@ -1,7 +1,6 @@
 import path from 'node:path'
 
 import { loggerService } from '@logger'
-import { type IncomingMessage, WeixinBot } from '@pinixai/weixin-bot'
 import { IpcChannel } from '@shared/IpcChannel'
 import type { CherryClawChannel } from '@types'
 import { app } from 'electron'
@@ -9,6 +8,7 @@ import { app } from 'electron'
 import { windowService } from '../../../../WindowService'
 import { ChannelAdapter, type ChannelAdapterConfig, type SendMessageOptions } from '../ChannelAdapter'
 import { registerAdapterFactory } from '../ChannelManager'
+import { type IncomingMessage, WeixinBot } from './WeChatProtocol'
 
 const logger = loggerService.withContext('WeChatAdapter')
 
@@ -71,11 +71,13 @@ class WeChatAdapter extends ChannelAdapter {
           channelId: this.channelId,
           error: error instanceof Error ? error.message : String(error)
         })
-      }
+      },
+      onQrUrl: (url) => this.sendQrToRenderer(url, 'pending')
     })
     this.bot = bot
 
-    const credentials = await this.loginWithQrNotification(bot)
+    const credentials = await bot.login()
+    this.sendQrToRenderer('', 'confirmed')
     logger.info('WeChat bot logged in', { agentId: this.agentId, userId: credentials.userId })
 
     bot.onMessage((msg: IncomingMessage) => {
@@ -165,34 +167,6 @@ class WeChatAdapter extends ChannelAdapter {
     } catch {
       // sendTyping requires a cached context_token from a prior message;
       // silently ignore if not yet available
-    }
-  }
-
-  /**
-   * Intercept process.stderr during bot.login() to capture the QR code URL
-   * and forward it to the renderer for in-app display.
-   */
-  private async loginWithQrNotification(bot: WeixinBot): Promise<{ userId: string }> {
-    const originalWrite = process.stderr.write
-    const qrUrlPattern = /^https?:\/\/.*qrcode=/
-
-    process.stderr.write = ((chunk: any, ...args: any[]) => {
-      const text = typeof chunk === 'string' ? chunk : chunk.toString()
-      const trimmed = text.trim()
-
-      if (qrUrlPattern.test(trimmed)) {
-        this.sendQrToRenderer(trimmed, 'pending')
-      }
-
-      return originalWrite.call(process.stderr, chunk, ...args)
-    }) as typeof process.stderr.write
-
-    try {
-      const credentials = await bot.login()
-      this.sendQrToRenderer('', 'confirmed')
-      return credentials
-    } finally {
-      process.stderr.write = originalWrite
     }
   }
 
