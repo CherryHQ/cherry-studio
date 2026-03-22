@@ -554,7 +554,9 @@ const api = {
       }
       ipcRenderer.on(IpcChannel.WeChat_QrLogin, listener)
       return () => ipcRenderer.off(IpcChannel.WeChat_QrLogin, listener)
-    }
+    },
+    hasCredentials: (channelId: string): Promise<boolean> =>
+      ipcRenderer.invoke(IpcChannel.WeChat_HasCredentials, channelId)
   },
   quoteToMainWindow: (text: string) => ipcRenderer.invoke(IpcChannel.App_QuoteToMain, text),
   setDisableHardwareAcceleration: (isDisable: boolean) =>

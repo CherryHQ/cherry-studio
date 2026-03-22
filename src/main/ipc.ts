@@ -1175,6 +1175,17 @@ export async function registerIpc(mainWindow: BrowserWindow, app: Electron.App) 
   ipcMain.handle(IpcChannel.OpenClaw_SyncConfig, openClawService.syncProviderConfig)
   ipcMain.handle(IpcChannel.OpenClaw_GetChannels, openClawService.getChannelStatus)
 
+  // WeChat
+  ipcMain.handle(IpcChannel.WeChat_HasCredentials, async (_, channelId: string) => {
+    const tokenPath = path.join(app.getPath('userData'), 'Data', `weixin_bot_${channelId}.json`)
+    try {
+      await fs.promises.access(tokenPath)
+      return true
+    } catch {
+      return false
+    }
+  })
+
   // Analytics
   ipcMain.handle(IpcChannel.Analytics_TrackTokenUsage, (_, data: TokenUsageData) =>
     analyticsService.trackTokenUsage(data)
