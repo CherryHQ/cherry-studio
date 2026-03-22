@@ -390,7 +390,7 @@
           "description": "Crée et gère des listes de tâches structurées"
         },
         "ToolSearch": {
-          "description": "Découvre des outils différés dans de grandes bibliothèques"
+          "description": "Découvre les outils différés des grandes bibliothèques"
         },
         "WebFetch": {
           "description": "Récupère le contenu à partir d'une URL spécifiée"
@@ -5126,51 +5126,59 @@
           "title": "Connexion OAuth"
         },
         "connect": "Connecter {{provider}}",
-        "connected": "[to be translated]:已连接",
-        "description": "Этот сервис предоставляется <website>{{provider}}</website>",
+        "connected": "Connecté",
+        "description": "Ce service est fourni par <website>{{provider}}</website>",
         "error": "Échec de l'authentification",
         "logged_in": "Connecté",
         "logout": "Déconnexion",
         "logout_confirm": "Êtes-vous sûr de vouloir vous déconnecter ?",
         "logout_success": "Déconnexion réussie",
         "logout_warning": "Déconnecté localement, mais la révocation du jeton serveur a peut-être échoué",
-        "official_website": "Официальный сайт",
-        "open_api_keys": "[to be translated]:打开 API Keys",
-        "open_provider_website": "[to be translated]:打开服务商网站",
+        "official_website": "Site officiel",
+        "open_api_keys": "Ouvrir les clés API",
+        "open_provider_website": "Ouvrir le site du fournisseur",
         "poe": {
           "error": {
-            "access_denied": "[to be translated]:Poe 授权已被拒绝。请先批准访问后再继续。",
-            "authorization_failed": "[to be translated]:Poe 在授权过程中登录失败。",
-            "browser_open_failed": "[to be translated]:Cherry Studio 无法为 Poe 登录打开浏览器，请检查系统默认浏览器设置后重试。",
-            "callback_port_unavailable": "[to be translated]:Poe 登录无法确定回调端口。",
-            "callback_processing_failed": "[to be translated]:处理 Poe 回调失败。",
-            "callback_server_error": "[to be translated]:Poe 登录无法启动本地回调服务器。",
-            "callback_timeout": "[to be translated]:等待 Poe 授权响应超时，请重新登录。",
-            "invalid_grant": "[to be translated]:Poe 授权已过期或无法验证，请重新登录。",
-            "invalid_request": "[to be translated]:Poe 无法处理此次登录请求，请重试。",
-            "invalid_scope": "[to be translated]:Poe 拒绝了所请求的权限范围。",
-            "missing_api_key": "[to be translated]:Poe 登录已完成，但未返回 API Key。",
-            "missing_code": "[to be translated]:Poe 未返回授权码。",
-            "missing_state": "[to be translated]:Poe 登录未返回有效的 state 值。",
-            "server_error": "[to be translated]:Poe 暂时无法完成登录，请重试。",
-            "state_mismatch": "[to be translated]:此次 Poe 登录请求无法通过校验，请重试。",
-            "token_exchange_failed": "[to be translated]:Poe 在请求 API Key 时登录失败。",
-            "token_invalid_request": "[to be translated]:Poe 无法完成令牌交换，请重试。",
-            "token_request_failed": "[to be translated]:Cherry Studio 无法连接 Poe 完成登录，请检查网络连接后重试。",
-            "unsupported_grant_type": "[to be translated]:Poe 拒绝了当前请求的令牌授权类型。",
-            "unsupported_response_type": "[to be translated]:Poe 不接受当前请求的授权流程。"
+            "access_denied": "L'autorisation Poe a été refusée. Veuillez approuver l'accès pour continuer.",
+            "authorization_failed": "La connexion à Poe a échoué lors de l'autorisation.",
+            "browser_open_failed": "Cherry Studio n'a pas pu ouvrir le navigateur pour la connexion à Poe. Vérifiez les paramètres du navigateur par défaut de votre système et réessayez.",
+            "callback_port_unavailable": "La connexion à Poe n'a pas pu déterminer le port de rappel.",
+            "callback_processing_failed": "Échec du traitement du rappel Poe.",
+            "callback_server_error": "La connexion à Poe n'a pas pu démarrer le serveur de rappel local.",
+            "callback_timeout": "Délai d'attente dépassé pour la réponse d'autorisation Poe. Veuillez vous reconnecter.",
+            "invalid_grant": "L'autorisation Poe a expiré ou n'a pas pu être vérifiée. Veuillez vous reconnecter.",
+            "invalid_request": "Poe n'a pas pu traiter la demande de connexion. Veuillez réessayer.",
+            "invalid_scope": "Poe a refusé les autorisations demandées.",
+            "missing_api_key": "La connexion à Poe est terminée, mais aucune clé API n'a été retournée.",
+            "missing_code": "Poe n'a pas retourné de code d'autorisation.",
+            "missing_state": "La connexion à Poe n'a pas retourné de valeur state valide.",
+            "server_error": "Poe n'a pas pu terminer la connexion temporairement. Veuillez réessayer.",
+            "state_mismatch": "La demande de connexion à Poe n'a pas pu être vérifiée. Veuillez réessayer.",
+            "token_exchange_failed": "La connexion à Poe a échoué lors de la demande d'une clé API.",
+            "token_invalid_request": "Poe n'a pas pu terminer l'échange de jetons. Veuillez réessayer.",
+            "token_request_failed": "Cherry Studio n'a pas pu joindre Poe pour terminer la connexion. Vérifiez votre connexion réseau et réessayez.",
+            "unsupported_grant_type": "Poe a refusé le type d'octroi de jeton demandé.",
+            "unsupported_response_type": "Poe n'a pas accepté le flux d'autorisation demandé."
+          },
+          "expired": {
+            "description": "Cette clé API Poe a expiré le {{date}}. Reconnectez-vous pour continuer à utiliser les modèles Poe.",
+            "title": "Clé API Poe expirée"
+          },
+          "expiring_soon": {
+            "description": "Cette clé API Poe expirera le {{date}}. Reconnectez-vous maintenant pour éviter les interruptions.",
+            "title": "La clé API Poe expire bientôt"
           },
           "failure": {
-            "title": "[to be translated]:Poe 登录失败"
+            "title": "Échec de la connexion à Poe"
           },
           "success": {
-            "description": "[to be translated]:现在可以返回 Cherry Studio 继续操作。",
-            "title": "[to be translated]:已连接到 Poe"
+            "description": "Vous pouvez retourner à Cherry Studio maintenant.",
+            "title": "Connecté à Poe"
           }
         },
         "provided_by": "Fourni par",
         "provided_by_suffix": "I'm ready to translate. Please provide the text you'd like me to translate into French.",
-        "reconnect": "[to be translated]:重新连接",
+        "reconnect": "Reconnecter",
         "requests": "Demandes",
         "topup": "Recharger",
         "usage_title": "Utilisation"

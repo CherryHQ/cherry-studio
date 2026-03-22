@@ -390,7 +390,7 @@
           "description": "構造化されたタスクリストを作成し、管理します"
         },
         "ToolSearch": {
-          "description": "大規模ライブラリから遅延ツールを発見"
+          "description": "大規模ライブラリから遅延ツールを検出します"
         },
         "WebFetch": {
           "description": "指定されたURLからコンテンツを取得します"

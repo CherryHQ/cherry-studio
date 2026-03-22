@@ -5126,7 +5126,7 @@
           "title": "Login OAuth"
         },
         "connect": "Conectar {{provider}}",
-        "connected": "[to be translated]:已连接",
+        "connected": "Conectado",
         "description": "Este serviço é fornecido por <website>{{provider}}</website>",
         "error": "Falha na autenticação",
         "logged_in": "Conectado",
@@ -5135,42 +5135,50 @@
         "logout_success": "Desconectado com sucesso",
         "logout_warning": "Desconectado localmente, mas a revogação do token do servidor pode ter falhado",
         "official_website": "Site Oficial",
-        "open_api_keys": "[to be translated]:打开 API Keys",
-        "open_provider_website": "[to be translated]:打开服务商网站",
+        "open_api_keys": "Abrir API Keys",
+        "open_provider_website": "Abrir site do provedor",
         "poe": {
           "error": {
-            "access_denied": "[to be translated]:Poe 授权已被拒绝。请先批准访问后再继续。",
-            "authorization_failed": "[to be translated]:Poe 在授权过程中登录失败。",
-            "browser_open_failed": "[to be translated]:Cherry Studio 无法为 Poe 登录打开浏览器，请检查系统默认浏览器设置后重试。",
-            "callback_port_unavailable": "[to be translated]:Poe 登录无法确定回调端口。",
-            "callback_processing_failed": "[to be translated]:处理 Poe 回调失败。",
-            "callback_server_error": "[to be translated]:Poe 登录无法启动本地回调服务器。",
-            "callback_timeout": "[to be translated]:等待 Poe 授权响应超时，请重新登录。",
-            "invalid_grant": "[to be translated]:Poe 授权已过期或无法验证，请重新登录。",
-            "invalid_request": "[to be translated]:Poe 无法处理此次登录请求，请重试。",
-            "invalid_scope": "[to be translated]:Poe 拒绝了所请求的权限范围。",
-            "missing_api_key": "[to be translated]:Poe 登录已完成，但未返回 API Key。",
-            "missing_code": "[to be translated]:Poe 未返回授权码。",
-            "missing_state": "[to be translated]:Poe 登录未返回有效的 state 值。",
-            "server_error": "[to be translated]:Poe 暂时无法完成登录，请重试。",
-            "state_mismatch": "[to be translated]:此次 Poe 登录请求无法通过校验，请重试。",
-            "token_exchange_failed": "[to be translated]:Poe 在请求 API Key 时登录失败。",
-            "token_invalid_request": "[to be translated]:Poe 无法完成令牌交换，请重试。",
-            "token_request_failed": "[to be translated]:Cherry Studio 无法连接 Poe 完成登录，请检查网络连接后重试。",
-            "unsupported_grant_type": "[to be translated]:Poe 拒绝了当前请求的令牌授权类型。",
-            "unsupported_response_type": "[to be translated]:Poe 不接受当前请求的授权流程。"
+            "access_denied": "A autorização do Poe foi negada. Aprove o acesso para continuar.",
+            "authorization_failed": "O início de sessão no Poe falhou durante a autorização.",
+            "browser_open_failed": "O Cherry Studio não conseguiu abrir o navegador para iniciar sessão no Poe. Verifique as configurações do navegador padrão do sistema e tente novamente.",
+            "callback_port_unavailable": "O início de sessão no Poe não conseguiu determinar a porta de retorno.",
+            "callback_processing_failed": "Falha ao processar o retorno do Poe.",
+            "callback_server_error": "O início de sessão no Poe não conseguiu iniciar o servidor de retorno local.",
+            "callback_timeout": "Tempo esgotado ao aguardar a resposta de autorização do Poe. Tente iniciar sessão novamente.",
+            "invalid_grant": "A autorização do Poe expirou ou não pôde ser verificada. Inicie sessão novamente.",
+            "invalid_request": "O Poe não conseguiu processar o pedido de início de sessão. Tente novamente.",
+            "invalid_scope": "O Poe rejeitou as permissões solicitadas.",
+            "missing_api_key": "O início de sessão no Poe foi concluído, mas nenhuma chave API foi retornada.",
+            "missing_code": "O Poe não retornou um código de autorização.",
+            "missing_state": "O início de sessão no Poe não retornou um valor de state válido.",
+            "server_error": "O Poe falhou temporariamente ao concluir o início de sessão. Tente novamente.",
+            "state_mismatch": "O pedido de início de sessão no Poe não pôde ser verificado. Tente novamente.",
+            "token_exchange_failed": "O início de sessão no Poe falhou ao solicitar uma chave API.",
+            "token_invalid_request": "O Poe não conseguiu concluir a troca de tokens. Tente novamente.",
+            "token_request_failed": "O Cherry Studio não conseguiu contactar o Poe para concluir o início de sessão. Verifique a ligação à rede e tente novamente.",
+            "unsupported_grant_type": "O Poe rejeitou o tipo de concessão de token solicitado.",
+            "unsupported_response_type": "O Poe não aceitou o fluxo de autorização solicitado."
+          },
+          "expired": {
+            "description": "Esta chave API do Poe expirou em {{date}}. Reconecte para continuar a usar os modelos Poe.",
+            "title": "Chave API do Poe expirada"
+          },
+          "expiring_soon": {
+            "description": "Esta chave API do Poe expirará em {{date}}. Reconecte agora para evitar interrupções.",
+            "title": "Chave API do Poe expira em breve"
           },
           "failure": {
-            "title": "[to be translated]:Poe 登录失败"
+            "title": "Início de sessão no Poe falhou"
           },
           "success": {
-            "description": "[to be translated]:现在可以返回 Cherry Studio 继续操作。",
-            "title": "[to be translated]:已连接到 Poe"
+            "description": "Pode voltar ao Cherry Studio agora.",
+            "title": "Conectado ao Poe"
           }
         },
         "provided_by": "Fornecido por",
         "provided_by_suffix": "I'm ready to translate. Please provide the text you'd like me to translate into Portuguese.",
-        "reconnect": "[to be translated]:重新连接",
+        "reconnect": "Reconectar",
         "requests": "Solicitações",
         "topup": "Recarregar",
         "usage_title": "Uso"
