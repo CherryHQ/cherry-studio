@@ -37,7 +37,12 @@ import type {
 } from '@renderer/types/agent'
 import { ChunkType } from '@renderer/types/chunk'
 import type { FileMessageBlock, ImageMessageBlock, Message, MessageBlock } from '@renderer/types/newMessage'
-import { AssistantMessageStatus, MessageBlockStatus, MessageBlockType } from '@renderer/types/newMessage'
+import {
+  AssistantMessageStatus,
+  MessageBlockStatus,
+  MessageBlockType,
+  UserMessageStatus
+} from '@renderer/types/newMessage'
 import { uuid } from '@renderer/utils'
 import { addAbortController } from '@renderer/utils/abortController'
 import {
@@ -2038,5 +2043,141 @@ export const updateBlocks = async (blocks: MessageBlock[]): Promise<void> => {
   } catch (error) {
     logger.error('Failed to update blocks:', { count: blocks.length, error })
     throw error
+  }
+}
+
+// ---------------------------------------------------------------------------
+// IM Channel stream rendering
+// ---------------------------------------------------------------------------
+// Reuses the same BlockManager + AiSdkToChunkAdapter pipeline used for SSE
+// streaming. IPC chunks are wrapped into a ReadableStream and fed into the
+// existing stream processing infrastructure.
+//
+// Persistence is handled by the same saveUpdatesToDB / saveUpdatedBlockToDB
+// functions used for normal agent messages (writes to SQLite via
+// AgentMessageDataSource). When the renderer is watching, the backend skips
+// its own persistHeadlessExchange to avoid duplicate writes.
+// ---------------------------------------------------------------------------
+
+export type ChannelStreamController = {
+  pushChunk: (chunk: TextStreamPart<Record<string, any>>) => void
+  complete: () => void
+  error: (err: Error) => void
+}
+
+/**
+ * Dispatches an IM channel user message to Redux and persists to DB.
+ * Call this BEFORE setupChannelStream so the user message appears first.
+ */
+export const addChannelUserMessage = (dispatch: AppDispatch, topicId: string, agentId: string, text: string) => {
+  const now = new Date().toISOString()
+  const userMsgId = uuid()
+  const blockId = uuid()
+
+  const userBlock: MessageBlock = {
+    id: blockId,
+    messageId: userMsgId,
+    type: MessageBlockType.MAIN_TEXT,
+    content: text,
+    status: MessageBlockStatus.SUCCESS,
+    createdAt: now
+  }
+
+  const userMessage: Message = {
+    id: userMsgId,
+    role: 'user',
+    assistantId: agentId,
+    topicId,
+    createdAt: now,
+    status: UserMessageStatus.SUCCESS,
+    blocks: [blockId]
+  }
+
+  dispatch(upsertOneBlock(userBlock))
+  dispatch(newMessagesActions.addMessage({ topicId, message: userMessage }))
+
+  dbService.appendMessage(topicId, userMessage, [userBlock]).catch((err) => {
+    logger.error('Failed to persist channel user message', err as Error)
+  })
+}
+
+/**
+ * Sets up the streaming pipeline for rendering IM channel responses in real-time.
+ * Creates the assistant message immediately — call addChannelUserMessage first
+ * to ensure correct message ordering.
+ */
+export const setupChannelStream = (
+  dispatch: AppDispatch,
+  getState: () => RootState,
+  topicId: string,
+  agentId: string,
+  modelId?: string
+): ChannelStreamController => {
+  const model: Model | undefined = modelId ? { id: modelId, provider: '', name: '', group: '' } : undefined
+  const assistantMessage = createAssistantMessage(agentId, topicId, {
+    ...(model ? { modelId: model.id, model } : {})
+  })
+  dispatch(newMessagesActions.addMessage({ topicId, message: assistantMessage }))
+  dispatch(newMessagesActions.setTopicLoading({ topicId, loading: true }))
+  dbService.appendMessage(topicId, assistantMessage, []).catch((err) => {
+    logger.error('Failed to persist initial channel assistant message', err as Error)
+  })
+
+  let streamController: ReadableStreamDefaultController<TextStreamPart<Record<string, any>>> | null = null
+  const stream = new ReadableStream<TextStreamPart<Record<string, any>>>({
+    start(controller) {
+      streamController = controller
+    }
+  })
+
+  const assistant: Assistant = { id: agentId, name: '', prompt: '', topics: [], type: 'cherry-claw', model }
+
+  const blockManager = new BlockManager({
+    dispatch,
+    getState,
+    saveUpdatedBlockToDB,
+    saveUpdatesToDB,
+    assistantMsgId: assistantMessage.id,
+    topicId,
+    throttledBlockUpdate,
+    cancelThrottledBlockUpdate
+  })
+
+  const callbacks = createCallbacks({
+    blockManager,
+    dispatch,
+    getState,
+    topicId,
+    assistantMsgId: assistantMessage.id,
+    saveUpdatesToDB,
+    assistant
+  })
+
+  const streamProcessorCallbacks = createStreamProcessor(callbacks)
+  streamProcessorCallbacks({ type: ChunkType.LLM_RESPONSE_CREATED })
+
+  const adapter = new AiSdkToChunkAdapter(streamProcessorCallbacks, [], false, false)
+  adapter
+    .processStream({
+      fullStream: stream,
+      text: Promise.resolve('')
+    })
+    .catch((err) => {
+      logger.error('Channel stream processing failed', err as Error)
+    })
+    .finally(() => {
+      dispatch(newMessagesActions.setTopicLoading({ topicId, loading: false }))
+    })
+
+  return {
+    pushChunk(chunk: TextStreamPart<Record<string, any>>) {
+      streamController?.enqueue(chunk)
+    },
+    complete() {
+      streamController?.close()
+    },
+    error(err: Error) {
+      streamController?.error(err)
+    }
   }
 }

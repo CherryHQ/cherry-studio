@@ -7,6 +7,8 @@ export type {
 export { ChannelAdapter } from './ChannelAdapter'
 export { channelManager, registerAdapterFactory } from './ChannelManager'
 export { ChannelMessageHandler, channelMessageHandler } from './ChannelMessageHandler'
+export { sessionStreamBus, type SessionStreamChunk } from './SessionStreamBus'
+export { broadcastSessionChanged, registerSessionStreamIpc } from './sessionStreamIpc'
 
 // Register adapters (side-effect imports)
 import './adapters/FeishuAdapter'

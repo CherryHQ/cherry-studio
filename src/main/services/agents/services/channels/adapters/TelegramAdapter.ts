@@ -204,6 +204,7 @@ class TelegramAdapter extends ChannelAdapter {
 registerAdapterFactory('telegram', (channel: CherryClawChannel, agentId: string) => {
   return new TelegramAdapter({
     channelId: channel.id,
+    channelType: channel.type,
     agentId,
     channelConfig: channel.config
   })

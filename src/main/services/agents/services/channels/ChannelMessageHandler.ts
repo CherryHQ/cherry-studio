@@ -5,6 +5,8 @@ import { agentService } from '../AgentService'
 import { sessionMessageService } from '../SessionMessageService'
 import { sessionService } from '../SessionService'
 import type { ChannelAdapter, ChannelCommandEvent, ChannelMessageEvent } from './ChannelAdapter'
+import { sessionStreamBus } from './SessionStreamBus'
+import { broadcastSessionChanged } from './sessionStreamIpc'
 
 const logger = loggerService.withContext('ChannelMessageHandler')
 
@@ -14,7 +16,7 @@ const TYPING_INTERVAL_MS = 4000
 
 export class ChannelMessageHandler {
   private static instance: ChannelMessageHandler | null = null
-  private readonly sessionTracker = new Map<string, string>() // agentId -> sessionId
+  private readonly sessionTracker = new Map<string, string>() // `${agentId}:${channelId}:${chatId}` -> sessionId
 
   static getInstance(): ChannelMessageHandler {
     if (!ChannelMessageHandler.instance) {
@@ -26,11 +28,24 @@ export class ChannelMessageHandler {
   async handleIncoming(adapter: ChannelAdapter, message: ChannelMessageEvent): Promise<void> {
     const { agentId } = adapter
     try {
-      const session = await this.resolveSession(agentId)
+      const session = await this.resolveSession(agentId, adapter.channelId, adapter.channelType, message.chatId)
       if (!session) {
         logger.error('Failed to resolve session', { agentId })
         return
       }
+
+      // Broadcast user message to renderer so it can display it during streaming
+      sessionStreamBus.publish(session.id, {
+        sessionId: session.id,
+        agentId: session.agent_id,
+        type: 'user-message',
+        userMessage: {
+          chatId: message.chatId,
+          userId: message.userId,
+          userName: message.userName,
+          text: message.text
+        }
+      })
 
       const abortController = new AbortController()
       const draftId = Math.floor(Math.random() * 2_147_483_647) + 1
@@ -72,13 +87,14 @@ export class ChannelMessageHandler {
         case 'new': {
           const newSession = await sessionService.createSession(agentId, {})
           if (newSession) {
-            this.sessionTracker.set(agentId, newSession.id)
+            const trackerKey = `${agentId}:${adapter.channelId}:${command.chatId}`
+            this.sessionTracker.set(trackerKey, newSession.id)
             await adapter.sendMessage(command.chatId, 'New session created.')
           }
           break
         }
         case 'compact': {
-          const session = await this.resolveSession(agentId)
+          const session = await this.resolveSession(agentId, adapter.channelId, adapter.channelType, command.chatId)
           if (!session) {
             await adapter.sendMessage(command.chatId, 'No active session.')
             return
@@ -139,30 +155,53 @@ export class ChannelMessageHandler {
 
   /** Clear session tracking for an agent (used when agent is deleted/updated) */
   clearSessionTracker(agentId: string): void {
-    this.sessionTracker.delete(agentId)
+    for (const key of this.sessionTracker.keys()) {
+      if (key.startsWith(`${agentId}:`)) {
+        this.sessionTracker.delete(key)
+      }
+    }
   }
 
-  private async resolveSession(agentId: string): Promise<GetAgentSessionResponse | null> {
+  private async resolveSession(
+    agentId: string,
+    channelId: string,
+    channelType: string,
+    chatId: string
+  ): Promise<GetAgentSessionResponse | null> {
+    const trackerKey = `${agentId}:${channelId}:${chatId}`
+
     // Check tracker first
-    const trackedId = this.sessionTracker.get(agentId)
+    const trackedId = this.sessionTracker.get(trackerKey)
     if (trackedId) {
       const session = await sessionService.getSession(agentId, trackedId)
       if (session) return session
       // Tracked session gone, clear it
-      this.sessionTracker.delete(agentId)
+      this.sessionTracker.delete(trackerKey)
     }
 
-    // Fall back to first existing session
-    const { sessions } = await sessionService.listSessions(agentId, { limit: 1 })
-    if (sessions.length > 0) {
-      this.sessionTracker.set(agentId, sessions[0].id)
-      return sessionService.getSession(agentId, sessions[0].id)
+    // Look up existing session from DB by channel source metadata
+    const existingSession = await sessionService.findSessionByChannel(agentId, channelId, chatId)
+    if (existingSession) {
+      this.sessionTracker.set(trackerKey, existingSession.id)
+      return existingSession
     }
 
-    // Create new session
-    const newSession = await sessionService.createSession(agentId, {})
+    // No existing session found — create a new one
+    const agent = await agentService.getAgent(agentId)
+    const newSession = await sessionService.createSession(agentId, {
+      ...(agent?.configuration
+        ? {
+            configuration: {
+              ...agent.configuration,
+              source_channel_id: channelId,
+              source_channel_type: channelType,
+              source_chat_id: chatId
+            }
+          }
+        : {})
+    })
     if (newSession) {
-      this.sessionTracker.set(agentId, newSession.id)
+      this.sessionTracker.set(trackerKey, newSession.id)
       return newSession
     }
 
@@ -175,11 +214,14 @@ export class ChannelMessageHandler {
     abortController: AbortController,
     onDraft?: (text: string) => void
   ): Promise<string> {
+    // If renderer is subscribed, it handles persistence via the same BlockManager
+    // pipeline as normal agent messages. Otherwise, fall back to persistHeadlessExchange.
+    const rendererIsWatching = sessionStreamBus.hasSubscribers(session.id)
     const { stream, completion } = await sessionMessageService.createSessionMessage(
       session,
       { content },
       abortController,
-      { persist: true }
+      { persist: !rendererIsWatching }
     )
 
     const reader = stream.getReader()
@@ -218,6 +260,14 @@ export class ChannelMessageHandler {
         const { done, value } = await reader.read()
         if (done) break
 
+        // Publish chunk to bus for renderer real-time rendering
+        sessionStreamBus.publish(session.id, {
+          sessionId: session.id,
+          agentId: session.agent_id,
+          type: 'chunk',
+          chunk: value
+        })
+
         switch (value.type) {
           case 'text-delta':
             // text-delta values are cumulative within a block
@@ -237,12 +287,28 @@ export class ChannelMessageHandler {
       }
 
       await completion
+
+      // Notify renderer that stream is complete and data is persisted
+      sessionStreamBus.publish(session.id, {
+        sessionId: session.id,
+        agentId: session.agent_id,
+        type: 'complete'
+      })
+      broadcastSessionChanged(session.agent_id, session.id)
+
+      // Trim trailing separator
+      return (completedText + currentBlockText).replace(/\n+$/, '')
+    } catch (error) {
+      sessionStreamBus.publish(session.id, {
+        sessionId: session.id,
+        agentId: session.agent_id,
+        type: 'error',
+        error: { message: error instanceof Error ? error.message : String(error) }
+      })
+      throw error
     } finally {
       if (draftTimer) clearTimeout(draftTimer)
     }
-
-    // Trim trailing separator
-    return (completedText + currentBlockText).replace(/\n+$/, '')
   }
 
   private async sendChunked(adapter: ChannelAdapter, chatId: string, text: string): Promise<void> {

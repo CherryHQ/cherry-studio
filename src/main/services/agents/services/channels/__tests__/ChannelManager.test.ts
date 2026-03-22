@@ -51,6 +51,7 @@ describe('ChannelManager', () => {
     registerAdapterFactory('telegram', (channel, agentId) => {
       const adapter = new MockAdapter({
         channelId: channel.id,
+        channelType: channel.type,
         agentId,
         channelConfig: channel.config
       })

@@ -606,6 +606,7 @@ class QQAdapter extends ChannelAdapter {
 registerAdapterFactory('qq', (channel: CherryClawChannel, agentId: string) => {
   return new QQAdapter({
     channelId: channel.id,
+    channelType: channel.type,
     agentId,
     channelConfig: channel.config
   })

@@ -22,12 +22,14 @@ export type SendMessageOptions = {
 
 export type ChannelAdapterConfig = {
   channelId: string
+  channelType: string
   agentId: string
   channelConfig: Record<string, unknown>
 }
 
 export abstract class ChannelAdapter extends EventEmitter {
   readonly channelId: string
+  readonly channelType: string
   readonly agentId: string
   /** Chat IDs that this adapter can send notifications to (set by subclass in constructor). */
   notifyChatIds: string[] = []
@@ -35,6 +37,7 @@ export abstract class ChannelAdapter extends EventEmitter {
   constructor(protected readonly config: ChannelAdapterConfig) {
     super()
     this.channelId = config.channelId
+    this.channelType = config.channelType
     this.agentId = config.agentId
   }
 

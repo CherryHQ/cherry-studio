@@ -14,7 +14,7 @@ vi.mock('@logger', () => ({
 
 vi.mock('../../AgentService', () => ({
   agentService: {
-    getAgent: vi.fn()
+    getAgent: vi.fn().mockResolvedValue({ configuration: {} })
   }
 }))
 
@@ -22,7 +22,8 @@ vi.mock('../../SessionService', () => ({
   sessionService: {
     listSessions: vi.fn().mockResolvedValue({ sessions: [], total: 0 }),
     getSession: vi.fn(),
-    createSession: vi.fn()
+    createSession: vi.fn(),
+    findSessionByChannel: vi.fn().mockResolvedValue(null)
   }
 }))
 
@@ -30,6 +31,19 @@ vi.mock('../../SessionMessageService', () => ({
   sessionMessageService: {
     createSessionMessage: vi.fn()
   }
+}))
+
+vi.mock('../SessionStreamBus', () => ({
+  sessionStreamBus: {
+    publish: vi.fn(),
+    subscribe: vi.fn(),
+    cleanup: vi.fn(),
+    hasSubscribers: vi.fn().mockReturnValue(false)
+  }
+}))
+
+vi.mock('../sessionStreamIpc', () => ({
+  broadcastSessionChanged: vi.fn()
 }))
 
 function createMockStream(parts: Array<{ type: string; text?: string }>) {
@@ -48,6 +62,7 @@ function createMockAdapter(overrides: Record<string, unknown> = {}) {
   const adapter = new EventEmitter() as any
   adapter.agentId = overrides.agentId ?? 'agent-1'
   adapter.channelId = overrides.channelId ?? 'channel-1'
+  adapter.channelType = overrides.channelType ?? 'telegram'
   adapter.sendMessage = vi.fn().mockResolvedValue(undefined)
   adapter.sendMessageDraft = vi.fn().mockResolvedValue(undefined)
   adapter.sendTypingIndicator = vi.fn().mockResolvedValue(undefined)
@@ -245,7 +260,6 @@ describe('ChannelMessageHandler', () => {
   it('clearSessionTracker causes fresh session resolution', async () => {
     const adapter = createMockAdapter()
     const session1 = { id: 'session-1', agent_id: 'agent-1', agent_type: 'cherry-claw' }
-    const session2 = { id: 'session-2', agent_id: 'agent-1', agent_type: 'cherry-claw' }
 
     // First interaction creates a session
     vi.mocked(sessionService.createSession).mockResolvedValueOnce(session1 as any)
@@ -263,12 +277,8 @@ describe('ChannelMessageHandler', () => {
     // Clear session tracker
     channelMessageHandler.clearSessionTracker('agent-1')
 
-    // Next interaction should resolve from scratch — listSessions returns session2
-    vi.mocked(sessionService.listSessions).mockResolvedValueOnce({
-      sessions: [session2] as any[],
-      total: 1
-    })
-    vi.mocked(sessionService.getSession).mockResolvedValueOnce(session2 as any)
+    // Next interaction should find existing session from DB via findSessionByChannel
+    vi.mocked(sessionService.findSessionByChannel).mockResolvedValueOnce(session1 as any)
     vi.mocked(sessionMessageService.createSessionMessage).mockResolvedValueOnce(
       createMockStream([{ type: 'text-delta', text: 'R2' }]) as any
     )
@@ -280,7 +290,9 @@ describe('ChannelMessageHandler', () => {
       text: 'msg2'
     })
 
-    expect(sessionService.listSessions).toHaveBeenCalledWith('agent-1', { limit: 1 })
-    expect(sessionService.getSession).toHaveBeenCalledWith('agent-1', 'session-2')
+    // After clearing tracker, should query DB instead of creating new session
+    expect(sessionService.findSessionByChannel).toHaveBeenCalledWith('agent-1', 'channel-1', 'chat-1')
+    // Only 1 createSession call (the first one), not 2
+    expect(sessionService.createSession).toHaveBeenCalledTimes(1)
   })
 })

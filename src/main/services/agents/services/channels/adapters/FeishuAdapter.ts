@@ -558,6 +558,7 @@ class FeishuAdapter extends ChannelAdapter {
 registerAdapterFactory('feishu', (channel: CherryClawChannel, agentId: string) => {
   return new FeishuAdapter({
     channelId: channel.id,
+    channelType: channel.type,
     agentId,
     channelConfig: channel.config
   })

@@ -212,6 +212,7 @@ class WeChatAdapter extends ChannelAdapter {
 registerAdapterFactory('wechat', (channel: CherryClawChannel, agentId: string) => {
   return new WeChatAdapter({
     channelId: channel.id,
+    channelType: channel.type,
     agentId,
     channelConfig: channel.config
   })

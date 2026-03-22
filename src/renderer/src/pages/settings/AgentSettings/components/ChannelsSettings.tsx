@@ -1,4 +1,5 @@
 import type { CherryClawChannel, CherryClawConfiguration, FeishuChannelConfig, FeishuDomain } from '@renderer/types'
+import { getChannelTypeIcon } from '@renderer/utils/agentSession'
 import type { CardProps } from 'antd'
 import { Card, Checkbox, Input, Modal, Select, Switch } from 'antd'
 import { QRCodeSVG } from 'qrcode.react'
@@ -14,7 +15,6 @@ type AvailableChannel = {
   type: 'telegram' | 'feishu' | 'qq' | 'wechat' // extend later: | 'discord' | 'slack'
   name: string
   description: string // i18n key
-  icon: string
   available: boolean // false = "coming soon"
   defaultConfig: CherryClawChannel['config']
 }
@@ -24,7 +24,6 @@ const AVAILABLE_CHANNELS: AvailableChannel[] = [
     type: 'feishu',
     name: 'Feishu',
     description: 'agent.cherryClaw.channels.feishu.description',
-    icon: '🪶',
     available: true,
     defaultConfig: {
       app_id: '',
@@ -39,7 +38,6 @@ const AVAILABLE_CHANNELS: AvailableChannel[] = [
     type: 'telegram',
     name: 'Telegram',
     description: 'agent.cherryClaw.channels.telegram.description',
-    icon: '✈️',
     available: true,
     defaultConfig: { bot_token: '', allowed_chat_ids: [] }
   },
@@ -47,7 +45,6 @@ const AVAILABLE_CHANNELS: AvailableChannel[] = [
     type: 'qq',
     name: 'QQ',
     description: 'agent.cherryClaw.channels.qq.description',
-    icon: '🐧',
     available: true,
     defaultConfig: { app_id: '', client_secret: '', allowed_chat_ids: [] }
   },
@@ -55,7 +52,6 @@ const AVAILABLE_CHANNELS: AvailableChannel[] = [
     type: 'wechat',
     name: 'WeChat',
     description: 'agent.cherryClaw.channels.wechat.description',
-    icon: '💬',
     available: true,
     defaultConfig: { token_path: '', allowed_chat_ids: [] }
   }
@@ -488,7 +484,9 @@ const ChannelsSettings: FC<AgentOrSessionSettingsProps> = ({ agentBase, update }
                 <div className="flex items-center justify-between gap-2 py-3">
                   <div className="flex min-w-0 flex-col gap-1">
                     <div className="flex items-center gap-2">
-                      <span>{channelDef.icon}</span>
+                      {getChannelTypeIcon(channelDef.type) && (
+                        <img src={getChannelTypeIcon(channelDef.type)} className="h-4 w-4 rounded-sm object-contain" />
+                      )}
                       <span className="font-medium text-sm">{channelDef.name}</span>
                     </div>
                     <span className="text-foreground-500 text-xs">

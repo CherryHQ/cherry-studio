@@ -13,6 +13,7 @@ import { newMessagesActions } from '@renderer/store/newMessage'
 import { loadTopicMessagesThunk, renameAgentSessionIfNeeded } from '@renderer/store/thunk/messageThunk'
 import type { AgentSessionEntity } from '@renderer/types'
 import { classNames } from '@renderer/utils'
+import { getChannelTypeIcon } from '@renderer/utils/agentSession'
 import { buildAgentSessionTopicId } from '@renderer/utils/agentSession'
 import type { MenuProps } from 'antd'
 import { Dropdown, Tooltip } from 'antd'
@@ -112,6 +113,8 @@ const SessionItem = ({ session, agentId, onDelete, onPress }: SessionItemProps) 
     }
   }, [activeSessionId, dispatch, isFulfilled, session.id, sessionTopicId])
 
+  const channelIcon = getChannelTypeIcon((session.configuration as any)?.source_channel_type)
+
   const { topicPosition, setTopicPosition } = useSettings()
   const singlealone = topicPosition === 'right'
 
@@ -132,26 +135,18 @@ const SessionItem = ({ session, agentId, onDelete, onPress }: SessionItemProps) 
         label: t('chat.topics.auto_rename'),
         key: 'auto-rename',
         icon: <Sparkles size={14} />,
-<<<<<<< HEAD:src/renderer/src/pages/agents/components/SessionItem.tsx
         onClick: async () => {
-=======
-        onClick: () => {
->>>>>>> 1a5499914 (Squash merge main into feat/cherry-claw-agent):src/renderer/src/pages/home/Tabs/components/SessionItem.tsx
           const agentSession = {
             agentId: agentId,
             sessionId: targetSession.id
           }
           dispatch(loadTopicMessagesThunk(sessionTopicId))
-<<<<<<< HEAD:src/renderer/src/pages/agents/components/SessionItem.tsx
           try {
             startTopicRenaming(sessionTopicId)
             await renameAgentSessionIfNeeded(agentSession, sessionTopicId, store.getState)
           } finally {
             finishTopicRenaming(sessionTopicId)
           }
-=======
-          renameAgentSessionIfNeeded(agentSession, sessionTopicId, store.getState)
->>>>>>> 1a5499914 (Squash merge main into feat/cherry-claw-agent):src/renderer/src/pages/home/Tabs/components/SessionItem.tsx
         }
       },
       {
@@ -206,12 +201,13 @@ const SessionItem = ({ session, agentId, onDelete, onPress }: SessionItemProps) 
             <SessionEditInput {...inputProps} style={{ opacity: isSaving ? 0.5 : 1 }} />
           ) : (
             <>
-              <div className="truncate text-[13px]">
+              <SessionName>
+                {channelIcon && <ChannelIconImg src={channelIcon} />}
                 <SessionLabel
                   session={session}
                   className={isRenaming ? 'animation-shimmer' : isNewlyRenamed ? 'animation-reveal' : ''}
                 />
-              </div>
+              </SessionName>
               <DeleteButton />
             </>
           )}
@@ -275,6 +271,24 @@ const SessionNameContainer = styled.div`
   gap: 4px;
   height: 20px;
   justify-content: space-between;
+`
+
+const SessionName = styled.div`
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  overflow: hidden;
+  font-size: 13px;
+  position: relative;
+  min-width: 0;
+`
+
+const ChannelIconImg = styled.img`
+  width: 14px;
+  height: 14px;
+  flex-shrink: 0;
+  border-radius: 2px;
+  object-fit: contain;
 `
 
 const SessionEditInput = styled.input`

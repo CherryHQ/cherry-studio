@@ -18,6 +18,7 @@ import { registerIpc } from './ipc'
 import { agentService } from './services/agents'
 import { schedulerService } from './services/agents/services/SchedulerService'
 import { channelManager } from './services/agents/services/channels'
+import { registerSessionStreamIpc } from './services/agents/services/channels/sessionStreamIpc'
 import { analyticsService } from './services/AnalyticsService'
 import { apiServerService } from './services/ApiServerService'
 import { appMenuService } from './services/AppMenuService'
@@ -220,6 +221,9 @@ if (!app.requestSingleInstanceLock()) {
 
         // Restore CherryClaw schedulers after services are ready
         await schedulerService.restoreSchedulers()
+
+        // Register IPC handlers for session stream before starting channels
+        registerSessionStreamIpc()
 
         // Start CherryClaw channel adapters (Telegram, etc.)
         await channelManager.start()
