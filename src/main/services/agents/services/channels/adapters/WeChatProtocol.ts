@@ -11,6 +11,7 @@ import { setTimeout as delay } from 'node:timers/promises'
 
 import { loggerService } from '@logger'
 import { net } from 'electron'
+import * as z from 'zod'
 
 const logger = loggerService.withContext('WeChatProtocol')
 
@@ -117,47 +118,56 @@ export interface IncomingMessage {
   timestamp: Date
 }
 
-interface GetUpdatesResp {
-  ret: number
-  msgs: WeixinMessage[]
-  get_updates_buf: string
-  longpolling_timeout_ms?: number
-  errcode?: number
-  errmsg?: string
-}
+// --------------- Zod response schemas ---------------
 
-interface QrCodeResponse {
-  qrcode: string
-  qrcode_img_content: string
-}
+const ApiErrorBodySchema = z.object({
+  ret: z.number().optional(),
+  errcode: z.number().optional(),
+  errmsg: z.string().optional()
+})
 
-interface QrStatusResponse {
-  status: 'wait' | 'scaned' | 'confirmed' | 'expired'
-  bot_token?: string
-  ilink_bot_id?: string
-  ilink_user_id?: string
-  baseurl?: string
-}
+const GetUpdatesRespSchema = z.object({
+  msgs: z.array(z.record(z.string(), z.unknown())).default([]),
+  get_updates_buf: z.string().default('')
+})
 
-interface GetConfigResp {
-  typing_ticket?: string
-  ret?: number
-  errcode?: number
-  errmsg?: string
-}
+const QrCodeResponseSchema = z.object({
+  qrcode: z.string(),
+  qrcode_img_content: z.string()
+})
+
+const QrStatusResponseSchema = z.object({
+  status: z.enum(['wait', 'scaned', 'confirmed', 'expired']),
+  bot_token: z.string().optional(),
+  ilink_bot_id: z.string().optional(),
+  ilink_user_id: z.string().optional(),
+  baseurl: z.string().optional()
+})
+
+const GetConfigRespSchema = z.object({
+  typing_ticket: z.string().optional()
+})
+
+const CredentialsSchema = z.object({
+  token: z.string(),
+  baseUrl: z.string(),
+  accountId: z.string(),
+  userId: z.string()
+})
+
+// --------------- Derived & request types ---------------
+
+type GetUpdatesResp = { msgs: WeixinMessage[]; get_updates_buf: string }
+type QrCodeResponse = z.infer<typeof QrCodeResponseSchema>
+type QrStatusResponse = z.infer<typeof QrStatusResponseSchema>
+type GetConfigResp = z.infer<typeof GetConfigRespSchema>
+type Credentials = z.infer<typeof CredentialsSchema>
 
 interface SendTypingReq {
   ilink_user_id: string
   typing_ticket: string
   status: 1 | 2
   base_info: BaseInfo
-}
-
-interface Credentials {
-  token: string
-  baseUrl: string
-  accountId: string
-  userId: string
 }
 
 // --------------- Constants ---------------
@@ -190,29 +200,30 @@ function buildBaseInfo(): BaseInfo {
   return { channel_version: CHANNEL_VERSION }
 }
 
-async function parseJsonResponse<T>(response: Response, label: string): Promise<T> {
+async function parseJsonResponse(response: Response, label: string): Promise<unknown> {
   const text = await response.text()
-  const payload = text ? (JSON.parse(text) as T) : ({} as T)
+  const raw = text ? JSON.parse(text) : {}
 
   if (!response.ok) {
-    const message = (payload as { errmsg?: string } | null)?.errmsg ?? `${label} failed with HTTP ${response.status}`
-    throw new ApiError(message, {
+    const body = ApiErrorBodySchema.safeParse(raw)
+    const parsed = body.success ? body.data : {}
+    throw new ApiError(parsed.errmsg ?? `${label} failed with HTTP ${response.status}`, {
       status: response.status,
-      code: (payload as { errcode?: number } | null)?.errcode,
-      payload
+      code: parsed.errcode,
+      payload: raw
     })
   }
 
-  if (typeof (payload as { ret?: number } | null)?.ret === 'number' && (payload as { ret: number }).ret !== 0) {
-    const body = payload as { errcode?: number; errmsg?: string; ret: number }
-    throw new ApiError(body.errmsg ?? `${label} failed`, {
+  const body = ApiErrorBodySchema.safeParse(raw)
+  if (body.success && typeof body.data.ret === 'number' && body.data.ret !== 0) {
+    throw new ApiError(body.data.errmsg ?? `${label} failed`, {
       status: response.status,
-      code: body.errcode ?? body.ret,
-      payload
+      code: body.data.errcode ?? body.data.ret,
+      payload: raw
     })
   }
 
-  return payload
+  return raw
 }
 
 function randomWechatUin(): string {
@@ -229,15 +240,15 @@ function buildHeaders(token: string): Record<string, string> {
   }
 }
 
-async function apiFetch<T>(
+async function apiFetch(
   baseUrl: string,
   endpoint: string,
   body: unknown,
   token: string,
   timeoutMs = 40_000,
   signal?: AbortSignal
-): Promise<T> {
-  const url = new URL(endpoint, `${normalizeBaseUrl(baseUrl)}/`)
+): Promise<unknown> {
+  const url = new URL(endpoint, `${normalizeBaseUrl(baseUrl)}/`).toString()
   const timeoutSignal = AbortSignal.timeout(timeoutMs)
   const requestSignal = signal ? AbortSignal.any([signal, timeoutSignal]) : timeoutSignal
   const response = await net.fetch(url, {
@@ -247,17 +258,17 @@ async function apiFetch<T>(
     signal: requestSignal
   })
 
-  return parseJsonResponse<T>(response, endpoint)
+  return parseJsonResponse(response, endpoint)
 }
 
-async function apiGet<T>(baseUrl: string, urlPath: string, headers: Record<string, string> = {}): Promise<T> {
-  const url = new URL(urlPath, `${normalizeBaseUrl(baseUrl)}/`)
+async function apiGet(baseUrl: string, urlPath: string, headers: Record<string, string> = {}): Promise<unknown> {
+  const url = new URL(urlPath, `${normalizeBaseUrl(baseUrl)}/`).toString()
   const response = await fetch(url, { method: 'GET', headers })
-  return parseJsonResponse<T>(response, urlPath)
+  return parseJsonResponse(response, urlPath)
 }
 
 async function getUpdates(baseUrl: string, token: string, buf: string, signal?: AbortSignal): Promise<GetUpdatesResp> {
-  return apiFetch<GetUpdatesResp>(
+  const raw = await apiFetch(
     baseUrl,
     '/ilink/bot/getupdates',
     { get_updates_buf: buf, base_info: buildBaseInfo() },
@@ -265,6 +276,8 @@ async function getUpdates(baseUrl: string, token: string, buf: string, signal?: 
     40_000,
     signal
   )
+  const parsed = GetUpdatesRespSchema.parse(raw)
+  return { msgs: parsed.msgs as unknown as WeixinMessage[], get_updates_buf: parsed.get_updates_buf }
 }
 
 async function apiSendMessage(
@@ -289,13 +302,14 @@ async function apiGetConfig(
   userId: string,
   contextToken: string
 ): Promise<GetConfigResp> {
-  return apiFetch<GetConfigResp>(
+  const raw = await apiFetch(
     baseUrl,
     '/ilink/bot/getconfig',
     { ilink_user_id: userId, context_token: contextToken, base_info: buildBaseInfo() },
     token,
     15_000
   )
+  return GetConfigRespSchema.parse(raw)
 }
 
 async function apiSendTyping(
@@ -315,13 +329,15 @@ async function apiSendTyping(
 }
 
 async function fetchQrCode(baseUrl: string): Promise<QrCodeResponse> {
-  return apiGet<QrCodeResponse>(baseUrl, '/ilink/bot/get_bot_qrcode?bot_type=3')
+  const raw = await apiGet(baseUrl, '/ilink/bot/get_bot_qrcode?bot_type=3')
+  return QrCodeResponseSchema.parse(raw)
 }
 
 async function pollQrStatus(baseUrl: string, qrcode: string): Promise<QrStatusResponse> {
-  return apiGet<QrStatusResponse>(baseUrl, `/ilink/bot/get_qrcode_status?qrcode=${encodeURIComponent(qrcode)}`, {
+  const raw = await apiGet(baseUrl, `/ilink/bot/get_qrcode_status?qrcode=${encodeURIComponent(qrcode)}`, {
     'iLink-App-ClientVersion': '1'
   })
+  return QrStatusResponseSchema.parse(raw)
 }
 
 function buildTextMessage(
@@ -350,25 +366,14 @@ function buildTextMessage(
 
 // --------------- Auth ---------------
 
-function isCredentials(value: unknown): value is Credentials {
-  if (!value || typeof value !== 'object') return false
-  const c = value as Record<string, unknown>
-  return (
-    typeof c.token === 'string' &&
-    typeof c.baseUrl === 'string' &&
-    typeof c.accountId === 'string' &&
-    typeof c.userId === 'string'
-  )
-}
-
 async function loadCredentials(tokenPath: string): Promise<Credentials | undefined> {
   try {
     const raw = await readFile(tokenPath, 'utf8')
-    const parsed = JSON.parse(raw) as unknown
-    if (!isCredentials(parsed)) {
+    const result = CredentialsSchema.safeParse(JSON.parse(raw))
+    if (!result.success) {
       throw new Error(`Invalid credentials format in ${tokenPath}`)
     }
-    return parsed
+    return result.data
   } catch (error) {
     if ((error as NodeJS.ErrnoException).code === 'ENOENT') {
       return undefined
