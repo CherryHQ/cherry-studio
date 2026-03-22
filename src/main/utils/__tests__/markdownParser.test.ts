@@ -35,7 +35,7 @@ Body`
     vi.clearAllMocks()
     vi.mocked(fs.promises.stat).mockResolvedValue({ size: 42 } as fs.Stats)
     vi.mocked(fs.promises.readFile).mockImplementation(async (filePath) => {
-      if (String(filePath).includes('SKILL.md')) {
+      if ((filePath as string).includes('SKILL.md')) {
         return skillContent
       }
       return pluginContent

@@ -110,7 +110,11 @@ const SpanDetail: FC<SpanDetailProps> = ({ node, clickShowModal }) => {
       </Box>
       <Box padding={0}>
         <Text style={{ fontWeight: 'bold' }}>{t('trace.tag')}: </Text>
-        <Text>{String(node.attributes?.tags || '')}</Text>
+        <Text>
+          {Array.isArray(node.attributes?.tags)
+            ? (node.attributes.tags as string[]).join(', ')
+            : String((node.attributes?.tags as string) ?? '')}
+        </Text>
       </Box>
       <Box padding={0}>
         <Text style={{ fontWeight: 'bold' }}>{t('trace.startTime')}: </Text>

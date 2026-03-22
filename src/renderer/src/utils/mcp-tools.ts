@@ -27,6 +27,7 @@ import { BuiltinMCPServerNames } from '@renderer/types'
 import type { MCPToolCompleteChunk, MCPToolInProgressChunk, MCPToolPendingChunk } from '@renderer/types/chunk'
 import { ChunkType } from '@renderer/types/chunk'
 import type { AwsBedrockSdkMessageParam, AwsBedrockSdkTool, AwsBedrockSdkToolCall } from '@renderer/types/sdk'
+import { safeToString } from '@renderer/utils/error'
 import { t } from 'i18next'
 import { nanoid } from 'nanoid'
 
@@ -85,7 +86,7 @@ export function openAIToolsToMcpTool(
       throw new Error('Unknown tool call type')
     }
   } catch (error) {
-    logger.error(`Error parsing tool call: ${toolCall}`, error as Error)
+    logger.error(`Error parsing tool call: ${safeToString(toolCall)}`, error as Error)
     window.toast.error(t('chat.mcp.error.parse_tool_call', { toolCall: toolCall }))
     return undefined
   }

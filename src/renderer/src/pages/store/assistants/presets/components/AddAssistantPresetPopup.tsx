@@ -245,9 +245,7 @@ const PopupContainer: React.FC<Props> = ({ resolve }) => {
               menuItemSelectedIcon={<CheckOutlined />}
               options={knowledgeOptions}
               filterOption={(input, option) =>
-                String(option?.label ?? '')
-                  .toLowerCase()
-                  .includes(input.toLowerCase())
+                (typeof option?.label === 'string' ? option.label : '').toLowerCase().includes(input.toLowerCase())
               }
             />
           </Form.Item>

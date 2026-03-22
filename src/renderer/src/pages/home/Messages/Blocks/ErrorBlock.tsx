@@ -26,7 +26,7 @@ const ErrorBlock: React.FC<Props> = ({ block, message }) => {
 const ErrorMessage: React.FC<{ block: ErrorMessageBlock }> = ({ block }) => {
   const { t, i18n } = useTranslation()
 
-  const i18nKey = block.error && 'i18nKey' in block.error ? `error.${block.error?.i18nKey}` : ''
+  const i18nKey = block.error && 'i18nKey' in block.error ? `error.${String(block.error?.i18nKey as string)}` : ''
   const errorKey = `error.${block.error?.message}`
   const errorStatus =
     block.error && ('status' in block.error || 'statusCode' in block.error)

@@ -1,3 +1,4 @@
+import { safeToString } from '@cherrystudio/utils'
 import { loggerService } from '@logger'
 import type { McpError } from '@modelcontextprotocol/sdk/types.js'
 import type { AgentServerError } from '@renderer/types'
@@ -147,7 +148,7 @@ const getBaseError = (error: Error) => {
     name: error.name ?? null,
     message: error.message ?? null,
     stack: error.stack ?? null,
-    cause: error.cause ? String(error.cause) : null
+    cause: error.cause ? safeToString(error.cause) : null
   } as const
 }
 
@@ -243,73 +244,7 @@ export const formatZodError = (error: z.ZodError, title?: string) => {
   return title ? `${title}: \n${errorMessage}` : errorMessage
 }
 
-/**
- * 将任意值安全地转换为字符串
- * @param value - 需要转换的值，unknown 类型
- * @returns 转换后的字符串
- *
- * @description
- * 该函数可以安全地处理以下情况:
- * - null 和 undefined 会被转换为 'null'
- * - 字符串直接返回
- * - 原始类型(数字、布尔值、bigint等)使用 String() 转换
- * - 对象和数组会尝试使用 JSON.stringify 序列化，并处理循环引用
- * - 如果序列化失败，返回错误信息
- *
- * @example
- * ```ts
- * safeToString(null)  // 'null'
- * safeToString('test')  // 'test'
- * safeToString(123)  // '123'
- * safeToString({a: 1})  // '{"a":1}'
- * ```
- */
-export function safeToString(value: unknown): string {
-  // 处理 null 和 undefined
-  if (value == null) {
-    return 'null'
-  }
-
-  // 字符串直接返回
-  if (typeof value === 'string') {
-    return value
-  }
-
-  // 数字、布尔值、bigint 等原始类型，安全用 String()
-  if (typeof value !== 'object' && typeof value !== 'function') {
-    return String(value)
-  }
-
-  // 处理对象（包括数组）
-  if (typeof value === 'object') {
-    // 处理函数
-    if (typeof value === 'function') {
-      return value.toString()
-    }
-    // 其他对象
-    try {
-      return JSON.stringify(value, getCircularReplacer())
-    } catch (err) {
-      return '[Unserializable: ' + err + ']'
-    }
-  }
-
-  return String(value)
-}
-
-// 防止循环引用导致的 JSON.stringify 崩溃
-function getCircularReplacer() {
-  const seen = new WeakSet()
-  return (_key: string, value: unknown) => {
-    if (typeof value === 'object' && value !== null) {
-      if (seen.has(value)) {
-        return '[Circular]'
-      }
-      seen.add(value)
-    }
-    return value
-  }
-}
+export { safeToString }
 
 export function formatError(error: SerializedError): string {
   return `${t('error.name')}: ${error.name}\n${t('error.message')}: ${error.message}\n${t('error.stack')}: ${error.stack}`

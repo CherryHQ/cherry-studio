@@ -133,7 +133,7 @@ export const useChatContext = (activeTopic: Topic) => {
                 return msg.blocks
                   .map((blockId) => {
                     const block = messageBlocks[blockId]
-                    return block && 'content' in block ? block.content : ''
+                    return block && 'content' in block ? String(block.content as string) : ''
                   })
                   .filter(Boolean)
                   .join('\n')
@@ -157,7 +157,7 @@ export const useChatContext = (activeTopic: Topic) => {
                 return msg.blocks
                   .map((blockId) => {
                     const block = messageBlocks[blockId]
-                    return block && 'content' in block ? block.content : ''
+                    return block && 'content' in block ? String(block.content as string) : ''
                   })
                   .filter(Boolean)
                   .join('\n')

@@ -20,6 +20,7 @@ import { addFilesThunk, addItemThunk, addNoteThunk, addVedioThunk } from '@rende
 import type { FileMetadata, KnowledgeBase, KnowledgeItem, KnowledgeNoteItem, ProcessingStatus } from '@renderer/types'
 import { isKnowledgeFileItem, isKnowledgeNoteItem, isKnowledgeVideoItem } from '@renderer/types'
 import { runAsyncFunction, uuid } from '@renderer/utils'
+import { safeToString } from '@renderer/utils/error'
 import dayjs from 'dayjs'
 import { cloneDeep } from 'lodash'
 import { useCallback, useEffect, useState } from 'react'
@@ -282,7 +283,9 @@ export const useKnowledge = (baseId: string) => {
         dispatch(addFilesThunk(newBase.id, files))
       }
     } catch (error) {
-      throw new Error(`Failed to migrate files ${files}: ${error}`)
+      throw new Error(
+        `Failed to migrate files ${safeToString(files)}: ${error instanceof Error ? error.message : safeToString(error)}`
+      )
     }
 
     checkAllBases()

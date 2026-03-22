@@ -2,6 +2,7 @@ import type { Message, MessageStream } from '@anthropic-ai/sdk/resources/message
 import type { TokenUsage } from '@mcp-trace/trace-core'
 import type { Span } from '@opentelemetry/api'
 import { endSpan } from '@renderer/services/SpanManagerService'
+import { safeToString } from '@renderer/utils/error'
 
 export class MessageStreamHandler {
   private span: Span
@@ -45,11 +46,11 @@ export class MessageStreamHandler {
         } else if (c.type === 'redacted_thinking') {
           return c.data
         } else if (c.type === 'server_tool_use' || c.type === 'tool_use') {
-          return `${c.name}: ${c.input}`
+          return `${c.name}: ${safeToString(c.input)}`
         } else if (c.type === 'thinking') {
           return c.thinking
         } else if (c.type === 'web_search_tool_result') {
-          return c.content
+          return safeToString(c.content)
         } else {
           return JSON.stringify(c)
         }

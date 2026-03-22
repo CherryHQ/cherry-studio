@@ -4,6 +4,7 @@
  * 负责工具的执行、结果格式化和相关事件发送
  * 从 promptToolUsePlugin.ts 中提取出来以降低复杂度
  */
+import { safeToString } from '@cherrystudio/utils'
 import type { ToolSet, TypedToolError } from 'ai'
 
 import type { ToolUseResult } from './type'
@@ -94,10 +95,10 @@ export class ToolExecutor {
     return executedResults
       .map((tr) => {
         if (!tr.isError) {
-          return `<tool_use_result>\n  <name>${tr.toolName}</name>\n  <result>${JSON.stringify(tr.result)}</result>\n</tool_use_result>`
+          return `<tool_use_result>\n  <name>${tr.toolName}</name>\n  <result>${safeToString(tr.result)}</result>\n</tool_use_result>`
         } else {
           const error = tr.result || 'Unknown error'
-          return `<tool_use_result>\n  <name>${tr.toolName}</name>\n  <error>${error}</error>\n</tool_use_result>`
+          return `<tool_use_result>\n  <name>${tr.toolName}</name>\n  <error>${safeToString(error)}</error>\n</tool_use_result>`
         }
       })
       .join('\n\n')

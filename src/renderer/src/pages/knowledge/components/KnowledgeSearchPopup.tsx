@@ -3,6 +3,7 @@ import { HStack } from '@renderer/components/Layout'
 import { TopView } from '@renderer/components/TopView'
 import { searchKnowledgeBase } from '@renderer/services/KnowledgeService'
 import type { FileMetadata, KnowledgeBase, KnowledgeSearchResult } from '@renderer/types'
+import { safeToString } from '@renderer/utils/error'
 import type { InputRef } from 'antd'
 import { Divider, Input, List, Modal, Spin } from 'antd'
 import { Search } from 'lucide-react'
@@ -41,7 +42,7 @@ const PopupContainer: React.FC<Props> = ({ base, resolve }) => {
     setLoading(true)
     try {
       const searchResults = await searchKnowledgeBase(value, base)
-      logger.debug(`KnowledgeSearchPopup Search Results: ${searchResults}`)
+      logger.debug(`KnowledgeSearchPopup Search Results: ${safeToString(searchResults)}`)
       setResults(searchResults)
     } catch (error) {
       logger.error(`Failed to search knowledge base ${base.name}:`, error as Error)

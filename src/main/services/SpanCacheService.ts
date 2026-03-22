@@ -227,7 +227,9 @@ class SpanCacheService implements TraceCache {
   }
 
   private _updateModelName(entity: SpanEntity) {
-    let modelName = entity.modelName || entity.attributes?.modelName?.toString()
+    let modelName =
+      entity.modelName ||
+      (entity.attributes?.modelName != null ? String(entity.attributes.modelName as string | number) : undefined)
     if (!modelName && entity.parentId) {
       modelName = this.cache.get(entity.parentId)?.modelName
     }

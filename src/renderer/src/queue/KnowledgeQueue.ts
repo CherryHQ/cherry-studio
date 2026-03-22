@@ -12,6 +12,7 @@ import {
 } from '@renderer/store/knowledge'
 import type { KnowledgeItem } from '@renderer/types'
 import { uuid } from '@renderer/utils'
+import { safeToString } from '@renderer/utils/error'
 import type { LoaderReturn } from '@shared/config/types'
 import { t } from 'i18next'
 
@@ -178,7 +179,7 @@ class KnowledgeQueue {
       let result: LoaderReturn | null = null
       let note, content
 
-      logger.info(`Processing item: ${sourceItem.content}`)
+      logger.info(`Processing item: ${safeToString(sourceItem.content)}`)
 
       switch (item.type) {
         case 'note':

@@ -7,6 +7,7 @@ import '@main/config'
 
 import { loggerService } from '@logger'
 import { electronApp, optimizer } from '@electron-toolkit/utils'
+import { safeToString } from '@cherrystudio/utils'
 import { replaceDevtoolsFont } from '@main/utils/windowUtil'
 import { app, crashReporter } from 'electron'
 import installExtension, { REACT_DEVELOPER_TOOLS, REDUX_DEVTOOLS } from 'electron-devtools-installer'
@@ -120,8 +121,8 @@ if (!isDev) {
   })
 
   // handle unhandled rejection
-  process.on('unhandledRejection', (reason, promise) => {
-    logger.error(`Unhandled Rejection at: ${promise} reason: ${reason}`)
+  process.on('unhandledRejection', (reason) => {
+    logger.error(`Unhandled Rejection reason: ${reason instanceof Error ? reason.message : safeToString(reason)}`)
   })
 }
 

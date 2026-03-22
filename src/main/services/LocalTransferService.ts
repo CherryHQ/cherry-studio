@@ -170,7 +170,14 @@ class LocalTransferService {
     const txt =
       txtEntries.length > 0
         ? Object.fromEntries(
-            txtEntries.map(([key, value]) => [key, value === undefined || value === null ? '' : String(value)])
+            txtEntries.map(([key, value]) => [
+              key,
+              value === undefined || value === null
+                ? ''
+                : Buffer.isBuffer(value)
+                  ? value.toString()
+                  : String(value as string | number | boolean)
+            ])
           )
         : undefined
 

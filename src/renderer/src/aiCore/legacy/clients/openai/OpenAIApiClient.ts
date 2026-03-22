@@ -670,7 +670,9 @@ export class OpenAIAPIClient extends OpenAIBaseClient<
           // transform into user message
           const firstUserMsg = userMessages.shift()
           if (firstUserMsg) {
-            firstUserMsg.content = `System Instruction: \n${systemMessage.content}\n\nUser Message(s):\n${firstUserMsg.content}`
+            const contentStr =
+              typeof firstUserMsg.content === 'string' ? firstUserMsg.content : JSON.stringify(firstUserMsg.content)
+            firstUserMsg.content = `System Instruction: \n${systemMessage.content}\n\nUser Message(s):\n${contentStr}`
             reqMessages = [firstUserMsg, ...userMessages]
           } else {
             reqMessages = []

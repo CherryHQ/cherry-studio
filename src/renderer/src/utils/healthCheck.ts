@@ -16,8 +16,8 @@ export function aggregateApiKeyResults(keyResults: ApiKeyWithStatus[]): {
   if (failedResults.length > 0) {
     // 只要有一个密钥失败，整个检查就失败
     const errors = failedResults
-      .map((r) => r.error)
-      .filter((v, i, a) => a.indexOf(v) === i) // 去重
+      .map((r) => r.error?.message ?? '')
+      .filter((v, i, a) => v && a.indexOf(v) === i) // 去重
       .join('; ')
     return {
       status: HealthStatus.FAILED,

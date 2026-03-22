@@ -284,6 +284,9 @@ importers:
       '@cherrystudio/openai':
         specifier: 6.15.0
         version: 6.15.0(ws@8.20.0)(zod@4.3.4)
+      '@cherrystudio/utils':
+        specifier: workspace:*
+        version: link:packages/utils
       '@codemirror/lang-json':
         specifier: 6.0.2
         version: 6.0.2
@@ -1276,6 +1279,9 @@ importers:
       '@cherrystudio/ai-sdk-provider':
         specifier: workspace:*
         version: link:../ai-sdk-provider
+      '@cherrystudio/utils':
+        specifier: workspace:*
+        version: link:../utils
       ai:
         specifier: ^6.0.103
         version: 6.0.103(zod@4.3.4)
@@ -1319,6 +1325,18 @@ importers:
       tsdown:
         specifier: ^0.20.3
         version: 0.20.3(@typescript/native-preview@7.0.0-dev.20260204.1)(typescript@5.9.2)
+
+  packages/utils:
+    devDependencies:
+      tsdown:
+        specifier: ^0.20.3
+        version: 0.20.3(@typescript/native-preview@7.0.0-dev.20260204.1)(typescript@5.8.3)
+      typescript:
+        specifier: ^5.0.0
+        version: 5.8.3
+      vitest:
+        specifier: ^3.2.4
+        version: 3.2.4(@types/debug@4.1.13)(@types/node@24.10.4)(@vitest/browser@3.2.4)(@vitest/ui@3.2.4)(esbuild@0.25.12)(jiti@2.6.1)(jsdom@26.1.0)(msw@2.12.7(@types/node@24.10.4)(typescript@5.8.3))(tsx@4.21.0)(yaml@2.8.2)
 
 packages:
 
@@ -13933,7 +13951,7 @@ snapshots:
       node-gyp: 11.5.0
       ora: 5.4.1
       read-binary-file-arch: 1.0.6
-      semver: 7.7.2
+      semver: 7.7.1
       tar: 6.2.1
       yargs: 17.7.2
     transitivePeerDependencies:

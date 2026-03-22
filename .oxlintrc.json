@@ -86,7 +86,7 @@
     "typescript/consistent-type-imports": "error",
     "typescript/no-array-constructor": "error",
     "typescript/no-array-delete": "warn",
-    "typescript/no-base-to-string": "off", // TODO: warn
+    "typescript/no-base-to-string": "warn",
     "typescript/no-duplicate-enum-values": "error",
     "typescript/no-duplicate-type-constituents": "warn",
     "typescript/no-empty-object-type": "off",

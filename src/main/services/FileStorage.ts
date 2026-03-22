@@ -1,3 +1,4 @@
+import { safeToString } from '@cherrystudio/utils'
 import { loggerService } from '@logger'
 import {
   checkName,
@@ -194,7 +195,7 @@ class FileStorage {
 
   private findDuplicateFile = async (filePath: string): Promise<FileMetadata | null> => {
     const stats = fs.statSync(filePath)
-    logger.debug(`stats: ${stats}, filePath: ${filePath}`)
+    logger.debug(`stats: ${safeToString(stats)}, filePath: ${filePath}`)
     const fileSize = stats.size
 
     const files = await fs.promises.readdir(this.storageDir)
@@ -337,7 +338,7 @@ class FileStorage {
       count: 1
     }
 
-    logger.debug(`File uploaded: ${fileMetadata}`)
+    logger.debug(`File uploaded: ${safeToString(fileMetadata)}`)
 
     return fileMetadata
   }

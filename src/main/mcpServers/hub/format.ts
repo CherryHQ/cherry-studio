@@ -136,6 +136,6 @@ export function formatAsText(value: unknown): string {
   try {
     return JSON.stringify(value, null, 2)
   } catch {
-    return String(value)
+    return String(value as string | number | boolean)
   }
 }

@@ -319,7 +319,7 @@ const AihubmixPage: FC<{ Options: string[] }> = ({ Options }) => {
           // 打印所有FormData内容
           logger.silly('FormData内容:')
           for (const pair of formData.entries()) {
-            logger.silly(`${pair[0]}: ${pair[1]}`)
+            logger.silly(`${pair[0]}: ${pair[1] instanceof File ? pair[1].name : pair[1]}`)
           }
 
           body = formData

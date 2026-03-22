@@ -1,6 +1,7 @@
 import { loggerService } from '@logger'
 import { getModel } from '@renderer/hooks/useModel'
 import type { AssistantMessage } from '@renderer/types'
+import { safeToString } from '@renderer/utils/error'
 import {
   FactRetrievalSchema,
   getFactRetrievalMessages,
@@ -240,7 +241,7 @@ export class MemoryProcessor {
       })
 
       logger.debug(
-        `Searching memories with query: ${query} for user: ${userId} and assistant: ${assistantId} result: ${result}`
+        `Searching memories with query: ${query} for user: ${userId} and assistant: ${assistantId} result: ${safeToString(result)}`
       )
       return result.results
     } catch (error) {

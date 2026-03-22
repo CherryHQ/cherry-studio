@@ -1,0 +1,36 @@
+{
+  "name": "@cherrystudio/utils",
+  "version": "0.0.1",
+  "description": "Cherry Studio shared utilities - business-agnostic helpers",
+  "main": "dist/index.js",
+  "module": "dist/index.mjs",
+  "types": "dist/index.d.ts",
+  "scripts": {
+    "build": "tsdown",
+    "dev": "tsc -w",
+    "typecheck": "tsc --noEmit",
+    "clean": "rm -rf dist",
+    "test": "vitest run",
+    "test:watch": "vitest"
+  },
+  "author": "Cherry Studio",
+  "license": "MIT",
+  "devDependencies": {
+    "tsdown": "^0.20.3",
+    "typescript": "^5.0.0",
+    "vitest": "^3.2.4"
+  },
+  "sideEffects": false,
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "files": ["dist"],
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.mjs",
+      "require": "./dist/index.js",
+      "default": "./dist/index.js"
+    }
+  }
+}

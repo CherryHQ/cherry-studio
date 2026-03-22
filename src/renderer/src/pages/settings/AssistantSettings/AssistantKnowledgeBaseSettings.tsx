@@ -43,9 +43,7 @@ const AssistantKnowledgeBaseSettings: React.FC<Props> = ({ assistant, updateAssi
         options={knowledgeOptions}
         onChange={(value) => onUpdate(value)}
         filterOption={(input, option) =>
-          String(option?.label ?? '')
-            .toLowerCase()
-            .includes(input.toLowerCase())
+          (typeof option?.label === 'string' ? option.label : '').toLowerCase().includes(input.toLowerCase())
         }
       />
       <Row align="middle" style={{ marginTop: 10 }}>
