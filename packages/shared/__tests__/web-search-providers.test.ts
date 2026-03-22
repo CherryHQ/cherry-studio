@@ -35,7 +35,7 @@ describe('web search provider schemas', () => {
   it('accepts valid provider overrides', () => {
     const result = WebSearchProviderOverridesSchema.safeParse({
       tavily: {
-        apiKey: 'key',
+        apiKeys: ['key1', 'key2'],
         apiHost: 'https://api.tavily.com',
         engines: ['news'],
         basicAuthUsername: 'user',
@@ -53,7 +53,7 @@ describe('web search provider schemas', () => {
 
     const overridesResult = WebSearchProviderOverridesSchema.safeParse({
       tavily: {
-        apiKey: 'key',
+        apiKeys: ['key', 1],
         engines: [1]
       }
     })
@@ -66,7 +66,7 @@ describe('web search provider schemas', () => {
     const idResult = WebSearchProviderIdSchema.safeParse('custom-provider')
     const overridesResult = WebSearchProviderOverridesSchema.safeParse({
       'custom-provider': {
-        apiKey: 'key'
+        apiKeys: ['key']
       }
     })
 

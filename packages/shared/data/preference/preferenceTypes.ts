@@ -130,7 +130,7 @@ export const WEB_SEARCH_PROVIDER_IDS = [
 export type WebSearchProviderId = (typeof WEB_SEARCH_PROVIDER_IDS)[number]
 
 export type WebSearchProviderOverride = {
-  apiKey?: string
+  apiKeys?: string[]
   apiHost?: string
   engines?: string[]
   basicAuthUsername?: string
@@ -150,8 +150,8 @@ export interface WebSearchProvider {
   name: string
   /** Provider type (from preset) */
   type: WebSearchProviderType
-  /** API key (from user overrides) */
-  apiKey: string
+  /** API keys (from user overrides) */
+  apiKeys: string[]
   /** API host (user override or preset default) */
   apiHost: string
   /** Search engines (from user overrides) */
