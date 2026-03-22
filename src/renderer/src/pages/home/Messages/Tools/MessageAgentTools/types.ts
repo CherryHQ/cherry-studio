@@ -414,22 +414,8 @@ export type ToolInput =
   | ReadMcpResourceToolInput
   | AskUserQuestionToolInput
 
-export type ToolOutput =
-  | ReadToolOutput
-  | TaskToolOutput
-  | BashToolOutput
-  | SearchToolOutput
-  | GlobToolOutput
-  | TodoWriteToolOutput
-  | WebSearchToolOutput
-  | GrepToolOutput
-  | WebFetchToolOutput
-  | WriteToolOutput
-  | EditToolOutput
-  | MultiEditToolOutput
-  | BashOutputToolOutput
-  | NotebookEditToolOutput
-  | ExitPlanModeToolOutput
+export type ToolOutput = ReadToolOutput | TaskToolOutput | BashToolOutput
+
 // 工具渲染器接口
 export interface ToolRenderer {
   render: (props: { input: ToolInput; output?: ToolOutput }) => React.ReactElement
