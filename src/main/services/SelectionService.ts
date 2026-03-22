@@ -851,8 +851,16 @@ export class SelectionService {
         break
       case SelectionHook?.PositionLevel.MOUSE_SINGLE:
         {
-          refOrientation = 'bottomMiddle'
-          refPoint = { x: selectionData.mousePosEnd.x, y: selectionData.mousePosEnd.y + 16 }
+          if (isLinux && selectionData.mousePosEnd.x === SelectionHook?.INVALID_COORDINATE) {
+            // Wayland degraded mode: coordinates unavailable, fall back to Electron cursor position
+            const cursorPoint = screen.getCursorScreenPoint()
+            refPoint = { x: cursorPoint.x, y: cursorPoint.y }
+            refOrientation = 'bottomMiddle'
+            isLogical = true
+          } else {
+            refOrientation = 'bottomMiddle'
+            refPoint = { x: selectionData.mousePosEnd.x, y: selectionData.mousePosEnd.y + 16 }
+          }
         }
         break
       case SelectionHook?.PositionLevel.MOUSE_DUAL:
