@@ -87,7 +87,7 @@ export function formatProviderApiHost(provider: Provider): Provider {
     if (!formatted.anthropicApiHost) {
       formatted.anthropicApiHost = formatted.apiHost
     }
-  } else if (formatted.id === SystemProviderIds.copilot || formatted.id === SystemProviderIds.github) {
+  } else if (formatted.id === SystemProviderIds.copilot || formatted.id === SystemProviderIds.github || formatted.id === SystemProviderIds.codex) {
     formatted.apiHost = formatApiHost(formatted.apiHost, false)
   } else if (isOllamaProvider(formatted)) {
     formatted.apiHost = formatOllamaApiHost(formatted.apiHost)
@@ -469,6 +469,17 @@ export async function prepareSpecialProviderConfig(
       config.options.headers = {
         ...headers,
         ...config.options.headers
+      }
+      break
+    }
+    case 'codex': {
+      const codexHeaders = await window.api.codex.getAccessHeaders()
+      if (codexHeaders) {
+        config.options.headers = {
+          ...config.options.headers,
+          ...codexHeaders
+        }
+        config.options.apiKey = ''
       }
       break
     }

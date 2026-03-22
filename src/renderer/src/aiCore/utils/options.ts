@@ -421,6 +421,15 @@ function buildOpenAIProviderOptions(
     store: false
   }
 
+  if (provider.id === SystemProviderIds.codex) {
+    providerOptions = {
+      ...providerOptions,
+      instructions:
+        assistant.prompt?.trim() ||
+        'You are Codex, a ChatGPT coding assistant integrated into Cherry Studio.'
+    }
+  }
+
   return {
     openai: providerOptions
   }

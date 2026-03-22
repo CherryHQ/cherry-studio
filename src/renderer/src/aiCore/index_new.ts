@@ -178,6 +178,17 @@ export default class ModernAiProvider {
       params.messages = [...claudeCodeSystemMessage, ...(params.messages || [])]
     }
 
+    if (this.actualProvider.id === 'codex') {
+      const currentSystem = typeof params.system === 'string' ? params.system.trim() : ''
+      if (!currentSystem) {
+        params.system = [
+          'You are Codex, a ChatGPT coding assistant integrated into Cherry Studio.',
+          'Provide concise, correct, developer-focused answers.',
+          'When tool use is available, prefer precise, minimally invasive actions.'
+        ].join(' ')
+      }
+    }
+
     if (providerConfig.topicId && getEnableDeveloperMode()) {
       // TypeScript类型窄化：确保topicId是string类型
       const traceConfig = {

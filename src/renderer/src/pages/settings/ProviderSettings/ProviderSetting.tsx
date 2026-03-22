@@ -56,6 +56,7 @@ import ApiOptionsSettingsPopup from './ApiOptionsSettings/ApiOptionsSettingsPopu
 import AwsBedrockSettings from './AwsBedrockSettings'
 import CherryINOAuth from './CherryINOAuth'
 import CherryINSettings from './CherryINSettings'
+import CodexSettings from './CodexSettings'
 import CustomHeaderPopup from './CustomHeaderPopup'
 import DMXAPISettings from './DMXAPISettings'
 import GithubCopilotSettings from './GithubCopilotSettings'
@@ -117,7 +118,7 @@ const ProviderSetting: FC<Props> = ({ providerId }) => {
   const isChineseUser = i18n.language.startsWith('zh')
   const noAPIInputProviders = ['aws-bedrock'] as const satisfies SystemProviderId[]
   const hideApiInput = noAPIInputProviders.some((id) => id === provider.id)
-  const noAPIKeyInputProviders = ['copilot', 'vertexai'] as const satisfies SystemProviderId[]
+  const noAPIKeyInputProviders = ['copilot', 'codex', 'vertexai'] as const satisfies SystemProviderId[]
   const hideApiKeyInput = noAPIKeyInputProviders.some((id) => id === provider.id)
 
   const providerConfig = PROVIDER_URLS[provider.id]
@@ -625,6 +626,7 @@ const ProviderSetting: FC<Props> = ({ providerId }) => {
       {provider.id === 'lmstudio' && <LMStudioSettings />}
       {provider.id === 'gpustack' && <GPUStackSettings />}
       {provider.id === 'copilot' && <GithubCopilotSettings providerId={provider.id} />}
+      {provider.id === 'codex' && <CodexSettings providerId={provider.id} />}
       {provider.id === 'aws-bedrock' && <AwsBedrockSettings />}
       {provider.id === 'vertexai' && <VertexAISettings />}
       <ModelList providerId={provider.id} />
