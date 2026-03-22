@@ -1,0 +1,10 @@
+{
+  "query": "hello",
+  "results": [
+    {
+      "title": "Tavily Title",
+      "content": "Tavily Content",
+      "url": "https://tavily.example/result"
+    }
+  ]
+}

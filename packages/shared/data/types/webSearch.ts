@@ -17,13 +17,9 @@ export type WebSearchResponse = {
   results: WebSearchResult[]
 }
 
-export type WebSearchQueryInput = {
-  question: string[]
-}
-
 export type WebSearchRequest = {
   providerId: WebSearchProviderId
-  input: WebSearchQueryInput
+  questions: string[]
   requestId: string
 }
 
@@ -46,7 +42,6 @@ export type WebSearchCompressionConfig = {
 }
 
 export type WebSearchExecutionConfig = {
-  searchWithTime: boolean
   maxResults: number
   excludeDomains: string[]
   compression: WebSearchCompressionConfig
@@ -64,22 +59,8 @@ export type ResolvedWebSearchProvider = {
   basicAuthPassword: string
 }
 
-export type SupportedWebSearchProviderType = WebSearchProviderType
-
 export type WebSearchResolvedConfig = {
   providers: ResolvedWebSearchProvider[]
   runtime: WebSearchExecutionConfig
   providerOverrides: WebSearchProviderOverrides
-}
-
-export type WebSearchErrorCode =
-  | 'provider_not_found'
-  | 'unsupported_provider_type'
-  | 'invalid_query'
-  | 'provider_request_failed'
-
-export type WebSearchError = {
-  code: WebSearchErrorCode
-  message: string
-  cause?: unknown
 }

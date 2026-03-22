@@ -1,8 +1,10 @@
 import { preferenceService } from '@data/PreferenceService'
 import { loggerService } from '@logger'
 import type { WebSearchExecutionConfig, WebSearchResponse } from '@shared/data/types/webSearch'
+import type { Cheerio } from 'cheerio'
 
-import { BaseWebSearchProvider } from '../base/BaseWebSearchProvider'
+import { isAbortError } from '../../utils/errors'
+import { BaseWebSearchProvider, resolveProviderApiHost } from '../base/BaseWebSearchProvider'
 import { fetchSearchResultPageHtml } from './fetchers'
 
 const logger = loggerService.withContext('LocalSearchProvider')
@@ -13,19 +15,7 @@ export interface SearchItem {
   content: string
 }
 
-function isAbortError(error: unknown): boolean {
-  return !!(error && typeof error === 'object' && 'name' in error && (error as { name: string }).name === 'AbortError')
-}
-
 export abstract class LocalSearchProvider extends BaseWebSearchProvider {
-  async check(httpOptions?: RequestInit): Promise<void> {
-    const items = await this.fetchSearchItems(this.getCheckQuery(), 1, httpOptions)
-
-    if (items.length === 0) {
-      throw new Error(`Local provider check failed: no parseable search results for ${this.provider.id}`)
-    }
-  }
-
   async search(query: string, config: WebSearchExecutionConfig, httpOptions?: RequestInit): Promise<WebSearchResponse> {
     const validItems = await this.fetchSearchItems(query, config.maxResults, httpOptions)
 
@@ -46,14 +36,7 @@ export abstract class LocalSearchProvider extends BaseWebSearchProvider {
     return query
   }
 
-  protected extractSnippet(
-    $element: {
-      find: (selector: string) => { first: () => { text: () => string } }
-      text: () => string
-    },
-    selectors: string[],
-    title: string
-  ): string {
+  protected extractSnippet($element: Cheerio<any>, selectors: string[], title: string): string {
     for (const selector of selectors) {
       const text = $element.find(selector).first().text().trim()
       if (text) {
@@ -68,13 +51,12 @@ export abstract class LocalSearchProvider extends BaseWebSearchProvider {
   protected abstract parseValidUrls(htmlContent: string): SearchItem[]
 
   private async fetchSearchItems(query: string, maxResults: number, httpOptions?: RequestInit): Promise<SearchItem[]> {
-    this.assertNonEmptyQuery(query)
-
     try {
       const language = await preferenceService.get('app.language')
       const cleanedQuery = query.split('\r\n')[1] ?? query
       const queryWithLanguage = language ? this.applyLanguageFilter(cleanedQuery, language) : cleanedQuery
-      const searchUrl = this.requireApiHost().replace('%s', encodeURIComponent(queryWithLanguage))
+      const apiHost = resolveProviderApiHost(this.provider)
+      const searchUrl = apiHost.replace('%s', encodeURIComponent(queryWithLanguage))
 
       const html = await fetchSearchResultPageHtml(searchUrl, httpOptions)
       const items = this.parseValidUrls(html)

@@ -1,29 +1,18 @@
 import { loggerService } from '@logger'
 import { Readability } from '@mozilla/readability'
 import type { WebSearchResult } from '@shared/data/types/webSearch'
+import { isValidUrl } from '@shared/utils'
 import { net } from 'electron'
 import { JSDOM } from 'jsdom'
 import TurndownService from 'turndown'
 
 import { localBrowser } from '../providers/locals/LocalBrowser'
+import { isAbortError } from './errors'
 
 const logger = loggerService.withContext('MainWebSearchContentFetcher')
 const turndownService = new TurndownService()
 
 export const noContent = 'No content found'
-
-function isValidUrl(urlString: string): boolean {
-  try {
-    const url = new URL(urlString)
-    return url.protocol === 'http:' || url.protocol === 'https:'
-  } catch {
-    return false
-  }
-}
-
-function isAbortError(error: unknown): boolean {
-  return !!(error && typeof error === 'object' && 'name' in error && (error as { name: string }).name === 'AbortError')
-}
 
 function buildHeaders(headers?: HeadersInit) {
   const resolvedHeaders = new Headers(headers)
@@ -78,7 +67,7 @@ export async function fetchWebSearchContent(
     return {
       title: article?.title || url,
       url,
-      content: markdown || noContent
+      content: markdown
     }
   } catch (error) {
     if (isAbortError(error)) {
@@ -89,7 +78,7 @@ export async function fetchWebSearchContent(
     return {
       title: url,
       url,
-      content: noContent
+      content: 'No content found'
     }
   }
 }

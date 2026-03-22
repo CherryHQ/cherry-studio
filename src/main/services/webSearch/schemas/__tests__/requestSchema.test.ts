@@ -6,22 +6,28 @@ describe('WebSearchRequestSchema', () => {
   it('accepts a valid request shape', () => {
     const parsed = WebSearchRequestSchema.parse({
       providerId: 'tavily',
-      input: {
-        question: ['hello']
-      },
+      questions: ['hello'],
       requestId: 'request-1'
     })
 
     expect(parsed.providerId).toBe('tavily')
-    expect(parsed.input.question).toEqual(['hello'])
+    expect(parsed.questions).toEqual(['hello'])
+  })
+
+  it('normalizes questions by trimming surrounding whitespace', () => {
+    const parsed = WebSearchRequestSchema.parse({
+      providerId: 'tavily',
+      questions: ['  hello  ', '\tworld\n'],
+      requestId: 'request-1'
+    })
+
+    expect(parsed.questions).toEqual(['hello', 'world'])
   })
 
   it('rejects invalid provider ids', () => {
     const result = WebSearchRequestSchema.safeParse({
       providerId: 'unknown-provider',
-      input: {
-        question: ['hello']
-      },
+      questions: ['hello'],
       requestId: 'request-1'
     })
 
@@ -31,9 +37,7 @@ describe('WebSearchRequestSchema', () => {
   it('rejects empty request ids', () => {
     const result = WebSearchRequestSchema.safeParse({
       providerId: 'tavily',
-      input: {
-        question: []
-      },
+      questions: [],
       requestId: ''
     })
 
@@ -43,9 +47,7 @@ describe('WebSearchRequestSchema', () => {
   it('rejects blank questions', () => {
     const result = WebSearchRequestSchema.safeParse({
       providerId: 'tavily',
-      input: {
-        question: ['hello', '   ']
-      },
+      questions: ['hello', '   '],
       requestId: 'request-1'
     })
 

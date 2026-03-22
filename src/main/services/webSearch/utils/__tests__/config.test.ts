@@ -1,10 +1,9 @@
 import type { PreferenceDefaultScopeType, PreferenceKeyType } from '@shared/data/preference/preferenceTypes'
 import { describe, expect, it } from 'vitest'
 
-import { WebSearchConfigResolver } from '../WebSearchConfigResolver'
+import { getResolvedConfig, getRuntimeConfig } from '../config'
 
 const preferenceValues: Record<string, unknown> = {
-  'chat.web_search.search_with_time': true,
   'chat.web_search.max_results': 5,
   'chat.web_search.exclude_domains': ['example.com'],
   'chat.web_search.compression.method': 'none',
@@ -27,11 +26,9 @@ const mockPreferenceReader = {
   }
 }
 
-describe('WebSearchConfigResolver', () => {
+describe('webSearch config utils', () => {
   it('resolves all supported provider types from layered presets + overrides by default', async () => {
-    const resolver = new WebSearchConfigResolver(mockPreferenceReader)
-
-    const resolved = await resolver.getResolvedConfig()
+    const resolved = await getResolvedConfig(mockPreferenceReader)
     const providerIds = resolved.providers.map((provider) => provider.id)
 
     expect(providerIds).toContain('exa-mcp')
@@ -42,11 +39,8 @@ describe('WebSearchConfigResolver', () => {
   })
 
   it('returns runtime config from flattened preference keys', async () => {
-    const resolver = new WebSearchConfigResolver(mockPreferenceReader)
+    const runtime = await getRuntimeConfig(mockPreferenceReader)
 
-    const runtime = await resolver.getRuntimeConfig()
-
-    expect(runtime.searchWithTime).toBe(true)
     expect(runtime.maxResults).toBe(5)
     expect(runtime.excludeDomains).toEqual(['example.com'])
     expect(runtime.compression.method).toBe('none')

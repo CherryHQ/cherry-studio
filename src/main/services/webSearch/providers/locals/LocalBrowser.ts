@@ -13,16 +13,6 @@ type FetchHtmlOptions = {
   showWindow?: boolean
 }
 
-function createAbortError() {
-  const error = new Error('The operation was aborted')
-  error.name = 'AbortError'
-  return error
-}
-
-function wait(ms: number): Promise<void> {
-  return new Promise((resolve) => setTimeout(resolve, ms))
-}
-
 export class LocalBrowser {
   async fetchHtml(url: string, options: FetchHtmlOptions = {}): Promise<string> {
     if (!app.isReady()) {
@@ -30,7 +20,7 @@ export class LocalBrowser {
     }
 
     if (options.signal?.aborted) {
-      throw createAbortError()
+      throw new DOMException('The operation was aborted', 'AbortError')
     }
 
     const timeoutMs = options.timeoutMs ?? DEFAULT_NAVIGATION_TIMEOUT_MS
@@ -91,8 +81,11 @@ export class LocalBrowser {
 
       // Match the legacy SearchService behavior: wait for did-finish-load when possible,
       // otherwise fall back to a timeout and still extract the current HTML snapshot.
-      const onReady = () => finish(() => void wait(500).then(resolve))
-      const onAbort = () => finish(() => reject(createAbortError()))
+      const onReady = () =>
+        finish(() => {
+          setTimeout(resolve, 500)
+        })
+      const onAbort = () => finish(() => reject(new DOMException('The operation was aborted', 'AbortError')))
 
       const timeoutId = setTimeout(() => {
         finish(resolve)

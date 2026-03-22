@@ -1,3 +1,5 @@
+import { readFileSync } from 'node:fs'
+
 import type { ResolvedWebSearchProvider, WebSearchExecutionConfig } from '@shared/data/types/webSearch'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -29,7 +31,6 @@ import { ZhipuProvider } from '../api/ZhipuProvider'
 import { ExaMcpProvider } from '../mcp/ExaMcpProvider'
 
 const runtimeConfig: WebSearchExecutionConfig = {
-  searchWithTime: false,
   maxResults: 4,
   excludeDomains: ['example.com'],
   compression: {
@@ -58,6 +59,14 @@ function createProvider(overrides: Partial<ResolvedWebSearchProvider>): Resolved
   }
 }
 
+function loadFixtureText(name: string): string {
+  return readFileSync(new URL(`./fixtures/${name}`, import.meta.url), 'utf8')
+}
+
+function loadFixtureJson<T>(name: string): T {
+  return JSON.parse(loadFixtureText(name)) as T
+}
+
 function createJsonResponse(payload: unknown, status = 200) {
   return new Response(JSON.stringify(payload), {
     status,
@@ -67,17 +76,42 @@ function createJsonResponse(payload: unknown, status = 200) {
   })
 }
 
-function createHtmlResponse(html: string, status = 200) {
-  return new Response(html, {
+function createTextResponse(body: string, contentType: string, status = 200) {
+  return new Response(body, {
     status,
     headers: {
-      'content-type': 'text/html'
+      'content-type': contentType
     }
   })
 }
 
-function getLatestFetchCall(): [string, RequestInit | undefined] {
-  return fetchMock.mock.lastCall as [string, RequestInit | undefined]
+function serializeRequestBody(body: RequestInit['body']) {
+  if (!body) {
+    return null
+  }
+
+  if (typeof body === 'string') {
+    try {
+      return JSON.parse(body)
+    } catch {
+      return body
+    }
+  }
+
+  return String(body)
+}
+
+function toRequestSnapshot(call: [string, RequestInit | undefined]) {
+  const [url, init] = call
+
+  return {
+    url,
+    method: init?.method ?? 'GET',
+    headers: Object.fromEntries(
+      [...new Headers(init?.headers).entries()].sort(([left], [right]) => left.localeCompare(right))
+    ),
+    body: serializeRequestBody(init?.body)
+  }
 }
 
 describe('main web search API providers', () => {
@@ -85,13 +119,8 @@ describe('main web search API providers', () => {
     fetchMock.mockReset()
   })
 
-  it('sends Exa requests through net.fetch', async () => {
-    fetchMock.mockResolvedValue(
-      createJsonResponse({
-        autopromptString: 'refined query',
-        results: [{ title: 'Exa Title', text: 'Exa Content', url: 'https://exa.example/result' }]
-      })
-    )
+  it('matches Exa request and normalized response snapshots from fixtures', async () => {
+    fetchMock.mockResolvedValue(createJsonResponse(loadFixtureJson('exa-response.json')))
 
     const provider = new ExaProvider(
       createProvider({
@@ -103,29 +132,45 @@ describe('main web search API providers', () => {
     )
 
     const result = await provider.search('hello', runtimeConfig)
-    const [url, init] = getLatestFetchCall()
 
-    expect(url).toBe('https://api.exa.ai/search')
-    expect(init?.method).toBe('POST')
-    expect(new Headers(init?.headers).get('x-api-key')).toBe('exa-key')
-    expect(JSON.parse(String(init?.body))).toEqual({
-      query: 'hello',
-      numResults: 4,
-      contents: { text: true }
-    })
-    expect(result).toEqual({
-      query: 'refined query',
-      results: [{ title: 'Exa Title', content: 'Exa Content', url: 'https://exa.example/result' }]
-    })
+    expect({
+      request: toRequestSnapshot(fetchMock.mock.lastCall as [string, RequestInit | undefined]),
+      result
+    }).toMatchInlineSnapshot(`
+      {
+        "request": {
+          "body": {
+            "contents": {
+              "text": true,
+            },
+            "numResults": 4,
+            "query": "hello",
+          },
+          "headers": {
+            "content-type": "application/json",
+            "http-referer": "https://cherry-ai.com",
+            "x-api-key": "exa-key",
+            "x-title": "Cherry Studio",
+          },
+          "method": "POST",
+          "url": "https://api.exa.ai/search",
+        },
+        "result": {
+          "query": "refined query",
+          "results": [
+            {
+              "content": "Exa Content",
+              "title": "Exa Title",
+              "url": "https://exa.example/result",
+            },
+          ],
+        },
+      }
+    `)
   })
 
-  it('sends Tavily requests through net.fetch', async () => {
-    fetchMock.mockResolvedValue(
-      createJsonResponse({
-        query: 'hello',
-        results: [{ title: 'Tavily Title', content: 'Tavily Content', url: 'https://tavily.example/result' }]
-      })
-    )
+  it('matches Tavily request and normalized response snapshots from fixtures', async () => {
+    fetchMock.mockResolvedValue(createJsonResponse(loadFixtureJson('tavily-response.json')))
 
     const provider = new TavilyProvider(
       createProvider({
@@ -137,42 +182,44 @@ describe('main web search API providers', () => {
     )
 
     const result = await provider.search('hello', runtimeConfig)
-    const [url, init] = getLatestFetchCall()
 
-    expect(url).toBe('https://api.tavily.com/search')
-    expect(init?.method).toBe('POST')
-    expect(JSON.parse(String(init?.body))).toEqual({
-      query: 'hello',
-      api_key: 'tavily-key',
-      max_results: 4
-    })
-    expect(result.results[0]).toEqual({
-      title: 'Tavily Title',
-      content: 'Tavily Content',
-      url: 'https://tavily.example/result'
-    })
+    expect({
+      request: toRequestSnapshot(fetchMock.mock.lastCall as [string, RequestInit | undefined]),
+      result
+    }).toMatchInlineSnapshot(`
+      {
+        "request": {
+          "body": {
+            "api_key": "tavily-key",
+            "max_results": 4,
+            "query": "hello",
+          },
+          "headers": {
+            "content-type": "application/json",
+            "http-referer": "https://cherry-ai.com",
+            "x-title": "Cherry Studio",
+          },
+          "method": "POST",
+          "url": "https://api.tavily.com/search",
+        },
+        "result": {
+          "query": "hello",
+          "results": [
+            {
+              "content": "Tavily Content",
+              "title": "Tavily Title",
+              "url": "https://tavily.example/result",
+            },
+          ],
+        },
+      }
+    `)
   })
 
-  it('sends Searxng requests through net.fetch with basic auth and engines', async () => {
+  it('matches Searxng search requests and parsed content snapshots from fixtures', async () => {
     fetchMock
-      .mockResolvedValueOnce(
-        createJsonResponse({
-          query: 'hello',
-          results: [{ title: 'Searxng Title', content: 'Searxng Content', url: 'https://searx.example/result' }]
-        })
-      )
-      .mockResolvedValueOnce(
-        createHtmlResponse(`
-          <html>
-            <head><title>Resolved Page Title</title></head>
-            <body>
-              <article>
-                <p>Resolved content from the target page.</p>
-              </article>
-            </body>
-          </html>
-        `)
-      )
+      .mockResolvedValueOnce(createJsonResponse(loadFixtureJson('searxng-search-response.json')))
+      .mockResolvedValueOnce(createTextResponse(loadFixtureText('searxng-page.html'), 'text/html'))
 
     const provider = new SearxngProvider(
       createProvider({
@@ -186,55 +233,50 @@ describe('main web search API providers', () => {
     )
 
     const result = await provider.search('hello', runtimeConfig)
-    const [searchUrl, searchInit] = fetchMock.mock.calls[0] as [string, RequestInit | undefined]
-    const parsedSearchUrl = new URL(searchUrl)
-    const [contentUrl, contentInit] = fetchMock.mock.calls[1] as [string, RequestInit | undefined]
 
-    expect(parsedSearchUrl.origin + parsedSearchUrl.pathname).toBe('https://searx.example/search')
-    expect(parsedSearchUrl.searchParams.get('q')).toBe('hello')
-    expect(parsedSearchUrl.searchParams.get('language')).toBe('auto')
-    expect(parsedSearchUrl.searchParams.get('format')).toBe('json')
-    expect(parsedSearchUrl.searchParams.get('engines')).toBe('google,bing')
-    expect(new Headers(searchInit?.headers).get('authorization')).toBe(
-      `Basic ${Buffer.from('alice:secret').toString('base64')}`
-    )
-    expect(contentUrl).toBe('https://searx.example/result')
-    expect(new Headers(contentInit?.headers).get('user-agent')).toContain('Mozilla/5.0')
-    expect(result.results[0]).toEqual({
-      title: 'Resolved Page Title',
-      content: 'Resolved content from the target page.',
-      url: 'https://searx.example/result'
-    })
+    expect({
+      searchRequest: toRequestSnapshot(fetchMock.mock.calls[0] as [string, RequestInit | undefined]),
+      contentRequest: toRequestSnapshot(fetchMock.mock.calls[1] as [string, RequestInit | undefined]),
+      result
+    }).toMatchInlineSnapshot(`
+      {
+        "contentRequest": {
+          "body": null,
+          "headers": {
+            "user-agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+          },
+          "method": "GET",
+          "url": "https://searx.example/result",
+        },
+        "result": {
+          "query": "hello",
+          "results": [
+            {
+              "content": "Resolved content from the target page.",
+              "title": "Resolved Page Title",
+              "url": "https://searx.example/result",
+            },
+          ],
+        },
+        "searchRequest": {
+          "body": null,
+          "headers": {
+            "authorization": "Basic YWxpY2U6c2VjcmV0",
+            "http-referer": "https://cherry-ai.com",
+            "x-title": "Cherry Studio",
+          },
+          "method": "GET",
+          "url": "https://searx.example/search?q=hello&language=auto&format=json&engines=google%2Cbing",
+        },
+      }
+    `)
   })
 
-  it('auto-discovers Searxng engines from config when no override is provided', async () => {
+  it('matches Searxng auto-discovery requests from fixtures', async () => {
     fetchMock
-      .mockResolvedValueOnce(
-        createJsonResponse({
-          engines: [
-            { name: 'duckduckgo', enabled: true, categories: ['general', 'web'] },
-            { name: 'images', enabled: true, categories: ['images'] }
-          ]
-        })
-      )
-      .mockResolvedValueOnce(
-        createJsonResponse({
-          query: 'hello',
-          results: [{ title: 'Searxng Title', content: 'Searxng Content', url: 'https://searx.example/result' }]
-        })
-      )
-      .mockResolvedValueOnce(
-        createHtmlResponse(`
-          <html>
-            <head><title>Resolved Page Title</title></head>
-            <body>
-              <article>
-                <p>Resolved content from the target page.</p>
-              </article>
-            </body>
-          </html>
-        `)
-      )
+      .mockResolvedValueOnce(createJsonResponse(loadFixtureJson('searxng-config-response.json')))
+      .mockResolvedValueOnce(createJsonResponse(loadFixtureJson('searxng-search-response.json')))
+      .mockResolvedValueOnce(createTextResponse(loadFixtureText('searxng-page.html'), 'text/html'))
 
     const provider = new SearxngProvider(
       createProvider({
@@ -247,27 +289,35 @@ describe('main web search API providers', () => {
 
     await provider.search('hello', runtimeConfig)
 
-    const [configUrl] = fetchMock.mock.calls[0] as [string, RequestInit | undefined]
-    const [searchUrl] = fetchMock.mock.calls[1] as [string, RequestInit | undefined]
-    const parsedSearchUrl = new URL(searchUrl)
-
-    expect(configUrl).toBe('https://searx.example/config')
-    expect(parsedSearchUrl.searchParams.get('engines')).toBe('duckduckgo')
+    expect({
+      configRequest: toRequestSnapshot(fetchMock.mock.calls[0] as [string, RequestInit | undefined]),
+      searchRequest: toRequestSnapshot(fetchMock.mock.calls[1] as [string, RequestInit | undefined])
+    }).toMatchInlineSnapshot(`
+      {
+        "configRequest": {
+          "body": null,
+          "headers": {
+            "http-referer": "https://cherry-ai.com",
+            "x-title": "Cherry Studio",
+          },
+          "method": "GET",
+          "url": "https://searx.example/config",
+        },
+        "searchRequest": {
+          "body": null,
+          "headers": {
+            "http-referer": "https://cherry-ai.com",
+            "x-title": "Cherry Studio",
+          },
+          "method": "GET",
+          "url": "https://searx.example/search?q=hello&language=auto&format=json&engines=duckduckgo",
+        },
+      }
+    `)
   })
 
-  it('sends Bocha requests through net.fetch', async () => {
-    fetchMock.mockResolvedValue(
-      createJsonResponse({
-        code: 200,
-        msg: 'ok',
-        data: {
-          queryContext: { originalQuery: 'hello' },
-          webPages: {
-            value: [{ name: 'Bocha Title', summary: 'Bocha Content', url: 'https://bocha.example/result' }]
-          }
-        }
-      })
-    )
+  it('matches Bocha request and normalized response snapshots from fixtures', async () => {
+    fetchMock.mockResolvedValue(createJsonResponse(loadFixtureJson('bocha-response.json')))
 
     const provider = new BochaProvider(
       createProvider({
@@ -278,37 +328,45 @@ describe('main web search API providers', () => {
       })
     )
 
-    const result = await provider.search('hello', { ...runtimeConfig, searchWithTime: true })
-    const [url, init] = getLatestFetchCall()
+    const result = await provider.search('hello', runtimeConfig)
 
-    expect(url).toBe('https://api.bochaai.com/v1/web-search')
-    expect(new Headers(init?.headers).get('authorization')).toBe('Bearer bocha-key')
-    expect(JSON.parse(String(init?.body))).toEqual({
-      query: 'hello',
-      count: 4,
-      exclude: 'example.com',
-      freshness: 'oneDay',
-      summary: true,
-      page: 1
-    })
-    expect(result.results[0]).toEqual({
-      title: 'Bocha Title',
-      content: 'Bocha Content',
-      url: 'https://bocha.example/result'
-    })
+    expect({
+      request: toRequestSnapshot(fetchMock.mock.lastCall as [string, RequestInit | undefined]),
+      result
+    }).toMatchInlineSnapshot(`
+      {
+        "request": {
+          "body": {
+            "count": 4,
+            "exclude": "example.com",
+            "query": "hello",
+            "summary": true,
+          },
+          "headers": {
+            "authorization": "Bearer bocha-key",
+            "content-type": "application/json",
+            "http-referer": "https://cherry-ai.com",
+            "x-title": "Cherry Studio",
+          },
+          "method": "POST",
+          "url": "https://api.bochaai.com/v1/web-search",
+        },
+        "result": {
+          "query": "hello",
+          "results": [
+            {
+              "content": "Bocha Content",
+              "title": "Bocha Title",
+              "url": "https://bocha.example/result",
+            },
+          ],
+        },
+      }
+    `)
   })
 
-  it('sends Querit requests through net.fetch', async () => {
-    fetchMock.mockResolvedValue(
-      createJsonResponse({
-        error_code: 200,
-        error_msg: '',
-        query_context: { query: 'hello' },
-        results: {
-          result: [{ title: 'Querit Title', snippet: 'Querit Content', url: 'https://querit.example/result' }]
-        }
-      })
-    )
+  it('matches Querit request and normalized response snapshots from fixtures', async () => {
+    fetchMock.mockResolvedValue(createJsonResponse(loadFixtureJson('querit-response.json')))
 
     const provider = new QueritProvider(
       createProvider({
@@ -319,32 +377,50 @@ describe('main web search API providers', () => {
       })
     )
 
-    const result = await provider.search('hello', { ...runtimeConfig, searchWithTime: true })
-    const [url, init] = getLatestFetchCall()
+    const result = await provider.search('hello', runtimeConfig)
 
-    expect(url).toBe('https://api.querit.ai/v1/search')
-    expect(new Headers(init?.headers).get('authorization')).toBe('Bearer querit-key')
-    expect(JSON.parse(String(init?.body))).toEqual({
-      query: 'hello',
-      count: 4,
-      filters: {
-        sites: { exclude: ['example.com'] },
-        timeRange: { date: 'd1' }
+    expect({
+      request: toRequestSnapshot(fetchMock.mock.lastCall as [string, RequestInit | undefined]),
+      result
+    }).toMatchInlineSnapshot(`
+      {
+        "request": {
+          "body": {
+            "count": 4,
+            "filters": {
+              "sites": {
+                "exclude": [
+                  "example.com",
+                ],
+              },
+            },
+            "query": "hello",
+          },
+          "headers": {
+            "authorization": "Bearer querit-key",
+            "content-type": "application/json",
+            "http-referer": "https://cherry-ai.com",
+            "x-title": "Cherry Studio",
+          },
+          "method": "POST",
+          "url": "https://api.querit.ai/v1/search",
+        },
+        "result": {
+          "query": "hello",
+          "results": [
+            {
+              "content": "Querit Content",
+              "title": "Querit Title",
+              "url": "https://querit.example/result",
+            },
+          ],
+        },
       }
-    })
-    expect(result.results[0]).toEqual({
-      title: 'Querit Title',
-      content: 'Querit Content',
-      url: 'https://querit.example/result'
-    })
+    `)
   })
 
-  it('sends Zhipu requests through net.fetch', async () => {
-    fetchMock.mockResolvedValue(
-      createJsonResponse({
-        search_result: [{ title: 'Zhipu Title', content: 'Zhipu Content', link: 'https://zhipu.example/result' }]
-      })
-    )
+  it('matches Zhipu request and normalized response snapshots from fixtures', async () => {
+    fetchMock.mockResolvedValue(createJsonResponse(loadFixtureJson('zhipu-response.json')))
 
     const provider = new ZhipuProvider(
       createProvider({
@@ -356,29 +432,43 @@ describe('main web search API providers', () => {
     )
 
     const result = await provider.search('hello', runtimeConfig)
-    const [url, init] = getLatestFetchCall()
 
-    expect(url).toBe('https://open.bigmodel.cn/api/paas/v4/tools')
-    expect(new Headers(init?.headers).get('authorization')).toBe('Bearer zhipu-key')
-    expect(JSON.parse(String(init?.body))).toEqual({
-      search_query: 'hello',
-      search_engine: 'search_std',
-      search_intent: false
-    })
-    expect(result.results[0]).toEqual({
-      title: 'Zhipu Title',
-      content: 'Zhipu Content',
-      url: 'https://zhipu.example/result'
-    })
+    expect({
+      request: toRequestSnapshot(fetchMock.mock.lastCall as [string, RequestInit | undefined]),
+      result
+    }).toMatchInlineSnapshot(`
+      {
+        "request": {
+          "body": {
+            "search_engine": "search_std",
+            "search_intent": false,
+            "search_query": "hello",
+          },
+          "headers": {
+            "authorization": "Bearer zhipu-key",
+            "content-type": "application/json",
+            "http-referer": "https://cherry-ai.com",
+            "x-title": "Cherry Studio",
+          },
+          "method": "POST",
+          "url": "https://open.bigmodel.cn/api/paas/v4/tools",
+        },
+        "result": {
+          "query": "hello",
+          "results": [
+            {
+              "content": "Zhipu Content",
+              "title": "Zhipu Title",
+              "url": "https://zhipu.example/result",
+            },
+          ],
+        },
+      }
+    `)
   })
 
-  it('sends Exa MCP requests through net.fetch and parses SSE payloads', async () => {
-    fetchMock.mockResolvedValue(
-      new Response(
-        'data: {"result":{"content":[{"type":"text","text":"Title: Exa MCP Title\\nURL: https://mcp.exa.ai/result\\nText: Exa MCP Content"}]}}',
-        { status: 200 }
-      )
-    )
+  it('matches Exa MCP request and normalized response snapshots from fixtures', async () => {
+    fetchMock.mockResolvedValue(createTextResponse(loadFixtureText('exa-mcp-response.txt'), 'text/event-stream'))
 
     const provider = new ExaMcpProvider(
       createProvider({
@@ -390,28 +480,47 @@ describe('main web search API providers', () => {
     )
 
     const result = await provider.search('hello', runtimeConfig)
-    const [url, init] = getLatestFetchCall()
 
-    expect(url).toBe('https://mcp.exa.ai/mcp')
-    expect(init?.method).toBe('POST')
-    expect(JSON.parse(String(init?.body))).toEqual({
-      jsonrpc: '2.0',
-      id: 1,
-      method: 'tools/call',
-      params: {
-        name: 'web_search_exa',
-        arguments: {
-          query: 'hello',
-          type: 'auto',
-          numResults: 4,
-          livecrawl: 'fallback'
-        }
+    expect({
+      request: toRequestSnapshot(fetchMock.mock.lastCall as [string, RequestInit | undefined]),
+      result
+    }).toMatchInlineSnapshot(`
+      {
+        "request": {
+          "body": {
+            "id": 1,
+            "jsonrpc": "2.0",
+            "method": "tools/call",
+            "params": {
+              "arguments": {
+                "livecrawl": "fallback",
+                "numResults": 4,
+                "query": "hello",
+                "type": "auto",
+              },
+              "name": "web_search_exa",
+            },
+          },
+          "headers": {
+            "accept": "application/json, text/event-stream",
+            "content-type": "application/json",
+            "http-referer": "https://cherry-ai.com",
+            "x-title": "Cherry Studio",
+          },
+          "method": "POST",
+          "url": "https://mcp.exa.ai/mcp",
+        },
+        "result": {
+          "query": "hello",
+          "results": [
+            {
+              "content": "Exa MCP Content",
+              "title": "Exa MCP Title",
+              "url": "https://mcp.exa.ai/result",
+            },
+          ],
+        },
       }
-    })
-    expect(result.results[0]).toEqual({
-      title: 'Exa MCP Title',
-      content: 'Exa MCP Content',
-      url: 'https://mcp.exa.ai/result'
-    })
+    `)
   })
 })

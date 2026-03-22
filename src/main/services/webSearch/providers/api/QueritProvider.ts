@@ -1,53 +1,59 @@
 import type { WebSearchExecutionConfig, WebSearchResponse } from '@shared/data/types/webSearch'
+import { net } from 'electron'
+import * as z from 'zod'
 
-import { BaseWebSearchProvider } from '../base/BaseWebSearchProvider'
+import { BaseWebSearchProvider, resolveProviderApiKey } from '../base/BaseWebSearchProvider'
 
-interface QueritSearchParams {
-  query: string
-  count: number
-  filters?: {
-    sites?: { exclude: string[] }
-    timeRange?: { date: string }
-  }
-}
+const QueritSearchParamsSchema = z.object({
+  query: z.string(),
+  count: z.number().int().positive(),
+  filters: z
+    .object({
+      sites: z
+        .object({
+          exclude: z.array(z.string())
+        })
+        .optional()
+    })
+    .optional()
+})
 
-interface QueritSearchResponse {
-  error_code: number
-  error_msg: string
-  query_context: {
-    query: string
-  }
-  results: {
-    result: Array<{
-      title: string
-      snippet?: string
-      url: string
-    }>
-  }
-}
+const QueritSearchResponseSchema = z.object({
+  error_code: z.number(),
+  error_msg: z.string(),
+  query_context: z.object({
+    query: z.string()
+  }),
+  results: z.object({
+    result: z
+      .array(
+        z.object({
+          title: z.string(),
+          snippet: z.string().optional(),
+          url: z.string()
+        })
+      )
+      .default([])
+  })
+})
 
 export class QueritProvider extends BaseWebSearchProvider {
   async search(query: string, config: WebSearchExecutionConfig, httpOptions?: RequestInit): Promise<WebSearchResponse> {
-    this.assertNonEmptyQuery(query)
-
-    const apiKey = this.getApiKey()
-    const requestBody: QueritSearchParams = {
+    const apiKey = resolveProviderApiKey(this.provider)
+    const requestBody = QueritSearchParamsSchema.parse({
       query,
       count: config.maxResults
-    }
+    })
 
-    const filters: QueritSearchParams['filters'] = {}
+    const filters: z.input<typeof QueritSearchParamsSchema>['filters'] = {}
     if (config.excludeDomains.length > 0) {
       filters.sites = { exclude: config.excludeDomains }
-    }
-    if (config.searchWithTime) {
-      filters.timeRange = { date: 'd1' }
     }
     if (Object.keys(filters).length > 0) {
       requestBody.filters = filters
     }
 
-    const response = await this.netFetch(this.resolveApiUrl('/v1/search'), {
+    const response = await net.fetch(this.resolveApiUrl('/v1/search'), {
       method: 'POST',
       headers: {
         ...this.defaultHeaders(),
@@ -62,7 +68,7 @@ export class QueritProvider extends BaseWebSearchProvider {
       throw new Error(`Querit search failed: ${response.status} ${response.statusText}`)
     }
 
-    const payload: QueritSearchResponse = await response.json()
+    const payload = QueritSearchResponseSchema.parse(await response.json())
 
     if (payload.error_code !== 200) {
       throw new Error(`Querit search failed: ${payload.error_msg}`)

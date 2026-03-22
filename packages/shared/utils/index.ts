@@ -15,6 +15,18 @@ export function withoutTrailingSlash(url: string): string {
 }
 
 /**
+ * Checks whether a string is a valid HTTP(S) URL.
+ */
+export function isValidUrl(url: string): boolean {
+  try {
+    const parsedUrl = new URL(url)
+    return parsedUrl.protocol === 'http:' || parsedUrl.protocol === 'https:'
+  } catch {
+    return false
+  }
+}
+
+/**
  * Matches a version segment anywhere in a URL path (e.g., /v1, /v2beta, /v3alpha).
  */
 const VERSION_REGEX = /\/v\d+(?:alpha|beta)?(?:\/|$)/i

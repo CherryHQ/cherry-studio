@@ -14,9 +14,6 @@ type ParsedMatchPattern =
       path: string
     }
 
-type HostMap<T> = [self: HostMapBucket<T>, anySubdomain: HostMapBucket<T>, subdomains?: Record<string, HostMap<T>>]
-type HostMapBucket<T> = [value: T, scheme?: string, path?: string][]
-
 const matchPatternRegExp = (() => {
   const allURLs = String.raw`(?<allURLs><all_urls>)`
   const scheme = String.raw`(?<scheme>\*|[A-Za-z][0-9A-Za-z+.-]*)`
@@ -45,89 +42,23 @@ function parseMatchPattern(pattern: string): ParsedMatchPattern | null {
         path: groups.path
       }
 }
-
-class MatchPatternMap<T> {
-  static supportedSchemes: string[] = ['http', 'https']
-
-  private allURLs: T[]
-  private hostMap: HostMap<T>
-
-  constructor() {
-    this.allURLs = []
-    this.hostMap = [[], []]
-  }
-
-  get(url: string): T[] {
-    const { protocol, hostname: host, pathname, search } = new URL(url)
-    const scheme = protocol.slice(0, -1)
-    const path = `${pathname}${search}`
-
-    if (!MatchPatternMap.supportedSchemes.includes(scheme)) {
-      return []
-    }
-
-    const values: T[] = [...this.allURLs]
-    let node = this.hostMap
-
-    for (const label of host.split('.').reverse()) {
-      collectBucket(node[1], scheme, path, values)
-
-      if (!node[2]?.[label]) {
-        return values
-      }
-
-      node = node[2][label]
-    }
-
-    collectBucket(node[1], scheme, path, values)
-    collectBucket(node[0], scheme, path, values)
-    return values
-  }
-
-  set(pattern: string, value: T) {
-    const parseResult = parseMatchPattern(pattern)
-    if (!parseResult) {
-      throw new Error(`Invalid match pattern: ${pattern}`)
-    }
-
-    if (parseResult.allURLs) {
-      this.allURLs.push(value)
-      return
-    }
-
-    const { scheme, host, path } = parseResult
-    if (scheme !== '*' && !MatchPatternMap.supportedSchemes.includes(scheme)) {
-      throw new Error(`Unsupported scheme: ${scheme}`)
-    }
-
-    const labels = host.split('.').reverse()
-    const anySubdomain = labels[labels.length - 1] === '*'
-    if (anySubdomain) {
-      labels.pop()
-    }
-
-    let node = this.hostMap
-    for (const label of labels) {
-      node[2] ||= {}
-      node = node[2][label] ||= [[], []]
-    }
-
-    node[anySubdomain ? 1 : 0].push(
-      path === '/*' ? (scheme === '*' ? [value] : [value, scheme]) : [value, scheme, path]
-    )
-  }
-}
-
-function collectBucket<T>(bucket: HostMapBucket<T>, scheme: string, path: string, values: T[]): void {
-  for (const [value, schemePattern = '*', pathPattern = '/*'] of bucket) {
-    if (testScheme(schemePattern, scheme) && testPath(pathPattern, path)) {
-      values.push(value)
-    }
-  }
-}
+const supportedSchemes = ['http', 'https'] as const
 
 function testScheme(schemePattern: string, scheme: string): boolean {
   return schemePattern === '*' ? scheme === 'http' || scheme === 'https' : scheme === schemePattern
+}
+
+function testHost(hostPattern: string, host: string): boolean {
+  if (hostPattern === '*') {
+    return true
+  }
+
+  if (hostPattern.startsWith('*.')) {
+    const suffix = hostPattern.slice(2)
+    return host === suffix || host.endsWith(`.${suffix}`)
+  }
+
+  return host === hostPattern
 }
 
 function testPath(pathPattern: string, path: string): boolean {
@@ -156,8 +87,20 @@ function testPath(pathPattern: string, path: string): boolean {
   return path.slice(position).endsWith(rest[rest.length - 1])
 }
 
+function matchesPattern(pattern: ParsedMatchPattern, url: URL): boolean {
+  if (pattern.allURLs) {
+    return supportedSchemes.includes(url.protocol.slice(0, -1) as (typeof supportedSchemes)[number])
+  }
+
+  const scheme = url.protocol.slice(0, -1)
+  const host = url.hostname.toLowerCase()
+  const path = `${url.pathname}${url.search}`
+
+  return testScheme(pattern.scheme, scheme) && testHost(pattern.host, host) && testPath(pattern.path, path)
+}
+
 function compileBlacklistPatterns(patterns: string[]) {
-  const patternMap = new MatchPatternMap<string>()
+  const matchPatterns: ParsedMatchPattern[] = []
   const regexPatterns: RegExp[] = []
 
   for (const rawPattern of patterns) {
@@ -179,7 +122,20 @@ function compileBlacklistPatterns(patterns: string[]) {
     }
 
     try {
-      patternMap.set(pattern, pattern)
+      const parseResult = parseMatchPattern(pattern)
+      if (!parseResult) {
+        throw new Error(`Invalid match pattern: ${pattern}`)
+      }
+
+      if (
+        !parseResult.allURLs &&
+        parseResult.scheme !== '*' &&
+        !supportedSchemes.includes(parseResult.scheme as (typeof supportedSchemes)[number])
+      ) {
+        throw new Error(`Unsupported scheme: ${parseResult.scheme}`)
+      }
+
+      matchPatterns.push(parseResult)
     } catch (error) {
       logger.warn('Invalid web search blacklist match pattern', {
         pattern,
@@ -188,7 +144,7 @@ function compileBlacklistPatterns(patterns: string[]) {
     }
   }
 
-  return { patternMap, regexPatterns }
+  return { matchPatterns, regexPatterns }
 }
 
 export function filterWebSearchResponseWithBlacklist(
@@ -199,7 +155,7 @@ export function filterWebSearchResponseWithBlacklist(
     return response
   }
 
-  const { patternMap, regexPatterns } = compileBlacklistPatterns(blacklistPatterns)
+  const { matchPatterns, regexPatterns } = compileBlacklistPatterns(blacklistPatterns)
 
   return {
     ...response,
@@ -211,7 +167,7 @@ export function filterWebSearchResponseWithBlacklist(
           return false
         }
 
-        return patternMap.get(result.url).length === 0
+        return !matchPatterns.some((pattern) => matchesPattern(pattern, url))
       } catch (error) {
         logger.warn('Failed to apply web search blacklist to result URL', {
           url: result.url,

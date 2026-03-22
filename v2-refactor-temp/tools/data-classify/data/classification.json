@@ -2859,7 +2859,7 @@
           "defaultValue": true,
           "status": "classified",
           "category": "preferences",
-          "targetKey": "chat.web_search.search_with_time"
+          "targetKey": null
         },
         {
           "originalKey": "maxResults",

@@ -53,4 +53,37 @@ describe('filterWebSearchResponseWithBlacklist', () => {
 
     expect(filtered.results).toEqual(response.results)
   })
+
+  it('matches wildcard host and path patterns with linear matching', () => {
+    const response: WebSearchResponse = {
+      query: 'hello',
+      results: [
+        {
+          title: 'Blocked subdomain',
+          content: 'blocked',
+          url: 'https://docs.example.com/guide/install'
+        },
+        {
+          title: 'Blocked root domain',
+          content: 'blocked',
+          url: 'https://example.com/guide/install'
+        },
+        {
+          title: 'Allowed different path',
+          content: 'ok',
+          url: 'https://example.com/blog/post'
+        }
+      ]
+    }
+
+    const filtered = filterWebSearchResponseWithBlacklist(response, ['https://*.example.com/guide/*'])
+
+    expect(filtered.results).toEqual([
+      {
+        title: 'Allowed different path',
+        content: 'ok',
+        url: 'https://example.com/blog/post'
+      }
+    ])
+  })
 })

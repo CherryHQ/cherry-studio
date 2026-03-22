@@ -1,38 +1,42 @@
 import type { WebSearchExecutionConfig, WebSearchResponse } from '@shared/data/types/webSearch'
+import { net } from 'electron'
+import * as z from 'zod'
 
-import { BaseWebSearchProvider } from '../base/BaseWebSearchProvider'
+import { BaseWebSearchProvider, resolveProviderApiKey } from '../base/BaseWebSearchProvider'
 
-interface ExaSearchRequest {
-  query: string
-  numResults: number
-  contents: {
-    text: boolean
-  }
-}
+const ExaSearchRequestSchema = z.object({
+  query: z.string(),
+  numResults: z.number().int().positive(),
+  contents: z.object({
+    text: z.boolean()
+  })
+})
 
-interface ExaSearchResponse {
-  results: Array<{
-    title: string | null
-    text?: string
-    url?: string
-  }>
-  autopromptString?: string
-}
+const ExaSearchResponseSchema = z.object({
+  results: z
+    .array(
+      z.object({
+        title: z.string().nullable().optional(),
+        text: z.string().optional(),
+        url: z.string().optional()
+      })
+    )
+    .default([]),
+  autopromptString: z.string().optional()
+})
 
 export class ExaProvider extends BaseWebSearchProvider {
   async search(query: string, config: WebSearchExecutionConfig, httpOptions?: RequestInit): Promise<WebSearchResponse> {
-    this.assertNonEmptyQuery(query)
-
-    const apiKey = this.getApiKey()
-    const requestBody: ExaSearchRequest = {
+    const apiKey = resolveProviderApiKey(this.provider)
+    const requestBody = ExaSearchRequestSchema.parse({
       query,
       numResults: Math.max(1, config.maxResults),
       contents: {
         text: true
       }
-    }
+    })
 
-    const response = await this.netFetch(this.resolveApiUrl('/search'), {
+    const response = await net.fetch(this.resolveApiUrl('/search'), {
       method: 'POST',
       headers: {
         ...this.defaultHeaders(),
@@ -48,8 +52,8 @@ export class ExaProvider extends BaseWebSearchProvider {
       throw new Error(`Exa search failed: HTTP ${response.status} ${errorText}`)
     }
 
-    const payload: ExaSearchResponse = await response.json()
-    const results = payload.results || []
+    const payload = ExaSearchResponseSchema.parse(await response.json())
+    const results = payload.results
 
     return {
       query: payload.autopromptString || query,

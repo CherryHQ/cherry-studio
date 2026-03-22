@@ -1,59 +1,51 @@
 import type { WebSearchExecutionConfig, WebSearchResponse } from '@shared/data/types/webSearch'
+import { net } from 'electron'
+import * as z from 'zod'
 
 import { BaseWebSearchProvider } from '../base/BaseWebSearchProvider'
 
-interface McpSearchRequest {
-  jsonrpc: string
-  id: number
-  method: string
-  params: {
-    name: string
-    arguments: {
-      query: string
-      numResults?: number
-      livecrawl?: 'fallback' | 'preferred'
-      type?: 'auto' | 'fast' | 'deep'
-    }
-  }
-}
+const McpSearchRequestSchema = z.object({
+  jsonrpc: z.string(),
+  id: z.number().int(),
+  method: z.string(),
+  params: z.object({
+    name: z.string(),
+    arguments: z.object({
+      query: z.string(),
+      numResults: z.number().int().positive().optional(),
+      livecrawl: z.enum(['fallback', 'preferred']).optional(),
+      type: z.enum(['auto', 'fast', 'deep']).optional()
+    })
+  })
+})
 
-interface McpSearchResponse {
-  result: {
-    content: Array<{ type: string; text: string }>
-  }
-}
+const McpSearchResponseSchema = z.object({
+  result: z.object({
+    content: z.array(
+      z.object({
+        type: z.string(),
+        text: z.string()
+      })
+    )
+  })
+})
 
-interface ExaSearchResult {
-  title?: string
-  url?: string
-  text?: string
-}
+const ExaSearchResultSchema = z.object({
+  title: z.string().optional(),
+  url: z.string().optional(),
+  text: z.string().optional()
+})
 
-interface ExaSearchResults {
-  results?: ExaSearchResult[]
-  autopromptString?: string
-}
+const ExaSearchResultsSchema = z.object({
+  results: z.array(ExaSearchResultSchema).default([]),
+  autopromptString: z.string().optional()
+})
 
 const DEFAULT_API_HOST = 'https://mcp.exa.ai/mcp'
 const REQUEST_TIMEOUT_MS = 25000
 
 export class ExaMcpProvider extends BaseWebSearchProvider {
-  async check(httpOptions?: RequestInit): Promise<void> {
-    const responseText = await this.requestSearch(this.getCheckQuery(), 1, httpOptions)
-
-    if (!responseText.trim()) {
-      throw new Error('Exa MCP check failed: empty response body')
-    }
-
-    const searchResults = this.parseResponse(responseText)
-    if (!searchResults.results || searchResults.results.length === 0) {
-      throw new Error('Exa MCP check failed: no parseable search results returned')
-    }
-  }
-
   async search(query: string, config: WebSearchExecutionConfig, httpOptions?: RequestInit): Promise<WebSearchResponse> {
-    this.assertNonEmptyQuery(query)
-
     const responseText = await this.requestSearch(query, config.maxResults, httpOptions)
     const searchResults = this.parseResponse(responseText)
 
@@ -67,8 +59,8 @@ export class ExaMcpProvider extends BaseWebSearchProvider {
     }
   }
 
-  private parseTextChunk(raw: string): ExaSearchResult[] {
-    const items: ExaSearchResult[] = []
+  private parseTextChunk(raw: string) {
+    const items: z.input<typeof ExaSearchResultSchema>[] = []
 
     for (const chunk of raw.split('\n\n')) {
       const lines = chunk.split('\n')
@@ -104,10 +96,10 @@ export class ExaMcpProvider extends BaseWebSearchProvider {
       }
     }
 
-    return items
+    return z.array(ExaSearchResultSchema).parse(items)
   }
 
-  private parseResponse(responseText: string): ExaSearchResults {
+  private parseResponse(responseText: string) {
     const lines = responseText.split('\n')
 
     for (const line of lines) {
@@ -116,10 +108,10 @@ export class ExaMcpProvider extends BaseWebSearchProvider {
       }
 
       try {
-        const data: McpSearchResponse = JSON.parse(line.substring(6))
+        const data = McpSearchResponseSchema.parse(JSON.parse(line.substring(6)))
         const text = data.result?.content?.[0]?.text
         if (text) {
-          return { results: this.parseTextChunk(text) }
+          return ExaSearchResultsSchema.parse({ results: this.parseTextChunk(text) })
         }
       } catch {
         continue
@@ -127,22 +119,22 @@ export class ExaMcpProvider extends BaseWebSearchProvider {
     }
 
     try {
-      const data: McpSearchResponse = JSON.parse(responseText)
+      const data = McpSearchResponseSchema.parse(JSON.parse(responseText))
       const text = data.result?.content?.[0]?.text
       if (text) {
-        return { results: this.parseTextChunk(text) }
+        return ExaSearchResultsSchema.parse({ results: this.parseTextChunk(text) })
       }
     } catch {
-      return { results: [] }
+      return ExaSearchResultsSchema.parse({ results: [] })
     }
 
-    return { results: [] }
+    return ExaSearchResultsSchema.parse({ results: [] })
   }
 
   private async requestSearch(query: string, numResults: number, httpOptions?: RequestInit): Promise<string> {
     const apiHost = this.provider.apiHost || DEFAULT_API_HOST
 
-    const searchRequest: McpSearchRequest = {
+    const searchRequest = McpSearchRequestSchema.parse({
       jsonrpc: '2.0',
       id: 1,
       method: 'tools/call',
@@ -155,7 +147,7 @@ export class ExaMcpProvider extends BaseWebSearchProvider {
           livecrawl: 'fallback'
         }
       }
-    }
+    })
 
     const timeoutController = new AbortController()
     const timeoutId = setTimeout(() => timeoutController.abort(), REQUEST_TIMEOUT_MS)
@@ -165,7 +157,7 @@ export class ExaMcpProvider extends BaseWebSearchProvider {
       : timeoutController.signal
 
     try {
-      const response = await this.netFetch(apiHost, {
+      const response = await net.fetch(apiHost, {
         method: 'POST',
         headers: {
           ...this.defaultHeaders(),

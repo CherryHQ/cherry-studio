@@ -1,34 +1,38 @@
 import type { WebSearchExecutionConfig, WebSearchResponse } from '@shared/data/types/webSearch'
+import { net } from 'electron'
+import * as z from 'zod'
 
-import { BaseWebSearchProvider } from '../base/BaseWebSearchProvider'
+import { BaseWebSearchProvider, resolveProviderApiKey } from '../base/BaseWebSearchProvider'
 
-interface TavilySearchRequest {
-  query: string
-  api_key: string
-  max_results: number
-}
+const TavilySearchRequestSchema = z.object({
+  query: z.string(),
+  api_key: z.string(),
+  max_results: z.number().int().positive()
+})
 
-interface TavilySearchResponse {
-  query: string
-  results: Array<{
-    title?: string
-    content?: string
-    url?: string
-  }>
-}
+const TavilySearchResponseSchema = z.object({
+  query: z.string().optional(),
+  results: z
+    .array(
+      z.object({
+        title: z.string().optional(),
+        content: z.string().optional(),
+        url: z.string().optional()
+      })
+    )
+    .default([])
+})
 
 export class TavilyProvider extends BaseWebSearchProvider {
   async search(query: string, config: WebSearchExecutionConfig, httpOptions?: RequestInit): Promise<WebSearchResponse> {
-    this.assertNonEmptyQuery(query)
-
-    const apiKey = this.getApiKey()
-    const requestBody: TavilySearchRequest = {
+    const apiKey = resolveProviderApiKey(this.provider)
+    const requestBody = TavilySearchRequestSchema.parse({
       query,
       api_key: apiKey,
       max_results: Math.max(1, config.maxResults)
-    }
+    })
 
-    const response = await this.netFetch(this.resolveApiUrl('/search'), {
+    const response = await net.fetch(this.resolveApiUrl('/search'), {
       method: 'POST',
       headers: {
         ...this.defaultHeaders(),
@@ -43,8 +47,8 @@ export class TavilyProvider extends BaseWebSearchProvider {
       throw new Error(`Tavily search failed: HTTP ${response.status} ${errorText}`)
     }
 
-    const payload: TavilySearchResponse = await response.json()
-    const results = payload.results || []
+    const payload = TavilySearchResponseSchema.parse(await response.json())
+    const results = payload.results
 
     return {
       query: payload.query || query,

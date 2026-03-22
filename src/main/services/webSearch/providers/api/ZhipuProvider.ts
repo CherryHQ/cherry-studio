@@ -1,34 +1,40 @@
 import type { WebSearchExecutionConfig, WebSearchResponse } from '@shared/data/types/webSearch'
+import { net } from 'electron'
+import * as z from 'zod'
 
-import { BaseWebSearchProvider } from '../base/BaseWebSearchProvider'
+import { BaseWebSearchProvider, resolveProviderApiHost, resolveProviderApiKey } from '../base/BaseWebSearchProvider'
 
-interface ZhipuWebSearchRequest {
-  search_query: string
-  search_engine?: string
-  search_intent?: boolean
-}
+const ZhipuWebSearchRequestSchema = z.object({
+  search_query: z.string(),
+  search_engine: z.string().optional(),
+  search_intent: z.boolean().optional()
+})
 
-interface ZhipuWebSearchResponse {
-  search_result: Array<{
-    title: string
-    content: string
-    link: string
-  }>
-}
+const ZhipuWebSearchResponseSchema = z.object({
+  search_result: z
+    .array(
+      z.object({
+        title: z.string().optional(),
+        content: z.string().optional(),
+        link: z.string().optional()
+      })
+    )
+    .default([])
+})
 
 export class ZhipuProvider extends BaseWebSearchProvider {
   async search(query: string, config: WebSearchExecutionConfig, httpOptions?: RequestInit): Promise<WebSearchResponse> {
-    this.assertNonEmptyQuery(query)
+    const apiKey = resolveProviderApiKey(this.provider)
 
-    const apiKey = this.getApiKey()
-
-    const requestBody: ZhipuWebSearchRequest = {
+    const requestBody = ZhipuWebSearchRequestSchema.parse({
       search_query: query,
       search_engine: 'search_std',
       search_intent: false
-    }
+    })
 
-    const response = await this.netFetch(this.requireApiHost(), {
+    const apiHost = resolveProviderApiHost(this.provider)
+
+    const response = await net.fetch(apiHost, {
       method: 'POST',
       headers: {
         Authorization: `Bearer ${apiKey}`,
@@ -44,7 +50,7 @@ export class ZhipuProvider extends BaseWebSearchProvider {
       throw new Error(`Zhipu search failed: HTTP ${response.status} ${errorText}`)
     }
 
-    const data: ZhipuWebSearchResponse = await response.json()
+    const data = ZhipuWebSearchResponseSchema.parse(await response.json())
 
     return {
       query,

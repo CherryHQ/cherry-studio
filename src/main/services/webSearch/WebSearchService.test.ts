@@ -5,11 +5,19 @@ import type {
 } from '@shared/data/types/webSearch'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { createWebSearchProviderMock, setWebSearchStatusMock, clearWebSearchStatusMock } = vi.hoisted(() => {
+const {
+  createWebSearchProviderMock,
+  setWebSearchStatusMock,
+  clearWebSearchStatusMock,
+  getProviderByIdMock,
+  getRuntimeConfigMock
+} = vi.hoisted(() => {
   return {
     createWebSearchProviderMock: vi.fn(),
     setWebSearchStatusMock: vi.fn().mockResolvedValue(undefined),
-    clearWebSearchStatusMock: vi.fn().mockResolvedValue(undefined)
+    clearWebSearchStatusMock: vi.fn().mockResolvedValue(undefined),
+    getProviderByIdMock: vi.fn(),
+    getRuntimeConfigMock: vi.fn()
   }
 })
 
@@ -20,6 +28,11 @@ vi.mock('./providers/factory', () => ({
 vi.mock('./runtime/status', () => ({
   setWebSearchStatus: setWebSearchStatusMock,
   clearWebSearchStatus: clearWebSearchStatusMock
+}))
+
+vi.mock('./utils/config', () => ({
+  getProviderById: getProviderByIdMock,
+  getRuntimeConfig: getRuntimeConfigMock
 }))
 
 import { WebSearchService } from './WebSearchService'
@@ -49,7 +62,6 @@ const localProvider: ResolvedWebSearchProvider = {
 }
 
 const runtimeConfig: WebSearchExecutionConfig = {
-  searchWithTime: false,
   maxResults: 4,
   excludeDomains: [],
   compression: {
@@ -66,19 +78,16 @@ const runtimeConfig: WebSearchExecutionConfig = {
 describe('WebSearchService', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    getProviderByIdMock.mockResolvedValue(provider)
+    getRuntimeConfigMock.mockResolvedValue(runtimeConfig)
   })
 
   it('returns empty result when no query is provided', async () => {
-    const resolver = {
-      getProviderById: vi.fn().mockResolvedValue(provider),
-      getRuntimeConfig: vi.fn().mockResolvedValue(runtimeConfig)
-    }
-
-    const service = new WebSearchService(resolver as any)
+    const service = WebSearchService.getInstance()
 
     const result = await service.search({
       providerId: 'tavily',
-      input: { question: [] },
+      questions: [],
       requestId: 'req-empty'
     })
 
@@ -88,18 +97,15 @@ describe('WebSearchService', () => {
   })
 
   it('applies cutoff post processing', async () => {
-    const resolver = {
-      getProviderById: vi.fn().mockResolvedValue(provider),
-      getRuntimeConfig: vi.fn().mockResolvedValue({
-        ...runtimeConfig,
-        compression: {
-          ...runtimeConfig.compression,
-          method: 'cutoff',
-          cutoffLimit: 5,
-          cutoffUnit: 'char'
-        }
-      })
-    }
+    getRuntimeConfigMock.mockResolvedValue({
+      ...runtimeConfig,
+      compression: {
+        ...runtimeConfig.compression,
+        method: 'cutoff',
+        cutoffLimit: 5,
+        cutoffUnit: 'char'
+      }
+    })
 
     const searchMock = vi.fn().mockResolvedValue({
       query: 'test',
@@ -116,11 +122,11 @@ describe('WebSearchService', () => {
       search: searchMock
     })
 
-    const service = new WebSearchService(resolver as any)
+    const service = WebSearchService.getInstance()
 
     const result = await service.search({
       providerId: 'tavily',
-      input: { question: ['hello'] },
+      questions: ['hello'],
       requestId: 'req-cutoff'
     })
 
@@ -132,17 +138,13 @@ describe('WebSearchService', () => {
   })
 
   it('throws when provider is unavailable', async () => {
-    const resolver = {
-      getProviderById: vi.fn().mockResolvedValue(null),
-      getRuntimeConfig: vi.fn().mockResolvedValue(runtimeConfig)
-    }
-
-    const service = new WebSearchService(resolver as any)
+    getProviderByIdMock.mockResolvedValue(null)
+    const service = WebSearchService.getInstance()
 
     await expect(
       service.search({
         providerId: 'tavily',
-        input: { question: ['hello'] },
+        questions: ['hello'],
         requestId: 'req-missing-provider'
       })
     ).rejects.toThrow('Unsupported or unavailable provider')
@@ -151,10 +153,7 @@ describe('WebSearchService', () => {
   })
 
   it('supports local providers through provider factory', async () => {
-    const resolver = {
-      getProviderById: vi.fn().mockResolvedValue(localProvider),
-      getRuntimeConfig: vi.fn().mockResolvedValue(runtimeConfig)
-    }
+    getProviderByIdMock.mockResolvedValue(localProvider)
 
     const searchMock = vi.fn().mockResolvedValue({
       query: 'hello',
@@ -165,11 +164,11 @@ describe('WebSearchService', () => {
       search: searchMock
     })
 
-    const service = new WebSearchService(resolver as any)
+    const service = WebSearchService.getInstance()
 
     await service.search({
       providerId: 'local-google',
-      input: { question: ['hello'] },
+      questions: ['hello'],
       requestId: 'req-local-provider'
     })
 
@@ -179,13 +178,10 @@ describe('WebSearchService', () => {
   })
 
   it('filters blacklisted results before post processing', async () => {
-    const resolver = {
-      getProviderById: vi.fn().mockResolvedValue(provider),
-      getRuntimeConfig: vi.fn().mockResolvedValue({
-        ...runtimeConfig,
-        excludeDomains: ['https://blocked.example/*', '/evil\\.example$/']
-      })
-    }
+    getRuntimeConfigMock.mockResolvedValue({
+      ...runtimeConfig,
+      excludeDomains: ['https://blocked.example/*', '/evil\\.example$/']
+    })
 
     createWebSearchProviderMock.mockReturnValue({
       search: vi.fn().mockResolvedValue({
@@ -210,11 +206,11 @@ describe('WebSearchService', () => {
       } satisfies WebSearchResponse)
     })
 
-    const service = new WebSearchService(resolver as any)
+    const service = WebSearchService.getInstance()
 
     const result = await service.search({
       providerId: 'tavily',
-      input: { question: ['hello'] },
+      questions: ['hello'],
       requestId: 'req-blacklist'
     })
 
@@ -228,41 +224,61 @@ describe('WebSearchService', () => {
     expect(clearWebSearchStatusMock).toHaveBeenCalledWith('req-blacklist')
   })
 
-  it('checks provider through lightweight driver check', async () => {
-    const resolver = {
-      getProviderById: vi.fn().mockResolvedValue(provider)
-    }
+  it('returns partial results when some queries fail', async () => {
+    const searchMock = vi
+      .fn()
+      .mockRejectedValueOnce(new Error('network failed'))
+      .mockResolvedValueOnce({
+        query: 'second-query',
+        results: [
+          {
+            title: 'Recovered',
+            content: 'ok',
+            url: 'https://example.com/recovered'
+          }
+        ]
+      } satisfies WebSearchResponse)
 
-    const checkMock = vi.fn().mockResolvedValue(undefined)
-    const searchMock = vi.fn()
     createWebSearchProviderMock.mockReturnValue({
-      check: checkMock,
       search: searchMock
     })
 
-    const service = new WebSearchService(resolver as any)
-    const result = await service.checkProvider('tavily')
-
-    expect(result).toEqual({ valid: true, error: undefined })
-    expect(createWebSearchProviderMock).toHaveBeenCalledWith(provider)
-    expect(checkMock).toHaveBeenCalledTimes(1)
-    expect(searchMock).not.toHaveBeenCalled()
-  })
-
-  it('returns invalid when lightweight provider check fails', async () => {
-    const resolver = {
-      getProviderById: vi.fn().mockResolvedValue(provider)
-    }
-
-    const error = new Error('network failed')
-    createWebSearchProviderMock.mockReturnValue({
-      check: vi.fn().mockRejectedValue(error),
-      search: vi.fn()
+    const service = WebSearchService.getInstance()
+    const result = await service.search({
+      providerId: 'tavily',
+      questions: ['first', 'second'],
+      requestId: 'req-partial-success'
     })
 
-    const service = new WebSearchService(resolver as any)
-    const result = await service.checkProvider('tavily')
+    expect(result).toEqual({
+      query: 'first | second',
+      results: [
+        {
+          title: 'Recovered',
+          content: 'ok',
+          url: 'https://example.com/recovered'
+        }
+      ]
+    })
+    expect(clearWebSearchStatusMock).toHaveBeenCalledWith('req-partial-success')
+  })
 
-    expect(result).toEqual({ valid: false, error })
+  it('throws when all queries fail', async () => {
+    const error = new Error('network failed')
+    createWebSearchProviderMock.mockReturnValue({
+      search: vi.fn().mockRejectedValue(error)
+    })
+
+    const service = WebSearchService.getInstance()
+
+    await expect(
+      service.search({
+        providerId: 'tavily',
+        questions: ['first', 'second'],
+        requestId: 'req-all-failed'
+      })
+    ).rejects.toThrow('network failed')
+
+    expect(clearWebSearchStatusMock).toHaveBeenCalledWith('req-all-failed')
   })
 })

@@ -22,6 +22,7 @@ import type { SpanEntity, TokenUsage } from '@mcp-trace/trace-core'
 import { MIN_WINDOW_HEIGHT, MIN_WINDOW_WIDTH } from '@shared/config/constant'
 import type { LocalTransferConnectPayload } from '@shared/config/types'
 import type { UpgradeChannel } from '@shared/data/preference/preferenceTypes'
+import type { WebSearchRequest } from '@shared/data/types/webSearch'
 import { IpcChannel } from '@shared/IpcChannel'
 import type {
   AgentPersistedMessage,
@@ -898,7 +899,7 @@ export async function registerIpc(mainWindow: BrowserWindow, app: Electron.App) 
     return await searchService.openUrlInSearchWindow(uid, url)
   })
 
-  ipcMain.handle(IpcChannel.WebSearch_MainSearch, async (_, request: unknown) => {
+  ipcMain.handle(IpcChannel.WebSearch_MainSearch, async (_, request: WebSearchRequest) => {
     const validatedRequest = WebSearchRequestSchema.parse(request)
     return await webSearchService.search(validatedRequest)
   })
