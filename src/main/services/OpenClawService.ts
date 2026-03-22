@@ -63,15 +63,18 @@ export interface OpenClawConfig {
   }
 }
 
+export interface OpenClawModelConfig {
+  id: string
+  name: string
+  contextWindow?: number
+  [key: string]: unknown
+}
+
 export interface OpenClawProviderConfig {
   baseUrl: string
   apiKey: string
   api: string
-  models: Array<{
-    id: string
-    name: string
-    contextWindow?: number
-  }>
+  models: OpenClawModelConfig[]
 }
 
 /**
@@ -781,17 +784,27 @@ class OpenClawService {
         }
       }
 
-      // Build OpenClaw provider config
+      // Preserve existing model-level config that users may have modified in OpenClaw
+      // (e.g., vision, custom context window, extra parameters)
+      config.models = config.models || { mode: 'merge', providers: {} }
+      config.models.providers = config.models.providers || {}
+      const existingModels = config.models.providers[providerKey]?.models || []
+      const existingModelMap = new Map(existingModels.map((m) => [m.id, m]))
+
+      // Build OpenClaw provider config with merge strategy
       const openclawProvider: OpenClawProviderConfig = {
         baseUrl,
         apiKey,
         api: apiType,
-        models: provider.models.map((m) => ({
-          id: m.id,
-          name: m.name,
-          // FIXME: in v2
-          contextWindow: 128000
-        }))
+        models: provider.models.map((m) => {
+          const existing = existingModelMap.get(m.id)
+          return {
+            ...existing,
+            id: m.id,
+            name: m.name,
+            contextWindow: existing?.contextWindow ?? 128000
+          }
+        })
       }
 
       // Set gateway mode to local (required for gateway to start)
@@ -804,8 +817,6 @@ class OpenClawService {
       this.gatewayAuthToken = token
 
       // Update config
-      config.models = config.models || { mode: 'merge', providers: {} }
-      config.models.providers = config.models.providers || {}
       config.models.providers[providerKey] = openclawProvider
 
       // Set primary model
