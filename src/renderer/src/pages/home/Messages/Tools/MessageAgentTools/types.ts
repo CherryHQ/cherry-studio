@@ -415,6 +415,20 @@ export type ToolInput =
   | AskUserQuestionToolInput
 
 export type ToolOutput = ReadToolOutput | TaskToolOutput | BashToolOutput
+// These types are all just aliases for string, duplicating BashToolOutput.
+// They will be added back later if more complex type distinctions are needed.
+// | SearchToolOutput
+// | GlobToolOutput
+// | TodoWriteToolOutput
+// | WebSearchToolOutput
+// | GrepToolOutput
+// | WebFetchToolOutput
+// | WriteToolOutput
+// | EditToolOutput
+// | MultiEditToolOutput
+// | BashOutputToolOutput
+// | NotebookEditToolOutput
+// | ExitPlanModeToolOutput
 
 // 工具渲染器接口
 export interface ToolRenderer {
