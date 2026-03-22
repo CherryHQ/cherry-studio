@@ -4,7 +4,4 @@
 '@cherrystudio/extension-table-plus': patch
 ---
 
-Initial changeset setup - no functional changes
-
-This changeset marks the initial setup of the changeset workflow for the Cherry Studio monorepo.
-No functional changes are included in this release.
+Baseline release for previously unmanaged package changes while introducing changesets-based publishing
