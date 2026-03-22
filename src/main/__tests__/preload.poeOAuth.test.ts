@@ -1,6 +1,5 @@
-import { afterEach, describe, expect, it, vi } from 'vitest'
-
 import { IpcChannel } from '@shared/IpcChannel'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 
 describe('preload Poe OAuth bridge', () => {
   afterEach(() => {

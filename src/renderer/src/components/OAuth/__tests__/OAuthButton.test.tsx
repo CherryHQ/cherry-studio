@@ -39,7 +39,7 @@ vi.mock('react-i18next', () => ({
 describe('OAuthButton', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    window.message = {
+    window.toast = {
       success: vi.fn(),
       error: vi.fn()
     } as any
@@ -65,6 +65,6 @@ describe('OAuthButton', () => {
     expect(mocks.authHandler).toHaveBeenCalledTimes(1)
     expect(mocks.authHandler).toHaveBeenCalledWith(expect.any(Function))
     expect(mocks.onSuccess).toHaveBeenCalledWith({ apiKey: 'poe-api-key', apiKeyExpiresAt: 1234 })
-    expect(window.message.success).toHaveBeenCalledWith({ content: 'Key added', key: 'auth-success' })
+    expect(window.toast.success).toHaveBeenCalledWith('Key added')
   })
 })
