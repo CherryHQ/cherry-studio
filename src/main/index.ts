@@ -16,6 +16,7 @@ import process from 'node:process'
 
 import { registerIpc } from './ipc'
 import { agentService } from './services/agents'
+import { analyticsService } from './services/AnalyticsService'
 import { apiServerService } from './services/ApiServerService'
 import { appMenuService } from './services/AppMenuService'
 import { configManager } from './services/ConfigManager'
@@ -148,7 +149,12 @@ if (!app.requestSingleInstanceLock()) {
       app.dock?.hide()
     }
 
+    // Check for backup restore marker and complete restoration (highest priority, before window creation)
+    const { BackupManager } = await import('./services/BackupManager')
+    await BackupManager.handleStartupRestore()
+
     const mainWindow = windowService.createMainWindow()
+
     new TrayService()
 
     // Setup macOS application menu
@@ -156,6 +162,7 @@ if (!app.requestSingleInstanceLock()) {
 
     nodeTraceService.init()
     powerMonitorService.init()
+    analyticsService.init()
 
     app.on('activate', function () {
       const mainWindow = windowService.getMainWindow()
@@ -268,6 +275,7 @@ if (!app.requestSingleInstanceLock()) {
     }
 
     try {
+      await analyticsService.destroy()
       await openClawService.stopGateway()
       await mcpService.cleanup()
       await apiServerService.stop()

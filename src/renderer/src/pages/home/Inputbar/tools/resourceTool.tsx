@@ -1,3 +1,4 @@
+import { useInstalledPlugins } from '@renderer/hooks/usePlugins'
 import { defineTool, registerTool, TopicType } from '@renderer/pages/home/Inputbar/types'
 import type React from 'react'
 
@@ -27,6 +28,10 @@ const resourceTool = defineTool({
 
     // Get accessible paths from session data
     const accessiblePaths = session?.accessiblePaths ?? []
+    const agentId = session?.agentId
+
+    // Fetch installed plugins (agents and skills) for the button
+    const { plugins, loading: pluginsLoading } = useInstalledPlugins(agentId)
 
     // Only render if we have accessible paths
     if (accessiblePaths.length === 0) {
@@ -38,6 +43,8 @@ const resourceTool = defineTool({
         quickPanel={quickPanel}
         quickPanelController={quickPanelController}
         accessiblePaths={accessiblePaths}
+        plugins={plugins}
+        pluginsLoading={pluginsLoading}
         setText={onTextChange as React.Dispatch<React.SetStateAction<string>>}
       />
     )

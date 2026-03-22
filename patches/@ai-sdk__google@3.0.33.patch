@@ -1,0 +1,22 @@
+diff --git a/dist/index.js b/dist/index.js
+index a3ff6e37d6dcac474833e05f678bb315de354ac3..a47ee95dbf6ba0bc786546a3c607dea7b8b2eb48 100644
+@@ -536,7 +536,7 @@
+ 
+ // src/get-model-path.ts
+ function getModelPath(modelId) {
+-  return modelId.includes("/") ? modelId : `models/${modelId}`;
++  return modelId.includes("models/") ? modelId : `models/${modelId}`;
+ }
+ 
+ // src/google-generative-ai-options.ts
+diff --git a/dist/index.mjs b/dist/index.mjs
+index b658b194a4d8957509420908478b7ee0cbb9ee1f..0623050b93859f61a3597f4d0b2ea82fcbef6336 100644
+@@ -542,7 +542,7 @@
+ 
+ // src/get-model-path.ts
+ function getModelPath(modelId) {
+-  return modelId.includes("/") ? modelId : `models/${modelId}`;
++  return modelId.includes("models/") ? modelId : `models/${modelId}`;
+ }
+ 
+ // src/google-generative-ai-options.ts

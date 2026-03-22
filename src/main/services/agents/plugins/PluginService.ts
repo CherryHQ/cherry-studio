@@ -1,4 +1,4 @@
-import { spawn } from 'node:child_process'
+import * as crypto from 'node:crypto'
 
 import { loggerService } from '@logger'
 import { directoryExists, fileExists, isPathInside, pathExists } from '@main/utils/file'
@@ -9,7 +9,7 @@ import {
   parsePluginMetadata,
   parseSkillMetadata
 } from '@main/utils/markdownParser'
-import { findExecutable } from '@main/utils/process'
+import { executeCommand, findExecutableInEnv } from '@main/utils/process'
 import {
   type GetAgentResponse,
   type InstalledPlugin,
@@ -111,6 +111,10 @@ export class PluginService {
   private readonly cacheStore: PluginCacheStore
   private readonly installer: PluginInstaller
   private readonly agentService: AgentService
+
+  // Max folder/file name length to prevent Windows MAX_PATH (260 chars) issues.
+  // Applied cross-platform for consistency with cloud-synced workdirs.
+  private static readonly MAX_NAME_LENGTH = 80
 
   private readonly ALLOWED_EXTENSIONS = ['.md', '.markdown']
 
@@ -487,56 +491,28 @@ export class PluginService {
   }
 
   private async cloneRepository(repoUrl: string, destDir: string): Promise<void> {
-    const gitCommand = findExecutable('git') ?? 'git'
+    const gitCommand = (await findExecutableInEnv('git')) ?? 'git'
+
     const branch = await this.resolveDefaultBranch(gitCommand, repoUrl)
     if (branch) {
-      await this.executeCommand(gitCommand, ['clone', '--depth', '1', '--branch', branch, '--', repoUrl, destDir])
+      await executeCommand(gitCommand, ['clone', '--depth', '1', '--branch', branch, '--', repoUrl, destDir])
       return
     }
 
     try {
-      await this.executeCommand(gitCommand, ['clone', '--depth', '1', '--', repoUrl, destDir])
+      await executeCommand(gitCommand, ['clone', '--depth', '1', '--', repoUrl, destDir])
     } catch (error: unknown) {
       logger.warn('Default clone failed, retrying with master branch', {
         repoUrl,
         error: error instanceof Error ? error.message : String(error)
       })
-      await this.executeCommand(gitCommand, ['clone', '--depth', '1', '--branch', 'master', '--', repoUrl, destDir])
+      await executeCommand(gitCommand, ['clone', '--depth', '1', '--branch', 'master', '--', repoUrl, destDir])
     }
-  }
-
-  /**
-   * Execute a command and optionally capture its output
-   */
-  private executeCommand(command: string, args: string[], options?: { capture?: boolean }): Promise<string> {
-    return new Promise<string>((resolve, reject) => {
-      const child = spawn(command, args, { stdio: 'pipe' })
-      let stdout = ''
-      let stderr = ''
-
-      child.stdout?.on('data', (chunk) => {
-        stdout += chunk.toString()
-      })
-
-      child.stderr?.on('data', (chunk) => {
-        stderr += chunk.toString()
-      })
-
-      child.on('error', reject)
-
-      child.on('close', (code) => {
-        if (code === 0) {
-          resolve(options?.capture ? stdout : '')
-        } else {
-          reject(new Error(stderr || `Command failed with code ${code}`))
-        }
-      })
-    })
   }
 
   private async resolveDefaultBranch(command: string, repoUrl: string): Promise<string | null> {
     try {
-      const output = await this.executeCommand(command, ['ls-remote', '--symref', '--', repoUrl, 'HEAD'], {
+      const output = await executeCommand(command, ['ls-remote', '--symref', '--', repoUrl, 'HEAD'], {
         capture: true
       })
       const match = output.match(/ref: refs\/heads\/([^\s]+)/)
@@ -1706,6 +1682,12 @@ export class PluginService {
       sanitized += '.md'
     }
 
+    // Truncate base name (before extension) to prevent Windows MAX_PATH issues
+    const ext = sanitized.endsWith('.markdown') ? '.markdown' : '.md'
+    const baseName = sanitized.slice(0, -ext.length)
+    const maxBaseLength = PluginService.MAX_NAME_LENGTH - ext.length
+    sanitized = this.truncateWithHash(baseName, maxBaseLength) + ext
+
     return sanitized
   }
 
@@ -1730,7 +1712,22 @@ export class PluginService {
       })
     }
 
+    // Truncate to prevent Windows MAX_PATH issues
+    sanitized = this.truncateWithHash(sanitized, PluginService.MAX_NAME_LENGTH)
+
     return sanitized
+  }
+
+  /**
+   * Truncate a name to maxLength, appending a hash suffix for uniqueness.
+   * Names within the limit are returned unchanged.
+   */
+  private truncateWithHash(name: string, maxLength: number): string {
+    if (name.length <= maxLength) return name
+    if (maxLength <= 9) return name.slice(0, maxLength)
+    const hash = crypto.createHash('sha256').update(name).digest('hex').slice(0, 8)
+    const truncated = name.slice(0, maxLength - 9).replace(/[-_]+$/, '')
+    return `${truncated}-${hash}`
   }
 
   /**

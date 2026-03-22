@@ -181,7 +181,7 @@ describe('Claude → AiSDK transform', () => {
       { type: 'finish-step' }
     >
     expect(finishStep.finishReason).toBe('tool-calls')
-    expect(finishStep.usage).toEqual({ inputTokens: 1, outputTokens: 5, totalTokens: 6 })
+    expect(finishStep.usage).toMatchObject({ inputTokens: 1, outputTokens: 5, totalTokens: 6 })
 
     const toolResult = parts.find((part) => part.type === 'tool-result') as Extract<
       (typeof parts)[number],
@@ -408,7 +408,84 @@ describe('Claude → AiSDK transform', () => {
       { type: 'finish-step' }
     >
     expect(finishStep.finishReason).toBe('stop')
-    expect(finishStep.usage).toEqual({ inputTokens: 2, outputTokens: 4, totalTokens: 6 })
+    expect(finishStep.usage).toMatchObject({ inputTokens: 2, outputTokens: 4, totalTokens: 6 })
+  })
+
+  it('emits each input_json_delta as incremental partial_json, not accumulated buffer', () => {
+    const state = new ClaudeStreamState({ agentSessionId: baseStreamMetadata.session_id })
+    const parts: ReturnType<typeof transformSDKMessageToStreamParts>[number][] = []
+
+    // message_start + content_block_start for tool
+    const setup: SDKMessage[] = [
+      {
+        ...baseStreamMetadata,
+        type: 'stream_event',
+        uuid: uuid(40),
+        event: {
+          type: 'message_start',
+          message: {
+            id: 'msg-delta-test',
+            type: 'message',
+            role: 'assistant',
+            model: 'claude-test',
+            content: [],
+            stop_reason: null,
+            stop_sequence: null,
+            usage: {}
+          }
+        }
+      } as unknown as SDKMessage,
+      {
+        ...baseStreamMetadata,
+        type: 'stream_event',
+        uuid: uuid(41),
+        event: {
+          type: 'content_block_start',
+          index: 0,
+          content_block: {
+            type: 'tool_use',
+            id: 'tool-delta',
+            name: 'Write',
+            input: {}
+          }
+        }
+      } as unknown as SDKMessage
+    ]
+
+    for (const msg of setup) {
+      parts.push(...transformSDKMessageToStreamParts(msg, state))
+    }
+
+    // Send 3 incremental deltas that together form valid JSON
+    const deltas = ['{"com', 'mand":"l', 's"}']
+    for (let i = 0; i < deltas.length; i++) {
+      const msg: SDKMessage = {
+        ...baseStreamMetadata,
+        type: 'stream_event',
+        uuid: uuid(42 + i),
+        event: {
+          type: 'content_block_delta',
+          index: 0,
+          delta: {
+            type: 'input_json_delta',
+            partial_json: deltas[i]
+          }
+        }
+      } as unknown as SDKMessage
+      parts.push(...transformSDKMessageToStreamParts(msg, state))
+    }
+
+    // Extract only tool-input-delta parts
+    const inputDeltas = parts.filter((p) => p.type === 'tool-input-delta') as Array<
+      Extract<(typeof parts)[number], { type: 'tool-input-delta' }>
+    >
+
+    expect(inputDeltas).toHaveLength(3)
+
+    // Each delta should carry only its own fragment, NOT the accumulated buffer
+    expect(inputDeltas[0].delta).toBe('{"com')
+    expect(inputDeltas[1].delta).toBe('mand":"l')
+    expect(inputDeltas[2].delta).toBe('s"}')
   })
 
   it('emits fallback text when Claude sends a snapshot instead of deltas', () => {
@@ -490,7 +567,7 @@ describe('Claude → AiSDK transform', () => {
       (typeof parts)[number],
       { type: 'finish-step' }
     >
-    expect(finish.usage).toEqual({ inputTokens: 3, outputTokens: 7, totalTokens: 10 })
+    expect(finish.usage).toMatchObject({ inputTokens: 3, outputTokens: 7, totalTokens: 10 })
     expect(finish.finishReason).toBe('stop')
   })
 })

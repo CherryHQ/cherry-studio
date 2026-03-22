@@ -1,5 +1,5 @@
 import type { ToolActionKey, ToolRenderContext, ToolStateKey } from '@renderer/pages/home/Inputbar/types'
-import type { FileType, Model } from '@renderer/types'
+import type { FileMetadata, Model } from '@renderer/types'
 import type React from 'react'
 
 import { useMentionModelsPanel } from './useMentionModelsPanel'
@@ -23,7 +23,7 @@ const MentionModelsQuickPanelManager = ({ context }: ManagerProps) => {
       mentionedModels: mentionedModels as Model[],
       setMentionedModels: setMentionedModels as React.Dispatch<React.SetStateAction<Model[]>>,
       couldMentionNotVisionModel,
-      files: files as FileType[],
+      files: files as FileMetadata[],
       setText: onTextChange as React.Dispatch<React.SetStateAction<string>>
     },
     'manager'

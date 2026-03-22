@@ -21,11 +21,17 @@ import { pluginService } from '@main/services/agents/plugins/PluginService'
 import { configManager } from '@main/services/ConfigManager'
 import { autoDiscoverGitBash } from '@main/utils/process'
 import getLoginShellEnvironment from '@main/utils/shell-env'
+import { languageEnglishNameMap } from '@shared/config/languages'
 import { withoutTrailingApiVersion } from '@shared/utils'
 import { app } from 'electron'
 
 import type { GetAgentSessionResponse } from '../..'
-import type { AgentServiceInterface, AgentStream, AgentStreamEvent } from '../../interfaces/AgentStreamInterface'
+import type {
+  AgentServiceInterface,
+  AgentStream,
+  AgentStreamEvent,
+  AgentThinkingOptions
+} from '../../interfaces/AgentStreamInterface'
 import { sessionService } from '../SessionService'
 import { buildNamespacedToolCallId } from './claude-stream-state'
 import { promptForToolApproval } from './tool-permissions'
@@ -37,8 +43,14 @@ const DEFAULT_AUTO_ALLOW_TOOLS = new Set(['Read', 'Glob', 'Grep'])
 const shouldAutoApproveTools = process.env.CHERRY_AUTO_ALLOW_TOOLS === '1'
 const NO_RESUME_COMMANDS = ['/clear']
 
-const getLanguageInstruction = () =>
-  `IMPORTANT: You MUST use ${configManager.getLanguage()} language for ALL your outputs, including: (1) text responses, (2) tool call parameters like "description" fields, and (3) any user-facing content. Never use English unless the content is code, file paths, or technical identifiers.`
+const getLanguageInstruction = () => {
+  const lang = configManager.getLanguage()
+  return `
+  IMPORTANT: You MUST use ${languageEnglishNameMap[lang]} language for ALL your outputs, including:
+  (1) text responses, (2) tool call parameters like "description" fields, and (3) any user-facing content.
+  ${lang === 'en-US' ? '' : 'Never use English unless the content is code, file paths, or technical identifiers.'}
+  `
+}
 
 type UserInputMessage = {
   type: 'user'
@@ -61,7 +73,7 @@ class ClaudeCodeService implements AgentServiceInterface {
 
   constructor() {
     // Resolve Claude Code CLI robustly (works in dev and in asar)
-    this.claudeExecutablePath = require_.resolve('@anthropic-ai/claude-agent-sdk/cli.js')
+    this.claudeExecutablePath = path.join(path.dirname(require_.resolve('@anthropic-ai/claude-agent-sdk')), 'cli.js')
     if (app.isPackaged) {
       this.claudeExecutablePath = this.claudeExecutablePath.replace(/\.asar([\\/])/, '.asar.unpacked$1')
     }
@@ -71,7 +83,8 @@ class ClaudeCodeService implements AgentServiceInterface {
     prompt: string,
     session: GetAgentSessionResponse,
     abortController: AbortController,
-    lastAgentSessionId?: string
+    lastAgentSessionId?: string,
+    thinkingOptions?: AgentThinkingOptions
   ): Promise<AgentStream> {
     const aiStream = new ClaudeCodeStream()
 
@@ -148,7 +161,39 @@ class ClaudeCodeService implements AgentServiceInterface {
       // on Windows when the username contains non-ASCII characters (e.g., Chinese characters)
       // This prevents the SDK from using the user's home directory which may have encoding problems
       CLAUDE_CONFIG_DIR: path.join(app.getPath('userData'), '.claude'),
+      ENABLE_TOOL_SEARCH: 'auto',
       ...(customGitBashPath ? { CLAUDE_CODE_GIT_BASH_PATH: customGitBashPath } : {})
+    }
+
+    // Merge user-defined environment variables from session configuration
+    const userEnvVars = session.configuration?.env_vars
+    if (userEnvVars && typeof userEnvVars === 'object') {
+      const BLOCKED_ENV_KEYS = new Set([
+        'ANTHROPIC_API_KEY',
+        'ANTHROPIC_AUTH_TOKEN',
+        'ANTHROPIC_BASE_URL',
+        'ANTHROPIC_MODEL',
+        'ANTHROPIC_DEFAULT_OPUS_MODEL',
+        'ANTHROPIC_DEFAULT_SONNET_MODEL',
+        'ANTHROPIC_DEFAULT_HAIKU_MODEL',
+        'ELECTRON_RUN_AS_NODE',
+        'ELECTRON_NO_ATTACH_CONSOLE',
+        'CLAUDE_CONFIG_DIR',
+        'CLAUDE_CODE_USE_BEDROCK',
+        'CLAUDE_CODE_GIT_BASH_PATH',
+        'NODE_OPTIONS',
+        '__PROTO__',
+        'CONSTRUCTOR',
+        'PROTOTYPE'
+      ])
+      for (const [key, value] of Object.entries(userEnvVars)) {
+        const upperKey = key.toUpperCase()
+        if (BLOCKED_ENV_KEYS.has(upperKey)) {
+          logger.warn('Blocked user env var override for system-critical variable', { key })
+        } else if (typeof value === 'string') {
+          env[key] = value
+        }
+      }
     }
 
     const errorChunks: string[] = []
@@ -283,7 +328,7 @@ class ClaudeCodeService implements AgentServiceInterface {
             preset: 'claude_code',
             append: getLanguageInstruction()
           },
-      settingSources: ['project'],
+      settingSources: ['project', 'local'],
       includePartialMessages: true,
       permissionMode: session.configuration?.permission_mode,
       maxTurns: session.configuration?.max_turns,
@@ -296,7 +341,9 @@ class ClaudeCodeService implements AgentServiceInterface {
             hooks: [preToolUseHook]
           }
         ]
-      }
+      },
+      ...(thinkingOptions?.effort ? { effort: thinkingOptions.effort } : {}),
+      ...(thinkingOptions?.thinking ? { thinking: thinkingOptions.thinking } : {})
     }
 
     if (session.accessible_paths.length > 1) {

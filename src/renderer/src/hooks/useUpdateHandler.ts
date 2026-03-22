@@ -1,16 +1,26 @@
+import UpdateDialogPopup from '@renderer/components/Popups/UpdateDialogPopup'
 import { NotificationService } from '@renderer/services/NotificationService'
 import { useAppDispatch } from '@renderer/store'
 import { setUpdateState } from '@renderer/store/runtime'
 import { uuid } from '@renderer/utils'
 import { IpcChannel } from '@shared/IpcChannel'
 import type { ProgressInfo, UpdateInfo } from 'builder-util-runtime'
-import { useEffect } from 'react'
+import { useEffect, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
+
+import { useRuntime } from './useRuntime'
 
 export default function useUpdateHandler() {
   const dispatch = useAppDispatch()
   const { t } = useTranslation()
   const notificationService = NotificationService.getInstance()
+  const { update } = useRuntime()
+  const manualCheckRef = useRef(update.manualCheck)
+
+  // Keep ref in sync with current state
+  useEffect(() => {
+    manualCheckRef.current = update.manualCheck
+  }, [update.manualCheck])
 
   useEffect(() => {
     if (!window.electron) return
@@ -19,7 +29,7 @@ export default function useUpdateHandler() {
 
     const removers = [
       ipcRenderer.on(IpcChannel.UpdateNotAvailable, () => {
-        dispatch(setUpdateState({ checking: false }))
+        dispatch(setUpdateState({ checking: false, manualCheck: false }))
         if (window.location.hash.includes('settings/about')) {
           window.toast.success(t('settings.about.updateNotAvailable'))
         }
@@ -67,13 +77,18 @@ export default function useUpdateHandler() {
             downloaded: true
           })
         )
+        // Auto show update dialog when download completes (only if user manually triggered the check)
+        if (manualCheckRef.current) {
+          UpdateDialogPopup.show({ releaseInfo })
+        }
       }),
       ipcRenderer.on(IpcChannel.UpdateError, (_, error) => {
         dispatch(
           setUpdateState({
             checking: false,
             downloading: false,
-            downloadProgress: 0
+            downloadProgress: 0,
+            manualCheck: false
           })
         )
         if (window.location.hash.includes('settings/about')) {

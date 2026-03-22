@@ -2,7 +2,7 @@ import { loggerService } from '@logger'
 import { isWin } from '@main/constant'
 import { getIpCountry } from '@main/utils/ipService'
 import { generateUserAgent } from '@main/utils/systemInfo'
-import { FeedUrl, UpdateConfigUrl, UpdateMirror, UpgradeChannel } from '@shared/config/constant'
+import { APP_NAME, FeedUrl, UpdateConfigUrl, UpdateMirror, UpgradeChannel } from '@shared/config/constant'
 import { IpcChannel } from '@shared/IpcChannel'
 import type { UpdateInfo } from 'builder-util-runtime'
 import { CancellationToken } from 'builder-util-runtime'
@@ -16,6 +16,17 @@ import { configManager } from './ConfigManager'
 import { windowService } from './WindowService'
 
 const logger = loggerService.withContext('AppUpdater')
+
+function getCommonHeaders() {
+  return {
+    'User-Agent': generateUserAgent(),
+    'Cache-Control': 'no-cache',
+    'Client-Id': configManager.getClientId(),
+    'App-Name': APP_NAME,
+    'App-Version': `v${app.getVersion()}`,
+    OS: process.platform
+  }
+}
 
 // Language markers constants for multi-language release notes
 const LANG_MARKERS = {
@@ -55,13 +66,13 @@ export default class AppUpdater {
     autoUpdater.logger = logger as Logger
     autoUpdater.forceDevUpdateConfig = !app.isPackaged
     autoUpdater.autoDownload = configManager.getAutoUpdate()
-    autoUpdater.autoInstallOnAppQuit = configManager.getAutoUpdate()
+    // Never auto-install on quit - user must explicitly click "Install Now"
+    // Auto-install on quit can cause issues: unexpected updates on restart,
+    // corruption if system shuts down during install, or app uninstall on force shutdown
+    autoUpdater.autoInstallOnAppQuit = false
     autoUpdater.requestHeaders = {
       ...autoUpdater.requestHeaders,
-      'User-Agent': generateUserAgent(),
-      'X-Client-Id': configManager.getClientId(),
-      // no-cache
-      'Cache-Control': 'no-cache'
+      ...getCommonHeaders()
     }
 
     autoUpdater.on('error', (error) => {
@@ -101,7 +112,7 @@ export default class AppUpdater {
 
   public setAutoUpdate(isActive: boolean) {
     autoUpdater.autoDownload = isActive
-    autoUpdater.autoInstallOnAppQuit = isActive
+    // autoInstallOnAppQuit is always false - user must explicitly click "Install Now"
   }
 
   private _getChannelByVersion(version: string) {
@@ -142,11 +153,8 @@ export default class AppUpdater {
       logger.info(`Fetching update config from ${configUrl} (mirror: ${mirror})`)
       const response = await net.fetch(configUrl, {
         headers: {
-          'User-Agent': generateUserAgent(),
-          Accept: 'application/json',
-          'X-Client-Id': configManager.getClientId(),
-          // no-cache
-          'Cache-Control': 'no-cache'
+          ...getCommonHeaders(),
+          Accept: 'application/json'
         }
       })
 
@@ -307,7 +315,7 @@ export default class AppUpdater {
 
   public quitAndInstall() {
     app.isQuitting = true
-    setImmediate(() => autoUpdater.quitAndInstall())
+    setImmediate(() => autoUpdater.quitAndInstall(true, true))
   }
 
   /**

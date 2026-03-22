@@ -1,13 +1,14 @@
-import { getAnthropicThinkingBudget } from '@renderer/aiCore/utils/reasoning'
+import { getThinkingBudget } from '@renderer/aiCore/utils/reasoning'
 import {
   isReasoningModel,
   isSupportedReasoningEffortModel,
   isSupportedThinkingTokenClaudeModel
 } from '@renderer/config/models/reasoning'
-import { type EndpointType, type Model, type Provider, SystemProviderIds } from '@renderer/types'
+import { type EndpointType, type Model, type Provider } from '@renderer/types'
 import { formatApiHost } from '@renderer/utils/api'
 import { getFancyProviderName, sanitizeProviderName } from '@renderer/utils/naming'
 import { codeTools } from '@shared/config/constant'
+import { CLAUDE_SUPPORTED_PROVIDERS } from '@shared/config/providers'
 
 export interface LaunchValidationResult {
   isValid: boolean
@@ -39,27 +40,7 @@ export const CLI_TOOLS = [
 ]
 
 export const GEMINI_SUPPORTED_PROVIDERS = ['aihubmix', 'dmxapi', 'new-api', 'cherryin']
-export const CLAUDE_OFFICIAL_SUPPORTED_PROVIDERS = [
-  'deepseek',
-  'moonshot',
-  'zhipu',
-  'dashscope',
-  'modelscope',
-  'minimax',
-  'longcat',
-  SystemProviderIds.qiniu,
-  SystemProviderIds.silicon,
-  SystemProviderIds.mimo,
-  SystemProviderIds.openrouter
-]
-export const CLAUDE_SUPPORTED_PROVIDERS = [
-  'aihubmix',
-  'dmxapi',
-  'new-api',
-  'cherryin',
-  '302ai',
-  ...CLAUDE_OFFICIAL_SUPPORTED_PROVIDERS
-]
+
 export const OPENAI_CODEX_SUPPORTED_PROVIDERS = ['openai', 'openrouter', 'aihubmix', 'new-api', 'cherryin']
 
 // Provider 过滤映射
@@ -228,7 +209,7 @@ export const generateToolEnvironment = ({
         const isReasoning = isReasoningModel(model)
         const supportsReasoningEffort = isSupportedReasoningEffortModel(model)
         const budgetTokens = isSupportedThinkingTokenClaudeModel(model)
-          ? getAnthropicThinkingBudget(context?.maxTokens, context?.reasoningEffort, model.id)
+          ? getThinkingBudget(context?.maxTokens, context?.reasoningEffort, model.id)
           : undefined
         const providerType = modelProvider.type
         const providerName = sanitizeProviderName(getFancyProviderName(modelProvider))

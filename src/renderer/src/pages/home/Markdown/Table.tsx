@@ -1,14 +1,18 @@
+import { loggerService } from '@logger'
 import { CopyIcon } from '@renderer/components/Icons'
 import { useTemporaryValue } from '@renderer/hooks/useTemporaryValue'
 import store from '@renderer/store'
 import { messageBlocksSelectors } from '@renderer/store/messageBlock'
+import { exportTableToExcel } from '@renderer/utils/exportExcel'
 import { Tooltip } from 'antd'
-import { Check } from 'lucide-react'
+import { Check, FileSpreadsheet } from 'lucide-react'
 import MarkdownIt from 'markdown-it'
 import React, { memo, useCallback } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 import type { Node } from 'unist'
+
+const logger = loggerService.withContext('Table')
 
 interface Props {
   children: React.ReactNode
@@ -25,7 +29,10 @@ const Table: React.FC<Props> = ({ children, node, blockId }) => {
 
   const handleCopyTable = useCallback(async () => {
     const tableMarkdown = extractTableMarkdown(blockId ?? '', node?.position)
-    if (!tableMarkdown) return
+    if (!tableMarkdown) {
+      window.toast?.error(t('message.error.table.invalid'))
+      return
+    }
 
     try {
       const tableHtml = convertMarkdownTableToHtml(tableMarkdown)
@@ -41,9 +48,28 @@ const Table: React.FC<Props> = ({ children, node, blockId }) => {
       }
       setCopied(true)
     } catch (error) {
-      window.toast?.error(`${t('message.copy.failed')}: ${error}`)
+      logger.error('Failed to copy table to clipboard', { error })
+      window.toast?.error(t('message.copy.failed'))
     }
   }, [blockId, node?.position, setCopied, t])
+
+  const handleExportExcel = useCallback(async () => {
+    const tableMarkdown = extractTableMarkdown(blockId ?? '', node?.position)
+    if (!tableMarkdown) {
+      window.toast?.error(t('message.error.table.invalid'))
+      return
+    }
+
+    try {
+      const result = await exportTableToExcel(tableMarkdown)
+      if (result) {
+        window.toast?.success(t('message.success.excel.export'))
+      }
+    } catch (error) {
+      logger.error('Failed to export table to Excel', { error })
+      window.toast?.error(t('message.error.excel.export'))
+    }
+  }, [blockId, node?.position, t])
 
   return (
     <TableWrapper className="table-wrapper">
@@ -52,6 +78,11 @@ const Table: React.FC<Props> = ({ children, node, blockId }) => {
         <Tooltip title={t('common.copy')} mouseEnterDelay={0.8}>
           <ToolButton role="button" aria-label={t('common.copy')} onClick={handleCopyTable}>
             {copied ? <Check size={14} color="var(--color-primary)" /> : <CopyIcon size={14} />}
+          </ToolButton>
+        </Tooltip>
+        <Tooltip title={t('common.export.excel')} mouseEnterDelay={0.8}>
+          <ToolButton role="button" aria-label={t('common.export.excel')} onClick={handleExportExcel}>
+            <FileSpreadsheet size={14} />
           </ToolButton>
         </Tooltip>
       </ToolbarWrapper>
@@ -111,6 +142,8 @@ const ToolbarWrapper = styled.div`
   top: 8px;
   right: 8px;
   z-index: 10;
+  display: flex;
+  gap: 4px;
 `
 
 const ToolButton = styled.div`

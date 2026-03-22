@@ -190,7 +190,7 @@ const AddUserModal: React.FC<AddUserModalProps> = ({ visible, onCancel, onAdd, e
   const handleSubmit = async (values: { userId: string }) => {
     setLoading(true)
     try {
-      await onAdd(values.userId.trim())
+      onAdd(values.userId.trim())
       form.resetFields()
       onCancel()
     } finally {
@@ -468,7 +468,7 @@ const MemorySettings = () => {
     try {
       // Create the user by adding an initial memory with the userId
       // This implicitly creates the user in the system
-      await memoryService.setCurrentUser(userId)
+      memoryService.setCurrentUser(userId)
       await memoryService.add(t('memory.initial_memory_content'), { userId })
 
       // Refresh the users list from the database to persist the new user

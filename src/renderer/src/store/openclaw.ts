@@ -13,8 +13,6 @@ export interface ChannelInfo {
 export interface HealthInfo {
   status: 'healthy' | 'unhealthy'
   gatewayPort: number
-  uptime?: number
-  version?: string
 }
 
 export interface OpenClawState {
@@ -27,7 +25,7 @@ export interface OpenClawState {
 
 export const initialState: OpenClawState = {
   gatewayStatus: 'stopped',
-  gatewayPort: 18789,
+  gatewayPort: 18790,
   channels: [],
   lastHealthCheck: null,
   selectedModelUniqId: null

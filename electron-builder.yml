@@ -140,28 +140,30 @@ artifactBuildCompleted: scripts/artifact-build-completed.js
 releaseInfo:
   releaseNotes: |
     <!--LANG:en-->
-    Cherry Studio 1.7.17 - New Features & Bug Fixes
-
-    ✨ New Features
-    - [Agent] Add "Open in Editor" button to agent workspace, supporting VS Code, Cursor, and Zed
-    - [Tools] Add OpenCode CLI tool support
+    Cherry Studio 1.8.2 - Bug Fixes and Model Updates
 
     🐛 Bug Fixes
-    - [Agent] Fix tool output display showing blank content during streaming
-    - [Models] Fix Kimi K2.5 model parameter error
-    - [Models] Fix reasoning parameter handling for Together AI and DashScope Kimi models
-    - [macOS] Fix npm detection when app launched from Dock/Finder
+    - [Knowledge Base] Fix knowledge base content not being delivered to the model when selected in conversation
+    - [Search] Fix crash when clicking topic title in message search results
+    - [Backup] Fix backup restoration path issue
+
+    ✨ New Features
+    - [Models] Add support for Xiaomi MiMo-V2-Pro and MiMo-V2-Omni models with reasoning control and tool use capabilities
+
+    💄 Improvements
+    - [Models] Upgrade MiniMax default model to M2.7 with enhanced reasoning and coding capabilities
 
     <!--LANG:zh-CN-->
-    Cherry Studio 1.7.17 - 新功能与问题修复
-
-    ✨ 新功能
-    - [智能体] 新增"在编辑器中打开"按钮，支持 VS Code、Cursor、Zed
-    - [工具] 新增 OpenCode CLI 工具支持
+    Cherry Studio 1.8.2 - 错误修复和模型更新
 
     🐛 问题修复
-    - [智能体] 修复工具流式输出时内容显示为空的问题
-    - [模型] 修复 Kimi K2.5 模型参数错误
-    - [模型] 修复 Together AI 和 DashScope Kimi 推理模型的参数处理
-    - [macOS] 修复从 Dock/Finder 启动时 npm 检测失败的问题
+    - [知识库] 修复选中知识库时内容未传递给模型的问题
+    - [搜索] 修复点击消息搜索结果中的主题标题时崩溃的问题
+    - [备份] 修复备份恢复路径问题
+
+    ✨ 新功能
+    - [模型] 新增小米 MiMo-V2-Pro 和 MiMo-V2-Omni 模型支持，支持推理控制和工具调用功能
+
+    💄 改进
+    - [模型] 升级 MiniMax 默认模型至 M2.7，增强推理和代码能力
     <!--LANG:END-->

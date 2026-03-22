@@ -15,10 +15,13 @@ import {
 } from '@renderer/store/openclaw'
 import { IpcChannel } from '@shared/IpcChannel'
 import { Alert, Avatar, Button, Result, Space, Spin } from 'antd'
-import { Download, ExternalLink, Play, RefreshCw, Square } from 'lucide-react'
+import { Download, ExternalLink, Play, Square } from 'lucide-react'
 import type { FC } from 'react'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
+import useSWR from 'swr'
+
+import UpdateButton from './components/UpdateButton'
 
 const logger = loggerService.withContext('OpenClawPage')
 
@@ -67,10 +70,11 @@ const OpenClawPage: FC = () => {
     return DEFAULT_DOCS_URL
   }, [i18n.language])
 
-  const { gatewayStatus, gatewayPort, selectedModelUniqId, lastHealthCheck } = useAppSelector((state) => state.openclaw)
+  const { gatewayStatus, gatewayPort, selectedModelUniqId } = useAppSelector((state) => state.openclaw)
 
   const [error, setError] = useState<string | null>(null)
   const [isInstalled, setIsInstalled] = useState<boolean | null>(null) // null = unknown, checking in background
+  const [needsMigration, setNeedsMigration] = useState(false)
   const [installPath, setInstallPath] = useState<string | null>(null)
   const [installError, setInstallError] = useState<string | null>(null)
 
@@ -79,39 +83,11 @@ const OpenClawPage: FC = () => {
   const [isUninstalling, setIsUninstalling] = useState(false)
   const [isStarting, setIsStarting] = useState(false)
   const [isStopping, setIsStopping] = useState(false)
-  const [isRestarting, setIsRestarting] = useState(false)
-
   // Install progress logs
   const [installLogs, setInstallLogs] = useState<Array<{ message: string; type: 'info' | 'warn' | 'error' }>>([])
   const [showLogs, setShowLogs] = useState(false)
   const [uninstallSuccess, setUninstallSuccess] = useState(false)
-  const [npmMissing, setNpmMissing] = useState(false)
-  const [nodeDownloadUrl, setNodeDownloadUrl] = useState<string>('https://nodejs.org/')
-
-  // Fetch Node.js download URL and poll npm availability when npmMissing is shown
-  useEffect(() => {
-    if (!npmMissing) return
-
-    // Fetch the download URL from main process
-    window.api.openclaw
-      .getNodeDownloadUrl()
-      .then(setNodeDownloadUrl)
-      .catch(() => {})
-
-    // Poll npm availability
-    const pollInterval = setInterval(async () => {
-      try {
-        const npmCheck = await window.api.openclaw.checkNpmAvailable()
-        if (npmCheck.available) {
-          setNpmMissing(false)
-        }
-      } catch {
-        // Ignore errors during polling
-      }
-    }, 3000) // Check every 3 seconds
-
-    return () => clearInterval(pollInterval)
-  }, [npmMissing])
+  const [isOpenClawUpdating, setIsOpenClawUpdating] = useState(false)
 
   const noApiKeyProviders = ['ollama', 'lmstudio', 'gpustack']
   const availableProviders = providers.filter((p) => p.enabled && (p.apiKey || noApiKeyProviders.includes(p.type)))
@@ -148,18 +124,9 @@ const OpenClawPage: FC = () => {
     try {
       const result = await window.api.openclaw.checkInstalled()
       setIsInstalled(result.installed)
+      setNeedsMigration(result.needsMigration)
       setShowLogs(false)
       setInstallPath(result.path)
-
-      // If not installed, check npm availability immediately
-      if (!result.installed) {
-        try {
-          const npmCheck = await window.api.openclaw.checkNpmAvailable()
-          setNpmMissing(!npmCheck.available)
-        } catch {
-          // Ignore errors, will check again on install click
-        }
-      }
     } catch (err) {
       logger.debug('Failed to check installation', err as Error)
       setIsInstalled(false)
@@ -167,18 +134,6 @@ const OpenClawPage: FC = () => {
   }, [])
 
   const handleInstall = useCallback(async () => {
-    // Check npm availability first
-    try {
-      const npmCheck = await window.api.openclaw.checkNpmAvailable()
-      if (!npmCheck.available) {
-        setNpmMissing(true)
-        return
-      }
-    } catch (err) {
-      logger.error('Failed to check npm availability', err as Error)
-    }
-
-    setNpmMissing(false)
     setIsInstalling(true)
     setInstallError(null)
     setInstallLogs([])
@@ -234,23 +189,30 @@ const OpenClawPage: FC = () => {
     }
   }, [uninstallSuccess])
 
-  const fetchStatus = useCallback(async () => {
-    try {
-      const status = await window.api.openclaw.getStatus()
-      dispatch(setGatewayStatus(status.status as GatewayStatus))
-    } catch (err) {
-      logger.debug('Failed to fetch status', err as Error)
-    }
-  }, [dispatch])
+  // Poll gateway status every 5s (only when installed).
+  // useSWR handles deduplication and stable polling without the infinite-loop
+  // pitfall of setInterval + dispatch in useEffect deps.
+  const isInstallPage = pageState === 'installed'
 
-  const fetchHealth = useCallback(async () => {
-    try {
+  useSWR(
+    isInstallPage ? 'openclaw/status' : null,
+    async () => {
+      const [status] = await Promise.all([window.api.openclaw.getStatus(), checkInstallation()])
+      dispatch(setGatewayStatus(status.status as GatewayStatus))
+      return status
+    },
+    { refreshInterval: 5000, revalidateOnFocus: false }
+  )
+
+  useSWR(
+    isInstallPage && gatewayStatus === 'running' ? 'openclaw/health' : null,
+    async () => {
       const health = await window.api.openclaw.checkHealth()
       dispatch(setLastHealthCheck(health as HealthInfo))
-    } catch (err) {
-      logger.debug('Failed to check health', err as Error)
-    }
-  }, [dispatch])
+      return health
+    },
+    { refreshInterval: 5000, revalidateOnFocus: false }
+  )
 
   useEffect(() => {
     checkInstallation()
@@ -266,23 +228,6 @@ const OpenClawPage: FC = () => {
     )
     return cleanup
   }, [])
-
-  useEffect(() => {
-    if (pageState !== 'installed') return
-
-    fetchStatus()
-    if (gatewayStatus === 'running') {
-      fetchHealth()
-    }
-    const interval = setInterval(() => {
-      checkInstallation()
-      fetchStatus()
-      if (gatewayStatus === 'running') {
-        fetchHealth()
-      }
-    }, 5000)
-    return () => clearInterval(interval)
-  }, [fetchStatus, fetchHealth, checkInstallation, gatewayStatus, pageState])
 
   const handleModelSelect = (modelUniqId: string) => {
     dispatch(setSelectedModelUniqId(modelUniqId))
@@ -302,6 +247,7 @@ const OpenClawPage: FC = () => {
       const syncResult = await window.api.openclaw.syncConfig(selectedProvider, selectedModel)
       if (!syncResult.success) {
         setError(syncResult.message)
+        setIsStarting(false)
         return
       }
 
@@ -309,6 +255,7 @@ const OpenClawPage: FC = () => {
       const startResult = await window.api.openclaw.startGateway(gatewayPort)
       if (!startResult.success) {
         setError(startResult.message)
+        setIsStarting(false)
         return
       }
 
@@ -346,22 +293,6 @@ const OpenClawPage: FC = () => {
       setError(err instanceof Error ? err.message : String(err))
     } finally {
       setIsStopping(false)
-    }
-  }
-
-  const handleRestartGateway = async () => {
-    setIsRestarting(true)
-    try {
-      const result = await window.api.openclaw.restartGateway()
-      if (result.success) {
-        dispatch(setGatewayStatus('running'))
-      } else {
-        setError(result.message)
-      }
-    } catch (err) {
-      setError(err instanceof Error ? err.message : String(err))
-    } finally {
-      setIsRestarting(false)
     }
   }
 
@@ -408,12 +339,13 @@ const OpenClawPage: FC = () => {
   )
 
   const renderNotInstalledContent = () => (
-    <div id="content-container" className="flex flex-1 overflow-y-auto py-5">
-      <div className="m-auto min-h-fit w-130">
+    <div id="content-container" className="flex flex-1 flex-col overflow-y-auto py-5">
+      <div className="flex-1" />
+      <div className="mx-auto min-h-fit w-130 shrink-0">
         <Result
           icon={<Avatar src={OpenClawLogo} size={64} shape="square" style={{ borderRadius: 12 }} />}
-          title={t('openclaw.not_installed.title')}
-          subTitle={t('openclaw.not_installed.description')}
+          title={t(needsMigration ? 'openclaw.migration.title' : 'openclaw.not_installed.title')}
+          subTitle={t(needsMigration ? 'openclaw.migration.description' : 'openclaw.not_installed.description')}
           extra={
             <Space>
               <Button
@@ -422,7 +354,7 @@ const OpenClawPage: FC = () => {
                 disabled={isInstalling}
                 onClick={handleInstall}
                 loading={isInstalling}>
-                {t('openclaw.not_installed.install_button')}
+                {t(needsMigration ? 'openclaw.migration.install_button' : 'openclaw.not_installed.install_button')}
               </Button>
               <Button
                 icon={<ExternalLink size={16} />}
@@ -433,33 +365,6 @@ const OpenClawPage: FC = () => {
             </Space>
           }
         />
-        {npmMissing && (
-          <Alert
-            message={t('openclaw.npm_missing.title')}
-            description={
-              <div>
-                <p>{t('openclaw.npm_missing.description')}</p>
-                <Space style={{ marginTop: 8 }}>
-                  <Button
-                    type="primary"
-                    icon={<Download size={16} />}
-                    onClick={() => window.open(nodeDownloadUrl, '_blank')}>
-                    {t('openclaw.npm_missing.download_button')}
-                  </Button>
-                </Space>
-                <p className="mt-3 text-xs" style={{ color: 'var(--color-text-3)' }}>
-                  {t('openclaw.npm_missing.hint')}
-                </p>
-              </div>
-            }
-            type="warning"
-            showIcon
-            closable
-            onClose={() => setNpmMissing(false)}
-            className="mt-4 rounded-lg!"
-            style={{ width: 580, marginLeft: -30 }}
-          />
-        )}
         {installError && (
           <Alert
             message={installError}
@@ -472,6 +377,7 @@ const OpenClawPage: FC = () => {
 
         {showLogs && installLogs.length > 0 && renderLogContainer()}
       </div>
+      <div className="flex-1" />
     </div>
   )
 
@@ -480,14 +386,14 @@ const OpenClawPage: FC = () => {
       <div className="m-auto min-h-fit w-130">
         <TitleSection title={t('openclaw.title')} description={t('openclaw.description')} clickable docsUrl={docsUrl} />
 
-        {/* Install Path - hide when gateway is running or restarting */}
-        {installPath && gatewayStatus !== 'running' && !isRestarting && (
+        {/* Install Path - hide when gateway is running */}
+        {installPath && gatewayStatus !== 'running' && (
           <div
             className="mb-6 flex items-center justify-between gap-2 rounded-lg px-3 py-2 text-sm"
             style={{ background: 'var(--color-background-soft)', color: 'var(--color-text-3)' }}>
             <div className="min-w-0 shrink overflow-hidden">
               <div className="mb-1">{t('openclaw.installed_at')}</div>
-              <div className="flex gap-2">
+              <div className="flex items-center gap-2">
                 <div className="truncate text-xs" title={installPath}>
                   {installPath}
                 </div>
@@ -506,6 +412,7 @@ const OpenClawPage: FC = () => {
                     }
                   }}
                 />
+                <UpdateButton onUpdateComplete={checkInstallation} onUpdatingChange={setIsOpenClawUpdating} />
               </div>
             </div>
             <span
@@ -517,8 +424,8 @@ const OpenClawPage: FC = () => {
           </div>
         )}
 
-        {/* Gateway Status Card - show when running or restarting */}
-        {(gatewayStatus === 'running' || isRestarting) && (
+        {/* Gateway Status Card - show when running */}
+        {gatewayStatus === 'running' && (
           <div
             className="mb-6 flex items-center justify-between rounded-lg p-3"
             style={{ background: 'var(--color-background-soft)' }}>
@@ -527,48 +434,56 @@ const OpenClawPage: FC = () => {
               <span className="font-medium text-sm" style={{ color: 'var(--color-text-1)' }}>
                 {t('openclaw.status.running')}
               </span>
-              {lastHealthCheck?.version && (
-                <span className="text-xs" style={{ color: 'var(--color-text-3)' }}>
-                  v{lastHealthCheck.version}
-                </span>
-              )}
               <span className="font-mono text-[13px]" style={{ color: 'var(--color-text-3)' }}>
                 :{gatewayPort}
               </span>
             </div>
-            <div className="flex gap-1">
-              <Button
-                size="small"
-                type="text"
-                icon={<RefreshCw size={14} />}
-                onClick={handleRestartGateway}
-                loading={isRestarting}
-                disabled={isStopping || isRestarting}>
-                {t('openclaw.gateway.restart')}
-              </Button>
-              <Button
-                size="small"
-                type="text"
-                icon={<Square size={14} />}
-                onClick={handleStopGateway}
-                loading={isStopping}
-                disabled={isStopping || isRestarting}
-                danger>
-                {t('openclaw.gateway.stop')}
-              </Button>
-            </div>
+            <Button
+              size="small"
+              type="text"
+              icon={<Square size={14} />}
+              onClick={handleStopGateway}
+              loading={isStopping}
+              disabled={isStopping}
+              danger>
+              {t('openclaw.gateway.stop')}
+            </Button>
           </div>
         )}
 
         {/* Error Alert */}
         {error && (
           <div className="mb-6">
-            <Alert message={error} type="error" closable onClose={() => setError(null)} className="rounded-lg!" />
+            <Alert
+              message={
+                <div className="flex items-start justify-between gap-2">
+                  <span className="max-h-25 flex-1 overflow-y-auto whitespace-pre-wrap break-all">{error}</span>
+                  <Button
+                    type="link"
+                    className="h-auto! w-3! shrink-0 p-0!"
+                    aria-label={t('common.copy')}
+                    icon={<CopyIcon className="size-3!" />}
+                    onClick={async () => {
+                      try {
+                        await navigator.clipboard.writeText(error)
+                        window.toast.success(t('common.copied'))
+                      } catch (err) {
+                        window.toast.error(t('common.copy_failed'))
+                      }
+                    }}
+                  />
+                </div>
+              }
+              type="error"
+              closable
+              onClose={() => setError(null)}
+              className="rounded-lg!"
+            />
           </div>
         )}
 
-        {/* Model Selector - only show when not running and not restarting */}
-        {gatewayStatus !== 'running' && !isRestarting && (
+        {/* Model Selector - only show when not running */}
+        {gatewayStatus !== 'running' && (
           <div className="mb-6">
             <div className="mb-2 flex items-center gap-2 font-medium text-sm" style={{ color: 'var(--color-text-1)' }}>
               {t('openclaw.model_config.model')}
@@ -602,20 +517,21 @@ const OpenClawPage: FC = () => {
 
         {showLogs && installLogs.length > 0 && renderLogContainer()}
 
-        {/* Action Button - hide when restarting */}
-        {gatewayStatus !== 'running' && !isRestarting && (
+        {gatewayStatus !== 'running' && (
           <Button
             type="primary"
             icon={<Play size={16} />}
             onClick={handleStartGateway}
             loading={isStarting || gatewayStatus === 'starting'}
-            disabled={!selectedProvider || !selectedModel || isStarting || gatewayStatus === 'starting'}
+            disabled={
+              !selectedProvider || !selectedModel || isStarting || gatewayStatus === 'starting' || isOpenClawUpdating
+            }
             size="large"
             block>
             {t('openclaw.gateway.start')}
           </Button>
         )}
-        {(gatewayStatus === 'running' || isRestarting) && (
+        {gatewayStatus === 'running' && (
           <Button type="primary" onClick={handleOpenDashboard} size="large" block>
             {t('openclaw.quick_actions.open_dashboard')}
           </Button>

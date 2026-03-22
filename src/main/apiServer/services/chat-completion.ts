@@ -128,26 +128,15 @@ export class ChatCompletionService {
   validateRequest(request: ChatCompletionCreateParams): ValidationResult {
     const errors: string[] = []
 
-    // Validate messages
+    // Only validate minimal structure required for routing.
+    // Detailed message validation is delegated to the upstream provider.
     if (!request.messages) {
       errors.push('Messages array is required')
     } else if (!Array.isArray(request.messages)) {
       errors.push('Messages must be an array')
     } else if (request.messages.length === 0) {
       errors.push('Messages array cannot be empty')
-    } else {
-      // Validate each message
-      request.messages.forEach((message, index) => {
-        if (!message.role) {
-          errors.push(`Message ${index}: role is required`)
-        }
-        if (!message.content) {
-          errors.push(`Message ${index}: content is required`)
-        }
-      })
     }
-
-    // Validate optional parameters
 
     return {
       isValid: errors.length === 0,

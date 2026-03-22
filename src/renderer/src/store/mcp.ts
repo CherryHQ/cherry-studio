@@ -19,6 +19,7 @@ import { createSlice, nanoid, type PayloadAction } from '@reduxjs/toolkit'
 import { type BuiltinMCPServer, BuiltinMCPServerNames, type MCPConfig, type MCPServer } from '@renderer/types'
 
 const logger = loggerService.withContext('Store:MCP')
+const filesystemManualApprovalTools = ['write', 'edit', 'delete'] as const
 
 export const initialState: MCPConfig = {
   servers: [],
@@ -170,7 +171,8 @@ export const builtinMCPServers: BuiltinMCPServer[] = [
     id: nanoid(),
     name: BuiltinMCPServerNames.filesystem,
     type: 'inMemory',
-    args: ['/Users/username/Desktop', '/path/to/other/allowed/dir'],
+    args: ['/Users/username/Desktop'],
+    disabledAutoApproveTools: [...filesystemManualApprovalTools],
     shouldConfig: true,
     isActive: false,
     provider: 'CherryAI',

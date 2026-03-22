@@ -14,6 +14,7 @@ const External = Annotation.define<boolean>()
 export interface CodeEditorHandles {
   save?: () => void
   scrollToLine?: (lineNumber: number, options?: { highlight?: boolean }) => void
+  getContent?: () => string
 }
 
 export interface CodeEditorProps {
@@ -150,6 +151,11 @@ const CodeEditor = ({
     onSave?.(currentDoc)
   }, [onSave])
 
+  // Get current content from editor
+  const getContent = useCallback(() => {
+    return editorViewRef.current?.state.doc.toString() ?? ''
+  }, [])
+
   // 流式响应过程中计算 changes 来更新 EditorView
   // 无法处理用户在流式响应过程中编辑代码的情况（应该也不必处理）
   useEffect(() => {
@@ -185,10 +191,15 @@ const CodeEditor = ({
 
   const scrollToLine = useScrollToLine(editorViewRef)
 
-  useImperativeHandle(ref, () => ({
-    save: handleSave,
-    scrollToLine
-  }))
+  useImperativeHandle(
+    ref,
+    () => ({
+      save: handleSave,
+      scrollToLine,
+      getContent
+    }),
+    [handleSave, scrollToLine, getContent]
+  )
 
   return (
     <CodeMirror

@@ -1,6 +1,6 @@
 import type { QuickPanelListItem, QuickPanelReservedSymbol } from '@renderer/components/QuickPanel'
-import type { FileType, KnowledgeBase, Model } from '@renderer/types'
-import { FileTypes } from '@renderer/types'
+import type { FileMetadata, KnowledgeBase, Model } from '@renderer/types'
+import { FILE_TYPE } from '@renderer/types'
 import React, { createContext, use, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 
 type QuickPanelTriggerHandler = (payload?: unknown) => void
@@ -11,7 +11,7 @@ type QuickPanelTriggerHandler = (payload?: unknown) => void
  */
 export interface InputbarToolsState {
   /** Attached files */
-  files: FileType[]
+  files: FileMetadata[]
   /** Models mentioned in the input */
   mentionedModels: Model[]
   /** Selected knowledge base items */
@@ -75,7 +75,7 @@ export interface TriggersAPI {
  */
 export interface InputbarToolsDispatch {
   /** State setters */
-  setFiles: React.Dispatch<React.SetStateAction<FileType[]>>
+  setFiles: React.Dispatch<React.SetStateAction<FileMetadata[]>>
   setMentionedModels: React.Dispatch<React.SetStateAction<Model[]>>
   setSelectedKnowledgeBases: React.Dispatch<React.SetStateAction<KnowledgeBase[]>>
   setIsExpanded: React.Dispatch<React.SetStateAction<boolean>>
@@ -143,7 +143,7 @@ export const useInputbarTools = (): InputbarToolsContextValue => {
 interface InputbarToolsProviderProps {
   children: React.ReactNode
   initialState?: Partial<{
-    files: FileType[]
+    files: FileMetadata[]
     mentionedModels: Model[]
     selectedKnowledgeBases: KnowledgeBase[]
     isExpanded: boolean
@@ -162,7 +162,7 @@ interface InputbarToolsProviderProps {
 
 export const InputbarToolsProvider: React.FC<InputbarToolsProviderProps> = ({ children, initialState, actions }) => {
   // Core state
-  const [files, setFiles] = useState<FileType[]>(initialState?.files || [])
+  const [files, setFiles] = useState<FileMetadata[]>(initialState?.files || [])
   const [mentionedModels, setMentionedModels] = useState<Model[]>(initialState?.mentionedModels || [])
   const [selectedKnowledgeBases, setSelectedKnowledgeBases] = useState<KnowledgeBase[]>(
     initialState?.selectedKnowledgeBases || []
@@ -173,7 +173,7 @@ export const InputbarToolsProvider: React.FC<InputbarToolsProviderProps> = ({ ch
   const [couldAddImageFile, setCouldAddImageFile] = useState(initialState?.couldAddImageFile || false)
   const [extensions, setExtensions] = useState<string[]>(initialState?.extensions || [])
 
-  const couldMentionNotVisionModel = !files.some((file) => file.type === FileTypes.IMAGE)
+  const couldMentionNotVisionModel = !files.some((file) => file.type === FILE_TYPE.IMAGE)
 
   // Quick Panel Registry (stored in refs to avoid re-renders)
   const rootMenuRegistryRef = useRef(new Map<string, QuickPanelListItem[]>())

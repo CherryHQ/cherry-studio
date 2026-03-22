@@ -7,12 +7,26 @@
         "invalid_agent": "Ungültiger Agent"
       },
       "model": {
-        "tooltip": "Derzeit sind für die Agent-Funktion nur Modelle verfügbar, die Anthropic-Endpunkte unterstützen."
+        "supported_providers": "Unterstützte Anbieter",
+        "tooltip": "Derzeit sind für die Agent-Funktion nur Modelle verfügbar, die Anthropic-Endpunkte unterstützen.",
+        "view_providers": "Unterstützte Anbieter anzeigen"
       },
       "title": "Agent hinzufügen",
       "type": {
         "placeholder": "Agent-Typ auswählen"
       }
+    },
+    "askUserQuestion": {
+      "answered": "beantwortet",
+      "customPlaceholder": "Gib deine Antwort ein...",
+      "loading": "Fragen werden geladen...",
+      "multiSelect": "Mehrfachauswahl",
+      "next": "Weiter",
+      "noQuestions": "Keine Fragen verfügbar",
+      "other": "Andere",
+      "previous": "Vorherige",
+      "submit": "Einreichen",
+      "title": "Fragen vom Agenten"
     },
     "delete": {
       "content": "Das Löschen dieses Agents wird alle Sitzungen unter diesem Agent zwangsweise beenden und löschen. Sind Sie sicher?",
@@ -23,6 +37,10 @@
     },
     "edit": {
       "title": "Agent bearbeiten"
+    },
+    "empty": {
+      "description": "Erstellen Sie einen Agenten zur Bewältigung komplexer Aufgaben mit KI-gestützten Tools.",
+      "title": "Noch keine Agenten"
     },
     "get": {
       "error": {
@@ -65,6 +83,11 @@
         "failed": "Agent-Liste abrufen fehlgeschlagen"
       }
     },
+    "reorder": {
+      "error": {
+        "failed": "Fehler beim Neuanordnen der Agenten"
+      }
+    },
     "server": {
       "error": {
         "not_running": "API server is enabled but not running properly."
@@ -73,6 +96,7 @@
     "session": {
       "accessible_paths": {
         "add": "Verzeichnis hinzufügen",
+        "default_hint": "Standard: {{path}}",
         "duplicate": "Dieses Verzeichnis wurde bereits hinzugefügt.",
         "empty": "Bitte wählen Sie mindestens ein Verzeichnis aus, auf das der Agent zugreifen kann.",
         "error": {
@@ -114,6 +138,11 @@
       },
       "label_one": "Sitzung",
       "label_other": "Sitzungen",
+      "reorder": {
+        "error": {
+          "failed": "Fehler beim Neuordnen der Sitzungen"
+        }
+      },
       "update": {
         "error": {
           "failed": "Sitzung aktualisieren fehlgeschlagen"
@@ -122,6 +151,11 @@
     },
     "settings": {
       "advance": {
+        "envVars": {
+          "description": "Legen Sie benutzerdefinierte Umgebungsvariablen für die Agent-Laufzeit fest.",
+          "helper": "Benutzerdefinierte Umgebungsvariablen eingeben (eine pro Zeile, Format: SCHLÜSSEL=wert)",
+          "label": "Umgebungsvariablen"
+        },
         "maxTurns": {
           "description": "Legen Sie die Anzahl der Anfrage-/Antwort-Runden fest, die der Agent automatisch ausführt.",
           "helper": "Höhere Werte ermöglichen längere autonome Ausführung; niedrigere Werte bieten bessere Kontrolle.",
@@ -141,6 +175,10 @@
         "title": "Erweiterte Einstellungen"
       },
       "essential": "Grundeinstellungen",
+      "permissionMode": {
+        "tab": "Berechtigungsmodus",
+        "title": "Berechtigungsmodus"
+      },
       "plugins": {
         "available": {
           "title": "Verfügbare Plugins"
@@ -211,17 +249,16 @@
         "mcp": {
           "description": "Verbinden Sie MCP-Server, um weitere Tools freizuschalten, die oben vorab autorisiert werden können.",
           "empty": "Keine MCP-Server erkannt. Bitte fügen Sie welche auf der MCP-Einstellungsseite hinzu.",
+          "inactiveTooltip": "Dieser MCP-Server ist nicht aktiv. Bitte starten Sie ihn zuerst.",
           "manageHint": "Benötigen Sie weitere Konfigurationen? Gehen Sie zu Einstellungen → MCP-Server.",
           "toggle": "{{name}} umschalten"
         },
         "permissionMode": {
           "acceptEdits": {
-            "behavior": "Vertrauenswürdige Dateisystem-Tools werden vorab autorisiert und können sofort ausgeführt werden.",
             "description": "Dateibearbeitungen und Dateisystemoperationen werden automatisch genehmigt.",
             "title": "Dateibearbeitungen automatisch akzeptieren"
           },
           "bypassPermissions": {
-            "behavior": "Alle Tools werden automatisch vorab autorisiert.",
             "description": "Alle Berechtigungsabfragen werden übersprungen. Bitte verwenden Sie diese Option mit Vorsicht.",
             "title": "Alle Berechtigungsprüfungen überspringen",
             "warning": "Gefahr: Alle Tools werden ohne Genehmigung ausgeführt."
@@ -231,14 +268,12 @@
             "title": "Berechtigungsmodus-Wechsel bestätigen?"
           },
           "default": {
-            "behavior": "Nur-Lese-Tools werden automatisch vorab autorisiert.",
             "description": "Nur-Lese-Tools werden automatisch vorab autorisiert, andere Vorgänge erfordern weiterhin Berechtigungen.",
             "title": "Standard (vor Fortsetzung fragen)"
           },
           "helper": "Legen Sie fest, wie der Agent Tool-Autorisierungen verwaltet",
           "placeholder": "Berechtigungsmodus auswählen",
           "plan": {
-            "behavior": "Standard-Nur-Lese-Tools werden automatisch vorab autorisiert, aber die Ausführung bleibt deaktiviert.",
             "description": "Erbt die Standard-Nur-Lese-Tools und zeigt einen Plan vor der Ausführung an.",
             "title": "Planungsmodus"
           },
@@ -247,38 +282,13 @@
         "preapproved": {
           "autoBadge": "Automatisch vom Modus hinzugefügt",
           "autoDescription": "Dieses Tool wird vom aktuellen Berechtigungsmodus automatisch vorab autorisiert.",
+          "autoDisabledTooltip": "Automatisch genehmigt durch „{{mode}}“ und kann nicht deaktiviert werden.",
           "empty": "Keine Tools entsprechen den Filterkriterien.",
           "mcpBadge": "MCP-Tool",
           "requiresApproval": "Erfordert bei Deaktivierung manuelle Genehmigung",
           "search": "Tools suchen",
-          "toggle": "{{name}} umschalten",
-          "warning": {
-            "description": "Aktivieren Sie nur Tools, denen Sie vertrauen. Modusstandardwerte werden automatisch gekennzeichnet.",
-            "title": "Vorab autorisierte Tools werden ohne manuelle Überprüfung ausgeführt."
-          }
-        },
-        "review": {
-          "autoTools": "Automatisch: {{count}}",
-          "customTools": "Benutzerdefiniert: {{count}}",
-          "helper": "Einstellungen werden automatisch gespeichert. Sie können jederzeit zu den obigen Schritten zurückkehren und Anpassungen vornehmen.",
-          "mcp": "MCP: {{count}}",
-          "mode": "Modus: {{mode}}"
-        },
-        "steps": {
-          "mcp": {
-            "title": "MCP-Server"
-          },
-          "permissionMode": {
-            "title": "Schritt 1 · Berechtigungsmodus"
-          },
-          "preapproved": {
-            "title": "Schritt 2 · Vorab autorisierte Tools"
-          },
-          "review": {
-            "title": "Schritt 3 · Übersicht"
-          }
-        },
-        "tab": "Tools & Berechtigungen"
+          "toggle": "{{name}} umschalten"
+        }
       },
       "tools": {
         "approved": "Autorisiert",
@@ -288,8 +298,18 @@
         "tab": "Vorab autorisierte Tools",
         "title": "Vorab autorisierte Tools",
         "toggle": "{{defaultValue}}"
+      },
+      "toolsMcp": {
+        "mcp": {
+          "title": "MCP-Server"
+        },
+        "tab": "Tools",
+        "tools": {
+          "title": "Vorab genehmigte Tools"
+        }
       }
     },
+    "sidebar_title": "Agenten",
     "todo": {
       "panel": {
         "title": "{{completed}}/{{total}} Aufgaben abgeschlossen"
@@ -337,6 +357,52 @@
       "toolPendingFallback": "Werkzeug",
       "waiting": "Warten auf Entscheidung über Tool-Berechtigung..."
     },
+    "tools": {
+      "builtin": {
+        "Bash": {
+          "description": "Führt Shell-Befehle in deiner Umgebung aus"
+        },
+        "Edit": {
+          "description": "Führt gezielte Bearbeitungen an bestimmten Dateien durch"
+        },
+        "Glob": {
+          "description": "Findet Dateien anhand von Mustererkennung"
+        },
+        "Grep": {
+          "description": "Sucht nach Mustern im Dateiinhalt"
+        },
+        "MultiEdit": {
+          "description": "Führt mehrere Bearbeitungen an einer einzelnen Datei atomisch aus"
+        },
+        "NotebookEdit": {
+          "description": "Modifiziert Jupyter-Notebook-Zellen"
+        },
+        "NotebookRead": {
+          "description": "Liest und zeigt den Inhalt von Jupyter-Notebooks an"
+        },
+        "Read": {
+          "description": "Liest die Inhalte von Dateien"
+        },
+        "Task": {
+          "description": "Führt einen Unter-Agenten aus, um komplexe, mehrstufige Aufgaben zu bearbeiten"
+        },
+        "TodoWrite": {
+          "description": "Erstellt und verwaltet strukturierte Aufgabenlisten"
+        },
+        "ToolSearch": {
+          "description": "[to be translated]:Discovers deferred tools from large libraries"
+        },
+        "WebFetch": {
+          "description": "Ruft Inhalte von einer angegebenen URL ab"
+        },
+        "WebSearch": {
+          "description": "Führt Websuchen mit Domainfilterung durch"
+        },
+        "Write": {
+          "description": "Erstellt oder überschreibt Dateien"
+        }
+      }
+    },
     "type": {
       "label": "Agent-Typ",
       "unknown": "Unbekannter Typ"
@@ -347,7 +413,11 @@
       }
     },
     "warning": {
-      "enable_server": "Bitte aktivieren Sie den API-Server, um Agent-Funktionen zu verwenden"
+      "enable_and_start": "Aktivieren & Starten",
+      "enable_server": "Bitte aktivieren Sie den API-Server, um Agent-Funktionen zu verwenden",
+      "enable_server_description": "Der API-Server muss aktiviert sein, damit Agents funktionieren. Sie können ihn direkt aktivieren oder in den Einstellungen konfigurieren.",
+      "server_not_running": "API-Server ist aktiviert, läuft aber nicht. Bitte überprüfen Sie die Serverkonfiguration.",
+      "server_not_running_description": "Der API-Server muss laufen, damit die Agents funktionieren. Sie können ihn direkt starten oder die Einstellungen überprüfen."
     }
   },
   "apiServer": {
@@ -573,6 +643,10 @@
           "tip": "Der Assistent verwendet die Absichtserkennungsfähigkeit des großen Modells, um zu bestimmen, ob die Wissensdatenbank für die Antwort aufgerufen werden muss. Diese Funktion hängt von den Fähigkeiten des Modells ab"
         }
       },
+      "max_tool_calls": {
+        "label": "Maximale Werkzeugaufrufe",
+        "tip": "Maximale Anzahl von Tool-Aufrufen, die in einer einzelnen Konversation erlaubt sind. Höhere Werte ermöglichen komplexere, mehrstufige Operationen, können aber den Token-Verbrauch und die Antwortzeit erhöhen."
+      },
       "mcp": {
         "description": "Standardmäßig aktivierte MCP-Server",
         "enableFirst": "Bitte aktivieren Sie diesen Server zuerst in den MCP-Einstellungen",
@@ -664,6 +738,7 @@
     "progress": {
       "completed": "Backup abgeschlossen",
       "compressing": "Dateien werden komprimiert...",
+      "copying_database": "Datenbank wird kopiert...",
       "copying_files": "Dateien werden kopiert... {{progress}}%",
       "preparing": "Backup wird vorbereitet...",
       "preparing_compression": "Komprimierung wird vorbereitet...",
@@ -701,6 +776,7 @@
       }
     },
     "alerts": {
+      "create_agent": "Erstellen Sie einen Agenten, um loszulegen.",
       "create_session": "Erstelle eine Sitzung",
       "select_agent": "Wählen Sie einen Agenten"
     },
@@ -816,7 +892,11 @@
         "collapse": "Falten",
         "collapse_in": "Zum Falten hinzufügen",
         "collapse_out": "Aus Falten entfernen",
-        "expand": "Ausklappen"
+        "expand": "Ausklappen",
+        "file_not_found": "Datei nicht gefunden: {{path}}",
+        "open_file": "Datei öffnen",
+        "open_file_error": "Fehler beim Öffnen der Datei: {{path}}",
+        "reveal_in_finder": "Im Finder anzeigen"
       },
       "topics": "Themen",
       "translate": "Übersetzen nach {{target_language}}",
@@ -1060,6 +1140,7 @@
       },
       "export": {
         "image": "Als Bild exportieren",
+        "image_saved": "Bild erfolgreich gespeichert",
         "joplin": "Nach Joplin exportieren",
         "md": {
           "label": "Als Markdown exportieren",
@@ -1276,6 +1357,9 @@
       "validation": "Validierung fehlgeschlagen"
     },
     "expand": "Ausklappen",
+    "export": {
+      "excel": "Nach Excel exportieren"
+    },
     "file": {
       "not_supported": "Nicht unterstützter Dateityp {{type}}"
     },
@@ -1306,6 +1390,7 @@
     "off": "Aus",
     "on": "An",
     "open": "Öffnen",
+    "open_in": "In {{name}} öffnen",
     "paste": "Einfügen",
     "placeholders": {
       "select": {
@@ -1333,6 +1418,7 @@
     "selected": "Ausgewählt",
     "selectedItems": "{{count}} Elemente ausgewählt",
     "selectedMessages": "{{count}} Nachrichten ausgewählt",
+    "sessions": "Sitzungen",
     "settings": "Einstellungen",
     "sort": {
       "pinyin": {
@@ -1442,19 +1528,20 @@
     "originalError": "Ursprünglicher Fehler",
     "originalMessage": "Ursprüngliche Nachricht",
     "parameter": "Parameter",
-    "pause_placeholder": "Unterbrochen",
     "prompt": "Prompt",
     "provider": "Anbieter",
     "providerId": "Anbieter-ID",
     "provider_disabled": "Modellanbieter nicht aktiviert",
     "reason": "Grund",
     "render": {
+      "block": "Dieser Inhaltsblock konnte nicht gerendert werden",
       "description": "Rendering der Nachricht fehlgeschlagen. Bitte überprüfen Sie das Format des Nachrichteninhalts",
       "title": "Rendering-Fehler"
     },
     "requestBody": "Anfrage-Inhalt",
     "requestBodyValues": "Anfrage-Body",
     "requestUrl": "Anfrage-URL",
+    "request_timeout": "Anforderung Zeitüberschreitung",
     "response": "Antwort",
     "responseBody": "Antwort-Inhalt",
     "responseHeaders": "Antwort-Header",
@@ -1464,6 +1551,7 @@
     "status": "Statuscode",
     "statusCode": "Statuscode",
     "statusText": "Statustext",
+    "stream_paused": "Unterbrochen",
     "text": "Text",
     "toolInput": "Tool-Eingabe",
     "toolName": "Tool-Name",
@@ -1538,8 +1626,16 @@
       "message": "Zu Nachricht navigieren"
     },
     "search": {
+      "match": {
+        "substring": "Enthält",
+        "whole_word": "Ganzes Wort"
+      },
       "messages": "Alle Nachrichten durchsuchen",
       "placeholder": "Themen oder Nachrichten suchen...",
+      "sort": {
+        "newest": "Neueste zuerst",
+        "oldest": "Älteste zuerst"
+      },
       "topics": {
         "empty": "Keine passenden Themen gefunden. Drücken Sie Enter, um alle Nachrichten zu durchsuchen"
       }
@@ -1930,7 +2026,14 @@
         "model": "Bitte wählen Sie ein Modell aus",
         "name": "Bitte geben Sie einen Wissensdatenbanknamen ein"
       },
+      "excel": {
+        "export": "Excel-Export fehlgeschlagen"
+      },
       "fetchTopicName": "Themenname generieren fehlgeschlagen",
+      "file": {
+        "process_failed": "Datei {{name}} konnte nicht verarbeitet werden",
+        "text_extraction_failed": "Fehler beim Extrahieren von Text aus {{name}}"
+      },
       "get_embedding_dimensions": "Embedding-Dimensionen abrufen fehlgeschlagen",
       "invalid": {
         "api": {
@@ -1968,6 +2071,9 @@
       "siyuan": {
         "export": "Export nach SiYuan-Notizen fehlgeschlagen. Bitte überprüfen Sie den Verbindungsstatus und die Konfiguration gemäß Dokumentation",
         "no_config": "SiYuan-Notizen API-Adresse oder Token nicht konfiguriert"
+      },
+      "table": {
+        "invalid": "Konnte keine gültigen Tabellendaten abrufen"
       },
       "unknown": "Unbekannter Fehler",
       "yuque": {
@@ -2042,7 +2148,8 @@
           "content": "Alle Ihre Daten gehen verloren. Wenn Sie keine Datensicherung haben, können Sie sie nicht wiederherstellen. Möchten Sie wirklich fortfahren?",
           "title": "Datenverlust!!!"
         }
-      }
+      },
+      "success": "Daten-Reset erfolgreich"
     },
     "restore": {
       "failed": "Wiederherstellung fehlgeschlagen",
@@ -2055,6 +2162,9 @@
     },
     "searching": "Wird gesucht...",
     "success": {
+      "excel": {
+        "export": "Excel erfolgreich exportiert"
+      },
       "joplin": {
         "export": "Erfolgreich nach Joplin exportiert"
       },
@@ -2083,6 +2193,7 @@
     "tools": {
       "abort_failed": "Tool-Aufruf abbrechen fehlgeschlagen",
       "aborted": "Tool-Aufruf abgebrochen",
+      "approvalRequired": "Das Tool \"{{tool}}\" erfordert eine Genehmigung",
       "autoApproveEnabled": "Automatische Genehmigung für dieses Tool aktiviert",
       "cancelled": "Abgebrochen",
       "completed": "Abgeschlossen",
@@ -2166,6 +2277,11 @@
       }
     },
     "warning": {
+      "file": {
+        "pdf_exceeds_limit": "PDF-Datei {{name}} überschreitet die Größenbegrenzung ({{limit}}), wechsle zu Textextraktion",
+        "pdf_text_extraction_failed": "Konnte Text aus PDF {{name}} nicht extrahieren",
+        "pdf_upload_failed": "Fehler beim Hochladen von PDF {{name}}, fallweise auf Textextraktion zurückgreifen"
+      },
       "rate": {
         "limit": "Zu viele Anfragen. Bitte warten Sie {{seconds}} Sekunden, bevor Sie es erneut versuchen"
       }
@@ -2219,7 +2335,10 @@
     "dangbei": "Dangbei AI",
     "doubao": "Doubao",
     "hailuo": "Hailuo",
+    "ima": "ima",
     "metaso": "Metaso AI-Suche",
+    "minimax-agent": "MiniMax Agent CN",
+    "minimax-global": "MiniMax Agent",
     "nami-ai": "Nami AI",
     "nami-ai-search": "Nami AI-Suche",
     "qwen": "Qwen",
@@ -2457,6 +2576,9 @@
   "notification": {
     "assistant": "Assistenten-Antwort",
     "knowledge": {
+      "batch_error": "{{failed}} Elemente konnten nicht verarbeitet werden",
+      "batch_mixed": "{{succeeded}} Elemente erfolgreich, {{failed}} Elemente fehlgeschlagen",
+      "batch_success": "{{succeeded}} Elemente erfolgreich verarbeitet",
       "error": "{{error}}",
       "success": "{{type}} erfolgreich zur Wissensdatenbank hinzugefügt"
     },
@@ -2508,8 +2630,19 @@
       "stop": "Halt",
       "version": "Version"
     },
+    "git_missing": {
+      "description": "OpenClaw benötigt Git zur Installation einiger Abhängigkeiten. Bitte installieren Sie zuerst Git und klicken Sie dann erneut auf Installieren.",
+      "download_button": "Git herunterladen",
+      "hint": "macOS: brew install git | Windows: Von git-scm.com herunterladen (stelle sicher, dass Git während der Installation zum PATH hinzugefügt wird)",
+      "title": "Git erforderlich"
+    },
     "install_progress": "Installationsfortschritt",
     "installed_at": "OpenClaw installiert unter",
+    "migration": {
+      "description": "Eine veraltete Version von OpenClaw, die über npm installiert wurde, wurde erkannt. Bitte installiere sie erneut, um die neueste offizielle Version zu erhalten.",
+      "install_button": "OpenClaw neu installieren",
+      "title": "OpenClaw benötigt ein Update"
+    },
     "model_config": {
       "auth_token": "Auth-Token",
       "auth_token_hint": "Token für Gateway-Authentifizierung. Leer lassen, um die Authentifizierung zu deaktivieren.",
@@ -2522,6 +2655,17 @@
       "sync_hint": "Ausgewählter Anbieter und Modell werden in die OpenClaw-Konfigurationsdatei synchronisiert",
       "title": "Modellkonfiguration"
     },
+    "node_missing": {
+      "description": "OpenClaw benötigt Node.js 22+. Bitte installiere zuerst Node.js und klicke dann erneut auf Installieren.",
+      "download_button": "Node.js herunterladen",
+      "hint": "macOS: brew install node | Windows: LTS-Version von nodejs.org herunterladen",
+      "title": "Node.js erforderlich"
+    },
+    "node_version_low": {
+      "description": "OpenClaw erfordert Node.js 22.0 oder höher. Deine aktuelle Version ist v{{version}}. Bitte aktualisiere Node.js zuerst.",
+      "hint": "nvm: nvm install 22 && nvm use 22 | mise: mise use node@22",
+      "title": "Node.js-Version zu niedrig"
+    },
     "not_installed": {
       "description": "OpenClaw ist nicht auf Ihrem System installiert. Bitte installieren Sie es zuerst, um diese Funktion nutzen zu können.",
       "install_button": "Installiere OpenClaw",
@@ -2533,13 +2677,8 @@
       "title": "OpenClaw nicht installiert",
       "windows_title": "Windows"
     },
-    "npm_missing": {
-      "description": "OpenClaw benötigt Node.js/npm. Bitte installieren Sie zunächst Node.js und starten Sie Cherry Studio anschließend neu.",
-      "download_button": "Node.js herunterladen",
-      "hint": "macOS: brew install node | Windows: LTS-Version von nodejs.org herunterladen",
-      "title": "Node.js erforderlich"
-    },
     "quick_actions": {
+      "check_update": "Nach Updates suchen",
       "open_dashboard": "Dashboard öffnen",
       "title": "Schnellaktionen",
       "uninstall": "Deinstallieren",
@@ -2566,6 +2705,16 @@
     "uninstalling": {
       "description": "Bitte warten Sie, während OpenClaw deinstalliert wird...",
       "title": "Deinstallation von OpenClaw"
+    },
+    "update": {
+      "available": "Neue Version verfügbar: v{{latest}} (aktuell: v{{current}})",
+      "checking": "Nach Updates wird gesucht...",
+      "confirm_button": "Jetzt aktualisieren",
+      "failed": "Fehler bei der Überprüfung auf Updates",
+      "modal_title": "OpenClaw-Update",
+      "success": "Aktualisierung erfolgreich abgeschlossen!",
+      "up_to_date": "Bereits auf dem neuesten Stand (v{{current}})",
+      "updating": "Aktualisierung..."
     }
   },
   "ovms": {
@@ -2683,12 +2832,7 @@
     },
     "edit": {
       "image_file": "Zu bearbeitendes Bild",
-      "magic_prompt_option_tip": "Intelligente Optimierung des Bearbeitungs-Prompts",
-      "model_tip": "Unterstützt V3 und V2 Versionen",
-      "number_images_tip": "Anzahl der generierten Bearbeitungsergebnisse",
-      "rendering_speed_tip": "Balance zwischen Rendering-Geschwindigkeit und Qualität, nur für V_3",
-      "seed_tip": "Kontrolle der Zufälligkeit des Bearbeitungsergebnisses",
-      "style_type_tip": "Stil des bearbeiteten Bildes, nur für V_2 und höher"
+      "image_required": "Bitte laden Sie zuerst ein Bild zum Bearbeiten hoch"
     },
     "generate": {
       "height": "Höhe",
@@ -2757,6 +2901,16 @@
       "allow_all": "Alle erlauben",
       "allow_none": "Keine erlauben"
     },
+    "ppio": {
+      "edit_prompt_tip": "Gibt das zu entfernende Objekt oder den Bereich an, z.B. 'Hund' oder 'Hut'",
+      "mask_image": "Maskenbild",
+      "mask_image_tip": "Zeigt den zu löschenden Bereich an. Zu löschende Bereiche sollten weiß sein, zu behaltende schwarz",
+      "output_format": "Ausgabeformat",
+      "resolution": "Zielauflösung",
+      "seed_tip": "Zufallswert, gleicher Wert und Parameter erzeugen ähnliche Bilder, -1 bedeutet zufällig",
+      "use_pre_llm_tip": "Aktiviert Texterweiterung zur Prompt-Optimierung. Für kurze Prompts empfohlen, für lange deaktivieren",
+      "watermark_tip": "Ob dem generierten Bild ein Wasserzeichen hinzugefügt werden soll, standardmäßig deaktiviert"
+    },
     "pricing": "Preise",
     "prompt_enhancement": "Prompt-Verbesserung",
     "prompt_enhancement_tip": "Nach Aktivierung wird der Prompt in eine detaillierte, modellgerechte Version umgeschrieben",
@@ -2799,6 +2953,7 @@
     "required_field": "Pflichtfeld",
     "seed": "Seed",
     "seed_desc_tip": "Gleicher Seed und Prompt können ähnliche Bilder generieren, -1 für unterschiedliche Ergebnisse bei jeder Generierung",
+    "seed_random": "Zufällig",
     "seed_tip": "Gleicher Seed und Prompt können ähnliche Bilder generieren",
     "select_model": "Modell auswählen",
     "style_type": "Stil",
@@ -2825,6 +2980,7 @@
       "resemblance_tip": "Ähnlichkeitsgrad des Upscale-Ergebnisses zum Originalbild kontrollieren",
       "seed_tip": "Kontrolle der Zufälligkeit des Upscale-Ergebnisses"
     },
+    "watermark": "Wasserzeichen hinzufügen",
     "zhipu": {
       "custom_size_divisible": "Benutzerdefinierte Größe muss durch 16 teilbar sein",
       "custom_size_hint": "Breite und Höhe müssen zwischen 512 px und 2048 px liegen, durch 16 teilbar sein, und die Gesamtzahl der Pixel darf 2^21 px nicht überschreiten.",
@@ -2876,7 +3032,9 @@
     "no_description": "Keine Beschreibung verfügbar",
     "no_installed_plugins": "Noch keine Plugins installiert",
     "no_results": "Keine Plugins gefunden",
+    "no_results_skills": "Keine Fähigkeiten gefunden",
     "search_placeholder": "Such-Plugins...",
+    "search_placeholder_skills": "Suchfähigkeiten...",
     "showing_results": "{{count}} Plugin anzeigen",
     "showing_results_one": "{{count}} Plugin anzeigen",
     "showing_results_other": "Zeige {{count}} Plugins",
@@ -2957,7 +3115,8 @@
     "lmstudio": "LM Studio",
     "longcat": "Meißner Riesenhamster",
     "mimo": "Xiaomi MiMo",
-    "minimax": "MiniMax",
+    "minimax": "MiniMax CN",
+    "minimax-global": "MiniMax",
     "mistral": "Mistral",
     "modelscope": "ModelScope",
     "moonshot": "Moonshot AI",
@@ -2985,6 +3144,7 @@
     "voyageai": "Voyage AI",
     "xirang": "China Telecom Cloud Xirang",
     "yi": "01.AI",
+    "zai": "Z.ai",
     "zhinao": "360 Zhinao",
     "zhipu": "Zhipu AI"
   },
@@ -3001,7 +3161,10 @@
       "extracting": "Backup wird entpackt...",
       "preparing": "Wiederherstellung wird vorbereitet...",
       "reading_data": "Daten werden gelesen...",
-      "title": "Wiederherstellungsfortschritt"
+      "restoring_data": "Dateien werden wiederhergestellt...",
+      "restoring_database": "Datenbank wird wiederhergestellt...",
+      "title": "Wiederherstellungsfortschritt",
+      "validating": "Backup wird überprüft..."
     },
     "title": "Datenwiederherstellung"
   },
@@ -3554,7 +3717,15 @@
           "button": "Sicherungsdatei auswählen"
         },
         "content": "Exportieren Sie einige Daten, einschließlich Chat-Protokollen und Einstellungen. Bitte beachten Sie, dass der Sicherungsvorgang einige Zeit in Anspruch nehmen kann. Vielen Dank für Ihre Geduld.",
+        "file": {
+          "button": "In Datei exportieren",
+          "content": "Exportiere Daten als Sicherungsdatei, die per Datei auf dem Mobilgerät importiert werden kann.",
+          "export_failed": "Export fehlgeschlagen",
+          "export_success": "Export erfolgreich",
+          "title": "Als Datei exportieren"
+        },
         "lan": {
+          "button": "Übertragung starten",
           "connected": "Verbunden",
           "connection_failed": "Verbindung fehlgeschlagen",
           "content": "Bitte stelle sicher, dass sich dein Computer und dein Telefon im selben Netzwerk befinden, um eine LAN-Übertragung durchzuführen. Öffne die Cherry Studio App, um diesen QR-Code zu scannen.",
@@ -4571,6 +4742,13 @@
       "open_link_external": {
         "title": "Neue Fensterlinks im Browser öffnen"
       },
+      "region": {
+        "auto": "Automatische Erkennung",
+        "cn": "China",
+        "description": "Nach Region gefilterte Mini-Programme werden nicht unterstützt",
+        "global": "global",
+        "title": "Bereichsfilterung für Mini-Programme"
+      },
       "reset_tooltip": "Zurücksetzen auf Standardwert",
       "sidebar_description": "Festlegen ob Seitenleiste aktive Mini-Apps anzeigt",
       "sidebar_title": "Einstellungen für aktive Mini-Apps in Seitenleiste",
@@ -4762,6 +4940,7 @@
         "logout_failed": "Abmeldung fehlgeschlagen, bitte erneut versuchen",
         "logout_success": "Erfolgreich abgemeldet von Anthropic",
         "oauth": "Web OAuth",
+        "oauth_disabled_warning": "Anthropic hat die Nutzung von Claude über OAuth vorübergehend eingestellt. Diese Authentifizierungsmethode ist derzeit nicht verfügbar. Bitte verwenden Sie vorerst einen API-Schlüssel.",
         "start_auth": "Autorisierung starten",
         "submit_code": "Anmeldung abschließen"
       },
@@ -4922,6 +5101,11 @@
       },
       "docs_check": "Anzeigen",
       "docs_more_details": "Weitere Details anzeigen",
+      "filter": {
+        "agent": "Vom Agenten unterstützt",
+        "all": "Alle Anbieter"
+      },
+      "filter_agent": "Von Filter-Agent unterstützte Anbieter",
       "get_api_key": "Hier klicken um Schlüssel zu erhalten",
       "misc": "Sonstige",
       "no_models_for_check": "Keine testbaren Modelle (z.B. Chat-Modelle)",
@@ -5049,6 +5233,7 @@
       "reset_to_default": "Auf Standard zurücksetzen",
       "search_message": "Nachricht suchen",
       "search_message_in_chat": "In aktuellem Chat suchen",
+      "select_model": "Select Model",
       "selection_assistant_select_text": "Textauswahl-Assistent: Text erfassen",
       "selection_assistant_toggle": "Textauswahl-Assistent umschalten",
       "show_app": "App anzeigen/ausblenden",
@@ -5440,6 +5625,7 @@
       "scroll_sync": "Scroll-Synchronisierungs-Einstellungen",
       "title": "Übersetzungseinstellungen"
     },
+    "stop": "Übersetzung stoppen",
     "success": {
       "custom": {
         "delete": "Erfolgreich gelöscht",

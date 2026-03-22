@@ -1,137 +1,72 @@
-import { Center } from '@renderer/components/Layout'
 import { TopView } from '@renderer/components/TopView'
 import { useSession } from '@renderer/hooks/agents/useSession'
 import { useUpdateSession } from '@renderer/hooks/agents/useUpdateSession'
-import { Alert, Spin } from 'antd'
-import { useState } from 'react'
+import { useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import AdvancedSettings from './AdvancedSettings'
-import EssentialSettings from './EssentialSettings'
-import PromptSettings from './PromptSettings'
-import { LeftMenu, SessionLabel, Settings, StyledMenu, StyledModal } from './shared'
-import ToolingSettings from './ToolingSettings'
+import { BaseSettingsPopup, type SettingsMenuItem, type SettingsPopupTab } from './BaseSettingsPopup'
+import AdvancedSettings from './components/AdvancedSettings'
+import EssentialSettings from './components/EssentialSettings'
+import PermissionModeSettings from './components/PermissionModeSettings'
+import PromptSettings from './components/PromptSettings'
+import ToolsSettings from './components/ToolsSettings'
+import { SessionLabel } from './shared'
 
 interface SessionSettingPopupShowParams {
   agentId: string
   sessionId: string
-  tab?: AgentSettingPopupTab
+  tab?: SettingsPopupTab
 }
 
 interface SessionSettingPopupParams extends SessionSettingPopupShowParams {
   resolve: () => void
 }
 
-type AgentSettingPopupTab = 'essential' | 'prompt' | 'tooling' | 'advanced' | 'session-mcps'
-
 const SessionSettingPopupContainer: React.FC<SessionSettingPopupParams> = ({ tab, agentId, sessionId, resolve }) => {
-  const [open, setOpen] = useState(true)
   const { t } = useTranslation()
-  const [menu, setMenu] = useState<AgentSettingPopupTab>(tab || 'essential')
-
   const { session, isLoading, error } = useSession(agentId, sessionId)
-
   const { updateSession } = useUpdateSession(agentId)
 
-  const onOk = () => {
-    setOpen(false)
-  }
+  const menuItems: SettingsMenuItem[] = useMemo(
+    () => [
+      { key: 'essential', label: t('agent.settings.essential') },
+      { key: 'prompt', label: t('agent.settings.prompt') },
+      { key: 'permission-mode', label: t('agent.settings.permissionMode.tab', 'Permission Mode') },
+      { key: 'tools-mcp', label: t('agent.settings.toolsMcp.tab', 'Tools & MCP') },
+      { key: 'advanced', label: t('agent.settings.advance.title', 'Advanced Settings') }
+    ],
+    [t]
+  )
 
-  const onCancel = () => {
-    setOpen(false)
-  }
+  const renderTabContent = (currentTab: SettingsPopupTab) => {
+    if (!session) return null
 
-  const afterClose = () => {
-    resolve()
-  }
-
-  const items = [
-    {
-      key: 'essential',
-      label: t('agent.settings.essential')
-    },
-    {
-      key: 'prompt',
-      label: t('agent.settings.prompt')
-    },
-    {
-      key: 'tooling',
-      label: t('agent.settings.tooling.tab', 'Tooling & permissions')
-    },
-    {
-      key: 'advanced',
-      label: t('agent.settings.advance.title', 'Advanced Settings')
+    switch (currentTab) {
+      case 'essential':
+        return <EssentialSettings agentBase={session} update={updateSession} />
+      case 'prompt':
+        return <PromptSettings agentBase={session} update={updateSession} />
+      case 'permission-mode':
+        return <PermissionModeSettings agentBase={session} update={updateSession} />
+      case 'tools-mcp':
+        return <ToolsSettings agentBase={session} update={updateSession} />
+      case 'advanced':
+        return <AdvancedSettings agentBase={session} update={updateSession} />
+      default:
+        return null
     }
-  ] as const satisfies { key: AgentSettingPopupTab; label: string }[]
-
-  const renderModalContent = () => {
-    if (isLoading) {
-      // TODO: use skeleton for better ux
-      return (
-        <Center flex={1}>
-          <Spin />
-        </Center>
-      )
-    }
-
-    if (error) {
-      return (
-        <Center flex={1}>
-          <Alert type="error" message={t('agent.get.error.failed')} />
-        </Center>
-      )
-    }
-
-    return (
-      <div className="flex w-full flex-1">
-        <LeftMenu>
-          <StyledMenu
-            defaultSelectedKeys={[tab || 'essential'] satisfies AgentSettingPopupTab[]}
-            mode="vertical"
-            selectedKeys={[menu]}
-            items={items}
-            onSelect={({ key }) => setMenu(key as AgentSettingPopupTab)}
-          />
-        </LeftMenu>
-        <Settings>
-          {menu === 'essential' && <EssentialSettings agentBase={session} update={updateSession} />}
-          {menu === 'prompt' && <PromptSettings agentBase={session} update={updateSession} />}
-          {menu === 'tooling' && <ToolingSettings agentBase={session} update={updateSession} />}
-          {menu === 'advanced' && <AdvancedSettings agentBase={session} update={updateSession} />}
-        </Settings>
-      </div>
-    )
   }
 
   return (
-    <StyledModal
-      open={open}
-      onOk={onOk}
-      onCancel={onCancel}
-      afterClose={afterClose}
-      maskClosable={false}
-      footer={null}
-      title={<SessionLabel session={session} />}
-      transitionName="animation-move-down"
-      styles={{
-        content: {
-          padding: 0,
-          overflow: 'hidden',
-          height: '80vh',
-          display: 'flex',
-          flexDirection: 'column'
-        },
-        header: { padding: '10px 15px', borderBottom: '0.5px solid var(--color-border)', margin: 0, borderRadius: 0 },
-        body: {
-          padding: 0,
-          display: 'flex',
-          flex: 1
-        }
-      }}
-      width="min(900px, 70vw)"
-      centered>
-      {renderModalContent()}
-    </StyledModal>
+    <BaseSettingsPopup
+      isLoading={isLoading}
+      error={error}
+      initialTab={tab}
+      onClose={resolve}
+      titleContent={<SessionLabel session={session} />}
+      menuItems={menuItems}
+      renderTabContent={renderTabContent}
+    />
   )
 }
 

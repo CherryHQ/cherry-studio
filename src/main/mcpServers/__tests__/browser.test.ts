@@ -34,7 +34,7 @@ vi.mock('electron', () => {
     debugger: debuggerObj,
     setUserAgent: vi.fn(),
     getURL: vi.fn(() => 'https://example.com/'),
-    getTitle: vi.fn(async () => 'Example Title'),
+    getTitle: vi.fn(() => 'Example Title'),
     loadURL: vi.fn(async () => {}),
     once: vi.fn(),
     removeListener: vi.fn(),
@@ -366,10 +366,10 @@ describe('CdpBrowserController', () => {
     })
 
     it('cleans up idle windows on next access', async () => {
-      const controller = new CdpBrowserController({ idleTimeoutMs: 1 })
+      const controller = new CdpBrowserController({ idleTimeoutMs: 50 })
       await controller.open('https://example.com/', 5000, false)
 
-      await new Promise((r) => setTimeout(r, 10))
+      await new Promise((r) => setTimeout(r, 100))
 
       await controller.open('https://example.com/', 5000, true)
 
