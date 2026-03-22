@@ -142,20 +142,36 @@ export const TopicManagePanel: React.FC<TopicManagePanelProps> = ({
 
     await modelGenerating()
 
-    const deletedCount = selectedIds.size
+    const idsArray = Array.from(selectedIds)
 
-    // Deletion DB records and files
-    await Promise.all(Array.from(selectedIds).map((id) => TopicManager.removeTopic(id)))
+    // Delete DB records and files
+    const results = await Promise.allSettled(idsArray.map((id) => TopicManager.removeTopic(id).then(() => id)))
 
-    // Batch update UI state
-    updateTopics(remainingTopics)
+    // Filter successful ids
+    const successfulIds = new Set(
+      results.filter((r): r is PromiseFulfilledResult<string> => r.status === 'fulfilled').map((r) => r.value)
+    )
+
+    const actualRemainingTopics = assistant.topics.filter((topic) => !successfulIds.has(topic.id))
+    updateTopics(actualRemainingTopics)
 
     // Switch to first remaining topic if current topic was deleted
-    if (selectedIds.has(activeTopic.id)) {
-      setActiveTopic(remainingTopics[0])
+    if (successfulIds.has(activeTopic.id)) {
+      setActiveTopic(actualRemainingTopics[0])
     }
 
-    window.toast.success(t('chat.topics.manage.delete.success', { count: deletedCount }))
+    if (successfulIds.size === idsArray.length) {
+      window.toast.success(t('chat.topics.manage.delete.success', { count: successfulIds.size }))
+    } else if (successfulIds.size > 0) {
+      window.toast.warning(
+        t('chat.topics.manage.delete.partial_success', {
+          successCount: successfulIds.size,
+          failedCount: idsArray.length - successfulIds.size
+        })
+      )
+    } else {
+      window.toast.error(t('chat.topics.manage.delete.error'))
+    }
     exitManageMode()
   }, [selectedIds, assistant.topics, activeTopic.id, setActiveTopic, t, exitManageMode, updateTopics])
 

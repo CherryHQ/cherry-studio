@@ -1195,6 +1195,8 @@
             "content": "确定要删除选中的 {{count}} 个话题吗？此操作不可撤销。",
             "title": "删除话题"
           },
+          "error": "删除失败，请重试",
+          "partial_success": "成功删除 {{successCount}} 个，失败 {{failedCount}} 个",
           "success": "已删除 {{count}} 个话题"
         },
         "deselect_all": "取消全选",
