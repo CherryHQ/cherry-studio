@@ -863,7 +863,7 @@ class CodeToolsService {
               updateMessage += ` && echo "Update completed successfully"`
             } else {
               logger.error(`Update failed for ${cliTool}: ${updateResult.message}`)
-              updateMessage += ` && echo "Update failed: ${updateResult.message}"`
+              updateMessage += ` && echo "Update failed: ${escapeBatchText(updateResult.message)}"`
             }
           }
         }
@@ -992,8 +992,8 @@ class CodeToolsService {
     } else if (isInstalled) {
       // If already installed, run executable directly (with optional update message)
       if (updateMessage) {
-        // Use exported escapeBatchText to handle all cmd metacharacters in updateMessage
-        baseCommand = `echo "Checking ${cliTool} version..."${escapeBatchText(updateMessage)} && ${baseCommand}`
+        // updateMessage already has escaped dynamic content, && connectors are intentional
+        baseCommand = `echo "Checking ${cliTool} version..."${updateMessage} && ${baseCommand}`
       }
     } else {
       // If not installed, install first then run
