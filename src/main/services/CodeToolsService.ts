@@ -1070,8 +1070,8 @@ class CodeToolsService {
           `title ${cliTool} - Cherry Studio`,
           'echo ================================================',
           'echo Cherry Studio CLI Tool Launcher',
-          `echo Tool: ${CodeToolsService.escapeBatchText(cliTool)}`,
-          `echo Directory: ${CodeToolsService.escapeBatchText(directory)}`,
+          `echo Tool: ${CodeToolsService.escapeBatchTextForEcho(cliTool)}`,
+          `echo Directory: ${CodeToolsService.escapeBatchTextForEcho(directory)}`,
           `echo Time: ${new Date().toLocaleString()}`,
           'echo ================================================',
           '',
@@ -1093,7 +1093,7 @@ class CodeToolsService {
           ':: Error handlers (using labels to ensure entire branch is conditional)',
           ':dir_missing',
           'echo ERROR: Directory does not exist',
-          `echo Target: ${CodeToolsService.escapeBatchText(directory)}`,
+          `echo Target: ${CodeToolsService.escapeBatchTextForEcho(directory)}`,
           'pause',
           'exit /b 1',
           '',
@@ -1266,7 +1266,7 @@ class CodeToolsService {
    * @param text - Raw text from command output or user input
    * @returns Escaped text safe for batch echo statements
    */
-  private static escapeBatchText(text: string): string {
+  private static escapeBatchTextForEcho(text: string): string {
     if (!text) return ''
     return text
       .replace(/%/g, '%%') // Escape % to avoid variable expansion
