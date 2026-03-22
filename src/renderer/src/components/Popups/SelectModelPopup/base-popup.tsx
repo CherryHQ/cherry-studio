@@ -613,17 +613,17 @@ const PinIconWrapper = styled.div.attrs({ className: 'pin-icon' })<{ $isPinned?:
 
 const TopViewKey = 'SelectModelPopup'
 
-export const createModelPopup = <TProps, TResult>(
+export const createModelPopup = <TProps extends object, TResult>(
   Component: React.ComponentType<TProps & { resolve: (value: TResult | undefined) => void }>
 ) => {
   return class {
     static hide() {
       TopView.hide(TopViewKey)
     }
-
-    static show(params: TProps) {
+    static show(params: Omit<TProps, 'resolve'>) {
       return new Promise<TResult | undefined>((resolve) => {
-        TopView.show(<Component {...(params as any)} resolve={(v: TResult | undefined) => resolve(v)} />, TopViewKey)
+        const props = { ...params, resolve } as TProps & { resolve: (value: TResult | undefined) => void }
+        TopView.show(<Component {...props} />, TopViewKey)
       })
     }
   }
