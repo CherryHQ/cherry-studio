@@ -5,7 +5,8 @@
  * using the Layered Preset pattern (overrides per tool).
  */
 
-import type { CodeToolOverrides } from '@shared/data/presets/code-tools'
+import { terminalApps } from '@shared/config/constant'
+import type { CodeToolOverride, CodeToolOverrides } from '@shared/data/presets/code-tools'
 
 /**
  * Extract model IDs from a Record of full Model objects.
@@ -66,7 +67,7 @@ export function transformCodeToolsToOverrides(sources: CodeToolsSourceData): Cod
   const directories = sources.directories ?? []
   const currentDirectory = sources.currentDirectory ?? ''
   const selectedTool = sources.selectedCliTool ?? null
-  const selectedTerminal = sources.selectedTerminal ?? 'Terminal'
+  const selectedTerminal = sources.selectedTerminal ?? terminalApps.systemDefault
 
   // Collect all tool keys that appear in either models or env vars
   const allToolKeys = new Set<string>([...Object.keys(modelIds), ...Object.keys(envVars)])
@@ -83,7 +84,7 @@ export function transformCodeToolsToOverrides(sources: CodeToolsSourceData): Cod
     const hasModel = modelId !== null
     const hasEnv = env !== ''
 
-    const override: Record<string, unknown> = {}
+    const override: CodeToolOverride = {}
 
     // The selected tool gets enabled: true
     if (isSelected) override.enabled = true
@@ -94,7 +95,7 @@ export function transformCodeToolsToOverrides(sources: CodeToolsSourceData): Cod
     if (isSelected) {
       if (directories.length > 0) override.directories = directories
       if (currentDirectory) override.currentDirectory = currentDirectory
-      if (selectedTerminal !== 'Terminal') override.terminal = selectedTerminal
+      if (selectedTerminal !== terminalApps.systemDefault) override.terminal = selectedTerminal
     }
 
     if (Object.keys(override).length > 0) {
