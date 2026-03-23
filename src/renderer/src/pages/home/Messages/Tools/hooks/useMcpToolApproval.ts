@@ -1,6 +1,6 @@
 import { useActiveAgent } from '@renderer/hooks/agents/useActiveAgent'
 import { useMCPServers } from '@renderer/hooks/useMCPServers'
-import type { MCPServer, MCPToolResponse } from '@renderer/types'
+import type { MCPToolResponse } from '@renderer/types'
 import type { ToolMessageBlock } from '@renderer/types/newMessage'
 import { isToolAutoApproved } from '@renderer/utils/mcp-tools'
 import {
@@ -9,6 +9,7 @@ import {
   isToolPending,
   onToolPendingChange
 } from '@renderer/utils/userConfirmation'
+import type { MCPServer } from '@shared/data/types/mcpServer'
 import { useCallback, useEffect, useReducer, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 

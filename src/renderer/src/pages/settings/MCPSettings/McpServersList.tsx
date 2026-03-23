@@ -1,14 +1,13 @@
 import { Sortable, useDndReorder } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
-import { nanoid } from '@reduxjs/toolkit'
 import CollapsibleSearchBar from '@renderer/components/CollapsibleSearchBar'
 import { EditIcon } from '@renderer/components/Icons'
 import Scrollbar from '@renderer/components/Scrollbar'
 import { useMCPServers } from '@renderer/hooks/useMCPServers'
 import { useMCPServerTrust } from '@renderer/hooks/useMCPServerTrust'
-import type { MCPServer } from '@renderer/types'
 import { formatMcpError } from '@renderer/utils/error'
 import { matchKeywordsInString } from '@renderer/utils/match'
+import type { MCPServer } from '@shared/data/types/mcpServer'
 import { useNavigate } from '@tanstack/react-router'
 import { Button, Dropdown, Empty } from 'antd'
 import { Plus } from 'lucide-react'
@@ -26,7 +25,7 @@ import McpServerCard from './McpServerCard'
 const logger = loggerService.withContext('McpServersList')
 
 const McpServersList: FC = () => {
-  const { mcpServers, addMCPServer, deleteMCPServer, updateMcpServers, updateMCPServer } = useMCPServers()
+  const { mcpServers, addMCPServer, deleteMCPServer, updateMCPServer } = useMCPServers()
   const { ensureServerTrusted } = useMCPServerTrust()
   const { t } = useTranslation()
   const navigate = useNavigate()
@@ -57,7 +56,7 @@ const McpServersList: FC = () => {
   const { onSortEnd } = useDndReorder({
     originalList: mcpServers,
     filteredList: filteredMcpServers,
-    onUpdate: updateMcpServers,
+    onUpdate: () => {},
     itemKey: 'id'
   })
 
@@ -104,8 +103,7 @@ const McpServersList: FC = () => {
   }, [mcpServers, fetchServerVersion])
 
   const onAddMcpServer = useCallback(async () => {
-    const newServer = {
-      id: nanoid(),
+    const newServer = await addMCPServer({
       name: t('settings.mcp.newServer'),
       description: '',
       baseUrl: '',
@@ -113,9 +111,8 @@ const McpServersList: FC = () => {
       args: [],
       env: {},
       isActive: false
-    }
-    addMCPServer(newServer)
-    void navigate({ to: `/settings/mcp/settings/${encodeURIComponent(newServer.id)}` })
+    })
+    void navigate({ to: `/settings/mcp/settings/${newServer.id}` })
     window.toast.success(t('settings.mcp.addSuccess'))
   }, [addMCPServer, navigate, t])
 

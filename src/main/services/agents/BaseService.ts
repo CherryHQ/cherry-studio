@@ -3,7 +3,7 @@ import { mcpApiService } from '@main/apiServer/services/mcp'
 import { type ModelValidationError, validateModelId } from '@main/apiServer/utils'
 import { getDataPath } from '@main/utils'
 import { buildFunctionCallToolName } from '@shared/mcp'
-import type { AgentType, MCPTool, SlashCommand, SystemProviderId, Tool } from '@types'
+import type { AgentType, SlashCommand, SystemProviderId, Tool } from '@types'
 import { objectKeys } from '@types'
 import fs from 'fs'
 import path from 'path'
@@ -60,7 +60,7 @@ export abstract class BaseService {
         try {
           const server = await mcpApiService.getServerInfo(id)
           if (server) {
-            server.tools.forEach((tool: MCPTool) => {
+            server.tools.forEach((tool) => {
               const canonicalId = buildFunctionCallToolName(server.name, tool.name)
               const serverIdBasedId = buildMcpToolId(id, tool.name)
               const legacyId = toLegacyMcpToolId(serverIdBasedId)

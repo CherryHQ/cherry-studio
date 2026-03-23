@@ -8,10 +8,11 @@ import { useTheme } from '@renderer/context/ThemeProvider'
 import { useMCPServer, useMCPServers } from '@renderer/hooks/useMCPServers'
 import { useMCPServerTrust } from '@renderer/hooks/useMCPServerTrust'
 import MCPDescription from '@renderer/pages/settings/MCPSettings/McpDescription'
-import type { MCPPrompt, MCPResource, MCPServer, MCPTool } from '@renderer/types'
+import type { MCPPrompt, MCPResource, MCPTool } from '@renderer/types'
 import { parseKeyValueString } from '@renderer/utils/env'
 import { formatMcpError } from '@renderer/utils/error'
 import type { MCPServerLogEntry } from '@shared/config/types'
+import type { MCPServer } from '@shared/data/types/mcpServer'
 import { useNavigate, useParams } from '@tanstack/react-router'
 import type { TabsProps } from 'antd'
 import { Badge, Form, Input, Modal, Radio, Select, Tabs, Tag, Typography } from 'antd'
@@ -72,7 +73,7 @@ const McpSettings: React.FC = () => {
   const params = useParams({ strict: false })
   const serverId = params.serverId
   const decodedServerId = serverId ? decodeURIComponent(serverId) : ''
-  const server = useMCPServer(decodedServerId).server as MCPServer
+  const { server, isLoading: isServerLoading } = useMCPServer(decodedServerId)
   const { deleteMCPServer, updateMCPServer } = useMCPServers()
   const { ensureServerTrusted } = useMCPServerTrust()
   const [serverType, setServerType] = useState<MCPServer['type']>('stdio')
@@ -102,6 +103,7 @@ const McpSettings: React.FC = () => {
 
   // Initialize form values whenever the server changes
   useEffect(() => {
+    if (!server) return
     const serverType: MCPServer['type'] = server.type || (server.baseUrl ? 'sse' : 'stdio')
     setServerType(serverType)
 
@@ -189,7 +191,7 @@ const McpSettings: React.FC = () => {
   }, [form.getFieldValue('serverType')])
 
   const fetchTools = async () => {
-    if (server.isActive) {
+    if (server?.isActive) {
       try {
         setLoadingServer(server.id)
         const localTools = await window.api.mcp.listTools(server)
@@ -203,7 +205,7 @@ const McpSettings: React.FC = () => {
   }
 
   const fetchPrompts = async () => {
-    if (server.isActive) {
+    if (server?.isActive) {
       try {
         setLoadingServer(server.id)
         const localPrompts = await window.api.mcp.listPrompts(server)
@@ -217,7 +219,7 @@ const McpSettings: React.FC = () => {
   }
 
   const fetchResources = async () => {
-    if (server.isActive) {
+    if (server?.isActive) {
       try {
         setLoadingServer(server.id)
         const localResources = await window.api.mcp.listResources(server)
@@ -231,7 +233,7 @@ const McpSettings: React.FC = () => {
   }
 
   const fetchServerVersion = async () => {
-    if (server.isActive) {
+    if (server?.isActive) {
       try {
         const version = await window.api.mcp.getServerVersion(server)
         setServerVersion(version)
@@ -242,6 +244,7 @@ const McpSettings: React.FC = () => {
   }
 
   const fetchServerLogs = async () => {
+    if (!server) return
     try {
       const history = await window.api.mcp.getServerLogs(server)
       setLogs(history)
@@ -252,7 +255,7 @@ const McpSettings: React.FC = () => {
 
   useEffect(() => {
     const unsubscribe = window.api.mcp.onServerLog((log) => {
-      if (log.serverId && log.serverId !== server.id) return
+      if (log.serverId && log.serverId !== server?.id) return
       setLogs((prev) => {
         const merged = [...prev, log]
         if (merged.length > 200) {
@@ -265,14 +268,14 @@ const McpSettings: React.FC = () => {
     return () => {
       unsubscribe?.()
     }
-  }, [server.id])
+  }, [server?.id])
 
   useEffect(() => {
     setLogs([])
-  }, [server.id])
+  }, [server?.id])
 
   useEffect(() => {
-    if (server.isActive) {
+    if (server?.isActive) {
       void fetchTools()
       void fetchPrompts()
       void fetchResources()
@@ -280,14 +283,15 @@ const McpSettings: React.FC = () => {
       void fetchServerLogs()
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [server.id, server.isActive])
+  }, [server?.id, server?.isActive])
 
   useEffect(() => {
     setIsFormChanged(false)
-  }, [server.id])
+  }, [server?.id])
 
   // Save the form data
   const onSave = async () => {
+    if (!server) return
     setLoading(true)
     try {
       const values = await form.validateFields()
@@ -424,6 +428,7 @@ const McpSettings: React.FC = () => {
   )
 
   const onToggleActive = async (active: boolean) => {
+    if (!server) return
     if (isFormChanged && active) {
       await onSave()
       return
@@ -475,6 +480,7 @@ const McpSettings: React.FC = () => {
   // Handle toggling a tool on/off
   const handleToggleTool = useCallback(
     async (tool: MCPTool, enabled: boolean) => {
+      if (!server) return
       // Create a new disabledTools array or use the existing one
       let disabledTools = [...(server.disabledTools || [])]
 
@@ -504,6 +510,7 @@ const McpSettings: React.FC = () => {
   // Handle toggling auto-approve for a tool
   const handleToggleAutoApprove = useCallback(
     async (tool: MCPTool, autoApprove: boolean) => {
+      if (!server) return
       let disabledAutoApproveTools = [...(server.disabledAutoApproveTools || [])]
 
       if (autoApprove) {
@@ -527,6 +534,10 @@ const McpSettings: React.FC = () => {
     },
     [server, updateMCPServer]
   )
+
+  if (!server || isServerLoading) {
+    return null
+  }
 
   const tabs: TabsProps['items'] = [
     {

@@ -1,7 +1,7 @@
 import { loggerService } from '@logger'
 import { nanoid } from '@reduxjs/toolkit'
+import type { MCPServer } from '@shared/data/types/mcpServer'
 import { IpcChannel } from '@shared/IpcChannel'
-import type { MCPServer } from '@types'
 
 import { windowService } from '../WindowService'
 

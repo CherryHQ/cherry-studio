@@ -1,8 +1,11 @@
-import type { MCPServer, MCPTool } from '@types'
+import type { MCPServer } from '@shared/data/types/mcpServer'
+import type { MCPTool } from '@types'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-vi.mock('@main/apiServer/utils/mcp', () => ({
-  getMCPServersFromRedux: vi.fn()
+vi.mock('@data/services/McpServerService', () => ({
+  mcpServerService: {
+    list: vi.fn()
+  }
 }))
 
 vi.mock('@main/services/WindowService', () => ({
@@ -11,7 +14,7 @@ vi.mock('@main/services/WindowService', () => ({
   }
 }))
 
-import { getMCPServersFromRedux } from '@main/apiServer/utils/mcp'
+import { mcpServerService } from '@data/services/McpServerService'
 import mcpService from '@main/services/MCPService'
 
 const baseInputSchema: { type: 'object'; properties: Record<string, unknown>; required: string[] } = {
@@ -55,7 +58,7 @@ describe('MCPService.listAllActiveServerTools', () => {
       }
     ]
 
-    vi.mocked(getMCPServersFromRedux).mockResolvedValue(servers)
+    vi.mocked(mcpServerService.list).mockResolvedValue({ items: servers, total: servers.length, page: 1 })
 
     const listToolsSpy = vi.spyOn(mcpService as any, 'listToolsImpl').mockImplementation(async (server: any) => {
       if (server.id === 'alpha') {
