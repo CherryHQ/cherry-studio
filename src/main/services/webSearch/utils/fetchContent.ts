@@ -12,8 +12,6 @@ import { isAbortError } from './errors'
 const logger = loggerService.withContext('MainWebSearchContentFetcher')
 const turndownService = new TurndownService()
 
-export const noContent = 'No content found'
-
 function buildHeaders(headers?: HeadersInit) {
   const resolvedHeaders = new Headers(headers)
 
@@ -64,7 +62,7 @@ export async function fetchWebSearchContent(
     return {
       title: article?.title || url,
       url,
-      content: markdown
+      content: markdown || 'No content found'
     }
   } catch (error) {
     if (isAbortError(error)) {
