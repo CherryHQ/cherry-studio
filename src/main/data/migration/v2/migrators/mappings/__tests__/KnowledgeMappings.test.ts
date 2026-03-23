@@ -1,4 +1,4 @@
-import { FileTypes } from '@shared/data/types/file'
+import { FILE_TYPE } from '@shared/data/types/file'
 import { describe, expect, it } from 'vitest'
 
 import {
@@ -15,7 +15,7 @@ const fileMetadata = {
   path: '/tmp/report.pdf',
   size: 128,
   ext: '.pdf',
-  type: FileTypes.DOCUMENT,
+  type: FILE_TYPE.DOCUMENT,
   created_at: '2025-01-01T00:00:00.000Z',
   count: 1
 }

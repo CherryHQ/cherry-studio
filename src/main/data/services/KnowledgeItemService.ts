@@ -10,7 +10,7 @@ import { knowledgeItemTable } from '@data/db/schemas/knowledge'
 import { loggerService } from '@logger'
 import { DataApiErrorFactory } from '@shared/data/api'
 import type { CreateKnowledgeItemsDto, UpdateKnowledgeItemDto } from '@shared/data/api/schemas/knowledges'
-import { type FileMetadata, FileTypes } from '@shared/data/types/file'
+import { type FileMetadata, FileTypeSchema } from '@shared/data/types/file'
 import type { KnowledgeItem, KnowledgeItemDataMap } from '@shared/data/types/knowledge'
 import { and, desc, eq, inArray, isNull } from 'drizzle-orm'
 import * as z from 'zod'
@@ -26,7 +26,7 @@ const fileMetadataSchema: z.ZodType<FileMetadata> = z.object({
   path: z.string(),
   size: z.number(),
   ext: z.string(),
-  type: z.enum(FileTypes),
+  type: FileTypeSchema,
   created_at: z.string(),
   count: z.number(),
   tokens: z.number().optional(),
