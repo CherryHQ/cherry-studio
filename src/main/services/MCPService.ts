@@ -5,7 +5,7 @@ import path from 'node:path'
 import { loggerService } from '@logger'
 import { getMCPServersFromRedux } from '@main/apiServer/utils/mcp'
 import { createInMemoryMCPServer } from '@main/mcpServers/factory'
-import { makeSureDirExists, removeEnvProxy } from '@main/utils'
+import { removeEnvProxy } from '@main/utils'
 import {
   decodeBufferFromShell,
   findCommandInShellEnv,
@@ -458,11 +458,8 @@ class McpService {
 
                 // if the server name is mcp-auto-install, use the mcp-registry.json file in the bin directory
                 if (server.name.includes('mcp-auto-install')) {
+                  // getBinaryPath() automatically creates the bin directory if needed
                   const binPath = await getBinaryPath()
-                  const dirResult = makeSureDirExists(binPath)
-                  if (!dirResult.success) {
-                    throw new Error(`Failed to create bin directory: ${dirResult.error?.message}`)
-                  }
                   server.env.MCP_REGISTRY_PATH = path.join(binPath, '..', 'config', 'mcp-registry.json')
                 }
               }

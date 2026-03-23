@@ -12,6 +12,8 @@ import {
   findExecutable,
   findGitBash,
   findViaMise,
+  getBinaryPath,
+  resetBinDirCache,
   validateGitBashPath
 } from '../process'
 
@@ -1406,6 +1408,39 @@ describe('decodeBufferFromShell', () => {
       const result = decodeBufferFromShell(buf)
 
       expect(result).toBe(asciiString)
+    })
+  })
+})
+
+// Tests for getBinDir and getBinaryPath
+describe('getBinDir and getBinaryPath', () => {
+  // Note: These tests need proper mocking of os.homedir and fs
+  // Since the module uses lazy initialization with caching, we need to reset between tests
+
+  beforeEach(() => {
+    resetBinDirCache()
+    vi.clearAllMocks()
+
+    // Set up mocks for getBinDir/getBinaryPath tests
+    vi.mocked(fs.existsSync).mockReturnValue(true)
+    vi.mocked(path.join).mockImplementation((...args) => args.join('/'))
+  })
+
+  afterEach(() => {
+    resetBinDirCache()
+  })
+
+  describe('getBinaryPath', () => {
+    it('should return bin directory path when called without name', async () => {
+      // getBinaryPath() should return the bin directory path
+      // The actual directory creation is handled by getBinDir
+      const result = await getBinaryPath()
+      expect(result).toBeTruthy()
+    })
+
+    it('should return path with binary name when provided', async () => {
+      const result = await getBinaryPath('uvx')
+      expect(result).toBeTruthy()
     })
   })
 })
