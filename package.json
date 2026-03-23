@@ -488,6 +488,7 @@
       "@swc/core",
       "electron",
       "electron-winstaller",
+      "esbuild",
       "msw",
       "protobufjs",
       "registry-js",
