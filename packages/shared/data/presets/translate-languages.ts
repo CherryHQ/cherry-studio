@@ -19,7 +19,7 @@ export const BUILTIN_TRANSLATE_LANGUAGES = [
   { langCode: 'pt-pt', value: 'Portuguese', emoji: '🇵🇹' },
   { langCode: 'ru-ru', value: 'Russian', emoji: '🇷🇺' },
   { langCode: 'pl-pl', value: 'Polish', emoji: '🇵🇱' },
-  { langCode: 'ar-ar', value: 'Arabic', emoji: '🇸🇦' },
+  { langCode: 'ar-sa', value: 'Arabic', emoji: '🇸🇦' },
   { langCode: 'tr-tr', value: 'Turkish', emoji: '🇹🇷' },
   { langCode: 'th-th', value: 'Thai', emoji: '🇹🇭' },
   { langCode: 'vi-vn', value: 'Vietnamese', emoji: '🇻🇳' },
