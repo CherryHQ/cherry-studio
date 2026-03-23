@@ -22,11 +22,11 @@ export function useSelectionAssistant() {
     ...selectionStore,
     setSelectionEnabled: (enabled: boolean) => {
       dispatch(setSelectionEnabled(enabled))
-      window.api.selection.setEnabled(enabled)
+      void window.api.selection.setEnabled(enabled)
     },
     setTriggerMode: (mode: TriggerMode) => {
       dispatch(setTriggerMode(mode))
-      window.api.selection.setTriggerMode(mode)
+      void window.api.selection.setTriggerMode(mode)
     },
     setIsCompact: (isCompact: boolean) => {
       dispatch(setIsCompact(isCompact))
@@ -39,19 +39,19 @@ export function useSelectionAssistant() {
     },
     setIsFollowToolbar: (isFollowToolbar: boolean) => {
       dispatch(setIsFollowToolbar(isFollowToolbar))
-      window.api.selection.setFollowToolbar(isFollowToolbar)
+      void window.api.selection.setFollowToolbar(isFollowToolbar)
     },
     setIsRemeberWinSize: (isRemeberWinSize: boolean) => {
       dispatch(setIsRemeberWinSize(isRemeberWinSize))
-      window.api.selection.setRemeberWinSize(isRemeberWinSize)
+      void window.api.selection.setRemeberWinSize(isRemeberWinSize)
     },
     setFilterMode: (mode: FilterMode) => {
       dispatch(setFilterMode(mode))
-      window.api.selection.setFilterMode(mode)
+      void window.api.selection.setFilterMode(mode)
     },
     setFilterList: (list: string[]) => {
       dispatch(setFilterList(list))
-      window.api.selection.setFilterList(list)
+      void window.api.selection.setFilterList(list)
     },
     setActionWindowOpacity: (opacity: number) => {
       dispatch(setActionWindowOpacity(opacity))

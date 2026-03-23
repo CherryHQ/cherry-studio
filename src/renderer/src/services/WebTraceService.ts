@@ -20,10 +20,10 @@ class WebTraceService {
     const processor = new FunctionSpanProcessor(
       exporter,
       (span: ReadableSpan) => {
-        window.api.trace.saveEntity(convertSpanToSpanEntity(span))
+        void window.api.trace.saveEntity(convertSpanToSpanEntity(span))
       },
       (span: ReadableSpan) => {
-        window.api.trace.saveEntity(convertSpanToSpanEntity(span))
+        void window.api.trace.saveEntity(convertSpanToSpanEntity(span))
       }
     )
     WebTracer.init(

@@ -58,7 +58,7 @@ async function runMiddleware(provider: Provider, params: LanguageModelV3CallOpti
   const context: {
     middlewares: Array<{ transformParams: (opts: Record<string, unknown>) => Promise<LanguageModelV3CallOptions> }>
   } = { middlewares: [] }
-  plugin.configureContext!(context as never)
+  void plugin.configureContext!(context as never)
   const middleware = context.middlewares[0]
   return middleware.transformParams({ params, type: 'generate', model: {} })
 }

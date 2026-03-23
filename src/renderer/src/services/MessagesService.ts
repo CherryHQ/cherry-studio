@@ -62,7 +62,7 @@ export function deleteMessageFiles(message: Message) {
     if (block && (block.type === MessageBlockType.IMAGE || block.type === MessageBlockType.FILE)) {
       const fileData = (block as any).file as FileMetadata | undefined
       if (fileData) {
-        FileManager.deleteFiles([fileData])
+        void FileManager.deleteFiles([fileData])
       }
     }
   })

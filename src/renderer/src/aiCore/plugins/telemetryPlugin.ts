@@ -137,7 +137,7 @@ class AdapterTracer {
         })
 
         // 保存转换后的数据
-        window.api.trace.saveEntity(spanEntity)
+        void window.api.trace.saveEntity(spanEntity)
 
         logger.debug('AI SDK span converted and saved successfully (from startSpan)', {
           spanName: name,
@@ -220,7 +220,7 @@ class AdapterTracer {
             })
 
             // 保存转换后的数据
-            window.api.trace.saveEntity(spanEntity)
+            void window.api.trace.saveEntity(spanEntity)
 
             logger.debug('AI SDK span converted and saved successfully (from startActiveSpan)', {
               spanName: name,

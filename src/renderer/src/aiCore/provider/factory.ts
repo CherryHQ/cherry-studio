@@ -14,7 +14,7 @@ const logger = loggerService.withContext('ProviderFactory')
  * 初始化动态Provider系统
  * 在模块加载时自动注册新的providers
  */
-;(async () => {
+void (async () => {
   try {
     await initializeNewProviders()
   } catch (error) {
