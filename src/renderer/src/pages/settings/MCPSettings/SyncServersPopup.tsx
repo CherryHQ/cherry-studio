@@ -162,7 +162,7 @@ const PopupContainer: React.FC<Props> = ({ resolve, existingServers }) => {
         if (updatedServers?.length > 0) {
           for (const server of updatedServers) {
             const { id, ...updates } = server
-            await dataApiService.patch(`/mcp-servers/${encodeURIComponent(id)}`, { body: updates })
+            await dataApiService.patch(`/mcp-servers/${id}`, { body: updates })
           }
           refetch()
         }

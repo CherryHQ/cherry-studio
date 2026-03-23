@@ -16,7 +16,7 @@ function toRequired<T>(value: unknown, fallback: T): T {
 
 export function transformMcpServer(source: Record<string, unknown>, index: number): McpServerInsert {
   return {
-    id: toRequired<string>(source.id, ''),
+    // id is auto-generated UUID v4 by the database
     name: toRequired<string>(source.name, ''),
     type: toNullable(source.type),
     description: toNullable(source.description),

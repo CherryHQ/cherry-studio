@@ -108,12 +108,11 @@ export class MCPServerService {
 
     const db = dbService.getDb()
 
-    const { id, sortOrder, isActive, ...rest } = dto
+    const { sortOrder, isActive, ...rest } = dto
 
     const [row] = await db
       .insert(mcpServerTable)
       .values({
-        ...(id ? { id } : {}),
         ...rest,
         sortOrder: sortOrder ?? 0,
         isActive: isActive ?? false

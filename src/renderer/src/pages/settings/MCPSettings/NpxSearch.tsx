@@ -2,7 +2,6 @@ import { CheckOutlined, PlusOutlined } from '@ant-design/icons'
 import { Center, RowFlex } from '@cherrystudio/ui'
 import { Flex } from '@cherrystudio/ui'
 import { Button } from '@cherrystudio/ui'
-import { nanoid } from '@reduxjs/toolkit'
 import logo from '@renderer/assets/images/cherry-text-logo.svg'
 import { useMCPServers } from '@renderer/hooks/useMCPServers'
 import type { MCPServer } from '@renderer/types'
@@ -170,7 +169,6 @@ const NpxSearch: FC = () => {
                         }
 
                         const newServer = {
-                          id: nanoid(),
                           name: record.name,
                           description: `${record.description}\n\n${t('settings.mcp.npx_list.usage')}: ${record.usage}\n${t('settings.mcp.npx_list.npm')}: ${record.npmLink}`,
                           command: 'npx',

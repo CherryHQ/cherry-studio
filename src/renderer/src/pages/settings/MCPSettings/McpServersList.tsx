@@ -89,11 +89,13 @@ const McpServersList: FC = () => {
   }, [addMCPServer, navigate, t])
 
   const handleAddServerSuccess = useCallback(
-    async (_server: MCPServer) => {
+    async (server: MCPServer): Promise<MCPServer> => {
+      const created = await addMCPServer(server)
       setIsAddModalVisible(false)
       window.toast.success(t('settings.mcp.addSuccess'))
+      return created
     },
-    [t]
+    [addMCPServer, t]
   )
 
   const menuItems = useMemo(
@@ -162,10 +164,7 @@ const McpServersList: FC = () => {
         useDragOverlay
         showGhost
         renderItem={(server) => (
-          <McpServerCard
-            server={server}
-            onEdit={() => navigate({ to: `/settings/mcp/settings/${server.id}` })}
-          />
+          <McpServerCard server={server} onEdit={() => navigate({ to: `/settings/mcp/settings/${server.id}` })} />
         )}
       />
       {(mcpServers.length === 0 || filteredMcpServers.length === 0) && (

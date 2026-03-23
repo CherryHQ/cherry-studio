@@ -148,7 +148,7 @@ export function useMcpToolApproval(block: ToolMessageBlock): ToolApprovalState &
     // Remove tool from disabledAutoApproveTools to enable auto-approve
     disabledAutoApproveTools = disabledAutoApproveTools.filter((name) => name !== toolNameToApprove)
 
-    await dataApiService.patch(`/mcp-servers/${encodeURIComponent(server.id)}`, {
+    await dataApiService.patch(`/mcp-servers/${server.id}`, {
       body: { disabledAutoApproveTools }
     })
 

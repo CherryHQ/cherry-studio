@@ -15,12 +15,12 @@ import type { OffsetPaginationResponse } from '../apiTypes'
 // ============================================================================
 
 /** Fields auto-managed by the database layer, excluded from DTOs */
-const AutoFields = { createdAt: true, updatedAt: true } as const
+const AutoFields = { id: true, createdAt: true, updatedAt: true } as const
 
 /**
  * DTO for creating a new MCP server.
  * - `name` is required (non-empty)
- * - `id` is optional (auto-generated if omitted)
+ * - `id` is excluded (auto-generated UUID by database)
  * - All other fields are optional
  */
 export const CreateMCPServerSchema = MCPServerSchema.omit(AutoFields).partial().required({ name: true })
@@ -30,7 +30,7 @@ export type CreateMCPServerDto = z.infer<typeof CreateMCPServerSchema>
  * DTO for updating an existing MCP server.
  * All fields optional, `id` excluded (comes from URL path).
  */
-export const UpdateMCPServerSchema = MCPServerSchema.omit({ id: true, ...AutoFields }).partial()
+export const UpdateMCPServerSchema = MCPServerSchema.omit(AutoFields).partial()
 export type UpdateMCPServerDto = z.infer<typeof UpdateMCPServerSchema>
 
 /**

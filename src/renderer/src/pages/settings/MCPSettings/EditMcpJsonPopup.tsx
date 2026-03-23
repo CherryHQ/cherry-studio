@@ -62,7 +62,7 @@ const PopupContainer: React.FC<Props> = ({ resolve }) => {
       if (!jsonConfig.trim()) {
         // Delete all existing servers
         for (const server of mcpServers) {
-          await dataApiService.delete(`/mcp-servers/${encodeURIComponent(server.id)}`)
+          await dataApiService.delete(`/mcp-servers/${server.id}`)
         }
         refetch()
         window.toast.success(t('settings.mcp.jsonSaveSuccess'))
@@ -98,14 +98,14 @@ const PopupContainer: React.FC<Props> = ({ resolve }) => {
       const newServerIds = new Set(serversArray.map((s) => s.id))
       for (const server of mcpServers) {
         if (!newServerIds.has(server.id)) {
-          await dataApiService.delete(`/mcp-servers/${encodeURIComponent(server.id)}`)
+          await dataApiService.delete(`/mcp-servers/${server.id}`)
         }
       }
       const existingIds = new Set(mcpServers.map((s) => s.id))
       for (const server of serversArray) {
         if (existingIds.has(server.id)) {
           const { id, ...updates } = server
-          await dataApiService.patch(`/mcp-servers/${encodeURIComponent(id)}`, { body: updates })
+          await dataApiService.patch(`/mcp-servers/${id}`, { body: updates })
         } else {
           await dataApiService.post('/mcp-servers', { body: server })
         }

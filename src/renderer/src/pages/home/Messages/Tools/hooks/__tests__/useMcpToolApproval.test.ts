@@ -238,7 +238,7 @@ describe('useMcpToolApproval', () => {
         await result.current.autoApprove?.()
       })
 
-      expect(mockDataApiPatch).toHaveBeenCalledWith(`/mcp-servers/${encodeURIComponent('server1')}`, {
+      expect(mockDataApiPatch).toHaveBeenCalledWith('/mcp-servers/server1', {
         body: { disabledAutoApproveTools: ['tool2'] }
       })
       expect(mockConfirmToolAction).toHaveBeenCalledWith('tool-123')
@@ -305,7 +305,7 @@ describe('useMcpToolApproval', () => {
         })
 
         expect(mockResolveHubTool).toHaveBeenCalledWith('real_tool')
-        expect(mockDataApiPatch).toHaveBeenCalledWith(`/mcp-servers/${encodeURIComponent('actual-server')}`, {
+        expect(mockDataApiPatch).toHaveBeenCalledWith('/mcp-servers/actual-server', {
           body: { disabledAutoApproveTools: ['other_tool'] }
         })
         expect(mockConfirmToolAction).toHaveBeenCalledWith('tool-hub-1')
@@ -338,7 +338,7 @@ describe('useMcpToolApproval', () => {
         })
 
         expect(mockResolveHubTool).toHaveBeenCalledWith('real_tool')
-        expect(mockDataApiPatch).toHaveBeenCalledWith(`/mcp-servers/${encodeURIComponent('actual-server')}`, {
+        expect(mockDataApiPatch).toHaveBeenCalledWith('/mcp-servers/actual-server', {
           body: { disabledAutoApproveTools: [] }
         })
         expect(mockConfirmToolAction).toHaveBeenCalledWith('tool-hub-2')
