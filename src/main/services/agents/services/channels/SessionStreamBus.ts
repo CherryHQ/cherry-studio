@@ -11,9 +11,8 @@ export type SessionStreamChunk = {
   error?: { message: string }
 }
 
-class SessionStreamBus {
+class SessionStreamBus extends EventEmitter {
   private static instance: SessionStreamBus | null = null
-  private readonly emitter = new EventEmitter()
 
   static getInstance(): SessionStreamBus {
     if (!SessionStreamBus.instance) {
@@ -23,20 +22,20 @@ class SessionStreamBus {
   }
 
   publish(sessionId: string, event: SessionStreamChunk): void {
-    this.emitter.emit(sessionId, event)
+    this.emit(sessionId, event)
   }
 
   subscribe(sessionId: string, listener: (event: SessionStreamChunk) => void): () => void {
-    this.emitter.on(sessionId, listener)
-    return () => this.emitter.removeListener(sessionId, listener)
+    this.on(sessionId, listener)
+    return () => this.removeListener(sessionId, listener)
   }
 
   hasSubscribers(sessionId: string): boolean {
-    return this.emitter.listenerCount(sessionId) > 0
+    return this.listenerCount(sessionId) > 0
   }
 
   cleanup(sessionId: string): void {
-    this.emitter.removeAllListeners(sessionId)
+    this.removeAllListeners(sessionId)
   }
 }
 
