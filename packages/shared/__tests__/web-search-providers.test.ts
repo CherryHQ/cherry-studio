@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
+import { WEB_SEARCH_PROVIDER_IDS } from '../data/preference/preferenceTypes'
 import {
   PRESETS_WEB_SEARCH_PROVIDERS,
   WebSearchProviderIdSchema,
@@ -12,6 +13,7 @@ import {
 describe('web search provider schemas', () => {
   it('accepts the current preset list', () => {
     expect(PRESETS_WEB_SEARCH_PROVIDERS.length).toBeGreaterThan(0)
+    expect(PRESETS_WEB_SEARCH_PROVIDERS.map((preset) => preset.id)).toEqual(WEB_SEARCH_PROVIDER_IDS)
 
     PRESETS_WEB_SEARCH_PROVIDERS.forEach((preset) => {
       expect(WebSearchProviderPresetDefinitionSchema.safeParse(preset).success).toBe(true)
