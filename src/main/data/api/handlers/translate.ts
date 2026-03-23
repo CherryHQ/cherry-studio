@@ -34,7 +34,8 @@ export const translateHandlers: {
       return await translateHistoryService.create(parsed)
     },
     DELETE: async () => {
-      return await translateHistoryService.clearAll()
+      await translateHistoryService.clearAll()
+      return undefined
     }
   },
 
@@ -47,7 +48,8 @@ export const translateHandlers: {
       return await translateHistoryService.update(params.id, parsed)
     },
     DELETE: async ({ params }) => {
-      return await translateHistoryService.delete(params.id)
+      await translateHistoryService.delete(params.id)
+      return undefined
     }
   },
 
@@ -70,7 +72,8 @@ export const translateHandlers: {
       return await translateLanguageService.update(params.langCode, parsed)
     },
     DELETE: async ({ params }) => {
-      return await translateLanguageService.delete(params.langCode)
+      await translateLanguageService.delete(params.langCode)
+      return undefined
     }
   }
 }

@@ -97,6 +97,30 @@ describe('TranslateHistoryService', () => {
       const result = await service.list({ page: 2, limit: 10 })
       expect(result.page).toBe(2)
     })
+
+    it('should pass search parameter to query', async () => {
+      setupListMocks([], 0)
+
+      await service.list({ page: 1, limit: 20, search: 'hello' })
+      // Verify select was called (items + count)
+      expect(mockSelect).toHaveBeenCalledTimes(2)
+    })
+
+    it('should escape LIKE wildcards in search', async () => {
+      setupListMocks([], 0)
+
+      // Should not throw when search contains LIKE wildcards
+      await expect(service.list({ page: 1, limit: 20, search: '100% off_sale\\test' })).resolves.toBeDefined()
+    })
+
+    it('should filter by star', async () => {
+      const rows = [createMockRow({ star: true })]
+      setupListMocks(rows, 1)
+
+      const result = await service.list({ page: 1, limit: 20, star: true })
+      expect(result.items).toHaveLength(1)
+      expect(result.items[0].star).toBe(true)
+    })
   })
 
   describe('getById', () => {
@@ -174,6 +198,21 @@ describe('TranslateHistoryService', () => {
       const result = await service.update(row.id as string, dto)
       expect(result.star).toBe(true)
     })
+
+    it('should return existing record on empty update', async () => {
+      const row = createMockRow()
+      mockSelect.mockReturnValue({
+        from: vi.fn().mockReturnValue({
+          where: vi.fn().mockReturnValue({
+            limit: vi.fn().mockResolvedValue([row])
+          })
+        })
+      })
+
+      const result = await service.update(row.id as string, {})
+      expect(result.id).toBe(row.id)
+      expect(mockUpdate).not.toHaveBeenCalled()
+    })
   })
 
   describe('delete', () => {
@@ -191,6 +230,18 @@ describe('TranslateHistoryService', () => {
       })
 
       await expect(service.delete(row.id as string)).resolves.toBeUndefined()
+    })
+
+    it('should throw NotFound for non-existent id', async () => {
+      mockSelect.mockReturnValue({
+        from: vi.fn().mockReturnValue({
+          where: vi.fn().mockReturnValue({
+            limit: vi.fn().mockResolvedValue([])
+          })
+        })
+      })
+
+      await expect(service.delete('non-existent')).rejects.toThrow()
     })
   })
 

@@ -192,5 +192,17 @@ describe('TranslateLanguageService', () => {
 
       await expect(service.delete('ja-jp')).resolves.toBeUndefined()
     })
+
+    it('should throw NotFound for non-existent langCode', async () => {
+      mockSelect.mockReturnValue({
+        from: vi.fn().mockReturnValue({
+          where: vi.fn().mockReturnValue({
+            limit: vi.fn().mockResolvedValue([])
+          })
+        })
+      })
+
+      await expect(service.delete('xx-xx')).rejects.toThrow()
+    })
   })
 })
