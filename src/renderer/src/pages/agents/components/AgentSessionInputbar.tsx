@@ -480,10 +480,12 @@ const AgentSessionInputbarInner: FC<InnerProps> = ({ assistant, agentId, session
   const leftToolbar = useMemo(
     () => (
       <ToolbarGroup>
-        {config.showTools && <InputbarTools scope={scope} assistantId={assistant.id} session={toolsSession} />}
+        {config.showTools && (
+          <InputbarTools scope={scope} assistant={assistant} model={assistant.model!} session={toolsSession} />
+        )}
       </ToolbarGroup>
     ),
-    [config.showTools, scope, assistant.id, toolsSession]
+    [config.showTools, scope, assistant, toolsSession]
   )
   const placeholderText = useMemo(
     () =>

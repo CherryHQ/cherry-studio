@@ -3219,7 +3219,7 @@ const migrateConfig = {
   },
   '197': (state: RootState) => {
     try {
-      if (state.openclaw.gatewayPort === 18789) {
+      if (state.openclaw?.gatewayPort === 18789) {
         state.openclaw.gatewayPort = 18790
       }
       logger.info('migrate 197 success')

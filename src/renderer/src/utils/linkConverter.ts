@@ -51,8 +51,13 @@ export function convertLinks(
         const match = /^\(\[([^\]]+)\]\(([^)]+)\)\)/.exec(substring)
 
         if (!match) {
-          safePoint = i
-          break
+          // [text] 已完整但后面没跟 (，永远无法形成合法的 ([text](url)) 格式
+          const definitelyNotLink = /^\(\[[^\]]+\][^(]/.test(substring)
+          if (!definitelyNotLink) {
+            safePoint = i
+            break
+          }
+          // fall through，按普通字符处理
         }
       }
     } else if (buffer[i] === '[') {
