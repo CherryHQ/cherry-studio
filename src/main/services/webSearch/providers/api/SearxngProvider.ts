@@ -3,7 +3,7 @@ import { defaultAppHeaders, isValidUrl } from '@shared/utils'
 import { net } from 'electron'
 import * as z from 'zod'
 
-import { fetchWebSearchContent, noContent } from '../../utils/fetchContent'
+import { fetchWebSearchContent } from '../../utils/fetchContent'
 import { BaseWebSearchProvider } from '../base/BaseWebSearchProvider'
 import type { UrlSearchContext } from '../base/context'
 
@@ -137,7 +137,7 @@ export class SearxngProvider extends BaseWebSearchProvider {
       )
     )
 
-    return fetchedResults.filter((item) => item.content !== noContent)
+    return fetchedResults.filter((item) => item.content !== 'No content found')
   }
 
   private buildFinalResponse(
