@@ -2,6 +2,8 @@ import { QuickPanelProvider } from '@renderer/components/QuickPanel'
 import { useActiveAgent } from '@renderer/hooks/agents/useActiveAgent'
 import { useAgents } from '@renderer/hooks/agents/useAgents'
 import { useCreateDefaultSession } from '@renderer/hooks/agents/useCreateDefaultSession'
+import { useSession } from '@renderer/hooks/agents/useSession'
+import { useTopicMessages } from '@renderer/hooks/useMessageOperations'
 import { useRuntime } from '@renderer/hooks/useRuntime'
 import { useNavbarPosition, useSettings } from '@renderer/hooks/useSettings'
 import { useShortcut } from '@renderer/hooks/useShortcuts'
@@ -10,7 +12,7 @@ import { cn } from '@renderer/utils'
 import { buildAgentSessionTopicId } from '@renderer/utils/agentSession'
 import { Alert, Spin } from 'antd'
 import { AnimatePresence, motion } from 'motion/react'
-import type { PropsWithChildren } from 'react'
+import { type PropsWithChildren, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { PinnedTodoPanel } from '../home/Inputbar/components/PinnedTodoPanel'
@@ -33,11 +35,19 @@ const AgentChat = () => {
   const { agent: activeAgent, isLoading: isAgentLoading } = useActiveAgent()
   const { isLoading: isAgentsLoading, agents } = useAgents()
   const { createDefaultSession } = useCreateDefaultSession(activeAgentId)
+  const { session } = useSession(activeAgentId, activeSessionId)
+  const sessionTopicId = useMemo(() => buildAgentSessionTopicId(activeSessionId), [activeSessionId])
+  const messages = useTopicMessages(sessionTopicId)
 
   // Don't show select/create alerts while data is still loading
   // apiServerRunning is guaranteed by AgentPage guard
   const isInitializing =
-    isAgentsLoading || isAgentLoading || !isSessionInitialized || !agents || (!activeAgentId && agents.length > 0)
+    isAgentsLoading ||
+    isAgentLoading ||
+    !isSessionInitialized ||
+    !agents ||
+    !session ||
+    (!activeAgentId && agents.length > 0)
 
   const showRightSessions = topicPosition === 'right' && showTopics && !!activeAgentId
 
@@ -97,7 +107,7 @@ const AgentChat = () => {
 
           {/* Messages */}
           <div className="translate-z-0 relative flex w-full flex-1 flex-col justify-between overflow-y-auto overflow-x-hidden">
-            <AgentSessionMessages agentId={activeAgentId} sessionId={activeSessionId} />
+            <AgentSessionMessages messages={messages} session={session} sessionTopicId={sessionTopicId} />
             <div className="mt-auto px-4.5 pb-2">
               <NarrowLayout>
                 <PinnedTodoPanel topicId={buildAgentSessionTopicId(activeSessionId)} />

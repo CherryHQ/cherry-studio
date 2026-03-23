@@ -1,7 +1,5 @@
 import { loggerService } from '@logger'
 import ContextMenu from '@renderer/components/ContextMenu'
-import { useSession } from '@renderer/hooks/agents/useSession'
-import { useTopicMessages } from '@renderer/hooks/useMessageOperations'
 import useScrollPosition from '@renderer/hooks/useScrollPosition'
 import { useSettings } from '@renderer/hooks/useSettings'
 import MessageAnchorLine from '@renderer/pages/home/Messages/MessageAnchorLine'
@@ -11,27 +9,25 @@ import PermissionModeDisplay from '@renderer/pages/home/Messages/PermissionModeD
 import { MessagesContainer, ScrollContainer } from '@renderer/pages/home/Messages/shared'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import { getGroupedMessages } from '@renderer/services/MessagesService'
-import { type Topic, TopicType } from '@renderer/types'
-import { buildAgentSessionTopicId } from '@renderer/utils/agentSession'
+import type { AgentSessionEntity, Message, Topic } from '@renderer/types'
+import { TopicType } from '@renderer/types'
 import { Spin } from 'antd'
 import { memo, useCallback, useEffect, useMemo, useRef } from 'react'
 
 const logger = loggerService.withContext('AgentSessionMessages')
 
 type Props = {
-  agentId: string
-  sessionId: string
+  messages: Message[]
+  session: AgentSessionEntity
+  sessionTopicId: string
 }
 
-const AgentSessionMessages = ({ agentId, sessionId }: Props) => {
-  const { session } = useSession(agentId, sessionId)
-  const sessionTopicId = useMemo(() => buildAgentSessionTopicId(sessionId), [sessionId])
+const AgentSessionMessages = ({ messages, session, sessionTopicId }: Props) => {
   // Use the same hook as Messages.tsx for consistent behavior
-  const messages = useTopicMessages(sessionTopicId)
   const { messageNavigation } = useSettings()
   const scrollContainerRef = useRef<HTMLDivElement>(null)
 
-  const { handleScroll: handleScrollPosition } = useScrollPosition(`agent-session-${sessionId}`)
+  const { handleScroll: handleScrollPosition } = useScrollPosition(`agent-session-${session.id}`)
 
   const displayMessages = useMemo(() => {
     if (!messages || messages.length === 0) return []
@@ -43,10 +39,10 @@ const AgentSessionMessages = ({ agentId, sessionId }: Props) => {
     return Object.entries(getGroupedMessages(displayMessages))
   }, [displayMessages])
 
-  const sessionAssistantId = session?.agent_id ?? agentId
-  const sessionName = session?.name ?? sessionId
-  const sessionCreatedAt = session?.created_at ?? session?.updated_at ?? FALLBACK_TIMESTAMP
-  const sessionUpdatedAt = session?.updated_at ?? session?.created_at ?? FALLBACK_TIMESTAMP
+  const sessionAssistantId = session.agent_id
+  const sessionName = session.name ?? session.id
+  const sessionCreatedAt = session.created_at
+  const sessionUpdatedAt = session.updated_at
 
   const derivedTopic = useMemo<Topic>(
     () => ({
@@ -62,7 +58,7 @@ const AgentSessionMessages = ({ agentId, sessionId }: Props) => {
   )
 
   logger.silly('Rendering agent session messages', {
-    sessionId,
+    sessionId: session.id,
     messageCount: messages.length
   })
 
@@ -97,7 +93,7 @@ const AgentSessionMessages = ({ agentId, sessionId }: Props) => {
                 <MessageGroup key={key} messages={groupMessages} topic={derivedTopic} />
               ))
             ) : session ? (
-              <PermissionModeDisplay session={session} agentId={agentId} />
+              <PermissionModeDisplay session={session} agentId={session.agent_id} />
             ) : (
               <div className="flex items-center justify-center py-5">
                 <Spin size="small" />
@@ -110,7 +106,5 @@ const AgentSessionMessages = ({ agentId, sessionId }: Props) => {
     </MessagesContainer>
   )
 }
-
-const FALLBACK_TIMESTAMP = '1970-01-01T00:00:00.000Z'
 
 export default memo(AgentSessionMessages)

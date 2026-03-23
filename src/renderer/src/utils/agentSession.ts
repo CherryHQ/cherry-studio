@@ -2,8 +2,8 @@ import type { AgentType, ApiModelsFilter } from '@renderer/types'
 
 const SESSION_TOPIC_PREFIX = 'agent-session:'
 
-export const buildAgentSessionTopicId = (sessionId: string): string => {
-  return `${SESSION_TOPIC_PREFIX}${sessionId}`
+export const buildAgentSessionTopicId = (sessionId: string | null): string => {
+  return `${SESSION_TOPIC_PREFIX}${sessionId ?? 'null'}`
 }
 
 export const isAgentSessionTopicId = (topicId: string): boolean => {
