@@ -1,10 +1,14 @@
 import { describe, expect, it } from 'vitest'
 
+import { FILE_PROCESSOR_IDS } from '../data/preference/preferenceTypes'
 import {
   FileProcessorFeatureCapabilitySchema,
+  FileProcessorIdSchema,
   FileProcessorOverrideSchema,
+  FileProcessorPresetDefinitionSchema,
   FileProcessorTemplateSchema,
   FileProcessorTemplatesSchema,
+  FileProcessorTypeSchema,
   PRESETS_FILE_PROCESSORS
 } from '../data/presets/file-processing'
 import { FILE_TYPE } from '../data/types/file'
@@ -24,6 +28,13 @@ describe('FileProcessorFeatureCapabilitySchema', () => {
 describe('FileProcessorTemplatesSchema', () => {
   it('validates built-in presets', () => {
     expect(() => FileProcessorTemplatesSchema.parse(PRESETS_FILE_PROCESSORS)).not.toThrow()
+    expect(PRESETS_FILE_PROCESSORS.map((preset) => preset.id)).toEqual(FILE_PROCESSOR_IDS)
+
+    PRESETS_FILE_PROCESSORS.forEach((preset) => {
+      expect(FileProcessorPresetDefinitionSchema.safeParse(preset).success).toBe(true)
+      expect(FileProcessorTypeSchema.safeParse(preset.type).success).toBe(true)
+      expect(FileProcessorIdSchema.safeParse(preset.id).success).toBe(true)
+    })
   })
 
   it('rejects processor-level metadata', () => {

@@ -7,9 +7,11 @@ import {
   FILE_PROCESSOR_TYPES,
   type FileProcessorCapabilityOverrides,
   type FileProcessorFeature,
+  type FileProcessorId,
   type FileProcessorOptions,
   type FileProcessorOverride,
-  type FileProcessorOverrides
+  type FileProcessorOverrides,
+  type FileProcessorType
 } from '../preference/preferenceTypes'
 import { FILE_TYPE, FileTypeSchema } from '../types/file'
 
@@ -111,31 +113,39 @@ export type FileProcessorOutput = FileProcessorFeatureCapability['output']
  *
  * Note: Display name is retrieved via i18n key `processor.${id}.name`
  */
-export const FileProcessorTemplateSchema = z
-  .object({
-    id: FileProcessorIdSchema,
-    type: FileProcessorTypeSchema,
-    capabilities: z.array(FileProcessorFeatureCapabilitySchema).min(1)
-  })
-  .strict()
-  .superRefine((template, ctx) => {
-    const seenFeatures = new Set<FileProcessorFeature>()
+export const FileProcessorPresetDefinitionSchema = z.object({
+  id: FileProcessorIdSchema,
+  type: FileProcessorTypeSchema,
+  capabilities: z.array(FileProcessorFeatureCapabilitySchema).min(1)
+})
 
-    template.capabilities.forEach((capability, index) => {
-      if (seenFeatures.has(capability.feature)) {
-        ctx.addIssue({
-          code: z.ZodIssueCode.custom,
-          path: ['capabilities', index, 'feature'],
-          message: `Duplicate capability feature '${capability.feature}' is not allowed. Use 'inputs' to model multiple input types.`
-        })
-        return
-      }
+export const FileProcessorTemplateSchema = FileProcessorPresetDefinitionSchema.strict().superRefine((template, ctx) => {
+  const seenFeatures = new Set<FileProcessorFeature>()
 
-      seenFeatures.add(capability.feature)
-    })
+  template.capabilities.forEach((capability, index) => {
+    if (seenFeatures.has(capability.feature)) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['capabilities', index, 'feature'],
+        message: `Duplicate capability feature '${capability.feature}' is not allowed. Use 'inputs' to model multiple input types.`
+      })
+      return
+    }
+
+    seenFeatures.add(capability.feature)
   })
+})
 export type FileProcessorTemplate = z.infer<typeof FileProcessorTemplateSchema>
 export const FileProcessorTemplatesSchema = z.array(FileProcessorTemplateSchema)
+
+type FileProcessorPresetConfig = {
+  type: FileProcessorType
+  capabilities: readonly FileProcessorFeatureCapability[]
+}
+
+export interface FileProcessorPreset extends FileProcessorPresetConfig {
+  id: FileProcessorId
+}
 
 // ============================================================================
 // Override Types (for user customization)
@@ -219,10 +229,9 @@ export type FileProcessorMerged = z.infer<typeof FileProcessorMergedSchema>
 /**
  * Built-in processor presets
  */
-export const PRESETS_FILE_PROCESSORS = [
+export const FILE_PROCESSOR_PRESET_MAP = {
   // === Image Processors (former OCR) ===
-  {
-    id: 'tesseract',
+  tesseract: {
     type: 'builtin',
     capabilities: [
       {
@@ -232,13 +241,11 @@ export const PRESETS_FILE_PROCESSORS = [
       }
     ]
   },
-  {
-    id: 'system',
+  system: {
     type: 'builtin',
     capabilities: [{ feature: 'text_extraction', inputs: ['image'], output: 'text' }]
   },
-  {
-    id: 'paddleocr',
+  paddleocr: {
     type: 'api',
     capabilities: [
       {
@@ -269,15 +276,13 @@ export const PRESETS_FILE_PROCESSORS = [
       }
     ]
   },
-  {
-    id: 'ovocr',
+  ovocr: {
     type: 'builtin',
     capabilities: [{ feature: 'text_extraction', inputs: ['image'], output: 'text' }]
   },
 
   // === Document Processors (former Preprocess) ===
-  {
-    id: 'mineru',
+  mineru: {
     type: 'api',
     capabilities: [
       {
@@ -295,8 +300,7 @@ export const PRESETS_FILE_PROCESSORS = [
       }
     ]
   },
-  {
-    id: 'doc2x',
+  doc2x: {
     type: 'api',
     capabilities: [
       {
@@ -307,8 +311,7 @@ export const PRESETS_FILE_PROCESSORS = [
       }
     ]
   },
-  {
-    id: 'mistral',
+  mistral: {
     type: 'api',
     capabilities: [
       {
@@ -327,8 +330,7 @@ export const PRESETS_FILE_PROCESSORS = [
       }
     ]
   },
-  {
-    id: 'open-mineru',
+  'open-mineru': {
     type: 'api',
     capabilities: [
       {
@@ -339,4 +341,9 @@ export const PRESETS_FILE_PROCESSORS = [
       }
     ]
   }
-] as const satisfies readonly FileProcessorTemplate[]
+} as const satisfies Record<FileProcessorId, FileProcessorPresetConfig>
+
+export const PRESETS_FILE_PROCESSORS: readonly FileProcessorPreset[] = FILE_PROCESSOR_IDS.map((id) => ({
+  id,
+  ...FILE_PROCESSOR_PRESET_MAP[id]
+}))
