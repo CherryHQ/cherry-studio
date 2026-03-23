@@ -1,6 +1,6 @@
 /**
  * Auto-generated preference mappings from classification.json
- * Generated at: 2026-03-23T04:13:20.628Z
+ * Generated at: 2026-03-23T09:47:43.829Z
  *
  * This file contains pure mapping relationships without default values.
  * Default values are managed in packages/shared/data/preferences.ts
@@ -748,7 +748,7 @@ export const REDUX_STORE_MAPPINGS = {
   preprocess: [
     {
       originalKey: 'defaultProvider',
-      targetKey: 'feature.file_processing.default.markdown_conversion'
+      targetKey: 'feature.file_processing.default_markdown_conversion'
     }
   ],
   shortcuts: [
@@ -836,7 +836,7 @@ export const REDUX_STORE_MAPPINGS = {
   ocr: [
     {
       originalKey: 'imageProviderId',
-      targetKey: 'feature.file_processing.default.text_extraction'
+      targetKey: 'feature.file_processing.default_text_extraction'
     }
   ],
   note: [
@@ -941,11 +941,11 @@ export const LOCALSTORAGE_MAPPINGS: ReadonlyArray<{ originalKey: string; targetK
 /**
  * 映射统计:
  * - ElectronStore项: 1
- * - Redux Store项: 206
- * - Redux分类: settings, selectionStore, memory, nutstore, shortcuts, translate, websearch, note
+ * - Redux Store项: 208
+ * - Redux分类: settings, selectionStore, memory, nutstore, preprocess, shortcuts, translate, websearch, ocr, note
  * - DexieSettings项: 7
  * - localStorage项: 0
- * - 总配置项: 214
+ * - 总配置项: 216
  *
  * 使用说明:
  * 1. ElectronStore读取: configManager.get(mapping.originalKey)

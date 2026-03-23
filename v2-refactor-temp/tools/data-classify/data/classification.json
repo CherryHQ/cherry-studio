@@ -630,10 +630,10 @@
         {
           "originalKey": "defaultProvider",
           "type": "PreferenceTypes.FileProcessorId",
-          "defaultValue": "mineru",
+          "defaultValue": "VALUE: null",
           "status": "classified",
           "category": "preferences",
-          "targetKey": "feature.file_processing.default.markdown_conversion"
+          "targetKey": "feature.file_processing.default_markdown_conversion"
         }
       ],
       "runtime": [
@@ -2975,7 +2975,7 @@
           "defaultValue": "VALUE: null",
           "status": "classified",
           "category": "preferences",
-          "targetKey": "feature.file_processing.default.text_extraction"
+          "targetKey": "feature.file_processing.default_text_extraction"
         }
       ],
       "note": [
