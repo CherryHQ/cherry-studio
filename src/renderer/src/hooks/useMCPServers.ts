@@ -40,7 +40,7 @@ export const useMCPServers = () => {
   const updateMCPServer = useCallback(
     async (server: MCPServerUpdate): Promise<void> => {
       const { id, ...dto } = server
-      await dataApiService.patch(`/mcp-servers/${id}`, { body: dto })
+      await dataApiService.patch(`/mcp-servers/${encodeURIComponent(id)}`, { body: dto })
       await mutate()
     },
     [mutate]
@@ -49,7 +49,7 @@ export const useMCPServers = () => {
   // DELETE /mcp-servers/:id — dynamic ID, use dataApiService + refetch list
   const deleteMCPServer = useCallback(
     async (id: string): Promise<void> => {
-      await dataApiService.delete(`/mcp-servers/${id}`)
+      await dataApiService.delete(`/mcp-servers/${encodeURIComponent(id)}`)
       await mutate()
     },
     [mutate]
@@ -67,7 +67,7 @@ export const useMCPServers = () => {
 }
 
 export const useMCPServer = (id: string) => {
-  const path = `/mcp-servers/${id}` as const
+  const path = `/mcp-servers/${encodeURIComponent(id)}` as const
   const { data: server, isLoading, mutate } = useQuery(path, { enabled: !!id })
 
   // PATCH /mcp-servers/:id — fixed path per hook instance, use useMutation
