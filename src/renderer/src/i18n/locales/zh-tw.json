@@ -389,6 +389,9 @@
         "TodoWrite": {
           "description": "建立和管理結構化任務清單"
         },
+        "ToolSearch": {
+          "description": "從大型函式庫中發現延遲載入的工具"
+        },
         "WebFetch": {
           "description": "從指定 URL 取得內容"
         },

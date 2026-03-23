@@ -389,6 +389,9 @@
         "TodoWrite": {
           "description": "Creează și gestionează liste de sarcini structurate"
         },
+        "ToolSearch": {
+          "description": "Descoperă instrumente amânate din biblioteci mari"
+        },
         "WebFetch": {
           "description": "Preia conținutul de la o adresă URL specificată"
         },
