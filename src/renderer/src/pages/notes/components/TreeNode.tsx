@@ -49,7 +49,7 @@ const TreeNode = memo<TreeNodeProps>(({ node, depth, renderChildren = true, onHi
   const handleMatchClick = useCallback(
     (match: SearchMatch) => {
       // 发送定位事件
-      EventEmitter.emit(EVENT_NAMES.LOCATE_NOTE_LINE, {
+      void EventEmitter.emit(EVENT_NAMES.LOCATE_NOTE_LINE, {
         noteId: node.id,
         lineNumber: match.lineNumber,
         lineContent: match.lineContent

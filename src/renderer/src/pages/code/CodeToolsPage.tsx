@@ -280,7 +280,7 @@ const CodeToolsPage: FC = () => {
       terminal: selectedTerminal
     }
 
-    window.api.codeTools.run(selectedCliTool, modelId, currentDirectory, env, runOptions)
+    void window.api.codeTools.run(selectedCliTool, modelId, currentDirectory, env, runOptions)
     window.toast.success(t('code.launch.success'))
   }
 
@@ -301,7 +301,7 @@ const CodeToolsPage: FC = () => {
         setTerminalCustomPaths((prev) => ({ ...prev, [terminalId]: path }))
         window.toast.success(t('code.custom_path_set'))
         // Reload terminals to reflect changes
-        loadAvailableTerminals()
+        void loadAvailableTerminals()
       }
     } catch (error) {
       logger.error('Failed to set custom terminal path:', error as Error)
@@ -338,12 +338,12 @@ const CodeToolsPage: FC = () => {
 
   // 页面加载时检查 bun 安装状态
   useEffect(() => {
-    checkBunInstallation()
+    void checkBunInstallation()
   }, [checkBunInstallation])
 
   // 页面加载时获取可用终端
   useEffect(() => {
-    loadAvailableTerminals()
+    void loadAvailableTerminals()
   }, [loadAvailableTerminals])
 
   return (

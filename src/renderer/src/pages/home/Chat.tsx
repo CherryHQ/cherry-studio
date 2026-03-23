@@ -71,7 +71,7 @@ const Chat: FC<Props> = (props) => {
     const topic = props.activeTopic
     if (!topic) return
 
-    EventEmitter.emit(EVENT_NAMES.SHOW_TOPIC_SIDEBAR)
+    void EventEmitter.emit(EVENT_NAMES.SHOW_TOPIC_SIDEBAR)
 
     const name = await PromptPopup.show({
       title: t('chat.topics.edit.title'),

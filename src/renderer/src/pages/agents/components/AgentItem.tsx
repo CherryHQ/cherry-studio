@@ -29,7 +29,7 @@ const AgentItem = ({ agent, isActive, onDelete, onPress }: AgentItemProps) => {
     // Show session sidebar if setting is enabled (reusing the assistant setting for consistency)
     if (clickAssistantToShowTopic) {
       if (topicPosition === 'left') {
-        EventEmitter.emit(EVENT_NAMES.SWITCH_TOPIC_SIDEBAR)
+        void EventEmitter.emit(EVENT_NAMES.SWITCH_TOPIC_SIDEBAR)
       }
     }
     onPress()
