@@ -108,39 +108,16 @@ export class MCPServerService {
 
     const db = dbService.getDb()
 
+    const values = Object.fromEntries(
+      Object.entries(dto).filter(([, v]) => v !== undefined)
+    ) as typeof mcpServerTable.$inferInsert
+
     const [row] = await db
       .insert(mcpServerTable)
       .values({
-        ...(dto.id ? { id: dto.id } : {}),
-        name: dto.name,
-        type: dto.type,
-        description: dto.description,
-        baseUrl: dto.baseUrl,
-        command: dto.command,
-        registryUrl: dto.registryUrl,
-        args: dto.args,
-        env: dto.env,
-        headers: dto.headers,
-        provider: dto.provider,
-        providerUrl: dto.providerUrl,
-        logoUrl: dto.logoUrl,
-        tags: dto.tags,
-        longRunning: dto.longRunning,
-        timeout: dto.timeout,
-        dxtVersion: dto.dxtVersion,
-        dxtPath: dto.dxtPath,
-        reference: dto.reference,
-        searchKey: dto.searchKey,
-        configSample: dto.configSample,
-        disabledTools: dto.disabledTools,
-        disabledAutoApproveTools: dto.disabledAutoApproveTools,
-        shouldConfig: dto.shouldConfig,
+        ...values,
         sortOrder: dto.sortOrder ?? 0,
-        isActive: dto.isActive ?? false,
-        installSource: dto.installSource,
-        isTrusted: dto.isTrusted,
-        trustedAt: dto.trustedAt,
-        installedAt: dto.installedAt
+        isActive: dto.isActive ?? false
       })
       .returning()
 

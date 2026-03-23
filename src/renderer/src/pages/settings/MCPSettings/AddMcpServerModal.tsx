@@ -1,13 +1,12 @@
 import { UploadOutlined } from '@ant-design/icons'
 import { CodeEditor } from '@cherrystudio/ui'
 import { Button } from '@cherrystudio/ui'
+import { dataApiService } from '@data/DataApiService'
 import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
 import { nanoid } from '@reduxjs/toolkit'
 import { useCodeStyle } from '@renderer/context/CodeStyleProvider'
 import { useTimer } from '@renderer/hooks/useTimer'
-import { useAppDispatch } from '@renderer/store'
-import { setMCPServerActive } from '@renderer/store/mcp'
 import type { MCPServer } from '@renderer/types'
 import { objectKeys, safeValidateMcpConfig } from '@renderer/types'
 import { parseJSON } from '@renderer/utils'
@@ -81,7 +80,6 @@ const AddMcpServerModal: FC<AddMcpServerModalProps> = ({
   const [loading, setLoading] = useState(false)
   const [importMethod, setImportMethod] = useState<'json' | 'dxt'>(initialImportMethod)
   const [dxtFile, setDxtFile] = useState<File | null>(null)
-  const dispatch = useAppDispatch()
   const { setTimeoutTimer } = useTimer()
 
   // Update import method when initialImportMethod changes
@@ -216,7 +214,9 @@ const AddMcpServerModal: FC<AddMcpServerModalProps> = ({
                 .checkMcpConnectivity(newServer)
                 .then((isConnected) => {
                   logger.debug(`Connectivity check for ${newServer.name}: ${isConnected}`)
-                  dispatch(setMCPServerActive({ id: newServer.id, isActive: isConnected }))
+                  dataApiService.patch(`/mcp-servers/${encodeURIComponent(newServer.id)}`, {
+                    body: { isActive: isConnected }
+                  })
                 })
                 .catch((connError: any) => {
                   logger.error(`Connectivity check failed for ${newServer.name}:`, connError)
@@ -287,7 +287,9 @@ const AddMcpServerModal: FC<AddMcpServerModalProps> = ({
           .checkMcpConnectivity(newServer)
           .then((isConnected) => {
             logger.debug(`Connectivity check for ${newServer.name}: ${isConnected}`)
-            dispatch(setMCPServerActive({ id: newServer.id, isActive: isConnected }))
+            dataApiService.patch(`/mcp-servers/${encodeURIComponent(newServer.id)}`, {
+              body: { isActive: isConnected }
+            })
           })
           .catch((connError: any) => {
             logger.error(`Connectivity check failed for ${newServer.name}:`, connError)

@@ -32,7 +32,7 @@ export const useMCPServers = (query?: ListMCPServersQuery) => {
   const reorderMCPServers = useCallback(
     (reorderedList: MCPServer[]) => {
       mutate(data ? { ...data, items: reorderedList } : undefined, false)
-      reorderTrigger({ body: { orderedIds: reorderedList.map((s) => s.id) } })
+      reorderTrigger({ body: { orderedIds: reorderedList.map((s) => s.id) } }).catch(() => mutate())
     },
     [data, mutate, reorderTrigger]
   )
@@ -48,8 +48,8 @@ export const useMCPServers = (query?: ListMCPServersQuery) => {
 
 /**
  * Single MCP server hook — read + update + delete.
- * Fetches via the list endpoint with an id filter so the SWR cache is shared
- * with useMCPServers(). Mutations use refresh: ['/mcp-servers'] to
+ * Fetches via the list endpoint with an id filter (separate SWR cache entry
+ * from the unfiltered list). Mutations use refresh: ['/mcp-servers'] to
  * auto-invalidate all /mcp-servers caches (list, filtered, and detail).
  */
 export const useMCPServer = (id: string) => {
