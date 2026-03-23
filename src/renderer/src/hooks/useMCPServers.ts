@@ -5,7 +5,6 @@ import type { CreateMCPServerDto, UpdateMCPServerDto } from '@shared/data/api/sc
 import type { MCPServer } from '@shared/data/types/mcpServer'
 import { IpcChannel } from '@shared/IpcChannel'
 import { useCallback, useMemo } from 'react'
-import { useSWRConfig } from 'swr'
 
 // Navigate to MCP server settings when a server is installed via URL scheme
 window.electron.ipcRenderer.on(IpcChannel.Mcp_AddServer, (_event, server: { id: string }) => {
@@ -19,48 +18,41 @@ window.electron.ipcRenderer.on(IpcChannel.Mcp_AddServer, (_event, server: { id: 
  */
 type MCPServerUpdate = { id: string } & Partial<Omit<MCPServer, 'id' | 'createdAt' | 'updatedAt'>>
 
-// SWR cache matcher: invalidates both /mcp-servers (list) and /mcp-servers/:id (detail)
-const mcpServersCacheMatcher = (key: unknown) =>
-  Array.isArray(key) && typeof key[0] === 'string' && key[0].startsWith('/mcp-servers')
-
 export const useMCPServers = () => {
-  const { data, isLoading } = useQuery('/mcp-servers')
-  const { mutate: globalMutate } = useSWRConfig()
-
-  const invalidateAll = useCallback(() => globalMutate(mcpServersCacheMatcher), [globalMutate])
+  const { data, isLoading, mutate } = useQuery('/mcp-servers')
 
   const mcpServers = useMemo(() => data?.items ?? [], [data])
   const activedMcpServers = useMemo(() => mcpServers.filter((s) => s.isActive), [mcpServers])
 
-  // POST /mcp-servers — fixed path, use useMutation
-  const { trigger: createMCPServer } = useMutation('POST', '/mcp-servers')
+  // POST /mcp-servers
+  const { trigger: createMCPServer } = useMutation('POST', '/mcp-servers', {
+    refresh: ['/mcp-servers']
+  })
 
   const addMCPServer = useCallback(
     async (dto: CreateMCPServerDto): Promise<MCPServer> => {
-      const result = await createMCPServer({ body: dto })
-      await invalidateAll()
-      return result
+      return createMCPServer({ body: dto })
     },
-    [createMCPServer, invalidateAll]
+    [createMCPServer]
   )
 
-  // PATCH /mcp-servers/:id — dynamic ID, use dataApiService + invalidate all caches
+  // PATCH /mcp-servers/:id — dynamic ID, use dataApiService + refetch list
   const updateMCPServer = useCallback(
     async (server: MCPServerUpdate): Promise<void> => {
       const { id, ...dto } = server
       await dataApiService.patch(`/mcp-servers/${encodeURIComponent(id)}`, { body: dto })
-      await invalidateAll()
+      await mutate()
     },
-    [invalidateAll]
+    [mutate]
   )
 
-  // DELETE /mcp-servers/:id — dynamic ID, use dataApiService + invalidate all caches
+  // DELETE /mcp-servers/:id — dynamic ID, use dataApiService + refetch list
   const deleteMCPServer = useCallback(
     async (id: string): Promise<void> => {
       await dataApiService.delete(`/mcp-servers/${encodeURIComponent(id)}`)
-      await invalidateAll()
+      await mutate()
     },
-    [invalidateAll]
+    [mutate]
   )
 
   return {
@@ -70,42 +62,38 @@ export const useMCPServers = () => {
     addMCPServer,
     updateMCPServer,
     deleteMCPServer,
-    refetch: invalidateAll
+    refetch: mutate
   }
 }
 
+/**
+ * Single MCP server hook — derives from the list cache.
+ * No separate API call needed since the list returns full MCPServer objects.
+ */
 export const useMCPServer = (id: string) => {
-  const path = `/mcp-servers/${encodeURIComponent(id)}` as const
-  const { data: server, isLoading } = useQuery(path, { enabled: !!id })
-  const { mutate: globalMutate } = useSWRConfig()
+  const { data, isLoading, mutate } = useQuery('/mcp-servers')
 
-  const invalidateAll = useCallback(() => globalMutate(mcpServersCacheMatcher), [globalMutate])
-
-  // PATCH /mcp-servers/:id — fixed path per hook instance, use useMutation
-  const { trigger: patchServer } = useMutation('PATCH', path)
-
-  // DELETE /mcp-servers/:id — fixed path per hook instance, use useMutation
-  const { trigger: removeServer } = useMutation('DELETE', path)
+  const server = useMemo(() => data?.items?.find((s) => s.id === id), [data, id])
 
   const updateMCPServer = useCallback(
     async (serverData: UpdateMCPServerDto): Promise<MCPServer> => {
-      const result = await patchServer({ body: serverData })
-      await invalidateAll()
+      const result = await dataApiService.patch(`/mcp-servers/${encodeURIComponent(id)}`, { body: serverData })
+      await mutate()
       return result
     },
-    [patchServer, invalidateAll]
+    [id, mutate]
   )
 
   const deleteMCPServer = useCallback(async (): Promise<void> => {
-    await removeServer()
-    await invalidateAll()
-  }, [removeServer, invalidateAll])
+    await dataApiService.delete(`/mcp-servers/${encodeURIComponent(id)}`)
+    await mutate()
+  }, [id, mutate])
 
   return {
     server,
     isLoading,
     updateMCPServer,
     deleteMCPServer,
-    refetch: invalidateAll
+    refetch: mutate
   }
 }
