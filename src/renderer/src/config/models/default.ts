@@ -18,6 +18,20 @@ export const SYSTEM_MODELS: Record<SystemProviderId | 'defaultModel', Model[]> =
     // Default quick assistant model
     qwenModel
   ],
+  bailing: [
+    {
+      id: 'Ling-1T',
+      name: 'Ling-1T',
+      provider: 'bailing',
+      group: 'Bailing'
+    },
+    {
+      id: 'Ring-1T',
+      name: 'Ring-1T',
+      provider: 'bailing',
+      group: 'Bailing'
+    }
+  ],
   cherryin: [],
   vertexai: [],
   sophnet: [],
