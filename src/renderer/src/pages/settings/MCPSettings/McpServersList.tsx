@@ -20,7 +20,7 @@ import InstallNpxUv from './InstallNpxUv'
 import McpServerCard from './McpServerCard'
 
 const McpServersList: FC = () => {
-  const { mcpServers, addMCPServer } = useMCPServers()
+  const { mcpServers, addMCPServer, reorderMCPServers } = useMCPServers()
   const { t } = useTranslation()
   const navigate = useNavigate()
   const [isAddModalVisible, setIsAddModalVisible] = useState(false)
@@ -48,7 +48,7 @@ const McpServersList: FC = () => {
   const { onSortEnd } = useDndReorder({
     originalList: mcpServers,
     filteredList: filteredMcpServers,
-    onUpdate: () => {},
+    onUpdate: reorderMCPServers,
     itemKey: 'id'
   })
 

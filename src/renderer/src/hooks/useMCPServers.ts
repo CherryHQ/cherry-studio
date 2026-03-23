@@ -1,6 +1,7 @@
 import { useMutation, useQuery } from '@data/hooks/useDataApi'
 import NavigationService from '@renderer/services/NavigationService'
 import type { CreateMCPServerDto, ListMCPServersQuery } from '@shared/data/api/schemas/mcpServers'
+import type { MCPServer } from '@shared/data/types/mcpServer'
 import { IpcChannel } from '@shared/IpcChannel'
 import { useCallback, useMemo } from 'react'
 
@@ -24,10 +25,23 @@ export const useMCPServers = (query?: ListMCPServersQuery) => {
 
   const addMCPServer = useCallback((dto: CreateMCPServerDto) => createMCPServer({ body: dto }), [createMCPServer])
 
+  const { trigger: reorderTrigger } = useMutation('PUT', '/mcp-servers/reorder', {
+    refresh: ['/mcp-servers']
+  })
+
+  const reorderMCPServers = useCallback(
+    (reorderedList: MCPServer[]) => {
+      mutate(data ? { ...data, items: reorderedList } : undefined, false)
+      reorderTrigger({ body: { orderedIds: reorderedList.map((s) => s.id) } })
+    },
+    [data, mutate, reorderTrigger]
+  )
+
   return {
     mcpServers,
     isLoading,
     addMCPServer,
+    reorderMCPServers,
     refetch: mutate
   }
 }

@@ -76,6 +76,14 @@ export interface MCPServerSchemas {
    * @example PATCH /mcp-servers/abc123 { "isActive": true }
    * @example DELETE /mcp-servers/abc123
    */
+  '/mcp-servers/reorder': {
+    /** Reorder MCP servers by providing ordered IDs */
+    PUT: {
+      body: { orderedIds: string[] }
+      response: void
+    }
+  }
+
   '/mcp-servers/:id': {
     /** Get an MCP server by ID */
     GET: {

@@ -72,6 +72,8 @@ export interface MCPServer {
   disabledAutoApproveTools?: string[]
   /** Whether the server needs configuration */
   shouldConfig?: boolean
+  /** Sort order for display */
+  sortOrder?: number
   /** Whether the server is active */
   isActive: boolean
   /** Install source */

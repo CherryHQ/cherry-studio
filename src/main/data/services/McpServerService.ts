@@ -12,7 +12,7 @@ import { loggerService } from '@logger'
 import { DataApiErrorFactory } from '@shared/data/api'
 import type { CreateMCPServerDto, ListMCPServersQuery, UpdateMCPServerDto } from '@shared/data/api/schemas/mcpServers'
 import type { MCPServer } from '@shared/data/types/mcpServer'
-import { and, eq, type SQL, sql } from 'drizzle-orm'
+import { and, asc, eq, type SQL, sql } from 'drizzle-orm'
 
 const logger = loggerService.withContext('DataApi:MCPServerService')
 
@@ -89,7 +89,7 @@ export class MCPServerService {
     const whereClause = conditions.length > 0 ? and(...conditions) : undefined
 
     const [rows, [{ count }]] = await Promise.all([
-      db.select().from(mcpServerTable).where(whereClause),
+      db.select().from(mcpServerTable).where(whereClause).orderBy(asc(mcpServerTable.sortOrder)),
       db.select({ count: sql<number>`count(*)` }).from(mcpServerTable).where(whereClause)
     ])
 
@@ -134,6 +134,7 @@ export class MCPServerService {
         disabledTools: dto.disabledTools,
         disabledAutoApproveTools: dto.disabledAutoApproveTools,
         shouldConfig: dto.shouldConfig,
+        sortOrder: dto.sortOrder ?? 0,
         isActive: dto.isActive ?? false,
         installSource: dto.installSource,
         isTrusted: dto.isTrusted,
@@ -186,6 +187,7 @@ export class MCPServerService {
     if (dto.disabledTools !== undefined) updates.disabledTools = dto.disabledTools
     if (dto.disabledAutoApproveTools !== undefined) updates.disabledAutoApproveTools = dto.disabledAutoApproveTools
     if (dto.shouldConfig !== undefined) updates.shouldConfig = dto.shouldConfig
+    if (dto.sortOrder !== undefined) updates.sortOrder = dto.sortOrder
     if (dto.isActive !== undefined) updates.isActive = dto.isActive
     if (dto.installSource !== undefined) updates.installSource = dto.installSource
     if (dto.isTrusted !== undefined) updates.isTrusted = dto.isTrusted
@@ -226,6 +228,21 @@ export class MCPServerService {
     await db.delete(mcpServerTable).where(eq(mcpServerTable.id, id))
 
     logger.info('Deleted MCP server', { id })
+  }
+
+  /**
+   * Reorder MCP servers by updating sortOrder based on ordered IDs
+   */
+  async reorder(orderedIds: string[]): Promise<void> {
+    const db = dbService.getDb()
+
+    await db.transaction(async (tx) => {
+      for (let i = 0; i < orderedIds.length; i++) {
+        await tx.update(mcpServerTable).set({ sortOrder: i }).where(eq(mcpServerTable.id, orderedIds[i]))
+      }
+    })
+
+    logger.info('Reordered MCP servers', { count: orderedIds.length })
   }
 
   private validateName(name: string): void {

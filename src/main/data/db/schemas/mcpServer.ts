@@ -38,6 +38,7 @@ export const mcpServerTable = sqliteTable(
     disabledTools: text({ mode: 'json' }).$type<string[]>(),
     disabledAutoApproveTools: text({ mode: 'json' }).$type<string[]>(),
     shouldConfig: integer({ mode: 'boolean' }),
+    sortOrder: integer().default(0),
     isActive: integer({ mode: 'boolean' }).notNull().default(false),
     installSource: text(),
     isTrusted: integer({ mode: 'boolean' }),
@@ -49,6 +50,7 @@ export const mcpServerTable = sqliteTable(
   (t) => [
     index('mcp_server_name_idx').on(t.name),
     index('mcp_server_is_active_idx').on(t.isActive),
+    index('mcp_server_sort_order_idx').on(t.sortOrder),
     check(
       'mcp_server_type_check',
       sql`${t.type} IS NULL OR ${t.type} IN ('stdio', 'sse', 'streamableHttp', 'inMemory')`

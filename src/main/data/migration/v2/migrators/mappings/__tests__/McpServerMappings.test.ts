@@ -66,14 +66,15 @@ describe('McpServerMappings', () => {
         installedAt: 1699000000000
       }
 
-      expect(transformMcpServer(source)).toStrictEqual(source)
+      expect(transformMcpServer(source, 0)).toStrictEqual({ ...source, sortOrder: 0 })
     })
 
     it('should handle minimal MCPServer (only required fields)', () => {
-      expect(transformMcpServer({ id: 'srv-2', name: 'my-server', isActive: false })).toStrictEqual({
+      expect(transformMcpServer({ id: 'srv-2', name: 'my-server', isActive: false }, 3)).toStrictEqual({
         ...NULL_FIELDS,
         id: 'srv-2',
         name: 'my-server',
+        sortOrder: 3,
         isActive: false
       })
     })
@@ -88,37 +89,43 @@ describe('McpServerMappings', () => {
         args: undefined,
         env: null
       }
-      expect(transformMcpServer(source as any)).toStrictEqual({
+      expect(transformMcpServer(source as any, 0)).toStrictEqual({
         ...NULL_FIELDS,
         id: 'srv-3',
         name: 'test',
+        sortOrder: 0,
         isActive: true
       })
     })
 
     it('should default isActive to false when missing', () => {
-      expect(transformMcpServer({ id: 'srv-4', name: 'no-active-field' } as any)).toStrictEqual({
+      expect(transformMcpServer({ id: 'srv-4', name: 'no-active-field' } as any, 0)).toStrictEqual({
         ...NULL_FIELDS,
         id: 'srv-4',
         name: 'no-active-field',
+        sortOrder: 0,
         isActive: false
       })
     })
 
     it('should preserve empty arrays', () => {
       expect(
-        transformMcpServer({
-          id: 'srv-5',
-          name: 'empty-arrays',
-          isActive: false,
-          args: [],
-          tags: [],
-          disabledTools: []
-        })
+        transformMcpServer(
+          {
+            id: 'srv-5',
+            name: 'empty-arrays',
+            isActive: false,
+            args: [],
+            tags: [],
+            disabledTools: []
+          },
+          0
+        )
       ).toStrictEqual({
         ...NULL_FIELDS,
         id: 'srv-5',
         name: 'empty-arrays',
+        sortOrder: 0,
         isActive: false,
         args: [],
         tags: [],
@@ -127,37 +134,49 @@ describe('McpServerMappings', () => {
     })
 
     it('should fall back from url to baseUrl for SSE servers', () => {
-      const result = transformMcpServer({
-        id: 'sse-1',
-        name: 'sse-server',
-        isActive: true,
-        url: 'http://localhost:8080/sse'
-      })
+      const result = transformMcpServer(
+        {
+          id: 'sse-1',
+          name: 'sse-server',
+          isActive: true,
+          url: 'http://localhost:8080/sse'
+        },
+        0
+      )
       expect(result.baseUrl).toBe('http://localhost:8080/sse')
     })
 
     it('should prefer baseUrl over url when both present', () => {
-      const result = transformMcpServer({
-        id: 'sse-2',
-        name: 'sse-server',
-        isActive: true,
-        baseUrl: 'http://primary:8080',
-        url: 'http://fallback:8080'
-      })
+      const result = transformMcpServer(
+        {
+          id: 'sse-2',
+          name: 'sse-server',
+          isActive: true,
+          baseUrl: 'http://primary:8080',
+          url: 'http://fallback:8080'
+        },
+        0
+      )
       expect(result.baseUrl).toBe('http://primary:8080')
     })
 
     it('should preserve empty objects', () => {
       expect(
-        transformMcpServer({ id: 'srv-6', name: 'empty-objects', isActive: false, env: {}, headers: {} })
+        transformMcpServer({ id: 'srv-6', name: 'empty-objects', isActive: false, env: {}, headers: {} }, 0)
       ).toStrictEqual({
         ...NULL_FIELDS,
         id: 'srv-6',
         name: 'empty-objects',
+        sortOrder: 0,
         isActive: false,
         env: {},
         headers: {}
       })
+    })
+
+    it('should use the provided index as sortOrder', () => {
+      const result = transformMcpServer({ id: 'srv-7', name: 'ordered', isActive: false }, 5)
+      expect(result.sortOrder).toBe(5)
     })
   })
 })

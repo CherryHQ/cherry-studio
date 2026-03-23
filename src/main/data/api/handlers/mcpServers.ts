@@ -33,6 +33,13 @@ export const mcpServerHandlers: {
     }
   },
 
+  '/mcp-servers/reorder': {
+    PUT: async ({ body }) => {
+      await mcpServerService.reorder(body.orderedIds)
+      return undefined
+    }
+  },
+
   '/mcp-servers/:id': {
     GET: async ({ params }) => {
       return await mcpServerService.getById(params.id)
