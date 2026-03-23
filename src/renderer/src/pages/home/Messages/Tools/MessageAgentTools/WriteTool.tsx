@@ -3,6 +3,7 @@ import { getLanguageByFilePath } from '@renderer/utils/code-language'
 import type { CollapseProps } from 'antd'
 import { useMemo } from 'react'
 
+import { ClickableFilePath } from './ClickableFilePath'
 import { SkeletonValue, ToolHeader } from './GenericTools'
 import { AgentToolsType, type WriteToolInput, type WriteToolOutput } from './types'
 
@@ -19,7 +20,12 @@ export function WriteTool({
     label: (
       <ToolHeader
         toolName={AgentToolsType.Write}
-        params={<SkeletonValue value={input?.file_path} width="200px" />}
+        params={
+          <SkeletonValue
+            value={input?.file_path ? <ClickableFilePath path={input.file_path} /> : undefined}
+            width="200px"
+          />
+        }
         variant="collapse-label"
         showStatus={false}
       />

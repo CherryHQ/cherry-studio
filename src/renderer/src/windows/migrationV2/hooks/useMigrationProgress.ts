@@ -102,16 +102,27 @@ export function useMigrationActions() {
     return window.electron.ipcRenderer.invoke(MigrationIpcChannels.ShowBackupDialog)
   }, [])
 
-  const startMigration = useCallback(async (reduxData: Record<string, unknown>, dexieExportPath: string) => {
-    // Send Redux data
-    await window.electron.ipcRenderer.invoke(MigrationIpcChannels.SendReduxData, reduxData)
+  const startMigration = useCallback(
+    async (reduxData: Record<string, unknown>, dexieExportPath: string, localStorageExportPath?: string) => {
+      // Send Redux data
+      await window.electron.ipcRenderer.invoke(MigrationIpcChannels.SendReduxData, reduxData)
 
-    // Send Dexie export path
-    await window.electron.ipcRenderer.invoke(MigrationIpcChannels.DexieExportCompleted, dexieExportPath)
+      // Send Dexie export path
+      await window.electron.ipcRenderer.invoke(MigrationIpcChannels.DexieExportCompleted, dexieExportPath)
 
-    // Start migration
-    return window.electron.ipcRenderer.invoke(MigrationIpcChannels.StartMigration)
-  }, [])
+      // Send localStorage export path (if available)
+      if (localStorageExportPath) {
+        await window.electron.ipcRenderer.invoke(
+          MigrationIpcChannels.LocalStorageExportCompleted,
+          localStorageExportPath
+        )
+      }
+
+      // Start migration
+      return window.electron.ipcRenderer.invoke(MigrationIpcChannels.StartMigration)
+    },
+    []
+  )
 
   const retry = useCallback(() => {
     return window.electron.ipcRenderer.invoke(MigrationIpcChannels.Retry)

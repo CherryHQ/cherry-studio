@@ -1,6 +1,6 @@
 import { PlusOutlined } from '@ant-design/icons'
 import { Button } from '@cherrystudio/ui'
-import { Avatar } from '@cherrystudio/ui'
+import { resolveProviderIcon } from '@cherrystudio/ui/icons'
 import { useCache } from '@data/hooks/useCache'
 import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
@@ -10,7 +10,7 @@ import { Navbar, NavbarCenter, NavbarRight } from '@renderer/components/app/Navb
 import Scrollbar from '@renderer/components/Scrollbar'
 import TranslateButton from '@renderer/components/TranslateButton'
 import { isMac } from '@renderer/config/constant'
-import { getProviderLogo, PROVIDER_URLS } from '@renderer/config/providers'
+import { PROVIDER_URLS } from '@renderer/config/providers'
 import { LanguagesEnum } from '@renderer/config/translate'
 import { useTheme } from '@renderer/context/ThemeProvider'
 import { usePaintings } from '@renderer/hooks/usePaintings'
@@ -524,12 +524,10 @@ const NewApiPage: FC<{ Options: string[] }> = ({ Options }) => {
               target="_blank"
               href={PROVIDER_URLS[newApiProvider.id]?.websites?.docs || 'https://docs.newapi.pro/apps/cherry-studio/'}>
               {t('paintings.learn_more')}
-              <ProviderLogo
-                radius="md"
-                src={getProviderLogo(newApiProvider.id)}
-                className="h-4 w-4 border-[0.5px] border-[var(--color-border)]"
-                style={{ marginLeft: 5 }}
-              />
+              {(() => {
+                const Icon = resolveProviderIcon(newApiProvider.id)
+                return Icon ? <Icon.Avatar size={16} className="ml-[5px]" /> : null
+              })()}
             </SettingHelpLink>
           </ProviderTitleContainer>
 
@@ -819,10 +817,6 @@ const ToolbarMenu = styled.div`
   flex-direction: row;
   align-items: center;
   gap: 6px;
-`
-
-const ProviderLogo = styled(Avatar)`
-  border: 0.5px solid var(--color-border);
 `
 
 const ModeSegmentedContainer = styled.div`

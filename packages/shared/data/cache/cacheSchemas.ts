@@ -121,7 +121,6 @@ export type UseCacheSchema = {
   'chat.generating': boolean
   'chat.web_search.searching': boolean
   'chat.web_search.active_searches': CacheValueTypes.CacheActiveSearches
-  'chat.active_view': 'topic' | 'session'
 
   // Minapp management
   'minapp.opened_keep_alive': CacheValueTypes.CacheMinAppType[]
@@ -138,6 +137,16 @@ export type UseCacheSchema = {
   'agent.active_id': string | null
   'agent.session.active_id_map': Record<string, string | null>
   'agent.session.waiting_id_map': Record<string, boolean>
+
+  // Translate page state management
+  /** Input text */
+  'translate.input': string
+  /** Output text */
+  'translate.output': string
+  /** Whether detecting source language or not */
+  'translate.detecting': boolean
+  /** Whether translating input text */
+  'translate.translating': CacheValueTypes.TranslatingState
 
   // Template key examples (for testing and demonstration)
   'scroll.position.${topicId}': number
@@ -168,7 +177,8 @@ export const DefaultUseCache: UseCacheSchema = {
     downloaded: false,
     downloadProgress: 0,
     available: false,
-    ignore: false
+    ignore: false,
+    manualCheck: false
   },
   'app.user.avatar': '',
   'app.path.files': '',
@@ -179,7 +189,6 @@ export const DefaultUseCache: UseCacheSchema = {
   'chat.generating': false,
   'chat.web_search.searching': false,
   'chat.web_search.active_searches': {},
-  'chat.active_view': 'topic',
 
   // Minapp management
   'minapp.opened_keep_alive': [],
@@ -196,6 +205,15 @@ export const DefaultUseCache: UseCacheSchema = {
   'agent.active_id': null,
   'agent.session.active_id_map': {},
   'agent.session.waiting_id_map': {},
+
+  // Translate page state management
+  'translate.input': '',
+  'translate.output': '',
+  'translate.detecting': false,
+  'translate.translating': {
+    isTranslating: false,
+    abortKey: null
+  },
 
   // Template key examples (for testing and demonstration)
   'scroll.position.${topicId}': 0,
@@ -226,10 +244,14 @@ export const DefaultSharedCache: SharedCacheSchema = {
  */
 export type RendererPersistCacheSchema = {
   'ui.tab.state': CacheValueTypes.TabsState
+  'feature.mcp.is_uv_installed': boolean
+  'feature.mcp.is_bun_installed': boolean
 }
 
 export const DefaultRendererPersistCache: RendererPersistCacheSchema = {
-  'ui.tab.state': { tabs: [], activeTabId: '' }
+  'ui.tab.state': { tabs: [], activeTabId: '' },
+  'feature.mcp.is_uv_installed': false,
+  'feature.mcp.is_bun_installed': false
 }
 
 // ============================================================================

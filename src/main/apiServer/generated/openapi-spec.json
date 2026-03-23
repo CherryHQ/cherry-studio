@@ -718,8 +718,8 @@
             "name": "sortBy",
             "schema": {
               "type": "string",
-              "enum": ["created_at", "updated_at", "name"],
-              "default": "created_at"
+              "enum": ["created_at", "updated_at", "name", "sort_order"],
+              "default": "sort_order"
             },
             "description": "Field to sort by"
           },
@@ -731,7 +731,7 @@
               "enum": ["asc", "desc"],
               "default": "desc"
             },
-            "description": "Sort order (asc = ascending, desc = descending)"
+            "description": "Sort order (asc = ascending, desc = descending). Defaults to asc when sortBy is sort_order."
           }
         ],
         "responses": {
@@ -1066,6 +1066,58 @@
           },
           "404": {
             "description": "Agent not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/agents/reorder": {
+      "put": {
+        "summary": "Reorder agents",
+        "description": "Sets the display order of agents based on the provided array of agent IDs",
+        "tags": ["Agents"],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "ordered_ids": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    },
+                    "description": "Array of agent IDs in the desired display order"
+                  }
+                },
+                "required": ["ordered_ids"]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Agents reordered successfully"
+          },
+          "400": {
+            "description": "Validation error",
             "content": {
               "application/json": {
                 "schema": {
@@ -1471,6 +1523,70 @@
           },
           "404": {
             "description": "Agent not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/agents/{agentId}/sessions/reorder": {
+      "put": {
+        "summary": "Reorder sessions for an agent",
+        "tags": ["Sessions"],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "agentId",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Agent ID"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "ordered_ids": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    },
+                    "description": "Array of session IDs in desired order"
+                  }
+                },
+                "required": ["ordered_ids"]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Sessions reordered successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request body",
             "content": {
               "application/json": {
                 "schema": {

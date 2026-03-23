@@ -1,5 +1,6 @@
 import { useCache } from '@data/hooks/useCache'
 import { useMultiplePreferences, usePreference } from '@data/hooks/usePreference'
+import AddButton from '@renderer/components/AddButton'
 import AssistantAvatar from '@renderer/components/Avatar/AssistantAvatar'
 import type { DraggableVirtualListRef } from '@renderer/components/DraggableList'
 import { DraggableVirtualList } from '@renderer/components/DraggableList'
@@ -58,7 +59,6 @@ import { useTranslation } from 'react-i18next'
 import { useDispatch, useSelector } from 'react-redux'
 import styled from 'styled-components'
 
-import AddButton from './AddButton'
 import { TopicManagePanel, useTopicManageMode } from './TopicManageMode'
 
 interface Props {
@@ -617,8 +617,8 @@ export const Topics: React.FC<Props> = ({ assistant: _assistant, activeTopic, se
           const canSelect = !topic.pinned
 
           const getTopicNameClassName = () => {
-            if (isRenaming(topic.id)) return 'shimmer'
-            if (isNewlyRenamed(topic.id)) return 'typing'
+            if (isRenaming(topic.id)) return 'animation-shimmer'
+            if (isNewlyRenamed(topic.id)) return 'animation-reveal'
             return ''
           }
 
@@ -815,46 +815,12 @@ const TopicName = styled.div`
   overflow: hidden;
   font-size: 13px;
   position: relative;
-  will-change: background-position, width;
   flex: 1;
   text-align: left;
 
-  --color-shimmer-mid: var(--color-text-1);
-  --color-shimmer-end: color-mix(in srgb, var(--color-text-1) 25%, transparent);
-
-  &.shimmer {
-    background: linear-gradient(to left, var(--color-shimmer-end), var(--color-shimmer-mid), var(--color-shimmer-end));
-    background-size: 200% 100%;
-    background-clip: text;
-    color: transparent;
-    animation: shimmer 3s linear infinite;
-  }
-
-  &.typing {
-    display: block;
+  &.animation-reveal {
     -webkit-line-clamp: unset;
     -webkit-box-orient: unset;
-    white-space: nowrap;
-    overflow: hidden;
-    animation: typewriter 0.5s steps(40, end);
-  }
-
-  @keyframes shimmer {
-    0% {
-      background-position: 200% 0;
-    }
-    100% {
-      background-position: -200% 0;
-    }
-  }
-
-  @keyframes typewriter {
-    from {
-      width: 0;
-    }
-    to {
-      width: 100%;
-    }
   }
 `
 

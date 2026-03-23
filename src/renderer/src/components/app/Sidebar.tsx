@@ -1,4 +1,4 @@
-import { Avatar, EmojiAvatar, Tooltip } from '@cherrystudio/ui'
+import { Avatar, AvatarImage, EmojiAvatar, Tooltip } from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
 import { isMac } from '@renderer/config/constant'
 import { UserAvatar } from '@renderer/config/env'
@@ -23,6 +23,7 @@ import {
   MessageSquare,
   Monitor,
   Moon,
+  MousePointerClick,
   NotepadText,
   Palette,
   Settings,
@@ -78,7 +79,9 @@ const Sidebar: FC = () => {
           {avatar}
         </EmojiAvatar>
       ) : (
-        <AvatarImg src={avatar || UserAvatar} draggable={false} className="nodrag" onClick={onEditUser} />
+        <AvatarImg className="nodrag" onClick={onEditUser}>
+          <AvatarImage src={avatar || UserAvatar} draggable={false} />
+        </AvatarImg>
       )}
       <MainMenusContainer>
         <Menus onClick={hideMinappPopup}>
@@ -135,10 +138,11 @@ const MainMenus: FC = () => {
   const { defaultPaintingProvider } = useSettings()
   const { theme } = useTheme()
 
-  const isRoutes = (path: string): string => (pathname.startsWith(path) && !minappShow ? 'active' : '')
+  const isRoutes = (path: string): string => (pathname.startsWith(path) && path !== '/' && !minappShow ? 'active' : '')
 
   const iconMap = {
     assistants: <MessageSquare size={18} className="icon" />,
+    agents: <MousePointerClick size={18} className="icon" />,
     store: <Sparkle size={18} className="icon" />,
     paintings: <Palette size={18} className="icon" />,
     translate: <Languages size={18} className="icon" />,
@@ -152,6 +156,7 @@ const MainMenus: FC = () => {
 
   const pathMap = {
     assistants: '/app/chat',
+    agents: '/app/agents',
     store: '/app/assistant',
     paintings: `/app/paintings/${defaultPaintingProvider}`,
     translate: '/app/translate',

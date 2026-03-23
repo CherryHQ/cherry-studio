@@ -124,7 +124,7 @@ export const isAgentEntity = (value: unknown): value is AgentEntity => {
 export interface ListOptions {
   limit?: number
   offset?: number
-  sortBy?: 'created_at' | 'updated_at' | 'name'
+  sortBy?: 'created_at' | 'updated_at' | 'name' | 'sort_order'
   orderBy?: 'asc' | 'desc'
 }
 

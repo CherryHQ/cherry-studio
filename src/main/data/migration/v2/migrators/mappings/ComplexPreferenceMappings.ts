@@ -30,7 +30,7 @@ import { mergeFileProcessingOverrides } from './FileProcessingOverrideMappings'
  */
 export interface SourceDefinition {
   /** Data source type */
-  source: 'electronStore' | 'redux' | 'dexie-settings'
+  source: 'electronStore' | 'redux' | 'dexie-settings' | 'localStorage'
   /** Key path to read from source */
   key: string
   /** Redux category (required for redux source) */

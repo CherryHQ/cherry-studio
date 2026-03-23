@@ -1,4 +1,4 @@
-import { Avatar, Button, RowFlex, Tooltip } from '@cherrystudio/ui'
+import { Avatar, AvatarFallback, Button, RowFlex, Tooltip } from '@cherrystudio/ui'
 import { ErrorDetailModal } from '@renderer/components/ErrorDetailModal'
 import { FreeTrialModelTag } from '@renderer/components/FreeTrialModelTag'
 import { type HealthResult, HealthStatusIndicator } from '@renderer/components/HealthStatusIndicator'
@@ -69,9 +69,16 @@ const ModelListItem: React.FC<ModelListItemProps> = ({ ref, model, modelStatus, 
     <>
       <ListItem ref={ref}>
         <RowFlex className="flex-1 items-center gap-2.5">
-          <Avatar src={getModelLogo(model)} className="h-6 w-6">
-            {model?.name?.[0]?.toUpperCase()}
-          </Avatar>
+          {(() => {
+            const Icon = getModelLogo(model)
+            return Icon ? (
+              <Icon.Avatar size={24} />
+            ) : (
+              <Avatar className="h-6 w-6">
+                <AvatarFallback>{model?.name?.[0]?.toUpperCase()}</AvatarFallback>
+              </Avatar>
+            )
+          })()}
           <ModelIdWithTags
             model={model}
             style={{

@@ -38,6 +38,10 @@
     "edit": {
       "title": "編輯 Agent"
     },
+    "empty": {
+      "description": "建立 Agent 以透過 AI 驅動的工具處理複雜任務",
+      "title": "尚無 Agent"
+    },
     "get": {
       "error": {
         "failed": "無法取得 Agent。",
@@ -77,6 +81,11 @@
     "list": {
       "error": {
         "failed": "無法列出 Agent。"
+      }
+    },
+    "reorder": {
+      "error": {
+        "failed": "Agent 排序失敗"
       }
     },
     "server": {
@@ -129,6 +138,11 @@
       },
       "label_one": "工作階段",
       "label_other": "工作階段",
+      "reorder": {
+        "error": {
+          "failed": "無法重新排序工作階段"
+        }
+      },
       "update": {
         "error": {
           "failed": "無法更新工作階段"
@@ -295,6 +309,7 @@
         }
       }
     },
+    "sidebar_title": "Agents",
     "todo": {
       "panel": {
         "title": "已完成 {{completed}}/{{total}} 個任務"
@@ -374,6 +389,9 @@
         "TodoWrite": {
           "description": "建立和管理結構化任務清單"
         },
+        "ToolSearch": {
+          "description": "[to be translated]:Discovers deferred tools from large libraries"
+        },
         "WebFetch": {
           "description": "從指定 URL 取得內容"
         },
@@ -395,7 +413,11 @@
       }
     },
     "warning": {
-      "enable_server": "啟用 API 伺服器以使用 Agent。"
+      "enable_and_start": "啟用並啟動",
+      "enable_server": "啟用 API 伺服器以使用 Agent。",
+      "enable_server_description": "智能體功能需要啟用 API 伺服器。你可以直接啟用，或前往設定頁面進行配置。",
+      "server_not_running": "API 伺服器已啟用但未執行。請檢查伺服器設定。",
+      "server_not_running_description": "智能體功能需要 API 伺服器運行。你可以直接啟動伺服器，或前往設定頁面檢查配置。"
     }
   },
   "apiServer": {
@@ -621,6 +643,10 @@
           "tip": "助手會使用大型語言模型的意圖識別能力，判斷是否需要查詢知識庫；此功能仰賴模型能力"
         }
       },
+      "max_tool_calls": {
+        "label": "最大工具呼叫次數",
+        "tip": "單次對話中允許的最大工具呼叫次數。較高的值支援更複雜的多步操作，但可能增加 Token 消耗和回應時間。"
+      },
       "mcp": {
         "description": "預設啟用的 MCP 伺服器",
         "enableFirst": "請先在 MCP 設定中啟用此伺服器",
@@ -712,6 +738,7 @@
     "progress": {
       "completed": "備份完成",
       "compressing": "壓縮檔案...",
+      "copying_database": "複製資料庫...",
       "copying_files": "複製檔案... {{progress}}%",
       "preparing": "準備備份...",
       "preparing_compression": "準備壓縮...",
@@ -749,6 +776,7 @@
       }
     },
     "alerts": {
+      "create_agent": "建立 Agent 以開始",
       "create_session": "建立工作階段",
       "select_agent": "選擇一個智能體"
     },
@@ -864,7 +892,11 @@
         "collapse": "折疊",
         "collapse_in": "加入折疊",
         "collapse_out": "移出折疊",
-        "expand": "展開"
+        "expand": "展開",
+        "file_not_found": "檔案不存在: {{path}}",
+        "open_file": "開啟檔案",
+        "open_file_error": "無法開啟檔案: {{path}}",
+        "reveal_in_finder": "在檔案管理器中顯示"
       },
       "topics": "話題",
       "translate": "翻譯成 {{target_language}}",
@@ -1358,6 +1390,7 @@
     "off": "關閉",
     "on": "開啟",
     "open": "開啟",
+    "open_in": "在 {{name}} 中開啟",
     "paste": "貼上",
     "placeholders": {
       "select": {
@@ -1385,6 +1418,7 @@
     "selected": "已選擇",
     "selectedItems": "已選擇 {{count}} 項",
     "selectedMessages": "已選取 {{count}} 則訊息",
+    "sessions": "會話",
     "settings": "設定",
     "sort": {
       "pinyin": {
@@ -1494,7 +1528,6 @@
     "originalError": "原錯誤",
     "originalMessage": "原始訊息",
     "parameter": "參數",
-    "pause_placeholder": "回應已暫停",
     "prompt": "提示詞",
     "provider": "供應商",
     "providerId": "提供者 ID",
@@ -1508,6 +1541,7 @@
     "requestBody": "請求內容",
     "requestBodyValues": "請求本文參數",
     "requestUrl": "請求路徑",
+    "request_timeout": "請求逾時",
     "response": "回應",
     "responseBody": "回應本文",
     "responseHeaders": "回應標頭",
@@ -1517,6 +1551,7 @@
     "status": "狀態碼",
     "statusCode": "狀態碼",
     "statusText": "狀態文字",
+    "stream_paused": "回應已暫停",
     "text": "文字",
     "toolInput": "工具輸入",
     "toolName": "工具名稱",
@@ -1995,6 +2030,10 @@
         "export": "匯出 Excel 失敗"
       },
       "fetchTopicName": "話題命名失敗",
+      "file": {
+        "process_failed": "檔案 {{name}} 無法處理",
+        "text_extraction_failed": "無法從 {{name}} 中擷取文字"
+      },
       "get_embedding_dimensions": "取得嵌入維度失敗",
       "invalid": {
         "api": {
@@ -2238,6 +2277,11 @@
       }
     },
     "warning": {
+      "file": {
+        "pdf_exceeds_limit": "PDF 檔案 {{name}} 超出大小限制 ({{limit}})，將回退為文字擷取",
+        "pdf_text_extraction_failed": "無法從 PDF {{name}} 中擷取文字",
+        "pdf_upload_failed": "上傳 PDF {{name}} 失敗，將回退為文字擷取"
+      },
       "rate": {
         "limit": "傳送過於頻繁，請在 {{seconds}} 秒後再嘗試"
       }
@@ -2291,7 +2335,10 @@
     "dangbei": "當貝 AI",
     "doubao": "豆包",
     "hailuo": "海螺",
+    "ima": "ima",
     "metaso": "秘塔 AI 搜尋",
+    "minimax-agent": "MiniMax Agent CN",
+    "minimax-global": "MiniMax Agent",
     "nami-ai": "奈米 AI",
     "nami-ai-search": "奈米 AI 搜尋",
     "qwen": "通義千問",
@@ -2591,6 +2638,11 @@
     },
     "install_progress": "安裝進度",
     "installed_at": "OpenClaw 安裝路徑",
+    "migration": {
+      "description": "偵測到透過 npm 安裝的舊版本 OpenClaw，請重新安裝以取得最新官方版本。",
+      "install_button": "重新安裝 OpenClaw",
+      "title": "OpenClaw 需要更新"
+    },
     "model_config": {
       "auth_token": "認證令牌",
       "auth_token_hint": "閘道認證令牌（必填）。留空時將自動產生。",
@@ -2626,6 +2678,7 @@
       "windows_title": "Windows"
     },
     "quick_actions": {
+      "check_update": "檢查更新",
       "open_dashboard": "開啟控制面板",
       "title": "快捷操作",
       "uninstall": "解除安裝",
@@ -2652,6 +2705,16 @@
     "uninstalling": {
       "description": "請稍候，正在解除安裝 OpenClaw...",
       "title": "解除安裝 OpenClaw"
+    },
+    "update": {
+      "available": "發現新版本：v{{latest}}（目前版本：v{{current}}）",
+      "checking": "正在檢查更新...",
+      "confirm_button": "立即更新",
+      "failed": "檢查更新失敗",
+      "modal_title": "OpenClaw 更新",
+      "success": "更新成功！",
+      "up_to_date": "已是最新版本（v{{current}}）",
+      "updating": "更新中..."
     }
   },
   "ovms": {
@@ -3052,7 +3115,8 @@
     "lmstudio": "LM Studio",
     "longcat": "龍貓",
     "mimo": "小米 MiMo",
-    "minimax": "MiniMax",
+    "minimax": "MiniMax CN",
+    "minimax-global": "MiniMax",
     "mistral": "Mistral",
     "modelscope": "ModelScope 魔搭",
     "moonshot": "月之暗面",
@@ -3065,7 +3129,7 @@
     "openrouter": "OpenRouter",
     "ovms": "Intel OVMS",
     "perplexity": "Perplexity",
-    "ph8": "PH8 大模型開放平台",
+    "ph8": "PH8",
     "poe": "Poe",
     "ppio": "PPIO 派歐雲",
     "qiniu": "七牛雲 AI 推理",
@@ -3080,6 +3144,7 @@
     "voyageai": "Voyage AI",
     "xirang": "天翼雲息壤",
     "yi": "零一萬物",
+    "zai": "Z.ai",
     "zhinao": "360 智腦",
     "zhipu": "智譜開放平台"
   },
@@ -3096,7 +3161,10 @@
       "extracting": "解開備份...",
       "preparing": "準備復原...",
       "reading_data": "讀取資料...",
-      "title": "復原進度"
+      "restoring_data": "復原檔案...",
+      "restoring_database": "復原資料庫...",
+      "title": "復原進度",
+      "validating": "驗證備份..."
     },
     "title": "資料復原"
   },
@@ -3649,7 +3717,15 @@
           "button": "選擇備份檔案"
         },
         "content": "匯出部分資料，包括聊天記錄與設定。請注意，備份過程可能需要一些時間，感謝耐心等候。",
+        "file": {
+          "button": "匯出至檔案",
+          "content": "將資料匯出為備份檔案，可透過檔案在行動裝置上匯入。",
+          "export_failed": "匯出失敗",
+          "export_success": "匯出成功",
+          "title": "匯出為檔案"
+        },
         "lan": {
+          "button": "開始傳輸",
           "connected": "已連線",
           "connection_failed": "連線失敗",
           "content": "請確保電腦和手機處於同一網路以使用區域網路傳輸。",

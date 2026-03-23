@@ -142,45 +142,30 @@ artifactBuildCompleted: scripts/artifact-build-completed.js
 releaseInfo:
   releaseNotes: |
     <!--LANG:en-->
-    Cherry Studio 1.7.24 - Features & Improvements
-
-    ✨ New Features
-    - [Agent] Agent creation no longer requires selecting a workspace folder - a default workspace is automatically created
-    - [Agent] Added thinking/reasoning effort control (low/medium/high/max/adaptive) for Claude Code agent sessions
+    Cherry Studio 1.8.2 - Bug Fixes and Model Updates
 
     🐛 Bug Fixes
-    - [Tools] Fix prompt caching crash when using OpenRouter or other non-Anthropic providers
-    - [Models] Fix Gemini 3 models not sending reasoning_effort parameter when deep thinking mode is enabled
-    - [Editor] Fix CodeMirror highlight crash caused by version conflict
-    - [MCP] Fix MCP tool parameter parsing and nested schema display
-    - [MCP] Fix MCP tools not being auto-approved when configured through agent allowed_tools
-    - [UI] Fix duplicate error blocks in aborting
-    - [Plugins] Fix plugin size displaying as 0 in the plugin detail modal
-    - [UI] Fix PinnedTodoPanel ignoring narrow mode width setting
+    - [Knowledge Base] Fix knowledge base content not being delivered to the model when selected in conversation
+    - [Search] Fix crash when clicking topic title in message search results
+    - [Backup] Fix backup restoration path issue
+
+    ✨ New Features
+    - [Models] Add support for Xiaomi MiMo-V2-Pro and MiMo-V2-Omni models with reasoning control and tool use capabilities
 
     💄 Improvements
-    - [Sessions] Implement infinite scroll for sessions list
-    - [Plugins] Improve plugin detail modal UI with better layout and styling
-    - [Performance] Fix renderer crash when agent streams large file writes by optimizing tool input delta handling
-    <!--LANG:zh-CN-->
-    Cherry Studio 1.7.24 - 功能与改进
+    - [Models] Upgrade MiniMax default model to M2.7 with enhanced reasoning and coding capabilities
 
-    ✨ 新功能
-    - [智能体] 创建智能体不再需要选择工作区文件夹 - 会自动创建默认工作区
-    - [智能体] 为 Claude Code 智能体会话添加思考/推理强度控制（低/中/高/最大/自适应）
+    <!--LANG:zh-CN-->
+    Cherry Studio 1.8.2 - 错误修复和模型更新
 
     🐛 问题修复
-    - [工具] 修复使用 OpenRouter 或其他非 Anthropic 提供商时的提示缓存崩溃问题
-    - [模型] 修复启用深度思考模式时 Gemini 3 模型不发送 reasoning_effort 参数的问题
-    - [编辑器] 修复由版本冲突导致的 CodeMirror 高亮崩溃
-    - [MCP] 修复 MCP 工具参数解析和嵌套架构显示问题
-    - [MCP] 修复通过智能体 allowed_tools 配置时 MCP 工具无法自动批准的问题
-    - [UI] 修复中止时出现重复错误块的问题
-    - [插件] 修复插件详情弹窗中插件大小显示为 0 的问题
-    - [UI] 修复 PinnedTodoPanel 忽略窄模式宽度设置的问题
+    - [知识库] 修复选中知识库时内容未传递给模型的问题
+    - [搜索] 修复点击消息搜索结果中的主题标题时崩溃的问题
+    - [备份] 修复备份恢复路径问题
+
+    ✨ 新功能
+    - [模型] 新增小米 MiMo-V2-Pro 和 MiMo-V2-Omni 模型支持，支持推理控制和工具调用功能
 
     💄 改进
-    - [会话] 实现会话列表的无限滚动
-    - [插件] 改进插件详情弹窗的 UI，布局和样式更优化
-    - [性能] 通过优化工具输入增量处理，修复智能体流式传输大文件时的渲染器崩溃
+    - [模型] 升级 MiniMax 默认模型至 M2.7，增强推理和代码能力
     <!--LANG:END-->

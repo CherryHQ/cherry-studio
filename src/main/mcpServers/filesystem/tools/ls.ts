@@ -2,7 +2,7 @@ import fs from 'fs/promises'
 import path from 'path'
 import * as z from 'zod'
 
-import { MAX_FILES_LIMIT, validatePath } from '../types'
+import { logger, MAX_FILES_LIMIT, validatePath } from '../types'
 
 // Schema definition
 export const LsToolSchema = z.object({
@@ -22,7 +22,7 @@ export const lsToolDefinition = {
 - Common directories (node_modules, dist, .git) are excluded
 - Hidden files (starting with .) are excluded except .env.example
 - Results are limited to 100 entries
-- The path parameter must be an absolute path if specified
+- The path parameter must resolve within the configured workspace root if specified
 - If path is not specified, defaults to the base directory`,
   inputSchema: z.toJSONSchema(LsToolSchema)
 }
@@ -85,9 +85,14 @@ export async function handleLsTool(args: unknown, baseDir: string) {
         }
 
         if (entry.isDirectory() && recursive && depth < 5) {
-          // Limit depth to prevent infinite recursion
           const childPath = path.join(dirPath, entry.name)
-          node.children = await buildTree(childPath, depth + 1)
+          // Validate symlinked directories to prevent escaping the workspace root
+          try {
+            await validatePath(childPath, baseDir)
+            node.children = await buildTree(childPath, depth + 1)
+          } catch {
+            logger.debug('Skipping directory outside workspace root', { path: childPath })
+          }
         }
 
         nodes.push(node)

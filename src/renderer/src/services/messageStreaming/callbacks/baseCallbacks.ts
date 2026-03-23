@@ -21,7 +21,10 @@ import i18n from '@renderer/i18n'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import { NotificationService } from '@renderer/services/NotificationService'
 import { estimateMessagesUsage } from '@renderer/services/TokenService'
+import store from '@renderer/store'
+import { toolPermissionsActions } from '@renderer/store/toolPermissions'
 import type { Assistant } from '@renderer/types'
+import { ERROR_I18N_KEY_REQUEST_TIMEOUT, ERROR_I18N_KEY_STREAM_PAUSED } from '@renderer/types/error'
 import type {
   PlaceholderMessageBlock,
   Response,
@@ -31,7 +34,7 @@ import type {
 import { AssistantMessageStatus, MessageBlockStatus, MessageBlockType } from '@renderer/types/newMessage'
 import { uuid } from '@renderer/utils'
 import { trackTokenUsage } from '@renderer/utils/analytics'
-import { isAbortError, serializeError } from '@renderer/utils/error'
+import { isAbortError, isTimeoutError, serializeError } from '@renderer/utils/error'
 import { createBaseMessageBlock, createErrorBlock } from '@renderer/utils/messageUtils/create'
 import { findAllBlocks, getMainTextContent } from '@renderer/utils/messageUtils/find'
 import { isFocused, isOnHomePage } from '@renderer/utils/window'
@@ -109,9 +112,12 @@ export const createBaseCallbacks = (deps: BaseCallbacksDependencies) => {
         return
       }
       const isErrorTypeAbort = isAbortError(error)
+      const isErrorTypeTimeout = isTimeoutError(error)
       const serializableError = serializeError(error)
       if (isErrorTypeAbort) {
-        serializableError.message = 'pause_placeholder'
+        serializableError.i18nKey = ERROR_I18N_KEY_STREAM_PAUSED
+      } else if (isErrorTypeTimeout) {
+        serializableError.i18nKey = ERROR_I18N_KEY_REQUEST_TIMEOUT
       }
 
       const duration = Date.now() - startTime
@@ -209,6 +215,10 @@ export const createBaseCallbacks = (deps: BaseCallbacksDependencies) => {
           }
         }
       }
+
+      // Clean up pending/submitting tool permission requests from this stream.
+      // Preserve 'invoking' entries as they may belong to concurrent streams.
+      store.dispatch(toolPermissionsActions.clearPending())
 
       // Create error block
       const errorBlock = createErrorBlock(assistantMsgId, serializableError, { status: MessageBlockStatus.SUCCESS })

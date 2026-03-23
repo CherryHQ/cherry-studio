@@ -109,13 +109,6 @@
       "defaultValue": {},
       "status": "classified",
       "description": "Web search provider overrides (from complex migration)"
-    },
-    {
-      "targetKey": "chat.web_search.search_with_time",
-      "type": "boolean",
-      "defaultValue": true,
-      "status": "classified",
-      "description": "Web search include time filter (from complex migration)"
     }
   ]
 }

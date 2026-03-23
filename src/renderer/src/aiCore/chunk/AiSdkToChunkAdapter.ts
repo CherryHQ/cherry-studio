@@ -10,6 +10,7 @@ import type { Chunk, ProviderMetadata } from '@renderer/types/chunk'
 import { ChunkType } from '@renderer/types/chunk'
 import { ProviderSpecificError } from '@renderer/types/provider-specific-error'
 import { formatErrorMessage, isAbortError } from '@renderer/utils/error'
+import type { IdleTimeoutHandle } from '@renderer/utils/IdleTimeoutController'
 import { convertLinks, flushLinkConverterBuffer } from '@renderer/utils/linkConverter'
 import type { ClaudeCodeRawValue } from '@shared/agents/claudecode/types'
 import { AISDKError, type TextStreamPart, type ToolSet } from 'ai'
@@ -33,6 +34,7 @@ export class AiSdkToChunkAdapter {
   private hasTextContent = false
   private getSessionWasCleared?: () => boolean
   private providerId?: string
+  private idleTimeout?: IdleTimeoutHandle
 
   constructor(
     private onChunk: (chunk: Chunk) => void,
@@ -41,7 +43,8 @@ export class AiSdkToChunkAdapter {
     enableWebSearch?: boolean,
     onSessionUpdate?: (sessionId: string) => void,
     getSessionWasCleared?: () => boolean,
-    providerId?: string
+    providerId?: string,
+    idleTimeout?: IdleTimeoutHandle
   ) {
     this.toolCallHandler = new ToolCallChunkHandler(onChunk, mcpTools)
     this.accumulate = accumulate
@@ -49,6 +52,7 @@ export class AiSdkToChunkAdapter {
     this.onSessionUpdate = onSessionUpdate
     this.getSessionWasCleared = getSessionWasCleared
     this.providerId = providerId
+    this.idleTimeout = idleTimeout
   }
 
   private markFirstTokenIfNeeded() {
@@ -110,6 +114,9 @@ export class AiSdkToChunkAdapter {
       while (true) {
         const { done, value } = await reader.read()
 
+        // Reset idle timeout on every chunk received from the stream
+        this.idleTimeout?.reset()
+
         if (done) {
           // Flush any remaining content from link converter buffer if web search is enabled
           if (this.enableWebSearch) {
@@ -131,6 +138,8 @@ export class AiSdkToChunkAdapter {
     } finally {
       reader.releaseLock()
       this.resetTimingState()
+      // Clean up the idle timeout timer when the stream ends
+      this.idleTimeout?.cleanup()
     }
   }
 
