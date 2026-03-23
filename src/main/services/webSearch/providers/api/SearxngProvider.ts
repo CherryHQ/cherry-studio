@@ -1,9 +1,11 @@
-import type { WebSearchExecutionConfig, WebSearchResponse } from '@shared/data/types/webSearch'
+import type { WebSearchExecutionConfig, WebSearchResponse, WebSearchResult } from '@shared/data/types/webSearch'
+import { defaultAppHeaders, isValidUrl } from '@shared/utils'
 import { net } from 'electron'
 import * as z from 'zod'
 
 import { fetchWebSearchContent, noContent } from '../../utils/fetchContent'
 import { BaseWebSearchProvider } from '../base/BaseWebSearchProvider'
+import type { UrlSearchContext } from '../base/context'
 
 const SearxngSearchResponseSchema = z.object({
   query: z.string().optional(),
@@ -29,8 +31,22 @@ const SearxngConfigResponseSchema = z.object({
   )
 })
 
+type SearxngSearchContext = UrlSearchContext
+
 export class SearxngProvider extends BaseWebSearchProvider {
-  private async resolveEngines(httpOptions?: RequestInit): Promise<string[]> {
+  private getBasicAuthHeaders(): Record<string, string> {
+    if (!this.provider.basicAuthUsername) {
+      return {}
+    }
+
+    return {
+      Authorization: `Basic ${Buffer.from(
+        `${this.provider.basicAuthUsername}:${this.provider.basicAuthPassword}`
+      ).toString('base64')}`
+    }
+  }
+
+  private async resolveEngines(signal?: AbortSignal): Promise<string[]> {
     if (this.provider.engines.length > 0) {
       return this.provider.engines
     }
@@ -38,10 +54,10 @@ export class SearxngProvider extends BaseWebSearchProvider {
     const response = await net.fetch(this.resolveApiUrl('/config'), {
       method: 'GET',
       headers: {
-        ...this.defaultHeaders(),
+        ...defaultAppHeaders(),
         ...this.getBasicAuthHeaders()
       },
-      signal: httpOptions?.signal
+      signal
     })
 
     if (!response.ok) {
@@ -63,23 +79,43 @@ export class SearxngProvider extends BaseWebSearchProvider {
   }
 
   async search(query: string, config: WebSearchExecutionConfig, httpOptions?: RequestInit): Promise<WebSearchResponse> {
-    const engines = await this.resolveEngines(httpOptions)
+    const context = await this.prepareSearchContext(query, config, httpOptions)
+    const searchPayload = await this.executeSearch(context)
+    const fetchedResults = await this.fetchResultContents(context, searchPayload)
 
+    return this.buildFinalResponse(context, searchPayload, fetchedResults)
+  }
+
+  private async prepareSearchContext(
+    query: string,
+    config: WebSearchExecutionConfig,
+    httpOptions?: RequestInit
+  ): Promise<SearxngSearchContext> {
+    const signal = httpOptions?.signal ?? undefined
+    const engines = await this.resolveEngines(signal)
     const searchParams = new URLSearchParams({
       q: query,
       language: 'auto',
       format: 'json'
     })
-
     searchParams.set('engines', engines.join(','))
 
-    const response = await net.fetch(`${this.resolveApiUrl('/search')}?${searchParams.toString()}`, {
+    return {
+      query,
+      maxResults: config.maxResults,
+      searchUrl: `${this.resolveApiUrl('/search')}?${searchParams.toString()}`,
+      signal
+    }
+  }
+
+  private async executeSearch(context: SearxngSearchContext) {
+    const response = await net.fetch(context.searchUrl, {
       method: 'GET',
       headers: {
-        ...this.defaultHeaders(),
+        ...defaultAppHeaders(),
         ...this.getBasicAuthHeaders()
       },
-      signal: httpOptions?.signal
+      signal: context.signal
     })
 
     if (!response.ok) {
@@ -87,18 +123,31 @@ export class SearxngProvider extends BaseWebSearchProvider {
       throw new Error(`Searxng search failed: HTTP ${response.status} ${errorText}`)
     }
 
-    const result = SearxngSearchResponseSchema.parse(await response.json())
-    const validItems = result.results
-      .filter((item) => item.url?.startsWith('http://') || item.url?.startsWith('https://'))
-      .slice(0, config.maxResults)
+    return SearxngSearchResponseSchema.parse(await response.json())
+  }
 
+  private async fetchResultContents(
+    context: SearxngSearchContext,
+    searchPayload: z.infer<typeof SearxngSearchResponseSchema>
+  ) {
+    const validItems = searchPayload.results.filter((item) => isValidUrl(item.url || '')).slice(0, context.maxResults)
     const fetchedResults = await Promise.all(
-      validItems.map((item) => fetchWebSearchContent(item.url || '', this.provider.usingBrowser, httpOptions))
+      validItems.map((item) =>
+        fetchWebSearchContent(item.url || '', this.provider.usingBrowser, { signal: context.signal })
+      )
     )
 
+    return fetchedResults.filter((item) => item.content !== noContent)
+  }
+
+  private buildFinalResponse(
+    context: SearxngSearchContext,
+    searchPayload: z.infer<typeof SearxngSearchResponseSchema>,
+    fetchedResults: WebSearchResult[]
+  ): WebSearchResponse {
     return {
-      query: result.query || query,
-      results: fetchedResults.filter((item) => item.content !== noContent)
+      query: searchPayload.query || context.query,
+      results: fetchedResults
     }
   }
 }

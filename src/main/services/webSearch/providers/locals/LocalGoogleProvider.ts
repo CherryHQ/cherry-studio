@@ -14,8 +14,9 @@ export class LocalGoogleProvider extends LocalSearchProvider {
 
       $('#search .MjjYud').each((_, element) => {
         const $element = $(element)
-        const title = $element.find('h3').first().text().trim()
-        const href = $element.find('a').first().attr('href')
+        const $link = $element.find('h3 a').first()
+        const title = $link.text().trim()
+        const href = $link.attr('href')
         if (!title || !href) {
           return
         }
@@ -41,7 +42,7 @@ export class LocalGoogleProvider extends LocalSearchProvider {
 
   private normalizeGoogleUrl(rawUrl: string): string | null {
     try {
-      const normalized = new URL(rawUrl, 'https://www.google.com')
+      const normalized = new URL(this.resolveAbsoluteUrl(rawUrl, 'https://www.google.com'))
       if (normalized.pathname === '/url') {
         const target = normalized.searchParams.get('q')
         return target || null

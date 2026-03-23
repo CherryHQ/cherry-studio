@@ -1,8 +1,11 @@
 import type { WebSearchExecutionConfig, WebSearchResponse } from '@shared/data/types/webSearch'
+import { defaultAppHeaders } from '@shared/utils'
 import { net } from 'electron'
 import * as z from 'zod'
 
-import { BaseWebSearchProvider, resolveProviderApiKey } from '../base/BaseWebSearchProvider'
+import { resolveProviderApiKey } from '../../utils/provider'
+import { BaseWebSearchProvider } from '../base/BaseWebSearchProvider'
+import type { ApiKeyRequestSearchContext } from '../base/context'
 
 const ExaSearchRequestSchema = z.object({
   query: z.string(),
@@ -25,26 +28,49 @@ const ExaSearchResponseSchema = z.object({
   autopromptString: z.string().optional()
 })
 
+type ExaSearchContext = ApiKeyRequestSearchContext<z.infer<typeof ExaSearchRequestSchema>>
+
 export class ExaProvider extends BaseWebSearchProvider {
   async search(query: string, config: WebSearchExecutionConfig, httpOptions?: RequestInit): Promise<WebSearchResponse> {
-    const apiKey = resolveProviderApiKey(this.provider)
-    const requestBody = ExaSearchRequestSchema.parse({
-      query,
-      numResults: Math.max(1, config.maxResults),
-      contents: {
-        text: true
-      }
-    })
+    const context = this.prepareSearchContext(query, config, httpOptions)
+    const searchPayload = await this.executeSearch(context)
 
-    const response = await net.fetch(this.resolveApiUrl('/search'), {
+    return this.buildFinalResponse(context, searchPayload)
+  }
+
+  private prepareSearchContext(
+    query: string,
+    config: WebSearchExecutionConfig,
+    httpOptions?: RequestInit
+  ): ExaSearchContext {
+    const apiKey = resolveProviderApiKey(this.provider)
+
+    return {
+      apiKey,
+      query,
+      maxResults: config.maxResults,
+      requestUrl: this.resolveApiUrl('/search'),
+      requestBody: ExaSearchRequestSchema.parse({
+        query,
+        numResults: Math.max(1, config.maxResults),
+        contents: {
+          text: true
+        }
+      }),
+      signal: httpOptions?.signal ?? undefined
+    }
+  }
+
+  private async executeSearch(context: ExaSearchContext) {
+    const response = await net.fetch(context.requestUrl, {
       method: 'POST',
       headers: {
-        ...this.defaultHeaders(),
+        ...defaultAppHeaders(),
         'Content-Type': 'application/json',
-        'x-api-key': apiKey
+        'x-api-key': context.apiKey
       },
-      body: JSON.stringify(requestBody),
-      signal: httpOptions?.signal
+      body: JSON.stringify(context.requestBody),
+      signal: context.signal
     })
 
     if (!response.ok) {
@@ -52,12 +78,16 @@ export class ExaProvider extends BaseWebSearchProvider {
       throw new Error(`Exa search failed: HTTP ${response.status} ${errorText}`)
     }
 
-    const payload = ExaSearchResponseSchema.parse(await response.json())
-    const results = payload.results
+    return ExaSearchResponseSchema.parse(await response.json())
+  }
 
+  private buildFinalResponse(
+    context: ExaSearchContext,
+    searchPayload: z.infer<typeof ExaSearchResponseSchema>
+  ): WebSearchResponse {
     return {
-      query: payload.autopromptString || query,
-      results: results.slice(0, config.maxResults).map((item) => ({
+      query: searchPayload.autopromptString || context.query,
+      results: searchPayload.results.slice(0, context.maxResults).map((item) => ({
         title: item.title || 'No title',
         content: item.text || '',
         url: item.url || ''

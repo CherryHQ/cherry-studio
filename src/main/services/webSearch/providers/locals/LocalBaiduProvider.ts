@@ -14,15 +14,16 @@ export class LocalBaiduProvider extends LocalSearchProvider {
 
       $('#content_left .result, #content_left .result-op').each((_, element) => {
         const $element = $(element)
-        const title = $element.find('h3 a').first().text().trim()
-        const href = $element.find('h3 a').first().attr('href')
+        const $link = $element.find('h3 a').first()
+        const title = $link.text().trim()
+        const href = $link.attr('href')
         if (!title || !href) {
           return
         }
 
         results.push({
           title,
-          url: this.normalizeUrl(href),
+          url: this.resolveAbsoluteUrl(href, 'https://www.baidu.com'),
           content: this.extractSnippet(
             $element,
             ['.c-abstract', '.content-right_8Zs40', '.c-span-last', '.c-color-text'],
@@ -35,14 +36,6 @@ export class LocalBaiduProvider extends LocalSearchProvider {
     } catch (error) {
       logger.error('Failed to parse Baidu search HTML', error as Error)
       return []
-    }
-  }
-
-  private normalizeUrl(rawUrl: string): string {
-    try {
-      return new URL(rawUrl, 'https://www.baidu.com').toString()
-    } catch {
-      return rawUrl
     }
   }
 }

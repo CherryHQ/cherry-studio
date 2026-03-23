@@ -1,8 +1,10 @@
 import type { WebSearchExecutionConfig, WebSearchResponse } from '@shared/data/types/webSearch'
+import { defaultAppHeaders } from '@shared/utils'
 import { net } from 'electron'
 import * as z from 'zod'
 
 import { BaseWebSearchProvider } from '../base/BaseWebSearchProvider'
+import type { RequestSearchContext } from '../base/context'
 
 const McpSearchRequestSchema = z.object({
   jsonrpc: z.string(),
@@ -44,14 +46,51 @@ const ExaSearchResultsSchema = z.object({
 const DEFAULT_API_HOST = 'https://mcp.exa.ai/mcp'
 const REQUEST_TIMEOUT_MS = 25000
 
+type ExaMcpSearchContext = RequestSearchContext<z.infer<typeof McpSearchRequestSchema>> & {
+  upstreamSignal?: AbortSignal
+}
+
 export class ExaMcpProvider extends BaseWebSearchProvider {
   async search(query: string, config: WebSearchExecutionConfig, httpOptions?: RequestInit): Promise<WebSearchResponse> {
-    const responseText = await this.requestSearch(query, config.maxResults, httpOptions)
+    const context = this.prepareSearchContext(query, config, httpOptions)
+    const responseText = await this.executeSearch(context)
+
+    return this.buildFinalResponse(context, responseText)
+  }
+
+  private prepareSearchContext(
+    query: string,
+    config: WebSearchExecutionConfig,
+    httpOptions?: RequestInit
+  ): ExaMcpSearchContext {
+    return {
+      query,
+      maxResults: config.maxResults,
+      requestUrl: this.provider.apiHost || DEFAULT_API_HOST,
+      requestBody: McpSearchRequestSchema.parse({
+        jsonrpc: '2.0',
+        id: 1,
+        method: 'tools/call',
+        params: {
+          name: 'web_search_exa',
+          arguments: {
+            query,
+            type: 'auto',
+            numResults: config.maxResults,
+            livecrawl: 'fallback'
+          }
+        }
+      }),
+      upstreamSignal: httpOptions?.signal ?? undefined
+    }
+  }
+
+  private buildFinalResponse(context: ExaMcpSearchContext, responseText: string): WebSearchResponse {
     const searchResults = this.parseResponse(responseText)
 
     return {
-      query: searchResults.autopromptString || query,
-      results: (searchResults.results || []).slice(0, config.maxResults).map((result) => ({
+      query: searchResults.autopromptString || context.query,
+      results: (searchResults.results || []).slice(0, context.maxResults).map((result) => ({
         title: result.title || 'No title',
         content: result.text || '',
         url: result.url || ''
@@ -131,40 +170,23 @@ export class ExaMcpProvider extends BaseWebSearchProvider {
     return ExaSearchResultsSchema.parse({ results: [] })
   }
 
-  private async requestSearch(query: string, numResults: number, httpOptions?: RequestInit): Promise<string> {
-    const apiHost = this.provider.apiHost || DEFAULT_API_HOST
-
-    const searchRequest = McpSearchRequestSchema.parse({
-      jsonrpc: '2.0',
-      id: 1,
-      method: 'tools/call',
-      params: {
-        name: 'web_search_exa',
-        arguments: {
-          query,
-          type: 'auto',
-          numResults,
-          livecrawl: 'fallback'
-        }
-      }
-    })
-
+  private async executeSearch(context: ExaMcpSearchContext): Promise<string> {
     const timeoutController = new AbortController()
     const timeoutId = setTimeout(() => timeoutController.abort(), REQUEST_TIMEOUT_MS)
 
-    const signal = httpOptions?.signal
-      ? AbortSignal.any([timeoutController.signal, httpOptions.signal])
+    const signal = context.upstreamSignal
+      ? AbortSignal.any([timeoutController.signal, context.upstreamSignal])
       : timeoutController.signal
 
     try {
-      const response = await net.fetch(apiHost, {
+      const response = await net.fetch(context.requestUrl, {
         method: 'POST',
         headers: {
-          ...this.defaultHeaders(),
+          ...defaultAppHeaders(),
           accept: 'application/json, text/event-stream',
           'content-type': 'application/json'
         },
-        body: JSON.stringify(searchRequest),
+        body: JSON.stringify(context.requestBody),
         signal
       })
 

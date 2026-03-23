@@ -40,10 +40,7 @@ export async function fetchWebSearchContent(
     let html: string
 
     if (usingBrowser) {
-      html = await localBrowser.fetchHtml(url, {
-        signal: httpOptions.signal ?? undefined,
-        showWindow: false
-      })
+      html = await localBrowser.fetchHtml(url, { signal: httpOptions.signal ?? undefined })
     } else {
       const response = await net.fetch(url, {
         ...httpOptions,

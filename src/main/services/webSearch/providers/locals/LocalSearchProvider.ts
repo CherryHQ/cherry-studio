@@ -1,11 +1,12 @@
-import { preferenceService } from '@data/PreferenceService'
 import { loggerService } from '@logger'
 import type { WebSearchExecutionConfig, WebSearchResponse } from '@shared/data/types/webSearch'
+import { isValidUrl } from '@shared/utils'
 import type { Cheerio } from 'cheerio'
 
 import { isAbortError } from '../../utils/errors'
-import { BaseWebSearchProvider, resolveProviderApiHost } from '../base/BaseWebSearchProvider'
-import { fetchSearchResultPageHtml } from './fetchers'
+import { BaseWebSearchProvider } from '../base/BaseWebSearchProvider'
+import type { UrlSearchContext } from '../base/context'
+import { localBrowser } from './LocalBrowser'
 
 const logger = loggerService.withContext('LocalSearchProvider')
 
@@ -15,25 +16,36 @@ export interface SearchItem {
   content: string
 }
 
+type LocalSearchContext = UrlSearchContext
+
 export abstract class LocalSearchProvider extends BaseWebSearchProvider {
   async search(query: string, config: WebSearchExecutionConfig, httpOptions?: RequestInit): Promise<WebSearchResponse> {
-    const validItems = await this.fetchSearchItems(query, config.maxResults, httpOptions)
+    try {
+      const context = await this.prepareSearchContext(query, config, httpOptions)
+      const searchItems = await this.executeSearch(context)
 
-    return {
-      query,
-      results: validItems.map((item) => ({
-        title: item.title,
-        url: item.url,
-        content: item.content
-      }))
+      return this.buildFinalResponse(context, searchItems)
+    } catch (error) {
+      if (isAbortError(error)) {
+        throw error
+      }
+
+      logger.error(`Local provider search failed: ${this.provider.id}`, error as Error)
+      throw error
     }
   }
 
-  protected applyLanguageFilter(query: string, language: string) {
-    if (this.provider.id === 'local-google' || this.provider.id === 'local-bing') {
-      return `${query} lang:${language.split('-')[0]}`
+  private async prepareSearchContext(
+    query: string,
+    config: WebSearchExecutionConfig,
+    httpOptions?: RequestInit
+  ): Promise<LocalSearchContext> {
+    return {
+      query,
+      maxResults: config.maxResults,
+      searchUrl: this.provider.apiHost.replace('%s', encodeURIComponent(query)),
+      signal: httpOptions?.signal ?? undefined
     }
-    return query
   }
 
   protected extractSnippet($element: Cheerio<any>, selectors: string[], title: string): string {
@@ -48,29 +60,39 @@ export abstract class LocalSearchProvider extends BaseWebSearchProvider {
     return fallbackText
   }
 
+  protected resolveAbsoluteUrl(rawUrl: string, baseUrl: string): string {
+    try {
+      return new URL(rawUrl, baseUrl).toString()
+    } catch {
+      return rawUrl
+    }
+  }
+
   protected abstract parseValidUrls(htmlContent: string): SearchItem[]
 
-  private async fetchSearchItems(query: string, maxResults: number, httpOptions?: RequestInit): Promise<SearchItem[]> {
-    try {
-      const language = await preferenceService.get('app.language')
-      const cleanedQuery = query.split('\r\n')[1] ?? query
-      const queryWithLanguage = language ? this.applyLanguageFilter(cleanedQuery, language) : cleanedQuery
-      const apiHost = resolveProviderApiHost(this.provider)
-      const searchUrl = apiHost.replace('%s', encodeURIComponent(queryWithLanguage))
+  private async executeSearch(context: LocalSearchContext): Promise<SearchItem[]> {
+    const html = await localBrowser.fetchHtml(context.searchUrl, { signal: context.signal })
 
-      const html = await fetchSearchResultPageHtml(searchUrl, httpOptions)
-      const items = this.parseValidUrls(html)
-        .filter((item) => item.url.startsWith('http://') || item.url.startsWith('https://'))
-        .slice(0, maxResults)
+    return this.parseValidUrls(html)
+  }
 
-      return Array.from(new Map(items.map((item) => [item.url, item])).values())
-    } catch (error) {
-      if (isAbortError(error)) {
-        throw error
-      }
+  private buildFinalResponse(context: LocalSearchContext, searchItems: SearchItem[]): WebSearchResponse {
+    const validItems = Array.from(
+      new Map(
+        searchItems
+          .filter((item) => isValidUrl(item.url))
+          .slice(0, context.maxResults)
+          .map((item) => [item.url, item])
+      ).values()
+    )
 
-      logger.error(`Local provider search failed: ${this.provider.id}`, error as Error)
-      throw error
+    return {
+      query: context.query,
+      results: validItems.map((item) => ({
+        title: item.title,
+        url: item.url,
+        content: item.content
+      }))
     }
   }
 }

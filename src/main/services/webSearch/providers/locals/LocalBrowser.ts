@@ -1,5 +1,5 @@
 import { loggerService } from '@logger'
-import { app, BrowserWindow } from 'electron'
+import { BrowserWindow } from 'electron'
 
 const logger = loggerService.withContext('LocalWebSearchBrowser')
 
@@ -8,26 +8,47 @@ const DEFAULT_USER_AGENT =
   'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Safari/537.36'
 
 type FetchHtmlOptions = {
-  timeoutMs?: number
   signal?: AbortSignal
-  showWindow?: boolean
+}
+
+type LocalBrowserContext = {
+  url: string
+  signal?: AbortSignal
+  window: BrowserWindow
 }
 
 export class LocalBrowser {
-  async fetchHtml(url: string, options: FetchHtmlOptions = {}): Promise<string> {
-    if (!app.isReady()) {
-      await app.whenReady()
-    }
+  private static instance: LocalBrowser | null = null
 
+  public static getInstance(): LocalBrowser {
+    if (!LocalBrowser.instance) {
+      LocalBrowser.instance = new LocalBrowser()
+    }
+    return LocalBrowser.instance
+  }
+
+  private constructor() {}
+
+  async fetchHtml(url: string, options: FetchHtmlOptions = {}): Promise<string> {
+    const context = this.prepareFetchContext(url, options)
+
+    try {
+      await this.executeNavigation(context)
+      return await this.buildHtmlSnapshot(context)
+    } finally {
+      this.cleanup(context)
+    }
+  }
+
+  private prepareFetchContext(url: string, options: FetchHtmlOptions): LocalBrowserContext {
     if (options.signal?.aborted) {
       throw new DOMException('The operation was aborted', 'AbortError')
     }
 
-    const timeoutMs = options.timeoutMs ?? DEFAULT_NAVIGATION_TIMEOUT_MS
     const window = new BrowserWindow({
       width: 1280,
       height: 768,
-      show: options.showWindow ?? false,
+      show: false,
       webPreferences: {
         nodeIntegration: false,
         contextIsolation: true,
@@ -38,35 +59,20 @@ export class LocalBrowser {
     window.webContents.userAgent = DEFAULT_USER_AGENT
     window.webContents.setWindowOpenHandler(() => ({ action: 'deny' }))
 
-    const onAbort = () => {
-      if (!window.isDestroyed()) {
-        window.destroy()
-      }
-    }
-
-    options.signal?.addEventListener('abort', onAbort, { once: true })
-
-    try {
-      await this.loadUrlWithTimeout(window, url, timeoutMs, options.signal)
-
-      const html = await window.webContents.executeJavaScript('document.documentElement?.outerHTML ?? ""')
-      return typeof html === 'string' ? html : String(html)
-    } finally {
-      options.signal?.removeEventListener('abort', onAbort)
-
-      if (!window.isDestroyed()) {
-        window.destroy()
-      }
+    return {
+      url,
+      signal: options.signal,
+      window
     }
   }
 
-  private async loadUrlWithTimeout(window: BrowserWindow, url: string, timeoutMs: number, signal?: AbortSignal) {
+  private async executeNavigation(context: LocalBrowserContext) {
     await new Promise<void>((resolve, reject) => {
       let settled = false
 
       const cleanup = () => {
-        window.webContents.removeListener('did-finish-load', onReady)
-        signal?.removeEventListener('abort', onAbort)
+        context.window.webContents.removeListener('did-finish-load', onReady)
+        context.signal?.removeEventListener('abort', onAbort)
         clearTimeout(timeoutId)
       }
 
@@ -89,23 +95,34 @@ export class LocalBrowser {
 
       const timeoutId = setTimeout(() => {
         finish(resolve)
-      }, timeoutMs)
+      }, DEFAULT_NAVIGATION_TIMEOUT_MS)
 
-      window.webContents.once('did-finish-load', onReady)
-      signal?.addEventListener('abort', onAbort, { once: true })
+      context.window.webContents.once('did-finish-load', onReady)
+      context.signal?.addEventListener('abort', onAbort, { once: true })
 
-      window.loadURL(url).catch((error) => {
+      context.window.loadURL(context.url).catch((error) => {
         finish(() => reject(error))
       })
     }).catch((error) => {
       logger.debug('LocalBrowser navigation failed', {
-        url,
-        timeoutMs,
+        url: context.url,
+        timeoutMs: DEFAULT_NAVIGATION_TIMEOUT_MS,
         error: error instanceof Error ? error.message : String(error)
       })
       throw error
     })
   }
+
+  private async buildHtmlSnapshot(context: LocalBrowserContext): Promise<string> {
+    const html = await context.window.webContents.executeJavaScript('document.documentElement?.outerHTML ?? ""')
+    return typeof html === 'string' ? html : String(html)
+  }
+
+  private cleanup(context: LocalBrowserContext) {
+    if (!context.window.isDestroyed()) {
+      context.window.destroy()
+    }
+  }
 }
 
-export const localBrowser = new LocalBrowser()
+export const localBrowser = LocalBrowser.getInstance()

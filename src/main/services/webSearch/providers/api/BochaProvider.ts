@@ -1,8 +1,11 @@
 import type { WebSearchExecutionConfig, WebSearchResponse } from '@shared/data/types/webSearch'
+import { defaultAppHeaders } from '@shared/utils'
 import { net } from 'electron'
 import * as z from 'zod'
 
-import { BaseWebSearchProvider, resolveProviderApiKey } from '../base/BaseWebSearchProvider'
+import { resolveProviderApiKey } from '../../utils/provider'
+import { BaseWebSearchProvider } from '../base/BaseWebSearchProvider'
+import type { ApiKeyRequestSearchContext } from '../base/context'
 
 const BochaSearchParamsSchema = z.object({
   query: z.string(),
@@ -31,41 +34,66 @@ const BochaSearchResponseSchema = z.object({
   })
 })
 
+type BochaSearchContext = ApiKeyRequestSearchContext<z.infer<typeof BochaSearchParamsSchema>>
+
 export class BochaProvider extends BaseWebSearchProvider {
   async search(query: string, config: WebSearchExecutionConfig, httpOptions?: RequestInit): Promise<WebSearchResponse> {
-    const apiKey = resolveProviderApiKey(this.provider)
+    const context = this.prepareSearchContext(query, config, httpOptions)
+    const searchPayload = await this.executeSearch(context)
 
-    const params = BochaSearchParamsSchema.parse({
+    return this.buildFinalResponse(context, searchPayload)
+  }
+
+  private prepareSearchContext(
+    query: string,
+    config: WebSearchExecutionConfig,
+    httpOptions?: RequestInit
+  ): BochaSearchContext {
+    return {
+      apiKey: resolveProviderApiKey(this.provider),
       query,
-      count: config.maxResults,
-      exclude: config.excludeDomains.join(','),
-      summary: true
-    })
+      maxResults: config.maxResults,
+      requestUrl: this.resolveApiUrl('/v1/web-search'),
+      requestBody: BochaSearchParamsSchema.parse({
+        query,
+        count: config.maxResults,
+        exclude: config.excludeDomains.join(','),
+        summary: true
+      }),
+      signal: httpOptions?.signal ?? undefined
+    }
+  }
 
-    const response = await net.fetch(this.resolveApiUrl('/v1/web-search'), {
+  private async executeSearch(context: BochaSearchContext) {
+    const response = await net.fetch(context.requestUrl, {
       method: 'POST',
-      body: JSON.stringify(params),
+      body: JSON.stringify(context.requestBody),
       headers: {
-        ...this.defaultHeaders(),
+        ...defaultAppHeaders(),
         'Content-Type': 'application/json',
-        Authorization: `Bearer ${apiKey}`
+        Authorization: `Bearer ${context.apiKey}`
       },
-      signal: httpOptions?.signal
+      signal: context.signal
     })
 
     if (!response.ok) {
       throw new Error(`Bocha search failed: ${response.status} ${response.statusText}`)
     }
 
-    const payload = BochaSearchResponseSchema.parse(await response.json())
+    return BochaSearchResponseSchema.parse(await response.json())
+  }
 
-    if (payload.code !== 200) {
-      throw new Error(`Bocha search failed: ${payload.msg}`)
+  private buildFinalResponse(
+    _context: BochaSearchContext,
+    searchPayload: z.infer<typeof BochaSearchResponseSchema>
+  ): WebSearchResponse {
+    if (searchPayload.code !== 200) {
+      throw new Error(`Bocha search failed: ${searchPayload.msg}`)
     }
 
     return {
-      query: payload.data.queryContext.originalQuery,
-      results: payload.data.webPages.value.map((result) => ({
+      query: searchPayload.data.queryContext.originalQuery,
+      results: searchPayload.data.webPages.value.map((result) => ({
         title: result.name,
         content: result.summary || result.snippet || '',
         url: result.url

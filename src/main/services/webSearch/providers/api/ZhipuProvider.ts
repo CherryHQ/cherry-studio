@@ -1,8 +1,11 @@
 import type { WebSearchExecutionConfig, WebSearchResponse } from '@shared/data/types/webSearch'
+import { defaultAppHeaders } from '@shared/utils'
 import { net } from 'electron'
 import * as z from 'zod'
 
-import { BaseWebSearchProvider, resolveProviderApiHost, resolveProviderApiKey } from '../base/BaseWebSearchProvider'
+import { resolveProviderApiHost, resolveProviderApiKey } from '../../utils/provider'
+import { BaseWebSearchProvider } from '../base/BaseWebSearchProvider'
+import type { ApiKeyRequestSearchContext } from '../base/context'
 
 const ZhipuWebSearchRequestSchema = z.object({
   search_query: z.string(),
@@ -22,27 +25,45 @@ const ZhipuWebSearchResponseSchema = z.object({
     .default([])
 })
 
+type ZhipuSearchContext = ApiKeyRequestSearchContext<z.infer<typeof ZhipuWebSearchRequestSchema>>
+
 export class ZhipuProvider extends BaseWebSearchProvider {
   async search(query: string, config: WebSearchExecutionConfig, httpOptions?: RequestInit): Promise<WebSearchResponse> {
-    const apiKey = resolveProviderApiKey(this.provider)
+    const context = this.prepareSearchContext(query, config, httpOptions)
+    const searchPayload = await this.executeSearch(context)
 
-    const requestBody = ZhipuWebSearchRequestSchema.parse({
-      search_query: query,
-      search_engine: 'search_std',
-      search_intent: false
-    })
+    return this.buildFinalResponse(context, searchPayload)
+  }
 
-    const apiHost = resolveProviderApiHost(this.provider)
+  private prepareSearchContext(
+    query: string,
+    config: WebSearchExecutionConfig,
+    httpOptions?: RequestInit
+  ): ZhipuSearchContext {
+    return {
+      apiKey: resolveProviderApiKey(this.provider),
+      query,
+      maxResults: config.maxResults,
+      requestUrl: resolveProviderApiHost(this.provider),
+      requestBody: ZhipuWebSearchRequestSchema.parse({
+        search_query: query,
+        search_engine: 'search_std',
+        search_intent: false
+      }),
+      signal: httpOptions?.signal ?? undefined
+    }
+  }
 
-    const response = await net.fetch(apiHost, {
+  private async executeSearch(context: ZhipuSearchContext) {
+    const response = await net.fetch(context.requestUrl, {
       method: 'POST',
       headers: {
-        Authorization: `Bearer ${apiKey}`,
+        Authorization: `Bearer ${context.apiKey}`,
         'Content-Type': 'application/json',
-        ...this.defaultHeaders()
+        ...defaultAppHeaders()
       },
-      body: JSON.stringify(requestBody),
-      signal: httpOptions?.signal
+      body: JSON.stringify(context.requestBody),
+      signal: context.signal
     })
 
     if (!response.ok) {
@@ -50,11 +71,16 @@ export class ZhipuProvider extends BaseWebSearchProvider {
       throw new Error(`Zhipu search failed: HTTP ${response.status} ${errorText}`)
     }
 
-    const data = ZhipuWebSearchResponseSchema.parse(await response.json())
+    return ZhipuWebSearchResponseSchema.parse(await response.json())
+  }
 
+  private buildFinalResponse(
+    context: ZhipuSearchContext,
+    searchPayload: z.infer<typeof ZhipuWebSearchResponseSchema>
+  ): WebSearchResponse {
     return {
-      query,
-      results: data.search_result.slice(0, config.maxResults).map((result) => ({
+      query: context.query,
+      results: searchPayload.search_result.slice(0, context.maxResults).map((result) => ({
         title: result.title || 'No title',
         content: result.content || '',
         url: result.link || ''

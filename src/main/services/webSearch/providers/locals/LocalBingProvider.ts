@@ -1,4 +1,5 @@
 import { loggerService } from '@logger'
+import { isValidUrl } from '@shared/utils'
 import { load } from 'cheerio'
 
 import type { SearchItem } from './LocalSearchProvider'
@@ -14,8 +15,9 @@ export class LocalBingProvider extends LocalSearchProvider {
 
       $('#b_results .b_algo').each((_, element) => {
         const $element = $(element)
-        const title = $element.find('h2 a').first().text().trim()
-        const href = $element.find('h2 a').first().attr('href')
+        const $link = $element.find('h2 a').first()
+        const title = $link.text().trim()
+        const href = $link.attr('href')
         if (!title || !href) {
           return
         }
@@ -37,17 +39,19 @@ export class LocalBingProvider extends LocalSearchProvider {
   private decodeBingUrl(rawUrl: string): string {
     try {
       const url = new URL(rawUrl, 'https://www.bing.com')
-      const encodedUrl = url.searchParams.get('u')
-
-      if (!encodedUrl || encodedUrl.length <= 2) {
-        return url.toString()
-      }
-
-      const decoded = Buffer.from(encodedUrl.substring(2), 'base64').toString('utf-8')
-      return decoded.startsWith('http://') || decoded.startsWith('https://') ? decoded : url.toString()
+      return this.decodeRedirectTarget(url.searchParams.get('u')) ?? url.toString()
     } catch (error) {
       logger.warn('Failed to decode Bing redirect URL', error as Error)
       return rawUrl
     }
+  }
+
+  private decodeRedirectTarget(encodedUrl: string | null): string | null {
+    if (!encodedUrl || encodedUrl.length <= 2) {
+      return null
+    }
+
+    const decoded = Buffer.from(encodedUrl.slice(2), 'base64').toString('utf-8')
+    return isValidUrl(decoded) ? decoded : null
   }
 }

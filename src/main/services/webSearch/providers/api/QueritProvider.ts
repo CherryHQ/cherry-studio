@@ -1,8 +1,11 @@
 import type { WebSearchExecutionConfig, WebSearchResponse } from '@shared/data/types/webSearch'
+import { defaultAppHeaders } from '@shared/utils'
 import { net } from 'electron'
 import * as z from 'zod'
 
-import { BaseWebSearchProvider, resolveProviderApiKey } from '../base/BaseWebSearchProvider'
+import { resolveProviderApiKey } from '../../utils/provider'
+import { BaseWebSearchProvider } from '../base/BaseWebSearchProvider'
+import type { ApiKeyRequestSearchContext } from '../base/context'
 
 const QueritSearchParamsSchema = z.object({
   query: z.string(),
@@ -37,9 +40,21 @@ const QueritSearchResponseSchema = z.object({
   })
 })
 
+type QueritSearchContext = ApiKeyRequestSearchContext<z.infer<typeof QueritSearchParamsSchema>>
+
 export class QueritProvider extends BaseWebSearchProvider {
   async search(query: string, config: WebSearchExecutionConfig, httpOptions?: RequestInit): Promise<WebSearchResponse> {
-    const apiKey = resolveProviderApiKey(this.provider)
+    const context = this.prepareSearchContext(query, config, httpOptions)
+    const searchPayload = await this.executeSearch(context)
+
+    return this.buildFinalResponse(context, searchPayload)
+  }
+
+  private prepareSearchContext(
+    query: string,
+    config: WebSearchExecutionConfig,
+    httpOptions?: RequestInit
+  ): QueritSearchContext {
     const requestBody = QueritSearchParamsSchema.parse({
       query,
       count: config.maxResults
@@ -53,30 +68,46 @@ export class QueritProvider extends BaseWebSearchProvider {
       requestBody.filters = filters
     }
 
-    const response = await net.fetch(this.resolveApiUrl('/v1/search'), {
+    return {
+      apiKey: resolveProviderApiKey(this.provider),
+      query,
+      maxResults: config.maxResults,
+      requestUrl: this.resolveApiUrl('/v1/search'),
+      requestBody,
+      signal: httpOptions?.signal ?? undefined
+    }
+  }
+
+  private async executeSearch(context: QueritSearchContext) {
+    const response = await net.fetch(context.requestUrl, {
       method: 'POST',
       headers: {
-        ...this.defaultHeaders(),
+        ...defaultAppHeaders(),
         'Content-Type': 'application/json',
-        Authorization: `Bearer ${apiKey}`
+        Authorization: `Bearer ${context.apiKey}`
       },
-      body: JSON.stringify(requestBody),
-      signal: httpOptions?.signal
+      body: JSON.stringify(context.requestBody),
+      signal: context.signal
     })
 
     if (!response.ok) {
       throw new Error(`Querit search failed: ${response.status} ${response.statusText}`)
     }
 
-    const payload = QueritSearchResponseSchema.parse(await response.json())
+    return QueritSearchResponseSchema.parse(await response.json())
+  }
 
-    if (payload.error_code !== 200) {
-      throw new Error(`Querit search failed: ${payload.error_msg}`)
+  private buildFinalResponse(
+    _context: QueritSearchContext,
+    searchPayload: z.infer<typeof QueritSearchResponseSchema>
+  ): WebSearchResponse {
+    if (searchPayload.error_code !== 200) {
+      throw new Error(`Querit search failed: ${searchPayload.error_msg}`)
     }
 
     return {
-      query: payload.query_context.query,
-      results: (payload.results?.result || []).map((result) => ({
+      query: searchPayload.query_context.query,
+      results: (searchPayload.results?.result || []).map((result) => ({
         title: result.title,
         content: result.snippet || '',
         url: result.url

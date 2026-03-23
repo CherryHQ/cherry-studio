@@ -1,8 +1,11 @@
 import type { WebSearchExecutionConfig, WebSearchResponse } from '@shared/data/types/webSearch'
+import { defaultAppHeaders } from '@shared/utils'
 import { net } from 'electron'
 import * as z from 'zod'
 
-import { BaseWebSearchProvider, resolveProviderApiKey } from '../base/BaseWebSearchProvider'
+import { resolveProviderApiKey } from '../../utils/provider'
+import { BaseWebSearchProvider } from '../base/BaseWebSearchProvider'
+import type { RequestSearchContext } from '../base/context'
 
 const TavilySearchRequestSchema = z.object({
   query: z.string(),
@@ -11,7 +14,9 @@ const TavilySearchRequestSchema = z.object({
 })
 
 const TavilySearchResponseSchema = z.object({
-  query: z.string().optional(),
+  query: z.string(),
+  request_id: z.string(),
+  response_time: z.union([z.number(), z.string()]),
   results: z
     .array(
       z.object({
@@ -23,23 +28,45 @@ const TavilySearchResponseSchema = z.object({
     .default([])
 })
 
+type TavilySearchContext = RequestSearchContext<z.infer<typeof TavilySearchRequestSchema>>
+
 export class TavilyProvider extends BaseWebSearchProvider {
   async search(query: string, config: WebSearchExecutionConfig, httpOptions?: RequestInit): Promise<WebSearchResponse> {
-    const apiKey = resolveProviderApiKey(this.provider)
-    const requestBody = TavilySearchRequestSchema.parse({
-      query,
-      api_key: apiKey,
-      max_results: Math.max(1, config.maxResults)
-    })
+    const context = this.prepareSearchContext(query, config, httpOptions)
+    const searchPayload = await this.executeSearch(context)
 
-    const response = await net.fetch(this.resolveApiUrl('/search'), {
+    return this.buildFinalResponse(context, searchPayload)
+  }
+
+  private prepareSearchContext(
+    query: string,
+    config: WebSearchExecutionConfig,
+    httpOptions?: RequestInit
+  ): TavilySearchContext {
+    const apiKey = resolveProviderApiKey(this.provider)
+
+    return {
+      query,
+      maxResults: config.maxResults,
+      requestUrl: this.resolveApiUrl('/search'),
+      requestBody: TavilySearchRequestSchema.parse({
+        query,
+        api_key: apiKey,
+        max_results: Math.max(1, config.maxResults)
+      }),
+      signal: httpOptions?.signal ?? undefined
+    }
+  }
+
+  private async executeSearch(context: TavilySearchContext) {
+    const response = await net.fetch(context.requestUrl, {
       method: 'POST',
       headers: {
-        ...this.defaultHeaders(),
+        ...defaultAppHeaders(),
         'Content-Type': 'application/json'
       },
-      body: JSON.stringify(requestBody),
-      signal: httpOptions?.signal
+      body: JSON.stringify(context.requestBody),
+      signal: context.signal
     })
 
     if (!response.ok) {
@@ -47,12 +74,16 @@ export class TavilyProvider extends BaseWebSearchProvider {
       throw new Error(`Tavily search failed: HTTP ${response.status} ${errorText}`)
     }
 
-    const payload = TavilySearchResponseSchema.parse(await response.json())
-    const results = payload.results
+    return TavilySearchResponseSchema.parse(await response.json())
+  }
 
+  private buildFinalResponse(
+    context: TavilySearchContext,
+    searchPayload: z.infer<typeof TavilySearchResponseSchema>
+  ): WebSearchResponse {
     return {
-      query: payload.query || query,
-      results: results.slice(0, config.maxResults).map((item) => ({
+      query: searchPayload.query || context.query,
+      results: searchPayload.results.slice(0, context.maxResults).map((item) => ({
         title: item.title || 'No title',
         content: item.content || '',
         url: item.url || ''
