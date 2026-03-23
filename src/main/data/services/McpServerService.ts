@@ -111,6 +111,7 @@ export class MCPServerService {
     const [row] = await db
       .insert(mcpServerTable)
       .values({
+        ...(dto.id ? { id: dto.id } : {}),
         name: dto.name,
         type: dto.type,
         description: dto.description,
@@ -162,37 +163,9 @@ export class MCPServerService {
 
     const db = dbService.getDb()
 
-    const updates: Partial<typeof mcpServerTable.$inferInsert> = {}
-
-    if (dto.name !== undefined) updates.name = dto.name
-    if (dto.type !== undefined) updates.type = dto.type
-    if (dto.description !== undefined) updates.description = dto.description
-    if (dto.baseUrl !== undefined) updates.baseUrl = dto.baseUrl
-    if (dto.command !== undefined) updates.command = dto.command
-    if (dto.registryUrl !== undefined) updates.registryUrl = dto.registryUrl
-    if (dto.args !== undefined) updates.args = dto.args
-    if (dto.env !== undefined) updates.env = dto.env
-    if (dto.headers !== undefined) updates.headers = dto.headers
-    if (dto.provider !== undefined) updates.provider = dto.provider
-    if (dto.providerUrl !== undefined) updates.providerUrl = dto.providerUrl
-    if (dto.logoUrl !== undefined) updates.logoUrl = dto.logoUrl
-    if (dto.tags !== undefined) updates.tags = dto.tags
-    if (dto.longRunning !== undefined) updates.longRunning = dto.longRunning
-    if (dto.timeout !== undefined) updates.timeout = dto.timeout
-    if (dto.dxtVersion !== undefined) updates.dxtVersion = dto.dxtVersion
-    if (dto.dxtPath !== undefined) updates.dxtPath = dto.dxtPath
-    if (dto.reference !== undefined) updates.reference = dto.reference
-    if (dto.searchKey !== undefined) updates.searchKey = dto.searchKey
-    if (dto.configSample !== undefined) updates.configSample = dto.configSample
-    if (dto.disabledTools !== undefined) updates.disabledTools = dto.disabledTools
-    if (dto.disabledAutoApproveTools !== undefined) updates.disabledAutoApproveTools = dto.disabledAutoApproveTools
-    if (dto.shouldConfig !== undefined) updates.shouldConfig = dto.shouldConfig
-    if (dto.sortOrder !== undefined) updates.sortOrder = dto.sortOrder
-    if (dto.isActive !== undefined) updates.isActive = dto.isActive
-    if (dto.installSource !== undefined) updates.installSource = dto.installSource
-    if (dto.isTrusted !== undefined) updates.isTrusted = dto.isTrusted
-    if (dto.trustedAt !== undefined) updates.trustedAt = dto.trustedAt
-    if (dto.installedAt !== undefined) updates.installedAt = dto.installedAt
+    const updates = Object.fromEntries(Object.entries(dto).filter(([, v]) => v !== undefined)) as Partial<
+      typeof mcpServerTable.$inferInsert
+    >
 
     const [row] = await db.update(mcpServerTable).set(updates).where(eq(mcpServerTable.id, id)).returning()
 

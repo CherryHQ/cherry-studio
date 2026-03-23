@@ -25,9 +25,7 @@ export async function createMcpServerForTransport(id: string): Promise<Server> {
 
   server.setRequestHandler(ListToolsRequestSchema, async (request) => {
     const serverId = request.params?._meta?.serverId
-    if (typeof serverId !== 'string') {
-      throw new Error('Missing serverId in request metadata')
-    }
+    if (typeof serverId !== 'string') throw new Error('Missing serverId in _meta')
     logger.debug('Handling list tools request', { serverId })
     const serverConfig = await mcpServerService.getById(serverId)
     const client = await mcpService.initClient(serverConfig)
@@ -36,9 +34,7 @@ export async function createMcpServerForTransport(id: string): Promise<Server> {
 
   server.setRequestHandler(CallToolRequestSchema, async (request) => {
     const serverId = request.params._meta?.serverId
-    if (typeof serverId !== 'string') {
-      throw new Error('Missing serverId in request metadata')
-    }
+    if (typeof serverId !== 'string') throw new Error('Missing serverId in _meta')
     logger.debug('Handling call tool request', { serverId })
     const serverConfig = await mcpServerService.getById(serverId)
     const client = await mcpService.initClient(serverConfig)

@@ -102,7 +102,7 @@ interface Props {
 }
 
 const PopupContainer: React.FC<Props> = ({ resolve, existingServers }) => {
-  const { addMCPServer } = useMCPServers()
+  const { addMCPServer, refetch } = useMCPServers()
   const [open, setOpen] = useState(true)
   const [isSyncing, setIsSyncing] = useState(false)
   const [selectedProviderKey, setSelectedProviderKey] = useState(providers[0].key)
@@ -164,6 +164,7 @@ const PopupContainer: React.FC<Props> = ({ resolve, existingServers }) => {
             const { id, ...updates } = server
             await dataApiService.patch(`/mcp-servers/${encodeURIComponent(id)}`, { body: updates })
           }
+          refetch()
         }
         window.toast.success(result.message)
         setOpen(false)
@@ -180,7 +181,7 @@ const PopupContainer: React.FC<Props> = ({ resolve, existingServers }) => {
     } finally {
       setIsSyncing(false)
     }
-  }, [addMCPServer, existingServers, form, selectedProvider, t])
+  }, [addMCPServer, refetch, existingServers, form, selectedProvider, t])
 
   const onCancel = () => {
     setOpen(false)

@@ -241,4 +241,64 @@ describe('MCPServerService', () => {
       })
     })
   })
+
+  // --------------------------------------------------------------------------
+  // findByIdOrName
+  // --------------------------------------------------------------------------
+  describe('findByIdOrName', () => {
+    it('should return server when found by id', async () => {
+      const row = createMockRow()
+      mockDb.select.mockReturnValue(mockChain([row]))
+
+      const result = await mcpServerService.findByIdOrName('srv-1')
+      expect(result).toBeDefined()
+      expect(result!.id).toBe('srv-1')
+    })
+
+    it('should fall back to name lookup when id not found', async () => {
+      const row = createMockRow({ id: 'srv-1', name: 'my-server' })
+      // First call (by id) returns empty, second call (by name) returns the row
+      mockDb.select.mockReturnValueOnce(mockChain([])).mockReturnValueOnce(mockChain([row]))
+
+      const result = await mcpServerService.findByIdOrName('my-server')
+      expect(result).toBeDefined()
+      expect(result!.name).toBe('my-server')
+    })
+
+    it('should return undefined when not found by id or name', async () => {
+      mockDb.select.mockReturnValue(mockChain([]))
+
+      const result = await mcpServerService.findByIdOrName('non-existent')
+      expect(result).toBeUndefined()
+    })
+  })
+
+  // --------------------------------------------------------------------------
+  // reorder
+  // --------------------------------------------------------------------------
+  describe('reorder', () => {
+    it('should update sortOrder for each server in a transaction', async () => {
+      const txUpdate = vi.fn().mockReturnValue(mockChain(undefined))
+      const mockTx = { update: txUpdate }
+
+      mockDb.transaction = vi.fn().mockImplementation(async (fn: (tx: any) => Promise<void>) => {
+        await fn(mockTx)
+      })
+
+      await mcpServerService.reorder(['srv-a', 'srv-b', 'srv-c'])
+
+      expect(mockDb.transaction).toHaveBeenCalledOnce()
+      expect(txUpdate).toHaveBeenCalledTimes(3)
+    })
+
+    it('should handle empty array', async () => {
+      mockDb.transaction = vi.fn().mockImplementation(async (fn: (tx: any) => Promise<void>) => {
+        await fn({ update: vi.fn() })
+      })
+
+      await mcpServerService.reorder([])
+
+      expect(mockDb.transaction).toHaveBeenCalledOnce()
+    })
+  })
 })

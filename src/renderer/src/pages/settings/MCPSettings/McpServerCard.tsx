@@ -4,7 +4,7 @@ import { ErrorBoundary } from '@renderer/components/ErrorBoundary'
 import { DeleteIcon } from '@renderer/components/Icons'
 import GeneralPopup from '@renderer/components/Popups/GeneralPopup'
 import Scrollbar from '@renderer/components/Scrollbar'
-import { useMCPServer } from '@renderer/hooks/useMCPServers'
+import { useMCPServerMutations } from '@renderer/hooks/useMCPServers'
 import { useMCPServerTrust } from '@renderer/hooks/useMCPServerTrust'
 import { getMcpTypeLabel } from '@renderer/i18n/label'
 import { formatMcpError } from '@renderer/utils/error'
@@ -26,7 +26,7 @@ interface McpServerCardProps {
 }
 
 const McpServerCard: FC<McpServerCardProps> = ({ server, onEdit }) => {
-  const { updateMCPServer, deleteMCPServer } = useMCPServer(server.id)
+  const { updateMCPServer, deleteMCPServer } = useMCPServerMutations(server.id)
   const [loading, setLoading] = useState(false)
   const [version, setVersion] = useState<string | null>(null)
 
@@ -52,7 +52,8 @@ const McpServerCard: FC<McpServerCardProps> = ({ server, onEdit }) => {
     } else {
       setVersion(null)
     }
-  }, [server.isActive, server.id, fetchServerVersion, server])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [server.isActive, server.id, fetchServerVersion])
 
   const handleToggleActive = useCallback(
     async (active: boolean) => {
@@ -65,7 +66,7 @@ const McpServerCard: FC<McpServerCardProps> = ({ server, onEdit }) => {
 
       setLoading(true)
       const oldActiveState = serverForUpdate.isActive
-      logger.silly('toggle activate', { serverId: serverForUpdate.id, active })
+      logger.debug('toggle activate', { serverId: serverForUpdate.id, active })
       try {
         if (active) {
           await fetchServerVersion({ ...serverForUpdate, isActive: active })

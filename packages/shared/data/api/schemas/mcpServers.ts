@@ -13,7 +13,7 @@ import type { MCPServer, MCPServerType } from '@shared/data/types/mcpServer'
 // ============================================================================
 
 /** Fields auto-managed by the database layer, excluded from DTOs */
-type AutoFields = 'id' | 'createdAt' | 'updatedAt'
+type AutoFields = 'createdAt' | 'updatedAt'
 
 // ============================================================================
 // DTOs (derived from MCPServer entity)
@@ -22,6 +22,7 @@ type AutoFields = 'id' | 'createdAt' | 'updatedAt'
 /**
  * DTO for creating a new MCP server.
  * - `name` is required
+ * - `id` is optional (auto-generated if omitted)
  * - All other fields are optional
  */
 export type CreateMCPServerDto = Pick<MCPServer, 'name'> & Partial<Omit<MCPServer, AutoFields | 'name'>>

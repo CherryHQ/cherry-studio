@@ -48,16 +48,29 @@ export const useMCPServers = (query?: ListMCPServersQuery) => {
 
 /**
  * Single MCP server hook — read + update + delete.
- * SWR key is ['/mcp-servers', { id }], mutations use refresh: ['/mcp-servers']
- * to auto-invalidate all /mcp-servers caches (list, filtered, and detail).
+ * Fetches via the list endpoint with an id filter so the SWR cache is shared
+ * with useMCPServers(). Mutations use refresh: ['/mcp-servers'] to
+ * auto-invalidate all /mcp-servers caches (list, filtered, and detail).
  */
 export const useMCPServer = (id: string) => {
-  const path = `/mcp-servers/${id}` as const
-
   const { data, isLoading } = useQuery('/mcp-servers', {
     query: { id },
     enabled: !!id
   })
+
+  const { updateMCPServer, deleteMCPServer } = useMCPServerMutations(id)
+
+  const server = useMemo(() => data?.items?.[0], [data])
+
+  return { server, isLoading, updateMCPServer, deleteMCPServer }
+}
+
+/**
+ * Mutation-only hook for a single MCP server — no query, no N+1.
+ * Use when server data is already available from a parent (e.g. from useMCPServers list).
+ */
+export const useMCPServerMutations = (id: string) => {
+  const path = `/mcp-servers/${id}` as const
 
   const { trigger: updateMCPServer } = useMutation('PATCH', path, {
     refresh: ['/mcp-servers']
@@ -67,7 +80,5 @@ export const useMCPServer = (id: string) => {
     refresh: ['/mcp-servers']
   })
 
-  const server = useMemo(() => data?.items?.[0], [data])
-
-  return { server, isLoading, updateMCPServer, deleteMCPServer }
+  return { updateMCPServer, deleteMCPServer }
 }
