@@ -20,7 +20,7 @@ import {
 import { zodResolver } from '@hookform/resolvers/zod'
 import { loggerService } from '@logger'
 import EmojiPicker from '@renderer/components/EmojiPicker'
-import useTranslate from '@renderer/hooks/useTranslate'
+import { useTranslate } from '@renderer/hooks/translate'
 import { addCustomLanguage, updateCustomLanguage } from '@renderer/services/TranslateService'
 import type { CustomTranslateLanguage } from '@renderer/types'
 import type { FC } from 'react'

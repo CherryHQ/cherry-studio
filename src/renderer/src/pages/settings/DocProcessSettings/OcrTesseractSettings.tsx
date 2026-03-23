@@ -1,7 +1,7 @@
 import { Combobox, type ComboboxOption, Flex, InfoTooltip } from '@cherrystudio/ui'
 import { TESSERACT_LANG_MAP } from '@renderer/config/ocr'
+import { useTranslate } from '@renderer/hooks/translate'
 import { useOcrProvider } from '@renderer/hooks/useOcrProvider'
-import useTranslate from '@renderer/hooks/useTranslate'
 import type { TesseractLangCode } from '@renderer/types'
 import { BuiltinOcrProviderIds, isOcrTesseractProvider } from '@renderer/types'
 import { useCallback, useMemo, useState } from 'react'
