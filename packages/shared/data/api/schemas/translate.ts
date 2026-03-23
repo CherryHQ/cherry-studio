@@ -8,10 +8,10 @@
  * Entity schemas and types live in `@shared/data/types/translate`.
  */
 
+import { LangCodeSchema } from '@shared/data/preference/preferenceTypes'
 import * as z from 'zod'
 
 import type { TranslateHistory, TranslateLanguage } from '../../types/translate'
-import { LangCodeSchema } from '../../types/translate'
 import type { OffsetPaginationResponse } from '../apiTypes'
 
 // ============================================================================

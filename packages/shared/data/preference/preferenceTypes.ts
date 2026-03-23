@@ -1,4 +1,5 @@
 import type { BootConfigPreferenceKeys } from '@shared/data/bootConfig/bootConfigTypes'
+import * as z from 'zod'
 
 import type { PreferenceSchemas } from './preferenceSchemas'
 
@@ -119,10 +120,15 @@ export type MultiModelGridPopoverTrigger = 'hover' | 'click'
 export type AutoDetectionMethod = 'franc' | 'llm' | 'auto'
 
 // 为了支持自定义语言，设置为string别名
-/** zh-cn, en-us, etc. */
-export type TranslateLanguageCode = string
-export type TranslateSourceLanguage = TranslateLanguageCode | 'auto'
-export type TranslateBidirectionalPair = [TranslateLanguageCode, TranslateLanguageCode]
+/**
+ * Language code pattern.
+ * - 2–3 lowercase letters, optionally followed by `-` and 2–4 lowercase letters
+ * - e.g. "en-us", "zh-cn", "ja", "ja-jp"
+ */
+export const LangCodeSchema = z.string().regex(/^[a-z]{2,3}(-[a-z]{2,4})?$/)
+export type TranslateLangCode = z.infer<typeof LangCodeSchema>
+export type TranslateSourceLanguage = TranslateLangCode | 'auto'
+export type TranslateBidirectionalPair = [TranslateLangCode, TranslateLangCode]
 
 // ============================================================================
 // WebSearch Types

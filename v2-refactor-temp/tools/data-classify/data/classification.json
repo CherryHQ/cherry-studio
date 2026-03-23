@@ -868,7 +868,7 @@
         },
         {
           "originalKey": "targetLanguage",
-          "type": "PreferenceTypes.TranslateLanguageCode",
+          "type": "PreferenceTypes.TranslateLangCode",
           "defaultValue": "en-us",
           "status": "classified",
           "category": "preferences",
@@ -3542,7 +3542,7 @@
         },
         {
           "originalKey": "translate:target:language",
-          "type": "PreferenceTypes.TranslateLanguageCode",
+          "type": "PreferenceTypes.TranslateLangCode",
           "defaultValue": "zh-cn",
           "status": "classified",
           "category": "preferences",
