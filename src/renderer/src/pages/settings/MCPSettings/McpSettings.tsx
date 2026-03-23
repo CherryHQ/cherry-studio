@@ -333,19 +333,14 @@ const McpSettings: React.FC = () => {
         mcpServer.headers = parseKeyValueString(values.headers)
       }
 
-      // Extract auto-managed fields before sending as update body
-      const updateBody = Object.fromEntries(
-        Object.entries(mcpServer).filter(([k]) => k !== 'id' && k !== 'createdAt' && k !== 'updatedAt')
-      )
-
       if (server.isActive) {
         try {
           await window.api.mcp.restartServer(mcpServer)
-          updateMCPServer({ body: { ...updateBody, isActive: true } })
+          updateMCPServer({ body: { ...mcpServer, isActive: true } })
           window.toast.success(t('settings.mcp.updateSuccess'))
           setIsFormChanged(false)
         } catch (error: any) {
-          updateMCPServer({ body: { ...updateBody, isActive: false } })
+          updateMCPServer({ body: { ...mcpServer, isActive: false } })
           window.modal.error({
             title: t('settings.mcp.updateError'),
             content: error.message,
@@ -353,7 +348,7 @@ const McpSettings: React.FC = () => {
           })
         }
       } else {
-        updateMCPServer({ body: { ...updateBody, isActive: false } })
+        updateMCPServer({ body: { ...mcpServer, isActive: false } })
         window.toast.success(t('settings.mcp.updateSuccess'))
         setIsFormChanged(false)
       }
