@@ -9,6 +9,7 @@ import { PersistGate } from 'redux-persist/integration/react'
 import TopViewContainer from './components/TopView'
 import AntdProvider from './context/AntdProvider'
 import { CodeStyleProvider } from './context/CodeStyleProvider'
+import { LandingProvider } from './context/LandingContext'
 import { NotificationProvider } from './context/NotificationProvider'
 import StyleSheetManager from './context/StyleSheetManager'
 import { ThemeProvider } from './context/ThemeProvider'
@@ -37,11 +38,13 @@ function App(): React.ReactElement {
             <AntdProvider>
               <NotificationProvider>
                 <CodeStyleProvider>
-                  <PersistGate loading={null} persistor={persistor}>
-                    <TopViewContainer>
-                      <Router />
-                    </TopViewContainer>
-                  </PersistGate>
+                  <LandingProvider>
+                    <PersistGate loading={null} persistor={persistor}>
+                      <TopViewContainer>
+                        <Router />
+                      </TopViewContainer>
+                    </PersistGate>
+                  </LandingProvider>
                 </CodeStyleProvider>
               </NotificationProvider>
             </AntdProvider>

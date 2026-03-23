@@ -7,6 +7,7 @@ import { HashRouter, Route, Routes } from 'react-router-dom'
 import Sidebar from './components/app/Sidebar'
 import { ErrorBoundary } from './components/ErrorBoundary'
 import TabsContainer from './components/Tab/TabContainer'
+import { useLanding } from './context/LandingContext'
 import NavigationHandler from './handler/NavigationHandler'
 import { useNavbarPosition } from './hooks/useSettings'
 import AgentPage from './pages/agents/AgentPage'
@@ -14,6 +15,7 @@ import CodeToolsPage from './pages/code/CodeToolsPage'
 import FilesPage from './pages/files/FilesPage'
 import HomePage from './pages/home/HomePage'
 import KnowledgePage from './pages/knowledge/KnowledgePage'
+import { LandingPage } from './pages/landing'
 import LaunchpadPage from './pages/launchpad/LaunchpadPage'
 import MinAppPage from './pages/minapps/MinAppPage'
 import MinAppsPage from './pages/minapps/MinAppsPage'
@@ -25,6 +27,7 @@ import AssistantPresetsPage from './pages/store/assistants/presets/AssistantPres
 import TranslatePage from './pages/translate/TranslatePage'
 
 const Router: FC = () => {
+  const { landingCompleted } = useLanding()
   const { navbarPosition } = useNavbarPosition()
 
   const routes = useMemo(() => {
@@ -49,6 +52,10 @@ const Router: FC = () => {
       </ErrorBoundary>
     )
   }, [])
+
+  if (!landingCompleted) {
+    return <LandingPage />
+  }
 
   if (navbarPosition === 'left') {
     return (
