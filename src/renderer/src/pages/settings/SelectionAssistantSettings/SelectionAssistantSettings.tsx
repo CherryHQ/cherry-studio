@@ -62,6 +62,7 @@ const SelectionAssistantSettings: FC = () => {
     isLinuxWaylandDisplay: boolean
     isLinuxXWaylandMode: boolean
     hasLinuxInputDeviceAccess: boolean
+    isLinuxCompositorCompatible: boolean
   } | null>(null)
 
   // force disable selection assistant on non-windows systems
@@ -142,42 +143,54 @@ const SelectionAssistantSettings: FC = () => {
                 <TriangleAlert size={14} style={{ marginRight: 4, color: 'var(--color-error)' }} />
                 {t('selection.settings.linux.wayland_title')}
               </SettingRowTitle>
-              <SettingDescription>{t('selection.settings.linux.wayland_description')}</SettingDescription>
-              <SettingDescription style={{ marginTop: 6 }}>
-                {t('selection.settings.linux.wayland_checklist_subtitle')}
-              </SettingDescription>
-              <ChecklistItem style={{ marginTop: 6 }}>
-                {linuxEnvInfo.isLinuxXWaylandMode ? (
-                  <CircleCheck
-                    size={13}
-                    style={{ color: 'var(--color-status-success)', marginRight: 6, flexShrink: 0 }}
-                  />
-                ) : (
-                  <CircleX size={13} style={{ color: 'var(--color-status-error)', marginRight: 6, flexShrink: 0 }} />
-                )}
-                <span>
-                  {t('selection.settings.linux.xwayland_label')}
-                  {linuxEnvInfo.isLinuxXWaylandMode
-                    ? t('selection.settings.linux.xwayland_pass')
-                    : t('selection.settings.linux.xwayland_fail')}
-                </span>
-              </ChecklistItem>
-              <ChecklistItem>
-                {linuxEnvInfo.hasLinuxInputDeviceAccess ? (
-                  <CircleCheck
-                    size={13}
-                    style={{ color: 'var(--color-status-success)', marginRight: 6, flexShrink: 0 }}
-                  />
-                ) : (
-                  <CircleX size={13} style={{ color: 'var(--color-status-error)', marginRight: 6, flexShrink: 0 }} />
-                )}
-                <span>
-                  {t('selection.settings.linux.input_group_label')}
-                  {linuxEnvInfo.hasLinuxInputDeviceAccess
-                    ? t('selection.settings.linux.input_group_pass')
-                    : t('selection.settings.linux.input_group_fail')}
-                </span>
-              </ChecklistItem>
+              {linuxEnvInfo.isLinuxCompositorCompatible ? (
+                <>
+                  <SettingDescription>{t('selection.settings.linux.wayland_description')}</SettingDescription>
+                  <SettingDescription style={{ marginTop: 6 }}>
+                    {t('selection.settings.linux.wayland_checklist_subtitle')}
+                  </SettingDescription>
+                  <ChecklistItem style={{ marginTop: 6 }}>
+                    {linuxEnvInfo.isLinuxXWaylandMode ? (
+                      <CircleCheck
+                        size={13}
+                        style={{ color: 'var(--color-status-success)', marginRight: 6, flexShrink: 0 }}
+                      />
+                    ) : (
+                      <CircleX
+                        size={13}
+                        style={{ color: 'var(--color-status-error)', marginRight: 6, flexShrink: 0 }}
+                      />
+                    )}
+                    <span>
+                      {t('selection.settings.linux.xwayland_label')}
+                      {linuxEnvInfo.isLinuxXWaylandMode
+                        ? t('selection.settings.linux.xwayland_pass')
+                        : t('selection.settings.linux.xwayland_fail')}
+                    </span>
+                  </ChecklistItem>
+                  <ChecklistItem>
+                    {linuxEnvInfo.hasLinuxInputDeviceAccess ? (
+                      <CircleCheck
+                        size={13}
+                        style={{ color: 'var(--color-status-success)', marginRight: 6, flexShrink: 0 }}
+                      />
+                    ) : (
+                      <CircleX
+                        size={13}
+                        style={{ color: 'var(--color-status-error)', marginRight: 6, flexShrink: 0 }}
+                      />
+                    )}
+                    <span>
+                      {t('selection.settings.linux.input_group_label')}
+                      {linuxEnvInfo.hasLinuxInputDeviceAccess
+                        ? t('selection.settings.linux.input_group_pass')
+                        : t('selection.settings.linux.input_group_fail')}
+                    </span>
+                  </ChecklistItem>
+                </>
+              ) : (
+                <SettingDescription>{t('selection.settings.linux.compositor_incompatible')}</SettingDescription>
+              )}
             </SettingLabel>
           </>
         )}

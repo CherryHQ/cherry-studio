@@ -93,9 +93,11 @@ export class SelectionService {
   //isLinuxWaylandDisplay: true when running under Wayland
   //isLinuxXWaylandMode: true when running under XWayland
   //hasLinuxInputDeviceAccess: true when the process has access to input devices
+  //isLinuxCompositorCompatible: true when the compositor supports data-control protocols
   private isLinuxWaylandDisplay: boolean = false
   private isLinuxXWaylandMode: boolean = false
   private hasLinuxInputDeviceAccess: boolean = false
+  private isLinuxCompositorCompatible: boolean = false
 
   private zoomFactor: number = 1
 
@@ -128,6 +130,16 @@ export class SelectionService {
           const envInfo = this.selectionHook.linuxGetEnvInfo()
           this.isLinuxWaylandDisplay = envInfo?.displayProtocol === SelectionHook!.DisplayProtocol.WAYLAND
           this.hasLinuxInputDeviceAccess = envInfo?.hasInputDeviceAccess ?? false
+
+          // X11: all compositors are compatible (no data-control protocol needed).
+          // Wayland: Mutter (GNOME) does not implement data-control protocols; Unknown is uncertain.
+          if (this.isLinuxWaylandDisplay) {
+            this.isLinuxCompositorCompatible =
+              envInfo?.compositorType !== SelectionHook!.CompositorType.MUTTER &&
+              envInfo?.compositorType !== SelectionHook!.CompositorType.UNKNOWN
+          } else {
+            this.isLinuxCompositorCompatible = true
+          }
 
           // Detect if Electron is running under XWayland (not native Wayland).
           // Since Electron 38+, native Wayland is the default when XDG_SESSION_TYPE=wayland.
@@ -163,11 +175,13 @@ export class SelectionService {
     isLinuxWaylandDisplay: boolean
     isLinuxXWaylandMode: boolean
     hasLinuxInputDeviceAccess: boolean
+    isLinuxCompositorCompatible: boolean
   } {
     return {
       isLinuxWaylandDisplay: this.isLinuxWaylandDisplay,
       isLinuxXWaylandMode: this.isLinuxXWaylandMode,
-      hasLinuxInputDeviceAccess: this.hasLinuxInputDeviceAccess
+      hasLinuxInputDeviceAccess: this.hasLinuxInputDeviceAccess,
+      isLinuxCompositorCompatible: this.isLinuxCompositorCompatible
     }
   }
 
@@ -1661,7 +1675,8 @@ export class SelectionService {
           selectionService?.getLinuxEnvInfo() ?? {
             isLinuxWaylandDisplay: false,
             isLinuxXWaylandMode: false,
-            hasLinuxInputDeviceAccess: false
+            hasLinuxInputDeviceAccess: false,
+            isLinuxCompositorCompatible: false
           }
         )
       })

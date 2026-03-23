@@ -3455,13 +3455,14 @@
         }
       },
       "linux": {
-        "filter_warning_text": "Wayland 環境下不生效",
+        "compositor_incompatible": "目前桌面環境不支援劃詞功能，請切換到 X11 模式以獲得完整體驗。",
+        "filter_warning_text": "Wayland 模式下不生效",
         "input_group_fail": "未取得，請執行 `sudo usermod -aG input $USER` 並重新登入生效",
         "input_group_label": "input 組權限：",
         "input_group_pass": "已取得",
         "wayland_checklist_subtitle": "確認以下條件已滿足，以盡可能優化 Wayland 下的體驗：",
-        "wayland_description": "目前為 Wayland 環境，受系統限制，部分桌面環境下工具列只能顯示在螢幕中央，無法跟隨選取文字定位。建議使用 X11 環境以獲得完整體驗。",
-        "wayland_title": "Wayland 環境提示",
+        "wayland_description": "目前為 Wayland 模式，受系統限制，部分桌面環境下工具列只能顯示在螢幕中央，無法跟隨選取文字定位。建議切換到 X11 模式以獲得完整體驗。",
+        "wayland_title": "Wayland 模式提示",
         "xwayland_fail": "未啟用，請使用 `--ozone-platform=x11` 參數啟動 Cherry Studio",
         "xwayland_label": "XWayland 模式：",
         "xwayland_pass": "已啟用"
