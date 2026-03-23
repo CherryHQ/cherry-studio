@@ -14,7 +14,7 @@ import { useTranslation } from 'react-i18next'
  *
  * @param updateServer - callback to persist trust changes for a server
  */
-export const useMCPServerTrust = (updateServer: (server: { id: string } & Partial<MCPServer>) => void) => {
+export const useMCPServerTrust = (updateServer: (body: Partial<MCPServer>) => void) => {
   const { t } = useTranslation()
 
   /**

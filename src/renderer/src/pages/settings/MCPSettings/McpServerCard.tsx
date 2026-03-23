@@ -30,15 +30,9 @@ const McpServerCard: FC<McpServerCardProps> = ({ server, onEdit }) => {
   const [loading, setLoading] = useState(false)
   const [version, setVersion] = useState<string | null>(null)
 
-  const updateServer = useCallback(
-    (s: { id: string } & Partial<MCPServer>) => {
-      const { id: _id, ...body } = s
-      updateMCPServer({ body })
-    },
-    [updateMCPServer]
-  )
+  const updateServerBody = useCallback((body: Partial<MCPServer>) => updateMCPServer({ body }), [updateMCPServer])
 
-  const { ensureServerTrusted } = useMCPServerTrust(updateServer)
+  const { ensureServerTrusted } = useMCPServerTrust(updateServerBody)
   const { t } = useTranslation()
 
   // Fetch version for active servers

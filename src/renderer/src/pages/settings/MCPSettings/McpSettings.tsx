@@ -74,15 +74,9 @@ const McpSettings: React.FC = () => {
   const serverId = params.serverId
   const { server, isLoading: isServerLoading, updateMCPServer, deleteMCPServer } = useMCPServer(serverId ?? '')
 
-  const updateServer = useCallback(
-    (s: { id: string } & Partial<MCPServer>) => {
-      const { id: _id, ...body } = s
-      updateMCPServer({ body })
-    },
-    [updateMCPServer]
-  )
+  const updateServerBody = useCallback((body: Partial<MCPServer>) => updateMCPServer({ body }), [updateMCPServer])
 
-  const { ensureServerTrusted } = useMCPServerTrust(updateServer)
+  const { ensureServerTrusted } = useMCPServerTrust(updateServerBody)
   const [serverType, setServerType] = useState<MCPServer['type']>('stdio')
   const [form] = Form.useForm<MCPFormValues>()
   const [loading, setLoading] = useState(false)
@@ -340,7 +334,9 @@ const McpSettings: React.FC = () => {
       }
 
       // Extract auto-managed fields before sending as update body
-      const { id: _id, createdAt: _ca, updatedAt: _ua, ...updateBody } = mcpServer
+      const updateBody = Object.fromEntries(
+        Object.entries(mcpServer).filter(([k]) => k !== 'id' && k !== 'createdAt' && k !== 'updatedAt')
+      )
 
       if (server.isActive) {
         try {
