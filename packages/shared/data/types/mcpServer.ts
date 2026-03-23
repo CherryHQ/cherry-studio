@@ -1,21 +1,35 @@
 /**
  * MCP Server entity types
  *
- * MCP Servers are user-configured Model Context Protocol server definitions
- * that provide tools and resources to AI assistants.
+ * Defines Zod schemas and inferred types for MCP server entities.
+ * DTO/Query/API schemas live in `@shared/data/api/schemas/mcpServers`.
  */
 
-import type { MCPConfigSample } from '@types'
+import * as z from 'zod'
 
-/**
- * MCP Server type - communication protocol
- */
-export type MCPServerType = 'stdio' | 'sse' | 'streamableHttp' | 'inMemory'
+// ============================================================================
+// Shared Sub-Schemas
+// ============================================================================
 
-/**
- * MCP Server install source
- */
-export type MCPServerInstallSource = 'builtin' | 'manual' | 'protocol' | 'unknown'
+/** MCP server configuration sample */
+export const MCPConfigSampleSchema = z.object({
+  command: z.string(),
+  args: z.array(z.string()),
+  env: z.record(z.string(), z.string()).optional()
+})
+export type MCPConfigSample = z.infer<typeof MCPConfigSampleSchema>
+
+/** MCP Server communication protocol */
+export const MCPServerTypeSchema = z.enum(['stdio', 'sse', 'streamableHttp', 'inMemory'])
+export type MCPServerType = z.infer<typeof MCPServerTypeSchema>
+
+/** MCP Server install source */
+export const MCPServerInstallSourceSchema = z.enum(['builtin', 'manual', 'protocol', 'unknown'])
+export type MCPServerInstallSource = z.infer<typeof MCPServerInstallSourceSchema>
+
+// ============================================================================
+// MCPServer Entity
+// ============================================================================
 
 /**
  * Complete MCP Server entity as stored in database.
@@ -23,69 +37,71 @@ export type MCPServerInstallSource = 'builtin' | 'manual' | 'protocol' | 'unknow
  * Nullable DB columns are represented as optional (`?`) — the service layer
  * converts SQL NULL to `undefined` so consumers don't need to handle `null`.
  */
-export interface MCPServer {
+export const MCPServerSchema = z.object({
   /** Server ID */
-  id: string
+  id: z.string(),
   /** Server name */
-  name: string
+  name: z.string().min(1),
   /** Communication type */
-  type?: MCPServerType
+  type: MCPServerTypeSchema.optional(),
   /** Server description */
-  description?: string
+  description: z.string().optional(),
   /** Server URL address */
-  baseUrl?: string
+  baseUrl: z.string().optional(),
   /** Command to start the server */
-  command?: string
+  command: z.string().optional(),
   /** Registry URL */
-  registryUrl?: string
+  registryUrl: z.string().optional(),
   /** Arguments passed to the command */
-  args?: string[]
+  args: z.array(z.string()).optional(),
   /** Environment variables */
-  env?: Record<string, string>
+  env: z.record(z.string(), z.string()).optional(),
   /** Custom request headers */
-  headers?: Record<string, string>
+  headers: z.record(z.string(), z.string()).optional(),
   /** Provider name */
-  provider?: string
+  provider: z.string().optional(),
   /** Provider URL */
-  providerUrl?: string
+  providerUrl: z.string().optional(),
   /** Logo URL */
-  logoUrl?: string
+  logoUrl: z.string().optional(),
   /** Tags for categorization */
-  tags?: string[]
+  tags: z.array(z.string()).optional(),
   /** Whether the server is long running */
-  longRunning?: boolean
+  longRunning: z.boolean().optional(),
   /** Timeout in seconds */
-  timeout?: number
+  timeout: z.number().optional(),
   /** DXT package version */
-  dxtVersion?: string
+  dxtVersion: z.string().optional(),
   /** DXT package extracted path */
-  dxtPath?: string
+  dxtPath: z.string().optional(),
   /** Reference link */
-  reference?: string
+  reference: z.string().optional(),
   /** Search key */
-  searchKey?: string
+  searchKey: z.string().optional(),
   /** Configuration sample */
-  configSample?: MCPConfigSample
+  configSample: MCPConfigSampleSchema.optional(),
   /** Disabled tools */
-  disabledTools?: string[]
+  disabledTools: z.array(z.string()).optional(),
   /** Disabled auto-approve tools */
-  disabledAutoApproveTools?: string[]
+  disabledAutoApproveTools: z.array(z.string()).optional(),
   /** Whether the server needs configuration */
-  shouldConfig?: boolean
+  shouldConfig: z.boolean().optional(),
   /** Sort order for display */
-  sortOrder?: number
+  sortOrder: z.number().optional(),
   /** Whether the server is active */
-  isActive: boolean
+  isActive: z.boolean(),
   /** Install source */
-  installSource?: MCPServerInstallSource
+  installSource: MCPServerInstallSourceSchema.optional(),
   /** Whether the server is trusted */
-  isTrusted?: boolean
+  isTrusted: z.boolean().optional(),
   /** Timestamp when trusted */
-  trustedAt?: number
+  trustedAt: z.number().optional(),
   /** Timestamp when installed */
-  installedAt?: number
+  installedAt: z.number().optional(),
   /** Creation timestamp (ISO string) */
-  createdAt?: string
+  createdAt: z.string().optional(),
   /** Last update timestamp (ISO string) */
-  updatedAt?: string
-}
+  updatedAt: z.string().optional()
+})
+
+export type MCPServer = z.infer<typeof MCPServerSchema>

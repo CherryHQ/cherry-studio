@@ -1,49 +1,114 @@
 /**
  * MCP Server API Schema definitions
  *
- * Contains all MCP server-related endpoints for CRUD operations and listing.
- * DTOs are derived from the MCPServer entity type to stay in sync with the DB schema.
+ * Contains endpoints for MCP server CRUD operations and listing.
+ * Entity schemas and types live in `@shared/data/types/mcpServer`.
  */
 
-import type { OffsetPaginationResponse } from '@shared/data/api/apiTypes'
-import type { MCPServer, MCPServerType } from '@shared/data/types/mcpServer'
+import * as z from 'zod'
+
+import { type MCPServer, MCPServerInstallSourceSchema, MCPServerTypeSchema } from '../../types/mcpServer'
+import type { OffsetPaginationResponse } from '../apiTypes'
 
 // ============================================================================
-// DTO Derivation Utilities
-// ============================================================================
-
-/** Fields auto-managed by the database layer, excluded from DTOs */
-type AutoFields = 'createdAt' | 'updatedAt'
-
-// ============================================================================
-// DTOs (derived from MCPServer entity)
+// DTOs
 // ============================================================================
 
 /**
  * DTO for creating a new MCP server.
- * - `name` is required
+ * - `name` is required (non-empty)
  * - `id` is optional (auto-generated if omitted)
  * - All other fields are optional
  */
-export type CreateMCPServerDto = Pick<MCPServer, 'name'> & Partial<Omit<MCPServer, AutoFields | 'name'>>
+export const CreateMCPServerSchema = z.object({
+  id: z.string().optional(),
+  name: z.string().min(1),
+  type: MCPServerTypeSchema.optional(),
+  description: z.string().optional(),
+  baseUrl: z.string().optional(),
+  command: z.string().optional(),
+  registryUrl: z.string().optional(),
+  args: z.array(z.string()).optional(),
+  env: z.record(z.string(), z.string()).optional(),
+  headers: z.record(z.string(), z.string()).optional(),
+  provider: z.string().optional(),
+  providerUrl: z.string().optional(),
+  logoUrl: z.string().optional(),
+  tags: z.array(z.string()).optional(),
+  longRunning: z.boolean().optional(),
+  timeout: z.number().optional(),
+  dxtVersion: z.string().optional(),
+  dxtPath: z.string().optional(),
+  reference: z.string().optional(),
+  searchKey: z.string().optional(),
+  disabledTools: z.array(z.string()).optional(),
+  disabledAutoApproveTools: z.array(z.string()).optional(),
+  shouldConfig: z.boolean().optional(),
+  sortOrder: z.number().optional(),
+  isActive: z.boolean().optional(),
+  installSource: MCPServerInstallSourceSchema.optional(),
+  isTrusted: z.boolean().optional(),
+  trustedAt: z.number().optional(),
+  installedAt: z.number().optional()
+})
+export type CreateMCPServerDto = z.infer<typeof CreateMCPServerSchema>
 
 /**
  * DTO for updating an existing MCP server.
- * - All fields optional
+ * All fields optional.
  */
-export type UpdateMCPServerDto = Partial<Omit<MCPServer, AutoFields>>
+export const UpdateMCPServerSchema = z.object({
+  name: z.string().min(1).optional(),
+  type: MCPServerTypeSchema.optional(),
+  description: z.string().optional(),
+  baseUrl: z.string().optional(),
+  command: z.string().optional(),
+  registryUrl: z.string().optional(),
+  args: z.array(z.string()).optional(),
+  env: z.record(z.string(), z.string()).optional(),
+  headers: z.record(z.string(), z.string()).optional(),
+  provider: z.string().optional(),
+  providerUrl: z.string().optional(),
+  logoUrl: z.string().optional(),
+  tags: z.array(z.string()).optional(),
+  longRunning: z.boolean().optional(),
+  timeout: z.number().optional(),
+  dxtVersion: z.string().optional(),
+  dxtPath: z.string().optional(),
+  reference: z.string().optional(),
+  searchKey: z.string().optional(),
+  disabledTools: z.array(z.string()).optional(),
+  disabledAutoApproveTools: z.array(z.string()).optional(),
+  shouldConfig: z.boolean().optional(),
+  sortOrder: z.number().optional(),
+  isActive: z.boolean().optional(),
+  installSource: MCPServerInstallSourceSchema.optional(),
+  isTrusted: z.boolean().optional(),
+  trustedAt: z.number().optional(),
+  installedAt: z.number().optional()
+})
+export type UpdateMCPServerDto = z.infer<typeof UpdateMCPServerSchema>
 
 /**
  * Query parameters for listing MCP servers
  */
-export interface ListMCPServersQuery {
+export const ListMCPServersQuerySchema = z.object({
   /** Filter by server ID */
-  id?: string
+  id: z.string().optional(),
   /** Filter by active state */
-  isActive?: boolean
+  isActive: z.boolean().optional(),
   /** Filter by server type */
-  type?: MCPServerType
-}
+  type: MCPServerTypeSchema.optional()
+})
+export type ListMCPServersQuery = z.infer<typeof ListMCPServersQuerySchema>
+
+/**
+ * Body for reordering MCP servers
+ */
+export const ReorderMCPServersSchema = z.object({
+  orderedIds: z.array(z.string().min(1))
+})
+export type ReorderMCPServersBody = z.infer<typeof ReorderMCPServersSchema>
 
 // ============================================================================
 // API Schema Definitions
@@ -72,19 +137,22 @@ export interface MCPServerSchemas {
   }
 
   /**
+   * Reorder MCP servers endpoint
+   */
+  '/mcp-servers/reorder': {
+    /** Reorder MCP servers by providing ordered IDs */
+    PUT: {
+      body: ReorderMCPServersBody
+      response: void
+    }
+  }
+
+  /**
    * Individual MCP server endpoint
    * @example GET /mcp-servers/abc123
    * @example PATCH /mcp-servers/abc123 { "isActive": true }
    * @example DELETE /mcp-servers/abc123
    */
-  '/mcp-servers/reorder': {
-    /** Reorder MCP servers by providing ordered IDs */
-    PUT: {
-      body: { orderedIds: string[] }
-      response: void
-    }
-  }
-
   '/mcp-servers/:id': {
     /** Get an MCP server by ID */
     GET: {

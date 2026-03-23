@@ -1,4 +1,4 @@
-import type { MCPConfigSample } from '@types'
+import type { MCPConfigSample } from '@shared/data/types/mcpServer'
 import { sql } from 'drizzle-orm'
 import { check, index, integer, sqliteTable, text } from 'drizzle-orm/sqlite-core'
 

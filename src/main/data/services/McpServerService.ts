@@ -108,16 +108,15 @@ export class MCPServerService {
 
     const db = dbService.getDb()
 
-    const values = Object.fromEntries(
-      Object.entries(dto).filter(([, v]) => v !== undefined)
-    ) as typeof mcpServerTable.$inferInsert
+    const { id, sortOrder, isActive, ...rest } = dto
 
     const [row] = await db
       .insert(mcpServerTable)
       .values({
-        ...values,
-        sortOrder: dto.sortOrder ?? 0,
-        isActive: dto.isActive ?? false
+        ...(id ? { id } : {}),
+        ...rest,
+        sortOrder: sortOrder ?? 0,
+        isActive: isActive ?? false
       })
       .returning()
 
