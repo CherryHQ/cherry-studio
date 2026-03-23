@@ -7,12 +7,7 @@
 
 import * as z from 'zod'
 
-/**
- * Language code pattern.
- * - 2–3 lowercase letters, optionally followed by `-` and 2–4 lowercase letters
- * - e.g. "en-us", "zh-cn", "ja", "ja-jp"
- */
-export const LangCodeSchema = z.string().regex(/^[a-z]{2,3}(-[a-z]{2,4})?$/)
+import { LangCodeSchema } from '../preference/preferenceTypes'
 
 // ============================================================================
 // Translate History
