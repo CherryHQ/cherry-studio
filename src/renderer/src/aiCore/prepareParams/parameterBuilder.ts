@@ -41,6 +41,7 @@ import { isAIGatewayProvider, isAwsBedrockProvider, isSupportUrlContextProvider 
 import { DEFAULT_TIMEOUT } from '@shared/config/constant'
 import type { ModelMessage, Tool } from 'ai'
 import { stepCountIs } from 'ai'
+import { getBundledModel } from 'ai-sdk-provider-poe'
 
 import { resolveAiSdkRuntimeProviderIdByMode } from '../provider/factory'
 import { resolveAiSdkTransport } from '../provider/transport'
@@ -82,6 +83,11 @@ function mapVertexAIGatewayModelToProviderId(model: Model): BaseProviderId | und
   }
   logger.warn(`Unknown model type for AI Gateway: ${model.id}. Web search will not be enabled.`)
   return undefined
+}
+
+function resolvePoeWebSearchProviderId(model: Model): BaseProviderId {
+  const rawModelId = model.id.includes('/') ? model.id.split('/').slice(1).join('/') : model.id
+  return getBundledModel(rawModelId)?.supported_endpoints?.[0] === '/v1/chat/completions' ? 'openai-chat' : 'openai'
 }
 
 /**
@@ -130,7 +136,7 @@ export async function buildStreamTextParams(
 
   const model = assistant.model || getDefaultModel()
   const { providerId, mode } = resolveAiSdkTransport(provider, model)
-  const aiSdkProviderId = resolveAiSdkRuntimeProviderIdByMode(providerId, mode)
+  let aiSdkProviderId = resolveAiSdkRuntimeProviderIdByMode(providerId, mode)
 
   // 这三个变量透传出来，交给下面启用插件/中间件
   // 也可以在外部构建好再传入buildStreamTextParams
@@ -176,6 +182,9 @@ export async function buildStreamTextParams(
 
   let webSearchPluginConfig: WebSearchPluginConfig | undefined = undefined
   if (enableWebSearch) {
+    if (provider.id === SystemProviderIds.poe) {
+      aiSdkProviderId = resolvePoeWebSearchProviderId(model)
+    }
     if (isBaseProvider(aiSdkProviderId)) {
       webSearchPluginConfig = buildProviderBuiltinWebSearchConfig(aiSdkProviderId, webSearchConfig, model)
     } else if (isAIGatewayProvider(provider) || SystemProviderIds.gateway === provider.id) {

@@ -260,6 +260,15 @@ export function buildProviderOptions(
         case SystemProviderIds.gateway:
           providerSpecificOptions = buildAIGatewayOptions(assistant, model, capabilities, serviceTier, textVerbosity)
           break
+        case SystemProviderIds.poe:
+          providerSpecificOptions = buildOpenAIProviderOptions(
+            assistant,
+            model,
+            capabilities,
+            serviceTier,
+            textVerbosity
+          )
+          break
         default:
           // 对于其他 provider，使用通用的构建逻辑
           providerSpecificOptions = buildGenericProviderOptions(transportProviderId, assistant, model, capabilities)
