@@ -1,12 +1,16 @@
 /**
- * Transform functions for codeTools migration
+ * Transform functions for codeCLI migration
  *
  * Converts legacy Redux codeTools state into v2 preference values
  * using the Layered Preset pattern (overrides per tool).
  */
 
 import { terminalApps } from '@shared/config/constant'
-import type { CodeToolOverride, CodeToolOverrides } from '@shared/data/preference/preferenceTypes'
+import { CODE_CLI_IDS, type CodeCliOverride, type CodeCliOverrides } from '@shared/data/preference/preferenceTypes'
+
+import type { TransformResult } from './ComplexPreferenceMappings'
+
+const VALID_CLI_IDS = new Set<string>(CODE_CLI_IDS)
 
 /**
  * Extract model IDs from a Record of full Model objects.
@@ -27,10 +31,13 @@ export function transformSelectedModelsToIds(
   const result: Record<string, string | null> = {}
 
   for (const [toolKey, model] of Object.entries(selectedModels)) {
+    if (!VALID_CLI_IDS.has(toolKey)) continue
+
     if (model === null || model === undefined) {
       result[toolKey] = null
-    } else if (typeof model === 'object' && 'id' in model && typeof (model as any).id === 'string') {
-      result[toolKey] = (model as any).id
+    } else if (typeof model === 'object' && 'id' in model) {
+      const rec = model as Record<string, unknown>
+      result[toolKey] = typeof rec.id === 'string' ? rec.id : null
     } else {
       result[toolKey] = null
     }
@@ -39,7 +46,7 @@ export function transformSelectedModelsToIds(
   return result
 }
 
-export interface CodeToolsSourceData {
+export interface CodeCliSourceData {
   selectedModels?: Record<string, unknown> | null
   environmentVariables?: Record<string, string> | null
   directories?: string[] | null
@@ -61,20 +68,27 @@ export interface CodeToolsSourceData {
  *
  * Only non-default values are included (delta-only overrides).
  */
-export function transformCodeToolsToOverrides(sources: CodeToolsSourceData): CodeToolOverrides {
+export function transformCodeCliToOverrides(sources: CodeCliSourceData): CodeCliOverrides {
   const modelIds = transformSelectedModelsToIds(sources.selectedModels)
-  const envVars = sources.environmentVariables ?? {}
-  const directories = sources.directories ?? []
-  const currentDirectory = sources.currentDirectory ?? ''
-  const selectedTool = sources.selectedCliTool ?? null
-  const selectedTerminal = sources.selectedTerminal ?? terminalApps.systemDefault
+  const envVars =
+    sources.environmentVariables && typeof sources.environmentVariables === 'object' ? sources.environmentVariables : {}
+  const directories = Array.isArray(sources.directories) ? sources.directories : []
+  const currentDirectory = typeof sources.currentDirectory === 'string' ? sources.currentDirectory : ''
+  const selectedTool = typeof sources.selectedCliTool === 'string' ? sources.selectedCliTool : null
+  const selectedTerminal =
+    typeof sources.selectedTerminal === 'string' ? sources.selectedTerminal : terminalApps.systemDefault
 
-  // Collect all tool keys that appear in either models or env vars
-  const allToolKeys = new Set<string>([...Object.keys(modelIds), ...Object.keys(envVars)])
-  // Ensure the selected tool is always included
-  if (selectedTool) allToolKeys.add(selectedTool)
+  // Collect all valid tool keys
+  const allToolKeys = new Set<string>()
+  for (const key of Object.keys(modelIds)) {
+    if (VALID_CLI_IDS.has(key)) allToolKeys.add(key)
+  }
+  for (const key of Object.keys(envVars)) {
+    if (VALID_CLI_IDS.has(key)) allToolKeys.add(key)
+  }
+  if (selectedTool && VALID_CLI_IDS.has(selectedTool)) allToolKeys.add(selectedTool)
 
-  const overrides: CodeToolOverrides = {}
+  const overrides: CodeCliOverrides = {}
 
   for (const toolKey of allToolKeys) {
     const modelId = modelIds[toolKey] ?? null
@@ -82,16 +96,14 @@ export function transformCodeToolsToOverrides(sources: CodeToolsSourceData): Cod
     const isSelected = toolKey === selectedTool
 
     const hasModel = modelId !== null
-    const hasEnv = env !== ''
+    const hasEnv = typeof env === 'string' && env !== ''
 
-    const override: CodeToolOverride = {}
+    const override: CodeCliOverride = {}
 
-    // The selected tool gets enabled: true
     if (isSelected) override.enabled = true
     if (hasModel) override.modelId = modelId
     if (hasEnv) override.envVars = env
 
-    // Assign global dirs and terminal to the selected tool
     if (isSelected) {
       if (directories.length > 0) override.directories = directories
       if (currentDirectory) override.currentDirectory = currentDirectory
@@ -104,4 +116,22 @@ export function transformCodeToolsToOverrides(sources: CodeToolsSourceData): Cod
   }
 
   return overrides
+}
+
+/**
+ * TransformFunction-compatible wrapper for ComplexPreferenceMappings.
+ *
+ * Accepts `Record<string, unknown>` from the migration pipeline and
+ * returns `{ 'feature.code_cli.overrides': CodeCliOverrides }`.
+ */
+export function transformCodeCli(sources: Record<string, unknown>): TransformResult {
+  const overrides = transformCodeCliToOverrides({
+    selectedModels: sources.selectedModels as Record<string, unknown> | null,
+    environmentVariables: sources.environmentVariables as Record<string, string> | null,
+    directories: sources.directories as string[] | null,
+    currentDirectory: sources.currentDirectory as string | null,
+    selectedCliTool: sources.selectedCliTool as string | null,
+    selectedTerminal: sources.selectedTerminal as string | null
+  })
+  return { 'feature.code_cli.overrides': overrides }
 }

@@ -325,7 +325,7 @@ export interface PreferenceSchemas {
     // redux/settings/yuqueUrl
     'data.integration.yuque.url': string
     // redux/codeTools - per-tool overrides (layered preset pattern)
-    'feature.code_tools.overrides': PreferenceTypes.CodeToolOverrides
+    'feature.code_cli.overrides': PreferenceTypes.CodeCliOverrides
     // redux/settings/apiServer.apiKey
     'feature.csaas.api_key': string | null
     // redux/settings/apiServer.enabled
@@ -632,7 +632,7 @@ export const DefaultPreferences: PreferenceSchemas = {
     'data.integration.yuque.repo_id': '',
     'data.integration.yuque.token': '',
     'data.integration.yuque.url': '',
-    'feature.code_tools.overrides': {},
+    'feature.code_cli.overrides': {},
     'feature.csaas.api_key': null,
     'feature.csaas.enabled': false,
     'feature.csaas.host': '127.0.0.1',

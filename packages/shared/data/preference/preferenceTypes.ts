@@ -177,10 +177,12 @@ export interface WebSearchProvider {
 }
 
 // ============================================================================
-// CodeTools Types
+// CodeCLI Types
 // ============================================================================
 
-export const CODE_TOOL_IDS = [
+import { codeCLI } from '@shared/config/constant'
+
+export const CODE_CLI_IDS = Object.values(codeCLI) as unknown as readonly [
   'qwen-code',
   'claude-code',
   'gemini-cli',
@@ -189,20 +191,21 @@ export const CODE_TOOL_IDS = [
   'github-copilot-cli',
   'kimi-cli',
   'opencode'
-] as const
+]
 
-export type CodeToolId = (typeof CODE_TOOL_IDS)[number]
+export type CodeCliId = (typeof CODE_CLI_IDS)[number]
 
-export type CodeToolOverride = {
+export type CodeCliOverride = {
   enabled?: boolean
   modelId?: string | null
   envVars?: string
+  /** Terminal app name — should match `terminalApps` enum values */
   terminal?: string
   currentDirectory?: string
   directories?: string[]
 }
 
-export type CodeToolOverrides = Partial<Record<CodeToolId, CodeToolOverride>>
+export type CodeCliOverrides = Partial<Record<CodeCliId, CodeCliOverride>>
 
 // ============================================================================
 // WebSearch Compression Types (v2 - Flattened)

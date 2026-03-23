@@ -1,31 +1,20 @@
 /**
- * Code Tools preset definitions
+ * Code CLI preset definitions
  *
  * Defines the list of supported CLI coding tools and their default per-tool config.
  * User customizations are stored as overrides via the preference key
- * `feature.code_tools.overrides`.
+ * `feature.code_cli.overrides`.
  *
  * @see docs/en/references/data/best-practice-layered-preset-pattern.md
  */
 
 import { terminalApps } from '@shared/config/constant'
-import { CODE_TOOL_IDS, type CodeToolId } from '@shared/data/preference/preferenceTypes'
+import { CODE_CLI_IDS, type CodeCliId } from '@shared/data/preference/preferenceTypes'
 import * as z from 'zod'
 
-export const CodeToolIdSchema = z.enum(CODE_TOOL_IDS)
+export const CodeCliIdSchema = z.enum(CODE_CLI_IDS)
 
-export const CodeToolPresetDefinitionSchema = z.object({
-  id: CodeToolIdSchema,
-  name: z.string(),
-  enabled: z.boolean(),
-  modelId: z.string().nullable(),
-  envVars: z.string(),
-  terminal: z.string(),
-  currentDirectory: z.string(),
-  directories: z.array(z.string())
-})
-
-type CodeToolPresetConfig = {
+type CodeCliPresetConfig = {
   name: string
   enabled: boolean
   modelId: string | null
@@ -35,9 +24,9 @@ type CodeToolPresetConfig = {
   directories: string[]
 }
 
-type CodeToolPresetDefaults = Omit<CodeToolPresetConfig, 'name'>
+type CodeCliPresetDefaults = Omit<CodeCliPresetConfig, 'name'>
 
-export const CodeToolOverrideSchema = z.object({
+export const CodeCliOverrideSchema = z.object({
   enabled: z.boolean().optional(),
   modelId: z.string().nullable().optional(),
   envVars: z.string().optional(),
@@ -46,13 +35,13 @@ export const CodeToolOverrideSchema = z.object({
   directories: z.array(z.string()).optional()
 })
 
-export const CodeToolOverridesSchema = z.partialRecord(CodeToolIdSchema, CodeToolOverrideSchema)
+export const CodeCliOverridesSchema = z.partialRecord(CodeCliIdSchema, CodeCliOverrideSchema)
 
-export interface CodeToolPreset extends CodeToolPresetConfig {
-  id: CodeToolId
+export interface CodeCliPreset extends CodeCliPresetConfig {
+  id: CodeCliId
 }
 
-const DEFAULT_CONFIG: CodeToolPresetDefaults = {
+const DEFAULT_CONFIG: CodeCliPresetDefaults = {
   enabled: false,
   modelId: null,
   envVars: '',
@@ -61,7 +50,7 @@ const DEFAULT_CONFIG: CodeToolPresetDefaults = {
   directories: []
 }
 
-export const CODE_TOOL_PRESET_MAP = {
+export const CODE_CLI_PRESET_MAP = {
   'qwen-code': { name: 'Qwen Code', ...DEFAULT_CONFIG },
   'claude-code': { name: 'Claude Code', ...DEFAULT_CONFIG },
   'gemini-cli': { name: 'Gemini CLI', ...DEFAULT_CONFIG },
@@ -70,9 +59,9 @@ export const CODE_TOOL_PRESET_MAP = {
   'github-copilot-cli': { name: 'GitHub Copilot CLI', ...DEFAULT_CONFIG },
   'kimi-cli': { name: 'Kimi CLI', ...DEFAULT_CONFIG },
   opencode: { name: 'OpenCode', ...DEFAULT_CONFIG }
-} as const satisfies Record<CodeToolId, CodeToolPresetConfig>
+} as const satisfies Record<CodeCliId, CodeCliPresetConfig>
 
-export const PRESETS_CODE_TOOLS: readonly CodeToolPreset[] = CODE_TOOL_IDS.map((id) => ({
+export const PRESETS_CODE_CLI: readonly CodeCliPreset[] = CODE_CLI_IDS.map((id) => ({
   id,
-  ...CODE_TOOL_PRESET_MAP[id]
+  ...CODE_CLI_PRESET_MAP[id]
 }))

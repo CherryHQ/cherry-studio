@@ -1,8 +1,9 @@
+import { terminalApps } from '@shared/config/constant'
 import { describe, expect, it } from 'vitest'
 
-import { transformCodeToolsToOverrides, transformSelectedModelsToIds } from '../CodeToolsTransforms'
+import { transformCodeCli, transformCodeCliToOverrides, transformSelectedModelsToIds } from '../CodeCliTransforms'
 
-describe('CodeToolsTransforms', () => {
+describe('CodeCliTransforms', () => {
   describe('transformSelectedModelsToIds', () => {
     it('should extract model IDs from full Model objects', () => {
       const selectedModels = {
@@ -50,7 +51,7 @@ describe('CodeToolsTransforms', () => {
         'claude-code': { id: 'valid-id', provider: 'anthropic', name: 'Claude', group: 'default' }
       }
 
-      const result = transformSelectedModelsToIds(selectedModels as any)
+      const result = transformSelectedModelsToIds(selectedModels as Record<string, unknown>)
       expect(result).toEqual({
         'qwen-code': null,
         'claude-code': 'valid-id'
@@ -64,18 +65,31 @@ describe('CodeToolsTransforms', () => {
         'gemini-cli': { id: 'valid', provider: 'test', name: 'Test', group: 'default' }
       }
 
-      const result = transformSelectedModelsToIds(selectedModels as any)
+      const result = transformSelectedModelsToIds(selectedModels as Record<string, unknown>)
       expect(result).toEqual({
         'qwen-code': null,
         'claude-code': null,
         'gemini-cli': 'valid'
       })
     })
+
+    it('should skip invalid tool IDs', () => {
+      const selectedModels = {
+        'qwen-code': { id: 'model-1' },
+        'unknown-tool': { id: 'model-2' }
+      }
+
+      const result = transformSelectedModelsToIds(selectedModels)
+      expect(result).toEqual({
+        'qwen-code': 'model-1'
+      })
+      expect(result).not.toHaveProperty('unknown-tool')
+    })
   })
 
-  describe('transformCodeToolsToOverrides', () => {
+  describe('transformCodeCliToOverrides', () => {
     it('should set enabled: true on the selected tool and merge per-tool data', () => {
-      const result = transformCodeToolsToOverrides({
+      const result = transformCodeCliToOverrides({
         selectedModels: {
           'qwen-code': { id: 'model-1', provider: 'openai', name: 'GPT-4', group: 'default' },
           'claude-code': null
@@ -101,7 +115,7 @@ describe('CodeToolsTransforms', () => {
     })
 
     it('should skip tools where all fields are default and not selected', () => {
-      const result = transformCodeToolsToOverrides({
+      const result = transformCodeCliToOverrides({
         selectedModels: {
           'qwen-code': null,
           'claude-code': null
@@ -119,7 +133,7 @@ describe('CodeToolsTransforms', () => {
     })
 
     it('should handle missing sources gracefully', () => {
-      const result = transformCodeToolsToOverrides({
+      const result = transformCodeCliToOverrides({
         selectedModels: undefined,
         environmentVariables: undefined,
         directories: undefined,
@@ -132,7 +146,7 @@ describe('CodeToolsTransforms', () => {
     })
 
     it('should include tool override even if only model is set (not selected)', () => {
-      const result = transformCodeToolsToOverrides({
+      const result = transformCodeCliToOverrides({
         selectedModels: {
           'gemini-cli': { id: 'gem-1', provider: 'google', name: 'Gemini', group: 'default' }
         },
@@ -148,7 +162,7 @@ describe('CodeToolsTransforms', () => {
     })
 
     it('should include tool override even if only envVars is set', () => {
-      const result = transformCodeToolsToOverrides({
+      const result = transformCodeCliToOverrides({
         selectedModels: {},
         environmentVariables: { opencode: 'API_KEY=123' },
         directories: [],
@@ -162,7 +176,7 @@ describe('CodeToolsTransforms', () => {
     })
 
     it('should assign global dirs only to the selected tool, not all tools with overrides', () => {
-      const result = transformCodeToolsToOverrides({
+      const result = transformCodeCliToOverrides({
         selectedModels: {
           'qwen-code': { id: 'm1', provider: 'p', name: 'n', group: 'g' }
         },
@@ -172,19 +186,17 @@ describe('CodeToolsTransforms', () => {
         selectedCliTool: 'qwen-code'
       })
 
-      // Selected tool gets dirs
       expect(result['qwen-code']?.directories).toEqual(['/dir1'])
       expect(result['qwen-code']?.currentDirectory).toBe('/dir1')
       expect(result['qwen-code']?.enabled).toBe(true)
 
-      // Non-selected tool does NOT get dirs
       expect(result['claude-code']?.directories).toBeUndefined()
       expect(result['claude-code']?.currentDirectory).toBeUndefined()
       expect(result['claude-code']?.enabled).toBeUndefined()
     })
 
     it('should create override with enabled: true for selected tool even if no model/env set', () => {
-      const result = transformCodeToolsToOverrides({
+      const result = transformCodeCliToOverrides({
         selectedModels: { 'qwen-code': null },
         environmentVariables: { 'qwen-code': '' },
         directories: ['/project'],
@@ -198,7 +210,7 @@ describe('CodeToolsTransforms', () => {
     })
 
     it('should assign non-default terminal to the selected tool', () => {
-      const result = transformCodeToolsToOverrides({
+      const result = transformCodeCliToOverrides({
         selectedModels: {},
         environmentVariables: {},
         directories: [],
@@ -213,13 +225,13 @@ describe('CodeToolsTransforms', () => {
     })
 
     it('should NOT include terminal when it is the default value', () => {
-      const result = transformCodeToolsToOverrides({
+      const result = transformCodeCliToOverrides({
         selectedModels: {},
         environmentVariables: {},
         directories: [],
         currentDirectory: '',
         selectedCliTool: 'claude-code',
-        selectedTerminal: 'Terminal'
+        selectedTerminal: terminalApps.systemDefault
       })
 
       expect(result).toEqual({
@@ -228,7 +240,7 @@ describe('CodeToolsTransforms', () => {
     })
 
     it('should handle selected tool with all customizations', () => {
-      const result = transformCodeToolsToOverrides({
+      const result = transformCodeCliToOverrides({
         selectedModels: {
           'claude-code': { id: 'claude-4', provider: 'anthropic', name: 'Claude', group: 'default' }
         },
@@ -249,6 +261,100 @@ describe('CodeToolsTransforms', () => {
           terminal: 'Warp'
         }
       })
+    })
+
+    it('should filter out invalid tool IDs from models and env vars', () => {
+      const result = transformCodeCliToOverrides({
+        selectedModels: {
+          'qwen-code': { id: 'model-1' },
+          'invalid-tool': { id: 'model-2' }
+        },
+        environmentVariables: { 'another-invalid': 'KEY=val' },
+        directories: [],
+        currentDirectory: '',
+        selectedCliTool: null
+      })
+
+      expect(result).toEqual({
+        'qwen-code': { modelId: 'model-1' }
+      })
+      expect(result).not.toHaveProperty('invalid-tool')
+      expect(result).not.toHaveProperty('another-invalid')
+    })
+
+    it('should ignore selected tool if it is not a valid CLI ID', () => {
+      const result = transformCodeCliToOverrides({
+        selectedModels: {},
+        environmentVariables: {},
+        directories: ['/project'],
+        currentDirectory: '/project',
+        selectedCliTool: 'nonexistent-tool'
+      })
+
+      expect(result).toEqual({})
+    })
+  })
+
+  describe('transformCodeCli (TransformFunction wrapper)', () => {
+    it('should return result keyed by feature.code_cli.overrides', () => {
+      const result = transformCodeCli({
+        selectedModels: {
+          'claude-code': { id: 'claude-4', provider: 'anthropic', name: 'Claude', group: 'default' }
+        },
+        environmentVariables: { 'claude-code': 'API_KEY=xxx' },
+        directories: ['/work'],
+        currentDirectory: '/work',
+        selectedCliTool: 'claude-code',
+        selectedTerminal: 'Warp'
+      })
+
+      expect(result).toEqual({
+        'feature.code_cli.overrides': {
+          'claude-code': {
+            enabled: true,
+            modelId: 'claude-4',
+            envVars: 'API_KEY=xxx',
+            directories: ['/work'],
+            currentDirectory: '/work',
+            terminal: 'Warp'
+          }
+        }
+      })
+    })
+
+    it('should return empty overrides when all sources are missing', () => {
+      const result = transformCodeCli({})
+      expect(result).toEqual({ 'feature.code_cli.overrides': {} })
+    })
+
+    it('should handle realistic migration input with multiple tools', () => {
+      const result = transformCodeCli({
+        selectedModels: {
+          'qwen-code': { id: 'qwen-2.5', provider: 'alibaba' },
+          'claude-code': { id: 'claude-4', provider: 'anthropic' },
+          'gemini-cli': null
+        },
+        environmentVariables: {
+          'qwen-code': 'DASHSCOPE_API_KEY=sk-xxx',
+          'claude-code': '',
+          'gemini-cli': 'GEMINI_API_KEY=key123'
+        },
+        directories: ['/home/user/projects'],
+        currentDirectory: '/home/user/projects',
+        selectedCliTool: 'claude-code',
+        selectedTerminal: 'iTerm2'
+      })
+
+      const overrides = result['feature.code_cli.overrides'] as Record<string, unknown>
+      expect(overrides['qwen-code']).toEqual({ modelId: 'qwen-2.5', envVars: 'DASHSCOPE_API_KEY=sk-xxx' })
+      expect(overrides['claude-code']).toEqual({
+        enabled: true,
+        modelId: 'claude-4',
+        directories: ['/home/user/projects'],
+        currentDirectory: '/home/user/projects',
+        terminal: 'iTerm2'
+      })
+      expect(overrides['gemini-cli']).toEqual({ envVars: 'GEMINI_API_KEY=key123' })
     })
   })
 })

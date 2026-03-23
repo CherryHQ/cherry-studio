@@ -77,10 +77,10 @@ describe('ComplexPreferenceMappings', () => {
       expect(providersMapping?.targetKeys).toContain('chat.web_search.provider_overrides')
     })
 
-    it('should contain the code_tools_overrides mapping', () => {
-      const codeToolsMapping = COMPLEX_PREFERENCE_MAPPINGS.find((m) => m.id === 'code_tools_overrides')
+    it('should contain the code_cli_overrides mapping', () => {
+      const codeToolsMapping = COMPLEX_PREFERENCE_MAPPINGS.find((m) => m.id === 'code_cli_overrides')
       expect(codeToolsMapping).toBeDefined()
-      expect(codeToolsMapping!.targetKeys).toEqual(['feature.code_tools.overrides'])
+      expect(codeToolsMapping!.targetKeys).toEqual(['feature.code_cli.overrides'])
     })
   })
 
@@ -89,7 +89,7 @@ describe('ComplexPreferenceMappings', () => {
       const keys = getComplexMappingTargetKeys()
       expect(keys).toContain('chat.web_search.compression.method')
       expect(keys).toContain('chat.web_search.provider_overrides')
-      expect(keys).toContain('feature.code_tools.overrides')
+      expect(keys).toContain('feature.code_cli.overrides')
       expect(keys.length).toBe(9) // 7 websearch compression keys + 1 websearch overrides + 1 code_tools overrides
     })
 

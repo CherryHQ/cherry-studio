@@ -19,7 +19,7 @@
  */
 
 import { flattenCompressionConfig, migrateWebSearchProviders } from '../transformers/PreferenceTransformers'
-import { transformCodeToolsToOverrides } from './CodeToolsTransforms'
+import { transformCodeCli } from './CodeCliTransforms'
 
 // ============================================================================
 // Type Definitions
@@ -111,9 +111,9 @@ export const COMPLEX_PREFERENCE_MAPPINGS: ComplexMapping[] = [
     transform: flattenCompressionConfig
   },
 
-  // CodeTools layered preset overrides
+  // CodeCLI layered preset overrides
   {
-    id: 'code_tools_overrides',
+    id: 'code_cli_overrides',
     description: 'Merge codeTools per-tool data (models, env vars, directories) into layered preset overrides',
     sources: {
       selectedModels: { source: 'redux', category: 'codeTools', key: 'selectedModels' },
@@ -123,18 +123,8 @@ export const COMPLEX_PREFERENCE_MAPPINGS: ComplexMapping[] = [
       selectedCliTool: { source: 'redux', category: 'codeTools', key: 'selectedCliTool' },
       selectedTerminal: { source: 'redux', category: 'codeTools', key: 'selectedTerminal' }
     },
-    targetKeys: ['feature.code_tools.overrides'],
-    transform: (sources) => {
-      const overrides = transformCodeToolsToOverrides({
-        selectedModels: sources.selectedModels as Record<string, unknown> | null,
-        environmentVariables: sources.environmentVariables as Record<string, string> | null,
-        directories: sources.directories as string[] | null,
-        currentDirectory: sources.currentDirectory as string | null,
-        selectedCliTool: sources.selectedCliTool as string | null,
-        selectedTerminal: sources.selectedTerminal as string | null
-      })
-      return { 'feature.code_tools.overrides': overrides }
-    }
+    targetKeys: ['feature.code_cli.overrides'],
+    transform: transformCodeCli
   }
 ]
 

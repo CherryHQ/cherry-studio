@@ -12,7 +12,7 @@ import {
   setSelectedTerminal
 } from '@renderer/store/codeTools'
 import type { Model } from '@renderer/types'
-import { codeTools } from '@shared/config/constant'
+import { codeCLI } from '@shared/config/constant'
 import { useCallback } from 'react'
 
 export const useCodeTools = () => {
@@ -22,7 +22,7 @@ export const useCodeTools = () => {
 
   // 设置选择的 CLI 工具
   const setCliTool = useCallback(
-    (tool: codeTools) => {
+    (tool: codeCLI) => {
       dispatch(setSelectedCliTool(tool))
     },
     [dispatch]
@@ -111,7 +111,7 @@ export const useCodeTools = () => {
   const canLaunch = Boolean(
     codeToolsState.selectedCliTool &&
       codeToolsState.currentDirectory &&
-      (codeToolsState.selectedCliTool === codeTools.githubCopilotCli || selectedModel)
+      (codeToolsState.selectedCliTool === codeCLI.githubCopilotCli || selectedModel)
   )
 
   return {
