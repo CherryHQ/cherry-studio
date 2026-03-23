@@ -59,6 +59,7 @@ import BytedanceProviderLogo from '@renderer/assets/images/providers/volcengine.
 import VoyageAIProviderLogo from '@renderer/assets/images/providers/voyageai.png'
 import XirangProviderLogo from '@renderer/assets/images/providers/xirang.png'
 import ZaiAppLogo from '@renderer/assets/images/providers/zai.svg'
+import NovitaProviderLogo from '@renderer/assets/images/providers/novita.svg'
 import ZeroOneProviderLogo from '@renderer/assets/images/providers/zero-one.png'
 import ZhipuProviderLogo from '@renderer/assets/images/providers/zhipu.png'
 import type { AtLeast, SystemProvider, SystemProviderId } from '@renderer/types'
@@ -339,9 +340,6 @@ export const SYSTEM_PROVIDERS_CONFIG: Record<SystemProviderId, SystemProvider> =
     type: 'openai',
     apiKey: '',
     apiHost: 'https://openrouter.ai/api/v1/',
-    // Anthropic-compatible endpoint for Agent mode (Claude Code SDK)
-    // https://openrouter.ai/docs/guides/guides/coding-agents/claude-code-integration
-    anthropicApiHost: 'https://openrouter.ai/api',
     models: SYSTEM_MODELS.openrouter,
     isSystem: true,
     enabled: false
@@ -735,6 +733,17 @@ export const SYSTEM_PROVIDERS_CONFIG: Record<SystemProviderId, SystemProvider> =
     models: SYSTEM_MODELS.mimo,
     isSystem: true,
     enabled: false
+  },
+  novita: {
+    id: 'novita',
+    name: 'Novita AI',
+    type: 'openai',
+    apiKey: '',
+    apiHost: 'https://api.novita.ai/openai',
+    anthropicApiHost: 'https://api.novita.ai/anthropic',
+    models: SYSTEM_MODELS.novita,
+    isSystem: true,
+    enabled: false
   }
 } as const
 
@@ -806,7 +815,8 @@ export const PROVIDER_LOGO_MAP: AtLeast<SystemProviderId, string> = {
   sophnet: SophnetProviderLogo,
   gateway: AIGatewayProviderLogo,
   cerebras: CerebrasProviderLogo,
-  mimo: MiMoProviderLogo
+  mimo: MiMoProviderLogo,
+  novita: NovitaProviderLogo
 } as const
 
 export function getProviderLogo(providerId: string) {
@@ -1509,6 +1519,17 @@ export const PROVIDER_URLS: Record<SystemProviderId, ProviderUrls> = {
       apiKey: 'https://platform.xiaomimimo.com/#/console/usage',
       docs: 'https://platform.xiaomimimo.com/#/docs/welcome',
       models: 'https://platform.xiaomimimo.com/'
+    }
+  },
+  novita: {
+    api: {
+      url: 'https://api.novita.ai/openai'
+    },
+    websites: {
+      official: 'https://novita.ai/',
+      apiKey: 'https://novita.ai/settings/key-management',
+      docs: 'https://novita.ai/docs',
+      models: 'https://novita.ai/llm-api'
     }
   }
 }
