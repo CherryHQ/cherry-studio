@@ -1,9 +1,22 @@
-import { describe, expect, it } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 
+import { mockMainLoggerService } from '../../../../../../../../tests/__mocks__/MainLoggerService'
 import { mergeFileProcessingOverrides } from '../FileProcessingOverrideMappings'
 
 describe('FileProcessingOverrideMappings', () => {
+  beforeEach(() => {
+    vi.restoreAllMocks()
+  })
+
   describe('mergeFileProcessingOverrides', () => {
+    it('should return empty overrides when preprocess and ocr sources are missing', () => {
+      const result = mergeFileProcessingOverrides({})
+
+      expect(result).toEqual({
+        'feature.file_processing.overrides': {}
+      })
+    })
+
     it('should merge preprocess and ocr providers into file processing overrides', () => {
       const result = mergeFileProcessingOverrides({
         preprocessProviders: [
@@ -188,6 +201,131 @@ describe('FileProcessingOverrideMappings', () => {
 
       expect(result).toEqual({
         'feature.file_processing.overrides': {}
+      })
+    })
+
+    it('should warn when unknown preprocess or ocr providers are skipped', () => {
+      const warnSpy = vi.spyOn(mockMainLoggerService, 'warn').mockImplementation(() => {})
+
+      const result = mergeFileProcessingOverrides({
+        preprocessProviders: [
+          {
+            id: 'custom-preprocess',
+            name: 'Custom Preprocess',
+            apiKey: 'secret-key'
+          }
+        ],
+        ocrProviders: [
+          {
+            id: 'custom-ocr',
+            name: 'Custom OCR',
+            config: {
+              accessToken: 'secret-token'
+            }
+          }
+        ]
+      })
+
+      expect(result).toEqual({
+        'feature.file_processing.overrides': {}
+      })
+      expect(warnSpy).toHaveBeenCalledTimes(2)
+      expect(warnSpy).toHaveBeenNthCalledWith(
+        1,
+        'Skipping unknown preprocess provider during file processing migration',
+        { providerId: 'custom-preprocess' }
+      )
+      expect(warnSpy).toHaveBeenNthCalledWith(2, 'Skipping unknown OCR provider during file processing migration', {
+        providerId: 'custom-ocr'
+      })
+    })
+
+    it('should warn when ocr langs has an invalid type', () => {
+      const warnSpy = vi.spyOn(mockMainLoggerService, 'warn').mockImplementation(() => {})
+
+      const result = mergeFileProcessingOverrides({
+        preprocessProviders: [],
+        ocrProviders: [
+          {
+            id: 'system',
+            name: 'System',
+            capabilities: { image: true },
+            config: {
+              langs: 'en-us'
+            }
+          }
+        ]
+      })
+
+      expect(result).toEqual({
+        'feature.file_processing.overrides': {}
+      })
+      expect(warnSpy).toHaveBeenCalledWith('Skipping invalid OCR langs during file processing migration', {
+        providerId: 'system',
+        valueType: 'string'
+      })
+    })
+
+    it('should migrate nested ocr api config fields', () => {
+      const result = mergeFileProcessingOverrides({
+        preprocessProviders: [],
+        ocrProviders: [
+          {
+            id: 'ovocr',
+            name: 'OVOCR',
+            capabilities: { image: true },
+            config: {
+              api: {
+                apiKey: 'ovocr-key',
+                apiHost: 'https://ovocr.example.com',
+                apiVersion: '2026-03-23'
+              }
+            }
+          }
+        ]
+      })
+
+      expect(result).toEqual({
+        'feature.file_processing.overrides': {
+          ovocr: {
+            apiKeys: ['ovocr-key'],
+            capabilities: {
+              text_extraction: {
+                apiHost: 'https://ovocr.example.com'
+              }
+            },
+            options: {
+              apiVersion: '2026-03-23'
+            }
+          }
+        }
+      })
+    })
+
+    it('should dedupe duplicate api keys during migration', () => {
+      const result = mergeFileProcessingOverrides({
+        preprocessProviders: [],
+        ocrProviders: [
+          {
+            id: 'ovocr',
+            name: 'OVOCR',
+            capabilities: { image: true },
+            config: {
+              accessToken: 'shared-key',
+              api: {
+                apiKey: 'shared-key'
+              }
+            }
+          }
+        ]
+      })
+
+      expect(result).toEqual({
+        'feature.file_processing.overrides': {
+          ovocr: {
+            apiKeys: ['shared-key']
+          }
+        }
       })
     })
   })

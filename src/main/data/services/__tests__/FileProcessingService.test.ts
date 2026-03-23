@@ -146,10 +146,31 @@ describe('FileProcessingService', () => {
 
       const storedOverrides = MockMainPreferenceServiceUtils.getPreferenceValue('feature.file_processing.overrides')
 
-      expect(storedOverrides.paddleocr).toMatchObject({
-        apiKeys: ['new-key']
+      expect(storedOverrides).toMatchObject({
+        paddleocr: {
+          apiKeys: ['new-key']
+        }
       })
-      expect(storedOverrides.paddleocr).not.toHaveProperty('options')
+      expect(storedOverrides).not.toHaveProperty('paddleocr.options')
+    })
+
+    it('should replace existing apiKeys instead of appending them', async () => {
+      MockMainPreferenceServiceUtils.setPreferenceValue('feature.file_processing.overrides', {
+        paddleocr: {
+          apiKeys: ['existing-key']
+        }
+      })
+
+      const updated = await fileProcessingService.updateProcessor('paddleocr', {
+        apiKeys: ['replacement-key']
+      })
+
+      expect(updated.apiKeys).toEqual(['replacement-key'])
+      expect(MockMainPreferenceServiceUtils.getPreferenceValue('feature.file_processing.overrides')).toMatchObject({
+        paddleocr: {
+          apiKeys: ['replacement-key']
+        }
+      })
     })
 
     it('should ignore unknown capability override fields in merged configs', async () => {
@@ -173,6 +194,92 @@ describe('FileProcessingService', () => {
       })
       expect(textExtraction).not.toHaveProperty('futureField')
       expect(FileProcessorMergedSchema.safeParse(processor).success).toBe(true)
+    })
+
+    it('should ignore legacy capability metadata stored in preferences', async () => {
+      MockMainPreferenceServiceUtils.setPreferenceValue('feature.file_processing.overrides', {
+        paddleocr: {
+          capabilities: {
+            markdown_conversion: {
+              modelId: 'custom-model',
+              metadata: {
+                optionalPayload: {
+                  useDocUnwarping: true
+                }
+              }
+            }
+          }
+        }
+      } as never)
+
+      const processor = await fileProcessingService.getProcessorById('paddleocr')
+      const markdownConversion = processor.capabilities.find(
+        (capability) => capability.feature === 'markdown_conversion'
+      )
+
+      expect(markdownConversion).toMatchObject({
+        feature: 'markdown_conversion',
+        modelId: 'custom-model'
+      })
+      expect(markdownConversion).not.toHaveProperty('metadata')
+      expect(FileProcessorMergedSchema.safeParse(processor).success).toBe(true)
+    })
+
+    it('should drop invalid capability keys when merging stored overrides and updates', async () => {
+      MockMainPreferenceServiceUtils.setPreferenceValue('feature.file_processing.overrides', {
+        paddleocr: {
+          capabilities: {
+            markdown_conversion: {
+              apiHost: 'https://old.example.com'
+            },
+            vision: {
+              apiHost: 'https://invalid-current.example.com'
+            }
+          }
+        }
+      } as never)
+
+      const updated = await fileProcessingService.updateProcessor('paddleocr', {
+        capabilities: {
+          text_extraction: {
+            modelId: 'new-model'
+          },
+          vision: {
+            apiHost: 'https://invalid-update.example.com'
+          }
+        }
+      } as never)
+
+      expect(updated.capabilities).toContainEqual(
+        expect.objectContaining({
+          feature: 'markdown_conversion',
+          apiHost: 'https://old.example.com'
+        })
+      )
+      expect(updated.capabilities).toContainEqual(
+        expect.objectContaining({
+          feature: 'text_extraction',
+          modelId: 'new-model'
+        })
+      )
+      expect(updated.capabilities).not.toContainEqual(expect.objectContaining({ feature: 'vision' }))
+
+      const storedOverrides = MockMainPreferenceServiceUtils.getPreferenceValue('feature.file_processing.overrides')
+
+      expect(storedOverrides).toMatchObject({
+        paddleocr: {
+          capabilities: {
+            markdown_conversion: {
+              apiHost: 'https://old.example.com'
+            },
+            text_extraction: {
+              modelId: 'new-model'
+            }
+          }
+        }
+      })
+      expect(storedOverrides).not.toHaveProperty('paddleocr.capabilities.vision')
+      expect(FileProcessorMergedSchema.safeParse(updated).success).toBe(true)
     })
   })
 })

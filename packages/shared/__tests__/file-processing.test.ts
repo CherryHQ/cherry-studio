@@ -117,4 +117,20 @@ describe('FileProcessorOverrideSchema', () => {
 
     expect(result.success).toBe(false)
   })
+
+  it('rejects capability metadata overrides', () => {
+    const result = FileProcessorOverrideSchema.safeParse({
+      capabilities: {
+        markdown_conversion: {
+          metadata: {
+            optionalPayload: {
+              enable_formula: false
+            }
+          }
+        }
+      }
+    })
+
+    expect(result.success).toBe(false)
+  })
 })

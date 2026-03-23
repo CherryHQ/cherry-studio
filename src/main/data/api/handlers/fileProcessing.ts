@@ -1,4 +1,5 @@
 import { fileProcessingService } from '@data/services/FileProcessingService'
+import { DataApiErrorFactory } from '@shared/data/api'
 import type { ApiHandler, ApiMethods } from '@shared/data/api/apiTypes'
 import type { FileProcessingSchemas } from '@shared/data/api/schemas/fileProcessing'
 import { FileProcessorOverrideSchema } from '@shared/data/presets/file-processing'
@@ -7,6 +8,20 @@ type FileProcessingHandler<Path extends keyof FileProcessingSchemas, Method exte
   Path,
   Method
 >
+
+function buildValidationErrors(bodyResult: ReturnType<typeof FileProcessorOverrideSchema.safeParse>) {
+  if (bodyResult.success) {
+    return {}
+  }
+
+  return bodyResult.error.issues.reduce<Record<string, string[]>>((errors, issue) => {
+    const field = issue.path.map(String).join('.') || 'body'
+
+    errors[field] ??= []
+    errors[field].push(issue.message)
+    return errors
+  }, {})
+}
 
 export const fileProcessingHandlers: {
   [Path in keyof FileProcessingSchemas]: {
@@ -25,8 +40,13 @@ export const fileProcessingHandlers: {
     },
 
     PATCH: async ({ params, body }) => {
-      const validated = FileProcessorOverrideSchema.parse(body)
-      return await fileProcessingService.updateProcessor(params.id, validated)
+      const bodyResult = FileProcessorOverrideSchema.safeParse(body)
+
+      if (!bodyResult.success) {
+        throw DataApiErrorFactory.validation(buildValidationErrors(bodyResult))
+      }
+
+      return await fileProcessingService.updateProcessor(params.id, bodyResult.data)
     }
   }
 }

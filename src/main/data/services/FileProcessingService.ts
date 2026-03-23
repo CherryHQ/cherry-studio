@@ -1,8 +1,9 @@
 import { preferenceService } from '@data/PreferenceService'
 import { loggerService } from '@logger'
 import { DataApiErrorFactory } from '@shared/data/api'
-import type {
-  CapabilityOverride,
+import {
+  FILE_PROCESSOR_FEATURES,
+  type FileProcessorCapabilityOverride,
   FileProcessorFeature,
   FileProcessorId,
   FileProcessorOverride,
@@ -12,24 +13,34 @@ import { type FileProcessorMerged, PRESETS_FILE_PROCESSORS } from '@shared/data/
 
 const logger = loggerService.withContext('DataApi:FileProcessingService')
 
+function isFileProcessorFeature(value: string): value is FileProcessorFeature {
+  return FILE_PROCESSOR_FEATURES.includes(value as FileProcessorFeature)
+}
+
 function mergeCapabilityOverrides(
-  current?: Partial<Record<FileProcessorFeature, CapabilityOverride>>,
-  updates?: Partial<Record<FileProcessorFeature, CapabilityOverride>>
-): Partial<Record<FileProcessorFeature, CapabilityOverride>> | undefined {
+  current?: Partial<Record<FileProcessorFeature, FileProcessorCapabilityOverride>>,
+  updates?: Partial<Record<FileProcessorFeature, FileProcessorCapabilityOverride>>
+): Partial<Record<FileProcessorFeature, FileProcessorCapabilityOverride>> | undefined {
   if (!current && !updates) {
     return undefined
   }
 
-  const merged: Partial<Record<FileProcessorFeature, CapabilityOverride>> = { ...current }
+  const merged: Partial<Record<FileProcessorFeature, FileProcessorCapabilityOverride>> = {}
 
-  for (const feature of Object.keys(updates ?? {}) as FileProcessorFeature[]) {
-    merged[feature] = {
-      ...current?.[feature],
-      ...updates?.[feature]
+  for (const source of [current, updates]) {
+    for (const [key, override] of Object.entries(source ?? {})) {
+      if (!isFileProcessorFeature(key) || !override) {
+        continue
+      }
+
+      merged[key] = {
+        ...merged[key],
+        ...override
+      }
     }
   }
 
-  return merged
+  return Object.keys(merged).length > 0 ? merged : undefined
 }
 
 function mergeProcessorOverrides(
@@ -60,15 +71,14 @@ function mergeProcessorOverrides(
   }
 }
 
-function mergeCapabilityConfig<T extends { apiHost?: string; modelId?: string; metadata?: Record<string, unknown> }>(
+function mergeCapabilityConfig<T extends { apiHost?: string; modelId?: string }>(
   capability: T,
-  override?: CapabilityOverride
+  override?: FileProcessorCapabilityOverride
 ): T {
   return {
     ...capability,
     ...(override?.apiHost !== undefined ? { apiHost: override.apiHost } : {}),
-    ...(override?.modelId !== undefined ? { modelId: override.modelId } : {}),
-    ...(override?.metadata !== undefined ? { metadata: override.metadata } : {})
+    ...(override?.modelId !== undefined ? { modelId: override.modelId } : {})
   }
 }
 

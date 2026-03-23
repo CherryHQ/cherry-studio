@@ -1,6 +1,7 @@
+import { loggerService } from '@logger'
 import {
-  type CapabilityOverride,
   FILE_PROCESSOR_IDS,
+  type FileProcessorCapabilityOverride,
   type FileProcessorFeature,
   type FileProcessorId,
   type FileProcessorOverride,
@@ -9,6 +10,8 @@ import {
 import { PRESETS_FILE_PROCESSORS } from '@shared/data/presets/file-processing'
 
 import type { TransformResult } from './ComplexPreferenceMappings'
+
+const logger = loggerService.withContext('Migration:FileProcessingOverrideMappings')
 
 function isNonEmptyString(value: unknown): value is string {
   return typeof value === 'string' && value.length > 0
@@ -27,7 +30,10 @@ function ensureOverride(overrides: FileProcessorOverrides, id: FileProcessorId):
   return overrides[id]
 }
 
-function ensureCapability(override: FileProcessorOverride, feature: FileProcessorFeature): CapabilityOverride {
+function ensureCapability(
+  override: FileProcessorOverride,
+  feature: FileProcessorFeature
+): FileProcessorCapabilityOverride {
   override.capabilities ??= {}
 
   const existingCapability = override.capabilities[feature]
@@ -35,7 +41,7 @@ function ensureCapability(override: FileProcessorOverride, feature: FileProcesso
     return existingCapability
   }
 
-  const nextCapability: CapabilityOverride = {}
+  const nextCapability: FileProcessorCapabilityOverride = {}
   override.capabilities[feature] = nextCapability
   return nextCapability
 }
@@ -108,12 +114,20 @@ function setCapabilityModelId(
   ensureCapability(override, feature).modelId = modelId
 }
 
-function normalizeLangs(value: unknown): string[] {
+function normalizeLangs(value: unknown, providerId: FileProcessorId): string[] {
   if (Array.isArray(value)) {
     return value.filter(isNonEmptyString)
   }
 
+  if (value === undefined || value === null) {
+    return []
+  }
+
   if (!isRecord(value)) {
+    logger.warn('Skipping invalid OCR langs during file processing migration', {
+      providerId,
+      valueType: typeof value
+    })
     return []
   }
 
@@ -158,6 +172,9 @@ function mergePreprocessProvider(overrides: FileProcessorOverrides, provider: un
 
   const providerId = provider.id
   if (!isFileProcessorId(providerId)) {
+    logger.warn('Skipping unknown preprocess provider during file processing migration', {
+      providerId: typeof providerId === 'string' ? providerId : undefined
+    })
     return
   }
 
@@ -186,6 +203,9 @@ function mergeOcrProvider(overrides: FileProcessorOverrides, provider: unknown) 
 
   const providerId = provider.id
   if (!isFileProcessorId(providerId)) {
+    logger.warn('Skipping unknown OCR provider during file processing migration', {
+      providerId: typeof providerId === 'string' ? providerId : undefined
+    })
     return
   }
 
@@ -201,7 +221,7 @@ function mergeOcrProvider(overrides: FileProcessorOverrides, provider: unknown) 
     setCapabilityApiHost(override, providerId, 'text_extraction', config.apiUrl)
   }
 
-  const langs = normalizeLangs(config.langs)
+  const langs = normalizeLangs(config.langs, providerId)
   if (langs.length > 0) {
     mergeOptions(override, { langs })
   }

@@ -1,10 +1,10 @@
 import * as z from 'zod'
 
 import {
-  type CapabilityOverride,
   FILE_PROCESSOR_FEATURES,
   FILE_PROCESSOR_IDS,
   FILE_PROCESSOR_TYPES,
+  type FileProcessorCapabilityOverride,
   type FileProcessorCapabilityOverrides,
   type FileProcessorFeature,
   type FileProcessorId,
@@ -59,8 +59,6 @@ export const FileProcessorOutputSchema = z.union([FileProcessorTextOutputSchema,
  *
  * Each capability binds a feature with its supported inputs, output, and optional API settings.
  */
-export const FileProcessorCapabilityMetadataSchema = z.record(z.string(), z.unknown())
-export type FileProcessorCapabilityMetadata = z.infer<typeof FileProcessorCapabilityMetadataSchema>
 
 export const TextExtractionCapabilitySchema = z
   .object({
@@ -68,8 +66,7 @@ export const TextExtractionCapabilitySchema = z
     inputs: z.array(FileProcessorInputSchema).min(1),
     output: z.literal('text'),
     apiHost: z.url().optional(),
-    modelId: z.string().min(1).optional(),
-    metadata: FileProcessorCapabilityMetadataSchema.optional()
+    modelId: z.string().min(1).optional()
     // supportedFormats?: string[] // Whitelist: only these formats supported (uncomment when needed)
     // excludedFormats?: string[] // Blacklist: all formats except these (uncomment when needed)
   })
@@ -82,8 +79,7 @@ export const MarkdownConversionCapabilitySchema = z
     inputs: z.array(z.literal('document')).min(1),
     output: z.literal('markdown'),
     apiHost: z.url().optional(),
-    modelId: z.string().min(1).optional(),
-    metadata: FileProcessorCapabilityMetadataSchema.optional()
+    modelId: z.string().min(1).optional()
     // supportedFormats?: string[] // Whitelist: only these formats supported (uncomment when needed)
     // excludedFormats?: string[] // Blacklist: all formats except these (uncomment when needed)
   })
@@ -169,13 +165,12 @@ export const FileProcessorOptionsSchema: z.ZodType<FileProcessorOptions> = z.rec
 /**
  * Capability override (user customization for a specific feature)
  *
- * Stored as Record<feature, CapabilityOverride> in FileProcessorOverride.
+ * Stored as Record<feature, FileProcessorCapabilityOverride> in FileProcessorOverride.
  */
-export const FileProcessorCapabilityOverrideSchema: z.ZodType<CapabilityOverride> = z
+export const FileProcessorCapabilityOverrideSchema: z.ZodType<FileProcessorCapabilityOverride> = z
   .object({
     apiHost: z.url().optional(),
-    modelId: z.string().min(1).optional(),
-    metadata: FileProcessorCapabilityMetadataSchema.optional()
+    modelId: z.string().min(1).optional()
   })
   .strict()
 
@@ -253,26 +248,14 @@ export const FILE_PROCESSOR_PRESET_MAP = {
         inputs: ['image'],
         output: 'text',
         apiHost: 'https://paddleocr.aistudio-app.com/',
-        modelId: 'PP-OCRv5',
-        metadata: {
-          optionalPayload: {
-            useDocOrientationClassify: false,
-            useDocUnwarping: false
-          }
-        }
+        modelId: 'PP-OCRv5'
       },
       {
         feature: 'markdown_conversion',
         inputs: ['document'],
         output: 'markdown',
         apiHost: 'https://paddleocr.aistudio-app.com/',
-        modelId: 'PaddleOCR-VL-1.5',
-        metadata: {
-          optionalPayload: {
-            useDocOrientationClassify: false,
-            useDocUnwarping: false
-          }
-        }
+        modelId: 'PaddleOCR-VL-1.5'
       }
     ]
   },
@@ -289,14 +272,7 @@ export const FILE_PROCESSOR_PRESET_MAP = {
         feature: 'markdown_conversion',
         inputs: ['document'],
         output: 'markdown',
-        apiHost: 'https://mineru.net',
-        metadata: {
-          optionalPayload: {
-            enable_formula: true,
-            enable_table: true,
-            is_ocr: true
-          }
-        }
+        apiHost: 'https://mineru.net'
       }
     ]
   },

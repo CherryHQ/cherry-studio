@@ -219,13 +219,12 @@ export type FileProcessorId = (typeof FILE_PROCESSOR_IDS)[number]
 
 export type FileProcessorOptions = Record<string, unknown>
 
-export type CapabilityOverride = {
+export type FileProcessorCapabilityOverride = {
   apiHost?: string
   modelId?: string
-  metadata?: Record<string, unknown>
 }
 
-export type FileProcessorCapabilityOverrides = Partial<Record<FileProcessorFeature, CapabilityOverride>>
+export type FileProcessorCapabilityOverrides = Partial<Record<FileProcessorFeature, FileProcessorCapabilityOverride>>
 
 export type FileProcessorOverride = {
   apiKeys?: string[]
