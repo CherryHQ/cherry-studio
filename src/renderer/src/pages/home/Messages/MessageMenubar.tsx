@@ -4,7 +4,7 @@ import { CopyIcon, DeleteIcon, EditIcon, RefreshIcon } from '@renderer/component
 import InspectMessagePopup from '@renderer/components/Popups/InspectMessagePopup'
 import ObsidianExportPopup from '@renderer/components/Popups/ObsidianExportPopup'
 import SaveToKnowledgePopup from '@renderer/components/Popups/SaveToKnowledgePopup'
-import { SelectModelPopup } from '@renderer/components/Popups/SelectModelPopup'
+import { SelectChatModelPopup } from '@renderer/components/Popups/SelectModelPopup'
 import { isEmbeddingModel, isRerankModel, isVisionModel } from '@renderer/config/models'
 import type { MessageMenubarButtonId, MessageMenubarScope } from '@renderer/config/registry/messageMenubar'
 import { DEFAULT_MESSAGE_MENUBAR_SCOPE, getMessageMenubarConfig } from '@renderer/config/registry/messageMenubar'
@@ -531,7 +531,7 @@ const MessageMenubar: FC<Props> = (props) => {
   const onMentionModel = useCallback(
     async (e: React.MouseEvent) => {
       e.stopPropagation()
-      const selectedModel = await SelectModelPopup.show({ model, filter: mentionModelFilter })
+      const selectedModel = await SelectChatModelPopup.show({ model, filter: mentionModelFilter })
       if (!selectedModel) return
       appendAssistantResponse(message, selectedModel, { ...assistant, model: selectedModel })
     },

@@ -378,7 +378,7 @@ export class PluginEngine<T extends string = RegisteredProviderId> {
       const streamTransforms = manager.collectStreamTransforms(transformedParams, context)
 
       // 5. 执行流式 API 调用
-      const result = await executor(resolvedModel, transformedParams, streamTransforms)
+      const result = executor(resolvedModel, transformedParams, streamTransforms)
 
       const transformedResult = await manager.executeTransformResult(result, context)
 
