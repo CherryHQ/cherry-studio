@@ -27,7 +27,7 @@ type WebSearchProviderPresetConfig = {
 }
 
 export const WebSearchProviderOverrideSchema = z.object({
-  apiKey: z.string().optional(),
+  apiKeys: z.array(z.string()).optional(),
   apiHost: z.string().optional(),
   engines: z.array(z.string()).optional(),
   basicAuthUsername: z.string().optional(),
