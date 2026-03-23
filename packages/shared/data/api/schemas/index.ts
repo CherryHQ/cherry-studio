@@ -21,6 +21,7 @@
  */
 
 import type { AssertValidSchemas } from '../apiTypes'
+import type { FileProcessingSchemas } from './fileProcessing'
 import type { KnowledgeSchemas } from './knowledges'
 import type { MessageSchemas } from './messages'
 import type { TestSchemas } from './test'
@@ -40,5 +41,5 @@ import type { TranslateSchemas } from './translate'
  * 2. Import and add to intersection below
  */
 export type ApiSchemas = AssertValidSchemas<
-  TestSchemas & TopicSchemas & MessageSchemas & TranslateSchemas & KnowledgeSchemas
+  TestSchemas & TopicSchemas & MessageSchemas & TranslateSchemas & FileProcessingSchemas & KnowledgeSchemas
 >

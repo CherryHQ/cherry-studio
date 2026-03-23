@@ -10,7 +10,7 @@
  * 4. Conditional mapping: Target keys determined by source values
  *
  * Usage:
- * 1. Define transformation function in PreferenceTransformers.ts
+ * 1. Define transformation function in a colocated mapping file under `mappings/`
  * 2. Add mapping configuration to COMPLEX_PREFERENCE_MAPPINGS below
  * 3. Add target key definitions in target-key-definitions.json
  *
@@ -19,6 +19,7 @@
  */
 
 import { flattenCompressionConfig, migrateWebSearchProviders } from '../transformers/PreferenceTransformers'
+import { mergeFileProcessingOverrides } from './FileProcessingOverrideMappings'
 
 // ============================================================================
 // Type Definitions
@@ -108,36 +109,18 @@ export const COMPLEX_PREFERENCE_MAPPINGS: ComplexMapping[] = [
       'chat.web_search.compression.rag_rerank_model_id'
     ],
     transform: flattenCompressionConfig
+  },
+  // File processing overrides merging
+  {
+    id: 'file_processing_overrides_merge',
+    description: 'Merge legacy OCR and preprocess providers into file processing overrides',
+    sources: {
+      preprocessProviders: { source: 'redux', category: 'preprocess', key: 'providers' },
+      ocrProviders: { source: 'redux', category: 'ocr', key: 'providers' }
+    },
+    targetKeys: ['feature.file_processing.overrides'],
+    transform: mergeFileProcessingOverrides
   }
-
-  // Example mappings (commented out - uncomment when needed):
-  //
-  // {
-  //   id: 'window_bounds_split',
-  //   description: 'Split windowBounds object into separate position and size keys',
-  //   sources: {
-  //     windowBounds: { source: 'electronStore', key: 'windowBounds' }
-  //   },
-  //   targetKeys: [
-  //     'app.window.position.x',
-  //     'app.window.position.y',
-  //     'app.window.size.width',
-  //     'app.window.size.height'
-  //   ],
-  //   transform: splitWindowBounds
-  // },
-  //
-  // {
-  //   id: 'proxy_config_merge',
-  //   description: 'Merge proxy configuration from multiple sources',
-  //   sources: {
-  //     proxyEnabled: { source: 'redux', category: 'settings', key: 'proxyEnabled' },
-  //     proxyHost: { source: 'redux', category: 'settings', key: 'proxyHost' },
-  //     proxyPort: { source: 'electronStore', key: 'ProxyPort' }
-  //   },
-  //   targetKeys: ['network.proxy.enabled', 'network.proxy.host', 'network.proxy.port'],
-  //   transform: mergeProxyConfig
-  // }
 ]
 
 // ============================================================================

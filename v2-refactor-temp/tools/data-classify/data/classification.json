@@ -623,17 +623,17 @@
           "originalKey": "providers",
           "type": "array",
           "defaultValue": "[ { id: 'mineru', name: 'MinerU', apiKey: '', apiHost: 'https://mineru.net' }",
-          "status": "pending",
-          "category": null,
+          "status": "classified",
+          "category": "preferences",
           "targetKey": null
         },
         {
           "originalKey": "defaultProvider",
-          "type": "string",
-          "defaultValue": null,
-          "status": "pending",
-          "category": null,
-          "targetKey": null
+          "type": "PreferenceTypes.FileProcessorId",
+          "defaultValue": "VALUE: null",
+          "status": "classified",
+          "category": "preferences",
+          "targetKey": "feature.file_processing.default_markdown_conversion"
         }
       ],
       "runtime": [
@@ -2965,17 +2965,17 @@
           "originalKey": "providers",
           "type": "array",
           "defaultValue": "BUILTIN_OCR_PROVIDERS",
-          "status": "pending",
-          "category": null,
+          "status": "classified",
+          "category": "preferences",
           "targetKey": null
         },
         {
           "originalKey": "imageProviderId",
-          "type": "string",
-          "defaultValue": null,
-          "status": "pending",
-          "category": null,
-          "targetKey": null
+          "type": "PreferenceTypes.FileProcessorId",
+          "defaultValue": "VALUE: null",
+          "status": "classified",
+          "category": "preferences",
+          "targetKey": "feature.file_processing.default_text_extraction"
         }
       ],
       "note": [
