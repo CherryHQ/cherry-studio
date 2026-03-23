@@ -1,5 +1,9 @@
 import CustomCollapse from '@renderer/components/CustomCollapse'
-import { DynamicVirtualList, type DynamicVirtualListRef } from '@renderer/components/VirtualList'
+import {
+  DraggableVirtualList,
+  type DraggableVirtualListRef,
+  useDraggableReorder
+} from '@renderer/components/DraggableList'
 import type { Model } from '@renderer/types'
 import type { ModelWithStatus } from '@renderer/types/healthCheck'
 import { Button, Flex, Tooltip } from 'antd'
@@ -15,6 +19,7 @@ const MAX_SCROLLER_HEIGHT = 390
 interface ModelListGroupProps {
   groupName: string
   models: Model[]
+  allModels: Model[]
   /** 使用 Map 实现 O(1) 查找，替代原来的数组线性搜索 */
   modelStatusMap: Map<string, ModelWithStatus>
   defaultOpen: boolean
@@ -22,9 +27,11 @@ interface ModelListGroupProps {
   onEditModel: (model: Model) => void
   onRemoveModel: (model: Model) => void
   onRemoveGroup: () => void
+  onModelsUpdate: (models: Model[]) => void
 }
 
 const ModelListGroup: React.FC<ModelListGroupProps> = ({
+  allModels,
   groupName,
   models,
   modelStatusMap,
@@ -32,11 +39,18 @@ const ModelListGroup: React.FC<ModelListGroupProps> = ({
   disabled,
   onEditModel,
   onRemoveModel,
-  onRemoveGroup
+  onRemoveGroup,
+  onModelsUpdate
 }) => {
   const { t } = useTranslation()
-  const listRef = useRef<DynamicVirtualListRef>(null)
+  const listRef = useRef<DraggableVirtualListRef>(null)
 
+  const { onDragEnd, itemKey } = useDraggableReorder({
+    originalList: allModels,
+    filteredList: models,
+    onUpdate: onModelsUpdate,
+    itemKey: (model: Model) => model.id
+  })
   const handleCollapseChange = useCallback((activeKeys: string[] | string) => {
     const isNowExpanded = Array.isArray(activeKeys) ? activeKeys.length > 0 : !!activeKeys
     if (isNowExpanded) {
@@ -74,18 +88,18 @@ const ModelListGroup: React.FC<ModelListGroupProps> = ({
             padding: '3px calc(6px + var(--scrollbar-width)) 3px 16px'
           }
         }}>
-        <DynamicVirtualList
+        <DraggableVirtualList
           ref={listRef}
           list={models}
-          estimateSize={useCallback(() => 52, [])} // 44px item + 8px padding
+          estimateSize={useCallback(() => 44, [])}
           overscan={5}
+          onDragEnd={onDragEnd}
+          itemKey={itemKey}
           scrollerStyle={{
             maxHeight: `${MAX_SCROLLER_HEIGHT}px`,
-            padding: '4px 6px 4px 12px',
-            scrollbarGutter: 'stable'
-          }}
-          itemContainerStyle={{
-            padding: '4px 0'
+            padding: '8px 6px 4px 12px',
+            scrollbarGutter: 'stable',
+            height: '36px'
           }}>
           {(model) => (
             <ModelListItem
@@ -96,7 +110,7 @@ const ModelListGroup: React.FC<ModelListGroupProps> = ({
               disabled={disabled}
             />
           )}
-        </DynamicVirtualList>
+        </DraggableVirtualList>
       </CustomCollapse>
     </CustomCollapseWrapper>
   )
