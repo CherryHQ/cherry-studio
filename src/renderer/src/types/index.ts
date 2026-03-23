@@ -18,6 +18,7 @@ import type { CSSProperties } from 'react'
 export * from './file'
 export * from './note'
 
+import type { TranslateLanguageCode } from '@shared/data/preference/preferenceTypes'
 import * as z from 'zod'
 
 import type { StreamTextParams } from './aiCoreTypes'
@@ -624,9 +625,7 @@ export type GenerateImageResponse = {
   images: string[]
 }
 
-// 为了支持自定义语言，设置为string别名
-/** zh-cn, en-us, etc. */
-export type TranslateLanguageCode = string
+export type { TranslateLanguageCode }
 
 // langCode应当能够唯一确认一种语言
 export type TranslateLanguage = {

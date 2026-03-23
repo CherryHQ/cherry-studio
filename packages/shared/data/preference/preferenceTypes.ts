@@ -107,6 +107,18 @@ export type MultiModelMessageStyle = 'horizontal' | 'vertical' | 'fold' | 'grid'
 export type MultiModelGridPopoverTrigger = 'hover' | 'click'
 
 // ============================================================================
+// Translate Types
+// ============================================================================
+
+export type AutoDetectionMethod = 'franc' | 'llm' | 'auto'
+
+// 为了支持自定义语言，设置为string别名
+/** zh-cn, en-us, etc. */
+export type TranslateLanguageCode = string
+export type TranslateSourceLanguage = TranslateLanguageCode | 'auto'
+export type TranslateBidirectionalPair = [TranslateLanguageCode, TranslateLanguageCode]
+
+// ============================================================================
 // WebSearch Types
 // ============================================================================
 
@@ -121,6 +133,7 @@ export const WEB_SEARCH_PROVIDER_IDS = [
   'exa',
   'exa-mcp',
   'bocha',
+  'querit',
   'local-google',
   'local-bing',
   'local-baidu'
@@ -129,7 +142,7 @@ export const WEB_SEARCH_PROVIDER_IDS = [
 export type WebSearchProviderId = (typeof WEB_SEARCH_PROVIDER_IDS)[number]
 
 export type WebSearchProviderOverride = {
-  apiKey?: string
+  apiKeys?: string[]
   apiHost?: string
   engines?: string[]
   basicAuthUsername?: string
@@ -149,8 +162,8 @@ export interface WebSearchProvider {
   name: string
   /** Provider type (from preset) */
   type: WebSearchProviderType
-  /** API key (from user overrides) */
-  apiKey: string
+  /** API keys (from user overrides) */
+  apiKeys: string[]
   /** API host (user override or preset default) */
   apiHost: string
   /** Search engines (from user overrides) */

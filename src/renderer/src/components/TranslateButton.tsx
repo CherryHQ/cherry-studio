@@ -22,7 +22,7 @@ const logger = loggerService.withContext('TranslateButton')
 const TranslateButton: FC<Props> = ({ text, onTranslated, disabled, style, isLoading }) => {
   const { t } = useTranslation()
   const [isTranslating, setIsTranslating] = useState(false)
-  const [targetLanguage] = usePreference('feature.translate.target_language')
+  const [targetLanguage] = usePreference('feature.translate.chat.target_language')
   const [showTranslateConfirm] = usePreference('chat.input.translate.show_confirm')
   const { getLanguageByLangcode } = useTranslate()
 
