@@ -1,6 +1,6 @@
 /**
  * Auto-generated preference mappings from classification.json
- * Generated at: 2026-03-14T05:57:31.288Z
+ * Generated at: 2026-03-23T04:03:22.980Z
  *
  * This file contains pure mapping relationships without default values.
  * Default values are managed in packages/shared/data/preferences.ts
@@ -819,10 +819,6 @@ export const REDUX_STORE_MAPPINGS = {
   ],
   websearch: [
     {
-      originalKey: 'searchWithTime',
-      targetKey: 'chat.web_search.search_with_time'
-    },
-    {
       originalKey: 'maxResults',
       targetKey: 'chat.web_search.max_results'
     },
@@ -921,10 +917,10 @@ export const DEXIE_SETTINGS_MAPPINGS: ReadonlyArray<{ originalKey: string; targe
 /**
  * 映射统计:
  * - ElectronStore项: 1
- * - Redux Store项: 207
+ * - Redux Store项: 206
  * - Redux分类: settings, selectionStore, memory, nutstore, shortcuts, translate, websearch, note
  * - DexieSettings项: 7
- * - 总配置项: 215
+ * - 总配置项: 214
  *
  * 使用说明:
  * 1. ElectronStore读取: configManager.get(mapping.originalKey)
