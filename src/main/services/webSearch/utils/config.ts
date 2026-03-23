@@ -25,13 +25,14 @@ export async function getProviderOverrides(
 export function resolveProviders(providerOverrides: WebSearchProviderOverrides): ResolvedWebSearchProvider[] {
   return PRESETS_WEB_SEARCH_PROVIDERS.map((preset) => {
     const override = providerOverrides[preset.id]
+    const apiKeys = override?.apiKeys?.map((apiKey) => apiKey.trim()).filter(Boolean) || []
 
     return {
       id: preset.id,
       name: preset.name,
       type: preset.type,
       usingBrowser: preset.usingBrowser,
-      apiKey: override?.apiKey?.trim() || '',
+      apiKeys,
       apiHost: override?.apiHost?.trim() || preset.defaultApiHost,
       engines: override?.engines || [],
       basicAuthUsername: override?.basicAuthUsername?.trim() || '',
@@ -102,13 +103,14 @@ export async function getProviderById(
   const providerOverrides = await getProviderOverrides(preferences)
   const override = providerOverrides[providerId]
   const preset = WEB_SEARCH_PROVIDER_PRESET_MAP[providerId]
+  const apiKeys = override?.apiKeys?.map((apiKey) => apiKey.trim()).filter(Boolean) || []
 
   return {
     id: providerId,
     name: preset.name,
     type: preset.type,
     usingBrowser: preset.usingBrowser,
-    apiKey: override?.apiKey?.trim() || '',
+    apiKeys,
     apiHost: override?.apiHost?.trim() || preset.defaultApiHost,
     engines: override?.engines || [],
     basicAuthUsername: override?.basicAuthUsername?.trim() || '',

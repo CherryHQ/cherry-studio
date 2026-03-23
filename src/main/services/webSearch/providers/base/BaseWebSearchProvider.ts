@@ -16,11 +16,7 @@ export function resolveProviderApiHost(provider: ResolvedWebSearchProvider): str
 }
 
 export function resolveProviderApiKey(provider: ResolvedWebSearchProvider, required: boolean = true): string {
-  const rawApiKey = provider.apiKey?.trim() || ''
-  const keys = rawApiKey
-    .split(',')
-    .map((key) => key.trim())
-    .filter(Boolean)
+  const keys = provider.apiKeys.map((key) => key.trim()).filter(Boolean)
 
   if (keys.length === 0) {
     if (required) {

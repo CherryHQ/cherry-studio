@@ -50,7 +50,7 @@ function createProvider(overrides: Partial<ResolvedWebSearchProvider>): Resolved
     name: 'Provider',
     type: 'api',
     usingBrowser: false,
-    apiKey: 'test-key',
+    apiKeys: ['test-key'],
     apiHost: 'https://api.example.com',
     engines: [],
     basicAuthUsername: '',
@@ -126,7 +126,7 @@ describe('main web search API providers', () => {
       createProvider({
         id: 'exa',
         name: 'Exa',
-        apiKey: 'exa-key',
+        apiKeys: ['exa-key'],
         apiHost: 'https://api.exa.ai'
       })
     )
@@ -176,7 +176,7 @@ describe('main web search API providers', () => {
       createProvider({
         id: 'tavily',
         name: 'Tavily',
-        apiKey: 'tavily-key',
+        apiKeys: ['tavily-key'],
         apiHost: 'https://api.tavily.com'
       })
     )
@@ -323,7 +323,7 @@ describe('main web search API providers', () => {
       createProvider({
         id: 'bocha',
         name: 'Bocha',
-        apiKey: 'bocha-key',
+        apiKeys: ['bocha-key'],
         apiHost: 'https://api.bochaai.com'
       })
     )
@@ -372,7 +372,7 @@ describe('main web search API providers', () => {
       createProvider({
         id: 'querit',
         name: 'Querit',
-        apiKey: 'querit-key',
+        apiKeys: ['querit-key'],
         apiHost: 'https://api.querit.ai'
       })
     )
@@ -426,7 +426,7 @@ describe('main web search API providers', () => {
       createProvider({
         id: 'zhipu',
         name: 'Zhipu',
-        apiKey: 'zhipu-key',
+        apiKeys: ['zhipu-key'],
         apiHost: 'https://open.bigmodel.cn/api/paas/v4/tools'
       })
     )

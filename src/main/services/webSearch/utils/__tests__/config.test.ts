@@ -15,7 +15,7 @@ const preferenceValues: Record<string, unknown> = {
   'chat.web_search.compression.rag_rerank_model_id': null,
   'chat.web_search.provider_overrides': {
     tavily: {
-      apiKey: 'tavily-key'
+      apiKeys: ['tavily-key']
     }
   }
 }
@@ -35,7 +35,7 @@ describe('webSearch config utils', () => {
     expect(providerIds).toContain('local-google')
 
     const tavily = resolved.providers.find((provider) => provider.id === 'tavily')
-    expect(tavily?.apiKey).toBe('tavily-key')
+    expect(tavily?.apiKeys).toEqual(['tavily-key'])
   })
 
   it('returns runtime config from flattened preference keys', async () => {
@@ -53,7 +53,7 @@ describe('webSearch config utils', () => {
       id: 'tavily',
       name: 'Tavily',
       type: 'api',
-      apiKey: 'tavily-key',
+      apiKeys: ['tavily-key'],
       apiHost: 'https://api.tavily.com'
     })
   })

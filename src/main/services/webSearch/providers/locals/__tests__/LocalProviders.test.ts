@@ -8,7 +8,7 @@ import { LocalGoogleProvider } from '../LocalGoogleProvider'
 const baseProvider: Omit<ResolvedWebSearchProvider, 'id' | 'name'> = {
   type: 'local',
   usingBrowser: true,
-  apiKey: '',
+  apiKeys: [],
   apiHost: '',
   engines: [],
   basicAuthUsername: '',

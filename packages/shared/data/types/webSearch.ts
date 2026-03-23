@@ -52,7 +52,7 @@ export type ResolvedWebSearchProvider = {
   name: string
   type: WebSearchProviderType
   usingBrowser: boolean
-  apiKey: string
+  apiKeys: string[]
   apiHost: string
   engines: string[]
   basicAuthUsername: string
