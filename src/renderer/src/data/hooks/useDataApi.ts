@@ -679,18 +679,24 @@ function createApiFetcher<TPath extends ConcreteApiPaths, TMethod extends 'GET' 
     }
   ): Promise<ResponseForPath<TPath, TMethod>> => {
     // Internal type assertion for dataApiService boundary (accepts any)
-    const query = options?.query as Record<string, unknown> | undefined
+    const query = options?.query
     switch (method) {
       case 'GET':
-        return dataApiService.get(path, { query })
+        return dataApiService.get(path, { query }) as Promise<ResponseForPath<TPath, TMethod>>
       case 'POST':
-        return dataApiService.post(path, { body: options?.body, query })
+        return dataApiService.post(path, { body: options?.body as BodyForPath<TPath, 'POST'>, query }) as Promise<
+          ResponseForPath<TPath, TMethod>
+        >
       case 'PUT':
-        return dataApiService.put(path, { body: options?.body || {}, query })
+        return dataApiService.put(path, { body: (options?.body || {}) as BodyForPath<TPath, 'PUT'>, query }) as Promise<
+          ResponseForPath<TPath, TMethod>
+        >
       case 'DELETE':
-        return dataApiService.delete(path, { query })
+        return dataApiService.delete(path, { query }) as Promise<ResponseForPath<TPath, TMethod>>
       case 'PATCH':
-        return dataApiService.patch(path, { body: options?.body, query })
+        return dataApiService.patch(path, { body: options?.body as BodyForPath<TPath, 'PATCH'>, query }) as Promise<
+          ResponseForPath<TPath, TMethod>
+        >
       default:
         throw new Error(`Unsupported method: ${method}`)
     }

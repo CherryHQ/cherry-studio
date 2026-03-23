@@ -252,7 +252,7 @@ export class DataApiService implements ApiClient {
     path: TPath,
     options: {
       body?: BodyForPath<TPath, 'POST'>
-      query?: Record<string, any>
+      query?: QueryParamsForPath<TPath>
       headers?: Record<string, string>
     }
   ): Promise<ResponseForPath<TPath, 'POST'>> {
@@ -270,7 +270,7 @@ export class DataApiService implements ApiClient {
     path: TPath,
     options: {
       body: BodyForPath<TPath, 'PUT'>
-      query?: Record<string, any>
+      query?: QueryParamsForPath<TPath>
       headers?: Record<string, string>
     }
   ): Promise<ResponseForPath<TPath, 'PUT'>> {
@@ -287,7 +287,7 @@ export class DataApiService implements ApiClient {
   async delete<TPath extends ConcreteApiPaths>(
     path: TPath,
     options?: {
-      query?: Record<string, any>
+      query?: QueryParamsForPath<TPath>
       headers?: Record<string, string>
     }
   ): Promise<ResponseForPath<TPath, 'DELETE'>> {
@@ -304,7 +304,7 @@ export class DataApiService implements ApiClient {
     path: TPath,
     options: {
       body?: BodyForPath<TPath, 'PATCH'>
-      query?: Record<string, any>
+      query?: QueryParamsForPath<TPath>
       headers?: Record<string, string>
     }
   ): Promise<ResponseForPath<TPath, 'PATCH'>> {
