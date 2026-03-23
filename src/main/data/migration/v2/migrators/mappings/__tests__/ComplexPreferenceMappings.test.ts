@@ -64,6 +64,15 @@ describe('ComplexPreferenceMappings', () => {
       expect(Array.isArray(COMPLEX_PREFERENCE_MAPPINGS)).toBe(true)
     })
 
+    it('should include file processing overrides merge mapping', () => {
+      const fileProcessingMapping = COMPLEX_PREFERENCE_MAPPINGS.find((m) => m.id === 'file_processing_overrides_merge')
+
+      expect(fileProcessingMapping).toBeDefined()
+      expect(fileProcessingMapping).toMatchObject({
+        id: 'file_processing_overrides_merge',
+        targetKeys: ['feature.file_processing.overrides']
+      })
+    })
     it('should contain websearch compression flatten mapping', () => {
       const websearchMapping = COMPLEX_PREFERENCE_MAPPINGS.find((m) => m.id === 'websearch_compression_flatten')
       expect(websearchMapping).toBeDefined()
@@ -79,11 +88,16 @@ describe('ComplexPreferenceMappings', () => {
   })
 
   describe('getComplexMappingTargetKeys', () => {
+    it('should return target keys from configured mappings', () => {
+      const keys = getComplexMappingTargetKeys()
+      expect(keys).toContain('feature.file_processing.overrides')
+    })
     it('should return target keys from all mappings', () => {
       const keys = getComplexMappingTargetKeys()
       expect(keys).toContain('chat.web_search.compression.method')
       expect(keys).toContain('chat.web_search.provider_overrides')
-      expect(keys.length).toBe(8) // 7 websearch compression keys + 1 overrides key
+      expect(keys).toContain('feature.file_processing.overrides')
+      expect(keys.length).toBe(9) // 7 websearch compression keys + 1 provider overrides key + 1 file processing overrides key
     })
 
     it('should flatten target keys from all mappings', () => {
@@ -113,6 +127,11 @@ describe('ComplexPreferenceMappings', () => {
   })
 
   describe('getComplexMappingById', () => {
+    it('should return the configured mapping by id', () => {
+      const mapping = getComplexMappingById('file_processing_overrides_merge')
+      expect(mapping).toBeDefined()
+      expect(mapping?.targetKeys).toEqual(['feature.file_processing.overrides'])
+    })
     it('should return mapping by id', () => {
       const mapping = getComplexMappingById('websearch_compression_flatten')
       expect(mapping).toBeDefined()
