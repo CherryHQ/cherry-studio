@@ -1,6 +1,6 @@
 /**
  * Auto-generated preference mappings from classification.json
- * Generated at: 2026-03-23T04:03:22.980Z
+ * Generated at: 2026-03-23T04:13:20.628Z
  *
  * This file contains pure mapping relationships without default values.
  * Default values are managed in packages/shared/data/preferences.ts
@@ -912,23 +912,6 @@ export const DEXIE_SETTINGS_MAPPINGS: ReadonlyArray<{ originalKey: string; targe
   }
 ] as const
 
-// === AUTO-GENERATED CONTENT END ===
-
-/**
- * 映射统计:
- * - ElectronStore项: 1
- * - Redux Store项: 206
- * - Redux分类: settings, selectionStore, memory, nutstore, shortcuts, translate, websearch, note
- * - DexieSettings项: 7
- * - 总配置项: 214
- *
- * 使用说明:
- * 1. ElectronStore读取: configManager.get(mapping.originalKey)
- * 2. Redux读取: 需要解析嵌套路径 reduxData[category][originalKey路径]
- * 3. DexieSettings读取: ctx.sources.dexieSettings.get(mapping.originalKey)
- * 4. 默认值: 从defaultPreferences.default[mapping.targetKey]获取
- */
-
 /**
  * localStorage映射关系 - 简单KV结构
  *
@@ -940,3 +923,21 @@ export const DEXIE_SETTINGS_MAPPINGS: ReadonlyArray<{ originalKey: string; targe
  * use ComplexPreferenceMappings with source: 'localStorage' instead.
  */
 export const LOCALSTORAGE_MAPPINGS: ReadonlyArray<{ originalKey: string; targetKey: string }> = [] as const
+
+// === AUTO-GENERATED CONTENT END ===
+
+/**
+ * 映射统计:
+ * - ElectronStore项: 1
+ * - Redux Store项: 206
+ * - Redux分类: settings, selectionStore, memory, nutstore, shortcuts, translate, websearch, note
+ * - DexieSettings项: 7
+ * - localStorage项: 0
+ * - 总配置项: 214
+ *
+ * 使用说明:
+ * 1. ElectronStore读取: configManager.get(mapping.originalKey)
+ * 2. Redux读取: 需要解析嵌套路径 reduxData[category][originalKey路径]
+ * 3. DexieSettings读取: ctx.sources.dexieSettings.get(mapping.originalKey)
+ * 4. 默认值: 从defaultPreferences.default[mapping.targetKey]获取
+ */
