@@ -87,7 +87,8 @@ const ANTHROPIC_COMPATIBLE_PROVIDER_IDS = [
   SystemProviderIds.mimo,
   SystemProviderIds.openrouter,
   SystemProviderIds.tokenflux,
-  SystemProviderIds.ollama
+  SystemProviderIds.ollama,
+  SystemProviderIds.novita
 ] as const
 type AnthropicCompatibleProviderId = (typeof ANTHROPIC_COMPATIBLE_PROVIDER_IDS)[number]
 

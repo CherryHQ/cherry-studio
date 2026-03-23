@@ -201,7 +201,8 @@ export const SystemProviderIdSchema = z.enum([
   'cerebras',
   'mimo',
   'minimax-global',
-  'zai'
+  'zai',
+  'novita'
 ])
 
 export type SystemProviderId = z.infer<typeof SystemProviderIdSchema>
@@ -273,7 +274,8 @@ export const SystemProviderIds = {
   cerebras: 'cerebras',
   mimo: 'mimo',
   'minimax-global': 'minimax-global',
-  zai: 'zai'
+  zai: 'zai',
+  novita: 'novita'
 } as const satisfies Record<SystemProviderId, SystemProviderId>
 
 type SystemProviderIdTypeMap = typeof SystemProviderIds

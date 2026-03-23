@@ -2084,5 +2084,31 @@ export const SYSTEM_MODELS: Record<SystemProviderId | 'defaultModel', Model[]> =
       name: 'GLM-4.5V',
       group: 'GLM-4.5V'
     }
+  ],
+  novita: [
+    {
+      id: 'moonshotai/kimi-k2.5',
+      name: 'Kimi K2.5',
+      provider: 'novita',
+      group: 'Kimi'
+    },
+    {
+      id: 'zai-org/glm-5',
+      name: 'GLM-5',
+      provider: 'novita',
+      group: 'GLM'
+    },
+    {
+      id: 'minimax/minimax-m2.5',
+      name: 'MiniMax M2.5',
+      provider: 'novita',
+      group: 'MiniMax'
+    },
+    {
+      id: 'qwen/qwen3-embedding-0.6b',
+      name: 'Qwen3 Embedding 0.6B',
+      provider: 'novita',
+      group: 'Qwen'
+    }
   ]
 }

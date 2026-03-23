@@ -349,14 +349,13 @@ const Messages: React.FC<MessagesProps> = ({ assistant, topic, setActiveTopic, o
 }
 
 const computeDisplayMessages = (messages: Message[], startIndex: number, displayCount: number) => {
-  // 如果剩余消息数量小于 displayCount，直接返回所有剩余消息的倒序切片
-  if (messages.length - startIndex <= displayCount) {
-    const result: Message[] = []
-    for (let i = messages.length - 1 - startIndex; i >= 0; i--) {
-      result.push(messages[i])
-    }
-    return result
+  const reversedMessages = [...messages].reverse()
+
+  // 如果剩余消息数量小于 displayCount，直接返回所有剩余消息
+  if (reversedMessages.length - startIndex <= displayCount) {
+    return reversedMessages.slice(startIndex)
   }
+
   const userIdSet = new Set() // 用户消息 id 集合
   const assistantIdSet = new Set() // 助手消息 askId 集合
   const displayMessages: Message[] = []
@@ -377,9 +376,9 @@ const computeDisplayMessages = (messages: Message[], startIndex: number, display
     displayMessages.push(message)
   }
 
-  // 直接在原数组上倒序遍历，跳过前 startIndex 个，避免全量拷贝和 reverse()
-  for (let i = messages.length - 1 - startIndex; i >= 0 && userIdSet.size + assistantIdSet.size < displayCount; i--) {
-    processMessage(messages[i])
+  // 遍历消息直到满足显示数量要求
+  for (let i = startIndex; i < reversedMessages.length && userIdSet.size + assistantIdSet.size < displayCount; i++) {
+    processMessage(reversedMessages[i])
   }
 
   return displayMessages

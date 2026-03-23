@@ -158,7 +158,7 @@ export async function reset() {
         content: i18n.t('message.reset.double.confirm.content'),
         centered: true,
         onOk: async () => {
-          localStorage.clear()
+          await localStorage.clear()
           await clearDatabase()
           await window.api.resetData()
           window.toast.success(i18n.t('message.reset.success'))
@@ -906,7 +906,7 @@ export async function handleData(data: Record<string, any>) {
       }
     }
 
-    localStorage.setItem('persist:cherry-studio', data.localStorage['persist:cherry-studio'])
+    await localStorage.setItem('persist:cherry-studio', data.localStorage['persist:cherry-studio'])
     window.toast.success(i18n.t('message.restore.success'))
     setTimeout(() => window.api.relaunchApp(), 1000)
     return
@@ -964,7 +964,7 @@ async function restoreDatabase(backup: Record<string, any>) {
 }
 
 async function clearDatabase() {
-  const storeNames = db.tables.map((table) => table.name)
+  const storeNames = await db.tables.map((table) => table.name)
 
   await db.transaction('rw', db.tables, async () => {
     for (const storeName of storeNames) {

@@ -12,7 +12,6 @@ import { autoUpdater } from 'electron-updater'
 import path from 'path'
 import semver from 'semver'
 
-import { analyticsService } from './AnalyticsService'
 import { configManager } from './ConfigManager'
 import { windowService } from './WindowService'
 
@@ -279,8 +278,6 @@ export default class AppUpdater {
   }
 
   public async checkForUpdates() {
-    analyticsService.trackAppUpdate()
-
     if (isWin && 'PORTABLE_EXECUTABLE_DIR' in process.env) {
       return {
         currentVersion: app.getVersion(),

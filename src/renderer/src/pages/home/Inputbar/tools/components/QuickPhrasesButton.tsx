@@ -139,7 +139,7 @@ const QuickPhrasesButton = ({ quickPanel, setInputValue, resizeTextArea, assista
     ]
     if (formData.location === 'assistant') {
       // 添加到助手的 regularPhrases
-      updateAssistant({ ...assistant, regularPhrases: updatedPrompts })
+      await updateAssistant({ ...assistant, regularPhrases: updatedPrompts })
     } else {
       // 添加到全局 Quick Phrases
       await QuickPhraseService.add(formData)

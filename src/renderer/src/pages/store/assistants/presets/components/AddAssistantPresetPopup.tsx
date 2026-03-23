@@ -56,8 +56,16 @@ const PopupContainer: React.FC<Props> = ({ resolve }) => {
   })
 
   useEffect(() => {
-    const prompt = formRef.current?.getFieldValue('prompt')
-    setTokenCount(prompt ? estimateTextTokens(prompt) : 0)
+    const updateTokenCount = async () => {
+      const prompt = formRef.current?.getFieldValue('prompt')
+      if (prompt) {
+        const count = await estimateTextTokens(prompt)
+        setTokenCount(count)
+      } else {
+        setTokenCount(0)
+      }
+    }
+    updateTokenCount()
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [form.getFieldValue('prompt')])
 
@@ -174,9 +182,9 @@ const PopupContainer: React.FC<Props> = ({ resolve }) => {
         colon={false}
         style={{ marginTop: 25 }}
         onFinish={onFinish}
-        onValuesChange={(changedValues) => {
+        onValuesChange={async (changedValues) => {
           if (changedValues.prompt) {
-            const count = estimateTextTokens(changedValues.prompt)
+            const count = await estimateTextTokens(changedValues.prompt)
             setTokenCount(count)
             setShowUndoButton(false)
           }

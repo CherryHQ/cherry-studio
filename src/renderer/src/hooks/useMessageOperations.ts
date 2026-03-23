@@ -406,7 +406,9 @@ export function useMessageOperations(topic: Topic) {
         usage
       }
 
-      dispatch(newMessagesActions.updateMessage({ topicId: topic.id, messageId: message.id, updates: messageUpdates }))
+      await dispatch(
+        newMessagesActions.updateMessage({ topicId: topic.id, messageId: message.id, updates: messageUpdates })
+      )
       // 对于message的修改会在下面的thunk中保存
       await dispatch(resendUserMessageWithEditThunk(topic.id, message, assistant))
     },
