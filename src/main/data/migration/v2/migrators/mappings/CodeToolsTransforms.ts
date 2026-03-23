@@ -6,7 +6,7 @@
  */
 
 import { terminalApps } from '@shared/config/constant'
-import type { CodeToolOverride, CodeToolOverrides } from '@shared/data/presets/code-tools'
+import type { CodeToolOverride, CodeToolOverrides } from '@shared/data/preference/preferenceTypes'
 
 /**
  * Extract model IDs from a Record of full Model objects.

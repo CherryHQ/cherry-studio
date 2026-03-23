@@ -177,6 +177,34 @@ export interface WebSearchProvider {
 }
 
 // ============================================================================
+// CodeTools Types
+// ============================================================================
+
+export const CODE_TOOL_IDS = [
+  'qwen-code',
+  'claude-code',
+  'gemini-cli',
+  'openai-codex',
+  'iflow-cli',
+  'github-copilot-cli',
+  'kimi-cli',
+  'opencode'
+] as const
+
+export type CodeToolId = (typeof CODE_TOOL_IDS)[number]
+
+export type CodeToolOverride = {
+  enabled?: boolean
+  modelId?: string | null
+  envVars?: string
+  terminal?: string
+  currentDirectory?: string
+  directories?: string[]
+}
+
+export type CodeToolOverrides = Partial<Record<CodeToolId, CodeToolOverride>>
+
+// ============================================================================
 // WebSearch Compression Types (v2 - Flattened)
 // ============================================================================
 

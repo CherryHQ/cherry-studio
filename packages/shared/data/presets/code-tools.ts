@@ -8,10 +8,24 @@
  * @see docs/en/references/data/best-practice-layered-preset-pattern.md
  */
 
-import { codeTools, terminalApps } from '@shared/config/constant'
+import { terminalApps } from '@shared/config/constant'
+import { CODE_TOOL_IDS, type CodeToolId } from '@shared/data/preference/preferenceTypes'
+import * as z from 'zod'
 
-export interface CodeToolPreset {
-  id: string
+export const CodeToolIdSchema = z.enum(CODE_TOOL_IDS)
+
+export const CodeToolPresetDefinitionSchema = z.object({
+  id: CodeToolIdSchema,
+  name: z.string(),
+  enabled: z.boolean(),
+  modelId: z.string().nullable(),
+  envVars: z.string(),
+  terminal: z.string(),
+  currentDirectory: z.string(),
+  directories: z.array(z.string())
+})
+
+type CodeToolPresetConfig = {
   name: string
   enabled: boolean
   modelId: string | null
@@ -21,7 +35,24 @@ export interface CodeToolPreset {
   directories: string[]
 }
 
-const DEFAULT_PRESET: Omit<CodeToolPreset, 'id' | 'name'> = {
+type CodeToolPresetDefaults = Omit<CodeToolPresetConfig, 'name'>
+
+export const CodeToolOverrideSchema = z.object({
+  enabled: z.boolean().optional(),
+  modelId: z.string().nullable().optional(),
+  envVars: z.string().optional(),
+  terminal: z.string().optional(),
+  currentDirectory: z.string().optional(),
+  directories: z.array(z.string()).optional()
+})
+
+export const CodeToolOverridesSchema = z.partialRecord(CodeToolIdSchema, CodeToolOverrideSchema)
+
+export interface CodeToolPreset extends CodeToolPresetConfig {
+  id: CodeToolId
+}
+
+const DEFAULT_CONFIG: CodeToolPresetDefaults = {
   enabled: false,
   modelId: null,
   envVars: '',
@@ -30,23 +61,18 @@ const DEFAULT_PRESET: Omit<CodeToolPreset, 'id' | 'name'> = {
   directories: []
 }
 
-export const PRESETS_CODE_TOOLS: CodeToolPreset[] = [
-  { id: codeTools.qwenCode, name: 'Qwen Code', ...DEFAULT_PRESET },
-  { id: codeTools.claudeCode, name: 'Claude Code', ...DEFAULT_PRESET },
-  { id: codeTools.geminiCli, name: 'Gemini CLI', ...DEFAULT_PRESET },
-  { id: codeTools.openaiCodex, name: 'OpenAI Codex', ...DEFAULT_PRESET },
-  { id: codeTools.iFlowCli, name: 'iFlow CLI', ...DEFAULT_PRESET },
-  { id: codeTools.githubCopilotCli, name: 'GitHub Copilot CLI', ...DEFAULT_PRESET },
-  { id: codeTools.kimiCli, name: 'Kimi CLI', ...DEFAULT_PRESET },
-  { id: codeTools.openCode, name: 'OpenCode', ...DEFAULT_PRESET }
-]
+export const CODE_TOOL_PRESET_MAP = {
+  'qwen-code': { name: 'Qwen Code', ...DEFAULT_CONFIG },
+  'claude-code': { name: 'Claude Code', ...DEFAULT_CONFIG },
+  'gemini-cli': { name: 'Gemini CLI', ...DEFAULT_CONFIG },
+  'openai-codex': { name: 'OpenAI Codex', ...DEFAULT_CONFIG },
+  'iflow-cli': { name: 'iFlow CLI', ...DEFAULT_CONFIG },
+  'github-copilot-cli': { name: 'GitHub Copilot CLI', ...DEFAULT_CONFIG },
+  'kimi-cli': { name: 'Kimi CLI', ...DEFAULT_CONFIG },
+  opencode: { name: 'OpenCode', ...DEFAULT_CONFIG }
+} as const satisfies Record<CodeToolId, CodeToolPresetConfig>
 
-/**
- * User-overridable fields per tool (delta only — omitted fields use preset defaults).
- */
-export type CodeToolOverride = Partial<Omit<CodeToolPreset, 'id' | 'name'>>
-
-/**
- * Map of tool ID to its user overrides.
- */
-export type CodeToolOverrides = Record<string, CodeToolOverride>
+export const PRESETS_CODE_TOOLS: readonly CodeToolPreset[] = CODE_TOOL_IDS.map((id) => ({
+  id,
+  ...CODE_TOOL_PRESET_MAP[id]
+}))
