@@ -77,6 +77,7 @@ export const knowledgeItemTable = sqliteTable(
   },
   (t) => [
     index('knowledge_item_base_id_idx').on(t.baseId),
+    index('knowledge_item_parent_id_idx').on(t.parentId),
     foreignKey({ columns: [t.parentId], foreignColumns: [t.id] }).onDelete('cascade'),
     check(
       'knowledge_item_status_check',

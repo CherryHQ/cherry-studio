@@ -144,4 +144,38 @@ describe('KnowledgeMappings', () => {
       reason: 'unsupported_type'
     })
   })
+
+  it('transformKnowledgeItem tags directory container data', () => {
+    const result = transformKnowledgeItem(
+      'kb-1',
+      {
+        id: 'dir-1',
+        type: 'directory',
+        content: '/tmp/docs'
+      },
+      {
+        noteById: new Map(),
+        filesById: new Map()
+      }
+    )
+
+    expect(result).toStrictEqual({
+      ok: true,
+      value: {
+        id: 'dir-1',
+        baseId: 'kb-1',
+        parentId: null,
+        type: 'directory',
+        data: {
+          kind: 'container',
+          path: '/tmp/docs',
+          recursive: true
+        },
+        status: 'idle',
+        error: null,
+        createdAt: undefined,
+        updatedAt: undefined
+      }
+    })
+  })
 })

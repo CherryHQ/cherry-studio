@@ -37,8 +37,10 @@ export const knowledgeHandlers: {
   },
 
   '/knowledge-bases/:id/items': {
-    GET: async ({ params }) => {
-      return await knowledgeItemService.list(params.id)
+    GET: async ({ params, query }) => {
+      const q = (query || {}) as { parentId?: string }
+      const parentId = q.parentId?.trim() ? q.parentId : undefined
+      return await knowledgeItemService.list(params.id, parentId)
     },
     POST: async ({ params, body }) => {
       return await knowledgeItemService.create(params.id, body)

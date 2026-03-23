@@ -11,8 +11,8 @@ import { loggerService } from '@logger'
 import { DataApiErrorFactory } from '@shared/data/api'
 import type { CreateKnowledgeItemsDto, UpdateKnowledgeItemDto } from '@shared/data/api/schemas/knowledges'
 import { type FileMetadata, FileTypes } from '@shared/data/types/file'
-import type { KnowledgeItem, KnowledgeItemDataMap, KnowledgeItemTreeNode } from '@shared/data/types/knowledge'
-import { desc, eq, inArray } from 'drizzle-orm'
+import type { KnowledgeItem, KnowledgeItemDataMap } from '@shared/data/types/knowledge'
+import { and, desc, eq, inArray, isNull } from 'drizzle-orm'
 import * as z from 'zod'
 
 import { knowledgeBaseService } from './KnowledgeBaseService'
@@ -52,75 +52,74 @@ const sitemapItemDataSchema: z.ZodType<KnowledgeItemDataMap['sitemap']> = z.obje
   name: z.string()
 })
 
-const directoryContainerSchema: z.ZodType<Extract<KnowledgeItemDataMap['directory'], { path: string }>> = z.object({
+const directoryContainerSchema = z.object({
+  kind: z.literal('container'),
   path: z.string(),
   recursive: z.boolean()
-})
+}) satisfies z.ZodType<Extract<KnowledgeItemDataMap['directory'], { kind: 'container' }>>
 
-const directoryFileEntrySchema: z.ZodType<Extract<KnowledgeItemDataMap['directory'], { groupId: string }>> = z.object({
+const directoryFileEntrySchema = z.object({
+  kind: z.literal('entry'),
   groupId: z.string(),
   groupName: z.string(),
   file: fileMetadataSchema
-})
+}) satisfies z.ZodType<Extract<KnowledgeItemDataMap['directory'], { kind: 'entry' }>>
 
-const directoryDataSchema: z.ZodType<KnowledgeItemDataMap['directory']> = z.union([
+const directoryDataSchema = z.discriminatedUnion('kind', [
   directoryContainerSchema,
   directoryFileEntrySchema
-])
+]) satisfies z.ZodType<KnowledgeItemDataMap['directory']>
 
-const parseJsonValue = (value: unknown, itemId: string): unknown => {
-  if (value === null || value === undefined) return undefined
-  if (typeof value !== 'string') return value
-
-  try {
-    return JSON.parse(value)
-  } catch (error) {
-    throw new Error(
-      `Invalid JSON knowledge item data (id=${itemId}): ${error instanceof Error ? error.message : String(error)}`
-    )
-  }
-}
-
-function parseKnowledgeItemData(type: 'file', value: unknown, itemId: string): KnowledgeItemDataMap['file']
-function parseKnowledgeItemData(type: 'url', value: unknown, itemId: string): KnowledgeItemDataMap['url']
-function parseKnowledgeItemData(type: 'note', value: unknown, itemId: string): KnowledgeItemDataMap['note']
-function parseKnowledgeItemData(type: 'sitemap', value: unknown, itemId: string): KnowledgeItemDataMap['sitemap']
-function parseKnowledgeItemData(type: 'directory', value: unknown, itemId: string): KnowledgeItemDataMap['directory']
-function parseKnowledgeItemData(
-  type: keyof KnowledgeItemDataMap,
+function parseKnowledgeItemData<T extends keyof KnowledgeItemDataMap>(
+  type: T,
   value: unknown,
   itemId: string
-): KnowledgeItemDataMap[keyof KnowledgeItemDataMap] {
+): KnowledgeItemDataMap[T] {
   switch (type) {
     case 'file': {
       const result = fileItemDataSchema.safeParse(value)
-      if (result.success) return result.data
+      if (result.success) return result.data as KnowledgeItemDataMap[T]
       throw new Error(`Invalid knowledge item data for type=file (id=${itemId}): ${result.error.message}`)
     }
     case 'url': {
       const result = urlItemDataSchema.safeParse(value)
-      if (result.success) return result.data
+      if (result.success) return result.data as KnowledgeItemDataMap[T]
       throw new Error(`Invalid knowledge item data for type=url (id=${itemId}): ${result.error.message}`)
     }
     case 'note': {
       const result = noteItemDataSchema.safeParse(value)
-      if (result.success) return result.data
+      if (result.success) return result.data as KnowledgeItemDataMap[T]
       throw new Error(`Invalid knowledge item data for type=note (id=${itemId}): ${result.error.message}`)
     }
     case 'sitemap': {
       const result = sitemapItemDataSchema.safeParse(value)
-      if (result.success) return result.data
+      if (result.success) return result.data as KnowledgeItemDataMap[T]
       throw new Error(`Invalid knowledge item data for type=sitemap (id=${itemId}): ${result.error.message}`)
     }
     case 'directory': {
       const result = directoryDataSchema.safeParse(value)
-      if (result.success) return result.data
+      if (result.success) return result.data as KnowledgeItemDataMap[T]
       throw new Error(`Invalid knowledge item data for type=directory (id=${itemId}): ${result.error.message}`)
     }
     default: {
       const neverType: never = type
       throw new Error(`Unsupported knowledge item type: ${String(neverType)}`)
     }
+  }
+}
+
+function validateKnowledgeItemData<T extends keyof KnowledgeItemDataMap>(
+  type: T,
+  value: unknown,
+  fieldPath: string,
+  itemId: string
+): KnowledgeItemDataMap[T] {
+  try {
+    return parseKnowledgeItemData(type, value, itemId) as KnowledgeItemDataMap[T]
+  } catch (error) {
+    throw DataApiErrorFactory.validation({
+      [fieldPath]: [error instanceof Error ? error.message : String(error)]
+    })
   }
 }
 
@@ -135,55 +134,27 @@ function rowToKnowledgeItem(row: typeof knowledgeItemTable.$inferSelect): Knowle
     updatedAt: row.updatedAt ? new Date(row.updatedAt).toISOString() : new Date().toISOString()
   }
 
-  const rawData = parseJsonValue(row.data, row.id)
   switch (row.type) {
     case 'file':
-      const fileData = parseKnowledgeItemData('file', rawData, row.id)
+      const fileData = parseKnowledgeItemData('file', row.data, row.id)
       return { ...base, type: 'file', data: fileData }
     case 'url':
-      const urlData = parseKnowledgeItemData('url', rawData, row.id)
+      const urlData = parseKnowledgeItemData('url', row.data, row.id)
       return { ...base, type: 'url', data: urlData }
     case 'note':
-      const noteData = parseKnowledgeItemData('note', rawData, row.id)
+      const noteData = parseKnowledgeItemData('note', row.data, row.id)
       return { ...base, type: 'note', data: noteData }
     case 'sitemap':
-      const sitemapData = parseKnowledgeItemData('sitemap', rawData, row.id)
+      const sitemapData = parseKnowledgeItemData('sitemap', row.data, row.id)
       return { ...base, type: 'sitemap', data: sitemapData }
     case 'directory':
-      const directoryData = parseKnowledgeItemData('directory', rawData, row.id)
+      const directoryData = parseKnowledgeItemData('directory', row.data, row.id)
       return { ...base, type: 'directory', data: directoryData }
     default: {
       const neverType: never = row.type
       throw new Error(`Unsupported knowledge item type: ${String(neverType)}`)
     }
   }
-}
-
-function buildKnowledgeItemTree(items: KnowledgeItem[]): KnowledgeItemTreeNode[] {
-  const childrenMap = new Map<string | null, KnowledgeItem[]>()
-
-  for (const item of items) {
-    const parentId = item.parentId ?? null
-    if (!childrenMap.has(parentId)) {
-      childrenMap.set(parentId, [])
-    }
-    childrenMap.get(parentId)!.push(item)
-  }
-
-  const roots = childrenMap.get(null) ?? []
-
-  const buildNode = (item: KnowledgeItem, path: Set<string>): KnowledgeItemTreeNode => {
-    const children = childrenMap.get(item.id) ?? []
-    const nextPath = new Set(path)
-    nextPath.add(item.id)
-
-    return {
-      item,
-      children: children.filter((child) => !nextPath.has(child.id)).map((child) => buildNode(child, nextPath))
-    }
-  }
-
-  return roots.map((root) => buildNode(root, new Set()))
 }
 
 export class KnowledgeItemService {
@@ -198,19 +169,18 @@ export class KnowledgeItemService {
     return KnowledgeItemService.instance
   }
 
-  async list(baseId: string): Promise<KnowledgeItemTreeNode[]> {
-    const items = await this.listFlat(baseId)
-    return buildKnowledgeItemTree(items)
-  }
-
-  private async listFlat(baseId: string): Promise<KnowledgeItem[]> {
+  async list(baseId: string, parentId?: string): Promise<KnowledgeItem[]> {
     const db = dbService.getDb()
     await knowledgeBaseService.getById(baseId)
 
     const rows = await db
       .select()
       .from(knowledgeItemTable)
-      .where(eq(knowledgeItemTable.baseId, baseId))
+      .where(
+        parentId
+          ? and(eq(knowledgeItemTable.baseId, baseId), eq(knowledgeItemTable.parentId, parentId))
+          : and(eq(knowledgeItemTable.baseId, baseId), isNull(knowledgeItemTable.parentId))
+      )
       .orderBy(desc(knowledgeItemTable.createdAt))
 
     return rows.map((row) => rowToKnowledgeItem(row))
@@ -255,11 +225,11 @@ export class KnowledgeItemService {
       }
     }
 
-    const values: Array<typeof knowledgeItemTable.$inferInsert> = dto.items.map((item) => ({
+    const values: Array<typeof knowledgeItemTable.$inferInsert> = dto.items.map((item, index) => ({
       baseId,
       parentId: item.parentId ?? null,
       type: item.type,
-      data: item.data,
+      data: validateKnowledgeItemData(item.type, item.data, `items.${index}.data`, `new-item-${index}`),
       status: 'idle',
       error: null
     }))
@@ -284,10 +254,12 @@ export class KnowledgeItemService {
 
   async update(id: string, dto: UpdateKnowledgeItemDto): Promise<KnowledgeItem> {
     const db = dbService.getDb()
-    await this.getById(id)
+    const existing = await this.getById(id)
 
     const updates: Partial<typeof knowledgeItemTable.$inferInsert> = {}
-    if (dto.data !== undefined) updates.data = dto.data
+    if (dto.data !== undefined) {
+      updates.data = validateKnowledgeItemData(existing.type, dto.data, 'data', id)
+    }
     if (dto.status !== undefined) updates.status = dto.status
     if (dto.error !== undefined) updates.error = dto.error
 

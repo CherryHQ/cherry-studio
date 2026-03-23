@@ -99,18 +99,26 @@ export class KnowledgeBaseService {
   }
 
   async update(id: string, dto: UpdateKnowledgeBaseDto): Promise<KnowledgeBase> {
+    const forbiddenFieldErrors: Record<string, string[]> = {}
+
+    if ('dimensions' in dto) {
+      forbiddenFieldErrors.dimensions = ['dimensions cannot be updated via PATCH; use a dedicated re-embed endpoint']
+    }
+    if ('embeddingModelId' in dto) {
+      forbiddenFieldErrors.embeddingModelId = [
+        'embeddingModelId cannot be updated via PATCH; use a dedicated re-embed endpoint'
+      ]
+    }
+    if (Object.keys(forbiddenFieldErrors).length > 0) {
+      throw DataApiErrorFactory.validation(forbiddenFieldErrors)
+    }
+
     const db = dbService.getDb()
     await this.getById(id)
-
-    if (dto.dimensions !== undefined && (!Number.isFinite(dto.dimensions) || dto.dimensions <= 0)) {
-      throw DataApiErrorFactory.validation({ dimensions: ['Dimensions must be greater than 0'] })
-    }
 
     const updates: Partial<typeof knowledgeBaseTable.$inferInsert> = {}
     if (dto.name !== undefined) updates.name = dto.name
     if (dto.description !== undefined) updates.description = dto.description
-    if (dto.dimensions !== undefined) updates.dimensions = dto.dimensions
-    if (dto.embeddingModelId !== undefined) updates.embeddingModelId = dto.embeddingModelId
     if (dto.rerankModelId !== undefined) updates.rerankModelId = dto.rerankModelId
     if (dto.fileProcessorId !== undefined) updates.fileProcessorId = dto.fileProcessorId
     if (dto.chunkSize !== undefined) updates.chunkSize = dto.chunkSize

@@ -253,6 +253,7 @@ export const transformKnowledgeItem = (
 
     type = 'directory'
     data = {
+      kind: 'container',
       path: item.content,
       recursive: true
     }

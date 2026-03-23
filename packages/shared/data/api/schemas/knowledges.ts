@@ -8,7 +8,6 @@ import type {
   KnowledgeItem,
   KnowledgeItemData,
   KnowledgeItemDataMap,
-  KnowledgeItemTreeNode,
   KnowledgeItemType,
   KnowledgeSearchMode
 } from '@shared/data/types/knowledge'
@@ -32,7 +31,9 @@ export interface CreateKnowledgeBaseDto {
   hybridAlpha?: number
 }
 
-export interface UpdateKnowledgeBaseDto extends Partial<CreateKnowledgeBaseDto> {}
+type KnowledgeBasePatchableFields = Omit<CreateKnowledgeBaseDto, 'dimensions' | 'embeddingModelId'>
+
+export interface UpdateKnowledgeBaseDto extends Partial<KnowledgeBasePatchableFields> {}
 
 export type CreateKnowledgeItemDto = {
   [T in KnowledgeItemType]: {
@@ -50,6 +51,10 @@ export interface UpdateKnowledgeItemDto {
   data?: KnowledgeItemData
   status?: ItemStatus
   error?: string | null
+}
+
+export interface ListKnowledgeItemsQueryParams {
+  parentId?: string
 }
 
 // ============================================================================
@@ -86,7 +91,8 @@ export interface KnowledgeSchemas {
   '/knowledge-bases/:id/items': {
     GET: {
       params: { id: string }
-      response: KnowledgeItemTreeNode[]
+      query?: ListKnowledgeItemsQueryParams
+      response: KnowledgeItem[]
     }
     POST: {
       params: { id: string }

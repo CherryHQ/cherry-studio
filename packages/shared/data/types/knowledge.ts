@@ -68,6 +68,7 @@ export interface SitemapItemData {
  * Directory container item data.
  */
 export interface DirectoryContainerData {
+  kind: 'container'
   path: string
   recursive: boolean
 }
@@ -76,6 +77,7 @@ export interface DirectoryContainerData {
  * Directory file-entry item data.
  */
 export interface DirectoryItemData {
+  kind: 'entry'
   groupId: string
   groupName: string
   file: FileMetadata
