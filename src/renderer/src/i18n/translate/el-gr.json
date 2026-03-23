@@ -390,7 +390,7 @@
           "description": "Δημιουργεί και διαχειρίζεται δομημένες λίστες εργασιών"
         },
         "ToolSearch": {
-          "description": "[to be translated]:Discovers deferred tools from large libraries"
+          "description": "Ανακαλύπτει αναβλημένα εργαλεία από μεγάλες βιβλιοθήκες"
         },
         "WebFetch": {
           "description": "Ανάκτηση περιεχομένου από καθορισμένη διεύθυνση URL"
