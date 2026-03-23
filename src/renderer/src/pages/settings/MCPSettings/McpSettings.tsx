@@ -73,9 +73,18 @@ const McpSettings: React.FC = () => {
   const params = useParams({ strict: false })
   const serverId = params.serverId
   const decodedServerId = serverId ? decodeURIComponent(serverId) : ''
-  const { server, isLoading: isServerLoading } = useMCPServer(decodedServerId)
-  const { deleteMCPServer, updateMCPServer } = useMCPServers()
+  const { server, isLoading: isServerLoading, refetch: refetchServer } = useMCPServer(decodedServerId)
+  const { deleteMCPServer, updateMCPServer: updateMCPServerInList } = useMCPServers()
   const { ensureServerTrusted } = useMCPServerTrust()
+
+  // Wrap list update to also refresh the individual server cache
+  const updateMCPServer = useCallback(
+    async (serverData: Parameters<typeof updateMCPServerInList>[0]) => {
+      await updateMCPServerInList(serverData)
+      await refetchServer()
+    },
+    [updateMCPServerInList, refetchServer]
+  )
   const [serverType, setServerType] = useState<MCPServer['type']>('stdio')
   const [form] = Form.useForm<MCPFormValues>()
   const [loading, setLoading] = useState(false)
