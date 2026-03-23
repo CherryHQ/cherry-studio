@@ -86,11 +86,7 @@ const persistedReducer = persistReducer(
   {
     key: 'cherry-studio',
     storage,
-<<<<<<< HEAD
     version: 204,
-=======
-    version: 200,
->>>>>>> 1a5499914 (Squash merge main into feat/cherry-claw-agent)
     blacklist: ['runtime', 'messages', 'messageBlocks', 'tabs', 'toolPermissions'],
     migrate
   },

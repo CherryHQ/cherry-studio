@@ -3255,7 +3255,6 @@ const migrateConfig = {
   '200': (state: RootState) => {
     try {
       state.llm.providers.forEach((provider) => {
-<<<<<<< HEAD
         if (provider.type === 'ollama') {
           provider.anthropicApiHost = provider.apiHost || 'http://localhost:11434'
         }
@@ -3279,22 +3278,16 @@ const migrateConfig = {
       addProvider(state, 'zai')
       // Update grok provider type to openai-response
       state.llm.providers.forEach((provider) => {
-=======
->>>>>>> 1a5499914 (Squash merge main into feat/cherry-claw-agent)
         if (provider.id === SystemProviderIds.grok) {
           provider.type = 'openai-response'
         }
       })
-<<<<<<< HEAD
 
-=======
->>>>>>> 1a5499914 (Squash merge main into feat/cherry-claw-agent)
       return state
     } catch (error) {
       logger.error('migrate 200 error', error as Error)
       return state
     }
-<<<<<<< HEAD
   },
   '201': (state: RootState) => {
     try {
@@ -3375,8 +3368,6 @@ const migrateConfig = {
       logger.error('migrate 204 error', error as Error)
       return state
     }
-=======
->>>>>>> 1a5499914 (Squash merge main into feat/cherry-claw-agent)
   }
 }
 

@@ -34,10 +34,7 @@ export class AiSdkToChunkAdapter {
   private hasTextContent = false
   private getSessionWasCleared?: () => boolean
   private providerId?: string
-<<<<<<< HEAD
   private idleTimeout?: IdleTimeoutHandle
-=======
->>>>>>> 1a5499914 (Squash merge main into feat/cherry-claw-agent)
 
   constructor(
     private onChunk: (chunk: Chunk) => void,
@@ -46,12 +43,8 @@ export class AiSdkToChunkAdapter {
     enableWebSearch?: boolean,
     onSessionUpdate?: (sessionId: string) => void,
     getSessionWasCleared?: () => boolean,
-<<<<<<< HEAD
     providerId?: string,
     idleTimeout?: IdleTimeoutHandle
-=======
-    providerId?: string
->>>>>>> 1a5499914 (Squash merge main into feat/cherry-claw-agent)
   ) {
     this.toolCallHandler = new ToolCallChunkHandler(onChunk, mcpTools)
     this.accumulate = accumulate
@@ -59,10 +52,7 @@ export class AiSdkToChunkAdapter {
     this.onSessionUpdate = onSessionUpdate
     this.getSessionWasCleared = getSessionWasCleared
     this.providerId = providerId
-<<<<<<< HEAD
     this.idleTimeout = idleTimeout
-=======
->>>>>>> 1a5499914 (Squash merge main into feat/cherry-claw-agent)
   }
 
   private markFirstTokenIfNeeded() {
