@@ -319,14 +319,14 @@ interface OldWebSearchProvider {
  * @example
  * Input: {
  *   providers: [
- *     { id: 'tavily', name: 'Tavily', apiKey: '...', apiHost: 'https://api.tavily.com' },
+ *     { id: 'tavily', name: 'Tavily', apiKey: 'key1,key2', apiHost: 'https://api.tavily.com' },
  *     { id: 'exa-mcp', name: 'ExaMCP', apiHost: 'https://mcp.exa.ai/mcp' },
  *     { id: 'local-google', name: 'Google', url: 'https://custom.google.proxy/search?q=%s' }
  *   ]
  * }
  * Output: {
  *   'chat.web_search.provider_overrides': {
- *     tavily: { apiKey: '...' },
+ *     tavily: { apiKeys: ['key1', 'key2'] },
  *     'local-google': { apiHost: 'https://custom.google.proxy/search?q=%s' }
  *   }
  * }
@@ -353,9 +353,12 @@ export function migrateWebSearchProviders(sources: { providers?: OldWebSearchPro
       return
     }
 
-    const apiKey = provider.apiKey?.trim()
-    if (apiKey) {
-      override.apiKey = apiKey
+    const apiKeys = provider.apiKey
+      ?.split(',')
+      .map((apiKey) => apiKey.trim())
+      .filter(Boolean)
+    if (apiKeys && apiKeys.length > 0) {
+      override.apiKeys = apiKeys
     }
 
     const rawApiHost = provider.apiHost?.trim() ? provider.apiHost : provider.url

@@ -6,6 +6,7 @@ import { useCache } from '@renderer/data/hooks/useCache'
 import { useUpdateSession } from '@renderer/hooks/agents/useUpdateSession'
 import { useInPlaceEdit } from '@renderer/hooks/useInPlaceEdit'
 import { useTimer } from '@renderer/hooks/useTimer'
+import { finishTopicRenaming, startTopicRenaming } from '@renderer/hooks/useTopic'
 import { SessionSettingsPopup } from '@renderer/pages/settings/AgentSettings'
 import { SessionLabel } from '@renderer/pages/settings/AgentSettings/shared'
 import store, { useAppDispatch, useAppSelector } from '@renderer/store'
@@ -96,6 +97,10 @@ const SessionItem = ({ session, agentId, onDelete, onPress }: SessionItemProps) 
   const sessionTopicId = buildAgentSessionTopicId(session.id)
   const isPending = useMemo(() => topicLoadingQuery[sessionTopicId], [sessionTopicId, topicLoadingQuery])
   const isFulfilled = useMemo(() => topicFulfilledQuery[sessionTopicId], [sessionTopicId, topicFulfilledQuery])
+  const [renamingTopics] = useCache('topic.renaming')
+  const [newlyRenamedTopics] = useCache('topic.newly_renamed')
+  const isRenaming = renamingTopics.includes(sessionTopicId)
+  const isNewlyRenamed = newlyRenamedTopics.includes(sessionTopicId)
 
   useEffect(() => {
     if (isFulfilled && activeSessionId === session.id) {
@@ -128,13 +133,18 @@ const SessionItem = ({ session, agentId, onDelete, onPress }: SessionItemProps) 
         label: t('chat.topics.auto_rename'),
         key: 'auto-rename',
         icon: <Sparkles size={14} />,
-        onClick: () => {
+        onClick: async () => {
           const agentSession = {
             agentId: agentId,
             sessionId: targetSession.id
           }
           dispatch(loadTopicMessagesThunk(sessionTopicId))
-          renameAgentSessionIfNeeded(agentSession, sessionTopicId, store.getState)
+          try {
+            startTopicRenaming(sessionTopicId)
+            await renameAgentSessionIfNeeded(agentSession, sessionTopicId, store.getState)
+          } finally {
+            finishTopicRenaming(sessionTopicId)
+          }
         }
       },
       {
@@ -190,7 +200,10 @@ const SessionItem = ({ session, agentId, onDelete, onPress }: SessionItemProps) 
           ) : (
             <>
               <div className="truncate text-[13px]">
-                <SessionLabel session={session} />
+                <SessionLabel
+                  session={session}
+                  className={isRenaming ? 'animation-shimmer' : isNewlyRenamed ? 'animation-reveal' : ''}
+                />
               </div>
               <DeleteButton />
             </>

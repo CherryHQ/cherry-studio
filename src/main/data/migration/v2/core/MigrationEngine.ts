@@ -10,6 +10,8 @@ import { mcpServerTable } from '@data/db/schemas/mcpServer'
 import { messageTable } from '@data/db/schemas/message'
 import { preferenceTable } from '@data/db/schemas/preference'
 import { topicTable } from '@data/db/schemas/topic'
+import { translateHistoryTable } from '@data/db/schemas/translateHistory'
+import { translateLanguageTable } from '@data/db/schemas/translateLanguage'
 import { loggerService } from '@logger'
 import type {
   MigrationProgress,
@@ -214,6 +216,8 @@ export class MigrationEngine {
       { table: mcpServerTable, name: 'mcp_server' },
       { table: preferenceTable, name: 'preference' },
       { table: knowledgeItemTable, name: 'knowledge_item' }, // Must clear before knowledge_base (FK reference)
+      { table: translateHistoryTable, name: 'translate_history' },
+      { table: translateLanguageTable, name: 'translate_language' },
       { table: knowledgeBaseTable, name: 'knowledge_base' }
       // TODO: Add these when tables are created
       // { table: assistantTable, name: 'assistant' },
@@ -235,8 +239,10 @@ export class MigrationEngine {
     await db.delete(topicTable)
     await db.delete(mcpServerTable)
     await db.delete(preferenceTable)
-    // Knowledge items reference knowledge bases
     await db.delete(knowledgeItemTable)
+    await db.delete(translateHistoryTable)
+    await db.delete(translateLanguageTable)
+    // Knowledge items reference knowledge bases
     await db.delete(knowledgeBaseTable)
     // TODO: Add these when tables are created (in correct order)
     // await db.delete(fileTable)

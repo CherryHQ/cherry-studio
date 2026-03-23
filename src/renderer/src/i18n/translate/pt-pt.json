@@ -389,6 +389,9 @@
         "TodoWrite": {
           "description": "Cria e gere listas de tarefas estruturadas"
         },
+        "ToolSearch": {
+          "description": "[to be translated]:Discovers deferred tools from large libraries"
+        },
         "WebFetch": {
           "description": "Busca conteúdo de um URL especificado"
         },
@@ -735,6 +738,7 @@
     "progress": {
       "completed": "Backup concluído",
       "compressing": "Comprimindo arquivo...",
+      "copying_database": "Copiando banco de dados...",
       "copying_files": "Copiando arquivos... {{progress}}%",
       "preparing": "Preparando backup...",
       "preparing_compression": "Preparando compressão...",
@@ -2026,6 +2030,10 @@
         "export": "Falha ao exportar Excel"
       },
       "fetchTopicName": "Falha ao nomear o tópico",
+      "file": {
+        "process_failed": "O arquivo {{name}} não pôde ser processado",
+        "text_extraction_failed": "Falha ao extrair texto de {{name}}"
+      },
       "get_embedding_dimensions": "Falha ao obter dimensões de incorporação",
       "invalid": {
         "api": {
@@ -2269,6 +2277,11 @@
       }
     },
     "warning": {
+      "file": {
+        "pdf_exceeds_limit": "O arquivo PDF {{name}} excede o limite de tamanho ({{limit}}), recorrendo à extração de texto",
+        "pdf_text_extraction_failed": "Falha ao extrair texto do PDF {{name}}",
+        "pdf_upload_failed": "Falha ao carregar o PDF {{name}}, recorrendo à extração de texto"
+      },
       "rate": {
         "limit": "Envio muito frequente, aguarde {{seconds}} segundos antes de tentar novamente"
       }
@@ -3148,7 +3161,10 @@
       "extracting": "Descompactando backup...",
       "preparing": "Preparando restauração...",
       "reading_data": "Lendo dados...",
-      "title": "Progresso da Restauração"
+      "restoring_data": "Restaurando arquivos...",
+      "restoring_database": "Restaurando banco de dados...",
+      "title": "Progresso da Restauração",
+      "validating": "Validando backup..."
     },
     "title": "Restauração de Dados"
   },
@@ -3701,7 +3717,15 @@
           "button": "Selecionar arquivo de backup"
         },
         "content": "Exportar parte dos dados, incluindo registros de conversas e configurações. Observe que o processo de backup pode demorar um pouco; agradecemos sua paciência.",
+        "file": {
+          "button": "Exportar para arquivo",
+          "content": "Exportar dados como arquivo de backup que pode ser importado no celular via arquivo.",
+          "export_failed": "Falha na exportação",
+          "export_success": "Exportação bem-sucedida",
+          "title": "Exportar como arquivo"
+        },
         "lan": {
+          "button": "Iniciar transferência",
           "connected": "Conectado",
           "connection_failed": "Falha na conexão",
           "content": "Certifique-se de que o computador e o telefone estejam na mesma rede para usar a transferência via LAN. Abra o aplicativo Cherry Studio e escaneie este código QR.",

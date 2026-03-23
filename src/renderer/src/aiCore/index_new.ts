@@ -353,20 +353,45 @@ export default class ModernAiProvider {
         getText: () => finalText
       }
     } else {
+      // Since no onChunk is provided, the external consumer would not handle error chunk.
+      // So we need to capture the actual stream error so we can throw it instead of the
+      // generic NoTextGeneratedError ("No output generated. Check the stream
+      // for errors.") that AI SDK raises when streamResult.text is accessed
+      // after a failed stream.
+      let streamError: unknown = undefined
+
       const streamResult = await executor.streamText({
         ...params,
-        model
+        model,
+        onError({ error }) {
+          streamError = error
+        }
       })
 
       // 强制消费流,不然await streamResult.text会阻塞
-      await streamResult?.consumeStream()
+      await streamResult?.consumeStream({
+        onError(error) {
+          if (!streamError) {
+            streamError = error
+          }
+        }
+      })
 
-      const finalText = await streamResult.text
-      const usage = await streamResult.totalUsage
+      try {
+        const finalText = await streamResult.text
+        const usage = await streamResult.totalUsage
 
-      return {
-        getText: () => finalText,
-        usage
+        return {
+          getText: () => finalText,
+          usage
+        }
+      } catch (error) {
+        // If we captured the real stream error, throw that instead of the
+        // generic NoTextGeneratedError so callers get actionable diagnostics.
+        if (streamError) {
+          throw streamError
+        }
+        throw error
       }
     }
   }

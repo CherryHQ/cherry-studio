@@ -25,8 +25,15 @@
     {
       "idx": 3,
       "version": "6",
+      "when": 1773896975667,
+      "tag": "0003_material_pestilence",
+      "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "6",
       "when": 1773898343003,
-      "tag": "0003_optimal_callisto",
+      "tag": "0004_optimal_callisto",
       "breakpoints": true
     }
   ],

@@ -372,60 +372,11 @@ export function resetMigrationData(): void {
 }
 
 /**
- * Get backup data from the current application
- */
-async function getBackupData(): Promise<string> {
-  try {
-    const { getDataPath } = await import('@main/utils')
-    const dataPath = getDataPath()
-
-    // Gather basic system information
-    const data = {
-      backup: {
-        timestamp: new Date().toISOString(),
-        version: app.getVersion(),
-        type: 'pre-migration-backup',
-        note: 'This is a safety backup created before data migration'
-      },
-      system: {
-        platform: process.platform,
-        arch: process.arch,
-        nodeVersion: process.version
-      },
-      // Include basic configuration files if they exist
-      configs: {} as Record<string, any>
-    }
-
-    // Check if there are any config files we should backup
-    const configFiles = ['config.json', 'settings.json', 'preferences.json']
-    for (const configFile of configFiles) {
-      const configPath = path.join(dataPath, configFile)
-      try {
-        // Check if file exists
-        await fs.access(configPath)
-        const configContent = await fs.readFile(configPath, 'utf-8')
-        data.configs[configFile] = JSON.parse(configContent)
-      } catch (err) {
-        // Ignore if file doesn't exist or can't be read
-      }
-    }
-
-    return JSON.stringify(data, null, 2)
-  } catch (error) {
-    logger.error('Failed to get backup data:', error as Error)
-    throw error
-  }
-}
-
-/**
  * Perform backup to a specific file location
  */
 async function performBackupToFile(filePath: string): Promise<{ success: boolean; error?: string }> {
   try {
     logger.info('Performing backup to file', { filePath })
-
-    // Get backup data
-    const backupData = await getBackupData()
 
     // Extract directory and filename from the full path
     const destinationDir = path.dirname(filePath)
@@ -435,7 +386,6 @@ async function performBackupToFile(filePath: string): Promise<{ success: boolean
     const backupPath = await backupManager.backup(
       null as any, // IpcMainInvokeEvent - we're calling directly so pass null
       fileName,
-      backupData,
       destinationDir,
       false // Don't skip backup files - full backup for migration safety
     )

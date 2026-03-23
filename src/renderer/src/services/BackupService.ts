@@ -68,12 +68,27 @@ async function deleteWebdavFileWithRetry(fileName: string, webdavConfig: WebDavC
 
 export async function backup(skipBackupFile: boolean) {
   const filename = `cherry-studio.${dayjs().format('YYYYMMDDHHmm')}.zip`
-  const fileContnet = await getBackupData()
   const selectFolder = await window.api.file.selectFolder()
   if (selectFolder) {
-    await window.api.backup.backup(filename, fileContnet, selectFolder, skipBackupFile)
+    // Use direct backup method - copy IndexedDB/LocalStorage directories directly
+    await window.api.backup.backup(filename, selectFolder, skipBackupFile)
     window.toast.success(i18n.t('message.backup.success'))
   }
+}
+
+export async function backupToLanTransfer() {
+  // Let user select save location first
+  const savePath = await window.api.file.selectFolder()
+
+  if (!savePath) {
+    return
+  }
+
+  // Create backup directly in the selected location
+  const backupData = await getBackupData()
+  await window.api.backup.createLanTransferBackup(backupData, savePath)
+
+  window.toast.success(i18n.t('settings.data.export_to_phone.file.export_success'))
 }
 
 export async function restore() {
@@ -82,17 +97,35 @@ export async function restore() {
 
   if (file) {
     try {
-      let data: Record<string, any> = {}
-
       // zip backup file
       if (file?.fileName.endsWith('.zip')) {
         const restoreData = await window.api.backup.restore(file.filePath)
-        data = JSON.parse(restoreData)
-      } else {
-        data = JSON.parse(await window.api.zip.decompress(file.content))
-      }
 
-      await handleData(data)
+        // Direct backup format returns void (app needs to relaunch)
+        // Legacy format returns JSON string that needs to be processed
+        if (restoreData !== undefined && restoreData !== null) {
+          const data = JSON.parse(restoreData)
+          await handleData(data)
+        } else {
+          // Direct backup was restored, app will relaunch
+          notificationService.send({
+            id: uuid(),
+            type: 'success',
+            title: i18n.t('common.success'),
+            message: i18n.t('message.restore.success'),
+            silent: false,
+            timestamp: Date.now(),
+            source: 'backup',
+            channel: 'system'
+          })
+          // App will relaunch automatically
+          return
+        }
+      } else {
+        // Legacy .bak format
+        const data = JSON.parse(await window.api.zip.decompress(file.content))
+        await handleData(data)
+      }
 
       notificationService.send({
         id: uuid(),
@@ -106,7 +139,11 @@ export async function restore() {
       })
     } catch (error) {
       logger.error('restore: Error restoring backup file:', error as Error)
-      window.toast.error(i18n.t('error.backup.file_format'))
+      window.modal.error({
+        title: i18n.t('error.backup.file_format'),
+        content: (error as Error).message,
+        centered: true
+      })
     }
   }
 }
@@ -125,7 +162,7 @@ export async function reset() {
         content: i18n.t('message.reset.double.confirm.content'),
         centered: true,
         onOk: async () => {
-          await localStorage.clear()
+          localStorage.clear()
           await clearDatabase()
           await window.api.resetData()
           window.toast.success(i18n.t('message.reset.success'))
@@ -195,11 +232,10 @@ export async function backupToWebdav({
   const timestamp = dayjs().format('YYYYMMDDHHmmss')
   const backupFileName = customFileName || `cherry-studio.${timestamp}.${hostname}.${deviceType}.zip`
   const finalFileName = backupFileName.endsWith('.zip') ? backupFileName : `${backupFileName}.zip`
-  const backupData = await getBackupData()
 
-  // 上传文件
+  // 上传文件 - Use direct backup method (copy IndexedDB/LocalStorage directories)
   try {
-    const success = await window.api.backup.backupToWebdav(backupData, {
+    const success = await window.api.backup.backupToWebdav({
       webdavHost,
       webdavUser,
       webdavPass,
@@ -329,8 +365,16 @@ export async function restoreFromWebdav(fileName?: string) {
       title: i18n.t('message.restore.failed'),
       content: error.message
     })
+    return
   }
 
+  // Direct backup format (version 6+) returns undefined - app needs to relaunch
+  if (!data) {
+    logger.info('[WebDAVBackup] Direct backup restored, app will restart')
+    return
+  }
+
+  // Legacy backup format (version <= 5) returns JSON string
   try {
     await handleData(JSON.parse(data))
   } catch (error) {
@@ -385,10 +429,10 @@ export async function backupToS3({
   const timestamp = dayjs().format('YYYYMMDDHHmmss')
   const backupFileName = customFileName || `cherry-studio.${timestamp}.${hostname}.${deviceType}.zip`
   const finalFileName = backupFileName.endsWith('.zip') ? backupFileName : `${backupFileName}.zip`
-  const backupData = await getBackupData()
 
   try {
-    const success = await window.api.backup.backupToS3(backupData, {
+    // Use direct backup method (copy IndexedDB/LocalStorage directories)
+    const success = await window.api.backup.backupToS3({
       ...s3Config,
       fileName: finalFileName
     })
@@ -509,6 +553,14 @@ export async function restoreFromS3(fileName?: string) {
       ...s3Config,
       fileName
     })
+
+    // Direct backup format (version 6+) returns undefined - app needs to relaunch
+    if (!restoreData) {
+      logger.info('[S3Backup] Direct backup restored, app will restart')
+      return
+    }
+
+    // Legacy backup format (version <= 5) returns JSON string
     const data = JSON.parse(restoreData)
     await handleData(data)
   }
@@ -912,7 +964,7 @@ export async function handleData(data: Record<string, any>) {
       }
     }
 
-    await localStorage.setItem('persist:cherry-studio', data.localStorage['persist:cherry-studio'])
+    localStorage.setItem('persist:cherry-studio', data.localStorage['persist:cherry-studio'])
     window.toast.success(i18n.t('message.restore.success'))
     setTimeout(() => window.api.relaunchApp(), 1000)
     return
@@ -970,7 +1022,7 @@ async function restoreDatabase(backup: Record<string, any>) {
 }
 
 async function clearDatabase() {
-  const storeNames = await db.tables.map((table) => table.name)
+  const storeNames = db.tables.map((table) => table.name)
 
   await db.transaction('rw', db.tables, async () => {
     for (const storeName of storeNames) {
@@ -1023,10 +1075,10 @@ export async function backupToLocal({
   const timestamp = dayjs().format('YYYYMMDDHHmmss')
   const backupFileName = customFileName || `cherry-studio.${timestamp}.${hostname}.${deviceType}.zip`
   const finalFileName = backupFileName.endsWith('.zip') ? backupFileName : `${backupFileName}.zip`
-  const backupData = await getBackupData()
 
   try {
-    const result = await window.api.backup.backupToLocalDir(backupData, finalFileName, {
+    // Use direct backup method (copy IndexedDB/LocalStorage directories)
+    const result = await window.api.backup.backupToLocalDir(finalFileName, {
       localBackupDir,
       skipBackupFile: localBackupSkipBackupFile
     })
@@ -1137,6 +1189,14 @@ export async function restoreFromLocal(fileName: string) {
     const localBackupDirSetting = await preferenceService.get('data.backup.local.dir')
     const localBackupDir = await window.api.resolvePath(localBackupDirSetting)
     const restoreData = await window.api.backup.restoreFromLocalBackup(fileName, localBackupDir)
+
+    // Direct backup format (version 6+) returns undefined - app needs to relaunch
+    if (!restoreData) {
+      logger.info('[LocalBackup] Direct backup restored, app will restart')
+      return true
+    }
+
+    // Legacy backup format (version <= 5) returns JSON string
     const data = JSON.parse(restoreData)
     await handleData(data)
 

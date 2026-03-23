@@ -593,7 +593,7 @@ export const isSupportedThinkingTokenZhipuModel = (model: Model): boolean => {
 
 export const isSupportedThinkingTokenMiMoModel = (model: Model): boolean => {
   const modelId = getLowerBaseModelName(model.id, '/')
-  return ['mimo-v2-flash'].some((id) => modelId.includes(id))
+  return ['mimo-v2-flash', 'mimo-v2-pro', 'mimo-v2-omni'].some((id) => modelId.includes(id))
 }
 
 /**

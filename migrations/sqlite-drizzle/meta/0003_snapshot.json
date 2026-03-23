@@ -1,7 +1,7 @@
 {
   "version": "6",
   "dialect": "sqlite",
-  "id": "5bf6a21a-90ea-4345-94dd-10354ada2f78",
+  "id": "c736c8d5-58fa-4c17-9d28-c6dde07d439c",
   "prevId": "f283d5d9-7eaa-40ff-8f9f-fbad46e536fd",
   "tables": {
     "app_state": {
@@ -345,7 +345,16 @@
       "foreignKeys": {},
       "compositePrimaryKeys": {},
       "uniqueConstraints": {},
-      "checkConstraints": {}
+      "checkConstraints": {
+        "mcp_server_type_check": {
+          "name": "mcp_server_type_check",
+          "value": "\"mcp_server\".\"type\" IS NULL OR \"mcp_server\".\"type\" IN ('stdio', 'sse', 'streamableHttp', 'inMemory')"
+        },
+        "mcp_server_install_source_check": {
+          "name": "mcp_server_install_source_check",
+          "value": "\"mcp_server\".\"install_source\" IS NULL OR \"mcp_server\".\"install_source\" IN ('builtin', 'manual', 'protocol', 'unknown')"
+        }
+      }
     },
     "message": {
       "name": "message",
@@ -837,8 +846,8 @@
       "uniqueConstraints": {},
       "checkConstraints": {}
     },
-    "knowledge_base": {
-      "name": "knowledge_base",
+    "translate_history": {
+      "name": "translate_history",
       "columns": {
         "id": {
           "name": "id",
@@ -847,89 +856,41 @@
           "notNull": true,
           "autoincrement": false
         },
-        "name": {
-          "name": "name",
+        "source_text": {
+          "name": "source_text",
           "type": "text",
           "primaryKey": false,
           "notNull": true,
           "autoincrement": false
         },
-        "description": {
-          "name": "description",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
-        },
-        "dimensions": {
-          "name": "dimensions",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "embedding_model_id": {
-          "name": "embedding_model_id",
+        "target_text": {
+          "name": "target_text",
           "type": "text",
           "primaryKey": false,
           "notNull": true,
           "autoincrement": false
         },
-        "rerank_model_id": {
-          "name": "rerank_model_id",
+        "source_language": {
+          "name": "source_language",
           "type": "text",
           "primaryKey": false,
-          "notNull": false,
+          "notNull": true,
           "autoincrement": false
         },
-        "file_processor_id": {
-          "name": "file_processor_id",
+        "target_language": {
+          "name": "target_language",
           "type": "text",
           "primaryKey": false,
-          "notNull": false,
+          "notNull": true,
           "autoincrement": false
         },
-        "chunk_size": {
-          "name": "chunk_size",
+        "star": {
+          "name": "star",
           "type": "integer",
           "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
-        },
-        "chunk_overlap": {
-          "name": "chunk_overlap",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
-        },
-        "threshold": {
-          "name": "threshold",
-          "type": "real",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
-        },
-        "document_count": {
-          "name": "document_count",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
-        },
-        "search_mode": {
-          "name": "search_mode",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
-        },
-        "hybrid_alpha": {
-          "name": "hybrid_alpha",
-          "type": "real",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
+          "notNull": true,
+          "autoincrement": false,
+          "default": false
         },
         "created_at": {
           "name": "created_at",
@@ -946,19 +907,25 @@
           "autoincrement": false
         }
       },
-      "indexes": {},
+      "indexes": {
+        "translate_history_created_at_idx": {
+          "name": "translate_history_created_at_idx",
+          "columns": ["created_at"],
+          "isUnique": false
+        },
+        "translate_history_star_created_at_idx": {
+          "name": "translate_history_star_created_at_idx",
+          "columns": ["star", "created_at"],
+          "isUnique": false
+        }
+      },
       "foreignKeys": {},
       "compositePrimaryKeys": {},
       "uniqueConstraints": {},
-      "checkConstraints": {
-        "knowledge_base_search_mode_check": {
-          "name": "knowledge_base_search_mode_check",
-          "value": "\"knowledge_base\".\"search_mode\" IS NULL OR \"knowledge_base\".\"search_mode\" IN ('default', 'bm25', 'hybrid')"
-        }
-      }
+      "checkConstraints": {}
     },
-    "knowledge_item": {
-      "name": "knowledge_item",
+    "translate_language": {
+      "name": "translate_language",
       "columns": {
         "id": {
           "name": "id",
@@ -967,47 +934,25 @@
           "notNull": true,
           "autoincrement": false
         },
-        "base_id": {
-          "name": "base_id",
+        "lang_code": {
+          "name": "lang_code",
           "type": "text",
           "primaryKey": false,
           "notNull": true,
           "autoincrement": false
         },
-        "parent_id": {
-          "name": "parent_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
-        },
-        "type": {
-          "name": "type",
+        "value": {
+          "name": "value",
           "type": "text",
           "primaryKey": false,
           "notNull": true,
           "autoincrement": false
         },
-        "data": {
-          "name": "data",
+        "emoji": {
+          "name": "emoji",
           "type": "text",
           "primaryKey": false,
           "notNull": true,
-          "autoincrement": false
-        },
-        "status": {
-          "name": "status",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false,
-          "default": "'idle'"
-        },
-        "error": {
-          "name": "error",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false,
           "autoincrement": false
         },
         "created_at": {
@@ -1026,44 +971,16 @@
         }
       },
       "indexes": {
-        "knowledge_item_base_id_idx": {
-          "name": "knowledge_item_base_id_idx",
-          "columns": ["base_id"],
-          "isUnique": false
+        "translate_language_langCode_unique": {
+          "name": "translate_language_langCode_unique",
+          "columns": ["lang_code"],
+          "isUnique": true
         }
       },
-      "foreignKeys": {
-        "knowledge_item_base_id_knowledge_base_id_fk": {
-          "name": "knowledge_item_base_id_knowledge_base_id_fk",
-          "tableFrom": "knowledge_item",
-          "tableTo": "knowledge_base",
-          "columnsFrom": ["base_id"],
-          "columnsTo": ["id"],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
-        },
-        "knowledge_item_parent_id_knowledge_item_id_fk": {
-          "name": "knowledge_item_parent_id_knowledge_item_id_fk",
-          "tableFrom": "knowledge_item",
-          "tableTo": "knowledge_item",
-          "columnsFrom": ["parent_id"],
-          "columnsTo": ["id"],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
-        }
-      },
+      "foreignKeys": {},
       "compositePrimaryKeys": {},
       "uniqueConstraints": {},
-      "checkConstraints": {
-        "knowledge_item_status_check": {
-          "name": "knowledge_item_status_check",
-          "value": "\"knowledge_item\".\"status\" IN ('idle', 'pending', 'ocr', 'read', 'embed', 'completed', 'failed')"
-        },
-        "knowledge_item_type_check": {
-          "name": "knowledge_item_type_check",
-          "value": "\"knowledge_item\".\"type\" IN ('file', 'url', 'note', 'sitemap', 'directory')"
-        }
-      }
+      "checkConstraints": {}
     }
   },
   "views": {},
