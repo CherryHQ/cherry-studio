@@ -40,11 +40,9 @@ export const mcpServerHandlers: {
     POST: async ({ body }) => {
       const parsed = CreateMCPServerSchema.parse(body)
       return await mcpServerService.create(parsed)
-    }
-  },
+    },
 
-  '/mcp-servers/reorder': {
-    PUT: async ({ body }) => {
+    PATCH: async ({ body }) => {
       const parsed = ReorderMCPServersSchema.parse(body)
       await mcpServerService.reorder(parsed.orderedIds)
       return undefined

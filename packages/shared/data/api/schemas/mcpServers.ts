@@ -78,14 +78,8 @@ export interface MCPServerSchemas {
       body: CreateMCPServerDto
       response: MCPServer
     }
-  }
-
-  /**
-   * Reorder MCP servers endpoint
-   */
-  '/mcp-servers/reorder': {
-    /** Reorder MCP servers by providing ordered IDs */
-    PUT: {
+    /** Partial update of the collection (reorder) */
+    PATCH: {
       body: ReorderMCPServersBody
       response: void
     }

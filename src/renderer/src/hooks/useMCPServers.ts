@@ -25,7 +25,7 @@ export const useMCPServers = (query?: ListMCPServersQuery) => {
 
   const addMCPServer = useCallback((dto: CreateMCPServerDto) => createMCPServer({ body: dto }), [createMCPServer])
 
-  const { trigger: reorderTrigger } = useMutation('PUT', '/mcp-servers/reorder', {
+  const { trigger: reorderTrigger } = useMutation('PATCH', '/mcp-servers', {
     refresh: ['/mcp-servers']
   })
 
