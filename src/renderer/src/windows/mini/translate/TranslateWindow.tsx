@@ -54,18 +54,18 @@ const Translate: FC<Props> = ({ text }) => {
   }, [text, targetLanguage, translateModel])
 
   useEffect(() => {
-    runAsyncFunction(async () => {
+    void runAsyncFunction(async () => {
       const targetLang = await db.settings.get({ id: 'translate:target:language' })
       targetLang && setTargetLanguage(getLanguageByLangcode(targetLang.value))
     })
   }, [getLanguageByLangcode])
 
   useEffect(() => {
-    translate()
+    void translate()
   }, [translate])
 
   useHotkeys('c', () => {
-    navigator.clipboard.writeText(result)
+    void navigator.clipboard.writeText(result)
     window.toast.success(t('message.copy.success'))
   })
 

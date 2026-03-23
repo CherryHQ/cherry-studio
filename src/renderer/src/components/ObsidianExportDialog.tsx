@@ -203,7 +203,7 @@ const PopupContainer: React.FC<PopupContainerProps> = ({
         setLoading(false)
       }
     }
-    fetchVaults()
+    void fetchVaults()
   }, [defaultObsidianVault])
 
   useEffect(() => {
@@ -221,7 +221,7 @@ const PopupContainer: React.FC<PopupContainerProps> = ({
           setLoading(false)
         }
       }
-      fetchFiles()
+      void fetchFiles()
     }
   }, [selectedVault])
 
@@ -253,7 +253,7 @@ const PopupContainer: React.FC<PopupContainerProps> = ({
       return
     }
     await navigator.clipboard.writeText(content)
-    exportMarkdownToObsidian({
+    void exportMarkdownToObsidian({
       ...state,
       folder: state.folder,
       vault: selectedVault
