@@ -53,11 +53,12 @@ const AboutSettings: FC = () => {
         return
       }
 
-      updateAppUpdateState({ checking: true })
+      updateAppUpdateState({ checking: true, manualCheck: true })
 
       try {
         await window.api.checkForUpdate()
       } catch (error) {
+        updateAppUpdateState({ manualCheck: false })
         window.toast.error(t('settings.about.updateError'))
       }
 

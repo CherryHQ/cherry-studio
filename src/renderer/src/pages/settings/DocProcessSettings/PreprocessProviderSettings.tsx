@@ -1,5 +1,6 @@
 import { ExportOutlined } from '@ant-design/icons'
-import { Avatar, Button, Flex, Tooltip } from '@cherrystudio/ui'
+import { Button, Flex, Tooltip } from '@cherrystudio/ui'
+import { LogoAvatar } from '@renderer/components/Icons'
 import { ApiKeyListPopup } from '@renderer/components/Popups/ApiKeyListPopup'
 import { getPreprocessProviderLogo, PREPROCESS_PROVIDER_CONFIG } from '@renderer/config/preprocessProviders'
 import { usePreprocessProvider } from '@renderer/hooks/usePreprocess'
@@ -72,11 +73,7 @@ const PreprocessProviderSettings: FC<Props> = ({ provider: _provider }) => {
     <>
       <SettingTitle>
         <Flex className="items-center gap-2">
-          <Avatar
-            radius="md"
-            src={getPreprocessProviderLogo(preprocessProvider.id)}
-            className="h-4 w-4 border-[0.5px] border-[var(--color-border)]"
-          />
+          <LogoAvatar logo={getPreprocessProviderLogo(preprocessProvider.id)} size={16} />
           <ProviderName> {preprocessProvider.name}</ProviderName>
           {officialWebsite && preprocessProviderConfig?.websites && (
             <Link target="_blank" href={preprocessProviderConfig.websites.official}>

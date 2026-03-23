@@ -486,7 +486,7 @@ describe('export', () => {
       ])
       ;(markdownToPlainText as any).mockImplementation((str: string) => str.replace(/[#*_]/g, ''))
 
-      const result = await messageToPlainText(testMessage)
+      const result = messageToPlainText(testMessage)
       expect(result).toBe('Single Message Content')
       expect(markdownToPlainText).toHaveBeenCalledWith('### Single Message Content')
     })

@@ -1,11 +1,6 @@
 import { RowFlex } from '@cherrystudio/ui'
 import { Button } from '@cherrystudio/ui'
-import AI302ProviderLogo from '@renderer/assets/images/providers/302ai.webp'
-import AiHubMixProviderLogo from '@renderer/assets/images/providers/aihubmix.webp'
-import AiOnlyProviderLogo from '@renderer/assets/images/providers/aiOnly.webp'
-import PPIOProviderLogo from '@renderer/assets/images/providers/ppio.png'
-import SiliconFlowProviderLogo from '@renderer/assets/images/providers/silicon.png'
-import TokenFluxProviderLogo from '@renderer/assets/images/providers/tokenflux.png'
+import { resolveProviderIcon } from '@cherrystudio/ui/icons'
 import OAuthButton from '@renderer/components/OAuth/OAuthButton'
 import { PROVIDER_URLS } from '@renderer/config/providers'
 import { useProvider } from '@renderer/hooks/useProvider'
@@ -19,15 +14,6 @@ import styled from 'styled-components'
 
 interface Props {
   providerId: string
-}
-
-const PROVIDER_LOGO_MAP = {
-  '302ai': AI302ProviderLogo,
-  silicon: SiliconFlowProviderLogo,
-  aihubmix: AiHubMixProviderLogo,
-  ppio: PPIOProviderLogo,
-  tokenflux: TokenFluxProviderLogo,
-  aionly: AiOnlyProviderLogo
 }
 
 const ProviderOAuth: FC<Props> = ({ providerId }) => {
@@ -44,9 +30,11 @@ const ProviderOAuth: FC<Props> = ({ providerId }) => {
     providerWebsite = 'ppio.com'
   }
 
+  const Icon = resolveProviderIcon(provider.id)
+
   return (
     <Container>
-      <ProviderLogo src={PROVIDER_LOGO_MAP[provider.id]} />
+      {Icon ? <Icon.Avatar size={60} /> : <ProviderLogoFallback>{provider.name[0]}</ProviderLogoFallback>}
       {isEmpty(provider.apiKey) ? (
         <OAuthButton provider={provider} onSuccess={setApiKey}>
           {t('settings.provider.oauth.button', { provider: getProviderLabel(provider.id) })}
@@ -87,10 +75,16 @@ const Container = styled.div`
   padding: 20px;
 `
 
-const ProviderLogo = styled.img`
+const ProviderLogoFallback = styled.div`
   width: 60px;
   height: 60px;
   border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--color-background-soft);
+  font-size: 24px;
+  font-weight: bold;
 `
 
 const Description = styled.div`

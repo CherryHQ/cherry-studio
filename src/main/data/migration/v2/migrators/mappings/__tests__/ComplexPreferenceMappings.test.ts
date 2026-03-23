@@ -64,8 +64,20 @@ describe('ComplexPreferenceMappings', () => {
       expect(Array.isArray(COMPLEX_PREFERENCE_MAPPINGS)).toBe(true)
     })
 
+    it('should contain websearch compression flatten mapping', () => {
+      const websearchMapping = COMPLEX_PREFERENCE_MAPPINGS.find((m) => m.id === 'websearch_compression_flatten')
+      expect(websearchMapping).toBeDefined()
+      expect(websearchMapping?.targetKeys).toContain('chat.web_search.compression.method')
+      expect(websearchMapping?.targetKeys.length).toBe(7)
+    })
+
+    it('should contain websearch providers migrate mapping', () => {
+      const providersMapping = COMPLEX_PREFERENCE_MAPPINGS.find((m) => m.id === 'websearch_providers_migrate')
+      expect(providersMapping).toBeDefined()
+      expect(providersMapping?.targetKeys).toContain('chat.web_search.provider_overrides')
+    })
+
     it('should contain the code_tools_overrides mapping', () => {
-      expect(COMPLEX_PREFERENCE_MAPPINGS.length).toBeGreaterThanOrEqual(1)
       const codeToolsMapping = COMPLEX_PREFERENCE_MAPPINGS.find((m) => m.id === 'code_tools_overrides')
       expect(codeToolsMapping).toBeDefined()
       expect(codeToolsMapping!.targetKeys).toEqual(['feature.code_tools.overrides'])
@@ -73,9 +85,12 @@ describe('ComplexPreferenceMappings', () => {
   })
 
   describe('getComplexMappingTargetKeys', () => {
-    it('should return target keys from registered mappings', () => {
+    it('should return target keys from all mappings', () => {
       const keys = getComplexMappingTargetKeys()
+      expect(keys).toContain('chat.web_search.compression.method')
+      expect(keys).toContain('chat.web_search.provider_overrides')
       expect(keys).toContain('feature.code_tools.overrides')
+      expect(keys.length).toBe(9) // 7 websearch compression keys + 1 websearch overrides + 1 code_tools overrides
     })
 
     it('should flatten target keys from all mappings', () => {
@@ -105,9 +120,10 @@ describe('ComplexPreferenceMappings', () => {
   })
 
   describe('getComplexMappingById', () => {
-    it('should return undefined when no mappings exist', () => {
-      const mapping = getComplexMappingById('non_existent')
-      expect(mapping).toBeUndefined()
+    it('should return mapping by id', () => {
+      const mapping = getComplexMappingById('websearch_compression_flatten')
+      expect(mapping).toBeDefined()
+      expect(mapping?.id).toBe('websearch_compression_flatten')
     })
 
     it('should return undefined for non-existent id', () => {

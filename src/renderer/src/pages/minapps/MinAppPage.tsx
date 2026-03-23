@@ -1,5 +1,5 @@
-import { Avatar } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
+import { LogoAvatar } from '@renderer/components/Icons'
 import { allMinApps } from '@renderer/config/minapps'
 import { useMinappPopup } from '@renderer/hooks/useMinappPopup'
 import { useMinapps } from '@renderer/hooks/useMinapps'
@@ -189,7 +189,7 @@ const MinAppPage: FC = () => {
       <WebviewSearch webviewRef={webviewRef} isWebviewReady={isReady} appId={app.id} />
       {!isReady && (
         <LoadingMask>
-          <Avatar src={app.logo} className="h-[60px] w-[60px] border border-border" />
+          <LogoAvatar logo={app.logo} size={60} />
           <BeatLoader color="var(--color-text-2)" size={8} style={{ marginTop: 12 }} />
         </LoadingMask>
       )}

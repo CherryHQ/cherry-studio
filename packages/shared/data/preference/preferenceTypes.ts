@@ -73,6 +73,7 @@ export type AssistantTabSortType = 'tags' | 'list'
 
 export type SidebarIcon =
   | 'assistants'
+  | 'agents'
   | 'store'
   | 'paintings'
   | 'translate'
@@ -104,3 +105,89 @@ export type ChatMessageNavigationMode = 'none' | 'buttons' | 'anchor'
 export type MultiModelMessageStyle = 'horizontal' | 'vertical' | 'fold' | 'grid'
 
 export type MultiModelGridPopoverTrigger = 'hover' | 'click'
+
+// ============================================================================
+// Translate Types
+// ============================================================================
+
+export type AutoDetectionMethod = 'franc' | 'llm' | 'auto'
+
+// 为了支持自定义语言，设置为string别名
+/** zh-cn, en-us, etc. */
+export type TranslateLanguageCode = string
+export type TranslateSourceLanguage = TranslateLanguageCode | 'auto'
+export type TranslateBidirectionalPair = [TranslateLanguageCode, TranslateLanguageCode]
+
+// ============================================================================
+// WebSearch Types
+// ============================================================================
+
+export const WEB_SEARCH_PROVIDER_TYPES = ['api', 'local', 'mcp'] as const
+
+export type WebSearchProviderType = (typeof WEB_SEARCH_PROVIDER_TYPES)[number]
+
+export const WEB_SEARCH_PROVIDER_IDS = [
+  'zhipu',
+  'tavily',
+  'searxng',
+  'exa',
+  'exa-mcp',
+  'bocha',
+  'querit',
+  'local-google',
+  'local-bing',
+  'local-baidu'
+] as const
+
+export type WebSearchProviderId = (typeof WEB_SEARCH_PROVIDER_IDS)[number]
+
+export type WebSearchProviderOverride = {
+  apiKeys?: string[]
+  apiHost?: string
+  engines?: string[]
+  basicAuthUsername?: string
+  basicAuthPassword?: string
+}
+
+export type WebSearchProviderOverrides = Partial<Record<WebSearchProviderId, WebSearchProviderOverride>>
+
+/**
+ * Full WebSearch Provider configuration
+ * Generated at runtime by merging preset with user overrides
+ */
+export interface WebSearchProvider {
+  /** Unique provider identifier */
+  id: WebSearchProviderId
+  /** Display name (from preset) */
+  name: string
+  /** Provider type (from preset) */
+  type: WebSearchProviderType
+  /** API keys (from user overrides) */
+  apiKeys: string[]
+  /** API host (user override or preset default) */
+  apiHost: string
+  /** Search engines (from user overrides) */
+  engines: string[]
+  /** Whether to use browser for search (from preset) */
+  usingBrowser: boolean
+  /** Basic auth username (from user overrides) */
+  basicAuthUsername: string
+  /** Basic auth password (from user overrides) */
+  basicAuthPassword: string
+}
+
+// ============================================================================
+// WebSearch Compression Types (v2 - Flattened)
+// ============================================================================
+
+/**
+ * Compression method type
+ * Stored in chat.web_search.compression.method
+ */
+export type WebSearchCompressionMethod = 'none' | 'cutoff' | 'rag'
+
+/**
+ * Cutoff unit type
+ * Stored in chat.web_search.compression.cutoff_unit
+ */
+export type WebSearchCompressionCutoffUnit = 'char' | 'token'

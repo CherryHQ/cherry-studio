@@ -33,8 +33,6 @@ import type { MinAppRegion } from '@renderer/types'
 //   renamingTopics: string[]
 //   /** topic ids that are newly renamed */
 //   newlyRenamedTopics: string[]
-//   /** is a session waiting for updating/deleting. undefined and false share same semantics.  */
-//   sessionWaiting: Record<string, boolean>
 // }
 
 // export interface WebSearchState {
@@ -49,6 +47,8 @@ import type { MinAppRegion } from '@renderer/types'
 //   downloadProgress: number
 //   available: boolean
 //   ignore: boolean
+//   /** Whether the update check was manually triggered by user clicking the button */
+//   manualCheck: boolean
 // }
 
 export interface RuntimeState {
@@ -71,9 +71,14 @@ export interface RuntimeState {
   // export: ExportState
   // chat: ChatState
   // websearch: WebSearchState
-  placeHolder: string
   /** Detected region from IP lookup (not persisted, re-detected on each app start) */
   detectedRegion: MinAppRegion | null
+  /** Query whether a task is processing or not. undefined and false share same semantics.  */
+  loadingMap: Record<string, boolean>
+  // Migrated from useApiServer, it's global state now
+  /** Is the api server running */
+  apiServerRunning: boolean
+  placeHolder: string
 }
 
 // export interface ExportState {
@@ -98,6 +103,8 @@ const initialState: RuntimeState = {
   //   downloaded: false,
   //   downloadProgress: 0,
   //   available: false,
+  //  ignore: false,
+  //  manualCheck: false
   // ignore: false
   // },
   // export: {
@@ -117,8 +124,10 @@ const initialState: RuntimeState = {
   // websearch: {
   //   activeSearches: {}
   // },
-  placeHolder: '',
-  detectedRegion: null
+  detectedRegion: null,
+  loadingMap: {},
+  apiServerRunning: false,
+  placeHolder: ''
 }
 
 const runtimeSlice = createSlice({
@@ -205,16 +214,22 @@ const runtimeSlice = createSlice({
     //   }
     //   state.websearch.activeSearches[requestId] = status
     // },
-    // setPlaceholder: (state, action: PayloadAction<Partial<RuntimeState>>) => {},
-    // setSessionWaitingAction: (state, action: PayloadAction<{ id: string; value: boolean }>) => {
-    //   const { id, value } = action.payload
-    //   state.chat.sessionWaiting[id] = value
-    // }
-    setPlaceholder: (state, action: PayloadAction<string>) => {
-      state.placeHolder = action.payload
+    startLoadingAction: (state, action: PayloadAction<{ id: string }>) => {
+      const { id } = action.payload
+      state.loadingMap[id] = true
+    },
+    finishLoadingAction: (state, action: PayloadAction<{ id: string }>) => {
+      const { id } = action.payload
+      delete state.loadingMap[id]
     },
     setDetectedRegion: (state, action: PayloadAction<MinAppRegion | null>) => {
       state.detectedRegion = action.payload
+    },
+    setApiServerRunningAction: (state, action: PayloadAction<boolean>) => {
+      state.apiServerRunning = action.payload
+    },
+    setPlaceholder: (state, action: PayloadAction<string>) => {
+      state.placeHolder = action.payload
     }
   }
 })
@@ -242,13 +257,15 @@ export const {
   // setActiveTopicOrSessionAction,
   // setRenamingTopics,
   // setNewlyRenamedTopics,
-  // setSessionWaitingAction
+  startLoadingAction,
+  finishLoadingAction,
   // // WebSearch related actions
   // setActiveSearches,
   // setWebSearchStatus,
   setPlaceholder,
   // Region detection
-  setDetectedRegion
+  setDetectedRegion,
+  setApiServerRunningAction
 } = runtimeSlice.actions
 
 export default runtimeSlice.reducer

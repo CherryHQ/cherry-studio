@@ -1,5 +1,6 @@
 import type { CollapseProps } from 'antd'
 
+import { ClickableFilePath } from './ClickableFilePath'
 import { renderCodeBlock } from './EditTool'
 import { ToolHeader } from './GenericTools'
 import type { MultiEditToolInput, MultiEditToolOutput } from './types'
@@ -17,7 +18,7 @@ export function MultiEditTool({
     label: (
       <ToolHeader
         toolName={AgentToolsType.MultiEdit}
-        params={input?.file_path}
+        params={input?.file_path ? <ClickableFilePath path={input.file_path} /> : undefined}
         variant="collapse-label"
         showStatus={false}
       />

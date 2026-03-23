@@ -9,6 +9,8 @@ export type CacheAppUpdateState = {
   downloadProgress: number
   available: boolean
   ignore: boolean
+  //   /** Whether the update check was manually triggered by user clicking the button */
+  manualCheck: boolean
 }
 
 export type CacheActiveSearches = Record<string, WebSearchStatus>
@@ -52,3 +54,13 @@ export interface TabsState {
   tabs: Tab[]
   activeTabId: string
 }
+
+export type TranslatingState =
+  | {
+      isTranslating: true
+      abortKey: string
+    }
+  | {
+      isTranslating: false
+      abortKey: null
+    }

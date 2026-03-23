@@ -151,7 +151,17 @@ const AnthropicSettings = () => {
     }
   }
 
-  return <Container>{renderAuthContent()}</Container>
+  return (
+    <Container>
+      <Alert
+        type="warning"
+        message={t('settings.provider.anthropic.oauth_disabled_warning')}
+        showIcon
+        style={{ marginBottom: 10 }}
+      />
+      {renderAuthContent()}
+    </Container>
+  )
 }
 
 const Container = styled.div`

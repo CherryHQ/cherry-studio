@@ -1,7 +1,7 @@
 import '@xyflow/react/dist/style.css'
 
 import { RobotOutlined, UserOutlined } from '@ant-design/icons'
-import { Avatar, EmojiAvatar, Tooltip } from '@cherrystudio/ui'
+import { Avatar, AvatarFallback, AvatarImage, EmojiAvatar, Tooltip } from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
 import ModelAvatar from '@renderer/components/Avatar/ModelAvatar'
 import { getModelLogo, getModelLogoById } from '@renderer/config/models'
@@ -75,10 +75,20 @@ const CustomNode: FC<{ data: any }> = ({ data }) => {
       if (isEmoji(data.userAvatar)) {
         avatar = <EmojiAvatar size={32}>{data.userAvatar}</EmojiAvatar>
       } else {
-        avatar = <Avatar src={data.userAvatar} alt={title} />
+        avatar = (
+          <Avatar>
+            <AvatarImage src={data.userAvatar} alt={title} />
+          </Avatar>
+        )
       }
     } else {
-      avatar = <Avatar icon={<UserOutlined />} className="bg-info" />
+      avatar = (
+        <Avatar className="bg-info">
+          <AvatarFallback className="bg-info">
+            <UserOutlined />
+          </AvatarFallback>
+        </Avatar>
+      )
     }
   } else if (nodeType === 'assistant') {
     borderColor = 'var(--color-primary)'
@@ -90,10 +100,24 @@ const CustomNode: FC<{ data: any }> = ({ data }) => {
     if (data.modelInfo) {
       avatar = <ModelAvatar model={data.modelInfo} size={32} />
     } else if (data.modelId) {
-      const modelLogo = getModelLogo(data.modelInfo) ?? getModelLogoById(data.modelId)
-      avatar = <Avatar src={modelLogo} icon={!modelLogo ? <RobotOutlined /> : undefined} className="bg-primary" />
+      const ModelIcon = getModelLogo(data.modelInfo) ?? getModelLogoById(data.modelId)
+      avatar = ModelIcon ? (
+        <ModelIcon.Avatar size={32} />
+      ) : (
+        <Avatar className="bg-primary">
+          <AvatarFallback className="bg-primary">
+            <RobotOutlined />
+          </AvatarFallback>
+        </Avatar>
+      )
     } else {
-      avatar = <Avatar icon={<RobotOutlined />} className="bg-primary" />
+      avatar = (
+        <Avatar className="bg-primary">
+          <AvatarFallback className="bg-primary">
+            <RobotOutlined />
+          </AvatarFallback>
+        </Avatar>
+      )
     }
   }
 

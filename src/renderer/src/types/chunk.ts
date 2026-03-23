@@ -10,6 +10,18 @@ import type {
 import type { Response, ResponseError } from './newMessage'
 import type { SdkToolCall } from './sdk'
 
+/**
+ * Provider metadata type for passing provider-specific data through chunks
+ * Currently used for passing thoughtSignature from Gemini through the chunk pipeline
+ */
+export interface ProviderMetadata {
+  google?: {
+    thoughtSignature?: string
+    [key: string]: unknown
+  }
+  [provider: string]: unknown
+}
+
 // Define Enum for Chunk Types
 // 目前用到的，并没有列出完整的生命周期
 export enum ChunkType {
@@ -82,6 +94,11 @@ export interface TextStartChunk {
    * The ID of the chunk
    */
   chunk_id?: number
+
+  /**
+   * Provider metadata for passing provider-specific data (e.g., thoughtSignature for Gemini)
+   */
+  providerMetadata?: ProviderMetadata
 }
 export interface TextDeltaChunk {
   /**
@@ -98,6 +115,11 @@ export interface TextDeltaChunk {
    * The type of the chunk
    */
   type: ChunkType.TEXT_DELTA
+
+  /**
+   * Provider metadata for passing provider-specific data (e.g., thoughtSignature for Gemini)
+   */
+  providerMetadata?: ProviderMetadata
 }
 
 export interface TextCompleteChunk {
@@ -115,6 +137,11 @@ export interface TextCompleteChunk {
    * The type of the chunk
    */
   type: ChunkType.TEXT_COMPLETE
+
+  /**
+   * Provider metadata for passing provider-specific data (e.g., thoughtSignature for Gemini)
+   */
+  providerMetadata?: ProviderMetadata
 }
 
 export interface AudioStartChunk {

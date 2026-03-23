@@ -18,6 +18,7 @@
  * The system uses strict mode - conflicts will cause errors at runtime.
  */
 
+import { flattenCompressionConfig, migrateWebSearchProviders } from '../transformers/PreferenceTransformers'
 import { transformCodeToolsToOverrides } from './CodeToolsTransforms'
 
 // ============================================================================
@@ -29,7 +30,7 @@ import { transformCodeToolsToOverrides } from './CodeToolsTransforms'
  */
 export interface SourceDefinition {
   /** Data source type */
-  source: 'electronStore' | 'redux'
+  source: 'electronStore' | 'redux' | 'dexie-settings' | 'localStorage'
   /** Key path to read from source */
   key: string
   /** Redux category (required for redux source) */
@@ -80,6 +81,37 @@ export interface ComplexMapping {
  * Remember to also define the target keys in target-key-definitions.json!
  */
 export const COMPLEX_PREFERENCE_MAPPINGS: ComplexMapping[] = [
+  // WebSearch provider overrides migration
+  {
+    id: 'websearch_providers_migrate',
+    description: 'Migrate websearch providers array into provider overrides',
+    sources: {
+      providers: { source: 'redux', category: 'websearch', key: 'providers' }
+    },
+    targetKeys: ['chat.web_search.provider_overrides'],
+    transform: migrateWebSearchProviders
+  },
+
+  // WebSearch compression config flattening
+  {
+    id: 'websearch_compression_flatten',
+    description: 'Flatten websearch compressionConfig object into separate preference keys',
+    sources: {
+      compressionConfig: { source: 'redux', category: 'websearch', key: 'compressionConfig' }
+    },
+    targetKeys: [
+      'chat.web_search.compression.method',
+      'chat.web_search.compression.cutoff_limit',
+      'chat.web_search.compression.cutoff_unit',
+      'chat.web_search.compression.rag_document_count',
+      'chat.web_search.compression.rag_embedding_model_id',
+      'chat.web_search.compression.rag_embedding_dimensions',
+      'chat.web_search.compression.rag_rerank_model_id'
+    ],
+    transform: flattenCompressionConfig
+  },
+
+  // CodeTools layered preset overrides
   {
     id: 'code_tools_overrides',
     description: 'Merge codeTools per-tool data (models, env vars, directories) into layered preset overrides',
