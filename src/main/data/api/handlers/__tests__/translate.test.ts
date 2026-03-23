@@ -126,8 +126,8 @@ describe('Translate handler validation (Zod schemas)', () => {
       expect(result.value).toBe('Updated')
     })
 
-    it('should reject invalid langCode format', () => {
-      expect(() => UpdateTranslateLanguageSchema.parse({ langCode: 'BAD' })).toThrow()
+    it('should reject langCode (immutable)', () => {
+      expect(() => UpdateTranslateLanguageSchema.parse({ langCode: 'ja-jp', value: 'Updated' })).toThrow()
     })
 
     it('should reject empty value', () => {

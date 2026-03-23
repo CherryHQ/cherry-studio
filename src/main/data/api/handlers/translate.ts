@@ -61,16 +61,16 @@ export const translateHandlers: {
     }
   },
 
-  '/translate/languages/:id': {
+  '/translate/languages/:langCode': {
     GET: async ({ params }) => {
-      return await translateLanguageService.getById(params.id)
+      return await translateLanguageService.getByLangCode(params.langCode)
     },
     PATCH: async ({ params, body }) => {
       const parsed = UpdateTranslateLanguageSchema.parse(body)
-      return await translateLanguageService.update(params.id, parsed)
+      return await translateLanguageService.update(params.langCode, parsed)
     },
     DELETE: async ({ params }) => {
-      return await translateLanguageService.delete(params.id)
+      return await translateLanguageService.delete(params.langCode)
     }
   }
 }

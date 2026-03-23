@@ -1,5 +1,7 @@
 /**
- * Translate Language Service - handles custom translate language CRUD
+ * Translate Language Service - handles translate language CRUD
+ *
+ * langCode is the primary key (immutable after creation).
  */
 
 import { dbService } from '@data/db/DbService'
@@ -17,7 +19,6 @@ const logger = loggerService.withContext('DataApi:TranslateLanguageService')
 
 function rowToTranslateLanguage(row: typeof translateLanguageTable.$inferSelect): TranslateLanguage {
   return {
-    id: row.id,
     langCode: row.langCode,
     value: row.value,
     emoji: row.emoji,
@@ -44,12 +45,16 @@ export class TranslateLanguageService {
     return rows.map(rowToTranslateLanguage)
   }
 
-  async getById(id: string): Promise<TranslateLanguage> {
+  async getByLangCode(langCode: string): Promise<TranslateLanguage> {
     const db = dbService.getDb()
-    const [row] = await db.select().from(translateLanguageTable).where(eq(translateLanguageTable.id, id)).limit(1)
+    const [row] = await db
+      .select()
+      .from(translateLanguageTable)
+      .where(eq(translateLanguageTable.langCode, langCode))
+      .limit(1)
 
     if (!row) {
-      throw DataApiErrorFactory.notFound('TranslateLanguage', id)
+      throw DataApiErrorFactory.notFound('TranslateLanguage', langCode)
     }
 
     return rowToTranslateLanguage(row)
@@ -59,21 +64,8 @@ export class TranslateLanguageService {
     const db = dbService.getDb()
     const langCode = dto.langCode.toLowerCase()
 
-    return await db.transaction(async (tx) => {
-      const [existing] = await tx
-        .select()
-        .from(translateLanguageTable)
-        .where(eq(translateLanguageTable.langCode, langCode))
-        .limit(1)
-
-      if (existing) {
-        throw DataApiErrorFactory.invalidOperation(
-          'create translate language',
-          `Language with code '${langCode}' already exists`
-        )
-      }
-
-      const [row] = await tx
+    try {
+      const [row] = await db
         .insert(translateLanguageTable)
         .values({
           langCode,
@@ -86,24 +78,34 @@ export class TranslateLanguageService {
         throw DataApiErrorFactory.database(new Error('Insert did not return a row'), 'create translate language')
       }
 
-      logger.info('Created translate language', { id: row.id, langCode })
+      logger.info('Created translate language', { langCode })
       return rowToTranslateLanguage(row)
-    })
+    } catch (e: unknown) {
+      if (e instanceof Error && e.message.includes('UNIQUE constraint failed')) {
+        throw DataApiErrorFactory.invalidOperation(
+          'create translate language',
+          `Language with code '${langCode}' already exists`
+        )
+      }
+      throw e
+    }
   }
 
-  async update(id: string, dto: UpdateTranslateLanguageDto): Promise<TranslateLanguage> {
+  async update(langCode: string, dto: UpdateTranslateLanguageDto): Promise<TranslateLanguage> {
     const db = dbService.getDb()
 
     return await db.transaction(async (tx) => {
-      // Verify existence within transaction
-      const [current] = await tx.select().from(translateLanguageTable).where(eq(translateLanguageTable.id, id)).limit(1)
+      const [current] = await tx
+        .select()
+        .from(translateLanguageTable)
+        .where(eq(translateLanguageTable.langCode, langCode))
+        .limit(1)
 
       if (!current) {
-        throw DataApiErrorFactory.notFound('TranslateLanguage', id)
+        throw DataApiErrorFactory.notFound('TranslateLanguage', langCode)
       }
 
       const updates: Partial<typeof translateLanguageTable.$inferInsert> = {}
-      if (dto.langCode !== undefined) updates.langCode = dto.langCode.toLowerCase()
       if (dto.value !== undefined) updates.value = dto.value
       if (dto.emoji !== undefined) updates.emoji = dto.emoji
 
@@ -111,51 +113,39 @@ export class TranslateLanguageService {
         return rowToTranslateLanguage(current)
       }
 
-      // If updating langCode, check uniqueness within same transaction
-      if (updates.langCode !== undefined) {
-        const [existing] = await tx
-          .select()
-          .from(translateLanguageTable)
-          .where(eq(translateLanguageTable.langCode, updates.langCode))
-          .limit(1)
-
-        if (existing && existing.id !== id) {
-          throw DataApiErrorFactory.invalidOperation(
-            'update translate language',
-            `Language with code '${updates.langCode}' already exists`
-          )
-        }
-      }
-
       const [row] = await tx
         .update(translateLanguageTable)
         .set(updates)
-        .where(eq(translateLanguageTable.id, id))
+        .where(eq(translateLanguageTable.langCode, langCode))
         .returning()
 
       if (!row) {
-        throw DataApiErrorFactory.notFound('TranslateLanguage', id)
+        throw DataApiErrorFactory.notFound('TranslateLanguage', langCode)
       }
 
-      logger.info('Updated translate language', { id, changes: Object.keys(dto) })
+      logger.info('Updated translate language', { langCode, changes: Object.keys(dto) })
       return rowToTranslateLanguage(row)
     })
   }
 
-  async delete(id: string): Promise<void> {
+  async delete(langCode: string): Promise<void> {
     const db = dbService.getDb()
 
     await db.transaction(async (tx) => {
-      const [row] = await tx.select().from(translateLanguageTable).where(eq(translateLanguageTable.id, id)).limit(1)
+      const [row] = await tx
+        .select()
+        .from(translateLanguageTable)
+        .where(eq(translateLanguageTable.langCode, langCode))
+        .limit(1)
 
       if (!row) {
-        throw DataApiErrorFactory.notFound('TranslateLanguage', id)
+        throw DataApiErrorFactory.notFound('TranslateLanguage', langCode)
       }
 
-      await tx.delete(translateLanguageTable).where(eq(translateLanguageTable.id, id))
+      await tx.delete(translateLanguageTable).where(eq(translateLanguageTable.langCode, langCode))
     })
 
-    logger.info('Deleted translate language', { id })
+    logger.info('Deleted translate language', { langCode })
   }
 }
 
