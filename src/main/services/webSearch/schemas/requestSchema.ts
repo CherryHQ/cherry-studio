@@ -1,4 +1,4 @@
-import { WEB_SEARCH_PROVIDER_IDS } from '@shared/data/preference/preferenceTypes'
+import { WebSearchProviderIdSchema } from '@shared/data/presets/web-search-providers'
 import * as z from 'zod'
 
 const WebSearchQuestionSchema = z.string().trim().min(1, {
@@ -7,8 +7,10 @@ const WebSearchQuestionSchema = z.string().trim().min(1, {
 
 export const WebSearchRequestSchema = z
   .object({
-    providerId: z.enum(WEB_SEARCH_PROVIDER_IDS),
-    questions: z.array(WebSearchQuestionSchema),
+    providerId: WebSearchProviderIdSchema,
+    questions: z.array(WebSearchQuestionSchema).min(1, {
+      message: 'At least one question is required'
+    }),
     requestId: z.string().min(1)
   })
   .strict()

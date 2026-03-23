@@ -1,13 +1,20 @@
 import { loggerService } from '@logger'
-import type { WebSearchRequest, WebSearchResponse } from '@shared/data/types/webSearch'
+import type { WebSearchExecutionConfig, WebSearchRequest, WebSearchResponse } from '@shared/data/types/webSearch'
 
-import { applyWebSearchPostProcessing } from './processing/postProcessor'
+import { postProcessWebSearchResponse } from './postProcessing'
+import type { BaseWebSearchProvider } from './providers/base/BaseWebSearchProvider'
 import { createWebSearchProvider } from './providers/factory'
 import { clearWebSearchStatus, setWebSearchStatus } from './runtime/status'
 import { filterWebSearchResponseWithBlacklist } from './utils/blacklist'
 import { getProviderById, getRuntimeConfig } from './utils/config'
 
 const logger = loggerService.withContext('MainWebSearchService')
+
+type PreparedWebSearchContext = {
+  questions: WebSearchRequest['questions']
+  runtimeConfig: WebSearchExecutionConfig
+  providerDriver: BaseWebSearchProvider
+}
 
 export class WebSearchService {
   private static instance: WebSearchService | null = null
@@ -21,66 +28,73 @@ export class WebSearchService {
 
   private constructor() {}
 
+  private async prepareSearchContext(request: WebSearchRequest): Promise<PreparedWebSearchContext> {
+    const [provider, runtimeConfig] = await Promise.all([getProviderById(request.providerId), getRuntimeConfig()])
+
+    return {
+      questions: request.questions,
+      runtimeConfig,
+      providerDriver: createWebSearchProvider(provider)
+    }
+  }
+
+  private async executeSearches(
+    context: PreparedWebSearchContext,
+    httpOptions?: RequestInit
+  ): Promise<PromiseSettledResult<WebSearchResponse>[]> {
+    const searchPromises = context.questions.map((query) =>
+      context.providerDriver.search(query, context.runtimeConfig, httpOptions)
+    )
+
+    return Promise.allSettled(searchPromises)
+  }
+
+  private async buildFinalResponse(
+    request: WebSearchRequest,
+    context: PreparedWebSearchContext,
+    searchResults: PromiseSettledResult<WebSearchResponse>[]
+  ): Promise<WebSearchResponse> {
+    const successfulSearches = searchResults.filter((item) => item.status === 'fulfilled')
+
+    if (successfulSearches.length > 1) {
+      await setWebSearchStatus(
+        request.requestId,
+        {
+          phase: 'fetch_complete',
+          countAfter: successfulSearches.length
+        },
+        1000
+      )
+    }
+
+    if (successfulSearches.length === 0) {
+      const firstRejected = searchResults.find((item) => item.status === 'rejected')
+      throw firstRejected?.reason ?? new Error('Web search failed with no successful results')
+    }
+
+    const mergedResponse: WebSearchResponse = {
+      query: context.questions.join(' | '),
+      results: successfulSearches.flatMap((item) => item.value.results)
+    }
+
+    const filteredResponse = filterWebSearchResponseWithBlacklist(mergedResponse, context.runtimeConfig.excludeDomains)
+
+    const postProcessed = await postProcessWebSearchResponse(filteredResponse, context.runtimeConfig)
+
+    if (postProcessed.status) {
+      await setWebSearchStatus(request.requestId, postProcessed.status, 500)
+    }
+
+    return postProcessed.response
+  }
+
   async search(request: WebSearchRequest, httpOptions?: RequestInit): Promise<WebSearchResponse> {
     try {
-      const provider = await getProviderById(request.providerId)
-      if (!provider) {
-        throw new Error(`Unsupported or unavailable provider: ${request.providerId}`)
-      }
+      const context = await this.prepareSearchContext(request)
+      const searchResults = await this.executeSearches(context, httpOptions)
+      const finalResponse = await this.buildFinalResponse(request, context, searchResults)
 
-      const runtimeConfig = await getRuntimeConfig()
-      const questions = request.questions
-
-      if (questions.length === 0) {
-        return {
-          query: '',
-          results: []
-        }
-      }
-
-      const providerDriver = createWebSearchProvider(provider)
-      const searchPromises = questions.map((query) => providerDriver.search(query, runtimeConfig, httpOptions))
-
-      const searchResults = await Promise.allSettled(searchPromises)
-      const successfulSearchCount = searchResults.filter((item) => item.status === 'fulfilled').length
-      const successfulSearches = searchResults.filter((i) => i.status === 'fulfilled')
-
-      if (successfulSearchCount > 1) {
-        await setWebSearchStatus(
-          request.requestId,
-          {
-            phase: 'fetch_complete',
-            countAfter: successfulSearchCount
-          },
-          1000
-        )
-      }
-
-      if (successfulSearches.length === 0) {
-        const firstRejected = searchResults.find((item) => item.status === 'rejected')
-        throw firstRejected?.reason ?? new Error('Web search failed with no successful results')
-      }
-
-      const allResults = successfulSearches.flatMap((item) => item.value.results)
-
-      const mergedResponse: WebSearchResponse = {
-        query: questions.join(' | '),
-        results: allResults
-      }
-
-      const filteredResponse = filterWebSearchResponseWithBlacklist(mergedResponse, runtimeConfig.excludeDomains)
-
-      if (
-        filteredResponse.results.length > 0 &&
-        runtimeConfig.compression.method === 'cutoff' &&
-        runtimeConfig.compression.cutoffLimit
-      ) {
-        await setWebSearchStatus(request.requestId, { phase: 'cutoff' }, 500)
-      }
-      // TODO RAG
-
-      const processedResponse = applyWebSearchPostProcessing(filteredResponse, runtimeConfig)
-      return processedResponse
+      return finalResponse
     } catch (error) {
       logger.error('Web search failed', error as Error)
       throw error

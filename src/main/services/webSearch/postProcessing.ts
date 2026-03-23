@@ -2,9 +2,15 @@ import type {
   WebSearchCompressionConfig,
   WebSearchExecutionConfig,
   WebSearchResponse,
-  WebSearchResult
+  WebSearchResult,
+  WebSearchStatus
 } from '@shared/data/types/webSearch'
 import { sliceByTokens } from 'tokenx'
+
+export type WebSearchPostProcessingResult = {
+  response: WebSearchResponse
+  status?: WebSearchStatus
+}
 
 /**
  * Applies result-level post processing after provider execution and blacklist filtering.
@@ -19,25 +25,42 @@ import { sliceByTokens } from 'tokenx'
  * - `cutoff`: truncate result content
  * - `rag`: reserved for future Main-side implementation, currently returns raw results
  */
-export function applyWebSearchPostProcessing(
+export async function postProcessWebSearchResponse(
   response: WebSearchResponse,
   runtimeConfig: WebSearchExecutionConfig
-): WebSearchResponse {
-  const method = runtimeConfig.compression.method
+): Promise<WebSearchPostProcessingResult> {
+  if (response.results.length <= 0) {
+    return { response }
+  }
 
-  if (method === 'cutoff') {
+  if (runtimeConfig.compression.method === 'cutoff') {
     return {
-      ...response,
-      results: applyCutoff(response.results, runtimeConfig.compression)
+      status: { phase: 'cutoff' },
+      response: {
+        ...response,
+        results: applyCutoff(response.results, runtimeConfig.compression)
+      }
     }
   }
 
-  // keep raw results for none/rag in phase 1
-  return response
+  if (runtimeConfig.compression.method === 'rag') {
+    return applyRag(response, runtimeConfig)
+  }
+
+  return { response }
+}
+
+async function applyRag(
+  response: WebSearchResponse,
+  runtimeConfig: WebSearchExecutionConfig
+): Promise<WebSearchPostProcessingResult> {
+  void runtimeConfig
+  // TODO: implement Main-side RAG compression and lifecycle status handling.
+  return { response }
 }
 
 function applyCutoff(results: WebSearchResult[], config: WebSearchCompressionConfig): WebSearchResult[] {
-  if (!config.cutoffLimit || results.length === 0) {
+  if (!config.cutoffLimit) {
     return results
   }
 

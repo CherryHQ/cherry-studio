@@ -1,7 +1,7 @@
 import type { PreferenceDefaultScopeType, PreferenceKeyType } from '@shared/data/preference/preferenceTypes'
 import { describe, expect, it } from 'vitest'
 
-import { getResolvedConfig, getRuntimeConfig } from '../config'
+import { getProviderById, getResolvedConfig, getRuntimeConfig } from '../config'
 
 const preferenceValues: Record<string, unknown> = {
   'chat.web_search.max_results': 5,
@@ -44,5 +44,17 @@ describe('webSearch config utils', () => {
     expect(runtime.maxResults).toBe(5)
     expect(runtime.excludeDomains).toEqual(['example.com'])
     expect(runtime.compression.method).toBe('none')
+  })
+
+  it('resolves a provider directly by id from the preset-backed config', async () => {
+    const provider = await getProviderById('tavily', mockPreferenceReader)
+
+    expect(provider).toMatchObject({
+      id: 'tavily',
+      name: 'Tavily',
+      type: 'api',
+      apiKey: 'tavily-key',
+      apiHost: 'https://api.tavily.com'
+    })
   })
 })

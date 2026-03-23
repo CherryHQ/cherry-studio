@@ -82,20 +82,6 @@ describe('WebSearchService', () => {
     getRuntimeConfigMock.mockResolvedValue(runtimeConfig)
   })
 
-  it('returns empty result when no query is provided', async () => {
-    const service = WebSearchService.getInstance()
-
-    const result = await service.search({
-      providerId: 'tavily',
-      questions: [],
-      requestId: 'req-empty'
-    })
-
-    expect(result).toEqual({ query: '', results: [] })
-    expect(createWebSearchProviderMock).not.toHaveBeenCalled()
-    expect(clearWebSearchStatusMock).toHaveBeenCalledWith('req-empty')
-  })
-
   it('applies cutoff post processing', async () => {
     getRuntimeConfigMock.mockResolvedValue({
       ...runtimeConfig,
@@ -135,21 +121,6 @@ describe('WebSearchService', () => {
     expect(setWebSearchStatusMock).toHaveBeenCalledTimes(1)
     expect(setWebSearchStatusMock).toHaveBeenNthCalledWith(1, 'req-cutoff', { phase: 'cutoff' }, 500)
     expect(clearWebSearchStatusMock).toHaveBeenCalledWith('req-cutoff')
-  })
-
-  it('throws when provider is unavailable', async () => {
-    getProviderByIdMock.mockResolvedValue(null)
-    const service = WebSearchService.getInstance()
-
-    await expect(
-      service.search({
-        providerId: 'tavily',
-        questions: ['hello'],
-        requestId: 'req-missing-provider'
-      })
-    ).rejects.toThrow('Unsupported or unavailable provider')
-
-    expect(clearWebSearchStatusMock).toHaveBeenCalledWith('req-missing-provider')
   })
 
   it('supports local providers through provider factory', async () => {

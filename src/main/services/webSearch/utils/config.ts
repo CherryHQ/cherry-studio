@@ -2,10 +2,9 @@ import { preferenceService } from '@data/PreferenceService'
 import type {
   PreferenceDefaultScopeType,
   PreferenceKeyType,
-  WebSearchProviderOverrides,
-  WebSearchProviderType
+  WebSearchProviderOverrides
 } from '@shared/data/preference/preferenceTypes'
-import { PRESETS_WEB_SEARCH_PROVIDERS } from '@shared/data/presets/web-search-providers'
+import { PRESETS_WEB_SEARCH_PROVIDERS, WEB_SEARCH_PROVIDER_PRESET_MAP } from '@shared/data/presets/web-search-providers'
 import type {
   ResolvedWebSearchProvider,
   WebSearchExecutionConfig,
@@ -30,7 +29,7 @@ export function resolveProviders(providerOverrides: WebSearchProviderOverrides):
     return {
       id: preset.id,
       name: preset.name,
-      type: preset.type as WebSearchProviderType,
+      type: preset.type,
       usingBrowser: preset.usingBrowser,
       apiKey: override?.apiKey?.trim() || '',
       apiHost: override?.apiHost?.trim() || preset.defaultApiHost,
@@ -99,7 +98,20 @@ export async function getResolvedConfig(
 export async function getProviderById(
   providerId: ResolvedWebSearchProvider['id'],
   preferences: WebSearchPreferenceReader = preferenceService
-): Promise<ResolvedWebSearchProvider | null> {
-  const { providers } = await getResolvedConfig(preferences)
-  return providers.find((provider) => provider.id === providerId) ?? null
+): Promise<ResolvedWebSearchProvider> {
+  const providerOverrides = await getProviderOverrides(preferences)
+  const override = providerOverrides[providerId]
+  const preset = WEB_SEARCH_PROVIDER_PRESET_MAP[providerId]
+
+  return {
+    id: providerId,
+    name: preset.name,
+    type: preset.type,
+    usingBrowser: preset.usingBrowser,
+    apiKey: override?.apiKey?.trim() || '',
+    apiHost: override?.apiHost?.trim() || preset.defaultApiHost,
+    engines: override?.engines || [],
+    basicAuthUsername: override?.basicAuthUsername?.trim() || '',
+    basicAuthPassword: override?.basicAuthPassword?.trim() || ''
+  }
 }

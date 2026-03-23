@@ -37,8 +37,18 @@ describe('WebSearchRequestSchema', () => {
   it('rejects empty request ids', () => {
     const result = WebSearchRequestSchema.safeParse({
       providerId: 'tavily',
-      questions: [],
+      questions: ['hello'],
       requestId: ''
+    })
+
+    expect(result.success).toBe(false)
+  })
+
+  it('rejects empty question arrays', () => {
+    const result = WebSearchRequestSchema.safeParse({
+      providerId: 'tavily',
+      questions: [],
+      requestId: 'request-1'
     })
 
     expect(result.success).toBe(false)
