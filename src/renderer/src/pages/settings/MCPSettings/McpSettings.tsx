@@ -5,7 +5,7 @@ import type { McpError } from '@modelcontextprotocol/sdk/types.js'
 import { DeleteIcon } from '@renderer/components/Icons'
 import Scrollbar from '@renderer/components/Scrollbar'
 import { useTheme } from '@renderer/context/ThemeProvider'
-import { useMCPServer, useMCPServers } from '@renderer/hooks/useMCPServers'
+import { useMCPServer } from '@renderer/hooks/useMCPServers'
 import { useMCPServerTrust } from '@renderer/hooks/useMCPServerTrust'
 import MCPDescription from '@renderer/pages/settings/MCPSettings/McpDescription'
 import type { MCPPrompt, MCPResource, MCPTool } from '@renderer/types'
@@ -72,10 +72,17 @@ const McpSettings: React.FC = () => {
   const { t } = useTranslation()
   const params = useParams({ strict: false })
   const serverId = params.serverId
-  const decodedServerId = serverId ? decodeURIComponent(serverId) : ''
-  const { server, isLoading: isServerLoading } = useMCPServer(decodedServerId)
-  const { deleteMCPServer, updateMCPServer } = useMCPServers()
-  const { ensureServerTrusted } = useMCPServerTrust()
+  const { server, isLoading: isServerLoading, updateMCPServer, deleteMCPServer } = useMCPServer(serverId ?? '')
+
+  const updateServer = useCallback(
+    (s: { id: string } & Partial<MCPServer>) => {
+      const { id: _id, ...body } = s
+      updateMCPServer({ body })
+    },
+    [updateMCPServer]
+  )
+
+  const { ensureServerTrusted } = useMCPServerTrust(updateServer)
   const [serverType, setServerType] = useState<MCPServer['type']>('stdio')
   const [form] = Form.useForm<MCPFormValues>()
   const [loading, setLoading] = useState(false)
@@ -332,14 +339,17 @@ const McpSettings: React.FC = () => {
         mcpServer.headers = parseKeyValueString(values.headers)
       }
 
+      // Extract auto-managed fields before sending as update body
+      const { id: _id, createdAt: _ca, updatedAt: _ua, ...updateBody } = mcpServer
+
       if (server.isActive) {
         try {
           await window.api.mcp.restartServer(mcpServer)
-          updateMCPServer({ ...mcpServer, isActive: true })
+          updateMCPServer({ body: { ...updateBody, isActive: true } })
           window.toast.success(t('settings.mcp.updateSuccess'))
           setIsFormChanged(false)
         } catch (error: any) {
-          updateMCPServer({ ...mcpServer, isActive: false })
+          updateMCPServer({ body: { ...updateBody, isActive: false } })
           window.modal.error({
             title: t('settings.mcp.updateError'),
             content: error.message,
@@ -347,7 +357,7 @@ const McpSettings: React.FC = () => {
           })
         }
       } else {
-        updateMCPServer({ ...mcpServer, isActive: false })
+        updateMCPServer({ body: { ...updateBody, isActive: false } })
         window.toast.success(t('settings.mcp.updateSuccess'))
         setIsFormChanged(false)
       }
@@ -406,15 +416,15 @@ const McpSettings: React.FC = () => {
   }
 
   const onDeleteMcpServer = useCallback(
-    async (server: MCPServer) => {
+    async (serverToDelete: MCPServer) => {
       try {
         window.modal.confirm({
           title: t('settings.mcp.deleteServer'),
           content: t('settings.mcp.deleteServerConfirm'),
           centered: true,
           onOk: async () => {
-            await window.api.mcp.removeServer(server)
-            deleteMCPServer(server.id)
+            await window.api.mcp.removeServer(serverToDelete)
+            deleteMCPServer({})
             window.toast.success(t('settings.mcp.deleteSuccess'))
             void navigate({ to: '/settings/mcp' })
           }
@@ -423,8 +433,8 @@ const McpSettings: React.FC = () => {
         window.toast.error(`${t('settings.mcp.deleteError')}: ${error.message}`)
       }
     },
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [server, t]
+
+    [deleteMCPServer, t, navigate]
   )
 
   const onToggleActive = async (active: boolean) => {
@@ -464,14 +474,14 @@ const McpSettings: React.FC = () => {
         await window.api.mcp.stopServer(serverForUpdate)
         setServerVersion(null)
       }
-      updateMCPServer({ ...serverForUpdate, isActive: active })
+      updateMCPServer({ body: { isActive: active } })
     } catch (error: any) {
       window.modal.error({
         title: t('settings.mcp.startError'),
         content: formatMcpError(error as McpError),
         centered: true
       })
-      updateMCPServer({ ...serverForUpdate, isActive: oldActiveState })
+      updateMCPServer({ body: { isActive: oldActiveState } })
     } finally {
       setLoadingServer(null)
     }
@@ -494,15 +504,8 @@ const McpSettings: React.FC = () => {
         }
       }
 
-      // Update the server with new disabledTools
-      const updatedServer = {
-        ...server,
-        disabledTools
-      }
-
       // Save the updated server configuration
-      // await window.api.mcp.updateServer(updatedServer)
-      updateMCPServer(updatedServer)
+      updateMCPServer({ body: { disabledTools } })
     },
     [server, updateMCPServer]
   )
@@ -522,15 +525,8 @@ const McpSettings: React.FC = () => {
         }
       }
 
-      // Update the server with new disabledTools
-      const updatedServer = {
-        ...server,
-        disabledAutoApproveTools
-      }
-
       // Save the updated server configuration
-      // await window.api.mcp.updateServer(updatedServer)
-      updateMCPServer(updatedServer)
+      updateMCPServer({ body: { disabledAutoApproveTools } })
     },
     [server, updateMCPServer]
   )

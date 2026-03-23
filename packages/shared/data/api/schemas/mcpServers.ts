@@ -36,6 +36,8 @@ export type UpdateMCPServerDto = Partial<Omit<MCPServer, AutoFields>>
  * Query parameters for listing MCP servers
  */
 export interface ListMCPServersQuery {
+  /** Filter by server ID */
+  id?: string
   /** Filter by active state */
   isActive?: boolean
   /** Filter by server type */

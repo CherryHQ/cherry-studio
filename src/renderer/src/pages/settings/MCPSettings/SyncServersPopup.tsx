@@ -1,7 +1,8 @@
 import { Button } from '@cherrystudio/ui'
+import { dataApiService } from '@data/DataApiService'
 import { TopView } from '@renderer/components/TopView'
 import { useMCPServers } from '@renderer/hooks/useMCPServers'
-import type { MCPServer } from '@renderer/types'
+import type { MCPServer } from '@shared/data/types/mcpServer'
 import { Form, Input, Modal, Select } from 'antd'
 import { useCallback, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -101,7 +102,7 @@ interface Props {
 }
 
 const PopupContainer: React.FC<Props> = ({ resolve, existingServers }) => {
-  const { addMCPServer, updateMCPServer } = useMCPServers()
+  const { addMCPServer } = useMCPServers()
   const [open, setOpen] = useState(true)
   const [isSyncing, setIsSyncing] = useState(false)
   const [selectedProviderKey, setSelectedProviderKey] = useState(providers[0].key)
@@ -160,7 +161,8 @@ const PopupContainer: React.FC<Props> = ({ resolve, existingServers }) => {
         const updatedServers = result.updatedServers
         if (updatedServers?.length > 0) {
           for (const server of updatedServers) {
-            updateMCPServer(server)
+            const { id, createdAt: _ca, updatedAt: _ua, ...updates } = server
+            await dataApiService.patch(`/mcp-servers/${encodeURIComponent(id)}`, { body: updates })
           }
         }
         window.toast.success(result.message)
@@ -178,7 +180,7 @@ const PopupContainer: React.FC<Props> = ({ resolve, existingServers }) => {
     } finally {
       setIsSyncing(false)
     }
-  }, [addMCPServer, updateMCPServer, existingServers, form, selectedProvider, t])
+  }, [addMCPServer, existingServers, form, selectedProvider, t])
 
   const onCancel = () => {
     setOpen(false)

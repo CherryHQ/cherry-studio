@@ -1,8 +1,6 @@
-import { dataApiService } from '@data/DataApiService'
 import { useMutation, useQuery } from '@data/hooks/useDataApi'
 import NavigationService from '@renderer/services/NavigationService'
-import type { CreateMCPServerDto, UpdateMCPServerDto } from '@shared/data/api/schemas/mcpServers'
-import type { MCPServer } from '@shared/data/types/mcpServer'
+import type { CreateMCPServerDto, ListMCPServersQuery } from '@shared/data/api/schemas/mcpServers'
 import { IpcChannel } from '@shared/IpcChannel'
 import { useCallback, useMemo } from 'react'
 
@@ -13,87 +11,49 @@ window.electron.ipcRenderer.on(IpcChannel.Mcp_AddServer, (_event, server: { id: 
 })
 
 /**
- * Server-like object with at least an `id` and any update fields.
- * Accepts both legacy MCPServer from @renderer/types and new MCPServer from @shared/data/types.
+ * MCP servers list hook — data fetching with optional filters and create mutation.
  */
-type MCPServerUpdate = { id: string } & Partial<Omit<MCPServer, 'id' | 'createdAt' | 'updatedAt'>>
-
-export const useMCPServers = () => {
-  const { data, isLoading, mutate } = useQuery('/mcp-servers')
+export const useMCPServers = (query?: ListMCPServersQuery) => {
+  const { data, isLoading, mutate } = useQuery('/mcp-servers', { query })
 
   const mcpServers = useMemo(() => data?.items ?? [], [data])
-  const activedMcpServers = useMemo(() => mcpServers.filter((s) => s.isActive), [mcpServers])
 
-  // POST /mcp-servers
   const { trigger: createMCPServer } = useMutation('POST', '/mcp-servers', {
     refresh: ['/mcp-servers']
   })
 
-  const addMCPServer = useCallback(
-    async (dto: CreateMCPServerDto): Promise<MCPServer> => {
-      return createMCPServer({ body: dto })
-    },
-    [createMCPServer]
-  )
-
-  // PATCH /mcp-servers/:id — dynamic ID, use dataApiService + refetch list
-  const updateMCPServer = useCallback(
-    async (server: MCPServerUpdate): Promise<void> => {
-      const { id, ...dto } = server
-      await dataApiService.patch(`/mcp-servers/${encodeURIComponent(id)}`, { body: dto })
-      await mutate()
-    },
-    [mutate]
-  )
-
-  // DELETE /mcp-servers/:id — dynamic ID, use dataApiService + refetch list
-  const deleteMCPServer = useCallback(
-    async (id: string): Promise<void> => {
-      await dataApiService.delete(`/mcp-servers/${encodeURIComponent(id)}`)
-      await mutate()
-    },
-    [mutate]
-  )
+  const addMCPServer = useCallback((dto: CreateMCPServerDto) => createMCPServer({ body: dto }), [createMCPServer])
 
   return {
     mcpServers,
-    activedMcpServers,
     isLoading,
     addMCPServer,
-    updateMCPServer,
-    deleteMCPServer,
     refetch: mutate
   }
 }
 
 /**
- * Single MCP server hook — derives from the list cache.
- * No separate API call needed since the list returns full MCPServer objects.
+ * Single MCP server hook — read + update + delete.
+ * SWR key is ['/mcp-servers', { id }], mutations use refresh: ['/mcp-servers']
+ * to auto-invalidate all /mcp-servers caches (list, filtered, and detail).
  */
 export const useMCPServer = (id: string) => {
-  const { data, isLoading, mutate } = useQuery('/mcp-servers')
+  const path = `/mcp-servers/${id}` as const
 
-  const server = useMemo(() => data?.items?.find((s) => s.id === id), [data, id])
+  const { data, isLoading } = useQuery('/mcp-servers', {
+    query: { id },
+    enabled: !!id
+  })
 
-  const updateMCPServer = useCallback(
-    async (serverData: UpdateMCPServerDto): Promise<MCPServer> => {
-      const result = await dataApiService.patch(`/mcp-servers/${encodeURIComponent(id)}`, { body: serverData })
-      await mutate()
-      return result
-    },
-    [id, mutate]
-  )
+  const { trigger: updateMCPServer } = useMutation('PATCH', path, {
+    refresh: ['/mcp-servers']
+  })
 
-  const deleteMCPServer = useCallback(async (): Promise<void> => {
-    await dataApiService.delete(`/mcp-servers/${encodeURIComponent(id)}`)
-    await mutate()
-  }, [id, mutate])
+  const { trigger: deleteMCPServer } = useMutation('DELETE', path, {
+    refresh: ['/mcp-servers']
+  })
 
-  return {
-    server,
-    isLoading,
-    updateMCPServer,
-    deleteMCPServer,
-    refetch: mutate
-  }
+  const server = useMemo(() => data?.items?.[0], [data])
+
+  return { server, isLoading, updateMCPServer, deleteMCPServer }
 }

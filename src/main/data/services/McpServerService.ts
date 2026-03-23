@@ -76,6 +76,9 @@ export class MCPServerService {
     const db = dbService.getDb()
 
     const conditions: SQL[] = []
+    if (query.id !== undefined) {
+      conditions.push(eq(mcpServerTable.id, query.id))
+    }
     if (query.isActive !== undefined) {
       conditions.push(eq(mcpServerTable.isActive, query.isActive))
     }

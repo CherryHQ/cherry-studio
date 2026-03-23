@@ -114,7 +114,7 @@ const hammerIcon18 = <Hammer size={18} />
 const sparklesIcon18 = <Sparkles size={18} />
 
 const MCPToolsButton: FC<Props> = ({ quickPanel, setInputValue, resizeTextArea, assistantId }) => {
-  const { activedMcpServers } = useMCPServers()
+  const { mcpServers: activedMcpServers } = useMCPServers({ isActive: true })
   const { t } = useTranslation()
   const quickPanelHook = useQuickPanel()
   const navigate = useNavigate()

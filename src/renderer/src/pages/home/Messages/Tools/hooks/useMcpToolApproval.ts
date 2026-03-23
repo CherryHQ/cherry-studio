@@ -1,3 +1,4 @@
+import { dataApiService } from '@data/DataApiService'
 import { useActiveAgent } from '@renderer/hooks/agents/useActiveAgent'
 import { useMCPServers } from '@renderer/hooks/useMCPServers'
 import type { MCPToolResponse } from '@renderer/types'
@@ -48,7 +49,7 @@ async function resolveHubToolServer(
  */
 export function useMcpToolApproval(block: ToolMessageBlock): ToolApprovalState & ToolApprovalActions {
   const { t } = useTranslation()
-  const { mcpServers, updateMCPServer } = useMCPServers()
+  const { mcpServers } = useMCPServers()
   const { agent } = useActiveAgent()
 
   const toolResponse = block.metadata?.rawMcpToolResponse as MCPToolResponse | undefined
@@ -147,7 +148,9 @@ export function useMcpToolApproval(block: ToolMessageBlock): ToolApprovalState &
     // Remove tool from disabledAutoApproveTools to enable auto-approve
     disabledAutoApproveTools = disabledAutoApproveTools.filter((name) => name !== toolNameToApprove)
 
-    updateMCPServer({ ...server, disabledAutoApproveTools })
+    await dataApiService.patch(`/mcp-servers/${encodeURIComponent(server.id)}`, {
+      body: { disabledAutoApproveTools }
+    })
 
     // Confirm the current tool. The execution layer will auto-confirm other
     // pending tools with the same name via confirmSameNameTools.
@@ -155,7 +158,7 @@ export function useMcpToolApproval(block: ToolMessageBlock): ToolApprovalState &
     confirmToolAction(id)
 
     window.toast.success(t('message.tools.autoApproveEnabled', 'Auto-approve enabled for this tool'))
-  }, [tool, toolResponse, mcpServers, updateMCPServer, id, t])
+  }, [tool, toolResponse, mcpServers, id, t])
 
   return {
     // State
