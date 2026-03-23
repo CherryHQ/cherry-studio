@@ -22,7 +22,6 @@ import type { SpanEntity, TokenUsage } from '@mcp-trace/trace-core'
 import { MIN_WINDOW_HEIGHT, MIN_WINDOW_WIDTH } from '@shared/config/constant'
 import type { LocalTransferConnectPayload } from '@shared/config/types'
 import type { UpgradeChannel } from '@shared/data/preference/preferenceTypes'
-import type { WebSearchRequest } from '@shared/data/types/webSearch'
 import { IpcChannel } from '@shared/IpcChannel'
 import { extractPdfText } from '@shared/utils/pdf'
 import type {
@@ -90,7 +89,6 @@ import {
 } from './services/SpanCacheService'
 import storeSyncService from './services/StoreSyncService'
 import VertexAIService from './services/VertexAIService'
-import { WebSearchRequestSchema, webSearchService } from './services/webSearch'
 import { setOpenLinkExternal } from './services/WebviewService'
 import { windowService } from './services/WindowService'
 import { calculateDirectorySize, getResourcePath } from './utils'
@@ -892,11 +890,6 @@ export async function registerIpc(mainWindow: BrowserWindow, app: Electron.App) 
   })
   ipcMain.handle(IpcChannel.SearchWindow_OpenUrl, async (_, uid: string, url: string) => {
     return await searchService.openUrlInSearchWindow(uid, url)
-  })
-
-  ipcMain.handle(IpcChannel.WebSearch_MainSearch, async (_, request: WebSearchRequest) => {
-    const validatedRequest = WebSearchRequestSchema.parse(request)
-    return await webSearchService.search(validatedRequest)
   })
 
   // webview

@@ -1,365 +1,388 @@
-# WebSearch Service Architecture (V2)
+# WebSearch Service Architecture (Current Branch vs `v2`)
 
-## 1. 目标
+## 1. 文档目的
 
-WebSearch 的 v2 目标是把搜索核心能力稳定地收敛到 Main 进程，形成一套可复用的后端能力，而不是继续让搜索逻辑分散在 Renderer、工具层和不同入口里。
+这份文档不再描述“理想中的最终形态”，而是基于 `v2` 分支与当前分支的代码对比，说明 WebSearch 架构现在**实际发生了什么变化**。
 
-这套能力的设计目标：
+重点是两件事：
 
-1. 核心搜索逻辑统一放在 Main。
-2. 对外只暴露共享执行契约，不暴露 Renderer 专用状态或 UI 细节。
-3. 同一份能力可被多个入口复用，而不是每个入口复制一套实现。
-4. Electron 相关依赖被限制在边缘层，核心逻辑尽量保持可迁移、可复用。
+1. `v2` 基线下，WebSearch 仍然主要跑在 Renderer。
+2. 当前分支新增了一套 Main-side WebSearch backend，但还没有完成所有入口切换。
 
-当前约束：
-
-1. Main-side contract 只接收归一化后的 `question: string[]`。
-2. raw `links` / `summarize` 这类上游编排信号不进入新的 Main-side contract。
-3. RAG 压缩能力暂不在 Main 侧落地，当前只保留压缩配置和状态模型。
-
-### 1.1 当前实现范围 / Review Contract
-
-这份文档对应的当前实现与 review 合同如下：
-
-#### 任务
-
-当前改动的确切任务是把 `web search service` 从 Renderer 侧实现迁移到 Main 进程，形成一套可复用的 Main-side 搜索服务，并通过 preload / IPC 暴露统一调用入口。
-
-#### In Scope
-
-本次明确在范围内的行为包括：
-
-1. Main 侧 `webSearch` service、config resolver、provider factory、provider drivers 的建立。
-2. `api`、`mcp`、`local` 三类 provider 在 Main 中执行搜索。
-3. shared contract、IPC channel、preload bridge 的接通。
-4. Main 侧状态写入 `chat.web_search.active_searches`。
-5. Main 侧黑名单过滤。
-6. `local` 保持“只返回摘要”。
-7. `searxng` 保持与旧 Renderer 一致，先搜索，再按结果 URL 抓取正文。
-8. Main 侧请求输入校验。
-
-#### Out of Scope
-
-本次明确不在范围内，或刻意不做的内容包括：
-
-1. Renderer 调用链路切换到新的 Main service。
-2. `rag` 相关能力在 Main 落地。
-3. `summarize` / `links` 这类上游编排信号进入 Main contract。
-4. 旧 Renderer web search 实现的清理。
-5. 旧 Renderer store 中 `subscribeSources` 黑名单机制迁移到 Main。
-
-#### Constraints
-
-当前已知约束和暂时需要跳过的点包括：
-
-1. 所有数据相关实现必须遵循 `docs/en/references/data/`。
-2. review 只围绕这次 Main-side web search 重构，不扩散到 Renderer 重构。
-3. `rag` 当前冻结，不作为这次实现目标。
-4. 旧 Renderer 黑名单订阅源机制后续会删除，因此本次不围绕它补 shared / Main 数据模型。
-
-#### Frozen Areas
-
-当前没有额外声明“后续 PR 落地前不能改”的模块或接口。
-
-#### Review Priority
-
-如果存在取舍，这次 review 的优先级是：
-
-1. `架构简洁`
-2. 正确性
-3. 类型安全
-
-不是以发版速度为第一优先。
+换句话说，这次改动的本质不是“WebSearch 已经完全迁到 Main”，而是“Main 侧能力已经起出第一版骨架，Renderer 侧旧链路暂时仍在”。
 
 ---
 
-## 2. 设计原则
+## 2. `v2` 基线是什么
 
-1. **能力先于入口**：先做稳定的 Main backend，再决定由哪些入口接入。
-2. **执行与配置分离**：Preference 描述“用户怎么配”，Contract 描述“系统怎么执行”。
-3. **共享契约单一来源**：跨进程、跨入口统一使用 shared types。
-4. **边缘依赖外置**：IPC、BrowserWindow、本地抓取等 Electron 依赖留在边缘层。
-5. **适度分层**：只保留当前实现真正需要的模块，不为了“架构完整”提前加层。
+以 `v2` 分支为基线，WebSearch 的主执行链路仍然在 Renderer：
 
----
+1. `src/renderer/src/services/WebSearchService.ts` 持有请求状态、provider 调用、压缩、临时知识库、引用筛选等完整流程。
+2. `src/renderer/src/providers/WebSearchProvider/*` 持有各 provider 的具体实现。
+3. aiCore、搜索编排、设置页 provider 检查等调用方，仍然直接依赖 Renderer 侧 WebSearch service。
+4. 搜索状态也仍然由 Renderer 负责写入，而不是由 Main 侧统一管理。
 
-## 3. 谁会调用 WebSearch Service
+`v2` 分支下**不存在**以下能力：
 
-v2 下，WebSearch Service 是 Main 侧能力中心。不同调用方都应该围绕它组织，而不是各自拥有独立实现。
+1. `packages/shared/data/types/webSearch.ts`
+2. `src/main/services/webSearch/*`
+3. Main-side provider factory / provider drivers
+4. Main-side request schema 校验
+5. Main-side blacklist 过滤
+6. Main-side post processing
 
-### 3.1 Renderer 聊天与搜索编排
-
-Renderer 最终会通过 preload + IPC 调用 Main WebSearch Service。
-
-适用场景：
-
-1. 聊天消息中的内置 web search。
-2. 搜索编排插件触发的外部搜索。
-3. 任何需要把搜索结果回填到消息引用块的 UI 流程。
-
-这类调用的设计要求：
-
-1. Renderer 只负责发起请求、消费结果、展示状态。
-2. 搜索编排与 provider 执行不再留在 Renderer 内部。
-
-### 3.2 Renderer 设置页与 Provider 校验
-
-设置页中的 provider 可用性检测，本质上也是 WebSearch backend 的调用方。
-
-适用场景：
-
-1. “检查搜索连通性”
-2. 多 API key 连通性检测
-
-这类调用未必必须复用 `search()` 主流程，但应该复用同一套 provider 配置解析和 driver 执行能力，而不是保留一套平行的 Renderer-only 校验实现。
-
-### 3.3 aiCore
-
-aiCore 是 v2 中的重要调用方，但**未来会迁移到 Main**。
-
-因此架构上要明确：
-
-1. 当前如果 aiCore 还在 Renderer，它只是过渡状态。
-2. 长期目标不是让 aiCore 通过 Renderer 间接访问 WebSearch。
-3. aiCore 迁到 Main 后，应直接以 Main 内部调用的方式接入 WebSearch Service，而不是继续依赖 preload / IPC。
-
-换句话说，aiCore 在最终形态下是 WebSearch Service 的 **Main-side in-process caller**。
-
-### 3.4 Gateway / HTTP API
-
-如果未来提供外部 HTTP 能力，Gateway 应作为 WebSearch Service 的适配层，而不是维护另一套搜索实现。
-
-### 3.5 CLI
-
-CLI 也是同样的道理：它应该只是另一个入口，不应拥有独立的 provider 逻辑或配置拼装逻辑。
+因此，`v2` 的真实基线不是“Main backend 已存在，只差接入口”，而是“搜索核心本身还留在 Renderer”。
 
 ---
 
-## 4. 总体拓扑
+## 3. 当前分支新增了什么
 
-```text
-+----------------------------------------------------------------------------------+
-|                                   Callers                                        |
-|----------------------------------------------------------------------------------|
-| Renderer(UI) | Renderer(Settings) | aiCore(Main, future) | Gateway | CLI        |
-+--------------------+--------------------+--------------------+---------+---------+
-                     |                    |                    |         |
-                     v                    v                    v         v
-+----------------------------------------------------------------------------------+
-|                             Adapters / Entry Points                               |
-|----------------------------------------------------------------------------------|
-| IPC Adapter        | Provider Check Adapter | In-Process Adapter | HTTP | CLI    |
-+---------------------------------------------+--------------------+------+--------+
-                                              |
-                                              v
-+----------------------------------------------------------------------------------+
-|                         WebSearch Application Service (Main)                      |
-|----------------------------------------------------------------------------------|
-| 1) ConfigResolver                                                                |
-| 2) WebSearchService                                                              |
-| 3) Provider Factory                                                              |
-| 4) PostProcessor                                                                 |
-| 5) Status Writer / Logger                                                        |
-+----------------------------------------------------------------------------------+
-                    |                         |                        |
-                    v                         v                        v
-         +------------------+      +------------------+     +----------------------+
-         | API Drivers      |      | MCP Drivers      |     | Local Drivers        |
-         | zhipu/tavily/... |      | exa-mcp          |     | google/bing/baidu    |
-         | bocha/querit     |      |                  |     |                      |
-         +------------------+      +------------------+     +----------------------+
-```
+当前分支围绕 Main 侧新增了一整套 WebSearch backend 基础设施。
 
----
+### 3.1 Shared Contract
 
-## 5. 分层与职责
-
-### 5.1 Shared Contracts Layer
-
-文件：
+新增文件：
 
 `packages/shared/data/types/webSearch.ts`
 
-职责：
+这层现在定义了 Main-side 执行契约：
 
-1. 定义 `WebSearchRequest`
-2. 定义 `WebSearchQueryInput`
-3. 定义 `WebSearchResult`
-4. 定义 `WebSearchResponse`
-5. 定义 `WebSearchStatus`
-6. 定义 `WebSearchError`
-7. 定义 `ResolvedWebSearchProvider`
+1. `WebSearchRequest`
+2. `WebSearchResult`
+3. `WebSearchResponse`
+4. `WebSearchStatus`
+5. `WebSearchCompressionConfig`
+6. `WebSearchExecutionConfig`
+7. `ResolvedWebSearchProvider`
+8. `WebSearchResolvedConfig`
 
-边界：
+当前 contract 的边界很明确：
 
-1. 只放执行契约，不放 UI 字段。
-2. 不放 raw `links` / `summarize` 这类上游协议。
-3. contract 表示“已整理好的搜索请求”，不是“原始用户输入”。
+1. 输入是归一化后的 `questions: string[]`
+2. 只表达执行所需字段
+3. 不包含 UI 文案、toast、Renderer span 细节
+4. 不包含原始 `links` / `summarize` / XML 之类上游编排协议
 
-### 5.2 Preference & Preset Layer
+### 3.2 Shared Cache 调整
 
-文件：
+这次分支顺手把搜索状态模型往 shared cache 收敛了一步。
 
-1. `packages/shared/data/preference/preferenceTypes.ts`
-2. `packages/shared/data/preference/preferenceSchemas.ts`
-3. `packages/shared/data/presets/web-search-providers.ts`
+相关改动：
 
-职责：
+1. `packages/shared/data/cache/cacheSchemas.ts`
+2. `packages/shared/data/cache/cacheValueTypes.ts`
 
-1. 保存 provider 类型与 id 集合。
-2. 保存 override 结构。
-3. 保存内置 provider preset。
-4. 继续沿用 `chat.web_search.*` 偏好键。
+变化点：
 
-当前 provider 集合：
+1. `chat.web_search.active_searches` 从 `UseCacheSchema` 挪到了 `SharedCacheSchema`
+2. `CacheActiveSearches` 改为直接依赖 shared 的 `WebSearchStatus`
+3. `CitationBlock` 也改成通过 `useSharedCache('chat.web_search.active_searches')` 观察状态
 
-1. `api`: `zhipu` / `tavily` / `searxng` / `exa` / `bocha` / `querit`
-2. `mcp`: `exa-mcp`
-3. `local`: `local-google` / `local-bing` / `local-baidu`
+这意味着搜索状态不再只是 Renderer 内部实现细节，而开始成为跨边界共享的数据。
 
-### 5.3 Main Application Layer
+### 3.3 Main-side WebSearch Service
 
-#### `WebSearchConfigResolver`
+新增目录：
 
-职责：
+`src/main/services/webSearch/`
 
-1. 从 PreferenceService 读取 `chat.web_search.*`
-2. 合并 preset 与 user override
-3. 输出 runtime config 与 resolved provider
+这一层是当前分支最核心的增量。
 
-#### `WebSearchService`
+#### `WebSearchService.ts`
 
 职责：
 
 1. 根据 `providerId` 解析 provider
-2. 执行 query fanout
-3. 汇总搜索结果
-4. 调用 post-processing
-5. 写入状态
-6. 输出统一响应
+2. 读取 runtime config
+3. 对 `questions` 执行 fanout
+4. 合并成功的搜索结果
+5. 应用黑名单过滤
+6. 应用 post processing
+7. 写入并清理搜索状态
+8. 输出统一的 `WebSearchResponse`
 
-不负责：
+当前行为特征：
 
-1. UI toast
-2. Renderer 状态管理
-3. Prompt 提取
-4. 原始 XML 协议解释
+1. 对多问题搜索使用 `Promise.allSettled`
+2. 允许部分 query 失败，只要至少有一个 query 成功就继续产出结果
+3. 所有 query 都失败时才抛错
+4. 在 `finally` 中清理 `chat.web_search.active_searches`
+
+#### `utils/config.ts`
+
+职责：
+
+1. 从 `PreferenceService` 读取 `chat.web_search.*`
+2. 合并 preset 与用户 override
+3. 输出 resolved provider 和 runtime config
+
+这里已经把 Main 执行层需要的配置读取逻辑从 Renderer 里抽出来了。
 
 #### `providers/factory.ts`
 
 职责：
 
-1. 按 provider id 构造具体 driver
-2. 把 id 到 driver 的映射收敛在 Main
+1. 将 provider id 映射到具体 driver
+2. 把 provider 选择逻辑收敛到 Main
+
+当前支持的 provider 分类：
+
+1. `api`: `zhipu` / `tavily` / `searxng` / `exa` / `bocha` / `querit`
+2. `mcp`: `exa-mcp`
+3. `local`: `local-google` / `local-bing` / `local-baidu`
 
 #### Provider Drivers
 
+新增目录：
+
+1. `src/main/services/webSearch/providers/api/`
+2. `src/main/services/webSearch/providers/mcp/`
+3. `src/main/services/webSearch/providers/locals/`
+
 职责：
 
-1. 封装外部 provider 请求细节
-2. 归一化返回结果
-3. 屏蔽各 provider 的协议差异
+1. 封装各 provider 的网络协议
+2. 把返回结果归一化成统一的 `WebSearchResponse`
+3. 把 provider 级差异隔离在 Main 侧
 
-#### `postProcessor.ts`
+当前已实现的关键差异处理：
+
+1. `searxng` 仍然保持“先搜索，再抓取结果 URL 正文”的旧行为
+2. `local-*` provider 仍然保持“只返回搜索结果摘要，不抓正文”
+3. `exa-mcp` 通过 MCP 风格的 HTTP / SSE 文本响应解析结果
+
+#### `postProcessing.ts`
 
 职责：
 
 1. 处理 `none`
 2. 处理 `cutoff`
-3. 为未来的 RAG 或其他压缩策略保留位置
+3. 为未来的 Main-side `rag` 保留入口
 
-#### `status.ts`
+当前真实状态：
+
+1. `none` 已实现
+2. `cutoff` 已实现
+3. `rag` 只是占位，当前仍直接返回原结果
+
+#### `runtime/status.ts`
 
 职责：
 
 1. 将 `chat.web_search.active_searches` 写入 shared cache
-2. 让 Renderer 可以观察搜索阶段变化
+2. 让 Renderer 可以观察 Main-side 搜索阶段变化
 
-#### 日志与追踪
+当前已落地的 phase 包括：
 
-当前：
+1. `fetch_complete`
+2. `cutoff`
 
-1. 统一通过 `loggerService`
+`rag` 相关 phase 仍停留在状态模型层，没有完整 Main-side 执行逻辑。
 
-未来：
+#### `schemas/requestSchema.ts`
 
-1. tracing 可以在 Main 侧入口适配层或 service 边缘补齐
+职责：
 
-### 5.4 Adapter / Entry Layer
+1. 校验 `providerId`
+2. 校验 `questions`
+3. 校验 `requestId`
 
-当前已存在：
+这说明 Main-side contract 已经有了独立的输入边界，而不是完全信任上游。
 
-1. `ipcMain.handle(IpcChannel.WebSearch_MainSearch)`
-2. `window.api.webSearch.mainSearch()`
+### 3.4 测试覆盖
 
-架构上预期存在的入口类型：
+当前分支给 Main-side WebSearch 新增了比较完整的单测：
 
-1. Renderer IPC 调用
-2. Provider 健康检查调用
-3. aiCore Main 内部调用
-4. Gateway HTTP 调用
-5. CLI 调用
+1. `src/main/services/webSearch/WebSearchService.test.ts`
+2. `src/main/services/webSearch/providers/__tests__/ApiProviders.test.ts`
+3. `src/main/services/webSearch/providers/locals/__tests__/LocalProviders.test.ts`
+4. `src/main/services/webSearch/runtime/__tests__/status.test.ts`
+5. `src/main/services/webSearch/schemas/__tests__/requestSchema.test.ts`
+6. `src/main/services/webSearch/utils/__tests__/*`
 
----
+当前测试重点覆盖了：
 
-## 6. 关键边界
-
-### 6.1 上游负责什么
-
-上游调用方负责：
-
-1. 把用户意图整理成搜索问题
-2. 决定是否需要调用 WebSearch
-3. 决定调用哪个 provider
-
-### 6.2 WebSearch Service 负责什么
-
-WebSearch Service 负责：
-
-1. 配置解析
-2. provider driver 选择
-3. 搜索执行
-4. 结果汇总
-5. 状态输出
-
-### 6.3 不进入 Main-side contract 的内容
-
-这些内容不属于新的 Main-side contract：
-
-1. raw `links`
-2. `summarize`
-3. XML 结构
-4. UI 文案
-5. toast / span 的 Renderer 细节
+1. `cutoff` post-processing
+2. blacklist 过滤
+3. partial success 行为
+4. local provider 支持
+5. request schema 输入校验
+6. 各 API provider 的协议解析
 
 ---
 
-## 7. 执行流
+## 4. 当前分支改完以后，架构实际变成了什么
+
+最准确的描述不是“Main 已经替代 Renderer”，而是：
+
+1. Renderer 旧 WebSearch 栈还在
+2. Main 新 WebSearch 栈已经新增出来
+3. 两边暂时并存
+
+### 4.1 当前真实拓扑
+
+```text
++------------------------------------------------------------------------------------+
+|                                  Existing Callers                                  |
+|------------------------------------------------------------------------------------|
+| aiCore / Search Orchestration / Settings Check / Chat Flow                         |
++-----------------------------------------------+------------------------------------+
+                                                |
+                                                v
++------------------------------------------------------------------------------------+
+|                       Existing Renderer WebSearch Stack (still active)              |
+|------------------------------------------------------------------------------------|
+| src/renderer/src/services/WebSearchService.ts                                      |
+| src/renderer/src/providers/WebSearchProvider/*                                     |
+| Renderer-side compression / temporary KB / references selection                    |
++-----------------------------------------------+------------------------------------+
+                                                |
+                                                | status now writes shared cache
+                                                v
++------------------------------------------------------------------------------------+
+|                             Shared Cache / Shared Types                              |
+|------------------------------------------------------------------------------------|
+| chat.web_search.active_searches                                                     |
+| packages/shared/data/types/webSearch.ts                                             |
++-----------------------------------------------+------------------------------------+
+                                                ^
+                                                |
++------------------------------------------------------------------------------------+
+|                        New Main-side WebSearch Backend (new in branch)              |
+|------------------------------------------------------------------------------------|
+| WebSearchService                                                                    |
+| Config Resolver                                                                     |
+| Provider Factory                                                                    |
+| API / MCP / Local Drivers                                                           |
+| Blacklist Filter                                                                    |
+| Post Processing (none / cutoff)                                                     |
++-----------------------------------------------+------------------------------------+
+                                                |
+                                                v
++------------------------------------------------------------------------------------+
+|                              Incomplete Entry Layer                                  |
+|------------------------------------------------------------------------------------|
+| Main-side backend exists                                                             |
+| but there is currently no public IPC / preload entry wired for it                    |
++------------------------------------------------------------------------------------+
+```
+
+### 4.2 这次分支没有做的事
+
+以下内容仍然没有完成：
+
+1. 对外 IPC / preload 入口尚未补齐
+2. Renderer 主调用链切换到 Main-side `WebSearchService`
+3. 设置页 provider 检查复用 Main-side driver
+4. aiCore / search orchestration 改为调用 Main-side backend
+5. Main-side `rag` 压缩落地
+6. 旧 Renderer provider 实现清理
+7. tracing / span 迁移到 Main-side WebSearch 边缘
+
+所以当前分支的定位应当是：
+
+`引入 Main-side backend`，而不是 `完成 WebSearch 迁移`
+
+---
+
+## 5. 当前已落地的执行流
+
+如果只看新增的 Main-side backend，当前执行流如下：
 
 ```text
 Caller
-  -> Adapter / Entry
-  -> WebSearchConfigResolver.getProviderById()
+  -> Future Entry Adapter / In-Process Caller
+  -> getProviderById(providerId)
+  -> getRuntimeConfig()
   -> createWebSearchProvider(provider)
-  -> WebSearchService.search(request.input.question)
-     -> ProviderDriver.search(query)
-  -> Result merge
-  -> PostProcessor(none/cutoff)
-  -> Status write + logger
-  -> Response
+  -> Promise.allSettled(
+       questions.map((question) => providerDriver.search(question, runtimeConfig))
+     )
+  -> merge successful results
+  -> filterWebSearchResponseWithBlacklist()
+  -> postProcessWebSearchResponse()
+  -> setWebSearchStatus()
+  -> clearWebSearchStatus()
+  -> WebSearchResponse
 ```
+
+补充说明：
+
+1. `fetch_complete` 只会在多 query 且成功结果多于 1 个时写入
+2. `cutoff` 由 `postProcessing.ts` 产出状态
+3. blacklist 发生在结果 merge 之后、post process 之前
+4. `clearWebSearchStatus()` 在 `finally` 中执行，因此无论成功或失败都会清理状态
 
 ---
 
-## 8. 与 v2 的关系
+## 6. 当前实现边界
 
-这份设计文档描述的是 v2 下 WebSearch 的**目标后端形态**。
+### 6.1 上游负责什么
 
-对 v2 来说，重要的不是“某个入口今天是否已经切过去”，而是：
+上游调用方仍然负责：
 
-1. Main backend 是唯一搜索核心。
-2. Renderer 只是调用方，不再长期持有一份完整搜索实现。
-3. aiCore 未来迁到 Main 后，会直接成为 WebSearch Service 的 Main 内部调用方。
-4. Gateway、CLI、设置页校验都应该围绕同一套 Main 能力组织。
+1. 把用户意图整理成 `questions`
+2. 决定是否需要发起 WebSearch
+3. 决定使用哪个 provider
+4. 在当前分支里，很多调用方仍然直接走 Renderer 旧实现
 
-因此，v2 中 WebSearch Service 的定位不是“Renderer 的一个附属能力”，而是“Main 的共享搜索后端”。
+### 6.2 Main-side WebSearch 负责什么
+
+当前 Main-side WebSearch 已经负责：
+
+1. provider 配置解析
+2. provider driver 构造
+3. provider 搜索执行
+4. 结果归并
+5. 黑名单过滤
+6. `none` / `cutoff` 后处理
+7. 搜索状态写入 shared cache
+
+### 6.3 还不属于 Main-side contract 的内容
+
+这些内容当前仍然不进入 Main-side contract：
+
+1. 原始 `links`
+2. `summarize`
+3. XML 结构
+4. Renderer toast / UI 文案
+5. Renderer span / tracing 细节
+6. 临时知识库驱动的 RAG 压缩执行链
+
+---
+
+## 7. 与 `v2` 的关系
+
+从 `v2` 到当前分支，WebSearch 架构的核心变化可以概括为三句话：
+
+1. `v2` 的搜索核心还在 Renderer。
+2. 当前分支已经补出一套 Main-side backend。
+3. 但当前分支还没有完成调用方切换，所以系统仍处于“双栈并存”阶段。
+
+因此，现在最合适的定位不是：
+
+`WebSearch 已迁移到 Main`
+
+而是：
+
+`WebSearch 的 Main-side backend 已落地第一版，后续还需要把 Renderer / aiCore / Settings 入口逐步切过去`
+
+---
+
+## 8. 后续迁移应以什么为目标
+
+如果沿着这次分支继续推进，后续目标应该是：
+
+1. Renderer 聊天链路改为通过统一入口调用 Main-side WebSearch
+2. 设置页 provider 检查改为复用 Main-side provider driver
+3. aiCore 迁移后直接成为 Main-side in-process caller
+4. Renderer 旧 `providers/WebSearchProvider/*` 逐步下线
+5. Main-side `rag` 压缩再决定是否补齐
+
+完成这些步骤之后，文档才可以把 WebSearch 描述为：
+
+`Main 的共享搜索后端`
+
+而不是当前这个阶段性的：
+
+`Main backend 已起出，但系统尚未完成切流`
