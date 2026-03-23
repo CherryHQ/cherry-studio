@@ -156,7 +156,7 @@ export const TopicManagePanel: React.FC<TopicManagePanelProps> = ({
     updateTopics(actualRemainingTopics)
 
     // Switch to first remaining topic if current topic was deleted
-    if (successfulIds.has(activeTopic.id)) {
+    if (successfulIds.has(activeTopic.id) && actualRemainingTopics.length > 0) {
       setActiveTopic(actualRemainingTopics[0])
     }
 
