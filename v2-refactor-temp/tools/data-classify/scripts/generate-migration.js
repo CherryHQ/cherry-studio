@@ -152,6 +152,12 @@ class SimpleMappingGenerator {
       })
     })
 
+    // 生成localStorage映射 - 简单KV结构
+    const localStorageMappings = preferencesData.localStorage.map((item) => ({
+      originalKey: item.originalKey,
+      targetKey: item.targetKey
+    }))
+
     // 生成DexieSettings映射 - 简单KV结构
     const dexieSettingsMappings = preferencesData.dexieSettings.map((item) => ({
       originalKey: item.originalKey,
@@ -198,6 +204,18 @@ export const REDUX_STORE_MAPPINGS = ${JSON.stringify(reduxMappings, null, 2)} as
  */
 export const DEXIE_SETTINGS_MAPPINGS: ReadonlyArray<{ originalKey: string; targetKey: string }> = ${JSON.stringify(dexieSettingsMappings, null, 2)} as const
 
+/**
+ * localStorage映射关系 - 简单KV结构
+ *
+ * Maps browser localStorage keys to new preference target keys.
+ * localStorage stores various UI state and provider tokens.
+ *
+ * These are simple 1:1 mappings where the value can be used as-is.
+ * For complex transformations (pattern-based keys, value conversion),
+ * use ComplexPreferenceMappings with source: 'localStorage' instead.
+ */
+export const LOCALSTORAGE_MAPPINGS: ReadonlyArray<{ originalKey: string; targetKey: string }> = ${JSON.stringify(localStorageMappings, null, 2)} as const
+
 // === AUTO-GENERATED CONTENT END ===
 
 /**
@@ -206,6 +224,7 @@ export const DEXIE_SETTINGS_MAPPINGS: ReadonlyArray<{ originalKey: string; targe
  * - Redux Store项: ${preferencesData.redux.length}
  * - Redux分类: ${Object.keys(reduxMappings).join(', ')}
  * - DexieSettings项: ${dexieSettingsMappings.length}
+ * - localStorage项: ${localStorageMappings.length}
  * - 总配置项: ${preferencesData.all.length}
  *
  * 使用说明:
@@ -227,6 +246,7 @@ export const DEXIE_SETTINGS_MAPPINGS: ReadonlyArray<{ originalKey: string; targe
     console.log(`- ElectronStore映射: ${preferencesData.electronStore.length}`)
     console.log(`- Redux Store映射: ${preferencesData.redux.length}`)
     console.log(`- DexieSettings映射: ${preferencesData.dexieSettings.length}`)
+    console.log(`- localStorage映射: ${preferencesData.localStorage.length}`)
     console.log(`- 总配置项: ${preferencesData.all.length}`)
 
     // 显示Redux分类

@@ -56,3 +56,13 @@ export interface TabsState {
   tabs: Tab[]
   activeTabId: string
 }
+
+export type TranslatingState =
+  | {
+      isTranslating: true
+      abortKey: string
+    }
+  | {
+      isTranslating: false
+      abortKey: null
+    }

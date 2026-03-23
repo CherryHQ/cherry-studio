@@ -389,6 +389,9 @@
         "TodoWrite": {
           "description": "Crée et gère des listes de tâches structurées"
         },
+        "ToolSearch": {
+          "description": "[to be translated]:Discovers deferred tools from large libraries"
+        },
         "WebFetch": {
           "description": "Récupère le contenu à partir d'une URL spécifiée"
         },
@@ -735,6 +738,7 @@
     "progress": {
       "completed": "Sauvegarde terminée",
       "compressing": "Compression des fichiers...",
+      "copying_database": "Copie de la base de données...",
       "copying_files": "Copie des fichiers... {{progress}}%",
       "preparing": "Préparation de la sauvegarde...",
       "preparing_compression": "Préparation de la compression...",
@@ -2026,6 +2030,10 @@
         "export": "Échec de l'exportation Excel"
       },
       "fetchTopicName": "Échec de la nomination du sujet",
+      "file": {
+        "process_failed": "Le fichier {{name}} n'a pas pu être traité",
+        "text_extraction_failed": "Impossible d'extraire le texte de {{name}}"
+      },
       "get_embedding_dimensions": "Impossible d'obtenir les dimensions d'encodage",
       "invalid": {
         "api": {
@@ -2269,6 +2277,11 @@
       }
     },
     "warning": {
+      "file": {
+        "pdf_exceeds_limit": "Le fichier PDF {{name}} dépasse la limite de taille ({{limit}}), passage à l'extraction de texte",
+        "pdf_text_extraction_failed": "Échec de l'extraction du texte du PDF {{name}}",
+        "pdf_upload_failed": "Échec du téléversement du PDF {{name}}, passage à l'extraction de texte"
+      },
       "rate": {
         "limit": "Vous envoyez trop souvent, veuillez attendre {{seconds}} secondes avant de réessayer"
       }
@@ -3148,7 +3161,10 @@
       "extracting": "Décompression de la sauvegarde...",
       "preparing": "Préparation de la restauration...",
       "reading_data": "Lecture des données...",
-      "title": "Progression de la restauration"
+      "restoring_data": "Restauration des fichiers...",
+      "restoring_database": "Restauration de la base de données...",
+      "title": "Progression de la restauration",
+      "validating": "Validation de la sauvegarde..."
     },
     "title": "Restauration des données"
   },
@@ -3701,7 +3717,15 @@
           "button": "Sélectionner le fichier de sauvegarde"
         },
         "content": "Exporter une partie des données, incluant les historiques de discussion et les paramètres. Veuillez noter que le processus de sauvegarde peut prendre un certain temps ; merci pour votre patience.",
+        "file": {
+          "button": "Exporter vers un fichier",
+          "content": "Exporter les données sous forme de fichier de sauvegarde qui peut être importé sur mobile via un fichier.",
+          "export_failed": "L'exportation a échoué",
+          "export_success": "Exportation réussie",
+          "title": "Exporter en tant que fichier"
+        },
         "lan": {
+          "button": "Démarrer le transfert",
           "connected": "Connecté",
           "connection_failed": "Échec de la connexion",
           "content": "Assurez-vous que l'ordinateur et le téléphone sont connectés au même réseau pour utiliser le transfert en réseau local. Ouvrez l'application Cherry Studio et scannez ce code QR.",

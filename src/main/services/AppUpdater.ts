@@ -3,7 +3,7 @@ import { loggerService } from '@logger'
 import { isWin } from '@main/constant'
 import { getIpCountry } from '@main/utils/ipService'
 import { generateUserAgent, getClientId } from '@main/utils/systemInfo'
-import { FeedUrl, UpdateConfigUrl, UpdateMirror } from '@shared/config/constant'
+import { APP_NAME, FeedUrl, UpdateConfigUrl, UpdateMirror } from '@shared/config/constant'
 import { UpgradeChannel } from '@shared/data/preference/preferenceTypes'
 import { IpcChannel } from '@shared/IpcChannel'
 import type { UpdateInfo } from 'builder-util-runtime'
@@ -14,9 +14,21 @@ import { autoUpdater } from 'electron-updater'
 import path from 'path'
 import semver from 'semver'
 
+import { analyticsService } from './AnalyticsService'
 import { windowService } from './WindowService'
 
 const logger = loggerService.withContext('AppUpdater')
+
+function getCommonHeaders() {
+  return {
+    'User-Agent': generateUserAgent(),
+    'Cache-Control': 'no-cache',
+    'Client-Id': getClientId(),
+    'App-Name': APP_NAME,
+    'App-Version': `v${app.getVersion()}`,
+    OS: process.platform
+  }
+}
 
 // Language markers constants for multi-language release notes
 const LANG_MARKERS = {
@@ -62,10 +74,7 @@ export default class AppUpdater {
     autoUpdater.autoInstallOnAppQuit = false
     autoUpdater.requestHeaders = {
       ...autoUpdater.requestHeaders,
-      'User-Agent': generateUserAgent(),
-      'X-Client-Id': getClientId(),
-      // no-cache
-      'Cache-Control': 'no-cache'
+      ...getCommonHeaders()
     }
 
     autoUpdater.on('error', (error) => {
@@ -146,11 +155,8 @@ export default class AppUpdater {
       logger.info(`Fetching update config from ${configUrl} (mirror: ${mirror})`)
       const response = await net.fetch(configUrl, {
         headers: {
-          'User-Agent': generateUserAgent(),
-          Accept: 'application/json',
-          'X-Client-Id': getClientId(),
-          // no-cache
-          'Cache-Control': 'no-cache'
+          ...getCommonHeaders(),
+          Accept: 'application/json'
         }
       })
 
@@ -274,6 +280,8 @@ export default class AppUpdater {
   }
 
   public async checkForUpdates() {
+    analyticsService.trackAppUpdate()
+
     if (isWin && 'PORTABLE_EXECUTABLE_DIR' in process.env) {
       return {
         currentVersion: app.getVersion(),

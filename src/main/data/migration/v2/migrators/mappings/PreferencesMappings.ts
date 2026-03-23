@@ -1,6 +1,6 @@
 /**
  * Auto-generated preference mappings from classification.json
- * Generated at: 2026-03-22T08:16:52.051Z
+ * Generated at: 2026-03-23T04:13:20.628Z
  *
  * This file contains pure mapping relationships without default values.
  * Default values are managed in packages/shared/data/preferences.ts
@@ -100,7 +100,7 @@ export const REDUX_STORE_MAPPINGS = {
     },
     {
       originalKey: 'targetLanguage',
-      targetKey: 'feature.translate.target_language'
+      targetKey: 'feature.translate.chat.target_language'
     },
     {
       originalKey: 'proxyMode',
@@ -811,6 +811,12 @@ export const REDUX_STORE_MAPPINGS = {
       targetKey: 'shortcut.app.exit_fullscreen'
     }
   ],
+  translate: [
+    {
+      originalKey: 'settings.autoCopy',
+      targetKey: 'feature.translate.page.auto_copy'
+    }
+  ],
   websearch: [
     {
       originalKey: 'maxResults',
@@ -875,24 +881,36 @@ export const REDUX_STORE_MAPPINGS = {
  * For complex transformations (value conversion, multi-key merging, etc.),
  * use ComplexPreferenceMappings with source: 'dexie-settings' instead.
  */
-export const DEXIE_SETTINGS_MAPPINGS: ReadonlyArray<{ originalKey: string; targetKey: string }> = [] as const
-
-// === AUTO-GENERATED CONTENT END ===
-
-/**
- * 映射统计:
- * - ElectronStore项: 1
- * - Redux Store项: 205
- * - Redux分类: settings, selectionStore, memory, nutstore, shortcuts, websearch, note
- * - DexieSettings项: 0
- * - 总配置项: 206
- *
- * 使用说明:
- * 1. ElectronStore读取: configManager.get(mapping.originalKey)
- * 2. Redux读取: 需要解析嵌套路径 reduxData[category][originalKey路径]
- * 3. DexieSettings读取: ctx.sources.dexieSettings.get(mapping.originalKey)
- * 4. 默认值: 从defaultPreferences.default[mapping.targetKey]获取
- */
+export const DEXIE_SETTINGS_MAPPINGS: ReadonlyArray<{ originalKey: string; targetKey: string }> = [
+  {
+    originalKey: 'translate:detect:method',
+    targetKey: 'feature.translate.auto_detection_method'
+  },
+  {
+    originalKey: 'translate:markdown:enabled',
+    targetKey: 'feature.translate.page.enable_markdown'
+  },
+  {
+    originalKey: 'translate:scroll:sync',
+    targetKey: 'feature.translate.page.scroll_sync'
+  },
+  {
+    originalKey: 'translate:bidirectional:pair',
+    targetKey: 'feature.translate.page.bidirectional_pair'
+  },
+  {
+    originalKey: 'translate:bidirectional:enabled',
+    targetKey: 'feature.translate.page.bidirectional_enabled'
+  },
+  {
+    originalKey: 'translate:source:language',
+    targetKey: 'feature.translate.page.source_language'
+  },
+  {
+    originalKey: 'translate:target:language',
+    targetKey: 'feature.translate.page.target_language'
+  }
+] as const
 
 /**
  * localStorage映射关系 - 简单KV结构
@@ -905,3 +923,21 @@ export const DEXIE_SETTINGS_MAPPINGS: ReadonlyArray<{ originalKey: string; targe
  * use ComplexPreferenceMappings with source: 'localStorage' instead.
  */
 export const LOCALSTORAGE_MAPPINGS: ReadonlyArray<{ originalKey: string; targetKey: string }> = [] as const
+
+// === AUTO-GENERATED CONTENT END ===
+
+/**
+ * 映射统计:
+ * - ElectronStore项: 1
+ * - Redux Store项: 206
+ * - Redux分类: settings, selectionStore, memory, nutstore, shortcuts, translate, websearch, note
+ * - DexieSettings项: 7
+ * - localStorage项: 0
+ * - 总配置项: 214
+ *
+ * 使用说明:
+ * 1. ElectronStore读取: configManager.get(mapping.originalKey)
+ * 2. Redux读取: 需要解析嵌套路径 reduxData[category][originalKey路径]
+ * 3. DexieSettings读取: ctx.sources.dexieSettings.get(mapping.originalKey)
+ * 4. 默认值: 从defaultPreferences.default[mapping.targetKey]获取
+ */

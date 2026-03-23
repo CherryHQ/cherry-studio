@@ -17,7 +17,6 @@ import { getModelName } from '@renderer/services/ModelService'
 import type { Assistant, Model, Topic } from '@renderer/types'
 import type { Message } from '@renderer/types/newMessage'
 import { firstLetter, isEmoji, removeLeadingEmoji } from '@renderer/utils'
-import { useLocation } from '@tanstack/react-router'
 import { Checkbox } from 'antd'
 import dayjs from 'dayjs'
 import { Sparkle } from 'lucide-react'
@@ -48,8 +47,7 @@ const MessageHeader: FC<Props> = memo(({ assistant, model, message, topic, isGro
   const showMinappIcon = useSidebarIconShow('minapp')
   const [activeAgentId] = useCache('agent.active_id')
   const { agent } = useAgent(activeAgentId)
-  const { pathname } = useLocation()
-  const isAgentView = pathname.startsWith('/agents')
+  const isAgentView = window.location.pathname.startsWith('/agents')
   const { t } = useTranslation()
   const { isBubbleStyle } = useMessageStyle()
   const { openMinappById } = useMinappPopup()
