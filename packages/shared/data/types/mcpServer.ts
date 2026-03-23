@@ -99,9 +99,9 @@ export const MCPServerSchema = z.object({
   /** Timestamp when installed */
   installedAt: z.number().optional(),
   /** Creation timestamp (ISO string) */
-  createdAt: z.string().optional(),
+  createdAt: z.iso.datetime().optional(),
   /** Last update timestamp (ISO string) */
-  updatedAt: z.string().optional()
+  updatedAt: z.iso.datetime().optional()
 })
 
 export type MCPServer = z.infer<typeof MCPServerSchema>

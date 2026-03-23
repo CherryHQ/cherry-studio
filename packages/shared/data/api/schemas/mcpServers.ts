@@ -7,12 +7,15 @@
 
 import * as z from 'zod'
 
-import { type MCPServer, MCPServerInstallSourceSchema, MCPServerTypeSchema } from '../../types/mcpServer'
+import { type MCPServer, MCPServerSchema, MCPServerTypeSchema } from '../../types/mcpServer'
 import type { OffsetPaginationResponse } from '../apiTypes'
 
 // ============================================================================
-// DTOs
+// DTO Derivation
 // ============================================================================
+
+/** Fields auto-managed by the database layer, excluded from DTOs */
+const AutoFields = { createdAt: true, updatedAt: true } as const
 
 /**
  * DTO for creating a new MCP server.
@@ -20,73 +23,14 @@ import type { OffsetPaginationResponse } from '../apiTypes'
  * - `id` is optional (auto-generated if omitted)
  * - All other fields are optional
  */
-export const CreateMCPServerSchema = z.object({
-  id: z.string().optional(),
-  name: z.string().min(1),
-  type: MCPServerTypeSchema.optional(),
-  description: z.string().optional(),
-  baseUrl: z.string().optional(),
-  command: z.string().optional(),
-  registryUrl: z.string().optional(),
-  args: z.array(z.string()).optional(),
-  env: z.record(z.string(), z.string()).optional(),
-  headers: z.record(z.string(), z.string()).optional(),
-  provider: z.string().optional(),
-  providerUrl: z.string().optional(),
-  logoUrl: z.string().optional(),
-  tags: z.array(z.string()).optional(),
-  longRunning: z.boolean().optional(),
-  timeout: z.number().optional(),
-  dxtVersion: z.string().optional(),
-  dxtPath: z.string().optional(),
-  reference: z.string().optional(),
-  searchKey: z.string().optional(),
-  disabledTools: z.array(z.string()).optional(),
-  disabledAutoApproveTools: z.array(z.string()).optional(),
-  shouldConfig: z.boolean().optional(),
-  sortOrder: z.number().optional(),
-  isActive: z.boolean().optional(),
-  installSource: MCPServerInstallSourceSchema.optional(),
-  isTrusted: z.boolean().optional(),
-  trustedAt: z.number().optional(),
-  installedAt: z.number().optional()
-})
+export const CreateMCPServerSchema = MCPServerSchema.omit(AutoFields).partial().required({ name: true })
 export type CreateMCPServerDto = z.infer<typeof CreateMCPServerSchema>
 
 /**
  * DTO for updating an existing MCP server.
- * All fields optional.
+ * All fields optional, `id` excluded (comes from URL path).
  */
-export const UpdateMCPServerSchema = z.object({
-  name: z.string().min(1).optional(),
-  type: MCPServerTypeSchema.optional(),
-  description: z.string().optional(),
-  baseUrl: z.string().optional(),
-  command: z.string().optional(),
-  registryUrl: z.string().optional(),
-  args: z.array(z.string()).optional(),
-  env: z.record(z.string(), z.string()).optional(),
-  headers: z.record(z.string(), z.string()).optional(),
-  provider: z.string().optional(),
-  providerUrl: z.string().optional(),
-  logoUrl: z.string().optional(),
-  tags: z.array(z.string()).optional(),
-  longRunning: z.boolean().optional(),
-  timeout: z.number().optional(),
-  dxtVersion: z.string().optional(),
-  dxtPath: z.string().optional(),
-  reference: z.string().optional(),
-  searchKey: z.string().optional(),
-  disabledTools: z.array(z.string()).optional(),
-  disabledAutoApproveTools: z.array(z.string()).optional(),
-  shouldConfig: z.boolean().optional(),
-  sortOrder: z.number().optional(),
-  isActive: z.boolean().optional(),
-  installSource: MCPServerInstallSourceSchema.optional(),
-  isTrusted: z.boolean().optional(),
-  trustedAt: z.number().optional(),
-  installedAt: z.number().optional()
-})
+export const UpdateMCPServerSchema = MCPServerSchema.omit({ id: true, ...AutoFields }).partial()
 export type UpdateMCPServerDto = z.infer<typeof UpdateMCPServerSchema>
 
 /**
