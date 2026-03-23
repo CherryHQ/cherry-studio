@@ -1,13 +1,12 @@
 // import { loggerService } from '@logger'
-import { Flex } from '@cherrystudio/ui'
-import { InfoTooltip } from '@cherrystudio/ui'
-import { SuccessTag } from '@renderer/components/Tags/SuccessTag'
+import { Flex, InfoTooltip, Tag } from '@cherrystudio/ui'
 import { isMac, isWin } from '@renderer/config/constant'
 import { useOcrProvider } from '@renderer/hooks/useOcrProvider'
 import useTranslate from '@renderer/hooks/useTranslate'
 import type { TranslateLanguageCode } from '@renderer/types'
 import { BuiltinOcrProviderIds, isOcrSystemProvider } from '@renderer/types'
 import { Select } from 'antd'
+import { CheckIcon } from 'lucide-react'
 import { startTransition, useCallback, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -61,7 +60,11 @@ export const OcrSystemSettings = () => {
           </Flex>
         </SettingRowTitle>
         <div style={{ display: 'flex', gap: '8px' }}>
-          {isMac && <SuccessTag message={t('settings.tool.ocr.image.system.no_need_configure')} />}
+          {isMac && (
+            <Tag icon={<CheckIcon size={14} color="var(--color-status-success)" />} color="var(--color-status-success)">
+              {t('settings.tool.ocr.image.system.no_need_configure')}
+            </Tag>
+          )}
           {isWin && (
             <Select
               mode="multiple"

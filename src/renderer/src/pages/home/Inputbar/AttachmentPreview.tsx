@@ -13,8 +13,8 @@ import {
   LinkOutlined
 } from '@ant-design/icons'
 import { ColFlex, Tooltip } from '@cherrystudio/ui'
+import { Tag } from '@cherrystudio/ui'
 import ConfirmDialog from '@renderer/components/ConfirmDialog'
-import CustomTag from '@renderer/components/Tags/CustomTag'
 import { useAttachment } from '@renderer/hooks/useAttachment'
 import FileManager from '@renderer/services/FileManager'
 import type { FileMetadata } from '@renderer/types'
@@ -196,7 +196,7 @@ const AttachmentPreview: FC<Props> = ({ files, setFiles, onAttachmentContextMenu
     <>
       <ContentContainer>
         {files.map((file) => (
-          <CustomTag
+          <Tag
             key={file.id}
             icon={getFileIcon(file.ext)}
             color="#37a5aa"
@@ -206,7 +206,7 @@ const AttachmentPreview: FC<Props> = ({ files, setFiles, onAttachmentContextMenu
               void handleContextMenu(file, event)
             }}>
             <FileNameRender file={file} />
-          </CustomTag>
+          </Tag>
         ))}
       </ContentContainer>
 

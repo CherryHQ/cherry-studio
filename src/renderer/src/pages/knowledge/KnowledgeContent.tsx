@@ -1,7 +1,7 @@
 import { RedoOutlined } from '@ant-design/icons'
 import { Button, RowFlex, Tooltip } from '@cherrystudio/ui'
+import { Tag as CherryTag } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
-import CustomTag from '@renderer/components/Tags/CustomTag'
 import { useKnowledge } from '@renderer/hooks/useKnowledge'
 import { getProviderName } from '@renderer/services/ProviderService'
 import type { KnowledgeBase } from '@renderer/types'
@@ -127,9 +127,7 @@ const KnowledgeContent: FC<KnowledgeContentProps> = ({ selectedBase }) => {
         <TabLabel>
           {item.icon}
           <span>{item.title}</span>
-          <CustomTag size={10} color={item.items.length > 0 ? '#00b96b' : '#cccccc'}>
-            {item.items.length}
-          </CustomTag>
+          <CherryTag color={item.items.length > 0 ? '#00b96b' : '#cccccc'}>{item.items.length}</CherryTag>
         </TabLabel>
       ),
       children: <TabContent>{item.content}</TabContent>

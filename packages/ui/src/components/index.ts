@@ -2,7 +2,6 @@
 export { Avatar, AvatarBadge, AvatarFallback, AvatarGroup, AvatarGroupCount, AvatarImage } from './primitives/avatar'
 export { default as CircularProgress, type CircularProgressProps } from './primitives/circular-progress'
 export { default as CopyButton } from './primitives/copyButton'
-export { default as CustomTag } from './primitives/customTag'
 export { Divider, type DividerProps } from './primitives/divider'
 export { default as DividerWithText } from './primitives/dividerWithText'
 export { default as EmojiIcon } from './primitives/emojiIcon'
@@ -11,6 +10,7 @@ export { ErrorBoundary } from './primitives/ErrorBoundary'
 export { default as IndicatorLight } from './primitives/indicatorLight'
 export { default as Spinner } from './primitives/spinner'
 export { DescriptionSwitch, Switch } from './primitives/switch'
+export { Tag, type TagProps, tagVariants } from './primitives/tag'
 export { Tooltip, type TooltipProps } from './primitives/tooltip'
 
 // Composite Components

@@ -1,3 +1,4 @@
+import { Tag } from '@cherrystudio/ui'
 import { getProviderLabel } from '@renderer/i18n/label'
 import NavigationService from '@renderer/services/NavigationService'
 import type { Model } from '@renderer/types'
@@ -8,7 +9,6 @@ import styled from 'styled-components'
 
 import IndicatorLight from './IndicatorLight'
 import { SelectModelPopup } from './Popups/SelectModelPopup'
-import CustomTag from './Tags/CustomTag'
 
 interface Props {
   model: Model
@@ -45,14 +45,13 @@ export const FreeTrialModelTag: FC<Props> = ({ model, showLabel = true }) => {
   if (!showLabel) {
     return (
       <Container>
-        <CustomTag
+        <Tag
           color="var(--color-link)"
-          size={11}
           onClick={onNavigateProvider}
           style={{ display: 'flex', alignItems: 'center', gap: 2 }}>
           {getProviderLabel(providerId)}
           <ArrowUpRight size={12} />
-        </CustomTag>
+        </Tag>
       </Container>
     )
   }

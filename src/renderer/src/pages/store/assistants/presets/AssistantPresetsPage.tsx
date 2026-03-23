@@ -1,8 +1,8 @@
 import { Button, ColFlex, Flex, RowFlex } from '@cherrystudio/ui'
+import { Tag } from '@cherrystudio/ui'
 import { Navbar, NavbarCenter } from '@renderer/components/app/Navbar'
 import ListItem from '@renderer/components/ListItem'
 import Scrollbar from '@renderer/components/Scrollbar'
-import CustomTag from '@renderer/components/Tags/CustomTag'
 import { useAssistantPresets } from '@renderer/hooks/useAssistantPresets'
 import { useNavbarPosition } from '@renderer/hooks/useNavbar'
 import { createAssistantFromAgent } from '@renderer/services/AssistantService'
@@ -217,9 +217,7 @@ const AssistantPresetsPage: FC = () => {
                   </Flex>
                   {
                     <RowFlex className="min-w-10 items-center justify-center">
-                      <CustomTag color="#A0A0A0" size={8}>
-                        {agentGroups[group].length}
-                      </CustomTag>
+                      <Tag color="#A0A0A0">{agentGroups[group].length}</Tag>
                     </RowFlex>
                   }
                 </Flex>
@@ -244,11 +242,7 @@ const AssistantPresetsPage: FC = () => {
                 </>
               )}
 
-              {
-                <CustomTag color="#A0A0A0" size={10}>
-                  {filteredPresets.length}
-                </CustomTag>
-              }
+              {<Tag color="#A0A0A0">{filteredPresets.length}</Tag>}
             </AgentsListTitle>
             <Flex className="gap-2">
               {isSearchExpanded ? (

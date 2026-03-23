@@ -1,24 +1,26 @@
+import { Tag, type TagProps, Tooltip } from '@cherrystudio/ui'
 import { useTranslation } from 'react-i18next'
 
-import type { CustomTagProps } from '../CustomTag'
-import CustomTag from '../CustomTag'
-
 type Props = {
-  size?: number
+  size?: TagProps['size']
   showTooltip?: boolean
   showLabel?: boolean
-} & Omit<CustomTagProps, 'size' | 'tooltip' | 'icon' | 'color' | 'children'>
+} & Omit<TagProps, 'size' | 'icon' | 'color' | 'children'>
 
 export const ReasoningTag = ({ size, showTooltip, showLabel, ...restProps }: Props) => {
   const { t } = useTranslation()
-  return (
-    <CustomTag
-      size={size}
-      color="#6372bd"
-      icon={<i className="iconfont icon-thinking" />}
-      tooltip={showTooltip ? t('models.type.reasoning') : undefined}
-      {...restProps}>
+
+  const tag = (
+    <Tag size={size} color="#6372bd" icon={<i className="iconfont icon-thinking" />} {...restProps}>
       {showLabel ? t('models.type.reasoning') : ''}
-    </CustomTag>
+    </Tag>
+  )
+
+  return showTooltip ? (
+    <Tooltip content={t('models.type.reasoning')} delay={300}>
+      {tag}
+    </Tooltip>
+  ) : (
+    tag
   )
 }

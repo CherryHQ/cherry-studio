@@ -1,6 +1,6 @@
 import { FileSearchOutlined } from '@ant-design/icons'
+import { Tag } from '@cherrystudio/ui'
 import HorizontalScrollContainer from '@renderer/components/HorizontalScrollContainer'
-import CustomTag from '@renderer/components/Tags/CustomTag'
 import type { KnowledgeBase } from '@renderer/types'
 import type { FC } from 'react'
 import styled from 'styled-components'
@@ -13,14 +13,14 @@ const KnowledgeBaseInput: FC<{
     <Container>
       <HorizontalScrollContainer dependencies={[selectedKnowledgeBases]} expandable>
         {selectedKnowledgeBases.map((knowledgeBase) => (
-          <CustomTag
+          <Tag
             icon={<FileSearchOutlined />}
             color="#3d9d0f"
             key={knowledgeBase.id}
             closable
             onClose={() => onRemoveKnowledgeBase(knowledgeBase)}>
             {knowledgeBase.name}
-          </CustomTag>
+          </Tag>
         ))}
       </HorizontalScrollContainer>
     </Container>

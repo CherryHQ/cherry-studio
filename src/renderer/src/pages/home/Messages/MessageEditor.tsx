@@ -1,8 +1,8 @@
 import { Tooltip } from '@cherrystudio/ui'
+import { Tag } from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
 import { ActionIconButton } from '@renderer/components/Buttons'
-import CustomTag from '@renderer/components/Tags/CustomTag'
 import TranslateButton from '@renderer/components/TranslateButton'
 import { isGenerateImageModel, isVisionModel } from '@renderer/config/models'
 import { useAssistant } from '@renderer/hooks/useAssistant'
@@ -306,26 +306,26 @@ const MessageBlockEditor: FC<Props> = ({ message, topicId, onSave, onResend, onC
               .map(
                 (block) =>
                   block.file && (
-                    <CustomTag
+                    <Tag
                       key={block.id}
                       icon={getFileIcon(block.file.ext)}
                       color="#37a5aa"
                       closable
                       onClose={() => handleFileRemove(block.id)}>
                       <FileNameRender file={block.file} />
-                    </CustomTag>
+                    </Tag>
                   )
               )}
 
             {files.map((file) => (
-              <CustomTag
+              <Tag
                 key={file.id}
                 icon={getFileIcon(file.ext)}
                 color="#37a5aa"
                 closable
                 onClose={() => setFiles((prevFiles) => prevFiles.filter((f) => f.id !== file.id))}>
                 <FileNameRender file={file} />
-              </CustomTag>
+              </Tag>
             ))}
           </FileBlocksContainer>
         )}
