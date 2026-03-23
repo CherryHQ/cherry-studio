@@ -1,49 +1,25 @@
 import { useLanding } from '@renderer/context/LandingContext'
-import { Button } from 'antd'
 import type { FC } from 'react'
-import { useState } from 'react'
+
+import LoginSuccessPage from './components/LoginSuccessPage'
+import SelectModelPage from './components/SelectModelPage'
+import SkipButton from './components/SkipButton'
+import WelcomePage from './components/WelcomePage'
 
 const LandingPage: FC = () => {
-  const [step, setStep] = useState(1)
-  const { completeLanding } = useLanding()
-
-  const handleNext = () => {
-    setStep(2)
-  }
-
-  const handleComplete = () => {
-    completeLanding()
-  }
+  const { step } = useLanding()
 
   return (
-    <div className="flex h-screen w-screen flex-col bg-(--color-background)">
-      <div className="drag h-10 w-full shrink-0" />
-      <div className="flex flex-1 flex-col items-center justify-center gap-8">
-        <div className="flex gap-2">
-          <div
-            className={`h-2 w-2 rounded-full transition-colors duration-200 ${
-              step === 1 ? 'bg-(--color-primary)' : 'bg-(--color-border)'
-            }`}
-          />
-          <div
-            className={`h-2 w-2 rounded-full transition-colors duration-200 ${
-              step === 2 ? 'bg-(--color-primary)' : 'bg-(--color-border)'
-            }`}
-          />
-        </div>
-
-        <h1 className="m-0 font-semibold text-(--color-text) text-2xl">Step {step}</h1>
-
-        <div className="mt-4">
-          {step === 1 ? (
-            <Button type="primary" size="large" onClick={handleNext}>
-              Next
-            </Button>
-          ) : (
-            <Button type="primary" size="large" onClick={handleComplete}>
-              Get Started
-            </Button>
-          )}
+    <div className="flex h-screen w-screen flex-col">
+      {/* Header 区域 - 可拖动 */}
+      <div className="drag w-full shrink-0" style={{ height: 'var(--navbar-height)' }} />
+      {/* Content 区域 - 带圆角的卡片，左右下有边距 */}
+      <div className="flex flex-1 px-2 pb-2">
+        <div className="relative flex flex-1 overflow-hidden rounded-xl bg-(--color-background)">
+          <SkipButton />
+          {step === 'welcome' && <WelcomePage />}
+          {step === 'login-success' && <LoginSuccessPage />}
+          {step === 'select-model' && <SelectModelPage />}
         </div>
       </div>
     </div>
