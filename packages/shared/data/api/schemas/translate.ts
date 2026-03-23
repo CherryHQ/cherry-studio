@@ -10,7 +10,11 @@ import * as z from 'zod'
 
 import type { OffsetPaginationResponse } from '../apiTypes'
 
-/** Language code pattern: e.g. "en-us", "zh-cn", "ja-jp" */
+/**
+ * Language code pattern.
+ * - 2–3 lowercase letters, optionally followed by `-` and 2–4 lowercase letters
+ * - e.g. "en-us", "zh-cn", "ja", "ja-jp"
+ */
 export const LangCodeSchema = z.string().regex(/^[a-z]{2,3}(-[a-z]{2,4})?$/)
 
 // ============================================================================
@@ -18,40 +22,69 @@ export const LangCodeSchema = z.string().regex(/^[a-z]{2,3}(-[a-z]{2,4})?$/)
 // ============================================================================
 
 export const TranslateHistorySchema = z.object({
-  id: z.uuid(),
+  /** UUIDv7 (time-ordered), auto-generated */
+  id: z.uuidv7(),
+  /** Original text, non-empty */
   sourceText: z.string().min(1),
+  /** Translated text, non-empty */
   targetText: z.string().min(1),
+  /** FK to translate_language.langCode, nullable (SET NULL on language delete) */
   sourceLanguage: LangCodeSchema.nullable(),
+  /** FK to translate_language.langCode, nullable (SET NULL on language delete) */
   targetLanguage: LangCodeSchema.nullable(),
+  /** Whether the record is starred */
   star: z.boolean(),
+  /** ISO 8601 datetime */
   createdAt: z.iso.datetime(),
+  /** ISO 8601 datetime */
   updatedAt: z.iso.datetime()
 })
+/** Translate history entity. */
 export type TranslateHistory = z.infer<typeof TranslateHistorySchema>
 
 export const CreateTranslateHistorySchema = z.object({
+  /** Non-empty string */
   sourceText: z.string().min(1),
+  /** Non-empty string */
   targetText: z.string().min(1),
+  /** Required, must match LangCodeSchema (`/^[a-z]{2,3}(-[a-z]{2,4})?$/`) */
   sourceLanguage: LangCodeSchema,
+  /** Required, must match LangCodeSchema */
   targetLanguage: LangCodeSchema
 })
+/** DTO for creating a translate history record. */
 export type CreateTranslateHistoryDto = z.infer<typeof CreateTranslateHistorySchema>
 
 export const UpdateTranslateHistorySchema = z.object({
+  /** Non-empty string if provided */
   sourceText: z.string().min(1).optional(),
+  /** Non-empty string if provided */
   targetText: z.string().min(1).optional(),
+  /** Must match LangCodeSchema if provided */
   sourceLanguage: LangCodeSchema.optional(),
+  /** Must match LangCodeSchema if provided */
   targetLanguage: LangCodeSchema.optional(),
+  /** Boolean if provided */
   star: z.boolean().optional()
 })
+/** DTO for updating a translate history record. All fields optional. */
 export type UpdateTranslateHistoryDto = z.infer<typeof UpdateTranslateHistorySchema>
 
+export const TRANSLATE_HISTORY_DEFAULT_PAGE = 1
+export const TRANSLATE_HISTORY_DEFAULT_LIMIT = 20
+export const TRANSLATE_HISTORY_MAX_LIMIT = 100
+
 export const TranslateHistoryQuerySchema = z.object({
-  page: z.number().int().positive().optional(),
-  limit: z.number().int().positive().max(100).optional(),
+  /** Positive integer, defaults to {@link TRANSLATE_HISTORY_DEFAULT_PAGE} */
+  page: z.int().positive().default(TRANSLATE_HISTORY_DEFAULT_PAGE),
+  /** Positive integer, max {@link TRANSLATE_HISTORY_MAX_LIMIT}, defaults to {@link TRANSLATE_HISTORY_DEFAULT_LIMIT} */
+  limit: z.int().positive().max(TRANSLATE_HISTORY_MAX_LIMIT).default(TRANSLATE_HISTORY_DEFAULT_LIMIT),
+  /** LIKE search on sourceText and targetText (wildcards are escaped) */
   search: z.string().optional(),
+  /** Filter by starred status */
   star: z.boolean().optional()
 })
+/** Query parameters for listing translate histories. */
 export type TranslateHistoryQuery = z.infer<typeof TranslateHistoryQuerySchema>
 
 // ============================================================================
@@ -59,27 +92,43 @@ export type TranslateHistoryQuery = z.infer<typeof TranslateHistoryQuerySchema>
 // ============================================================================
 
 export const TranslateLanguageSchema = z.object({
+  /** PK, immutable, must match LangCodeSchema (`/^[a-z]{2,3}(-[a-z]{2,4})?$/`) */
   langCode: LangCodeSchema,
+  /** Display name, non-empty (e.g. "English", "Chinese (Simplified)") */
   value: z.string().min(1),
-  emoji: z.string().min(1),
+  /** Flag emoji (e.g. "🇬🇧", "🇨🇳") */
+  emoji: z.emoji(),
+  /** ISO 8601 datetime */
   createdAt: z.iso.datetime(),
+  /** ISO 8601 datetime */
   updatedAt: z.iso.datetime()
 })
+/** Translate language entity. Both builtin and user-created languages share this schema. */
 export type TranslateLanguage = z.infer<typeof TranslateLanguageSchema>
 
 export const CreateTranslateLanguageSchema = z.object({
+  /** Becomes the PK, immutable after creation. Normalized to lowercase before insert. */
   langCode: LangCodeSchema,
+  /** Display name, non-empty */
   value: z.string().min(1),
-  emoji: z.string().min(1)
+  /** Flag emoji */
+  emoji: z.emoji()
 })
+/** DTO for creating a translate language. */
 export type CreateTranslateLanguageDto = z.infer<typeof CreateTranslateLanguageSchema>
 
 export const UpdateTranslateLanguageSchema = z
   .object({
+    /** Display name, non-empty if provided */
     value: z.string().min(1).optional(),
-    emoji: z.string().min(1).optional()
+    /** Flag emoji if provided */
+    emoji: z.emoji().optional()
   })
   .strict()
+/**
+ * DTO for updating a translate language. Uses `.strict()` — unknown fields
+ * (including `langCode`) are rejected, not silently stripped.
+ */
 export type UpdateTranslateLanguageDto = z.infer<typeof UpdateTranslateLanguageSchema>
 
 // ============================================================================

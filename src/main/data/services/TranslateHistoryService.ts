@@ -18,9 +18,6 @@ import { and, desc, eq, or, sql } from 'drizzle-orm'
 
 const logger = loggerService.withContext('DataApi:TranslateHistoryService')
 
-const DEFAULT_PAGE = 1
-const DEFAULT_LIMIT = 20
-
 function rowToTranslateHistory(row: typeof translateHistoryTable.$inferSelect): TranslateHistory {
   return {
     id: row.id,
@@ -46,10 +43,9 @@ export class TranslateHistoryService {
     return TranslateHistoryService.instance
   }
 
-  async list(query?: TranslateHistoryQuery): Promise<OffsetPaginationResponse<TranslateHistory>> {
+  async list(query: TranslateHistoryQuery): Promise<OffsetPaginationResponse<TranslateHistory>> {
     const db = dbService.getDb()
-    const page = query?.page ?? DEFAULT_PAGE
-    const limit = query?.limit ?? DEFAULT_LIMIT
+    const { page, limit } = query
     const offset = (page - 1) * limit
 
     const conditions: SQL[] = []

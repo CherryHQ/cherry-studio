@@ -7,7 +7,7 @@
  */
 
 export const BUILTIN_TRANSLATE_LANGUAGES = [
-  { langCode: 'en-us', value: 'English', emoji: '🇬🇧' },
+  { langCode: 'en-us', value: 'English', emoji: '🇺🇸' },
   { langCode: 'zh-cn', value: 'Chinese (Simplified)', emoji: '🇨🇳' },
   { langCode: 'zh-tw', value: 'Chinese (Traditional)', emoji: '🇭🇰' },
   { langCode: 'ja-jp', value: 'Japanese', emoji: '🇯🇵' },

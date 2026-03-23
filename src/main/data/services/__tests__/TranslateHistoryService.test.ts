@@ -77,7 +77,7 @@ describe('TranslateHistoryService', () => {
       const rows = [createMockRow()]
       setupListMocks(rows, 1)
 
-      const result = await service.list()
+      const result = await service.list({ page: 1, limit: 20 })
       expect(result.items).toHaveLength(1)
       expect(result.total).toBe(1)
       expect(result.page).toBe(1)
@@ -86,7 +86,7 @@ describe('TranslateHistoryService', () => {
     it('should return empty results', async () => {
       setupListMocks([], 0)
 
-      const result = await service.list()
+      const result = await service.list({ page: 1, limit: 20 })
       expect(result.items).toHaveLength(0)
       expect(result.total).toBe(0)
     })
