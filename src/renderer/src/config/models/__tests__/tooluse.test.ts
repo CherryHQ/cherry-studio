@@ -6,6 +6,29 @@ import { isDeepSeekHybridInferenceModel } from '../reasoning'
 import { isFunctionCallingModel } from '../tooluse'
 import { isPureGenerateImageModel, isTextToImageModel } from '../vision'
 
+vi.mock('@renderer/i18n', () => ({
+  __esModule: true,
+  default: {
+    t: vi.fn((key: string) => key)
+  }
+}))
+
+vi.mock('@renderer/services/AssistantService', () => ({
+  getProviderByModel: vi.fn().mockReturnValue({
+    id: 'openai',
+    type: 'openai',
+    name: 'OpenAI',
+    models: []
+  }),
+  getAssistantSettings: vi.fn(),
+  getDefaultAssistant: vi.fn().mockReturnValue({
+    id: 'default',
+    name: 'Default Assistant',
+    prompt: '',
+    settings: {}
+  })
+}))
+
 vi.mock('@renderer/hooks/useStore', () => ({
   getStoreProviders: vi.fn(() => [])
 }))

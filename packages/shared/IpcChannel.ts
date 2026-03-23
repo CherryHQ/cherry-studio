@@ -377,13 +377,20 @@ export enum IpcChannel {
   TRACE_CLEAN_LOCAL_DATA = 'trace:cleanLocalData',
   TRACE_ADD_STREAM_MESSAGE = 'trace:addStreamMessage',
 
-  // API Server
+  // API Gateway
+  ApiGateway_Start = 'api-gateway:start',
+  ApiGateway_Stop = 'api-gateway:stop',
+  ApiGateway_Restart = 'api-gateway:restart',
+  ApiGateway_GetStatus = 'api-gateway:get-status',
+  ApiGateway_Ready = 'api-gateway:ready',
+  // NOTE: This api is not be used.
+  ApiGateway_GetConfig = 'api-gateway:get-config',
+
+  // API Server (legacy IPC channels kept for backward compatibility)
   ApiServer_Start = 'api-server:start',
   ApiServer_Stop = 'api-server:stop',
   ApiServer_Restart = 'api-server:restart',
   ApiServer_GetStatus = 'api-server:get-status',
-  ApiServer_Ready = 'api-server:ready',
-  // NOTE: This api is not be used.
   ApiServer_GetConfig = 'api-server:get-config',
 
   // Anthropic OAuth

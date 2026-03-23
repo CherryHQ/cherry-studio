@@ -1,12 +1,6 @@
 import { preferenceService } from '@data/PreferenceService'
 import { IpcChannel } from '@shared/IpcChannel'
-import type {
-  ApiServerConfig,
-  GetApiServerStatusResult,
-  RestartApiServerStatusResult,
-  StartApiServerStatusResult,
-  StopApiServerStatusResult
-} from '@types'
+import type { ApiGatewayConfig } from '@types'
 import { ipcMain } from 'electron'
 import { v4 as uuidv4 } from 'uuid'
 
@@ -60,13 +54,13 @@ export class ApiServerService {
   /**
    * Get current API server configuration from preference service
    */
-  getCurrentConfig(): ApiServerConfig {
+  getCurrentConfig(): ApiGatewayConfig {
     const config = preferenceService.getMultiple({
       enabled: 'feature.csaas.enabled',
       host: 'feature.csaas.host',
       port: 'feature.csaas.port',
       apiKey: 'feature.csaas.api_key'
-    }) as ApiServerConfig
+    }) as ApiGatewayConfig
 
     return config
   }
@@ -85,8 +79,9 @@ export class ApiServerService {
   }
 
   registerIpcHandlers(): void {
-    // API Server
-    ipcMain.handle(IpcChannel.ApiServer_Start, async (): Promise<StartApiServerStatusResult> => {
+    // Backward compatibility: register ApiServer_* IPC handlers that delegate to ApiGateway
+    // These are deprecated but kept for backward compatibility during migration
+    ipcMain.handle(IpcChannel.ApiServer_Start, async () => {
       try {
         await this.start()
         return { success: true }
@@ -95,7 +90,7 @@ export class ApiServerService {
       }
     })
 
-    ipcMain.handle(IpcChannel.ApiServer_Stop, async (): Promise<StopApiServerStatusResult> => {
+    ipcMain.handle(IpcChannel.ApiServer_Stop, async () => {
       try {
         await this.stop()
         return { success: true }
@@ -104,7 +99,7 @@ export class ApiServerService {
       }
     })
 
-    ipcMain.handle(IpcChannel.ApiServer_Restart, async (): Promise<RestartApiServerStatusResult> => {
+    ipcMain.handle(IpcChannel.ApiServer_Restart, async () => {
       try {
         await this.restart()
         return { success: true }
@@ -113,7 +108,7 @@ export class ApiServerService {
       }
     })
 
-    ipcMain.handle(IpcChannel.ApiServer_GetStatus, (): GetApiServerStatusResult => {
+    ipcMain.handle(IpcChannel.ApiServer_GetStatus, () => {
       try {
         const config = this.getCurrentConfig()
         return {

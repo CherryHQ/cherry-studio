@@ -417,9 +417,11 @@
       "server_not_running_description": "The API server needs to be running for agents to work. You can start it directly or check the settings."
     }
   },
-  "apiServer": {
+  "apiGateway": {
     "actions": {
+      "addGroup": "Add Group",
       "copy": "Copy",
+      "copyEnvVars": "Copy as Environment Variables",
       "regenerate": "Regenerate",
       "restart": {
         "button": "Restart",
@@ -437,12 +439,55 @@
     "documentation": {
       "title": "API Documentation"
     },
+    "endpoints": {
+      "chatCompletions": "OpenAI-compatible chat completions",
+      "messages": "Anthropic-compatible messages API",
+      "responses": "OpenAI Responses API (new format)"
+    },
     "fields": {
       "apiKey": {
         "copyTooltip": "Copy API Key",
         "description": "Secure authentication token for API access",
         "label": "API Key",
         "placeholder": "API key will be auto-generated"
+      },
+      "baseUrl": {
+        "copyTooltip": "Copy Base URL",
+        "description": "Use this URL as your API base URL in external applications",
+        "label": "Base URL"
+      },
+      "copyAsEnv": {
+        "description": "Copy configuration as environment variables for easy integration",
+        "format": "Format",
+        "label": "Environment Variables"
+      },
+      "defaultModel": {
+        "description": "Select the default provider and model for external applications",
+        "label": "Default Model",
+        "modelPlaceholder": "Select model",
+        "providerPlaceholder": "Select provider"
+      },
+      "enabledEndpoints": {
+        "description": "Choose which API endpoints to expose for each model group",
+        "label": "Enabled Endpoints"
+      },
+      "modelGroups": {
+        "description": "Create model groups with unique URLs for different provider/model combinations",
+        "empty": "No model groups configured. Click 'Add Group' to create one.",
+        "label": "Model Groups",
+        "mode": {
+          "assistant": "Assistant Preset",
+          "assistantHint": "Assistant preset overrides request parameters.",
+          "assistantPlaceholder": "Select assistant",
+          "label": "Mode",
+          "model": "Direct Model"
+        },
+        "namePlaceholder": "Group name"
+      },
+      "networkAccess": {
+        "description": "Allow connections from other devices on your network",
+        "label": "Expose to Network",
+        "warning": "Warning: This will make the API accessible from other devices on your network. Only enable if you trust your network."
       },
       "port": {
         "description": "TCP port number for the HTTP server (1000-65535)",
@@ -457,6 +502,11 @@
     "messages": {
       "apiKeyCopied": "API Key copied to clipboard",
       "apiKeyRegenerated": "API Key regenerated",
+      "baseUrlCopied": "Base URL copied to clipboard",
+      "envVarsCopied": "Environment variables copied to clipboard",
+      "nameDuplicate": "A group with the same URL path already exists",
+      "nameRequired": "Group name cannot be empty",
+      "nameUpdated": "Group name updated",
       "notEnabled": "The API Server is not enabled.",
       "operationFailed": "API Server operation failed: ",
       "restartError": "Failed to restart API Server: ",

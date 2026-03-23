@@ -18,6 +18,7 @@ import type { CSSProperties } from 'react'
 export * from './file'
 export * from './note'
 
+import type { MinimalModel } from '@shared/types'
 import * as z from 'zod'
 
 import type { StreamTextParams } from './aiCoreTypes'
@@ -29,8 +30,8 @@ import type { Message } from './newMessage'
 import type { BaseTool, MCPTool } from './tool'
 
 export * from './agent'
+export * from './apiGateway'
 export * from './apiModels'
-export * from './apiServer'
 export * from './knowledge'
 export * from './mcp'
 export * from './notification'
@@ -322,7 +323,7 @@ export type ModelCapability = {
   isUserSelected?: boolean
 }
 
-export type Model = {
+export type Model = MinimalModel & {
   id: string
   provider: string
   name: string

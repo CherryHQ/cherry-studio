@@ -9,12 +9,26 @@
  */
 
 import Anthropic from '@anthropic-ai/sdk'
-import type { TextBlockParam } from '@anthropic-ai/sdk/resources'
+import type { MessageCreateParams, TextBlockParam, Tool as AnthropicTool } from '@anthropic-ai/sdk/resources'
 import { loggerService } from '@logger'
-import type { Provider } from '@types'
+import { type Provider, SystemProviderIds } from '@types'
 import type { ModelMessage } from 'ai'
 
 const logger = loggerService.withContext('anthropic-sdk')
+
+/**
+ * Context for Anthropic SDK client creation.
+ * This allows the shared module to be used in different environments
+ * by providing environment-specific implementations.
+ */
+export interface AnthropicSdkContext {
+  /**
+   * Custom fetch function to use for HTTP requests.
+   * In Electron main process, this should be `net.fetch`.
+   * In other environments, can use the default fetch or a custom implementation.
+   */
+  fetch?: typeof globalThis.fetch
+}
 
 const defaultClaudeCodeSystemPrompt = `You are Claude Code, Anthropic's official CLI for Claude.`
 
@@ -58,8 +72,11 @@ const defaultClaudeCodeSystem: Array<TextBlockParam> = [
 export function getSdkClient(
   provider: Provider,
   oauthToken?: string | null,
-  extraHeaders?: Record<string, string | string[]>
+  extraHeaders?: Record<string, string | string[]>,
+  context?: AnthropicSdkContext
 ): Anthropic {
+  const customFetch = context?.fetch
+
   if (provider.authType === 'oauth') {
     if (!oauthToken) {
       throw new Error('OAuth token is not available')
@@ -85,7 +102,8 @@ export function getSdkClient(
         'x-stainless-runtime': 'node',
         'x-stainless-runtime-version': 'v22.18.0',
         ...extraHeaders
-      }
+      },
+      fetch: customFetch
     })
   }
   const baseURL =
@@ -101,11 +119,12 @@ export function getSdkClient(
       baseURL,
       dangerouslyAllowBrowser: true,
       defaultHeaders: {
-        'anthropic-beta': 'output-128k-2025-02-19',
+        'anthropic-beta': 'interleaved-thinking-2025-05-14',
         'APP-Code': 'MLTG2087',
         ...provider.extra_headers,
         ...extraHeaders
-      }
+      },
+      fetch: customFetch
     })
   }
 
@@ -115,9 +134,11 @@ export function getSdkClient(
     baseURL,
     dangerouslyAllowBrowser: true,
     defaultHeaders: {
-      'anthropic-beta': 'output-128k-2025-02-19',
+      'anthropic-beta': 'interleaved-thinking-2025-05-14',
+      Authorization: provider.id === SystemProviderIds.longcat ? `Bearer ${provider.apiKey}` : undefined,
       ...provider.extra_headers
-    }
+    },
+    fetch: customFetch
   })
 }
 
@@ -167,4 +188,32 @@ export function buildClaudeCodeSystemModelMessage(system?: string | Array<TextBl
     role: 'system',
     content: block.text
   }))
+}
+
+/**
+ * Sanitize tool definitions for Anthropic API.
+ *
+ * Removes non-standard fields like `input_examples` from tool definitions
+ * that Anthropic's API doesn't support. This prevents validation errors when
+ * tools with extended fields are passed to the Anthropic SDK.
+ *
+ * @param tools - Array of tool definitions from MessageCreateParams
+ * @returns Sanitized tools array with non-standard fields removed
+ *
+ * @example
+ * ```typescript
+ * const sanitizedTools = sanitizeToolsForAnthropic(request.tools)
+ * ```
+ */
+export function sanitizeToolsForAnthropic(tools?: MessageCreateParams['tools']): MessageCreateParams['tools'] {
+  if (!tools || tools.length === 0) return tools
+
+  return tools.map((tool) => {
+    if ('type' in tool && tool.type !== 'custom') return tool
+
+    // oxlint-disable-next-line no-unused-vars
+    const { input_examples, ...sanitizedTool } = tool as AnthropicTool & { input_examples?: unknown }
+
+    return sanitizedTool as typeof tool
+  })
 }

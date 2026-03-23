@@ -417,9 +417,11 @@
       "server_not_running_description": "Serverul API trebuie să ruleze pentru ca agenții să funcționeze. Îl puteți porni direct sau puteți verifica setările."
     }
   },
-  "apiServer": {
+  "apiGateway": {
     "actions": {
+      "addGroup": "Adaugă grup",
       "copy": "Copiază",
+      "copyEnvVars": "Copiază ca variabile de mediu",
       "regenerate": "Regenerează",
       "restart": {
         "button": "Repornește",
@@ -429,20 +431,63 @@
       "stop": "Oprește"
     },
     "authHeader": {
-      "title": "Header de autorizare"
+      "title": "Antet de autorizare"
     },
-    "authHeaderText": "Utilizează în header-ul Authorization:",
+    "authHeaderText": "Folosește în antetul Authorization:",
     "configuration": "Configurare",
-    "description": "Expune capacitățile AI ale Cherry Studio prin API-uri HTTP compatibile cu OpenAI",
+    "description": "Expune capabilitățile AI ale Cherry Studio prin API-uri HTTP compatibile cu OpenAI",
     "documentation": {
       "title": "Documentație API"
+    },
+    "endpoints": {
+      "chatCompletions": "Chat completions compatibile cu OpenAI",
+      "messages": "API de mesaje compatibil cu Anthropic",
+      "responses": "OpenAI Responses API (format nou)"
     },
     "fields": {
       "apiKey": {
         "copyTooltip": "Copiază cheia API",
-        "description": "Token de autentificare securizat pentru acces API",
+        "description": "Token sigur de autentificare pentru accesul la API",
         "label": "Cheie API",
         "placeholder": "Cheia API va fi generată automat"
+      },
+      "baseUrl": {
+        "copyTooltip": "Copiază URL-ul de bază",
+        "description": "Folosește acest URL ca URL de bază al API-ului în aplicațiile externe",
+        "label": "URL de bază"
+      },
+      "copyAsEnv": {
+        "description": "Copiază configurația ca variabile de mediu pentru integrare ușoară",
+        "format": "Format",
+        "label": "Variabile de mediu"
+      },
+      "defaultModel": {
+        "description": "Selectează furnizorul și modelul implicit pentru aplicațiile externe",
+        "label": "Model implicit",
+        "modelPlaceholder": "Selectează modelul",
+        "providerPlaceholder": "Selectează furnizorul"
+      },
+      "enabledEndpoints": {
+        "description": "Alege ce endpoint-uri API să fie expuse pentru fiecare grup de modele",
+        "label": "Endpoint-uri activate"
+      },
+      "modelGroups": {
+        "description": "Creează grupuri de modele cu URL-uri unice pentru combinații diferite furnizor/model",
+        "empty": "Nu există grupuri de modele configurate. Apasă pe „Adaugă grup” pentru a crea unul.",
+        "label": "Grupuri de modele",
+        "mode": {
+          "assistant": "Preset de asistent",
+          "assistantHint": "Presetul de asistent suprascrie parametrii cererii.",
+          "assistantPlaceholder": "Selectează asistentul",
+          "label": "Mod",
+          "model": "Model direct"
+        },
+        "namePlaceholder": "Numele grupului"
+      },
+      "networkAccess": {
+        "description": "Permite conexiuni de la alte dispozitive din rețeaua ta",
+        "label": "Expune în rețea",
+        "warning": "Avertisment: acest lucru va face API-ul accesibil de pe alte dispozitive din rețeaua ta. Activează doar dacă ai încredere în rețeaua ta."
       },
       "port": {
         "description": "Numărul portului TCP pentru serverul HTTP (1000-65535)",
@@ -457,19 +502,24 @@
     "messages": {
       "apiKeyCopied": "Cheia API a fost copiată în clipboard",
       "apiKeyRegenerated": "Cheia API a fost regenerată",
+      "baseUrlCopied": "URL-ul de bază a fost copiat în clipboard",
+      "envVarsCopied": "Variabilele de mediu au fost copiate în clipboard",
+      "nameDuplicate": "Există deja un grup cu aceeași cale URL",
+      "nameRequired": "Numele grupului nu poate fi gol",
+      "nameUpdated": "Numele grupului a fost actualizat",
       "notEnabled": "Serverul API nu este activat.",
-      "operationFailed": "Operațiunea serverului API a eșuat: ",
+      "operationFailed": "Operația serverului API a eșuat: ",
       "restartError": "Nu s-a putut reporni serverul API: ",
       "restartFailed": "Repornirea serverului API a eșuat: ",
-      "restartSuccess": "Serverul API a repornit cu succes",
+      "restartSuccess": "Serverul API a fost repornit cu succes",
       "startError": "Nu s-a putut porni serverul API: ",
       "startSuccess": "Serverul API a pornit cu succes",
       "stopError": "Nu s-a putut opri serverul API: ",
-      "stopSuccess": "Serverul API s-a oprit cu succes",
+      "stopSuccess": "Serverul API a fost oprit cu succes",
       "urlCopied": "URL-ul serverului a fost copiat în clipboard"
     },
     "status": {
-      "running": "Rulează",
+      "running": "În execuție",
       "stopped": "Oprit"
     },
     "title": "Server API"
@@ -5449,6 +5499,9 @@
       "reset": "Resetează",
       "title": "Zoom pagină"
     }
+  },
+  "tab": {
+    "new": "[to be translated]:New Tab"
   },
   "title": {
     "apps": "Aplicații",

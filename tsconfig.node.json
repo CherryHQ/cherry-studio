@@ -6,6 +6,10 @@
     "incremental": true,
     "moduleResolution": "bundler",
     "paths": {
+      "@cherrystudio/ai-core": ["./packages/aiCore/src/index.ts"],
+      "@cherrystudio/ai-core/*": ["./packages/aiCore/src/*"],
+      "@cherrystudio/ai-core/provider": ["./packages/aiCore/src/core/providers/index.ts"],
+      "@cherrystudio/ai-sdk-provider": ["./packages/ai-sdk-provider/src/index.ts"],
       "@data/*": ["./src/main/data/*"],
       "@logger": ["./src/main/services/LoggerService"],
       "@main/*": ["./src/main/*"],
@@ -28,8 +32,10 @@
     "src/preload/**/*",
     "src/renderer/src/services/traceApi.ts",
     "src/renderer/src/types/*",
+    "packages/aiCore/src/**/*",
     "packages/mcp-trace/**/*",
     "packages/shared/**/*",
-    "tests/__mocks__/**/*"
+    "tests/__mocks__/**/*",
+    "packages/ai-sdk-provider/**/*"
   ]
 }

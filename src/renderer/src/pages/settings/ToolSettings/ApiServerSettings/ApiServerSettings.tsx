@@ -1,7 +1,7 @@
 import { useTheme } from '@renderer/context/ThemeProvider'
 import { useApiServer } from '@renderer/hooks/useApiServer'
 import { formatErrorMessage } from '@renderer/utils/error'
-import { API_SERVER_DEFAULTS } from '@shared/config/constant'
+import { API_GATEWAY_DEFAULTS } from '@shared/config/constant'
 import { Alert, Button, Input, InputNumber, Tooltip, Typography } from 'antd'
 import { Copy, ExternalLink, Play, RotateCcw, Square } from 'lucide-react'
 import type { FC } from 'react'
@@ -64,7 +64,7 @@ const ApiServerSettings: FC = () => {
   }
 
   const handlePortChange = (value: string) => {
-    const port = parseInt(value) || API_SERVER_DEFAULTS.PORT
+    const port = parseInt(value) || API_GATEWAY_DEFAULTS.PORT
     if (port >= 1000 && port <= 65535) {
       setApiServerConfig({ port })
     }
@@ -72,8 +72,8 @@ const ApiServerSettings: FC = () => {
 
   const openApiDocs = () => {
     if (apiServerRunning) {
-      const host = apiServerConfig.host || API_SERVER_DEFAULTS.HOST
-      const port = apiServerConfig.port || API_SERVER_DEFAULTS.PORT
+      const host = apiServerConfig.host || API_GATEWAY_DEFAULTS.HOST
+      const port = apiServerConfig.port || API_GATEWAY_DEFAULTS.PORT
       window.open(`http://${host}:${port}/api-docs`, '_blank')
     }
   }
@@ -109,7 +109,7 @@ const ApiServerSettings: FC = () => {
             </StatusText>
             <StatusSubtext>
               {apiServerRunning
-                ? `http://${apiServerConfig.host || API_SERVER_DEFAULTS.HOST}:${apiServerConfig.port || API_SERVER_DEFAULTS.PORT}`
+                ? `http://${apiServerConfig.host || API_GATEWAY_DEFAULTS.HOST}:${apiServerConfig.port || API_GATEWAY_DEFAULTS.PORT}`
                 : t('apiServer.fields.port.description')}
             </StatusSubtext>
           </StatusContent>
@@ -131,11 +131,11 @@ const ApiServerSettings: FC = () => {
           {!apiServerRunning && (
             <StyledInputNumber
               value={apiServerConfig.port}
-              onChange={(value) => handlePortChange(String(value || API_SERVER_DEFAULTS.PORT))}
+              onChange={(value) => handlePortChange(String(value || API_GATEWAY_DEFAULTS.PORT))}
               min={1000}
               max={65535}
               disabled={apiServerRunning}
-              placeholder={String(API_SERVER_DEFAULTS.PORT)}
+              placeholder={String(API_GATEWAY_DEFAULTS.PORT)}
               size="middle"
             />
           )}

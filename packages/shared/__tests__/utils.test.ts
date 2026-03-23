@@ -1,13 +1,86 @@
 import { describe, expect, it } from 'vitest'
 
 import {
+  defaultAppHeaders,
   getFunctionalKeys,
+  getTrailingApiVersion,
+  hasAPIVersion,
   isBase64ImageDataUrl,
   isDataUrl,
   parseDataUrl,
   parseJSONC,
-  sanitizeEnvForLogging
+  sanitizeEnvForLogging,
+  withoutTrailingApiVersion,
+  withoutTrailingSlash
 } from '../utils'
+
+describe('defaultAppHeaders', () => {
+  it('returns the default application headers', () => {
+    expect(defaultAppHeaders()).toEqual({
+      'HTTP-Referer': 'https://cherry-ai.com',
+      'X-Title': 'Cherry Studio'
+    })
+  })
+
+  it('returns a fresh object on each call', () => {
+    const first = defaultAppHeaders()
+    const second = defaultAppHeaders()
+
+    expect(first).toEqual(second)
+    expect(first).not.toBe(second)
+  })
+})
+
+describe('withoutTrailingSlash', () => {
+  it('removes a single trailing slash', () => {
+    expect(withoutTrailingSlash('https://example.com/')).toBe('https://example.com')
+  })
+
+  it('keeps strings without a trailing slash unchanged', () => {
+    expect(withoutTrailingSlash('https://example.com/path')).toBe('https://example.com/path')
+  })
+
+  it('only removes the final slash', () => {
+    expect(withoutTrailingSlash('https://example.com/path//')).toBe('https://example.com/path/')
+  })
+})
+
+describe('hasAPIVersion', () => {
+  it('returns true when the pathname contains an API version segment', () => {
+    expect(hasAPIVersion('https://api.example.com/v1')).toBe(true)
+    expect(hasAPIVersion('https://api.example.com/foo/v2beta/bar')).toBe(true)
+    expect(hasAPIVersion('/v3alpha/models')).toBe(true)
+  })
+
+  it('returns false when no API version segment exists', () => {
+    expect(hasAPIVersion('https://api.example.com/openai')).toBe(false)
+    expect(hasAPIVersion('models/vnext')).toBe(false)
+  })
+})
+
+describe('getTrailingApiVersion', () => {
+  it('extracts trailing API versions with and without a slash', () => {
+    expect(getTrailingApiVersion('https://api.example.com/v1')).toBe('v1')
+    expect(getTrailingApiVersion('https://api.example.com/v2beta/')).toBe('v2beta')
+  })
+
+  it('returns undefined when the version is not trailing', () => {
+    expect(getTrailingApiVersion('https://api.example.com/v1/chat')).toBeUndefined()
+    expect(getTrailingApiVersion('https://api.example.com')).toBeUndefined()
+  })
+})
+
+describe('withoutTrailingApiVersion', () => {
+  it('removes trailing API versions', () => {
+    expect(withoutTrailingApiVersion('https://api.example.com/v1')).toBe('https://api.example.com')
+    expect(withoutTrailingApiVersion('https://api.example.com/v2beta/')).toBe('https://api.example.com')
+  })
+
+  it('keeps URLs unchanged when the version is not trailing', () => {
+    expect(withoutTrailingApiVersion('https://api.example.com/v1/chat')).toBe('https://api.example.com/v1/chat')
+    expect(withoutTrailingApiVersion('https://api.example.com')).toBe('https://api.example.com')
+  })
+})
 
 describe('parseDataUrl', () => {
   it('parses a standard base64 image data URL', () => {

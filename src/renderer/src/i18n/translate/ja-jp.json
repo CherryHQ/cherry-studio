@@ -417,9 +417,11 @@
       "server_not_running_description": "エージェントを動作させるには、APIサーバーが稼働している必要があります。直接起動するか、設定を確認してください。"
     }
   },
-  "apiServer": {
+  "apiGateway": {
     "actions": {
+      "addGroup": "グループを追加",
       "copy": "コピー",
+      "copyEnvVars": "環境変数としてコピー",
       "regenerate": "再生成",
       "restart": {
         "button": "再起動",
@@ -429,23 +431,66 @@
       "stop": "停止"
     },
     "authHeader": {
-      "title": "認証ヘッダー"
+      "title": "Authorization ヘッダー"
     },
-    "authHeaderText": "認証ヘッダーで使用：",
+    "authHeaderText": "Authorization ヘッダーで使用:",
     "configuration": "設定",
-    "description": "OpenAI 互換の HTTP API を通じて Cherry Studio の AI 機能を公開します",
+    "description": "Cherry Studio の AI 機能を OpenAI 互換の HTTP API として公開します",
     "documentation": {
       "title": "API ドキュメント"
+    },
+    "endpoints": {
+      "chatCompletions": "OpenAI 互換の chat completions",
+      "messages": "Anthropic 互換の messages API",
+      "responses": "OpenAI Responses API（新形式）"
     },
     "fields": {
       "apiKey": {
         "copyTooltip": "API キーをコピー",
-        "description": "API アクセスのための安全な認証トークン",
+        "description": "API アクセス用の安全な認証トークン",
         "label": "API キー",
         "placeholder": "API キーは自動生成されます"
       },
+      "baseUrl": {
+        "copyTooltip": "ベース URL をコピー",
+        "description": "外部アプリケーションでこの URL を API ベース URL として使用します",
+        "label": "ベース URL"
+      },
+      "copyAsEnv": {
+        "description": "簡単に統合できるよう設定を環境変数としてコピーします",
+        "format": "形式",
+        "label": "環境変数"
+      },
+      "defaultModel": {
+        "description": "外部アプリケーションで使用するデフォルトのプロバイダーとモデルを選択します",
+        "label": "デフォルトモデル",
+        "modelPlaceholder": "モデルを選択",
+        "providerPlaceholder": "プロバイダーを選択"
+      },
+      "enabledEndpoints": {
+        "description": "各モデルグループで公開する API エンドポイントを選択します",
+        "label": "有効なエンドポイント"
+      },
+      "modelGroups": {
+        "description": "異なるプロバイダー／モデルの組み合わせごとに一意の URL を持つモデルグループを作成します",
+        "empty": "モデルグループが設定されていません。「グループを追加」をクリックして作成してください。",
+        "label": "モデルグループ",
+        "mode": {
+          "assistant": "アシスタントプリセット",
+          "assistantHint": "アシスタントプリセットはリクエストパラメーターを上書きします。",
+          "assistantPlaceholder": "アシスタントを選択",
+          "label": "モード",
+          "model": "直接モデル"
+        },
+        "namePlaceholder": "グループ名"
+      },
+      "networkAccess": {
+        "description": "ネットワーク上の他のデバイスからの接続を許可します",
+        "label": "ネットワークに公開",
+        "warning": "警告: これにより API がネットワーク上の他のデバイスからアクセス可能になります。信頼できるネットワークの場合にのみ有効にしてください。"
+      },
       "port": {
-        "description": "HTTP サーバーの TCP ポート番号 (1000-65535)",
+        "description": "HTTP サーバーの TCP ポート番号（1000～65535）",
         "helpText": "ポートを変更するにはサーバーを停止してください",
         "label": "ポート"
       },
@@ -455,18 +500,23 @@
       }
     },
     "messages": {
-      "apiKeyCopied": "API キーがクリップボードにコピーされました",
-      "apiKeyRegenerated": "API キーが再生成されました",
-      "notEnabled": "APIサーバーが有効になっていません。",
-      "operationFailed": "API サーバーの操作に失敗しました：",
-      "restartError": "API サーバーの再起動に失敗しました：",
-      "restartFailed": "API サーバーの再起動に失敗しました：",
-      "restartSuccess": "API サーバーが正常に再起動されました",
-      "startError": "API サーバーの開始に失敗しました：",
-      "startSuccess": "API サーバーが正常に開始されました",
-      "stopError": "API サーバーの停止に失敗しました：",
-      "stopSuccess": "API サーバーが正常に停止されました",
-      "urlCopied": "サーバー URL がクリップボードにコピーされました"
+      "apiKeyCopied": "API キーをクリップボードにコピーしました",
+      "apiKeyRegenerated": "API キーを再生成しました",
+      "baseUrlCopied": "ベース URL をクリップボードにコピーしました",
+      "envVarsCopied": "環境変数をクリップボードにコピーしました",
+      "nameDuplicate": "同じ URL パスを持つグループがすでに存在します",
+      "nameRequired": "グループ名は空にできません",
+      "nameUpdated": "グループ名を更新しました",
+      "notEnabled": "API サーバーは有効になっていません。",
+      "operationFailed": "API サーバー操作に失敗しました: ",
+      "restartError": "API サーバーの再起動に失敗しました: ",
+      "restartFailed": "API サーバーの再起動に失敗しました: ",
+      "restartSuccess": "API サーバーを正常に再起動しました",
+      "startError": "API サーバーの起動に失敗しました: ",
+      "startSuccess": "API サーバーを正常に起動しました",
+      "stopError": "API サーバーの停止に失敗しました: ",
+      "stopSuccess": "API サーバーを正常に停止しました",
+      "urlCopied": "サーバー URL をクリップボードにコピーしました"
     },
     "status": {
       "running": "実行中",

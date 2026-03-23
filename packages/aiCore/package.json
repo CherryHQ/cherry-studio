@@ -2,10 +2,10 @@
   "name": "@cherrystudio/ai-core",
   "version": "1.0.11",
   "description": "Cherry Studio AI Core - Unified AI Provider Interface Based on Vercel AI SDK",
-  "main": "dist/index.js",
+  "main": "dist/index.cjs",
   "module": "dist/index.mjs",
-  "types": "dist/index.d.ts",
-  "react-native": "dist/index.js",
+  "types": "dist/index.d.mts",
+  "react-native": "dist/index.cjs",
   "scripts": {
     "build": "tsdown",
     "dev": "tsc -w",
@@ -53,25 +53,25 @@
   "files": ["dist"],
   "exports": {
     ".": {
-      "types": "./dist/index.d.ts",
-      "react-native": "./dist/index.js",
+      "types": "./dist/index.d.mts",
+      "react-native": "./dist/index.cjs",
       "import": "./dist/index.mjs",
-      "require": "./dist/index.js",
-      "default": "./dist/index.js"
+      "require": "./dist/index.cjs",
+      "default": "./dist/index.cjs"
     },
     "./built-in/plugins": {
-      "types": "./dist/built-in/plugins/index.d.ts",
-      "react-native": "./dist/built-in/plugins/index.js",
+      "types": "./dist/built-in/plugins/index.d.mts",
+      "react-native": "./dist/built-in/plugins/index.cjs",
       "import": "./dist/built-in/plugins/index.mjs",
-      "require": "./dist/built-in/plugins/index.js",
-      "default": "./dist/built-in/plugins/index.js"
+      "require": "./dist/built-in/plugins/index.cjs",
+      "default": "./dist/built-in/plugins/index.cjs"
     },
     "./provider": {
-      "types": "./dist/provider/index.d.ts",
-      "react-native": "./dist/provider/index.js",
+      "types": "./dist/provider/index.d.mts",
+      "react-native": "./dist/provider/index.cjs",
       "import": "./dist/provider/index.mjs",
-      "require": "./dist/provider/index.js",
-      "default": "./dist/provider/index.js"
+      "require": "./dist/provider/index.cjs",
+      "default": "./dist/provider/index.cjs"
     }
   }
 }

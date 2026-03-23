@@ -36,6 +36,7 @@ import { abortCompletion } from '@renderer/utils/abortController'
 import { buildAgentSessionTopicId } from '@renderer/utils/agentSession'
 import { getSendMessageShortcutLabel } from '@renderer/utils/input'
 import { createMainTextBlock, createMessage } from '@renderer/utils/messageUtils/create'
+import { parseModelId } from '@renderer/utils/model'
 import { documentExts, imageExts, textExts } from '@shared/config/constant'
 import type { FC } from 'react'
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
@@ -69,8 +70,9 @@ const AgentSessionInputbar = ({ agentId, sessionId }: Props) => {
     if (!session) return null
 
     // Extract model info
-    const [providerId, actualModelId] = session.model?.split(':') ?? [undefined, undefined]
-    const actualModel = actualModelId ? getModel(actualModelId, providerId) : undefined
+    // Use parseModelId to handle model IDs with colons (e.g., "openrouter:anthropic/claude:free")
+    const parsed = parseModelId(session.model)
+    const actualModel = parsed ? getModel(parsed.modelId, parsed.providerId) : undefined
 
     return {
       id: session.agent_id ?? agentId,
@@ -169,7 +171,7 @@ const AgentSessionInputbarInner: FC<InnerProps> = ({ assistant, agentId, session
     customHeight,
     setCustomHeight
   } = useTextareaResize({ maxHeight: 500, minHeight: 30 })
-  const { sendMessageShortcut, apiServer } = useSettings()
+  const { sendMessageShortcut, apiGateway } = useSettings()
 
   const { t } = useTranslation()
   const quickPanel = useQuickPanel()
@@ -331,7 +333,7 @@ const AgentSessionInputbarInner: FC<InnerProps> = ({ assistant, agentId, session
     }
   }, [config.enableQuickPanel, toolsRegistry])
 
-  const sendDisabled = (inputEmpty && files.length === 0) || !apiServer.enabled
+  const sendDisabled = (inputEmpty && files.length === 0) || !apiGateway.enabled
 
   const streamingAskIds = useMemo(() => {
     if (!topicMessages) {
