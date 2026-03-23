@@ -139,35 +139,45 @@ export class ExaMcpProvider extends BaseWebSearchProvider {
   }
 
   private parseResponse(responseText: string) {
-    const lines = responseText.split('\n')
+    const payloadTexts: string[] = []
 
-    for (const line of lines) {
-      if (!line.startsWith('data: ')) {
-        continue
-      }
-
-      try {
-        const data = McpSearchResponseSchema.parse(JSON.parse(line.substring(6)))
-        const text = data.result?.content?.[0]?.text
-        if (text) {
-          return ExaSearchResultsSchema.parse({ results: this.parseTextChunk(text) })
-        }
-      } catch {
-        continue
-      }
-    }
-
-    try {
-      const data = McpSearchResponseSchema.parse(JSON.parse(responseText))
-      const text = data.result?.content?.[0]?.text
+    for (const match of responseText.matchAll(/^data:\s*(.+)$/gm)) {
+      const text = this.extractContentText(match[1])
       if (text) {
-        return ExaSearchResultsSchema.parse({ results: this.parseTextChunk(text) })
+        payloadTexts.push(text)
       }
-    } catch {
-      return ExaSearchResultsSchema.parse({ results: [] })
     }
 
-    return ExaSearchResultsSchema.parse({ results: [] })
+    if (payloadTexts.length === 0) {
+      const directText = this.extractContentText(responseText)
+      if (directText) {
+        payloadTexts.push(directText)
+      }
+    }
+
+    if (payloadTexts.length === 0 && responseText.includes('Title:')) {
+      payloadTexts.push(responseText)
+    }
+
+    return ExaSearchResultsSchema.parse({
+      results: this.parseTextChunk(payloadTexts.join('\n\n')).filter((item) =>
+        Boolean(item.title || item.url || item.text)
+      )
+    })
+  }
+
+  private extractContentText(payload: string): string | null {
+    const parsedPayload = McpSearchResponseSchema.safeParse(JSON.parse(payload))
+    if (!parsedPayload.success) {
+      return null
+    }
+
+    const text = parsedPayload.data.result.content
+      .map((item) => item.text.trim())
+      .filter(Boolean)
+      .join('\n\n')
+
+    return text || null
   }
 
   private async executeSearch(context: ExaMcpSearchContext): Promise<string> {

@@ -1,5 +1,3 @@
-import { readFileSync } from 'node:fs'
-
 import type { ResolvedWebSearchProvider, WebSearchExecutionConfig } from '@shared/data/types/webSearch'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -29,6 +27,8 @@ import { SearxngProvider } from '../api/SearxngProvider'
 import { TavilyProvider } from '../api/TavilyProvider'
 import { ZhipuProvider } from '../api/ZhipuProvider'
 import { ExaMcpProvider } from '../mcp/ExaMcpProvider'
+
+const { readFileSync } = await vi.importActual<typeof import('node:fs')>('node:fs')
 
 const runtimeConfig: WebSearchExecutionConfig = {
   maxResults: 4,

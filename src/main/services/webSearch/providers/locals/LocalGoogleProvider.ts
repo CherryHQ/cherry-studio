@@ -14,8 +14,12 @@ export class LocalGoogleProvider extends LocalSearchProvider {
 
       $('#search .MjjYud').each((_, element) => {
         const $element = $(element)
-        const $link = $element.find('h3 a').first()
-        const title = $link.text().trim()
+        const $title = $element.find('h3').first()
+        const $parentLink = $title.parents('a').first()
+        const $nestedLink = $title.find('a').first()
+        const $link =
+          $parentLink.length > 0 ? $parentLink : $nestedLink.length > 0 ? $nestedLink : $element.find('a').first()
+        const title = $title.text().trim() || $link.text().trim()
         const href = $link.attr('href')
         if (!title || !href) {
           return
