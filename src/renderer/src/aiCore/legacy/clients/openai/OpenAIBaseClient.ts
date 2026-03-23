@@ -176,6 +176,14 @@ export abstract class OpenAIBaseClient<
         model.id = model.id.trim()
       })
 
+      if (this.provider.id === 'copilot') {
+        return models.filter((model) => {
+          // Filter out models that not enabled for your copilot account
+          // @ts-ignore policy is not typed
+          return model?.policy?.state !== 'disabled' && isSupportedModel(model)
+        })
+      }
+
       return models.filter(isSupportedModel)
     } catch (error) {
       logger.error('Error listing models:', error as Error)

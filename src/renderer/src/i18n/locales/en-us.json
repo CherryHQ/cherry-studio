@@ -2027,6 +2027,10 @@
         "export": "Failed to export Excel"
       },
       "fetchTopicName": "Failed to name the topic",
+      "file": {
+        "process_failed": "File {{name}} could not be processed",
+        "text_extraction_failed": "Failed to extract text from {{name}}"
+      },
       "get_embedding_dimensions": "Failed to get embedding dimensions",
       "invalid": {
         "api": {
@@ -2270,6 +2274,11 @@
       }
     },
     "warning": {
+      "file": {
+        "pdf_exceeds_limit": "PDF file {{name}} exceeds size limit ({{limit}}), falling back to text extraction",
+        "pdf_text_extraction_failed": "Failed to extract text from PDF {{name}}",
+        "pdf_upload_failed": "Failed to upload PDF {{name}}, falling back to text extraction"
+      },
       "rate": {
         "limit": "Too many requests. Please wait {{seconds}} seconds before trying again."
       }
@@ -5632,12 +5641,8 @@
     "show_window": "Show Window"
   },
   "update": {
-    "download": "Download",
     "install": "Install",
     "later": "Later",
-    "manualDownload": "Download",
-    "manualInstallError": "Installation failed, please download manually from the official website.",
-    "manualInstallInfo": "This version does not support automatic updates. Click download to complete the update.",
     "message": "New version {{version}} is ready, do you want to install it now?",
     "noReleaseNotes": "No release notes",
     "saveDataError": "Failed to save data, please try again.",
