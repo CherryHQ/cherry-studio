@@ -3,7 +3,6 @@ import * as z from 'zod'
 
 import { isBuiltinMCPServerName } from '.'
 
-export { type MCPConfigSample, MCPConfigSampleSchema } from '@shared/data/types/mcpServer'
 /**
  * 定义 MCP 服务器的通信类型。
  * stdio: 通过标准输入/输出与子进程通信 (最常见)。
