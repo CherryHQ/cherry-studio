@@ -1,4 +1,5 @@
 import { loggerService } from '@logger'
+import FileManager from '@renderer/services/FileManager'
 import type { ImageMessageBlock } from '@renderer/types/newMessage'
 import { MessageBlockStatus, MessageBlockType } from '@renderer/types/newMessage'
 import { createImageBlock } from '@renderer/utils/messageUtils/create'
@@ -49,6 +50,26 @@ export const createImageCallbacks = (deps: ImageCallbacksDependencies) => {
     },
 
     onImageGenerated: async (imageData: any) => {
+      // For base64 images, persist to disk to avoid sending huge data URIs in future messages
+      const buildImageBlockFields = async (imageData: any): Promise<Partial<ImageMessageBlock>> => {
+        const imageUrl: string = imageData.images?.[0] || 'placeholder_image_url'
+        if (imageData.type === 'base64' && imageUrl.startsWith('data:')) {
+          const savedFile = await window.api.file.saveBase64Image(imageUrl)
+          await FileManager.addFile(savedFile)
+          return {
+            file: savedFile,
+            url: FileManager.getFileUrl(savedFile),
+            metadata: { generateImageResponse: imageData },
+            status: MessageBlockStatus.SUCCESS
+          }
+        }
+        return {
+          url: imageUrl,
+          metadata: { generateImageResponse: imageData },
+          status: MessageBlockStatus.SUCCESS
+        }
+      }
+
       if (imageBlockId) {
         if (!imageData) {
           const changes: Partial<ImageMessageBlock> = {
@@ -56,22 +77,14 @@ export const createImageCallbacks = (deps: ImageCallbacksDependencies) => {
           }
           blockManager.smartBlockUpdate(imageBlockId, changes, MessageBlockType.IMAGE)
         } else {
-          const imageUrl = imageData.images?.[0] || 'placeholder_image_url'
-          const changes: Partial<ImageMessageBlock> = {
-            url: imageUrl,
-            metadata: { generateImageResponse: imageData },
-            status: MessageBlockStatus.SUCCESS
-          }
+          const changes = await buildImageBlockFields(imageData)
           blockManager.smartBlockUpdate(imageBlockId, changes, MessageBlockType.IMAGE, true)
         }
         imageBlockId = null
       } else {
         if (imageData) {
-          const imageBlock = createImageBlock(assistantMsgId, {
-            status: MessageBlockStatus.SUCCESS,
-            url: imageData.images?.[0] || 'placeholder_image_url',
-            metadata: { generateImageResponse: imageData }
-          })
+          const fields = await buildImageBlockFields(imageData)
+          const imageBlock = createImageBlock(assistantMsgId, fields)
           await blockManager.handleBlockTransition(imageBlock, MessageBlockType.IMAGE)
         } else {
           logger.error('[onImageGenerated] Last block was not an Image block or ID is missing.')
