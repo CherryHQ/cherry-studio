@@ -16,6 +16,7 @@
  * import type { TestItem, CreateTestItemDto } from '@shared/data/api/schemas/test'
  * import type { Topic, CreateTopicDto } from '@shared/data/api/schemas/topics'
  * import type { Message, CreateMessageDto } from '@shared/data/api/schemas/messages'
+ * import type { TranslateHistory, CreateTranslateHistoryDto } from '@shared/data/api/schemas/translate'
  * ```
  */
 
@@ -23,6 +24,7 @@ import type { AssertValidSchemas } from '../apiTypes'
 import type { MessageSchemas } from './messages'
 import type { TestSchemas } from './test'
 import type { TopicSchemas } from './topics'
+import type { TranslateSchemas } from './translate'
 
 /**
  * Merged API Schemas - single source of truth for all API endpoints
@@ -36,4 +38,4 @@ import type { TopicSchemas } from './topics'
  * 1. Create the schema file (e.g., topic.ts)
  * 2. Import and add to intersection below
  */
-export type ApiSchemas = AssertValidSchemas<TestSchemas & TopicSchemas & MessageSchemas>
+export type ApiSchemas = AssertValidSchemas<TestSchemas & TopicSchemas & MessageSchemas & TranslateSchemas>
