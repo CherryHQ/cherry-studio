@@ -657,7 +657,7 @@ export class CdpBrowserController {
     }
 
     const currentUrl = webContents.getURL()
-    const title = await webContents.getTitle()
+    const title = webContents.getTitle()
 
     // Update tab info
     tab.url = currentUrl
