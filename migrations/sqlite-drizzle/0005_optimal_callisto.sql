@@ -33,4 +33,5 @@ CREATE TABLE `knowledge_item` (
 	CONSTRAINT "knowledge_item_type_check" CHECK("knowledge_item"."type" IN ('file', 'url', 'note', 'sitemap', 'directory'))
 );
 --> statement-breakpoint
-CREATE INDEX `knowledge_item_base_id_idx` ON `knowledge_item` (`base_id`);
+CREATE INDEX `knowledge_item_base_id_idx` ON `knowledge_item` (`base_id`);--> statement-breakpoint
+CREATE INDEX `knowledge_item_parent_id_idx` ON `knowledge_item` (`parent_id`);

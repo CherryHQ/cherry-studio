@@ -1,6 +1,7 @@
 import { index, integer, sqliteTable, text } from 'drizzle-orm/sqlite-core'
 
 import { createUpdateTimestamps, uuidPrimaryKeyOrdered } from './_columnHelpers'
+import { translateLanguageTable } from './translateLanguage'
 
 /**
  * Translate history table - stores translation records
@@ -11,6 +12,7 @@ import { createUpdateTimestamps, uuidPrimaryKeyOrdered } from './_columnHelpers'
  * - Text search (sourceText/targetText) uses SQL LIKE at DB layer,
  *   not client-side filtering.
  * - Star + createdAt compound index supports "starred only, sorted by time" queries.
+ * - sourceLanguage/targetLanguage are FK to translateLanguage.langCode (SET NULL on delete).
  */
 export const translateHistoryTable = sqliteTable(
   'translate_history',
@@ -18,8 +20,8 @@ export const translateHistoryTable = sqliteTable(
     id: uuidPrimaryKeyOrdered(),
     sourceText: text().notNull(),
     targetText: text().notNull(),
-    sourceLanguage: text().notNull(),
-    targetLanguage: text().notNull(),
+    sourceLanguage: text().references(() => translateLanguageTable.langCode, { onDelete: 'set null' }),
+    targetLanguage: text().references(() => translateLanguageTable.langCode, { onDelete: 'set null' }),
     star: integer({ mode: 'boolean' }).notNull().default(false),
     ...createUpdateTimestamps
   },

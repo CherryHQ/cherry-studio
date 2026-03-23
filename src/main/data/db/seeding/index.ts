@@ -1,7 +1,9 @@
 import PreferenceSeeding from './preferenceSeeding'
+import TranslateLanguageSeeding from './translateLanguageSeeding'
 
 const seedingList = {
-  preference: PreferenceSeeding
+  preference: PreferenceSeeding,
+  translateLanguage: TranslateLanguageSeeding
 }
 
 export default seedingList
