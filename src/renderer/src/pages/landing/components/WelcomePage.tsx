@@ -55,10 +55,10 @@ const WelcomePage: FC = () => {
 
         <div className="flex flex-col items-center gap-2">
           <h1 className="m-0 font-semibold text-(--color-text) text-2xl">欢迎使用 Cherry Studio</h1>
-          <p className="m-0 text-(--color-text-2) text-sm">登入 CherryIN 聚合所有主流 AI 模型的统一 API 网关</p>
+          <p className="m-0 text-(--color-text-2) text-sm">使用 CherryIN 服务商可畅享顶级 AI 服务</p>
         </div>
 
-        <div className="flex w-100 flex-col gap-3">
+        <div className="mt-2 flex w-100 flex-col gap-3">
           <Button
             type="primary"
             size="large"
@@ -78,7 +78,7 @@ const WelcomePage: FC = () => {
           </Button>
         </div>
 
-        <p className="mt-1 text-(--color-text-3) text-xs">请您先配置至少一个模型，以获得最佳使用体验</p>
+        <p className="mt-1 text-(--color-text-3) text-xs">请您先至少配置一个服务商，以获得最佳使用体验</p>
       </div>
     </div>
   )
