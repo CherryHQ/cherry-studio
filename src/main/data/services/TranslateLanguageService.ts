@@ -79,10 +79,7 @@ export class TranslateLanguageService {
       return rowToTranslateLanguage(row)
     } catch (e: unknown) {
       if (e instanceof Error && e.message.includes('UNIQUE constraint failed')) {
-        throw DataApiErrorFactory.invalidOperation(
-          'create translate language',
-          `Language with code '${langCode}' already exists`
-        )
+        throw DataApiErrorFactory.conflict(`Language with code '${langCode}' already exists`, 'TranslateLanguage')
       }
       throw e
     }
