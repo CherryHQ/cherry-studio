@@ -229,12 +229,10 @@ export const DefaultUseCache: UseCacheSchema = {
  * Use shared cache schema for renderer hook
  */
 export type SharedCacheSchema = {
-  'example_scope.example_key': string
   'chat.web_search.active_searches': CacheValueTypes.CacheActiveSearches
 }
 
 export const DefaultSharedCache: SharedCacheSchema = {
-  'example_scope.example_key': 'example default value',
   'chat.web_search.active_searches': {}
 }
 
