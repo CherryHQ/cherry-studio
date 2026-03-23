@@ -31,6 +31,7 @@ const STATIC_PROVIDER_MAPPING: Record<string, ProviderId> = {
   'azure-openai': 'azure', // Azure OpenAI -> azure
   'openai-response': 'openai', // OpenAI Responses -> openai
   grok: 'xai', // Grok -> xai
+  groq: 'groq', // Groq -> dedicated @ai-sdk/groq provider
   copilot: 'github-copilot-openai-compatible',
   tokenflux: 'openrouter' // TokenFlux -> openrouter (fully compatible)
 }
