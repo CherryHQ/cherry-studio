@@ -1,7 +1,7 @@
 import { Button, InfoTooltip } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
 import EmojiPicker from '@renderer/components/EmojiPicker'
-import useTranslate from '@renderer/hooks/useTranslate'
+import { useTranslate } from '@renderer/hooks/translate'
 import { addCustomLanguage, updateCustomLanguage } from '@renderer/services/TranslateService'
 import type { CustomTranslateLanguage } from '@renderer/types'
 import { Form, Input, Modal, Popover, Space } from 'antd'

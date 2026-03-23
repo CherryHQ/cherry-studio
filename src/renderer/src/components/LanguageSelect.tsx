@@ -1,5 +1,5 @@
 import { UNKNOWN } from '@renderer/config/translate'
-import useTranslate from '@renderer/hooks/useTranslate'
+import { useTranslate } from '@renderer/hooks/translate'
 import type { TranslateLanguage, TranslateLanguageCode } from '@renderer/types'
 import type { SelectProps } from 'antd'
 import { Select, Space } from 'antd'

@@ -1,7 +1,7 @@
 import { Button, ColFlex, Flex, HelpTooltip, RowFlex, Switch, Tooltip } from '@cherrystudio/ui'
 import LanguageSelect from '@renderer/components/LanguageSelect'
 import db from '@renderer/databases'
-import useTranslate from '@renderer/hooks/useTranslate'
+import { useTranslate } from '@renderer/hooks/translate'
 import type { AutoDetectionMethod, Model, TranslateLanguage } from '@renderer/types'
 import { Modal, Radio, Space } from 'antd'
 import type { FC } from 'react'

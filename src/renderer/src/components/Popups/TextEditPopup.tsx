@@ -1,7 +1,7 @@
 import { LoadingOutlined } from '@ant-design/icons'
 import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
-import useTranslate from '@renderer/hooks/useTranslate'
+import { useTranslate } from '@renderer/hooks/translate'
 import { translateText } from '@renderer/services/TranslateService'
 import type { ModalProps } from 'antd'
 import { Modal } from 'antd'
