@@ -1,3 +1,5 @@
+import type * as NodeFs from 'node:fs'
+
 import type { ResolvedWebSearchProvider, WebSearchExecutionConfig } from '@shared/data/types/webSearch'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -28,7 +30,7 @@ import { TavilyProvider } from '../api/TavilyProvider'
 import { ZhipuProvider } from '../api/ZhipuProvider'
 import { ExaMcpProvider } from '../mcp/ExaMcpProvider'
 
-const { readFileSync } = await vi.importActual<typeof import('node:fs')>('node:fs')
+const { readFileSync } = await vi.importActual<typeof NodeFs>('node:fs')
 
 const runtimeConfig: WebSearchExecutionConfig = {
   maxResults: 4,
