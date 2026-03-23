@@ -9,10 +9,10 @@ import { DataApiErrorFactory } from '@shared/data/api'
 import type { OffsetPaginationResponse } from '@shared/data/api/apiTypes'
 import type {
   CreateTranslateHistoryDto,
-  TranslateHistory,
   TranslateHistoryQuery,
   UpdateTranslateHistoryDto
 } from '@shared/data/api/schemas/translate'
+import type { TranslateHistory } from '@shared/data/types/translate'
 import type { SQL } from 'drizzle-orm'
 import { and, desc, eq, or, sql } from 'drizzle-orm'
 

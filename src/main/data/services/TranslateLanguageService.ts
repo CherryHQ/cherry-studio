@@ -8,11 +8,8 @@ import { dbService } from '@data/db/DbService'
 import { translateLanguageTable } from '@data/db/schemas/translateLanguage'
 import { loggerService } from '@logger'
 import { DataApiErrorFactory } from '@shared/data/api'
-import type {
-  CreateTranslateLanguageDto,
-  TranslateLanguage,
-  UpdateTranslateLanguageDto
-} from '@shared/data/api/schemas/translate'
+import type { CreateTranslateLanguageDto, UpdateTranslateLanguageDto } from '@shared/data/api/schemas/translate'
+import type { TranslateLanguage } from '@shared/data/types/translate'
 import { asc, eq } from 'drizzle-orm'
 
 const logger = loggerService.withContext('DataApi:TranslateLanguageService')
