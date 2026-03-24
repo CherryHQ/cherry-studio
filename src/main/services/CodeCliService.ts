@@ -24,7 +24,7 @@ import semver from 'semver'
 import { promisify } from 'util'
 
 const execAsync = promisify(require('child_process').exec)
-const logger = loggerService.withContext('CodeToolsService')
+const logger = loggerService.withContext('CodeCliService')
 
 interface VersionInfo {
   installed: string | null
@@ -34,7 +34,7 @@ interface VersionInfo {
 
 @Injectable()
 @ServicePhase(Phase.WhenReady)
-export class CodeToolsService extends BaseService {
+export class CodeCliService extends BaseService {
   // Static properties for cleanup management (avoid listener accumulation)
   private static pendingBatCleanups = new Set<string>()
   private static exitCleanupRegistered = false
@@ -1149,13 +1149,13 @@ export class CodeToolsService extends BaseService {
         }
 
         // Add to cleanup set
-        CodeToolsService.pendingBatCleanups.add(batFilePath)
+        CodeCliService.pendingBatCleanups.add(batFilePath)
 
         // Register exit handler only once (using process.once to avoid accumulation)
-        if (!CodeToolsService.exitCleanupRegistered) {
+        if (!CodeCliService.exitCleanupRegistered) {
           process.once('exit', () => {
             // Clean up all remaining bat files on process exit
-            for (const filePath of CodeToolsService.pendingBatCleanups) {
+            for (const filePath of CodeCliService.pendingBatCleanups) {
               try {
                 if (fs.existsSync(filePath)) {
                   fs.unlinkSync(filePath)
@@ -1165,9 +1165,9 @@ export class CodeToolsService extends BaseService {
                 logger.warn(`Failed to cleanup temp bat file: ${error}`)
               }
             }
-            CodeToolsService.pendingBatCleanups.clear()
+            CodeCliService.pendingBatCleanups.clear()
           })
-          CodeToolsService.exitCleanupRegistered = true
+          CodeCliService.exitCleanupRegistered = true
         }
 
         // Set timeout for cleanup (normal case - file deleted after 60 seconds)
@@ -1178,7 +1178,7 @@ export class CodeToolsService extends BaseService {
               logger.debug(`Cleaned up temp bat file: ${batFilePath}`)
             }
             // Remove from pending set
-            CodeToolsService.pendingBatCleanups.delete(batFilePath)
+            CodeCliService.pendingBatCleanups.delete(batFilePath)
           } catch (error) {
             logger.warn(`Failed to cleanup temp bat file: ${error}`)
           }

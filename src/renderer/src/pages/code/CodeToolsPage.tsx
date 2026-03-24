@@ -153,20 +153,27 @@ const CodeToolsPage: FC = () => {
     return filterFn ? filterFn(providers) : []
   }, [providers, selectedCliTool])
 
+  // Resolve a stored model ID string back to a full Model object
+  // TODO: remove after provider & model Merged
+  const resolveModel = useCallback(
+    (modelIdStr: string): Model | null => {
+      for (const provider of providers || []) {
+        const model = provider.models.find((m) => getModelUniqId(m) === modelIdStr)
+        if (model) return model
+      }
+      return null
+    },
+    [providers]
+  )
+
   const handleModelChange = (value: string) => {
     if (!value) {
       setModel(null)
       return
     }
 
-    // 从所有 providers 中查找选中的模型
-    for (const provider of providers || []) {
-      const model = provider.models.find((m) => getModelUniqId(m) === value)
-      if (model) {
-        setModel(model)
-        break
-      }
-    }
+    // Store the model unique ID string directly (v2: preference stores ID, not full Model)
+    setModel(value)
   }
 
   // 处理删除目录
@@ -250,7 +257,11 @@ const CodeToolsPage: FC = () => {
 
     if (!selectedModel) return null
 
-    const modelProvider = getProviderByModel(selectedModel)
+    // Resolve full Model object from stored ID string
+    const resolvedModel = resolveModel(selectedModel)
+    if (!resolvedModel) return null
+
+    const modelProvider = getProviderByModel(resolvedModel)
     const aiProvider = new AiProvider(modelProvider)
     const baseUrl = aiProvider.getBaseURL()
     const apiKey = aiProvider.getApiKey()
@@ -258,7 +269,7 @@ const CodeToolsPage: FC = () => {
     // 生成工具特定的环境变量
     const { env: toolEnv } = generateToolEnvironment({
       tool: selectedCliTool,
-      model: selectedModel,
+      model: resolvedModel,
       modelProvider,
       apiKey,
       baseUrl,
@@ -273,7 +284,8 @@ const CodeToolsPage: FC = () => {
 
   // 执行启动操作
   const executeLaunch = async (env: Record<string, string>) => {
-    const modelId = selectedCliTool === codeCLI.githubCopilotCli ? '' : selectedModel?.id!
+    const resolvedModel = selectedModel ? resolveModel(selectedModel) : null
+    const modelId = selectedCliTool === codeCLI.githubCopilotCli ? '' : (resolvedModel?.id ?? '')
 
     const runOptions = {
       autoUpdateToLatest,
@@ -404,7 +416,7 @@ const CodeToolsPage: FC = () => {
                   predicate={modelPredicate}
                   style={{ width: '100%' }}
                   placeholder={t('code.model_placeholder')}
-                  value={selectedModel ? getModelUniqId(selectedModel) : undefined}
+                  value={selectedModel || undefined}
                   onChange={handleModelChange}
                   allowClear
                 />

@@ -984,7 +984,7 @@ export async function registerIpc(mainWindow: BrowserWindow, app: Electron.App) 
   ipcMain.handle(IpcChannel.ExternalApps_DetectInstalled, () => externalAppsService.detectInstalledApps())
 
   // CodeTools
-  const codeToolsService = application.get('CodeToolsService')
+  const codeToolsService = application.get('CodeCliService')
   ipcMain.handle(
     IpcChannel.CodeTools_Run,
     (

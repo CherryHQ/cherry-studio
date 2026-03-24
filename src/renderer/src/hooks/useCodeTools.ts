@@ -69,7 +69,7 @@ export const useCodeTools = () => {
         newOverrides[currentId] = { ...newOverrides[currentId], enabled: false }
       }
       const newId = tool as CodeCliId
-      newOverrides[newId] = { ...(newOverrides[newId] ?? {}), enabled: true }
+      newOverrides[newId] = { ...newOverrides[newId], enabled: true }
       await setOverrides(newOverrides)
     },
     [overrides, setOverrides, selectedCliTool]
