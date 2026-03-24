@@ -1195,6 +1195,8 @@
             "content": "Sind Sie sicher, dass Sie {{count}} ausgewähltes Thema bzw. ausgewählte Themen löschen möchten? Diese Aktion kann nicht rückgängig gemacht werden.",
             "title": "Themen löschen"
           },
+          "error": "[to be translated]:Failed to delete. Please try again.",
+          "partial_success": "[to be translated]:Successfully deleted {{successCount}} topics, {{failedCount}} failed",
           "success": "{{count}} Thema/Themen gelöscht"
         },
         "deselect_all": "Alle abwählen",
