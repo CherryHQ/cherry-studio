@@ -1,3 +1,4 @@
+import PoeProviderLogo from '@renderer/assets/images/apps/poe.webp'
 import ZhinaoProviderLogo from '@renderer/assets/images/models/360.png'
 import HunyuanProviderLogo from '@renderer/assets/images/models/hunyuan.png'
 import AzureProviderLogo from '@renderer/assets/images/models/microsoft.png'
@@ -799,7 +800,7 @@ export const PROVIDER_LOGO_MAP: AtLeast<SystemProviderId, string> = {
   vertexai: VertexAIProviderLogo,
   'new-api': NewAPIProviderLogo,
   'aws-bedrock': AwsProviderLogo,
-  poe: 'poe', // use svg icon component
+  poe: PoeProviderLogo,
   aionly: AiOnlyProviderLogo,
   longcat: LongCatProviderLogo,
   huggingface: HuggingfaceProviderLogo,
