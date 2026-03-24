@@ -1,5 +1,5 @@
 import { body, query, validationResult } from 'express-validator'
-import { isArray, isString } from 'lodash'
+import { isString } from 'lodash'
 import type { Request, Response, NextFunction } from 'express'
 
 /**
