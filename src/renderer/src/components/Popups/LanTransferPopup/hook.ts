@@ -241,7 +241,7 @@ export function useLanTransfer(): UseLanTransferReturn {
         // Step 4: Clean up temp file
         if (backupPath) {
           try {
-            await window.api.backup.deleteTempBackup(backupPath)
+            await window.api.backup.deleteLanTransferBackup(backupPath)
             logger.info('Cleaned up temporary backup file')
           } catch (cleanupError) {
             logger.warn('Failed to clean up temp backup', cleanupError as Error)
@@ -279,7 +279,7 @@ export function useLanTransfer(): UseLanTransferReturn {
     // Clean up temp backup if exists (use ref to get current value)
     if (tempBackupPathRef.current) {
       try {
-        await window.api.backup.deleteTempBackup(tempBackupPathRef.current)
+        await window.api.backup.deleteLanTransferBackup(tempBackupPathRef.current)
       } catch (error) {
         logger.warn('Failed to cleanup temp backup on close', error as Error)
       }

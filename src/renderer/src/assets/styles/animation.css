@@ -88,3 +88,41 @@
 .animation-locate-highlight {
   animation: animation-locate-highlight 2.5s ease-in-out;
 }
+
+/* 流光动画 */
+@keyframes animation-shimmer {
+  0% {
+    background-position: 200% 0;
+  }
+  100% {
+    background-position: -200% 0;
+  }
+}
+
+.animation-shimmer {
+  --color-shimmer-mid: var(--color-text-1);
+  --color-shimmer-end: color-mix(in srgb, var(--color-text-1) 25%, transparent);
+  background: linear-gradient(to left, var(--color-shimmer-end), var(--color-shimmer-mid), var(--color-shimmer-end));
+  background-size: 200% 100%;
+  background-clip: text;
+  -webkit-background-clip: text;
+  color: transparent;
+  animation: animation-shimmer 3s linear infinite;
+  will-change: background-position;
+}
+
+/* Reveal 动画 */
+@keyframes animation-reveal {
+  from {
+    clip-path: inset(0 100% 0 0);
+  }
+  to {
+    clip-path: inset(0 0 0 0);
+  }
+}
+
+.animation-reveal {
+  display: block;
+  white-space: nowrap;
+  animation: animation-reveal 0.5s linear both;
+}
