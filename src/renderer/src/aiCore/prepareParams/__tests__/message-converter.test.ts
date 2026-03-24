@@ -692,8 +692,7 @@ describe('messageConverter', () => {
       user.__mockContent = 'Generate two images'
 
       const assistant = createMessage('assistant')
-      assistant.__mockContent =
-        '![first](data:image/png;base64,AAABBB) and ![second](data:image/jpeg;base64,CCCDDD)'
+      assistant.__mockContent = '![first](data:image/png;base64,AAABBB) and ![second](data:image/jpeg;base64,CCCDDD)'
 
       const result = await convertMessageToSdkParam(assistant, false, model)
       const textPart = ((result as any).content as Array<{ type: string; text: string }>).find(
