@@ -199,7 +199,7 @@ const CodeToolsPage: FC = () => {
 
     try {
       setIsLoadingTerminals(true)
-      const terminals = await window.api.codeTools.getAvailableTerminals()
+      const terminals = await window.api.codeCli.getAvailableTerminals()
       setAvailableTerminals(terminals)
       logger.info(
         `Found ${terminals.length} available terminals:`,
@@ -292,7 +292,10 @@ const CodeToolsPage: FC = () => {
       terminal: selectedTerminal
     }
 
-    void window.api.codeTools.run(selectedCliTool, modelId, currentDirectory, env, runOptions)
+
+
+
+    void window.api.codeCli.run(selectedCliTool, modelId, currentDirectory, env, runOptions)
     window.toast.success(t('code.launch.success'))
   }
 
@@ -309,7 +312,7 @@ const CodeToolsPage: FC = () => {
 
       if (result && result.length > 0) {
         const path = result[0].path
-        await window.api.codeTools.setCustomTerminalPath(terminalId, path)
+        await window.api.codeCli.setCustomTerminalPath(terminalId, path)
         setTerminalCustomPaths((prev) => ({ ...prev, [terminalId]: path }))
         window.toast.success(t('code.custom_path_set'))
         // Reload terminals to reflect changes

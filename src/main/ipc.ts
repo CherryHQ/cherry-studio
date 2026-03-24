@@ -986,7 +986,7 @@ export async function registerIpc(mainWindow: BrowserWindow, app: Electron.App) 
   // CodeCli
   const codeCliService = application.get('CodeCliService')
   ipcMain.handle(
-    IpcChannel.CodeTools_Run,
+    IpcChannel.CodeCli_Run,
     (
       event,
       cliTool: string,
@@ -996,14 +996,14 @@ export async function registerIpc(mainWindow: BrowserWindow, app: Electron.App) 
       options?: { autoUpdateToLatest?: boolean; terminal?: string }
     ) => codeCliService.run(event, cliTool, model, directory, env, options)
   )
-  ipcMain.handle(IpcChannel.CodeTools_GetAvailableTerminals, () => codeCliService.getAvailableTerminalsForPlatform())
-  ipcMain.handle(IpcChannel.CodeTools_SetCustomTerminalPath, (_, terminalId: string, path: string) =>
+  ipcMain.handle(IpcChannel.CodeCli_GetAvailableTerminals, () => codeCliService.getAvailableTerminalsForPlatform())
+  ipcMain.handle(IpcChannel.CodeCli_SetCustomTerminalPath, (_, terminalId: string, path: string) =>
     codeCliService.setCustomTerminalPath(terminalId, path)
   )
-  ipcMain.handle(IpcChannel.CodeTools_GetCustomTerminalPath, (_, terminalId: string) =>
+  ipcMain.handle(IpcChannel.CodeCli_GetCustomTerminalPath, (_, terminalId: string) =>
     codeCliService.getCustomTerminalPath(terminalId)
   )
-  ipcMain.handle(IpcChannel.CodeTools_RemoveCustomTerminalPath, (_, terminalId: string) =>
+  ipcMain.handle(IpcChannel.CodeCli_RemoveCustomTerminalPath, (_, terminalId: string) =>
     codeCliService.removeCustomTerminalPath(terminalId)
   )
 

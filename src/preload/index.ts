@@ -571,22 +571,22 @@ const api = {
     hasCredentials: () => ipcRenderer.invoke(IpcChannel.Anthropic_HasCredentials),
     clearCredentials: () => ipcRenderer.invoke(IpcChannel.Anthropic_ClearCredentials)
   },
-  codeTools: {
+  codeCli: {
     run: (
       cliTool: string,
       model: string,
       directory: string,
       env: Record<string, string>,
       options?: { autoUpdateToLatest?: boolean; terminal?: string }
-    ) => ipcRenderer.invoke(IpcChannel.CodeTools_Run, cliTool, model, directory, env, options),
+    ) => ipcRenderer.invoke(IpcChannel.CodeCli_Run, cliTool, model, directory, env, options),
     getAvailableTerminals: (): Promise<TerminalConfig[]> =>
-      ipcRenderer.invoke(IpcChannel.CodeTools_GetAvailableTerminals),
+      ipcRenderer.invoke(IpcChannel.CodeCli_GetAvailableTerminals),
     setCustomTerminalPath: (terminalId: string, path: string): Promise<void> =>
-      ipcRenderer.invoke(IpcChannel.CodeTools_SetCustomTerminalPath, terminalId, path),
+      ipcRenderer.invoke(IpcChannel.CodeCli_SetCustomTerminalPath, terminalId, path),
     getCustomTerminalPath: (terminalId: string): Promise<string | undefined> =>
-      ipcRenderer.invoke(IpcChannel.CodeTools_GetCustomTerminalPath, terminalId),
+      ipcRenderer.invoke(IpcChannel.CodeCli_GetCustomTerminalPath, terminalId),
     removeCustomTerminalPath: (terminalId: string): Promise<void> =>
-      ipcRenderer.invoke(IpcChannel.CodeTools_RemoveCustomTerminalPath, terminalId)
+      ipcRenderer.invoke(IpcChannel.CodeCli_RemoveCustomTerminalPath, terminalId)
   },
   ocr: {
     ocr: (file: SupportedOcrFile, provider: OcrProvider): Promise<OcrResult> =>
