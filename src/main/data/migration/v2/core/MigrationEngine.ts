@@ -22,7 +22,9 @@ import type {
   ValidateResult
 } from '@shared/data/migration/v2/types'
 import { eq, sql } from 'drizzle-orm'
+import { app } from 'electron'
 import Store from 'electron-store'
+import fsSync from 'fs'
 import fs from 'fs/promises'
 import path from 'path'
 
@@ -74,15 +76,37 @@ export class MigrationEngine {
     }
 
     // No migration status record — check if this is a fresh install or an upgrade.
-    // Fresh installs have no legacy electron-store data, so migration is unnecessary.
-    const legacyStore = new Store()
-    if (legacyStore.size === 0) {
-      logger.info('Fresh install detected (empty electron-store), skipping migration')
+    // v1 users always have a Dexie IndexedDB and an electron-store config file.
+    // Fresh installs have neither, so migration is unnecessary.
+    if (!this.hasLegacyData()) {
+      logger.info('Fresh install detected (no legacy data found), skipping migration')
       await this.markCompleted()
       return false
     }
 
     return true
+  }
+
+  /**
+   * Detect whether legacy v1 data exists on disk.
+   * Checks two independent indicators:
+   * 1. Dexie IndexedDB directory (chat/message data)
+   * 2. electron-store config.json (app settings)
+   * Returns true if ANY legacy data source is found.
+   */
+  private hasLegacyData(): boolean {
+    const userData = app.getPath('userData')
+
+    // Dexie IndexedDB: v1 renderer uses file:// protocol → stored under "file__0.indexeddb.leveldb"
+    const dexieDbPath = path.join(userData, 'IndexedDB', 'file__0.indexeddb.leveldb')
+    const hasDexie = fsSync.existsSync(dexieDbPath)
+
+    // electron-store: v1 writes settings to config.json
+    const legacyStore = new Store()
+    const hasElectronStore = legacyStore.size > 0
+
+    logger.info('Legacy data detection', { hasDexie, hasElectronStore, dexieDbPath })
+    return hasDexie || hasElectronStore
   }
 
   /**
