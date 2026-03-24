@@ -266,6 +266,42 @@ describe('WebSearchService', () => {
     expect(clearWebSearchStatusMock).toHaveBeenCalledWith(expect.anything(), 'req-partial-success')
   })
 
+  it('throws AbortError when any query is aborted even if others succeed', async () => {
+    const abortError = new DOMException('The operation was aborted', 'AbortError')
+    const searchMock = vi
+      .fn()
+      .mockResolvedValueOnce({
+        query: 'first-query',
+        results: [
+          {
+            title: 'First',
+            content: 'one',
+            url: 'https://example.com/first'
+          }
+        ]
+      } satisfies WebSearchResponse)
+      .mockRejectedValueOnce(abortError)
+
+    createWebSearchProviderMock.mockReturnValue({
+      search: searchMock
+    })
+
+    const service = new WebSearchService()
+
+    await expect(
+      service.search({
+        providerId: 'tavily',
+        questions: ['first', 'second'],
+        requestId: 'req-partial-abort'
+      })
+    ).rejects.toBe(abortError)
+
+    expect(setWebSearchStatusMock).not.toHaveBeenCalled()
+    expect(loggerWarnMock).not.toHaveBeenCalled()
+    expect(loggerErrorMock).not.toHaveBeenCalled()
+    expect(clearWebSearchStatusMock).toHaveBeenCalledWith(expect.anything(), 'req-partial-abort')
+  })
+
   it('merges multiple successful searches and updates fetch status with narrowed fulfilled results', async () => {
     const searchMock = vi
       .fn()

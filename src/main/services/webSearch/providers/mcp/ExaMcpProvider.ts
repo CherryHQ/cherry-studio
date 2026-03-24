@@ -210,7 +210,8 @@ export class ExaMcpProvider extends BaseWebSearchProvider {
 
   private async executeSearch(context: ExaMcpSearchContext): Promise<string> {
     const timeoutController = new AbortController()
-    const timeoutId = setTimeout(() => timeoutController.abort(), REQUEST_TIMEOUT_MS)
+    const timeoutError = new DOMException(`Exa MCP search timed out after ${REQUEST_TIMEOUT_MS}ms`, 'TimeoutError')
+    const timeoutId = setTimeout(() => timeoutController.abort(timeoutError), REQUEST_TIMEOUT_MS)
 
     const signal = context.upstreamSignal
       ? AbortSignal.any([timeoutController.signal, context.upstreamSignal])
@@ -234,6 +235,13 @@ export class ExaMcpProvider extends BaseWebSearchProvider {
       }
 
       return await response.text()
+    } catch (error) {
+      if (timeoutController.signal.aborted && !context.upstreamSignal?.aborted) {
+        const signalReason = timeoutController.signal.reason
+        throw signalReason instanceof Error ? signalReason : timeoutError
+      }
+
+      throw error
     } finally {
       clearTimeout(timeoutId)
     }

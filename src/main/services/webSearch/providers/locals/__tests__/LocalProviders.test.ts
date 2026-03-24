@@ -94,4 +94,53 @@ describe('local web search SERP parsers', () => {
       }
     ])
   })
+
+  it('deduplicates local search urls before applying maxResults', () => {
+    const provider = new LocalGoogleProvider({
+      ...baseProvider,
+      id: 'local-google',
+      name: 'Google'
+    })
+
+    const response = (provider as any).buildFinalResponse(
+      {
+        query: 'hello',
+        maxResults: 2,
+        searchUrl: 'https://www.google.com/search?q=hello'
+      },
+      [
+        {
+          title: 'First duplicate',
+          url: 'https://example.com/article',
+          content: 'old snippet'
+        },
+        {
+          title: 'Second duplicate',
+          url: 'https://example.com/article',
+          content: 'new snippet'
+        },
+        {
+          title: 'Unique result',
+          url: 'https://example.com/unique',
+          content: 'unique snippet'
+        }
+      ]
+    )
+
+    expect(response).toEqual({
+      query: 'hello',
+      results: [
+        {
+          title: 'Second duplicate',
+          url: 'https://example.com/article',
+          content: 'new snippet'
+        },
+        {
+          title: 'Unique result',
+          url: 'https://example.com/unique',
+          content: 'unique snippet'
+        }
+      ]
+    })
+  })
 })

@@ -84,6 +84,14 @@ export class WebSearchService extends BaseService {
     context: PreparedWebSearchContext,
     searchResults: PromiseSettledResult<WebSearchResponse>[]
   ): Promise<WebSearchResponse> {
+    const abortedSearch = searchResults.find(
+      (item): item is PromiseRejectedResult => item.status === 'rejected' && isAbortError(item.reason)
+    )
+
+    if (abortedSearch) {
+      throw abortedSearch.reason
+    }
+
     searchResults.forEach((item, index) => {
       if (item.status === 'rejected') {
         logger.warn('Partial web search query failed', {

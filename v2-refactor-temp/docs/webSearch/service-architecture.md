@@ -81,6 +81,19 @@
 
 这意味着搜索状态不再只是 Renderer 内部实现细节，而开始成为跨边界共享的数据。
 
+但这里也要明确当前分支的边界：
+
+1. 这次改动的重点是先把搜索状态模型收敛到 shared cache，让 Main-side backend 具备可写入、Renderer 具备可观察的基础。
+2. Renderer 层本身暂时不继续做更深入的改造，仍允许保留当前分支里的旧读写方式。
+3. Renderer 侧后续如何进一步收敛到新的入口和单一写入策略，会在后续切流阶段再统一修改，而不是在这次分支里完成。
+
+审查约束：
+
+1. 当前分支围绕 `chat.web_search.active_searches` 的目标，是先完成 shared cache 形态收敛与 Main-side 可写入基础，而不是在本次分支里完成 Renderer 旧写入链路清理。
+2. 在后续切流完成前，Main 与 Renderer 对 `chat.web_search.active_searches` 的并存写入，属于当前阶段明确接受的过渡态，不应单独作为本次分支的 review blocker。
+3. 针对该 key 的审查，应聚焦于是否违反本文档已经声明的边界，或是否引入了超出该边界的新行为回归；不应把“尚未完成单一写入策略收口”本身视为本次分支缺陷。
+4. 当前分支中，`CitationBlock` 通过 `useSharedCache('chat.web_search.active_searches')` 接入 shared cache 观察能力，也属于过渡实现的一部分；Renderer 侧围绕该观察接入产生的初始化与同步时序问题，留待后续切流阶段统一收敛，不单独作为本次分支的 review blocker。
+
 ### 3.3 Main-side WebSearch Service
 
 新增目录：
@@ -118,6 +131,25 @@
 3. 输出 resolved provider 和 runtime config
 
 这里已经把 Main 执行层需要的配置读取逻辑从 Renderer 里抽出来了。
+
+#### 关于 `searchWithTime`
+
+这里需要特别说明一个容易误判的边界：
+
+1. `searchWithTime` 属于 Renderer 旧 WebSearch 栈里的遗留行为，当前已经不再是后续架构的目标能力。
+2. Main-side runtime config 没有继续把这项字段带进来，这是有意收口，不是这次迁移漏掉了能力。
+3. Renderer 侧目前仍残留“给 query 注入日期”或 provider-specific freshness / timeRange 的旧实现，但这些会在后续切流和旧链路清理时一起收敛。
+4. 因此，当前分支里 Main-side backend 未保留 `searchWithTime`，应视为对废弃行为的提前对齐，而不是功能回归。
+
+#### 关于 local provider 的语言注入
+
+这里还有一个容易和 `searchWithTime` 混在一起误判的点：
+
+1. Renderer 旧链路里的 `local-google` / `local-bing` 曾经会基于 `app.language` 给 query 注入 `lang:<xx>` 之类的语言 bias。
+2. Main-side local provider 没有继续复制这项行为，这是当前分支的有意变化，不是迁移遗漏。
+3. 当前分支的判断是：检索语言与最终回答语言不需要强绑定，Agent 可以对跨语言搜索结果继续用用户语言总结。
+4. 因此 Main-side local provider 当前更偏向“扩大召回范围”，而不是默认按 UI 语言限制搜索语料。
+5. 换句话说，当前分支不再把 `app.language` 作为隐式 query rewrite 策略；如果未来需要恢复语言偏置，也应作为显式检索策略再单独设计，而不是沿用旧 Renderer 的隐式注入。
 
 #### `providers/factory.ts`
 
@@ -176,9 +208,19 @@
 当前已落地的 phase 包括：
 
 1. `fetch_complete`
-2. `cutoff`
+2. `partial_failure`
+3. `cutoff`
 
-`rag` 相关 phase 仍停留在状态模型层，没有完整 Main-side 执行逻辑。
+补充边界：
+
+1. `partial_failure` 已经会由 Main-side service 写入 shared cache，表达“多 query 中部分失败但整体仍可返回结果”。
+2. 当前 Renderer 还没有为 `partial_failure` 单独提供状态文案分支，因此 UI 上暂时会回退到默认 searching 文案。
+3. `rag` 相关 phase 仍停留在状态模型层，没有完整 Main-side 执行逻辑。
+
+审查约束：
+
+1. `partial_failure` 已进入当前分支的 shared status model，但 Renderer 尚未补齐对应的独立 UI 文案，这属于本文档已声明并接受的阶段性差异，不单独作为本次分支的 review blocker。
+2. 只要该行为仍符合这里描述的 fallback 语义，就不应把“状态模型已扩展、UI 文案尚未完全对齐”本身视为本次分支缺陷；后续若要补齐，应在切流与 Renderer 收口阶段统一处理。
 
 #### 请求边界（暂未固化）
 
@@ -279,6 +321,7 @@
 6. Main-side `rag` 压缩落地
 7. 旧 Renderer provider 实现清理
 8. tracing / span 迁移到 Main-side WebSearch 边缘
+9. Renderer 层与 `chat.web_search.active_searches` 相关的进一步收敛和改写策略统一，留待后续切流阶段处理
 
 所以当前分支的定位应当是：
 
@@ -310,9 +353,10 @@ Caller
 补充说明：
 
 1. `fetch_complete` 只会在多 query 且成功结果多于 1 个时写入
-2. `cutoff` 由 `postProcessing.ts` 产出状态
-3. blacklist 发生在结果 merge 之后、post process 之前
-4. `clearWebSearchStatus()` 在 `finally` 中执行，因此无论成功或失败都会清理状态
+2. `partial_failure` 会在多 query 且至少一个成功、至少一个失败时写入
+3. `cutoff` 由 `postProcessing.ts` 产出状态
+4. blacklist 发生在结果 merge 之后、post process 之前
+5. `clearWebSearchStatus()` 在 `finally` 中执行，因此无论成功或失败都会清理状态
 
 ---
 

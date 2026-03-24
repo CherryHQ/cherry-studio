@@ -1,10 +1,21 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { browserWindowConstructedMock, loadURLMock, destroyMock, loggerWarnMock } = vi.hoisted(() => ({
+const {
+  browserWindowConstructedMock,
+  loadURLMock,
+  destroyMock,
+  loggerWarnMock,
+  onceMock,
+  removeListenerMock,
+  executeJavaScriptMock
+} = vi.hoisted(() => ({
   browserWindowConstructedMock: vi.fn(),
   loadURLMock: vi.fn(),
   destroyMock: vi.fn(),
-  loggerWarnMock: vi.fn()
+  loggerWarnMock: vi.fn(),
+  onceMock: vi.fn(),
+  removeListenerMock: vi.fn(),
+  executeJavaScriptMock: vi.fn()
 }))
 
 vi.mock('@logger', () => ({
@@ -23,9 +34,9 @@ vi.mock('electron', () => {
     public webContents = {
       userAgent: '',
       setWindowOpenHandler: vi.fn(),
-      once: vi.fn(),
-      removeListener: vi.fn(),
-      executeJavaScript: vi.fn(async () => '<html></html>')
+      once: onceMock,
+      removeListener: removeListenerMock,
+      executeJavaScript: executeJavaScriptMock
     }
 
     public isDestroyed = vi.fn(() => false)
@@ -47,6 +58,10 @@ import { localBrowser } from '../LocalBrowser'
 describe('LocalBrowser', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    vi.useRealTimers()
+    loadURLMock.mockResolvedValue(undefined)
+    onceMock.mockImplementation(() => undefined)
+    executeJavaScriptMock.mockResolvedValue('<html></html>')
   })
 
   it('rejects non-HTTP URLs before creating a BrowserWindow', async () => {
@@ -102,5 +117,70 @@ describe('LocalBrowser', () => {
 
     secondController.abort()
     await expect(secondFetch).rejects.toThrow('The operation was aborted')
+  })
+
+  it('rejects queued fetches before acquiring a BrowserWindow when aborted', async () => {
+    const firstController = new AbortController()
+    const secondController = new AbortController()
+    const thirdController = new AbortController()
+
+    loadURLMock.mockImplementation(() => new Promise(() => {}))
+
+    const firstFetch = localBrowser.fetchHtml('https://example.com/first', {
+      signal: firstController.signal
+    })
+    const secondFetch = localBrowser.fetchHtml('https://example.com/second', {
+      signal: secondController.signal
+    })
+    const thirdFetch = localBrowser.fetchHtml('https://example.com/third', {
+      signal: thirdController.signal
+    })
+
+    await vi.waitFor(() => {
+      expect(browserWindowConstructedMock).toHaveBeenCalledTimes(2)
+    })
+
+    const thirdAssertion = expect(thirdFetch).rejects.toThrow('The operation was aborted')
+    thirdController.abort()
+    await thirdAssertion
+
+    firstController.abort()
+    secondController.abort()
+    await expect(firstFetch).rejects.toThrow('The operation was aborted')
+    await expect(secondFetch).rejects.toThrow('The operation was aborted')
+
+    await vi.waitFor(() => {
+      expect(browserWindowConstructedMock).toHaveBeenCalledTimes(2)
+    })
+  })
+
+  it('rejects if aborted during the post-load delay before extracting the HTML snapshot', async () => {
+    vi.useFakeTimers()
+
+    const controller = new AbortController()
+    let readyHandler: (() => void) | undefined
+
+    onceMock.mockImplementation((event, callback) => {
+      if (event === 'did-finish-load') {
+        readyHandler = callback as () => void
+      }
+    })
+
+    const fetchPromise = localBrowser.fetchHtml('https://example.com/delay-abort', {
+      signal: controller.signal
+    })
+
+    await Promise.resolve()
+
+    const abortAssertion = expect(fetchPromise).rejects.toThrow('The operation was aborted')
+
+    readyHandler?.()
+    await vi.advanceTimersByTimeAsync(100)
+    controller.abort()
+
+    await abortAssertion
+
+    expect(executeJavaScriptMock).not.toHaveBeenCalled()
+    expect(destroyMock).toHaveBeenCalledTimes(1)
   })
 })

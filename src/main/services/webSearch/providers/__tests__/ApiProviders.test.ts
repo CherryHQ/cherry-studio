@@ -1,7 +1,7 @@
 import type * as NodeFs from 'node:fs'
 
 import type { ResolvedWebSearchProvider, WebSearchExecutionConfig } from '@shared/data/types/webSearch'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const fetchMock = vi.hoisted(() => vi.fn())
 
@@ -117,6 +117,10 @@ function toRequestSnapshot(call: [string, RequestInit | undefined]) {
 }
 
 describe('main web search API providers', () => {
+  afterEach(() => {
+    vi.useRealTimers()
+  })
+
   beforeEach(() => {
     fetchMock.mockReset()
   })
@@ -702,6 +706,41 @@ describe('main web search API providers', () => {
     await expect(provider.search('hello', runtimeConfig)).rejects.toThrow(
       'Exa MCP response parsing failed: no parseable content found'
     )
+  })
+
+  it('surfaces Exa MCP internal timeout as TimeoutError instead of AbortError', async () => {
+    vi.useFakeTimers()
+    fetchMock.mockImplementation((_, init) => {
+      const signal = init?.signal as AbortSignal | undefined
+
+      return new Promise((_, reject) => {
+        signal?.addEventListener(
+          'abort',
+          () => {
+            reject(signal.reason ?? new DOMException('The operation was aborted', 'AbortError'))
+          },
+          { once: true }
+        )
+      })
+    })
+
+    const provider = new ExaMcpProvider(
+      createProvider({
+        id: 'exa-mcp',
+        name: 'Exa MCP',
+        type: 'mcp',
+        apiHost: ''
+      })
+    )
+
+    const searchPromise = provider.search('hello', runtimeConfig)
+    const timeoutAssertion = expect(searchPromise).rejects.toMatchObject({
+      name: 'TimeoutError',
+      message: 'Exa MCP search timed out after 25000ms'
+    })
+
+    await vi.advanceTimersByTimeAsync(25000)
+    await timeoutAssertion
   })
 
   it('normalizes missing provider titles to empty strings', async () => {

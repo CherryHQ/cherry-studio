@@ -86,13 +86,8 @@ export abstract class LocalSearchProvider extends BaseWebSearchProvider {
 
   private buildFinalResponse(context: LocalSearchContext, searchItems: SearchItem[]): WebSearchResponse {
     const validItems = Array.from(
-      new Map(
-        searchItems
-          .filter((item) => isValidUrl(item.url))
-          .slice(0, context.maxResults)
-          .map((item) => [item.url, item])
-      ).values()
-    )
+      new Map(searchItems.filter((item) => isValidUrl(item.url)).map((item) => [item.url, item])).values()
+    ).slice(0, context.maxResults)
 
     return {
       query: context.query,
