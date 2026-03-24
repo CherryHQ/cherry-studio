@@ -37,7 +37,7 @@ export type MatchApiPath<Path extends string> = {
  */
 export type QueryParamsForPath<
   Path extends string,
-  Method extends 'GET' | 'POST' | 'PUT' | 'DELETE' | 'PATCH' = 'GET'
+  Method extends 'GET' | 'POST' | 'PUT' | 'DELETE' | 'PATCH'
 > = MatchApiPath<Path> extends keyof ApiSchemas
   ? ApiSchemas[MatchApiPath<Path>] extends { [M in Method]: { query?: infer Q } }
     ? Q
