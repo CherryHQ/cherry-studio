@@ -99,7 +99,7 @@ export interface UseMutationResult<
 > {
   trigger: (data?: {
     body?: BodyForPath<TPath, TMethod>
-    query?: QueryParamsForPath<TPath>
+    query?: QueryParamsForPath<TPath, TMethod>
   }) => Promise<ResponseForPath<TPath, TMethod>>
   isLoading: boolean
   error: Error | undefined
@@ -294,7 +294,7 @@ export function useMutation<TPath extends ConcreteApiPaths, TMethod extends 'POS
     }: {
       arg?: {
         body?: BodyForPath<TPath, TMethod>
-        query?: QueryParamsForPath<TPath>
+        query?: QueryParamsForPath<TPath, TMethod>
       }
     }
   ): Promise<ResponseForPath<TPath, TMethod>> => {
@@ -322,7 +322,7 @@ export function useMutation<TPath extends ConcreteApiPaths, TMethod extends 'POS
 
   const trigger = async (data?: {
     body?: BodyForPath<TPath, TMethod>
-    query?: QueryParamsForPath<TPath>
+    query?: QueryParamsForPath<TPath, TMethod>
   }): Promise<ResponseForPath<TPath, TMethod>> => {
     const opts = optionsRef.current
     const hasOptimisticData = opts?.optimisticData !== undefined
@@ -675,28 +675,35 @@ function createApiFetcher<TPath extends ConcreteApiPaths, TMethod extends 'GET' 
     path: TPath,
     options?: {
       body?: BodyForPath<TPath, TMethod>
-      query?: QueryParamsForPath<TPath>
+      query?: QueryParamsForPath<TPath, TMethod>
     }
   ): Promise<ResponseForPath<TPath, TMethod>> => {
-    // Internal type assertion for dataApiService boundary (accepts any)
+    // TS can't narrow generic TMethod in switch branches, so per-branch type assertions are needed
     const query = options?.query
     switch (method) {
       case 'GET':
-        return dataApiService.get(path, { query }) as Promise<ResponseForPath<TPath, TMethod>>
+        return dataApiService.get(path, {
+          query: query as QueryParamsForPath<TPath, 'GET'>
+        }) as Promise<ResponseForPath<TPath, TMethod>>
       case 'POST':
-        return dataApiService.post(path, { body: options?.body as BodyForPath<TPath, 'POST'>, query }) as Promise<
-          ResponseForPath<TPath, TMethod>
-        >
+        return dataApiService.post(path, {
+          body: options?.body as BodyForPath<TPath, 'POST'>,
+          query: query as QueryParamsForPath<TPath, 'POST'>
+        }) as Promise<ResponseForPath<TPath, TMethod>>
       case 'PUT':
-        return dataApiService.put(path, { body: (options?.body || {}) as BodyForPath<TPath, 'PUT'>, query }) as Promise<
-          ResponseForPath<TPath, TMethod>
-        >
+        return dataApiService.put(path, {
+          body: (options?.body || {}) as BodyForPath<TPath, 'PUT'>,
+          query: query as QueryParamsForPath<TPath, 'PUT'>
+        }) as Promise<ResponseForPath<TPath, TMethod>>
       case 'DELETE':
-        return dataApiService.delete(path, { query }) as Promise<ResponseForPath<TPath, TMethod>>
+        return dataApiService.delete(path, {
+          query: query as QueryParamsForPath<TPath, 'DELETE'>
+        }) as Promise<ResponseForPath<TPath, TMethod>>
       case 'PATCH':
-        return dataApiService.patch(path, { body: options?.body as BodyForPath<TPath, 'PATCH'>, query }) as Promise<
-          ResponseForPath<TPath, TMethod>
-        >
+        return dataApiService.patch(path, {
+          body: options?.body as BodyForPath<TPath, 'PATCH'>,
+          query: query as QueryParamsForPath<TPath, 'PATCH'>
+        }) as Promise<ResponseForPath<TPath, TMethod>>
       default:
         throw new Error(`Unsupported method: ${method}`)
     }
