@@ -1,3 +1,17 @@
+/**
+ * Main Entry Point
+ *
+ * WARNING: This file currently lacks proper lifecycle management. Event handlers
+ * and initialization timing are fragmented — services are manually imported,
+ * initialized in scattered locations, and cleaned up across multiple exit hooks.
+ *
+ * The v2 refactoring is progressively migrating old services into the lifecycle
+ * system (see src/main/core/lifecycle/). During migration, the old manual pattern
+ * (import singleton → call init()) coexists with the new lifecycle-managed pattern
+ * (application.bootstrap() → application.get()). This file will be thoroughly
+ * refactored once all services have been migrated.
+ */
+
 // don't reorder this file, it's used to initialize the app data dir and
 // other which should be run before the main process is ready
 // eslint-disable-next-line
@@ -367,7 +381,6 @@ if (!app.requestSingleInstanceLock()) {
     }
 
     // v2 Refactoring: Shutdown lifecycle-managed services
-    // Currently no-op as no services are registered yet.
     await application.shutdown()
 
     // finish the logger

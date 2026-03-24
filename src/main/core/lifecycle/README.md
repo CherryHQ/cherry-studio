@@ -40,15 +40,29 @@ await application.bootstrap()
 const dbService = application.get('DbService')
 ```
 
+## What Belongs in Lifecycle?
+
+The lifecycle system manages **infrastructure services** — services that own resources, require startup/shutdown ordering, or hold runtime state (e.g., database connections, caches, IPC adapters).
+
+**Do NOT register** stateless business-logic services (repositories, data-access wrappers) that simply encapsulate queries. These services have no initialization or cleanup needs — a direct-import singleton is simpler and sufficient.
+
+| | Infrastructure Service | Business Service |
+|---|---|---|
+| Examples | `DbService`, `CacheService`, `PreferenceService` | `MessageService`, `TopicService` |
+| Owns resources | Yes (connections, timers, caches) | No |
+| Needs init/cleanup | Yes (`onInit` / `onStop`) | No |
+| Requires startup ordering | Yes (`@DependsOn`) | No — infrastructure is already ready |
+| Recommended pattern | Lifecycle + `application.get()` | Manual singleton + direct import |
+
 ## Bootstrap Phases
 
 Services are initialized in three phases:
 
-| Phase | Description | Timing | Await |
-|-------|-------------|--------|-------|
-| `BeforeReady` | Services not requiring Electron API | Before `app.whenReady()` | Yes |
-| `Background` | Independent services, fire-and-forget | Immediately | No |
-| `WhenReady` | Services requiring Electron API (default) | After `app.whenReady()` | Yes |
+| Phase         | Description                               | Timing                   | Await |
+| ------------- | ----------------------------------------- | ------------------------ | ----- |
+| `BeforeReady` | Services not requiring Electron API       | Before `app.whenReady()` | Yes   |
+| `Background`  | Independent services, fire-and-forget     | Immediately              | No    |
+| `WhenReady`   | Services requiring Electron API (default) | After `app.whenReady()`  | Yes   |
 
 **Bootstrap Timeline:**
 ```
@@ -64,13 +78,80 @@ Services are initialized in three phases:
 
 After all three phases complete (including Background), `LifecycleManager.allReady()` calls `onAllReady()` on every initialized service in parallel, then emits `ALL_SERVICES_READY`.
 
+### Phase Selection Guide
+
+#### How Phases are Bootstrapped
+
+```
+1 Background starts (fire-and-forget) ──────────────────────────────────┐
+2 BeforeReady starts ──────────┐                                        │
+2 app.whenReady() ─────────────┤                                        │
+                               ├─ both complete                         │
+                               ▼                                        │
+3 WhenReady starts ────────────┐                                        │
+                               ├─ complete → isBootstrapped = true      │
+                               ▼                                        │
+4 await Background ◄────────────────────────────────────────────────────┘
+5 onAllReady() called on ALL services
+   → ALL_SERVICES_READY emitted
+```
+
+Key points:
+- **BeforeReady** runs in parallel with Electron's own initialization (`app.whenReady()`), providing "free time" — work here doesn't add to startup latency as long as it finishes before Electron is ready.
+- **WhenReady** runs only after both BeforeReady and Electron are ready — the only phase where Electron APIs are safe to use.
+- **Background** runs completely independently. It does not block any other phase, and no other phase can depend on it.
+
+#### Choosing the Right Phase
+
+```
+                    ┌──────────────────────┐
+                    │ Does it use Electron │
+                    │   APIs directly?     │
+                    └──────┬─────────┬─────┘
+                       yes │         │ no
+                           ▼         ▼
+                    ┌───────────┐  ┌───────────────────────────┐
+                    │ WhenReady │  │ Is it on the critical     │
+                    └───────────┘  │ startup path? (other      │
+                                   │ services depend on it)    │
+                                   └─────┬──────────┬──────────┘
+                                     yes │          │ no
+                                         ▼          ▼
+                                 ┌─────────────┐ ┌────────────┐
+                                 │ BeforeReady │ │ Background │
+                                 └─────────────┘ └────────────┘
+```
+
+**BeforeReady** — Maximize parallelism with Electron init
+
+- Runs in parallel with `app.whenReady()`, so initialization here is essentially "free" if it completes before Electron is ready.
+- Best for: database connections, config loading, data migrations, schema validation — anything that WhenReady services will depend on.
+- Cannot use any Electron API (the app is not ready yet).
+- Can only depend on other BeforeReady services.
+
+**WhenReady** — The safe default
+
+- Runs after both BeforeReady and `app.whenReady()` have completed.
+- Full access to Electron APIs (`BrowserWindow`, `Tray`, `screen`, `nativeTheme`, `dialog`, `globalShortcut`, etc.).
+- Can depend on other WhenReady services. No need to `@DependsOn` BeforeReady services — they are guaranteed to be ready before the WhenReady phase starts.
+- Best for: window management, tray, system shortcuts, theme management, IPC handlers that need Electron APIs.
+- This is the default phase — if you omit `@ServicePhase`, the service is placed here.
+
+**Background** — Fire-and-forget
+
+- Starts immediately but runs completely independently, never blocking other phases.
+- Other phases' services **cannot** depend on Background services (and vice versa).
+- Background errors are caught and logged but never abort bootstrap.
+- Best for: telemetry reporting, analytics init, non-critical data pre-fetching, background cleanup tasks.
+- Use `onAllReady()` if a Background service needs to interact with services from other phases after bootstrap.
+
 ### Dependency Rules
 
-| Phase | Can Depend On | Cannot Depend On |
-|-------|---------------|------------------|
-| BeforeReady | BeforeReady | Background, WhenReady |
-| Background | Background | BeforeReady, WhenReady |
-| WhenReady | BeforeReady, WhenReady | Background |
+| Phase       | Can Depend On          | Cannot Depend On       |
+| ----------- | ---------------------- | ---------------------- |
+| BeforeReady | BeforeReady            | Background, WhenReady  |
+| Background  | Background             | BeforeReady, WhenReady |
+| WhenReady   | BeforeReady, WhenReady | Background             |
 
 **Invalid dependencies are auto-corrected** with a warning log:
 ```
@@ -90,24 +171,24 @@ Layer 3: [WindowService]                   <- sequential (depends on layer 2)
 
 ## Decorators
 
-| Decorator | Description | Default |
-|-----------|-------------|---------|
-| `@Injectable('Name')` | Mark class as injectable singleton service. Name is **required** because bundlers mangle class names. Must match the key in `serviceRegistry.ts`. | Required |
-| `@ServicePhase(Phase.X)` | Set bootstrap phase | `Phase.WhenReady` |
-| `@DependsOn([...])` | Declare dependencies by service name | `[]` |
-| `@Priority(n)` | Initialization priority within layer (lower = earlier) | `100` |
-| `@ErrorHandling(strategy)` | Error handling strategy | `'graceful'` |
-| `@ExcludePlatforms([...])` | Skip service on specified platforms | None excluded |
+| Decorator                  | Description                                                                                                                                       | Default           |
+| -------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------- |
+| `@Injectable('Name')`      | Mark class as injectable singleton service. Name is **required** because bundlers mangle class names. Must match the key in `serviceRegistry.ts`. | Required          |
+| `@ServicePhase(Phase.X)`   | Set bootstrap phase                                                                                                                               | `Phase.WhenReady` |
+| `@DependsOn([...])`        | Declare dependencies by service name                                                                                                              | `[]`              |
+| `@Priority(n)`             | Initialization priority within layer (lower = earlier)                                                                                            | `100`             |
+| `@ErrorHandling(strategy)` | Error handling strategy                                                                                                                           | `'graceful'`      |
+| `@ExcludePlatforms([...])` | Skip service on specified platforms                                                                                                               | None excluded     |
 
 **Note:** All services are singletons. Attempting to instantiate a service class directly (via `new`) after it has been created will throw an error. Use `application.get('ServiceName')` to access service instances (see [Application README](../application/README.md)).
 
 ## Error Handling Strategies
 
-| Strategy | Behavior |
-|----------|----------|
-| `graceful` (default) | Log the error and continue bootstrap. |
-| `fail-fast` | Throw `ServiceInitError`, abort startup. |
-| `custom` | Delegate to `lifecycle:service:error` event listeners. |
+| Strategy             | Behavior                                               |
+| -------------------- | ------------------------------------------------------ |
+| `graceful` (default) | Log the error and continue bootstrap.                  |
+| `fail-fast`          | Throw `ServiceInitError`, abort startup.               |
+| `custom`             | Delegate to `lifecycle:service:error` event listeners. |
 
 ```typescript
 @Injectable('DbService')
@@ -160,15 +241,15 @@ After all phases complete:
 
 ### Hook Descriptions
 
-| Hook | When Called | Can Override |
-|------|------------|--------------|
-| `onInit()` | During initialization (and re-initialization on restart) | Yes |
-| `onReady()` | Immediately after `onInit()` completes | Yes |
-| `onAllReady()` | Once after ALL services across ALL phases are ready | Yes |
-| `onStop()` | When the service is being stopped | Yes |
-| `onDestroy()` | Final cleanup, service cannot be reused | Yes |
-| `onPause()` | When the service is being paused (requires `Pausable`) | Yes |
-| `onResume()` | When the service is being resumed (requires `Pausable`) | Yes |
+| Hook           | When Called                                              | Can Override |
+| -------------- | -------------------------------------------------------- | ------------ |
+| `onInit()`     | During initialization (and re-initialization on restart) | Yes          |
+| `onReady()`    | Immediately after `onInit()` completes                   | Yes          |
+| `onAllReady()` | Once after ALL services across ALL phases are ready      | Yes          |
+| `onStop()`     | When the service is being stopped                        | Yes          |
+| `onDestroy()`  | Final cleanup, service cannot be reused                  | Yes          |
+| `onPause()`    | When the service is being paused (requires `Pausable`)   | Yes          |
+| `onResume()`   | When the service is being resumed (requires `Pausable`)  | Yes          |
 
 ### onAllReady (System-wide Readiness)
 
@@ -267,37 +348,37 @@ manager.on(LifecycleEvents.ALL_SERVICES_READY, () => {
 })
 ```
 
-| Event | Payload | Description |
-|-------|---------|-------------|
-| `SERVICE_INITIALIZING` | `{ name, state }` | Service is starting initialization |
-| `SERVICE_READY` | `{ name, state }` | Service completed initialization |
-| `SERVICE_PAUSING` | `{ name, state }` | Service is being paused |
-| `SERVICE_PAUSED` | `{ name, state }` | Service is paused |
-| `SERVICE_RESUMING` | `{ name, state }` | Service is being resumed |
-| `SERVICE_RESUMED` | `{ name, state }` | Service is resumed |
-| `SERVICE_STOPPING` | `{ name, state }` | Service is being stopped |
-| `SERVICE_STOPPED` | `{ name, state }` | Service is stopped |
-| `SERVICE_DESTROYED` | `{ name, state }` | Service is destroyed |
-| `SERVICE_ERROR` | `{ name, state, error }` | Service encountered an error |
-| `ALL_SERVICES_READY` | (none) | All services completed initialization |
+| Event                  | Payload                  | Description                           |
+| ---------------------- | ------------------------ | ------------------------------------- |
+| `SERVICE_INITIALIZING` | `{ name, state }`        | Service is starting initialization    |
+| `SERVICE_READY`        | `{ name, state }`        | Service completed initialization      |
+| `SERVICE_PAUSING`      | `{ name, state }`        | Service is being paused               |
+| `SERVICE_PAUSED`       | `{ name, state }`        | Service is paused                     |
+| `SERVICE_RESUMING`     | `{ name, state }`        | Service is being resumed              |
+| `SERVICE_RESUMED`      | `{ name, state }`        | Service is resumed                    |
+| `SERVICE_STOPPING`     | `{ name, state }`        | Service is being stopped              |
+| `SERVICE_STOPPED`      | `{ name, state }`        | Service is stopped                    |
+| `SERVICE_DESTROYED`    | `{ name, state }`        | Service is destroyed                  |
+| `SERVICE_ERROR`        | `{ name, state, error }` | Service encountered an error          |
+| `ALL_SERVICES_READY`   | (none)                   | All services completed initialization |
 
 ## Service States
 
-| State | Description |
-|-------|-------------|
-| `Created` | Instance created, not initialized |
-| `Initializing` | Currently running `onInit()` |
-| `Ready` | Fully initialized and operational |
-| `Pausing` | Currently running `onPause()` |
-| `Paused` | Temporarily suspended |
-| `Resuming` | Currently running `onResume()` |
-| `Stopping` | Currently running `onStop()` |
-| `Stopped` | Stopped, can be restarted via `start()` |
-| `Destroyed` | Released, cannot be reused |
+| State          | Description                             |
+| -------------- | --------------------------------------- |
+| `Created`      | Instance created, not initialized       |
+| `Initializing` | Currently running `onInit()`            |
+| `Ready`        | Fully initialized and operational       |
+| `Pausing`      | Currently running `onPause()`           |
+| `Paused`       | Temporarily suspended                   |
+| `Resuming`     | Currently running `onResume()`          |
+| `Stopping`     | Currently running `onStop()`            |
+| `Stopped`      | Stopped, can be restarted via `start()` |
+| `Destroyed`    | Released, cannot be reused              |
 
 ## Migrating from Old Service Patterns
 
-This section guides you through converting existing services to the lifecycle system. Existing services typically use one of these patterns — all should be migrated to lifecycle-managed services.
+This section guides you through converting existing **infrastructure services** to the lifecycle system. Services that manage resources, require ordered initialization, or need cleanup belong here. Stateless business-logic services (repositories, data-access layers) should remain as simple singletons — see [What Belongs in Lifecycle?](#what-belongs-in-lifecycle) above.
 
 ### Old Patterns You'll Encounter
 
@@ -366,20 +447,14 @@ export class WindowService extends BaseService {
 }
 ```
 
-**Choosing the right phase:**
-
-| Phase | When to use |
-|-------|-------------|
-| `BeforeReady` | No Electron API needed (DB, config, parsing) |
-| `WhenReady` | Needs Electron API: `BrowserWindow`, `Tray`, `screen`, `nativeTheme`, etc. (default) |
-| `Background` | Independent, non-blocking work (telemetry, analytics) |
+**Choosing the right phase:** See [Phase Selection Guide](#phase-selection-guide) above.
 
 **Choosing error strategy:**
 
-| Strategy | When to use |
-|----------|-------------|
-| `graceful` | App can function without this service (default) |
-| `fail-fast` | App cannot function (database, core config) |
+| Strategy    | When to use                                     |
+| ----------- | ----------------------------------------------- |
+| `graceful`  | App can function without this service (default) |
+| `fail-fast` | App cannot function (database, core config)     |
 
 #### Step 2: Remove singleton boilerplate
 
@@ -496,15 +571,15 @@ export class ShortcutService extends BaseService {
 
 ### Before/After Summary
 
-| Aspect | Before | After |
-|--------|--------|-------|
-| Singleton | `private static instance` + `getInstance()` | `@Injectable('Name')` — container manages it |
-| Init | Manual `init()` called from `index.ts` | `onInit()` — called automatically |
-| Cleanup | Manual `destroy()` in `will-quit` handler | `onStop()` / `onDestroy()` — automatic |
-| Dependencies | `import { otherService } from '...'` | `@DependsOn([...])` + `application.get()` |
-| Access | `import { myService } from '...'` | `application.get('MyService')` |
-| Ordering | Manual call order in `index.ts` | `@ServicePhase` + `@DependsOn` + `@Priority` |
-| Error handling | try/catch in `index.ts` | `@ErrorHandling('fail-fast' \| 'graceful')` |
+| Aspect         | Before                                      | After                                        |
+| -------------- | ------------------------------------------- | -------------------------------------------- |
+| Singleton      | `private static instance` + `getInstance()` | `@Injectable('Name')` — container manages it |
+| Init           | Manual `init()` called from `index.ts`      | `onInit()` — called automatically            |
+| Cleanup        | Manual `destroy()` in `will-quit` handler   | `onStop()` / `onDestroy()` — automatic       |
+| Dependencies   | `import { otherService } from '...'`        | `@DependsOn([...])` + `application.get()`    |
+| Access         | `import { myService } from '...'`           | `application.get('MyService')`               |
+| Ordering       | Manual call order in `index.ts`             | `@ServicePhase` + `@DependsOn` + `@Priority` |
+| Error handling | try/catch in `index.ts`                     | `@ErrorHandling('fail-fast' \| 'graceful')`  |
 
 ### Common Pitfalls
 

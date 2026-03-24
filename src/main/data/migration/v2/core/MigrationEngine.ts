@@ -22,6 +22,7 @@ import type {
   ValidateResult
 } from '@shared/data/migration/v2/types'
 import { eq, sql } from 'drizzle-orm'
+import Store from 'electron-store'
 import fs from 'fs/promises'
 import path from 'path'
 
@@ -68,11 +69,34 @@ export class MigrationEngine {
     const db = application.get('DbService').getDb()
     const status = await db.select().from(appStateTable).where(eq(appStateTable.key, MIGRATION_V2_STATUS)).get()
 
-    // Migration needed if: no status record, or status is not 'completed'
-    if (!status?.value) return true
+    if (status?.value) {
+      const statusValue = status.value as MigrationStatusValue
+      return statusValue.status !== 'completed'
+    }
 
-    const statusValue = status.value as MigrationStatusValue
-    return statusValue.status !== 'completed'
+    // No migration status record — check if this is a fresh install or an upgrade.
+    if (!this.hasLegacyData()) {
+      logger.info('Fresh install detected (no legacy data found), skipping migration')
+      await this.markCompleted()
+      return false
+    }
+
+    return true
+  }
+
+  /**
+   * FIXME: 当前仅通过 electron-store 判断是否有旧数据，这是临时方案。
+   * electron-store (config.json) 在 v2 中也可能被写入，导致误判。
+   * localStorage 和 IndexedDB 的文件系统路径不可靠（UserData 路径问题待迁移后期统一处理），暂不检测。
+   * 宁可误触发迁移（空数据迁移可安全完成），也不漏掉真正的升级用户。
+   * 后续引入 version history 后可用精确的版本记录替代这些启发式检测。
+   */
+  private hasLegacyData(): boolean {
+    const legacyStore = new Store()
+    const hasData = legacyStore.size > 0
+
+    logger.info('Legacy data detection', { hasElectronStore: hasData })
+    return hasData
   }
 
   /**
