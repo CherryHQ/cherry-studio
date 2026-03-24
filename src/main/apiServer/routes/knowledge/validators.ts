@@ -1,6 +1,6 @@
+import type { NextFunction, Request, Response } from 'express'
 import { body, query, validationResult } from 'express-validator'
 import { isString } from 'lodash'
-import type { Request, Response, NextFunction } from 'express'
 
 /**
  * Handle validation errors middleware

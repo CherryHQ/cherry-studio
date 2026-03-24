@@ -1,8 +1,7 @@
 import express from 'express'
 
-import { handleValidationErrors } from './validators'
-import { validateKnowledgeSearch, validateKnowledgeBaseId, validatePagination } from './validators'
-import { listKnowledgeBases, getKnowledgeBase, searchKnowledge } from './handlers'
+import { getKnowledgeBase, listKnowledgeBases, searchKnowledge } from './handlers'
+import { handleValidationErrors, validateKnowledgeBaseId, validateKnowledgeSearch, validatePagination } from './validators'
 
 // Create main knowledge router
 const knowledgeRouter = express.Router()
