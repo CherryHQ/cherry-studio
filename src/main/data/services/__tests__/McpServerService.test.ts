@@ -72,9 +72,12 @@ function mockChain(resolvedValue: unknown) {
 
 let mockDb: any
 
-vi.mock('@data/db/DbService', () => ({
-  dbService: {
-    getDb: () => mockDb
+vi.mock('@main/core/application', () => ({
+  application: {
+    get: (name: string) => {
+      if (name === 'DbService') return { getDb: () => mockDb }
+      throw new Error(`Unknown service: ${name}`)
+    }
   }
 }))
 
