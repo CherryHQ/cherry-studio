@@ -10,8 +10,6 @@ import { builtinTools } from './tools'
 
 const logger = loggerService.withContext('ClaudeCodeService')
 
-// https://platform.claude.com/docs/en/agent-sdk/user-input#limitations
-const TOOL_APPROVAL_TIMEOUT_MS = 60_000
 const MAX_PREVIEW_LENGTH = 2_000
 const shouldAutoApproveTools = process.env.CHERRY_AUTO_ALLOW_TOOLS === '1'
 
@@ -27,7 +25,6 @@ type ToolPermissionResponsePayload = {
 
 type PendingPermissionRequest = {
   fulfill: (update: PermissionResult) => void
-  timeout: NodeJS.Timeout
   signal?: AbortSignal
   abortListener?: () => void
   originalInput: Record<string, unknown>
@@ -45,7 +42,6 @@ type RendererPermissionRequestPayload = {
   input: Record<string, unknown>
   inputPreview: string
   createdAt: number
-  expiresAt: number
   suggestions: PermissionUpdate[]
   autoApprove?: boolean
 }
@@ -138,7 +134,6 @@ const finalizeRequest = (
   })
 
   pendingRequests.delete(requestId)
-  clearTimeout(pending.timeout)
 
   if (pending.signal && pending.abortListener) {
     pending.signal.removeEventListener('abort', pending.abortListener)
@@ -258,8 +253,6 @@ export async function promptForToolApproval(
 
   const requestId = randomUUID()
   const createdAt = Date.now()
-  const expiresAt = createdAt + TOOL_APPROVAL_TIMEOUT_MS
-
   logger.info('Requesting user approval for tool usage', {
     requestId,
     toolName,
@@ -277,7 +270,6 @@ export async function promptForToolApproval(
     input: sanitizedInput,
     inputPreview,
     createdAt,
-    expiresAt,
     suggestions: sanitizedSuggestions,
     autoApprove: options.autoApprove
   }
@@ -289,23 +281,12 @@ export async function promptForToolApproval(
     toolName,
     toolCallId: options.toolCallId,
     requiresPermissions: requestPayload.requiresPermissions,
-    timeoutMs: TOOL_APPROVAL_TIMEOUT_MS,
     suggestionCount: sanitizedSuggestions.length
   })
 
   return new Promise<PermissionResult>((resolve) => {
-    const timeout = setTimeout(() => {
-      logger.info('User tool permission request timed out', {
-        requestId,
-        toolName,
-        toolCallId: options.toolCallId
-      })
-      finalizeRequest(requestId, { behavior: 'deny', message: 'Timed out waiting for approval' }, 'timeout')
-    }, TOOL_APPROVAL_TIMEOUT_MS)
-
     const pending: PendingPermissionRequest = {
       fulfill: resolve,
-      timeout,
       originalInput: sanitizedInput,
       toolName,
       signal: options?.signal,

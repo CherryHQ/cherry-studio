@@ -18,6 +18,7 @@ import type { CSSProperties } from 'react'
 export * from './file'
 export * from './note'
 
+import type { TranslateLanguageCode } from '@shared/data/preference/preferenceTypes'
 import * as z from 'zod'
 
 import type { StreamTextParams } from './aiCoreTypes'
@@ -114,6 +115,7 @@ const ThinkModelTypes = [
   'gpt5_codex',
   'gpt5_1_codex',
   'gpt5_1_codex_max',
+  'gpt5_2_codex',
   'gpt5_2',
   'gpt5pro',
   'gpt52pro',
@@ -198,6 +200,8 @@ export type AssistantSettings = {
   reasoning_effort_cache?: ReasoningEffortOption
   qwenThinkMode?: boolean
   toolUseMode: 'function' | 'prompt'
+  maxToolCalls?: number
+  enableMaxToolCalls?: boolean
 }
 
 export type AssistantPreset = Omit<Assistant, 'model'> & {
@@ -522,7 +526,7 @@ export type MinAppType = {
   nameKey?: string
   /** Regions where this app is available. If includes 'Global', shown to international users. */
   supportedRegions?: MinAppRegion[]
-  logo?: string
+  logo?: string | object
   url: string
   // FIXME: It should be `bordered`
   bodered?: boolean
@@ -621,9 +625,7 @@ export type GenerateImageResponse = {
   images: string[]
 }
 
-// 为了支持自定义语言，设置为string别名
-/** zh-cn, en-us, etc. */
-export type TranslateLanguageCode = string
+export type { TranslateLanguageCode }
 
 // langCode应当能够唯一确认一种语言
 export type TranslateLanguage = {
@@ -666,6 +668,7 @@ export const isAutoDetectionMethod = (method: string): method is AutoDetectionMe
 // by fullex @ data refactor
 // export type SidebarIcon =
 //   | 'assistants'
+//   | 'agents'
 //   | 'store'
 //   | 'paintings'
 //   | 'translate'
@@ -691,6 +694,7 @@ export const WebSearchProviderIds = {
   exa: 'exa',
   'exa-mcp': 'exa-mcp',
   bocha: 'bocha',
+  querit: 'querit',
   'local-google': 'local-google',
   'local-bing': 'local-bing',
   'local-baidu': 'local-baidu'
@@ -713,6 +717,7 @@ export type WebSearchProvider = {
   basicAuthPassword?: string
   usingBrowser?: boolean
   topicId?: string
+  allowedTools?: string[]
   parentSpanId?: string
   modelName?: string
 }
@@ -1211,6 +1216,7 @@ type BaseParams = {
   requestOptions?: FetchChatCompletionRequestOptions
   onChunkReceived: (chunk: Chunk) => void
   topicId?: string // 添加 topicId 参数
+  allowedTools?: string[]
   uiMessages?: Message[]
 }
 

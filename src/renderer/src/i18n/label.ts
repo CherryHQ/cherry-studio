@@ -89,7 +89,9 @@ const providerKeyMap = {
   sophnet: 'provider.sophnet',
   gateway: 'provider.ai-gateway',
   cerebras: 'provider.cerebras',
-  mimo: 'provider.mimo'
+  mimo: 'provider.mimo',
+  'minimax-global': 'provider.minimax-global',
+  zai: 'provider.zai'
 } as const
 
 /**
@@ -108,9 +110,10 @@ export const getProviderLabel = (id: string): string => {
 const backupProgressKeyMap = {
   completed: 'backup.progress.completed',
   compressing: 'backup.progress.compressing',
+  copying_database: 'backup.progress.copying_database',
   copying_files: 'backup.progress.copying_files',
-  preparing_compression: 'backup.progress.preparing_compression',
   preparing: 'backup.progress.preparing',
+  preparing_compression: 'backup.progress.preparing_compression',
   title: 'backup.progress.title',
   writing_data: 'backup.progress.writing_data'
 } as const
@@ -126,7 +129,10 @@ const restoreProgressKeyMap = {
   extracting: 'restore.progress.extracting',
   preparing: 'restore.progress.preparing',
   reading_data: 'restore.progress.reading_data',
-  title: 'restore.progress.title'
+  restoring_data: 'restore.progress.restoring_data',
+  restoring_database: 'restore.progress.restoring_database',
+  title: 'restore.progress.title',
+  validating: 'restore.progress.validating'
 }
 
 export const getRestoreProgressLabel = (key: string): string => {
@@ -148,7 +154,8 @@ const titleKeyMap = {
   paintings: 'title.paintings',
   settings: 'title.settings',
   translate: 'title.translate',
-  openclaw: 'openclaw.title'
+  openclaw: 'openclaw.title',
+  agents: 'agent.sidebar_title'
 } as const
 
 export const getTitleLabel = (key: string): string => {
@@ -179,6 +186,7 @@ export const getThemeModeLabel = (key: string): string => {
 
 const sidebarIconKeyMap = {
   assistants: 'assistants.title',
+  agents: 'agent.sidebar_title',
   store: 'assistants.presets.title',
   paintings: 'paintings.title',
   translate: 'translate.title',

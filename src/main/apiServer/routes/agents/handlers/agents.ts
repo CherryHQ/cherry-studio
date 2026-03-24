@@ -136,8 +136,8 @@ export const createAgent = async (req: Request, res: Response): Promise<Response
  *         name: sortBy
  *         schema:
  *           type: string
- *           enum: [created_at, updated_at, name]
- *           default: created_at
+ *           enum: [created_at, updated_at, name, sort_order]
+ *           default: sort_order
  *         description: Field to sort by
  *       - in: query
  *         name: orderBy
@@ -145,7 +145,7 @@ export const createAgent = async (req: Request, res: Response): Promise<Response
  *           type: string
  *           enum: [asc, desc]
  *           default: desc
- *         description: Sort order (asc = ascending, desc = descending)
+ *         description: Sort order (asc = ascending, desc = descending). Defaults to asc when sortBy is sort_order.
  *     responses:
  *       200:
  *         description: List of agents
@@ -184,8 +184,8 @@ export const listAgents = async (req: Request, res: Response): Promise<Response>
   try {
     const limit = req.query.limit ? parseInt(req.query.limit as string) : 20
     const offset = req.query.offset ? parseInt(req.query.offset as string) : 0
-    const sortBy = (req.query.sortBy as 'created_at' | 'updated_at' | 'name') || 'created_at'
-    const orderBy = (req.query.orderBy as 'asc' | 'desc') || 'desc'
+    const sortBy = (req.query.sortBy as 'created_at' | 'updated_at' | 'name' | 'sort_order') || 'sort_order'
+    const orderBy = (req.query.orderBy as 'asc' | 'desc') || (sortBy === 'sort_order' ? 'asc' : 'desc')
 
     logger.debug('Listing agents', { limit, offset, sortBy, orderBy })
 
@@ -577,6 +577,78 @@ export const deleteAgent = async (req: Request, res: Response): Promise<Response
         message: 'Failed to delete agent',
         type: 'internal_error',
         code: 'agent_delete_failed'
+      }
+    })
+  }
+}
+
+/**
+ * @swagger
+ * /v1/agents/reorder:
+ *   put:
+ *     summary: Reorder agents
+ *     description: Sets the display order of agents based on the provided array of agent IDs
+ *     tags: [Agents]
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               ordered_ids:
+ *                 type: array
+ *                 items:
+ *                   type: string
+ *                 description: Array of agent IDs in the desired display order
+ *             required:
+ *               - ordered_ids
+ *     responses:
+ *       200:
+ *         description: Agents reordered successfully
+ *       400:
+ *         description: Validation error
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Error'
+ *       500:
+ *         description: Internal server error
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Error'
+ */
+export const reorderAgents = async (req: Request, res: Response): Promise<Response> => {
+  try {
+    const { ordered_ids } = req.body
+
+    if (
+      !Array.isArray(ordered_ids) ||
+      ordered_ids.length === 0 ||
+      !ordered_ids.every((id: unknown) => typeof id === 'string' && id.length > 0)
+    ) {
+      return res.status(400).json({
+        error: {
+          message: 'ordered_ids must be a non-empty array of agent IDs',
+          type: 'invalid_request_error',
+          code: 'invalid_ordered_ids'
+        }
+      })
+    }
+
+    logger.debug('Reordering agents', { count: ordered_ids.length })
+    await agentService.reorderAgents(ordered_ids)
+
+    logger.info('Agents reordered', { count: ordered_ids.length })
+    return res.json({ success: true })
+  } catch (error: any) {
+    logger.error('Error reordering agents', { error })
+    return res.status(500).json({
+      error: {
+        message: 'Failed to reorder agents',
+        type: 'internal_error',
+        code: 'agent_reorder_failed'
       }
     })
   }

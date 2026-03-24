@@ -701,7 +701,7 @@ export class MemoryService {
    */
   public async close(): Promise<void> {
     if (this.db) {
-      await this.db.close()
+      this.db.close()
       this.db = null
       this.isInitialized = false
     }

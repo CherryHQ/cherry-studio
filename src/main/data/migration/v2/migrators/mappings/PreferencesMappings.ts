@@ -1,6 +1,6 @@
 /**
  * Auto-generated preference mappings from classification.json
- * Generated at: 2026-01-23T10:31:39.499Z
+ * Generated at: 2026-03-23T09:47:43.829Z
  *
  * This file contains pure mapping relationships without default values.
  * Default values are managed in packages/shared/data/preferences.ts
@@ -100,7 +100,7 @@ export const REDUX_STORE_MAPPINGS = {
     },
     {
       originalKey: 'targetLanguage',
-      targetKey: 'feature.translate.target_language'
+      targetKey: 'feature.translate.chat.target_language'
     },
     {
       originalKey: 'proxyMode',
@@ -745,6 +745,12 @@ export const REDUX_STORE_MAPPINGS = {
       targetKey: 'data.backup.nutstore.max_backups'
     }
   ],
+  preprocess: [
+    {
+      originalKey: 'defaultProvider',
+      targetKey: 'feature.file_processing.default_markdown_conversion'
+    }
+  ],
   shortcuts: [
     {
       originalKey: 'shortcuts.zoom_in',
@@ -811,6 +817,28 @@ export const REDUX_STORE_MAPPINGS = {
       targetKey: 'shortcut.app.exit_fullscreen'
     }
   ],
+  translate: [
+    {
+      originalKey: 'settings.autoCopy',
+      targetKey: 'feature.translate.page.auto_copy'
+    }
+  ],
+  websearch: [
+    {
+      originalKey: 'maxResults',
+      targetKey: 'chat.web_search.max_results'
+    },
+    {
+      originalKey: 'excludeDomains',
+      targetKey: 'chat.web_search.exclude_domains'
+    }
+  ],
+  ocr: [
+    {
+      originalKey: 'imageProviderId',
+      targetKey: 'feature.file_processing.default_text_extraction'
+    }
+  ],
   note: [
     {
       originalKey: 'settings.isFullWidth',
@@ -852,20 +880,77 @@ export const REDUX_STORE_MAPPINGS = {
       originalKey: 'sortType',
       targetKey: 'feature.notes.sort_type'
     }
-  ]
+  ],
+  codeTools: []
 } as const
+
+/**
+ * Dexie Settings映射关系 - 简单KV结构
+ *
+ * Maps Dexie IndexedDB `settings` table keys (id field) to new preference target keys.
+ * The settings table uses a simple KV structure: { id: string, value: any }.
+ *
+ * These are simple 1:1 mappings where the value can be used as-is.
+ * For complex transformations (value conversion, multi-key merging, etc.),
+ * use ComplexPreferenceMappings with source: 'dexie-settings' instead.
+ */
+export const DEXIE_SETTINGS_MAPPINGS: ReadonlyArray<{ originalKey: string; targetKey: string }> = [
+  {
+    originalKey: 'translate:detect:method',
+    targetKey: 'feature.translate.auto_detection_method'
+  },
+  {
+    originalKey: 'translate:markdown:enabled',
+    targetKey: 'feature.translate.page.enable_markdown'
+  },
+  {
+    originalKey: 'translate:scroll:sync',
+    targetKey: 'feature.translate.page.scroll_sync'
+  },
+  {
+    originalKey: 'translate:bidirectional:pair',
+    targetKey: 'feature.translate.page.bidirectional_pair'
+  },
+  {
+    originalKey: 'translate:bidirectional:enabled',
+    targetKey: 'feature.translate.page.bidirectional_enabled'
+  },
+  {
+    originalKey: 'translate:source:language',
+    targetKey: 'feature.translate.page.source_language'
+  },
+  {
+    originalKey: 'translate:target:language',
+    targetKey: 'feature.translate.page.target_language'
+  }
+] as const
+
+/**
+ * localStorage映射关系 - 简单KV结构
+ *
+ * Maps browser localStorage keys to new preference target keys.
+ * localStorage stores various UI state and provider tokens.
+ *
+ * These are simple 1:1 mappings where the value can be used as-is.
+ * For complex transformations (pattern-based keys, value conversion),
+ * use ComplexPreferenceMappings with source: 'localStorage' instead.
+ */
+export const LOCALSTORAGE_MAPPINGS: ReadonlyArray<{ originalKey: string; targetKey: string }> = [] as const
 
 // === AUTO-GENERATED CONTENT END ===
 
 /**
  * 映射统计:
  * - ElectronStore项: 1
- * - Redux Store项: 203
- * - Redux分类: settings, selectionStore, memory, nutstore, shortcuts, note
- * - 总配置项: 204
+ * - Redux Store项: 208
+ * - Redux分类: settings, selectionStore, memory, nutstore, preprocess, shortcuts, translate, websearch, ocr, note, codeTools
+ * - DexieSettings项: 7
+ * - localStorage项: 0
+ * - 总配置项: 216
  *
  * 使用说明:
  * 1. ElectronStore读取: configManager.get(mapping.originalKey)
  * 2. Redux读取: 需要解析嵌套路径 reduxData[category][originalKey路径]
- * 3. 默认值: 从defaultPreferences.default[mapping.targetKey]获取
+ * 3. DexieSettings读取: ctx.sources.dexieSettings.get(mapping.originalKey)
+ * 4. 默认值: 从defaultPreferences.default[mapping.targetKey]获取
  */

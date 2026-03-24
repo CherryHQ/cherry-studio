@@ -10,6 +10,7 @@ import { WEB_SEARCH_SOURCE } from '@renderer/types'
 import type { Chunk } from '@renderer/types/chunk'
 import { ChunkType } from '@renderer/types/chunk'
 import { AssistantMessageStatus } from '@renderer/types/newMessage'
+import type * as errorUtils from '@renderer/utils/error'
 import { MockCacheUtils } from '@test-mocks/renderer/CacheService'
 import { MockDataApiUtils } from '@test-mocks/renderer/DataApiService'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -71,7 +72,65 @@ vi.mock('@renderer/config/models', async (importOriginal) => {
   const actual = (await importOriginal()) as Record<string, unknown>
   return {
     ...actual,
-    // Override functions that need mocking for tests
+    qwen3Model: {
+      id: 'qwen',
+      name: 'Qwen',
+      provider: 'cherryai',
+      group: 'Qwen'
+    },
+    SYSTEM_MODELS: {
+      defaultModel: [{}, {}, {}],
+      silicon: [],
+      aihubmix: [],
+      ocoolai: [],
+      deepseek: [],
+      ppio: [],
+      alayanew: [],
+      qiniu: [],
+      dmxapi: [],
+      burncloud: [],
+      tokenflux: [],
+      '302ai': [],
+      cephalon: [],
+      lanyun: [],
+      ph8: [],
+      openrouter: [],
+      ollama: [],
+      'new-api': [],
+      lmstudio: [],
+      anthropic: [],
+      openai: [],
+      'azure-openai': [],
+      gemini: [],
+      vertexai: [],
+      github: [],
+      copilot: [],
+      zhipu: [],
+      yi: [],
+      moonshot: [],
+      baichuan: [],
+      dashscope: [],
+      stepfun: [],
+      doubao: [],
+      infini: [],
+      minimax: [],
+      groq: [],
+      together: [],
+      fireworks: [],
+      nvidia: [],
+      grok: [],
+      hyperbolic: [],
+      mistral: [],
+      jina: [],
+      perplexity: [],
+      modelscope: [],
+      xirang: [],
+      hunyuan: [],
+      'tencent-cloud-ti': [],
+      'baidu-cloud': [],
+      gpustack: [],
+      voyageai: []
+    },
     getModelLogo: vi.fn(),
     isVisionModel: vi.fn(() => false),
     isFunctionCallingModel: vi.fn(() => false),
@@ -245,16 +304,21 @@ vi.mock('i18next', () => {
   }
 })
 
-vi.mock('@renderer/utils/error', () => ({
-  formatErrorMessage: vi.fn((error) => error.message || 'Unknown error'),
-  isAbortError: vi.fn((error) => error.name === 'AbortError'),
-  serializeError: vi.fn((error) => ({
-    name: error.name,
-    message: error.message,
-    stack: error.stack,
-    cause: error.cause ? String(error.cause) : undefined
-  }))
-}))
+vi.mock('@renderer/utils/error', async (importOriginal) => {
+  const actual = (await importOriginal()) as typeof errorUtils
+  return {
+    ...actual,
+    formatErrorMessage: vi.fn((error) => error.message || 'Unknown error'),
+    formatErrorMessageWithPrefix: vi.fn((error, prefix) => `${prefix}: ${error?.message || 'Unknown error'}`),
+    isAbortError: vi.fn((error) => error.name === 'AbortError'),
+    serializeError: vi.fn((error) => ({
+      name: error.name,
+      message: error.message,
+      stack: error.stack,
+      cause: error.cause ? String(error.cause) : undefined
+    }))
+  }
+})
 
 vi.mock('@renderer/utils', () => ({
   default: {},

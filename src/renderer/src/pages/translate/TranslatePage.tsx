@@ -343,6 +343,8 @@ const TranslatePage: FC = () => {
     }
     setSourceLanguage(targetLanguage)
     setTargetLanguage(source)
+    db.settings.put({ id: 'translate:source:language', value: targetLanguage.langCode })
+    db.settings.put({ id: 'translate:target:language', value: source.langCode })
   }, [couldExchangeAuto, detectedLanguage, sourceLanguage, t, targetLanguage])
 
   useEffect(() => {

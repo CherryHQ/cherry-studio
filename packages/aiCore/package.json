@@ -14,15 +14,7 @@
     "test": "vitest run",
     "test:watch": "vitest"
   },
-  "keywords": [
-    "ai",
-    "sdk",
-    "openai",
-    "anthropic",
-    "google",
-    "cherry-studio",
-    "vercel-ai-sdk"
-  ],
+  "keywords": ["ai", "sdk", "openai", "anthropic", "google", "cherry-studio", "vercel-ai-sdk"],
   "author": "Cherry Studio",
   "license": "MIT",
   "repository": {
@@ -58,9 +50,7 @@
   "engines": {
     "node": ">=18.0.0"
   },
-  "files": [
-    "dist"
-  ],
+  "files": ["dist"],
   "exports": {
     ".": {
       "types": "./dist/index.d.ts",

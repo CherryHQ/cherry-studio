@@ -9,14 +9,12 @@ import {
   Switch
 } from '@cherrystudio/ui'
 import { useMultiplePreferences, usePreference } from '@data/hooks/usePreference'
-import { loggerService } from '@logger'
 import EditableNumber from '@renderer/components/EditableNumber'
 import Scrollbar from '@renderer/components/Scrollbar'
 import { isOpenAIModel, isSupportVerbosityModel } from '@renderer/config/models'
 import { UNKNOWN } from '@renderer/config/translate'
 import { useCodeStyle } from '@renderer/context/CodeStyleProvider'
 import { useTheme } from '@renderer/context/ThemeProvider'
-import { cacheService } from '@renderer/data/CacheService'
 import { useAssistant } from '@renderer/hooks/useAssistant'
 import { useProvider } from '@renderer/hooks/useProvider'
 import useTranslate from '@renderer/hooks/useTranslate'
@@ -42,8 +40,6 @@ import styled from 'styled-components'
 import GroqSettingsGroup from './GroqSettingsGroup'
 import OpenAISettingsGroup from './OpenAISettingsGroup'
 
-const logger = loggerService.withContext('AssistantSettingsTab')
-
 // Type definition for select items
 type SelectorItem<T extends string = string> = {
   value: T
@@ -58,7 +54,7 @@ const AssistantSettingsTab: FC<Props> = (props) => {
   const [messageStyle, setMessageStyle] = usePreference('chat.message.style')
   const [fontSize, setFontSize] = usePreference('chat.message.font_size')
   const [language] = usePreference('app.language')
-  const [targetLanguage, setTargetLanguage] = usePreference('feature.translate.target_language')
+  const [targetLanguage, setTargetLanguage] = usePreference('feature.translate.chat.target_language')
   const [sendMessageShortcut, setSendMessageShortcut] = usePreference('chat.input.send_message_shortcut')
   const [messageFont, setMessageFont] = usePreference('chat.message.font')
   const [showPrompt, setShowPrompt] = usePreference('chat.message.show_prompt')
@@ -198,14 +194,6 @@ const AssistantSettingsTab: FC<Props> = (props) => {
     isOpenAIModel(model) ||
     isSupportServiceTierProvider(provider) ||
     (isSupportVerbosityModel(model) && isSupportVerbosityProvider(provider))
-
-  const activeTopicOrSession = cacheService.get('chat.active_view')
-  const isTopicSettings = activeTopicOrSession === 'topic'
-
-  if (!isTopicSettings) {
-    logger.warn('AssistantSettingsTab is rendered when not topic activated.')
-    return null
-  }
 
   return (
     <Container className="settings-tab">

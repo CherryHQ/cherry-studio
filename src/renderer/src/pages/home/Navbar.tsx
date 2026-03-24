@@ -23,16 +23,9 @@ interface Props {
   setActiveTopic: (topic: Topic) => void
   setActiveAssistant: (assistant: Assistant) => void
   position: 'left' | 'right'
-  activeTopicOrSession?: 'topic' | 'session'
 }
 
-const HeaderNavbar: FC<Props> = ({
-  activeAssistant,
-  setActiveAssistant,
-  activeTopic,
-  setActiveTopic,
-  activeTopicOrSession
-}) => {
+const HeaderNavbar: FC<Props> = ({ activeAssistant, setActiveAssistant, activeTopic, setActiveTopic }) => {
   const [narrowMode, setNarrowMode] = usePreference('chat.narrow_mode')
   const [topicPosition] = usePreference('topic.position')
 
@@ -119,10 +112,9 @@ const HeaderNavbar: FC<Props> = ({
       <NavbarRight
         style={{
           justifyContent: 'flex-end',
-          flex: activeTopicOrSession === 'topic' ? 1 : 'none',
+          flex: 1,
           position: 'relative',
-          paddingRight: '15px',
-          minWidth: activeTopicOrSession === 'topic' ? '' : 'auto'
+          paddingRight: '15px'
         }}
         className="home-navbar-right">
         <RowFlex className="items-center gap-1.5">
