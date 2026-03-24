@@ -2240,7 +2240,7 @@
         }
       }
     },
-    "/v1/knowledge": {
+    "/v1/knowledge-bases": {
       "get": {
         "summary": "List all knowledge bases",
         "description": "Returns a list of all configured knowledge bases",
@@ -2292,7 +2292,7 @@
         }
       }
     },
-    "/v1/knowledge/{id}": {
+    "/v1/knowledge-bases/{id}": {
       "get": {
         "summary": "Get a knowledge base by ID",
         "tags": ["Knowledge"],
@@ -2331,7 +2331,7 @@
         }
       }
     },
-    "/v1/knowledge/search": {
+    "/v1/knowledge-bases/search": {
       "post": {
         "summary": "Search knowledge bases",
         "description": "Search across one or more knowledge bases and retrieve relevant document chunks.\n\nEach result includes:\n- `pageContent`: The text content of the matching chunk\n- `score`: Similarity score (higher = more relevant)\n- `metadata`: Additional information about the source document\n- `knowledge_base_id` & `knowledge_base_name`: Source of the result\n\nResults are sorted by relevance score in descending order.\n",
