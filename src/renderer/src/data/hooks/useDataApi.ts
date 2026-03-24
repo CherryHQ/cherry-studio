@@ -195,7 +195,7 @@ export function useQuery<TPath extends ConcreteApiPaths>(
   path: TPath,
   options?: {
     /** Query parameters for filtering, pagination, etc. */
-    query?: QueryParamsForPath<TPath>
+    query?: QueryParamsForPath<TPath, 'GET'>
     /** Disable the request (default: true) */
     enabled?: boolean
     /** Override default SWR configuration */
@@ -416,7 +416,7 @@ export function useInvalidateCache() {
 export function prefetch<TPath extends ConcreteApiPaths>(
   path: TPath,
   options?: {
-    query?: QueryParamsForPath<TPath>
+    query?: QueryParamsForPath<TPath, 'GET'>
   }
 ): Promise<ResponseForPath<TPath, 'GET'>> {
   const key = buildSWRKey(path, options?.query)
@@ -463,7 +463,7 @@ export function useInfiniteQuery<TPath extends ConcreteApiPaths>(
   path: TPath,
   options?: {
     /** Additional query parameters (cursor/limit are managed internally) */
-    query?: Omit<QueryParamsForPath<TPath>, 'cursor' | 'limit'>
+    query?: Omit<QueryParamsForPath<TPath, 'GET'>, 'cursor' | 'limit'>
     /** Items per page (default: 10) */
     limit?: number
     /** Set to false to disable fetching (default: true) */
@@ -496,7 +496,7 @@ export function useInfiniteQuery<TPath extends ConcreteApiPaths>(
   )
 
   const infiniteFetcher = (key: [TPath, Record<string, unknown>]) => {
-    return getFetcher(key as unknown as [TPath, QueryParamsForPath<TPath>?]) as Promise<
+    return getFetcher(key as unknown as [TPath, QueryParamsForPath<TPath, 'GET'>?]) as Promise<
       CursorPaginationResponse<InferPaginatedItem<TPath>>
     >
   }
@@ -580,7 +580,7 @@ export function usePaginatedQuery<TPath extends ConcreteApiPaths>(
   path: TPath,
   options?: {
     /** Additional query parameters (page/limit are managed internally) */
-    query?: Omit<QueryParamsForPath<TPath>, 'page' | 'limit'>
+    query?: Omit<QueryParamsForPath<TPath, 'GET'>, 'page' | 'limit'>
     /** Items per page (default: 10) */
     limit?: number
     /** Set to false to disable fetching (default: true) */
@@ -607,7 +607,7 @@ export function usePaginatedQuery<TPath extends ConcreteApiPaths>(
 
   const { data, isLoading, isRefreshing, error, refetch } = useQuery(path, {
     // Type assertion needed: we're adding pagination params to a partial query type
-    query: queryWithPagination as QueryParamsForPath<TPath>,
+    query: queryWithPagination as QueryParamsForPath<TPath, 'GET'>,
     enabled: options?.enabled,
     swrOptions: options?.swrOptions
   })
@@ -718,7 +718,7 @@ function createApiFetcher<TPath extends ConcreteApiPaths, TMethod extends 'GET' 
  * @param query - Optional query parameters
  * @returns Tuple of [path, query?] for SWR cache key
  */
-function buildSWRKey<TPath extends ConcreteApiPaths, TQuery extends QueryParamsForPath<TPath>>(
+function buildSWRKey<TPath extends ConcreteApiPaths, TQuery extends QueryParamsForPath<TPath, 'GET'>>(
   path: TPath,
   query?: TQuery
 ): [TPath, TQuery?] {
@@ -736,7 +736,7 @@ function buildSWRKey<TPath extends ConcreteApiPaths, TQuery extends QueryParamsF
  * @param key - SWR cache key tuple [path, query?]
  * @returns Promise resolving to the API response
  */
-function getFetcher<TPath extends ConcreteApiPaths>([path, query]: [TPath, QueryParamsForPath<TPath>?]): Promise<
+function getFetcher<TPath extends ConcreteApiPaths>([path, query]: [TPath, QueryParamsForPath<TPath, 'GET'>?]): Promise<
   ResponseForPath<TPath, 'GET'>
 > {
   const apiFetcher = createApiFetcher<TPath, 'GET'>('GET')
