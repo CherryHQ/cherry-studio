@@ -61,32 +61,32 @@ vi.mock('node:fs', () => ({
 async function loadModules() {
   const { BaseService } = await import('@main/core/lifecycle')
   const { CodeCliService } = await import('../CodeCliService')
-  const codeToolsService = new CodeCliService()
-  return { BaseService, CodeCliService, codeToolsService }
+  const codeCliService = new CodeCliService()
+  return { BaseService, CodeCliService, codeCliService }
 }
 
-describe('CodeToolsService', () => {
+describe('CodeCliService', () => {
   beforeEach(() => {
     vi.resetModules()
     vi.clearAllMocks()
   })
 
   it('should extend BaseService', async () => {
-    const { BaseService, codeToolsService } = await loadModules()
-    expect(codeToolsService).toBeInstanceOf(BaseService)
+    const { BaseService, codeCliService } = await loadModules()
+    expect(codeCliService).toBeInstanceOf(BaseService)
   })
 
   it('should have onInit that preloads terminals', async () => {
-    const { codeToolsService } = await loadModules()
-    await expect(codeToolsService._doInit()).resolves.toBeUndefined()
-    expect(codeToolsService.isReady).toBe(true)
+    const { codeCliService } = await loadModules()
+    await expect(codeCliService._doInit()).resolves.toBeUndefined()
+    expect(codeCliService.isReady).toBe(true)
   })
 
   it('should clean up timers on stop', async () => {
-    const { codeToolsService } = await loadModules()
-    await codeToolsService._doInit()
-    await expect(codeToolsService._doStop()).resolves.toBeUndefined()
-    expect(codeToolsService.isStopped).toBe(true)
+    const { codeCliService } = await loadModules()
+    await codeCliService._doInit()
+    await expect(codeCliService._doStop()).resolves.toBeUndefined()
+    expect(codeCliService.isStopped).toBe(true)
   })
 
   it('should prevent double instantiation', async () => {
