@@ -40,7 +40,7 @@ import Link from 'antd/es/typography/Link'
 import { debounce, isEmpty } from 'lodash'
 import { Bolt, Check, Settings2, SquareArrowOutUpRight, TriangleAlert } from 'lucide-react'
 import type { FC } from 'react'
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
@@ -143,18 +143,24 @@ const ProviderSetting: FC<Props> = ({ providerId, isOnboarding = false }) => {
     [dispatch, provider.id]
   )
 
+  // 使用 ref 保存回调函数和状态，避免 debounce 函数因依赖变化而重新创建
+  const callbacks = { updateProvider, updateWebSearchProviderKey, isOnboarding, providerEnabled: provider.enabled }
+  const callbacksRef = useRef(callbacks)
+  callbacksRef.current = callbacks
+
   const debouncedUpdateApiKey = useMemo(
     () =>
       debounce((value: string) => {
+        const { updateProvider, updateWebSearchProviderKey, isOnboarding, providerEnabled } = callbacksRef.current
         const formattedKey = formatApiKeys(value)
         updateProvider({ apiKey: formattedKey })
         updateWebSearchProviderKey({ apiKey: formattedKey })
         // Auto-enable provider when apiKey is updated in onboarding mode
-        if (isOnboarding && formattedKey && !provider.enabled) {
+        if (isOnboarding && formattedKey && !providerEnabled) {
           updateProvider({ enabled: true })
         }
       }, 150),
-    [updateProvider, updateWebSearchProviderKey, isOnboarding, provider.enabled]
+    [] // 空依赖，debounce 函数只创建一次
   )
 
   // 同步 provider.apiKey 到 localApiKey
@@ -169,10 +175,14 @@ const ProviderSetting: FC<Props> = ({ providerId, isOnboarding = false }) => {
     if (localApiKey !== provider.apiKey) {
       debouncedUpdateApiKey(localApiKey)
     }
-
-    // 卸载时取消任何待执行的更新
-    return () => debouncedUpdateApiKey.cancel()
   }, [localApiKey, provider.apiKey, debouncedUpdateApiKey])
+
+  // 组件卸载时立即执行待处理的更新，避免数据丢失
+  useEffect(() => {
+    return () => {
+      debouncedUpdateApiKey.flush()
+    }
+  }, [debouncedUpdateApiKey])
 
   const isApiKeyConnectable = useMemo(() => {
     return apiKeyConnectivity.status === 'success'

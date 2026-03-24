@@ -51,6 +51,7 @@ interface ProviderListProps {
 const ProviderList: FC<ProviderListProps> = ({ isOnboarding = false }) => {
   const [searchParams, setSearchParams] = useSearchParams()
   const allProviders = useAllProviders()
+  console.debug('isOnboarding:', isOnboarding, 'allProviders:', allProviders)
   const providers = isOnboarding ? allProviders.filter((p) => p.id !== 'cherryin') : allProviders
   const { updateProviders, addProvider, removeProvider, updateProvider } = useProviders()
   const { setTimeoutTimer } = useTimer()

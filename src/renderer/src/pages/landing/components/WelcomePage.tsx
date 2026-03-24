@@ -1,7 +1,8 @@
 import { loggerService } from '@logger'
 import CherryStudioLogo from '@renderer/assets/images/logo.png'
 import { useLanding } from '@renderer/context/LandingContext'
-import { useAllProviders, useProvider } from '@renderer/hooks/useProvider'
+import { useProvider } from '@renderer/hooks/useProvider'
+import { useAppStore } from '@renderer/store'
 import { oauthWithCherryIn } from '@renderer/utils/oauth'
 import { Button, Divider } from 'antd'
 import type { FC } from 'react'
@@ -17,13 +18,8 @@ const CHERRYIN_OAUTH_SERVER = 'https://open.cherryin.ai'
 const WelcomePage: FC = () => {
   const { setStep, setCherryInLoggedIn } = useLanding()
   const { updateProvider } = useProvider(CHERRYIN_PROVIDER_ID)
-  const allProviders = useAllProviders()
+  const store = useAppStore()
   const [isLoggingIn, setIsLoggingIn] = useState(false)
-
-  // 检查是否有可用的 provider（启用状态且至少有一个模型）
-  const hasAvailableProvider = useCallback(() => {
-    return allProviders.some((p) => p.enabled && p.models.length > 0)
-  }, [allProviders])
 
   const handleCherryInLogin = useCallback(async () => {
     setIsLoggingIn(true)
@@ -47,10 +43,8 @@ const WelcomePage: FC = () => {
 
   const handleSelectProvider = async () => {
     await ProviderPopup.show()
-    // 弹窗关闭后，如果有可用的 provider（启用状态且至少有一个模型），进入模型选择页
-    if (hasAvailableProvider()) {
-      setStep('select-model')
-    }
+    const hasAvailableProvider = store.getState().llm.providers.some((p) => p.enabled && p.models.length > 0)
+    hasAvailableProvider && setStep('select-model')
   }
 
   return (
