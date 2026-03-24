@@ -1,6 +1,5 @@
 import type { Model } from '@renderer/types'
 import { memo } from 'react'
-import styled from 'styled-components'
 
 import ModelTagsWithLabel from './ModelTagsWithLabel'
 
@@ -21,59 +20,25 @@ const ModelIdWithTags = ({
   const shouldShowIdentifier = showIdentifier && model.id !== model.name
 
   return (
-    <ListItemName ref={ref} $fontSize={fontSize} style={style}>
-      <NameBlock>
-        <NameSpan>{model.name}</NameSpan>
-        {shouldShowIdentifier && <IdentifierSpan title={model.id}>{model.id}</IdentifierSpan>}
-      </NameBlock>
+    <div
+      ref={ref}
+      className="flex min-w-0 items-center gap-2.5 font-semibold text-[var(--color-text)] leading-[1.2]"
+      style={{ fontSize, ...style }}>
+      <div className="flex min-w-0 flex-1 items-center gap-2">
+        <span className="block min-w-0 shrink overflow-hidden text-ellipsis whitespace-nowrap leading-[1.3]">
+          {model.name}
+        </span>
+        {shouldShowIdentifier && (
+          <span
+            className="min-w-0 max-w-[50%] shrink truncate font-mono text-[12px] text-[var(--color-text-3)] leading-[1.2]"
+            title={model.id}>
+            {model.id}
+          </span>
+        )}
+      </div>
       <ModelTagsWithLabel model={model} size={11} style={{ flexShrink: 0 }} />
-    </ListItemName>
+    </div>
   )
 }
-
-const ListItemName = styled.div<{ $fontSize?: number }>`
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  min-width: 0;
-  color: var(--color-text);
-  line-height: 1.2;
-  font-weight: 600;
-  font-size: ${(props) => props.$fontSize}px;
-`
-
-const NameBlock = styled.div`
-  display: flex;
-  flex: 1;
-  align-items: center;
-  gap: 8px;
-  min-width: 0;
-`
-
-const NameSpan = styled.span`
-  display: block;
-  flex-shrink: 1;
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  line-height: 1.3;
-`
-
-const IdentifierSpan = styled.span`
-  flex-shrink: 1;
-  max-width: 50%;
-  min-width: 0;
-  overflow: hidden;
-  color: var(--color-text-3);
-  font-family: monospace;
-  line-height: 1.2;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-
-  && {
-    font-size: 12px;
-  }
-`
 
 export default memo(ModelIdWithTags)

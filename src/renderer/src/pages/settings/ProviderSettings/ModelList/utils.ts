@@ -1,5 +1,4 @@
 import type { Model, Provider } from '@renderer/types'
-export { getDuplicateModelNames } from '@renderer/utils/model'
 
 // Check if the model exists in the provider's model list
 export const isModelInProvider = (provider: Provider, modelId: string): boolean => {

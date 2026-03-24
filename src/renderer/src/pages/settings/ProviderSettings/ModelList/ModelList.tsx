@@ -13,6 +13,7 @@ import ManageModelsPopup from '@renderer/pages/settings/ProviderSettings/ModelLi
 import NewApiAddModelPopup from '@renderer/pages/settings/ProviderSettings/ModelList/NewApiAddModelPopup'
 import type { Model } from '@renderer/types'
 import { filterModelsByKeywords } from '@renderer/utils'
+import { getDuplicateModelNames } from '@renderer/utils/model'
 import { isNewApiProvider } from '@renderer/utils/provider'
 import { Button, Flex, Spin, Tooltip } from 'antd'
 import { groupBy, isEmpty, sortBy, toPairs } from 'lodash'
@@ -22,7 +23,6 @@ import { useTranslation } from 'react-i18next'
 
 import ModelListGroup from './ModelListGroup'
 import { useHealthCheck } from './useHealthCheck'
-import { getDuplicateModelNames } from './utils'
 
 interface ModelListProps {
   providerId: string

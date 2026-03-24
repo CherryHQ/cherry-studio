@@ -135,11 +135,17 @@ const SelectModelPopupView: React.FC<Props> = ({
         type: 'model',
         name: (
           <ModelName>
-            <ModelTextRow>
-              <ModelPrimaryName>{model.name}</ModelPrimaryName>
-              {showIdentifier && <ModelIdentifier title={model.id}>{model.id}</ModelIdentifier>}
-              {isPinned && <ModelProviderName>| {groupName}</ModelProviderName>}
-            </ModelTextRow>
+            <div className="flex min-w-0 flex-1 items-center gap-1.5">
+              <span className="min-w-0 truncate">{model.name}</span>
+              {showIdentifier && model.id !== model.name && (
+                <span
+                  className="min-w-0 max-w-[45%] shrink truncate font-mono text-[12px] text-[var(--color-text-3)]"
+                  title={model.id}>
+                  {model.id}
+                </span>
+              )}
+              {isPinned && <span className="whitespace-nowrap text-[var(--color-text-3)]">| {groupName}</span>}
+            </div>
             {isCherryAi && <FreeTrialModelTag model={model} showLabel={false} />}
           </ModelName>
         ),
@@ -586,38 +592,6 @@ const ModelName = styled.div`
   margin: 0 8px;
   min-width: 0;
   gap: 5px;
-`
-
-const ModelTextRow = styled.div`
-  display: flex;
-  align-items: center;
-  flex: 1;
-  gap: 6px;
-  min-width: 0;
-`
-
-const ModelPrimaryName = styled.span`
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-`
-
-const ModelIdentifier = styled.span`
-  flex-shrink: 1;
-  max-width: 45%;
-  min-width: 0;
-  overflow: hidden;
-  color: var(--color-text-3);
-  font-family: monospace;
-  font-size: 12px;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-`
-
-const ModelProviderName = styled.span`
-  color: var(--color-text-3);
-  white-space: nowrap;
 `
 
 const TagsContainer = styled.div`
