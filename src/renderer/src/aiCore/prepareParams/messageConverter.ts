@@ -5,7 +5,7 @@
 
 import type { ReasoningPart } from '@ai-sdk/provider-utils'
 import { loggerService } from '@logger'
-import { isImageEnhancementModel, isVisionModel } from '@renderer/config/models'
+import { isVisionModel } from '@renderer/config/models'
 import type { Message, Model } from '@renderer/types'
 import type {
   FileMessageBlock,
