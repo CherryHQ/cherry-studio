@@ -1,5 +1,5 @@
 import type { NextFunction, Request, Response } from 'express'
-import { body, query, validationResult } from 'express-validator'
+import { body, param, query, validationResult } from 'express-validator'
 import { isString } from 'lodash'
 
 /**
@@ -47,7 +47,7 @@ export const validateKnowledgeSearch = [
 /**
  * Validation rules for knowledge base ID parameter
  */
-export const validateKnowledgeBaseId = [query('id').optional().isString().withMessage('id must be a string')]
+export const validateKnowledgeBaseId = [param('id').isString().withMessage('id must be a string')]
 
 /**
  * Validation for list query parameters
