@@ -80,8 +80,10 @@ const logger = loggerService.withContext('usePreference')
  */
 export function usePreference<K extends PreferenceKeyType>(
   key: K,
-  options: PreferenceUpdateOptions = { optimistic: true }
+  options?: PreferenceUpdateOptions
 ): [PreferenceDefaultScopeType[K], (value: PreferenceDefaultScopeType[K]) => Promise<void>] {
+  const optimistic = options?.optimistic ?? true
+
   // Subscribe to changes for this specific preference (raw value including undefined)
   const rawValue = useSyncExternalStore(
     useCallback((callback) => preferenceService.subscribeChange(key)(callback), [key]),
@@ -106,13 +108,13 @@ export function usePreference<K extends PreferenceKeyType>(
   const setValue = useCallback(
     async (newValue: PreferenceDefaultScopeType[K]) => {
       try {
-        await preferenceService.set(key, newValue, options)
+        await preferenceService.set(key, newValue, { optimistic })
       } catch (error) {
         logger.error(`Failed to set preference ${key}:`, error as Error)
         throw error
       }
     },
-    [key, options]
+    [key, optimistic]
   )
 
   return [exposedValue, setValue]
@@ -246,11 +248,13 @@ export function usePreference<K extends PreferenceKeyType>(
  */
 export function useMultiplePreferences<T extends Record<string, PreferenceKeyType>>(
   keys: T,
-  options: PreferenceUpdateOptions = { optimistic: true }
+  options?: PreferenceUpdateOptions
 ): [
   { [P in keyof T]: PreferenceDefaultScopeType[T[P]] },
   (updates: Partial<{ [P in keyof T]: PreferenceDefaultScopeType[T[P]] }>) => Promise<void>
 ] {
+  const optimistic = options?.optimistic ?? true
+
   // Create stable key dependencies
   const keyList = useMemo(() => Object.values(keys), [keys])
 
@@ -336,13 +340,13 @@ export function useMultiplePreferences<T extends Record<string, PreferenceKeyTyp
           }
         }
 
-        await preferenceService.setMultiple(prefUpdates, options)
+        await preferenceService.setMultiple(prefUpdates, { optimistic })
       } catch (error) {
         logger.error('Failed to update preferences:', error as Error)
         throw error
       }
     },
-    [keys, options]
+    [keys, optimistic]
   )
 
   // Type-cast the values to the expected shape
