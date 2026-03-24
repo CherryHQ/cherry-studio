@@ -95,7 +95,7 @@ const knowledgeRouter = express.Router()
  *           items:
  *             type: string
  *           description: Optional list of knowledge base IDs to search. If not provided, searches all knowledge bases.
- *         top_n:
+ *         document_count:
  *           type: integer
  *           minimum: 1
  *           maximum: 20
@@ -242,7 +242,7 @@ knowledgeRouter.get('/:id', validateKnowledgeBaseId, handleValidationErrors, get
  *           example:
  *             query: "How do I configure Ollama embedding?"
  *             knowledge_base_ids: ["kb-uuid-1", "kb-uuid-2"]
- *             top_n: 5
+ *             document_count: 5
  *     responses:
  *       200:
  *         description: Search results
