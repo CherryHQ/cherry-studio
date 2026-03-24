@@ -104,7 +104,7 @@ export const useApiServer = () => {
     } finally {
       setApiServerLoading(false)
     }
-  }, [apiServerLoading, setApiServerEnabled, setApiServerLoading, setApiServerRunning, t])
+  }, [apiServerLoading, setApiServerEnabled, setApiServerRunning, t])
 
   const stopApiServer = useCallback(async () => {
     if (apiServerLoading) return
@@ -123,7 +123,7 @@ export const useApiServer = () => {
     } finally {
       setApiServerLoading(false)
     }
-  }, [apiServerLoading, setApiServerEnabled, setApiServerLoading, setApiServerRunning, t])
+  }, [apiServerLoading, setApiServerEnabled, setApiServerRunning, t])
 
   const restartApiServer = useCallback(async () => {
     if (apiServerLoading) return
@@ -142,7 +142,7 @@ export const useApiServer = () => {
     } finally {
       setApiServerLoading(false)
     }
-  }, [apiServerLoading, checkApiServerStatus, setApiServerEnabled, setApiServerLoading, t])
+  }, [apiServerLoading, checkApiServerStatus, setApiServerEnabled, t])
 
   useEffect(() => {
     checkApiServerStatus()

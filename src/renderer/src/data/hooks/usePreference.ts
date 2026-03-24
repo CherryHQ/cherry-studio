@@ -9,6 +9,7 @@ import type {
 import { useCallback, useEffect, useMemo, useRef, useSyncExternalStore } from 'react'
 
 const logger = loggerService.withContext('usePreference')
+const DEFAULT_PREFERENCE_OPTIONS: PreferenceUpdateOptions = { optimistic: true }
 
 /**
  * React hook for managing a single preference value with automatic synchronization
@@ -80,10 +81,8 @@ const logger = loggerService.withContext('usePreference')
  */
 export function usePreference<K extends PreferenceKeyType>(
   key: K,
-  options?: PreferenceUpdateOptions
+  options: PreferenceUpdateOptions = DEFAULT_PREFERENCE_OPTIONS
 ): [PreferenceDefaultScopeType[K], (value: PreferenceDefaultScopeType[K]) => Promise<void>] {
-  const optimistic = options?.optimistic ?? true
-
   // Subscribe to changes for this specific preference (raw value including undefined)
   const rawValue = useSyncExternalStore(
     useCallback((callback) => preferenceService.subscribeChange(key)(callback), [key]),
@@ -108,13 +107,13 @@ export function usePreference<K extends PreferenceKeyType>(
   const setValue = useCallback(
     async (newValue: PreferenceDefaultScopeType[K]) => {
       try {
-        await preferenceService.set(key, newValue, { optimistic })
+        await preferenceService.set(key, newValue, options)
       } catch (error) {
         logger.error(`Failed to set preference ${key}:`, error as Error)
         throw error
       }
     },
-    [key, optimistic]
+    [key, options]
   )
 
   return [exposedValue, setValue]
@@ -248,13 +247,11 @@ export function usePreference<K extends PreferenceKeyType>(
  */
 export function useMultiplePreferences<T extends Record<string, PreferenceKeyType>>(
   keys: T,
-  options?: PreferenceUpdateOptions
+  options: PreferenceUpdateOptions = DEFAULT_PREFERENCE_OPTIONS
 ): [
   { [P in keyof T]: PreferenceDefaultScopeType[T[P]] },
   (updates: Partial<{ [P in keyof T]: PreferenceDefaultScopeType[T[P]] }>) => Promise<void>
 ] {
-  const optimistic = options?.optimistic ?? true
-
   // Create stable key dependencies
   const keyList = useMemo(() => Object.values(keys), [keys])
 
@@ -340,13 +337,13 @@ export function useMultiplePreferences<T extends Record<string, PreferenceKeyTyp
           }
         }
 
-        await preferenceService.setMultiple(prefUpdates, { optimistic })
+        await preferenceService.setMultiple(prefUpdates, options)
       } catch (error) {
         logger.error('Failed to update preferences:', error as Error)
         throw error
       }
     },
-    [keys, optimistic]
+    [keys, options]
   )
 
   // Type-cast the values to the expected shape
