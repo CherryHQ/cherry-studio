@@ -151,7 +151,7 @@ const knowledgeRouter = express.Router()
 
 /**
  * @swagger
- * /v1/knowledge:
+ * /v1/knowledge-bases:
  *   get:
  *     summary: List all knowledge bases
  *     description: Returns a list of all configured knowledge bases
@@ -190,7 +190,7 @@ knowledgeRouter.get('/', validatePagination, handleValidationErrors, listKnowled
 
 /**
  * @swagger
- * /v1/knowledge/{id}:
+ * /v1/knowledge-bases/{id}:
  *   get:
  *     summary: Get a knowledge base by ID
  *     tags: [Knowledge]
@@ -219,7 +219,7 @@ knowledgeRouter.get('/:id', validateKnowledgeBaseId, handleValidationErrors, get
 
 /**
  * @swagger
- * /v1/knowledge/search:
+ * /v1/knowledge-bases/search:
  *   post:
  *     summary: Search knowledge bases
  *     description: |
