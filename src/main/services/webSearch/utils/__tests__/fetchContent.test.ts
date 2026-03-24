@@ -24,7 +24,7 @@ describe('fetchWebSearchContent', () => {
     fetchMock.mockReset()
   })
 
-  it('normalizes empty readability output to noContent', async () => {
+  it('normalizes empty readability output to an empty string', async () => {
     fetchMock.mockResolvedValue(createTextResponse('<html><body><div></div></body></html>', 'text/html'))
 
     const result = await fetchWebSearchContent('https://example.com/article', false)
@@ -32,7 +32,7 @@ describe('fetchWebSearchContent', () => {
     expect(result).toEqual({
       title: 'https://example.com/article',
       url: 'https://example.com/article',
-      content: 'No content found'
+      content: ''
     })
   })
 })

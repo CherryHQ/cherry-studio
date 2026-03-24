@@ -234,6 +234,67 @@ describe('WebSearchService', () => {
     expect(clearWebSearchStatusMock).toHaveBeenCalledWith('req-partial-success')
   })
 
+  it('merges multiple successful searches and updates fetch status with narrowed fulfilled results', async () => {
+    const searchMock = vi
+      .fn()
+      .mockResolvedValueOnce({
+        query: 'first-query',
+        results: [
+          {
+            title: 'First',
+            content: 'one',
+            url: 'https://example.com/first'
+          }
+        ]
+      } satisfies WebSearchResponse)
+      .mockResolvedValueOnce({
+        query: 'second-query',
+        results: [
+          {
+            title: 'Second',
+            content: 'two',
+            url: 'https://example.com/second'
+          }
+        ]
+      } satisfies WebSearchResponse)
+
+    createWebSearchProviderMock.mockReturnValue({
+      search: searchMock
+    })
+
+    const service = WebSearchService.getInstance()
+    const result = await service.search({
+      providerId: 'tavily',
+      questions: ['first', 'second'],
+      requestId: 'req-multi-success'
+    })
+
+    expect(result).toEqual({
+      query: 'first | second',
+      results: [
+        {
+          title: 'First',
+          content: 'one',
+          url: 'https://example.com/first'
+        },
+        {
+          title: 'Second',
+          content: 'two',
+          url: 'https://example.com/second'
+        }
+      ]
+    })
+    expect(setWebSearchStatusMock).toHaveBeenCalledWith(
+      'req-multi-success',
+      {
+        phase: 'fetch_complete',
+        countAfter: 2
+      },
+      1000
+    )
+    expect(clearWebSearchStatusMock).toHaveBeenCalledWith('req-multi-success')
+  })
+
   it('throws when all queries fail', async () => {
     const error = new Error('network failed')
     createWebSearchProviderMock.mockReturnValue({

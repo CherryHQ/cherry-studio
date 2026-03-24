@@ -57,12 +57,12 @@ export async function fetchWebSearchContent(
 
     const dom = new JSDOM(html, { url })
     const article = new Readability(dom.window.document).parse()
-    const markdown = turndownService.turndown(article?.content || '')
+    const markdown = turndownService.turndown(article?.content || '').trim()
 
     return {
       title: article?.title || url,
       url,
-      content: markdown || 'No content found'
+      content: markdown
     }
   } catch (error) {
     if (isAbortError(error)) {
@@ -73,7 +73,7 @@ export async function fetchWebSearchContent(
     return {
       title: url,
       url,
-      content: 'No content found'
+      content: ''
     }
   }
 }

@@ -88,8 +88,8 @@ export class ExaProvider extends BaseWebSearchProvider {
     return {
       query: searchPayload.autopromptString || context.query,
       results: searchPayload.results.slice(0, context.maxResults).map((item) => ({
-        title: item.title || 'No title',
-        content: item.text || '',
+        title: item.title?.trim() || '',
+        content: item.text?.trim() || '',
         url: item.url || ''
       }))
     }

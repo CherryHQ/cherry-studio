@@ -11,13 +11,6 @@ export const defaultAppHeaders = () => {
 }
 
 /**
- * Removes the trailing slash from a URL string if it exists.
- */
-export function withoutTrailingSlash(url: string): string {
-  return url.replace(/\/$/, '')
-}
-
-/**
  * Checks whether a string is a valid HTTP(S) URL.
  */
 export function isValidUrl(url: string): boolean {
@@ -26,24 +19,6 @@ export function isValidUrl(url: string): boolean {
     return parsedUrl.protocol === 'http:' || parsedUrl.protocol === 'https:'
   } catch {
     return false
-  }
-}
-
-/**
- * Matches a version segment anywhere in a URL path (e.g., /v1, /v2beta, /v3alpha).
- */
-const VERSION_REGEX = /\/v\d+(?:alpha|beta)?(?:\/|$)/i
-
-/**
- * Checks if a URL's path contains a version segment (e.g., /v1, /v2beta, /v3alpha).
- * Unlike getTrailingApiVersion, this checks for versions anywhere in the path.
- */
-export function hasAPIVersion(host: string): boolean {
-  try {
-    const url = new URL(host)
-    return VERSION_REGEX.test(url.pathname)
-  } catch {
-    return VERSION_REGEX.test(host)
   }
 }
 

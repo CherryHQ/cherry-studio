@@ -318,6 +318,28 @@ describe('main web search API providers', () => {
     `)
   })
 
+  it('filters empty fetched content from Searxng results', async () => {
+    fetchMock
+      .mockResolvedValueOnce(createJsonResponse(loadFixtureJson('searxng-search-response.json')))
+      .mockResolvedValueOnce(createTextResponse('<html><body><div></div></body></html>', 'text/html'))
+
+    const provider = new SearxngProvider(
+      createProvider({
+        id: 'searxng',
+        name: 'Searxng',
+        apiHost: 'https://searx.example',
+        engines: ['google', 'bing']
+      })
+    )
+
+    const result = await provider.search('hello', runtimeConfig)
+
+    expect(result).toEqual({
+      query: 'hello',
+      results: []
+    })
+  })
+
   it('matches Bocha request and normalized response snapshots from fixtures', async () => {
     fetchMock.mockResolvedValue(createJsonResponse(loadFixtureJson('bocha-response.json')))
 
@@ -559,5 +581,77 @@ describe('main web search API providers', () => {
         }
       ]
     })
+  })
+
+  it('normalizes missing provider titles to empty strings', async () => {
+    fetchMock
+      .mockResolvedValueOnce(
+        createJsonResponse({
+          results: [{ title: null, text: 'Exa Content', url: 'https://exa.example/result' }],
+          autopromptString: 'refined query'
+        })
+      )
+      .mockResolvedValueOnce(
+        createJsonResponse({
+          query: 'hello',
+          request_id: 'req',
+          response_time: 10,
+          results: [{ content: 'Tavily Content', url: 'https://tavily.example/result' }]
+        })
+      )
+      .mockResolvedValueOnce(
+        createJsonResponse({
+          search_result: [{ content: 'Zhipu Content', link: 'https://zhipu.example/result' }]
+        })
+      )
+      .mockResolvedValueOnce(
+        createTextResponse(
+          'data: {"result":{"content":[{"type":"text","text":"Title: \\nURL: https://mcp.exa.ai/result\\nText: Exa MCP Content"}]}}',
+          'text/event-stream'
+        )
+      )
+
+    const exaProvider = new ExaProvider(
+      createProvider({
+        id: 'exa',
+        name: 'Exa',
+        apiKeys: ['exa-key'],
+        apiHost: 'https://api.exa.ai'
+      })
+    )
+    const tavilyProvider = new TavilyProvider(
+      createProvider({
+        id: 'tavily',
+        name: 'Tavily',
+        apiKeys: ['tavily-key'],
+        apiHost: 'https://api.tavily.com'
+      })
+    )
+    const zhipuProvider = new ZhipuProvider(
+      createProvider({
+        id: 'zhipu',
+        name: 'Zhipu',
+        apiKeys: ['zhipu-key'],
+        apiHost: 'https://open.bigmodel.cn/api/paas/v4/tools'
+      })
+    )
+    const exaMcpProvider = new ExaMcpProvider(
+      createProvider({
+        id: 'exa-mcp',
+        name: 'Exa MCP',
+        type: 'mcp',
+        apiHost: ''
+      })
+    )
+
+    const exaResult = await exaProvider.search('hello', runtimeConfig)
+    const tavilyResult = await tavilyProvider.search('hello', runtimeConfig)
+    const zhipuResult = await zhipuProvider.search('hello', runtimeConfig)
+    const exaMcpResult = await exaMcpProvider.search('hello', runtimeConfig)
+
+    expect(exaResult.results[0]?.title).toBe('')
+    expect(tavilyResult.results[0]?.title).toBe('')
+    expect(zhipuResult.results[0]?.title).toBe('')
+    expect(exaMcpResult.results[0]?.title).toBe('')
   })
 })

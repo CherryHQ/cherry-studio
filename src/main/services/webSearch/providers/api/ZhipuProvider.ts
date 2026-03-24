@@ -81,8 +81,8 @@ export class ZhipuProvider extends BaseWebSearchProvider {
     return {
       query: context.query,
       results: searchPayload.search_result.slice(0, context.maxResults).map((result) => ({
-        title: result.title || 'No title',
-        content: result.content || '',
+        title: result.title?.trim() || '',
+        content: result.content?.trim() || '',
         url: result.link || ''
       }))
     }

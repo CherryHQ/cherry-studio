@@ -93,8 +93,8 @@ export class ExaMcpProvider extends BaseWebSearchProvider {
     return {
       query: searchResults.autopromptString || context.query,
       results: (searchResults.results || []).slice(0, context.maxResults).map((result) => ({
-        title: result.title || 'No title',
-        content: result.text || '',
+        title: result.title?.trim() || '',
+        content: result.text?.trim() || '',
         url: result.url || ''
       }))
     }

@@ -137,7 +137,7 @@ export class SearxngProvider extends BaseWebSearchProvider {
       )
     )
 
-    return fetchedResults.filter((item) => item.content !== 'No content found')
+    return fetchedResults.filter((item) => item.content.trim().length > 0)
   }
 
   private buildFinalResponse(

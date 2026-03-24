@@ -84,8 +84,8 @@ export class TavilyProvider extends BaseWebSearchProvider {
     return {
       query: searchPayload.query || context.query,
       results: searchPayload.results.slice(0, context.maxResults).map((item) => ({
-        title: item.title || 'No title',
-        content: item.content || '',
+        title: item.title?.trim() || '',
+        content: item.content?.trim() || '',
         url: item.url || ''
       }))
     }

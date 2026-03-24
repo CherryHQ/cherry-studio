@@ -54,7 +54,9 @@ export class WebSearchService {
     context: PreparedWebSearchContext,
     searchResults: PromiseSettledResult<WebSearchResponse>[]
   ): Promise<WebSearchResponse> {
-    const successfulSearches = searchResults.filter((item) => item.status === 'fulfilled')
+    const successfulSearches = searchResults.filter(
+      (item): item is PromiseFulfilledResult<WebSearchResponse> => item.status === 'fulfilled'
+    )
 
     if (successfulSearches.length > 1) {
       await setWebSearchStatus(
