@@ -1,4 +1,3 @@
-import { preferenceService } from '@data/PreferenceService'
 import type {
   PreferenceDefaultScopeType,
   PreferenceKeyType,
@@ -16,7 +15,7 @@ export interface WebSearchPreferenceReader {
 }
 
 export async function getProviderOverrides(
-  preferences: WebSearchPreferenceReader = preferenceService
+  preferences: WebSearchPreferenceReader
 ): Promise<WebSearchProviderOverrides> {
   const providerOverrides = await preferences.get('chat.web_search.provider_overrides')
   return providerOverrides || {}
@@ -41,9 +40,7 @@ export function resolveProviders(providerOverrides: WebSearchProviderOverrides):
   })
 }
 
-export async function getRuntimeConfig(
-  preferences: WebSearchPreferenceReader = preferenceService
-): Promise<WebSearchExecutionConfig> {
+export async function getRuntimeConfig(preferences: WebSearchPreferenceReader): Promise<WebSearchExecutionConfig> {
   const [
     maxResults,
     excludeDomains,
@@ -81,9 +78,7 @@ export async function getRuntimeConfig(
   }
 }
 
-export async function getResolvedConfig(
-  preferences: WebSearchPreferenceReader = preferenceService
-): Promise<WebSearchResolvedConfig> {
+export async function getResolvedConfig(preferences: WebSearchPreferenceReader): Promise<WebSearchResolvedConfig> {
   const [providerOverrides, runtime] = await Promise.all([
     getProviderOverrides(preferences),
     getRuntimeConfig(preferences)
@@ -98,7 +93,7 @@ export async function getResolvedConfig(
 
 export async function getProviderById(
   providerId: ResolvedWebSearchProvider['id'],
-  preferences: WebSearchPreferenceReader = preferenceService
+  preferences: WebSearchPreferenceReader
 ): Promise<ResolvedWebSearchProvider> {
   const providerOverrides = await getProviderOverrides(preferences)
   const override = providerOverrides[providerId]

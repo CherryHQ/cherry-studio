@@ -1,4 +1,9 @@
 import { loggerService } from '@logger'
+// Import directly from Application.ts to avoid circular dependency:
+// serviceRegistry.ts -> WebSearchService.ts -> application/index.ts -> serviceRegistry.ts
+import { application } from '@main/core/application/Application'
+import { BaseService, DependsOn, Injectable, ServicePhase } from '@main/core/lifecycle'
+import { Phase } from '@main/core/lifecycle'
 import type {
   WebSearchExecutionConfig,
   WebSearchRequest,
@@ -22,20 +27,16 @@ type PreparedWebSearchContext = {
   providerDriver: BaseWebSearchProvider
 }
 
-export class WebSearchService {
-  private static instance: WebSearchService | null = null
-
-  public static getInstance(): WebSearchService {
-    if (!WebSearchService.instance) {
-      WebSearchService.instance = new WebSearchService()
-    }
-    return WebSearchService.instance
-  }
-
-  private constructor() {}
-
+@Injectable('WebSearchService')
+@ServicePhase(Phase.WhenReady)
+@DependsOn(['PreferenceService', 'CacheService'])
+export class WebSearchService extends BaseService {
   private async prepareSearchContext(request: WebSearchRequest): Promise<PreparedWebSearchContext> {
-    const [provider, runtimeConfig] = await Promise.all([getProviderById(request.providerId), getRuntimeConfig()])
+    const preferenceService = application.get('PreferenceService')
+    const [provider, runtimeConfig] = await Promise.all([
+      getProviderById(request.providerId, preferenceService),
+      getRuntimeConfig(preferenceService)
+    ])
 
     return {
       questions: request.questions,
@@ -125,7 +126,8 @@ export class WebSearchService {
 
   private async updateWebSearchStatus(requestId: string, status: WebSearchStatus, delayMs?: number): Promise<void> {
     try {
-      await setWebSearchStatus(requestId, status, delayMs)
+      const cacheService = application.get('CacheService')
+      await setWebSearchStatus(cacheService, requestId, status, delayMs)
     } catch (error) {
       logger.warn('Failed to update web search status', {
         requestId,
@@ -137,7 +139,8 @@ export class WebSearchService {
 
   private async clearWebSearchStatusSafely(requestId: string): Promise<void> {
     try {
-      await clearWebSearchStatus(requestId)
+      const cacheService = application.get('CacheService')
+      await clearWebSearchStatus(cacheService, requestId)
     } catch (error) {
       logger.warn('Failed to clear web search status', {
         requestId,
@@ -167,5 +170,3 @@ export class WebSearchService {
     }
   }
 }
-
-export const webSearchService = WebSearchService.getInstance()

@@ -1,3 +1,4 @@
+import { BaseService } from '@main/core/lifecycle'
 import type {
   ResolvedWebSearchProvider,
   WebSearchExecutionConfig,
@@ -28,6 +29,11 @@ const {
 vi.mock('./providers/factory', () => ({
   createWebSearchProvider: createWebSearchProviderMock
 }))
+
+vi.mock('@main/core/application/Application', async () => {
+  const { mockApplicationFactory } = await import('@test-mocks/main/application')
+  return mockApplicationFactory()
+})
 
 vi.mock('./runtime/status', () => ({
   setWebSearchStatus: setWebSearchStatusMock,
@@ -92,6 +98,7 @@ const runtimeConfig: WebSearchExecutionConfig = {
 
 describe('WebSearchService', () => {
   beforeEach(() => {
+    BaseService.resetInstances()
     vi.clearAllMocks()
     getProviderByIdMock.mockResolvedValue(provider)
     getRuntimeConfigMock.mockResolvedValue(runtimeConfig)
@@ -123,7 +130,7 @@ describe('WebSearchService', () => {
       search: searchMock
     })
 
-    const service = WebSearchService.getInstance()
+    const service = new WebSearchService()
 
     const result = await service.search({
       providerId: 'tavily',
@@ -134,8 +141,8 @@ describe('WebSearchService', () => {
     expect(searchMock).toHaveBeenCalledTimes(1)
     expect(result.results[0].content).toBe('12345...')
     expect(setWebSearchStatusMock).toHaveBeenCalledTimes(1)
-    expect(setWebSearchStatusMock).toHaveBeenNthCalledWith(1, 'req-cutoff', { phase: 'cutoff' }, 500)
-    expect(clearWebSearchStatusMock).toHaveBeenCalledWith('req-cutoff')
+    expect(setWebSearchStatusMock).toHaveBeenNthCalledWith(1, expect.anything(), 'req-cutoff', { phase: 'cutoff' }, 500)
+    expect(clearWebSearchStatusMock).toHaveBeenCalledWith(expect.anything(), 'req-cutoff')
   })
 
   it('supports local providers through provider factory', async () => {
@@ -150,7 +157,7 @@ describe('WebSearchService', () => {
       search: searchMock
     })
 
-    const service = WebSearchService.getInstance()
+    const service = new WebSearchService()
 
     await service.search({
       providerId: 'local-google',
@@ -160,7 +167,7 @@ describe('WebSearchService', () => {
 
     expect(createWebSearchProviderMock).toHaveBeenCalledWith(localProvider)
     expect(searchMock).toHaveBeenCalledTimes(1)
-    expect(clearWebSearchStatusMock).toHaveBeenCalledWith('req-local-provider')
+    expect(clearWebSearchStatusMock).toHaveBeenCalledWith(expect.anything(), 'req-local-provider')
   })
 
   it('filters blacklisted results before post processing', async () => {
@@ -192,7 +199,7 @@ describe('WebSearchService', () => {
       } satisfies WebSearchResponse)
     })
 
-    const service = WebSearchService.getInstance()
+    const service = new WebSearchService()
 
     const result = await service.search({
       providerId: 'tavily',
@@ -207,7 +214,7 @@ describe('WebSearchService', () => {
         url: 'https://allowed.example/post'
       }
     ])
-    expect(clearWebSearchStatusMock).toHaveBeenCalledWith('req-blacklist')
+    expect(clearWebSearchStatusMock).toHaveBeenCalledWith(expect.anything(), 'req-blacklist')
   })
 
   it('returns partial results when some queries fail', async () => {
@@ -229,7 +236,7 @@ describe('WebSearchService', () => {
       search: searchMock
     })
 
-    const service = WebSearchService.getInstance()
+    const service = new WebSearchService()
     const result = await service.search({
       providerId: 'tavily',
       questions: ['first', 'second'],
@@ -247,6 +254,7 @@ describe('WebSearchService', () => {
       ]
     })
     expect(setWebSearchStatusMock).toHaveBeenCalledWith(
+      expect.anything(),
       'req-partial-success',
       {
         phase: 'partial_failure',
@@ -255,7 +263,7 @@ describe('WebSearchService', () => {
       },
       1000
     )
-    expect(clearWebSearchStatusMock).toHaveBeenCalledWith('req-partial-success')
+    expect(clearWebSearchStatusMock).toHaveBeenCalledWith(expect.anything(), 'req-partial-success')
   })
 
   it('merges multiple successful searches and updates fetch status with narrowed fulfilled results', async () => {
@@ -286,7 +294,7 @@ describe('WebSearchService', () => {
       search: searchMock
     })
 
-    const service = WebSearchService.getInstance()
+    const service = new WebSearchService()
     const result = await service.search({
       providerId: 'tavily',
       questions: ['first', 'second'],
@@ -309,6 +317,7 @@ describe('WebSearchService', () => {
       ]
     })
     expect(setWebSearchStatusMock).toHaveBeenCalledWith(
+      expect.anything(),
       'req-multi-success',
       {
         phase: 'fetch_complete',
@@ -316,7 +325,7 @@ describe('WebSearchService', () => {
       },
       1000
     )
-    expect(clearWebSearchStatusMock).toHaveBeenCalledWith('req-multi-success')
+    expect(clearWebSearchStatusMock).toHaveBeenCalledWith(expect.anything(), 'req-multi-success')
   })
 
   it('throws when all queries fail', async () => {
@@ -325,7 +334,7 @@ describe('WebSearchService', () => {
       search: vi.fn().mockRejectedValue(error)
     })
 
-    const service = WebSearchService.getInstance()
+    const service = new WebSearchService()
 
     await expect(
       service.search({
@@ -339,7 +348,7 @@ describe('WebSearchService', () => {
       requestId: 'req-all-failed',
       providerId: 'tavily'
     })
-    expect(clearWebSearchStatusMock).toHaveBeenCalledWith('req-all-failed')
+    expect(clearWebSearchStatusMock).toHaveBeenCalledWith(expect.anything(), 'req-all-failed')
   })
 
   it('keeps successful results when fetch status cache write fails', async () => {
@@ -370,7 +379,7 @@ describe('WebSearchService', () => {
         } satisfies WebSearchResponse)
     })
 
-    const service = WebSearchService.getInstance()
+    const service = new WebSearchService()
 
     const result = await service.search({
       providerId: 'tavily',
@@ -411,7 +420,7 @@ describe('WebSearchService', () => {
       } satisfies WebSearchResponse)
     })
 
-    const service = WebSearchService.getInstance()
+    const service = new WebSearchService()
 
     const result = await service.search({
       providerId: 'tavily',
@@ -434,7 +443,7 @@ describe('WebSearchService', () => {
       search: vi.fn().mockRejectedValue(searchError)
     })
 
-    const service = WebSearchService.getInstance()
+    const service = new WebSearchService()
 
     await expect(
       service.search({

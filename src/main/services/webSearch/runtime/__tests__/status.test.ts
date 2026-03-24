@@ -5,13 +5,6 @@ const { getSharedMock, setSharedMock } = vi.hoisted(() => ({
   setSharedMock: vi.fn()
 }))
 
-vi.mock('@data/CacheService', () => ({
-  cacheService: {
-    getShared: getSharedMock,
-    setShared: setSharedMock
-  }
-}))
-
 import { clearWebSearchStatus, setWebSearchStatus } from '../status'
 
 describe('setWebSearchStatus', () => {
@@ -20,13 +13,18 @@ describe('setWebSearchStatus', () => {
   })
 
   it('stores status in shared cache for renderer observers', async () => {
+    const cache = {
+      getShared: getSharedMock,
+      setShared: setSharedMock
+    }
+
     getSharedMock.mockReturnValue({
       existing: {
         phase: 'default'
       }
     })
 
-    await setWebSearchStatus('request-1', {
+    await setWebSearchStatus(cache, 'request-1', {
       phase: 'fetch_complete',
       countAfter: 2
     })
@@ -44,6 +42,11 @@ describe('setWebSearchStatus', () => {
   })
 
   it('clears status for a completed request', async () => {
+    const cache = {
+      getShared: getSharedMock,
+      setShared: setSharedMock
+    }
+
     getSharedMock.mockReturnValue({
       existing: {
         phase: 'fetch_complete',
@@ -54,7 +57,7 @@ describe('setWebSearchStatus', () => {
       }
     })
 
-    await clearWebSearchStatus('completed')
+    await clearWebSearchStatus(cache, 'completed')
 
     expect(getSharedMock).toHaveBeenCalledWith('chat.web_search.active_searches')
     expect(setSharedMock).toHaveBeenCalledWith('chat.web_search.active_searches', {
@@ -66,6 +69,11 @@ describe('setWebSearchStatus', () => {
   })
 
   it('preserves overlapping status updates without clobbering other requests', async () => {
+    const cache = {
+      getShared: getSharedMock,
+      setShared: setSharedMock
+    }
+
     let sharedState = {} as Record<string, { phase: string; countAfter?: number }>
     getSharedMock.mockImplementation(() => sharedState)
     setSharedMock.mockImplementation((_, value) => {
@@ -74,6 +82,7 @@ describe('setWebSearchStatus', () => {
 
     await Promise.all([
       setWebSearchStatus(
+        cache,
         'request-1',
         {
           phase: 'fetch_complete',
@@ -81,7 +90,7 @@ describe('setWebSearchStatus', () => {
         },
         10
       ),
-      setWebSearchStatus('request-2', {
+      setWebSearchStatus(cache, 'request-2', {
         phase: 'cutoff'
       })
     ])
