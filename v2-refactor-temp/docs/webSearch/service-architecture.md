@@ -27,7 +27,7 @@
 1. `packages/shared/data/types/webSearch.ts`
 2. `src/main/services/webSearch/*`
 3. Main-side provider factory / provider drivers
-4. Main-side request schema 校验
+4. Main-side 独立请求 contract / request schema 校验
 5. Main-side blacklist 过滤
 6. Main-side post processing
 
@@ -58,10 +58,11 @@
 
 当前 contract 的边界很明确：
 
-1. 输入是归一化后的 `questions: string[]`
-2. 只表达执行所需字段
-3. 不包含 UI 文案、toast、Renderer span 细节
-4. 不包含原始 `links` / `summarize` / XML 之类上游编排协议
+1. 现在保留了一份轻量 shared request type：`providerId` / `questions` / `requestId`
+2. 同时覆盖结果、状态、运行时配置和 provider resolved config
+3. 只表达 Main-side 执行层当前已经稳定下来的字段
+4. 不包含 UI 文案、toast、Renderer span 细节
+5. 不包含原始 `links` / `summarize` / XML 之类上游编排协议
 
 ### 3.2 Shared Cache 调整
 
@@ -179,15 +180,16 @@
 
 `rag` 相关 phase 仍停留在状态模型层，没有完整 Main-side 执行逻辑。
 
-#### `schemas/requestSchema.ts`
+#### 请求边界（暂未固化）
 
-职责：
+当前状态：
 
-1. 校验 `providerId`
-2. 校验 `questions`
-3. 校验 `requestId`
+1. Main-side service 现在直接接收调用方传入的参数对象
+2. `providerId` / `questions` / `requestId` 这一层保留了一份 shared request type，便于后续 Main / Renderer 共用
+3. 但独立的 request schema 校验暂未接入公共入口
+4. 也还没有把这层请求边界正式固化成稳定的公共 entry contract
 
-这说明 Main-side contract 已经有了独立的输入边界，而不是完全信任上游。
+这部分会在后续真正补 Main-side entry adapter / 调用链切换时再一起收敛：保留 shared type，延后 schema 校验与入口冻结。
 
 ### 3.4 测试覆盖
 
@@ -197,8 +199,7 @@
 2. `src/main/services/webSearch/providers/__tests__/ApiProviders.test.ts`
 3. `src/main/services/webSearch/providers/locals/__tests__/LocalProviders.test.ts`
 4. `src/main/services/webSearch/runtime/__tests__/status.test.ts`
-5. `src/main/services/webSearch/schemas/__tests__/requestSchema.test.ts`
-6. `src/main/services/webSearch/utils/__tests__/*`
+5. `src/main/services/webSearch/utils/__tests__/*`
 
 当前测试重点覆盖了：
 
@@ -206,8 +207,7 @@
 2. blacklist 过滤
 3. partial success 行为
 4. local provider 支持
-5. request schema 输入校验
-6. 各 API provider 的协议解析
+5. 各 API provider 的协议解析
 
 ---
 
@@ -275,9 +275,10 @@
 2. Renderer 主调用链切换到 Main-side `WebSearchService`
 3. 设置页 provider 检查复用 Main-side driver
 4. aiCore / search orchestration 改为调用 Main-side backend
-5. Main-side `rag` 压缩落地
-6. 旧 Renderer provider 实现清理
-7. tracing / span 迁移到 Main-side WebSearch 边缘
+5. shared request contract 与 Main-side 请求校验收敛
+6. Main-side `rag` 压缩落地
+7. 旧 Renderer provider 实现清理
+8. tracing / span 迁移到 Main-side WebSearch 边缘
 
 所以当前分支的定位应当是：
 
