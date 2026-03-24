@@ -6,6 +6,7 @@
 import { type AmazonBedrockProviderSettings, createAmazonBedrock } from '@ai-sdk/amazon-bedrock'
 import { type CerebrasProviderSettings, createCerebras } from '@ai-sdk/cerebras'
 import { createGateway, type GatewayProviderSettings } from '@ai-sdk/gateway'
+import { createGroq, type GroqProviderSettings } from '@ai-sdk/groq'
 import { createVertexAnthropic, type GoogleVertexAnthropicProvider } from '@ai-sdk/google-vertex/anthropic/edge'
 import { createVertex, type GoogleVertexProvider, type GoogleVertexProviderSettings } from '@ai-sdk/google-vertex/edge'
 import { createHuggingFace, type HuggingFaceProviderSettings } from '@ai-sdk/huggingface'
@@ -150,6 +151,15 @@ export const CerebrasExtension = ProviderExtension.create({
 } as const satisfies ProviderExtensionConfig<CerebrasProviderSettings, ExtensionStorage, ProviderV3, 'cerebras'>)
 
 /**
+ * Groq Extension
+ */
+export const GroqExtension = ProviderExtension.create({
+  name: 'groq',
+  supportsImageGeneration: false,
+  create: createGroq
+} as const satisfies ProviderExtensionConfig<GroqProviderSettings, ExtensionStorage, ProviderV3, 'groq'>)
+
+/**
  * Ollama Extension
  */
 export const OllamaExtension = ProviderExtension.create({
@@ -214,5 +224,6 @@ export const extensions = [
   AiHubMixExtension,
   NewApiExtension,
   VoyageExtension,
-  TogetherAIExtension
+  TogetherAIExtension,
+  GroqExtension
 ] as const
