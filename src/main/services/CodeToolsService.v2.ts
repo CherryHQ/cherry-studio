@@ -1272,5 +1272,3 @@ export class CodeToolsService extends BaseService {
     }
   }
 }
-
-export const codeToolsService = new CodeToolsService()

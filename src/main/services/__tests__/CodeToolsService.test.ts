@@ -60,7 +60,8 @@ vi.mock('node:fs', () => ({
 
 async function loadModules() {
   const { BaseService } = await import('@main/core/lifecycle')
-  const { CodeToolsService, codeToolsService } = await import('../CodeToolsService.v2')
+  const { CodeToolsService } = await import('../CodeToolsService.v2')
+  const codeToolsService = new CodeToolsService()
   return { BaseService, CodeToolsService, codeToolsService }
 }
 
@@ -90,7 +91,7 @@ describe('CodeToolsService', () => {
 
   it('should prevent double instantiation', async () => {
     const { CodeToolsService } = await loadModules()
-    // The module already created one instance (codeToolsService),
+    // loadModules() already created one instance,
     // so creating another should throw
     expect(() => new CodeToolsService()).toThrow(/already been instantiated/)
   })

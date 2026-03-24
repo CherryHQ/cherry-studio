@@ -47,7 +47,6 @@ import appService from './services/AppService'
 import AppUpdater from './services/AppUpdater'
 import BackupManager from './services/BackupManager'
 import CherryINOAuthService from './services/CherryINOAuthService'
-import { codeToolsService } from './services/CodeToolsService.v2'
 import { ConfigKeys, configManager } from './services/ConfigManager'
 import CopilotService from './services/CopilotService'
 import DxtService from './services/DxtService'
@@ -985,7 +984,18 @@ export async function registerIpc(mainWindow: BrowserWindow, app: Electron.App) 
   ipcMain.handle(IpcChannel.ExternalApps_DetectInstalled, () => externalAppsService.detectInstalledApps())
 
   // CodeTools
-  ipcMain.handle(IpcChannel.CodeTools_Run, codeToolsService.run)
+  const codeToolsService = application.get('CodeToolsService')
+  ipcMain.handle(
+    IpcChannel.CodeTools_Run,
+    (
+      event,
+      cliTool: string,
+      model: string,
+      directory: string,
+      env: Record<string, string>,
+      options?: { autoUpdateToLatest?: boolean; terminal?: string }
+    ) => codeToolsService.run(event, cliTool, model, directory, env, options)
+  )
   ipcMain.handle(IpcChannel.CodeTools_GetAvailableTerminals, () => codeToolsService.getAvailableTerminalsForPlatform())
   ipcMain.handle(IpcChannel.CodeTools_SetCustomTerminalPath, (_, terminalId: string, path: string) =>
     codeToolsService.setCustomTerminalPath(terminalId, path)
