@@ -13,13 +13,25 @@ import type { TransformResult } from './ComplexPreferenceMappings'
 const VALID_CLI_IDS = new Set<string>(CODE_CLI_IDS)
 
 /**
- * Extract model IDs from a Record of full Model objects.
+ * Build a composite model ID in `providerId::modelId` format.
+ * Returns null if either part is missing or not a string.
+ */
+function buildCompositeModelId(model: Record<string, unknown>): string | null {
+  const providerId = typeof model.provider === 'string' ? model.provider.trim() : ''
+  const modelId = typeof model.id === 'string' ? model.id.trim() : ''
+
+  if (!providerId || !modelId) return null
+  return `${providerId}::${modelId}`
+}
+
+/**
+ * Extract composite model IDs from a Record of full Model objects.
  *
  * Legacy Redux stores full Model objects per CLI tool:
- *   { 'qwen-code': { id: 'model-1', name: '...', provider: '...' }, ... }
+ *   { 'qwen-code': { id: 'model-1', provider: 'openai', name: '...' }, ... }
  *
- * v2 stores only model IDs:
- *   { 'qwen-code': 'model-1', 'claude-code': null, ... }
+ * v2 stores composite IDs in `providerId::modelId` format:
+ *   { 'qwen-code': 'openai::model-1', 'claude-code': null, ... }
  */
 export function transformSelectedModelsToIds(
   selectedModels: Record<string, unknown> | null | undefined
@@ -35,9 +47,8 @@ export function transformSelectedModelsToIds(
 
     if (model === null || model === undefined) {
       result[toolKey] = null
-    } else if (typeof model === 'object' && 'id' in model) {
-      const rec = model as Record<string, unknown>
-      result[toolKey] = typeof rec.id === 'string' ? rec.id : null
+    } else if (typeof model === 'object') {
+      result[toolKey] = buildCompositeModelId(model as Record<string, unknown>)
     } else {
       result[toolKey] = null
     }

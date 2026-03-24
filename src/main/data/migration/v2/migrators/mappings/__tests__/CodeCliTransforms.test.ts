@@ -5,7 +5,7 @@ import { transformCodeCli, transformCodeCliToOverrides, transformSelectedModelsT
 
 describe('CodeCliTransforms', () => {
   describe('transformSelectedModelsToIds', () => {
-    it('should extract model IDs from full Model objects', () => {
+    it('should build composite providerId::modelId from full Model objects', () => {
       const selectedModels = {
         'qwen-code': { id: 'model-1', provider: 'openai', name: 'GPT-4', group: 'default' },
         'claude-code': { id: 'model-2', provider: 'anthropic', name: 'Claude', group: 'default' },
@@ -14,8 +14,8 @@ describe('CodeCliTransforms', () => {
 
       const result = transformSelectedModelsToIds(selectedModels)
       expect(result).toEqual({
-        'qwen-code': 'model-1',
-        'claude-code': 'model-2',
+        'qwen-code': 'openai::model-1',
+        'claude-code': 'anthropic::model-2',
         'gemini-cli': null
       })
     })
@@ -45,7 +45,7 @@ describe('CodeCliTransforms', () => {
       expect(transformSelectedModelsToIds(null)).toEqual({})
     })
 
-    it('should handle models without id field', () => {
+    it('should return null for models without id field', () => {
       const selectedModels = {
         'qwen-code': { name: 'No ID Model', provider: 'test', group: 'default' },
         'claude-code': { id: 'valid-id', provider: 'anthropic', name: 'Claude', group: 'default' }
@@ -54,7 +54,20 @@ describe('CodeCliTransforms', () => {
       const result = transformSelectedModelsToIds(selectedModels as Record<string, unknown>)
       expect(result).toEqual({
         'qwen-code': null,
-        'claude-code': 'valid-id'
+        'claude-code': 'anthropic::valid-id'
+      })
+    })
+
+    it('should return null for models without provider field', () => {
+      const selectedModels = {
+        'qwen-code': { id: 'model-1', name: 'No Provider' },
+        'claude-code': { id: 'model-2', provider: 'anthropic' }
+      }
+
+      const result = transformSelectedModelsToIds(selectedModels as Record<string, unknown>)
+      expect(result).toEqual({
+        'qwen-code': null,
+        'claude-code': 'anthropic::model-2'
       })
     })
 
@@ -69,19 +82,19 @@ describe('CodeCliTransforms', () => {
       expect(result).toEqual({
         'qwen-code': null,
         'claude-code': null,
-        'gemini-cli': 'valid'
+        'gemini-cli': 'test::valid'
       })
     })
 
     it('should skip invalid tool IDs', () => {
       const selectedModels = {
-        'qwen-code': { id: 'model-1' },
-        'unknown-tool': { id: 'model-2' }
+        'qwen-code': { id: 'model-1', provider: 'openai' },
+        'unknown-tool': { id: 'model-2', provider: 'test' }
       }
 
       const result = transformSelectedModelsToIds(selectedModels)
       expect(result).toEqual({
-        'qwen-code': 'model-1'
+        'qwen-code': 'openai::model-1'
       })
       expect(result).not.toHaveProperty('unknown-tool')
     })
@@ -106,7 +119,7 @@ describe('CodeCliTransforms', () => {
       expect(result).toEqual({
         'qwen-code': {
           enabled: true,
-          modelId: 'model-1',
+          modelId: 'openai::model-1',
           envVars: 'KEY=val',
           directories: ['/project-a', '/project-b'],
           currentDirectory: '/project-a'
@@ -157,7 +170,7 @@ describe('CodeCliTransforms', () => {
       })
 
       expect(result).toEqual({
-        'gemini-cli': { modelId: 'gem-1' }
+        'gemini-cli': { modelId: 'google::gem-1' }
       })
     })
 
@@ -254,7 +267,7 @@ describe('CodeCliTransforms', () => {
       expect(result).toEqual({
         'claude-code': {
           enabled: true,
-          modelId: 'claude-4',
+          modelId: 'anthropic::claude-4',
           envVars: 'API_KEY=xxx',
           directories: ['/work', '/home'],
           currentDirectory: '/work',
@@ -266,8 +279,8 @@ describe('CodeCliTransforms', () => {
     it('should filter out invalid tool IDs from models and env vars', () => {
       const result = transformCodeCliToOverrides({
         selectedModels: {
-          'qwen-code': { id: 'model-1' },
-          'invalid-tool': { id: 'model-2' }
+          'qwen-code': { id: 'model-1', provider: 'openai' },
+          'invalid-tool': { id: 'model-2', provider: 'test' }
         },
         environmentVariables: { 'another-invalid': 'KEY=val' },
         directories: [],
@@ -276,7 +289,7 @@ describe('CodeCliTransforms', () => {
       })
 
       expect(result).toEqual({
-        'qwen-code': { modelId: 'model-1' }
+        'qwen-code': { modelId: 'openai::model-1' }
       })
       expect(result).not.toHaveProperty('invalid-tool')
       expect(result).not.toHaveProperty('another-invalid')
@@ -312,7 +325,7 @@ describe('CodeCliTransforms', () => {
         'feature.code_cli.overrides': {
           'claude-code': {
             enabled: true,
-            modelId: 'claude-4',
+            modelId: 'anthropic::claude-4',
             envVars: 'API_KEY=xxx',
             directories: ['/work'],
             currentDirectory: '/work',
@@ -346,10 +359,13 @@ describe('CodeCliTransforms', () => {
       })
 
       const overrides = result['feature.code_cli.overrides'] as Record<string, unknown>
-      expect(overrides['qwen-code']).toEqual({ modelId: 'qwen-2.5', envVars: 'DASHSCOPE_API_KEY=sk-xxx' })
+      expect(overrides['qwen-code']).toEqual({
+        modelId: 'alibaba::qwen-2.5',
+        envVars: 'DASHSCOPE_API_KEY=sk-xxx'
+      })
       expect(overrides['claude-code']).toEqual({
         enabled: true,
-        modelId: 'claude-4',
+        modelId: 'anthropic::claude-4',
         directories: ['/home/user/projects'],
         currentDirectory: '/home/user/projects',
         terminal: 'iTerm2'
