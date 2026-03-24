@@ -22,6 +22,7 @@ import type {
   ValidateResult
 } from '@shared/data/migration/v2/types'
 import { eq, sql } from 'drizzle-orm'
+import Store from 'electron-store'
 import fs from 'fs/promises'
 import path from 'path'
 
@@ -63,16 +64,25 @@ export class MigrationEngine {
   /**
    * Check if migration is needed
    */
-  //TODO 不能仅仅判断数据库，如果是全新安装，而不是升级上来的用户，其实并不需要迁移，但是按现在的逻辑，还是会进行迁移，这不正确
   async needsMigration(): Promise<boolean> {
     const db = application.get('DbService').getDb()
     const status = await db.select().from(appStateTable).where(eq(appStateTable.key, MIGRATION_V2_STATUS)).get()
 
-    // Migration needed if: no status record, or status is not 'completed'
-    if (!status?.value) return true
+    if (status?.value) {
+      const statusValue = status.value as MigrationStatusValue
+      return statusValue.status !== 'completed'
+    }
 
-    const statusValue = status.value as MigrationStatusValue
-    return statusValue.status !== 'completed'
+    // No migration status record — check if this is a fresh install or an upgrade.
+    // Fresh installs have no legacy electron-store data, so migration is unnecessary.
+    const legacyStore = new Store()
+    if (legacyStore.size === 0) {
+      logger.info('Fresh install detected (empty electron-store), skipping migration')
+      await this.markCompleted()
+      return false
+    }
+
+    return true
   }
 
   /**
