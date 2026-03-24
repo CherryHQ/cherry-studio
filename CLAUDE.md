@@ -106,6 +106,44 @@ Database: SQLite + Drizzle ORM, schemas in `src/main/data/db/schemas/`, migratio
 - **Component Testing**: React Testing Library
 - **Coverage**: Available via `yarn test:coverage`
 
+#### Main Process Services (Lifecycle)
+
+**MUST READ**: [src/main/core/application/README.md](src/main/core/application/README.md) and [src/main/core/lifecycle/README.md](src/main/core/lifecycle/README.md)
+
+All main-process services must use the lifecycle system. When creating or migrating a service:
+
+1. **Extend `BaseService`** and apply decorators:
+
+```typescript
+import { BaseService, Injectable, DependsOn, ServicePhase, Phase } from '@main/core/lifecycle'
+
+@Injectable()
+@ServicePhase(Phase.WhenReady)        // when to initialize (default: WhenReady)
+@DependsOn(['DatabaseService'])       // what must be ready first
+export class MyService extends BaseService {
+  protected async onInit() { /* setup */ }
+  protected async onStop() { /* cleanup */ }
+}
+```
+
+2. **Register in `serviceRegistry.ts`** (`src/main/core/application/serviceRegistry.ts`):
+
+```typescript
+export const services = {
+  // ...existing
+  MyService,  // ← one line, types auto-derived
+} as const
+```
+
+3. **Access at runtime** via the type-safe `application.get()`:
+
+```typescript
+import { application } from '@main/core/application'
+const myService = application.get('MyService')
+```
+
+**Do NOT** instantiate services with `new` or use manual singleton patterns for new services — the lifecycle container manages instantiation, ordering, and shutdown automatically.
+
 ### Key Patterns
 
 - **IPC Communication**: Secure main-renderer communication via preload scripts

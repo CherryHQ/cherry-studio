@@ -19,6 +19,7 @@
  */
 
 import { flattenCompressionConfig, migrateWebSearchProviders } from '../transformers/PreferenceTransformers'
+import { transformCodeCli } from './CodeCliTransforms'
 import { mergeFileProcessingOverrides } from './FileProcessingOverrideMappings'
 
 // ============================================================================
@@ -110,6 +111,23 @@ export const COMPLEX_PREFERENCE_MAPPINGS: ComplexMapping[] = [
     ],
     transform: flattenCompressionConfig
   },
+
+  // CodeCLI layered preset overrides
+  {
+    id: 'code_cli_overrides',
+    description: 'Merge codeTools per-tool data (models, env vars, directories) into layered preset overrides',
+    sources: {
+      selectedModels: { source: 'redux', category: 'codeTools', key: 'selectedModels' },
+      environmentVariables: { source: 'redux', category: 'codeTools', key: 'environmentVariables' },
+      directories: { source: 'redux', category: 'codeTools', key: 'directories' },
+      currentDirectory: { source: 'redux', category: 'codeTools', key: 'currentDirectory' },
+      selectedCliTool: { source: 'redux', category: 'codeTools', key: 'selectedCliTool' },
+      selectedTerminal: { source: 'redux', category: 'codeTools', key: 'selectedTerminal' }
+    },
+    targetKeys: ['feature.code_cli.overrides'],
+    transform: transformCodeCli
+  },
+
   // File processing overrides merging
   {
     id: 'file_processing_overrides_merge',

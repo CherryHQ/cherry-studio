@@ -15,7 +15,7 @@ import { getModelUniqId } from '@renderer/services/ModelService'
 import { useAppSelector } from '@renderer/store'
 import type { EndpointType, Model } from '@renderer/types'
 import type { TerminalConfig } from '@shared/config/constant'
-import { codeTools, terminalApps } from '@shared/config/constant'
+import { codeCLI, terminalApps } from '@shared/config/constant'
 import { CLAUDE_OFFICIAL_SUPPORTED_PROVIDERS, isSiliconAnthropicCompatibleModel } from '@shared/config/providers'
 import { Alert, Checkbox, Input, Select, Space } from 'antd'
 import { Download, FolderOpen, Terminal, X } from 'lucide-react'
@@ -82,7 +82,7 @@ const CodeToolsPage: FC = () => {
         return false
       }
 
-      if (selectedCliTool === codeTools.claudeCode) {
+      if (selectedCliTool === codeCLI.claudeCode) {
         if (m.supported_endpoint_types) {
           return m.supported_endpoint_types.includes('anthropic')
         }
@@ -98,14 +98,14 @@ const CodeToolsPage: FC = () => {
         return m.id.includes('claude') || CLAUDE_OFFICIAL_SUPPORTED_PROVIDERS.includes(m.provider)
       }
 
-      if (selectedCliTool === codeTools.geminiCli) {
+      if (selectedCliTool === codeCLI.geminiCli) {
         if (m.supported_endpoint_types) {
           return m.supported_endpoint_types.includes('gemini')
         }
         return m.id.includes('gemini')
       }
 
-      if (selectedCliTool === codeTools.openaiCodex) {
+      if (selectedCliTool === codeCLI.openaiCodex) {
         if (m.supported_endpoint_types) {
           return ['openai', 'openai-response'].some((type) =>
             m.supported_endpoint_types?.includes(type as EndpointType)
@@ -119,11 +119,11 @@ const CodeToolsPage: FC = () => {
         return m.id.includes('openai') || OPENAI_CODEX_SUPPORTED_PROVIDERS.includes(m.provider)
       }
 
-      if (selectedCliTool === codeTools.githubCopilotCli) {
+      if (selectedCliTool === codeCLI.githubCopilotCli) {
         return false
       }
 
-      if (selectedCliTool === codeTools.qwenCode || selectedCliTool === codeTools.iFlowCli) {
+      if (selectedCliTool === codeCLI.qwenCode || selectedCliTool === codeCLI.iFlowCli) {
         if (m.supported_endpoint_types) {
           return ['openai', 'openai-response'].some((type) =>
             m.supported_endpoint_types?.includes(type as EndpointType)
@@ -132,7 +132,7 @@ const CodeToolsPage: FC = () => {
         return true
       }
 
-      if (selectedCliTool === codeTools.openCode) {
+      if (selectedCliTool === codeCLI.openCode) {
         if (m.supported_endpoint_types) {
           return ['openai', 'openai-response', 'anthropic'].some((type) =>
             m.supported_endpoint_types?.includes(type as EndpointType)
@@ -232,7 +232,7 @@ const CodeToolsPage: FC = () => {
       }
     }
 
-    if (!selectedModel && selectedCliTool !== codeTools.githubCopilotCli) {
+    if (!selectedModel && selectedCliTool !== codeCLI.githubCopilotCli) {
       return { isValid: false, message: t('code.model_required') }
     }
 
@@ -243,7 +243,7 @@ const CodeToolsPage: FC = () => {
   const prepareLaunchEnvironment = async (): Promise<{
     env: Record<string, string>
   } | null> => {
-    if (selectedCliTool === codeTools.githubCopilotCli) {
+    if (selectedCliTool === codeCLI.githubCopilotCli) {
       const userEnv = parseEnvironmentVariables(environmentVariables)
       return { env: userEnv }
     }
@@ -273,7 +273,7 @@ const CodeToolsPage: FC = () => {
 
   // 执行启动操作
   const executeLaunch = async (env: Record<string, string>) => {
-    const modelId = selectedCliTool === codeTools.githubCopilotCli ? '' : selectedModel?.id!
+    const modelId = selectedCliTool === codeCLI.githubCopilotCli ? '' : selectedModel?.id!
 
     const runOptions = {
       autoUpdateToLatest,
@@ -393,7 +393,7 @@ const CodeToolsPage: FC = () => {
               />
             </SettingsItem>
 
-            {selectedCliTool !== codeTools.githubCopilotCli && (
+            {selectedCliTool !== codeCLI.githubCopilotCli && (
               <SettingsItem>
                 <div className="settings-label">
                   {t('code.model')}

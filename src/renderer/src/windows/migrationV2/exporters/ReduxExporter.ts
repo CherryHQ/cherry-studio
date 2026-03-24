@@ -14,7 +14,8 @@ const SLICES_TO_EXPORT = [
   'mcp', // MCP server configurations
   'note', // Note-related settings
   'selectionStore', // Selection assistant settings
-  'websearch' // Web search configurations
+  'websearch', // Web search configurations
+  'codeTools' // Code tools settings (CLI tool, models, terminal)
 ]
 
 export interface ReduxExportResult {

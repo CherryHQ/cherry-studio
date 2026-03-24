@@ -880,7 +880,8 @@ export const REDUX_STORE_MAPPINGS = {
       originalKey: 'sortType',
       targetKey: 'feature.notes.sort_type'
     }
-  ]
+  ],
+  codeTools: []
 } as const
 
 /**
@@ -942,7 +943,7 @@ export const LOCALSTORAGE_MAPPINGS: ReadonlyArray<{ originalKey: string; targetK
  * 映射统计:
  * - ElectronStore项: 1
  * - Redux Store项: 208
- * - Redux分类: settings, selectionStore, memory, nutstore, preprocess, shortcuts, translate, websearch, ocr, note
+ * - Redux分类: settings, selectionStore, memory, nutstore, preprocess, shortcuts, translate, websearch, ocr, note, codeTools
  * - DexieSettings项: 7
  * - localStorage项: 0
  * - 总配置项: 216

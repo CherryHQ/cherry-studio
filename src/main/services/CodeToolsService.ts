@@ -9,7 +9,7 @@ import { isUserInChina } from '@main/utils/ipService'
 import { getBinaryName } from '@main/utils/process'
 import type { TerminalConfig, TerminalConfigWithCommand } from '@shared/config/constant'
 import {
-  codeTools,
+  codeCLI,
   HOME_CHERRY_DIR,
   MACOS_TERMINALS,
   MACOS_TERMINALS_WITH_COMMANDS,
@@ -83,21 +83,21 @@ class CodeToolsService {
 
   public async getPackageName(cliTool: string) {
     switch (cliTool) {
-      case codeTools.claudeCode:
+      case codeCLI.claudeCode:
         return '@anthropic-ai/claude-code'
-      case codeTools.geminiCli:
+      case codeCLI.geminiCli:
         return '@google/gemini-cli'
-      case codeTools.openaiCodex:
+      case codeCLI.openaiCodex:
         return '@openai/codex'
-      case codeTools.qwenCode:
+      case codeCLI.qwenCode:
         return '@qwen-code/qwen-code'
-      case codeTools.iFlowCli:
+      case codeCLI.iFlowCli:
         return '@iflow-ai/iflow-cli'
-      case codeTools.githubCopilotCli:
+      case codeCLI.githubCopilotCli:
         return '@github/copilot'
-      case codeTools.kimiCli:
+      case codeCLI.kimiCli:
         return 'kimi-cli' // Python package
-      case codeTools.openCode:
+      case codeCLI.openCode:
         return 'opencode-ai'
       default:
         throw new Error(`Unsupported CLI tool: ${cliTool}`)
@@ -106,21 +106,21 @@ class CodeToolsService {
 
   public async getCliExecutableName(cliTool: string) {
     switch (cliTool) {
-      case codeTools.claudeCode:
+      case codeCLI.claudeCode:
         return 'claude'
-      case codeTools.geminiCli:
+      case codeCLI.geminiCli:
         return 'gemini'
-      case codeTools.openaiCodex:
+      case codeCLI.openaiCodex:
         return 'codex'
-      case codeTools.qwenCode:
+      case codeCLI.qwenCode:
         return 'qwen'
-      case codeTools.iFlowCli:
+      case codeCLI.iFlowCli:
         return 'iflow'
-      case codeTools.githubCopilotCli:
+      case codeCLI.githubCopilotCli:
         return 'copilot'
-      case codeTools.kimiCli:
+      case codeCLI.kimiCli:
         return 'kimi'
-      case codeTools.openCode:
+      case codeCLI.openCode:
         return 'opencode'
       default:
         throw new Error(`Unsupported CLI tool: ${cliTool}`)
@@ -917,13 +917,13 @@ class CodeToolsService {
     let baseCommand = isWin ? `"${executablePath}"` : `"${bunPath}" "${executablePath}"`
 
     // Special handling for kimi-cli: use uvx instead of bun
-    if (cliTool === codeTools.kimiCli) {
+    if (cliTool === codeCLI.kimiCli) {
       const uvPath = path.join(os.homedir(), HOME_CHERRY_DIR, 'bin', await getBinaryName('uv'))
       baseCommand = `${uvPath} tool run ${packageName}`
     }
 
     // Special handling for qwen-code: add --auth-type openai for version >= 0.12.3
-    if (cliTool === codeTools.qwenCode) {
+    if (cliTool === codeCLI.qwenCode) {
       // Use semver for proper version comparison (handles v-prefix, prereleases, etc.)
       const coerced = semver.coerce(installedVersion)
       const needsAuthType = installedVersion && coerced && semver.gte(coerced, '0.12.3')
@@ -936,7 +936,7 @@ class CodeToolsService {
     }
 
     // Add configuration parameters for OpenAI Codex using command line args
-    if (cliTool === codeTools.openaiCodex && env.OPENAI_MODEL_PROVIDER) {
+    if (cliTool === codeCLI.openaiCodex && env.OPENAI_MODEL_PROVIDER) {
       const providerId = env.OPENAI_MODEL_PROVIDER
       const providerName = env.OPENAI_MODEL_PROVIDER_NAME || providerId
       const normalizedBaseUrl = env.OPENAI_BASE_URL.replace(/\/$/, '')
@@ -954,7 +954,7 @@ class CodeToolsService {
     }
 
     // Special handling for OpenCode: generate config file and add --model flag
-    if (cliTool === codeTools.openCode) {
+    if (cliTool === codeCLI.openCode) {
       const baseUrl = env.OPENCODE_BASE_URL
       const modelId = _model
       const modelName = env.OPENCODE_MODEL_NAME || modelId
@@ -983,7 +983,7 @@ class CodeToolsService {
     const bunInstallPath = path.join(os.homedir(), HOME_CHERRY_DIR)
 
     // Special handling for kimi-cli: uvx handles installation automatically
-    if (cliTool === codeTools.kimiCli) {
+    if (cliTool === codeCLI.kimiCli) {
       // uvx will automatically download and run kimi-cli, no need to install
       // Just use the base command directly
     } else if (isInstalled) {
