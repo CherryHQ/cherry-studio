@@ -8,7 +8,6 @@ import type {
   HookCallback,
   McpHttpServerConfig,
   Options,
-  PreToolUseHookInput,
   SDKMessage,
   SdkPluginConfig
 } from '@anthropic-ai/claude-agent-sdk'
@@ -255,7 +254,7 @@ class ClaudeCodeService implements AgentServiceInterface {
         return {}
       }
 
-      const hookInput = input as PreToolUseHookInput
+      const hookInput = input
       const toolName = hookInput.tool_name
 
       logger.debug('PreToolUse hook triggered', {

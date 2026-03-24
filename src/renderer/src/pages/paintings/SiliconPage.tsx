@@ -155,7 +155,7 @@ const SiliconPage: FC<{ Options: string[] }> = ({ Options }) => {
   }
 
   const onGenerate = async () => {
-    await checkProviderEnabled(siliconFlowProvider!, t)
+    await checkProviderEnabled(siliconFlowProvider, t)
 
     if (painting.files.length > 0) {
       const confirmed = await window.modal.confirm({

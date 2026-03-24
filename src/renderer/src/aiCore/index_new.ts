@@ -131,7 +131,7 @@ export default class ModernAiProvider {
     // Config is now set in constructor, ApiService handles key rotation before passing provider
     if (!this.config) {
       // If config wasn't set in constructor (when provider only), generate it now
-      this.config = providerToAiSdkConfig(this.actualProvider, this.model!)
+      this.config = providerToAiSdkConfig(this.actualProvider, this.model)
     }
     logger.debug('Using provider config for completions', this.config)
 
