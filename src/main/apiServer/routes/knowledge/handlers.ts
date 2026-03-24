@@ -1,7 +1,7 @@
 import { loggerService } from '@logger'
 import KnowledgeService from '@main/services/KnowledgeService'
 import { reduxService } from '@main/services/ReduxService'
-import type { KnowledgeBase, KnowledgeBaseParams } from '@renderer/types'
+import type { KnowledgeBase, KnowledgeBaseParams, Model } from '@types'
 import type { Request, Response } from 'express'
 
 const logger = loggerService.withContext('KnowledgeHandlers')
@@ -95,17 +95,19 @@ interface SearchRequest {
  * Convert KnowledgeBase to KnowledgeBaseParams for search
  */
 function getKnowledgeBaseParams(base: KnowledgeBase): KnowledgeBaseParams {
-  // Get provider info from the model
-  const modelProvider = base.model?.provider
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const rerankModel = (base as any).rerankModel
+  // Model.provider is a string (provider ID)
+  const providerId = base.model?.provider || 'ollama'
+
+  const rerankModel = (base as any).rerankModel as Model | undefined
 
   // Determine embed API client params
+  // For Ollama, typically use localhost:11434
+  const isOllama = providerId === 'ollama'
   const embedApiClient = {
     model: base.model?.id || '',
-    provider: modelProvider?.type || modelProvider?.id || 'ollama',
+    provider: providerId,
     apiKey: '', // Will be populated by the KnowledgeService from provider config
-    baseURL: modelProvider?.apiHost || 'http://localhost:11434'
+    baseURL: isOllama ? 'http://localhost:11434' : '' // Ollama is default
   }
 
   // Build the params object
@@ -122,9 +124,9 @@ function getKnowledgeBaseParams(base: KnowledgeBase): KnowledgeBaseParams {
   if (rerankModel?.provider) {
     params.rerankApiClient = {
       model: rerankModel.id || '',
-      provider: rerankModel.provider.type || rerankModel.provider.id || 'cohere',
+      provider: rerankModel.provider,
       apiKey: '',
-      baseURL: rerankModel.provider.apiHost || ''
+      baseURL: ''
     }
   }
 
