@@ -15,11 +15,15 @@ const METADATA_KEYS = {
 
 /**
  * Mark a class as injectable service
+ * @param name - Explicit service name. Required because bundlers mangle class names
+ *               (e.g., rolldown-vite appends `$1`, making `target.name` unreliable).
+ *               This name is used for `application.get(name)` and `@DependsOn([name])`,
+ *               and must match the key in `serviceRegistry.ts`.
  */
-export function Injectable(): ClassDecorator {
+export function Injectable(name: string): ClassDecorator {
   return (target) => {
     Reflect.defineMetadata(METADATA_KEYS.INJECTABLE, true, target)
-    Reflect.defineMetadata(METADATA_KEYS.SERVICE_NAME, target.name, target)
+    Reflect.defineMetadata(METADATA_KEYS.SERVICE_NAME, name, target)
   }
 }
 

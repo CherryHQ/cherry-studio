@@ -1,5 +1,5 @@
-import { preferenceService } from '@data/PreferenceService'
 import { loggerService } from '@logger'
+import { application } from '@main/core/application'
 import type { Attributes, SpanEntity, TokenUsage, TraceCache } from '@mcp-trace/trace-core'
 import { convertSpanToSpanEntity } from '@mcp-trace/trace-core'
 import { SpanStatusCode } from '@opentelemetry/api'
@@ -22,7 +22,7 @@ class SpanCacheService implements TraceCache {
   }
 
   createSpan: (span: ReadableSpan) => void = (span: ReadableSpan) => {
-    if (!preferenceService.get('app.developer_mode.enabled')) {
+    if (!application.get('PreferenceService').get('app.developer_mode.enabled')) {
       return
     }
     const spanEntity = convertSpanToSpanEntity(span)
@@ -32,7 +32,7 @@ class SpanCacheService implements TraceCache {
   }
 
   endSpan: (span: ReadableSpan) => void = (span: ReadableSpan) => {
-    if (!preferenceService.get('app.developer_mode.enabled')) {
+    if (!application.get('PreferenceService').get('app.developer_mode.enabled')) {
       return
     }
     const spanId = span.spanContext().spanId
@@ -88,7 +88,7 @@ class SpanCacheService implements TraceCache {
   }
 
   async saveSpans(topicId: string) {
-    if (!preferenceService.get('app.developer_mode.enabled')) {
+    if (!application.get('PreferenceService').get('app.developer_mode.enabled')) {
       return
     }
     let traceId: string | undefined
@@ -139,7 +139,7 @@ class SpanCacheService implements TraceCache {
   }
 
   saveEntity(entity: SpanEntity) {
-    if (!preferenceService.get('app.developer_mode.enabled')) {
+    if (!application.get('PreferenceService').get('app.developer_mode.enabled')) {
       return
     }
     if (this.cache.has(entity.id)) {

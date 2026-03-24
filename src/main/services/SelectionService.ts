@@ -1,7 +1,7 @@
-import { preferenceService } from '@data/PreferenceService'
 import { loggerService } from '@logger'
 import { SELECTION_FINETUNED_LIST, SELECTION_PREDEFINED_BLACKLIST } from '@main/configs/SelectionConfig'
 import { isDev, isMac, isWin } from '@main/constant'
+import { application } from '@main/core/application'
 import type { SelectionActionItem } from '@shared/data/preference/preferenceTypes'
 import { SelectionTriggerMode } from '@shared/data/preference/preferenceTypes'
 import { IpcChannel } from '@shared/IpcChannel'
@@ -108,8 +108,6 @@ export class SelectionService {
 
       this.selectionHook = new SelectionHook()
       if (this.selectionHook) {
-        this.initZoomFactor()
-
         this.initStatus = true
       }
     } catch (error) {
@@ -138,7 +136,9 @@ export class SelectionService {
    * Initialize zoom factor from config and subscribe to changes
    * Ensures UI elements scale properly with system DPI settings
    */
-  private initZoomFactor(): void {
+  // TODO: Migrate to lifecycle system, then this can be private again (called from onInit)
+  public initZoomFactor(): void {
+    const preferenceService = application.get('PreferenceService')
     const zoomFactor = preferenceService.get('app.zoom_factor')
 
     if (zoomFactor) {
@@ -155,6 +155,7 @@ export class SelectionService {
   }
 
   private initConfig(): void {
+    const preferenceService = application.get('PreferenceService')
     this.triggerMode = preferenceService.get('feature.selection.trigger_mode')
     this.isFollowToolbar = preferenceService.get('feature.selection.follow_toolbar')
     this.isRemeberWinSize = preferenceService.get('feature.selection.remember_win_size')
@@ -389,6 +390,7 @@ export class SelectionService {
   public toggleEnabled(enabled: boolean | undefined = undefined): void {
     if (!this.selectionHook) return
 
+    const preferenceService = application.get('PreferenceService')
     const newEnabled = enabled === undefined ? !preferenceService.get('feature.selection.enabled') : enabled
 
     preferenceService.set('feature.selection.enabled', newEnabled)
@@ -1593,6 +1595,14 @@ export class SelectionService {
 export function initSelectionService(): boolean {
   if (!isSupportedOS) return false
 
+  // Initialize zoom factor here (after bootstrap) instead of in constructor
+  // because application.get() requires services to be registered first
+  const selectionInstance = SelectionService.getInstance()
+  if (selectionInstance) {
+    selectionInstance.initZoomFactor()
+  }
+
+  const preferenceService = application.get('PreferenceService')
   const enabled = preferenceService.get('feature.selection.enabled')
 
   preferenceService.subscribeChange('feature.selection.enabled', (enabled: boolean): void => {

@@ -1,7 +1,7 @@
 import type { CreateTranslateHistoryDto, UpdateTranslateHistoryDto } from '@shared/data/api/schemas/translate'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-// Mock dbService - tx shares the same mocks since transaction passes tx to callback
+// Mock db - tx shares the same mocks since transaction passes tx to callback
 const mockSelect = vi.fn()
 const mockInsert = vi.fn()
 const mockUpdate = vi.fn()
@@ -14,17 +14,20 @@ const mockTx = {
   delete: mockDelete
 }
 
-vi.mock('@data/db/DbService', () => ({
-  dbService: {
-    getDb: vi.fn(() => ({
-      select: mockSelect,
-      insert: mockInsert,
-      update: mockUpdate,
-      delete: mockDelete,
-      transaction: vi.fn(async (fn: (tx: typeof mockTx) => Promise<unknown>) => fn(mockTx))
-    }))
-  }
-}))
+const mockDb = {
+  select: mockSelect,
+  insert: mockInsert,
+  update: mockUpdate,
+  delete: mockDelete,
+  transaction: vi.fn(async (fn: (tx: typeof mockTx) => Promise<unknown>) => fn(mockTx))
+}
+
+vi.mock('@main/core/application', async () => {
+  const { mockApplicationFactory } = await import('@test-mocks/main/application')
+  return mockApplicationFactory({
+    DbService: { getDb: () => mockDb }
+  })
+})
 
 // Import after mocking
 const { TranslateHistoryService } = await import('../TranslateHistoryService')

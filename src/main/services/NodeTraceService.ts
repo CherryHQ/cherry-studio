@@ -1,6 +1,6 @@
-import { preferenceService } from '@data/PreferenceService'
 import { loggerService } from '@logger'
 import { isDev } from '@main/constant'
+import { application } from '@main/core/application'
 import { CacheBatchSpanProcessor, FunctionSpanExporter } from '@mcp-trace/trace-core'
 import { NodeTracer as MCPNodeTracer } from '@mcp-trace/trace-node/nodeTracer'
 import type { SpanContext } from '@opentelemetry/api'
@@ -106,6 +106,7 @@ export function openTraceWindow(topicId: string, traceId: string, autoOpen = tru
   })
 
   traceWin.webContents.on('did-finish-load', () => {
+    const preferenceService = application.get('PreferenceService')
     traceWin!.webContents.send('set-trace', {
       traceId,
       topicId,

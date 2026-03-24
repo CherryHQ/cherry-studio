@@ -1,4 +1,4 @@
-import { preferenceService } from '@data/PreferenceService'
+import { application } from '@main/core/application'
 import { app } from 'electron'
 import macosRelease from 'macos-release'
 import os from 'os'
@@ -98,6 +98,7 @@ export function generateUserAgent(): string {
  * @returns {string} Client ID
  */
 export function getClientId(): string {
+  const preferenceService = application.get('PreferenceService')
   let clientId = preferenceService.get('app.user.id')
 
   // If it's the placeholder value, generate a new UUID

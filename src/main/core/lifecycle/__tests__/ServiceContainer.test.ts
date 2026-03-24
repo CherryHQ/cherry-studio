@@ -7,19 +7,19 @@ import { matchesPlatformTarget, Phase } from '../types'
 
 // ── Test service classes ──
 
-@Injectable()
+@Injectable('SimpleService')
 class SimpleService extends BaseService {}
 
-@Injectable()
+@Injectable('PriorityService')
 @Priority(10)
 @ServicePhase(Phase.BeforeReady)
 @ErrorHandling('fail-fast')
 class PriorityService extends BaseService {}
 
-@Injectable()
+@Injectable('DependencyA')
 class DependencyA extends BaseService {}
 
-@Injectable()
+@Injectable('DependencyB')
 @DependsOn(['DependencyA'])
 class DependencyB extends BaseService {}
 
@@ -110,7 +110,7 @@ describe('ServiceContainer', () => {
     it('should throw when dependency is not registered', () => {
       const container = ServiceContainer.getInstance()
 
-      @Injectable()
+      @Injectable('OrphanService')
       @DependsOn(['MissingService'])
       class OrphanService extends BaseService {}
 
@@ -196,19 +196,19 @@ describe('ServiceContainer', () => {
 
     // ── Test service classes for platform exclusion ──
 
-    @Injectable()
+    @Injectable('LinuxExcludedService')
     @ExcludePlatforms(['linux'])
     class LinuxExcludedService extends BaseService {}
 
-    @Injectable()
+    @Injectable('LinuxArm64ExcludedService')
     @ExcludePlatforms(['linux-arm64'])
     class LinuxArm64ExcludedService extends BaseService {}
 
-    @Injectable()
+    @Injectable('DependsOnLinuxExcluded')
     @DependsOn(['LinuxExcludedService'])
     class DependsOnLinuxExcluded extends BaseService {}
 
-    @Injectable()
+    @Injectable('TransitiveDependentService')
     @DependsOn(['DependsOnLinuxExcluded'])
     class TransitiveDependentService extends BaseService {}
 

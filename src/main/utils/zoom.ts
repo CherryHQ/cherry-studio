@@ -1,7 +1,9 @@
-import { preferenceService } from '@data/PreferenceService'
+import { application } from '@main/core/application'
 import type { BrowserWindow } from 'electron'
 
 export function handleZoomFactor(wins: BrowserWindow[], delta: number, reset: boolean = false) {
+  const preferenceService = application.get('PreferenceService')
+
   if (reset) {
     wins.forEach((win) => {
       win.webContents.setZoomFactor(1)

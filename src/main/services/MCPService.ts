@@ -2,9 +2,9 @@ import crypto from 'node:crypto'
 import os from 'node:os'
 import path from 'node:path'
 
-import { cacheService } from '@data/CacheService'
 import { loggerService } from '@logger'
 import { getMCPServersFromRedux } from '@main/apiServer/utils/mcp'
+import { application } from '@main/core/application'
 import { createInMemoryMCPServer } from '@main/mcpServers/factory'
 import { makeSureDirExists, removeEnvProxy } from '@main/utils'
 import { findCommandInShellEnv, getBinaryName, getBinaryPath, isBinaryExists } from '@main/utils/process'
@@ -123,6 +123,7 @@ function withCache<T extends unknown[], R>(
 ): CachedFunction<T, R> {
   return async (...args: T): Promise<R> => {
     const cacheKey = getCacheKey(...args)
+    const cacheService = application.get('CacheService')
 
     if (cacheService.has(cacheKey)) {
       logger.debug(`${logPrefix} loaded from cache`, { cacheKey })
@@ -653,6 +654,7 @@ class McpService {
    */
   private setupNotificationHandlers(client: Client, server: MCPServer) {
     const serverKey = this.getServerKey(server)
+    const cacheService = application.get('CacheService')
 
     try {
       // Set up tools list changed notification handler
@@ -715,13 +717,14 @@ class McpService {
    * Clear resource-specific caches for a server
    */
   private clearResourceCaches(serverKey: string) {
-    cacheService.delete(`mcp:list_resources:${serverKey}`)
+    application.get('CacheService').delete(`mcp:list_resources:${serverKey}`)
   }
 
   /**
    * Clear all caches for a specific server
    */
   private clearServerCache(serverKey: string) {
+    const cacheService = application.get('CacheService')
     cacheService.delete(`mcp:list_tool:${serverKey}`)
     cacheService.delete(`mcp:list_prompts:${serverKey}`)
     cacheService.delete(`mcp:list_resources:${serverKey}`)

@@ -13,10 +13,10 @@ import type {
   SdkPluginConfig
 } from '@anthropic-ai/claude-agent-sdk'
 import { query } from '@anthropic-ai/claude-agent-sdk'
-import { preferenceService } from '@data/PreferenceService'
 import { loggerService } from '@logger'
 import { validateModelId } from '@main/apiServer/utils'
 import { isWin } from '@main/constant'
+import { application } from '@main/core/application'
 import { pluginService } from '@main/services/agents/plugins/PluginService'
 import { getAppLanguage } from '@main/utils/language'
 import { autoDiscoverGitBash } from '@main/utils/process'
@@ -123,7 +123,7 @@ class ClaudeCodeService implements AgentServiceInterface {
       return aiStream
     }
 
-    const apiConfig = preferenceService.getMultiple({
+    const apiConfig = application.get('PreferenceService').getMultiple({
       host: 'feature.csaas.host',
       port: 'feature.csaas.port',
       apiKey: 'feature.csaas.api_key'

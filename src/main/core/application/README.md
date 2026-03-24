@@ -11,6 +11,8 @@ Application          — "what to do" (register services, bootstrap, shutdown, r
 
 Application does not duplicate lifecycle logic. It delegates to `ServiceContainer` and `LifecycleManager` internally, while providing a clean, app-level API.
 
+For lifecycle internals (phases, hooks, states, decorators, events) and a step-by-step guide to migrating old services, see [Lifecycle README](../lifecycle/README.md).
+
 ## Quick Start
 
 ```typescript
@@ -24,7 +26,7 @@ application.registerAll(serviceList)
 await application.bootstrap()
 
 // 3. Access a service
-const db = application.get('DatabaseService')
+const dbService = application.get('DbService')
 ```
 
 ## Bootstrap Flow
@@ -79,6 +81,27 @@ export const services = {
 ```
 
 This gives you type-safe access via `application.get('NewService')`.
+
+## Service Access Rules
+
+Services managed by the lifecycle system must **not** export singleton instances. The service CLASS is exported for type references only (e.g., `ServiceRegistry`, `@DependsOn`). All runtime access goes through `application.get()`.
+
+### Assign to a local variable before use
+
+Do **not** chain `application.get('...')` with method calls directly. Assign the service to a local variable first, then use it:
+
+```typescript
+// ✗ BAD: chained calls
+application.get('PreferenceService').get('app.zoom_factor')
+application.get('PreferenceService').set('app.zoom_factor', 1)
+
+// ✓ GOOD: assign first, then use
+const preferenceService = application.get('PreferenceService')
+preferenceService.get('app.zoom_factor')
+preferenceService.set('app.zoom_factor', 1)
+```
+
+This improves readability, avoids repeated container lookups, and makes the code easier to refactor.
 
 ## Runtime Service Control
 

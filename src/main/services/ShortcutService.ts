@@ -14,8 +14,8 @@
  * - v2 Refactor PR   : https://github.com/CherryHQ/cherry-studio/pull/10162
  * --------------------------------------------------------------------------
  */
-import { preferenceService } from '@data/PreferenceService'
 import { loggerService } from '@logger'
+import { application } from '@main/core/application'
 import { handleZoomFactor } from '@main/utils/zoom'
 import type { Shortcut } from '@types'
 import type { BrowserWindow } from 'electron'
@@ -52,7 +52,7 @@ function getShortcutHandler(shortcut: Shortcut) {
     case 'mini_window':
       return () => {
         // 在处理器内部检查QuickAssistant状态，而不是在注册时检查
-        const quickAssistantEnabled = preferenceService.get('feature.quick_assistant.enabled')
+        const quickAssistantEnabled = application.get('PreferenceService').get('feature.quick_assistant.enabled')
         logger.info(`mini_window shortcut triggered, QuickAssistant enabled: ${quickAssistantEnabled}`)
 
         if (!quickAssistantEnabled) {
@@ -163,7 +163,7 @@ const convertShortcutFormat = (shortcut: string | string[]): string => {
 export function registerShortcuts(window: BrowserWindow) {
   if (isRegisterOnBoot) {
     window.once('ready-to-show', () => {
-      if (preferenceService.get('app.tray.on_launch')) {
+      if (application.get('PreferenceService').get('app.tray.on_launch')) {
         registerOnlyUniversalShortcuts()
       }
     })

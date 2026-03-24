@@ -1,10 +1,7 @@
-// just import the themeService to ensure the theme is initialized
-import './ThemeService'
-
-import { preferenceService } from '@data/PreferenceService'
 import { is } from '@electron-toolkit/utils'
 import { loggerService } from '@logger'
 import { isDev, isLinux, isMac, isWin } from '@main/constant'
+import { application } from '@main/core/application'
 import { getFilesDir } from '@main/utils/file'
 import { getWindowsBackgroundMaterial } from '@main/utils/windowUtil'
 import { MIN_WINDOW_HEIGHT, MIN_WINDOW_WIDTH } from '@shared/config/constant'
@@ -50,6 +47,8 @@ export class WindowService {
       this.mainWindow.focus()
       return this.mainWindow
     }
+
+    const preferenceService = application.get('PreferenceService')
 
     const mainWindowState = windowStateKeeper({
       defaultWidth: MIN_WINDOW_WIDTH,
@@ -131,6 +130,7 @@ export class WindowService {
   }
 
   private setupSpellCheck(mainWindow: BrowserWindow) {
+    const preferenceService = application.get('PreferenceService')
     const enableSpellCheck = preferenceService.get('app.spell_check.enabled')
     if (enableSpellCheck) {
       try {
@@ -161,7 +161,7 @@ export class WindowService {
   private setupMaximize(mainWindow: BrowserWindow, isMaximized: boolean) {
     if (isMaximized) {
       // 如果是从托盘启动，则需要延迟最大化，否则显示的就不是重启前的最大化窗口了
-      preferenceService.get('app.tray.on_launch')
+      application.get('PreferenceService').get('app.tray.on_launch')
         ? mainWindow.once('show', () => {
             mainWindow.maximize()
           })
@@ -186,6 +186,7 @@ export class WindowService {
 
   private setupWindowEvents(mainWindow: BrowserWindow) {
     mainWindow.once('ready-to-show', () => {
+      const preferenceService = application.get('PreferenceService')
       mainWindow.webContents.setZoomFactor(preferenceService.get('app.zoom_factor'))
 
       // show window only when laucn to tray not set
@@ -215,14 +216,14 @@ export class WindowService {
     // and resize ipc
     //
     mainWindow.on('will-resize', () => {
-      mainWindow.webContents.setZoomFactor(preferenceService.get('app.zoom_factor'))
+      mainWindow.webContents.setZoomFactor(application.get('PreferenceService').get('app.zoom_factor'))
       mainWindow.webContents.send(IpcChannel.Windows_Resize, mainWindow.getSize())
     })
 
     // set the zoom factor again when the window is going to restore
     // minimize and restore will cause zoom reset
     mainWindow.on('restore', () => {
-      mainWindow.webContents.setZoomFactor(preferenceService.get('app.zoom_factor'))
+      mainWindow.webContents.setZoomFactor(application.get('PreferenceService').get('app.zoom_factor'))
     })
 
     // ARCH: as `will-resize` is only for Win & Mac,
@@ -230,7 +231,7 @@ export class WindowService {
     // but `resize` will fliker the ui
     if (isLinux) {
       mainWindow.on('resize', () => {
-        mainWindow.webContents.setZoomFactor(preferenceService.get('app.zoom_factor'))
+        mainWindow.webContents.setZoomFactor(application.get('PreferenceService').get('app.zoom_factor'))
         mainWindow.webContents.send(IpcChannel.Windows_Resize, mainWindow.getSize())
       })
     }
@@ -270,7 +271,7 @@ export class WindowService {
     // Fix for Electron bug where zoom resets during in-page navigation (route changes)
     // This complements the resize-based workaround by catching navigation events
     mainWindow.webContents.on('did-navigate-in-page', () => {
-      mainWindow.webContents.setZoomFactor(preferenceService.get('app.zoom_factor'))
+      mainWindow.webContents.setZoomFactor(application.get('PreferenceService').get('app.zoom_factor'))
     })
 
     mainWindow.webContents.on('will-navigate', (event, url) => {
@@ -369,6 +370,7 @@ export class WindowService {
       }
 
       // 托盘及关闭行为设置
+      const preferenceService = application.get('PreferenceService')
       const isShowTray = preferenceService.get('app.tray.enabled')
       const isTrayOnClose = preferenceService.get('app.tray.on_close')
 
@@ -491,7 +493,7 @@ export class WindowService {
     if (this.mainWindow && !this.mainWindow.isDestroyed() && this.mainWindow.isVisible()) {
       if (this.mainWindow.isFocused()) {
         // if tray is enabled, hide the main window, else do nothing
-        if (preferenceService.get('app.tray.on_close')) {
+        if (application.get('PreferenceService').get('app.tray.on_close')) {
           this.mainWindow.hide()
           app.dock?.hide()
         }
@@ -596,7 +598,7 @@ export class WindowService {
   }
 
   public showMiniWindow() {
-    const enableQuickAssistant = preferenceService.get('feature.quick_assistant.enabled')
+    const enableQuickAssistant = application.get('PreferenceService').get('feature.quick_assistant.enabled')
 
     if (!enableQuickAssistant) {
       return

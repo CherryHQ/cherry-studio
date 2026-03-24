@@ -18,6 +18,8 @@
  */
 
 import { loggerService } from '@logger'
+import { BaseService, Injectable, ServicePhase } from '@main/core/lifecycle'
+import { Phase } from '@main/core/lifecycle'
 import type { SharedCacheKey, SharedCacheSchema } from '@shared/data/cache/cacheSchemas'
 import type { CacheEntry, CacheSyncMessage } from '@shared/data/cache/cacheTypes'
 import { IpcChannel } from '@shared/IpcChannel'
@@ -39,10 +41,9 @@ const logger = loggerService.withContext('CacheService')
  * 2. Relay cache sync messages between renderer windows
  * 3. Reserve persist cache interface (not implemented yet)
  */
-export class CacheService {
-  private static instance: CacheService
-  private initialized = false
-
+@Injectable('CacheService')
+@ServicePhase(Phase.BeforeReady)
+export class CacheService extends BaseService {
   // Main process internal cache
   private cache = new Map<string, CacheEntry>()
 
@@ -53,31 +54,32 @@ export class CacheService {
   private gcInterval: NodeJS.Timeout | null = null
   private readonly GC_INTERVAL_MS = 10 * 60 * 1000
 
-  private constructor() {
-    // Private constructor for singleton pattern
+  constructor() {
+    super()
   }
 
-  public async initialize(): Promise<void> {
-    if (this.initialized) {
-      logger.warn('CacheService already initialized')
-      return
-    }
-
+  protected async onInit(): Promise<void> {
     this.setupIpcHandlers()
-    // Start garbage collection
     this.startGarbageCollection()
-
     logger.info('CacheService initialized')
   }
 
-  /**
-   * Get singleton instance
-   */
-  public static getInstance(): CacheService {
-    if (!CacheService.instance) {
-      CacheService.instance = new CacheService()
+  protected async onStop(): Promise<void> {
+    // Clear the garbage collection interval
+    if (this.gcInterval) {
+      clearInterval(this.gcInterval)
+      this.gcInterval = null
     }
-    return CacheService.instance
+
+    // Clear caches
+    this.cache.clear()
+    this.sharedCache.clear()
+
+    // Remove IPC handlers
+    ipcMain.removeAllListeners(IpcChannel.Cache_Sync)
+    ipcMain.removeHandler(IpcChannel.Cache_GetAllShared)
+
+    logger.debug('CacheService cleanup completed')
   }
 
   // ============ Main Process Cache (Internal) ============
@@ -325,29 +327,4 @@ export class CacheService {
 
     logger.debug('Cache sync IPC handlers registered')
   }
-
-  /**
-   * Cleanup resources
-   */
-  public cleanup(): void {
-    // Clear the garbage collection interval
-    if (this.gcInterval) {
-      clearInterval(this.gcInterval)
-      this.gcInterval = null
-    }
-
-    // Clear caches
-    this.cache.clear()
-    this.sharedCache.clear()
-
-    // Remove IPC handlers
-    ipcMain.removeAllListeners(IpcChannel.Cache_Sync)
-    ipcMain.removeHandler(IpcChannel.Cache_GetAllShared)
-
-    logger.debug('CacheService cleanup completed')
-  }
 }
-
-// Export singleton instance for main process use
-export const cacheService = CacheService.getInstance()
-export default cacheService

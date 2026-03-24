@@ -3,9 +3,9 @@ import { arch } from 'node:os'
 import path from 'node:path'
 
 import type { TokenUsageData } from '@cherrystudio/analytics-client'
-import { PreferenceService, preferenceService } from '@data/PreferenceService'
 import { loggerService } from '@logger'
 import { isLinux, isMac, isPortable, isWin } from '@main/constant'
+import { application } from '@main/core/application'
 import { generateSignature } from '@main/integration/cherryai'
 import anthropicService from '@main/services/AnthropicService'
 import { getIpCountry } from '@main/utils/ipService'
@@ -209,7 +209,7 @@ export async function registerIpc(mainWindow: BrowserWindow, app: Electron.App) 
     windows.forEach((window) => {
       window.webContents.session.setSpellCheckerLanguages(languages)
     })
-    preferenceService.set('app.spell_check.languages', languages)
+    application.get('PreferenceService').set('app.spell_check.languages', languages)
   })
 
   // launch on boot
@@ -240,14 +240,14 @@ export async function registerIpc(mainWindow: BrowserWindow, app: Electron.App) 
 
   ipcMain.handle(IpcChannel.App_SetTestPlan, async (_, isActive: boolean) => {
     logger.info(`set test plan: ${isActive}`)
-    if (isActive !== preferenceService.get('app.dist.test_plan.enabled')) {
+    if (isActive !== application.get('PreferenceService').get('app.dist.test_plan.enabled')) {
       appUpdater.cancelDownload()
     }
   })
 
   ipcMain.handle(IpcChannel.App_SetTestChannel, async (_, channel: UpgradeChannel) => {
     logger.info(`set test channel: ${channel}`)
-    if (channel !== preferenceService.get('app.dist.test_plan.channel')) {
+    if (channel !== application.get('PreferenceService').get('app.dist.test_plan.channel')) {
       appUpdater.cancelDownload()
     }
   })
@@ -322,7 +322,7 @@ export async function registerIpc(mainWindow: BrowserWindow, app: Electron.App) 
   ipcMain.handle(IpcChannel.App_HandleZoomFactor, (_, delta: number, reset: boolean = false) => {
     const windows = BrowserWindow.getAllWindows()
     handleZoomFactor(windows, delta, reset)
-    return preferenceService.get('app.zoom_factor')
+    return application.get('PreferenceService').get('app.zoom_factor')
   })
 
   // clear cache
@@ -1147,7 +1147,7 @@ export async function registerIpc(mainWindow: BrowserWindow, app: Electron.App) 
   })
 
   // Preference handlers
-  PreferenceService.registerIpcHandler()
+  // PreferenceService IPC handlers are now registered via lifecycle onReady()
 
   // OpenClaw
   ipcMain.handle(IpcChannel.OpenClaw_CheckInstalled, openClawService.checkInstalled)

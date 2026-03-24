@@ -1,7 +1,7 @@
 import { createServer } from 'node:http'
 
-import { preferenceService } from '@data/PreferenceService'
 import { loggerService } from '@logger'
+import { application } from '@main/core/application'
 import { IpcChannel } from '@shared/IpcChannel'
 
 import { windowService } from '../services/WindowService'
@@ -29,6 +29,7 @@ export class ApiServer {
     }
 
     // Load config from preference service
+    const preferenceService = application.get('PreferenceService')
     const port = preferenceService.get('feature.csaas.port')
     const host = preferenceService.get('feature.csaas.host')
 
