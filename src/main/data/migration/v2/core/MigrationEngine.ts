@@ -23,6 +23,7 @@ import type {
 } from '@shared/data/migration/v2/types'
 import { eq, sql } from 'drizzle-orm'
 import { app } from 'electron'
+import Store from 'electron-store'
 import fsSync from 'fs'
 import fs from 'fs/promises'
 import path from 'path'
@@ -75,8 +76,6 @@ export class MigrationEngine {
     }
 
     // No migration status record — check if this is a fresh install or an upgrade.
-    // v1 users always have a Dexie IndexedDB and an electron-store config file.
-    // Fresh installs have neither, so migration is unnecessary.
     if (!this.hasLegacyData()) {
       logger.info('Fresh install detected (no legacy data found), skipping migration')
       await this.markCompleted()
@@ -87,28 +86,47 @@ export class MigrationEngine {
   }
 
   /**
-   * Detect whether legacy v1 data exists on disk.
-   * v2 removes Dexie/IndexedDB entirely in favor of SQLite, so the presence of
-   * any *.indexeddb.leveldb directory is a strong indicator of v1 legacy data.
-   *
-   * This is a best-effort optimization to avoid showing the migration window on
-   * fresh installs. Even if detection has a false positive, the migration pipeline
-   * handles empty data gracefully and completes successfully.
+   * FIXME: 当前通过文件系统探测 electron-store / localStorage / IndexedDB 来判断是否有旧数据,
+   * 这是临时方案，存在以下局限:
+   * 1. electron-store (config.json) — v2 也可能在 needsMigration() 之前写入
+   * 2. localStorage (Local Storage/leveldb/*.ldb) — Electron 内部也会写少量数据
+   * 3. IndexedDB (*.indexeddb.leveldb) — v2 的 webview 也可能创建
+   * 三者任一不为空即视为有旧数据，宁可误触发迁移（空数据迁移可安全完成），也不漏掉真正的升级用户。
+   * 后续引入 version history 后可用精确的版本记录替代这些启发式检测。
    */
   private hasLegacyData(): boolean {
     const userData = app.getPath('userData')
-    const indexedDbDir = path.join(userData, 'IndexedDB')
 
-    if (!fsSync.existsSync(indexedDbDir)) {
-      logger.info('Legacy data detection: no IndexedDB directory found')
-      return false
+    // 1. electron-store: v1 writes app settings to config.json
+    const legacyStore = new Store()
+    if (legacyStore.size > 0) {
+      logger.info('Legacy data detected: electron-store has data')
+      return true
     }
 
-    const entries = fsSync.readdirSync(indexedDbDir)
-    const hasIndexedDb = entries.some((e) => e.endsWith('.indexeddb.leveldb'))
+    // 2. localStorage (Redux Persist): stored in Local Storage/leveldb/
+    // .ldb files contain compacted data; fresh Electron installs only have .log + MANIFEST
+    const localStorageDir = path.join(userData, 'Local Storage', 'leveldb')
+    if (fsSync.existsSync(localStorageDir)) {
+      const entries = fsSync.readdirSync(localStorageDir)
+      if (entries.some((e) => e.endsWith('.ldb'))) {
+        logger.info('Legacy data detected: localStorage has .ldb files')
+        return true
+      }
+    }
 
-    logger.info('Legacy data detection', { hasIndexedDb, entries })
-    return hasIndexedDb
+    // 3. IndexedDB (Dexie): v1 stores chat/message data via Dexie
+    const indexedDbDir = path.join(userData, 'IndexedDB')
+    if (fsSync.existsSync(indexedDbDir)) {
+      const entries = fsSync.readdirSync(indexedDbDir)
+      if (entries.some((e) => e.endsWith('.indexeddb.leveldb'))) {
+        logger.info('Legacy data detected: IndexedDB has databases')
+        return true
+      }
+    }
+
+    logger.info('No legacy data found')
+    return false
   }
 
   /**
