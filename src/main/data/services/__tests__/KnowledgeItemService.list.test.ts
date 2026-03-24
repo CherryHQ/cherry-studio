@@ -6,7 +6,7 @@ vi.mock('@data/db/DbService', () => ({
   }
 }))
 
-vi.mock('./KnowledgeBaseService', () => ({
+vi.mock('../KnowledgeBaseService', () => ({
   knowledgeBaseService: {
     getById: vi.fn()
   }
@@ -14,8 +14,8 @@ vi.mock('./KnowledgeBaseService', () => ({
 
 import { dbService } from '@data/db/DbService'
 
-import { knowledgeBaseService } from './KnowledgeBaseService'
-import { KnowledgeItemService } from './KnowledgeItemService'
+import { knowledgeBaseService } from '../KnowledgeBaseService'
+import { KnowledgeItemService } from '../KnowledgeItemService'
 
 const buildRow = (overrides: Record<string, unknown> = {}) => ({
   id: 'item-1',

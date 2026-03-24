@@ -12,7 +12,7 @@ import { DataApiErrorFactory } from '@shared/data/api'
 import type { CreateKnowledgeItemsDto, UpdateKnowledgeItemDto } from '@shared/data/api/schemas/knowledges'
 import { type FileMetadata, FileTypeSchema } from '@shared/data/types/file'
 import type { KnowledgeItem, KnowledgeItemDataMap } from '@shared/data/types/knowledge'
-import { and, desc, eq, inArray, isNull } from 'drizzle-orm'
+import { and, desc, eq, isNull } from 'drizzle-orm'
 import * as z from 'zod'
 
 import { knowledgeBaseService } from './KnowledgeBaseService'
@@ -201,33 +201,9 @@ export class KnowledgeItemService {
       }
     }
 
-    const parentIds = Array.from(new Set(dto.items.map((item) => item.parentId).filter((id): id is string => !!id)))
-
-    if (parentIds.length > 0) {
-      const parentRows = await db
-        .select({ id: knowledgeItemTable.id, baseId: knowledgeItemTable.baseId })
-        .from(knowledgeItemTable)
-        .where(inArray(knowledgeItemTable.id, parentIds))
-
-      const parentMap = new Map(parentRows.map((row) => [row.id, row]))
-
-      for (const parentId of parentIds) {
-        const parent = parentMap.get(parentId)
-        if (!parent) {
-          throw DataApiErrorFactory.notFound('KnowledgeItem', parentId)
-        }
-        if (parent.baseId !== baseId) {
-          throw DataApiErrorFactory.invalidOperation(
-            'create knowledge item',
-            'Parent knowledge item does not belong to this knowledge base'
-          )
-        }
-      }
-    }
-
     const values: Array<typeof knowledgeItemTable.$inferInsert> = dto.items.map((item, index) => ({
       baseId,
-      parentId: item.parentId ?? null,
+      parentId: null,
       type: item.type,
       data: validateKnowledgeItemData(item.type, item.data, `items.${index}.data`, `new-item-${index}`),
       status: 'idle',
