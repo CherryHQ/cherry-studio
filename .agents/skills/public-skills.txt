@@ -6,3 +6,5 @@ create-skill
 gh-create-issue
 gh-pr-review
 vercel-react-best-practices
+electron
+agent-browser
