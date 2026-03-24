@@ -88,31 +88,27 @@ export class MigrationEngine {
 
   /**
    * Detect whether legacy v1 data exists on disk.
-   * Checks two independent indicators:
-   * 1. electron-store config.json file existence (app settings)
-   * 2. Any IndexedDB database in the userData directory (Dexie chat/message data)
-   * Returns true if ANY legacy data source is found.
+   * v2 removes Dexie/IndexedDB entirely in favor of SQLite, so the presence of
+   * any *.indexeddb.leveldb directory is a strong indicator of v1 legacy data.
+   *
+   * This is a best-effort optimization to avoid showing the migration window on
+   * fresh installs. Even if detection has a false positive, the migration pipeline
+   * handles empty data gracefully and completes successfully.
    */
   private hasLegacyData(): boolean {
     const userData = app.getPath('userData')
-
-    // electron-store creates config.json lazily on first write.
-    // v1 always writes settings; fresh v2 installs have no file yet
-    // (needsMigration runs before analyticsService.init which first writes clientId).
-    const configPath = path.join(userData, 'config.json')
-    const hasConfig = fsSync.existsSync(configPath)
-
-    // Check if any IndexedDB database exists (*.indexeddb.leveldb directories).
-    // Avoids hardcoding Chromium's internal origin-based naming convention.
     const indexedDbDir = path.join(userData, 'IndexedDB')
-    let hasIndexedDb = false
-    if (fsSync.existsSync(indexedDbDir)) {
-      const entries = fsSync.readdirSync(indexedDbDir)
-      hasIndexedDb = entries.some((e) => e.endsWith('.indexeddb.leveldb'))
+
+    if (!fsSync.existsSync(indexedDbDir)) {
+      logger.info('Legacy data detection: no IndexedDB directory found')
+      return false
     }
 
-    logger.info('Legacy data detection', { hasConfig, hasIndexedDb })
-    return hasConfig || hasIndexedDb
+    const entries = fsSync.readdirSync(indexedDbDir)
+    const hasIndexedDb = entries.some((e) => e.endsWith('.indexeddb.leveldb'))
+
+    logger.info('Legacy data detection', { hasIndexedDb, entries })
+    return hasIndexedDb
   }
 
   /**
