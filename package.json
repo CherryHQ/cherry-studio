@@ -63,7 +63,7 @@
     "test:e2e": "pnpm playwright test",
     "test:lint": "oxlint --deny-warnings && eslint . --ext .js,.jsx,.cjs,.mjs,.ts,.tsx,.cts,.mts --cache",
     "test:scripts": "vitest scripts",
-    "lint": "oxlint --fix && eslint . --ext .js,.jsx,.cjs,.mjs,.ts,.tsx,.cts,.mts --fix --cache && pnpm typecheck && pnpm i18n:check && pnpm format:check",
+    "lint": "oxlint --fix && eslint . --ext .js,.jsx,.cjs,.mjs,.ts,.tsx,.cts,.mts --fix --cache && pnpm typecheck && pnpm i18n:check && pnpm format",
     "format": "biome format --write && biome lint --write",
     "format:check": "biome format && biome lint",
     "bench": "vitest bench --run",
