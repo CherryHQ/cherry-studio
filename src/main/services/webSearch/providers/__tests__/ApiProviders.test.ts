@@ -525,4 +525,39 @@ describe('main web search API providers', () => {
       }
     `)
   })
+
+  it('skips malformed Exa MCP SSE frames and keeps parsing later frames', async () => {
+    fetchMock.mockResolvedValue(
+      createTextResponse(
+        [
+          'data: [DONE]',
+          'data: {"invalid": true}',
+          'data: {"result":{"content":[{"type":"text","text":"Title: Exa MCP Title\\nURL: https://mcp.exa.ai/result\\nText: Exa MCP Content"}]}}'
+        ].join('\n'),
+        'text/event-stream'
+      )
+    )
+
+    const provider = new ExaMcpProvider(
+      createProvider({
+        id: 'exa-mcp',
+        name: 'Exa MCP',
+        type: 'mcp',
+        apiHost: ''
+      })
+    )
+
+    const result = await provider.search('hello', runtimeConfig)
+
+    expect(result).toEqual({
+      query: 'hello',
+      results: [
+        {
+          title: 'Exa MCP Title',
+          content: 'Exa MCP Content',
+          url: 'https://mcp.exa.ai/result'
+        }
+      ]
+    })
+  })
 })

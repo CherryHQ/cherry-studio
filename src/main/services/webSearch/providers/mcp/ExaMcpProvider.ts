@@ -1,3 +1,4 @@
+import { loggerService } from '@logger'
 import type { WebSearchExecutionConfig, WebSearchResponse } from '@shared/data/types/webSearch'
 import { defaultAppHeaders } from '@shared/utils'
 import { net } from 'electron'
@@ -45,6 +46,7 @@ const ExaSearchResultsSchema = z.object({
 
 const DEFAULT_API_HOST = 'https://mcp.exa.ai/mcp'
 const REQUEST_TIMEOUT_MS = 25000
+const logger = loggerService.withContext('MainWebSearchProvider:ExaMcp')
 
 type ExaMcpSearchContext = RequestSearchContext<z.infer<typeof McpSearchRequestSchema>> & {
   upstreamSignal?: AbortSignal
@@ -141,17 +143,39 @@ export class ExaMcpProvider extends BaseWebSearchProvider {
   private parseResponse(responseText: string) {
     const payloadTexts: string[] = []
 
-    for (const match of responseText.matchAll(/^data:\s*(.+)$/gm)) {
-      const text = this.extractContentText(match[1])
-      if (text) {
-        payloadTexts.push(text)
+    for (const line of responseText.split('\n')) {
+      if (!line.startsWith('data: ')) {
+        continue
+      }
+
+      const payload = line.slice(6).trim()
+      if (!payload || payload === '[DONE]') {
+        continue
+      }
+
+      try {
+        const text = this.extractContentText(payload)
+        if (text) {
+          payloadTexts.push(text)
+        }
+      } catch (error) {
+        logger.warn('Failed to parse Exa MCP SSE line', {
+          line,
+          error: error instanceof Error ? error.message : String(error)
+        })
       }
     }
 
     if (payloadTexts.length === 0) {
-      const directText = this.extractContentText(responseText)
-      if (directText) {
-        payloadTexts.push(directText)
+      try {
+        const directText = this.extractContentText(responseText)
+        if (directText) {
+          payloadTexts.push(directText)
+        }
+      } catch (error) {
+        logger.warn('Failed to parse Exa MCP direct response', {
+          error: error instanceof Error ? error.message : String(error)
+        })
       }
     }
 
