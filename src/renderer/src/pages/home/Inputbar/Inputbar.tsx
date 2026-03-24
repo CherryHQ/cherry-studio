@@ -332,13 +332,15 @@ const InputbarInner: FC<InputbarInnerProps> = ({ assistant: initialAssistant, se
       body: mapLegacyTopicToDto(newTopic)
     })
 
-    logger.silly('create topic in sqlite', createdTopic.id)
+    logger.silly('create topic in sqlite', { id: createdTopic.id })
 
     if (assistant.defaultModel) {
       setModel(assistant.defaultModel)
     }
 
+    // @ts-ignore TODO: #13748
     addTopic(createdTopic)
+    // @ts-ignore
     setActiveTopic(createdTopic)
 
     setTimeoutTimer('addNewTopic', () => EventEmitter.emit(EVENT_NAMES.SHOW_TOPIC_SIDEBAR), 0)
