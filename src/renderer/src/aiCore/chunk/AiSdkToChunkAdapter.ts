@@ -6,10 +6,11 @@
 import { loggerService } from '@logger'
 import type { AISDKWebSearchResult, MCPTool, WebSearchResults, WebSearchSource } from '@renderer/types'
 import { WEB_SEARCH_SOURCE } from '@renderer/types'
-import type { Chunk } from '@renderer/types/chunk'
+import type { Chunk, ProviderMetadata } from '@renderer/types/chunk'
 import { ChunkType } from '@renderer/types/chunk'
 import { ProviderSpecificError } from '@renderer/types/provider-specific-error'
-import { formatErrorMessage } from '@renderer/utils/error'
+import { formatErrorMessage, isAbortError } from '@renderer/utils/error'
+import type { IdleTimeoutHandle } from '@renderer/utils/IdleTimeoutController'
 import { convertLinks, flushLinkConverterBuffer } from '@renderer/utils/linkConverter'
 import type { ClaudeCodeRawValue } from '@shared/agents/claudecode/types'
 import { AISDKError, type TextStreamPart, type ToolSet } from 'ai'
@@ -32,6 +33,8 @@ export class AiSdkToChunkAdapter {
   private firstTokenTimestamp: number | null = null
   private hasTextContent = false
   private getSessionWasCleared?: () => boolean
+  private providerId?: string
+  private idleTimeout?: IdleTimeoutHandle
 
   constructor(
     private onChunk: (chunk: Chunk) => void,
@@ -39,13 +42,17 @@ export class AiSdkToChunkAdapter {
     accumulate?: boolean,
     enableWebSearch?: boolean,
     onSessionUpdate?: (sessionId: string) => void,
-    getSessionWasCleared?: () => boolean
+    getSessionWasCleared?: () => boolean,
+    providerId?: string,
+    idleTimeout?: IdleTimeoutHandle
   ) {
     this.toolCallHandler = new ToolCallChunkHandler(onChunk, mcpTools)
     this.accumulate = accumulate
     this.enableWebSearch = enableWebSearch || false
     this.onSessionUpdate = onSessionUpdate
     this.getSessionWasCleared = getSessionWasCleared
+    this.providerId = providerId
+    this.idleTimeout = idleTimeout
   }
 
   private markFirstTokenIfNeeded() {
@@ -65,13 +72,23 @@ export class AiSdkToChunkAdapter {
    * @returns 最终的文本内容
    */
   async processStream(aiSdkResult: any): Promise<string> {
-    // 如果是流式且有 fullStream
-    if (aiSdkResult.fullStream) {
-      await this.readFullStream(aiSdkResult.fullStream)
-    }
+    try {
+      // 如果是流式且有 fullStream
+      if (aiSdkResult.fullStream) {
+        await this.readFullStream(aiSdkResult.fullStream)
+      }
 
-    // 使用 streamResult.text 获取最终结果
-    return await aiSdkResult.text
+      // 使用 streamResult.text 获取最终结果
+      return await aiSdkResult.text
+    } catch (error: any) {
+      // abort 时，AI SDK 通常会先通过流发送 'abort' chunk（在 readFullStream 中 convertAndEmitChunk
+      // 转为 ERROR chunk 发出）。随后 aiSdkResult.text 会抛出 AbortError
+      // 这里捕获它以避免 transformMessagesAndFetch 的 catch 再次发送重复的 ERROR chunk
+      if (isAbortError(error)) {
+        return ''
+      }
+      throw error
+    }
   }
 
   /**
@@ -84,7 +101,8 @@ export class AiSdkToChunkAdapter {
       text: '',
       reasoningContent: '',
       webSearchResults: [],
-      reasoningId: ''
+      reasoningId: '',
+      providerMetadata: undefined as ProviderMetadata | undefined
     }
     this.resetTimingState()
     this.responseStartTimestamp = Date.now()
@@ -95,6 +113,9 @@ export class AiSdkToChunkAdapter {
     try {
       while (true) {
         const { done, value } = await reader.read()
+
+        // Reset idle timeout on every chunk received from the stream
+        this.idleTimeout?.reset()
 
         if (done) {
           // Flush any remaining content from link converter buffer if web search is enabled
@@ -117,6 +138,8 @@ export class AiSdkToChunkAdapter {
     } finally {
       reader.releaseLock()
       this.resetTimingState()
+      // Clean up the idle timeout timer when the stream ends
+      this.idleTimeout?.cleanup()
     }
   }
 
@@ -141,7 +164,13 @@ export class AiSdkToChunkAdapter {
    */
   private convertAndEmitChunk(
     chunk: TextStreamPart<any>,
-    final: { text: string; reasoningContent: string; webSearchResults: AISDKWebSearchResult[]; reasoningId: string }
+    final: {
+      text: string
+      reasoningContent: string
+      webSearchResults: AISDKWebSearchResult[]
+      reasoningId: string
+      providerMetadata: ProviderMetadata | undefined
+    }
   ) {
     logger.silly(`AI SDK chunk type: ${chunk.type}`, chunk)
     switch (chunk.type) {
@@ -197,12 +226,25 @@ export class AiSdkToChunkAdapter {
           final.text = finalText
         }
 
+        // Extract thoughtSignature from providerMetadata.google and preserve it
+        const newSignature = chunk.providerMetadata?.google?.thoughtSignature as string | undefined
+        if (newSignature) {
+          final.providerMetadata = {
+            ...final.providerMetadata,
+            google: {
+              ...final.providerMetadata?.google,
+              thoughtSignature: newSignature
+            }
+          }
+        }
+
         // Only emit chunk if there's text to send
         if (finalText) {
           this.markFirstTokenIfNeeded()
           this.onChunk({
             type: ChunkType.TEXT_DELTA,
-            text: this.accumulate ? final.text : finalText
+            text: this.accumulate ? final.text : finalText,
+            providerMetadata: final.providerMetadata
           })
         }
         break
@@ -210,9 +252,12 @@ export class AiSdkToChunkAdapter {
       case 'text-end':
         this.onChunk({
           type: ChunkType.TEXT_COMPLETE,
-          text: (chunk.providerMetadata?.text?.value as string) ?? final.text ?? ''
+          text: (chunk.providerMetadata?.text?.value as string) ?? final.text ?? '',
+          providerMetadata: final.providerMetadata
         })
         final.text = ''
+        // Clear providerMetadata for next text block
+        final.providerMetadata = undefined
         break
       case 'reasoning-start':
         // if (final.reasoningId !== chunk.id) {
@@ -291,7 +336,7 @@ export class AiSdkToChunkAdapter {
             }
           })
         } else if (final.webSearchResults.length) {
-          const providerName = Object.keys(providerMetadata || {})[0]
+          const providerName: string | undefined = Object.keys(providerMetadata || {})[0] || this.providerId
           const sourceMap: Record<string, WebSearchSource> = {
             [WEB_SEARCH_SOURCE.OPENAI]: WEB_SEARCH_SOURCE.OPENAI_RESPONSE,
             [WEB_SEARCH_SOURCE.ANTHROPIC]: WEB_SEARCH_SOURCE.ANTHROPIC,
@@ -302,9 +347,10 @@ export class AiSdkToChunkAdapter {
             [WEB_SEARCH_SOURCE.HUNYUAN]: WEB_SEARCH_SOURCE.HUNYUAN,
             [WEB_SEARCH_SOURCE.ZHIPU]: WEB_SEARCH_SOURCE.ZHIPU,
             [WEB_SEARCH_SOURCE.GROK]: WEB_SEARCH_SOURCE.GROK,
+            xai: WEB_SEARCH_SOURCE.GROK,
             [WEB_SEARCH_SOURCE.WEBSEARCH]: WEB_SEARCH_SOURCE.WEBSEARCH
           }
-          const source = sourceMap[providerName] || WEB_SEARCH_SOURCE.AISDK
+          const source = (providerName && sourceMap[providerName]) || WEB_SEARCH_SOURCE.AISDK
 
           this.onChunk({
             type: ChunkType.LLM_WEB_SEARCH_COMPLETE,

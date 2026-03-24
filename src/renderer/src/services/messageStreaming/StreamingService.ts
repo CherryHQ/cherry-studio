@@ -22,6 +22,9 @@
 import { cacheService } from '@data/CacheService'
 import { dataApiService } from '@data/DataApiService'
 import { loggerService } from '@logger'
+import store from '@renderer/store'
+import { updateOneBlock, upsertOneBlock } from '@renderer/store/messageBlock'
+import { newMessagesActions } from '@renderer/store/newMessage'
 import type { Model } from '@renderer/types'
 import type { Message, MessageBlock } from '@renderer/types/newMessage'
 import { AssistantMessageStatus, MessageBlockStatus } from '@renderer/types/newMessage'
@@ -300,6 +303,17 @@ class StreamingService {
     cacheService.set(getBlockKey(block.id), block, TASK_TTL)
     cacheService.set(getMessageKey(messageId), newMessage, TASK_TTL)
 
+    // TODO: temp fix, it will be removed after message refraction
+    store.dispatch(upsertOneBlock(block))
+    store.dispatch(
+      newMessagesActions.upsertBlockReference({
+        messageId,
+        blockId: block.id,
+        status: block.status,
+        blockType: block.type
+      })
+    )
+
     logger.debug('Added block to task', { messageId, blockId: block.id, blockType: block.type })
   }
 
@@ -344,6 +358,25 @@ class StreamingService {
     // Update caches with new references to trigger notifications
     cacheService.set(getTaskKey(messageId), newTask, TASK_TTL)
     cacheService.set(getBlockKey(blockId), updatedBlock, TASK_TTL)
+
+    // TODO: temp fix, it will be removed after message refraction
+    store.dispatch(
+      updateOneBlock({
+        id: blockId,
+        changes
+      })
+    )
+
+    if (changes.status || changes.type) {
+      store.dispatch(
+        newMessagesActions.upsertBlockReference({
+          messageId,
+          blockId,
+          status: updatedBlock.status,
+          blockType: updatedBlock.type
+        })
+      )
+    }
   }
 
   /**
@@ -384,6 +417,15 @@ class StreamingService {
     // Update caches with new references to trigger notifications
     cacheService.set(getTaskKey(messageId), newTask, TASK_TTL)
     cacheService.set(getMessageKey(messageId), newMessage, TASK_TTL)
+
+    // TODO: temp fix, it will be removed after message refraction
+    store.dispatch(
+      newMessagesActions.updateMessage({
+        topicId: task.topicId,
+        messageId,
+        updates
+      })
+    )
   }
 
   /**

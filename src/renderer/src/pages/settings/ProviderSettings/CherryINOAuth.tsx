@@ -1,5 +1,5 @@
+import { Cherryin } from '@cherrystudio/ui/icons'
 import { loggerService } from '@logger'
-import CherryINProviderLogo from '@renderer/assets/images/providers/cherryin.png'
 import { useProvider } from '@renderer/hooks/useProvider'
 import { oauthWithCherryIn } from '@renderer/utils/oauth'
 import { Button, Skeleton } from 'antd'
@@ -187,7 +187,9 @@ const CherryINOAuth: FC<CherryINOAuthProps> = ({ providerId }) => {
           <LogOut size={14} />
         </LogoutCorner>
       )}
-      <ProviderLogo src={CherryINProviderLogo} onClick={() => window.open('https://open.cherryin.ai', '_blank')} />
+      <ProviderLogoWrapper onClick={() => window.open('https://open.cherryin.ai', '_blank')}>
+        <Cherryin.Avatar size={60} shape="circle" />
+      </ProviderLogoWrapper>
       {renderContent()}
       <Description>
         {t('settings.provider.oauth.provided_by')}{' '}
@@ -237,10 +239,7 @@ const LogoutCorner = styled.button`
   }
 `
 
-const ProviderLogo = styled.img`
-  width: 60px;
-  height: 60px;
-  border-radius: 50%;
+const ProviderLogoWrapper = styled.div`
   cursor: pointer;
   transition: opacity 0.2s;
 

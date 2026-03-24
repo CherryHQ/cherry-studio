@@ -646,15 +646,15 @@ function handleContentBlockDelta(
       break
     }
     case 'input_json_delta': {
-      const block = state.appendToolInputDelta(index, delta.partial_json)
-      if (!block) {
+      const block = state.getBlock(index)
+      if (!block || block.kind !== 'tool') {
         logger.warn('Received input_json_delta for unknown block', { index })
         return
       }
       chunks.push({
         type: 'tool-input-delta',
         id: block.toolCallId,
-        delta: block.inputBuffer,
+        delta: delta.partial_json,
         providerMetadata
       })
       break

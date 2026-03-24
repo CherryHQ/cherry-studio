@@ -10,13 +10,17 @@
  * 4. Conditional mapping: Target keys determined by source values
  *
  * Usage:
- * 1. Define transformation function in PreferenceTransformers.ts
+ * 1. Define transformation function in a colocated mapping file under `mappings/`
  * 2. Add mapping configuration to COMPLEX_PREFERENCE_MAPPINGS below
  * 3. Add target key definitions in target-key-definitions.json
  *
  * IMPORTANT: Ensure no conflicts between simple mappings and complex mappings.
  * The system uses strict mode - conflicts will cause errors at runtime.
  */
+
+import { flattenCompressionConfig, migrateWebSearchProviders } from '../transformers/PreferenceTransformers'
+import { transformCodeCli } from './CodeCliTransforms'
+import { mergeFileProcessingOverrides } from './FileProcessingOverrideMappings'
 
 // ============================================================================
 // Type Definitions
@@ -27,7 +31,7 @@
  */
 export interface SourceDefinition {
   /** Data source type */
-  source: 'electronStore' | 'redux'
+  source: 'electronStore' | 'redux' | 'dexie-settings' | 'localStorage'
   /** Key path to read from source */
   key: string
   /** Redux category (required for redux source) */
@@ -78,34 +82,63 @@ export interface ComplexMapping {
  * Remember to also define the target keys in target-key-definitions.json!
  */
 export const COMPLEX_PREFERENCE_MAPPINGS: ComplexMapping[] = [
-  // Example mappings (commented out - uncomment when needed):
-  //
-  // {
-  //   id: 'window_bounds_split',
-  //   description: 'Split windowBounds object into separate position and size keys',
-  //   sources: {
-  //     windowBounds: { source: 'electronStore', key: 'windowBounds' }
-  //   },
-  //   targetKeys: [
-  //     'app.window.position.x',
-  //     'app.window.position.y',
-  //     'app.window.size.width',
-  //     'app.window.size.height'
-  //   ],
-  //   transform: splitWindowBounds
-  // },
-  //
-  // {
-  //   id: 'proxy_config_merge',
-  //   description: 'Merge proxy configuration from multiple sources',
-  //   sources: {
-  //     proxyEnabled: { source: 'redux', category: 'settings', key: 'proxyEnabled' },
-  //     proxyHost: { source: 'redux', category: 'settings', key: 'proxyHost' },
-  //     proxyPort: { source: 'electronStore', key: 'ProxyPort' }
-  //   },
-  //   targetKeys: ['network.proxy.enabled', 'network.proxy.host', 'network.proxy.port'],
-  //   transform: mergeProxyConfig
-  // }
+  // WebSearch provider overrides migration
+  {
+    id: 'websearch_providers_migrate',
+    description: 'Migrate websearch providers array into provider overrides',
+    sources: {
+      providers: { source: 'redux', category: 'websearch', key: 'providers' }
+    },
+    targetKeys: ['chat.web_search.provider_overrides'],
+    transform: migrateWebSearchProviders
+  },
+
+  // WebSearch compression config flattening
+  {
+    id: 'websearch_compression_flatten',
+    description: 'Flatten websearch compressionConfig object into separate preference keys',
+    sources: {
+      compressionConfig: { source: 'redux', category: 'websearch', key: 'compressionConfig' }
+    },
+    targetKeys: [
+      'chat.web_search.compression.method',
+      'chat.web_search.compression.cutoff_limit',
+      'chat.web_search.compression.cutoff_unit',
+      'chat.web_search.compression.rag_document_count',
+      'chat.web_search.compression.rag_embedding_model_id',
+      'chat.web_search.compression.rag_embedding_dimensions',
+      'chat.web_search.compression.rag_rerank_model_id'
+    ],
+    transform: flattenCompressionConfig
+  },
+
+  // CodeCLI layered preset overrides
+  {
+    id: 'code_cli_overrides',
+    description: 'Merge codeTools per-tool data (models, env vars, directories) into layered preset overrides',
+    sources: {
+      selectedModels: { source: 'redux', category: 'codeTools', key: 'selectedModels' },
+      environmentVariables: { source: 'redux', category: 'codeTools', key: 'environmentVariables' },
+      directories: { source: 'redux', category: 'codeTools', key: 'directories' },
+      currentDirectory: { source: 'redux', category: 'codeTools', key: 'currentDirectory' },
+      selectedCliTool: { source: 'redux', category: 'codeTools', key: 'selectedCliTool' },
+      selectedTerminal: { source: 'redux', category: 'codeTools', key: 'selectedTerminal' }
+    },
+    targetKeys: ['feature.code_cli.overrides'],
+    transform: transformCodeCli
+  },
+
+  // File processing overrides merging
+  {
+    id: 'file_processing_overrides_merge',
+    description: 'Merge legacy OCR and preprocess providers into file processing overrides',
+    sources: {
+      preprocessProviders: { source: 'redux', category: 'preprocess', key: 'providers' },
+      ocrProviders: { source: 'redux', category: 'ocr', key: 'providers' }
+    },
+    targetKeys: ['feature.file_processing.overrides'],
+    transform: mergeFileProcessingOverrides
+  }
 ]
 
 // ============================================================================

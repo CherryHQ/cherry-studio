@@ -17,7 +17,7 @@
 import { ZOOM_SHORTCUTS } from '@shared/config/constant'
 import type { Shortcut } from '@types'
 import Store from 'electron-store'
-import { v4 as uuidv4 } from 'uuid'
+import { v7 as uuid } from 'uuid'
 
 export enum ConfigKeys {
   Language = 'language',
@@ -271,7 +271,7 @@ export class ConfigManager {
     let clientId = this.get<string>(ConfigKeys.ClientId)
 
     if (!clientId) {
-      clientId = uuidv4()
+      clientId = uuid()
       this.set(ConfigKeys.ClientId, clientId)
     }
 

@@ -1,7 +1,8 @@
 name: 🐛 Bug Report
 description: Create a report to help us improve
-title: '[Bug]: '
-labels: ['BUG']
+title: "[Bug]: "
+labels: []
+type: Bug
 body:
   - type: markdown
     attributes:

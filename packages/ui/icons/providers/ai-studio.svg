@@ -1,0 +1,37 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="32" height="32">
+  <defs>
+    <mask id="starMask">
+      <rect width="512" height="512" fill="white"/>
+      <ellipse cx="330" cy="175" rx="110" ry="110" fill="black"/>
+    </mask>
+  </defs>
+
+  <!-- Rounded square (broken by sparkle mask) -->
+  <rect
+    x="120" y="120"
+    width="256" height="256"
+    rx="24" ry="24"
+    fill="none"
+    stroke="#1A1A1A"
+    stroke-width="28"
+    stroke-linejoin="round"
+    mask="url(#starMask)"
+  />
+
+  <!-- 4-pointed sparkle / star - larger, covering ~1/4 of square -->
+  <path
+    d="
+      M 330 68
+      C 330 68 318 118 302 134
+      C 286 150 236 162 236 162
+      C 236 162 286 174 302 190
+      C 318 206 330 256 330 256
+      C 330 256 342 206 358 190
+      C 374 174 424 162 424 162
+      C 424 162 374 150 358 134
+      C 342 118 330 68 330 68
+      Z
+    "
+    fill="#1A1A1A"
+  />
+</svg>

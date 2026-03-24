@@ -20,7 +20,6 @@ import { createSlice } from '@reduxjs/toolkit'
 export interface TranslateState {
   translateInput: string
   translatedContent: string
-  // TODO: #9749
   settings: {
     autoCopy: boolean
   }

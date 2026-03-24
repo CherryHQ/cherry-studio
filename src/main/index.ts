@@ -51,6 +51,7 @@ import { cacheService } from '@data/CacheService'
 import { initWebviewHotkeys } from './services/WebviewService'
 import { runAsyncFunction } from './utils'
 import { isOvmsSupported } from './services/OvmsManager'
+import { application, serviceList } from './core/application'
 
 const logger = loggerService.withContext('MainEntry')
 
@@ -143,6 +144,18 @@ if (!app.requestSingleInstanceLock()) {
   app.quit()
   process.exit(0)
 } else {
+  // ============================================================================
+  // v2 Refactoring: Application Lifecycle Management
+  // The lifecycle system runs in parallel with the existing startup code below.
+  // Currently no services are registered, so bootstrap() is a no-op.
+  // As services are migrated to the lifecycle system, the imperative code below
+  // will be gradually removed. See: src/main/core/application/README.md
+  // ============================================================================
+  application.registerAll(serviceList)
+  application.bootstrap().catch((error) => {
+    logger.error('Application lifecycle bootstrap failed:', error)
+  })
+
   // This method will be called when Electron has finished
   // initialization and is ready to create browser windows.
   // Some APIs can only be used after this event occurs.
@@ -156,10 +169,11 @@ if (!app.requestSingleInstanceLock()) {
       await dbService.init()
       await dbService.migrateDb()
       await dbService.migrateSeed('preference')
+      await dbService.migrateSeed('translateLanguage')
     } catch (error) {
       logger.error('Failed to initialize database', error as Error)
       //TODO for v2 testing only:
-      await dialog.showErrorBox(
+      dialog.showErrorBox(
         'Database Initialization Failed',
         'Before the official release of the alpha version, the database structure may change at any time. To maintain simplicity, the database migration files will be periodically reinitialized, which may cause the application to fail. If this occurs, please delete the cherrystudio.sqlite file located in the user data directory.'
       )
@@ -198,7 +212,7 @@ if (!app.requestSingleInstanceLock()) {
           unregisterMigrationIpcHandlers()
 
           // Migration is required for this version - show error and exit
-          await dialog.showErrorBox(
+          dialog.showErrorBox(
             'Migration Required - Application Cannot Start',
             `This version of Cherry Studio requires data migration to function properly.\n\nMigration window failed to start: ${(migrationError as Error).message}\n\nThe application will now exit. Please try starting again or contact support if the problem persists.`
           )
@@ -213,7 +227,7 @@ if (!app.requestSingleInstanceLock()) {
 
       // If we can't check migration status, this could indicate a serious database issue
       // Since migration may be required, it's safer to exit and let user investigate
-      await dialog.showErrorBox(
+      dialog.showErrorBox(
         'Migration Status Check Failed - Application Cannot Start',
         `Could not determine if data migration is completed.\n\nThis may indicate a database connectivity issue: ${(error as Error).message}\n\nThe application will now exit. Please check your installation and try again.`
       )
@@ -250,6 +264,10 @@ if (!app.requestSingleInstanceLock()) {
     if (isLaunchToTray) {
       app.dock?.hide()
     }
+
+    // Check for backup restore marker and complete restoration (highest priority, before window creation)
+    const { BackupManager } = await import('./services/BackupManager')
+    await BackupManager.handleStartupRestore()
 
     // Create main window - migration has either completed or was not needed
     const mainWindow = windowService.createMainWindow()
@@ -292,7 +310,7 @@ if (!app.requestSingleInstanceLock()) {
     runAsyncFunction(async () => {
       // Start API server if enabled or if agents exist
       try {
-        const config = await apiServerService.getCurrentConfig()
+        const config = apiServerService.getCurrentConfig()
         logger.info('API server config:', config)
 
         // Check if there are any agents
@@ -379,6 +397,10 @@ if (!app.requestSingleInstanceLock()) {
     } catch (error) {
       logger.warn('Error cleaning up services:', error as Error)
     }
+
+    // v2 Refactoring: Shutdown lifecycle-managed services
+    // Currently no-op as no services are registered yet.
+    await application.shutdown()
 
     // finish the logger
     logger.finish()

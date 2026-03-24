@@ -1,6 +1,5 @@
 import { usePreference } from '@data/hooks/usePreference'
 import AddAssistantPopup from '@renderer/components/Popups/AddAssistantPopup'
-import { useCache } from '@renderer/data/hooks/useCache'
 import { useAssistants, useDefaultAssistant } from '@renderer/hooks/useAssistant'
 import { useNavbarPosition } from '@renderer/hooks/useNavbar'
 import { useShowTopics } from '@renderer/hooks/useStore'
@@ -43,8 +42,6 @@ const HomeTabs: FC<Props> = ({
   const { toggleShowTopics } = useShowTopics()
   const { isLeftNavbar } = useNavbarPosition()
   const { t } = useTranslation()
-  const [, setActiveAgentId] = useCache('agent.active_id')
-  const [, setActiveTopicOrSession] = useCache('chat.active_view')
 
   const [tab, setTab] = useState<Tab>(position === 'left' ? _tab || 'assistants' : 'topic')
   const borderStyle = '0.5px solid var(--color-border)'
@@ -63,8 +60,6 @@ const HomeTabs: FC<Props> = ({
     const assistant = await AddAssistantPopup.show()
     if (assistant) {
       setActiveAssistant(assistant)
-      setActiveAgentId(null)
-      setActiveTopicOrSession('topic')
     }
   }
 
@@ -72,8 +67,6 @@ const HomeTabs: FC<Props> = ({
     const assistant = { ...defaultAssistant, id: uuid() }
     addAssistant(assistant)
     setActiveAssistant(assistant)
-    setActiveAgentId(null)
-    setActiveTopicOrSession('topic')
   }
 
   useEffect(() => {

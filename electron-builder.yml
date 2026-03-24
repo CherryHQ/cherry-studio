@@ -142,37 +142,30 @@ artifactBuildCompleted: scripts/artifact-build-completed.js
 releaseInfo:
   releaseNotes: |
     <!--LANG:en-->
-    Cherry Studio 1.7.20 - New Models & Features
-
-    ✨ New Features
-    - [Models] Add support for Claude Sonnet 4.6 model with reasoning effort configuration
-    - [Models] Add support for Gemini 3.1 Pro models with reasoning effort and vision capabilities
-    - [Models] Add support for Qwen 3.5 series models
-    - [Models] Add support for Moonshot Kimi K2.5 series models (kimi-k2.5, kimi-k2-thinking, etc.)
-    - [Models] Add support for Zhipu GLM-5 model with thinking tokens and function calling
-    - [Models] Add support for Doubao Seed 2.0 models with function-calling capabilities
-    - [Mini Apps] Add proper region/language tags for all mini apps, pinned apps no longer filtered by region
-    - [Chat] Add keyboard shortcut Cmd+Shift+M (Ctrl+Shift+M) to open model selector
-    - [Search] Add keyword-based topic search with whole-word matching and result sorting
+    Cherry Studio 1.8.2 - Bug Fixes and Model Updates
 
     🐛 Bug Fixes
-    - [i18n] Fix PluginCard translation not updating when language is switched
-    - [OpenClaw] Fix installation failure on Windows when npm path contains spaces
-    <!--LANG:zh-CN-->
-    Cherry Studio 1.7.20 - 新模型与功能
+    - [Knowledge Base] Fix knowledge base content not being delivered to the model when selected in conversation
+    - [Search] Fix crash when clicking topic title in message search results
+    - [Backup] Fix backup restoration path issue
 
-    ✨ 新功能
-    - [模型] 添加 Claude Sonnet 4.6 模型支持，包含推理配置
-    - [模型] 添加 Gemini 3.1 Pro 模型支持，包含推理能力和视觉功能
-    - [模型] 添加 Qwen 3.5 系列模型支持
-    - [模型] 添加 Moonshot Kimi K2.5 系列模型支持（kimi-k2.5、kimi-k2-thinking 等）
-    - [模型] 添加智谱 GLM-5 模型支持，包含思维令牌和函数调用
-    - [模型] 添加豆包 Seed 2.0 模型支持，包含函数调用能力
-    - [小程序] 为所有小程序添加正确的地区/语言标签，固定的小程序不再受地区过滤影响
-    - [聊天] 添加键盘快捷键 Cmd+Shift+M (Ctrl+Shift+M) 打开模型选择器
-    - [搜索] 添加基于关键词的话题搜索，支持全词匹配和结果排序
+    ✨ New Features
+    - [Models] Add support for Xiaomi MiMo-V2-Pro and MiMo-V2-Omni models with reasoning control and tool use capabilities
+
+    💄 Improvements
+    - [Models] Upgrade MiniMax default model to M2.7 with enhanced reasoning and coding capabilities
+
+    <!--LANG:zh-CN-->
+    Cherry Studio 1.8.2 - 错误修复和模型更新
 
     🐛 问题修复
-    - [国际化] 修复切换语言时插件卡片翻译不更新的问题
-    - [OpenClaw] 修复 Windows 上 npm 路径包含空格时的安装失败问题
+    - [知识库] 修复选中知识库时内容未传递给模型的问题
+    - [搜索] 修复点击消息搜索结果中的主题标题时崩溃的问题
+    - [备份] 修复备份恢复路径问题
+
+    ✨ 新功能
+    - [模型] 新增小米 MiMo-V2-Pro 和 MiMo-V2-Omni 模型支持，支持推理控制和工具调用功能
+
+    💄 改进
+    - [模型] 升级 MiniMax 默认模型至 M2.7，增强推理和代码能力
     <!--LANG:END-->

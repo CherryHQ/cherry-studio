@@ -1,5 +1,6 @@
 import { CodeBlockView, HtmlArtifactsCard } from '@renderer/components/CodeBlockView'
 import { useSettings } from '@renderer/hooks/useSettings'
+import { ClickableFilePath } from '@renderer/pages/home/Messages/Tools/MessageAgentTools/ClickableFilePath'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import store from '@renderer/store'
 import { messageBlocksSelectors } from '@renderer/store/messageBlock'
@@ -19,7 +20,14 @@ interface Props {
 const CodeBlock: React.FC<Props> = ({ children, className, node, blockId }) => {
   const languageMatch = /language-([\w-+]+)/.exec(className || '')
   const isMultiline = children?.includes('\n')
-  const language = languageMatch?.[1] ?? (isMultiline ? 'text' : null)
+  const detectedLanguage = languageMatch?.[1] ?? (isMultiline ? 'text' : null)
+  const language = useMemo(() => {
+    return detectedLanguage !== 'xml'
+      ? detectedLanguage
+      : /^\s*(?:<\?xml[\s\S]*?\?>\s*)?<svg[\s>]/i.test(children)
+        ? 'svg'
+        : detectedLanguage
+  }, [children, detectedLanguage])
   const { codeFancyBlock } = useSettings()
 
   // 代码块 id
@@ -55,6 +63,15 @@ const CodeBlock: React.FC<Props> = ({ children, className, node, blockId }) => {
       <CodeBlockView language={language} onSave={handleSave}>
         {children}
       </CodeBlockView>
+    )
+  }
+
+  // Detect inline code that looks like an absolute file path (e.g. /Users/foo/bar.tsx)
+  if (typeof children === 'string' && /^\/[\w.-]+(?:\/[\w.-]+)+$/.test(children)) {
+    return (
+      <code className={className} style={{ textWrap: 'wrap', fontSize: '95%', padding: '2px 4px' }}>
+        <ClickableFilePath path={children} />
+      </code>
     )
   }
 

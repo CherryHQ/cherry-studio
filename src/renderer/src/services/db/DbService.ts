@@ -19,6 +19,7 @@ import store from '@renderer/store'
 import type { Message, MessageBlock } from '@renderer/types/newMessage'
 
 import { AgentMessageDataSource } from './AgentMessageDataSource'
+import { fetchMessagesFromDataApi } from './DataApiMessageDataSource'
 import { DexieMessageDataSource } from './DexieMessageDataSource'
 import type { MessageDataSource } from './types'
 import { buildAgentSessionTopicId, isAgentSessionTopicId } from './types'
@@ -88,13 +89,18 @@ class DbService implements MessageDataSource {
 
   async fetchMessages(
     topicId: string,
-    forceReload?: boolean
+    // oxlint-disable-next-line no-unused-vars -- interface requires this parameter
+    _forceReload?: boolean
   ): Promise<{
     messages: Message[]
     blocks: MessageBlock[]
   }> {
-    const source = this.getDataSource(topicId)
-    return source.fetchMessages(topicId, forceReload)
+    if (isAgentSessionTopicId(topicId)) {
+      return this.agentSource.fetchMessages(topicId)
+    }
+
+    // Normal topics: read from Data API (SQLite)
+    return fetchMessagesFromDataApi(topicId)
   }
 
   // ============ Write Operations ============
