@@ -129,7 +129,7 @@ async function updateLanguagesFile(): Promise<void> {
 }
 
 if (require.main === module) {
-  updateLanguagesFile()
+  void updateLanguagesFile()
 }
 
 export { updateLanguagesFile }

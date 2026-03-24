@@ -28,7 +28,7 @@ export class NotificationService {
     const notificationSettings = store.getState().settings.notification || defaultSettings.notification
 
     if (notificationSettings[notification.source]) {
-      this.queue.add(notification)
+      void this.queue.add(notification)
     }
   }
 

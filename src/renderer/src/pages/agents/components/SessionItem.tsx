@@ -5,9 +5,10 @@ import { useInPlaceEdit } from '@renderer/hooks/useInPlaceEdit'
 import { useRuntime } from '@renderer/hooks/useRuntime'
 import { useSettings } from '@renderer/hooks/useSettings'
 import { useTimer } from '@renderer/hooks/useTimer'
+import { finishTopicRenaming, startTopicRenaming } from '@renderer/hooks/useTopic'
 import { SessionSettingsPopup } from '@renderer/pages/settings/AgentSettings'
 import { SessionLabel } from '@renderer/pages/settings/AgentSettings/shared'
-import store, { useAppDispatch, useAppSelector } from '@renderer/store'
+import store, { type RootState, useAppDispatch, useAppSelector } from '@renderer/store'
 import { newMessagesActions } from '@renderer/store/newMessage'
 import { loadTopicMessagesThunk, renameAgentSessionIfNeeded } from '@renderer/store/thunk/messageThunk'
 import type { AgentSessionEntity } from '@renderer/types'
@@ -95,6 +96,10 @@ const SessionItem = ({ session, agentId, onDelete, onPress }: SessionItemProps) 
   const sessionTopicId = buildAgentSessionTopicId(session.id)
   const isPending = useMemo(() => topicLoadingQuery[sessionTopicId], [sessionTopicId, topicLoadingQuery])
   const isFulfilled = useMemo(() => topicFulfilledQuery[sessionTopicId], [sessionTopicId, topicFulfilledQuery])
+  const renamingTopics = useAppSelector((state: RootState) => state.runtime.chat.renamingTopics)
+  const newlyRenamedTopics = useAppSelector((state: RootState) => state.runtime.chat.newlyRenamedTopics)
+  const isRenaming = renamingTopics.includes(sessionTopicId)
+  const isNewlyRenamed = newlyRenamedTopics.includes(sessionTopicId)
 
   useEffect(() => {
     if (isFulfilled && activeSessionId === session.id) {
@@ -117,7 +122,7 @@ const SessionItem = ({ session, agentId, onDelete, onPress }: SessionItemProps) 
         key: 'edit',
         icon: <EditIcon size={14} />,
         onClick: () => {
-          SessionSettingsPopup.show({
+          void SessionSettingsPopup.show({
             agentId,
             sessionId: session.id
           })
@@ -127,13 +132,18 @@ const SessionItem = ({ session, agentId, onDelete, onPress }: SessionItemProps) 
         label: t('chat.topics.auto_rename'),
         key: 'auto-rename',
         icon: <Sparkles size={14} />,
-        onClick: () => {
+        onClick: async () => {
           const agentSession = {
             agentId: agentId,
             sessionId: targetSession.id
           }
-          dispatch(loadTopicMessagesThunk(sessionTopicId))
-          renameAgentSessionIfNeeded(agentSession, sessionTopicId, store.getState)
+          void dispatch(loadTopicMessagesThunk(sessionTopicId))
+          try {
+            startTopicRenaming(sessionTopicId)
+            await renameAgentSessionIfNeeded(agentSession, sessionTopicId, store.getState)
+          } finally {
+            finishTopicRenaming(sessionTopicId)
+          }
         }
       },
       {
@@ -189,7 +199,10 @@ const SessionItem = ({ session, agentId, onDelete, onPress }: SessionItemProps) 
           ) : (
             <>
               <div className="truncate text-[13px]">
-                <SessionLabel session={session} />
+                <SessionLabel
+                  session={session}
+                  className={isRenaming ? 'animation-shimmer' : isNewlyRenamed ? 'animation-reveal' : ''}
+                />
               </div>
               <DeleteButton />
             </>

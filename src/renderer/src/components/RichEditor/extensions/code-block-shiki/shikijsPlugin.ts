@@ -156,11 +156,11 @@ export function ShikiPlugin({
       class ShikiPluginView implements PluginView {
         private highlighter: HighlighterGeneric<any, any> | null = null
         constructor() {
-          this.initDecorations()
+          void this.initDecorations()
         }
 
         update() {
-          this.checkUndecoratedBlocks()
+          void this.checkUndecoratedBlocks()
         }
 
         destroy() {

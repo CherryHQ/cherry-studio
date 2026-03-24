@@ -36,7 +36,7 @@ export function setOpenLinkExternal(webviewId: number, isExternal: boolean) {
 
   webview.setWindowOpenHandler(({ url }) => {
     if (isExternal) {
-      shell.openExternal(url)
+      void shell.openExternal(url)
       return { action: 'deny' }
     } else {
       return { action: 'allow' }

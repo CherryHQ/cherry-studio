@@ -37,16 +37,16 @@ const HeaderNavbar: FC<Props> = ({ activeAssistant, setActiveAssistant, activeTo
     if (topicPosition === 'right') {
       toggleShowTopics()
     } else {
-      EventEmitter.emit(EVENT_NAMES.SHOW_TOPIC_SIDEBAR)
+      void EventEmitter.emit(EVENT_NAMES.SHOW_TOPIC_SIDEBAR)
     }
   })
 
   useShortcut('search_message', () => {
-    SearchPopup.show()
+    void SearchPopup.show()
   })
 
   const onShowAssistantsDrawer = () => {
-    AssistantsDrawer.show({
+    void AssistantsDrawer.show({
       activeAssistant,
       setActiveAssistant,
       activeTopic,

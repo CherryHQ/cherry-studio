@@ -84,8 +84,7 @@ vi.mock('@renderer/config/models', () => ({
     defaultModel: []
   },
   isOpenAIModel: vi.fn(() => false),
-  qwen3Next80BModel: {},
-  qwen38bModel: {}
+  qwenModel: {}
 }))
 
 describe('ApiClientFactory', () => {

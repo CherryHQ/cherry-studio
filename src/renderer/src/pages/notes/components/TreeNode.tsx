@@ -49,7 +49,7 @@ const TreeNode = memo<TreeNodeProps>(({ node, depth, renderChildren = true, onHi
   const handleMatchClick = useCallback(
     (match: SearchMatch) => {
       // 发送定位事件
-      EventEmitter.emit(EVENT_NAMES.LOCATE_NOTE_LINE, {
+      void EventEmitter.emit(EVENT_NAMES.LOCATE_NOTE_LINE, {
         noteId: node.id,
         lineNumber: match.lineNumber,
         lineContent: match.lineContent
@@ -70,8 +70,8 @@ const TreeNode = memo<TreeNodeProps>(({ node, depth, renderChildren = true, onHi
   const isDragAfter = isDragOver && dragPosition === 'after'
 
   const getNodeNameClassName = () => {
-    if (isRenaming) return 'shimmer'
-    if (isNewlyRenamed) return 'typing'
+    if (isRenaming) return 'animation-shimmer'
+    if (isNewlyRenamed) return 'animation-reveal'
     return ''
   }
 
@@ -352,42 +352,6 @@ export const NodeName = styled.div`
   color: var(--color-text);
   position: relative;
   will-change: background-position, width;
-
-  --color-shimmer-mid: var(--color-text-1);
-  --color-shimmer-end: color-mix(in srgb, var(--color-text-1) 25%, transparent);
-
-  &.shimmer {
-    background: linear-gradient(to left, var(--color-shimmer-end), var(--color-shimmer-mid), var(--color-shimmer-end));
-    background-size: 200% 100%;
-    background-clip: text;
-    color: transparent;
-    animation: shimmer 3s linear infinite;
-  }
-
-  &.typing {
-    display: block;
-    white-space: nowrap;
-    overflow: hidden;
-    animation: typewriter 0.5s steps(40, end);
-  }
-
-  @keyframes shimmer {
-    0% {
-      background-position: 200% 0;
-    }
-    100% {
-      background-position: -200% 0;
-    }
-  }
-
-  @keyframes typewriter {
-    from {
-      width: 0;
-    }
-    to {
-      width: 100%;
-    }
-  }
 `
 
 export const SearchMatchesContainer = styled.div<{ depth: number }>`

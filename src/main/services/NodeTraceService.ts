@@ -87,9 +87,9 @@ export function openTraceWindow(topicId: string, traceId: string, autoOpen = tru
   })
 
   if (isDev && process.env['ELECTRON_RENDERER_URL']) {
-    traceWin.loadURL(process.env['ELECTRON_RENDERER_URL'] + `/traceWindow.html`)
+    void traceWin.loadURL(process.env['ELECTRON_RENDERER_URL'] + `/traceWindow.html`)
   } else {
-    traceWin.loadFile(path.join(__dirname, '../renderer/traceWindow.html'))
+    void traceWin.loadFile(path.join(__dirname, '../renderer/traceWindow.html'))
   }
   traceWin.on('closed', () => {
     configManager.unsubscribe(ConfigKeys.Language, setLanguageCallback)

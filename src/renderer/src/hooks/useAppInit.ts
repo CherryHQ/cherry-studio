@@ -61,7 +61,7 @@ export function useAppInit() {
   }, [])
 
   useEffect(() => {
-    window.api.getDataPathFromArgs().then((dataPath) => {
+    void window.api.getDataPathFromArgs().then((dataPath) => {
       if (dataPath) {
         window.navigate('/settings/data', { replace: true })
       }
@@ -94,7 +94,7 @@ export function useAppInit() {
     }
 
     // Initial check with delay
-    runAsyncFunction(async () => {
+    void runAsyncFunction(async () => {
       const { isPackaged } = await window.api.getAppInfo()
       if (isPackaged && autoCheckUpdate) {
         await delay(2)
@@ -111,18 +111,18 @@ export function useAppInit() {
 
   useEffect(() => {
     if (proxyMode === 'system') {
-      window.api.setProxy('system', undefined)
+      void window.api.setProxy('system', undefined)
     } else if (proxyMode === 'custom') {
-      proxyUrl && window.api.setProxy(proxyUrl, proxyBypassRules)
+      void (proxyUrl && window.api.setProxy(proxyUrl, proxyBypassRules))
     } else {
       // set proxy to none for direct mode
-      window.api.setProxy('', undefined)
+      void window.api.setProxy('', undefined)
     }
   }, [proxyUrl, proxyMode, proxyBypassRules])
 
   useEffect(() => {
     const currentLanguage = language || navigator.language || defaultLanguage
-    i18n.changeLanguage(currentLanguage)
+    void i18n.changeLanguage(currentLanguage)
     setDayjsLocale(currentLanguage)
   }, [language])
 
@@ -149,14 +149,14 @@ export function useAppInit() {
 
   useEffect(() => {
     // set files path
-    window.api.getAppInfo().then((info) => {
+    void window.api.getAppInfo().then((info) => {
       dispatch(setFilesPath(info.filesPath))
       dispatch(setResourcesPath(info.resourcesPath))
     })
   }, [dispatch])
 
   useEffect(() => {
-    KnowledgeQueue.checkAllBases()
+    void KnowledgeQueue.checkAllBases()
   }, [])
 
   useEffect(() => {
@@ -275,6 +275,6 @@ export function useAppInit() {
   }, [memoryConfig])
 
   useEffect(() => {
-    checkDataLimit()
+    void checkDataLimit()
   }, [])
 }

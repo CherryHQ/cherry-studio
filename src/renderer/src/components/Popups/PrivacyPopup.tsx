@@ -49,7 +49,7 @@ const PopupContainer: React.FC<Props> = ({ title, showDeclineButton = true, reso
 
   const handleDecline = () => {
     setOpen(false)
-    window.api.quit()
+    void window.api.quit()
     resolve({ accepted: false })
   }
 
@@ -62,7 +62,7 @@ const PopupContainer: React.FC<Props> = ({ title, showDeclineButton = true, reso
   }
 
   useEffect(() => {
-    runAsyncFunction(async () => {
+    void runAsyncFunction(async () => {
       const { appPath } = await window.api.getAppInfo()
       const isChinese = i18n.language.startsWith('zh')
       const htmlFile = isChinese ? 'privacy-zh.html' : 'privacy-en.html'

@@ -33,7 +33,7 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
     const listener = async (notification: Notification) => {
       // 判断是否需要系统通知
       if (notification.channel === 'system' || !isFocused()) {
-        window.api.notification.send(notification)
+        void window.api.notification.send(notification)
         return
       }
       return new Promise<void>((resolve) => {

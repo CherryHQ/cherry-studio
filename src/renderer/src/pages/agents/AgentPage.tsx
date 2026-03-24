@@ -33,15 +33,15 @@ const AgentPage = () => {
   // Auto-select first agent when none is active
   useEffect(() => {
     if (!activeAgentId && agents && agents.length > 0) {
-      setActiveAgentId(agents[0].id)
+      void setActiveAgentId(agents[0].id)
     }
   }, [activeAgentId, agents, setActiveAgentId])
 
   useEffect(() => {
     const canMinimize = topicPosition === 'left' ? !showAssistants : !showAssistants && !showTopics
-    window.api.window.setMinimumSize(canMinimize ? SECOND_MIN_WINDOW_WIDTH : MIN_WINDOW_WIDTH, MIN_WINDOW_HEIGHT)
+    void window.api.window.setMinimumSize(canMinimize ? SECOND_MIN_WINDOW_WIDTH : MIN_WINDOW_WIDTH, MIN_WINDOW_HEIGHT)
     return () => {
-      window.api.window.resetMinimumSize()
+      void window.api.window.resetMinimumSize()
     }
   }, [showAssistants, showTopics, topicPosition])
 

@@ -78,7 +78,7 @@ const SelectionAssistantSettings: FC = () => {
       setSelectionEnabled(false)
       return
     } else if (isMac && selectionEnabled) {
-      checkMacProcessTrust()
+      void checkMacProcessTrust()
     }
   }, [isSupportedOS, selectionEnabled, setSelectionEnabled])
 

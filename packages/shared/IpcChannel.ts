@@ -217,6 +217,9 @@ export enum IpcChannel {
   File_BatchUploadMarkdown = 'file:batchUploadMarkdown',
   File_ShowInFolder = 'file:showInFolder',
 
+  // PDF
+  Pdf_ExtractText = 'pdf:extractText',
+
   // file service
   FileService_Upload = 'file-service:upload',
   FileService_List = 'file-service:list',
@@ -246,7 +249,7 @@ export enum IpcChannel {
   Backup_DeleteS3File = 'backup:deleteS3File',
   Backup_CheckS3Connection = 'backup:checkS3Connection',
   Backup_CreateLanTransferBackup = 'backup:createLanTransferBackup',
-  Backup_DeleteTempBackup = 'backup:deleteTempBackup',
+  Backup_DeleteLanTransferBackup = 'backup:deleteLanTransferBackup',
 
   // zip
   Zip_Compress = 'zip:compress',

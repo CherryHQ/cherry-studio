@@ -389,6 +389,9 @@
         "TodoWrite": {
           "description": "建立和管理結構化任務清單"
         },
+        "ToolSearch": {
+          "description": "從大型函式庫中發現延遲載入的工具"
+        },
         "WebFetch": {
           "description": "從指定 URL 取得內容"
         },
@@ -735,6 +738,7 @@
     "progress": {
       "completed": "備份完成",
       "compressing": "壓縮檔案...",
+      "copying_database": "複製資料庫...",
       "copying_files": "複製檔案... {{progress}}%",
       "preparing": "準備備份...",
       "preparing_compression": "準備壓縮...",
@@ -1191,6 +1195,8 @@
             "content": "確定要刪除選中的 {{count}} 個話題嗎？此操作不可撤銷。",
             "title": "刪除話題"
           },
+          "error": "[to be translated]:Failed to delete. Please try again.",
+          "partial_success": "[to be translated]:Successfully deleted {{successCount}} topics, {{failedCount}} failed",
           "success": "已刪除 {{count}} 個話題"
         },
         "deselect_all": "取消全選",
@@ -2026,6 +2032,10 @@
         "export": "匯出 Excel 失敗"
       },
       "fetchTopicName": "話題命名失敗",
+      "file": {
+        "process_failed": "檔案 {{name}} 無法處理",
+        "text_extraction_failed": "無法從 {{name}} 中擷取文字"
+      },
       "get_embedding_dimensions": "取得嵌入維度失敗",
       "invalid": {
         "api": {
@@ -2269,6 +2279,11 @@
       }
     },
     "warning": {
+      "file": {
+        "pdf_exceeds_limit": "PDF 檔案 {{name}} 超出大小限制 ({{limit}})，將回退為文字擷取",
+        "pdf_text_extraction_failed": "無法從 PDF {{name}} 中擷取文字",
+        "pdf_upload_failed": "上傳 PDF {{name}} 失敗，將回退為文字擷取"
+      },
       "rate": {
         "limit": "傳送過於頻繁，請在 {{seconds}} 秒後再嘗試"
       }
@@ -3116,7 +3131,7 @@
     "openrouter": "OpenRouter",
     "ovms": "Intel OVMS",
     "perplexity": "Perplexity",
-    "ph8": "PH8 大模型開放平台",
+    "ph8": "PH8",
     "poe": "Poe",
     "ppio": "PPIO 派歐雲",
     "qiniu": "七牛雲 AI 推理",
@@ -3148,7 +3163,10 @@
       "extracting": "解開備份...",
       "preparing": "準備復原...",
       "reading_data": "讀取資料...",
-      "title": "復原進度"
+      "restoring_data": "復原檔案...",
+      "restoring_database": "復原資料庫...",
+      "title": "復原進度",
+      "validating": "驗證備份..."
     },
     "title": "資料復原"
   },
@@ -3714,7 +3732,15 @@
           "button": "選擇備份檔案"
         },
         "content": "匯出部分資料，包括聊天記錄與設定。請注意，備份過程可能需要一些時間，感謝耐心等候。",
+        "file": {
+          "button": "匯出至檔案",
+          "content": "將資料匯出為備份檔案，可透過檔案在行動裝置上匯入。",
+          "export_failed": "匯出失敗",
+          "export_success": "匯出成功",
+          "title": "匯出為檔案"
+        },
         "lan": {
+          "button": "開始傳輸",
           "connected": "已連線",
           "connection_failed": "連線失敗",
           "content": "請確保電腦和手機處於同一網路以使用區域網路傳輸。",

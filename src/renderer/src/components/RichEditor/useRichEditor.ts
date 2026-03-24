@@ -413,7 +413,7 @@ export const useRichEditor = (options: UseRichEditorOptions = {}): UseRichEditor
           const file = imageItem.getAsFile()
           if (file) {
             // Handle image paste by saving to local storage
-            handleImagePaste(file)
+            void handleImagePaste(file)
             return true
           }
         }
