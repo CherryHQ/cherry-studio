@@ -41,32 +41,18 @@ export const validateKnowledgeSearch = [
       }
       return true
     }),
-  body('top_n')
-    .optional()
-    .isInt({ min: 1, max: 20 })
-    .withMessage('top_n must be an integer between 1 and 20')
+  body('top_n').optional().isInt({ min: 1, max: 20 }).withMessage('top_n must be an integer between 1 and 20')
 ]
 
 /**
  * Validation rules for knowledge base ID parameter
  */
-export const validateKnowledgeBaseId = [
-  query('id')
-    .optional()
-    .isString()
-    .withMessage('id must be a string')
-]
+export const validateKnowledgeBaseId = [query('id').optional().isString().withMessage('id must be a string')]
 
 /**
  * Validation for list query parameters
  */
 export const validatePagination = [
-  query('limit')
-    .optional()
-    .isInt({ min: 1, max: 100 })
-    .withMessage('limit must be an integer between 1 and 100'),
-  query('offset')
-    .optional()
-    .isInt({ min: 0 })
-    .withMessage('offset must be a non-negative integer')
+  query('limit').optional().isInt({ min: 1, max: 100 }).withMessage('limit must be an integer between 1 and 100'),
+  query('offset').optional().isInt({ min: 0 }).withMessage('offset must be a non-negative integer')
 ]
