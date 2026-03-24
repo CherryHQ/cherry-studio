@@ -22,9 +22,7 @@ import type {
   ValidateResult
 } from '@shared/data/migration/v2/types'
 import { eq, sql } from 'drizzle-orm'
-import { app } from 'electron'
 import Store from 'electron-store'
-import fsSync from 'fs'
 import fs from 'fs/promises'
 import path from 'path'
 
@@ -87,47 +85,18 @@ export class MigrationEngine {
   }
 
   /**
-   * FIXME: 当前通过文件系统探测 electron-store / localStorage / IndexedDB 来判断是否有旧数据,
-   * 这是临时方案，存在以下局限:
-   * 1. electron-store (config.json) — v2 也可能在 needsMigration() 之前写入
-   * 2. localStorage (Local Storage/leveldb/*.ldb) — Electron 内部也会写少量数据
-   * 3. IndexedDB (*.indexeddb.leveldb) — v2 的 webview 也可能创建
-   * 三者任一不为空即视为有旧数据，宁可误触发迁移（空数据迁移可安全完成），也不漏掉真正的升级用户。
+   * FIXME: 当前仅通过 electron-store 判断是否有旧数据，这是临时方案。
+   * electron-store (config.json) 在 v2 中也可能被写入，导致误判。
+   * localStorage 和 IndexedDB 的文件系统路径不可靠（UserData 路径问题待迁移后期统一处理），暂不检测。
+   * 宁可误触发迁移（空数据迁移可安全完成），也不漏掉真正的升级用户。
    * 后续引入 version history 后可用精确的版本记录替代这些启发式检测。
    */
   private hasLegacyData(): boolean {
-    const userData = app.getPath('userData')
-
-    // 1. electron-store: v1 writes app settings to config.json
     const legacyStore = new Store()
-    if (legacyStore.size > 0) {
-      logger.info('Legacy data detected: electron-store has data')
-      return true
-    }
+    const hasData = legacyStore.size > 0
 
-    // 2. localStorage (Redux Persist): stored in Local Storage/leveldb/
-    // .ldb files contain compacted data; fresh Electron installs only have .log + MANIFEST
-    const localStorageDir = path.join(userData, 'Local Storage', 'leveldb')
-    if (fsSync.existsSync(localStorageDir)) {
-      const entries = fsSync.readdirSync(localStorageDir)
-      if (entries.some((e) => e.endsWith('.ldb'))) {
-        logger.info('Legacy data detected: localStorage has .ldb files')
-        return true
-      }
-    }
-
-    // 3. IndexedDB (Dexie): v1 stores chat/message data via Dexie
-    const indexedDbDir = path.join(userData, 'IndexedDB')
-    if (fsSync.existsSync(indexedDbDir)) {
-      const entries = fsSync.readdirSync(indexedDbDir)
-      if (entries.some((e) => e.endsWith('.indexeddb.leveldb'))) {
-        logger.info('Legacy data detected: IndexedDB has databases')
-        return true
-      }
-    }
-
-    logger.info('No legacy data found')
-    return false
+    logger.info('Legacy data detection', { hasElectronStore: hasData })
+    return hasData
   }
 
   /**
