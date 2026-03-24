@@ -67,7 +67,7 @@ export async function getRuntimeConfig(
   ])
 
   return {
-    maxResults,
+    maxResults: Math.max(1, maxResults),
     excludeDomains,
     compression: {
       method,

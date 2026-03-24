@@ -69,7 +69,8 @@ export async function fetchWebSearchContent(
       throw error
     }
 
-    logger.error(`Failed to fetch ${url}`, error as Error)
+    const normalizedError = error instanceof Error ? error : new Error(String(error))
+    logger.error(`Failed to fetch ${url}`, normalizedError)
     throw error
   }
 }

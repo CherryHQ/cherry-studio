@@ -183,6 +183,10 @@ export class ExaMcpProvider extends BaseWebSearchProvider {
       payloadTexts.push(responseText)
     }
 
+    if (payloadTexts.length === 0 && responseText.trim().length > 0) {
+      throw new Error('Exa MCP response parsing failed: no parseable content found')
+    }
+
     return ExaSearchResultsSchema.parse({
       results: this.parseTextChunk(payloadTexts.join('\n\n')).filter((item) =>
         Boolean(item.title || item.url || item.text)

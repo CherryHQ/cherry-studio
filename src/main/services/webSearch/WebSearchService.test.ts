@@ -10,14 +10,18 @@ const {
   setWebSearchStatusMock,
   clearWebSearchStatusMock,
   getProviderByIdMock,
-  getRuntimeConfigMock
+  getRuntimeConfigMock,
+  loggerWarnMock,
+  loggerErrorMock
 } = vi.hoisted(() => {
   return {
     createWebSearchProviderMock: vi.fn(),
     setWebSearchStatusMock: vi.fn().mockResolvedValue(undefined),
     clearWebSearchStatusMock: vi.fn().mockResolvedValue(undefined),
     getProviderByIdMock: vi.fn(),
-    getRuntimeConfigMock: vi.fn()
+    getRuntimeConfigMock: vi.fn(),
+    loggerWarnMock: vi.fn(),
+    loggerErrorMock: vi.fn()
   }
 })
 
@@ -28,6 +32,17 @@ vi.mock('./providers/factory', () => ({
 vi.mock('./runtime/status', () => ({
   setWebSearchStatus: setWebSearchStatusMock,
   clearWebSearchStatus: clearWebSearchStatusMock
+}))
+
+vi.mock('@logger', () => ({
+  loggerService: {
+    withContext: () => ({
+      debug: vi.fn(),
+      info: vi.fn(),
+      warn: loggerWarnMock,
+      error: loggerErrorMock
+    })
+  }
 }))
 
 vi.mock('./utils/config', () => ({
@@ -231,6 +246,15 @@ describe('WebSearchService', () => {
         }
       ]
     })
+    expect(setWebSearchStatusMock).toHaveBeenCalledWith(
+      'req-partial-success',
+      {
+        phase: 'partial_failure',
+        countBefore: 2,
+        countAfter: 1
+      },
+      1000
+    )
     expect(clearWebSearchStatusMock).toHaveBeenCalledWith('req-partial-success')
   })
 
@@ -311,6 +335,118 @@ describe('WebSearchService', () => {
       })
     ).rejects.toThrow('network failed')
 
+    expect(loggerErrorMock).toHaveBeenCalledWith('Web search failed', error, {
+      requestId: 'req-all-failed',
+      providerId: 'tavily'
+    })
     expect(clearWebSearchStatusMock).toHaveBeenCalledWith('req-all-failed')
+  })
+
+  it('keeps successful results when fetch status cache write fails', async () => {
+    setWebSearchStatusMock.mockRejectedValueOnce(new Error('cache write failed'))
+
+    createWebSearchProviderMock.mockReturnValue({
+      search: vi
+        .fn()
+        .mockResolvedValueOnce({
+          query: 'first-query',
+          results: [
+            {
+              title: 'First',
+              content: 'one',
+              url: 'https://example.com/first'
+            }
+          ]
+        } satisfies WebSearchResponse)
+        .mockResolvedValueOnce({
+          query: 'second-query',
+          results: [
+            {
+              title: 'Second',
+              content: 'two',
+              url: 'https://example.com/second'
+            }
+          ]
+        } satisfies WebSearchResponse)
+    })
+
+    const service = WebSearchService.getInstance()
+
+    const result = await service.search({
+      providerId: 'tavily',
+      questions: ['first', 'second'],
+      requestId: 'req-status-write-failed'
+    })
+
+    expect(result.results).toHaveLength(2)
+    expect(loggerWarnMock).toHaveBeenCalledWith('Failed to update web search status', {
+      requestId: 'req-status-write-failed',
+      phase: 'fetch_complete',
+      error: 'cache write failed'
+    })
+  })
+
+  it('keeps successful response when post-processing status cache write fails', async () => {
+    getRuntimeConfigMock.mockResolvedValue({
+      ...runtimeConfig,
+      compression: {
+        ...runtimeConfig.compression,
+        method: 'cutoff',
+        cutoffLimit: 5,
+        cutoffUnit: 'char'
+      }
+    })
+    setWebSearchStatusMock.mockRejectedValueOnce(new Error('cache write failed'))
+
+    createWebSearchProviderMock.mockReturnValue({
+      search: vi.fn().mockResolvedValue({
+        query: 'test',
+        results: [
+          {
+            title: 'A',
+            content: '1234567890',
+            url: 'https://example.com'
+          }
+        ]
+      } satisfies WebSearchResponse)
+    })
+
+    const service = WebSearchService.getInstance()
+
+    const result = await service.search({
+      providerId: 'tavily',
+      questions: ['hello'],
+      requestId: 'req-post-process-status-failed'
+    })
+
+    expect(result.results[0].content).toBe('12345...')
+    expect(loggerWarnMock).toHaveBeenCalledWith('Failed to update web search status', {
+      requestId: 'req-post-process-status-failed',
+      phase: 'cutoff',
+      error: 'cache write failed'
+    })
+  })
+
+  it('does not let cleanup cache failures replace the original search error', async () => {
+    const searchError = new Error('network failed')
+    clearWebSearchStatusMock.mockRejectedValueOnce(new Error('cache cleanup failed'))
+    createWebSearchProviderMock.mockReturnValue({
+      search: vi.fn().mockRejectedValue(searchError)
+    })
+
+    const service = WebSearchService.getInstance()
+
+    await expect(
+      service.search({
+        providerId: 'tavily',
+        questions: ['first'],
+        requestId: 'req-clear-failed'
+      })
+    ).rejects.toThrow('network failed')
+
+    expect(loggerWarnMock).toHaveBeenCalledWith('Failed to clear web search status', {
+      requestId: 'req-clear-failed',
+      error: 'cache cleanup failed'
+    })
   })
 })

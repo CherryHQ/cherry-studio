@@ -46,6 +46,20 @@ describe('webSearch config utils', () => {
     expect(runtime.compression.method).toBe('none')
   })
 
+  it('normalizes maxResults to at least 1 in runtime config', async () => {
+    const runtime = await getRuntimeConfig({
+      async get<K extends PreferenceKeyType>(key: K): Promise<PreferenceDefaultScopeType[K]> {
+        if (key === 'chat.web_search.max_results') {
+          return 0 as PreferenceDefaultScopeType[K]
+        }
+
+        return preferenceValues[key] as PreferenceDefaultScopeType[K]
+      }
+    })
+
+    expect(runtime.maxResults).toBe(1)
+  })
+
   it('resolves a provider directly by id from the preset-backed config', async () => {
     const provider = await getProviderById('tavily', mockPreferenceReader)
 

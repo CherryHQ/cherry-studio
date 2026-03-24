@@ -30,7 +30,8 @@ export abstract class LocalSearchProvider extends BaseWebSearchProvider {
         throw error
       }
 
-      logger.error(`Local provider search failed: ${this.provider.id}`, error as Error)
+      const normalizedError = error instanceof Error ? error : new Error(String(error))
+      logger.error(`Local provider search failed: ${this.provider.id}`, normalizedError)
       throw error
     }
   }
@@ -76,8 +77,9 @@ export abstract class LocalSearchProvider extends BaseWebSearchProvider {
     try {
       return this.parseValidUrls(html)
     } catch (error) {
+      const normalizedError = error instanceof Error ? error : new Error(String(error))
       throw new Error(`Failed to parse local search results: ${this.provider.id}`, {
-        cause: error as Error
+        cause: normalizedError
       })
     }
   }

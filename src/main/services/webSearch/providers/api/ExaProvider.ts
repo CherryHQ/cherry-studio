@@ -52,7 +52,7 @@ export class ExaProvider extends BaseWebSearchProvider {
       requestUrl: this.resolveApiUrl('/search'),
       requestBody: ExaSearchRequestSchema.parse({
         query,
-        numResults: Math.max(1, config.maxResults),
+        numResults: config.maxResults,
         contents: {
           text: true
         }
@@ -78,7 +78,10 @@ export class ExaProvider extends BaseWebSearchProvider {
       throw new Error(`Exa search failed: HTTP ${response.status} ${errorText}`)
     }
 
-    return ExaSearchResponseSchema.parse(await response.json())
+    return this.parseJsonResponse(response, ExaSearchResponseSchema, {
+      operation: 'search',
+      requestUrl: context.requestUrl
+    })
   }
 
   private buildFinalResponse(

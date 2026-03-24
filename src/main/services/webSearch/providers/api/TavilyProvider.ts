@@ -52,7 +52,7 @@ export class TavilyProvider extends BaseWebSearchProvider {
       requestBody: TavilySearchRequestSchema.parse({
         query,
         api_key: apiKey,
-        max_results: Math.max(1, config.maxResults)
+        max_results: config.maxResults
       }),
       signal: httpOptions?.signal ?? undefined
     }
@@ -74,7 +74,10 @@ export class TavilyProvider extends BaseWebSearchProvider {
       throw new Error(`Tavily search failed: HTTP ${response.status} ${errorText}`)
     }
 
-    return TavilySearchResponseSchema.parse(await response.json())
+    return this.parseJsonResponse(response, TavilySearchResponseSchema, {
+      operation: 'search',
+      requestUrl: context.requestUrl
+    })
   }
 
   private buildFinalResponse(

@@ -64,4 +64,36 @@ describe('setWebSearchStatus', () => {
       }
     })
   })
+
+  it('preserves overlapping status updates without clobbering other requests', async () => {
+    let sharedState = {} as Record<string, { phase: string; countAfter?: number }>
+    getSharedMock.mockImplementation(() => sharedState)
+    setSharedMock.mockImplementation((_, value) => {
+      sharedState = value
+    })
+
+    await Promise.all([
+      setWebSearchStatus(
+        'request-1',
+        {
+          phase: 'fetch_complete',
+          countAfter: 1
+        },
+        10
+      ),
+      setWebSearchStatus('request-2', {
+        phase: 'cutoff'
+      })
+    ])
+
+    expect(sharedState).toEqual({
+      'request-1': {
+        phase: 'fetch_complete',
+        countAfter: 1
+      },
+      'request-2': {
+        phase: 'cutoff'
+      }
+    })
+  })
 })

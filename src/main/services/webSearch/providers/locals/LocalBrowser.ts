@@ -1,9 +1,14 @@
 import { loggerService } from '@logger'
+import { isValidUrl } from '@shared/utils'
+import { Semaphore } from 'async-mutex'
 import { BrowserWindow } from 'electron'
+
+import { isAbortError } from '../../utils/errors'
 
 const logger = loggerService.withContext('LocalWebSearchBrowser')
 
 const DEFAULT_NAVIGATION_TIMEOUT_MS = 10000
+const MAX_CONCURRENT_BROWSER_FETCHES = 2
 const DEFAULT_USER_AGENT =
   'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Safari/537.36'
 
@@ -19,6 +24,7 @@ type LocalBrowserContext = {
 
 export class LocalBrowser {
   private static instance: LocalBrowser | null = null
+  private readonly fetchSemaphore = new Semaphore(MAX_CONCURRENT_BROWSER_FETCHES)
 
   public static getInstance(): LocalBrowser {
     if (!LocalBrowser.instance) {
@@ -30,21 +36,39 @@ export class LocalBrowser {
   private constructor() {}
 
   async fetchHtml(url: string, options: FetchHtmlOptions = {}): Promise<string> {
-    const context = this.prepareFetchContext(url, options)
+    this.validateFetchRequest(url, options)
+
+    const releaseSlot = await this.acquireFetchSlot()
+    let context: LocalBrowserContext | null = null
 
     try {
+      context = this.prepareFetchContext(url, options)
       await this.executeNavigation(context)
       return await this.buildHtmlSnapshot(context)
     } finally {
-      this.cleanup(context)
+      if (context) {
+        this.cleanup(context)
+      }
+      releaseSlot()
     }
   }
 
-  private prepareFetchContext(url: string, options: FetchHtmlOptions): LocalBrowserContext {
+  private validateFetchRequest(url: string, options: FetchHtmlOptions) {
     if (options.signal?.aborted) {
       throw new DOMException('The operation was aborted', 'AbortError')
     }
 
+    if (!isValidUrl(url)) {
+      throw new Error(`LocalBrowser only supports HTTP(S) URLs: ${url}`)
+    }
+  }
+
+  private async acquireFetchSlot(): Promise<() => void> {
+    const [, release] = await this.fetchSemaphore.acquire()
+    return release
+  }
+
+  private prepareFetchContext(url: string, options: FetchHtmlOptions): LocalBrowserContext {
     const window = new BrowserWindow({
       width: 1280,
       height: 768,
@@ -108,11 +132,13 @@ export class LocalBrowser {
         finish(() => reject(error))
       })
     }).catch((error) => {
-      logger.debug('LocalBrowser navigation failed', {
-        url: context.url,
-        timeoutMs: DEFAULT_NAVIGATION_TIMEOUT_MS,
-        error: error instanceof Error ? error.message : String(error)
-      })
+      if (!isAbortError(error)) {
+        logger.warn('LocalBrowser navigation failed', {
+          url: context.url,
+          timeoutMs: DEFAULT_NAVIGATION_TIMEOUT_MS,
+          error: error instanceof Error ? error.message : String(error)
+        })
+      }
       throw error
     })
   }

@@ -23,7 +23,14 @@ export type WebSearchRequest = {
   requestId: string
 }
 
-export type WebSearchPhase = 'default' | 'fetch_complete' | 'rag' | 'rag_complete' | 'rag_failed' | 'cutoff'
+export type WebSearchPhase =
+  | 'default'
+  | 'fetch_complete'
+  | 'partial_failure'
+  | 'rag'
+  | 'rag_complete'
+  | 'rag_failed'
+  | 'cutoff'
 
 export type WebSearchStatus = {
   phase: WebSearchPhase

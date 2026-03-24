@@ -71,7 +71,10 @@ export class ZhipuProvider extends BaseWebSearchProvider {
       throw new Error(`Zhipu search failed: HTTP ${response.status} ${errorText}`)
     }
 
-    return ZhipuWebSearchResponseSchema.parse(await response.json())
+    return this.parseJsonResponse(response, ZhipuWebSearchResponseSchema, {
+      operation: 'search',
+      requestUrl: context.requestUrl
+    })
   }
 
   private buildFinalResponse(

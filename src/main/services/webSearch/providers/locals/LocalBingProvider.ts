@@ -36,7 +36,8 @@ export class LocalBingProvider extends LocalSearchProvider {
       const url = new URL(rawUrl, 'https://www.bing.com')
       return this.decodeRedirectTarget(url.searchParams.get('u')) ?? url.toString()
     } catch (error) {
-      logger.warn('Failed to decode Bing redirect URL', error as Error)
+      const normalizedError = error instanceof Error ? error : new Error(String(error))
+      logger.warn('Failed to decode Bing redirect URL', normalizedError)
       return rawUrl
     }
   }

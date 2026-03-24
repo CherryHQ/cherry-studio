@@ -1,5 +1,10 @@
 import { loggerService } from '@logger'
-import type { WebSearchExecutionConfig, WebSearchRequest, WebSearchResponse } from '@shared/data/types/webSearch'
+import type {
+  WebSearchExecutionConfig,
+  WebSearchRequest,
+  WebSearchResponse,
+  WebSearchStatus
+} from '@shared/data/types/webSearch'
 
 import { postProcessWebSearchResponse } from './postProcessing'
 import type { BaseWebSearchProvider } from './providers/base/BaseWebSearchProvider'
@@ -50,6 +55,29 @@ export class WebSearchService {
     return Promise.allSettled(searchPromises)
   }
 
+  private getSearchCompletionStatus(totalCount: number, successCount: number): WebSearchStatus | undefined {
+    if (successCount === 0) {
+      return undefined
+    }
+
+    if (successCount < totalCount) {
+      return {
+        phase: 'partial_failure',
+        countBefore: totalCount,
+        countAfter: successCount
+      }
+    }
+
+    if (successCount > 1) {
+      return {
+        phase: 'fetch_complete',
+        countAfter: successCount
+      }
+    }
+
+    return undefined
+  }
+
   private async buildFinalResponse(
     request: WebSearchRequest,
     context: PreparedWebSearchContext,
@@ -68,16 +96,10 @@ export class WebSearchService {
     const successfulSearches = searchResults.filter(
       (item): item is PromiseFulfilledResult<WebSearchResponse> => item.status === 'fulfilled'
     )
+    const searchCompletionStatus = this.getSearchCompletionStatus(searchResults.length, successfulSearches.length)
 
-    if (successfulSearches.length > 1) {
-      await setWebSearchStatus(
-        request.requestId,
-        {
-          phase: 'fetch_complete',
-          countAfter: successfulSearches.length
-        },
-        1000
-      )
+    if (searchCompletionStatus) {
+      await this.updateWebSearchStatus(request.requestId, searchCompletionStatus, 1000)
     }
 
     if (successfulSearches.length === 0) {
@@ -95,10 +117,33 @@ export class WebSearchService {
     const postProcessed = await postProcessWebSearchResponse(filteredResponse, context.runtimeConfig)
 
     if (postProcessed.status) {
-      await setWebSearchStatus(request.requestId, postProcessed.status, 500)
+      await this.updateWebSearchStatus(request.requestId, postProcessed.status, 500)
     }
 
     return postProcessed.response
+  }
+
+  private async updateWebSearchStatus(requestId: string, status: WebSearchStatus, delayMs?: number): Promise<void> {
+    try {
+      await setWebSearchStatus(requestId, status, delayMs)
+    } catch (error) {
+      logger.warn('Failed to update web search status', {
+        requestId,
+        phase: status.phase,
+        error: error instanceof Error ? error.message : String(error)
+      })
+    }
+  }
+
+  private async clearWebSearchStatusSafely(requestId: string): Promise<void> {
+    try {
+      await clearWebSearchStatus(requestId)
+    } catch (error) {
+      logger.warn('Failed to clear web search status', {
+        requestId,
+        error: error instanceof Error ? error.message : String(error)
+      })
+    }
   }
 
   async search(request: WebSearchRequest, httpOptions?: RequestInit): Promise<WebSearchResponse> {
@@ -110,11 +155,15 @@ export class WebSearchService {
       return finalResponse
     } catch (error) {
       if (!isAbortError(error)) {
-        logger.error('Web search failed', error as Error)
+        const normalizedError = error instanceof Error ? error : new Error(String(error))
+        logger.error('Web search failed', normalizedError, {
+          requestId: request.requestId,
+          providerId: request.providerId
+        })
       }
       throw error
     } finally {
-      await clearWebSearchStatus(request.requestId)
+      await this.clearWebSearchStatusSafely(request.requestId)
     }
   }
 }

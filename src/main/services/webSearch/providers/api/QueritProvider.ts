@@ -95,7 +95,10 @@ export class QueritProvider extends BaseWebSearchProvider {
       throw new Error(`Querit search failed: HTTP ${response.status} ${errorText}`)
     }
 
-    return QueritSearchResponseSchema.parse(await response.json())
+    return this.parseJsonResponse(response, QueritSearchResponseSchema, {
+      operation: 'search',
+      requestUrl: context.requestUrl
+    })
   }
 
   private buildFinalResponse(

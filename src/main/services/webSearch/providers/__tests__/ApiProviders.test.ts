@@ -561,6 +561,40 @@ describe('main web search API providers', () => {
     `)
   })
 
+  it('adds provider context when API response validation fails', async () => {
+    fetchMock.mockResolvedValue(createJsonResponse({ results: 'invalid' }))
+
+    const provider = new ExaProvider(
+      createProvider({
+        id: 'exa',
+        name: 'Exa',
+        apiKeys: ['exa-key'],
+        apiHost: 'https://api.exa.ai'
+      })
+    )
+
+    await expect(provider.search('hello', runtimeConfig)).rejects.toThrow(
+      'exa search response validation failed for https://api.exa.ai/search'
+    )
+  })
+
+  it('adds provider context when API response body is invalid JSON', async () => {
+    fetchMock.mockResolvedValue(createTextResponse('{invalid-json', 'application/json'))
+
+    const provider = new SearxngProvider(
+      createProvider({
+        id: 'searxng',
+        name: 'Searxng',
+        apiHost: 'https://searx.example',
+        engines: []
+      })
+    )
+
+    await expect(provider.search('hello', runtimeConfig)).rejects.toThrow(
+      'searxng config returned invalid JSON from https://searx.example/config'
+    )
+  })
+
   it('matches Exa MCP request and normalized response snapshots from fixtures', async () => {
     fetchMock.mockResolvedValue(createTextResponse(loadFixtureText('exa-mcp-response.txt'), 'text/event-stream'))
 
@@ -651,6 +685,23 @@ describe('main web search API providers', () => {
         }
       ]
     })
+  })
+
+  it('throws when Exa MCP response is non-empty but contains no parseable payloads', async () => {
+    fetchMock.mockResolvedValue(createTextResponse('data: {"invalid": true}', 'text/event-stream'))
+
+    const provider = new ExaMcpProvider(
+      createProvider({
+        id: 'exa-mcp',
+        name: 'Exa MCP',
+        type: 'mcp',
+        apiHost: ''
+      })
+    )
+
+    await expect(provider.search('hello', runtimeConfig)).rejects.toThrow(
+      'Exa MCP response parsing failed: no parseable content found'
+    )
   })
 
   it('normalizes missing provider titles to empty strings', async () => {

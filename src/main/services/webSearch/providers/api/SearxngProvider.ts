@@ -55,7 +55,8 @@ export class SearxngProvider extends BaseWebSearchProvider {
       return this.provider.engines
     }
 
-    const response = await net.fetch(this.resolveApiUrl('/config'), {
+    const requestUrl = this.resolveApiUrl('/config')
+    const response = await net.fetch(requestUrl, {
       method: 'GET',
       headers: {
         ...defaultAppHeaders(),
@@ -69,7 +70,10 @@ export class SearxngProvider extends BaseWebSearchProvider {
       throw new Error(`Searxng config failed: HTTP ${response.status} ${errorText}`)
     }
 
-    const payload = SearxngConfigResponseSchema.parse(await response.json())
+    const payload = await this.parseJsonResponse(response, SearxngConfigResponseSchema, {
+      operation: 'config',
+      requestUrl
+    })
 
     const engines = payload.engines
       .filter((engine) => engine.enabled && engine.categories.includes('general') && engine.categories.includes('web'))
@@ -127,7 +131,10 @@ export class SearxngProvider extends BaseWebSearchProvider {
       throw new Error(`Searxng search failed: HTTP ${response.status} ${errorText}`)
     }
 
-    return SearxngSearchResponseSchema.parse(await response.json())
+    return this.parseJsonResponse(response, SearxngSearchResponseSchema, {
+      operation: 'search',
+      requestUrl: context.searchUrl
+    })
   }
 
   private async fetchResultContents(

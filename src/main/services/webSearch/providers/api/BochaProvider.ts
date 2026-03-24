@@ -81,7 +81,10 @@ export class BochaProvider extends BaseWebSearchProvider {
       throw new Error(`Bocha search failed: HTTP ${response.status} ${errorText}`)
     }
 
-    return BochaSearchResponseSchema.parse(await response.json())
+    return this.parseJsonResponse(response, BochaSearchResponseSchema, {
+      operation: 'search',
+      requestUrl: context.requestUrl
+    })
   }
 
   private buildFinalResponse(
