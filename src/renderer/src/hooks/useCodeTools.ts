@@ -1,137 +1,176 @@
+import { usePreference } from '@renderer/data/hooks/usePreference'
 import { loggerService } from '@renderer/services/LoggerService'
-import { useAppDispatch, useAppSelector } from '@renderer/store'
-import {
-  addDirectory,
-  clearDirectories,
-  removeDirectory,
-  resetCodeTools,
-  setCurrentDirectory,
-  setEnvironmentVariables,
-  setSelectedCliTool,
-  setSelectedModel,
-  setSelectedTerminal
-} from '@renderer/store/codeTools'
-import type { Model } from '@renderer/types'
 import { codeCLI } from '@shared/config/constant'
-import { useCallback } from 'react'
+import type { CodeCliId, CodeCliOverride, CodeCliOverrides } from '@shared/data/preference/preferenceTypes'
+import { CODE_CLI_PRESET_MAP } from '@shared/data/presets/code-cli'
+import { useCallback, useMemo } from 'react'
+
+const logger = loggerService.withContext('useCodeTools')
+
+const DEFAULT_TOOL = codeCLI.qwenCode as CodeCliId
+
+function getEffectiveToolConfig(toolId: CodeCliId, overrides: CodeCliOverrides): Required<CodeCliOverride> {
+  const preset = CODE_CLI_PRESET_MAP[toolId]
+  const override = overrides[toolId] ?? {}
+  return {
+    enabled: override.enabled ?? preset.enabled,
+    modelId: override.modelId ?? preset.modelId,
+    envVars: override.envVars ?? preset.envVars,
+    terminal: override.terminal ?? preset.terminal,
+    currentDirectory: override.currentDirectory ?? preset.currentDirectory,
+    directories: override.directories ?? [...preset.directories]
+  }
+}
 
 export const useCodeTools = () => {
-  const dispatch = useAppDispatch()
-  const codeToolsState = useAppSelector((state) => state.codeTools)
-  const logger = loggerService.withContext('useCodeTools')
+  const [overrides, setOverrides] = usePreference('feature.code_cli.overrides')
 
-  // 设置选择的 CLI 工具
+  const selectedCliTool = useMemo(() => {
+    for (const [toolId, override] of Object.entries(overrides)) {
+      if (override?.enabled) {
+        return toolId as codeCLI
+      }
+    }
+    return DEFAULT_TOOL as codeCLI
+  }, [overrides])
+
+  const currentConfig = useMemo(
+    () => getEffectiveToolConfig(selectedCliTool as CodeCliId, overrides),
+    [selectedCliTool, overrides]
+  )
+
+  const selectedModel = currentConfig.modelId
+  const selectedTerminal = currentConfig.terminal
+  const environmentVariables = currentConfig.envVars
+  const directories = currentConfig.directories
+  const currentDirectory = currentConfig.currentDirectory
+
+  const canLaunch = Boolean(
+    selectedCliTool && currentDirectory && (selectedCliTool === codeCLI.githubCopilotCli || selectedModel)
+  )
+
+  const updateCurrentTool = useCallback(
+    async (patch: Partial<CodeCliOverride>) => {
+      const toolId = selectedCliTool as CodeCliId
+      const existing = overrides[toolId] ?? {}
+      await setOverrides({
+        ...overrides,
+        [toolId]: { ...existing, ...patch }
+      })
+    },
+    [overrides, setOverrides, selectedCliTool]
+  )
+
   const setCliTool = useCallback(
-    (tool: codeCLI) => {
-      dispatch(setSelectedCliTool(tool))
+    async (tool: codeCLI) => {
+      const newOverrides = { ...overrides }
+      const currentId = selectedCliTool as CodeCliId
+      if (newOverrides[currentId]) {
+        newOverrides[currentId] = { ...newOverrides[currentId], enabled: false }
+      }
+      const newId = tool as CodeCliId
+      newOverrides[newId] = { ...(newOverrides[newId] ?? {}), enabled: true }
+      await setOverrides(newOverrides)
     },
-    [dispatch]
+    [overrides, setOverrides, selectedCliTool]
   )
 
-  // 设置选择的模型
   const setModel = useCallback(
-    (model: Model | null) => {
-      dispatch(setSelectedModel(model))
+    async (modelId: string | null) => {
+      await updateCurrentTool({ modelId })
     },
-    [dispatch]
+    [updateCurrentTool]
   )
 
-  // 设置选择的终端
   const setTerminal = useCallback(
-    (terminal: string) => {
-      dispatch(setSelectedTerminal(terminal))
+    async (terminal: string) => {
+      await updateCurrentTool({ terminal })
     },
-    [dispatch]
+    [updateCurrentTool]
   )
 
-  // 设置环境变量
   const setEnvVars = useCallback(
-    (envVars: string) => {
-      dispatch(setEnvironmentVariables(envVars))
+    async (envVars: string) => {
+      await updateCurrentTool({ envVars })
     },
-    [dispatch]
+    [updateCurrentTool]
   )
 
-  // 添加目录
-  const addDir = useCallback(
-    (directory: string) => {
-      dispatch(addDirectory(directory))
-    },
-    [dispatch]
-  )
-
-  // 删除目录
-  const removeDir = useCallback(
-    (directory: string) => {
-      dispatch(removeDirectory(directory))
-    },
-    [dispatch]
-  )
-
-  // 设置当前目录
   const setCurrentDir = useCallback(
-    (directory: string) => {
-      dispatch(setCurrentDirectory(directory))
+    async (directory: string) => {
+      const toolId = selectedCliTool as CodeCliId
+      const existing = overrides[toolId] ?? {}
+      const currentDirs = existing.directories ?? []
+      let newDirs: string[]
+      if (directory && !currentDirs.includes(directory)) {
+        newDirs = [directory, ...currentDirs].slice(0, 10)
+      } else if (directory && currentDirs.includes(directory)) {
+        newDirs = [directory, ...currentDirs.filter((d) => d !== directory)]
+      } else {
+        newDirs = currentDirs
+      }
+      await setOverrides({
+        ...overrides,
+        [toolId]: { ...existing, currentDirectory: directory, directories: newDirs }
+      })
     },
-    [dispatch]
+    [overrides, setOverrides, selectedCliTool]
   )
 
-  // 清空所有目录
-  const clearDirs = useCallback(() => {
-    dispatch(clearDirectories())
-  }, [dispatch])
+  const removeDir = useCallback(
+    async (directory: string) => {
+      const toolId = selectedCliTool as CodeCliId
+      const existing = overrides[toolId] ?? {}
+      const currentDirs = existing.directories ?? []
+      const newDirs = currentDirs.filter((d) => d !== directory)
+      const patch: Partial<CodeCliOverride> = { directories: newDirs }
+      if (existing.currentDirectory === directory) {
+        patch.currentDirectory = ''
+      }
+      await setOverrides({
+        ...overrides,
+        [toolId]: { ...existing, ...patch }
+      })
+    },
+    [overrides, setOverrides, selectedCliTool]
+  )
 
-  // 重置所有设置
-  const resetSettings = useCallback(() => {
-    dispatch(resetCodeTools())
-  }, [dispatch])
+  const clearDirs = useCallback(async () => {
+    await updateCurrentTool({ directories: [], currentDirectory: '' })
+  }, [updateCurrentTool])
 
-  // 选择文件夹的辅助函数
+  const resetSettings = useCallback(async () => {
+    await setOverrides({})
+  }, [setOverrides])
+
   const selectFolder = useCallback(async () => {
     try {
       const folderPath = await window.api.file.selectFolder()
       if (folderPath) {
-        setCurrentDir(folderPath)
+        await setCurrentDir(folderPath)
         return folderPath
       }
       return null
     } catch (error) {
-      logger.error('选择文件夹失败:', error as Error)
+      logger.error('Failed to select folder:', error as Error)
       throw error
     }
-  }, [setCurrentDir, logger])
-
-  // 获取当前CLI工具选择的模型
-  const selectedModel = codeToolsState.selectedModels[codeToolsState.selectedCliTool] || null
-
-  // 获取当前CLI工具的环境变量
-  const environmentVariables = codeToolsState?.environmentVariables?.[codeToolsState.selectedCliTool] || ''
-
-  // 检查是否可以启动（所有必需字段都已填写）
-  const canLaunch = Boolean(
-    codeToolsState.selectedCliTool &&
-      codeToolsState.currentDirectory &&
-      (codeToolsState.selectedCliTool === codeCLI.githubCopilotCli || selectedModel)
-  )
+  }, [setCurrentDir])
 
   return {
-    // 状态
-    selectedCliTool: codeToolsState.selectedCliTool,
-    selectedModel: selectedModel,
-    selectedTerminal: codeToolsState.selectedTerminal,
-    environmentVariables: environmentVariables,
-    directories: codeToolsState.directories,
-    currentDirectory: codeToolsState.currentDirectory,
+    selectedCliTool,
+    selectedModel,
+    selectedTerminal,
+    environmentVariables,
+    directories,
+    currentDirectory,
     canLaunch,
-
-    // 操作函数
     setCliTool,
     setModel,
     setTerminal,
     setEnvVars,
-    addDir,
-    removeDir,
     setCurrentDir,
+    removeDir,
     clearDirs,
     resetSettings,
     selectFolder
