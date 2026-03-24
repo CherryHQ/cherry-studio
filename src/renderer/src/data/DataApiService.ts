@@ -32,6 +32,7 @@
 import { loggerService } from '@logger'
 import type { RequestContext } from '@shared/data/api/apiErrors'
 import { DataApiError, DataApiErrorFactory, ErrorCode, toDataApiError } from '@shared/data/api/apiErrors'
+import type { BodyForPath, QueryParamsForPath, ResponseForPath } from '@shared/data/api/apiPaths'
 import type { ApiClient, ConcreteApiPaths } from '@shared/data/api/apiTypes'
 import type {
   DataRequest,
@@ -234,11 +235,11 @@ export class DataApiService implements ApiClient {
   async get<TPath extends ConcreteApiPaths>(
     path: TPath,
     options?: {
-      query?: any
+      query?: QueryParamsForPath<TPath, 'GET'>
       headers?: Record<string, string>
     }
-  ): Promise<any> {
-    return this.makeRequest<any>('GET', path as string, {
+  ): Promise<ResponseForPath<TPath, 'GET'>> {
+    return this.makeRequest<ResponseForPath<TPath, 'GET'>>('GET', path as string, {
       params: options?.query,
       headers: options?.headers
     })
@@ -250,12 +251,12 @@ export class DataApiService implements ApiClient {
   async post<TPath extends ConcreteApiPaths>(
     path: TPath,
     options: {
-      body?: any
-      query?: Record<string, any>
+      body?: BodyForPath<TPath, 'POST'>
+      query?: QueryParamsForPath<TPath, 'POST'>
       headers?: Record<string, string>
     }
-  ): Promise<any> {
-    return this.makeRequest<any>('POST', path as string, {
+  ): Promise<ResponseForPath<TPath, 'POST'>> {
+    return this.makeRequest<ResponseForPath<TPath, 'POST'>>('POST', path as string, {
       params: options.query,
       body: options.body,
       headers: options.headers
@@ -268,12 +269,12 @@ export class DataApiService implements ApiClient {
   async put<TPath extends ConcreteApiPaths>(
     path: TPath,
     options: {
-      body: any
-      query?: Record<string, any>
+      body: BodyForPath<TPath, 'PUT'>
+      query?: QueryParamsForPath<TPath, 'PUT'>
       headers?: Record<string, string>
     }
-  ): Promise<any> {
-    return this.makeRequest<any>('PUT', path as string, {
+  ): Promise<ResponseForPath<TPath, 'PUT'>> {
+    return this.makeRequest<ResponseForPath<TPath, 'PUT'>>('PUT', path as string, {
       params: options.query,
       body: options.body,
       headers: options.headers
@@ -286,11 +287,11 @@ export class DataApiService implements ApiClient {
   async delete<TPath extends ConcreteApiPaths>(
     path: TPath,
     options?: {
-      query?: Record<string, any>
+      query?: QueryParamsForPath<TPath, 'DELETE'>
       headers?: Record<string, string>
     }
-  ): Promise<any> {
-    return this.makeRequest<any>('DELETE', path as string, {
+  ): Promise<ResponseForPath<TPath, 'DELETE'>> {
+    return this.makeRequest<ResponseForPath<TPath, 'DELETE'>>('DELETE', path as string, {
       params: options?.query,
       headers: options?.headers
     })
@@ -302,12 +303,12 @@ export class DataApiService implements ApiClient {
   async patch<TPath extends ConcreteApiPaths>(
     path: TPath,
     options: {
-      body?: any
-      query?: Record<string, any>
+      body?: BodyForPath<TPath, 'PATCH'>
+      query?: QueryParamsForPath<TPath, 'PATCH'>
       headers?: Record<string, string>
     }
-  ): Promise<any> {
-    return this.makeRequest<any>('PATCH', path as string, {
+  ): Promise<ResponseForPath<TPath, 'PATCH'>> {
+    return this.makeRequest<ResponseForPath<TPath, 'PATCH'>>('PATCH', path as string, {
       params: options.query,
       body: options.body,
       headers: options.headers

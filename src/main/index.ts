@@ -50,6 +50,7 @@ import { cacheService } from '@data/CacheService'
 import { initWebviewHotkeys } from './services/WebviewService'
 import { runAsyncFunction } from './utils'
 import { isOvmsSupported } from './services/OvmsManager'
+import { application, serviceList } from './core/application'
 
 const logger = loggerService.withContext('MainEntry')
 
@@ -142,6 +143,18 @@ if (!app.requestSingleInstanceLock()) {
   app.quit()
   process.exit(0)
 } else {
+  // ============================================================================
+  // v2 Refactoring: Application Lifecycle Management
+  // The lifecycle system runs in parallel with the existing startup code below.
+  // Currently no services are registered, so bootstrap() is a no-op.
+  // As services are migrated to the lifecycle system, the imperative code below
+  // will be gradually removed. See: src/main/core/application/README.md
+  // ============================================================================
+  application.registerAll(serviceList)
+  application.bootstrap().catch((error) => {
+    logger.error('Application lifecycle bootstrap failed:', error)
+  })
+
   // This method will be called when Electron has finished
   // initialization and is ready to create browser windows.
   // Some APIs can only be used after this event occurs.
@@ -155,6 +168,7 @@ if (!app.requestSingleInstanceLock()) {
       await dbService.init()
       await dbService.migrateDb()
       await dbService.migrateSeed('preference')
+      await dbService.migrateSeed('translateLanguage')
     } catch (error) {
       logger.error('Failed to initialize database', error as Error)
       //TODO for v2 testing only:
@@ -382,6 +396,10 @@ if (!app.requestSingleInstanceLock()) {
     } catch (error) {
       logger.warn('Error cleaning up services:', error as Error)
     }
+
+    // v2 Refactoring: Shutdown lifecycle-managed services
+    // Currently no-op as no services are registered yet.
+    await application.shutdown()
 
     // finish the logger
     logger.finish()

@@ -10,7 +10,7 @@
  * 4. Conditional mapping: Target keys determined by source values
  *
  * Usage:
- * 1. Define transformation function in PreferenceTransformers.ts
+ * 1. Define transformation function in a colocated mapping file under `mappings/`
  * 2. Add mapping configuration to COMPLEX_PREFERENCE_MAPPINGS below
  * 3. Add target key definitions in target-key-definitions.json
  *
@@ -20,6 +20,7 @@
 
 import { flattenCompressionConfig, migrateWebSearchProviders } from '../transformers/PreferenceTransformers'
 import { transformCodeCli } from './CodeCliTransforms'
+import { mergeFileProcessingOverrides } from './FileProcessingOverrideMappings'
 
 // ============================================================================
 // Type Definitions
@@ -125,6 +126,18 @@ export const COMPLEX_PREFERENCE_MAPPINGS: ComplexMapping[] = [
     },
     targetKeys: ['feature.code_cli.overrides'],
     transform: transformCodeCli
+  },
+
+  // File processing overrides merging
+  {
+    id: 'file_processing_overrides_merge',
+    description: 'Merge legacy OCR and preprocess providers into file processing overrides',
+    sources: {
+      preprocessProviders: { source: 'redux', category: 'preprocess', key: 'providers' },
+      ocrProviders: { source: 'redux', category: 'ocr', key: 'providers' }
+    },
+    targetKeys: ['feature.file_processing.overrides'],
+    transform: mergeFileProcessingOverrides
   }
 ]
 

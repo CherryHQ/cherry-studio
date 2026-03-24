@@ -49,6 +49,9 @@ export enum ErrorCode {
   /** 405 - HTTP method not supported for this endpoint */
   METHOD_NOT_ALLOWED = 'METHOD_NOT_ALLOWED',
 
+  /** 409 - Resource conflict, e.g. duplicate name or unique constraint violation */
+  CONFLICT = 'CONFLICT',
+
   /** 422 - Request body fails validation rules */
   VALIDATION_ERROR = 'VALIDATION_ERROR',
 
@@ -124,13 +127,14 @@ export enum ErrorCode {
 export const ERROR_STATUS_MAP: Record<ErrorCode, number> = {
   // Client errors (4xx)
   [ErrorCode.BAD_REQUEST]: 400,
+  [ErrorCode.INVALID_OPERATION]: 400,
   [ErrorCode.UNAUTHORIZED]: 401,
+  [ErrorCode.PERMISSION_DENIED]: 403,
   [ErrorCode.NOT_FOUND]: 404,
   [ErrorCode.METHOD_NOT_ALLOWED]: 405,
+  [ErrorCode.CONFLICT]: 409,
   [ErrorCode.VALIDATION_ERROR]: 422,
   [ErrorCode.RATE_LIMIT_EXCEEDED]: 429,
-  [ErrorCode.PERMISSION_DENIED]: 403,
-  [ErrorCode.INVALID_OPERATION]: 400,
 
   // Server errors (5xx)
   [ErrorCode.INTERNAL_SERVER_ERROR]: 500,
@@ -139,10 +143,10 @@ export const ERROR_STATUS_MAP: Record<ErrorCode, number> = {
   [ErrorCode.TIMEOUT]: 504,
 
   // Application-specific errors
-  [ErrorCode.MIGRATION_ERROR]: 500,
   [ErrorCode.RESOURCE_LOCKED]: 423,
   [ErrorCode.CONCURRENT_MODIFICATION]: 409,
-  [ErrorCode.DATA_INCONSISTENT]: 409
+  [ErrorCode.DATA_INCONSISTENT]: 409,
+  [ErrorCode.MIGRATION_ERROR]: 500
 }
 
 /**
@@ -154,6 +158,7 @@ export const ERROR_MESSAGES: Record<ErrorCode, string> = {
   [ErrorCode.UNAUTHORIZED]: 'Unauthorized: Authentication required',
   [ErrorCode.NOT_FOUND]: 'Not found: Requested resource does not exist',
   [ErrorCode.METHOD_NOT_ALLOWED]: 'Method not allowed: HTTP method not supported for this endpoint',
+  [ErrorCode.CONFLICT]: 'Conflict: Resource already exists or conflicts with existing data',
   [ErrorCode.VALIDATION_ERROR]: 'Validation error: Request data does not meet requirements',
   [ErrorCode.RATE_LIMIT_EXCEEDED]: 'Rate limit exceeded: Too many requests',
   [ErrorCode.PERMISSION_DENIED]: 'Permission denied: Insufficient permissions for this operation',
@@ -250,6 +255,14 @@ export interface InvalidOperationErrorDetails {
 }
 
 /**
+ * Details for CONFLICT - resource conflict information.
+ */
+export interface ConflictErrorDetails {
+  resource?: string
+  description?: string
+}
+
+/**
  * Details for RESOURCE_LOCKED - which resource is locked.
  */
 export interface ResourceLockedErrorDetails {
@@ -290,6 +303,7 @@ export type ErrorDetailsMap = {
   [ErrorCode.DATA_INCONSISTENT]: DataInconsistentErrorDetails
   [ErrorCode.PERMISSION_DENIED]: PermissionDeniedErrorDetails
   [ErrorCode.INVALID_OPERATION]: InvalidOperationErrorDetails
+  [ErrorCode.CONFLICT]: ConflictErrorDetails
   [ErrorCode.RESOURCE_LOCKED]: ResourceLockedErrorDetails
   [ErrorCode.CONCURRENT_MODIFICATION]: ConcurrentModificationErrorDetails
   [ErrorCode.INTERNAL_SERVER_ERROR]: InternalErrorDetails
@@ -668,6 +682,29 @@ export class DataApiErrorFactory {
       message,
       ERROR_STATUS_MAP[ErrorCode.INVALID_OPERATION],
       { operation, reason },
+      requestContext
+    )
+  }
+
+  /**
+   * Create a conflict error for duplicate or conflicting resources.
+   * Use when: unique constraint violation, duplicate name, or resource state conflict.
+   *
+   * @param message - Description of the conflict
+   * @param resource - Optional resource type name
+   * @param requestContext - Optional request context
+   * @returns DataApiError with CONFLICT code
+   */
+  static conflict(
+    message: string,
+    resource?: string,
+    requestContext?: RequestContext
+  ): DataApiError<ErrorCode.CONFLICT> {
+    return new DataApiError(
+      ErrorCode.CONFLICT,
+      message,
+      ERROR_STATUS_MAP[ErrorCode.CONFLICT],
+      { resource, description: message },
       requestContext
     )
   }
