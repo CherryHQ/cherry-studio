@@ -41,7 +41,10 @@ export const validateKnowledgeSearch = [
       }
       return true
     }),
-  body('top_n').optional().isInt({ min: 1, max: 20 }).withMessage('top_n must be an integer between 1 and 20')
+  body('document_count')
+    .optional()
+    .isInt({ min: 1, max: 20 })
+    .withMessage('document_count must be an integer between 1 and 20')
 ]
 
 /**

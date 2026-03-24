@@ -88,7 +88,7 @@ export const getKnowledgeBase = async (req: Request, res: Response): Promise<Res
 interface SearchRequest {
   query: string
   knowledge_base_ids?: string[]
-  top_n?: number
+  document_count?: number
 }
 
 /**
@@ -120,15 +120,22 @@ async function getProviderConfig(providerId: string): Promise<{ apiKey: string; 
  * Convert KnowledgeBase to KnowledgeBaseParams for search
  */
 async function getKnowledgeBaseParams(base: KnowledgeBase): Promise<KnowledgeBaseParams> {
-  // Get provider config for embedding model
-  const embedProviderId = base.model?.provider || 'ollama'
+  // Validate that embedding model provider is configured
+  const embedProviderId = base.model?.provider
+  if (!embedProviderId) {
+    throw new Error(`Knowledge base "${base.name}" is missing embedding model provider configuration`)
+  }
+
   const embedConfig = await getProviderConfig(embedProviderId)
+  if (!embedConfig) {
+    throw new Error(`Provider "${embedProviderId}" not found for knowledge base "${base.name}"`)
+  }
 
   const embedApiClient = {
     model: base.model?.id || '',
     provider: embedProviderId,
-    apiKey: embedConfig?.apiKey || '',
-    baseURL: embedConfig?.baseURL || (embedProviderId === 'ollama' ? 'http://localhost:11434' : '')
+    apiKey: embedConfig.apiKey,
+    baseURL: embedConfig.baseURL
   }
 
   // Build the params object
@@ -144,11 +151,13 @@ async function getKnowledgeBaseParams(base: KnowledgeBase): Promise<KnowledgeBas
   // Add rerank if configured
   if (base.rerankModel?.provider) {
     const rerankConfig = await getProviderConfig(base.rerankModel.provider)
-    params.rerankApiClient = {
-      model: base.rerankModel.id || '',
-      provider: base.rerankModel.provider,
-      apiKey: rerankConfig?.apiKey || '',
-      baseURL: rerankConfig?.baseURL || ''
+    if (rerankConfig) {
+      params.rerankApiClient = {
+        model: base.rerankModel.id || '',
+        provider: base.rerankModel.provider,
+        apiKey: rerankConfig.apiKey,
+        baseURL: rerankConfig.baseURL
+      }
     }
   }
 
@@ -163,7 +172,7 @@ async function getKnowledgeBaseParams(base: KnowledgeBase): Promise<KnowledgeBas
  */
 export const searchKnowledge = async (req: Request, res: Response): Promise<Response> => {
   try {
-    const { query, knowledge_base_ids, top_n = 5 } = req.body as SearchRequest
+    const { query, knowledge_base_ids, document_count = 5 } = req.body as SearchRequest
 
     if (!query) {
       return res.status(400).json({
@@ -175,7 +184,7 @@ export const searchKnowledge = async (req: Request, res: Response): Promise<Resp
       })
     }
 
-    logger.debug(`Searching knowledge bases: "${query}"`, { knowledge_base_ids, top_n })
+    logger.debug(`Searching knowledge bases: "${query}"`, { knowledge_base_ids, document_count })
 
     // Get knowledge bases from Redux
     const bases = await reduxService.select<KnowledgeBase[]>('state.knowledge.bases')
@@ -226,8 +235,8 @@ export const searchKnowledge = async (req: Request, res: Response): Promise<Resp
     const resultsPerBase = await Promise.all(searchPromises)
     const allResults = resultsPerBase.flat()
 
-    // Sort by score and limit to top_n
-    const sortedResults = allResults.sort((a, b) => b.score - a.score).slice(0, top_n)
+    // Sort by score and limit to document_count
+    const sortedResults = allResults.sort((a, b) => b.score - a.score).slice(0, document_count)
 
     logger.debug(`Found ${sortedResults.length} results for query: "${query}"`)
 
