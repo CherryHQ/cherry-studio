@@ -58,14 +58,13 @@ export function getTemperature(assistant: Assistant, model: Model): number | und
 
   let temperature = assistant.settings?.temperature ?? DEFAULT_ASSISTANT_SETTINGS.temperature
 
-  if (isMaxTemperatureOneModel(model)) {
-    logger.info(`Model ${model.id} has max temperature of 1, clamping temperature to 1`)
-    temperature = Math.min(1, temperature)
+  if (isMaxTemperatureOneModel(model) && temperature > 1) {
+    logger.info(`Model ${model.id} has max temperature of 1, clamping temperature from ${temperature} to 1`)
+    temperature = 1
   }
 
-  // Use temperature if topP is enabled and model only accepts one of the two
   if (isTemperatureTopPMutuallyExclusiveModel(model) && assistant.settings?.enableTopP) {
-    logger.info(`Model ${model.id} only accepts one of temperature and topP, using temperature instead`)
+    logger.info(`Model ${model.id} only accepts one of temperature and topP, both enabled; keeping temperature`)
   }
 
   return temperature
@@ -91,7 +90,7 @@ export function getTopP(assistant: Assistant, model: Model): number | undefined 
   }
 
   if (isTemperatureTopPMutuallyExclusiveModel(model) && assistant.settings?.enableTemperature) {
-    logger.info(`Model ${model.id} only accepts one of temperature and top, disabling topP.`)
+    logger.info(`Model ${model.id} only accepts one of temperature and topP, disabling topP.`)
     return undefined
   }
 
@@ -106,8 +105,11 @@ export function getTopP(assistant: Assistant, model: Model): number | undefined 
     assistant.settings.reasoning_effort !== 'default' &&
     assistant.settings.reasoning_effort !== 'none'
   ) {
-    logger.info(`Claude Model ${model.id} has reasoning enabled, clamping topP to [0.95, 1]`)
-    topP = Math.max(0.95, Math.min(topP, 1))
+    const clampedTopP = Math.max(0.95, Math.min(topP, 1))
+    if (clampedTopP !== topP) {
+      logger.info(`Claude Model ${model.id} has reasoning enabled, clamping topP from ${topP} to ${clampedTopP}`)
+    }
+    topP = clampedTopP
   }
 
   return topP
