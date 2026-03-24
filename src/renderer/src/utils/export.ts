@@ -1158,7 +1158,7 @@ export const exportNote = async ({ node, platform }: NoteExportOptions): Promise
       case 'markdown':
         return await exportNoteAsMarkdown(node.name, content)
       case 'docx':
-        window.api.export.toWord(`# ${node.name}\n\n${content}`, removeSpecialCharactersForFileName(node.name))
+        void window.api.export.toWord(`# ${node.name}\n\n${content}`, removeSpecialCharactersForFileName(node.name))
         return
       case 'notion':
         await exportMessageToNotion(node.name, content)

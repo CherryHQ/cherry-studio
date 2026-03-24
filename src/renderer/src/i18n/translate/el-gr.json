@@ -390,7 +390,7 @@
           "description": "Δημιουργεί και διαχειρίζεται δομημένες λίστες εργασιών"
         },
         "ToolSearch": {
-          "description": "[to be translated]:Discovers deferred tools from large libraries"
+          "description": "Ανακαλύπτει αναβλημένα εργαλεία από μεγάλες βιβλιοθήκες"
         },
         "WebFetch": {
           "description": "Ανάκτηση περιεχομένου από καθορισμένη διεύθυνση URL"
@@ -1195,6 +1195,8 @@
             "content": "Είσαι βέβαιος ότι θέλεις να διαγράψεις {{count}} επιλεγμένο(α) θέμα(τα); Αυτή η ενέργεια δεν μπορεί να αναιρεθεί.",
             "title": "Διαγραφή Θεμάτων"
           },
+          "error": "[to be translated]:Failed to delete. Please try again.",
+          "partial_success": "[to be translated]:Successfully deleted {{successCount}} topics, {{failedCount}} failed",
           "success": "Διαγράφηκαν {{count}} θέμα(τα)"
         },
         "deselect_all": "Αποεπιλογή όλων",

@@ -69,7 +69,7 @@ const TokenFluxPage: FC<{ Options: string[] }> = ({ Options }) => {
   )
 
   useEffect(() => {
-    tokenFluxService.fetchModels().then((models) => {
+    void tokenFluxService.fetchModels().then((models) => {
       setModels(models)
       if (models.length > 0) {
         setSelectedModel(models[0])
@@ -225,7 +225,7 @@ const TokenFluxPage: FC<{ Options: string[] }> = ({ Options }) => {
       }
     }
 
-    removePainting('tokenflux_paintings', paintingToDelete)
+    void removePainting('tokenflux_paintings', paintingToDelete)
   }
 
   const translate = async () => {
@@ -263,7 +263,7 @@ const TokenFluxPage: FC<{ Options: string[] }> = ({ Options }) => {
       if (spaceClickCount === 2) {
         setSpaceClickCount(0)
         setIsTranslating(true)
-        translate()
+        void translate()
       }
     }
   }
@@ -336,7 +336,7 @@ const TokenFluxPage: FC<{ Options: string[] }> = ({ Options }) => {
         .then((result) => {
           if (result && result.images && result.images.length > 0) {
             const urls = result.images.map((img: { url: string }) => img.url)
-            tokenFluxService.downloadImages(urls).then(async (validFiles) => {
+            void tokenFluxService.downloadImages(urls).then(async (validFiles) => {
               await FileManager.addFiles(validFiles)
               updatePaintingState({ files: validFiles, urls, status: 'succeeded' })
             })

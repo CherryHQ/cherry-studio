@@ -118,7 +118,7 @@ const PopupContainer: React.FC<Props> = ({ resolve }) => {
     }
 
     if (content) {
-      navigator.clipboard.writeText(content)
+      void navigator.clipboard.writeText(content)
     }
 
     setLoading(true)

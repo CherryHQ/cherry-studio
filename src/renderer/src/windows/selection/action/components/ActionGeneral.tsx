@@ -115,7 +115,7 @@ const ActionGeneral: FC<Props> = React.memo(({ action, scrollToBottom }) => {
 
     if (!assistantRef.current || !topicRef.current) return
     logger.debug('Before peocess message', { assistant: assistantRef.current })
-    processMessages(
+    void processMessages(
       assistantRef.current,
       topicRef.current,
       promptContentRef.current,
@@ -168,7 +168,7 @@ const ActionGeneral: FC<Props> = React.memo(({ action, scrollToBottom }) => {
       abortCompletion(askId.current)
     }
     if (topicRef.current?.id) {
-      pauseTrace(topicRef.current.id)
+      void pauseTrace(topicRef.current.id)
     }
   }
 

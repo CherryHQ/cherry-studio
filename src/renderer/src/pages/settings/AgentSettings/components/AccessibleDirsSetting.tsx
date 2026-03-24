@@ -20,7 +20,7 @@ export const AccessibleDirsSetting = ({ base, update }: AccessibleDirsSettingPro
   const updateAccessiblePaths = useCallback(
     (accessible_paths: UpdateAgentBaseForm['accessible_paths']) => {
       if (!base) return
-      update({ id: base.id, accessible_paths })
+      void update({ id: base.id, accessible_paths })
     },
     [base, update]
   )

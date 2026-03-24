@@ -652,14 +652,14 @@ const migrateConfig = {
       state.assistants.assistants.forEach((assistant) => {
         assistant.topics.forEach((topic) => {
           topic.assistantId = assistant.id
-          runAsyncFunction(async () => {
+          void runAsyncFunction(async () => {
             const _topic = await db.topics.get(topic.id)
             if (_topic) {
               const messages = (_topic?.messages || []).map((message) => ({
                 ...message,
                 assistantId: assistant.id
               }))
-              db.topics.put({ ..._topic, messages }, topic.id)
+              void db.topics.put({ ..._topic, messages }, topic.id)
             }
           })
         })
@@ -3078,7 +3078,7 @@ const migrateConfig = {
   // 1.7.7
   '189': (state: RootState) => {
     try {
-      window.api.memory.migrateMemoryDb()
+      void window.api.memory.migrateMemoryDb()
       // @ts-ignore
       const memoryLlmApiClient = state?.memory?.memoryConfig?.llmApiClient
       // @ts-ignore

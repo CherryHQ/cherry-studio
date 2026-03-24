@@ -62,30 +62,28 @@ class SpanCacheService implements TraceCache {
     await this._checkFolder(path.join(this.fileDir, topicId))
 
     if (modelName) {
-      this.cleanHistoryTrace(topicId, traceId || '', modelName)
-      this.saveSpans(topicId)
+      await this.cleanHistoryTrace(topicId, traceId || '', modelName)
+      await this.saveSpans(topicId)
     } else if (traceId) {
-      fs.rm(path.join(this.fileDir, topicId, traceId))
+      await fs.rm(path.join(this.fileDir, topicId, traceId))
     } else {
-      fs.readdir(path.join(this.fileDir, topicId)).then((files) =>
-        files.forEach((file) => {
-          fs.rm(path.join(this.fileDir, topicId, file))
-        })
-      )
+      const files = await fs.readdir(path.join(this.fileDir, topicId))
+      for (const file of files) {
+        await fs.rm(path.join(this.fileDir, topicId, file))
+      }
     }
   }
 
   async cleanLocalData() {
     this.cache.clear()
-    fs.readdir(this.fileDir)
-      .then((files) =>
-        files.forEach((topicId) => {
-          fs.rm(path.join(this.fileDir, topicId), { recursive: true, force: true })
-        })
-      )
-      .catch((err) => {
-        logger.error('Error cleaning local data:', err)
-      })
+    try {
+      const files = await fs.readdir(this.fileDir)
+      for (const topicId of files) {
+        await fs.rm(path.join(this.fileDir, topicId), { recursive: true, force: true })
+      }
+    } catch (err) {
+      logger.error('Error cleaning local data:', err as Error)
+    }
   }
 
   async saveSpans(topicId: string) {

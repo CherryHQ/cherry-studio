@@ -396,7 +396,7 @@ const NewApiPage: FC<{ Options: string[] }> = ({ Options }) => {
       }
     }
 
-    removePainting(mode, paintingToDelete)
+    void removePainting(mode, paintingToDelete)
   }
 
   const translate = async () => {
@@ -434,7 +434,7 @@ const NewApiPage: FC<{ Options: string[] }> = ({ Options }) => {
       if (spaceClickCount === 2) {
         setSpaceClickCount(0)
         setIsTranslating(true)
-        translate()
+        void translate()
       }
     }
   }

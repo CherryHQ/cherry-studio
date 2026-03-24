@@ -86,6 +86,9 @@ importers:
 
   .:
     dependencies:
+      '@ai-sdk/groq':
+        specifier: ^3.0.31
+        version: 3.0.31(zod@4.3.4)
       '@anthropic-ai/claude-agent-sdk':
         specifier: 0.2.81
         version: 0.2.81(zod@4.3.4)
@@ -1414,6 +1417,12 @@ packages:
 
   '@ai-sdk/google@3.0.53':
     resolution: {integrity: sha512-uz8tIlkDgQJG9Js2Wh9JHzd4kI9+hYJqf9XXJLx60vyN5mRIqhr49iwR5zGP5Gl8odp2PeR3Gh2k+5bh3Z1HHw==}
+    engines: {node: '>=18'}
+    peerDependencies:
+      zod: ^3.25.76 || ^4.1.8
+
+  '@ai-sdk/groq@3.0.31':
+    resolution: {integrity: sha512-XbbugpnFmXGu2TlXiq8KUJskP6/VVbuFcnFIGDzDIB/Chg6XHsNnqrTF80Zxkh0Pd3+NvbM+2Uqrtsndk6bDAg==}
     engines: {node: '>=18'}
     peerDependencies:
       zod: ^3.25.76 || ^4.1.8
@@ -12513,6 +12522,12 @@ snapshots:
       '@ai-sdk/provider': 3.0.8
       '@ai-sdk/provider-utils': 4.0.21(zod@4.3.6)
       zod: 4.3.6
+
+  '@ai-sdk/groq@3.0.31(zod@4.3.4)':
+    dependencies:
+      '@ai-sdk/provider': 3.0.8
+      '@ai-sdk/provider-utils': 4.0.21(zod@4.3.4)
+      zod: 4.3.4
 
   '@ai-sdk/huggingface@1.0.39(zod@4.3.4)':
     dependencies:

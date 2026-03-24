@@ -390,7 +390,7 @@
           "description": "Creează și gestionează liste de sarcini structurate"
         },
         "ToolSearch": {
-          "description": "[to be translated]:Discovers deferred tools from large libraries"
+          "description": "Descoperă instrumente amânate din biblioteci mari"
         },
         "WebFetch": {
           "description": "Preia conținutul de la o adresă URL specificată"
@@ -1195,6 +1195,8 @@
             "content": "Ești sigur că vrei să ștergi {{count}} subiecte selectate? Această acțiune nu poate fi anulată.",
             "title": "Șterge subiecte"
           },
+          "error": "[to be translated]:Failed to delete. Please try again.",
+          "partial_success": "[to be translated]:Successfully deleted {{successCount}} topics, {{failedCount}} failed",
           "success": "S-au șters {{count}} subiecte"
         },
         "deselect_all": "Deselectează tot",

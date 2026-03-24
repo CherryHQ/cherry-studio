@@ -33,7 +33,7 @@ class MemoryService {
   private currentUserId: string = 'default-user'
 
   constructor() {
-    this.init()
+    void this.init()
   }
 
   /**

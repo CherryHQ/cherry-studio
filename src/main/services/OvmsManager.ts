@@ -440,7 +440,7 @@ class OvmsManager {
 
       // Terminate all ovdnd processes
       for (const process of processList) {
-        this.terminalProcess(process.Id)
+        void this.terminalProcess(process.Id)
       }
 
       logger.info('Model download process stopped successfully')

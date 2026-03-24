@@ -390,7 +390,7 @@
           "description": "建立和管理結構化任務清單"
         },
         "ToolSearch": {
-          "description": "[to be translated]:Discovers deferred tools from large libraries"
+          "description": "從大型函式庫中發現延遲載入的工具"
         },
         "WebFetch": {
           "description": "從指定 URL 取得內容"
@@ -1195,6 +1195,8 @@
             "content": "確定要刪除選中的 {{count}} 個話題嗎？此操作不可撤銷。",
             "title": "刪除話題"
           },
+          "error": "[to be translated]:Failed to delete. Please try again.",
+          "partial_success": "[to be translated]:Successfully deleted {{successCount}} topics, {{failedCount}} failed",
           "success": "已刪除 {{count}} 個話題"
         },
         "deselect_all": "取消全選",

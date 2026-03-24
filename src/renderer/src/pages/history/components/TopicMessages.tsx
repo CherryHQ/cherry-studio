@@ -36,7 +36,7 @@ const TopicMessages: FC<Props> = ({ topic: _topic, ...props }) => {
   useEffect(() => {
     if (!_topic) return
 
-    runAsyncFunction(async () => {
+    void runAsyncFunction(async () => {
       const topic = await getTopicById(_topic.id)
       setTopic(topic)
     })
