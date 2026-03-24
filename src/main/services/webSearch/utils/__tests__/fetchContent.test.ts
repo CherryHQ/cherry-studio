@@ -2,6 +2,17 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const fetchMock = vi.hoisted(() => vi.fn())
 
+vi.mock('@logger', () => ({
+  loggerService: {
+    withContext: () => ({
+      debug: vi.fn(),
+      info: vi.fn(),
+      warn: vi.fn(),
+      error: vi.fn()
+    })
+  }
+}))
+
 vi.mock('electron', () => ({
   net: {
     fetch: fetchMock
@@ -34,5 +45,11 @@ describe('fetchWebSearchContent', () => {
       url: 'https://example.com/article',
       content: ''
     })
+  })
+
+  it('throws when fetching content fails', async () => {
+    fetchMock.mockResolvedValue(createTextResponse('server error', 'text/plain', 500))
+
+    await expect(fetchWebSearchContent('https://example.com/article', false)).rejects.toThrow('HTTP error: 500')
   })
 })

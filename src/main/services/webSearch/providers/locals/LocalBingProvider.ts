@@ -9,31 +9,26 @@ const logger = loggerService.withContext('LocalBingProvider')
 
 export class LocalBingProvider extends LocalSearchProvider {
   protected parseValidUrls(htmlContent: string): SearchItem[] {
-    try {
-      const $ = load(htmlContent)
-      const results: SearchItem[] = []
+    const $ = load(htmlContent)
+    const results: SearchItem[] = []
 
-      $('#b_results .b_algo').each((_, element) => {
-        const $element = $(element)
-        const $link = $element.find('h2 a').first()
-        const title = $link.text().trim()
-        const href = $link.attr('href')
-        if (!title || !href) {
-          return
-        }
+    $('#b_results .b_algo').each((_, element) => {
+      const $element = $(element)
+      const $link = $element.find('h2 a').first()
+      const title = $link.text().trim()
+      const href = $link.attr('href')
+      if (!title || !href) {
+        return
+      }
 
-        results.push({
-          title,
-          url: this.decodeBingUrl(href),
-          content: this.extractSnippet($element, ['.b_caption p', '.b_snippet', '.lisn_content'], title)
-        })
+      results.push({
+        title,
+        url: this.decodeBingUrl(href),
+        content: this.extractSnippet($element, ['.b_caption p', '.b_snippet', '.lisn_content'], title)
       })
+    })
 
-      return results
-    } catch (error) {
-      logger.error('Failed to parse Bing search HTML', error as Error)
-      return []
-    }
+    return results
   }
 
   private decodeBingUrl(rawUrl: string): string {

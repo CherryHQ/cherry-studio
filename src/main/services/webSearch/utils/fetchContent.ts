@@ -70,10 +70,6 @@ export async function fetchWebSearchContent(
     }
 
     logger.error(`Failed to fetch ${url}`, error as Error)
-    return {
-      title: url,
-      url,
-      content: ''
-    }
+    throw error
   }
 }

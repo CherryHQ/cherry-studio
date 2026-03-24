@@ -94,6 +94,10 @@ export class LocalBrowser {
       const onAbort = () => finish(() => reject(new DOMException('The operation was aborted', 'AbortError')))
 
       const timeoutId = setTimeout(() => {
+        logger.warn('Navigation timed out, using partial HTML snapshot', {
+          url: context.url,
+          timeoutMs: DEFAULT_NAVIGATION_TIMEOUT_MS
+        })
         finish(resolve)
       }, DEFAULT_NAVIGATION_TIMEOUT_MS)
 

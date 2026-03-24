@@ -73,7 +73,13 @@ export abstract class LocalSearchProvider extends BaseWebSearchProvider {
   private async executeSearch(context: LocalSearchContext): Promise<SearchItem[]> {
     const html = await localBrowser.fetchHtml(context.searchUrl, { signal: context.signal })
 
-    return this.parseValidUrls(html)
+    try {
+      return this.parseValidUrls(html)
+    } catch (error) {
+      throw new Error(`Failed to parse local search results: ${this.provider.id}`, {
+        cause: error as Error
+      })
+    }
   }
 
   private buildFinalResponse(context: LocalSearchContext, searchItems: SearchItem[]): WebSearchResponse {

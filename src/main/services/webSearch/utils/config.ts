@@ -105,6 +105,10 @@ export async function getProviderById(
   const preset = WEB_SEARCH_PROVIDER_PRESET_MAP[providerId]
   const apiKeys = override?.apiKeys?.map((apiKey) => apiKey.trim()).filter(Boolean) || []
 
+  if (!preset) {
+    throw new Error(`Unknown web search provider: ${providerId}`)
+  }
+
   return {
     id: providerId,
     name: preset.name,

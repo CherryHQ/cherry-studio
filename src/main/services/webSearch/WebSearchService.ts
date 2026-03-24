@@ -7,6 +7,7 @@ import { createWebSearchProvider } from './providers/factory'
 import { clearWebSearchStatus, setWebSearchStatus } from './runtime/status'
 import { filterWebSearchResponseWithBlacklist } from './utils/blacklist'
 import { getProviderById, getRuntimeConfig } from './utils/config'
+import { isAbortError } from './utils/errors'
 
 const logger = loggerService.withContext('MainWebSearchService')
 
@@ -54,6 +55,16 @@ export class WebSearchService {
     context: PreparedWebSearchContext,
     searchResults: PromiseSettledResult<WebSearchResponse>[]
   ): Promise<WebSearchResponse> {
+    searchResults.forEach((item, index) => {
+      if (item.status === 'rejected') {
+        logger.warn('Partial web search query failed', {
+          requestId: request.requestId,
+          query: context.questions[index],
+          error: item.reason instanceof Error ? item.reason.message : String(item.reason)
+        })
+      }
+    })
+
     const successfulSearches = searchResults.filter(
       (item): item is PromiseFulfilledResult<WebSearchResponse> => item.status === 'fulfilled'
     )
@@ -98,7 +109,9 @@ export class WebSearchService {
 
       return finalResponse
     } catch (error) {
-      logger.error('Web search failed', error as Error)
+      if (!isAbortError(error)) {
+        logger.error('Web search failed', error as Error)
+      }
       throw error
     } finally {
       await clearWebSearchStatus(request.requestId)

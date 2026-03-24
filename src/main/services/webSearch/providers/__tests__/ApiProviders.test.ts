@@ -340,6 +340,76 @@ describe('main web search API providers', () => {
     })
   })
 
+  it('keeps successful Searxng content fetches when some results fail', async () => {
+    fetchMock
+      .mockResolvedValueOnce(
+        createJsonResponse({
+          query: 'hello',
+          results: [
+            {
+              title: 'First result',
+              url: 'https://searx.example/first'
+            },
+            {
+              title: 'Second result',
+              url: 'https://searx.example/second'
+            }
+          ]
+        })
+      )
+      .mockResolvedValueOnce(createTextResponse(loadFixtureText('searxng-page.html'), 'text/html'))
+      .mockResolvedValueOnce(createTextResponse('server error', 'text/plain', 500))
+
+    const provider = new SearxngProvider(
+      createProvider({
+        id: 'searxng',
+        name: 'Searxng',
+        apiHost: 'https://searx.example',
+        engines: ['google', 'bing']
+      })
+    )
+
+    const result = await provider.search('hello', runtimeConfig)
+
+    expect(result).toEqual({
+      query: 'hello',
+      results: [
+        {
+          title: 'Resolved Page Title',
+          content: 'Resolved content from the target page.',
+          url: 'https://searx.example/first'
+        }
+      ]
+    })
+  })
+
+  it('throws when every Searxng content fetch fails', async () => {
+    fetchMock
+      .mockResolvedValueOnce(
+        createJsonResponse({
+          query: 'hello',
+          results: [
+            {
+              title: 'Broken result',
+              url: 'https://searx.example/broken'
+            }
+          ]
+        })
+      )
+      .mockResolvedValueOnce(createTextResponse('server error', 'text/plain', 500))
+
+    const provider = new SearxngProvider(
+      createProvider({
+        id: 'searxng',
+        name: 'Searxng',
+        apiHost: 'https://searx.example',
+        engines: ['google', 'bing']
+      })
+    )
+
+    await expect(provider.search('hello', runtimeConfig)).rejects.toThrow('HTTP error: 500')
+  })
+
   it('matches Bocha request and normalized response snapshots from fixtures', async () => {
     fetchMock.mockResolvedValue(createJsonResponse(loadFixtureJson('bocha-response.json')))
 

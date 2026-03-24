@@ -1,8 +1,10 @@
+import { loggerService } from '@logger'
 import type { WebSearchExecutionConfig, WebSearchResponse, WebSearchResult } from '@shared/data/types/webSearch'
 import { defaultAppHeaders, isValidUrl } from '@shared/utils'
 import { net } from 'electron'
 import * as z from 'zod'
 
+import { isAbortError } from '../../utils/errors'
 import { fetchWebSearchContent } from '../../utils/fetchContent'
 import { BaseWebSearchProvider } from '../base/BaseWebSearchProvider'
 import type { UrlSearchContext } from '../base/context'
@@ -32,6 +34,8 @@ const SearxngConfigResponseSchema = z.object({
 })
 
 type SearxngSearchContext = UrlSearchContext
+
+const logger = loggerService.withContext('SearxngProvider')
 
 export class SearxngProvider extends BaseWebSearchProvider {
   private getBasicAuthHeaders(): Record<string, string> {
@@ -131,13 +135,37 @@ export class SearxngProvider extends BaseWebSearchProvider {
     searchPayload: z.infer<typeof SearxngSearchResponseSchema>
   ) {
     const validItems = searchPayload.results.filter((item) => isValidUrl(item.url || '')).slice(0, context.maxResults)
-    const fetchedResults = await Promise.all(
+    const settledResults = await Promise.allSettled(
       validItems.map((item) =>
         fetchWebSearchContent(item.url || '', this.provider.usingBrowser, { signal: context.signal })
       )
     )
 
-    return fetchedResults.filter((item) => item.content.trim().length > 0)
+    const rejectedResults = settledResults.filter((item): item is PromiseRejectedResult => item.status === 'rejected')
+
+    const abortResult = rejectedResults.find((item) => isAbortError(item.reason))
+
+    if (abortResult) {
+      throw abortResult.reason
+    }
+
+    if (rejectedResults.length > 0) {
+      logger.warn('Some Searxng content fetches failed', {
+        query: context.query,
+        failedCount: rejectedResults.length,
+        totalCount: validItems.length
+      })
+    }
+
+    const fulfilledResults = settledResults.filter(
+      (item): item is PromiseFulfilledResult<WebSearchResult> => item.status === 'fulfilled'
+    )
+
+    if (fulfilledResults.length === 0 && rejectedResults.length > 0) {
+      throw rejectedResults[0].reason
+    }
+
+    return fulfilledResults.map((item) => item.value).filter((item) => item.content.trim().length > 0)
   }
 
   private buildFinalResponse(
