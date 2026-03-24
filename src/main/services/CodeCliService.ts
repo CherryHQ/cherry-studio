@@ -32,7 +32,7 @@ interface VersionInfo {
   needsUpdate: boolean
 }
 
-@Injectable()
+@Injectable('CodeCliService')
 @ServicePhase(Phase.WhenReady)
 export class CodeCliService extends BaseService {
   // Static properties for cleanup management (avoid listener accumulation)
