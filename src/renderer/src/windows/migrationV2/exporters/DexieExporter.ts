@@ -35,19 +35,15 @@ export class DexieExporter {
    * @returns Export path
    */
   async exportAll(onProgress?: (progress: ExportProgress) => void): Promise<string> {
-    // Validate required tables exist
     const existingTables = db.tables.map((t) => t.name)
-    const missingTables = REQUIRED_TABLES.filter((t) => !existingTables.includes(t))
 
-    if (missingTables.length > 0) {
-      throw new Error(
-        `Required Dexie tables not found: ${missingTables.join(', ')}. ` +
-          `This may indicate an incompatible database version.`
-      )
+    // No Dexie tables at all — fresh install, nothing to export
+    if (existingTables.length === 0) {
+      return this.exportPath
     }
 
-    // Determine which tables to export
-    const tablesToExport = [...REQUIRED_TABLES, ...OPTIONAL_TABLES.filter((t) => existingTables.includes(t))]
+    // Determine which tables to export (skip missing ones gracefully)
+    const tablesToExport = [...REQUIRED_TABLES, ...OPTIONAL_TABLES].filter((t) => existingTables.includes(t))
 
     // Export each table
     for (let i = 0; i < tablesToExport.length; i++) {
