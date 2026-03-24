@@ -227,7 +227,7 @@ export const SECOND_MIN_WINDOW_WIDTH = 520
 export const MIN_WINDOW_HEIGHT = 600
 export const defaultByPassRules = 'localhost,127.0.0.1,::1'
 
-export enum codeTools {
+export enum codeCLI {
   qwenCode = 'qwen-code',
   claudeCode = 'claude-code',
   geminiCli = 'gemini-cli',
@@ -351,7 +351,7 @@ export const WINDOWS_TERMINALS_WITH_COMMANDS: TerminalConfigWithCommand[] = [
     name: 'Windows Terminal',
     command: (_: string, fullCommand: string) => ({
       command: 'wt',
-      args: ['-p', 'Command Prompt', '--', 'cmd', '/c', `"${fullCommand}"`]
+      args: ['--', 'cmd', '/c', fullCommand]
     })
   },
   {
@@ -502,3 +502,5 @@ export const CHERRYIN_CONFIG = {
   REDIRECT_URI: 'cherrystudio://oauth/callback',
   SCOPES: 'openid profile email offline_access balance:read usage:read tokens:read tokens:write'
 }
+
+export const APP_NAME = 'Cherry Studio'

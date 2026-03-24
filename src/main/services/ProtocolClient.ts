@@ -38,7 +38,7 @@ export function handleProtocolUrl(url: string) {
       handleMcpProtocolUrl(urlObj)
       return
     case 'providers':
-      handleProvidersProtocolUrl(urlObj)
+      void handleProvidersProtocolUrl(urlObj)
       return
   }
 

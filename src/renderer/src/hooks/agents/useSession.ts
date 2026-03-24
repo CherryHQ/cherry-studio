@@ -30,7 +30,7 @@ export const useSession = (agentId: string | null, sessionId: string | null) => 
     if (sessionTopicId) {
       // loadTopicMessagesThunk will check if messages already exist in Redux
       // and skip loading if they do (unless forceReload is true)
-      dispatch(loadTopicMessagesThunk(sessionTopicId))
+      void dispatch(loadTopicMessagesThunk(sessionTopicId))
     }
   }, [dispatch, sessionId, sessionTopicId])
 

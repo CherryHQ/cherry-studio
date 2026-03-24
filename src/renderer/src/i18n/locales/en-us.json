@@ -389,6 +389,9 @@
         "TodoWrite": {
           "description": "Creates and manages structured task lists"
         },
+        "ToolSearch": {
+          "description": "Discovers deferred tools from large libraries"
+        },
         "WebFetch": {
           "description": "Fetches content from a specified URL"
         },
@@ -735,6 +738,7 @@
     "progress": {
       "completed": "Backup completed",
       "compressing": "Compressing files...",
+      "copying_database": "Copying database...",
       "copying_files": "Copying files... {{progress}}%",
       "preparing": "Preparing backup...",
       "preparing_compression": "Preparing compression...",
@@ -1191,6 +1195,8 @@
             "content": "Are you sure you want to delete {{count}} selected topic(s)? This action cannot be undone.",
             "title": "Delete Topics"
           },
+          "error": "Failed to delete. Please try again.",
+          "partial_success": "Successfully deleted {{successCount}} topics, {{failedCount}} failed",
           "success": "Deleted {{count}} topic(s)"
         },
         "deselect_all": "Deselect All",
@@ -2026,6 +2032,10 @@
         "export": "Failed to export Excel"
       },
       "fetchTopicName": "Failed to name the topic",
+      "file": {
+        "process_failed": "File {{name}} could not be processed",
+        "text_extraction_failed": "Failed to extract text from {{name}}"
+      },
       "get_embedding_dimensions": "Failed to get embedding dimensions",
       "invalid": {
         "api": {
@@ -2269,6 +2279,11 @@
       }
     },
     "warning": {
+      "file": {
+        "pdf_exceeds_limit": "PDF file {{name}} exceeds size limit ({{limit}}), falling back to text extraction",
+        "pdf_text_extraction_failed": "Failed to extract text from PDF {{name}}",
+        "pdf_upload_failed": "Failed to upload PDF {{name}}, falling back to text extraction"
+      },
       "rate": {
         "limit": "Too many requests. Please wait {{seconds}} seconds before trying again."
       }
@@ -3148,7 +3163,10 @@
       "extracting": "Extracting backup...",
       "preparing": "Preparing restore...",
       "reading_data": "Reading data...",
-      "title": "Restore Progress"
+      "restoring_data": "Restoring files...",
+      "restoring_database": "Restoring database...",
+      "title": "Restore Progress",
+      "validating": "Validating backup..."
     },
     "title": "Data Restore"
   },
@@ -3701,7 +3719,15 @@
           "button": "Select backup file"
         },
         "content": "Export some data, including chat logs and settings. Please note that the backup process may take some time. Thank you for your patience.",
+        "file": {
+          "button": "Export to file",
+          "content": "Export data as a backup file that can be imported on mobile via file.",
+          "export_failed": "Export failed",
+          "export_success": "Export successful",
+          "title": "Export as file"
+        },
         "lan": {
+          "button": "Start Transfer",
           "connected": "Connected",
           "connection_failed": "Connection failed",
           "content": "Please ensure your computer and phone are on the same network for LAN transfer.",

@@ -1,7 +1,7 @@
-import { preferenceService } from '@data/PreferenceService'
 import { loggerService } from '@logger'
 import { SELECTION_FINETUNED_LIST, SELECTION_PREDEFINED_BLACKLIST } from '@main/configs/SelectionConfig'
 import { isDev, isMac, isWin } from '@main/constant'
+import { application } from '@main/core/application'
 import type { SelectionActionItem } from '@shared/data/preference/preferenceTypes'
 import { SelectionTriggerMode } from '@shared/data/preference/preferenceTypes'
 import { IpcChannel } from '@shared/IpcChannel'
@@ -108,8 +108,6 @@ export class SelectionService {
 
       this.selectionHook = new SelectionHook()
       if (this.selectionHook) {
-        this.initZoomFactor()
-
         this.initStatus = true
       }
     } catch (error) {
@@ -138,7 +136,9 @@ export class SelectionService {
    * Initialize zoom factor from config and subscribe to changes
    * Ensures UI elements scale properly with system DPI settings
    */
-  private initZoomFactor(): void {
+  // TODO: Migrate to lifecycle system, then this can be private again (called from onInit)
+  public initZoomFactor(): void {
+    const preferenceService = application.get('PreferenceService')
     const zoomFactor = preferenceService.get('app.zoom_factor')
 
     if (zoomFactor) {
@@ -155,6 +155,7 @@ export class SelectionService {
   }
 
   private initConfig(): void {
+    const preferenceService = application.get('PreferenceService')
     this.triggerMode = preferenceService.get('feature.selection.trigger_mode')
     this.isFollowToolbar = preferenceService.get('feature.selection.follow_toolbar')
     this.isRemeberWinSize = preferenceService.get('feature.selection.remember_win_size')
@@ -306,7 +307,7 @@ export class SelectionService {
       //make sure the toolbar window is ready
       this.createToolbarWindow()
       // Initialize preloaded windows
-      this.initPreloadedActionWindows()
+      void this.initPreloadedActionWindows()
       // Handle errors
       this.selectionHook.on('error', (error: { message: string }) => {
         this.logError('Error in SelectionHook:', error as Error)
@@ -389,9 +390,10 @@ export class SelectionService {
   public toggleEnabled(enabled: boolean | undefined = undefined): void {
     if (!this.selectionHook) return
 
+    const preferenceService = application.get('PreferenceService')
     const newEnabled = enabled === undefined ? !preferenceService.get('feature.selection.enabled') : enabled
 
-    preferenceService.set('feature.selection.enabled', newEnabled)
+    void preferenceService.set('feature.selection.enabled', newEnabled)
   }
 
   /**
@@ -475,9 +477,9 @@ export class SelectionService {
     /** get ready to load the toolbar window */
 
     if (isDev && process.env['ELECTRON_RENDERER_URL']) {
-      this.toolbarWindow.loadURL(process.env['ELECTRON_RENDERER_URL'] + '/selectionToolbar.html')
+      void this.toolbarWindow.loadURL(process.env['ELECTRON_RENDERER_URL'] + '/selectionToolbar.html')
     } else {
-      this.toolbarWindow.loadFile(join(__dirname, '../renderer/selectionToolbar.html'))
+      void this.toolbarWindow.loadFile(join(__dirname, '../renderer/selectionToolbar.html'))
     }
   }
 
@@ -1145,9 +1147,9 @@ export class SelectionService {
 
     // Load the base URL without action data
     if (isDev && process.env['ELECTRON_RENDERER_URL']) {
-      preloadedActionWindow.loadURL(process.env['ELECTRON_RENDERER_URL'] + '/selectionAction.html')
+      void preloadedActionWindow.loadURL(process.env['ELECTRON_RENDERER_URL'] + '/selectionAction.html')
     } else {
-      preloadedActionWindow.loadFile(join(__dirname, '../renderer/selectionAction.html'))
+      void preloadedActionWindow.loadFile(join(__dirname, '../renderer/selectionAction.html'))
     }
 
     return preloadedActionWindow
@@ -1241,7 +1243,7 @@ export class SelectionService {
     this.actionWindows.add(actionWindow)
 
     // Asynchronously create a new preloaded window
-    this.pushNewActionWindow()
+    void this.pushNewActionWindow()
 
     return actionWindow
   }
@@ -1378,7 +1380,7 @@ export class SelectionService {
     // show the dock again if last time it was shown
     // do not put it after `actionWindow.focus()`, will cause the action window to be closed when auto hide on blur is enabled
     if (!app.dock?.isVisible() && isDockShown) {
-      app.dock?.show()
+      void app.dock?.show()
     }
 
     // unset everything
@@ -1593,6 +1595,14 @@ export class SelectionService {
 export function initSelectionService(): boolean {
   if (!isSupportedOS) return false
 
+  // Initialize zoom factor here (after bootstrap) instead of in constructor
+  // because application.get() requires services to be registered first
+  const selectionInstance = SelectionService.getInstance()
+  if (selectionInstance) {
+    selectionInstance.initZoomFactor()
+  }
+
+  const preferenceService = application.get('PreferenceService')
   const enabled = preferenceService.get('feature.selection.enabled')
 
   preferenceService.subscribeChange('feature.selection.enabled', (enabled: boolean): void => {

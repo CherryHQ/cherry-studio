@@ -29,30 +29,30 @@ Handlers → Services → Repositories → Database
 ```typescript
 // handlers/topic.ts
 import type { ApiImplementation } from '@shared/data/api'
-import { TopicService } from '@data/services/TopicService'
+import { topicService } from '@data/services/TopicService'
 
 export const topicHandlers: Partial<ApiImplementation> = {
   '/topics': {
     GET: async ({ query }) => {
       const { page = 1, limit = 20 } = query ?? {}
-      return await TopicService.getInstance().list({ page, limit })
+      return await topicService.list({ page, limit })
     },
     POST: async ({ body }) => {
-      return await TopicService.getInstance().create(body)
+      return await topicService.create(body)
     }
   },
   '/topics/:id': {
     GET: async ({ params }) => {
-      return await TopicService.getInstance().getById(params.id)
+      return await topicService.getById(params.id)
     },
     PUT: async ({ params, body }) => {
-      return await TopicService.getInstance().replace(params.id, body)
+      return await topicService.replace(params.id, body)
     },
     PATCH: async ({ params, body }) => {
-      return await TopicService.getInstance().update(params.id, body)
+      return await topicService.update(params.id, body)
     },
     DELETE: async ({ params }) => {
-      await TopicService.getInstance().delete(params.id)
+      await topicService.delete(params.id)
     }
   }
 }
@@ -86,7 +86,7 @@ export const allHandlers: ApiImplementation = {
 
 ```typescript
 // services/TopicService.ts
-import { DbService } from '@data/db/DbService'
+import { application } from '@main/core/application'
 import { TopicRepository } from '@data/repositories/TopicRepository'
 import { DataApiErrorFactory } from '@shared/data/api'
 
@@ -141,13 +141,17 @@ export class TopicService {
     }
   }
 }
+
+export const topicService = TopicService.getInstance()
 ```
 
 ### Service with Transaction
 
 ```typescript
 async createTopicWithMessage(data: CreateTopicWithMessageDto) {
-  return await DbService.transaction(async (tx) => {
+  const db = application.get('DbService').getDb()
+
+  return await db.transaction(async (tx) => {
     // Create topic
     const topic = await this.topicRepo.create(data.topic, tx)
 
@@ -186,22 +190,26 @@ Use direct Drizzle for **simple domains**:
 ```typescript
 // repositories/TopicRepository.ts
 import { eq, desc, sql } from 'drizzle-orm'
-import { DbService } from '@data/db/DbService'
+import { application } from '@main/core/application'
 import { topicTable } from '@data/db/schemas/topic'
 
 export class TopicRepository {
+  private get db() {
+    return application.get('DbService').getDb()
+  }
+
   async findAll(options: { page: number; limit: number }) {
     const { page, limit } = options
     const offset = (page - 1) * limit
 
     const [items, countResult] = await Promise.all([
-      DbService.db
+      this.db
         .select()
         .from(topicTable)
         .orderBy(desc(topicTable.updatedAt))
         .limit(limit)
         .offset(offset),
-      DbService.db
+      this.db
         .select({ count: sql<number>`count(*)` })
         .from(topicTable)
     ])
@@ -215,7 +223,7 @@ export class TopicRepository {
   }
 
   async findById(id: string, tx?: Transaction) {
-    const db = tx || DbService.db
+    const db = tx || this.db
     const [topic] = await db
       .select()
       .from(topicTable)
@@ -225,7 +233,7 @@ export class TopicRepository {
   }
 
   async create(data: CreateTopicDto, tx?: Transaction) {
-    const db = tx || DbService.db
+    const db = tx || this.db
     const [topic] = await db
       .insert(topicTable)
       .values(data)
@@ -234,7 +242,7 @@ export class TopicRepository {
   }
 
   async update(id: string, data: Partial<UpdateTopicDto>, tx?: Transaction) {
-    const db = tx || DbService.db
+    const db = tx || this.db
     const [topic] = await db
       .update(topicTable)
       .set(data)
@@ -244,7 +252,7 @@ export class TopicRepository {
   }
 
   async delete(id: string, tx?: Transaction) {
-    const db = tx || DbService.db
+    const db = tx || this.db
     await db
       .delete(topicTable)
       .where(eq(topicTable.id, id))
@@ -259,16 +267,20 @@ For simple domains, skip the repository:
 ```typescript
 // services/TagService.ts
 import { eq } from 'drizzle-orm'
-import { DbService } from '@data/db/DbService'
+import { application } from '@main/core/application'
 import { tagTable } from '@data/db/schemas/tag'
 
 export class TagService {
+  private get db() {
+    return application.get('DbService').getDb()
+  }
+
   async getAll() {
-    return await DbService.db.select().from(tagTable)
+    return await this.db.select().from(tagTable)
   }
 
   async create(name: string) {
-    const [tag] = await DbService.db
+    const [tag] = await this.db
       .insert(tagTable)
       .values({ name })
       .returning()
@@ -276,7 +288,7 @@ export class TagService {
   }
 
   async delete(id: string) {
-    await DbService.db
+    await this.db
       .delete(tagTable)
       .where(eq(tagTable.id, id))
   }

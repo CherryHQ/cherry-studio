@@ -222,4 +222,4 @@ async function main() {
   console.log(`\nDone! Generated ${generated} mono icons, skipped ${skippedDirs.size} icons`)
 }
 
-main()
+void main()

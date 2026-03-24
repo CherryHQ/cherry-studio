@@ -283,7 +283,7 @@ export const createMarketplacePager = (options: {
     prefetch = null
 
     if (page.hasMore) {
-      prefetchNext(nextOffset)
+      void prefetchNext(nextOffset)
     }
 
     return page

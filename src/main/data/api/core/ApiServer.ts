@@ -164,6 +164,11 @@ export class ApiServer {
     for (let i = 0; i < patternParts.length; i++) {
       if (patternParts[i].startsWith(':')) {
         const paramName = patternParts[i].slice(1)
+        // NOTE: Intentionally NOT calling decodeURIComponent() here.
+        // Path params (IDs) in this project are nanoid/UUID-style strings with no
+        // URL-encoded characters. Keeping them raw acts as implicit validation —
+        // any caller passing percent-encoded or special characters will simply
+        // fail to match, preventing unexpected ID formats from reaching services.
         params[paramName] = pathParts[i]
       } else if (patternParts[i] !== pathParts[i]) {
         return null

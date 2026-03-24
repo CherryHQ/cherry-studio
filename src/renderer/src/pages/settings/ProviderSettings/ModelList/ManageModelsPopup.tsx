@@ -139,7 +139,7 @@ const PopupContainer: React.FC<Props> = ({ providerId, resolve }) => {
               supported_text_delta: !isNotSupportTextDeltaModel(model)
             })
           } else {
-            NewApiAddModelPopup.show({ title: t('settings.models.add.add_model'), provider, model })
+            void NewApiAddModelPopup.show({ title: t('settings.models.add.add_model'), provider, model })
           }
         } else {
           addModel({ ...model, supported_text_delta: !isNotSupportTextDeltaModel(model) })
@@ -166,7 +166,7 @@ const PopupContainer: React.FC<Props> = ({ providerId, resolve }) => {
           if (models.every(isValidNewApiModel)) {
             wouldAddModel.forEach(onAddModel)
           } else {
-            NewApiBatchAddModelPopup.show({
+            void NewApiBatchAddModelPopup.show({
               title: t('settings.models.add.batch_add_models'),
               batchModels: wouldAddModel,
               provider
@@ -193,7 +193,7 @@ const PopupContainer: React.FC<Props> = ({ providerId, resolve }) => {
   }, [])
 
   useEffect(() => {
-    loadModels(provider)
+    void loadModels(provider)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 

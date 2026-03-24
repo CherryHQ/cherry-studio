@@ -130,7 +130,7 @@ const ActionTranslate: FC<Props> = ({ action, scrollToBottom }) => {
   // 2. isLanguagesLoaded change (only initialize when languages loaded)
   // 3. updateLanguagePair change (depend on translateLanguages and isLanguagesLoaded)
   useEffect(() => {
-    initialize()
+    void initialize()
   }, [initialize])
 
   const fetchResult = useCallback(async () => {
@@ -186,11 +186,11 @@ const ActionTranslate: FC<Props> = ({ action, scrollToBottom }) => {
     const assistant = await getDefaultTranslateAssistant(translateLang, action.selectedText)
     assistantRef.current = assistant
     logger.debug('process once')
-    processMessages(assistant, topicRef.current, assistant.content, setAskId, onStream, onFinish, onError)
+    void processMessages(assistant, topicRef.current, assistant.content, setAskId, onStream, onFinish, onError)
   }, [action, targetLanguage, alterLanguage, scrollToBottom, initialized, getLanguageByLangcode])
 
   useEffect(() => {
-    fetchResult()
+    void fetchResult()
   }, [fetchResult])
 
   const allMessages = useTopicMessages(topicRef.current?.id || '')
@@ -235,7 +235,7 @@ const ActionTranslate: FC<Props> = ({ action, scrollToBottom }) => {
       targetLangRef.current = newTargetLanguage
       setAlterLanguage(newAlterLanguage)
 
-      db.settings.put({
+      void db.settings.put({
         id: 'translate:bidirectional:pair',
         value: [newTargetLanguage.langCode, newAlterLanguage.langCode]
       })
@@ -256,7 +256,7 @@ const ActionTranslate: FC<Props> = ({ action, scrollToBottom }) => {
         // New language is different from both, update target
         setTargetLanguage(newLang)
         targetLangRef.current = newLang
-        db.settings.put({ id: 'translate:bidirectional:pair', value: [newLang.langCode, alterLanguage.langCode] })
+        void db.settings.put({ id: 'translate:bidirectional:pair', value: [newLang.langCode, alterLanguage.langCode] })
       }
     },
     [initialized, getLanguageByLangcode, targetLanguage.langCode, alterLanguage.langCode]
@@ -316,13 +316,13 @@ const ActionTranslate: FC<Props> = ({ action, scrollToBottom }) => {
       abortCompletion(askId.current)
     }
     if (topicRef.current?.id) {
-      pauseTrace(topicRef.current.id)
+      void pauseTrace(topicRef.current.id)
     }
   }
 
   const handleRegenerate = () => {
     setContentToCopy('')
-    fetchResult()
+    void fetchResult()
   }
 
   return (

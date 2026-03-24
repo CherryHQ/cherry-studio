@@ -451,7 +451,7 @@ export class PreferenceService {
       keyListeners.add(callback)
 
       // Auto-subscribe to this key for updates
-      this.subscribeToKeyInternal([key])
+      void this.subscribeToKeyInternal([key])
 
       return () => {
         keyListeners.delete(callback)
@@ -628,7 +628,7 @@ export class PreferenceService {
 
       // If this is the first request in queue, process it immediately
       if (queue.length === 1) {
-        this.processNextQueuedRequest(key)
+        void this.processNextQueuedRequest(key)
       }
     })
   }
@@ -664,7 +664,7 @@ export class PreferenceService {
 
       // Process next request if any
       if (queue.length > 0) {
-        this.processNextQueuedRequest(key)
+        void this.processNextQueuedRequest(key)
       } else {
         // Clean up empty queue
         this.requestQueues.delete(key)

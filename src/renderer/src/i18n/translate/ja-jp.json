@@ -389,6 +389,9 @@
         "TodoWrite": {
           "description": "構造化されたタスクリストを作成し、管理します"
         },
+        "ToolSearch": {
+          "description": "大規模ライブラリから遅延ツールを発見"
+        },
         "WebFetch": {
           "description": "指定されたURLからコンテンツを取得します"
         },
@@ -735,6 +738,7 @@
     "progress": {
       "completed": "バックアップ完了",
       "compressing": "圧縮中...",
+      "copying_database": "データベースをコピー中...",
       "copying_files": "ファイルコピー中... {{progress}}%",
       "preparing": "バックアップ準備中...",
       "preparing_compression": "圧縮準備中...",
@@ -1191,6 +1195,8 @@
             "content": "{{count}}件の選択したトピックを削除してもよろしいですか？この操作は元に戻せません。",
             "title": "トピックを削除"
           },
+          "error": "[to be translated]:Failed to delete. Please try again.",
+          "partial_success": "[to be translated]:Successfully deleted {{successCount}} topics, {{failedCount}} failed",
           "success": "{{count}}件のトピックを削除しました"
         },
         "deselect_all": "すべての選択を解除",
@@ -2026,6 +2032,10 @@
         "export": "Excelのエクスポートに失敗しました"
       },
       "fetchTopicName": "トピック名の取得に失敗しました",
+      "file": {
+        "process_failed": "ファイル {{name}} を処理できませんでした",
+        "text_extraction_failed": "{{name}}からテキストの抽出に失敗しました"
+      },
       "get_embedding_dimensions": "埋込み次元を取得できませんでした",
       "invalid": {
         "api": {
@@ -2269,6 +2279,11 @@
       }
     },
     "warning": {
+      "file": {
+        "pdf_exceeds_limit": "PDFファイル {{name}} はサイズ制限（{{limit}}）を超えているため、テキスト抽出にフォールバックします",
+        "pdf_text_extraction_failed": "PDF「{{name}}」からテキストを抽出できませんでした",
+        "pdf_upload_failed": "PDF「{{name}}」のアップロードに失敗しました。テキスト抽出にフォールバックします。"
+      },
       "rate": {
         "limit": "送信が頻繁すぎます。{{seconds}} 秒待ってから再試行してください。"
       }
@@ -3148,7 +3163,10 @@
       "extracting": "バックアップ解凍中...",
       "preparing": "復元準備中...",
       "reading_data": "データ読み込み中...",
-      "title": "復元進捗"
+      "restoring_data": "ファイルを復元中...",
+      "restoring_database": "データベースを復元中...",
+      "title": "復元進捗",
+      "validating": "バックアップを検証中..."
     },
     "title": "データ復元"
   },
@@ -3701,7 +3719,15 @@
           "button": "バックアップファイルを選択"
         },
         "content": "一部のデータ、チャット履歴や設定をエクスポートします。バックアップには時間がかかる場合がありますので、しばらくお待ちください。",
+        "file": {
+          "button": "ファイルにエクスポート",
+          "content": "モバイルでファイル経由でインポートできるバックアップファイルとしてデータをエクスポートします。",
+          "export_failed": "エクスポートに失敗しました",
+          "export_success": "エクスポート成功",
+          "title": "ファイルとしてエクスポート"
+        },
         "lan": {
+          "button": "転送を開始",
           "connected": "接続済み",
           "connection_failed": "接続に失敗しました",
           "content": "コンピューターとスマートフォンが同じネットワークに接続されていることを確認し、ローカルエリアネットワーク転送を使用してください。Cherry Studioアプリを開き、このQRコードをスキャンしてください。",

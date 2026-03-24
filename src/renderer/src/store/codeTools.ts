@@ -17,14 +17,14 @@
 import type { PayloadAction } from '@reduxjs/toolkit'
 import { createSlice } from '@reduxjs/toolkit'
 import type { Model } from '@renderer/types'
-import { codeTools, terminalApps } from '@shared/config/constant'
+import { codeCLI, terminalApps } from '@shared/config/constant'
 
 // 常量定义
 const MAX_DIRECTORIES = 10 // 最多保存10个目录
 
 export interface CodeToolsState {
   // 当前选择的 CLI 工具，默认使用 qwen-code
-  selectedCliTool: codeTools
+  selectedCliTool: codeCLI
   // 为每个 CLI 工具单独保存选择的模型
   selectedModels: Record<string, Model | null>
   // 为每个 CLI 工具单独保存环境变量
@@ -38,16 +38,16 @@ export interface CodeToolsState {
 }
 
 export const initialState: CodeToolsState = {
-  selectedCliTool: codeTools.qwenCode,
+  selectedCliTool: codeCLI.qwenCode,
   selectedModels: {
-    [codeTools.qwenCode]: null,
-    [codeTools.claudeCode]: null,
-    [codeTools.geminiCli]: null,
-    [codeTools.openaiCodex]: null,
-    [codeTools.iFlowCli]: null,
-    [codeTools.githubCopilotCli]: null,
-    [codeTools.kimiCli]: null,
-    [codeTools.openCode]: null
+    [codeCLI.qwenCode]: null,
+    [codeCLI.claudeCode]: null,
+    [codeCLI.geminiCli]: null,
+    [codeCLI.openaiCodex]: null,
+    [codeCLI.iFlowCli]: null,
+    [codeCLI.githubCopilotCli]: null,
+    [codeCLI.kimiCli]: null,
+    [codeCLI.openCode]: null
   },
   environmentVariables: {
     'qwen-code': '',
@@ -69,7 +69,7 @@ const codeToolsSlice = createSlice({
   initialState,
   reducers: {
     // 设置选择的 CLI 工具
-    setSelectedCliTool: (state, action: PayloadAction<codeTools>) => {
+    setSelectedCliTool: (state, action: PayloadAction<codeCLI>) => {
       state.selectedCliTool = action.payload
     },
 

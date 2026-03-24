@@ -533,7 +533,7 @@ const DmxapiPage: FC<{ Options: string[] }> = ({ Options }) => {
     }
 
     if (!dmxapiProvider.enabled) {
-      checkProviderEnabled(dmxapiProvider, t)
+      void checkProviderEnabled(dmxapiProvider, t)
       return
     }
 
@@ -653,7 +653,7 @@ const DmxapiPage: FC<{ Options: string[] }> = ({ Options }) => {
   const handleProviderChange = (providerId: string) => {
     const routeName = location.pathname.split('/').pop()
     if (providerId !== routeName) {
-      navigate({ to: '../' + providerId, replace: true })
+      void navigate({ to: '../' + providerId, replace: true })
     }
   }
 
@@ -717,7 +717,7 @@ const DmxapiPage: FC<{ Options: string[] }> = ({ Options }) => {
   }
 
   useEffect(() => {
-    loadModelData().then(() => {})
+    void loadModelData().then(() => {})
   }, [])
 
   useEffect(() => {

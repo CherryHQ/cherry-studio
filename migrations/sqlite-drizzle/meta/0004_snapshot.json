@@ -1,7 +1,7 @@
 {
   "version": "6",
   "dialect": "sqlite",
-  "id": "042efe86-285e-4a86-8056-c102122daf2f",
+  "id": "2eac4614-db61-4509-ab3a-962b57396871",
   "prevId": "c736c8d5-58fa-4c17-9d28-c6dde07d439c",
   "tables": {
     "app_state": {
@@ -46,59 +46,6 @@
       "indexes": {},
       "foreignKeys": {},
       "compositePrimaryKeys": {},
-      "uniqueConstraints": {},
-      "checkConstraints": {}
-    },
-    "assistant_prompt": {
-      "name": "assistant_prompt",
-      "columns": {
-        "assistant_id": {
-          "name": "assistant_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "prompt_id": {
-          "name": "prompt_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "sort_order": {
-          "name": "sort_order",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false,
-          "default": 0
-        }
-      },
-      "indexes": {
-        "assistant_prompt_assistant_id_idx": {
-          "name": "assistant_prompt_assistant_id_idx",
-          "columns": ["assistant_id"],
-          "isUnique": false
-        }
-      },
-      "foreignKeys": {
-        "assistant_prompt_prompt_id_prompt_id_fk": {
-          "name": "assistant_prompt_prompt_id_prompt_id_fk",
-          "tableFrom": "assistant_prompt",
-          "tableTo": "prompt",
-          "columnsFrom": ["prompt_id"],
-          "columnsTo": ["id"],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
-        }
-      },
-      "compositePrimaryKeys": {
-        "assistant_prompt_assistant_id_prompt_id_pk": {
-          "columns": ["assistant_id", "prompt_id"],
-          "name": "assistant_prompt_assistant_id_prompt_id_pk"
-        }
-      },
       "uniqueConstraints": {},
       "checkConstraints": {}
     },
@@ -634,146 +581,6 @@
       "uniqueConstraints": {},
       "checkConstraints": {}
     },
-    "prompt": {
-      "name": "prompt",
-      "columns": {
-        "id": {
-          "name": "id",
-          "type": "text",
-          "primaryKey": true,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "title": {
-          "name": "title",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "content": {
-          "name": "content",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "current_version": {
-          "name": "current_version",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false,
-          "default": 1
-        },
-        "sort_order": {
-          "name": "sort_order",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false,
-          "default": 0
-        },
-        "created_at": {
-          "name": "created_at",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "updated_at": {
-          "name": "updated_at",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        }
-      },
-      "indexes": {
-        "prompt_sort_order_idx": {
-          "name": "prompt_sort_order_idx",
-          "columns": ["sort_order"],
-          "isUnique": false
-        },
-        "prompt_updated_at_idx": {
-          "name": "prompt_updated_at_idx",
-          "columns": ["updated_at"],
-          "isUnique": false
-        }
-      },
-      "foreignKeys": {},
-      "compositePrimaryKeys": {},
-      "uniqueConstraints": {},
-      "checkConstraints": {}
-    },
-    "prompt_version": {
-      "name": "prompt_version",
-      "columns": {
-        "id": {
-          "name": "id",
-          "type": "text",
-          "primaryKey": true,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "prompt_id": {
-          "name": "prompt_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "version": {
-          "name": "version",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "content": {
-          "name": "content",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "rollback_from": {
-          "name": "rollback_from",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
-        },
-        "created_at": {
-          "name": "created_at",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        }
-      },
-      "indexes": {
-        "prompt_version_prompt_id_version_idx": {
-          "name": "prompt_version_prompt_id_version_idx",
-          "columns": ["prompt_id", "version"],
-          "isUnique": true
-        }
-      },
-      "foreignKeys": {
-        "prompt_version_prompt_id_prompt_id_fk": {
-          "name": "prompt_version_prompt_id_prompt_id_fk",
-          "tableFrom": "prompt_version",
-          "tableTo": "prompt",
-          "columnsFrom": ["prompt_id"],
-          "columnsTo": ["id"],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
-        }
-      },
-      "compositePrimaryKeys": {},
-      "uniqueConstraints": {},
-      "checkConstraints": {}
-    },
     "entity_tag": {
       "name": "entity_tag",
       "columns": {
@@ -1067,14 +874,14 @@
           "name": "source_language",
           "type": "text",
           "primaryKey": false,
-          "notNull": true,
+          "notNull": false,
           "autoincrement": false
         },
         "target_language": {
           "name": "target_language",
           "type": "text",
           "primaryKey": false,
-          "notNull": true,
+          "notNull": false,
           "autoincrement": false
         },
         "star": {
@@ -1112,7 +919,26 @@
           "isUnique": false
         }
       },
-      "foreignKeys": {},
+      "foreignKeys": {
+        "translate_history_source_language_translate_language_lang_code_fk": {
+          "name": "translate_history_source_language_translate_language_lang_code_fk",
+          "tableFrom": "translate_history",
+          "tableTo": "translate_language",
+          "columnsFrom": ["source_language"],
+          "columnsTo": ["lang_code"],
+          "onDelete": "set null",
+          "onUpdate": "no action"
+        },
+        "translate_history_target_language_translate_language_lang_code_fk": {
+          "name": "translate_history_target_language_translate_language_lang_code_fk",
+          "tableFrom": "translate_history",
+          "tableTo": "translate_language",
+          "columnsFrom": ["target_language"],
+          "columnsTo": ["lang_code"],
+          "onDelete": "set null",
+          "onUpdate": "no action"
+        }
+      },
       "compositePrimaryKeys": {},
       "uniqueConstraints": {},
       "checkConstraints": {}
@@ -1120,17 +946,10 @@
     "translate_language": {
       "name": "translate_language",
       "columns": {
-        "id": {
-          "name": "id",
-          "type": "text",
-          "primaryKey": true,
-          "notNull": true,
-          "autoincrement": false
-        },
         "lang_code": {
           "name": "lang_code",
           "type": "text",
-          "primaryKey": false,
+          "primaryKey": true,
           "notNull": true,
           "autoincrement": false
         },
@@ -1163,13 +982,7 @@
           "autoincrement": false
         }
       },
-      "indexes": {
-        "translate_language_langCode_unique": {
-          "name": "translate_language_langCode_unique",
-          "columns": ["lang_code"],
-          "isUnique": true
-        }
-      },
+      "indexes": {},
       "foreignKeys": {},
       "compositePrimaryKeys": {},
       "uniqueConstraints": {},

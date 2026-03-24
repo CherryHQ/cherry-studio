@@ -56,7 +56,7 @@ const MessageAttachments: FC<Props> = ({ block }) => {
           if (path.startsWith('file://')) {
             path = path.replace('file://', '')
           }
-          preview(path, file.name, fileType, file.preview)
+          void preview(path, file.name, fileType, file.preview)
         }}
       />
     </Container>

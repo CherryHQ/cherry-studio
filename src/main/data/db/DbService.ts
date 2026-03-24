@@ -1,4 +1,6 @@
 import { loggerService } from '@logger'
+import { BaseService, ErrorHandling, Injectable, Priority, ServicePhase } from '@main/core/lifecycle'
+import { Phase } from '@main/core/lifecycle'
 import { sql } from 'drizzle-orm'
 import { drizzle } from 'drizzle-orm/libsql'
 import { migrate } from 'drizzle-orm/libsql/migrator'
@@ -17,7 +19,7 @@ const MIGRATIONS_BASE_PATH = 'migrations/sqlite-drizzle'
 
 /**
  * Database service managing SQLite connection via Drizzle ORM
- * Implements singleton pattern for centralized database access
+ * Managed by the lifecycle system for centralized database access
  *
  * Features:
  * - Database initialization and connection management
@@ -25,22 +27,21 @@ const MIGRATIONS_BASE_PATH = 'migrations/sqlite-drizzle'
  *
  * @example
  * ```typescript
- * import { dbService } from '@data/db/DbService'
+ * import { application } from '@main/core/application'
  *
- * // Run migrations
- * await dbService.migrateDb()
- *
- * // Get database instance
- * const db = dbService.getDb()
+ * const db = application.get('DbService').getDb()
  * ```
  */
-class DbService {
-  private static instance: DbService
+@Injectable('DbService')
+@ServicePhase(Phase.BeforeReady)
+@Priority(10)
+@ErrorHandling('fail-fast')
+export class DbService extends BaseService {
   private db: DbType
-  private isInitialized = false
   private walConfigured = false
 
-  private constructor() {
+  constructor() {
+    super()
     try {
       this.db = drizzle({
         connection: { url: pathToFileURL(path.join(app.getPath('userData'), DB_NAME)).href },
@@ -56,41 +57,17 @@ class DbService {
   }
 
   /**
-   * Get singleton instance of DbService
-   * Creates a new instance if one doesn't exist
-   * @returns {DbService} The singleton DbService instance
-   * @throws {Error} If database initialization fails
+   * Lifecycle: Initialize database with WAL mode, run migrations and seeds
    */
-  public static getInstance(): DbService {
-    if (!DbService.instance) {
-      DbService.instance = new DbService()
-    }
-    return DbService.instance
-  }
-
-  /**
-   * Initialize the database
-   * @throws {Error} If database initialization fails
-   */
-  public async init(): Promise<void> {
-    if (this.isInitialized) {
-      logger.warn('Database already initialized, do not need initialize again!')
-      return
-    }
-
-    try {
-      // Configure WAL mode on first database operation
-      await this.configureWAL()
-      this.isInitialized = true
-    } catch (error) {
-      logger.error('Database initialization failed', error as Error)
-      throw error
-    }
+  protected async onInit(): Promise<void> {
+    await this.configureWAL()
+    await this.migrateDb()
+    await this.migrateSeed('preference')
+    await this.migrateSeed('translateLanguage')
   }
 
   /**
    * Configure WAL mode for better concurrency performance
-   * Called once during the first database operation
    */
   private async configureWAL(): Promise<void> {
     if (this.walConfigured) {
@@ -104,19 +81,13 @@ class DbService {
       logger.info('WAL mode configured for database')
     } catch (error) {
       logger.warn('Failed to configure WAL mode, using default journal mode', error as Error)
-      // Don't throw error, allow database to continue with default mode
     }
   }
 
   /**
    * Run database migrations
-   * @throws {Error} If migration fails
    */
-  public async migrateDb(): Promise<void> {
-    if (!this.isInitialized) {
-      throw new Error('Database is not initialized, please call init() first!')
-    }
-
+  private async migrateDb(): Promise<void> {
     try {
       const migrationsFolder = this.getMigrationsFolder()
       await migrate(this.db, { migrationsFolder })
@@ -157,29 +128,17 @@ class DbService {
    * @throws {Error} If database is not initialized
    */
   public getDb(): DbType {
-    if (!this.isInitialized) {
+    if (!this.isReady) {
       throw new Error('Database is not initialized, please call init() first!')
     }
     return this.db
   }
 
   /**
-   * Check if database is initialized
-   */
-  public isReady(): boolean {
-    return this.isInitialized
-  }
-
-  /**
    * Run seed data migration
    * @param seedName - Name of the seed to run
-   * @throws {Error} If seed migration fails
    */
-  public async migrateSeed(seedName: keyof typeof Seeding): Promise<void> {
-    if (!this.isInitialized) {
-      throw new Error('Database is not initialized, please call init() first!')
-    }
-
+  private async migrateSeed(seedName: keyof typeof Seeding): Promise<void> {
     try {
       const Seed = Seeding[seedName]
       if (!Seed) {
@@ -197,7 +156,6 @@ class DbService {
 
   /**
    * Get the migrations folder based on the app's packaging status
-   * @returns The path to the migrations folder
    */
   private getMigrationsFolder(): string {
     if (app.isPackaged) {
@@ -209,6 +167,3 @@ class DbService {
     }
   }
 }
-
-// Export a singleton instance
-export const dbService = DbService.getInstance()

@@ -1,3 +1,17 @@
+/**
+ * Main Entry Point
+ *
+ * WARNING: This file currently lacks proper lifecycle management. Event handlers
+ * and initialization timing are fragmented — services are manually imported,
+ * initialized in scattered locations, and cleaned up across multiple exit hooks.
+ *
+ * The v2 refactoring is progressively migrating old services into the lifecycle
+ * system (see src/main/core/lifecycle/). During migration, the old manual pattern
+ * (import singleton → call init()) coexists with the new lifecycle-managed pattern
+ * (application.bootstrap() → application.get()). This file will be thoroughly
+ * refactored once all services have been migrated.
+ */
+
 // don't reorder this file, it's used to initialize the app data dir and
 // other which should be run before the main process is ready
 // eslint-disable-next-line
@@ -7,8 +21,6 @@ import '@main/config'
 
 import { loggerService } from '@logger'
 import { electronApp, optimizer } from '@electron-toolkit/utils'
-import { dbService } from '@data/db/DbService'
-import { preferenceService } from '@data/PreferenceService'
 import { replaceDevtoolsFont } from '@main/utils/windowUtil'
 import { app, dialog, crashReporter } from 'electron'
 import installExtension, { REACT_DEVELOPER_TOOLS, REDUX_DEVTOOLS } from 'electron-devtools-installer'
@@ -35,6 +47,7 @@ import {
 } from './services/ProtocolClient'
 import selectionService, { initSelectionService } from './services/SelectionService'
 import { registerShortcuts } from './services/ShortcutService'
+import { themeService } from './services/ThemeService'
 import { TrayService } from './services/TrayService'
 import { versionService } from './services/VersionService'
 import { windowService } from './services/WindowService'
@@ -45,11 +58,10 @@ import {
   registerMigrationIpcHandlers,
   unregisterMigrationIpcHandlers
 } from '@data/migration/v2'
-import { dataApiService } from '@data/DataApiService'
-import { cacheService } from '@data/CacheService'
 import { initWebviewHotkeys } from './services/WebviewService'
 import { runAsyncFunction } from './utils'
 import { isOvmsSupported } from './services/OvmsManager'
+import { application, serviceList } from './core/application'
 
 const logger = loggerService.withContext('MainEntry')
 
@@ -142,29 +154,25 @@ if (!app.requestSingleInstanceLock()) {
   app.quit()
   process.exit(0)
 } else {
+  // ============================================================================
+  // v2 Refactoring: Application Lifecycle Management
+  // BeforeReady services (DbService, CacheService, DataApiService, PreferenceService)
+  // initialize in parallel with app.whenReady(). Bootstrap promise is awaited
+  // in the whenReady callback to ensure all services are ready before proceeding.
+  // See: src/main/core/application/README.md
+  // ============================================================================
+  application.registerAll(serviceList)
+  const bootstrapPromise = application.bootstrap().catch((error) => {
+    logger.error('Application lifecycle bootstrap failed:', error)
+  })
+
   // This method will be called when Electron has finished
   // initialization and is ready to create browser windows.
   // Some APIs can only be used after this event occurs.
-  app.whenReady().then(async () => {
-    //TODO v2 Data Refactor: App Lifecycle Management
-    // This is the temporary solution for the data migration v2.
-    // We will refactor the app lifecycle management after the data migration v2 is stable.
-
-    // First of all, init & migrate the database
-    try {
-      await dbService.init()
-      await dbService.migrateDb()
-      await dbService.migrateSeed('preference')
-    } catch (error) {
-      logger.error('Failed to initialize database', error as Error)
-      //TODO for v2 testing only:
-      await dialog.showErrorBox(
-        'Database Initialization Failed',
-        'Before the official release of the alpha version, the database structure may change at any time. To maintain simplicity, the database migration files will be periodically reinitialized, which may cause the application to fail. If this occurs, please delete the cherrystudio.sqlite file located in the user data directory.'
-      )
-      app.quit()
-      return
-    }
+  void app.whenReady().then(async () => {
+    // Wait for lifecycle bootstrap to complete
+    // (DbService, PreferenceService, CacheService, DataApiService are now ready)
+    await bootstrapPromise
 
     // Data Migration v2
     // Check if data migration is needed BEFORE creating any windows
@@ -197,7 +205,7 @@ if (!app.requestSingleInstanceLock()) {
           unregisterMigrationIpcHandlers()
 
           // Migration is required for this version - show error and exit
-          await dialog.showErrorBox(
+          dialog.showErrorBox(
             'Migration Required - Application Cannot Start',
             `This version of Cherry Studio requires data migration to function properly.\n\nMigration window failed to start: ${(migrationError as Error).message}\n\nThe application will now exit. Please try starting again or contact support if the problem persists.`
           )
@@ -212,7 +220,7 @@ if (!app.requestSingleInstanceLock()) {
 
       // If we can't check migration status, this could indicate a serious database issue
       // Since migration may be required, it's safer to exit and let user investigate
-      await dialog.showErrorBox(
+      dialog.showErrorBox(
         'Migration Status Check Failed - Application Cannot Start',
         `Could not determine if data migration is completed.\n\nThis may indicate a database connectivity issue: ${(error as Error).message}\n\nThe application will now exit. Please check your installation and try again.`
       )
@@ -221,20 +229,6 @@ if (!app.requestSingleInstanceLock()) {
       app.quit()
       return
     }
-
-    // DATA REFACTOR USE
-    // TODO: remove when data refactor is stable
-    //************FOR TESTING ONLY START****************/
-
-    await preferenceService.initialize()
-
-    // Initialize DataApiService
-    await dataApiService.initialize()
-
-    // Initialize CacheService
-    await cacheService.initialize()
-
-    /************FOR TESTING ONLY END****************/
 
     // Record current version for tracking
     // A preparation for v2 data refactoring
@@ -245,10 +239,17 @@ if (!app.requestSingleInstanceLock()) {
     electronApp.setAppUserModelId(import.meta.env.VITE_MAIN_BUNDLE_ID || 'com.kangfenmao.CherryStudio')
 
     // Mac: Hide dock icon before window creation when launch to tray is set
-    const isLaunchToTray = preferenceService.get('app.tray.on_launch')
+    const isLaunchToTray = application.get('PreferenceService').get('app.tray.on_launch')
     if (isLaunchToTray) {
       app.dock?.hide()
     }
+
+    // Check for backup restore marker and complete restoration (highest priority, before window creation)
+    const { BackupManager } = await import('./services/BackupManager')
+    await BackupManager.handleStartupRestore()
+
+    // TODO: Remove manual init after ThemeService is migrated to lifecycle system
+    themeService.init()
 
     // Create main window - migration has either completed or was not needed
     const mainWindow = windowService.createMainWindow()
@@ -288,10 +289,10 @@ if (!app.requestSingleInstanceLock()) {
     //start selection assistant service
     initSelectionService()
 
-    runAsyncFunction(async () => {
+    void runAsyncFunction(async () => {
       // Start API server if enabled or if agents exist
       try {
-        const config = await apiServerService.getCurrentConfig()
+        const config = apiServerService.getCurrentConfig()
         logger.info('API server config:', config)
 
         // Check if there are any agents
@@ -378,6 +379,9 @@ if (!app.requestSingleInstanceLock()) {
     } catch (error) {
       logger.warn('Error cleaning up services:', error as Error)
     }
+
+    // v2 Refactoring: Shutdown lifecycle-managed services
+    await application.shutdown()
 
     // finish the logger
     logger.finish()

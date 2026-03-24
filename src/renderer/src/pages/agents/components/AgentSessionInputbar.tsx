@@ -370,7 +370,7 @@ const AgentSessionInputbarInner: FC<InnerProps> = ({ assistant, agentId, session
       abortCompletion(askId)
     }
 
-    pauseTrace(sessionTopicId)
+    void pauseTrace(sessionTopicId)
     dispatch(newMessagesActions.setTopicLoading({ topicId: sessionTopicId, loading: false }))
   }, [dispatch, sessionTopicId, streamingAskIds])
 
@@ -414,7 +414,7 @@ const AgentSessionInputbarInner: FC<InnerProps> = ({ assistant, agentId, session
           )
         : {}
 
-      dispatch(
+      void dispatch(
         dispatchSendMessage(userMessage, userMessageBlocks, assistant, sessionTopicId, {
           agentId,
           sessionId,
@@ -423,7 +423,7 @@ const AgentSessionInputbarInner: FC<InnerProps> = ({ assistant, agentId, session
       )
 
       // Emit event to trigger scroll to bottom in AgentSessionMessages
-      EventEmitter.emit(EVENT_NAMES.SEND_MESSAGE, { topicId: sessionTopicId })
+      void EventEmitter.emit(EVENT_NAMES.SEND_MESSAGE, { topicId: sessionTopicId })
 
       // Clear text and files after successful send (draft is cleared automatically via onChange)
       setText('')
@@ -480,10 +480,12 @@ const AgentSessionInputbarInner: FC<InnerProps> = ({ assistant, agentId, session
   const leftToolbar = useMemo(
     () => (
       <ToolbarGroup>
-        {config.showTools && <InputbarTools scope={scope} assistantId={assistant.id} session={toolsSession} />}
+        {config.showTools && (
+          <InputbarTools scope={scope} assistant={assistant} model={assistant.model!} session={toolsSession} />
+        )}
       </ToolbarGroup>
     ),
-    [config.showTools, scope, assistant.id, toolsSession]
+    [config.showTools, scope, assistant, toolsSession]
   )
   const placeholderText = useMemo(
     () =>

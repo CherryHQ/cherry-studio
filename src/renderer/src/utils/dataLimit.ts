@@ -96,7 +96,7 @@ export async function checkDataLimit() {
   }
 
   // Initial check
-  check()
+  void check()
 
   // Set up initial interval (normal mode)
   if (!currentInterval) {

@@ -9,7 +9,7 @@ import { isUserInChina } from '@main/utils/ipService'
 import { getBinaryName } from '@main/utils/process'
 import type { TerminalConfig, TerminalConfigWithCommand } from '@shared/config/constant'
 import {
-  codeTools,
+  codeCLI,
   HOME_CHERRY_DIR,
   MACOS_TERMINALS,
   MACOS_TERMINALS_WITH_COMMANDS,
@@ -19,6 +19,7 @@ import {
 } from '@shared/config/constant'
 import { getFunctionalKeys, parseJSONC, sanitizeEnvForLogging } from '@shared/utils'
 import { spawn } from 'child_process'
+import semver from 'semver'
 import { promisify } from 'util'
 
 const execAsync = promisify(require('child_process').exec)
@@ -56,7 +57,7 @@ class CodeToolsService {
     this.run = this.run.bind(this)
 
     if (isMac || isWin) {
-      this.preloadTerminals()
+      void this.preloadTerminals()
     }
   }
 
@@ -82,21 +83,21 @@ class CodeToolsService {
 
   public async getPackageName(cliTool: string) {
     switch (cliTool) {
-      case codeTools.claudeCode:
+      case codeCLI.claudeCode:
         return '@anthropic-ai/claude-code'
-      case codeTools.geminiCli:
+      case codeCLI.geminiCli:
         return '@google/gemini-cli'
-      case codeTools.openaiCodex:
+      case codeCLI.openaiCodex:
         return '@openai/codex'
-      case codeTools.qwenCode:
+      case codeCLI.qwenCode:
         return '@qwen-code/qwen-code'
-      case codeTools.iFlowCli:
+      case codeCLI.iFlowCli:
         return '@iflow-ai/iflow-cli'
-      case codeTools.githubCopilotCli:
+      case codeCLI.githubCopilotCli:
         return '@github/copilot'
-      case codeTools.kimiCli:
+      case codeCLI.kimiCli:
         return 'kimi-cli' // Python package
-      case codeTools.openCode:
+      case codeCLI.openCode:
         return 'opencode-ai'
       default:
         throw new Error(`Unsupported CLI tool: ${cliTool}`)
@@ -105,21 +106,21 @@ class CodeToolsService {
 
   public async getCliExecutableName(cliTool: string) {
     switch (cliTool) {
-      case codeTools.claudeCode:
+      case codeCLI.claudeCode:
         return 'claude'
-      case codeTools.geminiCli:
+      case codeCLI.geminiCli:
         return 'gemini'
-      case codeTools.openaiCodex:
+      case codeCLI.openaiCodex:
         return 'codex'
-      case codeTools.qwenCode:
+      case codeCLI.qwenCode:
         return 'qwen'
-      case codeTools.iFlowCli:
+      case codeCLI.iFlowCli:
         return 'iflow'
-      case codeTools.githubCopilotCli:
+      case codeCLI.githubCopilotCli:
         return 'copilot'
-      case codeTools.kimiCli:
+      case codeCLI.kimiCli:
         return 'kimi'
-      case codeTools.openCode:
+      case codeCLI.openCode:
         return 'opencode'
       default:
         throw new Error(`Unsupported CLI tool: ${cliTool}`)
@@ -836,25 +837,33 @@ class CodeToolsService {
 
     // Check for updates and auto-update if requested
     let updateMessage = ''
-    if (isInstalled && options.autoUpdateToLatest) {
-      logger.info(`Auto update to latest enabled for ${cliTool}`)
+    let installedVersion: string | null = null
+
+    // Get installed version if package is installed (needed for qwen-code auth-type check)
+    if (isInstalled) {
       try {
         const versionInfo = await this.getVersionInfo(cliTool)
-        if (versionInfo.needsUpdate) {
-          logger.info(`Update available for ${cliTool}: ${versionInfo.installed} -> ${versionInfo.latest}`)
-          logger.info(`Auto-updating ${cliTool} to latest version`)
-          updateMessage = ` && echo "Updating ${cliTool} from ${versionInfo.installed} to ${versionInfo.latest}..."`
-          const updateResult = await this.updatePackage(cliTool)
-          if (updateResult.success) {
-            logger.info(`Update completed successfully for ${cliTool}`)
-            updateMessage += ` && echo "Update completed successfully"`
-          } else {
-            logger.error(`Update failed for ${cliTool}: ${updateResult.message}`)
-            updateMessage += ` && echo "Update failed: ${updateResult.message}"`
+        installedVersion = versionInfo.installed
+
+        // Handle auto-update if enabled
+        if (options.autoUpdateToLatest) {
+          logger.info(`Auto update to latest enabled for ${cliTool}`)
+          if (versionInfo.needsUpdate) {
+            logger.info(`Update available for ${cliTool}: ${versionInfo.installed} -> ${versionInfo.latest}`)
+            logger.info(`Auto-updating ${cliTool} to latest version`)
+            updateMessage = ` && echo "Updating ${cliTool} from ${versionInfo.installed} to ${versionInfo.latest}..."`
+            const updateResult = await this.updatePackage(cliTool)
+            if (updateResult.success) {
+              logger.info(`Update completed successfully for ${cliTool}`)
+              updateMessage += ` && echo "Update completed successfully"`
+            } else {
+              logger.error(`Update failed for ${cliTool}: ${updateResult.message}`)
+              updateMessage += ` && echo "Update failed: ${updateResult.message}"`
+            }
+          } else if (versionInfo.installed && versionInfo.latest) {
+            logger.info(`${cliTool} is already up to date (${versionInfo.installed})`)
+            updateMessage = ` && echo "${cliTool} is up to date (${versionInfo.installed})"`
           }
-        } else if (versionInfo.installed && versionInfo.latest) {
-          logger.info(`${cliTool} is already up to date (${versionInfo.installed})`)
-          updateMessage = ` && echo "${cliTool} is up to date (${versionInfo.installed})"`
         }
       } catch (error) {
         logger.warn(`Failed to check version for ${cliTool}:`, error as Error)
@@ -908,13 +917,26 @@ class CodeToolsService {
     let baseCommand = isWin ? `"${executablePath}"` : `"${bunPath}" "${executablePath}"`
 
     // Special handling for kimi-cli: use uvx instead of bun
-    if (cliTool === codeTools.kimiCli) {
+    if (cliTool === codeCLI.kimiCli) {
       const uvPath = path.join(os.homedir(), HOME_CHERRY_DIR, 'bin', await getBinaryName('uv'))
       baseCommand = `${uvPath} tool run ${packageName}`
     }
 
+    // Special handling for qwen-code: add --auth-type openai for version >= 0.12.3
+    if (cliTool === codeCLI.qwenCode) {
+      // Use semver for proper version comparison (handles v-prefix, prereleases, etc.)
+      const coerced = semver.coerce(installedVersion)
+      const needsAuthType = installedVersion && coerced && semver.gte(coerced, '0.12.3')
+      if (needsAuthType) {
+        baseCommand = `${baseCommand} --auth-type openai`
+        logger.info(`qwen-code version ${installedVersion} >= 0.12.3, using --auth-type openai`)
+      } else {
+        logger.info(`qwen-code version ${installedVersion || 'unknown'} < 0.12.3, not using --auth-type`)
+      }
+    }
+
     // Add configuration parameters for OpenAI Codex using command line args
-    if (cliTool === codeTools.openaiCodex && env.OPENAI_MODEL_PROVIDER) {
+    if (cliTool === codeCLI.openaiCodex && env.OPENAI_MODEL_PROVIDER) {
       const providerId = env.OPENAI_MODEL_PROVIDER
       const providerName = env.OPENAI_MODEL_PROVIDER_NAME || providerId
       const normalizedBaseUrl = env.OPENAI_BASE_URL.replace(/\/$/, '')
@@ -932,7 +954,7 @@ class CodeToolsService {
     }
 
     // Special handling for OpenCode: generate config file and add --model flag
-    if (cliTool === codeTools.openCode) {
+    if (cliTool === codeCLI.openCode) {
       const baseUrl = env.OPENCODE_BASE_URL
       const modelId = _model
       const modelName = env.OPENCODE_MODEL_NAME || modelId
@@ -961,7 +983,7 @@ class CodeToolsService {
     const bunInstallPath = path.join(os.homedir(), HOME_CHERRY_DIR)
 
     // Special handling for kimi-cli: uvx handles installation automatically
-    if (cliTool === codeTools.kimiCli) {
+    if (cliTool === codeCLI.kimiCli) {
       // uvx will automatically download and run kimi-cli, no need to install
       // Just use the base command directly
     } else if (isInstalled) {
@@ -977,7 +999,25 @@ class CodeToolsService {
           ? `set "BUN_INSTALL=${bunInstallPath}" && set "NPM_CONFIG_REGISTRY=${registryUrl}" &&`
           : `export BUN_INSTALL="${bunInstallPath}" && export NPM_CONFIG_REGISTRY="${registryUrl}" &&`
 
-      const installCommand = `${installEnvPrefix} "${bunPath}" install -g ${packageName}`
+      // Windows: Redirect bun output to log file to prevent cmd.exe from
+      // misinterpreting multiline output as separate commands
+      // macOS/Linux: Keep output visible in terminal (handles multiline correctly)
+      let installCommand: string
+      if (platform === 'win32') {
+        const logsDir = loggerService.getLogsDir()
+        // Use forward slashes for cmd.exe compatibility
+        const installLogPath = path.join(logsDir, 'cli-tools-install.log').replace(/\\/g, '/')
+
+        // Ensure logs directory exists
+        if (!fs.existsSync(logsDir)) {
+          fs.mkdirSync(logsDir, { recursive: true })
+        }
+
+        installCommand = `${installEnvPrefix} "${bunPath}" install -g ${packageName} >> "${installLogPath}" 2>&1`
+      } else {
+        installCommand = `${installEnvPrefix} "${bunPath}" install -g ${packageName}`
+      }
+
       baseCommand = `echo "Installing ${packageName}..." && ${installCommand} && echo "Installation complete, starting ${cliTool}..." && ${baseCommand}`
     }
 

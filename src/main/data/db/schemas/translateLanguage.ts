@@ -1,17 +1,17 @@
 import { sqliteTable, text } from 'drizzle-orm/sqlite-core'
 
-import { createUpdateTimestamps, uuidPrimaryKey } from './_columnHelpers'
+import { createUpdateTimestamps } from './_columnHelpers'
 
 /**
- * Custom translate language table - stores user-defined translation languages
+ * Translate language table - stores builtin and user-defined translation languages
  *
  * Design notes:
  * - Very small dataset (tens of records at most)
- * - langCode must be unique per language (UNIQUE constraint creates implicit index)
+ * - langCode is the primary key (natural key, e.g. "en-us", "zh-cn")
+ * - Referenced by translateHistory.sourceLanguage / targetLanguage as FK
  */
 export const translateLanguageTable = sqliteTable('translate_language', {
-  id: uuidPrimaryKey(),
-  langCode: text().notNull().unique(),
+  langCode: text().primaryKey().notNull(),
   value: text().notNull(),
   emoji: text().notNull(),
   ...createUpdateTimestamps

@@ -235,7 +235,7 @@ export const createBaseCallbacks = (deps: BaseCallbacksDependencies) => {
         isErrorTypeAbort ? AssistantMessageStatus.SUCCESS : AssistantMessageStatus.ERROR
       )
 
-      EventEmitter.emit(EVENT_NAMES.MESSAGE_COMPLETE, {
+      void EventEmitter.emit(EVENT_NAMES.MESSAGE_COMPLETE, {
         id: assistantMsgId,
         topicId,
         status: isErrorTypeAbort ? 'pause' : 'error',
@@ -279,7 +279,7 @@ export const createBaseCallbacks = (deps: BaseCallbacksDependencies) => {
         }
 
         // Rename topic if needed
-        autoRenameTopic(assistant, topicId)
+        void autoRenameTopic(assistant, topicId)
 
         // Process usage estimation
         // For OpenRouter, always use the accurate usage data from API, don't estimate
@@ -333,7 +333,7 @@ export const createBaseCallbacks = (deps: BaseCallbacksDependencies) => {
         trackTokenUsage({ usage: response?.usage, model: assistant?.model })
       }
 
-      EventEmitter.emit(EVENT_NAMES.MESSAGE_COMPLETE, { id: assistantMsgId, topicId, status })
+      void EventEmitter.emit(EVENT_NAMES.MESSAGE_COMPLETE, { id: assistantMsgId, topicId, status })
       logger.debug('onComplete finished')
     }
   }

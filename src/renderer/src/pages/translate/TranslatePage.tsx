@@ -112,7 +112,7 @@ const TranslatePage: FC = () => {
   // 控制翻译模型切换
   const handleModelChange = (model: Model) => {
     setTranslateModel(model)
-    db.settings.put({ id: 'translate:model', value: model.id })
+    void db.settings.put({ id: 'translate:model', value: model.id })
   }
 
   // 控制翻译状态
@@ -299,7 +299,7 @@ const TranslatePage: FC = () => {
   // 控制双向翻译切换
   const toggleBidirectional = (value: boolean) => {
     setIsBidirectional(value)
-    db.settings.put({ id: 'translate:bidirectional:enabled', value })
+    void db.settings.put({ id: 'translate:bidirectional:enabled', value })
   }
 
   // 控制历史记录点击
@@ -343,8 +343,8 @@ const TranslatePage: FC = () => {
     }
     setSourceLanguage(targetLanguage)
     setTargetLanguage(source)
-    db.settings.put({ id: 'translate:source:language', value: targetLanguage.langCode })
-    db.settings.put({ id: 'translate:target:language', value: source.langCode })
+    void db.settings.put({ id: 'translate:source:language', value: targetLanguage.langCode })
+    void db.settings.put({ id: 'translate:target:language', value: source.langCode })
   }, [couldExchangeAuto, detectedLanguage, sourceLanguage, t, targetLanguage])
 
   useEffect(() => {
@@ -356,7 +356,7 @@ const TranslatePage: FC = () => {
   useEffect(() => {
     if (enableMarkdown && translatedContent) {
       let isMounted = true
-      shikiMarkdownIt(translatedContent).then((rendered) => {
+      void shikiMarkdownIt(translatedContent).then((rendered) => {
         if (isMounted) {
           setRenderedMarkdown(rendered)
         }
@@ -372,7 +372,7 @@ const TranslatePage: FC = () => {
 
   // 控制设置加载
   useEffect(() => {
-    runAsyncFunction(async () => {
+    void runAsyncFunction(async () => {
       const targetLang = await db.settings.get({ id: 'translate:target:language' })
       targetLang && setTargetLanguage(getLanguageByLangcode(targetLang.value))
 
@@ -396,7 +396,7 @@ const TranslatePage: FC = () => {
         } else {
           const defaultPair: [TranslateLanguage, TranslateLanguage] = [LanguagesEnum.enUS, LanguagesEnum.zhCN]
           setBidirectionalPair(defaultPair)
-          db.settings.put({
+          void db.settings.put({
             id: 'translate:bidirectional:pair',
             value: [defaultPair[0].langCode, defaultPair[1].langCode]
           })
@@ -418,7 +418,7 @@ const TranslatePage: FC = () => {
         setAutoDetectionMethod(autoDetectionMethodSetting.value)
       } else {
         setAutoDetectionMethod('franc')
-        db.settings.put({ id: 'translate:detect:method', value: 'franc' })
+        void db.settings.put({ id: 'translate:detect:method', value: 'franc' })
       }
     })
   }, [getLanguageByLangcode])
@@ -439,7 +439,7 @@ const TranslatePage: FC = () => {
     const isEnterPressed = e.key === 'Enter'
     if (isEnterPressed && !e.nativeEvent.isComposing && !e.shiftKey && !e.ctrlKey && !e.metaKey) {
       e.preventDefault()
-      onTranslate()
+      void onTranslate()
     }
   }
 
@@ -470,7 +470,7 @@ const TranslatePage: FC = () => {
         value={targetLanguage.langCode}
         onChange={(value) => {
           setTargetLanguage(getLanguageByLangcode(value))
-          db.settings.put({ id: 'translate:target:language', value })
+          void db.settings.put({ id: 'translate:target:language', value })
         }}
       />
     )
@@ -636,7 +636,7 @@ const TranslatePage: FC = () => {
         if (droppedFiles) {
           const file = getSingleFile(droppedFiles) as FileMetadata
           if (!file) return
-          processFile(file)
+          void processFile(file)
         }
       }
       await process()
@@ -736,7 +736,7 @@ const TranslatePage: FC = () => {
               onChange={(value) => {
                 if (value !== 'auto') setSourceLanguage(getLanguageByLangcode(value))
                 else setSourceLanguage('auto')
-                db.settings.put({ id: 'translate:source:language', value })
+                void db.settings.put({ id: 'translate:source:language', value })
               }}
               extraOptionsBefore={[
                 {

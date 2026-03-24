@@ -37,26 +37,26 @@ const WebDavSettings: FC = () => {
   // 把之前备份的文件定时上传到 webdav，首先先配置 webdav 的 host, port, user, pass, path
 
   const onSyncIntervalChange = async (value: number) => {
-    setWebdavSyncInterval(value)
+    void setWebdavSyncInterval(value)
     if (value === 0) {
       await setWebdavAutoSync(false)
       stopAutoSync('webdav')
     } else {
       await setWebdavAutoSync(true)
-      startAutoSync(false, 'webdav')
+      void startAutoSync(false, 'webdav')
     }
   }
 
   const onMaxBackupsChange = (value: number) => {
-    setWebdavMaxBackups(value)
+    void setWebdavMaxBackups(value)
   }
 
   const onSkipBackupFilesChange = (value: boolean) => {
-    setWebdavSkipBackupFile(value)
+    void setWebdavSkipBackupFile(value)
   }
 
   const onDisableStreamChange = (value: boolean) => {
-    setWebdavDisableStream(value)
+    void setWebdavDisableStream(value)
   }
 
   const renderSyncStatus = () => {

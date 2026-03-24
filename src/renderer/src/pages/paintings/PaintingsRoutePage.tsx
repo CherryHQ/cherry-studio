@@ -37,7 +37,7 @@ const PaintingsRoutePage: FC = () => {
       const status = await window.api.ovms.getStatus()
       setOvmsStatus(status)
     }
-    checkStatus()
+    void checkStatus()
   }, [])
 
   const validOptions = Options.filter((option) => option !== 'ovms' || ovmsStatus === 'running')

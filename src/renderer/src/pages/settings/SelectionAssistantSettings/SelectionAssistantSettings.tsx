@@ -53,15 +53,15 @@ const SelectionAssistantSettings: FC = () => {
     const checkMacProcessTrust = async () => {
       const isTrusted = await window.api.mac.isProcessTrusted()
       if (!isTrusted) {
-        setSelectionEnabled(false)
+        void setSelectionEnabled(false)
       }
     }
 
     if (!isSupportedOS && selectionEnabled) {
-      setSelectionEnabled(false)
+      void setSelectionEnabled(false)
       return
     } else if (isMac && selectionEnabled) {
-      checkMacProcessTrust()
+      void checkMacProcessTrust()
     }
   }, [isSupportedOS, selectionEnabled, setSelectionEnabled])
 
@@ -76,7 +76,7 @@ const SelectionAssistantSettings: FC = () => {
       }
     }
 
-    setSelectionEnabled(checked)
+    void setSelectionEnabled(checked)
   }
 
   return (

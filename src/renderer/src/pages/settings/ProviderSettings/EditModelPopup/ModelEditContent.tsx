@@ -281,7 +281,7 @@ const ModelEditContent: FC<ModelEditContentProps & ModalProps> = ({ provider, mo
                   style={{ cursor: 'pointer' }}
                   onClick={() => {
                     const val = form.getFieldValue('name')
-                    navigator.clipboard.writeText((val.id || model.id) as string)
+                    void navigator.clipboard.writeText((val.id || model.id) as string)
                     window.toast.success(t('message.copied'))
                   }}
                 />

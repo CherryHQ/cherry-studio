@@ -56,7 +56,7 @@ export class CompletionsResultHandler {
 
   finish() {
     if (this.tokenUsage) {
-      window.api.trace.tokenUsage(this.span.spanContext().spanId, this.tokenUsage)
+      void window.api.trace.tokenUsage(this.span.spanContext().spanId, this.tokenUsage)
     }
     if (this.data) {
       endSpan({ topicId: this.topicId, outputs: this.data, span: this.span, modelName: this.modelName })

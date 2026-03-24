@@ -1,7 +1,10 @@
 import type { TokenUsageData } from '@cherrystudio/analytics-client'
 import { AnalyticsClient } from '@cherrystudio/analytics-client'
-import { preferenceService } from '@data/PreferenceService'
 import { loggerService } from '@logger'
+import { application } from '@main/core/application'
+import { generateUserAgent } from '@main/utils/systemInfo'
+import { APP_NAME } from '@shared/config/constant'
+import { app } from 'electron'
 
 import { configManager } from './ConfigManager'
 
@@ -19,27 +22,43 @@ class AnalyticsService {
   }
 
   public init(): void {
-    if (!preferenceService.get('app.privacy.data_collection.enabled')) {
-      logger.info('Data collection is disabled, skipping analytics initialization')
-      return
-    }
-
     this.client = new AnalyticsClient({
       clientId: configManager.getClientId(),
       channel: 'cherry-studio',
-      onError: (error) => logger.error('Analytics error:', error)
+      onError: (error) => logger.error('Analytics error:', error),
+      headers: {
+        'User-Agent': generateUserAgent(),
+        'Client-Id': configManager.getClientId(),
+        'App-Name': APP_NAME,
+        'App-Version': `v${app.getVersion()}`,
+        OS: process.platform
+      }
     })
+
+    this.client.trackAppLaunch({
+      version: app.getVersion(),
+      os: process.platform
+    })
+
     logger.info('Analytics service initialized')
   }
 
   public trackTokenUsage(data: TokenUsageData): void {
-    const enableDataCollection = preferenceService.get('app.privacy.data_collection.enabled')
+    const enableDataCollection = application.get('PreferenceService').get('app.privacy.data_collection.enabled')
 
     if (!this.client || !enableDataCollection) {
       return
     }
 
     this.client.trackTokenUsage(data)
+  }
+
+  public async trackAppUpdate(): Promise<void> {
+    if (!this.client) {
+      return
+    }
+
+    await this.client.trackAppUpdate()
   }
 
   public async destroy(): Promise<void> {

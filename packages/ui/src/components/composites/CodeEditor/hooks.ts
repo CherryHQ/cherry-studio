@@ -118,7 +118,7 @@ export const useLanguageExtensions = (language: string, lint?: boolean, language
       }
     }
 
-    loadAllExtensions()
+    void loadAllExtensions()
 
     return () => {
       cancelled = true

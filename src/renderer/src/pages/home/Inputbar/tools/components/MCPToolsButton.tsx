@@ -371,9 +371,9 @@ const MCPToolsButton: FC<Props> = ({ quickPanel, setInputValue, resizeTextArea, 
       requestAnimationFrame(() => {
         const hasArguments = prompt.arguments && prompt.arguments.length > 0
         if (hasArguments) {
-          handlePromptWithArgs()
+          void handlePromptWithArgs()
         } else {
-          handlePromptWithoutArgs()
+          void handlePromptWithoutArgs()
         }
       })
     },
@@ -477,7 +477,7 @@ const MCPToolsButton: FC<Props> = ({ quickPanel, setInputValue, resizeTextArea, 
       }
     }
 
-    fetchResources()
+    void fetchResources()
 
     return () => {
       isMounted = false
