@@ -1,7 +1,6 @@
 import { useLanding } from '@renderer/context/LandingContext'
 import type { FC } from 'react'
 
-import LoginSuccessPage from './components/LoginSuccessPage'
 import SelectModelPage from './components/SelectModelPage'
 import SkipButton from './components/SkipButton'
 import WelcomePage from './components/WelcomePage'
@@ -18,7 +17,6 @@ const LandingPage: FC = () => {
         <div className="relative flex flex-1 overflow-hidden rounded-xl bg-(--color-background)">
           <SkipButton />
           {step === 'welcome' && <WelcomePage />}
-          {step === 'login-success' && <LoginSuccessPage />}
           {step === 'select-model' && <SelectModelPage />}
         </div>
       </div>

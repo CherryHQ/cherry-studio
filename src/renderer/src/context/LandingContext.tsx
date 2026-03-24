@@ -3,7 +3,7 @@ import { createContext, use, useCallback, useState } from 'react'
 
 const LANDING_COMPLETED_KEY = 'landing-page-completed'
 
-export type LandingStep = 'welcome' | 'login-success' | 'select-model'
+export type LandingStep = 'welcome' | 'select-model'
 
 interface LandingContextType {
   landingCompleted: boolean

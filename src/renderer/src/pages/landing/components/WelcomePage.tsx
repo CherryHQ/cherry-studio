@@ -44,7 +44,8 @@ const WelcomePage: FC = () => {
           }
 
           setCherryInLoggedIn(true)
-          setStep('login-success')
+          window.toast.success('成功连接 CherryIN')
+          setStep('select-model')
         },
         {
           oauthServer: CHERRYIN_OAUTH_SERVER
