@@ -167,9 +167,7 @@ export const searchKnowledge = async (req: Request, res: Response): Promise<Resp
     }
 
     // Filter by specified knowledge base IDs if provided
-    const targetBases = knowledge_base_ids?.length
-      ? bases.filter((b) => knowledge_base_ids.includes(b.id))
-      : bases
+    const targetBases = knowledge_base_ids?.length ? bases.filter((b) => knowledge_base_ids.includes(b.id)) : bases
 
     if (knowledge_base_ids?.length && targetBases.length === 0) {
       return res.status(404).json({
@@ -187,10 +185,10 @@ export const searchKnowledge = async (req: Request, res: Response): Promise<Resp
         const params = getKnowledgeBaseParams(base)
 
         // Call KnowledgeService.search directly (first param is IPC event, not used)
-        const searchResults = await KnowledgeService.search(
-          {} as Electron.IpcMainInvokeEvent,
-          { search: query, base: params }
-        )
+        const searchResults = await KnowledgeService.search({} as Electron.IpcMainInvokeEvent, {
+          search: query,
+          base: params
+        })
 
         return searchResults.map((result) => ({
           ...result,
