@@ -14,9 +14,10 @@ import type { ProviderId } from '@test-utils'
 import type { Tool, ToolSet } from 'ai'
 import { tool } from 'ai'
 import { MockLanguageModelV3 } from 'ai/test'
-import type { AiRequestContext, StreamTextParams, StreamTextResult } from 'src/core/plugins/types'
 import { vi } from 'vitest'
 import * as z from 'zod'
+
+import type { AiRequestContext, StreamTextParams, StreamTextResult } from '../../src/core/plugins/types'
 
 /**
  * Type for partial overrides that allows omitting the model field

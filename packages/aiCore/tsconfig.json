@@ -15,7 +15,6 @@
     "skipLibCheck": true,
     "strict": true,
     "target": "ES2020",
-    "baseUrl": ".",
     "paths": {
       "@test-utils": ["./test_utils"],
       "@test-utils/*": ["./test_utils/*"]
