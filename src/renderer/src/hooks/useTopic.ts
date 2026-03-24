@@ -9,7 +9,7 @@ import { updateTopic } from '@renderer/store/assistants'
 import { setNewlyRenamedTopics, setRenamingTopics } from '@renderer/store/runtime'
 import { loadTopicMessagesThunk } from '@renderer/store/thunk/messageThunk'
 import type { Assistant, FileMetadata, Topic } from '@renderer/types'
-import { MessageBlockType } from '@renderer/types/newMessage'
+import { FileMessageBlock, ImageMessageBlock, MessageBlockType } from '@renderer/types/newMessage'
 import { findMainTextBlocks } from '@renderer/utils/messageUtils/find'
 import { truncateText } from '@renderer/utils/naming'
 import { find, isEmpty } from 'lodash'
@@ -239,8 +239,11 @@ export const TopicManager = {
 
           // 提取文件元数据
           filesToDelete = blocks
-            .filter((block) => block.type === MessageBlockType.IMAGE || block.type === MessageBlockType.FILE)
-            .map((block: any) => block.file)
+            .filter(
+              (block): block is ImageMessageBlock | FileMessageBlock =>
+                block.type === MessageBlockType.IMAGE || block.type === MessageBlockType.FILE
+            )
+            .map((block) => block.file)
             .filter((file) => file !== undefined)
 
           await db.message_blocks.bulkDelete(blockIds)
