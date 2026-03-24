@@ -2,6 +2,7 @@ import { loggerService } from '@logger'
 import CherryStudioLogo from '@renderer/assets/images/logo.png'
 import { useLanding } from '@renderer/context/LandingContext'
 import { useProvider } from '@renderer/hooks/useProvider'
+import { fetchModels } from '@renderer/services/ApiService'
 import { useAppStore } from '@renderer/store'
 import { oauthWithCherryIn } from '@renderer/utils/oauth'
 import { Button, Divider } from 'antd'
@@ -17,16 +18,31 @@ const CHERRYIN_OAUTH_SERVER = 'https://open.cherryin.ai'
 
 const WelcomePage: FC = () => {
   const { setStep, setCherryInLoggedIn } = useLanding()
-  const { updateProvider } = useProvider(CHERRYIN_PROVIDER_ID)
+  const { provider, updateProvider, addModel } = useProvider(CHERRYIN_PROVIDER_ID)
   const store = useAppStore()
-  const [isLoggingIn, setIsLoggingIn] = useState(false)
+  const [isAddingModels, setIsAddingModels] = useState(false)
 
   const handleCherryInLogin = useCallback(async () => {
-    setIsLoggingIn(true)
     try {
       await oauthWithCherryIn(
-        (apiKeys: string) => {
-          updateProvider({ apiKey: apiKeys })
+        async (apiKeys: string) => {
+          updateProvider({ apiKey: apiKeys, enabled: true })
+
+          // Show loading while fetching and adding models
+          setIsAddingModels(true)
+          try {
+            const updatedProvider = { ...provider, apiKey: apiKeys, enabled: true }
+            const models = await fetchModels(updatedProvider)
+            if (models.length > 0) {
+              models.forEach((model) => addModel(model))
+              logger.info(`Auto-added ${models.length} models from CherryIN`)
+            }
+          } catch (fetchError) {
+            logger.warn('Failed to auto-fetch models:', fetchError as Error)
+          } finally {
+            setIsAddingModels(false)
+          }
+
           setCherryInLoggedIn(true)
           setStep('login-success')
         },
@@ -36,10 +52,8 @@ const WelcomePage: FC = () => {
       )
     } catch (error) {
       logger.error('OAuth Error:', error as Error)
-    } finally {
-      setIsLoggingIn(false)
     }
-  }, [updateProvider, setCherryInLoggedIn, setStep])
+  }, [provider, updateProvider, addModel, setCherryInLoggedIn, setStep])
 
   const handleSelectProvider = async () => {
     await ProviderPopup.show()
@@ -62,7 +76,7 @@ const WelcomePage: FC = () => {
             type="primary"
             size="large"
             block
-            loading={isLoggingIn}
+            loading={isAddingModels}
             className="h-12 rounded-lg"
             onClick={handleCherryInLogin}>
             登录 CherryIN
