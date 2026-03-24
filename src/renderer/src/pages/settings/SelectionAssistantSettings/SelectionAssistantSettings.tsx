@@ -84,7 +84,7 @@ const SelectionAssistantSettings: FC = () => {
 
   useEffect(() => {
     if (isLinux) {
-      window.api.selection.getLinuxEnvInfo().then(setLinuxEnvInfo)
+      void window.api.selection.getLinuxEnvInfo().then(setLinuxEnvInfo)
     }
   }, [])
 
