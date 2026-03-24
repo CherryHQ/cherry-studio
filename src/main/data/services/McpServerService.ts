@@ -54,13 +54,15 @@ export class MCPServerService {
     return MCPServerService.instance
   }
 
+  private get db() {
+    return application.get('DbService').getDb()
+  }
+
   /**
    * Get an MCP server by ID
    */
   async getById(id: string): Promise<MCPServer> {
-    const db = application.get('DbService').getDb()
-
-    const [row] = await db.select().from(mcpServerTable).where(eq(mcpServerTable.id, id)).limit(1)
+    const [row] = await this.db.select().from(mcpServerTable).where(eq(mcpServerTable.id, id)).limit(1)
 
     if (!row) {
       throw DataApiErrorFactory.notFound('MCPServer', id)
@@ -73,8 +75,6 @@ export class MCPServerService {
    * List MCP servers with optional filters
    */
   async list(query: ListMCPServersQuery): Promise<{ items: MCPServer[]; total: number; page: number }> {
-    const db = application.get('DbService').getDb()
-
     const conditions: SQL[] = []
     if (query.id !== undefined) {
       conditions.push(eq(mcpServerTable.id, query.id))
@@ -89,8 +89,8 @@ export class MCPServerService {
     const whereClause = conditions.length > 0 ? and(...conditions) : undefined
 
     const [rows, [{ count }]] = await Promise.all([
-      db.select().from(mcpServerTable).where(whereClause).orderBy(asc(mcpServerTable.sortOrder)),
-      db.select({ count: sql<number>`count(*)` }).from(mcpServerTable).where(whereClause)
+      this.db.select().from(mcpServerTable).where(whereClause).orderBy(asc(mcpServerTable.sortOrder)),
+      this.db.select({ count: sql<number>`count(*)` }).from(mcpServerTable).where(whereClause)
     ])
 
     return {
@@ -106,11 +106,9 @@ export class MCPServerService {
   async create(dto: CreateMCPServerDto): Promise<MCPServer> {
     this.validateName(dto.name)
 
-    const db = application.get('DbService').getDb()
-
     const { sortOrder, isActive, ...rest } = dto
 
-    const [row] = await db
+    const [row] = await this.db
       .insert(mcpServerTable)
       .values({
         ...rest,
@@ -128,21 +126,17 @@ export class MCPServerService {
    * Update an existing MCP server
    */
   async update(id: string, dto: UpdateMCPServerDto): Promise<MCPServer> {
-    // Verify server exists
     await this.getById(id)
 
-    // Validate name if provided
     if (dto.name !== undefined) {
       this.validateName(dto.name)
     }
-
-    const db = application.get('DbService').getDb()
 
     const updates = Object.fromEntries(Object.entries(dto).filter(([, v]) => v !== undefined)) as Partial<
       typeof mcpServerTable.$inferInsert
     >
 
-    const [row] = await db.update(mcpServerTable).set(updates).where(eq(mcpServerTable.id, id)).returning()
+    const [row] = await this.db.update(mcpServerTable).set(updates).where(eq(mcpServerTable.id, id)).returning()
 
     logger.info('Updated MCP server', { id, changes: Object.keys(dto) })
 
@@ -153,13 +147,11 @@ export class MCPServerService {
    * Find an MCP server by ID or name. Returns undefined if not found.
    */
   async findByIdOrName(idOrName: string): Promise<MCPServer | undefined> {
-    const db = application.get('DbService').getDb()
-
-    const [row] = await db.select().from(mcpServerTable).where(eq(mcpServerTable.id, idOrName)).limit(1)
+    const [row] = await this.db.select().from(mcpServerTable).where(eq(mcpServerTable.id, idOrName)).limit(1)
 
     if (row) return rowToMCPServer(row)
 
-    const [byName] = await db.select().from(mcpServerTable).where(eq(mcpServerTable.name, idOrName)).limit(1)
+    const [byName] = await this.db.select().from(mcpServerTable).where(eq(mcpServerTable.name, idOrName)).limit(1)
 
     return byName ? rowToMCPServer(byName) : undefined
   }
@@ -168,12 +160,9 @@ export class MCPServerService {
    * Delete an MCP server
    */
   async delete(id: string): Promise<void> {
-    // Verify server exists
     await this.getById(id)
 
-    const db = application.get('DbService').getDb()
-
-    await db.delete(mcpServerTable).where(eq(mcpServerTable.id, id))
+    await this.db.delete(mcpServerTable).where(eq(mcpServerTable.id, id))
 
     logger.info('Deleted MCP server', { id })
   }
@@ -182,9 +171,7 @@ export class MCPServerService {
    * Reorder MCP servers by updating sortOrder based on ordered IDs
    */
   async reorder(orderedIds: string[]): Promise<void> {
-    const db = application.get('DbService').getDb()
-
-    await db.transaction(async (tx) => {
+    await this.db.transaction(async (tx) => {
       for (let i = 0; i < orderedIds.length; i++) {
         await tx.update(mcpServerTable).set({ sortOrder: i }).where(eq(mcpServerTable.id, orderedIds[i]))
       }

@@ -72,14 +72,12 @@ function mockChain(resolvedValue: unknown) {
 
 let mockDb: any
 
-vi.mock('@main/core/application', () => ({
-  application: {
-    get: (name: string) => {
-      if (name === 'DbService') return { getDb: () => mockDb }
-      throw new Error(`Unknown service: ${name}`)
-    }
-  }
-}))
+vi.mock('@main/core/application', async () => {
+  const { mockApplicationFactory } = await import('@test-mocks/main/application')
+  return mockApplicationFactory({
+    DbService: { getDb: () => mockDb }
+  })
+})
 
 vi.mock('@logger', () => ({
   loggerService: {
