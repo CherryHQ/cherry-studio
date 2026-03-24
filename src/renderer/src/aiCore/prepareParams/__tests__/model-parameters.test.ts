@@ -10,7 +10,7 @@ vi.mock('@renderer/services/AssistantService', () => ({
     maxTokens: 4096,
     enableMaxTokens: false,
     temperature: 0.7,
-    enableTemperature: false,
+    enableTemperature: true,
     topP: 1,
     enableTopP: false,
     contextCount: 4096,
@@ -40,8 +40,7 @@ vi.mock('@renderer/services/AssistantService', () => ({
     reasoning_effort_cache: assistant.settings?.reasoning_effort_cache,
     qwenThinkMode: assistant.settings?.qwenThinkMode
   }),
-  getProviderByModel: (model: Model) => ({ id: model.provider, type: model.provider, models: [] }),
-  DEFAULT_ASSISTANT_SETTINGS: { enableTemperature: true, enableTopP: false, enableMaxTokens: false }
+  getProviderByModel: (model: Model) => ({ id: model.provider, type: model.provider, models: [] })
 }))
 
 vi.mock('@renderer/hooks/useSettings', () => ({
