@@ -134,8 +134,8 @@ app.get('/', (_req, res) => {
       agents: 'GET /v1/agents',
       agent_sessions: 'GET /v1/agents/:agentId/sessions',
       session_messages: 'GET /v1/agents/:agentId/sessions/:sessionId/messages',
-      knowledge_bases: 'GET /v1/knowledge',
-      knowledge_search: 'POST /v1/knowledge/search'
+      knowledge_bases: 'GET /v1/knowledge-bases',
+      knowledge_search: 'POST /v1/knowledge-bases/search'
     }
   })
 })
@@ -155,7 +155,7 @@ apiRouter.use('/mcps', mcpRoutes)
 apiRouter.use('/messages', extendMessagesTimeout, messagesRoutes)
 apiRouter.use('/models', modelsRoutes)
 apiRouter.use('/agents', agentsRoutes)
-apiRouter.use('/knowledge', knowledgeRoutes)
+apiRouter.use('/knowledge-bases', knowledgeRoutes)
 app.use('/v1', apiRouter)
 
 // Error handling (must be last)
