@@ -51,8 +51,8 @@ interface NewTranslateHistory {
   id: string
   sourceText: string
   targetText: string
-  sourceLanguage: string
-  targetLanguage: string
+  sourceLanguage: string | null
+  targetLanguage: string | null
   star: boolean
   createdAt: number
   updatedAt: number
@@ -75,14 +75,14 @@ function parseTimestamp(value: string): number {
   return !parsed || Number.isNaN(parsed) ? Date.now() : parsed
 }
 
-function transformHistoryRecord(old: OldTranslateHistory): NewTranslateHistory {
+function transformHistoryRecord(old: OldTranslateHistory, validLangCodes: Set<string>): NewTranslateHistory {
   const createdAt = parseTimestamp(old.createdAt)
   return {
     id: old.id,
     sourceText: old.sourceText,
     targetText: old.targetText,
-    sourceLanguage: old.sourceLanguage,
-    targetLanguage: old.targetLanguage,
+    sourceLanguage: validLangCodes.has(old.sourceLanguage) ? old.sourceLanguage : null,
+    targetLanguage: validLangCodes.has(old.targetLanguage) ? old.targetLanguage : null,
     star: old.star ?? false,
     createdAt,
     updatedAt: createdAt
@@ -168,44 +168,7 @@ export class TranslateMigrator extends BaseMigrator {
       const db = ctx.db
       let processedCount = 0
 
-      // ── Migrate translate history (batched) ──
-      if (this.historySourceCount > 0) {
-        const newHistoryRecords: NewTranslateHistory[] = []
-        for (const old of this.cachedHistoryRecords) {
-          if (!old.id || !old.sourceText || !old.targetText || !old.sourceLanguage || !old.targetLanguage) {
-            logger.warn(`Skipping invalid translate history record: ${old.id}`)
-            this.historySkippedCount++
-            continue
-          }
-          newHistoryRecords.push(transformHistoryRecord(old))
-        }
-
-        await db.transaction(async (tx) => {
-          for (let i = 0; i < newHistoryRecords.length; i += HISTORY_BATCH_SIZE) {
-            const batch = newHistoryRecords.slice(i, i + HISTORY_BATCH_SIZE)
-            await tx.insert(translateHistoryTable).values(batch)
-
-            const historyProcessed = Math.min(i + HISTORY_BATCH_SIZE, newHistoryRecords.length)
-            const progress = Math.round((historyProcessed / totalCount) * 100)
-            this.reportProgress(
-              progress,
-              `Migrated ${historyProcessed}/${newHistoryRecords.length} translate history records`,
-              {
-                key: 'migration.progress.migrated_translate_history',
-                params: { processed: historyProcessed, total: newHistoryRecords.length }
-              }
-            )
-          }
-        })
-
-        processedCount += newHistoryRecords.length
-        logger.info('Translate history migration completed', {
-          processedCount: newHistoryRecords.length,
-          skipped: this.historySkippedCount
-        })
-      }
-
-      // ── Migrate translate languages (single batch) ──
+      // ── Migrate translate languages first (history has FK references) ──
       if (this.languageSourceCount > 0) {
         const now = Date.now()
         const newLanguageRecords: NewTranslateLanguage[] = []
@@ -225,7 +188,8 @@ export class TranslateMigrator extends BaseMigrator {
           processedCount += newLanguageRecords.length
         }
 
-        this.reportProgress(100, `Migrated ${newLanguageRecords.length} custom translate languages`, {
+        const langProgress = Math.round((processedCount / totalCount) * 100)
+        this.reportProgress(langProgress, `Migrated ${newLanguageRecords.length} custom translate languages`, {
           key: 'migration.progress.migrated_translate_languages',
           params: { processed: newLanguageRecords.length, total: newLanguageRecords.length }
         })
@@ -233,6 +197,49 @@ export class TranslateMigrator extends BaseMigrator {
         logger.info('Translate language migration completed', {
           processedCount: newLanguageRecords.length,
           skipped: this.languageSkippedCount
+        })
+      }
+
+      // ── Migrate translate history (batched) ──
+      if (this.historySourceCount > 0) {
+        // Query all valid language codes to null-out dangling FK references
+        const existingLangs = await db
+          .select({ langCode: translateLanguageTable.langCode })
+          .from(translateLanguageTable)
+        const validLangCodes = new Set(existingLangs.map((r) => r.langCode))
+
+        const newHistoryRecords: NewTranslateHistory[] = []
+        for (const old of this.cachedHistoryRecords) {
+          if (!old.id || !old.sourceText || !old.targetText) {
+            logger.warn(`Skipping invalid translate history record: ${old.id}`)
+            this.historySkippedCount++
+            continue
+          }
+          newHistoryRecords.push(transformHistoryRecord(old, validLangCodes))
+        }
+
+        await db.transaction(async (tx) => {
+          for (let i = 0; i < newHistoryRecords.length; i += HISTORY_BATCH_SIZE) {
+            const batch = newHistoryRecords.slice(i, i + HISTORY_BATCH_SIZE)
+            await tx.insert(translateHistoryTable).values(batch)
+
+            const historyProcessed = Math.min(i + HISTORY_BATCH_SIZE, newHistoryRecords.length)
+            const progress = Math.round(((processedCount + historyProcessed) / totalCount) * 100)
+            this.reportProgress(
+              progress,
+              `Migrated ${historyProcessed}/${newHistoryRecords.length} translate history records`,
+              {
+                key: 'migration.progress.migrated_translate_history',
+                params: { processed: historyProcessed, total: newHistoryRecords.length }
+              }
+            )
+          }
+        })
+
+        processedCount += newHistoryRecords.length
+        logger.info('Translate history migration completed', {
+          processedCount: newHistoryRecords.length,
+          skipped: this.historySkippedCount
         })
       }
 
