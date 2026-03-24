@@ -4826,6 +4826,7 @@
           "label": "Add models to the list"
         },
         "add_whole_group": "Add the whole group",
+        "fetch_list": "Fetch model list",
         "refetch_list": "Refetch model list",
         "remove_listed": "Remove models from the list",
         "remove_model": "Remove model",

@@ -4826,6 +4826,7 @@
           "label": "Adaugă modele la listă"
         },
         "add_whole_group": "Adaugă întregul grup",
+        "fetch_list": "[to be translated]:Fetch model list",
         "refetch_list": "Reîmprospătează lista modelelor",
         "remove_listed": "Elimină modelele din listă",
         "remove_model": "Elimină modelul",

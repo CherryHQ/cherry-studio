@@ -68,6 +68,8 @@ import VertexAISettings from './VertexAISettings'
 
 interface Props {
   providerId: string
+  /** Whether in onboarding mode for new users */
+  isOnboarding?: boolean
 }
 
 const ANTHROPIC_COMPATIBLE_PROVIDER_IDS = [
@@ -98,7 +100,7 @@ const isAnthropicCompatibleProviderId = (id: string): id is AnthropicCompatibleP
 
 type HostField = 'apiHost' | 'anthropicApiHost'
 
-const ProviderSetting: FC<Props> = ({ providerId }) => {
+const ProviderSetting: FC<Props> = ({ providerId, isOnboarding = false }) => {
   const { provider, updateProvider, models } = useProvider(providerId)
   const allProviders = useAllProviders()
   const { updateProviders } = useProviders()
@@ -144,10 +146,15 @@ const ProviderSetting: FC<Props> = ({ providerId }) => {
   const debouncedUpdateApiKey = useMemo(
     () =>
       debounce((value: string) => {
-        updateProvider({ apiKey: formatApiKeys(value) })
-        updateWebSearchProviderKey({ apiKey: formatApiKeys(value) })
+        const formattedKey = formatApiKeys(value)
+        updateProvider({ apiKey: formattedKey })
+        updateWebSearchProviderKey({ apiKey: formattedKey })
+        // Auto-enable provider when apiKey is updated in onboarding mode
+        if (isOnboarding && formattedKey && !provider.enabled) {
+          updateProvider({ enabled: true })
+        }
       }, 150),
-    [updateProvider, updateWebSearchProviderKey]
+    [updateProvider, updateWebSearchProviderKey, isOnboarding, provider.enabled]
   )
 
   // 同步 provider.apiKey 到 localApiKey
@@ -227,6 +234,7 @@ const ProviderSetting: FC<Props> = ({ providerId }) => {
 
   const onCheckApi = async () => {
     const formattedLocalKey = formatApiKeys(localApiKey)
+
     // 如果存在多个密钥，直接打开管理窗口
     if (formattedLocalKey.includes(',')) {
       await openApiKeyList()
@@ -260,6 +268,12 @@ const ProviderSetting: FC<Props> = ({ providerId }) => {
       })
 
       setApiKeyConnectivity((prev) => ({ ...prev, status: HealthStatus.SUCCESS }))
+
+      // Auto-enable provider when API check succeeds in onboarding mode
+      if (isOnboarding && !provider.enabled) {
+        updateProvider({ enabled: true })
+      }
+
       setTimeoutTimer(
         'onCheckApi',
         () => {

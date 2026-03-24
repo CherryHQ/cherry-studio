@@ -8,7 +8,7 @@ export default class ProviderPopup {
       title: '选择其他服务商',
       content: (
         <MemoryRouter>
-          <ProviderList />
+          <ProviderList isOnboarding />
         </MemoryRouter>
       ),
       footer: null,

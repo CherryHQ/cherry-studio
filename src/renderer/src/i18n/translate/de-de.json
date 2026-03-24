@@ -4826,6 +4826,7 @@
           "label": "Modelle aus Liste hinzufügen"
         },
         "add_whole_group": "Gesamte Gruppe hinzufügen",
+        "fetch_list": "[to be translated]:Fetch model list",
         "refetch_list": "Modellliste erneut abrufen",
         "remove_listed": "Modelle aus Liste entfernen",
         "remove_model": "Modell entfernen",

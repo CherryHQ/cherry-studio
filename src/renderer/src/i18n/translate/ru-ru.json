@@ -4826,6 +4826,7 @@
           "label": "Добавить в список"
         },
         "add_whole_group": "Добавить всю группу",
+        "fetch_list": "[to be translated]:Fetch model list",
         "refetch_list": "Повторное получение списка моделей",
         "remove_listed": "Удалить из списка",
         "remove_model": "Удалить модель",

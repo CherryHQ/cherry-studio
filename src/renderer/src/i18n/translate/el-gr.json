@@ -4826,6 +4826,7 @@
           "label": "Προσθήκη μοντέλων από τη λίστα"
         },
         "add_whole_group": "Προσθήκη ολόκληρης ομάδας",
+        "fetch_list": "[to be translated]:Fetch model list",
         "refetch_list": "Επαναλήψτε τη λήψη της λίστας μοντέλων",
         "remove_listed": "Αφαίρεση μοντέλων από τη λίστα",
         "remove_model": "Αφαίρεση Μοντέλου",

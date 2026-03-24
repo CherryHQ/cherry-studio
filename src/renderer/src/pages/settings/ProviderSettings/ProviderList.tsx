@@ -43,9 +43,15 @@ const getIsOvmsSupported = async (): Promise<boolean> => {
   }
 }
 
-const ProviderList: FC = () => {
+interface ProviderListProps {
+  /** Whether in onboarding mode for new users */
+  isOnboarding?: boolean
+}
+
+const ProviderList: FC<ProviderListProps> = ({ isOnboarding = false }) => {
   const [searchParams, setSearchParams] = useSearchParams()
-  const providers = useAllProviders()
+  const allProviders = useAllProviders()
+  const providers = isOnboarding ? allProviders.filter((p) => p.id !== 'cherryin') : allProviders
   const { updateProviders, addProvider, removeProvider, updateProvider } = useProviders()
   const { setTimeoutTimer } = useTimer()
   const [selectedProvider, _setSelectedProvider] = useState<Provider>(providers[0])
@@ -440,7 +446,7 @@ const ProviderList: FC = () => {
           </Button>
         </AddButtonWrapper>
       </ProviderListContainer>
-      <ProviderSetting providerId={selectedProvider.id} key={selectedProvider.id} />
+      <ProviderSetting providerId={selectedProvider.id} key={selectedProvider.id} isOnboarding={isOnboarding} />
     </Container>
   )
 }

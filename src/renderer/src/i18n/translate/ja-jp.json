@@ -4826,6 +4826,7 @@
           "label": "リストにモデルを追加"
         },
         "add_whole_group": "グループ全体を追加",
+        "fetch_list": "[to be translated]:Fetch model list",
         "refetch_list": "モデルリストを再取得",
         "remove_listed": "リストからモデルを削除",
         "remove_model": "モデルを削除",

@@ -1,10 +1,9 @@
 import { loggerService } from '@logger'
 import CherryStudioLogo from '@renderer/assets/images/logo.png'
 import { useLanding } from '@renderer/context/LandingContext'
-import { useProvider } from '@renderer/hooks/useProvider'
+import { useAllProviders, useProvider } from '@renderer/hooks/useProvider'
 import { oauthWithCherryIn } from '@renderer/utils/oauth'
 import { Button, Divider } from 'antd'
-import { isEmpty } from 'lodash'
 import type { FC } from 'react'
 import { useCallback, useState } from 'react'
 
@@ -17,8 +16,14 @@ const CHERRYIN_OAUTH_SERVER = 'https://open.cherryin.ai'
 
 const WelcomePage: FC = () => {
   const { setStep, setCherryInLoggedIn } = useLanding()
-  const { updateProvider, provider } = useProvider(CHERRYIN_PROVIDER_ID)
+  const { updateProvider } = useProvider(CHERRYIN_PROVIDER_ID)
+  const allProviders = useAllProviders()
   const [isLoggingIn, setIsLoggingIn] = useState(false)
+
+  // 检查是否有可用的 provider（启用状态且至少有一个模型）
+  const hasAvailableProvider = useCallback(() => {
+    return allProviders.some((p) => p.enabled && p.models.length > 0)
+  }, [allProviders])
 
   const handleCherryInLogin = useCallback(async () => {
     setIsLoggingIn(true)
@@ -42,8 +47,8 @@ const WelcomePage: FC = () => {
 
   const handleSelectProvider = async () => {
     await ProviderPopup.show()
-    // 弹窗关闭后，如果有任何 provider 配置了 apiKey，直接进入模型选择页
-    if (!isEmpty(provider?.apiKey)) {
+    // 弹窗关闭后，如果有可用的 provider（启用状态且至少有一个模型），进入模型选择页
+    if (hasAvailableProvider()) {
       setStep('select-model')
     }
   }
