@@ -33,7 +33,7 @@ interface VersionInfo {
 }
 
 @Injectable('CodeCliService')
-@ServicePhase(Phase.BeforeReady)
+@ServicePhase(Phase.Background)
 export class CodeCliService extends BaseService {
   // Static properties for cleanup management (avoid listener accumulation)
   private static pendingBatCleanups = new Set<string>()
