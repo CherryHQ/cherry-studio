@@ -23,7 +23,6 @@ import type {
 } from '@shared/data/migration/v2/types'
 import { eq, sql } from 'drizzle-orm'
 import { app } from 'electron'
-import Store from 'electron-store'
 import fsSync from 'fs'
 import fs from 'fs/promises'
 import path from 'path'
@@ -90,23 +89,30 @@ export class MigrationEngine {
   /**
    * Detect whether legacy v1 data exists on disk.
    * Checks two independent indicators:
-   * 1. Dexie IndexedDB directory (chat/message data)
-   * 2. electron-store config.json (app settings)
+   * 1. electron-store config.json file existence (app settings)
+   * 2. Any IndexedDB database in the userData directory (Dexie chat/message data)
    * Returns true if ANY legacy data source is found.
    */
   private hasLegacyData(): boolean {
     const userData = app.getPath('userData')
 
-    // Dexie IndexedDB: v1 renderer uses file:// protocol → stored under "file__0.indexeddb.leveldb"
-    const dexieDbPath = path.join(userData, 'IndexedDB', 'file__0.indexeddb.leveldb')
-    const hasDexie = fsSync.existsSync(dexieDbPath)
+    // electron-store creates config.json lazily on first write.
+    // v1 always writes settings; fresh v2 installs have no file yet
+    // (needsMigration runs before analyticsService.init which first writes clientId).
+    const configPath = path.join(userData, 'config.json')
+    const hasConfig = fsSync.existsSync(configPath)
 
-    // electron-store: v1 writes settings to config.json
-    const legacyStore = new Store()
-    const hasElectronStore = legacyStore.size > 0
+    // Check if any IndexedDB database exists (*.indexeddb.leveldb directories).
+    // Avoids hardcoding Chromium's internal origin-based naming convention.
+    const indexedDbDir = path.join(userData, 'IndexedDB')
+    let hasIndexedDb = false
+    if (fsSync.existsSync(indexedDbDir)) {
+      const entries = fsSync.readdirSync(indexedDbDir)
+      hasIndexedDb = entries.some((e) => e.endsWith('.indexeddb.leveldb'))
+    }
 
-    logger.info('Legacy data detection', { hasDexie, hasElectronStore, dexieDbPath })
-    return hasDexie || hasElectronStore
+    logger.info('Legacy data detection', { hasConfig, hasIndexedDb })
+    return hasConfig || hasIndexedDb
   }
 
   /**
