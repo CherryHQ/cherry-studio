@@ -1,7 +1,7 @@
 import { loggerService } from '@logger'
 import KnowledgeService from '@main/services/KnowledgeService'
 import { reduxService } from '@main/services/ReduxService'
-import type { KnowledgeBase, KnowledgeBaseParams, Model } from '@types'
+import type { KnowledgeBase, KnowledgeBaseParams, Provider } from '@types'
 import type { Request, Response } from 'express'
 
 const logger = loggerService.withContext('KnowledgeHandlers')
@@ -92,22 +92,43 @@ interface SearchRequest {
 }
 
 /**
+ * Get provider configuration from Redux store by provider ID
+ */
+async function getProviderConfig(providerId: string): Promise<{ apiKey: string; baseURL: string } | null> {
+  try {
+    const providers = await reduxService.select<Provider[]>('state.llm.providers')
+    const provider = providers?.find((p) => p.id === providerId)
+    if (!provider) {
+      return null
+    }
+
+    // Derive baseURL from apiHost, removing trailing slashes and # suffix
+    let baseURL = provider.apiHost || ''
+    baseURL = baseURL.replace(/\/+$/, '')
+    baseURL = baseURL.replace(/#$/, '')
+
+    return {
+      apiKey: provider.apiKey || '',
+      baseURL
+    }
+  } catch {
+    return null
+  }
+}
+
+/**
  * Convert KnowledgeBase to KnowledgeBaseParams for search
  */
-function getKnowledgeBaseParams(base: KnowledgeBase): KnowledgeBaseParams {
-  // Model.provider is a string (provider ID)
-  const providerId = base.model?.provider || 'ollama'
+async function getKnowledgeBaseParams(base: KnowledgeBase): Promise<KnowledgeBaseParams> {
+  // Get provider config for embedding model
+  const embedProviderId = base.model?.provider || 'ollama'
+  const embedConfig = await getProviderConfig(embedProviderId)
 
-  const rerankModel = (base as any).rerankModel as Model | undefined
-
-  // Determine embed API client params
-  // For Ollama, typically use localhost:11434
-  const isOllama = providerId === 'ollama'
   const embedApiClient = {
     model: base.model?.id || '',
-    provider: providerId,
-    apiKey: '', // Will be populated by the KnowledgeService from provider config
-    baseURL: isOllama ? 'http://localhost:11434' : '' // Ollama is default
+    provider: embedProviderId,
+    apiKey: embedConfig?.apiKey || '',
+    baseURL: embedConfig?.baseURL || (embedProviderId === 'ollama' ? 'http://localhost:11434' : '')
   }
 
   // Build the params object
@@ -121,12 +142,13 @@ function getKnowledgeBaseParams(base: KnowledgeBase): KnowledgeBaseParams {
   }
 
   // Add rerank if configured
-  if (rerankModel?.provider) {
+  if (base.rerankModel?.provider) {
+    const rerankConfig = await getProviderConfig(base.rerankModel.provider)
     params.rerankApiClient = {
-      model: rerankModel.id || '',
-      provider: rerankModel.provider,
-      apiKey: '',
-      baseURL: ''
+      model: base.rerankModel.id || '',
+      provider: base.rerankModel.provider,
+      apiKey: rerankConfig?.apiKey || '',
+      baseURL: rerankConfig?.baseURL || ''
     }
   }
 
@@ -182,7 +204,7 @@ export const searchKnowledge = async (req: Request, res: Response): Promise<Resp
     // Search each knowledge base
     const searchPromises = targetBases.map(async (base) => {
       try {
-        const params = getKnowledgeBaseParams(base)
+        const params = await getKnowledgeBaseParams(base)
 
         // Call KnowledgeService.search directly (first param is IPC event, not used)
         const searchResults = await KnowledgeService.search({} as Electron.IpcMainInvokeEvent, {
