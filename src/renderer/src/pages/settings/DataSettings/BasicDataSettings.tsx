@@ -34,8 +34,8 @@ const BasicDataSettings: React.FC = () => {
   const dispatch = useAppDispatch()
 
   useEffect(() => {
-    window.api.getAppInfo().then(setAppInfo)
-    window.api.getCacheSize().then(setCacheSize)
+    void window.api.getAppInfo().then(setAppInfo)
+    void window.api.getCacheSize().then(setCacheSize)
   }, [])
 
   const handleSelectAppDataPath = async () => {
@@ -84,7 +84,7 @@ const BasicDataSettings: React.FC = () => {
       <div style={{ fontSize: '18px', fontWeight: 'bold' }}>{t('settings.data.app_data.migration_title')}</div>
     )
     const migrationClassName = 'migration-modal'
-    showMigrationConfirmModal(appInfo.appDataPath, newAppDataPath, migrationTitle, migrationClassName)
+    void showMigrationConfirmModal(appInfo.appDataPath, newAppDataPath, migrationTitle, migrationClassName)
   }
 
   const doubleConfirmModalBeforeCopyData = (newPath: string) => {
@@ -102,7 +102,7 @@ const BasicDataSettings: React.FC = () => {
         setTimeoutTimer(
           'doubleConfirmModalBeforeCopyData',
           () => {
-            window.api.relaunchApp({
+            void window.api.relaunchApp({
               args: ['--new-data-path=' + newPath]
             })
           },
@@ -188,7 +188,7 @@ const BasicDataSettings: React.FC = () => {
             setTimeoutTimer(
               'showMigrationConfirmModal_1',
               () => {
-                window.api.relaunchApp({
+                void window.api.relaunchApp({
                   args: ['--new-data-path=' + newPath]
                 })
               },
@@ -205,13 +205,13 @@ const BasicDataSettings: React.FC = () => {
             'showMigrationConfirmModal_2',
             () => {
               window.toast.success(t('settings.data.app_data.select_success'))
-              window.api.setStopQuitApp(false, '')
-              window.api.relaunchApp()
+              void window.api.setStopQuitApp(false, '')
+              void window.api.relaunchApp()
             },
             500
           )
         } catch (error) {
-          window.api.setStopQuitApp(false, '')
+          void window.api.setStopQuitApp(false, '')
           window.toast.error({
             title: t('settings.data.app_data.path_change_failed') + ': ' + error,
             timeout: 5000
@@ -366,7 +366,7 @@ const BasicDataSettings: React.FC = () => {
 
       const { loadingModal, progressInterval, updateProgress } = showProgressModal(title, className, PathsContent)
       try {
-        window.api.setStopQuitApp(true, t('settings.data.app_data.stop_quit_app_reason'))
+        void window.api.setStopQuitApp(true, t('settings.data.app_data.stop_quit_app_reason'))
         await startMigration(originalPath, newDataPath, progressInterval, updateProgress, loadingModal)
 
         setAppInfo(await window.api.getAppInfo())
@@ -375,15 +375,15 @@ const BasicDataSettings: React.FC = () => {
           'handleDataMigration',
           () => {
             window.toast.success(t('settings.data.app_data.select_success'))
-            window.api.setStopQuitApp(false, '')
-            window.api.relaunchApp({
+            void window.api.setStopQuitApp(false, '')
+            void window.api.relaunchApp({
               args: ['--user-data-dir=' + newDataPath]
             })
           },
           1000
         )
       } catch (error) {
-        window.api.setStopQuitApp(false, '')
+        void window.api.setStopQuitApp(false, '')
         window.toast.error({
           title: t('settings.data.app_data.copy_failed') + ': ' + error,
           timeout: 5000
@@ -396,7 +396,7 @@ const BasicDataSettings: React.FC = () => {
       }
     }
 
-    handleDataMigration()
+    void handleDataMigration()
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
@@ -404,9 +404,9 @@ const BasicDataSettings: React.FC = () => {
     if (!path) return
     if (path?.endsWith('log')) {
       const dirPath = path.split(/[/\\]/).slice(0, -1).join('/')
-      window.api.openPath(dirPath)
+      void window.api.openPath(dirPath)
     } else {
-      window.api.openPath(path)
+      void window.api.openPath(path)
     }
   }
 

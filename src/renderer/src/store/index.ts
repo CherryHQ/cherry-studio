@@ -141,7 +141,7 @@ export const persistor = persistStore(store, undefined, () => {
   }
 
   // Notify main process that Redux store is ready
-  window.electron?.ipcRenderer?.invoke(IpcChannel.ReduxStoreReady)
+  void window.electron?.ipcRenderer?.invoke(IpcChannel.ReduxStoreReady)
   logger.info('Redux store ready, notified main process')
 })
 

@@ -286,7 +286,7 @@ const OvmsPage: FC<{ Options: string[] }> = ({ Options }) => {
       }
     }
 
-    removePainting('ovms_paintings', paintingToDelete)
+    void removePainting('ovms_paintings', paintingToDelete)
   }
 
   const translate = async () => {
@@ -324,7 +324,7 @@ const OvmsPage: FC<{ Options: string[] }> = ({ Options }) => {
       if (spaceClickCount === 2) {
         setSpaceClickCount(0)
         setIsTranslating(true)
-        translate()
+        void translate()
       }
     }
   }

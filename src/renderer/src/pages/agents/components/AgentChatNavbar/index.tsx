@@ -25,12 +25,12 @@ const AgentChatNavbar = ({ activeAgent, className }: Props) => {
     if (topicPosition === 'right') {
       toggleShowTopics()
     } else {
-      EventEmitter.emit(EVENT_NAMES.SHOW_TOPIC_SIDEBAR)
+      void EventEmitter.emit(EVENT_NAMES.SHOW_TOPIC_SIDEBAR)
     }
   })
 
   useShortcut('search_message', () => {
-    SearchPopup.show()
+    void SearchPopup.show()
   })
 
   return (

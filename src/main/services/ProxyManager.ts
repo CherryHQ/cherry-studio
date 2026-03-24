@@ -326,7 +326,7 @@ class SelectiveDispatcher extends Dispatcher {
       await this.proxyDispatcher.close()
     } catch (error) {
       logger.error('Failed to close dispatcher:', error as Error)
-      this.proxyDispatcher.destroy()
+      void this.proxyDispatcher.destroy()
     }
   }
 
@@ -416,7 +416,7 @@ export class ProxyManager {
           config.proxyRules = currentProxy.proxyUrl.toLowerCase()
           config.proxyBypassRules = currentProxy.noProxy.join(',')
         }
-        this.monitorSystemProxy()
+        void this.monitorSystemProxy()
       }
 
       // Support both semicolon and comma as separators
@@ -471,7 +471,7 @@ export class ProxyManager {
   private setGlobalProxy(config: ProxyConfig) {
     this.setEnvironment(config.proxyRules || '')
     this.setGlobalFetchProxy(config)
-    this.setSessionsProxy(config)
+    void this.setSessionsProxy(config)
 
     this.setGlobalHttpProxy(config)
   }
@@ -550,7 +550,7 @@ export class ProxyManager {
     if (config.mode === 'direct' || !proxyUrl) {
       setGlobalDispatcher(this.originalGlobalDispatcher)
       global[Symbol.for('undici.globalDispatcher.1')] = this.originalSocksDispatcher
-      this.proxyDispatcher?.close()
+      void this.proxyDispatcher?.close()
       this.proxyDispatcher = null
       axios.defaults.adapter = this.originalAxiosAdapter
       return
@@ -584,7 +584,7 @@ export class ProxyManager {
     await Promise.all(sessions.map((session) => session.setProxy(config)))
 
     // set proxy for electron
-    app.setProxy(config)
+    void app.setProxy(config)
   }
 }
 

@@ -122,7 +122,7 @@ const SessionItem = ({ session, agentId, onDelete, onPress }: SessionItemProps) 
         key: 'edit',
         icon: <EditIcon size={14} />,
         onClick: () => {
-          SessionSettingsPopup.show({
+          void SessionSettingsPopup.show({
             agentId,
             sessionId: session.id
           })
@@ -137,7 +137,7 @@ const SessionItem = ({ session, agentId, onDelete, onPress }: SessionItemProps) 
             agentId: agentId,
             sessionId: targetSession.id
           }
-          dispatch(loadTopicMessagesThunk(sessionTopicId))
+          void dispatch(loadTopicMessagesThunk(sessionTopicId))
           try {
             startTopicRenaming(sessionTopicId)
             await renameAgentSessionIfNeeded(agentSession, sessionTopicId, store.getState)

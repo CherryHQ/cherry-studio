@@ -68,7 +68,7 @@ export class MemoryService {
 
   public static reload(): MemoryService {
     if (MemoryService.instance) {
-      MemoryService.instance.close()
+      void MemoryService.instance.close()
     }
     MemoryService.instance = new MemoryService()
     return MemoryService.instance

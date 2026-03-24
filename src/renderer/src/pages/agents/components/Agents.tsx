@@ -25,17 +25,17 @@ const Agents = ({ onSelectItem }: AgentsProps) => {
 
   const handleAgentPress = useCallback(
     (agentId: string) => {
-      setActiveAgentId(agentId)
+      void setActiveAgentId(agentId)
       onSelectItem?.()
     },
     [setActiveAgentId, onSelectItem]
   )
 
   const handleAddAgent = useCallback(() => {
-    !apiServerRunning && startApiServer()
-    AgentModalPopup.show({
+    void (!apiServerRunning && startApiServer())
+    void AgentModalPopup.show({
       afterSubmit: (agent: AgentEntity) => {
-        setActiveAgentId(agent.id)
+        void setActiveAgentId(agent.id)
       }
     })
   }, [apiServerRunning, startApiServer, setActiveAgentId])

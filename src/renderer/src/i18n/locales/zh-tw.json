@@ -1195,6 +1195,8 @@
             "content": "確定要刪除選中的 {{count}} 個話題嗎？此操作不可撤銷。",
             "title": "刪除話題"
           },
+          "error": "[to be translated]:Failed to delete. Please try again.",
+          "partial_success": "[to be translated]:Successfully deleted {{successCount}} topics, {{failedCount}} failed",
           "success": "已刪除 {{count}} 個話題"
         },
         "deselect_all": "取消全選",

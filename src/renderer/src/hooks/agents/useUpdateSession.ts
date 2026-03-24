@@ -16,7 +16,7 @@ const mutateInfiniteList = (
   sessionId: string,
   updater: (session: AgentSessionEntity) => AgentSessionEntity
 ) => {
-  mutate<InfiniteData>(
+  void mutate<InfiniteData>(
     infKey,
     (prev) => {
       if (!prev) return prev
@@ -44,21 +44,21 @@ export const useUpdateSession = (agentId: string | null) => {
 
       // Optimistic update
       mutateInfiniteList(infKey, sessionId, (session) => ({ ...session, ...form }))
-      mutate<AgentSessionEntity>(itemKey, (prev) => (prev ? { ...prev, ...form } : prev), { revalidate: false })
+      void mutate<AgentSessionEntity>(itemKey, (prev) => (prev ? { ...prev, ...form } : prev), { revalidate: false })
 
       try {
         const result = await client.updateSession(agentId, form)
         // Update with server response
         mutateInfiniteList(infKey, sessionId, () => result)
-        mutate(itemKey, result, { revalidate: false })
+        void mutate(itemKey, result, { revalidate: false })
         if (options?.showSuccessToast ?? true) {
           window.toast.success(t('common.update_success'))
         }
         return result
       } catch (error) {
         // Rollback: revalidate to get fresh data
-        mutate(infKey)
-        mutate(itemKey)
+        void mutate(infKey)
+        void mutate(itemKey)
         window.toast.error({ title: t('agent.session.update.error.failed'), description: getErrorMessage(error) })
         return undefined
       }

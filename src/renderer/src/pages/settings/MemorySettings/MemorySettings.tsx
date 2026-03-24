@@ -338,7 +338,7 @@ const MemorySettings = () => {
     logger.verbose(`useEffect triggered for currentUser: ${currentUser}`)
     // Reset display count when user changes
     setDisplayCount(50)
-    loadMemories(currentUser)
+    void loadMemories(currentUser)
   }, [currentUser, loadMemories])
 
   // Debounce search text

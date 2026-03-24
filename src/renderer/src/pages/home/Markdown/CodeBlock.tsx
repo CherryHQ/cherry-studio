@@ -40,7 +40,7 @@ const CodeBlock: React.FC<Props> = ({ children, className, node, blockId }) => {
   const handleSave = useCallback(
     (newContent: string) => {
       if (id !== undefined) {
-        EventEmitter.emit(EVENT_NAMES.EDIT_CODE_BLOCK, {
+        void EventEmitter.emit(EVENT_NAMES.EDIT_CODE_BLOCK, {
           msgBlockId: blockId,
           codeBlockId: id,
           newContent
