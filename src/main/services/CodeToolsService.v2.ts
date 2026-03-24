@@ -4,6 +4,7 @@ import path from 'node:path'
 
 import { loggerService } from '@logger'
 import { isMac, isWin } from '@main/constant'
+import { BaseService, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import { removeEnvProxy } from '@main/utils'
 import { isUserInChina } from '@main/utils/ipService'
 import { getBinaryName } from '@main/utils/process'
@@ -31,7 +32,9 @@ interface VersionInfo {
   needsUpdate: boolean
 }
 
-class CodeToolsService {
+@Injectable()
+@ServicePhase(Phase.WhenReady)
+export class CodeToolsService extends BaseService {
   // Static properties for cleanup management (avoid listener accumulation)
   private static pendingBatCleanups = new Set<string>()
   private static exitCleanupRegistered = false
@@ -47,18 +50,22 @@ class CodeToolsService {
   private openCodeCleanupTimers: Map<string, NodeJS.Timeout> = new Map() // Track cleanup timers by directory for debounce
   private openCodeConfigBackups: Map<string, string | null> = new Map() // Store raw backup content of opencode.json
 
-  constructor() {
-    this.getBunPath = this.getBunPath.bind(this)
-    this.getPackageName = this.getPackageName.bind(this)
-    this.getCliExecutableName = this.getCliExecutableName.bind(this)
-    this.isPackageInstalled = this.isPackageInstalled.bind(this)
-    this.getVersionInfo = this.getVersionInfo.bind(this)
-    this.updatePackage = this.updatePackage.bind(this)
-    this.run = this.run.bind(this)
-
+  protected async onInit(): Promise<void> {
     if (isMac || isWin) {
       void this.preloadTerminals()
     }
+  }
+
+  protected async onStop(): Promise<void> {
+    for (const [configPath, timer] of this.openCodeCleanupTimers) {
+      clearTimeout(timer)
+      logger.info(`Cleared cleanup timer for: ${configPath}`)
+    }
+    this.openCodeCleanupTimers.clear()
+    this.openCodeConfigBackups.clear()
+    this.versionCache.clear()
+    this.terminalsCache = null
+    this.customTerminalPaths.clear()
   }
 
   /**
