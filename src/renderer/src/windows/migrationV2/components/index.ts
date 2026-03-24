@@ -1,3 +1,5 @@
-export { ActionButtons } from './ActionButtons'
+export { MigrationFooter } from './MigrationFooter'
+export { MigrationHeader } from './MigrationHeader'
 export { MigratorProgressList } from './MigratorProgress'
-export { StageIndicator } from './StageIndicator'
+export { StatePanel } from './StatePanel'
+export { SectionLabel, StepPage } from './StepPage'

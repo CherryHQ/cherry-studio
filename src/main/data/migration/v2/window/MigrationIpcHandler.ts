@@ -4,7 +4,7 @@
 
 import { loggerService } from '@logger'
 import BackupManager from '@main/services/BackupManager'
-import { MigrationIpcChannels, type MigrationProgress } from '@shared/data/migration/v2/types'
+import { type MigrationBackupMode, MigrationIpcChannels, type MigrationProgress } from '@shared/data/migration/v2/types'
 import { app, dialog, ipcMain } from 'electron'
 import fs from 'fs/promises'
 import path from 'path'
@@ -64,6 +64,37 @@ export function registerMigrationIpcHandlers(): void {
     }
   })
 
+  ipcMain.handle(MigrationIpcChannels.GoBack, async () => {
+    try {
+      if (currentProgress.stage === 'backup_required') {
+        updateProgress({
+          stage: 'introduction',
+          overallProgress: 0,
+          currentMessage: 'Ready to start data migration',
+          migrators: [],
+          backupInfo: undefined
+        })
+        return true
+      }
+
+      if (currentProgress.stage === 'backup_ready') {
+        updateProgress({
+          stage: 'backup_required',
+          overallProgress: 0,
+          currentMessage: 'Data backup is required before migration can proceed',
+          migrators: [],
+          backupInfo: currentProgress.backupInfo
+        })
+        return true
+      }
+
+      return false
+    } catch (error) {
+      logger.error('Error going back in migration flow', error as Error)
+      throw error
+    }
+  })
+
   // Proceed to backup stage
   ipcMain.handle(MigrationIpcChannels.ProceedToBackup, async () => {
     try {
@@ -71,7 +102,8 @@ export function registerMigrationIpcHandlers(): void {
         stage: 'backup_required',
         overallProgress: 0,
         currentMessage: 'Data backup is required before migration can proceed',
-        migrators: []
+        migrators: [],
+        backupInfo: undefined
       })
       return true
     } catch (error) {
@@ -87,10 +119,13 @@ export function registerMigrationIpcHandlers(): void {
 
       // Update progress to indicate backup dialog is opening
       updateProgress({
-        stage: 'backup_progress',
+        stage: 'backup_in_progress',
         overallProgress: 10,
         currentMessage: 'Opening backup dialog...',
-        migrators: []
+        migrators: [],
+        backupInfo: {
+          mode: 'create'
+        }
       })
 
       const result = await dialog.showSaveDialog({
@@ -105,30 +140,29 @@ export function registerMigrationIpcHandlers(): void {
       if (!result.canceled && result.filePath) {
         logger.info('User selected backup location', { filePath: result.filePath })
         updateProgress({
-          stage: 'backup_progress',
+          stage: 'backup_in_progress',
           overallProgress: 10,
           currentMessage: 'Creating backup file...',
-          migrators: []
+          migrators: [],
+          backupInfo: {
+            mode: 'create'
+          }
         })
 
         // Perform the actual backup to the selected location
         const backupResult = await performBackupToFile(result.filePath)
 
         if (backupResult.success) {
-          updateProgress({
-            stage: 'backup_progress',
-            overallProgress: 100,
-            currentMessage: 'Backup created successfully!',
-            migrators: []
-          })
-
           // Wait a moment to show the success message, then transition to confirmed state
           setTimeout(() => {
             updateProgress({
-              stage: 'backup_confirmed',
+              stage: 'backup_ready',
               overallProgress: 100,
               currentMessage: 'Backup completed! Ready to start migration. Click "Start Migration" to continue.',
-              migrators: []
+              migrators: [],
+              backupInfo: {
+                mode: 'create'
+              }
             })
           }, 1000)
         } else {
@@ -136,7 +170,8 @@ export function registerMigrationIpcHandlers(): void {
             stage: 'backup_required',
             overallProgress: 0,
             currentMessage: `Backup failed: ${backupResult.error}`,
-            migrators: []
+            migrators: [],
+            backupInfo: undefined
           })
         }
 
@@ -147,7 +182,8 @@ export function registerMigrationIpcHandlers(): void {
           stage: 'backup_required',
           overallProgress: 0,
           currentMessage: 'Backup cancelled. Please create a backup to continue.',
-          migrators: []
+          migrators: [],
+          backupInfo: undefined
         })
         return { success: false, error: 'Backup cancelled by user' }
       }
@@ -157,24 +193,45 @@ export function registerMigrationIpcHandlers(): void {
         stage: 'backup_required',
         overallProgress: 0,
         currentMessage: 'Backup process failed',
-        migrators: []
+        migrators: [],
+        backupInfo: undefined
       })
       throw error
     }
   })
 
   // Backup completed
-  ipcMain.handle(MigrationIpcChannels.BackupCompleted, async () => {
+  ipcMain.handle(MigrationIpcChannels.BackupCompleted, async (_event, mode: MigrationBackupMode = 'existing') => {
     try {
       updateProgress({
-        stage: 'backup_confirmed',
+        stage: 'backup_ready',
         overallProgress: 100,
         currentMessage: 'Backup completed! Ready to start migration. Click "Start Migration" to continue.',
-        migrators: []
+        migrators: [],
+        backupInfo: {
+          mode
+        }
       })
       return true
     } catch (error) {
       logger.error('Error confirming backup', error as Error)
+      throw error
+    }
+  })
+
+  ipcMain.handle(MigrationIpcChannels.PrepareMigration, async () => {
+    try {
+      updateProgress({
+        stage: 'preparing_migration',
+        overallProgress: 0,
+        currentMessage: 'Preparing legacy data export...',
+        i18nMessage: { key: 'migration.progress.preparing_export' },
+        migrators: [],
+        backupInfo: currentProgress.backupInfo
+      })
+      return true
+    } catch (error) {
+      logger.error('Error preparing migration', error as Error)
       throw error
     }
   })
@@ -245,6 +302,15 @@ export function registerMigrationIpcHandlers(): void {
         throw new Error('Migration data not ready. Redux data or Dexie export path missing.')
       }
 
+      updateProgress({
+        stage: 'migration_in_progress',
+        overallProgress: 0,
+        currentMessage: 'Starting migration...',
+        i18nMessage: { key: 'migration.progress.starting_engine' },
+        migrators: [],
+        backupInfo: currentProgress.backupInfo
+      })
+
       // Set up progress callback
       migrationEngine.onProgress((progress) => {
         updateProgress(progress)
@@ -259,20 +325,22 @@ export function registerMigrationIpcHandlers(): void {
 
       if (result.success) {
         updateProgress({
-          stage: 'migration_completed',
+          stage: 'migration_succeeded',
           overallProgress: 100,
           currentMessage: 'Migration completed successfully! Please confirm to continue.',
           migrators: currentProgress.migrators.map((m) => ({
             ...m,
             status: 'completed'
-          }))
+          })),
+          backupInfo: currentProgress.backupInfo
         })
       } else {
         updateProgress({
-          stage: 'error',
+          stage: 'failed',
           overallProgress: currentProgress.overallProgress,
           currentMessage: result.error || 'Migration failed',
           migrators: currentProgress.migrators,
+          backupInfo: currentProgress.backupInfo,
           error: result.error
         })
       }
@@ -283,10 +351,11 @@ export function registerMigrationIpcHandlers(): void {
       logger.error('Error starting migration', error as Error)
 
       updateProgress({
-        stage: 'error',
+        stage: 'failed',
         overallProgress: currentProgress.overallProgress,
         currentMessage: errorMessage,
         migrators: currentProgress.migrators,
+        backupInfo: currentProgress.backupInfo,
         error: errorMessage
       })
 
@@ -294,15 +363,52 @@ export function registerMigrationIpcHandlers(): void {
     }
   })
 
+  ipcMain.handle(MigrationIpcChannels.ConfirmMigrationResult, async () => {
+    try {
+      updateProgress({
+        stage: 'restart_required',
+        overallProgress: 100,
+        currentMessage: 'Migration confirmed. Restart Cherry Studio to continue.',
+        migrators: currentProgress.migrators.map((m) => ({
+          ...m,
+          status: 'completed'
+        })),
+        backupInfo: currentProgress.backupInfo
+      })
+      return true
+    } catch (error) {
+      logger.error('Error confirming migration result', error as Error)
+      throw error
+    }
+  })
+
+  ipcMain.handle(MigrationIpcChannels.ReportFailure, async (_event, errorMessage: string) => {
+    try {
+      updateProgress({
+        stage: 'failed',
+        overallProgress: currentProgress.overallProgress,
+        currentMessage: errorMessage,
+        migrators: currentProgress.migrators,
+        backupInfo: currentProgress.backupInfo,
+        error: errorMessage
+      })
+      return true
+    } catch (error) {
+      logger.error('Error reporting migration failure', error as Error)
+      throw error
+    }
+  })
+
   // Retry migration
   ipcMain.handle(MigrationIpcChannels.Retry, async () => {
     try {
-      // Reset to backup confirmed stage
+      // Reset to backup ready stage
       updateProgress({
-        stage: 'backup_confirmed',
+        stage: 'backup_ready',
         overallProgress: 0,
         currentMessage: 'Ready to retry migration',
-        migrators: []
+        migrators: [],
+        backupInfo: currentProgress.backupInfo
       })
       return true
     } catch (error) {
