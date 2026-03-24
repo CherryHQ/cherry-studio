@@ -91,10 +91,10 @@ const ProviderOAuth: FC<Props> = ({ providerId }) => {
   const onProviderAction = (action: ProviderOAuthAction) => {
     switch (action) {
       case 'charge':
-        providerCharge(provider.id)
+        void providerCharge(provider.id)
         return
       case 'bills':
-        providerBills(provider.id)
+        void providerBills(provider.id)
         return
       case 'apiKey':
         openProviderPage(providerConfig?.websites?.apiKey)
