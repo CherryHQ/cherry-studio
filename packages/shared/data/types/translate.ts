@@ -7,7 +7,7 @@
 
 import * as z from 'zod'
 
-import { LangCodeSchema } from '../preference/preferenceTypes'
+import { TranslateLangCodeSchema } from '../preference/preferenceTypes'
 
 // ============================================================================
 // Translate History
@@ -21,9 +21,9 @@ export const TranslateHistorySchema = z.object({
   /** Translated text, non-empty */
   targetText: z.string().min(1),
   /** FK to translate_language.langCode, nullable (SET NULL on language delete) */
-  sourceLanguage: LangCodeSchema.nullable(),
+  sourceLanguage: TranslateLangCodeSchema.nullable(),
   /** FK to translate_language.langCode, nullable (SET NULL on language delete) */
-  targetLanguage: LangCodeSchema.nullable(),
+  targetLanguage: TranslateLangCodeSchema.nullable(),
   /** Whether the record is starred */
   star: z.boolean(),
   /** ISO 8601 datetime */
@@ -39,8 +39,8 @@ export type TranslateHistory = z.infer<typeof TranslateHistorySchema>
 // ============================================================================
 
 export const TranslateLanguageSchema = z.object({
-  /** PK, immutable, must match LangCodeSchema (`/^[a-z]{2,3}(-[a-z]{2,4})?$/`) */
-  langCode: LangCodeSchema,
+  /** PK, immutable, must match TranslateLangCodeSchema (`/^[a-z]{2,3}(-[a-z]{2,4})?$/`) */
+  langCode: TranslateLangCodeSchema,
   /** Display name, non-empty (e.g. "English", "Chinese (Simplified)") */
   value: z.string().min(1),
   /** Flag emoji (e.g. "🇬🇧", "🇨🇳") */
