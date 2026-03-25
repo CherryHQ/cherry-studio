@@ -1,4 +1,3 @@
-import { BaseService } from '@main/core/lifecycle'
 import type {
   ResolvedWebSearchProvider,
   WebSearchExecutionConfig,
@@ -56,7 +55,7 @@ vi.mock('./utils/config', () => ({
   getRuntimeConfig: getRuntimeConfigMock
 }))
 
-import { WebSearchService } from './WebSearchService'
+import webSearchService from './WebSearchService'
 
 const provider: ResolvedWebSearchProvider = {
   id: 'tavily',
@@ -98,7 +97,6 @@ const runtimeConfig: WebSearchExecutionConfig = {
 
 describe('WebSearchService', () => {
   beforeEach(() => {
-    BaseService.resetInstances()
     vi.clearAllMocks()
     getProviderByIdMock.mockResolvedValue(provider)
     getRuntimeConfigMock.mockResolvedValue(runtimeConfig)
@@ -130,9 +128,7 @@ describe('WebSearchService', () => {
       search: searchMock
     })
 
-    const service = new WebSearchService()
-
-    const result = await service.search({
+    const result = await webSearchService.search({
       providerId: 'tavily',
       questions: ['hello'],
       requestId: 'req-cutoff'
@@ -157,9 +153,7 @@ describe('WebSearchService', () => {
       search: searchMock
     })
 
-    const service = new WebSearchService()
-
-    await service.search({
+    await webSearchService.search({
       providerId: 'local-google',
       questions: ['hello'],
       requestId: 'req-local-provider'
@@ -199,9 +193,7 @@ describe('WebSearchService', () => {
       } satisfies WebSearchResponse)
     })
 
-    const service = new WebSearchService()
-
-    const result = await service.search({
+    const result = await webSearchService.search({
       providerId: 'tavily',
       questions: ['hello'],
       requestId: 'req-blacklist'
@@ -236,8 +228,7 @@ describe('WebSearchService', () => {
       search: searchMock
     })
 
-    const service = new WebSearchService()
-    const result = await service.search({
+    const result = await webSearchService.search({
       providerId: 'tavily',
       questions: ['first', 'second'],
       requestId: 'req-partial-success'
@@ -286,10 +277,8 @@ describe('WebSearchService', () => {
       search: searchMock
     })
 
-    const service = new WebSearchService()
-
     await expect(
-      service.search({
+      webSearchService.search({
         providerId: 'tavily',
         questions: ['first', 'second'],
         requestId: 'req-partial-abort'
@@ -330,8 +319,7 @@ describe('WebSearchService', () => {
       search: searchMock
     })
 
-    const service = new WebSearchService()
-    const result = await service.search({
+    const result = await webSearchService.search({
       providerId: 'tavily',
       questions: ['first', 'second'],
       requestId: 'req-multi-success'
@@ -370,10 +358,8 @@ describe('WebSearchService', () => {
       search: vi.fn().mockRejectedValue(error)
     })
 
-    const service = new WebSearchService()
-
     await expect(
-      service.search({
+      webSearchService.search({
         providerId: 'tavily',
         questions: ['first', 'second'],
         requestId: 'req-all-failed'
@@ -415,9 +401,7 @@ describe('WebSearchService', () => {
         } satisfies WebSearchResponse)
     })
 
-    const service = new WebSearchService()
-
-    const result = await service.search({
+    const result = await webSearchService.search({
       providerId: 'tavily',
       questions: ['first', 'second'],
       requestId: 'req-status-write-failed'
@@ -456,9 +440,7 @@ describe('WebSearchService', () => {
       } satisfies WebSearchResponse)
     })
 
-    const service = new WebSearchService()
-
-    const result = await service.search({
+    const result = await webSearchService.search({
       providerId: 'tavily',
       questions: ['hello'],
       requestId: 'req-post-process-status-failed'
@@ -479,10 +461,8 @@ describe('WebSearchService', () => {
       search: vi.fn().mockRejectedValue(searchError)
     })
 
-    const service = new WebSearchService()
-
     await expect(
-      service.search({
+      webSearchService.search({
         providerId: 'tavily',
         questions: ['first'],
         requestId: 'req-clear-failed'

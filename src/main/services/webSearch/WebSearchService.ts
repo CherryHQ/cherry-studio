@@ -1,7 +1,5 @@
 import { loggerService } from '@logger'
 import { application } from '@main/core/application'
-import { BaseService, DependsOn, Injectable, ServicePhase } from '@main/core/lifecycle'
-import { Phase } from '@main/core/lifecycle'
 import type {
   WebSearchExecutionConfig,
   WebSearchRequest,
@@ -25,10 +23,7 @@ type PreparedWebSearchContext = {
   providerDriver: BaseWebSearchProvider
 }
 
-@Injectable('WebSearchService')
-@ServicePhase(Phase.WhenReady)
-@DependsOn(['PreferenceService', 'CacheService'])
-export class WebSearchService extends BaseService {
+class WebSearchService {
   private async prepareSearchContext(request: WebSearchRequest): Promise<PreparedWebSearchContext> {
     const preferenceService = application.get('PreferenceService')
     const [provider, runtimeConfig] = await Promise.all([
@@ -176,3 +171,5 @@ export class WebSearchService extends BaseService {
     }
   }
 }
+
+export default new WebSearchService()
