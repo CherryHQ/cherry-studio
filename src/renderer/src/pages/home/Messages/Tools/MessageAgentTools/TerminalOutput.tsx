@@ -33,6 +33,9 @@ const light = {
 
 type ColorPalette = typeof dark
 
+const ERROR_LINE_RE = /^(error|Error|ERROR|FAIL|FAILED|fatal|Fatal|FATAL)\b/
+const WARNING_LINE_RE = /^(warning|Warning|WARNING|WARN)\b/
+
 const enum TokenType {
   Whitespace,
   String,
@@ -247,10 +250,10 @@ function colorizeLine(line: string, commandMode: boolean, p: ColorPalette): stri
 
   // Error / warning lines
   const trimmed = line.trimStart()
-  if (/^(error|Error|ERROR|FAIL|FAILED|fatal|Fatal|FATAL)\b/.test(trimmed)) {
+  if (ERROR_LINE_RE.test(trimmed)) {
     return `${p.red}${line}${RST}`
   }
-  if (/^(warning|Warning|WARNING|WARN)\b/.test(trimmed)) {
+  if (WARNING_LINE_RE.test(trimmed)) {
     return `${p.yellow}${line}${RST}`
   }
 

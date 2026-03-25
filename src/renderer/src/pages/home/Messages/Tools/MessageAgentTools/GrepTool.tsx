@@ -7,6 +7,8 @@ import { ToolHeader, TruncatedIndicator } from './GenericTools'
 import { TerminalContainer } from './TerminalOutput'
 import { AgentToolsType, type GrepToolInput, type GrepToolOutput } from './types'
 
+const FILE_PATH_RE = /^(\/[\w./@+-][^:]*[^:])(:.*)?$/
+
 export function GrepTool({
   input,
   output
@@ -39,7 +41,7 @@ export function GrepTool({
       <div>
         <TerminalContainer>
           {truncatedOutput?.split('\n').map((line, i) => {
-            const match = line.match(/^(\/[\w./@+-][^:]*[^:])(:.*)?$/)
+            const match = line.match(FILE_PATH_RE)
             if (match) {
               return (
                 <div key={i}>
