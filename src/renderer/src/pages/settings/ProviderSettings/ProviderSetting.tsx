@@ -143,7 +143,7 @@ const ProviderSetting: FC<Props> = ({ providerId, isOnboarding = false }) => {
     [dispatch, provider.id]
   )
 
-  // 使用 ref 保存回调函数和状态，避免 debounce 函数因依赖变化而重新创建
+  // Store callbacks in ref to avoid recreating debounce function when dependencies change
   const callbacks = { updateProvider, updateWebSearchProviderKey, isOnboarding, providerEnabled: provider.enabled }
   const callbacksRef = useRef(callbacks)
   callbacksRef.current = callbacks
@@ -160,24 +160,34 @@ const ProviderSetting: FC<Props> = ({ providerId, isOnboarding = false }) => {
           updateProvider({ enabled: true })
         }
       }, 150),
-    [] // 空依赖，debounce 函数只创建一次
+    []
   )
 
-  // 同步 provider.apiKey 到 localApiKey
-  // 重置连通性检查状态
+  // Track whether update comes from external source to avoid loops
+  const isExternalUpdateRef = useRef(false)
+
+  // Sync provider.apiKey to localApiKey and reset connectivity status
   useEffect(() => {
+    // Cancel any pending debounce calls to prevent old values from overwriting new ones
+    debouncedUpdateApiKey.cancel()
+    isExternalUpdateRef.current = true
     setLocalApiKey(provider.apiKey)
     setApiKeyConnectivity({ status: HealthStatus.NOT_CHECKED })
-  }, [provider.apiKey])
+  }, [provider.apiKey, debouncedUpdateApiKey])
 
-  // 同步 localApiKey 到 provider.apiKey（防抖）
+  // Sync localApiKey to provider.apiKey (debounced)
+  // Only trigger on user input, not on external updates
   useEffect(() => {
+    if (isExternalUpdateRef.current) {
+      isExternalUpdateRef.current = false
+      return
+    }
     if (localApiKey !== provider.apiKey) {
       debouncedUpdateApiKey(localApiKey)
     }
   }, [localApiKey, provider.apiKey, debouncedUpdateApiKey])
 
-  // 组件卸载时立即执行待处理的更新，避免数据丢失
+  // Flush pending updates on unmount to prevent data loss
   useEffect(() => {
     return () => {
       debouncedUpdateApiKey.flush()
