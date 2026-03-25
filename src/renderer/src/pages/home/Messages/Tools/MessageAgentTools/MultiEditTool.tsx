@@ -6,6 +6,7 @@ import type { CollapseProps } from 'antd'
 import { useMemo } from 'react'
 
 import { ClickableFilePath } from './ClickableFilePath'
+import { DiffStyleToggle, useDiffStyle } from './DiffStyleToggle'
 import { ToolHeader } from './GenericTools'
 import type { MultiEditToolInput, MultiEditToolOutput } from './types'
 import { AgentToolsType } from './types'
@@ -29,26 +30,45 @@ function EditHunk({
   return <FileDiff fileDiff={fileDiff} options={options} />
 }
 
+function MultiEditToolChildren({ input }: { input?: MultiEditToolInput }) {
+  const { activeShikiTheme, isShikiThemeDark } = useCodeStyle()
+  const { diffStyle, toggleDiffStyle } = useDiffStyle()
+  const edits = Array.isArray(input?.edits) ? input.edits : []
+
+  const diffOptions = useMemo(
+    () => ({
+      disableFileHeader: true,
+      diffStyle,
+      overflow: 'wrap' as const,
+      theme: activeShikiTheme,
+      themeType: (isShikiThemeDark ? 'dark' : 'light') as 'dark' | 'light'
+    }),
+    [activeShikiTheme, isShikiThemeDark, diffStyle]
+  )
+
+  return (
+    <div className="relative">
+      <DiffStyleToggle diffStyle={diffStyle} onToggle={toggleDiffStyle} />
+      {edits.map((edit, index) => (
+        <EditHunk
+          key={index}
+          filePath={input?.file_path ?? ''}
+          oldString={edit.old_string ?? ''}
+          newString={edit.new_string ?? ''}
+          options={diffOptions}
+        />
+      ))}
+    </div>
+  )
+}
+
 export function MultiEditTool({
   input
 }: {
   input?: MultiEditToolInput
   output?: MultiEditToolOutput
 }): NonNullable<CollapseProps['items']>[number] {
-  const { activeShikiTheme, isShikiThemeDark } = useCodeStyle()
   const filename = input?.file_path?.split('/').pop()
-  const edits = Array.isArray(input?.edits) ? input.edits : []
-
-  const diffOptions = useMemo(
-    () => ({
-      disableFileHeader: true,
-      diffStyle: 'unified' as const,
-      overflow: 'wrap' as const,
-      theme: activeShikiTheme,
-      themeType: (isShikiThemeDark ? 'dark' : 'light') as 'dark' | 'light'
-    }),
-    [activeShikiTheme, isShikiThemeDark]
-  )
 
   return {
     key: AgentToolsType.MultiEdit,
@@ -60,18 +80,6 @@ export function MultiEditTool({
         showStatus={false}
       />
     ),
-    children: (
-      <div>
-        {edits.map((edit, index) => (
-          <EditHunk
-            key={index}
-            filePath={input?.file_path ?? ''}
-            oldString={edit.old_string ?? ''}
-            newString={edit.new_string ?? ''}
-            options={diffOptions}
-          />
-        ))}
-      </div>
-    )
+    children: <MultiEditToolChildren input={input} />
   }
 }

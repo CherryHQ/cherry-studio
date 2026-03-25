@@ -5,9 +5,40 @@ import type { CollapseProps } from 'antd'
 import { useMemo } from 'react'
 
 import { ClickableFilePath } from './ClickableFilePath'
+import { DiffStyleToggle, useDiffStyle } from './DiffStyleToggle'
 import { ToolHeader } from './GenericTools'
 import type { EditToolInput, EditToolOutput } from './types'
 import { AgentToolsType } from './types'
+
+function EditToolChildren({ input, output }: { input?: EditToolInput; output?: EditToolOutput }) {
+  const { activeShikiTheme, isShikiThemeDark } = useCodeStyle()
+  const { diffStyle, toggleDiffStyle } = useDiffStyle()
+
+  const fileDiff = useMemo(() => {
+    const fileName = input?.file_path ?? ''
+    return parseDiffFromFile(
+      { name: fileName, contents: input?.old_string ?? '' },
+      { name: fileName, contents: input?.new_string ?? '' }
+    )
+  }, [input?.file_path, input?.old_string, input?.new_string])
+
+  return (
+    <div className="relative">
+      <DiffStyleToggle diffStyle={diffStyle} onToggle={toggleDiffStyle} />
+      <FileDiff
+        fileDiff={fileDiff}
+        options={{
+          disableFileHeader: true,
+          diffStyle,
+          overflow: 'wrap',
+          theme: activeShikiTheme,
+          themeType: isShikiThemeDark ? 'dark' : 'light'
+        }}
+      />
+      {output}
+    </div>
+  )
+}
 
 export function EditTool({
   input,
@@ -16,15 +47,7 @@ export function EditTool({
   input?: EditToolInput
   output?: EditToolOutput
 }): NonNullable<CollapseProps['items']>[number] {
-  const { activeShikiTheme, isShikiThemeDark } = useCodeStyle()
   const filename = input?.file_path?.split('/').pop()
-  const fileDiff = useMemo(() => {
-    const fileName = input?.file_path ?? ''
-    return parseDiffFromFile(
-      { name: fileName, contents: input?.old_string ?? '' },
-      { name: fileName, contents: input?.new_string ?? '' }
-    )
-  }, [input?.file_path, input?.old_string, input?.new_string])
 
   return {
     key: AgentToolsType.Edit,
@@ -36,20 +59,6 @@ export function EditTool({
         showStatus={false}
       />
     ),
-    children: (
-      <>
-        <FileDiff
-          fileDiff={fileDiff}
-          options={{
-            disableFileHeader: true,
-            diffStyle: 'unified',
-            overflow: 'wrap',
-            theme: activeShikiTheme,
-            themeType: isShikiThemeDark ? 'dark' : 'light'
-          }}
-        />
-        {output}
-      </>
-    )
+    children: <EditToolChildren input={input} output={output} />
   }
 }
