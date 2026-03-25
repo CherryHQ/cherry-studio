@@ -102,7 +102,8 @@
     "sharp": "0.34.3",
     "swagger-ui-express": "5.0.1",
     "tesseract.js": "6.0.1",
-    "turndown": "7.2.0"
+    "turndown": "7.2.0",
+    "pdf-parse": "^2.4.5"
   },
   "devDependencies": {
     "@agentic/exa": "^7.3.3",
@@ -363,7 +364,6 @@
     "pako": "1.0.11",
     "partial-json": "0.1.7",
     "pdf-lib": "^1.17.1",
-    "pdf-parse": "^2.4.5",
     "prosemirror-model": "1.25.2",
     "proxy-agent": "^6.5.0",
     "rc-input": "1.8.0",
