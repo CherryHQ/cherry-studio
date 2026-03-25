@@ -5,12 +5,7 @@
 // ==================== 核心管理器 ====================
 
 // Provider 核心功能
-export {
-  coreExtensions,
-  hasProviderConfig,
-  ProviderInitializationError,
-  registeredProviderIds
-} from './core/initialization'
+export { coreExtensions, hasProviderConfig } from './core/initialization'
 
 // ==================== 基础数据和类型 ====================
 
@@ -19,11 +14,8 @@ export type { AiSdkModel, ProviderError } from './types'
 
 // 类型提取工具
 export type {
-  CoreProviderSettingsMap,
   ExtensionConfigToIdResolutionMap,
   ExtensionToSettingsMap,
-  ExtractExtensionIds,
-  ExtractExtensionSettings,
   ExtractProviderIds,
   StringKeys,
   UnionToIntersection
@@ -41,7 +33,6 @@ export {
   createProviderExtension,
   type ProviderCreatorFunction,
   ProviderExtension,
-  ProviderExtensionBuilder,
   type ProviderExtensionConfig,
   type ProviderModule
 } from './core/ProviderExtension'

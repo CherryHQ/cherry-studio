@@ -4,9 +4,6 @@ export type {
   AiRequestContext,
   GenerateTextParams,
   GenerateTextResult,
-  HookResult,
-  PluginManagerConfig,
-  RecursiveCallFn,
   StreamTextParams,
   StreamTextResult
 } from './types'

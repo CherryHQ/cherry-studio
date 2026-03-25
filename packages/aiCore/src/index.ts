@@ -6,14 +6,7 @@
 // 导入内部使用的类和函数
 
 // ==================== 主要用户接口 ====================
-export {
-  createExecutor,
-  createOpenAICompatibleExecutor,
-  embedMany,
-  generateImage,
-  generateText,
-  streamText
-} from './core/runtime'
+export { createExecutor, embedMany, generateImage, generateText, streamText } from './core/runtime'
 
 // ==================== Embedding 类型 ====================
 export type { EmbedManyParams, EmbedManyResult } from './core/runtime'
@@ -27,13 +20,10 @@ export type {
   AiRequestContext,
   GenerateTextParams,
   GenerateTextResult,
-  HookResult,
-  PluginManagerConfig,
-  RecursiveCallFn,
   StreamTextParams,
   StreamTextResult
 } from './core/plugins'
-export { createContext, definePlugin, PluginManager } from './core/plugins'
+export { definePlugin } from './core/plugins'
 export { PluginEngine } from './core/runtime/pluginEngine'
 
 // ==================== 类型工具 ====================
@@ -49,17 +39,6 @@ export type {
   WebSearchToolConfigMap
 } from './core/providers'
 
-// ==================== 选项 ====================
-export {
-  createAnthropicOptions,
-  createGoogleOptions,
-  createOpenAIOptions,
-  type ExtractProviderOptions,
-  mergeProviderOptions,
-  type ProviderOptionsMap,
-  type TypedProviderOptions
-} from './core/options'
-
 // ==================== 错误处理 ====================
 export {
   AiCoreError,
@@ -69,7 +48,3 @@ export {
   RecursiveDepthError,
   TemplateLoadError
 } from './core/errors'
-
-// ==================== 包信息 ====================
-export const AI_CORE_VERSION = '1.0.0'
-export const AI_CORE_NAME = '@cherrystudio/ai-core'
