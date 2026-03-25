@@ -168,18 +168,18 @@ const CodeToolsPage: FC = () => {
 
   const handleModelChange = (value: string) => {
     if (!value) {
-      setModel(null)
+      void setModel(null)
       return
     }
 
     // Store the model unique ID string directly (v2: preference stores ID, not full Model)
-    setModel(value)
+    void setModel(value)
   }
 
   // 处理删除目录
   const handleRemoveDirectory = (directory: string, e: React.MouseEvent) => {
     e.stopPropagation()
-    removeDir(directory)
+    void removeDir(directory)
   }
 
   // 检查 bun 是否安装
