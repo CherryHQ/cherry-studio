@@ -1810,26 +1810,6 @@
     "videos": "视频",
     "videos_file": "视频文件"
   },
-  "landing": {
-    "select_model": {
-      "change_later": "您可以随时在设置中更改",
-      "start": "开始使用",
-      "subtitle": "为每个场景选择默认模型",
-      "title": "选择你的默认模型"
-    },
-    "skip": "跳过引导",
-    "toast": {
-      "connected": "成功连接 CherryIN"
-    },
-    "welcome": {
-      "login_cherryin": "登录 CherryIN",
-      "other_provider": "选择其他服务商",
-      "select_other_provider": "选择其他服务商",
-      "setup_hint": "请您先至少配置一个服务商，以获得最佳使用体验",
-      "subtitle": "使用 CherryIN 服务商可畅享顶级 AI 服务",
-      "title": "欢迎使用 Cherry Studio"
-    }
-  },
   "languages": {
     "arabic": "阿拉伯文",
     "chinese": "简体中文",
@@ -2637,6 +2617,26 @@
       "title": "保持活跃时间"
     },
     "title": "Ollama"
+  },
+  "onboarding": {
+    "select_model": {
+      "change_later": "您可以随时在设置中更改",
+      "start": "开始使用",
+      "subtitle": "为每个场景选择默认模型",
+      "title": "选择你的默认模型"
+    },
+    "skip": "跳过引导",
+    "toast": {
+      "connected": "成功连接 CherryIN"
+    },
+    "welcome": {
+      "login_cherryin": "登录 CherryIN",
+      "other_provider": "选择其他服务商",
+      "select_other_provider": "选择其他服务商",
+      "setup_hint": "请您先至少配置一个服务商，以获得最佳使用体验",
+      "subtitle": "使用 CherryIN 服务商可畅享顶级 AI 服务",
+      "title": "欢迎使用 Cherry Studio"
+    }
   },
   "openclaw": {
     "checking_installation": "正在检查 OpenClaw 安装状态...",

@@ -1810,26 +1810,6 @@
     "videos": "vídeo",
     "videos_file": "Arquivo de vídeo"
   },
-  "landing": {
-    "select_model": {
-      "change_later": "Você pode alterar isso a qualquer momento nas configurações",
-      "start": "Comece",
-      "subtitle": "Selecionar modelo padrão para cada cenário",
-      "title": "Escolha Seus Modelos Padrão"
-    },
-    "skip": "Pular",
-    "toast": {
-      "connected": "Conectado com sucesso ao CherryIN"
-    },
-    "welcome": {
-      "login_cherryin": "Entrar com CherryIN",
-      "other_provider": "Escolher Outros Provedores",
-      "select_other_provider": "Selecionar Outro Fornecedor",
-      "setup_hint": "Por favor, configure pelo menos um provedor para a melhor experiência",
-      "subtitle": "Desfrute de serviços de IA de alto nível com a CherryIN",
-      "title": "Bem-vindo à Cherry Studio"
-    }
-  },
   "languages": {
     "arabic": "Árabe",
     "chinese": "Chinês Simplificado",
@@ -2637,6 +2617,26 @@
       "title": "Manter tempo ativo"
     },
     "title": "Ollama"
+  },
+  "onboarding": {
+    "select_model": {
+      "change_later": "[to be translated]:You can change this anytime in settings",
+      "start": "[to be translated]:Get Started",
+      "subtitle": "[to be translated]:Select default model for each scenario",
+      "title": "[to be translated]:Choose Your Default Models"
+    },
+    "skip": "[to be translated]:Skip",
+    "toast": {
+      "connected": "[to be translated]:Successfully connected to CherryIN"
+    },
+    "welcome": {
+      "login_cherryin": "[to be translated]:Login with CherryIN",
+      "other_provider": "[to be translated]:Choose Other Providers",
+      "select_other_provider": "[to be translated]:Select Other Provider",
+      "setup_hint": "[to be translated]:Please configure at least one provider for the best experience",
+      "subtitle": "[to be translated]:Enjoy top-tier AI services with CherryIN",
+      "title": "[to be translated]:Welcome to Cherry Studio"
+    }
   },
   "openclaw": {
     "checking_installation": "Verificando a instalação do OpenClaw...",

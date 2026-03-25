@@ -1810,26 +1810,6 @@
     "videos": "Videos",
     "videos_file": "Videodatei"
   },
-  "landing": {
-    "select_model": {
-      "change_later": "Sie können dies jederzeit in den Einstellungen ändern.",
-      "start": "Loslegen",
-      "subtitle": "Standardmodell für jedes Szenario auswählen",
-      "title": "Wähle deine Standardmodelle"
-    },
-    "skip": "Überspringen",
-    "toast": {
-      "connected": "Erfolgreich mit CherryIN verbunden"
-    },
-    "welcome": {
-      "login_cherryin": "Mit CherryIN anmelden",
-      "other_provider": "Andere Anbieter auswählen",
-      "select_other_provider": "Wählen Sie einen anderen Anbieter",
-      "setup_hint": "Bitte konfigurieren Sie mindestens einen Anbieter für die beste Erfahrung.",
-      "subtitle": "Genießen Sie erstklassige KI-Dienste mit CherryIN",
-      "title": "Willkommen bei Cherry Studio"
-    }
-  },
   "languages": {
     "arabic": "Arabisch",
     "chinese": "Vereinfachtes Chinesisch",
@@ -2637,6 +2617,26 @@
       "title": "Aktiv-Haltezeit"
     },
     "title": "Ollama"
+  },
+  "onboarding": {
+    "select_model": {
+      "change_later": "[to be translated]:You can change this anytime in settings",
+      "start": "[to be translated]:Get Started",
+      "subtitle": "[to be translated]:Select default model for each scenario",
+      "title": "[to be translated]:Choose Your Default Models"
+    },
+    "skip": "[to be translated]:Skip",
+    "toast": {
+      "connected": "[to be translated]:Successfully connected to CherryIN"
+    },
+    "welcome": {
+      "login_cherryin": "[to be translated]:Login with CherryIN",
+      "other_provider": "[to be translated]:Choose Other Providers",
+      "select_other_provider": "[to be translated]:Select Other Provider",
+      "setup_hint": "[to be translated]:Please configure at least one provider for the best experience",
+      "subtitle": "[to be translated]:Enjoy top-tier AI services with CherryIN",
+      "title": "[to be translated]:Welcome to Cherry Studio"
+    }
   },
   "openclaw": {
     "checking_installation": "Überprüfe OpenClaw-Installation...",

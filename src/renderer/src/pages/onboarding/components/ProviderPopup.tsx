@@ -6,7 +6,7 @@ import { MemoryRouter } from 'react-router-dom'
 export default class ProviderPopup {
   static show() {
     return GeneralPopup.show({
-      title: i18n.t('landing.welcome.select_other_provider'),
+      title: i18n.t('onboarding.welcome.select_other_provider'),
       content: (
         <MemoryRouter>
           <ProviderList isOnboarding />

@@ -1810,26 +1810,6 @@
     "videos": "видео",
     "videos_file": "видеофайл"
   },
-  "landing": {
-    "select_model": {
-      "change_later": "Вы можете изменить это в любое время в настройках",
-      "start": "Начать",
-      "subtitle": "Выберите модель по умолчанию для каждого сценария",
-      "title": "Выберите модели по умолчанию"
-    },
-    "skip": "Пропустить",
-    "toast": {
-      "connected": "Успешно подключено к CherryIN"
-    },
-    "welcome": {
-      "login_cherryin": "Войти через CherryIN",
-      "other_provider": "Выбрать других поставщиков",
-      "select_other_provider": "Выбрать другого поставщика",
-      "setup_hint": "Пожалуйста, настройте хотя бы одного поставщика для наилучшего опыта.",
-      "subtitle": "Наслаждайтесь услугами ИИ высшего уровня с CherryIN",
-      "title": "Добро пожаловать в Cherry Studio"
-    }
-  },
   "languages": {
     "arabic": "Арабский",
     "chinese": "Китайский",
@@ -2637,6 +2617,26 @@
       "title": "Время жизни модели"
     },
     "title": "Ollama"
+  },
+  "onboarding": {
+    "select_model": {
+      "change_later": "[to be translated]:You can change this anytime in settings",
+      "start": "[to be translated]:Get Started",
+      "subtitle": "[to be translated]:Select default model for each scenario",
+      "title": "[to be translated]:Choose Your Default Models"
+    },
+    "skip": "[to be translated]:Skip",
+    "toast": {
+      "connected": "[to be translated]:Successfully connected to CherryIN"
+    },
+    "welcome": {
+      "login_cherryin": "[to be translated]:Login with CherryIN",
+      "other_provider": "[to be translated]:Choose Other Providers",
+      "select_other_provider": "[to be translated]:Select Other Provider",
+      "setup_hint": "[to be translated]:Please configure at least one provider for the best experience",
+      "subtitle": "[to be translated]:Enjoy top-tier AI services with CherryIN",
+      "title": "[to be translated]:Welcome to Cherry Studio"
+    }
   },
   "openclaw": {
     "checking_installation": "Проверка установки OpenClaw...",

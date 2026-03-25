@@ -1,4 +1,4 @@
-import { useLanding } from '@renderer/context/LandingContext'
+import { useOnboarding } from '@renderer/context/OnboardingContext'
 import ModelSettings from '@renderer/pages/settings/ModelSettings/ModelSettings'
 import { Button } from 'antd'
 import { ArrowLeft } from 'lucide-react'
@@ -7,10 +7,10 @@ import { useTranslation } from 'react-i18next'
 
 const SelectModelPage: FC = () => {
   const { t } = useTranslation()
-  const { completeLanding, setStep, cherryInLoggedIn } = useLanding()
+  const { completeOnboarding, setStep, cherryInLoggedIn } = useOnboarding()
 
   const handleComplete = () => {
-    completeLanding()
+    completeOnboarding()
   }
 
   const handleBack = () => {
@@ -30,17 +30,17 @@ const SelectModelPage: FC = () => {
       )}
       <div className="flex w-96 flex-col gap-6">
         <div className="flex flex-col gap-2">
-          <h1 className="m-0 font-semibold text-(--color-text) text-2xl">{t('landing.select_model.title')}</h1>
-          <p className="m-0 text-(--color-text-2) text-sm">{t('landing.select_model.subtitle')}</p>
+          <h1 className="m-0 font-semibold text-(--color-text) text-2xl">{t('onboarding.select_model.title')}</h1>
+          <p className="m-0 text-(--color-text-2) text-sm">{t('onboarding.select_model.subtitle')}</p>
         </div>
 
         <ModelSettings showSettingsButton={false} showDescription={false} compact />
 
         <Button type="primary" size="large" block className="h-12 rounded-lg" onClick={handleComplete}>
-          {t('landing.select_model.start')}
+          {t('onboarding.select_model.start')}
         </Button>
 
-        <p className="m-0 text-center text-(--color-text-3) text-xs">{t('landing.select_model.change_later')}</p>
+        <p className="m-0 text-center text-(--color-text-3) text-xs">{t('onboarding.select_model.change_later')}</p>
       </div>
     </div>
   )

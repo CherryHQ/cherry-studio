@@ -1,6 +1,6 @@
 import { loggerService } from '@logger'
 import CherryStudioLogo from '@renderer/assets/images/logo.png'
-import { useLanding } from '@renderer/context/LandingContext'
+import { useOnboarding } from '@renderer/context/OnboardingContext'
 import { useProvider } from '@renderer/hooks/useProvider'
 import { fetchModels } from '@renderer/services/ApiService'
 import { useAppStore } from '@renderer/store'
@@ -14,13 +14,12 @@ import ProviderPopup from './ProviderPopup'
 
 const logger = loggerService.withContext('WelcomePage')
 
-const CHERRYIN_PROVIDER_ID = 'cherryin'
 const CHERRYIN_OAUTH_SERVER = 'https://open.cherryin.ai'
 
 const WelcomePage: FC = () => {
   const { t } = useTranslation()
-  const { setStep, setCherryInLoggedIn } = useLanding()
-  const { provider, updateProvider, addModel } = useProvider(CHERRYIN_PROVIDER_ID)
+  const { setStep, setCherryInLoggedIn } = useOnboarding()
+  const { provider, updateProvider, addModel } = useProvider('cherryin')
   const store = useAppStore()
   const [isAddingModels, setIsAddingModels] = useState(false)
 
@@ -30,7 +29,7 @@ const WelcomePage: FC = () => {
         async (apiKeys: string) => {
           updateProvider({ apiKey: apiKeys, enabled: true })
 
-          // Show loading while fetching and adding models
+          // Fetch and add models
           setIsAddingModels(true)
           try {
             const updatedProvider = { ...provider, apiKey: apiKeys, enabled: true }
@@ -46,7 +45,7 @@ const WelcomePage: FC = () => {
           }
 
           setCherryInLoggedIn(true)
-          window.toast.success(t('landing.toast.connected'))
+          window.toast.success(t('onboarding.toast.connected'))
           setStep('select-model')
         },
         {
@@ -70,8 +69,8 @@ const WelcomePage: FC = () => {
         <img src={CherryStudioLogo} alt="Cherry Studio" className="h-16 w-16 rounded-xl" />
 
         <div className="flex flex-col items-center gap-2">
-          <h1 className="m-0 font-semibold text-(--color-text) text-2xl">{t('landing.welcome.title')}</h1>
-          <p className="m-0 text-(--color-text-2) text-sm">{t('landing.welcome.subtitle')}</p>
+          <h1 className="m-0 font-semibold text-(--color-text) text-2xl">{t('onboarding.welcome.title')}</h1>
+          <p className="m-0 text-(--color-text-2) text-sm">{t('onboarding.welcome.subtitle')}</p>
         </div>
 
         <div className="mt-2 flex w-100 flex-col gap-3">
@@ -82,7 +81,7 @@ const WelcomePage: FC = () => {
             loading={isAddingModels}
             className="h-12 rounded-lg"
             onClick={handleCherryInLogin}>
-            {t('landing.welcome.login_cherryin')}
+            {t('onboarding.welcome.login_cherryin')}
           </Button>
 
           <Divider className="my-1!">
@@ -90,11 +89,11 @@ const WelcomePage: FC = () => {
           </Divider>
 
           <Button size="large" block className="h-12 rounded-lg" onClick={handleSelectProvider}>
-            {t('landing.welcome.other_provider')}
+            {t('onboarding.welcome.other_provider')}
           </Button>
         </div>
 
-        <p className="mt-1 text-(--color-text-3) text-xs">{t('landing.welcome.setup_hint')}</p>
+        <p className="mt-1 text-(--color-text-3) text-xs">{t('onboarding.welcome.setup_hint')}</p>
       </div>
     </div>
   )

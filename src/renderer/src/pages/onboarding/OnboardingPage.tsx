@@ -1,12 +1,12 @@
-import { useLanding } from '@renderer/context/LandingContext'
+import { useOnboarding } from '@renderer/context/OnboardingContext'
 import type { FC } from 'react'
 
 import SelectModelPage from './components/SelectModelPage'
 import SkipButton from './components/SkipButton'
 import WelcomePage from './components/WelcomePage'
 
-const LandingPage: FC = () => {
-  const { step } = useLanding()
+const OnboardingPage: FC = () => {
+  const { step } = useOnboarding()
 
   return (
     <div className="flex h-screen w-screen flex-col">
@@ -24,4 +24,4 @@ const LandingPage: FC = () => {
   )
 }
 
-export default LandingPage
+export default OnboardingPage
