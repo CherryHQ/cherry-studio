@@ -1195,8 +1195,8 @@
             "content": "¿Estás seguro de que quieres eliminar {{count}} tema(s) seleccionado(s)? Esta acción no se puede deshacer.",
             "title": "Eliminar Temas"
           },
-          "error": "[to be translated]:Failed to delete. Please try again.",
-          "partial_success": "[to be translated]:Successfully deleted {{successCount}} topics, {{failedCount}} failed",
+          "error": "Error al eliminar. Por favor, inténtalo de nuevo.",
+          "partial_success": "Se eliminaron correctamente {{successCount}} temas, {{failedCount}} fallaron",
           "success": "Eliminado(s) {{count}} tema(s)"
         },
         "deselect_all": "Deseleccionar todo",

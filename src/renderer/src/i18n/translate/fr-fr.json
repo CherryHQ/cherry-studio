@@ -1195,8 +1195,8 @@
             "content": "Êtes-vous sûr de vouloir supprimer {{count}} sujet(s) sélectionné(s) ? Cette action est irréversible.",
             "title": "Supprimer des sujets"
           },
-          "error": "[to be translated]:Failed to delete. Please try again.",
-          "partial_success": "[to be translated]:Successfully deleted {{successCount}} topics, {{failedCount}} failed",
+          "error": "Échec de la suppression. Veuillez réessayer.",
+          "partial_success": "Suppression réussie de {{successCount}} sujets, {{failedCount}} ont échoué",
           "success": "Supprimé {{count}} sujet(s)"
         },
         "deselect_all": "Tout désélectionner",
