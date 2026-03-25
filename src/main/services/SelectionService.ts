@@ -128,15 +128,15 @@ export class SelectionService {
         // Several workarounds are applied when isWaylandDisplay is true.
         if (isLinux) {
           const envInfo = this.selectionHook.linuxGetEnvInfo()
-          this.isLinuxWaylandDisplay = envInfo?.displayProtocol === SelectionHook!.DisplayProtocol.WAYLAND
+          this.isLinuxWaylandDisplay = envInfo?.displayProtocol === SelectionHook.DisplayProtocol.WAYLAND
           this.hasLinuxInputDeviceAccess = envInfo?.hasInputDeviceAccess ?? false
 
           // X11: all compositors are compatible (no data-control protocol needed).
           // Wayland: Mutter (GNOME) does not implement data-control protocols; Unknown is uncertain.
           if (this.isLinuxWaylandDisplay) {
             this.isLinuxCompositorCompatible =
-              envInfo?.compositorType !== SelectionHook!.CompositorType.MUTTER &&
-              envInfo?.compositorType !== SelectionHook!.CompositorType.UNKNOWN
+              envInfo?.compositorType !== SelectionHook.CompositorType.MUTTER &&
+              envInfo?.compositorType !== SelectionHook.CompositorType.UNKNOWN
           } else {
             this.isLinuxCompositorCompatible = true
           }
