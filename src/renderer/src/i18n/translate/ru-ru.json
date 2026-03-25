@@ -1195,8 +1195,8 @@
             "content": "Вы уверены, что хотите удалить выбранные темы ({{count}})? Это действие нельзя отменить.",
             "title": "Удалить темы"
           },
-          "error": "[to be translated]:Failed to delete. Please try again.",
-          "partial_success": "[to be translated]:Successfully deleted {{successCount}} topics, {{failedCount}} failed",
+          "error": "Не удалось удалить. Попробуйте ещё раз.",
+          "partial_success": "Успешно удалено {{successCount}} тем, не удалось удалить {{failedCount}}",
           "success": "Удалено {{count}} тем(ы)"
         },
         "deselect_all": "Снять выделение со всех",

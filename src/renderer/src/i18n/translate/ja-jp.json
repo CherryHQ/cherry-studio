@@ -1195,8 +1195,8 @@
             "content": "{{count}}件の選択したトピックを削除してもよろしいですか？この操作は元に戻せません。",
             "title": "トピックを削除"
           },
-          "error": "[to be translated]:Failed to delete. Please try again.",
-          "partial_success": "[to be translated]:Successfully deleted {{successCount}} topics, {{failedCount}} failed",
+          "error": "削除に失敗しました。もう一度お試しください。",
+          "partial_success": "{{successCount}}件のトピックを正常に削除しました、{{failedCount}}件の削除に失敗しました",
           "success": "{{count}}件のトピックを削除しました"
         },
         "deselect_all": "すべての選択を解除",
