@@ -62,7 +62,7 @@ function buildAppProviderIds(): ProviderIdsMap {
   const map = {} as ProviderIdsMap
 
   allExtensions.forEach((ext) => {
-    const config = ext.config as ProviderExtensionConfig<any, any, any, KnownAppProviderId>
+    const config = ext.config as ProviderExtensionConfig<any, any, KnownAppProviderId>
     const name = config.name
     ;(map as Record<string, KnownAppProviderId>)[name] = name
 
