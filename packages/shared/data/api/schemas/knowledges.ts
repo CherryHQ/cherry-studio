@@ -106,36 +106,70 @@ export const KnowledgeItemDataSchema = z.union([
 
 export const CreateKnowledgeBaseSchema = z
   .object({
-    name: z.string(),
+    name: z.string().trim().min(1),
     description: z.string().optional(),
-    dimensions: z.number(),
-    embeddingModelId: z.string(),
+    dimensions: z.number().int().positive(),
+    embeddingModelId: z.string().trim().min(1),
     rerankModelId: z.string().optional(),
     fileProcessorId: z.string().optional(),
-    chunkSize: z.number().optional(),
-    chunkOverlap: z.number().optional(),
-    threshold: z.number().optional(),
-    documentCount: z.number().optional(),
+    chunkSize: z.number().int().min(100).optional(),
+    chunkOverlap: z.number().int().nonnegative().optional(),
+    threshold: z.number().min(0).max(1).optional(),
+    documentCount: z.number().int().min(1).max(50).optional(),
     searchMode: KnowledgeSearchModeSchema.optional(),
-    hybridAlpha: z.number().optional()
+    hybridAlpha: z.number().min(0).max(1).optional()
   })
   .strict()
+  .superRefine((data, ctx) => {
+    if (data.chunkSize !== undefined && data.chunkOverlap !== undefined && data.chunkOverlap >= data.chunkSize) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['chunkOverlap'],
+        message: 'chunkOverlap must be smaller than chunkSize'
+      })
+    }
+
+    if (data.hybridAlpha !== undefined && data.searchMode !== 'hybrid') {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['hybridAlpha'],
+        message: 'hybridAlpha can only be set when searchMode is hybrid'
+      })
+    }
+  })
 export type CreateKnowledgeBaseDto = z.infer<typeof CreateKnowledgeBaseSchema>
 
 export const UpdateKnowledgeBaseSchema = z
   .object({
-    name: z.string().optional(),
+    name: z.string().trim().min(1).optional(),
     description: z.string().optional(),
     rerankModelId: z.string().optional(),
     fileProcessorId: z.string().optional(),
-    chunkSize: z.number().optional(),
-    chunkOverlap: z.number().optional(),
-    threshold: z.number().optional(),
-    documentCount: z.number().optional(),
+    chunkSize: z.number().int().min(100).optional(),
+    chunkOverlap: z.number().int().nonnegative().optional(),
+    threshold: z.number().min(0).max(1).optional(),
+    documentCount: z.number().int().min(1).max(50).optional(),
     searchMode: KnowledgeSearchModeSchema.optional(),
-    hybridAlpha: z.number().optional()
+    hybridAlpha: z.number().min(0).max(1).optional()
   })
   .strict()
+  .superRefine((data, ctx) => {
+    if (data.chunkSize !== undefined && data.chunkOverlap !== undefined && data.chunkOverlap >= data.chunkSize) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['chunkOverlap'],
+        message: 'chunkOverlap must be smaller than chunkSize'
+      })
+    }
+
+    if (data.hybridAlpha !== undefined && data.searchMode !== undefined && data.searchMode !== 'hybrid') {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['hybridAlpha'],
+        message: 'hybridAlpha can only be set when searchMode is hybrid'
+      })
+    }
+  })
 export type UpdateKnowledgeBaseDto = z.infer<typeof UpdateKnowledgeBaseSchema>
 
 export type CreateKnowledgeItemDto = {

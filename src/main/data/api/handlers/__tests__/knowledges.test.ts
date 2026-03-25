@@ -1,16 +1,18 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { ZodError } from 'zod'
 
-const { createKnowledgeItemsMock } = vi.hoisted(() => ({
+const { createKnowledgeBaseMock, updateKnowledgeBaseMock, createKnowledgeItemsMock } = vi.hoisted(() => ({
+  createKnowledgeBaseMock: vi.fn(),
+  updateKnowledgeBaseMock: vi.fn(),
   createKnowledgeItemsMock: vi.fn()
 }))
 
 vi.mock('@data/services/KnowledgeBaseService', () => ({
   knowledgeBaseService: {
     list: vi.fn(),
-    create: vi.fn(),
+    create: createKnowledgeBaseMock,
     getById: vi.fn(),
-    update: vi.fn(),
+    update: updateKnowledgeBaseMock,
     delete: vi.fn()
   }
 }))
@@ -30,6 +32,44 @@ import { knowledgeHandlers } from '../knowledges'
 describe('knowledgeHandlers', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+  })
+
+  describe('knowledge base validation', () => {
+    it('rejects invalid create payloads before calling the service', async () => {
+      await expect(
+        knowledgeHandlers['/knowledge-bases'].POST({
+          body: {
+            name: 'Knowledge Base',
+            dimensions: 0,
+            embeddingModelId: 'provider::model',
+            chunkSize: 80,
+            chunkOverlap: 120,
+            threshold: 1.2,
+            documentCount: 0,
+            searchMode: 'default',
+            hybridAlpha: 0.5
+          } as never
+        })
+      ).rejects.toBeInstanceOf(ZodError)
+
+      expect(createKnowledgeBaseMock).not.toHaveBeenCalled()
+    })
+
+    it('rejects invalid update payloads before calling the service', async () => {
+      await expect(
+        knowledgeHandlers['/knowledge-bases/:id'].PATCH({
+          params: { id: 'kb-1' },
+          body: {
+            chunkSize: 300,
+            chunkOverlap: 300,
+            searchMode: 'bm25',
+            hybridAlpha: 0.5
+          } as never
+        })
+      ).rejects.toBeInstanceOf(ZodError)
+
+      expect(updateKnowledgeBaseMock).not.toHaveBeenCalled()
+    })
   })
 
   describe('POST /knowledge-bases/:id/items', () => {

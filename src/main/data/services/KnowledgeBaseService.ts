@@ -112,12 +112,35 @@ export class KnowledgeBaseService {
     if (Object.keys(forbiddenFieldErrors).length > 0) {
       throw DataApiErrorFactory.validation(forbiddenFieldErrors)
     }
+    if (dto.name !== undefined && !dto.name.trim()) {
+      throw DataApiErrorFactory.validation({ name: ['Name is required'] })
+    }
 
     const db = dbService.getDb()
-    await this.getById(id)
+    const existing = await this.getById(id)
+
+    const effectiveChunkSize = dto.chunkSize ?? existing.chunkSize
+    const effectiveChunkOverlap = dto.chunkOverlap ?? existing.chunkOverlap
+    if (
+      effectiveChunkSize !== undefined &&
+      effectiveChunkOverlap !== undefined &&
+      effectiveChunkOverlap >= effectiveChunkSize
+    ) {
+      throw DataApiErrorFactory.validation({
+        chunkOverlap: ['chunkOverlap must be smaller than chunkSize']
+      })
+    }
+
+    const effectiveSearchMode = dto.searchMode ?? existing.searchMode
+    const effectiveHybridAlpha = dto.hybridAlpha ?? existing.hybridAlpha
+    if (effectiveHybridAlpha !== undefined && effectiveSearchMode !== 'hybrid') {
+      throw DataApiErrorFactory.validation({
+        hybridAlpha: ['hybridAlpha can only be set when searchMode is hybrid']
+      })
+    }
 
     const updates: Partial<typeof knowledgeBaseTable.$inferInsert> = {}
-    if (dto.name !== undefined) updates.name = dto.name
+    if (dto.name !== undefined) updates.name = dto.name.trim()
     if (dto.description !== undefined) updates.description = dto.description
     if (dto.rerankModelId !== undefined) updates.rerankModelId = dto.rerankModelId
     if (dto.fileProcessorId !== undefined) updates.fileProcessorId = dto.fileProcessorId
