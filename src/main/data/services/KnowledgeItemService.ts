@@ -70,6 +70,9 @@ const directoryDataSchema = z.discriminatedUnion('kind', [
   directoryFileEntrySchema
 ]) satisfies z.ZodType<KnowledgeItemDataMap['directory']>
 
+type DirectoryEntryData = Extract<KnowledgeItemDataMap['directory'], { kind: 'entry' }>
+type CreateDirectoryEntryInput = Omit<DirectoryEntryData, 'kind'>
+
 function parseKnowledgeItemData<T extends keyof KnowledgeItemDataMap>(
   type: T,
   value: unknown,
@@ -121,6 +124,17 @@ function validateKnowledgeItemData<T extends keyof KnowledgeItemDataMap>(
       [fieldPath]: [error instanceof Error ? error.message : String(error)]
     })
   }
+}
+
+function validateDirectoryEntryData(value: unknown, fieldPath: string): DirectoryEntryData {
+  const result = directoryFileEntrySchema.safeParse(value)
+  if (result.success) {
+    return result.data
+  }
+
+  throw DataApiErrorFactory.validation({
+    [fieldPath]: [result.error.message]
+  })
 }
 
 function rowToKnowledgeItem(row: typeof knowledgeItemTable.$inferSelect): KnowledgeItem {
@@ -214,6 +228,42 @@ export class KnowledgeItemService {
     const items = rows.map((row) => rowToKnowledgeItem(row))
 
     logger.info('Created knowledge items', { baseId, count: items.length })
+    return { items }
+  }
+
+  async createDirectoryEntries(
+    parentId: string,
+    entries: CreateDirectoryEntryInput[]
+  ): Promise<{ items: KnowledgeItem[] }> {
+    if (entries.length === 0) {
+      throw DataApiErrorFactory.validation({ items: ['At least one item is required'] })
+    }
+
+    const parent = await this.getById(parentId)
+    if (parent.type !== 'directory' || parent.data.kind !== 'container') {
+      throw DataApiErrorFactory.validation({
+        parentId: ['Parent must reference a directory container item']
+      })
+    }
+
+    const db = dbService.getDb()
+    const values: Array<typeof knowledgeItemTable.$inferInsert> = entries.map((entry, index) => ({
+      baseId: parent.baseId,
+      parentId,
+      type: 'directory',
+      data: validateDirectoryEntryData({ kind: 'entry', ...entry }, `items.${index}.data`),
+      status: 'idle',
+      error: null
+    }))
+
+    const rows = await db.insert(knowledgeItemTable).values(values).returning()
+    const items = rows.map((row) => rowToKnowledgeItem(row))
+
+    logger.info('Created knowledge directory entry items', {
+      baseId: parent.baseId,
+      parentId,
+      count: items.length
+    })
     return { items }
   }
 

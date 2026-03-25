@@ -9,7 +9,6 @@ import type {
   KnowledgeItem,
   KnowledgeItemData,
   KnowledgeItemDataMap,
-  KnowledgeItemType,
   KnowledgeSearchMode
 } from '@shared/data/types/knowledge'
 import * as z from 'zod'
@@ -96,6 +95,20 @@ export const DirectoryDataSchema = z.discriminatedUnion('kind', [
   DirectoryItemDataSchema
 ]) satisfies z.ZodType<KnowledgeItemDataMap['directory']>
 
+export const WritableKnowledgeItemDataSchema = z.union([
+  FileItemDataSchema,
+  UrlItemDataSchema,
+  NoteItemDataSchema,
+  SitemapItemDataSchema,
+  DirectoryContainerDataSchema
+]) satisfies z.ZodType<
+  | KnowledgeItemDataMap['file']
+  | KnowledgeItemDataMap['url']
+  | KnowledgeItemDataMap['note']
+  | KnowledgeItemDataMap['sitemap']
+  | Extract<KnowledgeItemDataMap['directory'], { kind: 'container' }>
+>
+
 export const KnowledgeItemDataSchema = z.union([
   FileItemDataSchema,
   UrlItemDataSchema,
@@ -142,19 +155,19 @@ export type CreateKnowledgeBaseDto = z.infer<typeof CreateKnowledgeBaseSchema>
 export const UpdateKnowledgeBaseSchema = z
   .object({
     name: z.string().trim().min(1).optional(),
-    description: z.string().optional(),
-    rerankModelId: z.string().optional(),
-    fileProcessorId: z.string().optional(),
-    chunkSize: z.number().int().min(100).optional(),
-    chunkOverlap: z.number().int().nonnegative().optional(),
-    threshold: z.number().min(0).max(1).optional(),
-    documentCount: z.number().int().min(1).max(50).optional(),
-    searchMode: KnowledgeSearchModeSchema.optional(),
-    hybridAlpha: z.number().min(0).max(1).optional()
+    description: z.string().nullable().optional(),
+    rerankModelId: z.string().nullable().optional(),
+    fileProcessorId: z.string().nullable().optional(),
+    chunkSize: z.number().int().min(100).nullable().optional(),
+    chunkOverlap: z.number().int().nonnegative().nullable().optional(),
+    threshold: z.number().min(0).max(1).nullable().optional(),
+    documentCount: z.number().int().min(1).max(50).nullable().optional(),
+    searchMode: KnowledgeSearchModeSchema.nullable().optional(),
+    hybridAlpha: z.number().min(0).max(1).nullable().optional()
   })
   .strict()
   .superRefine((data, ctx) => {
-    if (data.chunkSize !== undefined && data.chunkOverlap !== undefined && data.chunkOverlap >= data.chunkSize) {
+    if (data.chunkSize != null && data.chunkOverlap != null && data.chunkOverlap >= data.chunkSize) {
       ctx.addIssue({
         code: 'custom',
         path: ['chunkOverlap'],
@@ -162,7 +175,7 @@ export const UpdateKnowledgeBaseSchema = z
       })
     }
 
-    if (data.hybridAlpha !== undefined && data.searchMode !== undefined && data.searchMode !== 'hybrid') {
+    if (data.hybridAlpha != null && data.searchMode !== undefined && data.searchMode !== 'hybrid') {
       ctx.addIssue({
         code: 'custom',
         path: ['hybridAlpha'],
@@ -172,12 +185,27 @@ export const UpdateKnowledgeBaseSchema = z
   })
 export type UpdateKnowledgeBaseDto = z.infer<typeof UpdateKnowledgeBaseSchema>
 
-export type CreateKnowledgeItemDto = {
-  [T in KnowledgeItemType]: {
-    type: T
-    data: KnowledgeItemDataMap[T]
-  }
-}[KnowledgeItemType]
+export type CreateKnowledgeItemDto =
+  | {
+      type: 'file'
+      data: KnowledgeItemDataMap['file']
+    }
+  | {
+      type: 'url'
+      data: KnowledgeItemDataMap['url']
+    }
+  | {
+      type: 'note'
+      data: KnowledgeItemDataMap['note']
+    }
+  | {
+      type: 'sitemap'
+      data: KnowledgeItemDataMap['sitemap']
+    }
+  | {
+      type: 'directory'
+      data: Extract<KnowledgeItemDataMap['directory'], { kind: 'container' }>
+    }
 
 export const CreateKnowledgeItemSchema = z.discriminatedUnion('type', [
   z
@@ -207,7 +235,7 @@ export const CreateKnowledgeItemSchema = z.discriminatedUnion('type', [
   z
     .object({
       type: z.literal('directory'),
-      data: DirectoryDataSchema
+      data: DirectoryContainerDataSchema
     })
     .strict()
 ]) satisfies z.ZodType<CreateKnowledgeItemDto>
@@ -221,7 +249,7 @@ export type CreateKnowledgeItemsDto = z.infer<typeof CreateKnowledgeItemsSchema>
 
 export const UpdateKnowledgeItemSchema = z
   .object({
-    data: KnowledgeItemDataSchema.optional(),
+    data: WritableKnowledgeItemDataSchema.optional(),
     status: ItemStatusSchema.optional(),
     error: z.string().nullable().optional()
   })

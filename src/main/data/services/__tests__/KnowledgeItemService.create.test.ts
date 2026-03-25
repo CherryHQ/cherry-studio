@@ -17,6 +17,18 @@ import { dbService } from '@data/db/DbService'
 import { knowledgeBaseService } from '../KnowledgeBaseService'
 import { KnowledgeItemService } from '../KnowledgeItemService'
 
+const fileMetadata = {
+  id: 'file-1',
+  name: 'report.pdf',
+  origin_name: 'report.pdf',
+  path: '/tmp/report.pdf',
+  size: 128,
+  ext: '.pdf',
+  type: 'document' as const,
+  created_at: '2025-01-01T00:00:00.000Z',
+  count: 1
+}
+
 const buildRow = (overrides: Record<string, unknown> = {}) => ({
   id: 'item-1',
   baseId: 'kb-1',
@@ -77,6 +89,82 @@ describe('KnowledgeItemService.create', () => {
         parentId: null,
         type: 'note',
         data: { content: 'hello' }
+      })
+    ])
+  })
+
+  it('creates internal directory entry children under the directory parent', async () => {
+    const limitMock = vi.fn().mockResolvedValue([
+      buildRow({
+        id: 'dir-1',
+        type: 'directory',
+        data: {
+          kind: 'container',
+          path: '/tmp/docs',
+          recursive: true
+        }
+      })
+    ])
+    const whereSelectMock = vi.fn().mockReturnValue({ limit: limitMock })
+    const fromMock = vi.fn().mockReturnValue({ where: whereSelectMock })
+    const selectMock = vi.fn().mockReturnValue({ from: fromMock })
+
+    const returningMock = vi.fn().mockResolvedValue([
+      buildRow({
+        id: 'entry-1',
+        parentId: 'dir-1',
+        type: 'directory',
+        data: {
+          kind: 'entry',
+          groupId: 'group-1',
+          groupName: 'Docs',
+          file: fileMetadata
+        }
+      })
+    ])
+    const valuesMock = vi.fn().mockReturnValue({ returning: returningMock })
+    const insertMock = vi.fn().mockReturnValue({ values: valuesMock })
+
+    getDbMock.mockReturnValue({
+      select: selectMock,
+      insert: insertMock
+    } as never)
+
+    const result = await service.createDirectoryEntries('dir-1', [
+      {
+        groupId: 'group-1',
+        groupName: 'Docs',
+        file: fileMetadata
+      }
+    ])
+
+    expect(valuesMock).toHaveBeenCalledWith([
+      expect.objectContaining({
+        baseId: 'kb-1',
+        parentId: 'dir-1',
+        type: 'directory',
+        data: {
+          kind: 'entry',
+          groupId: 'group-1',
+          groupName: 'Docs',
+          file: fileMetadata
+        },
+        status: 'idle',
+        error: null
+      })
+    ])
+    expect(result.items).toEqual([
+      expect.objectContaining({
+        id: 'entry-1',
+        baseId: 'kb-1',
+        parentId: 'dir-1',
+        type: 'directory',
+        data: {
+          kind: 'entry',
+          groupId: 'group-1',
+          groupName: 'Docs',
+          file: fileMetadata
+        }
       })
     ])
   })

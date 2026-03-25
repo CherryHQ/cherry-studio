@@ -79,8 +79,15 @@
 ## Current Constraint Decisions
 
 - `dimensions` is required in target schema.
-- `dimensions` is resolved from legacy vector DB content (`length(vector)/4`).
-- If vector DB is missing/empty/invalid for a base, that base (and its items) is skipped.
+- The legacy Redux `dimensions` field is not treated as the migration source of truth.
+- `dimensions` is resolved from legacy vector DB content by inspecting:
+  - the per-base legacy vector DB file
+  - the `vectors` table
+  - a non-null vector blob whose byte length can be converted to a positive dimension count (`length(vector)/4`)
+- If the legacy vector DB is missing, empty, invalid, or the vector blob length cannot be parsed into a valid positive dimension count, that base is treated as unusable in V2 migration:
+  - the base is skipped
+  - all items under that base are skipped
+  - a warning is recorded during `prepare`
 - v1 `parentId` is not migrated; all migrated items are root-level (`parentId = null`).
 
 ## Validation

@@ -127,4 +127,81 @@ describe('KnowledgeBaseService.update', () => {
       })
     )
   })
+
+  it('allows explicit null clearing for nullable config fields when leaving hybrid mode', async () => {
+    const limitMock = vi.fn().mockResolvedValue([
+      buildRow({
+        description: 'existing description',
+        rerankModelId: 'provider::rerank',
+        fileProcessorId: 'processor-1',
+        chunkSize: 600,
+        chunkOverlap: 120,
+        threshold: 0.7,
+        documentCount: 8,
+        searchMode: 'hybrid',
+        hybridAlpha: 0.5
+      })
+    ])
+    const whereSelectMock = vi.fn().mockReturnValue({ limit: limitMock })
+    const fromMock = vi.fn().mockReturnValue({ where: whereSelectMock })
+    const selectMock = vi.fn().mockReturnValue({ from: fromMock })
+    const returningMock = vi.fn().mockResolvedValue([
+      buildRow({
+        description: null,
+        rerankModelId: null,
+        fileProcessorId: null,
+        chunkSize: null,
+        chunkOverlap: null,
+        threshold: null,
+        documentCount: null,
+        searchMode: 'default',
+        hybridAlpha: null
+      })
+    ])
+    const whereUpdateMock = vi.fn().mockReturnValue({ returning: returningMock })
+    const setMock = vi.fn().mockReturnValue({ where: whereUpdateMock })
+    const updateMock = vi.fn().mockReturnValue({ set: setMock })
+
+    getDbMock.mockReturnValue({
+      select: selectMock,
+      update: updateMock
+    } as never)
+
+    const result = await service.update('kb-1', {
+      description: null,
+      rerankModelId: null,
+      fileProcessorId: null,
+      chunkSize: null,
+      chunkOverlap: null,
+      threshold: null,
+      documentCount: null,
+      searchMode: 'default',
+      hybridAlpha: null
+    } as never)
+
+    expect(setMock).toHaveBeenCalledWith({
+      description: null,
+      rerankModelId: null,
+      fileProcessorId: null,
+      chunkSize: null,
+      chunkOverlap: null,
+      threshold: null,
+      documentCount: null,
+      searchMode: 'default',
+      hybridAlpha: null
+    })
+    expect(result).toEqual(
+      expect.objectContaining({
+        description: undefined,
+        rerankModelId: undefined,
+        fileProcessorId: undefined,
+        chunkSize: undefined,
+        chunkOverlap: undefined,
+        threshold: undefined,
+        documentCount: undefined,
+        searchMode: 'default',
+        hybridAlpha: undefined
+      })
+    )
+  })
 })

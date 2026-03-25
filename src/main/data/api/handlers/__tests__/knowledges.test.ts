@@ -70,6 +70,37 @@ describe('knowledgeHandlers', () => {
 
       expect(updateKnowledgeBaseMock).not.toHaveBeenCalled()
     })
+
+    it('accepts nulls for clearable update fields', async () => {
+      updateKnowledgeBaseMock.mockResolvedValueOnce({ id: 'kb-1' } as never)
+
+      await knowledgeHandlers['/knowledge-bases/:id'].PATCH({
+        params: { id: 'kb-1' },
+        body: {
+          description: null,
+          rerankModelId: null,
+          fileProcessorId: null,
+          chunkSize: null,
+          chunkOverlap: null,
+          threshold: null,
+          documentCount: null,
+          searchMode: 'default',
+          hybridAlpha: null
+        } as never
+      })
+
+      expect(updateKnowledgeBaseMock).toHaveBeenCalledWith('kb-1', {
+        description: null,
+        rerankModelId: null,
+        fileProcessorId: null,
+        chunkSize: null,
+        chunkOverlap: null,
+        threshold: null,
+        documentCount: null,
+        searchMode: 'default',
+        hybridAlpha: null
+      })
+    })
   })
 
   describe('POST /knowledge-bases/:id/items', () => {
@@ -83,6 +114,39 @@ describe('knowledgeHandlers', () => {
                 type: 'note',
                 data: { content: 'child note' },
                 parentId: 'folder-1'
+              }
+            ]
+          } as never
+        })
+      ).rejects.toBeInstanceOf(ZodError)
+
+      expect(createKnowledgeItemsMock).not.toHaveBeenCalled()
+    })
+
+    it('should throw a ZodError when create item body contains internal directory entry payloads', async () => {
+      await expect(
+        knowledgeHandlers['/knowledge-bases/:id/items'].POST({
+          params: { id: 'kb-1' },
+          body: {
+            items: [
+              {
+                type: 'directory',
+                data: {
+                  kind: 'entry',
+                  groupId: 'group-1',
+                  groupName: 'Docs',
+                  file: {
+                    id: 'file-1',
+                    name: 'report.pdf',
+                    origin_name: 'report.pdf',
+                    path: '/tmp/report.pdf',
+                    size: 123,
+                    ext: '.pdf',
+                    type: 'document',
+                    created_at: '2026-03-24T00:00:00.000Z',
+                    count: 1
+                  }
+                }
               }
             ]
           } as never
@@ -130,6 +194,34 @@ describe('knowledgeHandlers', () => {
         ]
       })
       expect(result).toEqual(createdItems)
+    })
+  })
+
+  describe('PATCH /knowledge-items/:id', () => {
+    it('should throw a ZodError when update item body contains internal directory entry payloads', async () => {
+      await expect(
+        knowledgeHandlers['/knowledge-items/:id'].PATCH({
+          params: { id: 'item-1' },
+          body: {
+            data: {
+              kind: 'entry',
+              groupId: 'group-1',
+              groupName: 'Docs',
+              file: {
+                id: 'file-1',
+                name: 'report.pdf',
+                origin_name: 'report.pdf',
+                path: '/tmp/report.pdf',
+                size: 123,
+                ext: '.pdf',
+                type: 'document',
+                created_at: '2026-03-24T00:00:00.000Z',
+                count: 1
+              }
+            }
+          } as never
+        })
+      ).rejects.toBeInstanceOf(ZodError)
     })
   })
 })

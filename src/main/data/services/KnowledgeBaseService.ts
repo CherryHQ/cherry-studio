@@ -100,6 +100,7 @@ export class KnowledgeBaseService {
 
   async update(id: string, dto: UpdateKnowledgeBaseDto): Promise<KnowledgeBase> {
     const forbiddenFieldErrors: Record<string, string[]> = {}
+    const hasField = <T extends keyof UpdateKnowledgeBaseDto>(key: T) => Object.prototype.hasOwnProperty.call(dto, key)
 
     if ('dimensions' in dto) {
       forbiddenFieldErrors.dimensions = ['dimensions cannot be updated via PATCH; use a dedicated re-embed endpoint']
@@ -119,8 +120,8 @@ export class KnowledgeBaseService {
     const db = dbService.getDb()
     const existing = await this.getById(id)
 
-    const effectiveChunkSize = dto.chunkSize ?? existing.chunkSize
-    const effectiveChunkOverlap = dto.chunkOverlap ?? existing.chunkOverlap
+    const effectiveChunkSize = hasField('chunkSize') ? (dto.chunkSize ?? undefined) : existing.chunkSize
+    const effectiveChunkOverlap = hasField('chunkOverlap') ? (dto.chunkOverlap ?? undefined) : existing.chunkOverlap
     if (
       effectiveChunkSize !== undefined &&
       effectiveChunkOverlap !== undefined &&
@@ -131,8 +132,8 @@ export class KnowledgeBaseService {
       })
     }
 
-    const effectiveSearchMode = dto.searchMode ?? existing.searchMode
-    const effectiveHybridAlpha = dto.hybridAlpha ?? existing.hybridAlpha
+    const effectiveSearchMode = hasField('searchMode') ? (dto.searchMode ?? undefined) : existing.searchMode
+    const effectiveHybridAlpha = hasField('hybridAlpha') ? (dto.hybridAlpha ?? undefined) : existing.hybridAlpha
     if (effectiveHybridAlpha !== undefined && effectiveSearchMode !== 'hybrid') {
       throw DataApiErrorFactory.validation({
         hybridAlpha: ['hybridAlpha can only be set when searchMode is hybrid']
@@ -141,15 +142,15 @@ export class KnowledgeBaseService {
 
     const updates: Partial<typeof knowledgeBaseTable.$inferInsert> = {}
     if (dto.name !== undefined) updates.name = dto.name.trim()
-    if (dto.description !== undefined) updates.description = dto.description
-    if (dto.rerankModelId !== undefined) updates.rerankModelId = dto.rerankModelId
-    if (dto.fileProcessorId !== undefined) updates.fileProcessorId = dto.fileProcessorId
-    if (dto.chunkSize !== undefined) updates.chunkSize = dto.chunkSize
-    if (dto.chunkOverlap !== undefined) updates.chunkOverlap = dto.chunkOverlap
-    if (dto.threshold !== undefined) updates.threshold = dto.threshold
-    if (dto.documentCount !== undefined) updates.documentCount = dto.documentCount
-    if (dto.searchMode !== undefined) updates.searchMode = dto.searchMode
-    if (dto.hybridAlpha !== undefined) updates.hybridAlpha = dto.hybridAlpha
+    if (hasField('description')) updates.description = dto.description
+    if (hasField('rerankModelId')) updates.rerankModelId = dto.rerankModelId
+    if (hasField('fileProcessorId')) updates.fileProcessorId = dto.fileProcessorId
+    if (hasField('chunkSize')) updates.chunkSize = dto.chunkSize
+    if (hasField('chunkOverlap')) updates.chunkOverlap = dto.chunkOverlap
+    if (hasField('threshold')) updates.threshold = dto.threshold
+    if (hasField('documentCount')) updates.documentCount = dto.documentCount
+    if (hasField('searchMode')) updates.searchMode = dto.searchMode
+    if (hasField('hybridAlpha')) updates.hybridAlpha = dto.hybridAlpha
 
     if (Object.keys(updates).length === 0) {
       throw DataApiErrorFactory.validation({ body: ['At least one field is required'] })
