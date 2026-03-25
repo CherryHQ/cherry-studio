@@ -4,16 +4,13 @@
  * Implements all prompt-related API endpoints including:
  * - Prompt CRUD operations
  * - Version history and rollback
- * - Batch reordering
  */
 
 import { promptService } from '@data/services/PromptService'
 import type { ApiHandler, ApiMethods } from '@shared/data/api/apiTypes'
 import {
   CreatePromptDtoSchema,
-  type PromptQueryParams,
   type PromptSchemas,
-  ReorderPromptsDtoSchema,
   RollbackPromptDtoSchema,
   UpdatePromptDtoSchema
 } from '@shared/data/api/schemas/prompts'
@@ -26,28 +23,12 @@ export const promptHandlers: {
   }
 } = {
   '/prompts': {
-    GET: ({ query }) => {
-      const q = (query || {}) as PromptQueryParams
-
-      // assistant-specific queries are more specific than scope filters
-      if (q.assistantId) {
-        return promptService.getForAssistant(q.assistantId)
-      }
-
-      if (q.scope === 'global') {
-        return promptService.getGlobal()
-      }
-
-      // 'all' and undefined both return the full prompt list
+    GET: () => {
       return promptService.getAll()
     },
 
     POST: ({ body }) => {
       return promptService.create(CreatePromptDtoSchema.parse(body))
-    },
-
-    PATCH: ({ body }) => {
-      return promptService.reorder(ReorderPromptsDtoSchema.parse(body))
     }
   },
 

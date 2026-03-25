@@ -7,19 +7,13 @@
  * - Version history and rollback
  */
 
-import { assistantPromptTable } from '@data/db/schemas/assistantPrompt'
 import { promptTable, promptVersionTable } from '@data/db/schemas/prompt'
 import { loggerService } from '@logger'
 import { application } from '@main/core/application'
 import { DataApiErrorFactory } from '@shared/data/api'
-import type {
-  CreatePromptDto,
-  ReorderPromptsDto,
-  RollbackPromptDto,
-  UpdatePromptDto
-} from '@shared/data/api/schemas/prompts'
+import type { CreatePromptDto, RollbackPromptDto, UpdatePromptDto } from '@shared/data/api/schemas/prompts'
 import type { Prompt, PromptVersion } from '@shared/data/types/prompt'
-import { and, desc, eq, notExists } from 'drizzle-orm'
+import { and, desc, eq } from 'drizzle-orm'
 
 const logger = loggerService.withContext('DataApi:PromptService')
 
@@ -74,42 +68,6 @@ export class PromptService {
   }
 
   /**
-   * Get all global prompts (not associated with any assistant)
-   */
-  async getGlobal(): Promise<Prompt[]> {
-    const db = application.get('DbService').getDb()
-    const rows = await db
-      .select()
-      .from(promptTable)
-      .where(notExists(db.select().from(assistantPromptTable).where(eq(assistantPromptTable.promptId, promptTable.id))))
-      .orderBy(promptTable.sortOrder)
-    return rows.map(rowToPrompt)
-  }
-
-  /**
-   * Get all prompts for a specific assistant
-   */
-  async getForAssistant(assistantId: string): Promise<Prompt[]> {
-    const db = application.get('DbService').getDb()
-    const rows = await db
-      .select({
-        id: promptTable.id,
-        title: promptTable.title,
-        content: promptTable.content,
-        currentVersion: promptTable.currentVersion,
-        sortOrder: assistantPromptTable.sortOrder,
-        createdAt: promptTable.createdAt,
-        updatedAt: promptTable.updatedAt
-      })
-      .from(promptTable)
-      .innerJoin(assistantPromptTable, eq(promptTable.id, assistantPromptTable.promptId))
-      .where(eq(assistantPromptTable.assistantId, assistantId))
-      .orderBy(assistantPromptTable.sortOrder)
-
-    return rows.map(rowToPrompt)
-  }
-
-  /**
    * Get a prompt by ID
    */
   async getById(id: string): Promise<Prompt> {
@@ -136,19 +94,7 @@ export class PromptService {
         .orderBy(desc(promptTable.sortOrder))
         .limit(1)
 
-      const nextPromptSortOrder = (lastPrompt?.sortOrder ?? -1) + 1
-
-      let nextAssistantSortOrder = 0
-      if (dto.assistantId) {
-        const [lastAssistantPrompt] = await tx
-          .select({ sortOrder: assistantPromptTable.sortOrder })
-          .from(assistantPromptTable)
-          .where(eq(assistantPromptTable.assistantId, dto.assistantId))
-          .orderBy(desc(assistantPromptTable.sortOrder))
-          .limit(1)
-
-        nextAssistantSortOrder = (lastAssistantPrompt?.sortOrder ?? -1) + 1
-      }
+      const nextSortOrder = (lastPrompt?.sortOrder ?? -1) + 1
 
       const [row] = await tx
         .insert(promptTable)
@@ -156,7 +102,7 @@ export class PromptService {
           title: dto.title,
           content: dto.content,
           currentVersion: 1,
-          sortOrder: nextPromptSortOrder
+          sortOrder: nextSortOrder
         })
         .returning()
 
@@ -167,16 +113,7 @@ export class PromptService {
         content: dto.content
       })
 
-      // If associated with an assistant, create mapping
-      if (dto.assistantId) {
-        await tx.insert(assistantPromptTable).values({
-          assistantId: dto.assistantId,
-          promptId: row.id,
-          sortOrder: nextAssistantSortOrder
-        })
-      }
-
-      logger.info('Created prompt', { id: row.id, title: dto.title, assistantId: dto.assistantId })
+      logger.info('Created prompt', { id: row.id, title: dto.title })
 
       return rowToPrompt(row)
     })
@@ -195,13 +132,14 @@ export class PromptService {
         throw DataApiErrorFactory.notFound('Prompt', id)
       }
 
-      if (dto.title === undefined && dto.content === undefined) {
+      if (dto.title === undefined && dto.content === undefined && dto.sortOrder === undefined) {
         return rowToPrompt(existing)
       }
 
       const updates: Partial<typeof promptTable.$inferInsert> = {}
       if (dto.title !== undefined) updates.title = dto.title
       if (dto.content !== undefined) updates.content = dto.content
+      if (dto.sortOrder !== undefined) updates.sortOrder = dto.sortOrder
 
       // Check if content changed — if so, create a new version
       const contentChanged = dto.content !== undefined && dto.content !== existing.content
@@ -241,30 +179,6 @@ export class PromptService {
     }
 
     logger.info('Deleted prompt', { id })
-  }
-
-  /**
-   * Batch update sort order
-   */
-  async reorder(dto: ReorderPromptsDto): Promise<void> {
-    const db = application.get('DbService').getDb()
-
-    await db.transaction(async (tx) => {
-      for (const item of dto.items) {
-        if (dto.assistantId) {
-          await tx
-            .update(assistantPromptTable)
-            .set({ sortOrder: item.sortOrder })
-            .where(
-              and(eq(assistantPromptTable.assistantId, dto.assistantId), eq(assistantPromptTable.promptId, item.id))
-            )
-        } else {
-          await tx.update(promptTable).set({ sortOrder: item.sortOrder }).where(eq(promptTable.id, item.id))
-        }
-      }
-    })
-
-    logger.info('Reordered prompts', { count: dto.items.length, assistantId: dto.assistantId })
   }
 
   /**

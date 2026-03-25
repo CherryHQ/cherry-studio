@@ -84,7 +84,7 @@ describe('PromptService', () => {
     })
   })
 
-  it('appends new prompts to the end of both global and assistant orderings', async () => {
+  it('appends new prompts to the end of global ordering', async () => {
     const promptRow = makePromptRow({
       id: 'b13fe4c4-0706-4766-a5f5-6b47779c7f10',
       title: 'New prompt',
@@ -92,35 +92,20 @@ describe('PromptService', () => {
       sortOrder: 3
     })
     const promptOrderLimitMock = vi.fn().mockResolvedValue([{ sortOrder: 2 }])
-    const assistantOrderLimitMock = vi.fn().mockResolvedValue([{ sortOrder: 4 }])
     const tx = {
-      select: vi
-        .fn()
-        .mockImplementationOnce(() => ({
-          from: vi.fn().mockReturnValue({
-            orderBy: vi.fn().mockReturnValue({
-              limit: promptOrderLimitMock
-            })
+      select: vi.fn().mockImplementationOnce(() => ({
+        from: vi.fn().mockReturnValue({
+          orderBy: vi.fn().mockReturnValue({
+            limit: promptOrderLimitMock
           })
-        }))
-        .mockImplementationOnce(() => ({
-          from: vi.fn().mockReturnValue({
-            where: vi.fn().mockReturnValue({
-              orderBy: vi.fn().mockReturnValue({
-                limit: assistantOrderLimitMock
-              })
-            })
-          })
-        })),
+        })
+      })),
       insert: vi
         .fn()
         .mockImplementationOnce(() => ({
           values: vi.fn().mockReturnValue({
             returning: vi.fn().mockResolvedValue([promptRow])
           })
-        }))
-        .mockImplementationOnce(() => ({
-          values: vi.fn().mockResolvedValue(undefined)
         }))
         .mockImplementationOnce(() => ({
           values: vi.fn().mockResolvedValue(undefined)
@@ -134,23 +119,15 @@ describe('PromptService', () => {
 
     await promptService.create({
       title: 'New prompt',
-      content: 'New content',
-      assistantId: 'assistant-1'
+      content: 'New content'
     })
 
     const promptInsert = (tx.insert as ReturnType<typeof vi.fn>).mock.results[0]?.value.values
-    const assistantInsert = (tx.insert as ReturnType<typeof vi.fn>).mock.results[2]?.value.values
 
     expect(promptOrderLimitMock).toHaveBeenCalledWith(1)
-    expect(assistantOrderLimitMock).toHaveBeenCalledWith(1)
     expect(promptInsert).toHaveBeenCalledWith(
       expect.objectContaining({
         sortOrder: 3
-      })
-    )
-    expect(assistantInsert).toHaveBeenCalledWith(
-      expect.objectContaining({
-        sortOrder: 5
       })
     )
   })
