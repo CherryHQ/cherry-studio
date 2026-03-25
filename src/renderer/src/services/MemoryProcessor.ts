@@ -9,7 +9,7 @@ import {
   updateMemorySystemPrompt
 } from '@renderer/utils/memory-prompts'
 import type { MemoryConfig, MemoryItem } from '@types'
-import jaison from 'jaison/lib/index.js'
+import jaison from 'jaison'
 
 import { fetchGenerate } from './ApiService'
 import MemoryService from './MemoryService'

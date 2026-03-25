@@ -54,12 +54,14 @@ export class ChatCompletionService {
 
     const provider = modelValidation.provider!
 
-    if (provider.type !== 'openai') {
+    // Support OpenAI-compatible providers (ollama provides /v1 compatible endpoint)
+    const openaiCompatibleTypes = ['openai', 'ollama']
+    if (!openaiCompatibleTypes.includes(provider.type)) {
       return {
         ok: false,
         error: {
           type: 'unsupported_provider_type',
-          message: `Provider '${provider.id}' of type '${provider.type}' is not supported for OpenAI chat completions`,
+          message: `Provider '${provider.id}' of type '${provider.type}' is not supported for OpenAI chat completions. Supported types: ${openaiCompatibleTypes.join(', ')}`,
           code: 'unsupported_provider_type'
         }
       }
@@ -67,9 +69,20 @@ export class ChatCompletionService {
 
     const modelId = modelValidation.modelId!
 
+    // For Ollama, use the OpenAI-compatible endpoint
+    // Handle both cases: apiHost with or without /api suffix
+    let baseURL: string
+    if (provider.type === 'ollama') {
+      const host = provider.apiHost || 'http://localhost:11434'
+      // Remove trailing /api if present, then add /v1
+      baseURL = host.replace(/\/api$/, '') + '/v1'
+    } else {
+      baseURL = provider.apiHost
+    }
+
     const client = new OpenAI({
-      baseURL: provider.apiHost,
-      apiKey: provider.apiKey
+      baseURL,
+      apiKey: provider.apiKey || 'ollama' // Ollama doesn't require API key, use placeholder
     })
 
     return {
