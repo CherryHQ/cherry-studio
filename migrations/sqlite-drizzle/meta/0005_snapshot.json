@@ -306,6 +306,11 @@
           "name": "knowledge_item_parent_id_idx",
           "columns": ["parent_id"],
           "isUnique": false
+        },
+        "knowledge_item_base_parent_created_idx": {
+          "name": "knowledge_item_base_parent_created_idx",
+          "columns": ["base_id", "parent_id", "created_at"],
+          "isUnique": false
         }
       },
       "foreignKeys": {
@@ -318,18 +323,23 @@
           "onDelete": "cascade",
           "onUpdate": "no action"
         },
-        "knowledge_item_parent_id_knowledge_item_id_fk": {
-          "name": "knowledge_item_parent_id_knowledge_item_id_fk",
+        "knowledge_item_base_id_parent_id_knowledge_item_base_id_id_fk": {
+          "name": "knowledge_item_base_id_parent_id_knowledge_item_base_id_id_fk",
           "tableFrom": "knowledge_item",
           "tableTo": "knowledge_item",
-          "columnsFrom": ["parent_id"],
-          "columnsTo": ["id"],
+          "columnsFrom": ["base_id", "parent_id"],
+          "columnsTo": ["base_id", "id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
       },
       "compositePrimaryKeys": {},
-      "uniqueConstraints": {},
+      "uniqueConstraints": {
+        "knowledge_item_base_id_id_unique": {
+          "name": "knowledge_item_base_id_id_unique",
+          "columns": ["base_id", "id"]
+        }
+      },
       "checkConstraints": {
         "knowledge_item_status_check": {
           "name": "knowledge_item_status_check",

@@ -1,11 +1,13 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { ZodError } from 'zod'
 
-const { createKnowledgeBaseMock, updateKnowledgeBaseMock, createKnowledgeItemsMock } = vi.hoisted(() => ({
-  createKnowledgeBaseMock: vi.fn(),
-  updateKnowledgeBaseMock: vi.fn(),
-  createKnowledgeItemsMock: vi.fn()
-}))
+const { createKnowledgeBaseMock, updateKnowledgeBaseMock, createKnowledgeItemsMock, listKnowledgeItemsMock } =
+  vi.hoisted(() => ({
+    createKnowledgeBaseMock: vi.fn(),
+    updateKnowledgeBaseMock: vi.fn(),
+    createKnowledgeItemsMock: vi.fn(),
+    listKnowledgeItemsMock: vi.fn()
+  }))
 
 vi.mock('@data/services/KnowledgeBaseService', () => ({
   knowledgeBaseService: {
@@ -19,7 +21,7 @@ vi.mock('@data/services/KnowledgeBaseService', () => ({
 
 vi.mock('@data/services/KnowledgeItemService', () => ({
   knowledgeItemService: {
-    list: vi.fn(),
+    list: listKnowledgeItemsMock,
     create: createKnowledgeItemsMock,
     getById: vi.fn(),
     update: vi.fn(),
@@ -104,6 +106,18 @@ describe('knowledgeHandlers', () => {
   })
 
   describe('POST /knowledge-bases/:id/items', () => {
+    it('should trim parentId before passing it to the service', async () => {
+      listKnowledgeItemsMock.mockResolvedValueOnce([])
+
+      const result = await knowledgeHandlers['/knowledge-bases/:id/items'].GET({
+        params: { id: 'kb-1' },
+        query: { parentId: '  dir-1  ' } as never
+      })
+
+      expect(listKnowledgeItemsMock).toHaveBeenCalledWith('kb-1', 'dir-1')
+      expect(result).toEqual([])
+    })
+
     it('should throw a ZodError when create item body contains unknown fields', async () => {
       await expect(
         knowledgeHandlers['/knowledge-bases/:id/items'].POST({

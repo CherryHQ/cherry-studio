@@ -31,8 +31,17 @@ This document records temporary migration decisions for the V2 knowledge refacto
   - record a warning for diagnostics
 - Migration does not apply fallback or auto-fix for unresolved `dimensions`.
 
+## Item Status Migration Rule
+
+- Legacy `processingStatus` is treated as runtime state and is not used as the migration source of truth.
+- Migration infers target V2 `knowledge_item.status` from legacy `uniqueId`:
+  - non-empty `uniqueId` -> `completed`
+  - otherwise -> `idle`
+- Temporary legacy states such as in-progress or failed processing are not preserved as V2 status during migration.
+
 ## Implementation Status
 
 - `video` and `memory` items are skipped during migration.
 - External DataApi payloads must not provide `parentId` for knowledge items.
 - `dimensions` resolution failure skips the entire base and all nested items, with warnings recorded in migration output.
+- Knowledge item status migration uses `uniqueId` instead of `processingStatus`.

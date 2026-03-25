@@ -29,6 +29,7 @@ import { BaseMigrator } from './BaseMigrator'
 import {
   type LegacyKnowledgeBase,
   type LegacyKnowledgeBaseWithIdentity,
+  type LegacyKnowledgeItem,
   type LegacyKnowledgeNote,
   type LegacyKnowledgeState,
   type NewKnowledgeBase,
@@ -40,6 +41,7 @@ import {
 const logger = loggerService.withContext('KnowledgeMigrator')
 
 const ITEM_INSERT_BATCH_SIZE = 200
+const LOOKUP_STREAM_BATCH_SIZE = 200
 const MAX_WARNING_COUNT = 50
 const LEGACY_VECTOR_TABLE_NAME = 'vectors'
 
@@ -53,6 +55,39 @@ type DimensionResolutionReason =
 
 const hasKnowledgeBaseIdentity = (base: LegacyKnowledgeBase): base is LegacyKnowledgeBaseWithIdentity =>
   typeof base.id === 'string' && base.id !== '' && typeof base.name === 'string' && base.name !== ''
+
+const hasCompleteInlineFileMetadata = (value: LegacyKnowledgeItem['content']): value is FileMetadata =>
+  typeof value === 'object' &&
+  value !== null &&
+  !Array.isArray(value) &&
+  typeof value.id === 'string' &&
+  typeof value.name === 'string' &&
+  typeof value.origin_name === 'string' &&
+  typeof value.path === 'string' &&
+  typeof value.size === 'number' &&
+  typeof value.ext === 'string' &&
+  typeof value.type === 'string' &&
+  typeof value.created_at === 'string' &&
+  typeof value.count === 'number'
+
+const getRequiredFileLookupId = (content: LegacyKnowledgeItem['content']): string | null => {
+  if (typeof content === 'string' && content.trim() !== '') {
+    return content
+  }
+
+  if (
+    typeof content === 'object' &&
+    content !== null &&
+    !Array.isArray(content) &&
+    typeof content.id === 'string' &&
+    content.id.trim() !== '' &&
+    !hasCompleteInlineFileMetadata(content)
+  ) {
+    return content.id
+  }
+
+  return null
+}
 
 export class KnowledgeMigrator extends BaseMigrator {
   readonly id = 'knowledge'
@@ -197,6 +232,91 @@ export class KnowledgeMigrator extends BaseMigrator {
     return `Skipped invalid knowledge item in base ${baseId} (itemId=${item.id})`
   }
 
+  private collectLookupIds(bases: LegacyKnowledgeBase[]): {
+    noteIds: Set<string>
+    fileIds: Set<string>
+  } {
+    const noteIds = new Set<string>()
+    const fileIds = new Set<string>()
+
+    for (const base of bases) {
+      const items = Array.isArray(base.items) ? base.items : []
+
+      for (const item of items) {
+        if (item?.type === 'note' && typeof item.id === 'string' && item.id.trim() !== '') {
+          noteIds.add(item.id)
+        }
+
+        if (item?.type === 'file') {
+          const fileId = getRequiredFileLookupId(item.content)
+          if (fileId) {
+            fileIds.add(fileId)
+          }
+        }
+      }
+    }
+
+    return { noteIds, fileIds }
+  }
+
+  private async loadNoteLookup(ctx: MigrationContext, noteIds: Set<string>): Promise<Map<string, LegacyKnowledgeNote>> {
+    const noteById = new Map<string, LegacyKnowledgeNote>()
+
+    if (noteIds.size === 0) {
+      return noteById
+    }
+
+    if (!(await ctx.sources.dexieExport.tableExists('knowledge_notes'))) {
+      this.pushWarning('knowledge_notes export file not found - note content fallback to Redux item content')
+      return noteById
+    }
+
+    const reader = ctx.sources.dexieExport.createStreamReader('knowledge_notes')
+    await reader.readInBatches<LegacyKnowledgeNote>(LOOKUP_STREAM_BATCH_SIZE, async (notes) => {
+      for (const note of notes) {
+        if (note?.id && noteIds.has(note.id)) {
+          noteById.set(note.id, note)
+        }
+      }
+    })
+
+    logger.info('Knowledge note lookup prepared via streaming', {
+      requested: noteIds.size,
+      matched: noteById.size
+    })
+
+    return noteById
+  }
+
+  private async loadFileLookup(ctx: MigrationContext, fileIds: Set<string>): Promise<Map<string, FileMetadata>> {
+    const filesById = new Map<string, FileMetadata>()
+
+    if (fileIds.size === 0) {
+      return filesById
+    }
+
+    if (!(await ctx.sources.dexieExport.tableExists('files'))) {
+      this.pushWarning('files export file not found - file item fallback by id disabled')
+      return filesById
+    }
+
+    const reader = ctx.sources.dexieExport.createStreamReader('files')
+    await reader.readInBatches<FileMetadata>(LOOKUP_STREAM_BATCH_SIZE, async (files) => {
+      for (const file of files) {
+        if (file?.id && fileIds.has(file.id)) {
+          filesById.set(file.id, file)
+        }
+      }
+    })
+
+    logger.info('Knowledge file lookup prepared via streaming', {
+      requested: fileIds.size,
+      matched: filesById.size
+    })
+
+    return filesById
+  }
+
   async prepare(ctx: MigrationContext): Promise<PrepareResult> {
     this.sourceCount = 0
     this.skippedCount = 0
@@ -217,29 +337,9 @@ export class KnowledgeMigrator extends BaseMigrator {
         }
       }
 
-      const noteById = new Map<string, LegacyKnowledgeNote>()
-      if (await ctx.sources.dexieExport.tableExists('knowledge_notes')) {
-        const notes = await ctx.sources.dexieExport.readTable<LegacyKnowledgeNote>('knowledge_notes')
-        for (const note of notes) {
-          if (note?.id) {
-            noteById.set(note.id, note)
-          }
-        }
-      } else {
-        this.pushWarning('knowledge_notes export file not found - note content fallback to Redux item content')
-      }
-
-      const filesById = new Map<string, FileMetadata>()
-      if (await ctx.sources.dexieExport.tableExists('files')) {
-        const files = await ctx.sources.dexieExport.readTable<FileMetadata>('files')
-        for (const file of files) {
-          if (file?.id) {
-            filesById.set(file.id, file)
-          }
-        }
-      } else {
-        this.pushWarning('files export file not found - file item fallback by id disabled')
-      }
+      const { noteIds, fileIds } = this.collectLookupIds(bases)
+      const noteById = await this.loadNoteLookup(ctx, noteIds)
+      const filesById = await this.loadFileLookup(ctx, fileIds)
 
       for (const base of bases) {
         this.sourceCount += 1

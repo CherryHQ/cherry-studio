@@ -157,6 +157,122 @@ describe('KnowledgeMigrator dimensions resolution', () => {
     expect(result.warnings?.some((warning: string) => warning.includes('Skipped knowledge base kb-empty'))).toBe(true)
   })
 
+  it('prepare streams knowledge note and file lookups instead of loading whole Dexie tables', async () => {
+    const migrator = new KnowledgeMigrator() as any
+    vi.spyOn(migrator, 'resolveDimensionsForBase').mockResolvedValue({
+      dimensions: 1024,
+      reason: 'ok'
+    })
+
+    const noteReader = {
+      readInBatches: vi.fn().mockImplementation(async (_batchSize, onBatch) => {
+        await onBatch(
+          [
+            {
+              id: 'note-1',
+              content: 'streamed note content',
+              sourceUrl: 'https://streamed.example.com'
+            },
+            {
+              id: 'note-unused',
+              content: 'unused'
+            }
+          ],
+          0
+        )
+      })
+    }
+    const fileReader = {
+      readInBatches: vi.fn().mockImplementation(async (_batchSize, onBatch) => {
+        await onBatch(
+          [
+            {
+              id: 'file-1',
+              name: 'report.pdf',
+              origin_name: 'report.pdf',
+              path: '/tmp/report.pdf',
+              size: 123,
+              ext: '.pdf',
+              type: 'document',
+              created_at: '2026-03-24T00:00:00.000Z',
+              count: 1
+            },
+            {
+              id: 'file-unused',
+              name: 'unused.pdf',
+              origin_name: 'unused.pdf',
+              path: '/tmp/unused.pdf',
+              size: 50,
+              ext: '.pdf',
+              type: 'document',
+              created_at: '2026-03-24T00:00:00.000Z',
+              count: 1
+            }
+          ],
+          0
+        )
+      })
+    }
+    const readTable = vi.fn().mockRejectedValue(new Error('prepare should not use readTable for streamed tables'))
+    const createStreamReader = vi.fn((tableName: string) => {
+      if (tableName === 'knowledge_notes') {
+        return noteReader
+      }
+      if (tableName === 'files') {
+        return fileReader
+      }
+      throw new Error(`Unexpected table: ${tableName}`)
+    })
+
+    const ctx = {
+      sources: {
+        reduxState: {
+          getCategory: vi.fn().mockReturnValue({
+            bases: [
+              {
+                id: 'kb-stream',
+                name: 'KB stream',
+                model: { id: 'm1', name: 'model-1', provider: 'openai' },
+                items: [
+                  { id: 'note-1', type: 'note', content: 'redux fallback' },
+                  { id: 'file-item-1', type: 'file', content: 'file-1' }
+                ]
+              }
+            ]
+          })
+        },
+        dexieExport: {
+          tableExists: vi.fn().mockResolvedValue(true),
+          readTable,
+          createStreamReader
+        }
+      }
+    } as any
+
+    const result = await migrator.prepare(ctx)
+
+    expect(result.success).toBe(true)
+    expect(readTable).not.toHaveBeenCalled()
+    expect(createStreamReader).toHaveBeenCalledWith('knowledge_notes')
+    expect(createStreamReader).toHaveBeenCalledWith('files')
+
+    const noteItem = migrator.preparedItems.find((item: any) => item.id === 'note-1')
+    const fileItem = migrator.preparedItems.find((item: any) => item.id === 'file-item-1')
+
+    expect(noteItem?.data).toEqual({
+      content: 'streamed note content',
+      sourceUrl: 'https://streamed.example.com'
+    })
+    expect(fileItem?.data).toEqual({
+      file: expect.objectContaining({
+        id: 'file-1',
+        name: 'report.pdf'
+      })
+    })
+    expect(noteReader.readInBatches).toHaveBeenCalledTimes(1)
+    expect(fileReader.readInBatches).toHaveBeenCalledTimes(1)
+  })
+
   it('prepare converts embedding/rerank model ids to provider::modelId format', async () => {
     const migrator = new KnowledgeMigrator() as any
     vi.spyOn(migrator, 'resolveDimensionsForBase').mockResolvedValue({

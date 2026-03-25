@@ -5,7 +5,7 @@ import type {
   KnowledgeSearchMode
 } from '@shared/data/types/knowledge'
 import { sql } from 'drizzle-orm'
-import { check, foreignKey, index, integer, real, sqliteTable, text } from 'drizzle-orm/sqlite-core'
+import { check, foreignKey, index, integer, real, sqliteTable, text, unique } from 'drizzle-orm/sqlite-core'
 
 import { createUpdateTimestamps, uuidPrimaryKey } from './_columnHelpers'
 
@@ -78,7 +78,9 @@ export const knowledgeItemTable = sqliteTable(
   (t) => [
     index('knowledge_item_base_id_idx').on(t.baseId),
     index('knowledge_item_parent_id_idx').on(t.parentId),
-    foreignKey({ columns: [t.parentId], foreignColumns: [t.id] }).onDelete('cascade'),
+    index('knowledge_item_base_parent_created_idx').on(t.baseId, t.parentId, t.createdAt),
+    unique().on(t.baseId, t.id),
+    foreignKey({ columns: [t.baseId, t.parentId], foreignColumns: [t.baseId, t.id] }).onDelete('cascade'),
     check(
       'knowledge_item_status_check',
       sql`${t.status} IN ('idle', 'pending', 'ocr', 'read', 'embed', 'completed', 'failed')`

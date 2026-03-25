@@ -28,10 +28,12 @@ CREATE TABLE `knowledge_item` (
 	`created_at` integer,
 	`updated_at` integer,
 	FOREIGN KEY (`base_id`) REFERENCES `knowledge_base`(`id`) ON UPDATE no action ON DELETE cascade,
-	FOREIGN KEY (`parent_id`) REFERENCES `knowledge_item`(`id`) ON UPDATE no action ON DELETE cascade,
+	FOREIGN KEY (`base_id`,`parent_id`) REFERENCES `knowledge_item`(`base_id`,`id`) ON UPDATE no action ON DELETE cascade,
+	CONSTRAINT "knowledge_item_base_id_id_unique" UNIQUE(`base_id`,`id`),
 	CONSTRAINT "knowledge_item_status_check" CHECK("knowledge_item"."status" IN ('idle', 'pending', 'ocr', 'read', 'embed', 'completed', 'failed')),
 	CONSTRAINT "knowledge_item_type_check" CHECK("knowledge_item"."type" IN ('file', 'url', 'note', 'sitemap', 'directory'))
 );
 --> statement-breakpoint
 CREATE INDEX `knowledge_item_base_id_idx` ON `knowledge_item` (`base_id`);--> statement-breakpoint
-CREATE INDEX `knowledge_item_parent_id_idx` ON `knowledge_item` (`parent_id`);
+CREATE INDEX `knowledge_item_parent_id_idx` ON `knowledge_item` (`parent_id`);--> statement-breakpoint
+CREATE INDEX `knowledge_item_base_parent_created_idx` ON `knowledge_item` (`base_id`,`parent_id`,`created_at`);

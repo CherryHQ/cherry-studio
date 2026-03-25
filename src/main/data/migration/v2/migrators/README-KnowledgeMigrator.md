@@ -29,7 +29,12 @@
    - Prefer Dexie `knowledge_notes` content.
    - Fall back to Redux item `content` when note export is missing.
 
-4. Processing status normalization
+4. Dexie lookup loading strategy
+   - `knowledge_notes` and `files` are scanned via streaming readers.
+   - The migrator first collects required note/file ids from Redux knowledge items.
+   - Only matching records are retained in memory for transformation.
+
+5. Processing status normalization
    - Legacy `processingStatus` is treated as runtime-only and not trusted for migration.
    - Item status is inferred from `uniqueId`:
      - `uniqueId` present and non-empty -> `completed`
