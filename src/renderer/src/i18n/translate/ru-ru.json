@@ -1195,8 +1195,8 @@
             "content": "Вы уверены, что хотите удалить выбранные темы ({{count}})? Это действие нельзя отменить.",
             "title": "Удалить темы"
           },
-          "error": "[to be translated]:Failed to delete. Please try again.",
-          "partial_success": "[to be translated]:Successfully deleted {{successCount}} topics, {{failedCount}} failed",
+          "error": "Не удалось удалить. Попробуйте ещё раз.",
+          "partial_success": "Успешно удалено {{successCount}} тем, {{failedCount}} не удалось",
           "success": "Удалено {{count}} тем(ы)"
         },
         "deselect_all": "Снять выделение со всех",
@@ -2617,6 +2617,27 @@
       "title": "Время жизни модели"
     },
     "title": "Ollama"
+  },
+  "onboarding": {
+    "select_model": {
+      "change_later": "Вы можете изменить это в любое время в настройках",
+      "start": "Начать",
+      "subtitle": "Выберите модель по умолчанию для каждого сценария",
+      "title": "Выберите модели по умолчанию"
+    },
+    "skip": "Пропустить",
+    "toast": {
+      "connected": "Успешно подключено к CherryIN"
+    },
+    "welcome": {
+      "login_cherryin": "Войти через CherryIN",
+      "or_continue_with": "ИЛИ ПРОДОЛЖИТЬ С",
+      "other_provider": "Выбрать других поставщиков",
+      "select_other_provider": "Выбрать другого поставщика",
+      "setup_hint": "Пожалуйста, настройте хотя бы одного поставщика для лучшего опыта",
+      "subtitle": "Наслаждайтесь услугами ИИ высшего уровня с CherryIN",
+      "title": "Добро пожаловать в Cherry Studio"
+    }
   },
   "openclaw": {
     "checking_installation": "Проверка установки OpenClaw...",
@@ -4826,6 +4847,7 @@
           "label": "Добавить в список"
         },
         "add_whole_group": "Добавить всю группу",
+        "fetch_list": "Получить список моделей",
         "refetch_list": "Повторное получение списка моделей",
         "remove_listed": "Удалить из списка",
         "remove_model": "Удалить модель",

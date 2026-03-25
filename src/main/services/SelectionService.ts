@@ -1363,7 +1363,7 @@ export class SelectionService {
       })
     } else {
       // Follow toolbar position
-      const toolbarBounds = this.toolbarWindow!.getBounds()
+      const toolbarBounds = this.toolbarWindow.getBounds()
       const GAP = 6 // 6px gap from screen edges
 
       //make sure action window is inside screen

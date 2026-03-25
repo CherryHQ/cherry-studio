@@ -1195,8 +1195,8 @@
             "content": "確定要刪除選中的 {{count}} 個話題嗎？此操作不可撤銷。",
             "title": "刪除話題"
           },
-          "error": "[to be translated]:Failed to delete. Please try again.",
-          "partial_success": "[to be translated]:Successfully deleted {{successCount}} topics, {{failedCount}} failed",
+          "error": "刪除失敗，請再試一次。",
+          "partial_success": "成功刪除了 {{successCount}} 個主題，{{failedCount}} 個失敗",
           "success": "已刪除 {{count}} 個話題"
         },
         "deselect_all": "取消全選",
@@ -2617,6 +2617,27 @@
       "title": "保持活躍時間"
     },
     "title": "Ollama"
+  },
+  "onboarding": {
+    "select_model": {
+      "change_later": "您可以隨時在設定中更改此項目",
+      "start": "開始使用",
+      "subtitle": "為每個情境選擇預設模型",
+      "title": "選擇您的預設模型"
+    },
+    "skip": "跳過",
+    "toast": {
+      "connected": "成功連接到 CherryIN"
+    },
+    "welcome": {
+      "login_cherryin": "使用 CherryIN 登入",
+      "or_continue_with": "或繼續使用",
+      "other_provider": "選擇其他供應商",
+      "select_other_provider": "選擇其他供應商",
+      "setup_hint": "請至少設定一個提供者以獲得最佳體驗",
+      "subtitle": "享受頂尖 AI 服務，盡在 CherryIN",
+      "title": "歡迎來到 Cherry Studio"
+    }
   },
   "openclaw": {
     "checking_installation": "正在檢查 OpenClaw 安裝狀態...",
@@ -4840,6 +4861,7 @@
           "label": "新增列表中的模型"
         },
         "add_whole_group": "新增整個分組",
+        "fetch_list": "取得模型列表",
         "refetch_list": "重新取得模型列表",
         "remove_listed": "移除列表中的模型",
         "remove_model": "移除模型",

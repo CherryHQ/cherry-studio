@@ -62,8 +62,16 @@ export const ImageGenerationMiddleware: CompletionsMiddleware =
             const assistantImageBlocks = findImageBlocks(lastAssistantMessage)
             const assistantImages = await Promise.all(
               assistantImageBlocks.map(async (block) => {
+                // Prefer file reference (saved to disk) over inline base64 URL
+                if (block.file) {
+                  const binaryData: Uint8Array = await FileManager.readBinaryImage(block.file)
+                  const mimeType = `${block.file.type}/${block.file.ext.slice(1)}`
+                  return await toFile(new Blob([binaryData.slice()]), block.file.origin_name || 'image.png', {
+                    type: mimeType
+                  })
+                }
                 const b64 = block.url?.replace(/^data:image\/\w+;base64,/, '')
-                if (!b64) return null
+                if (!b64 || b64 === block.url) return null
                 const binary = atob(b64)
                 const bytes = new Uint8Array(binary.length)
                 for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i)
