@@ -2618,6 +2618,27 @@
     },
     "title": "Ollama"
   },
+  "onboarding": {
+    "select_model": {
+      "change_later": "您可以随时在设置中更改",
+      "start": "开始使用",
+      "subtitle": "为每个场景选择默认模型",
+      "title": "选择你的默认模型"
+    },
+    "skip": "跳过引导",
+    "toast": {
+      "connected": "成功连接 CherryIN"
+    },
+    "welcome": {
+      "login_cherryin": "登录 CherryIN",
+      "or_continue_with": "或使用其他方式",
+      "other_provider": "选择其他服务商",
+      "select_other_provider": "选择其他服务商",
+      "setup_hint": "请您先至少配置一个服务商，以获得最佳使用体验",
+      "subtitle": "使用 CherryIN 服务商可畅享顶级 AI 服务",
+      "title": "欢迎使用 Cherry Studio"
+    }
+  },
   "openclaw": {
     "checking_installation": "正在检查 OpenClaw 安装状态...",
     "description": "使用 Cherry Studio 服务商为 OpenClaw 提供支持，OpenClaw 是您的个人 AI 助手，可在 WhatsApp、Telegram、Slack、Discord 等平台上使用。",
@@ -4826,6 +4847,7 @@
           "label": "添加列表中的模型"
         },
         "add_whole_group": "添加整个分组",
+        "fetch_list": "获取模型列表",
         "refetch_list": "重新获取模型列表",
         "remove_listed": "移除列表中的模型",
         "remove_model": "移除模型",

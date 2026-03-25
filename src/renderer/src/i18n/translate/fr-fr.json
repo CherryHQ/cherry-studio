@@ -1195,8 +1195,8 @@
             "content": "Êtes-vous sûr de vouloir supprimer {{count}} sujet(s) sélectionné(s) ? Cette action est irréversible.",
             "title": "Supprimer des sujets"
           },
-          "error": "[to be translated]:Failed to delete. Please try again.",
-          "partial_success": "[to be translated]:Successfully deleted {{successCount}} topics, {{failedCount}} failed",
+          "error": "Échec de la suppression. Veuillez réessayer.",
+          "partial_success": "Suppression réussie de {{successCount}} sujets, {{failedCount}} ont échoué",
           "success": "Supprimé {{count}} sujet(s)"
         },
         "deselect_all": "Tout désélectionner",
@@ -2617,6 +2617,27 @@
       "title": "Temps de maintien actif"
     },
     "title": "Ollama"
+  },
+  "onboarding": {
+    "select_model": {
+      "change_later": "Vous pouvez modifier cela à tout moment dans les paramètres",
+      "start": "Commencer",
+      "subtitle": "Sélectionner le modèle par défaut pour chaque scénario",
+      "title": "Choisissez vos modèles par défaut"
+    },
+    "skip": "Passer",
+    "toast": {
+      "connected": "Connecté avec succès à CherryIN"
+    },
+    "welcome": {
+      "login_cherryin": "Se connecter avec CherryIN",
+      "or_continue_with": "OU CONTINUER AVEC",
+      "other_provider": "Choisir d'autres fournisseurs",
+      "select_other_provider": "Sélectionner un autre fournisseur",
+      "setup_hint": "Veuillez configurer au moins un fournisseur pour une meilleure expérience",
+      "subtitle": "Profitez de services d'IA de premier ordre avec CherryIN",
+      "title": "Bienvenue à Cherry Studio"
+    }
   },
   "openclaw": {
     "checking_installation": "Vérification de l'installation d'OpenClaw...",
@@ -4826,6 +4847,7 @@
           "label": "Ajouter le modèle dans la liste"
         },
         "add_whole_group": "Ajouter tout le groupe",
+        "fetch_list": "Récupérer la liste des modèles",
         "refetch_list": "Récupérer à nouveau la liste des modèles",
         "remove_listed": "Supprimer un modèle de la liste",
         "remove_model": "Supprimer le modèle",

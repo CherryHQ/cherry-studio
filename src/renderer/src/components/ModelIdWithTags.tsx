@@ -30,7 +30,7 @@ const ModelIdWithTags = ({
         </span>
         {shouldShowIdentifier && (
           <span
-            className="min-w-0 max-w-[50%] shrink truncate font-mono text-[12px]! text-(--color-text-3) leading-[1.2]"
+            className="min-w-0 max-w-[50%] shrink truncate font-mono text-(--color-text-3) text-[12px]! leading-[1.2]"
             title={model.id}>
             {model.id}
           </span>
