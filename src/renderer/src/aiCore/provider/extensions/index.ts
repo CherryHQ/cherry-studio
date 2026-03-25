@@ -85,6 +85,7 @@ export const GitHubCopilotExtension = ProviderExtension.create({
   aliases: ['copilot', 'github-copilot'] as const,
   supportsImageGeneration: false,
   create: (options?: GitHubCopilotProviderSettings) =>
+    // GitHubCopilot并没有完整的实现ProviderV3
     createGitHubCopilotOpenAICompatible(options) as unknown as ProviderV3
 } as const satisfies ProviderExtensionConfig<
   GitHubCopilotProviderSettings,
