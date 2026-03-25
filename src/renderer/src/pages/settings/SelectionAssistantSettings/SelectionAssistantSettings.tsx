@@ -205,8 +205,10 @@ const SelectionAssistantSettings: FC = () => {
               <SettingLabel>
                 <SettingRowTitle>
                   <div style={{ marginRight: '4px' }}>{t('selection.settings.toolbar.trigger_mode.title')}</div>
-                  {/* FIXME: 没有考虑Linux？ */}
-                  <Tooltip placement="top" title={getSelectionDescriptionLabel(isWin ? 'windows' : 'mac')} arrow>
+                  <Tooltip
+                    placement="top"
+                    title={getSelectionDescriptionLabel(isWin ? 'windows' : isLinux ? 'linux' : 'mac')}
+                    arrow>
                     <QuestionIcon size={14} />
                   </Tooltip>
                 </SettingRowTitle>

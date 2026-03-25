@@ -3518,6 +3518,7 @@
           "ctrlkey_note": "After selection, hold down the Ctrl key to show the toolbar",
           "description": "The way to trigger the selection assistant and show the toolbar",
           "description_note": {
+            "linux": "If you have remapped modifier keys using tools like xmodmap or xremap, it may cause some applications to fail to select text.",
             "mac": "If you have remapped the ⌘ key using shortcuts or keyboard mapping tools, it may cause some applications to fail to select text.",
             "windows": "Some applications do not support selecting text with the Ctrl key. If you have remapped the Ctrl key using tools like AHK, it may cause some applications to fail to select text."
           },
