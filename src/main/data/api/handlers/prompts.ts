@@ -44,10 +44,8 @@ export const promptHandlers: {
 
     POST: ({ body }) => {
       return promptService.create(CreatePromptDtoSchema.parse(body))
-    }
-  },
+    },
 
-  '/prompts/reorder': {
     PATCH: ({ body }) => {
       return promptService.reorder(ReorderPromptsDtoSchema.parse(body))
     }

@@ -1,15 +1,15 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { getDbMock, loggerInfoMock } = vi.hoisted(() => ({
-  getDbMock: vi.fn(),
-  loggerInfoMock: vi.fn()
-}))
+// Mock db - tx shares the same mocks since transaction passes tx to callback
+const getDbMock = vi.fn()
+const loggerInfoMock = vi.fn()
 
-vi.mock('@data/db/DbService', () => ({
-  dbService: {
-    getDb: getDbMock
-  }
-}))
+vi.mock('@main/core/application', async () => {
+  const { mockApplicationFactory } = await import('@test-mocks/main/application')
+  return mockApplicationFactory({
+    DbService: { getDb: getDbMock }
+  })
+})
 
 vi.mock('@logger', () => ({
   loggerService: {
@@ -22,7 +22,7 @@ vi.mock('@logger', () => ({
   }
 }))
 
-import { promptService } from '../PromptService'
+const { promptService } = await import('../PromptService')
 
 function makePromptRow(overrides: Partial<Record<string, unknown>> = {}) {
   return {

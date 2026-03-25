@@ -81,9 +81,6 @@ export interface PromptSchemas {
       body: CreatePromptDto
       response: Prompt
     }
-  }
-
-  '/prompts/reorder': {
     /** Batch update sort order */
     PATCH: {
       body: ReorderPromptsDto
