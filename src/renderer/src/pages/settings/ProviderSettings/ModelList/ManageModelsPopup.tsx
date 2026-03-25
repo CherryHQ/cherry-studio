@@ -136,7 +136,7 @@ const PopupContainer: React.FC<Props> = ({ providerId, resolve }) => {
 
         // NewAPI provider without supported_endpoint_types needs manual configuration
         if (isNewApiProvider(provider) && !hasSupportedEndpointTypes) {
-          NewApiAddModelPopup.show({ title: t('settings.models.add.add_model'), provider, model })
+          void NewApiAddModelPopup.show({ title: t('settings.models.add.add_model'), provider, model })
           return
         }
 
