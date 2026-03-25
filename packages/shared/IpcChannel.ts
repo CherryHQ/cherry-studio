@@ -300,6 +300,7 @@ export enum IpcChannel {
 
   // Provider
   Provider_AddKey = 'provider:add-key',
+  Provider_PoeOAuthLogin = 'provider:poe-oauth-login',
 
   //Selection Assistant
   Selection_TextSelected = 'selection:text-selected',

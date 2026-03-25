@@ -4,7 +4,13 @@ import i18n, { getLanguageCode } from '@renderer/i18n'
 
 const logger = loggerService.withContext('Utils:oauth')
 
-export const oauthWithSiliconFlow = async (setKey) => {
+export type ProviderOAuthResult = {
+  apiKey: string
+}
+
+type SetKeyHandler = (result: ProviderOAuthResult) => void
+
+export const oauthWithSiliconFlow = async (setKey?: SetKeyHandler) => {
   const authUrl = `https://account.siliconflow.cn/oauth?client_id=${SILICON_CLIENT_ID}`
 
   const popup = window.open(
@@ -15,7 +21,7 @@ export const oauthWithSiliconFlow = async (setKey) => {
 
   const messageHandler = (event) => {
     if (event.data.length > 0 && event.data[0]['secretKey'] !== undefined) {
-      setKey(event.data[0]['secretKey'])
+      setKey?.({ apiKey: event.data[0]['secretKey'] })
       popup?.close()
       window.removeEventListener('message', messageHandler)
     }
@@ -25,7 +31,7 @@ export const oauthWithSiliconFlow = async (setKey) => {
   window.addEventListener('message', messageHandler)
 }
 
-export const oauthWithAihubmix = async (setKey) => {
+export const oauthWithAihubmix = async (setKey?: SetKeyHandler) => {
   const authUrl = ` https://console.aihubmix.com/token?client_id=cherry_studio_oauth&lang=${getLanguageCode()}&aff=SJyh`
 
   const popup = window.open(
@@ -45,7 +51,7 @@ export const oauthWithAihubmix = async (setKey) => {
         const decryptedData: any = await window.api.aes.decrypt(encryptedData, iv, secret)
         const { api_keys } = JSON.parse(decryptedData)
         if (api_keys && api_keys.length > 0) {
-          setKey(api_keys[0].value)
+          setKey?.({ apiKey: api_keys[0].value })
           popup?.close()
           window.removeEventListener('message', messageHandler)
         }
@@ -61,7 +67,7 @@ export const oauthWithAihubmix = async (setKey) => {
   window.addEventListener('message', messageHandler)
 }
 
-export const oauthWithPPIO = async (setKey) => {
+export const oauthWithPPIO = async (setKey?: SetKeyHandler) => {
   const redirectUri = 'cherrystudio://'
   const authUrl = `https://ppio.com/oauth/authorize?invited_by=JYT9GD&client_id=${PPIO_CLIENT_ID}&scope=api%20openid&response_type=code&redirect_uri=${encodeURIComponent(redirectUri)}`
 
@@ -78,7 +84,7 @@ export const oauthWithPPIO = async (setKey) => {
 
   logger.debug('[PPIO OAuth] Setting up protocol listener')
 
-  return new Promise<string>((resolve, reject) => {
+  return new Promise<ProviderOAuthResult>((resolve, reject) => {
     const removeListener = window.api.protocol.onReceiveData(async (data) => {
       try {
         const url = new URL(data.url)
@@ -121,8 +127,9 @@ export const oauthWithPPIO = async (setKey) => {
         const accessToken = tokenData.access_token
 
         if (accessToken) {
-          setKey(accessToken)
-          resolve(accessToken)
+          const result = { apiKey: accessToken }
+          setKey?.(result)
+          resolve(result)
         } else {
           reject(new Error('No access token received'))
         }
@@ -296,6 +303,29 @@ export const oauthWithCherryIn = async (setKey: (key: string) => void, config: N
       10 * 60 * 1000
     )
   })
+}
+
+export const oauthWithPoe = async (setKey?: SetKeyHandler) => {
+  try {
+    const result = await window.api.provider.poeOAuthLogin()
+    const apiKey = result?.apiKey?.trim()
+
+    if (!apiKey) {
+      throw new Error(i18n.t('settings.provider.oauth.error'))
+    }
+
+    const oauthResult = { apiKey }
+
+    setKey?.(oauthResult)
+    return oauthResult
+  } catch (error) {
+    logger.error('[Poe OAuth] error', error as Error)
+    if (error instanceof Error && error.message) {
+      throw error
+    }
+
+    throw new Error(i18n.t('settings.provider.oauth.error'))
+  }
 }
 
 export const providerCharge = async (provider: string) => {

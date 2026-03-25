@@ -390,7 +390,7 @@
           "description": "Crée et gère des listes de tâches structurées"
         },
         "ToolSearch": {
-          "description": "Découvre des outils différés dans de grandes bibliothèques"
+          "description": "Découvre les outils différés des grandes bibliothèques"
         },
         "WebFetch": {
           "description": "Récupère le contenu à partir d'une URL spécifiée"
@@ -5128,16 +5128,51 @@
           "title": "Connexion OAuth"
         },
         "connect": "Connecter {{provider}}",
-        "description": "Этот сервис предоставляется <website>{{provider}}</website>",
+        "connected": "Connecté",
+        "description": "Ce service est fourni par <website>{{provider}}</website>",
         "error": "Échec de l'authentification",
         "logged_in": "Connecté",
         "logout": "Déconnexion",
         "logout_confirm": "Êtes-vous sûr de vouloir vous déconnecter ?",
         "logout_success": "Déconnexion réussie",
         "logout_warning": "Déconnecté localement, mais la révocation du jeton serveur a peut-être échoué",
-        "official_website": "Официальный сайт",
+        "official_website": "Site officiel",
+        "open_api_keys": "Ouvrir les clés API",
+        "open_provider_website": "Ouvrir le site du fournisseur",
+        "poe": {
+          "error": {
+            "access_denied": "L'autorisation Poe a été refusée. Veuillez approuver l'accès pour continuer.",
+            "authorization_failed": "La connexion à Poe a échoué lors de l'autorisation.",
+            "browser_open_failed": "Cherry Studio n'a pas pu ouvrir le navigateur pour la connexion à Poe. Vérifiez les paramètres du navigateur par défaut de votre système et réessayez.",
+            "callback_port_unavailable": "La connexion à Poe n'a pas pu déterminer le port de rappel.",
+            "callback_processing_failed": "Échec du traitement du rappel Poe.",
+            "callback_server_error": "La connexion à Poe n'a pas pu démarrer le serveur de rappel local.",
+            "callback_timeout": "Délai d'attente dépassé pour la réponse d'autorisation Poe. Veuillez vous reconnecter.",
+            "invalid_grant": "L'autorisation Poe a expiré ou n'a pas pu être vérifiée. Veuillez vous reconnecter.",
+            "invalid_request": "Poe n'a pas pu traiter la demande de connexion. Veuillez réessayer.",
+            "invalid_scope": "Poe a refusé les autorisations demandées.",
+            "missing_api_key": "La connexion à Poe est terminée, mais aucune clé API n'a été retournée.",
+            "missing_code": "Poe n'a pas retourné de code d'autorisation.",
+            "missing_state": "La connexion à Poe n'a pas retourné de valeur state valide.",
+            "server_error": "Poe n'a pas pu terminer la connexion temporairement. Veuillez réessayer.",
+            "state_mismatch": "La demande de connexion à Poe n'a pas pu être vérifiée. Veuillez réessayer.",
+            "token_exchange_failed": "La connexion à Poe a échoué lors de la demande d'une clé API.",
+            "token_invalid_request": "Poe n'a pas pu terminer l'échange de jetons. Veuillez réessayer.",
+            "token_request_failed": "Cherry Studio n'a pas pu joindre Poe pour terminer la connexion. Vérifiez votre connexion réseau et réessayez.",
+            "unsupported_grant_type": "Poe a refusé le type d'octroi de jeton demandé.",
+            "unsupported_response_type": "Poe n'a pas accepté le flux d'autorisation demandé."
+          },
+          "failure": {
+            "title": "Échec de la connexion à Poe"
+          },
+          "success": {
+            "description": "Vous pouvez retourner à Cherry Studio maintenant.",
+            "title": "Connecté à Poe"
+          }
+        },
         "provided_by": "Fourni par",
         "provided_by_suffix": "I'm ready to translate. Please provide the text you'd like me to translate into French.",
+        "reconnect": "Reconnecter",
         "requests": "Demandes",
         "topup": "Recharger",
         "usage_title": "Utilisation"

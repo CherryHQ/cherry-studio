@@ -67,6 +67,7 @@ import ObsidianVaultService from './services/ObsidianVaultService'
 import { ocrService } from './services/ocr/OcrService'
 import { openClawService } from './services/OpenClawService'
 import { isOvmsSupported } from './services/OvmsManager'
+import PoeOAuthService from './services/PoeOAuthService'
 import powerMonitorService from './services/PowerMonitorService'
 import { proxyManager } from './services/ProxyManager'
 import { pythonService } from './services/PythonService'
@@ -172,7 +173,11 @@ export async function registerIpc(mainWindow: BrowserWindow, app: Electron.App) 
       // system proxy will use the system filter by themselves
       proxyConfig = { mode: 'system' }
     } else if (proxy) {
-      proxyConfig = { mode: 'fixed_servers', proxyRules: proxy, proxyBypassRules: bypassRules }
+      proxyConfig = {
+        mode: 'fixed_servers',
+        proxyRules: proxy,
+        proxyBypassRules: bypassRules
+      }
     } else {
       proxyConfig = { mode: 'direct' }
     }
@@ -918,6 +923,10 @@ export async function registerIpc(mainWindow: BrowserWindow, app: Electron.App) 
     return await saveWebviewAsHTML(webviewId)
   })
 
+  ipcMain.handle(IpcChannel.Provider_PoeOAuthLogin, async () => {
+    return await PoeOAuthService.login()
+  })
+
   // store sync
   storeSyncService.registerIpcHandler()
 
@@ -1130,7 +1139,10 @@ export async function registerIpc(mainWindow: BrowserWindow, app: Electron.App) 
       const data = await pluginService.installFromDirectory(options)
       return { success: true, data }
     } catch (error) {
-      logger.error('Failed to install plugin from directory', { options, error })
+      logger.error('Failed to install plugin from directory', {
+        options,
+        error
+      })
       return { success: false, error }
     }
   })
