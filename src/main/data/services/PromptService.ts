@@ -7,10 +7,10 @@
  * - Version history and rollback
  */
 
-import { dbService } from '@data/db/DbService'
 import { assistantPromptTable } from '@data/db/schemas/assistantPrompt'
 import { promptTable, promptVersionTable } from '@data/db/schemas/prompt'
 import { loggerService } from '@logger'
+import { application } from '@main/core/application'
 import { DataApiErrorFactory } from '@shared/data/api'
 import type {
   CreatePromptDto,
@@ -68,7 +68,7 @@ export class PromptService {
    * Get all prompts, ordered by sortOrder
    */
   async getAll(): Promise<Prompt[]> {
-    const db = dbService.getDb()
+    const db = application.get('DbService').getDb()
     const rows = await db.select().from(promptTable).orderBy(promptTable.sortOrder)
     return rows.map(rowToPrompt)
   }
@@ -77,7 +77,7 @@ export class PromptService {
    * Get all global prompts (not associated with any assistant)
    */
   async getGlobal(): Promise<Prompt[]> {
-    const db = dbService.getDb()
+    const db = application.get('DbService').getDb()
     const rows = await db
       .select()
       .from(promptTable)
@@ -90,7 +90,7 @@ export class PromptService {
    * Get all prompts for a specific assistant
    */
   async getForAssistant(assistantId: string): Promise<Prompt[]> {
-    const db = dbService.getDb()
+    const db = application.get('DbService').getDb()
     const rows = await db
       .select({
         id: promptTable.id,
@@ -113,7 +113,7 @@ export class PromptService {
    * Get a prompt by ID
    */
   async getById(id: string): Promise<Prompt> {
-    const db = dbService.getDb()
+    const db = application.get('DbService').getDb()
     const [row] = await db.select().from(promptTable).where(eq(promptTable.id, id)).limit(1)
 
     if (!row) {
@@ -127,7 +127,7 @@ export class PromptService {
    * Create a new prompt with initial version
    */
   async create(dto: CreatePromptDto): Promise<Prompt> {
-    const db = dbService.getDb()
+    const db = application.get('DbService').getDb()
 
     return db.transaction(async (tx) => {
       const [lastPrompt] = await tx
@@ -186,7 +186,7 @@ export class PromptService {
    * Update a prompt. Auto-creates a new version if content changed.
    */
   async update(id: string, dto: UpdatePromptDto): Promise<Prompt> {
-    const db = dbService.getDb()
+    const db = application.get('DbService').getDb()
 
     return db.transaction(async (tx) => {
       // Read inside transaction to prevent race conditions on currentVersion
@@ -232,7 +232,7 @@ export class PromptService {
    * Delete a prompt (versions are cascade deleted)
    */
   async delete(id: string): Promise<void> {
-    const db = dbService.getDb()
+    const db = application.get('DbService').getDb()
 
     const result = await db.delete(promptTable).where(eq(promptTable.id, id))
 
@@ -247,7 +247,7 @@ export class PromptService {
    * Batch update sort order
    */
   async reorder(dto: ReorderPromptsDto): Promise<void> {
-    const db = dbService.getDb()
+    const db = application.get('DbService').getDb()
 
     await db.transaction(async (tx) => {
       for (const item of dto.items) {
@@ -271,7 +271,7 @@ export class PromptService {
    * Get version history for a prompt
    */
   async getVersions(promptId: string): Promise<PromptVersion[]> {
-    const db = dbService.getDb()
+    const db = application.get('DbService').getDb()
 
     return db.transaction(async (tx) => {
       const [prompt] = await tx.select().from(promptTable).where(eq(promptTable.id, promptId)).limit(1)
@@ -294,7 +294,7 @@ export class PromptService {
    * Creates a new version with the target version's content.
    */
   async rollback(promptId: string, dto: RollbackPromptDto): Promise<Prompt> {
-    const db = dbService.getDb()
+    const db = application.get('DbService').getDb()
 
     return db.transaction(async (tx) => {
       // Read inside transaction to prevent race conditions on currentVersion

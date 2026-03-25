@@ -69,7 +69,7 @@ const PromptSettings: FC = () => {
     onError: () => window.toast.error(t('message.delete.failed'))
   })
 
-  const { trigger: reorderPrompts } = useMutation('PATCH', '/prompts/reorder', {
+  const { trigger: reorderPrompts } = useMutation('PATCH', '/prompts', {
     refresh: ['/prompts'],
     onError: () => window.toast.error(t('message.error.unknown'))
   })
