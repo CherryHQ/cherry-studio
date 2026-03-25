@@ -1,8 +1,6 @@
 import { loggerService } from '@logger'
 import { isDev } from '@main/constant'
-// Import directly from Application.ts to avoid circular dependency:
-// serviceRegistry.ts → PreferenceService.ts → application/index.ts → serviceRegistry.ts
-import { application } from '@main/core/application/Application'
+import { application } from '@main/core/application'
 import { BaseService, DependsOn, Injectable, ServicePhase } from '@main/core/lifecycle'
 import { Phase } from '@main/core/lifecycle'
 import { DefaultPreferences } from '@shared/data/preference/preferenceSchemas'
