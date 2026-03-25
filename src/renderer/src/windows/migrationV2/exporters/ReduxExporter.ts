@@ -33,7 +33,7 @@ export class ReduxExporter {
     const rawData = localStorage.getItem(PERSIST_KEY)
 
     if (!rawData) {
-      throw new Error(`Redux Persist data not found in localStorage (key: ${PERSIST_KEY})`)
+      return { data: {}, slicesFound: [], slicesMissing: [...SLICES_TO_EXPORT] }
     }
 
     // Parse the outer JSON
