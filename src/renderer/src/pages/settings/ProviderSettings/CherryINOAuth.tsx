@@ -84,7 +84,7 @@ const CherryINOAuth: FC<CherryINOAuthProps> = ({ providerId }) => {
     try {
       await oauthWithCherryIn(
         (apiKeys: string) => {
-          updateProvider({ apiKey: apiKeys })
+          updateProvider({ apiKey: apiKeys, enabled: true })
           setHasOAuthToken(true)
           window.toast.success(t('auth.get_key_success'))
         },
