@@ -4,6 +4,7 @@ import { useTranslation } from 'react-i18next'
 import { countLines, truncateOutput } from '../shared/truncateOutput'
 import { ClickableFilePath } from './ClickableFilePath'
 import { ToolHeader, TruncatedIndicator } from './GenericTools'
+import { TerminalContainer } from './TerminalOutput'
 import { AgentToolsType, type GrepToolInput, type GrepToolOutput } from './types'
 
 export function GrepTool({
@@ -36,7 +37,7 @@ export function GrepTool({
     ),
     children: (
       <div>
-        <div>
+        <TerminalContainer>
           {truncatedOutput?.split('\n').map((line, i) => {
             const match = line.match(/^(\/[\w./@+-][^:]*[^:])(:.*)?$/)
             if (match) {
@@ -49,7 +50,7 @@ export function GrepTool({
             }
             return <div key={i}>{line}</div>
           })}
-        </div>
+        </TerminalContainer>
         {isTruncated && <TruncatedIndicator originalLength={originalLength} />}
       </div>
     )
