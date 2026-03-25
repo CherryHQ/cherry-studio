@@ -164,8 +164,8 @@ export enum IpcChannel {
   // Tab
   Tab_Attach = 'tab:attach',
   Tab_Detach = 'tab:detach',
-  Tab_DragStart = 'tab:drag-start',
-  Tab_GetDragData = 'tab:get-drag-data',
+  Tab_MoveWindow = 'tab:move-window',
+  Tab_TryAttach = 'tab:try-attach',
   Tab_DragEnd = 'tab:drag-end',
 
   KnowledgeBase_Create = 'knowledge-base:create',
