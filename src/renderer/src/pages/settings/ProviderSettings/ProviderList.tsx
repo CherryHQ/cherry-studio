@@ -50,8 +50,7 @@ interface ProviderListProps {
 
 const ProviderList: FC<ProviderListProps> = ({ isOnboarding = false }) => {
   const [searchParams, setSearchParams] = useSearchParams()
-  const allProviders = useAllProviders()
-  const providers = isOnboarding ? allProviders.filter((p) => p.id !== 'cherryin') : allProviders
+  const providers = useAllProviders()
   const { updateProviders, addProvider, removeProvider, updateProvider } = useProviders()
   const { setTimeoutTimer } = useTimer()
   const [selectedProvider, _setSelectedProvider] = useState<Provider>(providers[0])
@@ -327,7 +326,7 @@ const ProviderList: FC<ProviderListProps> = ({ isOnboarding = false }) => {
   })
 
   const { onDragEnd: handleReorder, itemKey } = useDraggableReorder({
-    originalList: allProviders,
+    originalList: providers,
     filteredList: filteredProviders,
     onUpdate: updateProviders,
     itemKey: 'id'
