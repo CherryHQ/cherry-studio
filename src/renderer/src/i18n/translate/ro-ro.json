@@ -2620,22 +2620,22 @@
   },
   "onboarding": {
     "select_model": {
-      "change_later": "[to be translated]:You can change this anytime in settings",
-      "start": "[to be translated]:Get Started",
-      "subtitle": "[to be translated]:Select default model for each scenario",
-      "title": "[to be translated]:Choose Your Default Models"
+      "change_later": "Poți schimba oricând asta din setări.",
+      "start": "Începe",
+      "subtitle": "Selectați modelul implicit pentru fiecare scenariu",
+      "title": "Alegeți Modelele Dvs. Implicite"
     },
-    "skip": "[to be translated]:Skip",
+    "skip": "Sariți",
     "toast": {
-      "connected": "[to be translated]:Successfully connected to CherryIN"
+      "connected": "Conectat cu succes la CherryIN"
     },
     "welcome": {
-      "login_cherryin": "[to be translated]:Login with CherryIN",
-      "other_provider": "[to be translated]:Choose Other Providers",
-      "select_other_provider": "[to be translated]:Select Other Provider",
-      "setup_hint": "[to be translated]:Please configure at least one provider for the best experience",
-      "subtitle": "[to be translated]:Enjoy top-tier AI services with CherryIN",
-      "title": "[to be translated]:Welcome to Cherry Studio"
+      "login_cherryin": "Conectare cu CherryIN",
+      "other_provider": "Alegeți alți furnizori",
+      "select_other_provider": "Selectați alt furnizor",
+      "setup_hint": "Vă rugăm să configurați cel puțin un furnizor pentru cea mai bună experiență",
+      "subtitle": "Bucurați-vă de servicii AI de top cu CherryIN",
+      "title": "Bun venit la Cherry Studio"
     }
   },
   "openclaw": {

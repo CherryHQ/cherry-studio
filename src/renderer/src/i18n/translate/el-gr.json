@@ -2620,22 +2620,22 @@
   },
   "onboarding": {
     "select_model": {
-      "change_later": "[to be translated]:You can change this anytime in settings",
-      "start": "[to be translated]:Get Started",
-      "subtitle": "[to be translated]:Select default model for each scenario",
-      "title": "[to be translated]:Choose Your Default Models"
+      "change_later": "Μπορείς να το αλλάξεις οποιαδήποτε στιγμή από τις ρυθμίσεις",
+      "start": "Ξεκινήστε",
+      "subtitle": "Επιλέξτε προεπιλεγμένο μοντέλο για κάθε σενάριο",
+      "title": "Επιλέξτε τα Προεπιλεγμένα Σας Μοντέλα"
     },
-    "skip": "[to be translated]:Skip",
+    "skip": "Παράλειψη",
     "toast": {
-      "connected": "[to be translated]:Successfully connected to CherryIN"
+      "connected": "Συνδέθηκε επιτυχώς με το CherryIN"
     },
     "welcome": {
-      "login_cherryin": "[to be translated]:Login with CherryIN",
-      "other_provider": "[to be translated]:Choose Other Providers",
-      "select_other_provider": "[to be translated]:Select Other Provider",
-      "setup_hint": "[to be translated]:Please configure at least one provider for the best experience",
-      "subtitle": "[to be translated]:Enjoy top-tier AI services with CherryIN",
-      "title": "[to be translated]:Welcome to Cherry Studio"
+      "login_cherryin": "Σύνδεση με CherryIN",
+      "other_provider": "Επιλέξτε Άλλους Παρόχους",
+      "select_other_provider": "Επιλέξτε Άλλο Πάροχο",
+      "setup_hint": "Παρακαλούμε ρυθμίστε τουλάχιστον έναν πάροχο για την καλύτερη εμπειρία",
+      "subtitle": "Απολαύστε κορυφαίες υπηρεσίες τεχνητής νοημοσύνης με την CherryIN",
+      "title": "Καλώς ήρθατε στο Cherry Studio"
     }
   },
   "openclaw": {

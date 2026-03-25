@@ -2620,22 +2620,22 @@
   },
   "onboarding": {
     "select_model": {
-      "change_later": "[to be translated]:You can change this anytime in settings",
-      "start": "[to be translated]:Get Started",
-      "subtitle": "[to be translated]:Select default model for each scenario",
-      "title": "[to be translated]:Choose Your Default Models"
+      "change_later": "Vous pouvez modifier cela à tout moment dans les paramètres",
+      "start": "Commencer",
+      "subtitle": "Sélectionner le modèle par défaut pour chaque scénario",
+      "title": "Choisissez vos modèles par défaut"
     },
-    "skip": "[to be translated]:Skip",
+    "skip": "Passer",
     "toast": {
-      "connected": "[to be translated]:Successfully connected to CherryIN"
+      "connected": "Connecté avec succès à CherryIN"
     },
     "welcome": {
-      "login_cherryin": "[to be translated]:Login with CherryIN",
-      "other_provider": "[to be translated]:Choose Other Providers",
-      "select_other_provider": "[to be translated]:Select Other Provider",
-      "setup_hint": "[to be translated]:Please configure at least one provider for the best experience",
-      "subtitle": "[to be translated]:Enjoy top-tier AI services with CherryIN",
-      "title": "[to be translated]:Welcome to Cherry Studio"
+      "login_cherryin": "Se connecter avec CherryIN",
+      "other_provider": "Choisir d'autres fournisseurs",
+      "select_other_provider": "Sélectionner un autre fournisseur",
+      "setup_hint": "Veuillez configurer au moins un fournisseur pour une meilleure expérience",
+      "subtitle": "Profitez de services d'IA de premier ordre avec CherryIN",
+      "title": "Bienvenue à Cherry Studio"
     }
   },
   "openclaw": {
