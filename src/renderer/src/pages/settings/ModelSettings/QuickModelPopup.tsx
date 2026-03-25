@@ -35,7 +35,7 @@ const PopupContainer: React.FC<Props> = ({ resolve }) => {
   }
 
   const handleReset = useCallback(() => {
-    setTopicNamingPrompt('')
+    void setTopicNamingPrompt('')
   }, [setTopicNamingPrompt])
 
   TopicNamingModalPopup.hide = onCancel

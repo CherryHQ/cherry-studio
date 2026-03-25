@@ -19,7 +19,7 @@ const WebSearchButton: FC<Props> = ({ quickPanelController, assistantId }) => {
 
   const onClick = useCallback(() => {
     if (enableWebSearch) {
-      updateWebSearchProvider(undefined)
+      void updateWebSearchProvider(undefined)
     } else {
       toggleQuickPanel()
     }

@@ -327,7 +327,7 @@ export function registerMigrationIpcHandlers(): void {
   ipcMain.handle(MigrationIpcChannels.Restart, async () => {
     try {
       logger.info('Restarting app after migration')
-      migrationWindowManager.restartApp()
+      void migrationWindowManager.restartApp()
       return true
     } catch (error) {
       logger.error('Error restarting app', error as Error)

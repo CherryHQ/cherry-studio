@@ -23,7 +23,7 @@ const ExportMenuOptions: FC = () => {
   })
 
   const handleToggleOption = (option: string, checked: boolean) => {
-    setExportMenuOptions({
+    void setExportMenuOptions({
       [option]: checked
     })
   }

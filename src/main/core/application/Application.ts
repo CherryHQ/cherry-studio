@@ -238,7 +238,7 @@ export class Application {
     // All windows closed
     app.on('window-all-closed', () => {
       if (!isMac) {
-        this.shutdown().then(() => app.quit())
+        void this.shutdown().then(() => app.quit())
       }
     })
 

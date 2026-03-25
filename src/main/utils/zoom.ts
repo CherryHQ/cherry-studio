@@ -8,7 +8,7 @@ export function handleZoomFactor(wins: BrowserWindow[], delta: number, reset: bo
     wins.forEach((win) => {
       win.webContents.setZoomFactor(1)
     })
-    preferenceService.set('app.zoom_factor', 1)
+    void preferenceService.set('app.zoom_factor', 1)
     return
   }
 
@@ -22,6 +22,6 @@ export function handleZoomFactor(wins: BrowserWindow[], delta: number, reset: bo
     wins.forEach((win) => {
       win.webContents.setZoomFactor(newZoom)
     })
-    preferenceService.set('app.zoom_factor', newZoom)
+    void preferenceService.set('app.zoom_factor', newZoom)
   }
 }

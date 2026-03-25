@@ -57,7 +57,7 @@ class CodeToolsService {
     this.run = this.run.bind(this)
 
     if (isMac || isWin) {
-      this.preloadTerminals()
+      void this.preloadTerminals()
     }
   }
 

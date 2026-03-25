@@ -390,7 +390,7 @@
           "description": "構造化されたタスクリストを作成し、管理します"
         },
         "ToolSearch": {
-          "description": "[to be translated]:Discovers deferred tools from large libraries"
+          "description": "大規模ライブラリから遅延ツールを発見"
         },
         "WebFetch": {
           "description": "指定されたURLからコンテンツを取得します"
@@ -1195,6 +1195,8 @@
             "content": "{{count}}件の選択したトピックを削除してもよろしいですか？この操作は元に戻せません。",
             "title": "トピックを削除"
           },
+          "error": "[to be translated]:Failed to delete. Please try again.",
+          "partial_success": "[to be translated]:Successfully deleted {{successCount}} topics, {{failedCount}} failed",
           "success": "{{count}}件のトピックを削除しました"
         },
         "deselect_all": "すべての選択を解除",

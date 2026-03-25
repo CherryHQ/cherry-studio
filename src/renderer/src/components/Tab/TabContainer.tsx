@@ -210,17 +210,17 @@ const TabsContainer: React.FC<TabsContainerProps> = ({ children }) => {
 
   const handleAddTab = () => {
     hideMinappPopup()
-    navigate({ to: '/launchpad' })
+    void navigate({ to: '/launchpad' })
   }
 
   const handleSettingsClick = () => {
     hideMinappPopup()
-    navigate({ to: lastSettingsPath })
+    void navigate({ to: lastSettingsPath })
   }
 
   const handleTabClick = (tab: Tab) => {
     hideMinappPopup()
-    navigate({ to: tab.path })
+    void navigate({ to: tab.path })
   }
 
   const visibleTabs = useMemo(() => tabs.filter((tab) => !specialTabs.includes(tab.id)), [tabs])

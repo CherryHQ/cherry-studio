@@ -104,7 +104,7 @@ export function getClientId(): string {
   // If it's the placeholder value, generate a new UUID
   if (!clientId || clientId.length === 0) {
     clientId = uuidv4()
-    preferenceService.set('app.user.id', clientId)
+    void preferenceService.set('app.user.id', clientId)
   }
 
   return clientId

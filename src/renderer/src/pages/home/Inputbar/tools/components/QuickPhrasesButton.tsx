@@ -51,7 +51,7 @@ const QuickPhrasesButton = ({ quickPanel, setInputValue, resizeTextArea, assista
   )
 
   useEffect(() => {
-    loadQuickListPhrases()
+    void loadQuickListPhrases()
   }, [loadQuickListPhrases])
 
   const handlePhraseSelect = useCallback(

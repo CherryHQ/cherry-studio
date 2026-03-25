@@ -621,7 +621,7 @@ const AihubmixPage: FC<{ Options: string[] }> = ({ Options }) => {
       }
     }
 
-    removePainting(mode, paintingToDelete)
+    void removePainting(mode, paintingToDelete)
   }
 
   const translate = async () => {
@@ -659,7 +659,7 @@ const AihubmixPage: FC<{ Options: string[] }> = ({ Options }) => {
       if (spaceClickCount === 2) {
         setSpaceClickCount(0)
         setIsTranslating(true)
-        translate()
+        void translate()
       }
     }
   }
@@ -667,7 +667,7 @@ const AihubmixPage: FC<{ Options: string[] }> = ({ Options }) => {
   const handleProviderChange = (providerId: string) => {
     const routeName = location.pathname.split('/').pop()
     if (providerId !== routeName) {
-      navigate({ to: '../' + providerId, replace: true })
+      void navigate({ to: '../' + providerId, replace: true })
     }
   }
 

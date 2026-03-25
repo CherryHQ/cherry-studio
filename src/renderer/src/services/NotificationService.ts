@@ -31,7 +31,7 @@ export class NotificationService {
     })
 
     if (notificationSettings[notification.source]) {
-      this.queue.add(notification)
+      void this.queue.add(notification)
     }
   }
 

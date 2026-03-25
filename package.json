@@ -85,6 +85,7 @@
     "ci": "pnpm ci:basic-check && pnpm ci:test-check"
   },
   "dependencies": {
+    "@ai-sdk/groq": "^3.0.31",
     "@anthropic-ai/claude-agent-sdk": "0.2.81",
     "@expo/sudo-prompt": "^9.3.2",
     "@libsql/client": "0.14.0",
@@ -532,6 +533,14 @@
     "@napi-rs/system-ocr-darwin-x64": "1.0.2",
     "@napi-rs/system-ocr-win32-arm64-msvc": "1.0.2",
     "@napi-rs/system-ocr-win32-x64-msvc": "1.0.2",
-    "@strongtz/win32-arm64-msvc": "0.4.7"
+    "@strongtz/win32-arm64-msvc": "0.4.7",
+    "@napi-rs/canvas-linux-x64-gnu": "0.1.97",
+    "@napi-rs/canvas-linux-x64-musl": "0.1.97",
+    "@napi-rs/canvas-linux-arm64-gnu": "0.1.97",
+    "@napi-rs/canvas-linux-arm64-musl": "0.1.97",
+    "@napi-rs/canvas-darwin-x64": "0.1.97",
+    "@napi-rs/canvas-darwin-arm64": "0.1.97",
+    "@napi-rs/canvas-win32-x64-msvc": "0.1.97",
+    "@napi-rs/canvas-win32-arm64-msvc": "0.1.97"
   }
 }

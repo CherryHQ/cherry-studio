@@ -34,6 +34,14 @@ const packages = [
   '@napi-rs/system-ocr-darwin-x64',
   '@napi-rs/system-ocr-win32-arm64-msvc',
   '@napi-rs/system-ocr-win32-x64-msvc',
+  '@napi-rs/canvas-linux-x64-gnu',
+  '@napi-rs/canvas-linux-x64-musl',
+  '@napi-rs/canvas-linux-arm64-gnu',
+  '@napi-rs/canvas-linux-arm64-musl',
+  '@napi-rs/canvas-darwin-x64',
+  '@napi-rs/canvas-darwin-arm64',
+  '@napi-rs/canvas-win32-x64-msvc',
+  '@napi-rs/canvas-win32-arm64-msvc',
   '@strongtz/win32-arm64-msvc'
 ]
 

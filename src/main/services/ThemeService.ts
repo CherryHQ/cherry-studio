@@ -17,7 +17,7 @@ class ThemeService {
       nativeTheme.themeSource = this.theme
     } else {
       // 兼容旧版本
-      preferenceService.set('ui.theme_mode', ThemeMode.system)
+      void preferenceService.set('ui.theme_mode', ThemeMode.system)
       nativeTheme.themeSource = ThemeMode.system
     }
     nativeTheme.on('updated', this.themeUpdatadHandler.bind(this))

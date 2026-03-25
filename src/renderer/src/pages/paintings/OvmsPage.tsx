@@ -284,7 +284,7 @@ const OvmsPage: FC<{ Options: string[] }> = ({ Options }) => {
       }
     }
 
-    removePainting('ovms_paintings', paintingToDelete)
+    void removePainting('ovms_paintings', paintingToDelete)
   }
 
   const translate = async () => {
@@ -322,7 +322,7 @@ const OvmsPage: FC<{ Options: string[] }> = ({ Options }) => {
       if (spaceClickCount === 2) {
         setSpaceClickCount(0)
         setIsTranslating(true)
-        translate()
+        void translate()
       }
     }
   }
@@ -330,7 +330,7 @@ const OvmsPage: FC<{ Options: string[] }> = ({ Options }) => {
   const handleProviderChange = (providerId: string) => {
     const routeName = location.pathname.split('/').pop()
     if (providerId !== routeName) {
-      navigate({ to: '../' + providerId, replace: true })
+      void navigate({ to: '../' + providerId, replace: true })
     }
   }
 

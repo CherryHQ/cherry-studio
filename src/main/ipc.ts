@@ -209,12 +209,12 @@ export async function registerIpc(mainWindow: BrowserWindow, app: Electron.App) 
     windows.forEach((window) => {
       window.webContents.session.setSpellCheckerLanguages(languages)
     })
-    application.get('PreferenceService').set('app.spell_check.languages', languages)
+    void application.get('PreferenceService').set('app.spell_check.languages', languages)
   })
 
   // launch on boot
-  ipcMain.handle(IpcChannel.App_SetLaunchOnBoot, (_, isLaunchOnBoot: boolean) => {
-    appService.setAppLaunchOnBoot(isLaunchOnBoot)
+  ipcMain.handle(IpcChannel.App_SetLaunchOnBoot, async (_, isLaunchOnBoot: boolean) => {
+    await appService.setAppLaunchOnBoot(isLaunchOnBoot)
   })
 
   // // launch to tray
@@ -371,7 +371,7 @@ export async function registerIpc(mainWindow: BrowserWindow, app: Electron.App) 
       if (!preventQuitListener) {
         preventQuitListener = (event: Electron.Event) => {
           event.preventDefault()
-          notificationService.sendNotification({
+          void notificationService.sendNotification({
             title: reason,
             message: reason
           } as Notification)
@@ -428,17 +428,16 @@ export async function registerIpc(mainWindow: BrowserWindow, app: Electron.App) 
       ?.split('--new-data-path=')[1]
   })
 
-  ipcMain.handle(IpcChannel.App_FlushAppData, () => {
-    BrowserWindow.getAllWindows().forEach((w) => {
+  ipcMain.handle(IpcChannel.App_FlushAppData, async () => {
+    for (const w of BrowserWindow.getAllWindows()) {
       w.webContents.session.flushStorageData()
-      w.webContents.session.cookies.flushStore()
-
-      w.webContents.session.closeAllConnections()
-    })
+      await w.webContents.session.cookies.flushStore()
+      await w.webContents.session.closeAllConnections()
+    }
 
     session.defaultSession.flushStorageData()
-    session.defaultSession.cookies.flushStore()
-    session.defaultSession.closeAllConnections()
+    await session.defaultSession.cookies.flushStore()
+    await session.defaultSession.closeAllConnections()
   })
 
   ipcMain.handle(IpcChannel.App_IsNotEmptyDir, async (_, path: string) => {

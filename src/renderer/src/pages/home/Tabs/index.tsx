@@ -80,7 +80,7 @@ const HomeTabs: FC<Props> = ({
       EventEmitter.on(EVENT_NAMES.SWITCH_TOPIC_SIDEBAR, () => {
         showTab && setTab('topic')
         if (position === 'left' && topicPosition === 'right') {
-          toggleShowTopics()
+          void toggleShowTopics()
         }
       })
     ]

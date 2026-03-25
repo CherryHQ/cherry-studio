@@ -64,7 +64,7 @@ const SelectAgentBaseModelButton = ({
       modelFilter: agentModelFilter
     })
     if (selectedModel && selectedModel.id !== agent.model) {
-      onSelect(selectedModel)
+      void onSelect(selectedModel)
     }
   }
 

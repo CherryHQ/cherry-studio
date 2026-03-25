@@ -9,6 +9,7 @@ import type {
 import { useCallback, useEffect, useMemo, useRef, useSyncExternalStore } from 'react'
 
 const logger = loggerService.withContext('usePreference')
+const DEFAULT_PREFERENCE_OPTIONS: PreferenceUpdateOptions = { optimistic: true }
 
 /**
  * React hook for managing a single preference value with automatic synchronization
@@ -80,7 +81,7 @@ const logger = loggerService.withContext('usePreference')
  */
 export function usePreference<K extends PreferenceKeyType>(
   key: K,
-  options: PreferenceUpdateOptions = { optimistic: true }
+  options: PreferenceUpdateOptions = DEFAULT_PREFERENCE_OPTIONS
 ): [PreferenceDefaultScopeType[K], (value: PreferenceDefaultScopeType[K]) => Promise<void>] {
   // Subscribe to changes for this specific preference (raw value including undefined)
   const rawValue = useSyncExternalStore(
@@ -246,7 +247,7 @@ export function usePreference<K extends PreferenceKeyType>(
  */
 export function useMultiplePreferences<T extends Record<string, PreferenceKeyType>>(
   keys: T,
-  options: PreferenceUpdateOptions = { optimistic: true }
+  options: PreferenceUpdateOptions = DEFAULT_PREFERENCE_OPTIONS
 ): [
   { [P in keyof T]: PreferenceDefaultScopeType[T[P]] },
   (updates: Partial<{ [P in keyof T]: PreferenceDefaultScopeType[T[P]] }>) => Promise<void>

@@ -108,7 +108,7 @@ export async function restore() {
           await handleData(data)
         } else {
           // Direct backup was restored, app will relaunch
-          notificationService.send({
+          void notificationService.send({
             id: uuid(),
             type: 'success',
             title: i18n.t('common.success'),
@@ -127,7 +127,7 @@ export async function restore() {
         await handleData(data)
       }
 
-      notificationService.send({
+      void notificationService.send({
         id: uuid(),
         type: 'success',
         title: i18n.t('common.success'),
@@ -250,7 +250,7 @@ export async function backupToWebdav({
           lastSyncError: null
         })
       )
-      notificationService.send({
+      void notificationService.send({
         id: uuid(),
         type: 'success',
         title: i18n.t('common.success'),
@@ -320,7 +320,7 @@ export async function backupToWebdav({
     if (autoBackupProcess) {
       throw error
     }
-    notificationService.send({
+    void notificationService.send({
       id: uuid(),
       type: 'error',
       title: i18n.t('message.backup.failed'),
@@ -445,7 +445,7 @@ export async function backupToS3({
           lastSyncTime: Date.now()
         })
       )
-      notificationService.send({
+      void notificationService.send({
         id: uuid(),
         type: 'success',
         title: i18n.t('common.success'),
@@ -499,7 +499,7 @@ export async function backupToS3({
     if (autoBackupProcess) {
       throw error
     }
-    notificationService.send({
+    void notificationService.send({
       id: uuid(),
       type: 'error',
       title: i18n.t('message.backup.failed'),
@@ -601,13 +601,13 @@ export async function startAutoSync(immediate = false, type?: BackupType) {
     })
 
     if (webdavAutoSync && webdavHost) {
-      startAutoSync(immediate, 'webdav')
+      void startAutoSync(immediate, 'webdav')
     }
     if (s3Settings?.autoSync && s3Settings?.endpoint) {
-      startAutoSync(immediate, 's3')
+      void startAutoSync(immediate, 's3')
     }
     if (localBackupAutoSync && localBackupDir) {
-      startAutoSync(immediate, 'local')
+      void startAutoSync(immediate, 'local')
     }
     return
   }
@@ -630,7 +630,7 @@ export async function startAutoSync(immediate = false, type?: BackupType) {
 
     webdavAutoSyncStarted = true
     stopAutoSync('webdav')
-    scheduleNextBackup(immediate ? 'immediate' : 'fromLastSyncTime', 'webdav')
+    void scheduleNextBackup(immediate ? 'immediate' : 'fromLastSyncTime', 'webdav')
   } else if (type === 's3') {
     if (s3AutoSyncStarted) {
       return
@@ -648,7 +648,7 @@ export async function startAutoSync(immediate = false, type?: BackupType) {
 
     s3AutoSyncStarted = true
     stopAutoSync('s3')
-    scheduleNextBackup(immediate ? 'immediate' : 'fromLastSyncTime', 's3')
+    void scheduleNextBackup(immediate ? 'immediate' : 'fromLastSyncTime', 's3')
   } else if (type === 'local') {
     if (localAutoSyncStarted) {
       return
@@ -666,7 +666,7 @@ export async function startAutoSync(immediate = false, type?: BackupType) {
 
     localAutoSyncStarted = true
     stopAutoSync('local')
-    scheduleNextBackup(immediate ? 'immediate' : 'fromLastSyncTime', 'local')
+    void scheduleNextBackup(immediate ? 'immediate' : 'fromLastSyncTime', 'local')
   }
 
   async function scheduleNextBackup(
@@ -763,7 +763,7 @@ export async function startAutoSync(immediate = false, type?: BackupType) {
 
     if (isRunning || isManualBackupRunning) {
       logger.verbose(`${logPrefix} Backup already in progress, rescheduling`)
-      scheduleNextBackup('fromNow', backupType)
+      void scheduleNextBackup('fromNow', backupType)
       return
     }
 
@@ -773,7 +773,7 @@ export async function startAutoSync(immediate = false, type?: BackupType) {
 
     if (anyTopicLoading) {
       logger.info(`${logPrefix} Streaming in progress, deferring backup`)
-      scheduleNextBackup('fromNow', backupType)
+      void scheduleNextBackup('fromNow', backupType)
       return
     }
 
@@ -831,7 +831,7 @@ export async function startAutoSync(immediate = false, type?: BackupType) {
           isLocalAutoBackupRunning = false
         }
 
-        scheduleNextBackup('fromNow', backupType)
+        void scheduleNextBackup('fromNow', backupType)
         break
       } catch (error: any) {
         retryCount++
@@ -869,7 +869,7 @@ export async function startAutoSync(immediate = false, type?: BackupType) {
             content: `${logPrefix} ${new Date().toLocaleString()} ` + error.message
           })
 
-          scheduleNextBackup('fromNow', backupType)
+          void scheduleNextBackup('fromNow', backupType)
 
           // 重置运行状态
           if (backupType === 'webdav') {
@@ -1091,7 +1091,7 @@ export async function backupToLocal({
       )
 
       if (showMessage) {
-        notificationService.send({
+        void notificationService.send({
           id: uuid(),
           type: 'success',
           title: i18n.t('common.success'),

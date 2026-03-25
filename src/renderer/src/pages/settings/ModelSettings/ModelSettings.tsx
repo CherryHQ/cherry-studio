@@ -48,7 +48,7 @@ const ModelSettings: FC = () => {
   )
 
   const onResetTranslatePrompt = () => {
-    setTranslateModelPrompt(TRANSLATE_PROMPT)
+    void setTranslateModelPrompt(TRANSLATE_PROMPT)
   }
 
   return (

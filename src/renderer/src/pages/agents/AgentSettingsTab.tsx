@@ -96,7 +96,7 @@ const AgentSettingsTab = () => {
     (value: CodeStyleVarious) => {
       const field = theme === ThemeMode.light ? 'themeLight' : 'themeDark'
       const action = codeEditor.enabled ? setCodeEditor : setCodeViewer
-      action({ [field]: value })
+      void action({ [field]: value })
     },
     [theme, codeEditor.enabled, setCodeEditor, setCodeViewer]
   )

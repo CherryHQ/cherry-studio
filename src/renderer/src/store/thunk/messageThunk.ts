@@ -254,7 +254,7 @@ const createSSEReadableStream = (
       const cancelReader = (reason?: any) => reader.cancel(reason).catch(() => {})
 
       const abortHandler = () => {
-        cancelReader(signal.reason ?? 'aborted')
+        void cancelReader(signal.reason ?? 'aborted')
         controller.error(new DOMException('Aborted', 'AbortError'))
       }
 
@@ -280,7 +280,7 @@ const createSSEReadableStream = (
 
         if (dataPayload === '[DONE]') {
           signal.removeEventListener('abort', abortHandler)
-          cancelReader()
+          void cancelReader()
           controller.close()
           return true
         }
@@ -526,7 +526,7 @@ export const cleanupMultipleBlocks = (dispatch: AppDispatch, blockIds: string[])
     await Promise.all(files.map((file) => FileManager.deleteFile(file.id, false)))
   }
 
-  getBlocksFiles(blockIds).then(cleanupFiles)
+  void getBlocksFiles(blockIds).then(cleanupFiles)
 
   if (blockIds.length > 0) {
     dispatch(removeManyBlocks(blockIds))
@@ -721,7 +721,7 @@ const fetchAndProcessAgentResponseImpl = async (
       false,
       false,
       (sessionId) => {
-        persistAgentSessionId(sessionId)
+        void persistAgentSessionId(sessionId)
       },
       () => sessionWasCleared // Provide getter for session cleared flag
     )
@@ -804,7 +804,7 @@ const dispatchMultiModelResponses = async (
 
   const queue = getTopicQueue(topicId)
   for (const task of tasksToQueue) {
-    queue.add(async () => {
+    void queue.add(async () => {
       await fetchAndProcessAssistantResponseImpl(
         dispatch,
         getState,
@@ -1024,7 +1024,7 @@ export const sendMessage =
         await saveMessageAndBlocksToDB(topicId, assistantMessage, [])
         dispatch(newMessagesActions.addMessage({ topicId, message: assistantMessage }))
 
-        queue.add(async () => {
+        void queue.add(async () => {
           await fetchAndProcessAgentResponseImpl(dispatch, getState, {
             topicId,
             assistant,
@@ -1056,7 +1056,7 @@ export const sendMessage =
             })
           )
 
-          queue.add(async () => {
+          void queue.add(async () => {
             await fetchAndProcessAssistantResponseImpl(dispatch, getState, topicId, assistant, assistantMessage)
           })
         }
@@ -1064,7 +1064,7 @@ export const sendMessage =
     } catch (error) {
       logger.error('Error in sendMessage thunk:', error as Error)
     } finally {
-      finishTopicLoading(topicId)
+      void finishTopicLoading(topicId)
     }
   }
 
@@ -1332,14 +1332,14 @@ export const resendMessageThunk =
           ...assistant,
           ...(resetMsg.model ? { model: resetMsg.model } : {})
         }
-        queue.add(async () => {
+        void queue.add(async () => {
           await fetchAndProcessAssistantResponseImpl(dispatch, getState, topicId, assistantConfigForThisRegen, resetMsg)
         })
       }
     } catch (error) {
       logger.error(`[resendMessageThunk] Error resending user message ${userMessageToResend.id}:`, error as Error)
     } finally {
-      finishTopicLoading(topicId)
+      void finishTopicLoading(topicId)
     }
   }
 
@@ -1351,7 +1351,7 @@ export const resendMessageThunk =
 export const resendUserMessageWithEditThunk =
   (topicId: Topic['id'], originalMessage: Message, assistant: Assistant) => async (dispatch: AppDispatch) => {
     // Trigger the regeneration logic for associated assistant messages
-    dispatch(resendMessageThunk(topicId, originalMessage, assistant))
+    void dispatch(resendMessageThunk(topicId, originalMessage, assistant))
   }
 
 /**
@@ -1454,7 +1454,7 @@ export const regenerateAssistantResponseThunk =
         ...assistant,
         ...(resetAssistantMsg.model ? { model: resetAssistantMsg.model } : {})
       }
-      queue.add(async () => {
+      void queue.add(async () => {
         await fetchAndProcessAssistantResponseImpl(
           dispatch,
           getState,
@@ -1470,7 +1470,7 @@ export const regenerateAssistantResponseThunk =
       )
       // dispatch(newMessagesActions.setTopicLoading({ topicId, loading: false }))
     } finally {
-      finishTopicLoading(topicId)
+      void finishTopicLoading(topicId)
     }
   }
 
@@ -1631,8 +1631,8 @@ export const appendAssistantResponseThunk =
         })
       )
 
-      dispatch(updateMessageAndBlocksThunk(topicId, { id: existingAssistantMessageId, foldSelected: false }, []))
-      dispatch(updateMessageAndBlocksThunk(topicId, { id: newAssistantMessageStub.id, foldSelected: true }, []))
+      void dispatch(updateMessageAndBlocksThunk(topicId, { id: existingAssistantMessageId, foldSelected: false }, []))
+      void dispatch(updateMessageAndBlocksThunk(topicId, { id: newAssistantMessageStub.id, foldSelected: true }, []))
 
       // 5. Prepare and queue the processing task
       const assistantConfigForThisCall = {
@@ -1640,7 +1640,7 @@ export const appendAssistantResponseThunk =
         model: newModel
       }
       const queue = getTopicQueue(topicId)
-      queue.add(async () => {
+      void queue.add(async () => {
         await fetchAndProcessAssistantResponseImpl(
           dispatch,
           getState,
@@ -1654,7 +1654,7 @@ export const appendAssistantResponseThunk =
       // Optionally dispatch an error action or notification
       // Resetting loading state should be handled by the underlying fetchAndProcessAssistantResponseImpl
     } finally {
-      finishTopicLoading(topicId)
+      void finishTopicLoading(topicId)
     }
   }
 

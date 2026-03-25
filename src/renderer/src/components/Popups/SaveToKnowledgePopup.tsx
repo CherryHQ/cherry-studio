@@ -144,7 +144,7 @@ const PopupContainer: React.FC<Props> = ({ source, title, resolve }) => {
         setAnalysisLoading(false)
       }
     }
-    analyze()
+    void analyze()
   }, [source, isTopicMode, isNoteMode])
 
   // 生成内容类型选项

@@ -390,7 +390,7 @@
           "description": "Crea y gestiona listas de tareas estructuradas"
         },
         "ToolSearch": {
-          "description": "[to be translated]:Discovers deferred tools from large libraries"
+          "description": "Descubre herramientas diferidas de bibliotecas grandes"
         },
         "WebFetch": {
           "description": "Obtiene contenido desde una URL especificada"
@@ -1195,6 +1195,8 @@
             "content": "¿Estás seguro de que quieres eliminar {{count}} tema(s) seleccionado(s)? Esta acción no se puede deshacer.",
             "title": "Eliminar Temas"
           },
+          "error": "[to be translated]:Failed to delete. Please try again.",
+          "partial_success": "[to be translated]:Successfully deleted {{successCount}} topics, {{failedCount}} failed",
           "success": "Eliminado(s) {{count}} tema(s)"
         },
         "deselect_all": "Deseleccionar todo",

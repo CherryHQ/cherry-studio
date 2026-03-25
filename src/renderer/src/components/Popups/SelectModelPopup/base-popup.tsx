@@ -221,7 +221,7 @@ const SelectModelPopupView: React.FC<Props> = ({
                 e.stopPropagation()
                 setOpen(false)
                 resolve(undefined)
-                window.navigate({ to: '/settings/provider', search: { id: provider.id } })
+                void window.navigate({ to: '/settings/provider', search: { id: provider.id } })
               }}
             />
           </Tooltip>
@@ -418,7 +418,7 @@ const SelectModelPopupView: React.FC<Props> = ({
             <PinIconWrapper
               onClick={(e) => {
                 e.stopPropagation()
-                togglePin(getModelUniqId(item.model))
+                void togglePin(getModelUniqId(item.model))
               }}
               data-pinned={item.isPinned}
               $isPinned={item.isPinned}>

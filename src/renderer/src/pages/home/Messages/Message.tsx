@@ -98,7 +98,7 @@ const MessageItem: FC<Props> = ({
       try {
         await editMessageBlocks(message.id, blocks)
         const usage = await estimateMessageUsage(message)
-        editMessage(message.id, { usage: usage })
+        void editMessage(message.id, { usage: usage })
         stopEditing()
       } catch (error) {
         logger.error('Failed to save message blocks:', error as Error)
@@ -181,7 +181,7 @@ const MessageItem: FC<Props> = ({
           if (isMultiSelectMode) {
             return
           }
-          EventEmitter.emit(EVENT_NAMES.NEW_CONTEXT)
+          void EventEmitter.emit(EVENT_NAMES.NEW_CONTEXT)
         }}>
         <Divider dashed style={{ padding: '0 20px' }} plain>
           {t('chat.message.new.context')}

@@ -519,7 +519,7 @@ export function useInfiniteQuery<TPath extends ConcreteApiPaths>(
 
   const loadNext = useCallback(() => {
     if (!hasNext || isValidating) return
-    setSize((s) => s + 1)
+    void setSize((s) => s + 1)
   }, [hasNext, isValidating, setSize])
 
   const refresh = useCallback(() => mutate(), [mutate])

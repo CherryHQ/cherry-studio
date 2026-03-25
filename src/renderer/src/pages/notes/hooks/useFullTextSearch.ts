@@ -136,7 +136,7 @@ export function useFullTextSearch(options: UseFullTextSearchOptions = {}): UseFu
       }
 
       debounceTimerRef.current = setTimeout(() => {
-        performSearch(nodes, keyword)
+        void performSearch(nodes, keyword)
       }, debounceMs)
     },
     [performSearch, debounceMs]
