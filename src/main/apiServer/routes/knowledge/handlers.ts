@@ -1,3 +1,8 @@
+// TODO(v2): All Redux store reads in this file (state.knowledge.bases, state.llm.providers)
+//           should migrate to the V2 SQLite/Drizzle data layer (src/main/services/agents/).
+//           Redux is blocked for new data-model features until v2.0.0.
+//           See: src/main/services/agents/database/schema/index.ts
+
 import { loggerService } from '@logger'
 import KnowledgeService from '@main/services/KnowledgeService'
 import { reduxService } from '@main/services/ReduxService'
@@ -11,14 +16,22 @@ const logger = loggerService.withContext('KnowledgeHandlers')
  */
 export const listKnowledgeBases = async (_req: Request, res: Response): Promise<Response> => {
   try {
-    logger.debug('Listing knowledge bases')
+    const req = _req
+    const limit = req.query.limit ? parseInt(req.query.limit as string) : 20
+    const offset = req.query.offset ? parseInt(req.query.offset as string) : 0
+
+    logger.debug('Listing knowledge bases', { limit, offset })
 
     // Get knowledge bases from Redux store
+    // TODO(v2): Migrate to V2 knowledge base storage (SQLite/Drizzle).
+    //           Redux access requires Cherry Studio window to be open.
     try {
       const bases = await reduxService.select<KnowledgeBase[]>('state.knowledge.bases')
+      const total = bases?.length || 0
+      const paginatedBases = (bases || []).slice(offset, offset + limit)
       return res.json({
-        knowledge_bases: bases || [],
-        total: bases?.length || 0
+        knowledge_bases: paginatedBases,
+        total
       })
     } catch {
       logger.warn('Redux store not available, returning empty list')
@@ -59,6 +72,7 @@ export const getKnowledgeBase = async (req: Request, res: Response): Promise<Res
 
     logger.debug(`Getting knowledge base: ${id}`)
 
+    // TODO(v2): Migrate to V2 knowledge base storage (SQLite/Drizzle).
     const bases = await reduxService.select<KnowledgeBase[]>('state.knowledge.bases')
     const base = bases?.find((b) => b.id === id)
 
@@ -93,6 +107,9 @@ interface SearchRequest {
 
 /**
  * Get provider configuration from Redux store by provider ID
+ *
+ * TODO(v2): Migrate to V2 provider config storage (SQLite/Drizzle) so the API server
+ *           can resolve embedding/rerank provider credentials without a running renderer.
  */
 async function getProviderConfig(providerId: string): Promise<{ apiKey: string; baseURL: string } | null> {
   try {
@@ -187,6 +204,7 @@ export const searchKnowledge = async (req: Request, res: Response): Promise<Resp
     logger.debug(`Searching knowledge bases: "${query}"`, { knowledge_base_ids, document_count })
 
     // Get knowledge bases from Redux
+    // TODO(v2): Migrate to V2 knowledge base storage (SQLite/Drizzle).
     const bases = await reduxService.select<KnowledgeBase[]>('state.knowledge.bases')
 
     if (!bases || bases.length === 0) {
@@ -215,7 +233,10 @@ export const searchKnowledge = async (req: Request, res: Response): Promise<Resp
       try {
         const params = await getKnowledgeBaseParams(base)
 
-        // Call KnowledgeService.search directly (first param is IPC event, not used)
+        // Call KnowledgeService.search directly.
+        // The IPC event (first param) is typed as Electron.IpcMainInvokeEvent but is
+        // never accessed inside search() — it exists only to satisfy the IPC handler signature.
+        // This is safe because the search logic reads config from Redux rather than the event.
         const searchResults = await KnowledgeService.search({} as Electron.IpcMainInvokeEvent, {
           search: query,
           base: params
