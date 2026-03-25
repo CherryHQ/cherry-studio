@@ -172,4 +172,4 @@ class WebSearchService {
   }
 }
 
-export default new WebSearchService()
+export const webSearchService = new WebSearchService()

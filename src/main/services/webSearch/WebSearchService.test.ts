@@ -55,7 +55,7 @@ vi.mock('./utils/config', () => ({
   getRuntimeConfig: getRuntimeConfigMock
 }))
 
-import webSearchService from './WebSearchService'
+import { webSearchService } from './WebSearchService'
 
 const provider: ResolvedWebSearchProvider = {
   id: 'tavily',
