@@ -161,6 +161,7 @@ const CodeCliPage: FC = () => {
         const model = provider.models.find((m) => getModelUniqId(m) === modelIdStr)
         if (model) return model
       }
+      logger.warn(`Model not found for ID: ${modelIdStr}`)
       return null
     },
     [providers]
@@ -168,18 +169,18 @@ const CodeCliPage: FC = () => {
 
   const handleModelChange = (value: string) => {
     if (!value) {
-      void setModel(null)
+      setModel(null).catch((err) => logger.error('Failed to clear model:', err as Error))
       return
     }
 
     // Store the model unique ID string directly (v2: preference stores ID, not full Model)
-    void setModel(value)
+    setModel(value).catch((err) => logger.error('Failed to set model:', err as Error))
   }
 
   // 处理删除目录
   const handleRemoveDirectory = (directory: string, e: React.MouseEvent) => {
     e.stopPropagation()
-    void removeDir(directory)
+    removeDir(directory).catch((err) => logger.error('Failed to remove directory:', err as Error))
   }
 
   // 检查 bun 是否安装
@@ -285,6 +286,11 @@ const CodeCliPage: FC = () => {
   // 执行启动操作
   const executeLaunch = async (env: Record<string, string>) => {
     const resolvedModel = selectedModel ? resolveModel(selectedModel) : null
+    if (selectedCliTool !== codeCLI.githubCopilotCli && !resolvedModel) {
+      logger.warn('Cannot launch: model could not be resolved')
+      window.toast.error(t('code.model_required'))
+      return
+    }
     const modelId = selectedCliTool === codeCLI.githubCopilotCli ? '' : (resolvedModel?.id ?? '')
 
     const runOptions = {
