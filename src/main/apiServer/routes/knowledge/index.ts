@@ -1,12 +1,7 @@
 import express from 'express'
 
 import { getKnowledgeBase, listKnowledgeBases, searchKnowledge } from './handlers'
-import {
-  handleValidationErrors,
-  validateKnowledgeBaseId,
-  validateKnowledgeSearch,
-  validatePagination
-} from './validators'
+import { validateKnowledgeBaseId, validateKnowledgeSearch, validatePagination } from './validators'
 
 // Create main knowledge router
 const knowledgeRouter = express.Router()
@@ -29,6 +24,11 @@ const knowledgeRouter = express.Router()
  *           description: Knowledge base description
  *         model:
  *           type: object
+ *           properties:
+ *             id:
+ *               type: string
+ *             provider:
+ *               type: string
  *           description: Embedding model configuration
  *         dimensions:
  *           type: integer
@@ -42,9 +42,33 @@ const knowledgeRouter = express.Router()
  *         documentCount:
  *           type: integer
  *           description: Number of documents
- *         itemCount:
+ *         version:
  *           type: integer
- *           description: Number of items (chunks)
+ *           description: Schema version
+ *         threshold:
+ *           type: number
+ *           description: Similarity threshold
+ *         rerankModel:
+ *           type: object
+ *           properties:
+ *             id:
+ *               type: string
+ *             provider:
+ *               type: string
+ *           description: Rerank model configuration
+ *         preprocessProvider:
+ *           type: object
+ *           properties:
+ *             type:
+ *               type: string
+ *             provider:
+ *               type: string
+ *           description: Preprocess provider configuration
+ *         items:
+ *           type: array
+ *           items:
+ *             type: object
+ *           description: Knowledge items
  *         created_at:
  *           type: number
  *           description: Creation timestamp
@@ -127,26 +151,11 @@ const knowledgeRouter = express.Router()
  *               name:
  *                 type: string
  *           description: Knowledge bases that were searched
- *
- *     ErrorResponse:
- *       type: object
- *       properties:
- *         error:
- *           type: object
- *           properties:
- *             message:
- *               type: string
- *               description: Error message
- *             type:
- *               type: string
- *               description: Error type
- *             code:
- *               type: string
- *               description: Error code
- *           required:
- *             - message
- *             - type
- *             - code
+ *         warnings:
+ *           type: array
+ *           items:
+ *             type: string
+ *           description: Warning messages for partial search failures
  */
 
 /**
@@ -186,7 +195,7 @@ const knowledgeRouter = express.Router()
  *             schema:
  *               $ref: '#/components/schemas/ErrorResponse'
  */
-knowledgeRouter.get('/', validatePagination, handleValidationErrors, listKnowledgeBases)
+knowledgeRouter.get('/', validatePagination, listKnowledgeBases)
 
 /**
  * @swagger
@@ -215,7 +224,7 @@ knowledgeRouter.get('/', validatePagination, handleValidationErrors, listKnowled
  *             schema:
  *               $ref: '#/components/schemas/ErrorResponse'
  */
-knowledgeRouter.get('/:id', validateKnowledgeBaseId, handleValidationErrors, getKnowledgeBase)
+knowledgeRouter.get('/:id', validateKnowledgeBaseId, getKnowledgeBase)
 
 /**
  * @swagger
@@ -270,13 +279,19 @@ knowledgeRouter.get('/:id', validateKnowledgeBaseId, handleValidationErrors, get
  *           application/json:
  *             schema:
  *               $ref: '#/components/schemas/ErrorResponse'
- *       404:
- *         description: Knowledge base not found
+ *       502:
+ *         description: All knowledge base searches failed
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ErrorResponse'
+ *       503:
+ *         description: Service unavailable (Redux store not accessible)
  *         content:
  *           application/json:
  *             schema:
  *               $ref: '#/components/schemas/ErrorResponse'
  */
-knowledgeRouter.post('/search', validateKnowledgeSearch, handleValidationErrors, searchKnowledge)
+knowledgeRouter.post('/search', validateKnowledgeSearch, searchKnowledge)
 
 export { knowledgeRouter as knowledgeRoutes }

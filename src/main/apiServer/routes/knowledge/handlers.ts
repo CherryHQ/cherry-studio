@@ -34,11 +34,13 @@ export const listKnowledgeBases = async (_req: Request, res: Response): Promise<
         total
       })
     } catch {
-      logger.warn('Redux store not available, returning empty list')
-      return res.json({
-        knowledge_bases: [],
-        total: 0,
-        warning: 'Knowledge bases are only available when Cherry Studio window is open'
+      logger.warn('Redux store not available, returning 503')
+      return res.status(503).json({
+        error: {
+          message: 'Knowledge bases are only available when Cherry Studio window is open',
+          type: 'service_unavailable',
+          code: 'REDUX_UNAVAILABLE'
+        }
       })
     }
   } catch (error) {
@@ -88,6 +90,16 @@ export const getKnowledgeBase = async (req: Request, res: Response): Promise<Res
 
     return res.json(base)
   } catch (error) {
+    // Check if Redux is unavailable
+    if ((error as any).message?.includes('Main window is not available')) {
+      return res.status(503).json({
+        error: {
+          message: 'Knowledge bases are only available when Cherry Studio window is open',
+          type: 'service_unavailable',
+          code: 'REDUX_UNAVAILABLE'
+        }
+      })
+    }
     logger.error('Failed to get knowledge base', error as Error)
     return res.status(500).json({
       error: {
@@ -116,6 +128,7 @@ async function getProviderConfig(providerId: string): Promise<{ apiKey: string; 
     const providers = await reduxService.select<Provider[]>('state.llm.providers')
     const provider = providers?.find((p) => p.id === providerId)
     if (!provider) {
+      logger.warn(`Provider not found: ${providerId}`)
       return null
     }
 
@@ -128,7 +141,8 @@ async function getProviderConfig(providerId: string): Promise<{ apiKey: string; 
       apiKey: provider.apiKey || '',
       baseURL
     }
-  } catch {
+  } catch (error) {
+    logger.error(`Failed to get provider config for ${providerId}`, error as Error)
     return null
   }
 }
@@ -168,7 +182,9 @@ async function getKnowledgeBaseParams(base: KnowledgeBase): Promise<KnowledgeBas
   // Add rerank if configured
   if (base.rerankModel?.provider) {
     const rerankConfig = await getProviderConfig(base.rerankModel.provider)
-    if (rerankConfig) {
+    if (!rerankConfig) {
+      logger.warn(`Rerank provider not found for knowledge base "${base.name}": ${base.rerankModel.provider}`)
+    } else {
       params.rerankApiClient = {
         model: base.rerankModel.id || '',
         provider: base.rerankModel.provider,
@@ -233,30 +249,56 @@ export const searchKnowledge = async (req: Request, res: Response): Promise<Resp
       try {
         const params = await getKnowledgeBaseParams(base)
 
-        // Call KnowledgeService.search directly.
-        // The IPC event (first param) is typed as Electron.IpcMainInvokeEvent but is
-        // never accessed inside search() — it exists only to satisfy the IPC handler signature.
-        // This is safe because the search logic reads config from Redux rather than the event.
+        // WORKAROUND: KnowledgeService.search() expects Electron.IpcMainInvokeEvent for IPC signature.
+        // The @TraceMethod decorator doesn't currently access event properties, so passing {} is safe.
+        // TODO(v2): Add searchInternal() method to KnowledgeService for non-IPC calls.
         const searchResults = await KnowledgeService.search({} as Electron.IpcMainInvokeEvent, {
           search: query,
           base: params
         })
 
-        return searchResults.map((result) => ({
-          ...result,
-          knowledge_base_id: base.id,
-          knowledge_base_name: base.name
-        }))
+        return {
+          baseId: base.id,
+          baseName: base.name,
+          results: searchResults.map((result) => ({
+            ...result,
+            knowledge_base_id: base.id,
+            knowledge_base_name: base.name
+          })),
+          error: undefined
+        }
       } catch (error) {
         logger.error(`Error searching knowledge base ${base.id}`, error as Error)
-        return []
+        return {
+          baseId: base.id,
+          baseName: base.name,
+          results: [],
+          error: (error as Error).message
+        }
       }
     })
 
     const resultsPerBase = await Promise.all(searchPromises)
-    const allResults = resultsPerBase.flat()
 
-    // Sort by score and limit to document_count
+    // Check if all searches failed
+    const allFailed = resultsPerBase.every((r) => r.results.length === 0 && r.error)
+    if (allFailed && resultsPerBase.length > 0) {
+      return res.status(502).json({
+        error: {
+          message: 'All knowledge base searches failed. Check embedding provider configuration.',
+          type: 'service_unavailable',
+          code: 'SEARCH_ALL_FAILED'
+        },
+        failed_bases: resultsPerBase.map((r) => ({ id: r.baseId, name: r.baseName, error: r.error }))
+      })
+    }
+
+    // Collect partial failures
+    const warnings = resultsPerBase
+      .filter((r) => r.error && r.results.length === 0)
+      .map((r) => `Knowledge base "${r.baseName}" search failed: ${r.error}`)
+
+    const allResults = resultsPerBase.flatMap((r) => r.results)
     const sortedResults = allResults.sort((a, b) => b.score - a.score).slice(0, document_count)
 
     logger.debug(`Found ${sortedResults.length} results for query: "${query}"`)
@@ -265,9 +307,20 @@ export const searchKnowledge = async (req: Request, res: Response): Promise<Resp
       query,
       results: sortedResults,
       total: sortedResults.length,
-      searched_bases: targetBases.map((b) => ({ id: b.id, name: b.name }))
+      searched_bases: resultsPerBase.map((r) => ({ id: r.baseId, name: r.baseName })),
+      ...(warnings.length > 0 && { warnings })
     })
   } catch (error) {
+    // Check if Redux is unavailable
+    if ((error as any).message?.includes('Main window is not available')) {
+      return res.status(503).json({
+        error: {
+          message: 'Knowledge bases are only available when Cherry Studio window is open',
+          type: 'service_unavailable',
+          code: 'REDUX_UNAVAILABLE'
+        }
+      })
+    }
     logger.error('Failed to search knowledge bases', error as Error)
     return res.status(500).json({
       error: {
