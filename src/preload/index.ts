@@ -456,6 +456,19 @@ const api = {
       ipcRenderer.invoke(IpcChannel.CherryIN_StartOAuthFlow, oauthServer, apiHost),
     exchangeToken: (code: string, state: string) => ipcRenderer.invoke(IpcChannel.CherryIN_ExchangeToken, code, state)
   },
+  codex: {
+    startLogin: () => ipcRenderer.invoke(IpcChannel.Codex_StartLogin),
+    handleCallback: (code: string, state: string) => ipcRenderer.invoke(IpcChannel.Codex_HandleCallback, code, state),
+    getAuthStatus: () => ipcRenderer.invoke(IpcChannel.Codex_GetAuthStatus),
+    getAccessHeaders: () => ipcRenderer.invoke(IpcChannel.Codex_GetAccessHeaders),
+    refreshToken: () => ipcRenderer.invoke(IpcChannel.Codex_RefreshToken),
+    logout: () => ipcRenderer.invoke(IpcChannel.Codex_Logout),
+    fetchModels: (force?: boolean) => ipcRenderer.invoke(IpcChannel.Codex_FetchModels, force),
+    clearModelsCache: () => ipcRenderer.invoke(IpcChannel.Codex_ClearModelsCache),
+    setAccessToken: (accessToken: string, accountId?: string) =>
+      ipcRenderer.invoke(IpcChannel.Codex_SetAccessToken, accessToken, accountId),
+    setAccountId: (accountId: string) => ipcRenderer.invoke(IpcChannel.Codex_SetAccountId, accountId)
+  },
   // Binary related APIs
   isBinaryExist: (name: string) => ipcRenderer.invoke(IpcChannel.App_IsBinaryExist, name),
   getBinaryPath: (name: string) => ipcRenderer.invoke(IpcChannel.App_GetBinaryPath, name),

@@ -20,6 +20,7 @@ import { isLocalAi } from '@renderer/config/env'
 import { SYSTEM_MODELS } from '@renderer/config/models'
 import { SYSTEM_PROVIDERS } from '@renderer/config/providers'
 import type { AwsBedrockAuthType, Model, Provider } from '@renderer/types'
+import { isSystemProviderId } from '@renderer/types'
 import { uniqBy } from 'lodash'
 
 type LlmSettings = {
@@ -137,6 +138,14 @@ const getIntegratedInitialState = () => {
   } as LlmState
 }
 
+const createMissingSystemProvider = (id: string) => {
+  if (!isSystemProviderId(id)) {
+    return undefined
+  }
+
+  return SYSTEM_PROVIDERS.find((provider) => provider.id === id)
+}
+
 export const moveProvider = (providers: Provider[], id: string, position: number) => {
   const index = providers.findIndex((p) => p.id === id)
   if (index === -1) return providers
@@ -156,6 +165,15 @@ const llmSlice = createSlice({
       const index = state.providers.findIndex((p) => p.id === action.payload.id)
       if (index !== -1) {
         Object.assign(state.providers[index], action.payload)
+        return
+      }
+
+      const missingSystemProvider = createMissingSystemProvider(action.payload.id)
+      if (missingSystemProvider) {
+        state.providers.push({
+          ...missingSystemProvider,
+          ...action.payload
+        })
       }
     },
     updateProviders: (state, action: PayloadAction<Provider[]>) => {

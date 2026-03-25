@@ -125,6 +125,18 @@ export enum IpcChannel {
   CherryIN_StartOAuthFlow = 'cherryin:start-oauth-flow',
   CherryIN_ExchangeToken = 'cherryin:exchange-token',
 
+  // Codex OAuth
+  Codex_StartLogin = 'codex:start-login',
+  Codex_HandleCallback = 'codex:handle-callback',
+  Codex_GetAuthStatus = 'codex:get-auth-status',
+  Codex_GetAccessHeaders = 'codex:get-access-headers',
+  Codex_RefreshToken = 'codex:refresh-token',
+  Codex_Logout = 'codex:logout',
+  Codex_FetchModels = 'codex:fetch-models',
+  Codex_ClearModelsCache = 'codex:clear-models-cache',
+  Codex_SetAccessToken = 'codex:set-access-token',
+  Codex_SetAccountId = 'codex:set-account-id',
+
   // obsidian
   Obsidian_GetVaults = 'obsidian:get-vaults',
   Obsidian_GetFiles = 'obsidian:get-files',

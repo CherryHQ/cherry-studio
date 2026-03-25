@@ -690,7 +690,7 @@ export async function checkApi(provider: Provider, model: Model, timeout = 15000
 
   const assistant = getDefaultAssistant()
   assistant.model = model
-  assistant.prompt = 'test' // 避免部分 provider 空系统提示词会报错
+  assistant.prompt = provider.id === 'codex' ? 'You are Codex.' : 'test' // 避免部分 provider 空系统提示词会报错
 
   if (isEmbeddingModel(model)) {
     logger.silly("it's a embedding model")
