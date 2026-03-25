@@ -1,19 +1,24 @@
 import { Flex } from '@cherrystudio/ui'
 import { InfoTooltip } from '@cherrystudio/ui'
+import { useMultiplePreferences } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
 import InputEmbeddingDimension from '@renderer/components/InputEmbeddingDimension'
 import ModelSelector from '@renderer/components/ModelSelector'
 import { isEmbeddingModel, isRerankModel } from '@renderer/config/models'
 import { useModel } from '@renderer/hooks/useModel'
 import { useProviders } from '@renderer/hooks/useProvider'
+import {
+  MEMORY_PREFERENCE_KEYS,
+  type MemoryPreferenceValues,
+  resolveMemoryConfig,
+  setMemoryConfigToPreferences
+} from '@renderer/services/memoryConfig'
 import { getModelUniqId } from '@renderer/services/ModelService'
-import { selectMemoryConfig, updateMemoryConfig } from '@renderer/store/memory'
 import type { Model } from '@renderer/types'
 import { Form, Modal } from 'antd'
 import { t } from 'i18next'
 import type { FC } from 'react'
-import { useCallback, useEffect, useState } from 'react'
-import { useDispatch, useSelector } from 'react-redux'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 
 const logger = loggerService.withContext('MemorySettingsModal')
 
@@ -32,8 +37,11 @@ type formValue = {
 
 const MemorySettingsModal: FC<MemorySettingsModalProps> = ({ visible, onSubmit, onCancel, form }) => {
   const { providers } = useProviders()
-  const dispatch = useDispatch()
-  const memoryConfig = useSelector(selectMemoryConfig)
+  const [memoryConfigPreferences] = useMultiplePreferences(MEMORY_PREFERENCE_KEYS)
+  const memoryConfig = useMemo(
+    () => resolveMemoryConfig(memoryConfigPreferences as MemoryPreferenceValues),
+    [memoryConfigPreferences]
+  )
   const [loading, setLoading] = useState(false)
 
   // Get all models for lookup
@@ -85,7 +93,7 @@ const MemorySettingsModal: FC<MemorySettingsModalProps> = ({ visible, onSubmit, 
           // customUpdateMemoryPrompt: values.customUpdateMemoryPrompt
         }
 
-        dispatch(updateMemoryConfig(updatedConfig))
+        await setMemoryConfigToPreferences(updatedConfig)
         onSubmit(updatedConfig)
         setLoading(false)
       }

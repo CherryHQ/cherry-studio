@@ -695,8 +695,28 @@ export const REDUX_STORE_MAPPINGS = {
       targetKey: 'feature.memory.embedder_dimensions'
     },
     {
+      originalKey: 'memoryConfig.embeddingDimensions',
+      targetKey: 'feature.memory.embedder_dimensions'
+    },
+    {
       originalKey: 'memoryConfig.isAutoDimensions',
       targetKey: 'feature.memory.auto_dimensions'
+    },
+    {
+      originalKey: 'memoryConfig.llmModel.id',
+      targetKey: 'feature.memory.llm_model_id'
+    },
+    {
+      originalKey: 'memoryConfig.llmModel.provider',
+      targetKey: 'feature.memory.llm_model_provider'
+    },
+    {
+      originalKey: 'memoryConfig.embeddingModel.id',
+      targetKey: 'feature.memory.embedding_model_id'
+    },
+    {
+      originalKey: 'memoryConfig.embeddingModel.provider',
+      targetKey: 'feature.memory.embedding_model_provider'
     },
     {
       originalKey: 'memoryConfig.customFactExtractionPrompt',

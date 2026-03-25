@@ -344,10 +344,18 @@ export interface PreferenceSchemas {
     'feature.memory.current_user_id': string
     // redux/memory/memoryConfig.embedderDimensions
     'feature.memory.embedder_dimensions': number
+    // redux/memory/memoryConfig.embeddingModel.id
+    'feature.memory.embedding_model_id': string | null
+    // redux/memory/memoryConfig.embeddingModel.provider
+    'feature.memory.embedding_model_provider': string | null
     // redux/memory/globalMemoryEnabled
     'feature.memory.enabled': boolean
     // redux/memory/memoryConfig.customFactExtractionPrompt
     'feature.memory.fact_extraction_prompt': string
+    // redux/memory/memoryConfig.llmModel.id
+    'feature.memory.llm_model_id': string | null
+    // redux/memory/memoryConfig.llmModel.provider
+    'feature.memory.llm_model_provider': string | null
     // redux/memory/memoryConfig.customUpdateMemoryPrompt
     'feature.memory.update_memory_prompt': string
     // redux/settings/maxKeepAliveMinapps
@@ -646,8 +654,12 @@ export const DefaultPreferences: PreferenceSchemas = {
     'feature.memory.auto_dimensions': true,
     'feature.memory.current_user_id': 'default-user',
     'feature.memory.embedder_dimensions': 1536,
+    'feature.memory.embedding_model_id': null,
+    'feature.memory.embedding_model_provider': null,
     'feature.memory.enabled': false,
     'feature.memory.fact_extraction_prompt': MEMORY_FACT_EXTRACTION_PROMPT,
+    'feature.memory.llm_model_id': null,
+    'feature.memory.llm_model_provider': null,
     'feature.memory.update_memory_prompt': MEMORY_UPDATE_SYSTEM_PROMPT,
     'feature.minapp.max_keep_alive': 3,
     'feature.minapp.open_link_external': false,

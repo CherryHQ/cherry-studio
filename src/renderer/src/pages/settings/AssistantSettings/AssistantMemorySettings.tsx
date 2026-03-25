@@ -1,16 +1,19 @@
 import { Box, Button, InfoTooltip, Switch, Tooltip } from '@cherrystudio/ui'
+import { useMultiplePreferences, usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
-import { usePreference } from '@renderer/data/hooks/usePreference'
 import MemoriesSettingsModal from '@renderer/pages/settings/MemorySettings/MemorySettingsModal'
+import {
+  MEMORY_PREFERENCE_KEYS,
+  type MemoryPreferenceValues,
+  resolveMemoryConfig
+} from '@renderer/services/memoryConfig'
 import { memoryService } from '@renderer/services/MemoryService'
-import { selectMemoryConfig } from '@renderer/store/memory'
 import type { Assistant, AssistantSettings } from '@renderer/types'
 import { Alert, Card, Space, Typography } from 'antd'
 import { useForm } from 'antd/es/form/Form'
 import { Settings2 } from 'lucide-react'
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { useSelector } from 'react-redux'
 import styled from 'styled-components'
 
 const logger = loggerService.withContext('AssistantMemorySettings')
@@ -26,7 +29,11 @@ interface Props {
 
 const AssistantMemorySettings: React.FC<Props> = ({ assistant, updateAssistant, onClose }) => {
   const { t } = useTranslation()
-  const memoryConfig = useSelector(selectMemoryConfig)
+  const [memoryConfigPreferences] = useMultiplePreferences(MEMORY_PREFERENCE_KEYS)
+  const memoryConfig = useMemo(
+    () => resolveMemoryConfig(memoryConfigPreferences as MemoryPreferenceValues),
+    [memoryConfigPreferences]
+  )
   const [globalMemoryEnabled] = usePreference('feature.memory.enabled')
   const [memoryStats, setMemoryStats] = useState<{ count: number; loading: boolean }>({
     count: 0,

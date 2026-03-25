@@ -1,6 +1,5 @@
 import { preferenceService } from '@data/PreferenceService'
-import store from '@renderer/store'
-import { selectMemoryConfig } from '@renderer/store/memory'
+import { getMemoryConfigFromPreferences } from '@renderer/services/memoryConfig'
 import { type InferToolInput, type InferToolOutput, tool } from 'ai'
 import * as z from 'zod'
 
@@ -23,7 +22,7 @@ export const memorySearchTool = (assistantId: string) => {
         return []
       }
 
-      const memoryConfig = selectMemoryConfig(store.getState())
+      const memoryConfig = await getMemoryConfigFromPreferences()
 
       if (!memoryConfig.llmModel || !memoryConfig.embeddingModel) {
         return []
