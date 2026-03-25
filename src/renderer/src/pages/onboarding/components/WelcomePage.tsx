@@ -31,6 +31,7 @@ const WelcomePage: FC = () => {
 
           // Fetch and add models
           setIsAddingModels(true)
+
           try {
             const updatedProvider = { ...provider, apiKey: apiKeys, enabled: true }
             const models = await fetchModels(updatedProvider)
