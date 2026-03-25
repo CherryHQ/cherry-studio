@@ -1810,6 +1810,26 @@
     "videos": "video",
     "videos_file": "video file"
   },
+  "landing": {
+    "select_model": {
+      "change_later": "You can change this anytime in settings",
+      "start": "Get Started",
+      "subtitle": "Select default model for each scenario",
+      "title": "Choose Your Default Models"
+    },
+    "skip": "Skip",
+    "toast": {
+      "connected": "Successfully connected to CherryIN"
+    },
+    "welcome": {
+      "login_cherryin": "Login with CherryIN",
+      "other_provider": "Choose Other Providers",
+      "select_other_provider": "Select Other Provider",
+      "setup_hint": "Please configure at least one provider for the best experience",
+      "subtitle": "Enjoy top-tier AI services with CherryIN",
+      "title": "Welcome to Cherry Studio"
+    }
+  },
   "languages": {
     "arabic": "Arabic",
     "chinese": "Chinese",

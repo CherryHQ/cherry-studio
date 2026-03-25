@@ -1195,8 +1195,8 @@
             "content": "{{count}}件の選択したトピックを削除してもよろしいですか？この操作は元に戻せません。",
             "title": "トピックを削除"
           },
-          "error": "[to be translated]:Failed to delete. Please try again.",
-          "partial_success": "[to be translated]:Successfully deleted {{successCount}} topics, {{failedCount}} failed",
+          "error": "削除に失敗しました。もう一度お試しください。",
+          "partial_success": "{{successCount}}件のトピックを正常に削除しました、{{failedCount}}件の削除に失敗しました",
           "success": "{{count}}件のトピックを削除しました"
         },
         "deselect_all": "すべての選択を解除",
@@ -1809,6 +1809,26 @@
     "urls": "URL",
     "videos": "動画",
     "videos_file": "動画ファイル"
+  },
+  "landing": {
+    "select_model": {
+      "change_later": "いつでも設定で変更できます",
+      "start": "始めましょう",
+      "subtitle": "各シナリオにデフォルトモデルを選択",
+      "title": "デフォルトモデルを選択"
+    },
+    "skip": "スキップ",
+    "toast": {
+      "connected": "CherryINに正常に接続されました"
+    },
+    "welcome": {
+      "login_cherryin": "CherryINでログイン",
+      "other_provider": "他のプロバイダーを選択",
+      "select_other_provider": "他のプロバイダーを選択",
+      "setup_hint": "最適な体験のためには、少なくとも1つのプロバイダーを設定してください。",
+      "subtitle": "CherryINでトップクラスのAIサービスをお楽しみください",
+      "title": "Cherry Studioへようこそ"
+    }
   },
   "languages": {
     "arabic": "アラビア語",
@@ -4826,7 +4846,7 @@
           "label": "リストにモデルを追加"
         },
         "add_whole_group": "グループ全体を追加",
-        "fetch_list": "[to be translated]:Fetch model list",
+        "fetch_list": "モデルリストを取得",
         "refetch_list": "モデルリストを再取得",
         "remove_listed": "リストからモデルを削除",
         "remove_model": "モデルを削除",

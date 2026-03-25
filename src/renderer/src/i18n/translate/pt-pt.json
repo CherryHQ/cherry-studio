@@ -1195,8 +1195,8 @@
             "content": "Tem certeza de que deseja excluir {{count}} tópico(s) selecionado(s)? Esta ação não pode ser desfeita.",
             "title": "Excluir Tópicos"
           },
-          "error": "[to be translated]:Failed to delete. Please try again.",
-          "partial_success": "[to be translated]:Successfully deleted {{successCount}} topics, {{failedCount}} failed",
+          "error": "Falha ao excluir. Tente novamente.",
+          "partial_success": "Excluídos com sucesso {{successCount}} tópicos, {{failedCount}} falharam",
           "success": "Excluído(s) {{count}} tópico(s)"
         },
         "deselect_all": "Desmarcar Todos",
@@ -1809,6 +1809,26 @@
     "urls": "URLs",
     "videos": "vídeo",
     "videos_file": "Arquivo de vídeo"
+  },
+  "landing": {
+    "select_model": {
+      "change_later": "Você pode alterar isso a qualquer momento nas configurações",
+      "start": "Comece",
+      "subtitle": "Selecionar modelo padrão para cada cenário",
+      "title": "Escolha Seus Modelos Padrão"
+    },
+    "skip": "Pular",
+    "toast": {
+      "connected": "Conectado com sucesso ao CherryIN"
+    },
+    "welcome": {
+      "login_cherryin": "Entrar com CherryIN",
+      "other_provider": "Escolher Outros Provedores",
+      "select_other_provider": "Selecionar Outro Fornecedor",
+      "setup_hint": "Por favor, configure pelo menos um provedor para a melhor experiência",
+      "subtitle": "Desfrute de serviços de IA de alto nível com a CherryIN",
+      "title": "Bem-vindo à Cherry Studio"
+    }
   },
   "languages": {
     "arabic": "Árabe",
@@ -4826,7 +4846,7 @@
           "label": "Adicionar modelo da lista"
         },
         "add_whole_group": "Adicionar todo o grupo",
-        "fetch_list": "[to be translated]:Fetch model list",
+        "fetch_list": "Buscar lista de modelos",
         "refetch_list": "Obter novamente a lista de modelos",
         "remove_listed": "Remover modelo da lista",
         "remove_model": "Remover Modelo",

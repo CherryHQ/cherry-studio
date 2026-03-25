@@ -1195,8 +1195,8 @@
             "content": "Ești sigur că vrei să ștergi {{count}} subiecte selectate? Această acțiune nu poate fi anulată.",
             "title": "Șterge subiecte"
           },
-          "error": "[to be translated]:Failed to delete. Please try again.",
-          "partial_success": "[to be translated]:Successfully deleted {{successCount}} topics, {{failedCount}} failed",
+          "error": "Nu s-a putut șterge. Vă rugăm să încercați din nou.",
+          "partial_success": "Șters cu succes {{successCount}} subiecte, {{failedCount}} eșuate",
           "success": "S-au șters {{count}} subiecte"
         },
         "deselect_all": "Deselectează tot",
@@ -1809,6 +1809,26 @@
     "urls": "URL-uri",
     "videos": "video",
     "videos_file": "fișier video"
+  },
+  "landing": {
+    "select_model": {
+      "change_later": "Poți schimba asta oricând din setări",
+      "start": "Începe",
+      "subtitle": "Selectați modelul implicit pentru fiecare scenariu",
+      "title": "Alegeți Modelele Dvs. Implicite"
+    },
+    "skip": "Sari peste",
+    "toast": {
+      "connected": "Conectat cu succes la CherryIN"
+    },
+    "welcome": {
+      "login_cherryin": "Conectare cu CherryIN",
+      "other_provider": "Alegeți alți furnizori",
+      "select_other_provider": "Selectați alt furnizor",
+      "setup_hint": "Vă rugăm să configurați cel puțin un furnizor pentru cea mai bună experiență",
+      "subtitle": "Bucurați-vă de servicii AI de top cu CherryIN",
+      "title": "Bun venit la Cherry Studio"
+    }
   },
   "languages": {
     "arabic": "Arabă",
@@ -4826,7 +4846,7 @@
           "label": "Adaugă modele la listă"
         },
         "add_whole_group": "Adaugă întregul grup",
-        "fetch_list": "[to be translated]:Fetch model list",
+        "fetch_list": "Obține lista modelelor",
         "refetch_list": "Reîmprospătează lista modelelor",
         "remove_listed": "Elimină modelele din listă",
         "remove_model": "Elimină modelul",

@@ -1195,8 +1195,8 @@
             "content": "¿Estás seguro de que quieres eliminar {{count}} tema(s) seleccionado(s)? Esta acción no se puede deshacer.",
             "title": "Eliminar Temas"
           },
-          "error": "[to be translated]:Failed to delete. Please try again.",
-          "partial_success": "[to be translated]:Successfully deleted {{successCount}} topics, {{failedCount}} failed",
+          "error": "Error al eliminar. Inténtalo de nuevo.",
+          "partial_success": "Se eliminaron correctamente {{successCount}} temas, {{failedCount}} fallaron",
           "success": "Eliminado(s) {{count}} tema(s)"
         },
         "deselect_all": "Deseleccionar todo",
@@ -1809,6 +1809,26 @@
     "urls": "URLs",
     "videos": "vídeo",
     "videos_file": "video file"
+  },
+  "landing": {
+    "select_model": {
+      "change_later": "Puedes cambiar esto en cualquier momento en la configuración.",
+      "start": "Comenzar",
+      "subtitle": "Seleccionar modelo predeterminado para cada escenario",
+      "title": "Elige tus modelos predeterminados"
+    },
+    "skip": "Omitir",
+    "toast": {
+      "connected": "Conectado exitosamente a CherryIN"
+    },
+    "welcome": {
+      "login_cherryin": "Iniciar sesión con CherryIN",
+      "other_provider": "Elegir otros proveedores",
+      "select_other_provider": "Seleccionar otro proveedor",
+      "setup_hint": "Por favor, configura al menos un proveedor para obtener la mejor experiencia.",
+      "subtitle": "Disfruta de servicios de inteligencia artificial de primer nivel con CherryIN",
+      "title": "Bienvenido a Cherry Studio"
+    }
   },
   "languages": {
     "arabic": "Árabe",
@@ -4826,7 +4846,7 @@
           "label": "Agregar modelo en la lista"
         },
         "add_whole_group": "Agregar todo el grupo",
-        "fetch_list": "[to be translated]:Fetch model list",
+        "fetch_list": "Obtener lista de modelos",
         "refetch_list": "Volver a obtener la lista de modelos",
         "remove_listed": "Eliminar modelo de la lista",
         "remove_model": "Eliminar modelo",

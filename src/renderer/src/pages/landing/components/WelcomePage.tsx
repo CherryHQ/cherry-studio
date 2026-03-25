@@ -8,6 +8,7 @@ import { oauthWithCherryIn } from '@renderer/utils/oauth'
 import { Button, Divider } from 'antd'
 import type { FC } from 'react'
 import { useCallback, useState } from 'react'
+import { useTranslation } from 'react-i18next'
 
 import ProviderPopup from './ProviderPopup'
 
@@ -17,6 +18,7 @@ const CHERRYIN_PROVIDER_ID = 'cherryin'
 const CHERRYIN_OAUTH_SERVER = 'https://open.cherryin.ai'
 
 const WelcomePage: FC = () => {
+  const { t } = useTranslation()
   const { setStep, setCherryInLoggedIn } = useLanding()
   const { provider, updateProvider, addModel } = useProvider(CHERRYIN_PROVIDER_ID)
   const store = useAppStore()
@@ -44,7 +46,7 @@ const WelcomePage: FC = () => {
           }
 
           setCherryInLoggedIn(true)
-          window.toast.success('成功连接 CherryIN')
+          window.toast.success(t('landing.toast.connected'))
           setStep('select-model')
         },
         {
@@ -54,7 +56,7 @@ const WelcomePage: FC = () => {
     } catch (error) {
       logger.error('OAuth Error:', error as Error)
     }
-  }, [provider, updateProvider, addModel, setCherryInLoggedIn, setStep])
+  }, [provider, updateProvider, addModel, setCherryInLoggedIn, setStep, t])
 
   const handleSelectProvider = async () => {
     await ProviderPopup.show()
@@ -68,8 +70,8 @@ const WelcomePage: FC = () => {
         <img src={CherryStudioLogo} alt="Cherry Studio" className="h-16 w-16 rounded-xl" />
 
         <div className="flex flex-col items-center gap-2">
-          <h1 className="m-0 font-semibold text-(--color-text) text-2xl">欢迎使用 Cherry Studio</h1>
-          <p className="m-0 text-(--color-text-2) text-sm">使用 CherryIN 服务商可畅享顶级 AI 服务</p>
+          <h1 className="m-0 font-semibold text-(--color-text) text-2xl">{t('landing.welcome.title')}</h1>
+          <p className="m-0 text-(--color-text-2) text-sm">{t('landing.welcome.subtitle')}</p>
         </div>
 
         <div className="mt-2 flex w-100 flex-col gap-3">
@@ -80,7 +82,7 @@ const WelcomePage: FC = () => {
             loading={isAddingModels}
             className="h-12 rounded-lg"
             onClick={handleCherryInLogin}>
-            登录 CherryIN
+            {t('landing.welcome.login_cherryin')}
           </Button>
 
           <Divider className="my-1!">
@@ -88,11 +90,11 @@ const WelcomePage: FC = () => {
           </Divider>
 
           <Button size="large" block className="h-12 rounded-lg" onClick={handleSelectProvider}>
-            选择其他服务商
+            {t('landing.welcome.other_provider')}
           </Button>
         </div>
 
-        <p className="mt-1 text-(--color-text-3) text-xs">请您先至少配置一个服务商，以获得最佳使用体验</p>
+        <p className="mt-1 text-(--color-text-3) text-xs">{t('landing.welcome.setup_hint')}</p>
       </div>
     </div>
   )

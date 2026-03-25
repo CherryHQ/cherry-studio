@@ -1195,8 +1195,8 @@
             "content": "Είσαι βέβαιος ότι θέλεις να διαγράψεις {{count}} επιλεγμένο(α) θέμα(τα); Αυτή η ενέργεια δεν μπορεί να αναιρεθεί.",
             "title": "Διαγραφή Θεμάτων"
           },
-          "error": "[to be translated]:Failed to delete. Please try again.",
-          "partial_success": "[to be translated]:Successfully deleted {{successCount}} topics, {{failedCount}} failed",
+          "error": "Αποτυχία διαγραφής. Προσπαθήστε ξανά.",
+          "partial_success": "Διαγράφηκαν με επιτυχία {{successCount}} θέματα, {{failedCount}} απέτυχαν",
           "success": "Διαγράφηκαν {{count}} θέμα(τα)"
         },
         "deselect_all": "Αποεπιλογή όλων",
@@ -1809,6 +1809,26 @@
     "urls": "Διευθύνσεις",
     "videos": "βίντεο",
     "videos_file": "Αρχείο βίντεο"
+  },
+  "landing": {
+    "select_model": {
+      "change_later": "Μπορείς να το αλλάξεις οποιαδήποτε στιγμή από τις ρυθμίσεις",
+      "start": "Ξεκινήστε",
+      "subtitle": "Επιλέξτε προεπιλεγμένο μοντέλο για κάθε σενάριο",
+      "title": "Επιλέξτε τα Προεπιλεγμένα Σας Μοντέλα"
+    },
+    "skip": "Παράλειψη",
+    "toast": {
+      "connected": "Συνδέθηκε με επιτυχία στο CherryIN"
+    },
+    "welcome": {
+      "login_cherryin": "Σύνδεση με CherryIN",
+      "other_provider": "Επιλέξτε Άλλους Παρόχους",
+      "select_other_provider": "Επιλέξτε Άλλο Πάροχο",
+      "setup_hint": "Παρακαλούμε ρυθμίστε τουλάχιστον έναν πάροχο για την καλύτερη εμπειρία",
+      "subtitle": "Απολαύστε κορυφαίες υπηρεσίες τεχνητής νοημοσύνης με την CherryIN",
+      "title": "Καλώς ήρθατε στο Cherry Studio"
+    }
   },
   "languages": {
     "arabic": "Αραβικά",
@@ -4826,7 +4846,7 @@
           "label": "Προσθήκη μοντέλων από τη λίστα"
         },
         "add_whole_group": "Προσθήκη ολόκληρης ομάδας",
-        "fetch_list": "[to be translated]:Fetch model list",
+        "fetch_list": "Λήψη λίστας μοντέλων",
         "refetch_list": "Επαναλήψτε τη λήψη της λίστας μοντέλων",
         "remove_listed": "Αφαίρεση μοντέλων από τη λίστα",
         "remove_model": "Αφαίρεση Μοντέλου",

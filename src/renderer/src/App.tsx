@@ -38,13 +38,13 @@ function App(): React.ReactElement {
             <AntdProvider>
               <NotificationProvider>
                 <CodeStyleProvider>
-                  <LandingProvider>
-                    <PersistGate loading={null} persistor={persistor}>
+                  <PersistGate loading={null} persistor={persistor}>
+                    <LandingProvider>
                       <TopViewContainer>
                         <Router />
                       </TopViewContainer>
-                    </PersistGate>
-                  </LandingProvider>
+                    </LandingProvider>
+                  </PersistGate>
                 </CodeStyleProvider>
               </NotificationProvider>
             </AntdProvider>
