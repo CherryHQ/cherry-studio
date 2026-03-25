@@ -1,14 +1,7 @@
 import { BaiduOutlined, GoogleOutlined } from '@ant-design/icons'
+import { Querit } from '@cherrystudio/ui/icons'
 import { loggerService } from '@logger'
-import {
-  BingLogo,
-  BochaLogo,
-  ExaLogo,
-  QueritLogo,
-  SearXNGLogo,
-  TavilyLogo,
-  ZhipuLogo
-} from '@renderer/components/Icons'
+import { BingLogo, BochaLogo, ExaLogo, SearXNGLogo, TavilyLogo, ZhipuLogo } from '@renderer/components/Icons'
 import type { QuickPanelListItem } from '@renderer/components/QuickPanel'
 import { QuickPanelReservedSymbol } from '@renderer/components/QuickPanel'
 import {
@@ -54,7 +47,7 @@ export const WebSearchProviderIcon = ({
     case 'searxng':
       return <SearXNGLogo className="icon" width={size} height={size} color={color} />
     case 'querit':
-      return <QueritLogo className="icon" width={size} height={size} color={color} />
+      return <Querit.Mono className="icon" width={size} height={size} color={color} />
     case 'local-baidu':
       return <BaiduOutlined size={size} style={{ color, fontSize: size }} />
     case 'local-bing':

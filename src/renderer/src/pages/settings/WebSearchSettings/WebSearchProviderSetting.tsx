@@ -6,7 +6,6 @@ import BingLogo from '@renderer/assets/images/search/bing.svg'
 import BochaLogo from '@renderer/assets/images/search/bocha.webp'
 import ExaLogo from '@renderer/assets/images/search/exa.png'
 import GoogleLogo from '@renderer/assets/images/search/google.svg'
-import QueritLogo from '@renderer/assets/images/search/querit.png'
 import SearxngLogo from '@renderer/assets/images/search/searxng.svg'
 import TavilyLogo from '@renderer/assets/images/search/tavily.png'
 import ZhipuLogo from '@renderer/assets/images/search/zhipu.png'
@@ -25,6 +24,7 @@ import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
+import QueritLogo from '../../../../../../packages/ui/icons/providers/querit.png'
 import { SettingDivider, SettingHelpLink, SettingHelpText, SettingHelpTextRow, SettingSubtitle, SettingTitle } from '..'
 
 const logger = loggerService.withContext('WebSearchProviderSetting')
