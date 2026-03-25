@@ -1,8 +1,7 @@
-import { File } from '@pierre/diffs/react'
-import { useCodeStyle } from '@renderer/context/CodeStyleProvider'
+import CodeViewer from '@renderer/components/CodeViewer'
+import { getLanguageByFilePath } from '@renderer/utils/code-language'
 import { formatFileSize } from '@renderer/utils/file'
 import type { CollapseProps } from 'antd'
-import { useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { truncateOutput } from '../shared/truncateOutput'
@@ -56,20 +55,12 @@ export function ReadTool({
   output?: ReadToolOutputType
 }): NonNullable<CollapseProps['items']>[number] {
   const { t } = useTranslation()
-  const { activeShikiTheme, isShikiThemeDark } = useCodeStyle()
   const outputString = normalizeOutputString(output)
   const stats = getOutputStats(outputString)
   const filename = input?.file_path?.split('/').pop()
+  const language = getLanguageByFilePath(input?.file_path ?? '')
   const { data: truncatedOutput, isTruncated, originalLength } = truncateOutput(outputString)
   const strippedOutput = truncatedOutput ? stripLineNumbers(truncatedOutput) : null
-
-  const file = useMemo(
-    () => ({
-      name: input?.file_path ?? '',
-      contents: strippedOutput ?? ''
-    }),
-    [input?.file_path, strippedOutput]
-  )
 
   return {
     key: AgentToolsType.Read,
@@ -93,14 +84,13 @@ export function ReadTool({
     ),
     children: strippedOutput ? (
       <div>
-        <File
-          file={file}
-          options={{
-            disableFileHeader: true,
-            overflow: 'wrap',
-            theme: activeShikiTheme,
-            themeType: isShikiThemeDark ? 'dark' : 'light'
-          }}
+        <CodeViewer
+          value={strippedOutput}
+          language={language}
+          expanded={false}
+          wrapped={false}
+          maxHeight={240}
+          options={{ lineNumbers: true }}
         />
         {isTruncated && <TruncatedIndicator originalLength={originalLength} />}
       </div>
