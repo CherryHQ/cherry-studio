@@ -173,7 +173,7 @@ describe('WebSearchService', () => {
   it('filters blacklisted results before post processing', async () => {
     getRuntimeConfigMock.mockResolvedValue({
       ...runtimeConfig,
-      excludeDomains: ['https://blocked.example/*', '/evil\\.example$/']
+      excludeDomains: ['https://blocked.example/*', '/evil\\.example\\/post$/']
     })
 
     createWebSearchProviderMock.mockReturnValue({

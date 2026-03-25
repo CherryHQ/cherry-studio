@@ -66,8 +66,7 @@ export class SearxngProvider extends BaseWebSearchProvider {
     })
 
     if (!response.ok) {
-      const errorText = await response.text()
-      throw new Error(`Searxng config failed: HTTP ${response.status} ${errorText}`)
+      await this.throwHttpError('Searxng config failed', response)
     }
 
     const payload = await this.parseJsonResponse(response, SearxngConfigResponseSchema, {
@@ -127,8 +126,7 @@ export class SearxngProvider extends BaseWebSearchProvider {
     })
 
     if (!response.ok) {
-      const errorText = await response.text()
-      throw new Error(`Searxng search failed: HTTP ${response.status} ${errorText}`)
+      await this.throwHttpError('Searxng search failed', response)
     }
 
     return this.parseJsonResponse(response, SearxngSearchResponseSchema, {

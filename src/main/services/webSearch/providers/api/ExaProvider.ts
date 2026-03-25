@@ -74,8 +74,7 @@ export class ExaProvider extends BaseWebSearchProvider {
     })
 
     if (!response.ok) {
-      const errorText = await response.text()
-      throw new Error(`Exa search failed: HTTP ${response.status} ${errorText}`)
+      await this.throwHttpError('Exa search failed', response)
     }
 
     return this.parseJsonResponse(response, ExaSearchResponseSchema, {

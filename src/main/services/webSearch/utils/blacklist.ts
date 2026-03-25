@@ -162,8 +162,9 @@ export function filterWebSearchResponseWithBlacklist(
     results: response.results.filter((result) => {
       try {
         const url = new URL(result.url)
+        const regexTarget = `${url.origin}${url.pathname}${url.search}`
 
-        if (regexPatterns.some((regex) => regex.test(url.hostname))) {
+        if (regexPatterns.some((regex) => regex.test(regexTarget))) {
           return false
         }
 

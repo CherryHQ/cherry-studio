@@ -67,8 +67,7 @@ export class ZhipuProvider extends BaseWebSearchProvider {
     })
 
     if (!response.ok) {
-      const errorText = await response.text()
-      throw new Error(`Zhipu search failed: HTTP ${response.status} ${errorText}`)
+      await this.throwHttpError('Zhipu search failed', response)
     }
 
     return this.parseJsonResponse(response, ZhipuWebSearchResponseSchema, {

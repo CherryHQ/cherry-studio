@@ -230,8 +230,7 @@ export class ExaMcpProvider extends BaseWebSearchProvider {
       })
 
       if (!response.ok) {
-        const errorText = await response.text()
-        throw new Error(`Exa MCP search failed: ${response.status} ${errorText}`)
+        await this.throwHttpError('Exa MCP search failed', response)
       }
 
       return await response.text()

@@ -26,13 +26,44 @@ describe('filterWebSearchResponseWithBlacklist', () => {
       ]
     }
 
-    const filtered = filterWebSearchResponseWithBlacklist(response, ['https://blocked.example/*', '/evil\\.example$/'])
+    const filtered = filterWebSearchResponseWithBlacklist(response, [
+      'https://blocked.example/*',
+      '/evil\\.example\\/path$/'
+    ])
 
     expect(filtered.results).toEqual([
       {
         title: 'Allowed',
         content: 'ok',
         url: 'https://allowed.example/post'
+      }
+    ])
+  })
+
+  it('matches regex blacklist patterns against the full URL', () => {
+    const response: WebSearchResponse = {
+      query: 'hello',
+      results: [
+        {
+          title: 'Blocked by regex path',
+          content: 'blocked',
+          url: 'https://evil.example/malicious-path'
+        },
+        {
+          title: 'Allowed other path',
+          content: 'ok',
+          url: 'https://evil.example/other-path'
+        }
+      ]
+    }
+
+    const filtered = filterWebSearchResponseWithBlacklist(response, ['/evil\\.example\\/malicious-path$/'])
+
+    expect(filtered.results).toEqual([
+      {
+        title: 'Allowed other path',
+        content: 'ok',
+        url: 'https://evil.example/other-path'
       }
     ])
   })

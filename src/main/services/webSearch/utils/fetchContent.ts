@@ -11,6 +11,7 @@ import { isAbortError } from './errors'
 
 const logger = loggerService.withContext('MainWebSearchContentFetcher')
 const turndownService = new TurndownService()
+const SAFE_JSDOM_URL = 'http://localhost/'
 
 function buildHeaders(headers?: HeadersInit) {
   const resolvedHeaders = new Headers(headers)
@@ -55,7 +56,7 @@ export async function fetchWebSearchContent(
       html = await response.text()
     }
 
-    const dom = new JSDOM(html, { url })
+    const dom = new JSDOM(html, { url: SAFE_JSDOM_URL })
     const article = new Readability(dom.window.document).parse()
     const markdown = turndownService.turndown(article?.content || '').trim()
 

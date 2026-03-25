@@ -5,11 +5,10 @@ import * as z from 'zod'
 
 import { resolveProviderApiKey } from '../../utils/provider'
 import { BaseWebSearchProvider } from '../base/BaseWebSearchProvider'
-import type { RequestSearchContext } from '../base/context'
+import type { ApiKeyRequestSearchContext } from '../base/context'
 
 const TavilySearchRequestSchema = z.object({
   query: z.string(),
-  api_key: z.string(),
   max_results: z.number().int().positive()
 })
 
@@ -28,7 +27,7 @@ const TavilySearchResponseSchema = z.object({
     .default([])
 })
 
-type TavilySearchContext = RequestSearchContext<z.infer<typeof TavilySearchRequestSchema>>
+type TavilySearchContext = ApiKeyRequestSearchContext<z.infer<typeof TavilySearchRequestSchema>>
 
 export class TavilyProvider extends BaseWebSearchProvider {
   async search(query: string, config: WebSearchExecutionConfig, httpOptions?: RequestInit): Promise<WebSearchResponse> {
@@ -46,12 +45,12 @@ export class TavilyProvider extends BaseWebSearchProvider {
     const apiKey = resolveProviderApiKey(this.provider)
 
     return {
+      apiKey,
       query,
       maxResults: config.maxResults,
       requestUrl: this.resolveApiUrl('/search'),
       requestBody: TavilySearchRequestSchema.parse({
         query,
-        api_key: apiKey,
         max_results: config.maxResults
       }),
       signal: httpOptions?.signal ?? undefined
@@ -62,6 +61,7 @@ export class TavilyProvider extends BaseWebSearchProvider {
     const response = await net.fetch(context.requestUrl, {
       method: 'POST',
       headers: {
+        Authorization: `Bearer ${context.apiKey}`,
         ...defaultAppHeaders(),
         'Content-Type': 'application/json'
       },
@@ -70,8 +70,7 @@ export class TavilyProvider extends BaseWebSearchProvider {
     })
 
     if (!response.ok) {
-      const errorText = await response.text()
-      throw new Error(`Tavily search failed: HTTP ${response.status} ${errorText}`)
+      await this.throwHttpError('Tavily search failed', response)
     }
 
     return this.parseJsonResponse(response, TavilySearchResponseSchema, {

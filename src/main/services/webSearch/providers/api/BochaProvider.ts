@@ -77,8 +77,7 @@ export class BochaProvider extends BaseWebSearchProvider {
     })
 
     if (!response.ok) {
-      const errorText = await response.text()
-      throw new Error(`Bocha search failed: HTTP ${response.status} ${errorText}`)
+      await this.throwHttpError('Bocha search failed', response)
     }
 
     return this.parseJsonResponse(response, BochaSearchResponseSchema, {

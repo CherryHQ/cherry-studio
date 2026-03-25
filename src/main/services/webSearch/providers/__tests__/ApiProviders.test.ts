@@ -196,11 +196,11 @@ describe('main web search API providers', () => {
       {
         "request": {
           "body": {
-            "api_key": "tavily-key",
             "max_results": 4,
             "query": "hello",
           },
           "headers": {
+            "authorization": "Bearer tavily-key",
             "content-type": "application/json",
             "http-referer": "https://cherry-ai.com",
             "x-title": "Cherry Studio",
@@ -596,6 +596,23 @@ describe('main web search API providers', () => {
 
     await expect(provider.search('hello', runtimeConfig)).rejects.toThrow(
       'searxng config returned invalid JSON from https://searx.example/config'
+    )
+  })
+
+  it('truncates oversized upstream HTTP error bodies in provider errors', async () => {
+    fetchMock.mockResolvedValue(createTextResponse('x'.repeat(600), 'text/plain', 502))
+
+    const provider = new ExaProvider(
+      createProvider({
+        id: 'exa',
+        name: 'Exa',
+        apiKeys: ['exa-key'],
+        apiHost: 'https://api.exa.ai'
+      })
+    )
+
+    await expect(provider.search('hello', runtimeConfig)).rejects.toThrow(
+      `Exa search failed: HTTP 502 ${'x'.repeat(500)}... [truncated]`
     )
   })
 
