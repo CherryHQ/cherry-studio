@@ -11,9 +11,10 @@ import { FILE_TYPE } from '@renderer/types'
 import type { FileMessageBlock } from '@renderer/types/newMessage'
 import { findFileBlocks } from '@renderer/utils/messageUtils/find'
 import type { FilePart, TextPart } from 'ai'
+import i18n from 'i18next'
 
 import { getAiSdkProviderId } from '../provider/factory'
-import { getFileSizeLimit, supportsImageInput, supportsLargeFileUpload, supportsPdfInput } from './modelCapabilities'
+import { getFileSizeLimit, supportsImageInput, supportsLargeFileUpload } from './modelCapabilities'
 
 const logger = loggerService.withContext('fileProcessor')
 
@@ -74,6 +75,7 @@ export async function convertFileBlockToTextPart(fileBlock: FileMessageBlock): P
       }
     } catch (error) {
       logger.warn(`Failed to extract text from document ${file.origin_name}:`, error as Error)
+      window.toast.error(i18n.t('message.error.file.text_extraction_failed', { name: file.origin_name }))
     }
   }
 
@@ -201,8 +203,8 @@ export async function convertFileBlockToFilePart(fileBlock: FileMessageBlock, mo
   const fileSizeLimit = getFileSizeLimit(model, file.type)
 
   try {
-    // 处理PDF文档
-    if (file.type === FILE_TYPE.DOCUMENT && file.ext === '.pdf' && supportsPdfInput(model)) {
+    // 处理PDF文档（始终生成 FilePart，由下游插件处理兼容性）
+    if (file.type === FILE_TYPE.DOCUMENT && file.ext === '.pdf') {
       // 检查文件大小限制
       if (file.size > fileSizeLimit) {
         // 如果支持大文件上传（如Gemini File API），尝试上传
@@ -214,14 +216,22 @@ export async function convertFileBlockToFilePart(fileBlock: FileMessageBlock, mo
           }
           // 如果上传失败，回退到文本处理
           logger.warn(`Failed to upload large PDF ${file.origin_name}, falling back to text extraction`)
+          window.toast.warning(i18n.t('message.warning.file.pdf_upload_failed', { name: file.origin_name }))
           return null
         } else {
           logger.warn(`PDF file ${file.origin_name} exceeds size limit (${file.size} > ${fileSizeLimit})`)
+          window.toast.warning(
+            i18n.t('message.warning.file.pdf_exceeds_limit', {
+              name: file.origin_name,
+              limit: `${Math.round(fileSizeLimit / 1024 / 1024)}MB`
+            })
+          )
           return null // 文件过大，回退到文本处理
         }
       }
 
       const base64Data = await window.api.file.base64File(file.id + file.ext)
+
       return {
         type: 'file',
         data: base64Data.data,

@@ -154,6 +154,29 @@ describe('isFunctionCallingModel', () => {
     expect(isFunctionCallingModel(createModel({ id: 'qwen3.5-397b-a17b', provider: 'dashscope' }))).toBe(true)
   })
 
+  describe('MiniMax M2.x Models', () => {
+    it('supports minimax-m2 base model', () => {
+      expect(isFunctionCallingModel(createModel({ id: 'minimax-m2', provider: 'minimax' }))).toBe(true)
+    })
+
+    it('supports minimax-m2.1 model', () => {
+      expect(isFunctionCallingModel(createModel({ id: 'minimax-m2.1', provider: 'minimax' }))).toBe(true)
+    })
+
+    it('supports minimax-m2.7 model', () => {
+      expect(isFunctionCallingModel(createModel({ id: 'minimax-m2.7', provider: 'minimax' }))).toBe(true)
+    })
+
+    it('supports minimax-m2.7-highspeed model with suffix', () => {
+      expect(isFunctionCallingModel(createModel({ id: 'minimax-m2.7-highspeed', provider: 'minimax' }))).toBe(true)
+    })
+
+    it('supports MiniMax-M2.7 with capital letters', () => {
+      expect(isFunctionCallingModel(createModel({ id: 'MiniMax-M2.7', provider: 'minimax' }))).toBe(true)
+      expect(isFunctionCallingModel(createModel({ id: 'MiniMax-M2.7-highspeed', provider: 'minimax' }))).toBe(true)
+    })
+  })
+
   describe('Doubao Seed 2.0 Models', () => {
     it('should identify doubao-seed-2-0-pro-260215 as function calling model', () => {
       const model: Model = {

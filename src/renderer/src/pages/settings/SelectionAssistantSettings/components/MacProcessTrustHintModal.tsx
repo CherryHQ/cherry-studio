@@ -14,12 +14,12 @@ const MacProcessTrustHintModal: FC<MacProcessTrustHintModalProps> = ({ open, onC
   const { t } = useTranslation()
 
   const handleOpenAccessibility = () => {
-    window.api.shell.openExternal('x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility')
+    void window.api.shell.openExternal('x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility')
     onClose()
   }
 
   const handleConfirm = async () => {
-    window.api.mac.requestProcessTrust()
+    void window.api.mac.requestProcessTrust()
     onClose()
   }
 

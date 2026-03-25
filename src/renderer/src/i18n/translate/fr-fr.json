@@ -389,6 +389,9 @@
         "TodoWrite": {
           "description": "Crée et gère des listes de tâches structurées"
         },
+        "ToolSearch": {
+          "description": "Découvre des outils différés dans de grandes bibliothèques"
+        },
         "WebFetch": {
           "description": "Récupère le contenu à partir d'une URL spécifiée"
         },
@@ -735,6 +738,7 @@
     "progress": {
       "completed": "Sauvegarde terminée",
       "compressing": "Compression des fichiers...",
+      "copying_database": "Copie de la base de données...",
       "copying_files": "Copie des fichiers... {{progress}}%",
       "preparing": "Préparation de la sauvegarde...",
       "preparing_compression": "Préparation de la compression...",
@@ -888,7 +892,11 @@
         "collapse": "Réduire",
         "collapse_in": "Ajouter à la réduction",
         "collapse_out": "Retirer de la réduction",
-        "expand": "Développer"
+        "expand": "Développer",
+        "file_not_found": "Fichier introuvable : {{path}}",
+        "open_file": "Ouvrir le fichier",
+        "open_file_error": "Échec de l'ouverture du fichier : {{path}}",
+        "reveal_in_finder": "Afficher dans le Finder"
       },
       "topics": "Sujets",
       "translate": "Traduire en {{target_language}}",
@@ -1187,6 +1195,8 @@
             "content": "Êtes-vous sûr de vouloir supprimer {{count}} sujet(s) sélectionné(s) ? Cette action est irréversible.",
             "title": "Supprimer des sujets"
           },
+          "error": "[to be translated]:Failed to delete. Please try again.",
+          "partial_success": "[to be translated]:Successfully deleted {{successCount}} topics, {{failedCount}} failed",
           "success": "Supprimé {{count}} sujet(s)"
         },
         "deselect_all": "Tout désélectionner",
@@ -1382,7 +1392,7 @@
     "off": "Désactivé",
     "on": "Marche",
     "open": "Ouvrir",
-    "open_in": "[to be translated]:Open in {{name}}",
+    "open_in": "Ouvrir dans {{name}}",
     "paste": "Coller",
     "placeholders": {
       "select": {
@@ -2022,6 +2032,10 @@
         "export": "Échec de l'exportation Excel"
       },
       "fetchTopicName": "Échec de la nomination du sujet",
+      "file": {
+        "process_failed": "Le fichier {{name}} n'a pas pu être traité",
+        "text_extraction_failed": "Impossible d'extraire le texte de {{name}}"
+      },
       "get_embedding_dimensions": "Impossible d'obtenir les dimensions d'encodage",
       "invalid": {
         "api": {
@@ -2265,6 +2279,11 @@
       }
     },
     "warning": {
+      "file": {
+        "pdf_exceeds_limit": "Le fichier PDF {{name}} dépasse la limite de taille ({{limit}}), passage à l'extraction de texte",
+        "pdf_text_extraction_failed": "Échec de l'extraction du texte du PDF {{name}}",
+        "pdf_upload_failed": "Échec du téléversement du PDF {{name}}, passage à l'extraction de texte"
+      },
       "rate": {
         "limit": "Vous envoyez trop souvent, veuillez attendre {{seconds}} secondes avant de réessayer"
       }
@@ -3144,7 +3163,10 @@
       "extracting": "Décompression de la sauvegarde...",
       "preparing": "Préparation de la restauration...",
       "reading_data": "Lecture des données...",
-      "title": "Progression de la restauration"
+      "restoring_data": "Restauration des fichiers...",
+      "restoring_database": "Restauration de la base de données...",
+      "title": "Progression de la restauration",
+      "validating": "Validation de la sauvegarde..."
     },
     "title": "Restauration des données"
   },
@@ -3697,7 +3719,15 @@
           "button": "Sélectionner le fichier de sauvegarde"
         },
         "content": "Exporter une partie des données, incluant les historiques de discussion et les paramètres. Veuillez noter que le processus de sauvegarde peut prendre un certain temps ; merci pour votre patience.",
+        "file": {
+          "button": "Exporter vers un fichier",
+          "content": "Exporter les données sous forme de fichier de sauvegarde qui peut être importé sur mobile via un fichier.",
+          "export_failed": "L'exportation a échoué",
+          "export_success": "Exportation réussie",
+          "title": "Exporter en tant que fichier"
+        },
         "lan": {
+          "button": "Démarrer le transfert",
           "connected": "Connecté",
           "connection_failed": "Échec de la connexion",
           "content": "Assurez-vous que l'ordinateur et le téléphone sont connectés au même réseau pour utiliser le transfert en réseau local. Ouvrez l'application Cherry Studio et scannez ce code QR.",

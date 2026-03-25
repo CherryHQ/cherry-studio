@@ -93,17 +93,17 @@ export function useAgentToolApproval(
   )
 
   const confirm = useCallback(() => {
-    handleDecision('allow')
+    void handleDecision('allow')
   }, [handleDecision])
 
   const cancel = useCallback(() => {
-    handleDecision('deny')
+    void handleDecision('deny')
   }, [handleDecision])
 
   // Auto-approve with suggestions if available
   const autoApprove = useCallback(() => {
     if (request?.suggestions?.length) {
-      handleDecision('allow', { updatedPermissions: request.suggestions })
+      void handleDecision('allow', { updatedPermissions: request.suggestions })
     }
   }, [handleDecision, request?.suggestions])
 

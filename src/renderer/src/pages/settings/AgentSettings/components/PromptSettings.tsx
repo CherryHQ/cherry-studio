@@ -25,7 +25,7 @@ const PromptSettings: FC<AgentOrSessionSettingsProps> = ({ agentBase, update }) 
       const count = estimateTextTokens(instructions)
       setTokenCount(count)
     }
-    updateTokenCount()
+    void updateTokenCount()
   }, [instructions])
 
   const editorRef = useRef<RichEditorRef>(null)
@@ -37,7 +37,7 @@ const PromptSettings: FC<AgentOrSessionSettingsProps> = ({ agentBase, update }) 
 
   const updatePrompt = () => {
     if (!agentBase) return
-    update({ id: agentBase.id, instructions } satisfies UpdateAgentBaseForm)
+    void update({ id: agentBase.id, instructions } satisfies UpdateAgentBaseForm)
   }
 
   const promptVarsContent = <pre>{t('assistants.presets.add.prompt.variables.tip.content')}</pre>

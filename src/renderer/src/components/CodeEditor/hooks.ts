@@ -120,7 +120,7 @@ export const useLanguageExtensions = (language: string, lint?: boolean) => {
       }
     }
 
-    loadAllExtensions()
+    void loadAllExtensions()
 
     return () => {
       cancelled = true

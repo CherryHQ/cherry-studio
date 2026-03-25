@@ -19,10 +19,10 @@ const MCPDescription: FC<McpDescriptionProps> = ({ searchKey }) => {
   useEffect(() => {
     let isMounted = true
     setLoading(true)
-    npxFinder(searchKey)
+    void npxFinder(searchKey)
       .then((packages) => {
         const readme = packages[0]?.original?.readme ?? t('settings.mcp.noDescriptionAvailable')
-        shikiMarkdownIt(readme).then((result) => {
+        void shikiMarkdownIt(readme).then((result) => {
           if (isMounted) setMcpInfo(result)
         })
       })

@@ -22,6 +22,7 @@ import type { UpgradeChannel } from '@shared/config/constant'
 import { MIN_WINDOW_HEIGHT, MIN_WINDOW_WIDTH } from '@shared/config/constant'
 import type { LocalTransferConnectPayload } from '@shared/config/types'
 import { IpcChannel } from '@shared/IpcChannel'
+import { extractPdfText } from '@shared/utils/pdf'
 import type {
   AgentPersistedMessage,
   FileMetadata,
@@ -91,7 +92,7 @@ import { themeService } from './services/ThemeService'
 import VertexAIService from './services/VertexAIService'
 import { setOpenLinkExternal } from './services/WebviewService'
 import { windowService } from './services/WindowService'
-import { calculateDirectorySize, getDataPath, getResourcePath } from './utils'
+import { calculateDirectorySize, getResourcePath } from './utils'
 import { decrypt, encrypt } from './utils/aes'
 import {
   getCacheDir,
@@ -103,7 +104,6 @@ import {
   untildify
 } from './utils/file'
 import { updateAppDataConfig } from './utils/init'
-import { closeAllDataConnections } from './utils/lifecycle'
 import { getCpuName, getDeviceType, getHostname } from './utils/system'
 import { compress, decompress } from './utils/zip'
 
@@ -214,8 +214,8 @@ export async function registerIpc(mainWindow: BrowserWindow, app: Electron.App) 
   })
 
   // launch on boot
-  ipcMain.handle(IpcChannel.App_SetLaunchOnBoot, (_, isLaunchOnBoot: boolean) => {
-    appService.setAppLaunchOnBoot(isLaunchOnBoot)
+  ipcMain.handle(IpcChannel.App_SetLaunchOnBoot, async (_, isLaunchOnBoot: boolean) => {
+    await appService.setAppLaunchOnBoot(isLaunchOnBoot)
   })
 
   // launch to tray
@@ -377,7 +377,7 @@ export async function registerIpc(mainWindow: BrowserWindow, app: Electron.App) 
       if (!preventQuitListener) {
         preventQuitListener = (event: Electron.Event) => {
           event.preventDefault()
-          notificationService.sendNotification({
+          void notificationService.sendNotification({
             title: reason,
             message: reason
           } as Notification)
@@ -434,17 +434,16 @@ export async function registerIpc(mainWindow: BrowserWindow, app: Electron.App) 
       ?.split('--new-data-path=')[1]
   })
 
-  ipcMain.handle(IpcChannel.App_FlushAppData, () => {
-    BrowserWindow.getAllWindows().forEach((w) => {
+  ipcMain.handle(IpcChannel.App_FlushAppData, async () => {
+    for (const w of BrowserWindow.getAllWindows()) {
       w.webContents.session.flushStorageData()
-      w.webContents.session.cookies.flushStore()
-
-      w.webContents.session.closeAllConnections()
-    })
+      await w.webContents.session.cookies.flushStore()
+      await w.webContents.session.closeAllConnections()
+    }
 
     session.defaultSession.flushStorageData()
-    session.defaultSession.cookies.flushStore()
-    session.defaultSession.closeAllConnections()
+    await session.defaultSession.cookies.flushStore()
+    await session.defaultSession.closeAllConnections()
   })
 
   ipcMain.handle(IpcChannel.App_IsNotEmptyDir, async (_, path: string) => {
@@ -494,15 +493,7 @@ export async function registerIpc(mainWindow: BrowserWindow, app: Electron.App) 
   })
 
   // Reset all data (factory reset)
-  // Best-effort: close handles then delete. Failures are logged but not thrown,
-  // because the caller must always proceed to relaunchApp() — process exit
-  // releases any remaining handles, and services auto-recreate on next start.
-  ipcMain.handle(IpcChannel.App_ResetData, async () => {
-    await closeAllDataConnections()
-    await fs.promises.rm(getDataPath(), { recursive: true, force: true }).catch((e) => {
-      logger.warn('Failed to remove Data directory (will be cleaned up on restart)', e as Error)
-    })
-  })
+  ipcMain.handle(IpcChannel.App_ResetData, () => backupManager.resetData())
 
   // check for update
   ipcMain.handle(IpcChannel.App_CheckForUpdate, async () => {
@@ -609,7 +600,7 @@ export async function registerIpc(mainWindow: BrowserWindow, app: Electron.App) 
   ipcMain.handle(IpcChannel.Backup_DeleteS3File, backupManager.deleteS3File.bind(backupManager))
   ipcMain.handle(IpcChannel.Backup_CheckS3Connection, backupManager.checkS3Connection.bind(backupManager))
   ipcMain.handle(IpcChannel.Backup_CreateLanTransferBackup, backupManager.createLanTransferBackup.bind(backupManager))
-  ipcMain.handle(IpcChannel.Backup_DeleteTempBackup, backupManager.deleteTempBackup.bind(backupManager))
+  ipcMain.handle(IpcChannel.Backup_DeleteLanTransferBackup, backupManager.deleteLanTransferBackup.bind(backupManager))
 
   // file
   ipcMain.handle(IpcChannel.File_Open, fileManager.open.bind(fileManager))
@@ -656,6 +647,9 @@ export async function registerIpc(mainWindow: BrowserWindow, app: Electron.App) 
   ipcMain.handle(IpcChannel.File_ResumeWatcher, fileManager.resumeFileWatcher.bind(fileManager))
   ipcMain.handle(IpcChannel.File_BatchUploadMarkdown, fileManager.batchUploadMarkdownFiles.bind(fileManager))
   ipcMain.handle(IpcChannel.File_ShowInFolder, fileManager.showInFolder.bind(fileManager))
+
+  // pdf
+  ipcMain.handle(IpcChannel.Pdf_ExtractText, (_, data: Uint8Array | ArrayBuffer | string) => extractPdfText(data))
 
   // file service
   ipcMain.handle(IpcChannel.FileService_Upload, async (_, provider: Provider, file: FileMetadata) => {
