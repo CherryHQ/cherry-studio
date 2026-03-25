@@ -2850,7 +2850,7 @@
           "defaultValue": "codeTools.qwenCode",
           "status": "classified",
           "category": "preferences",
-          "targetKey": "feature.code_cli.overrides",
+          "targetKey": null,
           "note": "complex mapping: determines which tool gets enabled: true"
         },
         {
@@ -2859,7 +2859,7 @@
           "defaultValue": "{ [codeTools.qwenCode]: null, [codeTools.claudeCode]: null, [codeTools.geminiCli]: null, [codeTools.openaiCodex]: null, [codeTools.iFlowCli]: null, [codeTools.githubCopilotCli]: null }",
           "status": "classified",
           "category": "preferences",
-          "targetKey": "feature.code_cli.overrides",
+          "targetKey": null,
           "note": "complex mapping: Model objects → modelId strings per tool",
           "children": [
             {
@@ -2867,7 +2867,7 @@
               "defaultValue": null,
               "originalKey": "[codeTools.qwenCode]",
               "status": "classified",
-              "targetKey": "feature.code_cli.overrides",
+              "targetKey": null,
               "type": "null"
             },
             {
@@ -2875,7 +2875,7 @@
               "defaultValue": null,
               "originalKey": "[codeTools.claudeCode]",
               "status": "classified",
-              "targetKey": "feature.code_cli.overrides",
+              "targetKey": null,
               "type": "null"
             },
             {
@@ -2883,7 +2883,7 @@
               "defaultValue": null,
               "originalKey": "[codeTools.geminiCli]",
               "status": "classified",
-              "targetKey": "feature.code_cli.overrides",
+              "targetKey": null,
               "type": "null"
             },
             {
@@ -2891,7 +2891,7 @@
               "defaultValue": null,
               "originalKey": "[codeTools.openaiCodex]",
               "status": "classified",
-              "targetKey": "feature.code_cli.overrides",
+              "targetKey": null,
               "type": "null"
             }
           ]
@@ -2909,7 +2909,7 @@
           },
           "status": "classified",
           "category": "preferences",
-          "targetKey": "feature.code_cli.overrides",
+          "targetKey": null,
           "note": "complex mapping: per-tool env vars → overrides.envVars",
           "children": [
             {
@@ -2917,7 +2917,7 @@
               "defaultValue": "",
               "originalKey": "qwen-code",
               "status": "classified",
-              "targetKey": "feature.code_cli.overrides",
+              "targetKey": null,
               "type": "string"
             },
             {
@@ -2925,7 +2925,7 @@
               "defaultValue": "",
               "originalKey": "claude-code",
               "status": "classified",
-              "targetKey": "feature.code_cli.overrides",
+              "targetKey": null,
               "type": "string"
             },
             {
@@ -2933,7 +2933,7 @@
               "defaultValue": "",
               "originalKey": "gemini-cli",
               "status": "classified",
-              "targetKey": "feature.code_cli.overrides",
+              "targetKey": null,
               "type": "string"
             }
           ]
@@ -2944,7 +2944,7 @@
           "defaultValue": [],
           "status": "classified",
           "category": "preferences",
-          "targetKey": "feature.code_cli.overrides",
+          "targetKey": null,
           "note": "complex mapping: global dirs → assigned to selected tool override"
         },
         {
@@ -2953,7 +2953,7 @@
           "defaultValue": "",
           "status": "classified",
           "category": "preferences",
-          "targetKey": "feature.code_cli.overrides",
+          "targetKey": null,
           "note": "complex mapping: global currentDir → assigned to selected tool override"
         },
         {
@@ -2962,7 +2962,7 @@
           "defaultValue": null,
           "status": "classified",
           "category": "preferences",
-          "targetKey": "feature.code_cli.overrides",
+          "targetKey": null,
           "note": "complex mapping: global terminal → assigned to selected tool override (non-default only)"
         }
       ],
