@@ -4,12 +4,12 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { generateToolEnvironment } from '../index'
 
-// Mock CodeToolsPage which is default export
-vi.mock('../CodeToolsPage', () => ({ default: () => null }))
+// Mock CodeCliPage which is default export
+vi.mock('../CodeCliPage', () => ({ default: () => null }))
 
-// Mock dependencies needed by CodeToolsPage
-vi.mock('@renderer/hooks/useCodeTools', () => ({
-  useCodeTools: () => ({
+// Mock dependencies needed by CodeCliPage
+vi.mock('@renderer/hooks/useCodeCli', () => ({
+  useCodeCli: () => ({
     selectedCliTool: codeCLI.qwenCode,
     selectedModel: null,
     selectedTerminal: 'systemDefault',

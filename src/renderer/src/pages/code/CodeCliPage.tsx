@@ -6,7 +6,7 @@ import ModelSelector from '@renderer/components/ModelSelector'
 import { isMac, isWin } from '@renderer/config/constant'
 import { isEmbeddingModel, isRerankModel, isTextToImageModel } from '@renderer/config/models'
 import { usePersistCache } from '@renderer/data/hooks/useCache'
-import { useCodeTools } from '@renderer/hooks/useCodeTools'
+import { useCodeCli } from '@renderer/hooks/useCodeCli'
 import { useProviders } from '@renderer/hooks/useProvider'
 import { useTimer } from '@renderer/hooks/useTimer'
 import { getAssistantSettings, getProviderByModel } from '@renderer/services/AssistantService'
@@ -32,9 +32,9 @@ import {
   parseEnvironmentVariables
 } from '.'
 
-const logger = loggerService.withContext('CodeToolsPage')
+const logger = loggerService.withContext('CodeCliPage')
 
-const CodeToolsPage: FC = () => {
+const CodeCliPage: FC = () => {
   const { t } = useTranslation()
   const { providers } = useProviders()
   const [isBunInstalled, setIsBunInstalled] = usePersistCache('feature.mcp.is_bun_installed')
@@ -53,7 +53,7 @@ const CodeToolsPage: FC = () => {
     setCurrentDir,
     removeDir,
     selectFolder
-  } = useCodeTools()
+  } = useCodeCli()
   const { setTimeoutTimer } = useTimer()
 
   // Get default assistant settings for budget tokens calculation
@@ -617,4 +617,4 @@ const BunInstallAlert = styled.div`
   margin-bottom: 24px;
 `
 
-export default CodeToolsPage
+export default CodeCliPage

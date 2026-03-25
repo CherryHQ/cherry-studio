@@ -324,7 +324,7 @@ export interface PreferenceSchemas {
     'data.integration.yuque.token': string
     // redux/settings/yuqueUrl
     'data.integration.yuque.url': string
-    // redux/codeTools - per-tool overrides (layered preset pattern)
+    // redux/codeCli - per-tool overrides (layered preset pattern)
     'feature.code_cli.overrides': PreferenceTypes.CodeCliOverrides
     // redux/settings/apiServer.apiKey
     'feature.csaas.api_key': string | null

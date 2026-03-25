@@ -5,7 +5,7 @@ import type { CodeCliId, CodeCliOverride, CodeCliOverrides } from '@shared/data/
 import { CODE_CLI_PRESET_MAP } from '@shared/data/presets/code-cli'
 import { useCallback, useMemo } from 'react'
 
-const logger = loggerService.withContext('useCodeTools')
+const logger = loggerService.withContext('useCodeCli')
 
 const DEFAULT_TOOL = codeCLI.qwenCode as CodeCliId
 
@@ -22,7 +22,7 @@ function getEffectiveToolConfig(toolId: CodeCliId, overrides: CodeCliOverrides):
   }
 }
 
-export const useCodeTools = () => {
+export const useCodeCli = () => {
   const [overrides, setOverrides] = usePreference('feature.code_cli.overrides')
 
   const selectedCliTool = useMemo(() => {

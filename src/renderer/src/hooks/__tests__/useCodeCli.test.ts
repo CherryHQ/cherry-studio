@@ -20,7 +20,7 @@ vi.mock('@renderer/services/LoggerService', () => ({
   }
 }))
 
-describe('useCodeTools', () => {
+describe('useCodeCli', () => {
   beforeEach(() => {
     mockOverrides = {}
     mockSetOverrides.mockClear()
@@ -28,35 +28,35 @@ describe('useCodeTools', () => {
   })
 
   it('should return default selectedCliTool when no tool is enabled', async () => {
-    const { useCodeTools } = await import('../useCodeTools')
-    const { result } = renderHook(() => useCodeTools())
+    const { useCodeCli } = await import('../useCodeCli')
+    const { result } = renderHook(() => useCodeCli())
     expect(result.current.selectedCliTool).toBe(codeCLI.qwenCode)
   })
 
   it('should return the enabled tool as selectedCliTool', async () => {
     mockOverrides = { 'claude-code': { enabled: true } }
-    const { useCodeTools } = await import('../useCodeTools')
-    const { result } = renderHook(() => useCodeTools())
+    const { useCodeCli } = await import('../useCodeCli')
+    const { result } = renderHook(() => useCodeCli())
     expect(result.current.selectedCliTool).toBe(codeCLI.claudeCode)
   })
 
   it('should return per-tool modelId', async () => {
     mockOverrides = { 'claude-code': { enabled: true, modelId: 'anthropic::claude-3-opus' } }
-    const { useCodeTools } = await import('../useCodeTools')
-    const { result } = renderHook(() => useCodeTools())
+    const { useCodeCli } = await import('../useCodeCli')
+    const { result } = renderHook(() => useCodeCli())
     expect(result.current.selectedModel).toBe('anthropic::claude-3-opus')
   })
 
   it('should return default terminal when none set', async () => {
-    const { useCodeTools } = await import('../useCodeTools')
-    const { result } = renderHook(() => useCodeTools())
+    const { useCodeCli } = await import('../useCodeCli')
+    const { result } = renderHook(() => useCodeCli())
     expect(result.current.selectedTerminal).toBe(terminalApps.systemDefault)
   })
 
   it('should update overrides when setCliTool is called', async () => {
     mockOverrides = { 'qwen-code': { enabled: true } }
-    const { useCodeTools } = await import('../useCodeTools')
-    const { result } = renderHook(() => useCodeTools())
+    const { useCodeCli } = await import('../useCodeCli')
+    const { result } = renderHook(() => useCodeCli())
 
     await act(async () => {
       await result.current.setCliTool(codeCLI.claudeCode)
@@ -72,8 +72,8 @@ describe('useCodeTools', () => {
 
   it('should update modelId for current tool when setModel is called', async () => {
     mockOverrides = { 'qwen-code': { enabled: true } }
-    const { useCodeTools } = await import('../useCodeTools')
-    const { result } = renderHook(() => useCodeTools())
+    const { useCodeCli } = await import('../useCodeCli')
+    const { result } = renderHook(() => useCodeCli())
 
     await act(async () => {
       await result.current.setModel('openai::gpt-4')
@@ -90,8 +90,8 @@ describe('useCodeTools', () => {
     mockOverrides = {
       'qwen-code': { enabled: true, modelId: 'openai::gpt-4', currentDirectory: '/tmp/project' }
     }
-    const { useCodeTools } = await import('../useCodeTools')
-    const { result } = renderHook(() => useCodeTools())
+    const { useCodeCli } = await import('../useCodeCli')
+    const { result } = renderHook(() => useCodeCli())
     expect(result.current.canLaunch).toBe(true)
   })
 
@@ -99,8 +99,8 @@ describe('useCodeTools', () => {
     mockOverrides = {
       'github-copilot-cli': { enabled: true, currentDirectory: '/tmp/project' }
     }
-    const { useCodeTools } = await import('../useCodeTools')
-    const { result } = renderHook(() => useCodeTools())
+    const { useCodeCli } = await import('../useCodeCli')
+    const { result } = renderHook(() => useCodeCli())
     expect(result.current.canLaunch).toBe(true)
   })
 })
