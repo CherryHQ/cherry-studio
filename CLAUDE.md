@@ -146,6 +146,23 @@ const myService = application.get('MyService')
 
 > **Migrating old services?** See the step-by-step migration guide in [src/main/core/lifecycle/README.md § Migrating from Old Service Patterns](src/main/core/lifecycle/README.md#migrating-from-old-service-patterns).
 
+#### Non-Lifecycle Services (Direct-Import Singleton)
+
+Services that do **not** own long-lived resources or register persistent side effects (both main and renderer process) should **not** use the lifecycle system. Use a named export singleton instead:
+
+```typescript
+export class ExportService {
+  async exportToDocx(messages: Message[]) { /* ... */ }
+}
+export const exportService = new ExportService()
+```
+
+Rules:
+- **Always use named export** (`export const x = new X()`), never `export default new X()` or `export default X.getInstance()`
+- Export both the class (for type references) and the instance (for runtime use)
+- Do not use manual singleton patterns (`private static instance` + `getInstance()`) — a module-level `const` is already a singleton
+- See [lifecycle README § What Belongs in Lifecycle?](src/main/core/lifecycle/README.md#what-belongs-in-lifecycle) for the decision criteria (main process only)
+
 ### Key Patterns
 
 - **IPC Communication**: Secure main-renderer communication via preload scripts
