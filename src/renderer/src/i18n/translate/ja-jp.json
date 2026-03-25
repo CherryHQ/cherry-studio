@@ -2631,6 +2631,7 @@
     },
     "welcome": {
       "login_cherryin": "CherryINでログイン",
+      "or_continue_with": "または続行",
       "other_provider": "他のプロバイダーを選択",
       "select_other_provider": "他のプロバイダーを選択",
       "setup_hint": "ベストな体験のために、少なくとも1つのプロバイダーを設定してください",

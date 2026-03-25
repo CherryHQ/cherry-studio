@@ -2631,6 +2631,7 @@
     },
     "welcome": {
       "login_cherryin": "Войти через CherryIN",
+      "or_continue_with": "ИЛИ ПРОДОЛЖИТЬ С",
       "other_provider": "Выбрать других поставщиков",
       "select_other_provider": "Выбрать другого поставщика",
       "setup_hint": "Пожалуйста, настройте хотя бы одного поставщика для лучшего опыта",

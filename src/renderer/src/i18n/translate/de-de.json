@@ -2631,6 +2631,7 @@
     },
     "welcome": {
       "login_cherryin": "Mit CherryIN anmelden",
+      "or_continue_with": "ODER WEITER MIT",
       "other_provider": "Andere Anbieter auswählen",
       "select_other_provider": "Wählen Sie einen anderen Anbieter",
       "setup_hint": "Bitte konfigurieren Sie mindestens einen Anbieter für die beste Erfahrung.",

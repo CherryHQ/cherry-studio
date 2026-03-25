@@ -2631,6 +2631,7 @@
     },
     "welcome": {
       "login_cherryin": "登录 CherryIN",
+      "or_continue_with": "或使用其他方式",
       "other_provider": "选择其他服务商",
       "select_other_provider": "选择其他服务商",
       "setup_hint": "请您先至少配置一个服务商，以获得最佳使用体验",

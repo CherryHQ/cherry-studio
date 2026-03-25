@@ -2631,6 +2631,7 @@
     },
     "welcome": {
       "login_cherryin": "Conectare cu CherryIN",
+      "or_continue_with": "SAU CONTINUAȚI CU",
       "other_provider": "Alegeți alți furnizori",
       "select_other_provider": "Selectați alt furnizor",
       "setup_hint": "Vă rugăm să configurați cel puțin un furnizor pentru cea mai bună experiență",

@@ -2631,6 +2631,7 @@
     },
     "welcome": {
       "login_cherryin": "使用 CherryIN 登入",
+      "or_continue_with": "或繼續使用",
       "other_provider": "選擇其他供應商",
       "select_other_provider": "選擇其他供應商",
       "setup_hint": "請至少設定一個提供者以獲得最佳體驗",

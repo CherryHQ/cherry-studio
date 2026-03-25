@@ -10,7 +10,6 @@ import TopViewContainer from './components/TopView'
 import AntdProvider from './context/AntdProvider'
 import { CodeStyleProvider } from './context/CodeStyleProvider'
 import { NotificationProvider } from './context/NotificationProvider'
-import { OnboardingProvider } from './context/OnboardingContext'
 import StyleSheetManager from './context/StyleSheetManager'
 import { ThemeProvider } from './context/ThemeProvider'
 import Router from './Router'
@@ -39,11 +38,9 @@ function App(): React.ReactElement {
               <NotificationProvider>
                 <CodeStyleProvider>
                   <PersistGate loading={null} persistor={persistor}>
-                    <OnboardingProvider>
-                      <TopViewContainer>
-                        <Router />
-                      </TopViewContainer>
-                    </OnboardingProvider>
+                    <TopViewContainer>
+                      <Router />
+                    </TopViewContainer>
                   </PersistGate>
                 </CodeStyleProvider>
               </NotificationProvider>

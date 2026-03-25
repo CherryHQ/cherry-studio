@@ -2631,6 +2631,7 @@
     },
     "welcome": {
       "login_cherryin": "Entrar com CherryIN",
+      "or_continue_with": "OU CONTINUAR COM",
       "other_provider": "Escolher Outros Provedores",
       "select_other_provider": "Selecionar Outro Provedor",
       "setup_hint": "Por favor, configure pelo menos um provedor para a melhor experiência",

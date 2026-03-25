@@ -1,6 +1,5 @@
 import { loggerService } from '@logger'
 import CherryStudioLogo from '@renderer/assets/images/logo.png'
-import { useOnboarding } from '@renderer/context/OnboardingContext'
 import { useProvider } from '@renderer/hooks/useProvider'
 import { fetchModels } from '@renderer/services/ApiService'
 import { useAppStore } from '@renderer/store'
@@ -10,15 +9,20 @@ import type { FC } from 'react'
 import { useCallback, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
+import type { OnboardingStep } from '../OnboardingPage'
 import ProviderPopup from './ProviderPopup'
 
 const logger = loggerService.withContext('WelcomePage')
 
 const CHERRYIN_OAUTH_SERVER = 'https://open.cherryin.ai'
 
-const WelcomePage: FC = () => {
+interface WelcomePageProps {
+  setStep: (step: OnboardingStep) => void
+  setCherryInLoggedIn: (loggedIn: boolean) => void
+}
+
+const WelcomePage: FC<WelcomePageProps> = ({ setStep, setCherryInLoggedIn }) => {
   const { t } = useTranslation()
-  const { setStep, setCherryInLoggedIn } = useOnboarding()
   const { provider, updateProvider, addModel } = useProvider('cherryin')
   const store = useAppStore()
   const [isAddingModels, setIsAddingModels] = useState(false)
@@ -86,7 +90,7 @@ const WelcomePage: FC = () => {
           </Button>
 
           <Divider className="my-1!">
-            <span className="text-(--color-text-3) text-xs">OR CONTINUE WITH</span>
+            <span className="text-(--color-text-3) text-xs">{t('onboarding.welcome.or_continue_with')}</span>
           </Divider>
 
           <Button size="large" block className="h-12 rounded-lg" onClick={handleSelectProvider}>

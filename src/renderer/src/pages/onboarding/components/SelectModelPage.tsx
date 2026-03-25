@@ -1,17 +1,19 @@
-import { useOnboarding } from '@renderer/context/OnboardingContext'
 import ModelSettings from '@renderer/pages/settings/ModelSettings/ModelSettings'
 import { Button } from 'antd'
 import { ArrowLeft } from 'lucide-react'
 import type { FC } from 'react'
 import { useTranslation } from 'react-i18next'
 
-const SelectModelPage: FC = () => {
-  const { t } = useTranslation()
-  const { completeOnboarding, setStep, cherryInLoggedIn } = useOnboarding()
+import type { OnboardingStep } from '../OnboardingPage'
 
-  const handleComplete = () => {
-    completeOnboarding()
-  }
+interface SelectModelPageProps {
+  cherryInLoggedIn: boolean
+  setStep: (step: OnboardingStep) => void
+  onComplete: () => void
+}
+
+const SelectModelPage: FC<SelectModelPageProps> = ({ cherryInLoggedIn, setStep, onComplete }) => {
+  const { t } = useTranslation()
 
   const handleBack = () => {
     setStep('welcome')
@@ -36,7 +38,7 @@ const SelectModelPage: FC = () => {
 
         <ModelSettings showSettingsButton={false} showDescription={false} compact />
 
-        <Button type="primary" size="large" block className="h-12 rounded-lg" onClick={handleComplete}>
+        <Button type="primary" size="large" block className="h-12 rounded-lg" onClick={onComplete}>
           {t('onboarding.select_model.start')}
         </Button>
 
