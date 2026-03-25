@@ -3368,6 +3368,15 @@ const migrateConfig = {
       logger.error('migrate 204 error', error as Error)
       return state
     }
+  },
+  '205': (state: RootState) => {
+    try {
+      localStorage.setItem('onboarding-completed', 'true')
+      return state
+    } catch (error) {
+      logger.error('migrate 205 error', error as Error)
+      return state
+    }
   }
 }
 
