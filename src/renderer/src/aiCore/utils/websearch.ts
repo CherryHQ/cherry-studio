@@ -1,4 +1,4 @@
-import type { WebSearchPluginConfig } from '@cherrystudio/ai-core/core/plugins/built-in/webSearchPlugin/helper'
+import type { WebSearchPluginConfig } from '@cherrystudio/ai-core/core/plugins/built-in/webSearchPlugin'
 import type { AppProviderId } from '@renderer/aiCore/types'
 import { isOpenAIDeepResearchModel, isOpenAIWebSearchChatCompletionOnlyModel } from '@renderer/config/models'
 import type { CherryWebSearchConfig } from '@renderer/store/websearch'
