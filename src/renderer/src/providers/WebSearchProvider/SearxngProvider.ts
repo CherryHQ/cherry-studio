@@ -129,15 +129,8 @@ export default class SearxngProvider extends BaseWebSearchProvider {
         .slice(0, websearch.maxResults)
 
       const fetchPromises = validItems.map(async (item) => {
-        const timeoutMs = this.provider.timeout || 10000
-        const controller = new AbortController()
-        const timeoutId = setTimeout(() => controller.abort(), timeoutMs)
-
         try {
-          const fetched = await fetchWebContent(item.url, 'markdown', this.provider.usingBrowser, {
-            signal: controller.signal
-          })
-          clearTimeout(timeoutId)
+          const fetched = await fetchWebContent(item.url, 'markdown', this.provider.usingBrowser)
 
           if (fetched.content === noContent) {
             return this.buildFallbackResult(item)
@@ -145,8 +138,8 @@ export default class SearxngProvider extends BaseWebSearchProvider {
 
           return fetched
         } catch (error) {
-          clearTimeout(timeoutId)
-          logger.warn(`Failed to fetch ${item.url} after ${timeoutMs}ms`, error as Error)
+          const logError = error instanceof Error ? error : { error }
+          logger.warn(`Failed to fetch ${item.url}, using SearXNG snippet fallback`, logError)
           return this.buildFallbackResult(item)
         }
       })
