@@ -87,7 +87,7 @@ export class ExtensionRegistry {
    * 批量注册 Extensions
    * 支持 readonly 数组（用于 as const 数组）
    */
-  registerAll(extensions: readonly ProviderExtension<any, any, any, any>[]): this {
+  registerAll(extensions: readonly ProviderExtension<any, any, any>[]): this {
     for (const ext of extensions) {
       this.register(ext)
     }
@@ -223,7 +223,7 @@ export class ExtensionRegistry {
     }
 
     // 查找匹配的变体
-    const variant = extension.config.variants.find((v) => v.suffix === mode)
+    const variant = extension.config.variants.find((v: { suffix: string }) => v.suffix === mode)
     if (!variant) {
       return null
     }
@@ -383,7 +383,7 @@ export class ExtensionRegistry {
       return []
     }
 
-    return extension.config.variants.map((v) => `${extension.config.name}-${v.suffix}`)
+    return extension.config.variants.map((v: { suffix: string }) => `${extension.config.name}-${v.suffix}`)
   }
 
   /** 获取指定 provider 的工具工厂（变体优先，回退到 base） */

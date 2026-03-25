@@ -218,7 +218,7 @@ describe('Type Utilities', () => {
 
 describe('ProviderExtensionConfig Type Constraints', () => {
   it('should accept valid minimal config', () => {
-    type ValidConfig = ProviderExtensionConfig<{ apiKey: string }, {}, ProviderV3, 'test'>
+    type ValidConfig = ProviderExtensionConfig<{ apiKey: string }, ProviderV3, 'test'>
 
     // Should compile without errors
     const config: ValidConfig = {

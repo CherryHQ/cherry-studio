@@ -14,6 +14,7 @@ export type { AiSdkModel, ProviderError } from './types'
 
 // 类型提取工具
 export type {
+  CoreProviderSettingsMap,
   ExtensionConfigToIdResolutionMap,
   ExtensionToSettingsMap,
   ExtractProviderIds,
