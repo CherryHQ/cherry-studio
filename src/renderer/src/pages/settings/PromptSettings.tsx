@@ -181,7 +181,7 @@ const PromptSettings: FC = () => {
 
   useEffect(() => {
     if (isVersionModalOpen && editingPrompt) {
-      void refetchVersions()
+      refetchVersions()
     }
   }, [editingPrompt, isVersionModalOpen, refetchVersions])
 
