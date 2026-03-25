@@ -38,27 +38,3 @@ export type OpenRouterSearchConfig = {
 export type WebSearchPluginConfig = WebSearchToolConfigMap & {
   openrouter?: OpenRouterSearchConfig
 }
-
-/**
- * 插件的默认配置
- */
-export const DEFAULT_WEB_SEARCH_CONFIG: WebSearchPluginConfig = {
-  google: {},
-  openai: {},
-  'openai-chat': {},
-  'xai-responses': {
-    webSearch: { enableImageUnderstanding: true },
-    xSearch: { enableImageUnderstanding: true }
-  },
-  anthropic: {
-    maxUses: 5
-  },
-  openrouter: {
-    plugins: [
-      {
-        id: 'web',
-        max_results: 5
-      }
-    ]
-  }
-}

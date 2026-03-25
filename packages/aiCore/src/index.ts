@@ -25,7 +25,6 @@ export { isV2Model, isV3Model } from './core/models'
 export type {
   AiPlugin,
   AiRequestContext,
-  AiRequestMetadata,
   GenerateTextParams,
   GenerateTextResult,
   HookResult,

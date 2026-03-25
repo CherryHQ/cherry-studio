@@ -2,7 +2,6 @@
 export type {
   AiPlugin,
   AiRequestContext,
-  AiRequestMetadata,
   GenerateTextParams,
   GenerateTextResult,
   HookResult,
