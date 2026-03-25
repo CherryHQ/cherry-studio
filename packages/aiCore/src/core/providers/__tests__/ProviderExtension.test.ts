@@ -6,13 +6,7 @@ import type { ProviderV3 } from '@ai-sdk/provider'
 import { createMockProviderV3 } from '@test-utils'
 import { describe, expect, it, vi } from 'vitest'
 
-import {
-  createProviderExtension,
-  ProviderExtension,
-  ProviderExtensionBuilder,
-  type ProviderExtensionConfig
-} from '../core/ProviderExtension'
-import type { ExtensionStorage } from '../types'
+import { ProviderExtension } from '../core/ProviderExtension'
 
 describe('ProviderExtension', () => {
   describe('Static create() Method', () => {
@@ -48,23 +42,15 @@ describe('ProviderExtension', () => {
         name: string
       }
 
-      interface TestStorage extends ExtensionStorage {
-        cache: Map<string, any>
-      }
-
-      const extension = new ProviderExtension<TestSettings, TestStorage>({
+      const extension = new ProviderExtension<TestSettings>({
         name: 'test-provider',
         create: createMockProviderV3 as any, // Type assertion needed as mock has different signature
         defaultOptions: {
           apiKey: 'test-key'
-        },
-        initialStorage: {
-          cache: new Map()
         }
       })
 
       expect(extension.config.name).toBe('test-provider')
-      expect(extension.storage.get('cache')).toBeInstanceOf(Map)
     })
 
     it('should allow delayed config resolution with function', () => {
@@ -326,54 +312,6 @@ describe('ProviderExtension', () => {
     })
   })
 
-  describe('ProviderExtensionBuilder', () => {
-    it('should build extension with fluent API', () => {
-      const extension = new ProviderExtensionBuilder<any>()
-        .setName('test-provider')
-        .setAliases(['test', 'tp'])
-        .setSupportsImageGeneration(true)
-        .setCreate(createMockProviderV3 as any)
-        .setDefaultOptions({ apiKey: 'test-key' })
-        .addVariant({
-          suffix: 'chat',
-          name: 'Chat',
-          transform: (provider) => provider
-        })
-        .build()
-
-      expect(extension.config.name).toBe('test-provider')
-      expect(extension.config.aliases).toEqual(['test', 'tp'])
-      expect(extension.config.supportsImageGeneration).toBe(true)
-      expect(extension.config.variants).toHaveLength(1)
-      expect(extension.config.defaultOptions).toEqual({ apiKey: 'test-key' })
-    })
-
-    it('should support setImport', () => {
-      const mockImport = () => Promise.resolve({ createMockProviderV3 })
-      const extension = new ProviderExtensionBuilder()
-        .setName('lazy-provider')
-        .setImport(mockImport as any, 'createMockProviderV3')
-        .build()
-
-      expect(extension.config.import).toBeDefined()
-      expect(extension.config.creatorFunctionName).toBe('createMockProviderV3')
-    })
-  })
-
-  describe('createProviderExtension helper', () => {
-    it('should create extension from config', () => {
-      const config: ProviderExtensionConfig = {
-        name: 'test-provider',
-        create: createMockProviderV3
-      }
-
-      const extension = createProviderExtension(config)
-
-      expect(extension).toBeInstanceOf(ProviderExtension)
-      expect(extension.config.name).toBe('test-provider')
-    })
-  })
-
   describe('Type Safety', () => {
     interface TestSettings {
       apiKey: string
@@ -404,75 +342,6 @@ describe('ProviderExtension', () => {
     })
   })
 
-  describe('Storage System', () => {
-    interface TestStorage extends ExtensionStorage {
-      providerCache: Map<string, ProviderV3>
-      apiKeyValid: boolean
-      customData?: string
-    }
-
-    it('should initialize storage from initialStorage config', () => {
-      const cacheMap = new Map<string, ProviderV3>()
-      const extension = new ProviderExtension<any, TestStorage>({
-        name: 'test-provider',
-        create: createMockProviderV3,
-        initialStorage: {
-          providerCache: cacheMap,
-          apiKeyValid: false
-        }
-      })
-
-      expect(extension.storage.get('providerCache')).toBe(cacheMap)
-      expect(extension.storage.get('apiKeyValid')).toBe(false)
-    })
-
-    it('should support storage get/set operations', () => {
-      const extension = new ProviderExtension<any, TestStorage>({
-        name: 'test-provider',
-        create: createMockProviderV3
-      })
-
-      extension.storage.set('apiKeyValid', true)
-      expect(extension.storage.get('apiKeyValid')).toBe(true)
-
-      const cache = new Map<string, ProviderV3>()
-      extension.storage.set('providerCache', cache)
-      expect(extension.storage.get('providerCache')).toBe(cache)
-    })
-
-    it('should support storage.has()', () => {
-      const extension = new ProviderExtension<any, TestStorage>({
-        name: 'test-provider',
-        create: createMockProviderV3,
-        initialStorage: {
-          apiKeyValid: true
-        }
-      })
-
-      expect(extension.storage.has('apiKeyValid')).toBe(true)
-      expect(extension.storage.has('customData')).toBe(false)
-    })
-
-    it('should support storage.clear()', () => {
-      const extension = new ProviderExtension<any, TestStorage>({
-        name: 'test-provider',
-        create: createMockProviderV3,
-        initialStorage: {
-          apiKeyValid: false
-        }
-      })
-
-      extension.storage.set('customData', 'test')
-      expect(extension.storage.get('customData')).toBe('test')
-
-      extension.storage.clear()
-
-      // Clear should reset to initial storage
-      expect(extension.storage.get('apiKeyValid')).toBe(false)
-      expect(extension.storage.get('customData')).toBeUndefined()
-    })
-  })
-
   describe('Options Getter', () => {
     it('should return readonly frozen options', () => {
       const extension = new ProviderExtension<any>({
@@ -485,103 +354,6 @@ describe('ProviderExtension', () => {
 
       expect(options).toEqual({ apiKey: 'test-key', timeout: 5000 })
       expect(Object.isFrozen(options)).toBe(true)
-    })
-  })
-
-  describe('Lifecycle Hooks', () => {
-    interface TestSettings {
-      apiKey: string
-      baseURL?: string
-    }
-
-    interface TestStorage extends ExtensionStorage {
-      hooksCalled: string[]
-      providerInstance?: ProviderV3
-    }
-
-    it('should execute onBeforeCreate hook with correct context', async () => {
-      const onBeforeCreate = vi.fn(function (this: any, _settings: TestSettings) {
-        expect(this.name).toBe('test-provider')
-        expect(this.options).toEqual(_settings)
-        expect(this.storage).toBeDefined()
-        this.storage.set('hooksCalled', ['onBeforeCreate'])
-      })
-
-      const extension = new ProviderExtension<TestSettings, TestStorage>({
-        name: 'test-provider',
-        create: createMockProviderV3 as any,
-        hooks: {
-          onBeforeCreate
-        }
-      })
-
-      await extension.executeHook('onBeforeCreate', { apiKey: 'test-key' })
-
-      expect(onBeforeCreate).toHaveBeenCalledWith({ apiKey: 'test-key' })
-      expect(extension.storage.get('hooksCalled')).toEqual(['onBeforeCreate'])
-    })
-
-    it('should execute onAfterCreate hook with provider instance', async () => {
-      const mockProvider = createMockProviderV3()
-      const onAfterCreate = vi.fn(function (this: any, _settings: TestSettings, provider: ProviderV3) {
-        expect(this.name).toBe('test-provider')
-        expect(provider).toBe(mockProvider)
-        this.storage.set('providerInstance', provider)
-      })
-
-      const extension = new ProviderExtension<TestSettings, TestStorage>({
-        name: 'test-provider',
-        create: createMockProviderV3 as any,
-        hooks: {
-          onAfterCreate
-        }
-      })
-
-      await extension.executeHook('onAfterCreate', { apiKey: 'test-key' }, mockProvider)
-
-      expect(onAfterCreate).toHaveBeenCalledWith({ apiKey: 'test-key' }, mockProvider)
-      expect(extension.storage.get('providerInstance')).toBe(mockProvider)
-    })
-
-    it('should not throw if hook is not defined', async () => {
-      const extension = new ProviderExtension<TestSettings>({
-        name: 'test-provider',
-        create: createMockProviderV3 as any
-      })
-
-      await expect(extension.executeHook('onBeforeCreate', { apiKey: 'test' })).resolves.toBeUndefined()
-      await expect(
-        extension.executeHook('onAfterCreate', { apiKey: 'test' }, createMockProviderV3())
-      ).resolves.toBeUndefined()
-    })
-
-    it('should provide access to getVariant and hasProviderId in hook context', async () => {
-      let contextChecked = false
-
-      const extension = new ProviderExtension<TestSettings>({
-        name: 'test-provider',
-        create: createMockProviderV3 as any,
-        aliases: ['tp'],
-        variants: [
-          {
-            suffix: 'chat',
-            name: 'Chat',
-            transform: (provider) => provider
-          }
-        ],
-        hooks: {
-          onBeforeCreate() {
-            expect(this.getVariant('chat')).toBeDefined()
-            expect(this.hasProviderId('test-provider')).toBe(true)
-            expect(this.hasProviderId('tp')).toBe(true)
-            expect(this.hasProviderId('test-provider-chat')).toBe(true)
-            contextChecked = true
-          }
-        }
-      })
-
-      await extension.executeHook('onBeforeCreate', { apiKey: 'test' })
-      expect(contextChecked).toBe(true)
     })
   })
 
@@ -769,48 +541,6 @@ describe('ProviderExtension', () => {
       expect(createFn).toHaveBeenCalledTimes(1)
     })
 
-    it('should execute lifecycle hooks when creating new instance', async () => {
-      const onBeforeCreate = vi.fn()
-      const onAfterCreate = vi.fn()
-
-      const extension = new ProviderExtension<TestSettings>({
-        name: 'test-provider',
-        create: createMockProviderV3 as any,
-        hooks: {
-          onBeforeCreate,
-          onAfterCreate
-        }
-      })
-
-      const settings = { apiKey: 'test-key' }
-      await extension.createProvider(settings)
-
-      expect(onBeforeCreate).toHaveBeenCalledTimes(1)
-      expect(onAfterCreate).toHaveBeenCalledTimes(1)
-    })
-
-    it('should NOT execute hooks when returning cached instance', async () => {
-      const onBeforeCreate = vi.fn()
-      const onAfterCreate = vi.fn()
-
-      const extension = new ProviderExtension<TestSettings>({
-        name: 'test-provider',
-        create: createMockProviderV3 as any,
-        hooks: {
-          onBeforeCreate,
-          onAfterCreate
-        }
-      })
-
-      const settings = { apiKey: 'test-key' }
-      await extension.createProvider(settings)
-      await extension.createProvider(settings) // Second call - should use cache
-
-      // Hooks should only be called once (for first creation)
-      expect(onBeforeCreate).toHaveBeenCalledTimes(1)
-      expect(onAfterCreate).toHaveBeenCalledTimes(1)
-    })
-
     it('should support variant suffix parameter', async () => {
       const extension = new ProviderExtension<TestSettings>({
         name: 'test-provider',
@@ -898,31 +628,6 @@ describe('ProviderExtension', () => {
       const instance4 = await extension.createProvider(settings)
       expect(instance4).toBe(instance1)
       expect(createFn).toHaveBeenCalledTimes(1)
-    })
-
-    it('should run lifecycle hooks exactly once for concurrent requests', async () => {
-      const onBeforeCreate = vi.fn()
-      const onAfterCreate = vi.fn()
-
-      const extension = new ProviderExtension<TestSettings>({
-        name: 'test-provider',
-        create: async () => {
-          await new Promise((resolve) => setTimeout(resolve, 10))
-          return createMockProviderV3()
-        },
-        hooks: { onBeforeCreate, onAfterCreate }
-      })
-
-      const settings = { apiKey: 'test-key' }
-
-      await Promise.all([
-        extension.createProvider(settings),
-        extension.createProvider(settings),
-        extension.createProvider(settings)
-      ])
-
-      expect(onBeforeCreate).toHaveBeenCalledTimes(1)
-      expect(onAfterCreate).toHaveBeenCalledTimes(1)
     })
 
     it('should handle arrays in settings', async () => {
@@ -1095,37 +800,6 @@ describe('ProviderExtension', () => {
       expect(instanceB).not.toBe(instanceC)
       expect(instanceA).not.toBe(instanceC)
       expect(createFn).toHaveBeenCalledTimes(3)
-    })
-  })
-
-  describe('ProviderExtensionBuilder with New Features', () => {
-    it('should support setInitialStorage', () => {
-      const extension = new ProviderExtensionBuilder()
-        .setName('test-provider')
-        .setCreate(createMockProviderV3)
-        .setInitialStorage({
-          providerCache: new Map(),
-          apiKeyValid: false
-        })
-        .build()
-
-      expect(extension.storage.get('providerCache')).toBeInstanceOf(Map)
-      expect(extension.storage.get('apiKeyValid')).toBe(false)
-    })
-
-    it('should support setHooks', () => {
-      const hooks = {
-        onBeforeCreate: vi.fn(),
-        onAfterCreate: vi.fn()
-      }
-
-      const extension = new ProviderExtensionBuilder()
-        .setName('test-provider')
-        .setCreate(createMockProviderV3)
-        .setHooks(hooks)
-        .build()
-
-      expect(extension.config.hooks).toBe(hooks)
     })
   })
 })

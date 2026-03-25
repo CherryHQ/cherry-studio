@@ -26,12 +26,7 @@ import { createOpenRouter } from '@openrouter/ai-sdk-provider'
 import { customProvider } from 'ai'
 
 import type { OpenRouterSearchConfig } from '../../plugins/built-in/webSearchPlugin'
-import type {
-  ExtensionConfigToIdResolutionMap,
-  ExtensionStorage,
-  ExtractExtensionIds,
-  UnionToIntersection
-} from '../types'
+import type { ExtensionConfigToIdResolutionMap, ExtractExtensionIds, UnionToIntersection } from '../types'
 import { extensionRegistry } from './ExtensionRegistry'
 import type { ProviderExtensionConfig } from './ProviderExtension'
 import { ProviderExtension } from './ProviderExtension'
@@ -53,12 +48,7 @@ const AnthropicExtension = ProviderExtension.create({
         tools: { webSearch: provider.tools.webFetch_20260209(config) }
       })
   }
-} as const satisfies ProviderExtensionConfig<
-  AnthropicProviderSettings,
-  ExtensionStorage,
-  AnthropicProvider,
-  'anthropic'
->)
+} as const satisfies ProviderExtensionConfig<AnthropicProviderSettings, AnthropicProvider, 'anthropic'>)
 
 /**
  * Azure Extension
@@ -109,12 +99,7 @@ const AzureExtension = ProviderExtension.create({
         })
     }
   ] as const
-} as const satisfies ProviderExtensionConfig<
-  AzureOpenAIProviderSettings,
-  ExtensionStorage,
-  AzureOpenAIProvider,
-  'azure'
->)
+} as const satisfies ProviderExtensionConfig<AzureOpenAIProviderSettings, AzureOpenAIProvider, 'azure'>)
 
 const CherryInExtension = ProviderExtension.create({
   name: 'cherryin',
@@ -134,13 +119,13 @@ const CherryInExtension = ProviderExtension.create({
         })
     }
   ] as const
-} as const satisfies ProviderExtensionConfig<CherryInProviderSettings, ExtensionStorage, CherryInProvider, 'cherryin'>)
+} as const satisfies ProviderExtensionConfig<CherryInProviderSettings, CherryInProvider, 'cherryin'>)
 
 const DeepSeekExtension = ProviderExtension.create({
   name: 'deepseek',
   supportsImageGeneration: false,
   create: createDeepSeek
-} as const satisfies ProviderExtensionConfig<DeepSeekProviderSettings, ExtensionStorage, ProviderV3, 'deepseek'>)
+} as const satisfies ProviderExtensionConfig<DeepSeekProviderSettings, ProviderV3, 'deepseek'>)
 
 const GoogleExtension = ProviderExtension.create({
   name: 'google',
@@ -159,12 +144,7 @@ const GoogleExtension = ProviderExtension.create({
       }
     })
   }
-} as const satisfies ProviderExtensionConfig<
-  GoogleGenerativeAIProviderSettings,
-  ExtensionStorage,
-  GoogleGenerativeAIProvider,
-  'google'
->)
+} as const satisfies ProviderExtensionConfig<GoogleGenerativeAIProviderSettings, GoogleGenerativeAIProvider, 'google'>)
 
 const OpenAICompatibleExtension = ProviderExtension.create({
   name: 'openai-compatible',
@@ -175,12 +155,7 @@ const OpenAICompatibleExtension = ProviderExtension.create({
     }
     return createOpenAICompatible(settings)
   }
-} as const satisfies ProviderExtensionConfig<
-  OpenAICompatibleProviderSettings,
-  ExtensionStorage,
-  ProviderV3,
-  'openai-compatible'
->)
+} as const satisfies ProviderExtensionConfig<OpenAICompatibleProviderSettings, ProviderV3, 'openai-compatible'>)
 
 const OpenAIExtension = ProviderExtension.create({
   name: 'openai',
@@ -208,7 +183,7 @@ const OpenAIExtension = ProviderExtension.create({
       }
     }
   ] as const
-} as const satisfies ProviderExtensionConfig<OpenAIProviderSettings, ExtensionStorage, OpenAIProvider, 'openai'>)
+} as const satisfies ProviderExtensionConfig<OpenAIProviderSettings, OpenAIProvider, 'openai'>)
 
 const OpenRouterExtension = ProviderExtension.create({
   name: 'openrouter',
@@ -221,7 +196,7 @@ const OpenRouterExtension = ProviderExtension.create({
       providerOptions: { openrouter: config }
     })
   }
-} as const satisfies ProviderExtensionConfig<OpenRouterProviderSettings, ExtensionStorage, ProviderV3, 'openrouter'>)
+} as const satisfies ProviderExtensionConfig<OpenRouterProviderSettings, ProviderV3, 'openrouter'>)
 
 const XaiExtension = ProviderExtension.create({
   name: 'xai',
@@ -248,7 +223,7 @@ const XaiExtension = ProviderExtension.create({
       }
     }
   ] as const
-} as const satisfies ProviderExtensionConfig<XaiProviderSettings, ExtensionStorage, XaiProvider, 'xai'>)
+} as const satisfies ProviderExtensionConfig<XaiProviderSettings, XaiProvider, 'xai'>)
 
 /**
  * 核心 provider extensions 列表
@@ -279,7 +254,7 @@ type ProviderIdsMap = UnionToIntersection<ExtensionConfigToIdResolutionMap<Exten
 export const registeredProviderIds: ProviderIdsMap = (() => {
   const map = {} as ProviderIdsMap
   coreExtensions.forEach((ext) => {
-    const config = ext.config as ProviderExtensionConfig<any, any, any, CoreProviderId>
+    const config = ext.config as ProviderExtensionConfig<any, any, CoreProviderId>
     const name = config.name
     ;(map as Record<string, CoreProviderId>)[name] = name
 

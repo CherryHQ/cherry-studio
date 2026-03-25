@@ -14,7 +14,6 @@ import { createMistral, type MistralProviderSettings } from '@ai-sdk/mistral'
 import { createPerplexity, type PerplexityProviderSettings } from '@ai-sdk/perplexity'
 import type { ProviderV3 } from '@ai-sdk/provider'
 import { createTogetherAI, type TogetherAIProviderSettings } from '@ai-sdk/togetherai'
-import type { ExtensionStorage } from '@cherrystudio/ai-core/provider'
 import { ProviderExtension, type ProviderExtensionConfig } from '@cherrystudio/ai-core/provider'
 import {
   createGitHubCopilotOpenAICompatible,
@@ -48,12 +47,7 @@ export const GoogleVertexExtension = ProviderExtension.create({
         tools: { urlContext: provider.tools.urlContext(config) }
       })
   }
-} as const satisfies ProviderExtensionConfig<
-  GoogleVertexProviderSettings,
-  ExtensionStorage,
-  GoogleVertexProvider,
-  'google-vertex'
->)
+} as const satisfies ProviderExtensionConfig<GoogleVertexProviderSettings, GoogleVertexProvider, 'google-vertex'>)
 
 /**
  * Google Vertex AI Anthropic Extension
@@ -72,7 +66,6 @@ export const GoogleVertexAnthropicExtension = ProviderExtension.create({
   }
 } as const satisfies ProviderExtensionConfig<
   GoogleVertexProviderSettings,
-  ExtensionStorage,
   GoogleVertexAnthropicProvider,
   'google-vertex-anthropic'
 >)
@@ -89,7 +82,6 @@ export const GitHubCopilotExtension = ProviderExtension.create({
     createGitHubCopilotOpenAICompatible(options) as unknown as ProviderV3
 } as const satisfies ProviderExtensionConfig<
   GitHubCopilotProviderSettings,
-  ExtensionStorage,
   ProviderV3,
   'github-copilot-openai-compatible'
 >)
@@ -102,7 +94,7 @@ export const BedrockExtension = ProviderExtension.create({
   aliases: ['aws-bedrock'] as const,
   supportsImageGeneration: true,
   create: createAmazonBedrock
-} as const satisfies ProviderExtensionConfig<AmazonBedrockProviderSettings, ExtensionStorage, ProviderV3, 'bedrock'>)
+} as const satisfies ProviderExtensionConfig<AmazonBedrockProviderSettings, ProviderV3, 'bedrock'>)
 
 /**
  * Perplexity Extension
@@ -111,7 +103,7 @@ export const PerplexityExtension = ProviderExtension.create({
   name: 'perplexity',
   supportsImageGeneration: false,
   create: createPerplexity
-} as const satisfies ProviderExtensionConfig<PerplexityProviderSettings, ExtensionStorage, ProviderV3, 'perplexity'>)
+} as const satisfies ProviderExtensionConfig<PerplexityProviderSettings, ProviderV3, 'perplexity'>)
 
 /**
  * Mistral Extension
@@ -120,7 +112,7 @@ export const MistralExtension = ProviderExtension.create({
   name: 'mistral',
   supportsImageGeneration: false,
   create: createMistral
-} as const satisfies ProviderExtensionConfig<MistralProviderSettings, ExtensionStorage, ProviderV3, 'mistral'>)
+} as const satisfies ProviderExtensionConfig<MistralProviderSettings, ProviderV3, 'mistral'>)
 
 /**
  * HuggingFace Extension
@@ -130,7 +122,7 @@ export const HuggingFaceExtension = ProviderExtension.create({
   aliases: ['hf', 'hugging-face'] as const,
   supportsImageGeneration: true,
   create: createHuggingFace
-} as const satisfies ProviderExtensionConfig<HuggingFaceProviderSettings, ExtensionStorage, ProviderV3, 'huggingface'>)
+} as const satisfies ProviderExtensionConfig<HuggingFaceProviderSettings, ProviderV3, 'huggingface'>)
 
 /**
  * Vercel AI Gateway Extension
@@ -140,7 +132,7 @@ export const GatewayExtension = ProviderExtension.create({
   aliases: ['ai-gateway'] as const,
   supportsImageGeneration: true,
   create: createGateway
-} as const satisfies ProviderExtensionConfig<GatewayProviderSettings, ExtensionStorage, ProviderV3, 'gateway'>)
+} as const satisfies ProviderExtensionConfig<GatewayProviderSettings, ProviderV3, 'gateway'>)
 
 /**
  * Cerebras Extension
@@ -149,7 +141,7 @@ export const CerebrasExtension = ProviderExtension.create({
   name: 'cerebras',
   supportsImageGeneration: false,
   create: createCerebras
-} as const satisfies ProviderExtensionConfig<CerebrasProviderSettings, ExtensionStorage, ProviderV3, 'cerebras'>)
+} as const satisfies ProviderExtensionConfig<CerebrasProviderSettings, ProviderV3, 'cerebras'>)
 
 /**
  * Groq Extension
@@ -158,7 +150,7 @@ export const GroqExtension = ProviderExtension.create({
   name: 'groq',
   supportsImageGeneration: false,
   create: createGroq
-} as const satisfies ProviderExtensionConfig<GroqProviderSettings, ExtensionStorage, ProviderV3, 'groq'>)
+} as const satisfies ProviderExtensionConfig<GroqProviderSettings, ProviderV3, 'groq'>)
 
 /**
  * Ollama Extension
@@ -167,7 +159,7 @@ export const OllamaExtension = ProviderExtension.create({
   name: 'ollama',
   supportsImageGeneration: false,
   create: (options?: OllamaProviderSettings) => createOllama(options)
-} as const satisfies ProviderExtensionConfig<OllamaProviderSettings, ExtensionStorage, ProviderV3, 'ollama'>)
+} as const satisfies ProviderExtensionConfig<OllamaProviderSettings, ProviderV3, 'ollama'>)
 
 /**
  * AiHubMix Extension - multi-backend gateway (claude->anthropic, gemini->google, gpt->openai-responses)
@@ -176,7 +168,7 @@ export const AiHubMixExtension = ProviderExtension.create({
   name: 'aihubmix',
   supportsImageGeneration: true,
   create: createAihubmix
-} as const satisfies ProviderExtensionConfig<AihubmixProviderSettings, ExtensionStorage, ProviderV3, 'aihubmix'>)
+} as const satisfies ProviderExtensionConfig<AihubmixProviderSettings, ProviderV3, 'aihubmix'>)
 
 /**
  * NewAPI Extension - multi-backend gateway routed by endpoint_type
@@ -186,7 +178,7 @@ export const NewApiExtension = ProviderExtension.create({
   aliases: ['new-api'] as const,
   supportsImageGeneration: true,
   create: createNewApi
-} as const satisfies ProviderExtensionConfig<NewApiProviderSettings, ExtensionStorage, ProviderV3, 'newapi'>)
+} as const satisfies ProviderExtensionConfig<NewApiProviderSettings, ProviderV3, 'newapi'>)
 
 /**
  * Together AI Extension - chat and image generation
@@ -196,7 +188,7 @@ export const TogetherAIExtension = ProviderExtension.create({
   aliases: [SystemProviderIds.together] as const,
   supportsImageGeneration: true,
   create: createTogetherAI
-} as const satisfies ProviderExtensionConfig<TogetherAIProviderSettings, ExtensionStorage, ProviderV3, 'togetherai'>)
+} as const satisfies ProviderExtensionConfig<TogetherAIProviderSettings, ProviderV3, 'togetherai'>)
 
 /**
  * Voyage AI Extension - embeddings and reranking
@@ -206,7 +198,7 @@ export const VoyageExtension = ProviderExtension.create({
   aliases: [SystemProviderIds.voyageai] as const,
   supportsImageGeneration: false,
   create: createVoyage
-} as const satisfies ProviderExtensionConfig<VoyageProviderSettings, ExtensionStorage, ProviderV3, 'voyage'>)
+} as const satisfies ProviderExtensionConfig<VoyageProviderSettings, ProviderV3, 'voyage'>)
 
 /**
  * 所有项目特定的 Extensions

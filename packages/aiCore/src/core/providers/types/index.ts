@@ -73,28 +73,6 @@ export type AiSdkModelReturn<T extends AiSdkModelType> = AiSdkModelReturnMap[T]
 // Provider Extension 类型定义
 // ============================================================================
 
-/**
- * Extension Storage - 运行时状态存储
- * 用于缓存 provider 实例和连接状态
- */
-export interface ExtensionStorage {
-  /** Provider 实例缓存 */
-  providerCache?: Map<string, ProviderV3>
-
-  /** 自定义扩展存储 */
-  [key: string]: any
-}
-
-/**
- * Storage 访问器 - 类型安全的 get/set
- */
-export type StorageAccessor<T extends ExtensionStorage = ExtensionStorage> = {
-  get<K extends keyof T>(key: K): T[K] | undefined
-  set<K extends keyof T>(key: K, value: T[K]): void
-  clear(): void
-  has<K extends keyof T>(key: K): boolean
-}
-
 /** Provider 变体配置 */
 export interface ProviderVariant<TSettings = any, TProvider extends ProviderV3 = ProviderV3> {
   suffix: string
@@ -107,68 +85,6 @@ export interface ProviderVariant<TSettings = any, TProvider extends ProviderV3 =
   transform?: (baseProvider: TProvider, settings?: TSettings) => ProviderV3
 
   toolFactories?: ToolFactoryMap<TProvider>
-}
-
-/**
- * Extension Context - 钩子函数中的 this 类型
- * 提供类型安全的属性访问
- */
-export interface ExtensionContext<
-  TSettings = any,
-  TStorage extends ExtensionStorage = ExtensionStorage,
-  TProvider extends ProviderV3 = ProviderV3
-> {
-  /** Extension 名称 */
-  readonly name: string
-
-  /** 当前合并后的配置 */
-  readonly options: TSettings
-
-  /** Storage 访问器 */
-  readonly storage: StorageAccessor<TStorage>
-
-  /** 获取变体配置 */
-  getVariant(suffix: string): ProviderVariant<TSettings, TProvider> | undefined
-
-  /** 检查 provider ID 是否属于此 extension */
-  hasProviderId(id: string): boolean
-}
-
-/**
- * Extension Hook - 带绑定 context 的钩子函数
- */
-export type ExtensionHook<
-  TSettings = any,
-  TStorage extends ExtensionStorage = ExtensionStorage,
-  TProvider extends ProviderV3 = ProviderV3,
-  TReturn = void
-> = (this: ExtensionContext<TSettings, TStorage, TProvider>, settings: TSettings) => TReturn | Promise<TReturn>
-
-/**
- * 生命周期钩子配置
- */
-export interface LifecycleHooks<
-  TSettings = any,
-  TStorage extends ExtensionStorage = ExtensionStorage,
-  TProvider extends ProviderV3 = ProviderV3
-> {
-  /**
-   * 创建前钩子
-   * 用途：网络检查、配置加载、验证
-   * 可抛出错误来阻止创建
-   */
-  onBeforeCreate?: ExtensionHook<TSettings, TStorage, TProvider, void>
-
-  /**
-   * 创建后钩子
-   * 用途：初始化、缓存、日志记录
-   * @param provider - 创建的 provider 实例（类型为 TProvider）
-   */
-  onAfterCreate?: (
-    this: ExtensionContext<TSettings, TStorage, TProvider>,
-    settings: TSettings,
-    provider: TProvider
-  ) => void | Promise<void>
 }
 
 // ============================================================================
@@ -214,14 +130,12 @@ export type ExtractExtensionIds<T> = T extends { config: infer TConfig } ? Extra
  * // => OpenAIProviderSettings
  * ```
  */
-export type ExtractExtensionSettings<T> = T extends ProviderExtension<infer TSettings, any, any, any>
-  ? TSettings
-  : never
+export type ExtractExtensionSettings<T> = T extends ProviderExtension<infer TSettings, any, any> ? TSettings : never
 
 /**
  * Map all Provider IDs from an Extension to its Settings type
  */
-export type ExtensionToSettingsMap<T> = T extends ProviderExtension<infer TSettings, any, any, infer TConfig>
+export type ExtensionToSettingsMap<T> = T extends ProviderExtension<infer TSettings, any, infer TConfig>
   ? { [K in ExtractProviderIds<TConfig>]: TSettings }
   : never
 

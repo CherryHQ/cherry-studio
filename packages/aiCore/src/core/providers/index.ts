@@ -30,7 +30,6 @@ export { formatPrivateKey, ProviderCreationError } from './core/utils'
 
 // Extension 核心类和类型
 export {
-  createProviderExtension,
   type ProviderCreatorFunction,
   ProviderExtension,
   type ProviderExtensionConfig,
@@ -39,14 +38,7 @@ export {
 
 // Extension Registry
 export { ExtensionRegistry, extensionRegistry } from './core/ExtensionRegistry'
-export type {
-  ExtensionContext,
-  ExtensionHook,
-  ExtensionStorage,
-  LifecycleHooks,
-  ProviderVariant,
-  StorageAccessor
-} from './types'
+export type { ProviderVariant } from './types'
 export type {
   ExtractToolConfig,
   ExtractToolConfigMap,

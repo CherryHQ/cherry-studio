@@ -2,6 +2,7 @@
  * ExtensionRegistry 单元测试
  */
 
+import type { ProviderV3 } from '@ai-sdk/provider'
 import { createMockProviderV3 } from '@test-utils'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -221,7 +222,7 @@ describe('ExtensionRegistry', () => {
           {
             suffix: 'chat',
             name: 'Chat',
-            transform: (provider) => provider
+            transform: (provider: ProviderV3) => provider
           }
         ]
       })
@@ -398,91 +399,6 @@ describe('ExtensionRegistry', () => {
     })
   })
 
-  describe('Hook Execution in createProvider', () => {
-    it('should execute onBeforeCreate hook before creating provider', async () => {
-      const createSpy = vi.fn(createMockProviderV3)
-      const beforeCreateSpy = vi.fn(function (this: any) {
-        this.storage.set('hooksCalled', ['onBeforeCreate'])
-      })
-
-      registry.register(
-        new ProviderExtension<any>({
-          name: 'test-provider',
-          create: createSpy as any,
-          hooks: {
-            onBeforeCreate: beforeCreateSpy
-          }
-        }) as any
-      )
-
-      await registry.createProvider('test-provider', { apiKey: 'key' })
-
-      expect(beforeCreateSpy).toHaveBeenCalledWith({ apiKey: 'key' })
-      expect(createSpy).toHaveBeenCalled()
-    })
-
-    it('should execute onAfterCreate hook after creating provider', async () => {
-      const mockProvider = createMockProviderV3()
-      const afterCreateSpy = vi.fn()
-
-      registry.register(
-        new ProviderExtension({
-          name: 'test-provider',
-          create: () => mockProvider,
-          hooks: {
-            onAfterCreate: afterCreateSpy
-          }
-        })
-      )
-
-      await registry.createProvider('test-provider', { apiKey: 'key' })
-
-      expect(afterCreateSpy).toHaveBeenCalledWith({ apiKey: 'key' }, mockProvider)
-    })
-
-    it('should execute hooks in correct order', async () => {
-      const executionOrder: string[] = []
-
-      registry.register(
-        new ProviderExtension({
-          name: 'test-provider',
-          create: () => {
-            executionOrder.push('create')
-            return createMockProviderV3()
-          },
-          hooks: {
-            onBeforeCreate: () => {
-              executionOrder.push('before')
-            },
-            onAfterCreate: () => {
-              executionOrder.push('after')
-            }
-          }
-        })
-      )
-
-      await registry.createProvider('test-provider', { apiKey: 'key' })
-
-      expect(executionOrder).toEqual(['before', 'create', 'after'])
-    })
-
-    it('should throw ProviderCreationError if onBeforeCreate fails', async () => {
-      registry.register(
-        new ProviderExtension({
-          name: 'test-provider',
-          create: createMockProviderV3,
-          hooks: {
-            onBeforeCreate: () => {
-              throw new Error('Pre-creation check failed')
-            }
-          }
-        })
-      )
-
-      await expect(registry.createProvider('test-provider', { apiKey: 'key' })).rejects.toThrow(ProviderCreationError)
-    })
-  })
-
   describe('ProviderCreationError', () => {
     it('should wrap errors in ProviderCreationError', async () => {
       registry.register(
@@ -517,7 +433,7 @@ describe('ExtensionRegistry', () => {
             {
               suffix: 'chat',
               name: 'OpenAI Chat',
-              transform: (provider) => provider
+              transform: (provider: ProviderV3) => provider
             }
           ]
         })
@@ -532,7 +448,7 @@ describe('ExtensionRegistry', () => {
             {
               suffix: 'responses',
               name: 'Azure Responses',
-              transform: (provider) => provider
+              transform: (provider: ProviderV3) => provider
             }
           ]
         })
@@ -593,7 +509,7 @@ describe('ExtensionRegistry', () => {
             {
               suffix: 'chat',
               name: 'OpenAI Chat',
-              transform: (provider) => provider
+              transform: (provider: ProviderV3) => provider
             }
           ]
         })
@@ -607,7 +523,7 @@ describe('ExtensionRegistry', () => {
             {
               suffix: 'responses',
               name: 'Azure Responses',
-              transform: (provider) => provider
+              transform: (provider: ProviderV3) => provider
             }
           ]
         })
@@ -679,17 +595,17 @@ describe('ExtensionRegistry', () => {
             {
               suffix: 'chat',
               name: 'Chat',
-              transform: (provider) => provider
+              transform: (provider: ProviderV3) => provider
             },
             {
               suffix: 'responses',
               name: 'Responses',
-              transform: (provider) => provider
+              transform: (provider: ProviderV3) => provider
             },
             {
               suffix: 'completions',
               name: 'Completions',
-              transform: (provider) => provider
+              transform: (provider: ProviderV3) => provider
             }
           ]
         })
@@ -727,7 +643,7 @@ describe('ExtensionRegistry', () => {
             {
               suffix: 'chat',
               name: 'OpenAI Chat',
-              transform: (provider) => provider
+              transform: (provider: ProviderV3) => provider
             }
           ]
         })
@@ -742,7 +658,7 @@ describe('ExtensionRegistry', () => {
             {
               suffix: 'responses',
               name: 'Azure Responses',
-              transform: (provider) => provider
+              transform: (provider: ProviderV3) => provider
             }
           ]
         })
@@ -757,7 +673,7 @@ describe('ExtensionRegistry', () => {
             {
               suffix: 'chat',
               name: 'Google Chat',
-              transform: (provider) => provider
+              transform: (provider: ProviderV3) => provider
             }
           ]
         })
@@ -881,17 +797,17 @@ describe('ExtensionRegistry', () => {
               {
                 suffix: 'chat',
                 name: 'Chat',
-                transform: (provider) => provider
+                transform: (provider: ProviderV3) => provider
               },
               {
                 suffix: 'responses',
                 name: 'Responses',
-                transform: (provider) => provider
+                transform: (provider: ProviderV3) => provider
               },
               {
                 suffix: 'completions',
                 name: 'Completions',
-                transform: (provider) => provider
+                transform: (provider: ProviderV3) => provider
               }
             ]
           })
