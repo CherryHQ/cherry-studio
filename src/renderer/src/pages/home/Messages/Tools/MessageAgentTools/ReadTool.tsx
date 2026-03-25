@@ -1,7 +1,9 @@
+import { File } from '@pierre/diffs/react'
+import { useCodeStyle } from '@renderer/context/CodeStyleProvider'
 import { formatFileSize } from '@renderer/utils/file'
 import type { CollapseProps } from 'antd'
+import { useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
-import ReactMarkdown from 'react-markdown'
 
 import { truncateOutput } from '../shared/truncateOutput'
 import { ClickableFilePath } from './ClickableFilePath'
@@ -11,6 +13,15 @@ import { AgentToolsType } from './types'
 
 const removeSystemReminderTags = (text: string): string => {
   return text.replace(/<system-reminder>[\s\S]*?<\/system-reminder>/gi, '')
+}
+
+/**
+ * Strip line number prefixes from Read tool output.
+ * The model returns lines like: "     1→content" or "    10→content"
+ * Pattern: optional spaces + digits + arrow (→) + actual content
+ */
+const stripLineNumbers = (text: string): string => {
+  return text.replace(/^ *\d+→/gm, '')
 }
 
 const normalizeOutputString = (output?: ReadToolOutputType): string | null => {
@@ -45,10 +56,20 @@ export function ReadTool({
   output?: ReadToolOutputType
 }): NonNullable<CollapseProps['items']>[number] {
   const { t } = useTranslation()
+  const { activeShikiTheme, isShikiThemeDark } = useCodeStyle()
   const outputString = normalizeOutputString(output)
   const stats = getOutputStats(outputString)
   const filename = input?.file_path?.split('/').pop()
   const { data: truncatedOutput, isTruncated, originalLength } = truncateOutput(outputString)
+  const strippedOutput = truncatedOutput ? stripLineNumbers(truncatedOutput) : null
+
+  const file = useMemo(
+    () => ({
+      name: input?.file_path ?? '',
+      contents: strippedOutput ?? ''
+    }),
+    [input?.file_path, strippedOutput]
+  )
 
   return {
     key: AgentToolsType.Read,
@@ -70,9 +91,17 @@ export function ReadTool({
         showStatus={false}
       />
     ),
-    children: truncatedOutput ? (
+    children: strippedOutput ? (
       <div>
-        <ReactMarkdown>{truncatedOutput}</ReactMarkdown>
+        <File
+          file={file}
+          options={{
+            disableFileHeader: true,
+            overflow: 'wrap',
+            theme: activeShikiTheme,
+            themeType: isShikiThemeDark ? 'dark' : 'light'
+          }}
+        />
         {isTruncated && <TruncatedIndicator originalLength={originalLength} />}
       </div>
     ) : (

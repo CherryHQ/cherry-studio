@@ -1,5 +1,5 @@
-import CodeViewer from '@renderer/components/CodeViewer'
-import { getLanguageByFilePath } from '@renderer/utils/code-language'
+import { File } from '@pierre/diffs/react'
+import { useCodeStyle } from '@renderer/context/CodeStyleProvider'
 import type { CollapseProps } from 'antd'
 import { useMemo } from 'react'
 
@@ -13,7 +13,15 @@ export function WriteTool({
   input?: WriteToolInput
   output?: WriteToolOutput
 }): NonNullable<CollapseProps['items']>[number] {
-  const language = useMemo(() => getLanguageByFilePath(input?.file_path ?? ''), [input?.file_path])
+  const { activeShikiTheme, isShikiThemeDark } = useCodeStyle()
+  const filename = input?.file_path?.split('/').pop()
+  const file = useMemo(
+    () => ({
+      name: input?.file_path ?? '',
+      contents: input?.content ?? ''
+    }),
+    [input?.file_path, input?.content]
+  )
 
   return {
     key: AgentToolsType.Write,
@@ -22,7 +30,7 @@ export function WriteTool({
         toolName={AgentToolsType.Write}
         params={
           <SkeletonValue
-            value={input?.file_path ? <ClickableFilePath path={input.file_path} /> : undefined}
+            value={input?.file_path ? <ClickableFilePath path={input.file_path} displayName={filename} /> : undefined}
             width="200px"
           />
         }
@@ -31,12 +39,14 @@ export function WriteTool({
       />
     ),
     children: input ? (
-      <CodeViewer
-        value={input.content ?? ''}
-        language={language}
-        maxHeight={240}
-        expanded={false}
-        options={{ lineNumbers: true }}
+      <File
+        file={file}
+        options={{
+          disableFileHeader: true,
+          overflow: 'wrap',
+          theme: activeShikiTheme,
+          themeType: isShikiThemeDark ? 'dark' : 'light'
+        }}
       />
     ) : (
       <SkeletonValue value={null} width="100%" fallback={null} />

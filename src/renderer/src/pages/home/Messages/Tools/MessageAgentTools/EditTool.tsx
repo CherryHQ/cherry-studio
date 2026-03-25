@@ -1,32 +1,13 @@
+import { parseDiffFromFile } from '@pierre/diffs'
+import { FileDiff } from '@pierre/diffs/react'
+import { useCodeStyle } from '@renderer/context/CodeStyleProvider'
 import type { CollapseProps } from 'antd'
+import { useMemo } from 'react'
 
 import { ClickableFilePath } from './ClickableFilePath'
 import { ToolHeader } from './GenericTools'
 import type { EditToolInput, EditToolOutput } from './types'
 import { AgentToolsType } from './types'
-
-// 处理多行文本显示
-export const renderCodeBlock = (content: string, variant: 'old' | 'new') => {
-  const lines = content.split('\n')
-  const textColorClass =
-    variant === 'old' ? 'text-danger-600 dark:text-danger-400' : 'text-success-600 dark:text-success-400'
-
-  return (
-    // 删除线
-    <pre className={`whitespace-pre-wrap font-mono text-xs ${textColorClass}`}>
-      {lines.map((line, idx) => (
-        <div key={idx} className="flex hover:bg-default-100/50 dark:hover:bg-default-900/50">
-          <span className="mr-3 min-w-[2rem] select-none text-right opacity-50">
-            {variant === 'old' && '-'}
-            {variant === 'new' && '+'}
-            {idx + 1}
-          </span>
-          <span className={`flex-1 ${variant === 'old' && 'line-through'}`}>{line || ' '}</span>
-        </div>
-      ))}
-    </pre>
-  )
-}
 
 export function EditTool({
   input,
@@ -35,24 +16,38 @@ export function EditTool({
   input?: EditToolInput
   output?: EditToolOutput
 }): NonNullable<CollapseProps['items']>[number] {
+  const { activeShikiTheme, isShikiThemeDark } = useCodeStyle()
+  const filename = input?.file_path?.split('/').pop()
+  const fileDiff = useMemo(() => {
+    const fileName = input?.file_path ?? ''
+    return parseDiffFromFile(
+      { name: fileName, contents: input?.old_string ?? '' },
+      { name: fileName, contents: input?.new_string ?? '' }
+    )
+  }, [input?.file_path, input?.old_string, input?.new_string])
+
   return {
     key: AgentToolsType.Edit,
     label: (
       <ToolHeader
         toolName={AgentToolsType.Edit}
-        params={input?.file_path ? <ClickableFilePath path={input.file_path} /> : undefined}
+        params={input?.file_path ? <ClickableFilePath path={input.file_path} displayName={filename} /> : undefined}
         variant="collapse-label"
         showStatus={false}
       />
     ),
     children: (
       <>
-        {/* Diff View */}
-        {/* Old Content */}
-        {renderCodeBlock(input?.old_string ?? '', 'old')}
-        {/* New Content */}
-        {renderCodeBlock(input?.new_string ?? '', 'new')}
-        {/* Output */}
+        <FileDiff
+          fileDiff={fileDiff}
+          options={{
+            disableFileHeader: true,
+            diffStyle: 'unified',
+            overflow: 'wrap',
+            theme: activeShikiTheme,
+            themeType: isShikiThemeDark ? 'dark' : 'light'
+          }}
+        />
         {output}
       </>
     )
