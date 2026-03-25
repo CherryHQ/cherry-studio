@@ -1,5 +1,6 @@
 import { ExclamationCircleOutlined } from '@ant-design/icons'
 import { Button, Flex, Spinner } from '@cherrystudio/ui'
+import { dataApiService } from '@data/DataApiService'
 import { useMutation, useQuery } from '@data/hooks/useDataApi'
 import { DraggableList } from '@renderer/components/DraggableList'
 import { DeleteIcon, EditIcon } from '@renderer/components/Icons'
@@ -31,13 +32,7 @@ const PromptSettings: FC = () => {
   const [pendingDeletePromptId, setPendingDeletePromptId] = useState<string | null>(null)
   const [pendingRollbackVersion, setPendingRollbackVersion] = useState<number | null>(null)
 
-  const {
-    data: promptsList = [],
-    isLoading: isPromptsLoading,
-    error: promptsError
-  } = useQuery('/prompts', {
-    query: { scope: 'global' }
-  })
+  const { data: promptsList = [], isLoading: isPromptsLoading, error: promptsError } = useQuery('/prompts')
 
   const promptPath: `/prompts/${string}` = `/prompts/${editingPrompt?.id ?? '__pending__'}`
   const deletePromptPath: `/prompts/${string}` = `/prompts/${pendingDeletePromptId ?? '__pending__'}`
@@ -67,11 +62,6 @@ const PromptSettings: FC = () => {
   const { trigger: deletePrompt, isLoading: isDeletingPrompt } = useMutation('DELETE', deletePromptPath, {
     refresh: ['/prompts'],
     onError: () => window.toast.error(t('message.delete.failed'))
-  })
-
-  const { trigger: reorderPrompts } = useMutation('PATCH', '/prompts', {
-    refresh: ['/prompts'],
-    onError: () => window.toast.error(t('message.error.unknown'))
   })
 
   const { trigger: rollbackPrompt, isLoading: isRollingBack } = useMutation('POST', rollbackPath, {
@@ -164,13 +154,9 @@ const PromptSettings: FC = () => {
 
   const handleUpdateOrder = async (newPrompts: Prompt[]) => {
     try {
-      await reorderPrompts({
-        body: {
-          items: newPrompts.map((p, i) => ({ id: p.id, sortOrder: i }))
-        }
-      })
+      await Promise.all(newPrompts.map((p, i) => dataApiService.patch(`/prompts/${p.id}`, { body: { sortOrder: i } })))
     } catch {
-      // handled by useMutation onError
+      window.toast.error(t('message.error.unknown'))
     }
   }
 

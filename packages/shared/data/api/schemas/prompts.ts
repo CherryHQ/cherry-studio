@@ -1,7 +1,7 @@
 /**
  * Prompt API Schema definitions
  *
- * Contains all prompt-related endpoints for CRUD, version management, and reordering.
+ * Contains all prompt-related endpoints for CRUD and version management.
  */
 
 import type { Prompt, PromptVersion } from '@shared/data/types/prompt'
@@ -13,30 +13,18 @@ import * as z from 'zod'
 
 export const CreatePromptDtoSchema = z.object({
   title: z.string().min(1),
-  content: z.string().min(1),
-  assistantId: z.string().optional()
+  content: z.string().min(1)
 })
 
 export const UpdatePromptDtoSchema = z
   .object({
     title: z.string().min(1).optional(),
-    content: z.string().min(1).optional()
+    content: z.string().min(1).optional(),
+    sortOrder: z.number().int().min(0).optional()
   })
-  .refine((dto) => dto.title !== undefined || dto.content !== undefined, {
+  .refine((dto) => dto.title !== undefined || dto.content !== undefined || dto.sortOrder !== undefined, {
     message: 'At least one field is required'
   })
-
-export const ReorderPromptsDtoSchema = z.object({
-  assistantId: z.string().optional(),
-  items: z
-    .array(
-      z.object({
-        id: z.string().uuid(),
-        sortOrder: z.number().int().min(0)
-      })
-    )
-    .min(1)
-})
 
 export const RollbackPromptDtoSchema = z.object({
   version: z.number().int().min(1)
@@ -48,43 +36,22 @@ export const RollbackPromptDtoSchema = z.object({
 
 export type CreatePromptDto = z.infer<typeof CreatePromptDtoSchema>
 export type UpdatePromptDto = z.infer<typeof UpdatePromptDtoSchema>
-export type ReorderPromptsDto = z.infer<typeof ReorderPromptsDtoSchema>
 export type RollbackPromptDto = z.infer<typeof RollbackPromptDtoSchema>
 
 // ============================================================================
 // API Schema Definitions
 // ============================================================================
 
-export interface PromptQueryParams {
-  /**
-   * Filter by prompt scope when assistantId is not provided.
-   * - 'all': returns all prompts regardless of association
-   * - 'global': returns only prompts not linked to any assistant
-   * - undefined (default): behaves the same as 'all'
-   *
-   * When both assistantId and scope are provided, assistantId takes precedence.
-   */
-  scope?: 'all' | 'global'
-  /** Filter by assistant ID: returns only prompts linked to this assistant */
-  assistantId?: string
-}
-
 export interface PromptSchemas {
   '/prompts': {
-    /** Get prompts. Use query params to filter by scope or assistantId. */
+    /** Get all prompts */
     GET: {
-      query?: PromptQueryParams
       response: Prompt[]
     }
     /** Create a new prompt */
     POST: {
       body: CreatePromptDto
       response: Prompt
-    }
-    /** Batch update sort order */
-    PATCH: {
-      body: ReorderPromptsDto
-      response: void
     }
   }
 

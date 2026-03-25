@@ -1,12 +1,3 @@
-CREATE TABLE `assistant_prompt` (
-	`assistant_id` text NOT NULL,
-	`prompt_id` text NOT NULL,
-	`sort_order` integer DEFAULT 0 NOT NULL,
-	PRIMARY KEY(`assistant_id`, `prompt_id`),
-	FOREIGN KEY (`prompt_id`) REFERENCES `prompt`(`id`) ON UPDATE no action ON DELETE cascade
-);
---> statement-breakpoint
-CREATE INDEX `assistant_prompt_assistant_id_idx` ON `assistant_prompt` (`assistant_id`);--> statement-breakpoint
 CREATE TABLE `prompt` (
 	`id` text PRIMARY KEY NOT NULL,
 	`title` text NOT NULL,
