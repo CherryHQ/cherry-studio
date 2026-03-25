@@ -58,7 +58,8 @@ export const AgentConfigurationSchema = z
 
     // https://docs.claude.com/en/docs/claude-code/sdk/sdk-permissions#mode-specific-behaviors
     permission_mode: PermissionModeSchema.optional().default('default'), // Permission mode, default to 'default'
-    max_turns: z.number().optional().default(100) // Maximum number of interaction turns, default to 100
+    max_turns: z.number().optional().default(100), // Maximum number of interaction turns, default to 100
+    env_vars: z.record(z.string(), z.string()).optional().default({}) // Custom environment variables for the agent runtime
   })
   .loose()
 
@@ -123,7 +124,7 @@ export const isAgentEntity = (value: unknown): value is AgentEntity => {
 export interface ListOptions {
   limit?: number
   offset?: number
-  sortBy?: 'created_at' | 'updated_at' | 'name'
+  sortBy?: 'created_at' | 'updated_at' | 'name' | 'sort_order'
   orderBy?: 'asc' | 'desc'
 }
 

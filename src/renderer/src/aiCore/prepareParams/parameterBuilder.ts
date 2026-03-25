@@ -13,6 +13,7 @@ import type { AnthropicSearchConfig, WebSearchPluginConfig } from '@cherrystudio
 import { isBaseProvider } from '@cherrystudio/ai-core/core/providers/schemas'
 import type { BaseProviderId } from '@cherrystudio/ai-core/provider'
 import { loggerService } from '@logger'
+import { MAX_TOOL_CALLS, MIN_TOOL_CALLS } from '@renderer/config/constant'
 import {
   isAnthropicModel,
   isFixedReasoningModel,
@@ -27,15 +28,17 @@ import {
   isWebSearchModel
 } from '@renderer/config/models'
 import { getHubModeSystemPrompt } from '@renderer/config/prompts-code-mode'
-import { getDefaultModel } from '@renderer/services/AssistantService'
+import { DEFAULT_ASSISTANT_SETTINGS, getDefaultModel } from '@renderer/services/AssistantService'
 import store from '@renderer/store'
 import type { CherryWebSearchConfig } from '@renderer/store/websearch'
 import type { Model } from '@renderer/types'
 import { type Assistant, getEffectiveMcpMode, type MCPTool, type Provider, SystemProviderIds } from '@renderer/types'
 import type { StreamTextParams } from '@renderer/types/aiCoreTypes'
 import { mapRegexToPatterns } from '@renderer/utils/blacklistMatchPattern'
+import { IdleTimeoutController, type IdleTimeoutHandle } from '@renderer/utils/IdleTimeoutController'
 import { replacePromptVariables } from '@renderer/utils/prompt'
 import { isAIGatewayProvider, isAwsBedrockProvider, isSupportUrlContextProvider } from '@renderer/utils/provider'
+import { DEFAULT_TIMEOUT } from '@shared/config/constant'
 import type { ModelMessage, Tool } from 'ai'
 import { stepCountIs } from 'ai'
 
@@ -47,6 +50,19 @@ import { addAnthropicHeaders } from './header'
 import { getMaxTokens, getTemperature, getTopP } from './modelParameters'
 
 const logger = loggerService.withContext('parameterBuilder')
+
+/**
+ * Validates and clamps maxToolCalls to valid range
+ * Falls back to DEFAULT_ASSISTANT_SETTINGS.maxToolCalls if invalid
+ * @param value - The maxToolCalls value from settings
+ * @returns Validated maxToolCalls value
+ */
+function validateMaxToolCalls(value: number | undefined): number {
+  if (value === undefined || value < MIN_TOOL_CALLS || value > MAX_TOOL_CALLS) {
+    return DEFAULT_ASSISTANT_SETTINGS.maxToolCalls
+  }
+  return value
+}
 
 type ProviderDefinedTool = Extract<Tool<any, any>, { type: 'provider' }>
 
@@ -83,7 +99,7 @@ export async function buildStreamTextParams(
     requestOptions?: {
       signal?: AbortSignal
       timeout?: number
-      headers?: Record<string, string>
+      headers?: Record<string, string | undefined>
     }
   }
 ): Promise<{
@@ -96,8 +112,20 @@ export async function buildStreamTextParams(
     enableUrlContext: boolean
   }
   webSearchPluginConfig?: WebSearchPluginConfig
+  idleTimeout: IdleTimeoutHandle
 }> {
-  const { mcpTools } = options
+  const { mcpTools, requestOptions = {} } = options
+  // No caller currently provides a custom timeout; defaultTimeout (10 min) is the fallback.
+  const { signal: externalSignal, timeout = DEFAULT_TIMEOUT, headers: inputHeaders = {} } = requestOptions
+
+  // Use an idle timeout that resets every time a stream chunk is received,
+  // instead of a fixed total timeout that starts from the initial request.
+  const idleTimeout = new IdleTimeoutController(timeout)
+  const signals = [idleTimeout.signal]
+  if (externalSignal) {
+    signals.push(externalSignal)
+  }
+  const finalSignal = AbortSignal.any(signals)
 
   const model = assistant.model || getDefaultModel()
   const aiSdkProviderId = getAiSdkProviderId(provider)
@@ -205,7 +233,7 @@ export async function buildStreamTextParams(
     }
   }
 
-  let headers: Record<string, string | undefined> = options.requestOptions?.headers ?? {}
+  let headers = inputHeaders
 
   if (isAnthropicModel(model) && !isAwsBedrockProvider(provider)) {
     const betaHeaders = addAnthropicHeaders(assistant, model)
@@ -220,6 +248,12 @@ export async function buildStreamTextParams(
   // Note: standardParams (topK, frequencyPenalty, presencePenalty, stopSequences, seed)
   // are extracted from custom parameters and passed directly to streamText()
   // instead of being placed in providerOptions
+
+  // Get max tool calls from assistant settings
+  // When enabled, validate and use user-defined value (1-100)
+  // When disabled, don't pass stopWhen - let AI SDK use its own default
+  const enableMaxToolCalls = assistant.settings?.enableMaxToolCalls ?? DEFAULT_ASSISTANT_SETTINGS.enableMaxToolCalls
+
   const params: StreamTextParams = {
     messages: sdkMessages,
     maxOutputTokens: getMaxTokens(assistant, model),
@@ -227,12 +261,18 @@ export async function buildStreamTextParams(
     topP: getTopP(assistant, model),
     // Include AI SDK standard params extracted from custom parameters
     ...standardParams,
-    abortSignal: options.requestOptions?.signal,
+    abortSignal: finalSignal,
     headers,
     providerOptions,
-    stopWhen: stepCountIs(20),
     maxRetries: 0
   }
+
+  // Only add stopWhen when explicitly enabled and validated
+  if (enableMaxToolCalls) {
+    const maxToolCalls = validateMaxToolCalls(assistant.settings?.maxToolCalls)
+    params.stopWhen = stepCountIs(maxToolCalls)
+  }
+  // When disabled, don't pass stopWhen - let AI SDK use its own default
 
   if (tools) {
     params.tools = tools
@@ -257,7 +297,8 @@ export async function buildStreamTextParams(
     params,
     modelId: model.id,
     capabilities: { enableReasoning, enableWebSearch, enableGenerateImage, enableUrlContext },
-    webSearchPluginConfig
+    webSearchPluginConfig,
+    idleTimeout
   }
 }
 

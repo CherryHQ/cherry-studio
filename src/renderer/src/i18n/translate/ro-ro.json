@@ -7,7 +7,9 @@
         "invalid_agent": "Agent invalid"
       },
       "model": {
-        "tooltip": "Momentan, doar modelele care acceptă endpoint-uri Anthropic sunt disponibile pentru funcția Agent."
+        "supported_providers": "Furnizori Acceptați",
+        "tooltip": "Momentan, doar modelele care acceptă endpoint-uri Anthropic sunt disponibile pentru funcția Agent.",
+        "view_providers": "Vezi furnizorii acceptați"
       },
       "title": "Adaugă agent",
       "type": {
@@ -35,6 +37,10 @@
     },
     "edit": {
       "title": "Editează agentul"
+    },
+    "empty": {
+      "description": "Creează un agent pentru a gestiona sarcini complexe cu instrumente bazate pe IA",
+      "title": "Niciun agent încă"
     },
     "get": {
       "error": {
@@ -75,6 +81,11 @@
     "list": {
       "error": {
         "failed": "Nu s-a putut afișa lista de agenți."
+      }
+    },
+    "reorder": {
+      "error": {
+        "failed": "Nu s-a reușit reordonarea agenților"
       }
     },
     "server": {
@@ -127,6 +138,11 @@
       },
       "label_one": "Sesiune",
       "label_other": "Sesiuni",
+      "reorder": {
+        "error": {
+          "failed": "Nu s-au putut reordona sesiunile"
+        }
+      },
       "update": {
         "error": {
           "failed": "Nu s-a putut actualiza sesiunea"
@@ -135,6 +151,11 @@
     },
     "settings": {
       "advance": {
+        "envVars": {
+          "description": "Setați variabile de mediu personalizate pentru runtime-ul agentului.",
+          "helper": "Introduceți variabile de mediu personalizate (una pe linie, format: CHEIE=valoare)",
+          "label": "Variabile de mediu"
+        },
         "maxTurns": {
           "description": "Definește câte cicluri cerere/răspuns poate finaliza automat agentul.",
           "helper": "Valorile mai mari permit rulări autonome mai lungi; valorile mai mici mențin sesiunile scurte.",
@@ -288,6 +309,7 @@
         }
       }
     },
+    "sidebar_title": "Agenți",
     "todo": {
       "panel": {
         "title": "{{completed}}/{{total}} sarcini finalizate"
@@ -367,6 +389,9 @@
         "TodoWrite": {
           "description": "Creează și gestionează liste de sarcini structurate"
         },
+        "ToolSearch": {
+          "description": "Descoperă instrumente amânate din biblioteci mari"
+        },
         "WebFetch": {
           "description": "Preia conținutul de la o adresă URL specificată"
         },
@@ -388,7 +413,11 @@
       }
     },
     "warning": {
-      "enable_server": "Activează serverul API pentru a folosi agenți."
+      "enable_and_start": "Activează și pornește",
+      "enable_server": "Activează serverul API pentru a folosi agenți.",
+      "enable_server_description": "Serverul API trebuie să fie activat pentru ca agenții să funcționeze. Îl puteți activa direct sau îl puteți configura în setări.",
+      "server_not_running": "Serverul API este activat, dar nu rulează. Vă rugăm să verificați configurația serverului.",
+      "server_not_running_description": "Serverul API trebuie să ruleze pentru ca agenții să funcționeze. Îl puteți porni direct sau puteți verifica setările."
     }
   },
   "apiServer": {
@@ -614,6 +643,10 @@
           "tip": "Asistentul va folosi capacitatea de recunoaștere a intenției modelului mare pentru a determina dacă să folosească baza de cunoștințe pentru a răspunde. Această funcție depinde de capacitățile modelului"
         }
       },
+      "max_tool_calls": {
+        "label": "Apeluri Maxime de Instrumente",
+        "tip": "Numărul maxim de apeluri de instrumente permise într-o singură conversație. Valori mai mari permit operații mai complexe, în mai multe etape, dar pot crește consumul de tokeni și timpul de răspuns."
+      },
       "mcp": {
         "description": "Servere MCP activate implicit",
         "enableFirst": "Activează mai întâi acest server în setările MCP",
@@ -705,6 +738,7 @@
     "progress": {
       "completed": "Backup finalizat",
       "compressing": "Se comprimă fișierele...",
+      "copying_database": "Se copiază baza de date...",
       "copying_files": "Se copiază fișierele... {{progress}}%",
       "preparing": "Se pregătește backup-ul...",
       "preparing_compression": "Se pregătește compresia...",
@@ -742,6 +776,7 @@
       }
     },
     "alerts": {
+      "create_agent": "Creează un agent pentru a începe",
       "create_session": "Creează o sesiune",
       "select_agent": "Selectați un agent"
     },
@@ -857,7 +892,11 @@
         "collapse": "Restrânge",
         "collapse_in": "Restrânge",
         "collapse_out": "Elimină din restrângere",
-        "expand": "Extinde"
+        "expand": "Extinde",
+        "file_not_found": "Fișier negăsit: {{path}}",
+        "open_file": "Deschide fișier",
+        "open_file_error": "Nu s-a putut deschide fișierul: {{path}}",
+        "reveal_in_finder": "Afișează în Finder"
       },
       "topics": " Subiecte ",
       "translate": "Tradu în {{target_language}}",
@@ -1156,6 +1195,8 @@
             "content": "Ești sigur că vrei să ștergi {{count}} subiecte selectate? Această acțiune nu poate fi anulată.",
             "title": "Șterge subiecte"
           },
+          "error": "[to be translated]:Failed to delete. Please try again.",
+          "partial_success": "[to be translated]:Successfully deleted {{successCount}} topics, {{failedCount}} failed",
           "success": "S-au șters {{count}} subiecte"
         },
         "deselect_all": "Deselectează tot",
@@ -1351,6 +1392,7 @@
     "off": "Oprit",
     "on": "Pornit",
     "open": "Deschide",
+    "open_in": "Deschide în {{name}}",
     "paste": "Lipește",
     "placeholders": {
       "select": {
@@ -1378,6 +1420,7 @@
     "selected": "Selectat",
     "selectedItems": "{{count}} elemente selectate",
     "selectedMessages": "{{count}} mesaje selectate",
+    "sessions": "Sesiuni",
     "settings": "Setări",
     "sort": {
       "pinyin": {
@@ -1487,7 +1530,6 @@
     "originalError": "Eroare originală",
     "originalMessage": "Mesaj original",
     "parameter": "Parametru",
-    "pause_placeholder": "În pauză",
     "prompt": "Prompt",
     "provider": "Furnizor",
     "providerId": "ID furnizor",
@@ -1501,6 +1543,7 @@
     "requestBody": "Corp cerere",
     "requestBodyValues": "Valori corp cerere",
     "requestUrl": "URL cerere",
+    "request_timeout": "Cerere expirată",
     "response": "Răspuns",
     "responseBody": "Corp răspuns",
     "responseHeaders": "Header răspuns",
@@ -1510,6 +1553,7 @@
     "status": "Cod stare",
     "statusCode": "Cod stare",
     "statusText": "Text stare",
+    "stream_paused": "În pauză",
     "text": "Text",
     "toolInput": "Intrare instrument",
     "toolName": "Nume instrument",
@@ -1988,6 +2032,10 @@
         "export": "Eroare la exportul Excel"
       },
       "fetchTopicName": "Nu s-a putut numi subiectul",
+      "file": {
+        "process_failed": "Fișierul {{name}} nu a putut fi procesat",
+        "text_extraction_failed": "Nu s-a putut extrage textul din {{name}}"
+      },
       "get_embedding_dimensions": "Nu s-au putut obține dimensiunile embedding",
       "invalid": {
         "api": {
@@ -2147,7 +2195,7 @@
     "tools": {
       "abort_failed": "Anularea apelului instrumentului a eșuat",
       "aborted": "Apelul instrumentului a fost anulat",
-      "approvalRequired": "[to be translated]:Tool \"{{tool}}\" requires approval",
+      "approvalRequired": "Instrumentul „{{tool}}” necesită aprobare",
       "autoApproveEnabled": "Aprobare automată activată pentru acest instrument",
       "cancelled": "Anulat",
       "completed": "Finalizat",
@@ -2231,6 +2279,11 @@
       }
     },
     "warning": {
+      "file": {
+        "pdf_exceeds_limit": "Fișierul PDF {{name}} depășește limita de dimensiune ({{limit}}), se revine la extragerea textului",
+        "pdf_text_extraction_failed": "Nu s-a putut extrage textul din PDF {{name}}",
+        "pdf_upload_failed": "Încărcarea PDF-ului {{name}} a eșuat, se revine la extragerea textului"
+      },
       "rate": {
         "limit": "Prea multe cereri. Te rugăm să aștepți {{seconds}} secunde înainte de a încerca din nou."
       }
@@ -2283,8 +2336,11 @@
     "chatglm": "ChatGLM",
     "dangbei": "Dangbei",
     "doubao": "Doubao",
-    "hailuo": "MINIMAX",
+    "hailuo": "Hailuo",
+    "ima": "ima",
     "metaso": "Metaso",
+    "minimax-agent": "MiniMax Agent CN",
+    "minimax-global": "MiniMax Agent",
     "nami-ai": "Nami AI",
     "nami-ai-search": "Nami AI Search",
     "qwen": "Qwen",
@@ -2584,6 +2640,11 @@
     },
     "install_progress": "Progresul instalării",
     "installed_at": "OpenClaw instalat la",
+    "migration": {
+      "description": "A fost detectată o versiune învechită a OpenClaw instalată prin npm. Te rugăm să reinstalezi pentru a obține cea mai recentă versiune oficială.",
+      "install_button": "Reinstalați OpenClaw",
+      "title": "OpenClaw Necesită Actualizare"
+    },
     "model_config": {
       "auth_token": "Token de autentificare",
       "auth_token_hint": "Token pentru autentificarea gateway-ului. Lăsați gol pentru a dezactiva autentificarea.",
@@ -2619,6 +2680,7 @@
       "windows_title": "Windows"
     },
     "quick_actions": {
+      "check_update": "Verifică actualizările",
       "open_dashboard": "Deschide Tabloul de Bord",
       "title": "Acțiuni rapide",
       "uninstall": "Dezinstalare",
@@ -2645,6 +2707,16 @@
     "uninstalling": {
       "description": "Vă rugăm să așteptați în timp ce OpenClaw este dezinstalat...",
       "title": "Dezinstalarea OpenClaw"
+    },
+    "update": {
+      "available": "Versiune nouă disponibilă: v{{latest}} (versiunea curentă: v{{current}})",
+      "checking": "Se verifică actualizările...",
+      "confirm_button": "Actualizează acum",
+      "failed": "Nu s-a reușit verificarea actualizărilor",
+      "modal_title": "Actualizare OpenClaw",
+      "success": "Actualizare finalizată cu succes!",
+      "up_to_date": "Deja actualizat (v{{current}})",
+      "updating": "Se actualizează..."
     }
   },
   "ovms": {
@@ -3045,7 +3117,8 @@
     "lmstudio": "LM Studio",
     "longcat": "LongCat AI",
     "mimo": "Xiaomi MiMo",
-    "minimax": "MiniMax",
+    "minimax": "MiniMax CN",
+    "minimax-global": "MiniMax",
     "mistral": "Mistral",
     "modelscope": "ModelScope",
     "moonshot": "Moonshot",
@@ -3073,6 +3146,7 @@
     "voyageai": "Voyage AI",
     "xirang": "State Cloud Xirang",
     "yi": "Yi",
+    "zai": "Z.ai",
     "zhinao": "360AI",
     "zhipu": "BigModel"
   },
@@ -3089,7 +3163,10 @@
       "extracting": "Se extrage backup-ul...",
       "preparing": "Se pregătește restaurarea...",
       "reading_data": "Se citesc datele...",
-      "title": "Progres restaurare"
+      "restoring_data": "Restaurare fișiere...",
+      "restoring_database": "Restaurare bază de date...",
+      "title": "Progres restaurare",
+      "validating": "Se validează copia de rezervă..."
     },
     "title": "Restaurare date"
   },
@@ -3642,7 +3719,15 @@
           "button": "Selectează fișierul de backup"
         },
         "content": "Exportă unele date, inclusiv jurnalele de chat și setările. Te rugăm să reții că procesul de backup poate dura ceva timp. Îți mulțumim pentru răbdare.",
+        "file": {
+          "button": "Exportă în fișier",
+          "content": "Exportă datele ca fișier de rezervă care poate fi importat pe mobil prin fișier.",
+          "export_failed": "Exportul a eșuat",
+          "export_success": "Export reușit",
+          "title": "Exportă ca fișier"
+        },
         "lan": {
+          "button": "Începe transferul",
           "connected": "Conectat",
           "connection_failed": "Conexiune eșuată",
           "content": "Te rugăm să te asiguri că computerul și telefonul sunt în aceeași rețea pentru transferul LAN.",
@@ -4857,6 +4942,7 @@
         "logout_failed": "Deconectarea a eșuat, te rugăm să încerci din nou",
         "logout_success": "Te-ai deconectat cu succes de la Anthropic",
         "oauth": "Web OAuth",
+        "oauth_disabled_warning": "Anthropic a suspendat temporar utilizarea Claude prin OAuth. Această metodă de autentificare este momentan indisponibilă. Vă rugăm să utilizați o cheie API deocamdată.",
         "start_auth": "Începe autorizarea",
         "submit_code": "Finalizează conectarea"
       },
@@ -5017,6 +5103,11 @@
       },
       "docs_check": "Verifică",
       "docs_more_details": "pentru mai multe detalii",
+      "filter": {
+        "agent": "Asistat de agent",
+        "all": "Toți furnizorii"
+      },
+      "filter_agent": "Furnizori acceptați de Agentul de filtrare",
       "get_api_key": "Obține cheie API",
       "misc": "Altele",
       "no_models_for_check": "Nu există modele disponibile pentru verificare (de ex. modele chat)",

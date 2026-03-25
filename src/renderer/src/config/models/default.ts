@@ -1,15 +1,8 @@
 import type { Model, SystemProviderId } from '@renderer/types'
 
-export const qwen38bModel: Model = {
-  id: 'Qwen/Qwen3-8B',
-  name: 'Qwen3-8B',
-  provider: 'cherryai',
-  group: 'Qwen'
-}
-
-export const qwen3Next80BModel: Model = {
-  id: 'Qwen/Qwen3-Next-80B-A3B-Instruct',
-  name: 'Qwen3-Next-80B',
+export const qwenModel: Model = {
+  id: 'qwen',
+  name: 'Qwen',
   provider: 'cherryai',
   group: 'Qwen'
 }
@@ -17,13 +10,13 @@ export const qwen3Next80BModel: Model = {
 export const SYSTEM_MODELS: Record<SystemProviderId | 'defaultModel', Model[]> = {
   defaultModel: [
     // Default assistant model
-    qwen3Next80BModel,
+    qwenModel,
     // Default topic naming model
-    qwen38bModel,
+    qwenModel,
     // Default translation model
-    qwen3Next80BModel,
+    qwenModel,
     // Default quick assistant model
-    qwen3Next80BModel
+    qwenModel
   ],
   cherryin: [],
   vertexai: [],
@@ -855,25 +848,13 @@ export const SYSTEM_MODELS: Record<SystemProviderId | 'defaultModel', Model[]> =
     }
   ],
   dashscope: [
-    { id: 'qwen-vl-plus', name: 'qwen-vl-plus', provider: 'dashscope', group: 'qwen-vl', owned_by: 'system' },
-    { id: 'qwen-coder-plus', name: 'qwen-coder-plus', provider: 'dashscope', group: 'qwen-coder', owned_by: 'system' },
-    { id: 'qwen-flash', name: 'qwen-flash', provider: 'dashscope', group: 'qwen-flash', owned_by: 'system' },
-    { id: 'qwen-plus', name: 'qwen-plus', provider: 'dashscope', group: 'qwen-plus', owned_by: 'system' },
-    { id: 'qwen-max', name: 'qwen-max', provider: 'dashscope', group: 'qwen-max', owned_by: 'system' },
-    { id: 'qwen3-max', name: 'qwen3-max', provider: 'dashscope', group: 'qwen-max', owned_by: 'system' },
-    { id: 'qwen3.5-plus', name: 'qwen3.5-plus', provider: 'dashscope', group: 'qwen-plus', owned_by: 'system' },
-    {
-      id: 'qwen3.5-397b-a17b',
-      name: 'qwen3.5-397b-a17b',
-      provider: 'dashscope',
-      group: 'qwen-plus',
-      owned_by: 'system'
-    },
-    { id: 'text-embedding-v4', name: 'text-embedding-v4', provider: 'dashscope', group: 'qwen-text-embedding' },
-    { id: 'text-embedding-v3', name: 'text-embedding-v3', provider: 'dashscope', group: 'qwen-text-embedding' },
-    { id: 'text-embedding-v2', name: 'text-embedding-v2', provider: 'dashscope', group: 'qwen-text-embedding' },
-    { id: 'text-embedding-v1', name: 'text-embedding-v1', provider: 'dashscope', group: 'qwen-text-embedding' },
-    { id: 'qwen3-rerank', name: 'qwen3-rerank', provider: 'dashscope', group: 'qwen-rerank' }
+    { id: 'qwen3.5-plus', name: 'Qwen3.5-Plus', provider: 'dashscope', group: 'Qwen' },
+    { id: 'qwen3.5-flash', name: 'Qwen3.5-Flash', provider: 'dashscope', group: 'Qwen' },
+    { id: 'qwen3-max', name: 'Qwen3-Max', provider: 'dashscope', group: 'Qwen' },
+    { id: 'kimi-k2.5', name: 'Kimi K2.5', provider: 'dashscope', group: 'Kimi' },
+    { id: 'glm-5', name: 'GLM-5', provider: 'dashscope', group: 'GLM' },
+    { id: 'MiniMax/MiniMax-M2.5', name: 'MiniMax M2.5', provider: 'dashscope', group: 'MiniMax' },
+    { id: 'deepseek-v3.2', name: 'DeepSeek V3.2', provider: 'dashscope', group: 'DeepSeek' }
   ],
   stepfun: [
     {
@@ -1049,9 +1030,27 @@ export const SYSTEM_MODELS: Record<SystemProviderId | 'defaultModel', Model[]> =
   ],
   minimax: [
     {
+      id: 'MiniMax-M2.7',
+      provider: 'minimax',
+      name: 'MiniMax-M2.7',
+      group: 'M2.7'
+    },
+    {
+      id: 'MiniMax-M2.7-highspeed',
+      provider: 'minimax',
+      name: 'MiniMax-M2.7-highspeed',
+      group: 'M2.7'
+    },
+    {
       id: 'MiniMax-M2.5',
       provider: 'minimax',
       name: 'MiniMax-M2.5',
+      group: 'M2.5'
+    },
+    {
+      id: 'MiniMax-M2.5-highspeed',
+      provider: 'minimax',
+      name: 'MiniMax-M2.5-highspeed',
       group: 'M2.5'
     },
     {
@@ -1081,6 +1080,62 @@ export const SYSTEM_MODELS: Record<SystemProviderId | 'defaultModel', Model[]> =
     {
       id: 'M2-her',
       provider: 'minimax',
+      name: 'M2-her',
+      group: 'M2'
+    }
+  ],
+  'minimax-global': [
+    {
+      id: 'MiniMax-M2.7',
+      provider: 'minimax-global',
+      name: 'MiniMax-M2.7',
+      group: 'M2.7'
+    },
+    {
+      id: 'MiniMax-M2.7-highspeed',
+      provider: 'minimax-global',
+      name: 'MiniMax-M2.7-highspeed',
+      group: 'M2.7'
+    },
+    {
+      id: 'MiniMax-M2.5',
+      provider: 'minimax-global',
+      name: 'MiniMax-M2.5',
+      group: 'M2.5'
+    },
+    {
+      id: 'MiniMax-M2.5-highspeed',
+      provider: 'minimax-global',
+      name: 'MiniMax-M2.5-highspeed',
+      group: 'M2.5'
+    },
+    {
+      id: 'MiniMax-M2.5-lightning',
+      provider: 'minimax-global',
+      name: 'MiniMax-M2.5-lightning',
+      group: 'M2.5'
+    },
+    {
+      id: 'MiniMax-M2.1',
+      provider: 'minimax-global',
+      name: 'MiniMax-M2.1',
+      group: 'M2.1'
+    },
+    {
+      id: 'MiniMax-M2.1-lightning',
+      provider: 'minimax-global',
+      name: 'MiniMax-M2.1-lightning',
+      group: 'M2.1'
+    },
+    {
+      id: 'MiniMax-M2',
+      provider: 'minimax-global',
+      name: 'MiniMax-M2',
+      group: 'M2'
+    },
+    {
+      id: 'M2-her',
+      provider: 'minimax-global',
       name: 'M2-her',
       group: 'M2'
     }
@@ -1960,6 +2015,74 @@ export const SYSTEM_MODELS: Record<SystemProviderId | 'defaultModel', Model[]> =
       name: 'Mimo V2 Flash',
       provider: 'mimo',
       group: 'Mimo'
+    },
+    {
+      id: 'mimo-v2-pro',
+      name: 'Mimo V2 Pro',
+      provider: 'mimo',
+      group: 'Mimo'
+    },
+    {
+      id: 'mimo-v2-omni',
+      name: 'Mimo V2 Omni',
+      provider: 'mimo',
+      group: 'Mimo'
+    }
+  ],
+  zai: [
+    {
+      id: 'glm-5',
+      provider: 'zai',
+      name: 'GLM-5',
+      group: 'GLM-5'
+    },
+    {
+      id: 'glm-4.7',
+      provider: 'zai',
+      name: 'GLM-4.7',
+      group: 'GLM-4.7'
+    },
+    {
+      id: 'glm-4.5-flash',
+      provider: 'zai',
+      name: 'GLM-4.5-Flash',
+      group: 'GLM-4.5'
+    },
+    {
+      id: 'glm-4.6',
+      provider: 'zai',
+      name: 'GLM-4.6',
+      group: 'GLM-4.6'
+    },
+    {
+      id: 'glm-4.6v',
+      provider: 'zai',
+      name: 'GLM-4.6V',
+      group: 'GLM-4.6V'
+    },
+    {
+      id: 'glm-4.6v-flash',
+      provider: 'zai',
+      name: 'GLM-4.6V-Flash',
+      group: 'GLM-4.6V'
+    },
+    {
+      id: 'glm-4.5',
+      provider: 'zai',
+      name: 'GLM-4.5',
+      group: 'GLM-4.5'
+    },
+    {
+      id: 'glm-4.5-air',
+      provider: 'zai',
+      name: 'GLM-4.5-Air',
+      group: 'GLM-4.5'
+    },
+    {
+      id: 'glm-4.5v',
+      provider: 'zai',
+      name: 'GLM-4.5V',
+      group: 'GLM-4.5V'
     }
   ]
 }

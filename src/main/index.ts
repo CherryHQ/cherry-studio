@@ -135,7 +135,7 @@ if (!app.requestSingleInstanceLock()) {
   // initialization and is ready to create browser windows.
   // Some APIs can only be used after this event occurs.
 
-  app.whenReady().then(async () => {
+  void app.whenReady().then(async () => {
     // Record current version for tracking
     // A preparation for v2 data refactoring
     versionService.recordCurrentVersion()
@@ -150,7 +150,12 @@ if (!app.requestSingleInstanceLock()) {
       app.dock?.hide()
     }
 
+    // Check for backup restore marker and complete restoration (highest priority, before window creation)
+    const { BackupManager } = await import('./services/BackupManager')
+    await BackupManager.handleStartupRestore()
+
     const mainWindow = windowService.createMainWindow()
+
     new TrayService()
 
     // Setup macOS application menu
@@ -193,7 +198,7 @@ if (!app.requestSingleInstanceLock()) {
       logger.error('Failed to install built-in skills', error)
     })
 
-    runAsyncFunction(async () => {
+    void runAsyncFunction(async () => {
       // Start API server if enabled or if agents exist
       try {
         const config = await apiServerService.getCurrentConfig()

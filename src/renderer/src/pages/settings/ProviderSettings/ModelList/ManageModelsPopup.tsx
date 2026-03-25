@@ -19,7 +19,7 @@ import NewApiBatchAddModelPopup from '@renderer/pages/settings/ProviderSettings/
 import { fetchModels } from '@renderer/services/ApiService'
 import type { Model, Provider } from '@renderer/types'
 import { filterModelsByKeywords, getFancyProviderName } from '@renderer/utils'
-import { isFreeModel } from '@renderer/utils/model'
+import { getDuplicateModelNames, isFreeModel } from '@renderer/utils/model'
 import { isNewApiProvider } from '@renderer/utils/provider'
 import { Button, Empty, Flex, Modal, Spin, Tabs, Tooltip } from 'antd'
 import Input from 'antd/es/input/Input'
@@ -74,8 +74,11 @@ const PopupContainer: React.FC<Props> = ({ providerId, resolve }) => {
   const { t, i18n } = useTranslation()
   const searchInputRef = useRef<any>(null)
 
-  const systemModels = SYSTEM_MODELS[provider.id] || []
-  const allModels = uniqBy([...systemModels, ...listModels, ...models], 'id')
+  const allModels = useMemo(
+    () => uniqBy([...(SYSTEM_MODELS[provider.id] || []), ...listModels, ...models], 'id'),
+    [provider.id, listModels, models]
+  )
+  const duplicateModelNames = useMemo(() => getDuplicateModelNames(allModels), [allModels])
 
   const isLoading = useMemo(
     () => loadingModels || isFilterTypePending || isSearchPending,
@@ -139,7 +142,7 @@ const PopupContainer: React.FC<Props> = ({ providerId, resolve }) => {
               supported_text_delta: !isNotSupportTextDeltaModel(model)
             })
           } else {
-            NewApiAddModelPopup.show({ title: t('settings.models.add.add_model'), provider, model })
+            void NewApiAddModelPopup.show({ title: t('settings.models.add.add_model'), provider, model })
           }
         } else {
           addModel({ ...model, supported_text_delta: !isNotSupportTextDeltaModel(model) })
@@ -166,7 +169,7 @@ const PopupContainer: React.FC<Props> = ({ providerId, resolve }) => {
           if (models.every(isValidNewApiModel)) {
             wouldAddModel.forEach(onAddModel)
           } else {
-            NewApiBatchAddModelPopup.show({
+            void NewApiBatchAddModelPopup.show({
               title: t('settings.models.add.batch_add_models'),
               batchModels: wouldAddModel,
               provider
@@ -193,7 +196,7 @@ const PopupContainer: React.FC<Props> = ({ providerId, resolve }) => {
   }, [])
 
   useEffect(() => {
-    loadModels(provider)
+    void loadModels(provider)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
@@ -334,6 +337,7 @@ const PopupContainer: React.FC<Props> = ({ providerId, resolve }) => {
           ) : (
             <ManageModelsList
               modelGroups={modelGroups}
+              duplicateModelNames={duplicateModelNames}
               provider={provider}
               onAddModel={onAddModel}
               onRemoveModel={onRemoveModel}

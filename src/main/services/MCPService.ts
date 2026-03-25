@@ -555,7 +555,7 @@ class McpService {
           // Set a timeout to close the callback server
           const timeoutId = setTimeout(() => {
             getServerLogger(server).warn(`OAuth flow timed out`)
-            callbackServer.close()
+            void callbackServer.close()
           }, 300000) // 5 minutes timeout
 
           try {
@@ -581,7 +581,7 @@ class McpService {
           } finally {
             // Clear the timeout and close the callback server
             clearTimeout(timeoutId)
-            callbackServer.close()
+            void callbackServer.close()
           }
         }
 

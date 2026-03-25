@@ -34,7 +34,7 @@ const AnthropicSettings = () => {
       }
     }
 
-    checkAuthStatus()
+    void checkAuthStatus()
   }, [])
 
   // 处理OAuth重定向
@@ -71,7 +71,7 @@ const AnthropicSettings = () => {
 
   // 处理取消认证
   const handleCancelAuth = () => {
-    window.api.anthropic_oauth.cancelOAuthFlow()
+    void window.api.anthropic_oauth.cancelOAuthFlow()
     setAuthStatus(AuthStatus.NOT_STARTED)
     setCodeModalVisible(false)
     setAuthCode('')
@@ -154,7 +154,17 @@ const AnthropicSettings = () => {
     }
   }
 
-  return <Container>{renderAuthContent()}</Container>
+  return (
+    <Container>
+      <Alert
+        type="warning"
+        message={t('settings.provider.anthropic.oauth_disabled_warning')}
+        showIcon
+        style={{ marginBottom: 10 }}
+      />
+      {renderAuthContent()}
+    </Container>
+  )
 }
 
 const Container = styled.div`

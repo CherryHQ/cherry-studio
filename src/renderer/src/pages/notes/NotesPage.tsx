@@ -163,7 +163,7 @@ const NotesPage: FC = () => {
   }, [currentContent])
 
   useEffect(() => {
-    refreshTree()
+    void refreshTree()
   }, [refreshTree])
 
   // Re-merge tree state when starred or expanded paths change
@@ -194,7 +194,7 @@ const NotesPage: FC = () => {
   const debouncedSave = useMemo(
     () =>
       debounce((content: string, filePath: string | undefined) => {
-        saveCurrentNote(content, filePath)
+        void saveCurrentNote(content, filePath)
       }, 800), // 800ms防抖延迟
     [saveCurrentNote]
   )
@@ -284,7 +284,7 @@ const NotesPage: FC = () => {
       }
     }
 
-    initialize()
+    void initialize()
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [notesPath])
 
@@ -378,7 +378,7 @@ const NotesPage: FC = () => {
       }
     }
 
-    startFileWatcher()
+    void startFileWatcher()
 
     return () => {
       if (watcherRef.current) {

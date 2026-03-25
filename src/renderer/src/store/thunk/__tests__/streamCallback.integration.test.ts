@@ -10,9 +10,24 @@ import { WEB_SEARCH_SOURCE } from '@renderer/types'
 import type { Chunk } from '@renderer/types/chunk'
 import { ChunkType } from '@renderer/types/chunk'
 import { AssistantMessageStatus, MessageBlockStatus, MessageBlockType } from '@renderer/types/newMessage'
+import type * as errorUtils from '@renderer/utils/error'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type { RootState } from '../../index'
+
+const { mockSavedFile } = vi.hoisted(() => ({
+  mockSavedFile: {
+    id: 'mock-image-id',
+    name: 'mock-image-id.png',
+    origin_name: 'mock-image-id.png',
+    path: '/mock/path/mock-image-id.png',
+    created_at: new Date().toISOString(),
+    size: 100,
+    ext: 'png',
+    type: 'image',
+    count: 1
+  }
+}))
 
 const createMockCallbacks = (
   mockAssistantMsgId: string,
@@ -45,15 +60,9 @@ vi.mock('@renderer/config/models', async (importOriginal) => {
   const actual = (await importOriginal()) as Record<string, unknown>
   return {
     ...actual,
-    glm45FlashModel: {
-      id: 'glm-4.5-flash',
-      name: 'GLM-4.5-Flash',
-      provider: 'cherryai',
-      group: 'GLM-4.5'
-    },
-    qwen38bModel: {
-      id: 'Qwen/Qwen3-8B',
-      name: 'Qwen3-8B',
+    qwen3Model: {
+      id: 'qwen',
+      name: 'Qwen',
       provider: 'cherryai',
       group: 'Qwen'
     },
@@ -162,7 +171,9 @@ vi.mock('@renderer/databases', () => ({
 
 vi.mock('@renderer/services/FileManager', () => ({
   default: {
-    deleteFile: vi.fn()
+    deleteFile: vi.fn(),
+    addFile: vi.fn().mockResolvedValue(mockSavedFile),
+    getFileUrl: vi.fn().mockReturnValue('file:///mock/path/mock-image-id.png')
   }
 }))
 
@@ -256,16 +267,21 @@ vi.mock('i18next', () => {
   }
 })
 
-vi.mock('@renderer/utils/error', () => ({
-  formatErrorMessage: vi.fn((error) => error.message || 'Unknown error'),
-  isAbortError: vi.fn((error) => error.name === 'AbortError'),
-  serializeError: vi.fn((error) => ({
-    name: error.name,
-    message: error.message,
-    stack: error.stack,
-    cause: error.cause ? String(error.cause) : undefined
-  }))
-}))
+vi.mock('@renderer/utils/error', async (importOriginal) => {
+  const actual = (await importOriginal()) as typeof errorUtils
+  return {
+    ...actual,
+    formatErrorMessage: vi.fn((error) => error.message || 'Unknown error'),
+    formatErrorMessageWithPrefix: vi.fn((error, prefix) => `${prefix}: ${error?.message || 'Unknown error'}`),
+    isAbortError: vi.fn((error) => error.name === 'AbortError'),
+    serializeError: vi.fn((error) => ({
+      name: error.name,
+      message: error.message,
+      stack: error.stack,
+      cause: error.cause ? String(error.cause) : undefined
+    }))
+  }
+})
 
 vi.mock('@renderer/utils', () => ({
   default: {},
@@ -353,6 +369,15 @@ describe('streamCallback Integration Tests', () => {
     store = createMockStore()
     dispatch = store.dispatch
     getState = store.getState as () => ReturnType<typeof reducer> & RootState
+
+    Object.defineProperty(window, 'api', {
+      value: {
+        file: {
+          saveBase64Image: vi.fn().mockResolvedValue(mockSavedFile)
+        }
+      },
+      configurable: true
+    })
 
     // 为测试消息添加初始状态
     store.dispatch(
@@ -553,9 +578,8 @@ describe('streamCallback Integration Tests', () => {
     const blocks = Object.values(state.messageBlocks.entities)
     const imageBlock = blocks.find((block) => block.type === MessageBlockType.IMAGE)
     expect(imageBlock).toBeDefined()
-    expect(imageBlock?.url).toBe(
-      'data:image/jpeg;base64,/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAAgGBgcGBQgHBwcJCQgKDBQNDAsLDBkSEw8UHRofHh0aHBwgJC4nICIsIxwcKDcpLDAxNDQ0Hyc5PTgyPC4zNDL/2wBDAQkJCQwLDBgNDRgyIRwhMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjL/wAARCAAQABADASIAAhEBAxEB/8QAFwAAAwEAAAAAAAAAAAAAAAAAAQMEB//EACMQAAIBAwMEAwAAAAAAAAAAAAECAwAEEQUSIQYxQVExUYH/xAAVAQEBAAAAAAAAAAAAAAAAAAAAAf/EABQRAQAAAAAAAAAAAAAAAAAAAAD/2gAMAwEAAhEDEQA/AM/8A//Z'
-    )
+    expect(imageBlock?.file).toEqual(mockSavedFile)
+    expect(imageBlock?.url).toBe('file:///mock/path/mock-image-id.png')
     expect(imageBlock?.status).toBe(MessageBlockStatus.SUCCESS)
   })
 

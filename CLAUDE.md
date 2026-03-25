@@ -171,7 +171,7 @@ Slices (redux-persist enabled):
   - **BLOCKED**: Do not modify schema until v2.0.0.
 - **SQLite** (Drizzle ORM + LibSQL): `src/main/services/agents/`
   - Used for the agents subsystem
-  - DB path: `~/.cherrystudio/data/agents.db` (dev) / `userData/agents.db` (prod)
+  - DB path: `{userData}/Data/agents.db` (e.g., on macOS: `~/Library/Application Support/CherryStudioDev/Data/agents.db` in dev, `~/Library/Application Support/CherryStudio/Data/agents.db` in prod)
 
 ### IPC Communication
 

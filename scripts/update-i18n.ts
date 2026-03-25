@@ -130,7 +130,7 @@ MAKE SURE TO OUTPUT IN ${targetLang}. DO NOT OUTPUT IN UNSPECIFIED LANGUAGE.
 
 let count = 0
 
-;(async () => {
+void (async () => {
   const bar = new cliProgress.SingleBar({}, cliProgress.Presets.shades_classic)
   bar.start(INDEX.length, 0)
   for (const { name, code, model } of INDEX) {
