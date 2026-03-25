@@ -389,6 +389,9 @@
         "TodoWrite": {
           "description": "構造化されたタスクリストを作成し、管理します"
         },
+        "ToolSearch": {
+          "description": "大規模ライブラリから遅延ツールを発見"
+        },
         "WebFetch": {
           "description": "指定されたURLからコンテンツを取得します"
         },
@@ -1192,6 +1195,8 @@
             "content": "{{count}}件の選択したトピックを削除してもよろしいですか？この操作は元に戻せません。",
             "title": "トピックを削除"
           },
+          "error": "[to be translated]:Failed to delete. Please try again.",
+          "partial_success": "[to be translated]:Successfully deleted {{successCount}} topics, {{failedCount}} failed",
           "success": "{{count}}件のトピックを削除しました"
         },
         "deselect_all": "すべての選択を解除",
@@ -2027,6 +2032,10 @@
         "export": "Excelのエクスポートに失敗しました"
       },
       "fetchTopicName": "トピック名の取得に失敗しました",
+      "file": {
+        "process_failed": "ファイル {{name}} を処理できませんでした",
+        "text_extraction_failed": "{{name}}からテキストの抽出に失敗しました"
+      },
       "get_embedding_dimensions": "埋込み次元を取得できませんでした",
       "invalid": {
         "api": {
@@ -2270,6 +2279,11 @@
       }
     },
     "warning": {
+      "file": {
+        "pdf_exceeds_limit": "PDFファイル {{name}} はサイズ制限（{{limit}}）を超えているため、テキスト抽出にフォールバックします",
+        "pdf_text_extraction_failed": "PDF「{{name}}」からテキストを抽出できませんでした",
+        "pdf_upload_failed": "PDF「{{name}}」のアップロードに失敗しました。テキスト抽出にフォールバックします。"
+      },
       "rate": {
         "limit": "送信が頻繁すぎます。{{seconds}} 秒待ってから再試行してください。"
       }
@@ -5632,12 +5646,8 @@
     "show_window": "ウィンドウを表示"
   },
   "update": {
-    "download": "ダウンロード",
     "install": "今すぐインストール",
     "later": "後で",
-    "manualDownload": "ダウンロード",
-    "manualInstallError": "インストールに失敗しました。公式ウェブサイトから手動でダウンロードしてください。",
-    "manualInstallInfo": "このバージョンは自動更新に対応していません。ダウンロードをクリックして更新を完了してください。",
     "message": "新バージョン {{version}} が利用可能です。今すぐインストールしますか？",
     "noReleaseNotes": "暫無更新日誌",
     "saveDataError": "データの保存に失敗しました。もう一度お試しください。",

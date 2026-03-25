@@ -389,6 +389,9 @@
         "TodoWrite": {
           "description": "Создает и управляет структурированными списками задач"
         },
+        "ToolSearch": {
+          "description": "Обнаруживает отложенные инструменты из больших библиотек"
+        },
         "WebFetch": {
           "description": "Получает содержимое с указанного URL"
         },
@@ -1192,6 +1195,8 @@
             "content": "Вы уверены, что хотите удалить выбранные темы ({{count}})? Это действие нельзя отменить.",
             "title": "Удалить темы"
           },
+          "error": "[to be translated]:Failed to delete. Please try again.",
+          "partial_success": "[to be translated]:Successfully deleted {{successCount}} topics, {{failedCount}} failed",
           "success": "Удалено {{count}} тем(ы)"
         },
         "deselect_all": "Снять выделение со всех",
@@ -2027,6 +2032,10 @@
         "export": "Не удалось экспортировать Excel"
       },
       "fetchTopicName": "Не удалось назвать топик",
+      "file": {
+        "process_failed": "Файл {{name}} не удалось обработать",
+        "text_extraction_failed": "Не удалось извлечь текст из {{name}}"
+      },
       "get_embedding_dimensions": "Не удалось получить размерность встраивания",
       "invalid": {
         "api": {
@@ -2270,6 +2279,11 @@
       }
     },
     "warning": {
+      "file": {
+        "pdf_exceeds_limit": "Файл PDF {{name}} превышает ограничение по размеру ({{limit}}), выполняется извлечение текста",
+        "pdf_text_extraction_failed": "Не удалось извлечь текст из PDF {{name}}",
+        "pdf_upload_failed": "Не удалось загрузить PDF {{name}}, выполняется извлечение текста"
+      },
       "rate": {
         "limit": "Отправка слишком частая, пожалуйста, подождите {{seconds}} секунд, прежде чем попробовать снова."
       }
@@ -5632,12 +5646,8 @@
     "show_window": "Показать окно"
   },
   "update": {
-    "download": "Скачать",
     "install": "Установить",
     "later": "Позже",
-    "manualDownload": "Скачать",
-    "manualInstallError": "Установка не удалась, пожалуйста, загрузите вручную с официального сайта.",
-    "manualInstallInfo": "Эта версия не поддерживает автоматическое обновление. Нажмите «Скачать», чтобы завершить обновление.",
     "message": "Новая версия {{version}} готова, установить сейчас?",
     "noReleaseNotes": "Нет заметок об обновлении",
     "saveDataError": "Ошибка сохранения данных, повторите попытку",

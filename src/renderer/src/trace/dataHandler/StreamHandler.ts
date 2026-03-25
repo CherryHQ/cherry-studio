@@ -79,10 +79,10 @@ export class StreamHandler {
             context = ''
           }
         }
-        window.api.trace.addStreamMessage(this.span.spanContext().spanId, this.modelName || '', context, chunk)
+        void window.api.trace.addStreamMessage(this.span.spanContext().spanId, this.modelName || '', context, chunk)
         yield chunk
       }
-      this.finish()
+      void this.finish()
     } catch (err) {
       endSpan({ topicId: this.topicId, error: err as Error, span: this.span, modelName: this.modelName })
       throw err
@@ -90,7 +90,7 @@ export class StreamHandler {
   }
 
   async finish() {
-    window.api.trace.tokenUsage(this.span.spanContext().spanId, this.usage)
+    void window.api.trace.tokenUsage(this.span.spanContext().spanId, this.usage)
     endSpan({ topicId: this.topicId, span: this.span, modelName: this.modelName })
   }
 

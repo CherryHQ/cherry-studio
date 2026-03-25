@@ -46,7 +46,7 @@ export const CodeStyleProvider: React.FC<PropsWithChildren> = ({ children }) => 
 
   useEffect(() => {
     if (!codeEditor.enabled) {
-      getShiki().then(({ bundledThemesInfo }) => {
+      void getShiki().then(({ bundledThemesInfo }) => {
         setShikiThemesInfo(bundledThemesInfo)
       })
     }

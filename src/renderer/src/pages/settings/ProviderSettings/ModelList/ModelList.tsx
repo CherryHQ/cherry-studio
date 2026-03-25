@@ -13,6 +13,7 @@ import ManageModelsPopup from '@renderer/pages/settings/ProviderSettings/ModelLi
 import NewApiAddModelPopup from '@renderer/pages/settings/ProviderSettings/ModelList/NewApiAddModelPopup'
 import type { Model } from '@renderer/types'
 import { filterModelsByKeywords } from '@renderer/utils'
+import { getDuplicateModelNames } from '@renderer/utils/model'
 import { isNewApiProvider } from '@renderer/utils/provider'
 import { Button, Flex, Spin, Tooltip } from 'antd'
 import { groupBy, isEmpty, sortBy, toPairs } from 'lodash'
@@ -65,6 +66,7 @@ const ModelList: React.FC<ModelListProps> = ({ providerId }) => {
   })
 
   const { isChecking: isHealthChecking, modelStatuses, runHealthCheck } = useHealthCheck(provider, models)
+  const duplicateModelNames = useMemo(() => getDuplicateModelNames(models), [models])
 
   // 将 modelStatuses 数组转换为 Map，实现 O(1) 查找
   const modelStatusMap = useMemo(() => {
@@ -92,14 +94,14 @@ const ModelList: React.FC<ModelListProps> = ({ providerId }) => {
   }, [displayedModelGroups])
 
   const onManageModel = useCallback(() => {
-    ManageModelsPopup.show({ providerId: provider.id })
+    void ManageModelsPopup.show({ providerId: provider.id })
   }, [provider.id])
 
   const onAddModel = useCallback(() => {
     if (isNewApiProvider(provider)) {
-      NewApiAddModelPopup.show({ title: t('settings.models.add.add_model'), provider })
+      void NewApiAddModelPopup.show({ title: t('settings.models.add.add_model'), provider })
     } else {
-      AddModelPopup.show({ title: t('settings.models.add.add_model'), provider })
+      void AddModelPopup.show({ title: t('settings.models.add.add_model'), provider })
     }
   }, [provider, t])
 
@@ -146,6 +148,7 @@ const ModelList: React.FC<ModelListProps> = ({ providerId }) => {
                 key={group}
                 groupName={group}
                 models={displayedModelGroups[group]}
+                duplicateModelNames={duplicateModelNames}
                 modelStatusMap={modelStatusMap}
                 defaultOpen={i <= 5}
                 onEditModel={handleEditModel}

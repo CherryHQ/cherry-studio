@@ -106,7 +106,7 @@ function FileList(props: FileListProps) {
         }
       }
     }
-    fetchFiles()
+    void fetchFiles()
   }, [props.path, props.fs])
 
   return (

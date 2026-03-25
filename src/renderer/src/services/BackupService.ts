@@ -104,7 +104,7 @@ export async function restore() {
           await handleData(data)
         } else {
           // Direct backup was restored, app will relaunch
-          notificationService.send({
+          void notificationService.send({
             id: uuid(),
             type: 'success',
             title: i18n.t('common.success'),
@@ -123,7 +123,7 @@ export async function restore() {
         await handleData(data)
       }
 
-      notificationService.send({
+      void notificationService.send({
         id: uuid(),
         type: 'success',
         title: i18n.t('common.success'),
@@ -158,7 +158,7 @@ export async function reset() {
         content: i18n.t('message.reset.double.confirm.content'),
         centered: true,
         onOk: async () => {
-          await localStorage.clear()
+          localStorage.clear()
           await clearDatabase()
           await window.api.resetData()
           window.toast.success(i18n.t('message.reset.success'))
@@ -237,7 +237,7 @@ export async function backupToWebdav({
           lastSyncError: null
         })
       )
-      notificationService.send({
+      void notificationService.send({
         id: uuid(),
         type: 'success',
         title: i18n.t('common.success'),
@@ -307,7 +307,7 @@ export async function backupToWebdav({
     if (autoBackupProcess) {
       throw error
     }
-    notificationService.send({
+    void notificationService.send({
       id: uuid(),
       type: 'error',
       title: i18n.t('message.backup.failed'),
@@ -416,7 +416,7 @@ export async function backupToS3({
           lastSyncTime: Date.now()
         })
       )
-      notificationService.send({
+      void notificationService.send({
         id: uuid(),
         type: 'success',
         title: i18n.t('common.success'),
@@ -470,7 +470,7 @@ export async function backupToS3({
     if (autoBackupProcess) {
       throw error
     }
-    notificationService.send({
+    void notificationService.send({
       id: uuid(),
       type: 'error',
       title: i18n.t('message.backup.failed'),
@@ -906,7 +906,7 @@ export async function handleData(data: Record<string, any>) {
       }
     }
 
-    await localStorage.setItem('persist:cherry-studio', data.localStorage['persist:cherry-studio'])
+    localStorage.setItem('persist:cherry-studio', data.localStorage['persist:cherry-studio'])
     window.toast.success(i18n.t('message.restore.success'))
     setTimeout(() => window.api.relaunchApp(), 1000)
     return
@@ -964,7 +964,7 @@ async function restoreDatabase(backup: Record<string, any>) {
 }
 
 async function clearDatabase() {
-  const storeNames = await db.tables.map((table) => table.name)
+  const storeNames = db.tables.map((table) => table.name)
 
   await db.transaction('rw', db.tables, async () => {
     for (const storeName of storeNames) {
@@ -1032,7 +1032,7 @@ export async function backupToLocal({
       )
 
       if (showMessage) {
-        notificationService.send({
+        void notificationService.send({
           id: uuid(),
           type: 'success',
           title: i18n.t('common.success'),

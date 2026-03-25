@@ -14,7 +14,7 @@
       }
     },
     "enabled": true,
-    "includes": ["**/*.json", "!**/package.json", "!coverage/**"]
+    "includes": ["**/*.json", "!**/package.json", "!coverage/**", "!config/app-upgrade-segments.json"]
   },
   "css": {
     "formatter": {
@@ -23,7 +23,7 @@
   },
   "files": {
     "ignoreUnknown": false,
-    "includes": ["**", "!**/.claude/**", "!**/.vscode/**", "!**/.conductor/**", "!config/app-upgrade-segments.json"],
+    "includes": ["**", "!**/.claude/**", "!**/.vscode/**", "!**/.conductor/**"],
     "maxSize": 2097152
   },
   "formatter": {

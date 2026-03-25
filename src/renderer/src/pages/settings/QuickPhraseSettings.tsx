@@ -31,7 +31,7 @@ const QuickPhraseSettings: FC = () => {
   }
 
   useEffect(() => {
-    loadPhrases()
+    void loadPhrases()
   }, [])
 
   const handleAdd = () => {
