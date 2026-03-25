@@ -1198,6 +1198,30 @@ importers:
       '@libsql/win32-x64-msvc':
         specifier: 0.4.7
         version: 0.4.7
+      '@napi-rs/canvas-darwin-arm64':
+        specifier: 0.1.97
+        version: 0.1.97
+      '@napi-rs/canvas-darwin-x64':
+        specifier: 0.1.97
+        version: 0.1.97
+      '@napi-rs/canvas-linux-arm64-gnu':
+        specifier: 0.1.97
+        version: 0.1.97
+      '@napi-rs/canvas-linux-arm64-musl':
+        specifier: 0.1.97
+        version: 0.1.97
+      '@napi-rs/canvas-linux-x64-gnu':
+        specifier: 0.1.97
+        version: 0.1.97
+      '@napi-rs/canvas-linux-x64-musl':
+        specifier: 0.1.97
+        version: 0.1.97
+      '@napi-rs/canvas-win32-arm64-msvc':
+        specifier: 0.1.97
+        version: 0.1.97
+      '@napi-rs/canvas-win32-x64-msvc':
+        specifier: 0.1.97
+        version: 0.1.97
       '@napi-rs/system-ocr-darwin-arm64':
         specifier: 1.0.2
         version: 1.0.2

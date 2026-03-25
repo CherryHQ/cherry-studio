@@ -103,7 +103,8 @@
     "sharp": "0.34.3",
     "swagger-ui-express": "5.0.1",
     "tesseract.js": "6.0.1",
-    "turndown": "7.2.0"
+    "turndown": "7.2.0",
+    "pdf-parse": "^2.4.5"
   },
   "devDependencies": {
     "@agentic/exa": "^7.3.3",
@@ -527,6 +528,14 @@
     "@napi-rs/system-ocr-darwin-x64": "1.0.2",
     "@napi-rs/system-ocr-win32-arm64-msvc": "1.0.2",
     "@napi-rs/system-ocr-win32-x64-msvc": "1.0.2",
-    "@strongtz/win32-arm64-msvc": "0.4.7"
+    "@strongtz/win32-arm64-msvc": "0.4.7",
+    "@napi-rs/canvas-linux-x64-gnu": "0.1.97",
+    "@napi-rs/canvas-linux-x64-musl": "0.1.97",
+    "@napi-rs/canvas-linux-arm64-gnu": "0.1.97",
+    "@napi-rs/canvas-linux-arm64-musl": "0.1.97",
+    "@napi-rs/canvas-darwin-x64": "0.1.97",
+    "@napi-rs/canvas-darwin-arm64": "0.1.97",
+    "@napi-rs/canvas-win32-x64-msvc": "0.1.97",
+    "@napi-rs/canvas-win32-arm64-msvc": "0.1.97"
   }
 }
