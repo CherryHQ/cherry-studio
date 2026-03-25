@@ -292,9 +292,6 @@ const CodeToolsPage: FC = () => {
       terminal: selectedTerminal
     }
 
-
-
-
     void window.api.codeCli.run(selectedCliTool, modelId, currentDirectory, env, runOptions)
     window.toast.success(t('code.launch.success'))
   }
