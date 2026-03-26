@@ -7,7 +7,8 @@ vi.mock('i18next', () => ({
 }))
 
 vi.mock('@renderer/config/models', () => ({
-  isAnthropicModel: vi.fn(() => false)
+  isAnthropicModel: vi.fn(() => false),
+  isGeminiModel: vi.fn(() => false)
 }))
 
 vi.mock('@renderer/config/models/openai', () => ({
@@ -33,7 +34,7 @@ vi.stubGlobal('window', {
   }
 })
 
-import { isAnthropicModel } from '@renderer/config/models'
+import { isAnthropicModel, isGeminiModel } from '@renderer/config/models'
 import { isOpenAIModel } from '@renderer/config/models/openai'
 
 import { createPdfCompatibilityPlugin } from '../pdfCompatibilityPlugin'
@@ -83,6 +84,7 @@ describe('pdfCompatibilityPlugin', () => {
     vi.clearAllMocks()
     vi.mocked(isOpenAIModel).mockReturnValue(false)
     vi.mocked(isAnthropicModel).mockReturnValue(false)
+    vi.mocked(isGeminiModel).mockReturnValue(false)
   })
 
   it('should pass through for OpenAI model on any provider type', async () => {
@@ -100,6 +102,19 @@ describe('pdfCompatibilityPlugin', () => {
 
   it('should pass through for Claude model on any provider type', async () => {
     vi.mocked(isAnthropicModel).mockReturnValue(true)
+    const provider = makeProvider('my-aggregator', 'new-api')
+
+    const params = {
+      prompt: [{ role: 'user' as const, content: [makeTextPart('Hello'), makePdfFilePart()] }]
+    } as unknown as LanguageModelV3CallOptions
+
+    const result = await runMiddleware(provider, params)
+    expect(result).toEqual(params)
+    expect(mockExtractPdfText).not.toHaveBeenCalled()
+  })
+
+  it('should pass through for Gemini model on any provider type', async () => {
+    vi.mocked(isGeminiModel).mockReturnValue(true)
     const provider = makeProvider('my-aggregator', 'new-api')
 
     const params = {
