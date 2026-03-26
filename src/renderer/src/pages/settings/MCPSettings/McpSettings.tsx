@@ -336,11 +336,11 @@ const McpSettings: React.FC = () => {
       if (server.isActive) {
         try {
           await window.api.mcp.restartServer(mcpServer)
-          void updateMCPServer({ body: { ...mcpServer, isActive: true } })
+          await updateMCPServer({ body: { ...mcpServer, isActive: true } })
           window.toast.success(t('settings.mcp.updateSuccess'))
           setIsFormChanged(false)
         } catch (error: any) {
-          void updateMCPServer({ body: { ...mcpServer, isActive: false } })
+          await updateMCPServer({ body: { ...mcpServer, isActive: false } }).catch(() => {})
           window.modal.error({
             title: t('settings.mcp.updateError'),
             content: error.message,
@@ -348,7 +348,7 @@ const McpSettings: React.FC = () => {
           })
         }
       } else {
-        void updateMCPServer({ body: { ...mcpServer, isActive: false } })
+        await updateMCPServer({ body: { ...mcpServer, isActive: false } })
         window.toast.success(t('settings.mcp.updateSuccess'))
         setIsFormChanged(false)
       }
@@ -415,7 +415,7 @@ const McpSettings: React.FC = () => {
           centered: true,
           onOk: async () => {
             await window.api.mcp.removeServer(serverToDelete)
-            void deleteMCPServer({})
+            await deleteMCPServer({})
             window.toast.success(t('settings.mcp.deleteSuccess'))
             void navigate({ to: '/settings/mcp' })
           }

@@ -155,7 +155,7 @@ const PopupContainer: React.FC<Props> = ({ resolve, existingServers }) => {
       if (result.success && (result.addedServers?.length > 0 || result.updatedServers?.length > 0)) {
         // Add new servers to the store
         for (const server of result.addedServers) {
-          void addMCPServer(server)
+          await addMCPServer(server)
         }
         // Update existing servers with latest info
         const updatedServers = result.updatedServers
@@ -164,7 +164,7 @@ const PopupContainer: React.FC<Props> = ({ resolve, existingServers }) => {
             const { id, ...updates } = server
             await dataApiService.patch(`/mcp-servers/${id}`, { body: updates })
           }
-          void refetch()
+          await refetch()
         }
         window.toast.success(result.message)
         setOpen(false)

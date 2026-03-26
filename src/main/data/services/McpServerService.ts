@@ -43,17 +43,6 @@ function rowToMCPServer(row: typeof mcpServerTable.$inferSelect): MCPServer {
 }
 
 export class MCPServerService {
-  private static instance: MCPServerService
-
-  private constructor() {}
-
-  public static getInstance(): MCPServerService {
-    if (!MCPServerService.instance) {
-      MCPServerService.instance = new MCPServerService()
-    }
-    return MCPServerService.instance
-  }
-
   private get db() {
     return application.get('DbService').getDb()
   }
@@ -187,4 +176,4 @@ export class MCPServerService {
   }
 }
 
-export const mcpServerService = MCPServerService.getInstance()
+export const mcpServerService = new MCPServerService()

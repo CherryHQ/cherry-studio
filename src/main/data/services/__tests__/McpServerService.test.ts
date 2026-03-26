@@ -104,9 +104,8 @@ describe('MCPServerService', () => {
     }
   })
 
-  it('should be a singleton', () => {
-    expect(MCPServerService.getInstance()).toBe(MCPServerService.getInstance())
-    expect(mcpServerService).toBe(MCPServerService.getInstance())
+  it('should export a module-level singleton', () => {
+    expect(mcpServerService).toBeInstanceOf(MCPServerService)
   })
 
   // --------------------------------------------------------------------------

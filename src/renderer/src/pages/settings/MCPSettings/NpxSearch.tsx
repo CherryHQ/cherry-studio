@@ -163,7 +163,7 @@ const NpxSearch: FC = () => {
                     <Button
                       variant="ghost"
                       size="icon-sm"
-                      onClick={() => {
+                      onClick={async () => {
                         if (isInstalled) {
                           return
                         }
@@ -179,8 +179,12 @@ const NpxSearch: FC = () => {
                           searchKey: record.fullName
                         }
 
-                        void addMCPServer(newServer)
-                        window.toast.success(t('settings.mcp.addSuccess'))
+                        try {
+                          await addMCPServer(newServer)
+                          window.toast.success(t('settings.mcp.addSuccess'))
+                        } catch {
+                          window.toast.error(t('settings.mcp.addError'))
+                        }
                       }}
                       disabled={isInstalled}>
                       {isInstalled ? <CheckOutlined style={{ color: 'var(--color-primary)' }} /> : <PlusOutlined />}

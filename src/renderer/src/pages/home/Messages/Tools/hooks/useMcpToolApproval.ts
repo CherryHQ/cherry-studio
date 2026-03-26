@@ -148,16 +148,18 @@ export function useMcpToolApproval(block: ToolMessageBlock): ToolApprovalState &
     // Remove tool from disabledAutoApproveTools to enable auto-approve
     disabledAutoApproveTools = disabledAutoApproveTools.filter((name) => name !== toolNameToApprove)
 
-    await dataApiService.patch(`/mcp-servers/${server.id}`, {
-      body: { disabledAutoApproveTools }
-    })
+    try {
+      await dataApiService.patch(`/mcp-servers/${server.id}`, {
+        body: { disabledAutoApproveTools }
+      })
+      window.toast.success(t('message.tools.autoApproveEnabled', 'Auto-approve enabled for this tool'))
+    } catch {
+      window.toast.error(t('message.tools.autoApproveError', 'Failed to enable auto-approve'))
+    }
 
-    // Confirm the current tool. The execution layer will auto-confirm other
-    // pending tools with the same name via confirmSameNameTools.
+    // Confirm the current tool regardless — the tool action should proceed
     setIsConfirmed(true)
     confirmToolAction(id)
-
-    window.toast.success(t('message.tools.autoApproveEnabled', 'Auto-approve enabled for this tool'))
   }, [tool, toolResponse, mcpServers, id, t])
 
   return {

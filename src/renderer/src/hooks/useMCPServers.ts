@@ -1,4 +1,5 @@
 import { useMutation, useQuery } from '@data/hooks/useDataApi'
+import { loggerService } from '@logger'
 import NavigationService from '@renderer/services/NavigationService'
 import type { CreateMCPServerDto, ListMCPServersQuery } from '@shared/data/api/schemas/mcpServers'
 import type { MCPServer } from '@shared/data/types/mcpServer'
@@ -32,7 +33,10 @@ export const useMCPServers = (query?: ListMCPServersQuery) => {
   const reorderMCPServers = useCallback(
     (reorderedList: MCPServer[]) => {
       void mutate(data ? { ...data, items: reorderedList } : undefined, false)
-      reorderTrigger({ body: { orderedIds: reorderedList.map((s) => s.id) } }).catch(() => mutate())
+      reorderTrigger({ body: { orderedIds: reorderedList.map((s) => s.id) } }).catch((error) => {
+        loggerService.withContext('useMCPServers').warn('Failed to reorder MCP servers, reverting', error as Error)
+        void mutate()
+      })
     },
     [data, mutate, reorderTrigger]
   )

@@ -97,7 +97,7 @@ const McpServerCard: FC<McpServerCardProps> = ({ server, onEdit }) => {
         centered: true,
         onOk: async () => {
           await window.api.mcp.removeServer(server)
-          void deleteMCPServer({})
+          await deleteMCPServer({})
           window.toast.success(t('settings.mcp.deleteSuccess'))
         }
       })
