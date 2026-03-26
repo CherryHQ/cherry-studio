@@ -1,6 +1,6 @@
 /**
  * Auto-generated preference mappings from classification.json
- * Generated at: 2026-03-23T09:47:43.829Z
+ * Generated at: 2026-03-25T15:56:52.716Z
  *
  * This file contains pure mapping relationships without default values.
  * Default values are managed in packages/shared/data/preferences.ts
@@ -73,10 +73,6 @@ export const REDUX_STORE_MAPPINGS = {
     {
       originalKey: 'enableDataCollection',
       targetKey: 'app.privacy.data_collection.enabled'
-    },
-    {
-      originalKey: 'disableHardwareAcceleration',
-      targetKey: 'app.disable_hardware_acceleration'
     },
     {
       originalKey: 'enableDeveloperMode',

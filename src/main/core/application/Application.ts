@@ -1,0 +1,407 @@
+import { loggerService } from '@logger'
+import { isDev, isLinux, isMac, isPortable, isWin } from '@main/constant'
+import { bootConfigService } from '@main/data/bootConfig'
+import { app, dialog } from 'electron'
+
+import { LifecycleManager } from '../lifecycle/LifecycleManager'
+import { ServiceContainer } from '../lifecycle/ServiceContainer'
+import { LifecycleEvents, Phase, type ServiceConstructor, ServiceInitError } from '../lifecycle/types'
+import type { ServiceRegistry } from './serviceRegistry'
+
+const logger = loggerService.withContext('Application')
+
+/**
+ * Application
+ * Main application class that orchestrates the entire application lifecycle
+ * Manages services, windows, and Electron app events
+ */
+export class Application {
+  private static instance: Application | null = null
+  private container: ServiceContainer
+  private lifecycleManager: LifecycleManager
+  private isBootstrapped = false
+  private isShuttingDown = false
+
+  private constructor() {
+    this.container = ServiceContainer.getInstance()
+    this.lifecycleManager = LifecycleManager.getInstance()
+  }
+
+  /**
+   * Get the Application singleton instance
+   */
+  public static getInstance(): Application {
+    if (!Application.instance) {
+      Application.instance = new Application()
+    }
+    return Application.instance
+  }
+
+  /**
+   * Get the service container
+   */
+  public getContainer(): ServiceContainer {
+    return this.container
+  }
+
+  /**
+   * Get the lifecycle manager
+   */
+  public getLifecycleManager(): LifecycleManager {
+    return this.lifecycleManager
+  }
+
+  /**
+   * Register a service with the container
+   * @param service - Service class constructor
+   */
+  public register<T>(service: ServiceConstructor<T>): this {
+    this.container.register(service)
+    return this
+  }
+
+  /**
+   * Register multiple services
+   * @param services - Array of service class constructors
+   */
+  public registerAll(services: ServiceConstructor[]): this {
+    for (const service of services) {
+      this.container.register(service)
+    }
+    this.container.excludeDependentsOfExcluded()
+    return this
+  }
+
+  /**
+   * Bootstrap the application
+   * Initializes services in three phases with maximum parallelization:
+   * 1. Background: fire-and-forget, independent services
+   * 2. BeforeReady: services that don't need Electron API (parallel with app.whenReady)
+   * 3. WhenReady: services that require Electron API
+   */
+  public async bootstrap(): Promise<void> {
+    if (this.isBootstrapped) {
+      logger.warn('Already bootstrapped')
+      return
+    }
+
+    // Register signal handlers FIRST, before anything else,
+    // so Ctrl+C is handled even during early bootstrap stages
+    this.setupSignalHandlers()
+
+    logger.info('Bootstrapping...')
+
+    // Check for boot config corruption BEFORE starting any services
+    if (bootConfigService.hasLoadError()) {
+      await this.handleBootConfigError()
+      // If we reach here, user chose "Continue with Defaults"
+    }
+
+    // Validate and adjust phases before starting
+    this.lifecycleManager.validateAndAdjustPhases()
+
+    try {
+      // 1. Background phase - fire-and-forget, does not block BeforeReady/WhenReady
+      const backgroundPromise = this.lifecycleManager.startPhase(Phase.Background)
+
+      // 2. BeforeReady phase and app.whenReady() in parallel
+      await Promise.all([this.lifecycleManager.startPhase(Phase.BeforeReady), app.whenReady()])
+
+      // Setup Electron event handlers after app is ready
+      this.setupElectronHandlers()
+
+      // 3. WhenReady phase - services requiring Electron API
+      await this.lifecycleManager.startPhase(Phase.WhenReady)
+
+      this.isBootstrapped = true
+
+      // 4. Wait for Background to finish, then notify all services
+      await backgroundPromise.catch((err) => {
+        logger.error('Background phase failed:', err)
+      })
+      await this.lifecycleManager.allReady()
+    } catch (error) {
+      if (error instanceof ServiceInitError) {
+        await this.handleFatalServiceError(error)
+        return
+      }
+      throw error
+    }
+
+    logger.info('Bootstrap complete')
+  }
+
+  /**
+   * Shutdown the application
+   * Stops and destroys all services gracefully
+   */
+  public async shutdown(): Promise<void> {
+    if (this.isShuttingDown) {
+      logger.warn('Already shutting down')
+      return
+    }
+
+    this.isShuttingDown = true
+    logger.info('Shutting down...')
+
+    // Stop all services
+    await this.lifecycleManager.stopAll()
+
+    // Destroy all services
+    await this.lifecycleManager.destroyAll()
+
+    logger.info('Shutdown complete')
+  }
+
+  /**
+   * Handle fatal service initialization error by showing a dialog.
+   * Called when a fail-fast service fails to initialize.
+   */
+  private async handleFatalServiceError(error: ServiceInitError): Promise<void> {
+    logger.error(`Fatal service initialization error: ${error.serviceName}`, error.cause)
+
+    // Ensure Electron dialog API is available (BeforeReady phase may fail before app is ready)
+    await app.whenReady()
+
+    const result = await dialog.showMessageBox({
+      type: 'error',
+      title: 'Unable to Start',
+      message: `Cherry Studio could not start because ${error.serviceName} failed to initialize.`,
+      detail:
+        'Try restarting the application. If the problem persists, check the application logs for detailed error information.',
+      buttons: ['Exit', 'Restart'],
+      defaultId: 1,
+      cancelId: 0
+    })
+
+    if (result.response === 0) {
+      logger.info(`User chose to exit due to ${error.serviceName} initialization failure`)
+      app.exit(1)
+      return
+    }
+
+    logger.info(`User chose to restart after ${error.serviceName} initialization failure`)
+    this.relaunch()
+  }
+
+  /**
+   * Handle boot config load error by showing a dialog before any services start.
+   * For parse errors: offer reset (delete corrupted file) + restart.
+   * For read errors: offer restart (file may be temporarily inaccessible).
+   */
+  private async handleBootConfigError(): Promise<void> {
+    const loadError = bootConfigService.getLoadError()!
+    logger.warn(`Boot config load error: ${loadError.type} - ${loadError.message}`)
+
+    await app.whenReady()
+
+    const isParseError = loadError.type === 'parse_error'
+
+    const result = await dialog.showMessageBox({
+      type: 'warning',
+      title: isParseError ? 'Configuration File Corrupted' : 'Configuration File Read Error',
+      message: isParseError
+        ? 'The configuration file (boot-config.json) contains invalid data.'
+        : 'The configuration file (boot-config.json) could not be read.',
+      detail: `Error: ${loadError.message}\n\nThe application can continue with default settings, or you can ${isParseError ? 'reset the file and restart' : 'restart to try again'}.\n\n${isParseError ? `"Reset and Restart" will delete the corrupted file. Other options preserve it for manual inspection at:\n${loadError.filePath}` : `The file will be preserved for manual inspection at:\n${loadError.filePath}`}`,
+      buttons: ['Continue with Defaults', isParseError ? 'Reset and Restart' : 'Restart', 'Exit'],
+      defaultId: 0,
+      cancelId: 2
+    })
+
+    if (result.response === 1) {
+      if (isParseError) {
+        bootConfigService.reset()
+      }
+      logger.info(`User chose to ${isParseError ? 'reset and restart' : 'restart'} after boot config error`)
+      this.relaunch()
+      return
+    }
+
+    if (result.response === 2) {
+      logger.info('User chose to exit after boot config error')
+      app.exit(1)
+      return
+    }
+
+    logger.info('User chose to continue with defaults after boot config error')
+    bootConfigService.clearLoadError()
+  }
+
+  /**
+   * Relaunch the app, with dev mode warning
+   */
+  public relaunch(options?: Electron.RelaunchOptions): void {
+    if (isDev || !app.isPackaged) {
+      logger.warn('Relaunch is not supported in dev mode. Please restart manually.')
+      dialog.showMessageBoxSync({
+        type: 'info',
+        title: 'Manual Restart Required',
+        message: 'Auto-relaunch is not available in development mode.',
+        detail: 'The app will now exit. Please run `pnpm dev` again to restart.',
+        buttons: ['OK']
+      })
+      app.exit(0)
+      return
+    }
+
+    // Platform-specific fixes
+    if (isLinux && process.env.APPIMAGE) {
+      options = options || {}
+      options.execPath = process.env.APPIMAGE
+      options.args = options.args || []
+      options.args.unshift('--appimage-extract-and-run')
+    }
+
+    if (isWin && isPortable) {
+      options = options || {}
+      options.execPath = process.env.PORTABLE_EXECUTABLE_FILE
+      options.args = options.args || []
+    }
+
+    app.relaunch(options)
+    app.exit(0)
+  }
+
+  /**
+   * Setup process signal handlers for graceful shutdown.
+   * Must be called at the very start of bootstrap() so Ctrl+C is handled
+   * even before app.whenReady() resolves.
+   */
+  private setupSignalHandlers(): void {
+    const forceExit = (): void => {
+      logger.warn('Forced exit after shutdown timeout')
+      process.exit(1)
+    }
+
+    process.on('SIGINT', async () => {
+      const timer = setTimeout(forceExit, 5000)
+      try {
+        await this.shutdown()
+      } catch (error) {
+        logger.error('Error during shutdown:', error as Error)
+      } finally {
+        clearTimeout(timer)
+        app.exit(0)
+      }
+    })
+
+    process.on('SIGTERM', async () => {
+      const timer = setTimeout(forceExit, 5000)
+      try {
+        await this.shutdown()
+      } catch (error) {
+        logger.error('Error during shutdown:', error as Error)
+      } finally {
+        clearTimeout(timer)
+        app.exit(0)
+      }
+    })
+  }
+
+  /**
+   * Setup Electron app event handlers
+   */
+  private setupElectronHandlers(): void {
+    // macOS: re-create window when dock icon is clicked
+    app.on('activate', () => {
+      this.lifecycleManager.emit(LifecycleEvents.APP_ACTIVATE)
+    })
+
+    // All windows closed
+    app.on('window-all-closed', () => {
+      if (!isMac) {
+        void this.shutdown().then(() => app.quit())
+      }
+    })
+
+    // Before quit - use app.exit() to force quit and avoid re-triggering before-quit event
+    app.on('before-quit', (event) => {
+      if (!this.isShuttingDown) {
+        event.preventDefault()
+        this.shutdown()
+          .catch((error) => logger.error('Error during shutdown:', error as Error))
+          .finally(() => app.exit(0))
+      }
+    })
+  }
+
+  /**
+   * Get a service instance by registry key (type-safe)
+   * @param name - Service name from ServiceRegistry
+   */
+  public get<K extends keyof ServiceRegistry>(name: K): ServiceRegistry[K] {
+    return this.container.get(name)
+  }
+
+  /**
+   * Check if application is bootstrapped
+   */
+  public isReady(): boolean {
+    return this.isBootstrapped
+  }
+
+  // ============================================================================
+  // Service Lifecycle Control API
+  // ============================================================================
+
+  /**
+   * Pause a service and all services that depend on it.
+   * The service must implement the Pausable interface (onPause/onResume methods).
+   * @param name - Service name from ServiceRegistry
+   */
+  public async pause<K extends keyof ServiceRegistry>(name: K): Promise<void> {
+    return this.lifecycleManager.pause(name)
+  }
+
+  /**
+   * Resume a paused service and all services that were cascade-paused.
+   * The service must implement the Pausable interface.
+   * @param name - Service name from ServiceRegistry
+   */
+  public async resume<K extends keyof ServiceRegistry>(name: K): Promise<void> {
+    return this.lifecycleManager.resume(name)
+  }
+
+  /**
+   * Stop a service and all services that depend on it.
+   * All services support stop (no special interface needed).
+   * @param name - Service name from ServiceRegistry
+   */
+  public async stop<K extends keyof ServiceRegistry>(name: K): Promise<void> {
+    return this.lifecycleManager.stop(name)
+  }
+
+  /**
+   * Start a stopped service by re-initializing it.
+   * Also starts any services that were cascade-stopped.
+   * @param name - Service name from ServiceRegistry
+   */
+  public async start<K extends keyof ServiceRegistry>(name: K): Promise<void> {
+    return this.lifecycleManager.start(name)
+  }
+
+  /**
+   * Restart a service (stop + start).
+   * Convenience method that combines stop and start operations.
+   * @param name - Service name from ServiceRegistry
+   */
+  public async restart<K extends keyof ServiceRegistry>(name: K): Promise<void> {
+    return this.lifecycleManager.restart(name)
+  }
+}
+
+/**
+ * Lazily-initialized Application singleton.
+ * Safe to import before bootstrap - the instance is created on first access.
+ */
+export const application: Application = new Proxy({} as Application, {
+  get(_target, prop: keyof Application) {
+    const instance = Application.getInstance()
+    const value = instance[prop]
+    if (typeof value === 'function') {
+      return (value as (...args: unknown[]) => unknown).bind(instance)
+    }
+    return value
+  }
+})

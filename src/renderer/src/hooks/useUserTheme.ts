@@ -30,9 +30,9 @@ export default function useUserTheme() {
     userTheme: { colorPrimary, userFontFamily, userCodeFontFamily },
 
     setUserTheme(userTheme: { colorPrimary: string; userFontFamily: string; userCodeFontFamily: string }) {
-      setColorPrimary(userTheme.colorPrimary)
-      setUserFontFamily(userTheme.userFontFamily)
-      setUserCodeFontFamily(userTheme.userCodeFontFamily)
+      void setColorPrimary(userTheme.colorPrimary)
+      void setUserFontFamily(userTheme.userFontFamily)
+      void setUserCodeFontFamily(userTheme.userCodeFontFamily)
       initUserTheme(userTheme)
     }
   }

@@ -128,7 +128,7 @@ const AssistantsTab: FC<AssistantsTabProps> = (props) => {
 
   const handleSortByChange = useCallback(
     (sortType: AssistantTabSortType) => {
-      setAssistantsTabSortType(sortType)
+      void setAssistantsTabSortType(sortType)
     },
     [setAssistantsTabSortType]
   )

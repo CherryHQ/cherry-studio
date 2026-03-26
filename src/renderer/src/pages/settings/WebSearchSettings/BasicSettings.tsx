@@ -44,13 +44,13 @@ const BasicSettings: FC = () => {
           cancelText: t('common.cancel'),
           centered: true,
           onOk: () => {
-            navigate({ to: '/settings/websearch/provider/$providerId', params: { providerId: provider.id } })
+            void navigate({ to: '/settings/websearch/provider/$providerId', params: { providerId: provider.id } })
           }
         })
         return
       }
 
-      setDefaultProvider(provider as WebSearchProvider)
+      setDefaultProvider(provider)
     }
   }
 

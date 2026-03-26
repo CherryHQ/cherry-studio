@@ -62,6 +62,7 @@ export const zhCN = {
     },
     progress: {
       processing: '正在处理{{name}}...',
+      migrated_boot_config: '已迁移 {{processed}}/{{total}} 条启动配置',
       migrated_chats: '已迁移 {{processed}}/{{total}} 个对话，{{messages}} 条消息',
       migrated_preferences: '已迁移 {{processed}}/{{total}} 条配置',
       migrated_knowledge: '已迁移 {{processed}}/{{total}} 条知识库记录'
@@ -144,6 +145,7 @@ export const enUS = {
     },
     progress: {
       processing: 'Processing {{name}}...',
+      migrated_boot_config: 'Migrated {{processed}}/{{total}} boot config items',
       migrated_chats: 'Migrated {{processed}}/{{total}} conversations, {{messages}} messages',
       migrated_preferences: 'Migrated {{processed}}/{{total}} preferences',
       migrated_knowledge: 'Migrated {{processed}}/{{total}} knowledge records'

@@ -1,13 +1,20 @@
+import type { BootConfigPreferenceKeys } from '@shared/data/bootConfig/bootConfigTypes'
+
 import type { PreferenceSchemas } from './preferenceSchemas'
 
+/** DB-backed preferences only (stored in SQLite) */
 export type PreferenceDefaultScopeType = PreferenceSchemas['default']
 export type PreferenceKeyType = keyof PreferenceDefaultScopeType
+
+/** Unified type: DB-backed preferences + file-backed boot config (BootConfig.* prefix) */
+export type UnifiedPreferenceType = PreferenceDefaultScopeType & BootConfigPreferenceKeys
+export type UnifiedPreferenceKeyType = keyof UnifiedPreferenceType
 
 /**
  * Result type for getMultipleRaw - maps requested keys to their values
  */
-export type PreferenceMultipleResultType<K extends PreferenceKeyType> = {
-  [P in K]: PreferenceDefaultScopeType[P]
+export type UnifiedPreferenceMultipleResultType<K extends UnifiedPreferenceKeyType> = {
+  [P in K]: UnifiedPreferenceType[P]
 }
 
 export type PreferenceUpdateOptions = {
@@ -175,6 +182,37 @@ export interface WebSearchProvider {
   /** Basic auth password (from user overrides) */
   basicAuthPassword: string
 }
+
+// ============================================================================
+// CodeCLI Types
+// ============================================================================
+
+import { codeCLI } from '@shared/config/constant'
+
+export const CODE_CLI_IDS = Object.values(codeCLI) as unknown as readonly [
+  'qwen-code',
+  'claude-code',
+  'gemini-cli',
+  'openai-codex',
+  'iflow-cli',
+  'github-copilot-cli',
+  'kimi-cli',
+  'opencode'
+]
+
+export type CodeCliId = (typeof CODE_CLI_IDS)[number]
+
+export type CodeCliOverride = {
+  enabled?: boolean
+  modelId?: string | null
+  envVars?: string
+  /** Terminal app name — should match `terminalApps` enum values */
+  terminal?: string
+  currentDirectory?: string
+  directories?: string[]
+}
+
+export type CodeCliOverrides = Partial<Record<CodeCliId, CodeCliOverride>>
 
 // ============================================================================
 // WebSearch Compression Types (v2 - Flattened)

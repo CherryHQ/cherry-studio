@@ -165,7 +165,7 @@ export const useChatContext = (activeTopic: Topic) => {
                   .trim()
               })
               .join('\n\n---\n\n')
-            navigator.clipboard.writeText(contentToCopy)
+            void navigator.clipboard.writeText(contentToCopy)
             window.toast.success(t('message.copied'))
             handleToggleMultiSelectMode(false)
           } else {

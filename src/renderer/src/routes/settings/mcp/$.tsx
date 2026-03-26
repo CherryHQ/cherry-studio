@@ -6,7 +6,7 @@ import { createFileRoute } from '@tanstack/react-router'
 
 // 通配符路由：捕获 provider 页面 /settings/mcp/:providerKey
 const ProviderPage = () => {
-  const params = useParams({ strict: false }) as { _splat?: string }
+  const params = useParams({ strict: false })
   const providerKey = params._splat
   const { mcpServers } = useMCPServers()
 

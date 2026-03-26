@@ -98,7 +98,7 @@ const McpServersList: FC = () => {
   useEffect(() => {
     mcpServers.forEach((server) => {
       if (server.isActive) {
-        fetchServerVersion(server)
+        void fetchServerVersion(server)
       }
     })
   }, [mcpServers, fetchServerVersion])
@@ -115,7 +115,7 @@ const McpServersList: FC = () => {
       isActive: false
     }
     addMCPServer(newServer)
-    navigate({ to: `/settings/mcp/settings/${encodeURIComponent(newServer.id)}` })
+    void navigate({ to: `/settings/mcp/settings/${encodeURIComponent(newServer.id)}` })
     window.toast.success(t('settings.mcp.addSuccess'))
   }, [addMCPServer, navigate, t])
 
@@ -194,7 +194,7 @@ const McpServersList: FC = () => {
         key: 'manual',
         label: t('settings.mcp.addServer.create'),
         onClick: () => {
-          onAddMcpServer()
+          void onAddMcpServer()
         }
       },
       {

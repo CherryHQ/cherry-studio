@@ -246,7 +246,7 @@ const InputbarInner: FC<InputbarInnerProps> = ({ assistant: initialAssistant, se
       { topicId: topic.id, name: 'sendMessage', inputs: text },
       mentionedModels.length > 0 ? mentionedModels : [assistant.model]
     )
-    EventEmitter.emit(EVENT_NAMES.SEND_MESSAGE, { topicId: topic.id, traceId: parent?.spanContext().traceId })
+    void EventEmitter.emit(EVENT_NAMES.SEND_MESSAGE, { topicId: topic.id, traceId: parent?.spanContext().traceId })
 
     try {
       const uploadedFiles = await FileManager.uploadFiles(files)
@@ -264,7 +264,7 @@ const InputbarInner: FC<InputbarInnerProps> = ({ assistant: initialAssistant, se
       const { message, blocks } = getUserMessage(baseUserMessage)
       message.traceId = parent?.spanContext().traceId
 
-      dispatch(_sendMessage(message, blocks, assistant, topic.id))
+      void dispatch(_sendMessage(message, blocks, assistant, topic.id))
 
       setText('')
       setFiles([])
@@ -312,16 +312,16 @@ const InputbarInner: FC<InputbarInnerProps> = ({ assistant: initialAssistant, se
       await delay(1)
     }
 
-    EventEmitter.emit(EVENT_NAMES.CLEAR_MESSAGES, topic)
+    void EventEmitter.emit(EVENT_NAMES.CLEAR_MESSAGES, topic)
     focusTextarea()
   }, [focusTextarea, loading, onPause, topic])
 
   const onNewContext = useCallback(() => {
     if (loading) {
-      onPause()
+      void onPause()
       return
     }
-    EventEmitter.emit(EVENT_NAMES.NEW_CONTEXT)
+    void EventEmitter.emit(EVENT_NAMES.NEW_CONTEXT)
   }, [loading, onPause])
 
   const addNewTopic = useCallback(async () => {
@@ -332,13 +332,15 @@ const InputbarInner: FC<InputbarInnerProps> = ({ assistant: initialAssistant, se
       body: mapLegacyTopicToDto(newTopic)
     })
 
-    logger.silly('create topic in sqlite', createdTopic.id)
+    logger.silly('create topic in sqlite', { id: createdTopic.id })
 
     if (assistant.defaultModel) {
       setModel(assistant.defaultModel)
     }
 
+    // @ts-ignore TODO: #13748
     addTopic(createdTopic)
+    // @ts-ignore
     setActiveTopic(createdTopic)
 
     setTimeoutTimer('addNewTopic', () => EventEmitter.emit(EVENT_NAMES.SHOW_TOPIC_SIDEBAR), 0)
@@ -383,8 +385,8 @@ const InputbarInner: FC<InputbarInnerProps> = ({ assistant: initialAssistant, se
   useShortcut(
     'new_topic',
     () => {
-      addNewTopic()
-      EventEmitter.emit(EVENT_NAMES.SHOW_TOPIC_SIDEBAR)
+      void addNewTopic()
+      void EventEmitter.emit(EVENT_NAMES.SHOW_TOPIC_SIDEBAR)
       focusTextarea()
     },
     { preventDefault: true, enableOnFormTags: true }

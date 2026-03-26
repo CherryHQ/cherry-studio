@@ -9,38 +9,44 @@ vi.mock('@logger', async () => {
   }
 })
 
-// Mock PreferenceService globally for main tests
+// Mock service modules globally for main tests.
+// These mocks export both the class and instance names for backward compat.
 vi.mock('@main/data/PreferenceService', async () => {
   const { MockMainPreferenceServiceExport } = await import('./__mocks__/main/PreferenceService')
-  return MockMainPreferenceServiceExport
+  return {
+    ...MockMainPreferenceServiceExport,
+    PreferenceService: vi.fn() // Class export for serviceRegistry
+  }
 })
 
-// Mock DataApiService globally for main tests
 vi.mock('@main/data/DataApiService', async () => {
   const { MockMainDataApiServiceExport } = await import('./__mocks__/main/DataApiService')
-  return MockMainDataApiServiceExport
+  return {
+    ...MockMainDataApiServiceExport,
+    DataApiService: vi.fn() // Class export for serviceRegistry
+  }
 })
 
-// Mock CacheService globally for main tests
 vi.mock('@main/data/CacheService', async () => {
   const { MockMainCacheServiceExport } = await import('./__mocks__/main/CacheService')
-  return MockMainCacheServiceExport
+  return {
+    ...MockMainCacheServiceExport,
+    CacheService: vi.fn() // Class export for serviceRegistry
+  }
 })
 
-// Mock DbService globally for main tests (if exists)
 vi.mock('@main/data/db/DbService', async () => {
-  try {
-    const { MockDbService } = await import('./__mocks__/DbService')
-    return MockDbService
-  } catch {
-    // Return basic mock if DbService mock doesn't exist yet
-    return {
-      dbService: {
-        initialize: vi.fn(),
-        getDb: vi.fn()
-      }
-    }
+  const { MockMainDbServiceExport } = await import('./__mocks__/main/DbService')
+  return {
+    ...MockMainDbServiceExport,
+    DbService: vi.fn() // Class export for serviceRegistry
   }
+})
+
+// Mock application globally - provides type-safe service access via application.get()
+vi.mock('@main/core/application', async () => {
+  const { mockApplicationFactory } = await import('./__mocks__/main/application')
+  return mockApplicationFactory()
 })
 
 // Mock electron modules that are commonly used in main process

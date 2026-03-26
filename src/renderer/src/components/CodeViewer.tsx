@@ -118,7 +118,7 @@ const CodeViewer = ({
   // 设置 pre 标签属性
   useLayoutEffect(() => {
     let mounted = true
-    getShikiPreProperties(language).then((properties) => {
+    void getShikiPreProperties(language).then((properties) => {
       if (!mounted) return
       const shikiTheme = shikiThemeRef.current
       if (shikiTheme) {
@@ -166,7 +166,7 @@ const CodeViewer = ({
           const lineContainer = element.parentElement
           const lineContent = lineContainer?.querySelector('.line-content')
           if (lineContent) {
-            element = lineContent as Element
+            element = lineContent
             break
           }
         }
@@ -367,7 +367,7 @@ const CodeViewer = ({
   useEffect(() => {
     if (virtualItems.length > 0 && shikiThemeRef.current) {
       const lastIndex = virtualItems[virtualItems.length - 1].index
-      debouncedHighlightLines(lastIndex + 1)
+      void debouncedHighlightLines(lastIndex + 1)
     }
   }, [virtualItems, debouncedHighlightLines])
 

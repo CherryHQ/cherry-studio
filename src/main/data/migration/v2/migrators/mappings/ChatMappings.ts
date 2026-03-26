@@ -529,7 +529,7 @@ export function transformMessage(
   // Find the MainTextBlock and add references if any exist
   const allReferences = [...citationReferences, ...mentionReferences]
   if (allReferences.length > 0) {
-    const mainTextBlock = dataBlocks.find((b) => b.type === 'main_text') as MainTextBlock | undefined
+    const mainTextBlock = dataBlocks.find((b) => b.type === 'main_text')
     if (mainTextBlock) {
       mainTextBlock.references = allReferences
     }

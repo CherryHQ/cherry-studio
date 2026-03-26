@@ -85,6 +85,12 @@ describe('ComplexPreferenceMappings', () => {
       expect(providersMapping).toBeDefined()
       expect(providersMapping?.targetKeys).toContain('chat.web_search.provider_overrides')
     })
+
+    it('should contain the code_cli_overrides mapping', () => {
+      const codeToolsMapping = COMPLEX_PREFERENCE_MAPPINGS.find((m) => m.id === 'code_cli_overrides')
+      expect(codeToolsMapping).toBeDefined()
+      expect(codeToolsMapping!.targetKeys).toEqual(['feature.code_cli.overrides'])
+    })
   })
 
   describe('getComplexMappingTargetKeys', () => {
@@ -96,8 +102,9 @@ describe('ComplexPreferenceMappings', () => {
       const keys = getComplexMappingTargetKeys()
       expect(keys).toContain('chat.web_search.compression.method')
       expect(keys).toContain('chat.web_search.provider_overrides')
+      expect(keys).toContain('feature.code_cli.overrides')
       expect(keys).toContain('feature.file_processing.overrides')
-      expect(keys.length).toBe(9) // 7 websearch compression keys + 1 provider overrides key + 1 file processing overrides key
+      expect(keys.length).toBe(10) // 7 websearch compression + 1 provider overrides + 1 code_cli overrides + 1 file processing overrides
     })
 
     it('should flatten target keys from all mappings', () => {

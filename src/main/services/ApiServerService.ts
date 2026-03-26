@@ -1,4 +1,4 @@
-import { preferenceService } from '@data/PreferenceService'
+import { application } from '@main/core/application'
 import { IpcChannel } from '@shared/IpcChannel'
 import type {
   ApiServerConfig,
@@ -61,7 +61,7 @@ export class ApiServerService {
    * Get current API server configuration from preference service
    */
   getCurrentConfig(): ApiServerConfig {
-    const config = preferenceService.getMultiple({
+    const config = application.get('PreferenceService').getMultiple({
       enabled: 'feature.csaas.enabled',
       host: 'feature.csaas.host',
       port: 'feature.csaas.port',
@@ -75,6 +75,7 @@ export class ApiServerService {
    * Ensure a valid API key exists, generate one if null
    */
   async ensureValidApiKey(): Promise<string> {
+    const preferenceService = application.get('PreferenceService')
     let apiKey = preferenceService.get('feature.csaas.api_key')
     if (apiKey === null) {
       apiKey = `cs-sk-${uuidv4()}`

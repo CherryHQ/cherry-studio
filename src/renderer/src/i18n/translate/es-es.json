@@ -390,7 +390,7 @@
           "description": "Crea y gestiona listas de tareas estructuradas"
         },
         "ToolSearch": {
-          "description": "[to be translated]:Discovers deferred tools from large libraries"
+          "description": "Descubre herramientas diferidas de bibliotecas grandes"
         },
         "WebFetch": {
           "description": "Obtiene contenido desde una URL especificada"
@@ -1195,6 +1195,8 @@
             "content": "¿Estás seguro de que quieres eliminar {{count}} tema(s) seleccionado(s)? Esta acción no se puede deshacer.",
             "title": "Eliminar Temas"
           },
+          "error": "Error al eliminar. Inténtalo de nuevo.",
+          "partial_success": "Se eliminaron correctamente {{successCount}} temas, {{failedCount}} fallaron",
           "success": "Eliminado(s) {{count}} tema(s)"
         },
         "deselect_all": "Deseleccionar todo",
@@ -2615,6 +2617,27 @@
       "title": "Tiempo de Actividad"
     },
     "title": "Ollama"
+  },
+  "onboarding": {
+    "select_model": {
+      "change_later": "Puedes cambiar esto en cualquier momento desde la configuración.",
+      "start": "Comenzar",
+      "subtitle": "Seleccionar modelo predeterminado para cada escenario",
+      "title": "Elige tus modelos predeterminados"
+    },
+    "skip": "Saltar",
+    "toast": {
+      "connected": "Conectado con éxito a CherryIN"
+    },
+    "welcome": {
+      "login_cherryin": "Iniciar sesión con CherryIN",
+      "or_continue_with": "O CONTINUAR CON",
+      "other_provider": "Elegir Otros Proveedores",
+      "select_other_provider": "Seleccionar Otro Proveedor",
+      "setup_hint": "Por favor, configura al menos un proveedor para obtener la mejor experiencia.",
+      "subtitle": "Disfruta de servicios de IA de primer nivel con CherryIN",
+      "title": "Bienvenido a Cherry Studio"
+    }
   },
   "openclaw": {
     "checking_installation": "Comprobando la instalación de OpenClaw...",
@@ -4824,6 +4847,7 @@
           "label": "Agregar modelo en la lista"
         },
         "add_whole_group": "Agregar todo el grupo",
+        "fetch_list": "Obtener lista de modelos",
         "refetch_list": "Volver a obtener la lista de modelos",
         "remove_listed": "Eliminar modelo de la lista",
         "remove_model": "Eliminar modelo",

@@ -1,6 +1,6 @@
-import { preferenceService } from '@data/PreferenceService'
 import { loggerService } from '@logger'
 import { isWin } from '@main/constant'
+import { application } from '@main/core/application'
 import { getIpCountry } from '@main/utils/ipService'
 import { generateUserAgent, getClientId } from '@main/utils/systemInfo'
 import { APP_NAME, FeedUrl, UpdateConfigUrl, UpdateMirror } from '@shared/config/constant'
@@ -67,7 +67,7 @@ export default class AppUpdater {
   constructor() {
     autoUpdater.logger = logger as Logger
     autoUpdater.forceDevUpdateConfig = !app.isPackaged
-    autoUpdater.autoDownload = preferenceService.get('app.dist.auto_update.enabled')
+    autoUpdater.autoDownload = application.get('PreferenceService').get('app.dist.auto_update.enabled')
     // Never auto-install on quit - user must explicitly click "Install Now"
     // Auto-install on quit can cause issues: unexpected updates on restart,
     // corruption if system shuts down during install, or app uninstall on force shutdown
@@ -78,7 +78,7 @@ export default class AppUpdater {
     }
 
     autoUpdater.on('error', (error) => {
-      logger.error('update error', error as Error)
+      logger.error('update error', error)
       windowService.getMainWindow()?.webContents.send(IpcChannel.UpdateError, error)
     })
 
@@ -129,7 +129,7 @@ export default class AppUpdater {
 
   private _getTestChannel() {
     const currentChannel = this._getChannelByVersion(app.getVersion())
-    const savedChannel = preferenceService.get('app.dist.test_plan.channel')
+    const savedChannel = application.get('PreferenceService').get('app.dist.test_plan.channel')
 
     if (currentChannel === UpgradeChannel.LATEST) {
       return savedChannel || UpgradeChannel.RC
@@ -234,7 +234,7 @@ export default class AppUpdater {
 
   private async _setFeedUrl() {
     const currentVersion = app.getVersion()
-    const testPlan = preferenceService.get('app.dist.test_plan.enabled')
+    const testPlan = application.get('PreferenceService').get('app.dist.test_plan.enabled')
     const requestedChannel = testPlan ? this._getTestChannel() : UpgradeChannel.LATEST
 
     // Determine mirror based on IP country
@@ -280,7 +280,7 @@ export default class AppUpdater {
   }
 
   public async checkForUpdates() {
-    analyticsService.trackAppUpdate()
+    void analyticsService.trackAppUpdate()
 
     if (isWin && 'PORTABLE_EXECUTABLE_DIR' in process.env) {
       return {
@@ -301,7 +301,7 @@ export default class AppUpdater {
         // 如果 autoDownload 为 false，则需要再调用下面的函数触发下
         // do not use await, because it will block the return of this function
         logger.info('downloadUpdate manual by check for updates', this.cancellationToken)
-        this.autoUpdater.downloadUpdate(this.cancellationToken)
+        void this.autoUpdater.downloadUpdate(this.cancellationToken)
       }
 
       return {
@@ -339,7 +339,7 @@ export default class AppUpdater {
    */
   private parseMultiLangReleaseNotes(releaseNotes: string): string {
     try {
-      const language = preferenceService.get('app.language')
+      const language = application.get('PreferenceService').get('app.language')
       const isChineseUser = language === 'zh-CN' || language === 'zh-TW'
 
       // Create regex patterns using constants

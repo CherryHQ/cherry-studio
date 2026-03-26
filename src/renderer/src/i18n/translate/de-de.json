@@ -390,7 +390,7 @@
           "description": "Erstellt und verwaltet strukturierte Aufgabenlisten"
         },
         "ToolSearch": {
-          "description": "[to be translated]:Discovers deferred tools from large libraries"
+          "description": "Entdeckt aufgeschobene Werkzeuge aus großen Bibliotheken"
         },
         "WebFetch": {
           "description": "Ruft Inhalte von einer angegebenen URL ab"
@@ -1195,6 +1195,8 @@
             "content": "Sind Sie sicher, dass Sie {{count}} ausgewähltes Thema bzw. ausgewählte Themen löschen möchten? Diese Aktion kann nicht rückgängig gemacht werden.",
             "title": "Themen löschen"
           },
+          "error": "Löschen fehlgeschlagen. Bitte versuchen Sie es erneut.",
+          "partial_success": "Erfolgreich {{successCount}} Themen gelöscht, {{failedCount}} fehlgeschlagen",
           "success": "{{count}} Thema/Themen gelöscht"
         },
         "deselect_all": "Alle abwählen",
@@ -2615,6 +2617,27 @@
       "title": "Aktiv-Haltezeit"
     },
     "title": "Ollama"
+  },
+  "onboarding": {
+    "select_model": {
+      "change_later": "Sie können dies jederzeit in den Einstellungen ändern.",
+      "start": "Loslegen",
+      "subtitle": "Standardmodell für jedes Szenario auswählen",
+      "title": "Wählen Sie Ihre Standardmodelle"
+    },
+    "skip": "Überspringen",
+    "toast": {
+      "connected": "Erfolgreich mit CherryIN verbunden"
+    },
+    "welcome": {
+      "login_cherryin": "Mit CherryIN anmelden",
+      "or_continue_with": "ODER WEITER MIT",
+      "other_provider": "Andere Anbieter auswählen",
+      "select_other_provider": "Wählen Sie einen anderen Anbieter",
+      "setup_hint": "Bitte konfigurieren Sie mindestens einen Anbieter für die beste Erfahrung.",
+      "subtitle": "Genießen Sie erstklassige KI-Dienste mit CherryIN",
+      "title": "Willkommen bei Cherry Studio"
+    }
   },
   "openclaw": {
     "checking_installation": "Überprüfe OpenClaw-Installation...",
@@ -4824,6 +4847,7 @@
           "label": "Modelle aus Liste hinzufügen"
         },
         "add_whole_group": "Gesamte Gruppe hinzufügen",
+        "fetch_list": "Modellliste abrufen",
         "refetch_list": "Modellliste erneut abrufen",
         "remove_listed": "Modelle aus Liste entfernen",
         "remove_model": "Modell entfernen",

@@ -1,10 +1,10 @@
 {
   "metadata": {
     "version": "2.0.0",
-    "lastUpdated": "2026-03-13T06:11:13.067Z",
+    "lastUpdated": "2026-03-23T08:30:00.000Z",
     "totalItems": 406,
-    "classified": 265,
-    "pending": 135,
+    "classified": 278,
+    "pending": 122,
     "deleted": 0
   },
   "classifications": {
@@ -1921,7 +1921,7 @@
           "type": "boolean",
           "defaultValue": false,
           "status": "classified",
-          "category": "preferences",
+          "category": "bootConfig",
           "targetKey": "app.disable_hardware_acceleration"
         },
         {
@@ -2848,47 +2848,49 @@
           "originalKey": "selectedCliTool",
           "type": "string",
           "defaultValue": "codeTools.qwenCode",
-          "status": "pending",
-          "category": null,
-          "targetKey": null
+          "status": "classified",
+          "category": "preferences",
+          "targetKey": null,
+          "note": "complex mapping: determines which tool gets enabled: true"
         },
         {
           "originalKey": "selectedModels",
           "type": "string",
           "defaultValue": "{ [codeTools.qwenCode]: null, [codeTools.claudeCode]: null, [codeTools.geminiCli]: null, [codeTools.openaiCodex]: null, [codeTools.iFlowCli]: null, [codeTools.githubCopilotCli]: null }",
-          "status": "pending",
-          "category": null,
+          "status": "classified",
+          "category": "preferences",
           "targetKey": null,
+          "note": "complex mapping: Model objects → modelId strings per tool",
           "children": [
             {
-              "category": null,
+              "category": "preferences",
               "defaultValue": null,
               "originalKey": "[codeTools.qwenCode]",
-              "status": "pending",
+              "status": "classified",
               "targetKey": null,
               "type": "null"
             },
             {
-              "category": null,
+              "category": "preferences",
               "defaultValue": null,
               "originalKey": "[codeTools.claudeCode]",
-              "status": "pending",
+              "status": "classified",
               "targetKey": null,
               "type": "null"
             },
             {
-              "category": null,
+              "category": "preferences",
               "defaultValue": null,
               "originalKey": "[codeTools.geminiCli]",
-              "status": "pending",
+              "status": "classified",
               "targetKey": null,
               "type": "null"
             },
             {
-              "category": null,
+              "category": "preferences",
               "defaultValue": null,
               "originalKey": "[codeTools.openaiCodex]",
-              "status": "pending",
+              "status": "classified",
               "targetKey": null,
               "type": "null"
             }
@@ -2905,31 +2907,32 @@
             "iflow-cli": "",
             "github-copilot-cli": ""
           },
-          "status": "pending",
-          "category": null,
+          "status": "classified",
+          "category": "preferences",
           "targetKey": null,
+          "note": "complex mapping: per-tool env vars → overrides.envVars",
           "children": [
             {
-              "category": null,
+              "category": "preferences",
               "defaultValue": "",
               "originalKey": "qwen-code",
-              "status": "pending",
+              "status": "classified",
               "targetKey": null,
               "type": "string"
             },
             {
-              "category": null,
+              "category": "preferences",
               "defaultValue": "",
               "originalKey": "claude-code",
-              "status": "pending",
+              "status": "classified",
               "targetKey": null,
               "type": "string"
             },
             {
-              "category": null,
+              "category": "preferences",
               "defaultValue": "",
               "originalKey": "gemini-cli",
-              "status": "pending",
+              "status": "classified",
               "targetKey": null,
               "type": "string"
             }
@@ -2939,25 +2942,28 @@
           "originalKey": "directories",
           "type": "array",
           "defaultValue": [],
-          "status": "pending",
-          "category": null,
-          "targetKey": null
+          "status": "classified",
+          "category": "preferences",
+          "targetKey": null,
+          "note": "complex mapping: global dirs → assigned to selected tool override"
         },
         {
           "originalKey": "currentDirectory",
           "type": "string",
           "defaultValue": "",
-          "status": "pending",
-          "category": null,
-          "targetKey": null
+          "status": "classified",
+          "category": "preferences",
+          "targetKey": null,
+          "note": "complex mapping: global currentDir → assigned to selected tool override"
         },
         {
           "originalKey": "selectedTerminal",
           "type": "string",
           "defaultValue": null,
-          "status": "pending",
-          "category": null,
-          "targetKey": null
+          "status": "classified",
+          "category": "preferences",
+          "targetKey": null,
+          "note": "complex mapping: global terminal → assigned to selected tool override (non-default only)"
         }
       ],
       "ocr": [
@@ -3300,7 +3306,7 @@
           "type": "unknown",
           "defaultValue": null,
           "status": "classified",
-          "category": "preferences",
+          "category": "bootConfig",
           "targetKey": "app.disable_hardware_acceleration"
         }
       ],

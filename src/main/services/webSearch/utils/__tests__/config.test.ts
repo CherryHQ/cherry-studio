@@ -1,0 +1,74 @@
+import type { PreferenceDefaultScopeType, PreferenceKeyType } from '@shared/data/preference/preferenceTypes'
+import { describe, expect, it } from 'vitest'
+
+import { getProviderById, getResolvedConfig, getRuntimeConfig } from '../config'
+
+const preferenceValues: Record<string, unknown> = {
+  'chat.web_search.max_results': 5,
+  'chat.web_search.exclude_domains': ['example.com'],
+  'chat.web_search.compression.method': 'none',
+  'chat.web_search.compression.cutoff_limit': null,
+  'chat.web_search.compression.cutoff_unit': 'char',
+  'chat.web_search.compression.rag_document_count': 5,
+  'chat.web_search.compression.rag_embedding_model_id': null,
+  'chat.web_search.compression.rag_embedding_dimensions': null,
+  'chat.web_search.compression.rag_rerank_model_id': null,
+  'chat.web_search.provider_overrides': {
+    tavily: {
+      apiKeys: ['tavily-key']
+    }
+  }
+}
+
+const mockPreferenceReader = {
+  async get<K extends PreferenceKeyType>(key: K): Promise<PreferenceDefaultScopeType[K]> {
+    return preferenceValues[key] as PreferenceDefaultScopeType[K]
+  }
+}
+
+describe('webSearch config utils', () => {
+  it('resolves all supported provider types from layered presets + overrides by default', async () => {
+    const resolved = await getResolvedConfig(mockPreferenceReader)
+    const providerIds = resolved.providers.map((provider) => provider.id)
+
+    expect(providerIds).toContain('exa-mcp')
+    expect(providerIds).toContain('local-google')
+
+    const tavily = resolved.providers.find((provider) => provider.id === 'tavily')
+    expect(tavily?.apiKeys).toEqual(['tavily-key'])
+  })
+
+  it('returns runtime config from flattened preference keys', async () => {
+    const runtime = await getRuntimeConfig(mockPreferenceReader)
+
+    expect(runtime.maxResults).toBe(5)
+    expect(runtime.excludeDomains).toEqual(['example.com'])
+    expect(runtime.compression.method).toBe('none')
+  })
+
+  it('normalizes maxResults to at least 1 in runtime config', async () => {
+    const runtime = await getRuntimeConfig({
+      async get<K extends PreferenceKeyType>(key: K): Promise<PreferenceDefaultScopeType[K]> {
+        if (key === 'chat.web_search.max_results') {
+          return 0 as PreferenceDefaultScopeType[K]
+        }
+
+        return preferenceValues[key] as PreferenceDefaultScopeType[K]
+      }
+    })
+
+    expect(runtime.maxResults).toBe(1)
+  })
+
+  it('resolves a provider directly by id from the preset-backed config', async () => {
+    const provider = await getProviderById('tavily', mockPreferenceReader)
+
+    expect(provider).toMatchObject({
+      id: 'tavily',
+      name: 'Tavily',
+      type: 'api',
+      apiKeys: ['tavily-key'],
+      apiHost: 'https://api.tavily.com'
+    })
+  })
+})

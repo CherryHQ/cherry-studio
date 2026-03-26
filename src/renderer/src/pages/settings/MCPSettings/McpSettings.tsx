@@ -69,7 +69,7 @@ type TabKey = 'settings' | 'description' | 'tools' | 'prompts' | 'resources'
 
 const McpSettings: React.FC = () => {
   const { t } = useTranslation()
-  const params = useParams({ strict: false }) as { serverId?: string }
+  const params = useParams({ strict: false })
   const serverId = params.serverId
   const decodedServerId = serverId ? decodeURIComponent(serverId) : ''
   const server = useMCPServer(decodedServerId).server as MCPServer
@@ -273,11 +273,11 @@ const McpSettings: React.FC = () => {
 
   useEffect(() => {
     if (server.isActive) {
-      fetchTools()
-      fetchPrompts()
-      fetchResources()
-      fetchServerVersion()
-      fetchServerLogs()
+      void fetchTools()
+      void fetchPrompts()
+      void fetchResources()
+      void fetchServerVersion()
+      void fetchServerLogs()
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [server.id, server.isActive])
@@ -412,7 +412,7 @@ const McpSettings: React.FC = () => {
             await window.api.mcp.removeServer(server)
             deleteMCPServer(server.id)
             window.toast.success(t('settings.mcp.deleteSuccess'))
-            navigate({ to: '/settings/mcp' })
+            void navigate({ to: '/settings/mcp' })
           }
         })
       } catch (error: any) {
@@ -820,7 +820,7 @@ const McpSettings: React.FC = () => {
         bodyStyle={{ maxHeight: '70vh', minHeight: '40vh', overflowY: 'auto' }}
         afterOpenChange={(open) => {
           if (open) {
-            fetchServerLogs()
+            void fetchServerLogs()
           }
         }}>
         <LogList>

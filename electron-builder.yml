@@ -142,30 +142,60 @@ artifactBuildCompleted: scripts/artifact-build-completed.js
 releaseInfo:
   releaseNotes: |
     <!--LANG:en-->
-    Cherry Studio 1.8.2 - Bug Fixes and Model Updates
-
-    🐛 Bug Fixes
-    - [Knowledge Base] Fix knowledge base content not being delivered to the model when selected in conversation
-    - [Search] Fix crash when clicking topic title in message search results
-    - [Backup] Fix backup restoration path issue
+    Cherry Studio 1.8.3 - New Features and Bug Fixes
 
     ✨ New Features
-    - [Models] Add support for Xiaomi MiMo-V2-Pro and MiMo-V2-Omni models with reasoning control and tool use capabilities
+    - [Onboarding] Add guided setup flow for new users with CherryIN OAuth login and automatic model configuration
+    - [Code Tools] Add LMStudio and Ollama support for Claude Code
+    - [Models] Show model IDs for duplicate names in model pickers
+    - [Agents] Add OpenRouter support for Agent mode (Claude Code SDK)
+    - [Agents] Upgrade Agent SDK with ToolSearch for efficient MCP tool discovery
+
+    🐛 Bug Fixes
+    - [Code Tools] Fix Windows error where tool update messages were misinterpreted as commands
+    - [Models] Fix OpenClaw config overwriting user settings on every restart
+    - [Paintings] Fix base64 image handling causing HTTP 413 errors in follow-up messages
+    - [Files] Fix CherryAI provider not converting PDF files to text
+    - [Files] Fix PDF text extraction failing in production builds
+    - [Agents] Fix agent chat page not remembering scroll position when switching sessions
+    - [Startup] Fix app crash caused by missing canvas platform binaries
+    - [Models] Fix Groq multi-turn conversation errors
+    - [Memory] Fix assistant memory search returning no results
+    - [Citations] Fix Gemini citation over-matching with short text segments
+    - [Agents] Fix reasoning effort button not showing for reasoning models
+    - [Models] Fix max_tokens calculation for Claude 4.6 models with adaptive thinking
+    - [MCP] Fix MCP tools only working on the first prompt
 
     💄 Improvements
-    - [Models] Upgrade MiniMax default model to M2.7 with enhanced reasoning and coding capabilities
+    - [Models] Use the same model popup for Chat and Agent with consistent features
+    - [Agents] Add revealing animation for agent session renaming
 
     <!--LANG:zh-CN-->
-    Cherry Studio 1.8.2 - 错误修复和模型更新
-
-    🐛 问题修复
-    - [知识库] 修复选中知识库时内容未传递给模型的问题
-    - [搜索] 修复点击消息搜索结果中的主题标题时崩溃的问题
-    - [备份] 修复备份恢复路径问题
+    Cherry Studio 1.8.3 - 新功能和错误修复
 
     ✨ 新功能
-    - [模型] 新增小米 MiMo-V2-Pro 和 MiMo-V2-Omni 模型支持，支持推理控制和工具调用功能
+    - [入门] 新增新用户引导设置流程，支持 CherryIN OAuth 登录和自动模型配置
+    - [代码工具] 为 Claude Code 添加 LMStudio 和 Ollama 支持
+    - [模型] 在模型选择器中为重名模型显示模型 ID
+    - [智能体] 为智能体模式添加 OpenRouter 支持 (Claude Code SDK)
+    - [智能体] 升级智能体 SDK，启用 ToolSearch 以高效发现 MCP 工具
+
+    🐛 问题修复
+    - [代码工具] 修复 Windows 上工具更新消息被误解为命令的问题
+    - [模型] 修复 OpenClaw 配置在每次重启时覆盖用户设置
+    - [绘画] 修复后续消息中因 base64 图片处理导致的 HTTP 413 错误
+    - [文件] 修复 CherryAI 提供商未将 PDF 文件转换为文本
+    - [文件] 修复生产构建中 PDF 文本提取失败
+    - [智能体] 修复智能体聊天页面切换会话时不记住滚动位置
+    - [启动] 修复因缺少 canvas 平台二进制文件导致的应用崩溃
+    - [模型] 修复 Groq 多轮对话错误
+    - [记忆] 修复助手记忆搜索不返回结果
+    - [引用] 修复 Gemini 引用因短文本片段而过匹配
+    - [智能体] 修复推理模型的推理力度按钮不显示
+    - [模型] 修复 Claude 4.6 模型自适应思考的 max_tokens 计算
+    - [MCP] 修复 MCP 工具仅在首次提示时有效
 
     💄 改进
-    - [模型] 升级 MiniMax 默认模型至 M2.7，增强推理和代码能力
+    - [模型] 为聊天和智能体使用统一的模型弹出窗口，功能保持一致
+    - [智能体] 为智能体会话重命名添加揭示动画
     <!--LANG:END-->

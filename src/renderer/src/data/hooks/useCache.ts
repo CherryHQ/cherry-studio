@@ -186,8 +186,8 @@ export function useCache<K extends UseCacheKey>(
    */
   const value = useSyncExternalStore(
     useCallback((callback) => cacheService.subscribe(key, callback), [key]),
-    useCallback(() => cacheService.get(key) as InferUseCacheValue<K> | undefined, [key]),
-    useCallback(() => cacheService.get(key) as InferUseCacheValue<K> | undefined, [key]) // SSR snapshot
+    useCallback(() => cacheService.get(key), [key]),
+    useCallback(() => cacheService.get(key), [key]) // SSR snapshot
   )
 
   /**

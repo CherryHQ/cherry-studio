@@ -137,7 +137,7 @@ const AssistantItem: FC<AssistantItemProps> = ({
   const handleSwitch = useCallback(async () => {
     if (clickAssistantToShowTopic) {
       if (topicPosition === 'left') {
-        EventEmitter.emit(EVENT_NAMES.SWITCH_TOPIC_SIDEBAR)
+        void EventEmitter.emit(EVENT_NAMES.SWITCH_TOPIC_SIDEBAR)
       }
     }
     onSwitch(assistant)
@@ -251,7 +251,7 @@ const createTagMenuItems = (
       key: 'manage-tags',
       icon: <Settings2 size={14} />,
       onClick: () => {
-        AssistantTagsPopup.show({ title: t('assistants.tags.manage') })
+        void AssistantTagsPopup.show({ title: t('assistants.tags.manage') })
       }
     })
   }
