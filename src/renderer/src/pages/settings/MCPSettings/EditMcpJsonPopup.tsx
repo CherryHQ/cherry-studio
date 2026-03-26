@@ -72,7 +72,7 @@ const PopupContainer: React.FC<Props> = ({ resolve }) => {
       }
 
       const parsedJson = parseJSON(jsonConfig)
-      if (parseJSON === null) {
+      if (parsedJson === null) {
         throw new Error(t('settings.mcp.addServer.importFrom.invalid'))
       }
 

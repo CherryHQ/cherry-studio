@@ -276,7 +276,7 @@ const AddMcpServerModal: FC<AddMcpServerModalProps> = ({
           trustedAt: installTimestamp
         }
 
-        const createdServer = await onSuccess(serverDto as MCPServer)
+        const createdServer = await onSuccess(serverDto)
         form.resetFields()
         onClose()
 
