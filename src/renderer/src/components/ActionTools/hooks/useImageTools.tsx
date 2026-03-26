@@ -28,17 +28,17 @@ export const useImageTools = (
   const { theme } = useTheme()
 
   // 创建选择器函数
-  const getImgElement = useCallback(() => {
+  const getImgElement = useCallback((): SVGElement | null => {
     if (!containerRef.current) return null
 
     // 优先尝试从 Shadow DOM 中查找
     const shadowRoot = containerRef.current.shadowRoot
     if (shadowRoot) {
-      return shadowRoot.querySelector(imgSelector) as SVGElement | null
+      return shadowRoot.querySelector<SVGElement>(imgSelector)
     }
 
     // 降级到常规 DOM 查找
-    return containerRef.current.querySelector(imgSelector) as SVGElement | null
+    return containerRef.current.querySelector<SVGElement>(imgSelector)
   }, [containerRef, imgSelector])
 
   // 获取原始图像元素（移除所有变换）

@@ -1,5 +1,5 @@
 import { DefaultPreferences } from '@shared/data/preference/preferenceSchemas'
-import type { PreferenceDefaultScopeType, PreferenceKeyType } from '@shared/data/preference/preferenceTypes'
+import type { UnifiedPreferenceKeyType, UnifiedPreferenceType } from '@shared/data/preference/preferenceTypes'
 import { vi } from 'vitest'
 
 /**
@@ -8,11 +8,11 @@ import { vi } from 'vitest'
  */
 
 // Mock preference state storage
-const mockPreferenceState = new Map<PreferenceKeyType, any>()
+const mockPreferenceState = new Map<UnifiedPreferenceKeyType, any>()
 
 // Initialize with defaults
 Object.entries(DefaultPreferences.default).forEach(([key, value]) => {
-  mockPreferenceState.set(key as PreferenceKeyType, value)
+  mockPreferenceState.set(key as UnifiedPreferenceKeyType, value)
 })
 
 // Mock subscription tracking
@@ -55,13 +55,13 @@ export class MockMainPreferenceService {
   })
 
   // Mock get method
-  public get = vi.fn(<K extends PreferenceKeyType>(key: K): PreferenceDefaultScopeType[K] => {
-    return mockPreferenceState.get(key) ?? DefaultPreferences.default[key]
+  public get = vi.fn(<K extends UnifiedPreferenceKeyType>(key: K): UnifiedPreferenceType[K] => {
+    return mockPreferenceState.get(key) as UnifiedPreferenceType[K]
   })
 
   // Mock set method
   public set = vi.fn(
-    async <K extends PreferenceKeyType>(key: K, value: PreferenceDefaultScopeType[K]): Promise<void> => {
+    async <K extends UnifiedPreferenceKeyType>(key: K, value: UnifiedPreferenceType[K]): Promise<void> => {
       const oldValue = mockPreferenceState.get(key)
       mockPreferenceState.set(key, value)
       notifyMainSubscribers(key, value, oldValue)
@@ -69,20 +69,20 @@ export class MockMainPreferenceService {
   )
 
   // Mock getMultiple method
-  public getMultiple = vi.fn(<K extends PreferenceKeyType>(keys: K[]) => {
+  public getMultiple = vi.fn(<K extends UnifiedPreferenceKeyType>(keys: K[]) => {
     const result: any = {}
     keys.forEach((key) => {
-      result[key] = mockPreferenceState.get(key) ?? DefaultPreferences.default[key]
+      result[key] = mockPreferenceState.get(key)
     })
     return result
   })
 
   // Mock setMultiple method
-  public setMultiple = vi.fn(async (updates: Partial<PreferenceDefaultScopeType>): Promise<void> => {
+  public setMultiple = vi.fn(async (updates: Partial<UnifiedPreferenceType>): Promise<void> => {
     Object.entries(updates).forEach(([key, value]) => {
       if (value !== undefined) {
-        const oldValue = mockPreferenceState.get(key as PreferenceKeyType)
-        mockPreferenceState.set(key as PreferenceKeyType, value)
+        const oldValue = mockPreferenceState.get(key as UnifiedPreferenceKeyType)
+        mockPreferenceState.set(key as UnifiedPreferenceKeyType, value)
         notifyMainSubscribers(key, value, oldValue)
       }
     })
@@ -103,9 +103,9 @@ export class MockMainPreferenceService {
 
   // Mock main process subscription methods
   public subscribeChange = vi.fn(
-    <K extends PreferenceKeyType>(
+    <K extends UnifiedPreferenceKeyType>(
       key: K,
-      callback: (newValue: PreferenceDefaultScopeType[K], oldValue?: PreferenceDefaultScopeType[K]) => void
+      callback: (newValue: UnifiedPreferenceType[K], oldValue?: UnifiedPreferenceType[K]) => void
     ): (() => void) => {
       if (!mockMainSubscribers.has(key)) {
         mockMainSubscribers.set(key, new Set())
@@ -127,8 +127,8 @@ export class MockMainPreferenceService {
 
   public subscribeMultipleChanges = vi.fn(
     (
-      keys: PreferenceKeyType[],
-      callback: (key: PreferenceKeyType, newValue: any, oldValue: any) => void
+      keys: UnifiedPreferenceKeyType[],
+      callback: (key: UnifiedPreferenceKeyType, newValue: any, oldValue: any) => void
     ): (() => void) => {
       const unsubscribeFunctions = keys.map((key) =>
         this.subscribeChange(key, (newValue, oldValue) => callback(key, newValue, oldValue))
@@ -141,12 +141,11 @@ export class MockMainPreferenceService {
   )
 
   // Mock utility methods
-  public getAll = vi.fn((): PreferenceDefaultScopeType => {
+  public getAll = vi.fn((): UnifiedPreferenceType => {
     const result: any = {}
-    Object.keys(DefaultPreferences.default).forEach((key) => {
-      result[key] =
-        mockPreferenceState.get(key as PreferenceKeyType) ?? DefaultPreferences.default[key as PreferenceKeyType]
-    })
+    for (const [key, defaultValue] of Object.entries(DefaultPreferences.default)) {
+      result[key] = mockPreferenceState.get(key as UnifiedPreferenceKeyType) ?? defaultValue
+    }
     return result
   })
 
@@ -164,7 +163,7 @@ export class MockMainPreferenceService {
     return total
   })
 
-  public getKeyListenerCount = vi.fn((key: PreferenceKeyType): number => {
+  public getKeyListenerCount = vi.fn((key: UnifiedPreferenceKeyType): number => {
     return mockMainSubscribers.get(key)?.size ?? 0
   })
 
@@ -220,7 +219,7 @@ export const MockMainPreferenceServiceUtils = {
     // Reset state to defaults
     mockPreferenceState.clear()
     Object.entries(DefaultPreferences.default).forEach(([key, value]) => {
-      mockPreferenceState.set(key as PreferenceKeyType, value)
+      mockPreferenceState.set(key as UnifiedPreferenceKeyType, value)
     })
 
     // Clear subscriptions
@@ -231,7 +230,7 @@ export const MockMainPreferenceServiceUtils = {
   /**
    * Set a preference value for testing
    */
-  setPreferenceValue: <K extends PreferenceKeyType>(key: K, value: PreferenceDefaultScopeType[K]) => {
+  setPreferenceValue: <K extends UnifiedPreferenceKeyType>(key: K, value: UnifiedPreferenceType[K]) => {
     const oldValue = mockPreferenceState.get(key)
     mockPreferenceState.set(key, value)
     notifyMainSubscribers(key, value, oldValue)
@@ -240,8 +239,8 @@ export const MockMainPreferenceServiceUtils = {
   /**
    * Get current preference value
    */
-  getPreferenceValue: <K extends PreferenceKeyType>(key: K): PreferenceDefaultScopeType[K] => {
-    return mockPreferenceState.get(key) ?? DefaultPreferences.default[key]
+  getPreferenceValue: <K extends UnifiedPreferenceKeyType>(key: K): UnifiedPreferenceType[K] => {
+    return mockPreferenceState.get(key) as UnifiedPreferenceType[K]
   },
 
   /**
@@ -249,8 +248,8 @@ export const MockMainPreferenceServiceUtils = {
    */
   setMultiplePreferenceValues: (values: Record<string, any>) => {
     Object.entries(values).forEach(([key, value]) => {
-      const oldValue = mockPreferenceState.get(key as PreferenceKeyType)
-      mockPreferenceState.set(key as PreferenceKeyType, value)
+      const oldValue = mockPreferenceState.get(key as UnifiedPreferenceKeyType)
+      mockPreferenceState.set(key as UnifiedPreferenceKeyType, value)
       notifyMainSubscribers(key, value, oldValue)
     })
   },
@@ -276,7 +275,7 @@ export const MockMainPreferenceServiceUtils = {
   /**
    * Simulate external preference change
    */
-  simulateExternalPreferenceChange: <K extends PreferenceKeyType>(key: K, value: PreferenceDefaultScopeType[K]) => {
+  simulateExternalPreferenceChange: <K extends UnifiedPreferenceKeyType>(key: K, value: UnifiedPreferenceType[K]) => {
     const oldValue = mockPreferenceState.get(key)
     mockPreferenceState.set(key, value)
     notifyMainSubscribers(key, value, oldValue)

@@ -55,17 +55,35 @@ export function getContextCount(assistant: Assistant, messages: Message[]) {
   }
 }
 
-export function deleteMessageFiles(message: Message) {
+/** @deprecated Use safeDeleteFiles instead */
+export async function deleteMessageFiles(message: Message) {
   const state = store.getState()
+  const fileDataList: FileMetadata[] = []
+
   message.blocks?.forEach((blockId) => {
     const block = messageBlocksSelectors.selectById(state, blockId)
     if (block && (block.type === MessageBlockType.IMAGE || block.type === MessageBlockType.FILE)) {
       const fileData = (block as any).file as FileMetadata | undefined
       if (fileData) {
-        FileManager.deleteFiles([fileData])
+        fileDataList.push(fileData)
       }
     }
   })
+
+  if (fileDataList.length > 0) {
+    await FileManager.deleteFiles(fileDataList)
+  }
+}
+
+// 删除列表中的文件
+export async function safeDeleteFiles(filesToDelete: FileMetadata[]): Promise<void> {
+  if (!filesToDelete || filesToDelete.length === 0) return
+
+  try {
+    await FileManager.deleteFiles(filesToDelete)
+  } catch (error) {
+    logger.error('Failed to delete files, may produce orphan files:', error as Error)
+  }
 }
 
 export async function locateToMessage(navigate: UseNavigateResult<string>, message: Message) {
@@ -75,7 +93,7 @@ export async function locateToMessage(navigate: UseNavigateResult<string>, messa
   const assistant = getAssistantById(message.assistantId)
   const topic = await getTopicById(message.topicId)
 
-  navigate({ to: '/app/chat', search: { assistantId: assistant?.id, topicId: topic?.id } })
+  void navigate({ to: '/app/chat', search: { assistantId: assistant?.id, topicId: topic?.id } })
 
   setTimeout(() => EventEmitter.emit(EVENT_NAMES.SHOW_TOPIC_SIDEBAR), 0)
   setTimeout(() => EventEmitter.emit(EVENT_NAMES.LOCATE_MESSAGE + ':' + message.id), 300)

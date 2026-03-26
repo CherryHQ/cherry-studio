@@ -14,12 +14,20 @@ import { MockCacheUtils } from '@test-mocks/renderer/CacheService'
 import { MockDataApiUtils } from '@test-mocks/renderer/DataApiService'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-/**
- * Create mock callbacks for testing.
- *
- * NOTE: Updated to use simplified dependencies after StreamingService refactoring.
- * Now we need to initialize StreamingService task before creating callbacks.
- */
+const { mockSavedFile } = vi.hoisted(() => ({
+  mockSavedFile: {
+    id: 'mock-image-id',
+    name: 'mock-image-id.png',
+    origin_name: 'mock-image-id.png',
+    path: '/mock/path/mock-image-id.png',
+    created_at: new Date().toISOString(),
+    size: 100,
+    ext: 'png',
+    type: 'image',
+    count: 1
+  }
+}))
+
 const createMockCallbacks = (
   mockAssistantMsgId: string,
   mockTopicId: string,
@@ -71,7 +79,65 @@ vi.mock('@renderer/config/models', async (importOriginal) => {
   const actual = (await importOriginal()) as Record<string, unknown>
   return {
     ...actual,
-    // Override functions that need mocking for tests
+    qwen3Model: {
+      id: 'qwen',
+      name: 'Qwen',
+      provider: 'cherryai',
+      group: 'Qwen'
+    },
+    SYSTEM_MODELS: {
+      defaultModel: [{}, {}, {}],
+      silicon: [],
+      aihubmix: [],
+      ocoolai: [],
+      deepseek: [],
+      ppio: [],
+      alayanew: [],
+      qiniu: [],
+      dmxapi: [],
+      burncloud: [],
+      tokenflux: [],
+      '302ai': [],
+      cephalon: [],
+      lanyun: [],
+      ph8: [],
+      openrouter: [],
+      ollama: [],
+      'new-api': [],
+      lmstudio: [],
+      anthropic: [],
+      openai: [],
+      'azure-openai': [],
+      gemini: [],
+      vertexai: [],
+      github: [],
+      copilot: [],
+      zhipu: [],
+      yi: [],
+      moonshot: [],
+      baichuan: [],
+      dashscope: [],
+      stepfun: [],
+      doubao: [],
+      infini: [],
+      minimax: [],
+      groq: [],
+      together: [],
+      fireworks: [],
+      nvidia: [],
+      grok: [],
+      hyperbolic: [],
+      mistral: [],
+      jina: [],
+      perplexity: [],
+      modelscope: [],
+      xirang: [],
+      hunyuan: [],
+      'tencent-cloud-ti': [],
+      'baidu-cloud': [],
+      gpustack: [],
+      voyageai: []
+    },
     getModelLogo: vi.fn(),
     isVisionModel: vi.fn(() => false),
     isFunctionCallingModel: vi.fn(() => false),
@@ -124,7 +190,9 @@ vi.mock('@renderer/databases', () => ({
 
 vi.mock('@renderer/services/FileManager', () => ({
   default: {
-    deleteFile: vi.fn()
+    deleteFile: vi.fn(),
+    addFile: vi.fn().mockResolvedValue(mockSavedFile),
+    getFileUrl: vi.fn().mockReturnValue('file:///mock/path/mock-image-id.png')
   }
 }))
 
@@ -245,16 +313,21 @@ vi.mock('i18next', () => {
   }
 })
 
-vi.mock('@renderer/utils/error', () => ({
-  formatErrorMessage: vi.fn((error) => error.message || 'Unknown error'),
-  isAbortError: vi.fn((error) => error.name === 'AbortError'),
-  serializeError: vi.fn((error) => ({
-    name: error.name,
-    message: error.message,
-    stack: error.stack,
-    cause: error.cause ? String(error.cause) : undefined
-  }))
-}))
+vi.mock('@renderer/utils/error', async (importOriginal) => {
+  const actual = (await importOriginal()) as Record<string, unknown>
+  return {
+    ...actual,
+    formatErrorMessage: vi.fn((error) => error.message || 'Unknown error'),
+    formatErrorMessageWithPrefix: vi.fn((error, prefix) => `${prefix}: ${error?.message || 'Unknown error'}`),
+    isAbortError: vi.fn((error) => error.name === 'AbortError'),
+    serializeError: vi.fn((error) => ({
+      name: error.name,
+      message: error.message,
+      stack: error.stack,
+      cause: error.cause ? String(error.cause) : undefined
+    }))
+  }
+})
 
 vi.mock('@renderer/utils', () => ({
   default: {},
@@ -317,7 +390,6 @@ const processChunks = async (chunks: Chunk[], callbacks: ReturnType<typeof creat
 
 describe('streamCallback Integration Tests', () => {
   let store: ReturnType<typeof createMockStore>
-  // dispatch and getState are no longer needed after StreamingService refactoring
 
   const mockTopicId = 'test-topic-id'
   const mockAssistantMsgId = 'test-assistant-msg-id'
@@ -341,6 +413,15 @@ describe('streamCallback Integration Tests', () => {
     MockCacheUtils.resetMocks()
     MockDataApiUtils.resetMocks()
     store = createMockStore()
+
+    Object.defineProperty(window, 'api', {
+      value: {
+        file: {
+          saveBase64Image: vi.fn().mockResolvedValue(mockSavedFile)
+        }
+      },
+      configurable: true
+    })
 
     // Add initial message state for tests
     store.dispatch(
@@ -547,16 +628,15 @@ describe('streamCallback Integration Tests', () => {
 
     // 验证持久化数据
     const persistedData = getPersistedDataForMessage(mockAssistantMsgId) as {
-      data?: { blocks?: Array<{ type: string; url?: string }> }
+      data?: { blocks?: Array<{ type: string; url?: string; file?: any }> }
     }
     expect(persistedData).toBeDefined()
 
     const blocks = persistedData?.data?.blocks || []
     const imageBlock = blocks.find((block) => block.type === 'image')
     expect(imageBlock).toBeDefined()
-    expect(imageBlock?.url).toBe(
-      'data:image/jpeg;base64,/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAAgGBgcGBQgHBwcJCQgKDBQNDAsLDBkSEw8UHRofHh0aHBwgJC4nICIsIxwcKDcpLDAxNDQ0Hyc5PTgyPC4zNDL/2wBDAQkJCQwLDBgNDRgyIRwhMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjL/wAARCAAQABADASIAAhEBAxEB/8QAFwAAAwEAAAAAAAAAAAAAAAAAAQMEB//EACMQAAIBAwMEAwAAAAAAAAAAAAECAwAEEQUSIQYxQVExUYH/xAAVAQEBAAAAAAAAAAAAAAAAAAAAAf/EABQRAQAAAAAAAAAAAAAAAAAAAAD/2gAMAwEAAhEDEQA/AM/8A//Z'
-    )
+    expect(imageBlock?.file).toEqual(mockSavedFile)
+    expect(imageBlock?.url).toBe('file:///mock/path/mock-image-id.png')
   })
 
   it('should handle web search flow', async () => {

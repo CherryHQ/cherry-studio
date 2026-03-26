@@ -64,6 +64,15 @@ describe('ComplexPreferenceMappings', () => {
       expect(Array.isArray(COMPLEX_PREFERENCE_MAPPINGS)).toBe(true)
     })
 
+    it('should include file processing overrides merge mapping', () => {
+      const fileProcessingMapping = COMPLEX_PREFERENCE_MAPPINGS.find((m) => m.id === 'file_processing_overrides_merge')
+
+      expect(fileProcessingMapping).toBeDefined()
+      expect(fileProcessingMapping).toMatchObject({
+        id: 'file_processing_overrides_merge',
+        targetKeys: ['feature.file_processing.overrides']
+      })
+    })
     it('should contain websearch compression flatten mapping', () => {
       const websearchMapping = COMPLEX_PREFERENCE_MAPPINGS.find((m) => m.id === 'websearch_compression_flatten')
       expect(websearchMapping).toBeDefined()
@@ -76,14 +85,26 @@ describe('ComplexPreferenceMappings', () => {
       expect(providersMapping).toBeDefined()
       expect(providersMapping?.targetKeys).toContain('chat.web_search.provider_overrides')
     })
+
+    it('should contain the code_cli_overrides mapping', () => {
+      const codeToolsMapping = COMPLEX_PREFERENCE_MAPPINGS.find((m) => m.id === 'code_cli_overrides')
+      expect(codeToolsMapping).toBeDefined()
+      expect(codeToolsMapping!.targetKeys).toEqual(['feature.code_cli.overrides'])
+    })
   })
 
   describe('getComplexMappingTargetKeys', () => {
+    it('should return target keys from configured mappings', () => {
+      const keys = getComplexMappingTargetKeys()
+      expect(keys).toContain('feature.file_processing.overrides')
+    })
     it('should return target keys from all mappings', () => {
       const keys = getComplexMappingTargetKeys()
       expect(keys).toContain('chat.web_search.compression.method')
       expect(keys).toContain('chat.web_search.provider_overrides')
-      expect(keys.length).toBe(8) // 7 websearch compression keys + 1 overrides key
+      expect(keys).toContain('feature.code_cli.overrides')
+      expect(keys).toContain('feature.file_processing.overrides')
+      expect(keys.length).toBe(10) // 7 websearch compression + 1 provider overrides + 1 code_cli overrides + 1 file processing overrides
     })
 
     it('should flatten target keys from all mappings', () => {
@@ -113,6 +134,11 @@ describe('ComplexPreferenceMappings', () => {
   })
 
   describe('getComplexMappingById', () => {
+    it('should return the configured mapping by id', () => {
+      const mapping = getComplexMappingById('file_processing_overrides_merge')
+      expect(mapping).toBeDefined()
+      expect(mapping?.targetKeys).toEqual(['feature.file_processing.overrides'])
+    })
     it('should return mapping by id', () => {
       const mapping = getComplexMappingById('websearch_compression_flatten')
       expect(mapping).toBeDefined()

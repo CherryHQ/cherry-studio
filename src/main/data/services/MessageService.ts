@@ -8,10 +8,10 @@
  * - Cascade delete and reparenting
  */
 
-import { dbService } from '@data/db/DbService'
 import { messageTable } from '@data/db/schemas/message'
 import { topicTable } from '@data/db/schemas/topic'
 import { loggerService } from '@logger'
+import { application } from '@main/core/application'
 import { DataApiErrorFactory } from '@shared/data/api'
 import type {
   ActiveNodeStrategy,
@@ -111,17 +111,6 @@ function messageToTreeNode(message: Message, hasChildren: boolean): TreeNode {
 }
 
 export class MessageService {
-  private static instance: MessageService
-
-  private constructor() {}
-
-  public static getInstance(): MessageService {
-    if (!MessageService.instance) {
-      MessageService.instance = new MessageService()
-    }
-    return MessageService.instance
-  }
-
   /**
    * Get tree structure for visualization
    *
@@ -134,7 +123,7 @@ export class MessageService {
     topicId: string,
     options: { rootId?: string; nodeId?: string; depth?: number } = {}
   ): Promise<TreeResponse> {
-    const db = dbService.getDb()
+    const db = application.get('DbService').getDb()
     const { depth = 1 } = options
 
     // Get topic to verify existence and get activeNodeId
@@ -342,7 +331,7 @@ export class MessageService {
     topicId: string,
     options: { nodeId?: string; cursor?: string; limit?: number; includeSiblings?: boolean } = {}
   ): Promise<BranchMessagesResponse> {
-    const db = dbService.getDb()
+    const db = application.get('DbService').getDb()
     const { cursor, limit = DEFAULT_LIMIT, includeSiblings = true } = options
 
     // Get topic
@@ -470,7 +459,7 @@ export class MessageService {
    * Get a single message by ID
    */
   async getById(id: string): Promise<Message> {
-    const db = dbService.getDb()
+    const db = application.get('DbService').getDb()
 
     const [row] = await db.select().from(messageTable).where(eq(messageTable.id, id)).limit(1)
 
@@ -491,7 +480,7 @@ export class MessageService {
    * - Topic activeNodeId update
    */
   async create(topicId: string, dto: CreateMessageDto): Promise<Message> {
-    const db = dbService.getDb()
+    const db = application.get('DbService').getDb()
 
     return await db.transaction(async (tx) => {
       // Step 1: Verify topic exists and fetch its current state.
@@ -609,7 +598,7 @@ export class MessageService {
    * Cycle check is performed outside transaction as a read-only safety check.
    */
   async update(id: string, dto: UpdateMessageDto): Promise<Message> {
-    const db = dbService.getDb()
+    const db = application.get('DbService').getDb()
 
     // Pre-transaction: Check for cycle if moving to new parent
     // This is done outside transaction since getDescendantIds uses its own db context
@@ -684,7 +673,7 @@ export class MessageService {
     cascade: boolean = false,
     activeNodeStrategy: ActiveNodeStrategy = 'parent'
   ): Promise<DeleteMessageResponse> {
-    const db = dbService.getDb()
+    const db = application.get('DbService').getDb()
 
     // Get the message
     const message = await this.getById(id)
@@ -779,7 +768,7 @@ export class MessageService {
    * Get all descendant IDs of a message
    */
   private async getDescendantIds(id: string): Promise<string[]> {
-    const db = dbService.getDb()
+    const db = application.get('DbService').getDb()
 
     // Use recursive query to get all descendants
     const result = await db.all<{ id: string }>(sql`
@@ -802,7 +791,7 @@ export class MessageService {
    * avoiding N+1 query problem for deep message trees.
    */
   async getPathToNode(nodeId: string): Promise<Message[]> {
-    const db = dbService.getDb()
+    const db = application.get('DbService').getDb()
 
     // Use recursive CTE to get all ancestors in one query
     const result = await db.all<typeof messageTable.$inferSelect>(sql`
@@ -824,4 +813,4 @@ export class MessageService {
   }
 }
 
-export const messageService = MessageService.getInstance()
+export const messageService = new MessageService()

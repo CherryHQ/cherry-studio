@@ -79,7 +79,7 @@ export const PlusButtonPlugin = ({
       getBoundingClientRect: () => dom.getBoundingClientRect()
     }
 
-    computePosition(virtualElement, element, computePositionConfig).then((val) => {
+    void computePosition(virtualElement, element, computePositionConfig).then((val) => {
       Object.assign(element.style, {
         position: val.strategy,
         left: `${val.x}px`,

@@ -35,7 +35,7 @@ const AnthropicSettings = () => {
       }
     }
 
-    checkAuthStatus()
+    void checkAuthStatus()
   }, [])
 
   // 处理OAuth重定向
@@ -72,7 +72,7 @@ const AnthropicSettings = () => {
 
   // 处理取消认证
   const handleCancelAuth = () => {
-    window.api.anthropic_oauth.cancelOAuthFlow()
+    void window.api.anthropic_oauth.cancelOAuthFlow()
     setAuthStatus(AuthStatus.NOT_STARTED)
     setCodeModalVisible(false)
     setAuthCode('')

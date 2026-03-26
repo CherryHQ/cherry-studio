@@ -2,9 +2,9 @@ import crypto from 'node:crypto'
 import os from 'node:os'
 import path from 'node:path'
 
-import { cacheService } from '@data/CacheService'
+import { mcpServerService } from '@data/services/McpServerService'
 import { loggerService } from '@logger'
-import { getMCPServersFromRedux } from '@main/apiServer/utils/mcp'
+import { application } from '@main/core/application'
 import { createInMemoryMCPServer } from '@main/mcpServers/factory'
 import { makeSureDirExists, removeEnvProxy } from '@main/utils'
 import { findCommandInShellEnv, getBinaryName, getBinaryPath, isBinaryExists } from '@main/utils/process'
@@ -123,6 +123,7 @@ function withCache<T extends unknown[], R>(
 ): CachedFunction<T, R> {
   return async (...args: T): Promise<R> => {
     const cacheKey = getCacheKey(...args)
+    const cacheService = application.get('CacheService')
 
     if (cacheService.has(cacheKey)) {
       logger.debug(`${logPrefix} loaded from cache`, { cacheKey })
@@ -147,32 +148,14 @@ class McpService {
   private activeToolCalls: Map<string, AbortController> = new Map()
   private serverLogs = new ServerLogBuffer(200)
 
-  constructor() {
-    this.initClient = this.initClient.bind(this)
-    this.listTools = this.listTools.bind(this)
-    this.callTool = this.callTool.bind(this)
-    this.listPrompts = this.listPrompts.bind(this)
-    this.getPrompt = this.getPrompt.bind(this)
-    this.listResources = this.listResources.bind(this)
-    this.getResource = this.getResource.bind(this)
-    this.closeClient = this.closeClient.bind(this)
-    this.removeServer = this.removeServer.bind(this)
-    this.restartServer = this.restartServer.bind(this)
-    this.stopServer = this.stopServer.bind(this)
-    this.abortTool = this.abortTool.bind(this)
-    this.cleanup = this.cleanup.bind(this)
-    this.checkMcpConnectivity = this.checkMcpConnectivity.bind(this)
-    this.getServerVersion = this.getServerVersion.bind(this)
-    this.getServerLogs = this.getServerLogs.bind(this)
-  }
+  constructor() {}
 
   /**
    * List all tools from all active MCP servers (excluding hub).
    * Used by Hub server's tool registry.
    */
   public async listAllActiveServerTools(): Promise<MCPTool[]> {
-    const servers = await getMCPServersFromRedux()
-    const activeServers = servers.filter((server) => server.isActive)
+    const { items: activeServers } = await mcpServerService.list({ isActive: true })
 
     const results = await Promise.allSettled(
       activeServers.map(async (server) => {
@@ -210,16 +193,11 @@ class McpService {
     const serverId = parts[0]
     const toolName = parts.slice(1).join('__')
 
-    const servers = await getMCPServersFromRedux()
-    const server = servers.find((s) => s.id === serverId)
-
-    if (!server) {
-      throw new Error(`Server not found: ${serverId}`)
-    }
+    const server = await mcpServerService.getById(serverId)
 
     logger.debug(`[callToolById] Calling tool ${toolName} on server ${server.name}`)
 
-    return this.callTool(null as unknown as Electron.IpcMainInvokeEvent, {
+    return this.callTool({
       server,
       name: toolName,
       args: params,
@@ -247,7 +225,7 @@ class McpService {
     }
   }
 
-  public getServerLogs(_: Electron.IpcMainInvokeEvent, server: MCPServer): MCPServerLogEntry[] {
+  public getServerLogs(server: MCPServer): MCPServerLogEntry[] {
     return this.serverLogs.get(this.getServerKey(server))
   }
 
@@ -360,7 +338,7 @@ class McpService {
               getServerLogger(server).debug(`StreamableHTTPClientTransport options`, {
                 options: redactSensitive(options)
               })
-              return new StreamableHTTPClientTransport(new URL(server.baseUrl!), options)
+              return new StreamableHTTPClientTransport(new URL(server.baseUrl), options)
             } else if (server.type === 'sse') {
               const options: SSEClientTransportOptions = {
                 eventSourceInit: {
@@ -373,7 +351,7 @@ class McpService {
                 },
                 authProvider
               }
-              return new SSEClientTransport(new URL(server.baseUrl!), options)
+              return new SSEClientTransport(new URL(server.baseUrl), options)
             } else {
               throw new Error('Invalid server type')
             }
@@ -555,7 +533,7 @@ class McpService {
           // Set a timeout to close the callback server
           const timeoutId = setTimeout(() => {
             getServerLogger(server).warn(`OAuth flow timed out`)
-            callbackServer.close()
+            void callbackServer.close()
           }, 300000) // 5 minutes timeout
 
           try {
@@ -581,7 +559,7 @@ class McpService {
           } finally {
             // Clear the timeout and close the callback server
             clearTimeout(timeoutId)
-            callbackServer.close()
+            void callbackServer.close()
           }
         }
 
@@ -653,6 +631,7 @@ class McpService {
    */
   private setupNotificationHandlers(client: Client, server: MCPServer) {
     const serverKey = this.getServerKey(server)
+    const cacheService = application.get('CacheService')
 
     try {
       // Set up tools list changed notification handler
@@ -715,13 +694,14 @@ class McpService {
    * Clear resource-specific caches for a server
    */
   private clearResourceCaches(serverKey: string) {
-    cacheService.delete(`mcp:list_resources:${serverKey}`)
+    application.get('CacheService').delete(`mcp:list_resources:${serverKey}`)
   }
 
   /**
    * Clear all caches for a specific server
    */
   private clearServerCache(serverKey: string) {
+    const cacheService = application.get('CacheService')
     cacheService.delete(`mcp:list_tool:${serverKey}`)
     cacheService.delete(`mcp:list_prompts:${serverKey}`)
     cacheService.delete(`mcp:list_resources:${serverKey}`)
@@ -743,7 +723,7 @@ class McpService {
     }
   }
 
-  async stopServer(_: Electron.IpcMainInvokeEvent, server: MCPServer) {
+  async stopServer(server: MCPServer) {
     const serverKey = this.getServerKey(server)
     getServerLogger(server).debug(`Stopping server`)
     this.emitServerLog(server, {
@@ -755,7 +735,7 @@ class McpService {
     await this.closeClient(serverKey)
   }
 
-  async removeServer(_: Electron.IpcMainInvokeEvent, server: MCPServer) {
+  async removeServer(server: MCPServer) {
     const serverKey = this.getServerKey(server)
     const existingClient = this.clients.get(serverKey)
     if (existingClient) {
@@ -775,7 +755,7 @@ class McpService {
     }
   }
 
-  async restartServer(_: Electron.IpcMainInvokeEvent, server: MCPServer) {
+  async restartServer(server: MCPServer) {
     getServerLogger(server).debug(`Restarting server`)
     const serverKey = this.getServerKey(server)
     this.emitServerLog(server, {
@@ -803,7 +783,7 @@ class McpService {
   /**
    * Check connectivity for an MCP server
    */
-  public async checkMcpConnectivity(_: Electron.IpcMainInvokeEvent, server: MCPServer): Promise<boolean> {
+  public async checkMcpConnectivity(server: MCPServer): Promise<boolean> {
     getServerLogger(server).debug(`Checking connectivity`)
     try {
       getServerLogger(server).debug(`About to call initClient`, { hasInitClient: !!this.initClient })
@@ -864,7 +844,7 @@ class McpService {
     }
   }
 
-  async listTools(_: Electron.IpcMainInvokeEvent, server: MCPServer) {
+  async listTools(server: MCPServer) {
     const listFunc = (server: MCPServer) => {
       const cachedListTools = withCache<[MCPServer], MCPTool[]>(
         this.listToolsImpl.bind(this),
@@ -886,10 +866,7 @@ class McpService {
   /**
    * Call a tool on an MCP server
    */
-  public async callTool(
-    _: Electron.IpcMainInvokeEvent,
-    { server, name, args, callId }: CallToolArgs
-  ): Promise<MCPCallToolResponse> {
+  public async callTool({ server, name, args, callId }: CallToolArgs): Promise<MCPCallToolResponse> {
     const toolCallId = callId || uuidv4()
     const abortController = new AbortController()
     this.activeToolCalls.set(toolCallId, abortController)
@@ -979,7 +956,7 @@ class McpService {
   /**
    * List prompts available on an MCP server with caching
    */
-  public async listPrompts(_: Electron.IpcMainInvokeEvent, server: MCPServer): Promise<MCPPrompt[]> {
+  public async listPrompts(server: MCPServer): Promise<MCPPrompt[]> {
     const cachedListPrompts = withCache<[MCPServer], MCPPrompt[]>(
       this.listPromptsImpl.bind(this),
       (server) => {
@@ -1005,10 +982,15 @@ class McpService {
    * Get a specific prompt from an MCP server with caching
    */
   @TraceMethod({ spanName: 'getPrompt', tag: 'mcp' })
-  public async getPrompt(
-    _: Electron.IpcMainInvokeEvent,
-    { server, name, args }: { server: MCPServer; name: string; args?: Record<string, any> }
-  ): Promise<GetPromptResult> {
+  public async getPrompt({
+    server,
+    name,
+    args
+  }: {
+    server: MCPServer
+    name: string
+    args?: Record<string, any>
+  }): Promise<GetPromptResult> {
     const cachedGetPrompt = withCache<[MCPServer, string, Record<string, any> | undefined], GetPromptResult>(
       this.getPromptImpl.bind(this),
       (server, name, args) => {
@@ -1048,7 +1030,7 @@ class McpService {
   /**
    * List resources available on an MCP server with caching
    */
-  public async listResources(_: Electron.IpcMainInvokeEvent, server: MCPServer): Promise<MCPResource[]> {
+  public async listResources(server: MCPServer): Promise<MCPResource[]> {
     const cachedListResources = withCache<[MCPServer], MCPResource[]>(
       this.listResourcesImpl.bind(this),
       (server) => {
@@ -1092,10 +1074,7 @@ class McpService {
    * Get a specific resource from an MCP server with caching
    */
   @TraceMethod({ spanName: 'getResource', tag: 'mcp' })
-  public async getResource(
-    _: Electron.IpcMainInvokeEvent,
-    { server, uri }: { server: MCPServer; uri: string }
-  ): Promise<GetResourceResponse> {
+  public async getResource({ server, uri }: { server: MCPServer; uri: string }): Promise<GetResourceResponse> {
     const cachedGetResource = withCache<[MCPServer, string], GetResourceResponse>(
       this.getResourceImpl.bind(this),
       (server, uri) => {
@@ -1109,7 +1088,7 @@ class McpService {
   }
 
   // 实现 abortTool 方法
-  public async abortTool(_: Electron.IpcMainInvokeEvent, callId: string) {
+  public async abortTool(callId: string) {
     const activeToolCall = this.activeToolCalls.get(callId)
     if (activeToolCall) {
       activeToolCall.abort()
@@ -1125,7 +1104,7 @@ class McpService {
   /**
    * Get the server version information
    */
-  public async getServerVersion(_: Electron.IpcMainInvokeEvent, server: MCPServer): Promise<string | null> {
+  public async getServerVersion(server: MCPServer): Promise<string | null> {
     try {
       getServerLogger(server).debug(`Getting server version`)
       const client = await this.initClient(server)
@@ -1148,4 +1127,4 @@ class McpService {
   }
 }
 
-export default new McpService()
+export const mcpService = new McpService()

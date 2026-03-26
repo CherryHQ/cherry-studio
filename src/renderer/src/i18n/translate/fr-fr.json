@@ -38,6 +38,10 @@
     "edit": {
       "title": "Éditer Agent"
     },
+    "empty": {
+      "description": "Créez un agent pour gérer des tâches complexes avec des outils alimentés par l'IA",
+      "title": "Pas encore d'agents"
+    },
     "get": {
       "error": {
         "failed": "Échec de l'obtention de l'agent.",
@@ -77,6 +81,11 @@
     "list": {
       "error": {
         "failed": "Échec de la liste des agents."
+      }
+    },
+    "reorder": {
+      "error": {
+        "failed": "Échec du réordonnancement des agents"
       }
     },
     "server": {
@@ -129,6 +138,11 @@
       },
       "label_one": "Session",
       "label_other": "Séances",
+      "reorder": {
+        "error": {
+          "failed": "Échec du réordonnancement des sessions"
+        }
+      },
       "update": {
         "error": {
           "failed": "Échec de la mise à jour de la session"
@@ -295,6 +309,7 @@
         }
       }
     },
+    "sidebar_title": "Agents",
     "todo": {
       "panel": {
         "title": "{{completed}}/{{total}} tâches terminées"
@@ -374,6 +389,9 @@
         "TodoWrite": {
           "description": "Crée et gère des listes de tâches structurées"
         },
+        "ToolSearch": {
+          "description": "Découvre des outils différés dans de grandes bibliothèques"
+        },
         "WebFetch": {
           "description": "Récupère le contenu à partir d'une URL spécifiée"
         },
@@ -395,7 +413,11 @@
       }
     },
     "warning": {
-      "enable_server": "Permettre au serveur API d'utiliser des agents."
+      "enable_and_start": "Activer & Démarrer",
+      "enable_server": "Permettre au serveur API d'utiliser des agents.",
+      "enable_server_description": "Le serveur API doit être activé pour que les agents fonctionnent. Vous pouvez l'activer directement ou le configurer dans les paramètres.",
+      "server_not_running": "Le serveur API est activé mais ne fonctionne pas. Veuillez vérifier la configuration du serveur.",
+      "server_not_running_description": "Le serveur API doit être en cours d'exécution pour que les agents fonctionnent. Vous pouvez le démarrer directement ou vérifier les paramètres."
     }
   },
   "apiServer": {
@@ -621,6 +643,10 @@
           "tip": "L'agent utilisera la capacité du grand modèle à reconnaître les intentions afin de déterminer si la base de connaissances doit être utilisée pour répondre. Cette fonctionnalité dépend des capacités du modèle"
         }
       },
+      "max_tool_calls": {
+        "label": "Maximiser les appels d'outils",
+        "tip": "Nombre maximum d'appels d'outils autorisés dans une seule conversation. Des valeurs plus élevées permettent des opérations multi-étapes plus complexes, mais peuvent augmenter l'utilisation de tokens et le temps de réponse."
+      },
       "mcp": {
         "description": "Serveur MCP activé par défaut",
         "enableFirst": "Veuillez d'abord activer ce serveur dans les paramètres MCP",
@@ -712,6 +738,7 @@
     "progress": {
       "completed": "Sauvegarde terminée",
       "compressing": "Compression des fichiers...",
+      "copying_database": "Copie de la base de données...",
       "copying_files": "Copie des fichiers... {{progress}}%",
       "preparing": "Préparation de la sauvegarde...",
       "preparing_compression": "Préparation de la compression...",
@@ -749,6 +776,7 @@
       }
     },
     "alerts": {
+      "create_agent": "Créer un agent pour commencer",
       "create_session": "Créer une session",
       "select_agent": "Sélectionnez un agent"
     },
@@ -864,7 +892,11 @@
         "collapse": "Réduire",
         "collapse_in": "Ajouter à la réduction",
         "collapse_out": "Retirer de la réduction",
-        "expand": "Développer"
+        "expand": "Développer",
+        "file_not_found": "Fichier introuvable : {{path}}",
+        "open_file": "Ouvrir le fichier",
+        "open_file_error": "Échec de l'ouverture du fichier : {{path}}",
+        "reveal_in_finder": "Afficher dans le Finder"
       },
       "topics": "Sujets",
       "translate": "Traduire en {{target_language}}",
@@ -1163,6 +1195,8 @@
             "content": "Êtes-vous sûr de vouloir supprimer {{count}} sujet(s) sélectionné(s) ? Cette action est irréversible.",
             "title": "Supprimer des sujets"
           },
+          "error": "Échec de la suppression. Veuillez réessayer.",
+          "partial_success": "Suppression réussie de {{successCount}} sujets, {{failedCount}} ont échoué",
           "success": "Supprimé {{count}} sujet(s)"
         },
         "deselect_all": "Tout désélectionner",
@@ -1358,6 +1392,7 @@
     "off": "Désactivé",
     "on": "Marche",
     "open": "Ouvrir",
+    "open_in": "Ouvrir dans {{name}}",
     "paste": "Coller",
     "placeholders": {
       "select": {
@@ -1385,6 +1420,7 @@
     "selected": "Sélectionné",
     "selectedItems": "{{count}} éléments sélectionnés",
     "selectedMessages": "{{count}} messages sélectionnés",
+    "sessions": "Sessions",
     "settings": "Paramètres",
     "sort": {
       "pinyin": {
@@ -1494,7 +1530,6 @@
     "originalError": "Erreur d'origine",
     "originalMessage": "message original",
     "parameter": "paramètre",
-    "pause_placeholder": "Прервано",
     "prompt": "mot-clé",
     "provider": "fournisseur",
     "providerId": "ID du fournisseur",
@@ -1508,6 +1543,7 @@
     "requestBody": "Contenu de la demande",
     "requestBodyValues": "Corps de la requête",
     "requestUrl": "Chemin de la requête",
+    "request_timeout": "Délai d'attente de la requête dépassé",
     "response": "réponse",
     "responseBody": "Contenu de la réponse",
     "responseHeaders": "En-têtes de réponse",
@@ -1517,6 +1553,7 @@
     "status": "Code d'état",
     "statusCode": "Code d'état",
     "statusText": "Texte d'état",
+    "stream_paused": "Interrompu",
     "text": "texte",
     "toolInput": "entrée de l'outil",
     "toolName": "Nom de l'outil",
@@ -1995,6 +2032,10 @@
         "export": "Échec de l'exportation Excel"
       },
       "fetchTopicName": "Échec de la nomination du sujet",
+      "file": {
+        "process_failed": "Le fichier {{name}} n'a pas pu être traité",
+        "text_extraction_failed": "Impossible d'extraire le texte de {{name}}"
+      },
       "get_embedding_dimensions": "Impossible d'obtenir les dimensions d'encodage",
       "invalid": {
         "api": {
@@ -2238,6 +2279,11 @@
       }
     },
     "warning": {
+      "file": {
+        "pdf_exceeds_limit": "Le fichier PDF {{name}} dépasse la limite de taille ({{limit}}), passage à l'extraction de texte",
+        "pdf_text_extraction_failed": "Échec de l'extraction du texte du PDF {{name}}",
+        "pdf_upload_failed": "Échec du téléversement du PDF {{name}}, passage à l'extraction de texte"
+      },
       "rate": {
         "limit": "Vous envoyez trop souvent, veuillez attendre {{seconds}} secondes avant de réessayer"
       }
@@ -2290,8 +2336,11 @@
     "chatglm": "ChatGLM",
     "dangbei": "Dangbei",
     "doubao": "Doubao",
-    "hailuo": "MINIMAX",
+    "hailuo": "Hailuo",
+    "ima": "ima",
     "metaso": "Metaso",
+    "minimax-agent": "MiniMax Agent CN",
+    "minimax-global": "MiniMax Agent",
     "nami-ai": "Nami AI",
     "nami-ai-search": "Nami AI Search",
     "qwen": "Qwen",
@@ -2569,6 +2618,27 @@
     },
     "title": "Ollama"
   },
+  "onboarding": {
+    "select_model": {
+      "change_later": "Vous pouvez modifier cela à tout moment dans les paramètres",
+      "start": "Commencer",
+      "subtitle": "Sélectionner le modèle par défaut pour chaque scénario",
+      "title": "Choisissez vos modèles par défaut"
+    },
+    "skip": "Passer",
+    "toast": {
+      "connected": "Connecté avec succès à CherryIN"
+    },
+    "welcome": {
+      "login_cherryin": "Se connecter avec CherryIN",
+      "or_continue_with": "OU CONTINUER AVEC",
+      "other_provider": "Choisir d'autres fournisseurs",
+      "select_other_provider": "Sélectionner un autre fournisseur",
+      "setup_hint": "Veuillez configurer au moins un fournisseur pour une meilleure expérience",
+      "subtitle": "Profitez de services d'IA de premier ordre avec CherryIN",
+      "title": "Bienvenue à Cherry Studio"
+    }
+  },
   "openclaw": {
     "checking_installation": "Vérification de l'installation d'OpenClaw...",
     "description": "Intégrer les fournisseurs Cherry Studio avec la passerelle OpenClaw pour permettre aux agents de codage IA comme Claude Code, Qwen-Coder, et bien d'autres.",
@@ -2591,6 +2661,11 @@
     },
     "install_progress": "Progression de l'installation",
     "installed_at": "OpenClaw installé à",
+    "migration": {
+      "description": "Une version obsolète d’OpenClaw installée via npm a été détectée. Veuillez réinstaller pour obtenir la dernière version officielle.",
+      "install_button": "Réinstaller OpenClaw",
+      "title": "OpenClaw nécessite une mise à jour"
+    },
     "model_config": {
       "auth_token": "Jeton d'authentification",
       "auth_token_hint": "Jeton d'authentification de la passerelle. Laissez vide pour désactiver l'authentification.",
@@ -2626,6 +2701,7 @@
       "windows_title": "Windows"
     },
     "quick_actions": {
+      "check_update": "Vérifier les mises à jour",
       "open_dashboard": "Ouvrir le tableau de bord",
       "title": "Actions rapides",
       "uninstall": "Désinstaller",
@@ -2652,6 +2728,16 @@
     "uninstalling": {
       "description": "Veuillez patienter pendant la désinstallation d'OpenClaw...",
       "title": "Désinstallation d'OpenClaw"
+    },
+    "update": {
+      "available": "Nouvelle version disponible : v{{latest}} (actuelle : v{{current}})",
+      "checking": "Vérification des mises à jour...",
+      "confirm_button": "Mettre à jour maintenant",
+      "failed": "Échec de la vérification des mises à jour",
+      "modal_title": "Mise à jour d'OpenClaw",
+      "success": "Mise à jour terminée avec succès !",
+      "up_to_date": "Déjà à jour (v{{current}})",
+      "updating": "Mise à jour..."
     }
   },
   "ovms": {
@@ -3052,7 +3138,8 @@
     "lmstudio": "Studio LM",
     "longcat": "Mon voisin Totoro",
     "mimo": "Xiaomi MiMo",
-    "minimax": "MiniMax",
+    "minimax": "MiniMax CN",
+    "minimax-global": "MiniMax",
     "mistral": "Mistral",
     "modelscope": "ModelScope MoDa",
     "moonshot": "Face Sombre de la Lune",
@@ -3080,6 +3167,7 @@
     "voyageai": "Voyage AI",
     "xirang": "CTyun XiRang",
     "yi": "ZéroUnInfini",
+    "zai": "Z.ai",
     "zhinao": "360 ZhiNao",
     "zhipu": "BigModel"
   },
@@ -3096,7 +3184,10 @@
       "extracting": "Décompression de la sauvegarde...",
       "preparing": "Préparation de la restauration...",
       "reading_data": "Lecture des données...",
-      "title": "Progression de la restauration"
+      "restoring_data": "Restauration des fichiers...",
+      "restoring_database": "Restauration de la base de données...",
+      "title": "Progression de la restauration",
+      "validating": "Validation de la sauvegarde..."
     },
     "title": "Restauration des données"
   },
@@ -3649,7 +3740,15 @@
           "button": "Sélectionner le fichier de sauvegarde"
         },
         "content": "Exporter une partie des données, incluant les historiques de discussion et les paramètres. Veuillez noter que le processus de sauvegarde peut prendre un certain temps ; merci pour votre patience.",
+        "file": {
+          "button": "Exporter vers un fichier",
+          "content": "Exporter les données sous forme de fichier de sauvegarde qui peut être importé sur mobile via un fichier.",
+          "export_failed": "L'exportation a échoué",
+          "export_success": "Exportation réussie",
+          "title": "Exporter en tant que fichier"
+        },
         "lan": {
+          "button": "Démarrer le transfert",
           "connected": "Connecté",
           "connection_failed": "Échec de la connexion",
           "content": "Assurez-vous que l'ordinateur et le téléphone sont connectés au même réseau pour utiliser le transfert en réseau local. Ouvrez l'application Cherry Studio et scannez ce code QR.",
@@ -4748,6 +4847,7 @@
           "label": "Ajouter le modèle dans la liste"
         },
         "add_whole_group": "Ajouter tout le groupe",
+        "fetch_list": "Récupérer la liste des modèles",
         "refetch_list": "Récupérer à nouveau la liste des modèles",
         "remove_listed": "Supprimer un modèle de la liste",
         "remove_model": "Supprimer le modèle",

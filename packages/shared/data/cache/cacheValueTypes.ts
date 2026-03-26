@@ -1,5 +1,7 @@
-import type { MinAppType, Topic, WebSearchStatus } from '@types'
+import type { MinAppType, Topic } from '@types'
 import type { UpdateInfo } from 'builder-util-runtime'
+
+import type { WebSearchStatus } from '../types/webSearch'
 
 export type CacheAppUpdateState = {
   info: UpdateInfo | null
@@ -9,6 +11,8 @@ export type CacheAppUpdateState = {
   downloadProgress: number
   available: boolean
   ignore: boolean
+  //   /** Whether the update check was manually triggered by user clicking the button */
+  manualCheck: boolean
 }
 
 export type CacheActiveSearches = Record<string, WebSearchStatus>
@@ -52,3 +56,13 @@ export interface TabsState {
   tabs: Tab[]
   activeTabId: string
 }
+
+export type TranslatingState =
+  | {
+      isTranslating: true
+      abortKey: string
+    }
+  | {
+      isTranslating: false
+      abortKey: null
+    }

@@ -46,9 +46,8 @@ const MessageHeader: FC<Props> = memo(({ assistant, model, message, topic, isGro
   const [userName] = usePreference('app.user.name')
   const showMinappIcon = useSidebarIconShow('minapp')
   const [activeAgentId] = useCache('agent.active_id')
-  const [activeTopicOrSession] = useCache('chat.active_view')
   const { agent } = useAgent(activeAgentId)
-  const isAgentView = activeTopicOrSession === 'session'
+  const isAgentView = window.location.pathname.startsWith('/agents')
   const { t } = useTranslation()
   const { isBubbleStyle } = useMessageStyle()
   const { openMinappById } = useMinappPopup()

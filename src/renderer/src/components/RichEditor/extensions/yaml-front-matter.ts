@@ -51,7 +51,7 @@ export const YamlFrontMatter = Node.create({
         getAttrs: (element) => {
           if (typeof element === 'string') return false
 
-          const htmlElement = element as HTMLElement
+          const htmlElement = element
           const dataContent = htmlElement.getAttribute('data-content')
           const textContent = htmlElement.textContent || ''
 

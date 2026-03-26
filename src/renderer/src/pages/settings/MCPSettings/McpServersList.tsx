@@ -1,14 +1,11 @@
 import { Sortable, useDndReorder } from '@cherrystudio/ui'
-import { loggerService } from '@logger'
-import { nanoid } from '@reduxjs/toolkit'
 import CollapsibleSearchBar from '@renderer/components/CollapsibleSearchBar'
 import { EditIcon } from '@renderer/components/Icons'
 import Scrollbar from '@renderer/components/Scrollbar'
 import { useMCPServers } from '@renderer/hooks/useMCPServers'
-import { useMCPServerTrust } from '@renderer/hooks/useMCPServerTrust'
-import type { MCPServer } from '@renderer/types'
-import { formatMcpError } from '@renderer/utils/error'
 import { matchKeywordsInString } from '@renderer/utils/match'
+import type { CreateMCPServerDto } from '@shared/data/api/schemas/mcpServers'
+import type { MCPServer } from '@shared/data/types/mcpServer'
 import { useNavigate } from '@tanstack/react-router'
 import { Button, Dropdown, Empty } from 'antd'
 import { Plus } from 'lucide-react'
@@ -23,17 +20,12 @@ import EditMcpJsonPopup from './EditMcpJsonPopup'
 import InstallNpxUv from './InstallNpxUv'
 import McpServerCard from './McpServerCard'
 
-const logger = loggerService.withContext('McpServersList')
-
 const McpServersList: FC = () => {
-  const { mcpServers, addMCPServer, deleteMCPServer, updateMcpServers, updateMCPServer } = useMCPServers()
-  const { ensureServerTrusted } = useMCPServerTrust()
+  const { mcpServers, addMCPServer, reorderMCPServers } = useMCPServers()
   const { t } = useTranslation()
   const navigate = useNavigate()
   const [isAddModalVisible, setIsAddModalVisible] = useState(false)
   const [modalType, setModalType] = useState<'json' | 'dxt'>('json')
-  const [loadingServerIds, setLoadingServerIds] = useState<Set<string>>(new Set())
-  const [serverVersions, setServerVersions] = useState<Record<string, string | null>>({})
 
   const [searchText, _setSearchText] = useState('')
 
@@ -57,7 +49,7 @@ const McpServersList: FC = () => {
   const { onSortEnd } = useDndReorder({
     originalList: mcpServers,
     filteredList: filteredMcpServers,
-    onUpdate: updateMcpServers,
+    onUpdate: reorderMCPServers,
     itemKey: 'id'
   })
 
@@ -83,29 +75,8 @@ const McpServersList: FC = () => {
     return () => container?.removeEventListener('scroll', handleScroll)
   }, [])
 
-  const fetchServerVersion = useCallback(async (server: MCPServer) => {
-    if (!server.isActive) return
-
-    try {
-      const version = await window.api.mcp.getServerVersion(server)
-      setServerVersions((prev) => ({ ...prev, [server.id]: version }))
-    } catch (error) {
-      setServerVersions((prev) => ({ ...prev, [server.id]: null }))
-    }
-  }, [])
-
-  // Fetch versions for all active servers
-  useEffect(() => {
-    mcpServers.forEach((server) => {
-      if (server.isActive) {
-        fetchServerVersion(server)
-      }
-    })
-  }, [mcpServers, fetchServerVersion])
-
   const onAddMcpServer = useCallback(async () => {
-    const newServer = {
-      id: nanoid(),
+    const newServer = await addMCPServer({
       name: t('settings.mcp.newServer'),
       description: '',
       baseUrl: '',
@@ -113,80 +84,20 @@ const McpServersList: FC = () => {
       args: [],
       env: {},
       isActive: false
-    }
-    addMCPServer(newServer)
-    navigate({ to: `/settings/mcp/settings/${encodeURIComponent(newServer.id)}` })
+    })
+    void navigate({ to: `/settings/mcp/settings/${newServer.id}` })
     window.toast.success(t('settings.mcp.addSuccess'))
   }, [addMCPServer, navigate, t])
 
-  const onDeleteMcpServer = useCallback(
-    async (server: MCPServer) => {
-      try {
-        window.modal.confirm({
-          title: t('settings.mcp.deleteServer'),
-          content: t('settings.mcp.deleteServerConfirm'),
-          centered: true,
-          onOk: async () => {
-            await window.api.mcp.removeServer(server)
-            deleteMCPServer(server.id)
-            window.toast.success(t('settings.mcp.deleteSuccess'))
-          }
-        })
-      } catch (error: any) {
-        window.toast.error(`${t('settings.mcp.deleteError')}: ${error.message}`)
-      }
-    },
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [t]
-  )
-
   const handleAddServerSuccess = useCallback(
-    async (server: MCPServer) => {
-      addMCPServer(server)
+    async (dto: CreateMCPServerDto): Promise<MCPServer> => {
+      const created = await addMCPServer(dto)
       setIsAddModalVisible(false)
       window.toast.success(t('settings.mcp.addSuccess'))
-      // Optionally navigate to the new server's settings page
-      // navigate(`/settings/mcp/settings/${encodeURIComponent(server.id)}`)
+      return created
     },
     [addMCPServer, t]
   )
-
-  const handleToggleActive = async (server: MCPServer, active: boolean) => {
-    let serverForUpdate = server
-    if (active) {
-      const trustedServer = await ensureServerTrusted(server)
-      if (!trustedServer) {
-        return
-      }
-      serverForUpdate = trustedServer
-    }
-
-    setLoadingServerIds((prev) => new Set(prev).add(serverForUpdate.id))
-    const oldActiveState = serverForUpdate.isActive
-    logger.silly('toggle activate', { serverId: serverForUpdate.id, active })
-    try {
-      if (active) {
-        await fetchServerVersion({ ...serverForUpdate, isActive: active })
-      } else {
-        await window.api.mcp.stopServer(serverForUpdate)
-        setServerVersions((prev) => ({ ...prev, [serverForUpdate.id]: null }))
-      }
-      updateMCPServer({ ...serverForUpdate, isActive: active })
-    } catch (error: any) {
-      window.modal.error({
-        title: t('settings.mcp.startError'),
-        content: formatMcpError(error),
-        centered: true
-      })
-      updateMCPServer({ ...serverForUpdate, isActive: oldActiveState })
-    } finally {
-      setLoadingServerIds((prev) => {
-        const next = new Set(prev)
-        next.delete(serverForUpdate.id)
-        return next
-      })
-    }
-  }
 
   const menuItems = useMemo(
     () => [
@@ -194,7 +105,7 @@ const McpServersList: FC = () => {
         key: 'manual',
         label: t('settings.mcp.addServer.create'),
         onClick: () => {
-          onAddMcpServer()
+          void onAddMcpServer()
         }
       },
       {
@@ -254,15 +165,7 @@ const McpServersList: FC = () => {
         useDragOverlay
         showGhost
         renderItem={(server) => (
-          <McpServerCard
-            server={server}
-            version={serverVersions[server.id]}
-            isLoading={loadingServerIds.has(server.id)}
-            onToggle={async (active) => await handleToggleActive(server, active)}
-            onDelete={() => onDeleteMcpServer(server)}
-            onEdit={() => navigate({ to: `/settings/mcp/settings/${encodeURIComponent(server.id)}` })}
-            onOpenUrl={(url) => window.open(url, '_blank')}
-          />
+          <McpServerCard server={server} onEdit={() => navigate({ to: `/settings/mcp/settings/${server.id}` })} />
         )}
       />
       {(mcpServers.length === 0 || filteredMcpServers.length === 0) && (

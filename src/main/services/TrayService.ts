@@ -1,27 +1,33 @@
-import { preferenceService } from '@data/PreferenceService'
 import { isLinux, isMac, isWin } from '@main/constant'
+import { application } from '@main/core/application'
+import { BaseService, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import { getI18n } from '@main/utils/language'
 import type { MenuItemConstructorOptions } from 'electron'
-import { app, Menu, nativeImage, nativeTheme, Tray } from 'electron'
+import { Menu, nativeImage, nativeTheme, Tray } from 'electron'
 
 import icon from '../../../build/tray_icon.png?asset'
 import iconDark from '../../../build/tray_icon_dark.png?asset'
 import iconLight from '../../../build/tray_icon_light.png?asset'
-import selectionService from './SelectionService'
 import { windowService } from './WindowService'
-export class TrayService {
-  private static instance: TrayService
+
+@Injectable('TrayService')
+@ServicePhase(Phase.WhenReady)
+export class TrayService extends BaseService {
   private tray: Tray | null = null
   private contextMenu: Menu | null = null
+  private unsubscribes: (() => void)[] = []
 
-  constructor() {
+  protected async onInit() {
     this.watchConfigChanges()
     this.updateTray()
-    TrayService.instance = this
   }
 
-  public static getInstance() {
-    return TrayService.instance
+  protected async onStop() {
+    for (const unsub of this.unsubscribes) {
+      unsub()
+    }
+    this.unsubscribes = []
+    this.destroyTray()
   }
 
   private createTray() {
@@ -60,6 +66,7 @@ export class TrayService {
     })
 
     this.tray.on('click', () => {
+      const preferenceService = application.get('PreferenceService')
       const quickAssistantEnabled = preferenceService.get('feature.quick_assistant.enabled')
       const clickTrayToShowQuickAssistant = preferenceService.get('feature.quick_assistant.click_tray_to_show')
 
@@ -75,6 +82,7 @@ export class TrayService {
     const i18n = getI18n()
     const { tray: trayLocale, selection: selectionLocale } = i18n.translation
 
+    const preferenceService = application.get('PreferenceService')
     const quickAssistantEnabled = preferenceService.get('feature.quick_assistant.enabled')
     const selectionAssistantEnabled = preferenceService.get('feature.selection.enabled')
 
@@ -90,10 +98,8 @@ export class TrayService {
       (isWin || isMac) && {
         label: selectionLocale.name + (selectionAssistantEnabled ? ' - On' : ' - Off'),
         click: () => {
-          if (selectionService) {
-            selectionService.toggleEnabled()
-            this.updateContextMenu()
-          }
+          application.get('SelectionService').toggleEnabled()
+          this.updateContextMenu()
         }
       },
       { type: 'separator' },
@@ -107,7 +113,7 @@ export class TrayService {
   }
 
   private updateTray() {
-    const showTray = preferenceService.get('app.tray.enabled')
+    const showTray = application.get('PreferenceService').get('app.tray.enabled')
     if (showTray) {
       this.createTray()
     } else {
@@ -123,13 +129,16 @@ export class TrayService {
   }
 
   private watchConfigChanges() {
-    preferenceService.subscribeChange('app.tray.enabled', () => this.updateTray())
-    preferenceService.subscribeChange('app.language', () => this.updateContextMenu())
-    preferenceService.subscribeChange('feature.quick_assistant.enabled', () => this.updateContextMenu())
-    preferenceService.subscribeChange('feature.selection.enabled', () => this.updateContextMenu())
+    const preferenceService = application.get('PreferenceService')
+    this.unsubscribes.push(
+      preferenceService.subscribeChange('app.tray.enabled', () => this.updateTray()),
+      preferenceService.subscribeChange('app.language', () => this.updateContextMenu()),
+      preferenceService.subscribeChange('feature.quick_assistant.enabled', () => this.updateContextMenu()),
+      preferenceService.subscribeChange('feature.selection.enabled', () => this.updateContextMenu())
+    )
   }
 
   private quit() {
-    app.quit()
+    application.quit()
   }
 }

@@ -2,7 +2,7 @@ import { loggerService } from '@logger'
 import { isEmbeddingModel, isRerankModel } from '@renderer/config/models'
 import SelectProviderModelPopup from '@renderer/pages/settings/ProviderSettings/SelectProviderModelPopup'
 import { checkApi } from '@renderer/services/ApiService'
-import WebSearchService from '@renderer/services/WebSearchService'
+import { webSearchService } from '@renderer/services/WebSearchService'
 import type { Model, PreprocessProvider, Provider, WebSearchProvider } from '@renderer/types'
 import { isPreprocessProviderId, isWebSearchProviderId } from '@renderer/types'
 import type { ApiKeyConnectivity, ApiKeyWithStatus } from '@renderer/types/healthCheck'
@@ -203,7 +203,7 @@ export function useApiKeys({ provider, updateProvider }: UseApiKeysProps) {
         if (isLlmProvider(provider) && model) {
           await checkApi({ ...provider, apiKey: keyToCheck }, model)
         } else if (isWebSearchProvider(provider)) {
-          const result = await WebSearchService.checkSearch({ ...provider, apiKey: keyToCheck })
+          const result = await webSearchService.checkSearch({ ...provider, apiKey: keyToCheck })
           if (!result.valid) throw new Error(result.error)
         } else {
           // 不处理预处理供应商

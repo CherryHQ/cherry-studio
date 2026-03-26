@@ -127,7 +127,7 @@ export const InputbarCore: FC<InputbarCoreProps> = ({
   const { setExtensions } = useInputbarToolsInternalDispatch()
   const isEmpty = text.trim().length === 0
   const [inputFocus, setInputFocus] = useState(false)
-  const [targetLanguage] = usePreference('feature.translate.target_language')
+  const [targetLanguage] = usePreference('feature.translate.chat.target_language')
   const [sendMessageShortcut] = usePreference('chat.input.send_message_shortcut')
   const [pasteLongTextAsFile] = usePreference('chat.input.paste_long_text_as_file')
   const [pasteLongTextThreshold] = usePreference('chat.input.paste_long_text_threshold')
@@ -302,7 +302,7 @@ export const InputbarCore: FC<InputbarCoreProps> = ({
         if (spaceClickCount === 2) {
           logger.info('Triple space detected - trigger translation')
           setSpaceClickCount(0)
-          translate()
+          void translate()
           return
         }
       }

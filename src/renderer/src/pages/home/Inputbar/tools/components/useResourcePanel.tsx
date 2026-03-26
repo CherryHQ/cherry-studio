@@ -515,7 +515,7 @@ export const useResourcePanel = (params: Params, role: 'button' | 'manager' = 'b
             const activeTrigger = triggerInfoRef.current
             if (activeTrigger?.type === 'input' && activeTrigger?.position !== undefined) {
               setText((currentText) => {
-                const textArea = document.querySelector('.inputbar textarea') as HTMLTextAreaElement | null
+                const textArea = document.querySelector<HTMLTextAreaElement>('.inputbar textarea')
                 const caret = textArea ? (textArea.selectionStart ?? currentText.length) : currentText.length
                 const symbolForRemoval = activeTrigger.symbol ?? QuickPanelReservedSymbol.MentionModels
                 return removeTriggerSymbolAndText(
@@ -561,7 +561,7 @@ export const useResourcePanel = (params: Params, role: 'button' | 'manager' = 'b
     if (isMentionPanelActive()) {
       close()
     } else {
-      openQuickPanel({ type: 'button' })
+      void openQuickPanel({ type: 'button' })
     }
   }, [close, isMentionPanelActive, openQuickPanel])
 
@@ -601,7 +601,7 @@ export const useResourcePanel = (params: Params, role: 'button' | 'manager' = 'b
 
           context.close('select')
           setTimeout(() => {
-            openQuickPanel(rootTrigger ?? { type: 'button' })
+            void openQuickPanel(rootTrigger ?? { type: 'button' })
           }, 0)
         }
       }
@@ -609,7 +609,7 @@ export const useResourcePanel = (params: Params, role: 'button' | 'manager' = 'b
 
     const disposeTrigger = registerTrigger(QuickPanelReservedSymbol.MentionModels, (payload) => {
       const trigger = (payload || {}) as ResourcePanelTriggerInfo
-      openQuickPanel(trigger)
+      void openQuickPanel(trigger)
     })
 
     return () => {

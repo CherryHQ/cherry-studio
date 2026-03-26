@@ -16,7 +16,6 @@ type StartDiscoveryOptions = {
 }
 
 class LocalTransferService {
-  private static instance: LocalTransferService
   private bonjour: Bonjour | null = null
   private browser: Browser | null = null
   private services = new Map<string, LocalTransferPeer>()
@@ -24,15 +23,6 @@ class LocalTransferService {
   private lastScanStartedAt?: number
   private lastUpdatedAt = Date.now()
   private lastError?: string
-
-  private constructor() {}
-
-  public static getInstance(): LocalTransferService {
-    if (!LocalTransferService.instance) {
-      LocalTransferService.instance = new LocalTransferService()
-    }
-    return LocalTransferService.instance
-  }
 
   public startDiscovery(options?: StartDiscoveryOptions): LocalTransferState {
     if (options?.resetList) {
@@ -204,4 +194,4 @@ class LocalTransferService {
   }
 }
 
-export const localTransferService = LocalTransferService.getInstance()
+export const localTransferService = new LocalTransferService()

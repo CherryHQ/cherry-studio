@@ -35,6 +35,7 @@ const PopupContainer: React.FC<Props> = ({
   modalProps,
   resolve,
   children,
+  // TODO: should default to false
   showTranslate = true
 }) => {
   const [open, setOpen] = useState(true)
@@ -43,7 +44,7 @@ const PopupContainer: React.FC<Props> = ({
   const [textValue, setTextValue] = useState(text)
   const [isTranslating, setIsTranslating] = useState(false)
   const textareaRef = useRef<TextAreaRef>(null)
-  const [targetLanguage] = usePreference('feature.translate.target_language')
+  const [targetLanguage] = usePreference('feature.translate.chat.target_language')
   const [showTranslateConfirm] = usePreference('chat.input.translate.show_confirm')
   const isMounted = useRef(true)
 

@@ -12,7 +12,7 @@ import { useMinappPopup } from '@renderer/hooks/useMinappPopup'
 import { useMinapps } from '@renderer/hooks/useMinapps'
 import { getThemeModeLabel, getTitleLabel } from '@renderer/i18n/label'
 import UpdateAppButton from '@renderer/pages/home/components/UpdateAppButton'
-import tabsService from '@renderer/services/TabsService'
+import { tabsService } from '@renderer/services/TabsService'
 import { useAppDispatch, useAppSelector } from '@renderer/store'
 import type { Tab } from '@renderer/store/tabs'
 import { addTab, removeTab, setActiveTab, setTabs } from '@renderer/store/tabs'
@@ -29,6 +29,7 @@ import {
   LayoutGrid,
   Monitor,
   Moon,
+  MousePointerClick,
   NotepadText,
   Palette,
   Settings,
@@ -86,9 +87,12 @@ const getTabIcon = (
     return <LayoutGrid size={14} />
   }
 
+  // TODO: Add TabId as type instead of string
   switch (tabId) {
     case 'home':
       return <Home size={14} />
+    case 'agents':
+      return <MousePointerClick size={14} />
     case 'store':
       return <Sparkle size={14} />
     case 'translate':
@@ -206,17 +210,17 @@ const TabsContainer: React.FC<TabsContainerProps> = ({ children }) => {
 
   const handleAddTab = () => {
     hideMinappPopup()
-    navigate({ to: '/launchpad' })
+    void navigate({ to: '/launchpad' })
   }
 
   const handleSettingsClick = () => {
     hideMinappPopup()
-    navigate({ to: lastSettingsPath })
+    void navigate({ to: lastSettingsPath })
   }
 
   const handleTabClick = (tab: Tab) => {
     hideMinappPopup()
-    navigate({ to: tab.path })
+    void navigate({ to: tab.path })
   }
 
   const visibleTabs = useMemo(() => tabs.filter((tab) => !specialTabs.includes(tab.id)), [tabs])
@@ -240,35 +244,38 @@ const TabsContainer: React.FC<TabsContainerProps> = ({ children }) => {
             gap={'6px'}
             onSortEnd={onSortEnd}
             className="tabs-sortable"
-            renderItem={(tab) => (
-              <Tab
-                key={tab.id}
-                active={tab.id === activeTabId}
-                onClick={() => handleTabClick(tab)}
-                onAuxClick={(e) => {
-                  if (e.button === 1 && tab.id !== 'home') {
-                    e.preventDefault()
-                    e.stopPropagation()
-                    closeTab(tab.id)
-                  }
-                }}>
-                <TabHeader>
-                  {tab.id && <TabIcon>{getTabIcon(tab.id, minapps, minAppsCache)}</TabIcon>}
-                  <TabTitle>{getTabTitle(tab.id)}</TabTitle>
-                </TabHeader>
-                {tab.id !== 'home' && (
-                  <CloseButton
-                    className="close-button"
-                    data-no-dnd
-                    onClick={(e) => {
+            renderItem={(tab) => {
+              const isClosable = tab.id !== 'home' && tab.id !== 'agents'
+              return (
+                <Tab
+                  key={tab.id}
+                  active={tab.id === activeTabId}
+                  onClick={() => handleTabClick(tab)}
+                  onAuxClick={(e) => {
+                    if (e.button === 1 && isClosable) {
+                      e.preventDefault()
                       e.stopPropagation()
                       closeTab(tab.id)
-                    }}>
-                    <X size={12} />
-                  </CloseButton>
-                )}
-              </Tab>
-            )}
+                    }
+                  }}>
+                  <TabHeader>
+                    {tab.id && <TabIcon>{getTabIcon(tab.id, minapps, minAppsCache)}</TabIcon>}
+                    <TabTitle>{getTabTitle(tab.id)}</TabTitle>
+                  </TabHeader>
+                  {isClosable && (
+                    <CloseButton
+                      className="close-button"
+                      data-no-dnd
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        closeTab(tab.id)
+                      }}>
+                      <X size={12} />
+                    </CloseButton>
+                  )}
+                </Tab>
+              )
+            }}
           />
           <AddTabButton onClick={handleAddTab} className={classNames({ active: activeTabId === 'launchpad' })}>
             <PlusOutlined />

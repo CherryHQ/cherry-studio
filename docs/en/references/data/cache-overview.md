@@ -11,11 +11,11 @@ CacheService handles data that:
 
 ## Three-Tier Architecture
 
-| Tier | Scope | Persistence | Use Case |
-|------|-------|-------------|----------|
-| **Memory Cache** | Component-level | Lost on app restart | API responses, computed results |
-| **Shared Cache** | Cross-window | Lost on app restart | Window state, cross-window coordination |
-| **Persist Cache** | Cross-window + localStorage | Survives app restarts | Recent items, non-critical preferences |
+| Tier              | Scope                       | Persistence           | Use Case                                |
+| ----------------- | --------------------------- | --------------------- | --------------------------------------- |
+| **Memory Cache**  | Component-level             | Lost on app restart   | API responses, computed results         |
+| **Shared Cache**  | Cross-window                | Lost on app restart   | Window state, cross-window coordination |
+| **Persist Cache** | Cross-window + localStorage | Survives app restarts | Recent items, non-critical preferences  |
 
 ### Memory Cache
 - Fastest access, in-process memory
@@ -78,28 +78,28 @@ Note: Template keys follow the same dot-separated naming pattern as fixed keys. 
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
-│ Renderer Process                                             │
-│ ┌─────────────┐  ┌─────────────┐  ┌─────────────┐          │
-│ │ useCache    │  │useSharedCache│ │usePersistCache│         │
-│ └──────┬──────┘  └──────┬──────┘  └──────┬──────┘          │
-│        │                │                │                   │
-│        └────────────────┼────────────────┘                   │
-│                         ▼                                    │
+│ Renderer Process                                            │
+│ ┌─────────────┐  ┌──────────────┐  ┌───────────────┐        │
+│ │ useCache    │  │useSharedCache│  │usePersistCache│        │
+│ └──────┬──────┘  └──────┬───────┘  └───────┬───────┘        │
+│        │                │                  │                │
+│        └────────────────┼──────────────────┘                │
+│                         ▼                                   │
 │              ┌─────────────────────┐                        │
 │              │   CacheService      │                        │
 │              │   (Renderer)        │                        │
 │              └──────────┬──────────┘                        │
-└─────────────────────────┼────────────────────────────────────┘
+└─────────────────────────┼───────────────────────────────────┘
                           │ IPC (shared/persist only)
-┌─────────────────────────┼────────────────────────────────────┐
-│ Main Process            ▼                                    │
+┌─────────────────────────┼───────────────────────────────────┐
+│ Main Process            ▼                                   │
 │              ┌─────────────────────┐                        │
 │              │   CacheService      │                        │
 │              │   (Main)            │                        │
 │              └─────────────────────┘                        │
 │              - Source of truth for shared/persist           │
 │              - Broadcasts updates to all windows            │
-└──────────────────────────────────────────────────────────────┘
+└─────────────────────────────────────────────────────────────┘
 ```
 
 ## Main vs Renderer Responsibilities
@@ -110,6 +110,15 @@ Note: Template keys follow the same dot-separated naming pattern as fixed keys. 
 - Provides `getAllShared()` for new window initialization sync
 - Handles IPC requests from renderers and broadcasts updates to all windows
 - Manages TTL expiration using absolute timestamps (`expireAt`) for precise cross-window sync
+
+Access in main process via lifecycle:
+
+```typescript
+import { application } from '@main/core/application'
+
+const cacheService = application.get('CacheService')
+cacheService.setShared('window.layout', layoutConfig)
+```
 
 ### Renderer Process CacheService
 - Manages local memory cache and SharedCache local copy
@@ -125,18 +134,18 @@ For detailed code examples and API usage, see [Cache Usage Guide](./cache-usage.
 
 ### Key Types
 
-| Type | Example Schema | Example Usage | Type Inference |
-|------|----------------|---------------|----------------|
-| Fixed key | `'app.user.avatar': string` | `get('app.user.avatar')` | Automatic |
-| Template key | `'scroll.position.${id}': number` | `get('scroll.position.topic123')` | Automatic |
-| Casual key | N/A | `getCasual<T>('my.custom.key')` | Manual |
+| Type         | Example Schema                    | Example Usage                     | Type Inference |
+| ------------ | --------------------------------- | --------------------------------- | -------------- |
+| Fixed key    | `'app.user.avatar': string`       | `get('app.user.avatar')`          | Automatic      |
+| Template key | `'scroll.position.${id}': number` | `get('scroll.position.topic123')` | Automatic      |
+| Casual key   | N/A                               | `getCasual<T>('my.custom.key')`   | Manual         |
 
 ### API Reference
 
-| Method | Tier | Key Type |
-|--------|------|----------|
-| `useCache` / `get` / `set` | Memory | Fixed + Template keys |
-| `getCasual` / `setCasual` | Memory | Dynamic keys only (schema keys blocked) |
-| `useSharedCache` / `getShared` / `setShared` | Shared | Fixed keys only |
-| `getSharedCasual` / `setSharedCasual` | Shared | Dynamic keys only (schema keys blocked) |
-| `usePersistCache` / `getPersist` / `setPersist` | Persist | Fixed keys only |
+| Method                                          | Tier    | Key Type                                |
+| ----------------------------------------------- | ------- | --------------------------------------- |
+| `useCache` / `get` / `set`                      | Memory  | Fixed + Template keys                   |
+| `getCasual` / `setCasual`                       | Memory  | Dynamic keys only (schema keys blocked) |
+| `useSharedCache` / `getShared` / `setShared`    | Shared  | Fixed keys only                         |
+| `getSharedCasual` / `setSharedCasual`           | Shared  | Dynamic keys only (schema keys blocked) |
+| `usePersistCache` / `getPersist` / `setPersist` | Persist | Fixed keys only                         |

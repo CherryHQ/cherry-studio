@@ -291,4 +291,4 @@ class CopilotService {
   }
 }
 
-export default new CopilotService()
+export const copilotService = new CopilotService()

@@ -21,19 +21,10 @@ interface PythonExecutionResponse {
  * Service for executing Python code by communicating with the PyodideService in the renderer process
  */
 export class PythonService {
-  private static instance: PythonService | null = null
   private pendingRequests = new Map<string, { resolve: (value: string) => void; reject: (error: Error) => void }>()
 
-  private constructor() {
-    // Private constructor for singleton pattern
+  constructor() {
     this.setupIpcHandlers()
-  }
-
-  public static getInstance(): PythonService {
-    if (!PythonService.instance) {
-      PythonService.instance = new PythonService()
-    }
-    return PythonService.instance
   }
 
   private setupIpcHandlers() {
@@ -96,4 +87,4 @@ export class PythonService {
   }
 }
 
-export const pythonService = PythonService.getInstance()
+export const pythonService = new PythonService()

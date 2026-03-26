@@ -24,10 +24,19 @@
 pnpm skills:sync
 ```
 
-`skills:sync` 会自动创建/更新 `.claude/skills/<skill-name>/SKILL.md`：
+`skills:sync` 会自动创建/更新 `.claude/skills/<skill-name>` 为指向 `../../.agents/skills/<skill-name>` 的符号链接。
 
-- 复制 `.agents/skills/<skill-name>/SKILL.md` 的内容。
-- 不允许使用符号链接；check 会强制要求为普通文件以保证兼容性。
+## Windows 兼容性
+
+本项目使用符号链接同步 AGENTS.md、skills 等文件。Windows 开发者需要手动启用符号链接支持：
+
+1. **启用开发者模式**（设置 → 更新和安全 → 开发者选项），或
+2. 通过本地安全策略（`secpol.msc`）**授予 `SeCreateSymbolicLinkPrivilege` 权限**。
+3. **配置 Git** 以创建符号链接：
+   ```bash
+   git config --global core.symlinks true
+   ```
+4. 启用后重新克隆仓库（或执行 `pnpm skills:sync`）。
 
 ## 白名单跟踪规则
 
@@ -53,4 +62,4 @@ pnpm skills:check
 
 - `.agents/skills/.gitignore`
 - `.claude/skills/.gitignore`
-- `.claude/skills/<skill-name>/SKILL.md` 与 `.agents/skills/<skill-name>/SKILL.md` 的内容一致性
+- `.claude/skills/<skill-name>` 是指向 `.agents/skills/<skill-name>` 的有效符号链接

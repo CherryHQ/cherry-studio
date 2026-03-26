@@ -18,8 +18,11 @@ export const useUpdateAgent = () => {
         const itemKey = client.agentPaths.withId(form.id)
         // may change to optimistic update
         const result = await client.updateAgent(form)
-        mutate<ListAgentsResponse['data']>(listKey, (prev) => prev?.map((a) => (a.id === result.id ? result : a)) ?? [])
-        mutate(itemKey, result)
+        void mutate<ListAgentsResponse['data']>(
+          listKey,
+          (prev) => prev?.map((a) => (a.id === result.id ? result : a)) ?? []
+        )
+        void mutate(itemKey, result)
         if (options?.showSuccessToast ?? true) {
           window.toast.success({ key: 'update-agent', title: t('common.update_success') })
         }
@@ -34,7 +37,7 @@ export const useUpdateAgent = () => {
 
   const updateModel = useCallback(
     async (agentId: string, modelId: string, options?: UpdateAgentBaseOptions) => {
-      updateAgent({ id: agentId, model: modelId }, options)
+      void updateAgent({ id: agentId, model: modelId }, options)
     },
     [updateAgent]
   )

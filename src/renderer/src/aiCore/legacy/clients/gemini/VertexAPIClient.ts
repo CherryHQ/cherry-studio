@@ -137,7 +137,7 @@ export class VertexAPIClient extends GeminiAPIClient {
     const { googleCredentials, project } = this.vertexProvider
 
     if (project && googleCredentials.clientEmail) {
-      window.api.vertexAI.clearAuthCache(project, googleCredentials.clientEmail)
+      void window.api.vertexAI.clearAuthCache(project, googleCredentials.clientEmail)
     }
   }
 }

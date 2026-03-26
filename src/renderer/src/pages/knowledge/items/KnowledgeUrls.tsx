@@ -152,7 +152,7 @@ const KnowledgeUrls: FC<KnowledgeContentProps> = ({ selectedBase }) => {
                           icon: <CopyIcon size={14} />,
                           label: t('common.copy'),
                           onClick: () => {
-                            navigator.clipboard.writeText(item.content as string)
+                            void navigator.clipboard.writeText(item.content as string)
                             window.toast.success(t('message.copied'))
                           }
                         }

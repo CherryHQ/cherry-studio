@@ -1,16 +1,16 @@
-/src/renderer/src/store/ @0xfullex
-/src/renderer/src/databases/ @0xfullex
-/src/main/services/ConfigManager.ts @0xfullex
-/packages/shared/IpcChannel.ts @0xfullex
-/src/main/ipc.ts @0xfullex
+/src/renderer/src/store/ @0xfullex @DeJeune
+/src/renderer/src/databases/ @0xfullex @DeJeune
+/src/main/services/ConfigManager.ts @0xfullex @DeJeune
+/packages/shared/IpcChannel.ts @0xfullex @DeJeune
+/src/main/ipc.ts @0xfullex @DeJeune
 
-/migrations/ @0xfullex @DeJeune
-/packages/shared/data/ @0xfullex @DeJeune
-/src/main/data/ @0xfullex @DeJeune
-/src/renderer/src/data/ @0xfullex @DeJeune
-/v2-refactor-temp/ @0xfullex @DeJeune
-/docs/en/references/data/ @0xfullex @DeJeune
-/docs/zh/references/data/ @0xfullex @DeJeune
+/migrations/ @0xfullex
+/packages/shared/data/ @0xfullex
+/src/main/data/ @0xfullex
+/src/renderer/src/data/ @0xfullex
+/v2-refactor-temp/ @0xfullex
+/docs/en/references/data/ @0xfullex
+/docs/zh/references/data/ @0xfullex
 
 /packages/ui/ @MyPrototypeWhat
 

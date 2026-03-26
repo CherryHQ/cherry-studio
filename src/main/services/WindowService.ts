@@ -1,11 +1,9 @@
-// just import the themeService to ensure the theme is initialized
-import './ThemeService'
-
-import { preferenceService } from '@data/PreferenceService'
 import { is } from '@electron-toolkit/utils'
 import { loggerService } from '@logger'
 import { isDev, isLinux, isMac, isWin } from '@main/constant'
+import { application } from '@main/core/application'
 import { getFilesDir } from '@main/utils/file'
+import { getWindowsBackgroundMaterial } from '@main/utils/windowUtil'
 import { MIN_WINDOW_HEIGHT, MIN_WINDOW_WIDTH } from '@shared/config/constant'
 import { IpcChannel } from '@shared/IpcChannel'
 import { app, BrowserWindow, nativeImage, nativeTheme, screen, shell } from 'electron'
@@ -27,7 +25,6 @@ const logger = loggerService.withContext('WindowService')
 const linuxIcon = isLinux ? nativeImage.createFromPath(iconPath) : undefined
 
 export class WindowService {
-  private static instance: WindowService | null = null
   private mainWindow: BrowserWindow | null = null
   private miniWindow: BrowserWindow | null = null
   private isPinnedMiniWindow: boolean = false
@@ -36,13 +33,6 @@ export class WindowService {
   private wasMainWindowFocused: boolean = false
   private lastRendererProcessCrashTime: number = 0
 
-  public static getInstance(): WindowService {
-    if (!WindowService.instance) {
-      WindowService.instance = new WindowService()
-    }
-    return WindowService.instance
-  }
-
   public createMainWindow(): BrowserWindow {
     if (this.mainWindow && !this.mainWindow.isDestroyed()) {
       this.mainWindow.show()
@@ -50,12 +40,20 @@ export class WindowService {
       return this.mainWindow
     }
 
+    const preferenceService = application.get('PreferenceService')
+
     const mainWindowState = windowStateKeeper({
       defaultWidth: MIN_WINDOW_WIDTH,
       defaultHeight: MIN_WINDOW_HEIGHT,
       fullScreen: false,
       maximize: false
     })
+    const windowsBackgroundMaterial = getWindowsBackgroundMaterial()
+    let mainWindowBackgroundColor: string | undefined
+
+    if (!isMac && !windowsBackgroundMaterial) {
+      mainWindowBackgroundColor = nativeTheme.shouldUseDarkColors ? '#181818' : '#FFFFFF'
+    }
 
     this.mainWindow = new BrowserWindow({
       x: mainWindowState.x,
@@ -81,7 +79,8 @@ export class WindowService {
             // On Linux, allow using system title bar if setting is enabled
             frame: isLinux && preferenceService.get('app.use_system_title_bar')
           }),
-      backgroundColor: isMac ? undefined : nativeTheme.shouldUseDarkColors ? '#181818' : '#FFFFFF',
+      ...(windowsBackgroundMaterial ? { backgroundMaterial: windowsBackgroundMaterial } : {}),
+      ...(mainWindowBackgroundColor ? { backgroundColor: mainWindowBackgroundColor } : {}),
       darkTheme: nativeTheme.shouldUseDarkColors,
       ...(isLinux ? { icon: linuxIcon } : {}),
       webPreferences: {
@@ -123,6 +122,7 @@ export class WindowService {
   }
 
   private setupSpellCheck(mainWindow: BrowserWindow) {
+    const preferenceService = application.get('PreferenceService')
     const enableSpellCheck = preferenceService.get('app.spell_check.enabled')
     if (enableSpellCheck) {
       try {
@@ -145,7 +145,7 @@ export class WindowService {
         mainWindow.webContents.reload()
       } else {
         // 如果小于1分钟，则退出应用, 可能是连续crash，需要退出应用
-        app.exit(1)
+        application.forceExit(1)
       }
     })
   }
@@ -153,7 +153,7 @@ export class WindowService {
   private setupMaximize(mainWindow: BrowserWindow, isMaximized: boolean) {
     if (isMaximized) {
       // 如果是从托盘启动，则需要延迟最大化，否则显示的就不是重启前的最大化窗口了
-      preferenceService.get('app.tray.on_launch')
+      application.get('PreferenceService').get('app.tray.on_launch')
         ? mainWindow.once('show', () => {
             mainWindow.maximize()
           })
@@ -178,13 +178,14 @@ export class WindowService {
 
   private setupWindowEvents(mainWindow: BrowserWindow) {
     mainWindow.once('ready-to-show', () => {
+      const preferenceService = application.get('PreferenceService')
       mainWindow.webContents.setZoomFactor(preferenceService.get('app.zoom_factor'))
 
       // show window only when laucn to tray not set
       const isLaunchToTray = preferenceService.get('app.tray.on_launch')
       if (!isLaunchToTray) {
         //[mac]hacky-fix: miniWindow set visibleOnFullScreen:true will cause dock icon disappeared
-        app.dock?.show()
+        void app.dock?.show()
         mainWindow.show()
       }
     })
@@ -207,14 +208,14 @@ export class WindowService {
     // and resize ipc
     //
     mainWindow.on('will-resize', () => {
-      mainWindow.webContents.setZoomFactor(preferenceService.get('app.zoom_factor'))
+      mainWindow.webContents.setZoomFactor(application.get('PreferenceService').get('app.zoom_factor'))
       mainWindow.webContents.send(IpcChannel.Windows_Resize, mainWindow.getSize())
     })
 
     // set the zoom factor again when the window is going to restore
     // minimize and restore will cause zoom reset
     mainWindow.on('restore', () => {
-      mainWindow.webContents.setZoomFactor(preferenceService.get('app.zoom_factor'))
+      mainWindow.webContents.setZoomFactor(application.get('PreferenceService').get('app.zoom_factor'))
     })
 
     // ARCH: as `will-resize` is only for Win & Mac,
@@ -222,7 +223,7 @@ export class WindowService {
     // but `resize` will fliker the ui
     if (isLinux) {
       mainWindow.on('resize', () => {
-        mainWindow.webContents.setZoomFactor(preferenceService.get('app.zoom_factor'))
+        mainWindow.webContents.setZoomFactor(application.get('PreferenceService').get('app.zoom_factor'))
         mainWindow.webContents.send(IpcChannel.Windows_Resize, mainWindow.getSize())
       })
     }
@@ -262,7 +263,7 @@ export class WindowService {
     // Fix for Electron bug where zoom resets during in-page navigation (route changes)
     // This complements the resize-based workaround by catching navigation events
     mainWindow.webContents.on('did-navigate-in-page', () => {
-      mainWindow.webContents.setZoomFactor(preferenceService.get('app.zoom_factor'))
+      mainWindow.webContents.setZoomFactor(application.get('PreferenceService').get('app.zoom_factor'))
     })
 
     mainWindow.webContents.on('will-navigate', (event, url) => {
@@ -271,7 +272,7 @@ export class WindowService {
       }
 
       event.preventDefault()
-      shell.openExternal(url)
+      void shell.openExternal(url)
     })
 
     mainWindow.webContents.setWindowOpenHandler((details) => {
@@ -306,7 +307,7 @@ export class WindowService {
         const filePath = storageDir + '/' + fileName
         shell.openPath(filePath).catch((err) => logger.error('Failed to open file:', err))
       } else {
-        shell.openExternal(details.url)
+        void shell.openExternal(details.url)
       }
 
       return { action: 'deny' }
@@ -335,10 +336,10 @@ export class WindowService {
 
   private loadMainWindowContent(mainWindow: BrowserWindow) {
     if (is.dev && process.env['ELECTRON_RENDERER_URL']) {
-      mainWindow.loadURL(process.env['ELECTRON_RENDERER_URL'])
+      void mainWindow.loadURL(process.env['ELECTRON_RENDERER_URL'])
       // mainWindow.webContents.openDevTools()
     } else {
-      mainWindow.loadFile(join(__dirname, '../renderer/index.html'))
+      void mainWindow.loadFile(join(__dirname, '../renderer/index.html'))
     }
   }
 
@@ -355,12 +356,13 @@ export class WindowService {
         logger.error('Failed to save data:', error as Error)
       }
 
-      // 如果已经触发退出，直接退出
-      if (app.isQuitting) {
-        return app.quit()
+      // 如果已经触发退出，直接放行窗口关闭
+      if (application.isQuitting) {
+        return
       }
 
       // 托盘及关闭行为设置
+      const preferenceService = application.get('PreferenceService')
       const isShowTray = preferenceService.get('app.tray.enabled')
       const isTrayOnClose = preferenceService.get('app.tray.on_close')
 
@@ -369,7 +371,7 @@ export class WindowService {
         // 如果是Windows或Linux，直接退出
         // mac按照系统默认行为，不退出
         if (isWin || isLinux) {
-          return app.quit()
+          return application.quit()
         }
       }
 
@@ -392,7 +394,7 @@ export class WindowService {
         mainWindow.once('show', () => {
           //restore the window can hide by cmd+h when the window is shown again
           // https://github.com/electron/electron/pull/47970
-          app.dock?.show()
+          void app.dock?.show()
         })
       }
     })
@@ -483,7 +485,7 @@ export class WindowService {
     if (this.mainWindow && !this.mainWindow.isDestroyed() && this.mainWindow.isVisible()) {
       if (this.mainWindow.isFocused()) {
         // if tray is enabled, hide the main window, else do nothing
-        if (preferenceService.get('app.tray.on_close')) {
+        if (application.get('PreferenceService').get('app.tray.on_close')) {
           this.mainWindow.hide()
           app.dock?.hide()
         }
@@ -579,16 +581,16 @@ export class WindowService {
     })
 
     if (is.dev && process.env['ELECTRON_RENDERER_URL']) {
-      this.miniWindow.loadURL(process.env['ELECTRON_RENDERER_URL'] + '/miniWindow.html')
+      void this.miniWindow.loadURL(process.env['ELECTRON_RENDERER_URL'] + '/miniWindow.html')
     } else {
-      this.miniWindow.loadFile(join(__dirname, '../renderer/miniWindow.html'))
+      void this.miniWindow.loadFile(join(__dirname, '../renderer/miniWindow.html'))
     }
 
     return this.miniWindow
   }
 
   public showMiniWindow() {
-    const enableQuickAssistant = preferenceService.get('feature.quick_assistant.enabled')
+    const enableQuickAssistant = application.get('PreferenceService').get('feature.quick_assistant.enabled')
 
     if (!enableQuickAssistant) {
       return
@@ -715,4 +717,4 @@ export class WindowService {
   }
 }
 
-export const windowService = WindowService.getInstance()
+export const windowService = new WindowService()

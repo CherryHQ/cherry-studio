@@ -1,7 +1,7 @@
 /**
  * Bridge module for Hub server to access MCPService.
  */
-import mcpService from '@main/services/MCPService'
+import { mcpService } from '@main/services/MCPService'
 import type { MCPCallToolResponse, MCPTool, MCPToolResultContent } from '@types'
 
 import { buildToolNameMapping, resolveToolId, type ToolIdentity, type ToolNameMapping } from './toolname'
@@ -41,7 +41,7 @@ export function clearToolMap(): void {
 
 /**
  * Resolve a hub tool JS name (or namespaced id) to its original serverId and toolName.
- * Returns null if the mapping is not initialized or the name cannot be resolved.
+ * Returns null if the name cannot be resolved.
  */
 export function resolveHubToolName(nameOrId: string): { serverId: string; toolName: string } | null {
   if (!toolNameMapping) return null
@@ -56,6 +56,27 @@ export function resolveHubToolName(nameOrId: string): { serverId: string; toolNa
     serverId: toolId.substring(0, separatorIndex),
     toolName: toolId.substring(separatorIndex + 2)
   }
+}
+
+/**
+ * Async version of resolveHubToolName that lazily refreshes the tool mapping
+ * if it has been cleared (e.g., after cache invalidation).
+ */
+export async function resolveHubToolNameAsync(
+  nameOrId: string
+): Promise<{ serverId: string; toolName: string } | null> {
+  if (!toolNameMapping) {
+    await refreshToolMap()
+  }
+
+  const result = resolveHubToolName(nameOrId)
+  if (!result && toolNameMapping) {
+    // Mapping exists but tool not found — refresh once and retry
+    await refreshToolMap()
+    return resolveHubToolName(nameOrId)
+  }
+
+  return result
 }
 
 /**
@@ -94,7 +115,7 @@ export const callMcpTool = async (nameOrId: string, params: unknown, callId?: st
 }
 
 export const abortMcpTool = async (callId: string): Promise<boolean> => {
-  return mcpService.abortTool(null as unknown as Electron.IpcMainInvokeEvent, callId)
+  return mcpService.abortTool(callId)
 }
 
 function extractToolResult(result: MCPCallToolResponse): unknown {

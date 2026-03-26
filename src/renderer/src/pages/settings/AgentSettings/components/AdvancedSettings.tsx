@@ -50,7 +50,7 @@ export const AdvancedSettings: React.FC<AgentOrSessionSettingsProps> = ({ agentB
     const next: AgentConfigurationState = { ...configuration, max_turns: sanitized }
     setConfiguration(next)
     setMaxTurnsInput(sanitized)
-    update({ id: agentBase.id, configuration: next } satisfies UpdateAgentBaseForm)
+    void update({ id: agentBase.id, configuration: next } satisfies UpdateAgentBaseForm)
   }, [agentBase, configuration, maxTurnsInput, update])
 
   const commitEnvVars = useCallback(() => {
@@ -60,7 +60,7 @@ export const AdvancedSettings: React.FC<AgentOrSessionSettingsProps> = ({ agentB
     if (JSON.stringify(parsed) === JSON.stringify(currentVars)) return
     const next: AgentConfigurationState = { ...configuration, env_vars: parsed }
     setConfiguration(next)
-    update({ id: agentBase.id, configuration: next } satisfies UpdateAgentBaseForm)
+    void update({ id: agentBase.id, configuration: next } satisfies UpdateAgentBaseForm)
   }, [agentBase, configuration, envVarsText, update])
 
   if (!agentBase) {

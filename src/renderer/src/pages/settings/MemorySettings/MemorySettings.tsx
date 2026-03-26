@@ -8,7 +8,7 @@ import Scrollbar from '@renderer/components/Scrollbar'
 import TextBadge from '@renderer/components/TextBadge'
 import { useTheme } from '@renderer/context/ThemeProvider'
 import { useModel } from '@renderer/hooks/useModel'
-import MemoryService from '@renderer/services/MemoryService'
+import { memoryService } from '@renderer/services/MemoryService'
 import { selectMemoryConfig } from '@renderer/store/memory'
 import type { MemoryItem } from '@types'
 import { Dropdown, Empty, Form, Input, Modal, Space, Spin } from 'antd'
@@ -186,7 +186,7 @@ const AddUserModal: React.FC<AddUserModalProps> = ({ visible, onCancel, onAdd, e
   const handleSubmit = async (values: { userId: string }) => {
     setLoading(true)
     try {
-      await onAdd(values.userId.trim())
+      onAdd(values.userId.trim())
       form.resetFields()
       onCancel()
     } finally {
@@ -283,7 +283,7 @@ const MemorySettings = () => {
   const [uniqueUsers, setUniqueUsers] = useState<string[]>([])
   const [displayCount, setDisplayCount] = useState(50)
   const loadMoreRef = useRef<HTMLDivElement>(null)
-  const memoryService = MemoryService.getInstance()
+  // memoryService is imported as a module-level singleton
 
   // Utility functions
   const getUserDisplayName = (user: string) => {
@@ -299,7 +299,7 @@ const MemorySettings = () => {
     } catch (error) {
       logger.error('Failed to load users list:', error as Error)
     }
-  }, [memoryService])
+  }, [])
 
   // Load memories function
   const loadMemories = useCallback(
@@ -325,7 +325,7 @@ const MemorySettings = () => {
         setLoading(false)
       }
     },
-    [currentUser, memoryService, t, loadUniqueUsers]
+    [currentUser, t, loadUniqueUsers]
   )
 
   // Sync memoryService with Redux store on mount and when currentUser changes
@@ -333,7 +333,7 @@ const MemorySettings = () => {
     logger.verbose(`useEffect triggered for currentUser: ${currentUser}`)
     // Reset display count when user changes
     setDisplayCount(50)
-    loadMemories(currentUser)
+    void loadMemories(currentUser)
   }, [currentUser, loadMemories])
 
   // Debounce search text
@@ -438,7 +438,7 @@ const MemorySettings = () => {
     logger.verbose(`Switching to user: ${userId}`)
 
     // First update preference state
-    setCurrentUserId(userId)
+    void setCurrentUserId(userId)
 
     // Clear current memories to show loading state immediately
     setAllMemories([])
@@ -463,7 +463,7 @@ const MemorySettings = () => {
     try {
       // Create the user by adding an initial memory with the userId
       // This implicitly creates the user in the system
-      await memoryService.setCurrentUser(userId)
+      memoryService.setCurrentUser(userId)
       await memoryService.add(t('memory.initial_memory_content'), { userId })
 
       // Refresh the users list from the database to persist the new user
@@ -484,7 +484,7 @@ const MemorySettings = () => {
     await memoryService.updateConfig()
     if (cacheService.getCasual<boolean>('memory.wait.settings')) {
       cacheService.deleteCasual('memory.wait.settings')
-      setGlobalMemoryEnabled(true)
+      void setGlobalMemoryEnabled(true)
     }
   }
 
@@ -561,7 +561,7 @@ const MemorySettings = () => {
       return setSettingsModalVisible(true)
     }
 
-    setGlobalMemoryEnabled(enabled)
+    void setGlobalMemoryEnabled(enabled)
 
     if (enabled) {
       return window.modal.confirm({

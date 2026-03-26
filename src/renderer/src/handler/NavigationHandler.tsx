@@ -17,7 +17,7 @@ const NavigationHandler: React.FC = () => {
       if (location.pathname.startsWith('/settings')) {
         return
       }
-      navigate({ to: '/settings/provider' })
+      void navigate({ to: '/settings/provider' })
     },
     {
       splitKey: '!',
@@ -30,7 +30,7 @@ const NavigationHandler: React.FC = () => {
   // Listen for navigate to About page event from macOS menu
   useEffect(() => {
     const handleNavigateToAbout = () => {
-      navigate({ to: '/settings/about' })
+      void navigate({ to: '/settings/about' })
     }
 
     const removeListener = window.electron.ipcRenderer.on(IpcChannel.Windows_NavigateToAbout, handleNavigateToAbout)

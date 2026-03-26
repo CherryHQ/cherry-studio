@@ -28,12 +28,11 @@ interface SearchResult {
  * Service for managing memory operations including storing, searching, and retrieving memories
  * This service delegates all operations to the main process via IPC
  */
-class MemoryService {
-  private static instance: MemoryService | null = null
+export class MemoryService {
   private currentUserId: string = 'default-user'
 
   constructor() {
-    this.init()
+    void this.init()
   }
 
   /**
@@ -41,20 +40,6 @@ class MemoryService {
    */
   private async init(): Promise<void> {
     await this.updateConfig()
-  }
-
-  public static getInstance(): MemoryService {
-    if (!MemoryService.instance) {
-      MemoryService.instance = new MemoryService()
-      MemoryService.instance.updateConfig().catch((error) => {
-        logger.error('Failed to initialize MemoryService:', error)
-      })
-    }
-    return MemoryService.instance
-  }
-
-  public static reloadInstance(): void {
-    MemoryService.instance = new MemoryService()
   }
 
   /**
@@ -233,4 +218,4 @@ class MemoryService {
   }
 }
 
-export default MemoryService
+export const memoryService = new MemoryService()

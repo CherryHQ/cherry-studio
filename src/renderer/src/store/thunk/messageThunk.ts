@@ -20,8 +20,7 @@ import { AiSdkToChunkAdapter } from '@renderer/aiCore/chunk/AiSdkToChunkAdapter'
 import { AgentApiClient } from '@renderer/api/agent'
 import db from '@renderer/databases'
 import { fetchMessagesSummary, transformMessagesAndFetch } from '@renderer/services/ApiService'
-import { dbService } from '@renderer/services/db'
-import { DbService } from '@renderer/services/db/DbService'
+import { dbService } from '@renderer/services/db/DbService'
 import FileManager from '@renderer/services/FileManager'
 import { BlockManager } from '@renderer/services/messageStreaming/BlockManager'
 import { createCallbacks } from '@renderer/services/messageStreaming/callbacks'
@@ -95,7 +94,7 @@ type AgentSessionContext = {
 }
 
 const agentSessionRenameLocks = new Set<string>()
-const dbFacade = DbService.getInstance()
+const dbFacade = dbService
 
 const findExistingAgentSessionContext = (
   state: RootState,
@@ -254,7 +253,7 @@ const createSSEReadableStream = (
       const cancelReader = (reason?: any) => reader.cancel(reason).catch(() => {})
 
       const abortHandler = () => {
-        cancelReader(signal.reason ?? 'aborted')
+        void cancelReader(signal.reason ?? 'aborted')
         controller.error(new DOMException('Aborted', 'AbortError'))
       }
 
@@ -280,7 +279,7 @@ const createSSEReadableStream = (
 
         if (dataPayload === '[DONE]') {
           signal.removeEventListener('abort', abortHandler)
-          cancelReader()
+          void cancelReader()
           controller.close()
           return true
         }
@@ -338,6 +337,49 @@ const createSSEReadableStream = (
   })
 }
 
+/**
+ * Wraps a parsed stream with abort-signal lifecycle handling.
+ * In the normal chat pipeline the AI SDK runtime converts abort signals into
+ * `{ type: 'abort' }` stream parts. The agent pipeline bypasses the AI SDK
+ * runtime, so this middleware fills that gap — keeping the SSE parser
+ * (transport) and the chunk adapter (protocol) free of lifecycle concerns.
+ */
+const withAbortStreamPart = (
+  source: ReadableStream<TextStreamPart<Record<string, any>>>,
+  signal: AbortSignal
+): ReadableStream<TextStreamPart<Record<string, any>>> => {
+  const reader = source.getReader()
+
+  return new ReadableStream<TextStreamPart<Record<string, any>>>({
+    async pull(controller) {
+      try {
+        const { value, done } = await reader.read()
+        if (done) {
+          controller.close()
+          return
+        }
+        controller.enqueue(value)
+      } catch (error) {
+        // When the source errors due to abort, emit the abort stream part
+        // so downstream consumers (AiSdkToChunkAdapter) can fire onError.
+        if (signal.aborted) {
+          try {
+            controller.enqueue({ type: 'abort' } as TextStreamPart<Record<string, any>>)
+          } catch {
+            // Controller may already be closed
+          }
+          controller.close()
+        } else {
+          controller.error(error)
+        }
+      }
+    },
+    cancel(reason) {
+      return reader.cancel(reason)
+    }
+  })
+}
+
 const createAgentMessageStream = async (
   apiServer: ApiServerConfig,
   agentSession: AgentSessionContext,
@@ -376,7 +418,8 @@ const createAgentMessageStream = async (
     throw new Error('Agent message stream has no body')
   }
 
-  return createSSEReadableStream(response.body, signal)
+  const sseStream = createSSEReadableStream(response.body, signal)
+  return withAbortStreamPart(sseStream, signal)
 }
 // TODO: 后续可以将db操作移到Listener Middleware中
 // export const saveMessageAndBlocksToDB = async (message: Message, blocks: MessageBlock[], messageIndex: number = -1) => {
@@ -418,7 +461,15 @@ const updateExistingMessageAndBlocksInDB = async (
 const blockUpdateThrottlers = new LRUCache<string, ReturnType<typeof throttle>>({
   max: 100,
   ttl: 1000 * 60 * 5,
-  updateAgeOnGet: true
+  updateAgeOnGet: true,
+  dispose: (throttler, id) => {
+    throttler.cancel()
+    const rafId = blockUpdateRafs.get(id)
+    if (rafId) {
+      cancelAnimationFrame(rafId)
+      blockUpdateRafs.delete(id)
+    }
+  }
 })
 
 /**
@@ -428,7 +479,10 @@ const blockUpdateThrottlers = new LRUCache<string, ReturnType<typeof throttle>>(
 const blockUpdateRafs = new LRUCache<string, number>({
   max: 100,
   ttl: 1000 * 60 * 5,
-  updateAgeOnGet: true
+  updateAgeOnGet: true,
+  dispose: (rafId) => {
+    cancelAnimationFrame(rafId)
+  }
 })
 
 /**
@@ -515,7 +569,7 @@ export const cleanupMultipleBlocks = (dispatch: AppDispatch, blockIds: string[])
     await Promise.all(files.map((file) => FileManager.deleteFile(file.id, false)))
   }
 
-  getBlocksFiles(blockIds).then(cleanupFiles)
+  void getBlocksFiles(blockIds).then(cleanupFiles)
 
   if (blockIds.length > 0) {
     dispatch(removeManyBlocks(blockIds))
@@ -710,7 +764,7 @@ const fetchAndProcessAgentResponseImpl = async (
       false,
       false,
       (sessionId) => {
-        persistAgentSessionId(sessionId)
+        void persistAgentSessionId(sessionId)
       },
       () => sessionWasCleared // Provide getter for session cleared flag
     )
@@ -793,7 +847,7 @@ const dispatchMultiModelResponses = async (
 
   const queue = getTopicQueue(topicId)
   for (const task of tasksToQueue) {
-    queue.add(async () => {
+    void queue.add(async () => {
       await fetchAndProcessAssistantResponseImpl(
         dispatch,
         getState,
@@ -921,7 +975,6 @@ const fetchAndProcessAssistantResponseImpl = async (
         callbacks,
         options: {
           signal: abortController.signal,
-          timeout: 30000,
           headers: defaultAppHeaders()
         }
       },
@@ -1014,7 +1067,7 @@ export const sendMessage =
         await saveMessageAndBlocksToDB(topicId, assistantMessage, [])
         dispatch(newMessagesActions.addMessage({ topicId, message: assistantMessage }))
 
-        queue.add(async () => {
+        void queue.add(async () => {
           await fetchAndProcessAgentResponseImpl(dispatch, getState, {
             topicId,
             assistant,
@@ -1046,7 +1099,7 @@ export const sendMessage =
             })
           )
 
-          queue.add(async () => {
+          void queue.add(async () => {
             await fetchAndProcessAssistantResponseImpl(dispatch, getState, topicId, assistant, assistantMessage)
           })
         }
@@ -1054,7 +1107,7 @@ export const sendMessage =
     } catch (error) {
       logger.error('Error in sendMessage thunk:', error as Error)
     } finally {
-      finishTopicLoading(topicId)
+      void finishTopicLoading(topicId)
     }
   }
 
@@ -1322,14 +1375,14 @@ export const resendMessageThunk =
           ...assistant,
           ...(resetMsg.model ? { model: resetMsg.model } : {})
         }
-        queue.add(async () => {
+        void queue.add(async () => {
           await fetchAndProcessAssistantResponseImpl(dispatch, getState, topicId, assistantConfigForThisRegen, resetMsg)
         })
       }
     } catch (error) {
       logger.error(`[resendMessageThunk] Error resending user message ${userMessageToResend.id}:`, error as Error)
     } finally {
-      finishTopicLoading(topicId)
+      void finishTopicLoading(topicId)
     }
   }
 
@@ -1341,7 +1394,7 @@ export const resendMessageThunk =
 export const resendUserMessageWithEditThunk =
   (topicId: Topic['id'], originalMessage: Message, assistant: Assistant) => async (dispatch: AppDispatch) => {
     // Trigger the regeneration logic for associated assistant messages
-    dispatch(resendMessageThunk(topicId, originalMessage, assistant))
+    void dispatch(resendMessageThunk(topicId, originalMessage, assistant))
   }
 
 /**
@@ -1444,7 +1497,7 @@ export const regenerateAssistantResponseThunk =
         ...assistant,
         ...(resetAssistantMsg.model ? { model: resetAssistantMsg.model } : {})
       }
-      queue.add(async () => {
+      void queue.add(async () => {
         await fetchAndProcessAssistantResponseImpl(
           dispatch,
           getState,
@@ -1460,7 +1513,7 @@ export const regenerateAssistantResponseThunk =
       )
       // dispatch(newMessagesActions.setTopicLoading({ topicId, loading: false }))
     } finally {
-      finishTopicLoading(topicId)
+      void finishTopicLoading(topicId)
     }
   }
 
@@ -1621,8 +1674,8 @@ export const appendAssistantResponseThunk =
         })
       )
 
-      dispatch(updateMessageAndBlocksThunk(topicId, { id: existingAssistantMessageId, foldSelected: false }, []))
-      dispatch(updateMessageAndBlocksThunk(topicId, { id: newAssistantMessageStub.id, foldSelected: true }, []))
+      void dispatch(updateMessageAndBlocksThunk(topicId, { id: existingAssistantMessageId, foldSelected: false }, []))
+      void dispatch(updateMessageAndBlocksThunk(topicId, { id: newAssistantMessageStub.id, foldSelected: true }, []))
 
       // 5. Prepare and queue the processing task
       const assistantConfigForThisCall = {
@@ -1630,7 +1683,7 @@ export const appendAssistantResponseThunk =
         model: newModel
       }
       const queue = getTopicQueue(topicId)
-      queue.add(async () => {
+      void queue.add(async () => {
         await fetchAndProcessAssistantResponseImpl(
           dispatch,
           getState,
@@ -1644,7 +1697,7 @@ export const appendAssistantResponseThunk =
       // Optionally dispatch an error action or notification
       // Resetting loading state should be handled by the underlying fetchAndProcessAssistantResponseImpl
     } finally {
-      finishTopicLoading(topicId)
+      void finishTopicLoading(topicId)
     }
   }
 
