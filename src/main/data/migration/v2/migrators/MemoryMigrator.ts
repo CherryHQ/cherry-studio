@@ -11,6 +11,7 @@ import { app } from 'electron'
 import fs from 'fs'
 import path from 'path'
 
+import type { MigrationContext } from '../core/MigrationContext'
 import { BaseMigrator } from './BaseMigrator'
 
 const logger = loggerService.withContext('MemoryMigrator')
@@ -53,7 +54,7 @@ export class MemoryMigrator extends BaseMigrator {
   private hasMemoriesTable = false
   private hasHistoryTable = false
 
-  async prepare(_ctx: import('../core/MigrationContext').MigrationContext): Promise<PrepareResult> {
+  async prepare(_ctx: MigrationContext): Promise<PrepareResult> {
     this.dbPath = this.resolveLegacyMemoryDbPath()
     this.sourceMemoryCount = 0
     this.sourceHistoryCount = 0
@@ -110,7 +111,7 @@ export class MemoryMigrator extends BaseMigrator {
     }
   }
 
-  async execute(ctx: import('../core/MigrationContext').MigrationContext): Promise<ExecuteResult> {
+  async execute(ctx: MigrationContext): Promise<ExecuteResult> {
     if (!this.dbPath || this.sourceMemoryCount + this.sourceHistoryCount === 0) {
       return { success: true, processedCount: 0 }
     }
@@ -200,7 +201,7 @@ export class MemoryMigrator extends BaseMigrator {
     }
   }
 
-  async validate(ctx: import('../core/MigrationContext').MigrationContext): Promise<ValidateResult> {
+  async validate(ctx: MigrationContext): Promise<ValidateResult> {
     const errors: ValidationError[] = []
 
     try {

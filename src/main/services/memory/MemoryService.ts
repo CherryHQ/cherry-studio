@@ -107,7 +107,7 @@ export class MemoryService {
             continue
           }
 
-          let embedding: string | null = (existing.embedding as string | null) ?? null
+          let embedding: string | null = existing.embedding ?? null
           if (this.config?.embeddingModel) {
             try {
               const embeddingArray = await this.generateEmbedding(trimmedMemory)
@@ -334,7 +334,7 @@ export class MemoryService {
 
     const trimmedMemory = memory.trim()
     const hash = this.buildMemoryHash(trimmedMemory, current.userId ?? null)
-    let embedding: string | null = (current.embedding as string | null) ?? null
+    let embedding: string | null = current.embedding ?? null
 
     if (this.config?.embeddingModel) {
       try {
@@ -354,7 +354,7 @@ export class MemoryService {
       })
     }
 
-    const mergedMetadata = { ...(current.metadata || {}), ...(metadata || {}) }
+    const mergedMetadata = { ...current.metadata, ...metadata }
     const now = new Date().toISOString()
 
     await this.updateMemoryCore(id, {
