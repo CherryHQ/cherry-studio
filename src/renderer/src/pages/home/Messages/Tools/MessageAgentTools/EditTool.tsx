@@ -22,15 +22,16 @@ function EditToolChildren({ input, output }: { input?: EditToolInput; output?: E
     )
   }, [input?.file_path, input?.old_string, input?.new_string])
 
+  const themeType: 'dark' | 'light' = isShikiThemeDark ? 'dark' : 'light'
   const diffOptions = useMemo(
     () => ({
       disableFileHeader: true,
       diffStyle,
       overflow: 'wrap' as const,
       theme: activeShikiTheme,
-      themeType: (isShikiThemeDark ? 'dark' : 'light') as 'dark' | 'light'
+      themeType
     }),
-    [activeShikiTheme, isShikiThemeDark, diffStyle]
+    [activeShikiTheme, themeType, diffStyle]
   )
 
   return (

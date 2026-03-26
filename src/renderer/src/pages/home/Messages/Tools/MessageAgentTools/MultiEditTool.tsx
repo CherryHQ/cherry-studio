@@ -35,15 +35,16 @@ function MultiEditToolChildren({ input }: { input?: MultiEditToolInput }) {
   const { diffStyle, toggleDiffStyle } = useDiffStyle()
   const edits = Array.isArray(input?.edits) ? input.edits : []
 
+  const themeType: 'dark' | 'light' = isShikiThemeDark ? 'dark' : 'light'
   const diffOptions = useMemo(
     () => ({
       disableFileHeader: true,
       diffStyle,
       overflow: 'wrap' as const,
       theme: activeShikiTheme,
-      themeType: (isShikiThemeDark ? 'dark' : 'light') as 'dark' | 'light'
+      themeType
     }),
-    [activeShikiTheme, isShikiThemeDark, diffStyle]
+    [activeShikiTheme, themeType, diffStyle]
   )
 
   return (
