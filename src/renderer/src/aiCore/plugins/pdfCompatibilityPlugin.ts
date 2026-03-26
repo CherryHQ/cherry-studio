@@ -46,6 +46,7 @@ function supportsNativePdf(provider: Provider, model: Model): boolean {
   if (PDF_NATIVE_PROVIDER_TYPES.has(provider.type)) {
     return true
   }
+  // TODO: allow user to configure native pdf compatibility for provider/model
   return false
 }
 
