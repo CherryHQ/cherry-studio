@@ -110,6 +110,26 @@ describe('pdfCompatibilityPlugin', () => {
     expect(mockExtractPdfText).not.toHaveBeenCalled()
   })
 
+  it('should convert PDF for new-api provider when model endpoint_type is openai-response', async () => {
+    const provider = makeProvider('my-aggregator', 'new-api')
+    const model = makeModel('openai-response')
+    mockExtractPdfText.mockResolvedValue('Extracted PDF content')
+
+    const params = {
+      prompt: [{ role: 'user' as const, content: [makeTextPart('Hello'), makePdfFilePart('doc.pdf')] }]
+    } as unknown as LanguageModelV3CallOptions
+
+    const result = await runMiddleware(provider, params, model)
+    expect(mockExtractPdfText).toHaveBeenCalledWith('base64pdfdata')
+    expect(result.prompt[0]).toMatchObject({
+      role: 'user',
+      content: [
+        { type: 'text', text: 'Hello' },
+        { type: 'text', text: 'doc.pdf\nExtracted PDF content' }
+      ]
+    })
+  })
+
   it('should convert PDF for new-api provider when model endpoint_type is openai (non-native)', async () => {
     const provider = makeProvider('my-aggregator', 'new-api')
     const model = makeModel('openai')

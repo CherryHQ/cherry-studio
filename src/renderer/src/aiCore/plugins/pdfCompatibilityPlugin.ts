@@ -41,8 +41,10 @@ const AGGREGATOR_PROVIDER_TYPES = new Set<ProviderType>(['new-api', 'gateway'])
 /**
  * Endpoint types that natively support PDF file input.
  * Used to check aggregator models' endpoint_type.
+ * Note: 'openai-response' is excluded because non-OpenAI models
+ * may also use this endpoint but don't support the 'file' part type.
  */
-const PDF_NATIVE_ENDPOINT_TYPES = new Set(['openai-response', 'anthropic', 'gemini'])
+const PDF_NATIVE_ENDPOINT_TYPES = new Set(['anthropic', 'gemini'])
 
 function isPdfFilePart(part: ContentPart): part is LanguageModelV3FilePart & { mediaType: 'application/pdf' } {
   return part.type === 'file' && part.mediaType === 'application/pdf'
