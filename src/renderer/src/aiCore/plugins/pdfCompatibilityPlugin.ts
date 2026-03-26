@@ -17,22 +17,19 @@ const logger = loggerService.withContext('pdfCompatibilityPlugin')
 type ContentPart = Exclude<LanguageModelV3Message['content'], string>[number]
 
 /**
- * Provider types whose API protocol supports native PDF file input.
- * Uses provider.type (API protocol) instead of AI SDK provider ID,
- * because aggregator providers (cherryin, new-api, gateway) resolve to
- * non-standard AI SDK IDs but still speak a protocol that supports PDF.
+ * Provider types whose API natively supports PDF file input.
+ * Only first-party provider protocols are included here.
+ * OpenAI-compatible providers (type 'openai') are excluded because most
+ * third-party APIs (Moonshot, DeepSeek, etc.) do not support the 'file' part type.
  */
 const PDF_NATIVE_PROVIDER_TYPES = new Set<ProviderType>([
-  'openai', // OpenAI-compatible API (includes aggregators like cherryin)
   'openai-response', // OpenAI Responses API
   'anthropic', // Anthropic API
   'gemini', // Google Gemini API
   'azure-openai', // Azure OpenAI
   'vertexai', // Google Vertex AI
   'aws-bedrock', // AWS Bedrock
-  'vertex-anthropic', // Vertex AI with Anthropic models
-  'new-api', // new-api aggregator (OpenAI-compatible)
-  'gateway' // Gateway aggregator (OpenAI-compatible)
+  'vertex-anthropic' // Vertex AI with Anthropic models
 ])
 
 function isPdfFilePart(part: ContentPart): part is LanguageModelV3FilePart & { mediaType: 'application/pdf' } {
@@ -43,10 +40,7 @@ function pdfCompatibilityMiddleware(provider: Provider): LanguageModelMiddleware
   return {
     specificationVersion: 'v3',
     transformParams: async ({ params }) => {
-      // CherryAI provider doesn't support native PDF input
-      const isCherryAI = provider.id === 'cherryai'
-
-      if (PDF_NATIVE_PROVIDER_TYPES.has(provider.type) && !isCherryAI) {
+      if (PDF_NATIVE_PROVIDER_TYPES.has(provider.type)) {
         return params
       }
 
