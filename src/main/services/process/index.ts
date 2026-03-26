@@ -6,7 +6,7 @@ export type {
   ProcessHandle,
   ProcessLogLine,
   ProcessManagerEvents,
-  UtilityProcessDefinition,
-  UtilityProcessHandle
+  UtilityProcessDefinition
 } from './types'
 export { ProcessState } from './types'
+export { UtilityProcessHandle } from './UtilityProcessHandle'

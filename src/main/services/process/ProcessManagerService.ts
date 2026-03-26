@@ -13,6 +13,7 @@ import type {
   UtilityProcessDefinition
 } from './types'
 import { ProcessState } from './types'
+import { UtilityProcessHandle } from './UtilityProcessHandle'
 
 @Injectable('ProcessManagerService')
 @ServicePhase(Phase.WhenReady)
@@ -22,28 +23,36 @@ export class ProcessManagerService extends BaseService {
   private readonly logger = loggerService.withContext('ProcessManagerService')
 
   register(def: ChildProcessDefinition): ChildProcessHandle
-  register(def: UtilityProcessDefinition): never
-  register(def: ProcessDefinition): ChildProcessHandle {
+  register(def: UtilityProcessDefinition): UtilityProcessHandle
+  register(def: ProcessDefinition): ChildProcessHandle | UtilityProcessHandle {
     if (this.handles.has(def.id)) {
       throw new Error(`Process '${def.id}' is already registered`)
     }
 
+    let handle: ChildProcessHandle | UtilityProcessHandle
+
     if (def.type === 'utility') {
-      throw new Error('UtilityProcess registration not yet implemented')
-    }
+      const utilHandle = new UtilityProcessHandle(def)
+      utilHandle.onStarted = (pid) => this.emitter.emit('process:started', def.id, pid)
+      utilHandle.onExited = (code, signal) => this.emitter.emit('process:exited', def.id, code, signal)
+      utilHandle.onLog = (line) => this.emitter.emit('process:log', line)
+      handle = utilHandle
+    } else {
+      const childHandle = new ChildProcessHandle(def)
 
-    const handle = new ChildProcessHandle(def)
+      childHandle.onStarted = (pid: number) => {
+        this.emitter.emit('process:started', def.id, pid)
+      }
 
-    handle.onStarted = (pid: number) => {
-      this.emitter.emit('process:started', def.id, pid)
-    }
+      childHandle.onExited = (code: number | null, signal: NodeJS.Signals | null) => {
+        this.emitter.emit('process:exited', def.id, code, signal)
+      }
 
-    handle.onExited = (code: number | null, signal: NodeJS.Signals | null) => {
-      this.emitter.emit('process:exited', def.id, code, signal)
-    }
+      childHandle.onLog = (line: ProcessLogLine) => {
+        this.emitter.emit('process:log', line)
+      }
 
-    handle.onLog = (line: ProcessLogLine) => {
-      this.emitter.emit('process:log', line)
+      handle = childHandle
     }
 
     this.handles.set(def.id, handle)

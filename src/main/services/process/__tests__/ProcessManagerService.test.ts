@@ -24,8 +24,9 @@ vi.mock('@logger', () => ({
   }
 }))
 
-// Mock electron (utilityProcess specifically needed for process module)
-vi.mock('electron', () => ({ utilityProcess: { fork: vi.fn() } }))
+// Mock electron (utilityProcess specifically needed for UtilityProcessHandle)
+const mockUtilityProcessFork = vi.fn()
+vi.mock('electron', () => ({ utilityProcess: { fork: mockUtilityProcessFork } }))
 
 function createMockChildProcess(pid = 1234) {
   const cp = new EventEmitter() as any
@@ -77,13 +78,21 @@ describe('ProcessManagerService', () => {
       )
     })
 
-    it('throws for utility process type', async () => {
-      const { ProcessManagerService } = await loadModules()
+    it('creates a UtilityProcessHandle for utility type', async () => {
+      const { EventEmitter } = await import('events')
+      const mockProc = new EventEmitter() as any
+      mockProc.pid = 7777
+      mockProc.postMessage = vi.fn()
+      mockProc.kill = vi.fn()
+      mockUtilityProcessFork.mockReturnValue(mockProc)
+
+      const { ProcessManagerService, ProcessState } = await loadModules()
       const manager = new ProcessManagerService()
 
-      expect(() =>
-        manager.register({ type: 'utility' as any, id: 'util-proc', modulePath: '/some/path' } as any)
-      ).toThrow('UtilityProcess registration not yet implemented')
+      const handle = manager.register({ type: 'utility', id: 'util-proc', modulePath: '/some/module.js' })
+
+      expect(handle.id).toBe('util-proc')
+      expect(handle.state).toBe(ProcessState.Idle)
     })
   })
 
