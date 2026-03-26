@@ -18,9 +18,13 @@ type ContentPart = Exclude<LanguageModelV3Message['content'], string>[number]
 
 /**
  * Provider types whose API natively supports PDF file input.
- * Only first-party provider protocols are included here.
- * OpenAI-compatible providers (type 'openai') are excluded because most
- * third-party APIs (Moonshot, DeepSeek, etc.) do not support the 'file' part type.
+ * Includes first-party protocols (OpenAI, Anthropic, Google) and
+ * aggregator types (new-api, gateway) that forward to these backends.
+ *
+ * Note: generic 'openai' type is excluded because most third-party
+ * OpenAI-compatible APIs (Moonshot, DeepSeek, etc.) do not support
+ * the 'file' part type. Aggregator providers with 'openai' type
+ * (e.g. cherryin) are allowlisted by ID instead.
  */
 const PDF_NATIVE_PROVIDER_TYPES = new Set<ProviderType>([
   'openai-response', // OpenAI Responses API
@@ -29,8 +33,16 @@ const PDF_NATIVE_PROVIDER_TYPES = new Set<ProviderType>([
   'azure-openai', // Azure OpenAI
   'vertexai', // Google Vertex AI
   'aws-bedrock', // AWS Bedrock
-  'vertex-anthropic' // Vertex AI with Anthropic models
+  'vertex-anthropic', // Vertex AI with Anthropic models
+  'new-api', // new-api aggregator (forwards to native backends)
+  'gateway' // Gateway aggregator (forwards to native backends)
 ])
+
+/**
+ * Aggregator provider IDs that use 'openai' type but support native PDF
+ * because they forward requests to backends (OpenAI, Anthropic, Google, etc.).
+ */
+const PDF_NATIVE_AGGREGATOR_IDS = new Set(['cherryin'])
 
 function isPdfFilePart(part: ContentPart): part is LanguageModelV3FilePart & { mediaType: 'application/pdf' } {
   return part.type === 'file' && part.mediaType === 'application/pdf'
@@ -40,7 +52,7 @@ function pdfCompatibilityMiddleware(provider: Provider): LanguageModelMiddleware
   return {
     specificationVersion: 'v3',
     transformParams: async ({ params }) => {
-      if (PDF_NATIVE_PROVIDER_TYPES.has(provider.type)) {
+      if (PDF_NATIVE_PROVIDER_TYPES.has(provider.type) || PDF_NATIVE_AGGREGATOR_IDS.has(provider.id)) {
         return params
       }
 

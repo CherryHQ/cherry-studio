@@ -80,27 +80,32 @@ describe('pdfCompatibilityPlugin', () => {
     expect(mockExtractPdfText).not.toHaveBeenCalled()
   })
 
-  it('should convert PDF for openai-compatible providers (moonshot, cherryin, etc.)', async () => {
-    const provider = makeProvider('moonshot', 'openai')
-    mockExtractPdfText.mockResolvedValue('Extracted PDF content')
+  it('should pass through unchanged for aggregator providers with allowlisted ID (cherryin)', async () => {
+    const provider = makeProvider('cherryin', 'openai')
 
     const params = {
-      prompt: [{ role: 'user' as const, content: [makeTextPart('Hello'), makePdfFilePart('report.pdf')] }]
+      prompt: [{ role: 'user' as const, content: [makeTextPart('Hello'), makePdfFilePart()] }]
     } as unknown as LanguageModelV3CallOptions
 
     const result = await runMiddleware(provider, params)
-    expect(mockExtractPdfText).toHaveBeenCalledWith('base64pdfdata')
-    expect(result.prompt[0]).toMatchObject({
-      role: 'user',
-      content: [
-        { type: 'text', text: 'Hello' },
-        { type: 'text', text: 'report.pdf\nExtracted PDF content' }
-      ]
-    })
+    expect(result).toEqual(params)
+    expect(mockExtractPdfText).not.toHaveBeenCalled()
   })
 
-  it('should convert PDF for new-api type providers', async () => {
+  it('should pass through unchanged for new-api type providers', async () => {
     const provider = makeProvider('my-aggregator', 'new-api')
+
+    const params = {
+      prompt: [{ role: 'user' as const, content: [makeTextPart('Hello'), makePdfFilePart()] }]
+    } as unknown as LanguageModelV3CallOptions
+
+    const result = await runMiddleware(provider, params)
+    expect(result).toEqual(params)
+    expect(mockExtractPdfText).not.toHaveBeenCalled()
+  })
+
+  it('should convert PDF for non-aggregator openai-compatible providers (moonshot)', async () => {
+    const provider = makeProvider('moonshot', 'openai')
     mockExtractPdfText.mockResolvedValue('Extracted PDF content')
 
     const params = {
