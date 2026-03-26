@@ -56,7 +56,7 @@ function TooltipTrigger({ ...props }: TooltipTriggerProps) {
 }
 
 const contentStyles =
-  'z-50 max-w-60 rounded-lg border border-border bg-background px-4 py-3 text-sm text-foreground shadow-[0px_6px_12px_0px_rgba(0,0,0,0.2)] animate-in fade-in-0 zoom-in-95 data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=closed]:zoom-out-95 data-[side=bottom]:slide-in-from-top-2 data-[side=left]:slide-in-from-right-2 data-[side=right]:slide-in-from-left-2 data-[side=top]:slide-in-from-bottom-2'
+  'z-50 max-w-60 rounded-3xs border border-border bg-background px-4 py-3 text-sm leading-4 text-foreground shadow-[0px_6px_12px_0px_rgba(0,0,0,0.2)] animate-in fade-in-0 zoom-in-95 data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=closed]:zoom-out-95 data-[side=bottom]:slide-in-from-top-2 data-[side=left]:slide-in-from-right-2 data-[side=right]:slide-in-from-left-2 data-[side=top]:slide-in-from-bottom-2'
 
 function TooltipContent({ className, sideOffset = 4, children, ...props }: TooltipContentProps) {
   return (
@@ -109,7 +109,13 @@ export const Tooltip = ({
   onOpenChange,
   onClick
 }: TooltipProps) => {
-  const [open, setOpen] = React.useState(false)
+  const closeTimerRef = React.useRef<ReturnType<typeof setTimeout>>(null)
+
+  React.useEffect(() => {
+    return () => {
+      if (closeTimerRef.current) clearTimeout(closeTimerRef.current)
+    }
+  }, [])
 
   const tooltipContent = content ?? title
   if (!tooltipContent || isDisabled) {
@@ -122,26 +128,24 @@ export const Tooltip = ({
 
   const { side, align } = parsePlacement(placement)
 
-  const useControlledClose = closeDelay != null && closeDelay > 0
-  const useControlledOpen = isOpen != null
-
-  const handleOpenChange = useControlledClose
-    ? (nextOpen: boolean) => {
-        if (nextOpen) {
-          setOpen(true)
-        } else {
-          setTimeout(() => setOpen(false), closeDelay)
-        }
-      }
-    : undefined
-
   const controlledProps: Partial<React.ComponentProps<typeof RadixRoot>> = {}
-  if (useControlledOpen) {
+  if (isOpen != null) {
     controlledProps.open = isOpen
-    if (onOpenChange) controlledProps.onOpenChange = onOpenChange
-  } else if (useControlledClose) {
-    controlledProps.open = open
-    controlledProps.onOpenChange = handleOpenChange
+    controlledProps.onOpenChange = onOpenChange
+  } else if (closeDelay != null && closeDelay > 0) {
+    controlledProps.onOpenChange = (nextOpen: boolean) => {
+      if (closeTimerRef.current) {
+        clearTimeout(closeTimerRef.current)
+        closeTimerRef.current = null
+      }
+      if (nextOpen) {
+        onOpenChange?.(true)
+      } else {
+        closeTimerRef.current = setTimeout(() => onOpenChange?.(false), closeDelay)
+      }
+    }
+  } else if (onOpenChange) {
+    controlledProps.onOpenChange = onOpenChange
   }
 
   return (
