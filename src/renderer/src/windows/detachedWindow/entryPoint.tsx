@@ -23,7 +23,7 @@ import { ThemeProvider } from '../../context/ThemeProvider'
 // Initialize logger for this window
 loggerService.initWindowSource('DetachedTab')
 
-preferenceService.preloadAll()
+void preferenceService.preloadAll()
 
 // Create React Query client
 const queryClient = new QueryClient({

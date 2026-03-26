@@ -140,9 +140,9 @@ export class DetachedWindowManager {
     })
 
     if (is.dev && process.env['ELECTRON_RENDERER_URL']) {
-      win.loadURL(`${process.env['ELECTRON_RENDERER_URL']}/detachedWindow.html?${params.toString()}`)
+      void win.loadURL(`${process.env['ELECTRON_RENDERER_URL']}/detachedWindow.html?${params.toString()}`)
     } else {
-      win.loadFile(join(__dirname, '../renderer/detachedWindow.html'), {
+      void win.loadFile(join(__dirname, '../renderer/detachedWindow.html'), {
         search: params.toString()
       })
     }
@@ -154,7 +154,7 @@ export class DetachedWindowManager {
     })
 
     win.webContents.setWindowOpenHandler((details) => {
-      shell.openExternal(details.url)
+      void shell.openExternal(details.url)
       return { action: 'deny' }
     })
 
