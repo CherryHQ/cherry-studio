@@ -80,18 +80,6 @@ describe('pdfCompatibilityPlugin', () => {
     expect(mockExtractPdfText).not.toHaveBeenCalled()
   })
 
-  it('should pass through unchanged for aggregator providers with allowlisted ID (cherryin)', async () => {
-    const provider = makeProvider('cherryin', 'openai')
-
-    const params = {
-      prompt: [{ role: 'user' as const, content: [makeTextPart('Hello'), makePdfFilePart()] }]
-    } as unknown as LanguageModelV3CallOptions
-
-    const result = await runMiddleware(provider, params)
-    expect(result).toEqual(params)
-    expect(mockExtractPdfText).not.toHaveBeenCalled()
-  })
-
   it('should pass through unchanged for new-api type providers', async () => {
     const provider = makeProvider('my-aggregator', 'new-api')
 

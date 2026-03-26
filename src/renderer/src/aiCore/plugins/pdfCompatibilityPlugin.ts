@@ -23,8 +23,7 @@ type ContentPart = Exclude<LanguageModelV3Message['content'], string>[number]
  *
  * Note: generic 'openai' type is excluded because most third-party
  * OpenAI-compatible APIs (Moonshot, DeepSeek, etc.) do not support
- * the 'file' part type. Aggregator providers with 'openai' type
- * (e.g. cherryin) are allowlisted by ID instead.
+ * the 'file' part type.
  */
 const PDF_NATIVE_PROVIDER_TYPES = new Set<ProviderType>([
   'openai-response', // OpenAI Responses API
@@ -38,12 +37,6 @@ const PDF_NATIVE_PROVIDER_TYPES = new Set<ProviderType>([
   'gateway' // Gateway aggregator (forwards to native backends)
 ])
 
-/**
- * Aggregator provider IDs that use 'openai' type but support native PDF
- * because they forward requests to backends (OpenAI, Anthropic, Google, etc.).
- */
-const PDF_NATIVE_AGGREGATOR_IDS = new Set(['cherryin'])
-
 function isPdfFilePart(part: ContentPart): part is LanguageModelV3FilePart & { mediaType: 'application/pdf' } {
   return part.type === 'file' && part.mediaType === 'application/pdf'
 }
@@ -52,7 +45,7 @@ function pdfCompatibilityMiddleware(provider: Provider): LanguageModelMiddleware
   return {
     specificationVersion: 'v3',
     transformParams: async ({ params }) => {
-      if (PDF_NATIVE_PROVIDER_TYPES.has(provider.type) || PDF_NATIVE_AGGREGATOR_IDS.has(provider.id)) {
+      if (PDF_NATIVE_PROVIDER_TYPES.has(provider.type)) {
         return params
       }
 
