@@ -6,6 +6,14 @@ vi.mock('i18next', () => ({
   default: { t: (key: string, opts?: Record<string, unknown>) => `${key}${opts ? JSON.stringify(opts) : ''}` }
 }))
 
+vi.mock('@renderer/config/models', () => ({
+  isAnthropicModel: vi.fn(() => false)
+}))
+
+vi.mock('@renderer/config/models/openai', () => ({
+  isOpenAIModel: vi.fn(() => false)
+}))
+
 const mockExtractPdfText = vi.fn()
 
 vi.mock('@shared/utils/pdf', () => ({
@@ -24,6 +32,9 @@ vi.stubGlobal('window', {
     error: vi.fn()
   }
 })
+
+import { isAnthropicModel } from '@renderer/config/models'
+import { isOpenAIModel } from '@renderer/config/models/openai'
 
 import { createPdfCompatibilityPlugin } from '../pdfCompatibilityPlugin'
 
@@ -70,6 +81,34 @@ async function runMiddleware(provider: Provider, params: LanguageModelV3CallOpti
 describe('pdfCompatibilityPlugin', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    vi.mocked(isOpenAIModel).mockReturnValue(false)
+    vi.mocked(isAnthropicModel).mockReturnValue(false)
+  })
+
+  it('should pass through for OpenAI model on any provider type', async () => {
+    vi.mocked(isOpenAIModel).mockReturnValue(true)
+    const provider = makeProvider('moonshot', 'openai')
+
+    const params = {
+      prompt: [{ role: 'user' as const, content: [makeTextPart('Hello'), makePdfFilePart()] }]
+    } as unknown as LanguageModelV3CallOptions
+
+    const result = await runMiddleware(provider, params)
+    expect(result).toEqual(params)
+    expect(mockExtractPdfText).not.toHaveBeenCalled()
+  })
+
+  it('should pass through for Claude model on any provider type', async () => {
+    vi.mocked(isAnthropicModel).mockReturnValue(true)
+    const provider = makeProvider('my-aggregator', 'new-api')
+
+    const params = {
+      prompt: [{ role: 'user' as const, content: [makeTextPart('Hello'), makePdfFilePart()] }]
+    } as unknown as LanguageModelV3CallOptions
+
+    const result = await runMiddleware(provider, params)
+    expect(result).toEqual(params)
+    expect(mockExtractPdfText).not.toHaveBeenCalled()
   })
 
   it('should pass through unchanged when provider type supports native PDF (openai-response)', async () => {
