@@ -44,7 +44,7 @@ export class DetachedWindowManager {
       }
     })
 
-    // 分离窗口拖回主窗口：检查鼠标是否在主窗口 tab bar 区域内
+    // Detached window drag back to main window: check if mouse is within the main window tab bar area
     ipcMain.handle(
       IpcChannel.Tab_TryAttach,
       (_, payload: { tab: { id: string }; screenX: number; screenY: number }) => {
@@ -70,7 +70,7 @@ export class DetachedWindowManager {
           return true
         }
 
-        // 未合并，恢复不透明
+        // Not merged, restore opacity
         const detachedWin = this.windows.get(payload.tab.id)
         if (detachedWin && !detachedWin.isDestroyed()) {
           detachedWin.setOpacity(1)
