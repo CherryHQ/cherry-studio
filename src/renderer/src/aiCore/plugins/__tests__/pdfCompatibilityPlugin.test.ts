@@ -1,5 +1,5 @@
 import type { LanguageModelV3CallOptions } from '@ai-sdk/provider'
-import type { Provider, ProviderType } from '@renderer/types'
+import type { EndpointType, Model, Provider, ProviderType } from '@renderer/types'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 vi.mock('i18next', () => ({
@@ -31,6 +31,10 @@ function makeProvider(id: string, type: ProviderType): Provider {
   return { id, name: id, type, apiKey: 'test', apiHost: 'https://test.com', isSystem: false, models: [] } as Provider
 }
 
+function makeModel(endpointType?: EndpointType): Model {
+  return { id: 'test-model', provider: 'test', name: 'Test', group: 'test', endpoint_type: endpointType } as Model
+}
+
 function makePdfFilePart(filename = 'test.pdf') {
   return {
     type: 'file' as const,
@@ -53,8 +57,8 @@ function makeTextPart(text: string) {
   return { type: 'text' as const, text }
 }
 
-async function runMiddleware(provider: Provider, params: LanguageModelV3CallOptions) {
-  const plugin = createPdfCompatibilityPlugin(provider)
+async function runMiddleware(provider: Provider, params: LanguageModelV3CallOptions, model: Model = makeModel()) {
+  const plugin = createPdfCompatibilityPlugin(provider, model)
   const context: {
     middlewares: Array<{ transformParams: (opts: Record<string, unknown>) => Promise<LanguageModelV3CallOptions> }>
   } = { middlewares: [] }
@@ -80,16 +84,70 @@ describe('pdfCompatibilityPlugin', () => {
     expect(mockExtractPdfText).not.toHaveBeenCalled()
   })
 
-  it('should pass through unchanged for new-api type providers', async () => {
+  it('should pass through for new-api provider when model endpoint_type is anthropic', async () => {
     const provider = makeProvider('my-aggregator', 'new-api')
+    const model = makeModel('anthropic')
 
     const params = {
       prompt: [{ role: 'user' as const, content: [makeTextPart('Hello'), makePdfFilePart()] }]
     } as unknown as LanguageModelV3CallOptions
 
-    const result = await runMiddleware(provider, params)
+    const result = await runMiddleware(provider, params, model)
     expect(result).toEqual(params)
     expect(mockExtractPdfText).not.toHaveBeenCalled()
+  })
+
+  it('should pass through for gateway provider when model endpoint_type is gemini', async () => {
+    const provider = makeProvider('my-gateway', 'gateway')
+    const model = makeModel('gemini')
+
+    const params = {
+      prompt: [{ role: 'user' as const, content: [makeTextPart('Hello'), makePdfFilePart()] }]
+    } as unknown as LanguageModelV3CallOptions
+
+    const result = await runMiddleware(provider, params, model)
+    expect(result).toEqual(params)
+    expect(mockExtractPdfText).not.toHaveBeenCalled()
+  })
+
+  it('should convert PDF for new-api provider when model endpoint_type is openai (non-native)', async () => {
+    const provider = makeProvider('my-aggregator', 'new-api')
+    const model = makeModel('openai')
+    mockExtractPdfText.mockResolvedValue('Extracted PDF content')
+
+    const params = {
+      prompt: [{ role: 'user' as const, content: [makeTextPart('Hello'), makePdfFilePart('doc.pdf')] }]
+    } as unknown as LanguageModelV3CallOptions
+
+    const result = await runMiddleware(provider, params, model)
+    expect(mockExtractPdfText).toHaveBeenCalledWith('base64pdfdata')
+    expect(result.prompt[0]).toMatchObject({
+      role: 'user',
+      content: [
+        { type: 'text', text: 'Hello' },
+        { type: 'text', text: 'doc.pdf\nExtracted PDF content' }
+      ]
+    })
+  })
+
+  it('should convert PDF for new-api provider when model has no endpoint_type', async () => {
+    const provider = makeProvider('my-aggregator', 'new-api')
+    const model = makeModel(undefined)
+    mockExtractPdfText.mockResolvedValue('Extracted PDF content')
+
+    const params = {
+      prompt: [{ role: 'user' as const, content: [makeTextPart('Hello'), makePdfFilePart('doc.pdf')] }]
+    } as unknown as LanguageModelV3CallOptions
+
+    const result = await runMiddleware(provider, params, model)
+    expect(mockExtractPdfText).toHaveBeenCalledWith('base64pdfdata')
+    expect(result.prompt[0]).toMatchObject({
+      role: 'user',
+      content: [
+        { type: 'text', text: 'Hello' },
+        { type: 'text', text: 'doc.pdf\nExtracted PDF content' }
+      ]
+    })
   })
 
   it('should convert PDF for non-aggregator openai-compatible providers (moonshot)', async () => {
