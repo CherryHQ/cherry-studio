@@ -34,22 +34,6 @@ const PDF_NATIVE_PROVIDER_TYPES = new Set<ProviderType>([
   'vertex-anthropic' // Vertex AI with Anthropic models
 ])
 
-/**
- * Aggregator provider types that may route to native backends.
- * For these, we check the model's endpoint_type to decide.
- */
-const AGGREGATOR_PROVIDER_TYPES = new Set<ProviderType>(['new-api', 'gateway'])
-
-/**
- * Endpoint types that natively support PDF file input.
- * Used to check aggregator models' endpoint_type.
- * Only 'gemini' is included because:
- * - 'openai-response': non-OpenAI models may use this endpoint
- * - 'anthropic': non-Claude models may use this endpoint
- * Both may not support the 'file' part type.
- */
-const PDF_NATIVE_ENDPOINT_TYPES = new Set(['gemini'])
-
 function isPdfFilePart(part: ContentPart): part is LanguageModelV3FilePart & { mediaType: 'application/pdf' } {
   return part.type === 'file' && part.mediaType === 'application/pdf'
 }
@@ -61,9 +45,6 @@ function supportsNativePdf(provider: Provider, model: Model): boolean {
   }
   if (PDF_NATIVE_PROVIDER_TYPES.has(provider.type)) {
     return true
-  }
-  if (AGGREGATOR_PROVIDER_TYPES.has(provider.type) && model.endpoint_type) {
-    return PDF_NATIVE_ENDPOINT_TYPES.has(model.endpoint_type)
   }
   return false
 }
