@@ -10,7 +10,7 @@ const { downloadWithRedirects } = require('./download')
 const GITCODE_RELEASE_BASE_URL = 'https://gitcode.com/CherryHQ/openclaw-releases/releases/download'
 const GITHUB_RELEASE_BASE_URL = 'https://github.com/CherryHQ/openclaw/releases/download'
 const GITHUB_API_LATEST_RELEASE = 'https://api.github.com/repos/CherryHQ/openclaw/releases/latest'
-const DEFAULT_VERSION = 'v2026.3.13'
+const DEFAULT_VERSION = 'v2026.3.24'
 const API_TIMEOUT_MS = 5000
 
 /**
