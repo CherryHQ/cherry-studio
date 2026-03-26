@@ -41,7 +41,7 @@ import { isAIGatewayProvider, isAwsBedrockProvider, isSupportUrlContextProvider 
 import { DEFAULT_TIMEOUT } from '@shared/config/constant'
 import type { ModelMessage, Tool } from 'ai'
 import { stepCountIs } from 'ai'
-import { getBundledModel } from 'ai-sdk-provider-poe'
+import { getModel as getPoeModel } from 'ai-sdk-provider-poe/code'
 
 import { resolveAiSdkRuntimeProviderIdByMode } from '../provider/factory'
 import { resolveAiSdkTransport } from '../provider/transport'
@@ -87,7 +87,10 @@ function mapVertexAIGatewayModelToProviderId(model: Model): BaseProviderId | und
 
 function resolvePoeWebSearchProviderId(model: Model): BaseProviderId {
   const rawModelId = model.id.includes('/') ? model.id.split('/').slice(1).join('/') : model.id
-  return getBundledModel(rawModelId)?.supported_endpoints?.[0] === '/v1/chat/completions' ? 'openai-chat' : 'openai'
+  const endpoint = getPoeModel(rawModelId)?.supportedEndpoints?.[0]
+  if (endpoint === '/v1/messages') return 'anthropic'
+  if (endpoint === '/v1/chat/completions') return 'openai-chat'
+  return 'openai'
 }
 
 /**
