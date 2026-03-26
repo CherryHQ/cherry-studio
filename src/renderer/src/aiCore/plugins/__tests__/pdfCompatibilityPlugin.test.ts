@@ -84,17 +84,24 @@ describe('pdfCompatibilityPlugin', () => {
     expect(mockExtractPdfText).not.toHaveBeenCalled()
   })
 
-  it('should pass through for new-api provider when model endpoint_type is anthropic', async () => {
+  it('should convert PDF for new-api provider when model endpoint_type is anthropic (non-Claude models may use it)', async () => {
     const provider = makeProvider('my-aggregator', 'new-api')
     const model = makeModel('anthropic')
+    mockExtractPdfText.mockResolvedValue('Extracted PDF content')
 
     const params = {
-      prompt: [{ role: 'user' as const, content: [makeTextPart('Hello'), makePdfFilePart()] }]
+      prompt: [{ role: 'user' as const, content: [makeTextPart('Hello'), makePdfFilePart('doc.pdf')] }]
     } as unknown as LanguageModelV3CallOptions
 
     const result = await runMiddleware(provider, params, model)
-    expect(result).toEqual(params)
-    expect(mockExtractPdfText).not.toHaveBeenCalled()
+    expect(mockExtractPdfText).toHaveBeenCalledWith('base64pdfdata')
+    expect(result.prompt[0]).toMatchObject({
+      role: 'user',
+      content: [
+        { type: 'text', text: 'Hello' },
+        { type: 'text', text: 'doc.pdf\nExtracted PDF content' }
+      ]
+    })
   })
 
   it('should pass through for gateway provider when model endpoint_type is gemini', async () => {
