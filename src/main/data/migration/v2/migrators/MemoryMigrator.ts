@@ -54,7 +54,7 @@ export class MemoryMigrator extends BaseMigrator {
   private hasMemoriesTable = false
   private hasHistoryTable = false
 
-  async prepare(_ctx: MigrationContext): Promise<PrepareResult> {
+  async prepare(): Promise<PrepareResult> {
     this.dbPath = this.resolveLegacyMemoryDbPath()
     this.sourceMemoryCount = 0
     this.sourceHistoryCount = 0
