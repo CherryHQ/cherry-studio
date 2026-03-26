@@ -1,20 +1,77 @@
-# Knowledge Migration Notes (V2)
+# Knowledge Schema Notes (V2)
 
-This document records temporary migration decisions for the V2 knowledge refactor.
+This document records the current V2 knowledge target schema, migration constraints, and temporary scope boundaries.
 
 ## Scope Clarification
 
 - `video` items are out of scope for V2 knowledge data migration and should be skipped.
 - `memory` items belong to the memory module, not the knowledge module, and should be skipped in knowledge migration.
 
+## Current Target Schema
+
+### `knowledge_base`
+
+- Persisted columns:
+  - `id`
+  - `name`
+  - `description`
+  - `dimensions`
+  - `embeddingModelId`
+  - `rerankModelId`
+  - `fileProcessorId`
+  - `chunkSize`
+  - `chunkOverlap`
+  - `threshold`
+  - `documentCount`
+  - `searchMode`
+  - `hybridAlpha`
+  - `createdAt`
+  - `updatedAt`
+
+### `knowledge_item`
+
+- Persisted columns:
+  - `id`
+  - `baseId`
+  - `parentId`
+  - `type`
+  - `data`
+  - `status`
+  - `error`
+  - `createdAt`
+  - `updatedAt`
+
+## Fields Removed From The V2 SQLite Schema
+
+- `video` is not a target `knowledge_item.type`.
+- `memory` is not a target `knowledge_item.type`.
+- Legacy runtime-only item fields are not stored as standalone SQLite columns:
+  - `uniqueId`
+  - `uniqueIds`
+  - `processingProgress`
+  - `retryCount`
+  - `isPreprocessed`
+- `remark` is not part of the V2 SQLite schema.
+- `sourceUrl` is not a standalone `knowledge_item` column:
+  - for notes, it may exist inside `data.sourceUrl`
+  - for url/sitemap items, the URL is stored inside the typed `data` payload
+- Official v1 legacy exports do not contain `parentId`.
+
 ## `parentId` Semantics
 
-- `knowledge_item.parentId` is reserved for internal hierarchy relationships produced by the directory embedding flow.
-- External DataApi create/update payloads should not accept caller-provided `parentId` for knowledge items.
-- The intended usage is:
-  - a directory item is created as a root item first
-  - files discovered inside that directory are created later by internal embedding logic, with their `parentId` pointing to the directory item id
-- Therefore, the current API shape is intentionally not a generic tree CRUD contract for arbitrary client-defined hierarchies.
+- `knowledge_item.parentId` is a generic same-base tree edge in the target schema.
+- Runtime create flows may provide `parentId`, as long as the parent exists and belongs to the same knowledge base.
+- The schema is intentionally broader than a directory-only hierarchy model.
+- Migration from official v1 data does not preserve or infer hierarchy:
+  - official v1 exports are flat
+  - migrated items are inserted with `parentId = null`
+
+## Current Non-Goals
+
+- This phase does not reconstruct hierarchy from legacy v1 exports.
+- This phase does not infer directory child relationships during migration.
+- This phase does not preserve temporary processing lifecycle states beyond the `uniqueId`-based status rule below.
+- This phase does not migrate `video` or `memory` into V2 knowledge tables.
 
 ## `dimensions` Resolution Rule
 
@@ -42,6 +99,6 @@ This document records temporary migration decisions for the V2 knowledge refacto
 ## Implementation Status
 
 - `video` and `memory` items are skipped during migration.
-- External DataApi payloads must not provide `parentId` for knowledge items.
+- The target schema supports non-null `parentId`, but migration from official v1 data still writes `parentId = null`.
 - `dimensions` resolution failure skips the entire base and all nested items, with warnings recorded in migration output.
 - Knowledge item status migration uses `uniqueId` instead of `processingStatus`.

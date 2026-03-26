@@ -4,9 +4,9 @@
  * Handles CRUD operations for knowledge items stored in SQLite.
  */
 
-import { dbService } from '@data/db/DbService'
 import { knowledgeItemTable } from '@data/db/schemas/knowledge'
 import { loggerService } from '@logger'
+import { application } from '@main/core/application'
 import { DataApiErrorFactory } from '@shared/data/api'
 import type { OffsetPaginationResponse } from '@shared/data/api/apiTypes'
 import type {
@@ -54,7 +54,7 @@ export class KnowledgeItemService {
   }
 
   async list(baseId: string, query: KnowledgeItemsQuery): Promise<OffsetPaginationResponse<KnowledgeItem>> {
-    const db = dbService.getDb()
+    const db = application.get('DbService').getDb()
     await knowledgeBaseService.getById(baseId)
     const { page, limit, parentId } = query
     const offset = (page - 1) * limit
@@ -81,7 +81,7 @@ export class KnowledgeItemService {
   }
 
   async create(baseId: string, dto: CreateKnowledgeItemsDto): Promise<{ items: KnowledgeItem[] }> {
-    const db = dbService.getDb()
+    const db = application.get('DbService').getDb()
     await knowledgeBaseService.getById(baseId)
 
     if (!dto.items || dto.items.length === 0) {
@@ -124,7 +124,7 @@ export class KnowledgeItemService {
   }
 
   async getById(id: string): Promise<KnowledgeItem> {
-    const db = dbService.getDb()
+    const db = application.get('DbService').getDb()
     const [row] = await db.select().from(knowledgeItemTable).where(eq(knowledgeItemTable.id, id)).limit(1)
 
     if (!row) {
@@ -135,7 +135,7 @@ export class KnowledgeItemService {
   }
 
   async update(id: string, dto: UpdateKnowledgeItemDto): Promise<KnowledgeItem> {
-    const db = dbService.getDb()
+    const db = application.get('DbService').getDb()
     const existing = await this.getById(id)
 
     const updates: Partial<typeof knowledgeItemTable.$inferInsert> = {}
@@ -155,7 +155,7 @@ export class KnowledgeItemService {
   }
 
   async delete(id: string): Promise<void> {
-    const db = dbService.getDb()
+    const db = application.get('DbService').getDb()
     await this.getById(id)
     await db.delete(knowledgeItemTable).where(eq(knowledgeItemTable.id, id))
     logger.info('Deleted knowledge item', { id })

@@ -4,9 +4,9 @@
  * Handles CRUD operations for knowledge bases stored in SQLite.
  */
 
-import { dbService } from '@data/db/DbService'
 import { knowledgeBaseTable } from '@data/db/schemas/knowledge'
 import { loggerService } from '@logger'
+import { application } from '@main/core/application'
 import { DataApiErrorFactory } from '@shared/data/api'
 import { type CreateKnowledgeBaseDto, type UpdateKnowledgeBaseDto } from '@shared/data/api/schemas/knowledges'
 import type { KnowledgeBase } from '@shared/data/types/knowledge'
@@ -47,13 +47,13 @@ export class KnowledgeBaseService {
   }
 
   async list(): Promise<KnowledgeBase[]> {
-    const db = dbService.getDb()
+    const db = application.get('DbService').getDb()
     const rows = await db.select().from(knowledgeBaseTable).orderBy(desc(knowledgeBaseTable.createdAt))
     return rows.map((row) => rowToKnowledgeBase(row))
   }
 
   async getById(id: string): Promise<KnowledgeBase> {
-    const db = dbService.getDb()
+    const db = application.get('DbService').getDb()
     const [row] = await db.select().from(knowledgeBaseTable).where(eq(knowledgeBaseTable.id, id)).limit(1)
 
     if (!row) {
@@ -64,7 +64,7 @@ export class KnowledgeBaseService {
   }
 
   async create(dto: CreateKnowledgeBaseDto): Promise<KnowledgeBase> {
-    const db = dbService.getDb()
+    const db = application.get('DbService').getDb()
 
     if (!dto.name?.trim()) {
       throw DataApiErrorFactory.validation({ name: ['Name is required'] })
@@ -110,7 +110,7 @@ export class KnowledgeBaseService {
       throw DataApiErrorFactory.validation({ name: ['Name is required'] })
     }
 
-    const db = dbService.getDb()
+    const db = application.get('DbService').getDb()
     const existing = await this.getById(id)
 
     const updates: Partial<typeof knowledgeBaseTable.$inferInsert> = {}
@@ -136,7 +136,7 @@ export class KnowledgeBaseService {
   }
 
   async delete(id: string): Promise<void> {
-    const db = dbService.getDb()
+    const db = application.get('DbService').getDb()
     await this.getById(id)
     await db.delete(knowledgeBaseTable).where(eq(knowledgeBaseTable.id, id))
     logger.info('Deleted knowledge base', { id })

@@ -7,13 +7,15 @@ const mockInsert = vi.fn()
 const mockUpdate = vi.fn()
 const mockDelete = vi.fn()
 
-vi.mock('@data/db/DbService', () => ({
-  dbService: {
-    getDb: vi.fn(() => ({
-      select: mockSelect,
-      insert: mockInsert,
-      update: mockUpdate,
-      delete: mockDelete
+vi.mock('@main/core/application', () => ({
+  application: {
+    get: vi.fn(() => ({
+      getDb: vi.fn(() => ({
+        select: mockSelect,
+        insert: mockInsert,
+        update: mockUpdate,
+        delete: mockDelete
+      }))
     }))
   }
 }))

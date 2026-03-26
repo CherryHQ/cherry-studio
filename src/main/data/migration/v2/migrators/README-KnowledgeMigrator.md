@@ -26,6 +26,7 @@
 2. Unified item payload migration
    - Legacy item `content` is transformed into the new `knowledge_item.data` union payload by item type.
    - V2 models `knowledge_item` as a generic same-base tree via `parentId`, but legacy v1 exports are flat.
+   - Official v1 exports do not provide hierarchy metadata, so this migrator does not reconstruct parent/child links.
    - Migrated items are therefore inserted as root-level nodes (`parentId = null`) by design.
 
 3. Note content source priority
@@ -104,6 +105,7 @@
   - the base still migrates
 - V2 introduces `parentId` as a generic tree edge within the same knowledge base.
 - Legacy v1 knowledge data is flat, so migrated items are root-level (`parentId = null`) by design.
+- This document describes migration behavior only; runtime APIs may create non-null `parentId` relationships after migration.
 
 ## Validation
 
