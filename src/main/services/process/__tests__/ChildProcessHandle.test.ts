@@ -177,6 +177,22 @@ describe('ChildProcessHandle', () => {
       expect(handle.state).toBe('crashed')
       expect(handle.pid).toBeUndefined()
     })
+
+    it('calls onExited with (null, null) when error event fires', async () => {
+      const { crossPlatformSpawn, ChildProcessHandle } = await loadModules()
+      const mockCp = createMockChildProcess()
+      crossPlatformSpawn.mockReturnValue(mockCp)
+
+      const handle = new ChildProcessHandle({ type: 'child', id: 'err-exited-proc', command: 'bad' })
+      const onExited = vi.fn()
+      handle.onExited = onExited
+
+      await handle.start()
+      mockCp.emit('error', new Error('ENOENT spawn failed'))
+
+      expect(onExited).toHaveBeenCalledOnce()
+      expect(onExited).toHaveBeenCalledWith(null, null)
+    })
   })
 
   describe('stop()', () => {

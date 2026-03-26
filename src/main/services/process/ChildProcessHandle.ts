@@ -66,6 +66,7 @@ export class ChildProcessHandle implements ProcessHandle {
         data: data.toString(),
         timestamp: Date.now()
       }
+      this.logger.debug(line.data.trimEnd())
       this.onLog?.(line)
     })
 
@@ -76,6 +77,7 @@ export class ChildProcessHandle implements ProcessHandle {
         data: data.toString(),
         timestamp: Date.now()
       }
+      this.logger.warn(line.data.trimEnd())
       this.onLog?.(line)
     })
 
@@ -102,6 +104,7 @@ export class ChildProcessHandle implements ProcessHandle {
       this._pid = undefined
       this._process = undefined
       this.logger.error(`Process error: ${err.message}`, err)
+      this.onExited?.(null, null)
     })
   }
 
