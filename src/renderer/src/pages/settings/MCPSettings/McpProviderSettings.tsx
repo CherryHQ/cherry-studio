@@ -192,7 +192,7 @@ const McpProviderSettings: React.FC<Props> = ({ provider, existingServers }) => 
                       style={{ marginLeft: 10 }}
                       onClick={() => {
                         if (!isAlreadyAdded) {
-                          addMCPServer(server)
+                          void addMCPServer(server)
                           window.toast.success(t('settings.mcp.addSuccess'))
                         }
                       }}

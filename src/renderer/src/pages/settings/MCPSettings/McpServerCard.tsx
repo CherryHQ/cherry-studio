@@ -48,7 +48,7 @@ const McpServerCard: FC<McpServerCardProps> = ({ server, onEdit }) => {
 
   useEffect(() => {
     if (server.isActive) {
-      fetchServerVersion(server)
+      void fetchServerVersion(server)
     } else {
       setVersion(null)
     }
@@ -74,14 +74,14 @@ const McpServerCard: FC<McpServerCardProps> = ({ server, onEdit }) => {
           await window.api.mcp.stopServer(serverForUpdate)
           setVersion(null)
         }
-        updateMCPServer({ body: { isActive: active } })
+        void updateMCPServer({ body: { isActive: active } })
       } catch (error: any) {
         window.modal.error({
           title: t('settings.mcp.startError'),
           content: formatMcpError(error),
           centered: true
         })
-        updateMCPServer({ body: { isActive: oldActiveState } })
+        void updateMCPServer({ body: { isActive: oldActiveState } })
       } finally {
         setLoading(false)
       }
@@ -97,7 +97,7 @@ const McpServerCard: FC<McpServerCardProps> = ({ server, onEdit }) => {
         centered: true,
         onOk: async () => {
           await window.api.mcp.removeServer(server)
-          deleteMCPServer({})
+          void deleteMCPServer({})
           window.toast.success(t('settings.mcp.deleteSuccess'))
         }
       })

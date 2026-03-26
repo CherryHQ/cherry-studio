@@ -336,11 +336,11 @@ const McpSettings: React.FC = () => {
       if (server.isActive) {
         try {
           await window.api.mcp.restartServer(mcpServer)
-          updateMCPServer({ body: { ...mcpServer, isActive: true } })
+          void updateMCPServer({ body: { ...mcpServer, isActive: true } })
           window.toast.success(t('settings.mcp.updateSuccess'))
           setIsFormChanged(false)
         } catch (error: any) {
-          updateMCPServer({ body: { ...mcpServer, isActive: false } })
+          void updateMCPServer({ body: { ...mcpServer, isActive: false } })
           window.modal.error({
             title: t('settings.mcp.updateError'),
             content: error.message,
@@ -348,7 +348,7 @@ const McpSettings: React.FC = () => {
           })
         }
       } else {
-        updateMCPServer({ body: { ...mcpServer, isActive: false } })
+        void updateMCPServer({ body: { ...mcpServer, isActive: false } })
         window.toast.success(t('settings.mcp.updateSuccess'))
         setIsFormChanged(false)
       }
@@ -415,7 +415,7 @@ const McpSettings: React.FC = () => {
           centered: true,
           onOk: async () => {
             await window.api.mcp.removeServer(serverToDelete)
-            deleteMCPServer({})
+            void deleteMCPServer({})
             window.toast.success(t('settings.mcp.deleteSuccess'))
             void navigate({ to: '/settings/mcp' })
           }
@@ -465,14 +465,14 @@ const McpSettings: React.FC = () => {
         await window.api.mcp.stopServer(serverForUpdate)
         setServerVersion(null)
       }
-      updateMCPServer({ body: { isActive: active } })
+      void updateMCPServer({ body: { isActive: active } })
     } catch (error: any) {
       window.modal.error({
         title: t('settings.mcp.startError'),
         content: formatMcpError(error as McpError),
         centered: true
       })
-      updateMCPServer({ body: { isActive: oldActiveState } })
+      void updateMCPServer({ body: { isActive: oldActiveState } })
     } finally {
       setLoadingServer(null)
     }
@@ -496,7 +496,7 @@ const McpSettings: React.FC = () => {
       }
 
       // Save the updated server configuration
-      updateMCPServer({ body: { disabledTools } })
+      void updateMCPServer({ body: { disabledTools } })
     },
     [server, updateMCPServer]
   )
@@ -517,7 +517,7 @@ const McpSettings: React.FC = () => {
       }
 
       // Save the updated server configuration
-      updateMCPServer({ body: { disabledAutoApproveTools } })
+      void updateMCPServer({ body: { disabledAutoApproveTools } })
     },
     [server, updateMCPServer]
   )

@@ -179,7 +179,7 @@ const NpxSearch: FC = () => {
                           searchKey: record.fullName
                         }
 
-                        addMCPServer(newServer)
+                        void addMCPServer(newServer)
                         window.toast.success(t('settings.mcp.addSuccess'))
                       }}
                       disabled={isInstalled}>

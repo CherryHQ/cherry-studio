@@ -212,7 +212,7 @@ const AddMcpServerModal: FC<AddMcpServerModalProps> = ({
                 .checkMcpConnectivity(createdServer)
                 .then((isConnected) => {
                   logger.debug(`Connectivity check for ${createdServer.name}: ${isConnected}`)
-                  dataApiService.patch(`/mcp-servers/${createdServer.id}`, {
+                  void dataApiService.patch(`/mcp-servers/${createdServer.id}`, {
                     body: { isActive: isConnected }
                   })
                 })
@@ -284,7 +284,7 @@ const AddMcpServerModal: FC<AddMcpServerModalProps> = ({
           .checkMcpConnectivity(createdServer)
           .then((isConnected) => {
             logger.debug(`Connectivity check for ${createdServer.name}: ${isConnected}`)
-            dataApiService.patch(`/mcp-servers/${createdServer.id}`, {
+            void dataApiService.patch(`/mcp-servers/${createdServer.id}`, {
               body: { isActive: isConnected }
             })
           })

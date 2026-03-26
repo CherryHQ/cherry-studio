@@ -401,7 +401,7 @@ const MCPToolsButton: FC<Props> = ({ quickPanel, setInputValue, resizeTextArea, 
       }
     }
 
-    fetchPrompts()
+    void fetchPrompts()
     return () => {
       cancelled = true
     }

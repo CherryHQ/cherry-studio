@@ -31,7 +31,7 @@ export const useMCPServers = (query?: ListMCPServersQuery) => {
 
   const reorderMCPServers = useCallback(
     (reorderedList: MCPServer[]) => {
-      mutate(data ? { ...data, items: reorderedList } : undefined, false)
+      void mutate(data ? { ...data, items: reorderedList } : undefined, false)
       reorderTrigger({ body: { orderedIds: reorderedList.map((s) => s.id) } }).catch(() => mutate())
     },
     [data, mutate, reorderTrigger]

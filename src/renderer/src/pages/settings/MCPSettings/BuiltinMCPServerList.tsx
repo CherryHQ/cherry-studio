@@ -36,7 +36,7 @@ const BuiltinMCPServerList: FC = () => {
                         return
                       }
 
-                      addMCPServer(server)
+                      void addMCPServer(server)
                       window.toast.success(t('settings.mcp.addSuccess'))
                     }}
                     disabled={isInstalled}

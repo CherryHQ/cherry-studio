@@ -64,7 +64,7 @@ const PopupContainer: React.FC<Props> = ({ resolve }) => {
         for (const server of mcpServers) {
           await dataApiService.delete(`/mcp-servers/${server.id}`)
         }
-        refetch()
+        void refetch()
         window.toast.success(t('settings.mcp.jsonSaveSuccess'))
         setJsonError('')
         setJsonSaving(false)
@@ -110,7 +110,7 @@ const PopupContainer: React.FC<Props> = ({ resolve }) => {
           await dataApiService.post('/mcp-servers', { body: server })
         }
       }
-      refetch()
+      void refetch()
 
       window.toast.success(t('settings.mcp.jsonSaveSuccess'))
       setJsonError('')
