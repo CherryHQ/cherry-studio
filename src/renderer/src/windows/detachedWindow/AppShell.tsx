@@ -97,7 +97,7 @@ export const DetachedAppShell = () => {
       handleCloseTab(tab.id)
 
       // Detached window only has one tab, close it directly after attach
-      window.api.windowControls.close()
+      void window.api.windowControls.close()
     } catch (error) {
       logger.error('Failed to attach tab', { tabId: tab.id, error })
     }
