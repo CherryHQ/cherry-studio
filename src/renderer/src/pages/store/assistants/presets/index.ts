@@ -73,7 +73,7 @@ export function useSystemAssistantPresets() {
       }
     }
 
-    loadAgents()
+    void loadAgents()
   }, [defaultPreset, resourcesPath, agentssubscribeUrl, currentLanguage])
 
   return presets

@@ -95,7 +95,7 @@ const NpxSearch: FC = () => {
   }
 
   useEffect(() => {
-    handleNpmSearch()
+    void handleNpmSearch()
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
@@ -122,7 +122,7 @@ const NpxSearch: FC = () => {
                 key={scope}
                 onClick={() => {
                   setNpmScope(scope)
-                  handleNpmSearch(scope)
+                  void handleNpmSearch(scope)
                 }}
                 style={{
                   cursor: searchLoading ? 'not-allowed' : 'pointer',

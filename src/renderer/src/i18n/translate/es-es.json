@@ -389,6 +389,9 @@
         "TodoWrite": {
           "description": "Crea y gestiona listas de tareas estructuradas"
         },
+        "ToolSearch": {
+          "description": "Descubre herramientas diferidas de bibliotecas grandes"
+        },
         "WebFetch": {
           "description": "Obtiene contenido desde una URL especificada"
         },
@@ -735,6 +738,7 @@
     "progress": {
       "completed": "Copia de seguridad completada",
       "compressing": "Comprimiendo archivos...",
+      "copying_database": "Copiando base de datos...",
       "copying_files": "Copiando archivos... {{progress}}%",
       "preparing": "Preparando copia de seguridad...",
       "preparing_compression": "Preparando compresión...",
@@ -889,10 +893,10 @@
         "collapse_in": "Agregar a la contracción",
         "collapse_out": "Eliminar de la contracción",
         "expand": "Expandir",
-        "file_not_found": "[to be translated]:File not found: {{path}}",
-        "open_file": "[to be translated]:Open File",
-        "open_file_error": "[to be translated]:Failed to open file: {{path}}",
-        "reveal_in_finder": "[to be translated]:Reveal in Finder"
+        "file_not_found": "Archivo no encontrado: {{path}}",
+        "open_file": "Abrir archivo",
+        "open_file_error": "Error al abrir el archivo: {{path}}",
+        "reveal_in_finder": "Mostrar en el Finder"
       },
       "topics": "Temas",
       "translate": "Traducir a {{target_language}}",
@@ -1191,6 +1195,8 @@
             "content": "¿Estás seguro de que quieres eliminar {{count}} tema(s) seleccionado(s)? Esta acción no se puede deshacer.",
             "title": "Eliminar Temas"
           },
+          "error": "Error al eliminar. Inténtalo de nuevo.",
+          "partial_success": "Se eliminaron correctamente {{successCount}} temas, {{failedCount}} fallaron",
           "success": "Eliminado(s) {{count}} tema(s)"
         },
         "deselect_all": "Deseleccionar todo",
@@ -1386,7 +1392,7 @@
     "off": "Apagado",
     "on": "En",
     "open": "Abrir",
-    "open_in": "[to be translated]:Open in {{name}}",
+    "open_in": "Abrir en {{name}}",
     "paste": "Pegar",
     "placeholders": {
       "select": {
@@ -2026,6 +2032,10 @@
         "export": "Error al exportar a Excel"
       },
       "fetchTopicName": "Error al asignar nombre al tema",
+      "file": {
+        "process_failed": "El archivo {{name}} no pudo ser procesado",
+        "text_extraction_failed": "Error al extraer el texto de {{name}}"
+      },
       "get_embedding_dimensions": "Fallo al obtener las dimensiones de incrustación",
       "invalid": {
         "api": {
@@ -2269,6 +2279,11 @@
       }
     },
     "warning": {
+      "file": {
+        "pdf_exceeds_limit": "El archivo PDF {{name}} excede el límite de tamaño ({{limit}}), recurriendo a la extracción de texto",
+        "pdf_text_extraction_failed": "Error al extraer el texto del PDF {{name}}",
+        "pdf_upload_failed": "Error al subir el PDF {{name}}, recurriendo a la extracción de texto"
+      },
       "rate": {
         "limit": "Envío demasiado frecuente, espere {{seconds}} segundos antes de intentarlo de nuevo"
       }
@@ -2602,6 +2617,27 @@
       "title": "Tiempo de Actividad"
     },
     "title": "Ollama"
+  },
+  "onboarding": {
+    "select_model": {
+      "change_later": "Puedes cambiar esto en cualquier momento desde la configuración.",
+      "start": "Comenzar",
+      "subtitle": "Seleccionar modelo predeterminado para cada escenario",
+      "title": "Elige tus modelos predeterminados"
+    },
+    "skip": "Saltar",
+    "toast": {
+      "connected": "Conectado con éxito a CherryIN"
+    },
+    "welcome": {
+      "login_cherryin": "Iniciar sesión con CherryIN",
+      "or_continue_with": "O CONTINUAR CON",
+      "other_provider": "Elegir Otros Proveedores",
+      "select_other_provider": "Seleccionar Otro Proveedor",
+      "setup_hint": "Por favor, configura al menos un proveedor para obtener la mejor experiencia.",
+      "subtitle": "Disfruta de servicios de IA de primer nivel con CherryIN",
+      "title": "Bienvenido a Cherry Studio"
+    }
   },
   "openclaw": {
     "checking_installation": "Comprobando la instalación de OpenClaw...",
@@ -3148,7 +3184,10 @@
       "extracting": "Descomprimiendo la copia de seguridad...",
       "preparing": "Preparando la restauración...",
       "reading_data": "Leyendo datos...",
-      "title": "Progreso de Restauración"
+      "restoring_data": "Restaurando archivos...",
+      "restoring_database": "Restaurando base de datos...",
+      "title": "Progreso de Restauración",
+      "validating": "Validando copia de seguridad..."
     },
     "title": "Restauración de Datos"
   },
@@ -3701,7 +3740,15 @@
           "button": "Seleccionar archivo de copia de seguridad"
         },
         "content": "Exportar parte de los datos, incluidos los registros de chat y la configuración. Tenga en cuenta que el proceso de copia de seguridad puede tardar un tiempo; gracias por su paciencia.",
+        "file": {
+          "button": "Exportar a archivo",
+          "content": "Exportar datos como archivo de respaldo que puede ser importado en el móvil a través de un archivo.",
+          "export_failed": "Exportación fallida",
+          "export_success": "Exportación exitosa",
+          "title": "Exportar como archivo"
+        },
         "lan": {
+          "button": "Iniciar transferencia",
           "connected": "Conectado",
           "connection_failed": "Conexión fallida",
           "content": "Asegúrate de que el ordenador y el móvil estén en la misma red para usar la transferencia por LAN. Abre la aplicación Cherry Studio y escanea este código QR.",
@@ -4800,6 +4847,7 @@
           "label": "Agregar modelo en la lista"
         },
         "add_whole_group": "Agregar todo el grupo",
+        "fetch_list": "Obtener lista de modelos",
         "refetch_list": "Volver a obtener la lista de modelos",
         "remove_listed": "Eliminar modelo de la lista",
         "remove_model": "Eliminar modelo",

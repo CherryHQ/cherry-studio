@@ -161,7 +161,7 @@ describe('abortController', () => {
 
       const removeEventListenerSpy = vi.spyOn(controller.signal, 'removeEventListener')
 
-      createAbortPromise(controller.signal, finallyPromise)
+      void createAbortPromise(controller.signal, finallyPromise)
 
       // 等待 finallyPromise 完成
       await finallyPromise

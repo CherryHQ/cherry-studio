@@ -98,7 +98,7 @@ const McpServersList: FC = () => {
   useEffect(() => {
     mcpServers.forEach((server) => {
       if (server.isActive) {
-        fetchServerVersion(server)
+        void fetchServerVersion(server)
       }
     })
   }, [mcpServers, fetchServerVersion])
@@ -194,7 +194,7 @@ const McpServersList: FC = () => {
         key: 'manual',
         label: t('settings.mcp.addServer.create'),
         onClick: () => {
-          onAddMcpServer()
+          void onAddMcpServer()
         }
       },
       {

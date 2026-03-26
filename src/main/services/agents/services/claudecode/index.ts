@@ -8,7 +8,6 @@ import type {
   HookCallback,
   McpHttpServerConfig,
   Options,
-  PreToolUseHookInput,
   SDKMessage,
   SdkPluginConfig
 } from '@anthropic-ai/claude-agent-sdk'
@@ -108,9 +107,8 @@ class ClaudeCodeService implements AgentServiceInterface {
       return aiStream
     }
     if (
-      (modelInfo.provider?.type !== 'anthropic' &&
-        (modelInfo.provider?.anthropicApiHost === undefined || modelInfo.provider.anthropicApiHost.trim() === '')) ||
-      modelInfo.provider.apiKey === ''
+      modelInfo.provider?.type !== 'anthropic' &&
+      (modelInfo.provider?.anthropicApiHost === undefined || modelInfo.provider.anthropicApiHost.trim() === '')
     ) {
       logger.error('Anthropic provider configuration is missing', {
         modelInfo
@@ -121,6 +119,12 @@ class ClaudeCodeService implements AgentServiceInterface {
         error: new Error(`Invalid provider type '${modelInfo.provider?.type}'. Expected 'anthropic' provider type.`)
       })
       return aiStream
+    }
+
+    // Providers like Ollama and LM Studio don't require real API keys,
+    // but the Claude Agent SDK needs a non-empty placeholder value
+    if (!modelInfo.provider.apiKey) {
+      modelInfo.provider.apiKey = modelInfo.provider.id
     }
 
     const apiConfig = await apiConfigService.get()
@@ -161,6 +165,7 @@ class ClaudeCodeService implements AgentServiceInterface {
       // on Windows when the username contains non-ASCII characters (e.g., Chinese characters)
       // This prevents the SDK from using the user's home directory which may have encoding problems
       CLAUDE_CONFIG_DIR: path.join(app.getPath('userData'), '.claude'),
+      ENABLE_TOOL_SEARCH: 'auto',
       ...(customGitBashPath ? { CLAUDE_CODE_GIT_BASH_PATH: customGitBashPath } : {})
     }
 
@@ -254,7 +259,7 @@ class ClaudeCodeService implements AgentServiceInterface {
         return {}
       }
 
-      const hookInput = input as PreToolUseHookInput
+      const hookInput = input
       const toolName = hookInput.tool_name
 
       logger.debug('PreToolUse hook triggered', {

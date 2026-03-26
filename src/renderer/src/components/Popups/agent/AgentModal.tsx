@@ -82,7 +82,7 @@ const PopupContainer: React.FC<Props> = ({ agent, afterSubmit, resolve }) => {
   }, [])
 
   useEffect(() => {
-    checkGitBash()
+    void checkGitBash()
   }, [checkGitBash])
 
   const selectedPermissionMode = form.configuration?.permission_mode ?? 'default'

@@ -389,6 +389,9 @@
         "TodoWrite": {
           "description": "Creează și gestionează liste de sarcini structurate"
         },
+        "ToolSearch": {
+          "description": "Descoperă instrumente amânate din biblioteci mari"
+        },
         "WebFetch": {
           "description": "Preia conținutul de la o adresă URL specificată"
         },
@@ -735,6 +738,7 @@
     "progress": {
       "completed": "Backup finalizat",
       "compressing": "Se comprimă fișierele...",
+      "copying_database": "Se copiază baza de date...",
       "copying_files": "Se copiază fișierele... {{progress}}%",
       "preparing": "Se pregătește backup-ul...",
       "preparing_compression": "Se pregătește compresia...",
@@ -889,10 +893,10 @@
         "collapse_in": "Restrânge",
         "collapse_out": "Elimină din restrângere",
         "expand": "Extinde",
-        "file_not_found": "[to be translated]:File not found: {{path}}",
-        "open_file": "[to be translated]:Open File",
-        "open_file_error": "[to be translated]:Failed to open file: {{path}}",
-        "reveal_in_finder": "[to be translated]:Reveal in Finder"
+        "file_not_found": "Fișier negăsit: {{path}}",
+        "open_file": "Deschide fișier",
+        "open_file_error": "Nu s-a putut deschide fișierul: {{path}}",
+        "reveal_in_finder": "Afișează în Finder"
       },
       "topics": " Subiecte ",
       "translate": "Tradu în {{target_language}}",
@@ -1191,6 +1195,8 @@
             "content": "Ești sigur că vrei să ștergi {{count}} subiecte selectate? Această acțiune nu poate fi anulată.",
             "title": "Șterge subiecte"
           },
+          "error": "Nu s-a putut șterge. Vă rugăm să încercați din nou.",
+          "partial_success": "Șters cu succes {{successCount}} subiecte, {{failedCount}} eșuate",
           "success": "S-au șters {{count}} subiecte"
         },
         "deselect_all": "Deselectează tot",
@@ -1386,7 +1392,7 @@
     "off": "Oprit",
     "on": "Pornit",
     "open": "Deschide",
-    "open_in": "[to be translated]:Open in {{name}}",
+    "open_in": "Deschide în {{name}}",
     "paste": "Lipește",
     "placeholders": {
       "select": {
@@ -2026,6 +2032,10 @@
         "export": "Eroare la exportul Excel"
       },
       "fetchTopicName": "Nu s-a putut numi subiectul",
+      "file": {
+        "process_failed": "Fișierul {{name}} nu a putut fi procesat",
+        "text_extraction_failed": "Nu s-a putut extrage textul din {{name}}"
+      },
       "get_embedding_dimensions": "Nu s-au putut obține dimensiunile embedding",
       "invalid": {
         "api": {
@@ -2269,6 +2279,11 @@
       }
     },
     "warning": {
+      "file": {
+        "pdf_exceeds_limit": "Fișierul PDF {{name}} depășește limita de dimensiune ({{limit}}), se revine la extragerea textului",
+        "pdf_text_extraction_failed": "Nu s-a putut extrage textul din PDF {{name}}",
+        "pdf_upload_failed": "Încărcarea PDF-ului {{name}} a eșuat, se revine la extragerea textului"
+      },
       "rate": {
         "limit": "Prea multe cereri. Te rugăm să aștepți {{seconds}} secunde înainte de a încerca din nou."
       }
@@ -2602,6 +2617,27 @@
       "title": "Timp menținere conexiune"
     },
     "title": "Ollama"
+  },
+  "onboarding": {
+    "select_model": {
+      "change_later": "Poți schimba oricând asta din setări.",
+      "start": "Începe",
+      "subtitle": "Selectați modelul implicit pentru fiecare scenariu",
+      "title": "Alegeți Modelele Dvs. Implicite"
+    },
+    "skip": "Sariți",
+    "toast": {
+      "connected": "Conectat cu succes la CherryIN"
+    },
+    "welcome": {
+      "login_cherryin": "Conectare cu CherryIN",
+      "or_continue_with": "SAU CONTINUAȚI CU",
+      "other_provider": "Alegeți alți furnizori",
+      "select_other_provider": "Selectați alt furnizor",
+      "setup_hint": "Vă rugăm să configurați cel puțin un furnizor pentru cea mai bună experiență",
+      "subtitle": "Bucurați-vă de servicii AI de top cu CherryIN",
+      "title": "Bun venit la Cherry Studio"
+    }
   },
   "openclaw": {
     "checking_installation": "Verificare instalare OpenClaw...",
@@ -3148,7 +3184,10 @@
       "extracting": "Se extrage backup-ul...",
       "preparing": "Se pregătește restaurarea...",
       "reading_data": "Se citesc datele...",
-      "title": "Progres restaurare"
+      "restoring_data": "Restaurare fișiere...",
+      "restoring_database": "Restaurare bază de date...",
+      "title": "Progres restaurare",
+      "validating": "Se validează copia de rezervă..."
     },
     "title": "Restaurare date"
   },
@@ -3701,7 +3740,15 @@
           "button": "Selectează fișierul de backup"
         },
         "content": "Exportă unele date, inclusiv jurnalele de chat și setările. Te rugăm să reții că procesul de backup poate dura ceva timp. Îți mulțumim pentru răbdare.",
+        "file": {
+          "button": "Exportă în fișier",
+          "content": "Exportă datele ca fișier de rezervă care poate fi importat pe mobil prin fișier.",
+          "export_failed": "Exportul a eșuat",
+          "export_success": "Export reușit",
+          "title": "Exportă ca fișier"
+        },
         "lan": {
+          "button": "Începe transferul",
           "connected": "Conectat",
           "connection_failed": "Conexiune eșuată",
           "content": "Te rugăm să te asiguri că computerul și telefonul sunt în aceeași rețea pentru transferul LAN.",
@@ -4800,6 +4847,7 @@
           "label": "Adaugă modele la listă"
         },
         "add_whole_group": "Adaugă întregul grup",
+        "fetch_list": "Obține lista modelelor",
         "refetch_list": "Reîmprospătează lista modelelor",
         "remove_listed": "Elimină modelele din listă",
         "remove_model": "Elimină modelul",

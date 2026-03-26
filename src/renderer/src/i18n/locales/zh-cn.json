@@ -389,6 +389,9 @@
         "TodoWrite": {
           "description": "创建和管理结构化任务列表"
         },
+        "ToolSearch": {
+          "description": "从大型工具库中动态发现延迟加载的工具"
+        },
         "WebFetch": {
           "description": "从指定 URL 获取内容"
         },
@@ -735,6 +738,7 @@
     "progress": {
       "completed": "备份完成",
       "compressing": "压缩文件...",
+      "copying_database": "复制数据库...",
       "copying_files": "复制文件... {{progress}}%",
       "preparing": "准备备份...",
       "preparing_compression": "准备压缩...",
@@ -1191,6 +1195,8 @@
             "content": "确定要删除选中的 {{count}} 个话题吗？此操作不可撤销。",
             "title": "删除话题"
           },
+          "error": "删除失败，请重试",
+          "partial_success": "成功删除 {{successCount}} 个，失败 {{failedCount}} 个",
           "success": "已删除 {{count}} 个话题"
         },
         "deselect_all": "取消全选",
@@ -2026,6 +2032,10 @@
         "export": "导出 Excel 失败"
       },
       "fetchTopicName": "话题命名失败",
+      "file": {
+        "process_failed": "文件 {{name}} 无法处理",
+        "text_extraction_failed": "无法从 {{name}} 中提取文本"
+      },
       "get_embedding_dimensions": "获取嵌入维度失败",
       "invalid": {
         "api": {
@@ -2269,6 +2279,11 @@
       }
     },
     "warning": {
+      "file": {
+        "pdf_exceeds_limit": "PDF 文件 {{name}} 超出大小限制 ({{limit}})，将回退为文本提取",
+        "pdf_text_extraction_failed": "无法从 PDF {{name}} 中提取文本",
+        "pdf_upload_failed": "上传 PDF {{name}} 失败，将回退为文本提取"
+      },
       "rate": {
         "limit": "发送过于频繁，请等待 {{seconds}} 秒后再尝试"
       }
@@ -2602,6 +2617,27 @@
       "title": "保持活跃时间"
     },
     "title": "Ollama"
+  },
+  "onboarding": {
+    "select_model": {
+      "change_later": "您可以随时在设置中更改",
+      "start": "开始使用",
+      "subtitle": "为每个场景选择默认模型",
+      "title": "选择你的默认模型"
+    },
+    "skip": "跳过引导",
+    "toast": {
+      "connected": "成功连接 CherryIN"
+    },
+    "welcome": {
+      "login_cherryin": "登录 CherryIN",
+      "or_continue_with": "或使用其他方式",
+      "other_provider": "选择其他服务商",
+      "select_other_provider": "选择其他服务商",
+      "setup_hint": "请您先至少配置一个服务商，以获得最佳使用体验",
+      "subtitle": "使用 CherryIN 服务商可畅享顶级 AI 服务",
+      "title": "欢迎使用 Cherry Studio"
+    }
   },
   "openclaw": {
     "checking_installation": "正在检查 OpenClaw 安装状态...",
@@ -3116,7 +3152,7 @@
     "openrouter": "OpenRouter",
     "ovms": "Intel OVMS",
     "perplexity": "Perplexity",
-    "ph8": "PH8 大模型开放平台",
+    "ph8": "PH8",
     "poe": "Poe",
     "ppio": "PPIO 派欧云",
     "qiniu": "七牛云 AI 推理",
@@ -3148,7 +3184,10 @@
       "extracting": "解压备份...",
       "preparing": "准备恢复...",
       "reading_data": "读取数据...",
-      "title": "恢复进度"
+      "restoring_data": "恢复文件...",
+      "restoring_database": "恢复数据库...",
+      "title": "恢复进度",
+      "validating": "验证备份..."
     },
     "title": "数据恢复"
   },
@@ -3701,7 +3740,15 @@
           "button": "选择备份文件"
         },
         "content": "导出部分数据，包括聊天记录、设置。请注意，备份过程可能需要一些时间，感谢您的耐心等待。",
+        "file": {
+          "button": "导出到文件",
+          "content": "将数据导出为备份文件，可在手机上通过文件方式导入。",
+          "export_failed": "导出失败",
+          "export_success": "导出成功",
+          "title": "导出为文件"
+        },
         "lan": {
+          "button": "开始传输",
           "connected": "连接成功",
           "connection_failed": "连接失败",
           "content": "请确保电脑和手机处于同一网络以使用局域网传输。",
@@ -4800,6 +4847,7 @@
           "label": "添加列表中的模型"
         },
         "add_whole_group": "添加整个分组",
+        "fetch_list": "获取模型列表",
         "refetch_list": "重新获取模型列表",
         "remove_listed": "移除列表中的模型",
         "remove_model": "移除模型",

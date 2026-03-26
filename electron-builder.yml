@@ -140,44 +140,60 @@ artifactBuildCompleted: scripts/artifact-build-completed.js
 releaseInfo:
   releaseNotes: |
     <!--LANG:en-->
-    Cherry Studio 1.8.0 - Agents & Performance
+    Cherry Studio 1.8.3 - New Features and Bug Fixes
 
     ✨ New Features
-    - [Agents] Added drag-and-drop manual sorting for agent and session lists
-    - [Models] Added MiniMax M2.5 highspeed model support
-    - [OpenClaw] Switch to binary installation to optimize the installation experience
+    - [Onboarding] Add guided setup flow for new users with CherryIN OAuth login and automatic model configuration
+    - [Code Tools] Add LMStudio and Ollama support for Claude Code
+    - [Models] Show model IDs for duplicate names in model pickers
+    - [Agents] Add OpenRouter support for Agent mode (Claude Code SDK)
+    - [Agents] Upgrade Agent SDK with ToolSearch for efficient MCP tool discovery
 
     🐛 Bug Fixes
-    - [Agents] Fixed deleting last accessible directory bug - delete button now disabled when only one remains
-    - [UI] Fixed web search providers not showing for local models (e.g., Ollama) in chat toolbar
-    - [Models] Fixed reasoning effort and summary mode not applying for some OpenAI-compatible providers
-    - [OpenClaw] Fixed OpenClaw gateway status detection for crashed/externally-stopped OpenClaw gateways
-    - [Gateway] Improved gateway startup error messages with detailed diagnostics
-    - [Poe] Fixed web_search parameter not being passed correctly when built-in search is enabled
+    - [Code Tools] Fix Windows error where tool update messages were misinterpreted as commands
+    - [Models] Fix OpenClaw config overwriting user settings on every restart
+    - [Paintings] Fix base64 image handling causing HTTP 413 errors in follow-up messages
+    - [Files] Fix CherryAI provider not converting PDF files to text
+    - [Files] Fix PDF text extraction failing in production builds
+    - [Agents] Fix agent chat page not remembering scroll position when switching sessions
+    - [Startup] Fix app crash caused by missing canvas platform binaries
+    - [Models] Fix Groq multi-turn conversation errors
+    - [Memory] Fix assistant memory search returning no results
+    - [Citations] Fix Gemini citation over-matching with short text segments
+    - [Agents] Fix reasoning effort button not showing for reasoning models
+    - [Models] Fix max_tokens calculation for Claude 4.6 models with adaptive thinking
+    - [MCP] Fix MCP tools only working on the first prompt
 
     💄 Improvements
-    - [Agents] Added configurable maximum tool calls setting (1-100) in assistant settings
-    - [UI] Added Windows Mica effect for better visual integration
-    - [Performance] Increased default request timeout from 10 to 30 minutes for slow local models
+    - [Models] Use the same model popup for Chat and Agent with consistent features
+    - [Agents] Add revealing animation for agent session renaming
 
     <!--LANG:zh-CN-->
-    Cherry Studio 1.8.0 - 智能体与性能
+    Cherry Studio 1.8.3 - 新功能和错误修复
 
     ✨ 新功能
-    - [智能体] 新增智能体和会话列表的拖拽排序功能
-    - [模型] 新增 MiniMax M2.5 高速模型支持
-    - [OpenClaw] 改为二进制安装优化安装体验
+    - [入门] 新增新用户引导设置流程，支持 CherryIN OAuth 登录和自动模型配置
+    - [代码工具] 为 Claude Code 添加 LMStudio 和 Ollama 支持
+    - [模型] 在模型选择器中为重名模型显示模型 ID
+    - [智能体] 为智能体模式添加 OpenRouter 支持 (Claude Code SDK)
+    - [智能体] 升级智能体 SDK，启用 ToolSearch 以高效发现 MCP 工具
 
     🐛 问题修复
-    - [智能体] 修复删除最后一个可访问目录的漏洞 - 只剩一个目录时禁用删除按钮
-    - [UI] 修复本地模型（如 Ollama）聊天工具栏中不显示网络搜索选项的问题
-    - [模型] 修复部分 OpenAI 兼容服务商的推理努力和摘要模式设置不生效的问题
-    - [OpenClaw] 修复OpenClaw网关状态检测无法识别崩溃/外部停止的OpenClaw网关的问题
-    - [网关] 改进网关启动错误消息，提供详细诊断信息
-    - [Poe] 修复启用内置搜索时 web_search 参数未正确传递的问题
+    - [代码工具] 修复 Windows 上工具更新消息被误解为命令的问题
+    - [模型] 修复 OpenClaw 配置在每次重启时覆盖用户设置
+    - [绘画] 修复后续消息中因 base64 图片处理导致的 HTTP 413 错误
+    - [文件] 修复 CherryAI 提供商未将 PDF 文件转换为文本
+    - [文件] 修复生产构建中 PDF 文本提取失败
+    - [智能体] 修复智能体聊天页面切换会话时不记住滚动位置
+    - [启动] 修复因缺少 canvas 平台二进制文件导致的应用崩溃
+    - [模型] 修复 Groq 多轮对话错误
+    - [记忆] 修复助手记忆搜索不返回结果
+    - [引用] 修复 Gemini 引用因短文本片段而过匹配
+    - [智能体] 修复推理模型的推理力度按钮不显示
+    - [模型] 修复 Claude 4.6 模型自适应思考的 max_tokens 计算
+    - [MCP] 修复 MCP 工具仅在首次提示时有效
 
     💄 改进
-    - [智能体] 新增助手设置中的最大工具调用次数配置（1-100）
-    - [UI] 新增 Windows Mica 效果以提升视觉体验
-    - [性能] 将默认请求超时从 10 分钟增加到 30 分钟，优化慢速本地模型体验
+    - [模型] 为聊天和智能体使用统一的模型弹出窗口，功能保持一致
+    - [智能体] 为智能体会话重命名添加揭示动画
     <!--LANG:END-->

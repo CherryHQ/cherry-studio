@@ -302,7 +302,7 @@ export class SelectionService {
       //make sure the toolbar window is ready
       this.createToolbarWindow()
       // Initialize preloaded windows
-      this.initPreloadedActionWindows()
+      void this.initPreloadedActionWindows()
       // Handle errors
       this.selectionHook.on('error', (error: { message: string }) => {
         this.logError('Error in SelectionHook:', error as Error)
@@ -470,9 +470,9 @@ export class SelectionService {
     /** get ready to load the toolbar window */
 
     if (isDev && process.env['ELECTRON_RENDERER_URL']) {
-      this.toolbarWindow.loadURL(process.env['ELECTRON_RENDERER_URL'] + '/selectionToolbar.html')
+      void this.toolbarWindow.loadURL(process.env['ELECTRON_RENDERER_URL'] + '/selectionToolbar.html')
     } else {
-      this.toolbarWindow.loadFile(join(__dirname, '../renderer/selectionToolbar.html'))
+      void this.toolbarWindow.loadFile(join(__dirname, '../renderer/selectionToolbar.html'))
     }
   }
 
@@ -1140,9 +1140,9 @@ export class SelectionService {
 
     // Load the base URL without action data
     if (isDev && process.env['ELECTRON_RENDERER_URL']) {
-      preloadedActionWindow.loadURL(process.env['ELECTRON_RENDERER_URL'] + '/selectionAction.html')
+      void preloadedActionWindow.loadURL(process.env['ELECTRON_RENDERER_URL'] + '/selectionAction.html')
     } else {
-      preloadedActionWindow.loadFile(join(__dirname, '../renderer/selectionAction.html'))
+      void preloadedActionWindow.loadFile(join(__dirname, '../renderer/selectionAction.html'))
     }
 
     return preloadedActionWindow
@@ -1236,7 +1236,7 @@ export class SelectionService {
     this.actionWindows.add(actionWindow)
 
     // Asynchronously create a new preloaded window
-    this.pushNewActionWindow()
+    void this.pushNewActionWindow()
 
     return actionWindow
   }
@@ -1290,7 +1290,7 @@ export class SelectionService {
       })
     } else {
       // Follow toolbar position
-      const toolbarBounds = this.toolbarWindow!.getBounds()
+      const toolbarBounds = this.toolbarWindow.getBounds()
       const GAP = 6 // 6px gap from screen edges
 
       //make sure action window is inside screen
@@ -1373,7 +1373,7 @@ export class SelectionService {
     // show the dock again if last time it was shown
     // do not put it after `actionWindow.focus()`, will cause the action window to be closed when auto hide on blur is enabled
     if (!app.dock?.isVisible() && isDockShown) {
-      app.dock?.show()
+      void app.dock?.show()
     }
 
     // unset everything

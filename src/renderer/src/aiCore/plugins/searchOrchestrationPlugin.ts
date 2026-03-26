@@ -355,8 +355,8 @@ export const searchOrchestrationPlugin = (
             params.tools['builtin_knowledge_search'] = knowledgeSearchTool(
               assistant,
               analysisResult.knowledge,
-              getMessageContent(userMessage),
-              topicId
+              topicId,
+              getMessageContent(userMessage)
             )
           }
         }
@@ -365,7 +365,7 @@ export const searchOrchestrationPlugin = (
         const globalMemoryEnabled = selectGlobalMemoryEnabled(store.getState())
         if (globalMemoryEnabled && assistant.enableMemory) {
           // logger.info('🧠 Adding memory search tool')
-          params.tools['builtin_memory_search'] = memorySearchTool()
+          params.tools['builtin_memory_search'] = memorySearchTool(assistant.id)
         }
 
         // logger.info('🔧 Tools configured:', Object.keys(params.tools))

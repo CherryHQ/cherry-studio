@@ -389,6 +389,9 @@
         "TodoWrite": {
           "description": "Erstellt und verwaltet strukturierte Aufgabenlisten"
         },
+        "ToolSearch": {
+          "description": "Entdeckt aufgeschobene Werkzeuge aus großen Bibliotheken"
+        },
         "WebFetch": {
           "description": "Ruft Inhalte von einer angegebenen URL ab"
         },
@@ -735,6 +738,7 @@
     "progress": {
       "completed": "Backup abgeschlossen",
       "compressing": "Dateien werden komprimiert...",
+      "copying_database": "Datenbank wird kopiert...",
       "copying_files": "Dateien werden kopiert... {{progress}}%",
       "preparing": "Backup wird vorbereitet...",
       "preparing_compression": "Komprimierung wird vorbereitet...",
@@ -889,10 +893,10 @@
         "collapse_in": "Zum Falten hinzufügen",
         "collapse_out": "Aus Falten entfernen",
         "expand": "Ausklappen",
-        "file_not_found": "[to be translated]:File not found: {{path}}",
-        "open_file": "[to be translated]:Open File",
-        "open_file_error": "[to be translated]:Failed to open file: {{path}}",
-        "reveal_in_finder": "[to be translated]:Reveal in Finder"
+        "file_not_found": "Datei nicht gefunden: {{path}}",
+        "open_file": "Datei öffnen",
+        "open_file_error": "Fehler beim Öffnen der Datei: {{path}}",
+        "reveal_in_finder": "Im Finder anzeigen"
       },
       "topics": "Themen",
       "translate": "Übersetzen nach {{target_language}}",
@@ -1191,6 +1195,8 @@
             "content": "Sind Sie sicher, dass Sie {{count}} ausgewähltes Thema bzw. ausgewählte Themen löschen möchten? Diese Aktion kann nicht rückgängig gemacht werden.",
             "title": "Themen löschen"
           },
+          "error": "Löschen fehlgeschlagen. Bitte versuchen Sie es erneut.",
+          "partial_success": "Erfolgreich {{successCount}} Themen gelöscht, {{failedCount}} fehlgeschlagen",
           "success": "{{count}} Thema/Themen gelöscht"
         },
         "deselect_all": "Alle abwählen",
@@ -1386,7 +1392,7 @@
     "off": "Aus",
     "on": "An",
     "open": "Öffnen",
-    "open_in": "[to be translated]:Open in {{name}}",
+    "open_in": "In {{name}} öffnen",
     "paste": "Einfügen",
     "placeholders": {
       "select": {
@@ -2026,6 +2032,10 @@
         "export": "Excel-Export fehlgeschlagen"
       },
       "fetchTopicName": "Themenname generieren fehlgeschlagen",
+      "file": {
+        "process_failed": "Datei {{name}} konnte nicht verarbeitet werden",
+        "text_extraction_failed": "Fehler beim Extrahieren von Text aus {{name}}"
+      },
       "get_embedding_dimensions": "Embedding-Dimensionen abrufen fehlgeschlagen",
       "invalid": {
         "api": {
@@ -2269,6 +2279,11 @@
       }
     },
     "warning": {
+      "file": {
+        "pdf_exceeds_limit": "PDF-Datei {{name}} überschreitet die Größenbegrenzung ({{limit}}), wechsle zu Textextraktion",
+        "pdf_text_extraction_failed": "Konnte Text aus PDF {{name}} nicht extrahieren",
+        "pdf_upload_failed": "Fehler beim Hochladen von PDF {{name}}, fallweise auf Textextraktion zurückgreifen"
+      },
       "rate": {
         "limit": "Zu viele Anfragen. Bitte warten Sie {{seconds}} Sekunden, bevor Sie es erneut versuchen"
       }
@@ -2602,6 +2617,27 @@
       "title": "Aktiv-Haltezeit"
     },
     "title": "Ollama"
+  },
+  "onboarding": {
+    "select_model": {
+      "change_later": "Sie können dies jederzeit in den Einstellungen ändern.",
+      "start": "Loslegen",
+      "subtitle": "Standardmodell für jedes Szenario auswählen",
+      "title": "Wählen Sie Ihre Standardmodelle"
+    },
+    "skip": "Überspringen",
+    "toast": {
+      "connected": "Erfolgreich mit CherryIN verbunden"
+    },
+    "welcome": {
+      "login_cherryin": "Mit CherryIN anmelden",
+      "or_continue_with": "ODER WEITER MIT",
+      "other_provider": "Andere Anbieter auswählen",
+      "select_other_provider": "Wählen Sie einen anderen Anbieter",
+      "setup_hint": "Bitte konfigurieren Sie mindestens einen Anbieter für die beste Erfahrung.",
+      "subtitle": "Genießen Sie erstklassige KI-Dienste mit CherryIN",
+      "title": "Willkommen bei Cherry Studio"
+    }
   },
   "openclaw": {
     "checking_installation": "Überprüfe OpenClaw-Installation...",
@@ -3148,7 +3184,10 @@
       "extracting": "Backup wird entpackt...",
       "preparing": "Wiederherstellung wird vorbereitet...",
       "reading_data": "Daten werden gelesen...",
-      "title": "Wiederherstellungsfortschritt"
+      "restoring_data": "Dateien werden wiederhergestellt...",
+      "restoring_database": "Datenbank wird wiederhergestellt...",
+      "title": "Wiederherstellungsfortschritt",
+      "validating": "Backup wird überprüft..."
     },
     "title": "Datenwiederherstellung"
   },
@@ -3701,7 +3740,15 @@
           "button": "Sicherungsdatei auswählen"
         },
         "content": "Exportieren Sie einige Daten, einschließlich Chat-Protokollen und Einstellungen. Bitte beachten Sie, dass der Sicherungsvorgang einige Zeit in Anspruch nehmen kann. Vielen Dank für Ihre Geduld.",
+        "file": {
+          "button": "In Datei exportieren",
+          "content": "Exportiere Daten als Sicherungsdatei, die per Datei auf dem Mobilgerät importiert werden kann.",
+          "export_failed": "Export fehlgeschlagen",
+          "export_success": "Export erfolgreich",
+          "title": "Als Datei exportieren"
+        },
         "lan": {
+          "button": "Übertragung starten",
           "connected": "Verbunden",
           "connection_failed": "Verbindung fehlgeschlagen",
           "content": "Bitte stelle sicher, dass sich dein Computer und dein Telefon im selben Netzwerk befinden, um eine LAN-Übertragung durchzuführen. Öffne die Cherry Studio App, um diesen QR-Code zu scannen.",
@@ -4800,6 +4847,7 @@
           "label": "Modelle aus Liste hinzufügen"
         },
         "add_whole_group": "Gesamte Gruppe hinzufügen",
+        "fetch_list": "Modellliste abrufen",
         "refetch_list": "Modellliste erneut abrufen",
         "remove_listed": "Modelle aus Liste entfernen",
         "remove_model": "Modell entfernen",
