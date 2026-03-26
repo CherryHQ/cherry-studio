@@ -16,25 +16,25 @@
       "when": 1767455592181
     },
     {
-      "breakpoints": true,
       "idx": 2,
+      "version": "6",
+      "when": 1772954746790,
       "tag": "0002_tired_glorian",
-      "version": "6",
-      "when": 1772954746790
+      "breakpoints": true
     },
     {
-      "breakpoints": true,
       "idx": 3,
-      "tag": "0003_material_pestilence",
       "version": "6",
-      "when": 1773896975667
+      "when": 1773896975667,
+      "tag": "0003_material_pestilence",
+      "breakpoints": true
     },
     {
-      "breakpoints": true,
       "idx": 4,
-      "tag": "0004_volatile_madame_masque",
       "version": "6",
-      "when": 1774262838467
+      "when": 1774262838467,
+      "tag": "0004_volatile_madame_masque",
+      "breakpoints": true
     },
     {
       "idx": 5,
