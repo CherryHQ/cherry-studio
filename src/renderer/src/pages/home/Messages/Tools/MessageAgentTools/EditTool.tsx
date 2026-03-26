@@ -22,19 +22,21 @@ function EditToolChildren({ input, output }: { input?: EditToolInput; output?: E
     )
   }, [input?.file_path, input?.old_string, input?.new_string])
 
+  const diffOptions = useMemo(
+    () => ({
+      disableFileHeader: true,
+      diffStyle,
+      overflow: 'wrap' as const,
+      theme: activeShikiTheme,
+      themeType: (isShikiThemeDark ? 'dark' : 'light') as 'dark' | 'light'
+    }),
+    [activeShikiTheme, isShikiThemeDark, diffStyle]
+  )
+
   return (
     <div className="relative">
       <DiffStyleToggle diffStyle={diffStyle} onToggle={toggleDiffStyle} />
-      <FileDiff
-        fileDiff={fileDiff}
-        options={{
-          disableFileHeader: true,
-          diffStyle,
-          overflow: 'wrap',
-          theme: activeShikiTheme,
-          themeType: isShikiThemeDark ? 'dark' : 'light'
-        }}
-      />
+      <FileDiff fileDiff={fileDiff} options={diffOptions} />
       {output}
     </div>
   )
