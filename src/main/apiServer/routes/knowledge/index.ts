@@ -194,6 +194,18 @@ const knowledgeRouter = express.Router()
  *           application/json:
  *             schema:
  *               $ref: '#/components/schemas/ErrorResponse'
+ *       500:
+ *         description: Internal server error
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ErrorResponse'
+ *       503:
+ *         description: Service unavailable (Redux store not accessible)
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ErrorResponse'
  */
 knowledgeRouter.get('/', validatePagination, listKnowledgeBases)
 
@@ -219,6 +231,18 @@ knowledgeRouter.get('/', validatePagination, listKnowledgeBases)
  *               $ref: '#/components/schemas/KnowledgeBaseEntity'
  *       404:
  *         description: Knowledge base not found
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ErrorResponse'
+ *       500:
+ *         description: Internal server error
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ErrorResponse'
+ *       503:
+ *         description: Service unavailable (Redux store not accessible)
  *         content:
  *           application/json:
  *             schema:

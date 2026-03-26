@@ -281,9 +281,9 @@ export const searchKnowledge = async (req: ValidationRequest, res: Response): Pr
         error: {
           message: 'All knowledge base searches failed. Check embedding provider configuration.',
           type: 'upstream_error',
-          code: 'SEARCH_ALL_FAILED'
-        },
-        failed_bases: resultsPerBase.map((r) => ({ id: r.baseId, name: r.baseName, error: r.error }))
+          code: 'SEARCH_ALL_FAILED',
+          failed_bases: resultsPerBase.map((r) => ({ id: r.baseId, name: r.baseName, error: r.error }))
+        }
       })
     }
 
