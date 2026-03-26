@@ -15,7 +15,7 @@ vi.mock('@main/services/WindowService', () => ({
 }))
 
 import { mcpServerService } from '@data/services/McpServerService'
-import mcpService from '@main/services/MCPService'
+import { mcpService } from '@main/services/MCPService'
 
 const baseInputSchema: { type: 'object'; properties: Record<string, unknown>; required: string[] } = {
   type: 'object',

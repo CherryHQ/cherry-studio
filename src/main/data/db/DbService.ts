@@ -39,7 +39,7 @@ const MIGRATIONS_BASE_PATH = 'migrations/sqlite-drizzle'
 @ErrorHandling('fail-fast')
 export class DbService extends BaseService {
   private db: DbType
-  private walConfigured = false
+  private pragmasConfigured = false
 
   constructor() {
     super()
@@ -62,27 +62,53 @@ export class DbService extends BaseService {
    * Lifecycle: Initialize database with WAL mode, run migrations and seeds
    */
   protected async onInit(): Promise<void> {
-    await this.configureWAL()
+    await this.configurePragmas()
     await this.migrateDb()
     await this.migrateSeed('preference')
     await this.migrateSeed('translateLanguage')
   }
 
   /**
-   * Configure WAL mode for better concurrency performance
+   * Configure database PRAGMAs (WAL mode, synchronous, foreign keys).
+   *
+   * ## Known issue: per-connection PRAGMAs lost after transaction()
+   *
+   * `@libsql/client`'s `Sqlite3Client.transaction()` nullifies its internal
+   * connection (`this.#db = null`) after opening a transaction. The next
+   * non-transaction operation lazily creates a **new** `Database` connection
+   * whose PRAGMAs reset to libsql compile-time defaults:
+   * - `synchronous` reverts to FULL (standard SQLite default)
+   * - `foreign_keys` stays ON — libsql (turso's SQLite fork) is compiled with
+   *   `SQLITE_DEFAULT_FOREIGN_KEYS=1` (see libsql-ffi/build.rs), unlike
+   *   standard SQLite which defaults to OFF
+   * - `journal_mode = WAL` is unaffected (persisted in the database file)
+   *
+   * This is a known limitation with no upstream fix as of @libsql/client 0.17.2.
+   * Related issues:
+   * - https://github.com/tursodatabase/libsql-client-ts/issues/229
+   * - https://github.com/tursodatabase/libsql-client-ts/issues/288
+   *
+   * TODO: Patch @libsql/client to replay PRAGMAs in `#getDb()` when a new
+   * connection is lazily created (similar to PR #328's ATTACH replay pattern).
    */
-  private async configureWAL(): Promise<void> {
-    if (this.walConfigured) {
+  private async configurePragmas(): Promise<void> {
+    if (this.pragmasConfigured) {
       return
     }
 
     try {
-      await this.db.run(sql`PRAGMA journal_mode = WAL; PRAGMA synchronous = NORMAL; PRAGMA foreign_keys = ON`)
+      // Each PRAGMA must be a separate db.run() call. @libsql/client uses
+      // db.prepare() internally which maps to SQLite's sqlite3_prepare_v2() —
+      // this API only compiles the FIRST statement in a multi-statement string
+      // and silently discards the rest. This is by design in the SQLite C API.
+      await this.db.run(sql`PRAGMA journal_mode = WAL`)
+      await this.db.run(sql`PRAGMA synchronous = NORMAL`)
+      await this.db.run(sql`PRAGMA foreign_keys = ON`)
 
-      this.walConfigured = true
-      logger.info('WAL mode configured for database')
+      this.pragmasConfigured = true
+      logger.info('Database PRAGMAs configured (WAL, synchronous, foreign_keys)')
     } catch (error) {
-      logger.warn('Failed to configure WAL mode, using default journal mode', error as Error)
+      logger.warn('Failed to configure database PRAGMAs', error as Error)
     }
   }
 

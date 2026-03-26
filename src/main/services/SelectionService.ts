@@ -49,11 +49,10 @@ type RelativeOrientation =
  * - Screen boundary-aware positioning
  *
  * Usage:
- *   import selectionService from '/src/main/services/SelectionService'
+ *   import { selectionService } from '/src/main/services/SelectionService'
  *   selectionService?.start()
  */
 export class SelectionService {
-  private static instance: SelectionService | null = null
   private selectionHook: SelectionHookInstance | null = null
 
   private static isIpcHandlerRegistered = false
@@ -107,7 +106,7 @@ export class SelectionService {
     height: this.ACTION_WINDOW_HEIGHT
   }
 
-  private constructor() {
+  constructor() {
     try {
       if (!SelectionHook) {
         throw new Error('module selection-hook not exists')
@@ -151,15 +150,8 @@ export class SelectionService {
     }
   }
 
-  public static getInstance(): SelectionService | null {
-    if (!SelectionService.instance) {
-      SelectionService.instance = new SelectionService()
-    }
-
-    if (SelectionService.instance.initStatus) {
-      return SelectionService.instance
-    }
-    return null
+  public isInitialized(): boolean {
+    return this.initStatus
   }
 
   public getSelectionHook(): SelectionHookInstance | null {
@@ -422,7 +414,6 @@ export class SelectionService {
 
     this.selectionHook = null
     this.initStatus = false
-    SelectionService.instance = null
     this.logInfo('SelectionService Quitted', true)
   }
 
@@ -1692,40 +1683,34 @@ export class SelectionService {
 export function initSelectionService(): boolean {
   // Initialize zoom factor here (after bootstrap) instead of in constructor
   // because application.get() requires services to be registered first
-  const selectionInstance = SelectionService.getInstance()
-  if (selectionInstance) {
-    selectionInstance.initZoomFactor()
+  if (selectionService.isInitialized()) {
+    selectionService.initZoomFactor()
   }
 
   const preferenceService = application.get('PreferenceService')
   const enabled = preferenceService.get('feature.selection.enabled')
 
   preferenceService.subscribeChange('feature.selection.enabled', (enabled: boolean): void => {
-    //avoid closure
-    const ss = SelectionService.getInstance()
-    if (!ss) {
+    if (!selectionService.isInitialized()) {
       logger.error('SelectionService not initialized: instance is null')
       return
     }
 
     if (enabled) {
-      ss.start()
+      selectionService.start()
     } else {
-      ss.stop()
+      selectionService.stop()
     }
   })
 
   if (!enabled) return false
 
-  const ss = SelectionService.getInstance()
-  if (!ss) {
+  if (!selectionService.isInitialized()) {
     logger.error('SelectionService not initialized: instance is null')
     return false
   }
 
-  return ss.start()
+  return selectionService.start()
 }
 
-const selectionService = SelectionService.getInstance()
-
-export default selectionService
+export const selectionService = new SelectionService()

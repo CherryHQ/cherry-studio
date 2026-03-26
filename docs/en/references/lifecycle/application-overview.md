@@ -109,17 +109,17 @@ Control individual services at runtime without restarting the app:
 
 ```typescript
 // Stop a service (cascades to dependents)
-await application.stopService('HeavyComputeService')
+await application.stop('HeavyComputeService')
 
 // Start a stopped service (re-runs onInit, cascades to dependents)
-await application.startService('HeavyComputeService')
+await application.start('HeavyComputeService')
 
 // Restart = stop + start
-await application.restartService('HeavyComputeService')
+await application.restart('HeavyComputeService')
 
 // Pause/Resume (service must implement Pausable interface)
-await application.pauseService('RealTimeService')
-await application.resumeService('RealTimeService')
+await application.pause('RealTimeService')
+await application.resume('RealTimeService')
 ```
 
 All operations cascade through the dependency graph automatically.
@@ -130,14 +130,61 @@ When pausing/stopping a service, all services that depend on it are automaticall
 
 ```typescript
 // If PreferenceService depends on DbService:
-await application.stopService('DbService')
+await application.stop('DbService')
 // → PreferenceService is stopped first, then DbService
 
-await application.startService('DbService')
+await application.start('DbService')
 // → DbService is started first, then PreferenceService
 ```
 
 **Important**: For pause/resume, ALL services in the cascade chain must implement `Pausable`. If any dependent service doesn't, the operation is aborted with an error log.
+
+## App Relaunch
+
+Always use `application.relaunch()` instead of calling `app.relaunch()` directly. It handles:
+
+- **Dev mode detection**: Shows a dialog and exits gracefully (auto-relaunch is not possible in dev)
+- **Platform fixes**: Linux AppImage `execPath` rewrite, Windows Portable executable path
+
+```typescript
+import { application } from '@main/core/application'
+
+// Simple relaunch
+application.relaunch()
+
+// With custom options (forwarded to Electron's app.relaunch)
+application.relaunch({ args: ['--safe-mode'] })
+```
+
+## App Quit
+
+Always use `application.quit()` or `application.forceExit()` instead of calling `app.quit()` / `app.exit()` directly. An ESLint rule (`no-restricted-properties`) will warn if `app.quit()` or `app.exit()` is used in `src/main/` outside of `Application.ts`.
+
+```typescript
+import { application } from '@main/core/application'
+
+// Graceful quit — triggers the Electron before-quit / will-quit event chain
+application.quit()
+
+// Force exit — skips the event chain, for fatal/unrecoverable errors only
+application.forceExit(1)
+
+// Mark as quitting without triggering quit — for external quit flows (e.g. autoUpdater)
+application.markQuitting()
+
+// Check quit status
+if (application.isQuitting) { /* ... */ }
+```
+
+| Method | Event chain | Use case |
+|--------|-------------|----------|
+| `quit()` | Triggers `before-quit` → `will-quit` | Normal user-initiated quit |
+| `forceExit(code)` | Skipped | Fatal errors, repeated renderer crash |
+| `markQuitting()` | None (flag only) | `autoUpdater.quitAndInstall()` owns its own quit flow |
+
+**Exceptions** (where direct `app.quit()` is acceptable):
+- Before `application` is initialized (e.g., single-instance lock failure in `index.ts`)
+- Migration files (`src/main/data/migration/`) that run before the full app lifecycle
 
 ## The `application` Proxy
 

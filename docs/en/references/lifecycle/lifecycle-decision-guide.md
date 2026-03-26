@@ -26,7 +26,7 @@
 | Session interceptors | `session.webRequest.onHeadersReceived()`                           |
 | Global API mutations | Monkey-patching `ipcMain.handle`                                   |
 
-> `ipcMain.handle()` alone does **not** qualify — Electron auto-cleans IPC handlers on exit. Only qualifies if the handler holds stateful resources or the service needs `stopService()` / `startService()`.
+> `ipcMain.handle()` alone does **not** qualify — Electron auto-cleans IPC handlers on exit. Only qualifies if the handler holds stateful resources or the service needs `stop()` / `start()`.
 
 ## Do NOT Use Lifecycle if
 

@@ -38,7 +38,7 @@ interface RequestState {
 /**
  * 提供网络搜索相关功能的服务类
  */
-class WebSearchService {
+export class WebSearchService {
   /**
    * 是否暂停
    */
@@ -569,4 +569,4 @@ class WebSearchService {
   }
 }
 
-export default new WebSearchService()
+export const webSearchService = new WebSearchService()

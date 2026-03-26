@@ -16,6 +16,7 @@
  */
 import { loggerService } from '@logger'
 import { isWin } from '@main/constant'
+import { application } from '@main/core/application'
 import { IpcChannel } from '@shared/IpcChannel'
 import type { WebDavConfig } from '@types'
 import type { S3Config } from '@types'
@@ -628,8 +629,7 @@ class BackupManager {
       logger.info('[restoreDirect] Restore completed successfully, relaunching app...')
 
       // Relaunch app to load restored data
-      app.relaunch()
-      app.exit(0)
+      application.relaunch()
     } catch (error) {
       logger.error('[restoreDirect] Restore failed:', error as Error)
       await fs.remove(this.tempDir).catch(() => {})

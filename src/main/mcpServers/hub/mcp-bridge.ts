@@ -1,7 +1,7 @@
 /**
  * Bridge module for Hub server to access MCPService.
  */
-import mcpService from '@main/services/MCPService'
+import { mcpService } from '@main/services/MCPService'
 import type { MCPCallToolResponse, MCPTool, MCPToolResultContent } from '@types'
 
 import { buildToolNameMapping, resolveToolId, type ToolIdentity, type ToolNameMapping } from './toolname'

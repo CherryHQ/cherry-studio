@@ -7,8 +7,8 @@ import { useTheme } from '@renderer/context/ThemeProvider'
 import db from '@renderer/databases'
 import { useAppUpdateHandler, useAppUpdateState } from '@renderer/hooks/useAppUpdate'
 import i18n, { setDayjsLocale } from '@renderer/i18n'
-import KnowledgeQueue from '@renderer/queue/KnowledgeQueue'
-import MemoryService from '@renderer/services/MemoryService'
+import { knowledgeQueue } from '@renderer/queue/KnowledgeQueue'
+import { memoryService } from '@renderer/services/MemoryService'
 import { handleSaveData, useAppDispatch, useAppSelector } from '@renderer/store'
 import { selectMemoryConfig } from '@renderer/store/memory'
 import {
@@ -56,8 +56,7 @@ export function useAppInit() {
     // eslint-disable-next-line no-restricted-syntax
     console.timeEnd('init')
 
-    // Initialize MemoryService after app is ready
-    MemoryService.getInstance()
+    // MemoryService is initialized at module level via export const
   }, [])
 
   useEffect(() => {
@@ -156,7 +155,7 @@ export function useAppInit() {
   }, [])
 
   useEffect(() => {
-    void KnowledgeQueue.checkAllBases()
+    void knowledgeQueue.checkAllBases()
   }, [])
 
   useEffect(() => {
@@ -270,7 +269,6 @@ export function useAppInit() {
 
   // Update memory service configuration when it changes
   useEffect(() => {
-    const memoryService = MemoryService.getInstance()
     memoryService.updateConfig().catch((error) => logger.error('Failed to update memory config:', error))
   }, [memoryConfig])
 

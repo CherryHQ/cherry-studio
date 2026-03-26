@@ -8,7 +8,7 @@ import { objectKeys } from '@types'
 import fs from 'fs'
 import path from 'path'
 
-import { DatabaseManager } from './database/DatabaseManager'
+import { databaseManager } from './database/DatabaseManager'
 import { type AgentModelField, AgentModelValidationError } from './errors'
 import { builtinSlashCommands } from './services/claudecode/commands'
 import { builtinTools } from './services/claudecode/tools'
@@ -148,8 +148,8 @@ export abstract class BaseService {
    * Automatically waits for initialization to complete
    */
   public async getDatabase() {
-    const dbManager = await DatabaseManager.getInstance()
-    return dbManager.getDatabase()
+    await databaseManager.initialize()
+    return databaseManager.getDatabase()
   }
 
   protected serializeJsonFields(data: any): any {

@@ -16,7 +16,7 @@ import { hasAPIVersion, withoutTrailingSlash } from '@shared/utils'
 import type { Model, Provider, ProviderType, VertexProvider } from '@types'
 
 import { parseCurrentVersion, parseUpdateStatus } from './utils/openClawParsers'
-import VertexAIService from './VertexAIService'
+import { vertexAIService } from './VertexAIService'
 import { windowService } from './WindowService'
 
 const logger = loggerService.withContext('OpenClawService')
@@ -781,7 +781,7 @@ class OpenClawService {
       let apiKey = provider.apiKey ? provider.apiKey.split(',')[0].trim() : ''
       if (isVertexProvider(provider)) {
         try {
-          const vertexService = VertexAIService.getInstance()
+          const vertexService = vertexAIService
           apiKey = await vertexService.getAccessToken({
             projectId: provider.project,
             serviceAccount: {

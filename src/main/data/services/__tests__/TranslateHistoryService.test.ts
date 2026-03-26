@@ -47,11 +47,11 @@ function createMockRow(overrides: Record<string, unknown> = {}) {
 }
 
 describe('TranslateHistoryService', () => {
-  let service: ReturnType<typeof TranslateHistoryService.getInstance>
+  let service: InstanceType<typeof TranslateHistoryService>
 
   beforeEach(() => {
     vi.clearAllMocks()
-    service = TranslateHistoryService.getInstance()
+    service = new TranslateHistoryService()
   })
 
   describe('list', () => {

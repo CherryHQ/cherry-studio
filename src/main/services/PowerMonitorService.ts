@@ -9,20 +9,8 @@ const logger = loggerService.withContext('PowerMonitorService')
 type ShutdownHandler = () => void | Promise<void>
 
 export class PowerMonitorService {
-  private static instance: PowerMonitorService
   private initialized = false
   private shutdownHandlers: ShutdownHandler[] = []
-
-  private constructor() {
-    // Private constructor to prevent direct instantiation
-  }
-
-  public static getInstance(): PowerMonitorService {
-    if (!PowerMonitorService.instance) {
-      PowerMonitorService.instance = new PowerMonitorService()
-    }
-    return PowerMonitorService.instance
-  }
 
   /**
    * Register a shutdown handler to be called when system shutdown is detected
@@ -108,5 +96,4 @@ export class PowerMonitorService {
   }
 }
 
-// Default export as singleton instance
-export default PowerMonitorService.getInstance()
+export const powerMonitorService = new PowerMonitorService()

@@ -129,7 +129,7 @@ All services support stop/start operations (no special interface needed):
 ```typescript
 import { application } from '@main/core/application'
 
-await application.stopService('HeavyComputeService')    // calls onStop()
-await application.startService('HeavyComputeService')   // calls onInit() again
-await application.restartService('HeavyComputeService') // stop + start
+await application.stop('HeavyComputeService')    // calls onStop()
+await application.start('HeavyComputeService')   // calls onInit() again
+await application.restart('HeavyComputeService') // stop + start
 ```

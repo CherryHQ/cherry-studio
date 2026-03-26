@@ -1,6 +1,6 @@
 import { mcpServerService } from '@data/services/McpServerService'
 import { loggerService } from '@logger'
-import mcpService from '@main/services/MCPService'
+import { mcpService } from '@main/services/MCPService'
 import { Server } from '@modelcontextprotocol/sdk/server/index.js'
 import { CallToolRequestSchema, ListToolsRequestSchema } from '@modelcontextprotocol/sdk/types.js'
 

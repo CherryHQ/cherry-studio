@@ -25,7 +25,6 @@ const logger = loggerService.withContext('WindowService')
 const linuxIcon = isLinux ? nativeImage.createFromPath(iconPath) : undefined
 
 export class WindowService {
-  private static instance: WindowService | null = null
   private mainWindow: BrowserWindow | null = null
   private miniWindow: BrowserWindow | null = null
   private isPinnedMiniWindow: boolean = false
@@ -33,13 +32,6 @@ export class WindowService {
   //to restore the focus status when miniWindow hides
   private wasMainWindowFocused: boolean = false
   private lastRendererProcessCrashTime: number = 0
-
-  public static getInstance(): WindowService {
-    if (!WindowService.instance) {
-      WindowService.instance = new WindowService()
-    }
-    return WindowService.instance
-  }
 
   public createMainWindow(): BrowserWindow {
     if (this.mainWindow && !this.mainWindow.isDestroyed()) {
@@ -153,7 +145,7 @@ export class WindowService {
         mainWindow.webContents.reload()
       } else {
         // 如果小于1分钟，则退出应用, 可能是连续crash，需要退出应用
-        app.exit(1)
+        application.forceExit(1)
       }
     })
   }
@@ -364,9 +356,9 @@ export class WindowService {
         logger.error('Failed to save data:', error as Error)
       }
 
-      // 如果已经触发退出，直接退出
-      if (app.isQuitting) {
-        return app.quit()
+      // 如果已经触发退出，直接放行窗口关闭
+      if (application.isQuitting) {
+        return
       }
 
       // 托盘及关闭行为设置
@@ -379,7 +371,7 @@ export class WindowService {
         // 如果是Windows或Linux，直接退出
         // mac按照系统默认行为，不退出
         if (isWin || isLinux) {
-          return app.quit()
+          return application.quit()
         }
       }
 
@@ -725,4 +717,4 @@ export class WindowService {
   }
 }
 
-export const windowService = WindowService.getInstance()
+export const windowService = new WindowService()

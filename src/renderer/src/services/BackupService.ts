@@ -12,7 +12,7 @@ import type { S3Config, WebDavConfig } from '@renderer/types'
 import { uuid } from '@renderer/utils'
 import dayjs from 'dayjs'
 
-import { NotificationService } from './NotificationService'
+import { notificationService } from './NotificationService'
 
 const logger = loggerService.withContext('BackupService')
 
@@ -92,7 +92,7 @@ export async function backupToLanTransfer() {
 }
 
 export async function restore() {
-  const notificationService = NotificationService.getInstance()
+  // notificationService is imported as a module-level singleton
   const file = await window.api.file.open({ filters: [{ name: '备份文件', extensions: ['bak', 'zip'] }] })
 
   if (file) {
@@ -189,7 +189,7 @@ export async function backupToWebdav({
   customFileName?: string
   autoBackupProcess?: boolean
 } = {}) {
-  const notificationService = NotificationService.getInstance()
+  // notificationService is imported as a module-level singleton
   if (isManualBackupRunning) {
     logger.verbose('Manual backup already in progress')
     return
@@ -392,7 +392,7 @@ export async function backupToS3({
   customFileName?: string
   autoBackupProcess?: boolean
 } = {}) {
-  const notificationService = NotificationService.getInstance()
+  // notificationService is imported as a module-level singleton
   if (isManualBackupRunning) {
     logger.verbose('Manual backup already in progress')
     return
@@ -1043,7 +1043,7 @@ export async function backupToLocal({
   customFileName?: string
   autoBackupProcess?: boolean
 } = {}) {
-  const notificationService = NotificationService.getInstance()
+  // notificationService is imported as a module-level singleton
   if (isManualBackupRunning) {
     logger.verbose('Manual backup already in progress')
     return

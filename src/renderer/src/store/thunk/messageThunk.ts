@@ -20,8 +20,7 @@ import { AiSdkToChunkAdapter } from '@renderer/aiCore/chunk/AiSdkToChunkAdapter'
 import { AgentApiClient } from '@renderer/api/agent'
 import db from '@renderer/databases'
 import { fetchMessagesSummary, transformMessagesAndFetch } from '@renderer/services/ApiService'
-import { dbService } from '@renderer/services/db'
-import { DbService } from '@renderer/services/db/DbService'
+import { dbService } from '@renderer/services/db/DbService'
 import FileManager from '@renderer/services/FileManager'
 import { BlockManager } from '@renderer/services/messageStreaming/BlockManager'
 import { createCallbacks } from '@renderer/services/messageStreaming/callbacks'
@@ -95,7 +94,7 @@ type AgentSessionContext = {
 }
 
 const agentSessionRenameLocks = new Set<string>()
-const dbFacade = DbService.getInstance()
+const dbFacade = dbService
 
 const findExistingAgentSessionContext = (
   state: RootState,

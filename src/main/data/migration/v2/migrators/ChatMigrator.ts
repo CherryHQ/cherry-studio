@@ -316,6 +316,13 @@ export class ChatMigrator extends BaseMigrator {
             }
           }
 
+          // @libsql/client creates new DB connections after each transaction()
+          // (this.#db = null). libsql is compiled with SQLITE_DEFAULT_FOREIGN_KEYS=1
+          // (see libsql-ffi/build.rs), so new connections have foreign_keys = ON.
+          // Must disable FK before each batch to prevent
+          // SQLITE_CONSTRAINT_FOREIGNKEY on message.parentId self-references.
+          await db.run(sql`PRAGMA foreign_keys = OFF`)
+
           // Execute transaction
           await db.transaction(async (tx) => {
             // Insert topics

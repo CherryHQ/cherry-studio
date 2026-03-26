@@ -30,7 +30,7 @@ import FileManager from '@renderer/services/FileManager'
 import { checkRateLimit, getUserMessage } from '@renderer/services/MessagesService'
 import { spanManagerService } from '@renderer/services/SpanManagerService'
 import { estimateTextTokens as estimateTxtTokens, estimateUserPromptUsage } from '@renderer/services/TokenService'
-import WebSearchService from '@renderer/services/WebSearchService'
+import { webSearchService } from '@renderer/services/WebSearchService'
 import { useAppDispatch } from '@renderer/store'
 import { sendMessage as _sendMessage } from '@renderer/store/thunk/messageThunk'
 import {
@@ -452,7 +452,7 @@ const InputbarInner: FC<InputbarInnerProps> = ({ assistant: initialAssistant, se
     // Clear web search provider if disabled or model has mandatory search
     if (
       assistant.webSearchProviderId &&
-      (!WebSearchService.isWebSearchEnabled(assistant.webSearchProviderId) || isMandatoryWebSearchModel(model))
+      (!webSearchService.isWebSearchEnabled(assistant.webSearchProviderId) || isMandatoryWebSearchModel(model))
     ) {
       updateAssistant({ ...assistant, webSearchProviderId: undefined })
     }

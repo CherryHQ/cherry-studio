@@ -12,14 +12,6 @@ const logger = loggerService.withContext('AnalyticsService')
 
 class AnalyticsService {
   private client: AnalyticsClient | null = null
-  private static instance: AnalyticsService
-
-  public static getInstance(): AnalyticsService {
-    if (!AnalyticsService.instance) {
-      AnalyticsService.instance = new AnalyticsService()
-    }
-    return AnalyticsService.instance
-  }
 
   public init(): void {
     this.client = new AnalyticsClient({
@@ -69,4 +61,4 @@ class AnalyticsService {
   }
 }
 
-export const analyticsService = AnalyticsService.getInstance()
+export const analyticsService = new AnalyticsService()

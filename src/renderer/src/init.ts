@@ -3,7 +3,7 @@ import { loggerService } from '@logger'
 
 import { startAutoSync } from './services/BackupService'
 import { startNutstoreAutoSync } from './services/NutstoreService'
-import storeSyncService from './services/StoreSyncService'
+import { storeSyncService } from './services/StoreSyncService'
 import { webTraceService } from './services/WebTraceService'
 loggerService.initWindowSource('mainWindow')
 

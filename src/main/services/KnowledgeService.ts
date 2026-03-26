@@ -759,4 +759,4 @@ class KnowledgeService {
   }
 }
 
-export default new KnowledgeService()
+export const knowledgeService = new KnowledgeService()

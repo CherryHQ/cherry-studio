@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 vi.mock('@main/services/MCPService', () => ({
-  default: {
+  mcpService: {
     listAllActiveServerTools: vi.fn(async () => []),
     callToolById: vi.fn(async () => ({ content: [{ type: 'text', text: '{}' }] })),
     abortTool: vi.fn(async () => true)
@@ -112,7 +112,7 @@ describe('resolveHubToolNameAsync', () => {
   })
 
   it('lazily refreshes mapping when null', async () => {
-    const mcpService = (await import('@main/services/MCPService')).default
+    const mcpService = (await import('@main/services/MCPService')).mcpService
     vi.mocked(mcpService.listAllActiveServerTools).mockResolvedValue([
       {
         id: 'github__search_repos',
@@ -135,7 +135,7 @@ describe('resolveHubToolNameAsync', () => {
   })
 
   it('retries resolution after refresh when tool not found in stale mapping', async () => {
-    const mcpService = (await import('@main/services/MCPService')).default
+    const mcpService = (await import('@main/services/MCPService')).mcpService
 
     // Initialize with an empty tool list
     syncToolMapFromTools([])

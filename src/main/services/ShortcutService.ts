@@ -22,7 +22,7 @@ import type { BrowserWindow } from 'electron'
 import { globalShortcut } from 'electron'
 
 import { configManager } from './ConfigManager'
-import selectionService from './SelectionService'
+import { selectionService } from './SelectionService'
 import { windowService } from './WindowService'
 const logger = loggerService.withContext('ShortcutService')
 

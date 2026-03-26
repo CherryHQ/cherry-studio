@@ -2,26 +2,20 @@ import { isLinux, isMac, isWin } from '@main/constant'
 import { application } from '@main/core/application'
 import { getI18n } from '@main/utils/language'
 import type { MenuItemConstructorOptions } from 'electron'
-import { app, Menu, nativeImage, nativeTheme, Tray } from 'electron'
+import { Menu, nativeImage, nativeTheme, Tray } from 'electron'
 
 import icon from '../../../build/tray_icon.png?asset'
 import iconDark from '../../../build/tray_icon_dark.png?asset'
 import iconLight from '../../../build/tray_icon_light.png?asset'
-import selectionService from './SelectionService'
+import { selectionService } from './SelectionService'
 import { windowService } from './WindowService'
 export class TrayService {
-  private static instance: TrayService
   private tray: Tray | null = null
   private contextMenu: Menu | null = null
 
-  constructor() {
+  public init(): void {
     this.watchConfigChanges()
     this.updateTray()
-    TrayService.instance = this
-  }
-
-  public static getInstance() {
-    return TrayService.instance
   }
 
   private createTray() {
@@ -133,6 +127,8 @@ export class TrayService {
   }
 
   private quit() {
-    app.quit()
+    application.quit()
   }
 }
+
+export const trayService = new TrayService()

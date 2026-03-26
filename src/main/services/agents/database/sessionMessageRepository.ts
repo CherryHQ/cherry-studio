@@ -26,16 +26,6 @@ export type PersistAssistantMessageParams = AgentMessageAssistantPersistPayload 
 }
 
 class AgentMessageRepository extends BaseService {
-  private static instance: AgentMessageRepository | null = null
-
-  static getInstance(): AgentMessageRepository {
-    if (!AgentMessageRepository.instance) {
-      AgentMessageRepository.instance = new AgentMessageRepository()
-    }
-
-    return AgentMessageRepository.instance
-  }
-
   private serializeMessage(payload: AgentPersistedMessage): string {
     return JSON.stringify(payload)
   }
@@ -220,4 +210,4 @@ class AgentMessageRepository extends BaseService {
   }
 }
 
-export const agentMessageRepository = AgentMessageRepository.getInstance()
+export const agentMessageRepository = new AgentMessageRepository()

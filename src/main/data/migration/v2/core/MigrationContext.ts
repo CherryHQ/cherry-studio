@@ -4,7 +4,6 @@
 
 import type { DbType } from '@data/db/types'
 import { type LoggerService, loggerService } from '@logger'
-import { application } from '@main/core/application'
 import type { LocalStorageRecord } from '@shared/data/migration/v2/types'
 import Store from 'electron-store'
 import fs from 'fs/promises'
@@ -49,11 +48,11 @@ export interface MigrationContext {
  * @param dexieExportPath - Path to exported Dexie files
  */
 export async function createMigrationContext(
+  db: DbType,
   reduxData: Record<string, unknown>,
   dexieExportPath: string,
   localStorageExportPath?: string
 ): Promise<MigrationContext> {
-  const db = application.get('DbService').getDb()
   const logger = loggerService.withContext('Migration')
   const electronStore = new Store()
   const dexieFileReader = new DexieFileReader(dexieExportPath)
