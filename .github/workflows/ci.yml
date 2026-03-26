@@ -142,6 +142,55 @@ jobs:
       - name: Skills Check
         run: pnpm skills:check
 
+  deadcode-check:
+    runs-on: ubuntu-latest
+    needs: changes
+    if: >-
+      needs.changes.outputs.main == 'true' ||
+      needs.changes.outputs.renderer == 'true' ||
+      needs.changes.outputs.shared == 'true' ||
+      github.event_name == 'push' ||
+      github.event_name == 'workflow_dispatch'
+    env:
+      CI: true
+
+    steps:
+      - name: Check out Git repository
+        uses: actions/checkout@v6
+
+      - name: Install Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version-file: ".node-version"
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v4
+
+      - name: Get pnpm store directory
+        id: pnpm-cache
+        shell: bash
+        run: echo "STORE_PATH=$(pnpm store path --silent)" >> $GITHUB_OUTPUT
+
+      - name: Cache pnpm dependencies
+        uses: actions/cache@v5
+        with:
+          path: ${{ steps.pnpm-cache.outputs.STORE_PATH }}
+          key: ${{ runner.os }}-pnpm-${{ hashFiles('**/pnpm-lock.yaml') }}
+          restore-keys: |
+            ${{ runner.os }}-pnpm-
+
+      - name: Install Dependencies
+        run: pnpm install
+
+      - name: Dead Code Check (knip)
+        run: pnpm deadcode:knip
+
+      - name: Dead Code Check (ts-prune)
+        run: pnpm deadcode:ts-prune
+
+      - name: Dead Code Check (ts-unused-exports)
+        run: pnpm deadcode:ts-unused-exports
+
   general-test:
     runs-on: ubuntu-latest
     needs: changes
@@ -237,8 +286,8 @@ jobs:
 
   notify:
     runs-on: ubuntu-latest
-    needs: [basic-checks, general-test, render-test]
-    if: always() && (needs.basic-checks.result == 'failure' || needs.general-test.result == 'failure' || needs.render-test.result == 'failure') && github.event_name == 'push' && github.ref == 'refs/heads/main'
+    needs: [basic-checks, deadcode-check, general-test, render-test]
+    if: always() && (needs.basic-checks.result == 'failure' || needs.deadcode-check.result == 'failure' || needs.general-test.result == 'failure' || needs.render-test.result == 'failure') && github.event_name == 'push' && github.ref == 'refs/heads/main'
     steps:
       - name: Check out Git repository
         uses: actions/checkout@v6

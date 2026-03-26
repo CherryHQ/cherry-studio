@@ -80,6 +80,10 @@
     "changeset:publish": "changeset publish",
     "packages:build": "pnpm --filter @cherrystudio/ai-sdk-provider build && pnpm --filter @cherrystudio/ai-core build && pnpm --filter @cherrystudio/extension-table-plus build",
     "packages:release": "pnpm packages:build && changeset publish",
+    "deadcode:knip": "knip --config knip.config.ts --production --no-progress --reporter compact --files --dependencies",
+    "deadcode:ts-prune": "pnpm dlx ts-prune -p tsconfig.node.json -i '(node_modules|__tests__|\\.test\\.|\\.spec\\.|\\.d\\.ts|out/|dist/)' | grep -v 'used in module' && exit 1 || true; pnpm dlx ts-prune -p tsconfig.web.json -i '(node_modules|__tests__|\\.test\\.|\\.spec\\.|\\.d\\.ts|out/|dist/)' | grep -v 'used in module' && exit 1 || true",
+    "deadcode:ts-unused-exports": "pnpm dlx ts-unused-exports tsconfig.node.json --excludeDeclarationFiles --excludePathsFromReport='node_modules;out;dist;__tests__;scripts;tests;local' --ignoreTestFiles; pnpm dlx ts-unused-exports tsconfig.web.json --excludeDeclarationFiles --excludePathsFromReport='node_modules;out;dist;__tests__;scripts;tests;local' --ignoreTestFiles",
+    "deadcode": "pnpm deadcode:knip && pnpm deadcode:ts-prune && pnpm deadcode:ts-unused-exports",
     "ci:basic-check": "pnpm test:lint && pnpm format:check && pnpm typecheck && pnpm i18n:check && pnpm i18n:hardcoded:strict && pnpm openapi:check && pnpm skills:check",
     "ci:test-check": "pnpm test:main && pnpm test:renderer && pnpm test:aicore && pnpm test:shared && pnpm test:scripts",
     "ci": "pnpm ci:basic-check && pnpm ci:test-check"
@@ -100,12 +104,12 @@
     "node-stream-zip": "1.15.0",
     "officeparser": "4.2.0",
     "os-proxy-config": "1.1.2",
+    "pdf-parse": "^2.4.5",
     "selection-hook": "1.0.12",
     "sharp": "0.34.3",
     "swagger-ui-express": "5.0.1",
     "tesseract.js": "6.0.1",
-    "turndown": "7.2.0",
-    "pdf-parse": "^2.4.5"
+    "turndown": "7.2.0"
   },
   "devDependencies": {
     "@agentic/exa": "^7.3.3",
@@ -345,6 +349,7 @@
     "json-schema": "0.4.0",
     "jsonc-parser": "^3.3.1",
     "katex": "0.16.22",
+    "knip": "^6.0.5",
     "ky": "1.8.1",
     "linguist-languages": "^8.1.0",
     "lodash": "^4.17.21",
@@ -528,18 +533,18 @@
     "@libsql/linux-x64-gnu": "0.4.7",
     "@libsql/linux-x64-musl": "0.4.7",
     "@libsql/win32-x64-msvc": "0.4.7",
+    "@napi-rs/canvas-darwin-arm64": "0.1.97",
+    "@napi-rs/canvas-darwin-x64": "0.1.97",
+    "@napi-rs/canvas-linux-arm64-gnu": "0.1.97",
+    "@napi-rs/canvas-linux-arm64-musl": "0.1.97",
+    "@napi-rs/canvas-linux-x64-gnu": "0.1.97",
+    "@napi-rs/canvas-linux-x64-musl": "0.1.97",
+    "@napi-rs/canvas-win32-arm64-msvc": "0.1.97",
+    "@napi-rs/canvas-win32-x64-msvc": "0.1.97",
     "@napi-rs/system-ocr-darwin-arm64": "1.0.2",
     "@napi-rs/system-ocr-darwin-x64": "1.0.2",
     "@napi-rs/system-ocr-win32-arm64-msvc": "1.0.2",
     "@napi-rs/system-ocr-win32-x64-msvc": "1.0.2",
-    "@strongtz/win32-arm64-msvc": "0.4.7",
-    "@napi-rs/canvas-linux-x64-gnu": "0.1.97",
-    "@napi-rs/canvas-linux-x64-musl": "0.1.97",
-    "@napi-rs/canvas-linux-arm64-gnu": "0.1.97",
-    "@napi-rs/canvas-linux-arm64-musl": "0.1.97",
-    "@napi-rs/canvas-darwin-x64": "0.1.97",
-    "@napi-rs/canvas-darwin-arm64": "0.1.97",
-    "@napi-rs/canvas-win32-x64-msvc": "0.1.97",
-    "@napi-rs/canvas-win32-arm64-msvc": "0.1.97"
+    "@strongtz/win32-arm64-msvc": "0.4.7"
   }
 }
