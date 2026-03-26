@@ -19,6 +19,7 @@ permissions:
 jobs:
   release:
     name: Release Packages
+    if: github.repository == 'CherryHQ/cherry-studio' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     steps:
       - name: Checkout Repo
