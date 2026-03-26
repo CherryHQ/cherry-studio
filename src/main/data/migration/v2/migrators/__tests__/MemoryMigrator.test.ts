@@ -134,7 +134,7 @@ describe('MemoryMigrator', () => {
     it('should skip when legacy db not found', async () => {
       mockDbExists(false)
       const ctx = createMockContext()
-      const result = await migrator.prepare(ctx as any)
+      const result = await migrator.prepare()
       expect(result.success).toBe(true)
       expect(result.itemCount).toBe(0)
       expect(result.warnings).toContain('Legacy memories.db not found - skipping memory migration')
@@ -152,7 +152,7 @@ describe('MemoryMigrator', () => {
       ])
 
       const ctx = createMockContext()
-      const result = await migrator.prepare(ctx as any)
+      const result = await migrator.prepare()
       expect(result.success).toBe(true)
       expect(result.itemCount).toBe(3)
       expect(result.warnings).toBeUndefined()
@@ -167,7 +167,7 @@ describe('MemoryMigrator', () => {
       ])
 
       const ctx = createMockContext()
-      const result = await migrator.prepare(ctx as any)
+      const result = await migrator.prepare()
       expect(result.success).toBe(true)
       expect(result.itemCount).toBe(3)
       expect(result.warnings).toContain('Legacy memories table not found, skipping memory rows')
@@ -182,7 +182,7 @@ describe('MemoryMigrator', () => {
       ])
 
       const ctx = createMockContext()
-      const result = await migrator.prepare(ctx as any)
+      const result = await migrator.prepare()
       expect(result.success).toBe(true)
       expect(result.itemCount).toBe(5)
       expect(result.warnings).toContain('Legacy memory_history table not found, skipping history rows')
@@ -193,7 +193,7 @@ describe('MemoryMigrator', () => {
       mockExecute.mockRejectedValue(new Error('SQLITE_CORRUPT'))
 
       const ctx = createMockContext()
-      const result = await migrator.prepare(ctx as any)
+      const result = await migrator.prepare()
       expect(result.success).toBe(false)
       expect(result.warnings).toContainEqual(expect.stringContaining('SQLITE_CORRUPT'))
     })
@@ -203,7 +203,7 @@ describe('MemoryMigrator', () => {
     it('should return early when no source data', async () => {
       mockDbExists(false)
       const ctx = createMockContext()
-      await migrator.prepare(ctx as any)
+      await migrator.prepare()
       const result = await migrator.execute(ctx as any)
       expect(result.success).toBe(true)
       expect(result.processedCount).toBe(0)
@@ -223,7 +223,7 @@ describe('MemoryMigrator', () => {
       ])
 
       const ctx = createMockContext()
-      await migrator.prepare(ctx as any)
+      await migrator.prepare()
       const result = await migrator.execute(ctx as any)
 
       expect(result.success).toBe(true)
@@ -271,7 +271,7 @@ describe('MemoryMigrator', () => {
       ])
 
       const ctx = createMockContext()
-      await migrator.prepare(ctx as any)
+      await migrator.prepare()
       const result = await migrator.execute(ctx as any)
 
       expect(result.success).toBe(true)
@@ -305,7 +305,7 @@ describe('MemoryMigrator', () => {
       ])
 
       const ctx = createMockContext()
-      await migrator.prepare(ctx as any)
+      await migrator.prepare()
       const result = await migrator.execute(ctx as any)
 
       expect(result.success).toBe(true)
@@ -325,9 +325,9 @@ describe('MemoryMigrator', () => {
       ])
 
       const ctx = createMockContext()
-      ctx.db.transaction = vi.fn().mockRejectedValue(new Error('SQLITE_FULL'))
+      ;(ctx.db as any).transaction = vi.fn().mockRejectedValue(new Error('SQLITE_FULL'))
 
-      await migrator.prepare(ctx as any)
+      await migrator.prepare()
       const result = await migrator.execute(ctx as any)
 
       expect(result.success).toBe(false)
@@ -354,7 +354,7 @@ describe('MemoryMigrator', () => {
 
       const ctx = createMockContext()
       let insertedValues: any = null
-      ctx.db.transaction = vi.fn(async (fn: any) => {
+      ;(ctx.db as any).transaction = vi.fn(async (fn: any) => {
         const tx = {
           insert: vi.fn().mockReturnValue({
             values: vi.fn().mockImplementation((vals) => {
@@ -366,7 +366,7 @@ describe('MemoryMigrator', () => {
         await fn(tx)
       })
 
-      await migrator.prepare(ctx as any)
+      await migrator.prepare()
       await migrator.execute(ctx as any)
 
       expect(insertedValues).toBeDefined()
@@ -414,7 +414,7 @@ describe('MemoryMigrator', () => {
       ])
 
       const ctx = createMockContext()
-      await migrator.prepare(ctx as any)
+      await migrator.prepare()
       mockValidateDb(ctx, 2, 1)
 
       const result = await migrator.validate(ctx as any)
@@ -438,7 +438,7 @@ describe('MemoryMigrator', () => {
       ])
 
       const ctx = createMockContext()
-      await migrator.prepare(ctx as any)
+      await migrator.prepare()
       mockValidateDb(ctx, 3, 1) // target=4 < source=8
 
       const result = await migrator.validate(ctx as any)
@@ -456,7 +456,7 @@ describe('MemoryMigrator', () => {
       ])
 
       const ctx = createMockContext()
-      await migrator.prepare(ctx as any)
+      await migrator.prepare()
       mockValidateDb(ctx, 2, 1, 3) // 3 orphans
 
       const result = await migrator.validate(ctx as any)
@@ -467,7 +467,7 @@ describe('MemoryMigrator', () => {
     it('should pass with zero items', async () => {
       mockDbExists(false)
       const ctx = createMockContext()
-      await migrator.prepare(ctx as any)
+      await migrator.prepare()
       mockValidateDb(ctx, 0, 0)
 
       const result = await migrator.validate(ctx as any)
@@ -479,7 +479,7 @@ describe('MemoryMigrator', () => {
     it('should return failure when db throws', async () => {
       mockDbExists(false)
       const ctx = createMockContext()
-      await migrator.prepare(ctx as any)
+      await migrator.prepare()
       ctx.db.select = vi.fn().mockImplementation(() => {
         throw new Error('DB_CORRUPT')
       })
@@ -502,7 +502,7 @@ describe('MemoryMigrator', () => {
 
       const ctx = createMockContext()
       let insertedValues: any = null
-      ctx.db.transaction = vi.fn(async (fn: any) => {
+      ;(ctx.db as any).transaction = vi.fn(async (fn: any) => {
         const tx = {
           insert: vi.fn().mockReturnValue({
             values: vi.fn().mockImplementation((vals) => {
@@ -514,7 +514,7 @@ describe('MemoryMigrator', () => {
         await fn(tx)
       })
 
-      await migrator.prepare(ctx as any)
+      await migrator.prepare()
       await migrator.execute(ctx as any)
 
       expect(insertedValues[0].metadata).toEqual({ key: 'value' })
@@ -531,7 +531,7 @@ describe('MemoryMigrator', () => {
 
       const ctx = createMockContext()
       let insertedValues: any = null
-      ctx.db.transaction = vi.fn(async (fn: any) => {
+      ;(ctx.db as any).transaction = vi.fn(async (fn: any) => {
         const tx = {
           insert: vi.fn().mockReturnValue({
             values: vi.fn().mockImplementation((vals) => {
@@ -543,7 +543,7 @@ describe('MemoryMigrator', () => {
         await fn(tx)
       })
 
-      await migrator.prepare(ctx as any)
+      await migrator.prepare()
       await migrator.execute(ctx as any)
 
       expect(insertedValues[0].metadata).toBeNull()
@@ -560,7 +560,7 @@ describe('MemoryMigrator', () => {
 
       const ctx = createMockContext()
       let insertedValues: any = null
-      ctx.db.transaction = vi.fn(async (fn: any) => {
+      ;(ctx.db as any).transaction = vi.fn(async (fn: any) => {
         const tx = {
           insert: vi.fn().mockReturnValue({
             values: vi.fn().mockImplementation((vals) => {
@@ -572,7 +572,7 @@ describe('MemoryMigrator', () => {
         await fn(tx)
       })
 
-      await migrator.prepare(ctx as any)
+      await migrator.prepare()
       await migrator.execute(ctx as any)
 
       expect(insertedValues[0].hash).toBe('mem-1')
@@ -589,7 +589,7 @@ describe('MemoryMigrator', () => {
 
       const ctx = createMockContext()
       let insertedValues: any = null
-      ctx.db.transaction = vi.fn(async (fn: any) => {
+      ;(ctx.db as any).transaction = vi.fn(async (fn: any) => {
         const tx = {
           insert: vi.fn().mockReturnValue({
             values: vi.fn().mockImplementation((vals) => {
@@ -601,7 +601,7 @@ describe('MemoryMigrator', () => {
         await fn(tx)
       })
 
-      await migrator.prepare(ctx as any)
+      await migrator.prepare()
       await migrator.execute(ctx as any)
 
       expect(insertedValues[0].createdAt).toBeTruthy()
