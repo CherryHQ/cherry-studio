@@ -129,7 +129,10 @@ class ClaudeCodeService implements AgentServiceInterface {
 
     const apiConfig = await apiConfigService.get()
     const loginShellEnv = await getLoginShellEnvironment()
-    const loginShellEnvWithoutProxies = Object.fromEntries(
+    // Note: We preserve proxy environment variables (_proxy suffix) so that
+    // Claude Code inherits the application's proxy configuration.
+    // This ensures agents can access external APIs through the configured proxy.
+    const loginShellEnvWithoutConflictingProxies = Object.fromEntries(
       Object.entries(loginShellEnv).filter(([key]) => !key.toLowerCase().endsWith('_proxy'))
     ) as Record<string, string>
 
@@ -144,7 +147,7 @@ class ClaudeCodeService implements AgentServiceInterface {
     )
 
     const env = {
-      ...loginShellEnvWithoutProxies,
+      ...loginShellEnvWithoutConflictingProxies,
       // prevent claude agent sdk using bedrock api
       CLAUDE_CODE_USE_BEDROCK: '0',
       // TODO: fix the proxy api server
