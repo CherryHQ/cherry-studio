@@ -42,6 +42,13 @@
       "when": 1774262838468,
       "tag": "0005_shocking_sphinx",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "6",
+      "when": 1774422492064,
+      "tag": "0006_broken_paibok",
+      "breakpoints": true
     }
   ],
   "version": "7"

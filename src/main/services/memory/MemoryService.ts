@@ -1,9 +1,8 @@
-import type { Client } from '@libsql/client'
-import { createClient } from '@libsql/client'
+import { memoryHistoryTable, memoryTable } from '@data/db/schemas/memory'
+import type { DbType } from '@data/db/types'
 import { loggerService } from '@logger'
-import { DATA_PATH } from '@main/config'
+import { application } from '@main/core/application'
 import Embeddings from '@main/knowledge/embedjs/embeddings/Embeddings'
-import { makeSureDirExists } from '@main/utils'
 import type {
   AddMemoryOptions,
   AssistantMessage,
@@ -14,11 +13,7 @@ import type {
   MemorySearchOptions
 } from '@types'
 import crypto from 'crypto'
-import { app } from 'electron'
-import fs from 'fs'
-import path from 'path'
-
-import { MemoryQueries } from './queries'
+import { and, desc, eq, isNull, or, sql } from 'drizzle-orm'
 
 const logger = loggerService.withContext('MemoryService')
 
@@ -46,95 +41,54 @@ export interface SearchResult {
   error?: string
 }
 
+type MemoryDbRow = typeof memoryTable.$inferSelect
+type MemoryHistoryDbRow = typeof memoryHistoryTable.$inferSelect
+
 export class MemoryService {
-  private db: Client | null = null
-  private isInitialized = false
+  private static instance: MemoryService | null = null
   private embeddings: Embeddings | null = null
   private config: MemoryConfig | null = null
   private static readonly UNIFIED_DIMENSION = 1536
   private static readonly SIMILARITY_THRESHOLD = 0.85
 
+  private constructor() {}
+
+  public static getInstance(): MemoryService {
+    if (!MemoryService.instance) {
+      MemoryService.instance = new MemoryService()
+    }
+    return MemoryService.instance
+  }
+
+  public static reload(): MemoryService {
+    MemoryService.instance = new MemoryService()
+    return MemoryService.instance
+  }
+
+
   /**
-   * Migrate the memory database from the old path to the new path
-   * If the old memory database exists, rename it to the new path
+   * Legacy noop kept for renderer compatibility.
+   * Memory data migration is now handled by v2 migration engine (MemoryMigrator).
    */
   public migrateMemoryDb(): void {
-    const oldMemoryDbPath = path.join(app.getPath('userData'), 'memories.db')
-    const memoryDbPath = path.join(DATA_PATH, 'Memory', 'memories.db')
-
-    makeSureDirExists(path.dirname(memoryDbPath))
-
-    if (fs.existsSync(oldMemoryDbPath)) {
-      fs.renameSync(oldMemoryDbPath, memoryDbPath)
-    }
+    logger.info('migrateMemoryDb is now handled by v2 migration engine, skipping legacy file move')
   }
 
-  /**
-   * Initialize the database connection and create tables
-   */
-  private async init(): Promise<void> {
-    if (this.isInitialized && this.db) {
-      return
-    }
-
-    try {
-      const memoryDbPath = path.join(DATA_PATH, 'Memory', 'memories.db')
-
-      makeSureDirExists(path.dirname(memoryDbPath))
-
-      this.db = createClient({
-        url: `file:${memoryDbPath}`,
-        intMode: 'number'
-      })
-
-      // Create tables
-      await this.createTables()
-      this.isInitialized = true
-      logger.debug('Memory database initialized successfully')
-    } catch (error) {
-      logger.error('Failed to initialize memory database:', error as Error)
-      throw new Error(
-        `Memory database initialization failed: ${error instanceof Error ? error.message : 'Unknown error'}`
-      )
-    }
-  }
-
-  private async createTables(): Promise<void> {
-    if (!this.db) throw new Error('Database not initialized')
-
-    // Create memories table with native vector support
-    await this.db.execute(MemoryQueries.createTables.memories)
-
-    // Create memory history table
-    await this.db.execute(MemoryQueries.createTables.memoryHistory)
-
-    // Create indexes
-    await this.db.execute(MemoryQueries.createIndexes.userId)
-    await this.db.execute(MemoryQueries.createIndexes.agentId)
-    await this.db.execute(MemoryQueries.createIndexes.createdAt)
-    await this.db.execute(MemoryQueries.createIndexes.hash)
-    await this.db.execute(MemoryQueries.createIndexes.memoryHistory)
-
-    // Create vector index for similarity search
-    try {
-      await this.db.execute(MemoryQueries.createIndexes.vector)
-    } catch (error) {
-      // Vector index might not be supported in all versions
-      logger.warn('Failed to create vector index, falling back to non-indexed search:', error as Error)
-    }
-  }
-
-  /**
-   * Add new memories from messages
-   */
   public async add(messages: string | AssistantMessage[], options: AddMemoryOptions): Promise<SearchResult> {
-    await this.init()
-    if (!this.db) throw new Error('Database not initialized')
-
+    const db = this.getDb()
     const { userId, agentId, runId, metadata } = options
+    logger.info('Memory add started', {
+      messageType: Array.isArray(messages) ? 'array' : 'string',
+      messageCount: Array.isArray(messages) ? messages.length : 1,
+      userId: userId ?? '',
+      agentId: agentId ?? '',
+      hasEmbeddingModel: !!this.config?.embeddingModel,
+      hasEmbeddingApiClient: !!this.config?.embeddingApiClient,
+      embeddingModelId: this.config?.embeddingModel?.id ?? '',
+      embeddingModelProvider: this.config?.embeddingModel?.provider ?? ''
+    })
 
     try {
-      // Convert messages to memory strings
       const memoryStrings = Array.isArray(messages)
         ? messages.map((m) => (typeof m === 'string' ? m : m.content))
         : [messages]
@@ -144,125 +98,103 @@ export class MemoryService {
         const trimmedMemory = memory.trim()
         if (!trimmedMemory) continue
 
-        // Generate hash for deduplication
-        const hash = crypto.createHash('sha256').update(trimmedMemory).digest('hex')
+        const hash = this.buildMemoryHash(trimmedMemory, userId)
+        const existing = await db.select().from(memoryTable).where(eq(memoryTable.hash, hash)).get()
 
-        // Check if memory already exists
-        const existing = await this.db.execute({
-          sql: MemoryQueries.memory.checkExistsIncludeDeleted,
-          args: [hash]
-        })
-
-        if (existing.rows.length > 0) {
-          const existingRecord = existing.rows[0] as any
-          const isDeleted = existingRecord.is_deleted === 1
-
-          if (!isDeleted) {
-            // Active record exists, skip insertion
+        if (existing) {
+          if (!existing.deletedAt) {
             logger.debug(`Memory already exists with hash: ${hash}`)
             continue
-          } else {
-            // Deleted record exists, restore it instead of inserting new one
-            logger.debug(`Restoring deleted memory with hash: ${hash}`)
-
-            // Generate embedding if model is configured
-            let embedding: number[] | null = null
-            const embeddingModel = this.config?.embeddingModel
-
-            if (embeddingModel) {
-              try {
-                embedding = await this.generateEmbedding(trimmedMemory)
-                logger.debug(
-                  `Generated embedding for restored memory with dimension: ${embedding.length} (target: ${this.config?.embeddingDimensions || MemoryService.UNIFIED_DIMENSION})`
-                )
-              } catch (error) {
-                logger.error('Failed to generate embedding for restored memory:', error as Error)
-              }
-            }
-
-            const now = new Date().toISOString()
-
-            // Restore the deleted record
-            await this.db.execute({
-              sql: MemoryQueries.memory.restoreDeleted,
-              args: [
-                trimmedMemory,
-                embedding ? this.embeddingToVector(embedding) : null,
-                metadata ? JSON.stringify(metadata) : null,
-                now,
-                existingRecord.id
-              ]
-            })
-
-            // Add to history
-            await this.addHistory(existingRecord.id, null, trimmedMemory, 'ADD')
-
-            addedMemories.push({
-              id: existingRecord.id,
-              memory: trimmedMemory,
-              hash,
-              createdAt: now,
-              updatedAt: now,
-              metadata
-            })
-            continue
           }
+
+          let embedding: string | null = (existing.embedding as string | null) ?? null
+          if (this.config?.embeddingModel) {
+            try {
+              const embeddingArray = await this.generateEmbedding(trimmedMemory)
+              embedding = this.embeddingToVector(embeddingArray)
+              logger.debug('Generated embedding for restored memory', {
+                memoryId: existing.id,
+                embeddingDim: embeddingArray.length,
+                willPersistEmbedding: !!embedding
+              })
+            } catch (error) {
+              logger.warn('Failed to generate embedding for restored memory', error as Error)
+            }
+          }
+
+          const now = new Date().toISOString()
+          await this.updateMemoryCore(existing.id, {
+            memory: trimmedMemory,
+            metadata: metadata ?? null,
+            updatedAt: now,
+            deletedAt: null,
+            embedding
+          })
+
+          await this.addHistory(existing.id, null, trimmedMemory, 'ADD')
+          addedMemories.push({
+            id: existing.id,
+            memory: trimmedMemory,
+            hash,
+            createdAt: existing.createdAt,
+            updatedAt: now,
+            metadata: metadata ?? undefined
+          })
+          continue
         }
 
-        // Generate embedding if model is configured
-        let embedding: number[] | null = null
+        let embedding: string | null = null
         if (this.config?.embeddingModel) {
           try {
-            embedding = await this.generateEmbedding(trimmedMemory)
-            logger.debug(
-              `Generated embedding with dimension: ${embedding.length} (target: ${this.config?.embeddingDimensions || MemoryService.UNIFIED_DIMENSION})`
-            )
+            const embeddingArray = await this.generateEmbedding(trimmedMemory)
+            embedding = this.embeddingToVector(embeddingArray)
+            logger.info('Generated embedding for new memory', {
+              memoryHash: hash,
+              embeddingDim: embeddingArray.length,
+              willPersistEmbedding: !!embedding
+            })
 
-            // Check for similar memories using vector similarity
-            const similarMemories = await this.hybridSearch(trimmedMemory, embedding, {
+            const similarMemories = await this.hybridSearch(trimmedMemory, embeddingArray, {
               limit: 5,
-              threshold: 0.1, // Lower threshold to get more candidates
+              threshold: 0.1,
               userId,
               agentId
             })
 
-            // Check if any similar memory exceeds the similarity threshold
             if (similarMemories.memories.length > 0) {
               const highestSimilarity = Math.max(...similarMemories.memories.map((m) => m.score || 0))
               if (highestSimilarity >= MemoryService.SIMILARITY_THRESHOLD) {
                 logger.debug(
                   `Skipping memory addition due to high similarity: ${highestSimilarity.toFixed(3)} >= ${MemoryService.SIMILARITY_THRESHOLD}`
                 )
-                logger.debug(`Similar memory found: "${similarMemories.memories[0].memory}"`)
                 continue
               }
             }
           } catch (error) {
-            logger.error('Failed to generate embedding:', error as Error)
+            logger.warn('Embedding generation failed during add; continue with text-only behavior', error as Error)
           }
+        } else {
+          logger.warn('Embedding skipped during add because embeddingModel is not configured', {
+            userId: userId ?? '',
+            memoryHash: hash
+          })
         }
 
-        // Insert new memory
         const id = crypto.randomUUID()
         const now = new Date().toISOString()
-
-        await this.db.execute({
-          sql: MemoryQueries.memory.insert,
-          args: [
-            id,
-            trimmedMemory,
-            hash,
-            embedding ? this.embeddingToVector(embedding) : null,
-            metadata ? JSON.stringify(metadata) : null,
-            userId || null,
-            agentId || null,
-            runId || null,
-            now,
-            now
-          ]
+        await this.insertMemoryCore({
+          id,
+          memory: trimmedMemory,
+          hash,
+          embedding,
+          metadata: metadata ?? null,
+          userId: userId || null,
+          agentId: agentId || null,
+          runId: runId || null,
+          createdAt: now,
+          updatedAt: now,
+          deletedAt: null
         })
-
-        // Add to history
         await this.addHistory(id, null, trimmedMemory, 'ADD')
 
         addedMemories.push({
@@ -271,16 +203,13 @@ export class MemoryService {
           hash,
           createdAt: now,
           updatedAt: now,
-          metadata
+          metadata: metadata ?? undefined
         })
       }
 
-      return {
-        memories: addedMemories,
-        count: addedMemories.length
-      }
+      return { memories: addedMemories, count: addedMemories.length }
     } catch (error) {
-      logger.error('Failed to add memories:', error as Error)
+      logger.error('Failed to add memories', error as Error)
       return {
         memories: [],
         count: 0,
@@ -289,83 +218,46 @@ export class MemoryService {
     }
   }
 
-  /**
-   * Search memories using text or vector similarity
-   */
   public async search(query: string, options: MemorySearchOptions = {}): Promise<SearchResult> {
-    await this.init()
-    if (!this.db) throw new Error('Database not initialized')
-
     const { limit = 10, userId, agentId, filters = {} } = options
 
     try {
-      // If we have an embedder model configured, use vector search
       if (this.config?.embeddingModel) {
         try {
           const queryEmbedding = await this.generateEmbedding(query)
-          const vectorResult = await this.hybridSearch(query, queryEmbedding, { limit, userId, agentId })
-          // Only return vector results if they exist; otherwise fall through to text search
+          const vectorResult = await this.hybridSearch(query, queryEmbedding, { limit, userId, agentId, filters })
           if (vectorResult.memories.length > 0) {
             return vectorResult
           }
-          logger.info('Vector search returned no results, falling back to text search')
+          logger.info('Vector search returned no results, fallback to text search')
         } catch (error) {
-          logger.error('Vector search failed, falling back to text search:', error as Error)
+          logger.warn('Vector search failed, fallback to text search', error as Error)
         }
       }
 
-      // Fallback to text search
-      const conditions: string[] = ['m.is_deleted = 0']
-      const params: any[] = []
+      const whereClauses = [isNull(memoryTable.deletedAt)]
+      if (userId) whereClauses.push(eq(memoryTable.userId, userId))
+      if (agentId) whereClauses.push(or(eq(memoryTable.agentId, agentId), isNull(memoryTable.agentId))!)
 
-      // Add search conditions
-      conditions.push('(m.memory LIKE ? OR m.memory LIKE ?)')
-      params.push(`%${query}%`, `%${query.split(' ').join('%')}%`)
+      const rows = await this.getDb()
+        .select()
+        .from(memoryTable)
+        .where(and(...whereClauses))
+        .orderBy(desc(memoryTable.createdAt))
+        .all()
 
-      if (userId) {
-        conditions.push('m.user_id = ?')
-        params.push(userId)
-      }
-
-      if (agentId) {
-        conditions.push('(m.agent_id = ? OR m.agent_id IS NULL)')
-        params.push(agentId)
-      }
-
-      // Add custom filters
-      for (const [key, value] of Object.entries(filters)) {
-        if (value !== undefined && value !== null) {
-          conditions.push(`json_extract(m.metadata, '$.${key}') = ?`)
-          params.push(value)
-        }
-      }
-
-      const whereClause = conditions.join(' AND ')
-      params.push(limit)
-
-      const result = await this.db.execute({
-        sql: `${MemoryQueries.memory.list} ${whereClause}
-          ORDER BY m.created_at DESC
-          LIMIT ?
-        `,
-        args: params
-      })
-
-      const memories: MemoryItem[] = result.rows.map((row: any) => ({
-        id: row.id as string,
-        memory: row.memory as string,
-        hash: (row.hash as string) || undefined,
-        metadata: row.metadata ? JSON.parse(row.metadata as string) : undefined,
-        createdAt: row.created_at as string,
-        updatedAt: row.updated_at as string
-      }))
+      const lower = query.toLowerCase()
+      const filtered = rows
+        .filter((row) => row.memory.toLowerCase().includes(lower))
+        .filter((row) => this.matchMetadataFilters(row.metadata, filters))
+        .slice(0, limit)
 
       return {
-        memories,
-        count: memories.length
+        memories: filtered.map((row) => this.mapMemoryRow(row)),
+        count: filtered.length
       }
     } catch (error) {
-      logger.error('Search failed:', error as Error)
+      logger.error('Search failed', error as Error)
       return {
         memories: [],
         count: 0,
@@ -374,63 +266,35 @@ export class MemoryService {
     }
   }
 
-  /**
-   * List all memories with optional filters
-   */
   public async list(options: MemoryListOptions = {}): Promise<SearchResult> {
-    await this.init()
-    if (!this.db) throw new Error('Database not initialized')
-
     const { userId, agentId, limit = 100, offset = 0 } = options
 
     try {
-      const conditions: string[] = ['m.is_deleted = 0']
-      const params: any[] = []
+      const whereClauses = [isNull(memoryTable.deletedAt)]
+      if (userId) whereClauses.push(eq(memoryTable.userId, userId))
+      if (agentId) whereClauses.push(or(eq(memoryTable.agentId, agentId), isNull(memoryTable.agentId))!)
 
-      if (userId) {
-        conditions.push('m.user_id = ?')
-        params.push(userId)
-      }
+      const db = this.getDb()
+      const [{ total }] = await db
+        .select({ total: sql<number>`count(*)` })
+        .from(memoryTable)
+        .where(and(...whereClauses))
 
-      if (agentId) {
-        conditions.push('(m.agent_id = ? OR m.agent_id IS NULL)')
-        params.push(agentId)
-      }
-
-      const whereClause = conditions.join(' AND ')
-
-      // Get total count
-      const countResult = await this.db.execute({
-        sql: `${MemoryQueries.memory.count} ${whereClause}`,
-        args: params
-      })
-      const totalCount = (countResult.rows[0] as any).total as number
-
-      // Get paginated results
-      params.push(limit, offset)
-      const result = await this.db.execute({
-        sql: `${MemoryQueries.memory.list} ${whereClause}
-          ORDER BY m.created_at DESC
-          LIMIT ? OFFSET ?
-        `,
-        args: params
-      })
-
-      const memories: MemoryItem[] = result.rows.map((row: any) => ({
-        id: row.id as string,
-        memory: row.memory as string,
-        hash: (row.hash as string) || undefined,
-        metadata: row.metadata ? JSON.parse(row.metadata as string) : undefined,
-        createdAt: row.created_at as string,
-        updatedAt: row.updated_at as string
-      }))
+      const rows = await db
+        .select()
+        .from(memoryTable)
+        .where(and(...whereClauses))
+        .orderBy(desc(memoryTable.createdAt))
+        .limit(limit)
+        .offset(offset)
+        .all()
 
       return {
-        memories,
-        count: totalCount
+        memories: rows.map((row) => this.mapMemoryRow(row)),
+        count: Number(total ?? 0)
       }
     } catch (error) {
-      logger.error('List failed:', error as Error)
+      logger.error('List failed', error as Error)
       return {
         memories: [],
         count: 0,
@@ -439,403 +303,405 @@ export class MemoryService {
     }
   }
 
-  /**
-   * Delete a memory (soft delete)
-   */
   public async delete(id: string): Promise<void> {
-    await this.init()
-    if (!this.db) throw new Error('Database not initialized')
+    const db = this.getDb()
+    const current = await db
+      .select()
+      .from(memoryTable)
+      .where(and(eq(memoryTable.id, id), isNull(memoryTable.deletedAt)))
+      .get()
 
-    try {
-      // Get current memory value for history
-      const current = await this.db.execute({
-        sql: MemoryQueries.memory.getForDelete,
-        args: [id]
-      })
-
-      if (current.rows.length === 0) {
-        throw new Error('Memory not found')
-      }
-
-      const currentMemory = (current.rows[0] as any).memory as string
-
-      // Soft delete
-      await this.db.execute({
-        sql: MemoryQueries.memory.softDelete,
-        args: [new Date().toISOString(), id]
-      })
-
-      // Add to history
-      await this.addHistory(id, currentMemory, null, 'DELETE')
-
-      logger.debug(`Memory deleted: ${id}`)
-    } catch (error) {
-      logger.error('Delete failed:', error as Error)
-      throw new Error(`Failed to delete memory: ${error instanceof Error ? error.message : 'Unknown error'}`)
+    if (!current) {
+      throw new Error('Memory not found')
     }
+
+    const now = new Date().toISOString()
+    await db.update(memoryTable).set({ deletedAt: now, updatedAt: now }).where(eq(memoryTable.id, id))
+    await this.addHistory(id, current.memory, null, 'DELETE')
   }
 
-  /**
-   * Update a memory
-   */
   public async update(id: string, memory: string, metadata?: Record<string, any>): Promise<void> {
-    await this.init()
-    if (!this.db) throw new Error('Database not initialized')
+    const db = this.getDb()
+    const current = await db
+      .select()
+      .from(memoryTable)
+      .where(and(eq(memoryTable.id, id), isNull(memoryTable.deletedAt)))
+      .get()
 
-    try {
-      // Get current memory
-      const current = await this.db.execute({
-        sql: MemoryQueries.memory.getForUpdate,
-        args: [id]
-      })
-
-      if (current.rows.length === 0) {
-        throw new Error('Memory not found')
-      }
-
-      const row = current.rows[0] as any
-      const previousMemory = row.memory as string
-      const previousMetadata = row.metadata ? JSON.parse(row.metadata as string) : {}
-
-      // Generate new hash
-      const hash = crypto.createHash('sha256').update(memory.trim()).digest('hex')
-
-      // Generate new embedding if model is configured
-      let embedding: number[] | null = null
-      if (this.config?.embeddingModel) {
-        try {
-          embedding = await this.generateEmbedding(memory)
-          logger.debug(
-            `Updated embedding with dimension: ${embedding.length} (target: ${this.config?.embeddingDimensions || MemoryService.UNIFIED_DIMENSION})`
-          )
-        } catch (error) {
-          logger.error('Failed to generate embedding for update:', error as Error)
-        }
-      }
-
-      // Merge metadata
-      const mergedMetadata = { ...previousMetadata, ...metadata }
-
-      // Update memory
-      await this.db.execute({
-        sql: MemoryQueries.memory.update,
-        args: [
-          memory.trim(),
-          hash,
-          embedding ? this.embeddingToVector(embedding) : null,
-          JSON.stringify(mergedMetadata),
-          new Date().toISOString(),
-          id
-        ]
-      })
-
-      // Add to history
-      await this.addHistory(id, previousMemory, memory, 'UPDATE')
-
-      logger.debug(`Memory updated: ${id}`)
-    } catch (error) {
-      logger.error('Update failed:', error as Error)
-      throw new Error(`Failed to update memory: ${error instanceof Error ? error.message : 'Unknown error'}`)
+    if (!current) {
+      throw new Error('Memory not found')
     }
+
+    const trimmedMemory = memory.trim()
+    const hash = this.buildMemoryHash(trimmedMemory, current.userId ?? null)
+    let embedding: string | null = (current.embedding as string | null) ?? null
+
+    if (this.config?.embeddingModel) {
+      try {
+        const embeddingArray = await this.generateEmbedding(trimmedMemory)
+        embedding = this.embeddingToVector(embeddingArray)
+        logger.info('Generated embedding for memory update', {
+          memoryId: id,
+          embeddingDim: embeddingArray.length,
+          willPersistEmbedding: !!embedding
+        })
+      } catch (error) {
+        logger.warn('Failed to generate embedding for update', error as Error)
+      }
+    } else {
+      logger.warn('Embedding skipped during update because embeddingModel is not configured', {
+        memoryId: id
+      })
+    }
+
+    const mergedMetadata = { ...(current.metadata || {}), ...(metadata || {}) }
+    const now = new Date().toISOString()
+
+    await this.updateMemoryCore(id, {
+      memory: trimmedMemory,
+      hash,
+      embedding,
+      metadata: mergedMetadata,
+      updatedAt: now
+    })
+
+    await this.addHistory(id, current.memory, trimmedMemory, 'UPDATE')
   }
 
-  /**
-   * Get memory history
-   */
   public async get(memoryId: string): Promise<MemoryHistoryItem[]> {
-    await this.init()
-    if (!this.db) throw new Error('Database not initialized')
+    const rows = await this.getDb()
+      .select()
+      .from(memoryHistoryTable)
+      .where(and(eq(memoryHistoryTable.memoryId, memoryId), isNull(memoryHistoryTable.deletedAt)))
+      .orderBy(desc(memoryHistoryTable.createdAt))
+      .all()
 
-    try {
-      const result = await this.db.execute({
-        sql: MemoryQueries.history.getByMemoryId,
-        args: [memoryId]
-      })
-
-      return result.rows.map((row: any) => ({
-        id: row.id as number,
-        memoryId: row.memory_id as string,
-        previousValue: row.previous_value as string | undefined,
-        newValue: row.new_value as string,
-        action: row.action as 'ADD' | 'UPDATE' | 'DELETE',
-        createdAt: row.created_at as string,
-        updatedAt: row.updated_at as string,
-        isDeleted: row.is_deleted === 1
-      }))
-    } catch (error) {
-      logger.error('Get history failed:', error as Error)
-      throw new Error(`Failed to get memory history: ${error instanceof Error ? error.message : 'Unknown error'}`)
-    }
+    return rows.map((row) => this.mapHistoryRow(row))
   }
 
-  /**
-   * Delete all memories for a user without deleting the user (hard delete)
-   */
   public async deleteAllMemoriesForUser(userId: string): Promise<void> {
-    await this.init()
-    if (!this.db) throw new Error('Database not initialized')
+    if (!userId) throw new Error('User ID is required')
+    const db = this.getDb()
 
-    if (!userId) {
-      throw new Error('User ID is required')
-    }
+    await db.transaction(async (tx) => {
+      const memoryIds = await tx
+        .select({ id: memoryTable.id })
+        .from(memoryTable)
+        .where(eq(memoryTable.userId, userId))
+        .all()
 
-    try {
-      // Get count of memories to be deleted
-      const countResult = await this.db.execute({
-        sql: MemoryQueries.users.countMemoriesForUser,
-        args: [userId]
-      })
-      const totalCount = (countResult.rows[0] as any).total as number
-
-      // Delete history entries for this user's memories
-      await this.db.execute({
-        sql: MemoryQueries.users.deleteHistoryForUser,
-        args: [userId]
-      })
-
-      // Hard delete all memories for this user
-      await this.db.execute({
-        sql: MemoryQueries.users.deleteAllMemoriesForUser,
-        args: [userId]
-      })
-
-      logger.debug(`Reset all memories for user ${userId} (${totalCount} memories deleted)`)
-    } catch (error) {
-      logger.error('Reset user memories failed:', error as Error)
-      throw new Error(`Failed to reset user memories: ${error instanceof Error ? error.message : 'Unknown error'}`)
-    }
+      for (const item of memoryIds) {
+        await tx.delete(memoryHistoryTable).where(eq(memoryHistoryTable.memoryId, item.id))
+      }
+      await tx.delete(memoryTable).where(eq(memoryTable.userId, userId))
+    })
   }
 
-  /**
-   * Delete a user and all their memories (hard delete)
-   */
   public async deleteUser(userId: string): Promise<void> {
-    await this.init()
-    if (!this.db) throw new Error('Database not initialized')
-
-    if (!userId) {
-      throw new Error('User ID is required')
-    }
-
-    if (userId === 'default-user') {
-      throw new Error('Cannot delete the default user')
-    }
-
-    try {
-      // Get count of memories to be deleted
-      const countResult = await this.db.execute({
-        sql: `SELECT COUNT(*) as total FROM memories WHERE user_id = ?`,
-        args: [userId]
-      })
-      const totalCount = (countResult.rows[0] as any).total as number
-
-      // Delete history entries for this user's memories
-      await this.db.execute({
-        sql: `DELETE FROM memory_history WHERE memory_id IN (SELECT id FROM memories WHERE user_id = ?)`,
-        args: [userId]
-      })
-
-      // Delete all memories for this user (hard delete)
-      await this.db.execute({
-        sql: `DELETE FROM memories WHERE user_id = ?`,
-        args: [userId]
-      })
-
-      logger.debug(`Deleted user ${userId} and ${totalCount} memories`)
-    } catch (error) {
-      logger.error('Delete user failed:', error as Error)
-      throw new Error(`Failed to delete user: ${error instanceof Error ? error.message : 'Unknown error'}`)
-    }
+    if (!userId) throw new Error('User ID is required')
+    if (userId === 'default-user') throw new Error('Cannot delete the default user')
+    await this.deleteAllMemoriesForUser(userId)
   }
 
-  /**
-   * Get list of unique user IDs with their memory counts
-   */
   public async getUsersList(): Promise<{ userId: string; memoryCount: number; lastMemoryDate: string }[]> {
-    await this.init()
-    if (!this.db) throw new Error('Database not initialized')
-
-    try {
-      const result = await this.db.execute({
-        sql: MemoryQueries.users.getUniqueUsers,
-        args: []
+    const rows = await this.getDb()
+      .select({
+        userId: memoryTable.userId,
+        memoryCount: sql<number>`count(*)`,
+        lastMemoryDate: sql<string>`max(${memoryTable.createdAt})`
       })
+      .from(memoryTable)
+      .where(and(isNull(memoryTable.deletedAt), sql`${memoryTable.userId} IS NOT NULL`))
+      .groupBy(memoryTable.userId)
+      .orderBy(sql`max(${memoryTable.createdAt}) DESC`)
+      .all()
 
-      return result.rows.map((row: any) => ({
-        userId: row.user_id as string,
-        memoryCount: row.memory_count as number,
-        lastMemoryDate: row.last_memory_date as string
+    return rows
+      .filter((row) => !!row.userId)
+      .map((row) => ({
+        userId: row.userId as string,
+        memoryCount: Number(row.memoryCount ?? 0),
+        lastMemoryDate: row.lastMemoryDate || ''
       }))
-    } catch (error) {
-      logger.error('Get users list failed:', error as Error)
-      throw new Error(`Failed to get users list: ${error instanceof Error ? error.message : 'Unknown error'}`)
-    }
   }
 
-  /**
-   * Update configuration
-   */
   public setConfig(config: MemoryConfig): void {
     this.config = config
-    // Reset embeddings instance when config changes
+    this.embeddings = null
+    logger.info('Memory config updated', {
+      hasEmbeddingModel: !!config.embeddingModel,
+      hasEmbeddingApiClient: !!config.embeddingApiClient,
+      embeddingModelId: config.embeddingModel?.id ?? '',
+      embeddingModelProvider: config.embeddingModel?.provider ?? '',
+      embeddingDimensions: config.embeddingDimensions ?? null
+    })
+  }
+
+  public async close(): Promise<void> {
     this.embeddings = null
   }
 
-  /**
-   * Close database connection
-   */
-  public async close(): Promise<void> {
-    if (this.db) {
-      this.db.close()
-      this.db = null
-      this.isInitialized = false
-    }
-  }
-
-  // ========== EMBEDDING OPERATIONS (Previously EmbeddingService) ==========
-
-  /**
-   * Normalize embedding dimensions to unified size
-   */
   private normalizeEmbedding(embedding: number[]): number[] {
     if (embedding.length === MemoryService.UNIFIED_DIMENSION) {
       return embedding
     }
-
     if (embedding.length < MemoryService.UNIFIED_DIMENSION) {
-      // Pad with zeros
       return [...embedding, ...new Array(MemoryService.UNIFIED_DIMENSION - embedding.length).fill(0)]
-    } else {
-      // Truncate
-      return embedding.slice(0, MemoryService.UNIFIED_DIMENSION)
     }
+    return embedding.slice(0, MemoryService.UNIFIED_DIMENSION)
   }
 
-  /**
-   * Generate embedding for text
-   */
   private async generateEmbedding(text: string): Promise<number[]> {
     if (!this.config?.embeddingModel) {
+      logger.warn('generateEmbedding aborted: embedding model not configured', {
+        inputLength: text.length
+      })
       throw new Error('Embedder model not configured')
     }
 
-    try {
-      // Initialize embeddings instance if needed
-      if (!this.embeddings) {
-        if (!this.config.embeddingApiClient) {
-          throw new Error('Embedder provider not configured')
-        }
-
-        this.embeddings = new Embeddings({
-          embedApiClient: this.config.embeddingApiClient,
-          dimensions: this.config.embeddingDimensions
+    if (!this.embeddings) {
+      if (!this.config.embeddingApiClient) {
+        logger.warn('generateEmbedding aborted: embedding provider not configured', {
+          inputLength: text.length
         })
-
-        await this.embeddings.init()
+        throw new Error('Embedder provider not configured')
       }
-
-      const embedding = await this.embeddings.embedQuery(text)
-
-      // Normalize to unified dimension
-      return this.normalizeEmbedding(embedding)
-    } catch (error) {
-      logger.error('Embedding generation failed:', error as Error)
-      throw new Error(`Failed to generate embedding: ${error instanceof Error ? error.message : 'Unknown error'}`)
+      logger.info('Initializing embedding client', {
+        hasEmbeddingModel: !!this.config.embeddingModel,
+        hasEmbeddingApiClient: !!this.config.embeddingApiClient,
+        configuredDimensions: this.config.embeddingDimensions ?? null,
+        embeddingModelId: this.config.embeddingModel?.id ?? '',
+        embeddingModelProvider: this.config.embeddingModel?.provider ?? ''
+      })
+      this.embeddings = new Embeddings({
+        embedApiClient: this.config.embeddingApiClient,
+        dimensions: this.config.embeddingDimensions
+      })
+      await this.embeddings.init()
     }
+
+    const embedding = await this.embeddings.embedQuery(text)
+    logger.info('Embedding generated from provider', {
+      inputLength: text.length,
+      rawDim: embedding.length
+    })
+    const normalized = this.normalizeEmbedding(embedding)
+    logger.info('Embedding normalized', {
+      inputLength: text.length,
+      normalizedDim: normalized.length
+    })
+    return normalized
   }
 
-  // ========== VECTOR SEARCH OPERATIONS (Previously VectorSearch) ==========
-
-  /**
-   * Convert embedding array to libsql vector format
-   */
   private embeddingToVector(embedding: number[]): string {
     return `[${embedding.join(',')}]`
   }
 
-  /**
-   * Hybrid search combining text and vector similarity (currently vector-only)
-   */
+  private buildMemoryHash(memory: string, userId: string | null | undefined): string {
+    const scopedUser = userId ?? ''
+    return crypto.createHash('sha256').update(`${scopedUser}:${memory}`).digest('hex')
+  }
+
   private async hybridSearch(
     _: string,
     queryEmbedding: number[],
     options: VectorSearchOptions = {}
   ): Promise<SearchResult> {
-    if (!this.db) throw new Error('Database not initialized')
+    const { limit = 10, threshold = 0.5, userId, agentId, filters = {} } = options
+    const queryVector = this.embeddingToVector(queryEmbedding)
 
-    const { limit = 10, threshold = 0.5, userId, agentId } = options
+    const whereClauses = [isNull(memoryTable.deletedAt), sql`${memoryTable.embedding} IS NOT NULL`]
+    if (userId) whereClauses.push(eq(memoryTable.userId, userId))
+    if (agentId) whereClauses.push(or(eq(memoryTable.agentId, agentId), isNull(memoryTable.agentId))!)
 
     try {
-      const queryVector = this.embeddingToVector(queryEmbedding)
+      const similarityExpr = sql<number>`(1 - vector_distance_cos(${memoryTable.embedding}, vector32(${queryVector})))`
+      const rows = await this.getDb()
+        .select({
+          id: memoryTable.id,
+          memory: memoryTable.memory,
+          hash: memoryTable.hash,
+          metadata: memoryTable.metadata,
+          createdAt: memoryTable.createdAt,
+          updatedAt: memoryTable.updatedAt,
+          score: similarityExpr
+        })
+        .from(memoryTable)
+        .where(and(...whereClauses, sql`${similarityExpr} >= ${threshold}`))
+        .orderBy(sql`${similarityExpr} DESC`)
+        .limit(limit)
+        .all()
 
-      const conditions: string[] = ['m.is_deleted = 0']
-      const params: any[] = []
-
-      // Vector search only - three vector parameters for distance, vector_similarity, and combined_score
-      params.push(queryVector, queryVector, queryVector)
-
-      if (userId) {
-        conditions.push('m.user_id = ?')
-        params.push(userId)
-      }
-
-      if (agentId) {
-        conditions.push('(m.agent_id = ? OR m.agent_id IS NULL)')
-        params.push(agentId)
-      }
-
-      const whereClause = conditions.join(' AND ')
-
-      const hybridQuery = `${MemoryQueries.search.hybridSearch} ${whereClause}
-      ) AS results
-      WHERE vector_similarity >= ?
-      ORDER BY vector_similarity DESC
-      LIMIT ?`
-
-      params.push(threshold, limit)
-
-      const result = await this.db.execute({
-        sql: hybridQuery,
-        args: params
-      })
-
-      const memories: MemoryItem[] = result.rows.map((row: any) => ({
-        id: row.id as string,
-        memory: row.memory as string,
-        hash: (row.hash as string) || undefined,
-        metadata: row.metadata ? JSON.parse(row.metadata as string) : undefined,
-        createdAt: row.created_at as string,
-        updatedAt: row.updated_at as string,
-        score: row.vector_similarity as number
-      }))
-
+      const filteredRows = rows.filter((row) => this.matchMetadataFilters(row.metadata, filters))
       return {
-        memories,
-        count: memories.length
+        memories: filteredRows.map((row) => ({
+          id: row.id,
+          memory: row.memory,
+          hash: row.hash || undefined,
+          metadata: row.metadata || undefined,
+          createdAt: row.createdAt,
+          updatedAt: row.updatedAt,
+          score: Number(row.score ?? 0)
+        })),
+        count: filteredRows.length
       }
     } catch (error) {
-      logger.error('Hybrid search failed:', error as Error)
-      throw new Error(`Hybrid search failed: ${error instanceof Error ? error.message : 'Unknown error'}`)
+      logger.warn('Hybrid search unavailable, fallback to text search path', error as Error)
+      return { memories: [], count: 0 }
     }
   }
 
-  // ========== HELPER METHODS ==========
-
-  /**
-   * Add entry to memory history
-   */
   private async addHistory(
     memoryId: string,
     previousValue: string | null,
     newValue: string | null,
     action: 'ADD' | 'UPDATE' | 'DELETE'
   ): Promise<void> {
-    if (!this.db) throw new Error('Database not initialized')
-
     const now = new Date().toISOString()
-    await this.db.execute({
-      sql: MemoryQueries.history.insert,
-      args: [memoryId, previousValue, newValue, action, now, now]
+    await this.getDb().insert(memoryHistoryTable).values({
+      memoryId,
+      previousValue,
+      newValue,
+      action,
+      createdAt: now,
+      updatedAt: now,
+      deletedAt: null
+    })
+  }
+
+  private mapMemoryRow(row: MemoryDbRow): MemoryItem {
+    return {
+      id: row.id,
+      memory: row.memory,
+      hash: row.hash || undefined,
+      metadata: row.metadata || undefined,
+      createdAt: row.createdAt,
+      updatedAt: row.updatedAt
+    }
+  }
+
+  private mapHistoryRow(row: MemoryHistoryDbRow): MemoryHistoryItem {
+    return {
+      id: Number(row.id),
+      memoryId: row.memoryId,
+      previousValue: row.previousValue || undefined,
+      newValue: row.newValue || '',
+      action: row.action as 'ADD' | 'UPDATE' | 'DELETE',
+      createdAt: row.createdAt,
+      updatedAt: row.updatedAt,
+      isDeleted: !!row.deletedAt
+    }
+  }
+
+  private matchMetadataFilters(metadata: Record<string, any> | null, filters: Record<string, any>): boolean {
+    if (!filters || Object.keys(filters).length === 0) return true
+    if (!metadata) return false
+
+    for (const [key, value] of Object.entries(filters)) {
+      if (value === undefined || value === null) continue
+      if (metadata[key] !== value) return false
+    }
+    return true
+  }
+
+  private getDb(): DbType {
+    return application.get('DbService').getDb()
+  }
+
+  private async insertMemoryCore(payload: {
+    id: string
+    memory: string
+    hash: string
+    embedding: string | null
+    metadata: Record<string, any> | null
+    userId: string | null
+    agentId: string | null
+    runId: string | null
+    createdAt: string
+    updatedAt: string
+    deletedAt: string | null
+  }): Promise<void> {
+    const embeddingValue = payload.embedding ? sql`vector32(${payload.embedding})` : null
+    logger.info('Persisting memory row', {
+      memoryId: payload.id,
+      userId: payload.userId ?? '',
+      hasEmbeddingPayload: payload.embedding !== null,
+      embeddingPayloadLength: payload.embedding?.length ?? 0
+    })
+    await this.getDb()
+      .insert(memoryTable)
+      .values({
+        id: payload.id,
+        memory: payload.memory,
+        hash: payload.hash,
+        embedding: embeddingValue as any,
+        metadata: payload.metadata as any,
+        userId: payload.userId,
+        agentId: payload.agentId,
+        runId: payload.runId,
+        createdAt: payload.createdAt,
+        updatedAt: payload.updatedAt,
+        deletedAt: payload.deletedAt
+      })
+    const persisted = await this.getDb()
+      .select({
+        hasEmbedding: sql<number>`CASE WHEN ${memoryTable.embedding} IS NULL THEN 0 ELSE 1 END`
+      })
+      .from(memoryTable)
+      .where(eq(memoryTable.id, payload.id))
+      .get()
+    logger.info('Memory row persisted', {
+      memoryId: payload.id,
+      dbHasEmbedding: (persisted?.hasEmbedding ?? 0) === 1
+    })
+  }
+
+  private async updateMemoryCore(
+    id: string,
+    payload: {
+      memory: string
+      metadata: Record<string, any> | null
+      updatedAt: string
+      deletedAt?: string | null
+      hash?: string
+      embedding?: string | null
+    }
+  ): Promise<void> {
+    const setData: Record<string, any> = {
+      memory: payload.memory,
+      metadata: payload.metadata as any,
+      updatedAt: payload.updatedAt
+    }
+
+    if (payload.hash !== undefined) {
+      setData.hash = payload.hash
+    }
+
+    if (Object.prototype.hasOwnProperty.call(payload, 'deletedAt')) {
+      setData.deletedAt = payload.deletedAt ?? null
+    }
+
+    if (payload.embedding !== undefined) {
+      setData.embedding = payload.embedding === null ? null : (sql`vector32(${payload.embedding})` as any)
+    }
+
+    logger.info('Updating memory row', {
+      memoryId: id,
+      hasEmbeddingInUpdate: payload.embedding !== undefined,
+      embeddingIsNullInUpdate: payload.embedding === null,
+      embeddingPayloadLength: payload.embedding?.length ?? 0
+    })
+    await this.getDb().update(memoryTable).set(setData).where(eq(memoryTable.id, id))
+    const persisted = await this.getDb()
+      .select({
+        hasEmbedding: sql<number>`CASE WHEN ${memoryTable.embedding} IS NULL THEN 0 ELSE 1 END`
+      })
+      .from(memoryTable)
+      .where(eq(memoryTable.id, id))
+      .get()
+    logger.info('Memory row updated', {
+      memoryId: id,
+      dbHasEmbedding: (persisted?.hasEmbedding ?? 0) === 1
     })
   }
 }

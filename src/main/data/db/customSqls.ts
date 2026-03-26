@@ -14,12 +14,14 @@
  * 2. Import and spread them into CUSTOM_SQL_STATEMENTS below
  */
 
+import { MEMORY_VECTOR_INDEX_STATEMENTS } from './schemas/memory'
 import { MESSAGE_FTS_STATEMENTS } from './schemas/message'
 
 /**
  * All custom SQL statements to run after migrations
  */
 export const CUSTOM_SQL_STATEMENTS: string[] = [
-  ...MESSAGE_FTS_STATEMENTS
+  ...MESSAGE_FTS_STATEMENTS,
+  ...MEMORY_VECTOR_INDEX_STATEMENTS
   // Add more custom SQL arrays here as needed
 ]
