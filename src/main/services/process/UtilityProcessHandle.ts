@@ -41,8 +41,7 @@ export class UtilityProcessHandle {
 
     this.logger.info(`Starting utility process: ${this.def.modulePath}`)
 
-    const proc = utilityProcess.fork(this.def.modulePath, {
-      args: this.def.args,
+    const proc = utilityProcess.fork(this.def.modulePath, this.def.args, {
       env: this.def.env
     })
 

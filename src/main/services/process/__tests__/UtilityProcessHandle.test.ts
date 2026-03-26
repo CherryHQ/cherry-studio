@@ -74,8 +74,7 @@ describe('UtilityProcessHandle', () => {
       })
       await handle.start()
 
-      expect(mockUtilityProcess.fork).toHaveBeenCalledWith('/path/to/worker.js', {
-        args: ['--flag', 'value'],
+      expect(mockUtilityProcess.fork).toHaveBeenCalledWith('/path/to/worker.js', ['--flag', 'value'], {
         env: { MY_VAR: 'hello' }
       })
     })
