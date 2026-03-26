@@ -368,6 +368,7 @@ export enum IpcChannel {
 
   // ExternalApps
   ExternalApps_DetectInstalled = 'external-apps:detect-installed',
+  ExternalApps_OpenTerminal = 'external-apps:open-terminal',
 
   // CodeTools
   CodeTools_Run = 'code-tools:run',

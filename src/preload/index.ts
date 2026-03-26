@@ -474,7 +474,9 @@ const api = {
     }
   },
   externalApps: {
-    detectInstalled: (): Promise<ExternalAppInfo[]> => ipcRenderer.invoke(IpcChannel.ExternalApps_DetectInstalled)
+    detectInstalled: (): Promise<ExternalAppInfo[]> => ipcRenderer.invoke(IpcChannel.ExternalApps_DetectInstalled),
+    openTerminal: (directory: string, terminalId?: string): Promise<{ success: boolean; message: string }> =>
+      ipcRenderer.invoke(IpcChannel.ExternalApps_OpenTerminal, directory, terminalId)
   },
   nutstore: {
     getSSOUrl: () => ipcRenderer.invoke(IpcChannel.Nutstore_GetSsoUrl),

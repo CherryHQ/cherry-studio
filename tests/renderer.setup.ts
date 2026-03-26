@@ -64,6 +64,12 @@ vi.stubGlobal('api', {
   file: {
     read: vi.fn().mockResolvedValue('[]'),
     writeWithId: vi.fn().mockResolvedValue(undefined)
+  },
+  codeTools: {
+    getAvailableTerminals: vi.fn().mockResolvedValue([])
+  },
+  externalApps: {
+    openTerminal: vi.fn().mockResolvedValue({ success: true, message: '' })
   }
 })
 

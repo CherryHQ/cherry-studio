@@ -989,6 +989,9 @@ export async function registerIpc(mainWindow: BrowserWindow, app: Electron.App) 
 
   // ExternalApps
   ipcMain.handle(IpcChannel.ExternalApps_DetectInstalled, () => externalAppsService.detectInstalledApps())
+  ipcMain.handle(IpcChannel.ExternalApps_OpenTerminal, (event, directory: string, terminalId?: string) =>
+    externalAppsService.openTerminal(event, directory, terminalId)
+  )
 
   // CodeTools
   ipcMain.handle(IpcChannel.CodeTools_Run, codeToolsService.run)

@@ -17,7 +17,6 @@ import { useCallback } from 'react'
 import AgentSidePanelDrawer from '../AgentSidePanelDrawer'
 import SelectAgentBaseModelButton from '../SelectAgentBaseModelButton'
 import OpenExternalAppButton from './OpenExternalAppButton'
-import SessionWorkspaceMeta from './SessionWorkspaceMeta'
 import Tools from './Tools'
 
 type AgentContentProps = {
@@ -107,12 +106,6 @@ const AgentContent = ({ activeAgent }: AgentContentProps) => {
                     await handleUpdateModel(model)
                   }}
                 />
-
-                {/* Separator */}
-                <ChevronRight className="h-4 w-4 text-gray-400" />
-
-                {/* Workspace Meta */}
-                <SessionWorkspaceMeta agent={activeAgent} session={activeSession} />
               </>
             )}
           </div>

@@ -1,11 +1,14 @@
 import { MoreOutlined } from '@ant-design/icons'
+import { loggerService } from '@logger'
+import { isLinux } from '@renderer/config/constant'
 import { useExternalApps } from '@renderer/hooks/useExternalApps'
-import { buildEditorUrl, getEditorIcon } from '@renderer/utils/editorUtils'
+import { buildEditorUrl, getEditorIcon, getFileManagerIcon, getTerminalIcon } from '@renderer/utils/editorUtils'
 import type { ExternalAppInfo } from '@shared/externalApp/types'
 import { Dropdown, type MenuProps, Tooltip } from 'antd'
-import { FolderOpen } from 'lucide-react'
-import { memo, useCallback, useMemo } from 'react'
+import { memo, useCallback, useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
+
+const logger = loggerService.withContext('ClickableFilePath')
 
 interface ClickableFilePathProps {
   path: string
@@ -15,17 +18,36 @@ interface ClickableFilePathProps {
 export const ClickableFilePath = memo(function ClickableFilePath({ path, displayName }: ClickableFilePathProps) {
   const { t } = useTranslation()
   const { data: externalApps } = useExternalApps()
+  const [availableTerminals, setAvailableTerminals] = useState<{ id: string; name: string }[]>([])
 
   const availableEditors = useMemo(
     () => externalApps?.filter((app) => app.tags.includes('code-editor')) ?? [],
     [externalApps]
   )
 
+  useEffect(() => {
+    if (isLinux) return
+    window.api.codeTools
+      .getAvailableTerminals()
+      .then(setAvailableTerminals)
+      .catch((e) => logger.error('Failed to load terminals:', e as Error))
+  }, [])
+
   const openInEditor = useCallback(
     (app: ExternalAppInfo) => {
       window.open(buildEditorUrl(app, path))
     },
     [path]
+  )
+
+  const openInTerminal = useCallback(
+    (terminalId: string) => {
+      window.api.externalApps.openTerminal(path, terminalId).catch((e) => {
+        logger.error('Failed to open terminal:', e as Error)
+        window.toast.error(t('code.launch.error'))
+      })
+    },
+    [path, t]
   )
 
   const handleOpen = useCallback(
@@ -53,7 +75,7 @@ export const ClickableFilePath = memo(function ClickableFilePath({ path, display
       {
         key: 'reveal',
         label: t('chat.input.tools.reveal_in_finder'),
-        icon: <FolderOpen size={16} />,
+        icon: getFileManagerIcon(16),
         onClick: ({ domEvent }) => {
           domEvent.stopPropagation()
           window.api.file.showInFolder(path).catch(() => {
@@ -78,8 +100,23 @@ export const ClickableFilePath = memo(function ClickableFilePath({ path, display
       }
     }
 
+    if (availableTerminals.length > 0) {
+      items.push({ type: 'divider' })
+      for (const terminal of availableTerminals) {
+        items.push({
+          key: `terminal-${terminal.id}`,
+          label: terminal.name,
+          icon: getTerminalIcon(terminal.id),
+          onClick: ({ domEvent }) => {
+            domEvent.stopPropagation()
+            openInTerminal(terminal.id)
+          }
+        })
+      }
+    }
+
     return items
-  }, [path, t, availableEditors, openInEditor])
+  }, [path, t, availableEditors, availableTerminals, openInEditor, openInTerminal])
 
   return (
     <span className="inline-flex items-center gap-0.5">
