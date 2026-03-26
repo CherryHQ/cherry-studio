@@ -100,7 +100,7 @@
     "node-stream-zip": "1.15.0",
     "officeparser": "4.2.0",
     "os-proxy-config": "1.1.2",
-    "selection-hook": "1.0.12",
+    "selection-hook": "2.0.1",
     "sharp": "0.34.3",
     "swagger-ui-express": "5.0.1",
     "tesseract.js": "6.0.1",
