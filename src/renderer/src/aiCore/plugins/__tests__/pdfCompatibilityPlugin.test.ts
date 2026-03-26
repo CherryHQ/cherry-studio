@@ -12,7 +12,7 @@ vi.mock('@renderer/config/models', () => ({
 }))
 
 vi.mock('@renderer/config/models/openai', () => ({
-  isOpenAIModel: vi.fn(() => false)
+  isOpenAILLMModel: vi.fn(() => false)
 }))
 
 const mockExtractPdfText = vi.fn()
@@ -35,7 +35,7 @@ vi.stubGlobal('window', {
 })
 
 import { isAnthropicModel, isGeminiModel } from '@renderer/config/models'
-import { isOpenAIModel } from '@renderer/config/models/openai'
+import { isOpenAILLMModel } from '@renderer/config/models/openai'
 
 import { createPdfCompatibilityPlugin } from '../pdfCompatibilityPlugin'
 
@@ -82,13 +82,13 @@ async function runMiddleware(provider: Provider, params: LanguageModelV3CallOpti
 describe('pdfCompatibilityPlugin', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    vi.mocked(isOpenAIModel).mockReturnValue(false)
+    vi.mocked(isOpenAILLMModel).mockReturnValue(false)
     vi.mocked(isAnthropicModel).mockReturnValue(false)
     vi.mocked(isGeminiModel).mockReturnValue(false)
   })
 
   it('should pass through for OpenAI model on any provider type', async () => {
-    vi.mocked(isOpenAIModel).mockReturnValue(true)
+    vi.mocked(isOpenAILLMModel).mockReturnValue(true)
     const provider = makeProvider('moonshot', 'openai')
 
     const params = {
