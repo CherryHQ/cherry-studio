@@ -1,6 +1,5 @@
 import { PushpinOutlined } from '@ant-design/icons'
 import { Tooltip } from '@cherrystudio/ui'
-import { Flex } from '@cherrystudio/ui'
 import { Avatar, AvatarFallback } from '@cherrystudio/ui'
 import { FreeTrialModelTag } from '@renderer/components/FreeTrialModelTag'
 import ModelTagsWithLabel from '@renderer/components/ModelTagsWithLabel'
@@ -13,7 +12,7 @@ import { getProviderById } from '@renderer/services/ProviderService'
 import type { Model, Provider } from '@renderer/types'
 import { objectEntries } from '@renderer/types'
 import { classNames, filterModelsByKeywords, getFancyProviderName } from '@renderer/utils'
-import { getModelTags } from '@renderer/utils/model'
+import { getDuplicateModelNames, getModelTags } from '@renderer/utils/model'
 import { Divider, Empty, Modal } from 'antd'
 import { first, sortBy } from 'lodash'
 import { Settings2 } from 'lucide-react'
@@ -128,7 +127,7 @@ const SelectModelPopupView: React.FC<Props> = ({
 
   // 创建模型列表项
   const createModelItem = useCallback(
-    (model: Model, provider: Provider, isPinned: boolean): FlatListModel => {
+    (model: Model, provider: Provider, isPinned: boolean, showIdentifier: boolean): FlatListModel => {
       const modelId = getModelUniqId(model)
       const groupName = getFancyProviderName(provider)
       const isCherryAi = provider.id === 'cherryai'
@@ -138,10 +137,17 @@ const SelectModelPopupView: React.FC<Props> = ({
         type: 'model',
         name: (
           <ModelName>
-            <Flex className="items-center">
-              {model.name}
-              {isPinned && <span style={{ color: 'var(--color-text-3)', whiteSpace: 'pre-wrap' }}> | {groupName}</span>}
-            </Flex>
+            <div className="flex min-w-0 flex-1 items-center gap-1.5">
+              <span className="min-w-0 truncate">{model.name}</span>
+              {showIdentifier && model.id !== model.name && (
+                <span
+                  className="min-w-0 max-w-[45%] shrink truncate font-mono text-[12px] text-[var(--color-text-3)]"
+                  title={model.id}>
+                  {model.id}
+                </span>
+              )}
+              {isPinned && <span className="whitespace-nowrap text-[var(--color-text-3)]">| {groupName}</span>}
+            </div>
             {isCherryAi && <FreeTrialModelTag model={model} showLabel={false} />}
           </ModelName>
         ),
@@ -173,6 +179,12 @@ const SelectModelPopupView: React.FC<Props> = ({
     const items: FlatListItem[] = []
     const pinnedModelIds = new Set(pinnedModels)
     const finalModelFilter = (model: Model) => !showTagFilter || tagFilter(model)
+    const duplicateNamesByProvider = new Map<string, Set<string>>(
+      sortedProviders.map((provider) => [
+        provider.id,
+        getDuplicateModelNames(searchFilter(provider).filter(finalModelFilter))
+      ])
+    )
 
     // 添加置顶模型分组（仅在无搜索文本时）
     if (searchText.length === 0 && showPinnedModels && pinnedModelIds.size > 0) {
@@ -180,7 +192,9 @@ const SelectModelPopupView: React.FC<Props> = ({
         provider.models
           .filter((item) => pinnedModelIds.has(getModelUniqId(item)))
           .filter(finalModelFilter)
-          .map((item) => createModelItem(item, provider, true))
+          .map((item) =>
+            createModelItem(item, provider, true, duplicateNamesByProvider.get(provider.id)?.has(item.name) ?? false)
+          )
       )
 
       if (pinnedItems.length > 0) {
@@ -221,7 +235,7 @@ const SelectModelPopupView: React.FC<Props> = ({
                 e.stopPropagation()
                 setOpen(false)
                 resolve(undefined)
-                window.navigate({ to: '/settings/provider', search: { id: provider.id } })
+                void window.navigate({ to: '/settings/provider', search: { id: provider.id } })
               }}
             />
           </Tooltip>
@@ -231,7 +245,12 @@ const SelectModelPopupView: React.FC<Props> = ({
 
       items.push(
         ...filteredModels.map((item) =>
-          createModelItem(item, provider, showPinnedModels && pinnedModelIds.has(getModelUniqId(item)))
+          createModelItem(
+            item,
+            provider,
+            showPinnedModels && pinnedModelIds.has(getModelUniqId(item)),
+            duplicateNamesByProvider.get(provider.id)?.has(item.name) ?? false
+          )
         )
       )
     })
@@ -418,7 +437,7 @@ const SelectModelPopupView: React.FC<Props> = ({
             <PinIconWrapper
               onClick={(e) => {
                 e.stopPropagation()
-                togglePin(getModelUniqId(item.model))
+                void togglePin(getModelUniqId(item.model))
               }}
               data-pinned={item.isPinned}
               $isPinned={item.isPinned}>
@@ -575,11 +594,7 @@ const ModelItemLeft = styled.div`
 
 const ModelName = styled.div`
   display: flex;
-  flex-direction: row;
-  justify-content: space-between;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  align-items: center;
   flex: 1;
   margin: 0 8px;
   min-width: 0;

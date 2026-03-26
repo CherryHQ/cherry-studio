@@ -1,6 +1,6 @@
-import { cacheService } from '@data/CacheService'
 import { loggerService } from '@logger'
 import { formatProviderApiHost } from '@main/aiCore/provider/providerConfig'
+import { application } from '@main/core/application'
 import { reduxService } from '@main/services/ReduxService'
 import { isSiliconAnthropicCompatibleModel } from '@shared/config/providers'
 import type { ApiModel, Model, Provider, ProviderType } from '@types'
@@ -13,6 +13,8 @@ const PROVIDERS_CACHE_TTL = 10 * 1000 // 10 seconds
 
 export async function getAvailableProviders(): Promise<Provider[]> {
   try {
+    const cacheService = application.get('CacheService')
+
     // Try to get from cache first (faster)
     const cachedSupportedProviders = cacheService.get<Provider[]>(PROVIDERS_CACHE_KEY)
     if (cachedSupportedProviders && cachedSupportedProviders.length > 0) {

@@ -76,7 +76,7 @@ export const setDayjsLocale = (language: string) => {
   dayjs.locale(dayjsLocale)
 }
 
-i18n.use(initReactI18next).init({
+void i18n.use(initReactI18next).init({
   resources,
   lng: await getLanguage(),
   fallbackLng: defaultLanguage,

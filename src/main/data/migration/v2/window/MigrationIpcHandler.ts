@@ -316,6 +316,7 @@ export function registerMigrationIpcHandlers(): void {
     try {
       logger.info('Migration cancelled by user')
       migrationWindowManager.close()
+      app.quit()
       return true
     } catch (error) {
       logger.error('Error cancelling migration', error as Error)
@@ -327,7 +328,7 @@ export function registerMigrationIpcHandlers(): void {
   ipcMain.handle(MigrationIpcChannels.Restart, async () => {
     try {
       logger.info('Restarting app after migration')
-      migrationWindowManager.restartApp()
+      void migrationWindowManager.restartApp()
       return true
     } catch (error) {
       logger.error('Error restarting app', error as Error)

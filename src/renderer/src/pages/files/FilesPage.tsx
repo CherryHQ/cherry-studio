@@ -177,7 +177,7 @@ const FilesPage: FC = () => {
                     if (sortField === field) {
                       setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc')
                     } else {
-                      setSortField(field as 'created_at' | 'size' | 'name')
+                      setSortField(field)
                       setSortOrder('desc')
                     }
                   }}>

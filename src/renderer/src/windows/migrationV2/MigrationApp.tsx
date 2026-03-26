@@ -21,7 +21,7 @@ const MigrationApp: React.FC = () => {
   const [isLoading, setIsLoading] = useState(false)
 
   const handleLanguageChange = (lang: string) => {
-    i18n.changeLanguage(lang)
+    void i18n.changeLanguage(lang)
   }
 
   const handleStartMigration = async () => {

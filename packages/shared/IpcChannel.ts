@@ -338,6 +338,7 @@ export enum IpcChannel {
   Selection_ActionWindowResize = 'selection:action-window-resize',
   Selection_ProcessAction = 'selection:process-action',
   Selection_UpdateActionData = 'selection:update-action-data',
+  Selection_GetLinuxEnvInfo = 'selection:get-linux-env-info',
 
   // Memory
   Memory_Add = 'memory:add',
@@ -407,12 +408,12 @@ export enum IpcChannel {
   // ExternalApps
   ExternalApps_DetectInstalled = 'external-apps:detect-installed',
 
-  // CodeTools
-  CodeTools_Run = 'code-tools:run',
-  CodeTools_GetAvailableTerminals = 'code-tools:get-available-terminals',
-  CodeTools_SetCustomTerminalPath = 'code-tools:set-custom-terminal-path',
-  CodeTools_GetCustomTerminalPath = 'code-tools:get-custom-terminal-path',
-  CodeTools_RemoveCustomTerminalPath = 'code-tools:remove-custom-terminal-path',
+  // CodeCli
+  CodeCli_Run = 'code-cli:run',
+  CodeCli_GetAvailableTerminals = 'code-cli:get-available-terminals',
+  CodeCli_SetCustomTerminalPath = 'code-cli:set-custom-terminal-path',
+  CodeCli_GetCustomTerminalPath = 'code-cli:get-custom-terminal-path',
+  CodeCli_RemoveCustomTerminalPath = 'code-cli:remove-custom-terminal-path',
 
   // OCR
   OCR_ocr = 'ocr:ocr',

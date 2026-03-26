@@ -1,6 +1,6 @@
 /**
  * Auto-generated preference mappings from classification.json
- * Generated at: 2026-03-23T09:47:43.829Z
+ * Generated at: 2026-03-25T15:56:52.716Z
  *
  * This file contains pure mapping relationships without default values.
  * Default values are managed in packages/shared/data/preferences.ts
@@ -73,10 +73,6 @@ export const REDUX_STORE_MAPPINGS = {
     {
       originalKey: 'enableDataCollection',
       targetKey: 'app.privacy.data_collection.enabled'
-    },
-    {
-      originalKey: 'disableHardwareAcceleration',
-      targetKey: 'app.disable_hardware_acceleration'
     },
     {
       originalKey: 'enableDeveloperMode',
@@ -880,8 +876,7 @@ export const REDUX_STORE_MAPPINGS = {
       originalKey: 'sortType',
       targetKey: 'feature.notes.sort_type'
     }
-  ],
-  codeTools: []
+  ]
 } as const
 
 /**
@@ -943,7 +938,7 @@ export const LOCALSTORAGE_MAPPINGS: ReadonlyArray<{ originalKey: string; targetK
  * 映射统计:
  * - ElectronStore项: 1
  * - Redux Store项: 208
- * - Redux分类: settings, selectionStore, memory, nutstore, preprocess, shortcuts, translate, websearch, ocr, note, codeTools
+ * - Redux分类: settings, selectionStore, memory, nutstore, preprocess, shortcuts, translate, websearch, ocr, note
  * - DexieSettings项: 7
  * - localStorage项: 0
  * - 总配置项: 216

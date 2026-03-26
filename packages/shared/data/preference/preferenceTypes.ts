@@ -1,13 +1,20 @@
+import type { BootConfigPreferenceKeys } from '@shared/data/bootConfig/bootConfigTypes'
+
 import type { PreferenceSchemas } from './preferenceSchemas'
 
+/** DB-backed preferences only (stored in SQLite) */
 export type PreferenceDefaultScopeType = PreferenceSchemas['default']
 export type PreferenceKeyType = keyof PreferenceDefaultScopeType
+
+/** Unified type: DB-backed preferences + file-backed boot config (BootConfig.* prefix) */
+export type UnifiedPreferenceType = PreferenceDefaultScopeType & BootConfigPreferenceKeys
+export type UnifiedPreferenceKeyType = keyof UnifiedPreferenceType
 
 /**
  * Result type for getMultipleRaw - maps requested keys to their values
  */
-export type PreferenceMultipleResultType<K extends PreferenceKeyType> = {
-  [P in K]: PreferenceDefaultScopeType[P]
+export type UnifiedPreferenceMultipleResultType<K extends UnifiedPreferenceKeyType> = {
+  [P in K]: UnifiedPreferenceType[P]
 }
 
 export type PreferenceUpdateOptions = {

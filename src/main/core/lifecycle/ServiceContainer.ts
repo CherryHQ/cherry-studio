@@ -1,5 +1,6 @@
 import { loggerService } from '@logger'
 
+import type { BaseService } from './BaseService'
 import {
   getDependencies,
   getErrorStrategy,
@@ -87,7 +88,7 @@ export class ServiceContainer {
    * @param token - Service token (name or constructor)
    * @returns Service instance
    */
-  public get<T>(token: ServiceToken<T>): T {
+  public get<T = BaseService>(token: ServiceToken<T>): T {
     const name = typeof token === 'string' ? token : getServiceName(token)
     const entry = this.services.get(name)
 
@@ -178,7 +179,7 @@ export class ServiceContainer {
    * Get existing instance without creating
    * @param token - Service token
    */
-  public getInstance<T>(token: ServiceToken<T>): T | undefined {
+  public getInstance<T = BaseService>(token: ServiceToken<T>): T | undefined {
     const name = typeof token === 'string' ? token : getServiceName(token)
     return this.services.get(name)?.instance as T | undefined
   }

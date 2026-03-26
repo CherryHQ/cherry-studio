@@ -209,4 +209,4 @@ async function main() {
   console.log('\n  Pipeline completed successfully.\n')
 }
 
-main()
+void main()

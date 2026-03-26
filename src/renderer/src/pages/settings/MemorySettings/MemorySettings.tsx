@@ -333,7 +333,7 @@ const MemorySettings = () => {
     logger.verbose(`useEffect triggered for currentUser: ${currentUser}`)
     // Reset display count when user changes
     setDisplayCount(50)
-    loadMemories(currentUser)
+    void loadMemories(currentUser)
   }, [currentUser, loadMemories])
 
   // Debounce search text
@@ -438,7 +438,7 @@ const MemorySettings = () => {
     logger.verbose(`Switching to user: ${userId}`)
 
     // First update preference state
-    setCurrentUserId(userId)
+    void setCurrentUserId(userId)
 
     // Clear current memories to show loading state immediately
     setAllMemories([])
@@ -484,7 +484,7 @@ const MemorySettings = () => {
     await memoryService.updateConfig()
     if (cacheService.getCasual<boolean>('memory.wait.settings')) {
       cacheService.deleteCasual('memory.wait.settings')
-      setGlobalMemoryEnabled(true)
+      void setGlobalMemoryEnabled(true)
     }
   }
 
@@ -561,7 +561,7 @@ const MemorySettings = () => {
       return setSettingsModalVisible(true)
     }
 
-    setGlobalMemoryEnabled(enabled)
+    void setGlobalMemoryEnabled(enabled)
 
     if (enabled) {
       return window.modal.confirm({

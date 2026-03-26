@@ -329,7 +329,7 @@ export function useMutation<TPath extends ConcreteApiPaths, TMethod extends 'POS
 
     // Apply optimistic update if optimisticData is provided
     if (hasOptimisticData) {
-      await globalMutate([path], opts!.optimisticData, false)
+      await globalMutate([path], opts.optimisticData, false)
     }
 
     try {
@@ -519,7 +519,7 @@ export function useInfiniteQuery<TPath extends ConcreteApiPaths>(
 
   const loadNext = useCallback(() => {
     if (!hasNext || isValidating) return
-    setSize((s) => s + 1)
+    void setSize((s) => s + 1)
   }, [hasNext, isValidating, setSize])
 
   const refresh = useCallback(() => mutate(), [mutate])

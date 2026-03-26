@@ -13,7 +13,7 @@ const AgentServerStopped = () => {
   const navigate = useNavigate()
 
   const handleGoToSettings = useCallback(() => {
-    navigate({ to: '/settings/api-server' })
+    void navigate({ to: '/settings/api-server' })
   }, [navigate])
 
   return (

@@ -137,7 +137,7 @@ export class DataApiService implements ApiClient {
     const requestContext: RequestContext = {
       requestId: request.id,
       path: request.path,
-      method: request.method as HttpMethod,
+      method: request.method,
       timestamp: Date.now()
     }
 

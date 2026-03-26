@@ -1,5 +1,5 @@
-import { preferenceService } from '@data/PreferenceService'
 import { isLinux, isMac, isWin } from '@main/constant'
+import { application } from '@main/core/application'
 import { getI18n } from '@main/utils/language'
 import type { MenuItemConstructorOptions } from 'electron'
 import { app, Menu, nativeImage, nativeTheme, Tray } from 'electron'
@@ -60,6 +60,7 @@ export class TrayService {
     })
 
     this.tray.on('click', () => {
+      const preferenceService = application.get('PreferenceService')
       const quickAssistantEnabled = preferenceService.get('feature.quick_assistant.enabled')
       const clickTrayToShowQuickAssistant = preferenceService.get('feature.quick_assistant.click_tray_to_show')
 
@@ -75,6 +76,7 @@ export class TrayService {
     const i18n = getI18n()
     const { tray: trayLocale, selection: selectionLocale } = i18n.translation
 
+    const preferenceService = application.get('PreferenceService')
     const quickAssistantEnabled = preferenceService.get('feature.quick_assistant.enabled')
     const selectionAssistantEnabled = preferenceService.get('feature.selection.enabled')
 
@@ -107,7 +109,7 @@ export class TrayService {
   }
 
   private updateTray() {
-    const showTray = preferenceService.get('app.tray.enabled')
+    const showTray = application.get('PreferenceService').get('app.tray.enabled')
     if (showTray) {
       this.createTray()
     } else {
@@ -123,6 +125,7 @@ export class TrayService {
   }
 
   private watchConfigChanges() {
+    const preferenceService = application.get('PreferenceService')
     preferenceService.subscribeChange('app.tray.enabled', () => this.updateTray())
     preferenceService.subscribeChange('app.language', () => this.updateContextMenu())
     preferenceService.subscribeChange('feature.quick_assistant.enabled', () => this.updateContextMenu())

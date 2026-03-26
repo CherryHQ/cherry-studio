@@ -1,5 +1,5 @@
-import { cacheService } from '@data/CacheService'
 import { loggerService } from '@logger'
+import { application } from '@main/core/application'
 import mcpService from '@main/services/MCPService'
 import { reduxService } from '@main/services/ReduxService'
 import { Server } from '@modelcontextprotocol/sdk/server/index.js'
@@ -46,6 +46,7 @@ async function getMcpServerConfigById(id: string): Promise<MCPServer | undefined
 export async function getMCPServersFromRedux(): Promise<MCPServer[]> {
   try {
     logger.debug('Getting servers from Redux store')
+    const cacheService = application.get('CacheService')
 
     // Try to get from cache first (faster)
     const cachedServers = cacheService.get<MCPServer[]>(MCP_SERVERS_CACHE_KEY)

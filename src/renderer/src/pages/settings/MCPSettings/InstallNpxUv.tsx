@@ -80,7 +80,7 @@ const InstallNpxUv: FC<Props> = ({ mini = false }) => {
   }
 
   useEffect(() => {
-    checkBinaries()
+    void checkBinaries()
   }, [checkBinaries])
 
   if (mini) {
@@ -98,7 +98,7 @@ const InstallNpxUv: FC<Props> = ({ mini = false }) => {
 
   const openBinariesDir = () => {
     if (binariesDir) {
-      window.api.openPath(binariesDir)
+      void window.api.openPath(binariesDir)
     }
   }
 

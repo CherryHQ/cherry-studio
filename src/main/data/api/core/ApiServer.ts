@@ -71,7 +71,7 @@ export class ApiServer {
     const errorContext: ErrorRequestContext = {
       requestId: request.id,
       path,
-      method: method as HttpMethod,
+      method: method,
       timestamp: startTime
     }
 
@@ -79,14 +79,14 @@ export class ApiServer {
 
     try {
       // Find handler
-      const handlerMatch = this.findHandler(path, method as HttpMethod)
+      const handlerMatch = this.findHandler(path, method)
 
       if (!handlerMatch) {
         throw DataApiErrorFactory.notFound('Handler', `${method} ${path}`, errorContext)
       }
 
       // Create request context
-      const requestContext = this.createRequestContext(request, path, method as HttpMethod)
+      const requestContext = this.createRequestContext(request, path, method)
 
       // Execute middleware chain
       await this.middlewareEngine.executeMiddlewares(requestContext)

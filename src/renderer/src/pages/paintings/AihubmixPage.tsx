@@ -194,7 +194,7 @@ const AihubmixPage: FC<{ Options: string[] }> = ({ Options }) => {
               })
             )
             await FileManager.addFiles(validFiles)
-            updatePaintingState({ files: validFiles, urls: validFiles.map((file) => file.name) })
+            updatePaintingState({ files: validFiles, urls: [] })
           }
           return
         } else if (painting.model === 'gemini-3-pro-image-preview') {
@@ -262,7 +262,7 @@ const AihubmixPage: FC<{ Options: string[] }> = ({ Options }) => {
               })
             )
             await FileManager.addFiles(validFiles)
-            updatePaintingState({ files: validFiles, urls: validFiles.map((file) => file.name) })
+            updatePaintingState({ files: validFiles, urls: [] })
           }
           return
         } else if (painting.model === 'V_3') {
@@ -547,7 +547,7 @@ const AihubmixPage: FC<{ Options: string[] }> = ({ Options }) => {
             })
           )
           await FileManager.addFiles(validFiles)
-          updatePaintingState({ files: validFiles, urls: validFiles.map((file) => file.name) })
+          updatePaintingState({ files: validFiles, urls: [] })
           return
         }
         const urls = data.data.filter((item) => item.url).map((item) => item.url)
@@ -566,7 +566,7 @@ const AihubmixPage: FC<{ Options: string[] }> = ({ Options }) => {
             })
           )
           await FileManager.addFiles(validFiles)
-          updatePaintingState({ files: validFiles, urls: validFiles.map((file) => file.name) })
+          updatePaintingState({ files: validFiles, urls: [] })
         }
       }
     } catch (error: unknown) {
@@ -621,7 +621,7 @@ const AihubmixPage: FC<{ Options: string[] }> = ({ Options }) => {
       }
     }
 
-    removePainting(mode, paintingToDelete)
+    void removePainting(mode, paintingToDelete)
   }
 
   const translate = async () => {
@@ -659,7 +659,7 @@ const AihubmixPage: FC<{ Options: string[] }> = ({ Options }) => {
       if (spaceClickCount === 2) {
         setSpaceClickCount(0)
         setIsTranslating(true)
-        translate()
+        void translate()
       }
     }
   }
@@ -667,7 +667,7 @@ const AihubmixPage: FC<{ Options: string[] }> = ({ Options }) => {
   const handleProviderChange = (providerId: string) => {
     const routeName = location.pathname.split('/').pop()
     if (providerId !== routeName) {
-      navigate({ to: '../' + providerId, replace: true })
+      void navigate({ to: '../' + providerId, replace: true })
     }
   }
 

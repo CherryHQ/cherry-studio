@@ -125,14 +125,7 @@ const getToolDescription = (toolResponse?: MCPToolResponse | NormalToolResponse)
   if (!args || typeof args !== 'object' || Array.isArray(args)) return undefined
 
   // Common description fields
-  return (
-    (args as Record<string, unknown>).description ||
-    (args as Record<string, unknown>).file_path ||
-    (args as Record<string, unknown>).pattern ||
-    (args as Record<string, unknown>).query ||
-    (args as Record<string, unknown>).command ||
-    (args as Record<string, unknown>).url
-  )?.toString()
+  return (args.description || args.file_path || args.pattern || args.query || args.command || args.url)?.toString()
 }
 
 // ============ Styled Components ============

@@ -149,7 +149,7 @@ export const Topics: React.FC<Props> = ({ assistant: _assistant, activeTopic, se
     (topic: Topic) => {
       // window.keyv.set(EVENT_NAMES.CHAT_COMPLETION_PAUSED, true)
       setGenerating(false)
-      EventEmitter.emit(EVENT_NAMES.CLEAR_MESSAGES, topic)
+      void EventEmitter.emit(EVENT_NAMES.CLEAR_MESSAGES, topic)
     },
     [setGenerating]
   )
@@ -354,7 +354,7 @@ export const Topics: React.FC<Props> = ({ assistant: _assistant, activeTopic, se
         key: 'notes',
         icon: <NotebookPen size={14} />,
         onClick: async () => {
-          exportTopicToNotes(topic, notesPath)
+          void exportTopicToNotes(topic, notesPath)
         }
       },
       {
@@ -448,14 +448,14 @@ export const Topics: React.FC<Props> = ({ assistant: _assistant, activeTopic, se
             key: 'word',
             onClick: async () => {
               const markdown = await topicToMarkdown(topic)
-              window.api.export.toWord(markdown, removeSpecialCharactersForFileName(topic.name))
+              void window.api.export.toWord(markdown, removeSpecialCharactersForFileName(topic.name))
             }
           },
           exportMenuOptions.notion && {
             label: t('chat.topics.export.notion'),
             key: 'notion',
             onClick: async () => {
-              exportTopicToNotion(topic)
+              void exportTopicToNotion(topic)
             }
           },
           exportMenuOptions.yuque && {
@@ -463,7 +463,7 @@ export const Topics: React.FC<Props> = ({ assistant: _assistant, activeTopic, se
             key: 'yuque',
             onClick: async () => {
               const markdown = await topicToMarkdown(topic)
-              exportMarkdownToYuque(topic.name, markdown)
+              void exportMarkdownToYuque(topic.name, markdown)
             }
           },
           exportMenuOptions.obsidian && {
@@ -478,7 +478,7 @@ export const Topics: React.FC<Props> = ({ assistant: _assistant, activeTopic, se
             key: 'joplin',
             onClick: async () => {
               const topicMessages = await TopicManager.getTopicMessages(topic.id)
-              exportMarkdownToJoplin(topic.name, topicMessages)
+              void exportMarkdownToJoplin(topic.name, topicMessages)
             }
           },
           exportMenuOptions.siyuan && {
@@ -486,7 +486,7 @@ export const Topics: React.FC<Props> = ({ assistant: _assistant, activeTopic, se
             key: 'siyuan',
             onClick: async () => {
               const markdown = await topicToMarkdown(topic)
-              exportMarkdownToSiyuan(topic.name, markdown)
+              void exportMarkdownToSiyuan(topic.name, markdown)
             }
           }
         ].filter(Boolean) as ItemType<MenuItemType>[]
@@ -628,7 +628,7 @@ export const Topics: React.FC<Props> = ({ assistant: _assistant, activeTopic, se
                 toggleSelectTopic(topic.id)
               }
             } else {
-              onSwitchTopic(topic)
+              void onSwitchTopic(topic)
             }
           }
 
@@ -695,9 +695,9 @@ export const Topics: React.FC<Props> = ({ assistant: _assistant, activeTopic, se
                         className="menu"
                         onClick={(e) => {
                           if (e.ctrlKey || e.metaKey) {
-                            handleConfirmDelete(topic, e)
+                            void handleConfirmDelete(topic, e)
                           } else if (deletingTopicId === topic.id) {
-                            handleConfirmDelete(topic, e)
+                            void handleConfirmDelete(topic, e)
                           } else {
                             handleDeleteClick(topic.id, e)
                           }
@@ -736,7 +736,7 @@ export const Topics: React.FC<Props> = ({ assistant: _assistant, activeTopic, se
         assistants={assistants}
         activeTopic={activeTopic}
         setActiveTopic={setActiveTopic}
-        removeTopic={removeTopic}
+        updateTopics={updateTopics}
         moveTopic={moveTopic}
         manageState={manageState}
         filteredTopics={filteredTopics}

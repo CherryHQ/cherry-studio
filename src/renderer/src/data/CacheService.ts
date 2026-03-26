@@ -100,7 +100,7 @@ export class CacheService {
     this.setupWindowUnloadHandler()
 
     // Async sync SharedCache from Main (does not block initialization)
-    this.syncSharedCacheFromMain()
+    void this.syncSharedCacheFromMain()
 
     logger.debug('CacheService initialized')
   }

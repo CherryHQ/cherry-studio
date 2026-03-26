@@ -1,7 +1,7 @@
 import type { CreateTranslateHistoryDto, UpdateTranslateHistoryDto } from '@shared/data/api/schemas/translate'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-// Mock dbService - tx shares the same mocks since transaction passes tx to callback
+// Mock db - tx shares the same mocks since transaction passes tx to callback
 const mockSelect = vi.fn()
 const mockInsert = vi.fn()
 const mockUpdate = vi.fn()
@@ -14,17 +14,20 @@ const mockTx = {
   delete: mockDelete
 }
 
-vi.mock('@data/db/DbService', () => ({
-  dbService: {
-    getDb: vi.fn(() => ({
-      select: mockSelect,
-      insert: mockInsert,
-      update: mockUpdate,
-      delete: mockDelete,
-      transaction: vi.fn(async (fn: (tx: typeof mockTx) => Promise<unknown>) => fn(mockTx))
-    }))
-  }
-}))
+const mockDb = {
+  select: mockSelect,
+  insert: mockInsert,
+  update: mockUpdate,
+  delete: mockDelete,
+  transaction: vi.fn(async (fn: (tx: typeof mockTx) => Promise<unknown>) => fn(mockTx))
+}
+
+vi.mock('@main/core/application', async () => {
+  const { mockApplicationFactory } = await import('@test-mocks/main/application')
+  return mockApplicationFactory({
+    DbService: { getDb: () => mockDb }
+  })
+})
 
 // Import after mocking
 const { TranslateHistoryService } = await import('../TranslateHistoryService')
@@ -134,7 +137,7 @@ describe('TranslateHistoryService', () => {
         })
       })
 
-      const result = await service.getById(row.id as string)
+      const result = await service.getById(row.id)
       expect(result.id).toBe(row.id)
       expect(result.sourceText).toBe('Hello')
       expect(result.targetText).toBe('Bonjour')
@@ -195,7 +198,7 @@ describe('TranslateHistoryService', () => {
       })
 
       const dto: UpdateTranslateHistoryDto = { star: true }
-      const result = await service.update(row.id as string, dto)
+      const result = await service.update(row.id, dto)
       expect(result.star).toBe(true)
     })
 
@@ -209,7 +212,7 @@ describe('TranslateHistoryService', () => {
         })
       })
 
-      const result = await service.update(row.id as string, {})
+      const result = await service.update(row.id, {})
       expect(result.id).toBe(row.id)
       expect(mockUpdate).not.toHaveBeenCalled()
     })
@@ -229,7 +232,7 @@ describe('TranslateHistoryService', () => {
         where: vi.fn().mockResolvedValue(undefined)
       })
 
-      await expect(service.delete(row.id as string)).resolves.toBeUndefined()
+      await expect(service.delete(row.id)).resolves.toBeUndefined()
     })
 
     it('should throw NotFound for non-existent id', async () => {

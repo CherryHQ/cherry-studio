@@ -62,7 +62,7 @@ const McpServerCard: FC<McpServerCardProps> = ({
       }
 
       const onClickDetails = () => {
-        GeneralPopup.show({ content: <ErrorDetails /> })
+        void GeneralPopup.show({ content: <ErrorDetails /> })
       }
       return (
         <Alert

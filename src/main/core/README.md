@@ -24,7 +24,7 @@ Core services are things the app needs to function as an Electron application â€
 
 ## Current modules
 
-| Module | Description |
-|--------|-------------|
-| `application/` | Application singleton, service registry, bootstrap orchestration |
-| `lifecycle/` | IoC container, service lifecycle management, phased bootstrap |
+| Module | Description | Reference Docs |
+|--------|-------------|----------------|
+| `application/` | Application singleton, service registry, bootstrap orchestration | [Lifecycle Reference](../../../docs/en/references/lifecycle/README.md) |
+| `lifecycle/` | IoC container, service lifecycle management, phased bootstrap | [Lifecycle Reference](../../../docs/en/references/lifecycle/README.md) |

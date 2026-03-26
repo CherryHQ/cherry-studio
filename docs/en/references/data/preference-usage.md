@@ -82,7 +82,7 @@ const handleApiKeyChange = async (newKey: string) => {
 
 For non-React code or batch operations.
 
-### Get Preferences
+### Renderer Process
 
 ```typescript
 import { preferenceService } from '@data/PreferenceService'
@@ -129,6 +129,27 @@ const unsubscribe = preferenceService.subscribe('app.theme.mode', (newValue) => 
 // Cleanup when done
 unsubscribe()
 ```
+
+### Main Process
+
+In the main process, PreferenceService is lifecycle-managed. Access it via `application.get()`:
+
+```typescript
+import { application } from '@main/core/application'
+
+const preferenceService = application.get('PreferenceService')
+
+// Get/set preferences
+const theme = preferenceService.get('app.theme.mode')
+preferenceService.set('app.theme.mode', 'dark')
+
+// Subscribe to changes
+const unsubscribe = preferenceService.subscribeChange('app.theme.mode', (newValue) => {
+  console.log('Theme changed to:', newValue)
+})
+```
+
+> **Note:** Do NOT import PreferenceService directly in main process code. The renderer `@data/PreferenceService` is a separate singleton for the renderer process only.
 
 ## Common Patterns
 

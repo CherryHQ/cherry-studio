@@ -1,5 +1,5 @@
-import { preferenceService } from '@data/PreferenceService'
 import { loggerService } from '@logger'
+import { application } from '@main/core/application'
 import { DataApiErrorFactory } from '@shared/data/api'
 import type {
   FileProcessorFeature,
@@ -113,7 +113,7 @@ export class FileProcessingService {
       [id]: mergeProcessorOverrides(overrides[id], updates)
     }
 
-    await preferenceService.set('feature.file_processing.overrides', nextOverrides)
+    await application.get('PreferenceService').set('feature.file_processing.overrides', nextOverrides)
 
     logger.info('Updated file processor overrides', {
       processorId: id,
@@ -125,7 +125,7 @@ export class FileProcessingService {
   }
 
   private getOverrides(): FileProcessorOverrides {
-    return preferenceService.get('feature.file_processing.overrides') ?? {}
+    return application.get('PreferenceService').get('feature.file_processing.overrides') ?? {}
   }
 
   private getPresetById(processorId: FileProcessorId) {
