@@ -4,6 +4,7 @@ import { EditIcon } from '@renderer/components/Icons'
 import Scrollbar from '@renderer/components/Scrollbar'
 import { useMCPServers } from '@renderer/hooks/useMCPServers'
 import { matchKeywordsInString } from '@renderer/utils/match'
+import type { CreateMCPServerDto } from '@shared/data/api/schemas/mcpServers'
 import type { MCPServer } from '@shared/data/types/mcpServer'
 import { useNavigate } from '@tanstack/react-router'
 import { Button, Dropdown, Empty } from 'antd'
@@ -89,8 +90,8 @@ const McpServersList: FC = () => {
   }, [addMCPServer, navigate, t])
 
   const handleAddServerSuccess = useCallback(
-    async (server: MCPServer): Promise<MCPServer> => {
-      const created = await addMCPServer(server)
+    async (dto: CreateMCPServerDto): Promise<MCPServer> => {
+      const created = await addMCPServer(dto)
       setIsAddModalVisible(false)
       window.toast.success(t('settings.mcp.addSuccess'))
       return created

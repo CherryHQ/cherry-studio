@@ -10,6 +10,7 @@ import type { MCPServer } from '@renderer/types'
 import { objectKeys, safeValidateMcpConfig } from '@renderer/types'
 import { parseJSON } from '@renderer/utils'
 import { formatZodError } from '@renderer/utils/error'
+import type { CreateMCPServerDto } from '@shared/data/api/schemas/mcpServers'
 import { Form, Modal, Upload } from 'antd'
 import type { FC } from 'react'
 import { useCallback, useEffect, useState } from 'react'
@@ -20,7 +21,7 @@ const logger = loggerService.withContext('AddMcpServerModal')
 interface AddMcpServerModalProps {
   visible: boolean
   onClose: () => void
-  onSuccess: (server: MCPServer) => Promise<MCPServer>
+  onSuccess: (server: CreateMCPServerDto) => Promise<MCPServer>
   existingServers: MCPServer[]
   initialImportMethod?: 'json' | 'dxt'
 }
@@ -199,7 +200,7 @@ const AddMcpServerModal: FC<AddMcpServerModalProps> = ({
             trustedAt: installTimestamp
           }
 
-          const createdServer = await onSuccess(serverDto as MCPServer)
+          const createdServer = await onSuccess(serverDto)
           form.resetFields()
           setDxtFile(null)
           onClose()
