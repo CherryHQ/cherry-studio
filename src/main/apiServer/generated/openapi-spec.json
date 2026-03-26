@@ -648,6 +648,14 @@
           },
           "model": {
             "type": "object",
+            "properties": {
+              "id": {
+                "type": "string"
+              },
+              "provider": {
+                "type": "string"
+              }
+            },
             "description": "Embedding model configuration"
           },
           "dimensions": {
@@ -666,9 +674,44 @@
             "type": "integer",
             "description": "Number of documents"
           },
-          "itemCount": {
+          "version": {
             "type": "integer",
-            "description": "Number of items (chunks)"
+            "description": "Schema version"
+          },
+          "threshold": {
+            "type": "number",
+            "description": "Similarity threshold"
+          },
+          "rerankModel": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string"
+              },
+              "provider": {
+                "type": "string"
+              }
+            },
+            "description": "Rerank model configuration"
+          },
+          "preprocessProvider": {
+            "type": "object",
+            "properties": {
+              "type": {
+                "type": "string"
+              },
+              "provider": {
+                "type": "string"
+              }
+            },
+            "description": "Preprocess provider configuration"
+          },
+          "items": {
+            "type": "array",
+            "items": {
+              "type": "object"
+            },
+            "description": "Knowledge items"
           },
           "created_at": {
             "type": "number",
@@ -777,6 +820,13 @@
               }
             },
             "description": "Knowledge bases that were searched"
+          },
+          "warnings": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Warning messages for partial search failures"
           }
         }
       }
@@ -2394,8 +2444,18 @@
               }
             }
           },
-          "404": {
-            "description": "Knowledge base not found",
+          "502": {
+            "description": "All knowledge base searches failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Service unavailable (Redux store not accessible)",
             "content": {
               "application/json": {
                 "schema": {

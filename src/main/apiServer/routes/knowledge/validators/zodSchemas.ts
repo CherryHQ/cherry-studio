@@ -11,7 +11,7 @@ export const KnowledgeBaseIdSchema = z.string().min(1, 'Knowledge base ID is req
 export const KnowledgeSearchSchema = z.object({
   query: z.string().min(1, 'Query is required').max(1000, 'Query must be at most 1000 characters'),
   knowledge_base_ids: z.array(z.string().min(1, 'Knowledge base ID cannot be empty')).optional(),
-  document_count: z.coerce.number().int().min(1).max(20).default(5).optional()
+  document_count: z.coerce.number().int().min(1).max(20).default(5)
 })
 
 /**
