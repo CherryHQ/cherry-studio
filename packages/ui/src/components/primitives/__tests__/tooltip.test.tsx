@@ -170,61 +170,15 @@ describe('Tooltip', () => {
     })
   })
 
-  describe('closeDelay', () => {
-    beforeEach(() => {
-      vi.useFakeTimers()
-    })
-
-    afterEach(() => {
-      vi.useRealTimers()
-    })
-
-    it('delays onOpenChange(false) by closeDelay ms when tooltip closes', () => {
-      const handleOpenChange = vi.fn()
-      render(
-        <Tooltip content="tip" closeDelay={100} onOpenChange={handleOpenChange}>
+  describe('closeDelay (ignored, kept for API compat)', () => {
+    it('accepts closeDelay prop without errors', () => {
+      const { container } = render(
+        <Tooltip content="tip" closeDelay={0}>
           <button type="button">Trigger</button>
         </Tooltip>
       )
-
-      const trigger = screen.getByText('Trigger').closest('[data-state]')!
-
-      // Focus to open → Radix calls onOpenChange(true)
-      fireEvent.focus(trigger)
-      // Blur to close → closeDelay should intercept
-      fireEvent.blur(trigger)
-
-      // onOpenChange(false) should NOT fire immediately
-      expect(handleOpenChange).not.toHaveBeenCalledWith(false)
-
-      // After the delay, it should fire
-      vi.advanceTimersByTime(100)
-      expect(handleOpenChange).toHaveBeenCalledWith(false)
-    })
-
-    it('cancels pending close when trigger re-focused before closeDelay expires', () => {
-      const handleOpenChange = vi.fn()
-      render(
-        <Tooltip content="tip" closeDelay={100} onOpenChange={handleOpenChange}>
-          <button type="button">Trigger</button>
-        </Tooltip>
-      )
-
-      const trigger = screen.getByText('Trigger').closest('[data-state]')!
-
-      // Focus → open, Blur → starts close timer
-      fireEvent.focus(trigger)
-      fireEvent.blur(trigger)
-
-      // Re-focus before 100ms → should cancel the close timer
-      vi.advanceTimersByTime(50)
-      fireEvent.focus(trigger)
-
-      // Exhaust all remaining timers
-      vi.advanceTimersByTime(200)
-
-      // onOpenChange(false) should never have been called
-      expect(handleOpenChange).not.toHaveBeenCalledWith(false)
+      const trigger = container.querySelector('[data-state]')
+      expect(trigger).toBeInTheDocument()
     })
   })
 })

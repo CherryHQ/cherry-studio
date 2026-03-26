@@ -100,7 +100,6 @@ export const Tooltip = ({
   title,
   placement,
   delay = 0,
-  closeDelay,
   showArrow = true,
   classNames,
   className,
@@ -109,14 +108,6 @@ export const Tooltip = ({
   onOpenChange,
   onClick
 }: TooltipProps) => {
-  const closeTimerRef = React.useRef<ReturnType<typeof setTimeout>>(null)
-
-  React.useEffect(() => {
-    return () => {
-      if (closeTimerRef.current) clearTimeout(closeTimerRef.current)
-    }
-  }, [])
-
   const tooltipContent = content ?? title
   if (!tooltipContent || isDisabled) {
     return (
@@ -132,18 +123,6 @@ export const Tooltip = ({
   if (isOpen != null) {
     controlledProps.open = isOpen
     controlledProps.onOpenChange = onOpenChange
-  } else if (closeDelay != null && closeDelay > 0) {
-    controlledProps.onOpenChange = (nextOpen: boolean) => {
-      if (closeTimerRef.current) {
-        clearTimeout(closeTimerRef.current)
-        closeTimerRef.current = null
-      }
-      if (nextOpen) {
-        onOpenChange?.(true)
-      } else {
-        closeTimerRef.current = setTimeout(() => onOpenChange?.(false), closeDelay)
-      }
-    }
   } else if (onOpenChange) {
     controlledProps.onOpenChange = onOpenChange
   }
