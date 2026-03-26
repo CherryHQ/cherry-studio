@@ -230,17 +230,17 @@ export const AppShellTabBar = ({
     return { homeTab: home, pinnedTabs: pinned, normalTabs: normal }
   }, [tabs])
 
-  // 拖拽渲染状态
+  // Drag render state
   const [dragState, setDragState] = useState<{
     tabId: string
     mode: DragMode
     insertIndex: number
   } | null>(null)
 
-  // 防止 reorder 后动画闪烁（禁用一帧 transition）
+  // Prevent animation flicker after reorder (disable transition for one frame)
   const [settling, setSettling] = useState(false)
 
-  // 高频变化数据（不触发渲染）
+  // High-frequency data (does not trigger re-render)
   const dragRef = useRef({
     pointerId: 0,
     startX: 0,
@@ -254,14 +254,14 @@ export const AppShellTabBar = ({
     grabOffsetY: 0
   })
 
-  // 防止拖拽结束后触发 onClick
+  // Prevent onClick from firing after drag ends
   const didDragRef = useRef(false)
 
   const tabBarRef = useRef<HTMLDivElement>(null)
   const tabRefs = useRef<Map<string, HTMLButtonElement>>(new Map())
   const rafId = useRef<number | null>(null)
 
-  // settling 恢复
+  // settling recovery
   useEffect(() => {
     if (settling) {
       const id = requestAnimationFrame(() => setSettling(false))
@@ -270,7 +270,7 @@ export const AppShellTabBar = ({
     return undefined
   }, [settling])
 
-  // 用原始位置计算插入索引（跳过被拖拽的 tab）
+  // Calculate insert index using original positions (skip the dragged tab)
   const calculateInsertIndex = useCallback(
     (clientX: number, dragTabId: string): number => {
       const list = dragRef.current.tabType === 'pinned' ? pinnedTabs : normalTabs
@@ -289,7 +289,7 @@ export const AppShellTabBar = ({
     [normalTabs, pinnedTabs]
   )
 
-  // 计算每个 tab 的 translateX
+  // Calculate translateX for each tab
   const getTranslateX = useCallback(
     (tabId: string, tabType: 'pinned' | 'normal'): number => {
       if (!dragState || dragState.mode !== 'reorder' || dragRef.current.tabType !== tabType) return 0
@@ -334,7 +334,7 @@ export const AppShellTabBar = ({
       const list = tabType === 'pinned' ? pinnedTabs : normalTabs
       const index = list.findIndex((t) => t.id === tab.id)
 
-      // 存储所有 tab 的原始位置
+      // Store original positions of all tabs
       const originalRects = new Map<string, { left: number; width: number }>()
       for (const t of list) {
         const el = tabRefs.current.get(t.id)
@@ -368,7 +368,7 @@ export const AppShellTabBar = ({
     [pinnedTabs, normalTabs]
   )
 
-  // onClick 防抖：拖拽结束后不触发选中
+  // onClick debounce: prevent selection after drag ends
   const handleTabClick = useCallback(
     (tabId: string) => {
       if (didDragRef.current) {
@@ -380,7 +380,7 @@ export const AppShellTabBar = ({
     [setActiveTab]
   )
 
-  // document 级别的 pointermove / pointerup
+  // Document-level pointermove / pointerup
   useEffect(() => {
     if (!dragState) return
 
@@ -391,13 +391,13 @@ export const AppShellTabBar = ({
       const deltaX = e.clientX - dragRef.current.startX
       const deltaY = e.clientY - dragRef.current.startY
 
-      // 分离窗口：拖 tab = 拖整个窗口
+      // Detached window: dragging tab = dragging the entire window
       if (isDetached) {
         const pastThreshold = Math.abs(deltaX) > DRAG_THRESHOLD || Math.abs(deltaY) > DRAG_THRESHOLD
         if (dragState.mode === 'pending' && pastThreshold) {
           setDragState((prev) => (prev ? { ...prev, mode: 'detach' } : null))
         }
-        // 用 pastThreshold 兜底，避免闭包中 mode 仍为 pending 导致首帧丢失
+        // Use pastThreshold as fallback to avoid losing the first frame due to mode still being pending in closure
         if (dragState.mode === 'detach' || pastThreshold) {
           if (rafId.current === null) {
             rafId.current = requestAnimationFrame(() => {
@@ -413,7 +413,7 @@ export const AppShellTabBar = ({
         return
       }
 
-      // 主窗口逻辑
+      // Main window logic
       const tabBarRect = tabBarRef.current?.getBoundingClientRect()
       if (!tabBarRect) return
 
@@ -440,7 +440,7 @@ export const AppShellTabBar = ({
         }
       }
 
-      // 分离模式：创建/移动窗口
+      // Detach mode: create/move window
       if (dragState.mode === 'detach' || (isOutsideTabBar && Math.abs(deltaY) > DETACH_THRESHOLD)) {
         if (!dragRef.current.detachedCreated) {
           const allTabs = [...pinnedTabs, ...normalTabs]
@@ -457,9 +457,9 @@ export const AppShellTabBar = ({
             didDragRef.current = true
           }
         } else if (!dragRef.current.tabClosed) {
-          // tab 已被 closeTab 卸载，仅在未关闭时更新排序等状态
+          // Tab has been unmounted by closeTab, only update reorder state when not closed
         } else {
-          // tab 已关闭，只需移动新窗口
+          // Tab has been closed, only need to move the new window
           if (rafId.current === null) {
             rafId.current = requestAnimationFrame(() => {
               window.electron.ipcRenderer.send(IpcChannel.Tab_MoveWindow, {
@@ -482,11 +482,11 @@ export const AppShellTabBar = ({
         try {
           el.releasePointerCapture(dragRef.current.pointerId)
         } catch {
-          // 元素可能已卸载
+          // Element may have been unmounted
         }
       }
 
-      // 分离窗口：松手时尝试附回主窗口
+      // Detached window: try to attach back to main window on pointer up
       if (isDetached && dragState.mode === 'detach') {
         didDragRef.current = true
         const allTabs = [...pinnedTabs, ...normalTabs]
@@ -499,7 +499,7 @@ export const AppShellTabBar = ({
               screenY: e.screenY
             })
             .catch(() => {
-              // 主窗口不可用，窗口保持分离状态
+              // Main window not available, window stays detached
             })
         }
         setDragState(null)

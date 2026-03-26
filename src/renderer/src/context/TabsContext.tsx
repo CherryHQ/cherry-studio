@@ -69,14 +69,14 @@ export interface TabsContextValue {
 const TabsContext = createContext<TabsContextValue | null>(null)
 
 export function TabsProvider({ children }: { children: ReactNode }) {
-  // Pinned tabs - 持久化存储
+  // Pinned tabs - persistent storage
   const [pinnedTabs, setPinnedTabsRaw] = usePersistCache('ui.tab.pinned_tabs')
 
-  // 使用 ref 来保持对最新 pinnedTabs 的引用，避免闭包问题
+  // Use ref to keep a reference to the latest pinnedTabs, avoiding closure issues
   const pinnedTabsRef = useRef(pinnedTabs)
   pinnedTabsRef.current = pinnedTabs
 
-  // 包装 setter 以支持函数式更新
+  // Wrap setter to support functional updates
   const setPinnedTabs = useCallback(
     (updater: Tab[] | ((prev: Tab[]) => Tab[])) => {
       if (typeof updater === 'function') {
@@ -89,26 +89,26 @@ export function TabsProvider({ children }: { children: ReactNode }) {
     [setPinnedTabsRaw]
   )
 
-  // Normal tabs - 内存存储（重启后清空），不包含 home tab
+  // Normal tabs - in-memory storage (cleared on restart), excludes home tab
   const [normalTabs, setNormalTabs] = useState<Tab[]>([])
 
-  // Active tab ID - 内存存储
+  // Active tab ID - in-memory storage
   const [activeTabId, setActiveTabIdState] = useState<string>(DEFAULT_TAB.id)
 
-  // LRU 管理器（单例）
+  // LRU manager (singleton)
   const lruManagerRef = useRef<TabLRUManager | null>(null)
   if (!lruManagerRef.current) {
     lruManagerRef.current = new TabLRUManager()
   }
 
-  // 合并 tabs: home + pinned + normal
+  // Merge tabs: home + pinned + normal
   const tabs = useMemo(() => {
     return [DEFAULT_TAB, ...(pinnedTabs || []), ...normalTabs]
   }, [pinnedTabs, normalTabs])
 
   /**
-   * 内部方法：执行休眠检查并休眠超额标签
-   * TODO: 暂时注释掉，等待 LRU 策略确定（只针对 normalTabs 还是全体 tabs）
+   * Internal method: perform hibernation check and hibernate excess tabs
+   * TODO: Temporarily commented out, waiting for LRU strategy to be finalized (targeting normalTabs only or all tabs)
    */
   // const performHibernationCheck = useCallback((currentTabs: Tab[], newActiveTabId: string) => {
   //   const toHibernate = lruManagerRef.current?.checkAndGetDormantCandidates(currentTabs, newActiveTabId) || []
@@ -117,7 +117,7 @@ export function TabsProvider({ children }: { children: ReactNode }) {
   //     return currentTabs
   //   }
 
-  //   // 批量休眠
+  //   // Batch hibernate
   //   return currentTabs.map((tab) => {
   //     if (toHibernate.includes(tab.id)) {
   //       logger.info('Tab hibernated', { tabId: tab.id, route: tab.url })
@@ -129,7 +129,7 @@ export function TabsProvider({ children }: { children: ReactNode }) {
   // }, [])
 
   /**
-   * 休眠标签（手动）
+   * Hibernate tab (manual)
    */
   const hibernateTab = useCallback(
     (tabId: string) => {
@@ -149,7 +149,7 @@ export function TabsProvider({ children }: { children: ReactNode }) {
   )
 
   /**
-   * 唤醒标签
+   * Wake up tab
    */
   const wakeTab = useCallback(
     (tabId: string) => {
@@ -192,12 +192,12 @@ export function TabsProvider({ children }: { children: ReactNode }) {
       const targetTab = tabs.find((t) => t.id === id)
       if (!targetTab) return
 
-      // 如果唤醒了休眠标签，记录日志
+      // If a dormant tab was awakened, log it
       if (targetTab.isDormant) {
         logger.info('Tab awakened', { tabId: id, route: targetTab.url })
       }
 
-      // 更新 lastAccessTime 和唤醒状态
+      // Update lastAccessTime and wake state
       if (targetTab.isPinned) {
         setPinnedTabs((prev) =>
           prev.map((t) => (t.id === id ? { ...t, lastAccessTime: Date.now(), isDormant: false } : t))
@@ -243,7 +243,7 @@ export function TabsProvider({ children }: { children: ReactNode }) {
       const tab = tabs.find((t) => t.id === id)
       if (!tab) return
 
-      // 计算新的 activeTabId
+      // Calculate new activeTabId
       let newActiveId = activeTabId
       if (activeTabId === id) {
         const index = tabs.findIndex((t) => t.id === id)
@@ -312,9 +312,9 @@ export function TabsProvider({ children }: { children: ReactNode }) {
       const tab = tabs.find((t) => t.id === id)
       if (!tab || tab.isPinned) return
 
-      // 从 normalTabs 移除
+      // Remove from normalTabs
       setNormalTabs((prev) => prev.filter((t) => t.id !== id))
-      // 添加到 pinnedTabs
+      // Add to pinnedTabs
       setPinnedTabs((prev) => [...prev, { ...tab, isPinned: true }])
 
       logger.info('Tab pinned', { tabId: id })
@@ -330,9 +330,9 @@ export function TabsProvider({ children }: { children: ReactNode }) {
       const tab = tabs.find((t) => t.id === id)
       if (!tab || !tab.isPinned) return
 
-      // 从 pinnedTabs 移除
+      // Remove from pinnedTabs
       setPinnedTabs((prev) => prev.filter((t) => t.id !== id))
-      // 添加到 normalTabs
+      // Add to normalTabs
       setNormalTabs((prev) => [...prev, { ...tab, isPinned: false }])
 
       logger.info('Tab unpinned', { tabId: id })

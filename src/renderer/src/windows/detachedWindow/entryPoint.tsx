@@ -25,7 +25,7 @@ loggerService.initWindowSource('DetachedTab')
 
 preferenceService.preloadAll()
 
-// 创建 React Query 客户端
+// Create React Query client
 const queryClient = new QueryClient({
   defaultOptions: {
     queries: {

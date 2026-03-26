@@ -28,7 +28,7 @@ export const AppShell = () => {
 
   return (
     <div className="flex h-screen w-screen flex-col overflow-hidden bg-sidebar text-foreground">
-      {/* Zone 1: Tab Bar (横跨整个宽度) */}
+      {/* Zone 1: Tab Bar (spans full width) */}
       <AppShellTabBar
         tabs={tabs}
         activeTabId={activeTabId}

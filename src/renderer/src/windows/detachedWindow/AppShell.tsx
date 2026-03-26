@@ -40,14 +40,14 @@ export const DetachedAppShell = () => {
     const isPinned = searchParams.get('isPinned') === 'true'
 
     if (url && tabId) {
-      // 如果是 Pinned Tab，它应该已经通过 usePersistCache 自动加载了
-      // 但我们需要确保它被选中
+      // If it's a Pinned Tab, it should already be loaded via usePersistCache
+      // But we need to make sure it's selected
       if (isPinned) {
-        // 等待 storage 同步可能需要一点时间，或者它已经存在
-        // 我们尝试选中它
+        // Storage sync may take a moment, or it already exists
+        // We try to select it
         setActiveTab(tabId)
       } else {
-        // 如果是 Normal Tab，我们需要手动添加它
+        // If it's a Normal Tab, we need to manually add it
         openTab(url, {
           id: tabId,
           title: title || undefined,
@@ -62,18 +62,18 @@ export const DetachedAppShell = () => {
   const handleCloseTab = (id: string) => {
     const tab = tabs.find((t) => t.id === id)
     if (tab?.isPinned) {
-      // 取消固定 (会从 persistent storage 移除)
+      // Unpin (will be removed from persistent storage)
       unpinTab(id)
-      // 注意：unpinTab 后它会变成 normal tab 留在列表中
-      // 我们需要确保它被关闭
-      // 由于 state update 是异步的，这里可能需要一种方式确保后续关闭
-      // 但在当前 Context 实现中，unpinTab 只是修改了 lists
-      // 我们可以紧接着调用 closeTab，因为 id 没变
+      // Note: after unpinTab it becomes a normal tab and stays in the list
+      // We need to make sure it gets closed
+      // Since state updates are async, we may need a way to ensure subsequent closing
+      // But in the current Context implementation, unpinTab only modifies the lists
+      // We can call closeTab right after since the id hasn't changed
     }
     closeTab(id)
 
-    // 如果关闭了最后一个 tab，应该关闭窗口
-    // 这通常由 Main Process 监听窗口内 Tab 数量变化，或者 Renderer 发送指令
+    // If the last tab was closed, the window should close
+    // This is typically handled by Main Process listening to tab count changes, or Renderer sends a command
     if (tabs.length <= 1) {
       // TODO: IPC call to close window
       // window.electron.ipcRenderer.send('window:close')
