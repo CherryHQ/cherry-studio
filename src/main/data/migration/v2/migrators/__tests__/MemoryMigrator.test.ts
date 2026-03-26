@@ -133,7 +133,6 @@ describe('MemoryMigrator', () => {
   describe('prepare', () => {
     it('should skip when legacy db not found', async () => {
       mockDbExists(false)
-      const ctx = createMockContext()
       const result = await migrator.prepare()
       expect(result.success).toBe(true)
       expect(result.itemCount).toBe(0)
@@ -151,7 +150,6 @@ describe('MemoryMigrator', () => {
         { rows: [{ count: 1 }] } // COUNT(*) from memory_history
       ])
 
-      const ctx = createMockContext()
       const result = await migrator.prepare()
       expect(result.success).toBe(true)
       expect(result.itemCount).toBe(3)
@@ -166,7 +164,6 @@ describe('MemoryMigrator', () => {
         { rows: [{ count: 3 }] } // COUNT memory_history
       ])
 
-      const ctx = createMockContext()
       const result = await migrator.prepare()
       expect(result.success).toBe(true)
       expect(result.itemCount).toBe(3)
@@ -181,7 +178,6 @@ describe('MemoryMigrator', () => {
         { rows: [{ count: 5 }] } // COUNT memories
       ])
 
-      const ctx = createMockContext()
       const result = await migrator.prepare()
       expect(result.success).toBe(true)
       expect(result.itemCount).toBe(5)
@@ -192,7 +188,6 @@ describe('MemoryMigrator', () => {
       mockDbExists(true)
       mockExecute.mockRejectedValue(new Error('SQLITE_CORRUPT'))
 
-      const ctx = createMockContext()
       const result = await migrator.prepare()
       expect(result.success).toBe(false)
       expect(result.warnings).toContainEqual(expect.stringContaining('SQLITE_CORRUPT'))
