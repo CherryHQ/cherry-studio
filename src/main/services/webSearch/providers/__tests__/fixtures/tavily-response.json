@@ -1,0 +1,12 @@
+{
+  "query": "hello",
+  "request_id": "req_tavily_123",
+  "response_time": 0.42,
+  "results": [
+    {
+      "title": "Tavily Title",
+      "content": "Tavily Content",
+      "url": "https://tavily.example/result"
+    }
+  ]
+}

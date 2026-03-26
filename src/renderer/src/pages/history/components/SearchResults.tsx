@@ -277,7 +277,7 @@ const SearchResults: FC<Props> = ({ keywords, onMessageClick, onTopicClick, ...p
   }
 
   useEffect(() => {
-    onSearch()
+    void onSearch()
   }, [onSearch])
 
   useEffect(() => {

@@ -47,7 +47,7 @@ vi.mock('@renderer/utils/messageUtils/find', () => ({
   findMainTextBlocks: (message: Message) => (message as MockableMessage).__mockMainTextBlocks ?? []
 }))
 
-import { convertMessagesToSdkMessages, convertMessageToSdkParam } from '../messageConverter'
+import { convertMessagesToSdkMessages, convertMessageToSdkParam, stripMarkdownBase64Images } from '../messageConverter'
 
 let messageCounter = 0
 let blockCounter = 0
@@ -664,6 +664,55 @@ describe('messageConverter', () => {
       ])
     })
 
+    it('strips inline base64 data URIs from assistant text to prevent HTTP 413 (#12602)', async () => {
+      const model = createModel({ id: 'gpt-4o-mini' })
+      const user1 = createMessage('user')
+      user1.__mockContent = 'Generate an image of a cat'
+
+      const assistant = createMessage('assistant')
+      assistant.__mockContent =
+        'Here is the image you requested:\n![cat](data:image/jpeg;base64,/9j/4AAQSkZJRgABAQAA...VeryLongBase64String)\nHope you like it!'
+
+      const user2 = createMessage('user')
+      user2.__mockContent = 'Now describe what you see'
+
+      const result = await convertMessagesToSdkMessages([user1, assistant, user2], model)
+
+      const assistantMsg = result.find((m) => m.role === 'assistant')!
+      const textPart = (assistantMsg.content as Array<{ type: string; text: string }>).find((p) => p.type === 'text')!
+      // The base64 data URI should be replaced with a placeholder
+      expect(textPart.text).not.toContain('data:image/')
+      expect(textPart.text).toContain('![cat](image)')
+      expect(textPart.text).toContain('Hope you like it!')
+    })
+
+    it('strips multiple inline base64 images from assistant text', async () => {
+      const model = createModel({ id: 'gpt-4o-mini' })
+      const user = createMessage('user')
+      user.__mockContent = 'Generate two images'
+
+      const assistant = createMessage('assistant')
+      assistant.__mockContent = '![first](data:image/png;base64,AAABBB) and ![second](data:image/jpeg;base64,CCCDDD)'
+
+      const result = await convertMessageToSdkParam(assistant, false, model)
+      const textPart = ((result as any).content as Array<{ type: string; text: string }>).find(
+        (p) => p.type === 'text'
+      )!
+      expect(textPart.text).toBe('![first](image) and ![second](image)')
+    })
+
+    it('preserves regular markdown images (non-base64) in assistant text', async () => {
+      const model = createModel({ id: 'gpt-4o-mini' })
+      const assistant = createMessage('assistant')
+      assistant.__mockContent = 'Check this out: ![photo](https://example.com/photo.png)'
+
+      const result = await convertMessageToSdkParam(assistant, false, model)
+      const textPart = ((result as any).content as Array<{ type: string; text: string }>).find(
+        (p) => p.type === 'text'
+      )!
+      expect(textPart.text).toBe('Check this out: ![photo](https://example.com/photo.png)')
+    })
+
     it('allows using LLM conversation context for image generation', async () => {
       // This test verifies the key use case: switching from LLM to image enhancement model
       // and using the previous conversation as context for image generation
@@ -720,6 +769,70 @@ describe('messageConverter', () => {
           content: [{ type: 'text', text: 'Now generate an image based on our discussion' }]
         }
       ])
+    })
+  })
+
+  describe('stripMarkdownBase64Images', () => {
+    it('replaces a single base64 image with placeholder', () => {
+      const input = 'Here is the image:\n![cat](data:image/jpeg;base64,/9j/4AAQ)\nDone.'
+      expect(stripMarkdownBase64Images(input)).toBe('Here is the image:\n![cat](image)\nDone.')
+    })
+
+    it('replaces multiple base64 images', () => {
+      const input = '![a](data:image/png;base64,AAA) text ![b](data:image/jpeg;base64,BBB)'
+      expect(stripMarkdownBase64Images(input)).toBe('![a](image) text ![b](image)')
+    })
+
+    it('preserves regular markdown images with http URLs', () => {
+      const input = '![photo](https://example.com/photo.png)'
+      expect(stripMarkdownBase64Images(input)).toBe(input)
+    })
+
+    it('preserves file:// URLs in markdown images', () => {
+      const input = '![saved](file:///tmp/image.png)'
+      expect(stripMarkdownBase64Images(input)).toBe(input)
+    })
+
+    it('handles empty alt text', () => {
+      const input = '![](data:image/png;base64,AAABBB)'
+      expect(stripMarkdownBase64Images(input)).toBe('![](image)')
+    })
+
+    it('handles text with no markdown images', () => {
+      expect(stripMarkdownBase64Images('Just plain text.')).toBe('Just plain text.')
+    })
+
+    it('returns empty string for empty input', () => {
+      expect(stripMarkdownBase64Images('')).toBe('')
+    })
+
+    it('handles mixed base64 and regular images', () => {
+      const input =
+        '![a](https://example.com/a.png) then ![b](data:image/png;base64,XXX) then ![c](https://example.com/c.png)'
+      expect(stripMarkdownBase64Images(input)).toBe(
+        '![a](https://example.com/a.png) then ![b](image) then ![c](https://example.com/c.png)'
+      )
+    })
+
+    it('handles data URI without base64 encoding', () => {
+      const input = '![svg](data:image/svg+xml,%3Csvg%3E%3C/svg%3E)'
+      expect(stripMarkdownBase64Images(input)).toBe('![svg](image)')
+    })
+
+    it('does not treat bare ](data: without ![ as markdown image', () => {
+      const input = 'some text ](data:image/png;base64,AAA) more text'
+      expect(stripMarkdownBase64Images(input)).toBe(input)
+    })
+
+    it('handles large base64 payload without OOM', () => {
+      const largeBase64 = 'A'.repeat(5_000_000)
+      const input = `![big](data:image/png;base64,${largeBase64})`
+      expect(stripMarkdownBase64Images(input)).toBe('![big](image)')
+    })
+
+    it('handles unclosed parenthesis gracefully', () => {
+      const input = '![broken](data:image/png;base64,AAA'
+      expect(stripMarkdownBase64Images(input)).toBe(input)
     })
   })
 })

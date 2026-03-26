@@ -1741,7 +1741,7 @@ class FileStorage {
     try {
       if (!this.watcherSender || this.watcherSender.isDestroyed()) {
         logger.warn('Sender destroyed, stopping watcher')
-        this.stopFileWatcher()
+        void this.stopFileWatcher()
         return
       }
 

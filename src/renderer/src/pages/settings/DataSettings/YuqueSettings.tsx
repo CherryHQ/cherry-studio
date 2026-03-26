@@ -20,11 +20,11 @@ const YuqueSettings: FC = () => {
   const [, setYuqueRepoId] = usePreference('data.integration.yuque.repo_id')
 
   const handleYuqueTokenChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    setYuqueToken(e.target.value)
+    void setYuqueToken(e.target.value)
   }
 
   const handleYuqueRepoUrlChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    setYuqueUrl(e.target.value)
+    void setYuqueUrl(e.target.value)
   }
 
   const handleYuqueConnectionCheck = async () => {
@@ -58,7 +58,7 @@ const YuqueSettings: FC = () => {
       return
     }
     const data = await repoIDResponse.json()
-    setYuqueRepoId(data.data.id)
+    void setYuqueRepoId(data.data.id)
     window.toast.success(t('settings.data.yuque.check.success'))
   }
 

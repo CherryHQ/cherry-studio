@@ -3,9 +3,9 @@ import { arch } from 'node:os'
 import path from 'node:path'
 
 import type { TokenUsageData } from '@cherrystudio/analytics-client'
-import { PreferenceService, preferenceService } from '@data/PreferenceService'
 import { loggerService } from '@logger'
-import { isLinux, isMac, isPortable, isWin } from '@main/constant'
+import { isMac, isWin } from '@main/constant'
+import { application } from '@main/core/application'
 import { generateSignature } from '@main/integration/cherryai'
 import anthropicService from '@main/services/AnthropicService'
 import { getIpCountry } from '@main/utils/ipService'
@@ -47,7 +47,6 @@ import appService from './services/AppService'
 import AppUpdater from './services/AppUpdater'
 import BackupManager from './services/BackupManager'
 import CherryINOAuthService from './services/CherryINOAuthService'
-import { codeToolsService } from './services/CodeToolsService'
 import { ConfigKeys, configManager } from './services/ConfigManager'
 import CopilotService from './services/CopilotService'
 import DxtService from './services/DxtService'
@@ -209,12 +208,12 @@ export async function registerIpc(mainWindow: BrowserWindow, app: Electron.App) 
     windows.forEach((window) => {
       window.webContents.session.setSpellCheckerLanguages(languages)
     })
-    preferenceService.set('app.spell_check.languages', languages)
+    void application.get('PreferenceService').set('app.spell_check.languages', languages)
   })
 
   // launch on boot
-  ipcMain.handle(IpcChannel.App_SetLaunchOnBoot, (_, isLaunchOnBoot: boolean) => {
-    appService.setAppLaunchOnBoot(isLaunchOnBoot)
+  ipcMain.handle(IpcChannel.App_SetLaunchOnBoot, async (_, isLaunchOnBoot: boolean) => {
+    await appService.setAppLaunchOnBoot(isLaunchOnBoot)
   })
 
   // // launch to tray
@@ -240,14 +239,14 @@ export async function registerIpc(mainWindow: BrowserWindow, app: Electron.App) 
 
   ipcMain.handle(IpcChannel.App_SetTestPlan, async (_, isActive: boolean) => {
     logger.info(`set test plan: ${isActive}`)
-    if (isActive !== preferenceService.get('app.dist.test_plan.enabled')) {
+    if (isActive !== application.get('PreferenceService').get('app.dist.test_plan.enabled')) {
       appUpdater.cancelDownload()
     }
   })
 
   ipcMain.handle(IpcChannel.App_SetTestChannel, async (_, channel: UpgradeChannel) => {
     logger.info(`set test channel: ${channel}`)
-    if (channel !== preferenceService.get('app.dist.test_plan.channel')) {
+    if (channel !== application.get('PreferenceService').get('app.dist.test_plan.channel')) {
       appUpdater.cancelDownload()
     }
   })
@@ -322,7 +321,7 @@ export async function registerIpc(mainWindow: BrowserWindow, app: Electron.App) 
   ipcMain.handle(IpcChannel.App_HandleZoomFactor, (_, delta: number, reset: boolean = false) => {
     const windows = BrowserWindow.getAllWindows()
     handleZoomFactor(windows, delta, reset)
-    return preferenceService.get('app.zoom_factor')
+    return application.get('PreferenceService').get('app.zoom_factor')
   })
 
   // clear cache
@@ -371,7 +370,7 @@ export async function registerIpc(mainWindow: BrowserWindow, app: Electron.App) 
       if (!preventQuitListener) {
         preventQuitListener = (event: Electron.Event) => {
           event.preventDefault()
-          notificationService.sendNotification({
+          void notificationService.sendNotification({
             title: reason,
             message: reason
           } as Notification)
@@ -428,17 +427,16 @@ export async function registerIpc(mainWindow: BrowserWindow, app: Electron.App) 
       ?.split('--new-data-path=')[1]
   })
 
-  ipcMain.handle(IpcChannel.App_FlushAppData, () => {
-    BrowserWindow.getAllWindows().forEach((w) => {
+  ipcMain.handle(IpcChannel.App_FlushAppData, async () => {
+    for (const w of BrowserWindow.getAllWindows()) {
       w.webContents.session.flushStorageData()
-      w.webContents.session.cookies.flushStore()
-
-      w.webContents.session.closeAllConnections()
-    })
+      await w.webContents.session.cookies.flushStore()
+      await w.webContents.session.closeAllConnections()
+    }
 
     session.defaultSession.flushStorageData()
-    session.defaultSession.cookies.flushStore()
-    session.defaultSession.closeAllConnections()
+    await session.defaultSession.cookies.flushStore()
+    await session.defaultSession.closeAllConnections()
   })
 
   ipcMain.handle(IpcChannel.App_IsNotEmptyDir, async (_, path: string) => {
@@ -466,25 +464,7 @@ export async function registerIpc(mainWindow: BrowserWindow, app: Electron.App) 
 
   // Relaunch app
   ipcMain.handle(IpcChannel.App_RelaunchApp, (_, options?: Electron.RelaunchOptions) => {
-    // Fix for .AppImage
-    if (isLinux && process.env.APPIMAGE) {
-      logger.info(`Relaunching app with options: ${process.env.APPIMAGE}`, options)
-      // On Linux, we need to use the APPIMAGE environment variable to relaunch
-      // https://github.com/electron-userland/electron-builder/issues/1727#issuecomment-769896927
-      options = options || {}
-      options.execPath = process.env.APPIMAGE
-      options.args = options.args || []
-      options.args.unshift('--appimage-extract-and-run')
-    }
-
-    if (isWin && isPortable) {
-      options = options || {}
-      options.execPath = process.env.PORTABLE_EXECUTABLE_FILE
-      options.args = options.args || []
-    }
-
-    app.relaunch(options)
-    app.exit(0)
+    application.relaunch(options)
   })
 
   // Reset all data (factory reset)
@@ -537,7 +517,7 @@ export async function registerIpc(mainWindow: BrowserWindow, app: Electron.App) 
       return null
     }
 
-    const customPath = configManager.get(ConfigKeys.GitBashPath) as string | undefined
+    const customPath = configManager.get(ConfigKeys.GitBashPath)
     return customPath ?? null
   })
 
@@ -985,17 +965,28 @@ export async function registerIpc(mainWindow: BrowserWindow, app: Electron.App) 
   // ExternalApps
   ipcMain.handle(IpcChannel.ExternalApps_DetectInstalled, () => externalAppsService.detectInstalledApps())
 
-  // CodeTools
-  ipcMain.handle(IpcChannel.CodeTools_Run, codeToolsService.run)
-  ipcMain.handle(IpcChannel.CodeTools_GetAvailableTerminals, () => codeToolsService.getAvailableTerminalsForPlatform())
-  ipcMain.handle(IpcChannel.CodeTools_SetCustomTerminalPath, (_, terminalId: string, path: string) =>
-    codeToolsService.setCustomTerminalPath(terminalId, path)
+  // CodeCli
+  const codeCliService = application.get('CodeCliService')
+  ipcMain.handle(
+    IpcChannel.CodeCli_Run,
+    (
+      event,
+      cliTool: string,
+      model: string,
+      directory: string,
+      env: Record<string, string>,
+      options?: { autoUpdateToLatest?: boolean; terminal?: string }
+    ) => codeCliService.run(event, cliTool, model, directory, env, options)
   )
-  ipcMain.handle(IpcChannel.CodeTools_GetCustomTerminalPath, (_, terminalId: string) =>
-    codeToolsService.getCustomTerminalPath(terminalId)
+  ipcMain.handle(IpcChannel.CodeCli_GetAvailableTerminals, () => codeCliService.getAvailableTerminalsForPlatform())
+  ipcMain.handle(IpcChannel.CodeCli_SetCustomTerminalPath, (_, terminalId: string, path: string) =>
+    codeCliService.setCustomTerminalPath(terminalId, path)
   )
-  ipcMain.handle(IpcChannel.CodeTools_RemoveCustomTerminalPath, (_, terminalId: string) =>
-    codeToolsService.removeCustomTerminalPath(terminalId)
+  ipcMain.handle(IpcChannel.CodeCli_GetCustomTerminalPath, (_, terminalId: string) =>
+    codeCliService.getCustomTerminalPath(terminalId)
+  )
+  ipcMain.handle(IpcChannel.CodeCli_RemoveCustomTerminalPath, (_, terminalId: string) =>
+    codeCliService.removeCustomTerminalPath(terminalId)
   )
 
   // OCR
@@ -1147,7 +1138,7 @@ export async function registerIpc(mainWindow: BrowserWindow, app: Electron.App) 
   })
 
   // Preference handlers
-  PreferenceService.registerIpcHandler()
+  // PreferenceService IPC handlers are now registered via lifecycle onReady()
 
   // OpenClaw
   ipcMain.handle(IpcChannel.OpenClaw_CheckInstalled, openClawService.checkInstalled)

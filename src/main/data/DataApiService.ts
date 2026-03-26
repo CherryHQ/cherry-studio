@@ -24,6 +24,8 @@
  */
 
 import { loggerService } from '@logger'
+import { BaseService, DependsOn, Injectable, ServicePhase } from '@main/core/lifecycle'
+import { Phase } from '@main/core/lifecycle'
 
 import { ApiServer, IpcAdapter } from './api'
 import { apiHandlers } from './api/handlers'
@@ -34,37 +36,21 @@ const logger = loggerService.withContext('DataApiService')
  * Data API service for Electron environment
  * Coordinates the API server and IPC adapter
  */
-class DataApiService {
-  private static instance: DataApiService
-  private initialized = false
+@Injectable('DataApiService')
+@ServicePhase(Phase.BeforeReady)
+@DependsOn(['DbService'])
+export class DataApiService extends BaseService {
   private apiServer: ApiServer
   private ipcAdapter: IpcAdapter
 
-  private constructor() {
+  constructor() {
+    super()
     // Initialize ApiServer with handlers
     this.apiServer = ApiServer.initialize(apiHandlers)
     this.ipcAdapter = new IpcAdapter(this.apiServer)
   }
 
-  /**
-   * Get singleton instance
-   */
-  public static getInstance(): DataApiService {
-    if (!DataApiService.instance) {
-      DataApiService.instance = new DataApiService()
-    }
-    return DataApiService.instance
-  }
-
-  /**
-   * Initialize the Data API system
-   */
-  public async initialize(): Promise<void> {
-    if (this.initialized) {
-      logger.warn('DataApiService already initialized')
-      return
-    }
-
+  protected async onInit(): Promise<void> {
     try {
       logger.info('Initializing Data API system...')
 
@@ -74,13 +60,26 @@ class DataApiService {
       // Setup IPC handlers
       this.ipcAdapter.setupHandlers()
 
-      this.initialized = true
       logger.info('Data API system initialized successfully')
 
       // Log system info
       this.logSystemInfo()
     } catch (error) {
       logger.error('Failed to initialize Data API system', error as Error)
+      throw error
+    }
+  }
+
+  protected async onStop(): Promise<void> {
+    try {
+      logger.info('Shutting down Data API system...')
+
+      // Remove IPC handlers
+      this.ipcAdapter.removeHandlers()
+
+      logger.info('Data API system shutdown complete')
+    } catch (error) {
+      logger.error('Error during Data API shutdown', error as Error)
       throw error
     }
   }
@@ -103,7 +102,7 @@ class DataApiService {
    * Get system status and statistics
    */
   public getSystemStatus() {
-    if (!this.initialized) {
+    if (!this.isReady) {
       return {
         initialized: false,
         error: 'DataApiService not initialized'
@@ -125,29 +124,4 @@ class DataApiService {
   public getApiServer(): ApiServer {
     return this.apiServer
   }
-
-  /**
-   * Shutdown the Data API system
-   */
-  public async shutdown(): Promise<void> {
-    if (!this.initialized) {
-      return
-    }
-
-    try {
-      logger.info('Shutting down Data API system...')
-
-      // Remove IPC handlers
-      this.ipcAdapter.removeHandlers()
-
-      this.initialized = false
-      logger.info('Data API system shutdown complete')
-    } catch (error) {
-      logger.error('Error during Data API shutdown', error as Error)
-      throw error
-    }
-  }
 }
-
-// Export singleton instance
-export const dataApiService = DataApiService.getInstance()

@@ -10,6 +10,18 @@ export const defaultAppHeaders = () => {
   }
 }
 
+/**
+ * Checks whether a string is a valid HTTP(S) URL.
+ */
+export function isValidUrl(url: string): boolean {
+  try {
+    const parsedUrl = new URL(url)
+    return parsedUrl.protocol === 'http:' || parsedUrl.protocol === 'https:'
+  } catch {
+    return false
+  }
+}
+
 // Following two function are not being used for now.
 // I may use them in the future, so just keep them commented. - by eurfelux
 

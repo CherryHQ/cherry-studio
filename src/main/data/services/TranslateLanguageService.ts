@@ -4,9 +4,9 @@
  * langCode is the primary key (immutable after creation).
  */
 
-import { dbService } from '@data/db/DbService'
 import { translateLanguageTable } from '@data/db/schemas/translateLanguage'
 import { loggerService } from '@logger'
+import { application } from '@main/core/application'
 import { DataApiErrorFactory } from '@shared/data/api'
 import type { CreateTranslateLanguageDto, UpdateTranslateLanguageDto } from '@shared/data/api/schemas/translate'
 import type { TranslateLanguage } from '@shared/data/types/translate'
@@ -37,13 +37,13 @@ export class TranslateLanguageService {
   }
 
   async list(): Promise<TranslateLanguage[]> {
-    const db = dbService.getDb()
+    const db = application.get('DbService').getDb()
     const rows = await db.select().from(translateLanguageTable).orderBy(asc(translateLanguageTable.createdAt))
     return rows.map(rowToTranslateLanguage)
   }
 
   async getByLangCode(langCode: string): Promise<TranslateLanguage> {
-    const db = dbService.getDb()
+    const db = application.get('DbService').getDb()
     const [row] = await db
       .select()
       .from(translateLanguageTable)
@@ -58,7 +58,7 @@ export class TranslateLanguageService {
   }
 
   async create(dto: CreateTranslateLanguageDto): Promise<TranslateLanguage> {
-    const db = dbService.getDb()
+    const db = application.get('DbService').getDb()
     const langCode = dto.langCode.toLowerCase()
 
     try {
@@ -86,7 +86,7 @@ export class TranslateLanguageService {
   }
 
   async update(langCode: string, dto: UpdateTranslateLanguageDto): Promise<TranslateLanguage> {
-    const db = dbService.getDb()
+    const db = application.get('DbService').getDb()
 
     return await db.transaction(async (tx) => {
       const [current] = await tx
@@ -123,7 +123,7 @@ export class TranslateLanguageService {
   }
 
   async delete(langCode: string): Promise<void> {
-    const db = dbService.getDb()
+    const db = application.get('DbService').getDb()
 
     await db.transaction(async (tx) => {
       const [row] = await tx

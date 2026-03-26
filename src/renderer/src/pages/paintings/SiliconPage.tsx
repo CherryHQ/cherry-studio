@@ -151,7 +151,7 @@ const SiliconPage: FC<{ Options: string[] }> = ({ Options }) => {
   }
 
   const onGenerate = async () => {
-    await checkProviderEnabled(siliconFlowProvider!, t)
+    await checkProviderEnabled(siliconFlowProvider, t)
 
     if (painting.files.length > 0) {
       const confirmed = await window.modal.confirm({
@@ -276,7 +276,7 @@ const SiliconPage: FC<{ Options: string[] }> = ({ Options }) => {
       }
     }
 
-    removePainting('siliconflow_paintings', paintingToDelete)
+    void removePainting('siliconflow_paintings', paintingToDelete)
   }
 
   const onSelectPainting = (newPainting: Painting) => {
@@ -325,7 +325,7 @@ const SiliconPage: FC<{ Options: string[] }> = ({ Options }) => {
       if (spaceClickCount === 2) {
         setSpaceClickCount(0)
         setIsTranslating(true)
-        translate()
+        void translate()
       }
     }
   }
@@ -333,7 +333,7 @@ const SiliconPage: FC<{ Options: string[] }> = ({ Options }) => {
   const handleProviderChange = (providerId: string) => {
     const routeName = location.pathname.split('/').pop()
     if (providerId !== routeName) {
-      navigate({ to: '../' + providerId, replace: true })
+      void navigate({ to: '../' + providerId, replace: true })
     }
   }
 

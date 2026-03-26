@@ -272,8 +272,7 @@ const NewApiPage: FC<{ Options: string[] }> = ({ Options }) => {
           background: painting.background === 'auto' ? undefined : painting.background,
           n: painting.n,
           quality: painting.quality === 'auto' ? undefined : painting.quality,
-          moderation: painting.moderation === 'auto' ? undefined : painting.moderation,
-          response_format: 'b64_json'
+          moderation: painting.moderation === 'auto' ? undefined : painting.moderation
         }
 
         body = JSON.stringify(requestData)
@@ -341,7 +340,7 @@ const NewApiPage: FC<{ Options: string[] }> = ({ Options }) => {
           })
         )
         await FileManager.addFiles(validFiles)
-        updatePaintingState({ files: validFiles, urls: validFiles.map((file) => file.name) })
+        updatePaintingState({ files: validFiles, urls: [] })
       }
     } catch (error: unknown) {
       handleError(error)
@@ -395,7 +394,7 @@ const NewApiPage: FC<{ Options: string[] }> = ({ Options }) => {
       }
     }
 
-    removePainting(mode, paintingToDelete)
+    void removePainting(mode, paintingToDelete)
   }
 
   const translate = async () => {
@@ -433,7 +432,7 @@ const NewApiPage: FC<{ Options: string[] }> = ({ Options }) => {
       if (spaceClickCount === 2) {
         setSpaceClickCount(0)
         setIsTranslating(true)
-        translate()
+        void translate()
       }
     }
   }
@@ -441,7 +440,7 @@ const NewApiPage: FC<{ Options: string[] }> = ({ Options }) => {
   const handleProviderChange = (providerId: string) => {
     const routeName = location.pathname.split('/').pop()
     if (providerId !== routeName) {
-      navigate({ to: '../' + providerId, replace: true })
+      void navigate({ to: '../' + providerId, replace: true })
     }
   }
 
@@ -468,7 +467,7 @@ const NewApiPage: FC<{ Options: string[] }> = ({ Options }) => {
 
   // 当 modelOptions 为空时，引导用户跳转到 Provider 设置页面，新增 image-generation 端点模型
   const handleShowAddModelPopup = () => {
-    navigate({ to: `/settings/provider?id=${newApiProvider.id}` })
+    void navigate({ to: `/settings/provider?id=${newApiProvider.id}` })
   }
 
   useEffect(() => {

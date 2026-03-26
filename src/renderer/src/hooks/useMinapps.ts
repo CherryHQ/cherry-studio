@@ -100,7 +100,7 @@ export const useMinapps = () => {
       const detected = await detectUserRegion()
       dispatch(setDetectedRegion(detected))
     }
-    initRegion()
+    void initRegion()
   }, [minAppRegionSetting, detectedRegion, dispatch])
 
   const mapApps = useCallback(

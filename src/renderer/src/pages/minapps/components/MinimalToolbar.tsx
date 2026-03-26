@@ -213,7 +213,7 @@ const MinimalToolbar: FC<Props> = ({ app, webviewRef, currentUrl, onReload, onOp
   }, [app.id, webviewRef, scheduleNavigationUpdate])
 
   const handleMinimize = useCallback(() => {
-    navigate({ to: '/app/minapp' })
+    void navigate({ to: '/app/minapp' })
   }, [navigate])
 
   const handleTogglePin = useCallback(() => {
@@ -222,12 +222,12 @@ const MinimalToolbar: FC<Props> = ({ app, webviewRef, currentUrl, onReload, onOp
   }, [app, isPinned, pinned, updatePinnedMinapps])
 
   const handleToggleOpenExternal = useCallback(() => {
-    setMinappsOpenLinkExternal(!minappsOpenLinkExternal)
+    void setMinappsOpenLinkExternal(!minappsOpenLinkExternal)
   }, [setMinappsOpenLinkExternal, minappsOpenLinkExternal])
 
   const handleOpenLink = useCallback(() => {
     const urlToOpen = currentUrl || app.url
-    window.api.openWebsite(urlToOpen)
+    void window.api.openWebsite(urlToOpen)
   }, [currentUrl, app.url])
 
   return (

@@ -2,7 +2,6 @@ import { EventEmitter } from 'node:events'
 
 import { loggerService } from '@logger'
 
-import type { BaseService } from './BaseService'
 import { DependencyResolver } from './DependencyResolver'
 import { ServiceContainer } from './ServiceContainer'
 import {
@@ -214,7 +213,7 @@ export class LifecycleManager extends EventEmitter {
       this.emitLifecycleEvent(LifecycleEvents.SERVICE_INITIALIZING, serviceName, LifecycleState.Initializing)
 
       // Get or create instance
-      const instance = this.container.get(serviceName) as BaseService
+      const instance = this.container.get(serviceName)
 
       // Call initialization
       await instance._doInit()
@@ -233,7 +232,7 @@ export class LifecycleManager extends EventEmitter {
    * @param serviceName - Service name to stop
    */
   private async stopSingle(serviceName: string): Promise<void> {
-    const instance = this.container.getInstance(serviceName) as BaseService | undefined
+    const instance = this.container.getInstance(serviceName)
     if (!instance || instance.state === LifecycleState.Stopped) return
 
     try {
@@ -250,7 +249,7 @@ export class LifecycleManager extends EventEmitter {
    * Destroy a single service
    */
   private async destroyService(serviceName: string): Promise<void> {
-    const instance = this.container.getInstance(serviceName) as BaseService | undefined
+    const instance = this.container.getInstance(serviceName)
     if (!instance || instance.state === LifecycleState.Destroyed) return
 
     try {
@@ -322,7 +321,7 @@ export class LifecycleManager extends EventEmitter {
   public async allReady(): Promise<void> {
     const results = await Promise.allSettled(
       this.initializationOrder.map(async (serviceName) => {
-        const instance = this.container.getInstance(serviceName) as BaseService | undefined
+        const instance = this.container.getInstance(serviceName)
         if (!instance) return
         await instance._doAllReady()
       })
@@ -352,7 +351,7 @@ export class LifecycleManager extends EventEmitter {
    * @param name - Service name to pause
    */
   public async pause(name: string): Promise<void> {
-    const instance = this.container.getInstance(name) as BaseService | undefined
+    const instance = this.container.getInstance(name)
     if (!instance) {
       logger.warn(`Cannot pause: service '${name}' not found`)
       return
@@ -371,7 +370,7 @@ export class LifecycleManager extends EventEmitter {
 
     // Validation phase: check all services in cascade support pause
     for (const serviceName of allServices) {
-      const svc = this.container.getInstance(serviceName) as BaseService | undefined
+      const svc = this.container.getInstance(serviceName)
       if (!svc) continue
 
       // Skip services that are already paused or stopped
@@ -393,7 +392,7 @@ export class LifecycleManager extends EventEmitter {
 
     // Execution phase: pause dependents first (reverse order)
     for (const depName of dependents.reverse()) {
-      const depInstance = this.container.getInstance(depName) as BaseService | undefined
+      const depInstance = this.container.getInstance(depName)
       if (!depInstance) continue
 
       // Skip if already paused or stopped
@@ -415,7 +414,7 @@ export class LifecycleManager extends EventEmitter {
    * @param name - Service name to resume
    */
   public async resume(name: string): Promise<void> {
-    const instance = this.container.getInstance(name) as BaseService | undefined
+    const instance = this.container.getInstance(name)
     if (!instance) {
       logger.warn(`Cannot resume: service '${name}' not found`)
       return
@@ -432,7 +431,7 @@ export class LifecycleManager extends EventEmitter {
 
     // Validation phase: check all services support resume
     for (const serviceName of allServices) {
-      const svc = this.container.getInstance(serviceName) as BaseService | undefined
+      const svc = this.container.getInstance(serviceName)
       if (!svc) continue
 
       // Only check services that are paused
@@ -451,7 +450,7 @@ export class LifecycleManager extends EventEmitter {
 
     // Then resume cascaded services in reverse order
     for (const depName of [...cascadedServices].reverse()) {
-      const depInstance = this.container.getInstance(depName) as BaseService | undefined
+      const depInstance = this.container.getInstance(depName)
       if (!depInstance || depInstance.state !== LifecycleState.Paused) continue
 
       await this.resumeSingle(depName)
@@ -467,7 +466,7 @@ export class LifecycleManager extends EventEmitter {
    * @param name - Service name to stop
    */
   public async stop(name: string): Promise<void> {
-    const instance = this.container.getInstance(name) as BaseService | undefined
+    const instance = this.container.getInstance(name)
     if (!instance) {
       logger.warn(`Cannot stop: service '${name}' not found`)
       return
@@ -488,7 +487,7 @@ export class LifecycleManager extends EventEmitter {
 
     // Stop dependents first (reverse order)
     for (const depName of dependents.reverse()) {
-      const depInstance = this.container.getInstance(depName) as BaseService | undefined
+      const depInstance = this.container.getInstance(depName)
       if (!depInstance) continue
 
       // Skip if already stopped
@@ -511,7 +510,7 @@ export class LifecycleManager extends EventEmitter {
    * @param name - Service name to start
    */
   public async start(name: string): Promise<void> {
-    const instance = this.container.getInstance(name) as BaseService | undefined
+    const instance = this.container.getInstance(name)
     if (!instance) {
       logger.warn(`Cannot start: service '${name}' not found`)
       return
@@ -528,7 +527,7 @@ export class LifecycleManager extends EventEmitter {
     const dependencies = this.resolver.getDependencies(name, graph)
 
     for (const depName of dependencies) {
-      const depInstance = this.container.getInstance(depName) as BaseService | undefined
+      const depInstance = this.container.getInstance(depName)
       if (!depInstance) continue
 
       // If dependency is stopped, start it first
@@ -555,7 +554,7 @@ export class LifecycleManager extends EventEmitter {
     // Now start any services that were cascade-stopped
     const cascadedServices = this.stoppedByCascade.get(name) ?? new Set()
     for (const depName of [...cascadedServices].reverse()) {
-      const depInstance = this.container.getInstance(depName) as BaseService | undefined
+      const depInstance = this.container.getInstance(depName)
       if (!depInstance || depInstance.state !== LifecycleState.Stopped) continue
 
       try {
@@ -581,7 +580,7 @@ export class LifecycleManager extends EventEmitter {
    * @param name - Service name to restart
    */
   public async restart(name: string): Promise<void> {
-    const instance = this.container.getInstance(name) as BaseService | undefined
+    const instance = this.container.getInstance(name)
     if (!instance) {
       logger.warn(`Cannot restart: service '${name}' not found`)
       return
@@ -611,7 +610,7 @@ export class LifecycleManager extends EventEmitter {
    * @param serviceName - Service name to pause
    */
   private async pauseSingle(serviceName: string): Promise<void> {
-    const instance = this.container.getInstance(serviceName) as BaseService | undefined
+    const instance = this.container.getInstance(serviceName)
     if (!instance || instance.state === LifecycleState.Paused) return
 
     try {
@@ -633,7 +632,7 @@ export class LifecycleManager extends EventEmitter {
    * @param serviceName - Service name to resume
    */
   private async resumeSingle(serviceName: string): Promise<void> {
-    const instance = this.container.getInstance(serviceName) as BaseService | undefined
+    const instance = this.container.getInstance(serviceName)
     if (!instance || instance.state !== LifecycleState.Paused) return
 
     try {

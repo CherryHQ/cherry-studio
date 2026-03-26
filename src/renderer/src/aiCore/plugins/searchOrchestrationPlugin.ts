@@ -366,7 +366,7 @@ export const searchOrchestrationPlugin = (
         const globalMemoryEnabled = await preferenceService.get('feature.memory.enabled')
         if (globalMemoryEnabled && assistant.enableMemory) {
           // logger.info('🧠 Adding memory search tool')
-          params.tools['builtin_memory_search'] = memorySearchTool()
+          params.tools['builtin_memory_search'] = memorySearchTool(assistant.id)
         }
 
         // logger.info('🔧 Tools configured:', Object.keys(params.tools))

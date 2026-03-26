@@ -52,7 +52,7 @@ const AssistantMemorySettings: React.FC<Props> = ({ assistant, updateAssistant, 
   }, [assistant.id, memoryService])
 
   useEffect(() => {
-    loadMemoryStats()
+    void loadMemoryStats()
   }, [loadMemoryStats])
 
   const handleMemoryToggle = (enabled: boolean) => {

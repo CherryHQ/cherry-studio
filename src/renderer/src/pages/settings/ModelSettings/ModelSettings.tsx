@@ -20,7 +20,17 @@ import TranslateSettingsPopup from '../TranslateSettingsPopup/TranslateSettingsP
 import DefaultAssistantSettings from './DefaultAssistantSettings'
 import TopicNamingModalPopup from './QuickModelPopup'
 
-const ModelSettings: FC = () => {
+interface ModelSettingsProps {
+  showSettingsButton?: boolean
+  showDescription?: boolean
+  compact?: boolean
+}
+
+const ModelSettings: FC<ModelSettingsProps> = ({
+  showSettingsButton = true,
+  showDescription = true,
+  compact = false
+}) => {
   const { defaultModel, quickModel, translateModel, setDefaultModel, setQuickModel, setTranslateModel } =
     useDefaultModel()
   const { providers } = useProviders()
@@ -48,12 +58,15 @@ const ModelSettings: FC = () => {
   )
 
   const onResetTranslatePrompt = () => {
-    setTranslateModelPrompt(TRANSLATE_PROMPT)
+    void setTranslateModelPrompt(TRANSLATE_PROMPT)
   }
 
+  const containerStyle = compact ? { padding: 0, background: 'transparent' } : undefined
+  const groupStyle = compact ? { padding: 0, border: 'none', background: 'transparent' } : undefined
+
   return (
-    <SettingContainer theme={theme}>
-      <SettingGroup theme={theme}>
+    <SettingContainer theme={theme} style={containerStyle}>
+      <SettingGroup theme={theme} style={groupStyle}>
         <SettingTitle style={{ marginBottom: 12 }}>
           <RowFlex className="items-center gap-2.5">
             <MessageSquareMore size={18} color="var(--color-text)" />
@@ -66,17 +79,22 @@ const ModelSettings: FC = () => {
             predicate={modelPredicate}
             value={defaultModelValue}
             defaultValue={defaultModelValue}
-            style={{ width: 360 }}
+            style={{ width: compact ? '100%' : 360 }}
+            size={compact ? 'large' : 'middle'}
             onChange={(value) => setDefaultModel(find(allModels, JSON.parse(value)) as Model)}
             placeholder={t('settings.models.empty')}
           />
-          <Button className="ml-2" onClick={DefaultAssistantSettings.show} size="icon">
-            <Settings2 size={16} />
-          </Button>
+          {showSettingsButton && (
+            <Button className="ml-2" onClick={DefaultAssistantSettings.show} size="icon">
+              <Settings2 size={16} />
+            </Button>
+          )}
         </RowFlex>
-        <SettingDescription>{t('settings.models.default_assistant_model_description')}</SettingDescription>
+        {showDescription && (
+          <SettingDescription>{t('settings.models.default_assistant_model_description')}</SettingDescription>
+        )}
       </SettingGroup>
-      <SettingGroup theme={theme}>
+      <SettingGroup theme={theme} style={groupStyle}>
         <SettingTitle style={{ marginBottom: 12 }}>
           <RowFlex className="items-center gap-2.5">
             <Rocket size={18} color="var(--color-text)" />
@@ -90,17 +108,20 @@ const ModelSettings: FC = () => {
             predicate={modelPredicate}
             value={defaultQuickModel}
             defaultValue={defaultQuickModel}
-            style={{ width: 360 }}
+            style={{ width: compact ? '100%' : 360 }}
+            size={compact ? 'large' : 'middle'}
             onChange={(value) => setQuickModel(find(allModels, JSON.parse(value)) as Model)}
             placeholder={t('settings.models.empty')}
           />
-          <Button className="ml-2" onClick={TopicNamingModalPopup.show} size="icon">
-            <Settings2 size={16} />
-          </Button>
+          {showSettingsButton && (
+            <Button className="ml-2" onClick={TopicNamingModalPopup.show} size="icon">
+              <Settings2 size={16} />
+            </Button>
+          )}
         </RowFlex>
-        <SettingDescription>{t('settings.models.quick_model.description')}</SettingDescription>
+        {showDescription && <SettingDescription>{t('settings.models.quick_model.description')}</SettingDescription>}
       </SettingGroup>
-      <SettingGroup theme={theme}>
+      <SettingGroup theme={theme} style={groupStyle}>
         <SettingTitle style={{ marginBottom: 12 }}>
           <RowFlex className="items-center gap-2.5">
             <Languages size={18} color="var(--color-text)" />
@@ -113,19 +134,24 @@ const ModelSettings: FC = () => {
             predicate={modelPredicate}
             value={defaultTranslateModel}
             defaultValue={defaultTranslateModel}
-            style={{ width: 360 }}
+            style={{ width: compact ? '100%' : 360 }}
+            size={compact ? 'large' : 'middle'}
             onChange={(value) => setTranslateModel(find(allModels, JSON.parse(value)) as Model)}
             placeholder={t('settings.models.empty')}
           />
-          <Button className="ml-2" onClick={() => TranslateSettingsPopup.show()} size="icon">
-            <Settings2 size={16} />
-          </Button>
-          {translateModelPrompt !== TRANSLATE_PROMPT && (
-            <Tooltip content={t('common.reset')}>
-              <Button className="ml-2" onClick={onResetTranslatePrompt} size="icon">
-                <RedoOutlined />
+          {showSettingsButton && (
+            <>
+              <Button className="ml-2" onClick={TranslateSettingsPopup.show} size="icon">
+                <Settings2 size={16} />
               </Button>
-            </Tooltip>
+              {translateModelPrompt !== TRANSLATE_PROMPT && (
+                <Tooltip title={t('common.reset')}>
+                  <Button className="ml-2" onClick={onResetTranslatePrompt} size="icon">
+                    <RedoOutlined size={16} />
+                  </Button>
+                </Tooltip>
+              )}
+            </>
           )}
         </RowFlex>
         <SettingDescription>{t('settings.models.translate_model_description')}</SettingDescription>

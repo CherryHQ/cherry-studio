@@ -17,10 +17,10 @@ function initAutoSync() {
     })
 
     if (autoSyncStates.webdav || autoSyncStates.s3 || autoSyncStates.local) {
-      startAutoSync()
+      void startAutoSync()
     }
     if (autoSyncStates.nutstore) {
-      startNutstoreAutoSync()
+      void startNutstoreAutoSync()
     }
   }, 8000)
 }

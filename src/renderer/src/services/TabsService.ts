@@ -55,12 +55,12 @@ class TabsService {
 
       // 使用 NavigationService 导航到新的标签页
       if (NavigationService.navigate) {
-        NavigationService.navigate({ to: lastTab.path })
+        void NavigationService.navigate({ to: lastTab.path })
       } else {
         logger.warn('Navigation service not ready, will navigate on next render')
         setTimeout(() => {
           if (NavigationService.navigate) {
-            NavigationService.navigate({ to: lastTab.path })
+            void NavigationService.navigate({ to: lastTab.path })
           }
         }, 100)
       }
@@ -133,7 +133,7 @@ class TabsService {
 
     // 导航到对应页面
     if (NavigationService.navigate) {
-      NavigationService.navigate({ to: tab.path })
+      void NavigationService.navigate({ to: tab.path })
     }
 
     return true

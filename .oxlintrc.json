@@ -105,7 +105,7 @@
     "typescript/no-empty-object-type": "off",
     "typescript/no-explicit-any": "off",
     "typescript/no-extra-non-null-assertion": "error",
-    "typescript/no-floating-promises": "off", // TODO: warn
+    "typescript/no-floating-promises": "warn",
     "typescript/no-for-in-array": "warn",
     "typescript/no-implied-eval": "off", // TODO: warn
     "typescript/no-meaningless-void-operator": "warn",
@@ -117,6 +117,7 @@
     "typescript/no-require-imports": "off",
     "typescript/no-this-alias": "error",
     "typescript/no-unnecessary-parameter-property-assignment": "warn",
+    "typescript/no-unnecessary-type-assertion": "error",
     "typescript/no-unnecessary-type-constraint": "error",
     "typescript/no-unsafe-declaration-merging": "error",
     "typescript/no-unsafe-function-type": "error",

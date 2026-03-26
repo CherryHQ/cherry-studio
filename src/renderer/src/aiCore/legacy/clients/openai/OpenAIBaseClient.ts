@@ -10,7 +10,6 @@ import {
 import { getStoreSetting } from '@renderer/hooks/useSettings'
 import { getAssistantSettings } from '@renderer/services/AssistantService'
 import store from '@renderer/store'
-import type { SettingsState } from '@renderer/store/settings'
 import { type Assistant, type GenerateImageParams, type Model, type Provider } from '@renderer/types'
 import type {
   OpenAIResponseSdkMessageParam,
@@ -287,7 +286,7 @@ export abstract class OpenAIBaseClient<
       return {}
     }
 
-    const openAI = getStoreSetting('openAI') as SettingsState['openAI']
+    const openAI = getStoreSetting('openAI')
     const summaryText = openAI?.summaryText || 'off'
 
     let summary: string | undefined = undefined

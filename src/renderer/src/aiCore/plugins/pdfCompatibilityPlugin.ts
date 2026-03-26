@@ -43,7 +43,10 @@ function pdfCompatibilityMiddleware(provider: Provider): LanguageModelMiddleware
   return {
     specificationVersion: 'v3',
     transformParams: async ({ params }) => {
-      if (PDF_NATIVE_PROVIDER_TYPES.has(provider.type)) {
+      // CherryAI provider doesn't support native PDF input
+      const isCherryAI = provider.id === 'cherryai'
+
+      if (PDF_NATIVE_PROVIDER_TYPES.has(provider.type) && !isCherryAI) {
         return params
       }
 

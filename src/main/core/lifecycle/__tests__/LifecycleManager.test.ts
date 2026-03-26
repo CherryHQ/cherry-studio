@@ -23,7 +23,7 @@ describe('LifecycleManager', () => {
 
   describe('startPhase', () => {
     it('should initialize a single service and emit INITIALIZING + READY events', async () => {
-      @Injectable()
+      @Injectable('SimpleService')
       class SimpleService extends BaseService {}
 
       const manager = LifecycleManager.getInstance()
@@ -48,14 +48,14 @@ describe('LifecycleManager', () => {
     it('should initialize services in dependency order', async () => {
       const order: string[] = []
 
-      @Injectable()
+      @Injectable('DatabaseService')
       class DatabaseService extends BaseService {
         protected override onInit() {
           order.push('Database')
         }
       }
 
-      @Injectable()
+      @Injectable('UserService')
       @DependsOn(['DatabaseService'])
       class UserService extends BaseService {
         protected override onInit() {
@@ -74,10 +74,10 @@ describe('LifecycleManager', () => {
     })
 
     it('should track initialization order', async () => {
-      @Injectable()
+      @Injectable('ServiceA')
       class ServiceA extends BaseService {}
 
-      @Injectable()
+      @Injectable('ServiceB')
       @DependsOn(['ServiceA'])
       class ServiceB extends BaseService {}
 
@@ -93,7 +93,7 @@ describe('LifecycleManager', () => {
     })
 
     it('should set initialized flag after WhenReady phase completes', async () => {
-      @Injectable()
+      @Injectable('TestService')
       class TestService extends BaseService {}
 
       const manager = LifecycleManager.getInstance()
@@ -117,7 +117,7 @@ describe('LifecycleManager', () => {
 
   describe('startAll', () => {
     it('should prevent double initialization', async () => {
-      @Injectable()
+      @Injectable('OnceService')
       class OnceService extends BaseService {}
 
       const manager = LifecycleManager.getInstance()
@@ -131,7 +131,7 @@ describe('LifecycleManager', () => {
     })
 
     it('should set initialized flag', async () => {
-      @Injectable()
+      @Injectable('TestService')
       class TestService extends BaseService {}
 
       const manager = LifecycleManager.getInstance()
@@ -147,7 +147,7 @@ describe('LifecycleManager', () => {
 
   describe('error handling', () => {
     it('should throw ServiceInitError for fail-fast strategy', async () => {
-      @Injectable()
+      @Injectable('CriticalService')
       @ErrorHandling('fail-fast')
       class CriticalService extends BaseService {
         protected override onInit() {
@@ -165,7 +165,7 @@ describe('LifecycleManager', () => {
     it('should continue for graceful strategy', async () => {
       const order: string[] = []
 
-      @Injectable()
+      @Injectable('OptionalService')
       @ErrorHandling('graceful')
       class OptionalService extends BaseService {
         protected override onInit() {
@@ -173,7 +173,7 @@ describe('LifecycleManager', () => {
         }
       }
 
-      @Injectable()
+      @Injectable('RequiredService')
       class RequiredService extends BaseService {
         protected override onInit() {
           order.push('Required')
@@ -193,7 +193,7 @@ describe('LifecycleManager', () => {
     it('should emit SERVICE_ERROR for failed service', async () => {
       const initError = new Error('init failed')
 
-      @Injectable()
+      @Injectable('BrokenService')
       @ErrorHandling('graceful')
       class BrokenService extends BaseService {
         protected override onInit() {
@@ -225,14 +225,14 @@ describe('LifecycleManager', () => {
     it('should stop all services in reverse initialization order', async () => {
       const stopOrder: string[] = []
 
-      @Injectable()
+      @Injectable('FirstService')
       class FirstService extends BaseService {
         protected override onStop() {
           stopOrder.push('First')
         }
       }
 
-      @Injectable()
+      @Injectable('SecondService')
       @DependsOn(['FirstService'])
       class SecondService extends BaseService {
         protected override onStop() {
@@ -253,7 +253,7 @@ describe('LifecycleManager', () => {
     })
 
     it('should emit STOPPING and STOPPED events', async () => {
-      @Injectable()
+      @Injectable('StoppableService')
       class StoppableService extends BaseService {}
 
       const manager = LifecycleManager.getInstance()
@@ -286,14 +286,14 @@ describe('LifecycleManager', () => {
     it('should destroy all services in reverse order', async () => {
       const destroyOrder: string[] = []
 
-      @Injectable()
+      @Injectable('AlphaService')
       class AlphaService extends BaseService {
         protected override onDestroy() {
           destroyOrder.push('Alpha')
         }
       }
 
-      @Injectable()
+      @Injectable('BetaService')
       @DependsOn(['AlphaService'])
       class BetaService extends BaseService {
         protected override onDestroy() {
@@ -313,7 +313,7 @@ describe('LifecycleManager', () => {
     })
 
     it('should emit SERVICE_DESTROYED events', async () => {
-      @Injectable()
+      @Injectable('DestroyableService')
       class DestroyableService extends BaseService {}
 
       const manager = LifecycleManager.getInstance()
@@ -333,7 +333,7 @@ describe('LifecycleManager', () => {
     })
 
     it('should reset initialized flag and clear cascade tracking', async () => {
-      @Injectable()
+      @Injectable('SomeService')
       class SomeService extends BaseService {}
 
       const manager = LifecycleManager.getInstance()
@@ -353,7 +353,7 @@ describe('LifecycleManager', () => {
 
   describe('pause / resume', () => {
     it('should pause a Pausable service', async () => {
-      @Injectable()
+      @Injectable('PausableService')
       class PausableService extends BaseService implements Pausable {
         public pauseCalled = false
         onPause() {
@@ -376,7 +376,7 @@ describe('LifecycleManager', () => {
     })
 
     it('should emit PAUSING and PAUSED events', async () => {
-      @Injectable()
+      @Injectable('EventPausable')
       class EventPausable extends BaseService implements Pausable {
         onPause() {}
         onResume() {}
@@ -402,7 +402,7 @@ describe('LifecycleManager', () => {
     it('should cascade pause to dependents', async () => {
       const pauseOrder: string[] = []
 
-      @Injectable()
+      @Injectable('CoreService')
       class CoreService extends BaseService implements Pausable {
         onPause() {
           pauseOrder.push('Core')
@@ -410,7 +410,7 @@ describe('LifecycleManager', () => {
         onResume() {}
       }
 
-      @Injectable()
+      @Injectable('DependentService')
       @DependsOn(['CoreService'])
       class DependentService extends BaseService implements Pausable {
         onPause() {
@@ -437,13 +437,13 @@ describe('LifecycleManager', () => {
     })
 
     it('should abort pause if any dependent is not Pausable', async () => {
-      @Injectable()
+      @Injectable('PausableCore')
       class PausableCore extends BaseService implements Pausable {
         onPause() {}
         onResume() {}
       }
 
-      @Injectable()
+      @Injectable('NonPausableDependent')
       @DependsOn(['PausableCore'])
       class NonPausableDependent extends BaseService {
         // Does NOT implement Pausable
@@ -464,7 +464,7 @@ describe('LifecycleManager', () => {
     })
 
     it('should not pause a service that is not in Ready state', async () => {
-      @Injectable()
+      @Injectable('StoppedPausable')
       class StoppedPausable extends BaseService implements Pausable {
         onPause() {}
         onResume() {}
@@ -486,7 +486,7 @@ describe('LifecycleManager', () => {
     })
 
     it('should resume a paused service', async () => {
-      @Injectable()
+      @Injectable('ResumableService')
       class ResumableService extends BaseService implements Pausable {
         public resumeCalled = false
         onPause() {}
@@ -511,7 +511,7 @@ describe('LifecycleManager', () => {
     })
 
     it('should emit RESUMING and RESUMED events', async () => {
-      @Injectable()
+      @Injectable('EventResumable')
       class EventResumable extends BaseService implements Pausable {
         onPause() {}
         onResume() {}
@@ -538,7 +538,7 @@ describe('LifecycleManager', () => {
     it('should cascade resume to dependents that were cascade-paused', async () => {
       const resumeOrder: string[] = []
 
-      @Injectable()
+      @Injectable('Base')
       class Base extends BaseService implements Pausable {
         onPause() {}
         onResume() {
@@ -546,7 +546,7 @@ describe('LifecycleManager', () => {
         }
       }
 
-      @Injectable()
+      @Injectable('Child')
       @DependsOn(['Base'])
       class Child extends BaseService implements Pausable {
         onPause() {}
@@ -576,7 +576,7 @@ describe('LifecycleManager', () => {
     })
 
     it('should not resume a service that is not in Paused state', async () => {
-      @Injectable()
+      @Injectable('ReadyService')
       class ReadyService extends BaseService implements Pausable {
         onPause() {}
         onResume() {}
@@ -607,7 +607,7 @@ describe('LifecycleManager', () => {
 
   describe('stop / start / restart', () => {
     it('should stop a service from Ready state', async () => {
-      @Injectable()
+      @Injectable('StoppableService')
       class StoppableService extends BaseService {
         public stopCalled = false
         protected override onStop() {
@@ -631,14 +631,14 @@ describe('LifecycleManager', () => {
     it('should cascade stop to dependents', async () => {
       const stopOrder: string[] = []
 
-      @Injectable()
+      @Injectable('ParentService')
       class ParentService extends BaseService {
         protected override onStop() {
           stopOrder.push('Parent')
         }
       }
 
-      @Injectable()
+      @Injectable('ChildService')
       @DependsOn(['ParentService'])
       class ChildService extends BaseService {
         protected override onStop() {
@@ -665,7 +665,7 @@ describe('LifecycleManager', () => {
     it('should not stop a service that is already stopped', async () => {
       const stopCount = { value: 0 }
 
-      @Injectable()
+      @Injectable('AlreadyStoppedService')
       class AlreadyStoppedService extends BaseService {
         protected override onStop() {
           stopCount.value++
@@ -688,7 +688,7 @@ describe('LifecycleManager', () => {
     it('should start a stopped service by re-initializing', async () => {
       let initCount = 0
 
-      @Injectable()
+      @Injectable('RestartableService')
       class RestartableService extends BaseService {
         protected override onInit() {
           initCount++
@@ -713,14 +713,14 @@ describe('LifecycleManager', () => {
     it('should cascade start to dependents that were cascade-stopped', async () => {
       const initOrder: string[] = []
 
-      @Injectable()
+      @Injectable('RootService')
       class RootService extends BaseService {
         protected override onInit() {
           initOrder.push('Root')
         }
       }
 
-      @Injectable()
+      @Injectable('LeafService')
       @DependsOn(['RootService'])
       class LeafService extends BaseService {
         protected override onInit() {
@@ -748,7 +748,7 @@ describe('LifecycleManager', () => {
     })
 
     it('should not start a service that is not in Stopped state', async () => {
-      @Injectable()
+      @Injectable('ReadyStartService')
       class ReadyStartService extends BaseService {}
 
       const manager = LifecycleManager.getInstance()
@@ -767,7 +767,7 @@ describe('LifecycleManager', () => {
     it('should restart a service (stop + start)', async () => {
       let initCount = 0
 
-      @Injectable()
+      @Injectable('RestartableService2')
       class RestartableService2 extends BaseService {
         protected override onInit() {
           initCount++
@@ -790,7 +790,7 @@ describe('LifecycleManager', () => {
     it('should just start if already stopped', async () => {
       let initCount = 0
 
-      @Injectable()
+      @Injectable('AlreadyStopped')
       class AlreadyStopped extends BaseService {
         protected override onInit() {
           initCount++
@@ -813,7 +813,7 @@ describe('LifecycleManager', () => {
     })
 
     it('should not restart a service that is destroyed', async () => {
-      @Injectable()
+      @Injectable('DestroyedRestartService')
       class DestroyedRestartService extends BaseService {}
 
       const manager = LifecycleManager.getInstance()
@@ -845,14 +845,14 @@ describe('LifecycleManager', () => {
     it('should call _doAllReady on all initialized services', async () => {
       const calls: string[] = []
 
-      @Injectable()
+      @Injectable('ServiceA')
       class ServiceA extends BaseService {
         protected override onAllReady() {
           calls.push('A')
         }
       }
 
-      @Injectable()
+      @Injectable('ServiceB')
       class ServiceB extends BaseService {
         protected override onAllReady() {
           calls.push('B')
@@ -873,7 +873,7 @@ describe('LifecycleManager', () => {
     })
 
     it('should emit ALL_SERVICES_READY event after all hooks complete', async () => {
-      @Injectable()
+      @Injectable('SimpleService')
       class SimpleService extends BaseService {}
 
       const manager = LifecycleManager.getInstance()
@@ -892,14 +892,14 @@ describe('LifecycleManager', () => {
     it('should handle individual hook errors gracefully without throwing', async () => {
       const healthyCalls: string[] = []
 
-      @Injectable()
+      @Injectable('FailingService')
       class FailingService extends BaseService {
         protected override onAllReady() {
           throw new Error('onAllReady failed')
         }
       }
 
-      @Injectable()
+      @Injectable('HealthyService')
       class HealthyService extends BaseService {
         protected override onAllReady() {
           healthyCalls.push('healthy')
@@ -923,7 +923,7 @@ describe('LifecycleManager', () => {
     it('should emit SERVICE_ERROR for services whose onAllReady fails', async () => {
       const error = new Error('hook failed')
 
-      @Injectable()
+      @Injectable('ErrorService')
       class ErrorService extends BaseService {
         protected override onAllReady() {
           throw error
@@ -952,7 +952,7 @@ describe('LifecycleManager', () => {
     })
 
     it('should emit ALL_SERVICES_READY even when some hooks fail', async () => {
-      @Injectable()
+      @Injectable('FailService')
       class FailService extends BaseService {
         protected override onAllReady() {
           throw new Error('fail')

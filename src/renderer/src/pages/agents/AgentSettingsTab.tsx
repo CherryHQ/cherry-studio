@@ -96,7 +96,7 @@ const AgentSettingsTab = () => {
     (value: CodeStyleVarious) => {
       const field = theme === ThemeMode.light ? 'themeLight' : 'themeDark'
       const action = codeEditor.enabled ? setCodeEditor : setCodeViewer
-      action({ [field]: value })
+      void action({ [field]: value })
     },
     [theme, codeEditor.enabled, setCodeEditor, setCodeViewer]
   )
@@ -126,7 +126,7 @@ const AgentSettingsTab = () => {
             <SettingRowTitleSmall>{t('message.message.style.label')}</SettingRowTitleSmall>
             <Selector
               value={messageStyle}
-              onChange={(value) => setMessageStyle(value as 'plain' | 'bubble')}
+              onChange={(value) => setMessageStyle(value)}
               options={[
                 { value: 'plain', label: t('message.message.style.plain') },
                 { value: 'bubble', label: t('message.message.style.bubble') }
@@ -138,7 +138,7 @@ const AgentSettingsTab = () => {
             <SettingRowTitleSmall>{t('settings.messages.navigation.label')}</SettingRowTitleSmall>
             <Selector
               value={messageNavigation}
-              onChange={(value) => setMessageNavigation(value as 'none' | 'buttons' | 'anchor')}
+              onChange={(value) => setMessageNavigation(value)}
               options={[
                 { value: 'none', label: t('settings.messages.navigation.none') },
                 { value: 'buttons', label: t('settings.messages.navigation.buttons') },
@@ -202,7 +202,7 @@ const AgentSettingsTab = () => {
             <SettingRowTitleSmall>{t('message.message.code_style')}</SettingRowTitleSmall>
             <Selector
               value={codeStyle}
-              onChange={(value) => onCodeStyleChange(value as CodeStyleVarious)}
+              onChange={(value) => onCodeStyleChange(value)}
               options={themeNames.map((theme) => ({
                 value: theme,
                 label: theme

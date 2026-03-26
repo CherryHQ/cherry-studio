@@ -40,7 +40,7 @@ export function useInstalledPlugins(agentId: string | undefined) {
   }, [agentId])
 
   useEffect(() => {
-    refresh()
+    void refresh()
 
     if (!agentId) {
       return

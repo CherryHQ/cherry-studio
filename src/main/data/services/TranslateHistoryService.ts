@@ -2,9 +2,9 @@
  * Translate History Service - handles translate history CRUD
  */
 
-import { dbService } from '@data/db/DbService'
 import { translateHistoryTable } from '@data/db/schemas/translateHistory'
 import { loggerService } from '@logger'
+import { application } from '@main/core/application'
 import { DataApiErrorFactory } from '@shared/data/api'
 import type { OffsetPaginationResponse } from '@shared/data/api/apiTypes'
 import type {
@@ -44,7 +44,7 @@ export class TranslateHistoryService {
   }
 
   async list(query: TranslateHistoryQuery): Promise<OffsetPaginationResponse<TranslateHistory>> {
-    const db = dbService.getDb()
+    const db = application.get('DbService').getDb()
     const { page, limit } = query
     const offset = (page - 1) * limit
 
@@ -87,7 +87,7 @@ export class TranslateHistoryService {
   }
 
   async getById(id: string): Promise<TranslateHistory> {
-    const db = dbService.getDb()
+    const db = application.get('DbService').getDb()
     const [row] = await db.select().from(translateHistoryTable).where(eq(translateHistoryTable.id, id)).limit(1)
 
     if (!row) {
@@ -98,7 +98,7 @@ export class TranslateHistoryService {
   }
 
   async create(dto: CreateTranslateHistoryDto): Promise<TranslateHistory> {
-    const db = dbService.getDb()
+    const db = application.get('DbService').getDb()
 
     const [row] = await db
       .insert(translateHistoryTable)
@@ -119,7 +119,7 @@ export class TranslateHistoryService {
   }
 
   async update(id: string, dto: UpdateTranslateHistoryDto): Promise<TranslateHistory> {
-    const db = dbService.getDb()
+    const db = application.get('DbService').getDb()
 
     return await db.transaction(async (tx) => {
       const [current] = await tx.select().from(translateHistoryTable).where(eq(translateHistoryTable.id, id)).limit(1)
@@ -155,7 +155,7 @@ export class TranslateHistoryService {
   }
 
   async delete(id: string): Promise<void> {
-    const db = dbService.getDb()
+    const db = application.get('DbService').getDb()
 
     await db.transaction(async (tx) => {
       const [row] = await tx.select().from(translateHistoryTable).where(eq(translateHistoryTable.id, id)).limit(1)
@@ -171,7 +171,7 @@ export class TranslateHistoryService {
   }
 
   async clearAll(): Promise<void> {
-    const db = dbService.getDb()
+    const db = application.get('DbService').getDb()
     await db.delete(translateHistoryTable)
     logger.info('Cleared all translate histories')
   }
