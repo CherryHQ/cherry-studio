@@ -21,9 +21,12 @@
    - Legacy base model/rerank model are transformed to `embeddingModelId` and `rerankModelId`.
    - Migrated base `searchMode` is set to `default`.
    - Legacy preprocess provider id is mapped to `fileProcessorId`.
+   - Invalid runtime tuning fields are normalized away instead of causing the whole base to be skipped.
 
 2. Unified item payload migration
    - Legacy item `content` is transformed into the new `knowledge_item.data` union payload by item type.
+   - V2 models `knowledge_item` as a generic same-base tree via `parentId`, but legacy v1 exports are flat.
+   - Migrated items are therefore inserted as root-level nodes (`parentId = null`) by design.
 
 3. Note content source priority
    - Prefer Dexie `knowledge_notes` content.
@@ -53,10 +56,10 @@
 | `model` | `embeddingModelId` | Converted to `provider::modelId` |
 | `rerankModel` | `rerankModelId` | Optional, converted to `provider::modelId` |
 | `preprocessProvider.provider.id` | `fileProcessorId` | Optional |
-| `chunkSize` | `chunkSize` | Direct copy |
-| `chunkOverlap` | `chunkOverlap` | Direct copy |
-| `threshold` | `threshold` | Direct copy |
-| `documentCount` | `documentCount` | Direct copy |
+| `chunkSize` | `chunkSize` | Copied when positive; otherwise cleared |
+| `chunkOverlap` | `chunkOverlap` | Copied when non-negative and smaller than `chunkSize`; otherwise cleared |
+| `threshold` | `threshold` | Copied when within `[0, 1]`; otherwise cleared |
+| `documentCount` | `documentCount` | Copied when positive; otherwise cleared |
 | _constant_ | `searchMode` | Always `default` during v1 migration |
 | `created_at` | `createdAt` | Timestamp conversion |
 | `updated_at` | `updatedAt` | Timestamp conversion |
@@ -67,7 +70,7 @@
 |----------------------|---------------------------|-------|
 | `id` | `id` | Direct copy |
 | base owner `id` | `baseId` | From parent base |
-| `parentId` | `parentId` | Ignored in v1 migration, always stored as `null` |
+| _no legacy hierarchy field_ | `parentId` | V1 exports are flat; migrated items are inserted as root nodes (`null`) |
 | `type` | `type` | Supported: file/url/note/sitemap/directory |
 | `content` + Dexie lookups | `data` | Type-specific transform |
 | `uniqueId` | `status` | `uniqueId` non-empty => `completed`, otherwise `idle` |
@@ -80,6 +83,7 @@
 - `video` items are skipped.
 - `memory` items are skipped.
 - Invalid/malformed items are skipped and recorded as warnings in `prepare`.
+- Invalid knowledge-base tuning fields are cleared during migration; they do not cause the base or its items to be skipped.
 
 ## Current Constraint Decisions
 
@@ -93,7 +97,13 @@
   - the base is skipped
   - all items under that base are skipped
   - a warning is recorded during `prepare`
-- v1 `parentId` is not migrated; all migrated items are root-level (`parentId = null`).
+- Missing embedding model identity is treated as a structural migration failure for that base.
+- Non-structural tuning config (`chunkSize`, `chunkOverlap`, `threshold`, `documentCount`) is migrated on a best-effort basis:
+  - valid values are preserved
+  - invalid values are cleared
+  - the base still migrates
+- V2 introduces `parentId` as a generic tree edge within the same knowledge base.
+- Legacy v1 knowledge data is flat, so migrated items are root-level (`parentId = null`) by design.
 
 ## Validation
 

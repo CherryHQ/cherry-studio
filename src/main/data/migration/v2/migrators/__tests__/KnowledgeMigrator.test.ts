@@ -403,7 +403,7 @@ describe('KnowledgeMigrator dimensions resolution', () => {
     expect(result.warnings?.some((warning: string) => warning.includes('embedding_model_missing'))).toBe(true)
   })
 
-  it('prepare ignores legacy parentId and migrates items as root nodes', async () => {
+  it('prepare migrates legacy flat items as root nodes in the v2 tree', async () => {
     const migrator = new KnowledgeMigrator() as any
     vi.spyOn(migrator, 'resolveDimensionsForBase').mockResolvedValue({
       dimensions: 1024,
@@ -421,7 +421,7 @@ describe('KnowledgeMigrator dimensions resolution', () => {
                 model: { id: 'BAAI/bge-m3', name: 'BAAI/bge-m3', provider: 'silicon' },
                 items: [
                   { id: 'parent-url', type: 'url', content: 'https://example.com' },
-                  { id: 'child-note', type: 'note', parentId: 'parent-url', content: 'child note' }
+                  { id: 'child-note', type: 'note', content: 'child note' }
                 ]
               }
             ]

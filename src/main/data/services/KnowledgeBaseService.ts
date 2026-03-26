@@ -8,7 +8,7 @@ import { dbService } from '@data/db/DbService'
 import { knowledgeBaseTable } from '@data/db/schemas/knowledge'
 import { loggerService } from '@logger'
 import { DataApiErrorFactory } from '@shared/data/api'
-import type { CreateKnowledgeBaseDto, UpdateKnowledgeBaseDto } from '@shared/data/api/schemas/knowledges'
+import { type CreateKnowledgeBaseDto, type UpdateKnowledgeBaseDto } from '@shared/data/api/schemas/knowledges'
 import type { KnowledgeBase } from '@shared/data/types/knowledge'
 import { desc, eq } from 'drizzle-orm'
 
@@ -72,9 +72,6 @@ export class KnowledgeBaseService {
     if (!dto.embeddingModelId?.trim()) {
       throw DataApiErrorFactory.validation({ embeddingModelId: ['Embedding model is required'] })
     }
-    if (!Number.isFinite(dto.dimensions) || dto.dimensions <= 0) {
-      throw DataApiErrorFactory.validation({ dimensions: ['Dimensions must be greater than 0'] })
-    }
 
     const [row] = await db
       .insert(knowledgeBaseTable)
@@ -99,19 +96,15 @@ export class KnowledgeBaseService {
   }
 
   async update(id: string, dto: UpdateKnowledgeBaseDto): Promise<KnowledgeBase> {
-    const forbiddenFieldErrors: Record<string, string[]> = {}
-    const hasField = <T extends keyof UpdateKnowledgeBaseDto>(key: T) => Object.prototype.hasOwnProperty.call(dto, key)
-
     if ('dimensions' in dto) {
-      forbiddenFieldErrors.dimensions = ['dimensions cannot be updated via PATCH; use a dedicated re-embed endpoint']
+      throw DataApiErrorFactory.validation({
+        dimensions: ['dimensions cannot be updated via PATCH; use a dedicated re-embed endpoint']
+      })
     }
     if ('embeddingModelId' in dto) {
-      forbiddenFieldErrors.embeddingModelId = [
-        'embeddingModelId cannot be updated via PATCH; use a dedicated re-embed endpoint'
-      ]
-    }
-    if (Object.keys(forbiddenFieldErrors).length > 0) {
-      throw DataApiErrorFactory.validation(forbiddenFieldErrors)
+      throw DataApiErrorFactory.validation({
+        embeddingModelId: ['embeddingModelId cannot be updated via PATCH; use a dedicated re-embed endpoint']
+      })
     }
     if (dto.name !== undefined && !dto.name.trim()) {
       throw DataApiErrorFactory.validation({ name: ['Name is required'] })
@@ -120,40 +113,20 @@ export class KnowledgeBaseService {
     const db = dbService.getDb()
     const existing = await this.getById(id)
 
-    const effectiveChunkSize = hasField('chunkSize') ? (dto.chunkSize ?? undefined) : existing.chunkSize
-    const effectiveChunkOverlap = hasField('chunkOverlap') ? (dto.chunkOverlap ?? undefined) : existing.chunkOverlap
-    if (
-      effectiveChunkSize !== undefined &&
-      effectiveChunkOverlap !== undefined &&
-      effectiveChunkOverlap >= effectiveChunkSize
-    ) {
-      throw DataApiErrorFactory.validation({
-        chunkOverlap: ['chunkOverlap must be smaller than chunkSize']
-      })
-    }
-
-    const effectiveSearchMode = hasField('searchMode') ? (dto.searchMode ?? undefined) : existing.searchMode
-    const effectiveHybridAlpha = hasField('hybridAlpha') ? (dto.hybridAlpha ?? undefined) : existing.hybridAlpha
-    if (effectiveHybridAlpha !== undefined && effectiveSearchMode !== 'hybrid') {
-      throw DataApiErrorFactory.validation({
-        hybridAlpha: ['hybridAlpha can only be set when searchMode is hybrid']
-      })
-    }
-
     const updates: Partial<typeof knowledgeBaseTable.$inferInsert> = {}
     if (dto.name !== undefined) updates.name = dto.name.trim()
-    if (hasField('description')) updates.description = dto.description
-    if (hasField('rerankModelId')) updates.rerankModelId = dto.rerankModelId
-    if (hasField('fileProcessorId')) updates.fileProcessorId = dto.fileProcessorId
-    if (hasField('chunkSize')) updates.chunkSize = dto.chunkSize
-    if (hasField('chunkOverlap')) updates.chunkOverlap = dto.chunkOverlap
-    if (hasField('threshold')) updates.threshold = dto.threshold
-    if (hasField('documentCount')) updates.documentCount = dto.documentCount
-    if (hasField('searchMode')) updates.searchMode = dto.searchMode
-    if (hasField('hybridAlpha')) updates.hybridAlpha = dto.hybridAlpha
+    if (dto.description !== undefined) updates.description = dto.description
+    if (dto.rerankModelId !== undefined) updates.rerankModelId = dto.rerankModelId
+    if (dto.fileProcessorId !== undefined) updates.fileProcessorId = dto.fileProcessorId
+    if (dto.chunkSize !== undefined) updates.chunkSize = dto.chunkSize
+    if (dto.chunkOverlap !== undefined) updates.chunkOverlap = dto.chunkOverlap
+    if (dto.threshold !== undefined) updates.threshold = dto.threshold
+    if (dto.documentCount !== undefined) updates.documentCount = dto.documentCount
+    if (dto.searchMode !== undefined) updates.searchMode = dto.searchMode
+    if (dto.hybridAlpha !== undefined) updates.hybridAlpha = dto.hybridAlpha
 
     if (Object.keys(updates).length === 0) {
-      throw DataApiErrorFactory.validation({ body: ['At least one field is required'] })
+      return existing
     }
 
     const [row] = await db.update(knowledgeBaseTable).set(updates).where(eq(knowledgeBaseTable.id, id)).returning()

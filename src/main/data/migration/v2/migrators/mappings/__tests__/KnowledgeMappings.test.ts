@@ -49,6 +49,59 @@ describe('KnowledgeMappings', () => {
     })
   })
 
+  it('transformKnowledgeBase preserves positive config values outside recommended UI ranges', () => {
+    expect(
+      transformKnowledgeBase(
+        {
+          id: 'kb-soft-limit-config',
+          name: 'KB soft limit config',
+          model: { id: 'BAAI/bge-m3', name: 'bge', provider: 'silicon' },
+          chunkSize: 80,
+          chunkOverlap: 40,
+          documentCount: 100
+        },
+        1024
+      )
+    ).toStrictEqual({
+      ok: true,
+      value: expect.objectContaining({
+        id: 'kb-soft-limit-config',
+        name: 'KB soft limit config',
+        chunkSize: 80,
+        chunkOverlap: 40,
+        documentCount: 100
+      })
+    })
+  })
+
+  it('transformKnowledgeBase clears invalid tuning config instead of skipping the base', () => {
+    expect(
+      transformKnowledgeBase(
+        {
+          id: 'kb-invalid-config',
+          name: 'KB invalid config',
+          model: { id: 'BAAI/bge-m3', name: 'bge', provider: 'silicon' },
+          chunkSize: 200,
+          chunkOverlap: 200,
+          threshold: 2,
+          documentCount: 0
+        },
+        1024
+      )
+    ).toStrictEqual({
+      ok: true,
+      value: expect.objectContaining({
+        id: 'kb-invalid-config',
+        name: 'KB invalid config',
+        chunkSize: 200,
+        chunkOverlap: undefined,
+        threshold: undefined,
+        documentCount: undefined,
+        searchMode: 'default'
+      })
+    })
+  })
+
   it('transformKnowledgeItem prefers Dexie note content over Redux fallback', () => {
     const result = transformKnowledgeItem(
       'kb-1',
@@ -145,7 +198,7 @@ describe('KnowledgeMappings', () => {
     })
   })
 
-  it('transformKnowledgeItem tags directory container data', () => {
+  it('transformKnowledgeItem maps directory items to v2 directory node data', () => {
     const result = transformKnowledgeItem(
       'kb-1',
       {
@@ -167,7 +220,6 @@ describe('KnowledgeMappings', () => {
         parentId: null,
         type: 'directory',
         data: {
-          kind: 'container',
           path: '/tmp/docs',
           recursive: true
         },

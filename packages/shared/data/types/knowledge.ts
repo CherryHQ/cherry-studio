@@ -65,25 +65,12 @@ export interface SitemapItemData {
 }
 
 /**
- * Directory container item data.
+ * Directory item data.
  */
-export interface DirectoryContainerData {
-  kind: 'container'
+export interface DirectoryData {
   path: string
   recursive: boolean
 }
-
-/**
- * Directory file-entry item data.
- */
-export interface DirectoryItemData {
-  kind: 'entry'
-  groupId: string
-  groupName: string
-  file: FileMetadata
-}
-
-export type DirectoryData = DirectoryContainerData | DirectoryItemData
 
 export interface KnowledgeItemDataMap {
   file: FileItemData

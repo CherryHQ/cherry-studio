@@ -1,21 +1,37 @@
+import type { CreateKnowledgeItemsDto } from '@shared/data/api/schemas/knowledges'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { ZodError } from 'zod'
 
-const { createKnowledgeBaseMock, updateKnowledgeBaseMock, createKnowledgeItemsMock, listKnowledgeItemsMock } =
-  vi.hoisted(() => ({
-    createKnowledgeBaseMock: vi.fn(),
-    updateKnowledgeBaseMock: vi.fn(),
-    createKnowledgeItemsMock: vi.fn(),
-    listKnowledgeItemsMock: vi.fn()
-  }))
+const {
+  listKnowledgeBasesMock,
+  createKnowledgeBaseMock,
+  getKnowledgeBaseByIdMock,
+  updateKnowledgeBaseMock,
+  deleteKnowledgeBaseMock,
+  listKnowledgeItemsMock,
+  createKnowledgeItemsMock,
+  getKnowledgeItemByIdMock,
+  updateKnowledgeItemMock,
+  deleteKnowledgeItemMock
+} = vi.hoisted(() => ({
+  listKnowledgeBasesMock: vi.fn(),
+  createKnowledgeBaseMock: vi.fn(),
+  getKnowledgeBaseByIdMock: vi.fn(),
+  updateKnowledgeBaseMock: vi.fn(),
+  deleteKnowledgeBaseMock: vi.fn(),
+  listKnowledgeItemsMock: vi.fn(),
+  createKnowledgeItemsMock: vi.fn(),
+  getKnowledgeItemByIdMock: vi.fn(),
+  updateKnowledgeItemMock: vi.fn(),
+  deleteKnowledgeItemMock: vi.fn()
+}))
 
 vi.mock('@data/services/KnowledgeBaseService', () => ({
   knowledgeBaseService: {
-    list: vi.fn(),
+    list: listKnowledgeBasesMock,
     create: createKnowledgeBaseMock,
-    getById: vi.fn(),
+    getById: getKnowledgeBaseByIdMock,
     update: updateKnowledgeBaseMock,
-    delete: vi.fn()
+    delete: deleteKnowledgeBaseMock
   }
 }))
 
@@ -23,11 +39,13 @@ vi.mock('@data/services/KnowledgeItemService', () => ({
   knowledgeItemService: {
     list: listKnowledgeItemsMock,
     create: createKnowledgeItemsMock,
-    getById: vi.fn(),
-    update: vi.fn(),
-    delete: vi.fn()
+    getById: getKnowledgeItemByIdMock,
+    update: updateKnowledgeItemMock,
+    delete: deleteKnowledgeItemMock
   }
 }))
+
+import { KNOWLEDGE_ITEMS_DEFAULT_LIMIT, KNOWLEDGE_ITEMS_DEFAULT_PAGE } from '@shared/data/api/schemas/knowledges'
 
 import { knowledgeHandlers } from '../knowledges'
 
@@ -36,206 +54,180 @@ describe('knowledgeHandlers', () => {
     vi.clearAllMocks()
   })
 
-  describe('knowledge base validation', () => {
-    it('rejects invalid create payloads before calling the service', async () => {
-      await expect(
-        knowledgeHandlers['/knowledge-bases'].POST({
-          body: {
-            name: 'Knowledge Base',
-            dimensions: 0,
-            embeddingModelId: 'provider::model',
-            chunkSize: 80,
-            chunkOverlap: 120,
-            threshold: 1.2,
-            documentCount: 0,
-            searchMode: 'default',
-            hybridAlpha: 0.5
-          } as never
-        })
-      ).rejects.toBeInstanceOf(ZodError)
+  describe('/knowledge-bases', () => {
+    it('should delegate GET to knowledgeBaseService.list', async () => {
+      const response = [{ id: 'kb-1', name: 'Knowledge Base' }]
+      listKnowledgeBasesMock.mockResolvedValueOnce(response)
 
-      expect(createKnowledgeBaseMock).not.toHaveBeenCalled()
+      const result = await knowledgeHandlers['/knowledge-bases'].GET({})
+
+      expect(listKnowledgeBasesMock).toHaveBeenCalledWith()
+      expect(result).toEqual(response)
     })
 
-    it('rejects invalid update payloads before calling the service', async () => {
+    it('should delegate POST to knowledgeBaseService.create', async () => {
+      const body = {
+        name: 'Knowledge Base',
+        dimensions: 1536,
+        embeddingModelId: 'text-embedding-3-large'
+      }
+      createKnowledgeBaseMock.mockResolvedValueOnce({ id: 'kb-1', ...body })
+
+      const result = await knowledgeHandlers['/knowledge-bases'].POST({ body })
+
+      expect(createKnowledgeBaseMock).toHaveBeenCalledWith(body)
+      expect(result).toMatchObject({ id: 'kb-1' })
+    })
+  })
+
+  describe('/knowledge-bases/:id', () => {
+    it('should delegate GET/PATCH/DELETE with the path id', async () => {
+      getKnowledgeBaseByIdMock.mockResolvedValueOnce({ id: 'kb-1' })
+      updateKnowledgeBaseMock.mockResolvedValueOnce({ id: 'kb-1', name: 'Updated Base' })
+      deleteKnowledgeBaseMock.mockResolvedValueOnce(undefined)
+
+      await expect(knowledgeHandlers['/knowledge-bases/:id'].GET({ params: { id: 'kb-1' } })).resolves.toEqual({
+        id: 'kb-1'
+      })
+
       await expect(
         knowledgeHandlers['/knowledge-bases/:id'].PATCH({
           params: { id: 'kb-1' },
-          body: {
-            chunkSize: 300,
-            chunkOverlap: 300,
-            searchMode: 'bm25',
-            hybridAlpha: 0.5
-          } as never
+          body: { name: 'Updated Base' }
         })
-      ).rejects.toBeInstanceOf(ZodError)
-
-      expect(updateKnowledgeBaseMock).not.toHaveBeenCalled()
-    })
-
-    it('accepts nulls for clearable update fields', async () => {
-      updateKnowledgeBaseMock.mockResolvedValueOnce({ id: 'kb-1' } as never)
-
-      await knowledgeHandlers['/knowledge-bases/:id'].PATCH({
-        params: { id: 'kb-1' },
-        body: {
-          description: null,
-          rerankModelId: null,
-          fileProcessorId: null,
-          chunkSize: null,
-          chunkOverlap: null,
-          threshold: null,
-          documentCount: null,
-          searchMode: 'default',
-          hybridAlpha: null
-        } as never
+      ).resolves.toEqual({
+        id: 'kb-1',
+        name: 'Updated Base'
       })
 
-      expect(updateKnowledgeBaseMock).toHaveBeenCalledWith('kb-1', {
-        description: null,
-        rerankModelId: null,
-        fileProcessorId: null,
-        chunkSize: null,
-        chunkOverlap: null,
-        threshold: null,
-        documentCount: null,
-        searchMode: 'default',
-        hybridAlpha: null
-      })
+      await expect(
+        knowledgeHandlers['/knowledge-bases/:id'].DELETE({
+          params: { id: 'kb-1' }
+        })
+      ).resolves.toBeUndefined()
+
+      expect(getKnowledgeBaseByIdMock).toHaveBeenCalledWith('kb-1')
+      expect(updateKnowledgeBaseMock).toHaveBeenCalledWith('kb-1', { name: 'Updated Base' })
+      expect(deleteKnowledgeBaseMock).toHaveBeenCalledWith('kb-1')
     })
   })
 
-  describe('POST /knowledge-bases/:id/items', () => {
-    it('should trim parentId before passing it to the service', async () => {
-      listKnowledgeItemsMock.mockResolvedValueOnce([])
-
-      const result = await knowledgeHandlers['/knowledge-bases/:id/items'].GET({
-        params: { id: 'kb-1' },
-        query: { parentId: '  dir-1  ' } as never
+  describe('/knowledge-bases/:id/items', () => {
+    it('should apply default pagination when query is missing', async () => {
+      listKnowledgeItemsMock.mockResolvedValueOnce({
+        items: [],
+        total: 0,
+        page: KNOWLEDGE_ITEMS_DEFAULT_PAGE
       })
 
-      expect(listKnowledgeItemsMock).toHaveBeenCalledWith('kb-1', 'dir-1')
-      expect(result).toEqual([])
+      await knowledgeHandlers['/knowledge-bases/:id/items'].GET({
+        params: { id: 'kb-1' }
+      })
+
+      expect(listKnowledgeItemsMock).toHaveBeenCalledWith('kb-1', {
+        page: KNOWLEDGE_ITEMS_DEFAULT_PAGE,
+        limit: KNOWLEDGE_ITEMS_DEFAULT_LIMIT,
+        parentId: undefined
+      })
     })
 
-    it('should throw a ZodError when create item body contains unknown fields', async () => {
-      await expect(
-        knowledgeHandlers['/knowledge-bases/:id/items'].POST({
-          params: { id: 'kb-1' },
-          body: {
-            items: [
-              {
-                type: 'note',
-                data: { content: 'child note' },
-                parentId: 'folder-1'
-              }
-            ]
-          } as never
-        })
-      ).rejects.toBeInstanceOf(ZodError)
+    it('should trim parentId before delegating to the service', async () => {
+      listKnowledgeItemsMock.mockResolvedValueOnce({
+        items: [],
+        total: 0,
+        page: 2
+      })
 
-      expect(createKnowledgeItemsMock).not.toHaveBeenCalled()
+      await knowledgeHandlers['/knowledge-bases/:id/items'].GET({
+        params: { id: 'kb-1' },
+        query: {
+          page: 2,
+          limit: 10,
+          parentId: '  parent-1  '
+        } as never
+      } as never)
+
+      expect(listKnowledgeItemsMock).toHaveBeenCalledWith('kb-1', {
+        page: 2,
+        limit: 10,
+        parentId: 'parent-1'
+      })
     })
 
-    it('should throw a ZodError when create item body contains internal directory entry payloads', async () => {
-      await expect(
-        knowledgeHandlers['/knowledge-bases/:id/items'].POST({
-          params: { id: 'kb-1' },
-          body: {
-            items: [
-              {
-                type: 'directory',
-                data: {
-                  kind: 'entry',
-                  groupId: 'group-1',
-                  groupName: 'Docs',
-                  file: {
-                    id: 'file-1',
-                    name: 'report.pdf',
-                    origin_name: 'report.pdf',
-                    path: '/tmp/report.pdf',
-                    size: 123,
-                    ext: '.pdf',
-                    type: 'document',
-                    created_at: '2026-03-24T00:00:00.000Z',
-                    count: 1
-                  }
-                }
-              }
-            ]
-          } as never
-        })
-      ).rejects.toBeInstanceOf(ZodError)
+    it('should normalize blank parentId to undefined', async () => {
+      listKnowledgeItemsMock.mockResolvedValueOnce({
+        items: [],
+        total: 0,
+        page: 1
+      })
 
-      expect(createKnowledgeItemsMock).not.toHaveBeenCalled()
+      await knowledgeHandlers['/knowledge-bases/:id/items'].GET({
+        params: { id: 'kb-1' },
+        query: {
+          parentId: '   '
+        } as never
+      } as never)
+
+      expect(listKnowledgeItemsMock).toHaveBeenCalledWith('kb-1', {
+        page: KNOWLEDGE_ITEMS_DEFAULT_PAGE,
+        limit: KNOWLEDGE_ITEMS_DEFAULT_LIMIT,
+        parentId: undefined
+      })
     })
 
-    it('should pass validated body to the service', async () => {
-      const createdItems = {
-        items: [
-          {
-            id: 'item-1',
-            baseId: 'kb-1',
-            parentId: null,
-            type: 'note' as const,
-            data: { content: 'hello' },
-            status: 'idle' as const,
-            createdAt: '2026-03-24T00:00:00.000Z',
-            updatedAt: '2026-03-24T00:00:00.000Z'
-          }
-        ]
+    it('should delegate POST to knowledgeItemService.create', async () => {
+      const body: CreateKnowledgeItemsDto = {
+        items: [{ type: 'note', data: { content: 'hello world' } }]
       }
-      createKnowledgeItemsMock.mockResolvedValueOnce(createdItems)
+      createKnowledgeItemsMock.mockResolvedValueOnce({
+        items: [{ id: 'item-1', baseId: 'kb-1', type: 'note', data: { content: 'hello world' } }]
+      })
 
       const result = await knowledgeHandlers['/knowledge-bases/:id/items'].POST({
         params: { id: 'kb-1' },
-        body: {
-          items: [
-            {
-              type: 'note',
-              data: { content: 'hello' }
-            }
-          ]
-        }
+        body
       })
 
-      expect(createKnowledgeItemsMock).toHaveBeenCalledWith('kb-1', {
+      expect(createKnowledgeItemsMock).toHaveBeenCalledWith('kb-1', body)
+      expect(result).toMatchObject({
         items: [
           {
-            type: 'note',
-            data: { content: 'hello' }
+            id: 'item-1'
           }
         ]
       })
-      expect(result).toEqual(createdItems)
     })
   })
 
-  describe('PATCH /knowledge-items/:id', () => {
-    it('should throw a ZodError when update item body contains internal directory entry payloads', async () => {
+  describe('/knowledge-items/:id', () => {
+    it('should delegate GET/PATCH/DELETE with the item id', async () => {
+      getKnowledgeItemByIdMock.mockResolvedValueOnce({ id: 'item-1' })
+      updateKnowledgeItemMock.mockResolvedValueOnce({ id: 'item-1', status: 'completed' })
+      deleteKnowledgeItemMock.mockResolvedValueOnce(undefined)
+
+      await expect(knowledgeHandlers['/knowledge-items/:id'].GET({ params: { id: 'item-1' } })).resolves.toEqual({
+        id: 'item-1'
+      })
+
       await expect(
         knowledgeHandlers['/knowledge-items/:id'].PATCH({
           params: { id: 'item-1' },
-          body: {
-            data: {
-              kind: 'entry',
-              groupId: 'group-1',
-              groupName: 'Docs',
-              file: {
-                id: 'file-1',
-                name: 'report.pdf',
-                origin_name: 'report.pdf',
-                path: '/tmp/report.pdf',
-                size: 123,
-                ext: '.pdf',
-                type: 'document',
-                created_at: '2026-03-24T00:00:00.000Z',
-                count: 1
-              }
-            }
-          } as never
+          body: { status: 'completed' }
         })
-      ).rejects.toBeInstanceOf(ZodError)
+      ).resolves.toEqual({
+        id: 'item-1',
+        status: 'completed'
+      })
+
+      await expect(
+        knowledgeHandlers['/knowledge-items/:id'].DELETE({
+          params: { id: 'item-1' }
+        })
+      ).resolves.toBeUndefined()
+
+      expect(getKnowledgeItemByIdMock).toHaveBeenCalledWith('item-1')
+      expect(updateKnowledgeItemMock).toHaveBeenCalledWith('item-1', { status: 'completed' })
+      expect(deleteKnowledgeItemMock).toHaveBeenCalledWith('item-1')
     })
   })
 })

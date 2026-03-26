@@ -221,12 +221,7 @@
       "foreignKeys": {},
       "compositePrimaryKeys": {},
       "uniqueConstraints": {},
-      "checkConstraints": {
-        "knowledge_base_search_mode_check": {
-          "name": "knowledge_base_search_mode_check",
-          "value": "\"knowledge_base\".\"search_mode\" IS NULL OR \"knowledge_base\".\"search_mode\" IN ('default', 'bm25', 'hybrid')"
-        }
-      }
+      "checkConstraints": {}
     },
     "knowledge_item": {
       "name": "knowledge_item",
@@ -270,7 +265,7 @@
           "name": "status",
           "type": "text",
           "primaryKey": false,
-          "notNull": false,
+          "notNull": true,
           "autoincrement": false,
           "default": "'idle'"
         },
@@ -297,16 +292,6 @@
         }
       },
       "indexes": {
-        "knowledge_item_base_id_idx": {
-          "name": "knowledge_item_base_id_idx",
-          "columns": ["base_id"],
-          "isUnique": false
-        },
-        "knowledge_item_parent_id_idx": {
-          "name": "knowledge_item_parent_id_idx",
-          "columns": ["parent_id"],
-          "isUnique": false
-        },
         "knowledge_item_base_parent_created_idx": {
           "name": "knowledge_item_base_parent_created_idx",
           "columns": ["base_id", "parent_id", "created_at"],
@@ -340,16 +325,7 @@
           "columns": ["base_id", "id"]
         }
       },
-      "checkConstraints": {
-        "knowledge_item_status_check": {
-          "name": "knowledge_item_status_check",
-          "value": "\"knowledge_item\".\"status\" IN ('idle', 'pending', 'ocr', 'read', 'embed', 'completed', 'failed')"
-        },
-        "knowledge_item_type_check": {
-          "name": "knowledge_item_type_check",
-          "value": "\"knowledge_item\".\"type\" IN ('file', 'url', 'note', 'sitemap', 'directory')"
-        }
-      }
+      "checkConstraints": {}
     },
     "mcp_server": {
       "name": "mcp_server",

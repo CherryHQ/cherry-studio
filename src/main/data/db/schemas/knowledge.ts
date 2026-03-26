@@ -4,48 +4,38 @@ import type {
   KnowledgeItemType,
   KnowledgeSearchMode
 } from '@shared/data/types/knowledge'
-import { sql } from 'drizzle-orm'
-import { check, foreignKey, index, integer, real, sqliteTable, text, unique } from 'drizzle-orm/sqlite-core'
+import { foreignKey, index, integer, real, sqliteTable, text, unique } from 'drizzle-orm/sqlite-core'
 
 import { createUpdateTimestamps, uuidPrimaryKey } from './_columnHelpers'
 
 /**
  * knowledge_base table - Knowledge base metadata
  */
-export const knowledgeBaseTable = sqliteTable(
-  'knowledge_base',
-  {
-    id: uuidPrimaryKey(),
-    name: text().notNull(),
-    description: text(),
-    dimensions: integer().notNull(),
+export const knowledgeBaseTable = sqliteTable('knowledge_base', {
+  id: uuidPrimaryKey(),
+  name: text().notNull(),
+  description: text(),
+  dimensions: integer().notNull(),
 
-    // Embedding model configuration
-    embeddingModelId: text().notNull(),
+  // Embedding model configuration
+  embeddingModelId: text().notNull(),
 
-    // Rerank model configuration
-    rerankModelId: text(),
+  // Rerank model configuration
+  rerankModelId: text(),
 
-    // File processing processor ID
-    fileProcessorId: text(),
+  // File processing processor ID
+  fileProcessorId: text(),
 
-    // Configuration
-    chunkSize: integer(),
-    chunkOverlap: integer(),
-    threshold: real(),
-    documentCount: integer(),
-    searchMode: text().$type<KnowledgeSearchMode>(),
-    hybridAlpha: real(),
+  // Configuration
+  chunkSize: integer(),
+  chunkOverlap: integer(),
+  threshold: real(),
+  documentCount: integer(),
+  searchMode: text().$type<KnowledgeSearchMode>(),
+  hybridAlpha: real(),
 
-    ...createUpdateTimestamps
-  },
-  (t) => [
-    check(
-      'knowledge_base_search_mode_check',
-      sql`${t.searchMode} IS NULL OR ${t.searchMode} IN ('default', 'bm25', 'hybrid')`
-    )
-  ]
-)
+  ...createUpdateTimestamps
+})
 
 /**
  * knowledge_item table - Knowledge items (files, URLs, notes, etc.)
@@ -60,7 +50,9 @@ export const knowledgeItemTable = sqliteTable(
       .notNull()
       .references(() => knowledgeBaseTable.id, { onDelete: 'cascade' }),
 
-    // Self-reference parent relation for hierarchical items (e.g. directory container -> child files)
+    // Generic same-base tree edge for v2 knowledge items.
+    // This is intentionally broader than a directory-only relation so future containers
+    // such as sitemap/url groups can reuse the same hierarchy model.
     parentId: text(),
 
     // Type: 'file' | 'url' | 'note' | 'sitemap' | 'directory'
@@ -70,21 +62,16 @@ export const knowledgeItemTable = sqliteTable(
     data: text({ mode: 'json' }).$type<KnowledgeItemData>().notNull(),
 
     // Processing status
-    status: text().$type<ItemStatus>().default('idle'),
+    status: text().$type<ItemStatus>().notNull().default('idle'),
     error: text(),
 
     ...createUpdateTimestamps
   },
   (t) => [
-    index('knowledge_item_base_id_idx').on(t.baseId),
-    index('knowledge_item_parent_id_idx').on(t.parentId),
+    // Covers the current list/query path: same-base children ordered by createdAt.
     index('knowledge_item_base_parent_created_idx').on(t.baseId, t.parentId, t.createdAt),
     unique().on(t.baseId, t.id),
-    foreignKey({ columns: [t.baseId, t.parentId], foreignColumns: [t.baseId, t.id] }).onDelete('cascade'),
-    check(
-      'knowledge_item_status_check',
-      sql`${t.status} IN ('idle', 'pending', 'ocr', 'read', 'embed', 'completed', 'failed')`
-    ),
-    check('knowledge_item_type_check', sql`${t.type} IN ('file', 'url', 'note', 'sitemap', 'directory')`)
+    // Composite self-FK keeps parent/child relationships inside the same knowledge base.
+    foreignKey({ columns: [t.baseId, t.parentId], foreignColumns: [t.baseId, t.id] }).onDelete('cascade')
   ]
 )

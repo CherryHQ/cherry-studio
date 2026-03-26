@@ -34,7 +34,6 @@ export interface LegacyKnowledgeItem {
   processingStatus?: LegacyProcessingStatus
   processingError?: string
   uniqueId?: string
-  parentId?: string | null
   sourceUrl?: string
 }
 
@@ -130,6 +129,42 @@ export const toCompositeModelId = (model: LegacyModel | null | undefined): strin
 export const inferKnowledgeItemStatus = (item: Pick<LegacyKnowledgeItem, 'uniqueId'>): ItemStatus =>
   typeof item.uniqueId === 'string' && item.uniqueId.trim() !== '' ? 'completed' : 'idle'
 
+function normalizeKnowledgeBaseConfig(base: NewKnowledgeBase): NewKnowledgeBase {
+  const normalized: NewKnowledgeBase = { ...base }
+
+  if (normalized.chunkSize != null && normalized.chunkSize <= 0) {
+    normalized.chunkSize = undefined
+  }
+
+  if (normalized.chunkOverlap != null && normalized.chunkOverlap < 0) {
+    normalized.chunkOverlap = undefined
+  }
+
+  if (normalized.threshold != null && (normalized.threshold < 0 || normalized.threshold > 1)) {
+    normalized.threshold = undefined
+  }
+
+  if (normalized.documentCount != null && normalized.documentCount <= 0) {
+    normalized.documentCount = undefined
+  }
+
+  if (normalized.hybridAlpha != null && (normalized.hybridAlpha < 0 || normalized.hybridAlpha > 1)) {
+    normalized.hybridAlpha = undefined
+  }
+
+  if (normalized.chunkSize == null) {
+    normalized.chunkOverlap = undefined
+  } else if (normalized.chunkOverlap != null && normalized.chunkOverlap >= normalized.chunkSize) {
+    normalized.chunkOverlap = undefined
+  }
+
+  if (normalized.hybridAlpha != null && normalized.searchMode !== 'hybrid') {
+    normalized.hybridAlpha = undefined
+  }
+
+  return normalized
+}
+
 export const resolveLegacyFileMetadata = (
   content: LegacyKnowledgeItem['content'],
   filesById: Map<string, FileMetadata>
@@ -167,24 +202,26 @@ export const transformKnowledgeBase = (
     }
   }
 
+  const transformedBase: NewKnowledgeBase = {
+    id: base.id,
+    name: base.name,
+    description: base.description,
+    dimensions,
+    embeddingModelId,
+    rerankModelId: toCompositeModelId(base.rerankModel ?? null),
+    fileProcessorId: base.preprocessProvider?.provider?.id,
+    chunkSize: base.chunkSize,
+    chunkOverlap: base.chunkOverlap,
+    threshold: base.threshold,
+    documentCount: base.documentCount,
+    searchMode: 'default',
+    createdAt: toTimestamp(base.created_at),
+    updatedAt: toTimestamp(base.updated_at)
+  }
+
   return {
     ok: true,
-    value: {
-      id: base.id,
-      name: base.name,
-      description: base.description,
-      dimensions,
-      embeddingModelId,
-      rerankModelId: toCompositeModelId(base.rerankModel ?? null),
-      fileProcessorId: base.preprocessProvider?.provider?.id,
-      chunkSize: base.chunkSize,
-      chunkOverlap: base.chunkOverlap,
-      threshold: base.threshold,
-      documentCount: base.documentCount,
-      searchMode: 'default',
-      createdAt: toTimestamp(base.created_at),
-      updatedAt: toTimestamp(base.updated_at)
-    }
+    value: normalizeKnowledgeBaseConfig(transformedBase)
   }
 }
 
@@ -253,7 +290,6 @@ export const transformKnowledgeItem = (
 
     type = 'directory'
     data = {
-      kind: 'container',
       path: item.content,
       recursive: true
     }
@@ -278,6 +314,8 @@ export const transformKnowledgeItem = (
     value: {
       id: item.id,
       baseId,
+      // Official v1 exports are flat, so migrated items are always inserted
+      // as root-level nodes even though the target schema supports parentId.
       parentId: null,
       type,
       data,
