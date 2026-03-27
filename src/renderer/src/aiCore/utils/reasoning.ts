@@ -84,6 +84,21 @@ export function getReasoningEffort(assistant: Assistant, model: Model): Reasonin
       return { reasoning: { enabled: false, exclude: true } }
     }
 
+    // nvidia: must use chat_template_kwargs
+    // Since limited documentation, it's hard to find what parameters should be set
+    // only part of mainstream oss model covered, all vefiried by nvidia api
+    if (model.provider === SystemProviderIds.nvidia) {
+      if (isSupportedThinkingTokenQwenModel(model)) {
+        return { chat_template_kwargs: { enable_thinking: false } }
+      } else if (isDeepSeekHybridInferenceModel(model)) {
+        return { chat_template_kwargs: { thinking: false } }
+      } else if (isSupportedThinkingTokenKimiModel(model)) {
+        return { chat_template_kwargs: { thinking: false } }
+      } else if (isSupportedThinkingTokenZhipuModel(model)) {
+        return { chat_template_kwargs: { enable_thinking: false } }
+      }
+    }
+
     // providers that use enable_thinking
     if (
       (isSupportEnableThinkingProvider(provider) &&
@@ -251,6 +266,27 @@ export function getReasoningEffort(assistant: Assistant, model: Model): Reasonin
     budgetTokens = Math.floor((tokenLimit.max - tokenLimit.min) * effortRatio + tokenLimit.min)
   }
 
+  // nvidia: must use chat_template_kwargs
+  // Since limited documentation, it's hard to find what parameters should be set
+  // only part of mainstream oss model covered, all vefiried by nvidia api
+  if (model.provider === SystemProviderIds.nvidia) {
+    if (isSupportedThinkingTokenQwenModel(model)) {
+      const enableThinkingConfig = isQwenAlwaysThinkModel(model) ? {} : { enable_thinking: true }
+      return {
+        chat_template_kwargs: {
+          ...enableThinkingConfig,
+          thinking_budget: budgetTokens
+        }
+      }
+    } else if (isDeepSeekHybridInferenceModel(model)) {
+      return { chat_template_kwargs: { thinking: true } }
+    } else if (isSupportedThinkingTokenKimiModel(model)) {
+      return { chat_template_kwargs: { thinking: true } }
+    } else if (isSupportedThinkingTokenZhipuModel(model)) {
+      return { chat_template_kwargs: { enable_thinking: true } }
+    }
+  }
+
   // See https://docs.siliconflow.cn/cn/api-reference/chat-completions/chat-completions
   if (model.provider === SystemProviderIds.silicon) {
     if (
@@ -307,12 +343,6 @@ export function getReasoningEffort(assistant: Assistant, model: Model): Reasonin
           return {
             reasoning: {
               enabled: true
-            }
-          }
-        case 'nvidia':
-          return {
-            chat_template_kwargs: {
-              thinking: true
             }
           }
         default:
@@ -392,9 +422,9 @@ export function getReasoningEffort(assistant: Assistant, model: Model): Reasonin
       }
     } else {
       return {
-        thinking_budget: budgetTokens,
         chat_template_kwargs: {
-          ...enableThinkingConfig
+          ...enableThinkingConfig,
+          thinking_budget: budgetTokens
         }
       }
     }

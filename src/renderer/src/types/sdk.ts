@@ -89,6 +89,7 @@ export type ReasoningEffortOptionalParams = {
   chat_template_kwargs?: {
     thinking?: boolean
     enable_thinking?: boolean
+    thinking_budget?: number
   }
   extra_body?: {
     google?: {
