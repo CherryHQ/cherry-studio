@@ -32,12 +32,16 @@ type MockHandle = {
 type MockPM = {
   register: ReturnType<typeof vi.fn>
   unregister: ReturnType<typeof vi.fn>
+  on: ReturnType<typeof vi.fn>
+  off: ReturnType<typeof vi.fn>
   handles: Map<string, MockHandle>
 }
 
 function createAutoRespondMockPM(): MockPM {
   const handles = new Map<string, MockHandle>()
   return {
+    on: vi.fn(),
+    off: vi.fn(),
     register: vi.fn((def: { id: string; [key: string]: unknown }) => {
       const proc: MockHandle = {
         id: def.id,
@@ -80,6 +84,8 @@ function createAutoRespondMockPM(): MockPM {
 function createManualMockPM(): MockPM {
   const handles = new Map<string, MockHandle>()
   return {
+    on: vi.fn(),
+    off: vi.fn(),
     register: vi.fn((def: { id: string; [key: string]: unknown }) => {
       const proc: MockHandle = {
         id: def.id,
