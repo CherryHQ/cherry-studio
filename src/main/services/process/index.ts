@@ -3,12 +3,12 @@ export { ProcessManager } from './ProcessManager'
 export type { TaskExecutorOptions } from './TaskExecutor'
 export { TaskExecutor } from './TaskExecutor'
 export type {
-  ChildProcessDefinition,
-  ProcessDefinition,
+  ChildProcessOptions,
   ProcessHandle,
   ProcessLogLine,
   ProcessManagerEvents,
-  UtilityProcessDefinition
+  ProcessOptions,
+  UtilityProcessOptions
 } from './types'
 export { ProcessState } from './types'
 export { UtilityProcessHandle } from './UtilityProcessHandle'

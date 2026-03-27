@@ -1,7 +1,7 @@
 import { loggerService } from '@logger'
 import { utilityProcess } from 'electron'
 
-import type { ProcessHandle, ProcessLogLine, UtilityProcessDefinition } from './types'
+import type { ProcessHandle, ProcessLogLine, UtilityProcessOptions } from './types'
 import { ProcessState } from './types'
 
 const DEFAULT_KILL_TIMEOUT_MS = 5000
@@ -12,7 +12,7 @@ export class UtilityProcessHandle implements ProcessHandle {
   private _state: ProcessState = ProcessState.Idle
   private _pid: number | undefined = undefined
   private _process: Electron.UtilityProcess | undefined = undefined
-  private readonly def: UtilityProcessDefinition
+  private readonly def: UtilityProcessOptions
   private readonly logger: ReturnType<typeof loggerService.withContext>
   private readonly messageHandlers = new Set<(message: unknown) => void>()
 
@@ -20,7 +20,7 @@ export class UtilityProcessHandle implements ProcessHandle {
   onExited: ((code: number | null, signal: NodeJS.Signals | null) => void) | undefined = undefined
   onLog: ((line: ProcessLogLine) => void) | undefined = undefined
 
-  constructor(def: UtilityProcessDefinition) {
+  constructor(def: UtilityProcessOptions) {
     this.def = def
     this.id = def.id
     this.logger = loggerService.withContext(`UtilityProcess:${def.id}`)

@@ -31,26 +31,21 @@ export interface ProcessManagerEvents {
   'process:log': (line: ProcessLogLine) => void
 }
 
-export interface ChildProcessDefinition {
-  type: 'child'
+export interface ProcessOptions {
   id: string
-  command: string
   args?: string[]
-  cwd?: string
   env?: Record<string, string>
   killTimeoutMs?: number
+}
+
+export interface ChildProcessOptions extends ProcessOptions {
+  command: string
+  cwd?: string
   detached?: boolean
   stdio?: StdioOptions
   skipOnStop?: boolean
 }
 
-export interface UtilityProcessDefinition {
-  type: 'utility'
-  id: string
+export interface UtilityProcessOptions extends ProcessOptions {
   modulePath: string
-  args?: string[]
-  env?: Record<string, string>
-  killTimeoutMs?: number
 }
-
-export type ProcessDefinition = ChildProcessDefinition | UtilityProcessDefinition

@@ -185,7 +185,6 @@ class OvmsManager {
       // Register and start via ProcessManager
       logger.info(`Starting OVMS with run.bat: ${runBatPath}`)
       const handle = pm.register({
-        type: 'child',
         id: 'ovms-server',
         command: runBatPath,
         cwd: ovmsDir,

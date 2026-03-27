@@ -416,7 +416,6 @@ class OpenClawService {
     }
 
     const handle = pm.register({
-      type: 'child',
       id: 'openclaw-gateway',
       command: openclawPath,
       args,

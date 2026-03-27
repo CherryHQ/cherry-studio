@@ -62,7 +62,7 @@ describe('ProcessManager', () => {
       const { ProcessManager, ProcessState } = await loadModules()
       const manager = new ProcessManager()
 
-      const handle = manager.register({ type: 'child', id: 'proc-1', command: 'echo' })
+      const handle = manager.register({ id: 'proc-1', command: 'echo' })
 
       expect(handle.id).toBe('proc-1')
       expect(handle.state).toBe(ProcessState.Idle)
@@ -72,9 +72,9 @@ describe('ProcessManager', () => {
       const { ProcessManager } = await loadModules()
       const manager = new ProcessManager()
 
-      manager.register({ type: 'child', id: 'dup-proc', command: 'echo' })
+      manager.register({ id: 'dup-proc', command: 'echo' })
 
-      expect(() => manager.register({ type: 'child', id: 'dup-proc', command: 'echo' })).toThrow(
+      expect(() => manager.register({ id: 'dup-proc', command: 'echo' })).toThrow(
         "Process 'dup-proc' is already registered"
       )
     })
@@ -90,7 +90,7 @@ describe('ProcessManager', () => {
       const { ProcessManager, ProcessState } = await loadModules()
       const manager = new ProcessManager()
 
-      const handle = manager.register({ type: 'utility', id: 'util-proc', modulePath: '/some/module.js' })
+      const handle = manager.register({ id: 'util-proc', modulePath: '/some/module.js' })
 
       expect(handle.id).toBe('util-proc')
       expect(handle.state).toBe(ProcessState.Idle)
@@ -102,7 +102,7 @@ describe('ProcessManager', () => {
       const { ProcessManager } = await loadModules()
       const manager = new ProcessManager()
 
-      const handle = manager.register({ type: 'child', id: 'get-proc', command: 'echo' })
+      const handle = manager.register({ id: 'get-proc', command: 'echo' })
 
       expect(manager.get('get-proc')).toBe(handle)
     })
@@ -122,7 +122,7 @@ describe('ProcessManager', () => {
       crossPlatformSpawn.mockReturnValue(mockCp)
 
       const manager = new ProcessManager()
-      const handle = manager.register({ type: 'child', id: 'start-proc', command: 'node' })
+      const handle = manager.register({ id: 'start-proc', command: 'node' })
 
       const startedListener = vi.fn()
       manager.on('process:started', startedListener)
@@ -138,7 +138,7 @@ describe('ProcessManager', () => {
       crossPlatformSpawn.mockReturnValue(mockCp)
 
       const manager = new ProcessManager()
-      const handle = manager.register({ type: 'child', id: 'exit-proc', command: 'node' })
+      const handle = manager.register({ id: 'exit-proc', command: 'node' })
 
       const exitedListener = vi.fn()
       manager.on('process:exited', exitedListener)
@@ -155,7 +155,7 @@ describe('ProcessManager', () => {
       crossPlatformSpawn.mockReturnValue(mockCp)
 
       const manager = new ProcessManager()
-      const handle = manager.register({ type: 'child', id: 'log-proc', command: 'node' })
+      const handle = manager.register({ id: 'log-proc', command: 'node' })
 
       const logListener = vi.fn()
       manager.on('process:log', logListener)
@@ -178,7 +178,7 @@ describe('ProcessManager', () => {
       crossPlatformSpawn.mockReturnValue(mockCp)
 
       const manager = new ProcessManager()
-      const handle = manager.register({ type: 'child', id: 'stderr-log-proc', command: 'node' })
+      const handle = manager.register({ id: 'stderr-log-proc', command: 'node' })
 
       const logListener = vi.fn()
       manager.on('process:log', logListener)
@@ -201,7 +201,7 @@ describe('ProcessManager', () => {
       crossPlatformSpawn.mockReturnValue(mockCp)
 
       const manager = new ProcessManager()
-      const handle = manager.register({ type: 'child', id: 'off-proc', command: 'node' })
+      const handle = manager.register({ id: 'off-proc', command: 'node' })
 
       const startedListener = vi.fn()
       manager.on('process:started', startedListener)
@@ -221,8 +221,8 @@ describe('ProcessManager', () => {
       crossPlatformSpawn.mockReturnValueOnce(mockCp1).mockReturnValueOnce(mockCp2)
 
       const manager = new ProcessManager()
-      const handle1 = manager.register({ type: 'child', id: 'proc-a', command: 'sleep' })
-      const handle2 = manager.register({ type: 'child', id: 'proc-b', command: 'sleep' })
+      const handle1 = manager.register({ id: 'proc-a', command: 'sleep' })
+      const handle2 = manager.register({ id: 'proc-b', command: 'sleep' })
 
       await handle1.start()
       await handle2.start()
@@ -245,7 +245,7 @@ describe('ProcessManager', () => {
       crossPlatformSpawn.mockReturnValue(mockCp)
 
       const manager = new ProcessManager()
-      const handle = manager.register({ type: 'child', id: 'already-stopped', command: 'echo' })
+      const handle = manager.register({ id: 'already-stopped', command: 'echo' })
 
       await handle.start()
       mockCp.emit('close', 0, null)
@@ -264,7 +264,7 @@ describe('ProcessManager', () => {
       crossPlatformSpawn.mockReturnValue(mockCp)
 
       const manager = new ProcessManager()
-      const handle = manager.register({ type: 'child', id: 'skip-proc', command: 'sleep', skipOnStop: true })
+      const handle = manager.register({ id: 'skip-proc', command: 'sleep', skipOnStop: true })
 
       await handle.start()
 
@@ -288,8 +288,8 @@ describe('ProcessManager', () => {
       crossPlatformSpawn.mockReturnValueOnce(mockCp1).mockReturnValueOnce(mockCp2)
 
       const manager = new ProcessManager()
-      const handle1 = manager.register({ type: 'child', id: 'fail-proc', command: 'sleep' })
-      const handle2 = manager.register({ type: 'child', id: 'ok-proc', command: 'sleep' })
+      const handle1 = manager.register({ id: 'fail-proc', command: 'sleep' })
+      const handle2 = manager.register({ id: 'ok-proc', command: 'sleep' })
 
       await handle1.start()
       await handle2.start()
@@ -312,7 +312,7 @@ describe('ProcessManager', () => {
       crossPlatformSpawn.mockReturnValue(mockCp)
 
       const manager = new ProcessManager()
-      const handle = manager.register({ type: 'child', id: 'unreg-proc', command: 'echo' })
+      const handle = manager.register({ id: 'unreg-proc', command: 'echo' })
 
       await handle.start()
       mockCp.emit('close', 0, null)
@@ -325,7 +325,7 @@ describe('ProcessManager', () => {
       const { ProcessManager } = await loadModules()
       const manager = new ProcessManager()
 
-      manager.register({ type: 'child', id: 'idle-unreg', command: 'echo' })
+      manager.register({ id: 'idle-unreg', command: 'echo' })
       manager.unregister('idle-unreg')
 
       expect(manager.get('idle-unreg')).toBeUndefined()
@@ -337,7 +337,7 @@ describe('ProcessManager', () => {
       crossPlatformSpawn.mockReturnValue(mockCp)
 
       const manager = new ProcessManager()
-      const handle = manager.register({ type: 'child', id: 'running-unreg', command: 'sleep' })
+      const handle = manager.register({ id: 'running-unreg', command: 'sleep' })
 
       await handle.start()
 

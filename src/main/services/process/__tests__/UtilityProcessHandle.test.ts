@@ -39,7 +39,7 @@ describe('UtilityProcessHandle', () => {
   describe('initial state', () => {
     it('starts in Idle state with correct id and undefined pid', async () => {
       const { UtilityProcessHandle } = await loadModules()
-      const handle = new UtilityProcessHandle({ type: 'utility', id: 'util-proc', modulePath: '/path/to/module.js' })
+      const handle = new UtilityProcessHandle({ id: 'util-proc', modulePath: '/path/to/module.js' })
 
       expect(handle.id).toBe('util-proc')
       expect(handle.state).toBe('idle')
@@ -53,7 +53,7 @@ describe('UtilityProcessHandle', () => {
       const mockProc = createMockUtilityProcess(9876)
       mockUtilityProcess.fork.mockReturnValue(mockProc)
 
-      const handle = new UtilityProcessHandle({ type: 'utility', id: 'proc1', modulePath: '/path/module.js' })
+      const handle = new UtilityProcessHandle({ id: 'proc1', modulePath: '/path/module.js' })
       await handle.start()
 
       expect(handle.state).toBe('running')
@@ -66,7 +66,6 @@ describe('UtilityProcessHandle', () => {
       mockUtilityProcess.fork.mockReturnValue(mockProc)
 
       const handle = new UtilityProcessHandle({
-        type: 'utility',
         id: 'fork-proc',
         modulePath: '/path/to/worker.js',
         args: ['--flag', 'value'],
@@ -84,7 +83,7 @@ describe('UtilityProcessHandle', () => {
       const mockProc = createMockUtilityProcess()
       mockUtilityProcess.fork.mockReturnValue(mockProc)
 
-      const handle = new UtilityProcessHandle({ type: 'utility', id: 'proc2', modulePath: '/module.js' })
+      const handle = new UtilityProcessHandle({ id: 'proc2', modulePath: '/module.js' })
       await handle.start()
 
       await expect(handle.start()).rejects.toThrow(/already running/)
@@ -95,7 +94,7 @@ describe('UtilityProcessHandle', () => {
       const mockProc = createMockUtilityProcess(4321)
       mockUtilityProcess.fork.mockReturnValue(mockProc)
 
-      const handle = new UtilityProcessHandle({ type: 'utility', id: 'cb-proc', modulePath: '/module.js' })
+      const handle = new UtilityProcessHandle({ id: 'cb-proc', modulePath: '/module.js' })
       const onStarted = vi.fn()
       handle.onStarted = onStarted
 
@@ -111,7 +110,7 @@ describe('UtilityProcessHandle', () => {
       const mockProc = createMockUtilityProcess()
       mockUtilityProcess.fork.mockReturnValue(mockProc)
 
-      const handle = new UtilityProcessHandle({ type: 'utility', id: 'msg-proc', modulePath: '/module.js' })
+      const handle = new UtilityProcessHandle({ id: 'msg-proc', modulePath: '/module.js' })
       await handle.start()
 
       handle.postMessage({ type: 'ping', data: 42 })
@@ -122,7 +121,7 @@ describe('UtilityProcessHandle', () => {
     it('throws if process is not running', async () => {
       const { UtilityProcessHandle } = await loadModules()
 
-      const handle = new UtilityProcessHandle({ type: 'utility', id: 'idle-msg', modulePath: '/module.js' })
+      const handle = new UtilityProcessHandle({ id: 'idle-msg', modulePath: '/module.js' })
 
       expect(() => handle.postMessage('hello')).toThrow(/not running/)
     })
@@ -134,7 +133,7 @@ describe('UtilityProcessHandle', () => {
       const mockProc = createMockUtilityProcess()
       mockUtilityProcess.fork.mockReturnValue(mockProc)
 
-      const handle = new UtilityProcessHandle({ type: 'utility', id: 'recv-proc', modulePath: '/module.js' })
+      const handle = new UtilityProcessHandle({ id: 'recv-proc', modulePath: '/module.js' })
       await handle.start()
 
       const received: unknown[] = []
@@ -151,7 +150,7 @@ describe('UtilityProcessHandle', () => {
       const mockProc = createMockUtilityProcess()
       mockUtilityProcess.fork.mockReturnValue(mockProc)
 
-      const handle = new UtilityProcessHandle({ type: 'utility', id: 'unsub-proc', modulePath: '/module.js' })
+      const handle = new UtilityProcessHandle({ id: 'unsub-proc', modulePath: '/module.js' })
       await handle.start()
 
       const received: unknown[] = []
@@ -171,7 +170,7 @@ describe('UtilityProcessHandle', () => {
       const mockProc = createMockUtilityProcess()
       mockUtilityProcess.fork.mockReturnValue(mockProc)
 
-      const handle = new UtilityProcessHandle({ type: 'utility', id: 'stop-proc', modulePath: '/module.js' })
+      const handle = new UtilityProcessHandle({ id: 'stop-proc', modulePath: '/module.js' })
       await handle.start()
 
       const stopPromise = handle.stop()
@@ -188,7 +187,7 @@ describe('UtilityProcessHandle', () => {
     it('does nothing if process is not running', async () => {
       const { UtilityProcessHandle } = await loadModules()
 
-      const handle = new UtilityProcessHandle({ type: 'utility', id: 'idle-stop', modulePath: '/module.js' })
+      const handle = new UtilityProcessHandle({ id: 'idle-stop', modulePath: '/module.js' })
 
       await expect(handle.stop()).resolves.toBeUndefined()
       expect(handle.state).toBe('idle')
@@ -202,7 +201,6 @@ describe('UtilityProcessHandle', () => {
       mockUtilityProcess.fork.mockReturnValue(mockProc)
 
       const handle = new UtilityProcessHandle({
-        type: 'utility',
         id: 'timeout-proc',
         modulePath: '/module.js',
         killTimeoutMs: 1000
@@ -227,7 +225,7 @@ describe('UtilityProcessHandle', () => {
       const mockProc = createMockUtilityProcess()
       mockUtilityProcess.fork.mockReturnValue(mockProc)
 
-      const handle = new UtilityProcessHandle({ type: 'utility', id: 'crash-proc', modulePath: '/module.js' })
+      const handle = new UtilityProcessHandle({ id: 'crash-proc', modulePath: '/module.js' })
       await handle.start()
 
       mockProc.emit('exit', 1)
@@ -241,7 +239,7 @@ describe('UtilityProcessHandle', () => {
       const mockProc = createMockUtilityProcess()
       mockUtilityProcess.fork.mockReturnValue(mockProc)
 
-      const handle = new UtilityProcessHandle({ type: 'utility', id: 'clean-exit', modulePath: '/module.js' })
+      const handle = new UtilityProcessHandle({ id: 'clean-exit', modulePath: '/module.js' })
       await handle.start()
 
       mockProc.emit('exit', 0)
@@ -255,7 +253,7 @@ describe('UtilityProcessHandle', () => {
       const mockProc = createMockUtilityProcess()
       mockUtilityProcess.fork.mockReturnValue(mockProc)
 
-      const handle = new UtilityProcessHandle({ type: 'utility', id: 'stopping-exit', modulePath: '/module.js' })
+      const handle = new UtilityProcessHandle({ id: 'stopping-exit', modulePath: '/module.js' })
       await handle.start()
 
       const stopPromise = handle.stop()
@@ -270,7 +268,7 @@ describe('UtilityProcessHandle', () => {
       const mockProc = createMockUtilityProcess()
       mockUtilityProcess.fork.mockReturnValue(mockProc)
 
-      const handle = new UtilityProcessHandle({ type: 'utility', id: 'onexited-proc', modulePath: '/module.js' })
+      const handle = new UtilityProcessHandle({ id: 'onexited-proc', modulePath: '/module.js' })
       const onExited = vi.fn()
       handle.onExited = onExited
 
@@ -288,7 +286,7 @@ describe('UtilityProcessHandle', () => {
         throw new Error('MODULE_NOT_FOUND')
       })
 
-      const handle = new UtilityProcessHandle({ type: 'utility', id: 'throw-proc', modulePath: '/bad/path.js' })
+      const handle = new UtilityProcessHandle({ id: 'throw-proc', modulePath: '/bad/path.js' })
 
       await expect(handle.start()).rejects.toThrow('MODULE_NOT_FOUND')
       expect(handle.state).toBe('crashed')
@@ -301,7 +299,7 @@ describe('UtilityProcessHandle', () => {
         throw new Error('fork failed')
       })
 
-      const handle = new UtilityProcessHandle({ type: 'utility', id: 'throw-exited', modulePath: '/bad.js' })
+      const handle = new UtilityProcessHandle({ id: 'throw-exited', modulePath: '/bad.js' })
       const onExited = vi.fn()
       handle.onExited = onExited
 
@@ -314,7 +312,7 @@ describe('UtilityProcessHandle', () => {
   describe('skipOnStop', () => {
     it('always returns false (utility processes are always stopped on shutdown)', async () => {
       const { UtilityProcessHandle } = await loadModules()
-      const handle = new UtilityProcessHandle({ type: 'utility', id: 'skip-test', modulePath: '/module.js' })
+      const handle = new UtilityProcessHandle({ id: 'skip-test', modulePath: '/module.js' })
       expect(handle.skipOnStop).toBe(false)
     })
   })
@@ -327,7 +325,7 @@ describe('UtilityProcessHandle', () => {
       const mockProc2 = createMockUtilityProcess(2222)
       mockUtilityProcess.fork.mockReturnValueOnce(mockProc1).mockReturnValueOnce(mockProc2)
 
-      const handle = new UtilityProcessHandle({ type: 'utility', id: 'restart-proc', modulePath: '/module.js' })
+      const handle = new UtilityProcessHandle({ id: 'restart-proc', modulePath: '/module.js' })
       await handle.start()
 
       expect(handle.pid).toBe(1111)

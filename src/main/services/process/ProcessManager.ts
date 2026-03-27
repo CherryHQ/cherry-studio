@@ -4,14 +4,7 @@ import { loggerService } from '@logger'
 import { BaseService, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 
 import { ChildProcessHandle } from './ChildProcessHandle'
-import type {
-  ChildProcessDefinition,
-  ProcessDefinition,
-  ProcessHandle,
-  ProcessLogLine,
-  ProcessManagerEvents,
-  UtilityProcessDefinition
-} from './types'
+import type { ChildProcessOptions, ProcessHandle, ProcessManagerEvents, UtilityProcessOptions } from './types'
 import { ProcessState } from './types'
 import { UtilityProcessHandle } from './UtilityProcessHandle'
 
@@ -22,40 +15,20 @@ export class ProcessManager extends BaseService {
   private readonly handles = new Map<string, ProcessHandle>()
   private readonly logger = loggerService.withContext('ProcessManager')
 
-  register(def: ChildProcessDefinition): ChildProcessHandle
-  register(def: UtilityProcessDefinition): UtilityProcessHandle
-  register(def: ProcessDefinition): ChildProcessHandle | UtilityProcessHandle {
-    if (this.handles.has(def.id)) {
-      throw new Error(`Process '${def.id}' is already registered`)
+  register(options: ChildProcessOptions): ChildProcessHandle
+  register(options: UtilityProcessOptions): UtilityProcessHandle
+  register(options: ChildProcessOptions | UtilityProcessOptions): ChildProcessHandle | UtilityProcessHandle {
+    if (this.handles.has(options.id)) {
+      throw new Error(`Process '${options.id}' is already registered`)
     }
 
-    let handle: ChildProcessHandle | UtilityProcessHandle
+    const handle = 'modulePath' in options ? new UtilityProcessHandle(options) : new ChildProcessHandle(options)
 
-    if (def.type === 'utility') {
-      const utilHandle = new UtilityProcessHandle(def)
-      utilHandle.onStarted = (pid) => this.emitter.emit('process:started', def.id, pid)
-      utilHandle.onExited = (code, signal) => this.emitter.emit('process:exited', def.id, code, signal)
-      utilHandle.onLog = (line) => this.emitter.emit('process:log', line)
-      handle = utilHandle
-    } else {
-      const childHandle = new ChildProcessHandle(def)
+    handle.onStarted = (pid) => this.emitter.emit('process:started', options.id, pid)
+    handle.onExited = (code, signal) => this.emitter.emit('process:exited', options.id, code, signal)
+    handle.onLog = (line) => this.emitter.emit('process:log', line)
 
-      childHandle.onStarted = (pid: number) => {
-        this.emitter.emit('process:started', def.id, pid)
-      }
-
-      childHandle.onExited = (code: number | null, signal: NodeJS.Signals | null) => {
-        this.emitter.emit('process:exited', def.id, code, signal)
-      }
-
-      childHandle.onLog = (line: ProcessLogLine) => {
-        this.emitter.emit('process:log', line)
-      }
-
-      handle = childHandle
-    }
-
-    this.handles.set(def.id, handle)
+    this.handles.set(options.id, handle)
     return handle
   }
 

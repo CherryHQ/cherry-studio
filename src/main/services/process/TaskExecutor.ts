@@ -181,7 +181,6 @@ export class TaskExecutor {
     this.logger.info(`Spawning worker '${workerId}'`)
 
     const handle = this.pm.register({
-      type: 'utility',
       id: workerId,
       modulePath: this.options.modulePath,
       env: this.options.env,

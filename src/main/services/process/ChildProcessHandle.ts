@@ -3,7 +3,7 @@ import { crossPlatformSpawn } from '@main/utils/process'
 import getShellEnv from '@main/utils/shell-env'
 import type { ChildProcess } from 'child_process'
 
-import type { ChildProcessDefinition, ProcessHandle, ProcessLogLine } from './types'
+import type { ChildProcessOptions, ProcessHandle, ProcessLogLine } from './types'
 import { ProcessState } from './types'
 
 const DEFAULT_KILL_TIMEOUT_MS = 5000
@@ -14,14 +14,14 @@ export class ChildProcessHandle implements ProcessHandle {
   private _state: ProcessState = ProcessState.Idle
   private _pid: number | undefined = undefined
   private _process: ChildProcess | undefined = undefined
-  private readonly def: ChildProcessDefinition
+  private readonly def: ChildProcessOptions
   private readonly logger: ReturnType<typeof loggerService.withContext>
 
   onStarted: ((pid: number) => void) | undefined = undefined
   onExited: ((code: number | null, signal: NodeJS.Signals | null) => void) | undefined = undefined
   onLog: ((line: ProcessLogLine) => void) | undefined = undefined
 
-  constructor(def: ChildProcessDefinition) {
+  constructor(def: ChildProcessOptions) {
     this.def = def
     this.id = def.id
     this.logger = loggerService.withContext(`Process:${def.id}`)

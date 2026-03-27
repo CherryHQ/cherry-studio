@@ -49,7 +49,7 @@ describe('ChildProcessHandle', () => {
   describe('initial state', () => {
     it('starts in Idle state with correct id and undefined pid', async () => {
       const { ChildProcessHandle } = await loadModules()
-      const handle = new ChildProcessHandle({ type: 'child', id: 'test-proc', command: 'echo' })
+      const handle = new ChildProcessHandle({ id: 'test-proc', command: 'echo' })
 
       expect(handle.id).toBe('test-proc')
       expect(handle.state).toBe('idle')
@@ -63,7 +63,7 @@ describe('ChildProcessHandle', () => {
       const mockCp = createMockChildProcess(5678)
       crossPlatformSpawn.mockReturnValue(mockCp)
 
-      const handle = new ChildProcessHandle({ type: 'child', id: 'proc1', command: 'node', args: ['--version'] })
+      const handle = new ChildProcessHandle({ id: 'proc1', command: 'node', args: ['--version'] })
       await handle.start()
 
       expect(handle.state).toBe('running')
@@ -79,7 +79,6 @@ describe('ChildProcessHandle', () => {
       crossPlatformSpawn.mockReturnValue(mockCp)
 
       const handle = new ChildProcessHandle({
-        type: 'child',
         id: 'env-proc',
         command: 'node',
         env: { MY_VAR: 'hello' }
@@ -100,7 +99,7 @@ describe('ChildProcessHandle', () => {
       const mockCp = createMockChildProcess()
       crossPlatformSpawn.mockReturnValue(mockCp)
 
-      const handle = new ChildProcessHandle({ type: 'child', id: 'proc2', command: 'sleep' })
+      const handle = new ChildProcessHandle({ id: 'proc2', command: 'sleep' })
       await handle.start()
 
       await expect(handle.start()).rejects.toThrow(/already running/)
@@ -111,7 +110,7 @@ describe('ChildProcessHandle', () => {
       const mockCp = createMockChildProcess(9999)
       crossPlatformSpawn.mockReturnValue(mockCp)
 
-      const handle = new ChildProcessHandle({ type: 'child', id: 'cb-proc', command: 'node' })
+      const handle = new ChildProcessHandle({ id: 'cb-proc', command: 'node' })
       const onStarted = vi.fn()
       handle.onStarted = onStarted
 
@@ -127,7 +126,7 @@ describe('ChildProcessHandle', () => {
       const mockCp = createMockChildProcess()
       crossPlatformSpawn.mockReturnValue(mockCp)
 
-      const handle = new ChildProcessHandle({ type: 'child', id: 'exit-proc', command: 'true' })
+      const handle = new ChildProcessHandle({ id: 'exit-proc', command: 'true' })
       await handle.start()
 
       mockCp.emit('close', 0, null)
@@ -141,7 +140,7 @@ describe('ChildProcessHandle', () => {
       const mockCp = createMockChildProcess()
       crossPlatformSpawn.mockReturnValue(mockCp)
 
-      const handle = new ChildProcessHandle({ type: 'child', id: 'crash-proc', command: 'false' })
+      const handle = new ChildProcessHandle({ id: 'crash-proc', command: 'false' })
       await handle.start()
 
       mockCp.emit('close', 1, null)
@@ -155,7 +154,7 @@ describe('ChildProcessHandle', () => {
       const mockCp = createMockChildProcess()
       crossPlatformSpawn.mockReturnValue(mockCp)
 
-      const handle = new ChildProcessHandle({ type: 'child', id: 'onexited-proc', command: 'node' })
+      const handle = new ChildProcessHandle({ id: 'onexited-proc', command: 'node' })
       const onExited = vi.fn()
       handle.onExited = onExited
 
@@ -170,7 +169,7 @@ describe('ChildProcessHandle', () => {
       const mockCp = createMockChildProcess()
       crossPlatformSpawn.mockReturnValue(mockCp)
 
-      const handle = new ChildProcessHandle({ type: 'child', id: 'err-proc', command: 'bad' })
+      const handle = new ChildProcessHandle({ id: 'err-proc', command: 'bad' })
       await handle.start()
 
       mockCp.emit('error', new Error('spawn failed'))
@@ -184,7 +183,7 @@ describe('ChildProcessHandle', () => {
       const mockCp = createMockChildProcess()
       crossPlatformSpawn.mockReturnValue(mockCp)
 
-      const handle = new ChildProcessHandle({ type: 'child', id: 'err-exited-proc', command: 'bad' })
+      const handle = new ChildProcessHandle({ id: 'err-exited-proc', command: 'bad' })
       const onExited = vi.fn()
       handle.onExited = onExited
 
@@ -202,7 +201,7 @@ describe('ChildProcessHandle', () => {
       const mockCp = createMockChildProcess()
       crossPlatformSpawn.mockReturnValue(mockCp)
 
-      const handle = new ChildProcessHandle({ type: 'child', id: 'stop-proc', command: 'sleep' })
+      const handle = new ChildProcessHandle({ id: 'stop-proc', command: 'sleep' })
       await handle.start()
 
       const stopPromise = handle.stop()
@@ -218,7 +217,7 @@ describe('ChildProcessHandle', () => {
 
     it('does nothing if process is not running', async () => {
       const { ChildProcessHandle } = await loadModules()
-      const handle = new ChildProcessHandle({ type: 'child', id: 'idle-stop', command: 'node' })
+      const handle = new ChildProcessHandle({ id: 'idle-stop', command: 'node' })
 
       // Should resolve immediately without throwing
       await expect(handle.stop()).resolves.toBeUndefined()
@@ -233,7 +232,6 @@ describe('ChildProcessHandle', () => {
       crossPlatformSpawn.mockReturnValue(mockCp)
 
       const handle = new ChildProcessHandle({
-        type: 'child',
         id: 'kill-proc',
         command: 'sleep',
         killTimeoutMs: 1000
@@ -266,7 +264,6 @@ describe('ChildProcessHandle', () => {
       crossPlatformSpawn.mockReturnValue(mockCp)
 
       const handle = new ChildProcessHandle({
-        type: 'child',
         id: 'graceful-proc',
         command: 'sleep',
         killTimeoutMs: 5000
@@ -295,7 +292,7 @@ describe('ChildProcessHandle', () => {
       const mockCp = createMockChildProcess()
       crossPlatformSpawn.mockReturnValue(mockCp)
 
-      const handle = new ChildProcessHandle({ type: 'child', id: 'log-proc', command: 'node' })
+      const handle = new ChildProcessHandle({ id: 'log-proc', command: 'node' })
       const onLog = vi.fn()
       handle.onLog = onLog
 
@@ -318,7 +315,7 @@ describe('ChildProcessHandle', () => {
       const mockCp = createMockChildProcess()
       crossPlatformSpawn.mockReturnValue(mockCp)
 
-      const handle = new ChildProcessHandle({ type: 'child', id: 'stderr-proc', command: 'node' })
+      const handle = new ChildProcessHandle({ id: 'stderr-proc', command: 'node' })
       const onLog = vi.fn()
       handle.onLog = onLog
 
@@ -344,7 +341,7 @@ describe('ChildProcessHandle', () => {
       const mockCp2 = createMockChildProcess(2222)
       crossPlatformSpawn.mockReturnValueOnce(mockCp1).mockReturnValueOnce(mockCp2)
 
-      const handle = new ChildProcessHandle({ type: 'child', id: 'restart-proc', command: 'node' })
+      const handle = new ChildProcessHandle({ id: 'restart-proc', command: 'node' })
       await handle.start()
 
       expect(handle.pid).toBe(1111)
@@ -369,7 +366,7 @@ describe('ChildProcessHandle', () => {
       const mockCp = createMockChildProcess()
       crossPlatformSpawn.mockReturnValue(mockCp)
 
-      const handle = new ChildProcessHandle({ type: 'child', id: 'stopping-proc', command: 'sleep' })
+      const handle = new ChildProcessHandle({ id: 'stopping-proc', command: 'sleep' })
       await handle.start()
 
       const stopPromise = handle.stop()
@@ -388,7 +385,7 @@ describe('ChildProcessHandle', () => {
       const mockCp = createMockChildProcess()
       crossPlatformSpawn.mockReturnValue(mockCp)
 
-      const handle = new ChildProcessHandle({ type: 'child', id: 'detached-proc', command: 'node', detached: true })
+      const handle = new ChildProcessHandle({ id: 'detached-proc', command: 'node', detached: true })
       await handle.start()
 
       expect(crossPlatformSpawn).toHaveBeenCalledWith('node', [], expect.objectContaining({ detached: true }))
@@ -399,7 +396,7 @@ describe('ChildProcessHandle', () => {
       const mockCp = createMockChildProcess()
       crossPlatformSpawn.mockReturnValue(mockCp)
 
-      const handle = new ChildProcessHandle({ type: 'child', id: 'unref-proc', command: 'node', detached: true })
+      const handle = new ChildProcessHandle({ id: 'unref-proc', command: 'node', detached: true })
       await handle.start()
 
       expect(mockCp.unref).toHaveBeenCalled()
@@ -410,7 +407,7 @@ describe('ChildProcessHandle', () => {
       const mockCp = createMockChildProcess()
       crossPlatformSpawn.mockReturnValue(mockCp)
 
-      const handle = new ChildProcessHandle({ type: 'child', id: 'no-unref', command: 'node' })
+      const handle = new ChildProcessHandle({ id: 'no-unref', command: 'node' })
       await handle.start()
 
       expect(mockCp.unref).not.toHaveBeenCalled()
@@ -420,13 +417,13 @@ describe('ChildProcessHandle', () => {
   describe('skipOnStop', () => {
     it('returns false by default', async () => {
       const { ChildProcessHandle } = await loadModules()
-      const handle = new ChildProcessHandle({ type: 'child', id: 'test', command: 'echo' })
+      const handle = new ChildProcessHandle({ id: 'test', command: 'echo' })
       expect(handle.skipOnStop).toBe(false)
     })
 
     it('returns true when set in definition', async () => {
       const { ChildProcessHandle } = await loadModules()
-      const handle = new ChildProcessHandle({ type: 'child', id: 'test', command: 'echo', skipOnStop: true })
+      const handle = new ChildProcessHandle({ id: 'test', command: 'echo', skipOnStop: true })
       expect(handle.skipOnStop).toBe(true)
     })
   })
@@ -438,7 +435,7 @@ describe('ChildProcessHandle', () => {
         throw new Error('ENOENT: command not found')
       })
 
-      const handle = new ChildProcessHandle({ type: 'child', id: 'throw-proc', command: 'nonexistent' })
+      const handle = new ChildProcessHandle({ id: 'throw-proc', command: 'nonexistent' })
 
       await expect(handle.start()).rejects.toThrow('ENOENT: command not found')
       expect(handle.state).toBe('crashed')
@@ -451,7 +448,7 @@ describe('ChildProcessHandle', () => {
         throw new Error('spawn failed')
       })
 
-      const handle = new ChildProcessHandle({ type: 'child', id: 'throw-exited', command: 'bad' })
+      const handle = new ChildProcessHandle({ id: 'throw-exited', command: 'bad' })
       const onExited = vi.fn()
       handle.onExited = onExited
 
@@ -468,7 +465,7 @@ describe('ChildProcessHandle', () => {
       mockCp.pid = undefined
       crossPlatformSpawn.mockReturnValue(mockCp)
 
-      const handle = new ChildProcessHandle({ type: 'child', id: 'no-pid', command: 'node' })
+      const handle = new ChildProcessHandle({ id: 'no-pid', command: 'node' })
       const onStarted = vi.fn()
       handle.onStarted = onStarted
 
@@ -487,7 +484,6 @@ describe('ChildProcessHandle', () => {
       crossPlatformSpawn.mockReturnValue(mockCp)
 
       const handle = new ChildProcessHandle({
-        type: 'child',
         id: 'stdio-proc',
         command: 'node',
         stdio: ['ignore', 'pipe', 'pipe']
