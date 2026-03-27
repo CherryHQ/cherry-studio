@@ -43,12 +43,45 @@ function mockChain(resolvedValue: unknown) {
       if (prop === 'catch' || prop === 'finally') {
         return (...args: unknown[]) => Promise.resolve(resolvedValue)[prop as 'catch'](...(args as [any]))
       }
-      // Any method call returns the chain itself
       return () => chain
     }
   })
 
   return chain
+}
+
+function mockAssistantRelations(
+  overrides: { modelIds?: string[]; mcpServerIds?: string[]; knowledgeBaseIds?: string[] } = {}
+) {
+  const { modelIds = [], mcpServerIds = [], knowledgeBaseIds = [] } = overrides
+  return {
+    modelRows: modelIds.map((modelId) => ({ assistantId: 'ast-1', modelId })),
+    mcpServerRows: mcpServerIds.map((mcpServerId) => ({ assistantId: 'ast-1', mcpServerId })),
+    knowledgeBaseRows: knowledgeBaseIds.map((knowledgeBaseId) => ({ assistantId: 'ast-1', knowledgeBaseId }))
+  }
+}
+
+function queueAssistantReads(
+  rowOrRows: Record<string, unknown> | Record<string, unknown>[],
+  options: {
+    count?: number
+    modelIds?: string[]
+    mcpServerIds?: string[]
+    knowledgeBaseIds?: string[]
+  } = {}
+) {
+  const rows = Array.isArray(rowOrRows) ? rowOrRows : [rowOrRows]
+  const relations = mockAssistantRelations(options)
+
+  mockDb.select.mockReset()
+  mockDb.select.mockReturnValueOnce(mockChain(rows))
+  if (options.count !== undefined) {
+    mockDb.select.mockReturnValueOnce(mockChain([{ count: options.count }]))
+  }
+  mockDb.select
+    .mockReturnValueOnce(mockChain(relations.modelRows))
+    .mockReturnValueOnce(mockChain(relations.mcpServerRows))
+    .mockReturnValueOnce(mockChain(relations.knowledgeBaseRows))
 }
 
 let mockDb: any
@@ -94,13 +127,20 @@ describe('AssistantDataService', () => {
   // getById
   // --------------------------------------------------------------------------
   describe('getById', () => {
-    it('should return an assistant when found', async () => {
+    it('should return an assistant with relation ids when found', async () => {
       const row = createMockRow()
-      mockDb.select.mockReturnValue(mockChain([row]))
+      queueAssistantReads(row, {
+        modelIds: ['model-1', 'model-2'],
+        mcpServerIds: ['srv-1'],
+        knowledgeBaseIds: ['kb-1']
+      })
 
       const result = await assistantDataService.getById('ast-1')
       expect(result.id).toBe('ast-1')
       expect(result.name).toBe('test-assistant')
+      expect(result.modelIds).toEqual(['model-1', 'model-2'])
+      expect(result.mcpServerIds).toEqual(['srv-1'])
+      expect(result.knowledgeBaseIds).toEqual(['kb-1'])
       expect(typeof result.createdAt).toBe('string')
     })
 
@@ -118,18 +158,35 @@ describe('AssistantDataService', () => {
   // list
   // --------------------------------------------------------------------------
   describe('list', () => {
-    it('should return all assistants when no filters', async () => {
+    it('should return all assistants with relation ids when no filters', async () => {
       const rows = [createMockRow(), createMockRow({ id: 'ast-2', name: 'second' })]
-      mockDb.select.mockReturnValueOnce(mockChain(rows)).mockReturnValueOnce(mockChain([{ count: 2 }]))
+      const relationRows = {
+        modelRows: [
+          { assistantId: 'ast-1', modelId: 'model-1' },
+          { assistantId: 'ast-2', modelId: 'model-2' }
+        ],
+        mcpServerRows: [{ assistantId: 'ast-2', mcpServerId: 'srv-2' }],
+        knowledgeBaseRows: [{ assistantId: 'ast-1', knowledgeBaseId: 'kb-1' }]
+      }
+
+      mockDb.select
+        .mockReturnValueOnce(mockChain(rows))
+        .mockReturnValueOnce(mockChain([{ count: 2 }]))
+        .mockReturnValueOnce(mockChain(relationRows.modelRows))
+        .mockReturnValueOnce(mockChain(relationRows.mcpServerRows))
+        .mockReturnValueOnce(mockChain(relationRows.knowledgeBaseRows))
 
       const result = await assistantDataService.list({})
       expect(result.items).toHaveLength(2)
       expect(result.total).toBe(2)
+      expect(result.items[0].modelIds).toEqual(['model-1'])
+      expect(result.items[0].knowledgeBaseIds).toEqual(['kb-1'])
+      expect(result.items[1].modelIds).toEqual(['model-2'])
+      expect(result.items[1].mcpServerIds).toEqual(['srv-2'])
     })
 
     it('should filter by id', async () => {
-      const rows = [createMockRow()]
-      mockDb.select.mockReturnValueOnce(mockChain(rows)).mockReturnValueOnce(mockChain([{ count: 1 }]))
+      queueAssistantReads(createMockRow(), { count: 1 })
 
       const result = await assistantDataService.list({ id: 'ast-1' })
       expect(result.items).toHaveLength(1)
@@ -151,6 +208,7 @@ describe('AssistantDataService', () => {
       const result = await assistantDataService.create({ name: 'test-assistant' })
       expect(result.id).toBe('ast-1')
       expect(result.name).toBe('test-assistant')
+      expect(result.modelIds).toEqual([])
       expect(mockDb.transaction).toHaveBeenCalledOnce()
     })
 
@@ -162,15 +220,17 @@ describe('AssistantDataService', () => {
 
       mockDb.transaction.mockImplementation(async (fn: (tx: any) => Promise<any>) => fn(mockTx))
 
-      await assistantDataService.create({
+      const result = await assistantDataService.create({
         name: 'test-assistant',
         modelIds: ['model-1'],
         mcpServerIds: ['srv-1'],
         knowledgeBaseIds: ['kb-1']
       })
 
-      // 1 assistant insert + 3 junction inserts (models, mcpServers, knowledgeBases)
       expect(txInsert).toHaveBeenCalledTimes(4)
+      expect(result.modelIds).toEqual(['model-1'])
+      expect(result.mcpServerIds).toEqual(['srv-1'])
+      expect(result.knowledgeBaseIds).toEqual(['kb-1'])
     })
 
     it('should throw validation error when name is empty', async () => {
@@ -192,7 +252,7 @@ describe('AssistantDataService', () => {
     it('should update and return assistant within a transaction', async () => {
       const existing = createMockRow()
       const updated = createMockRow({ name: 'updated-name' })
-      mockDb.select.mockReturnValue(mockChain([existing]))
+      queueAssistantReads(existing, { modelIds: ['model-1'] })
 
       const txUpdate = vi.fn().mockReturnValue(mockChain([updated]))
       const txDelete = vi.fn().mockReturnValue(mockChain(undefined))
@@ -203,12 +263,13 @@ describe('AssistantDataService', () => {
 
       const result = await assistantDataService.update('ast-1', { name: 'updated-name' })
       expect(result.name).toBe('updated-name')
+      expect(result.modelIds).toEqual(['model-1'])
       expect(mockDb.transaction).toHaveBeenCalledOnce()
     })
 
     it('should NOT pass relation fields to the SQL UPDATE', async () => {
       const existing = createMockRow()
-      mockDb.select.mockReturnValue(mockChain([existing]))
+      queueAssistantReads(existing)
 
       let capturedSetArg: any
       const txUpdate = vi.fn().mockReturnValue(
@@ -260,12 +321,35 @@ describe('AssistantDataService', () => {
         knowledgeBaseIds: ['kb-1']
       })
 
-      // The set() call should NOT contain relation fields
       expect(capturedSetArg).toBeDefined()
       expect(capturedSetArg).not.toHaveProperty('modelIds')
       expect(capturedSetArg).not.toHaveProperty('mcpServerIds')
       expect(capturedSetArg).not.toHaveProperty('knowledgeBaseIds')
       expect(capturedSetArg).toHaveProperty('name', 'updated')
+    })
+
+    it('should sync relation-only updates without issuing an empty SQL UPDATE', async () => {
+      const existing = createMockRow()
+      queueAssistantReads(existing, { modelIds: ['model-1'] })
+
+      const txUpdate = vi.fn()
+      const txDelete = vi.fn().mockReturnValue(mockChain(undefined))
+      const txInsert = vi.fn().mockReturnValue(mockChain(undefined))
+      const mockTx = { update: txUpdate, delete: txDelete, insert: txInsert }
+
+      mockDb.transaction.mockImplementation(async (fn: (tx: any) => Promise<any>) => fn(mockTx))
+
+      const result = await assistantDataService.update('ast-1', {
+        mcpServerIds: ['srv-1'],
+        knowledgeBaseIds: ['kb-1']
+      })
+
+      expect(txUpdate).not.toHaveBeenCalled()
+      expect(txDelete).toHaveBeenCalledTimes(2)
+      expect(txInsert).toHaveBeenCalledTimes(2)
+      expect(result.modelIds).toEqual(['model-1'])
+      expect(result.mcpServerIds).toEqual(['srv-1'])
+      expect(result.knowledgeBaseIds).toEqual(['kb-1'])
     })
 
     it('should throw NOT_FOUND when updating non-existent assistant', async () => {
@@ -278,7 +362,7 @@ describe('AssistantDataService', () => {
 
     it('should throw validation error when name is set to empty', async () => {
       const existing = createMockRow()
-      mockDb.select.mockReturnValue(mockChain([existing]))
+      queueAssistantReads(existing)
 
       await expect(assistantDataService.update('ast-1', { name: '' })).rejects.toMatchObject({
         code: ErrorCode.VALIDATION_ERROR

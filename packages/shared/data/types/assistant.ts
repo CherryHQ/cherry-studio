@@ -68,6 +68,12 @@ export const AssistantSchema = z.object({
   enableWebSearch: z.boolean().optional(),
   /** Whether memory search is enabled as context source */
   enableMemory: z.boolean().optional(),
+  /** Ordered model IDs linked through assistant_model */
+  modelIds: z.array(z.string()),
+  /** Ordered MCP server IDs linked through assistant_mcp_server */
+  mcpServerIds: z.array(z.string()),
+  /** Ordered knowledge base IDs linked through assistant_knowledge_base */
+  knowledgeBaseIds: z.array(z.string()),
   /** Creation timestamp (ISO string) */
   createdAt: z.iso.datetime(),
   /** Last update timestamp (ISO string) */

@@ -18,20 +18,35 @@ import { application } from '@main/core/application'
 import { DataApiErrorFactory } from '@shared/data/api'
 import type { CreateAssistantDto, ListAssistantsQuery, UpdateAssistantDto } from '@shared/data/api/schemas/assistants'
 import type { Assistant } from '@shared/data/types/assistant'
-import { and, eq, isNull, type SQL, sql } from 'drizzle-orm'
+import { and, asc, eq, inArray, isNull, type SQL, sql } from 'drizzle-orm'
 
 import { stripNulls } from './utils'
 
 const logger = loggerService.withContext('DataApi:AssistantService')
 
+type AssistantRow = typeof assistantTable.$inferSelect
+
+type AssistantRelationIds = Pick<Assistant, 'modelIds' | 'mcpServerIds' | 'knowledgeBaseIds'>
+
+function createEmptyRelations(): AssistantRelationIds {
+  return {
+    modelIds: [],
+    mcpServerIds: [],
+    knowledgeBaseIds: []
+  }
+}
+
 /**
  * Convert database row to Assistant entity
  */
-function rowToAssistant(row: typeof assistantTable.$inferSelect): Assistant {
+function rowToAssistant(row: AssistantRow, relations: AssistantRelationIds = createEmptyRelations()): Assistant {
   const clean = stripNulls(row)
   return {
     ...clean,
     mcpMode: clean.mcpMode as Assistant['mcpMode'],
+    modelIds: relations.modelIds,
+    mcpServerIds: relations.mcpServerIds,
+    knowledgeBaseIds: relations.knowledgeBaseIds,
     createdAt: row.createdAt ? new Date(row.createdAt).toISOString() : new Date().toISOString(),
     updatedAt: row.updatedAt ? new Date(row.updatedAt).toISOString() : new Date().toISOString()
   }
@@ -42,10 +57,7 @@ export class AssistantDataService {
     return application.get('DbService').getDb()
   }
 
-  /**
-   * Get an assistant by ID
-   */
-  async getById(id: string): Promise<Assistant> {
+  private async getActiveRowById(id: string): Promise<AssistantRow> {
     const [row] = await this.db
       .select()
       .from(assistantTable)
@@ -56,7 +68,61 @@ export class AssistantDataService {
       throw DataApiErrorFactory.notFound('Assistant', id)
     }
 
-    return rowToAssistant(row)
+    return row
+  }
+
+  private async getRelationIdsByAssistantIds(assistantIds: string[]): Promise<Map<string, AssistantRelationIds>> {
+    const relationMap = new Map<string, AssistantRelationIds>()
+
+    if (assistantIds.length === 0) {
+      return relationMap
+    }
+
+    for (const assistantId of assistantIds) {
+      relationMap.set(assistantId, createEmptyRelations())
+    }
+
+    const [modelRows, mcpServerRows, knowledgeBaseRows] = await Promise.all([
+      this.db
+        .select({ assistantId: assistantModelTable.assistantId, modelId: assistantModelTable.modelId })
+        .from(assistantModelTable)
+        .where(inArray(assistantModelTable.assistantId, assistantIds))
+        .orderBy(asc(assistantModelTable.assistantId), asc(assistantModelTable.sortOrder)),
+      this.db
+        .select({ assistantId: assistantMcpServerTable.assistantId, mcpServerId: assistantMcpServerTable.mcpServerId })
+        .from(assistantMcpServerTable)
+        .where(inArray(assistantMcpServerTable.assistantId, assistantIds))
+        .orderBy(asc(assistantMcpServerTable.assistantId), asc(assistantMcpServerTable.sortOrder)),
+      this.db
+        .select({
+          assistantId: assistantKnowledgeBaseTable.assistantId,
+          knowledgeBaseId: assistantKnowledgeBaseTable.knowledgeBaseId
+        })
+        .from(assistantKnowledgeBaseTable)
+        .where(inArray(assistantKnowledgeBaseTable.assistantId, assistantIds))
+        .orderBy(asc(assistantKnowledgeBaseTable.assistantId), asc(assistantKnowledgeBaseTable.sortOrder))
+    ])
+
+    for (const row of modelRows) {
+      relationMap.get(row.assistantId)?.modelIds.push(row.modelId)
+    }
+    for (const row of mcpServerRows) {
+      relationMap.get(row.assistantId)?.mcpServerIds.push(row.mcpServerId)
+    }
+    for (const row of knowledgeBaseRows) {
+      relationMap.get(row.assistantId)?.knowledgeBaseIds.push(row.knowledgeBaseId)
+    }
+
+    return relationMap
+  }
+
+  /**
+   * Get an assistant by ID
+   */
+  async getById(id: string): Promise<Assistant> {
+    const row = await this.getActiveRowById(id)
+    const relations = await this.getRelationIdsByAssistantIds([id])
+    return rowToAssistant(row, relations.get(id))
   }
 
   /**
@@ -74,9 +140,10 @@ export class AssistantDataService {
       this.db.select().from(assistantTable).where(whereClause),
       this.db.select({ count: sql<number>`count(*)` }).from(assistantTable).where(whereClause)
     ])
+    const relations = await this.getRelationIdsByAssistantIds(rows.map((row) => row.id))
 
     return {
-      items: rows.map(rowToAssistant),
+      items: rows.map((row) => rowToAssistant(row, relations.get(row.id))),
       total: count,
       page: 1
     }
@@ -111,14 +178,18 @@ export class AssistantDataService {
 
     logger.info('Created assistant', { id: row.id, name: row.name })
 
-    return rowToAssistant(row)
+    return rowToAssistant(row, {
+      modelIds: dto.modelIds ?? [],
+      mcpServerIds: dto.mcpServerIds ?? [],
+      knowledgeBaseIds: dto.knowledgeBaseIds ?? []
+    })
   }
 
   /**
    * Update an existing assistant
    */
   async update(id: string, dto: UpdateAssistantDto): Promise<Assistant> {
-    await this.getById(id)
+    const current = await this.getById(id)
 
     if (dto.name !== undefined) {
       this.validateName(dto.name)
@@ -129,9 +200,24 @@ export class AssistantDataService {
     const updates = Object.fromEntries(Object.entries(columnFields).filter(([, v]) => v !== undefined)) as Partial<
       typeof assistantTable.$inferInsert
     >
+    const hasColumnUpdates = Object.keys(updates).length > 0
+    const hasRelationUpdates = modelIds !== undefined || mcpServerIds !== undefined || knowledgeBaseIds !== undefined
+
+    if (!hasColumnUpdates && !hasRelationUpdates) {
+      return current
+    }
+
+    const nextRelations: AssistantRelationIds = {
+      modelIds: modelIds ?? current.modelIds,
+      mcpServerIds: mcpServerIds ?? current.mcpServerIds,
+      knowledgeBaseIds: knowledgeBaseIds ?? current.knowledgeBaseIds
+    }
 
     const row = await this.db.transaction(async (tx) => {
-      const [updated] = await tx.update(assistantTable).set(updates).where(eq(assistantTable.id, id)).returning()
+      let updated: AssistantRow | undefined
+      if (hasColumnUpdates) {
+        ;[updated] = await tx.update(assistantTable).set(updates).where(eq(assistantTable.id, id)).returning()
+      }
 
       // Sync junction table rows if relation fields are provided
       await this.syncRelations(tx, id, { modelIds, mcpServerIds, knowledgeBaseIds })
@@ -141,7 +227,7 @@ export class AssistantDataService {
 
     logger.info('Updated assistant', { id, changes: Object.keys(dto) })
 
-    return rowToAssistant(row)
+    return row ? rowToAssistant(row, nextRelations) : { ...current, ...nextRelations }
   }
 
   /**
@@ -150,7 +236,7 @@ export class AssistantDataService {
    * and junction table data (models, mcpServers, knowledgeBases) is retained.
    */
   async delete(id: string): Promise<void> {
-    await this.getById(id)
+    await this.getActiveRowById(id)
 
     await this.db.update(assistantTable).set({ deletedAt: Date.now() }).where(eq(assistantTable.id, id))
 

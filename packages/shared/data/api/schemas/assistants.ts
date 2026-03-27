@@ -17,22 +17,12 @@ import type { OffsetPaginationResponse } from '../apiTypes'
 /** Fields auto-managed by the database layer, excluded from DTOs */
 const AutoFields = { id: true, createdAt: true, updatedAt: true } as const
 
-/** Relation ID arrays - synced to junction tables */
-const relationFields = {
-  modelIds: z.array(z.string()).optional(),
-  mcpServerIds: z.array(z.string()).optional(),
-  knowledgeBaseIds: z.array(z.string()).optional()
-} as const
-
 /**
  * DTO for creating a new assistant.
  * - `name` is required (non-empty)
  * - Relation arrays (modelIds, mcpServerIds, knowledgeBaseIds) are synced to junction tables
  */
-export const CreateAssistantSchema = AssistantSchema.omit(AutoFields)
-  .partial()
-  .required({ name: true })
-  .extend(relationFields)
+export const CreateAssistantSchema = AssistantSchema.omit(AutoFields).partial().required({ name: true })
 export type CreateAssistantDto = z.infer<typeof CreateAssistantSchema>
 
 /**
@@ -40,7 +30,7 @@ export type CreateAssistantDto = z.infer<typeof CreateAssistantSchema>
  * All fields optional, `id` excluded (comes from URL path).
  * Relation arrays, if provided, replace existing junction table rows.
  */
-export const UpdateAssistantSchema = AssistantSchema.omit(AutoFields).partial().extend(relationFields)
+export const UpdateAssistantSchema = AssistantSchema.omit(AutoFields).partial()
 export type UpdateAssistantDto = z.infer<typeof UpdateAssistantSchema>
 
 /**
