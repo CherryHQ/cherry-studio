@@ -8,6 +8,7 @@ import path from 'node:path'
 import { loggerService } from '@logger'
 import { isWin } from '@main/constant'
 import { application } from '@main/core/application'
+import { ProcessState } from '@main/services/process/types'
 import { isUserInChina } from '@main/utils/ipService'
 import { crossPlatformSpawn, findExecutableInEnv, getBinaryPath, runInstallScript } from '@main/utils/process'
 import getShellEnv, { refreshShellEnv } from '@main/utils/shell-env'
@@ -410,7 +411,7 @@ class OpenClawService {
     // Clean up previous handle if not running
     const existing = pm.get('openclaw-gateway')
     if (existing) {
-      if (existing.state !== 'running') {
+      if (existing.state !== ProcessState.Running) {
         pm.unregister('openclaw-gateway')
       }
     }
@@ -425,10 +426,8 @@ class OpenClawService {
       skipOnStop: true,
       killTimeoutMs: 5000
     })
-    await handle.start()
 
-    // The handle's internal ChildProcess is not directly accessible,
-    // so we capture early exit errors via the handle's callbacks
+    // Set up callback chain BEFORE start() to avoid missing early events
     let earlyExitError = ''
     let stdoutOutput = ''
     let stderrOutput = ''
@@ -456,6 +455,8 @@ class OpenClawService {
           : 'gateway process exited with code 0 before becoming healthy'
       }
     }
+
+    await handle.start()
 
     // Wait for gateway to become ready (max 30 seconds)
     const maxWaitMs = 30000

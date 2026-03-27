@@ -14,6 +14,7 @@ export class ChildProcessHandle implements ProcessHandle {
   private _state: ProcessState = ProcessState.Idle
   private _pid: number | undefined = undefined
   private _process: ChildProcess | undefined = undefined
+  private _exited = false
   private readonly def: ChildProcessOptions
   private readonly logger: ReturnType<typeof loggerService.withContext>
 
@@ -48,6 +49,8 @@ export class ChildProcessHandle implements ProcessHandle {
 
     const shellEnv = await getShellEnv()
     const env = this.def.env ? { ...shellEnv, ...this.def.env } : shellEnv
+
+    this._exited = false
 
     let child: ChildProcess
     try {
@@ -100,6 +103,9 @@ export class ChildProcessHandle implements ProcessHandle {
     })
 
     child.on('close', (code, signal) => {
+      if (this._exited) return
+      this._exited = true
+
       this._pid = undefined
       this._process = undefined
 
@@ -118,6 +124,9 @@ export class ChildProcessHandle implements ProcessHandle {
     })
 
     child.on('error', (err) => {
+      if (this._exited) return
+      this._exited = true
+
       this._state = ProcessState.Crashed
       this._pid = undefined
       this._process = undefined
@@ -146,6 +155,7 @@ export class ChildProcessHandle implements ProcessHandle {
       const killTimer = setTimeout(() => {
         this.logger.warn(`Kill timeout reached, sending SIGKILL to pid=${this._pid ?? child.pid}`)
         child.kill('SIGKILL')
+        resolve()
       }, killTimeoutMs)
 
       child.once('close', () => {
