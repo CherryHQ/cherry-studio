@@ -105,6 +105,20 @@ describe('knowledgeHandlers', () => {
 
       expect(createKnowledgeBaseMock).not.toHaveBeenCalled()
     })
+
+    it('should reject blank embedding model ids before calling the service', async () => {
+      await expect(
+        knowledgeHandlers['/knowledge-bases'].POST({
+          body: {
+            name: 'Knowledge Base',
+            dimensions: 1536,
+            embeddingModelId: '   '
+          }
+        } as never)
+      ).rejects.toHaveProperty('name', 'ZodError')
+
+      expect(createKnowledgeBaseMock).not.toHaveBeenCalled()
+    })
   })
 
   describe('/knowledge-bases/:id', () => {
@@ -144,6 +158,32 @@ describe('knowledgeHandlers', () => {
           params: { id: 'kb-1' },
           body: {
             dimensions: 3072
+          }
+        } as never)
+      ).rejects.toHaveProperty('name', 'ZodError')
+
+      expect(updateKnowledgeBaseMock).not.toHaveBeenCalled()
+    })
+
+    it('should reject blank names in PATCH bodies before calling the service', async () => {
+      await expect(
+        knowledgeHandlers['/knowledge-bases/:id'].PATCH({
+          params: { id: 'kb-1' },
+          body: {
+            name: '   '
+          }
+        } as never)
+      ).rejects.toHaveProperty('name', 'ZodError')
+
+      expect(updateKnowledgeBaseMock).not.toHaveBeenCalled()
+    })
+
+    it('should reject embeddingModelId updates before calling the service', async () => {
+      await expect(
+        knowledgeHandlers['/knowledge-bases/:id'].PATCH({
+          params: { id: 'kb-1' },
+          body: {
+            embeddingModelId: 'new-model'
           }
         } as never)
       ).rejects.toHaveProperty('name', 'ZodError')

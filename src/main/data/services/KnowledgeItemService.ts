@@ -98,10 +98,6 @@ export class KnowledgeItemService {
   async create(baseId: string, dto: CreateKnowledgeItemsDto): Promise<{ items: KnowledgeItem[] }> {
     const db = application.get('DbService').getDb()
     await knowledgeBaseService.getById(baseId)
-
-    if (!dto.items || dto.items.length === 0) {
-      throw DataApiErrorFactory.validation({ items: ['At least one item is required'] })
-    }
     for (const item of dto.items) {
       if (item.parentId == null) {
         continue

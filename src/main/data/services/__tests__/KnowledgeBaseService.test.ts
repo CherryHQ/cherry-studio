@@ -1,5 +1,5 @@
 import { ErrorCode } from '@shared/data/api'
-import type { CreateKnowledgeBaseDto, UpdateKnowledgeBaseDto } from '@shared/data/api/schemas/knowledges'
+import type { CreateKnowledgeBaseDto } from '@shared/data/api/schemas/knowledges'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mockSelect = vi.fn()
@@ -112,40 +112,6 @@ describe('KnowledgeBaseService', () => {
   })
 
   describe('create', () => {
-    it('should validate required name', async () => {
-      await expect(
-        service.create({
-          name: '   ',
-          dimensions: 1536,
-          embeddingModelId: 'text-embedding-3-large'
-        })
-      ).rejects.toMatchObject({
-        code: ErrorCode.VALIDATION_ERROR,
-        details: {
-          fieldErrors: {
-            name: ['Name is required']
-          }
-        }
-      })
-    })
-
-    it('should validate required embedding model id', async () => {
-      await expect(
-        service.create({
-          name: 'Knowledge Base',
-          dimensions: 1536,
-          embeddingModelId: '   '
-        })
-      ).rejects.toMatchObject({
-        code: ErrorCode.VALIDATION_ERROR,
-        details: {
-          fieldErrors: {
-            embeddingModelId: ['Embedding model is required']
-          }
-        }
-      })
-    })
-
     it('should create a knowledge base with trimmed identifiers', async () => {
       const row = createMockRow({ name: 'New Base', embeddingModelId: 'embed-model' })
       const values = vi.fn().mockReturnValue({
@@ -193,45 +159,6 @@ describe('KnowledgeBaseService', () => {
   })
 
   describe('update', () => {
-    it('should reject updating dimensions', async () => {
-      await expect(
-        service.update('kb-1', { dimensions: 3072 } as UpdateKnowledgeBaseDto & { dimensions: number })
-      ).rejects.toMatchObject({
-        code: ErrorCode.VALIDATION_ERROR,
-        details: {
-          fieldErrors: {
-            dimensions: ['dimensions cannot be updated via PATCH; use a dedicated re-embed endpoint']
-          }
-        }
-      })
-    })
-
-    it('should reject updating embeddingModelId', async () => {
-      await expect(
-        service.update('kb-1', { embeddingModelId: 'new-model' } as UpdateKnowledgeBaseDto & {
-          embeddingModelId: string
-        })
-      ).rejects.toMatchObject({
-        code: ErrorCode.VALIDATION_ERROR,
-        details: {
-          fieldErrors: {
-            embeddingModelId: ['embeddingModelId cannot be updated via PATCH; use a dedicated re-embed endpoint']
-          }
-        }
-      })
-    })
-
-    it('should validate non-empty name when provided', async () => {
-      await expect(service.update('kb-1', { name: '   ' })).rejects.toMatchObject({
-        code: ErrorCode.VALIDATION_ERROR,
-        details: {
-          fieldErrors: {
-            name: ['Name is required']
-          }
-        }
-      })
-    })
-
     it('should return the existing knowledge base when update is empty', async () => {
       const row = createMockRow()
       mockSelect.mockReturnValue({

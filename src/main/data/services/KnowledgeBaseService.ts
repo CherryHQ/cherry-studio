@@ -66,13 +66,6 @@ export class KnowledgeBaseService {
   async create(dto: CreateKnowledgeBaseDto): Promise<KnowledgeBase> {
     const db = application.get('DbService').getDb()
 
-    if (!dto.name?.trim()) {
-      throw DataApiErrorFactory.validation({ name: ['Name is required'] })
-    }
-    if (!dto.embeddingModelId?.trim()) {
-      throw DataApiErrorFactory.validation({ embeddingModelId: ['Embedding model is required'] })
-    }
-
     const [row] = await db
       .insert(knowledgeBaseTable)
       .values({
@@ -96,20 +89,6 @@ export class KnowledgeBaseService {
   }
 
   async update(id: string, dto: UpdateKnowledgeBaseDto): Promise<KnowledgeBase> {
-    if ('dimensions' in dto) {
-      throw DataApiErrorFactory.validation({
-        dimensions: ['dimensions cannot be updated via PATCH; use a dedicated re-embed endpoint']
-      })
-    }
-    if ('embeddingModelId' in dto) {
-      throw DataApiErrorFactory.validation({
-        embeddingModelId: ['embeddingModelId cannot be updated via PATCH; use a dedicated re-embed endpoint']
-      })
-    }
-    if (dto.name !== undefined && !dto.name.trim()) {
-      throw DataApiErrorFactory.validation({ name: ['Name is required'] })
-    }
-
     const db = application.get('DbService').getDb()
     const existing = await this.getById(id)
 

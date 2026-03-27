@@ -114,17 +114,6 @@ describe('KnowledgeItemService', () => {
   })
 
   describe('create', () => {
-    it('should validate that at least one item is provided', async () => {
-      await expect(service.create('kb-1', { items: [] })).rejects.toMatchObject({
-        code: ErrorCode.VALIDATION_ERROR,
-        details: {
-          fieldErrors: {
-            items: ['At least one item is required']
-          }
-        }
-      })
-    })
-
     it('should throw NotFound when parent item does not exist', async () => {
       mockSelect.mockReturnValue({
         from: vi.fn().mockReturnValue({
