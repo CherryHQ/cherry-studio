@@ -1,5 +1,5 @@
 import { EventEmitter } from 'events'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 // Mock electron
 const mockUtilityProcess = { fork: vi.fn() }
