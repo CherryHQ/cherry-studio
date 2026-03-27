@@ -18,11 +18,19 @@ vi.mock('@data/PreferenceService', async () => {
   return MockMainPreferenceServiceExport
 })
 
-vi.mock('../WindowService', () => ({
-  windowService: {
-    getMainWindow: vi.fn()
-  }
-}))
+// Mock application using unified factory
+vi.mock('@main/core/application', async () => {
+  const { mockApplicationFactory } = await import('@test-mocks/main/application')
+  const result = mockApplicationFactory()
+  const originalGet = result.application.get.getMockImplementation()!
+  result.application.get.mockImplementation((name: string) => {
+    if (name === 'WindowService') {
+      return { getMainWindow: vi.fn() }
+    }
+    return originalGet(name)
+  })
+  return result
+})
 
 vi.mock('@main/constant', () => ({
   isWin: false
@@ -82,7 +90,7 @@ vi.mock('electron-updater', () => ({
 }))
 
 // Import after mocks
-import { preferenceService } from '@data/PreferenceService'
+import { application } from '@main/core/application'
 import { UpdateMirror } from '@shared/config/constant'
 import { MockMainPreferenceServiceUtils } from '@test-mocks/main/PreferenceService'
 import { app, net } from 'electron'
@@ -190,8 +198,8 @@ describe('AppUpdater', () => {
       // Create a fresh instance for this test to avoid issues with constructor mocking
       const testAppUpdater = new AppUpdater()
 
-      // Force an error by mocking preferenceService to throw
-      vi.mocked(preferenceService.get).mockImplementationOnce(() => {
+      // Force an error by mocking PreferenceService to throw
+      vi.mocked(application.get('PreferenceService').get).mockImplementationOnce(() => {
         throw new Error('Test error')
       })
 

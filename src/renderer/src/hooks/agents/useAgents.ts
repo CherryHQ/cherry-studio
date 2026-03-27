@@ -48,7 +48,7 @@ export const useAgents = () => {
     async (form: AddAgentForm): Promise<Result<CreateAgentResponse>> => {
       try {
         const result = await client.createAgent(form)
-        mutate((prev) => [result, ...(prev ?? [])])
+        void mutate((prev) => [result, ...(prev ?? [])])
         window.toast.success(t('common.add_success'))
         return { success: true, data: result }
       } catch (error) {
@@ -74,7 +74,7 @@ export const useAgents = () => {
           const newId = data?.filter((a) => a.id !== id).find(() => true)?.id
           cacheService.set('agent.active_id', newId ?? null)
         }
-        mutate((prev) => prev?.filter((a) => a.id !== id) ?? [])
+        void mutate((prev) => prev?.filter((a) => a.id !== id) ?? [])
         window.toast.success(t('common.delete_success'))
       } catch (error) {
         window.toast.error(formatErrorMessageWithPrefix(error, t('agent.delete.error.failed')))
@@ -86,7 +86,7 @@ export const useAgents = () => {
   const getAgent = useCallback(
     async (id: string) => {
       const result = await client.getAgent(id)
-      mutate((prev) => prev?.map((a) => (a.id === result.id ? result : a)) ?? [])
+      void mutate((prev) => prev?.map((a) => (a.id === result.id ? result : a)) ?? [])
     },
     [client, mutate]
   )
@@ -95,11 +95,11 @@ export const useAgents = () => {
     async (reorderedList: GetAgentResponse[]) => {
       const orderedIds = reorderedList.map((a) => a.id)
       // Optimistic update
-      mutate(reorderedList, false)
+      void mutate(reorderedList, false)
       try {
         await client.reorderAgents(orderedIds)
       } catch (error) {
-        mutate()
+        void mutate()
         window.toast.error(formatErrorMessageWithPrefix(error, t('agent.reorder.error.failed')))
       }
     },

@@ -21,7 +21,7 @@ import { useDispatch, useSelector, useStore } from 'react-redux'
 import { FLUSH, PAUSE, PERSIST, persistReducer, persistStore, PURGE, REGISTER, REHYDRATE } from 'redux-persist'
 import storage from 'redux-persist/lib/storage'
 
-import storeSyncService from '../services/StoreSyncService'
+import { storeSyncService } from '../services/StoreSyncService'
 import assistants from './assistants'
 import backup from './backup'
 import codeTools from './codeTools'
@@ -86,7 +86,7 @@ const persistedReducer = persistReducer(
   {
     key: 'cherry-studio',
     storage,
-    version: 203,
+    version: 205,
     blacklist: ['runtime', 'messages', 'messageBlocks', 'tabs', 'toolPermissions'],
     migrate
   },
@@ -141,7 +141,7 @@ export const persistor = persistStore(store, undefined, () => {
   }
 
   // Notify main process that Redux store is ready
-  window.electron?.ipcRenderer?.invoke(IpcChannel.ReduxStoreReady)
+  void window.electron?.ipcRenderer?.invoke(IpcChannel.ReduxStoreReady)
   logger.info('Redux store ready, notified main process')
 })
 

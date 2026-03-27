@@ -5,14 +5,7 @@ import { BrowserWindow } from 'electron'
 const logger = loggerService.withContext('SearchService')
 
 export class SearchService {
-  private static instance: SearchService | null = null
   private searchWindows: Record<string, BrowserWindow> = {}
-  public static getInstance(): SearchService {
-    if (!SearchService.instance) {
-      SearchService.instance = new SearchService()
-    }
-    return SearchService.instance
-  }
 
   private async createNewSearchWindow(uid: string, show: boolean = false): Promise<BrowserWindow> {
     const newWindow = new BrowserWindow({
@@ -80,4 +73,4 @@ export class SearchService {
   }
 }
 
-export const searchService = SearchService.getInstance()
+export const searchService = new SearchService()

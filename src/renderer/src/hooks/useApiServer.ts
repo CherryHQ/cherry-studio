@@ -6,11 +6,18 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 const logger = loggerService.withContext('useApiServer')
+const API_SERVER_PREFERENCE_KEYS = {
+  enabled: 'feature.csaas.enabled',
+  host: 'feature.csaas.host',
+  port: 'feature.csaas.port',
+  apiKey: 'feature.csaas.api_key'
+} as const
 
 // Module-level single instance subscription to prevent EventEmitter memory leak
 // Only one IPC listener will be registered regardless of how many components use this hook
 const onReadyCallbacks = new Set<() => void>()
 let removeIpcListener: (() => void) | null = null
+let pendingStatusCheck: ReturnType<typeof window.api.apiServer.getStatus> | null = null
 
 const ensureIpcSubscribed = () => {
   if (!removeIpcListener) {
@@ -27,16 +34,22 @@ const cleanupIpcIfEmpty = () => {
   }
 }
 
+// Combine concurrent status checks into a single IPC request.
+const requestApiServerStatus = () => {
+  if (!pendingStatusCheck) {
+    pendingStatusCheck = window.api.apiServer.getStatus().finally(() => {
+      pendingStatusCheck = null
+    })
+  }
+
+  return pendingStatusCheck
+}
+
 export const useApiServer = () => {
   const { t } = useTranslation()
 
   // Use new preference system for API server configuration
-  const [apiServerConfig, setApiServerConfig] = useMultiplePreferences({
-    enabled: 'feature.csaas.enabled',
-    host: 'feature.csaas.host',
-    port: 'feature.csaas.port',
-    apiKey: 'feature.csaas.api_key'
-  })
+  const [apiServerConfig, setApiServerConfig] = useMultiplePreferences(API_SERVER_PREFERENCE_KEYS)
 
   const dispatch = useAppDispatch()
 
@@ -53,7 +66,7 @@ export const useApiServer = () => {
 
   const setApiServerEnabled = useCallback(
     (enabled: boolean) => {
-      setApiServerConfig({ enabled })
+      void setApiServerConfig({ enabled })
     },
     [setApiServerConfig]
   )
@@ -62,7 +75,7 @@ export const useApiServer = () => {
   const checkApiServerStatus = useCallback(async () => {
     setApiServerLoading(true)
     try {
-      const status = await window.api.apiServer.getStatus()
+      const status = await requestApiServerStatus()
       setApiServerRunning(status.running)
       if (status.running && !apiServerConfig.enabled) {
         setApiServerEnabled(true)
@@ -72,7 +85,7 @@ export const useApiServer = () => {
     } finally {
       setApiServerLoading(false)
     }
-  }, [apiServerConfig.enabled, setApiServerEnabled, setApiServerLoading, setApiServerRunning])
+  }, [apiServerConfig.enabled, setApiServerEnabled, setApiServerRunning])
 
   const startApiServer = useCallback(async () => {
     if (apiServerLoading) return
@@ -91,7 +104,7 @@ export const useApiServer = () => {
     } finally {
       setApiServerLoading(false)
     }
-  }, [apiServerLoading, setApiServerEnabled, setApiServerLoading, setApiServerRunning, t])
+  }, [apiServerLoading, setApiServerEnabled, setApiServerRunning, t])
 
   const stopApiServer = useCallback(async () => {
     if (apiServerLoading) return
@@ -110,7 +123,7 @@ export const useApiServer = () => {
     } finally {
       setApiServerLoading(false)
     }
-  }, [apiServerLoading, setApiServerEnabled, setApiServerLoading, setApiServerRunning, t])
+  }, [apiServerLoading, setApiServerEnabled, setApiServerRunning, t])
 
   const restartApiServer = useCallback(async () => {
     if (apiServerLoading) return
@@ -129,10 +142,10 @@ export const useApiServer = () => {
     } finally {
       setApiServerLoading(false)
     }
-  }, [apiServerLoading, checkApiServerStatus, setApiServerEnabled, setApiServerLoading, t])
+  }, [apiServerLoading, checkApiServerStatus, setApiServerEnabled, t])
 
   useEffect(() => {
-    checkApiServerStatus()
+    void checkApiServerStatus()
   }, [checkApiServerStatus])
 
   // Use ref to keep the latest checkApiServerStatus without causing re-subscription
@@ -144,7 +157,7 @@ export const useApiServer = () => {
   // Create stable callback for the single instance subscription
   const handleReady = useCallback(() => {
     logger.info('API server ready event received, checking status')
-    checkStatusRef.current()
+    void checkStatusRef.current()
   }, [])
 
   // Listen for API server ready event using single instance subscription

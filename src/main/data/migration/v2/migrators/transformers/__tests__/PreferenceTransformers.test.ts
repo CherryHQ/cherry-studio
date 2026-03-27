@@ -229,14 +229,14 @@ describe('PreferenceTransformers', () => {
     it('should keep only non-empty user fields', () => {
       const result = migrateWebSearchProviders({
         providers: [
-          { id: 'tavily', name: 'Tavily', apiKey: ' key1 ', apiHost: 'https://api.tavily.com' },
+          { id: 'tavily', name: 'Tavily', apiKey: ' key1 , key2 ', apiHost: 'https://api.tavily.com' },
           { id: 'local-google', name: 'Google' }
         ]
       })
 
       const overrides = result['chat.web_search.provider_overrides'] as Record<string, Record<string, unknown>>
       expect(overrides).toEqual({
-        tavily: { apiKey: 'key1' }
+        tavily: { apiKeys: ['key1', 'key2'] }
       })
     })
 
@@ -287,8 +287,16 @@ describe('PreferenceTransformers', () => {
 
       const overrides = result['chat.web_search.provider_overrides'] as Record<string, Record<string, unknown>>
       expect(overrides).toEqual({
-        tavily: { apiKey: 'key1' }
+        tavily: { apiKeys: ['key1'] }
       })
+    })
+
+    it('should omit empty api keys after splitting', () => {
+      const result = migrateWebSearchProviders({
+        providers: [{ id: 'tavily', name: 'Tavily', apiKey: ' ,  , ' }]
+      })
+
+      expect(result['chat.web_search.provider_overrides']).toEqual({})
     })
   })
 })

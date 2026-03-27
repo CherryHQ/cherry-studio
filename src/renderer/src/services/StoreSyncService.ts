@@ -20,25 +20,10 @@ type SyncOptions = {
  * 4. Handles window subscription and unsubscription logic
  */
 export class StoreSyncService {
-  private static instance: StoreSyncService
   private options: SyncOptions = {
     syncList: []
   }
   private broadcastSyncRemover: (() => void) | null = null
-
-  private constructor() {
-    return
-  }
-
-  /**
-   * Get the singleton instance of StoreSyncService
-   */
-  public static getInstance(): StoreSyncService {
-    if (!StoreSyncService.instance) {
-      StoreSyncService.instance = new StoreSyncService()
-    }
-    return StoreSyncService.instance
-  }
 
   /**
    * Set sync options
@@ -62,7 +47,7 @@ export class StoreSyncService {
       if (!syncAction.meta?.fromSync && this.shouldSyncAction(syncAction.type)) {
         // Send to main process for broadcasting to other windows using the preload API
         if (window.api?.storeSync) {
-          window.api.storeSync.onUpdate(syncAction)
+          void window.api.storeSync.onUpdate(syncAction)
         }
       }
 
@@ -110,7 +95,7 @@ export class StoreSyncService {
       }
     )
 
-    window.api.storeSync.subscribe()
+    void window.api.storeSync.subscribe()
 
     window.addEventListener('beforeunload', () => {
       this.unsubscribe()
@@ -123,7 +108,7 @@ export class StoreSyncService {
    */
   public unsubscribe(): void {
     if (window.api?.storeSync) {
-      window.api.storeSync.unsubscribe()
+      void window.api.storeSync.unsubscribe()
     }
 
     if (this.broadcastSyncRemover) {
@@ -133,5 +118,4 @@ export class StoreSyncService {
   }
 }
 
-// Export singleton instance
-export default StoreSyncService.getInstance()
+export const storeSyncService = new StoreSyncService()

@@ -1,6 +1,6 @@
 import { useCache } from '@data/hooks/useCache'
 import UpdateDialogPopup from '@renderer/components/Popups/UpdateDialogPopup'
-import { NotificationService } from '@renderer/services/NotificationService'
+import { notificationService } from '@renderer/services/NotificationService'
 import { uuid } from '@renderer/utils'
 import type { CacheAppUpdateState } from '@shared/data/cache/cacheValueTypes'
 import { IpcChannel } from '@shared/IpcChannel'
@@ -25,7 +25,7 @@ export const useAppUpdateState = () => {
 export function useAppUpdateHandler() {
   const { t } = useTranslation()
   const { updateAppUpdateState } = useAppUpdateState()
-  const notificationService = NotificationService.getInstance()
+  // notificationService is imported as a module-level singleton
   const { appUpdateState } = useAppUpdateState()
   const manualCheckRef = useRef(appUpdateState.manualCheck)
 
@@ -47,7 +47,7 @@ export function useAppUpdateHandler() {
         }
       }),
       ipcRenderer.on(IpcChannel.UpdateAvailable, (_, releaseInfo: UpdateInfo) => {
-        notificationService.send({
+        void notificationService.send({
           id: uuid(),
           type: 'info',
           title: t('button.update_available'),
@@ -83,7 +83,7 @@ export function useAppUpdateHandler() {
         })
         // Auto show update dialog when download completes (only if user manually triggered the check)
         if (manualCheckRef.current) {
-          UpdateDialogPopup.show({ releaseInfo })
+          void UpdateDialogPopup.show({ releaseInfo })
         }
       }),
       ipcRenderer.on(IpcChannel.UpdateError, (_, error) => {
@@ -103,5 +103,5 @@ export function useAppUpdateHandler() {
       })
     ]
     return () => removers.forEach((remover) => remover())
-  }, [notificationService, t, updateAppUpdateState])
+  }, [t, updateAppUpdateState])
 }

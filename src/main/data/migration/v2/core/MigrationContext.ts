@@ -2,7 +2,6 @@
  * Migration context shared between all migrators
  */
 
-import { dbService } from '@data/db/DbService'
 import type { DbType } from '@data/db/types'
 import { type LoggerService, loggerService } from '@logger'
 import type { LocalStorageRecord } from '@shared/data/migration/v2/types'
@@ -49,11 +48,11 @@ export interface MigrationContext {
  * @param dexieExportPath - Path to exported Dexie files
  */
 export async function createMigrationContext(
+  db: DbType,
   reduxData: Record<string, unknown>,
   dexieExportPath: string,
   localStorageExportPath?: string
 ): Promise<MigrationContext> {
-  const db = dbService.getDb()
   const logger = loggerService.withContext('Migration')
   const electronStore = new Store()
   const dexieFileReader = new DexieFileReader(dexieExportPath)

@@ -12,7 +12,7 @@ import { useMinappPopup } from '@renderer/hooks/useMinappPopup'
 import { useMinapps } from '@renderer/hooks/useMinapps'
 import { getThemeModeLabel, getTitleLabel } from '@renderer/i18n/label'
 import UpdateAppButton from '@renderer/pages/home/components/UpdateAppButton'
-import tabsService from '@renderer/services/TabsService'
+import { tabsService } from '@renderer/services/TabsService'
 import { useAppDispatch, useAppSelector } from '@renderer/store'
 import type { Tab } from '@renderer/store/tabs'
 import { addTab, removeTab, setActiveTab, setTabs } from '@renderer/store/tabs'
@@ -210,17 +210,17 @@ const TabsContainer: React.FC<TabsContainerProps> = ({ children }) => {
 
   const handleAddTab = () => {
     hideMinappPopup()
-    navigate({ to: '/launchpad' })
+    void navigate({ to: '/launchpad' })
   }
 
   const handleSettingsClick = () => {
     hideMinappPopup()
-    navigate({ to: lastSettingsPath })
+    void navigate({ to: lastSettingsPath })
   }
 
   const handleTabClick = (tab: Tab) => {
     hideMinappPopup()
-    navigate({ to: tab.path })
+    void navigate({ to: tab.path })
   }
 
   const visibleTabs = useMemo(() => tabs.filter((tab) => !specialTabs.includes(tab.id)), [tabs])

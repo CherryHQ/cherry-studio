@@ -76,14 +76,14 @@ const MiniAppSettings: FC = () => {
 
   // 恢复默认缓存数量
   const handleResetCacheLimit = useCallback(() => {
-    setMaxKeepAliveMinapps(DEFAULT_MAX_KEEPALIVE)
+    void setMaxKeepAliveMinapps(DEFAULT_MAX_KEEPALIVE)
     window.toast.info(t('settings.miniapps.cache_change_notice'))
   }, [t, setMaxKeepAliveMinapps])
 
   // 处理缓存数量变更
   const handleCacheChange = useCallback(
     (value: number) => {
-      setMaxKeepAliveMinapps(value)
+      void setMaxKeepAliveMinapps(value)
 
       if (debounceTimerRef.current) {
         clearTimeout(debounceTimerRef.current)

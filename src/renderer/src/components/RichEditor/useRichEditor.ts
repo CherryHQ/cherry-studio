@@ -413,7 +413,7 @@ export const useRichEditor = (options: UseRichEditorOptions = {}): UseRichEditor
           const file = imageItem.getAsFile()
           if (file) {
             // Handle image paste by saving to local storage
-            handleImagePaste(file)
+            void handleImagePaste(file)
             return true
           }
         }
@@ -659,7 +659,7 @@ export const useRichEditor = (options: UseRichEditorOptions = {}): UseRichEditor
         finalPosition = { x: rect.left + rect.width / 2, y: rect.top + rect.height / 2 }
       }
 
-      onShowTableActionMenu?.({ type, index, position: finalPosition!, actions })
+      onShowTableActionMenu?.({ type, index, position: finalPosition, actions })
     },
     [editor, onShowTableActionMenu]
   )

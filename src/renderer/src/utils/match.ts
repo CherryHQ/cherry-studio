@@ -65,7 +65,9 @@ export function matchKeywordsInModel(keywords: string | string[], model: Model, 
  * @returns 搜索字符串
  */
 function getProviderSearchString(provider: Provider) {
-  return isSystemProvider(provider) ? `${getProviderLabel(provider.id)} ${provider.id}` : provider.name
+  return isSystemProvider(provider)
+    ? `${getProviderLabel(provider.id)} ${provider.id} ${provider.name}`
+    : `${provider.id} ${provider.name}`
 }
 
 /**

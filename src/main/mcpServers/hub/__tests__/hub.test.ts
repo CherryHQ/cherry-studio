@@ -53,7 +53,7 @@ const mockTools: MCPTool[] = [
 ]
 
 vi.mock('@main/services/MCPService', () => ({
-  default: {
+  mcpService: {
     listAllActiveServerTools: vi.fn(async () => mockTools),
     callToolById: vi.fn(async (toolId: string, args: unknown) => {
       if (toolId === 'github__search_repos') {
@@ -77,7 +77,7 @@ vi.mock('@main/services/MCPService', () => ({
   }
 }))
 
-import mcpService from '@main/services/MCPService'
+import { mcpService } from '@main/services/MCPService'
 
 describe('HubServer Integration', () => {
   let hubServer: HubServer

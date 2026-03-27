@@ -389,6 +389,9 @@
         "TodoWrite": {
           "description": "Cria e gere listas de tarefas estruturadas"
         },
+        "ToolSearch": {
+          "description": "Descobre ferramentas diferidas de grandes bibliotecas"
+        },
         "WebFetch": {
           "description": "Busca conteúdo de um URL especificado"
         },
@@ -735,6 +738,7 @@
     "progress": {
       "completed": "Backup concluído",
       "compressing": "Comprimindo arquivo...",
+      "copying_database": "Copiando banco de dados...",
       "copying_files": "Copiando arquivos... {{progress}}%",
       "preparing": "Preparando backup...",
       "preparing_compression": "Preparando compressão...",
@@ -1191,6 +1195,8 @@
             "content": "Tem certeza de que deseja excluir {{count}} tópico(s) selecionado(s)? Esta ação não pode ser desfeita.",
             "title": "Excluir Tópicos"
           },
+          "error": "Falha ao excluir. Tente novamente.",
+          "partial_success": "Excluídos com sucesso {{successCount}} tópicos, {{failedCount}} falharam",
           "success": "Excluído(s) {{count}} tópico(s)"
         },
         "deselect_all": "Desmarcar Todos",
@@ -2026,6 +2032,10 @@
         "export": "Falha ao exportar Excel"
       },
       "fetchTopicName": "Falha ao nomear o tópico",
+      "file": {
+        "process_failed": "O arquivo {{name}} não pôde ser processado",
+        "text_extraction_failed": "Falha ao extrair texto de {{name}}"
+      },
       "get_embedding_dimensions": "Falha ao obter dimensões de incorporação",
       "invalid": {
         "api": {
@@ -2269,6 +2279,11 @@
       }
     },
     "warning": {
+      "file": {
+        "pdf_exceeds_limit": "O arquivo PDF {{name}} excede o limite de tamanho ({{limit}}), recorrendo à extração de texto",
+        "pdf_text_extraction_failed": "Falha ao extrair texto do PDF {{name}}",
+        "pdf_upload_failed": "Falha ao carregar o PDF {{name}}, recorrendo à extração de texto"
+      },
       "rate": {
         "limit": "Envio muito frequente, aguarde {{seconds}} segundos antes de tentar novamente"
       }
@@ -2602,6 +2617,27 @@
       "title": "Manter tempo ativo"
     },
     "title": "Ollama"
+  },
+  "onboarding": {
+    "select_model": {
+      "change_later": "Você pode alterar isso a qualquer momento nas configurações",
+      "start": "Comece",
+      "subtitle": "Selecionar modelo padrão para cada cenário",
+      "title": "Escolha Seus Modelos Padrão"
+    },
+    "skip": "Pular",
+    "toast": {
+      "connected": "Conectado com sucesso ao CherryIN"
+    },
+    "welcome": {
+      "login_cherryin": "Entrar com CherryIN",
+      "or_continue_with": "OU CONTINUAR COM",
+      "other_provider": "Escolher Outros Provedores",
+      "select_other_provider": "Selecionar Outro Provedor",
+      "setup_hint": "Por favor, configure pelo menos um provedor para a melhor experiência",
+      "subtitle": "Desfrute de serviços de IA de alto nível com CherryIN",
+      "title": "Bem-vindo ao Cherry Studio"
+    }
   },
   "openclaw": {
     "checking_installation": "Verificando a instalação do OpenClaw...",
@@ -3148,7 +3184,10 @@
       "extracting": "Descompactando backup...",
       "preparing": "Preparando restauração...",
       "reading_data": "Lendo dados...",
-      "title": "Progresso da Restauração"
+      "restoring_data": "Restaurando arquivos...",
+      "restoring_database": "Restaurando banco de dados...",
+      "title": "Progresso da Restauração",
+      "validating": "Validando backup..."
     },
     "title": "Restauração de Dados"
   },
@@ -3701,7 +3740,15 @@
           "button": "Selecionar arquivo de backup"
         },
         "content": "Exportar parte dos dados, incluindo registros de conversas e configurações. Observe que o processo de backup pode demorar um pouco; agradecemos sua paciência.",
+        "file": {
+          "button": "Exportar para arquivo",
+          "content": "Exportar dados como arquivo de backup que pode ser importado no celular via arquivo.",
+          "export_failed": "Falha na exportação",
+          "export_success": "Exportação bem-sucedida",
+          "title": "Exportar como arquivo"
+        },
         "lan": {
+          "button": "Iniciar transferência",
           "connected": "Conectado",
           "connection_failed": "Falha na conexão",
           "content": "Certifique-se de que o computador e o telefone estejam na mesma rede para usar a transferência via LAN. Abra o aplicativo Cherry Studio e escaneie este código QR.",
@@ -4800,6 +4847,7 @@
           "label": "Adicionar modelo da lista"
         },
         "add_whole_group": "Adicionar todo o grupo",
+        "fetch_list": "Buscar lista de modelos",
         "refetch_list": "Obter novamente a lista de modelos",
         "remove_listed": "Remover modelo da lista",
         "remove_model": "Remover Modelo",

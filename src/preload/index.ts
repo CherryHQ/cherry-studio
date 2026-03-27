@@ -18,10 +18,10 @@ import type {
 import type { MCPServerLogEntry } from '@shared/config/types'
 import type { CacheEntry, CacheSyncMessage } from '@shared/data/cache/cacheTypes'
 import type {
-  PreferenceDefaultScopeType,
-  PreferenceKeyType,
-  PreferenceMultipleResultType,
-  SelectionActionItem
+  SelectionActionItem,
+  UnifiedPreferenceKeyType,
+  UnifiedPreferenceMultipleResultType,
+  UnifiedPreferenceType
 } from '@shared/data/preference/preferenceTypes'
 import type { UpgradeChannel } from '@shared/data/preference/preferenceTypes'
 import type { ExternalAppInfo } from '@shared/externalApp/types'
@@ -177,11 +177,11 @@ const api = {
     decompress: (text: Buffer) => ipcRenderer.invoke(IpcChannel.Zip_Decompress, text)
   },
   backup: {
-    backup: (filename: string, content: string, path: string, skipBackupFile: boolean) =>
-      ipcRenderer.invoke(IpcChannel.Backup_Backup, filename, content, path, skipBackupFile),
     restore: (path: string) => ipcRenderer.invoke(IpcChannel.Backup_Restore, path),
-    backupToWebdav: (data: string, webdavConfig: WebDavConfig) =>
-      ipcRenderer.invoke(IpcChannel.Backup_BackupToWebdav, data, webdavConfig),
+    // Direct backup methods (copy IndexedDB/LocalStorage directories directly)
+    backup: (fileName: string, destinationPath: string, skipBackupFile: boolean) =>
+      ipcRenderer.invoke(IpcChannel.Backup_Backup, fileName, destinationPath, skipBackupFile),
+    backupToWebdav: (webdavConfig: WebDavConfig) => ipcRenderer.invoke(IpcChannel.Backup_BackupToWebdav, webdavConfig),
     restoreFromWebdav: (webdavConfig: WebDavConfig) =>
       ipcRenderer.invoke(IpcChannel.Backup_RestoreFromWebdav, webdavConfig),
     listWebdavFiles: (webdavConfig: WebDavConfig) =>
@@ -192,11 +192,8 @@ const api = {
       ipcRenderer.invoke(IpcChannel.Backup_CreateDirectory, webdavConfig, path, options),
     deleteWebdavFile: (fileName: string, webdavConfig: WebDavConfig) =>
       ipcRenderer.invoke(IpcChannel.Backup_DeleteWebdavFile, fileName, webdavConfig),
-    backupToLocalDir: (
-      data: string,
-      fileName: string,
-      localConfig: { localBackupDir?: string; skipBackupFile?: boolean }
-    ) => ipcRenderer.invoke(IpcChannel.Backup_BackupToLocalDir, data, fileName, localConfig),
+    backupToLocalDir: (fileName: string, localConfig: { localBackupDir?: string; skipBackupFile?: boolean }) =>
+      ipcRenderer.invoke(IpcChannel.Backup_BackupToLocalDir, fileName, localConfig),
     restoreFromLocalBackup: (fileName: string, localBackupDir?: string) =>
       ipcRenderer.invoke(IpcChannel.Backup_RestoreFromLocalBackup, fileName, localBackupDir),
     listLocalBackupFiles: (localBackupDir?: string) =>
@@ -205,17 +202,16 @@ const api = {
       ipcRenderer.invoke(IpcChannel.Backup_DeleteLocalBackupFile, fileName, localBackupDir),
     checkWebdavConnection: (webdavConfig: WebDavConfig) =>
       ipcRenderer.invoke(IpcChannel.Backup_CheckConnection, webdavConfig),
-
-    backupToS3: (data: string, s3Config: S3Config) => ipcRenderer.invoke(IpcChannel.Backup_BackupToS3, data, s3Config),
+    backupToS3: (s3Config: S3Config) => ipcRenderer.invoke(IpcChannel.Backup_BackupToS3, s3Config),
     restoreFromS3: (s3Config: S3Config) => ipcRenderer.invoke(IpcChannel.Backup_RestoreFromS3, s3Config),
     listS3Files: (s3Config: S3Config) => ipcRenderer.invoke(IpcChannel.Backup_ListS3Files, s3Config),
     deleteS3File: (fileName: string, s3Config: S3Config) =>
       ipcRenderer.invoke(IpcChannel.Backup_DeleteS3File, fileName, s3Config),
     checkS3Connection: (s3Config: S3Config) => ipcRenderer.invoke(IpcChannel.Backup_CheckS3Connection, s3Config),
-    createLanTransferBackup: (data: string): Promise<string> =>
-      ipcRenderer.invoke(IpcChannel.Backup_CreateLanTransferBackup, data),
-    deleteTempBackup: (filePath: string): Promise<boolean> =>
-      ipcRenderer.invoke(IpcChannel.Backup_DeleteTempBackup, filePath)
+    createLanTransferBackup: (data: string, destinationPath?: string): Promise<string> =>
+      ipcRenderer.invoke(IpcChannel.Backup_CreateLanTransferBackup, data, destinationPath),
+    deleteLanTransferBackup: (filePath: string): Promise<boolean> =>
+      ipcRenderer.invoke(IpcChannel.Backup_DeleteLanTransferBackup, filePath)
   },
   file: {
     select: (options?: OpenDialogOptions): Promise<FileMetadata[] | null> =>
@@ -289,6 +285,10 @@ const api = {
   fs: {
     read: (pathOrUrl: string, encoding?: BufferEncoding) => ipcRenderer.invoke(IpcChannel.Fs_Read, pathOrUrl, encoding),
     readText: (pathOrUrl: string): Promise<string> => ipcRenderer.invoke(IpcChannel.Fs_ReadText, pathOrUrl)
+  },
+  pdf: {
+    extractText: (data: Uint8Array | ArrayBuffer | string): Promise<string> =>
+      ipcRenderer.invoke(IpcChannel.Pdf_ExtractText, data)
   },
   export: {
     toWord: (markdown: string, fileName: string) => ipcRenderer.invoke(IpcChannel.Export_Word, markdown, fileName)
@@ -527,7 +527,8 @@ const api = {
     pinActionWindow: (isPinned: boolean) => ipcRenderer.invoke(IpcChannel.Selection_ActionWindowPin, isPinned),
     // [Windows only] Electron bug workaround - can be removed once https://github.com/electron/electron/issues/48554 is fixed
     resizeActionWindow: (deltaX: number, deltaY: number, direction: string) =>
-      ipcRenderer.invoke(IpcChannel.Selection_ActionWindowResize, deltaX, deltaY, direction)
+      ipcRenderer.invoke(IpcChannel.Selection_ActionWindowResize, deltaX, deltaY, direction),
+    getLinuxEnvInfo: () => ipcRenderer.invoke(IpcChannel.Selection_GetLinuxEnvInfo)
   },
   agentTools: {
     respondToPermission: (payload: {
@@ -571,22 +572,22 @@ const api = {
     hasCredentials: () => ipcRenderer.invoke(IpcChannel.Anthropic_HasCredentials),
     clearCredentials: () => ipcRenderer.invoke(IpcChannel.Anthropic_ClearCredentials)
   },
-  codeTools: {
+  codeCli: {
     run: (
       cliTool: string,
       model: string,
       directory: string,
       env: Record<string, string>,
       options?: { autoUpdateToLatest?: boolean; terminal?: string }
-    ) => ipcRenderer.invoke(IpcChannel.CodeTools_Run, cliTool, model, directory, env, options),
+    ) => ipcRenderer.invoke(IpcChannel.CodeCli_Run, cliTool, model, directory, env, options),
     getAvailableTerminals: (): Promise<TerminalConfig[]> =>
-      ipcRenderer.invoke(IpcChannel.CodeTools_GetAvailableTerminals),
+      ipcRenderer.invoke(IpcChannel.CodeCli_GetAvailableTerminals),
     setCustomTerminalPath: (terminalId: string, path: string): Promise<void> =>
-      ipcRenderer.invoke(IpcChannel.CodeTools_SetCustomTerminalPath, terminalId, path),
+      ipcRenderer.invoke(IpcChannel.CodeCli_SetCustomTerminalPath, terminalId, path),
     getCustomTerminalPath: (terminalId: string): Promise<string | undefined> =>
-      ipcRenderer.invoke(IpcChannel.CodeTools_GetCustomTerminalPath, terminalId),
+      ipcRenderer.invoke(IpcChannel.CodeCli_GetCustomTerminalPath, terminalId),
     removeCustomTerminalPath: (terminalId: string): Promise<void> =>
-      ipcRenderer.invoke(IpcChannel.CodeTools_RemoveCustomTerminalPath, terminalId)
+      ipcRenderer.invoke(IpcChannel.CodeCli_RemoveCustomTerminalPath, terminalId)
   },
   ocr: {
     ocr: (file: SupportedOcrFile, provider: OcrProvider): Promise<OcrResult> =>
@@ -631,18 +632,18 @@ const api = {
   // PreferenceService related APIs
   // DO NOT MODIFY THIS SECTION
   preference: {
-    get: <K extends PreferenceKeyType>(key: K): Promise<PreferenceDefaultScopeType[K]> =>
+    get: <K extends UnifiedPreferenceKeyType>(key: K): Promise<UnifiedPreferenceType[K]> =>
       ipcRenderer.invoke(IpcChannel.Preference_Get, key),
-    set: <K extends PreferenceKeyType>(key: K, value: PreferenceDefaultScopeType[K]): Promise<void> =>
+    set: <K extends UnifiedPreferenceKeyType>(key: K, value: UnifiedPreferenceType[K]): Promise<void> =>
       ipcRenderer.invoke(IpcChannel.Preference_Set, key, value),
-    getMultipleRaw: <K extends PreferenceKeyType>(keys: K[]): Promise<PreferenceMultipleResultType<K>> =>
+    getMultipleRaw: <K extends UnifiedPreferenceKeyType>(keys: K[]): Promise<UnifiedPreferenceMultipleResultType<K>> =>
       ipcRenderer.invoke(IpcChannel.Preference_GetMultipleRaw, keys),
-    setMultiple: (updates: Partial<PreferenceDefaultScopeType>) =>
+    setMultiple: (updates: Partial<UnifiedPreferenceType>) =>
       ipcRenderer.invoke(IpcChannel.Preference_SetMultiple, updates),
-    getAll: (): Promise<PreferenceDefaultScopeType> => ipcRenderer.invoke(IpcChannel.Preference_GetAll),
-    subscribe: (keys: PreferenceKeyType[]) => ipcRenderer.invoke(IpcChannel.Preference_Subscribe, keys),
-    onChanged: (callback: (key: PreferenceKeyType, value: any) => void) => {
-      const listener = (_: any, key: PreferenceKeyType, value: any) => callback(key, value)
+    getAll: (): Promise<UnifiedPreferenceType> => ipcRenderer.invoke(IpcChannel.Preference_GetAll),
+    subscribe: (keys: UnifiedPreferenceKeyType[]) => ipcRenderer.invoke(IpcChannel.Preference_Subscribe, keys),
+    onChanged: (callback: (key: UnifiedPreferenceKeyType, value: any) => void) => {
+      const listener = (_: any, key: UnifiedPreferenceKeyType, value: any) => callback(key, value)
       ipcRenderer.on(IpcChannel.Preference_Changed, listener)
       return () => ipcRenderer.off(IpcChannel.Preference_Changed, listener)
     }

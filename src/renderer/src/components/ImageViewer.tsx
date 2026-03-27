@@ -85,7 +85,7 @@ const ImageViewer: React.FC<ImageViewerProps> = ({ src, style, ...props }) => {
         label: t('preview.copy.src'),
         icon: <CopyIcon size={size} />,
         onClick: () => {
-          navigator.clipboard.writeText(src)
+          void navigator.clipboard.writeText(src)
           window.toast.success(t('message.copy.success'))
         }
       },

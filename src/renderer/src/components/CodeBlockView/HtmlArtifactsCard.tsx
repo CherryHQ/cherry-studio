@@ -42,7 +42,7 @@ const HtmlArtifactsCard: FC<Props> = ({ html, onSave, isStreaming = false }) => 
     const filePath = `file://${path}`
 
     if (window.api.shell?.openExternal) {
-      window.api.shell.openExternal(filePath)
+      void window.api.shell.openExternal(filePath)
     } else {
       logger.error(t('chat.artifacts.preview.openExternal.error.content'))
     }

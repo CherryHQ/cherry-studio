@@ -4,11 +4,11 @@ import path from 'node:path'
 import { promisify } from 'node:util'
 
 import { loggerService } from '@logger'
+import { application } from '@main/core/application'
 import { app } from 'electron'
 
 import { handleProvidersProtocolUrl } from './urlschema/handle-providers'
 import { handleMcpProtocolUrl } from './urlschema/mcp-install'
-import { windowService } from './WindowService'
 
 const logger = loggerService.withContext('ProtocolClient')
 
@@ -38,12 +38,12 @@ export function handleProtocolUrl(url: string) {
       handleMcpProtocolUrl(urlObj)
       return
     case 'providers':
-      handleProvidersProtocolUrl(urlObj)
+      void handleProvidersProtocolUrl(urlObj)
       return
   }
 
   // You can send the data to your renderer process
-  const mainWindow = windowService.getMainWindow()
+  const mainWindow = application.get('WindowService').getMainWindow()
 
   if (mainWindow && !mainWindow.isDestroyed()) {
     mainWindow.webContents.send('protocol-data', {

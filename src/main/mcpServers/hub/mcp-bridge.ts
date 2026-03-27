@@ -1,7 +1,7 @@
 /**
  * Bridge module for Hub server to access MCPService.
  */
-import mcpService from '@main/services/MCPService'
+import { mcpService } from '@main/services/MCPService'
 import type { MCPCallToolResponse, MCPTool, MCPToolResultContent } from '@types'
 
 import { buildToolNameMapping, resolveToolId, type ToolIdentity, type ToolNameMapping } from './toolname'
@@ -115,7 +115,7 @@ export const callMcpTool = async (nameOrId: string, params: unknown, callId?: st
 }
 
 export const abortMcpTool = async (callId: string): Promise<boolean> => {
-  return mcpService.abortTool(null as unknown as Electron.IpcMainInvokeEvent, callId)
+  return mcpService.abortTool(callId)
 }
 
 function extractToolResult(result: MCPCallToolResponse): unknown {

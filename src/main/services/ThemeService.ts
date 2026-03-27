@@ -1,31 +1,49 @@
-import { preferenceService } from '@data/PreferenceService'
+import { application } from '@main/core/application'
+import { BaseService, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import { ThemeMode } from '@shared/data/preference/preferenceTypes'
 import { IpcChannel } from '@shared/IpcChannel'
 import { BrowserWindow, nativeTheme } from 'electron'
 
 import { titleBarOverlayDark, titleBarOverlayLight } from '../config'
 
-class ThemeService {
+@Injectable('ThemeService')
+@ServicePhase(Phase.WhenReady)
+export class ThemeService extends BaseService {
   private theme: ThemeMode = ThemeMode.system
-  constructor() {
+  private unsubscribes: (() => void)[] = []
+  private boundThemeUpdatedHandler = this.themeUpdatedHandler.bind(this)
+
+  protected async onInit() {
+    const preferenceService = application.get('PreferenceService')
     this.theme = preferenceService.get('ui.theme_mode')
 
     if (this.theme === ThemeMode.dark || this.theme === ThemeMode.light || this.theme === ThemeMode.system) {
       nativeTheme.themeSource = this.theme
     } else {
-      // 兼容旧版本
-      preferenceService.set('ui.theme_mode', ThemeMode.system)
+      void preferenceService.set('ui.theme_mode', ThemeMode.system)
       nativeTheme.themeSource = ThemeMode.system
     }
-    nativeTheme.on('updated', this.themeUpdatadHandler.bind(this))
 
-    preferenceService.subscribeChange('ui.theme_mode', (newTheme) => {
-      this.theme = newTheme
-      nativeTheme.themeSource = newTheme
-    })
+    nativeTheme.on('updated', this.boundThemeUpdatedHandler)
+
+    this.unsubscribes.push(
+      preferenceService.subscribeChange('ui.theme_mode', (newTheme) => {
+        this.theme = newTheme
+        nativeTheme.themeSource = newTheme
+      })
+    )
   }
 
-  themeUpdatadHandler() {
+  protected async onStop() {
+    nativeTheme.removeListener('updated', this.boundThemeUpdatedHandler)
+
+    for (const unsub of this.unsubscribes) {
+      unsub()
+    }
+    this.unsubscribes = []
+  }
+
+  private themeUpdatedHandler() {
     BrowserWindow.getAllWindows().forEach((win) => {
       if (win && !win.isDestroyed() && win.setTitleBarOverlay) {
         try {
@@ -42,5 +60,3 @@ class ThemeService {
     })
   }
 }
-
-export const themeService = new ThemeService()

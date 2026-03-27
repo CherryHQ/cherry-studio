@@ -25,6 +25,7 @@ import { ReadTool } from './ReadTool'
 import { SearchTool } from './SearchTool'
 import { SkillTool } from './SkillTool'
 import { TaskTool } from './TaskTool'
+import { ToolSearchTool } from './ToolSearchTool'
 import type { ToolInput, ToolOutput } from './types'
 import { AgentToolsType } from './types'
 import { UnknownToolRenderer } from './UnknownToolRenderer'
@@ -48,7 +49,8 @@ export const toolRenderers = {
   [AgentToolsType.BashOutput]: BashOutputTool,
   [AgentToolsType.NotebookEdit]: NotebookEditTool,
   [AgentToolsType.ExitPlanMode]: ExitPlanModeTool,
-  [AgentToolsType.Skill]: SkillTool
+  [AgentToolsType.Skill]: SkillTool,
+  [AgentToolsType.ToolSearch]: ToolSearchTool
 }
 
 /**

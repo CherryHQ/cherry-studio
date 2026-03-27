@@ -1,30 +1,30 @@
-import { isMac } from '@main/constant'
-import { windowService } from '@main/services/WindowService'
+import { application } from '@main/core/application'
+import { BaseService, ExcludePlatforms, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import { getAppLanguage, locales } from '@main/utils/language'
 import { IpcChannel } from '@shared/IpcChannel'
 import type { MenuItemConstructorOptions } from 'electron'
 import { app, Menu, shell } from 'electron'
 
-import { configManager } from './ConfigManager'
-export class AppMenuService {
-  private languageChangeCallback?: (newLanguage: string) => void
+@Injectable('AppMenuService')
+@ServicePhase(Phase.WhenReady)
+@ExcludePlatforms(['win32', 'linux'])
+export class AppMenuService extends BaseService {
+  private unsubscribes: (() => void)[] = []
 
-  constructor() {
-    // Subscribe to language change events
-    this.languageChangeCallback = () => {
-      this.setupApplicationMenu()
-    }
-    configManager.subscribe('language', this.languageChangeCallback)
+  protected async onInit() {
+    const preferenceService = application.get('PreferenceService')
+    this.unsubscribes.push(preferenceService.subscribeChange('app.language', () => this.setupApplicationMenu()))
+    this.setupApplicationMenu()
   }
 
-  public destroy(): void {
-    // Clean up subscription to prevent memory leaks
-    if (this.languageChangeCallback) {
-      configManager.unsubscribe('language', this.languageChangeCallback)
+  protected async onStop() {
+    for (const unsub of this.unsubscribes) {
+      unsub()
     }
+    this.unsubscribes = []
   }
 
-  public setupApplicationMenu(): void {
+  private setupApplicationMenu(): void {
     const locale = locales[getAppLanguage()]
     const { appMenu } = locale.translation
 
@@ -35,11 +35,10 @@ export class AppMenuService {
           {
             label: appMenu.about + ' ' + app.name,
             click: () => {
-              // Emit event to navigate to About page
-              const mainWindow = windowService.getMainWindow()
+              const mainWindow = application.get('WindowService').getMainWindow()
               if (mainWindow && !mainWindow.isDestroyed()) {
                 mainWindow.webContents.send(IpcChannel.Windows_NavigateToAbout)
-                windowService.showMainWindow()
+                application.get('WindowService').showMainWindow()
               }
             }
           },
@@ -99,25 +98,25 @@ export class AppMenuService {
           {
             label: appMenu.website,
             click: () => {
-              shell.openExternal('https://cherry-ai.com')
+              void shell.openExternal('https://cherry-ai.com')
             }
           },
           {
             label: appMenu.documentation,
             click: () => {
-              shell.openExternal('https://cherry-ai.com/docs')
+              void shell.openExternal('https://cherry-ai.com/docs')
             }
           },
           {
             label: appMenu.feedback,
             click: () => {
-              shell.openExternal('https://github.com/CherryHQ/cherry-studio/issues/new/choose')
+              void shell.openExternal('https://github.com/CherryHQ/cherry-studio/issues/new/choose')
             }
           },
           {
             label: appMenu.releases,
             click: () => {
-              shell.openExternal('https://github.com/CherryHQ/cherry-studio/releases')
+              void shell.openExternal('https://github.com/CherryHQ/cherry-studio/releases')
             }
           }
         ]
@@ -128,5 +127,3 @@ export class AppMenuService {
     Menu.setApplicationMenu(menu)
   }
 }
-
-export const appMenuService = isMac ? new AppMenuService() : null

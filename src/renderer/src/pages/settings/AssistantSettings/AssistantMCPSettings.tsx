@@ -1,26 +1,15 @@
 import { Box, InfoTooltip, Switch, Tooltip } from '@cherrystudio/ui'
 import { useMCPServers } from '@renderer/hooks/useMCPServers'
-import type { Assistant, AssistantSettings, McpMode } from '@renderer/types'
+import type { Assistant, McpMode } from '@renderer/types'
 import { getEffectiveMcpMode } from '@renderer/types'
+import type { MCPServer } from '@shared/data/types/mcpServer'
 import { Empty, Radio } from 'antd'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
-export interface MCPServer {
-  id: string
-  name: string
-  description?: string
-  baseUrl?: string
-  command?: string
-  args?: string[]
-  env?: Record<string, string>
-  isActive: boolean
-}
-
 interface Props {
   assistant: Assistant
   updateAssistant: (assistant: Assistant) => void
-  updateAssistantSettings: (settings: AssistantSettings) => void
 }
 
 const AssistantMCPSettings: React.FC<Props> = ({ assistant, updateAssistant }) => {

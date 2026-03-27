@@ -14,7 +14,7 @@ import { getGroupedMessages } from '@renderer/services/MessagesService'
 import { type Topic, TopicType } from '@renderer/types'
 import { buildAgentSessionTopicId } from '@renderer/utils/agentSession'
 import { Spin } from 'antd'
-import { memo, useCallback, useEffect, useMemo, useRef } from 'react'
+import { memo, useCallback, useEffect, useMemo } from 'react'
 
 const logger = loggerService.withContext('AgentSessionMessages')
 
@@ -29,9 +29,10 @@ const AgentSessionMessages = ({ agentId, sessionId }: Props) => {
   // Use the same hook as Messages.tsx for consistent behavior
   const messages = useTopicMessages(sessionTopicId)
   const { messageNavigation } = useSettings()
-  const scrollContainerRef = useRef<HTMLDivElement>(null)
 
-  const { handleScroll: handleScrollPosition } = useScrollPosition(`agent-session-${sessionId}`)
+  const { containerRef: scrollContainerRef, handleScroll: handleScrollPosition } = useScrollPosition(
+    `agent-session-${sessionId}`
+  )
 
   const displayMessages = useMemo(() => {
     if (!messages || messages.length === 0) return []
