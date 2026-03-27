@@ -96,7 +96,7 @@ export class ChildProcessHandle implements ProcessHandle {
         this.logger.info(`Process exited cleanly (code=${code})`)
       }
 
-      this.onExited?.(code, signal as NodeJS.Signals | null)
+      this.onExited?.(code, signal)
     })
 
     child.on('error', (err) => {
