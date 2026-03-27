@@ -1,8 +1,8 @@
 {
   "version": "6",
   "dialect": "sqlite",
-  "id": "c736c8d5-58fa-4c17-9d28-c6dde07d439c",
-  "prevId": "f283d5d9-7eaa-40ff-8f9f-fbad46e536fd",
+  "id": "0f66b276-e091-4ebe-b309-9da1dbaae6e6",
+  "prevId": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
   "tables": {
     "app_state": {
       "name": "app_state",
@@ -279,6 +279,14 @@
           "notNull": false,
           "autoincrement": false
         },
+        "sort_order": {
+          "name": "sort_order",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false,
+          "default": 0
+        },
         "is_active": {
           "name": "is_active",
           "type": "integer",
@@ -339,6 +347,11 @@
         "mcp_server_is_active_idx": {
           "name": "mcp_server_is_active_idx",
           "columns": ["is_active"],
+          "isUnique": false
+        },
+        "mcp_server_sort_order_idx": {
+          "name": "mcp_server_sort_order_idx",
+          "columns": ["sort_order"],
           "isUnique": false
         }
       },
@@ -529,6 +542,134 @@
           "value": "\"message\".\"status\" IN ('pending', 'success', 'error', 'paused')"
         }
       }
+    },
+    "miniapp": {
+      "name": "miniapp",
+      "columns": {
+        "app_id": {
+          "name": "app_id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "name": {
+          "name": "name",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "url": {
+          "name": "url",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "logo": {
+          "name": "logo",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "type": {
+          "name": "type",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "'custom'"
+        },
+        "status": {
+          "name": "status",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "'enabled'"
+        },
+        "sort_order": {
+          "name": "sort_order",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false,
+          "default": 0
+        },
+        "bordered": {
+          "name": "bordered",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false,
+          "default": true
+        },
+        "background": {
+          "name": "background",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "supported_regions": {
+          "name": "supported_regions",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "configuration": {
+          "name": "configuration",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "name_key": {
+          "name": "name_key",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        }
+      },
+      "indexes": {
+        "miniapp_status_sort_idx": {
+          "name": "miniapp_status_sort_idx",
+          "columns": ["status", "sort_order"],
+          "isUnique": false
+        },
+        "miniapp_type_idx": {
+          "name": "miniapp_type_idx",
+          "columns": ["type"],
+          "isUnique": false
+        },
+        "miniapp_status_type_idx": {
+          "name": "miniapp_status_type_idx",
+          "columns": ["status", "type"],
+          "isUnique": false
+        }
+      },
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "checkConstraints": {}
     },
     "preference": {
       "name": "preference",
@@ -874,14 +1015,14 @@
           "name": "source_language",
           "type": "text",
           "primaryKey": false,
-          "notNull": true,
+          "notNull": false,
           "autoincrement": false
         },
         "target_language": {
           "name": "target_language",
           "type": "text",
           "primaryKey": false,
-          "notNull": true,
+          "notNull": false,
           "autoincrement": false
         },
         "star": {
@@ -919,7 +1060,26 @@
           "isUnique": false
         }
       },
-      "foreignKeys": {},
+      "foreignKeys": {
+        "translate_history_source_language_translate_language_lang_code_fk": {
+          "name": "translate_history_source_language_translate_language_lang_code_fk",
+          "tableFrom": "translate_history",
+          "tableTo": "translate_language",
+          "columnsFrom": ["source_language"],
+          "columnsTo": ["lang_code"],
+          "onDelete": "set null",
+          "onUpdate": "no action"
+        },
+        "translate_history_target_language_translate_language_lang_code_fk": {
+          "name": "translate_history_target_language_translate_language_lang_code_fk",
+          "tableFrom": "translate_history",
+          "tableTo": "translate_language",
+          "columnsFrom": ["target_language"],
+          "columnsTo": ["lang_code"],
+          "onDelete": "set null",
+          "onUpdate": "no action"
+        }
+      },
       "compositePrimaryKeys": {},
       "uniqueConstraints": {},
       "checkConstraints": {}
@@ -927,17 +1087,10 @@
     "translate_language": {
       "name": "translate_language",
       "columns": {
-        "id": {
-          "name": "id",
-          "type": "text",
-          "primaryKey": true,
-          "notNull": true,
-          "autoincrement": false
-        },
         "lang_code": {
           "name": "lang_code",
           "type": "text",
-          "primaryKey": false,
+          "primaryKey": true,
           "notNull": true,
           "autoincrement": false
         },
@@ -970,13 +1123,7 @@
           "autoincrement": false
         }
       },
-      "indexes": {
-        "translate_language_langCode_unique": {
-          "name": "translate_language_langCode_unique",
-          "columns": ["lang_code"],
-          "isUnique": true
-        }
-      },
+      "indexes": {},
       "foreignKeys": {},
       "compositePrimaryKeys": {},
       "uniqueConstraints": {},

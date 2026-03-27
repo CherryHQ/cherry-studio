@@ -16,32 +16,39 @@
       "when": 1767455592181
     },
     {
-      "breakpoints": true,
       "idx": 2,
+      "version": "6",
+      "when": 1772954746790,
       "tag": "0002_tired_glorian",
-      "version": "6",
-      "when": 1772954746790
+      "breakpoints": true
     },
     {
-      "breakpoints": true,
       "idx": 3,
+      "version": "6",
+      "when": 1773896975667,
       "tag": "0003_material_pestilence",
-      "version": "6",
-      "when": 1773896975667
+      "breakpoints": true
     },
     {
-      "breakpoints": true,
       "idx": 4,
-      "tag": "0004_volatile_madame_masque",
       "version": "6",
-      "when": 1774262838467
+      "when": 1774262838467,
+      "tag": "0004_volatile_madame_masque",
+      "breakpoints": true
     },
     {
-      "breakpoints": true,
       "idx": 5,
-      "tag": "0005_shocking_sphinx",
       "version": "6",
-      "when": 1774262838468
+      "when": 1774262838468,
+      "tag": "0005_shocking_sphinx",
+      "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "6",
+      "when": 1774622546141,
+      "tag": "0006_steep_hedge_knight",
+      "breakpoints": true
     }
   ],
   "version": "7"
