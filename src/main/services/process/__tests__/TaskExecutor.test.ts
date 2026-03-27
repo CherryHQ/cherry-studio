@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { ProcessState } from '../types'
 
@@ -122,6 +122,10 @@ beforeEach(() => {
 })
 
 describe('TaskExecutor', () => {
+  afterEach(() => {
+    vi.useRealTimers()
+  })
+
   describe('exec()', () => {
     it('dispatches a task and returns the result', async () => {
       const { TaskExecutor } = await loadModules()

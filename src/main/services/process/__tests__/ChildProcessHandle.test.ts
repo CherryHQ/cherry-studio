@@ -1,5 +1,5 @@
 import { EventEmitter } from 'events'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 // Mock child_process
 vi.mock('child_process', () => ({ spawn: vi.fn() }))
@@ -46,6 +46,10 @@ beforeEach(() => {
 })
 
 describe('ChildProcessHandle', () => {
+  afterEach(() => {
+    vi.useRealTimers()
+  })
+
   describe('initial state', () => {
     it('starts in Idle state with correct id and undefined pid', async () => {
       const { ChildProcessHandle } = await loadModules()

@@ -1,5 +1,5 @@
 import { EventEmitter } from 'events'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 // Mock electron
 const mockUtilityProcess = { fork: vi.fn() }
@@ -36,6 +36,10 @@ beforeEach(() => {
 })
 
 describe('UtilityProcessHandle', () => {
+  afterEach(() => {
+    vi.useRealTimers()
+  })
+
   describe('initial state', () => {
     it('starts in Idle state with correct id and undefined pid', async () => {
       const { UtilityProcessHandle } = await loadModules()
