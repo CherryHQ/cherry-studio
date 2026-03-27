@@ -5,8 +5,14 @@
 import { knowledgeBaseService } from '@data/services/KnowledgeBaseService'
 import { knowledgeItemService } from '@data/services/KnowledgeItemService'
 import type { ApiHandler, ApiMethods } from '@shared/data/api/apiTypes'
-import type { KnowledgeItemsQueryParams, KnowledgeSchemas } from '@shared/data/api/schemas/knowledges'
-import { KNOWLEDGE_ITEMS_DEFAULT_LIMIT, KNOWLEDGE_ITEMS_DEFAULT_PAGE } from '@shared/data/api/schemas/knowledges'
+import type { KnowledgeSchemas } from '@shared/data/api/schemas/knowledges'
+import {
+  CreateKnowledgeBaseSchema,
+  CreateKnowledgeItemsSchema,
+  KnowledgeItemsQuerySchema,
+  UpdateKnowledgeBaseSchema,
+  UpdateKnowledgeItemSchema
+} from '@shared/data/api/schemas/knowledges'
 
 type KnowledgeHandler<Path extends keyof KnowledgeSchemas, Method extends ApiMethods<Path>> = ApiHandler<Path, Method>
 
@@ -20,7 +26,8 @@ export const knowledgeHandlers: {
       return await knowledgeBaseService.list()
     },
     POST: async ({ body }) => {
-      return await knowledgeBaseService.create(body)
+      const parsed = CreateKnowledgeBaseSchema.parse(body)
+      return await knowledgeBaseService.create(parsed)
     }
   },
 
@@ -29,7 +36,8 @@ export const knowledgeHandlers: {
       return await knowledgeBaseService.getById(params.id)
     },
     PATCH: async ({ params, body }) => {
-      return await knowledgeBaseService.update(params.id, body)
+      const parsed = UpdateKnowledgeBaseSchema.parse(body)
+      return await knowledgeBaseService.update(params.id, parsed)
     },
     DELETE: async ({ params }) => {
       await knowledgeBaseService.delete(params.id)
@@ -39,15 +47,12 @@ export const knowledgeHandlers: {
 
   '/knowledge-bases/:id/items': {
     GET: async ({ params, query }) => {
-      const q = (query || {}) as KnowledgeItemsQueryParams
-      return await knowledgeItemService.list(params.id, {
-        page: q.page ?? KNOWLEDGE_ITEMS_DEFAULT_PAGE,
-        limit: q.limit ?? KNOWLEDGE_ITEMS_DEFAULT_LIMIT,
-        parentId: q.parentId?.trim() || undefined
-      })
+      const parsed = KnowledgeItemsQuerySchema.parse(query ?? {})
+      return await knowledgeItemService.list(params.id, parsed)
     },
     POST: async ({ params, body }) => {
-      return await knowledgeItemService.create(params.id, body)
+      const parsed = CreateKnowledgeItemsSchema.parse(body)
+      return await knowledgeItemService.create(params.id, parsed)
     }
   },
 
@@ -56,7 +61,8 @@ export const knowledgeHandlers: {
       return await knowledgeItemService.getById(params.id)
     },
     PATCH: async ({ params, body }) => {
-      return await knowledgeItemService.update(params.id, body)
+      const parsed = UpdateKnowledgeItemSchema.parse(body)
+      return await knowledgeItemService.update(params.id, parsed)
     },
     DELETE: async ({ params }) => {
       await knowledgeItemService.delete(params.id)

@@ -14,12 +14,27 @@ import type {
   KnowledgeItemsQuery,
   UpdateKnowledgeItemDto
 } from '@shared/data/api/schemas/knowledges'
+import {
+  DirectoryDataSchema,
+  FileItemDataSchema,
+  NoteItemDataSchema,
+  SitemapItemDataSchema,
+  UrlItemDataSchema
+} from '@shared/data/api/schemas/knowledges'
 import type { KnowledgeItem } from '@shared/data/types/knowledge'
 import { and, desc, eq, isNull, sql } from 'drizzle-orm'
 
 import { knowledgeBaseService } from './KnowledgeBaseService'
 
 const logger = loggerService.withContext('DataApi:KnowledgeItemService')
+
+const KNOWLEDGE_ITEM_DATA_SCHEMAS = {
+  file: FileItemDataSchema,
+  url: UrlItemDataSchema,
+  note: NoteItemDataSchema,
+  sitemap: SitemapItemDataSchema,
+  directory: DirectoryDataSchema
+} as const
 
 function rowToKnowledgeItem(row: typeof knowledgeItemTable.$inferSelect): KnowledgeItem {
   const parseJson = <T>(value: T | string | null | undefined): T | null => {
@@ -140,7 +155,13 @@ export class KnowledgeItemService {
 
     const updates: Partial<typeof knowledgeItemTable.$inferInsert> = {}
     if (dto.data !== undefined) {
-      updates.data = dto.data
+      const parsed = KNOWLEDGE_ITEM_DATA_SCHEMAS[existing.type].safeParse(dto.data)
+      if (!parsed.success) {
+        throw DataApiErrorFactory.validation({
+          data: [`Data payload does not match the existing knowledge item type '${existing.type}'`]
+        })
+      }
+      updates.data = parsed.data
     }
     if (dto.status !== undefined) updates.status = dto.status
     if (dto.error !== undefined) updates.error = dto.error

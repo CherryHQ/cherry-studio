@@ -289,6 +289,31 @@ describe('KnowledgeItemService', () => {
       expect(mockUpdate).not.toHaveBeenCalled()
     })
 
+    it('should reject data that does not match the existing item type', async () => {
+      mockSelect.mockReturnValue({
+        from: vi.fn().mockReturnValue({
+          where: vi.fn().mockReturnValue({
+            limit: vi.fn().mockResolvedValue([createMockRow({ type: 'note', data: { content: 'stored note' } })])
+          })
+        })
+      })
+
+      await expect(
+        service.update('item-1', {
+          data: { path: '/tmp/files', recursive: true }
+        })
+      ).rejects.toMatchObject({
+        code: ErrorCode.VALIDATION_ERROR,
+        details: {
+          fieldErrors: {
+            data: ["Data payload does not match the existing knowledge item type 'note'"]
+          }
+        }
+      })
+
+      expect(mockUpdate).not.toHaveBeenCalled()
+    })
+
     it('should update and return the knowledge item', async () => {
       mockSelect.mockReturnValue({
         from: vi.fn().mockReturnValue({

@@ -6,7 +6,7 @@ import type {
 } from '@shared/data/types/knowledge'
 import { foreignKey, index, integer, real, sqliteTable, text, unique } from 'drizzle-orm/sqlite-core'
 
-import { createUpdateTimestamps, uuidPrimaryKey } from './_columnHelpers'
+import { createUpdateTimestamps, uuidPrimaryKey, uuidPrimaryKeyOrdered } from './_columnHelpers'
 
 /**
  * knowledge_base table - Knowledge base metadata
@@ -40,12 +40,13 @@ export const knowledgeBaseTable = sqliteTable('knowledge_base', {
 /**
  * knowledge_item table - Knowledge items (files, URLs, notes, etc.)
  *
- * Uses uuidPrimaryKey (UUID v4) for consistency with existing IDs
+ * Uses uuidPrimaryKeyOrdered (UUID v7) because knowledge items are a growing,
+ * time-ordered dataset with paginated list queries.
  */
 export const knowledgeItemTable = sqliteTable(
   'knowledge_item',
   {
-    id: uuidPrimaryKey(),
+    id: uuidPrimaryKeyOrdered(),
     baseId: text()
       .notNull()
       .references(() => knowledgeBaseTable.id, { onDelete: 'cascade' }),

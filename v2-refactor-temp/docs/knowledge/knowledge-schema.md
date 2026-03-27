@@ -40,6 +40,7 @@ This document records the current V2 knowledge target schema, migration constrai
   - `error`
   - `createdAt`
   - `updatedAt`
+- New app-created knowledge items use ordered UUID generation for `id`.
 
 ## Fields Removed From The V2 SQLite Schema
 
@@ -65,6 +66,14 @@ This document records the current V2 knowledge target schema, migration constrai
 - Migration from official v1 data does not preserve or infer hierarchy:
   - official v1 exports are flat
   - migrated items are inserted with `parentId = null`
+
+## Current `type` / `data` Integrity Boundary
+
+- `knowledge_item.type` and `knowledge_item.data` are intended to stay aligned by controlled UI flows.
+- In the current V2 scope, knowledge item create/edit operations are expected to come from strongly associated UI forms for each item type.
+- Because of that scope assumption, the current implementation does not add an extra DB-level or DataApi-level cross-structure constraint that re-validates `data` against the stored `type` on every write.
+- Downstream knowledge code may therefore treat the stored `type` + `data` pair as a trusted contract produced by the app's controlled write path.
+- If future write paths are added outside the current controlled UI flow, such as import tools, scripts, sync jobs, or public/external APIs, this assumption must be revisited and explicit boundary validation should be added at that time.
 
 ## Current Non-Goals
 

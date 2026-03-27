@@ -45,7 +45,11 @@ vi.mock('@data/services/KnowledgeItemService', () => ({
   }
 }))
 
-import { KNOWLEDGE_ITEMS_DEFAULT_LIMIT, KNOWLEDGE_ITEMS_DEFAULT_PAGE } from '@shared/data/api/schemas/knowledges'
+import {
+  KNOWLEDGE_ITEMS_DEFAULT_LIMIT,
+  KNOWLEDGE_ITEMS_DEFAULT_PAGE,
+  KNOWLEDGE_ITEMS_MAX_LIMIT
+} from '@shared/data/api/schemas/knowledges'
 
 import { knowledgeHandlers } from '../knowledges'
 
@@ -65,18 +69,41 @@ describe('knowledgeHandlers', () => {
       expect(result).toEqual(response)
     })
 
-    it('should delegate POST to knowledgeBaseService.create', async () => {
+    it('should parse and delegate POST to knowledgeBaseService.create', async () => {
       const body = {
+        name: '  Knowledge Base  ',
+        dimensions: 1536,
+        embeddingModelId: '  text-embedding-3-large  '
+      }
+      createKnowledgeBaseMock.mockResolvedValueOnce({
+        id: 'kb-1',
         name: 'Knowledge Base',
         dimensions: 1536,
         embeddingModelId: 'text-embedding-3-large'
-      }
-      createKnowledgeBaseMock.mockResolvedValueOnce({ id: 'kb-1', ...body })
+      })
 
       const result = await knowledgeHandlers['/knowledge-bases'].POST({ body })
 
-      expect(createKnowledgeBaseMock).toHaveBeenCalledWith(body)
+      expect(createKnowledgeBaseMock).toHaveBeenCalledWith({
+        name: 'Knowledge Base',
+        dimensions: 1536,
+        embeddingModelId: 'text-embedding-3-large'
+      })
       expect(result).toMatchObject({ id: 'kb-1' })
+    })
+
+    it('should reject invalid POST bodies before calling the service', async () => {
+      await expect(
+        knowledgeHandlers['/knowledge-bases'].POST({
+          body: {
+            name: '   ',
+            dimensions: 1536,
+            embeddingModelId: 'model-1'
+          }
+        } as never)
+      ).rejects.toHaveProperty('name', 'ZodError')
+
+      expect(createKnowledgeBaseMock).not.toHaveBeenCalled()
     })
   })
 
@@ -93,7 +120,7 @@ describe('knowledgeHandlers', () => {
       await expect(
         knowledgeHandlers['/knowledge-bases/:id'].PATCH({
           params: { id: 'kb-1' },
-          body: { name: 'Updated Base' }
+          body: { name: '  Updated Base  ' }
         })
       ).resolves.toEqual({
         id: 'kb-1',
@@ -109,6 +136,19 @@ describe('knowledgeHandlers', () => {
       expect(getKnowledgeBaseByIdMock).toHaveBeenCalledWith('kb-1')
       expect(updateKnowledgeBaseMock).toHaveBeenCalledWith('kb-1', { name: 'Updated Base' })
       expect(deleteKnowledgeBaseMock).toHaveBeenCalledWith('kb-1')
+    })
+
+    it('should reject invalid PATCH bodies before calling the service', async () => {
+      await expect(
+        knowledgeHandlers['/knowledge-bases/:id'].PATCH({
+          params: { id: 'kb-1' },
+          body: {
+            dimensions: 3072
+          }
+        } as never)
+      ).rejects.toHaveProperty('name', 'ZodError')
+
+      expect(updateKnowledgeBaseMock).not.toHaveBeenCalled()
     })
   })
 
@@ -175,12 +215,52 @@ describe('knowledgeHandlers', () => {
       })
     })
 
+    it('should reject non-positive page values', async () => {
+      await expect(
+        knowledgeHandlers['/knowledge-bases/:id/items'].GET({
+          params: { id: 'kb-1' },
+          query: {
+            page: 0
+          } as never
+        } as never)
+      ).rejects.toHaveProperty('name', 'ZodError')
+
+      expect(listKnowledgeItemsMock).not.toHaveBeenCalled()
+    })
+
+    it('should reject limit values above the max limit', async () => {
+      await expect(
+        knowledgeHandlers['/knowledge-bases/:id/items'].GET({
+          params: { id: 'kb-1' },
+          query: {
+            limit: KNOWLEDGE_ITEMS_MAX_LIMIT + 1
+          } as never
+        } as never)
+      ).rejects.toHaveProperty('name', 'ZodError')
+
+      expect(listKnowledgeItemsMock).not.toHaveBeenCalled()
+    })
+
     it('should delegate POST to knowledgeItemService.create', async () => {
       const body: CreateKnowledgeItemsDto = {
-        items: [{ type: 'note', data: { content: 'hello world' } }]
+        items: [
+          {
+            parentId: '550e8400-e29b-41d4-a716-446655440001',
+            type: 'note',
+            data: { content: 'hello world' }
+          }
+        ]
       }
       createKnowledgeItemsMock.mockResolvedValueOnce({
-        items: [{ id: 'item-1', baseId: 'kb-1', type: 'note', data: { content: 'hello world' } }]
+        items: [
+          {
+            id: 'item-1',
+            baseId: 'kb-1',
+            parentId: '550e8400-e29b-41d4-a716-446655440001',
+            type: 'note',
+            data: { content: 'hello world' }
+          }
+        ]
       })
 
       const result = await knowledgeHandlers['/knowledge-bases/:id/items'].POST({
@@ -188,7 +268,15 @@ describe('knowledgeHandlers', () => {
         body
       })
 
-      expect(createKnowledgeItemsMock).toHaveBeenCalledWith('kb-1', body)
+      expect(createKnowledgeItemsMock).toHaveBeenCalledWith('kb-1', {
+        items: [
+          {
+            parentId: '550e8400-e29b-41d4-a716-446655440001',
+            type: 'note',
+            data: { content: 'hello world' }
+          }
+        ]
+      })
       expect(result).toMatchObject({
         items: [
           {
@@ -196,6 +284,38 @@ describe('knowledgeHandlers', () => {
           }
         ]
       })
+    })
+
+    it('should reject invalid POST bodies before calling the service', async () => {
+      await expect(
+        knowledgeHandlers['/knowledge-bases/:id/items'].POST({
+          params: { id: 'kb-1' },
+          body: {
+            items: []
+          }
+        } as never)
+      ).rejects.toHaveProperty('name', 'ZodError')
+
+      expect(createKnowledgeItemsMock).not.toHaveBeenCalled()
+    })
+
+    it('should reject non-uuid parentId values before calling the service', async () => {
+      await expect(
+        knowledgeHandlers['/knowledge-bases/:id/items'].POST({
+          params: { id: 'kb-1' },
+          body: {
+            items: [
+              {
+                parentId: 'not-a-uuid',
+                type: 'note',
+                data: { content: 'hello world' }
+              }
+            ]
+          }
+        } as never)
+      ).rejects.toHaveProperty('name', 'ZodError')
+
+      expect(createKnowledgeItemsMock).not.toHaveBeenCalled()
     })
   })
 
@@ -228,6 +348,19 @@ describe('knowledgeHandlers', () => {
       expect(getKnowledgeItemByIdMock).toHaveBeenCalledWith('item-1')
       expect(updateKnowledgeItemMock).toHaveBeenCalledWith('item-1', { status: 'completed' })
       expect(deleteKnowledgeItemMock).toHaveBeenCalledWith('item-1')
+    })
+
+    it('should reject invalid PATCH bodies before calling the service', async () => {
+      await expect(
+        knowledgeHandlers['/knowledge-items/:id'].PATCH({
+          params: { id: 'item-1' },
+          body: {
+            status: 'unknown'
+          }
+        } as never)
+      ).rejects.toHaveProperty('name', 'ZodError')
+
+      expect(updateKnowledgeItemMock).not.toHaveBeenCalled()
     })
   })
 })
