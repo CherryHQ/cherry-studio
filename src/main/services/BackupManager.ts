@@ -16,6 +16,7 @@
  */
 import { loggerService } from '@logger'
 import { isWin } from '@main/constant'
+import { application } from '@main/core/application'
 import { IpcChannel } from '@shared/IpcChannel'
 import type { WebDavConfig } from '@types'
 import type { S3Config } from '@types'
@@ -30,7 +31,6 @@ import { getDataPath } from '../utils'
 import { resolveAndValidatePath } from '../utils/file'
 import S3Storage from './S3Storage'
 import WebDav from './WebDav'
-import { windowService } from './WindowService'
 
 const logger = loggerService.withContext('BackupManager')
 
@@ -628,8 +628,7 @@ class BackupManager {
       logger.info('[restoreDirect] Restore completed successfully, relaunching app...')
 
       // Relaunch app to load restored data
-      app.relaunch()
-      app.exit(0)
+      application.relaunch()
     } catch (error) {
       logger.error('[restoreDirect] Restore failed:', error as Error)
       await fs.remove(this.tempDir).catch(() => {})
@@ -800,7 +799,7 @@ class BackupManager {
    */
   private onProgress = (channel: IpcChannel, shouldLog: boolean) => {
     return (processData: { stage: string; progress: number; total: number }) => {
-      const mainWindow = windowService.getMainWindow()
+      const mainWindow = application.get('WindowService').getMainWindow()
       mainWindow?.webContents.send(channel, processData)
       // Never log copying_files as it generates too many log entries
       if (shouldLog && processData.stage !== 'copying_files') {

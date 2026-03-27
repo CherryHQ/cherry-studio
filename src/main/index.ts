@@ -37,27 +37,17 @@ import process from 'node:process'
 
 import { registerIpc } from './ipc'
 import { agentService } from './services/agents'
-import { analyticsService } from './services/AnalyticsService'
 import { apiServerService } from './services/ApiServerService'
-import { appMenuService } from './services/AppMenuService'
-import { lanTransferClientService } from './services/lanTransfer'
-import mcpService from './services/MCPService'
-import { localTransferService } from './services/LocalTransferService'
+import { mcpService } from './services/MCPService'
 import { openClawService } from './services/OpenClawService'
-import { nodeTraceService } from './services/NodeTraceService'
-import powerMonitorService from './services/PowerMonitorService'
 import {
   CHERRY_STUDIO_PROTOCOL,
   handleProtocolUrl,
   registerProtocolClient,
   setupAppImageDeepLink
 } from './services/ProtocolClient'
-import selectionService, { initSelectionService } from './services/SelectionService'
 import { registerShortcuts } from './services/ShortcutService'
-import { themeService } from './services/ThemeService'
-import { TrayService } from './services/TrayService'
 import { versionService } from './services/VersionService'
-import { windowService } from './services/WindowService'
 import {
   getAllMigrators,
   migrationEngine,
@@ -157,84 +147,131 @@ if (!isDev) {
 
 // Check for single instance lock
 if (!app.requestSingleInstanceLock()) {
-  app.quit()
+  application.quit()
   process.exit(0)
 } else {
   // ============================================================================
-  // v2 Refactoring: Application Lifecycle Management
-  // BeforeReady services (DbService, CacheService, DataApiService, PreferenceService)
-  // initialize in parallel with app.whenReady(). Bootstrap promise is awaited
-  // in the whenReady callback to ensure all services are ready before proceeding.
-  // See: docs/en/references/lifecycle/application-overview.md
+  // V2 Migration Gate
+  // Migration check runs BEFORE app.whenReady() so it doesn't block lifecycle's
+  // parallel startup. Only a bare DB connection is used — no lifecycle services.
+  // If migration is needed, the app shows a migration window and restarts after.
+  // If not, the lifecycle starts normally with BeforeReady parallel to whenReady.
   // ============================================================================
-  application.registerAll(serviceList)
-  const bootstrapPromise = application.bootstrap().catch((error) => {
-    logger.error('Application lifecycle bootstrap failed:', error)
-  })
+  const startApp = async () => {
+    // ── Migration check (BEFORE whenReady — no Electron API needed) ──
+    let needsMigration = false
 
-  // This method will be called when Electron has finished
-  // initialization and is ready to create browser windows.
-  // Some APIs can only be used after this event occurs.
-  void app.whenReady().then(async () => {
-    // Wait for lifecycle bootstrap to complete
-    // (DbService, PreferenceService, CacheService, DataApiService are now ready)
-    await bootstrapPromise
-
-    // Data Migration v2
-    // Check if data migration is needed BEFORE creating any windows
     try {
       logger.info('Checking if data migration v2 is needed')
-
-      // Register migration IPC handlers
-      registerMigrationIpcHandlers()
-
-      // Register migrators
+      await migrationEngine.initialize()
       migrationEngine.registerMigrators(getAllMigrators())
-
-      const needsMigration = await migrationEngine.needsMigration()
+      needsMigration = await migrationEngine.needsMigration()
       logger.info('Migration status check result', { needsMigration })
-
-      if (needsMigration) {
-        logger.info('Data Migration v2 needed, starting migration process')
-
-        try {
-          // Create and show migration window
-          migrationWindowManager.create()
-          await migrationWindowManager.waitForReady()
-          logger.info('Migration window created successfully')
-          // Migration window will handle the flow, no need to continue startup
-          return
-        } catch (migrationError) {
-          logger.error('Failed to start migration process', migrationError as Error)
-
-          // Cleanup IPC handlers on failure
-          unregisterMigrationIpcHandlers()
-
-          // Migration is required for this version - show error and exit
-          dialog.showErrorBox(
-            'Migration Required - Application Cannot Start',
-            `This version of Cherry Studio requires data migration to function properly.\n\nMigration window failed to start: ${(migrationError as Error).message}\n\nThe application will now exit. Please try starting again or contact support if the problem persists.`
-          )
-
-          logger.error('Exiting application due to failed migration startup')
-          app.quit()
-          return
-        }
-      }
     } catch (error) {
       logger.error('Migration status check failed', error as Error)
-
-      // If we can't check migration status, this could indicate a serious database issue
-      // Since migration may be required, it's safer to exit and let user investigate
+      await app.whenReady()
       dialog.showErrorBox(
         'Migration Status Check Failed - Application Cannot Start',
         `Could not determine if data migration is completed.\n\nThis may indicate a database connectivity issue: ${(error as Error).message}\n\nThe application will now exit. Please check your installation and try again.`
       )
-
       logger.error('Exiting application due to migration status check failure')
-      app.quit()
+      application.quit()
       return
     }
+
+    // ── Migration path: lifecycle never starts ──
+    if (needsMigration) {
+      logger.info('Data Migration v2 needed, starting migration process')
+      registerMigrationIpcHandlers()
+
+      try {
+        await app.whenReady()
+        migrationWindowManager.create()
+        await migrationWindowManager.waitForReady()
+        logger.info('Migration window created successfully')
+      } catch (migrationError) {
+        logger.error('Failed to start migration process', migrationError as Error)
+        unregisterMigrationIpcHandlers()
+        dialog.showErrorBox(
+          'Migration Required - Application Cannot Start',
+          `This version of Cherry Studio requires data migration to function properly.\n\nMigration window failed to start: ${(migrationError as Error).message}\n\nThe application will now exit. Please try starting again or contact support if the problem persists.`
+        )
+        logger.error('Exiting application due to failed migration startup')
+        application.quit()
+      }
+      return
+    }
+
+    // ── Normal path: no migration needed ──
+    migrationEngine.close()
+
+    // Start lifecycle (BeforeReady runs parallel with app.whenReady)
+    application.registerAll(serviceList)
+    const bootstrapPromise = application.bootstrap().catch((error) => {
+      logger.error('Application lifecycle bootstrap failed:', error)
+    })
+
+    // Register protocol/event handlers while bootstrap runs in parallel (same as old code)
+    registerProtocolClient(app)
+
+    // macOS specific: handle protocol when app is already running
+    app.on('open-url', (event, url) => {
+      event.preventDefault()
+      handleProtocolUrl(url)
+    })
+
+    const handleOpenUrl = (args: string[]) => {
+      const url = args.find((arg) => arg.startsWith(CHERRY_STUDIO_PROTOCOL + '://'))
+      if (url) handleProtocolUrl(url)
+    }
+
+    // for windows to start with url
+    handleOpenUrl(process.argv)
+
+    // Listen for second instance
+    app.on('second-instance', (_event, argv) => {
+      application.get('WindowService').showMainWindow()
+
+      // Protocol handler for Windows/Linux
+      // The commandLine is an array of strings where the last item might be the URL
+      handleOpenUrl(argv)
+    })
+
+    app.on('browser-window-created', (_, window) => {
+      optimizer.watchWindowShortcuts(window)
+    })
+
+    app.on('before-quit', () => {
+      application.markQuitting()
+    })
+
+    app.on('will-quit', async () => {
+      // Flush boot config to ensure pending writes are saved
+      // FIXME：临时方案，等改造本文件时应在 application 中统一处理
+      bootConfigService.flush()
+
+      try {
+        await openClawService.stopGateway()
+        await mcpService.cleanup()
+        await apiServerService.stop()
+      } catch (error) {
+        logger.warn('Error cleaning up services:', error as Error)
+      }
+
+      // v2 Refactoring: Shutdown lifecycle-managed services
+      await application.shutdown()
+
+      // finish the logger
+      logger.finish()
+    })
+
+    // This method will be called when Electron has finished
+    // initialization and is ready to create browser windows.
+    // Some APIs can only be used after this event occurs.
+    await app.whenReady()
+    // Wait for lifecycle bootstrap to complete
+    // (DbService, PreferenceService, CacheService, DataApiService are now ready)
+    await bootstrapPromise
 
     // Record current version for tracking
     // A preparation for v2 data refactoring
@@ -254,32 +291,20 @@ if (!app.requestSingleInstanceLock()) {
     const { BackupManager } = await import('./services/BackupManager')
     await BackupManager.handleStartupRestore()
 
-    // TODO: Remove manual init after ThemeService is migrated to lifecycle system
-    themeService.init()
-
     // Create main window - migration has either completed or was not needed
-    const mainWindow = windowService.createMainWindow()
-
-    new TrayService()
-
-    // Setup macOS application menu
-    appMenuService?.setupApplicationMenu()
-    nodeTraceService.init()
-    powerMonitorService.init()
-    analyticsService.init()
+    const mainWindow = application.get('WindowService').createMainWindow()
 
     app.on('activate', function () {
-      const mainWindow = windowService.getMainWindow()
+      const mainWindow = application.get('WindowService').getMainWindow()
       if (!mainWindow || mainWindow.isDestroyed()) {
-        windowService.createMainWindow()
+        application.get('WindowService').createMainWindow()
       } else {
-        windowService.showMainWindow()
+        application.get('WindowService').showMainWindow()
       }
     })
 
     registerShortcuts(mainWindow)
     await registerIpc(mainWindow, app)
-    localTransferService.startDiscovery({ resetList: true })
 
     replaceDevtoolsFont(mainWindow)
 
@@ -291,9 +316,6 @@ if (!app.requestSingleInstanceLock()) {
         .then((name) => logger.info(`Added Extension:  ${name}`))
         .catch((err) => logger.error('An error occurred: ', err))
     }
-
-    //start selection assistant service
-    initSelectionService()
 
     void runAsyncFunction(async () => {
       // Start API server if enabled or if agents exist
@@ -322,71 +344,9 @@ if (!app.requestSingleInstanceLock()) {
         logger.error('Failed to check/start API server:', error)
       }
     })
-  })
-
-  registerProtocolClient(app)
-
-  // macOS specific: handle protocol when app is already running
-
-  app.on('open-url', (event, url) => {
-    event.preventDefault()
-    handleProtocolUrl(url)
-  })
-
-  const handleOpenUrl = (args: string[]) => {
-    const url = args.find((arg) => arg.startsWith(CHERRY_STUDIO_PROTOCOL + '://'))
-    if (url) handleProtocolUrl(url)
   }
-
-  // for windows to start with url
-  handleOpenUrl(process.argv)
-
-  // Listen for second instance
-  app.on('second-instance', (_event, argv) => {
-    windowService.showMainWindow()
-
-    // Protocol handler for Windows/Linux
-    // The commandLine is an array of strings where the last item might be the URL
-    handleOpenUrl(argv)
-  })
-
-  app.on('browser-window-created', (_, window) => {
-    optimizer.watchWindowShortcuts(window)
-  })
-
-  app.on('before-quit', () => {
-    app.isQuitting = true
-
-    // quit selection service
-    if (selectionService) {
-      selectionService.quit()
-    }
-
-    lanTransferClientService.dispose()
-    localTransferService.dispose()
-  })
-
-  app.on('will-quit', async () => {
-    // Flush boot config to ensure pending writes are saved
-    // FIXME：临时方案，等改造本文件时应在 application 中统一处理
-    bootConfigService.flush()
-
-    try {
-      await analyticsService.destroy()
-      await openClawService.stopGateway()
-      await mcpService.cleanup()
-      await apiServerService.stop()
-    } catch (error) {
-      logger.warn('Error cleaning up services:', error as Error)
-    }
-
-    // v2 Refactoring: Shutdown lifecycle-managed services
-    await application.shutdown()
-
-    // finish the logger
-    logger.finish()
-  })
 
   // In this file you can include the rest of your app"s specific main process
   // code. You can also put them in separate files and require them here.
+  void startApp()
 }

@@ -191,6 +191,30 @@ export class ShortcutService extends BaseService {
 }
 ```
 
+### Step 8: Migrate IPC handlers to BaseService tracking
+
+If your service registers `ipcMain.handle()` or `ipcMain.on()` calls, replace them with `this.ipcHandle()` / `this.ipcOn()` and remove the manual unregister method:
+
+```typescript
+// OLD — channel appears twice (register + unregister)
+private registerIpcHandlers(): void {
+  ipcMain.handle(IpcChannel.MyService_Action, (_, arg) => this.doAction(arg))
+}
+private unregisterIpcHandlers(): void {
+  ipcMain.removeHandler(IpcChannel.MyService_Action)
+}
+
+// NEW — auto-tracked, cleanup is automatic
+private registerIpcHandlers(): void {
+  this.ipcHandle(IpcChannel.MyService_Action, (_, arg) => this.doAction(arg))
+}
+// DELETE unregisterIpcHandlers() entirely
+```
+
+Remove the `unregisterIpcHandlers()` method and its call from `onStop()`. BaseService cleans up all tracked handlers automatically after `onStop()` returns.
+
+**Migration caveat**: Services using `ipcMain.removeAllListeners(channel)` (e.g., CacheService) need careful review — `this.ipcOn()` tracks specific listeners and uses `removeListener()`, not `removeAllListeners()`. If other code also listens on the same channel, this is the correct behavior; if the intent was to remove all listeners, verify the migration won't leave orphans.
+
 ## Before/After Summary
 
 | Aspect         | Before                                      | After                                        |
@@ -202,6 +226,7 @@ export class ShortcutService extends BaseService {
 | Access         | `import { myService } from '...'`           | `application.get('MyService')`               |
 | Ordering       | Manual call order in `index.ts`             | `@ServicePhase` + `@DependsOn` + `@Priority` |
 | Error handling | try/catch in `index.ts`                     | `@ErrorHandling('fail-fast' \| 'graceful')`  |
+| IPC handlers   | Manual `ipcMain.handle()` + `removeHandler()` | `this.ipcHandle()` — auto-cleanup on stop |
 
 ## Common Pitfalls
 

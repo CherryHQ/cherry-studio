@@ -285,6 +285,46 @@ describe('BootConfigService', () => {
     })
   })
 
+  // ---------- differential save ----------
+
+  describe('differential save', () => {
+    it('only writes keys that differ from defaults', async () => {
+      mockFs.existsSync.mockReturnValue(false)
+
+      const service = await createService()
+      service.set('app.disable_hardware_acceleration', true)
+      service.flush()
+
+      const written = JSON.parse(mockFs.writeFileSync.mock.calls[0][1] as string)
+      expect(written).toEqual({ 'app.disable_hardware_acceleration': true })
+    })
+
+    it('does not write file when value equals default', async () => {
+      mockFs.existsSync.mockReturnValue(false)
+
+      const service = await createService()
+      service.set('app.disable_hardware_acceleration', false) // same as default
+      service.flush()
+
+      expect(mockFs.writeFileSync).not.toHaveBeenCalled()
+    })
+
+    it('deletes file when all values are reset to defaults', async () => {
+      mockFs.existsSync.mockReturnValue(false)
+
+      const service = await createService()
+      service.set('app.disable_hardware_acceleration', true)
+      service.flush()
+
+      // File now exists
+      mockFs.existsSync.mockReturnValue(true)
+      service.set('app.disable_hardware_acceleration', false) // back to default
+      service.flush()
+
+      expect(mockFs.unlinkSync).toHaveBeenCalledWith(CONFIG_PATH)
+    })
+  })
+
   // ---------- reset ----------
 
   describe('reset', () => {

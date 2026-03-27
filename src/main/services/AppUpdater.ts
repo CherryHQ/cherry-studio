@@ -14,9 +14,6 @@ import { autoUpdater } from 'electron-updater'
 import path from 'path'
 import semver from 'semver'
 
-import { analyticsService } from './AnalyticsService'
-import { windowService } from './WindowService'
-
 const logger = loggerService.withContext('AppUpdater')
 
 function getCommonHeaders() {
@@ -79,29 +76,35 @@ export default class AppUpdater {
 
     autoUpdater.on('error', (error) => {
       logger.error('update error', error)
-      windowService.getMainWindow()?.webContents.send(IpcChannel.UpdateError, error)
+      application.get('WindowService').getMainWindow()?.webContents.send(IpcChannel.UpdateError, error)
     })
 
     autoUpdater.on('update-available', (releaseInfo: UpdateInfo) => {
       logger.info('update available', releaseInfo)
       const processedReleaseInfo = this.processReleaseInfo(releaseInfo)
-      windowService.getMainWindow()?.webContents.send(IpcChannel.UpdateAvailable, processedReleaseInfo)
+      application
+        .get('WindowService')
+        .getMainWindow()
+        ?.webContents.send(IpcChannel.UpdateAvailable, processedReleaseInfo)
     })
 
     // 检测到不需要更新时
     autoUpdater.on('update-not-available', () => {
-      windowService.getMainWindow()?.webContents.send(IpcChannel.UpdateNotAvailable)
+      application.get('WindowService').getMainWindow()?.webContents.send(IpcChannel.UpdateNotAvailable)
     })
 
     // 更新下载进度
     autoUpdater.on('download-progress', (progress) => {
-      windowService.getMainWindow()?.webContents.send(IpcChannel.DownloadProgress, progress)
+      application.get('WindowService').getMainWindow()?.webContents.send(IpcChannel.DownloadProgress, progress)
     })
 
     // 当需要更新的内容下载完成后
     autoUpdater.on('update-downloaded', (releaseInfo: UpdateInfo) => {
       const processedReleaseInfo = this.processReleaseInfo(releaseInfo)
-      windowService.getMainWindow()?.webContents.send(IpcChannel.UpdateDownloaded, processedReleaseInfo)
+      application
+        .get('WindowService')
+        .getMainWindow()
+        ?.webContents.send(IpcChannel.UpdateDownloaded, processedReleaseInfo)
       logger.info('update downloaded', processedReleaseInfo)
     })
 
@@ -280,7 +283,7 @@ export default class AppUpdater {
   }
 
   public async checkForUpdates() {
-    void analyticsService.trackAppUpdate()
+    void application.get('AnalyticsService').trackAppUpdate()
 
     if (isWin && 'PORTABLE_EXECUTABLE_DIR' in process.env) {
       return {
@@ -318,7 +321,7 @@ export default class AppUpdater {
   }
 
   public quitAndInstall() {
-    app.isQuitting = true
+    application.markQuitting()
     setImmediate(() => autoUpdater.quitAndInstall(true, true))
   }
 

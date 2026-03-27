@@ -4,7 +4,7 @@ import { allMinApps } from '@renderer/config/minapps'
 import { useMinappPopup } from '@renderer/hooks/useMinappPopup'
 import { useMinapps } from '@renderer/hooks/useMinapps'
 import { useNavbarPosition } from '@renderer/hooks/useNavbar'
-import TabsService from '@renderer/services/TabsService'
+import { tabsService } from '@renderer/services/TabsService'
 import { getWebviewLoaded, onWebviewStateChange, setWebviewLoaded } from '@renderer/utils/webviewStateManager'
 import { useNavigate, useParams } from '@tanstack/react-router'
 import type { WebviewTag } from 'electron'
@@ -35,7 +35,7 @@ const MinAppPage: FC = () => {
   // Initialize TabsService with cache reference
   useEffect(() => {
     if (minAppsCache) {
-      TabsService.setMinAppsCache(minAppsCache)
+      tabsService.setMinAppsCache(minAppsCache)
     }
   }, [minAppsCache])
 

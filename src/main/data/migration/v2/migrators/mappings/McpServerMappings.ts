@@ -14,9 +14,9 @@ function toRequired<T>(value: unknown, fallback: T): T {
   return (value ?? fallback) as T
 }
 
-export function transformMcpServer(source: Record<string, unknown>): McpServerInsert {
+export function transformMcpServer(source: Record<string, unknown>, index: number): McpServerInsert {
   return {
-    id: toRequired<string>(source.id, ''),
+    // id is auto-generated UUID v4 by the database
     name: toRequired<string>(source.name, ''),
     type: toNullable(source.type),
     description: toNullable(source.description),
@@ -40,6 +40,7 @@ export function transformMcpServer(source: Record<string, unknown>): McpServerIn
     disabledTools: toNullable(source.disabledTools),
     disabledAutoApproveTools: toNullable(source.disabledAutoApproveTools),
     shouldConfig: toNullable(source.shouldConfig),
+    sortOrder: index,
     isActive: toRequired(source.isActive, false),
     installSource: toNullable(source.installSource),
     isTrusted: toNullable(source.isTrusted),

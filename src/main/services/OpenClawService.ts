@@ -17,8 +17,7 @@ import { hasAPIVersion, withoutTrailingSlash } from '@shared/utils'
 import type { Model, Provider, ProviderType, VertexProvider } from '@types'
 
 import { parseCurrentVersion, parseUpdateStatus } from './utils/openClawParsers'
-import VertexAIService from './VertexAIService'
-import { windowService } from './WindowService'
+import { vertexAIService } from './VertexAIService'
 
 const logger = loggerService.withContext('OpenClawService')
 
@@ -182,7 +181,7 @@ class OpenClawService {
    * Send install progress to renderer
    */
   private sendInstallProgress(message: string, type: 'info' | 'warn' | 'error' = 'info') {
-    const win = windowService.getMainWindow()
+    const win = application.get('WindowService').getMainWindow()
     win?.webContents.send(IpcChannel.OpenClaw_InstallProgress, { message, type })
   }
 
@@ -794,7 +793,7 @@ class OpenClawService {
       let apiKey = provider.apiKey ? provider.apiKey.split(',')[0].trim() : ''
       if (isVertexProvider(provider)) {
         try {
-          const vertexService = VertexAIService.getInstance()
+          const vertexService = vertexAIService
           apiKey = await vertexService.getAccessToken({
             projectId: provider.project,
             serviceAccount: {

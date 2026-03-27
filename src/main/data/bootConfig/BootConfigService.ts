@@ -224,15 +224,31 @@ export class BootConfigService {
 
   /**
    * Synchronously save config to file (atomic write via temp file + rename).
+   * Only writes keys that differ from defaults. Deletes file if all values are defaults.
    */
   private saveSync(): void {
     try {
+      const diff: Record<string, unknown> = {}
+      for (const key of Object.keys(this.config) as BootConfigKey[]) {
+        if (this.config[key] !== DefaultBootConfig[key]) {
+          diff[key] = this.config[key]
+        }
+      }
+
+      if (Object.keys(diff).length === 0) {
+        if (fs.existsSync(this.filePath)) {
+          fs.unlinkSync(this.filePath)
+          logger.debug('Boot config file removed (all values are defaults)')
+        }
+        return
+      }
+
       const dir = path.dirname(this.filePath)
       if (!fs.existsSync(dir)) {
         fs.mkdirSync(dir, { recursive: true })
       }
 
-      const content = JSON.stringify(this.config, null, 2)
+      const content = JSON.stringify(diff, null, 2)
       const tempPath = `${this.filePath}.tmp`
 
       fs.writeFileSync(tempPath, content, 'utf-8')

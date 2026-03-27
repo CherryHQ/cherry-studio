@@ -7,22 +7,11 @@ const logger = loggerService.withContext('DataApi:TestService')
  * Provides mock data and various test cases for comprehensive API testing
  */
 export class TestService {
-  private static instance: TestService
   private testItems: any[] = []
   private nextId = 1
 
-  private constructor() {
+  constructor() {
     this.initializeMockData()
-  }
-
-  /**
-   * Get singleton instance
-   */
-  public static getInstance(): TestService {
-    if (!TestService.instance) {
-      TestService.instance = new TestService()
-    }
-    return TestService.instance
   }
 
   /**
@@ -444,3 +433,5 @@ export class TestService {
     logger.info('Test data reset to initial state')
   }
 }
+
+export const testService = new TestService()

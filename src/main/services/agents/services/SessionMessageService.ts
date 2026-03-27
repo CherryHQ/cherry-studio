@@ -94,15 +94,7 @@ class TextStreamAccumulator {
 }
 
 export class SessionMessageService extends BaseService {
-  private static instance: SessionMessageService | null = null
   private cc: ClaudeCodeService = new ClaudeCodeService()
-
-  static getInstance(): SessionMessageService {
-    if (!SessionMessageService.instance) {
-      SessionMessageService.instance = new SessionMessageService()
-    }
-    return SessionMessageService.instance
-  }
 
   async sessionMessageExists(id: number): Promise<boolean> {
     const database = await this.getDatabase()
@@ -311,4 +303,4 @@ export class SessionMessageService extends BaseService {
   }
 }
 
-export const sessionMessageService = SessionMessageService.getInstance()
+export const sessionMessageService = new SessionMessageService()

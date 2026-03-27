@@ -38,7 +38,8 @@ import * as fs from 'fs'
 import StreamZip from 'node-stream-zip'
 import * as path from 'path'
 
-import { AgentService } from '../services/AgentService'
+import type { AgentService } from '../services/AgentService'
+import { agentService } from '../services/AgentService'
 import { PluginCacheStore } from './PluginCacheStore'
 import { PluginInstaller } from './PluginInstaller'
 
@@ -94,8 +95,6 @@ interface ComponentInstallResult {
  * - Integration with AgentService for metadata persistence
  */
 export class PluginService {
-  private static instance: PluginService | null = null
-
   // Plugin type to directory name mapping
   private static readonly PLUGIN_TYPE_DIRECTORIES: Record<PluginType, 'agents' | 'commands' | 'skills'> = {
     agent: 'agents',
@@ -118,11 +117,11 @@ export class PluginService {
 
   private readonly ALLOWED_EXTENSIONS = ['.md', '.markdown']
 
-  private constructor(config?: Partial<PluginServiceConfig>) {
+  constructor(config?: Partial<PluginServiceConfig>) {
     this.config = {
       maxFileSize: config?.maxFileSize ?? 1024 * 1024 // 1MB default
     }
-    this.agentService = AgentService.getInstance()
+    this.agentService = agentService
     this.cacheStore = new PluginCacheStore({
       allowedExtensions: this.ALLOWED_EXTENSIONS,
       getPluginDirectoryName: this.getPluginDirectoryName.bind(this),
@@ -134,16 +133,6 @@ export class PluginService {
     logger.info('PluginService initialized', {
       maxFileSize: this.config.maxFileSize
     })
-  }
-
-  /**
-   * Get singleton instance
-   */
-  static getInstance(config?: Partial<PluginServiceConfig>): PluginService {
-    if (!PluginService.instance) {
-      PluginService.instance = new PluginService(config)
-    }
-    return PluginService.instance
   }
 
   /**
@@ -1752,4 +1741,4 @@ export class PluginService {
   }
 }
 
-export const pluginService = PluginService.getInstance()
+export const pluginService = new PluginService()

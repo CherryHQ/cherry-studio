@@ -1,5 +1,6 @@
 import { loggerService } from '@logger'
-import { isDev, isMac } from '@main/constant'
+import { isDev, isLinux, isMac, isPortable, isWin } from '@main/constant'
+import { bootConfigService } from '@main/data/bootConfig'
 import { app, dialog } from 'electron'
 
 import { LifecycleManager } from '../lifecycle/LifecycleManager'
@@ -20,6 +21,7 @@ export class Application {
   private lifecycleManager: LifecycleManager
   private isBootstrapped = false
   private isShuttingDown = false
+  private _isQuitting = false
 
   private constructor() {
     this.container = ServiceContainer.getInstance()
@@ -89,6 +91,12 @@ export class Application {
     this.setupSignalHandlers()
 
     logger.info('Bootstrapping...')
+
+    // Check for boot config corruption BEFORE starting any services
+    if (bootConfigService.hasLoadError()) {
+      await this.handleBootConfigError()
+      // If we reach here, user chose "Continue with Defaults"
+    }
 
     // Validate and adjust phases before starting
     this.lifecycleManager.validateAndAdjustPhases()
@@ -169,24 +177,90 @@ export class Application {
 
     if (result.response === 0) {
       logger.info(`User chose to exit due to ${error.serviceName} initialization failure`)
-      app.exit(1)
+      this.forceExit(1)
       return
     }
 
     logger.info(`User chose to restart after ${error.serviceName} initialization failure`)
-    this.relaunchApp()
+    this.relaunch()
+  }
+
+  /**
+   * Handle boot config load error by showing a dialog before any services start.
+   * For parse errors: offer reset (delete corrupted file) + restart.
+   * For read errors: offer restart (file may be temporarily inaccessible).
+   */
+  private async handleBootConfigError(): Promise<void> {
+    const loadError = bootConfigService.getLoadError()!
+    logger.warn(`Boot config load error: ${loadError.type} - ${loadError.message}`)
+
+    await app.whenReady()
+
+    const isParseError = loadError.type === 'parse_error'
+
+    const result = await dialog.showMessageBox({
+      type: 'warning',
+      title: isParseError ? 'Configuration File Corrupted' : 'Configuration File Read Error',
+      message: isParseError
+        ? 'The configuration file (boot-config.json) contains invalid data.'
+        : 'The configuration file (boot-config.json) could not be read.',
+      detail: `Error: ${loadError.message}\n\nThe application can continue with default settings, or you can ${isParseError ? 'reset the file and restart' : 'restart to try again'}.\n\n${isParseError ? `"Reset and Restart" will delete the corrupted file. Other options preserve it for manual inspection at:\n${loadError.filePath}` : `The file will be preserved for manual inspection at:\n${loadError.filePath}`}`,
+      buttons: ['Continue with Defaults', isParseError ? 'Reset and Restart' : 'Restart', 'Exit'],
+      defaultId: 0,
+      cancelId: 2
+    })
+
+    if (result.response === 1) {
+      if (isParseError) {
+        bootConfigService.reset()
+      }
+      logger.info(`User chose to ${isParseError ? 'reset and restart' : 'restart'} after boot config error`)
+      this.relaunch()
+      return
+    }
+
+    if (result.response === 2) {
+      logger.info('User chose to exit after boot config error')
+      this.forceExit(1)
+      return
+    }
+
+    logger.info('User chose to continue with defaults after boot config error')
+    bootConfigService.clearLoadError()
   }
 
   /**
    * Relaunch the app, with dev mode warning
    */
-  private relaunchApp(): void {
-    if (isDev) {
+  public relaunch(options?: Electron.RelaunchOptions): void {
+    if (isDev || !app.isPackaged) {
       logger.warn('Relaunch is not supported in dev mode. Please restart manually.')
+      dialog.showMessageBoxSync({
+        type: 'info',
+        title: 'Manual Restart Required',
+        message: 'Auto-relaunch is not available in development mode.',
+        detail: 'The app will now exit. Please run `pnpm dev` again to restart.',
+        buttons: ['OK']
+      })
       app.exit(0)
       return
     }
-    app.relaunch()
+
+    // Platform-specific fixes
+    if (isLinux && process.env.APPIMAGE) {
+      options = options || {}
+      options.execPath = process.env.APPIMAGE
+      options.args = options.args || []
+      options.args.unshift('--appimage-extract-and-run')
+    }
+
+    if (isWin && isPortable) {
+      options = options || {}
+      options.execPath = process.env.PORTABLE_EXECUTABLE_FILE
+      options.args = options.args || []
+    }
+
+    app.relaunch(options)
     app.exit(0)
   }
 
@@ -238,7 +312,7 @@ export class Application {
     // All windows closed
     app.on('window-all-closed', () => {
       if (!isMac) {
-        void this.shutdown().then(() => app.quit())
+        void this.shutdown().then(() => this.quit())
       }
     })
 
@@ -268,6 +342,45 @@ export class Application {
     return this.isBootstrapped
   }
 
+  /**
+   * Whether the app is in the process of quitting
+   */
+  public get isQuitting(): boolean {
+    return this._isQuitting
+  }
+
+  /**
+   * Mark the app as quitting without triggering the quit sequence.
+   * Used by autoUpdater.quitAndInstall() which has its own quit flow.
+   */
+  public markQuitting(): void {
+    this._isQuitting = true
+  }
+
+  /**
+   * Graceful quit: set flag then trigger the Electron quit event chain.
+   * The before-quit / will-quit handlers in index.ts handle legacy service cleanup.
+   */
+  public quit(): void {
+    if (this._isQuitting) {
+      logger.warn('Already quitting')
+      return
+    }
+    this._isQuitting = true
+    logger.info('Quitting application...')
+    app.quit()
+  }
+
+  /**
+   * Force exit: skip the Electron event chain entirely.
+   * For fatal/unrecoverable errors (service init failure, repeated renderer crash).
+   */
+  public forceExit(code: number): void {
+    this._isQuitting = true
+    logger.warn(`Force exiting application with code ${code}`)
+    app.exit(code)
+  }
+
   // ============================================================================
   // Service Lifecycle Control API
   // ============================================================================
@@ -277,7 +390,7 @@ export class Application {
    * The service must implement the Pausable interface (onPause/onResume methods).
    * @param name - Service name from ServiceRegistry
    */
-  public async pauseService<K extends keyof ServiceRegistry>(name: K): Promise<void> {
+  public async pause<K extends keyof ServiceRegistry>(name: K): Promise<void> {
     return this.lifecycleManager.pause(name)
   }
 
@@ -286,7 +399,7 @@ export class Application {
    * The service must implement the Pausable interface.
    * @param name - Service name from ServiceRegistry
    */
-  public async resumeService<K extends keyof ServiceRegistry>(name: K): Promise<void> {
+  public async resume<K extends keyof ServiceRegistry>(name: K): Promise<void> {
     return this.lifecycleManager.resume(name)
   }
 
@@ -295,7 +408,7 @@ export class Application {
    * All services support stop (no special interface needed).
    * @param name - Service name from ServiceRegistry
    */
-  public async stopService<K extends keyof ServiceRegistry>(name: K): Promise<void> {
+  public async stop<K extends keyof ServiceRegistry>(name: K): Promise<void> {
     return this.lifecycleManager.stop(name)
   }
 
@@ -304,7 +417,7 @@ export class Application {
    * Also starts any services that were cascade-stopped.
    * @param name - Service name from ServiceRegistry
    */
-  public async startService<K extends keyof ServiceRegistry>(name: K): Promise<void> {
+  public async start<K extends keyof ServiceRegistry>(name: K): Promise<void> {
     return this.lifecycleManager.start(name)
   }
 
@@ -313,7 +426,7 @@ export class Application {
    * Convenience method that combines stop and start operations.
    * @param name - Service name from ServiceRegistry
    */
-  public async restartService<K extends keyof ServiceRegistry>(name: K): Promise<void> {
+  public async restart<K extends keyof ServiceRegistry>(name: K): Promise<void> {
     return this.lifecycleManager.restart(name)
   }
 }

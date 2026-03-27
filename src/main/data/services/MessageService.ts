@@ -111,17 +111,6 @@ function messageToTreeNode(message: Message, hasChildren: boolean): TreeNode {
 }
 
 export class MessageService {
-  private static instance: MessageService
-
-  private constructor() {}
-
-  public static getInstance(): MessageService {
-    if (!MessageService.instance) {
-      MessageService.instance = new MessageService()
-    }
-    return MessageService.instance
-  }
-
   /**
    * Get tree structure for visualization
    *
@@ -824,4 +813,4 @@ export class MessageService {
   }
 }
 
-export const messageService = MessageService.getInstance()
+export const messageService = new MessageService()

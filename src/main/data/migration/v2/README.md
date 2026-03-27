@@ -31,3 +31,10 @@ src/main/data/migration/v2/
 - `prepare(ctx)`: Dry-run checks, return counts
 - `execute(ctx)`: Perform inserts, report progress
 - `validate(ctx)`: Verify counts and integrity
+
+### Foreign Keys Caveat
+
+libsql defaults to `foreign_keys = ON` (compiled with `SQLITE_DEFAULT_FOREIGN_KEYS=1`).
+`@libsql/client` creates new connections after each `transaction()`, resetting PRAGMAs.
+For bulk inserts with self-referencing FKs, run `PRAGMA foreign_keys = OFF` before **each**
+`db.transaction()` call. See the [migration guide](../../../../../docs/en/references/data/v2-migration-guide.md) for details.

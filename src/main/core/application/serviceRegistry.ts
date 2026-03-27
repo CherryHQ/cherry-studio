@@ -2,8 +2,19 @@ import { CacheService } from '@data/CacheService'
 import { DataApiService } from '@data/DataApiService'
 import { DbService } from '@data/db/DbService'
 import { PreferenceService } from '@data/PreferenceService'
+import { AnalyticsService } from '@main/services/AnalyticsService'
+import { AppMenuService } from '@main/services/AppMenuService'
 import { CodeCliService } from '@main/services/CodeCliService'
+import { LanTransferClientService } from '@main/services/lanTransfer'
+import { LocalTransferService } from '@main/services/LocalTransferService'
+import { NodeTraceService } from '@main/services/NodeTraceService'
+import { PowerMonitorService } from '@main/services/PowerMonitorService'
 import { ProcessManager } from '@main/services/process/ProcessManager'
+import { SelectionService } from '@main/services/SelectionService'
+import { SpanCacheService } from '@main/services/SpanCacheService'
+import { ThemeService } from '@main/services/ThemeService'
+import { TrayService } from '@main/services/TrayService'
+import { WindowService } from '@main/services/WindowService'
 
 import type { ServiceConstructor } from '../lifecycle/types'
 
@@ -35,8 +46,19 @@ export const services = {
   CacheService,
   DataApiService,
   PreferenceService,
+  AnalyticsService,
+  AppMenuService,
   CodeCliService,
-  ProcessManager
+  LanTransferClientService,
+  LocalTransferService,
+  PowerMonitorService,
+  ProcessManager,
+  SelectionService,
+  ThemeService,
+  SpanCacheService,
+  NodeTraceService,
+  TrayService,
+  WindowService
 } as const
 
 /** Auto-derived service name to instance type mapping */

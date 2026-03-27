@@ -9,6 +9,14 @@ import { getMCPRouterToken, saveMCPRouterToken, syncMCPRouterServers } from './m
 import { getModelScopeToken, MODELSCOPE_HOST, saveModelScopeToken, syncModelScopeServers } from './modelscope'
 import { getTokenFluxToken, saveTokenFluxToken, syncTokenFluxServers, TOKENFLUX_HOST } from './tokenflux'
 
+export interface SyncResult {
+  success: boolean
+  message: string
+  addedServers: MCPServer[]
+  updatedServers?: MCPServer[]
+  allServers?: MCPServer[]
+}
+
 export interface ProviderConfig {
   key: string
   /** i18n key for provider name, or plain text if not starting with 'provider.' */
@@ -20,7 +28,7 @@ export interface ProviderConfig {
   tokenFieldName: string
   getToken: () => string | null
   saveToken: (token: string) => void
-  syncServers: (token: string, existingServers: MCPServer[]) => Promise<any>
+  syncServers: (token: string, existingServers: MCPServer[]) => Promise<SyncResult>
 }
 
 export const providers: ProviderConfig[] = [

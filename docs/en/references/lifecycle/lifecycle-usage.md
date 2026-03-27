@@ -92,6 +92,57 @@ class SomeService extends BaseService { ... }
 
 **Transitive exclusion**: If ServiceA is excluded and ServiceB depends on ServiceA, ServiceB is automatically excluded too. Call `container.excludeDependentsOfExcluded()` after registration to propagate.
 
+## IPC Handler Management
+
+When a lifecycle service registers IPC handlers, it should use BaseService's built-in tracking instead of calling `ipcMain` directly. This ensures handlers are automatically cleaned up when the service stops, restarts, or is destroyed — eliminating the need for manual `unregisterIpcHandlers()` methods.
+
+### API
+
+| Method | Wraps | Auto-cleanup via |
+|--------|-------|------------------|
+| `this.ipcHandle(channel, listener)` | `ipcMain.handle()` | `ipcMain.removeHandler()` |
+| `this.ipcOn(channel, listener)` | `ipcMain.on()` | `ipcMain.removeListener()` |
+
+> `ipcOnce()` is intentionally not provided — once-listeners fire once and auto-remove, so they do not need lifecycle tracking.
+
+### Convention
+
+Extract all IPC registrations into a **`private registerIpcHandlers()`** method and call it from `onInit()` (or `onReady()`). This keeps the lifecycle hook focused on orchestration and makes the IPC surface easy to locate and review.
+
+```typescript
+@Injectable('WindowService')
+@ServicePhase(Phase.WhenReady)
+export class WindowService extends BaseService {
+  protected async onInit() {
+    this.registerIpcHandlers()
+  }
+
+  private registerIpcHandlers() {
+    this.ipcHandle(IpcChannel.Windows_Minimize, () => this.mainWindow!.minimize())
+    this.ipcHandle(IpcChannel.Windows_Maximize, () => this.mainWindow!.maximize())
+  }
+
+  protected async onStop() {
+    // Only service-specific cleanup here
+    // IPC handlers are removed automatically after onStop() returns
+  }
+}
+```
+
+> **Naming**: Always use `registerIpcHandlers` (plural). Do not use `setupIpcHandlers`, `registerIpcHandler` (singular), or other variants.
+
+### Cleanup Guarantees
+
+1. **On stop**: All tracked handlers are removed **after** `onStop()` returns, so the service can still use IPC during its own shutdown if needed.
+2. **On stop failure**: If `onStop()` throws, IPC cleanup still executes (via try/finally).
+3. **On destroy**: Safety-net cleanup runs in `_doDestroy()` for edge cases where a service is destroyed without being stopped first (e.g., init failure).
+4. **On restart**: Tracking arrays are reset after cleanup, so `onInit()` can re-register handlers cleanly.
+5. **Backward compatible**: Safe to mix with manual `ipcMain.removeHandler()` in `onStop()` — double-remove is a no-op.
+
+### Phase Behavior
+
+`this.ipcHandle()` and `this.ipcOn()` work in any phase (`BeforeReady`, `WhenReady`, `Background`). The helpers are thin wrappers around `ipcMain` — the phase system controls *when* `onInit()` runs (and thus when handlers get registered), not whether the registration API is available.
+
 ## Pause/Resume (Optional)
 
 Services can implement the `Pausable` interface to support pause/resume operations:
@@ -129,7 +180,7 @@ All services support stop/start operations (no special interface needed):
 ```typescript
 import { application } from '@main/core/application'
 
-await application.stopService('HeavyComputeService')    // calls onStop()
-await application.startService('HeavyComputeService')   // calls onInit() again
-await application.restartService('HeavyComputeService') // stop + start
+await application.stop('HeavyComputeService')    // calls onStop()
+await application.start('HeavyComputeService')   // calls onInit() again
+await application.restart('HeavyComputeService') // stop + start
 ```

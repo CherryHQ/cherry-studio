@@ -23,7 +23,7 @@ import { Phase } from '@main/core/lifecycle'
 import type { SharedCacheKey, SharedCacheSchema } from '@shared/data/cache/cacheSchemas'
 import type { CacheEntry, CacheSyncMessage } from '@shared/data/cache/cacheTypes'
 import { IpcChannel } from '@shared/IpcChannel'
-import { BrowserWindow, ipcMain } from 'electron'
+import { BrowserWindow } from 'electron'
 
 const logger = loggerService.withContext('CacheService')
 
@@ -59,7 +59,7 @@ export class CacheService extends BaseService {
   }
 
   protected async onInit(): Promise<void> {
-    this.setupIpcHandlers()
+    this.registerIpcHandlers()
     this.startGarbageCollection()
     logger.info('CacheService initialized')
   }
@@ -74,10 +74,6 @@ export class CacheService extends BaseService {
     // Clear caches
     this.cache.clear()
     this.sharedCache.clear()
-
-    // Remove IPC handlers
-    ipcMain.removeAllListeners(IpcChannel.Cache_Sync)
-    ipcMain.removeHandler(IpcChannel.Cache_GetAllShared)
 
     logger.debug('CacheService cleanup completed')
   }
@@ -295,9 +291,9 @@ export class CacheService extends BaseService {
   /**
    * Setup IPC handlers for cache synchronization
    */
-  private setupIpcHandlers(): void {
+  private registerIpcHandlers(): void {
     // Handle cache sync broadcast from renderer
-    ipcMain.on(IpcChannel.Cache_Sync, (event, message: CacheSyncMessage) => {
+    this.ipcOn(IpcChannel.Cache_Sync, (event, message: CacheSyncMessage) => {
       const senderWindowId = BrowserWindow.fromWebContents(event.sender)?.id
 
       // Update Main's sharedCache when receiving shared type sync
@@ -321,7 +317,7 @@ export class CacheService extends BaseService {
     })
 
     // Handle getAllShared request for renderer initialization
-    ipcMain.handle(IpcChannel.Cache_GetAllShared, () => {
+    this.ipcHandle(IpcChannel.Cache_GetAllShared, () => {
       return this.getAllShared()
     })
 

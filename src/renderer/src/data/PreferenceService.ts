@@ -21,8 +21,6 @@ const logger = loggerService.withContext('PreferenceService')
  * - Integration with React's useSyncExternalStore
  */
 export class PreferenceService {
-  private static instance: PreferenceService
-
   private cache: Record<string, any> = {}
 
   private allChangesListeners = new Set<() => void>()
@@ -56,19 +54,8 @@ export class PreferenceService {
     }>
   >()
 
-  private constructor() {
+  constructor() {
     this.setupChangeListeners()
-  }
-
-  /**
-   * Get the singleton instance of PreferenceService
-   * @returns The singleton PreferenceService instance
-   */
-  public static getInstance(): PreferenceService {
-    if (!PreferenceService.instance) {
-      PreferenceService.instance = new PreferenceService()
-    }
-    return PreferenceService.instance
   }
 
   /**
@@ -700,5 +687,5 @@ export class PreferenceService {
 }
 
 // Export singleton instance
-export const preferenceService = PreferenceService.getInstance()
+export const preferenceService = new PreferenceService()
 export default preferenceService

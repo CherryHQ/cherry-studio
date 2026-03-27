@@ -62,7 +62,7 @@ export class McpServerMigrator extends BaseMigrator {
           seenIds.add(s.id)
 
           try {
-            this.preparedRows.push(transformMcpServer(s))
+            this.preparedRows.push(transformMcpServer(s, this.preparedRows.length))
           } catch (err) {
             this.skippedCount++
             warnings.push(`Failed to transform server ${s.id}: ${(err as Error).message}`)

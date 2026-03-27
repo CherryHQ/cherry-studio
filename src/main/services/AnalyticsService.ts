@@ -2,33 +2,31 @@ import type { TokenUsageData } from '@cherrystudio/analytics-client'
 import { AnalyticsClient } from '@cherrystudio/analytics-client'
 import { loggerService } from '@logger'
 import { application } from '@main/core/application'
-import { generateUserAgent } from '@main/utils/systemInfo'
+import { BaseService, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
+import { generateUserAgent, getClientId } from '@main/utils/systemInfo'
 import { APP_NAME } from '@shared/config/constant'
+import { IpcChannel } from '@shared/IpcChannel'
 import { app } from 'electron'
-
-import { configManager } from './ConfigManager'
 
 const logger = loggerService.withContext('AnalyticsService')
 
-class AnalyticsService {
+@Injectable('AnalyticsService')
+@ServicePhase(Phase.WhenReady)
+export class AnalyticsService extends BaseService {
   private client: AnalyticsClient | null = null
-  private static instance: AnalyticsService
 
-  public static getInstance(): AnalyticsService {
-    if (!AnalyticsService.instance) {
-      AnalyticsService.instance = new AnalyticsService()
-    }
-    return AnalyticsService.instance
-  }
+  protected async onInit() {
+    this.registerIpcHandlers()
 
-  public init(): void {
+    const clientId = getClientId()
+
     this.client = new AnalyticsClient({
-      clientId: configManager.getClientId(),
+      clientId,
       channel: 'cherry-studio',
       onError: (error) => logger.error('Analytics error:', error),
       headers: {
         'User-Agent': generateUserAgent(),
-        'Client-Id': configManager.getClientId(),
+        'Client-Id': clientId,
         'App-Name': APP_NAME,
         'App-Version': `v${app.getVersion()}`,
         OS: process.platform
@@ -41,6 +39,10 @@ class AnalyticsService {
     })
 
     logger.info('Analytics service initialized')
+  }
+
+  private registerIpcHandlers(): void {
+    this.ipcHandle(IpcChannel.Analytics_TrackTokenUsage, (_, data: TokenUsageData) => this.trackTokenUsage(data))
   }
 
   public trackTokenUsage(data: TokenUsageData): void {
@@ -61,12 +63,10 @@ class AnalyticsService {
     await this.client.trackAppUpdate()
   }
 
-  public async destroy(): Promise<void> {
+  protected async onStop() {
     if (!this.client) return
     await this.client.destroy()
     this.client = null
     logger.info('Analytics service destroyed')
   }
 }
-
-export const analyticsService = AnalyticsService.getInstance()

@@ -82,18 +82,6 @@ function mergeCapabilityConfig<T extends { apiHost?: string; modelId?: string }>
 }
 
 export class FileProcessingService {
-  private static instance: FileProcessingService
-
-  private constructor() {}
-
-  public static getInstance(): FileProcessingService {
-    if (!FileProcessingService.instance) {
-      FileProcessingService.instance = new FileProcessingService()
-    }
-
-    return FileProcessingService.instance
-  }
-
   public async getProcessors(): Promise<FileProcessorMerged[]> {
     const overrides = this.getOverrides()
 
@@ -154,4 +142,4 @@ export class FileProcessingService {
   }
 }
 
-export const fileProcessingService = FileProcessingService.getInstance()
+export const fileProcessingService = new FileProcessingService()
