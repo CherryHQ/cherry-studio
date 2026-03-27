@@ -179,8 +179,7 @@ export function getDefaultTopic(assistantId: string): Topic {
 export function mapLegacyTopicToDto(topic: Topic): CreateTopicDto {
   return {
     name: topic.name,
-    assistantId: topic.assistantId,
-    prompt: topic.prompt
+    assistantId: topic.assistantId
   }
 }
 

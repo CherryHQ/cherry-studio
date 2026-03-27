@@ -1,8 +1,9 @@
-import type { MessageData, MessageStats } from '@shared/data/types/message'
+import type { AssistantSnapshot, MessageData, MessageStats, ModelSnapshot } from '@shared/data/types/message'
 import { sql } from 'drizzle-orm'
 import { check, foreignKey, index, integer, sqliteTable, text } from 'drizzle-orm/sqlite-core'
 
 import { createUpdateDeleteTimestamps, uuidPrimaryKeyOrdered } from './_columnHelpers'
+import { assistantTable } from './assistant'
 import { topicTable } from './topic'
 
 /**
@@ -28,14 +29,19 @@ export const messageTable = sqliteTable(
     data: text({ mode: 'json' }).$type<MessageData>().notNull(),
     // Searchable text extracted from data.blocks (populated by trigger, used for FTS5)
     searchableText: text(),
-
     // Final status: SUCCESS, ERROR, PAUSED
     status: text().notNull(),
-
     // Group ID for siblings (0 = normal branch)
     siblingsGroupId: integer().default(0),
-    // Model identifier
+    // FK to assistant — SET NULL: keep message when assistant is deleted
+    assistantId: text().references(() => assistantTable.id, { onDelete: 'set null' }),
+    // Snapshot of assistant at message creation time
+    assistantSnapshot: text({ mode: 'json' }).$type<AssistantSnapshot>(),
+    // Model identifier — TODO: add FK to model table when it exists (ON DELETE SET NULL)
     modelId: text(),
+    // Snapshot of model at message creation time
+    modelSnapshot: text({ mode: 'json' }).$type<ModelSnapshot>(),
+    // Trace for tracking
     traceId: text(),
     // Statistics: token usage, performance metrics, etc.
     stats: text({ mode: 'json' }).$type<MessageStats>(),

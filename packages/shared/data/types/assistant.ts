@@ -12,39 +12,79 @@ import * as z from 'zod'
 // ============================================================================
 
 /** MCP server interaction mode */
-const McpModeSchema = z.enum(['disabled', 'auto', 'manual'])
+export const McpModeSchema = z.enum(['disabled', 'auto', 'manual'])
 export type McpMode = z.infer<typeof McpModeSchema>
 
 /**
- * Assistant inference settings.
- * Stored as JSON in the database - these are model parameters, not context config.
+ * Assistant settings — inference parameters + context source toggles.
+ * Stored as a single JSON column in the database.
+ *
+ * Default values are aligned with `DEFAULT_ASSISTANT_SETTINGS` in
+ * `src/renderer/src/services/AssistantService.ts` (v1 source of truth).
+ *
+ * `enable*` flags control whether the corresponding parameter is sent to the model.
+ * When `enable* = false`, the value is still stored but not used — the model's own
+ * default takes effect. This removes the need for nullable value fields.
  */
 export const AssistantSettingsSchema = z.object({
-  temperature: z.number().optional(),
-  topP: z.number().optional(),
-  contextCount: z.number().optional(),
-  streamOutput: z.boolean().optional(),
-  maxTokens: z.number().optional(),
-  enableMaxTokens: z.boolean().optional(),
-  enableTemperature: z.boolean().optional(),
-  enableTopP: z.boolean().optional(),
-  reasoning_effort: z.string().optional(),
-  qwenThinkMode: z.boolean().optional(),
-  toolUseMode: z.enum(['function', 'prompt']).optional(),
-  maxToolCalls: z.number().optional(),
-  enableMaxToolCalls: z.boolean().optional(),
+  // -- Inference parameters --
+  // Defaults: AssistantService.ts L45–62, constants from config/constant.ts
+  /** @default 1.0 — from DEFAULT_TEMPERATURE */
+  temperature: z.number().default(1.0),
+  /** @default false — disabled = use model's own default */
+  enableTemperature: z.boolean().default(false),
+  /** @default 1 */
+  topP: z.number().default(1),
+  /** @default false */
+  enableTopP: z.boolean().default(false),
+  // TODO: use constant instead
+  /** @default 4096 — from DEFAULT_MAX_TOKENS */
+  maxTokens: z.number().default(4096),
+  /** @default false — disabled = use model's own default */
+  enableMaxTokens: z.boolean().default(false),
+  // TODO: use constant instead
+  /** @default 5 — from DEFAULT_CONTEXTCOUNT */
+  contextCount: z.number().default(5),
+  /** @default true — streaming provides better UX */
+  streamOutput: z.boolean().default(true),
+  /** @default 'default' — let model decide */
+  reasoning_effort: z.string().default('default'),
+  /** @default false — Qwen-specific thinking mode */
+  qwenThinkMode: z.boolean().default(false),
+
+  // -- Tool use --
+  /** @default 'auto' */
+  mcpMode: McpModeSchema.default('auto'),
+  /** @default 'function' — gracefully falls back to prompt if not supported */
+  toolUseMode: z.enum(['function', 'prompt']).default('function'),
+  /** @default 20 */
+  maxToolCalls: z.number().default(20),
+  /** @default true */
+  enableMaxToolCalls: z.boolean().default(true),
+
+  // -- Context sources --
+  /** @default false */
+  enableWebSearch: z.boolean().default(false),
+  /** @default false */
+  enableMemory: z.boolean().default(false),
+
   /** User-defined model parameters (e.g. {"top_k": 40, "repetition_penalty": 1.1}).
-   *  Each entry carries a name, value, and declared type so the UI can render
-   *  the correct input control (text / number / toggle / JSON editor). */
+   *  Discriminated union on `type` ensures `value` is type-safe:
+   *  - `string` → string value, rendered as text input
+   *  - `number` → number value, rendered as number spinner
+   *  - `boolean` → boolean value, rendered as toggle
+   *  - `json` → arbitrary JSON value, rendered as JSON editor
+   *  @default [] */
   customParameters: z
     .array(
-      z.object({
-        name: z.string(),
-        value: z.unknown(),
-        type: z.enum(['string', 'number', 'boolean', 'json'])
-      })
+      z.discriminatedUnion('type', [
+        z.object({ name: z.string(), type: z.literal('string'), value: z.string() }),
+        z.object({ name: z.string(), type: z.literal('number'), value: z.number() }),
+        z.object({ name: z.string(), type: z.literal('boolean'), value: z.boolean() }),
+        z.object({ name: z.string(), type: z.literal('json'), value: z.unknown() })
+      ])
     )
-    .optional()
+    .default([])
 })
 export type AssistantSettings = z.infer<typeof AssistantSettingsSchema>
 
@@ -55,8 +95,8 @@ export type AssistantSettings = z.infer<typeof AssistantSettingsSchema>
 /**
  * Complete Assistant entity as stored in database.
  *
- * Nullable DB columns are represented as optional (`?`) - the service layer
- * converts SQL NULL to `undefined` so consumers don't need to handle `null`.
+ * Nullable fields use `.nullable()` so the key is always present at runtime,
+ * avoiding accidental `undefined` reads.
  */
 export const AssistantSchema = z.object({
   /** Assistant ID (UUID v4, auto-generated by database) */
@@ -66,17 +106,11 @@ export const AssistantSchema = z.object({
   /** System prompt text or prompt template ID reference */
   prompt: z.string(),
   /** Emoji icon for UI display */
-  emoji: z.string().optional(),
+  emoji: z.emoji(),
   /** Long-form description */
-  description: z.string().optional(),
-  /** Inference settings (temperature, topP, etc.) */
-  settings: AssistantSettingsSchema.optional(),
-  /** MCP server interaction mode */
-  mcpMode: McpModeSchema.optional(),
-  /** Whether web search is enabled as context source */
-  enableWebSearch: z.boolean().optional(),
-  /** Whether memory search is enabled as context source */
-  enableMemory: z.boolean().optional(),
+  description: z.string().default(''),
+  /** Inference settings — model params + context toggles */
+  settings: AssistantSettingsSchema,
   /** Ordered model IDs linked through assistant_model */
   modelIds: z.array(z.string()),
   /** Ordered MCP server IDs linked through assistant_mcp_server */
@@ -84,8 +118,8 @@ export const AssistantSchema = z.object({
   /** Ordered knowledge base IDs linked through assistant_knowledge_base */
   knowledgeBaseIds: z.array(z.string()),
   /** Creation timestamp (ISO string) */
-  createdAt: z.iso.datetime().optional(),
+  createdAt: z.iso.datetime(),
   /** Last update timestamp (ISO string) */
-  updatedAt: z.iso.datetime().optional()
+  updatedAt: z.iso.datetime()
 })
 export type Assistant = z.infer<typeof AssistantSchema>

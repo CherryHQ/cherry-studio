@@ -29,20 +29,17 @@ describe('AssistantMappings', () => {
         prompt: 'You are helpful',
         emoji: '🤖',
         description: 'A test assistant',
-        settings: { temperature: 0.7 },
-        mcpMode: 'prompt',
-        enableWebSearch: true,
-        enableMemory: true
+        settings: { temperature: 0.7, mcpMode: 'prompt', enableWebSearch: true, enableMemory: true }
       })
       expect(result.models).toStrictEqual([
-        { assistantId: 'ast-1', modelId: 'openai::gpt-4', sortOrder: 0 },
-        { assistantId: 'ast-1', modelId: 'openai::gpt-3.5', sortOrder: 1 }
+        { assistantId: 'ast-1', modelId: 'openai::gpt-4' },
+        { assistantId: 'ast-1', modelId: 'openai::gpt-3.5' }
       ])
       expect(result.mcpServers).toStrictEqual([
-        { assistantId: 'ast-1', mcpServerId: 'srv-1', sortOrder: 0 },
-        { assistantId: 'ast-1', mcpServerId: 'srv-2', sortOrder: 1 }
+        { assistantId: 'ast-1', mcpServerId: 'srv-1' },
+        { assistantId: 'ast-1', mcpServerId: 'srv-2' }
       ])
-      expect(result.knowledgeBases).toStrictEqual([{ assistantId: 'ast-1', knowledgeBaseId: 'kb-1', sortOrder: 0 }])
+      expect(result.knowledgeBases).toStrictEqual([{ assistantId: 'ast-1', knowledgeBaseId: 'kb-1' }])
     })
 
     it('should handle minimal assistant (only required fields)', () => {
@@ -54,10 +51,7 @@ describe('AssistantMappings', () => {
         prompt: null,
         emoji: null,
         description: null,
-        settings: null,
-        mcpMode: null,
-        enableWebSearch: false,
-        enableMemory: false
+        settings: null
       })
       expect(result.models).toStrictEqual([])
       expect(result.mcpServers).toStrictEqual([])
@@ -111,8 +105,8 @@ describe('AssistantMappings', () => {
     it('should handle non-array mcpServers and knowledge_bases', () => {
       const result = transformAssistant({
         id: 'ast-8',
-        mcpServers: 'not-an-array',
-        knowledge_bases: 42
+        mcpServers: 'not-an-array' as any,
+        knowledge_bases: 42 as any
       })
       expect(result.mcpServers).toStrictEqual([])
       expect(result.knowledgeBases).toStrictEqual([])
@@ -134,10 +128,8 @@ describe('AssistantMappings', () => {
       expect(result.assistant.prompt).toBeNull()
       expect(result.assistant.emoji).toBeNull()
       expect(result.assistant.description).toBeNull()
+      // mcpMode/enableWebSearch/enableMemory are merged into settings
       expect(result.assistant.settings).toBeNull()
-      expect(result.assistant.mcpMode).toBeNull()
-      expect(result.assistant.enableWebSearch).toBe(false)
-      expect(result.assistant.enableMemory).toBe(false)
     })
   })
 })

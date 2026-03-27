@@ -22,14 +22,14 @@ import { sql } from 'drizzle-orm'
 
 import type { MigrationContext } from '../core/MigrationContext'
 import { BaseMigrator } from './BaseMigrator'
-import { type AssistantTransformResult, transformAssistant } from './mappings/AssistantMappings'
+import { type AssistantTransformResult, type OldAssistant, transformAssistant } from './mappings/AssistantMappings'
 
 const logger = loggerService.withContext('AssistantMigrator')
 
 interface AssistantState {
-  assistants: Record<string, unknown>[]
-  presets: Record<string, unknown>[]
-  defaultAssistant?: Record<string, unknown>
+  assistants: OldAssistant[]
+  presets: OldAssistant[]
+  defaultAssistant?: OldAssistant
 }
 
 export class AssistantMigrator extends BaseMigrator {
@@ -56,7 +56,7 @@ export class AssistantMigrator extends BaseMigrator {
       }
 
       // Merge assistants and presets into one list
-      const allSources: Record<string, unknown>[] = []
+      const allSources: OldAssistant[] = []
 
       if (Array.isArray(state.assistants)) {
         allSources.push(...state.assistants)
@@ -69,10 +69,10 @@ export class AssistantMigrator extends BaseMigrator {
       const seenIds = new Set<string>()
 
       for (const source of allSources) {
-        const id = source.id as string
+        const { id } = source
         if (!id || typeof id !== 'string') {
           this.skippedCount++
-          warnings.push(`Skipped assistant without valid id: ${(source.name as string) ?? 'unknown'}`)
+          warnings.push(`Skipped assistant without valid id: ${source.name ?? 'unknown'}`)
           continue
         }
 

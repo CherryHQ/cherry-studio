@@ -43,7 +43,7 @@ function rowToAssistant(row: AssistantRow, relations: AssistantRelationIds = cre
   const clean = stripNulls(row)
   return {
     ...clean,
-    mcpMode: clean.mcpMode as Assistant['mcpMode'],
+    settings: clean.settings ?? ({} as Assistant['settings']),
     modelIds: relations.modelIds,
     mcpServerIds: relations.mcpServerIds,
     knowledgeBaseIds: relations.knowledgeBaseIds,
@@ -87,12 +87,12 @@ export class AssistantDataService {
         .select({ assistantId: assistantModelTable.assistantId, modelId: assistantModelTable.modelId })
         .from(assistantModelTable)
         .where(inArray(assistantModelTable.assistantId, assistantIds))
-        .orderBy(asc(assistantModelTable.assistantId), asc(assistantModelTable.sortOrder)),
+        .orderBy(asc(assistantModelTable.assistantId), asc(assistantModelTable.createdAt)),
       this.db
         .select({ assistantId: assistantMcpServerTable.assistantId, mcpServerId: assistantMcpServerTable.mcpServerId })
         .from(assistantMcpServerTable)
         .where(inArray(assistantMcpServerTable.assistantId, assistantIds))
-        .orderBy(asc(assistantMcpServerTable.assistantId), asc(assistantMcpServerTable.sortOrder)),
+        .orderBy(asc(assistantMcpServerTable.assistantId), asc(assistantMcpServerTable.createdAt)),
       this.db
         .select({
           assistantId: assistantKnowledgeBaseTable.assistantId,
@@ -100,7 +100,7 @@ export class AssistantDataService {
         })
         .from(assistantKnowledgeBaseTable)
         .where(inArray(assistantKnowledgeBaseTable.assistantId, assistantIds))
-        .orderBy(asc(assistantKnowledgeBaseTable.assistantId), asc(assistantKnowledgeBaseTable.sortOrder))
+        .orderBy(asc(assistantKnowledgeBaseTable.assistantId), asc(assistantKnowledgeBaseTable.createdAt))
     ])
 
     for (const row of modelRows) {
@@ -163,10 +163,7 @@ export class AssistantDataService {
           prompt: dto.prompt,
           emoji: dto.emoji,
           description: dto.description,
-          settings: dto.settings,
-          mcpMode: dto.mcpMode,
-          enableWebSearch: dto.enableWebSearch ?? false,
-          enableMemory: dto.enableMemory ?? false
+          settings: dto.settings
         })
         .returning()
 
@@ -257,9 +254,7 @@ export class AssistantDataService {
     if (dto.modelIds !== undefined) {
       await tx.delete(assistantModelTable).where(eq(assistantModelTable.assistantId, assistantId))
       if (dto.modelIds.length > 0) {
-        await tx
-          .insert(assistantModelTable)
-          .values(dto.modelIds.map((modelId, i) => ({ assistantId, modelId, sortOrder: i })))
+        await tx.insert(assistantModelTable).values(dto.modelIds.map((modelId) => ({ assistantId, modelId })))
       }
     }
 
@@ -268,7 +263,7 @@ export class AssistantDataService {
       if (dto.mcpServerIds.length > 0) {
         await tx
           .insert(assistantMcpServerTable)
-          .values(dto.mcpServerIds.map((mcpServerId, i) => ({ assistantId, mcpServerId, sortOrder: i })))
+          .values(dto.mcpServerIds.map((mcpServerId) => ({ assistantId, mcpServerId })))
       }
     }
 
@@ -277,7 +272,7 @@ export class AssistantDataService {
       if (dto.knowledgeBaseIds.length > 0) {
         await tx
           .insert(assistantKnowledgeBaseTable)
-          .values(dto.knowledgeBaseIds.map((knowledgeBaseId, i) => ({ assistantId, knowledgeBaseId, sortOrder: i })))
+          .values(dto.knowledgeBaseIds.map((knowledgeBaseId) => ({ assistantId, knowledgeBaseId })))
       }
     }
   }

@@ -1,8 +1,8 @@
 {
   "version": "6",
   "dialect": "sqlite",
-  "id": "0cc79dac-d3ea-4074-b0f5-7ce0ffa64ee4",
-  "prevId": "unknown",
+  "id": "a74fabb3-df0e-479a-a30a-d461d25e930c",
+  "prevId": "0cc79dac-d3ea-4074-b0f5-7ce0ffa64ee4",
   "tables": {
     "app_state": {
       "name": "app_state",
@@ -86,7 +86,8 @@
           "type": "text",
           "primaryKey": false,
           "notNull": false,
-          "autoincrement": false
+          "autoincrement": false,
+          "default": "''"
         },
         "settings": {
           "name": "settings",
@@ -94,29 +95,6 @@
           "primaryKey": false,
           "notNull": false,
           "autoincrement": false
-        },
-        "mcp_mode": {
-          "name": "mcp_mode",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
-        },
-        "enable_web_search": {
-          "name": "enable_web_search",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false,
-          "default": false
-        },
-        "enable_memory": {
-          "name": "enable_memory",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false,
-          "default": false
         },
         "created_at": {
           "name": "created_at",
@@ -162,14 +140,6 @@
           "primaryKey": false,
           "notNull": true,
           "autoincrement": false
-        },
-        "sort_order": {
-          "name": "sort_order",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false,
-          "default": 0
         },
         "created_at": {
           "name": "created_at",
@@ -223,14 +193,6 @@
           "primaryKey": false,
           "notNull": true,
           "autoincrement": false
-        },
-        "sort_order": {
-          "name": "sort_order",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false,
-          "default": 0
         },
         "created_at": {
           "name": "created_at",
@@ -293,14 +255,6 @@
           "primaryKey": false,
           "notNull": true,
           "autoincrement": false
-        },
-        "sort_order": {
-          "name": "sort_order",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false,
-          "default": 0
         },
         "created_at": {
           "name": "created_at",
@@ -718,6 +672,20 @@
           "autoincrement": false,
           "default": 0
         },
+        "assistant_id": {
+          "name": "assistant_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "assistant_snapshot": {
+          "name": "assistant_snapshot",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
         "model_id": {
           "name": "model_id",
           "type": "text",
@@ -725,8 +693,8 @@
           "notNull": false,
           "autoincrement": false
         },
-        "model_meta": {
-          "name": "model_meta",
+        "model_snapshot": {
+          "name": "model_snapshot",
           "type": "text",
           "primaryKey": false,
           "notNull": false,
@@ -793,6 +761,15 @@
           "columnsFrom": ["topic_id"],
           "columnsTo": ["id"],
           "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "message_assistant_id_assistant_id_fk": {
+          "name": "message_assistant_id_assistant_id_fk",
+          "tableFrom": "message",
+          "tableTo": "assistant",
+          "columnsFrom": ["assistant_id"],
+          "columnsTo": ["id"],
+          "onDelete": "set null",
           "onUpdate": "no action"
         },
         "message_parent_id_message_id_fk": {
@@ -1013,13 +990,6 @@
         },
         "assistant_id": {
           "name": "assistant_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
-        },
-        "prompt": {
-          "name": "prompt",
           "type": "text",
           "primaryKey": false,
           "notNull": false,

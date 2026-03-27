@@ -18,8 +18,6 @@ export interface CreateTopicDto {
   name?: string
   /** Associated assistant ID */
   assistantId?: string
-  /** Topic-specific prompt */
-  prompt?: string
   /** Group ID for organization */
   groupId?: string
   /**
@@ -39,8 +37,6 @@ export interface UpdateTopicDto {
   isNameManuallyEdited?: boolean
   /** Updated assistant ID */
   assistantId?: string
-  /** Updated prompt */
-  prompt?: string
   /** Updated group ID */
   groupId?: string
   /** Updated sort order */

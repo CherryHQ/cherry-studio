@@ -1,4 +1,4 @@
-import { integer, primaryKey, sqliteTable, text } from 'drizzle-orm/sqlite-core'
+import { primaryKey, sqliteTable, text } from 'drizzle-orm/sqlite-core'
 
 import { createUpdateTimestamps } from './_columnHelpers'
 import { assistantTable } from './assistant'
@@ -18,7 +18,6 @@ export const assistantModelTable = sqliteTable(
       .references(() => assistantTable.id, { onDelete: 'cascade' }),
     // TODO: Add FK to model table once merged — .references(() => modelTable.id, { onDelete: 'cascade' })
     modelId: text().notNull(),
-    sortOrder: integer().default(0),
     ...createUpdateTimestamps
   },
   (t) => [primaryKey({ columns: [t.assistantId, t.modelId] })]
@@ -39,7 +38,6 @@ export const assistantMcpServerTable = sqliteTable(
     mcpServerId: text()
       .notNull()
       .references(() => mcpServerTable.id, { onDelete: 'cascade' }),
-    sortOrder: integer().default(0),
     ...createUpdateTimestamps
   },
   (t) => [primaryKey({ columns: [t.assistantId, t.mcpServerId] })]
@@ -59,7 +57,6 @@ export const assistantKnowledgeBaseTable = sqliteTable(
       .references(() => assistantTable.id, { onDelete: 'cascade' }),
     // TODO: Add FK to knowledge_base table once created — .references(() => knowledgeBaseTable.id, { onDelete: 'cascade' })
     knowledgeBaseId: text().notNull(),
-    sortOrder: integer().default(0),
     ...createUpdateTimestamps
   },
   (t) => [primaryKey({ columns: [t.assistantId, t.knowledgeBaseId] })]

@@ -20,8 +20,6 @@ export const topicTable = sqliteTable(
     // FK to assistant table - "last used assistant"
     // SET NULL: preserve topic when assistant is deleted
     assistantId: text().references(() => assistantTable.id, { onDelete: 'set null' }),
-    // Topic-specific prompt override
-    prompt: text(),
     // Active node ID in the message tree
     activeNodeId: text(),
 

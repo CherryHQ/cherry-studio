@@ -79,7 +79,6 @@ export class TopicService {
         .values({
           name: dto.name,
           assistantId: dto.assistantId,
-          prompt: dto.prompt,
           groupId: dto.groupId
         })
         .returning()
@@ -129,7 +128,6 @@ export class TopicService {
         .values({
           name: dto.name,
           assistantId: dto.assistantId,
-          prompt: dto.prompt,
           groupId: dto.groupId
         })
         .returning()
@@ -155,7 +153,6 @@ export class TopicService {
     if (dto.name !== undefined) updates.name = dto.name
     if (dto.isNameManuallyEdited !== undefined) updates.isNameManuallyEdited = dto.isNameManuallyEdited
     if (dto.assistantId !== undefined) updates.assistantId = dto.assistantId
-    if (dto.prompt !== undefined) updates.prompt = dto.prompt
     if (dto.groupId !== undefined) updates.groupId = dto.groupId
     if (dto.sortOrder !== undefined) updates.sortOrder = dto.sortOrder
     if (dto.isPinned !== undefined) updates.isPinned = dto.isPinned
