@@ -1,3 +1,5 @@
+import type { StdioOptions } from 'child_process'
+
 export enum ProcessState {
   Idle = 'idle',
   Running = 'running',
@@ -10,6 +12,7 @@ export interface ProcessHandle {
   readonly id: string
   readonly state: ProcessState
   readonly pid: number | undefined
+  readonly skipOnStop: boolean
   start(): Promise<void>
   stop(): Promise<void>
   restart(): Promise<void>
@@ -41,6 +44,9 @@ export interface ChildProcessDefinition {
   cwd?: string
   env?: Record<string, string>
   killTimeoutMs?: number
+  detached?: boolean
+  stdio?: StdioOptions
+  skipOnStop?: boolean
 }
 
 export interface UtilityProcessDefinition {

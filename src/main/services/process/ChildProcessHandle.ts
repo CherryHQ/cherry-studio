@@ -35,6 +35,10 @@ export class ChildProcessHandle implements ProcessHandle {
     return this._pid
   }
 
+  get skipOnStop(): boolean {
+    return this.def.skipOnStop ?? false
+  }
+
   async start(): Promise<void> {
     if (this._state === ProcessState.Running || this._state === ProcessState.Stopping) {
       throw new Error(`Process ${this.id} is already running (state: ${this._state})`)
@@ -47,8 +51,14 @@ export class ChildProcessHandle implements ProcessHandle {
 
     const child = crossPlatformSpawn(this.def.command, this.def.args ?? [], {
       cwd: this.def.cwd,
-      env
+      env,
+      detached: this.def.detached,
+      stdio: this.def.stdio
     })
+
+    if (this.def.detached) {
+      child.unref()
+    }
 
     this._process = child
     this._state = ProcessState.Running

@@ -30,6 +30,7 @@ function createMockChildProcess(pid = 1234) {
   cp.stdout = new EventEmitter()
   cp.stderr = new EventEmitter()
   cp.kill = vi.fn().mockReturnValue(true)
+  cp.unref = vi.fn()
   return cp
 }
 
@@ -378,6 +379,77 @@ describe('ChildProcessHandle', () => {
 
       // Should be Stopped, not Crashed, because we initiated the stop
       expect(handle.state).toBe('stopped')
+    })
+  })
+
+  describe('detached option', () => {
+    it('passes detached to spawn options', async () => {
+      const { crossPlatformSpawn, ChildProcessHandle } = await loadModules()
+      const mockCp = createMockChildProcess()
+      crossPlatformSpawn.mockReturnValue(mockCp)
+
+      const handle = new ChildProcessHandle({ type: 'child', id: 'detached-proc', command: 'node', detached: true })
+      await handle.start()
+
+      expect(crossPlatformSpawn).toHaveBeenCalledWith('node', [], expect.objectContaining({ detached: true }))
+    })
+
+    it('calls child.unref() when detached is true', async () => {
+      const { crossPlatformSpawn, ChildProcessHandle } = await loadModules()
+      const mockCp = createMockChildProcess()
+      crossPlatformSpawn.mockReturnValue(mockCp)
+
+      const handle = new ChildProcessHandle({ type: 'child', id: 'unref-proc', command: 'node', detached: true })
+      await handle.start()
+
+      expect(mockCp.unref).toHaveBeenCalled()
+    })
+
+    it('does not call unref when detached is false or undefined', async () => {
+      const { crossPlatformSpawn, ChildProcessHandle } = await loadModules()
+      const mockCp = createMockChildProcess()
+      crossPlatformSpawn.mockReturnValue(mockCp)
+
+      const handle = new ChildProcessHandle({ type: 'child', id: 'no-unref', command: 'node' })
+      await handle.start()
+
+      expect(mockCp.unref).not.toHaveBeenCalled()
+    })
+  })
+
+  describe('skipOnStop', () => {
+    it('returns false by default', async () => {
+      const { ChildProcessHandle } = await loadModules()
+      const handle = new ChildProcessHandle({ type: 'child', id: 'test', command: 'echo' })
+      expect(handle.skipOnStop).toBe(false)
+    })
+
+    it('returns true when set in definition', async () => {
+      const { ChildProcessHandle } = await loadModules()
+      const handle = new ChildProcessHandle({ type: 'child', id: 'test', command: 'echo', skipOnStop: true })
+      expect(handle.skipOnStop).toBe(true)
+    })
+  })
+
+  describe('stdio option', () => {
+    it('passes stdio to spawn options', async () => {
+      const { crossPlatformSpawn, ChildProcessHandle } = await loadModules()
+      const mockCp = createMockChildProcess()
+      crossPlatformSpawn.mockReturnValue(mockCp)
+
+      const handle = new ChildProcessHandle({
+        type: 'child',
+        id: 'stdio-proc',
+        command: 'node',
+        stdio: ['ignore', 'pipe', 'pipe']
+      })
+      await handle.start()
+
+      expect(crossPlatformSpawn).toHaveBeenCalledWith(
+        'node',
+        [],
+        expect.objectContaining({ stdio: ['ignore', 'pipe', 'pipe'] })
+      )
     })
   })
 })

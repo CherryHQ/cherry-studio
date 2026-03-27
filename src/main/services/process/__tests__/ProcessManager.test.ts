@@ -34,6 +34,7 @@ function createMockChildProcess(pid = 1234) {
   cp.stdout = new EventEmitter()
   cp.stderr = new EventEmitter()
   cp.kill = vi.fn().mockReturnValue(true)
+  cp.unref = vi.fn()
   return cp
 }
 
@@ -255,6 +256,23 @@ describe('ProcessManager', () => {
 
       // kill was never called from _doStop (only once from start/close cycle)
       expect(mockCp.kill).not.toHaveBeenCalled()
+    })
+
+    it('does not stop skipOnStop handles during onStop', async () => {
+      const { crossPlatformSpawn, ProcessManager } = await loadModules()
+      const mockCp = createMockChildProcess(1111)
+      crossPlatformSpawn.mockReturnValue(mockCp)
+
+      const manager = new ProcessManager()
+      const handle = manager.register({ type: 'child', id: 'skip-proc', command: 'sleep', skipOnStop: true })
+
+      await handle.start()
+
+      // _doStop should complete immediately without stopping the skipOnStop handle
+      await manager._doStop()
+
+      expect(mockCp.kill).not.toHaveBeenCalled()
+      expect(handle.state).toBe('running')
     })
 
     it('continues stopping other processes if one fails', async () => {

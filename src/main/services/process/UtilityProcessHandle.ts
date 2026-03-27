@@ -34,6 +34,10 @@ export class UtilityProcessHandle {
     return this._pid
   }
 
+  get skipOnStop(): boolean {
+    return false
+  }
+
   async start(): Promise<void> {
     if (this._state === ProcessState.Running || this._state === ProcessState.Stopping) {
       throw new Error(`Process ${this.id} is already running (state: ${this._state})`)

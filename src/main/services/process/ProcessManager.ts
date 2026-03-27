@@ -89,7 +89,9 @@ export class ProcessManager extends BaseService {
   }
 
   protected async onStop(): Promise<void> {
-    const runningHandles = Array.from(this.handles.values()).filter((h) => h.state === ProcessState.Running)
+    const runningHandles = Array.from(this.handles.values()).filter(
+      (h) => h.state === ProcessState.Running && !h.skipOnStop
+    )
 
     this.logger.info(`Stopping ${runningHandles.length} running process(es)`)
 
