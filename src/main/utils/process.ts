@@ -10,7 +10,7 @@ import path from 'path'
 
 import { isWin } from '../constant'
 import { ConfigKeys, configManager } from '../services/ConfigManager'
-import { getResourcePath } from '.'
+import { getResourcePath, makeSureDirExists } from '.'
 import getShellEnv, { refreshShellEnv } from './shell-env'
 
 const logger = loggerService.withContext('Utils:Process')
@@ -69,21 +69,12 @@ export function resetBinDirCache(): void {
  */
 export async function getBinDir(): Promise<string> {
   if (_binDir === null) {
-    _binDir = path.join(os.homedir(), HOME_CHERRY_DIR, 'bin')
-    if (!fs.existsSync(_binDir)) {
-      try {
-        fs.mkdirSync(_binDir, { recursive: true })
-      } catch (error) {
-        const err = error as NodeJS.ErrnoException
-        if (err.code === 'EACCES' || err.code === 'EPERM') {
-          throw new Error(
-            `Permission denied: cannot create directory "${_binDir}". ` +
-              `Please run as administrator or check directory permissions.`
-          )
-        }
-        throw error
-      }
+    const binDir = path.join(os.homedir(), HOME_CHERRY_DIR, 'bin')
+    const result = makeSureDirExists(binDir)
+    if (!result.success) {
+      throw result.error
     }
+    _binDir = binDir
   }
   return _binDir
 }

@@ -1496,6 +1496,25 @@ describe('getBinDir and getBinaryPath', () => {
       expect(fs.existsSync).toHaveBeenCalledTimes(1)
       expect(fs.mkdirSync).toHaveBeenCalledTimes(1)
     })
+
+    it('should not cache path when directory creation fails', async () => {
+      vi.mocked(fs.existsSync).mockReturnValue(false)
+      const error = new Error('Permission denied') as NodeJS.ErrnoException
+      error.code = 'EACCES'
+      vi.mocked(fs.mkdirSync).mockImplementation(() => {
+        throw error
+      })
+
+      // First call should throw
+      await expect(getBinDir()).rejects.toThrow('Permission denied')
+
+      // Reset the mock to succeed
+      vi.mocked(fs.mkdirSync).mockImplementation(() => undefined)
+
+      // Second call should succeed (cache was not poisoned)
+      const result = await getBinDir()
+      expect(result).toBe(expectedBinDir)
+    })
   })
 
   describe('getBinaryPath', () => {
