@@ -34,8 +34,17 @@ export const AssistantSettingsSchema = z.object({
   maxToolCalls: z.number().optional(),
   enableMaxToolCalls: z.boolean().optional(),
   /** User-defined model parameters (e.g. {"top_k": 40, "repetition_penalty": 1.1}).
-   *  Uses z.unknown() instead of z.json() to avoid non-portable Zod internal type references. */
-  customParameters: z.record(z.string(), z.unknown()).optional()
+   *  Each entry carries a name, value, and declared type so the UI can render
+   *  the correct input control (text / number / toggle / JSON editor). */
+  customParameters: z
+    .array(
+      z.object({
+        name: z.string(),
+        value: z.unknown(),
+        type: z.enum(['string', 'number', 'boolean', 'json'])
+      })
+    )
+    .optional()
 })
 export type AssistantSettings = z.infer<typeof AssistantSettingsSchema>
 
