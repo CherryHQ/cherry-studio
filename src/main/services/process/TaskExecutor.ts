@@ -8,6 +8,7 @@ export interface TaskExecutorOptions {
   modulePath: string
   max: number
   idleTimeoutMs?: number
+  taskTimeoutMs?: number
   env?: Record<string, string>
   killTimeoutMs?: number
 }
@@ -19,6 +20,7 @@ interface PendingTask<T = unknown> {
   workerId: string
   resolve: (value: T) => void
   reject: (reason: Error) => void
+  timeoutTimer?: ReturnType<typeof setTimeout>
 }
 
 interface WorkerEntry {
@@ -65,6 +67,7 @@ export class TaskExecutor {
     this.pm = pm
     this.options = {
       idleTimeoutMs: 30_000,
+      taskTimeoutMs: 0,
       env: {},
       killTimeoutMs: 5_000,
       ...options
@@ -112,6 +115,7 @@ export class TaskExecutor {
 
     // Reject all in-flight tasks
     for (const task of this.pendingTasks.values()) {
+      clearTimeout(task.timeoutTimer)
       task.reject(shutdownError)
     }
     this.pendingTasks.clear()
@@ -188,6 +192,12 @@ export class TaskExecutor {
     this.pendingTasks.set(task.taskId, task)
     this.logger.debug(`Assigning task ${task.taskId} to worker '${entry.handle.id}'`)
 
+    if (this.options.taskTimeoutMs > 0) {
+      task.timeoutTimer = setTimeout(() => {
+        this.handleTaskTimeout(task.taskId, entry)
+      }, this.options.taskTimeoutMs)
+    }
+
     entry.handle.postMessage({ taskId: task.taskId, taskType: task.taskType, payload: task.payload })
   }
 
@@ -243,6 +253,7 @@ export class TaskExecutor {
       return
     }
 
+    clearTimeout(task.timeoutTimer)
     this.pendingTasks.delete(taskId)
 
     const entry = this.workers.get(workerId)
@@ -263,6 +274,21 @@ export class TaskExecutor {
     this.dispatch()
   }
 
+  private handleTaskTimeout(taskId: string, entry: WorkerEntry): void {
+    const task = this.pendingTasks.get(taskId)
+    if (!task) {
+      return
+    }
+
+    this.pendingTasks.delete(taskId)
+    entry.busy = false
+
+    this.logger.warn(`Task ${taskId} timed out on worker '${task.workerId}'`)
+    task.reject(new Error(`Task ${taskId} timed out after ${this.options.taskTimeoutMs}ms`))
+
+    this.dispatch()
+  }
+
   private handleWorkerExit(workerId: string, code: number | null, signal: NodeJS.Signals | null): void {
     const entry = this.workers.get(workerId)
     if (!entry) {
@@ -274,6 +300,7 @@ export class TaskExecutor {
     // Find and reject the in-flight task assigned to this worker
     for (const [taskId, task] of this.pendingTasks) {
       if (task.workerId === workerId) {
+        clearTimeout(task.timeoutTimer)
         task.reject(new Error(`Worker ${workerId} exited unexpectedly (code=${code}, signal=${signal})`))
         this.pendingTasks.delete(taskId)
         break

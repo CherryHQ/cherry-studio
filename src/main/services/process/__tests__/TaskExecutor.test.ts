@@ -500,6 +500,97 @@ describe('TaskExecutor', () => {
   })
 
   // -------------------------------------------------------------------------
+  // Task timeout
+  // -------------------------------------------------------------------------
+  describe('task timeout', () => {
+    it('rejects task when worker does not respond within taskTimeoutMs', async () => {
+      vi.useFakeTimers()
+
+      const pm = createMockPM()
+      const executor = new TaskExecutor(pm as any, {
+        id: 'task-timeout',
+        modulePath: './w.js',
+        max: 1,
+        taskTimeoutMs: 5000
+      })
+
+      const p = executor.exec<string>('slow-task', 'data')
+      await vi.advanceTimersByTimeAsync(0) // let spawn settle
+
+      // Worker never responds — advance past task timeout
+      const rejection = expect(p).rejects.toThrow(/timed out/)
+      vi.advanceTimersByTime(5001)
+      await vi.advanceTimersByTimeAsync(0)
+      await rejection
+      // Worker should be freed (not busy) so it can accept new tasks
+      expect(executor.pendingCount).toBe(0)
+
+      await executor.shutdown()
+    })
+
+    it('clears task timeout when worker responds in time', async () => {
+      vi.useFakeTimers()
+
+      const pm = createMockPM()
+      const executor = new TaskExecutor(pm as any, {
+        id: 'task-timeout-ok',
+        modulePath: './w.js',
+        max: 1,
+        taskTimeoutMs: 5000
+      })
+
+      const p = executor.exec<string>('fast-task', 'data')
+      await vi.advanceTimersByTimeAsync(0)
+
+      // Respond before timeout
+      const worker = firstHandle(pm)
+      sendResponse(worker, postedTaskId(worker, 0), 'done')
+      expect(await p).toBe('done')
+
+      // Advance past timeout — should have no effect
+      vi.advanceTimersByTime(5001)
+      await vi.advanceTimersByTimeAsync(0)
+
+      expect(executor.workerCount).toBe(1)
+
+      await executor.shutdown()
+    })
+
+    it('dispatches queued task after previous task times out', async () => {
+      vi.useFakeTimers()
+
+      const pm = createMockPM()
+      const executor = new TaskExecutor(pm as any, {
+        id: 'task-timeout-queue',
+        modulePath: './w.js',
+        max: 1,
+        taskTimeoutMs: 5000
+      })
+
+      const p1 = executor.exec<string>('t1', 'a')
+      const p2 = executor.exec<string>('t2', 'b')
+      await vi.advanceTimersByTimeAsync(0)
+
+      expect(executor.queueLength).toBe(1)
+
+      // Task 1 times out — worker freed, task 2 should be dispatched
+      const rejection = expect(p1).rejects.toThrow(/timed out/)
+      vi.advanceTimersByTime(5001)
+      await vi.advanceTimersByTimeAsync(0)
+      await rejection
+      expect(executor.queueLength).toBe(0)
+      expect(executor.pendingCount).toBe(1)
+
+      // Complete task 2
+      const worker = firstHandle(pm)
+      sendResponse(worker, postedTaskId(worker, 1), 'r2')
+      expect(await p2).toBe('r2')
+
+      await executor.shutdown()
+    })
+  })
+
+  // -------------------------------------------------------------------------
   // Idle timeout (scheduleIdleTimeout)
   // -------------------------------------------------------------------------
   describe('idle timeout', () => {
