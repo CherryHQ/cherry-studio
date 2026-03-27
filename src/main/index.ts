@@ -67,7 +67,6 @@ import {
 } from '@data/migration/v2'
 import { initWebviewHotkeys } from './services/WebviewService'
 import { runAsyncFunction } from './utils'
-import { isOvmsSupported } from './services/OvmsManager'
 import { application, serviceList } from './core/application'
 
 const logger = loggerService.withContext('MainEntry')
@@ -371,16 +370,6 @@ if (!app.requestSingleInstanceLock()) {
     // Flush boot config to ensure pending writes are saved
     // FIXME：临时方案，等改造本文件时应在 application 中统一处理
     bootConfigService.flush()
-
-    // 简单的资源清理，不阻塞退出流程
-    if (isOvmsSupported) {
-      const { ovmsManager } = await import('./services/OvmsManager')
-      if (ovmsManager) {
-        await ovmsManager.stopOvms()
-      } else {
-        logger.warn('Unexpected behavior: undefined ovmsManager, but OVMS should be supported.')
-      }
-    }
 
     try {
       await analyticsService.destroy()
