@@ -1,12 +1,12 @@
 import { loggerService } from '@logger'
 import { utilityProcess } from 'electron'
 
-import type { ProcessLogLine, UtilityProcessDefinition } from './types'
+import type { ProcessHandle, ProcessLogLine, UtilityProcessDefinition } from './types'
 import { ProcessState } from './types'
 
 const DEFAULT_KILL_TIMEOUT_MS = 5000
 
-export class UtilityProcessHandle {
+export class UtilityProcessHandle implements ProcessHandle {
   readonly id: string
 
   private _state: ProcessState = ProcessState.Idle

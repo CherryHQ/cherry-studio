@@ -18,11 +18,6 @@ export interface ProcessHandle {
   restart(): Promise<void>
 }
 
-export interface UtilityProcessHandle extends ProcessHandle {
-  postMessage(message: unknown): void
-  onMessage(handler: (message: unknown) => void): () => void
-}
-
 export interface ProcessLogLine {
   processId: string
   stream: 'stdout' | 'stderr'
