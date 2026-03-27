@@ -12,6 +12,8 @@ import { type CreateKnowledgeBaseDto, type UpdateKnowledgeBaseDto } from '@share
 import type { KnowledgeBase } from '@shared/data/types/knowledge'
 import { desc, eq } from 'drizzle-orm'
 
+import { validateKnowledgeBaseConfig } from './knowledgeBaseConfig'
+
 const logger = loggerService.withContext('DataApi:KnowledgeBaseService')
 
 function rowToKnowledgeBase(row: typeof knowledgeBaseTable.$inferSelect): KnowledgeBase {
@@ -65,24 +67,27 @@ export class KnowledgeBaseService {
 
   async create(dto: CreateKnowledgeBaseDto): Promise<KnowledgeBase> {
     const db = application.get('DbService').getDb()
+    const createValues: Omit<typeof knowledgeBaseTable.$inferInsert, 'id' | 'createdAt' | 'updatedAt'> = {
+      name: dto.name.trim(),
+      description: dto.description,
+      dimensions: dto.dimensions,
+      embeddingModelId: dto.embeddingModelId.trim(),
+      rerankModelId: dto.rerankModelId,
+      fileProcessorId: dto.fileProcessorId,
+      chunkSize: dto.chunkSize,
+      chunkOverlap: dto.chunkOverlap,
+      threshold: dto.threshold,
+      documentCount: dto.documentCount,
+      searchMode: dto.searchMode,
+      hybridAlpha: dto.hybridAlpha
+    }
 
-    const [row] = await db
-      .insert(knowledgeBaseTable)
-      .values({
-        name: dto.name.trim(),
-        description: dto.description,
-        dimensions: dto.dimensions,
-        embeddingModelId: dto.embeddingModelId.trim(),
-        rerankModelId: dto.rerankModelId,
-        fileProcessorId: dto.fileProcessorId,
-        chunkSize: dto.chunkSize,
-        chunkOverlap: dto.chunkOverlap,
-        threshold: dto.threshold,
-        documentCount: dto.documentCount,
-        searchMode: dto.searchMode,
-        hybridAlpha: dto.hybridAlpha
-      })
-      .returning()
+    const createFieldErrors = validateKnowledgeBaseConfig(createValues)
+    if (Object.keys(createFieldErrors).length > 0) {
+      throw DataApiErrorFactory.validation(createFieldErrors)
+    }
+
+    const [row] = await db.insert(knowledgeBaseTable).values(createValues).returning()
 
     logger.info('Created knowledge base', { id: row.id, name: row.name })
     return rowToKnowledgeBase(row)
@@ -106,6 +111,18 @@ export class KnowledgeBaseService {
 
     if (Object.keys(updates).length === 0) {
       return existing
+    }
+
+    const updateFieldErrors = validateKnowledgeBaseConfig({
+      chunkSize: dto.chunkSize !== undefined ? dto.chunkSize : existing.chunkSize,
+      chunkOverlap: dto.chunkOverlap !== undefined ? dto.chunkOverlap : existing.chunkOverlap,
+      threshold: dto.threshold !== undefined ? dto.threshold : existing.threshold,
+      documentCount: dto.documentCount !== undefined ? dto.documentCount : existing.documentCount,
+      searchMode: dto.searchMode !== undefined ? dto.searchMode : existing.searchMode,
+      hybridAlpha: dto.hybridAlpha !== undefined ? dto.hybridAlpha : existing.hybridAlpha
+    })
+    if (Object.keys(updateFieldErrors).length > 0) {
+      throw DataApiErrorFactory.validation(updateFieldErrors)
     }
 
     const [row] = await db.update(knowledgeBaseTable).set(updates).where(eq(knowledgeBaseTable.id, id)).returning()

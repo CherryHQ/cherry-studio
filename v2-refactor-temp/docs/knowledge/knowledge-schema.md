@@ -61,7 +61,13 @@ This document records the current V2 knowledge target schema, migration constrai
 ## `parentId` Semantics
 
 - `knowledge_item.parentId` is a generic same-base tree edge in the target schema.
-- Runtime create flows may provide `parentId`, as long as the parent exists and belongs to the same knowledge base.
+- Current runtime read flows use:
+  - `GET /knowledge-bases/:id/root/children` for root-level nodes
+  - `GET /knowledge-items/:id/children` for direct children of one node
+- Current runtime create flow is limited to root-level creation:
+  - `POST /knowledge-bases/:id/root/children`
+  - request bodies do not carry `parentId`
+- Child-node creation is intentionally not exposed in the current UI/DataApi contract.
 - The schema is intentionally broader than a directory-only hierarchy model.
 - Migration from official v1 data does not preserve or infer hierarchy:
   - official v1 exports are flat

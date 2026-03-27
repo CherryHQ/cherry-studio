@@ -69,6 +69,8 @@ export const knowledgeItemTable = sqliteTable(
     ...createUpdateTimestamps
   },
   (t) => [
+    // Supports root/children listings filtered by type and ordered by createdAt.
+    index('knowledge_item_base_parent_type_created_idx').on(t.baseId, t.parentId, t.type, t.createdAt),
     // Covers the current list/query path: same-base children ordered by createdAt.
     index('knowledge_item_base_parent_created_idx').on(t.baseId, t.parentId, t.createdAt),
     unique().on(t.baseId, t.id),

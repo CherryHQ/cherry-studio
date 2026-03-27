@@ -1,6 +1,11 @@
+import { knowledgeBaseTable, knowledgeItemTable } from '@data/db/schemas/knowledge'
+import type { DbType } from '@data/db/types'
+import { createClient } from '@libsql/client'
 import { ErrorCode } from '@shared/data/api'
-import type { CreateKnowledgeItemsDto, UpdateKnowledgeItemDto } from '@shared/data/api/schemas/knowledges'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import type { CreateKnowledgeRootChildrenDto, UpdateKnowledgeItemDto } from '@shared/data/api/schemas/knowledges'
+import { sql } from 'drizzle-orm'
+import { drizzle } from 'drizzle-orm/libsql'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const { getKnowledgeBaseByIdMock } = vi.hoisted(() => ({
   getKnowledgeBaseByIdMock: vi.fn()
@@ -10,16 +15,20 @@ const mockSelect = vi.fn()
 const mockInsert = vi.fn()
 const mockUpdate = vi.fn()
 const mockDelete = vi.fn()
+const mockDb = {
+  select: mockSelect,
+  insert: mockInsert,
+  update: mockUpdate,
+  delete: mockDelete
+}
+
+let currentDb: DbType | typeof mockDb = mockDb
+let closeClient: (() => void) | undefined
 
 vi.mock('@main/core/application', () => ({
   application: {
     get: vi.fn(() => ({
-      getDb: vi.fn(() => ({
-        select: mockSelect,
-        insert: mockInsert,
-        update: mockUpdate,
-        delete: mockDelete
-      }))
+      getDb: vi.fn(() => currentDb)
     }))
   }
 }))
@@ -57,10 +66,16 @@ describe('KnowledgeItemService', () => {
     mockDelete.mockReset()
     getKnowledgeBaseByIdMock.mockReset()
     getKnowledgeBaseByIdMock.mockResolvedValue({ id: 'kb-1' })
+    currentDb = mockDb
     service = KnowledgeItemService.getInstance()
   })
 
-  describe('list', () => {
+  afterEach(() => {
+    closeClient?.()
+    closeClient = undefined
+  })
+
+  describe('listRootChildren', () => {
     function setupListMocks(rows: Record<string, unknown>[], count: number) {
       mockSelect.mockReturnValueOnce({
         from: vi.fn().mockReturnValue({
@@ -80,10 +95,10 @@ describe('KnowledgeItemService', () => {
       })
     }
 
-    it('should return paginated root items', async () => {
+    it('should return paginated root children for a knowledge base', async () => {
       setupListMocks([createMockRow({ data: JSON.stringify({ content: 'hello world' }) })], 1)
 
-      const result = await service.list('kb-1', { page: 1, limit: 20 })
+      const result = await service.listRootChildren('kb-1', { page: 1, limit: 20 })
 
       expect(getKnowledgeBaseByIdMock).toHaveBeenCalledWith('kb-1')
       expect(result).toMatchObject({
@@ -100,74 +115,70 @@ describe('KnowledgeItemService', () => {
       })
     })
 
-    it('should return paginated child items when parentId is provided', async () => {
-      setupListMocks([createMockRow({ id: 'item-2', parentId: 'parent-1' })], 1)
+    it('should support type-filtered root listings', async () => {
+      setupListMocks([createMockRow({ id: 'item-2', type: 'directory', parentId: null })], 1)
 
-      const result = await service.list('kb-1', { page: 2, limit: 10, parentId: 'parent-1' })
+      const result = await service.listRootChildren('kb-1', { page: 2, limit: 10, type: 'directory' })
 
       expect(result.page).toBe(2)
       expect(result.items[0]).toMatchObject({
         id: 'item-2',
-        parentId: 'parent-1'
+        parentId: null,
+        type: 'directory'
       })
     })
   })
 
-  describe('create', () => {
-    it('should throw NotFound when parent item does not exist', async () => {
-      mockSelect.mockReturnValue({
+  describe('listChildren', () => {
+    function setupChildListMocks(parent: Record<string, unknown>, rows: Record<string, unknown>[], count: number) {
+      mockSelect.mockReturnValueOnce({
         from: vi.fn().mockReturnValue({
           where: vi.fn().mockReturnValue({
-            limit: vi.fn().mockResolvedValue([])
+            limit: vi.fn().mockResolvedValue([parent])
           })
         })
       })
-
-      const dto: CreateKnowledgeItemsDto = {
-        items: [
-          {
-            parentId: 'missing-parent',
-            type: 'note',
-            data: { content: 'child note' }
-          }
-        ]
-      }
-
-      await expect(service.create('kb-1', dto)).rejects.toMatchObject({
-        code: ErrorCode.NOT_FOUND,
-        status: 404
-      })
-    })
-
-    it('should reject parent items from another knowledge base', async () => {
-      mockSelect.mockReturnValue({
+      mockSelect.mockReturnValueOnce({
         from: vi.fn().mockReturnValue({
           where: vi.fn().mockReturnValue({
-            limit: vi.fn().mockResolvedValue([createMockRow({ id: 'parent-1', baseId: 'kb-2' })])
+            orderBy: vi.fn().mockReturnValue({
+              limit: vi.fn().mockReturnValue({
+                offset: vi.fn().mockResolvedValue(rows)
+              })
+            })
           })
         })
       })
+      mockSelect.mockReturnValueOnce({
+        from: vi.fn().mockReturnValue({
+          where: vi.fn().mockResolvedValue([{ count }])
+        })
+      })
+    }
 
-      const dto: CreateKnowledgeItemsDto = {
-        items: [
-          {
-            parentId: 'parent-1',
-            type: 'note',
-            data: { content: 'child note' }
-          }
-        ]
-      }
+    it('should return direct children for one knowledge item', async () => {
+      setupChildListMocks(
+        createMockRow({ id: 'directory-1', baseId: 'kb-1', type: 'directory' }),
+        [createMockRow({ id: 'child-1', parentId: 'directory-1', type: 'note' })],
+        1
+      )
 
-      await expect(service.create('kb-1', dto)).rejects.toMatchObject({
-        code: ErrorCode.INVALID_OPERATION,
-        details: {
-          operation: 'create knowledge item',
-          reason: 'Parent item does not belong to this knowledge base'
-        }
+      const result = await service.listChildren('directory-1', { page: 1, limit: 20 })
+
+      expect(result).toMatchObject({
+        total: 1,
+        page: 1
+      })
+      expect(result.items[0]).toMatchObject({
+        id: 'child-1',
+        parentId: 'directory-1',
+        type: 'note'
       })
     })
+  })
 
-    it('should create and return knowledge items', async () => {
+  describe('createRootChildren', () => {
+    it('should create and return root knowledge items', async () => {
       const values = vi.fn().mockReturnValue({
         returning: vi.fn().mockResolvedValue([
           createMockRow({
@@ -184,7 +195,7 @@ describe('KnowledgeItemService', () => {
       })
       mockInsert.mockReturnValue({ values })
 
-      const dto: CreateKnowledgeItemsDto = {
+      const dto: CreateKnowledgeRootChildrenDto = {
         items: [
           {
             type: 'directory',
@@ -197,7 +208,7 @@ describe('KnowledgeItemService', () => {
         ]
       }
 
-      const result = await service.create('kb-1', dto)
+      const result = await service.createRootChildren('kb-1', dto)
 
       expect(values).toHaveBeenCalledWith([
         {
@@ -223,6 +234,181 @@ describe('KnowledgeItemService', () => {
         parentId: null,
         type: 'note'
       })
+    })
+  })
+
+  describe('query semantics (db-backed)', () => {
+    beforeEach(async () => {
+      const client = createClient({ url: 'file::memory:' })
+      closeClient = () => client.close()
+      currentDb = drizzle({
+        client,
+        casing: 'snake_case'
+      })
+
+      await currentDb.run(sql`PRAGMA foreign_keys = ON`)
+      await currentDb.run(
+        sql.raw(`
+        CREATE TABLE knowledge_base (
+          id TEXT PRIMARY KEY NOT NULL,
+          name TEXT NOT NULL,
+          description TEXT,
+          dimensions INTEGER NOT NULL,
+          embedding_model_id TEXT NOT NULL,
+          rerank_model_id TEXT,
+          file_processor_id TEXT,
+          chunk_size INTEGER,
+          chunk_overlap INTEGER,
+          threshold REAL,
+          document_count INTEGER,
+          search_mode TEXT,
+          hybrid_alpha REAL,
+          created_at INTEGER,
+          updated_at INTEGER
+        )
+      `)
+      )
+      await currentDb.run(
+        sql.raw(`
+        CREATE TABLE knowledge_item (
+          id TEXT PRIMARY KEY NOT NULL,
+          base_id TEXT NOT NULL,
+          parent_id TEXT,
+          type TEXT NOT NULL,
+          data TEXT NOT NULL,
+          status TEXT NOT NULL DEFAULT 'idle',
+          error TEXT,
+          created_at INTEGER,
+          updated_at INTEGER,
+          FOREIGN KEY (base_id) REFERENCES knowledge_base(id) ON DELETE CASCADE,
+          FOREIGN KEY (base_id, parent_id) REFERENCES knowledge_item(base_id, id) ON DELETE CASCADE,
+          CONSTRAINT knowledge_item_base_id_id_unique UNIQUE (base_id, id)
+        )
+      `)
+      )
+
+      await currentDb.insert(knowledgeBaseTable).values({
+        id: 'kb-1',
+        name: 'KB',
+        dimensions: 1024,
+        embeddingModelId: 'openai::text-embedding-3-large'
+      })
+
+      await currentDb.insert(knowledgeItemTable).values([
+        {
+          id: 'dir-a',
+          baseId: 'kb-1',
+          parentId: null,
+          type: 'directory',
+          data: { path: '/a', recursive: true },
+          status: 'idle',
+          error: null,
+          createdAt: 100
+        },
+        {
+          id: 'dir-b',
+          baseId: 'kb-1',
+          parentId: null,
+          type: 'directory',
+          data: { path: '/b', recursive: true },
+          status: 'idle',
+          error: null,
+          createdAt: 90
+        },
+        {
+          id: 'note-root',
+          baseId: 'kb-1',
+          parentId: null,
+          type: 'note',
+          data: { content: 'root note' },
+          status: 'idle',
+          error: null,
+          createdAt: 80
+        },
+        {
+          id: 'file-root',
+          baseId: 'kb-1',
+          parentId: null,
+          type: 'file',
+          data: {
+            file: {
+              id: 'file-1',
+              name: 'file.txt',
+              origin_name: 'file.txt',
+              path: '/file.txt',
+              size: 10,
+              ext: '.txt',
+              type: 'text',
+              created_at: '2024-01-01T00:00:00.000Z',
+              count: 1
+            }
+          },
+          status: 'idle',
+          error: null,
+          createdAt: 70
+        },
+        {
+          id: 'dir-c',
+          baseId: 'kb-1',
+          parentId: 'dir-a',
+          type: 'directory',
+          data: { path: '/a/c', recursive: true },
+          status: 'idle',
+          error: null,
+          createdAt: 60
+        },
+        {
+          id: 'file-child',
+          baseId: 'kb-1',
+          parentId: 'dir-a',
+          type: 'file',
+          data: {
+            file: {
+              id: 'file-2',
+              name: 'child.txt',
+              origin_name: 'child.txt',
+              path: '/a/child.txt',
+              size: 20,
+              ext: '.txt',
+              type: 'text',
+              created_at: '2024-01-01T00:00:00.000Z',
+              count: 1
+            }
+          },
+          status: 'idle',
+          error: null,
+          createdAt: 50
+        },
+        {
+          id: 'note-grandchild',
+          baseId: 'kb-1',
+          parentId: 'dir-c',
+          type: 'note',
+          data: { content: 'grandchild' },
+          status: 'idle',
+          error: null,
+          createdAt: 40
+        }
+      ])
+    })
+
+    it('listRootChildren returns only root-level nodes for the requested type', async () => {
+      const result = await service.listRootChildren('kb-1', {
+        page: 1,
+        limit: 20,
+        type: 'directory'
+      })
+
+      expect(result.items.map((item) => item.id)).toEqual(['dir-a', 'dir-b'])
+    })
+
+    it('listChildren returns only direct children of the requested parent', async () => {
+      const result = await service.listChildren('dir-a', {
+        page: 1,
+        limit: 20
+      })
+
+      expect(result.items.map((item) => item.id)).toEqual(['dir-c', 'file-child'])
     })
   })
 
@@ -348,7 +534,7 @@ describe('KnowledgeItemService', () => {
   })
 
   describe('delete', () => {
-    it('should delete an existing knowledge item', async () => {
+    it('should delete the requested node by id and rely on DB cascade for descendants', async () => {
       mockSelect.mockReturnValue({
         from: vi.fn().mockReturnValue({
           where: vi.fn().mockReturnValue({
@@ -360,7 +546,8 @@ describe('KnowledgeItemService', () => {
       mockDelete.mockReturnValue({ where })
 
       await expect(service.delete('item-1')).resolves.toBeUndefined()
-      expect(where).toHaveBeenCalled()
+      expect(mockSelect).toHaveBeenCalledTimes(1)
+      expect(where).toHaveBeenCalledTimes(1)
     })
 
     it('should throw NotFound when deleting a missing knowledge item', async () => {

@@ -1,7 +1,7 @@
 {
   "version": "6",
   "dialect": "sqlite",
-  "id": "040970fc-31a3-4a53-aa3c-a82fee27fc82",
+  "id": "b9f9eac2-de41-4bcf-834d-7d7958f6ede4",
   "prevId": "f549775f-a5bd-4102-b5db-60a97e156387",
   "tables": {
     "app_state": {
@@ -292,10 +292,20 @@
         }
       },
       "indexes": {
+        "knowledge_item_base_parent_type_created_idx": {
+          "name": "knowledge_item_base_parent_type_created_idx",
+          "columns": ["base_id", "parent_id", "type", "created_at"],
+          "isUnique": false
+        },
         "knowledge_item_base_parent_created_idx": {
           "name": "knowledge_item_base_parent_created_idx",
           "columns": ["base_id", "parent_id", "created_at"],
           "isUnique": false
+        },
+        "knowledge_item_baseId_id_unique": {
+          "name": "knowledge_item_baseId_id_unique",
+          "columns": ["base_id", "id"],
+          "isUnique": true
         }
       },
       "foreignKeys": {
@@ -319,12 +329,7 @@
         }
       },
       "compositePrimaryKeys": {},
-      "uniqueConstraints": {
-        "knowledge_item_base_id_id_unique": {
-          "name": "knowledge_item_base_id_id_unique",
-          "columns": ["base_id", "id"]
-        }
-      },
+      "uniqueConstraints": {},
       "checkConstraints": {}
     },
     "mcp_server": {
@@ -498,6 +503,14 @@
           "notNull": false,
           "autoincrement": false
         },
+        "sort_order": {
+          "name": "sort_order",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false,
+          "default": 0
+        },
         "is_active": {
           "name": "is_active",
           "type": "integer",
@@ -547,14 +560,6 @@
           "primaryKey": false,
           "notNull": false,
           "autoincrement": false
-        },
-        "sort_order": {
-          "name": "sort_order",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false,
-          "default": 0
         }
       },
       "indexes": {

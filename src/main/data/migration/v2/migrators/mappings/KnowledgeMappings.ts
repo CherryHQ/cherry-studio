@@ -1,4 +1,5 @@
 import type { knowledgeBaseTable, knowledgeItemTable } from '@data/db/schemas/knowledge'
+import { normalizeKnowledgeBaseConfig } from '@data/services/knowledgeBaseConfig'
 import type { FileMetadata } from '@shared/data/types/file'
 import type { ItemStatus, KnowledgeItemData } from '@shared/data/types/knowledge'
 
@@ -128,42 +129,6 @@ export const toCompositeModelId = (model: LegacyModel | null | undefined): strin
 
 export const inferKnowledgeItemStatus = (item: Pick<LegacyKnowledgeItem, 'uniqueId'>): ItemStatus =>
   typeof item.uniqueId === 'string' && item.uniqueId.trim() !== '' ? 'completed' : 'idle'
-
-function normalizeKnowledgeBaseConfig(base: NewKnowledgeBase): NewKnowledgeBase {
-  const normalized: NewKnowledgeBase = { ...base }
-
-  if (normalized.chunkSize != null && normalized.chunkSize <= 0) {
-    normalized.chunkSize = undefined
-  }
-
-  if (normalized.chunkOverlap != null && normalized.chunkOverlap < 0) {
-    normalized.chunkOverlap = undefined
-  }
-
-  if (normalized.threshold != null && (normalized.threshold < 0 || normalized.threshold > 1)) {
-    normalized.threshold = undefined
-  }
-
-  if (normalized.documentCount != null && normalized.documentCount <= 0) {
-    normalized.documentCount = undefined
-  }
-
-  if (normalized.hybridAlpha != null && (normalized.hybridAlpha < 0 || normalized.hybridAlpha > 1)) {
-    normalized.hybridAlpha = undefined
-  }
-
-  if (normalized.chunkSize == null) {
-    normalized.chunkOverlap = undefined
-  } else if (normalized.chunkOverlap != null && normalized.chunkOverlap >= normalized.chunkSize) {
-    normalized.chunkOverlap = undefined
-  }
-
-  if (normalized.hybridAlpha != null && normalized.searchMode !== 'hybrid') {
-    normalized.hybridAlpha = undefined
-  }
-
-  return normalized
-}
 
 export const resolveLegacyFileMetadata = (
   content: LegacyKnowledgeItem['content'],

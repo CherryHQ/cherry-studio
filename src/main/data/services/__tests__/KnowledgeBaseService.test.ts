@@ -130,7 +130,7 @@ describe('KnowledgeBaseService', () => {
         chunkOverlap: 64,
         threshold: 0.5,
         documentCount: 3,
-        searchMode: 'default',
+        searchMode: 'hybrid',
         hybridAlpha: 0.6
       }
 
@@ -147,7 +147,7 @@ describe('KnowledgeBaseService', () => {
         chunkOverlap: 64,
         threshold: 0.5,
         documentCount: 3,
-        searchMode: 'default',
+        searchMode: 'hybrid',
         hybridAlpha: 0.6
       })
       expect(result).toMatchObject({
@@ -155,6 +155,27 @@ describe('KnowledgeBaseService', () => {
         name: 'New Base',
         embeddingModelId: 'embed-model'
       })
+    })
+
+    it('should reject invalid runtime config before insert', async () => {
+      const dto: CreateKnowledgeBaseDto = {
+        name: 'Invalid Base',
+        dimensions: 1024,
+        embeddingModelId: 'embed-model',
+        chunkSize: 256,
+        chunkOverlap: 256
+      }
+
+      await expect(service.create(dto)).rejects.toMatchObject({
+        code: ErrorCode.VALIDATION_ERROR,
+        details: {
+          fieldErrors: {
+            chunkOverlap: ['Chunk overlap must be smaller than chunk size']
+          }
+        }
+      })
+
+      expect(mockInsert).not.toHaveBeenCalled()
     })
   })
 
@@ -181,6 +202,7 @@ describe('KnowledgeBaseService', () => {
         name: 'Updated Base',
         description: null,
         chunkSize: null,
+        chunkOverlap: null,
         hybridAlpha: 0.9
       })
       mockSelect.mockReturnValue({
@@ -201,6 +223,7 @@ describe('KnowledgeBaseService', () => {
         name: '  Updated Base  ',
         description: null,
         chunkSize: null,
+        chunkOverlap: null,
         hybridAlpha: 0.9
       })
 
@@ -208,6 +231,7 @@ describe('KnowledgeBaseService', () => {
         name: 'Updated Base',
         description: null,
         chunkSize: null,
+        chunkOverlap: null,
         hybridAlpha: 0.9
       })
       expect(result).toMatchObject({
@@ -216,6 +240,35 @@ describe('KnowledgeBaseService', () => {
         hybridAlpha: 0.9
       })
       expect(result.description).toBeUndefined()
+    })
+
+    it('should reject invalid config combinations during update', async () => {
+      const existing = createMockRow({
+        searchMode: 'hybrid',
+        hybridAlpha: 0.7
+      })
+      mockSelect.mockReturnValue({
+        from: vi.fn().mockReturnValue({
+          where: vi.fn().mockReturnValue({
+            limit: vi.fn().mockResolvedValue([existing])
+          })
+        })
+      })
+
+      await expect(
+        service.update('kb-1', {
+          searchMode: 'default'
+        })
+      ).rejects.toMatchObject({
+        code: ErrorCode.VALIDATION_ERROR,
+        details: {
+          fieldErrors: {
+            hybridAlpha: ['Hybrid alpha requires hybrid search mode']
+          }
+        }
+      })
+
+      expect(mockUpdate).not.toHaveBeenCalled()
     })
   })
 

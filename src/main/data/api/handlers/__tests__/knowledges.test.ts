@@ -1,4 +1,4 @@
-import type { CreateKnowledgeItemsDto } from '@shared/data/api/schemas/knowledges'
+import type { CreateKnowledgeRootChildrenDto } from '@shared/data/api/schemas/knowledges'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const {
@@ -7,8 +7,9 @@ const {
   getKnowledgeBaseByIdMock,
   updateKnowledgeBaseMock,
   deleteKnowledgeBaseMock,
-  listKnowledgeItemsMock,
-  createKnowledgeItemsMock,
+  listKnowledgeRootChildrenMock,
+  createKnowledgeRootChildrenMock,
+  listKnowledgeItemChildrenMock,
   getKnowledgeItemByIdMock,
   updateKnowledgeItemMock,
   deleteKnowledgeItemMock
@@ -18,8 +19,9 @@ const {
   getKnowledgeBaseByIdMock: vi.fn(),
   updateKnowledgeBaseMock: vi.fn(),
   deleteKnowledgeBaseMock: vi.fn(),
-  listKnowledgeItemsMock: vi.fn(),
-  createKnowledgeItemsMock: vi.fn(),
+  listKnowledgeRootChildrenMock: vi.fn(),
+  createKnowledgeRootChildrenMock: vi.fn(),
+  listKnowledgeItemChildrenMock: vi.fn(),
   getKnowledgeItemByIdMock: vi.fn(),
   updateKnowledgeItemMock: vi.fn(),
   deleteKnowledgeItemMock: vi.fn()
@@ -37,8 +39,9 @@ vi.mock('@data/services/KnowledgeBaseService', () => ({
 
 vi.mock('@data/services/KnowledgeItemService', () => ({
   knowledgeItemService: {
-    list: listKnowledgeItemsMock,
-    create: createKnowledgeItemsMock,
+    listRootChildren: listKnowledgeRootChildrenMock,
+    createRootChildren: createKnowledgeRootChildrenMock,
+    listChildren: listKnowledgeItemChildrenMock,
     getById: getKnowledgeItemByIdMock,
     update: updateKnowledgeItemMock,
     delete: deleteKnowledgeItemMock
@@ -192,72 +195,51 @@ describe('knowledgeHandlers', () => {
     })
   })
 
-  describe('/knowledge-bases/:id/items', () => {
+  describe('/knowledge-bases/:id/root/children', () => {
     it('should apply default pagination when query is missing', async () => {
-      listKnowledgeItemsMock.mockResolvedValueOnce({
+      listKnowledgeRootChildrenMock.mockResolvedValueOnce({
         items: [],
         total: 0,
         page: KNOWLEDGE_ITEMS_DEFAULT_PAGE
       })
 
-      await knowledgeHandlers['/knowledge-bases/:id/items'].GET({
+      await knowledgeHandlers['/knowledge-bases/:id/root/children'].GET({
         params: { id: 'kb-1' }
       })
 
-      expect(listKnowledgeItemsMock).toHaveBeenCalledWith('kb-1', {
+      expect(listKnowledgeRootChildrenMock).toHaveBeenCalledWith('kb-1', {
         page: KNOWLEDGE_ITEMS_DEFAULT_PAGE,
         limit: KNOWLEDGE_ITEMS_DEFAULT_LIMIT,
-        parentId: undefined
+        type: undefined
       })
     })
 
-    it('should trim parentId before delegating to the service', async () => {
-      listKnowledgeItemsMock.mockResolvedValueOnce({
+    it('should pass type filter to root children listing', async () => {
+      listKnowledgeRootChildrenMock.mockResolvedValueOnce({
         items: [],
         total: 0,
         page: 2
       })
 
-      await knowledgeHandlers['/knowledge-bases/:id/items'].GET({
+      await knowledgeHandlers['/knowledge-bases/:id/root/children'].GET({
         params: { id: 'kb-1' },
         query: {
           page: 2,
           limit: 10,
-          parentId: '  parent-1  '
+          type: 'directory'
         } as never
       } as never)
 
-      expect(listKnowledgeItemsMock).toHaveBeenCalledWith('kb-1', {
+      expect(listKnowledgeRootChildrenMock).toHaveBeenCalledWith('kb-1', {
         page: 2,
         limit: 10,
-        parentId: 'parent-1'
-      })
-    })
-
-    it('should normalize blank parentId to undefined', async () => {
-      listKnowledgeItemsMock.mockResolvedValueOnce({
-        items: [],
-        total: 0,
-        page: 1
-      })
-
-      await knowledgeHandlers['/knowledge-bases/:id/items'].GET({
-        params: { id: 'kb-1' },
-        query: {
-          parentId: '   '
-        } as never
-      } as never)
-
-      expect(listKnowledgeItemsMock).toHaveBeenCalledWith('kb-1', {
-        page: KNOWLEDGE_ITEMS_DEFAULT_PAGE,
-        limit: KNOWLEDGE_ITEMS_DEFAULT_LIMIT,
-        parentId: undefined
+        type: 'directory'
       })
     })
 
     it('should reject non-positive page values', async () => {
       await expect(
-        knowledgeHandlers['/knowledge-bases/:id/items'].GET({
+        knowledgeHandlers['/knowledge-bases/:id/root/children'].GET({
           params: { id: 'kb-1' },
           query: {
             page: 0
@@ -265,12 +247,12 @@ describe('knowledgeHandlers', () => {
         } as never)
       ).rejects.toHaveProperty('name', 'ZodError')
 
-      expect(listKnowledgeItemsMock).not.toHaveBeenCalled()
+      expect(listKnowledgeRootChildrenMock).not.toHaveBeenCalled()
     })
 
     it('should reject limit values above the max limit', async () => {
       await expect(
-        knowledgeHandlers['/knowledge-bases/:id/items'].GET({
+        knowledgeHandlers['/knowledge-bases/:id/root/children'].GET({
           params: { id: 'kb-1' },
           query: {
             limit: KNOWLEDGE_ITEMS_MAX_LIMIT + 1
@@ -278,40 +260,51 @@ describe('knowledgeHandlers', () => {
         } as never)
       ).rejects.toHaveProperty('name', 'ZodError')
 
-      expect(listKnowledgeItemsMock).not.toHaveBeenCalled()
+      expect(listKnowledgeRootChildrenMock).not.toHaveBeenCalled()
     })
 
-    it('should delegate POST to knowledgeItemService.create', async () => {
-      const body: CreateKnowledgeItemsDto = {
+    it('should reject invalid type filters', async () => {
+      await expect(
+        knowledgeHandlers['/knowledge-bases/:id/root/children'].GET({
+          params: { id: 'kb-1' },
+          query: {
+            type: 'memory'
+          } as never
+        } as never)
+      ).rejects.toHaveProperty('name', 'ZodError')
+
+      expect(listKnowledgeRootChildrenMock).not.toHaveBeenCalled()
+    })
+
+    it('should delegate POST to knowledgeItemService.createRootChildren', async () => {
+      const body: CreateKnowledgeRootChildrenDto = {
         items: [
           {
-            parentId: '550e8400-e29b-41d4-a716-446655440001',
             type: 'note',
             data: { content: 'hello world' }
           }
         ]
       }
-      createKnowledgeItemsMock.mockResolvedValueOnce({
+      createKnowledgeRootChildrenMock.mockResolvedValueOnce({
         items: [
           {
             id: 'item-1',
             baseId: 'kb-1',
-            parentId: '550e8400-e29b-41d4-a716-446655440001',
+            parentId: null,
             type: 'note',
             data: { content: 'hello world' }
           }
         ]
       })
 
-      const result = await knowledgeHandlers['/knowledge-bases/:id/items'].POST({
+      const result = await knowledgeHandlers['/knowledge-bases/:id/root/children'].POST({
         params: { id: 'kb-1' },
         body
       })
 
-      expect(createKnowledgeItemsMock).toHaveBeenCalledWith('kb-1', {
+      expect(createKnowledgeRootChildrenMock).toHaveBeenCalledWith('kb-1', {
         items: [
           {
-            parentId: '550e8400-e29b-41d4-a716-446655440001',
             type: 'note',
             data: { content: 'hello world' }
           }
@@ -328,7 +321,7 @@ describe('knowledgeHandlers', () => {
 
     it('should reject invalid POST bodies before calling the service', async () => {
       await expect(
-        knowledgeHandlers['/knowledge-bases/:id/items'].POST({
+        knowledgeHandlers['/knowledge-bases/:id/root/children'].POST({
           params: { id: 'kb-1' },
           body: {
             items: []
@@ -336,17 +329,17 @@ describe('knowledgeHandlers', () => {
         } as never)
       ).rejects.toHaveProperty('name', 'ZodError')
 
-      expect(createKnowledgeItemsMock).not.toHaveBeenCalled()
+      expect(createKnowledgeRootChildrenMock).not.toHaveBeenCalled()
     })
 
-    it('should reject non-uuid parentId values before calling the service', async () => {
+    it('should reject parentId in root-only create requests', async () => {
       await expect(
-        knowledgeHandlers['/knowledge-bases/:id/items'].POST({
+        knowledgeHandlers['/knowledge-bases/:id/root/children'].POST({
           params: { id: 'kb-1' },
           body: {
             items: [
               {
-                parentId: 'not-a-uuid',
+                parentId: '550e8400-e29b-41d4-a716-446655440001',
                 type: 'note',
                 data: { content: 'hello world' }
               }
@@ -355,7 +348,63 @@ describe('knowledgeHandlers', () => {
         } as never)
       ).rejects.toHaveProperty('name', 'ZodError')
 
-      expect(createKnowledgeItemsMock).not.toHaveBeenCalled()
+      expect(createKnowledgeRootChildrenMock).not.toHaveBeenCalled()
+    })
+  })
+
+  describe('/knowledge-items/:id/children', () => {
+    it('should apply default pagination when query is missing', async () => {
+      listKnowledgeItemChildrenMock.mockResolvedValueOnce({
+        items: [],
+        total: 0,
+        page: KNOWLEDGE_ITEMS_DEFAULT_PAGE
+      })
+
+      await knowledgeHandlers['/knowledge-items/:id/children'].GET({
+        params: { id: 'item-1' }
+      })
+
+      expect(listKnowledgeItemChildrenMock).toHaveBeenCalledWith('item-1', {
+        page: KNOWLEDGE_ITEMS_DEFAULT_PAGE,
+        limit: KNOWLEDGE_ITEMS_DEFAULT_LIMIT
+      })
+    })
+
+    it('should delegate explicit pagination to knowledgeItemService.listChildren', async () => {
+      listKnowledgeItemChildrenMock.mockResolvedValueOnce({
+        items: [],
+        total: 0,
+        page: 2
+      })
+
+      await knowledgeHandlers['/knowledge-items/:id/children'].GET({
+        params: { id: 'item-1' },
+        query: {
+          page: 2,
+          limit: 10
+        } as never
+      } as never)
+
+      expect(listKnowledgeItemChildrenMock).toHaveBeenCalledWith('item-1', {
+        page: 2,
+        limit: 10
+      })
+    })
+
+    it('should bubble NotFound when the parent item does not exist', async () => {
+      listKnowledgeItemChildrenMock.mockRejectedValueOnce({
+        code: 'NOT_FOUND',
+        status: 404
+      })
+
+      await expect(
+        knowledgeHandlers['/knowledge-items/:id/children'].GET({
+          params: { id: 'missing-item' }
+        })
+      ).rejects.toMatchObject({
+        code: 'NOT_FOUND',
+        status: 404
+      })
     })
   })
 

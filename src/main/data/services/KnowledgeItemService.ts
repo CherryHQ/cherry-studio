@@ -10,8 +10,9 @@ import { application } from '@main/core/application'
 import { DataApiErrorFactory } from '@shared/data/api'
 import type { OffsetPaginationResponse } from '@shared/data/api/apiTypes'
 import type {
-  CreateKnowledgeItemsDto,
-  KnowledgeItemsQuery,
+  CreateKnowledgeRootChildrenDto,
+  KnowledgeItemChildrenQuery,
+  KnowledgeRootChildrenQuery,
   UpdateKnowledgeItemDto
 } from '@shared/data/api/schemas/knowledges'
 import {
@@ -22,7 +23,7 @@ import {
   UrlItemDataSchema
 } from '@shared/data/api/schemas/knowledges'
 import type { KnowledgeItem } from '@shared/data/types/knowledge'
-import { and, desc, eq, isNull, sql } from 'drizzle-orm'
+import { and, desc, eq, sql } from 'drizzle-orm'
 
 import { knowledgeBaseService } from './KnowledgeBaseService'
 
@@ -68,14 +69,21 @@ export class KnowledgeItemService {
     return KnowledgeItemService.instance
   }
 
-  async list(baseId: string, query: KnowledgeItemsQuery): Promise<OffsetPaginationResponse<KnowledgeItem>> {
+  async listRootChildren(
+    baseId: string,
+    query: KnowledgeRootChildrenQuery
+  ): Promise<OffsetPaginationResponse<KnowledgeItem>> {
     const db = application.get('DbService').getDb()
     await knowledgeBaseService.getById(baseId)
-    const { page, limit, parentId } = query
+    const { page, limit, type } = query
     const offset = (page - 1) * limit
-    const where = parentId
-      ? and(eq(knowledgeItemTable.baseId, baseId), eq(knowledgeItemTable.parentId, parentId))
-      : and(eq(knowledgeItemTable.baseId, baseId), isNull(knowledgeItemTable.parentId))
+    const conditions = [eq(knowledgeItemTable.baseId, baseId), sql`${knowledgeItemTable.parentId} IS NULL`]
+
+    if (type !== undefined) {
+      conditions.push(eq(knowledgeItemTable.type, type))
+    }
+
+    const where = conditions.length === 1 ? conditions[0] : and(...conditions)
 
     const [rows, [{ count }]] = await Promise.all([
       db
@@ -95,32 +103,37 @@ export class KnowledgeItemService {
     }
   }
 
-  async create(baseId: string, dto: CreateKnowledgeItemsDto): Promise<{ items: KnowledgeItem[] }> {
+  async listChildren(id: string, query: KnowledgeItemChildrenQuery): Promise<OffsetPaginationResponse<KnowledgeItem>> {
     const db = application.get('DbService').getDb()
-    await knowledgeBaseService.getById(baseId)
-    for (const item of dto.items) {
-      if (item.parentId == null) {
-        continue
-      }
+    const parent = await this.getById(id)
+    const { page, limit } = query
+    const offset = (page - 1) * limit
+    const where = and(eq(knowledgeItemTable.baseId, parent.baseId), eq(knowledgeItemTable.parentId, id))
 
-      const [parent] = await db
+    const [rows, [{ count }]] = await Promise.all([
+      db
         .select()
         .from(knowledgeItemTable)
-        .where(eq(knowledgeItemTable.id, item.parentId))
-        .limit(1)
-      if (!parent) {
-        throw DataApiErrorFactory.notFound('KnowledgeItem', item.parentId)
-      }
+        .where(where)
+        .orderBy(desc(knowledgeItemTable.createdAt), desc(knowledgeItemTable.id))
+        .limit(limit)
+        .offset(offset),
+      db.select({ count: sql<number>`count(*)` }).from(knowledgeItemTable).where(where)
+    ])
 
-      const operation = 'create knowledge item'
-      if (parent.baseId !== baseId) {
-        throw DataApiErrorFactory.invalidOperation(operation, 'Parent item does not belong to this knowledge base')
-      }
+    return {
+      items: rows.map((row) => rowToKnowledgeItem(row)),
+      total: count,
+      page
     }
+  }
 
+  async createRootChildren(baseId: string, dto: CreateKnowledgeRootChildrenDto): Promise<{ items: KnowledgeItem[] }> {
+    const db = application.get('DbService').getDb()
+    await knowledgeBaseService.getById(baseId)
     const values: Array<typeof knowledgeItemTable.$inferInsert> = dto.items.map((item) => ({
       baseId,
-      parentId: item.parentId ?? null,
+      parentId: null,
       type: item.type,
       data: item.data,
       status: 'idle',
@@ -130,7 +143,7 @@ export class KnowledgeItemService {
     const rows = await db.insert(knowledgeItemTable).values(values).returning()
     const items = rows.map((row) => rowToKnowledgeItem(row))
 
-    logger.info('Created knowledge items', { baseId, count: items.length })
+    logger.info('Created root knowledge items', { baseId, count: items.length })
     return { items }
   }
 
@@ -171,6 +184,13 @@ export class KnowledgeItemService {
     return rowToKnowledgeItem(row)
   }
 
+  /**
+   * Delete a knowledge item subtree by id.
+   *
+   * The SQLite self-referencing foreign key on `parentId` is configured with
+   * `ON DELETE CASCADE`, so removing the target node also removes its
+   * descendants in the same knowledge base.
+   */
   async delete(id: string): Promise<void> {
     const db = application.get('DbService').getDb()
     await this.getById(id)
