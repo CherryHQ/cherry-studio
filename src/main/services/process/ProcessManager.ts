@@ -62,9 +62,9 @@ export class ProcessManager extends BaseService {
   }
 
   protected async onStop(): Promise<void> {
-    const runningHandles = Array.from(this.handles.values()).filter(
-      (h) => h.state === ProcessState.Running && !h.skipOnStop
-    )
+    const handles = Array.from(this.handles.values()).filter((h) => !h.skipOnStop)
+    const runningHandles = handles.filter((h) => h.state === ProcessState.Running)
+    const stoppingHandles = handles.filter((h) => h.state === ProcessState.Stopping)
 
     this.logger.info(`Stopping ${runningHandles.length} running process(es)`)
 
@@ -77,6 +77,10 @@ export class ProcessManager extends BaseService {
         }
       })
     )
+
+    if (stoppingHandles.length > 0) {
+      this.logger.warn(`${stoppingHandles.length} process(es) still in Stopping state during shutdown`)
+    }
 
     this.logger.info('All processes stopped')
   }
