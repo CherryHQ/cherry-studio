@@ -155,6 +155,10 @@ export class ChildProcessHandle implements ProcessHandle {
       const killTimer = setTimeout(() => {
         this.logger.warn(`Kill timeout reached, sending SIGKILL to pid=${this._pid ?? child.pid}`)
         child.kill('SIGKILL')
+        this._exited = true
+        this._state = ProcessState.Stopped
+        this._pid = undefined
+        this._process = undefined
         resolve()
       }, killTimeoutMs)
 

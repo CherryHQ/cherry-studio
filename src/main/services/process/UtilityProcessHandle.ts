@@ -12,6 +12,7 @@ export class UtilityProcessHandle implements ProcessHandle {
   private _state: ProcessState = ProcessState.Idle
   private _pid: number | undefined = undefined
   private _process: Electron.UtilityProcess | undefined = undefined
+  private _exited = false
   private readonly def: UtilityProcessOptions
   private readonly logger: ReturnType<typeof loggerService.withContext>
   private readonly messageHandlers = new Set<(message: unknown) => void>()
@@ -45,6 +46,8 @@ export class UtilityProcessHandle implements ProcessHandle {
 
     this.logger.info(`Starting utility process: ${this.def.modulePath}`)
 
+    this._exited = false
+
     let proc: Electron.UtilityProcess
     try {
       proc = utilityProcess.fork(this.def.modulePath, this.def.args, {
@@ -73,6 +76,9 @@ export class UtilityProcessHandle implements ProcessHandle {
     })
 
     proc.on('exit', (code: number) => {
+      if (this._exited) return
+      this._exited = true
+
       this._pid = undefined
       this._process = undefined
 
@@ -110,6 +116,10 @@ export class UtilityProcessHandle implements ProcessHandle {
 
       const killTimer = setTimeout(() => {
         this.logger.warn(`Kill timeout reached for utility process pid=${this._pid ?? proc.pid}, resolving`)
+        this._exited = true
+        this._state = ProcessState.Stopped
+        this._pid = undefined
+        this._process = undefined
         resolve()
       }, killTimeoutMs)
 
