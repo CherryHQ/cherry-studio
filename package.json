@@ -1,6 +1,6 @@
 {
   "name": "CherryStudio",
-  "version": "1.8.3",
+  "version": "1.8.4",
   "private": true,
   "description": "A powerful AI assistant for producer.",
   "desktopName": "CherryStudio.desktop",
@@ -101,7 +101,7 @@
     "officeparser": "4.2.0",
     "os-proxy-config": "1.1.2",
     "pdf-parse": "^2.4.5",
-    "selection-hook": "1.0.12",
+    "selection-hook": "2.0.1",
     "sharp": "0.34.3",
     "swagger-ui-express": "5.0.1",
     "tesseract.js": "6.0.1",

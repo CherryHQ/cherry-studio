@@ -3493,6 +3493,19 @@
           "windows": "Te rugăm să introduci numele fișierului executabil al aplicației, unul pe linie, nu este sensibil la majuscule/minuscule, poate fi potrivit aproximativ. De exemplu: chrome.exe, weixin.exe, Cherry Studio.exe etc."
         }
       },
+      "linux": {
+        "compositor_incompatible": "Mediul dvs. desktop nu acceptă funcția de selecție. Vă rugăm să treceți la o sesiune X11 pentru o experiență completă.",
+        "filter_warning_text": "Indisponibil în sesiunea Wayland",
+        "input_group_fail": "Nu a fost acordat, te rog să rulezi `sudo usermod -aG input $USER` și să te reconectezi",
+        "input_group_label": "permisiunea grupului de intrare:",
+        "input_group_pass": "Acordat",
+        "wayland_checklist_subtitle": "Asigurați-vă că sunt îndeplinite următoarele condiții pentru a optimiza experiența Wayland:",
+        "wayland_description": "Vă aflați într-o sesiune Wayland. Din cauza limitărilor sistemului, bara de instrumente poate apărea doar în centrul ecranului în loc să urmărească textul selectat pe unele medii desktop. Se recomandă să treceți la o sesiune X11 pentru o experiență completă.",
+        "wayland_title": "Notificare sesiune Wayland",
+        "xwayland_fail": "Nu este activat, vă rugăm să lansați Cherry Studio cu steagul `--ozone-platform=x11`",
+        "xwayland_label": "Mod XWayland:",
+        "xwayland_pass": "Activat"
+      },
       "search_modal": {
         "custom": {
           "name": {
@@ -3526,6 +3539,7 @@
           "ctrlkey_note": "După selecție, ține apăsată tasta Ctrl pentru a afișa bara de instrumente",
           "description": "Modul de declanșare a asistentului de selecție și de afișare a barei de instrumente",
           "description_note": {
+            "linux": "Dacă ai remapat tastele modificatoare folosind instrumente precum xmodmap sau xremap, acest lucru poate face ca unele aplicații să nu poată selecta textul.",
             "mac": "Dacă ai remapat tasta ⌘ folosind scurtături sau instrumente de mapare a tastaturii, acest lucru poate cauza eșecul selecției textului în unele aplicații.",
             "windows": "Unele aplicații nu acceptă selectarea textului cu tasta Ctrl. Dacă ai remapat tasta Ctrl folosind instrumente precum AHK, acest lucru poate cauza eșecul selecției textului în unele aplicații."
           },

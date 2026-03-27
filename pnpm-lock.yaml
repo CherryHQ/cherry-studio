@@ -141,8 +141,8 @@ importers:
         specifier: ^2.4.5
         version: 2.4.5
       selection-hook:
-        specifier: 1.0.12
-        version: 1.0.12
+        specifier: 2.0.1
+        version: 2.0.1
       sharp:
         specifier: 0.34.3
         version: 0.34.3
@@ -1319,6 +1319,9 @@ importers:
       '@cherrystudio/ai-sdk-provider':
         specifier: workspace:*
         version: link:../ai-sdk-provider
+      '@openrouter/ai-sdk-provider':
+        specifier: ^2.2.3
+        version: 2.2.3(patch_hash=508e8e662b8547de93410cb7c3b1336077f34c6bf79c520ef5273962ea777c52)(ai@6.0.103(zod@4.3.4))(zod@4.3.4)
       ai:
         specifier: ^6.0.103
         version: 6.0.103(zod@4.3.4)
@@ -11151,8 +11154,8 @@ packages:
   selderee@0.11.0:
     resolution: {integrity: sha512-5TF+l7p4+OsnP8BCCvSyZiSPc4x4//p5uPwK8TCnVPJYRmU2aYKMpOXvw8zM5a5JvuuCGN1jmsMwuU2W02ukfA==}
 
-  selection-hook@1.0.12:
-    resolution: {integrity: sha512-ZvomOOAC/SHMm7p0qGic9lLu2UONtW3Pq4k7Fl4OONJMY8cahpfMaNkThZSk7lcOY8Nrhh+gZIOnFvx2MFVDHQ==}
+  selection-hook@2.0.1:
+    resolution: {integrity: sha512-MtViZTBOr2jybOy3IHUHWDQbyZY+2MQFROyT5spiBw1LejDY++DPW6ME5+Nn/lE1VR5709TYWzIwTwOBXX2Aww==}
     engines: {node: '>=18.0.0'}
 
   semver-compare@1.0.0:
@@ -24514,7 +24517,7 @@ snapshots:
     dependencies:
       parseley: 0.12.1
 
-  selection-hook@1.0.12:
+  selection-hook@2.0.1:
     dependencies:
       node-addon-api: 8.5.0
       node-gyp-build: 4.8.4
