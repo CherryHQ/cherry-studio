@@ -1,6 +1,7 @@
+import { dataApiService } from '@data/DataApiService'
 import { useActiveAgent } from '@renderer/hooks/agents/useActiveAgent'
 import { useMCPServers } from '@renderer/hooks/useMCPServers'
-import type { MCPServer, MCPToolResponse } from '@renderer/types'
+import type { MCPToolResponse } from '@renderer/types'
 import type { ToolMessageBlock } from '@renderer/types/newMessage'
 import { isToolAutoApproved } from '@renderer/utils/mcp-tools'
 import {
@@ -9,6 +10,7 @@ import {
   isToolPending,
   onToolPendingChange
 } from '@renderer/utils/userConfirmation'
+import type { MCPServer } from '@shared/data/types/mcpServer'
 import { useCallback, useEffect, useReducer, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -47,7 +49,7 @@ async function resolveHubToolServer(
  */
 export function useMcpToolApproval(block: ToolMessageBlock): ToolApprovalState & ToolApprovalActions {
   const { t } = useTranslation()
-  const { mcpServers, updateMCPServer } = useMCPServers()
+  const { mcpServers } = useMCPServers()
   const { agent } = useActiveAgent()
 
   const toolResponse = block.metadata?.rawMcpToolResponse as MCPToolResponse | undefined
@@ -146,15 +148,19 @@ export function useMcpToolApproval(block: ToolMessageBlock): ToolApprovalState &
     // Remove tool from disabledAutoApproveTools to enable auto-approve
     disabledAutoApproveTools = disabledAutoApproveTools.filter((name) => name !== toolNameToApprove)
 
-    updateMCPServer({ ...server, disabledAutoApproveTools })
+    try {
+      await dataApiService.patch(`/mcp-servers/${server.id}`, {
+        body: { disabledAutoApproveTools }
+      })
+      window.toast.success(t('message.tools.autoApproveEnabled', 'Auto-approve enabled for this tool'))
+    } catch {
+      window.toast.error(t('message.tools.autoApproveError', 'Failed to enable auto-approve'))
+    }
 
-    // Confirm the current tool. The execution layer will auto-confirm other
-    // pending tools with the same name via confirmSameNameTools.
+    // Confirm the current tool regardless — the tool action should proceed
     setIsConfirmed(true)
     confirmToolAction(id)
-
-    window.toast.success(t('message.tools.autoApproveEnabled', 'Auto-approve enabled for this tool'))
-  }, [tool, toolResponse, mcpServers, updateMCPServer, id, t])
+  }, [tool, toolResponse, mcpServers, id, t])
 
   return {
     // State

@@ -19,7 +19,7 @@ import { loggerService } from '@logger'
 import { autoRenameTopic } from '@renderer/hooks/useTopic'
 import i18n from '@renderer/i18n'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
-import { NotificationService } from '@renderer/services/NotificationService'
+import { notificationService } from '@renderer/services/NotificationService'
 import { estimateMessagesUsage } from '@renderer/services/TokenService'
 import store from '@renderer/store'
 import { toolPermissionsActions } from '@renderer/store/toolPermissions'
@@ -59,7 +59,7 @@ export const createBaseCallbacks = (deps: BaseCallbacksDependencies) => {
   const { blockManager, topicId, assistantMsgId, assistant, getCurrentThinkingInfo } = deps
 
   const startTime = Date.now()
-  const notificationService = NotificationService.getInstance()
+  // notificationService is imported as a module-level singleton
 
   /**
    * Find the block ID that should receive completion updates.

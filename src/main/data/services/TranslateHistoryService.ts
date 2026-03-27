@@ -32,17 +32,6 @@ function rowToTranslateHistory(row: typeof translateHistoryTable.$inferSelect): 
 }
 
 export class TranslateHistoryService {
-  private static instance: TranslateHistoryService
-
-  private constructor() {}
-
-  public static getInstance(): TranslateHistoryService {
-    if (!TranslateHistoryService.instance) {
-      TranslateHistoryService.instance = new TranslateHistoryService()
-    }
-    return TranslateHistoryService.instance
-  }
-
   async list(query: TranslateHistoryQuery): Promise<OffsetPaginationResponse<TranslateHistory>> {
     const db = application.get('DbService').getDb()
     const { page, limit } = query
@@ -177,4 +166,4 @@ export class TranslateHistoryService {
   }
 }
 
-export const translateHistoryService = TranslateHistoryService.getInstance()
+export const translateHistoryService = new TranslateHistoryService()

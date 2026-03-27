@@ -211,6 +211,9 @@ export class MigrationEngine {
         this.updateProgress('migration', this.calculateProgress(i + 1, 0), migrator)
       }
 
+      // Verify FK integrity after all inserts (FK was off during bulk inserts)
+      await this.verifyForeignKeys()
+
       // Mark migration completed
       await this.markCompleted()
 
@@ -296,6 +299,31 @@ export class MigrationEngine {
     // await db.delete(assistantTable)
 
     logger.info('All new architecture tables cleared successfully')
+  }
+
+  /**
+   * Verify foreign key integrity after all data has been inserted.
+   * FK constraints were disabled during bulk inserts for performance;
+   * this post-insert check ensures referential integrity is correct.
+   */
+  private async verifyForeignKeys(): Promise<void> {
+    const db = this.getDb()
+
+    // PRAGMA foreign_key_check scans ALL tables for FK violations.
+    // Returns rows: { table, rowid, parent, fkid } for each violation.
+    const violations = await db.all<{ table: string; rowid: number; parent: string; fkid: number }>(
+      sql`PRAGMA foreign_key_check`
+    )
+
+    if (violations.length > 0) {
+      const sample = violations
+        .slice(0, 5)
+        .map((v) => `${v.table}(rowid=${v.rowid})→${v.parent}`)
+        .join('; ')
+      throw new Error(`Foreign key check failed: ${violations.length} violation(s). Sample: ${sample}`)
+    }
+
+    logger.info('Foreign key integrity verified')
   }
 
   /**

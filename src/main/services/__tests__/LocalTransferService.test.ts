@@ -31,9 +31,14 @@ vi.mock('@logger', () => ({
   }
 }))
 
-vi.mock('../WindowService', () => ({
-  windowService: {
-    getMainWindow: vi.fn(() => mockMainWindow)
+vi.mock('@main/core/application', () => ({
+  application: {
+    get: vi.fn((name: string) => {
+      if (name === 'WindowService') {
+        return { getMainWindow: vi.fn(() => mockMainWindow) }
+      }
+      throw new Error(`[MockApplication] Unknown service: ${name}`)
+    })
   }
 }))
 

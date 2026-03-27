@@ -39,25 +39,19 @@ import { registerIpc } from './ipc'
 import { agentService } from './services/agents'
 import { analyticsService } from './services/AnalyticsService'
 import { apiServerService } from './services/ApiServerService'
-import { appMenuService } from './services/AppMenuService'
 import { lanTransferClientService } from './services/lanTransfer'
-import mcpService from './services/MCPService'
+import { mcpService } from './services/MCPService'
 import { localTransferService } from './services/LocalTransferService'
 import { openClawService } from './services/OpenClawService'
 import { nodeTraceService } from './services/NodeTraceService'
-import powerMonitorService from './services/PowerMonitorService'
 import {
   CHERRY_STUDIO_PROTOCOL,
   handleProtocolUrl,
   registerProtocolClient,
   setupAppImageDeepLink
 } from './services/ProtocolClient'
-import selectionService, { initSelectionService } from './services/SelectionService'
 import { registerShortcuts } from './services/ShortcutService'
-import { themeService } from './services/ThemeService'
-import { TrayService } from './services/TrayService'
 import { versionService } from './services/VersionService'
-import { windowService } from './services/WindowService'
 import {
   getAllMigrators,
   migrationEngine,
@@ -158,7 +152,7 @@ if (!isDev) {
 
 // Check for single instance lock
 if (!app.requestSingleInstanceLock()) {
-  app.quit()
+  application.quit()
   process.exit(0)
 } else {
   // ============================================================================
@@ -186,7 +180,7 @@ if (!app.requestSingleInstanceLock()) {
         `Could not determine if data migration is completed.\n\nThis may indicate a database connectivity issue: ${(error as Error).message}\n\nThe application will now exit. Please check your installation and try again.`
       )
       logger.error('Exiting application due to migration status check failure')
-      app.quit()
+      application.quit()
       return
     }
 
@@ -208,7 +202,7 @@ if (!app.requestSingleInstanceLock()) {
           `This version of Cherry Studio requires data migration to function properly.\n\nMigration window failed to start: ${(migrationError as Error).message}\n\nThe application will now exit. Please try starting again or contact support if the problem persists.`
         )
         logger.error('Exiting application due to failed migration startup')
-        app.quit()
+        application.quit()
       }
       return
     }
@@ -241,7 +235,7 @@ if (!app.requestSingleInstanceLock()) {
 
     // Listen for second instance
     app.on('second-instance', (_event, argv) => {
-      windowService.showMainWindow()
+      application.get('WindowService').showMainWindow()
 
       // Protocol handler for Windows/Linux
       // The commandLine is an array of strings where the last item might be the URL
@@ -253,12 +247,7 @@ if (!app.requestSingleInstanceLock()) {
     })
 
     app.on('before-quit', () => {
-      app.isQuitting = true
-
-      // quit selection service
-      if (selectionService) {
-        selectionService.quit()
-      }
+      application.markQuitting()
 
       lanTransferClientService.dispose()
       localTransferService.dispose()
@@ -321,26 +310,18 @@ if (!app.requestSingleInstanceLock()) {
     const { BackupManager } = await import('./services/BackupManager')
     await BackupManager.handleStartupRestore()
 
-    // TODO: Remove manual init after ThemeService is migrated to lifecycle system
-    themeService.init()
-
     // Create main window - migration has either completed or was not needed
-    const mainWindow = windowService.createMainWindow()
+    const mainWindow = application.get('WindowService').createMainWindow()
 
-    new TrayService()
-
-    // Setup macOS application menu
-    appMenuService?.setupApplicationMenu()
     nodeTraceService.init()
-    powerMonitorService.init()
     analyticsService.init()
 
     app.on('activate', function () {
-      const mainWindow = windowService.getMainWindow()
+      const mainWindow = application.get('WindowService').getMainWindow()
       if (!mainWindow || mainWindow.isDestroyed()) {
-        windowService.createMainWindow()
+        application.get('WindowService').createMainWindow()
       } else {
-        windowService.showMainWindow()
+        application.get('WindowService').showMainWindow()
       }
     })
 
@@ -358,9 +339,6 @@ if (!app.requestSingleInstanceLock()) {
         .then((name) => logger.info(`Added Extension:  ${name}`))
         .catch((err) => logger.error('An error occurred: ', err))
     }
-
-    //start selection assistant service
-    initSelectionService()
 
     void runAsyncFunction(async () => {
       // Start API server if enabled or if agents exist

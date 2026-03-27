@@ -2,6 +2,7 @@ import * as crypto from 'node:crypto'
 import { createConnection, type Socket } from 'node:net'
 
 import { loggerService } from '@logger'
+import { application } from '@main/core/application'
 import type {
   LanClientEvent,
   LanFileCompleteMessage,
@@ -13,7 +14,6 @@ import { LAN_TRANSFER_GLOBAL_TIMEOUT_MS } from '@shared/config/types'
 import { IpcChannel } from '@shared/IpcChannel'
 
 import { localTransferService } from '../LocalTransferService'
-import { windowService } from '../WindowService'
 import {
   abortTransfer,
   buildHandshakeMessage,
@@ -507,7 +507,7 @@ class LanTransferClientService {
   }
 
   private broadcastClientEvent(event: LanClientEvent): void {
-    const mainWindow = windowService.getMainWindow()
+    const mainWindow = application.get('WindowService').getMainWindow()
     if (!mainWindow || mainWindow.isDestroyed()) {
       return
     }

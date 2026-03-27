@@ -23,17 +23,7 @@ type LocalBrowserContext = {
 }
 
 export class LocalBrowser {
-  private static instance: LocalBrowser | null = null
   private readonly fetchSemaphore = new Semaphore(MAX_CONCURRENT_BROWSER_FETCHES)
-
-  public static getInstance(): LocalBrowser {
-    if (!LocalBrowser.instance) {
-      LocalBrowser.instance = new LocalBrowser()
-    }
-    return LocalBrowser.instance
-  }
-
-  private constructor() {}
 
   async fetchHtml(url: string, options: FetchHtmlOptions = {}): Promise<string> {
     this.validateFetchRequest(url, options)
@@ -219,4 +209,4 @@ export class LocalBrowser {
   }
 }
 
-export const localBrowser = LocalBrowser.getInstance()
+export const localBrowser = new LocalBrowser()

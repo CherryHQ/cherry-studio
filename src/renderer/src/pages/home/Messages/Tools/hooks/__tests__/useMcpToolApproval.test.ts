@@ -6,13 +6,18 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 // --- Mocks ---
 
-const mockUpdateMCPServer = vi.fn()
 const mockMcpServers: MCPServer[] = []
+const mockDataApiPatch = vi.fn().mockResolvedValue({})
+
+vi.mock('@data/DataApiService', () => ({
+  dataApiService: {
+    patch: (...args: unknown[]) => mockDataApiPatch(...args)
+  }
+}))
 
 vi.mock('@renderer/hooks/useMCPServers', () => ({
   useMCPServers: () => ({
-    mcpServers: mockMcpServers,
-    updateMCPServer: mockUpdateMCPServer
+    mcpServers: mockMcpServers
   })
 }))
 
@@ -233,12 +238,9 @@ describe('useMcpToolApproval', () => {
         await result.current.autoApprove?.()
       })
 
-      expect(mockUpdateMCPServer).toHaveBeenCalledWith(
-        expect.objectContaining({
-          id: 'server1',
-          disabledAutoApproveTools: ['tool2']
-        })
-      )
+      expect(mockDataApiPatch).toHaveBeenCalledWith('/mcp-servers/server1', {
+        body: { disabledAutoApproveTools: ['tool2'] }
+      })
       expect(mockConfirmToolAction).toHaveBeenCalledWith('tool-123')
       expect(window.toast.success).toHaveBeenCalled()
     })
@@ -257,7 +259,7 @@ describe('useMcpToolApproval', () => {
         await result.current.autoApprove?.()
       })
 
-      expect(mockUpdateMCPServer).not.toHaveBeenCalled()
+      expect(mockDataApiPatch).not.toHaveBeenCalled()
       expect(mockConfirmToolAction).toHaveBeenCalledWith('tool-123')
     })
 
@@ -272,7 +274,7 @@ describe('useMcpToolApproval', () => {
         await result.current.autoApprove?.()
       })
 
-      expect(mockUpdateMCPServer).not.toHaveBeenCalled()
+      expect(mockDataApiPatch).not.toHaveBeenCalled()
       expect(mockConfirmToolAction).not.toHaveBeenCalled()
     })
 
@@ -303,12 +305,9 @@ describe('useMcpToolApproval', () => {
         })
 
         expect(mockResolveHubTool).toHaveBeenCalledWith('real_tool')
-        expect(mockUpdateMCPServer).toHaveBeenCalledWith(
-          expect.objectContaining({
-            id: 'actual-server',
-            disabledAutoApproveTools: ['other_tool']
-          })
-        )
+        expect(mockDataApiPatch).toHaveBeenCalledWith('/mcp-servers/actual-server', {
+          body: { disabledAutoApproveTools: ['other_tool'] }
+        })
         expect(mockConfirmToolAction).toHaveBeenCalledWith('tool-hub-1')
         expect(window.toast.success).toHaveBeenCalled()
       })
@@ -339,12 +338,9 @@ describe('useMcpToolApproval', () => {
         })
 
         expect(mockResolveHubTool).toHaveBeenCalledWith('real_tool')
-        expect(mockUpdateMCPServer).toHaveBeenCalledWith(
-          expect.objectContaining({
-            id: 'actual-server',
-            disabledAutoApproveTools: []
-          })
-        )
+        expect(mockDataApiPatch).toHaveBeenCalledWith('/mcp-servers/actual-server', {
+          body: { disabledAutoApproveTools: [] }
+        })
         expect(mockConfirmToolAction).toHaveBeenCalledWith('tool-hub-2')
       })
 
@@ -365,7 +361,7 @@ describe('useMcpToolApproval', () => {
         })
 
         expect(mockResolveHubTool).toHaveBeenCalledWith('unknown_tool')
-        expect(mockUpdateMCPServer).not.toHaveBeenCalled()
+        expect(mockDataApiPatch).not.toHaveBeenCalled()
         // Should still confirm the current tool
         expect(mockConfirmToolAction).toHaveBeenCalledWith('tool-hub-3')
       })
@@ -386,7 +382,7 @@ describe('useMcpToolApproval', () => {
           await result.current.autoApprove?.()
         })
 
-        expect(mockUpdateMCPServer).not.toHaveBeenCalled()
+        expect(mockDataApiPatch).not.toHaveBeenCalled()
         // Should still confirm the current tool via the !server fallback
         expect(mockConfirmToolAction).toHaveBeenCalledWith('tool-hub-4')
       })
@@ -410,7 +406,7 @@ describe('useMcpToolApproval', () => {
           await result.current.autoApprove?.()
         })
 
-        expect(mockUpdateMCPServer).not.toHaveBeenCalled()
+        expect(mockDataApiPatch).not.toHaveBeenCalled()
         expect(mockConfirmToolAction).toHaveBeenCalledWith('tool-hub-5')
       })
 

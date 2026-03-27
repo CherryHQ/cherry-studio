@@ -92,6 +92,33 @@ export default defineConfig([
       ]
     }
   },
+  // Application quit/exit - enforce using application.quit()/forceExit() instead of app.quit()/app.exit()
+  {
+    files: ['src/main/**/*.{ts,tsx,js,jsx}'],
+    ignores: [
+      'src/main/core/application/Application.ts',
+      'src/main/data/migration/**',
+      'src/main/**/__tests__/**',
+      'src/main/**/__mocks__/**',
+      'src/main/**/*.test.*'
+    ],
+    rules: {
+      'no-restricted-properties': [
+        'warn',
+        {
+          object: 'app',
+          property: 'quit',
+          message: 'Use application.quit() instead of app.quit(). See docs/en/references/lifecycle/application-overview.md'
+        },
+        {
+          object: 'app',
+          property: 'exit',
+          message:
+            'Use application.forceExit(code) instead of app.exit(). See docs/en/references/lifecycle/application-overview.md'
+        }
+      ]
+    }
+  },
   // i18n
   {
     files: ['**/*.{ts,tsx,js,jsx}'],

@@ -22,14 +22,19 @@ vi.mock('../../LocalTransferService', () => ({
   }
 }))
 
-vi.mock('../../WindowService', () => ({
-  windowService: {
-    getMainWindow: vi.fn(() => ({
-      isDestroyed: () => false,
-      webContents: {
-        send: vi.fn()
+vi.mock('@main/core/application', () => ({
+  application: {
+    get: vi.fn((name: string) => {
+      if (name === 'WindowService') {
+        return {
+          getMainWindow: vi.fn(() => ({
+            isDestroyed: () => false,
+            webContents: { send: vi.fn() }
+          }))
+        }
       }
-    }))
+      throw new Error(`[MockApplication] Unknown service: ${name}`)
+    })
   }
 }))
 

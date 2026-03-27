@@ -39,8 +39,15 @@
     {
       "idx": 5,
       "version": "6",
+      "when": 1774262838468,
+      "tag": "0005_shocking_sphinx",
+      "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "6",
       "when": 1774270030997,
-      "tag": "0005_optimal_callisto",
+      "tag": "0006_optimal_callisto",
       "breakpoints": true
     }
   ],

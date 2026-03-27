@@ -42,17 +42,6 @@ function rowToTopic(row: typeof topicTable.$inferSelect): Topic {
 }
 
 export class TopicService {
-  private static instance: TopicService
-
-  private constructor() {}
-
-  public static getInstance(): TopicService {
-    if (!TopicService.instance) {
-      TopicService.instance = new TopicService()
-    }
-    return TopicService.instance
-  }
-
   /**
    * Get a topic by ID
    */
@@ -230,4 +219,4 @@ export class TopicService {
   }
 }
 
-export const topicService = TopicService.getInstance()
+export const topicService = new TopicService()

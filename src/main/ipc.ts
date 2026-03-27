@@ -7,7 +7,7 @@ import { loggerService } from '@logger'
 import { isMac, isWin } from '@main/constant'
 import { application } from '@main/core/application'
 import { generateSignature } from '@main/integration/cherryai'
-import anthropicService from '@main/services/AnthropicService'
+import { anthropicService } from '@main/services/AnthropicService'
 import { getIpCountry } from '@main/utils/ipService'
 import {
   autoDiscoverGitBash,
@@ -19,7 +19,6 @@ import {
 } from '@main/utils/process'
 import { handleZoomFactor } from '@main/utils/zoom'
 import type { SpanEntity, TokenUsage } from '@mcp-trace/trace-core'
-import { MIN_WINDOW_HEIGHT, MIN_WINDOW_WIDTH } from '@shared/config/constant'
 import type { LocalTransferConnectPayload } from '@shared/config/types'
 import type { UpgradeChannel } from '@shared/data/preference/preferenceTypes'
 import { IpcChannel } from '@shared/IpcChannel'
@@ -40,25 +39,25 @@ import { BrowserWindow, dialog, ipcMain, session, shell, systemPreferences, webC
 import fontList from 'font-list'
 
 import { agentMessageRepository } from './services/agents/database'
-import { PluginService } from './services/agents/plugins/PluginService'
+import { pluginService } from './services/agents/plugins/PluginService'
 import { analyticsService } from './services/AnalyticsService'
 import { apiServerService } from './services/ApiServerService'
-import appService from './services/AppService'
+import { appService } from './services/AppService'
 import AppUpdater from './services/AppUpdater'
 import BackupManager from './services/BackupManager'
-import CherryINOAuthService from './services/CherryINOAuthService'
+import { cherryINOAuthService } from './services/CherryINOAuthService'
 import { ConfigKeys, configManager } from './services/ConfigManager'
-import CopilotService from './services/CopilotService'
+import { copilotService } from './services/CopilotService'
 import DxtService from './services/DxtService'
 import { ExportService } from './services/ExportService'
 import { externalAppsService } from './services/ExternalAppsService'
 import { fileStorage as fileManager } from './services/FileStorage'
 import FileService from './services/FileSystemService'
-import KnowledgeService from './services/KnowledgeService'
+import { knowledgeService } from './services/KnowledgeService'
 import { lanTransferClientService } from './services/lanTransfer'
 import { localTransferService } from './services/LocalTransferService'
-import mcpService from './services/MCPService'
-import MemoryService from './services/memory/MemoryService'
+import { mcpService } from './services/MCPService'
+import { memoryService } from './services/memory/MemoryService'
 import { openTraceWindow, setTraceWindowTitle } from './services/NodeTraceService'
 import NotificationService from './services/NotificationService'
 import * as NutstoreService from './services/NutstoreService'
@@ -66,12 +65,10 @@ import ObsidianVaultService from './services/ObsidianVaultService'
 import { ocrService } from './services/ocr/OcrService'
 import { openClawService } from './services/OpenClawService'
 import { isOvmsSupported } from './services/OvmsManager'
-import powerMonitorService from './services/PowerMonitorService'
 import { proxyManager } from './services/ProxyManager'
 import { pythonService } from './services/PythonService'
-import { FileServiceManager } from './services/remotefile/FileServiceManager'
+import { fileServiceManager } from './services/remotefile/FileServiceManager'
 import { searchService } from './services/SearchService'
-import { SelectionService } from './services/SelectionService'
 import { registerShortcuts, unregisterAllShortcuts } from './services/ShortcutService'
 import {
   addEndMessage,
@@ -86,10 +83,9 @@ import {
   saveSpans,
   tokenUsage
 } from './services/SpanCacheService'
-import storeSyncService from './services/StoreSyncService'
-import VertexAIService from './services/VertexAIService'
+import { storeSyncService } from './services/StoreSyncService'
+import { vertexAIService } from './services/VertexAIService'
 import { setOpenLinkExternal } from './services/WebviewService'
-import { windowService } from './services/WindowService'
 import { calculateDirectorySize, getResourcePath } from './utils'
 import { decrypt, encrypt } from './utils/aes'
 import {
@@ -110,10 +106,9 @@ const logger = loggerService.withContext('IPC')
 const backupManager = new BackupManager()
 const exportService = new ExportService()
 const obsidianVaultService = new ObsidianVaultService()
-const vertexAIService = VertexAIService.getInstance()
-const memoryService = MemoryService.getInstance()
+// vertexAIService and memoryService are now imported as named exports
 const dxtService = new DxtService()
-const pluginService = PluginService.getInstance()
+// pluginService is now imported as a named export
 
 function normalizeError(error: unknown): Error {
   return error instanceof Error ? error : new Error(String(error))
@@ -131,22 +126,17 @@ export async function registerIpc(mainWindow: BrowserWindow, app: Electron.App) 
   const notificationService = new NotificationService()
 
   // Register shutdown handlers
+  const powerMonitorService = application.get('PowerMonitorService')
   powerMonitorService.registerShutdownHandler(() => {
     appUpdater.setAutoUpdate(false)
   })
 
   powerMonitorService.registerShutdownHandler(() => {
-    const mw = windowService.getMainWindow()
+    const mw = application.get('WindowService').getMainWindow()
     if (mw && !mw.isDestroyed()) {
       mw.webContents.send(IpcChannel.App_SaveData)
     }
   })
-
-  const checkMainWindow = () => {
-    if (!mainWindow || mainWindow.isDestroyed()) {
-      throw new Error('Main window does not exist or has been destroyed')
-    }
-  }
 
   ipcMain.handle(IpcChannel.App_Info, () => ({
     version: app.getVersion(),
@@ -179,7 +169,7 @@ export async function registerIpc(mainWindow: BrowserWindow, app: Electron.App) 
   })
 
   ipcMain.handle(IpcChannel.App_Reload, () => mainWindow.reload())
-  ipcMain.handle(IpcChannel.App_Quit, () => app.quit())
+  ipcMain.handle(IpcChannel.App_Quit, () => application.quit())
   ipcMain.handle(IpcChannel.Open_Website, (_, url: string) => shell.openExternal(url))
 
   // Update
@@ -628,22 +618,22 @@ export async function registerIpc(mainWindow: BrowserWindow, app: Electron.App) 
 
   // file service
   ipcMain.handle(IpcChannel.FileService_Upload, async (_, provider: Provider, file: FileMetadata) => {
-    const service = FileServiceManager.getInstance().getService(provider)
+    const service = fileServiceManager.getService(provider)
     return await service.uploadFile(file)
   })
 
   ipcMain.handle(IpcChannel.FileService_List, async (_, provider: Provider) => {
-    const service = FileServiceManager.getInstance().getService(provider)
+    const service = fileServiceManager.getService(provider)
     return await service.listFiles()
   })
 
   ipcMain.handle(IpcChannel.FileService_Delete, async (_, provider: Provider, fileId: string) => {
-    const service = FileServiceManager.getInstance().getService(provider)
+    const service = fileServiceManager.getService(provider)
     return await service.deleteFile(fileId)
   })
 
   ipcMain.handle(IpcChannel.FileService_Retrieve, async (_, provider: Provider, fileId: string) => {
-    const service = FileServiceManager.getInstance().getService(provider)
+    const service = fileServiceManager.getService(provider)
     return await service.retrieveFile(fileId)
   })
 
@@ -669,13 +659,13 @@ export async function registerIpc(mainWindow: BrowserWindow, app: Electron.App) 
     }
   })
 
-  ipcMain.handle(IpcChannel.KnowledgeBase_Create, KnowledgeService.create.bind(KnowledgeService))
-  ipcMain.handle(IpcChannel.KnowledgeBase_Reset, KnowledgeService.reset.bind(KnowledgeService))
-  ipcMain.handle(IpcChannel.KnowledgeBase_Delete, KnowledgeService.delete.bind(KnowledgeService))
-  ipcMain.handle(IpcChannel.KnowledgeBase_Add, KnowledgeService.add.bind(KnowledgeService))
-  ipcMain.handle(IpcChannel.KnowledgeBase_Remove, KnowledgeService.remove.bind(KnowledgeService))
-  ipcMain.handle(IpcChannel.KnowledgeBase_Search, KnowledgeService.search.bind(KnowledgeService))
-  ipcMain.handle(IpcChannel.KnowledgeBase_Rerank, KnowledgeService.rerank.bind(KnowledgeService))
+  ipcMain.handle(IpcChannel.KnowledgeBase_Create, knowledgeService.create.bind(knowledgeService))
+  ipcMain.handle(IpcChannel.KnowledgeBase_Reset, knowledgeService.reset.bind(knowledgeService))
+  ipcMain.handle(IpcChannel.KnowledgeBase_Delete, knowledgeService.delete.bind(knowledgeService))
+  ipcMain.handle(IpcChannel.KnowledgeBase_Add, knowledgeService.add.bind(knowledgeService))
+  ipcMain.handle(IpcChannel.KnowledgeBase_Remove, knowledgeService.remove.bind(knowledgeService))
+  ipcMain.handle(IpcChannel.KnowledgeBase_Search, knowledgeService.search.bind(knowledgeService))
+  ipcMain.handle(IpcChannel.KnowledgeBase_Rerank, knowledgeService.rerank.bind(knowledgeService))
 
   // memory
   ipcMain.handle(IpcChannel.Memory_Add, (_, messages, config) => memoryService.add(messages, config))
@@ -692,63 +682,6 @@ export async function registerIpc(mainWindow: BrowserWindow, app: Electron.App) 
   ipcMain.handle(IpcChannel.Memory_GetUsersList, () => memoryService.getUsersList())
   ipcMain.handle(IpcChannel.Memory_MigrateMemoryDb, () => memoryService.migrateMemoryDb())
 
-  // window
-  ipcMain.handle(IpcChannel.Windows_SetMinimumSize, (_, width: number, height: number) => {
-    checkMainWindow()
-    mainWindow.setMinimumSize(width, height)
-  })
-
-  ipcMain.handle(IpcChannel.Windows_ResetMinimumSize, () => {
-    checkMainWindow()
-
-    mainWindow.setMinimumSize(MIN_WINDOW_WIDTH, MIN_WINDOW_HEIGHT)
-    const [width, height] = mainWindow.getSize() ?? [MIN_WINDOW_WIDTH, MIN_WINDOW_HEIGHT]
-    if (width < MIN_WINDOW_WIDTH) {
-      mainWindow.setSize(MIN_WINDOW_WIDTH, height)
-    }
-  })
-
-  ipcMain.handle(IpcChannel.Windows_GetSize, () => {
-    checkMainWindow()
-    const [width, height] = mainWindow.getSize() ?? [MIN_WINDOW_WIDTH, MIN_WINDOW_HEIGHT]
-    return [width, height]
-  })
-
-  // Window Controls
-  ipcMain.handle(IpcChannel.Windows_Minimize, () => {
-    checkMainWindow()
-    mainWindow.minimize()
-  })
-
-  ipcMain.handle(IpcChannel.Windows_Maximize, () => {
-    checkMainWindow()
-    mainWindow.maximize()
-  })
-
-  ipcMain.handle(IpcChannel.Windows_Unmaximize, () => {
-    checkMainWindow()
-    mainWindow.unmaximize()
-  })
-
-  ipcMain.handle(IpcChannel.Windows_Close, () => {
-    checkMainWindow()
-    mainWindow.close()
-  })
-
-  ipcMain.handle(IpcChannel.Windows_IsMaximized, () => {
-    checkMainWindow()
-    return mainWindow.isMaximized()
-  })
-
-  // Send maximized state changes to renderer
-  mainWindow.on('maximize', () => {
-    mainWindow.webContents.send(IpcChannel.Windows_MaximizedChanged, true)
-  })
-
-  mainWindow.on('unmaximize', () => {
-    mainWindow.webContents.send(IpcChannel.Windows_MaximizedChanged, false)
-  })
-
   // VertexAI
   ipcMain.handle(IpcChannel.VertexAI_GetAuthHeaders, async (_, params) => {
     return vertexAIService.getAuthHeaders(params)
@@ -762,13 +695,6 @@ export async function registerIpc(mainWindow: BrowserWindow, app: Electron.App) 
     vertexAIService.clearAuthCache(projectId, clientEmail)
   })
 
-  // mini window
-  ipcMain.handle(IpcChannel.MiniWindow_Show, () => windowService.showMiniWindow())
-  ipcMain.handle(IpcChannel.MiniWindow_Hide, () => windowService.hideMiniWindow())
-  ipcMain.handle(IpcChannel.MiniWindow_Close, () => windowService.closeMiniWindow())
-  ipcMain.handle(IpcChannel.MiniWindow_Toggle, () => windowService.toggleMiniWindow())
-  ipcMain.handle(IpcChannel.MiniWindow_SetPin, (_, isPinned) => windowService.setPinMiniWindow(isPinned))
-
   // aes
   ipcMain.handle(IpcChannel.Aes_Encrypt, (_, text: string, secretKey: string, iv: string) =>
     encrypt(text, secretKey, iv)
@@ -778,24 +704,24 @@ export async function registerIpc(mainWindow: BrowserWindow, app: Electron.App) 
   )
 
   // Register MCP handlers
-  ipcMain.handle(IpcChannel.Mcp_RemoveServer, mcpService.removeServer)
-  ipcMain.handle(IpcChannel.Mcp_RestartServer, mcpService.restartServer)
-  ipcMain.handle(IpcChannel.Mcp_StopServer, mcpService.stopServer)
-  ipcMain.handle(IpcChannel.Mcp_ListTools, mcpService.listTools)
-  ipcMain.handle(IpcChannel.Mcp_CallTool, mcpService.callTool)
-  ipcMain.handle(IpcChannel.Mcp_ListPrompts, mcpService.listPrompts)
-  ipcMain.handle(IpcChannel.Mcp_GetPrompt, mcpService.getPrompt)
-  ipcMain.handle(IpcChannel.Mcp_ListResources, mcpService.listResources)
-  ipcMain.handle(IpcChannel.Mcp_GetResource, mcpService.getResource)
-  ipcMain.handle(IpcChannel.Mcp_GetInstallInfo, mcpService.getInstallInfo)
-  ipcMain.handle(IpcChannel.Mcp_CheckConnectivity, mcpService.checkMcpConnectivity)
-  ipcMain.handle(IpcChannel.Mcp_AbortTool, mcpService.abortTool)
+  ipcMain.handle(IpcChannel.Mcp_RemoveServer, (_e, server) => mcpService.removeServer(server))
+  ipcMain.handle(IpcChannel.Mcp_RestartServer, (_e, server) => mcpService.restartServer(server))
+  ipcMain.handle(IpcChannel.Mcp_StopServer, (_e, server) => mcpService.stopServer(server))
+  ipcMain.handle(IpcChannel.Mcp_ListTools, (_e, server) => mcpService.listTools(server))
+  ipcMain.handle(IpcChannel.Mcp_CallTool, (_e, args) => mcpService.callTool(args))
+  ipcMain.handle(IpcChannel.Mcp_ListPrompts, (_e, server) => mcpService.listPrompts(server))
+  ipcMain.handle(IpcChannel.Mcp_GetPrompt, (_e, args) => mcpService.getPrompt(args))
+  ipcMain.handle(IpcChannel.Mcp_ListResources, (_e, server) => mcpService.listResources(server))
+  ipcMain.handle(IpcChannel.Mcp_GetResource, (_e, args) => mcpService.getResource(args))
+  ipcMain.handle(IpcChannel.Mcp_GetInstallInfo, () => mcpService.getInstallInfo())
+  ipcMain.handle(IpcChannel.Mcp_CheckConnectivity, (_e, server) => mcpService.checkMcpConnectivity(server))
+  ipcMain.handle(IpcChannel.Mcp_AbortTool, (_e, callId) => mcpService.abortTool(callId))
   ipcMain.handle(IpcChannel.Mcp_ResolveHubTool, async (_event, nameOrId: string) => {
     const { resolveHubToolName } = await import('@main/mcpServers/hub/mcp-bridge')
     return resolveHubToolName(nameOrId)
   })
-  ipcMain.handle(IpcChannel.Mcp_GetServerVersion, mcpService.getServerVersion)
-  ipcMain.handle(IpcChannel.Mcp_GetServerLogs, mcpService.getServerLogs)
+  ipcMain.handle(IpcChannel.Mcp_GetServerVersion, (_e, server) => mcpService.getServerVersion(server))
+  ipcMain.handle(IpcChannel.Mcp_GetServerLogs, (_e, server) => mcpService.getServerLogs(server))
 
   // DXT upload handler
   ipcMain.handle(IpcChannel.Mcp_UploadDxt, async (event, fileBuffer: ArrayBuffer, fileName: string) => {
@@ -830,20 +756,20 @@ export async function registerIpc(mainWindow: BrowserWindow, app: Electron.App) 
   ipcMain.handle(IpcChannel.App_InstallOvmsBinary, () => runInstallScript('install-ovms.js'))
 
   //copilot
-  ipcMain.handle(IpcChannel.Copilot_GetAuthMessage, CopilotService.getAuthMessage.bind(CopilotService))
-  ipcMain.handle(IpcChannel.Copilot_GetCopilotToken, CopilotService.getCopilotToken.bind(CopilotService))
-  ipcMain.handle(IpcChannel.Copilot_SaveCopilotToken, CopilotService.saveCopilotToken.bind(CopilotService))
-  ipcMain.handle(IpcChannel.Copilot_GetToken, CopilotService.getToken.bind(CopilotService))
-  ipcMain.handle(IpcChannel.Copilot_Logout, CopilotService.logout.bind(CopilotService))
-  ipcMain.handle(IpcChannel.Copilot_GetUser, CopilotService.getUser.bind(CopilotService))
+  ipcMain.handle(IpcChannel.Copilot_GetAuthMessage, copilotService.getAuthMessage.bind(copilotService))
+  ipcMain.handle(IpcChannel.Copilot_GetCopilotToken, copilotService.getCopilotToken.bind(copilotService))
+  ipcMain.handle(IpcChannel.Copilot_SaveCopilotToken, copilotService.saveCopilotToken.bind(copilotService))
+  ipcMain.handle(IpcChannel.Copilot_GetToken, copilotService.getToken.bind(copilotService))
+  ipcMain.handle(IpcChannel.Copilot_Logout, copilotService.logout.bind(copilotService))
+  ipcMain.handle(IpcChannel.Copilot_GetUser, copilotService.getUser.bind(copilotService))
 
   // CherryIN OAuth
-  ipcMain.handle(IpcChannel.CherryIN_SaveToken, CherryINOAuthService.saveToken.bind(CherryINOAuthService))
-  ipcMain.handle(IpcChannel.CherryIN_HasToken, CherryINOAuthService.hasToken.bind(CherryINOAuthService))
-  ipcMain.handle(IpcChannel.CherryIN_GetBalance, CherryINOAuthService.getBalance.bind(CherryINOAuthService))
-  ipcMain.handle(IpcChannel.CherryIN_Logout, CherryINOAuthService.logout.bind(CherryINOAuthService))
-  ipcMain.handle(IpcChannel.CherryIN_StartOAuthFlow, CherryINOAuthService.startOAuthFlow.bind(CherryINOAuthService))
-  ipcMain.handle(IpcChannel.CherryIN_ExchangeToken, CherryINOAuthService.exchangeToken.bind(CherryINOAuthService))
+  ipcMain.handle(IpcChannel.CherryIN_SaveToken, cherryINOAuthService.saveToken.bind(cherryINOAuthService))
+  ipcMain.handle(IpcChannel.CherryIN_HasToken, cherryINOAuthService.hasToken.bind(cherryINOAuthService))
+  ipcMain.handle(IpcChannel.CherryIN_GetBalance, cherryINOAuthService.getBalance.bind(cherryINOAuthService))
+  ipcMain.handle(IpcChannel.CherryIN_Logout, cherryINOAuthService.logout.bind(cherryINOAuthService))
+  ipcMain.handle(IpcChannel.CherryIN_StartOAuthFlow, cherryINOAuthService.startOAuthFlow.bind(cherryINOAuthService))
+  ipcMain.handle(IpcChannel.CherryIN_ExchangeToken, cherryINOAuthService.exchangeToken.bind(cherryINOAuthService))
 
   // Obsidian service
   ipcMain.handle(IpcChannel.Obsidian_GetVaults, () => {
@@ -895,11 +821,6 @@ export async function registerIpc(mainWindow: BrowserWindow, app: Electron.App) 
 
   // store sync
   storeSyncService.registerIpcHandler()
-
-  // selection assistant
-  SelectionService.registerIpcHandler()
-
-  ipcMain.handle(IpcChannel.App_QuoteToMain, (_, text: string) => windowService.quoteToMainWindow(text))
 
   // ipcMain.handle(IpcChannel.App_SetDisableHardwareAcceleration, (_, isDisable: boolean) => {
   //   configManager.setDisableHardwareAcceleration(isDisable)

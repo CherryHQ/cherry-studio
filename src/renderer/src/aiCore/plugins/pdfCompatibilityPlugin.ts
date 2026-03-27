@@ -7,7 +7,9 @@
 import type { LanguageModelV3FilePart, LanguageModelV3Message } from '@ai-sdk/provider'
 import { definePlugin } from '@cherrystudio/ai-core/core/plugins'
 import { loggerService } from '@logger'
-import type { Provider, ProviderType } from '@renderer/types'
+import { isAnthropicModel, isGeminiModel } from '@renderer/config/models'
+import { isOpenAILLMModel } from '@renderer/config/models/openai'
+import type { Model, Provider, ProviderType } from '@renderer/types'
 import { extractPdfText } from '@shared/utils/pdf'
 import type { LanguageModelMiddleware } from 'ai'
 import i18n from 'i18next'
@@ -17,36 +19,42 @@ const logger = loggerService.withContext('pdfCompatibilityPlugin')
 type ContentPart = Exclude<LanguageModelV3Message['content'], string>[number]
 
 /**
- * Provider types whose API protocol supports native PDF file input.
- * Uses provider.type (API protocol) instead of AI SDK provider ID,
- * because aggregator providers (cherryin, new-api, gateway) resolve to
- * non-standard AI SDK IDs but still speak a protocol that supports PDF.
+ * Provider types whose API natively supports PDF file input.
+ * Only first-party provider protocols (OpenAI, Anthropic, Google) are included.
+ * Aggregators (new-api, gateway) and generic 'openai' type are excluded
+ * because they may route to backends that don't support the 'file' part type.
  */
 const PDF_NATIVE_PROVIDER_TYPES = new Set<ProviderType>([
-  'openai', // OpenAI-compatible API (includes aggregators like cherryin)
   'openai-response', // OpenAI Responses API
   'anthropic', // Anthropic API
   'gemini', // Google Gemini API
   'azure-openai', // Azure OpenAI
   'vertexai', // Google Vertex AI
   'aws-bedrock', // AWS Bedrock
-  'vertex-anthropic', // Vertex AI with Anthropic models
-  'new-api', // new-api aggregator (OpenAI-compatible)
-  'gateway' // Gateway aggregator (OpenAI-compatible)
+  'vertex-anthropic' // Vertex AI with Anthropic models
 ])
 
 function isPdfFilePart(part: ContentPart): part is LanguageModelV3FilePart & { mediaType: 'application/pdf' } {
   return part.type === 'file' && part.mediaType === 'application/pdf'
 }
 
-function pdfCompatibilityMiddleware(provider: Provider): LanguageModelMiddleware {
+function supportsNativePdf(provider: Provider, model: Model): boolean {
+  // OpenAI, Claude, and Gemini models always support native PDF regardless of provider
+  if (isOpenAILLMModel(model) || isAnthropicModel(model) || isGeminiModel(model)) {
+    return true
+  }
+  if (PDF_NATIVE_PROVIDER_TYPES.has(provider.type)) {
+    return true
+  }
+  // TODO: allow user to configure native pdf compatibility for provider/model
+  return false
+}
+
+function pdfCompatibilityMiddleware(provider: Provider, model: Model): LanguageModelMiddleware {
   return {
     specificationVersion: 'v3',
     transformParams: async ({ params }) => {
-      // CherryAI provider doesn't support native PDF input
-      const isCherryAI = provider.id === 'cherryai'
-
-      if (PDF_NATIVE_PROVIDER_TYPES.has(provider.type) && !isCherryAI) {
+      if (supportsNativePdf(provider, model)) {
         return params
       }
 
@@ -95,12 +103,12 @@ function pdfCompatibilityMiddleware(provider: Provider): LanguageModelMiddleware
   }
 }
 
-export const createPdfCompatibilityPlugin = (provider: Provider) =>
+export const createPdfCompatibilityPlugin = (provider: Provider, model: Model) =>
   definePlugin({
     name: 'pdfCompatibility',
     enforce: 'pre',
     configureContext: (context) => {
       context.middlewares = context.middlewares || []
-      context.middlewares.push(pdfCompatibilityMiddleware(provider))
+      context.middlewares.push(pdfCompatibilityMiddleware(provider, model))
     }
   })

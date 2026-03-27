@@ -47,32 +47,12 @@ export interface SearchResult {
 }
 
 export class MemoryService {
-  private static instance: MemoryService | null = null
   private db: Client | null = null
   private isInitialized = false
   private embeddings: Embeddings | null = null
   private config: MemoryConfig | null = null
   private static readonly UNIFIED_DIMENSION = 1536
   private static readonly SIMILARITY_THRESHOLD = 0.85
-
-  private constructor() {
-    // Private constructor to enforce singleton pattern
-  }
-
-  public static getInstance(): MemoryService {
-    if (!MemoryService.instance) {
-      MemoryService.instance = new MemoryService()
-    }
-    return MemoryService.instance
-  }
-
-  public static reload(): MemoryService {
-    if (MemoryService.instance) {
-      void MemoryService.instance.close()
-    }
-    MemoryService.instance = new MemoryService()
-    return MemoryService.instance
-  }
 
   /**
    * Migrate the memory database from the old path to the new path
@@ -860,4 +840,4 @@ export class MemoryService {
   }
 }
 
-export default MemoryService
+export const memoryService = new MemoryService()

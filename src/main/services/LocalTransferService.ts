@@ -1,10 +1,9 @@
 import { loggerService } from '@logger'
+import { application } from '@main/core/application'
 import type { LocalTransferPeer, LocalTransferState } from '@shared/config/types'
 import { IpcChannel } from '@shared/IpcChannel'
 import type { Browser, Service } from 'bonjour-service'
 import Bonjour from 'bonjour-service'
-
-import { windowService } from './WindowService'
 
 const SERVICE_TYPE = 'cherrystudio'
 const SERVICE_PROTOCOL = 'tcp' as const
@@ -16,7 +15,6 @@ type StartDiscoveryOptions = {
 }
 
 class LocalTransferService {
-  private static instance: LocalTransferService
   private bonjour: Bonjour | null = null
   private browser: Browser | null = null
   private services = new Map<string, LocalTransferPeer>()
@@ -24,15 +22,6 @@ class LocalTransferService {
   private lastScanStartedAt?: number
   private lastUpdatedAt = Date.now()
   private lastError?: string
-
-  private constructor() {}
-
-  public static getInstance(): LocalTransferService {
-    if (!LocalTransferService.instance) {
-      LocalTransferService.instance = new LocalTransferService()
-    }
-    return LocalTransferService.instance
-  }
 
   public startDiscovery(options?: StartDiscoveryOptions): LocalTransferState {
     if (options?.resetList) {
@@ -196,7 +185,7 @@ class LocalTransferService {
   }
 
   private broadcastState() {
-    const mainWindow = windowService.getMainWindow()
+    const mainWindow = application.get('WindowService').getMainWindow()
     if (!mainWindow || mainWindow.isDestroyed()) {
       return
     }
@@ -204,4 +193,4 @@ class LocalTransferService {
   }
 }
 
-export const localTransferService = LocalTransferService.getInstance()
+export const localTransferService = new LocalTransferService()

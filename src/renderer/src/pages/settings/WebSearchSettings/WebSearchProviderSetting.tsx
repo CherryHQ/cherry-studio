@@ -14,7 +14,7 @@ import ApiKeyListPopup from '@renderer/components/Popups/ApiKeyListPopup/popup'
 import { WEB_SEARCH_PROVIDER_CONFIG } from '@renderer/config/webSearchProviders'
 import { useTimer } from '@renderer/hooks/useTimer'
 import { useDefaultWebSearchProvider, useWebSearchProvider } from '@renderer/hooks/useWebSearchProviders'
-import WebSearchService from '@renderer/services/WebSearchService'
+import { webSearchService } from '@renderer/services/WebSearchService'
 import type { WebSearchProviderId } from '@renderer/types'
 import { formatApiKeys, hasObjectKey } from '@renderer/utils'
 import { Divider, Form, Input } from 'antd'
@@ -109,7 +109,7 @@ const WebSearchProviderSetting: FC<Props> = ({ providerId }) => {
 
     try {
       setApiChecking(true)
-      const { valid, error } = await WebSearchService.checkSearch(provider)
+      const { valid, error } = await webSearchService.checkSearch(provider)
 
       const errorMessage = error && error?.message ? ' ' + error?.message : ''
       window.toast[valid ? 'success' : 'error']({

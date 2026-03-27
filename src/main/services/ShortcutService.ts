@@ -22,8 +22,6 @@ import type { BrowserWindow } from 'electron'
 import { globalShortcut } from 'electron'
 
 import { configManager } from './ConfigManager'
-import selectionService from './SelectionService'
-import { windowService } from './WindowService'
 const logger = loggerService.withContext('ShortcutService')
 
 let showAppAccelerator: string | null = null
@@ -47,7 +45,7 @@ function getShortcutHandler(shortcut: Shortcut) {
       return (window: BrowserWindow) => handleZoomFactor([window], 0, true)
     case 'show_app':
       return () => {
-        windowService.toggleMainWindow()
+        application.get('WindowService').toggleMainWindow()
       }
     case 'mini_window':
       return () => {
@@ -60,19 +58,15 @@ function getShortcutHandler(shortcut: Shortcut) {
           return
         }
 
-        windowService.toggleMiniWindow()
+        application.get('WindowService').toggleMiniWindow()
       }
     case 'selection_assistant_toggle':
       return () => {
-        if (selectionService) {
-          selectionService.toggleEnabled()
-        }
+        application.get('SelectionService').toggleEnabled()
       }
     case 'selection_assistant_select_text':
       return () => {
-        if (selectionService) {
-          selectionService.processSelectTextByShortcut()
-        }
+        application.get('SelectionService').processSelectTextByShortcut()
       }
     default:
       return null

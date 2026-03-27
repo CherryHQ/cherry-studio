@@ -40,9 +40,12 @@ export class MigrationDbService {
     const dbUrl = pathToFileURL(path.join(app.getPath('userData'), DB_NAME)).href
     const db = drizzle({ connection: { url: dbUrl }, casing: 'snake_case' })
 
-    // WAL mode
+    // Each PRAGMA must be a separate statement — @libsql/client's db.prepare()
+    // only compiles the first statement in a multi-statement string, silently
+    // discarding the rest.
     try {
-      await db.run(sql`PRAGMA journal_mode = WAL; PRAGMA synchronous = NORMAL; PRAGMA foreign_keys = ON`)
+      await db.run(sql`PRAGMA journal_mode = WAL`)
+      await db.run(sql`PRAGMA synchronous = NORMAL`)
       logger.info('WAL mode configured')
     } catch (error) {
       logger.warn('Failed to configure WAL mode', error as Error)
@@ -53,6 +56,14 @@ export class MigrationDbService {
       ? path.join(process.resourcesPath, MIGRATIONS_BASE_PATH)
       : path.join(__dirname, '../../', MIGRATIONS_BASE_PATH)
     await migrate(db, { migrationsFolder })
+
+    // libsql is compiled with SQLITE_DEFAULT_FOREIGN_KEYS=1 (see libsql-ffi/build.rs),
+    // so every new connection has foreign_keys = ON by default. Drizzle's migrate()
+    // also forces foreign_keys = ON in its finally block. Turn it OFF for migration:
+    // bulk inserts with self-referencing FKs (message.parentId → message.id) need FK
+    // disabled. Migration validates data integrity via PRAGMA foreign_key_check after
+    // all migrators complete (see MigrationEngine.verifyForeignKeys).
+    await db.run(sql`PRAGMA foreign_keys = OFF`)
 
     // Custom SQL (triggers, FTS, etc.) — all idempotent
     for (const statement of CUSTOM_SQL_STATEMENTS) {

@@ -156,6 +156,36 @@ application.relaunch()
 application.relaunch({ args: ['--safe-mode'] })
 ```
 
+## App Quit
+
+Always use `application.quit()` or `application.forceExit()` instead of calling `app.quit()` / `app.exit()` directly. An ESLint rule (`no-restricted-properties`) will warn if `app.quit()` or `app.exit()` is used in `src/main/` outside of `Application.ts`.
+
+```typescript
+import { application } from '@main/core/application'
+
+// Graceful quit — triggers the Electron before-quit / will-quit event chain
+application.quit()
+
+// Force exit — skips the event chain, for fatal/unrecoverable errors only
+application.forceExit(1)
+
+// Mark as quitting without triggering quit — for external quit flows (e.g. autoUpdater)
+application.markQuitting()
+
+// Check quit status
+if (application.isQuitting) { /* ... */ }
+```
+
+| Method | Event chain | Use case |
+|--------|-------------|----------|
+| `quit()` | Triggers `before-quit` → `will-quit` | Normal user-initiated quit |
+| `forceExit(code)` | Skipped | Fatal errors, repeated renderer crash |
+| `markQuitting()` | None (flag only) | `autoUpdater.quitAndInstall()` owns its own quit flow |
+
+**Exceptions** (where direct `app.quit()` is acceptable):
+- Before `application` is initialized (e.g., single-instance lock failure in `index.ts`)
+- Migration files (`src/main/data/migration/`) that run before the full app lifecycle
+
 ## The `application` Proxy
 
 The exported `application` constant is a lazy proxy — safe to import at module top level before `bootstrap()` is called. The actual `Application` instance is created on first property access.

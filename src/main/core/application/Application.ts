@@ -21,6 +21,7 @@ export class Application {
   private lifecycleManager: LifecycleManager
   private isBootstrapped = false
   private isShuttingDown = false
+  private _isQuitting = false
 
   private constructor() {
     this.container = ServiceContainer.getInstance()
@@ -176,7 +177,7 @@ export class Application {
 
     if (result.response === 0) {
       logger.info(`User chose to exit due to ${error.serviceName} initialization failure`)
-      app.exit(1)
+      this.forceExit(1)
       return
     }
 
@@ -220,7 +221,7 @@ export class Application {
 
     if (result.response === 2) {
       logger.info('User chose to exit after boot config error')
-      app.exit(1)
+      this.forceExit(1)
       return
     }
 
@@ -311,7 +312,7 @@ export class Application {
     // All windows closed
     app.on('window-all-closed', () => {
       if (!isMac) {
-        void this.shutdown().then(() => app.quit())
+        void this.shutdown().then(() => this.quit())
       }
     })
 
@@ -339,6 +340,45 @@ export class Application {
    */
   public isReady(): boolean {
     return this.isBootstrapped
+  }
+
+  /**
+   * Whether the app is in the process of quitting
+   */
+  public get isQuitting(): boolean {
+    return this._isQuitting
+  }
+
+  /**
+   * Mark the app as quitting without triggering the quit sequence.
+   * Used by autoUpdater.quitAndInstall() which has its own quit flow.
+   */
+  public markQuitting(): void {
+    this._isQuitting = true
+  }
+
+  /**
+   * Graceful quit: set flag then trigger the Electron quit event chain.
+   * The before-quit / will-quit handlers in index.ts handle legacy service cleanup.
+   */
+  public quit(): void {
+    if (this._isQuitting) {
+      logger.warn('Already quitting')
+      return
+    }
+    this._isQuitting = true
+    logger.info('Quitting application...')
+    app.quit()
+  }
+
+  /**
+   * Force exit: skip the Electron event chain entirely.
+   * For fatal/unrecoverable errors (service init failure, repeated renderer crash).
+   */
+  public forceExit(code: number): void {
+    this._isQuitting = true
+    logger.warn(`Force exiting application with code ${code}`)
+    app.exit(code)
   }
 
   // ============================================================================

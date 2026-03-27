@@ -1,7 +1,7 @@
 {
   "version": "6",
   "dialect": "sqlite",
-  "id": "d4554272-b7ac-4cac-a8db-f1ba7c0039b2",
+  "id": "f549775f-a5bd-4102-b5db-60a97e156387",
   "prevId": "2eac4614-db61-4509-ab3a-962b57396871",
   "tables": {
     "app_state": {
@@ -106,225 +106,6 @@
       "foreignKeys": {},
       "compositePrimaryKeys": {},
       "uniqueConstraints": {},
-      "checkConstraints": {}
-    },
-    "knowledge_base": {
-      "name": "knowledge_base",
-      "columns": {
-        "id": {
-          "name": "id",
-          "type": "text",
-          "primaryKey": true,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "name": {
-          "name": "name",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "description": {
-          "name": "description",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
-        },
-        "dimensions": {
-          "name": "dimensions",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "embedding_model_id": {
-          "name": "embedding_model_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "rerank_model_id": {
-          "name": "rerank_model_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
-        },
-        "file_processor_id": {
-          "name": "file_processor_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
-        },
-        "chunk_size": {
-          "name": "chunk_size",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
-        },
-        "chunk_overlap": {
-          "name": "chunk_overlap",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
-        },
-        "threshold": {
-          "name": "threshold",
-          "type": "real",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
-        },
-        "document_count": {
-          "name": "document_count",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
-        },
-        "search_mode": {
-          "name": "search_mode",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
-        },
-        "hybrid_alpha": {
-          "name": "hybrid_alpha",
-          "type": "real",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
-        },
-        "created_at": {
-          "name": "created_at",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
-        },
-        "updated_at": {
-          "name": "updated_at",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
-        }
-      },
-      "indexes": {},
-      "foreignKeys": {},
-      "compositePrimaryKeys": {},
-      "uniqueConstraints": {},
-      "checkConstraints": {}
-    },
-    "knowledge_item": {
-      "name": "knowledge_item",
-      "columns": {
-        "id": {
-          "name": "id",
-          "type": "text",
-          "primaryKey": true,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "base_id": {
-          "name": "base_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "parent_id": {
-          "name": "parent_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
-        },
-        "type": {
-          "name": "type",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "data": {
-          "name": "data",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "status": {
-          "name": "status",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false,
-          "default": "'idle'"
-        },
-        "error": {
-          "name": "error",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
-        },
-        "created_at": {
-          "name": "created_at",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
-        },
-        "updated_at": {
-          "name": "updated_at",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
-        }
-      },
-      "indexes": {
-        "knowledge_item_base_parent_created_idx": {
-          "name": "knowledge_item_base_parent_created_idx",
-          "columns": ["base_id", "parent_id", "created_at"],
-          "isUnique": false
-        }
-      },
-      "foreignKeys": {
-        "knowledge_item_base_id_knowledge_base_id_fk": {
-          "name": "knowledge_item_base_id_knowledge_base_id_fk",
-          "tableFrom": "knowledge_item",
-          "tableTo": "knowledge_base",
-          "columnsFrom": ["base_id"],
-          "columnsTo": ["id"],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
-        },
-        "knowledge_item_base_id_parent_id_knowledge_item_base_id_id_fk": {
-          "name": "knowledge_item_base_id_parent_id_knowledge_item_base_id_id_fk",
-          "tableFrom": "knowledge_item",
-          "tableTo": "knowledge_item",
-          "columnsFrom": ["base_id", "parent_id"],
-          "columnsTo": ["base_id", "id"],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
-        }
-      },
-      "compositePrimaryKeys": {},
-      "uniqueConstraints": {
-        "knowledge_item_base_id_id_unique": {
-          "name": "knowledge_item_base_id_id_unique",
-          "columns": ["base_id", "id"]
-        }
-      },
       "checkConstraints": {}
     },
     "mcp_server": {
@@ -547,6 +328,14 @@
           "primaryKey": false,
           "notNull": false,
           "autoincrement": false
+        },
+        "sort_order": {
+          "name": "sort_order",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false,
+          "default": 0
         }
       },
       "indexes": {
@@ -558,6 +347,11 @@
         "mcp_server_is_active_idx": {
           "name": "mcp_server_is_active_idx",
           "columns": ["is_active"],
+          "isUnique": false
+        },
+        "mcp_server_sort_order_idx": {
+          "name": "mcp_server_sort_order_idx",
+          "columns": ["sort_order"],
           "isUnique": false
         }
       },
