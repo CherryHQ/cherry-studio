@@ -543,7 +543,7 @@ export class ChatMigrator extends BaseMigrator {
       oldTopic.assistantId = assistantId
     }
 
-    // Validate assistantId FK — set to null if orphaned
+    // Validate assistantId FK — clear if orphaned (transformTopic coerces '' to null via || null)
     if (assistantId && this.validAssistantIds && !this.validAssistantIds.has(assistantId)) {
       logger.warn(`Topic ${oldTopic.id}: assistant ${assistantId} not found in assistant table, setting to null`)
       oldTopic.assistantId = ''

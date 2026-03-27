@@ -84,8 +84,8 @@ export const AssistantSchema = z.object({
   /** Ordered knowledge base IDs linked through assistant_knowledge_base */
   knowledgeBaseIds: z.array(z.string()),
   /** Creation timestamp (ISO string) */
-  createdAt: z.iso.datetime(),
+  createdAt: z.iso.datetime().optional(),
   /** Last update timestamp (ISO string) */
-  updatedAt: z.iso.datetime()
+  updatedAt: z.iso.datetime().optional()
 })
 export type Assistant = z.infer<typeof AssistantSchema>

@@ -137,14 +137,14 @@ export class AssistantDataService {
     const whereClause = and(...conditions)
 
     const [rows, [{ count }]] = await Promise.all([
-      this.db.select().from(assistantTable).where(whereClause),
+      this.db.select().from(assistantTable).where(whereClause).orderBy(asc(assistantTable.createdAt)),
       this.db.select({ count: sql<number>`count(*)` }).from(assistantTable).where(whereClause)
     ])
     const relations = await this.getRelationIdsByAssistantIds(rows.map((row) => row.id))
 
     return {
       items: rows.map((row) => rowToAssistant(row, relations.get(row.id))),
-      total: count,
+      total: Number(count),
       page: 1
     }
   }

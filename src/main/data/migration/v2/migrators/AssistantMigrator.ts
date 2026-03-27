@@ -139,11 +139,15 @@ export class AssistantMigrator extends BaseMigrator {
         // Remap mcpServer junction rows using oldId → newId mapping from McpServerMigrator.
         // Legacy assistant data references old-format IDs (e.g. @scope/server)
         // that were regenerated as new UUIDs by McpServerMigrator.
-        const mcpServerIdMapping = (ctx.sharedData.get('mcpServerIdMapping') as Map<string, string>) ?? new Map()
         const allMcpServerRows = this.preparedResults.flatMap((r) => r.mcpServers)
+        const mcpServerIdMapping = ctx.sharedData.get('mcpServerIdMapping') as Map<string, string> | undefined
+        if (!mcpServerIdMapping && allMcpServerRows.length > 0) {
+          logger.warn('mcpServerIdMapping not found in sharedData — all assistant_mcp_server rows will be dropped')
+        }
+        const resolvedMapping = mcpServerIdMapping ?? new Map<string, string>()
         const mcpServerRows = allMcpServerRows
           .map((row) => {
-            const newId = mcpServerIdMapping.get(row.mcpServerId)
+            const newId = resolvedMapping.get(row.mcpServerId)
             if (newId) return { ...row, mcpServerId: newId }
             logger.warn(
               `Dropping dangling assistant_mcp_server ref: assistant=${row.assistantId}, mcpServer=${row.mcpServerId}`

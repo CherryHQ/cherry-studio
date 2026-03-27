@@ -958,6 +958,9 @@ export function buildMessageTree(
 
   if (messages.length === 0) return result
 
+  // Build set of known message IDs for askId validation
+  const knownIds = new Set(messages.map((m) => m.id))
+
   // Track askId → siblingsGroupId mapping
   // Each unique askId with multiple responses gets a unique siblingsGroupId
   const askIdToGroupId = new Map<string, number>()
@@ -987,7 +990,7 @@ export function buildMessageTree(
     let parentId: string | null = null
     let siblingsGroupId = 0
 
-    if (msg.askId && askIdToGroupId.has(msg.askId)) {
+    if (msg.askId && askIdToGroupId.has(msg.askId) && knownIds.has(msg.askId)) {
       // This is part of a multi-model response group
       parentId = msg.askId // Parent is the user message
       siblingsGroupId = askIdToGroupId.get(msg.askId)!
