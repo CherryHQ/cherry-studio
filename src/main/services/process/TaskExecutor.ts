@@ -48,6 +48,18 @@ export class TaskExecutor {
   private workerCounter = 0
   private shuttingDown = false
 
+  get workerCount(): number {
+    return this.workers.size
+  }
+
+  get pendingCount(): number {
+    return this.pendingTasks.size
+  }
+
+  get queueLength(): number {
+    return this.taskQueue.length
+  }
+
   constructor(pm: ProcessManager, options: TaskExecutorOptions) {
     this.id = options.id
     this.pm = pm
@@ -299,15 +311,15 @@ export class TaskExecutor {
 
       current.handle
         .stop()
-        .then(() => {
+        .catch((err: unknown) => {
+          this.logger.error(`Failed to stop idle worker '${workerId}'`, err as Error)
+        })
+        .finally(() => {
           try {
             this.pm.unregister(workerId)
           } catch (err) {
             this.logger.error(`Failed to unregister idle worker '${workerId}'`, err as Error)
           }
-        })
-        .catch((err: unknown) => {
-          this.logger.error(`Failed to stop idle worker '${workerId}'`, err as Error)
         })
     }, this.options.idleTimeoutMs)
   }

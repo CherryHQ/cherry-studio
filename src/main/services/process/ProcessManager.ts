@@ -50,11 +50,11 @@ export class ProcessManager extends BaseService {
   }
 
   on<K extends keyof ProcessManagerEvents>(event: K, listener: ProcessManagerEvents[K]): void {
-    this.emitter.on(event, listener as (...args: any[]) => void)
+    this.emitter.on(event, listener)
   }
 
   off<K extends keyof ProcessManagerEvents>(event: K, listener: ProcessManagerEvents[K]): void {
-    this.emitter.off(event, listener as (...args: any[]) => void)
+    this.emitter.off(event, listener)
   }
 
   protected async onInit(): Promise<void> {
