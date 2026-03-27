@@ -265,9 +265,9 @@ export class MigrationEngine {
       { table: topicTable, name: 'topic' },
       { table: mcpServerTable, name: 'mcp_server' },
       { table: preferenceTable, name: 'preference' },
-      { table: knowledgeItemTable, name: 'knowledge_item' }, // Must clear before knowledge_base (FK reference)
       { table: translateHistoryTable, name: 'translate_history' },
       { table: translateLanguageTable, name: 'translate_language' },
+      { table: knowledgeItemTable, name: 'knowledge_item' }, // Must clear before knowledge_base (FK reference)
       { table: knowledgeBaseTable, name: 'knowledge_base' }
       // TODO: Add these when tables are created
       // { table: assistantTable, name: 'assistant' },
@@ -289,9 +289,9 @@ export class MigrationEngine {
     await db.delete(topicTable)
     await db.delete(mcpServerTable)
     await db.delete(preferenceTable)
-    await db.delete(knowledgeItemTable)
     await db.delete(translateHistoryTable)
     await db.delete(translateLanguageTable)
+    await db.delete(knowledgeItemTable)
     // Knowledge items reference knowledge bases
     await db.delete(knowledgeBaseTable)
     // TODO: Add these when tables are created (in correct order)
