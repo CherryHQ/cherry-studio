@@ -18,7 +18,11 @@
  * The system uses strict mode - conflicts will cause errors at runtime.
  */
 
-import { flattenCompressionConfig, migrateWebSearchProviders } from '../transformers/PreferenceTransformers'
+import {
+  flattenCompressionConfig,
+  migrateWebSearchProviders,
+  toMemoryModelUniqueIds
+} from '../transformers/PreferenceTransformers'
 import { transformCodeCli } from './CodeCliTransforms'
 import { mergeFileProcessingOverrides } from './FileProcessingOverrideMappings'
 
@@ -126,6 +130,18 @@ export const COMPLEX_PREFERENCE_MAPPINGS: ComplexMapping[] = [
     },
     targetKeys: ['feature.code_cli.overrides'],
     transform: transformCodeCli
+  },
+
+  // Memory model config flattening (llmModel + embeddingModel → UniqueModelId)
+  {
+    id: 'memory_model_unique_ids',
+    description: 'Flatten memory model references into UniqueModelId preference keys',
+    sources: {
+      llmModel: { source: 'redux', category: 'memory', key: 'memoryConfig.llmModel' },
+      embeddingModel: { source: 'redux', category: 'memory', key: 'memoryConfig.embeddingModel' }
+    },
+    targetKeys: ['feature.memory.llm_model_id', 'feature.memory.embedding_model_id'],
+    transform: toMemoryModelUniqueIds
   },
 
   // File processing overrides merging

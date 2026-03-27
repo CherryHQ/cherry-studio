@@ -3,15 +3,24 @@ import { getStoreProviders } from '@renderer/hooks/useStore'
 import type { MemoryConfig } from '@renderer/types'
 import type { PreferenceDefaultScopeType, PreferenceKeyType } from '@shared/data/preference/preferenceTypes'
 
+const UNIQUE_MODEL_ID_SEPARATOR = '::'
+
+function parseUniqueModelId(uniqueId: string): { providerId: string; modelId: string } | null {
+  const idx = uniqueId.indexOf(UNIQUE_MODEL_ID_SEPARATOR)
+  if (idx === -1) return null
+  return {
+    providerId: uniqueId.slice(0, idx),
+    modelId: uniqueId.slice(idx + UNIQUE_MODEL_ID_SEPARATOR.length)
+  }
+}
+
 export type MemoryPreferenceValues = {
   embeddingDimensions: number
   isAutoDimensions: boolean
   customFactExtractionPrompt: string
   customUpdateMemoryPrompt: string
   llmModelId: string | null
-  llmModelProvider: string | null
   embeddingModelId: string | null
-  embeddingModelProvider: string | null
 }
 
 export const MEMORY_PREFERENCE_KEYS = {
@@ -20,9 +29,7 @@ export const MEMORY_PREFERENCE_KEYS = {
   customFactExtractionPrompt: 'feature.memory.fact_extraction_prompt',
   customUpdateMemoryPrompt: 'feature.memory.update_memory_prompt',
   llmModelId: 'feature.memory.llm_model_id',
-  llmModelProvider: 'feature.memory.llm_model_provider',
-  embeddingModelId: 'feature.memory.embedding_model_id',
-  embeddingModelProvider: 'feature.memory.embedding_model_provider'
+  embeddingModelId: 'feature.memory.embedding_model_id'
 } as const satisfies Record<string, PreferenceKeyType>
 
 export async function getMemoryPreferenceValues(): Promise<MemoryPreferenceValues> {
@@ -32,11 +39,16 @@ export async function getMemoryPreferenceValues(): Promise<MemoryPreferenceValue
 export function resolveMemoryConfig(values: MemoryPreferenceValues): MemoryConfig {
   const providers = getStoreProviders()
   const allModels = providers.flatMap((provider) => provider.models)
-  const findModel = (id: string | null, provider: string | null) =>
-    id && provider ? allModels.find((model) => model.id === id && model.provider === provider) : undefined
 
-  const llmModel = findModel(values.llmModelId, values.llmModelProvider)
-  const embeddingModel = findModel(values.embeddingModelId, values.embeddingModelProvider)
+  const findModelByUniqueId = (uniqueId: string | null) => {
+    if (!uniqueId) return undefined
+    const parsed = parseUniqueModelId(uniqueId)
+    if (!parsed) return undefined
+    return allModels.find((model) => model.id === parsed.modelId && model.provider === parsed.providerId)
+  }
+
+  const llmModel = findModelByUniqueId(values.llmModelId)
+  const embeddingModel = findModelByUniqueId(values.embeddingModelId)
 
   return {
     embeddingDimensions: values.isAutoDimensions ? undefined : values.embeddingDimensions,
@@ -54,11 +66,14 @@ export async function getMemoryConfigFromPreferences(): Promise<MemoryConfig> {
 }
 
 export async function setMemoryConfigToPreferences(memoryConfig: MemoryConfig): Promise<void> {
+  const buildUniqueModelId = (model?: { id: string; provider: string } | null): string | null => {
+    if (!model?.id || !model?.provider) return null
+    return `${model.provider}${UNIQUE_MODEL_ID_SEPARATOR}${model.id}`
+  }
+
   const modelUpdates = {
-    'feature.memory.llm_model_id': memoryConfig.llmModel?.id ?? null,
-    'feature.memory.llm_model_provider': memoryConfig.llmModel?.provider ?? null,
-    'feature.memory.embedding_model_id': memoryConfig.embeddingModel?.id ?? null,
-    'feature.memory.embedding_model_provider': memoryConfig.embeddingModel?.provider ?? null
+    'feature.memory.llm_model_id': buildUniqueModelId(memoryConfig.llmModel),
+    'feature.memory.embedding_model_id': buildUniqueModelId(memoryConfig.embeddingModel)
   } as const
 
   const updates: Partial<PreferenceDefaultScopeType> = {
