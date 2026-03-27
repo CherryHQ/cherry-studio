@@ -8,7 +8,7 @@ vi.mock('@main/knowledge/embedjs/embeddings/Embeddings', () => ({
   }))
 }))
 
-import MemoryService from '../MemoryService'
+import { memoryService } from '../MemoryService'
 
 // Chainable mock db builder
 function createMockDb() {
@@ -95,26 +95,12 @@ vi.mock('@main/core/application', () => ({
 }))
 
 describe('MemoryService', () => {
-  let service: MemoryService
+  const service = memoryService
 
   beforeEach(() => {
     vi.clearAllMocks()
     mockDb = createMockDb()
-    service = MemoryService.reload()
-  })
-
-  describe('singleton', () => {
-    it('should return same instance from getInstance', () => {
-      const a = MemoryService.getInstance()
-      const b = MemoryService.getInstance()
-      expect(a).toBe(b)
-    })
-
-    it('should return new instance from reload', () => {
-      const a = MemoryService.getInstance()
-      const b = MemoryService.reload()
-      expect(a).not.toBe(b)
-    })
+    service.setConfig({} as any)
   })
 
   describe('migrateMemoryDb', () => {

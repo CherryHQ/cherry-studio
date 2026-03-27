@@ -45,26 +45,10 @@ type MemoryDbRow = typeof memoryTable.$inferSelect
 type MemoryHistoryDbRow = typeof memoryHistoryTable.$inferSelect
 
 export class MemoryService {
-  private static instance: MemoryService | null = null
   private embeddings: Embeddings | null = null
   private config: MemoryConfig | null = null
   private static readonly UNIFIED_DIMENSION = 1536
   private static readonly SIMILARITY_THRESHOLD = 0.85
-
-  private constructor() {}
-
-  public static getInstance(): MemoryService {
-    if (!MemoryService.instance) {
-      MemoryService.instance = new MemoryService()
-    }
-    return MemoryService.instance
-  }
-
-  public static reload(): MemoryService {
-    MemoryService.instance = new MemoryService()
-    return MemoryService.instance
-  }
-
 
   /**
    * Legacy noop kept for renderer compatibility.
