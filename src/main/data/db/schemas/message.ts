@@ -1,5 +1,4 @@
 import type { MessageData, MessageStats } from '@shared/data/types/message'
-import type { AssistantMeta, ModelMeta } from '@shared/data/types/meta'
 import { sql } from 'drizzle-orm'
 import { check, foreignKey, index, integer, sqliteTable, text } from 'drizzle-orm/sqlite-core'
 
@@ -35,16 +34,8 @@ export const messageTable = sqliteTable(
 
     // Group ID for siblings (0 = normal branch)
     siblingsGroupId: integer().default(0),
-    // FK to assistant
-    assistantId: text(),
-    // Preserved assistant info for display
-    assistantMeta: text({ mode: 'json' }).$type<AssistantMeta>(),
     // Model identifier
     modelId: text(),
-    // Preserved model info (provider, name)
-    modelMeta: text({ mode: 'json' }).$type<ModelMeta>(),
-    // Trace ID for tracking
-
     traceId: text(),
     // Statistics: token usage, performance metrics, etc.
     stats: text({ mode: 'json' }).$type<MessageStats>(),

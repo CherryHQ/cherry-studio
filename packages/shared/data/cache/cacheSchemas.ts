@@ -147,6 +147,9 @@ export type UseCacheSchema = {
   /** Whether translating input text */
   'translate.translating': CacheValueTypes.TranslatingState
 
+  // Assistant reasoning effort cache (per-assistant, not persisted to DB)
+  'assistant.reasoning_effort_cache.${assistantId}': string | undefined
+
   // Template key examples (for testing and demonstration)
   'scroll.position.${topicId}': number
   'entity.cache.${type}_${id}': { loaded: boolean; data: unknown }
@@ -212,6 +215,9 @@ export const DefaultUseCache: UseCacheSchema = {
     isTranslating: false,
     abortKey: null
   },
+
+  // Assistant reasoning effort cache
+  'assistant.reasoning_effort_cache.${assistantId}': undefined,
 
   // Template key examples (for testing and demonstration)
   'scroll.position.${topicId}': 0,

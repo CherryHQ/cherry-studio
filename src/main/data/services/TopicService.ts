@@ -29,8 +29,6 @@ function rowToTopic(row: typeof topicTable.$inferSelect): Topic {
     name: row.name,
     isNameManuallyEdited: row.isNameManuallyEdited ?? false,
     assistantId: row.assistantId,
-    assistantMeta: row.assistantMeta,
-    prompt: row.prompt,
     activeNodeId: row.activeNodeId,
     groupId: row.groupId,
     sortOrder: row.sortOrder ?? 0,
@@ -81,7 +79,6 @@ export class TopicService {
         .values({
           name: dto.name,
           assistantId: dto.assistantId,
-          assistantMeta: dto.assistantMeta,
           prompt: dto.prompt,
           groupId: dto.groupId
         })
@@ -105,10 +102,7 @@ export class TopicService {
             data: message.data,
             status: message.status,
             siblingsGroupId: 0, // Simplify multi-model to normal node
-            assistantId: message.assistantId,
-            assistantMeta: message.assistantMeta,
             modelId: message.modelId,
-            modelMeta: message.modelMeta,
             traceId: null,
             stats: null
           })
@@ -135,7 +129,6 @@ export class TopicService {
         .values({
           name: dto.name,
           assistantId: dto.assistantId,
-          assistantMeta: dto.assistantMeta,
           prompt: dto.prompt,
           groupId: dto.groupId
         })
@@ -162,7 +155,6 @@ export class TopicService {
     if (dto.name !== undefined) updates.name = dto.name
     if (dto.isNameManuallyEdited !== undefined) updates.isNameManuallyEdited = dto.isNameManuallyEdited
     if (dto.assistantId !== undefined) updates.assistantId = dto.assistantId
-    if (dto.assistantMeta !== undefined) updates.assistantMeta = dto.assistantMeta
     if (dto.prompt !== undefined) updates.prompt = dto.prompt
     if (dto.groupId !== undefined) updates.groupId = dto.groupId
     if (dto.sortOrder !== undefined) updates.sortOrder = dto.sortOrder

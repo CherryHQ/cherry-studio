@@ -28,18 +28,18 @@
         },
         {
           "originalKey": "tagsOrder",
-          "type": "string",
+          "type": "string[]",
           "defaultValue": [],
-          "status": "pending",
-          "category": null,
-          "targetKey": null
+          "status": "classified",
+          "category": "preferences",
+          "targetKey": "ui.assistant.tags_order"
         },
         {
           "originalKey": "collapsedTags",
           "type": "object",
           "defaultValue": {},
-          "status": "pending",
-          "category": null,
+          "status": "classified",
+          "category": "cache",
           "targetKey": null
         },
         {

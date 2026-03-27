@@ -66,10 +66,7 @@ function rowToMessage(row: typeof messageTable.$inferSelect): Message {
     searchableText: row.searchableText,
     status: row.status as Message['status'],
     siblingsGroupId: row.siblingsGroupId ?? 0,
-    assistantId: row.assistantId,
-    assistantMeta: parseJson(row.assistantMeta),
     modelId: row.modelId,
-    modelMeta: parseJson(row.modelMeta),
     traceId: row.traceId,
     stats: parseJson(row.stats),
     createdAt: row.createdAt ? new Date(row.createdAt).toISOString() : new Date().toISOString(),
@@ -103,7 +100,6 @@ function messageToTreeNode(message: Message, hasChildren: boolean): TreeNode {
     role: message.role === 'system' ? 'assistant' : message.role,
     preview: extractPreview(message),
     modelId: message.modelId,
-    modelMeta: message.modelMeta,
     status: message.status,
     createdAt: message.createdAt,
     hasChildren
@@ -571,10 +567,7 @@ export class MessageService {
           data: dto.data,
           status: dto.status ?? 'pending',
           siblingsGroupId: dto.siblingsGroupId ?? 0,
-          assistantId: dto.assistantId,
-          assistantMeta: dto.assistantMeta,
           modelId: dto.modelId,
-          modelMeta: dto.modelMeta,
           traceId: dto.traceId,
           stats: dto.stats
         })

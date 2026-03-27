@@ -8,21 +8,10 @@
 import { terminalApps } from '@shared/config/constant'
 import { CODE_CLI_IDS, type CodeCliOverride, type CodeCliOverrides } from '@shared/data/preference/preferenceTypes'
 
+import { buildCompositeModelId } from '../../utils/modelIdUtils'
 import type { TransformResult } from './ComplexPreferenceMappings'
 
 const VALID_CLI_IDS = new Set<string>(CODE_CLI_IDS)
-
-/**
- * Build a composite model ID in `providerId::modelId` format.
- * Returns null if either part is missing or not a string.
- */
-function buildCompositeModelId(model: Record<string, unknown>): string | null {
-  const providerId = typeof model.provider === 'string' ? model.provider.trim() : ''
-  const modelId = typeof model.id === 'string' ? model.id.trim() : ''
-
-  if (!providerId || !modelId) return null
-  return `${providerId}::${modelId}`
-}
 
 /**
  * Extract composite model IDs from a Record of full Model objects.

@@ -54,7 +54,6 @@ export const DEFAULT_ASSISTANT_SETTINGS = {
   defaultModel: undefined,
   customParameters: [],
   reasoning_effort: 'default',
-  reasoning_effort_cache: undefined,
   qwenThinkMode: undefined,
   // It would gracefully fallback to prompt if not supported by model.
   toolUseMode: 'function',

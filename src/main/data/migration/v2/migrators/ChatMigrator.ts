@@ -37,9 +37,9 @@
  *    - Old: Separate `CitationMessageBlock`
  *    - New: Merged into `MainTextBlock.references` as ContentReference[]
  *
- * 5. **Mention Migration**
+ * 5. **Mentions Dropped**
  *    - Old: `message.mentions: Model[]`
- *    - New: `MentionReference[]` in `MainTextBlock.references`
+ *    - New: Not migrated — derivable from sibling responses' modelId + siblingsGroupId
  *
  * ## Performance Considerations
  *
@@ -90,7 +90,7 @@ const TOPIC_BATCH_SIZE = 50
 const MESSAGE_INSERT_BATCH_SIZE = 100
 
 /**
- * Assistant data from Redux for generating AssistantMeta
+ * Assistant data from Redux for assistant lookup
  */
 interface AssistantState {
   assistants: OldAssistant[]
@@ -121,6 +121,8 @@ export class ChatMigrator extends BaseMigrator {
   private topicAssistantLookup: Map<string, string> = new Map()
   private skippedTopics = 0
   private skippedMessages = 0
+  // Valid assistant IDs from AssistantMigrator (for FK validation)
+  private validAssistantIds: Set<string> | null = null
   // Track seen message IDs to handle duplicates across topics
   private seenMessageIds = new Set<string>()
   // Block statistics for diagnostics
@@ -165,7 +167,7 @@ export class ChatMigrator extends BaseMigrator {
         logger.info(`Loaded ${this.blockLookup.size} blocks into lookup map`)
       }
 
-      // Step 3: Load assistant data for generating AssistantMeta
+      // Step 3: Load assistant data for model lookup
       // Also extract topic metadata from assistants (Redux stores topic metadata in assistants.topics[])
       const assistantState = ctx.sources.reduxState.getCategory<AssistantState>('assistants')
       if (assistantState?.assistants) {
@@ -264,6 +266,9 @@ export class ChatMigrator extends BaseMigrator {
     try {
       const db = ctx.db
       const topicReader = ctx.sources.dexieExport.createStreamReader('topics')
+
+      // Load valid assistant IDs for FK validation
+      this.validAssistantIds = (ctx.sharedData.get('assistantIds') as Set<string>) ?? null
 
       // Process topics in batches
       await topicReader.readInBatches<OldTopic>(TOPIC_BATCH_SIZE, async (topics, batchIndex) => {
@@ -538,6 +543,12 @@ export class ChatMigrator extends BaseMigrator {
       oldTopic.assistantId = assistantId
     }
 
+    // Validate assistantId FK — set to null if orphaned
+    if (assistantId && this.validAssistantIds && !this.validAssistantIds.has(assistantId)) {
+      logger.warn(`Topic ${oldTopic.id}: assistant ${assistantId} not found in assistant table, setting to null`)
+      oldTopic.assistantId = ''
+    }
+
     // Get assistant for meta generation
     const assistant = this.assistantLookup.get(assistantId) || null
 
@@ -618,15 +629,11 @@ export class ChatMigrator extends BaseMigrator {
         // Resolve parentId through any skipped messages
         const resolvedParentId = resolveParentId(treeInfo.parentId)
 
-        // Get assistant for this message (may differ from topic's assistant)
-        const msgAssistant = this.assistantLookup.get(oldMsg.assistantId) || assistant
-
         const newMsg = transformMessage(
           oldMsg,
           resolvedParentId, // Use resolved parent instead of original
           treeInfo.siblingsGroupId,
           blocks,
-          msgAssistant,
           oldTopic.id
         )
 

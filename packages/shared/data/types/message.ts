@@ -349,8 +349,6 @@ export type MessageDataBlock =
 // Message Entity Types
 // ============================================================================
 
-import type { AssistantMeta, ModelMeta } from './meta'
-
 /**
  * Message role - user, assistant, or system
  */
@@ -385,14 +383,8 @@ export interface Message {
   status: MessageStatus
   /** Siblings group ID (0 = normal branch, >0 = multi-model response group) */
   siblingsGroupId: number
-  /** Assistant ID */
-  assistantId?: string | null
-  /** Preserved assistant info for display */
-  assistantMeta?: AssistantMeta | null
   /** Model identifier */
   modelId?: string | null
-  /** Preserved model info (provider, name) */
-  modelMeta?: ModelMeta | null
   /** Trace ID for tracking */
   traceId?: string | null
   /** Statistics: token usage, performance metrics */
@@ -422,8 +414,6 @@ export interface TreeNode {
   preview: string
   /** Model identifier */
   modelId?: string | null
-  /** Model display info */
-  modelMeta?: ModelMeta | null
   /** Message status */
   status: MessageStatus
   /** Creation timestamp (ISO string) */

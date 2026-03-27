@@ -1,0 +1,206 @@
+/**
+ * Assistant Service - handles assistant CRUD operations
+ *
+ * Provides business logic for:
+ * - Assistant CRUD operations
+ * - Listing with optional filters
+ */
+
+import { assistantTable } from '@data/db/schemas/assistant'
+import {
+  assistantKnowledgeBaseTable,
+  assistantMcpServerTable,
+  assistantModelTable
+} from '@data/db/schemas/assistantRelations'
+import type { DbType } from '@data/db/types'
+import { loggerService } from '@logger'
+import { application } from '@main/core/application'
+import { DataApiErrorFactory } from '@shared/data/api'
+import type { CreateAssistantDto, ListAssistantsQuery, UpdateAssistantDto } from '@shared/data/api/schemas/assistants'
+import type { Assistant } from '@shared/data/types/assistant'
+import { and, eq, isNull, type SQL, sql } from 'drizzle-orm'
+
+import { stripNulls } from './utils'
+
+const logger = loggerService.withContext('DataApi:AssistantService')
+
+/**
+ * Convert database row to Assistant entity
+ */
+function rowToAssistant(row: typeof assistantTable.$inferSelect): Assistant {
+  const clean = stripNulls(row)
+  return {
+    ...clean,
+    mcpMode: clean.mcpMode as Assistant['mcpMode'],
+    createdAt: row.createdAt ? new Date(row.createdAt).toISOString() : new Date().toISOString(),
+    updatedAt: row.updatedAt ? new Date(row.updatedAt).toISOString() : new Date().toISOString()
+  }
+}
+
+export class AssistantDataService {
+  private get db() {
+    return application.get('DbService').getDb()
+  }
+
+  /**
+   * Get an assistant by ID
+   */
+  async getById(id: string): Promise<Assistant> {
+    const [row] = await this.db
+      .select()
+      .from(assistantTable)
+      .where(and(eq(assistantTable.id, id), isNull(assistantTable.deletedAt)))
+      .limit(1)
+
+    if (!row) {
+      throw DataApiErrorFactory.notFound('Assistant', id)
+    }
+
+    return rowToAssistant(row)
+  }
+
+  /**
+   * List assistants with optional filters
+   */
+  async list(query: ListAssistantsQuery): Promise<{ items: Assistant[]; total: number; page: number }> {
+    const conditions: SQL[] = [isNull(assistantTable.deletedAt)]
+    if (query.id !== undefined) {
+      conditions.push(eq(assistantTable.id, query.id))
+    }
+
+    const whereClause = and(...conditions)
+
+    const [rows, [{ count }]] = await Promise.all([
+      this.db.select().from(assistantTable).where(whereClause),
+      this.db.select({ count: sql<number>`count(*)` }).from(assistantTable).where(whereClause)
+    ])
+
+    return {
+      items: rows.map(rowToAssistant),
+      total: count,
+      page: 1
+    }
+  }
+
+  /**
+   * Create a new assistant
+   */
+  async create(dto: CreateAssistantDto): Promise<Assistant> {
+    this.validateName(dto.name)
+
+    const row = await this.db.transaction(async (tx) => {
+      const [inserted] = await tx
+        .insert(assistantTable)
+        .values({
+          name: dto.name,
+          prompt: dto.prompt,
+          emoji: dto.emoji,
+          description: dto.description,
+          settings: dto.settings,
+          mcpMode: dto.mcpMode,
+          enableWebSearch: dto.enableWebSearch ?? false,
+          enableMemory: dto.enableMemory ?? false
+        })
+        .returning()
+
+      // Insert junction table rows
+      await this.syncRelations(tx, inserted.id, dto)
+
+      return inserted
+    })
+
+    logger.info('Created assistant', { id: row.id, name: row.name })
+
+    return rowToAssistant(row)
+  }
+
+  /**
+   * Update an existing assistant
+   */
+  async update(id: string, dto: UpdateAssistantDto): Promise<Assistant> {
+    await this.getById(id)
+
+    if (dto.name !== undefined) {
+      this.validateName(dto.name)
+    }
+
+    // Strip relation fields — these are synced to junction tables, not assistant columns
+    const { modelIds, mcpServerIds, knowledgeBaseIds, ...columnFields } = dto
+    const updates = Object.fromEntries(Object.entries(columnFields).filter(([, v]) => v !== undefined)) as Partial<
+      typeof assistantTable.$inferInsert
+    >
+
+    const row = await this.db.transaction(async (tx) => {
+      const [updated] = await tx.update(assistantTable).set(updates).where(eq(assistantTable.id, id)).returning()
+
+      // Sync junction table rows if relation fields are provided
+      await this.syncRelations(tx, id, { modelIds, mcpServerIds, knowledgeBaseIds })
+
+      return updated
+    })
+
+    logger.info('Updated assistant', { id, changes: Object.keys(dto) })
+
+    return rowToAssistant(row)
+  }
+
+  /**
+   * Soft-delete an assistant (sets deletedAt timestamp).
+   * The row is preserved so topic.assistantId FK remains valid
+   * and junction table data (models, mcpServers, knowledgeBases) is retained.
+   */
+  async delete(id: string): Promise<void> {
+    await this.getById(id)
+
+    await this.db.update(assistantTable).set({ deletedAt: Date.now() }).where(eq(assistantTable.id, id))
+
+    logger.info('Soft-deleted assistant', { id })
+  }
+
+  /**
+   * Sync junction table rows for an assistant.
+   * If an array is provided, it replaces all existing rows (delete + insert).
+   * If undefined, the existing rows are left unchanged.
+   * Runs within the caller's transaction for atomicity.
+   */
+  private async syncRelations(
+    tx: Pick<DbType, 'delete' | 'insert'>,
+    assistantId: string,
+    dto: { modelIds?: string[]; mcpServerIds?: string[]; knowledgeBaseIds?: string[] }
+  ): Promise<void> {
+    if (dto.modelIds !== undefined) {
+      await tx.delete(assistantModelTable).where(eq(assistantModelTable.assistantId, assistantId))
+      if (dto.modelIds.length > 0) {
+        await tx
+          .insert(assistantModelTable)
+          .values(dto.modelIds.map((modelId, i) => ({ assistantId, modelId, sortOrder: i })))
+      }
+    }
+
+    if (dto.mcpServerIds !== undefined) {
+      await tx.delete(assistantMcpServerTable).where(eq(assistantMcpServerTable.assistantId, assistantId))
+      if (dto.mcpServerIds.length > 0) {
+        await tx
+          .insert(assistantMcpServerTable)
+          .values(dto.mcpServerIds.map((mcpServerId, i) => ({ assistantId, mcpServerId, sortOrder: i })))
+      }
+    }
+
+    if (dto.knowledgeBaseIds !== undefined) {
+      await tx.delete(assistantKnowledgeBaseTable).where(eq(assistantKnowledgeBaseTable.assistantId, assistantId))
+      if (dto.knowledgeBaseIds.length > 0) {
+        await tx
+          .insert(assistantKnowledgeBaseTable)
+          .values(dto.knowledgeBaseIds.map((knowledgeBaseId, i) => ({ assistantId, knowledgeBaseId, sortOrder: i })))
+      }
+    }
+  }
+
+  private validateName(name: string): void {
+    if (!name?.trim()) {
+      throw DataApiErrorFactory.validation({ name: ['Name is required'] })
+    }
+  }
+}
+
+export const assistantDataService = new AssistantDataService()
