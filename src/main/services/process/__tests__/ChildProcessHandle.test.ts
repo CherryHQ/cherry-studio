@@ -431,6 +431,55 @@ describe('ChildProcessHandle', () => {
     })
   })
 
+  describe('spawn error (synchronous throw)', () => {
+    it('transitions to Crashed when crossPlatformSpawn throws', async () => {
+      const { crossPlatformSpawn, ChildProcessHandle } = await loadModules()
+      crossPlatformSpawn.mockImplementation(() => {
+        throw new Error('ENOENT: command not found')
+      })
+
+      const handle = new ChildProcessHandle({ type: 'child', id: 'throw-proc', command: 'nonexistent' })
+
+      await expect(handle.start()).rejects.toThrow('ENOENT: command not found')
+      expect(handle.state).toBe('crashed')
+      expect(handle.pid).toBeUndefined()
+    })
+
+    it('calls onExited with (null, null) when spawn throws', async () => {
+      const { crossPlatformSpawn, ChildProcessHandle } = await loadModules()
+      crossPlatformSpawn.mockImplementation(() => {
+        throw new Error('spawn failed')
+      })
+
+      const handle = new ChildProcessHandle({ type: 'child', id: 'throw-exited', command: 'bad' })
+      const onExited = vi.fn()
+      handle.onExited = onExited
+
+      await expect(handle.start()).rejects.toThrow('spawn failed')
+      expect(onExited).toHaveBeenCalledOnce()
+      expect(onExited).toHaveBeenCalledWith(null, null)
+    })
+  })
+
+  describe('pid undefined on spawn', () => {
+    it('does not call onStarted when pid is undefined', async () => {
+      const { crossPlatformSpawn, ChildProcessHandle } = await loadModules()
+      const mockCp = createMockChildProcess()
+      mockCp.pid = undefined
+      crossPlatformSpawn.mockReturnValue(mockCp)
+
+      const handle = new ChildProcessHandle({ type: 'child', id: 'no-pid', command: 'node' })
+      const onStarted = vi.fn()
+      handle.onStarted = onStarted
+
+      await handle.start()
+
+      expect(handle.state).toBe('running')
+      expect(handle.pid).toBeUndefined()
+      expect(onStarted).not.toHaveBeenCalled()
+    })
+  })
+
   describe('stdio option', () => {
     it('passes stdio to spawn options', async () => {
       const { crossPlatformSpawn, ChildProcessHandle } = await loadModules()

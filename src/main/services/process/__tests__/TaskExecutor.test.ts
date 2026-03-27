@@ -250,9 +250,8 @@ describe('TaskExecutor', () => {
       }
 
       const [r1, r2, r3] = await Promise.all([p1, p2, p3])
-      expect(r1).toContain('result-of-task')
-      expect(r2).toContain('result-of-task')
-      expect(r3).toContain('result-of-task')
+      const results = [r1, r2, r3].sort()
+      expect(results).toEqual(['result-of-task1', 'result-of-task2', 'result-of-task3'])
 
       await executor.shutdown()
     })

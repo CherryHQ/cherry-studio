@@ -45,9 +45,17 @@ export class UtilityProcessHandle {
 
     this.logger.info(`Starting utility process: ${this.def.modulePath}`)
 
-    const proc = utilityProcess.fork(this.def.modulePath, this.def.args, {
-      env: this.def.env
-    })
+    let proc: Electron.UtilityProcess
+    try {
+      proc = utilityProcess.fork(this.def.modulePath, this.def.args, {
+        env: this.def.env
+      })
+    } catch (err) {
+      this._state = ProcessState.Crashed
+      this.logger.error(`Failed to fork utility process: ${(err as Error).message}`, err as Error)
+      this.onExited?.(null, null)
+      throw err
+    }
 
     this._process = proc
     this._state = ProcessState.Running

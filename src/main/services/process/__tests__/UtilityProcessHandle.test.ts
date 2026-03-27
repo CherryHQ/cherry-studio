@@ -281,6 +281,44 @@ describe('UtilityProcessHandle', () => {
     })
   })
 
+  describe('fork error (synchronous throw)', () => {
+    it('transitions to Crashed when utilityProcess.fork throws', async () => {
+      const { UtilityProcessHandle } = await loadModules()
+      mockUtilityProcess.fork.mockImplementation(() => {
+        throw new Error('MODULE_NOT_FOUND')
+      })
+
+      const handle = new UtilityProcessHandle({ type: 'utility', id: 'throw-proc', modulePath: '/bad/path.js' })
+
+      await expect(handle.start()).rejects.toThrow('MODULE_NOT_FOUND')
+      expect(handle.state).toBe('crashed')
+      expect(handle.pid).toBeUndefined()
+    })
+
+    it('calls onExited with (null, null) when fork throws', async () => {
+      const { UtilityProcessHandle } = await loadModules()
+      mockUtilityProcess.fork.mockImplementation(() => {
+        throw new Error('fork failed')
+      })
+
+      const handle = new UtilityProcessHandle({ type: 'utility', id: 'throw-exited', modulePath: '/bad.js' })
+      const onExited = vi.fn()
+      handle.onExited = onExited
+
+      await expect(handle.start()).rejects.toThrow('fork failed')
+      expect(onExited).toHaveBeenCalledOnce()
+      expect(onExited).toHaveBeenCalledWith(null, null)
+    })
+  })
+
+  describe('skipOnStop', () => {
+    it('always returns false (utility processes are always stopped on shutdown)', async () => {
+      const { UtilityProcessHandle } = await loadModules()
+      const handle = new UtilityProcessHandle({ type: 'utility', id: 'skip-test', modulePath: '/module.js' })
+      expect(handle.skipOnStop).toBe(false)
+    })
+  })
+
   describe('restart()', () => {
     it('stops then starts the process, getting a new pid', async () => {
       const { UtilityProcessHandle } = await loadModules()

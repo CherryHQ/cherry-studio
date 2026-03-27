@@ -49,12 +49,20 @@ export class ChildProcessHandle implements ProcessHandle {
     const shellEnv = await getShellEnv()
     const env = this.def.env ? { ...shellEnv, ...this.def.env } : shellEnv
 
-    const child = crossPlatformSpawn(this.def.command, this.def.args ?? [], {
-      cwd: this.def.cwd,
-      env,
-      detached: this.def.detached,
-      stdio: this.def.stdio
-    })
+    let child: ChildProcess
+    try {
+      child = crossPlatformSpawn(this.def.command, this.def.args ?? [], {
+        cwd: this.def.cwd,
+        env,
+        detached: this.def.detached,
+        stdio: this.def.stdio
+      })
+    } catch (err) {
+      this._state = ProcessState.Crashed
+      this.logger.error(`Failed to spawn process: ${(err as Error).message}`, err as Error)
+      this.onExited?.(null, null)
+      throw err
+    }
 
     if (this.def.detached) {
       child.unref()
