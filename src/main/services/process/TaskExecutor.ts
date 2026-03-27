@@ -16,6 +16,7 @@ interface PendingTask<T = unknown> {
   taskId: string
   taskType: string
   payload: unknown
+  workerId: string
   resolve: (value: T) => void
   reject: (reason: Error) => void
 }
@@ -71,6 +72,7 @@ export class TaskExecutor {
         taskId,
         taskType,
         payload,
+        workerId: '',
         resolve,
         reject
       }
@@ -163,6 +165,7 @@ export class TaskExecutor {
 
     const task = this.taskQueue.shift()!
     entry.busy = true
+    task.workerId = entry.handle.id
 
     // Cancel idle timer
     if (entry.idleTimer !== undefined) {
@@ -187,9 +190,22 @@ export class TaskExecutor {
       killTimeoutMs: this.options.killTimeoutMs
     })
 
-    const cleanup = handle.onMessage((message: unknown) => {
+    const messageCleanup = handle.onMessage((message: unknown) => {
       this.handleWorkerMessage(workerId, message as TaskResponse)
     })
+
+    const onExited = (_id: string, code: number | null, signal: NodeJS.Signals | null) => {
+      if (_id !== workerId) {
+        return
+      }
+      this.handleWorkerExit(workerId, code, signal)
+    }
+    this.pm.on('process:exited', onExited)
+
+    const cleanup = () => {
+      messageCleanup()
+      this.pm.off('process:exited', onExited)
+    }
 
     const entry: WorkerEntry = {
       handle,
@@ -232,6 +248,37 @@ export class TaskExecutor {
     }
 
     // Try to dispatch next queued task
+    this.dispatch()
+  }
+
+  private handleWorkerExit(workerId: string, code: number | null, signal: NodeJS.Signals | null): void {
+    const entry = this.workers.get(workerId)
+    if (!entry) {
+      return
+    }
+
+    this.logger.warn(`Worker '${workerId}' exited unexpectedly (code=${code}, signal=${signal})`)
+
+    // Find and reject the in-flight task assigned to this worker
+    for (const [taskId, task] of this.pendingTasks) {
+      if (task.workerId === workerId) {
+        task.reject(new Error(`Worker ${workerId} exited unexpectedly (code=${code}, signal=${signal})`))
+        this.pendingTasks.delete(taskId)
+        break
+      }
+    }
+
+    clearTimeout(entry.idleTimer)
+    entry.cleanup()
+    this.workers.delete(workerId)
+
+    try {
+      this.pm.unregister(workerId)
+    } catch (err) {
+      this.logger.error(`Failed to unregister crashed worker '${workerId}'`, err as Error)
+    }
+
+    // Dispatch queued tasks to remaining or new workers
     this.dispatch()
   }
 
