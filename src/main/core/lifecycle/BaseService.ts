@@ -1,3 +1,5 @@
+import { ipcMain, type IpcMainEvent, type IpcMainInvokeEvent } from 'electron'
+
 import { type ErrorStrategy, isPausable, LifecycleState } from './types'
 
 /**
@@ -14,6 +16,12 @@ export abstract class BaseService {
 
   /** Guard flag to ensure onAllReady is called at most once per service instance */
   private _allReadyCalled = false
+
+  /** Channels registered via ipcHandle(), auto-cleaned on stop */
+  private _ipcHandleChannels: string[] = []
+
+  /** Listeners registered via ipcOn(), auto-cleaned on stop */
+  private _ipcOnListeners: { channel: string; listener: (...args: any[]) => void }[] = []
 
   /** Error handling strategy for this service */
   static errorStrategy: ErrorStrategy = 'graceful'
@@ -80,6 +88,43 @@ export abstract class BaseService {
   }
 
   /**
+   * Register an IPC handler (ipcMain.handle).
+   * Automatically tracked and removed on service stop/destroy.
+   */
+  protected ipcHandle(
+    channel: string,
+    listener: (event: IpcMainInvokeEvent, ...args: any[]) => Promise<any> | any
+  ): void {
+    ipcMain.handle(channel, listener)
+    this._ipcHandleChannels.push(channel)
+  }
+
+  /**
+   * Register an IPC event listener (ipcMain.on).
+   * Automatically tracked and removed on service stop/destroy.
+   */
+  protected ipcOn(channel: string, listener: (event: IpcMainEvent, ...args: any[]) => void): void {
+    ipcMain.on(channel, listener)
+    this._ipcOnListeners.push({ channel, listener })
+  }
+
+  /**
+   * Remove all tracked IPC handlers and listeners.
+   * Called automatically after onStop() and in _doDestroy().
+   * Safe to call multiple times (double-remove is a no-op).
+   */
+  private _cleanupIpc(): void {
+    for (const channel of this._ipcHandleChannels) {
+      ipcMain.removeHandler(channel)
+    }
+    for (const { channel, listener } of this._ipcOnListeners) {
+      ipcMain.removeListener(channel, listener)
+    }
+    this._ipcHandleChannels = []
+    this._ipcOnListeners = []
+  }
+
+  /**
    * Called when the service is being initialized
    * Override this method to perform initialization logic
    */
@@ -139,7 +184,11 @@ export abstract class BaseService {
    */
   public async _doStop(): Promise<void> {
     this._state = LifecycleState.Stopping
-    await this.onStop()
+    try {
+      await this.onStop()
+    } finally {
+      this._cleanupIpc()
+    }
     this._state = LifecycleState.Stopped
   }
 
@@ -149,6 +198,7 @@ export abstract class BaseService {
    */
   public async _doDestroy(): Promise<void> {
     await this.onDestroy()
+    this._cleanupIpc()
     this._state = LifecycleState.Destroyed
   }
 

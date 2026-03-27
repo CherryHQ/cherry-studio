@@ -7,7 +7,7 @@ import { getFilesDir } from '@main/utils/file'
 import { getWindowsBackgroundMaterial } from '@main/utils/windowUtil'
 import { MIN_WINDOW_HEIGHT, MIN_WINDOW_WIDTH } from '@shared/config/constant'
 import { IpcChannel } from '@shared/IpcChannel'
-import { app, BrowserWindow, ipcMain, nativeImage, nativeTheme, screen, shell } from 'electron'
+import { app, BrowserWindow, nativeImage, nativeTheme, screen, shell } from 'electron'
 import windowStateKeeper from 'electron-window-state'
 import { join } from 'path'
 
@@ -39,9 +39,7 @@ export class WindowService extends BaseService {
     this.registerIpcHandlers()
   }
 
-  protected async onStop() {
-    this.unregisterIpcHandlers()
-  }
+  protected async onStop() {}
 
   private checkMainWindow() {
     if (!this.mainWindow || this.mainWindow.isDestroyed()) {
@@ -50,12 +48,12 @@ export class WindowService extends BaseService {
   }
 
   private registerIpcHandlers() {
-    ipcMain.handle(IpcChannel.Windows_SetMinimumSize, (_, width: number, height: number) => {
+    this.ipcHandle(IpcChannel.Windows_SetMinimumSize, (_, width: number, height: number) => {
       this.checkMainWindow()
       this.mainWindow!.setMinimumSize(width, height)
     })
 
-    ipcMain.handle(IpcChannel.Windows_ResetMinimumSize, () => {
+    this.ipcHandle(IpcChannel.Windows_ResetMinimumSize, () => {
       this.checkMainWindow()
       this.mainWindow!.setMinimumSize(MIN_WINDOW_WIDTH, MIN_WINDOW_HEIGHT)
       const [width, height] = this.mainWindow!.getSize() ?? [MIN_WINDOW_WIDTH, MIN_WINDOW_HEIGHT]
@@ -64,61 +62,44 @@ export class WindowService extends BaseService {
       }
     })
 
-    ipcMain.handle(IpcChannel.Windows_GetSize, () => {
+    this.ipcHandle(IpcChannel.Windows_GetSize, () => {
       this.checkMainWindow()
       const [width, height] = this.mainWindow!.getSize() ?? [MIN_WINDOW_WIDTH, MIN_WINDOW_HEIGHT]
       return [width, height]
     })
 
-    ipcMain.handle(IpcChannel.Windows_Minimize, () => {
+    this.ipcHandle(IpcChannel.Windows_Minimize, () => {
       this.checkMainWindow()
       this.mainWindow!.minimize()
     })
 
-    ipcMain.handle(IpcChannel.Windows_Maximize, () => {
+    this.ipcHandle(IpcChannel.Windows_Maximize, () => {
       this.checkMainWindow()
       this.mainWindow!.maximize()
     })
 
-    ipcMain.handle(IpcChannel.Windows_Unmaximize, () => {
+    this.ipcHandle(IpcChannel.Windows_Unmaximize, () => {
       this.checkMainWindow()
       this.mainWindow!.unmaximize()
     })
 
-    ipcMain.handle(IpcChannel.Windows_Close, () => {
+    this.ipcHandle(IpcChannel.Windows_Close, () => {
       this.checkMainWindow()
       this.mainWindow!.close()
     })
 
-    ipcMain.handle(IpcChannel.Windows_IsMaximized, () => {
+    this.ipcHandle(IpcChannel.Windows_IsMaximized, () => {
       this.checkMainWindow()
       return this.mainWindow!.isMaximized()
     })
 
-    ipcMain.handle(IpcChannel.MiniWindow_Show, () => this.showMiniWindow())
-    ipcMain.handle(IpcChannel.MiniWindow_Hide, () => this.hideMiniWindow())
-    ipcMain.handle(IpcChannel.MiniWindow_Close, () => this.closeMiniWindow())
-    ipcMain.handle(IpcChannel.MiniWindow_Toggle, () => this.toggleMiniWindow())
-    ipcMain.handle(IpcChannel.MiniWindow_SetPin, (_, isPinned: boolean) => this.setPinMiniWindow(isPinned))
+    this.ipcHandle(IpcChannel.MiniWindow_Show, () => this.showMiniWindow())
+    this.ipcHandle(IpcChannel.MiniWindow_Hide, () => this.hideMiniWindow())
+    this.ipcHandle(IpcChannel.MiniWindow_Close, () => this.closeMiniWindow())
+    this.ipcHandle(IpcChannel.MiniWindow_Toggle, () => this.toggleMiniWindow())
+    this.ipcHandle(IpcChannel.MiniWindow_SetPin, (_, isPinned: boolean) => this.setPinMiniWindow(isPinned))
 
-    ipcMain.handle(IpcChannel.App_QuoteToMain, (_, text: string) => this.quoteToMainWindow(text))
-  }
-
-  private unregisterIpcHandlers() {
-    ipcMain.removeHandler(IpcChannel.Windows_SetMinimumSize)
-    ipcMain.removeHandler(IpcChannel.Windows_ResetMinimumSize)
-    ipcMain.removeHandler(IpcChannel.Windows_GetSize)
-    ipcMain.removeHandler(IpcChannel.Windows_Minimize)
-    ipcMain.removeHandler(IpcChannel.Windows_Maximize)
-    ipcMain.removeHandler(IpcChannel.Windows_Unmaximize)
-    ipcMain.removeHandler(IpcChannel.Windows_Close)
-    ipcMain.removeHandler(IpcChannel.Windows_IsMaximized)
-    ipcMain.removeHandler(IpcChannel.MiniWindow_Show)
-    ipcMain.removeHandler(IpcChannel.MiniWindow_Hide)
-    ipcMain.removeHandler(IpcChannel.MiniWindow_Close)
-    ipcMain.removeHandler(IpcChannel.MiniWindow_Toggle)
-    ipcMain.removeHandler(IpcChannel.MiniWindow_SetPin)
-    ipcMain.removeHandler(IpcChannel.App_QuoteToMain)
+    this.ipcHandle(IpcChannel.App_QuoteToMain, (_, text: string) => this.quoteToMainWindow(text))
   }
 
   public createMainWindow(): BrowserWindow {

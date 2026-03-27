@@ -37,13 +37,9 @@ import process from 'node:process'
 
 import { registerIpc } from './ipc'
 import { agentService } from './services/agents'
-import { analyticsService } from './services/AnalyticsService'
 import { apiServerService } from './services/ApiServerService'
-import { lanTransferClientService } from './services/lanTransfer'
 import { mcpService } from './services/MCPService'
-import { localTransferService } from './services/LocalTransferService'
 import { openClawService } from './services/OpenClawService'
-import { nodeTraceService } from './services/NodeTraceService'
 import {
   CHERRY_STUDIO_PROTOCOL,
   handleProtocolUrl,
@@ -248,9 +244,6 @@ if (!app.requestSingleInstanceLock()) {
 
     app.on('before-quit', () => {
       application.markQuitting()
-
-      lanTransferClientService.dispose()
-      localTransferService.dispose()
     })
 
     app.on('will-quit', async () => {
@@ -269,7 +262,6 @@ if (!app.requestSingleInstanceLock()) {
       }
 
       try {
-        await analyticsService.destroy()
         await openClawService.stopGateway()
         await mcpService.cleanup()
         await apiServerService.stop()
@@ -313,9 +305,6 @@ if (!app.requestSingleInstanceLock()) {
     // Create main window - migration has either completed or was not needed
     const mainWindow = application.get('WindowService').createMainWindow()
 
-    nodeTraceService.init()
-    analyticsService.init()
-
     app.on('activate', function () {
       const mainWindow = application.get('WindowService').getMainWindow()
       if (!mainWindow || mainWindow.isDestroyed()) {
@@ -327,7 +316,6 @@ if (!app.requestSingleInstanceLock()) {
 
     registerShortcuts(mainWindow)
     await registerIpc(mainWindow, app)
-    localTransferService.startDiscovery({ resetList: true })
 
     replaceDevtoolsFont(mainWindow)
 

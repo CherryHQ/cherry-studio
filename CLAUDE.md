@@ -122,10 +122,20 @@ import { BaseService, Injectable, DependsOn, ServicePhase, Phase } from '@main/c
 @ServicePhase(Phase.WhenReady)        // when to initialize (default: WhenReady)
 @DependsOn(['DbService'])             // what must be ready first
 export class MyService extends BaseService {
-  protected async onInit() { /* setup */ }
-  protected async onStop() { /* cleanup */ }
+  protected async onInit() {
+    this.registerIpcHandlers()
+  }
+
+  private registerIpcHandlers() {
+    // Use this.ipcHandle() / this.ipcOn() for auto-tracked IPC handlers
+    this.ipcHandle(IpcChannel.MyAction, (_, arg) => this.handleAction(arg))
+  }
+
+  protected async onStop() { /* service-specific cleanup — IPC auto-removed */ }
 }
 ```
+
+> Use `this.ipcHandle()` / `this.ipcOn()` instead of `ipcMain.handle()` / `ipcMain.on()` for lifecycle-managed services — handlers are automatically removed on service stop/destroy. Always extract IPC registrations into a `private registerIpcHandlers()` method.
 
 2. **Register in `serviceRegistry.ts`** (`src/main/core/application/serviceRegistry.ts`):
 

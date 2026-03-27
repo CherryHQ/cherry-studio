@@ -6,7 +6,7 @@ import { BaseService, Injectable, Phase, ServicePhase } from '@main/core/lifecyc
 import type { SelectionActionItem } from '@shared/data/preference/preferenceTypes'
 import { SelectionTriggerMode } from '@shared/data/preference/preferenceTypes'
 import { IpcChannel } from '@shared/IpcChannel'
-import { app, BrowserWindow, clipboard, ipcMain, screen, systemPreferences } from 'electron'
+import { app, BrowserWindow, clipboard, screen, systemPreferences } from 'electron'
 import { join } from 'path'
 import type {
   KeyboardEventData,
@@ -182,8 +182,6 @@ export class SelectionService extends BaseService {
   }
 
   protected async onStop(): Promise<void> {
-    this.unregisterIpcHandlers()
-
     for (const unsubscriber of this.lifecycleUnsubscribers) {
       unsubscriber()
     }
@@ -1622,41 +1620,41 @@ export class SelectionService extends BaseService {
   }
 
   private registerIpcHandlers(): void {
-    ipcMain.handle(IpcChannel.Selection_ToolbarHide, () => {
+    this.ipcHandle(IpcChannel.Selection_ToolbarHide, () => {
       this.hideToolbar()
     })
 
-    ipcMain.handle(IpcChannel.Selection_WriteToClipboard, (_, text: string): boolean => {
+    this.ipcHandle(IpcChannel.Selection_WriteToClipboard, (_, text: string): boolean => {
       return this.writeToClipboard(text) ?? false
     })
 
-    ipcMain.handle(IpcChannel.Selection_ToolbarDetermineSize, (_, width: number, height: number) => {
+    this.ipcHandle(IpcChannel.Selection_ToolbarDetermineSize, (_, width: number, height: number) => {
       this.determineToolbarSize(width, height)
     })
 
     // [macOS] only macOS has the available isFullscreen mode
-    ipcMain.handle(
+    this.ipcHandle(
       IpcChannel.Selection_ProcessAction,
       (_, actionItem: SelectionActionItem, isFullScreen: boolean = false) => {
         this.processAction(actionItem, isFullScreen)
       }
     )
 
-    ipcMain.handle(IpcChannel.Selection_ActionWindowClose, (event) => {
+    this.ipcHandle(IpcChannel.Selection_ActionWindowClose, (event) => {
       const actionWindow = BrowserWindow.fromWebContents(event.sender)
       if (actionWindow && !actionWindow.isDestroyed()) {
         this.closeActionWindow(actionWindow)
       }
     })
 
-    ipcMain.handle(IpcChannel.Selection_ActionWindowMinimize, (event) => {
+    this.ipcHandle(IpcChannel.Selection_ActionWindowMinimize, (event) => {
       const actionWindow = BrowserWindow.fromWebContents(event.sender)
       if (actionWindow && !actionWindow.isDestroyed()) {
         this.minimizeActionWindow(actionWindow)
       }
     })
 
-    ipcMain.handle(IpcChannel.Selection_ActionWindowPin, (event, isPinned: boolean) => {
+    this.ipcHandle(IpcChannel.Selection_ActionWindowPin, (event, isPinned: boolean) => {
       const actionWindow = BrowserWindow.fromWebContents(event.sender)
       if (actionWindow && !actionWindow.isDestroyed()) {
         this.pinActionWindow(actionWindow, isPinned)
@@ -1665,7 +1663,7 @@ export class SelectionService extends BaseService {
 
     // [Windows only] Electron bug workaround - can be removed once fixed
     // See: https://github.com/electron/electron/issues/48554
-    ipcMain.handle(
+    this.ipcHandle(
       IpcChannel.Selection_ActionWindowResize,
       (event, deltaX: number, deltaY: number, direction: string) => {
         const actionWindow = BrowserWindow.fromWebContents(event.sender)
@@ -1676,23 +1674,9 @@ export class SelectionService extends BaseService {
     )
 
     if (isLinux) {
-      ipcMain.handle(IpcChannel.Selection_GetLinuxEnvInfo, () => {
+      this.ipcHandle(IpcChannel.Selection_GetLinuxEnvInfo, () => {
         return this.getLinuxEnvInfo()
       })
-    }
-  }
-
-  private unregisterIpcHandlers(): void {
-    ipcMain.removeHandler(IpcChannel.Selection_ToolbarHide)
-    ipcMain.removeHandler(IpcChannel.Selection_WriteToClipboard)
-    ipcMain.removeHandler(IpcChannel.Selection_ToolbarDetermineSize)
-    ipcMain.removeHandler(IpcChannel.Selection_ProcessAction)
-    ipcMain.removeHandler(IpcChannel.Selection_ActionWindowClose)
-    ipcMain.removeHandler(IpcChannel.Selection_ActionWindowMinimize)
-    ipcMain.removeHandler(IpcChannel.Selection_ActionWindowPin)
-    ipcMain.removeHandler(IpcChannel.Selection_ActionWindowResize)
-    if (isLinux) {
-      ipcMain.removeHandler(IpcChannel.Selection_GetLinuxEnvInfo)
     }
   }
 

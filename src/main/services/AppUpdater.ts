@@ -14,8 +14,6 @@ import { autoUpdater } from 'electron-updater'
 import path from 'path'
 import semver from 'semver'
 
-import { analyticsService } from './AnalyticsService'
-
 const logger = loggerService.withContext('AppUpdater')
 
 function getCommonHeaders() {
@@ -285,7 +283,7 @@ export default class AppUpdater {
   }
 
   public async checkForUpdates() {
-    void analyticsService.trackAppUpdate()
+    void application.get('AnalyticsService').trackAppUpdate()
 
     if (isWin && 'PORTABLE_EXECUTABLE_DIR' in process.env) {
       return {

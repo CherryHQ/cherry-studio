@@ -1,8 +1,12 @@
+// TODO: Consider merging LanTransferClientService (TCP transfer) and LocalTransferService (mDNS discovery)
+// into a single service — they share the same IPC namespace (LocalTransfer_*) and the renderer
+// already treats them as one unified feature.
 import * as crypto from 'node:crypto'
 import { createConnection, type Socket } from 'node:net'
 
 import { loggerService } from '@logger'
 import { application } from '@main/core/application'
+import { BaseService, DependsOn, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import type {
   LanClientEvent,
   LanFileCompleteMessage,
@@ -13,7 +17,6 @@ import type {
 import { LAN_TRANSFER_GLOBAL_TIMEOUT_MS } from '@shared/config/types'
 import { IpcChannel } from '@shared/IpcChannel'
 
-import { localTransferService } from '../LocalTransferService'
 import {
   abortTransfer,
   buildHandshakeMessage,
@@ -45,7 +48,10 @@ const logger = loggerService.withContext('LanTransferClientService')
  * Handles outgoing file transfers to LAN peers via TCP.
  * Protocol v1 with streaming mode (no per-chunk acknowledgment).
  */
-class LanTransferClientService {
+@Injectable('LanTransferClientService')
+@ServicePhase(Phase.WhenReady)
+@DependsOn(['WindowService', 'LocalTransferService'])
+export class LanTransferClientService extends BaseService {
   private socket: Socket | null = null
   private currentPeer?: LocalTransferPeer
   private dataHandler?: ReturnType<typeof createDataHandler>
@@ -57,8 +63,32 @@ class LanTransferClientService {
   private static readonly MAX_CONSECUTIVE_JSON_ERRORS = 3
   private reconnectPromise: Promise<void> | null = null
 
-  constructor() {
+  protected async onInit() {
     this.responseManager.setTimeoutCallback(() => void this.disconnect())
+    this.registerIpcHandlers()
+  }
+
+  protected async onStop() {
+    this.responseManager.rejectAll(new Error('LAN transfer client disposed'))
+    cleanupTransfer(this.activeTransfer)
+    this.activeTransfer = undefined
+    if (this.socket) {
+      this.socket.destroy()
+      this.socket = null
+    }
+    this.dataHandler?.resetBuffer()
+    this.isConnecting = false
+  }
+
+  private registerIpcHandlers(): void {
+    this.ipcHandle(IpcChannel.LocalTransfer_Connect, (_, payload: LocalTransferConnectPayload) =>
+      this.connectAndHandshake(payload)
+    )
+    this.ipcHandle(IpcChannel.LocalTransfer_Disconnect, () => this.disconnect())
+    this.ipcHandle(IpcChannel.LocalTransfer_SendFile, (_, payload: { filePath: string }) =>
+      this.sendFile(payload.filePath)
+    )
+    this.ipcHandle(IpcChannel.LocalTransfer_CancelTransfer, () => this.cancelTransfer())
   }
 
   /**
@@ -69,7 +99,7 @@ class LanTransferClientService {
       throw new Error('LAN transfer client is busy')
     }
 
-    const peer = localTransferService.getPeerById(options.peerId)
+    const peer = application.get('LocalTransferService').getPeerById(options.peerId)
     if (!peer) {
       throw new Error('Selected LAN peer is no longer available')
     }
@@ -202,21 +232,6 @@ class LanTransferClientService {
 
       socket.destroy()
     })
-  }
-
-  /**
-   * Dispose the service and clean up all resources.
-   */
-  public dispose(): void {
-    this.responseManager.rejectAll(new Error('LAN transfer client disposed'))
-    cleanupTransfer(this.activeTransfer)
-    this.activeTransfer = undefined
-    if (this.socket) {
-      this.socket.destroy()
-      this.socket = null
-    }
-    this.dataHandler?.resetBuffer()
-    this.isConnecting = false
   }
 
   /**
@@ -519,7 +534,4 @@ class LanTransferClientService {
   }
 }
 
-export const lanTransferClientService = new LanTransferClientService()
-
-// Re-export for backward compatibility
 export { HANDSHAKE_PROTOCOL_VERSION }

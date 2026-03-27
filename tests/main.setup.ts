@@ -72,6 +72,7 @@ vi.mock('electron', () => {
       on: vi.fn(),
       once: vi.fn(),
       removeHandler: vi.fn(),
+      removeListener: vi.fn(),
       removeAllListeners: vi.fn()
     },
     BrowserWindow: vi.fn(),
