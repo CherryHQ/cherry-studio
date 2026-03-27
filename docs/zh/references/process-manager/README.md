@@ -42,7 +42,7 @@ Cherry Studio 目前以碎片化的方式管理子进程：
 ### 架构
 
 ```
-原语层 — ProcessManagerService（生命周期服务）
+原语层 — ProcessManager（生命周期服务）
   |
   |-- ChildProcessHandle         外部二进制（ollama、MCP、rg）
   |     spawn()，stdio 通信
@@ -50,13 +50,13 @@ Cherry Studio 目前以碎片化的方式管理子进程：
   |-- UtilityProcessHandle       隔离 Node.js（aiCore、重计算）
         Electron utilityProcess，MessagePort IPC
 
-组合层 — TaskExecutor（基于 ProcessManagerService 构建）
+组合层 — TaskExecutor（基于 ProcessManager 构建）
   |
   |-- N x UtilityProcessHandle   并行任务执行
         临时 worker，任务分发，自动扩缩容
 ```
 
-两种进程句柄类型都实现共享的 `ProcessHandle` 接口，提供一致的生命周期控制。`TaskExecutor` 是独立的抽象 — 它不实现 `ProcessHandle`，内部通过 ProcessManagerService 创建 Utility 进程。
+两种进程句柄类型都实现共享的 `ProcessHandle` 接口，提供一致的生命周期控制。`TaskExecutor` 是独立的抽象 — 它不实现 `ProcessHandle`，内部通过 ProcessManager 创建 Utility 进程。
 
 ### 设计原则
 
@@ -152,7 +152,7 @@ interface ProcessLogLine {
 }
 
 /**
- * ProcessManagerService 发出的事件
+ * ProcessManager 发出的事件
  */
 interface ProcessManagerEvents {
   'process:started':  (id: string, pid: number) => void
@@ -205,7 +205,7 @@ interface UtilityProcessHandle extends ProcessHandle {
 
 ### TaskExecutor（组合层）
 
-`TaskExecutor` 不是 ProcessManagerService 的 API。它是独立的类，内部通过 `pm.register({ type: 'utility' })` 创建 worker。
+`TaskExecutor` 不是 ProcessManager 的 API。它是独立的类，内部通过 `pm.register({ type: 'utility' })` 创建 worker。
 
 ```typescript
 interface TaskExecutorOptions {
@@ -225,7 +225,7 @@ interface TaskExecutorOptions {
  * 不实现 ProcessHandle（没有 pid、没有 start/stop/restart）。
  */
 class TaskExecutor {
-  constructor(pm: ProcessManagerService, options: TaskExecutorOptions) {}
+  constructor(pm: ProcessManager, options: TaskExecutorOptions) {}
 
   readonly id: string
 
@@ -255,12 +255,12 @@ import type { ProcessHandle } from '@main/services/process'
 
 @Injectable('OllamaService')
 @ServicePhase(Phase.WhenReady)
-@DependsOn(['ProcessManagerService'])
+@DependsOn(['ProcessManager'])
 export class OllamaService extends BaseService {
   private ollama!: ProcessHandle
 
   protected async onInit(): Promise<void> {
-    const pm = application.get('ProcessManagerService')
+    const pm = application.get('ProcessManager')
 
     this.ollama = pm.register({
       type: 'child',
@@ -285,12 +285,12 @@ export class OllamaService extends BaseService {
 ```typescript
 @Injectable('AiCoreBackendService')
 @ServicePhase(Phase.WhenReady)
-@DependsOn(['ProcessManagerService'])
+@DependsOn(['ProcessManager'])
 export class AiCoreBackendService extends BaseService {
   private aicore!: UtilityProcessHandle
 
   protected async onInit(): Promise<void> {
-    const pm = application.get('ProcessManagerService')
+    const pm = application.get('ProcessManager')
 
     this.aicore = pm.register({
       type: 'utility',
@@ -315,19 +315,19 @@ export class AiCoreBackendService extends BaseService {
 
 ### 使用 TaskExecutor
 
-`TaskExecutor` 不在 ProcessManagerService 上注册 — 直接实例化，接收 `pm` 作为依赖：
+`TaskExecutor` 不在 ProcessManager 上注册 — 直接实例化，接收 `pm` 作为依赖：
 
 ```typescript
 import { TaskExecutor } from '@main/services/process'
 
 @Injectable('KnowledgeService')
 @ServicePhase(Phase.WhenReady)
-@DependsOn(['ProcessManagerService'])
+@DependsOn(['ProcessManager'])
 export class KnowledgeService extends BaseService {
   private executor!: TaskExecutor
 
   protected async onInit(): Promise<void> {
-    const pm = application.get('ProcessManagerService')
+    const pm = application.get('ProcessManager')
 
     this.executor = new TaskExecutor(pm, {
       id: 'knowledge-workers',
@@ -358,7 +358,7 @@ export class KnowledgeService extends BaseService {
 
 ```typescript
 protected async onInit(): Promise<void> {
-  const pm = application.get('ProcessManagerService')
+  const pm = application.get('ProcessManager')
 
   // 平台特定的进程
   if (process.platform === 'win32') {
@@ -390,7 +390,7 @@ protected async onInit(): Promise<void> {
 ### 基础：管理外部二进制
 
 ```typescript
-const pm = application.get('ProcessManagerService')
+const pm = application.get('ProcessManager')
 
 const ollama = pm.register({
   type: 'child',
@@ -408,7 +408,7 @@ logger.info(`ollama started, pid=${ollama.pid}`)
 日志自动路由到 `loggerService.withContext('Process:<id>')`。如需自定义处理，监听事件：
 
 ```typescript
-const pm = application.get('ProcessManagerService')
+const pm = application.get('ProcessManager')
 
 pm.on('process:log', (line) => {
   if (line.processId === 'ollama' && line.stream === 'stderr') {
@@ -420,7 +420,7 @@ pm.on('process:log', (line) => {
 
 ### 优雅关闭流程
 
-当 `ProcessManagerService.onStop()` 被调用时（应用关闭）：
+当 `ProcessManager.onStop()` 被调用时（应用关闭）：
 
 ```
 对每个运行中的进程：
@@ -437,7 +437,7 @@ pm.on('process:log', (line) => {
 ### 基础：隔离的 Node.js 工作负载
 
 ```typescript
-const pm = application.get('ProcessManagerService')
+const pm = application.get('ProcessManager')
 
 const aicore = pm.register({
   type: 'utility',
@@ -491,7 +491,7 @@ process.parentPort.on('message', async (event) => {
 ### 基础：并行任务执行
 
 ```typescript
-const pm = application.get('ProcessManagerService')
+const pm = application.get('ProcessManager')
 
 const embedExecutor = new TaskExecutor(pm, {
   id: 'embed-workers',
@@ -594,13 +594,13 @@ useChat 流式对话（I/O 密集）
 ```typescript
 @Injectable('AiCoreService')
 @ServicePhase(Phase.WhenReady)
-@DependsOn(['ProcessManagerService'])
+@DependsOn(['ProcessManager'])
 export class AiCoreService extends BaseService {
   private chatProcess!: UtilityProcessHandle    // 流式，I/O 密集
   private computeExecutor!: TaskExecutor           // 批量任务，CPU 密集
 
   protected async onInit(): Promise<void> {
-    const pm = application.get('ProcessManagerService')
+    const pm = application.get('ProcessManager')
 
     this.chatProcess = pm.register({
       type: 'utility',
@@ -779,14 +779,14 @@ const { messages, append, stop } = useChat({
 
 ---
 
-## ProcessManagerService
+## ProcessManager
 
 ### 生命周期集成
 
 ```typescript
-@Injectable('ProcessManagerService')
+@Injectable('ProcessManager')
 @ServicePhase(Phase.WhenReady)
-export class ProcessManagerService extends BaseService {
+export class ProcessManager extends BaseService {
 
   protected async onInit(): Promise<void> {
     // 准备好接受注册
@@ -802,7 +802,7 @@ export class ProcessManagerService extends BaseService {
 ### 在 serviceRegistry.ts 中注册
 
 ```typescript
-import { ProcessManagerService } from '@main/services/process/ProcessManagerService'
+import { ProcessManager } from '@main/services/process/ProcessManager'
 
 export const services = {
   DbService,
@@ -810,14 +810,14 @@ export const services = {
   DataApiService,
   PreferenceService,
   CodeCliService,
-  ProcessManagerService,  // 一行搞定
+  ProcessManager,  // 一行搞定
 } as const
 ```
 
 ### 事件订阅
 
 ```typescript
-const pm = application.get('ProcessManagerService')
+const pm = application.get('ProcessManager')
 
 pm.on('process:started', (id, pid) => {
   logger.info(`进程 ${id} 已启动，pid=${pid}`)
@@ -841,13 +841,13 @@ pm.on('process:log', (line) => {
 ```
 src/main/services/process/
   types.ts                  # ProcessState, ProcessHandle, 定义, 事件
-  ProcessManagerService.ts  # 生命周期服务, 注册中心, 事件中枢
+  ProcessManager.ts  # 生命周期服务, 注册中心, 事件中枢
   ChildProcessHandle.ts     # ChildProcess 的 ProcessHandle 实现
   UtilityProcessHandle.ts   # utilityProcess 的 ProcessHandle 实现
   TaskExecutor.ts     # 任务分发, worker 生命周期, 自动扩缩容
   index.ts                  # Barrel export（仅公开 API）
   __tests__/
-    ProcessManagerService.test.ts
+    ProcessManager.test.ts
     ChildProcessHandle.test.ts
     UtilityProcessHandle.test.ts
     TaskExecutor.test.ts
@@ -861,7 +861,7 @@ src/main/services/process/
 
 - `ProcessHandle` 接口、`ProcessState` 枚举、`ProcessManagerEvents`
 - `ChildProcessHandle`，使用 `crossPlatformSpawn`
-- `ProcessManagerService`，提供 `register()` API
+- `ProcessManager`，提供 `register()` API
 - `onStop()` 优雅关闭
 - 单元测试
 

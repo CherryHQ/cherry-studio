@@ -39,11 +39,11 @@ function createMockChildProcess(pid = 1234) {
 
 async function loadModules() {
   const { crossPlatformSpawn } = await import('@main/utils/process')
-  const { ProcessManagerService } = await import('../ProcessManagerService')
+  const { ProcessManager } = await import('../ProcessManager')
   const { ProcessState } = await import('../types')
   return {
     crossPlatformSpawn: crossPlatformSpawn as ReturnType<typeof vi.fn>,
-    ProcessManagerService,
+    ProcessManager,
     ProcessState
   }
 }
@@ -55,11 +55,11 @@ beforeEach(async () => {
   BaseService.resetInstances()
 })
 
-describe('ProcessManagerService', () => {
+describe('ProcessManager', () => {
   describe('register()', () => {
     it('creates a handle with correct id and Idle state', async () => {
-      const { ProcessManagerService, ProcessState } = await loadModules()
-      const manager = new ProcessManagerService()
+      const { ProcessManager, ProcessState } = await loadModules()
+      const manager = new ProcessManager()
 
       const handle = manager.register({ type: 'child', id: 'proc-1', command: 'echo' })
 
@@ -68,8 +68,8 @@ describe('ProcessManagerService', () => {
     })
 
     it('rejects duplicate ids', async () => {
-      const { ProcessManagerService } = await loadModules()
-      const manager = new ProcessManagerService()
+      const { ProcessManager } = await loadModules()
+      const manager = new ProcessManager()
 
       manager.register({ type: 'child', id: 'dup-proc', command: 'echo' })
 
@@ -86,8 +86,8 @@ describe('ProcessManagerService', () => {
       mockProc.kill = vi.fn()
       mockUtilityProcessFork.mockReturnValue(mockProc)
 
-      const { ProcessManagerService, ProcessState } = await loadModules()
-      const manager = new ProcessManagerService()
+      const { ProcessManager, ProcessState } = await loadModules()
+      const manager = new ProcessManager()
 
       const handle = manager.register({ type: 'utility', id: 'util-proc', modulePath: '/some/module.js' })
 
@@ -98,8 +98,8 @@ describe('ProcessManagerService', () => {
 
   describe('get()', () => {
     it('retrieves a registered handle by id', async () => {
-      const { ProcessManagerService } = await loadModules()
-      const manager = new ProcessManagerService()
+      const { ProcessManager } = await loadModules()
+      const manager = new ProcessManager()
 
       const handle = manager.register({ type: 'child', id: 'get-proc', command: 'echo' })
 
@@ -107,8 +107,8 @@ describe('ProcessManagerService', () => {
     })
 
     it('returns undefined for unknown id', async () => {
-      const { ProcessManagerService } = await loadModules()
-      const manager = new ProcessManagerService()
+      const { ProcessManager } = await loadModules()
+      const manager = new ProcessManager()
 
       expect(manager.get('nonexistent')).toBeUndefined()
     })
@@ -116,11 +116,11 @@ describe('ProcessManagerService', () => {
 
   describe('events', () => {
     it('emits process:started when a child process starts', async () => {
-      const { crossPlatformSpawn, ProcessManagerService } = await loadModules()
+      const { crossPlatformSpawn, ProcessManager } = await loadModules()
       const mockCp = createMockChildProcess(5678)
       crossPlatformSpawn.mockReturnValue(mockCp)
 
-      const manager = new ProcessManagerService()
+      const manager = new ProcessManager()
       const handle = manager.register({ type: 'child', id: 'start-proc', command: 'node' })
 
       const startedListener = vi.fn()
@@ -132,11 +132,11 @@ describe('ProcessManagerService', () => {
     })
 
     it('emits process:exited when process exits', async () => {
-      const { crossPlatformSpawn, ProcessManagerService } = await loadModules()
+      const { crossPlatformSpawn, ProcessManager } = await loadModules()
       const mockCp = createMockChildProcess()
       crossPlatformSpawn.mockReturnValue(mockCp)
 
-      const manager = new ProcessManagerService()
+      const manager = new ProcessManager()
       const handle = manager.register({ type: 'child', id: 'exit-proc', command: 'node' })
 
       const exitedListener = vi.fn()
@@ -149,11 +149,11 @@ describe('ProcessManagerService', () => {
     })
 
     it('emits process:log on stdout data', async () => {
-      const { crossPlatformSpawn, ProcessManagerService } = await loadModules()
+      const { crossPlatformSpawn, ProcessManager } = await loadModules()
       const mockCp = createMockChildProcess()
       crossPlatformSpawn.mockReturnValue(mockCp)
 
-      const manager = new ProcessManagerService()
+      const manager = new ProcessManager()
       const handle = manager.register({ type: 'child', id: 'log-proc', command: 'node' })
 
       const logListener = vi.fn()
@@ -172,11 +172,11 @@ describe('ProcessManagerService', () => {
     })
 
     it('emits process:log on stderr data', async () => {
-      const { crossPlatformSpawn, ProcessManagerService } = await loadModules()
+      const { crossPlatformSpawn, ProcessManager } = await loadModules()
       const mockCp = createMockChildProcess()
       crossPlatformSpawn.mockReturnValue(mockCp)
 
-      const manager = new ProcessManagerService()
+      const manager = new ProcessManager()
       const handle = manager.register({ type: 'child', id: 'stderr-log-proc', command: 'node' })
 
       const logListener = vi.fn()
@@ -195,11 +195,11 @@ describe('ProcessManagerService', () => {
     })
 
     it('off() stops receiving events', async () => {
-      const { crossPlatformSpawn, ProcessManagerService } = await loadModules()
+      const { crossPlatformSpawn, ProcessManager } = await loadModules()
       const mockCp = createMockChildProcess(9999)
       crossPlatformSpawn.mockReturnValue(mockCp)
 
-      const manager = new ProcessManagerService()
+      const manager = new ProcessManager()
       const handle = manager.register({ type: 'child', id: 'off-proc', command: 'node' })
 
       const startedListener = vi.fn()
@@ -214,12 +214,12 @@ describe('ProcessManagerService', () => {
 
   describe('onStop()', () => {
     it('stops all running processes on shutdown', async () => {
-      const { crossPlatformSpawn, ProcessManagerService } = await loadModules()
+      const { crossPlatformSpawn, ProcessManager } = await loadModules()
       const mockCp1 = createMockChildProcess(1111)
       const mockCp2 = createMockChildProcess(2222)
       crossPlatformSpawn.mockReturnValueOnce(mockCp1).mockReturnValueOnce(mockCp2)
 
-      const manager = new ProcessManagerService()
+      const manager = new ProcessManager()
       const handle1 = manager.register({ type: 'child', id: 'proc-a', command: 'sleep' })
       const handle2 = manager.register({ type: 'child', id: 'proc-b', command: 'sleep' })
 
@@ -239,11 +239,11 @@ describe('ProcessManagerService', () => {
     })
 
     it('does not stop already stopped processes', async () => {
-      const { crossPlatformSpawn, ProcessManagerService } = await loadModules()
+      const { crossPlatformSpawn, ProcessManager } = await loadModules()
       const mockCp = createMockChildProcess(1111)
       crossPlatformSpawn.mockReturnValue(mockCp)
 
-      const manager = new ProcessManagerService()
+      const manager = new ProcessManager()
       const handle = manager.register({ type: 'child', id: 'already-stopped', command: 'echo' })
 
       await handle.start()
@@ -258,7 +258,7 @@ describe('ProcessManagerService', () => {
     })
 
     it('continues stopping other processes if one fails', async () => {
-      const { crossPlatformSpawn, ProcessManagerService } = await loadModules()
+      const { crossPlatformSpawn, ProcessManager } = await loadModules()
       const mockCp1 = createMockChildProcess(1111)
       const mockCp2 = createMockChildProcess(2222)
 
@@ -269,7 +269,7 @@ describe('ProcessManagerService', () => {
 
       crossPlatformSpawn.mockReturnValueOnce(mockCp1).mockReturnValueOnce(mockCp2)
 
-      const manager = new ProcessManagerService()
+      const manager = new ProcessManager()
       const handle1 = manager.register({ type: 'child', id: 'fail-proc', command: 'sleep' })
       const handle2 = manager.register({ type: 'child', id: 'ok-proc', command: 'sleep' })
 
@@ -289,11 +289,11 @@ describe('ProcessManagerService', () => {
 
   describe('unregister()', () => {
     it('removes a stopped process from registry', async () => {
-      const { crossPlatformSpawn, ProcessManagerService } = await loadModules()
+      const { crossPlatformSpawn, ProcessManager } = await loadModules()
       const mockCp = createMockChildProcess()
       crossPlatformSpawn.mockReturnValue(mockCp)
 
-      const manager = new ProcessManagerService()
+      const manager = new ProcessManager()
       const handle = manager.register({ type: 'child', id: 'unreg-proc', command: 'echo' })
 
       await handle.start()
@@ -304,8 +304,8 @@ describe('ProcessManagerService', () => {
     })
 
     it('removes an idle process from registry', async () => {
-      const { ProcessManagerService } = await loadModules()
-      const manager = new ProcessManagerService()
+      const { ProcessManager } = await loadModules()
+      const manager = new ProcessManager()
 
       manager.register({ type: 'child', id: 'idle-unreg', command: 'echo' })
       manager.unregister('idle-unreg')
@@ -314,11 +314,11 @@ describe('ProcessManagerService', () => {
     })
 
     it('rejects unregistering a running process', async () => {
-      const { crossPlatformSpawn, ProcessManagerService } = await loadModules()
+      const { crossPlatformSpawn, ProcessManager } = await loadModules()
       const mockCp = createMockChildProcess()
       crossPlatformSpawn.mockReturnValue(mockCp)
 
-      const manager = new ProcessManagerService()
+      const manager = new ProcessManager()
       const handle = manager.register({ type: 'child', id: 'running-unreg', command: 'sleep' })
 
       await handle.start()
@@ -329,8 +329,8 @@ describe('ProcessManagerService', () => {
     })
 
     it('does nothing for unknown id', async () => {
-      const { ProcessManagerService } = await loadModules()
-      const manager = new ProcessManagerService()
+      const { ProcessManager } = await loadModules()
+      const manager = new ProcessManager()
 
       // Should not throw
       expect(() => manager.unregister('ghost')).not.toThrow()
@@ -339,8 +339,8 @@ describe('ProcessManagerService', () => {
 
   describe('onInit()', () => {
     it('initializes without error', async () => {
-      const { ProcessManagerService } = await loadModules()
-      const manager = new ProcessManagerService()
+      const { ProcessManager } = await loadModules()
+      const manager = new ProcessManager()
 
       await expect(manager._doInit()).resolves.toBeUndefined()
     })

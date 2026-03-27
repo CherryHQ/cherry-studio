@@ -15,12 +15,12 @@ import type {
 import { ProcessState } from './types'
 import { UtilityProcessHandle } from './UtilityProcessHandle'
 
-@Injectable('ProcessManagerService')
+@Injectable('ProcessManager')
 @ServicePhase(Phase.WhenReady)
-export class ProcessManagerService extends BaseService {
+export class ProcessManager extends BaseService {
   private readonly emitter = new EventEmitter()
   private readonly handles = new Map<string, ProcessHandle>()
-  private readonly logger = loggerService.withContext('ProcessManagerService')
+  private readonly logger = loggerService.withContext('ProcessManager')
 
   register(def: ChildProcessDefinition): ChildProcessHandle
   register(def: UtilityProcessDefinition): UtilityProcessHandle
@@ -85,7 +85,7 @@ export class ProcessManagerService extends BaseService {
   }
 
   protected async onInit(): Promise<void> {
-    this.logger.info('ProcessManagerService initialized')
+    this.logger.info('ProcessManager initialized')
   }
 
   protected async onStop(): Promise<void> {

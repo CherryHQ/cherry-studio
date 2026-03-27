@@ -1,5 +1,5 @@
 export { ChildProcessHandle } from './ChildProcessHandle'
-export { ProcessManagerService } from './ProcessManagerService'
+export { ProcessManager } from './ProcessManager'
 export type { TaskExecutorOptions } from './TaskExecutor'
 export { TaskExecutor } from './TaskExecutor'
 export type {

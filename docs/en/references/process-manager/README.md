@@ -43,7 +43,7 @@ Additionally, **aiCore is moving to a backend process** in v2. This requires:
 ### Architecture
 
 ```
-Primitive Layer — ProcessManagerService (lifecycle service)
+Primitive Layer — ProcessManager (lifecycle service)
   |
   |-- ChildProcessHandle         External binaries (ollama, MCP, rg)
   |     spawn(), stdio communication
@@ -51,13 +51,13 @@ Primitive Layer — ProcessManagerService (lifecycle service)
   |-- UtilityProcessHandle       Isolated Node.js (aiCore, heavy computation)
         Electron utilityProcess, MessagePort IPC
 
-Composite Layer — TaskExecutor (built on ProcessManagerService)
+Composite Layer — TaskExecutor (built on ProcessManager)
   |
   |-- N x UtilityProcessHandle   Parallel task execution
         Ephemeral workers, task dispatch, auto-scaling
 ```
 
-Both process handle types implement a shared `ProcessHandle` interface for consistent lifecycle control. `TaskExecutor` is a separate abstraction — it does not implement `ProcessHandle`, and internally creates utility processes via ProcessManagerService.
+Both process handle types implement a shared `ProcessHandle` interface for consistent lifecycle control. `TaskExecutor` is a separate abstraction — it does not implement `ProcessHandle`, and internally creates utility processes via ProcessManager.
 
 ### Design Principles
 
@@ -153,7 +153,7 @@ interface ProcessLogLine {
 }
 
 /**
- * Events emitted by ProcessManagerService
+ * Events emitted by ProcessManager
  */
 interface ProcessManagerEvents {
   'process:started':  (id: string, pid: number) => void
@@ -206,7 +206,7 @@ interface UtilityProcessHandle extends ProcessHandle {
 
 ### TaskExecutor (Composite Layer)
 
-`TaskExecutor` is not part of ProcessManagerService's API. It's a standalone class that internally uses `pm.register({ type: 'utility' })` to create workers.
+`TaskExecutor` is not part of ProcessManager's API. It's a standalone class that internally uses `pm.register({ type: 'utility' })` to create workers.
 
 ```typescript
 interface TaskExecutorOptions {
@@ -226,7 +226,7 @@ interface TaskExecutorOptions {
  * Does NOT implement ProcessHandle (no pid, no start/stop/restart).
  */
 class TaskExecutor {
-  constructor(pm: ProcessManagerService, options: TaskExecutorOptions) {}
+  constructor(pm: ProcessManager, options: TaskExecutorOptions) {}
 
   readonly id: string
 
@@ -256,12 +256,12 @@ import type { ProcessHandle } from '@main/services/process'
 
 @Injectable('OllamaService')
 @ServicePhase(Phase.WhenReady)
-@DependsOn(['ProcessManagerService'])
+@DependsOn(['ProcessManager'])
 export class OllamaService extends BaseService {
   private ollama!: ProcessHandle
 
   protected async onInit(): Promise<void> {
-    const pm = application.get('ProcessManagerService')
+    const pm = application.get('ProcessManager')
 
     this.ollama = pm.register({
       type: 'child',
@@ -286,12 +286,12 @@ export class OllamaService extends BaseService {
 ```typescript
 @Injectable('AiCoreBackendService')
 @ServicePhase(Phase.WhenReady)
-@DependsOn(['ProcessManagerService'])
+@DependsOn(['ProcessManager'])
 export class AiCoreBackendService extends BaseService {
   private aicore!: UtilityProcessHandle
 
   protected async onInit(): Promise<void> {
-    const pm = application.get('ProcessManagerService')
+    const pm = application.get('ProcessManager')
 
     this.aicore = pm.register({
       type: 'utility',
@@ -316,19 +316,19 @@ export class AiCoreBackendService extends BaseService {
 
 ### Using a TaskExecutor
 
-`TaskExecutor` is not registered on ProcessManagerService — it's instantiated directly, receiving `pm` as a dependency:
+`TaskExecutor` is not registered on ProcessManager — it's instantiated directly, receiving `pm` as a dependency:
 
 ```typescript
 import { TaskExecutor } from '@main/services/process'
 
 @Injectable('KnowledgeService')
 @ServicePhase(Phase.WhenReady)
-@DependsOn(['ProcessManagerService'])
+@DependsOn(['ProcessManager'])
 export class KnowledgeService extends BaseService {
   private executor!: TaskExecutor
 
   protected async onInit(): Promise<void> {
-    const pm = application.get('ProcessManagerService')
+    const pm = application.get('ProcessManager')
 
     this.executor = new TaskExecutor(pm, {
       id: 'knowledge-workers',
@@ -359,7 +359,7 @@ The imperative API naturally supports conditional or dynamic registration:
 
 ```typescript
 protected async onInit(): Promise<void> {
-  const pm = application.get('ProcessManagerService')
+  const pm = application.get('ProcessManager')
 
   // Platform-specific process
   if (process.platform === 'win32') {
@@ -391,7 +391,7 @@ protected async onInit(): Promise<void> {
 ### Basic: Manage an External Binary
 
 ```typescript
-const pm = application.get('ProcessManagerService')
+const pm = application.get('ProcessManager')
 
 const ollama = pm.register({
   type: 'child',
@@ -409,7 +409,7 @@ logger.info(`ollama started, pid=${ollama.pid}`)
 Logs are automatically routed to `loggerService.withContext('Process:<id>')`. For custom handling, listen to events:
 
 ```typescript
-const pm = application.get('ProcessManagerService')
+const pm = application.get('ProcessManager')
 
 pm.on('process:log', (line) => {
   if (line.processId === 'ollama' && line.stream === 'stderr') {
@@ -421,7 +421,7 @@ pm.on('process:log', (line) => {
 
 ### Graceful Shutdown Sequence
 
-When `ProcessManagerService.onStop()` is called (app shutdown):
+When `ProcessManager.onStop()` is called (app shutdown):
 
 ```
 For each running process:
@@ -438,7 +438,7 @@ For each running process:
 ### Basic: Isolated Node.js Workload
 
 ```typescript
-const pm = application.get('ProcessManagerService')
+const pm = application.get('ProcessManager')
 
 const aicore = pm.register({
   type: 'utility',
@@ -492,7 +492,7 @@ process.parentPort.on('message', async (event) => {
 ### Basic: Parallel Task Execution
 
 ```typescript
-const pm = application.get('ProcessManagerService')
+const pm = application.get('ProcessManager')
 
 const embedExecutor = new TaskExecutor(pm, {
   id: 'embed-workers',
@@ -595,13 +595,13 @@ Knowledge base indexing (CPU-bound)
 ```typescript
 @Injectable('AiCoreService')
 @ServicePhase(Phase.WhenReady)
-@DependsOn(['ProcessManagerService'])
+@DependsOn(['ProcessManager'])
 export class AiCoreService extends BaseService {
   private chatProcess!: UtilityProcessHandle    // streaming, I/O-bound
   private computeExecutor!: TaskExecutor         // batch tasks, CPU-bound
 
   protected async onInit(): Promise<void> {
-    const pm = application.get('ProcessManagerService')
+    const pm = application.get('ProcessManager')
 
     this.chatProcess = pm.register({
       type: 'utility',
@@ -780,14 +780,14 @@ Management (main ↔ utility, separate channel):
 
 ---
 
-## ProcessManagerService
+## ProcessManager
 
 ### Lifecycle Integration
 
 ```typescript
-@Injectable('ProcessManagerService')
+@Injectable('ProcessManager')
 @ServicePhase(Phase.WhenReady)
-export class ProcessManagerService extends BaseService {
+export class ProcessManager extends BaseService {
 
   protected async onInit(): Promise<void> {
     // Ready to accept registrations
@@ -803,7 +803,7 @@ export class ProcessManagerService extends BaseService {
 ### Registration in serviceRegistry.ts
 
 ```typescript
-import { ProcessManagerService } from '@main/services/process/ProcessManagerService'
+import { ProcessManager } from '@main/services/process/ProcessManager'
 
 export const services = {
   DbService,
@@ -811,14 +811,14 @@ export const services = {
   DataApiService,
   PreferenceService,
   CodeCliService,
-  ProcessManagerService,  // one line
+  ProcessManager,  // one line
 } as const
 ```
 
 ### Event Subscription
 
 ```typescript
-const pm = application.get('ProcessManagerService')
+const pm = application.get('ProcessManager')
 
 pm.on('process:started', (id, pid) => {
   logger.info(`Process ${id} started with pid ${pid}`)
@@ -842,13 +842,13 @@ pm.on('process:log', (line) => {
 ```
 src/main/services/process/
   types.ts                  # ProcessState, ProcessHandle, definitions, events
-  ProcessManagerService.ts  # Lifecycle service, registry, event hub
+  ProcessManager.ts  # Lifecycle service, registry, event hub
   ChildProcessHandle.ts     # ChildProcess implementation of ProcessHandle
   UtilityProcessHandle.ts   # utilityProcess implementation of ProcessHandle
   TaskExecutor.ts     # Task dispatch, worker lifecycle, auto-scaling
   index.ts                  # Barrel export (public API only)
   __tests__/
-    ProcessManagerService.test.ts
+    ProcessManager.test.ts
     ChildProcessHandle.test.ts
     UtilityProcessHandle.test.ts
     TaskExecutor.test.ts
@@ -862,7 +862,7 @@ src/main/services/process/
 
 - `ProcessHandle` interface, `ProcessState` enum, `ProcessManagerEvents`
 - `ChildProcessHandle` using `crossPlatformSpawn`
-- `ProcessManagerService` with `register()` API
+- `ProcessManager` with `register()` API
 - Graceful shutdown in `onStop()`
 - Unit tests
 

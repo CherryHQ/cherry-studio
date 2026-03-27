@@ -1,6 +1,6 @@
 import { loggerService } from '@logger'
 
-import type { ProcessManagerService } from './ProcessManagerService'
+import type { ProcessManager } from './ProcessManager'
 import type { UtilityProcessHandle } from './UtilityProcessHandle'
 
 export interface TaskExecutorOptions {
@@ -36,7 +36,7 @@ interface TaskResponse {
 export class TaskExecutor {
   readonly id: string
 
-  private readonly pm: ProcessManagerService
+  private readonly pm: ProcessManager
   private readonly options: Required<TaskExecutorOptions>
   private readonly logger: ReturnType<typeof loggerService.withContext>
 
@@ -47,7 +47,7 @@ export class TaskExecutor {
   private workerCounter = 0
   private shuttingDown = false
 
-  constructor(pm: ProcessManagerService, options: TaskExecutorOptions) {
+  constructor(pm: ProcessManager, options: TaskExecutorOptions) {
     this.id = options.id
     this.pm = pm
     this.options = {
