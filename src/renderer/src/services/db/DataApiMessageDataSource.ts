@@ -96,9 +96,11 @@ function convertSharedMessage(shared: SharedMessage): {
 
   const message: Message = {
     id: shared.id,
+    // assistantId is no longer stored on messages (derivable via topic → assistant FK).
+    // Renderer's legacy Message type still requires it; provide empty string for compat.
+    assistantId: '',
     topicId: shared.topicId,
     role: shared.role,
-    assistantId: shared.assistantId || '',
     status: shared.status as Message['status'],
     blocks: blockIds,
     createdAt: shared.createdAt,
