@@ -71,6 +71,7 @@ import type {
   ReasoningEffortOptionalParams
 } from '@renderer/types/sdk'
 import { addImageFileToContents } from '@renderer/utils/formats'
+import { mcpToolCallResponseToOpenAIChatToolContent } from '@renderer/utils/mcp-tool-content'
 import {
   isSupportedToolUse,
   mcpToolCallResponseToOpenAICompatibleMessage,
@@ -513,7 +514,7 @@ export class OpenAIAPIClient extends OpenAIBaseClient<
       return {
         role: 'tool',
         tool_call_id: mcpToolResponse.toolCallId,
-        content: JSON.stringify(resp.content)
+        content: mcpToolCallResponseToOpenAIChatToolContent(resp, isVisionModel(model))
       } as OpenAI.Chat.Completions.ChatCompletionToolMessageParam
     }
     return undefined
