@@ -16,6 +16,8 @@ import { asc, count, desc, eq, sql } from 'drizzle-orm'
 import { BaseService } from '../BaseService'
 import { type AgentRow, agentsTable, type InsertAgentRow } from '../database/schema'
 import type { AgentModelField } from '../errors'
+import { schedulerService } from './SchedulerService'
+import { sessionService } from './SessionService'
 
 const logger = loggerService.withContext('AgentService')
 
@@ -185,21 +187,17 @@ export class AgentService extends BaseService {
           scheduler_enabled: false,
           scheduler_type: 'interval',
           heartbeat_enabled: true,
-          heartbeat_interval: 30
+          heartbeat_interval: 30,
+          env_vars: {}
         }
       }
 
       const agent = await this.createAgent(req)
       logger.info('Auto-created default CherryClaw agent', { id: agent.id })
 
-      // Create a default session for the auto-created agent
-      const { SessionService } = await import('./SessionService')
-      const sessionSvc = SessionService.getInstance()
-      await sessionSvc.createSession(agent.id, {})
+      await sessionService.createSession(agent.id, {})
       logger.info('Default session created for CherryClaw agent', { agentId: agent.id })
 
-      // Create the heartbeat scheduled task
-      const { schedulerService } = await import('./SchedulerService')
       await schedulerService.ensureHeartbeatTask(agent.id, 30)
       logger.info('Heartbeat task created for CherryClaw agent', { agentId: agent.id })
     } catch (error) {
