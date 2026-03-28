@@ -47,7 +47,7 @@ const dbService = application.get('DbService')
 | `@DependsOn([...])`        | Declare dependencies by service name                                                                                                              | `[]`              |
 | `@Priority(n)`             | Initialization priority within layer (lower = earlier)                                                                                            | `100`             |
 | `@ErrorHandling(strategy)` | Error handling strategy                                                                                                                           | `'graceful'`      |
-| `@ExcludePlatforms([...])` | Skip service on specified platforms                                                                                                               | None excluded     |
+| `@Conditional(...)`        | Activate service only when all conditions are met (see [Conditional Activation](#conditional-activation))                                         | Always active     |
 
 **Note:** All services are singletons. Attempting to instantiate a service class directly (via `new`) after it has been created will throw an error. Use `application.get('ServiceName')` to access service instances (see [Application Overview](./application-overview.md)).
 
@@ -70,27 +70,69 @@ class DbService extends BaseService {
 }
 ```
 
-## Platform-Specific Services
+## Conditional Activation
 
-Use `@ExcludePlatforms` to declare platforms a service does not support. On excluded platforms, the service is silently skipped during registration.
+Use `@Conditional` to declare activation conditions for a service. Services whose conditions are not met are silently skipped during registration.
 
 ```typescript
-// Exclude entire platform
-@Injectable('SelectionService')
-@ExcludePlatforms(['linux'])
-class SelectionService extends BaseService { ... }
+// Platform-specific: macOS only
+@Injectable('AppMenuService')
+@Conditional(onPlatform('darwin'))
+class AppMenuService extends BaseService { ... }
 
-// Exclude specific platform-architecture combination
-@Injectable('SomeService')
-@ExcludePlatforms(['linux-arm64'])
-class SomeService extends BaseService { ... }
+// Multiple conditions (AND logic): Windows + Intel CPU
+@Injectable('OvmsService')
+@Conditional(onPlatform('win32'), onCpuVendor('intel'))
+class OvmsService extends BaseService { ... }
+
+// Environment variable driven
+@Injectable('DebugService')
+@Conditional(onEnvVar('DEBUG', 'true'))
+class DebugService extends BaseService { ... }
+
+// Custom function
+@Injectable('GpuService')
+@Conditional(when((ctx) => checkNvidiaGpu(), 'requires NVIDIA GPU'))
+class GpuService extends BaseService { ... }
+
+// Complex boolean: OR(AND(x1, x2), AND(y1, y2))
+@Conditional(anyOf(allOf(onPlatform('win32'), onArch('x64')), allOf(onPlatform('linux'), onArch('arm64'))))
 ```
 
-**Exclusion targets** support two granularities:
-- Platform only: `'linux'`, `'win32'`, `'darwin'` — excludes all architectures
-- Platform + architecture: `'linux-arm64'`, `'win32-ia32'` — excludes only that combination
+### Built-in Conditions
 
-**Transitive exclusion**: If ServiceA is excluded and ServiceB depends on ServiceA, ServiceB is automatically excluded too. Call `container.excludeDependentsOfExcluded()` after registration to propagate.
+| Factory | Description | Example |
+|---------|-------------|---------|
+| `onPlatform(...platforms)` | Match platform | `onPlatform('darwin')` |
+| `onArch(...archs)` | Match architecture | `onArch('x64', 'arm64')` |
+| `onCpuVendor(vendor)` | Match CPU vendor (case-insensitive substring of CPU model) | `onCpuVendor('intel')` |
+| `onEnvVar(name, value?)` | Match environment variable | `onEnvVar('DEBUG', 'true')` |
+| `when(fn, desc)` | Custom predicate function | `when((ctx) => check(), 'desc')` |
+| `not(cond)` | Negate a condition | `not(onPlatform('linux'))` |
+| `anyOf(...conds)` | OR: any condition matches | `anyOf(onPlatform('darwin'), onPlatform('win32'))` |
+| `allOf(...conds)` | AND: all conditions match | `allOf(onPlatform('win32'), onCpuVendor('intel'))` |
+
+**Transitive exclusion**: If ServiceA is excluded and ServiceB depends on ServiceA, ServiceB is automatically excluded too.
+
+### Accessing Conditional Services
+
+Conditional services must be accessed via `getOptional()`, not `get()`. The two methods are mutually exclusive:
+
+| Method | Unconditional service | Conditional service (active) | Conditional service (excluded) |
+|--------|----------------------|------------------------------|-------------------------------|
+| `get()` | ✅ Returns `T` | ❌ Throws | ❌ Throws |
+| `getOptional()` | ❌ Throws | ✅ Returns `T` | ✅ Returns `undefined` |
+
+```typescript
+// Unconditional service — always use get()
+const db = application.get('DbService')
+
+// Conditional service — always use getOptional()
+const ovms = application.getOptional('OvmsService')
+ovms?.start()
+```
+
+Access conditional services in `onAllReady()` or later (e.g., IPC handlers) to ensure all services are initialized.
 
 ## IPC Handler Management
 

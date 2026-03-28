@@ -14,7 +14,6 @@ afterEach(() => {
 
 /** Initialize all default-phase (WhenReady) services via startPhase */
 async function initializeServices(manager: LifecycleManager): Promise<void> {
-  manager.validateAndAdjustPhases()
   await manager.startPhase(Phase.WhenReady)
 }
 
@@ -110,36 +109,6 @@ describe('LifecycleManager', () => {
 
       // No services registered, should not throw
       await expect(initializeServices(manager)).resolves.toBeUndefined()
-    })
-  })
-
-  // ── startAll ──
-
-  describe('startAll', () => {
-    it('should prevent double initialization', async () => {
-      @Injectable('OnceService')
-      class OnceService extends BaseService {}
-
-      const manager = LifecycleManager.getInstance()
-      const container = manager['container']
-      container.register(OnceService)
-
-      await manager.startAll()
-
-      // Second call should be a no-op (no error)
-      await expect(manager.startAll()).resolves.toBeUndefined()
-    })
-
-    it('should set initialized flag', async () => {
-      @Injectable('TestService')
-      class TestService extends BaseService {}
-
-      const manager = LifecycleManager.getInstance()
-      const container = manager['container']
-      container.register(TestService)
-
-      await manager.startAll()
-      expect(manager.isInitialized()).toBe(true)
     })
   })
 

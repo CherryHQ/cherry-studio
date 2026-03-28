@@ -84,7 +84,7 @@ This gives you type-safe access via `application.get('NewService')`.
 
 ## Service Access Rules
 
-Services managed by the lifecycle system must **not** export singleton instances. The service CLASS is exported for type references only (e.g., `ServiceRegistry`, `@DependsOn`). All runtime access goes through `application.get()`.
+Services managed by the lifecycle system must **not** export singleton instances. The service CLASS is exported for type references only (e.g., `ServiceRegistry`, `@DependsOn`). All runtime access goes through `application.get()` (unconditional services) or `application.getOptional()` (conditional services with `@Conditional`).
 
 ### Assign to a local variable before use
 
@@ -102,6 +102,19 @@ preferenceService.set('app.zoom_factor', 1)
 ```
 
 This improves readability, avoids repeated container lookups, and makes the code easier to refactor.
+
+### Conditional service access
+
+Services with `@Conditional` must be accessed via `getOptional()`, which returns `T | undefined`. Using `get()` on a conditional service throws an error, even when the service is active on the current platform — this prevents cross-platform bugs.
+
+```typescript
+// ✗ BAD: get() on conditional service — throws even if service is active
+const menu = application.get('AppMenuService')
+
+// ✓ GOOD: getOptional() for conditional services
+const menu = application.getOptional('AppMenuService')
+menu?.buildMenu()
+```
 
 ## Runtime Service Control
 

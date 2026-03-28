@@ -123,6 +123,12 @@ const windowService = application.get('WindowService')
 windowService.createMainWindow()
 ```
 
+> **Conditional services**: If the migrated service uses `@Conditional`, replace `application.get()` calls at import sites with `application.getOptional()`:
+> ```typescript
+> const menuService = application.getOptional('AppMenuService')
+> menuService?.buildMenu()
+> ```
+
 ### Step 5: Replace dependencies with `@DependsOn`
 
 If the old service imported other service singletons at the top level, convert those to `@DependsOn` and access them via `application.get()` inside methods:

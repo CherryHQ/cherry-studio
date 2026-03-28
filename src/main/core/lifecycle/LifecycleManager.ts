@@ -2,7 +2,7 @@ import { EventEmitter } from 'node:events'
 
 import { loggerService } from '@logger'
 
-import { DependencyResolver } from './DependencyResolver'
+import { DependencyResolver, type PhaseAdjustment } from './DependencyResolver'
 import { ServiceContainer } from './ServiceContainer'
 import {
   isPausable,
@@ -14,7 +14,7 @@ import {
   ServiceInitError
 } from './types'
 
-const logger = loggerService.withContext('LifecycleManager')
+const logger = loggerService.withContext('Lifecycle')
 
 /**
  * LifecycleManager
@@ -29,6 +29,15 @@ export class LifecycleManager extends EventEmitter {
   private phaseInitializationOrder: Map<Phase, string[][]> = new Map()
   private initialized = false
   private phasesValidated = false
+
+  /** Per-service initialization timing in milliseconds */
+  private serviceTiming: Map<string, number> = new Map()
+  /** Per-service phase mapping */
+  private servicePhase: Map<string, Phase> = new Map()
+  /** Per-phase timing and service count */
+  private phaseTiming: Map<Phase, { duration: number; serviceCount: number }> = new Map()
+  /** Phase adjustments captured from validateAndAdjustPhases */
+  private phaseAdjustments: PhaseAdjustment[] = []
 
   /** Tracks services that were paused due to cascade from another service */
   private pausedByCascade: Map<string, Set<string>> = new Map()
@@ -73,6 +82,7 @@ export class LifecycleManager extends EventEmitter {
       this.container.updatePhase(adj.serviceName, adj.adjustedPhase)
     }
 
+    this.phaseAdjustments = adjustments
     this.phasesValidated = true
   }
 
@@ -94,12 +104,17 @@ export class LifecycleManager extends EventEmitter {
     const layers = this.resolver.resolveLayered(graph)
     this.phaseInitializationOrder.set(phase, layers)
 
-    // Log initialization order for this phase
+    const serviceCount = layers.flat().length
     const orderStr = layers.map((layer) => `[${layer.join(', ')}]`).join(' -> ')
-    logger.info(`[${phase}] Initialization order: ${orderStr}`)
+    logger.info(`─── ${phase} start (${serviceCount} services) ─── ${orderStr}`)
+
+    const phaseStart = performance.now()
 
     // Initialize services layer by layer, parallel within each layer
     for (const layer of layers) {
+      for (const serviceName of layer) {
+        this.servicePhase.set(serviceName, phase)
+      }
       const results = await Promise.allSettled(layer.map((serviceName) => this.initializeService(serviceName)))
       for (const result of results) {
         if (result.status === 'rejected') {
@@ -115,50 +130,14 @@ export class LifecycleManager extends EventEmitter {
       this.initializationOrder.push(...layer)
     }
 
-    logger.info(`[${phase}] All services started`)
+    const phaseDuration = performance.now() - phaseStart
+    this.phaseTiming.set(phase, { duration: phaseDuration, serviceCount })
+    logger.info(`─── ${phase} complete (${phaseDuration.toFixed(3)}ms) ───`)
 
     // Mark as initialized when WhenReady phase completes
     if (phase === Phase.WhenReady) {
       this.initialized = true
     }
-  }
-
-  /**
-   * Start all registered services in dependency order
-   * @deprecated Use startPhase() for phased initialization
-   */
-  public async startAll(): Promise<void> {
-    if (this.initialized) {
-      logger.warn('Services already initialized')
-      return
-    }
-
-    logger.info('Starting all services...')
-
-    // Validate phases first
-    this.validateAndAdjustPhases()
-
-    // Build dependency graph and resolve order
-    const graph = this.container.buildDependencyGraph()
-    const layers = this.resolver.resolveLayered(graph)
-
-    // Log initialization order
-    const orderStr = layers.map((layer) => `[${layer.join(', ')}]`).join(' -> ')
-    logger.info(`Initialization order: ${orderStr}`)
-
-    // Initialize services layer by layer, parallel within each layer
-    for (const layer of layers) {
-      const results = await Promise.allSettled(layer.map((serviceName) => this.initializeService(serviceName)))
-      for (const result of results) {
-        if (result.status === 'rejected') {
-          throw result.reason
-        }
-      }
-      this.initializationOrder.push(...layer)
-    }
-
-    this.initialized = true
-    logger.info('All services started successfully')
   }
 
   /**
@@ -171,6 +150,7 @@ export class LifecycleManager extends EventEmitter {
     }
 
     logger.info('Stopping all services...')
+    const start = performance.now()
 
     // Stop in reverse order
     const stopOrder = [...this.initializationOrder].reverse()
@@ -179,7 +159,7 @@ export class LifecycleManager extends EventEmitter {
       await this.stopSingle(serviceName)
     }
 
-    logger.info('All services stopped')
+    logger.info(`All services stopped (${(performance.now() - start).toFixed(3)}ms)`)
   }
 
   /**
@@ -187,6 +167,7 @@ export class LifecycleManager extends EventEmitter {
    */
   public async destroyAll(): Promise<void> {
     logger.info('Destroying all services...')
+    const start = performance.now()
 
     // Destroy in reverse order
     const destroyOrder = [...this.initializationOrder].reverse()
@@ -199,7 +180,7 @@ export class LifecycleManager extends EventEmitter {
     this.initializationOrder = []
     this.pausedByCascade.clear()
     this.stoppedByCascade.clear()
-    logger.info('All services destroyed')
+    logger.info(`All services destroyed (${(performance.now() - start).toFixed(3)}ms)`)
   }
 
   /**
@@ -215,11 +196,13 @@ export class LifecycleManager extends EventEmitter {
       // Get or create instance
       const instance = this.container.get(serviceName)
 
-      // Call initialization
+      // Call initialization with timing
+      const start = performance.now()
       await instance._doInit()
+      const duration = performance.now() - start
+      this.serviceTiming.set(serviceName, duration)
 
       this.emitLifecycleEvent(LifecycleEvents.SERVICE_READY, serviceName, LifecycleState.Ready)
-      logger.debug(`Service '${serviceName}' is ready`)
     } catch (error) {
       this.emitLifecycleEvent(LifecycleEvents.SERVICE_ERROR, serviceName, LifecycleState.Stopped, error as Error)
       this.handleError(serviceName, error as Error, metadata.errorStrategy)
@@ -309,6 +292,63 @@ export class LifecycleManager extends EventEmitter {
    */
   public isInitialized(): boolean {
     return this.initialized
+  }
+
+  /**
+   * Generate a formatted bootstrap summary for logging
+   * @param totalDuration - Total bootstrap duration in ms
+   * @param excludedCount - Number of excluded services
+   */
+  public getBootstrapSummary(totalDuration: number, excludedCount: number): string {
+    const totalServices = this.initializationOrder.length
+    const W = 48
+    const lines: string[] = []
+
+    const fmt = (ms: number) => ms.toFixed(3) + 'ms'
+    const row = (content: string) => `│${content.padEnd(W)}│`
+    const sep = (l: string, r: string) => `${l}${'─'.repeat(W)}${r}`
+
+    lines.push(sep('┌', '┐'))
+    lines.push(row('        Bootstrap Summary'.padEnd(W)))
+    lines.push(sep('├', '┤'))
+    lines.push(row(`  Total: ${totalServices} services in ${fmt(totalDuration)}`))
+
+    // Service list grouped by phase, sorted by duration within each group
+    const phaseOrder = [Phase.BeforeReady, Phase.WhenReady, Phase.Background]
+    const servicesByPhase = new Map<Phase, [string, number][]>()
+    for (const [name, ms] of this.serviceTiming) {
+      const phase = this.servicePhase.get(name)
+      if (!phase) continue
+      let list = servicesByPhase.get(phase)
+      if (!list) {
+        list = []
+        servicesByPhase.set(phase, list)
+      }
+      list.push([name, ms])
+    }
+
+    for (const phase of phaseOrder) {
+      const timing = this.phaseTiming.get(phase)
+      const services = servicesByPhase.get(phase)
+      if (!timing || !services || services.length === 0) continue
+
+      services.sort((a, b) => b[1] - a[1])
+      lines.push(row(''))
+      const title = `[${phase}] ${timing.serviceCount} services`
+      lines.push(row(`  ${title.padEnd(30)} ${fmt(timing.duration).padStart(12)}`))
+      for (const [name, ms] of services) {
+        lines.push(row(`    ${name.padEnd(28)} ${fmt(ms).padStart(12)}`))
+      }
+    }
+
+    // Phase adjustments & exclusions
+    if (this.phaseAdjustments.length > 0 || excludedCount > 0) {
+      lines.push(sep('├', '┤'))
+      lines.push(row(`  Adjustments: ${this.phaseAdjustments.length}  |  Excluded: ${excludedCount}`))
+    }
+
+    lines.push(sep('└', '┘'))
+    return lines.join('\n')
   }
 
   /**

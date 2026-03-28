@@ -2,7 +2,7 @@ import { loggerService } from '@logger'
 
 import { type DependencyNode, Phase } from './types'
 
-const logger = loggerService.withContext('DependencyResolver')
+const logger = loggerService.withContext('Lifecycle')
 
 /**
  * Circular dependency error

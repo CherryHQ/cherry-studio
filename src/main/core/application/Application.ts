@@ -8,7 +8,7 @@ import { ServiceContainer } from '../lifecycle/ServiceContainer'
 import { LifecycleEvents, Phase, type ServiceConstructor, ServiceInitError } from '../lifecycle/types'
 import type { ServiceRegistry } from './serviceRegistry'
 
-const logger = loggerService.withContext('Application')
+const logger = loggerService.withContext('Lifecycle')
 
 /**
  * Application
@@ -92,14 +92,17 @@ export class Application {
 
     logger.info('Bootstrapping...')
 
+    // Log registration summary
+    const regSummary = this.container.getRegistrationSummary()
+    logger.info(`Registered ${regSummary.total} services (${regSummary.excluded} excluded)`)
+
     // Check for boot config corruption BEFORE starting any services
     if (bootConfigService.hasLoadError()) {
       await this.handleBootConfigError()
       // If we reach here, user chose "Continue with Defaults"
     }
 
-    // Validate and adjust phases before starting
-    this.lifecycleManager.validateAndAdjustPhases()
+    const bootstrapStart = performance.now()
 
     try {
       // 1. Background phase - fire-and-forget, does not block BeforeReady/WhenReady
@@ -129,7 +132,9 @@ export class Application {
       throw error
     }
 
-    logger.info('Bootstrap complete')
+    const totalDuration = performance.now() - bootstrapStart
+    logger.info(`Bootstrap complete (${totalDuration.toFixed(3)}ms)`)
+    logger.info(`\n${this.lifecycleManager.getBootstrapSummary(totalDuration, regSummary.excluded)}`)
   }
 
   /**
@@ -145,13 +150,15 @@ export class Application {
     this.isShuttingDown = true
     logger.info('Shutting down...')
 
+    const start = performance.now()
+
     // Stop all services
     await this.lifecycleManager.stopAll()
 
     // Destroy all services
     await this.lifecycleManager.destroyAll()
 
-    logger.info('Shutdown complete')
+    logger.info(`Shutdown complete (${(performance.now() - start).toFixed(3)}ms)`)
   }
 
   /**
@@ -328,11 +335,22 @@ export class Application {
   }
 
   /**
-   * Get a service instance by registry key (type-safe)
+   * Get a service instance by registry key (type-safe).
+   * Throws if the service is conditional — use getOptional() for conditional services.
    * @param name - Service name from ServiceRegistry
    */
   public get<K extends keyof ServiceRegistry>(name: K): ServiceRegistry[K] {
     return this.container.get(name)
+  }
+
+  /**
+   * Get an optional (conditional) service instance by registry key.
+   * Returns undefined if the service was excluded by @Conditional conditions.
+   * Throws if the service is NOT conditional — use get() for unconditional services.
+   * @param name - Service name from ServiceRegistry
+   */
+  public getOptional<K extends keyof ServiceRegistry>(name: K): ServiceRegistry[K] | undefined {
+    return this.container.getOptional(name)
   }
 
   /**
