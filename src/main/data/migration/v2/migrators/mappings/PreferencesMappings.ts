@@ -691,13 +691,14 @@ export const REDUX_STORE_MAPPINGS = {
   ],
   memory: [
     {
-      originalKey: 'memoryConfig.embedderDimensions',
+      originalKey: 'memoryConfig.embeddingDimensions',
       targetKey: 'feature.memory.embedder_dimensions'
     },
     {
       originalKey: 'memoryConfig.isAutoDimensions',
       targetKey: 'feature.memory.auto_dimensions'
     },
+    // memoryConfig.llmModel and embeddingModel are handled by complex mapping (toMemoryModelUniqueIds)
     {
       originalKey: 'memoryConfig.customFactExtractionPrompt',
       targetKey: 'feature.memory.fact_extraction_prompt'
@@ -937,11 +938,11 @@ export const LOCALSTORAGE_MAPPINGS: ReadonlyArray<{ originalKey: string; targetK
 /**
  * 映射统计:
  * - ElectronStore项: 1
- * - Redux Store项: 208
+ * - Redux Store项: 203
  * - Redux分类: settings, selectionStore, memory, nutstore, preprocess, shortcuts, translate, websearch, ocr, note
  * - DexieSettings项: 7
  * - localStorage项: 0
- * - 总配置项: 216
+ * - 总配置项: 211
  *
  * 使用说明:
  * 1. ElectronStore读取: configManager.get(mapping.originalKey)

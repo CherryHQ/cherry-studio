@@ -1,7 +1,5 @@
 import { loggerService } from '@logger'
 import { getModel } from '@renderer/hooks/useModel'
-import store from '@renderer/store'
-import { selectMemoryConfig } from '@renderer/store/memory'
 import type {
   AddMemoryOptions,
   AssistantMessage,
@@ -14,6 +12,7 @@ import type {
 import { now } from 'lodash'
 
 import { getKnowledgeBaseParams } from './KnowledgeService'
+import { getMemoryConfigFromPreferences } from './memoryConfig'
 
 const logger = loggerService.withContext('MemoryService')
 
@@ -182,17 +181,12 @@ export class MemoryService {
 
   /**
    * Updates the memory service configuration in the main process
-   * Automatically gets current memory config and provider information from Redux store
+   * Automatically gets current memory config and provider information from preferences
    * @returns Promise that resolves when configuration is updated
    */
   public async updateConfig(): Promise<void> {
     try {
-      if (!store || !store.getState) {
-        logger.warn('Store not available, skipping memory config update')
-        return
-      }
-
-      const memoryConfig = selectMemoryConfig(store.getState())
+      const memoryConfig = await getMemoryConfigFromPreferences()
       const embeddingModel = memoryConfig.embeddingModel
 
       // Get knowledge base params for memory

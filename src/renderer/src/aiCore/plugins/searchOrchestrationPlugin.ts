@@ -16,8 +16,7 @@ import {
 import { preferenceService } from '@data/PreferenceService'
 import { loggerService } from '@logger'
 import { getDefaultModel, getProviderByModel } from '@renderer/services/AssistantService'
-import store from '@renderer/store'
-import { selectMemoryConfig } from '@renderer/store/memory'
+import { getMemoryConfigFromPreferences } from '@renderer/services/memoryConfig'
 import type { Assistant } from '@renderer/types'
 import type { ExtractResults } from '@renderer/utils/extract'
 import { extractInfoFromXML } from '@renderer/utils/extract'
@@ -190,7 +189,7 @@ async function storeConversationMemory(
   }
 
   try {
-    const memoryConfig = selectMemoryConfig(store.getState())
+    const memoryConfig = await getMemoryConfigFromPreferences()
 
     // 转换消息为记忆处理器期望的格式
     const conversationMessages = messages

@@ -2,6 +2,7 @@ import { createSelector } from '@reduxjs/toolkit'
 import { isNotSupportTextDeltaModel } from '@renderer/config/models'
 import { CHERRYAI_PROVIDER } from '@renderer/config/providers'
 import { getDefaultProvider } from '@renderer/services/AssistantService'
+import { getMemoryConfigFromPreferences, setMemoryConfigToPreferences } from '@renderer/services/memoryConfig'
 import { type RootState, useAppDispatch, useAppSelector } from '@renderer/store'
 import {
   addModel,
@@ -54,14 +55,44 @@ const selectAllProvidersWithCherryAI = createSelector(selectProviders, (provider
   [...providers, CHERRYAI_PROVIDER].map(normalizeProvider)
 )
 
+function isSameModelReference(a?: Model, b?: Model): boolean {
+  if (!a || !b) {
+    return false
+  }
+  return a.id === b.id && a.provider === b.provider
+}
+
 export function useProviders() {
   const providers: Provider[] = useAppSelector(selectEnabledProviders)
   const dispatch = useAppDispatch()
 
+  const clearMemoryConfigIfProviderDeleted = async (providerId: string) => {
+    const memoryConfig = await getMemoryConfigFromPreferences()
+    let hasChanges = false
+    const nextConfig = { ...memoryConfig }
+
+    if (nextConfig.llmModel?.provider === providerId) {
+      nextConfig.llmModel = undefined
+      hasChanges = true
+    }
+
+    if (nextConfig.embeddingModel?.provider === providerId) {
+      nextConfig.embeddingModel = undefined
+      hasChanges = true
+    }
+
+    if (hasChanges) {
+      await setMemoryConfigToPreferences(nextConfig)
+    }
+  }
+
   return {
     providers: providers || [],
     addProvider: (provider: Provider) => dispatch(addProvider(provider)),
-    removeProvider: (provider: Provider) => dispatch(removeProvider(provider)),
+    removeProvider: (provider: Provider) => {
+      dispatch(removeProvider(provider))
+      void clearMemoryConfigIfProviderDeleted(provider.id)
+    },
     updateProvider: (updates: Partial<Provider> & { id: string }) => dispatch(updateProvider(updates)),
     updateProviders: (providers: Provider[]) => dispatch(updateProviders(providers))
   }
@@ -103,12 +134,35 @@ export function useProvider(id: string) {
     [dispatch, id, provider]
   )
 
+  const clearMemoryConfigIfModelDeleted = async (model: Model) => {
+    const memoryConfig = await getMemoryConfigFromPreferences()
+    let hasChanges = false
+    const nextConfig = { ...memoryConfig }
+
+    if (isSameModelReference(nextConfig.llmModel, model)) {
+      nextConfig.llmModel = undefined
+      hasChanges = true
+    }
+
+    if (isSameModelReference(nextConfig.embeddingModel, model)) {
+      nextConfig.embeddingModel = undefined
+      hasChanges = true
+    }
+
+    if (hasChanges) {
+      await setMemoryConfigToPreferences(nextConfig)
+    }
+  }
+
   return {
     provider,
     models: provider?.models ?? [],
     updateProvider: (updates: Partial<Provider>) => dispatch(updateProvider({ id, ...updates })),
     addModel: handleAddModel,
-    removeModel: (model: Model) => dispatch(removeModel({ providerId: id, model })),
+    removeModel: (model: Model) => {
+      dispatch(removeModel({ providerId: id, model }))
+      void clearMemoryConfigIfModelDeleted(model)
+    },
     updateModel: (model: Model) => dispatch(updateModel({ providerId: id, model }))
   }
 }

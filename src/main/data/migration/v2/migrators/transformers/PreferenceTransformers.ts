@@ -390,3 +390,37 @@ export function migrateWebSearchProviders(sources: { providers?: OldWebSearchPro
     'chat.web_search.provider_overrides': overrides
   }
 }
+
+/**
+ * Convert memory model references into UniqueModelId preference keys.
+ *
+ * Transforms legacy `{ id, provider }` model references into `provider::modelId`.
+ *
+ * @example
+ * Input: {
+ *   llmModel: { id: 'gpt-4o', provider: 'openai' },
+ *   embeddingModel: { id: 'text-embedding-3-small', provider: 'openai' }
+ * }
+ * Output: {
+ *   'feature.memory.llm_model_id': 'openai::gpt-4o',
+ *   'feature.memory.embedding_model_id': 'openai::text-embedding-3-small'
+ * }
+ */
+export function toMemoryModelUniqueIds(sources: {
+  llmModel?: { id?: string; provider?: string } | null
+  embeddingModel?: { id?: string; provider?: string } | null
+}): TransformResult {
+  const buildUniqueModelId = (model?: { id?: string; provider?: string } | null): string | null => {
+    const provider = model?.provider?.trim()
+    const id = model?.id?.trim()
+    if (!provider || !id) {
+      return null
+    }
+    return `${provider}::${id}`
+  }
+
+  return {
+    'feature.memory.llm_model_id': buildUniqueModelId(sources.llmModel),
+    'feature.memory.embedding_model_id': buildUniqueModelId(sources.embeddingModel)
+  }
+}

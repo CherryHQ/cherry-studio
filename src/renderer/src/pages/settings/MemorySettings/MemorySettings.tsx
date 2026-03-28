@@ -1,15 +1,19 @@
 import { ExclamationCircleOutlined } from '@ant-design/icons'
 import { Button, Flex, RowFlex, Switch } from '@cherrystudio/ui'
 import { cacheService } from '@data/CacheService'
-import { usePreference } from '@data/hooks/usePreference'
+import { useMultiplePreferences, usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
 import { DeleteIcon, EditIcon, LoadingIcon, RefreshIcon } from '@renderer/components/Icons'
 import Scrollbar from '@renderer/components/Scrollbar'
 import TextBadge from '@renderer/components/TextBadge'
 import { useTheme } from '@renderer/context/ThemeProvider'
 import { useModel } from '@renderer/hooks/useModel'
+import {
+  MEMORY_PREFERENCE_KEYS,
+  type MemoryPreferenceValues,
+  resolveMemoryConfig
+} from '@renderer/services/memoryConfig'
 import { memoryService } from '@renderer/services/MemoryService'
-import { selectMemoryConfig } from '@renderer/store/memory'
 import type { MemoryItem } from '@types'
 import { Dropdown, Empty, Form, Input, Modal, Space, Spin } from 'antd'
 import dayjs from 'dayjs'
@@ -17,7 +21,6 @@ import relativeTime from 'dayjs/plugin/relativeTime'
 import { Brain, Calendar, MenuIcon, PlusIcon, Settings2, UserRound, UserRoundMinus, UserRoundPlus } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { useSelector } from 'react-redux'
 import styled from 'styled-components'
 
 import {
@@ -552,7 +555,11 @@ const MemorySettings = () => {
     })
   }
 
-  const memoryConfig = useSelector(selectMemoryConfig)
+  const [memoryConfigPreferences] = useMultiplePreferences(MEMORY_PREFERENCE_KEYS)
+  const memoryConfig = useMemo(
+    () => resolveMemoryConfig(memoryConfigPreferences as MemoryPreferenceValues),
+    [memoryConfigPreferences]
+  )
   const embeddingModel = useModel(memoryConfig.embeddingModel?.id, memoryConfig.embeddingModel?.provider)
 
   const handleGlobalMemoryToggle = async (enabled: boolean) => {

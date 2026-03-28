@@ -5,6 +5,7 @@
 
 import { appStateTable } from '@data/db/schemas/appState'
 import { mcpServerTable } from '@data/db/schemas/mcpServer'
+import { memoryHistoryTable, memoryTable } from '@data/db/schemas/memory'
 import { messageTable } from '@data/db/schemas/message'
 import { preferenceTable } from '@data/db/schemas/preference'
 import { topicTable } from '@data/db/schemas/topic'
@@ -261,6 +262,8 @@ export class MigrationEngine {
     // Tables to clear - add more as they are created
     // Order matters: child tables must be cleared before parent tables
     const tables = [
+      { table: memoryHistoryTable, name: 'memory_history' }, // Must clear before memory (FK reference)
+      { table: memoryTable, name: 'memory' },
       { table: messageTable, name: 'message' }, // Must clear before topic (FK reference)
       { table: topicTable, name: 'topic' },
       { table: mcpServerTable, name: 'mcp_server' },
@@ -284,6 +287,8 @@ export class MigrationEngine {
 
     // Clear tables in dependency order (children before parents)
     // Messages reference topics, so delete messages first
+    await db.delete(memoryHistoryTable)
+    await db.delete(memoryTable)
     await db.delete(messageTable)
     await db.delete(topicTable)
     await db.delete(mcpServerTable)
