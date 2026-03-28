@@ -52,7 +52,6 @@ export const SILICON_ANTHROPIC_API_HOST = 'https://api.siliconflow.cn'
 export const CLAUDE_OFFICIAL_SUPPORTED_PROVIDERS = [
   'deepseek',
   'moonshot',
-  'kimi-code',
   'zhipu',
   'dashscope',
   'modelscope',

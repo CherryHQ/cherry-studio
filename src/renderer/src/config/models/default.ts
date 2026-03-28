@@ -759,7 +759,6 @@ export const SYSTEM_MODELS: Record<SystemProviderId | 'defaultModel', Model[]> =
       capabilities: [{ type: 'text' }, { type: 'function_calling' }]
     }
   ],
-  'kimi-code': [],
   baichuan: [
     {
       id: 'Baichuan4',
