@@ -43,7 +43,7 @@ const TranslateSettings: FC<{
             <Switch
               checked={enableMarkdown}
               onCheckedChange={(checked) => {
-                setEnableMarkdown(checked)
+                void setEnableMarkdown(checked)
                 void db.settings.put({ id: 'translate:markdown:enabled', value: checked })
               }}
             />
