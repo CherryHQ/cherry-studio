@@ -148,10 +148,11 @@ export const useAppSelector = useSelector.withTypes<RootState>()
 export const useAppStore = useStore.withTypes<typeof store>()
 window.store = store
 
-export async function handleSaveData() {
-  logger.info('Flushing redux persistor data')
-  await persistor.flush()
-  logger.info('Flushed redux persistor data')
-}
+// [v2] Removed: Redux persistor flush is no longer needed after v2 data refactoring
+// export async function handleSaveData() {
+//   logger.info('Flushing redux persistor data')
+//   await persistor.flush()
+//   logger.info('Flushed redux persistor data')
+// }
 
 export default store

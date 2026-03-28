@@ -13,7 +13,7 @@ import type {
   ToolPermissionRequestPayload,
   ToolPermissionResultPayload
 } from '@renderer/services/ToolPermissionsCacheService'
-import { handleSaveData, useAppSelector } from '@renderer/store'
+import { useAppSelector } from '@renderer/store'
 import { selectMemoryConfig } from '@renderer/store/memory'
 import { delay, runAsyncFunction } from '@renderer/utils'
 import { checkDataLimit } from '@renderer/utils'
@@ -65,11 +65,12 @@ export function useAppInit() {
     })
   }, [])
 
-  useEffect(() => {
-    window.electron.ipcRenderer.on(IpcChannel.App_SaveData, async () => {
-      await handleSaveData()
-    })
-  }, [])
+  // [v2] Removed: Redux persistor flush is no longer needed after v2 data refactoring
+  // useEffect(() => {
+  //   window.electron.ipcRenderer.on(IpcChannel.App_SaveData, async () => {
+  //     await handleSaveData()
+  //   })
+  // }, [])
 
   useAppUpdateHandler()
   useFullScreenNotice()

@@ -14,7 +14,6 @@ import { join } from 'path'
 import iconPath from '../../../build/icon.png?asset'
 import { titleBarOverlayDark, titleBarOverlayLight } from '../config'
 import { contextMenu } from './ContextMenu'
-import { initSessionUserAgent } from './WebviewService'
 
 const DEFAULT_MINIWINDOW_WIDTH = 550
 const DEFAULT_MINIWINDOW_HEIGHT = 400
@@ -37,12 +36,19 @@ export class WindowService extends BaseService {
   //to restore the focus status when miniWindow hides
   private wasMainWindowFocused: boolean = false
   private lastRendererProcessCrashTime: number = 0
+  private activateHandler: (() => void) | null = null
 
   protected async onInit() {
     this.registerIpcHandlers()
+    this.registerActivateHandler()
   }
 
-  protected async onStop() {}
+  protected async onStop() {
+    if (this.activateHandler) {
+      app.removeListener('activate', this.activateHandler)
+      this.activateHandler = null
+    }
+  }
 
   protected async onDestroy() {
     this._onMainWindowCreated.dispose()
@@ -52,6 +58,18 @@ export class WindowService extends BaseService {
     if (!this.mainWindow || this.mainWindow.isDestroyed()) {
       throw new Error('Main window does not exist or has been destroyed')
     }
+  }
+
+  private registerActivateHandler() {
+    this.activateHandler = () => {
+      const mainWindow = this.getMainWindow()
+      if (!mainWindow || mainWindow.isDestroyed()) {
+        this.createMainWindow()
+      } else {
+        this.showMainWindow()
+      }
+    }
+    app.on('activate', this.activateHandler)
   }
 
   private registerIpcHandlers() {
@@ -177,9 +195,6 @@ export class WindowService extends BaseService {
     if (enableQuickAssistant && !this.miniWindow) {
       this.miniWindow = this.createMiniWindow(true)
     }
-
-    //init the MinApp webviews' useragent
-    initSessionUserAgent()
 
     this._onMainWindowCreated.fire(this.mainWindow)
 
@@ -429,12 +444,12 @@ export class WindowService extends BaseService {
 
   private setupWindowLifecycleEvents(mainWindow: BrowserWindow) {
     mainWindow.on('close', (event) => {
-      // save data before when close window
-      try {
-        mainWindow.webContents.send(IpcChannel.App_SaveData)
-      } catch (error) {
-        logger.error('Failed to save data:', error as Error)
-      }
+      // [v2] Removed: Redux persistor flush is no longer needed after v2 data refactoring
+      // try {
+      //   mainWindow.webContents.send(IpcChannel.App_SaveData)
+      // } catch (error) {
+      //   logger.error('Failed to save data:', error as Error)
+      // }
 
       // 如果已经触发退出，直接放行窗口关闭
       if (application.isQuitting) {

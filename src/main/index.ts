@@ -36,7 +36,6 @@ import { isDev, isLinux, isWin } from './constant'
 import process from 'node:process'
 
 import { registerIpc } from './ipc'
-import { openClawService } from './services/OpenClawService'
 import {
   CHERRY_STUDIO_PROTOCOL,
   handleProtocolUrl,
@@ -51,7 +50,6 @@ import {
   registerMigrationIpcHandlers,
   unregisterMigrationIpcHandlers
 } from '@data/migration/v2'
-import { initWebviewHotkeys } from './services/WebviewService'
 import { application, serviceList } from './core/application'
 
 const logger = loggerService.withContext('MainEntry')
@@ -236,28 +234,6 @@ if (!app.requestSingleInstanceLock()) {
       optimizer.watchWindowShortcuts(window)
     })
 
-    app.on('before-quit', () => {
-      application.markQuitting()
-    })
-
-    app.on('will-quit', async () => {
-      // Flush boot config to ensure pending writes are saved
-      // FIXME：临时方案，等改造本文件时应在 application 中统一处理
-      bootConfigService.flush()
-
-      try {
-        await openClawService.stopGateway()
-      } catch (error) {
-        logger.warn('Error cleaning up services:', error as Error)
-      }
-
-      // v2 Refactoring: Shutdown lifecycle-managed services
-      await application.shutdown()
-
-      // finish the logger
-      logger.finish()
-    })
-
     // This method will be called when Electron has finished
     // initialization and is ready to create browser windows.
     // Some APIs can only be used after this event occurs.
@@ -270,7 +246,6 @@ if (!app.requestSingleInstanceLock()) {
     // A preparation for v2 data refactoring
     versionService.recordCurrentVersion()
 
-    initWebviewHotkeys()
     // Set app user model id for windows
     electronApp.setAppUserModelId(import.meta.env.VITE_MAIN_BUNDLE_ID || 'com.kangfenmao.CherryStudio')
 
@@ -286,15 +261,6 @@ if (!app.requestSingleInstanceLock()) {
 
     // Create main window - migration has either completed or was not needed
     const mainWindow = application.get('WindowService').createMainWindow()
-
-    app.on('activate', function () {
-      const mainWindow = application.get('WindowService').getMainWindow()
-      if (!mainWindow || mainWindow.isDestroyed()) {
-        application.get('WindowService').createMainWindow()
-      } else {
-        application.get('WindowService').showMainWindow()
-      }
-    })
 
     await registerIpc(mainWindow, app)
 

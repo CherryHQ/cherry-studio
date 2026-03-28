@@ -138,8 +138,7 @@ export const LifecycleEvents = {
   SERVICE_STOPPED: 'lifecycle:service:stopped',
   SERVICE_DESTROYED: 'lifecycle:service:destroyed',
   SERVICE_ERROR: 'lifecycle:service:error',
-  ALL_SERVICES_READY: 'lifecycle:all-services-ready',
-  APP_ACTIVATE: 'lifecycle:app:activate'
+  ALL_SERVICES_READY: 'lifecycle:all-services-ready'
 } as const
 
 /**

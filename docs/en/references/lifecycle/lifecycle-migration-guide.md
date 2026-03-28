@@ -227,7 +227,7 @@ Remove the `unregisterIpcHandlers()` method and its call from `onStop()`. BaseSe
 | -------------- | ------------------------------------------- | -------------------------------------------- |
 | Singleton      | `private static instance` + `getInstance()` | `@Injectable('Name')` — container manages it |
 | Init           | Manual `init()` called from `index.ts`      | `onInit()` — called automatically            |
-| Cleanup        | Manual `destroy()` in `will-quit` handler   | `onStop()` / `onDestroy()` — automatic       |
+| Cleanup        | Manual cleanup in `will-quit` / `before-quit` handler | `onStop()` / `onDestroy()` — automatic |
 | Dependencies   | `import { otherService } from '...'`        | `@DependsOn([...])` + `application.get()`    |
 | Access         | `import { myService } from '...'`           | `application.get('MyService')`               |
 | Ordering       | Manual call order in `index.ts`             | `@ServicePhase` + `@DependsOn` + `@Priority` |
