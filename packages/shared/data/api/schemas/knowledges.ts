@@ -97,8 +97,15 @@ export const CreateKnowledgeRootItemSchema = z.discriminatedUnion('type', [
 ])
 export type CreateKnowledgeRootItemDto = z.infer<typeof CreateKnowledgeRootItemSchema>
 
+export const KNOWLEDGE_ITEMS_DEFAULT_PAGE = 1
+export const KNOWLEDGE_ITEMS_DEFAULT_LIMIT = 20
+export const KNOWLEDGE_ITEMS_MAX_LIMIT = 100
+export const KNOWLEDGE_BASES_DEFAULT_PAGE = 1
+export const KNOWLEDGE_BASES_DEFAULT_LIMIT = 20
+export const KNOWLEDGE_BASES_MAX_LIMIT = 100
+
 export const CreateKnowledgeRootChildrenSchema = z.object({
-  items: z.array(CreateKnowledgeRootItemSchema).min(1)
+  items: z.array(CreateKnowledgeRootItemSchema).min(1).max(KNOWLEDGE_ITEMS_MAX_LIMIT)
 })
 export type CreateKnowledgeRootChildrenDto = z.infer<typeof CreateKnowledgeRootChildrenSchema>
 
@@ -119,9 +126,13 @@ export const UpdateKnowledgeItemSchema = z
   .strict()
 export type UpdateKnowledgeItemDto = z.infer<typeof UpdateKnowledgeItemSchema>
 
-export const KNOWLEDGE_ITEMS_DEFAULT_PAGE = 1
-export const KNOWLEDGE_ITEMS_DEFAULT_LIMIT = 20
-export const KNOWLEDGE_ITEMS_MAX_LIMIT = 100
+export const KnowledgeBaseListQuerySchema = z.object({
+  page: z.int().positive().default(KNOWLEDGE_BASES_DEFAULT_PAGE),
+  limit: z.int().positive().max(KNOWLEDGE_BASES_MAX_LIMIT).default(KNOWLEDGE_BASES_DEFAULT_LIMIT)
+})
+
+export type KnowledgeBaseListQueryParams = z.input<typeof KnowledgeBaseListQuerySchema>
+export type KnowledgeBaseListQuery = z.output<typeof KnowledgeBaseListQuerySchema>
 
 /**
  * Query parameters for GET /knowledge-bases/:id/root/children
@@ -149,7 +160,8 @@ export type KnowledgeItemChildrenQuery = z.output<typeof KnowledgeItemChildrenQu
 export interface KnowledgeSchemas {
   '/knowledge-bases': {
     GET: {
-      response: KnowledgeBase[]
+      query?: KnowledgeBaseListQueryParams
+      response: OffsetPaginationResponse<KnowledgeBase>
     }
     POST: {
       body: CreateKnowledgeBaseDto

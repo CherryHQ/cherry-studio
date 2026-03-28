@@ -49,6 +49,9 @@ vi.mock('@data/services/KnowledgeItemService', () => ({
 }))
 
 import {
+  KNOWLEDGE_BASES_DEFAULT_LIMIT,
+  KNOWLEDGE_BASES_DEFAULT_PAGE,
+  KNOWLEDGE_BASES_MAX_LIMIT,
   KNOWLEDGE_ITEMS_DEFAULT_LIMIT,
   KNOWLEDGE_ITEMS_DEFAULT_PAGE,
   KNOWLEDGE_ITEMS_MAX_LIMIT
@@ -62,14 +65,55 @@ describe('knowledgeHandlers', () => {
   })
 
   describe('/knowledge-bases', () => {
-    it('should delegate GET to knowledgeBaseService.list', async () => {
-      const response = [{ id: 'kb-1', name: 'Knowledge Base' }]
+    it('should apply default pagination when query is missing', async () => {
+      const response = {
+        items: [{ id: 'kb-1', name: 'Knowledge Base' }],
+        total: 1,
+        page: KNOWLEDGE_BASES_DEFAULT_PAGE
+      }
       listKnowledgeBasesMock.mockResolvedValueOnce(response)
 
       const result = await knowledgeHandlers['/knowledge-bases'].GET({})
 
-      expect(listKnowledgeBasesMock).toHaveBeenCalledWith()
+      expect(listKnowledgeBasesMock).toHaveBeenCalledWith({
+        page: KNOWLEDGE_BASES_DEFAULT_PAGE,
+        limit: KNOWLEDGE_BASES_DEFAULT_LIMIT
+      })
       expect(result).toEqual(response)
+    })
+
+    it('should delegate explicit pagination to knowledgeBaseService.list', async () => {
+      const response = {
+        items: [{ id: 'kb-2', name: 'Knowledge Base 2' }],
+        total: 3,
+        page: 2
+      }
+      listKnowledgeBasesMock.mockResolvedValueOnce(response)
+
+      const result = await knowledgeHandlers['/knowledge-bases'].GET({
+        query: {
+          page: 2,
+          limit: 10
+        } as never
+      } as never)
+
+      expect(listKnowledgeBasesMock).toHaveBeenCalledWith({
+        page: 2,
+        limit: 10
+      })
+      expect(result).toEqual(response)
+    })
+
+    it('should reject invalid pagination before calling the service', async () => {
+      await expect(
+        knowledgeHandlers['/knowledge-bases'].GET({
+          query: {
+            limit: KNOWLEDGE_BASES_MAX_LIMIT + 1
+          } as never
+        } as never)
+      ).rejects.toHaveProperty('name', 'ZodError')
+
+      expect(listKnowledgeBasesMock).not.toHaveBeenCalled()
     })
 
     it('should parse and delegate POST to knowledgeBaseService.create', async () => {

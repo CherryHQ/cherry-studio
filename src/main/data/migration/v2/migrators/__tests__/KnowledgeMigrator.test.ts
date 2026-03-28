@@ -476,6 +476,64 @@ describe('KnowledgeMigrator dimensions resolution', () => {
     expect(result.warnings?.some((warning: string) => warning.includes('embedding_model_missing'))).toBe(true)
   })
 
+  it('prepare skips duplicate base ids and duplicate item ids with warnings', async () => {
+    const migrator = new KnowledgeMigrator() as any
+    const resolveDimensionsForBase = vi.spyOn(migrator, 'resolveDimensionsForBase').mockResolvedValue({
+      dimensions: 1024,
+      reason: 'ok'
+    })
+
+    const ctx = {
+      sources: {
+        reduxState: {
+          getCategory: vi.fn().mockReturnValue({
+            bases: [
+              {
+                id: 'kb-1',
+                name: 'KB 1',
+                model: { id: 'BAAI/bge-m3', name: 'BAAI/bge-m3', provider: 'silicon' },
+                items: [
+                  { id: 'item-1', type: 'note', content: 'first item' },
+                  { id: 'item-dup', type: 'note', content: 'first duplicate item' }
+                ]
+              },
+              {
+                id: 'kb-1',
+                name: 'KB 1 duplicate',
+                model: { id: 'BAAI/bge-m3', name: 'BAAI/bge-m3', provider: 'silicon' },
+                items: [{ id: 'item-in-duplicate-base', type: 'note', content: 'skip whole base' }]
+              },
+              {
+                id: 'kb-2',
+                name: 'KB 2',
+                model: { id: 'BAAI/bge-m3', name: 'BAAI/bge-m3', provider: 'silicon' },
+                items: [
+                  { id: 'item-dup', type: 'note', content: 'second duplicate item' },
+                  { id: 'item-2', type: 'note', content: 'second item' }
+                ]
+              }
+            ]
+          })
+        },
+        dexieExport: {
+          tableExists: vi.fn().mockResolvedValue(false),
+          readTable: vi.fn()
+        }
+      }
+    } as any
+
+    const result = await migrator.prepare(ctx)
+
+    expect(result.success).toBe(true)
+    expect(resolveDimensionsForBase).toHaveBeenCalledTimes(2)
+    expect(migrator.sourceCount).toBe(8)
+    expect(migrator.skippedCount).toBe(3)
+    expect(migrator.preparedBases.map((base: any) => base.id)).toEqual(['kb-1', 'kb-2'])
+    expect(migrator.preparedItems.map((item: any) => item.id)).toEqual(['item-1', 'item-dup', 'item-2'])
+    expect(result.warnings).toContain('Skipped duplicate knowledge base kb-1')
+    expect(result.warnings).toContain('Skipped duplicate knowledge item item-dup in base kb-2')
+  })
+
   it('prepare migrates legacy flat items as root nodes in the v2 tree', async () => {
     const migrator = new KnowledgeMigrator() as any
     vi.spyOn(migrator, 'resolveDimensionsForBase').mockResolvedValue({

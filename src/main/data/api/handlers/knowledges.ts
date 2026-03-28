@@ -9,6 +9,7 @@ import type { KnowledgeSchemas } from '@shared/data/api/schemas/knowledges'
 import {
   CreateKnowledgeBaseSchema,
   CreateKnowledgeRootChildrenSchema,
+  KnowledgeBaseListQuerySchema,
   KnowledgeItemChildrenQuerySchema,
   KnowledgeRootChildrenQuerySchema,
   UpdateKnowledgeBaseSchema,
@@ -23,8 +24,9 @@ export const knowledgeHandlers: {
   }
 } = {
   '/knowledge-bases': {
-    GET: async () => {
-      return await knowledgeBaseService.list()
+    GET: async ({ query }) => {
+      const parsed = KnowledgeBaseListQuerySchema.parse(query ?? {})
+      return await knowledgeBaseService.list(parsed)
     },
     POST: async ({ body }) => {
       const parsed = CreateKnowledgeBaseSchema.parse(body)

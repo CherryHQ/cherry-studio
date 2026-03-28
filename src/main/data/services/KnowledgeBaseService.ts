@@ -8,9 +8,14 @@ import { knowledgeBaseTable } from '@data/db/schemas/knowledge'
 import { loggerService } from '@logger'
 import { application } from '@main/core/application'
 import { DataApiErrorFactory } from '@shared/data/api'
-import { type CreateKnowledgeBaseDto, type UpdateKnowledgeBaseDto } from '@shared/data/api/schemas/knowledges'
+import type { OffsetPaginationResponse } from '@shared/data/api/apiTypes'
+import {
+  type CreateKnowledgeBaseDto,
+  type KnowledgeBaseListQuery,
+  type UpdateKnowledgeBaseDto
+} from '@shared/data/api/schemas/knowledges'
 import type { KnowledgeBase } from '@shared/data/types/knowledge'
-import { desc, eq } from 'drizzle-orm'
+import { desc, eq, sql } from 'drizzle-orm'
 
 import { validateKnowledgeBaseConfig } from './knowledgeBaseConfig'
 
@@ -37,10 +42,26 @@ function rowToKnowledgeBase(row: typeof knowledgeBaseTable.$inferSelect): Knowle
 }
 
 export class KnowledgeBaseService {
-  async list(): Promise<KnowledgeBase[]> {
+  async list(query: KnowledgeBaseListQuery): Promise<OffsetPaginationResponse<KnowledgeBase>> {
     const db = application.get('DbService').getDb()
-    const rows = await db.select().from(knowledgeBaseTable).orderBy(desc(knowledgeBaseTable.createdAt))
-    return rows.map((row) => rowToKnowledgeBase(row))
+    const { page, limit } = query
+    const offset = (page - 1) * limit
+
+    const [rows, [{ count }]] = await Promise.all([
+      db
+        .select()
+        .from(knowledgeBaseTable)
+        .orderBy(desc(knowledgeBaseTable.createdAt), desc(knowledgeBaseTable.id))
+        .limit(limit)
+        .offset(offset),
+      db.select({ count: sql<number>`count(*)` }).from(knowledgeBaseTable)
+    ])
+
+    return {
+      items: rows.map((row) => rowToKnowledgeBase(row)),
+      total: count,
+      page
+    }
   }
 
   async getById(id: string): Promise<KnowledgeBase> {

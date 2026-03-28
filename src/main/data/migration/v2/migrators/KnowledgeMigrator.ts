@@ -379,6 +379,8 @@ export class KnowledgeMigrator extends BaseMigrator {
       const { noteIds, fileIds } = this.collectLookupIds(bases)
       const noteById = await this.loadNoteLookup(ctx, noteIds)
       const filesById = await this.loadFileLookup(ctx, fileIds)
+      const seenBaseIds = new Set<string>()
+      const seenItemIds = new Set<string>()
 
       for (const base of bases) {
         this.sourceCount += 1
@@ -394,6 +396,16 @@ export class KnowledgeMigrator extends BaseMigrator {
         const validBase = base
 
         const items = Array.isArray(validBase.items) ? validBase.items : []
+
+        if (seenBaseIds.has(validBase.id)) {
+          this.skippedCount += 1 + items.length
+          this.sourceCount += items.length
+          const warningMessage = `Skipped duplicate knowledge base ${validBase.id}`
+          logger.warn(warningMessage)
+          this.warnings.push(warningMessage)
+          continue
+        }
+
         const resolvedDimensions = await this.resolveDimensionsForBase(validBase)
 
         if (resolvedDimensions.dimensions === null) {
@@ -415,6 +427,8 @@ export class KnowledgeMigrator extends BaseMigrator {
           continue
         }
 
+        const preparedBaseId = baseResult.value.id ?? validBase.id
+        seenBaseIds.add(preparedBaseId)
         this.preparedBases.push(baseResult.value)
 
         const invalidConfigWarning = getInvalidKnowledgeBaseConfigWarning(validBase)
@@ -439,6 +453,24 @@ export class KnowledgeMigrator extends BaseMigrator {
             continue
           }
 
+          const preparedItemId = itemResult.value.id ?? item.id
+          if (!preparedItemId) {
+            this.skippedCount += 1
+            const warningMessage = `Skipped invalid knowledge item in base ${validBase.id}: missing transformed id`
+            logger.warn(warningMessage)
+            this.warnings.push(warningMessage)
+            continue
+          }
+
+          if (seenItemIds.has(preparedItemId)) {
+            this.skippedCount += 1
+            const warningMessage = `Skipped duplicate knowledge item ${preparedItemId} in base ${validBase.id}`
+            logger.warn(warningMessage)
+            this.warnings.push(warningMessage)
+            continue
+          }
+
+          seenItemIds.add(preparedItemId)
           this.preparedItems.push(itemResult.value)
         }
       }

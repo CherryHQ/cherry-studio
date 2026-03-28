@@ -277,6 +277,8 @@ export const transformKnowledgeItem = (
   return {
     ok: true,
     value: {
+      // Preserve legacy item IDs during migration for identity stability.
+      // UUID v7 ordering benefits apply only to knowledge items created after migration.
       id: item.id,
       baseId,
       // Official v1 exports are flat, so migrated items are always inserted

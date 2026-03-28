@@ -55,23 +55,36 @@ describe('KnowledgeBaseService', () => {
   })
 
   describe('list', () => {
-    it('should return mapped knowledge bases', async () => {
-      const rows = [createMockRow(), createMockRow({ id: 'kb-2', name: 'Another Base', description: null })]
-      mockSelect.mockReturnValue({
-        from: vi.fn().mockReturnValue({
-          orderBy: vi.fn().mockResolvedValue(rows)
-        })
+    it('should return paginated knowledge bases', async () => {
+      const rows = [createMockRow({ id: 'kb-2', name: 'Another Base', description: null })]
+      const offset = vi.fn().mockResolvedValue(rows)
+      const limit = vi.fn().mockReturnValue({ offset })
+      const orderBy = vi.fn().mockReturnValue({ limit })
+      const from = vi.fn().mockReturnValue({ orderBy })
+      const countFrom = vi.fn().mockResolvedValue([{ count: 2 }])
+
+      mockSelect.mockReturnValueOnce({
+        from
+      })
+      mockSelect.mockReturnValueOnce({
+        from: countFrom
       })
 
-      const result = await service.list()
+      const result = await service.list({ page: 2, limit: 1 })
 
-      expect(result).toHaveLength(2)
-      expect(result[0]).toMatchObject({
-        id: 'kb-1',
-        name: 'Knowledge Base',
+      expect(limit).toHaveBeenCalledWith(1)
+      expect(offset).toHaveBeenCalledWith(1)
+      expect(result).toMatchObject({
+        total: 2,
+        page: 2
+      })
+      expect(result.items).toHaveLength(1)
+      expect(result.items[0]).toMatchObject({
+        id: 'kb-2',
+        name: 'Another Base',
         embeddingModelId: 'text-embedding-3-large'
       })
-      expect(result[1].description).toBeUndefined()
+      expect(result.items[0].description).toBeUndefined()
     })
   })
 
