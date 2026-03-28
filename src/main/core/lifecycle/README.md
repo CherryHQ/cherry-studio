@@ -22,7 +22,9 @@ lifecycle/
 ├── types.ts              # Phase, LifecycleState, ServiceMetadata, Pausable, errors
 ├── decorators.ts         # @Injectable, @ServicePhase, @DependsOn, @Priority, etc.
 ├── BaseService.ts        # Abstract base class with lifecycle hooks
-├── ServiceContainer.ts   # IoC container with DI and platform exclusion
+├── event.ts              # Emitter<T>, Event<T>, Disposable — typed inter-service events
+├── signal.ts             # Signal<T> — one-shot deferred value (PromiseLike)
+├── ServiceContainer.ts   # IoC container with DI and conditional activation
 ├── DependencyResolver.ts # Topological sort, layered parallel resolution
 ├── LifecycleManager.ts   # Phased bootstrap, shutdown, pause/resume/stop/start
 ├── index.ts              # Barrel export

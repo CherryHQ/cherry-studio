@@ -27,7 +27,6 @@ import type {
   OcrProvider,
   PluginError,
   Provider,
-  Shortcut,
   SupportedOcrFile
 } from '@types'
 import checkDiskSpace from 'check-disk-space'
@@ -37,7 +36,6 @@ import fontList from 'font-list'
 
 import { agentMessageRepository } from './services/agents/database'
 import { pluginService } from './services/agents/plugins/PluginService'
-import { apiServerService } from './services/ApiServerService'
 import { appService } from './services/AppService'
 import AppUpdater from './services/AppUpdater'
 import BackupManager from './services/BackupManager'
@@ -50,19 +48,16 @@ import { externalAppsService } from './services/ExternalAppsService'
 import { fileStorage as fileManager } from './services/FileStorage'
 import FileService from './services/FileSystemService'
 import { knowledgeService } from './services/KnowledgeService'
-import { mcpService } from './services/MCPService'
 import { memoryService } from './services/memory/MemoryService'
 import NotificationService from './services/NotificationService'
 import * as NutstoreService from './services/NutstoreService'
 import ObsidianVaultService from './services/ObsidianVaultService'
 import { ocrService } from './services/ocr/OcrService'
 import { openClawService } from './services/OpenClawService'
-import { isOvmsSupported } from './services/OvmsManager'
 import { proxyManager } from './services/ProxyManager'
 import { pythonService } from './services/PythonService'
 import { fileServiceManager } from './services/remotefile/FileServiceManager'
 import { searchService } from './services/SearchService'
-import { registerShortcuts, unregisterAllShortcuts } from './services/ShortcutService'
 import { storeSyncService } from './services/StoreSyncService'
 import { vertexAIService } from './services/VertexAIService'
 import { setOpenLinkExternal } from './services/WebviewService'
@@ -629,16 +624,6 @@ export async function registerIpc(mainWindow: BrowserWindow, app: Electron.App) 
     await shell.openPath(path)
   })
 
-  // shortcuts
-  ipcMain.handle(IpcChannel.Shortcuts_Update, (_, shortcuts: Shortcut[]) => {
-    configManager.setShortcuts(shortcuts)
-    // Refresh shortcuts registration
-    if (mainWindow) {
-      unregisterAllShortcuts()
-      registerShortcuts(mainWindow)
-    }
-  })
-
   ipcMain.handle(IpcChannel.KnowledgeBase_Create, knowledgeService.create.bind(knowledgeService))
   ipcMain.handle(IpcChannel.KnowledgeBase_Reset, knowledgeService.reset.bind(knowledgeService))
   ipcMain.handle(IpcChannel.KnowledgeBase_Delete, knowledgeService.delete.bind(knowledgeService))
@@ -682,26 +667,6 @@ export async function registerIpc(mainWindow: BrowserWindow, app: Electron.App) 
   ipcMain.handle(IpcChannel.Aes_Decrypt, (_, encryptedData: string, iv: string, secretKey: string) =>
     decrypt(encryptedData, iv, secretKey)
   )
-
-  // Register MCP handlers
-  ipcMain.handle(IpcChannel.Mcp_RemoveServer, (_e, server) => mcpService.removeServer(server))
-  ipcMain.handle(IpcChannel.Mcp_RestartServer, (_e, server) => mcpService.restartServer(server))
-  ipcMain.handle(IpcChannel.Mcp_StopServer, (_e, server) => mcpService.stopServer(server))
-  ipcMain.handle(IpcChannel.Mcp_ListTools, (_e, server) => mcpService.listTools(server))
-  ipcMain.handle(IpcChannel.Mcp_CallTool, (_e, args) => mcpService.callTool(args))
-  ipcMain.handle(IpcChannel.Mcp_ListPrompts, (_e, server) => mcpService.listPrompts(server))
-  ipcMain.handle(IpcChannel.Mcp_GetPrompt, (_e, args) => mcpService.getPrompt(args))
-  ipcMain.handle(IpcChannel.Mcp_ListResources, (_e, server) => mcpService.listResources(server))
-  ipcMain.handle(IpcChannel.Mcp_GetResource, (_e, args) => mcpService.getResource(args))
-  ipcMain.handle(IpcChannel.Mcp_GetInstallInfo, () => mcpService.getInstallInfo())
-  ipcMain.handle(IpcChannel.Mcp_CheckConnectivity, (_e, server) => mcpService.checkMcpConnectivity(server))
-  ipcMain.handle(IpcChannel.Mcp_AbortTool, (_e, callId) => mcpService.abortTool(callId))
-  ipcMain.handle(IpcChannel.Mcp_ResolveHubTool, async (_event, nameOrId: string) => {
-    const { resolveHubToolName } = await import('@main/mcpServers/hub/mcp-bridge')
-    return resolveHubToolName(nameOrId)
-  })
-  ipcMain.handle(IpcChannel.Mcp_GetServerVersion, (_e, server) => mcpService.getServerVersion(server))
-  ipcMain.handle(IpcChannel.Mcp_GetServerLogs, (_e, server) => mcpService.getServerLogs(server))
 
   // DXT upload handler
   ipcMain.handle(IpcChannel.Mcp_UploadDxt, async (event, fileBuffer: ArrayBuffer, fileName: string) => {
@@ -822,9 +787,6 @@ export async function registerIpc(mainWindow: BrowserWindow, app: Electron.App) 
       return null
     }
   })
-  // API Server
-  apiServerService.registerIpcHandlers()
-
   // Anthropic OAuth
   ipcMain.handle(IpcChannel.Anthropic_StartOAuthFlow, () => anthropicService.startOAuthFlow())
   ipcMain.handle(IpcChannel.Anthropic_CompleteOAuthWithCode, (_, code: string) =>
@@ -844,37 +806,9 @@ export async function registerIpc(mainWindow: BrowserWindow, app: Electron.App) 
   )
   ipcMain.handle(IpcChannel.OCR_ListProviders, () => ocrService.listProviderIds())
 
-  // OVMS
-  ipcMain.handle(IpcChannel.Ovms_IsSupported, () => isOvmsSupported)
-  if (isOvmsSupported) {
-    const { ovmsManager } = await import('./services/OvmsManager')
-    if (ovmsManager) {
-      ipcMain.handle(
-        IpcChannel.Ovms_AddModel,
-        (_, modelName: string, modelId: string, modelSource: string, task: string) =>
-          ovmsManager.addModel(modelName, modelId, modelSource, task)
-      )
-      ipcMain.handle(IpcChannel.Ovms_StopAddModel, () => ovmsManager.stopAddModel())
-      ipcMain.handle(IpcChannel.Ovms_GetModels, () => ovmsManager.getModels())
-      ipcMain.handle(IpcChannel.Ovms_IsRunning, () => ovmsManager.initializeOvms())
-      ipcMain.handle(IpcChannel.Ovms_GetStatus, () => ovmsManager.getOvmsStatus())
-      ipcMain.handle(IpcChannel.Ovms_RunOVMS, () => ovmsManager.runOvms())
-      ipcMain.handle(IpcChannel.Ovms_StopOVMS, () => ovmsManager.stopOvms())
-    } else {
-      logger.error('Unexpected behavior: undefined ovmsManager, but OVMS should be supported.')
-    }
-  } else {
-    const fallback = () => {
-      throw new Error('OVMS is only supported on Windows with intel CPU.')
-    }
-    ipcMain.handle(IpcChannel.Ovms_AddModel, fallback)
-    ipcMain.handle(IpcChannel.Ovms_StopAddModel, fallback)
-    ipcMain.handle(IpcChannel.Ovms_GetModels, fallback)
-    ipcMain.handle(IpcChannel.Ovms_IsRunning, fallback)
-    ipcMain.handle(IpcChannel.Ovms_GetStatus, fallback)
-    ipcMain.handle(IpcChannel.Ovms_RunOVMS, fallback)
-    ipcMain.handle(IpcChannel.Ovms_StopOVMS, fallback)
-  }
+  // OVMS — operation handlers registered by OvmsManager.onInit() (activated only on Win+Intel)
+  // Condition logic must stay in sync with OvmsManager's @Conditional(onPlatform('win32'), onCpuVendor('intel'))
+  ipcMain.handle(IpcChannel.Ovms_IsSupported, () => isWin && getCpuName().toLowerCase().includes('intel'))
 
   // CherryAI
   ipcMain.handle(IpcChannel.Cherryai_GetSignature, (_, params) => generateSignature(params))

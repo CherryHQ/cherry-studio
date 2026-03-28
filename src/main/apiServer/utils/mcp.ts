@@ -1,6 +1,6 @@
 import { mcpServerService } from '@data/services/McpServerService'
 import { loggerService } from '@logger'
-import { mcpService } from '@main/services/MCPService'
+import { application } from '@main/core/application'
 import { Server } from '@modelcontextprotocol/sdk/server/index.js'
 import { CallToolRequestSchema, ListToolsRequestSchema } from '@modelcontextprotocol/sdk/types.js'
 
@@ -28,7 +28,7 @@ export async function createMcpServerForTransport(id: string): Promise<Server> {
     if (typeof serverId !== 'string') throw new Error('Missing serverId in _meta')
     logger.debug('Handling list tools request', { serverId })
     const serverConfig = await mcpServerService.getById(serverId)
-    const client = await mcpService.initClient(serverConfig)
+    const client = await application.get('MCPService').initClient(serverConfig)
     return client.listTools()
   })
 
@@ -37,7 +37,7 @@ export async function createMcpServerForTransport(id: string): Promise<Server> {
     if (typeof serverId !== 'string') throw new Error('Missing serverId in _meta')
     logger.debug('Handling call tool request', { serverId })
     const serverConfig = await mcpServerService.getById(serverId)
-    const client = await mcpService.initClient(serverConfig)
+    const client = await application.get('MCPService').initClient(serverConfig)
     return client.callTool(request.params)
   })
 

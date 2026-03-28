@@ -5,6 +5,7 @@ import path from 'node:path'
 import { mcpServerService } from '@data/services/McpServerService'
 import { loggerService } from '@logger'
 import { application } from '@main/core/application'
+import { BaseService, DependsOn, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import { createInMemoryMCPServer } from '@main/mcpServers/factory'
 import { makeSureDirExists, removeEnvProxy } from '@main/utils'
 import { findCommandInShellEnv, getBinaryName, getBinaryPath, isBinaryExists } from '@main/utils/process'
@@ -140,14 +141,50 @@ function withCache<T extends unknown[], R>(
   }
 }
 
-class McpService {
+@Injectable('MCPService')
+@ServicePhase(Phase.WhenReady)
+@DependsOn(['WindowService'])
+export class MCPService extends BaseService {
   private clients: Map<string, Client> = new Map()
   private pendingClients: Map<string, Promise<Client>> = new Map()
   private dxtService = new DxtService()
   private activeToolCalls: Map<string, AbortController> = new Map()
   private serverLogs = new ServerLogBuffer(200)
 
-  constructor() {}
+  protected async onInit(): Promise<void> {
+    this.registerIpcHandlers()
+  }
+
+  protected async onStop(): Promise<void> {
+    for (const [key] of this.clients) {
+      try {
+        await this.closeClient(key)
+      } catch (error: any) {
+        logger.error(`Failed to close client`, error as Error)
+      }
+    }
+  }
+
+  private registerIpcHandlers(): void {
+    this.ipcHandle(IpcChannel.Mcp_RemoveServer, (_e, server) => this.removeServer(server))
+    this.ipcHandle(IpcChannel.Mcp_RestartServer, (_e, server) => this.restartServer(server))
+    this.ipcHandle(IpcChannel.Mcp_StopServer, (_e, server) => this.stopServer(server))
+    this.ipcHandle(IpcChannel.Mcp_ListTools, (_e, server) => this.listTools(server))
+    this.ipcHandle(IpcChannel.Mcp_CallTool, (_e, args) => this.callTool(args))
+    this.ipcHandle(IpcChannel.Mcp_ListPrompts, (_e, server) => this.listPrompts(server))
+    this.ipcHandle(IpcChannel.Mcp_GetPrompt, (_e, args) => this.getPrompt(args))
+    this.ipcHandle(IpcChannel.Mcp_ListResources, (_e, server) => this.listResources(server))
+    this.ipcHandle(IpcChannel.Mcp_GetResource, (_e, args) => this.getResource(args))
+    this.ipcHandle(IpcChannel.Mcp_GetInstallInfo, () => this.getInstallInfo())
+    this.ipcHandle(IpcChannel.Mcp_CheckConnectivity, (_e, server) => this.checkMcpConnectivity(server))
+    this.ipcHandle(IpcChannel.Mcp_AbortTool, (_e, callId) => this.abortTool(callId))
+    this.ipcHandle(IpcChannel.Mcp_GetServerVersion, (_e, server) => this.getServerVersion(server))
+    this.ipcHandle(IpcChannel.Mcp_GetServerLogs, (_e, server) => this.getServerLogs(server))
+    this.ipcHandle(IpcChannel.Mcp_ResolveHubTool, async (_event, nameOrId: string) => {
+      const { resolveHubToolName } = await import('@main/mcpServers/hub/mcp-bridge')
+      return resolveHubToolName(nameOrId)
+    })
+  }
 
   /**
    * List all tools from all active MCP servers (excluding hub).
@@ -769,16 +806,6 @@ class McpService {
     await this.initClient(server)
   }
 
-  async cleanup() {
-    for (const [key] of this.clients) {
-      try {
-        await this.closeClient(key)
-      } catch (error: any) {
-        logger.error(`Failed to close client`, error as Error)
-      }
-    }
-  }
-
   /**
    * Check connectivity for an MCP server
    */
@@ -1125,5 +1152,3 @@ class McpService {
     }
   }
 }
-
-export const mcpService = new McpService()

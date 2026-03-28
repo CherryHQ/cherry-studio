@@ -1,5 +1,5 @@
 import { application } from '@main/core/application'
-import { BaseService, ExcludePlatforms, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
+import { BaseService, Conditional, Injectable, onPlatform, Phase, ServicePhase } from '@main/core/lifecycle'
 import { getAppLanguage, locales } from '@main/utils/language'
 import { IpcChannel } from '@shared/IpcChannel'
 import type { MenuItemConstructorOptions } from 'electron'
@@ -7,7 +7,7 @@ import { app, Menu, shell } from 'electron'
 
 @Injectable('AppMenuService')
 @ServicePhase(Phase.WhenReady)
-@ExcludePlatforms(['win32', 'linux'])
+@Conditional(onPlatform('darwin'))
 export class AppMenuService extends BaseService {
   private unsubscribes: (() => void)[] = []
 

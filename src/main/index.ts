@@ -36,9 +36,6 @@ import { isDev, isLinux, isWin } from './constant'
 import process from 'node:process'
 
 import { registerIpc } from './ipc'
-import { agentService } from './services/agents'
-import { apiServerService } from './services/ApiServerService'
-import { mcpService } from './services/MCPService'
 import { openClawService } from './services/OpenClawService'
 import {
   CHERRY_STUDIO_PROTOCOL,
@@ -46,7 +43,6 @@ import {
   registerProtocolClient,
   setupAppImageDeepLink
 } from './services/ProtocolClient'
-import { registerShortcuts } from './services/ShortcutService'
 import { versionService } from './services/VersionService'
 import {
   getAllMigrators,
@@ -56,7 +52,6 @@ import {
   unregisterMigrationIpcHandlers
 } from '@data/migration/v2'
 import { initWebviewHotkeys } from './services/WebviewService'
-import { runAsyncFunction } from './utils'
 import { application, serviceList } from './core/application'
 
 const logger = loggerService.withContext('MainEntry')
@@ -252,8 +247,6 @@ if (!app.requestSingleInstanceLock()) {
 
       try {
         await openClawService.stopGateway()
-        await mcpService.cleanup()
-        await apiServerService.stop()
       } catch (error) {
         logger.warn('Error cleaning up services:', error as Error)
       }
@@ -303,7 +296,6 @@ if (!app.requestSingleInstanceLock()) {
       }
     })
 
-    registerShortcuts(mainWindow)
     await registerIpc(mainWindow, app)
 
     replaceDevtoolsFont(mainWindow)
@@ -316,34 +308,6 @@ if (!app.requestSingleInstanceLock()) {
         .then((name) => logger.info(`Added Extension:  ${name}`))
         .catch((err) => logger.error('An error occurred: ', err))
     }
-
-    void runAsyncFunction(async () => {
-      // Start API server if enabled or if agents exist
-      try {
-        const config = apiServerService.getCurrentConfig()
-        logger.info('API server config:', config)
-
-        // Check if there are any agents
-        let shouldStart = config.enabled
-        if (!shouldStart) {
-          try {
-            const { total } = await agentService.listAgents({ limit: 1 })
-            if (total > 0) {
-              shouldStart = true
-              logger.info(`Detected ${total} agent(s), auto-starting API server`)
-            }
-          } catch (error: any) {
-            logger.warn('Failed to check agent count:', error)
-          }
-        }
-
-        if (shouldStart) {
-          await apiServerService.start()
-        }
-      } catch (error: any) {
-        logger.error('Failed to check/start API server:', error)
-      }
-    })
   }
 
   // In this file you can include the rest of your app"s specific main process

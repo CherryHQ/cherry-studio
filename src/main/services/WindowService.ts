@@ -2,7 +2,7 @@ import { is } from '@electron-toolkit/utils'
 import { loggerService } from '@logger'
 import { isDev, isLinux, isMac, isWin } from '@main/constant'
 import { application } from '@main/core/application'
-import { BaseService, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
+import { BaseService, Emitter, type Event, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import { getFilesDir } from '@main/utils/file'
 import { getWindowsBackgroundMaterial } from '@main/utils/windowUtil'
 import { MIN_WINDOW_HEIGHT, MIN_WINDOW_WIDTH } from '@shared/config/constant'
@@ -27,6 +27,9 @@ const linuxIcon = isLinux ? nativeImage.createFromPath(iconPath) : undefined
 @Injectable('WindowService')
 @ServicePhase(Phase.WhenReady)
 export class WindowService extends BaseService {
+  private readonly _onMainWindowCreated = new Emitter<BrowserWindow>()
+  public readonly onMainWindowCreated: Event<BrowserWindow> = this._onMainWindowCreated.event
+
   private mainWindow: BrowserWindow | null = null
   private miniWindow: BrowserWindow | null = null
   private isPinnedMiniWindow: boolean = false
@@ -40,6 +43,10 @@ export class WindowService extends BaseService {
   }
 
   protected async onStop() {}
+
+  protected async onDestroy() {
+    this._onMainWindowCreated.dispose()
+  }
 
   private checkMainWindow() {
     if (!this.mainWindow || this.mainWindow.isDestroyed()) {
@@ -173,6 +180,8 @@ export class WindowService extends BaseService {
 
     //init the MinApp webviews' useragent
     initSessionUserAgent()
+
+    this._onMainWindowCreated.fire(this.mainWindow)
 
     return this.mainWindow
   }

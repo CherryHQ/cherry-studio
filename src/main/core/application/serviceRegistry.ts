@@ -3,14 +3,18 @@ import { DataApiService } from '@data/DataApiService'
 import { DbService } from '@data/db/DbService'
 import { PreferenceService } from '@data/PreferenceService'
 import { AnalyticsService } from '@main/services/AnalyticsService'
+import { ApiServerService } from '@main/services/ApiServerService'
 import { AppMenuService } from '@main/services/AppMenuService'
 import { CodeCliService } from '@main/services/CodeCliService'
 import { LanTransferClientService } from '@main/services/lanTransfer'
 import { LocalTransferService } from '@main/services/LocalTransferService'
+import { MCPService } from '@main/services/MCPService'
 import { NodeTraceService } from '@main/services/NodeTraceService'
+import { OvmsManager } from '@main/services/OvmsManager'
 import { PowerMonitorService } from '@main/services/PowerMonitorService'
 import { ProcessManager } from '@main/services/process/ProcessManager'
 import { SelectionService } from '@main/services/SelectionService'
+import { ShortcutService } from '@main/services/ShortcutService'
 import { SpanCacheService } from '@main/services/SpanCacheService'
 import { ThemeService } from '@main/services/ThemeService'
 import { TrayService } from '@main/services/TrayService'
@@ -54,11 +58,15 @@ export const services = {
   PowerMonitorService,
   ProcessManager,
   SelectionService,
+  ShortcutService,
   ThemeService,
   SpanCacheService,
   NodeTraceService,
+  OvmsManager,
   TrayService,
-  WindowService
+  WindowService,
+  MCPService,
+  ApiServerService
 } as const
 
 /** Auto-derived service name to instance type mapping */

@@ -328,6 +328,103 @@ describe('BaseService', () => {
     })
   })
 
+  describe('registerDisposable cleanup', () => {
+    it('should dispose registered disposables on stop', async () => {
+      const disposeFn = vi.fn()
+
+      class DisposableService extends BaseService {
+        protected override async onInit() {
+          this.registerDisposable({ dispose: disposeFn })
+        }
+      }
+
+      const service = new DisposableService()
+      await service._doInit()
+      await service._doStop()
+
+      expect(disposeFn).toHaveBeenCalledTimes(1)
+    })
+
+    it('should dispose registered disposables on destroy', async () => {
+      const disposeFn = vi.fn()
+
+      class DisposableService extends BaseService {
+        protected override async onInit() {
+          this.registerDisposable({ dispose: disposeFn })
+        }
+      }
+
+      const service = new DisposableService()
+      await service._doInit()
+      await service._doDestroy()
+
+      expect(disposeFn).toHaveBeenCalledTimes(1)
+    })
+
+    it('should cleanup disposables even when onStop throws', async () => {
+      const disposeFn = vi.fn()
+
+      class FailService extends BaseService {
+        protected override async onInit() {
+          this.registerDisposable({ dispose: disposeFn })
+        }
+        protected override async onStop() {
+          throw new Error('stop failed')
+        }
+      }
+
+      const service = new FailService()
+      await service._doInit()
+      await expect(service._doStop()).rejects.toThrow('stop failed')
+
+      expect(disposeFn).toHaveBeenCalledTimes(1)
+    })
+
+    it('restart cycle: disposables from first cycle should not leak into second', async () => {
+      let cycle = 0
+      const dispose1 = vi.fn()
+      const dispose2 = vi.fn()
+
+      class RestartDisposableService extends BaseService {
+        protected override async onInit() {
+          cycle++
+          this.registerDisposable({ dispose: cycle === 1 ? dispose1 : dispose2 })
+        }
+      }
+
+      const service = new RestartDisposableService()
+
+      // First cycle
+      await service._doInit()
+      await service._doStop()
+      expect(dispose1).toHaveBeenCalledTimes(1)
+
+      // Second cycle
+      await service._doInit()
+      await service._doStop()
+      expect(dispose2).toHaveBeenCalledTimes(1)
+      // First disposable should not be re-disposed
+      expect(dispose1).toHaveBeenCalledTimes(1)
+    })
+
+    it('double cleanup should be safe (no-op on empty array)', async () => {
+      const disposeFn = vi.fn()
+
+      class DoubleCleanupService extends BaseService {
+        protected override async onInit() {
+          this.registerDisposable({ dispose: disposeFn })
+        }
+      }
+
+      const service = new DoubleCleanupService()
+      await service._doInit()
+      await service._doStop()
+      await service._doDestroy()
+
+      expect(disposeFn).toHaveBeenCalledTimes(1)
+    })
+  })
+
   describe('_doPause / _doResume', () => {
     it('should return false for non-Pausable service', async () => {
       class NonPausable extends BaseService {}

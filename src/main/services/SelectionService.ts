@@ -19,13 +19,6 @@ import type {
 const logger = loggerService.withContext('SelectionService')
 
 let SelectionHook: SelectionHookConstructor | null = null
-try {
-  //since selection-hook v1.0.0, it supports macOS
-  //since selection-hook v2.0.0, it supports Linux
-  SelectionHook = require('selection-hook')
-} catch (error) {
-  logger.error('Failed to load selection-hook:', error as Error)
-}
 
 // Type definitions
 type Point = { x: number; y: number }
@@ -111,16 +104,21 @@ export class SelectionService extends BaseService {
     super()
   }
 
-  protected async onInit(): Promise<void> {
+  private loadModuleAndCreateInstance(): boolean {
     try {
       if (!SelectionHook) {
-        throw new Error('module selection-hook not exists')
+        SelectionHook = require('selection-hook')
+      }
+
+      if (!SelectionHook) {
+        this.logError('Failed to load selection-hook module')
+        return false
       }
 
       this.selectionHook = new SelectionHook()
       if (!this.selectionHook) {
         this.logError('Failed to create SelectionHook instance')
-        return
+        return false
       }
 
       // Detect Wayland display protocol for platform-specific behavior.
@@ -151,33 +149,47 @@ export class SelectionService extends BaseService {
       }
 
       this.initStatus = true
-
-      this.initZoomFactor()
-      this.registerIpcHandlers()
-
-      // Subscribe to enabled preference and conditionally start
-      const preferenceService = application.get('PreferenceService')
-      const enabled = preferenceService.get('feature.selection.enabled')
-
-      this.lifecycleUnsubscribers.push(
-        preferenceService.subscribeChange('feature.selection.enabled', (enabled: boolean): void => {
-          if (!this.initStatus) {
-            this.logError('SelectionService not initialized')
-            return
-          }
-          if (enabled) {
-            this.start()
-          } else {
-            this.stop()
-          }
-        })
-      )
-
-      if (enabled && this.initStatus) {
-        this.start()
-      }
+      this.logInfo('selection-hook module loaded and instance created successfully')
+      return true
     } catch (error) {
-      this.logError('Failed to initialize SelectionService:', error as Error)
+      this.logError('Failed to load selection-hook:', error as Error)
+      return false
+    }
+  }
+
+  private enableSelection(): void {
+    if (!this.initStatus) {
+      if (!this.loadModuleAndCreateInstance()) {
+        const preferenceService = application.get('PreferenceService')
+        void preferenceService.set('feature.selection.enabled', false)
+        return
+      }
+    }
+    this.start()
+  }
+
+  protected async onInit(): Promise<void> {
+    this.initZoomFactor()
+    this.registerIpcHandlers()
+
+    const preferenceService = application.get('PreferenceService')
+    const enabled = preferenceService.get('feature.selection.enabled')
+
+    this.lifecycleUnsubscribers.push(
+      preferenceService.subscribeChange('feature.selection.enabled', (enabled: boolean): void => {
+        if (enabled) {
+          this.enableSelection()
+        } else {
+          this.stop()
+        }
+      })
+    )
+
+    if (enabled) {
+      this.logInfo('Selection feature enabled, loading selection-hook module')
+      this.enableSelection()
+    } else {
+      this.logInfo('Selection feature disabled, skipping selection-hook module loading')
     }
   }
 
@@ -453,8 +465,6 @@ export class SelectionService extends BaseService {
    * Will sync the new enabled store to all renderer windows
    */
   public toggleEnabled(enabled: boolean | undefined = undefined): void {
-    if (!this.selectionHook) return
-
     const preferenceService = application.get('PreferenceService')
     const newEnabled = enabled === undefined ? !preferenceService.get('feature.selection.enabled') : enabled
 

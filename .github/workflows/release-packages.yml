@@ -6,7 +6,9 @@ on:
       - main
     paths:
       - ".changeset/**"
-      - "packages/**"
+      - "packages/aiCore/**"
+      - "packages/ai-sdk-provider/**"
+      - "packages/extension-table-plus/**"
   workflow_dispatch:
 
 concurrency: ${{ github.workflow }}-${{ github.ref }}
