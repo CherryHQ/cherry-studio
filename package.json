@@ -76,7 +76,7 @@
     "claude": "dotenv -e .env -- claude",
     "changeset": "changeset",
     "changeset:status": "changeset status",
-    "changeset:version": "changeset version",
+    "changeset:version": "changeset version && pnpm format",
     "changeset:publish": "changeset publish",
     "packages:build": "pnpm --filter @cherrystudio/ai-sdk-provider build && pnpm --filter @cherrystudio/ai-core build && pnpm --filter @cherrystudio/extension-table-plus build",
     "packages:release": "pnpm packages:build && changeset publish",
@@ -482,7 +482,6 @@
       "libsql@0.4.7": "patches/libsql-npm-0.4.7-444e260fb1.patch",
       "pdf-parse@1.1.1": "patches/pdf-parse-npm-1.1.1-04a6109b2a.patch",
       "@ai-sdk/openai-compatible@2.0.30": "patches/@ai-sdk__openai-compatible@2.0.30.patch",
-      "@ai-sdk/google@3.0.33": "patches/@ai-sdk__google@3.0.33.patch",
       "@openrouter/ai-sdk-provider": "patches/@openrouter__ai-sdk-provider.patch",
       "ollama-ai-provider-v2@3.3.1": "patches/ollama-ai-provider-v2@3.3.1.patch",
       "@opeoginni/github-copilot-openai-compatible@1.0.0": "patches/@opeoginni__github-copilot-openai-compatible@1.0.0.patch"
