@@ -53,7 +53,9 @@ function rowToMiniApp(row: MiniAppRow): MiniApp {
     type: clean.type as MiniAppType,
     status: clean.status as MiniAppStatus,
     sortOrder: clean.sortOrder ?? 0,
-    supportedRegions: clean.supportedRegions as ('CN' | 'Global')[] | undefined
+    supportedRegions: clean.supportedRegions as ('CN' | 'Global')[] | undefined,
+    createdAt: clean.createdAt ? new Date(clean.createdAt).toISOString() : undefined,
+    updatedAt: clean.updatedAt ? new Date(clean.updatedAt).toISOString() : undefined
   }
 }
 
@@ -74,7 +76,9 @@ function builtinToMiniApp(def: BuiltinMiniAppDefinition, dbRow?: MiniAppRow): Mi
     background: def.background,
     supportedRegions: def.supportedRegions,
     configuration: undefined,
-    nameKey: def.nameKey
+    nameKey: def.nameKey,
+    createdAt: dbRow?.createdAt ? new Date(dbRow.createdAt).toISOString() : undefined,
+    updatedAt: dbRow?.updatedAt ? new Date(dbRow.updatedAt).toISOString() : undefined
   }
 }
 

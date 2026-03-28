@@ -89,6 +89,7 @@ export interface MiniappSchemas {
    * Miniapps collection endpoint
    * @example GET /miniapps?status=enabled
    * @example POST /miniapps { "appId": "my-app", "name": "My App", "url": "https://example.com" }
+   * @example PATCH /miniapps { "items": [{ "appId": "qwen", "sortOrder": 1 }] }
    */
   '/miniapps': {
     /** Get all miniapps (optionally filtered by status/type) */
@@ -104,13 +105,7 @@ export interface MiniappSchemas {
       body: CreateMiniappDto
       response: MiniApp
     }
-  }
-
-  /**
-   * Batch reorder endpoint
-   * @example PATCH /miniapps/reorder { "items": [{ "appId": "qwen", "sortOrder": 1 }] }
-   */
-  '/miniapps/reorder': {
+    /** Batch reorder miniapps */
     PATCH: {
       body: ReorderMiniappsDto
       response: void

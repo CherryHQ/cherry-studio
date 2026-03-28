@@ -31,10 +31,7 @@ export const miniappHandlers: {
     },
     POST: async ({ body }) => {
       return await miniappService.create(body)
-    }
-  },
-
-  '/miniapps/reorder': {
+    },
     PATCH: async ({ body }) => {
       await miniappService.reorder(body.items)
       return undefined
