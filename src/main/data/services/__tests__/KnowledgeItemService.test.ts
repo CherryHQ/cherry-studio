@@ -526,7 +526,6 @@ describe('KnowledgeItemService', () => {
         where: vi.fn().mockReturnValue({
           returning: vi.fn().mockResolvedValue([
             createMockRow({
-              groupId: 'group-updated',
               status: 'completed',
               error: null,
               data: { content: 'updated note' }
@@ -537,7 +536,6 @@ describe('KnowledgeItemService', () => {
       mockUpdate.mockReturnValue({ set })
 
       const dto: UpdateKnowledgeItemDto = {
-        groupId: 'group-updated',
         status: 'completed',
         error: null,
         data: { content: 'updated note' }
@@ -546,14 +544,12 @@ describe('KnowledgeItemService', () => {
       const result = await service.update('item-1', dto)
 
       expect(set).toHaveBeenCalledWith({
-        groupId: 'group-updated',
         data: { content: 'updated note' },
         status: 'completed',
         error: null
       })
       expect(result).toMatchObject({
         id: 'item-1',
-        groupId: 'group-updated',
         status: 'completed',
         data: {
           content: 'updated note'

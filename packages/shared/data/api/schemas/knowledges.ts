@@ -124,7 +124,6 @@ export const UpdateKnowledgeItemDataSchema = z.union([
 
 export const UpdateKnowledgeItemSchema = z
   .object({
-    groupId: z.string().nullable().optional(),
     data: UpdateKnowledgeItemDataSchema.optional(),
     status: ItemStatusSchema.optional(),
     error: z.string().nullable().optional()

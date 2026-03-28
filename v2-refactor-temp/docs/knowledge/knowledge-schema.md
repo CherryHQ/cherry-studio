@@ -80,8 +80,8 @@ This document records the current V2 knowledge target schema, migration constrai
     - create grouped members afterwards with `groupId = ownerItem.id`
 - Current runtime update flow uses:
   - `PATCH /knowledge-items/:id`
-  - mutable fields may include `groupId`, `data`, `status`, `error`
-  - `groupId` updates are constrained by the same same-base owner reference
+  - mutable fields may include `data`, `status`, `error`
+  - `groupId` is create-only in the current DataApi contract and is not updated through `PATCH /knowledge-items/:id`
 - Current delete flow is item-level only:
   - `DELETE /knowledge-items/:id`
   - when the deleted item is a logical group owner, the database cascade also removes items with `groupId = :id`

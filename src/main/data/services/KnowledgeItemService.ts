@@ -150,7 +150,6 @@ export class KnowledgeItemService {
       }
       updates.data = parsed.data
     }
-    if (dto.groupId !== undefined) updates.groupId = dto.groupId
     if (dto.status !== undefined) updates.status = dto.status
     if (dto.error !== undefined) updates.error = dto.error
 

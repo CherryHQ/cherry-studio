@@ -439,5 +439,18 @@ describe('knowledgeHandlers', () => {
 
       expect(updateKnowledgeItemMock).not.toHaveBeenCalled()
     })
+
+    it('should reject groupId in PATCH bodies before calling the service', async () => {
+      await expect(
+        knowledgeHandlers['/knowledge-items/:id'].PATCH({
+          params: { id: 'item-1' },
+          body: {
+            groupId: 'group-1'
+          }
+        } as never)
+      ).rejects.toHaveProperty('name', 'ZodError')
+
+      expect(updateKnowledgeItemMock).not.toHaveBeenCalled()
+    })
   })
 })
