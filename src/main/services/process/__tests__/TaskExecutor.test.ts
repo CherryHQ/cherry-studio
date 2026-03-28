@@ -3,17 +3,6 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { TaskExecutor } from '../TaskExecutor'
 import { ProcessState } from '../types'
 
-vi.mock('@logger', () => ({
-  loggerService: {
-    withContext: () => ({
-      info: vi.fn(),
-      warn: vi.fn(),
-      error: vi.fn(),
-      debug: vi.fn()
-    })
-  }
-}))
-
 // ---------------------------------------------------------------------------
 // Mock types & factories
 // ---------------------------------------------------------------------------

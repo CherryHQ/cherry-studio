@@ -1,3 +1,5 @@
+import { randomUUID } from 'node:crypto'
+
 import { loggerService } from '@logger'
 
 import type { ProcessManager } from './ProcessManager'
@@ -80,7 +82,7 @@ export class TaskExecutor {
       throw new Error(`TaskExecutor '${this.id}' is shutting down`)
     }
 
-    const taskId = `${this.id}-task-${Date.now()}-${Math.random().toString(36).slice(2)}`
+    const taskId = `${this.id}-task-${randomUUID()}`
 
     return new Promise<T>((resolve, reject) => {
       const task: PendingTask<T> = {
@@ -158,13 +160,9 @@ export class TaskExecutor {
     // Spawn a new worker if under the limit
     if (this.workers.size < this.options.max) {
       this.spawnWorker()
-        .then(() => {
-          // After spawning, find the newly idle worker and assign
-          for (const [, entry] of this.workers) {
-            if (!entry.busy) {
-              this.assignTask(entry)
-              return
-            }
+        .then((entry) => {
+          if (!entry.busy) {
+            this.assignTask(entry)
           }
         })
         .catch((err: unknown) => {

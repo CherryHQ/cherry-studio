@@ -2,9 +2,7 @@ import { loggerService } from '@logger'
 import { utilityProcess } from 'electron'
 
 import type { ProcessHandle, ProcessLogLine, UtilityProcessOptions } from './types'
-import { ProcessState } from './types'
-
-const DEFAULT_KILL_TIMEOUT_MS = 5000
+import { DEFAULT_KILL_TIMEOUT_MS, ProcessState } from './types'
 
 export class UtilityProcessHandle implements ProcessHandle {
   readonly id: string

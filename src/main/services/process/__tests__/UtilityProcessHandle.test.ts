@@ -6,17 +6,6 @@ const { mockUtilityProcess } = vi.hoisted(() => ({
 }))
 vi.mock('electron', () => ({ utilityProcess: mockUtilityProcess }))
 
-vi.mock('@logger', () => ({
-  loggerService: {
-    withContext: () => ({
-      info: vi.fn(),
-      warn: vi.fn(),
-      error: vi.fn(),
-      debug: vi.fn()
-    })
-  }
-}))
-
 import { UtilityProcessHandle } from '../UtilityProcessHandle'
 
 function createMockUtilityProcess(pid = 9876) {

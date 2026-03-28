@@ -31,6 +31,8 @@ export interface ProcessManagerEvents {
   'process:log': (line: ProcessLogLine) => void
 }
 
+export const DEFAULT_KILL_TIMEOUT_MS = 5000
+
 export interface ProcessOptions {
   id: string
   args?: string[]

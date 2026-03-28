@@ -6,16 +6,6 @@ vi.mock('@main/utils/process', () => ({ crossPlatformSpawn: vi.fn() }))
 vi.mock('@main/utils/shell-env', () => ({
   default: vi.fn().mockResolvedValue({ PATH: '/usr/bin' })
 }))
-vi.mock('@logger', () => ({
-  loggerService: {
-    withContext: () => ({
-      info: vi.fn(),
-      warn: vi.fn(),
-      error: vi.fn(),
-      debug: vi.fn()
-    })
-  }
-}))
 
 const mockUtilityProcessFork = vi.fn()
 vi.mock('electron', () => ({ utilityProcess: { fork: mockUtilityProcessFork } }))

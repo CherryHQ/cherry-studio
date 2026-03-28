@@ -4,9 +4,7 @@ import getShellEnv from '@main/utils/shell-env'
 import type { ChildProcess } from 'child_process'
 
 import type { ChildProcessOptions, ProcessHandle, ProcessLogLine } from './types'
-import { ProcessState } from './types'
-
-const DEFAULT_KILL_TIMEOUT_MS = 5000
+import { DEFAULT_KILL_TIMEOUT_MS, ProcessState } from './types'
 
 export class ChildProcessHandle implements ProcessHandle {
   readonly id: string
