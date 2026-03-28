@@ -17,6 +17,7 @@ import { TranslateMigrator } from './TranslateMigrator'
 // Export migrator classes
 export {
   AssistantMigrator,
+  BootConfigMigrator,
   ChatMigrator,
   KnowledgeMigrator,
   McpServerMigrator,
