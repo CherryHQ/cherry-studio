@@ -43,7 +43,7 @@ interface ExaSearchResults {
 
 const DEFAULT_API_HOST = 'https://mcp.exa.ai/mcp'
 const DEFAULT_NUM_RESULTS = 8
-const REQUEST_TIMEOUT_MS = 25000
+const DEFAULT_REQUEST_TIMEOUT_MS = 25000
 
 export default class ExaMcpProvider extends BaseWebSearchProvider {
   constructor(provider: WebSearchProvider) {
@@ -78,8 +78,9 @@ export default class ExaMcpProvider extends BaseWebSearchProvider {
         }
       }
 
+      const requestTimeoutMs = this.provider.timeout || DEFAULT_REQUEST_TIMEOUT_MS
       const controller = new AbortController()
-      const timeoutId = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS)
+      const timeoutId = setTimeout(() => controller.abort(), requestTimeoutMs)
 
       try {
         const response = await fetch(this.apiHost!, {
