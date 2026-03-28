@@ -50,8 +50,8 @@ function rowToMiniApp(row: MiniAppRow): MiniApp {
   const clean = stripNulls(row)
   return {
     ...clean,
-    type: clean.type as MiniAppType,
-    status: clean.status as MiniAppStatus,
+    type: clean.type,
+    status: clean.status,
     sortOrder: clean.sortOrder ?? 0,
     supportedRegions: clean.supportedRegions as ('CN' | 'Global')[] | undefined,
     createdAt: clean.createdAt ? new Date(clean.createdAt).toISOString() : undefined,
@@ -67,7 +67,7 @@ function builtinToMiniApp(def: BuiltinMiniAppDefinition, dbRow?: MiniAppRow): Mi
   return {
     appId: def.id,
     type: 'default',
-    status: dbRow ? (dbRow.status as MiniAppStatus) : 'enabled',
+    status: dbRow ? dbRow.status : 'enabled',
     sortOrder: dbRow ? (dbRow.sortOrder ?? 0) : (builtinMiniAppDefaultSortOrder.get(def.id) ?? 0),
     name: def.name,
     url: def.url,
@@ -160,7 +160,7 @@ export class MiniAppService {
       builtinItems = allBuiltinDefs
         .filter((def) => {
           const pref = prefMap.get(def.id)
-          const status = pref ? (pref.status as MiniAppStatus) : 'enabled'
+          const status = pref ? pref.status : 'enabled'
           return status === query.status
         })
         .map((def) => builtinToMiniApp(def, prefMap.get(def.id)))

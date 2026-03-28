@@ -21,7 +21,8 @@ vi.mock('@renderer/config/minapps', () => ({
       bordered: false,
       background: undefined
     }
-  ]
+  ],
+  getMiniAppsLogo: (logo: unknown) => logo
 }))
 
 describe('MinAppIcon', () => {
