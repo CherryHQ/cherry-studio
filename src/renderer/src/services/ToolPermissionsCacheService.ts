@@ -1,10 +1,6 @@
 import type { PermissionUpdate } from '@anthropic-ai/claude-agent-sdk'
 import { cacheService } from '@data/CacheService'
-import type {
-  ToolPermissionEntry,
-  ToolPermissionRequests,
-  ToolPermissionStatus
-} from '@shared/data/cache/cacheValueTypes'
+import type { ToolPermissionEntry, ToolPermissionRequests } from '@shared/data/cache/cacheValueTypes'
 
 export type ToolPermissionRequestPayload = {
   requestId: string
@@ -91,9 +87,9 @@ export const toolPermissionsCacheService = {
 
   clearPending(): void {
     const requests = getRequests()
-    const pendingStatuses: ToolPermissionStatus[] = ['pending', 'submitting-allow', 'submitting-deny']
+    const pendingStatuses = ['pending', 'submitting-allow', 'submitting-deny'] as const
     for (const [key, entry] of Object.entries(requests)) {
-      if (pendingStatuses.includes(entry.status)) {
+      if ((pendingStatuses as readonly string[]).includes(entry.status)) {
         delete requests[key]
       }
     }
@@ -105,8 +101,9 @@ export const toolPermissionsCacheService = {
   },
 
   selectActivePermission(requests: ToolPermissionRequests): ToolPermissionEntry | null {
+    const activeStatuses = ['pending', 'submitting-allow', 'submitting-deny', 'invoking'] as const
     const activeEntries = Object.values(requests).filter((entry) =>
-      (['pending', 'submitting-allow', 'submitting-deny', 'invoking'] as ToolPermissionStatus[]).includes(entry.status)
+      (activeStatuses as readonly string[]).includes(entry.status)
     )
 
     if (activeEntries.length === 0) return null
@@ -116,13 +113,10 @@ export const toolPermissionsCacheService = {
   },
 
   selectPendingPermission(requests: ToolPermissionRequests, toolCallId: string): ToolPermissionEntry | undefined {
+    const activeStatuses = ['pending', 'submitting-allow', 'submitting-deny', 'invoking'] as const
     const activeEntries = Object.values(requests)
       .filter((entry) => entry.toolCallId === toolCallId)
-      .filter((entry) =>
-        (['pending', 'submitting-allow', 'submitting-deny', 'invoking'] as ToolPermissionStatus[]).includes(
-          entry.status
-        )
-      )
+      .filter((entry) => (activeStatuses as readonly string[]).includes(entry.status))
 
     if (activeEntries.length === 0) return undefined
 
