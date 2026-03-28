@@ -18,6 +18,4 @@ export interface MiniApp {
   supportedRegions?: ('CN' | 'Global')[]
   configuration?: unknown
   nameKey?: string
-  createdAt: string
-  updatedAt: string
 }

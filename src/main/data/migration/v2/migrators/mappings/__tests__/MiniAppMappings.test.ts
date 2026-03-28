@@ -122,17 +122,6 @@ describe('MiniAppMappings', () => {
       })
     })
 
-    it('should parse addTime correctly', () => {
-      const iso = transformMiniApp(createSource({ addTime: '2024-01-01T00:00:00Z' }), 'enabled' as MiniAppStatus, 0)
-      expect(iso.createdAt).toBe(new Date('2024-01-01T00:00:00Z').getTime())
-
-      const num = transformMiniApp(createSource({ addTime: 1704067200000 }), 'enabled' as MiniAppStatus, 0)
-      expect(num.createdAt).toBe(1704067200000)
-
-      const invalid = transformMiniApp(createSource({ addTime: 'invalid' }), 'enabled' as MiniAppStatus, 0)
-      expect(invalid.createdAt).toBeUndefined()
-    })
-
     it('should filter supportedRegions', () => {
       const valid = transformMiniApp(
         createSource({ supportedRegions: ['CN', 'Global', 'Invalid'] }),
