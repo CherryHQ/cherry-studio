@@ -37,7 +37,7 @@ export class SessionService extends BaseService {
     const commands: SlashCommand[] = []
 
     // Add builtin slash commands
-    if (agentType === 'claude-code' || agentType === 'cherry-claw') {
+    if (agentType === 'claude-code') {
       commands.push(...builtinSlashCommands)
     }
 
@@ -216,11 +216,13 @@ export class SessionService extends BaseService {
 
     const sessions = result.map((row) => this.deserializeJsonFields(row)) as GetAgentSessionResponse[]
 
-    for (const session of sessions) {
-      const { tools, legacyIdMap } = await this.listMcpTools(session.agent_type, session.mcps)
-      session.tools = tools
-      session.allowed_tools = this.normalizeAllowedTools(session.allowed_tools, session.tools, legacyIdMap)
-    }
+    await Promise.all(
+      sessions.map(async (session) => {
+        const { tools, legacyIdMap } = await this.listMcpTools(session.agent_type, session.mcps)
+        session.tools = tools
+        session.allowed_tools = this.normalizeAllowedTools(session.allowed_tools, session.tools, legacyIdMap)
+      })
+    )
 
     return { sessions, total }
   }

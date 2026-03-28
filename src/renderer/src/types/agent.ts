@@ -25,7 +25,7 @@ export const SessionMessageRoleSchema = z.enum(sessionMessageRoles)
 
 export type SessionMessageType = TextStreamPart<Record<string, any>>['type']
 
-export const AgentTypeSchema = z.enum(['claude-code', 'cherry-claw'])
+export const AgentTypeSchema = z.enum(['claude-code'])
 export type AgentType = z.infer<typeof AgentTypeSchema>
 
 // ------------------ CherryClaw-specific types ------------------

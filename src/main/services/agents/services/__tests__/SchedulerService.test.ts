@@ -123,7 +123,7 @@ describe('SchedulerService', () => {
     vi.mocked(taskService.getDueTasks).mockResolvedValueOnce([mockTask])
     vi.mocked(agentService.getAgent).mockResolvedValueOnce({
       id: 'agent-1',
-      type: 'cherry-claw',
+      type: 'claude-code',
       name: 'Test',
       model: 'claude-3',
       accessible_paths: ['/tmp/test'],

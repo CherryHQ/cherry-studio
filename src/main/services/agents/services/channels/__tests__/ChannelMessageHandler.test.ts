@@ -81,7 +81,7 @@ describe('ChannelMessageHandler', () => {
 
   it('collectStreamResponse accumulates text across turns and sends via adapter', async () => {
     const adapter = createMockAdapter()
-    const session = { id: 'session-1', agent_id: 'agent-1', agent_type: 'cherry-claw' }
+    const session = { id: 'session-1', agent_id: 'agent-1', agent_type: 'claude-code' }
 
     vi.mocked(sessionService.createSession).mockResolvedValueOnce(session as any)
     vi.mocked(sessionMessageService.createSessionMessage).mockResolvedValueOnce(
@@ -108,7 +108,7 @@ describe('ChannelMessageHandler', () => {
 
   it('skips final send when adapter finalizes the draft stream', async () => {
     const adapter = createMockAdapter()
-    const session = { id: 'session-1', agent_id: 'agent-1', agent_type: 'cherry-claw' }
+    const session = { id: 'session-1', agent_id: 'agent-1', agent_type: 'claude-code' }
 
     adapter.finalizeStream.mockResolvedValueOnce(true)
     vi.mocked(sessionService.createSession).mockResolvedValueOnce(session as any)
@@ -129,7 +129,7 @@ describe('ChannelMessageHandler', () => {
 
   it('sends chunked messages for long responses', async () => {
     const adapter = createMockAdapter()
-    const session = { id: 'session-1', agent_id: 'agent-1', agent_type: 'cherry-claw' }
+    const session = { id: 'session-1', agent_id: 'agent-1', agent_type: 'claude-code' }
 
     vi.mocked(sessionService.createSession).mockResolvedValueOnce(session as any)
 
@@ -165,7 +165,7 @@ describe('ChannelMessageHandler', () => {
 
   it('handleCommand /compact sends /compact as message content', async () => {
     const adapter = createMockAdapter()
-    const session = { id: 'session-1', agent_id: 'agent-1', agent_type: 'cherry-claw' }
+    const session = { id: 'session-1', agent_id: 'agent-1', agent_type: 'claude-code' }
 
     vi.mocked(sessionService.createSession).mockResolvedValueOnce(session as any)
     vi.mocked(sessionMessageService.createSessionMessage).mockResolvedValueOnce(
@@ -230,7 +230,7 @@ describe('ChannelMessageHandler', () => {
 
   it('resolveSession tracks sessions after /new', async () => {
     const adapter = createMockAdapter()
-    const newSession = { id: 'new-session', agent_id: 'agent-1', agent_type: 'cherry-claw' }
+    const newSession = { id: 'new-session', agent_id: 'agent-1', agent_type: 'claude-code' }
 
     vi.mocked(sessionService.createSession).mockResolvedValueOnce(newSession as any)
 
@@ -259,7 +259,7 @@ describe('ChannelMessageHandler', () => {
 
   it('clearSessionTracker causes fresh session resolution', async () => {
     const adapter = createMockAdapter()
-    const session1 = { id: 'session-1', agent_id: 'agent-1', agent_type: 'cherry-claw' }
+    const session1 = { id: 'session-1', agent_id: 'agent-1', agent_type: 'claude-code' }
 
     // First interaction creates a session
     vi.mocked(sessionService.createSession).mockResolvedValueOnce(session1 as any)

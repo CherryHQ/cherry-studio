@@ -354,6 +354,12 @@
         "title": "Advanced Settings"
       },
       "essential": "Essential Settings",
+      "soulMode": {
+        "title": "Autonomous Mode",
+        "description": "When enabled, the agent uses a custom system prompt from workspace soul files, injects autonomous task management tools, and disables interactive tools not suited for autonomous operation.",
+        "disabledBadge": "Disabled by Autonomous Mode",
+        "disabledTooltip": "This tool is automatically disabled when Autonomous Mode is active"
+      },
       "permissionMode": {
         "tab": "Permission Mode",
         "title": "Permission Mode"

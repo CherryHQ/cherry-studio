@@ -30,30 +30,20 @@ const AgentSettingPopupContainer: React.FC<AgentSettingPopupParams> = ({ tab, ag
   const { agent, isLoading, error } = useAgent(agentId)
   const { updateAgent } = useUpdateAgent()
 
-  const isCherryClaw = agent?.type === 'cherry-claw'
-
   const menuItems: SettingsMenuItem[] = useMemo(
-    () =>
-      isCherryClaw
-        ? [
-            { key: 'essential', label: t('agent.settings.essential') },
-            { key: 'mcp', label: t('agent.settings.toolsMcp.mcp.tab', 'MCP') },
-            { key: 'plugins', label: t('agent.settings.plugins.available.title', 'Available Plugins') },
-            { key: 'installed', label: t('agent.settings.plugins.installed.title', 'Installed Plugins') },
-            { key: 'channels', label: t('agent.cherryClaw.channels.tab', 'Channels') },
-            { key: 'tasks', label: t('agent.cherryClaw.tasks.tab', 'Tasks') },
-            { key: 'advanced', label: t('agent.settings.advance.title', 'Advanced Settings') }
-          ]
-        : [
-            { key: 'essential', label: t('agent.settings.essential') },
-            { key: 'prompt', label: t('agent.settings.prompt') },
-            { key: 'permission-mode', label: t('agent.settings.permissionMode.tab', 'Permission Mode') },
-            { key: 'tools-mcp', label: t('agent.settings.toolsMcp.tab', 'Tools & MCP') },
-            { key: 'plugins', label: t('agent.settings.plugins.available.title', 'Available Plugins') },
-            { key: 'installed', label: t('agent.settings.plugins.installed.title', 'Installed Plugins') },
-            { key: 'advanced', label: t('agent.settings.advance.title', 'Advanced Settings') }
-          ],
-    [t, isCherryClaw]
+    () => [
+      { key: 'essential', label: t('agent.settings.essential') },
+      { key: 'prompt', label: t('agent.settings.prompt') },
+      { key: 'permission-mode', label: t('agent.settings.permissionMode.tab', 'Permission Mode') },
+      { key: 'tools-mcp', label: t('agent.settings.toolsMcp.tab', 'Tools & MCP') },
+      { key: 'mcp', label: t('agent.settings.toolsMcp.mcp.tab', 'MCP') },
+      { key: 'plugins', label: t('agent.settings.plugins.available.title', 'Available Plugins') },
+      { key: 'installed', label: t('agent.settings.plugins.installed.title', 'Installed Plugins') },
+      { key: 'channels', label: t('agent.cherryClaw.channels.tab', 'Channels') },
+      { key: 'tasks', label: t('agent.cherryClaw.tasks.tab', 'Tasks') },
+      { key: 'advanced', label: t('agent.settings.advance.title', 'Advanced Settings') }
+    ],
+    [t]
   )
 
   const renderTabContent = (currentTab: SettingsPopupTab) => {

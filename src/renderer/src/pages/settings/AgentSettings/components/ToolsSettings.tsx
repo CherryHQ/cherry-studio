@@ -1,5 +1,6 @@
 import CollapsibleSearchBar from '@renderer/components/CollapsibleSearchBar'
 import { permissionModeCards } from '@renderer/config/agent'
+import { SOUL_MODE_DISALLOWED_TOOLS } from '@shared/agents/claudecode/constants'
 import { useMCPServers } from '@renderer/hooks/useMCPServers'
 import type { UpdateAgentBaseForm } from '@renderer/types'
 import type { CardProps } from 'antd'
@@ -14,6 +15,7 @@ import {
   type AgentOrSessionSettingsProps,
   computeModeDefaults,
   defaultConfiguration,
+  isSoulModeEnabled,
   SettingsContainer,
   SettingsItem,
   SettingsTitle
@@ -78,6 +80,7 @@ export const ToolsSettings: FC<AgentOrSessionSettingsProps> = ({ agentBase, upda
     return merged
   }, [agentBase?.allowed_tools, autoToolIds, availableTools])
   const selectedMcpIds = useMemo(() => agentBase?.mcps ?? [], [agentBase?.mcps])
+  const isSoulEnabled = isSoulModeEnabled(agentBase?.configuration)
 
   const availableServers = useMemo(() => allServers ?? [], [allServers])
 
@@ -164,11 +167,14 @@ export const ToolsSettings: FC<AgentOrSessionSettingsProps> = ({ agentBase, upda
             filteredTools.map((tool) => {
               const isAuto = autoToolIds.includes(tool.id)
               const isApproved = approvedToolIds.includes(tool.id)
+              const isSoulDisabled =
+                isSoulEnabled && (SOUL_MODE_DISALLOWED_TOOLS as readonly string[]).includes(tool.id)
               const toolDescription = tool.type === 'builtin' ? getBuiltinToolDescription(tool.id) : tool.description
               return (
                 <Card
                   key={tool.id}
                   className="border border-default-200"
+                  style={isSoulDisabled ? { opacity: 0.6 } : undefined}
                   title={
                     <div className="flex items-start justify-between gap-3 py-2">
                       <div className="flex min-w-0 flex-col gap-1">
@@ -179,7 +185,10 @@ export const ToolsSettings: FC<AgentOrSessionSettingsProps> = ({ agentBase, upda
                           </span>
                         ) : null}
                         <div className="flex flex-wrap items-center gap-2">
-                          {isAuto ? (
+                          {isSoulDisabled ? (
+                            <Tag color="error">{t('agent.settings.soulMode.disabledBadge')}</Tag>
+                          ) : null}
+                          {isAuto && !isSoulDisabled ? (
                             <Tag color="success">
                               {t('agent.settings.tooling.preapproved.autoBadge', 'Added by mode')}
                             </Tag>
@@ -187,7 +196,7 @@ export const ToolsSettings: FC<AgentOrSessionSettingsProps> = ({ agentBase, upda
                           {tool.type === 'mcp' ? (
                             <Tag color="default">{t('agent.settings.tooling.preapproved.mcpBadge', 'MCP tool')}</Tag>
                           ) : null}
-                          {tool.requirePermissions ? (
+                          {tool.requirePermissions && !isSoulDisabled ? (
                             <Tag color="warning">
                               {t(
                                 'agent.settings.tooling.preapproved.requiresApproval',
@@ -199,22 +208,24 @@ export const ToolsSettings: FC<AgentOrSessionSettingsProps> = ({ agentBase, upda
                       </div>
                       <Tooltip
                         title={
-                          isAuto
-                            ? t('agent.settings.tooling.preapproved.autoDisabledTooltip', {
-                                mode: selectedModeCard
-                                  ? t(selectedModeCard.titleKey, selectedModeCard.titleFallback)
-                                  : selectedMode
-                              })
-                            : undefined
+                          isSoulDisabled
+                            ? t('agent.settings.soulMode.disabledTooltip')
+                            : isAuto
+                              ? t('agent.settings.tooling.preapproved.autoDisabledTooltip', {
+                                  mode: selectedModeCard
+                                    ? t(selectedModeCard.titleKey, selectedModeCard.titleFallback)
+                                    : selectedMode
+                                })
+                              : undefined
                         }
-                        open={isAuto ? undefined : false}>
+                        open={isSoulDisabled || isAuto ? undefined : false}>
                         <Switch
                           aria-label={t('agent.settings.tooling.preapproved.toggle', {
                             defaultValue: `Toggle ${tool.name}`,
                             name: tool.name
                           })}
-                          checked={isApproved}
-                          disabled={isAuto || isUpdatingTools}
+                          checked={isSoulDisabled ? false : isApproved}
+                          disabled={isSoulDisabled || isAuto || isUpdatingTools}
                           size="small"
                           onChange={(checked) => handleToggleTool(tool.id, checked)}
                         />

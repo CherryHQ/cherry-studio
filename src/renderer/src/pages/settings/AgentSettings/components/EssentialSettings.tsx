@@ -5,6 +5,7 @@ import { AccessibleDirsSetting } from './AccessibleDirsSetting'
 import { DescriptionSetting } from './DescriptionSetting'
 import { ModelSetting } from './ModelSetting'
 import { NameSetting } from './NameSetting'
+import { SoulModeSetting } from './SoulModeSetting'
 
 type EssentialSettingsProps = AgentOrSessionSettingsProps & {
   showModelSetting?: boolean
@@ -19,6 +20,7 @@ const EssentialSettings: FC<EssentialSettingsProps> = ({ agentBase, update, show
       {showModelSetting && <ModelSetting base={agentBase} update={update} />}
       <AccessibleDirsSetting base={agentBase} update={update} />
       <DescriptionSetting base={agentBase} update={update} />
+      <SoulModeSetting base={agentBase} update={update} />
     </SettingsContainer>
   )
 }

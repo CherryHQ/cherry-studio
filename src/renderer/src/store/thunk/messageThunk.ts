@@ -2130,7 +2130,7 @@ export const setupChannelStream = (
     }
   })
 
-  const assistant: Assistant = { id: agentId, name: '', prompt: '', topics: [], type: 'cherry-claw', model }
+  const assistant: Assistant = { id: agentId, name: '', prompt: '', topics: [], type: 'claude-code', model }
 
   const blockManager = new BlockManager({
     dispatch,

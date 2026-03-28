@@ -1,9 +1,8 @@
 import { loggerService } from '@logger'
 import type { CherryClawConfiguration, ScheduledTaskEntity } from '@types'
 
-import { agentService } from './AgentService'
 import { channelManager } from './channels/ChannelManager'
-import { CherryClawService } from './cherryclaw'
+import { heartbeatReader } from './cherryclaw'
 import { sessionMessageService } from './SessionMessageService'
 import { sessionService } from './SessionService'
 import { taskService } from './TaskService'
@@ -25,20 +24,11 @@ class SchedulerService {
   private pollTimer: ReturnType<typeof setTimeout> | null = null
   private running = false
   private readonly activeTasks = new Map<string, RunningTask>()
-  private cherryClawService: CherryClawService | null = null
-
   static getInstance(): SchedulerService {
     if (!SchedulerService.instance) {
       SchedulerService.instance = new SchedulerService()
     }
     return SchedulerService.instance
-  }
-
-  private getCherryClawService(): CherryClawService {
-    if (!this.cherryClawService) {
-      this.cherryClawService = new CherryClawService()
-    }
-    return this.cherryClawService
   }
 
   startLoop(): void {
@@ -66,15 +56,8 @@ class SchedulerService {
     logger.info('Scheduler poll loop stopped')
   }
 
-  // Keep backward-compatible aliases used by agent handlers and main/index.ts
-  stopScheduler(_agentId: string): void {
-    // No-op — the poll loop handles everything via DB state.
-    // Individual task abort is handled by stopLoop or task deletion.
-  }
-
-  startScheduler(_agent: any): void {
-    // No-op — the poll loop picks up tasks from DB automatically.
-    // Just ensure the loop is running.
+  /** Ensure the poll loop is running after agent config changes. */
+  syncScheduler(): void {
     this.startLoop()
   }
 
@@ -184,6 +167,7 @@ class SchedulerService {
     try {
       logger.info('Running scheduled task', { taskId: task.id, agentId: task.agent_id })
 
+      const { agentService } = await import('./AgentService')
       const agent = await agentService.getAgent(task.agent_id)
       if (!agent) {
         throw new Error(`Agent not found: ${task.agent_id}`)
@@ -203,8 +187,7 @@ class SchedulerService {
           this.activeTasks.delete(task.id)
           return
         }
-        const clawService = this.getCherryClawService()
-        const heartbeatContent = await clawService.heartbeatReader.readHeartbeat(workspacePath)
+        const heartbeatContent = await heartbeatReader.readHeartbeat(workspacePath)
         if (!heartbeatContent) {
           logger.debug('Heartbeat task skipped (no heartbeat.md)', { taskId: task.id })
           const nextRun = taskService.computeNextRun(task)

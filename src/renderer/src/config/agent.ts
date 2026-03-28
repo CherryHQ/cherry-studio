@@ -1,6 +1,4 @@
-import CherryClawAvatar from '@renderer/assets/images/models/cherry-claw.png'
-import ClaudeAvatar from '@renderer/assets/images/models/claude.png'
-import type { AgentBase, AgentType, CherryClawConfiguration } from '@renderer/types'
+import type { AgentBase, CherryClawConfiguration } from '@renderer/types'
 import type { PermissionModeCard } from '@renderer/types/agent'
 
 // base agent config. no default config for now.
@@ -18,6 +16,7 @@ export const DEFAULT_CHERRY_CLAW_CONFIG: Omit<AgentBase, 'model'> & { configurat
   configuration: {
     permission_mode: 'bypassPermissions',
     max_turns: 100,
+    env_vars: {},
     soul_enabled: true,
     scheduler_enabled: false,
     scheduler_type: 'interval',
@@ -25,17 +24,6 @@ export const DEFAULT_CHERRY_CLAW_CONFIG: Omit<AgentBase, 'model'> & { configurat
     heartbeat_interval: 30
   }
 } as const
-
-export const getAgentTypeAvatar = (type: AgentType): string => {
-  switch (type) {
-    case 'claude-code':
-      return ClaudeAvatar
-    case 'cherry-claw':
-      return CherryClawAvatar
-    default:
-      return ''
-  }
-}
 
 export const permissionModeCards: PermissionModeCard[] = [
   {

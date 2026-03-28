@@ -378,13 +378,6 @@ export const getBuiltinOcrProviderLabel = (key: BuiltinOcrProviderId) => {
   else return getLabel(builtinOcrProviderKeyMap, key)
 }
 
-export const getAgentTypeLabel = (key: AgentType) => {
-  switch (key) {
-    case 'claude-code':
-      return 'Claude Code'
-    case 'cherry-claw':
-      return 'CherryClaw'
-    default:
-      return 'Unknown Type'
-  }
+export const getAgentTypeLabel = (_key: AgentType) => {
+  return 'Agent'
 }

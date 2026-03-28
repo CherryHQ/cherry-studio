@@ -31,9 +31,12 @@ class ChannelManager {
     logger.info('Starting channel manager')
     try {
       const { agents } = await agentService.listAgents()
-      const clawAgents = agents.filter((a) => a.type === 'cherry-claw')
+      const agentsWithChannels = agents.filter((a) => {
+        const config = a.configuration as CherryClawConfiguration | undefined
+        return config?.channels && config.channels.length > 0
+      })
 
-      for (const agent of clawAgents) {
+      for (const agent of agentsWithChannels) {
         await this.startAgentChannels(agent.id, (agent.configuration as CherryClawConfiguration)?.channels)
       }
 
@@ -77,28 +80,35 @@ class ChannelManager {
   }
 
   async syncAgent(agentId: string): Promise<void> {
-    // Disconnect existing adapters for this agent
-    for (const [key, adapter] of this.adapters) {
-      if (adapter.agentId === agentId) {
-        await adapter.disconnect().catch((err) => {
-          logger.warn('Error disconnecting adapter during sync', {
-            key,
-            error: err instanceof Error ? err.message : String(err)
+    // Disconnect existing adapters for this agent in parallel
+    const toDisconnect = [...this.adapters.entries()].filter(([, a]) => a.agentId === agentId)
+    await Promise.all(
+      toDisconnect.map(([key, adapter]) =>
+        adapter
+          .disconnect()
+          .catch((err) => {
+            logger.warn('Error disconnecting adapter during sync', {
+              key,
+              error: err instanceof Error ? err.message : String(err)
+            })
           })
-        })
-        this.adapters.delete(key)
-        this.notifyChannels.delete(key)
-      }
-    }
+          .finally(() => {
+            this.adapters.delete(key)
+            this.notifyChannels.delete(key)
+          })
+      )
+    )
 
     channelMessageHandler.clearSessionTracker(agentId)
 
     // Re-create from current config (agent may have been deleted)
     const agent = await agentService.getAgent(agentId)
-    if (!agent || agent.type !== 'cherry-claw') return
+    if (!agent) return
 
-    const config = agent.configuration as CherryClawConfiguration
-    await this.startAgentChannels(agentId, config?.channels)
+    const config = agent.configuration as CherryClawConfiguration | undefined
+    if (!config?.channels?.length) return
+
+    await this.startAgentChannels(agentId, config.channels)
   }
 
   private async startAgentChannels(agentId: string, channels?: CherryClawChannel[]): Promise<void> {

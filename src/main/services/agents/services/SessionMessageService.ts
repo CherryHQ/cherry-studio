@@ -15,7 +15,10 @@ import { BaseService } from '../BaseService'
 import { sessionMessagesTable } from '../database/schema'
 import { agentMessageRepository } from '../database/sessionMessageRepository'
 import type { AgentStreamEvent } from '../interfaces/AgentStreamInterface'
-import { agentServiceRegistry } from './AgentServiceRegistry'
+import { applyCherryClawEnhancements } from './cherryclaw'
+import ClaudeCodeService from './claudecode'
+
+const claudeCodeService = new ClaudeCodeService()
 
 const logger = loggerService.withContext('SessionMessageService')
 
@@ -178,13 +181,8 @@ export class SessionMessageService extends BaseService {
     const agentSessionId = await this.getLastAgentSessionId(session.id)
     logger.debug('Session Message stream message data:', { message: req, session_id: agentSessionId })
 
-    if (!agentServiceRegistry.hasService(session.agent_type)) {
-      logger.error('Unsupported agent type for streaming:', { agent_type: session.agent_type })
-      throw new Error(`Unsupported agent type for streaming: ${session.agent_type}`)
-    }
-
-    const service = agentServiceRegistry.getService(session.agent_type)
-    const claudeStream = await service.invoke(req.content, session, abortController, agentSessionId, {
+    const enhancedSession = await applyCherryClawEnhancements(session)
+    const claudeStream = await claudeCodeService.invoke(req.content, enhancedSession, abortController, agentSessionId, {
       effort: req.effort,
       thinking: req.thinking
     })

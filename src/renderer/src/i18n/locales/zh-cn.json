@@ -354,6 +354,12 @@
         "title": "高级设置"
       },
       "essential": "基础设置",
+      "soulMode": {
+        "title": "自主模式",
+        "description": "启用后，Agent 将使用工作区灵魂文件构建自定义系统提示词，注入自主任务管理工具，并禁用不适合自主运行的交互式工具。",
+        "disabledBadge": "自主模式已禁用",
+        "disabledTooltip": "该工具在自主模式开启时被自动禁用"
+      },
       "permissionMode": {
         "tab": "权限模式",
         "title": "权限模式"

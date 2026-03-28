@@ -75,7 +75,7 @@ describe('ChannelManager', () => {
       agents: [
         {
           id: 'agent-1',
-          type: 'cherry-claw',
+          type: 'claude-code',
           configuration: {
             channels: [
               {
@@ -102,7 +102,7 @@ describe('ChannelManager', () => {
       agents: [
         {
           id: 'agent-1',
-          type: 'cherry-claw',
+          type: 'claude-code',
           configuration: {
             channels: [
               { id: 'ch-1', type: 'telegram', enabled: true, config: { bot_token: 'tok' } },
@@ -127,7 +127,7 @@ describe('ChannelManager', () => {
       agents: [
         {
           id: 'agent-1',
-          type: 'cherry-claw',
+          type: 'claude-code',
           configuration: {
             channels: [{ id: 'ch-1', type: 'telegram', enabled: true, config: { bot_token: 'tok' } }]
           }
@@ -142,7 +142,7 @@ describe('ChannelManager', () => {
     // Sync with updated config
     vi.mocked(agentService.getAgent).mockResolvedValueOnce({
       id: 'agent-1',
-      type: 'cherry-claw',
+      type: 'claude-code',
       configuration: {
         channels: [{ id: 'ch-1', type: 'telegram', enabled: true, config: { bot_token: 'new-tok' } }]
       }
@@ -161,7 +161,7 @@ describe('ChannelManager', () => {
       agents: [
         {
           id: 'agent-1',
-          type: 'cherry-claw',
+          type: 'claude-code',
           configuration: {
             channels: [{ id: 'ch-1', type: 'telegram', enabled: true, config: { bot_token: 'tok' } }]
           }
@@ -185,7 +185,7 @@ describe('ChannelManager', () => {
       agents: [
         {
           id: 'agent-1',
-          type: 'cherry-claw',
+          type: 'claude-code',
           configuration: {
             channels: [{ id: 'ch-1', type: 'telegram', enabled: false, config: { bot_token: 'tok' } }]
           }

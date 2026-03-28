@@ -54,7 +54,7 @@ export abstract class BaseService {
   ): Promise<{ tools: Tool[]; legacyIdMap: Map<string, string> }> {
     const tools: Tool[] = []
     const legacyIdMap = new Map<string, string>()
-    if (agentType === 'claude-code' || agentType === 'cherry-claw') {
+    if (agentType === 'claude-code') {
       tools.push(...builtinTools)
     }
     if (ids && ids.length > 0) {
@@ -139,7 +139,7 @@ export abstract class BaseService {
   }
 
   public async listSlashCommands(agentType: AgentType): Promise<SlashCommand[]> {
-    if (agentType === 'claude-code' || agentType === 'cherry-claw') {
+    if (agentType === 'claude-code') {
       return builtinSlashCommands
     }
     return []
@@ -182,6 +182,14 @@ export abstract class BaseService {
           logger.warn(`Failed to parse JSON field ${field}:`, error as Error)
         }
       }
+    }
+
+    // Normalize legacy agent type values to the unified type
+    if (deserialized.type === 'cherry-claw') {
+      deserialized.type = 'claude-code'
+    }
+    if (deserialized.agent_type === 'cherry-claw') {
+      deserialized.agent_type = 'claude-code'
     }
 
     // convert null from db to undefined to satisfy type definition

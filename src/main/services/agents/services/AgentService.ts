@@ -21,6 +21,7 @@ const logger = loggerService.withContext('AgentService')
 
 export class AgentService extends BaseService {
   private static instance: AgentService | null = null
+  private defaultCherryClawEnsured = false
   private readonly modelFields: AgentModelField[] = ['model', 'plan_model', 'small_model']
 
   static getInstance(): AgentService {
@@ -138,29 +139,27 @@ export class AgentService extends BaseService {
 
     const agents = result.map((row) => this.deserializeJsonFields(row)) as GetAgentResponse[]
 
-    for (const agent of agents) {
-      const { tools, legacyIdMap } = await this.listMcpTools(agent.type, agent.mcps)
-      agent.tools = tools
-      agent.allowed_tools = this.normalizeAllowedTools(agent.allowed_tools, agent.tools, legacyIdMap)
-    }
-
-    // Sort cherry-claw agents to the top
-    agents.sort((a, b) => {
-      if (a.type === 'cherry-claw' && b.type !== 'cherry-claw') return -1
-      if (a.type !== 'cherry-claw' && b.type === 'cherry-claw') return 1
-      return 0
-    })
+    await Promise.all(
+      agents.map(async (agent) => {
+        const { tools, legacyIdMap } = await this.listMcpTools(agent.type, agent.mcps)
+        agent.tools = tools
+        agent.allowed_tools = this.normalizeAllowedTools(agent.allowed_tools, agent.tools, legacyIdMap)
+      })
+    )
 
     return { agents, total: totalResult[0].count }
   }
 
   private async ensureDefaultCherryClaw(): Promise<void> {
+    if (this.defaultCherryClawEnsured) return
     try {
+      this.defaultCherryClawEnsured = true
       const database = await this.getDatabase()
+      // Check for existing CherryClaw agent by name (type is now unified as 'claude-code')
       const existing = await database
         .select({ id: agentsTable.id })
         .from(agentsTable)
-        .where(eq(agentsTable.type, 'cherry-claw'))
+        .where(eq(agentsTable.name, 'CherryClaw'))
         .limit(1)
 
       if (existing.length > 0) return
@@ -174,7 +173,7 @@ export class AgentService extends BaseService {
       }
 
       const req: CreateAgentRequest = {
-        type: 'cherry-claw',
+        type: 'claude-code',
         name: 'CherryClaw',
         description: 'Default autonomous CherryClaw agent',
         model: firstModel.id,
