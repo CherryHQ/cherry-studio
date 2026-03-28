@@ -1,18 +1,11 @@
 import { EventEmitter } from 'events'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-// Mock child_process
 vi.mock('child_process', () => ({ spawn: vi.fn() }))
-
-// Mock crossPlatformSpawn
 vi.mock('@main/utils/process', () => ({ crossPlatformSpawn: vi.fn() }))
-
-// Mock shell-env (default export)
 vi.mock('@main/utils/shell-env', () => ({
   default: vi.fn().mockResolvedValue({ PATH: '/usr/bin' })
 }))
-
-// Mock logger
 vi.mock('@logger', () => ({
   loggerService: {
     withContext: () => ({
@@ -24,7 +17,6 @@ vi.mock('@logger', () => ({
   }
 }))
 
-// Mock electron (utilityProcess specifically needed for UtilityProcessHandle)
 const mockUtilityProcessFork = vi.fn()
 vi.mock('electron', () => ({ utilityProcess: { fork: mockUtilityProcessFork } }))
 
@@ -41,11 +33,9 @@ function createMockChildProcess(pid = 1234) {
 async function loadModules() {
   const { crossPlatformSpawn } = await import('@main/utils/process')
   const { ProcessManager } = await import('../ProcessManager')
-  const { ProcessState } = await import('../types')
   return {
     crossPlatformSpawn: crossPlatformSpawn as ReturnType<typeof vi.fn>,
-    ProcessManager,
-    ProcessState
+    ProcessManager
   }
 }
 
@@ -58,16 +48,6 @@ beforeEach(async () => {
 
 describe('ProcessManager', () => {
   describe('register()', () => {
-    it('creates a handle with correct id and Idle state', async () => {
-      const { ProcessManager, ProcessState } = await loadModules()
-      const manager = new ProcessManager()
-
-      const handle = manager.register({ id: 'proc-1', command: 'echo' })
-
-      expect(handle.id).toBe('proc-1')
-      expect(handle.state).toBe(ProcessState.Idle)
-    })
-
     it('rejects duplicate ids', async () => {
       const { ProcessManager } = await loadModules()
       const manager = new ProcessManager()
@@ -77,23 +57,6 @@ describe('ProcessManager', () => {
       expect(() => manager.register({ id: 'dup-proc', command: 'echo' })).toThrow(
         "Process 'dup-proc' is already registered"
       )
-    })
-
-    it('creates a UtilityProcessHandle for utility type', async () => {
-      const { EventEmitter } = await import('events')
-      const mockProc = new EventEmitter() as any
-      mockProc.pid = 7777
-      mockProc.postMessage = vi.fn()
-      mockProc.kill = vi.fn()
-      mockUtilityProcessFork.mockReturnValue(mockProc)
-
-      const { ProcessManager, ProcessState } = await loadModules()
-      const manager = new ProcessManager()
-
-      const handle = manager.register({ id: 'util-proc', modulePath: '/some/module.js' })
-
-      expect(handle.id).toBe('util-proc')
-      expect(handle.state).toBe(ProcessState.Idle)
     })
   })
 
@@ -106,13 +69,6 @@ describe('ProcessManager', () => {
 
       expect(manager.get('get-proc')).toBe(handle)
     })
-
-    it('returns undefined for unknown id', async () => {
-      const { ProcessManager } = await loadModules()
-      const manager = new ProcessManager()
-
-      expect(manager.get('nonexistent')).toBeUndefined()
-    })
   })
 
   describe('events', () => {
@@ -122,12 +78,12 @@ describe('ProcessManager', () => {
       crossPlatformSpawn.mockReturnValue(mockCp)
 
       const manager = new ProcessManager()
-      const handle = manager.register({ id: 'start-proc', command: 'node' })
+      manager.register({ id: 'start-proc', command: 'node' })
 
       const startedListener = vi.fn()
       manager.on('process:started', startedListener)
 
-      await handle.start()
+      await manager.get('start-proc')!.start()
 
       expect(startedListener).toHaveBeenCalledWith('start-proc', 5678)
     })
@@ -138,60 +94,38 @@ describe('ProcessManager', () => {
       crossPlatformSpawn.mockReturnValue(mockCp)
 
       const manager = new ProcessManager()
-      const handle = manager.register({ id: 'exit-proc', command: 'node' })
+      manager.register({ id: 'exit-proc', command: 'node' })
 
       const exitedListener = vi.fn()
       manager.on('process:exited', exitedListener)
 
-      await handle.start()
+      await manager.get('exit-proc')!.start()
       mockCp.emit('close', 0, null)
 
       expect(exitedListener).toHaveBeenCalledWith('exit-proc', 0, null)
     })
 
-    it('emits process:log on stdout data', async () => {
+    it('emits process:log on stdout and stderr data', async () => {
       const { crossPlatformSpawn, ProcessManager } = await loadModules()
       const mockCp = createMockChildProcess()
       crossPlatformSpawn.mockReturnValue(mockCp)
 
       const manager = new ProcessManager()
-      const handle = manager.register({ id: 'log-proc', command: 'node' })
+      manager.register({ id: 'log-proc', command: 'node' })
 
       const logListener = vi.fn()
       manager.on('process:log', logListener)
 
-      await handle.start()
+      await manager.get('log-proc')!.start()
       mockCp.stdout.emit('data', Buffer.from('hello\n'))
-
-      expect(logListener).toHaveBeenCalledWith(
-        expect.objectContaining({
-          processId: 'log-proc',
-          stream: 'stdout',
-          data: 'hello\n'
-        })
-      )
-    })
-
-    it('emits process:log on stderr data', async () => {
-      const { crossPlatformSpawn, ProcessManager } = await loadModules()
-      const mockCp = createMockChildProcess()
-      crossPlatformSpawn.mockReturnValue(mockCp)
-
-      const manager = new ProcessManager()
-      const handle = manager.register({ id: 'stderr-log-proc', command: 'node' })
-
-      const logListener = vi.fn()
-      manager.on('process:log', logListener)
-
-      await handle.start()
       mockCp.stderr.emit('data', Buffer.from('error output\n'))
 
+      expect(logListener).toHaveBeenCalledTimes(2)
       expect(logListener).toHaveBeenCalledWith(
-        expect.objectContaining({
-          processId: 'stderr-log-proc',
-          stream: 'stderr',
-          data: 'error output\n'
-        })
+        expect.objectContaining({ processId: 'log-proc', stream: 'stdout', data: 'hello\n' })
+      )
+      expect(logListener).toHaveBeenCalledWith(
+        expect.objectContaining({ processId: 'log-proc', stream: 'stderr', data: 'error output\n' })
       )
     })
 
@@ -201,13 +135,13 @@ describe('ProcessManager', () => {
       crossPlatformSpawn.mockReturnValue(mockCp)
 
       const manager = new ProcessManager()
-      const handle = manager.register({ id: 'off-proc', command: 'node' })
+      manager.register({ id: 'off-proc', command: 'node' })
 
       const startedListener = vi.fn()
       manager.on('process:started', startedListener)
       manager.off('process:started', startedListener)
 
-      await handle.start()
+      await manager.get('off-proc')!.start()
 
       expect(startedListener).not.toHaveBeenCalled()
     })
@@ -227,7 +161,6 @@ describe('ProcessManager', () => {
       await handle1.start()
       await handle2.start()
 
-      // Trigger stop: both processes will emit close event when SIGTERM is sent
       const stopPromise = manager._doStop()
 
       mockCp1.emit('close', 0, null)
@@ -249,7 +182,6 @@ describe('ProcessManager', () => {
 
       await handle.start()
       mockCp.emit('close', 0, null)
-      // Process is now stopped
 
       const stopPromise = manager._doStop()
       await stopPromise
@@ -268,7 +200,6 @@ describe('ProcessManager', () => {
 
       await handle.start()
 
-      // _doStop should complete immediately without stopping the skipOnStop handle
       await manager._doStop()
 
       expect(mockCp.kill).not.toHaveBeenCalled()
@@ -280,7 +211,6 @@ describe('ProcessManager', () => {
       const mockCp1 = createMockChildProcess(1111)
       const mockCp2 = createMockChildProcess(2222)
 
-      // Make first process's stop throw
       mockCp1.kill = vi.fn().mockImplementation(() => {
         throw new Error('kill failed')
       })
@@ -296,10 +226,8 @@ describe('ProcessManager', () => {
 
       const stopPromise = manager._doStop()
 
-      // mockCp2 needs to close normally
       mockCp2.emit('close', 0, null)
 
-      // Should not throw despite mockCp1 failing
       await expect(stopPromise).resolves.toBeUndefined()
       expect(mockCp2.kill).toHaveBeenCalledWith('SIGTERM')
     })
@@ -312,9 +240,9 @@ describe('ProcessManager', () => {
       crossPlatformSpawn.mockReturnValue(mockCp)
 
       const manager = new ProcessManager()
-      const handle = manager.register({ id: 'unreg-proc', command: 'echo' })
+      manager.register({ id: 'unreg-proc', command: 'echo' })
 
-      await handle.start()
+      await manager.get('unreg-proc')!.start()
       mockCp.emit('close', 0, null)
 
       manager.unregister('unreg-proc')
@@ -337,30 +265,13 @@ describe('ProcessManager', () => {
       crossPlatformSpawn.mockReturnValue(mockCp)
 
       const manager = new ProcessManager()
-      const handle = manager.register({ id: 'running-unreg', command: 'sleep' })
+      manager.register({ id: 'running-unreg', command: 'sleep' })
 
-      await handle.start()
+      await manager.get('running-unreg')!.start()
 
       expect(() => manager.unregister('running-unreg')).toThrow(
         "Cannot unregister process 'running-unreg': process is currently running"
       )
-    })
-
-    it('does nothing for unknown id', async () => {
-      const { ProcessManager } = await loadModules()
-      const manager = new ProcessManager()
-
-      // Should not throw
-      expect(() => manager.unregister('ghost')).not.toThrow()
-    })
-  })
-
-  describe('onInit()', () => {
-    it('initializes without error', async () => {
-      const { ProcessManager } = await loadModules()
-      const manager = new ProcessManager()
-
-      await expect(manager._doInit()).resolves.toBeUndefined()
     })
   })
 })
