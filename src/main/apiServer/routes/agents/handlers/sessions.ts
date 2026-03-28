@@ -334,21 +334,9 @@ export const deleteSession = async (req: Request, res: Response): Promise<Respon
 export const reorderSessions = async (req: Request, res: Response): Promise<Response> => {
   const { agentId } = req.params
   try {
-    const { ordered_ids } = req.body
+    const { validatedBody } = req as ValidationRequest
 
-    if (
-      !Array.isArray(ordered_ids) ||
-      ordered_ids.length === 0 ||
-      !ordered_ids.every((id: unknown) => typeof id === 'string' && id.length > 0)
-    ) {
-      return res.status(400).json({
-        error: {
-          message: 'ordered_ids must be a non-empty array of session IDs',
-          type: 'invalid_request_error',
-          code: 'invalid_ordered_ids'
-        }
-      })
-    }
+    const ordered_ids = validatedBody?.ordered_ids
 
     logger.debug('Reordering sessions', { agentId, count: ordered_ids.length })
     await sessionService.reorderSessions(agentId, ordered_ids)

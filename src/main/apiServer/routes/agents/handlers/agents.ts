@@ -53,9 +53,10 @@ const modelValidationErrorBody = (error: AgentModelValidationError) => ({
 export const createAgent = async (req: Request, res: Response): Promise<Response> => {
   try {
     logger.debug('Creating agent')
-    logger.debug('Agent payload', { body: req.body })
+    const { validatedBody } = req as ValidationRequest
+    logger.debug('Agent payload', { body: validatedBody })
 
-    const agent = await agentService.createAgent(req.body)
+    const agent = await agentService.createAgent(validatedBody)
 
     try {
       logger.info('Agent created', { agentId: agent.id })
@@ -183,10 +184,12 @@ export const createAgent = async (req: Request, res: Response): Promise<Response
  */
 export const listAgents = async (req: Request, res: Response): Promise<Response> => {
   try {
-    const limit = req.query.limit ? parseInt(req.query.limit as string) : 20
-    const offset = req.query.offset ? parseInt(req.query.offset as string) : 0
-    const sortBy = (req.query.sortBy as 'created_at' | 'updated_at' | 'name' | 'sort_order') || 'sort_order'
-    const orderBy = (req.query.orderBy as 'asc' | 'desc') || (sortBy === 'sort_order' ? 'asc' : 'desc')
+    const { validatedQuery } = req as ValidationRequest
+
+    const limit = validatedQuery?.limit ?? 20
+    const offset = validatedQuery?.offset ?? 0
+    const sortBy = validatedQuery?.sortBy ?? 'sort_order'
+    const orderBy = validatedQuery?.orderBy ?? (sortBy === 'sort_order' ? 'asc' : 'desc')
 
     logger.debug('Listing agents', { limit, offset, sortBy, orderBy })
 
@@ -332,10 +335,22 @@ export const updateAgent = async (req: Request, res: Response): Promise<Response
   const { agentId } = req.params
   try {
     logger.debug('Updating agent', { agentId })
-    logger.debug('Replace payload', { body: req.body })
 
     const { validatedBody } = req as ValidationRequest
-    const replacePayload = (validatedBody ?? {}) as ReplaceAgentRequest
+
+    if (!validatedBody) {
+      logger.warn('Missing validated body for agent update', { agentId })
+      return res.status(400).json({
+        error: {
+          message: 'Request body is required for replace operation',
+          type: 'invalid_request_error',
+          code: 'missing_request_body'
+        }
+      })
+    }
+
+    const replacePayload = validatedBody as ReplaceAgentRequest
+    logger.debug('Replace payload', { body: replacePayload })
 
     const agent = await agentService.updateAgent(agentId, replacePayload, { replace: true })
 
@@ -478,10 +493,22 @@ export const patchAgent = async (req: Request, res: Response): Promise<Response>
   const { agentId } = req.params
   try {
     logger.debug('Partially updating agent', { agentId })
-    logger.debug('Patch payload', { body: req.body })
 
     const { validatedBody } = req as ValidationRequest
-    const updatePayload = (validatedBody ?? {}) as UpdateAgentRequest
+
+    if (!validatedBody) {
+      logger.warn('Missing validated body for agent patch', { agentId })
+      return res.status(400).json({
+        error: {
+          message: 'Request body is required for patch operation',
+          type: 'invalid_request_error',
+          code: 'missing_request_body'
+        }
+      })
+    }
+
+    const updatePayload = validatedBody as UpdateAgentRequest
+    logger.debug('Patch payload', { body: updatePayload })
 
     const agent = await agentService.updateAgent(agentId, updatePayload)
 
@@ -622,21 +649,9 @@ export const deleteAgent = async (req: Request, res: Response): Promise<Response
  */
 export const reorderAgents = async (req: Request, res: Response): Promise<Response> => {
   try {
-    const { ordered_ids } = req.body
+    const { validatedBody } = req as ValidationRequest
 
-    if (
-      !Array.isArray(ordered_ids) ||
-      ordered_ids.length === 0 ||
-      !ordered_ids.every((id: unknown) => typeof id === 'string' && id.length > 0)
-    ) {
-      return res.status(400).json({
-        error: {
-          message: 'ordered_ids must be a non-empty array of agent IDs',
-          type: 'invalid_request_error',
-          code: 'invalid_ordered_ids'
-        }
-      })
-    }
+    const ordered_ids = validatedBody?.ordered_ids
 
     logger.debug('Reordering agents', { count: ordered_ids.length })
     await agentService.reorderAgents(ordered_ids)

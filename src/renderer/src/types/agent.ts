@@ -347,7 +347,9 @@ export const SessionMessageIdParamSchema = z.object({
 export const PaginationQuerySchema = z.object({
   limit: z.coerce.number().int().min(1).max(100).optional().default(20),
   offset: z.coerce.number().int().min(0).optional().default(0),
-  status: z.enum(['idle', 'running', 'completed', 'failed', 'stopped']).optional()
+  status: z.enum(['idle', 'running', 'completed', 'failed', 'stopped']).optional(),
+  sortBy: z.enum(['created_at', 'updated_at', 'name', 'sort_order']).optional().default('sort_order'),
+  orderBy: z.enum(['asc', 'desc']).optional()
 })
 
 // Request body validation schemas derived from shared bases
@@ -363,6 +365,15 @@ export const CreateAgentRequestSchema = agentCreatableSchema.extend({
 export const UpdateAgentRequestSchema = AgentBaseSchema.partial()
 
 export const ReplaceAgentRequestSchema = AgentBaseSchema
+
+// Reorder request schemas
+export const ReorderAgentsRequestSchema = z.object({
+  ordered_ids: z.array(z.string().min(1, 'Agent ID cannot be empty')).min(1, 'ordered_ids must be a non-empty array')
+})
+
+export const ReorderSessionsRequestSchema = z.object({
+  ordered_ids: z.array(z.string().min(1, 'Session ID cannot be empty')).min(1, 'ordered_ids must be a non-empty array')
+})
 
 const sessionCreatableSchema = AgentBaseSchema.extend({
   model: z.string().min(1, 'Model is required')
