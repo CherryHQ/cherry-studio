@@ -21,8 +21,7 @@ import i18n from '@renderer/i18n'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import { notificationService } from '@renderer/services/NotificationService'
 import { estimateMessagesUsage } from '@renderer/services/TokenService'
-import store from '@renderer/store'
-import { toolPermissionsActions } from '@renderer/store/toolPermissions'
+import { toolPermissionsCacheService } from '@renderer/services/ToolPermissionsCacheService'
 import type { Assistant } from '@renderer/types'
 import { ERROR_I18N_KEY_REQUEST_TIMEOUT, ERROR_I18N_KEY_STREAM_PAUSED } from '@renderer/types/error'
 import type { PlaceholderMessageBlock, Response, ThinkingMessageBlock } from '@renderer/types/newMessage'
@@ -213,7 +212,7 @@ export const createBaseCallbacks = (deps: BaseCallbacksDependencies) => {
 
       // Clean up pending/submitting tool permission requests from this stream.
       // Preserve 'invoking' entries as they may belong to concurrent streams.
-      store.dispatch(toolPermissionsActions.clearPending())
+      toolPermissionsCacheService.clearPending()
 
       // Create error block
       const errorBlock = createErrorBlock(assistantMsgId, serializableError, { status: MessageBlockStatus.SUCCESS })

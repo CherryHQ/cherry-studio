@@ -230,10 +230,14 @@ export const DefaultUseCache: UseCacheSchema = {
  */
 export type SharedCacheSchema = {
   'chat.web_search.active_searches': CacheValueTypes.CacheActiveSearches
+  'tool.permission.requests': CacheValueTypes.ToolPermissionRequests
+  'tool.permission.resolved_inputs': CacheValueTypes.ToolPermissionResolvedInputs
 }
 
 export const DefaultSharedCache: SharedCacheSchema = {
-  'chat.web_search.active_searches': {}
+  'chat.web_search.active_searches': {},
+  'tool.permission.requests': {},
+  'tool.permission.resolved_inputs': {}
 }
 
 /**
