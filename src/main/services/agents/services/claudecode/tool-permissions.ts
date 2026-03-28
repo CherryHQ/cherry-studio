@@ -185,8 +185,7 @@ const finalizeRequest = (
   }
 
   // Update SharedCache (authoritative state for renderer UI)
-  const updatedInput =
-    update.behavior === 'allow' ? (update.updatedInput as Record<string, unknown> | undefined) : undefined
+  const updatedInput = update.behavior === 'allow' ? update.updatedInput : undefined
   resolveCachedRequest(requestId, update.behavior, pending.toolCallId, updatedInput)
 
   pending.fulfill(update)
