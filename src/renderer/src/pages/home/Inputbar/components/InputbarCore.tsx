@@ -6,7 +6,6 @@ import { ActionIconButton } from '@renderer/components/Buttons'
 import type { QuickPanelTriggerInfo } from '@renderer/components/QuickPanel'
 import { QuickPanelReservedSymbol, QuickPanelView, useQuickPanel } from '@renderer/components/QuickPanel'
 import TranslateButton from '@renderer/components/TranslateButton'
-import { useTranslate } from '@renderer/hooks/translate'
 import { useTimer } from '@renderer/hooks/useTimer'
 import PasteService from '@renderer/services/PasteService'
 import { translateText } from '@renderer/services/TranslateService'
@@ -140,7 +139,6 @@ export const InputbarCore: FC<InputbarCoreProps> = ({
 
   const { t } = useTranslation()
   const [isTranslating, setIsTranslating] = useState(false)
-  const { getLanguageByLangcode } = useTranslate()
 
   const [spaceClickCount, setSpaceClickCount] = useState(0)
   const spaceClickTimer = useRef<NodeJS.Timeout | null>(null)
@@ -206,7 +204,7 @@ export const InputbarCore: FC<InputbarCoreProps> = ({
 
     try {
       setIsTranslating(true)
-      const translatedText = await translateText(text, getLanguageByLangcode(targetLanguage))
+      const translatedText = await translateText(text, targetLanguage)
       translatedText && setText(translatedText)
       setTimeoutTimer('translate', () => resizeTextArea(), 0)
     } catch (error) {
@@ -214,7 +212,7 @@ export const InputbarCore: FC<InputbarCoreProps> = ({
     } finally {
       setIsTranslating(false)
     }
-  }, [getLanguageByLangcode, isTranslating, resizeTextArea, setText, setTimeoutTimer, targetLanguage, text])
+  }, [isTranslating, resizeTextArea, setText, setTimeoutTimer, targetLanguage, text])
 
   const rootTriggerHandlerRef = useRef<((payload?: unknown) => void) | undefined>(undefined)
 

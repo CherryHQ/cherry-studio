@@ -22,7 +22,7 @@ import type {
   Provider,
   Topic,
   TranslateAssistant,
-  TranslateLanguage
+  TranslateLanguageVo
 } from '@renderer/types'
 import { uuid } from '@renderer/utils'
 import type { CreateTopicDto } from '@shared/data/api/schemas/topics'
@@ -99,7 +99,7 @@ export function getDefaultAssistant(): Assistant {
  * @returns Configured translate assistant
  */
 export async function getDefaultTranslateAssistant(
-  targetLanguage: TranslateLanguage,
+  targetLanguage: TranslateLanguageVo,
   text: string,
   _settings?: Partial<AssistantSettings>
 ): Promise<TranslateAssistant> {
@@ -127,7 +127,7 @@ export async function getDefaultTranslateAssistant(
   const getTranslateContent = async (
     model: Model,
     text: string,
-    targetLanguage: TranslateLanguage
+    targetLanguage: TranslateLanguageVo
   ): Promise<string> => {
     if (isQwenMTModel(model)) {
       return text // QwenMT models handle raw text directly

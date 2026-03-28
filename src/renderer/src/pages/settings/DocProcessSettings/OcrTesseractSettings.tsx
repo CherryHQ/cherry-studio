@@ -3,7 +3,7 @@ import { Flex } from '@cherrystudio/ui'
 import { InfoTooltip } from '@cherrystudio/ui'
 import CustomTag from '@renderer/components/Tags/CustomTag'
 import { TESSERACT_LANG_MAP } from '@renderer/config/ocr'
-import { useTranslate } from '@renderer/hooks/translate'
+import { useLanguages } from '@renderer/hooks/translate'
 import { useOcrProvider } from '@renderer/hooks/useOcrProvider'
 import type { TesseractLangCode } from '@renderer/types'
 import { BuiltinOcrProviderIds, isOcrTesseractProvider } from '@renderer/types'
@@ -24,17 +24,17 @@ export const OcrTesseractSettings = () => {
   }
 
   const [langs, setLangs] = useState<Partial<Record<TesseractLangCode, boolean>>>(provider.config?.langs ?? {})
-  const { translateLanguages } = useTranslate()
+  const { languages, getLabel } = useLanguages()
 
   const options = useMemo(
     () =>
-      translateLanguages
-        .map((lang) => ({
+      languages
+        ?.map((lang) => ({
           value: TESSERACT_LANG_MAP[lang.langCode],
-          label: lang.emoji + ' ' + lang.label()
+          label: getLabel(lang)
         }))
-        .filter((option) => option.value),
-    [translateLanguages]
+        .filter((option) => option.value) ?? [],
+    [languages, getLabel]
   )
 
   // TODO: type safe objectKeys

@@ -12,7 +12,7 @@ import { isEmbeddingModel, isRerankModel, isVisionModel } from '@renderer/config
 import type { MessageMenubarButtonId, MessageMenubarScope } from '@renderer/config/registry/messageMenubar'
 import { DEFAULT_MESSAGE_MENUBAR_SCOPE, getMessageMenubarConfig } from '@renderer/config/registry/messageMenubar'
 import { useMessageEditing } from '@renderer/context/MessageEditingContext'
-import { useTranslate } from '@renderer/hooks/translate'
+import { useLanguages } from '@renderer/hooks/translate'
 import { useChatContext } from '@renderer/hooks/useChatContext'
 import { useMessageOperations } from '@renderer/hooks/useMessageOperations'
 import { useNotesSettings } from '@renderer/hooks/useNotesSettings'
@@ -25,7 +25,7 @@ import { messageBlocksSelectors } from '@renderer/store/messageBlock'
 import { selectMessagesForTopic } from '@renderer/store/newMessage'
 import { removeBlocksThunk } from '@renderer/store/thunk/messageThunk'
 import { TraceIcon } from '@renderer/trace/pages/Component'
-import type { Assistant, Model, Topic, TranslateLanguage } from '@renderer/types'
+import type { Assistant, Model, Topic, TranslateLanguageVo } from '@renderer/types'
 import { type Message, MessageBlockStatus, MessageBlockType } from '@renderer/types/newMessage'
 import { captureScrollableAsBlob, captureScrollableAsDataURL, classNames } from '@renderer/utils'
 import { abortCompletion } from '@renderer/utils/abortController'
@@ -110,7 +110,7 @@ type MessageMenubarButtonContext = {
   enableDeveloperMode: boolean
   handleResendUserMessage: (messageUpdate?: Message) => Promise<void>
   handleTraceUserMessage: () => void | Promise<void>
-  handleTranslate: (language: TranslateLanguage) => Promise<void>
+  handleTranslate: (language: TranslateLanguageVo) => Promise<void>
   hasTranslationBlocks: boolean
   isAssistantMessage: boolean
   isBubbleStyle: boolean
@@ -130,7 +130,8 @@ type MessageMenubarButtonContext = {
   showDeleteTooltip: boolean
   softHoverBg: boolean
   t: TFunction
-  translateLanguages: TranslateLanguage[]
+  getLanguageLabel: ReturnType<typeof useLanguages>['getLabel']
+  translateLanguages: TranslateLanguageVo[]
 }
 
 type MessageMenubarButtonRenderer = (ctx: MessageMenubarButtonContext) => ReactNode | null
@@ -155,7 +156,7 @@ const MessageMenubar: FC<Props> = (props) => {
   const translationAbortKey = createTranslationAbortKey(message.id)
   // remove confirm for regenerate; tooltip stays simple
   const [showDeleteTooltip, setShowDeleteTooltip] = useState(false)
-  const { translateLanguages } = useTranslate()
+  const { languages, getLabel } = useLanguages()
   // const assistantModel = assistant?.model
   const {
     deleteMessage,
@@ -259,7 +260,7 @@ const MessageMenubar: FC<Props> = (props) => {
   }, [message.blocks, blockEntities])
 
   const handleTranslate = useCallback(
-    async (language: TranslateLanguage) => {
+    async (language: TranslateLanguageVo) => {
       if (isTranslating) return
 
       const messageId = message.id
@@ -602,7 +603,8 @@ const MessageMenubar: FC<Props> = (props) => {
     showDeleteTooltip,
     softHoverBg,
     t,
-    translateLanguages
+    getLanguageLabel: getLabel,
+    translateLanguages: languages ?? []
   }
 
   return (
@@ -795,6 +797,7 @@ const buttonRenderers: Record<MessageMenubarButtonId, MessageMenubarButtonRender
     blockEntities,
     removeMessageBlock,
     softHoverBg,
+    getLanguageLabel,
     t
   }) => {
     if (isUserMessage) {
@@ -819,7 +822,7 @@ const buttonRenderers: Record<MessageMenubarButtonId, MessageMenubarButtonRender
 
     const items: MenuProps['items'] = [
       ...translateLanguages.map((item) => ({
-        label: item.emoji + ' ' + item.label(),
+        label: getLanguageLabel(item),
         key: item.langCode,
         onClick: () => handleTranslate(item)
       })),

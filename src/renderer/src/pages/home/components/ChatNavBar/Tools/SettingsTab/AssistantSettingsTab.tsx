@@ -15,7 +15,7 @@ import { isOpenAIModel, isSupportVerbosityModel } from '@renderer/config/models'
 import { UNKNOWN } from '@renderer/config/translate'
 import { useCodeStyle } from '@renderer/context/CodeStyleProvider'
 import { useTheme } from '@renderer/context/ThemeProvider'
-import { useTranslate } from '@renderer/hooks/translate'
+import { useLanguages } from '@renderer/hooks/translate'
 import { useAssistant } from '@renderer/hooks/useAssistant'
 import { useProvider } from '@renderer/hooks/useProvider'
 import { SettingDivider, SettingRow, SettingRowTitle } from '@renderer/pages/settings'
@@ -110,7 +110,7 @@ const AssistantSettingsTab: FC<Props> = (props) => {
 
   // FIXME: We should use useMemo to calculate these states instead of using useEffect to sync
   const [fontSizeValue, setFontSizeValue] = useState(fontSize)
-  const { translateLanguages } = useTranslate()
+  const { languages, getLabel } = useLanguages()
 
   const { t } = useTranslation()
 
@@ -146,8 +146,8 @@ const AssistantSettingsTab: FC<Props> = (props) => {
   )
 
   const targetLanguageItems = useMemo<SelectorItem<string>[]>(
-    () => translateLanguages.map((item) => ({ value: item.langCode, label: item.emoji + ' ' + item.label() })),
-    [translateLanguages]
+    () => languages?.map((item) => ({ value: item.langCode, label: getLabel(item) ?? '' })) ?? [],
+    [languages, getLabel]
   )
 
   const sendMessageShortcutItems = useMemo<SelectorItem<SendMessageShortcut>[]>(
@@ -247,7 +247,7 @@ const AssistantSettingsTab: FC<Props> = (props) => {
           <SettingRow>
             <SettingRowTitleSmall>{t('message.message.style.label')}</SettingRowTitleSmall>
             <Select value={messageStyle} onValueChange={setMessageStyle}>
-              <SelectTrigger size="sm" className="w-[180px]">
+              <SelectTrigger size="sm" className="w-45">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
@@ -263,7 +263,7 @@ const AssistantSettingsTab: FC<Props> = (props) => {
           <SettingRow>
             <SettingRowTitleSmall>{t('message.message.multi_model_style.label')}</SettingRowTitleSmall>
             <Select value={multiModelMessageStyle} onValueChange={setMultiModelMessageStyle}>
-              <SelectTrigger size="sm" className="w-[180px]">
+              <SelectTrigger size="sm" className="w-45">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
@@ -286,7 +286,7 @@ const AssistantSettingsTab: FC<Props> = (props) => {
           <SettingRow>
             <SettingRowTitleSmall>{t('settings.messages.navigation.label')}</SettingRowTitleSmall>
             <Select value={messageNavigation} onValueChange={setMessageNavigation}>
-              <SelectTrigger size="sm" className="w-[180px]">
+              <SelectTrigger size="sm" className="w-45">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
@@ -327,7 +327,7 @@ const AssistantSettingsTab: FC<Props> = (props) => {
           <SettingRow>
             <SettingRowTitleSmall>{t('settings.math.engine.label')}</SettingRowTitleSmall>
             <Select value={mathEngine} onValueChange={setMathEngine}>
-              <SelectTrigger size="sm" className="w-[180px]">
+              <SelectTrigger size="sm" className="w-45">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
@@ -356,7 +356,7 @@ const AssistantSettingsTab: FC<Props> = (props) => {
           <SettingRow>
             <SettingRowTitleSmall>{t('message.message.code_style')}</SettingRowTitleSmall>
             <Select value={codeStyle} onValueChange={onCodeStyleChange}>
-              <SelectTrigger size="sm" className="w-[180px]">
+              <SelectTrigger size="sm" className="w-45">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
@@ -573,8 +573,8 @@ const AssistantSettingsTab: FC<Props> = (props) => {
           <SettingRow>
             <SettingRowTitleSmall>{t('settings.input.target_language.label')}</SettingRowTitleSmall>
             <Select value={targetLanguage} onValueChange={setTargetLanguage}>
-              <SelectTrigger size="sm" className="w-[180px]">
-                <SelectValue placeholder={UNKNOWN.emoji + ' ' + UNKNOWN.label()} />
+              <SelectTrigger size="sm" className="w-45">
+                <SelectValue placeholder={getLabel(UNKNOWN)} />
               </SelectTrigger>
               <SelectContent>
                 {targetLanguageItems.map((item) => (
@@ -589,7 +589,7 @@ const AssistantSettingsTab: FC<Props> = (props) => {
           <SettingRow>
             <SettingRowTitleSmall>{t('settings.messages.input.send_shortcuts')}</SettingRowTitleSmall>
             <Select value={sendMessageShortcut} onValueChange={setSendMessageShortcut}>
-              <SelectTrigger size="sm" className="w-[180px]">
+              <SelectTrigger size="sm" className="w-45">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
