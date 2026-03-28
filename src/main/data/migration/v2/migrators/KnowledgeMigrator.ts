@@ -117,6 +117,8 @@ export class KnowledgeMigrator extends BaseMigrator {
   private preparedBases: NewKnowledgeBase[] = []
   private preparedItems: NewKnowledgeItem[] = []
   private warnings: string[] = []
+  private seenBaseIds = new Set<string>()
+  private seenItemIds = new Set<string>()
 
   private getLegacyKnowledgeDbPath(baseId: string): string | null {
     const rootPath = path.resolve(getDataPath(), 'KnowledgeBase')
@@ -342,6 +344,8 @@ export class KnowledgeMigrator extends BaseMigrator {
     this.preparedBases = []
     this.preparedItems = []
     this.warnings = []
+    this.seenBaseIds = new Set<string>()
+    this.seenItemIds = new Set<string>()
 
     try {
       const knowledgeState = ctx.sources.reduxState.getCategory<LegacyKnowledgeState>('knowledge')
@@ -379,8 +383,6 @@ export class KnowledgeMigrator extends BaseMigrator {
       const { noteIds, fileIds } = this.collectLookupIds(bases)
       const noteById = await this.loadNoteLookup(ctx, noteIds)
       const filesById = await this.loadFileLookup(ctx, fileIds)
-      const seenBaseIds = new Set<string>()
-      const seenItemIds = new Set<string>()
 
       for (const base of bases) {
         this.sourceCount += 1
@@ -397,7 +399,7 @@ export class KnowledgeMigrator extends BaseMigrator {
 
         const items = Array.isArray(validBase.items) ? validBase.items : []
 
-        if (seenBaseIds.has(validBase.id)) {
+        if (this.seenBaseIds.has(validBase.id)) {
           this.skippedCount += 1 + items.length
           this.sourceCount += items.length
           const warningMessage = `Skipped duplicate knowledge base ${validBase.id}`
@@ -427,8 +429,7 @@ export class KnowledgeMigrator extends BaseMigrator {
           continue
         }
 
-        const preparedBaseId = baseResult.value.id ?? validBase.id
-        seenBaseIds.add(preparedBaseId)
+        this.seenBaseIds.add(baseResult.value.id!)
         this.preparedBases.push(baseResult.value)
 
         const invalidConfigWarning = getInvalidKnowledgeBaseConfigWarning(validBase)
@@ -453,24 +454,15 @@ export class KnowledgeMigrator extends BaseMigrator {
             continue
           }
 
-          const preparedItemId = itemResult.value.id ?? item.id
-          if (!preparedItemId) {
+          if (this.seenItemIds.has(itemResult.value.id!)) {
             this.skippedCount += 1
-            const warningMessage = `Skipped invalid knowledge item in base ${validBase.id}: missing transformed id`
+            const warningMessage = `Skipped duplicate knowledge item ${itemResult.value.id!} in base ${validBase.id}`
             logger.warn(warningMessage)
             this.warnings.push(warningMessage)
             continue
           }
 
-          if (seenItemIds.has(preparedItemId)) {
-            this.skippedCount += 1
-            const warningMessage = `Skipped duplicate knowledge item ${preparedItemId} in base ${validBase.id}`
-            logger.warn(warningMessage)
-            this.warnings.push(warningMessage)
-            continue
-          }
-
-          seenItemIds.add(preparedItemId)
+          this.seenItemIds.add(itemResult.value.id!)
           this.preparedItems.push(itemResult.value)
         }
       }
