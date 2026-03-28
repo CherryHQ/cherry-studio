@@ -307,7 +307,7 @@ export const InputbarCore: FC<InputbarCoreProps> = ({
         if (spaceClickCount === 2) {
           logger.info('Triple space detected - trigger translation')
           setSpaceClickCount(0)
-          translate()
+          void translate()
           return
         }
       }

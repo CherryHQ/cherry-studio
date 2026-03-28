@@ -15,6 +15,20 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type { RootState } from '../../index'
 
+const { mockSavedFile } = vi.hoisted(() => ({
+  mockSavedFile: {
+    id: 'mock-image-id',
+    name: 'mock-image-id.png',
+    origin_name: 'mock-image-id.png',
+    path: '/mock/path/mock-image-id.png',
+    created_at: new Date().toISOString(),
+    size: 100,
+    ext: 'png',
+    type: 'image',
+    count: 1
+  }
+}))
+
 const createMockCallbacks = (
   mockAssistantMsgId: string,
   mockTopicId: string,
@@ -157,7 +171,9 @@ vi.mock('@renderer/databases', () => ({
 
 vi.mock('@renderer/services/FileManager', () => ({
   default: {
-    deleteFile: vi.fn()
+    deleteFile: vi.fn(),
+    addFile: vi.fn().mockResolvedValue(mockSavedFile),
+    getFileUrl: vi.fn().mockReturnValue('file:///mock/path/mock-image-id.png')
   }
 }))
 
@@ -353,6 +369,15 @@ describe('streamCallback Integration Tests', () => {
     store = createMockStore()
     dispatch = store.dispatch
     getState = store.getState as () => ReturnType<typeof reducer> & RootState
+
+    Object.defineProperty(window, 'api', {
+      value: {
+        file: {
+          saveBase64Image: vi.fn().mockResolvedValue(mockSavedFile)
+        }
+      },
+      configurable: true
+    })
 
     // 为测试消息添加初始状态
     store.dispatch(
@@ -553,9 +578,8 @@ describe('streamCallback Integration Tests', () => {
     const blocks = Object.values(state.messageBlocks.entities)
     const imageBlock = blocks.find((block) => block.type === MessageBlockType.IMAGE)
     expect(imageBlock).toBeDefined()
-    expect(imageBlock?.url).toBe(
-      'data:image/jpeg;base64,/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAAgGBgcGBQgHBwcJCQgKDBQNDAsLDBkSEw8UHRofHh0aHBwgJC4nICIsIxwcKDcpLDAxNDQ0Hyc5PTgyPC4zNDL/2wBDAQkJCQwLDBgNDRgyIRwhMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjL/wAARCAAQABADASIAAhEBAxEB/8QAFwAAAwEAAAAAAAAAAAAAAAAAAQMEB//EACMQAAIBAwMEAwAAAAAAAAAAAAECAwAEEQUSIQYxQVExUYH/xAAVAQEBAAAAAAAAAAAAAAAAAAAAAf/EABQRAQAAAAAAAAAAAAAAAAAAAAD/2gAMAwEAAhEDEQA/AM/8A//Z'
-    )
+    expect(imageBlock?.file).toEqual(mockSavedFile)
+    expect(imageBlock?.url).toBe('file:///mock/path/mock-image-id.png')
     expect(imageBlock?.status).toBe(MessageBlockStatus.SUCCESS)
   })
 

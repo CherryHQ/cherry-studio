@@ -127,7 +127,7 @@ export const useApiServer = () => {
   }, [apiServerLoading, checkApiServerStatus, setApiServerEnabled, setApiServerLoading, t])
 
   useEffect(() => {
-    checkApiServerStatus()
+    void checkApiServerStatus()
   }, [checkApiServerStatus])
 
   // Use ref to keep the latest checkApiServerStatus without causing re-subscription
@@ -139,7 +139,7 @@ export const useApiServer = () => {
   // Create stable callback for the single instance subscription
   const handleReady = useCallback(() => {
     logger.info('API server ready event received, checking status')
-    checkStatusRef.current()
+    void checkStatusRef.current()
   }, [])
 
   // Listen for API server ready event using single instance subscription

@@ -473,7 +473,7 @@ export const createKnowledgeReferencesBlock = async ({
   )
 
   // 处理引用块
-  blockManager.handleBlockTransition(citationBlock, MessageBlockType.CITATION)
+  void blockManager.handleBlockTransition(citationBlock, MessageBlockType.CITATION)
 
   // 设置引用块ID
   setCitationBlockId(citationBlock.id)

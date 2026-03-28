@@ -140,30 +140,22 @@ artifactBuildCompleted: scripts/artifact-build-completed.js
 releaseInfo:
   releaseNotes: |
     <!--LANG:en-->
-    Cherry Studio 1.8.2 - Bug Fixes and Model Updates
-
-    🐛 Bug Fixes
-    - [Knowledge Base] Fix knowledge base content not being delivered to the model when selected in conversation
-    - [Search] Fix crash when clicking topic title in message search results
-    - [Backup] Fix backup restoration path issue
+    Cherry Studio 1.8.4 - Bug Fixes and New Features
 
     ✨ New Features
-    - [Models] Add support for Xiaomi MiMo-V2-Pro and MiMo-V2-Omni models with reasoning control and tool use capabilities
+    - [API] Add knowledge base REST API endpoints
+    - [SelectionAssistant] Add Linux support for text selection toolbar
 
-    💄 Improvements
-    - [Models] Upgrade MiniMax default model to M2.7 with enhanced reasoning and coding capabilities
+    🐛 Bug Fixes
+    - [Files] Fix PDF upload failing with "invalid part type: file" error for OpenAI-compatible providers (Moonshot, DeepSeek, Groq, etc.)
 
     <!--LANG:zh-CN-->
-    Cherry Studio 1.8.2 - 错误修复和模型更新
-
-    🐛 问题修复
-    - [知识库] 修复选中知识库时内容未传递给模型的问题
-    - [搜索] 修复点击消息搜索结果中的主题标题时崩溃的问题
-    - [备份] 修复备份恢复路径问题
+    Cherry Studio 1.8.4 - 错误修复和新功能
 
     ✨ 新功能
-    - [模型] 新增小米 MiMo-V2-Pro 和 MiMo-V2-Omni 模型支持，支持推理控制和工具调用功能
+    - [API] 添加知识库 REST API 端点
+    - [选择助手] 为文本选择工具栏添加 Linux 支持
 
-    💄 改进
-    - [模型] 升级 MiniMax 默认模型至 M2.7，增强推理和代码能力
+    🐛 问题修复
+    - [文件] 修复 OpenAI 兼容提供商（Moonshot、DeepSeek、Groq 等）的 PDF 上传失败问题（"invalid part type: file" 错误）
     <!--LANG:END-->

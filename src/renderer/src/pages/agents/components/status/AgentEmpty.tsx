@@ -15,10 +15,10 @@ const AgentEmpty = () => {
   const { setActiveAgentId } = useActiveAgent()
 
   const handleAddAgent = useCallback(() => {
-    !apiServerRunning && startApiServer()
-    AgentModalPopup.show({
+    void (!apiServerRunning && startApiServer())
+    void AgentModalPopup.show({
       afterSubmit: (agent: AgentEntity) => {
-        setActiveAgentId(agent.id)
+        void setActiveAgentId(agent.id)
       }
     })
   }, [apiServerRunning, startApiServer, setActiveAgentId])

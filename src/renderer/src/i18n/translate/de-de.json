@@ -390,7 +390,7 @@
           "description": "Erstellt und verwaltet strukturierte Aufgabenlisten"
         },
         "ToolSearch": {
-          "description": "[to be translated]:Discovers deferred tools from large libraries"
+          "description": "Entdeckt aufgeschobene Werkzeuge aus großen Bibliotheken"
         },
         "WebFetch": {
           "description": "Ruft Inhalte von einer angegebenen URL ab"
@@ -1195,6 +1195,8 @@
             "content": "Sind Sie sicher, dass Sie {{count}} ausgewähltes Thema bzw. ausgewählte Themen löschen möchten? Diese Aktion kann nicht rückgängig gemacht werden.",
             "title": "Themen löschen"
           },
+          "error": "Löschen fehlgeschlagen. Bitte versuchen Sie es erneut.",
+          "partial_success": "Erfolgreich {{successCount}} Themen gelöscht, {{failedCount}} fehlgeschlagen",
           "success": "{{count}} Thema/Themen gelöscht"
         },
         "deselect_all": "Alle abwählen",
@@ -2616,6 +2618,27 @@
     },
     "title": "Ollama"
   },
+  "onboarding": {
+    "select_model": {
+      "change_later": "Sie können dies jederzeit in den Einstellungen ändern.",
+      "start": "Loslegen",
+      "subtitle": "Standardmodell für jedes Szenario auswählen",
+      "title": "Wählen Sie Ihre Standardmodelle"
+    },
+    "skip": "Überspringen",
+    "toast": {
+      "connected": "Erfolgreich mit CherryIN verbunden"
+    },
+    "welcome": {
+      "login_cherryin": "Mit CherryIN anmelden",
+      "or_continue_with": "ODER WEITER MIT",
+      "other_provider": "Andere Anbieter auswählen",
+      "select_other_provider": "Wählen Sie einen anderen Anbieter",
+      "setup_hint": "Bitte konfigurieren Sie mindestens einen Anbieter für die beste Erfahrung.",
+      "subtitle": "Genießen Sie erstklassige KI-Dienste mit CherryIN",
+      "title": "Willkommen bei Cherry Studio"
+    }
+  },
   "openclaw": {
     "checking_installation": "Überprüfe OpenClaw-Installation...",
     "description": "Integriere Cherry Studio-Anbieter mit OpenClaw Gateway, um KI-Coding-Agenten wie Claude Code, Qwen-Coder und weitere zu ermöglichen.",
@@ -3470,6 +3493,19 @@
           "windows": "Bitte geben Sie den ausführbaren Dateinamen der App ein, eine pro Zeile, Groß-/Kleinschreibung egal, unscharfe Übereinstimmung möglich. Z. B.: chrome.exe, weixin.exe, Cherry Studio.exe"
         }
       },
+      "linux": {
+        "compositor_incompatible": "Ihre Desktop-Umgebung unterstützt die Auswahlfunktion nicht. Bitte wechseln Sie zu einer X11-Sitzung für die vollständige Erfahrung.",
+        "filter_warning_text": "In Wayland-Sitzung nicht verfügbar",
+        "input_group_fail": "Nicht gewährt, bitte führen Sie `sudo usermod -aG input $USER` aus und melden sich erneut an",
+        "input_group_label": "Eingabegruppenberechtigung:",
+        "input_group_pass": "Gewährt",
+        "wayland_checklist_subtitle": "Stellen Sie sicher, dass die folgenden Bedingungen erfüllt sind, um das Wayland-Erlebnis zu optimieren:",
+        "wayland_description": "Sie befinden sich in einer Wayland-Sitzung. Aufgrund von Systemeinschränkungen kann die Symbolleiste auf einigen Desktop-Umgebungen nur in der Bildschirmmitte erscheinen, anstatt dem ausgewählten Text zu folgen. Es wird empfohlen, zu einer X11-Sitzung zu wechseln, um die volle Funktionalität zu erhalten.",
+        "wayland_title": "Wayland-Sitzungshinweis",
+        "xwayland_fail": "Nicht aktiviert, bitte starten Sie Cherry Studio mit dem Flag `--ozone-platform=x11`",
+        "xwayland_label": "XWayland-Modus:",
+        "xwayland_pass": "Aktiviert"
+      },
       "search_modal": {
         "custom": {
           "name": {
@@ -3503,6 +3539,7 @@
           "ctrlkey_note": "Nach der Texterfassung die Ctrl-Taste länger drücken, um die Toolbar anzuzeigen",
           "description": "Methode zum Auslösen und Anzeigen der Toolbar nach Textauswahl",
           "description_note": {
+            "linux": "Wenn Sie Modifikatortasten mit Tools wie xmodmap oder xremap neu zugeordnet haben, kann dies dazu führen, dass einige Anwendungen keine Textauswahl mehr ermöglichen.",
             "mac": "Wenn die ⌘-Taste per Shortcut- oder Key-Mapping-Tool umbelegt wurde, kann die Texterfassung in manchen Apps fehlschlagen.",
             "windows": "Wenige Apps unterstützen Textauswahl mit Ctrl. Bei Neubelegung von Ctrl (z.B. mit AHK) funktioniert Textauswahl möglicherweise nicht."
           },
@@ -4824,6 +4861,7 @@
           "label": "Modelle aus Liste hinzufügen"
         },
         "add_whole_group": "Gesamte Gruppe hinzufügen",
+        "fetch_list": "Modellliste abrufen",
         "refetch_list": "Modellliste erneut abrufen",
         "remove_listed": "Modelle aus Liste entfernen",
         "remove_model": "Modell entfernen",

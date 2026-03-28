@@ -57,7 +57,7 @@ class CodeToolsService {
     this.run = this.run.bind(this)
 
     if (isMac || isWin) {
-      this.preloadTerminals()
+      void this.preloadTerminals()
     }
   }
 
@@ -766,11 +766,16 @@ class CodeToolsService {
       const bunInstallPath = path.join(os.homedir(), HOME_CHERRY_DIR)
       const registryUrl = await this.getNpmRegistryUrl()
 
+      // Get logs directory for update output redirection
+      const logsDir = loggerService.getLogsDir()
+      const updateLogPath = path.join(logsDir, 'cli-tools-update.log').replace(/\\/g, '/')
+
       const installEnvPrefix = isWin
         ? `set "BUN_INSTALL=${bunInstallPath}" && set "NPM_CONFIG_REGISTRY=${registryUrl}" &&`
         : `export BUN_INSTALL="${bunInstallPath}" && export NPM_CONFIG_REGISTRY="${registryUrl}" &&`
 
-      const updateCommand = `${installEnvPrefix} "${bunPath}" install -g ${packageName}`
+      // Use > to truncate log file on each update
+      const updateCommand = `${installEnvPrefix} "${bunPath}" install -g ${packageName} > "${updateLogPath}" 2>&1`
       logger.info(`Executing update command: ${updateCommand}`)
 
       await execAsync(updateCommand, { timeout: 60000 })
@@ -851,18 +856,15 @@ class CodeToolsService {
           if (versionInfo.needsUpdate) {
             logger.info(`Update available for ${cliTool}: ${versionInfo.installed} -> ${versionInfo.latest}`)
             logger.info(`Auto-updating ${cliTool} to latest version`)
-            updateMessage = ` && echo "Updating ${cliTool} from ${versionInfo.installed} to ${versionInfo.latest}..."`
+            updateMessage = ` && echo "Updating ${escapeBatchText(cliTool)} from ${escapeBatchText(versionInfo.installed || '')} to ${escapeBatchText(versionInfo.latest || '')}..."`
             const updateResult = await this.updatePackage(cliTool)
             if (updateResult.success) {
               logger.info(`Update completed successfully for ${cliTool}`)
               updateMessage += ` && echo "Update completed successfully"`
             } else {
               logger.error(`Update failed for ${cliTool}: ${updateResult.message}`)
-              updateMessage += ` && echo "Update failed: ${updateResult.message}"`
+              updateMessage += ` && echo "Update failed: ${escapeBatchText(updateResult.message)}"`
             }
-          } else if (versionInfo.installed && versionInfo.latest) {
-            logger.info(`${cliTool} is already up to date (${versionInfo.installed})`)
-            updateMessage = ` && echo "${cliTool} is up to date (${versionInfo.installed})"`
           }
         }
       } catch (error) {
@@ -887,8 +889,9 @@ class CodeToolsService {
 
       if (isWindows) {
         // Windows uses set command
+        // Escape all cmd.exe metacharacters in env values to prevent command injection
         return Object.entries(env)
-          .map(([key, value]) => `set "${key}=${value.replace(/"/g, '\\"')}"`)
+          .map(([key, value]) => `set "${key}=${escapeBatchText(value)}"`)
           .join(' && ')
       } else {
         // Unix-like systems use export command
@@ -989,6 +992,7 @@ class CodeToolsService {
     } else if (isInstalled) {
       // If already installed, run executable directly (with optional update message)
       if (updateMessage) {
+        // updateMessage already has escaped dynamic content, && connectors are intentional
         baseCommand = `echo "Checking ${cliTool} version..."${updateMessage} && ${baseCommand}`
       }
     } else {
@@ -1058,16 +1062,6 @@ class CodeToolsService {
         // Escape special characters in paths for Windows batch scripting
         // Using double quotes for compatibility with CMD
 
-        /**
-         * Escape text for display in batch echo statements
-         * Used for: echo statements, command display, logging
-         * Note: Don't wrap in quotes - echo will display them literally
-         */
-        const escapeBatchText = (text: string) => {
-          // Just escape % characters, no quotes needed for display
-          return text.replace(/%/g, '%%')
-        }
-
         // Build bat file content, including debug information
         // Use labels and goto to handle errors properly (fixes CMD control-flow issue)
         const batContent = [
@@ -1076,8 +1070,8 @@ class CodeToolsService {
           `title ${cliTool} - Cherry Studio`,
           'echo ================================================',
           'echo Cherry Studio CLI Tool Launcher',
-          `echo Tool: ${escapeBatchText(cliTool)}`,
-          `echo Directory: ${escapeBatchText(directory)}`,
+          `echo Tool: ${CodeToolsService.escapeBatchTextForEcho(cliTool)}`,
+          `echo Directory: ${CodeToolsService.escapeBatchTextForEcho(directory)}`,
           `echo Time: ${new Date().toLocaleString()}`,
           'echo ================================================',
           '',
@@ -1099,7 +1093,7 @@ class CodeToolsService {
           ':: Error handlers (using labels to ensure entire branch is conditional)',
           ':dir_missing',
           'echo ERROR: Directory does not exist',
-          `echo Target: ${escapeBatchText(directory)}`,
+          `echo Target: ${CodeToolsService.escapeBatchTextForEcho(directory)}`,
           'pause',
           'exit /b 1',
           '',
@@ -1264,6 +1258,42 @@ class CodeToolsService {
       }
     }
   }
+
+  /**
+   * Escape text for safe use in batch echo statements
+   * Only handles critical issues: newlines and % characters
+   * Preserves command syntax (e.g., &&) - use for constructed command strings
+   * @param text - Raw text from command output or user input
+   * @returns Escaped text safe for batch echo statements
+   */
+  private static escapeBatchTextForEcho(text: string): string {
+    if (!text) return ''
+    return text
+      .replace(/%/g, '%%') // Escape % to avoid variable expansion
+      .replace(/\r\n/g, ' ') // Windows newline to space
+      .replace(/\n/g, ' ') // Unix newline to space
+  }
+}
+
+/**
+ * Escape text for safe use in Windows batch files
+ * Handles ALL cmd.exe metacharacters to prevent command injection
+ * Use this for arbitrary untrusted input that may contain any characters
+ * @param text - Raw text that may contain user input or error messages
+ * @returns Fully escaped text safe for batch files
+ */
+export function escapeBatchText(text: string): string {
+  if (!text) return ''
+  return text
+    .replace(/\^/g, '^^') // Escape caret first (before other escapes)
+    .replace(/%/g, '%%') // Escape % to avoid variable expansion
+    .replace(/&/g, '^&') // Escape & command separator
+    .replace(/\|/g, '^|') // Escape | pipe
+    .replace(/>/g, '^>') // Escape > output redirect
+    .replace(/</g, '^<') // Escape < input redirect
+    .replace(/"/g, '""') // Escape double quotes to prevent echo injection
+    .replace(/\r\n/g, ' ') // Windows newline to space
+    .replace(/\n/g, ' ') // Unix newline to space
 }
 
 export const codeToolsService = new CodeToolsService()

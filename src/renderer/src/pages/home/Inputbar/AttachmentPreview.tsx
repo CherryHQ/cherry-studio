@@ -128,7 +128,7 @@ export const FileNameRender: FC<{ file: FileMetadata }> = ({ file }) => {
           }
           const path = FileManager.getSafePath(file)
           const name = FileManager.formatFileName(file)
-          preview(path, name, file.type, file.ext)
+          void preview(path, name, file.type, file.ext)
         }}
         title={fullName}>
         {displayName}

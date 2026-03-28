@@ -390,7 +390,7 @@
           "description": "Crée et gère des listes de tâches structurées"
         },
         "ToolSearch": {
-          "description": "[to be translated]:Discovers deferred tools from large libraries"
+          "description": "Découvre des outils différés dans de grandes bibliothèques"
         },
         "WebFetch": {
           "description": "Récupère le contenu à partir d'une URL spécifiée"
@@ -1195,6 +1195,8 @@
             "content": "Êtes-vous sûr de vouloir supprimer {{count}} sujet(s) sélectionné(s) ? Cette action est irréversible.",
             "title": "Supprimer des sujets"
           },
+          "error": "Échec de la suppression. Veuillez réessayer.",
+          "partial_success": "Suppression réussie de {{successCount}} sujets, {{failedCount}} ont échoué",
           "success": "Supprimé {{count}} sujet(s)"
         },
         "deselect_all": "Tout désélectionner",
@@ -2616,6 +2618,27 @@
     },
     "title": "Ollama"
   },
+  "onboarding": {
+    "select_model": {
+      "change_later": "Vous pouvez modifier cela à tout moment dans les paramètres",
+      "start": "Commencer",
+      "subtitle": "Sélectionner le modèle par défaut pour chaque scénario",
+      "title": "Choisissez vos modèles par défaut"
+    },
+    "skip": "Passer",
+    "toast": {
+      "connected": "Connecté avec succès à CherryIN"
+    },
+    "welcome": {
+      "login_cherryin": "Se connecter avec CherryIN",
+      "or_continue_with": "OU CONTINUER AVEC",
+      "other_provider": "Choisir d'autres fournisseurs",
+      "select_other_provider": "Sélectionner un autre fournisseur",
+      "setup_hint": "Veuillez configurer au moins un fournisseur pour une meilleure expérience",
+      "subtitle": "Profitez de services d'IA de premier ordre avec CherryIN",
+      "title": "Bienvenue à Cherry Studio"
+    }
+  },
   "openclaw": {
     "checking_installation": "Vérification de l'installation d'OpenClaw...",
     "description": "Intégrer les fournisseurs Cherry Studio avec la passerelle OpenClaw pour permettre aux agents de codage IA comme Claude Code, Qwen-Coder, et bien d'autres.",
@@ -3470,6 +3493,19 @@
           "windows": "Veuillez saisir le nom du fichier exécutable de l'application, un par ligne, sans sensibilité à la casse, correspondance floue possible. Par exemple : chrome.exe, weixin.exe, Cherry Studio.exe, etc."
         }
       },
+      "linux": {
+        "compositor_incompatible": "Votre environnement de bureau ne prend pas en charge la fonction de sélection. Veuillez passer à une session X11 pour profiter de l'expérience complète.",
+        "filter_warning_text": "Non disponible dans la session Wayland",
+        "input_group_fail": "Non accordé, veuillez exécuter `sudo usermod -aG input $USER` et vous reconnecter",
+        "input_group_label": "permission du groupe d'entrée :",
+        "input_group_pass": "Accordé",
+        "wayland_checklist_subtitle": "Assurez-vous que les conditions suivantes sont remplies pour optimiser l’expérience Wayland :",
+        "wayland_description": "Vous êtes dans une session Wayland. En raison de limitations système, la barre d’outils peut apparaître uniquement au centre de l’écran au lieu de suivre le texte sélectionné sur certains environnements de bureau. Il est recommandé de passer à une session X11 pour bénéficier de l’expérience complète.",
+        "wayland_title": "Avis de session Wayland",
+        "xwayland_fail": "Non activé, veuillez lancer Cherry Studio avec le drapeau `--ozone-platform=x11`",
+        "xwayland_label": "Mode XWayland :",
+        "xwayland_pass": "Activé"
+      },
       "search_modal": {
         "custom": {
           "name": {
@@ -3503,6 +3539,7 @@
           "ctrlkey_note": "Sélectionnez un mot, puis maintenez la touche Ctrl enfoncée pour afficher la barre d'outils",
           "description": "Méthode de déclenchement de l'extraction de mots et d'affichage de la barre d'outils après la sélection",
           "description_note": {
+            "linux": "Si vous avez réassigné les touches de modification à l’aide d’outils comme xmodmap ou xremap, cela peut empêcher certaines applications de sélectionner du texte.",
             "mac": "Si vous avez utilisé un raccourci clavier ou un outil de mappage de touches pour redéfinir la touche ⌘, cela pourrait empêcher la sélection de texte dans certaines applications.",
             "windows": "Certaines applications ne prennent pas en charge la sélection de texte via la touche Ctrl. Si vous avez utilisé un outil comme AHK pour redéfinir la touche Ctrl, cela pourrait empêcher la sélection de texte dans certaines applications."
           },
@@ -4824,6 +4861,7 @@
           "label": "Ajouter le modèle dans la liste"
         },
         "add_whole_group": "Ajouter tout le groupe",
+        "fetch_list": "Récupérer la liste des modèles",
         "refetch_list": "Récupérer à nouveau la liste des modèles",
         "remove_listed": "Supprimer un modèle de la liste",
         "remove_model": "Supprimer le modèle",

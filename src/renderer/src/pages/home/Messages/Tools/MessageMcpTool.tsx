@@ -56,7 +56,7 @@ const MessageMcpTool: FC<Props> = ({ block }) => {
 
   const toolResponse = block.metadata?.rawMcpToolResponse as MCPToolResponse
 
-  const { id, tool, status, response, partialArguments } = toolResponse as MCPToolResponse
+  const { id, tool, status, response, partialArguments } = toolResponse
   const isPending = status === 'pending'
   const isDone = status === 'done'
   const isError = status === 'error'
@@ -94,7 +94,7 @@ const MessageMcpTool: FC<Props> = ({ block }) => {
   }
 
   const copyContent = (content: string, toolId: string) => {
-    navigator.clipboard.writeText(content)
+    void navigator.clipboard.writeText(content)
     window.toast.success({ title: t('message.copied'), key: 'copy-message' })
     setCopiedMap((prev) => ({ ...prev, [toolId]: true }))
     setTimeoutTimer('copyContent', () => setCopiedMap((prev) => ({ ...prev, [toolId]: false })), 2000)

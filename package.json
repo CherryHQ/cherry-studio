@@ -1,6 +1,6 @@
 {
   "name": "CherryStudio",
-  "version": "1.8.2",
+  "version": "1.8.4",
   "private": true,
   "description": "A powerful AI assistant for producer.",
   "desktopName": "CherryStudio.desktop",
@@ -63,7 +63,7 @@
     "test:e2e": "pnpm playwright test",
     "test:lint": "oxlint --deny-warnings && eslint . --ext .js,.jsx,.cjs,.mjs,.ts,.tsx,.cts,.mts --cache",
     "test:scripts": "vitest scripts",
-    "lint": "oxlint --fix && eslint . --ext .js,.jsx,.cjs,.mjs,.ts,.tsx,.cts,.mts --fix --cache && pnpm typecheck && pnpm i18n:check && pnpm format:check",
+    "lint": "oxlint --fix && eslint . --ext .js,.jsx,.cjs,.mjs,.ts,.tsx,.cts,.mts --fix --cache && pnpm typecheck && pnpm i18n:check && pnpm format",
     "format": "biome format --write && biome lint --write",
     "format:check": "biome format && biome lint",
     "bench": "vitest bench --run",
@@ -74,15 +74,18 @@
     "postinstall": "tsx scripts/patch-claude-agent-sdk.ts",
     "prepare": "git config blame.ignoreRevsFile .git-blame-ignore-revs && prek install",
     "claude": "dotenv -e .env -- claude",
-    "release:aicore:alpha": "pnpm --filter @cherrystudio/ai-core version prerelease --preid alpha && pnpm --filter @cherrystudio/ai-core build && pnpm --filter @cherrystudio/ai-core publish --tag alpha --access public",
-    "release:aicore:beta": "pnpm --filter @cherrystudio/ai-core version prerelease --preid beta && pnpm --filter @cherrystudio/ai-core build && pnpm --filter @cherrystudio/ai-core publish --tag beta --access public",
-    "release:aicore": "pnpm --filter @cherrystudio/ai-core version patch && pnpm --filter @cherrystudio/ai-core build && pnpm --filter @cherrystudio/ai-core publish --access public",
-    "release:ai-sdk-provider": "pnpm --filter @cherrystudio/ai-sdk-provider version patch && pnpm --filter @cherrystudio/ai-sdk-provider build && pnpm --filter @cherrystudio/ai-sdk-provider publish --access public",
+    "changeset": "changeset",
+    "changeset:status": "changeset status",
+    "changeset:version": "changeset version && pnpm format",
+    "changeset:publish": "changeset publish",
+    "packages:build": "pnpm --filter @cherrystudio/ai-sdk-provider build && pnpm --filter @cherrystudio/ai-core build && pnpm --filter @cherrystudio/extension-table-plus build",
+    "packages:release": "pnpm packages:build && changeset publish",
     "ci:basic-check": "pnpm test:lint && pnpm format:check && pnpm typecheck && pnpm i18n:check && pnpm i18n:hardcoded:strict && pnpm openapi:check && pnpm skills:check",
     "ci:test-check": "pnpm test:main && pnpm test:renderer && pnpm test:aicore && pnpm test:shared && pnpm test:scripts",
     "ci": "pnpm ci:basic-check && pnpm ci:test-check"
   },
   "dependencies": {
+    "@ai-sdk/groq": "^3.0.31",
     "@anthropic-ai/claude-agent-sdk": "0.2.81",
     "@expo/sudo-prompt": "^9.3.2",
     "@libsql/client": "0.14.0",
@@ -96,12 +99,12 @@
     "node-stream-zip": "1.15.0",
     "officeparser": "4.2.0",
     "os-proxy-config": "1.1.2",
-    "pdf-parse": "^2.4.5",
-    "selection-hook": "1.0.12",
+    "selection-hook": "2.0.1",
     "sharp": "0.34.3",
     "swagger-ui-express": "5.0.1",
     "tesseract.js": "6.0.1",
-    "turndown": "7.2.0"
+    "turndown": "7.2.0",
+    "pdf-parse": "^2.4.5"
   },
   "devDependencies": {
     "@agentic/exa": "^7.3.3",
@@ -131,6 +134,8 @@
     "@aws-sdk/client-bedrock-runtime": "^3.998.0",
     "@aws-sdk/client-s3": "^3.998.0",
     "@biomejs/biome": "2.2.4",
+    "@changesets/changelog-github": "^0.5.2",
+    "@changesets/cli": "^2.29.8",
     "@cherrystudio/ai-core": "workspace:*",
     "@cherrystudio/analytics-client": "^1.2.0",
     "@cherrystudio/embedjs": "0.1.31",
@@ -357,7 +362,7 @@
     "ollama-ai-provider-v2": "3.3.1",
     "open": "^8.4.2",
     "oxlint": "^1.56.0",
-    "oxlint-tsgolint": "^0.17.1",
+    "oxlint-tsgolint": "^0.17.3",
     "p-queue": "^8.1.0",
     "pako": "1.0.11",
     "partial-json": "0.1.7",
@@ -475,7 +480,6 @@
       "libsql@0.4.7": "patches/libsql-npm-0.4.7-444e260fb1.patch",
       "pdf-parse@1.1.1": "patches/pdf-parse-npm-1.1.1-04a6109b2a.patch",
       "@ai-sdk/openai-compatible@2.0.30": "patches/@ai-sdk__openai-compatible@2.0.30.patch",
-      "@ai-sdk/google@3.0.33": "patches/@ai-sdk__google@3.0.33.patch",
       "@openrouter/ai-sdk-provider": "patches/@openrouter__ai-sdk-provider.patch",
       "ollama-ai-provider-v2@3.3.1": "patches/ollama-ai-provider-v2@3.3.1.patch",
       "@opeoginni/github-copilot-openai-compatible@1.0.0": "patches/@opeoginni__github-copilot-openai-compatible@1.0.0.patch"
@@ -525,6 +529,14 @@
     "@napi-rs/system-ocr-darwin-x64": "1.0.2",
     "@napi-rs/system-ocr-win32-arm64-msvc": "1.0.2",
     "@napi-rs/system-ocr-win32-x64-msvc": "1.0.2",
-    "@strongtz/win32-arm64-msvc": "0.4.7"
+    "@strongtz/win32-arm64-msvc": "0.4.7",
+    "@napi-rs/canvas-linux-x64-gnu": "0.1.97",
+    "@napi-rs/canvas-linux-x64-musl": "0.1.97",
+    "@napi-rs/canvas-linux-arm64-gnu": "0.1.97",
+    "@napi-rs/canvas-linux-arm64-musl": "0.1.97",
+    "@napi-rs/canvas-darwin-x64": "0.1.97",
+    "@napi-rs/canvas-darwin-arm64": "0.1.97",
+    "@napi-rs/canvas-win32-x64-msvc": "0.1.97",
+    "@napi-rs/canvas-win32-arm64-msvc": "0.1.97"
   }
 }
