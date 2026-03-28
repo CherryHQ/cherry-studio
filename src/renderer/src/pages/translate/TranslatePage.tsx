@@ -1,15 +1,17 @@
 import { PlusOutlined, SendOutlined, SwapOutlined } from '@ant-design/icons'
 import { Button, Flex, Tooltip } from '@cherrystudio/ui'
+import { useCache } from '@data/hooks/useCache'
+import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
 import { Navbar, NavbarCenter } from '@renderer/components/app/Navbar'
 import { CopyIcon } from '@renderer/components/Icons'
 import LanguageSelect from '@renderer/components/LanguageSelect'
 import ModelSelectButton from '@renderer/components/ModelSelectButton'
 import { isEmbeddingModel, isRerankModel, isTextToImageModel } from '@renderer/config/models'
-import { LanguagesEnum, UNKNOWN } from '@renderer/config/translate'
+import { UNKNOWN } from '@renderer/config/translate'
 import { useCodeStyle } from '@renderer/context/CodeStyleProvider'
-import db from '@renderer/databases'
-import { useTranslate } from '@renderer/hooks/translate'
+import { useAddHistory, useLanguages } from '@renderer/hooks/translate'
+import { useDetectLang } from '@renderer/hooks/translate/useDetectLang'
 import { useDefaultModel } from '@renderer/hooks/useAssistant'
 import { useDrag } from '@renderer/hooks/useDrag'
 import { useFiles } from '@renderer/hooks/useFiles'
@@ -17,30 +19,19 @@ import { useOcr } from '@renderer/hooks/useOcr'
 import { useTemporaryValue } from '@renderer/hooks/useTemporaryValue'
 import { useTimer } from '@renderer/hooks/useTimer'
 import { estimateTextTokens } from '@renderer/services/TokenService'
-import { saveTranslateHistory, translateText } from '@renderer/services/TranslateService'
-import { useAppDispatch, useAppSelector } from '@renderer/store'
+import { translateText } from '@renderer/services/TranslateService'
 // import { setTranslateAbortKey, setTranslating as setTranslatingAction } from '@renderer/store/runtime'
-import { setTranslatedContent as setTranslatedContentAction, setTranslateInput } from '@renderer/store/translate'
 import type { FileMetadata, SupportedOcrFile } from '@renderer/types'
-import {
-  type AutoDetectionMethod,
-  isSupportedOcrFile,
-  type Model,
-  type TranslateHistory,
-  type TranslateLanguage
-} from '@renderer/types'
-import { getFileExtension, isTextFile, runAsyncFunction, uuid } from '@renderer/utils'
+import { isSupportedOcrFile, type Model } from '@renderer/types'
+import { getFileExtension, isTextFile, uuid } from '@renderer/utils'
 import { abortCompletion } from '@renderer/utils/abortController'
 import { formatErrorMessageWithPrefix, isAbortError } from '@renderer/utils/error'
 import { getFilesFromDropEvent, getTextFromDropEvent } from '@renderer/utils/input'
-import {
-  createInputScrollHandler,
-  createOutputScrollHandler,
-  detectLanguage,
-  determineTargetLanguage
-} from '@renderer/utils/translate'
+import { createInputScrollHandler, createOutputScrollHandler, determineTargetLanguage } from '@renderer/utils/translate'
 import { documentExts } from '@shared/config/constant'
 import { imageExts, MB, textExts } from '@shared/config/constant'
+import type { TranslateLangCode } from '@shared/data/preference/preferenceTypes'
+import type { TranslateHistory } from '@shared/data/types/translate'
 import { FloatButton, Popover, Typography } from 'antd'
 import type { TextAreaRef } from 'antd/es/input/TextArea'
 import TextArea from 'antd/es/input/TextArea'
@@ -51,52 +42,46 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
-import TranslateHistoryList from './components/TranslateHistory'
+import TranslateHistoryList from './TranslateHistory'
 import TranslateSettings from './TranslateSettings'
 
 const logger = loggerService.withContext('TranslatePage')
-
-// cache variables
-let _sourceLanguage: TranslateLanguage | 'auto' = 'auto'
-let _targetLanguage = LanguagesEnum.enUS
 
 const TranslatePage: FC = () => {
   // hooks
   const { t } = useTranslation()
   const { translateModel, setTranslateModel } = useDefaultModel()
-  const { prompt, getLanguageByLangcode, settings } = useTranslate()
-  const { autoCopy } = settings
+  const detectLanguage = useDetectLang()
+  const addHistory = useAddHistory()
   const { shikiMarkdownIt } = useCodeStyle()
   const { onSelectFile, selecting, clearFiles } = useFiles({ extensions: [...imageExts, ...textExts, ...documentExts] })
   const { ocr } = useOcr()
   const { setTimeoutTimer } = useTimer()
+  const { getLabel } = useLanguages()
+
+  // Preferences
+  const [sourceLanguage, setSourceLanguage] = usePreference('feature.translate.page.source_language')
+  const [targetLanguage, setTargetLanguage] = usePreference('feature.translate.page.target_language')
+  const [prompt] = usePreference('feature.translate.model_prompt')
+  const [autoCopy] = usePreference('feature.translate.page.auto_copy')
+  const [bidirectionalPair] = usePreference('feature.translate.page.bidirectional_pair')
+  const [isScrollSyncEnabled] = usePreference('feature.translate.page.scroll_sync')
+  const [isBidirectional] = usePreference('feature.translate.page.bidirectional_enabled')
+  const [enableMarkdown] = usePreference('feature.translate.page.enable_markdown')
 
   // states
-  // const [text, setText] = useState(_text)
   const [renderedMarkdown, setRenderedMarkdown] = useState<string>('')
   const [copied, setCopied] = useTemporaryValue(false, 2000)
   const [historyDrawerVisible, setHistoryDrawerVisible] = useState(false)
-  const [isScrollSyncEnabled, setIsScrollSyncEnabled] = useState(false)
-  const [isBidirectional, setIsBidirectional] = useState(false)
-  const [enableMarkdown, setEnableMarkdown] = useState(false)
-  const [bidirectionalPair, setBidirectionalPair] = useState<[TranslateLanguage, TranslateLanguage]>([
-    LanguagesEnum.enUS,
-    LanguagesEnum.zhCN
-  ])
   const [settingsVisible, setSettingsVisible] = useState(false)
-  const [detectedLanguage, setDetectedLanguage] = useState<TranslateLanguage | null>(null)
-  const [sourceLanguage, setSourceLanguage] = useState<TranslateLanguage | 'auto'>(_sourceLanguage)
-  const [targetLanguage, setTargetLanguage] = useState<TranslateLanguage>(_targetLanguage)
-  const [autoDetectionMethod, setAutoDetectionMethod] = useState<AutoDetectionMethod>('franc')
+  const [detectedLanguage, setDetectedLanguage] = useState<TranslateLangCode | null>(null)
   const [isProcessing, setIsProcessing] = useState(false)
 
-  const [translating, setTranslating] = useState(false)
-  const [abortKey, setTranslateAbortKey] = useState<string>('')
-  // redux states
-  const text = useAppSelector((state) => state.translate.translateInput)
-  const translatedContent = useAppSelector((state) => state.translate.translatedContent)
-  // const translating = useAppSelector((state) => state.runtime.translating)
-  // const abortKey = useAppSelector((state) => state.runtime.translateAbortKey)
+  // Cache
+  const [translatingState, setTranslatingState] = useCache('translate.translating')
+  const [translateInput, setTranslateInput] = useCache('translate.input')
+  const [translateOutput, setTranslateOutput] = useCache('translate.output')
+  const [isDetecting, setIsDetecting] = useCache('translate.detecting')
 
   // ref
   const contentContainerRef = useRef<HTMLDivElement>(null)
@@ -104,38 +89,9 @@ const TranslatePage: FC = () => {
   const outputTextRef = useRef<HTMLDivElement>(null)
   const isProgrammaticScroll = useRef(false)
 
-  const dispatch = useAppDispatch()
-
-  _sourceLanguage = sourceLanguage
-  _targetLanguage = targetLanguage
-
-  // 控制翻译模型切换
   const handleModelChange = (model: Model) => {
     setTranslateModel(model)
-    void db.settings.put({ id: 'translate:model', value: model.id })
   }
-
-  // 控制翻译状态
-  const setText = useCallback(
-    (input: string) => {
-      dispatch(setTranslateInput(input))
-    },
-    [dispatch]
-  )
-
-  const setTranslatedContent = useCallback(
-    (content: string) => {
-      dispatch(setTranslatedContentAction(content))
-    },
-    [dispatch]
-  )
-
-  // const setTranslating = useCallback(
-  //   (translating: boolean) => {
-  //     dispatch(setTranslatingAction(translating))
-  //   },
-  //   [dispatch]
-  // )
 
   // 控制复制行为
   const copy = useCallback(
@@ -148,147 +104,137 @@ const TranslatePage: FC = () => {
 
   const onCopy = useCallback(async () => {
     try {
-      await copy(translatedContent)
+      await copy(translateOutput)
     } catch (error) {
       logger.error('Failed to copy text to clipboard:', error as Error)
       window.toast.error(t('common.copy_failed'))
     }
-  }, [copy, t, translatedContent])
-
-  /**
-   * 翻译文本并保存历史记录，包含完整的异常处理，不会抛出异常
-   * @param text - 需要翻译的文本
-   * @param actualSourceLanguage - 源语言
-   * @param actualTargetLanguage - 目标语言
-   */
-  const translate = useCallback(
-    async (
-      text: string,
-      actualSourceLanguage: TranslateLanguage,
-      actualTargetLanguage: TranslateLanguage
-    ): Promise<void> => {
-      try {
-        if (translating) {
-          return
-        }
-
-        let translated: string
-        const abortKey = uuid()
-        setTranslateAbortKey(abortKey)
-
-        try {
-          translated = await translateText(text, actualTargetLanguage, throttle(setTranslatedContent, 100), abortKey)
-        } catch (e) {
-          if (isAbortError(e)) {
-            window.toast.info(t('translate.info.aborted'))
-          } else {
-            logger.error('Failed to translate text', e as Error)
-            window.toast.error(formatErrorMessageWithPrefix(e, t('translate.error.failed')))
-          }
-          setTranslating(false)
-          return
-        }
-
-        window.toast.success(t('translate.complete'))
-        if (autoCopy) {
-          setTimeoutTimer(
-            'auto-copy',
-            async () => {
-              await copy(translated)
-            },
-            100
-          )
-        }
-
-        try {
-          await saveTranslateHistory(text, translated, actualSourceLanguage.langCode, actualTargetLanguage.langCode)
-        } catch (e) {
-          logger.error('Failed to save translate history', e as Error)
-          window.toast.error(formatErrorMessageWithPrefix(e, t('translate.history.error.save')))
-        }
-      } catch (e) {
-        logger.error('Failed to translate', e as Error)
-        window.toast.error(formatErrorMessageWithPrefix(e, t('translate.error.unknown')))
-      }
-    },
-    [autoCopy, copy, setTimeoutTimer, setTranslatedContent, setTranslating, t, translating]
-  )
+  }, [copy, t, translateOutput])
 
   // 控制翻译按钮是否可用
   const couldTranslate = useMemo(() => {
     return !(
-      !text.trim() ||
-      (sourceLanguage !== 'auto' && sourceLanguage.langCode === UNKNOWN.langCode) ||
-      targetLanguage.langCode === UNKNOWN.langCode ||
-      (isBidirectional &&
-        (bidirectionalPair[0].langCode === UNKNOWN.langCode || bidirectionalPair[1].langCode === UNKNOWN.langCode)) ||
+      !translateInput.trim() ||
+      (sourceLanguage !== 'auto' && sourceLanguage === UNKNOWN.langCode) ||
+      targetLanguage === UNKNOWN.langCode ||
+      (isBidirectional && (bidirectionalPair[0] === UNKNOWN.langCode || bidirectionalPair[1] === UNKNOWN.langCode)) ||
       isProcessing
     )
-  }, [bidirectionalPair, isBidirectional, isProcessing, sourceLanguage, targetLanguage.langCode, text])
+  }, [bidirectionalPair, isBidirectional, isProcessing, sourceLanguage, targetLanguage, translateInput])
 
-  // 控制翻译按钮，翻译前进行校验
+  // 校验、检测语言、翻译文本并保存历史记录
   const onTranslate = useCallback(async () => {
-    if (!couldTranslate) return
-    if (!text.trim()) return
+    if (!couldTranslate || !translateInput.trim()) return
     if (!translateModel) {
       window.toast.error(t('translate.error.not_configured'))
       return
     }
-
-    setTranslating(true)
+    if (translatingState.isTranslating || isDetecting) return
 
     try {
-      // 确定源语言：如果用户选择了特定语言，使用用户选择的；如果选择'auto'，则自动检测
-      let actualSourceLanguage: TranslateLanguage
+      // 确定源语言
+      let actualSourceLanguage: TranslateLangCode
       if (sourceLanguage === 'auto') {
-        actualSourceLanguage = getLanguageByLangcode(await detectLanguage(text))
-        setDetectedLanguage(actualSourceLanguage)
+        setIsDetecting(true)
+        try {
+          actualSourceLanguage = await detectLanguage(translateInput)
+          setDetectedLanguage(actualSourceLanguage)
+        } catch (e) {
+          logger.error('Failed to detect language', e as Error)
+          window.toast.error(t('translate.error.detect_failed'))
+          return
+        } finally {
+          setIsDetecting(false)
+        }
       } else {
         actualSourceLanguage = sourceLanguage
       }
 
+      // 确定目标语言
       const result = determineTargetLanguage(actualSourceLanguage, targetLanguage, isBidirectional, bidirectionalPair)
       if (!result.success) {
-        let errorMessage = ''
-        if (result.errorType === 'same_language') {
-          errorMessage = t('translate.language.same')
-        } else if (result.errorType === 'not_in_pair') {
-          errorMessage = t('translate.language.not_pair')
-        }
-
+        const errorMessage =
+          result.errorType === 'same_language'
+            ? t('translate.language.same')
+            : result.errorType === 'not_in_pair'
+              ? t('translate.language.not_pair')
+              : ''
         window.toast.warning(errorMessage)
         return
       }
+      const actualTargetLanguage = result.language
 
-      const actualTargetLanguage = result.language as TranslateLanguage
-      if (isBidirectional) {
-        setTargetLanguage(actualTargetLanguage)
+      // 翻译
+      const abortKey = uuid()
+      setTranslatingState({ isTranslating: true, abortKey })
+
+      let translated: string
+      try {
+        translated = await translateText(
+          translateInput,
+          actualTargetLanguage,
+          throttle(setTranslateOutput, 100),
+          abortKey
+        )
+      } catch (e) {
+        if (isAbortError(e)) {
+          window.toast.info(t('translate.info.aborted'))
+        } else {
+          logger.error('Failed to translate text', e as Error)
+          window.toast.error(formatErrorMessageWithPrefix(e, t('translate.error.failed')))
+        }
+        setTranslatingState({ isTranslating: false, abortKey: null })
+        return
       }
 
-      await translate(text, actualSourceLanguage, actualTargetLanguage)
+      setTranslatingState({ isTranslating: false, abortKey: null })
+      window.toast.success(t('translate.complete'))
+
+      if (autoCopy) {
+        setTimeoutTimer('auto-copy', async () => copy(translated), 100)
+      }
+
+      // 保存历史记录
+      try {
+        await addHistory({
+          sourceText: translateInput,
+          targetText: translated,
+          sourceLanguage: actualSourceLanguage,
+          targetLanguage: actualTargetLanguage
+        })
+      } catch (e) {
+        logger.error('Failed to save translate history', e as Error)
+        window.toast.error(formatErrorMessageWithPrefix(e, t('translate.history.error.save')))
+      }
     } catch (error) {
       logger.error('Translation error:', error as Error)
-      window.toast.error(formatErrorMessageWithPrefix(error, t('translate.error.failed')))
-      return
-    } finally {
-      setTranslating(false)
+      window.toast.error(formatErrorMessageWithPrefix(error, t('translate.error.unknown')))
+      setTranslatingState({ isTranslating: false, abortKey: null })
     }
   }, [
+    addHistory,
+    autoCopy,
     bidirectionalPair,
+    copy,
     couldTranslate,
-    getLanguageByLangcode,
+    detectLanguage,
     isBidirectional,
-    setTranslating,
+    setTimeoutTimer,
+    setTranslateOutput,
+    setTranslatingState,
     sourceLanguage,
     t,
     targetLanguage,
-    text,
-    translate,
-    translateModel
+    translateInput,
+    translateModel,
+    translatingState.isTranslating,
+    isDetecting,
+    setIsDetecting
   ])
 
   // 控制停止翻译
   const onAbort = async () => {
+    const { abortKey } = translatingState
     if (!abortKey || !abortKey.trim()) {
       logger.error('Failed to abort. Invalid abortKey.')
       return
@@ -296,24 +242,20 @@ const TranslatePage: FC = () => {
     abortCompletion(abortKey)
   }
 
-  // 控制双向翻译切换
-  const toggleBidirectional = (value: boolean) => {
-    setIsBidirectional(value)
-    void db.settings.put({ id: 'translate:bidirectional:enabled', value })
-  }
-
   // 控制历史记录点击
-  const onHistoryItemClick = (
-    history: TranslateHistory & { _sourceLanguage: TranslateLanguage; _targetLanguage: TranslateLanguage }
-  ) => {
-    setText(history.sourceText)
-    setTranslatedContent(history.targetText)
-    if (history._sourceLanguage === UNKNOWN) {
-      setSourceLanguage('auto')
+  const onHistoryItemClick = (history: TranslateHistory) => {
+    setTranslateInput(history.sourceText)
+    setTranslateOutput(history.targetText)
+    if (history.sourceLanguage === null) {
+      void setSourceLanguage('auto')
     } else {
-      setSourceLanguage(history._sourceLanguage)
+      void setSourceLanguage(history.sourceLanguage)
     }
-    setTargetLanguage(history._targetLanguage)
+    if (history.targetLanguage === null) {
+      void setTargetLanguage(UNKNOWN.langCode)
+    } else {
+      void setTargetLanguage(history.targetLanguage)
+    }
     setHistoryDrawerVisible(false)
   }
 
@@ -321,7 +263,7 @@ const TranslatePage: FC = () => {
   /** 与自动检测相关的交换条件检查 */
   const couldExchangeAuto = useMemo(
     () =>
-      (sourceLanguage === 'auto' && detectedLanguage && detectedLanguage.langCode !== UNKNOWN.langCode) ||
+      (sourceLanguage === 'auto' && detectedLanguage && detectedLanguage !== UNKNOWN.langCode) ||
       sourceLanguage !== 'auto',
     [detectedLanguage, sourceLanguage]
   )
@@ -337,26 +279,24 @@ const TranslatePage: FC = () => {
       window.toast.error(t('translate.error.invalid_source'))
       return
     }
-    if (source.langCode === UNKNOWN.langCode) {
+    if (source === UNKNOWN.langCode) {
       window.toast.error(t('translate.error.detect.unknown'))
       return
     }
-    setSourceLanguage(targetLanguage)
-    setTargetLanguage(source)
-    void db.settings.put({ id: 'translate:source:language', value: targetLanguage.langCode })
-    void db.settings.put({ id: 'translate:target:language', value: source.langCode })
-  }, [couldExchangeAuto, detectedLanguage, sourceLanguage, t, targetLanguage])
+    void setSourceLanguage(targetLanguage)
+    void setTargetLanguage(source)
+  }, [couldExchangeAuto, detectedLanguage, sourceLanguage, t, targetLanguage, setSourceLanguage, setTargetLanguage])
 
   useEffect(() => {
-    isEmpty(text) && setTranslatedContent('')
-  }, [setTranslatedContent, text])
+    isEmpty(translateInput) && setTranslateOutput('')
+  }, [setTranslateOutput, translateInput])
 
   // Render markdown content when result or enableMarkdown changes
   // 控制Markdown渲染
   useEffect(() => {
-    if (enableMarkdown && translatedContent) {
+    if (enableMarkdown && translateOutput) {
       let isMounted = true
-      void shikiMarkdownIt(translatedContent).then((rendered) => {
+      void shikiMarkdownIt(translateOutput).then((rendered) => {
         if (isMounted) {
           setRenderedMarkdown(rendered)
         }
@@ -368,71 +308,7 @@ const TranslatePage: FC = () => {
       setRenderedMarkdown('')
       return undefined
     }
-  }, [enableMarkdown, shikiMarkdownIt, translatedContent])
-
-  // 控制设置加载
-  useEffect(() => {
-    void runAsyncFunction(async () => {
-      const targetLang = await db.settings.get({ id: 'translate:target:language' })
-      targetLang && setTargetLanguage(getLanguageByLangcode(targetLang.value))
-
-      const sourceLang = await db.settings.get({ id: 'translate:source:language' })
-      sourceLang &&
-        setSourceLanguage(sourceLang.value === 'auto' ? sourceLang.value : getLanguageByLangcode(sourceLang.value))
-
-      const bidirectionalPairSetting = await db.settings.get({ id: 'translate:bidirectional:pair' })
-      if (bidirectionalPairSetting) {
-        const langPair = bidirectionalPairSetting.value
-        let source: undefined | TranslateLanguage
-        let target: undefined | TranslateLanguage
-
-        if (Array.isArray(langPair) && langPair.length === 2 && langPair[0] !== langPair[1]) {
-          source = getLanguageByLangcode(langPair[0])
-          target = getLanguageByLangcode(langPair[1])
-        }
-
-        if (source && target) {
-          setBidirectionalPair([source, target])
-        } else {
-          const defaultPair: [TranslateLanguage, TranslateLanguage] = [LanguagesEnum.enUS, LanguagesEnum.zhCN]
-          setBidirectionalPair(defaultPair)
-          void db.settings.put({
-            id: 'translate:bidirectional:pair',
-            value: [defaultPair[0].langCode, defaultPair[1].langCode]
-          })
-        }
-      }
-
-      const bidirectionalSetting = await db.settings.get({ id: 'translate:bidirectional:enabled' })
-      setIsBidirectional(bidirectionalSetting ? bidirectionalSetting.value : false)
-
-      const scrollSyncSetting = await db.settings.get({ id: 'translate:scroll:sync' })
-      setIsScrollSyncEnabled(scrollSyncSetting ? scrollSyncSetting.value : false)
-
-      const markdownSetting = await db.settings.get({ id: 'translate:markdown:enabled' })
-      setEnableMarkdown(markdownSetting ? markdownSetting.value : false)
-
-      const autoDetectionMethodSetting = await db.settings.get({ id: 'translate:detect:method' })
-
-      if (autoDetectionMethodSetting) {
-        setAutoDetectionMethod(autoDetectionMethodSetting.value)
-      } else {
-        setAutoDetectionMethod('franc')
-        void db.settings.put({ id: 'translate:detect:method', value: 'franc' })
-      }
-    })
-  }, [getLanguageByLangcode])
-
-  // 控制设置同步
-  const updateAutoDetectionMethod = async (method: AutoDetectionMethod) => {
-    try {
-      await db.settings.put({ id: 'translate:detect:method', value: method })
-      setAutoDetectionMethod(method)
-    } catch (e) {
-      logger.error('Failed to update auto detection method setting.', e as Error)
-      window.toast.error(formatErrorMessageWithPrefix(e, t('translate.error.detect.update_setting')))
-    }
-  }
+  }, [enableMarkdown, shikiMarkdownIt, translateOutput])
 
   // 控制Enter触发翻译
   const onKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
@@ -454,23 +330,21 @@ const TranslatePage: FC = () => {
         return (
           <Flex className="min-w-40 items-center">
             <BidirectionalLanguageDisplay>
-              {`${bidirectionalPair[0].label()} ⇆ ${bidirectionalPair[1].label()}`}
+              {`${getLabel(bidirectionalPair[0])} ⇆ ${getLabel(bidirectionalPair[1])}`}
             </BidirectionalLanguageDisplay>
           </Flex>
         )
       }
     } catch (error) {
       logger.error('Error getting language display:', error as Error)
-      setBidirectionalPair([LanguagesEnum.enUS, LanguagesEnum.zhCN])
     }
 
     return (
       <LanguageSelect
         style={{ width: 200 }}
-        value={targetLanguage.langCode}
-        onChange={(value) => {
-          setTargetLanguage(getLanguageByLangcode(value))
-          void db.settings.put({ id: 'translate:target:language', value })
+        value={targetLanguage}
+        onChange={async (value) => {
+          return setTargetLanguage(value)
         }}
       />
     )
@@ -483,7 +357,7 @@ const TranslatePage: FC = () => {
   )
 
   // 控制token估计
-  const tokenCount = useMemo(() => estimateTextTokens(text + prompt), [prompt, text])
+  const tokenCount = useMemo(() => estimateTextTokens(translateInput + prompt), [prompt, translateInput])
 
   const readFile = useCallback(
     async (file: FileMetadata) => {
@@ -530,7 +404,7 @@ const TranslatePage: FC = () => {
               // Read text file
               result = await window.api.fs.readText(file.path)
             }
-            setText(text + result)
+            setTranslateInput(translateInput + result)
           } catch (e) {
             logger.error('Failed to read file.', e as Error)
             window.toast.error(formatErrorMessageWithPrefix(e, t('translate.files.error.unknown')))
@@ -543,15 +417,15 @@ const TranslatePage: FC = () => {
       const promise = _readFile()
       window.toast.loading({ title: t('translate.files.reading'), promise })
     },
-    [setText, t, text]
+    [setTranslateInput, t, translateInput]
   )
 
   const ocrFile = useCallback(
     async (file: SupportedOcrFile) => {
       const ocrResult = await ocr(file)
-      setText(text + ocrResult.text)
+      setTranslateInput(translateInput + ocrResult.text)
     },
-    [ocr, setText, text]
+    [ocr, setTranslateInput, translateInput]
   )
 
   // 统一的文件处理
@@ -625,7 +499,7 @@ const TranslatePage: FC = () => {
         if (data === null) {
           return
         }
-        setText(text + data)
+        setTranslateInput(translateInput + data)
 
         const droppedFiles = await getFilesFromDropEvent(e).catch((err) => {
           logger.error('handleDrop:', err)
@@ -642,7 +516,7 @@ const TranslatePage: FC = () => {
       await process()
       setIsProcessing(false)
     },
-    [getSingleFile, processFile, setIsDragging, setText, t, text]
+    [getSingleFile, processFile, setIsDragging, setTranslateInput, t, translateInput]
   )
 
   const {
@@ -731,18 +605,16 @@ const TranslatePage: FC = () => {
             <LanguageSelect
               showSearch
               style={{ width: 200 }}
-              value={sourceLanguage !== 'auto' ? sourceLanguage.langCode : 'auto'}
+              value={sourceLanguage}
               optionFilterProp="label"
-              onChange={(value) => {
-                if (value !== 'auto') setSourceLanguage(getLanguageByLangcode(value))
-                else setSourceLanguage('auto')
-                void db.settings.put({ id: 'translate:source:language', value })
+              onChange={async (value) => {
+                return await setSourceLanguage(value)
               }}
               extraOptionsBefore={[
                 {
                   value: 'auto',
                   label: detectedLanguage
-                    ? `${t('translate.detected.language')} (${detectedLanguage.label()})`
+                    ? `${t('translate.detected.language')} (${getLabel(detectedLanguage)})`
                     : t('translate.detected.language')
                 }
               ]}
@@ -759,7 +631,7 @@ const TranslatePage: FC = () => {
             </Tooltip>
             {getLanguageDisplay()}
             <TranslateButton
-              translating={translating}
+              translating={translatingState.isTranslating}
               onTranslate={onTranslate}
               couldTranslate={couldTranslate}
               onAbort={onAbort}
@@ -803,12 +675,12 @@ const TranslatePage: FC = () => {
               ref={textAreaRef}
               variant="borderless"
               placeholder={t('translate.input.placeholder')}
-              value={text}
-              onChange={(e) => setText(e.target.value)}
+              value={translateInput}
+              onChange={(e) => setTranslateInput(e.target.value)}
               onKeyDown={onKeyDown}
               onScroll={handleInputScroll}
               onPaste={onPaste}
-              disabled={translating}
+              disabled={translatingState.isTranslating}
               spellCheck={false}
               allowClear
             />
@@ -827,39 +699,25 @@ const TranslatePage: FC = () => {
               size="icon-sm"
               className="copy-button"
               onClick={onCopy}
-              disabled={!translatedContent}>
+              disabled={!translateOutput}>
               {copied ? <Check size={16} color="var(--color-primary)" /> : <CopyIcon size={16} />}
             </CopyButton>
             <OutputText ref={outputTextRef} onScroll={handleOutputScroll} className={'selectable'}>
-              {!translatedContent ? (
+              {!translateOutput ? (
                 <div style={{ color: 'var(--color-text-3)', userSelect: 'none' }}>
                   {t('translate.output.placeholder')}
                 </div>
               ) : enableMarkdown ? (
                 <div className="markdown" dangerouslySetInnerHTML={{ __html: renderedMarkdown }} />
               ) : (
-                <div className="plain">{translatedContent}</div>
+                <div className="plain">{translateOutput}</div>
               )}
             </OutputText>
           </OutputContainer>
         </AreaContainer>
       </ContentContainer>
 
-      <TranslateSettings
-        visible={settingsVisible}
-        onClose={() => setSettingsVisible(false)}
-        isScrollSyncEnabled={isScrollSyncEnabled}
-        setIsScrollSyncEnabled={setIsScrollSyncEnabled}
-        isBidirectional={isBidirectional}
-        setIsBidirectional={toggleBidirectional}
-        enableMarkdown={enableMarkdown}
-        setEnableMarkdown={setEnableMarkdown}
-        bidirectionalPair={bidirectionalPair}
-        setBidirectionalPair={setBidirectionalPair}
-        translateModel={translateModel}
-        autoDetectionMethod={autoDetectionMethod}
-        setAutoDetectionMethod={updateAutoDetectionMethod}
-      />
+      <TranslateSettings visible={settingsVisible} onClose={() => setSettingsVisible(false)} />
     </Container>
   )
 }

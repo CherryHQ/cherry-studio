@@ -16,7 +16,7 @@ export * from './file'
 export * from './note'
 export type { LanguageVarious } from '@shared/data/preference/preferenceTypes'
 
-import type { TranslateLanguageCode } from '@shared/data/preference/preferenceTypes'
+import type { TranslateLangCode } from '@shared/data/preference/preferenceTypes'
 import type { MCPServer } from '@shared/data/types/mcpServer'
 import * as z from 'zod'
 
@@ -70,7 +70,7 @@ export type Assistant = {
   tags?: string[] // 助手标签
   // for translate. 更好的做法是定义base assistant，把 Assistant 作为多种不同定义 assistant 的联合类型，但重构代价太大
   content?: string
-  targetLanguage?: TranslateLanguage
+  targetLanguage?: TranslateLanguageVo
 }
 
 /**
@@ -85,7 +85,7 @@ export function getEffectiveMcpMode(assistant: Assistant): McpMode {
 export type TranslateAssistant = Assistant & {
   model: Model
   content: string
-  targetLanguage: TranslateLanguage
+  targetLanguage: TranslateLanguageVo
 }
 
 export const isTranslateAssistant = (assistant: Assistant): assistant is TranslateAssistant => {
@@ -620,30 +620,27 @@ export type GenerateImageResponse = {
   images: string[]
 }
 
-export type { TranslateLanguageCode }
-
-// langCode应当能够唯一确认一种语言
-export type TranslateLanguage = {
+export type TranslateLanguageVo = {
   value: string
-  langCode: TranslateLanguageCode
-  label: () => string
+  langCode: TranslateLangCode
   emoji: string
 }
 
+/** @deprecated dexie still using */
 export interface TranslateHistory {
   id: string
   sourceText: string
   targetText: string
-  sourceLanguage: TranslateLanguageCode
-  targetLanguage: TranslateLanguageCode
+  sourceLanguage: TranslateLangCode
+  targetLanguage: TranslateLangCode
   createdAt: string
-  /** 收藏状态 */
   star?: boolean
 }
 
+/** @deprecated dexie still using */
 export type CustomTranslateLanguage = {
   id: string
-  langCode: TranslateLanguageCode
+  langCode: TranslateLangCode
   value: string
   emoji: string
 }

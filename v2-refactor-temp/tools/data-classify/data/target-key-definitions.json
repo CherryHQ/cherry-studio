@@ -186,6 +186,13 @@
       "defaultValue": "en-us",
       "status": "classified",
       "description": "ActionTranslate alternate language"
+    },
+    {
+      "targetKey": "feature.translate.mini_window.target_lang",
+      "type": "PreferenceTypes.TranslateLangCode",
+      "defaultValue": "en-us",
+      "status": "classified",
+      "description": "TranslateWindow target language"
     }
   ]
 }

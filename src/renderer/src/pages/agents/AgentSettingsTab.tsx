@@ -1,4 +1,4 @@
-import { DescriptionSwitch, HelpTooltip } from '@cherrystudio/ui'
+import { DescriptionSwitch, HelpTooltip, Skeleton } from '@cherrystudio/ui'
 import { useMultiplePreferences, usePreference } from '@data/hooks/usePreference'
 import EditableNumber from '@renderer/components/EditableNumber'
 import Scrollbar from '@renderer/components/Scrollbar'
@@ -6,7 +6,7 @@ import Selector from '@renderer/components/Selector'
 import { UNKNOWN } from '@renderer/config/translate'
 import { useCodeStyle } from '@renderer/context/CodeStyleProvider'
 import { useTheme } from '@renderer/context/ThemeProvider'
-import { useTranslate } from '@renderer/hooks/translate'
+import { useLanguages } from '@renderer/hooks/translate/useLanguages'
 import { SettingDivider, SettingRow, SettingRowTitle } from '@renderer/pages/settings'
 import { CollapsibleSettingGroup } from '@renderer/pages/settings/SettingGroup'
 import type { CodeStyleVarious, MathEngine } from '@renderer/types'
@@ -71,7 +71,7 @@ const AgentSettingsTab = () => {
   const { themeNames } = useCodeStyle()
 
   const [fontSizeValue, setFontSizeValue] = useState(fontSize)
-  const { translateLanguages } = useTranslate()
+  const { languages, getLabel } = useLanguages()
 
   const { t } = useTranslation()
 
@@ -408,14 +408,19 @@ const AgentSettingsTab = () => {
           <SettingDivider />
           <SettingRow>
             <SettingRowTitleSmall>{t('settings.input.target_language.label')}</SettingRowTitleSmall>
-            <Selector
-              value={targetLanguage}
-              onChange={(value) => setTargetLanguage(value)}
-              placeholder={UNKNOWN.emoji + ' ' + UNKNOWN.label()}
-              options={translateLanguages.map((item) => {
-                return { value: item.langCode, label: item.emoji + ' ' + item.label() }
-              })}
-            />
+            {!languages && <Skeleton className="flex-1" />}
+            {languages && (
+              <Selector
+                value={targetLanguage}
+                onChange={(value) => setTargetLanguage(value)}
+                placeholder={getLabel(UNKNOWN)}
+                options={
+                  languages?.map((item) => {
+                    return { value: item.langCode, label: getLabel(item) }
+                  }) ?? []
+                }
+              />
+            )}
           </SettingRow>
           <SettingDivider />
           <SettingRow>

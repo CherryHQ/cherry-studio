@@ -23,8 +23,7 @@ import type {
   MathEngine,
   OpenAIServiceTier,
   PaintingProvider,
-  S3Config,
-  TranslateLanguageCode
+  S3Config
 } from '@renderer/types'
 import type {
   OpenAICompletionsStreamOptions,
@@ -40,7 +39,8 @@ import type {
   LanguageVarious,
   MultiModelMessageStyle,
   SendMessageShortcut,
-  SidebarIcon
+  SidebarIcon,
+  TranslateLangCode
 } from '@shared/data/preference/preferenceTypes'
 import { ThemeMode, UpgradeChannel } from '@shared/data/preference/preferenceTypes'
 import type { MiniAppRegionFilter } from '@shared/data/types/miniApp'
@@ -69,7 +69,7 @@ export interface SettingsState {
   assistantsTabSortType: AssistantTabSortType
   sendMessageShortcut: SendMessageShortcut
   language: LanguageVarious
-  targetLanguage: TranslateLanguageCode
+  targetLanguage: TranslateLangCode
   proxyMode: 'system' | 'custom' | 'none'
   proxyUrl?: string
   proxyBypassRules?: string

@@ -127,6 +127,8 @@ export type AutoDetectionMethod = 'franc' | 'llm' | 'auto'
  */
 export const TranslateLangCodeSchema = z.string().regex(/^[a-z]{2,3}(-[a-z]{2,4})?$/)
 export type TranslateLangCode = z.infer<typeof TranslateLangCodeSchema>
+export const isTranslateLangCode = (value: unknown): value is TranslateLangCode =>
+  TranslateLangCodeSchema.safeParse(value).success
 export type TranslateSourceLanguage = TranslateLangCode | 'auto'
 export type TranslateBidirectionalPair = [TranslateLangCode, TranslateLangCode]
 

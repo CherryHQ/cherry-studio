@@ -1,10 +1,10 @@
 import { Combobox, type ComboboxOption, Flex, InfoTooltip } from '@cherrystudio/ui'
 import { SuccessTag } from '@renderer/components/Tags/SuccessTag'
 import { isMac, isWin } from '@renderer/config/constant'
-import { useTranslate } from '@renderer/hooks/translate'
+import { useLanguages } from '@renderer/hooks/translate/useLanguages'
 import { useOcrProvider } from '@renderer/hooks/useOcrProvider'
-import type { TranslateLanguageCode } from '@renderer/types'
 import { BuiltinOcrProviderIds, isOcrSystemProvider } from '@renderer/types'
+import type { TranslateLangCode } from '@shared/data/preference/preferenceTypes'
 import { startTransition, useCallback, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -13,7 +13,7 @@ import { SettingRow, SettingRowTitle } from '..'
 export const OcrSystemSettings = () => {
   const { t } = useTranslation()
   // 和翻译自定义语言耦合了，应该还ok
-  const { translateLanguages } = useTranslate()
+  const { languages, getLabel } = useLanguages()
   const { provider, updateConfig } = useOcrProvider(BuiltinOcrProviderIds.system)
 
   if (!isOcrSystemProvider(provider)) {
@@ -24,16 +24,16 @@ export const OcrSystemSettings = () => {
     throw new Error('Only Windows and MacOS is supported.')
   }
 
-  const [langs, setLangs] = useState<TranslateLanguageCode[]>(provider.config?.langs ?? [])
+  const [langs, setLangs] = useState<TranslateLangCode[]>(provider.config?.langs ?? [])
 
   // currently static
   const options = useMemo(
     () =>
-      translateLanguages.map((lang) => ({
+      languages?.map((lang) => ({
         value: lang.langCode,
-        label: lang.emoji + ' ' + lang.label()
-      })),
-    [translateLanguages]
+        label: getLabel(lang)
+      })) ?? [],
+    [getLabel, languages]
   )
 
   const renderSelectedLanguages = useCallback(
@@ -62,7 +62,7 @@ export const OcrSystemSettings = () => {
 
   const onChange = useCallback(
     (value: string | string[]) => {
-      const nextLangs = Array.isArray(value) ? value : []
+      const nextLangs = (Array.isArray(value) ? value : []) as TranslateLangCode[]
       startTransition(() => {
         setLangs(nextLangs)
       })
