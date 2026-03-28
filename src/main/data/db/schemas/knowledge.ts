@@ -61,10 +61,9 @@ export const knowledgeItemTable = sqliteTable(
       .notNull()
       .references(() => knowledgeBaseTable.id, { onDelete: 'cascade' }),
 
-    // Generic same-base tree edge for v2 knowledge items.
-    // This is intentionally broader than a directory-only relation so future containers
-    // such as sitemap/url groups can reuse the same hierarchy model.
-    parentId: text(),
+    // Stable business grouping for items from the same source/container.
+    // Examples: one directory import, one sitemap expansion, one URL collection.
+    groupId: text(),
 
     // Type: 'file' | 'url' | 'note' | 'sitemap' | 'directory'
     type: text().$type<KnowledgeItemType>().notNull(),
@@ -84,12 +83,13 @@ export const knowledgeItemTable = sqliteTable(
       'knowledge_item_status_check',
       sql`${t.status} IN ('idle', 'pending', 'ocr', 'read', 'embed', 'completed', 'failed')`
     ),
-    // Supports root/children listings filtered by type and ordered by createdAt.
-    index('knowledge_item_base_parent_type_created_idx').on(t.baseId, t.parentId, t.type, t.createdAt),
-    // Covers the current list/query path: same-base children ordered by createdAt.
-    index('knowledge_item_base_parent_created_idx').on(t.baseId, t.parentId, t.createdAt),
-    unique().on(t.baseId, t.id),
-    // Composite self-FK keeps parent/child relationships inside the same knowledge base.
-    foreignKey({ columns: [t.baseId, t.parentId], foreignColumns: [t.baseId, t.id] }).onDelete('cascade')
+    // Enforce that group owners live inside the same knowledge base.
+    foreignKey({ columns: [t.baseId, t.groupId], foreignColumns: [t.baseId, t.id] }).onDelete('cascade'),
+    // Main tab/list query path: same-base items filtered by type and ordered by createdAt.
+    index('knowledge_item_base_type_created_idx').on(t.baseId, t.type, t.createdAt),
+    // Group result lookups, e.g. show all items from one imported source/container.
+    index('knowledge_item_base_group_created_idx').on(t.baseId, t.groupId, t.createdAt),
+    // Required by the same-base self-reference on (baseId, groupId) -> (baseId, id).
+    unique('knowledge_item_baseId_id_unique').on(t.baseId, t.id)
   ]
 )

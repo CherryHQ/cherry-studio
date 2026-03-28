@@ -25,9 +25,9 @@
 
 2. Unified item payload migration
    - Legacy item `content` is transformed into the new `knowledge_item.data` union payload by item type.
-   - V2 models `knowledge_item` as a generic same-base tree via `parentId`, but legacy v1 exports are flat.
-   - Official v1 exports do not provide hierarchy metadata, so this migrator does not reconstruct parent/child links.
-   - Migrated items are therefore inserted as root-level nodes (`parentId = null`) by design.
+   - V2 models `knowledge_item` as a flat item list with optional `groupId`.
+   - Official v1 exports do not provide grouping metadata.
+   - Migrated items are therefore inserted with `groupId = null` by design.
 
 3. Note content source priority
    - Prefer Dexie `knowledge_notes` content.
@@ -71,7 +71,7 @@
 |----------------------|---------------------------|-------|
 | `id` | `id` | Direct copy |
 | base owner `id` | `baseId` | From parent base |
-| _no legacy hierarchy field_ | `parentId` | V1 exports are flat; migrated items are inserted as root nodes (`null`) |
+| _no legacy grouping field_ | `groupId` | V1 exports are flat; migrated items are inserted without grouping metadata (`null`) |
 | `type` | `type` | Supported: file/url/note/sitemap/directory |
 | `content` + Dexie lookups | `data` | Type-specific transform |
 | `uniqueId` | `status` | `uniqueId` non-empty => `completed`, otherwise `idle` |
@@ -103,9 +103,10 @@
   - valid values are preserved
   - invalid values are cleared
   - the base still migrates
-- V2 introduces `parentId` as a generic tree edge within the same knowledge base.
-- Legacy v1 knowledge data is flat, so migrated items are root-level (`parentId = null`) by design.
-- This document describes migration behavior only; runtime APIs may create non-null `parentId` relationships after migration.
+- V2 keeps `knowledge_item` flat and uses optional `groupId` for grouping queries.
+- Legacy v1 knowledge data does not include that field, so migrated items keep it as `null`.
+- This document describes migration behavior only; runtime APIs may set `groupId` after migration.
+- Runtime schema enforces same-base group ownership through `(baseId, groupId) -> (baseId, id)`.
 
 ## Validation
 

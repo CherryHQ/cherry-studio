@@ -1,8 +1,8 @@
 {
   "version": "6",
   "dialect": "sqlite",
-  "id": "b9f9eac2-de41-4bcf-834d-7d7958f6ede4",
-  "prevId": "f549775f-a5bd-4102-b5db-60a97e156387",
+  "id": "d13e0f64-c3f9-4e7a-b455-a1031c197f0c",
+  "prevId": "unknown",
   "tables": {
     "app_state": {
       "name": "app_state",
@@ -245,8 +245,8 @@
           "notNull": true,
           "autoincrement": false
         },
-        "parent_id": {
-          "name": "parent_id",
+        "group_id": {
+          "name": "group_id",
           "type": "text",
           "primaryKey": false,
           "notNull": false,
@@ -297,14 +297,14 @@
         }
       },
       "indexes": {
-        "knowledge_item_base_parent_type_created_idx": {
-          "name": "knowledge_item_base_parent_type_created_idx",
-          "columns": ["base_id", "parent_id", "type", "created_at"],
+        "knowledge_item_base_type_created_idx": {
+          "name": "knowledge_item_base_type_created_idx",
+          "columns": ["base_id", "type", "created_at"],
           "isUnique": false
         },
-        "knowledge_item_base_parent_created_idx": {
-          "name": "knowledge_item_base_parent_created_idx",
-          "columns": ["base_id", "parent_id", "created_at"],
+        "knowledge_item_base_group_created_idx": {
+          "name": "knowledge_item_base_group_created_idx",
+          "columns": ["base_id", "group_id", "created_at"],
           "isUnique": false
         },
         "knowledge_item_baseId_id_unique": {
@@ -323,11 +323,11 @@
           "onDelete": "cascade",
           "onUpdate": "no action"
         },
-        "knowledge_item_base_id_parent_id_knowledge_item_base_id_id_fk": {
-          "name": "knowledge_item_base_id_parent_id_knowledge_item_base_id_id_fk",
+        "knowledge_item_base_id_group_id_knowledge_item_base_id_id_fk": {
+          "name": "knowledge_item_base_id_group_id_knowledge_item_base_id_id_fk",
           "tableFrom": "knowledge_item",
           "tableTo": "knowledge_item",
-          "columnsFrom": ["base_id", "parent_id"],
+          "columnsFrom": ["base_id", "group_id"],
           "columnsTo": ["base_id", "id"],
           "onDelete": "cascade",
           "onUpdate": "no action"

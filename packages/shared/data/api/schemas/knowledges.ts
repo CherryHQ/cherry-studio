@@ -63,39 +63,44 @@ export {
   UrlItemDataSchema
 }
 
-export const CreateKnowledgeRootItemSchema = z.discriminatedUnion('type', [
+export const CreateKnowledgeItemSchema = z.discriminatedUnion('type', [
   z
     .object({
+      groupId: z.string().nullable().optional(),
       type: z.literal('file'),
       data: FileItemDataSchema
     })
     .strict(),
   z
     .object({
+      groupId: z.string().nullable().optional(),
       type: z.literal('url'),
       data: UrlItemDataSchema
     })
     .strict(),
   z
     .object({
+      groupId: z.string().nullable().optional(),
       type: z.literal('note'),
       data: NoteItemDataSchema
     })
     .strict(),
   z
     .object({
+      groupId: z.string().nullable().optional(),
       type: z.literal('sitemap'),
       data: SitemapItemDataSchema
     })
     .strict(),
   z
     .object({
+      groupId: z.string().nullable().optional(),
       type: z.literal('directory'),
       data: DirectoryItemDataSchema
     })
     .strict()
 ])
-export type CreateKnowledgeRootItemDto = z.infer<typeof CreateKnowledgeRootItemSchema>
+export type CreateKnowledgeItemDto = z.infer<typeof CreateKnowledgeItemSchema>
 
 export const KNOWLEDGE_ITEMS_DEFAULT_PAGE = 1
 export const KNOWLEDGE_ITEMS_DEFAULT_LIMIT = 20
@@ -104,10 +109,10 @@ export const KNOWLEDGE_BASES_DEFAULT_PAGE = 1
 export const KNOWLEDGE_BASES_DEFAULT_LIMIT = 20
 export const KNOWLEDGE_BASES_MAX_LIMIT = 100
 
-export const CreateKnowledgeRootChildrenSchema = z.object({
-  items: z.array(CreateKnowledgeRootItemSchema).min(1).max(KNOWLEDGE_ITEMS_MAX_LIMIT)
+export const CreateKnowledgeItemsSchema = z.object({
+  items: z.array(CreateKnowledgeItemSchema).min(1).max(KNOWLEDGE_ITEMS_MAX_LIMIT)
 })
-export type CreateKnowledgeRootChildrenDto = z.infer<typeof CreateKnowledgeRootChildrenSchema>
+export type CreateKnowledgeItemsDto = z.infer<typeof CreateKnowledgeItemsSchema>
 
 export const UpdateKnowledgeItemDataSchema = z.union([
   FileItemDataSchema,
@@ -119,6 +124,7 @@ export const UpdateKnowledgeItemDataSchema = z.union([
 
 export const UpdateKnowledgeItemSchema = z
   .object({
+    groupId: z.string().nullable().optional(),
     data: UpdateKnowledgeItemDataSchema.optional(),
     status: ItemStatusSchema.optional(),
     error: z.string().nullable().optional()
@@ -135,27 +141,19 @@ export type KnowledgeBaseListQueryParams = z.input<typeof KnowledgeBaseListQuery
 export type KnowledgeBaseListQuery = z.output<typeof KnowledgeBaseListQuerySchema>
 
 /**
- * Query parameters for GET /knowledge-bases/:id/root/children
+ * Query parameters for GET /knowledge-bases/:id/items
  *
- * Returns direct children of the implicit root node for one knowledge base.
- * `type` is used by the tab UI to filter root-level items by item type.
+ * Returns flat knowledge items for one knowledge base with optional filters.
  */
-export const KnowledgeRootChildrenQuerySchema = z.object({
+export const KnowledgeItemsQuerySchema = z.object({
   page: z.int().positive().default(KNOWLEDGE_ITEMS_DEFAULT_PAGE),
   limit: z.int().positive().max(KNOWLEDGE_ITEMS_MAX_LIMIT).default(KNOWLEDGE_ITEMS_DEFAULT_LIMIT),
-  type: KnowledgeItemTypeSchema.optional()
+  type: KnowledgeItemTypeSchema.optional(),
+  groupId: z.string().optional()
 })
 
-export type KnowledgeRootChildrenQueryParams = z.input<typeof KnowledgeRootChildrenQuerySchema>
-export type KnowledgeRootChildrenQuery = z.output<typeof KnowledgeRootChildrenQuerySchema>
-
-export const KnowledgeItemChildrenQuerySchema = z.object({
-  page: z.int().positive().default(KNOWLEDGE_ITEMS_DEFAULT_PAGE),
-  limit: z.int().positive().max(KNOWLEDGE_ITEMS_MAX_LIMIT).default(KNOWLEDGE_ITEMS_DEFAULT_LIMIT)
-})
-
-export type KnowledgeItemChildrenQueryParams = z.input<typeof KnowledgeItemChildrenQuerySchema>
-export type KnowledgeItemChildrenQuery = z.output<typeof KnowledgeItemChildrenQuerySchema>
+export type KnowledgeItemsQueryParams = z.input<typeof KnowledgeItemsQuerySchema>
+export type KnowledgeItemsQuery = z.output<typeof KnowledgeItemsQuerySchema>
 
 export interface KnowledgeSchemas {
   '/knowledge-bases': {
@@ -185,44 +183,22 @@ export interface KnowledgeSchemas {
     }
   }
 
-  '/knowledge-bases/:id/root/children': {
+  '/knowledge-bases/:id/items': {
     /**
-     * Direct children of the implicit root node for one knowledge base.
-     *
-     * This is the main entry for tab-based root rendering. It returns only
-     * root-level items (`parentId IS NULL`) and supports optional type
-     * filtering for the current tab.
+     * Flat knowledge items for one knowledge base.
      */
     GET: {
       params: { id: string }
-      query?: KnowledgeRootChildrenQueryParams
+      query?: KnowledgeItemsQueryParams
       response: OffsetPaginationResponse<KnowledgeItem>
     }
     /**
-     * Create root-level knowledge items.
-     *
-     * This endpoint only creates direct children of the implicit root node
-     * for the knowledge base. Child-node creation is intentionally out of
-     * scope for the current UI flow.
+     * Create flat knowledge items with optional grouping metadata.
      */
     POST: {
       params: { id: string }
-      body: CreateKnowledgeRootChildrenDto
+      body: CreateKnowledgeItemsDto
       response: { items: KnowledgeItem[] }
-    }
-  }
-
-  '/knowledge-items/:id/children': {
-    /**
-     * Direct children of one knowledge item.
-     *
-     * Returns only the immediate children of `:id`. It does not recursively
-     * expand descendants.
-     */
-    GET: {
-      params: { id: string }
-      query?: KnowledgeItemChildrenQueryParams
-      response: OffsetPaginationResponse<KnowledgeItem>
     }
   }
 
@@ -237,10 +213,11 @@ export interface KnowledgeSchemas {
       response: KnowledgeItem
     }
     /**
-     * Delete a knowledge item subtree.
+     * Delete one knowledge item by id.
      *
-     * The target item identified by `id` is removed together with all of its
-     * descendants linked through `parentId`.
+     * If the deleted item acts as a group owner, all items with
+     * `groupId = :id` are deleted in the same operation through the
+     * database-level same-base cascade constraint.
      */
     DELETE: {
       params: { id: string }

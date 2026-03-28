@@ -2,7 +2,7 @@ import { knowledgeBaseTable, knowledgeItemTable } from '@data/db/schemas/knowled
 import type { DbType } from '@data/db/types'
 import { createClient } from '@libsql/client'
 import { ErrorCode } from '@shared/data/api'
-import type { CreateKnowledgeRootChildrenDto, UpdateKnowledgeItemDto } from '@shared/data/api/schemas/knowledges'
+import type { CreateKnowledgeItemsDto, UpdateKnowledgeItemDto } from '@shared/data/api/schemas/knowledges'
 import { sql } from 'drizzle-orm'
 import { drizzle } from 'drizzle-orm/libsql'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -45,7 +45,7 @@ function createMockRow(overrides: Record<string, unknown> = {}) {
   return {
     id: 'item-1',
     baseId: 'kb-1',
-    parentId: null,
+    groupId: null,
     type: 'note',
     data: { content: 'hello world' },
     status: 'idle',
@@ -76,7 +76,7 @@ describe('KnowledgeItemService', () => {
     realDb = null
   })
 
-  describe('listRootChildren', () => {
+  describe('list', () => {
     function setupListMocks(rows: Record<string, unknown>[], count: number) {
       mockSelect.mockReturnValueOnce({
         from: vi.fn().mockReturnValue({
@@ -96,10 +96,10 @@ describe('KnowledgeItemService', () => {
       })
     }
 
-    it('should return paginated root children for a knowledge base', async () => {
+    it('should return paginated knowledge items for a knowledge base', async () => {
       setupListMocks([createMockRow({ data: JSON.stringify({ content: 'hello world' }) })], 1)
 
-      const result = await service.listRootChildren('kb-1', { page: 1, limit: 20 })
+      const result = await service.list('kb-1', { page: 1, limit: 20 })
 
       expect(getKnowledgeBaseByIdMock).toHaveBeenCalledWith('kb-1')
       expect(result).toMatchObject({
@@ -116,74 +116,41 @@ describe('KnowledgeItemService', () => {
       })
     })
 
-    it('should support type-filtered root listings', async () => {
-      setupListMocks([createMockRow({ id: 'item-2', type: 'directory', parentId: null })], 1)
+    it('should support type/group filters', async () => {
+      setupListMocks(
+        [
+          createMockRow({
+            id: 'item-2',
+            type: 'directory',
+            groupId: 'group-1'
+          })
+        ],
+        1
+      )
 
-      const result = await service.listRootChildren('kb-1', { page: 2, limit: 10, type: 'directory' })
+      const result = await service.list('kb-1', {
+        page: 2,
+        limit: 10,
+        type: 'directory',
+        groupId: 'group-1'
+      })
 
       expect(result.page).toBe(2)
       expect(result.items[0]).toMatchObject({
         id: 'item-2',
-        parentId: null,
+        groupId: 'group-1',
         type: 'directory'
       })
     })
   })
 
-  describe('listChildren', () => {
-    function setupChildListMocks(parent: Record<string, unknown>, rows: Record<string, unknown>[], count: number) {
-      mockSelect.mockReturnValueOnce({
-        from: vi.fn().mockReturnValue({
-          where: vi.fn().mockReturnValue({
-            limit: vi.fn().mockResolvedValue([parent])
-          })
-        })
-      })
-      mockSelect.mockReturnValueOnce({
-        from: vi.fn().mockReturnValue({
-          where: vi.fn().mockReturnValue({
-            orderBy: vi.fn().mockReturnValue({
-              limit: vi.fn().mockReturnValue({
-                offset: vi.fn().mockResolvedValue(rows)
-              })
-            })
-          })
-        })
-      })
-      mockSelect.mockReturnValueOnce({
-        from: vi.fn().mockReturnValue({
-          where: vi.fn().mockResolvedValue([{ count }])
-        })
-      })
-    }
-
-    it('should return direct children for one knowledge item', async () => {
-      setupChildListMocks(
-        createMockRow({ id: 'directory-1', baseId: 'kb-1', type: 'directory' }),
-        [createMockRow({ id: 'child-1', parentId: 'directory-1', type: 'note' })],
-        1
-      )
-
-      const result = await service.listChildren('directory-1', { page: 1, limit: 20 })
-
-      expect(result).toMatchObject({
-        total: 1,
-        page: 1
-      })
-      expect(result.items[0]).toMatchObject({
-        id: 'child-1',
-        parentId: 'directory-1',
-        type: 'note'
-      })
-    })
-  })
-
-  describe('createRootChildren', () => {
-    it('should create and return root knowledge items', async () => {
+  describe('createMany', () => {
+    it('should create and return knowledge items', async () => {
       const values = vi.fn().mockReturnValue({
         returning: vi.fn().mockResolvedValue([
           createMockRow({
             id: 'item-1',
+            groupId: 'group-directory-import',
             type: 'directory',
             data: { path: '/tmp/files', recursive: true }
           }),
@@ -196,9 +163,10 @@ describe('KnowledgeItemService', () => {
       })
       mockInsert.mockReturnValue({ values })
 
-      const dto: CreateKnowledgeRootChildrenDto = {
+      const dto: CreateKnowledgeItemsDto = {
         items: [
           {
+            groupId: 'group-directory-import',
             type: 'directory',
             data: { path: '/tmp/files', recursive: true }
           },
@@ -209,12 +177,12 @@ describe('KnowledgeItemService', () => {
         ]
       }
 
-      const result = await service.createRootChildren('kb-1', dto)
+      const result = await service.createMany('kb-1', dto)
 
       expect(values).toHaveBeenCalledWith([
         {
           baseId: 'kb-1',
-          parentId: null,
+          groupId: 'group-directory-import',
           type: 'directory',
           data: { path: '/tmp/files', recursive: true },
           status: 'idle',
@@ -222,7 +190,7 @@ describe('KnowledgeItemService', () => {
         },
         {
           baseId: 'kb-1',
-          parentId: null,
+          groupId: null,
           type: 'note',
           data: { content: 'child note' },
           status: 'idle',
@@ -230,10 +198,9 @@ describe('KnowledgeItemService', () => {
         }
       ])
       expect(result.items).toHaveLength(2)
-      expect(result.items[1]).toMatchObject({
-        id: 'item-2',
-        parentId: null,
-        type: 'note'
+      expect(result.items[0]).toMatchObject({
+        id: 'item-1',
+        groupId: 'group-directory-import'
       })
     })
   })
@@ -276,7 +243,7 @@ describe('KnowledgeItemService', () => {
         CREATE TABLE knowledge_item (
           id TEXT PRIMARY KEY NOT NULL,
           base_id TEXT NOT NULL,
-          parent_id TEXT,
+          group_id TEXT,
           type TEXT NOT NULL,
           data TEXT NOT NULL,
           status TEXT NOT NULL DEFAULT 'idle',
@@ -286,8 +253,8 @@ describe('KnowledgeItemService', () => {
           CONSTRAINT knowledge_item_type_check CHECK (type IN ('file', 'url', 'note', 'sitemap', 'directory')),
           CONSTRAINT knowledge_item_status_check CHECK (status IN ('idle', 'pending', 'ocr', 'read', 'embed', 'completed', 'failed')),
           FOREIGN KEY (base_id) REFERENCES knowledge_base(id) ON DELETE CASCADE,
-          FOREIGN KEY (base_id, parent_id) REFERENCES knowledge_item(base_id, id) ON DELETE CASCADE,
-          CONSTRAINT knowledge_item_base_id_id_unique UNIQUE (base_id, id)
+          FOREIGN KEY (base_id, group_id) REFERENCES knowledge_item(base_id, id) ON DELETE CASCADE,
+          CONSTRAINT knowledge_item_baseId_id_unique UNIQUE (base_id, id)
         )
       `)
       )
@@ -303,7 +270,7 @@ describe('KnowledgeItemService', () => {
         {
           id: 'dir-a',
           baseId: 'kb-1',
-          parentId: null,
+          groupId: null,
           type: 'directory',
           data: { path: '/a', recursive: true },
           status: 'idle',
@@ -313,7 +280,7 @@ describe('KnowledgeItemService', () => {
         {
           id: 'dir-b',
           baseId: 'kb-1',
-          parentId: null,
+          groupId: null,
           type: 'directory',
           data: { path: '/b', recursive: true },
           status: 'idle',
@@ -321,19 +288,19 @@ describe('KnowledgeItemService', () => {
           createdAt: 90
         },
         {
-          id: 'note-root',
+          id: 'note-group-a',
           baseId: 'kb-1',
-          parentId: null,
+          groupId: 'dir-a',
           type: 'note',
-          data: { content: 'root note' },
+          data: { content: 'group note' },
           status: 'idle',
           error: null,
           createdAt: 80
         },
         {
-          id: 'file-root',
+          id: 'file-group-none',
           baseId: 'kb-1',
-          parentId: null,
+          groupId: null,
           type: 'file',
           data: {
             file: {
@@ -353,52 +320,20 @@ describe('KnowledgeItemService', () => {
           createdAt: 70
         },
         {
-          id: 'dir-c',
+          id: 'note-plain',
           baseId: 'kb-1',
-          parentId: 'dir-a',
-          type: 'directory',
-          data: { path: '/a/c', recursive: true },
+          groupId: null,
+          type: 'note',
+          data: { content: 'plain note' },
           status: 'idle',
           error: null,
           createdAt: 60
-        },
-        {
-          id: 'file-child',
-          baseId: 'kb-1',
-          parentId: 'dir-a',
-          type: 'file',
-          data: {
-            file: {
-              id: 'file-2',
-              name: 'child.txt',
-              origin_name: 'child.txt',
-              path: '/a/child.txt',
-              size: 20,
-              ext: '.txt',
-              type: 'text',
-              created_at: '2024-01-01T00:00:00.000Z',
-              count: 1
-            }
-          },
-          status: 'idle',
-          error: null,
-          createdAt: 50
-        },
-        {
-          id: 'note-grandchild',
-          baseId: 'kb-1',
-          parentId: 'dir-c',
-          type: 'note',
-          data: { content: 'grandchild' },
-          status: 'idle',
-          error: null,
-          createdAt: 40
         }
       ])
     })
 
-    it('listRootChildren returns only root-level nodes for the requested type', async () => {
-      const result = await service.listRootChildren('kb-1', {
+    it('list returns only items of the requested type', async () => {
+      const result = await service.list('kb-1', {
         page: 1,
         limit: 20,
         type: 'directory'
@@ -407,13 +342,14 @@ describe('KnowledgeItemService', () => {
       expect(result.items.map((item) => item.id)).toEqual(['dir-a', 'dir-b'])
     })
 
-    it('listChildren returns only direct children of the requested parent', async () => {
-      const result = await service.listChildren('dir-a', {
+    it('list returns only items of the requested group', async () => {
+      const result = await service.list('kb-1', {
         page: 1,
-        limit: 20
+        limit: 20,
+        groupId: 'dir-a'
       })
 
-      expect(result.items.map((item) => item.id)).toEqual(['dir-c', 'file-child'])
+      expect(result.items.map((item) => item.id)).toEqual(['note-group-a'])
     })
 
     it('db check constraints reject invalid knowledge enums', async () => {
@@ -435,12 +371,36 @@ describe('KnowledgeItemService', () => {
         db.run(
           sql.raw(`
             INSERT INTO knowledge_item (
-              id, base_id, parent_id, type, data, status
+              id, base_id, group_id, type, data, status
             ) VALUES (
               'item-invalid-enum', 'kb-1', NULL, 'memory', '{}', 'done'
             )
           `)
         )
+      ).rejects.toThrow()
+    })
+
+    it('db rejects cross-base group ownership references', async () => {
+      const db = realDb!
+
+      await db.insert(knowledgeBaseTable).values({
+        id: 'kb-2',
+        name: 'KB 2',
+        dimensions: 1024,
+        embeddingModelId: 'openai::text-embedding-3-large'
+      })
+
+      await expect(
+        db.insert(knowledgeItemTable).values({
+          id: 'cross-base-child',
+          baseId: 'kb-2',
+          groupId: 'dir-a',
+          type: 'note',
+          data: { content: 'invalid cross-base group' },
+          status: 'idle',
+          error: null,
+          createdAt: 50
+        })
       ).rejects.toThrow()
     })
   })
@@ -566,6 +526,7 @@ describe('KnowledgeItemService', () => {
         where: vi.fn().mockReturnValue({
           returning: vi.fn().mockResolvedValue([
             createMockRow({
+              groupId: 'group-updated',
               status: 'completed',
               error: null,
               data: { content: 'updated note' }
@@ -576,6 +537,7 @@ describe('KnowledgeItemService', () => {
       mockUpdate.mockReturnValue({ set })
 
       const dto: UpdateKnowledgeItemDto = {
+        groupId: 'group-updated',
         status: 'completed',
         error: null,
         data: { content: 'updated note' }
@@ -584,12 +546,14 @@ describe('KnowledgeItemService', () => {
       const result = await service.update('item-1', dto)
 
       expect(set).toHaveBeenCalledWith({
+        groupId: 'group-updated',
         data: { content: 'updated note' },
         status: 'completed',
         error: null
       })
       expect(result).toMatchObject({
         id: 'item-1',
+        groupId: 'group-updated',
         status: 'completed',
         data: {
           content: 'updated note'
@@ -599,7 +563,7 @@ describe('KnowledgeItemService', () => {
   })
 
   describe('delete', () => {
-    it('should delete the requested node by id and rely on DB cascade for descendants', async () => {
+    it('should delete the requested knowledge item group by id', async () => {
       mockSelect.mockReturnValue({
         from: vi.fn().mockReturnValue({
           where: vi.fn().mockReturnValue({
@@ -613,6 +577,115 @@ describe('KnowledgeItemService', () => {
       await expect(service.delete('item-1')).resolves.toBeUndefined()
       expect(mockSelect).toHaveBeenCalledTimes(1)
       expect(where).toHaveBeenCalledTimes(1)
+    })
+
+    it('should delete the owner item and all group members in db-backed mode', async () => {
+      const client = createClient({ url: 'file::memory:' })
+      closeClient = () => client.close()
+      realDb = drizzle({
+        client,
+        casing: 'snake_case'
+      })
+      const db = realDb
+
+      await db.run(sql`PRAGMA foreign_keys = ON`)
+      await db.run(
+        sql.raw(`
+        CREATE TABLE knowledge_base (
+          id TEXT PRIMARY KEY NOT NULL,
+          name TEXT NOT NULL,
+          description TEXT,
+          dimensions INTEGER NOT NULL,
+          embedding_model_id TEXT NOT NULL,
+          rerank_model_id TEXT,
+          file_processor_id TEXT,
+          chunk_size INTEGER,
+          chunk_overlap INTEGER,
+          threshold REAL,
+          document_count INTEGER,
+          search_mode TEXT,
+          hybrid_alpha REAL,
+          created_at INTEGER,
+          updated_at INTEGER,
+          CONSTRAINT knowledge_base_search_mode_check CHECK (search_mode IN ('default', 'bm25', 'hybrid') OR search_mode IS NULL)
+        )
+      `)
+      )
+      await db.run(
+        sql.raw(`
+        CREATE TABLE knowledge_item (
+          id TEXT PRIMARY KEY NOT NULL,
+          base_id TEXT NOT NULL,
+          group_id TEXT,
+          type TEXT NOT NULL,
+          data TEXT NOT NULL,
+          status TEXT NOT NULL DEFAULT 'idle',
+          error TEXT,
+          created_at INTEGER,
+          updated_at INTEGER,
+          CONSTRAINT knowledge_item_type_check CHECK (type IN ('file', 'url', 'note', 'sitemap', 'directory')),
+          CONSTRAINT knowledge_item_status_check CHECK (status IN ('idle', 'pending', 'ocr', 'read', 'embed', 'completed', 'failed')),
+          FOREIGN KEY (base_id) REFERENCES knowledge_base(id) ON DELETE CASCADE,
+          FOREIGN KEY (base_id, group_id) REFERENCES knowledge_item(base_id, id) ON DELETE CASCADE,
+          CONSTRAINT knowledge_item_baseId_id_unique UNIQUE (base_id, id)
+        )
+      `)
+      )
+
+      await db.insert(knowledgeBaseTable).values({
+        id: 'kb-delete',
+        name: 'KB delete',
+        dimensions: 1024,
+        embeddingModelId: 'openai::text-embedding-3-large'
+      })
+
+      await db.insert(knowledgeItemTable).values([
+        {
+          id: 'dir-owner',
+          baseId: 'kb-delete',
+          groupId: null,
+          type: 'directory',
+          data: { path: '/docs', recursive: true },
+          status: 'idle',
+          error: null,
+          createdAt: 100
+        },
+        {
+          id: 'child-a',
+          baseId: 'kb-delete',
+          groupId: 'dir-owner',
+          type: 'note',
+          data: { content: 'a' },
+          status: 'idle',
+          error: null,
+          createdAt: 90
+        },
+        {
+          id: 'child-b',
+          baseId: 'kb-delete',
+          groupId: 'dir-owner',
+          type: 'url',
+          data: { url: 'https://example.com', name: 'example' },
+          status: 'idle',
+          error: null,
+          createdAt: 80
+        },
+        {
+          id: 'other-item',
+          baseId: 'kb-delete',
+          groupId: null,
+          type: 'note',
+          data: { content: 'keep me' },
+          status: 'idle',
+          error: null,
+          createdAt: 70
+        }
+      ])
+
+      await service.delete('dir-owner')
+
+      const remaining = await db.select().from(knowledgeItemTable).orderBy(knowledgeItemTable.id)
+      expect(remaining.map((item) => item.id)).toEqual(['other-item'])
     })
 
     it('should throw NotFound when deleting a missing knowledge item', async () => {

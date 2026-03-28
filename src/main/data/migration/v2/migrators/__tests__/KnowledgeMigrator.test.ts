@@ -534,7 +534,7 @@ describe('KnowledgeMigrator dimensions resolution', () => {
     expect(result.warnings).toContain('Skipped duplicate knowledge item item-dup in base kb-2')
   })
 
-  it('prepare migrates legacy flat items as root nodes in the v2 tree', async () => {
+  it('prepare migrates legacy flat items without grouping metadata', async () => {
     const migrator = new KnowledgeMigrator() as any
     vi.spyOn(migrator, 'resolveDimensionsForBase').mockResolvedValue({
       dimensions: 1024,
@@ -570,7 +570,7 @@ describe('KnowledgeMigrator dimensions resolution', () => {
 
     expect(result.success).toBe(true)
     expect(migrator.preparedItems).toHaveLength(2)
-    expect(child?.parentId).toBeNull()
+    expect(child?.groupId).toBeNull()
   })
 
   it('prepare records a warning when invalid knowledge base config is normalized', async () => {
@@ -693,7 +693,7 @@ describe('KnowledgeMigrator execute/validate paths', () => {
       {
         id: 'item-1',
         baseId: 'kb-1',
-        parentId: null,
+        groupId: null,
         type: 'note',
         data: { content: 'n1' },
         status: 'idle'
@@ -701,7 +701,7 @@ describe('KnowledgeMigrator execute/validate paths', () => {
       {
         id: 'item-2',
         baseId: 'kb-2',
-        parentId: null,
+        groupId: null,
         type: 'note',
         data: { content: 'n2' },
         status: 'idle'
@@ -743,7 +743,7 @@ describe('KnowledgeMigrator execute/validate paths', () => {
       {
         id: 'item-1',
         baseId: 'kb-1',
-        parentId: null,
+        groupId: null,
         type: 'note',
         data: { content: 'n1' },
         status: 'idle'
@@ -751,7 +751,7 @@ describe('KnowledgeMigrator execute/validate paths', () => {
       {
         id: 'item-2',
         baseId: 'kb-2',
-        parentId: null,
+        groupId: null,
         type: 'note',
         data: { content: 'n2' },
         status: 'idle'

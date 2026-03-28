@@ -281,9 +281,9 @@ export const transformKnowledgeItem = (
       // UUID v7 ordering benefits apply only to knowledge items created after migration.
       id: item.id,
       baseId,
-      // Official v1 exports are flat, so migrated items are always inserted
-      // as root-level nodes even though the target schema supports parentId.
-      parentId: null,
+      // Official v1 exports are flat, so migrated items do not carry grouping
+      // metadata by default.
+      groupId: null,
       type,
       data,
       status: inferKnowledgeItemStatus(item),

@@ -131,7 +131,7 @@ describe('KnowledgeMappings', () => {
       value: {
         id: 'note-1',
         baseId: 'kb-1',
-        parentId: null,
+        groupId: null,
         type: 'note',
         data: {
           content: 'dexie-content',
@@ -165,7 +165,7 @@ describe('KnowledgeMappings', () => {
       value: {
         id: 'file-item-1',
         baseId: 'kb-1',
-        parentId: null,
+        groupId: null,
         type: 'file',
         data: {
           file: fileMetadata
@@ -217,7 +217,7 @@ describe('KnowledgeMappings', () => {
       value: {
         id: 'dir-1',
         baseId: 'kb-1',
-        parentId: null,
+        groupId: null,
         type: 'directory',
         data: {
           path: '/tmp/docs',

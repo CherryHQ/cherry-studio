@@ -8,10 +8,9 @@ import type { ApiHandler, ApiMethods } from '@shared/data/api/apiTypes'
 import type { KnowledgeSchemas } from '@shared/data/api/schemas/knowledges'
 import {
   CreateKnowledgeBaseSchema,
-  CreateKnowledgeRootChildrenSchema,
+  CreateKnowledgeItemsSchema,
   KnowledgeBaseListQuerySchema,
-  KnowledgeItemChildrenQuerySchema,
-  KnowledgeRootChildrenQuerySchema,
+  KnowledgeItemsQuerySchema,
   UpdateKnowledgeBaseSchema,
   UpdateKnowledgeItemSchema
 } from '@shared/data/api/schemas/knowledges'
@@ -48,21 +47,14 @@ export const knowledgeHandlers: {
     }
   },
 
-  '/knowledge-bases/:id/root/children': {
+  '/knowledge-bases/:id/items': {
     GET: async ({ params, query }) => {
-      const parsed = KnowledgeRootChildrenQuerySchema.parse(query ?? {})
-      return await knowledgeItemService.listRootChildren(params.id, parsed)
+      const parsed = KnowledgeItemsQuerySchema.parse(query ?? {})
+      return await knowledgeItemService.list(params.id, parsed)
     },
     POST: async ({ params, body }) => {
-      const parsed = CreateKnowledgeRootChildrenSchema.parse(body)
-      return await knowledgeItemService.createRootChildren(params.id, parsed)
-    }
-  },
-
-  '/knowledge-items/:id/children': {
-    GET: async ({ params, query }) => {
-      const parsed = KnowledgeItemChildrenQuerySchema.parse(query ?? {})
-      return await knowledgeItemService.listChildren(params.id, parsed)
+      const parsed = CreateKnowledgeItemsSchema.parse(body)
+      return await knowledgeItemService.createMany(params.id, parsed)
     }
   },
 

@@ -128,7 +128,7 @@ export type KnowledgeBase = z.infer<typeof KnowledgeBaseSchema>
 const KnowledgeItemBaseSchema = z.object({
   id: z.string(),
   baseId: z.string(),
-  parentId: z.string().nullable().optional(),
+  groupId: z.string().nullable().optional(),
   status: ItemStatusSchema,
   error: z.string().nullable().optional(),
   createdAt: z.iso.datetime(),
