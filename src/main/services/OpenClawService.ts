@@ -1,4 +1,4 @@
-import { execSync, spawn } from 'node:child_process'
+import { execSync } from 'node:child_process'
 import crypto from 'node:crypto'
 import fs from 'node:fs'
 import { Socket } from 'node:net'
@@ -8,6 +8,7 @@ import path from 'node:path'
 import { loggerService } from '@logger'
 import { isWin } from '@main/constant'
 import { application } from '@main/core/application'
+import { ProcessState } from '@main/services/process/types'
 import { isUserInChina } from '@main/utils/ipService'
 import { crossPlatformSpawn, findExecutableInEnv, getBinaryPath, runInstallScript } from '@main/utils/process'
 import getShellEnv, { refreshShellEnv } from '@main/utils/shell-env'
@@ -397,52 +398,65 @@ class OpenClawService {
 
   /**
    * Start gateway via `openclaw gateway run --force` and wait for it to become ready.
-   * Spawns the gateway as a detached process so its lifecycle is independent.
-   * Uses process termination to stop it later.
+   * Registers the gateway with ProcessManager using skipOnStop: true so it survives app exit.
+   * Uses process termination to stop it later (killAllOpenClawProcesses).
    */
   private async startAndWaitForGateway(openclawPath: string, shellEnv: Record<string, string>): Promise<void> {
     const args = ['gateway', 'run', '--force']
 
     logger.info(`Starting gateway: ${openclawPath} ${args.join(' ')}`)
 
-    // Spawn the gateway process. We poll for readiness via health check.
-    // On Windows, avoid detached: true as it creates a visible console window.
-    // Instead, use windowsHide: true without detached - proc.unref() ensures
-    // the parent can exit independently.
-    const proc = spawn(openclawPath, args, {
-      env: shellEnv,
-      detached: !isWin, // Only detach on non-Windows to avoid console flash
-      stdio: ['ignore', 'pipe', 'pipe'],
-      windowsHide: true
-    })
-    proc.unref()
+    const pm = application.get('ProcessManager')
 
-    // Collect early exit errors (e.g. binary crash on startup)
+    // Clean up previous handle if not running
+    const existing = pm.get('openclaw-gateway')
+    if (existing) {
+      if (existing.state !== ProcessState.Running) {
+        pm.unregister('openclaw-gateway')
+      }
+    }
+
+    const handle = pm.register({
+      id: 'openclaw-gateway',
+      command: openclawPath,
+      args,
+      env: shellEnv,
+      detached: !isWin,
+      stdio: ['ignore', 'pipe', 'pipe'],
+      skipOnStop: true,
+      killTimeoutMs: 5000
+    })
+
+    // Set up callback chain BEFORE start() to avoid missing early events
     let earlyExitError = ''
     let stdoutOutput = ''
     let stderrOutput = ''
-    proc.stdout?.on('data', (data) => {
-      stdoutOutput += data.toString()
-    })
-    proc.stderr?.on('data', (data) => {
-      stderrOutput += data.toString()
-    })
-    proc.on('error', (err) => {
-      earlyExitError = err.message
-    })
-    proc.on('exit', (code) => {
-      // Capture output from both streams for diagnostics
+
+    const prevOnLog = handle.onLog
+    handle.onLog = (line) => {
+      prevOnLog?.(line)
+      if (line.stream === 'stdout') {
+        stdoutOutput += line.data
+      } else {
+        stderrOutput += line.data
+      }
+    }
+
+    const prevOnExited = handle.onExited
+    handle.onExited = (code, signal) => {
+      prevOnExited?.(code, signal)
       const combinedOutput = [stderrOutput.trim(), stdoutOutput.trim()].filter(Boolean).join('\n')
       const detail = combinedOutput.split('\n').filter(Boolean).slice(0, 5).join('\n')
       if (code !== 0) {
         earlyExitError = detail || `gateway exited with code ${code}`
       } else {
-        // Process exited with code 0 but gateway may not be healthy (e.g. daemonized child failed)
         earlyExitError = detail
           ? `gateway exited with code 0 but output: ${detail}`
           : 'gateway process exited with code 0 before becoming healthy'
       }
-    })
+    }
+
+    await handle.start()
 
     // Wait for gateway to become ready (max 30 seconds)
     const maxWaitMs = 30000
@@ -455,7 +469,6 @@ class OpenClawService {
       await new Promise((r) => setTimeout(r, pollIntervalMs))
       pollCount++
 
-      // Check if the process crashed early
       if (earlyExitError) {
         throw new Error(earlyExitError)
       }
@@ -469,7 +482,6 @@ class OpenClawService {
       if (healthError) lastError = healthError
     }
 
-    // Combine all available diagnostics: health check errors, stderr, and stdout
     const diagnostics = [
       lastError ? `health: ${lastError}` : '',
       stderrOutput.trim() ? `stderr: ${stderrOutput.trim().split('\n').slice(0, 5).join('\n')}` : '',

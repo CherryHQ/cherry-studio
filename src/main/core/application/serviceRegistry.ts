@@ -12,6 +12,7 @@ import { MCPService } from '@main/services/MCPService'
 import { NodeTraceService } from '@main/services/NodeTraceService'
 import { OvmsManager } from '@main/services/OvmsManager'
 import { PowerMonitorService } from '@main/services/PowerMonitorService'
+import { ProcessManager } from '@main/services/process/ProcessManager'
 import { SelectionService } from '@main/services/SelectionService'
 import { ShortcutService } from '@main/services/ShortcutService'
 import { SpanCacheService } from '@main/services/SpanCacheService'
@@ -55,6 +56,7 @@ export const services = {
   LanTransferClientService,
   LocalTransferService,
   PowerMonitorService,
+  ProcessManager,
   SelectionService,
   ShortcutService,
   ThemeService,
