@@ -477,19 +477,21 @@ describe('options utils', () => {
         expect(result.providerOptions.openai).not.toHaveProperty('systemMessageMode')
       })
 
-      it('should build Anthropic providerOptions for unprefixed Poe Anthropic models', () => {
+      it('should build OpenAI providerOptions for unprefixed Poe Anthropic models', () => {
         const result = buildProviderOptions(mockAssistant, poeClaudeModel, poeProvider, {
           enableReasoning: true,
           enableWebSearch: true,
           enableGenerateImage: false
         })
 
-        expect(result.providerOptions).toHaveProperty('anthropic')
-        expect(result.providerOptions).not.toHaveProperty('openai')
-        expect(result.providerOptions.anthropic).toHaveProperty('thinking')
+        expect(result.providerOptions).toHaveProperty('openai')
+        expect(result.providerOptions).not.toHaveProperty('anthropic')
+        expect(result.providerOptions.openai).toMatchObject({
+          reasoningEffort: 'medium'
+        })
       })
 
-      it('should keep system-role semantics for Poe Gemini models routed through OpenAI responses', () => {
+      it('should build OpenAI providerOptions for Poe Gemini models routed through OpenAI responses', () => {
         const result = buildProviderOptions(mockAssistant, poeGeminiModel, poeProvider, {
           enableReasoning: true,
           enableWebSearch: false,
@@ -498,9 +500,9 @@ describe('options utils', () => {
 
         expect(result.providerOptions).toHaveProperty('openai')
         expect(result.providerOptions.openai).toMatchObject({
-          reasoningEffort: 'medium',
-          systemMessageMode: 'system'
+          reasoningEffort: 'medium'
         })
+        expect(result.providerOptions.openai).not.toHaveProperty('systemMessageMode')
       })
 
       it('should map Poe-scoped custom parameters to the effective provider namespace', async () => {
