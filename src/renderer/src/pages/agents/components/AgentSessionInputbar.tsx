@@ -271,7 +271,7 @@ const AgentSessionInputbarInner: FC<InnerProps> = ({ assistant, agentId, session
           action: () => {
             // Insert command into textarea
             setText((prev: string) => {
-              const textArea = document.querySelector('.inputbar textarea') as HTMLTextAreaElement | null
+              const textArea = document.querySelector<HTMLTextAreaElement>('.inputbar textarea')
               if (!textArea) {
                 return prev + ' ' + cmd.command
               }

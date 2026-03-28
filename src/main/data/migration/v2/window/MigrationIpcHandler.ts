@@ -316,6 +316,7 @@ export function registerMigrationIpcHandlers(): void {
     try {
       logger.info('Migration cancelled by user')
       migrationWindowManager.close()
+      app.quit()
       return true
     } catch (error) {
       logger.error('Error cancelling migration', error as Error)

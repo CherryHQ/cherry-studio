@@ -1,10 +1,11 @@
 # Data System Reference
 
-This is the main entry point for Cherry Studio's data management documentation. The application uses three distinct data systems based on data characteristics.
+This is the main entry point for Cherry Studio's data management documentation. The application uses four data systems based on data characteristics and loading requirements.
 
 ## Quick Navigation
 
 ### System Overview (Architecture)
+- [Boot Config Overview](./boot-config-overview.md) - Early boot configuration system
 - [Cache Overview](./cache-overview.md) - Three-tier caching architecture
 - [Preference Overview](./preference-overview.md) - User settings management
 - [DataApi Overview](./data-api-overview.md) - Business data API architecture
@@ -20,6 +21,7 @@ This is the main entry point for Cherry Studio's data management documentation. 
 - [Database Patterns](./database-patterns.md) - DB naming, schema patterns
 - [API Types](./api-types.md) - API type system, schemas, error handling
 - [Preference Schema Guide](./preference-schema-guide.md) - Adding new preference keys
+- [Boot Config Schema Guide](./boot-config-schema-guide.md) - Adding new boot config keys
 - [Layered Preset Pattern](./best-practice-layered-preset-pattern.md) - Presets with user overrides
 - [V2 Migration Guide](./v2-migration-guide.md) - Migration system
 
@@ -32,33 +34,61 @@ This is the main entry point for Cherry Studio's data management documentation. 
 
 ### Quick Decision Table
 
-| Service | Data Characteristics | Lifecycle | Data Loss Impact | Examples |
-|---------|---------------------|-----------|------------------|----------|
-| **CacheService** | Regenerable, temporary | ≤ App process or survives restart | None to minimal | API responses, computed results, UI state |
-| **PreferenceService** | User settings, key-value | Permanent until changed | Low (can rebuild) | Theme, language, font size, shortcuts |
-| **DataApiService** | Business data, structured | Permanent | **Severe** (irreplaceable) | Topics, messages, files, knowledge base |
+| Service               | Data Characteristics         | Lifecycle                         | Data Loss Impact           | Examples                                              |
+| --------------------- | ---------------------------- | --------------------------------- | -------------------------- | ----------------------------------------------------- |
+| **BootConfigService** | Process-level, pre-lifecycle | Permanent until changed           | Low (can rebuild)          | Hardware acceleration, Chromium flags, data directory |
+| **CacheService**      | Regenerable, temporary       | ≤ App process or survives restart | None to minimal            | API responses, computed results, UI state             |
+| **PreferenceService** | User settings, key-value     | Permanent until changed           | Low (can rebuild)          | Theme, language, font size, shortcuts                 |
+| **DataApiService**    | Business data, structured    | Permanent                         | **Severe** (irreplaceable) | Topics, messages, files, knowledge base               |
 
 ### Decision Flowchart
 
 Ask these questions in order:
 
-1. **Can this data be regenerated or lost without affecting the user?**
-   - Yes → **CacheService**
+1. **Must this setting be loaded before the lifecycle system takes over?**
+   - Yes → **BootConfigService** (process-level flags, Chromium switches, data directory)
    - No → Continue to #2
 
-2. **Is this a user-configurable setting that affects app behavior?**
+2. **Can this data be regenerated or lost without affecting the user?**
+   - Yes → **CacheService**
+   - No → Continue to #3
+
+3. **Is this a user-configurable setting that affects app behavior?**
    - Yes → Does it have a fixed key and stable value structure?
      - Yes → **PreferenceService**
      - No (structure changes often) → **DataApiService**
-   - No → Continue to #3
+   - No → Continue to #4
 
-3. **Is this business data created/accumulated through user activity?**
+4. **Is this business data created/accumulated through user activity?**
    - Yes → **DataApiService**
-   - No → Reconsider #1 (most data falls into one of these categories)
+   - No → Reconsider #2 (most data falls into one of these categories)
 
 ---
 
 ## System Characteristics
+
+### BootConfigService - Early Boot Configuration
+
+Use BootConfigService when:
+- Setting must be loaded **synchronously before the lifecycle system takes over**
+- Setting affects **process-level behavior** that cannot change at runtime (Chromium flags, data directory)
+- Setting **cannot wait** for database initialization
+
+**Key characteristics**:
+- Synchronous file-based loading (`boot-config.json`)
+- Minimal key set — only process-level configuration
+- Accessed through PreferenceService (`BootConfig.*` prefix) after lifecycle starts
+
+```typescript
+// Early boot (src/main/index.ts) — direct access, only option at this stage
+import { bootConfigService } from '@main/data/bootConfig'
+if (bootConfigService.get('app.disable_hardware_acceleration')) {
+  app.disableHardwareAcceleration()
+}
+
+// Renderer / lifecycle services — via PreferenceService (standard access)
+const [disableHwAccel, setDisableHwAccel] = usePreference('BootConfig.app.disable_hardware_acceleration')
+```
 
 ### CacheService - Runtime & Cache Data
 
@@ -140,14 +170,16 @@ const { data: files } = useQuery('/files')
 
 ## Common Anti-patterns
 
-| Wrong Choice | Why It's Wrong | Correct Choice |
-|--------------|----------------|----------------|
-| Storing AI provider configs in Cache | User loses configured providers on restart | **PreferenceService** |
-| Storing conversation history in Preferences | Unbounded growth, complex structure | **DataApiService** |
-| Storing topic list in Preferences | User-created records, can grow large | **DataApiService** |
-| Storing theme/language in DataApi | Overkill for simple key-value settings | **PreferenceService** |
-| Storing API responses in DataApi | Regenerable data, doesn't need persistence | **CacheService** |
-| Storing window positions in Preferences | Can be lost without impact | **CacheService** (persist tier) |
+| Wrong Choice                                      | Why It's Wrong                                   | Correct Choice                  |
+| ------------------------------------------------- | ------------------------------------------------ | ------------------------------- |
+| Storing AI provider configs in Cache              | User loses configured providers on restart       | **PreferenceService**           |
+| Storing conversation history in Preferences       | Unbounded growth, complex structure              | **DataApiService**              |
+| Storing topic list in Preferences                 | User-created records, can grow large             | **DataApiService**              |
+| Storing theme/language in DataApi                 | Overkill for simple key-value settings           | **PreferenceService**           |
+| Storing API responses in DataApi                  | Regenerable data, doesn't need persistence       | **CacheService**                |
+| Storing window positions in Preferences           | Can be lost without impact                       | **CacheService** (persist tier) |
+| Storing hardware acceleration flag in Preferences | Too late — must load before lifecycle takes over | **BootConfigService**           |
+| Storing user theme in BootConfig                  | Doesn't need early boot loading                  | **PreferenceService**           |
 
 ## Edge Cases
 
@@ -161,34 +193,50 @@ const { data: files } = useQuery('/files')
 ## Architecture Overview
 
 ```
-┌─────────────────┐
-│ React Components│
-└─────────┬───────┘
-          │
-┌─────────▼───────┐
-│   React Hooks   │  ← useDataApi, usePreference, useCache
-└─────────┬───────┘
-          │
-┌─────────▼───────┐
-│    Services     │  ← DataApiService, PreferenceService, CacheService
-└─────────┬───────┘
-          │
-┌─────────▼───────┐
-│   IPC Layer     │  ← Main Process Communication
-└─────────────────┘
+                              ┌─────────────────┐
+                              │ React Components│
+                              └─────────┬───────┘
+                                        │
+                              ┌─────────▼───────┐
+                              │   React Hooks   │  ← useDataApi, usePreference('...'),
+                              └─────────┬───────┘    usePreference('BootConfig.*'), useCache
+                                        │
+                              ┌─────────▼───────┐
+                              │    Services     │  ← DataApiService, PreferenceService, CacheService
+                              └─────────┬───────┘
+                                        │
+                              ┌─────────▼───────┐
+                              │   IPC Layer     │  ← Main Process Communication
+                              └────┬────────┬───┘
+                                   │        │
+              ┌────────────────────▼─┐  ┌───▼──────────────────────┐
+              │ PreferenceService    │  │ Other Main Services      │
+              │ (routes BootConfig.* │  │ (DataApi, Cache, etc.)   │
+              │  to bootConfigService│  └──────────────────────────┘
+              │  for boot config keys│
+              └──────────┬───────────┘
+                         │
+         ┌───────────────▼─────────────┐
+         │ BootConfigService           │
+         │ (sync load, boot-config.json│
+         │  also used directly in      │
+         │  early boot before lifecycle│
+         └─────────────────────────────┘
 ```
 
 ## Related Source Code
 
 ### Type Definitions
 - `packages/shared/data/api/` - API type system
+- `packages/shared/data/bootConfig/` - Boot config type definitions and schemas
 - `packages/shared/data/cache/` - Cache type definitions
 - `packages/shared/data/preference/` - Preference type definitions
 
 ### Main Process Implementation
+- `src/main/data/bootConfig/` - Boot config service
 - `src/main/data/api/` - API server and handlers
 - `src/main/data/CacheService.ts` - Cache service
-- `src/main/data/PreferenceService.ts` - Preference service
+- `src/main/data/PreferenceService.ts` - Preference service (also routes `BootConfig.*` keys)
 - `src/main/data/db/` - Database schemas
 
 ### Renderer Process Implementation

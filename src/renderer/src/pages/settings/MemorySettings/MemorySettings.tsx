@@ -8,7 +8,7 @@ import Scrollbar from '@renderer/components/Scrollbar'
 import TextBadge from '@renderer/components/TextBadge'
 import { useTheme } from '@renderer/context/ThemeProvider'
 import { useModel } from '@renderer/hooks/useModel'
-import MemoryService from '@renderer/services/MemoryService'
+import { memoryService } from '@renderer/services/MemoryService'
 import { selectMemoryConfig } from '@renderer/store/memory'
 import type { MemoryItem } from '@types'
 import { Dropdown, Empty, Form, Input, Modal, Space, Spin } from 'antd'
@@ -283,7 +283,7 @@ const MemorySettings = () => {
   const [uniqueUsers, setUniqueUsers] = useState<string[]>([])
   const [displayCount, setDisplayCount] = useState(50)
   const loadMoreRef = useRef<HTMLDivElement>(null)
-  const memoryService = MemoryService.getInstance()
+  // memoryService is imported as a module-level singleton
 
   // Utility functions
   const getUserDisplayName = (user: string) => {
@@ -299,7 +299,7 @@ const MemorySettings = () => {
     } catch (error) {
       logger.error('Failed to load users list:', error as Error)
     }
-  }, [memoryService])
+  }, [])
 
   // Load memories function
   const loadMemories = useCallback(
@@ -325,7 +325,7 @@ const MemorySettings = () => {
         setLoading(false)
       }
     },
-    [currentUser, memoryService, t, loadUniqueUsers]
+    [currentUser, t, loadUniqueUsers]
   )
 
   // Sync memoryService with Redux store on mount and when currentUser changes

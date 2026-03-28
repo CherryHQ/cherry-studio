@@ -2,7 +2,7 @@ import { preferenceService } from '@data/PreferenceService'
 import { loggerService } from '@logger'
 import db from '@renderer/databases'
 import { getKnowledgeBaseParams } from '@renderer/services/KnowledgeService'
-import { NotificationService } from '@renderer/services/NotificationService'
+import { notificationService } from '@renderer/services/NotificationService'
 import store from '@renderer/store'
 import {
   clearCompletedProcessing,
@@ -17,7 +17,7 @@ import { t } from 'i18next'
 
 const logger = loggerService.withContext('KnowledgeQueue')
 
-class KnowledgeQueue {
+export class KnowledgeQueue {
   private processing: Map<string, boolean> = new Map()
   private readonly MAX_RETRIES = 1
 
@@ -121,7 +121,7 @@ class KnowledgeQueue {
       message = t('notification.knowledge.batch_mixed', { succeeded, failed })
     }
 
-    void NotificationService.getInstance().send({
+    void notificationService.send({
       id: uuid(),
       type,
       title: t('common.knowledge_base'),
@@ -264,4 +264,4 @@ class KnowledgeQueue {
   }
 }
 
-export default new KnowledgeQueue()
+export const knowledgeQueue = new KnowledgeQueue()

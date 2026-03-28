@@ -164,7 +164,7 @@ export const QuickPanelView: React.FC<Props> = ({ setInputText }) => {
 
   const clearSearchText = useCallback(
     (includeSymbol = false) => {
-      const textArea = document.querySelector('.inputbar textarea') as HTMLTextAreaElement
+      const textArea = document.querySelector<HTMLTextAreaElement>('.inputbar textarea')
       if (!textArea) return
 
       const cursorPosition = textArea.selectionStart ?? 0
@@ -238,7 +238,7 @@ export const QuickPanelView: React.FC<Props> = ({ setInputText }) => {
         setTimeoutTimer(
           'quickpanel_focus',
           () => {
-            const textareaEl = document.querySelector('.inputbar textarea') as HTMLTextAreaElement | null
+            const textareaEl = document.querySelector<HTMLTextAreaElement>('.inputbar textarea')
             if (!textareaEl) return
             textareaEl.focus()
             textareaEl.setSelectionRange(clampedDeleteStart, clampedDeleteStart)
@@ -263,7 +263,7 @@ export const QuickPanelView: React.FC<Props> = ({ setInputText }) => {
       scrollTriggerRef.current = 'initial'
 
       if (action === 'delete-symbol') {
-        const textArea = document.querySelector('.inputbar textarea') as HTMLTextAreaElement
+        const textArea = document.querySelector<HTMLTextAreaElement>('.inputbar textarea')
         if (textArea) {
           setInputText(textArea.value)
         }
@@ -429,7 +429,7 @@ export const QuickPanelView: React.FC<Props> = ({ setInputText }) => {
   useEffect(() => {
     if (!ctx.isVisible) return
 
-    const textArea = document.querySelector('.inputbar textarea') as HTMLTextAreaElement
+    const textArea = document.querySelector<HTMLTextAreaElement>('.inputbar textarea')
     if (!textArea) return
 
     const handleInput = (e: Event) => {

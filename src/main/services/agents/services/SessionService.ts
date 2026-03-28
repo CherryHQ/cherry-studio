@@ -21,15 +21,7 @@ import { builtinSlashCommands } from './claudecode/commands'
 const logger = loggerService.withContext('SessionService')
 
 export class SessionService extends BaseService {
-  private static instance: SessionService | null = null
   private readonly modelFields: AgentModelField[] = ['model', 'plan_model', 'small_model']
-
-  static getInstance(): SessionService {
-    if (!SessionService.instance) {
-      SessionService.instance = new SessionService()
-    }
-    return SessionService.instance
-  }
 
   /**
    * Override BaseService.listSlashCommands to merge builtin and plugin commands
@@ -314,4 +306,4 @@ export class SessionService extends BaseService {
   }
 }
 
-export const sessionService = SessionService.getInstance()
+export const sessionService = new SessionService()

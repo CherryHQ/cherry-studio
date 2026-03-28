@@ -8,7 +8,7 @@ export enum IpcChannel {
   App_CheckForUpdate = 'app:check-for-update',
   App_QuitAndInstall = 'app:quit-and-install',
   App_Reload = 'app:reload',
-  App_Quit = 'app:quit',
+  Application_Quit = 'application:quit',
   App_Info = 'app:info',
   App_Proxy = 'app:proxy',
   App_SetLaunchToTray = 'app:set-launch-to-tray',
@@ -24,12 +24,13 @@ export enum IpcChannel {
   App_ResolvePath = 'app:resolve-path',
   App_IsPathInside = 'app:is-path-inside',
   App_Copy = 'app:copy',
-  App_SetStopQuitApp = 'app:set-stop-quit-app',
+  Application_PreventQuit = 'application:prevent-quit',
+  Application_AllowQuit = 'application:allow-quit',
   App_SetAppDataPath = 'app:set-app-data-path',
   App_GetDataPathFromArgs = 'app:get-data-path-from-args',
   App_FlushAppData = 'app:flush-app-data',
   App_IsNotEmptyDir = 'app:is-not-empty-dir',
-  App_RelaunchApp = 'app:relaunch-app',
+  Application_Relaunch = 'application:relaunch',
   App_ResetData = 'app:reset-data',
   App_IsBinaryExist = 'app:is-binary-exist',
   App_GetBinaryPath = 'app:get-binary-path',
@@ -331,6 +332,7 @@ export enum IpcChannel {
   Selection_ActionWindowResize = 'selection:action-window-resize',
   Selection_ProcessAction = 'selection:process-action',
   Selection_UpdateActionData = 'selection:update-action-data',
+  Selection_GetLinuxEnvInfo = 'selection:get-linux-env-info',
 
   // Memory
   Memory_Add = 'memory:add',
@@ -400,12 +402,12 @@ export enum IpcChannel {
   // ExternalApps
   ExternalApps_DetectInstalled = 'external-apps:detect-installed',
 
-  // CodeTools
-  CodeTools_Run = 'code-tools:run',
-  CodeTools_GetAvailableTerminals = 'code-tools:get-available-terminals',
-  CodeTools_SetCustomTerminalPath = 'code-tools:set-custom-terminal-path',
-  CodeTools_GetCustomTerminalPath = 'code-tools:get-custom-terminal-path',
-  CodeTools_RemoveCustomTerminalPath = 'code-tools:remove-custom-terminal-path',
+  // CodeCli
+  CodeCli_Run = 'code-cli:run',
+  CodeCli_GetAvailableTerminals = 'code-cli:get-available-terminals',
+  CodeCli_SetCustomTerminalPath = 'code-cli:set-custom-terminal-path',
+  CodeCli_GetCustomTerminalPath = 'code-cli:get-custom-terminal-path',
+  CodeCli_RemoveCustomTerminalPath = 'code-cli:remove-custom-terminal-path',
 
   // OCR
   OCR_ocr = 'ocr:ocr',

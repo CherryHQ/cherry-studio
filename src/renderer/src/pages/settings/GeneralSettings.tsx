@@ -39,7 +39,7 @@ const spellCheckLanguageOptions: readonly SpellCheckOption[] = [
 const GeneralSettings: FC = () => {
   const [language, setLanguage] = usePreference('app.language')
   const [disableHardwareAcceleration, setDisableHardwareAcceleration] = usePreference(
-    'app.disable_hardware_acceleration'
+    'BootConfig.app.disable_hardware_acceleration'
   )
   const [enableDeveloperMode, setEnableDeveloperMode] = usePreference('app.developer_mode.enabled')
   const [launchOnBoot, setLaunchOnBoot] = usePreference('app.launch_on_boot')
@@ -171,7 +171,7 @@ const GeneralSettings: FC = () => {
         setTimeoutTimer(
           'handleHardwareAccelerationChange',
           () => {
-            void window.api.relaunchApp()
+            void window.api.application.relaunch()
           },
           500
         )

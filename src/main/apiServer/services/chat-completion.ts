@@ -88,7 +88,7 @@ export class ChatCompletionService {
       }
     }
 
-    const providerContext = await this.resolveProviderContext(request.model!)
+    const providerContext = await this.resolveProviderContext(request.model)
     if (!providerContext.ok) {
       return {
         status: 'model_error',

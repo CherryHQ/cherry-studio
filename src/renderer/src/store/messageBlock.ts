@@ -352,7 +352,7 @@ export const formatCitationsFromBlock = (block: CitationMessageBlock | undefined
 // Memoized selector that takes a block ID and returns formatted citations
 export const selectFormattedCitationsByBlockId = createSelector([selectBlockEntityById], (blockEntity): Citation[] => {
   if (blockEntity?.type === MessageBlockType.CITATION) {
-    return formatCitationsFromBlock(blockEntity as CitationMessageBlock)
+    return formatCitationsFromBlock(blockEntity)
   }
   return []
 })
@@ -380,12 +380,12 @@ const hasIncompleteTodos = (todos: TodoItem[]): boolean =>
  */
 const isTodoWriteBlock = (block: MessageBlock | undefined): block is TodoWriteToolMessageBlock => {
   if (!block || block.type !== MessageBlockType.TOOL) return false
-  const toolResponse = (block as ToolMessageBlock).metadata?.rawMcpToolResponse
+  const toolResponse = block.metadata?.rawMcpToolResponse
   if (toolResponse?.tool?.name !== 'TodoWrite') return false
   // Defensive: validate todos is actually an array to prevent dirty data from crashing selectors (#12804)
   const args = toolResponse.arguments
   if (!args || typeof args !== 'object' || Array.isArray(args)) return false
-  return Array.isArray((args as Record<string, unknown>).todos)
+  return Array.isArray(args.todos)
 }
 
 /**

@@ -31,23 +31,12 @@ const logger = loggerService.withContext('DbService')
  * based on the topic ID type (regular chat or agent session)
  */
 class DbService implements MessageDataSource {
-  private static instance: DbService
   private dexieSource: DexieMessageDataSource
   private agentSource: AgentMessageDataSource
 
-  private constructor() {
+  constructor() {
     this.dexieSource = new DexieMessageDataSource()
     this.agentSource = new AgentMessageDataSource()
-  }
-
-  /**
-   * Get singleton instance
-   */
-  static getInstance(): DbService {
-    if (!DbService.instance) {
-      DbService.instance = new DbService()
-    }
-    return DbService.instance
   }
 
   /**
@@ -251,7 +240,7 @@ class DbService implements MessageDataSource {
 }
 
 // Export singleton instance
-export const dbService = DbService.getInstance()
+export const dbService = new DbService()
 
 // Also export class for testing purposes
 export { DbService }

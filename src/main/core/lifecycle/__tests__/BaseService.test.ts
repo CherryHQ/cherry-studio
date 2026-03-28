@@ -1,4 +1,5 @@
-import { describe, expect, it, vi } from 'vitest'
+import { ipcMain } from 'electron'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { BaseService } from '../BaseService'
 import { LifecycleState } from '../types'
@@ -157,6 +158,270 @@ describe('BaseService', () => {
       await service._doAllReady()
       await service._doAllReady()
       expect(onAllReady).toHaveBeenCalledOnce()
+    })
+  })
+
+  describe('IPC helpers', () => {
+    beforeEach(() => {
+      vi.mocked(ipcMain.handle).mockClear()
+      vi.mocked(ipcMain.on).mockClear()
+      vi.mocked(ipcMain.removeHandler).mockClear()
+      vi.mocked(ipcMain.removeListener).mockClear()
+    })
+
+    it('ipcHandle() should call ipcMain.handle and track channel', async () => {
+      const handler = vi.fn()
+      class IpcService extends BaseService {
+        protected override async onInit() {
+          this.ipcHandle('test-channel', handler)
+        }
+      }
+
+      const service = new IpcService()
+      await service._doInit()
+
+      expect(ipcMain.handle).toHaveBeenCalledWith('test-channel', handler)
+    })
+
+    it('ipcOn() should call ipcMain.on and track listener', async () => {
+      const listener = vi.fn()
+      class IpcService extends BaseService {
+        protected override async onInit() {
+          this.ipcOn('test-event', listener)
+        }
+      }
+
+      const service = new IpcService()
+      await service._doInit()
+
+      expect(ipcMain.on).toHaveBeenCalledWith('test-event', listener)
+    })
+
+    it('_doStop() should auto-cleanup all tracked IPC handlers', async () => {
+      class IpcService extends BaseService {
+        protected override async onInit() {
+          this.ipcHandle('channel-a', vi.fn())
+          this.ipcHandle('channel-b', vi.fn())
+        }
+      }
+
+      const service = new IpcService()
+      await service._doInit()
+      await service._doStop()
+
+      expect(ipcMain.removeHandler).toHaveBeenCalledWith('channel-a')
+      expect(ipcMain.removeHandler).toHaveBeenCalledWith('channel-b')
+      expect(ipcMain.removeHandler).toHaveBeenCalledTimes(2)
+    })
+
+    it('_doStop() should auto-cleanup all tracked IPC listeners', async () => {
+      const listenerA = vi.fn()
+      const listenerB = vi.fn()
+      class IpcService extends BaseService {
+        protected override async onInit() {
+          this.ipcOn('event-a', listenerA)
+          this.ipcOn('event-b', listenerB)
+        }
+      }
+
+      const service = new IpcService()
+      await service._doInit()
+      await service._doStop()
+
+      expect(ipcMain.removeListener).toHaveBeenCalledWith('event-a', listenerA)
+      expect(ipcMain.removeListener).toHaveBeenCalledWith('event-b', listenerB)
+      expect(ipcMain.removeListener).toHaveBeenCalledTimes(2)
+    })
+
+    it('_doDestroy() should cleanup IPC handlers as safety net', async () => {
+      class IpcService extends BaseService {
+        protected override async onInit() {
+          this.ipcHandle('destroy-channel', vi.fn())
+        }
+      }
+
+      const service = new IpcService()
+      await service._doInit()
+      // Skip _doStop, go directly to _doDestroy
+      await service._doDestroy()
+
+      expect(ipcMain.removeHandler).toHaveBeenCalledWith('destroy-channel')
+    })
+
+    it('double cleanup should be safe (no-op on already removed handlers)', async () => {
+      class IpcService extends BaseService {
+        protected override async onInit() {
+          this.ipcHandle('double-channel', vi.fn())
+          this.ipcOn('double-event', vi.fn())
+        }
+      }
+
+      const service = new IpcService()
+      await service._doInit()
+      await service._doStop()
+      // Second cleanup via destroy should not throw
+      await service._doDestroy()
+
+      // removeHandler called once in _doStop, once in _doDestroy (on empty array)
+      expect(ipcMain.removeHandler).toHaveBeenCalledTimes(1)
+    })
+
+    it('should work when no IPC handlers registered', async () => {
+      class EmptyService extends BaseService {}
+
+      const service = new EmptyService()
+      await service._doInit()
+      await service._doStop()
+
+      expect(ipcMain.removeHandler).not.toHaveBeenCalled()
+      expect(ipcMain.removeListener).not.toHaveBeenCalled()
+    })
+
+    it('restart cycle: init → stop → init → stop should track and cleanup correctly', async () => {
+      let callCount = 0
+      class RestartService extends BaseService {
+        protected override async onInit() {
+          callCount++
+          this.ipcHandle(`channel-${callCount}`, vi.fn())
+        }
+      }
+
+      const service = new RestartService()
+
+      // First cycle
+      await service._doInit()
+      expect(ipcMain.handle).toHaveBeenCalledWith('channel-1', expect.any(Function))
+      await service._doStop()
+      expect(ipcMain.removeHandler).toHaveBeenCalledWith('channel-1')
+
+      vi.mocked(ipcMain.handle).mockClear()
+      vi.mocked(ipcMain.removeHandler).mockClear()
+
+      // Second cycle
+      await service._doInit()
+      expect(ipcMain.handle).toHaveBeenCalledWith('channel-2', expect.any(Function))
+      await service._doStop()
+      expect(ipcMain.removeHandler).toHaveBeenCalledWith('channel-2')
+      // Should NOT re-remove channel-1
+      expect(ipcMain.removeHandler).toHaveBeenCalledTimes(1)
+    })
+
+    it('onStop() throwing should still cleanup IPC handlers (try/finally)', async () => {
+      class FailingStopService extends BaseService {
+        protected override async onInit() {
+          this.ipcHandle('fail-channel', vi.fn())
+          this.ipcOn('fail-event', vi.fn())
+        }
+        protected override async onStop() {
+          throw new Error('onStop failed')
+        }
+      }
+
+      const service = new FailingStopService()
+      await service._doInit()
+
+      await expect(service._doStop()).rejects.toThrow('onStop failed')
+
+      // IPC cleanup should still have happened
+      expect(ipcMain.removeHandler).toHaveBeenCalledWith('fail-channel')
+      expect(ipcMain.removeListener).toHaveBeenCalledTimes(1)
+    })
+  })
+
+  describe('registerDisposable cleanup', () => {
+    it('should dispose registered disposables on stop', async () => {
+      const disposeFn = vi.fn()
+
+      class DisposableService extends BaseService {
+        protected override async onInit() {
+          this.registerDisposable({ dispose: disposeFn })
+        }
+      }
+
+      const service = new DisposableService()
+      await service._doInit()
+      await service._doStop()
+
+      expect(disposeFn).toHaveBeenCalledTimes(1)
+    })
+
+    it('should dispose registered disposables on destroy', async () => {
+      const disposeFn = vi.fn()
+
+      class DisposableService extends BaseService {
+        protected override async onInit() {
+          this.registerDisposable({ dispose: disposeFn })
+        }
+      }
+
+      const service = new DisposableService()
+      await service._doInit()
+      await service._doDestroy()
+
+      expect(disposeFn).toHaveBeenCalledTimes(1)
+    })
+
+    it('should cleanup disposables even when onStop throws', async () => {
+      const disposeFn = vi.fn()
+
+      class FailService extends BaseService {
+        protected override async onInit() {
+          this.registerDisposable({ dispose: disposeFn })
+        }
+        protected override async onStop() {
+          throw new Error('stop failed')
+        }
+      }
+
+      const service = new FailService()
+      await service._doInit()
+      await expect(service._doStop()).rejects.toThrow('stop failed')
+
+      expect(disposeFn).toHaveBeenCalledTimes(1)
+    })
+
+    it('restart cycle: disposables from first cycle should not leak into second', async () => {
+      let cycle = 0
+      const dispose1 = vi.fn()
+      const dispose2 = vi.fn()
+
+      class RestartDisposableService extends BaseService {
+        protected override async onInit() {
+          cycle++
+          this.registerDisposable({ dispose: cycle === 1 ? dispose1 : dispose2 })
+        }
+      }
+
+      const service = new RestartDisposableService()
+
+      // First cycle
+      await service._doInit()
+      await service._doStop()
+      expect(dispose1).toHaveBeenCalledTimes(1)
+
+      // Second cycle
+      await service._doInit()
+      await service._doStop()
+      expect(dispose2).toHaveBeenCalledTimes(1)
+      // First disposable should not be re-disposed
+      expect(dispose1).toHaveBeenCalledTimes(1)
+    })
+
+    it('double cleanup should be safe (no-op on empty array)', async () => {
+      const disposeFn = vi.fn()
+
+      class DoubleCleanupService extends BaseService {
+        protected override async onInit() {
+          this.registerDisposable({ dispose: disposeFn })
+        }
+      }
+
+      const service = new DoubleCleanupService()
+      await service._doInit()
+      await service._doStop()
+      await service._doDestroy()
+
+      expect(disposeFn).toHaveBeenCalledTimes(1)
     })
   })
 

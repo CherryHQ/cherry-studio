@@ -90,6 +90,13 @@
       "description": "Web search RAG rerank model reference id (provider::modelId, from complex migration)"
     },
     {
+      "targetKey": "feature.code_cli.overrides",
+      "type": "PreferenceTypes.CodeCliOverrides",
+      "defaultValue": "VALUE: {} as PreferenceTypes.CodeCliOverrides",
+      "status": "classified",
+      "description": "Complex migration: merge redux/codeTools (selectedCliTool, selectedModels, environmentVariables, directories, currentDirectory, selectedTerminal) into code CLI overrides"
+    },
+    {
       "targetKey": "chat.web_search.exclude_domains",
       "type": "string[]",
       "defaultValue": [],

@@ -272,8 +272,7 @@ const NewApiPage: FC<{ Options: string[] }> = ({ Options }) => {
           background: painting.background === 'auto' ? undefined : painting.background,
           n: painting.n,
           quality: painting.quality === 'auto' ? undefined : painting.quality,
-          moderation: painting.moderation === 'auto' ? undefined : painting.moderation,
-          response_format: 'b64_json'
+          moderation: painting.moderation === 'auto' ? undefined : painting.moderation
         }
 
         body = JSON.stringify(requestData)
@@ -341,7 +340,7 @@ const NewApiPage: FC<{ Options: string[] }> = ({ Options }) => {
           })
         )
         await FileManager.addFiles(validFiles)
-        updatePaintingState({ files: validFiles, urls: validFiles.map((file) => file.name) })
+        updatePaintingState({ files: validFiles, urls: [] })
       }
     } catch (error: unknown) {
       handleError(error)

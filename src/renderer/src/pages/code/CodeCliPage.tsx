@@ -6,7 +6,7 @@ import ModelSelector from '@renderer/components/ModelSelector'
 import { isMac, isWin } from '@renderer/config/constant'
 import { isEmbeddingModel, isRerankModel, isTextToImageModel } from '@renderer/config/models'
 import { usePersistCache } from '@renderer/data/hooks/useCache'
-import { useCodeTools } from '@renderer/hooks/useCodeTools'
+import { useCodeCli } from '@renderer/hooks/useCodeCli'
 import { useProviders } from '@renderer/hooks/useProvider'
 import { useTimer } from '@renderer/hooks/useTimer'
 import { getAssistantSettings, getProviderByModel } from '@renderer/services/AssistantService'
@@ -32,9 +32,9 @@ import {
   parseEnvironmentVariables
 } from '.'
 
-const logger = loggerService.withContext('CodeToolsPage')
+const logger = loggerService.withContext('CodeCliPage')
 
-const CodeToolsPage: FC = () => {
+const CodeCliPage: FC = () => {
   const { t } = useTranslation()
   const { providers } = useProviders()
   const [isBunInstalled, setIsBunInstalled] = usePersistCache('feature.mcp.is_bun_installed')
@@ -53,7 +53,7 @@ const CodeToolsPage: FC = () => {
     setCurrentDir,
     removeDir,
     selectFolder
-  } = useCodeTools()
+  } = useCodeCli()
   const { setTimeoutTimer } = useTimer()
 
   // Get default assistant settings for budget tokens calculation
@@ -90,9 +90,9 @@ const CodeToolsPage: FC = () => {
         if (m.provider === 'silicon') {
           return isSiliconAnthropicCompatibleModel(m.id)
         }
-        // Check if model belongs to an anthropic type provider (including custom providers)
-        const anthropicProvider = providers.find((p) => p.id === m.provider)
-        if (anthropicProvider?.type === 'anthropic') {
+        // Check if model belongs to an anthropic type provider or has anthropicApiHost
+        const modelProvider = providers.find((p) => p.id === m.provider)
+        if (modelProvider?.type === 'anthropic' || modelProvider?.anthropicApiHost) {
           return true
         }
         return m.id.includes('claude') || CLAUDE_OFFICIAL_SUPPORTED_PROVIDERS.includes(m.provider)
@@ -153,26 +153,34 @@ const CodeToolsPage: FC = () => {
     return filterFn ? filterFn(providers) : []
   }, [providers, selectedCliTool])
 
+  // Resolve a stored model ID string back to a full Model object
+  // TODO: remove after provider & model Merged
+  const resolveModel = useCallback(
+    (modelIdStr: string): Model | null => {
+      for (const provider of providers || []) {
+        const model = provider.models.find((m) => getModelUniqId(m) === modelIdStr)
+        if (model) return model
+      }
+      logger.warn(`Model not found for ID: ${modelIdStr}`)
+      return null
+    },
+    [providers]
+  )
+
   const handleModelChange = (value: string) => {
     if (!value) {
-      setModel(null)
+      setModel(null).catch((err) => logger.error('Failed to clear model:', err as Error))
       return
     }
 
-    // 从所有 providers 中查找选中的模型
-    for (const provider of providers || []) {
-      const model = provider.models.find((m) => getModelUniqId(m) === value)
-      if (model) {
-        setModel(model)
-        break
-      }
-    }
+    // Store the model unique ID string directly (v2: preference stores ID, not full Model)
+    setModel(value).catch((err) => logger.error('Failed to set model:', err as Error))
   }
 
   // 处理删除目录
   const handleRemoveDirectory = (directory: string, e: React.MouseEvent) => {
     e.stopPropagation()
-    removeDir(directory)
+    removeDir(directory).catch((err) => logger.error('Failed to remove directory:', err as Error))
   }
 
   // 检查 bun 是否安装
@@ -192,7 +200,7 @@ const CodeToolsPage: FC = () => {
 
     try {
       setIsLoadingTerminals(true)
-      const terminals = await window.api.codeTools.getAvailableTerminals()
+      const terminals = await window.api.codeCli.getAvailableTerminals()
       setAvailableTerminals(terminals)
       logger.info(
         `Found ${terminals.length} available terminals:`,
@@ -250,7 +258,11 @@ const CodeToolsPage: FC = () => {
 
     if (!selectedModel) return null
 
-    const modelProvider = getProviderByModel(selectedModel)
+    // Resolve full Model object from stored ID string
+    const resolvedModel = resolveModel(selectedModel)
+    if (!resolvedModel) return null
+
+    const modelProvider = getProviderByModel(resolvedModel)
     const aiProvider = new AiProvider(modelProvider)
     const baseUrl = aiProvider.getBaseURL()
     const apiKey = aiProvider.getApiKey()
@@ -258,7 +270,7 @@ const CodeToolsPage: FC = () => {
     // 生成工具特定的环境变量
     const { env: toolEnv } = generateToolEnvironment({
       tool: selectedCliTool,
-      model: selectedModel,
+      model: resolvedModel,
       modelProvider,
       apiKey,
       baseUrl,
@@ -273,14 +285,20 @@ const CodeToolsPage: FC = () => {
 
   // 执行启动操作
   const executeLaunch = async (env: Record<string, string>) => {
-    const modelId = selectedCliTool === codeCLI.githubCopilotCli ? '' : selectedModel?.id!
+    const resolvedModel = selectedModel ? resolveModel(selectedModel) : null
+    if (selectedCliTool !== codeCLI.githubCopilotCli && !resolvedModel) {
+      logger.warn('Cannot launch: model could not be resolved')
+      window.toast.error(t('code.model_required'))
+      return
+    }
+    const modelId = selectedCliTool === codeCLI.githubCopilotCli ? '' : (resolvedModel?.id ?? '')
 
     const runOptions = {
       autoUpdateToLatest,
       terminal: selectedTerminal
     }
 
-    void window.api.codeTools.run(selectedCliTool, modelId, currentDirectory, env, runOptions)
+    void window.api.codeCli.run(selectedCliTool, modelId, currentDirectory, env, runOptions)
     window.toast.success(t('code.launch.success'))
   }
 
@@ -297,7 +315,7 @@ const CodeToolsPage: FC = () => {
 
       if (result && result.length > 0) {
         const path = result[0].path
-        await window.api.codeTools.setCustomTerminalPath(terminalId, path)
+        await window.api.codeCli.setCustomTerminalPath(terminalId, path)
         setTerminalCustomPaths((prev) => ({ ...prev, [terminalId]: path }))
         window.toast.success(t('code.custom_path_set'))
         // Reload terminals to reflect changes
@@ -404,7 +422,7 @@ const CodeToolsPage: FC = () => {
                   predicate={modelPredicate}
                   style={{ width: '100%' }}
                   placeholder={t('code.model_placeholder')}
-                  value={selectedModel ? getModelUniqId(selectedModel) : undefined}
+                  value={selectedModel || undefined}
                   onChange={handleModelChange}
                   allowClear
                 />
@@ -605,4 +623,4 @@ const BunInstallAlert = styled.div`
   margin-bottom: 24px;
 `
 
-export default CodeToolsPage
+export default CodeCliPage

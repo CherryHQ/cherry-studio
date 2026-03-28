@@ -20,25 +20,10 @@ type SyncOptions = {
  * 4. Handles window subscription and unsubscription logic
  */
 export class StoreSyncService {
-  private static instance: StoreSyncService
   private options: SyncOptions = {
     syncList: []
   }
   private broadcastSyncRemover: (() => void) | null = null
-
-  private constructor() {
-    return
-  }
-
-  /**
-   * Get the singleton instance of StoreSyncService
-   */
-  public static getInstance(): StoreSyncService {
-    if (!StoreSyncService.instance) {
-      StoreSyncService.instance = new StoreSyncService()
-    }
-    return StoreSyncService.instance
-  }
 
   /**
    * Set sync options
@@ -133,5 +118,4 @@ export class StoreSyncService {
   }
 }
 
-// Export singleton instance
-export default StoreSyncService.getInstance()
+export const storeSyncService = new StoreSyncService()

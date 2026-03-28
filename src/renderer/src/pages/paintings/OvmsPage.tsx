@@ -220,7 +220,7 @@ const OvmsPage: FC<{ Options: string[] }> = ({ Options }) => {
             })
           )
           await FileManager.addFiles(validFiles)
-          updatePaintingState({ files: validFiles, urls: validFiles.map((file) => file.name) })
+          updatePaintingState({ files: validFiles, urls: [] })
         }
 
         // Handle URL-based images if available

@@ -1,28 +1,31 @@
 import { EventEmitter } from 'events'
-import { afterEach, beforeEach, describe, expect, it, type Mock, vi } from 'vitest'
+import { beforeEach, describe, expect, it, type Mock, vi } from 'vitest'
 
-// Create mock objects before vi.mock calls
-const mockLogger = {
-  info: vi.fn(),
-  warn: vi.fn(),
-  error: vi.fn()
-}
-
-let mockMainWindow: {
-  isDestroyed: Mock
-  webContents: { send: Mock }
-} | null = null
-
-let mockBrowser: EventEmitter & {
-  start: Mock
-  stop: Mock
-  removeAllListeners: Mock
-}
-
-let mockBonjour: {
-  find: Mock
-  destroy: Mock
-}
+// Use vi.hoisted() so mock variables are available in hoisted vi.mock() factories
+const { mockLogger, mocks } = vi.hoisted(() => ({
+  mockLogger: {
+    info: vi.fn(),
+    warn: vi.fn(),
+    error: vi.fn()
+  },
+  mocks: {
+    mainWindow: null as {
+      isDestroyed: Mock
+      webContents: { send: Mock }
+    } | null,
+    browser: null as
+      | (EventEmitter & {
+          start: Mock
+          stop: Mock
+          removeAllListeners: Mock
+        })
+      | null,
+    bonjour: null as {
+      find: Mock
+      destroy: Mock
+    } | null
+  }
+}))
 
 // Mock dependencies before importing the service
 vi.mock('@logger', () => ({
@@ -31,61 +34,91 @@ vi.mock('@logger', () => ({
   }
 }))
 
-vi.mock('../WindowService', () => ({
-  windowService: {
-    getMainWindow: vi.fn(() => mockMainWindow)
+vi.mock('@main/core/application', () => ({
+  application: {
+    get: vi.fn((name: string) => {
+      if (name === 'WindowService') {
+        return { getMainWindow: vi.fn(() => mocks.mainWindow) }
+      }
+      throw new Error(`[MockApplication] Unknown service: ${name}`)
+    })
   }
 }))
 
 vi.mock('bonjour-service', () => ({
-  default: vi.fn(() => mockBonjour)
+  default: vi.fn(() => mocks.bonjour)
 }))
+
+vi.mock('@main/core/lifecycle', () => {
+  class MockBaseService {
+    ipcHandle = vi.fn()
+  }
+  return {
+    BaseService: MockBaseService,
+    Injectable: () => (target: unknown) => target,
+    ServicePhase: () => (target: unknown) => target,
+    Phase: { Background: 'background', WhenReady: 'whenReady', BeforeReady: 'beforeReady' }
+  }
+})
+
+import { LocalTransferService } from '../LocalTransferService'
+
+function createService(): LocalTransferService {
+  return new LocalTransferService()
+}
 
 describe('LocalTransferService', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    vi.resetModules()
 
     // Reset mock objects
-    mockMainWindow = {
+    mocks.mainWindow = {
       isDestroyed: vi.fn(() => false),
       webContents: { send: vi.fn() }
     }
 
-    mockBrowser = Object.assign(new EventEmitter(), {
+    mocks.browser = Object.assign(new EventEmitter(), {
       start: vi.fn(),
       stop: vi.fn(),
       removeAllListeners: vi.fn()
     })
 
-    mockBonjour = {
-      find: vi.fn(() => mockBrowser),
+    mocks.bonjour = {
+      find: vi.fn(() => mocks.browser),
       destroy: vi.fn()
     }
   })
 
-  afterEach(() => {
-    vi.resetAllMocks()
+  describe('onInit', () => {
+    it('should register IPC handlers and start discovery on init', async () => {
+      const service = createService()
+      await (service as any).onInit()
+
+      expect((service as any).ipcHandle).toHaveBeenCalledTimes(3)
+      expect(mocks.bonjour!.find).toHaveBeenCalledWith({ type: 'cherrystudio', protocol: 'tcp' })
+      expect(mocks.browser!.start).toHaveBeenCalled()
+      expect(service.getState().isScanning).toBe(true)
+    })
   })
 
   describe('startDiscovery', () => {
-    it('should set isScanning to true and start browser', async () => {
-      const { localTransferService } = await import('../LocalTransferService')
+    it('should set isScanning to true and start browser', () => {
+      const service = createService()
 
-      const state = localTransferService.startDiscovery()
+      const state = service.startDiscovery()
 
       expect(state.isScanning).toBe(true)
       expect(state.lastScanStartedAt).toBeDefined()
-      expect(mockBonjour.find).toHaveBeenCalledWith({ type: 'cherrystudio', protocol: 'tcp' })
-      expect(mockBrowser.start).toHaveBeenCalled()
+      expect(mocks.bonjour!.find).toHaveBeenCalledWith({ type: 'cherrystudio', protocol: 'tcp' })
+      expect(mocks.browser!.start).toHaveBeenCalled()
     })
 
-    it('should clear services when resetList is true', async () => {
-      const { localTransferService } = await import('../LocalTransferService')
+    it('should clear services when resetList is true', () => {
+      const service = createService()
 
       // First, start discovery and add a service
-      localTransferService.startDiscovery()
-      mockBrowser.emit('up', {
+      service.startDiscovery()
+      mocks.browser!.emit('up', {
         name: 'Test Service',
         host: 'localhost',
         port: 12345,
@@ -93,30 +126,30 @@ describe('LocalTransferService', () => {
         fqdn: 'test.local'
       })
 
-      expect(localTransferService.getState().services).toHaveLength(1)
+      expect(service.getState().services).toHaveLength(1)
 
       // Now restart with resetList
-      const state = localTransferService.startDiscovery({ resetList: true })
+      const state = service.startDiscovery({ resetList: true })
 
       expect(state.services).toHaveLength(0)
     })
 
-    it('should broadcast state after starting discovery', async () => {
-      const { localTransferService } = await import('../LocalTransferService')
+    it('should broadcast state after starting discovery', () => {
+      const service = createService()
 
-      localTransferService.startDiscovery()
+      service.startDiscovery()
 
-      expect(mockMainWindow?.webContents.send).toHaveBeenCalled()
+      expect(mocks.mainWindow?.webContents.send).toHaveBeenCalled()
     })
 
-    it('should handle browser.start() error', async () => {
-      mockBrowser.start.mockImplementation(() => {
+    it('should handle browser.start() error', () => {
+      mocks.browser!.start.mockImplementation(() => {
         throw new Error('Failed to start mDNS')
       })
 
-      const { localTransferService } = await import('../LocalTransferService')
+      const service = createService()
 
-      const state = localTransferService.startDiscovery()
+      const state = service.startDiscovery()
 
       expect(state.lastError).toBe('Failed to start mDNS')
       expect(mockLogger.error).toHaveBeenCalled()
@@ -124,49 +157,49 @@ describe('LocalTransferService', () => {
   })
 
   describe('stopDiscovery', () => {
-    it('should set isScanning to false and stop browser', async () => {
-      const { localTransferService } = await import('../LocalTransferService')
+    it('should set isScanning to false and stop browser', () => {
+      const service = createService()
 
-      localTransferService.startDiscovery()
-      const state = localTransferService.stopDiscovery()
+      service.startDiscovery()
+      const state = service.stopDiscovery()
 
       expect(state.isScanning).toBe(false)
-      expect(mockBrowser.stop).toHaveBeenCalled()
+      expect(mocks.browser!.stop).toHaveBeenCalled()
     })
 
-    it('should handle browser.stop() error gracefully', async () => {
-      mockBrowser.stop.mockImplementation(() => {
+    it('should handle browser.stop() error gracefully', () => {
+      mocks.browser!.stop.mockImplementation(() => {
         throw new Error('Stop failed')
       })
 
-      const { localTransferService } = await import('../LocalTransferService')
+      const service = createService()
 
-      localTransferService.startDiscovery()
+      service.startDiscovery()
 
       // Should not throw
-      expect(() => localTransferService.stopDiscovery()).not.toThrow()
+      expect(() => service.stopDiscovery()).not.toThrow()
       expect(mockLogger.warn).toHaveBeenCalled()
     })
 
-    it('should broadcast state after stopping', async () => {
-      const { localTransferService } = await import('../LocalTransferService')
+    it('should broadcast state after stopping', () => {
+      const service = createService()
 
-      localTransferService.startDiscovery()
+      service.startDiscovery()
       vi.clearAllMocks()
 
-      localTransferService.stopDiscovery()
+      service.stopDiscovery()
 
-      expect(mockMainWindow?.webContents.send).toHaveBeenCalled()
+      expect(mocks.mainWindow?.webContents.send).toHaveBeenCalled()
     })
   })
 
   describe('browser events', () => {
-    it('should add service on "up" event', async () => {
-      const { localTransferService } = await import('../LocalTransferService')
+    it('should add service on "up" event', () => {
+      const service = createService()
 
-      localTransferService.startDiscovery()
+      service.startDiscovery()
 
-      mockBrowser.emit('up', {
+      mocks.browser!.emit('up', {
         name: 'Test Service',
         host: 'localhost',
         port: 12345,
@@ -176,20 +209,20 @@ describe('LocalTransferService', () => {
         protocol: 'tcp'
       })
 
-      const state = localTransferService.getState()
+      const state = service.getState()
       expect(state.services).toHaveLength(1)
       expect(state.services[0].name).toBe('Test Service')
       expect(state.services[0].port).toBe(12345)
       expect(state.services[0].addresses).toContain('192.168.1.100')
     })
 
-    it('should remove service on "down" event', async () => {
-      const { localTransferService } = await import('../LocalTransferService')
+    it('should remove service on "down" event', () => {
+      const service = createService()
 
-      localTransferService.startDiscovery()
+      service.startDiscovery()
 
       // Add service
-      mockBrowser.emit('up', {
+      mocks.browser!.emit('up', {
         name: 'Test Service',
         host: 'localhost',
         port: 12345,
@@ -197,75 +230,75 @@ describe('LocalTransferService', () => {
         fqdn: 'test.local'
       })
 
-      expect(localTransferService.getState().services).toHaveLength(1)
+      expect(service.getState().services).toHaveLength(1)
 
       // Remove service
-      mockBrowser.emit('down', {
+      mocks.browser!.emit('down', {
         name: 'Test Service',
         host: 'localhost',
         port: 12345,
         fqdn: 'test.local'
       })
 
-      expect(localTransferService.getState().services).toHaveLength(0)
+      expect(service.getState().services).toHaveLength(0)
       expect(mockLogger.info).toHaveBeenCalledWith(expect.stringContaining('removed'))
     })
 
-    it('should set lastError on "error" event', async () => {
-      const { localTransferService } = await import('../LocalTransferService')
+    it('should set lastError on "error" event', () => {
+      const service = createService()
 
-      localTransferService.startDiscovery()
+      service.startDiscovery()
 
-      mockBrowser.emit('error', new Error('Discovery failed'))
+      mocks.browser!.emit('error', new Error('Discovery failed'))
 
-      const state = localTransferService.getState()
+      const state = service.getState()
       expect(state.lastError).toBe('Discovery failed')
       expect(mockLogger.error).toHaveBeenCalled()
     })
 
-    it('should handle non-Error objects in error event', async () => {
-      const { localTransferService } = await import('../LocalTransferService')
+    it('should handle non-Error objects in error event', () => {
+      const service = createService()
 
-      localTransferService.startDiscovery()
+      service.startDiscovery()
 
-      mockBrowser.emit('error', 'String error message')
+      mocks.browser!.emit('error', 'String error message')
 
-      const state = localTransferService.getState()
+      const state = service.getState()
       expect(state.lastError).toBe('String error message')
     })
   })
 
   describe('getState', () => {
-    it('should return sorted services by name', async () => {
-      const { localTransferService } = await import('../LocalTransferService')
+    it('should return sorted services by name', () => {
+      const service = createService()
 
-      localTransferService.startDiscovery()
+      service.startDiscovery()
 
-      mockBrowser.emit('up', {
+      mocks.browser!.emit('up', {
         name: 'Zebra Service',
         host: 'host1',
         port: 1001,
         addresses: ['192.168.1.1']
       })
 
-      mockBrowser.emit('up', {
+      mocks.browser!.emit('up', {
         name: 'Alpha Service',
         host: 'host2',
         port: 1002,
         addresses: ['192.168.1.2']
       })
 
-      const state = localTransferService.getState()
+      const state = service.getState()
       expect(state.services[0].name).toBe('Alpha Service')
       expect(state.services[1].name).toBe('Zebra Service')
     })
 
-    it('should include all state properties', async () => {
-      const { localTransferService } = await import('../LocalTransferService')
+    it('should include all state properties', () => {
+      const service = createService()
 
-      localTransferService.startDiscovery()
+      service.startDiscovery()
 
-      const state = localTransferService.getState()
+      const state = service.getState()
 
       expect(state).toHaveProperty('services')
       expect(state).toHaveProperty('isScanning')
@@ -275,12 +308,12 @@ describe('LocalTransferService', () => {
   })
 
   describe('getPeerById', () => {
-    it('should return peer when exists', async () => {
-      const { localTransferService } = await import('../LocalTransferService')
+    it('should return peer when exists', () => {
+      const service = createService()
 
-      localTransferService.startDiscovery()
+      service.startDiscovery()
 
-      mockBrowser.emit('up', {
+      mocks.browser!.emit('up', {
         name: 'Test Service',
         host: 'localhost',
         port: 12345,
@@ -288,29 +321,29 @@ describe('LocalTransferService', () => {
         fqdn: 'test.local'
       })
 
-      const services = localTransferService.getState().services
-      const peer = localTransferService.getPeerById(services[0].id)
+      const services = service.getState().services
+      const peer = service.getPeerById(services[0].id)
 
       expect(peer).toBeDefined()
       expect(peer?.name).toBe('Test Service')
     })
 
-    it('should return undefined when peer does not exist', async () => {
-      const { localTransferService } = await import('../LocalTransferService')
+    it('should return undefined when peer does not exist', () => {
+      const service = createService()
 
-      const peer = localTransferService.getPeerById('non-existent-id')
+      const peer = service.getPeerById('non-existent-id')
 
       expect(peer).toBeUndefined()
     })
   })
 
   describe('normalizeService', () => {
-    it('should deduplicate addresses', async () => {
-      const { localTransferService } = await import('../LocalTransferService')
+    it('should deduplicate addresses', () => {
+      const service = createService()
 
-      localTransferService.startDiscovery()
+      service.startDiscovery()
 
-      mockBrowser.emit('up', {
+      mocks.browser!.emit('up', {
         name: 'Test Service',
         host: 'localhost',
         port: 12345,
@@ -318,34 +351,34 @@ describe('LocalTransferService', () => {
         referer: { address: '192.168.1.100' }
       })
 
-      const services = localTransferService.getState().services
+      const services = service.getState().services
       expect(services[0].addresses).toHaveLength(2)
       expect(services[0].addresses).toContain('192.168.1.100')
       expect(services[0].addresses).toContain('10.0.0.1')
     })
 
-    it('should filter empty addresses', async () => {
-      const { localTransferService } = await import('../LocalTransferService')
+    it('should filter empty addresses', () => {
+      const service = createService()
 
-      localTransferService.startDiscovery()
+      service.startDiscovery()
 
-      mockBrowser.emit('up', {
+      mocks.browser!.emit('up', {
         name: 'Test Service',
         host: 'localhost',
         port: 12345,
         addresses: ['192.168.1.100', '', null as any]
       })
 
-      const services = localTransferService.getState().services
+      const services = service.getState().services
       expect(services[0].addresses).toEqual(['192.168.1.100'])
     })
 
-    it('should convert txt null/undefined values to empty strings', async () => {
-      const { localTransferService } = await import('../LocalTransferService')
+    it('should convert txt null/undefined values to empty strings', () => {
+      const service = createService()
 
-      localTransferService.startDiscovery()
+      service.startDiscovery()
 
-      mockBrowser.emit('up', {
+      mocks.browser!.emit('up', {
         name: 'Test Service',
         host: 'localhost',
         port: 12345,
@@ -358,7 +391,7 @@ describe('LocalTransferService', () => {
         }
       })
 
-      const services = localTransferService.getState().services
+      const services = service.getState().services
       expect(services[0].txt).toEqual({
         version: '1.0',
         nullValue: '',
@@ -367,12 +400,12 @@ describe('LocalTransferService', () => {
       })
     })
 
-    it('should not include txt when empty', async () => {
-      const { localTransferService } = await import('../LocalTransferService')
+    it('should not include txt when empty', () => {
+      const service = createService()
 
-      localTransferService.startDiscovery()
+      service.startDiscovery()
 
-      mockBrowser.emit('up', {
+      mocks.browser!.emit('up', {
         name: 'Test Service',
         host: 'localhost',
         port: 12345,
@@ -380,102 +413,100 @@ describe('LocalTransferService', () => {
         txt: {}
       })
 
-      const services = localTransferService.getState().services
+      const services = service.getState().services
       expect(services[0].txt).toBeUndefined()
     })
   })
 
-  describe('dispose', () => {
+  describe('onStop', () => {
     it('should clean up all resources', async () => {
-      const { localTransferService } = await import('../LocalTransferService')
+      const service = createService()
 
-      localTransferService.startDiscovery()
+      service.startDiscovery()
 
-      mockBrowser.emit('up', {
+      mocks.browser!.emit('up', {
         name: 'Test Service',
         host: 'localhost',
         port: 12345,
         addresses: ['192.168.1.100']
       })
 
-      localTransferService.dispose()
+      await (service as any).onStop()
 
-      expect(localTransferService.getState().services).toHaveLength(0)
-      expect(localTransferService.getState().isScanning).toBe(false)
-      expect(mockBrowser.removeAllListeners).toHaveBeenCalled()
-      expect(mockBonjour.destroy).toHaveBeenCalled()
+      expect(service.getState().services).toHaveLength(0)
+      expect(service.getState().isScanning).toBe(false)
+      expect(mocks.browser!.removeAllListeners).toHaveBeenCalled()
+      expect(mocks.bonjour!.destroy).toHaveBeenCalled()
     })
 
     it('should handle bonjour.destroy() error gracefully', async () => {
-      mockBonjour.destroy.mockImplementation(() => {
+      mocks.bonjour!.destroy.mockImplementation(() => {
         throw new Error('Destroy failed')
       })
 
-      const { localTransferService } = await import('../LocalTransferService')
+      const service = createService()
 
-      localTransferService.startDiscovery()
+      service.startDiscovery()
 
       // Should not throw
-      expect(() => localTransferService.dispose()).not.toThrow()
+      await expect((service as any).onStop()).resolves.not.toThrow()
       expect(mockLogger.warn).toHaveBeenCalled()
     })
 
     it('should be safe to call multiple times', async () => {
-      const { localTransferService } = await import('../LocalTransferService')
+      const service = createService()
 
-      localTransferService.startDiscovery()
+      service.startDiscovery()
 
-      expect(() => {
-        localTransferService.dispose()
-        localTransferService.dispose()
-      }).not.toThrow()
+      await (service as any).onStop()
+      await expect((service as any).onStop()).resolves.not.toThrow()
     })
   })
 
   describe('broadcastState', () => {
-    it('should not throw when main window is null', async () => {
-      mockMainWindow = null
+    it('should not throw when main window is null', () => {
+      mocks.mainWindow = null
 
-      const { localTransferService } = await import('../LocalTransferService')
+      const service = createService()
 
       // Should not throw
-      expect(() => localTransferService.startDiscovery()).not.toThrow()
+      expect(() => service.startDiscovery()).not.toThrow()
     })
 
-    it('should not throw when main window is destroyed', async () => {
-      mockMainWindow = {
+    it('should not throw when main window is destroyed', () => {
+      mocks.mainWindow = {
         isDestroyed: vi.fn(() => true),
         webContents: { send: vi.fn() }
       }
 
-      const { localTransferService } = await import('../LocalTransferService')
+      const service = createService()
 
       // Should not throw
-      expect(() => localTransferService.startDiscovery()).not.toThrow()
-      expect(mockMainWindow.webContents.send).not.toHaveBeenCalled()
+      expect(() => service.startDiscovery()).not.toThrow()
+      expect(mocks.mainWindow.webContents.send).not.toHaveBeenCalled()
     })
   })
 
   describe('restartBrowser', () => {
-    it('should destroy old bonjour instance to prevent socket leaks', async () => {
-      const { localTransferService } = await import('../LocalTransferService')
+    it('should destroy old bonjour instance to prevent socket leaks', () => {
+      const service = createService()
 
       // First start
-      localTransferService.startDiscovery()
-      expect(mockBonjour.destroy).not.toHaveBeenCalled()
+      service.startDiscovery()
+      expect(mocks.bonjour!.destroy).not.toHaveBeenCalled()
 
       // Restart - should destroy old instance
-      localTransferService.startDiscovery()
-      expect(mockBonjour.destroy).toHaveBeenCalled()
+      service.startDiscovery()
+      expect(mocks.bonjour!.destroy).toHaveBeenCalled()
     })
 
-    it('should remove all listeners from old browser', async () => {
-      const { localTransferService } = await import('../LocalTransferService')
+    it('should remove all listeners from old browser', () => {
+      const service = createService()
 
-      localTransferService.startDiscovery()
-      localTransferService.startDiscovery()
+      service.startDiscovery()
+      service.startDiscovery()
 
-      expect(mockBrowser.removeAllListeners).toHaveBeenCalled()
+      expect(mocks.browser!.removeAllListeners).toHaveBeenCalled()
     })
   })
 })

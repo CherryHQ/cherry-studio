@@ -1,5 +1,7 @@
-import type { MinAppType, Topic, WebSearchStatus } from '@types'
+import type { MinAppType, Topic } from '@types'
 import type { UpdateInfo } from 'builder-util-runtime'
+
+import type { WebSearchStatus } from '../types/webSearch'
 
 export type CacheAppUpdateState = {
   info: UpdateInfo | null

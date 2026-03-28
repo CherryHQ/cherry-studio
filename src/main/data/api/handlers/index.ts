@@ -14,6 +14,7 @@
 import type { ApiImplementation } from '@shared/data/api/apiTypes'
 
 import { fileProcessingHandlers } from './fileProcessing'
+import { mcpServerHandlers } from './mcpServers'
 import { messageHandlers } from './messages'
 import { testHandlers } from './test'
 import { topicHandlers } from './topics'
@@ -31,5 +32,6 @@ export const apiHandlers: ApiImplementation = {
   ...testHandlers,
   ...topicHandlers,
   ...messageHandlers,
-  ...translateHandlers
+  ...translateHandlers,
+  ...mcpServerHandlers
 }

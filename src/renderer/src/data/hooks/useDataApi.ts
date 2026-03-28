@@ -329,7 +329,7 @@ export function useMutation<TPath extends ConcreteApiPaths, TMethod extends 'POS
 
     // Apply optimistic update if optimisticData is provided
     if (hasOptimisticData) {
-      await globalMutate([path], opts!.optimisticData, false)
+      await globalMutate([path], opts.optimisticData, false)
     }
 
     try {

@@ -19,18 +19,13 @@ import { loggerService } from '@logger'
 import { autoRenameTopic } from '@renderer/hooks/useTopic'
 import i18n from '@renderer/i18n'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
-import { NotificationService } from '@renderer/services/NotificationService'
+import { notificationService } from '@renderer/services/NotificationService'
 import { estimateMessagesUsage } from '@renderer/services/TokenService'
 import store from '@renderer/store'
 import { toolPermissionsActions } from '@renderer/store/toolPermissions'
 import type { Assistant } from '@renderer/types'
 import { ERROR_I18N_KEY_REQUEST_TIMEOUT, ERROR_I18N_KEY_STREAM_PAUSED } from '@renderer/types/error'
-import type {
-  PlaceholderMessageBlock,
-  Response,
-  ThinkingMessageBlock,
-  ToolMessageBlock
-} from '@renderer/types/newMessage'
+import type { PlaceholderMessageBlock, Response, ThinkingMessageBlock } from '@renderer/types/newMessage'
 import { AssistantMessageStatus, MessageBlockStatus, MessageBlockType } from '@renderer/types/newMessage'
 import { uuid } from '@renderer/utils'
 import { trackTokenUsage } from '@renderer/utils/analytics'
@@ -64,7 +59,7 @@ export const createBaseCallbacks = (deps: BaseCallbacksDependencies) => {
   const { blockManager, topicId, assistantMsgId, assistant, getCurrentThinkingInfo } = deps
 
   const startTime = Date.now()
-  const notificationService = NotificationService.getInstance()
+  // notificationService is imported as a module-level singleton
 
   /**
    * Find the block ID that should receive completion updates.
@@ -191,7 +186,7 @@ export const createBaseCallbacks = (deps: BaseCallbacksDependencies) => {
           // 当用户点击停止时，tool blocks 的 UI 状态依赖 rawMcpToolResponse.status，
           // 而不是 MessageBlockStatus，所以需要单独更新
           if (block.type === MessageBlockType.TOOL) {
-            const toolBlock = block as ToolMessageBlock
+            const toolBlock = block
             const toolResponse = toolBlock.metadata?.rawMcpToolResponse
             const toolStatus = toolResponse?.status
             if (

@@ -229,7 +229,7 @@ export function useScrollToLine(editorViewRef: React.MutableRefObject<EditorView
   }, [])
 
   const highlightLine = useCallback((view: EditorView, element: HTMLElement) => {
-    const previousHighlight = view.dom.querySelector('.animation-locate-highlight') as HTMLElement | null
+    const previousHighlight = view.dom.querySelector('.animation-locate-highlight')
     if (previousHighlight) {
       previousHighlight.classList.remove('animation-locate-highlight')
     }

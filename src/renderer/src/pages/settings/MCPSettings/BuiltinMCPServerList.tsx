@@ -31,13 +31,17 @@ const BuiltinMCPServerList: FC = () => {
                     type="text"
                     icon={isInstalled ? <CheckOutlined style={{ color: 'var(--color-primary)' }} /> : <PlusOutlined />}
                     size="small"
-                    onClick={() => {
+                    onClick={async () => {
                       if (isInstalled) {
                         return
                       }
 
-                      addMCPServer(server)
-                      window.toast.success(t('settings.mcp.addSuccess'))
+                      try {
+                        await addMCPServer(server)
+                        window.toast.success(t('settings.mcp.addSuccess'))
+                      } catch {
+                        window.toast.error(t('settings.mcp.addError'))
+                      }
                     }}
                     disabled={isInstalled}
                   />

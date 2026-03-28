@@ -38,7 +38,7 @@ export const ProviderAvatarPrimitive: React.FC<ProviderAvatarPrimitiveProps> = (
 
   // If logo is a CompoundIcon, render its Avatar sub-component
   if (resolvedLogo && typeof resolvedLogo !== 'string') {
-    const Icon = resolvedLogo as CompoundIcon
+    const Icon = resolvedLogo
     const resolvedSize = size ?? (style?.width as number | undefined)
     return <Icon.Avatar size={resolvedSize} className={className} />
   }

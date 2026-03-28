@@ -2,7 +2,7 @@ import { usePreference } from '@data/hooks/usePreference'
 import { allMinApps } from '@renderer/config/minapps'
 import { useMinapps } from '@renderer/hooks/useMinapps'
 import NavigationService from '@renderer/services/NavigationService'
-import TabsService from '@renderer/services/TabsService'
+import { tabsService } from '@renderer/services/TabsService'
 import type { MinAppType } from '@renderer/types'
 import { clearWebviewState } from '@renderer/utils/webviewStateManager'
 import { LRUCache } from 'lru-cache'
@@ -47,10 +47,10 @@ export const useMinappPopup = () => {
         clearWebviewState(key)
 
         // Close corresponding tab if it exists
-        const tabs = TabsService.getTabs()
+        const tabs = tabsService.getTabs()
         const tabToClose = tabs.find((tab) => tab.path === `/apps/${key}`)
         if (tabToClose) {
-          TabsService.closeTab(tabToClose.id)
+          tabsService.closeTab(tabToClose.id)
         }
 
         // Update Redux state

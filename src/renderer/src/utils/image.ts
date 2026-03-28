@@ -308,7 +308,7 @@ export async function captureScrollableIframe(
   let injectedFontStyle: HTMLStyleElement | null = null
 
   const ensureFontStyle = (css: string): HTMLStyleElement => {
-    const EXISTING = doc.head.querySelector('style[data-cs-inline-fonts="true"]') as HTMLStyleElement | null
+    const EXISTING = doc.head.querySelector<HTMLStyleElement>('style[data-cs-inline-fonts="true"]')
     if (EXISTING) {
       if (css && css.trim()) {
         EXISTING.textContent = `${EXISTING.textContent || ''}\n${css}`
