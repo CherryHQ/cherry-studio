@@ -22,7 +22,8 @@ export class SearchService {
       webPreferences: {
         nodeIntegration: true,
         contextIsolation: false,
-        devTools: is.dev
+        devTools: is.dev,
+        offscreen: !show // 根据传递进来的 show 控制是否开启离屏幕渲染
       }
     })
 
