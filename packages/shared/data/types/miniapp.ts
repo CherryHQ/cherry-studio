@@ -10,8 +10,8 @@ export interface MiniApp {
   type: 'default' | 'custom'
   status: 'enabled' | 'disabled' | 'pinned'
   sortOrder: number
-  name?: string
-  url?: string
+  name: string
+  url: string
   logo?: string
   bordered?: boolean
   background?: string
