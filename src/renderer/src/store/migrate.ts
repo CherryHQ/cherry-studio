@@ -259,6 +259,7 @@ const migrateConfig = {
   '5': (state: RootState) => {
     try {
       addProvider(state, 'moonshot')
+      addProvider(state, 'kimi-code')
       return state
     } catch (error) {
       return state
@@ -2771,6 +2772,9 @@ const migrateConfig = {
             provider.anthropicApiHost = 'https://api.deepseek.com/anthropic'
             break
           case 'moonshot':
+            provider.anthropicApiHost = 'https://api.moonshot.cn/anthropic'
+            break
+          case 'kimi-code':
             provider.anthropicApiHost = 'https://api.moonshot.cn/anthropic'
             break
           case 'zhipu':
