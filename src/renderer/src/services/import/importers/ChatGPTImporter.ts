@@ -52,7 +52,7 @@ interface ChatGPTConversation {
  */
 export class ChatGPTImporter implements ConversationImporter {
   readonly name = 'ChatGPT'
-  readonly emoji = '💬'
+  readonly emoji = '🍒'
 
   /**
    * Validate if the file content is a valid ChatGPT export
