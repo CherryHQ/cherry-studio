@@ -384,7 +384,7 @@ const ProviderList: FC<ProviderListProps> = ({ isOnboarding = false }) => {
   )
 
   return (
-    <Container className="selectable">
+    <Container className={isOnboarding ? 'selectable onboarding' : 'selectable'}>
       <ProviderListContainer>
         <AddButtonWrapper>
           <Input
