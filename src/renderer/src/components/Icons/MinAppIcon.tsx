@@ -1,5 +1,6 @@
 import type { CompoundIcon } from '@cherrystudio/ui'
 import { allMinApps } from '@renderer/config/minapps'
+import { getMiniAppsLogo } from '@renderer/config/minapps'
 import type { MinAppType } from '@renderer/types'
 import type { FC } from 'react'
 
@@ -16,7 +17,7 @@ const MinAppIcon: FC<Props> = ({ app, size = 48, style, sidebar = false }) => {
 
   // If found in allMinApps, use predefined styling
   if (_app) {
-    const logo = _app.logo
+    const logo = getMiniAppsLogo(_app.logo)
 
     // CompoundIcon: render its Avatar sub-component
     if (logo && typeof logo !== 'string') {

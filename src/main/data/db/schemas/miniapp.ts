@@ -7,8 +7,6 @@
 
 import { index, integer, sqliteTable, text } from 'drizzle-orm/sqlite-core'
 
-import { createUpdateTimestamps } from './_columnHelpers'
-
 export type MiniAppStatus = 'enabled' | 'disabled' | 'pinned'
 
 export type MiniAppType = 'default' | 'custom'
@@ -49,9 +47,7 @@ export const miniappTable = sqliteTable(
     configuration: text({ mode: 'json' }),
 
     // i18n key for translatable names
-    nameKey: text(),
-
-    ...createUpdateTimestamps
+    nameKey: text()
   },
   (t) => [
     index('miniapp_status_sort_idx').on(t.status, t.sortOrder),

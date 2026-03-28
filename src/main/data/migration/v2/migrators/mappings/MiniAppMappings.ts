@@ -25,17 +25,6 @@ function normalizeType(raw: unknown): 'default' | 'custom' {
   return 'default'
 }
 
-function parseAddTime(raw: unknown): number | undefined {
-  if (raw == null) return undefined
-  // Accept both ISO string and numeric timestamp
-  if (typeof raw === 'number') return Number.isFinite(raw) ? raw : undefined
-  if (typeof raw === 'string') {
-    const ts = new Date(raw).getTime()
-    return Number.isNaN(ts) ? undefined : ts
-  }
-  return undefined
-}
-
 /**
  * [v2] Built-in app ID to logo key mapping.
  * Maps app IDs to their corresponding icon keys for the v2 icon resolution system.
@@ -138,9 +127,6 @@ export function transformMiniApp(
     bordered: toRequired(source.bodered ?? source.bordered, true),
     background: toNullable<string>(source.background),
     supportedRegions: toNullableRegions(source.supportedRegions),
-    nameKey: toNullable<string>(source.nameKey),
-    // Map Redux addTime → createdAt if available
-    createdAt: parseAddTime(source.addTime),
-    updatedAt: undefined
+    nameKey: toNullable<string>(source.nameKey)
   }
 }
