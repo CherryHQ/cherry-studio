@@ -42,6 +42,7 @@ import { aihubmixProviderCreator, newApiResolverCreator, vertexAnthropicProvider
 import { azureAnthropicProviderCreator } from './config/azure-anthropic'
 import { COPILOT_DEFAULT_HEADERS } from './constants'
 import { getAiSdkProviderId } from './factory'
+import { createFetchPreservingHeadersOnRedirect } from './preserveHeadersOnRedirectFetch'
 
 /**
  * 处理特殊provider的转换逻辑
@@ -268,15 +269,17 @@ export function providerToAiSdkConfig(actualProvider: Provider, model: Model): A
     }
   }
 
-  let _fetch: typeof fetch | undefined
-
   // Apply developer-to-system role conversion for providers that don't support developer role
   // bug: https://github.com/vercel/ai/issues/10982
   // fixPR: https://github.com/vercel/ai/pull/11127
   // TODO: but the PR don't backport to v5, the code will be removed when upgrading to v6
+  let innerFetch: typeof fetch = fetch
   if (!isSupportDeveloperRoleProvider(actualProvider) || !isOpenAIReasoningModel(model)) {
-    _fetch = createDeveloperToSystemFetch(fetch)
+    innerFetch = createDeveloperToSystemFetch(fetch)
   }
+  // Chromium strips Authorization and other headers on cross-origin redirects (e.g. http → https).
+  // Manual redirect follow keeps headers for provider checks and API calls (see #13236).
+  const _fetch = createFetchPreservingHeadersOnRedirect(innerFetch)
 
   const baseExtraOptions = {
     fetch: _fetch,
