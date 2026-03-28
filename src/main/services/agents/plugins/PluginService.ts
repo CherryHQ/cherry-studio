@@ -110,7 +110,6 @@ export class PluginService {
   private config: PluginServiceConfig
   private readonly cacheStore: PluginCacheStore
   private readonly installer: PluginInstaller
-  private readonly agentService: AgentService
 
   // Max folder/file name length to prevent Windows MAX_PATH (260 chars) issues.
   // Applied cross-platform for consistency with cloud-synced workdirs.
@@ -122,7 +121,6 @@ export class PluginService {
     this.config = {
       maxFileSize: config?.maxFileSize ?? 1024 * 1024 // 1MB default
     }
-    this.agentService = AgentService.getInstance()
     this.cacheStore = new PluginCacheStore({
       allowedExtensions: this.ALLOWED_EXTENSIONS,
       getPluginDirectoryName: this.getPluginDirectoryName.bind(this),
@@ -1560,7 +1558,7 @@ export class PluginService {
    * Validate source path to prevent path traversal attacks
    */
   private async getAgentOrThrow(agentId: string): Promise<GetAgentResponse> {
-    const agent = await this.agentService.getAgent(agentId)
+    const agent = await AgentService.getInstance().getAgent(agentId)
     if (!agent) {
       throw {
         type: 'INVALID_WORKDIR',
