@@ -1,8 +1,7 @@
 import { randomUUID } from 'node:crypto'
 
+import { application } from '@main/core/application'
 import { ipcMain } from 'electron'
-
-import { windowService } from './WindowService'
 
 interface PythonExecutionRequest {
   id: string
@@ -50,7 +49,7 @@ export class PythonService {
     context: Record<string, any> = {},
     timeout: number = 60000
   ): Promise<string> {
-    if (!windowService.getMainWindow()) {
+    if (!application.get('WindowService').getMainWindow()) {
       throw new Error('Main window not found')
     }
 
@@ -82,7 +81,7 @@ export class PythonService {
 
       // Send request to renderer
       const request: PythonExecutionRequest = { id: requestId, script, context, timeout }
-      windowService.getMainWindow()?.webContents.send('python-execution-request', request)
+      application.get('WindowService').getMainWindow()?.webContents.send('python-execution-request', request)
     })
   }
 }

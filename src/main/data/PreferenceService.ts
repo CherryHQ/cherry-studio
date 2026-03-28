@@ -21,7 +21,7 @@ import {
 } from '@shared/data/preference/preferenceUtils'
 import { IpcChannel } from '@shared/IpcChannel'
 import { and, eq } from 'drizzle-orm'
-import { BrowserWindow, ipcMain } from 'electron'
+import { BrowserWindow } from 'electron'
 
 import { preferenceTable } from './db/schemas/preference'
 import type { DbType } from './db/types'
@@ -239,7 +239,7 @@ export class PreferenceService extends BaseService {
    * Lifecycle: Register IPC handlers after initialization is complete
    */
   protected onReady(): void {
-    this.registerIpcHandler()
+    this.registerIpcHandlers()
   }
 
   /**
@@ -253,7 +253,6 @@ export class PreferenceService extends BaseService {
 
     this.notifier.removeAllSubscriptions()
     this.windowSubscriptions.clear()
-    this.unregisterIpcHandler()
 
     logger.debug('PreferenceService cleanup completed')
   }
@@ -262,31 +261,31 @@ export class PreferenceService extends BaseService {
    * Register IPC handlers for preference operations
    * Provides communication interface between main and renderer processes
    */
-  private registerIpcHandler(): void {
-    ipcMain.handle(IpcChannel.Preference_Get, (_, key: UnifiedPreferenceKeyType) => {
+  private registerIpcHandlers(): void {
+    this.ipcHandle(IpcChannel.Preference_Get, (_, key: UnifiedPreferenceKeyType) => {
       return this.get(key)
     })
 
-    ipcMain.handle(
+    this.ipcHandle(
       IpcChannel.Preference_Set,
       async (_, key: UnifiedPreferenceKeyType, value: UnifiedPreferenceType[UnifiedPreferenceKeyType]) => {
         await this.set(key, value)
       }
     )
 
-    ipcMain.handle(IpcChannel.Preference_GetMultipleRaw, (_, keys: UnifiedPreferenceKeyType[]) => {
+    this.ipcHandle(IpcChannel.Preference_GetMultipleRaw, (_, keys: UnifiedPreferenceKeyType[]) => {
       return this.getMultipleRaw(keys)
     })
 
-    ipcMain.handle(IpcChannel.Preference_SetMultiple, async (_, updates: Partial<UnifiedPreferenceType>) => {
+    this.ipcHandle(IpcChannel.Preference_SetMultiple, async (_, updates: Partial<UnifiedPreferenceType>) => {
       await this.setMultiple(updates)
     })
 
-    ipcMain.handle(IpcChannel.Preference_GetAll, () => {
+    this.ipcHandle(IpcChannel.Preference_GetAll, () => {
       return this.getAll()
     })
 
-    ipcMain.handle(IpcChannel.Preference_Subscribe, async (event, keys: string[]) => {
+    this.ipcHandle(IpcChannel.Preference_Subscribe, async (event, keys: string[]) => {
       const windowId = BrowserWindow.fromWebContents(event.sender)?.id
       if (windowId) {
         this.subscribeForWindow(windowId, keys)
@@ -294,20 +293,6 @@ export class PreferenceService extends BaseService {
     })
 
     logger.info('PreferenceService IPC handlers registered')
-  }
-
-  /**
-   * Unregister IPC handlers registered in registerIpcHandler
-   */
-  private unregisterIpcHandler(): void {
-    ipcMain.removeHandler(IpcChannel.Preference_Get)
-    ipcMain.removeHandler(IpcChannel.Preference_Set)
-    ipcMain.removeHandler(IpcChannel.Preference_GetMultipleRaw)
-    ipcMain.removeHandler(IpcChannel.Preference_SetMultiple)
-    ipcMain.removeHandler(IpcChannel.Preference_GetAll)
-    ipcMain.removeHandler(IpcChannel.Preference_Subscribe)
-
-    logger.debug('PreferenceService IPC handlers unregistered')
   }
 
   /**

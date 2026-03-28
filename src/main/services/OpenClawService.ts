@@ -7,6 +7,7 @@ import path from 'node:path'
 
 import { loggerService } from '@logger'
 import { isWin } from '@main/constant'
+import { application } from '@main/core/application'
 import { isUserInChina } from '@main/utils/ipService'
 import { crossPlatformSpawn, findExecutableInEnv, getBinaryPath, runInstallScript } from '@main/utils/process'
 import getShellEnv, { refreshShellEnv } from '@main/utils/shell-env'
@@ -17,7 +18,6 @@ import type { Model, Provider, ProviderType, VertexProvider } from '@types'
 
 import { parseCurrentVersion, parseUpdateStatus } from './utils/openClawParsers'
 import { vertexAIService } from './VertexAIService'
-import { windowService } from './WindowService'
 
 const logger = loggerService.withContext('OpenClawService')
 
@@ -181,7 +181,7 @@ class OpenClawService {
    * Send install progress to renderer
    */
   private sendInstallProgress(message: string, type: 'info' | 'warn' | 'error' = 'info') {
-    const win = windowService.getMainWindow()
+    const win = application.get('WindowService').getMainWindow()
     win?.webContents.send(IpcChannel.OpenClaw_InstallProgress, { message, type })
   }
 

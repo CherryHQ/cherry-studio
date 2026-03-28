@@ -8,7 +8,6 @@ import { Menu, nativeImage, nativeTheme, Tray } from 'electron'
 import icon from '../../../build/tray_icon.png?asset'
 import iconDark from '../../../build/tray_icon_dark.png?asset'
 import iconLight from '../../../build/tray_icon_light.png?asset'
-import { windowService } from './WindowService'
 
 @Injectable('TrayService')
 @ServicePhase(Phase.WhenReady)
@@ -71,9 +70,9 @@ export class TrayService extends BaseService {
       const clickTrayToShowQuickAssistant = preferenceService.get('feature.quick_assistant.click_tray_to_show')
 
       if (quickAssistantEnabled && clickTrayToShowQuickAssistant) {
-        windowService.showMiniWindow()
+        application.get('WindowService').showMiniWindow()
       } else {
-        windowService.showMainWindow()
+        application.get('WindowService').showMainWindow()
       }
     })
   }
@@ -89,11 +88,11 @@ export class TrayService extends BaseService {
     const template = [
       {
         label: trayLocale.show_window,
-        click: () => windowService.showMainWindow()
+        click: () => application.get('WindowService').showMainWindow()
       },
       quickAssistantEnabled && {
         label: trayLocale.show_mini_window,
-        click: () => windowService.showMiniWindow()
+        click: () => application.get('WindowService').showMiniWindow()
       },
       (isWin || isMac) && {
         label: selectionLocale.name + (selectionAssistantEnabled ? ' - On' : ' - Off'),

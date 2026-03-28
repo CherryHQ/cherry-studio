@@ -21,14 +21,16 @@ vi.mock('@data/PreferenceService', async () => {
 // Mock application using unified factory
 vi.mock('@main/core/application', async () => {
   const { mockApplicationFactory } = await import('@test-mocks/main/application')
-  return mockApplicationFactory()
+  const result = mockApplicationFactory()
+  const originalGet = result.application.get.getMockImplementation()!
+  result.application.get.mockImplementation((name: string) => {
+    if (name === 'WindowService') {
+      return { getMainWindow: vi.fn() }
+    }
+    return originalGet(name)
+  })
+  return result
 })
-
-vi.mock('../WindowService', () => ({
-  windowService: {
-    getMainWindow: vi.fn()
-  }
-}))
 
 vi.mock('@main/constant', () => ({
   isWin: false

@@ -24,9 +24,22 @@
 | Global shortcuts     | `globalShortcut.register()`                                        |
 | Subscriptions        | `preferenceService.subscribeChange()`, `configManager.subscribe()` |
 | Session interceptors | `session.webRequest.onHeadersReceived()`                           |
-| Global API mutations | Monkey-patching `ipcMain.handle`                                   |
+| IPC handlers         | `ipcMain.handle()` registration (see below)                        |
+| Global API mutations | Monkey-patching global APIs                                        |
 
-> `ipcMain.handle()` alone does **not** qualify — Electron auto-cleans IPC handlers on exit. Only qualifies if the handler holds stateful resources or the service needs `stop()` / `start()`.
+#### When should IPC handlers live inside a service?
+
+A lifecycle service should self-contain its IPC handlers when **any** of the following is true:
+
+| Condition | Why |
+|-----------|-----|
+| Handler accesses service instance state (`this.xxx`) | Handler is coupled to the service's lifecycle — if the service stops, the handler must stop too |
+| Service needs `stop()` / `start()` / `restart()` support | Orphaned handlers would reference stale state after restart |
+| Handler semantically belongs to the service's domain | Co-location improves maintainability and discoverability |
+
+If the handler is purely stateless (e.g., returns `app.getVersion()`), it does not require lifecycle management.
+
+BaseService provides built-in IPC tracking for self-contained handlers — see [IPC Handler Management](./lifecycle-usage.md#ipc-handler-management).
 
 ## Do NOT Use Lifecycle if
 

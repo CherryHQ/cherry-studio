@@ -2,6 +2,7 @@ import { is } from '@electron-toolkit/utils'
 import { loggerService } from '@logger'
 import { isDev, isLinux, isMac, isWin } from '@main/constant'
 import { application } from '@main/core/application'
+import { BaseService, Emitter, type Event, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import { getFilesDir } from '@main/utils/file'
 import { getWindowsBackgroundMaterial } from '@main/utils/windowUtil'
 import { MIN_WINDOW_HEIGHT, MIN_WINDOW_WIDTH } from '@shared/config/constant'
@@ -18,13 +19,17 @@ import { initSessionUserAgent } from './WebviewService'
 const DEFAULT_MINIWINDOW_WIDTH = 550
 const DEFAULT_MINIWINDOW_HEIGHT = 400
 
-// const logger = loggerService.withContext('WindowService')
 const logger = loggerService.withContext('WindowService')
 
 // Create nativeImage for Linux window icon (required for Wayland)
 const linuxIcon = isLinux ? nativeImage.createFromPath(iconPath) : undefined
 
-export class WindowService {
+@Injectable('WindowService')
+@ServicePhase(Phase.WhenReady)
+export class WindowService extends BaseService {
+  private readonly _onMainWindowCreated = new Emitter<BrowserWindow>()
+  public readonly onMainWindowCreated: Event<BrowserWindow> = this._onMainWindowCreated.event
+
   private mainWindow: BrowserWindow | null = null
   private miniWindow: BrowserWindow | null = null
   private isPinnedMiniWindow: boolean = false
@@ -32,6 +37,77 @@ export class WindowService {
   //to restore the focus status when miniWindow hides
   private wasMainWindowFocused: boolean = false
   private lastRendererProcessCrashTime: number = 0
+
+  protected async onInit() {
+    this.registerIpcHandlers()
+  }
+
+  protected async onStop() {}
+
+  protected async onDestroy() {
+    this._onMainWindowCreated.dispose()
+  }
+
+  private checkMainWindow() {
+    if (!this.mainWindow || this.mainWindow.isDestroyed()) {
+      throw new Error('Main window does not exist or has been destroyed')
+    }
+  }
+
+  private registerIpcHandlers() {
+    this.ipcHandle(IpcChannel.Windows_SetMinimumSize, (_, width: number, height: number) => {
+      this.checkMainWindow()
+      this.mainWindow!.setMinimumSize(width, height)
+    })
+
+    this.ipcHandle(IpcChannel.Windows_ResetMinimumSize, () => {
+      this.checkMainWindow()
+      this.mainWindow!.setMinimumSize(MIN_WINDOW_WIDTH, MIN_WINDOW_HEIGHT)
+      const [width, height] = this.mainWindow!.getSize() ?? [MIN_WINDOW_WIDTH, MIN_WINDOW_HEIGHT]
+      if (width < MIN_WINDOW_WIDTH) {
+        this.mainWindow!.setSize(MIN_WINDOW_WIDTH, height)
+      }
+    })
+
+    this.ipcHandle(IpcChannel.Windows_GetSize, () => {
+      this.checkMainWindow()
+      const [width, height] = this.mainWindow!.getSize() ?? [MIN_WINDOW_WIDTH, MIN_WINDOW_HEIGHT]
+      return [width, height]
+    })
+
+    this.ipcHandle(IpcChannel.Windows_Minimize, () => {
+      this.checkMainWindow()
+      this.mainWindow!.minimize()
+    })
+
+    this.ipcHandle(IpcChannel.Windows_Maximize, () => {
+      this.checkMainWindow()
+      this.mainWindow!.maximize()
+    })
+
+    this.ipcHandle(IpcChannel.Windows_Unmaximize, () => {
+      this.checkMainWindow()
+      this.mainWindow!.unmaximize()
+    })
+
+    this.ipcHandle(IpcChannel.Windows_Close, () => {
+      this.checkMainWindow()
+      this.mainWindow!.close()
+    })
+
+    this.ipcHandle(IpcChannel.Windows_IsMaximized, () => {
+      this.checkMainWindow()
+      return this.mainWindow!.isMaximized()
+    })
+
+    this.ipcHandle(IpcChannel.MiniWindow_Show, () => this.showMiniWindow())
+    this.ipcHandle(IpcChannel.MiniWindow_Hide, () => this.hideMiniWindow())
+    this.ipcHandle(IpcChannel.MiniWindow_Close, () => this.closeMiniWindow())
+    this.ipcHandle(IpcChannel.MiniWindow_Toggle, () => this.toggleMiniWindow())
+    this.ipcHandle(IpcChannel.MiniWindow_SetPin, (_, isPinned: boolean) => this.setPinMiniWindow(isPinned))
+
+    this.ipcHandle(IpcChannel.App_QuoteToMain, (_, text: string) => this.quoteToMainWindow(text))
+  }
 
   public createMainWindow(): BrowserWindow {
     if (this.mainWindow && !this.mainWindow.isDestroyed()) {
@@ -104,6 +180,8 @@ export class WindowService {
 
     //init the MinApp webviews' useragent
     initSessionUserAgent()
+
+    this._onMainWindowCreated.fire(this.mainWindow)
 
     return this.mainWindow
   }
@@ -230,10 +308,12 @@ export class WindowService {
 
     mainWindow.on('unmaximize', () => {
       mainWindow.webContents.send(IpcChannel.Windows_Resize, mainWindow.getSize())
+      mainWindow.webContents.send(IpcChannel.Windows_MaximizedChanged, false)
     })
 
     mainWindow.on('maximize', () => {
       mainWindow.webContents.send(IpcChannel.Windows_Resize, mainWindow.getSize())
+      mainWindow.webContents.send(IpcChannel.Windows_MaximizedChanged, true)
     })
 
     // 添加Escape键退出全屏的支持
@@ -693,7 +773,7 @@ export class WindowService {
     this.showMiniWindow()
   }
 
-  public setPinMiniWindow(isPinned) {
+  public setPinMiniWindow(isPinned: boolean) {
     this.isPinnedMiniWindow = isPinned
   }
 
@@ -716,5 +796,3 @@ export class WindowService {
     }
   }
 }
-
-export const windowService = new WindowService()

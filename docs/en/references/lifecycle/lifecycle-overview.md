@@ -93,7 +93,7 @@ Key points:
 - Starts immediately but runs completely independently, never blocking other phases.
 - Other phases' services **cannot** depend on Background services (and vice versa).
 - Background errors are caught and logged but never abort bootstrap.
-- Best for: telemetry reporting, analytics init, non-critical data pre-fetching, background cleanup tasks.
+- Best for: telemetry reporting, non-critical data pre-fetching, background cleanup tasks.
 - Use `onAllReady()` if a Background service needs to interact with services from other phases after bootstrap.
 
 ### Dependency Rules
@@ -148,16 +148,32 @@ After all phases complete:
 | `onPause()`    | When the service is being paused (requires `Pausable`)   | Yes          |
 | `onResume()`   | When the service is being resumed (requires `Pausable`)  | Yes          |
 
+### Automatic Resource Cleanup
+
+BaseService tracks two categories of resources for automatic cleanup:
+
+1. **IPC handlers** registered via `this.ipcHandle()` / `this.ipcOn()`
+2. **Disposables** registered via `this.registerDisposable()` (event subscriptions, signals, etc.)
+
+Both are automatically cleaned up as part of the stop/destroy lifecycle:
+
+```
+onStop() → IPC handlers removed → Disposables disposed → state = Stopped
+onDestroy() → IPC handlers removed → Disposables disposed (safety net) → state = Destroyed
+```
+
+See [IPC Handler Management](./lifecycle-usage.md#ipc-handler-management) and [Service Events](./lifecycle-usage.md#service-events-emitter--event) for usage details.
+
 ### onAllReady (System-wide Readiness)
 
 Called once after **all** services across all bootstrap phases have completed initialization. Unlike `onReady()` (which fires when the individual service is ready), `onAllReady()` fires when the entire system is ready — safe to access any service regardless of `@DependsOn` declarations.
 
 ```typescript
-@Injectable('AnalyticsService')
-class AnalyticsService extends BaseService {
+@Injectable('BackgroundReporterService')
+class BackgroundReporterService extends BaseService {
   protected onAllReady() {
     // Safe to access any service — the entire system is ready
-    const userService = application.get('UserService')
+    const preferenceService = application.get('PreferenceService')
   }
 }
 ```
@@ -216,6 +232,29 @@ manager.on(LifecycleEvents.ALL_SERVICES_READY, () => {
 | `SERVICE_ERROR`        | `{ name, state, error }` | Service encountered an error          |
 | `ALL_SERVICES_READY`   | (none)                   | All services completed initialization |
 
+## Inter-Service Communication
+
+`@DependsOn` guarantees initialization order, but some services need to react to work completed by other services at **runtime** (after `onInit()`). For example, `ShortcutService` needs to know when `WindowService` creates the main window — which happens after all services have initialized.
+
+The lifecycle system provides two typed primitives for this, avoiding ad-hoc `EventEmitter` patterns (no type safety, magic strings, manual cleanup):
+
+| Communication Pattern | Mechanism | Example |
+|---|---|---|
+| "Service B must init after Service A" | `@DependsOn` | PreferenceService depends on DbService |
+| "Service A completed runtime work, others react" (repeatable) | `Emitter<T>` / `Event<T>` | WindowService fires `onMainWindowCreated` |
+| "Service A completed runtime work, others react" (one-shot) | `Signal<T>` | DbService signals `migrationComplete` |
+| "Tell a specific service to do something" | Direct method call via `application.get()` | `windowService.showMainWindow()` |
+
+### Emitter / Event (Repeatable)
+
+A producer service owns an `Emitter<T>` (private) and exposes its `Event<T>` (public). Consumers subscribe and get a `Disposable` for automatic cleanup via `registerDisposable()`.
+
+### Signal (One-shot)
+
+A `Signal<T>` resolves exactly once. It implements `PromiseLike<T>` so consumers can `await` it directly. Late subscribers receive the resolved value immediately.
+
+For full usage patterns and code examples, see [Service Events](./lifecycle-usage.md#service-events-emitter--event) and [Signal](./lifecycle-usage.md#signal-one-shot-completion).
+
 ## File Structure
 
 ```
@@ -223,7 +262,9 @@ lifecycle/
 ├── types.ts              # Phase, LifecycleState, ServiceMetadata, Pausable, errors
 ├── decorators.ts         # @Injectable, @ServicePhase, @DependsOn, @Priority, etc.
 ├── BaseService.ts        # Abstract base class with lifecycle hooks
-├── ServiceContainer.ts   # IoC container with DI and platform exclusion
+├── event.ts              # Emitter<T>, Event<T>, Disposable — typed inter-service events
+├── signal.ts             # Signal<T> — one-shot deferred value (PromiseLike)
+├── ServiceContainer.ts   # IoC container with DI and conditional activation
 ├── DependencyResolver.ts # Topological sort, layered parallel resolution
 ├── LifecycleManager.ts   # Phased bootstrap, shutdown, pause/resume/stop/start
 ├── index.ts              # Barrel export

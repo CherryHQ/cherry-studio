@@ -2,9 +2,22 @@ import { CacheService } from '@data/CacheService'
 import { DataApiService } from '@data/DataApiService'
 import { DbService } from '@data/db/DbService'
 import { PreferenceService } from '@data/PreferenceService'
+import { AnalyticsService } from '@main/services/AnalyticsService'
+import { ApiServerService } from '@main/services/ApiServerService'
+import { AppMenuService } from '@main/services/AppMenuService'
 import { CodeCliService } from '@main/services/CodeCliService'
+import { LanTransferClientService } from '@main/services/lanTransfer'
+import { LocalTransferService } from '@main/services/LocalTransferService'
+import { MCPService } from '@main/services/MCPService'
+import { NodeTraceService } from '@main/services/NodeTraceService'
+import { OvmsManager } from '@main/services/OvmsManager'
+import { PowerMonitorService } from '@main/services/PowerMonitorService'
 import { SelectionService } from '@main/services/SelectionService'
+import { ShortcutService } from '@main/services/ShortcutService'
+import { SpanCacheService } from '@main/services/SpanCacheService'
+import { ThemeService } from '@main/services/ThemeService'
 import { TrayService } from '@main/services/TrayService'
+import { WindowService } from '@main/services/WindowService'
 
 import type { ServiceConstructor } from '../lifecycle/types'
 
@@ -36,9 +49,22 @@ export const services = {
   CacheService,
   DataApiService,
   PreferenceService,
+  AnalyticsService,
+  AppMenuService,
   CodeCliService,
+  LanTransferClientService,
+  LocalTransferService,
+  PowerMonitorService,
   SelectionService,
-  TrayService
+  ShortcutService,
+  ThemeService,
+  SpanCacheService,
+  NodeTraceService,
+  OvmsManager,
+  TrayService,
+  WindowService,
+  MCPService,
+  ApiServerService
 } as const
 
 /** Auto-derived service name to instance type mapping */

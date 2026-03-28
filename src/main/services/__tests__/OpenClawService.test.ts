@@ -4,11 +4,18 @@ import { parseCurrentVersion, parseUpdateStatus } from '../utils/openClawParsers
 
 // --- Mocks for OpenClawService dependencies ---
 
-vi.mock('@main/services/WindowService', () => ({
-  windowService: {
-    getMainWindow: vi.fn(() => ({
-      webContents: { send: vi.fn() }
-    }))
+vi.mock('@main/core/application', () => ({
+  application: {
+    get: vi.fn((name: string) => {
+      if (name === 'WindowService') {
+        return {
+          getMainWindow: vi.fn(() => ({
+            webContents: { send: vi.fn() }
+          }))
+        }
+      }
+      throw new Error(`[MockApplication] Unknown service: ${name}`)
+    })
   }
 }))
 

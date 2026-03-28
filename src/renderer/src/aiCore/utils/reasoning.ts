@@ -52,6 +52,7 @@ const logger = loggerService.withContext('reasoning')
 // The function is only for generic provider. May extract some logics to independent provider
 export function getReasoningEffort(assistant: Assistant, model: Model): ReasoningEffortOptionalParams {
   const provider = getProviderByModel(model)
+  const modelId = getLowerBaseModelName(model.id)
   if (provider.id === 'groq') {
     return {}
   }
@@ -245,7 +246,7 @@ export function getReasoningEffort(assistant: Assistant, model: Model): Reasonin
   }
 
   const effortRatio = EFFORT_RATIO[reasoningEffort]
-  const tokenLimit = findTokenLimit(model.id)
+  const tokenLimit = findTokenLimit(modelId)
   let budgetTokens: number | undefined
   if (tokenLimit) {
     budgetTokens = Math.floor((tokenLimit.max - tokenLimit.min) * effortRatio + tokenLimit.min)

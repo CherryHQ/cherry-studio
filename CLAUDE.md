@@ -122,10 +122,22 @@ import { BaseService, Injectable, DependsOn, ServicePhase, Phase } from '@main/c
 @ServicePhase(Phase.WhenReady)        // when to initialize (default: WhenReady)
 @DependsOn(['DbService'])             // what must be ready first
 export class MyService extends BaseService {
-  protected async onInit() { /* setup */ }
-  protected async onStop() { /* cleanup */ }
+  protected async onInit() {
+    this.registerIpcHandlers()
+  }
+
+  private registerIpcHandlers() {
+    // Use this.ipcHandle() / this.ipcOn() for auto-tracked IPC handlers
+    this.ipcHandle(IpcChannel.MyAction, (_, arg) => this.handleAction(arg))
+  }
+
+  protected async onStop() { /* service-specific cleanup — IPC auto-removed */ }
 }
 ```
+
+> Use `this.ipcHandle()` / `this.ipcOn()` instead of `ipcMain.handle()` / `ipcMain.on()` for lifecycle-managed services — handlers are automatically removed on service stop/destroy. Always extract IPC registrations into a `private registerIpcHandlers()` method.
+
+> Use `Emitter<T>` / `Event<T>` for inter-service runtime communication (e.g., notifying other services when work completes after `onInit()`). Use `Signal<T>` for one-shot completion. Register subscriptions via `this.registerDisposable()` for automatic cleanup on stop/destroy. See [Lifecycle Usage Guide](docs/en/references/lifecycle/lifecycle-usage.md#service-events-emitter--event).
 
 2. **Register in `serviceRegistry.ts`** (`src/main/core/application/serviceRegistry.ts`):
 
@@ -136,11 +148,12 @@ export const services = {
 } as const
 ```
 
-3. **Access at runtime** via the type-safe `application.get()`:
+3. **Access at runtime** via the type-safe `application.get()` (or `application.getOptional()` for `@Conditional` services):
 
 ```typescript
 import { application } from '@main/core/application'
 const myService = application.get('MyService')
+const optionalService = application.getOptional('ConditionalService') // T | undefined
 ```
 
 **Do NOT** instantiate services with `new` or use manual singleton patterns for new services — the lifecycle container manages instantiation, ordering, and shutdown automatically.

@@ -36,26 +36,14 @@ import { isDev, isLinux, isWin } from './constant'
 import process from 'node:process'
 
 import { registerIpc } from './ipc'
-import { agentService } from './services/agents'
-import { analyticsService } from './services/AnalyticsService'
-import { apiServerService } from './services/ApiServerService'
-import { appMenuService } from './services/AppMenuService'
-import { lanTransferClientService } from './services/lanTransfer'
-import { mcpService } from './services/MCPService'
-import { localTransferService } from './services/LocalTransferService'
 import { openClawService } from './services/OpenClawService'
-import { nodeTraceService } from './services/NodeTraceService'
-import { powerMonitorService } from './services/PowerMonitorService'
 import {
   CHERRY_STUDIO_PROTOCOL,
   handleProtocolUrl,
   registerProtocolClient,
   setupAppImageDeepLink
 } from './services/ProtocolClient'
-import { registerShortcuts } from './services/ShortcutService'
-import { themeService } from './services/ThemeService'
 import { versionService } from './services/VersionService'
-import { windowService } from './services/WindowService'
 import {
   getAllMigrators,
   migrationEngine,
@@ -64,8 +52,6 @@ import {
   unregisterMigrationIpcHandlers
 } from '@data/migration/v2'
 import { initWebviewHotkeys } from './services/WebviewService'
-import { runAsyncFunction } from './utils'
-import { isOvmsSupported } from './services/OvmsManager'
 import { application, serviceList } from './core/application'
 
 const logger = loggerService.withContext('MainEntry')
@@ -239,7 +225,7 @@ if (!app.requestSingleInstanceLock()) {
 
     // Listen for second instance
     app.on('second-instance', (_event, argv) => {
-      windowService.showMainWindow()
+      application.get('WindowService').showMainWindow()
 
       // Protocol handler for Windows/Linux
       // The commandLine is an array of strings where the last item might be the URL
@@ -252,9 +238,6 @@ if (!app.requestSingleInstanceLock()) {
 
     app.on('before-quit', () => {
       application.markQuitting()
-
-      lanTransferClientService.dispose()
-      localTransferService.dispose()
     })
 
     app.on('will-quit', async () => {
@@ -262,21 +245,8 @@ if (!app.requestSingleInstanceLock()) {
       // FIXME：临时方案，等改造本文件时应在 application 中统一处理
       bootConfigService.flush()
 
-      // 简单的资源清理，不阻塞退出流程
-      if (isOvmsSupported) {
-        const { ovmsManager } = await import('./services/OvmsManager')
-        if (ovmsManager) {
-          await ovmsManager.stopOvms()
-        } else {
-          logger.warn('Unexpected behavior: undefined ovmsManager, but OVMS should be supported.')
-        }
-      }
-
       try {
-        await analyticsService.destroy()
         await openClawService.stopGateway()
-        await mcpService.cleanup()
-        await apiServerService.stop()
       } catch (error) {
         logger.warn('Error cleaning up services:', error as Error)
       }
@@ -314,30 +284,19 @@ if (!app.requestSingleInstanceLock()) {
     const { BackupManager } = await import('./services/BackupManager')
     await BackupManager.handleStartupRestore()
 
-    // TODO: Remove manual init after ThemeService is migrated to lifecycle system
-    themeService.init()
-
     // Create main window - migration has either completed or was not needed
-    const mainWindow = windowService.createMainWindow()
-
-    // Setup macOS application menu
-    appMenuService?.setupApplicationMenu()
-    nodeTraceService.init()
-    powerMonitorService.init()
-    analyticsService.init()
+    const mainWindow = application.get('WindowService').createMainWindow()
 
     app.on('activate', function () {
-      const mainWindow = windowService.getMainWindow()
+      const mainWindow = application.get('WindowService').getMainWindow()
       if (!mainWindow || mainWindow.isDestroyed()) {
-        windowService.createMainWindow()
+        application.get('WindowService').createMainWindow()
       } else {
-        windowService.showMainWindow()
+        application.get('WindowService').showMainWindow()
       }
     })
 
-    registerShortcuts(mainWindow)
     await registerIpc(mainWindow, app)
-    localTransferService.startDiscovery({ resetList: true })
 
     replaceDevtoolsFont(mainWindow)
 
@@ -349,34 +308,6 @@ if (!app.requestSingleInstanceLock()) {
         .then((name) => logger.info(`Added Extension:  ${name}`))
         .catch((err) => logger.error('An error occurred: ', err))
     }
-
-    void runAsyncFunction(async () => {
-      // Start API server if enabled or if agents exist
-      try {
-        const config = apiServerService.getCurrentConfig()
-        logger.info('API server config:', config)
-
-        // Check if there are any agents
-        let shouldStart = config.enabled
-        if (!shouldStart) {
-          try {
-            const { total } = await agentService.listAgents({ limit: 1 })
-            if (total > 0) {
-              shouldStart = true
-              logger.info(`Detected ${total} agent(s), auto-starting API server`)
-            }
-          } catch (error: any) {
-            logger.warn('Failed to check agent count:', error)
-          }
-        }
-
-        if (shouldStart) {
-          await apiServerService.start()
-        }
-      } catch (error: any) {
-        logger.error('Failed to check/start API server:', error)
-      }
-    })
   }
 
   // In this file you can include the rest of your app"s specific main process

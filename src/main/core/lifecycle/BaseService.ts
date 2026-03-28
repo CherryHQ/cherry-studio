@@ -1,3 +1,6 @@
+import { ipcMain, type IpcMainEvent, type IpcMainInvokeEvent } from 'electron'
+
+import type { Disposable } from './event'
 import { type ErrorStrategy, isPausable, LifecycleState } from './types'
 
 /**
@@ -14,6 +17,15 @@ export abstract class BaseService {
 
   /** Guard flag to ensure onAllReady is called at most once per service instance */
   private _allReadyCalled = false
+
+  /** Channels registered via ipcHandle(), auto-cleaned on stop */
+  private _ipcHandleChannels: string[] = []
+
+  /** Listeners registered via ipcOn(), auto-cleaned on stop */
+  private _ipcOnListeners: { channel: string; listener: (...args: any[]) => void }[] = []
+
+  /** Disposables registered via registerDisposable(), auto-cleaned on stop */
+  private _disposables: Disposable[] = []
 
   /** Error handling strategy for this service */
   static errorStrategy: ErrorStrategy = 'graceful'
@@ -80,6 +92,65 @@ export abstract class BaseService {
   }
 
   /**
+   * Register an IPC handler (ipcMain.handle).
+   * Automatically tracked and removed on service stop/destroy.
+   */
+  protected ipcHandle(
+    channel: string,
+    listener: (event: IpcMainInvokeEvent, ...args: any[]) => Promise<any> | any
+  ): void {
+    ipcMain.handle(channel, listener)
+    this._ipcHandleChannels.push(channel)
+  }
+
+  /**
+   * Register an IPC event listener (ipcMain.on).
+   * Automatically tracked and removed on service stop/destroy.
+   */
+  protected ipcOn(channel: string, listener: (event: IpcMainEvent, ...args: any[]) => void): void {
+    ipcMain.on(channel, listener)
+    this._ipcOnListeners.push({ channel, listener })
+  }
+
+  /**
+   * Register a disposable for automatic cleanup on service stop/destroy.
+   * Use for event subscriptions, signals, or any resource implementing Disposable.
+   *
+   * @example
+   * this.registerDisposable(windowService.onMainWindowCreated((win) => this.bind(win)))
+   */
+  protected registerDisposable(disposable: Disposable): void {
+    this._disposables.push(disposable)
+  }
+
+  /**
+   * Remove all tracked IPC handlers and listeners.
+   * Called automatically after onStop() and in _doDestroy().
+   * Safe to call multiple times (double-remove is a no-op).
+   */
+  private _cleanupIpc(): void {
+    for (const channel of this._ipcHandleChannels) {
+      ipcMain.removeHandler(channel)
+    }
+    for (const { channel, listener } of this._ipcOnListeners) {
+      ipcMain.removeListener(channel, listener)
+    }
+    this._ipcHandleChannels = []
+    this._ipcOnListeners = []
+  }
+
+  /**
+   * Dispose all tracked disposables (event subscriptions, signals, etc.).
+   * Called automatically after onStop() and in _doDestroy().
+   */
+  private _cleanupDisposables(): void {
+    for (const disposable of this._disposables) {
+      disposable.dispose()
+    }
+    this._disposables = []
+  }
+
+  /**
    * Called when the service is being initialized
    * Override this method to perform initialization logic
    */
@@ -139,7 +210,12 @@ export abstract class BaseService {
    */
   public async _doStop(): Promise<void> {
     this._state = LifecycleState.Stopping
-    await this.onStop()
+    try {
+      await this.onStop()
+    } finally {
+      this._cleanupIpc()
+      this._cleanupDisposables()
+    }
     this._state = LifecycleState.Stopped
   }
 
@@ -149,6 +225,8 @@ export abstract class BaseService {
    */
   public async _doDestroy(): Promise<void> {
     await this.onDestroy()
+    this._cleanupIpc()
+    this._cleanupDisposables()
     this._state = LifecycleState.Destroyed
   }
 

@@ -74,27 +74,29 @@ export class ServiceInitError extends Error {
 }
 
 /**
- * Platform or platform-architecture exclusion target.
- * - Platform only: `'linux'`, `'win32'`, `'darwin'`
- * - Platform + architecture: `'linux-arm64'`, `'win32-ia32'`
+ * Context provided to conditions during evaluation.
+ * Encapsulates runtime environment for testability (inject mock context in tests).
  */
-export type PlatformTarget = NodeJS.Platform | `${NodeJS.Platform}-${NodeJS.Architecture}`
+export interface ConditionContext {
+  /** Current Node.js platform */
+  readonly platform: NodeJS.Platform
+  /** Current CPU architecture */
+  readonly arch: NodeJS.Architecture
+  /** CPU model string from os.cpus()[0].model, empty string if unavailable */
+  readonly cpuModel: string
+  /** Environment variables */
+  readonly env: Record<string, string | undefined>
+}
 
 /**
- * Check if the current runtime matches any of the given exclusion targets.
- * A target without `-` matches the entire platform (any architecture).
- * A target with `-` is split into platform and architecture for exact matching.
+ * Interface for service activation conditions.
+ * Evaluated synchronously at registration time, before service instantiation.
  */
-export function matchesPlatformTarget(targets: PlatformTarget[]): boolean {
-  return targets.some((target) => {
-    const hyphenIndex = target.indexOf('-')
-    if (hyphenIndex === -1) {
-      return process.platform === target
-    }
-    const platform = target.slice(0, hyphenIndex)
-    const arch = target.slice(hyphenIndex + 1)
-    return process.platform === platform && process.arch === arch
-  })
+export interface ServiceCondition {
+  /** Human-readable description for logging when condition fails */
+  readonly description: string
+  /** Evaluate the condition. Return true to allow activation. */
+  matches(context: ConditionContext): boolean
 }
 
 /**
@@ -111,8 +113,8 @@ export interface ServiceMetadata {
   errorStrategy: ErrorStrategy
   /** Bootstrap phase */
   phase: Phase
-  /** Platform targets this service does NOT support. undefined = all platforms supported. */
-  excludePlatforms?: PlatformTarget[]
+  /** Activation conditions. All must match for service to register. */
+  conditions?: ServiceCondition[]
 }
 
 /**

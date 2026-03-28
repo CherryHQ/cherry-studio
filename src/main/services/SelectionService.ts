@@ -6,7 +6,7 @@ import { BaseService, Injectable, Phase, ServicePhase } from '@main/core/lifecyc
 import type { SelectionActionItem } from '@shared/data/preference/preferenceTypes'
 import { SelectionTriggerMode } from '@shared/data/preference/preferenceTypes'
 import { IpcChannel } from '@shared/IpcChannel'
-import { app, BrowserWindow, clipboard, ipcMain, screen, systemPreferences } from 'electron'
+import { app, BrowserWindow, clipboard, screen, systemPreferences } from 'electron'
 import { join } from 'path'
 import type {
   KeyboardEventData,
@@ -19,13 +19,6 @@ import type {
 const logger = loggerService.withContext('SelectionService')
 
 let SelectionHook: SelectionHookConstructor | null = null
-try {
-  //since selection-hook v1.0.0, it supports macOS
-  //since selection-hook v2.0.0, it supports Linux
-  SelectionHook = require('selection-hook')
-} catch (error) {
-  logger.error('Failed to load selection-hook:', error as Error)
-}
 
 // Type definitions
 type Point = { x: number; y: number }
@@ -111,16 +104,21 @@ export class SelectionService extends BaseService {
     super()
   }
 
-  protected async onInit(): Promise<void> {
+  private loadModuleAndCreateInstance(): boolean {
     try {
       if (!SelectionHook) {
-        throw new Error('module selection-hook not exists')
+        SelectionHook = require('selection-hook')
+      }
+
+      if (!SelectionHook) {
+        this.logError('Failed to load selection-hook module')
+        return false
       }
 
       this.selectionHook = new SelectionHook()
       if (!this.selectionHook) {
         this.logError('Failed to create SelectionHook instance')
-        return
+        return false
       }
 
       // Detect Wayland display protocol for platform-specific behavior.
@@ -151,39 +149,51 @@ export class SelectionService extends BaseService {
       }
 
       this.initStatus = true
-
-      this.initZoomFactor()
-      this.registerIpcHandlers()
-
-      // Subscribe to enabled preference and conditionally start
-      const preferenceService = application.get('PreferenceService')
-      const enabled = preferenceService.get('feature.selection.enabled')
-
-      this.lifecycleUnsubscribers.push(
-        preferenceService.subscribeChange('feature.selection.enabled', (enabled: boolean): void => {
-          if (!this.initStatus) {
-            this.logError('SelectionService not initialized')
-            return
-          }
-          if (enabled) {
-            this.start()
-          } else {
-            this.stop()
-          }
-        })
-      )
-
-      if (enabled && this.initStatus) {
-        this.start()
-      }
+      this.logInfo('selection-hook module loaded and instance created successfully')
+      return true
     } catch (error) {
-      this.logError('Failed to initialize SelectionService:', error as Error)
+      this.logError('Failed to load selection-hook:', error as Error)
+      return false
+    }
+  }
+
+  private enableSelection(): void {
+    if (!this.initStatus) {
+      if (!this.loadModuleAndCreateInstance()) {
+        const preferenceService = application.get('PreferenceService')
+        void preferenceService.set('feature.selection.enabled', false)
+        return
+      }
+    }
+    this.start()
+  }
+
+  protected async onInit(): Promise<void> {
+    this.initZoomFactor()
+    this.registerIpcHandlers()
+
+    const preferenceService = application.get('PreferenceService')
+    const enabled = preferenceService.get('feature.selection.enabled')
+
+    this.lifecycleUnsubscribers.push(
+      preferenceService.subscribeChange('feature.selection.enabled', (enabled: boolean): void => {
+        if (enabled) {
+          this.enableSelection()
+        } else {
+          this.stop()
+        }
+      })
+    )
+
+    if (enabled) {
+      this.logInfo('Selection feature enabled, loading selection-hook module')
+      this.enableSelection()
+    } else {
+      this.logInfo('Selection feature disabled, skipping selection-hook module loading')
     }
   }
 
   protected async onStop(): Promise<void> {
-    this.unregisterIpcHandlers()
-
     for (const unsubscriber of this.lifecycleUnsubscribers) {
       unsubscriber()
     }
@@ -455,8 +465,6 @@ export class SelectionService extends BaseService {
    * Will sync the new enabled store to all renderer windows
    */
   public toggleEnabled(enabled: boolean | undefined = undefined): void {
-    if (!this.selectionHook) return
-
     const preferenceService = application.get('PreferenceService')
     const newEnabled = enabled === undefined ? !preferenceService.get('feature.selection.enabled') : enabled
 
@@ -1622,41 +1630,41 @@ export class SelectionService extends BaseService {
   }
 
   private registerIpcHandlers(): void {
-    ipcMain.handle(IpcChannel.Selection_ToolbarHide, () => {
+    this.ipcHandle(IpcChannel.Selection_ToolbarHide, () => {
       this.hideToolbar()
     })
 
-    ipcMain.handle(IpcChannel.Selection_WriteToClipboard, (_, text: string): boolean => {
+    this.ipcHandle(IpcChannel.Selection_WriteToClipboard, (_, text: string): boolean => {
       return this.writeToClipboard(text) ?? false
     })
 
-    ipcMain.handle(IpcChannel.Selection_ToolbarDetermineSize, (_, width: number, height: number) => {
+    this.ipcHandle(IpcChannel.Selection_ToolbarDetermineSize, (_, width: number, height: number) => {
       this.determineToolbarSize(width, height)
     })
 
     // [macOS] only macOS has the available isFullscreen mode
-    ipcMain.handle(
+    this.ipcHandle(
       IpcChannel.Selection_ProcessAction,
       (_, actionItem: SelectionActionItem, isFullScreen: boolean = false) => {
         this.processAction(actionItem, isFullScreen)
       }
     )
 
-    ipcMain.handle(IpcChannel.Selection_ActionWindowClose, (event) => {
+    this.ipcHandle(IpcChannel.Selection_ActionWindowClose, (event) => {
       const actionWindow = BrowserWindow.fromWebContents(event.sender)
       if (actionWindow && !actionWindow.isDestroyed()) {
         this.closeActionWindow(actionWindow)
       }
     })
 
-    ipcMain.handle(IpcChannel.Selection_ActionWindowMinimize, (event) => {
+    this.ipcHandle(IpcChannel.Selection_ActionWindowMinimize, (event) => {
       const actionWindow = BrowserWindow.fromWebContents(event.sender)
       if (actionWindow && !actionWindow.isDestroyed()) {
         this.minimizeActionWindow(actionWindow)
       }
     })
 
-    ipcMain.handle(IpcChannel.Selection_ActionWindowPin, (event, isPinned: boolean) => {
+    this.ipcHandle(IpcChannel.Selection_ActionWindowPin, (event, isPinned: boolean) => {
       const actionWindow = BrowserWindow.fromWebContents(event.sender)
       if (actionWindow && !actionWindow.isDestroyed()) {
         this.pinActionWindow(actionWindow, isPinned)
@@ -1665,7 +1673,7 @@ export class SelectionService extends BaseService {
 
     // [Windows only] Electron bug workaround - can be removed once fixed
     // See: https://github.com/electron/electron/issues/48554
-    ipcMain.handle(
+    this.ipcHandle(
       IpcChannel.Selection_ActionWindowResize,
       (event, deltaX: number, deltaY: number, direction: string) => {
         const actionWindow = BrowserWindow.fromWebContents(event.sender)
@@ -1676,23 +1684,9 @@ export class SelectionService extends BaseService {
     )
 
     if (isLinux) {
-      ipcMain.handle(IpcChannel.Selection_GetLinuxEnvInfo, () => {
+      this.ipcHandle(IpcChannel.Selection_GetLinuxEnvInfo, () => {
         return this.getLinuxEnvInfo()
       })
-    }
-  }
-
-  private unregisterIpcHandlers(): void {
-    ipcMain.removeHandler(IpcChannel.Selection_ToolbarHide)
-    ipcMain.removeHandler(IpcChannel.Selection_WriteToClipboard)
-    ipcMain.removeHandler(IpcChannel.Selection_ToolbarDetermineSize)
-    ipcMain.removeHandler(IpcChannel.Selection_ProcessAction)
-    ipcMain.removeHandler(IpcChannel.Selection_ActionWindowClose)
-    ipcMain.removeHandler(IpcChannel.Selection_ActionWindowMinimize)
-    ipcMain.removeHandler(IpcChannel.Selection_ActionWindowPin)
-    ipcMain.removeHandler(IpcChannel.Selection_ActionWindowResize)
-    if (isLinux) {
-      ipcMain.removeHandler(IpcChannel.Selection_GetLinuxEnvInfo)
     }
   }
 

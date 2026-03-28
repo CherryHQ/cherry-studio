@@ -18,6 +18,7 @@ import {
   WINDOWS_TERMINALS,
   WINDOWS_TERMINALS_WITH_COMMANDS
 } from '@shared/config/constant'
+import { IpcChannel } from '@shared/IpcChannel'
 import { getFunctionalKeys, parseJSONC, sanitizeEnvForLogging } from '@shared/utils'
 import { spawn } from 'child_process'
 import semver from 'semver'
@@ -51,9 +52,34 @@ export class CodeCliService extends BaseService {
   private openCodeConfigBackups: Map<string, string | null> = new Map() // Store raw backup content of opencode.json
 
   protected async onInit(): Promise<void> {
+    this.registerIpcHandlers()
     if (isMac || isWin) {
       void this.preloadTerminals()
     }
+  }
+
+  private registerIpcHandlers(): void {
+    this.ipcHandle(
+      IpcChannel.CodeCli_Run,
+      (
+        event,
+        cliTool: string,
+        model: string,
+        directory: string,
+        env: Record<string, string>,
+        options?: { autoUpdateToLatest?: boolean; terminal?: string }
+      ) => this.run(event, cliTool, model, directory, env, options)
+    )
+    this.ipcHandle(IpcChannel.CodeCli_GetAvailableTerminals, () => this.getAvailableTerminalsForPlatform())
+    this.ipcHandle(IpcChannel.CodeCli_SetCustomTerminalPath, (_, terminalId: string, path: string) =>
+      this.setCustomTerminalPath(terminalId, path)
+    )
+    this.ipcHandle(IpcChannel.CodeCli_GetCustomTerminalPath, (_, terminalId: string) =>
+      this.getCustomTerminalPath(terminalId)
+    )
+    this.ipcHandle(IpcChannel.CodeCli_RemoveCustomTerminalPath, (_, terminalId: string) =>
+      this.removeCustomTerminalPath(terminalId)
+    )
   }
 
   protected async onStop(): Promise<void> {

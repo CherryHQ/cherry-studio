@@ -1,10 +1,13 @@
+// TODO: Consider merging LocalTransferService (mDNS discovery) and LanTransferClientService (TCP transfer)
+// into a single service — they share the same IPC namespace (LocalTransfer_*) and the renderer
+// already treats them as one unified feature.
 import { loggerService } from '@logger'
+import { application } from '@main/core/application'
+import { BaseService, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import type { LocalTransferPeer, LocalTransferState } from '@shared/config/types'
 import { IpcChannel } from '@shared/IpcChannel'
 import type { Browser, Service } from 'bonjour-service'
 import Bonjour from 'bonjour-service'
-
-import { windowService } from './WindowService'
 
 const SERVICE_TYPE = 'cherrystudio'
 const SERVICE_PROTOCOL = 'tcp' as const
@@ -15,7 +18,9 @@ type StartDiscoveryOptions = {
   resetList?: boolean
 }
 
-class LocalTransferService {
+@Injectable('LocalTransferService')
+@ServicePhase(Phase.WhenReady)
+export class LocalTransferService extends BaseService {
   private bonjour: Bonjour | null = null
   private browser: Browser | null = null
   private services = new Map<string, LocalTransferPeer>()
@@ -23,6 +28,26 @@ class LocalTransferService {
   private lastScanStartedAt?: number
   private lastUpdatedAt = Date.now()
   private lastError?: string
+
+  protected async onInit(): Promise<void> {
+    this.registerIpcHandlers()
+    this.startDiscovery({ resetList: true })
+  }
+
+  protected async onStop(): Promise<void> {
+    this.stopDiscovery()
+    this.services.clear()
+    this.browser?.removeAllListeners()
+    this.browser = null
+    if (this.bonjour) {
+      try {
+        this.bonjour.destroy()
+      } catch (error) {
+        logger.warn('Failed to destroy Bonjour instance', error as Error)
+      }
+      this.bonjour = null
+    }
+  }
 
   public startDiscovery(options?: StartDiscoveryOptions): LocalTransferState {
     if (options?.resetList) {
@@ -65,21 +90,6 @@ class LocalTransferService {
 
   public getPeerById(id: string): LocalTransferPeer | undefined {
     return this.services.get(id)
-  }
-
-  public dispose(): void {
-    this.stopDiscovery()
-    this.services.clear()
-    this.browser?.removeAllListeners()
-    this.browser = null
-    if (this.bonjour) {
-      try {
-        this.bonjour.destroy()
-      } catch (error) {
-        logger.warn('Failed to destroy Bonjour instance', error as Error)
-      }
-      this.bonjour = null
-    }
   }
 
   private getBonjour(): Bonjour {
@@ -186,12 +196,16 @@ class LocalTransferService {
   }
 
   private broadcastState() {
-    const mainWindow = windowService.getMainWindow()
+    const mainWindow = application.get('WindowService').getMainWindow()
     if (!mainWindow || mainWindow.isDestroyed()) {
       return
     }
     mainWindow.webContents.send(IpcChannel.LocalTransfer_ServicesUpdated, this.getState())
   }
-}
 
-export const localTransferService = new LocalTransferService()
+  private registerIpcHandlers(): void {
+    this.ipcHandle(IpcChannel.LocalTransfer_ListServices, () => this.getState())
+    this.ipcHandle(IpcChannel.LocalTransfer_StartScan, () => this.startDiscovery({ resetList: true }))
+    this.ipcHandle(IpcChannel.LocalTransfer_StopScan, () => this.stopDiscovery())
+  }
+}
