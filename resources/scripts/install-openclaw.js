@@ -194,9 +194,12 @@ async function downloadOpenClawBinary(platform, arch, version = DEFAULT_VERSION,
 
       for (const entry of Object.values(entries)) {
         if (!entry.isDirectory) {
-          const filename = path.basename(entry.name)
-          const outputPath = path.join(binDir, filename)
-          console.log(`Extracting ${entry.name} -> ${filename}`)
+          const outputPath = path.join(binDir, entry.name)
+          const outputDir = path.dirname(outputPath)
+          if (!fs.existsSync(outputDir)) {
+            fs.mkdirSync(outputDir, { recursive: true })
+          }
+          console.log(`Extracting ${entry.name} -> ${outputPath}`)
           await zip.extract(entry.name, outputPath)
           console.log(`Extracted ${entry.name} -> ${outputPath}`)
         }
