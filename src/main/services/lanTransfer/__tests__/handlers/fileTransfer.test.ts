@@ -2,7 +2,7 @@ import { EventEmitter } from 'node:events'
 import type * as fs from 'node:fs'
 import type { Socket } from 'node:net'
 
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, type Mock, vi } from 'vitest'
 
 import {
   abortTransfer,
@@ -179,7 +179,7 @@ describe('fileTransfer handlers', () => {
   // streaming logic works correctly with mock streams.
   describe('streamFileChunks', () => {
     let mockSocket: Socket & EventEmitter
-    let mockProgress: ReturnType<typeof vi.fn>
+    let mockProgress: Mock<(bytesSent: number, chunkIndex: number) => void>
 
     beforeEach(() => {
       vi.clearAllMocks()
@@ -192,7 +192,7 @@ describe('fileTransfer handlers', () => {
         uncork: vi.fn()
       }) as unknown as Socket & EventEmitter
 
-      mockProgress = vi.fn()
+      mockProgress = vi.fn<(bytesSent: number, chunkIndex: number) => void>()
     })
 
     afterEach(() => {

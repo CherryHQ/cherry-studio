@@ -117,12 +117,6 @@ export default defineConfig({
         '**/*.config.{js,ts}'
       ]
     },
-    testTimeout: 20000,
-    pool: 'threads',
-    poolOptions: {
-      threads: {
-        singleThread: false
-      }
-    }
+    testTimeout: 20000
   }
 })
