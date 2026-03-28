@@ -29,6 +29,7 @@ export const DEFAULT_TOOL_ORDER: ToolOrder = {
   visible: [
     'new_topic',
     'attachment',
+    'code_editor',
     'thinking',
     'web_search',
     'url_context',
