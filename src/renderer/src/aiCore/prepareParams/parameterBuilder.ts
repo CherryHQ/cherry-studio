@@ -88,8 +88,14 @@ function mapVertexAIGatewayModelToProviderId(model: Model): BaseProviderId | und
 function resolvePoeWebSearchProviderId(model: Model): BaseProviderId {
   const rawModelId = model.id.includes('/') ? model.id.split('/').slice(1).join('/') : model.id
   const endpoint = getPoeModel(rawModelId)?.supportedEndpoints?.[0]
+
   if (endpoint === '/v1/messages') return 'anthropic'
   if (endpoint === '/v1/chat/completions') return 'openai-chat'
+
+  // Poe now prefers chat completions for Gemini to avoid Responses parser issues.
+  // https://github.com/poe-platform/ai-sdk-provider-poe/issues/2
+  if (isGeminiModel(model)) return 'openai-chat'
+
   return 'openai'
 }
 
