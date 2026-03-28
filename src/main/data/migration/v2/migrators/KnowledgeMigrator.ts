@@ -16,6 +16,7 @@ import path from 'node:path'
 import { pathToFileURL } from 'node:url'
 
 import { knowledgeBaseTable, knowledgeItemTable } from '@data/db/schemas/knowledge'
+import { validateKnowledgeBaseConfig } from '@data/services/knowledgeBaseConfig'
 import { createClient, type Value as LibsqlValue } from '@libsql/client'
 import { loggerService } from '@logger'
 import { getDataPath } from '@main/utils'
@@ -42,7 +43,6 @@ const logger = loggerService.withContext('KnowledgeMigrator')
 
 const ITEM_INSERT_BATCH_SIZE = 200
 const LOOKUP_STREAM_BATCH_SIZE = 200
-const MAX_WARNING_COUNT = 50
 const LEGACY_VECTOR_TABLE_NAME = 'vectors'
 
 type DimensionResolutionReason =
@@ -89,6 +89,23 @@ const getRequiredFileLookupId = (content: LegacyKnowledgeItem['content']): strin
   return null
 }
 
+const getInvalidKnowledgeBaseConfigWarning = (base: LegacyKnowledgeBaseWithIdentity): string | null => {
+  const fieldErrors = validateKnowledgeBaseConfig({
+    chunkSize: base.chunkSize,
+    chunkOverlap: base.chunkOverlap,
+    threshold: base.threshold,
+    documentCount: base.documentCount,
+    searchMode: 'default'
+  })
+
+  const invalidFields = Object.keys(fieldErrors)
+  if (invalidFields.length === 0) {
+    return null
+  }
+
+  return `Knowledge base ${base.id}: cleared invalid config fields: ${invalidFields.join(', ')}`
+}
+
 export class KnowledgeMigrator extends BaseMigrator {
   readonly id = 'knowledge'
   readonly name = 'KnowledgeBase'
@@ -100,16 +117,6 @@ export class KnowledgeMigrator extends BaseMigrator {
   private preparedBases: NewKnowledgeBase[] = []
   private preparedItems: NewKnowledgeItem[] = []
   private warnings: string[] = []
-  private warningOverflowCount = 0
-
-  private pushWarning(message: string): void {
-    if (this.warnings.length < MAX_WARNING_COUNT) {
-      this.warnings.push(message)
-      return
-    }
-
-    this.warningOverflowCount += 1
-  }
 
   private getLegacyKnowledgeDbPath(baseId: string): string | null {
     const rootPath = path.resolve(getDataPath(), 'KnowledgeBase')
@@ -118,7 +125,9 @@ export class KnowledgeMigrator extends BaseMigrator {
     const relativePath = path.relative(rootPath, resolvedDbPath)
 
     if (relativePath === '' || relativePath.startsWith('..') || path.isAbsolute(relativePath)) {
-      this.pushWarning(`Skipped knowledge base ${baseId}: invalid legacy vector DB path`)
+      const warningMessage = `Skipped knowledge base ${baseId}: invalid legacy vector DB path`
+      logger.warn(warningMessage)
+      this.warnings.push(warningMessage)
       return null
     }
 
@@ -146,9 +155,9 @@ export class KnowledgeMigrator extends BaseMigrator {
     }
 
     if (blobLength % Float32Array.BYTES_PER_ELEMENT !== 0) {
-      this.pushWarning(
-        `Invalid vector blob length for knowledge base ${baseId}: ${blobLength} is not divisible by ${Float32Array.BYTES_PER_ELEMENT}`
-      )
+      const warningMessage = `Invalid vector blob length for knowledge base ${baseId}: ${blobLength} is not divisible by ${Float32Array.BYTES_PER_ELEMENT}`
+      logger.warn(warningMessage)
+      this.warnings.push(warningMessage)
       return null
     }
 
@@ -191,15 +200,21 @@ export class KnowledgeMigrator extends BaseMigrator {
 
       return { dimensions: null, reason: 'invalid_vector_dimensions' }
     } catch (error) {
-      this.pushWarning(
-        `Failed to inspect legacy vector DB for knowledge base ${base.id}: ${error instanceof Error ? error.message : String(error)}`
-      )
+      const warningMessage = `Failed to inspect legacy vector DB for knowledge base ${base.id}: ${
+        error instanceof Error ? error.message : String(error)
+      }`
+      logger.warn(warningMessage)
+      this.warnings.push(warningMessage)
       return { dimensions: null, reason: 'vector_db_error' }
     } finally {
       try {
         client.close()
-      } catch {
-        // Ignore close errors from libsql client during best-effort inspection.
+      } catch (error) {
+        const warningMessage = `Failed to close legacy vector DB client for knowledge base ${base.id}: ${
+          error instanceof Error ? error.message : String(error)
+        }`
+        logger.warn(warningMessage)
+        this.warnings.push(warningMessage)
       }
     }
   }
@@ -267,7 +282,9 @@ export class KnowledgeMigrator extends BaseMigrator {
     }
 
     if (!(await ctx.sources.dexieExport.tableExists('knowledge_notes'))) {
-      this.pushWarning('knowledge_notes export file not found - note content fallback to Redux item content')
+      const warningMessage = 'knowledge_notes export file not found - note content fallback to Redux item content'
+      logger.warn(warningMessage)
+      this.warnings.push(warningMessage)
       return noteById
     }
 
@@ -296,7 +313,9 @@ export class KnowledgeMigrator extends BaseMigrator {
     }
 
     if (!(await ctx.sources.dexieExport.tableExists('files'))) {
-      this.pushWarning('files export file not found - file item fallback by id disabled')
+      const warningMessage = 'files export file not found - file item fallback by id disabled'
+      logger.warn(warningMessage)
+      this.warnings.push(warningMessage)
       return filesById
     }
 
@@ -323,11 +342,31 @@ export class KnowledgeMigrator extends BaseMigrator {
     this.preparedBases = []
     this.preparedItems = []
     this.warnings = []
-    this.warningOverflowCount = 0
 
     try {
       const knowledgeState = ctx.sources.reduxState.getCategory<LegacyKnowledgeState>('knowledge')
-      const bases = Array.isArray(knowledgeState?.bases) ? knowledgeState.bases : []
+
+      if (!knowledgeState) {
+        const warningMessage = 'knowledge Redux category not found - no knowledge data to migrate'
+        logger.warn(warningMessage)
+        return {
+          success: true,
+          itemCount: 0,
+          warnings: [warningMessage]
+        }
+      }
+
+      if (!Array.isArray(knowledgeState.bases)) {
+        const warningMessage = 'knowledge.bases is not an array - no knowledge data to migrate'
+        logger.warn(warningMessage)
+        return {
+          success: true,
+          itemCount: 0,
+          warnings: [warningMessage]
+        }
+      }
+
+      const bases = knowledgeState.bases
 
       if (bases.length === 0) {
         logger.info('No knowledge bases found in Redux state')
@@ -346,7 +385,9 @@ export class KnowledgeMigrator extends BaseMigrator {
 
         if (!hasKnowledgeBaseIdentity(base)) {
           this.skippedCount += 1
-          this.pushWarning('Skipped invalid knowledge base: missing id or name')
+          const warningMessage = 'Skipped invalid knowledge base: missing id or name'
+          logger.warn(warningMessage)
+          this.warnings.push(warningMessage)
           continue
         }
 
@@ -358,7 +399,9 @@ export class KnowledgeMigrator extends BaseMigrator {
         if (resolvedDimensions.dimensions === null) {
           this.skippedCount += 1 + items.length
           this.sourceCount += items.length
-          this.pushWarning(`Skipped knowledge base ${validBase.id}: ${resolvedDimensions.reason}`)
+          const warningMessage = `Skipped knowledge base ${validBase.id}: ${resolvedDimensions.reason}`
+          logger.warn(warningMessage)
+          this.warnings.push(warningMessage)
           continue
         }
 
@@ -366,11 +409,19 @@ export class KnowledgeMigrator extends BaseMigrator {
         if (!baseResult.ok) {
           this.skippedCount += 1 + items.length
           this.sourceCount += items.length
-          this.pushWarning(`Skipped knowledge base ${validBase.id}: ${baseResult.reason}`)
+          const warningMessage = `Skipped knowledge base ${validBase.id}: ${baseResult.reason}`
+          logger.warn(warningMessage)
+          this.warnings.push(warningMessage)
           continue
         }
 
         this.preparedBases.push(baseResult.value)
+
+        const invalidConfigWarning = getInvalidKnowledgeBaseConfigWarning(validBase)
+        if (invalidConfigWarning) {
+          logger.warn(invalidConfigWarning)
+          this.warnings.push(invalidConfigWarning)
+        }
 
         for (const item of items) {
           this.sourceCount += 1
@@ -382,16 +433,14 @@ export class KnowledgeMigrator extends BaseMigrator {
 
           if (!itemResult.ok) {
             this.skippedCount += 1
-            this.pushWarning(this.formatItemWarning(validBase.id, item, itemResult.reason))
+            const warningMessage = this.formatItemWarning(validBase.id, item, itemResult.reason)
+            logger.warn(warningMessage)
+            this.warnings.push(warningMessage)
             continue
           }
 
           this.preparedItems.push(itemResult.value)
         }
-      }
-
-      if (this.warningOverflowCount > 0) {
-        this.warnings.push(`... and ${this.warningOverflowCount} more warnings`)
       }
 
       logger.info('KnowledgeMigrator.prepare completed', {
@@ -515,6 +564,26 @@ export class KnowledgeMigrator extends BaseMigrator {
       const targetBaseCount = baseResult?.count ?? 0
       const targetItemCount = itemResult?.count ?? 0
       const targetCount = targetBaseCount + targetItemCount
+      const expectedBaseCount = this.preparedBases.length
+      const expectedItemCount = this.preparedItems.length
+
+      if (targetBaseCount < expectedBaseCount) {
+        errors.push({
+          key: 'knowledge_base_count_mismatch',
+          expected: expectedBaseCount,
+          actual: targetBaseCount,
+          message: `Expected ${expectedBaseCount} knowledge bases, got ${targetBaseCount}`
+        })
+      }
+
+      if (targetItemCount < expectedItemCount) {
+        errors.push({
+          key: 'knowledge_item_count_mismatch',
+          expected: expectedItemCount,
+          actual: targetItemCount,
+          message: `Expected ${expectedItemCount} knowledge items, got ${targetItemCount}`
+        })
+      }
 
       const orphanItems = await ctx.db
         .select({ count: sql<number>`count(*)` })

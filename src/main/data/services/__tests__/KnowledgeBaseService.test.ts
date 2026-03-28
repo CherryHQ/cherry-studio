@@ -44,14 +44,14 @@ function createMockRow(overrides: Record<string, unknown> = {}) {
 }
 
 describe('KnowledgeBaseService', () => {
-  let service: ReturnType<typeof KnowledgeBaseService.getInstance>
+  let service: InstanceType<typeof KnowledgeBaseService>
 
   beforeEach(() => {
     mockSelect.mockReset()
     mockInsert.mockReset()
     mockUpdate.mockReset()
     mockDelete.mockReset()
-    service = KnowledgeBaseService.getInstance()
+    service = new KnowledgeBaseService()
   })
 
   describe('list', () => {

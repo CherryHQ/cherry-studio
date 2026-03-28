@@ -3,6 +3,21 @@ import fs from 'node:fs'
 import { createClient } from '@libsql/client'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
+const { loggerWarnMock } = vi.hoisted(() => ({
+  loggerWarnMock: vi.fn()
+}))
+
+vi.mock('@logger', () => ({
+  loggerService: {
+    withContext: vi.fn(() => ({
+      info: vi.fn(),
+      warn: loggerWarnMock,
+      error: vi.fn(),
+      debug: vi.fn()
+    }))
+  }
+}))
+
 import { KnowledgeMigrator } from '../KnowledgeMigrator'
 
 vi.mock('@libsql/client', () => ({
@@ -116,6 +131,37 @@ describe('KnowledgeMigrator dimensions resolution', () => {
     expect(createClient).not.toHaveBeenCalled()
   })
 
+  it('records a warning when closing the legacy vector DB client fails', async () => {
+    const migrator = new KnowledgeMigrator() as any
+    vi.spyOn(migrator, 'getLegacyKnowledgeDbPath').mockReturnValue('/mock/userData/Data/KnowledgeBase/kb-close-error')
+
+    const existsSyncMock = fs.existsSync as unknown as { mockReturnValue: (value: boolean) => void }
+    existsSyncMock.mockReturnValue(true)
+
+    const execute = vi
+      .fn()
+      .mockResolvedValueOnce({ rows: [{ total: 10, with_vector: 10 }] })
+      .mockResolvedValueOnce({ rows: [{ bytes: 4096 }] })
+    const close = vi.fn().mockImplementation(() => {
+      throw new Error('close failed')
+    })
+    const createClientMock = createClient as unknown as { mockReturnValue: (value: unknown) => void }
+    createClientMock.mockReturnValue({ execute, close })
+
+    const result = await migrator.resolveDimensionsForBase({
+      id: 'kb-close-error',
+      name: 'Close Error KB'
+    })
+
+    expect(result).toEqual({ dimensions: 1024, reason: 'ok' })
+    expect(migrator.warnings).toContain(
+      'Failed to close legacy vector DB client for knowledge base kb-close-error: close failed'
+    )
+    expect(loggerWarnMock).toHaveBeenCalledWith(
+      'Failed to close legacy vector DB client for knowledge base kb-close-error: close failed'
+    )
+  })
+
   it('prepare skips base and items when vector DB is empty', async () => {
     const migrator = new KnowledgeMigrator() as any
     vi.spyOn(migrator, 'resolveDimensionsForBase').mockResolvedValue({
@@ -155,6 +201,33 @@ describe('KnowledgeMigrator dimensions resolution', () => {
     expect(migrator.skippedCount).toBe(3)
     expect(migrator.sourceCount).toBe(3)
     expect(result.warnings?.some((warning: string) => warning.includes('Skipped knowledge base kb-empty'))).toBe(true)
+  })
+
+  it('prepare returns a warning when the knowledge Redux category is unavailable', async () => {
+    const migrator = new KnowledgeMigrator() as any
+
+    const ctx = {
+      sources: {
+        reduxState: {
+          getCategory: vi.fn().mockReturnValue(undefined)
+        },
+        dexieExport: {
+          tableExists: vi.fn(),
+          readTable: vi.fn()
+        }
+      }
+    } as any
+
+    const result = await migrator.prepare(ctx)
+
+    expect(result).toEqual({
+      success: true,
+      itemCount: 0,
+      warnings: ['knowledge Redux category not found - no knowledge data to migrate']
+    })
+    expect(migrator.sourceCount).toBe(0)
+    expect(migrator.preparedBases).toHaveLength(0)
+    expect(migrator.preparedItems).toHaveLength(0)
   })
 
   it('prepare streams knowledge note and file lookups instead of loading whole Dexie tables', async () => {
@@ -441,6 +514,62 @@ describe('KnowledgeMigrator dimensions resolution', () => {
     expect(migrator.preparedItems).toHaveLength(2)
     expect(child?.parentId).toBeNull()
   })
+
+  it('prepare records a warning when invalid knowledge base config is normalized', async () => {
+    const migrator = new KnowledgeMigrator() as any
+    vi.spyOn(migrator, 'resolveDimensionsForBase').mockResolvedValue({
+      dimensions: 1024,
+      reason: 'ok'
+    })
+
+    const ctx = {
+      sources: {
+        reduxState: {
+          getCategory: vi.fn().mockReturnValue({
+            bases: [
+              {
+                id: 'kb-invalid-config',
+                name: 'KB invalid config',
+                model: { id: 'BAAI/bge-m3', name: 'BAAI/bge-m3', provider: 'silicon' },
+                chunkSize: 200,
+                chunkOverlap: 200,
+                threshold: 2,
+                documentCount: 0,
+                items: []
+              }
+            ]
+          })
+        },
+        dexieExport: {
+          tableExists: vi.fn().mockResolvedValue(false),
+          readTable: vi.fn()
+        }
+      }
+    } as any
+
+    const result = await migrator.prepare(ctx)
+
+    expect(result.success).toBe(true)
+    expect(
+      result.warnings?.some(
+        (warning) =>
+          warning.includes('Knowledge base kb-invalid-config: cleared invalid config fields:') &&
+          warning.includes('chunkOverlap') &&
+          warning.includes('threshold') &&
+          warning.includes('documentCount')
+      )
+    ).toBe(true)
+    expect(
+      loggerWarnMock.mock.calls.some(
+        ([warning]) =>
+          typeof warning === 'string' &&
+          warning.includes('Knowledge base kb-invalid-config: cleared invalid config fields:') &&
+          warning.includes('chunkOverlap') &&
+          warning.includes('threshold') &&
+          warning.includes('documentCount')
+      )
+    ).toBe(true)
+  })
 })
 
 describe('KnowledgeMigrator execute/validate paths', () => {
@@ -625,5 +754,43 @@ describe('KnowledgeMigrator execute/validate paths', () => {
     expect(result.stats.targetCount).toBe(5)
     expect(result.stats.sourceCount).toBe(5)
     expect(result.stats.skippedCount).toBe(1)
+  })
+
+  it('validate reports per-entity count mismatches even when total count matches expected', async () => {
+    const migrator = new KnowledgeMigrator() as any
+    migrator.sourceCount = 8
+    migrator.skippedCount = 1
+    migrator.preparedBases = [{ id: 'kb-1' }, { id: 'kb-2' }]
+    migrator.preparedItems = [{ id: 'item-1' }, { id: 'item-2' }, { id: 'item-3' }, { id: 'item-4' }, { id: 'item-5' }]
+
+    const select = vi
+      .fn()
+      .mockReturnValueOnce({
+        from: vi.fn().mockReturnValue({
+          get: vi.fn().mockResolvedValue({ count: 1 })
+        })
+      })
+      .mockReturnValueOnce({
+        from: vi.fn().mockReturnValue({
+          get: vi.fn().mockResolvedValue({ count: 6 })
+        })
+      })
+      .mockReturnValueOnce({
+        from: vi.fn().mockReturnValue({
+          where: vi.fn().mockReturnValue({
+            get: vi.fn().mockResolvedValue({ count: 0 })
+          })
+        })
+      })
+
+    const result = await migrator.validate({
+      db: { select }
+    } as any)
+
+    expect(result.success).toBe(false)
+    expect(result.stats.targetCount).toBe(7)
+    expect(result.stats.sourceCount).toBe(8)
+    expect(result.stats.skippedCount).toBe(1)
+    expect(result.errors.some((error) => error.key === 'knowledge_base_count_mismatch')).toBe(true)
   })
 })

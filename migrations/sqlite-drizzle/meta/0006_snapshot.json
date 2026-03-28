@@ -221,7 +221,12 @@
       "foreignKeys": {},
       "compositePrimaryKeys": {},
       "uniqueConstraints": {},
-      "checkConstraints": {}
+      "checkConstraints": {
+        "knowledge_base_search_mode_check": {
+          "name": "knowledge_base_search_mode_check",
+          "value": "\"knowledge_base\".\"search_mode\" IN ('default', 'bm25', 'hybrid') OR \"knowledge_base\".\"search_mode\" IS NULL"
+        }
+      }
     },
     "knowledge_item": {
       "name": "knowledge_item",
@@ -330,7 +335,16 @@
       },
       "compositePrimaryKeys": {},
       "uniqueConstraints": {},
-      "checkConstraints": {}
+      "checkConstraints": {
+        "knowledge_item_type_check": {
+          "name": "knowledge_item_type_check",
+          "value": "\"knowledge_item\".\"type\" IN ('file', 'url', 'note', 'sitemap', 'directory')"
+        },
+        "knowledge_item_status_check": {
+          "name": "knowledge_item_status_check",
+          "value": "\"knowledge_item\".\"status\" IN ('idle', 'pending', 'ocr', 'read', 'embed', 'completed', 'failed')"
+        }
+      }
     },
     "mcp_server": {
       "name": "mcp_server",

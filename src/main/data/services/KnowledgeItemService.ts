@@ -16,13 +16,13 @@ import type {
   UpdateKnowledgeItemDto
 } from '@shared/data/api/schemas/knowledges'
 import {
-  DirectoryDataSchema,
+  DirectoryItemDataSchema,
   FileItemDataSchema,
+  type KnowledgeItem,
   NoteItemDataSchema,
   SitemapItemDataSchema,
   UrlItemDataSchema
-} from '@shared/data/api/schemas/knowledges'
-import type { KnowledgeItem } from '@shared/data/types/knowledge'
+} from '@shared/data/types/knowledge'
 import { and, desc, eq, sql } from 'drizzle-orm'
 
 import { knowledgeBaseService } from './KnowledgeBaseService'
@@ -34,14 +34,29 @@ const KNOWLEDGE_ITEM_DATA_SCHEMAS = {
   url: UrlItemDataSchema,
   note: NoteItemDataSchema,
   sitemap: SitemapItemDataSchema,
-  directory: DirectoryDataSchema
+  directory: DirectoryItemDataSchema
 } as const
 
 function rowToKnowledgeItem(row: typeof knowledgeItemTable.$inferSelect): KnowledgeItem {
-  const parseJson = <T>(value: T | string | null | undefined): T | null => {
+  const parseJson = <T>(value: T | string | null | undefined, context?: string): T | null => {
     if (value == null) return null
-    if (typeof value === 'string') return JSON.parse(value)
+    if (typeof value === 'string') {
+      try {
+        return JSON.parse(value)
+      } catch (error) {
+        logger.error(`Failed to parse JSON data${context ? ` for ${context}` : ''}`, error as Error)
+        throw DataApiErrorFactory.dataInconsistent(
+          'KnowledgeItem',
+          `Corrupted data in knowledge item${context ? ` '${context}'` : ''}`
+        )
+      }
+    }
     return value as T
+  }
+
+  const parsedData = parseJson(row.data, row.id)
+  if (!parsedData) {
+    throw DataApiErrorFactory.dataInconsistent('KnowledgeItem', `Knowledge item '${row.id}' has missing or null data`)
   }
 
   return {
@@ -49,7 +64,7 @@ function rowToKnowledgeItem(row: typeof knowledgeItemTable.$inferSelect): Knowle
     baseId: row.baseId,
     parentId: row.parentId,
     type: row.type,
-    data: parseJson(row.data)!,
+    data: parsedData,
     status: row.status,
     error: row.error,
     createdAt: row.createdAt ? new Date(row.createdAt).toISOString() : new Date().toISOString(),
@@ -58,17 +73,6 @@ function rowToKnowledgeItem(row: typeof knowledgeItemTable.$inferSelect): Knowle
 }
 
 export class KnowledgeItemService {
-  private static instance: KnowledgeItemService
-
-  private constructor() {}
-
-  public static getInstance(): KnowledgeItemService {
-    if (!KnowledgeItemService.instance) {
-      KnowledgeItemService.instance = new KnowledgeItemService()
-    }
-    return KnowledgeItemService.instance
-  }
-
   async listRootChildren(
     baseId: string,
     query: KnowledgeRootChildrenQuery
@@ -199,4 +203,4 @@ export class KnowledgeItemService {
   }
 }
 
-export const knowledgeItemService = KnowledgeItemService.getInstance()
+export const knowledgeItemService = new KnowledgeItemService()

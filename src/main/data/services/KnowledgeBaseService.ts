@@ -37,17 +37,6 @@ function rowToKnowledgeBase(row: typeof knowledgeBaseTable.$inferSelect): Knowle
 }
 
 export class KnowledgeBaseService {
-  private static instance: KnowledgeBaseService
-
-  private constructor() {}
-
-  public static getInstance(): KnowledgeBaseService {
-    if (!KnowledgeBaseService.instance) {
-      KnowledgeBaseService.instance = new KnowledgeBaseService()
-    }
-    return KnowledgeBaseService.instance
-  }
-
   async list(): Promise<KnowledgeBase[]> {
     const db = application.get('DbService').getDb()
     const rows = await db.select().from(knowledgeBaseTable).orderBy(desc(knowledgeBaseTable.createdAt))
@@ -139,4 +128,4 @@ export class KnowledgeBaseService {
   }
 }
 
-export const knowledgeBaseService = KnowledgeBaseService.getInstance()
+export const knowledgeBaseService = new KnowledgeBaseService()

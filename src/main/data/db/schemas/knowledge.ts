@@ -4,38 +4,48 @@ import type {
   KnowledgeItemType,
   KnowledgeSearchMode
 } from '@shared/data/types/knowledge'
-import { foreignKey, index, integer, real, sqliteTable, text, unique } from 'drizzle-orm/sqlite-core'
+import { sql } from 'drizzle-orm'
+import { check, foreignKey, index, integer, real, sqliteTable, text, unique } from 'drizzle-orm/sqlite-core'
 
 import { createUpdateTimestamps, uuidPrimaryKey, uuidPrimaryKeyOrdered } from './_columnHelpers'
 
 /**
  * knowledge_base table - Knowledge base metadata
  */
-export const knowledgeBaseTable = sqliteTable('knowledge_base', {
-  id: uuidPrimaryKey(),
-  name: text().notNull(),
-  description: text(),
-  dimensions: integer().notNull(),
+export const knowledgeBaseTable = sqliteTable(
+  'knowledge_base',
+  {
+    id: uuidPrimaryKey(),
+    name: text().notNull(),
+    description: text(),
+    dimensions: integer().notNull(),
 
-  // Embedding model configuration
-  embeddingModelId: text().notNull(),
+    // Embedding model configuration
+    embeddingModelId: text().notNull(),
 
-  // Rerank model configuration
-  rerankModelId: text(),
+    // Rerank model configuration
+    rerankModelId: text(),
 
-  // File processing processor ID
-  fileProcessorId: text(),
+    // File processing processor ID
+    fileProcessorId: text(),
 
-  // Configuration
-  chunkSize: integer(),
-  chunkOverlap: integer(),
-  threshold: real(),
-  documentCount: integer(),
-  searchMode: text().$type<KnowledgeSearchMode>(),
-  hybridAlpha: real(),
+    // Configuration
+    chunkSize: integer(),
+    chunkOverlap: integer(),
+    threshold: real(),
+    documentCount: integer(),
+    searchMode: text().$type<KnowledgeSearchMode>(),
+    hybridAlpha: real(),
 
-  ...createUpdateTimestamps
-})
+    ...createUpdateTimestamps
+  },
+  (t) => [
+    check(
+      'knowledge_base_search_mode_check',
+      sql`${t.searchMode} IN ('default', 'bm25', 'hybrid') OR ${t.searchMode} IS NULL`
+    )
+  ]
+)
 
 /**
  * knowledge_item table - Knowledge items (files, URLs, notes, etc.)
@@ -69,6 +79,11 @@ export const knowledgeItemTable = sqliteTable(
     ...createUpdateTimestamps
   },
   (t) => [
+    check('knowledge_item_type_check', sql`${t.type} IN ('file', 'url', 'note', 'sitemap', 'directory')`),
+    check(
+      'knowledge_item_status_check',
+      sql`${t.status} IN ('idle', 'pending', 'ocr', 'read', 'embed', 'completed', 'failed')`
+    ),
     // Supports root/children listings filtered by type and ordered by createdAt.
     index('knowledge_item_base_parent_type_created_idx').on(t.baseId, t.parentId, t.type, t.createdAt),
     // Covers the current list/query path: same-base children ordered by createdAt.

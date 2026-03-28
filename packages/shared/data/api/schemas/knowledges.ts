@@ -2,14 +2,22 @@
  * Knowledge API DTOs and schema contracts.
  */
 
-import { type FileMetadata, FileTypeSchema } from '@shared/data/types/file'
-import type { KnowledgeBase, KnowledgeItem } from '@shared/data/types/knowledge'
+import {
+  DirectoryItemDataSchema,
+  FileItemDataSchema,
+  FileMetadataSchema,
+  ItemStatusSchema,
+  type KnowledgeBase,
+  type KnowledgeItem,
+  KnowledgeItemTypeSchema,
+  KnowledgeSearchModeSchema,
+  NoteItemDataSchema,
+  SitemapItemDataSchema,
+  UrlItemDataSchema
+} from '@shared/data/types/knowledge'
 import * as z from 'zod'
 
 import type { OffsetPaginationResponse } from '../apiTypes'
-
-export const KnowledgeSearchModeSchema = z.enum(['default', 'bm25', 'hybrid'])
-export type KnowledgeSearchMode = z.infer<typeof KnowledgeSearchModeSchema>
 
 export const CreateKnowledgeBaseSchema = z.object({
   name: z.string().trim().min(1),
@@ -43,50 +51,17 @@ export const UpdateKnowledgeBaseSchema = z
   .strict()
 export type UpdateKnowledgeBaseDto = z.infer<typeof UpdateKnowledgeBaseSchema>
 
-/**
- * Temporary schema mirroring the current FileMetadata shape.
- * TODO: Migrate this schema after the dedicated file DB schema is designed.
- */
-export const FileMetadataSchema: z.ZodType<FileMetadata> = z.object({
-  id: z.string(),
-  name: z.string(),
-  origin_name: z.string(),
-  path: z.string(),
-  size: z.number(),
-  ext: z.string(),
-  type: FileTypeSchema,
-  created_at: z.string(),
-  count: z.number(),
-  tokens: z.number().optional(),
-  purpose: z.custom<FileMetadata['purpose']>((value) => value === undefined || typeof value === 'string').optional()
-})
-
-export const FileItemDataSchema = z.object({
-  file: FileMetadataSchema
-})
-
-export const UrlItemDataSchema = z.object({
-  url: z.string().trim().min(1),
-  name: z.string().trim().min(1)
-})
-
-export const NoteItemDataSchema = z.object({
-  content: z.string(),
-  sourceUrl: z.string().optional()
-})
-
-export const SitemapItemDataSchema = z.object({
-  url: z.string().trim().min(1),
-  name: z.string().trim().min(1)
-})
-
-export const DirectoryDataSchema = z.object({
-  path: z.string().trim().min(1),
-  recursive: z.boolean()
-})
-
-export const KnowledgeItemTypeSchema = z.enum(['file', 'url', 'note', 'sitemap', 'directory'])
-export const ItemStatusSchema = z.enum(['idle', 'pending', 'ocr', 'read', 'embed', 'completed', 'failed'])
+export {
+  DirectoryItemDataSchema,
+  FileItemDataSchema,
+  FileMetadataSchema,
+  ItemStatusSchema,
+  KnowledgeItemTypeSchema,
+  KnowledgeSearchModeSchema,
+  NoteItemDataSchema,
+  SitemapItemDataSchema,
+  UrlItemDataSchema
+}
 
 export const CreateKnowledgeRootItemSchema = z.discriminatedUnion('type', [
   z
@@ -116,7 +91,7 @@ export const CreateKnowledgeRootItemSchema = z.discriminatedUnion('type', [
   z
     .object({
       type: z.literal('directory'),
-      data: DirectoryDataSchema
+      data: DirectoryItemDataSchema
     })
     .strict()
 ])
@@ -132,7 +107,7 @@ export const UpdateKnowledgeItemDataSchema = z.union([
   UrlItemDataSchema,
   NoteItemDataSchema,
   SitemapItemDataSchema,
-  DirectoryDataSchema
+  DirectoryItemDataSchema
 ])
 
 export const UpdateKnowledgeItemSchema = z

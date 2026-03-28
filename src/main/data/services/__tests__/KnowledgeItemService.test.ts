@@ -22,13 +22,13 @@ const mockDb = {
   delete: mockDelete
 }
 
-let currentDb: DbType | typeof mockDb = mockDb
+let realDb: DbType | null = null
 let closeClient: (() => void) | undefined
 
 vi.mock('@main/core/application', () => ({
   application: {
     get: vi.fn(() => ({
-      getDb: vi.fn(() => currentDb)
+      getDb: vi.fn(() => realDb ?? mockDb)
     }))
   }
 }))
@@ -57,7 +57,7 @@ function createMockRow(overrides: Record<string, unknown> = {}) {
 }
 
 describe('KnowledgeItemService', () => {
-  let service: ReturnType<typeof KnowledgeItemService.getInstance>
+  let service: InstanceType<typeof KnowledgeItemService>
 
   beforeEach(() => {
     mockSelect.mockReset()
@@ -66,13 +66,14 @@ describe('KnowledgeItemService', () => {
     mockDelete.mockReset()
     getKnowledgeBaseByIdMock.mockReset()
     getKnowledgeBaseByIdMock.mockResolvedValue({ id: 'kb-1' })
-    currentDb = mockDb
-    service = KnowledgeItemService.getInstance()
+    realDb = null
+    service = new KnowledgeItemService()
   })
 
   afterEach(() => {
     closeClient?.()
     closeClient = undefined
+    realDb = null
   })
 
   describe('listRootChildren', () => {
@@ -241,13 +242,14 @@ describe('KnowledgeItemService', () => {
     beforeEach(async () => {
       const client = createClient({ url: 'file::memory:' })
       closeClient = () => client.close()
-      currentDb = drizzle({
+      realDb = drizzle({
         client,
         casing: 'snake_case'
       })
+      const db = realDb
 
-      await currentDb.run(sql`PRAGMA foreign_keys = ON`)
-      await currentDb.run(
+      await db.run(sql`PRAGMA foreign_keys = ON`)
+      await db.run(
         sql.raw(`
         CREATE TABLE knowledge_base (
           id TEXT PRIMARY KEY NOT NULL,
@@ -264,11 +266,12 @@ describe('KnowledgeItemService', () => {
           search_mode TEXT,
           hybrid_alpha REAL,
           created_at INTEGER,
-          updated_at INTEGER
+          updated_at INTEGER,
+          CONSTRAINT knowledge_base_search_mode_check CHECK (search_mode IN ('default', 'bm25', 'hybrid') OR search_mode IS NULL)
         )
       `)
       )
-      await currentDb.run(
+      await db.run(
         sql.raw(`
         CREATE TABLE knowledge_item (
           id TEXT PRIMARY KEY NOT NULL,
@@ -280,6 +283,8 @@ describe('KnowledgeItemService', () => {
           error TEXT,
           created_at INTEGER,
           updated_at INTEGER,
+          CONSTRAINT knowledge_item_type_check CHECK (type IN ('file', 'url', 'note', 'sitemap', 'directory')),
+          CONSTRAINT knowledge_item_status_check CHECK (status IN ('idle', 'pending', 'ocr', 'read', 'embed', 'completed', 'failed')),
           FOREIGN KEY (base_id) REFERENCES knowledge_base(id) ON DELETE CASCADE,
           FOREIGN KEY (base_id, parent_id) REFERENCES knowledge_item(base_id, id) ON DELETE CASCADE,
           CONSTRAINT knowledge_item_base_id_id_unique UNIQUE (base_id, id)
@@ -287,14 +292,14 @@ describe('KnowledgeItemService', () => {
       `)
       )
 
-      await currentDb.insert(knowledgeBaseTable).values({
+      await db.insert(knowledgeBaseTable).values({
         id: 'kb-1',
         name: 'KB',
         dimensions: 1024,
         embeddingModelId: 'openai::text-embedding-3-large'
       })
 
-      await currentDb.insert(knowledgeItemTable).values([
+      await db.insert(knowledgeItemTable).values([
         {
           id: 'dir-a',
           baseId: 'kb-1',
@@ -410,6 +415,34 @@ describe('KnowledgeItemService', () => {
 
       expect(result.items.map((item) => item.id)).toEqual(['dir-c', 'file-child'])
     })
+
+    it('db check constraints reject invalid knowledge enums', async () => {
+      const db = realDb!
+
+      await expect(
+        db.run(
+          sql.raw(`
+            INSERT INTO knowledge_base (
+              id, name, dimensions, embedding_model_id, search_mode
+            ) VALUES (
+              'kb-invalid-enum', 'KB invalid enum', 1024, 'openai::text-embedding-3-large', 'vector'
+            )
+          `)
+        )
+      ).rejects.toThrow()
+
+      await expect(
+        db.run(
+          sql.raw(`
+            INSERT INTO knowledge_item (
+              id, base_id, parent_id, type, data, status
+            ) VALUES (
+              'item-invalid-enum', 'kb-1', NULL, 'memory', '{}', 'done'
+            )
+          `)
+        )
+      ).rejects.toThrow()
+    })
   })
 
   describe('getById', () => {
@@ -444,6 +477,38 @@ describe('KnowledgeItemService', () => {
       await expect(service.getById('missing')).rejects.toMatchObject({
         code: ErrorCode.NOT_FOUND,
         status: 404
+      })
+    })
+
+    it('should surface malformed stored item data as DATA_INCONSISTENT', async () => {
+      mockSelect.mockReturnValue({
+        from: vi.fn().mockReturnValue({
+          where: vi.fn().mockReturnValue({
+            limit: vi.fn().mockResolvedValue([createMockRow({ id: 'broken-item', data: '{bad json' })])
+          })
+        })
+      })
+
+      await expect(service.getById('broken-item')).rejects.toMatchObject({
+        code: ErrorCode.DATA_INCONSISTENT,
+        status: 409,
+        message: expect.stringContaining("Corrupted data in knowledge item 'broken-item'")
+      })
+    })
+
+    it('should surface null stored item data as DATA_INCONSISTENT', async () => {
+      mockSelect.mockReturnValue({
+        from: vi.fn().mockReturnValue({
+          where: vi.fn().mockReturnValue({
+            limit: vi.fn().mockResolvedValue([createMockRow({ id: 'null-item', data: null })])
+          })
+        })
+      })
+
+      await expect(service.getById('null-item')).rejects.toMatchObject({
+        code: ErrorCode.DATA_INCONSISTENT,
+        status: 409,
+        message: expect.stringContaining("Knowledge item 'null-item' has missing or null data")
       })
     })
   })
