@@ -25,6 +25,8 @@ import { languageEnglishNameMap } from '@shared/config/languages'
 import { withoutTrailingApiVersion } from '@shared/utils'
 import { app } from 'electron'
 
+import type { CherryClawConfiguration } from '@types'
+
 import type { GetAgentSessionResponse } from '../..'
 import type {
   AgentServiceInterface,
@@ -33,15 +35,17 @@ import type {
   AgentThinkingOptions
 } from '../../interfaces/AgentStreamInterface'
 import { sessionService } from '../SessionService'
+import { PromptBuilder } from '../cherryclaw/prompt'
 import { buildNamespacedToolCallId } from './claude-stream-state'
-import type { EnhancedSessionFields } from './enhanced-session'
 import { promptForToolApproval } from './tool-permissions'
 import { ClaudeStreamState, transformSDKMessageToStreamParts } from './transform'
 
-type EnhancedSession = GetAgentSessionResponse & EnhancedSessionFields
+import ClawServer from '@main/mcpServers/claw'
+import { SOUL_MODE_DISALLOWED_TOOLS } from '@shared/agents/claudecode/constants'
 
 const require_ = createRequire(import.meta.url)
 const logger = loggerService.withContext('ClaudeCodeService')
+const promptBuilder = new PromptBuilder()
 const DEFAULT_AUTO_ALLOW_TOOLS = new Set(['Read', 'Glob', 'Grep'])
 const shouldAutoApproveTools = process.env.CHERRY_AUTO_ALLOW_TOOLS === '1'
 const NO_RESUME_COMMANDS = ['/clear']
@@ -311,19 +315,28 @@ class ClaudeCodeService implements AgentServiceInterface {
       return {}
     }
 
-    // Build SDK options from parameters
+    // Soul Mode: build custom system prompt and inject claw MCP when enabled
+    const soulConfig = session.configuration as CherryClawConfiguration | undefined
+    const soulEnabled = soulConfig?.soul_enabled === true
+    let soulSystemPrompt: string | undefined
+
+    if (soulEnabled && cwd) {
+      soulSystemPrompt = await promptBuilder.buildSystemPrompt(cwd)
+      logger.info('Built Soul Mode system prompt', { cwd, promptLength: soulSystemPrompt.length })
+    }
+
+    // Build SDK options from session configuration
     const options: Options = {
       abortController,
       cwd,
       env,
-      // model: modelInfo.modelId,
       pathToClaudeCodeExecutable: this.claudeExecutablePath,
       stderr: (chunk: string) => {
         logger.warn('claude stderr', { chunk })
         errorChunks.push(chunk)
       },
-      systemPrompt: (session as EnhancedSession)._systemPrompt
-        ? `${(session as EnhancedSession)._systemPrompt}\n\n${getLanguageInstruction()}`
+      systemPrompt: soulSystemPrompt
+        ? `${soulSystemPrompt}\n\n${getLanguageInstruction()}`
         : session.instructions
           ? {
               type: 'preset',
@@ -349,6 +362,7 @@ class ClaudeCodeService implements AgentServiceInterface {
           }
         ]
       },
+      ...(soulEnabled ? { disallowedTools: [...SOUL_MODE_DISALLOWED_TOOLS] } : {}),
       ...(thinkingOptions?.effort ? { effort: thinkingOptions.effort } : {}),
       ...(thinkingOptions?.thinking ? { thinking: thinkingOptions.thinking } : {})
     }
@@ -357,8 +371,8 @@ class ClaudeCodeService implements AgentServiceInterface {
       options.additionalDirectories = session.accessible_paths.slice(1)
     }
 
+    // Build MCP server list from session config + Soul Mode claw server
     if (session.mcps && session.mcps.length > 0) {
-      // mcp configs
       const mcpList: Record<string, McpHttpServerConfig> = {}
       for (const mcpId of session.mcps) {
         mcpList[mcpId] = {
@@ -373,33 +387,22 @@ class ClaudeCodeService implements AgentServiceInterface {
       options.strictMcpConfig = true
     }
 
-    // Merge enhanced session fields injected by agent services (e.g. CherryClaw)
-    const enhancedSession = session as EnhancedSession
-    if (enhancedSession._internalMcpServers) {
-      if (!options.mcpServers) {
-        options.mcpServers = {}
-      }
-      for (const [name, config] of Object.entries(enhancedSession._internalMcpServers)) {
-        if (config.type === 'inmem') {
-          options.mcpServers[name] = { type: 'sdk', name, instance: config.instance }
-        } else {
-          options.mcpServers[name] = { type: config.type, url: config.url, headers: config.headers }
+    if (soulEnabled) {
+      const clawServer = new ClawServer(session.agent_id)
+      if (!options.mcpServers) options.mcpServers = {}
+      options.mcpServers.claw = { type: 'sdk', name: 'claw', instance: clawServer.mcpServer }
+
+      // Ensure claw MCP tools are in allowed_tools whitelist
+      if (Array.isArray(options.allowedTools) && options.allowedTools.length > 0) {
+        if (!options.allowedTools.includes('mcp__claw__*')) {
+          options.allowedTools = [...options.allowedTools, 'mcp__claw__*']
         }
       }
-      logger.debug('Merged internal MCP servers into SDK options', {
-        serverNames: Object.keys(enhancedSession._internalMcpServers),
+
+      logger.debug('Soul Mode: injected claw MCP server', {
+        agentId: session.agent_id,
         totalMcpServers: Object.keys(options.mcpServers).length
       })
-    }
-
-    // Disable specific builtin tools if requested by agent service
-    if (enhancedSession._disallowedTools) {
-      options.disallowedTools = enhancedSession._disallowedTools
-    }
-
-    // Apply additional settings if provided by agent service
-    if (enhancedSession._settings) {
-      options.settings = enhancedSession._settings
     }
 
     if (lastAgentSessionId && !NO_RESUME_COMMANDS.some((cmd) => prompt.includes(cmd))) {

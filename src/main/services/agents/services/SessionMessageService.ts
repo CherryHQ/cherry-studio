@@ -15,7 +15,6 @@ import { BaseService } from '../BaseService'
 import { sessionMessagesTable } from '../database/schema'
 import { agentMessageRepository } from '../database/sessionMessageRepository'
 import type { AgentStreamEvent } from '../interfaces/AgentStreamInterface'
-import { applyCherryClawEnhancements } from './cherryclaw'
 import ClaudeCodeService from './claudecode'
 
 const claudeCodeService = new ClaudeCodeService()
@@ -181,8 +180,7 @@ export class SessionMessageService extends BaseService {
     const agentSessionId = await this.getLastAgentSessionId(session.id)
     logger.debug('Session Message stream message data:', { message: req, session_id: agentSessionId })
 
-    const enhancedSession = await applyCherryClawEnhancements(session)
-    const claudeStream = await claudeCodeService.invoke(req.content, enhancedSession, abortController, agentSessionId, {
+    const claudeStream = await claudeCodeService.invoke(req.content, session, abortController, agentSessionId, {
       effort: req.effort,
       thinking: req.thinking
     })

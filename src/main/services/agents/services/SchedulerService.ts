@@ -2,7 +2,7 @@ import { loggerService } from '@logger'
 import type { CherryClawConfiguration, ScheduledTaskEntity } from '@types'
 
 import { channelManager } from './channels/ChannelManager'
-import { heartbeatReader } from './cherryclaw'
+import { readHeartbeat } from './cherryclaw/heartbeat'
 import { sessionMessageService } from './SessionMessageService'
 import { sessionService } from './SessionService'
 import { taskService } from './TaskService'
@@ -19,6 +19,7 @@ type RunningTask = {
   consecutiveErrors: number
 }
 
+// TODO: refactor lifecycle in V2
 class SchedulerService {
   private static instance: SchedulerService | null = null
   private pollTimer: ReturnType<typeof setTimeout> | null = null
@@ -187,7 +188,7 @@ class SchedulerService {
           this.activeTasks.delete(task.id)
           return
         }
-        const heartbeatContent = await heartbeatReader.readHeartbeat(workspacePath)
+        const heartbeatContent = await readHeartbeat(workspacePath)
         if (!heartbeatContent) {
           logger.debug('Heartbeat task skipped (no heartbeat.md)', { taskId: task.id })
           const nextRun = taskService.computeNextRun(task)
