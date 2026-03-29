@@ -17,15 +17,17 @@ import { loggerService } from '@logger'
 import { config as apiConfigService } from '@main/apiServer/config'
 import { validateModelId } from '@main/apiServer/utils'
 import { isWin } from '@main/constant'
+import BrowserServer from '@main/mcpServers/browser/server'
+import ClawServer from '@main/mcpServers/claw'
 import { pluginService } from '@main/services/agents/plugins/PluginService'
 import { configManager } from '@main/services/ConfigManager'
 import { autoDiscoverGitBash } from '@main/utils/process'
 import getLoginShellEnvironment from '@main/utils/shell-env'
+import { GLOBALLY_DISALLOWED_TOOLS, SOUL_MODE_DISALLOWED_TOOLS } from '@shared/agents/claudecode/constants'
 import { languageEnglishNameMap } from '@shared/config/languages'
 import { withoutTrailingApiVersion } from '@shared/utils'
-import { app } from 'electron'
-
 import type { CherryClawConfiguration } from '@types'
+import { app } from 'electron'
 
 import type { GetAgentSessionResponse } from '../..'
 import type {
@@ -34,14 +36,11 @@ import type {
   AgentStreamEvent,
   AgentThinkingOptions
 } from '../../interfaces/AgentStreamInterface'
-import { sessionService } from '../SessionService'
 import { PromptBuilder } from '../cherryclaw/prompt'
+import { sessionService } from '../SessionService'
 import { buildNamespacedToolCallId } from './claude-stream-state'
 import { promptForToolApproval } from './tool-permissions'
 import { ClaudeStreamState, transformSDKMessageToStreamParts } from './transform'
-
-import ClawServer from '@main/mcpServers/claw'
-import { SOUL_MODE_DISALLOWED_TOOLS } from '@shared/agents/claudecode/constants'
 
 const require_ = createRequire(import.meta.url)
 const logger = loggerService.withContext('ClaudeCodeService')
@@ -362,7 +361,7 @@ class ClaudeCodeService implements AgentServiceInterface {
           }
         ]
       },
-      ...(soulEnabled ? { disallowedTools: [...SOUL_MODE_DISALLOWED_TOOLS] } : {}),
+      disallowedTools: [...GLOBALLY_DISALLOWED_TOOLS, ...(soulEnabled ? SOUL_MODE_DISALLOWED_TOOLS : [])],
       ...(thinkingOptions?.effort ? { effort: thinkingOptions.effort } : {}),
       ...(thinkingOptions?.thinking ? { thinking: thinkingOptions.thinking } : {})
     }
@@ -387,9 +386,13 @@ class ClaudeCodeService implements AgentServiceInterface {
       options.strictMcpConfig = true
     }
 
+    // Inject @cherry/browser MCP for all agents (replaces SDK built-in WebSearch/WebFetch)
+    if (!options.mcpServers) options.mcpServers = {}
+    const browserServer = new BrowserServer()
+    options.mcpServers.browser = { type: 'sdk', name: '@cherry/browser', instance: browserServer.mcpServer }
+
     if (soulEnabled) {
       const clawServer = new ClawServer(session.agent_id)
-      if (!options.mcpServers) options.mcpServers = {}
       options.mcpServers.claw = { type: 'sdk', name: 'claw', instance: clawServer.mcpServer }
 
       // Ensure claw MCP tools are in allowed_tools whitelist
