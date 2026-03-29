@@ -149,6 +149,7 @@ class TelegramAdapter extends ChannelAdapter {
 
     // Start long polling (fire-and-forget)
     bot.start().catch((err) => {
+      this.markDisconnected()
       logger.error('Bot polling stopped with error', {
         agentId: this.agentId,
         channelId: this.channelId,

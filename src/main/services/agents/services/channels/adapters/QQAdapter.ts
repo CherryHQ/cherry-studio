@@ -228,6 +228,7 @@ class QQAdapter extends ChannelAdapter {
       })
 
       ws.on('close', (code, reason) => {
+        this.markDisconnected()
         logger.info('QQ WebSocket closed', {
           agentId: this.agentId,
           code,
@@ -353,6 +354,7 @@ class QQAdapter extends ChannelAdapter {
         this.reconnectAttempts = 0
         this.rapidDisconnects = 0
         this.connectedAt = Date.now()
+        this.markConnected()
         logger.info('QQ bot ready', {
           agentId: this.agentId,
           sessionId: this.sessionId,
@@ -362,6 +364,7 @@ class QQAdapter extends ChannelAdapter {
       }
       case 'RESUMED':
         this.connectedAt = Date.now()
+        this.markConnected()
         logger.info('QQ session resumed', { agentId: this.agentId })
         break
       case 'C2C_MESSAGE_CREATE':
@@ -612,6 +615,7 @@ class QQAdapter extends ChannelAdapter {
     }
 
     if (this.reconnectAttempts >= this.maxReconnectAttempts) {
+      this.markDisconnected()
       logger.error('Max reconnect attempts reached', { agentId: this.agentId })
       return
     }

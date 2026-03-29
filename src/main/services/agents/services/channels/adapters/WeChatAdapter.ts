@@ -99,6 +99,7 @@ class WeChatAdapter extends ChannelAdapter {
     // Start long-polling (fire-and-forget)
     bot.run().catch((err) => {
       if (!signal.aborted) {
+        this.markDisconnected()
         logger.error('WeChat bot polling stopped with error', {
           agentId: this.agentId,
           channelId: this.channelId,

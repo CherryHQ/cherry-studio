@@ -64,9 +64,25 @@ export abstract class ChannelAdapter extends EventEmitter {
     this.agentId = config.agentId
   }
 
-  /** Whether the adapter has completed performConnect successfully. */
+  /** Whether the adapter has completed performConnect successfully and not since disconnected. */
   get connected(): boolean {
     return this._connected
+  }
+
+  /**
+   * Mark the adapter as disconnected when the underlying connection drops unexpectedly.
+   * Subclasses should call this from error handlers (e.g. WebSocket close, polling failure).
+   */
+  protected markDisconnected(): void {
+    this._connected = false
+  }
+
+  /**
+   * Mark the adapter as connected after a successful reconnection.
+   * Subclasses with auto-reconnect logic should call this when the connection is re-established.
+   */
+  protected markConnected(): void {
+    this._connected = true
   }
 
   /**
