@@ -34,7 +34,7 @@ const ProviderSelect: FC<ProviderSelectProps> = ({ provider, options, onChange, 
       setCustomLogos(logos)
     }
 
-    loadLogos()
+    void loadLogos()
   }, [options])
 
   const getProviderLogoSrc = (providerId: string) => {

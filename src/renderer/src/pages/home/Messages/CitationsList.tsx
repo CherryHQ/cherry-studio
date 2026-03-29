@@ -113,7 +113,7 @@ const CitationsList: React.FC<CitationsListProps> = ({ citations }) => {
 const handleLinkClick = (url: string, event: React.MouseEvent) => {
   event.preventDefault()
   if (url.startsWith('http')) window.open(url, '_blank', 'noopener,noreferrer')
-  else window.api.file.openPath(url)
+  else void window.api.file.openPath(url)
 }
 
 const CopyButton: React.FC<{ content: string }> = ({ content }) => {
@@ -159,7 +159,7 @@ const WebSearchCitation: React.FC<{ citation: Citation }> = ({ citation }) => {
 
   const { data: oembedData } = useQuery({
     queryKey: ['xOembed', citation.url],
-    queryFn: () => fetchXOEmbed(citation.url!),
+    queryFn: () => fetchXOEmbed(citation.url),
     enabled: isXPost && Boolean(citation.url),
     staleTime: Infinity
   })

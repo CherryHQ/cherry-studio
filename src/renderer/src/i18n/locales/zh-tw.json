@@ -1391,6 +1391,8 @@
             "content": "確定要刪除選中的 {{count}} 個話題嗎？此操作不可撤銷。",
             "title": "刪除話題"
           },
+          "error": "刪除失敗，請再試一次。",
+          "partial_success": "成功刪除了 {{successCount}} 個主題，{{failedCount}} 個失敗",
           "success": "已刪除 {{count}} 個話題"
         },
         "deselect_all": "取消全選",
@@ -2812,6 +2814,27 @@
     },
     "title": "Ollama"
   },
+  "onboarding": {
+    "select_model": {
+      "change_later": "您可以隨時在設定中更改此項目",
+      "start": "開始使用",
+      "subtitle": "為每個情境選擇預設模型",
+      "title": "選擇您的預設模型"
+    },
+    "skip": "跳過",
+    "toast": {
+      "connected": "成功連接到 CherryIN"
+    },
+    "welcome": {
+      "login_cherryin": "使用 CherryIN 登入",
+      "or_continue_with": "或繼續使用",
+      "other_provider": "選擇其他供應商",
+      "select_other_provider": "選擇其他供應商",
+      "setup_hint": "請至少設定一個提供者以獲得最佳體驗",
+      "subtitle": "享受頂尖 AI 服務，盡在 CherryIN",
+      "title": "歡迎來到 Cherry Studio"
+    }
+  },
   "openclaw": {
     "checking_installation": "正在檢查 OpenClaw 安裝狀態...",
     "description": "使用 Cherry Studio 服務商為 OpenClaw 提供支援，OpenClaw 是您的個人 AI 助手，可在 WhatsApp、Telegram、Slack、Discord 等平台上使用。",
@@ -3666,6 +3689,19 @@
           "windows": "請輸入應用程式的執行檔名稱（每行一個、不區分大小寫，可模糊比對）。例如：chrome.exe、weixin.exe、Cherry Studio.exe 等"
         }
       },
+      "linux": {
+        "compositor_incompatible": "目前桌面環境不支援劃詞功能，請切換到 X11 模式以獲得完整體驗。",
+        "filter_warning_text": "Wayland 模式下不生效",
+        "input_group_fail": "未取得，請執行 `sudo usermod -aG input $USER` 並重新登入生效",
+        "input_group_label": "input 組權限：",
+        "input_group_pass": "已取得",
+        "wayland_checklist_subtitle": "確認以下條件已滿足，以盡可能優化 Wayland 下的體驗：",
+        "wayland_description": "目前為 Wayland 模式，受系統限制，部分桌面環境下工具列只能顯示在螢幕中央，無法跟隨選取文字定位。建議切換到 X11 模式以獲得完整體驗。",
+        "wayland_title": "Wayland 模式提示",
+        "xwayland_fail": "未啟用，請使用 `--ozone-platform=x11` 參數啟動 Cherry Studio",
+        "xwayland_label": "XWayland 模式：",
+        "xwayland_pass": "已啟用"
+      },
       "search_modal": {
         "custom": {
           "name": {
@@ -3699,6 +3735,7 @@
           "ctrlkey_note": "劃詞後，再 按住 Ctrl 鍵，才顯示工具列",
           "description": "劃詞後，觸發取詞並顯示工具列的方式",
           "description_note": {
+            "linux": "若使用了 xmodmap 或 xremap 等按鍵對映工具對修飾鍵進行了重新對應，可能導致部分應用程式無法劃詞。",
             "mac": "若使用了快捷鍵或鍵盤對映工具對 ⌘ 鍵進行了重新對應，可能導致部分應用程式無法劃詞。",
             "windows": "在某些應用中可能無法透過 Ctrl 鍵劃詞。若使用了 AHK 等工具對 Ctrl 鍵進行了重新對應，可能導致部分應用程式無法劃詞。"
           },
@@ -5020,6 +5057,7 @@
           "label": "新增列表中的模型"
         },
         "add_whole_group": "新增整個分組",
+        "fetch_list": "取得模型列表",
         "refetch_list": "重新取得模型列表",
         "remove_listed": "移除列表中的模型",
         "remove_model": "移除模型",

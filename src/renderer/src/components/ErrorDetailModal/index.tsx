@@ -513,7 +513,7 @@ const ErrorDetailModal: React.FC<ErrorDetailModalProps> = ({ open, onClose, erro
       errorText = safeToString(error)
     }
 
-    navigator.clipboard.writeText(errorText)
+    void navigator.clipboard.writeText(errorText)
     window.toast.addToast({ title: t('message.copied') })
   }, [error, t])
 

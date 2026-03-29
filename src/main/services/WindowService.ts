@@ -192,7 +192,7 @@ export class WindowService {
       const isLaunchToTray = configManager.getLaunchToTray()
       if (!isLaunchToTray) {
         //[mac]hacky-fix: miniWindow set visibleOnFullScreen:true will cause dock icon disappeared
-        app.dock?.show()
+        void app.dock?.show()
         mainWindow.show()
       }
     })
@@ -279,7 +279,7 @@ export class WindowService {
       }
 
       event.preventDefault()
-      shell.openExternal(url)
+      void shell.openExternal(url)
     })
 
     mainWindow.webContents.setWindowOpenHandler((details) => {
@@ -314,7 +314,7 @@ export class WindowService {
         const filePath = storageDir + '/' + fileName
         shell.openPath(filePath).catch((err) => logger.error('Failed to open file:', err))
       } else {
-        shell.openExternal(details.url)
+        void shell.openExternal(details.url)
       }
 
       return { action: 'deny' }
@@ -343,10 +343,10 @@ export class WindowService {
 
   private loadMainWindowContent(mainWindow: BrowserWindow) {
     if (is.dev && process.env['ELECTRON_RENDERER_URL']) {
-      mainWindow.loadURL(process.env['ELECTRON_RENDERER_URL'])
+      void mainWindow.loadURL(process.env['ELECTRON_RENDERER_URL'])
       // mainWindow.webContents.openDevTools()
     } else {
-      mainWindow.loadFile(join(__dirname, '../renderer/index.html'))
+      void mainWindow.loadFile(join(__dirname, '../renderer/index.html'))
     }
   }
 
@@ -400,7 +400,7 @@ export class WindowService {
         mainWindow.once('show', () => {
           //restore the window can hide by cmd+h when the window is shown again
           // https://github.com/electron/electron/pull/47970
-          app.dock?.show()
+          void app.dock?.show()
         })
       }
     })
@@ -587,9 +587,9 @@ export class WindowService {
     })
 
     if (is.dev && process.env['ELECTRON_RENDERER_URL']) {
-      this.miniWindow.loadURL(process.env['ELECTRON_RENDERER_URL'] + '/miniWindow.html')
+      void this.miniWindow.loadURL(process.env['ELECTRON_RENDERER_URL'] + '/miniWindow.html')
     } else {
-      this.miniWindow.loadFile(join(__dirname, '../renderer/miniWindow.html'))
+      void this.miniWindow.loadFile(join(__dirname, '../renderer/miniWindow.html'))
     }
 
     return this.miniWindow

@@ -148,7 +148,7 @@ export class SessionMessageService extends BaseService {
           : await baseQuery.limit(options.limit)
         : await baseQuery
 
-    const messages = result.map((row) => this.deserializeSessionMessage(row)) as AgentSessionMessageEntity[]
+    const messages = result.map((row) => this.deserializeSessionMessage(row))
 
     return { messages }
   }

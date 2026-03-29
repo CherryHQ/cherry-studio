@@ -529,7 +529,8 @@ const api = {
     pinActionWindow: (isPinned: boolean) => ipcRenderer.invoke(IpcChannel.Selection_ActionWindowPin, isPinned),
     // [Windows only] Electron bug workaround - can be removed once https://github.com/electron/electron/issues/48554 is fixed
     resizeActionWindow: (deltaX: number, deltaY: number, direction: string) =>
-      ipcRenderer.invoke(IpcChannel.Selection_ActionWindowResize, deltaX, deltaY, direction)
+      ipcRenderer.invoke(IpcChannel.Selection_ActionWindowResize, deltaX, deltaY, direction),
+    getLinuxEnvInfo: () => ipcRenderer.invoke(IpcChannel.Selection_GetLinuxEnvInfo)
   },
   agentTools: {
     respondToPermission: (payload: {

@@ -130,7 +130,7 @@ function flushToolApprovalNotification() {
       ? i18n.t('message.tools.approvalRequired', { tool: tools[0] })
       : i18n.t('message.tools.approvalRequired', { tool: `${tools.length} tools` })
 
-  NotificationService.getInstance().send({
+  void NotificationService.getInstance().send({
     id: uuid(),
     type: 'action',
     title: i18n.t('notification.assistant'),

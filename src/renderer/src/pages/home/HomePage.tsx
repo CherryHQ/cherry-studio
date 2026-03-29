@@ -1,7 +1,10 @@
 import { ErrorBoundary } from '@renderer/components/ErrorBoundary'
 import { useAssistants } from '@renderer/hooks/useAssistant'
 import { useNavbarPosition, useSettings } from '@renderer/hooks/useSettings'
+import { useShortcut } from '@renderer/hooks/useShortcuts'
+import { useShowAssistants, useShowTopics } from '@renderer/hooks/useStore'
 import { useActiveTopic } from '@renderer/hooks/useTopic'
+import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import NavigationService from '@renderer/services/NavigationService'
 import { newMessagesActions } from '@renderer/store/newMessage'
 import type { Assistant, Topic } from '@renderer/types'
@@ -32,9 +35,45 @@ const HomePage: FC = () => {
   )
   const { activeTopic, setActiveTopic: _setActiveTopic } = useActiveTopic(activeAssistant?.id ?? '', state?.topic)
   const { showAssistants, showTopics, topicPosition } = useSettings()
+  const { setShowAssistants, toggleShowAssistants } = useShowAssistants()
+  const { toggleShowTopics } = useShowTopics()
   const dispatch = useDispatch()
 
   _activeAssistant = activeAssistant
+
+  useShortcut('toggle_show_assistants', () => {
+    if (topicPosition === 'right') {
+      toggleShowAssistants()
+      return
+    }
+
+    if (!showAssistants) {
+      setShowAssistants(true)
+      requestAnimationFrame(() => {
+        void EventEmitter.emit(EVENT_NAMES.SHOW_ASSISTANTS)
+      })
+      return
+    }
+
+    void EventEmitter.emit(EVENT_NAMES.SHOW_ASSISTANTS)
+  })
+
+  useShortcut('toggle_show_topics', () => {
+    if (topicPosition === 'right') {
+      toggleShowTopics()
+      return
+    }
+
+    if (!showAssistants) {
+      setShowAssistants(true)
+      requestAnimationFrame(() => {
+        void EventEmitter.emit(EVENT_NAMES.SHOW_TOPIC_SIDEBAR)
+      })
+      return
+    }
+
+    void EventEmitter.emit(EVENT_NAMES.SHOW_TOPIC_SIDEBAR)
+  })
 
   const setActiveAssistant = useCallback(
     (newAssistant: Assistant) => {
@@ -71,10 +110,10 @@ const HomePage: FC = () => {
 
   useEffect(() => {
     const canMinimize = topicPosition == 'left' ? !showAssistants : !showAssistants && !showTopics
-    window.api.window.setMinimumSize(canMinimize ? SECOND_MIN_WINDOW_WIDTH : MIN_WINDOW_WIDTH, MIN_WINDOW_HEIGHT)
+    void window.api.window.setMinimumSize(canMinimize ? SECOND_MIN_WINDOW_WIDTH : MIN_WINDOW_WIDTH, MIN_WINDOW_HEIGHT)
 
     return () => {
-      window.api.window.resetMinimumSize()
+      void window.api.window.resetMinimumSize()
     }
   }, [showAssistants, showTopics, topicPosition])
 

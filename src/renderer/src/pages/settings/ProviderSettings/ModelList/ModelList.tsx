@@ -13,10 +13,11 @@ import ManageModelsPopup from '@renderer/pages/settings/ProviderSettings/ModelLi
 import NewApiAddModelPopup from '@renderer/pages/settings/ProviderSettings/ModelList/NewApiAddModelPopup'
 import type { Model } from '@renderer/types'
 import { filterModelsByKeywords } from '@renderer/utils'
+import { getDuplicateModelNames } from '@renderer/utils/model'
 import { isNewApiProvider } from '@renderer/utils/provider'
-import { Button, Flex, Spin, Tooltip } from 'antd'
+import { Button, Flex, Space, Spin, Tooltip } from 'antd'
 import { groupBy, isEmpty, sortBy, toPairs } from 'lodash'
-import { ListCheck, Plus } from 'lucide-react'
+import { Plus, RefreshCw } from 'lucide-react'
 import React, { memo, startTransition, useCallback, useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -65,6 +66,7 @@ const ModelList: React.FC<ModelListProps> = ({ providerId }) => {
   })
 
   const { isChecking: isHealthChecking, modelStatuses, runHealthCheck } = useHealthCheck(provider, models)
+  const duplicateModelNames = useMemo(() => getDuplicateModelNames(models), [models])
 
   // 将 modelStatuses 数组转换为 Map，实现 O(1) 查找
   const modelStatusMap = useMemo(() => {
@@ -92,14 +94,14 @@ const ModelList: React.FC<ModelListProps> = ({ providerId }) => {
   }, [displayedModelGroups])
 
   const onManageModel = useCallback(() => {
-    ManageModelsPopup.show({ providerId: provider.id })
+    void ManageModelsPopup.show({ providerId: provider.id })
   }, [provider.id])
 
   const onAddModel = useCallback(() => {
     if (isNewApiProvider(provider)) {
-      NewApiAddModelPopup.show({ title: t('settings.models.add.add_model'), provider })
+      void NewApiAddModelPopup.show({ title: t('settings.models.add.add_model'), provider })
     } else {
-      AddModelPopup.show({ title: t('settings.models.add.add_model'), provider })
+      void AddModelPopup.show({ title: t('settings.models.add.add_model'), provider })
     }
   }, [provider, t])
 
@@ -109,35 +111,61 @@ const ModelList: React.FC<ModelListProps> = ({ providerId }) => {
   )
 
   const isLoading = useMemo(() => displayedModelGroups === null, [displayedModelGroups])
+  const hasNoModels = useMemo(() => models.length === 0, [models.length])
+
+  const actionButtons = (
+    <Space.Compact>
+      <Button onClick={onManageModel} icon={<RefreshCw size={16} />} disabled={isHealthChecking}>
+        {t('settings.models.manage.fetch_list')}
+      </Button>
+      {provider.id !== 'ovms' ? (
+        <Tooltip title={t('button.add')} mouseLeaveDelay={0}>
+          <Button onClick={onAddModel} icon={<Plus size={16} />} disabled={isHealthChecking} />
+        </Tooltip>
+      ) : (
+        <Tooltip title={t('button.download')} mouseLeaveDelay={0}>
+          <Button onClick={onDownloadModel} icon={<Plus size={16} />} />
+        </Tooltip>
+      )}
+    </Space.Compact>
+  )
 
   return (
     <>
-      <SettingSubtitle style={{ marginBottom: 5 }}>
+      <SettingSubtitle style={{ marginBottom: 12 }}>
         <HStack alignItems="center" justifyContent="space-between" style={{ width: '100%' }}>
           <HStack alignItems="center" gap={8}>
             <SettingSubtitle style={{ marginTop: 0 }}>{t('common.models')}</SettingSubtitle>
-            {modelCount > 0 && (
-              <CustomTag color="#8c8c8c" size={10}>
-                {modelCount}
-              </CustomTag>
+            <CustomTag color="#8c8c8c" size={10}>
+              {modelCount}
+            </CustomTag>
+            {!hasNoModels && (
+              <>
+                <Tooltip title={t('settings.models.check.button_caption')} mouseLeaveDelay={0}>
+                  <Button
+                    type="text"
+                    onClick={runHealthCheck}
+                    icon={
+                      <StreamlineGoodHealthAndWellBeing
+                        size={16}
+                        isActive={isHealthChecking}
+                        color="var(--color-icon)"
+                      />
+                    }
+                  />
+                </Tooltip>
+                <CollapsibleSearchBar
+                  onSearch={setSearchText}
+                  placeholder={t('models.search.placeholder')}
+                  tooltip={t('models.search.tooltip')}
+                />
+              </>
             )}
-            <CollapsibleSearchBar
-              onSearch={setSearchText}
-              placeholder={t('models.search.placeholder')}
-              tooltip={t('models.search.tooltip')}
-            />
           </HStack>
-          <HStack>
-            <Tooltip title={t('settings.models.check.button_caption')} mouseLeaveDelay={0}>
-              <Button
-                type="text"
-                onClick={runHealthCheck}
-                icon={<StreamlineGoodHealthAndWellBeing size={16} isActive={isHealthChecking} />}
-              />
-            </Tooltip>
-          </HStack>
+          {!hasNoModels && actionButtons}
         </HStack>
       </SettingSubtitle>
+      {hasNoModels && <div style={{ marginBottom: 12 }}>{actionButtons}</div>}
       <Spin spinning={isLoading} indicator={<LoadingIcon color="var(--color-text-2)" />}>
         {displayedModelGroups && !isEmpty(displayedModelGroups) && (
           <Flex gap={12} vertical>
@@ -146,6 +174,7 @@ const ModelList: React.FC<ModelListProps> = ({ providerId }) => {
                 key={group}
                 groupName={group}
                 models={displayedModelGroups[group]}
+                duplicateModelNames={duplicateModelNames}
                 modelStatusMap={modelStatusMap}
                 defaultOpen={i <= 5}
                 onEditModel={handleEditModel}
@@ -176,20 +205,6 @@ const ModelList: React.FC<ModelListProps> = ({ providerId }) => {
           </SettingHelpTextRow>
         ) : (
           <div style={{ height: 5 }} />
-        )}
-      </Flex>
-      <Flex gap={10} style={{ marginTop: 12 }}>
-        <Button type="primary" onClick={onManageModel} icon={<ListCheck size={16} />} disabled={isHealthChecking}>
-          {t('button.manage')}
-        </Button>
-        {provider.id !== 'ovms' ? (
-          <Button type="default" onClick={onAddModel} icon={<Plus size={16} />} disabled={isHealthChecking}>
-            {t('button.add')}
-          </Button>
-        ) : (
-          <Button type="default" onClick={onDownloadModel} icon={<Plus size={16} />}>
-            {t('button.download')}
-          </Button>
         )}
       </Flex>
     </>

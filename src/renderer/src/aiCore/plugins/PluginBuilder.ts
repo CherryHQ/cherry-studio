@@ -56,7 +56,7 @@ export function buildPlugins({ provider, model, config }: BuildPluginsContext): 
   // === PDF Compatibility ===
   // Must run before other plugins (e.g., Anthropic cache token estimation)
   // so that PDF FileParts are converted to TextParts for unsupported providers.
-  plugins.push(createPdfCompatibilityPlugin(provider))
+  plugins.push(createPdfCompatibilityPlugin(provider, model))
 
   // === AI SDK Middleware Plugins ===
   // 注意：wrapLanguageModel 会 .reverse() middleware 数组，

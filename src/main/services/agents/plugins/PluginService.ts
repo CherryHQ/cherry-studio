@@ -1420,7 +1420,7 @@ export class PluginService {
     // Parse metadata based on type
     const metadata = isSkill
       ? await parseSkillMetadata(componentPath, name, 'plugins')
-      : await parsePluginMetadata(componentPath, name, 'plugins', type as 'agent' | 'command')
+      : await parsePluginMetadata(componentPath, name, 'plugins', type)
 
     // Sanitize name based on type
     const sanitizedName = isSkill
@@ -1494,7 +1494,7 @@ export class PluginService {
       } as PluginError
     }
 
-    const filePluginType = type as 'agent' | 'command'
+    const filePluginType = type
     const filePath = this.getClaudePluginPath(workdir, filePluginType, filename)
     const newContentHash = await this.installer.updateFilePluginContent(agent.id, filePath, content)
 

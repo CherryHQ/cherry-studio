@@ -1391,6 +1391,8 @@
             "content": "Ești sigur că vrei să ștergi {{count}} subiecte selectate? Această acțiune nu poate fi anulată.",
             "title": "Șterge subiecte"
           },
+          "error": "Nu s-a putut șterge. Vă rugăm să încercați din nou.",
+          "partial_success": "Șters cu succes {{successCount}} subiecte, {{failedCount}} eșuate",
           "success": "S-au șters {{count}} subiecte"
         },
         "deselect_all": "Deselectează tot",
@@ -2812,6 +2814,27 @@
     },
     "title": "Ollama"
   },
+  "onboarding": {
+    "select_model": {
+      "change_later": "Poți schimba oricând asta din setări.",
+      "start": "Începe",
+      "subtitle": "Selectați modelul implicit pentru fiecare scenariu",
+      "title": "Alegeți Modelele Dvs. Implicite"
+    },
+    "skip": "Sariți",
+    "toast": {
+      "connected": "Conectat cu succes la CherryIN"
+    },
+    "welcome": {
+      "login_cherryin": "Conectare cu CherryIN",
+      "or_continue_with": "SAU CONTINUAȚI CU",
+      "other_provider": "Alegeți alți furnizori",
+      "select_other_provider": "Selectați alt furnizor",
+      "setup_hint": "Vă rugăm să configurați cel puțin un furnizor pentru cea mai bună experiență",
+      "subtitle": "Bucurați-vă de servicii AI de top cu CherryIN",
+      "title": "Bun venit la Cherry Studio"
+    }
+  },
   "openclaw": {
     "checking_installation": "Verificare instalare OpenClaw...",
     "description": "Integrează furnizorii Cherry Studio cu Gateway-ul OpenClaw pentru a permite agenților de codificare AI precum Claude Code, Qwen-Coder și alții.",
@@ -3666,6 +3689,19 @@
           "windows": "Te rugăm să introduci numele fișierului executabil al aplicației, unul pe linie, nu este sensibil la majuscule/minuscule, poate fi potrivit aproximativ. De exemplu: chrome.exe, weixin.exe, Cherry Studio.exe etc."
         }
       },
+      "linux": {
+        "compositor_incompatible": "Mediul dvs. desktop nu acceptă funcția de selecție. Vă rugăm să treceți la o sesiune X11 pentru o experiență completă.",
+        "filter_warning_text": "Indisponibil în sesiunea Wayland",
+        "input_group_fail": "Nu a fost acordat, te rog să rulezi `sudo usermod -aG input $USER` și să te reconectezi",
+        "input_group_label": "permisiunea grupului de intrare:",
+        "input_group_pass": "Acordat",
+        "wayland_checklist_subtitle": "Asigurați-vă că sunt îndeplinite următoarele condiții pentru a optimiza experiența Wayland:",
+        "wayland_description": "Vă aflați într-o sesiune Wayland. Din cauza limitărilor sistemului, bara de instrumente poate apărea doar în centrul ecranului în loc să urmărească textul selectat pe unele medii desktop. Se recomandă să treceți la o sesiune X11 pentru o experiență completă.",
+        "wayland_title": "Notificare sesiune Wayland",
+        "xwayland_fail": "Nu este activat, vă rugăm să lansați Cherry Studio cu steagul `--ozone-platform=x11`",
+        "xwayland_label": "Mod XWayland:",
+        "xwayland_pass": "Activat"
+      },
       "search_modal": {
         "custom": {
           "name": {
@@ -3699,6 +3735,7 @@
           "ctrlkey_note": "După selecție, ține apăsată tasta Ctrl pentru a afișa bara de instrumente",
           "description": "Modul de declanșare a asistentului de selecție și de afișare a barei de instrumente",
           "description_note": {
+            "linux": "Dacă ai remapat tastele modificatoare folosind instrumente precum xmodmap sau xremap, acest lucru poate face ca unele aplicații să nu poată selecta textul.",
             "mac": "Dacă ai remapat tasta ⌘ folosind scurtături sau instrumente de mapare a tastaturii, acest lucru poate cauza eșecul selecției textului în unele aplicații.",
             "windows": "Unele aplicații nu acceptă selectarea textului cu tasta Ctrl. Dacă ai remapat tasta Ctrl folosind instrumente precum AHK, acest lucru poate cauza eșecul selecției textului în unele aplicații."
           },
@@ -5020,6 +5057,7 @@
           "label": "Adaugă modele la listă"
         },
         "add_whole_group": "Adaugă întregul grup",
+        "fetch_list": "Obține lista modelelor",
         "refetch_list": "Reîmprospătează lista modelelor",
         "remove_listed": "Elimină modelele din listă",
         "remove_model": "Elimină modelul",

@@ -1391,6 +1391,8 @@
             "content": "¿Estás seguro de que quieres eliminar {{count}} tema(s) seleccionado(s)? Esta acción no se puede deshacer.",
             "title": "Eliminar Temas"
           },
+          "error": "Error al eliminar. Inténtalo de nuevo.",
+          "partial_success": "Se eliminaron correctamente {{successCount}} temas, {{failedCount}} fallaron",
           "success": "Eliminado(s) {{count}} tema(s)"
         },
         "deselect_all": "Deseleccionar todo",
@@ -2812,6 +2814,27 @@
     },
     "title": "Ollama"
   },
+  "onboarding": {
+    "select_model": {
+      "change_later": "Puedes cambiar esto en cualquier momento desde la configuración.",
+      "start": "Comenzar",
+      "subtitle": "Seleccionar modelo predeterminado para cada escenario",
+      "title": "Elige tus modelos predeterminados"
+    },
+    "skip": "Saltar",
+    "toast": {
+      "connected": "Conectado con éxito a CherryIN"
+    },
+    "welcome": {
+      "login_cherryin": "Iniciar sesión con CherryIN",
+      "or_continue_with": "O CONTINUAR CON",
+      "other_provider": "Elegir Otros Proveedores",
+      "select_other_provider": "Seleccionar Otro Proveedor",
+      "setup_hint": "Por favor, configura al menos un proveedor para obtener la mejor experiencia.",
+      "subtitle": "Disfruta de servicios de IA de primer nivel con CherryIN",
+      "title": "Bienvenido a Cherry Studio"
+    }
+  },
   "openclaw": {
     "checking_installation": "Comprobando la instalación de OpenClaw...",
     "description": "Integra los proveedores de Cherry Studio con OpenClaw Gateway para habilitar agentes de codificación con IA como Claude Code, Qwen-Coder y más.",
@@ -3666,6 +3689,19 @@
           "windows": "Ingrese el nombre del archivo ejecutable de la aplicación, uno por línea, sin distinguir mayúsculas y minúsculas, se permite la coincidencia aproximada. Por ejemplo: chrome.exe, weixin.exe, Cherry Studio.exe, etc."
         }
       },
+      "linux": {
+        "compositor_incompatible": "Tu entorno de escritorio no admite la función de selección. Cambia a una sesión X11 para disfrutar de la experiencia completa.",
+        "filter_warning_text": "No disponible en la sesión de Wayland",
+        "input_group_fail": "No concedido, por favor ejecuta `sudo usermod -aG input $USER` y vuelve a iniciar sesión",
+        "input_group_label": "permiso de grupo de entrada:",
+        "input_group_pass": "Concedido",
+        "wayland_checklist_subtitle": "Asegúrate de que se cumplan las siguientes condiciones para optimizar la experiencia con Wayland:",
+        "wayland_description": "Estás en una sesión de Wayland. Debido a limitaciones del sistema, la barra de herramientas puede aparecer solo en el centro de la pantalla en lugar de seguir el texto seleccionado en algunos entornos de escritorio. Se recomienda cambiar a una sesión de X11 para disfrutar de la experiencia completa.",
+        "wayland_title": "Aviso de sesión de Wayland",
+        "xwayland_fail": "No habilitado; por favor, inicia Cherry Studio con la bandera `--ozone-platform=x11`.",
+        "xwayland_label": "Modo XWayland:",
+        "xwayland_pass": "Habilitado"
+      },
       "search_modal": {
         "custom": {
           "name": {
@@ -3699,6 +3735,7 @@
           "ctrlkey_note": "Después de seleccionar una palabra, mantenga presionada la tecla Ctrl para mostrar la barra de herramientas",
           "description": "Forma de activar la captura de palabras y mostrar la barra de herramientas tras seleccionar texto",
           "description_note": {
+            "linux": "Si has reasignado teclas modificadoras usando herramientas como xmodmap o xremap, puede que algunas aplicaciones fallen al seleccionar texto.",
             "mac": "Si se utilizan atajos de teclado o herramientas de mapeo que han reasignado la tecla ⌘, es posible que algunas aplicaciones no permitan seleccionar texto.",
             "windows": "Algunas aplicaciones no admiten la selección de texto mediante la tecla Ctrl. Si se utilizan herramientas de mapeo de teclas como AHK que han reasignado la tecla Ctrl, es posible que algunas aplicaciones no permitan seleccionar texto."
           },
@@ -5020,6 +5057,7 @@
           "label": "Agregar modelo en la lista"
         },
         "add_whole_group": "Agregar todo el grupo",
+        "fetch_list": "Obtener lista de modelos",
         "refetch_list": "Volver a obtener la lista de modelos",
         "remove_listed": "Eliminar modelo de la lista",
         "remove_model": "Eliminar modelo",

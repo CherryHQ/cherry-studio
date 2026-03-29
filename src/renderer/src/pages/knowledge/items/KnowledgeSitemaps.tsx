@@ -92,7 +92,7 @@ const KnowledgeSitemaps: FC<KnowledgeContentProps> = ({ selectedBase }) => {
           icon={<PlusIcon size={16} />}
           onClick={(e) => {
             e.stopPropagation()
-            handleAddSitemap()
+            void handleAddSitemap()
           }}
           disabled={disabled}>
           {t('knowledge.add_sitemap')}

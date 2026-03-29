@@ -360,7 +360,7 @@ class McpService {
               getServerLogger(server).debug(`StreamableHTTPClientTransport options`, {
                 options: redactSensitive(options)
               })
-              return new StreamableHTTPClientTransport(new URL(server.baseUrl!), options)
+              return new StreamableHTTPClientTransport(new URL(server.baseUrl), options)
             } else if (server.type === 'sse') {
               const options: SSEClientTransportOptions = {
                 eventSourceInit: {
@@ -373,7 +373,7 @@ class McpService {
                 },
                 authProvider
               }
-              return new SSEClientTransport(new URL(server.baseUrl!), options)
+              return new SSEClientTransport(new URL(server.baseUrl), options)
             } else {
               throw new Error('Invalid server type')
             }
@@ -555,7 +555,7 @@ class McpService {
           // Set a timeout to close the callback server
           const timeoutId = setTimeout(() => {
             getServerLogger(server).warn(`OAuth flow timed out`)
-            callbackServer.close()
+            void callbackServer.close()
           }, 300000) // 5 minutes timeout
 
           try {
@@ -581,7 +581,7 @@ class McpService {
           } finally {
             // Clear the timeout and close the callback server
             clearTimeout(timeoutId)
-            callbackServer.close()
+            void callbackServer.close()
           }
         }
 

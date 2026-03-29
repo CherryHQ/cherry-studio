@@ -1,10 +1,9 @@
 import { NavbarHeader } from '@renderer/components/app/Navbar'
 import SearchPopup from '@renderer/components/Popups/SearchPopup'
 import { useAssistant } from '@renderer/hooks/useAssistant'
-import { useNavbarPosition, useSettings } from '@renderer/hooks/useSettings'
+import { useNavbarPosition } from '@renderer/hooks/useSettings'
 import { useShortcut } from '@renderer/hooks/useShortcuts'
-import { useShowAssistants, useShowTopics } from '@renderer/hooks/useStore'
-import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
+import { useShowAssistants } from '@renderer/hooks/useStore'
 import type { Assistant, Topic } from '@renderer/types'
 import { Tooltip } from 'antd'
 import { t } from 'i18next'
@@ -27,26 +26,14 @@ interface Props {
 const HeaderNavbar: FC<Props> = ({ activeAssistant, setActiveAssistant, activeTopic, setActiveTopic }) => {
   const { assistant } = useAssistant(activeAssistant.id)
   const { showAssistants, toggleShowAssistants } = useShowAssistants()
-  const { topicPosition } = useSettings()
-  const { toggleShowTopics } = useShowTopics()
   const { isTopNavbar } = useNavbarPosition()
 
-  useShortcut('toggle_show_assistants', toggleShowAssistants)
-
-  useShortcut('toggle_show_topics', () => {
-    if (topicPosition === 'right') {
-      toggleShowTopics()
-    } else {
-      EventEmitter.emit(EVENT_NAMES.SHOW_TOPIC_SIDEBAR)
-    }
-  })
-
   useShortcut('search_message', () => {
-    SearchPopup.show()
+    void SearchPopup.show()
   })
 
   const onShowAssistantsDrawer = () => {
-    AssistantsDrawer.show({
+    void AssistantsDrawer.show({
       activeAssistant,
       setActiveAssistant,
       activeTopic,

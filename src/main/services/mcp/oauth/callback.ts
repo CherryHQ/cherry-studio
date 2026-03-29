@@ -18,7 +18,7 @@ function getTranslation(key: string): string {
     return key
   }
 
-  const translations = localeData.translation as any
+  const translations = localeData.translation
   if (!translations) {
     logger.warn(`No translations found for language: ${language}`)
     return key
@@ -124,7 +124,7 @@ export class CallBackServer {
 
     // Handle server errors
     server.on('error', (error) => {
-      logger.error('OAuth callback server error:', error as Error)
+      logger.error('OAuth callback server error:', error)
     })
 
     return new Promise<http.Server>((resolve, reject) => {

@@ -290,7 +290,7 @@ export async function fetchMessagesSummary({
 }: {
   messages: Message[]
 }): Promise<{ text: string | null; error?: string }> {
-  let prompt = (getStoreSetting('topicNamingPrompt') as string) || i18n.t('prompts.title')
+  let prompt = getStoreSetting('topicNamingPrompt') || i18n.t('prompts.title')
   const model = getQuickModel()
 
   if (prompt && containsSupportedVariables(prompt)) {
@@ -403,7 +403,7 @@ export async function fetchMessagesSummary({
 }
 
 export async function fetchNoteSummary({ content, assistant }: { content: string; assistant?: Assistant }) {
-  let prompt = (getStoreSetting('topicNamingPrompt') as string) || i18n.t('prompts.title')
+  let prompt = getStoreSetting('topicNamingPrompt') || i18n.t('prompts.title')
   const resolvedAssistant = assistant || getDefaultAssistant()
   const model = getQuickModel() || resolvedAssistant.model || getDefaultModel()
 

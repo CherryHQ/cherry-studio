@@ -90,9 +90,9 @@ export const useWebSearchPanelController = (assistantId: string, quickPanelContr
   const updateQuickPanelItem = useCallback(
     async (providerId?: WebSearchProvider['id']) => {
       if (providerId === assistant.webSearchProviderId) {
-        updateWebSearchProvider(undefined)
+        void updateWebSearchProvider(undefined)
       } else {
-        updateWebSearchProvider(providerId)
+        void updateWebSearchProvider(providerId)
       }
     },
     [assistant.webSearchProviderId, updateWebSearchProvider]

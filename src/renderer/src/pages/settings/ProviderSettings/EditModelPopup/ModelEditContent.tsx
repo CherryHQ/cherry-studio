@@ -139,7 +139,7 @@ const ModelEditContent: FC<ModelEditContentProps & ModalProps> = ({ provider, mo
         selectedTypes.map((type) => {
           const existingCapability = modelCapabilities?.find((m) => m.type === type)
           return {
-            type: type as ModelType,
+            type: type,
             isUserSelected: existingCapability?.isUserSelected ?? undefined
           }
         }),
@@ -279,7 +279,7 @@ const ModelEditContent: FC<ModelEditContentProps & ModalProps> = ({ provider, mo
                   style={{ cursor: 'pointer' }}
                   onClick={() => {
                     const val = form.getFieldValue('name')
-                    navigator.clipboard.writeText((val.id || model.id) as string)
+                    void navigator.clipboard.writeText((val.id || model.id) as string)
                     message.success(t('message.copied'))
                   }}
                 />

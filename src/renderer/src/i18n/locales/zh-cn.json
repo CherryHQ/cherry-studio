@@ -1391,6 +1391,8 @@
             "content": "确定要删除选中的 {{count}} 个话题吗？此操作不可撤销。",
             "title": "删除话题"
           },
+          "error": "删除失败，请重试",
+          "partial_success": "成功删除 {{successCount}} 个，失败 {{failedCount}} 个",
           "success": "已删除 {{count}} 个话题"
         },
         "deselect_all": "取消全选",
@@ -2812,6 +2814,27 @@
     },
     "title": "Ollama"
   },
+  "onboarding": {
+    "select_model": {
+      "change_later": "您可以随时在设置中更改",
+      "start": "开始使用",
+      "subtitle": "为每个场景选择默认模型",
+      "title": "选择你的默认模型"
+    },
+    "skip": "跳过引导",
+    "toast": {
+      "connected": "成功连接 CherryIN"
+    },
+    "welcome": {
+      "login_cherryin": "登录 CherryIN",
+      "or_continue_with": "或使用其他方式",
+      "other_provider": "选择其他服务商",
+      "select_other_provider": "选择其他服务商",
+      "setup_hint": "请您先至少配置一个服务商，以获得最佳使用体验",
+      "subtitle": "使用 CherryIN 服务商可畅享顶级 AI 服务",
+      "title": "欢迎使用 Cherry Studio"
+    }
+  },
   "openclaw": {
     "checking_installation": "正在检查 OpenClaw 安装状态...",
     "description": "使用 Cherry Studio 服务商为 OpenClaw 提供支持，OpenClaw 是您的个人 AI 助手，可在 WhatsApp、Telegram、Slack、Discord 等平台上使用。",
@@ -3666,6 +3689,19 @@
           "windows": "请输入应用的执行文件名，每行一个，不区分大小写，可以模糊匹配。例如：chrome.exe、weixin.exe、Cherry Studio.exe等"
         }
       },
+      "linux": {
+        "compositor_incompatible": "当前桌面环境不支持划词功能，请切换到 X11 模式以获得完整体验。",
+        "filter_warning_text": "Wayland 模式下不生效",
+        "input_group_fail": "未获取，请执行 `sudo usermod -aG input $USER` 并重新登录生效",
+        "input_group_label": "input 组权限：",
+        "input_group_pass": "已获取",
+        "wayland_checklist_subtitle": "确认以下条件已满足，以尽可能优化 Wayland 下的体验：",
+        "wayland_description": "当前为 Wayland 模式，受系统限制，部分桌面环境下工具栏只能显示在屏幕中央，无法跟随选中文本定位。建议切换到 X11 模式以获得完整体验。",
+        "wayland_title": "Wayland 模式提示",
+        "xwayland_fail": "未启用，请使用 `--ozone-platform=x11` 参数启动 Cherry Studio",
+        "xwayland_label": "XWayland 模式：",
+        "xwayland_pass": "已启用"
+      },
       "search_modal": {
         "custom": {
           "name": {
@@ -3699,6 +3735,7 @@
           "ctrlkey_note": "划词后，再 长按 Ctrl 键，才显示工具栏",
           "description": "划词后，触发取词并显示工具栏的方式",
           "description_note": {
+            "linux": "若使用了 xmodmap 或 xremap 等按键映射工具对修饰键进行了重映射，可能导致部分应用无法划词。",
             "mac": "若使用了快捷键或键盘映射工具对 ⌘ 键进行了重映射，可能导致部分应用无法划词。",
             "windows": "少数应用不支持通过 Ctrl 键划词。若使用了AHK等按键映射工具对 Ctrl 键进行了重映射，可能导致部分应用无法划词。"
           },
@@ -5020,6 +5057,7 @@
           "label": "添加列表中的模型"
         },
         "add_whole_group": "添加整个分组",
+        "fetch_list": "获取模型列表",
         "refetch_list": "重新获取模型列表",
         "remove_listed": "移除列表中的模型",
         "remove_model": "移除模型",

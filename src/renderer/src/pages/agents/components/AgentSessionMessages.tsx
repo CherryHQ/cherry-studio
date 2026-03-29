@@ -13,8 +13,8 @@ import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import { getGroupedMessages } from '@renderer/services/MessagesService'
 import store, { useAppDispatch } from '@renderer/store'
 import {
-  type ChannelStreamController,
   addChannelUserMessage,
+  type ChannelStreamController,
   setupChannelStream
 } from '@renderer/store/thunk/messageThunk'
 import { type Topic, TopicType } from '@renderer/types'
@@ -35,7 +35,6 @@ const AgentSessionMessages = ({ agentId, sessionId }: Props) => {
   // Use the same hook as Messages.tsx for consistent behavior
   const messages = useTopicMessages(sessionTopicId)
   const { messageNavigation } = useSettings()
-  const scrollContainerRef = useRef<HTMLDivElement>(null)
   const dispatch = useAppDispatch()
 
   // Subscribe to real-time IM channel stream chunks and render via BlockManager pipeline
@@ -85,7 +84,9 @@ const AgentSessionMessages = ({ agentId, sessionId }: Props) => {
     }
   }, [sessionId, sessionTopicId, agentId, dispatch])
 
-  const { handleScroll: handleScrollPosition } = useScrollPosition(`agent-session-${sessionId}`)
+  const { containerRef: scrollContainerRef, handleScroll: handleScrollPosition } = useScrollPosition(
+    `agent-session-${sessionId}`
+  )
 
   const displayMessages = useMemo(() => {
     if (!messages || messages.length === 0) return []
