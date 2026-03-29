@@ -57,6 +57,30 @@ export interface TabsState {
   activeTabId: string
 }
 
+import type { PermissionUpdate } from '@anthropic-ai/claude-agent-sdk'
+
+// Tool permission types for agent tool approval flow
+export type ToolPermissionStatus = 'pending' | 'submitting-allow' | 'submitting-deny' | 'invoking'
+
+export type ToolPermissionEntry = {
+  requestId: string
+  toolName: string
+  toolId: string
+  toolCallId: string
+  description?: string
+  requiresPermissions: boolean
+  input: Record<string, unknown>
+  inputPreview: string
+  createdAt: number
+  suggestions: PermissionUpdate[]
+  autoApprove?: boolean
+  status: ToolPermissionStatus
+  resolvedInput?: Record<string, unknown>
+}
+
+export type ToolPermissionRequests = Record<string, ToolPermissionEntry>
+export type ToolPermissionResolvedInputs = Record<string, Record<string, unknown>>
+
 export type TranslatingState =
   | {
       isTranslating: true

@@ -1,5 +1,5 @@
-import { useAppSelector } from '@renderer/store'
-import { selectPendingPermission } from '@renderer/store/toolPermissions'
+import { useSharedCache } from '@data/hooks/useCache'
+import { toolPermissionsCacheService } from '@renderer/services/ToolPermissionsCacheService'
 import type { NormalToolResponse } from '@renderer/types'
 import type { CollapseProps } from 'antd'
 import { Collapse } from 'antd'
@@ -133,9 +133,8 @@ function ToolContent({
 export function MessageAgentTools({ toolResponse }: { toolResponse: NormalToolResponse }) {
   const { arguments: args, response, tool, status, partialArguments } = toolResponse
 
-  const pendingPermission = useAppSelector((state) =>
-    selectPendingPermission(state.toolPermissions, toolResponse.toolCallId)
-  )
+  const [requests] = useSharedCache('tool.permission.requests')
+  const pendingPermission = toolPermissionsCacheService.selectPendingPermission(requests, toolResponse.toolCallId)
 
   const parsedPartialArgs = useMemo(() => {
     if (!partialArguments) return undefined

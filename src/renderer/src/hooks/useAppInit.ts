@@ -9,13 +9,12 @@ import { useAppUpdateHandler, useAppUpdateState } from '@renderer/hooks/useAppUp
 import i18n, { setDayjsLocale } from '@renderer/i18n'
 import { knowledgeQueue } from '@renderer/queue/KnowledgeQueue'
 import { memoryService } from '@renderer/services/MemoryService'
-import { useAppDispatch, useAppSelector } from '@renderer/store'
+import type {
+  ToolPermissionRequestPayload,
+  ToolPermissionResultPayload
+} from '@renderer/services/ToolPermissionsCacheService'
+import { useAppSelector } from '@renderer/store'
 import { selectMemoryConfig } from '@renderer/store/memory'
-import {
-  type ToolPermissionRequestPayload,
-  type ToolPermissionResultPayload,
-  toolPermissionsActions
-} from '@renderer/store/toolPermissions'
 import { delay, runAsyncFunction } from '@renderer/utils'
 import { checkDataLimit } from '@renderer/utils'
 import { sendToolApprovalNotification } from '@renderer/utils/userConfirmation'
@@ -33,7 +32,6 @@ const logger = loggerService.withContext('useAppInit')
 
 export function useAppInit() {
   const { t } = useTranslation()
-  const dispatch = useAppDispatch()
   const [language] = usePreference('app.language')
   const [windowStyle] = usePreference('ui.window_style')
   const [customCss] = usePreference('ui.custom_css')
@@ -173,61 +171,19 @@ export function useAppInit() {
     }
   }, [customCss])
 
+  // Tool permission IPC listeners:
+  // - Request: Main writes to SharedCache directly; renderer only handles system notification
+  // - Result: Main updates SharedCache directly; renderer only handles toast UI
   useEffect(() => {
     if (!window.electron?.ipcRenderer) return
 
-    const requestListener = async (_event: Electron.IpcRendererEvent, payload: ToolPermissionRequestPayload) => {
-      logger.debug('Renderer received tool permission request', {
-        requestId: payload.requestId,
-        toolName: payload.toolName,
-        suggestionCount: payload.suggestions.length,
-        autoApprove: payload.autoApprove
-      })
-
-      if (payload.autoApprove) {
-        logger.debug('Auto-approving tool permission request', {
-          requestId: payload.requestId,
-          toolName: payload.toolName
-        })
-
-        try {
-          const response = await window.api.agentTools.respondToPermission({
-            requestId: payload.requestId,
-            behavior: 'allow',
-            updatedInput: payload.input,
-            updatedPermissions: payload.suggestions
-          })
-
-          if (!response?.success) {
-            throw new Error('Auto-approval response rejected by main process')
-          }
-
-          logger.debug('Auto-approval acknowledged by main process', {
-            requestId: payload.requestId,
-            toolName: payload.toolName
-          })
-        } catch (error) {
-          logger.error('Failed to send auto-approval response', error as Error)
-          // Fall through to add to store for manual approval
-          dispatch(toolPermissionsActions.requestReceived(payload))
-        }
-        return
-      }
-
-      dispatch(toolPermissionsActions.requestReceived(payload))
-
-      // Send system notification for agent tool approval
+    const requestListener = (_event: Electron.IpcRendererEvent, payload: ToolPermissionRequestPayload) => {
+      // Main process writes state to SharedCache; renderer only triggers system notification
       sendToolApprovalNotification(payload.toolName)
     }
 
     const resultListener = (_event: Electron.IpcRendererEvent, payload: ToolPermissionResultPayload) => {
-      logger.debug('Renderer received tool permission result', {
-        requestId: payload.requestId,
-        behavior: payload.behavior,
-        reason: payload.reason
-      })
-      dispatch(toolPermissionsActions.requestResolved(payload))
-
+      // Main process updates SharedCache; renderer only shows toast notifications
       if (payload.behavior === 'deny') {
         const message =
           payload.reason === 'timeout'
@@ -235,22 +191,10 @@ export function useAppInit() {
             : (payload.message ?? t('agent.toolPermission.toast.denied'))
 
         if (payload.reason === 'no-window') {
-          logger.debug('Displaying deny toast for tool permission', {
-            requestId: payload.requestId,
-            behavior: payload.behavior,
-            reason: payload.reason
-          })
           window.toast?.error?.(message)
         } else if (payload.reason === 'timeout') {
-          logger.debug('Displaying timeout toast for tool permission', {
-            requestId: payload.requestId
-          })
           window.toast?.warning?.(message)
         } else {
-          logger.debug('Displaying info toast for tool permission deny', {
-            requestId: payload.requestId,
-            reason: payload.reason
-          })
           window.toast?.info?.(message)
         }
       }
@@ -262,7 +206,7 @@ export function useAppInit() {
     ]
 
     return () => removeListeners.forEach((removeListener) => removeListener())
-  }, [dispatch, t])
+  }, [t])
 
   useEffect(() => {
     // TODO: init data collection

@@ -9,13 +9,13 @@
  * These callbacks now use StreamingService for state management instead of Redux dispatch.
  * This is part of the v2 data refactoring to use CacheService + Data API.
  *
- * NOTE: toolPermissionsActions dispatch is still required for permission management
- * as this is outside the scope of streaming state management.
+ * NOTE: toolPermissionsCacheService is used for permission management
+ * via SharedCache instead of Redux dispatch.
  */
 
 import { loggerService } from '@logger'
+import { toolPermissionsCacheService } from '@renderer/services/ToolPermissionsCacheService'
 import store from '@renderer/store'
-import { toolPermissionsActions } from '@renderer/store/toolPermissions'
 import type { MCPToolResponse, NormalToolResponse } from '@renderer/types'
 import { WEB_SEARCH_SOURCE } from '@renderer/types'
 import type { ToolMessageBlock } from '@renderer/types/newMessage'
@@ -32,8 +32,7 @@ type ToolResponse = MCPToolResponse | NormalToolResponse
 /**
  * Dependencies required for tool callbacks
  *
- * NOTE: dispatch removed - toolPermissions uses store.dispatch directly
- * since it's outside streaming state scope.
+ * NOTE: toolPermissions migrated from Redux to SharedCache.
  */
 interface ToolCallbacksDependencies {
   blockManager: BlockManager
@@ -118,13 +117,11 @@ export const createToolCallbacks = (deps: ToolCallbacksDependencies) => {
     },
 
     onToolCallComplete: (toolResponse: ToolResponse) => {
-      // Read resolvedInput BEFORE removing from store (removeByToolCallId deletes it)
-      const state = store.getState()
-      const resolvedInput = toolResponse?.id ? state.toolPermissions.resolvedInputs[toolResponse.id] : undefined
+      // Read resolvedInput BEFORE removing from cache (removeByToolCallId deletes it)
+      const resolvedInput = toolResponse?.id ? toolPermissionsCacheService.getResolvedInput(toolResponse.id) : undefined
 
       if (toolResponse?.id) {
-        // Use store.dispatch for permission cleanup (outside streaming state scope)
-        store.dispatch(toolPermissionsActions.removeByToolCallId({ toolCallId: toolResponse.id }))
+        toolPermissionsCacheService.removeByToolCallId(toolResponse.id)
       }
       const existingBlockId = toolCallIdToBlockIdMap.get(toolResponse.id)
       toolCallIdToBlockIdMap.delete(toolResponse.id)
@@ -142,7 +139,7 @@ export const createToolCallbacks = (deps: ToolCallbacksDependencies) => {
             ? MessageBlockStatus.SUCCESS
             : MessageBlockStatus.ERROR
 
-        const existingBlock = state.messageBlocks.entities[existingBlockId] as ToolMessageBlock | undefined
+        const existingBlock = store.getState().messageBlocks.entities[existingBlockId] as ToolMessageBlock | undefined
 
         const existingResponse = existingBlock?.metadata?.rawMcpToolResponse
         // Merge order: toolResponse.arguments (base) -> existingResponse?.arguments -> resolvedInput (user answers take precedence)

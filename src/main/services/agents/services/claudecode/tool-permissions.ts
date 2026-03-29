@@ -3,6 +3,8 @@ import { randomUUID } from 'node:crypto'
 import type { PermissionResult, PermissionUpdate } from '@anthropic-ai/claude-agent-sdk'
 import { loggerService } from '@logger'
 import { application } from '@main/core/application'
+import type { CacheService } from '@main/data/CacheService'
+import type { ToolPermissionEntry, ToolPermissionRequests } from '@shared/data/cache/cacheValueTypes'
 import { IpcChannel } from '@shared/IpcChannel'
 import { ipcMain } from 'electron'
 
@@ -95,6 +97,49 @@ const buildInputPreview = (value: unknown): string => {
   return preview
 }
 
+// ============ SharedCache helpers ============
+
+const getCacheService = (): CacheService => application.get('CacheService')
+
+const getCachedRequests = (): ToolPermissionRequests => {
+  return getCacheService().getShared('tool.permission.requests') ?? {}
+}
+
+const setCachedRequests = (requests: ToolPermissionRequests): void => {
+  getCacheService().setShared('tool.permission.requests', requests)
+}
+
+const addCachedRequest = (entry: ToolPermissionEntry): void => {
+  const requests = getCachedRequests()
+  requests[entry.requestId] = entry
+  setCachedRequests(requests)
+}
+
+const resolveCachedRequest = (
+  requestId: string,
+  behavior: 'allow' | 'deny',
+  toolCallId?: string,
+  updatedInput?: Record<string, unknown>
+): void => {
+  const requests = getCachedRequests()
+  const entry = requests[requestId]
+  if (!entry) return
+
+  if (behavior === 'allow') {
+    entry.status = 'invoking'
+    entry.resolvedInput = updatedInput
+    if (updatedInput && toolCallId) {
+      const cacheService = getCacheService()
+      const resolvedInputs = cacheService.getShared('tool.permission.resolved_inputs') ?? {}
+      resolvedInputs[toolCallId] = updatedInput
+      cacheService.setShared('tool.permission.resolved_inputs', resolvedInputs)
+    }
+  } else {
+    delete requests[requestId]
+  }
+  setCachedRequests(requests)
+}
+
 const broadcastToRenderer = (
   channel: IpcChannel,
   payload: RendererPermissionRequestPayload | RendererPermissionResultPayload
@@ -138,6 +183,10 @@ const finalizeRequest = (
   if (pending.signal && pending.abortListener) {
     pending.signal.removeEventListener('abort', pending.abortListener)
   }
+
+  // Update SharedCache (authoritative state for renderer UI)
+  const updatedInput = update.behavior === 'allow' ? update.updatedInput : undefined
+  resolveCachedRequest(requestId, update.behavior, pending.toolCallId, updatedInput)
 
   pending.fulfill(update)
 
@@ -274,8 +323,6 @@ export async function promptForToolApproval(
     autoApprove: options.autoApprove
   }
 
-  const defaultDenyUpdate: PermissionResult = { behavior: 'deny', message: 'Tool request aborted before user decision' }
-
   logger.debug('Registering tool permission request', {
     requestId,
     toolName,
@@ -283,6 +330,22 @@ export async function promptForToolApproval(
     requiresPermissions: requestPayload.requiresPermissions,
     suggestionCount: sanitizedSuggestions.length
   })
+
+  // Handle auto-approval entirely in main process (no IPC roundtrip)
+  if (options.autoApprove) {
+    logger.debug('Auto-approving tool permission request in main', {
+      requestId,
+      toolName
+    })
+
+    return {
+      behavior: 'allow',
+      updatedInput: sanitizedInput,
+      updatedPermissions: sanitizedSuggestions
+    }
+  }
+
+  const defaultDenyUpdate: PermissionResult = { behavior: 'deny', message: 'Tool request aborted before user decision' }
 
   return new Promise<PermissionResult>((resolve) => {
     const pending: PendingPermissionRequest = {
@@ -309,10 +372,17 @@ export async function promptForToolApproval(
 
     pendingRequests.set(requestId, pending)
 
+    // Write to SharedCache — renderer reads via useSharedCache
+    addCachedRequest({
+      ...requestPayload,
+      status: 'pending'
+    })
+
     logger.debug('Pending tool permission request count', {
       count: pendingRequests.size
     })
 
+    // Broadcast to renderer for system notification only
     const sent = broadcastToRenderer(IpcChannel.AgentToolPermission_Request, requestPayload)
 
     logger.debug('Broadcasted tool permission request to renderer', {
