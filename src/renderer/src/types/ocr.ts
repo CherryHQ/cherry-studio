@@ -1,6 +1,7 @@
+import type { TranslateLangCode } from '@shared/data/preference/preferenceTypes'
 import type Tesseract from 'tesseract.js'
 
-import type { FileMetadata, ImageFileMetadata, TranslateLanguageCode } from '.'
+import type { FileMetadata, ImageFileMetadata } from '.'
 import { isImageFileMetadata } from '.'
 
 export const BuiltinOcrProviderIds = {
@@ -160,7 +161,7 @@ export type TesseractLangCode = Tesseract.LanguageCode
 
 // System Types
 export type OcrSystemConfig = OcrProviderBaseConfig & {
-  langs?: TranslateLanguageCode[]
+  langs?: TranslateLangCode[]
 }
 
 export type OcrSystemProvider = {
@@ -193,7 +194,7 @@ export const isOcrPpocrProvider = (p: OcrProvider): p is OcrPpocrProvider => {
 
 // OV OCR Types
 export type OcrOvConfig = OcrProviderBaseConfig & {
-  langs?: TranslateLanguageCode[]
+  langs?: TranslateLangCode[]
 }
 
 export type OcrOvProvider = {

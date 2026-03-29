@@ -6,9 +6,9 @@ import type {
   OcrProviderCapability,
   OcrSystemProvider,
   OcrTesseractProvider,
-  TesseractLangCode,
-  TranslateLanguageCode
+  TesseractLangCode
 } from '@renderer/types'
+import type { TranslateLangCode } from '@shared/data/preference/preferenceTypes'
 
 import { isMac, isWin } from './constant'
 
@@ -76,7 +76,7 @@ export const DEFAULT_OCR_PROVIDER = {
   image: isWin || isMac ? systemOcr : tesseract
 } as const satisfies Record<OcrProviderCapability, BuiltinOcrProvider>
 
-export const TESSERACT_LANG_MAP: Record<TranslateLanguageCode, TesseractLangCode> = {
+export const TESSERACT_LANG_MAP: Record<TranslateLangCode, TesseractLangCode> = {
   'af-za': 'afr',
   'am-et': 'amh',
   'ar-sa': 'ara',

@@ -38,7 +38,6 @@ import type {
   Model,
   Provider,
   ProviderApiOptions,
-  TranslateLanguageCode,
   WebSearchProvider
 } from '@renderer/types'
 import { isBuiltinMCPServer, isSystemProvider, SystemProviderIds } from '@renderer/types'
@@ -52,6 +51,7 @@ import { API_SERVER_DEFAULTS } from '@shared/config/constant'
 import { defaultByPassRules } from '@shared/config/constant'
 import { TRANSLATE_PROMPT } from '@shared/config/prompts'
 import { DefaultPreferences } from '@shared/data/preference/preferenceSchemas'
+import type { TranslateLangCode } from '@shared/data/preference/preferenceTypes'
 import { UpgradeChannel } from '@shared/data/preference/preferenceTypes'
 import { isEmpty } from 'lodash'
 import { createMigrate } from 'redux-persist'
@@ -1894,7 +1894,7 @@ const migrateConfig = {
         state.settings.s3 = settingsInitialState.s3
       }
 
-      const langMap: Record<string, TranslateLanguageCode> = {
+      const langMap: Record<string, TranslateLangCode> = {
         english: 'en-us',
         chinese: 'zh-cn',
         'chinese-traditional': 'zh-tw',

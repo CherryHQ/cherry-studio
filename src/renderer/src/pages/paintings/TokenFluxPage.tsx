@@ -8,13 +8,13 @@ import { Navbar, NavbarCenter, NavbarRight } from '@renderer/components/app/Navb
 import Scrollbar from '@renderer/components/Scrollbar'
 import TranslateButton from '@renderer/components/TranslateButton'
 import { isMac } from '@renderer/config/constant'
-import { LanguagesEnum } from '@renderer/config/translate'
 import { usePaintings } from '@renderer/hooks/usePaintings'
 import { useAllProviders } from '@renderer/hooks/useProvider'
 import FileManager from '@renderer/services/FileManager'
 import { translateText } from '@renderer/services/TranslateService'
 import type { TokenFluxPainting } from '@renderer/types'
 import { getErrorMessage, uuid } from '@renderer/utils'
+import { BUILTIN_LANGUAGE } from '@shared/data/presets/translate-languages'
 import { useLocation, useNavigate } from '@tanstack/react-router'
 import { Select } from 'antd'
 import TextArea from 'antd/es/input/TextArea'
@@ -236,7 +236,7 @@ const TokenFluxPage: FC<{ Options: string[] }> = ({ Options }) => {
 
     try {
       setIsTranslating(true)
-      const translatedText = await translateText(painting.prompt, LanguagesEnum.enUS)
+      const translatedText = await translateText(painting.prompt, BUILTIN_LANGUAGE.enUS.langCode)
       updatePaintingState({ prompt: translatedText })
     } catch (error) {
       logger.error('Translation failed:', error as Error)
@@ -368,7 +368,7 @@ const TokenFluxPage: FC<{ Options: string[] }> = ({ Options }) => {
               {t('paintings.learn_more')}
               {(() => {
                 const Icon = resolveProviderIcon('tokenflux')
-                return Icon ? <Icon.Avatar size={16} className="ml-[5px]" /> : null
+                return Icon ? <Icon.Avatar size={16} className="ml-1.25" /> : null
               })()}
             </SettingHelpLink>
           </ProviderTitleContainer>
