@@ -9,7 +9,7 @@ import { langCodeToI18nKey } from '@shared/data/presets/translate-languages'
 import { useCallback, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 
-const logger = loggerService.withContext('trnaslate/useLanguages')
+const logger = loggerService.withContext('translate/useLanguages')
 
 /**
  * Fetches translate languages from the data API and converts DTOs to view objects.
