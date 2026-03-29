@@ -21,6 +21,7 @@
 import { flattenCompressionConfig, migrateWebSearchProviders } from '../transformers/PreferenceTransformers'
 import { transformCodeCli } from './CodeCliTransforms'
 import { mergeFileProcessingOverrides } from './FileProcessingOverrideMappings'
+import { copyTargetLanguageForMiniWindow, splitBidirectionalPairForAction } from './TranslateTransforms'
 
 // ============================================================================
 // Type Definitions
@@ -138,6 +139,28 @@ export const COMPLEX_PREFERENCE_MAPPINGS: ComplexMapping[] = [
     },
     targetKeys: ['feature.file_processing.overrides'],
     transform: mergeFileProcessingOverrides
+  },
+
+  // Translate: split bidirectional pair for action translate
+  {
+    id: 'translate_action_pair_split',
+    description: 'Split legacy translate:bidirectional:pair into action translate preferred/alter language',
+    sources: {
+      bidirectionalPair: { source: 'dexie-settings', key: 'translate:bidirectional:pair' }
+    },
+    targetKeys: ['feature.translate.action.preferred_lang', 'feature.translate.action.alter_lang'],
+    transform: splitBidirectionalPairForAction
+  },
+
+  // Translate: copy target language for mini window
+  {
+    id: 'translate_mini_window_target',
+    description: 'Copy legacy translate:target:language to mini window target language',
+    sources: {
+      targetLanguage: { source: 'dexie-settings', key: 'translate:target:language' }
+    },
+    targetKeys: ['feature.translate.mini_window.target_lang'],
+    transform: copyTargetLanguageForMiniWindow
   }
 ]
 
