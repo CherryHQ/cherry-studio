@@ -640,7 +640,7 @@ const ChannelInstanceRow: FC<InstanceRowProps> = ({ channel, onEdit, onDelete, o
       <Popconfirm
         title={t('agent.cherryClaw.channels.deleteConfirm', { name: channel.name })}
         onConfirm={onDelete}
-        okText={t('common.ok')}
+        okText={t('common.confirm')}
         cancelText={t('common.cancel')}>
         <Tooltip title={t('common.delete')}>
           <Button type="text" size="small" icon={<DeleteOutlined />} danger />
