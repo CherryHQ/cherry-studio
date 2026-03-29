@@ -55,14 +55,14 @@ export const TranslateHistoryItem = ({ data, onClick }: TranslateHistoryItemProp
 
   return (
     <Container>
-      <div className="h-7.5 items-center justify-between" onClick={onClick}>
+      <div className="flex h-7.5 items-center justify-between" onClick={onClick}>
         {/* Lang */}
-        <div className="items-center gap-1.5">
+        <div className="flex items-center gap-1.5">
           <div className="text-secondary text-xs">{preparedData.sourceLang} →</div>
           <div className="text-secondary text-xs">{preparedData.targetLang}</div>
         </div>
         {/* Tool bar */}
-        <div className="mt-2 items-center justify-end">
+        <div className="flex mt-2 items-center justify-end">
           <Button onClick={handleStar}>{preparedData.star ? <StarIcon fill="yellow" /> : <StarIcon />}</Button>
           <Popover>
             <PopoverTrigger>
