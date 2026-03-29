@@ -7,9 +7,9 @@
         "invalid_agent": "Agent invalid"
       },
       "model": {
-        "supported_providers": "[to be translated]:Supported Providers",
+        "supported_providers": "Furnizori acceptați",
         "tooltip": "Momentan, doar modelele care acceptă endpoint-uri Anthropic sunt disponibile pentru funcția Agent.",
-        "view_providers": "[to be translated]:View supported providers"
+        "view_providers": "Vizualizați furnizorii acceptați"
       },
       "title": "Adaugă agent",
       "type": {
@@ -40,18 +40,18 @@
           "chatIds": "ID-uri de chat permise",
           "chatIdsHint": "ID-uri de chat separate prin virgulă. Lăsați gol pentru a permite toate chat-urile.",
           "chatIdsPlaceholder": "oc_xxxxx, oc_yyyyy",
-          "connected": "[to be translated]:Connected",
+          "connected": "Conectat",
           "description": "Primiți și răspundeți la mesaje printr-un bot Feishu/Lark folosind WebSocket.",
           "domain": "Domeniu",
           "domainFeishu": "Feishu (China)",
           "domainLark": "Lark (Internațional)",
           "encryptKey": "Cheie de criptare",
           "encryptKeyPlaceholder": "Introduceți cheia de criptare a aplicației Feishu",
-          "loginHint": "[to be translated]:No credentials configured. Enable the channel to start QR code registration, or enter App ID and App Secret manually.",
-          "qrExpired": "[to be translated]:QR code expired. Please retry by toggling the channel.",
-          "qrHint": "[to be translated]:Waiting for QR code scan...",
-          "qrScanHint": "[to be translated]:Open Feishu on your phone and scan the QR code to create a bot app.",
-          "qrTitle": "[to be translated]:Feishu QR Registration",
+          "loginHint": "Nu sunt configurate credențiale. Activează canalul pentru a începe înregistrarea prin cod QR sau introdu manual ID-ul aplicației și secretul aplicației.",
+          "qrExpired": "Codul QR a expirat. Vă rugăm să reîncercați comutând canalul.",
+          "qrHint": "Se așteaptă scanarea codului QR...",
+          "qrScanHint": "Deschide Feishu pe telefonul tău și scanează codul QR pentru a crea o aplicație bot.",
+          "qrTitle": "Înregistrare prin cod QR Feishu",
           "title": "Feishu",
           "verificationToken": "Token de verificare",
           "verificationTokenPlaceholder": "Introduceți tokenul de verificare al aplicației Feishu"
@@ -82,18 +82,18 @@
         },
         "title": "Canale",
         "wechat": {
-          "addAccount": "[to be translated]:Add WeChat Account",
-          "chatIds": "[to be translated]:Allowed User IDs",
-          "chatIdsHint": "[to be translated]:Comma-separated. Leave empty to allow all users.",
-          "chatIdsPlaceholder": "[to be translated]:wxid_abc123, wxid_def456",
-          "connected": "[to be translated]:Connected",
-          "description": "[to be translated]:Receive and respond to messages via WeChat using the iLink Bot API.",
-          "disconnected": "[to be translated]:Disconnected",
-          "loginHint": "[to be translated]:First login requires scanning a QR code. Check the app logs for the login URL.",
-          "qrHint": "[to be translated]:Open WeChat on your phone, scan the QR code to log in.",
-          "qrTitle": "[to be translated]:WeChat QR Login",
-          "title": "[to be translated]:WeChat",
-          "whoamiTip": "[to be translated]:Tip: Send /whoami in WeChat to get a user's ID."
+          "addAccount": "Adaugă cont WeChat",
+          "chatIds": "ID-uri de utilizator permise",
+          "chatIdsHint": "Separat prin virgulă. Lăsați gol pentru a permite tuturor utilizatorilor.",
+          "chatIdsPlaceholder": "wxid_abc123, wxid_def456",
+          "connected": "Conectat",
+          "description": "Primește și răspunde la mesaje prin WeChat folosind API-ul iLink Bot.",
+          "disconnected": "Deconectat",
+          "loginHint": "Prima autentificare necesită scanarea unui cod QR. Verifică jurnalele aplicației pentru adresa URL de autentificare.",
+          "qrHint": "Deschideți WeChat pe telefon, scanați codul QR pentru a vă conecta.",
+          "qrTitle": "Autentificare WeChat cu cod QR",
+          "title": "WeChat",
+          "whoamiTip": "Sfat: Trimiteți /whoami în WeChat pentru a obține ID-ul unui utilizator."
         }
       },
       "heartbeat": {
@@ -229,8 +229,8 @@
       "title": "Editează agentul"
     },
     "empty": {
-      "description": "[to be translated]:Create an agent to handle complex tasks with AI-powered tools",
-      "title": "[to be translated]:No agents yet"
+      "description": "Creează un agent pentru a gestiona sarcini complexe cu instrumente alimentate de inteligență artificială",
+      "title": "Niciun agent încă"
     },
     "get": {
       "error": {
@@ -275,7 +275,7 @@
     },
     "reorder": {
       "error": {
-        "failed": "[to be translated]:Failed to reorder agents"
+        "failed": "Nu s-a reușit reordonarea agenților"
       }
     },
     "server": {
@@ -330,7 +330,7 @@
       "label_other": "Sesiuni",
       "reorder": {
         "error": {
-          "failed": "[to be translated]:Failed to reorder sessions"
+          "failed": "Nu s-a putut reordona sesiunile"
         }
       },
       "update": {
@@ -436,10 +436,10 @@
       },
       "prompt": "Setări prompt",
       "soulMode": {
-        "description": "[to be translated]:When enabled, the agent uses a custom system prompt from workspace soul files, injects autonomous task management tools, and disables interactive tools not suited for autonomous operation.",
-        "disabledBadge": "[to be translated]:Disabled by Autonomous Mode",
-        "disabledTooltip": "[to be translated]:This tool is automatically disabled when Autonomous Mode is active",
-        "title": "[to be translated]:Autonomous Mode"
+        "description": "Când este activată, agentul folosește o comandă de sistem personalizată din fișierele soul ale spațiului de lucru, injectează instrumente autonome de gestionare a sarcinilor și dezactivează instrumentele interactive care nu sunt potrivite pentru funcționarea autonomă.",
+        "disabledBadge": "Dezactivat de Modul Autonom",
+        "disabledTooltip": "Acest instrument este dezactivat automat când Modul Autonom este activ",
+        "title": "Mod Autonom"
       },
       "tooling": {
         "mcp": {
@@ -505,7 +505,7 @@
         }
       }
     },
-    "sidebar_title": "[to be translated]:Agents",
+    "sidebar_title": "Agenți",
     "todo": {
       "panel": {
         "title": "{{completed}}/{{total}} sarcini finalizate"
@@ -586,7 +586,7 @@
           "description": "Creează și gestionează liste de sarcini structurate"
         },
         "ToolSearch": {
-          "description": "[to be translated]:Discovers deferred tools from large libraries"
+          "description": "Descoperă instrumente amânate din biblioteci mari"
         },
         "WebFetch": {
           "description": "Preia conținutul de la o adresă URL specificată"
@@ -609,11 +609,11 @@
       }
     },
     "warning": {
-      "enable_and_start": "[to be translated]:Enable & Start",
+      "enable_and_start": "Activează și pornește",
       "enable_server": "Activează serverul API pentru a folosi agenți.",
-      "enable_server_description": "[to be translated]:The API server must be enabled for agents to work. You can enable it directly or configure it in settings.",
-      "server_not_running": "[to be translated]:API Server is enabled but not running. Please check the server configuration.",
-      "server_not_running_description": "[to be translated]:The API server needs to be running for agents to work. You can start it directly or check the settings."
+      "enable_server_description": "Serverul API trebuie activat pentru ca agenții să funcționeze. Îl poți activa direct sau îl poți configura în setări.",
+      "server_not_running": "Serverul API este activat, dar nu rulează. Vă rugăm să verificați configurația serverului.",
+      "server_not_running_description": "Serverul API trebuie să fie pornit pentru ca agenții să funcționeze. Îl poți porni direct sau verifica setările."
     }
   },
   "apiServer": {
@@ -840,8 +840,8 @@
         }
       },
       "max_tool_calls": {
-        "label": "[to be translated]:Max Tool Calls",
-        "tip": "[to be translated]:Maximum number of tool calls allowed in a single conversation. Higher values allow more complex multi-step operations but may increase token usage and response time."
+        "label": "Apeluri maxime de instrumente",
+        "tip": "Numărul maxim de apeluri de instrumente permise într-o singură conversație. Valorile mai mari permit operațiuni multi-etapă mai complexe, dar pot crește utilizarea tokenilor și timpul de răspuns."
       },
       "mcp": {
         "description": "Servere MCP activate implicit",
@@ -934,7 +934,7 @@
     "progress": {
       "completed": "Backup finalizat",
       "compressing": "Se comprimă fișierele...",
-      "copying_database": "[to be translated]:Copying database...",
+      "copying_database": "Copiere bază de date...",
       "copying_files": "Se copiază fișierele... {{progress}}%",
       "preparing": "Se pregătește backup-ul...",
       "preparing_compression": "Se pregătește compresia...",
@@ -972,7 +972,7 @@
       }
     },
     "alerts": {
-      "create_agent": "[to be translated]:Create an agent to get started",
+      "create_agent": "Creează un agent pentru a începe",
       "create_session": "Creează o sesiune",
       "select_agent": "Selectați un agent"
     },
@@ -1089,10 +1089,10 @@
         "collapse_in": "Restrânge",
         "collapse_out": "Elimină din restrângere",
         "expand": "Extinde",
-        "file_not_found": "[to be translated]:File not found: {{path}}",
-        "open_file": "[to be translated]:Open File",
-        "open_file_error": "[to be translated]:Failed to open file: {{path}}",
-        "reveal_in_finder": "[to be translated]:Reveal in Finder"
+        "file_not_found": "Fișier negăsit: {{path}}",
+        "open_file": "Deschide fișier",
+        "open_file_error": "Nu s-a putut deschide fișierul: {{path}}",
+        "reveal_in_finder": "Afișează în Finder"
       },
       "topics": " Subiecte ",
       "translate": "Tradu în {{target_language}}",
@@ -1586,7 +1586,7 @@
     "off": "Oprit",
     "on": "Pornit",
     "open": "Deschide",
-    "open_in": "[to be translated]:Open in {{name}}",
+    "open_in": "Deschide în {{name}}",
     "paste": "Lipește",
     "placeholders": {
       "select": {
@@ -1614,7 +1614,7 @@
     "selected": "Selectat",
     "selectedItems": "{{count}} elemente selectate",
     "selectedMessages": "{{count}} mesaje selectate",
-    "sessions": "[to be translated]:Sessions",
+    "sessions": "Sesiuni",
     "settings": "Setări",
     "sort": {
       "pinyin": {
@@ -1737,7 +1737,7 @@
     "requestBody": "Corp cerere",
     "requestBodyValues": "Valori corp cerere",
     "requestUrl": "URL cerere",
-    "request_timeout": "[to be translated]:Request timed out",
+    "request_timeout": "Cererea a expirat",
     "response": "Răspuns",
     "responseBody": "Corp răspuns",
     "responseHeaders": "Header răspuns",
@@ -1747,7 +1747,7 @@
     "status": "Cod stare",
     "statusCode": "Cod stare",
     "statusText": "Text stare",
-    "stream_paused": "[to be translated]:Paused",
+    "stream_paused": "Întrerupt",
     "text": "Text",
     "toolInput": "Intrare instrument",
     "toolName": "Nume instrument",
@@ -2227,8 +2227,8 @@
       },
       "fetchTopicName": "Nu s-a putut numi subiectul",
       "file": {
-        "process_failed": "[to be translated]:File {{name}} could not be processed",
-        "text_extraction_failed": "[to be translated]:Failed to extract text from {{name}}"
+        "process_failed": "Fișierul {{name}} nu a putut fi procesat",
+        "text_extraction_failed": "Nu s-a reușit extragerea textului din {{name}}"
       },
       "get_embedding_dimensions": "Nu s-au putut obține dimensiunile embedding",
       "invalid": {
@@ -2474,9 +2474,9 @@
     },
     "warning": {
       "file": {
-        "pdf_exceeds_limit": "[to be translated]:PDF file {{name}} exceeds size limit ({{limit}}), falling back to text extraction",
-        "pdf_text_extraction_failed": "[to be translated]:Failed to extract text from PDF {{name}}",
-        "pdf_upload_failed": "[to be translated]:Failed to upload PDF {{name}}, falling back to text extraction"
+        "pdf_exceeds_limit": "Fișierul PDF {{name}} depășește limita de dimensiune ({{limit}}), se revine la extragerea textului",
+        "pdf_text_extraction_failed": "Nu s-a putut extrage textul din PDF {{name}}",
+        "pdf_upload_failed": "Nu s-a putut încărca PDF-ul {{name}}, se revine la extragerea textului"
       },
       "rate": {
         "limit": "Prea multe cereri. Te rugăm să aștepți {{seconds}} secunde înainte de a încerca din nou."
@@ -2531,10 +2531,10 @@
     "dangbei": "Dangbei",
     "doubao": "Doubao",
     "hailuo": "MINIMAX",
-    "ima": "[to be translated]:ima",
+    "ima": "acum",
     "metaso": "Metaso",
-    "minimax-agent": "[to be translated]:Minimax Agent CN",
-    "minimax-global": "[to be translated]:Minimax Agent",
+    "minimax-agent": "Agent Minimax CN",
+    "minimax-global": "Agent Minimax",
     "nami-ai": "Nami AI",
     "nami-ai-search": "Nami AI Search",
     "qwen": "Qwen",
@@ -2835,9 +2835,9 @@
     "install_progress": "Progresul instalării",
     "installed_at": "OpenClaw instalat la",
     "migration": {
-      "description": "[to be translated]:An outdated version of OpenClaw installed via npm has been detected. Please reinstall to get the latest official version.",
-      "install_button": "[to be translated]:Reinstall OpenClaw",
-      "title": "[to be translated]:OpenClaw Needs Update"
+      "description": "A fost detectată o versiune învechită a OpenClaw instalată prin npm. Reinstalați pentru a obține cea mai recentă versiune oficială.",
+      "install_button": "Reinstalați OpenClaw",
+      "title": "OpenClaw necesită actualizare"
     },
     "model_config": {
       "auth_token": "Token de autentificare",
@@ -2874,7 +2874,7 @@
       "windows_title": "Windows"
     },
     "quick_actions": {
-      "check_update": "[to be translated]:Check for Updates",
+      "check_update": "Verifică pentru actualizări",
       "open_dashboard": "Deschide Tabloul de Bord",
       "title": "Acțiuni rapide",
       "uninstall": "Dezinstalare",
@@ -2903,14 +2903,14 @@
       "title": "Dezinstalarea OpenClaw"
     },
     "update": {
-      "available": "[to be translated]:New version available: v{{latest}} (current: v{{current}})",
-      "checking": "[to be translated]:Checking for updates...",
-      "confirm_button": "[to be translated]:Update Now",
-      "failed": "[to be translated]:Failed to check for updates",
-      "modal_title": "[to be translated]:OpenClaw Update",
-      "success": "[to be translated]:Update completed successfully!",
-      "up_to_date": "[to be translated]:Already up to date (v{{current}})",
-      "updating": "[to be translated]:Updating..."
+      "available": "Versiune nouă disponibilă: v{{latest}} (curentă: v{{current}})",
+      "checking": "Se verifică actualizările...",
+      "confirm_button": "Actualizează acum",
+      "failed": "Nu s-a reușit verificarea actualizărilor",
+      "modal_title": "Actualizare OpenClaw",
+      "success": "Actualizare finalizată cu succes!",
+      "up_to_date": "Deja actualizat (v{{current}})",
+      "updating": "Actualizare..."
     }
   },
   "ovms": {
@@ -3312,7 +3312,7 @@
     "longcat": "LongCat AI",
     "mimo": "Xiaomi MiMo",
     "minimax": "MiniMax",
-    "minimax-global": "[to be translated]:MiniMax",
+    "minimax-global": "MiniMax",
     "mistral": "Mistral",
     "modelscope": "ModelScope",
     "moonshot": "Moonshot",
@@ -3340,7 +3340,7 @@
     "voyageai": "Voyage AI",
     "xirang": "State Cloud Xirang",
     "yi": "Yi",
-    "zai": "[to be translated]:Z.ai",
+    "zai": "Z.ai",
     "zhinao": "360AI",
     "zhipu": "BigModel"
   },
@@ -3357,10 +3357,10 @@
       "extracting": "Se extrage backup-ul...",
       "preparing": "Se pregătește restaurarea...",
       "reading_data": "Se citesc datele...",
-      "restoring_data": "[to be translated]:Restoring files...",
-      "restoring_database": "[to be translated]:Restoring database...",
+      "restoring_data": "Restaurare fișiere...",
+      "restoring_database": "Restaurare bază de date...",
       "title": "Progres restaurare",
-      "validating": "[to be translated]:Validating backup..."
+      "validating": "Se validează copia de rezervă..."
     },
     "title": "Restaurare date"
   },
@@ -3914,14 +3914,14 @@
         },
         "content": "Exportă unele date, inclusiv jurnalele de chat și setările. Te rugăm să reții că procesul de backup poate dura ceva timp. Îți mulțumim pentru răbdare.",
         "file": {
-          "button": "[to be translated]:Export to file",
-          "content": "[to be translated]:Export data as a backup file that can be imported on mobile via file.",
-          "export_failed": "[to be translated]:Export failed",
-          "export_success": "[to be translated]:Export successful",
-          "title": "[to be translated]:Export as file"
+          "button": "Exportă în fișier",
+          "content": "Exportă datele ca fișier de rezervă care poate fi importat pe mobil prin fișier.",
+          "export_failed": "Exportul a eșuat",
+          "export_success": "Export reușit",
+          "title": "Exportă ca fișier"
         },
         "lan": {
-          "button": "[to be translated]:Start Transfer",
+          "button": "Începe Transferul",
           "connected": "Conectat",
           "connection_failed": "Conexiune eșuată",
           "content": "Te rugăm să te asiguri că computerul și telefonul sunt în aceeași rețea pentru transferul LAN.",
@@ -5298,10 +5298,10 @@
       "docs_check": "Verifică",
       "docs_more_details": "pentru mai multe detalii",
       "filter": {
-        "agent": "[to be translated]:Agent Supported",
-        "all": "[to be translated]:All Providers"
+        "agent": "Asistat de agent",
+        "all": "Toți furnizorii"
       },
-      "filter_agent": "[to be translated]:Filter Agent Supported Providers",
+      "filter_agent": "Furnizori acceptați de agentul de filtrare",
       "get_api_key": "Obține cheie API",
       "misc": "Altele",
       "no_models_for_check": "Nu există modele disponibile pentru verificare (de ex. modele chat)",

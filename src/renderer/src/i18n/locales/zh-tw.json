@@ -33,28 +33,28 @@
         "comingSoon": "即將推出",
         "description": "將您的 Agent 連接到訊息平台。",
         "feishu": {
-          "appId": "[to be translated]:App ID",
-          "appIdPlaceholder": "[to be translated]:Enter your Feishu app ID",
-          "appSecret": "[to be translated]:App Secret",
-          "appSecretPlaceholder": "[to be translated]:Enter your Feishu app secret",
-          "chatIds": "[to be translated]:Allowed Chat IDs",
-          "chatIdsHint": "[to be translated]:Comma-separated chat IDs. Leave empty to allow all chats.",
-          "chatIdsPlaceholder": "[to be translated]:oc_xxxxx, oc_yyyyy",
-          "connected": "[to be translated]:Connected",
-          "description": "[to be translated]:Receive and respond to messages via a Feishu/Lark bot using WebSocket.",
-          "domain": "[to be translated]:Domain",
-          "domainFeishu": "[to be translated]:Feishu (China)",
-          "domainLark": "[to be translated]:Lark (International)",
-          "encryptKey": "[to be translated]:Encrypt Key",
-          "encryptKeyPlaceholder": "[to be translated]:Enter the Encrypt Key from your Feishu app",
-          "loginHint": "[to be translated]:No credentials configured. Enable the channel to start QR code registration, or enter App ID and App Secret manually.",
-          "qrExpired": "[to be translated]:QR code expired. Please retry by toggling the channel.",
-          "qrHint": "[to be translated]:Waiting for QR code scan...",
-          "qrScanHint": "[to be translated]:Open Feishu on your phone and scan the QR code to create a bot app.",
-          "qrTitle": "[to be translated]:Feishu QR Registration",
-          "title": "[to be translated]:Feishu",
-          "verificationToken": "[to be translated]:Verification Token",
-          "verificationTokenPlaceholder": "[to be translated]:Enter the Verification Token from your Feishu app"
+          "appId": "應用程式 ID",
+          "appIdPlaceholder": "輸入您的飛書應用程式 ID",
+          "appSecret": "應用程式密鑰",
+          "appSecretPlaceholder": "輸入你的飛書應用程式密鑰",
+          "chatIds": "允許的聊天 ID",
+          "chatIdsHint": "逗號分隔的聊天 ID。留空以允許所有聊天。",
+          "chatIdsPlaceholder": "oc_xxxxx, oc_yyyyy",
+          "connected": "已連線",
+          "description": "透過 WebSocket 使用飛書/Lark 機器人接收並回覆訊息。",
+          "domain": "網域",
+          "domainFeishu": "飛書（中國）",
+          "domainLark": "Lark（國際版）",
+          "encryptKey": "加密金鑰",
+          "encryptKeyPlaceholder": "從您的飛書應用程式輸入加密金鑰",
+          "loginHint": "未設定憑證。啟用頻道以開始 QR 碼註冊，或手動輸入應用程式 ID 與應用程式密鑰。",
+          "qrExpired": "QR碼已過期，請切換頻道後重試。",
+          "qrHint": "等待掃描 QR 碼...",
+          "qrScanHint": "在手機上開啟飛書，掃描 QR Code 以建立機器人應用程式。",
+          "qrTitle": "飛書 QR 報名",
+          "title": "飛書",
+          "verificationToken": "驗證權杖",
+          "verificationTokenPlaceholder": "從您的 Feishu 應用程式輸入驗證碼"
         },
         "notifyReceiver": "接收任務通知",
         "notifyReceiverHint": "將排程任務結果傳送到此頻道。",
@@ -83,17 +83,17 @@
         "title": "頻道",
         "wechat": {
           "addAccount": "新增微信帳號",
-          "chatIds": "[to be translated]:Allowed User IDs",
-          "chatIdsHint": "[to be translated]:Comma-separated. Leave empty to allow all users.",
+          "chatIds": "允許的使用者 ID",
+          "chatIdsHint": "以逗號分隔。留空以允許所有使用者。",
           "chatIdsPlaceholder": "wxid_abc123, wxid_def456",
-          "connected": "[to be translated]:Connected",
-          "description": "[to be translated]:Receive and respond to messages via WeChat using the iLink Bot API.",
-          "disconnected": "[to be translated]:Disconnected",
-          "loginHint": "[to be translated]:First login requires scanning a QR code. Check the app logs for the login URL.",
-          "qrHint": "[to be translated]:Open WeChat on your phone, scan the QR code to log in.",
-          "qrTitle": "[to be translated]:WeChat QR Login",
-          "title": "[to be translated]:WeChat",
-          "whoamiTip": "[to be translated]:Tip: Send /whoami in WeChat to get a user's ID."
+          "connected": "已連線",
+          "description": "透過 iLink Bot API 在微信上接收並回覆訊息。",
+          "disconnected": "已斷線",
+          "loginHint": "首次登入需要掃描 QR 碼。請查看應用程式記錄以取得登入網址。",
+          "qrHint": "打開手機上的微信，掃描 QR 碼登入。",
+          "qrTitle": "微信 QR 碼登入",
+          "title": "微信",
+          "whoamiTip": "提示：在微信中發送 /whoami 可取得使用者的 ID。"
         }
       },
       "heartbeat": {
@@ -436,10 +436,10 @@
       },
       "prompt": "提示設定",
       "soulMode": {
-        "description": "[to be translated]:When enabled, the agent uses a custom system prompt from workspace soul files, injects autonomous task management tools, and disables interactive tools not suited for autonomous operation.",
-        "disabledBadge": "[to be translated]:Disabled by Autonomous Mode",
-        "disabledTooltip": "[to be translated]:This tool is automatically disabled when Autonomous Mode is active",
-        "title": "[to be translated]:Autonomous Mode"
+        "description": "啟用後，代理程式會使用來自工作區靈魂檔案的自訂系統提示，注入自主任務管理工具，並停用不適合自主操作的互動式工具。",
+        "disabledBadge": "被自主模式停用",
+        "disabledTooltip": "當自主模式啟用時，此工具會自動停用",
+        "title": "自主模式"
       },
       "tooling": {
         "mcp": {
@@ -586,7 +586,7 @@
           "description": "建立和管理結構化任務清單"
         },
         "ToolSearch": {
-          "description": "[to be translated]:Discovers deferred tools from large libraries"
+          "description": "從大型函式庫中發現延遲載入的工具"
         },
         "WebFetch": {
           "description": "從指定 URL 取得內容"

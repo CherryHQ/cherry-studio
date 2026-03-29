@@ -40,18 +40,18 @@
           "chatIds": "Επιτρεπόμενα Chat IDs",
           "chatIdsHint": "Chat IDs διαχωρισμένα με κόμμα. Αφήστε κενό για να επιτρέψετε όλες τις συνομιλίες.",
           "chatIdsPlaceholder": "oc_xxxxx, oc_yyyyy",
-          "connected": "[to be translated]:Connected",
+          "connected": "Συνδεδεμένος",
           "description": "Λήψη και απάντηση μηνυμάτων μέσω bot Feishu/Lark χρησιμοποιώντας WebSocket.",
           "domain": "Τομέας",
           "domainFeishu": "Feishu (Κίνα)",
           "domainLark": "Lark (Διεθνές)",
           "encryptKey": "Κλειδί κρυπτογράφησης",
           "encryptKeyPlaceholder": "Εισαγάγετε το κλειδί κρυπτογράφησης της εφαρμογής Feishu",
-          "loginHint": "[to be translated]:No credentials configured. Enable the channel to start QR code registration, or enter App ID and App Secret manually.",
-          "qrExpired": "[to be translated]:QR code expired. Please retry by toggling the channel.",
-          "qrHint": "[to be translated]:Waiting for QR code scan...",
-          "qrScanHint": "[to be translated]:Open Feishu on your phone and scan the QR code to create a bot app.",
-          "qrTitle": "[to be translated]:Feishu QR Registration",
+          "loginHint": "Δεν έχουν διαμορφωθεί διαπιστευτήρια. Ενεργοποιήστε το κανάλι για να ξεκινήσει η εγγραφή μέσω κωδικού QR ή εισάγετε χειροκίνητα το App ID και το App Secret.",
+          "qrExpired": "Ο κωδικός QR έληξε. Προσπαθήστε ξανά εναλλάσσοντας το κανάλι.",
+          "qrHint": "Αναμονή για σάρωση κωδικού QR...",
+          "qrScanHint": "Άνοιξε το Feishu στο κινητό σου και σάρωσε τον κωδικό QR για να δημιουργήσεις μια εφαρμογή bot.",
+          "qrTitle": "Εγγραφή μέσω QR Feishu",
           "title": "Feishu",
           "verificationToken": "Token επαλήθευσης",
           "verificationTokenPlaceholder": "Εισαγάγετε το token επαλήθευσης της εφαρμογής Feishu"
@@ -82,18 +82,18 @@
         },
         "title": "Κανάλια",
         "wechat": {
-          "addAccount": "[to be translated]:Add WeChat Account",
-          "chatIds": "[to be translated]:Allowed User IDs",
-          "chatIdsHint": "[to be translated]:Comma-separated. Leave empty to allow all users.",
-          "chatIdsPlaceholder": "[to be translated]:wxid_abc123, wxid_def456",
-          "connected": "[to be translated]:Connected",
-          "description": "[to be translated]:Receive and respond to messages via WeChat using the iLink Bot API.",
-          "disconnected": "[to be translated]:Disconnected",
-          "loginHint": "[to be translated]:First login requires scanning a QR code. Check the app logs for the login URL.",
-          "qrHint": "[to be translated]:Open WeChat on your phone, scan the QR code to log in.",
-          "qrTitle": "[to be translated]:WeChat QR Login",
-          "title": "[to be translated]:WeChat",
-          "whoamiTip": "[to be translated]:Tip: Send /whoami in WeChat to get a user's ID."
+          "addAccount": "Προσθέστε λογαριασμό WeChat",
+          "chatIds": "Επιτρεπόμενα Αναγνωριστικά Χρηστών",
+          "chatIdsHint": "Διαχωρισμένα με κόμμα. Αφήστε κενό για να επιτρέπονται όλοι οι χρήστες.",
+          "chatIdsPlaceholder": "wxid_abc123, wxid_def456",
+          "connected": "Συνδεδεμένος",
+          "description": "Λάβετε και απαντήστε σε μηνύματα μέσω WeChat χρησιμοποιώντας το iLink Bot API.",
+          "disconnected": "Αποσυνδέθηκε",
+          "loginHint": "Η πρώτη σύνδεση απαιτεί σάρωση κωδικού QR. Ελέγξτε τα αρχεία καταγραφής της εφαρμογής για τη διεύθυνση URL σύνδεσης.",
+          "qrHint": "Άνοιξε το WeChat στο κινητό σου και σάρωσε τον κωδικό QR για να συνδεθείς.",
+          "qrTitle": "Σύνδεση με QR code στο WeChat",
+          "title": "WeChat",
+          "whoamiTip": "Συμβουλή: Στείλτε /whoami στο WeChat για να λάβετε το αναγνωριστικό ενός χρήστη."
         }
       },
       "heartbeat": {
@@ -436,10 +436,10 @@
       },
       "prompt": "Ρυθμίσεις Προτροπής",
       "soulMode": {
-        "description": "[to be translated]:When enabled, the agent uses a custom system prompt from workspace soul files, injects autonomous task management tools, and disables interactive tools not suited for autonomous operation.",
-        "disabledBadge": "[to be translated]:Disabled by Autonomous Mode",
-        "disabledTooltip": "[to be translated]:This tool is automatically disabled when Autonomous Mode is active",
-        "title": "[to be translated]:Autonomous Mode"
+        "description": "Όταν είναι ενεργοποιημένο, ο πράκτορας χρησιμοποιεί ένα προσαρμοσμένο σύστημα προτροπής από αρχεία soul του χώρου εργασίας, εισάγει αυτόνομα εργαλεία διαχείρισης εργασιών και απενεργοποιεί διαδραστικά εργαλεία που δεν είναι κατάλληλα για αυτόνομη λειτουργία.",
+        "disabledBadge": "Απενεργοποιημένο από Αυτόνομη Λειτουργία",
+        "disabledTooltip": "Αυτό το εργαλείο απενεργοποιείται αυτόματα όταν είναι ενεργή η Αυτόνομη Λειτουργία",
+        "title": "Αυτόνομη Λειτουργία"
       },
       "tooling": {
         "mcp": {
@@ -586,7 +586,7 @@
           "description": "Δημιουργεί και διαχειρίζεται δομημένες λίστες εργασιών"
         },
         "ToolSearch": {
-          "description": "[to be translated]:Discovers deferred tools from large libraries"
+          "description": "Ανακαλύπτει αναβλημένα εργαλεία από μεγάλες βιβλιοθήκες"
         },
         "WebFetch": {
           "description": "Ανάκτηση περιεχομένου από καθορισμένη διεύθυνση URL"

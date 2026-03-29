@@ -40,18 +40,18 @@
           "chatIds": "許可するチャットID",
           "chatIdsHint": "カンマ区切りのチャットID。空欄にするとすべてのチャットを許可します。",
           "chatIdsPlaceholder": "oc_xxxxx, oc_yyyyy",
-          "connected": "[to be translated]:Connected",
+          "connected": "接続済み",
           "description": "Feishu/Larkボットを使用してWebSocket経由でメッセージを受信・応答します。",
           "domain": "ドメイン",
           "domainFeishu": "Feishu（中国）",
           "domainLark": "Lark（国際版）",
           "encryptKey": "暗号化キー",
           "encryptKeyPlaceholder": "Feishuアプリの暗号化キーを入力してください",
-          "loginHint": "[to be translated]:No credentials configured. Enable the channel to start QR code registration, or enter App ID and App Secret manually.",
-          "qrExpired": "[to be translated]:QR code expired. Please retry by toggling the channel.",
-          "qrHint": "[to be translated]:Waiting for QR code scan...",
-          "qrScanHint": "[to be translated]:Open Feishu on your phone and scan the QR code to create a bot app.",
-          "qrTitle": "[to be translated]:Feishu QR Registration",
+          "loginHint": "資格情報が設定されていません。QRコード登録を開始するにはチャネルを有効にするか、アプリIDとアプリシークレットを手動で入力してください。",
+          "qrExpired": "QRコードの有効期限が切れました。チャンネルを切り替えて再試行してください。",
+          "qrHint": "QRコードのスキャンを待っています...",
+          "qrScanHint": "スマートフォンでFeishuを開き、QRコードをスキャンしてボットアプリを作成してください。",
+          "qrTitle": "Feishu QR登録",
           "title": "Feishu",
           "verificationToken": "検証トークン",
           "verificationTokenPlaceholder": "Feishuアプリの検証トークンを入力してください"
@@ -82,18 +82,18 @@
         },
         "title": "チャンネル",
         "wechat": {
-          "addAccount": "[to be translated]:Add WeChat Account",
-          "chatIds": "[to be translated]:Allowed User IDs",
-          "chatIdsHint": "[to be translated]:Comma-separated. Leave empty to allow all users.",
-          "chatIdsPlaceholder": "[to be translated]:wxid_abc123, wxid_def456",
-          "connected": "[to be translated]:Connected",
-          "description": "[to be translated]:Receive and respond to messages via WeChat using the iLink Bot API.",
-          "disconnected": "[to be translated]:Disconnected",
-          "loginHint": "[to be translated]:First login requires scanning a QR code. Check the app logs for the login URL.",
-          "qrHint": "[to be translated]:Open WeChat on your phone, scan the QR code to log in.",
-          "qrTitle": "[to be translated]:WeChat QR Login",
-          "title": "[to be translated]:WeChat",
-          "whoamiTip": "[to be translated]:Tip: Send /whoami in WeChat to get a user's ID."
+          "addAccount": "WeChatアカウントを追加",
+          "chatIds": "許可されたユーザーID",
+          "chatIdsHint": "カンマ区切り。空欄にするとすべてのユーザーが許可されます。",
+          "chatIdsPlaceholder": "wxid_abc123、wxid_def456",
+          "connected": "接続済み",
+          "description": "iLink Bot APIを使用してWeChat経由でメッセージを受信・応答する。",
+          "disconnected": "切断されました",
+          "loginHint": "初回ログインにはQRコードのスキャンが必要です。ログインURLはアプリのログを確認してください。",
+          "qrHint": "スマートフォンでWeChatを開き、QRコードをスキャンしてログインしてください。",
+          "qrTitle": "WeChat QRコードログイン",
+          "title": "WeChat",
+          "whoamiTip": "ヒント：WeChatで/whoamiを送信すると、ユーザーのIDが取得できます。"
         }
       },
       "heartbeat": {
@@ -436,10 +436,10 @@
       },
       "prompt": "プロンプト設定",
       "soulMode": {
-        "description": "[to be translated]:When enabled, the agent uses a custom system prompt from workspace soul files, injects autonomous task management tools, and disables interactive tools not suited for autonomous operation.",
-        "disabledBadge": "[to be translated]:Disabled by Autonomous Mode",
-        "disabledTooltip": "[to be translated]:This tool is automatically disabled when Autonomous Mode is active",
-        "title": "[to be translated]:Autonomous Mode"
+        "description": "有効にすると、エージェントはワークスペースのsoulファイルからカスタムシステムプロンプトを使用し、自律的タスク管理ツールを注入し、自律動作には不適切なインタラクティブツールを無効化します。",
+        "disabledBadge": "自律モードにより無効化されました",
+        "disabledTooltip": "このツールは、自律モードがアクティブな場合に自動的に無効になります",
+        "title": "自律モード"
       },
       "tooling": {
         "mcp": {
@@ -586,7 +586,7 @@
           "description": "構造化されたタスクリストを作成し、管理します"
         },
         "ToolSearch": {
-          "description": "[to be translated]:Discovers deferred tools from large libraries"
+          "description": "大規模ライブラリから遅延ツールを発見"
         },
         "WebFetch": {
           "description": "指定されたURLからコンテンツを取得します"

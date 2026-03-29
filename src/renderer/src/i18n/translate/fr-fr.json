@@ -40,18 +40,18 @@
           "chatIds": "IDs de chat autorisés",
           "chatIdsHint": "IDs de chat séparés par des virgules. Laissez vide pour autoriser tous les chats.",
           "chatIdsPlaceholder": "oc_xxxxx, oc_yyyyy",
-          "connected": "[to be translated]:Connected",
+          "connected": "Connecté",
           "description": "Recevoir et répondre aux messages via un bot Feishu/Lark en utilisant WebSocket.",
           "domain": "Domaine",
           "domainFeishu": "Feishu (Chine)",
           "domainLark": "Lark (International)",
           "encryptKey": "Clé de chiffrement",
           "encryptKeyPlaceholder": "Saisissez la clé de chiffrement de votre application Feishu",
-          "loginHint": "[to be translated]:No credentials configured. Enable the channel to start QR code registration, or enter App ID and App Secret manually.",
-          "qrExpired": "[to be translated]:QR code expired. Please retry by toggling the channel.",
-          "qrHint": "[to be translated]:Waiting for QR code scan...",
-          "qrScanHint": "[to be translated]:Open Feishu on your phone and scan the QR code to create a bot app.",
-          "qrTitle": "[to be translated]:Feishu QR Registration",
+          "loginHint": "Aucune information d’identification configurée. Activez le canal pour démarrer l’enregistrement par code QR, ou saisissez manuellement l’ID de l’application et le secret de l’application.",
+          "qrExpired": "Code QR expiré. Veuillez réessayer en basculant le canal.",
+          "qrHint": "En attente de la numérisation du code QR...",
+          "qrScanHint": "Ouvre Feishu sur ton téléphone et scanne le code QR pour créer une application bot.",
+          "qrTitle": "Inscription par QR code Feishu",
           "title": "Feishu",
           "verificationToken": "Jeton de vérification",
           "verificationTokenPlaceholder": "Saisissez le jeton de vérification de votre application Feishu"
@@ -82,18 +82,18 @@
         },
         "title": "Canaux",
         "wechat": {
-          "addAccount": "[to be translated]:Add WeChat Account",
-          "chatIds": "[to be translated]:Allowed User IDs",
-          "chatIdsHint": "[to be translated]:Comma-separated. Leave empty to allow all users.",
-          "chatIdsPlaceholder": "[to be translated]:wxid_abc123, wxid_def456",
-          "connected": "[to be translated]:Connected",
-          "description": "[to be translated]:Receive and respond to messages via WeChat using the iLink Bot API.",
-          "disconnected": "[to be translated]:Disconnected",
-          "loginHint": "[to be translated]:First login requires scanning a QR code. Check the app logs for the login URL.",
-          "qrHint": "[to be translated]:Open WeChat on your phone, scan the QR code to log in.",
-          "qrTitle": "[to be translated]:WeChat QR Login",
-          "title": "[to be translated]:WeChat",
-          "whoamiTip": "[to be translated]:Tip: Send /whoami in WeChat to get a user's ID."
+          "addAccount": "Ajouter un compte WeChat",
+          "chatIds": "Identifiants d'utilisateurs autorisés",
+          "chatIdsHint": "Séparés par des virgules. Laisser vide pour autoriser tous les utilisateurs.",
+          "chatIdsPlaceholder": "wxid_abc123, wxid_def456",
+          "connected": "Connecté",
+          "description": "Recevoir et répondre aux messages via WeChat en utilisant l'API iLink Bot.",
+          "disconnected": "Déconnecté",
+          "loginHint": "La première connexion nécessite de scanner un code QR. Vérifiez les journaux de l'application pour obtenir l'URL de connexion.",
+          "qrHint": "Ouvrez WeChat sur votre téléphone, scannez le code QR pour vous connecter.",
+          "qrTitle": "Connexion par QR WeChat",
+          "title": "WeChat",
+          "whoamiTip": "Astuce : envoyez /whoami dans WeChat pour obtenir l'ID d'un utilisateur."
         }
       },
       "heartbeat": {
@@ -436,10 +436,10 @@
       },
       "prompt": "Paramètres de l'invite",
       "soulMode": {
-        "description": "[to be translated]:When enabled, the agent uses a custom system prompt from workspace soul files, injects autonomous task management tools, and disables interactive tools not suited for autonomous operation.",
-        "disabledBadge": "[to be translated]:Disabled by Autonomous Mode",
-        "disabledTooltip": "[to be translated]:This tool is automatically disabled when Autonomous Mode is active",
-        "title": "[to be translated]:Autonomous Mode"
+        "description": "Lorsqu'il est activé, l'agent utilise une invite système personnée provenant des fichiers soul de l'espace de travail, injecte des outils de gestion autonome des tâches et désactive les outils interactifs non adaptés au fonctionnement autonome.",
+        "disabledBadge": "Désactivé par le mode autonome",
+        "disabledTooltip": "Cet outil est automatiquement désactivé lorsque le Mode Autonome est actif",
+        "title": "Mode autonome"
       },
       "tooling": {
         "mcp": {
@@ -586,7 +586,7 @@
           "description": "Crée et gère des listes de tâches structurées"
         },
         "ToolSearch": {
-          "description": "[to be translated]:Discovers deferred tools from large libraries"
+          "description": "Découvre des outils différés dans de grandes bibliothèques"
         },
         "WebFetch": {
           "description": "Récupère le contenu à partir d'une URL spécifiée"
