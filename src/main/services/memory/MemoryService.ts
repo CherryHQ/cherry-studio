@@ -54,6 +54,22 @@ export class MemoryService {
   private config: MemoryConfig | null = null
   private static readonly UNIFIED_DIMENSION = 1536
   private static readonly SIMILARITY_THRESHOLD = 0.85
+  private _memoryDbPath: string = path.join(DATA_PATH, 'Memory', 'memories.db')
+
+  /**
+   * Get the memory database path, ensuring the directory exists.
+   * Uses lazy initialization with directory creation.
+   */
+  private get memoryDbPath(): string {
+    const dir = path.dirname(this._memoryDbPath)
+    if (!fs.existsSync(dir)) {
+      const result = makeSureDirExists(dir)
+      if (!result.success) {
+        throw new Error(`Failed to create memory directory: ${result.error?.message}`)
+      }
+    }
+    return this._memoryDbPath
+  }
 
   private constructor() {
     // Private constructor to enforce singleton pattern
@@ -75,29 +91,14 @@ export class MemoryService {
   }
 
   /**
-   * Ensure the memory database directory exists
-   * @throws Error if the directory cannot be created
-   */
-  private ensureMemoryDirExists(): void {
-    const memoryDbPath = path.join(DATA_PATH, 'Memory', 'memories.db')
-    const dirResult = makeSureDirExists(path.dirname(memoryDbPath))
-    if (!dirResult.success) {
-      throw new Error(`Failed to create memory directory: ${dirResult.error?.message}`)
-    }
-  }
-
-  /**
    * Migrate the memory database from the old path to the new path
    * If the old memory database exists, rename it to the new path
    */
   public migrateMemoryDb(): void {
-    this.ensureMemoryDirExists()
-
     const oldMemoryDbPath = path.join(app.getPath('userData'), 'memories.db')
-    const memoryDbPath = path.join(DATA_PATH, 'Memory', 'memories.db')
 
     if (fs.existsSync(oldMemoryDbPath)) {
-      fs.renameSync(oldMemoryDbPath, memoryDbPath)
+      fs.renameSync(oldMemoryDbPath, this.memoryDbPath)
     }
   }
 
@@ -110,11 +111,8 @@ export class MemoryService {
     }
 
     try {
-      this.ensureMemoryDirExists()
-
-      const memoryDbPath = path.join(DATA_PATH, 'Memory', 'memories.db')
       this.db = createClient({
-        url: `file:${memoryDbPath}`,
+        url: `file:${this.memoryDbPath}`,
         intMode: 'number'
       })
 
