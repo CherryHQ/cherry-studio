@@ -258,6 +258,20 @@ export class PluginService {
             // Continue checking other roots
           }
         }
+
+        // Fallback: try skill directories when no plugin roots found
+        logger.info('No matching plugin roots, trying skill fallback', {
+          owner: identifier.owner,
+          repository: identifier.repository,
+          name: identifier.name
+        })
+        const skillDirs = await findAllSkillDirectories(tempDir, tempDir)
+        if (skillDirs.length > 0) {
+          const matchedSkill =
+            skillDirs.find((s) => path.basename(s.folderPath).toLowerCase() === targetPluginName) ?? skillDirs[0]
+          return await this.installMarketplaceSkillFromDirectory(matchedSkill.folderPath, context)
+        }
+
         throw {
           type: 'PLUGIN_MANIFEST_NOT_FOUND',
           reason: `Plugin '${identifier.name}' not found in repository`,
