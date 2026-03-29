@@ -66,6 +66,14 @@ export const NEW_PROVIDER_CONFIGS: ProviderConfig[] = [
     aliases: ['perplexity']
   },
   {
+    id: 'poe',
+    name: 'Poe',
+    import: () => import('ai-sdk-provider-poe'),
+    creatorFunctionName: 'createPoe',
+    supportsImageGeneration: false,
+    aliases: ['poe']
+  },
+  {
     id: 'mistral',
     name: 'Mistral',
     import: () => import('@ai-sdk/mistral'),

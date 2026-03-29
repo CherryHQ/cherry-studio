@@ -25,7 +25,7 @@ import AiSdkToChunkAdapter from './chunk/AiSdkToChunkAdapter'
 import LegacyAiProvider from './legacy/index'
 import type { CompletionsParams, CompletionsResult } from './legacy/middleware/schemas'
 import { buildPlugins } from './plugins/PluginBuilder'
-import { createAiSdkProvider } from './provider/factory'
+import { createAiSdkProvider, resolveAiSdkRuntimeProviderIdByMode } from './provider/factory'
 import {
   adaptProvider,
   getActualProvider,
@@ -116,6 +116,14 @@ export default class ModernAiProvider {
 
   public getActualProvider() {
     return this.actualProvider
+  }
+
+  private getRuntimeProviderId(): string {
+    if (!this.config) {
+      throw new Error('Provider config is undefined; cannot resolve runtime provider ID.')
+    }
+
+    return resolveAiSdkRuntimeProviderIdByMode(this.config.providerId, this.config.options?.mode)
   }
 
   /**
@@ -325,7 +333,8 @@ export default class ModernAiProvider {
     })
 
     // 用构建好的插件数组创建executor
-    const executor = createExecutor(this.config!.providerId, this.config!.options, plugins)
+    const runtimeProviderId = this.getRuntimeProviderId()
+    const executor = createExecutor(runtimeProviderId, this.config!.options, plugins)
 
     // 创建带有中间件的执行器
     if (config.onChunk) {
@@ -337,7 +346,7 @@ export default class ModernAiProvider {
         config.enableWebSearch,
         undefined,
         undefined,
-        this.config!.providerId,
+        runtimeProviderId,
         config.idleTimeout
       )
 
@@ -577,7 +586,8 @@ export default class ModernAiProvider {
       ...(signal && { abortSignal: signal })
     }
 
-    const executor = createExecutor(this.config!.providerId, this.config!.options, [])
+    const runtimeProviderId = this.getRuntimeProviderId()
+    const executor = createExecutor(runtimeProviderId, this.config!.options, [])
     const result = await executor.generateImage({
       model: model, // 直接使用 model ID 字符串，由 executor 内部解析
       ...aiSdkParams

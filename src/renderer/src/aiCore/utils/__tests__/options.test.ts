@@ -445,39 +445,85 @@ describe('options utils', () => {
       } as Provider
 
       const poeModel: Model = {
-        id: 'openai/gpt-4',
-        name: 'GPT-4',
+        id: 'gpt-5.2',
+        name: 'GPT-5.2',
         provider: SystemProviderIds.poe
       } as Model
 
-      it('should deep merge Poe extra_body reasoning and web search parameters', async () => {
-        const { getReasoningEffort } = await import('../reasoning')
-        const { getWebSearchParams } = await import('../websearch')
+      const poeClaudeModel: Model = {
+        id: 'claude-sonnet-4',
+        name: 'Claude Sonnet 4',
+        provider: SystemProviderIds.poe
+      } as Model
 
-        vi.mocked(getReasoningEffort).mockReturnValue({
-          extra_body: {
-            reasoning_effort: 'medium'
-          }
-        })
-        vi.mocked(getWebSearchParams).mockReturnValue({
-          extra_body: {
-            web_search: true
-          }
-        })
+      const poeGeminiModel: Model = {
+        id: 'gemini-3.1-pro',
+        name: 'Gemini 3.1 Pro',
+        provider: SystemProviderIds.poe
+      } as Model
 
+      it('should build OpenAI providerOptions for Poe reasoning models routed through responses', () => {
         const result = buildProviderOptions(mockAssistant, poeModel, poeProvider, {
           enableReasoning: true,
           enableWebSearch: true,
           enableGenerateImage: false
         })
 
-        expect(result.providerOptions).toHaveProperty('poe')
-        expect(result.providerOptions.poe).toMatchObject({
-          extra_body: {
-            reasoning_effort: 'medium',
-            web_search: true
+        expect(result.providerOptions).toHaveProperty('openai')
+        expect(result.providerOptions).not.toHaveProperty('poe')
+        expect(result.providerOptions.openai).toMatchObject({
+          reasoningEffort: 'medium'
+        })
+        expect(result.providerOptions.openai).not.toHaveProperty('systemMessageMode')
+      })
+
+      it('should build OpenAI providerOptions for unprefixed Poe Anthropic models', () => {
+        const result = buildProviderOptions(mockAssistant, poeClaudeModel, poeProvider, {
+          enableReasoning: true,
+          enableWebSearch: true,
+          enableGenerateImage: false
+        })
+
+        expect(result.providerOptions).toHaveProperty('openai')
+        expect(result.providerOptions).not.toHaveProperty('anthropic')
+        expect(result.providerOptions.openai).toMatchObject({
+          reasoningEffort: 'medium'
+        })
+      })
+
+      it('should build OpenAI providerOptions for Poe Gemini models routed through OpenAI responses', () => {
+        const result = buildProviderOptions(mockAssistant, poeGeminiModel, poeProvider, {
+          enableReasoning: true,
+          enableWebSearch: false,
+          enableGenerateImage: false
+        })
+
+        expect(result.providerOptions).toHaveProperty('openai')
+        expect(result.providerOptions.openai).toMatchObject({
+          reasoningEffort: 'medium'
+        })
+        expect(result.providerOptions.openai).not.toHaveProperty('systemMessageMode')
+      })
+
+      it('should map Poe-scoped custom parameters to the effective provider namespace', async () => {
+        const { getCustomParameters } = await import('../reasoning')
+
+        vi.mocked(getCustomParameters).mockReturnValue({
+          poe: {
+            customPoeOption: 'poe_value'
           }
         })
+
+        const result = buildProviderOptions(mockAssistant, poeModel, poeProvider, {
+          enableReasoning: false,
+          enableWebSearch: false,
+          enableGenerateImage: false
+        })
+
+        expect(result.providerOptions.openai).toMatchObject({
+          customPoeOption: 'poe_value'
+        })
+        expect(result.providerOptions).not.toHaveProperty('poe')
       })
     })
 

@@ -41,8 +41,10 @@ import { isAIGatewayProvider, isAwsBedrockProvider, isSupportUrlContextProvider 
 import { DEFAULT_TIMEOUT } from '@shared/config/constant'
 import type { ModelMessage, Tool } from 'ai'
 import { stepCountIs } from 'ai'
+import { getModel as getPoeModel } from 'ai-sdk-provider-poe/code'
 
-import { getAiSdkProviderId } from '../provider/factory'
+import { resolveAiSdkRuntimeProviderIdByMode } from '../provider/factory'
+import { resolveAiSdkTransport } from '../provider/transport'
 import { setupToolsConfig } from '../utils/mcp'
 import { buildProviderOptions } from '../utils/options'
 import { buildProviderBuiltinWebSearchConfig } from '../utils/websearch'
@@ -81,6 +83,20 @@ function mapVertexAIGatewayModelToProviderId(model: Model): BaseProviderId | und
   }
   logger.warn(`Unknown model type for AI Gateway: ${model.id}. Web search will not be enabled.`)
   return undefined
+}
+
+function resolvePoeWebSearchProviderId(model: Model): BaseProviderId {
+  const rawModelId = model.id.includes('/') ? model.id.split('/').slice(1).join('/') : model.id
+  const endpoint = getPoeModel(rawModelId)?.supportedEndpoints?.[0]
+
+  if (endpoint === '/v1/messages') return 'anthropic'
+  if (endpoint === '/v1/chat/completions') return 'openai-chat'
+
+  // Poe now prefers chat completions for Gemini to avoid Responses parser issues.
+  // https://github.com/poe-platform/ai-sdk-provider-poe/issues/2
+  if (isGeminiModel(model)) return 'openai-chat'
+
+  return 'openai'
 }
 
 /**
@@ -128,7 +144,8 @@ export async function buildStreamTextParams(
   const finalSignal = AbortSignal.any(signals)
 
   const model = assistant.model || getDefaultModel()
-  const aiSdkProviderId = getAiSdkProviderId(provider)
+  const { providerId, mode } = resolveAiSdkTransport(provider, model)
+  let aiSdkProviderId = resolveAiSdkRuntimeProviderIdByMode(providerId, mode)
 
   // 这三个变量透传出来，交给下面启用插件/中间件
   // 也可以在外部构建好再传入buildStreamTextParams
@@ -174,6 +191,9 @@ export async function buildStreamTextParams(
 
   let webSearchPluginConfig: WebSearchPluginConfig | undefined = undefined
   if (enableWebSearch) {
+    if (provider.id === SystemProviderIds.poe) {
+      aiSdkProviderId = resolvePoeWebSearchProviderId(model)
+    }
     if (isBaseProvider(aiSdkProviderId)) {
       webSearchPluginConfig = buildProviderBuiltinWebSearchConfig(aiSdkProviderId, webSearchConfig, model)
     } else if (isAIGatewayProvider(provider) || SystemProviderIds.gateway === provider.id) {

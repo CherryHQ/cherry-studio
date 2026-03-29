@@ -83,6 +83,7 @@ import { isAzureOpenAIProvider, isCherryAIProvider, isPerplexityProvider } from 
 
 import { COPILOT_DEFAULT_HEADERS, COPILOT_EDITOR_VERSION, isCopilotResponsesModel } from '../constants'
 import { getActualProvider, providerToAiSdkConfig } from '../providerConfig'
+import { resolveAiSdkTransport } from '../transport'
 
 const { __mockGetState: mockGetState } = vi.mocked(await import('@renderer/store')) as any
 
@@ -142,6 +143,34 @@ const createAzureProvider = (apiVersion: string): Provider => ({
   apiVersion,
   models: [],
   isSystem: true
+})
+
+describe('AI SDK transport', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    vi.mocked(isAzureOpenAIProvider).mockImplementation((provider) => provider.type === 'azure-openai')
+  })
+
+  it('resolves Azure v1 endpoints to responses mode', () => {
+    const transport = resolveAiSdkTransport(createAzureProvider('v1'), createModel('gpt-4o', 'GPT-4o', 'azure-openai'))
+
+    expect(transport).toEqual({
+      providerId: 'azure-responses',
+      mode: 'responses'
+    })
+  })
+
+  it('keeps chat mode for legacy Azure API versions', () => {
+    const transport = resolveAiSdkTransport(
+      createAzureProvider('2024-02-15-preview'),
+      createModel('gpt-4o', 'GPT-4o', 'azure-openai')
+    )
+
+    expect(transport).toEqual({
+      providerId: 'azure',
+      mode: 'chat'
+    })
+  })
 })
 
 describe('Copilot responses routing', () => {
