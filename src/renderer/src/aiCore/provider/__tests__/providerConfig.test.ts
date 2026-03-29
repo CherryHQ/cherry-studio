@@ -37,6 +37,9 @@ vi.mock('@renderer/utils/api', () => ({
     if (isSupportedAPIVersion === false) {
       return host // Return host as-is when isSupportedAPIVersion is false
     }
+    if (typeof host === 'string' && /\/v1\/?$/.test(host)) {
+      return host.replace(/\/$/, '')
+    }
     return `${host}/v1` // Default behavior when isSupportedAPIVersion is true
   }),
   routeToEndpoint: vi.fn((host) => ({
@@ -79,7 +82,13 @@ vi.mock('@renderer/services/AssistantService', () => ({
 import { getProviderByModel } from '@renderer/services/AssistantService'
 import type { Model, Provider } from '@renderer/types'
 import { formatApiHost } from '@renderer/utils/api'
-import { isAzureOpenAIProvider, isCherryAIProvider, isPerplexityProvider } from '@renderer/utils/provider'
+import {
+  isAnthropicProvider,
+  isAzureOpenAIProvider,
+  isCherryAIProvider,
+  isNewApiProvider,
+  isPerplexityProvider
+} from '@renderer/utils/provider'
 
 import { COPILOT_DEFAULT_HEADERS, COPILOT_EDITOR_VERSION, isCopilotResponsesModel } from '../constants'
 import { getActualProvider, providerToAiSdkConfig } from '../providerConfig'
@@ -140,6 +149,17 @@ const createAzureProvider = (apiVersion: string): Provider => ({
   apiKey: 'test-key',
   apiHost: 'https://example.openai.azure.com/openai',
   apiVersion,
+  models: [],
+  isSystem: true
+})
+
+const createNewApiProvider = (): Provider => ({
+  id: 'new-api',
+  type: 'new-api',
+  name: 'New API',
+  apiKey: 'test-key',
+  apiHost: 'http://localhost:3000',
+  anthropicApiHost: 'https://example.newapi.dev/anthropic',
   models: [],
   isSystem: true
 })
@@ -351,6 +371,46 @@ describe('Perplexity provider configuration', () => {
 
     expect(formatApiHost).toHaveBeenCalledWith('', false)
     expect(actualProvider.apiHost).toBe('')
+  })
+})
+
+describe('New API provider configuration', () => {
+  beforeEach(() => {
+    ;(globalThis as any).window = {
+      ...(globalThis as any).window,
+      keyv: createWindowKeyv()
+    }
+    mockGetState.mockReturnValue({
+      copilot: { defaultHeaders: {} },
+      settings: {
+        openAI: {
+          streamOptions: {
+            includeUsage: undefined
+          }
+        }
+      }
+    })
+    vi.clearAllMocks()
+  })
+
+  it('prefers anthropicApiHost for new-api anthropic endpoint models', () => {
+    const provider = createNewApiProvider()
+    const model = {
+      ...createModel('claude-sonnet-4', 'Claude Sonnet 4', 'new-api'),
+      endpoint_type: 'anthropic'
+    } as Model
+
+    vi.mocked(isNewApiProvider).mockReturnValue(true)
+    vi.mocked(isAnthropicProvider).mockImplementation((candidate) => candidate.type === 'anthropic')
+    vi.mocked(getProviderByModel).mockReturnValue(provider)
+
+    const actualProvider = getActualProvider(model)
+
+    expect(actualProvider.type).toBe('anthropic')
+    expect(formatApiHost).toHaveBeenCalledWith('https://example.newapi.dev/anthropic', true)
+    expect(actualProvider.apiHost.startsWith('https://example.newapi.dev/anthropic/v1')).toBe(true)
+    expect(actualProvider.apiHost.includes('localhost:3000')).toBe(false)
+    expect(actualProvider.anthropicApiHost).toBe('https://example.newapi.dev/anthropic/v1')
   })
 })
 

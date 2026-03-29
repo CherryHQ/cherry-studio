@@ -88,12 +88,17 @@ export function getSdkClient(
       }
     })
   }
+  const isMixedAnthropicProvider = ['new-api', 'cherryin'].includes(provider.id)
+  const anthropicHost = provider.anthropicApiHost?.trim()
   const baseURL =
-    provider.type === 'anthropic'
-      ? provider.apiHost
-      : (provider.anthropicApiHost && provider.anthropicApiHost.trim()) || provider.apiHost
+    provider.type === 'anthropic' && !isMixedAnthropicProvider ? provider.apiHost : anthropicHost || provider.apiHost
 
-  logger.debug('Anthropic API baseURL', { baseURL, providerId: provider.id })
+  logger.debug('Anthropic API baseURL', {
+    baseURL,
+    providerId: provider.id,
+    providerType: provider.type,
+    anthropicApiHost: provider.anthropicApiHost
+  })
 
   if (provider.id === 'aihubmix') {
     return new Anthropic({
