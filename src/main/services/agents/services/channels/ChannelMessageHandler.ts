@@ -74,8 +74,12 @@ export class ChannelMessageHandler {
       )
 
       try {
-        const responseText = await this.collectStreamResponse(session, securedContent, abortController, (text) =>
-          adapter.sendMessageDraft(message.chatId, draftId, text).catch(() => {})
+        const responseText = await this.collectStreamResponse(
+          session,
+          securedContent,
+          abortController,
+          (text) => adapter.sendMessageDraft(message.chatId, draftId, text).catch(() => {}),
+          message.text
         )
 
         if (responseText) {
@@ -276,7 +280,8 @@ export class ChannelMessageHandler {
     session: GetAgentSessionResponse,
     content: string,
     abortController: AbortController,
-    onDraft?: (text: string) => void
+    onDraft?: (text: string) => void,
+    displayContent?: string
   ): Promise<string> {
     // If renderer is subscribed, it handles persistence via the same BlockManager
     // pipeline as normal agent messages. Otherwise, fall back to persistHeadlessExchange.
@@ -285,7 +290,7 @@ export class ChannelMessageHandler {
       session,
       { content },
       abortController,
-      { persist: !rendererIsWatching }
+      { persist: !rendererIsWatching, displayContent }
     )
 
     const reader = stream.getReader()

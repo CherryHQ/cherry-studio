@@ -32,6 +32,8 @@ type SessionStreamResult = {
 export type CreateMessageOptions = {
   /** When true, persist user+assistant messages to DB on stream complete. Use for headless callers (channels, scheduler) where no UI handles persistence. */
   persist?: boolean
+  /** Optional display-safe user content for persistence. When set, this is stored instead of req.content (which may contain security wrappers not meant for display). */
+  displayContent?: string
 }
 
 // Ensure errors emitted through SSE are serializable
@@ -247,7 +249,12 @@ export class SessionMessageService extends BaseService {
                     fallback: agentSessionId,
                     resolved: resolvedSessionId
                   })
-                  this.persistHeadlessExchange(session, req.content, accumulator.getText(), resolvedSessionId)
+                  this.persistHeadlessExchange(
+                    session,
+                    options?.displayContent ?? req.content,
+                    accumulator.getText(),
+                    resolvedSessionId
+                  )
                     .then(resolveCompletion)
                     .catch((err) => {
                       logger.error('Failed to persist headless exchange', err as Error)

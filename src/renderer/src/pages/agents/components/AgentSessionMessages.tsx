@@ -1,5 +1,6 @@
 import { loggerService } from '@logger'
 import ContextMenu from '@renderer/components/ContextMenu'
+import { useAgent } from '@renderer/hooks/agents/useAgent'
 import { useSession } from '@renderer/hooks/agents/useSession'
 import { useTopicMessages } from '@renderer/hooks/useMessageOperations'
 import useScrollPosition from '@renderer/hooks/useScrollPosition'
@@ -37,6 +38,11 @@ const AgentSessionMessages = ({ agentId, sessionId }: Props) => {
   const { messageNavigation } = useSettings()
   const dispatch = useAppDispatch()
 
+  // Use agent's model as fallback when session model is not yet available
+  const { agent } = useAgent(agentId)
+  const agentModelRef = useRef(agent?.model)
+  agentModelRef.current = agent?.model
+
   // Subscribe to real-time IM channel stream chunks and render via BlockManager pipeline
   const streamCtrlRef = useRef<ChannelStreamController | null>(null)
   const sessionRef = useRef(session)
@@ -53,7 +59,7 @@ const AgentSessionMessages = ({ agentId, sessionId }: Props) => {
           store.getState,
           sessionTopicId,
           agentId,
-          sessionRef.current?.model
+          sessionRef.current?.model ?? agentModelRef.current
         )
       }
       return streamCtrlRef.current
