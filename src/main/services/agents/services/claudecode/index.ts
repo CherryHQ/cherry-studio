@@ -320,7 +320,7 @@ class ClaudeCodeService implements AgentServiceInterface {
     let soulSystemPrompt: string | undefined
 
     if (soulEnabled && cwd) {
-      soulSystemPrompt = await promptBuilder.buildSystemPrompt(cwd)
+      soulSystemPrompt = await promptBuilder.buildSystemPrompt(cwd, soulConfig)
       logger.info('Built Soul Mode system prompt', { cwd, promptLength: soulSystemPrompt.length })
     }
 

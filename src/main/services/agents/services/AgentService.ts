@@ -16,6 +16,7 @@ import { asc, count, desc, eq, sql } from 'drizzle-orm'
 import { BaseService } from '../BaseService'
 import { type AgentRow, agentsTable, type InsertAgentRow } from '../database/schema'
 import type { AgentModelField } from '../errors'
+import { seedWorkspaceTemplates } from './cherryclaw/seedWorkspace'
 import { schedulerService } from './SchedulerService'
 import { sessionService } from './SessionService'
 
@@ -76,6 +77,15 @@ export class AgentService extends BaseService {
     }
 
     const agent = this.deserializeJsonFields(result[0]) as AgentEntity
+
+    // Seed workspace templates for soul mode agents
+    if ((req.configuration as Record<string, unknown> | undefined)?.soul_enabled === true) {
+      const workspace = agent.accessible_paths?.[0]
+      if (workspace) {
+        await seedWorkspaceTemplates(workspace)
+      }
+    }
+
     return agent
   }
 

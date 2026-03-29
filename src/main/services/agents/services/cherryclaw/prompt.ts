@@ -2,6 +2,9 @@ import { readdir, readFile, stat } from 'node:fs/promises'
 import path from 'node:path'
 
 import { loggerService } from '@logger'
+import type { CherryClawConfiguration } from '@types'
+
+import { BOOTSTRAP_INSTRUCTIONS, SOUL_CONTENT_THRESHOLD } from './seedWorkspace'
 
 const logger = loggerService.withContext('PromptBuilder')
 
@@ -47,7 +50,7 @@ You have exclusive access to these tools for interacting with CherryStudio. Alwa
 | \`mcp__claw__notify\` | Send messages to the user via IM channels | Proactive updates, task results, alerts. Use when the user is not in the current session. |
 | \`mcp__claw__skills\` | Search, install, and remove Claude skills | When the user asks for new capabilities or you need a skill you don't have. |
 | \`mcp__claw__memory\` | Manage JOURNAL.jsonl (append and search) | Log events and search past activity. Never write to JOURNAL.jsonl directly via file tools. |
-| \`mcp__claw__config\` | Inspect and manage your own agent config | Check connected channels, supported adapters, add/update/remove IM channels. |
+| \`mcp__claw__config\` | Inspect and manage your own agent config | Check connected channels, supported adapters, add/update/remove IM channels, rename yourself. |
 
 Rules:
 - These are your primary interface to CherryStudio. Do not attempt workarounds or alternative approaches.
@@ -91,7 +94,7 @@ ${sections}`
 export class PromptBuilder {
   private cache = new Map<string, CacheEntry>()
 
-  async buildSystemPrompt(workspacePath: string): Promise<string> {
+  async buildSystemPrompt(workspacePath: string, config?: CherryClawConfiguration): Promise<string> {
     const parts: string[] = []
 
     // Basic prompt: workspace system.md (case-insensitive) > embedded default
@@ -102,13 +105,47 @@ export class PromptBuilder {
     // Tools section (always included)
     parts.push(TOOLS_SECTION)
 
-    // Memories section
+    // Bootstrap detection: inject bootstrap instructions if not completed
+    const needsBootstrap = await this.shouldRunBootstrap(workspacePath, config)
+    if (needsBootstrap) {
+      parts.push(BOOTSTRAP_INSTRUCTIONS)
+      logger.info('Bootstrap mode active — injecting onboarding instructions')
+    }
+
+    // Memories section (always included so the agent knows file locations)
     const memoriesContent = await this.buildMemoriesSection(workspacePath)
     if (memoriesContent) {
       parts.push(memoriesContent)
     }
 
     return parts.join('\n\n')
+  }
+
+  /**
+   * Determine whether bootstrap should run.
+   * - If `bootstrap_completed` is explicitly true, skip.
+   * - If SOUL.md has substantial non-template content, skip (legacy agent migration).
+   * - Otherwise, run bootstrap.
+   */
+  private async shouldRunBootstrap(workspacePath: string, config?: CherryClawConfiguration): Promise<boolean> {
+    if (config?.bootstrap_completed === true) {
+      return false
+    }
+
+    // Legacy migration: if SOUL.md already has real content, treat as completed
+    const soulPath = await resolveFile(workspacePath, 'SOUL.md')
+    if (soulPath) {
+      const content = await this.readCachedFile(soulPath)
+      if (content && content.length > SOUL_CONTENT_THRESHOLD) {
+        // Strip template headings to check for actual user content
+        const stripped = content.replace(/^#.*$/gm, '').replace(/^>.*$/gm, '').trim()
+        if (stripped.length > SOUL_CONTENT_THRESHOLD) {
+          return false
+        }
+      }
+    }
+
+    return true
   }
 
   private async buildMemoriesSection(workspacePath: string): Promise<string | undefined> {

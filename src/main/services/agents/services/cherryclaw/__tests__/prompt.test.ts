@@ -14,7 +14,16 @@ vi.mock('node:fs/promises', () => ({
 
 import { readdir, readFile, stat } from 'node:fs/promises'
 
+import type { CherryClawConfiguration } from '@types'
+
 import { PromptBuilder } from '../prompt'
+
+const baseConfig: CherryClawConfiguration = {
+  permission_mode: 'bypassPermissions',
+  max_turns: 100,
+  env_vars: {},
+  soul_enabled: true
+}
 
 const mockedStat = vi.mocked(stat)
 const mockedReadFile = vi.mocked(readFile)
@@ -179,5 +188,68 @@ describe('PromptBuilder', () => {
       (call) => typeof call[0] === 'string' && call[0].includes('soul.md')
     )
     expect(soulReadCalls).toHaveLength(1)
+  })
+
+  describe('bootstrap mode', () => {
+    it('injects bootstrap instructions when no config is provided and SOUL.md is empty', async () => {
+      setupFiles({})
+
+      const result = await builder.buildSystemPrompt('/workspace')
+
+      expect(result).toContain('## Bootstrap Mode')
+      expect(result).toContain('complete_bootstrap')
+    })
+
+    it('injects bootstrap instructions when bootstrap_completed is false', async () => {
+      setupFiles({})
+
+      const result = await builder.buildSystemPrompt('/workspace', { ...baseConfig, bootstrap_completed: false })
+
+      expect(result).toContain('## Bootstrap Mode')
+    })
+
+    it('skips bootstrap when bootstrap_completed is true', async () => {
+      setupFiles({})
+
+      const result = await builder.buildSystemPrompt('/workspace', { ...baseConfig, bootstrap_completed: true })
+
+      expect(result).not.toContain('## Bootstrap Mode')
+    })
+
+    it('skips bootstrap when SOUL.md has substantial content (legacy migration)', async () => {
+      const realContent =
+        'I am a warm, direct assistant. I lead with answers and prefer concise communication. I respect boundaries and always ask before making assumptions.'
+      setupFiles({
+        '/workspace/SOUL.md': `# Soul\n\n> Template header\n\n${realContent}`
+      })
+
+      const result = await builder.buildSystemPrompt('/workspace')
+
+      expect(result).not.toContain('## Bootstrap Mode')
+    })
+
+    it('still shows bootstrap when SOUL.md only has template headings', async () => {
+      setupFiles({
+        '/workspace/SOUL.md':
+          '# Soul\n\n> This file defines who you are. Update it as your personality evolves.\n\n## Personality\n\n\n## Tone\n\n'
+      })
+
+      const result = await builder.buildSystemPrompt('/workspace')
+
+      expect(result).toContain('## Bootstrap Mode')
+    })
+
+    it('includes memories section alongside bootstrap instructions', async () => {
+      setupFiles({
+        '/workspace/SOUL.md': '# Soul\n\n> This file defines who you are.\n\n## Personality\n\n\n## Tone\n\n',
+        '/workspace/user.md': 'Name: V'
+      })
+
+      const result = await builder.buildSystemPrompt('/workspace')
+
+      expect(result).toContain('## Bootstrap Mode')
+      expect(result).toContain('## Memories')
+      expect(result).toContain('<user>')
+    })
   })
 })

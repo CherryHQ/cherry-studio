@@ -226,13 +226,22 @@ const CHANNEL_CONFIG_SCHEMAS: Record<string, { required: string[]; optional: str
 const CONFIG_TOOL: Tool = {
   name: 'config',
   description:
-    "Inspect and manage your own agent configuration. Use 'status' to see current channels, model, and supported adapter types. Use 'add_channel', 'update_channel', 'remove_channel', or 'reconnect_channel' to manage IM channel connections. Use 'reconnect_channel' when a WeChat or Feishu channel needs to re-scan a QR code (e.g. session expired or initial setup failed).",
+    "Inspect and manage your own agent configuration. Use 'status' to see current channels, model, and supported adapter types. Use 'rename' to change your display name. Use 'add_channel', 'update_channel', 'remove_channel', or 'reconnect_channel' to manage IM channel connections. Use 'reconnect_channel' when a WeChat or Feishu channel needs to re-scan a QR code (e.g. session expired or initial setup failed). Use 'complete_bootstrap' to mark the onboarding ritual as done. Use 'reset_bootstrap' to re-run the onboarding in the next session.",
   inputSchema: {
     type: 'object',
     properties: {
       action: {
         type: 'string',
-        enum: ['status', 'add_channel', 'update_channel', 'remove_channel', 'reconnect_channel'],
+        enum: [
+          'status',
+          'rename',
+          'add_channel',
+          'update_channel',
+          'remove_channel',
+          'reconnect_channel',
+          'complete_bootstrap',
+          'reset_bootstrap'
+        ],
         description: 'The action to perform'
       },
       type: {
@@ -242,7 +251,7 @@ const CONFIG_TOOL: Tool = {
       },
       name: {
         type: 'string',
-        description: "Human-readable channel name (required for 'add_channel')"
+        description: "For 'rename': the new agent display name. For 'add_channel': human-readable channel name."
       },
       channel_id: {
         type: 'string',
@@ -390,6 +399,8 @@ class ClawServer {
             switch (action) {
               case 'status':
                 return await this.configStatus()
+              case 'rename':
+                return await this.configRename(args)
               case 'add_channel':
                 return await this.configAddChannel(args)
               case 'update_channel':
@@ -398,10 +409,14 @@ class ClawServer {
                 return await this.configRemoveChannel(args)
               case 'reconnect_channel':
                 return await this.configReconnectChannel(args)
+              case 'complete_bootstrap':
+                return await this.configCompleteBootstrap()
+              case 'reset_bootstrap':
+                return await this.configResetBootstrap()
               default:
                 throw new McpError(
                   ErrorCode.InvalidParams,
-                  `Unknown action "${action}", expected status/add_channel/update_channel/remove_channel/reconnect_channel`
+                  `Unknown action "${action}", expected status/rename/add_channel/update_channel/remove_channel/reconnect_channel/complete_bootstrap/reset_bootstrap`
                 )
             }
           }
@@ -1042,6 +1057,52 @@ class ClawServer {
         ],
         isError: true
       }
+    }
+  }
+
+  private async configRename(args: Record<string, unknown>) {
+    const name = args.name as string | undefined
+    if (!name || !name.trim()) throw new McpError(ErrorCode.InvalidParams, "'name' is required for rename")
+
+    await agentService.updateAgent(this.agentId, { name: name.trim() })
+
+    logger.info('Agent renamed via config tool', { agentId: this.agentId, name: name.trim() })
+    return {
+      content: [{ type: 'text' as const, text: `Agent renamed to "${name.trim()}".` }]
+    }
+  }
+
+  private async configCompleteBootstrap() {
+    const agent = await agentService.getAgent(this.agentId)
+    if (!agent) throw new McpError(ErrorCode.InternalError, `Agent not found: ${this.agentId}`)
+
+    const existingConfig = agent.configuration as CherryClawConfiguration | undefined
+    await agentService.updateAgent(this.agentId, {
+      configuration: { ...existingConfig, bootstrap_completed: true } as CherryClawConfiguration
+    })
+
+    logger.info('Bootstrap marked as completed', { agentId: this.agentId })
+    return {
+      content: [
+        { type: 'text' as const, text: 'Bootstrap completed. Future sessions will use your standard personality.' }
+      ]
+    }
+  }
+
+  private async configResetBootstrap() {
+    const agent = await agentService.getAgent(this.agentId)
+    if (!agent) throw new McpError(ErrorCode.InternalError, `Agent not found: ${this.agentId}`)
+
+    const existingConfig = agent.configuration as CherryClawConfiguration | undefined
+    await agentService.updateAgent(this.agentId, {
+      configuration: { ...existingConfig, bootstrap_completed: false } as CherryClawConfiguration
+    })
+
+    logger.info('Bootstrap reset', { agentId: this.agentId })
+    return {
+      content: [
+        { type: 'text' as const, text: 'Bootstrap has been reset. The next session will run the onboarding flow.' }
+      ]
     }
   }
 

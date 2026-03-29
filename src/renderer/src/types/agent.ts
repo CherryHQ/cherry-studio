@@ -126,6 +126,7 @@ export type AgentConfiguration = z.infer<typeof AgentConfigurationSchema>
 export type CherryClawConfiguration = AgentConfiguration & {
   // Soul
   soul_enabled?: boolean
+  bootstrap_completed?: boolean
 
   // Scheduler
   scheduler_enabled?: boolean
