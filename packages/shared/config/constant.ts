@@ -245,6 +245,7 @@ export enum terminalApps {
   alacritty = 'Alacritty',
   wezterm = 'WezTerm',
   ghostty = 'Ghostty',
+  warp = 'Warp',
   tabby = 'Tabby',
   // Windows terminals
   windowsTerminal = 'WindowsTerminal',
@@ -294,6 +295,11 @@ export const MACOS_TERMINALS: TerminalConfig[] = [
     id: terminalApps.ghostty,
     name: 'Ghostty',
     bundleId: 'com.mitchellh.ghostty'
+  },
+  {
+    id: terminalApps.warp,
+    name: 'Warp',
+    bundleId: 'dev.warp.Warp-Stable'
   },
   {
     id: terminalApps.tabby,
@@ -463,6 +469,18 @@ export const MACOS_TERMINALS_WITH_COMMANDS: TerminalConfigWithCommand[] = [
       args: [
         '-c',
         `cd "${_directory}" && open -na Ghostty --args --working-directory="${_directory}" -e sh -c "${fullCommand.replace(/\\/g, '\\\\').replace(/"/g, '\\"')}; exec \\$SHELL" && sleep 0.5 && osascript -e 'tell application "Ghostty" to activate'`
+      ]
+    })
+  },
+  {
+    id: terminalApps.warp,
+    name: 'Warp',
+    bundleId: 'dev.warp.Warp-Stable',
+    command: (_directory: string, fullCommand: string) => ({
+      command: 'sh',
+      args: [
+        '-c',
+        `open "warp://action/new_tab?path=${encodeURIComponent(_directory)}" && sleep 0.8 && osascript -e 'tell application "Warp" to activate' -e 'set the clipboard to "${escapeForAppleScript(fullCommand)}"' -e 'tell application "System Events" to tell process "Warp" to keystroke "v" using {command down}' -e 'tell application "System Events" to key code 36'`
       ]
     })
   },

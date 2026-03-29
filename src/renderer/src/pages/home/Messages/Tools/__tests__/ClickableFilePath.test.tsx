@@ -12,6 +12,12 @@ vi.stubGlobal('api', {
     showInFolder: mockShowInFolder,
     read: vi.fn(),
     writeWithId: vi.fn()
+  },
+  codeTools: {
+    getAvailableTerminals: vi.fn().mockResolvedValue([])
+  },
+  externalApps: {
+    openTerminal: vi.fn().mockResolvedValue({ success: true, message: '' })
   }
 })
 
@@ -38,6 +44,7 @@ vi.mock('@renderer/hooks/useExternalApps', () => ({
 
 vi.mock('@renderer/utils/editorUtils', () => ({
   getEditorIcon: ({ id }: { id: string }) => <span data-testid={`${id}-icon`} />,
+  getFileManagerIcon: () => <span data-testid="file-manager-icon" />,
   buildEditorUrl: (app: { protocol: string }, path: string) =>
     `${app.protocol}file/${path.split('/').map(encodeURIComponent).join('/')}?windowId=_blank`
 }))
