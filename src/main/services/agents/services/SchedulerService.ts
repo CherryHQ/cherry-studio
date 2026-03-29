@@ -16,7 +16,6 @@ type RunningTask = {
   taskId: string
   agentId: string
   abortController: AbortController
-  consecutiveErrors: number
 }
 
 // TODO: refactor lifecycle in V2
@@ -25,6 +24,7 @@ class SchedulerService {
   private pollTimer: ReturnType<typeof setTimeout> | null = null
   private running = false
   private readonly activeTasks = new Map<string, RunningTask>()
+  private readonly consecutiveErrors = new Map<string, number>()
   static getInstance(): SchedulerService {
     if (!SchedulerService.instance) {
       SchedulerService.instance = new SchedulerService()
@@ -157,8 +157,7 @@ class SchedulerService {
     const runningTask: RunningTask = {
       taskId: task.id,
       agentId: task.agent_id,
-      abortController,
-      consecutiveErrors: 0
+      abortController
     }
     this.activeTasks.set(task.id, runningTask)
 
@@ -242,19 +241,22 @@ class SchedulerService {
       await completion
 
       result = 'Completed'
+      this.consecutiveErrors.delete(task.id)
       logger.info('Task completed', { taskId: task.id, durationMs: Date.now() - startTime })
     } catch (err) {
       error = err instanceof Error ? err.message : String(err)
       logger.error('Task failed', { taskId: task.id, error })
 
-      // Track consecutive errors
-      runningTask.consecutiveErrors++
-      if (runningTask.consecutiveErrors >= MAX_CONSECUTIVE_ERRORS) {
+      // Track consecutive errors across invocations
+      const errCount = (this.consecutiveErrors.get(task.id) ?? 0) + 1
+      this.consecutiveErrors.set(task.id, errCount)
+      if (errCount >= MAX_CONSECUTIVE_ERRORS) {
         logger.warn('Pausing task after consecutive errors', {
           taskId: task.id,
-          errors: runningTask.consecutiveErrors
+          errors: errCount
         })
         await taskService.updateTask(task.agent_id, task.id, { status: 'paused' })
+        this.consecutiveErrors.delete(task.id)
       }
     } finally {
       this.activeTasks.delete(task.id)

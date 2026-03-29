@@ -20,12 +20,18 @@ type SessionEntry = {
 }
 
 const sessions = new Map<string, SessionEntry>()
+const INIT_TIMEOUT_MS = 30_000
 
 function createSessionEntry(agentId: string): SessionEntry {
   const server = new ClawServer(agentId)
+  const pendingId = `pending:${randomUUID()}`
+  let initialized = false
+
   const transport = new StreamableHTTPServerTransport({
     sessionIdGenerator: () => randomUUID(),
     onsessioninitialized: (newSessionId) => {
+      initialized = true
+      sessions.delete(pendingId)
       sessions.set(newSessionId, entry)
       logger.debug('Claw MCP session initialized', { sessionId: newSessionId, agentId })
     }
@@ -33,11 +39,25 @@ function createSessionEntry(agentId: string): SessionEntry {
 
   const entry: SessionEntry = { server, transport, agentId }
 
+  // Track immediately under a pending key so it can be cleaned up on timeout
+  sessions.set(pendingId, entry)
+
+  // Clean up if initialization doesn't complete within the timeout
+  setTimeout(() => {
+    if (!initialized && sessions.has(pendingId)) {
+      sessions.delete(pendingId)
+      transport.close?.()
+      server.mcpServer.close?.()
+      logger.warn('Claw MCP session timed out before initialization', { agentId, pendingId })
+    }
+  }, INIT_TIMEOUT_MS)
+
   transport.onclose = () => {
     if (transport.sessionId) {
       sessions.delete(transport.sessionId)
       logger.debug('Claw MCP session closed', { sessionId: transport.sessionId, agentId })
     }
+    sessions.delete(pendingId)
   }
 
   return entry
@@ -114,6 +134,8 @@ export function cleanupClawServer(agentId: string): void {
   for (const [sessionId, entry] of sessions) {
     if (entry.agentId === agentId) {
       sessions.delete(sessionId)
+      entry.transport.close?.()
+      entry.server.mcpServer.close?.()
     }
   }
 }

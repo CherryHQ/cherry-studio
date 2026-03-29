@@ -17,6 +17,7 @@ const TYPING_INTERVAL_MS = 4000
 export class ChannelMessageHandler {
   private static instance: ChannelMessageHandler | null = null
   private readonly sessionTracker = new Map<string, string>() // `${agentId}:${channelId}:${chatId}` -> sessionId
+  private readonly pendingResolutions = new Map<string, Promise<GetAgentSessionResponse | null>>()
 
   static getInstance(): ChannelMessageHandler {
     if (!ChannelMessageHandler.instance) {
@@ -170,6 +171,26 @@ export class ChannelMessageHandler {
   ): Promise<GetAgentSessionResponse | null> {
     const trackerKey = `${agentId}:${channelId}:${chatId}`
 
+    // Coalesce concurrent resolutions for the same chat to avoid duplicate sessions
+    const pending = this.pendingResolutions.get(trackerKey)
+    if (pending) return pending
+
+    const resolution = this.doResolveSession(agentId, channelId, channelType, chatId, trackerKey)
+    this.pendingResolutions.set(trackerKey, resolution)
+    try {
+      return await resolution
+    } finally {
+      this.pendingResolutions.delete(trackerKey)
+    }
+  }
+
+  private async doResolveSession(
+    agentId: string,
+    channelId: string,
+    channelType: string,
+    chatId: string,
+    trackerKey: string
+  ): Promise<GetAgentSessionResponse | null> {
     // Check tracker first
     const trackedId = this.sessionTracker.get(trackerKey)
     if (trackedId) {

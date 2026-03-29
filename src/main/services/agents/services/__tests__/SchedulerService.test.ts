@@ -37,6 +37,12 @@ vi.mock('../TaskService', () => ({
   }
 }))
 
+vi.mock('../channels/ChannelManager', () => ({
+  channelManager: {
+    getNotifyAdapters: vi.fn().mockReturnValue([])
+  }
+}))
+
 vi.mock('../cherryclaw', () => ({
   CherryClawService: vi.fn().mockImplementation(() => ({
     heartbeatReader: { readHeartbeat: vi.fn().mockResolvedValue(undefined) }
