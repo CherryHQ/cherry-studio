@@ -1,7 +1,6 @@
 import { Button, ColFlex, Flex, HelpTooltip, RowFlex, Switch, Tooltip } from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
 import LanguageSelect from '@renderer/components/LanguageSelect'
-import db from '@renderer/databases'
 import type { TranslateBidirectionalPair, TranslateLangCode } from '@shared/data/preference/preferenceTypes'
 import { Modal, Radio, Space } from 'antd'
 import type { FC } from 'react'
@@ -44,7 +43,6 @@ const TranslateSettings: FC<{
               checked={enableMarkdown}
               onCheckedChange={(checked) => {
                 void setEnableMarkdown(checked)
-                void db.settings.put({ id: 'translate:markdown:enabled', value: checked })
               }}
             />
           </Flex>
