@@ -30,11 +30,11 @@ export abstract class BaseFileProcessor {
     return capability
   }
 
-  protected getRequiredApiKey(config: FileProcessorMerged): string {
+  protected getApiKey(config: FileProcessorMerged): string | undefined {
     const keys = config.apiKeys?.map((value) => value.trim()).filter(Boolean) ?? []
 
     if (keys.length === 0) {
-      throw new Error(`API key is required for processor ${this.processorId}`)
+      return undefined
     }
 
     if (keys.length === 1) {
@@ -48,24 +48,6 @@ export abstract class BaseFileProcessor {
 
     lastUsedKeyByProcessor.set(this.processorId, nextKey)
     return nextKey
-  }
-
-  protected getRequiredApiHost(apiHost?: string): string {
-    const host = apiHost?.trim()
-
-    if (!host) {
-      throw new Error(`API host is required for processor ${this.processorId}`)
-    }
-
-    return host
-  }
-
-  protected getRequiredModelId(capability: FileProcessorFeatureCapability, feature: FileProcessorFeature): string {
-    if (!capability.modelId) {
-      throw new Error(`Processor ${this.processorId} ${feature} modelId is missing`)
-    }
-
-    return capability.modelId
   }
 
   protected getFileProcessingResultsDir(providerTaskId: string): string {
@@ -93,9 +75,4 @@ export abstract class BaseMarkdownConversionProcessor
   abstract getMarkdownConversionTaskResult(
     ...args: Parameters<IMarkdownConversionProcessor['getMarkdownConversionTaskResult']>
   ): ReturnType<IMarkdownConversionProcessor['getMarkdownConversionTaskResult']>
-
-  // TODO: `downloadUrl` is a temporary provider-driven signature. Revisit this abstract contract
-  // when implementing providers with richer result payloads than a single downloadable artifact.
-  // return markdown file path: path.join(fileProcessingResultsDir, 'output.md')
-  protected abstract persistMarkdownConversionResult(providerTaskId: string, downloadUrl: string): Promise<string>
 }

@@ -64,7 +64,7 @@ export class Doc2xProcessor extends BaseMarkdownConversionProcessor {
     return this.handleExportStage(providerTaskId, context)
   }
 
-  protected async persistMarkdownConversionResult(providerTaskId: string, downloadUrl: string): Promise<string> {
+  private async persistMarkdownConversionResult(providerTaskId: string, downloadUrl: string): Promise<string> {
     if (!downloadUrl) {
       throw new Error('Doc2x result download URL is empty')
     }
@@ -123,21 +123,40 @@ export class Doc2xProcessor extends BaseMarkdownConversionProcessor {
       throw new Error('File path is required')
     }
 
+    const apiHost = capability.apiHost?.trim()
+    if (!apiHost) {
+      throw new Error('API host is required')
+    }
+
+    const apiKey = this.getApiKey(config)
+    if (!apiKey) {
+      throw new Error('API key is required')
+    }
+
     return {
-      apiHost: this.getRequiredApiHost(capability.apiHost),
-      apiKey: this.getRequiredApiKey(config),
+      apiHost,
+      apiKey,
       signal,
       file,
-      modelVersion: this.getRequiredModelId(capability, 'markdown_conversion')
+      modelVersion: capability.modelId
     }
   }
 
   private prepareQueryContext(config: FileProcessorMerged, signal?: AbortSignal): PreparedDoc2xQueryContext {
     const capability = this.getRequiredCapability(config, 'markdown_conversion')
+    const apiHost = capability.apiHost?.trim()
+    if (!apiHost) {
+      throw new Error('API host is required')
+    }
+
+    const apiKey = this.getApiKey(config)
+    if (!apiKey) {
+      throw new Error('API key is required')
+    }
 
     return {
-      apiHost: this.getRequiredApiHost(capability.apiHost),
-      apiKey: this.getRequiredApiKey(config),
+      apiHost,
+      apiKey,
       signal
     }
   }

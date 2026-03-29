@@ -32,14 +32,24 @@ export class MistralProcessor extends BaseTextExtractionProcessor {
       throw new Error('File path is required')
     }
 
+    const apiKey = this.getApiKey(config)
+    if (!apiKey) {
+      throw new Error('API key is required')
+    }
+
+    const apiHost = capability.apiHost?.trim()
+    if (!apiHost) {
+      throw new Error('API host is required')
+    }
+
     return {
       file,
       signal,
       client: new Mistral({
-        apiKey: this.getRequiredApiKey(config),
-        serverURL: this.getRequiredApiHost(capability.apiHost)
+        apiKey,
+        serverURL: apiHost
       }),
-      model: this.getRequiredModelId(capability, feature)
+      model: capability.modelId
     }
   }
 }

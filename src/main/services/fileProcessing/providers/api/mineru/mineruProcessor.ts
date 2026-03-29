@@ -48,7 +48,7 @@ export class MineruProcessor extends BaseMarkdownConversionProcessor {
     return this.buildMarkdownTaskResult(providerTaskId, batchResult.extract_result[0])
   }
 
-  protected async persistMarkdownConversionResult(providerTaskId: string, downloadUrl: string): Promise<string> {
+  private async persistMarkdownConversionResult(providerTaskId: string, downloadUrl: string): Promise<string> {
     if (!downloadUrl) {
       throw new Error('Markdown conversion result download URL is empty')
     }
@@ -107,9 +107,19 @@ export class MineruProcessor extends BaseMarkdownConversionProcessor {
       throw new Error('File path is required')
     }
 
+    const apiHost = capability.apiHost?.trim()
+    if (!apiHost) {
+      throw new Error('API host is required')
+    }
+
+    const apiKey = this.getApiKey(config)
+    if (!apiKey) {
+      throw new Error('API key is required')
+    }
+
     return {
-      apiHost: this.getRequiredApiHost(capability.apiHost),
-      apiKey: this.getRequiredApiKey(config),
+      apiHost,
+      apiKey,
       signal,
       file,
       modelVersion: capability.modelId
@@ -118,10 +128,19 @@ export class MineruProcessor extends BaseMarkdownConversionProcessor {
 
   private prepareQueryContext(config: FileProcessorMerged, signal?: AbortSignal): PreparedMineruQueryContext {
     const capability = this.getRequiredCapability(config, 'markdown_conversion')
+    const apiHost = capability.apiHost?.trim()
+    if (!apiHost) {
+      throw new Error('API host is required')
+    }
+
+    const apiKey = this.getApiKey(config)
+    if (!apiKey) {
+      throw new Error('API key is required')
+    }
 
     return {
-      apiHost: this.getRequiredApiHost(capability.apiHost),
-      apiKey: this.getRequiredApiKey(config),
+      apiHost,
+      apiKey,
       signal
     }
   }

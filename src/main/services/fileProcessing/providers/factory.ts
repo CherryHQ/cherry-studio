@@ -4,7 +4,7 @@ import type { IMarkdownConversionProcessor, ITextExtractionProcessor } from '../
 import { doc2xProcessor } from './api/doc2x/doc2xProcessor'
 import { mineruProcessor } from './api/mineru/mineruProcessor'
 import { mistralProcessor } from './api/mistral/mistralProcessors'
-import { OpenMineruProcessor } from './api/OpenMineruProcessor'
+import { openMineruProcessor } from './api/open-mineru/openMineruProcessor'
 import { PaddleProcessor } from './api/PaddleProcessor'
 import { OvOcrProcessor } from './builtin/ovocr/OvOcrProcessor'
 import { SystemOcrProcessor } from './builtin/system/SystemOcrProcessor'
@@ -36,7 +36,7 @@ export function createMarkdownConversionProcessor(processorId: FileProcessorId):
     case 'doc2x':
       return doc2xProcessor
     case 'open-mineru':
-      return new OpenMineruProcessor()
+      return openMineruProcessor
     default:
       throw new Error(`File processor does not support markdown conversion: ${processorId}`)
   }

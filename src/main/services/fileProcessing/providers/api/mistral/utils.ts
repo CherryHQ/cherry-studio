@@ -48,7 +48,7 @@ export async function executeExtraction(
 
   return context.client.ocr.process(
     {
-      model: context.model,
+      model: context.model ?? null,
       document,
       includeImageBase64: false
     },

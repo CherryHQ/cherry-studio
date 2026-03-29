@@ -46,10 +46,4 @@ export class PaddleProcessor extends BaseMarkdownConversionProcessor implements 
     void signal
     throw new Error('PaddleProcessor.getMarkdownConversionTaskResult is not implemented')
   }
-
-  protected async persistMarkdownConversionResult(providerTaskId: string, downloadUrl: string): Promise<string> {
-    void providerTaskId
-    void downloadUrl
-    throw new Error('PaddleProcessor.persistMarkdownConversionResult is not implemented')
-  }
 }

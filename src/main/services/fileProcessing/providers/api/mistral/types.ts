@@ -6,7 +6,7 @@ export type PreparedMistralContext = {
   file: FileMetadata
   signal?: AbortSignal
   client: Mistral
-  model: string
+  model?: string
 }
 
 export type MistralImageDocument = {

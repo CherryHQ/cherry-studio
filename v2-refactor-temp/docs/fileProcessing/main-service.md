@@ -216,9 +216,10 @@
 1. `api/mineru/`
 2. `api/doc2x/`
 3. `api/mistral/`
-4. `builtin/system/`
-5. `builtin/tesseract/`
-6. `builtin/ovocr/`
+4. `api/open-mineru/`
+5. `builtin/system/`
+6. `builtin/tesseract/`
+7. `builtin/ovocr/`
 
 换句话说，新实现默认应遵循“一个 provider 一个目录”的组织方式，而不是再新增平铺文件。
 
@@ -281,8 +282,7 @@
 
 当前仓库中仍存在少量平铺文件，例如：
 
-1. `OpenMineruProcessor.ts`
-2. `PaddleProcessor.ts`
+1. `PaddleProcessor.ts`
 
 对这些文件的理解应是：
 
