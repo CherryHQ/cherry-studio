@@ -27,7 +27,11 @@ export const SoulModeSetting = ({ base: agentBase, update }: SoulModeSettingProp
       if (!agentBase) return
       void update({
         id: agentBase.id,
-        configuration: { ...config, soul_enabled: checked }
+        configuration: {
+          ...config,
+          soul_enabled: checked,
+          ...(checked ? { permission_mode: 'bypassPermissions' as const } : {})
+        }
       } satisfies UpdateAgentBaseForm)
     },
     [agentBase, config, update]

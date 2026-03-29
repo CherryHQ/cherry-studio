@@ -165,7 +165,6 @@ export class AgentService extends BaseService {
   private async ensureDefaultCherryClaw(): Promise<void> {
     if (this.defaultCherryClawEnsured) return
     try {
-      this.defaultCherryClawEnsured = true
       const database = await this.getDatabase()
       // Check for existing CherryClaw agent by name (type is now unified as 'claude-code')
       const existing = await database
@@ -174,13 +173,19 @@ export class AgentService extends BaseService {
         .where(eq(agentsTable.name, 'CherryClaw'))
         .limit(1)
 
-      if (existing.length > 0) return
+      if (existing.length > 0) {
+        this.defaultCherryClawEnsured = true
+        return
+      }
 
-      // Find the first available Anthropic model
+      // Find the first available Anthropic-compatible model.
+      // This includes native Anthropic providers and any provider with anthropicApiHost set.
       const modelsRes = await modelsService.getModels({ providerType: 'anthropic', limit: 1 })
       const firstModel = modelsRes.data?.[0]
       if (!firstModel) {
-        logger.warn('No Anthropic models available — skipping default CherryClaw creation')
+        // Do NOT set defaultCherryClawEnsured here — retry on next listAgents() call
+        // so the default agent is created once the user configures a compatible model.
+        logger.info('No Anthropic-compatible models available yet — will retry default CherryClaw creation later')
         return
       }
 
@@ -203,6 +208,7 @@ export class AgentService extends BaseService {
       }
 
       const agent = await this.createAgent(req)
+      this.defaultCherryClawEnsured = true
       logger.info('Auto-created default CherryClaw agent', { id: agent.id })
 
       await sessionService.createSession(agent.id, {})
