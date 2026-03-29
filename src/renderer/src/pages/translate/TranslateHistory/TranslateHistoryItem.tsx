@@ -71,8 +71,8 @@ export const TranslateHistoryItem = ({ data, onClick }: TranslateHistoryItemProp
               </Button>
             </PopoverTrigger>
             <PopoverContent>
-              <div>title</div>
-              <div>description</div>
+              <div>{t('translate.history.delete')}</div>
+              <div>{t('translate.history.delete_description')}</div>
               <footer className="flex flex-end p-2">
                 <Button onClick={handleDelete}>{t('common.confirm')}</Button>
               </footer>
