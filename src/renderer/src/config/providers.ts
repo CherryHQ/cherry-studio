@@ -60,7 +60,6 @@
 // import BytedanceProviderLogo from '@renderer/assets/images/providers/volcengine.png'
 // import VoyageAIProviderLogo from '@renderer/assets/images/providers/voyageai.png'
 // import XirangProviderLogo from '@renderer/assets/images/providers/xirang.png'
-// import ZaiAppLogo from '@renderer/assets/images/providers/zai.svg'
 // import ZeroOneProviderLogo from '@renderer/assets/images/providers/zero-one.png'
 // import ZhipuProviderLogo from '@renderer/assets/images/providers/zhipu.png'
 import type { SystemProvider, SystemProviderId } from '@renderer/types'
