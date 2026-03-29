@@ -1,5 +1,6 @@
 import type { ScheduledTaskEntity } from '@renderer/types'
-import { Button, Popconfirm, Tag, Tooltip } from 'antd'
+import { Popconfirm, Tag, Tooltip } from 'antd'
+import { Clock, Edit2, History, Pause, Play, Trash2 } from 'lucide-react'
 import type { FC } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -12,17 +13,33 @@ type TaskListItemProps = {
   onViewLogs: (task: ScheduledTaskEntity) => void
 }
 
-const statusColors: Record<string, string> = {
-  active: 'green',
-  paused: 'orange',
-  completed: 'blue'
+const statusDotColors: Record<string, string> = {
+  active: 'bg-green-500',
+  paused: 'bg-yellow-500',
+  completed: 'bg-blue-500'
 }
 
-const scheduleTypeLabels: Record<string, string> = {
-  cron: 'Cron',
-  interval: 'Interval',
-  once: 'Once'
+const scheduleTypeConfig: Record<string, { label: string; color: string }> = {
+  cron: { label: 'Cron', color: 'purple' },
+  interval: { label: 'Interval', color: 'blue' },
+  once: { label: 'Once', color: 'orange' }
 }
+
+const IconButton: FC<{
+  icon: React.ReactNode
+  tooltip: string
+  onClick: () => void
+  danger?: boolean
+}> = ({ icon, tooltip, onClick, danger }) => (
+  <Tooltip title={tooltip}>
+    <button
+      type="button"
+      className={`flex h-7 w-7 items-center justify-center rounded-md transition-colors hover:bg-[var(--color-fill-secondary)] ${danger ? 'text-red-500 hover:text-red-600' : 'text-foreground-400 hover:text-foreground'}`}
+      onClick={onClick}>
+      {icon}
+    </button>
+  </Tooltip>
+)
 
 const TaskListItem: FC<TaskListItemProps> = ({ task, onEdit, onToggleStatus, onDelete, onRun, onViewLogs }) => {
   const { t } = useTranslation()
@@ -49,61 +66,68 @@ const TaskListItem: FC<TaskListItemProps> = ({ task, onEdit, onToggleStatus, onD
   }
 
   const isCompleted = task.status === 'completed'
+  const typeConfig = scheduleTypeConfig[task.schedule_type] ?? { label: task.schedule_type, color: 'default' }
 
   return (
     <div className="flex items-center justify-between rounded-lg border border-[var(--color-border)] p-3">
       <div className="min-w-0 flex-1">
         <div className="flex items-center gap-2">
-          <Tag color={statusColors[task.status]}>{t(`agent.cherryClaw.tasks.status.${task.status}`)}</Tag>
-          <span className="truncate font-medium">{task.name}</span>
-          <Tag>{scheduleTypeLabels[task.schedule_type]}</Tag>
+          <span
+            className={`inline-block h-2 w-2 shrink-0 rounded-full ${statusDotColors[task.status] ?? 'bg-gray-400'}`}
+          />
+          <span className="truncate font-medium text-sm">{task.name}</span>
         </div>
-        <div className="mt-1 flex gap-4 text-gray-400 text-xs">
-          <span>{formatScheduleValue()}</span>
-          {task.next_run && (
-            <span>
-              {t('agent.cherryClaw.tasks.nextRun')}: {formatTime(task.next_run)}
-            </span>
-          )}
-          {task.last_run && (
-            <span>
-              {t('agent.cherryClaw.tasks.lastRun')}: {formatTime(task.last_run)}
-            </span>
-          )}
+        <div className="mt-1.5 flex flex-wrap items-center gap-2 text-xs">
+          <Tag color={typeConfig.color} className="!mr-0">
+            {typeConfig.label}
+          </Tag>
+          <span className="text-foreground-400">
+            <Clock size={11} className="mr-0.5 inline" />
+            {formatScheduleValue()}
+          </span>
+          {task.next_run && <span className="text-foreground-400">→ Next: {formatTime(task.next_run)}</span>}
+          {task.last_run && <span className="text-foreground-400">Last: {formatTime(task.last_run)}</span>}
         </div>
         {task.last_result && (
           <Tooltip title={task.last_result}>
-            <div className="mt-1 max-w-[400px] truncate text-gray-500 text-xs">{task.last_result}</div>
+            <div className="mt-1 max-w-[400px] truncate text-foreground-500 text-xs">{task.last_result}</div>
           </Tooltip>
         )}
       </div>
-      <div className="ml-3 flex shrink-0 items-center gap-1">
+      <div className="ml-3 flex shrink-0 items-center gap-0.5">
         {!isCompleted && (
-          <Button size="small" type="text" onClick={() => onRun(task)}>
-            {t('agent.cherryClaw.tasks.run')}
-          </Button>
+          <IconButton icon={<Play size={14} />} tooltip={t('agent.cherryClaw.tasks.run')} onClick={() => onRun(task)} />
         )}
-        <Button size="small" type="text" onClick={() => onViewLogs(task)}>
-          {t('agent.cherryClaw.tasks.logs.label')}
-        </Button>
+        <IconButton
+          icon={<History size={14} />}
+          tooltip={t('agent.cherryClaw.tasks.logs.label')}
+          onClick={() => onViewLogs(task)}
+        />
         {!isCompleted && (
-          <Button size="small" type="text" onClick={() => onEdit(task)}>
-            {t('agent.cherryClaw.tasks.edit')}
-          </Button>
+          <IconButton
+            icon={<Edit2 size={14} />}
+            tooltip={t('agent.cherryClaw.tasks.edit')}
+            onClick={() => onEdit(task)}
+          />
         )}
         {!isCompleted && (
-          <Button size="small" type="text" onClick={() => onToggleStatus(task)}>
-            {task.status === 'active' ? t('agent.cherryClaw.tasks.pause') : t('agent.cherryClaw.tasks.resume')}
-          </Button>
+          <IconButton
+            icon={<Pause size={14} />}
+            tooltip={task.status === 'active' ? t('agent.cherryClaw.tasks.pause') : t('agent.cherryClaw.tasks.resume')}
+            onClick={() => onToggleStatus(task)}
+          />
         )}
         <Popconfirm
           title={t('agent.cherryClaw.tasks.delete.confirm')}
           onConfirm={() => onDelete(task.id)}
           okText={t('agent.cherryClaw.tasks.delete.label')}
           cancelText={t('agent.cherryClaw.tasks.cancel')}>
-          <Button size="small" type="text" danger>
-            {t('agent.cherryClaw.tasks.delete.label')}
-          </Button>
+          <IconButton
+            icon={<Trash2 size={14} />}
+            tooltip={t('agent.cherryClaw.tasks.delete.label')}
+            onClick={() => {}}
+            danger
+          />
         </Popconfirm>
       </div>
     </div>

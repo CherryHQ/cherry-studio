@@ -107,6 +107,8 @@ type FieldDef = {
   label: string
   placeholder: string
   secret?: boolean
+  /** 1 = half width (default), 2 = full width */
+  span?: 1 | 2
 }
 
 type ChatIdsConfig = {
@@ -114,6 +116,7 @@ type ChatIdsConfig = {
   placeholder: string
   hint: string
   extraHint?: string
+  fullWidth?: boolean
 }
 
 type ChannelFieldsCardProps = ChannelCardProps & {
@@ -165,40 +168,44 @@ const ChannelFieldsCard: FC<ChannelFieldsCardProps> = ({
 
   return (
     <div className="flex flex-col gap-3 pb-3">
-      {fields.map((field) => (
-        <div key={field.key}>
-          <label className="mb-1 block font-medium text-xs">{field.label}</label>
-          {field.secret ? (
-            <Input.Password
-              value={fieldValues[field.key] ?? ''}
-              onChange={(e) => setFieldValues((prev) => ({ ...prev, [field.key]: e.target.value }))}
-              onBlur={() => saveField(field.key, fieldValues[field.key] ?? '')}
-              placeholder={field.placeholder}
-              size="small"
-            />
-          ) : (
-            <Input
-              value={fieldValues[field.key] ?? ''}
-              onChange={(e) => setFieldValues((prev) => ({ ...prev, [field.key]: e.target.value }))}
-              onBlur={() => saveField(field.key, fieldValues[field.key] ?? '')}
-              placeholder={field.placeholder}
-              size="small"
-            />
+      <div className="grid grid-cols-2 gap-3">
+        {fields.map((field) => (
+          <div key={field.key} className={field.span === 2 ? 'col-span-2' : ''}>
+            <label className="mb-1 block font-medium text-xs">{field.label}</label>
+            {field.secret ? (
+              <Input.Password
+                value={fieldValues[field.key] ?? ''}
+                onChange={(e) => setFieldValues((prev) => ({ ...prev, [field.key]: e.target.value }))}
+                onBlur={() => saveField(field.key, fieldValues[field.key] ?? '')}
+                placeholder={field.placeholder}
+                size="small"
+              />
+            ) : (
+              <Input
+                value={fieldValues[field.key] ?? ''}
+                onChange={(e) => setFieldValues((prev) => ({ ...prev, [field.key]: e.target.value }))}
+                onBlur={() => saveField(field.key, fieldValues[field.key] ?? '')}
+                placeholder={field.placeholder}
+                size="small"
+              />
+            )}
+          </div>
+        ))}
+        {extraContent}
+        <div className={chatIdsConfig.fullWidth ? 'col-span-2' : ''}>
+          <label className="mb-1 block font-medium text-xs">{chatIdsConfig.label}</label>
+          <Input
+            value={chatIds}
+            onChange={(e) => setChatIds(e.target.value)}
+            onBlur={saveChatIds}
+            placeholder={chatIdsConfig.placeholder}
+            size="small"
+          />
+          <span className="mt-1 block text-gray-400 text-xs">{chatIdsConfig.hint}</span>
+          {chatIdsConfig.extraHint && (
+            <span className="mt-1 block text-blue-400 text-xs">{chatIdsConfig.extraHint}</span>
           )}
         </div>
-      ))}
-      {extraContent}
-      <div>
-        <label className="mb-1 block font-medium text-xs">{chatIdsConfig.label}</label>
-        <Input
-          value={chatIds}
-          onChange={(e) => setChatIds(e.target.value)}
-          onBlur={saveChatIds}
-          placeholder={chatIdsConfig.placeholder}
-          size="small"
-        />
-        <span className="mt-1 block text-gray-400 text-xs">{chatIdsConfig.hint}</span>
-        {chatIdsConfig.extraHint && <span className="mt-1 block text-blue-400 text-xs">{chatIdsConfig.extraHint}</span>}
       </div>
       <NotifyCheckbox channel={channel} onConfigChange={onConfigChange} />
     </div>
@@ -408,7 +415,8 @@ const QQChannelCard: FC<ChannelCardProps> = ({ channel, onConfigChange }) => {
         label: t('agent.cherryClaw.channels.qq.chatIds'),
         placeholder: t('agent.cherryClaw.channels.qq.chatIdsPlaceholder'),
         hint: t('agent.cherryClaw.channels.qq.chatIdsHint'),
-        extraHint: t('agent.cherryClaw.channels.qq.whoamiTip')
+        extraHint: t('agent.cherryClaw.channels.qq.whoamiTip'),
+        fullWidth: true
       }}
     />
   )

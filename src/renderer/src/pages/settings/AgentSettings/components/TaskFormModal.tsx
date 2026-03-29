@@ -128,23 +128,24 @@ const TaskFormModal: FC<TaskFormModalProps> = ({ open, initialData, onSave, onCa
           />
         </div>
 
-        <div>
-          <label className="mb-1 block font-medium text-sm">{t('agent.cherryClaw.tasks.scheduleType.label')}</label>
-          <Select
-            value={form.schedule_type}
-            onChange={(value) => setForm((f) => ({ ...f, schedule_type: value, schedule_value: '' }))}
-            className="w-full"
-            options={[
-              { value: 'cron', label: t('agent.cherryClaw.tasks.scheduleType.cron') },
-              { value: 'interval', label: t('agent.cherryClaw.tasks.scheduleType.interval') },
-              { value: 'once', label: t('agent.cherryClaw.tasks.scheduleType.once') }
-            ]}
-          />
-        </div>
-
-        <div>
-          <label className="mb-1 block font-medium text-sm">{t('agent.cherryClaw.tasks.scheduleValue')}</label>
-          {renderScheduleInput()}
+        <div className="grid grid-cols-2 gap-3">
+          <div>
+            <label className="mb-1 block font-medium text-sm">{t('agent.cherryClaw.tasks.scheduleType.label')}</label>
+            <Select
+              value={form.schedule_type}
+              onChange={(value) => setForm((f) => ({ ...f, schedule_type: value, schedule_value: '' }))}
+              className="w-full"
+              options={[
+                { value: 'cron', label: t('agent.cherryClaw.tasks.scheduleType.cron') },
+                { value: 'interval', label: t('agent.cherryClaw.tasks.scheduleType.interval') },
+                { value: 'once', label: t('agent.cherryClaw.tasks.scheduleType.once') }
+              ]}
+            />
+          </div>
+          <div>
+            <label className="mb-1 block font-medium text-sm">{t('agent.cherryClaw.tasks.scheduleValue')}</label>
+            {renderScheduleInput()}
+          </div>
         </div>
 
         <div>
