@@ -211,7 +211,11 @@ const SessionItem = ({ session, agentId, onDelete, onPress }: SessionItemProps) 
             <>
               <SessionName>
                 {channelIcon && <ChannelIconImg src={channelIcon} />}
-                {channelName && <ChannelNameTag>{channelName}</ChannelNameTag>}
+                {channelName && (
+                  <ChannelNameTag>
+                    <span>{channelName}</span>
+                  </ChannelNameTag>
+                )}
                 <SessionLabel
                   session={session}
                   className={isRenaming ? 'animation-shimmer' : isNewlyRenamed ? 'animation-reveal' : ''}
@@ -304,10 +308,28 @@ const ChannelNameTag = styled.span`
   font-size: 11px;
   color: var(--color-text-3);
   flex-shrink: 0;
-  max-width: 60px;
+  max-width: 80px;
   overflow: hidden;
-  text-overflow: ellipsis;
   white-space: nowrap;
+  display: inline-flex;
+
+  > span {
+    display: inline-block;
+    padding-right: 8px;
+  }
+
+  &:hover > span {
+    animation: channel-scroll 2.5s ease-in-out infinite alternate;
+  }
+
+  @keyframes channel-scroll {
+    0%, 20% {
+      transform: translateX(0);
+    }
+    80%, 100% {
+      transform: translateX(calc(80px - 100%));
+    }
+  }
 `
 
 const SessionEditInput = styled.input`

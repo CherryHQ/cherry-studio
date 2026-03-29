@@ -396,10 +396,16 @@ class FeishuAdapter extends ChannelAdapter {
       appId: this.appId,
       appSecret: this.appSecret,
       domain: larkDomain,
-      loggerLevel: Lark.LoggerLevel.warn
+      loggerLevel: Lark.LoggerLevel.error
     })
 
-    await this.wsClient.start({ eventDispatcher })
+    try {
+      await this.wsClient.start({ eventDispatcher })
+    } catch (error) {
+      // Clean up so performDisconnect doesn't try to use a broken client
+      this.wsClient = null
+      throw new Error(`Feishu WebSocket connection failed: ${error instanceof Error ? error.message : String(error)}`)
+    }
 
     logger.info('Feishu bot started (WebSocket)', { agentId: this.agentId, channelId: this.channelId })
   }
