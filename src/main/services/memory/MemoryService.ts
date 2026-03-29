@@ -62,11 +62,9 @@ export class MemoryService {
    */
   private get memoryDbPath(): string {
     const dir = path.dirname(this._memoryDbPath)
-    if (!fs.existsSync(dir)) {
-      const result = makeSureDirExists(dir)
-      if (!result.success) {
-        throw new Error(`Failed to create memory directory: ${result.error?.message}`)
-      }
+    const result = makeSureDirExists(dir)
+    if (!result.success) {
+      throw new Error(`Failed to create memory directory: ${result.error?.message}`)
     }
     return this._memoryDbPath
   }

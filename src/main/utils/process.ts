@@ -468,7 +468,7 @@ export function crossPlatformSpawn(
 export function decodeBufferFromShell(buf: Buffer): string {
   if (!isWin) return buf.toString('utf8')
   const detected = chardet.detect(buf)
-  if (detected && detected !== 'UTF-8') {
+  if (detected && !detected.toLowerCase().startsWith('utf')) {
     try {
       return iconv.decode(buf, detected)
     } catch {
