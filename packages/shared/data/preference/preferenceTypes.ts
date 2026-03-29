@@ -119,7 +119,6 @@ export type MultiModelGridPopoverTrigger = 'hover' | 'click'
 
 export type AutoDetectionMethod = 'franc' | 'llm' | 'auto'
 
-// 为了支持自定义语言，设置为string别名
 /**
  * Language code pattern.
  * - 2–3 lowercase letters, optionally followed by `-` and 2–4 lowercase letters
