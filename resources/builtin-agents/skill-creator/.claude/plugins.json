@@ -1,0 +1,20 @@
+{
+  "version": 1,
+  "lastUpdated": 0,
+  "plugins": [
+    {
+      "filename": "skill-creator-guide",
+      "type": "skill",
+      "metadata": {
+        "sourcePath": "skills/skill-creator-guide",
+        "filename": "skill-creator-guide",
+        "name": "skill-creator-guide",
+        "description": "创建、搜索、安装和管理 Claude Code Agent Skills。当用户想要搜索技能、安装工具、创建自定义 Skill，或者说\"find a skill\"、\"搜索技能\"、\"帮我做个 skill\"、\"create a skill\"时触发。",
+        "category": "skills",
+        "type": "skill",
+        "size": 0,
+        "contentHash": ""
+      }
+    }
+  ]
+}

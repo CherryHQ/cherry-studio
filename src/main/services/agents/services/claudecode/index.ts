@@ -1,6 +1,7 @@
 // src/main/services/agents/services/claudecode/index.ts
 import { EventEmitter } from 'node:events'
 import { createRequire } from 'node:module'
+import os from 'node:os'
 import path from 'node:path'
 
 import type {
@@ -18,6 +19,7 @@ import { loggerService } from '@logger'
 import { config as apiConfigService } from '@main/apiServer/config'
 import { validateModelId } from '@main/apiServer/utils'
 import { isWin } from '@main/constant'
+import AssistantServer from '@main/mcpServers/assistant'
 import BrowserServer from '@main/mcpServers/browser/server'
 import ClawServer from '@main/mcpServers/claw'
 import { pluginService } from '@main/services/agents/plugins/PluginService'
@@ -41,6 +43,7 @@ import type {
   AgentStreamEvent,
   AgentThinkingOptions
 } from '../../interfaces/AgentStreamInterface'
+import { isProvisioned, provisionBuiltinAgent } from '../builtin/BuiltinAgentProvisioner'
 import { PromptBuilder } from '../cherryclaw/prompt'
 import { sessionService } from '../SessionService'
 import { buildNamespacedToolCallId } from './claude-stream-state'
@@ -151,8 +154,12 @@ class ClaudeCodeService implements AgentServiceInterface {
       modelInfo.provider.anthropicApiHost?.trim() || modelInfo.provider.apiHost
     )
 
+    // Remove CLAUDECODE from inherited env to prevent "nested session" error
+    // when running inside another Claude Code process (e.g. Conductor)
+    const { CLAUDECODE: _claudeCode, ...cleanShellEnv } = loginShellEnvWithoutProxies
+
     const env = {
-      ...loginShellEnvWithoutProxies,
+      ...cleanShellEnv,
       // prevent claude agent sdk using bedrock api
       CLAUDE_CODE_USE_BEDROCK: '0',
       // TODO: fix the proxy api server
@@ -332,6 +339,33 @@ class ClaudeCodeService implements AgentServiceInterface {
     const isChannelSession = !!soulConfig?.source_channel_type
     const channelSecurityBlock = isChannelSession ? `\n\n${CHANNEL_SECURITY_PROMPT}` : ''
 
+    // Built-in agent mode: check builtin_role in configuration
+    const builtinRole = (session.configuration as Record<string, unknown> | undefined)?.builtin_role as
+      | string
+      | undefined
+    const isAssistant = builtinRole === 'assistant'
+
+    // Provision built-in agent workspace (copy skills/plugins to working directory)
+    if (builtinRole && cwd && !isProvisioned(cwd)) {
+      const instructions = await provisionBuiltinAgent(cwd, builtinRole)
+      if (instructions && !session.instructions) {
+        session = { ...session, instructions }
+      }
+      logger.info('Provisioned builtin agent workspace', { builtinRole, cwd })
+    }
+
+    // Build lightweight environment snapshot for Cherry Assistant
+    let assistantSystemPrompt: string | undefined
+    if (isAssistant) {
+      try {
+        const context = await buildAssistantContext()
+        assistantSystemPrompt = session.instructions ? `${session.instructions}\n\n${context}` : context
+      } catch (err) {
+        logger.warn('Failed to build assistant context', { error: err })
+        assistantSystemPrompt = session.instructions
+      }
+    }
+
     // Build SDK options from session configuration
     const options: Options = {
       abortController,
@@ -343,20 +377,23 @@ class ClaudeCodeService implements AgentServiceInterface {
         logger.warn('claude stderr', { chunk })
         errorChunks.push(chunk)
       },
-      systemPrompt: soulSystemPrompt
-        ? `${soulSystemPrompt}${channelSecurityBlock}\n\n${getLanguageInstruction()}`
-        : session.instructions
-          ? {
-              type: 'preset',
-              preset: 'claude_code',
-              append: `${session.instructions}${channelSecurityBlock}\n\n${getLanguageInstruction()}`
-            }
-          : {
-              type: 'preset',
-              preset: 'claude_code',
-              append: `${channelSecurityBlock}\n\n${getLanguageInstruction()}`
-            },
-      settingSources: ['project', 'local'],
+      systemPrompt: assistantSystemPrompt
+        ? `${assistantSystemPrompt}\n\n${getLanguageInstruction()}`
+        : soulSystemPrompt
+          ? `${soulSystemPrompt}${channelSecurityBlock}\n\n${getLanguageInstruction()}`
+          : session.instructions
+            ? {
+                type: 'preset',
+                preset: 'claude_code',
+                append: `${session.instructions}${channelSecurityBlock}\n\n${getLanguageInstruction()}`
+              }
+            : {
+                type: 'preset',
+                preset: 'claude_code',
+                append: `${channelSecurityBlock}\n\n${getLanguageInstruction()}`
+              },
+      // Built-in agents skip CLAUDE.md loading to save tokens
+      settingSources: builtinRole ? [] : ['project', 'local'],
       includePartialMessages: true,
       permissionMode: session.configuration?.permission_mode,
       maxTurns: session.configuration?.max_turns,
@@ -370,7 +407,12 @@ class ClaudeCodeService implements AgentServiceInterface {
           }
         ]
       },
-      disallowedTools: [...GLOBALLY_DISALLOWED_TOOLS, ...(soulEnabled ? SOUL_MODE_DISALLOWED_TOOLS : [])],
+      disallowedTools: [
+        ...GLOBALLY_DISALLOWED_TOOLS,
+        ...(soulEnabled ? SOUL_MODE_DISALLOWED_TOOLS : []),
+        // Cherry Assistant is a read-only guide; it should not ask users questions via tool
+        ...(isAssistant ? ['AskUserQuestion'] : [])
+      ],
       ...(thinkingOptions?.effort ? { effort: thinkingOptions.effort } : {}),
       ...(thinkingOptions?.thinking ? { thinking: thinkingOptions.thinking } : {})
     }
@@ -414,6 +456,27 @@ class ClaudeCodeService implements AgentServiceInterface {
       logger.debug('Soul Mode: injected claw MCP server', {
         agentId: session.agent_id,
         totalMcpServers: Object.keys(options.mcpServers).length
+      })
+    }
+
+    // Cherry Assistant: inject navigate + diagnose MCP server
+    if (isAssistant) {
+      const assistantServer = new AssistantServer()
+      options.mcpServers!.assistant = { type: 'sdk', name: 'assistant', instance: assistantServer.mcpServer }
+
+      // Auto-approve assistant MCP tools
+      if (Array.isArray(options.allowedTools) && options.allowedTools.length > 0) {
+        if (!options.allowedTools.includes('mcp__assistant__*')) {
+          options.allowedTools = [...options.allowedTools, 'mcp__assistant__*']
+        }
+      } else {
+        // When allowed_tools is empty/undefined, set it so assistant MCP tools are auto-approved
+        options.allowedTools = ['mcp__assistant__*']
+      }
+
+      logger.debug('Cherry Assistant: injected assistant MCP server', {
+        agentId: session.agent_id,
+        totalMcpServers: Object.keys(options.mcpServers!).length
       })
     }
 
@@ -790,6 +853,65 @@ class ClaudeCodeService implements AgentServiceInterface {
     } finally {
       closePromptStream()
     }
+  }
+}
+
+/**
+ * Build a lightweight environment snapshot (~200 tokens) for Cherry Assistant.
+ * Injected into system prompt so the agent knows the user's setup immediately.
+ */
+async function buildAssistantContext(): Promise<string> {
+  const appVersion = app.getVersion()
+  const platform = `${os.platform()} ${os.release()}`
+  const language = configManager.getLanguage()
+  const theme = configManager.getTheme()
+  const proxy = configManager.get<string>('proxy', '')
+
+  // Provider summary (no apiKey exposed)
+  const providers = configManager.get<Record<string, unknown>[]>('providers', [])
+  const configuredProviders = providers
+    .filter((p) => p.apiKey || p.enabled)
+    .map((p) => `${p.name || p.id}(${(p.models as unknown[])?.length || 0} models)`)
+
+  // MCP summary
+  const mcpServers = configManager.get<Record<string, unknown>[]>('mcpServers', [])
+  const activeMcp = mcpServers.filter((s) => s.isActive)
+
+  // Network probe (parallel, 2s timeout each)
+  const probeResults = await Promise.allSettled([
+    probeHost('github.com'),
+    probeHost('google.com'),
+    probeHost('docs.cherry-ai.com')
+  ])
+  const networkLines = probeResults.map((r) => {
+    const v = r.status === 'fulfilled' ? r.value : { host: '?', ok: false, ms: 0 }
+    return `- ${v.host}: ${v.ok ? `reachable (${v.ms}ms)` : 'unreachable'}`
+  })
+
+  return [
+    '## Current Environment',
+    `- App: Cherry Studio v${appVersion}`,
+    `- OS: ${platform}`,
+    `- Language: ${language}, Theme: ${theme}`,
+    proxy ? `- Proxy: ${proxy}` : '- Proxy: none',
+    `- Providers (${configuredProviders.length}): ${configuredProviders.join(', ') || 'none configured'}`,
+    `- MCP Servers: ${activeMcp.length} active / ${mcpServers.length} total`,
+    '',
+    '## Network',
+    ...networkLines
+  ].join('\n')
+}
+
+async function probeHost(host: string): Promise<{ host: string; ok: boolean; ms: number }> {
+  const start = Date.now()
+  try {
+    const controller = new AbortController()
+    const timeout = setTimeout(() => controller.abort(), 2000)
+    await fetch(`https://${host}`, { method: 'HEAD', signal: controller.signal })
+    clearTimeout(timeout)
+    return { host, ok: true, ms: Date.now() - start }
+  } catch {
+    return { host, ok: false, ms: Date.now() - start }
   }
 }
 
