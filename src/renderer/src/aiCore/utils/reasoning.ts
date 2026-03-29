@@ -86,7 +86,7 @@ export function getReasoningEffort(assistant: Assistant, model: Model): Reasonin
 
     // nvidia: must use chat_template_kwargs
     // Since limited documentation, it's hard to find what parameters should be set
-    // only part of mainstream oss model covered, all vefiried by nvidia api
+    // only part of mainstream oss model covered, all verified by nvidia api
     if (model.provider === SystemProviderIds.nvidia) {
       if (isSupportedThinkingTokenQwenModel(model)) {
         return { chat_template_kwargs: { enable_thinking: false } }
@@ -268,7 +268,7 @@ export function getReasoningEffort(assistant: Assistant, model: Model): Reasonin
 
   // nvidia: must use chat_template_kwargs
   // Since limited documentation, it's hard to find what parameters should be set
-  // only part of mainstream oss model covered, all vefiried by nvidia api
+  // only part of mainstream oss model covered, all verified by nvidia api
   if (model.provider === SystemProviderIds.nvidia) {
     if (isSupportedThinkingTokenQwenModel(model)) {
       const enableThinkingConfig = isQwenAlwaysThinkModel(model) ? {} : { enable_thinking: true }
