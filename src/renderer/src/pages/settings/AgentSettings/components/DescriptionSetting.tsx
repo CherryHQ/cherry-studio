@@ -24,7 +24,7 @@ export const DescriptionSetting = ({ base, update }: DescriptionSettingProps) =>
   if (!base) return null
 
   return (
-    <SettingsItem divider={false}>
+    <SettingsItem>
       <SettingsTitle>{t('common.description')}</SettingsTitle>
       <TextArea
         value={description}

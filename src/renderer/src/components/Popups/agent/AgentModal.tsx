@@ -13,6 +13,7 @@ import type {
   AgentEntity,
   ApiModel,
   BaseAgentForm,
+  CherryClawConfiguration,
   PermissionMode,
   Tool,
   UpdateAgentForm
@@ -21,7 +22,8 @@ import { AgentConfigurationSchema, isAgentType } from '@renderer/types'
 import { parseKeyValueString, serializeKeyValueString } from '@renderer/utils/env'
 import { getAnthropicSupportedProviders } from '@renderer/utils/provider'
 import type { GitBashPathInfo } from '@shared/config/constant'
-import { Button, Input, Modal, Select } from 'antd'
+import { Button, Input, Modal, Select, Switch, Tooltip } from 'antd'
+import { Info } from 'lucide-react'
 import type { ChangeEvent, FormEvent } from 'react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -124,6 +126,22 @@ const PopupContainer: React.FC<Props> = ({ agent, afterSubmit, resolve }) => {
       logger.error('Failed to reset Git Bash path', error as Error)
     }
   }, [checkGitBash])
+
+  const soulEnabled = (form.configuration as CherryClawConfiguration | undefined)?.soul_enabled === true
+
+  const onSoulModeChange = useCallback((checked: boolean) => {
+    setForm((prev) => {
+      const prevConfig = AgentConfigurationSchema.parse(prev.configuration ?? {})
+      return {
+        ...prev,
+        configuration: {
+          ...prevConfig,
+          soul_enabled: checked,
+          permission_mode: checked ? 'bypassPermissions' : prevConfig.permission_mode
+        }
+      }
+    })
+  }, [])
 
   const onPermissionModeChange = useCallback((value: PermissionMode) => {
     setForm((prev) => {
@@ -430,28 +448,42 @@ const PopupContainer: React.FC<Props> = ({ agent, afterSubmit, resolve }) => {
             )}
 
             <FormItem>
-              <Label>
-                {t('agent.settings.tooling.permissionMode.title', 'Permission mode')} <RequiredMark>*</RequiredMark>
-              </Label>
-              <Select
-                value={selectedPermissionMode}
-                onChange={onPermissionModeChange}
-                style={{ width: '100%' }}
-                placeholder={t('agent.settings.tooling.permissionMode.placeholder', 'Select permission mode')}
-                optionLabelProp="label">
-                {permissionModeCards.map((item) => (
-                  <Select.Option key={item.mode} value={item.mode} label={t(item.titleKey, item.titleFallback)}>
-                    <PermissionOptionWrapper>
-                      <div className="title">{t(item.titleKey, item.titleFallback)}</div>
-                      <div className="description">{t(item.descriptionKey, item.descriptionFallback)}</div>
-                    </PermissionOptionWrapper>
-                  </Select.Option>
-                ))}
-              </Select>
-              <HelpText>
-                {t('agent.settings.tooling.permissionMode.helper', 'Choose how the agent handles tool approvals.')}
-              </HelpText>
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <Label>{t('agent.settings.soulMode.title')}</Label>
+                  <Tooltip title={t('agent.settings.soulMode.description')} placement="right">
+                    <Info size={16} className="text-foreground-400" />
+                  </Tooltip>
+                </div>
+                <Switch checked={soulEnabled} size="small" onChange={onSoulModeChange} />
+              </div>
             </FormItem>
+
+            {!soulEnabled && (
+              <FormItem>
+                <Label>
+                  {t('agent.settings.tooling.permissionMode.title', 'Permission mode')} <RequiredMark>*</RequiredMark>
+                </Label>
+                <Select
+                  value={selectedPermissionMode}
+                  onChange={onPermissionModeChange}
+                  style={{ width: '100%' }}
+                  placeholder={t('agent.settings.tooling.permissionMode.placeholder', 'Select permission mode')}
+                  optionLabelProp="label">
+                  {permissionModeCards.map((item) => (
+                    <Select.Option key={item.mode} value={item.mode} label={t(item.titleKey, item.titleFallback)}>
+                      <PermissionOptionWrapper>
+                        <div className="title">{t(item.titleKey, item.titleFallback)}</div>
+                        <div className="description">{t(item.descriptionKey, item.descriptionFallback)}</div>
+                      </PermissionOptionWrapper>
+                    </Select.Option>
+                  ))}
+                </Select>
+                <HelpText>
+                  {t('agent.settings.tooling.permissionMode.helper', 'Choose how the agent handles tool approvals.')}
+                </HelpText>
+              </FormItem>
+            )}
 
             <FormItem>
               <LabelWithButton>

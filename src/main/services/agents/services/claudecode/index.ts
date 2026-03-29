@@ -16,12 +16,16 @@ import { loggerService } from '@logger'
 import { config as apiConfigService } from '@main/apiServer/config'
 import { validateModelId } from '@main/apiServer/utils'
 import { isWin } from '@main/constant'
+import BrowserServer from '@main/mcpServers/browser/server'
+import ClawServer from '@main/mcpServers/claw'
 import { pluginService } from '@main/services/agents/plugins/PluginService'
 import { configManager } from '@main/services/ConfigManager'
 import { autoDiscoverGitBash } from '@main/utils/process'
 import getLoginShellEnvironment from '@main/utils/shell-env'
+import { GLOBALLY_DISALLOWED_TOOLS, SOUL_MODE_DISALLOWED_TOOLS } from '@shared/agents/claudecode/constants'
 import { languageEnglishNameMap } from '@shared/config/languages'
 import { withoutTrailingApiVersion } from '@shared/utils'
+import type { CherryClawConfiguration } from '@types'
 import { app } from 'electron'
 
 import type { GetAgentSessionResponse } from '../..'
@@ -31,6 +35,7 @@ import type {
   AgentStreamEvent,
   AgentThinkingOptions
 } from '../../interfaces/AgentStreamInterface'
+import { PromptBuilder } from '../cherryclaw/prompt'
 import { sessionService } from '../SessionService'
 import { buildNamespacedToolCallId } from './claude-stream-state'
 import { promptForToolApproval } from './tool-permissions'
@@ -38,6 +43,7 @@ import { ClaudeStreamState, transformSDKMessageToStreamParts } from './transform
 
 const require_ = createRequire(import.meta.url)
 const logger = loggerService.withContext('ClaudeCodeService')
+const promptBuilder = new PromptBuilder()
 const DEFAULT_AUTO_ALLOW_TOOLS = new Set(['Read', 'Glob', 'Grep'])
 const shouldAutoApproveTools = process.env.CHERRY_AUTO_ALLOW_TOOLS === '1'
 const NO_RESUME_COMMANDS = ['/clear']
@@ -65,6 +71,8 @@ class ClaudeCodeStream extends EventEmitter implements AgentStream {
   declare emit: (event: 'data', data: AgentStreamEvent) => boolean
   declare on: (event: 'data', listener: (data: AgentStreamEvent) => void) => this
   declare once: (event: 'data', listener: (data: AgentStreamEvent) => void) => this
+  /** SDK session_id captured from the init message, used for resume. */
+  sdkSessionId?: string
 }
 
 class ClaudeCodeService implements AgentServiceInterface {
@@ -310,28 +318,39 @@ class ClaudeCodeService implements AgentServiceInterface {
       return {}
     }
 
-    // Build SDK options from parameters
+    // Soul Mode: build custom system prompt and inject claw MCP when enabled
+    const soulConfig = session.configuration as CherryClawConfiguration | undefined
+    const soulEnabled = soulConfig?.soul_enabled === true
+    let soulSystemPrompt: string | undefined
+
+    if (soulEnabled && cwd) {
+      soulSystemPrompt = await promptBuilder.buildSystemPrompt(cwd, soulConfig)
+      logger.info('Built Soul Mode system prompt', { cwd, promptLength: soulSystemPrompt.length })
+    }
+
+    // Build SDK options from session configuration
     const options: Options = {
       abortController,
       cwd,
       env,
-      // model: modelInfo.modelId,
       pathToClaudeCodeExecutable: this.claudeExecutablePath,
       stderr: (chunk: string) => {
         logger.warn('claude stderr', { chunk })
         errorChunks.push(chunk)
       },
-      systemPrompt: session.instructions
-        ? {
-            type: 'preset',
-            preset: 'claude_code',
-            append: `${session.instructions}\n\n${getLanguageInstruction()}`
-          }
-        : {
-            type: 'preset',
-            preset: 'claude_code',
-            append: getLanguageInstruction()
-          },
+      systemPrompt: soulSystemPrompt
+        ? `${soulSystemPrompt}\n\n${getLanguageInstruction()}`
+        : session.instructions
+          ? {
+              type: 'preset',
+              preset: 'claude_code',
+              append: `${session.instructions}\n\n${getLanguageInstruction()}`
+            }
+          : {
+              type: 'preset',
+              preset: 'claude_code',
+              append: getLanguageInstruction()
+            },
       settingSources: ['project', 'local'],
       includePartialMessages: true,
       permissionMode: session.configuration?.permission_mode,
@@ -346,6 +365,7 @@ class ClaudeCodeService implements AgentServiceInterface {
           }
         ]
       },
+      disallowedTools: [...GLOBALLY_DISALLOWED_TOOLS, ...(soulEnabled ? SOUL_MODE_DISALLOWED_TOOLS : [])],
       ...(thinkingOptions?.effort ? { effort: thinkingOptions.effort } : {}),
       ...(thinkingOptions?.thinking ? { thinking: thinkingOptions.thinking } : {})
     }
@@ -354,8 +374,8 @@ class ClaudeCodeService implements AgentServiceInterface {
       options.additionalDirectories = session.accessible_paths.slice(1)
     }
 
+    // Build MCP server list from session config + Soul Mode claw server
     if (session.mcps && session.mcps.length > 0) {
-      // mcp configs
       const mcpList: Record<string, McpHttpServerConfig> = {}
       for (const mcpId of session.mcps) {
         mcpList[mcpId] = {
@@ -368,6 +388,28 @@ class ClaudeCodeService implements AgentServiceInterface {
       }
       options.mcpServers = mcpList
       options.strictMcpConfig = true
+    }
+
+    // Inject @cherry/browser MCP for all agents (replaces SDK built-in WebSearch/WebFetch)
+    if (!options.mcpServers) options.mcpServers = {}
+    const browserServer = new BrowserServer()
+    options.mcpServers.browser = { type: 'sdk', name: '@cherry/browser', instance: browserServer.mcpServer }
+
+    if (soulEnabled) {
+      const clawServer = new ClawServer(session.agent_id)
+      options.mcpServers.claw = { type: 'sdk', name: 'claw', instance: clawServer.mcpServer }
+
+      // Ensure claw MCP tools are in allowed_tools whitelist
+      if (Array.isArray(options.allowedTools) && options.allowedTools.length > 0) {
+        if (!options.allowedTools.includes('mcp__claw__*')) {
+          options.allowedTools = [...options.allowedTools, 'mcp__claw__*']
+        }
+      }
+
+      logger.debug('Soul Mode: injected claw MCP server', {
+        agentId: session.agent_id,
+        totalMcpServers: Object.keys(options.mcpServers).length
+      })
     }
 
     if (lastAgentSessionId && !NO_RESUME_COMMANDS.some((cmd) => prompt.includes(cmd))) {
@@ -525,8 +567,16 @@ class ClaudeCodeService implements AgentServiceInterface {
 
         jsonOutput.push(message)
 
-        // Handle init message - merge builtin and SDK slash_commands
+        // Handle init message - capture SDK session_id and merge slash_commands
         if (message.type === 'system' && message.subtype === 'init') {
+          if (message.session_id) {
+            stream.sdkSessionId = message.session_id
+            logger.info('Captured SDK session_id from init message', {
+              sdkSessionId: message.session_id,
+              sessionId
+            })
+          }
+
           const sdkSlashCommands = message.slash_commands || []
           logger.info('Received init message with slash commands', {
             sessionId,

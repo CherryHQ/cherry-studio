@@ -12,9 +12,12 @@ export type SettingsPopupTab =
   | 'prompt'
   | 'permission-mode'
   | 'tools-mcp'
+  | 'mcp'
   | 'advanced'
   | 'plugins'
   | 'installed'
+  | 'channels'
+  | 'tasks'
 
 export type SettingsMenuItem = NonNullable<MenuProps['items']>[number] & {
   key: SettingsPopupTab

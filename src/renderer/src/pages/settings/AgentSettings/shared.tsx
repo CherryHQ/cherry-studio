@@ -1,11 +1,11 @@
 import EmojiIcon from '@renderer/components/EmojiIcon'
 import type { ScrollbarProps } from '@renderer/components/Scrollbar'
 import Scrollbar from '@renderer/components/Scrollbar'
-import { getAgentTypeLabel } from '@renderer/i18n/label'
 import type {
   AgentConfiguration,
   AgentEntity,
   AgentSessionEntity,
+  CherryClawConfiguration,
   GetAgentResponse,
   GetAgentSessionResponse,
   PermissionMode,
@@ -90,15 +90,18 @@ export type AgentLabelProps = {
   hideIcon?: boolean
 }
 
+export const SOUL_MODE_EMOJI = '🦞'
+
+export const isSoulModeEnabled = (configuration: AgentConfiguration | undefined | null): boolean =>
+  (configuration as CherryClawConfiguration | undefined)?.soul_enabled === true
+
 export const AgentLabel = ({ agent, classNames, hideIcon }: AgentLabelProps) => {
-  const emoji = agent?.configuration?.avatar
+  const emoji = isSoulModeEnabled(agent?.configuration) ? SOUL_MODE_EMOJI : agent?.configuration?.avatar || '⭐️'
 
   return (
     <div className={cn('flex w-full items-center gap-2 truncate', classNames?.container)}>
-      {!hideIcon && <EmojiIcon emoji={emoji || '⭐️'} className={classNames?.avatar} size={24} />}
-      <span className={cn('truncate', 'text-(--color-text)', classNames?.name)}>
-        {agent?.name ?? (agent?.type ? getAgentTypeLabel(agent.type) : '')}
-      </span>
+      {!hideIcon && <EmojiIcon emoji={emoji} className={classNames?.avatar} size={24} />}
+      <span className={cn('truncate', 'text-[var(--color-text)]', classNames?.name)}>{agent?.name ?? ''}</span>
     </div>
   )
 }

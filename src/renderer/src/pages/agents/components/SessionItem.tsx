@@ -1,5 +1,6 @@
 import { DeleteIcon, EditIcon } from '@renderer/components/Icons'
 import { isMac } from '@renderer/config/constant'
+import { useAgent } from '@renderer/hooks/agents/useAgent'
 import { useUpdateSession } from '@renderer/hooks/agents/useUpdateSession'
 import { useInPlaceEdit } from '@renderer/hooks/useInPlaceEdit'
 import { useRuntime } from '@renderer/hooks/useRuntime'
@@ -11,8 +12,9 @@ import { SessionLabel } from '@renderer/pages/settings/AgentSettings/shared'
 import store, { type RootState, useAppDispatch, useAppSelector } from '@renderer/store'
 import { newMessagesActions } from '@renderer/store/newMessage'
 import { loadTopicMessagesThunk, renameAgentSessionIfNeeded } from '@renderer/store/thunk/messageThunk'
-import type { AgentSessionEntity } from '@renderer/types'
+import type { AgentSessionEntity, CherryClawConfiguration } from '@renderer/types'
 import { classNames } from '@renderer/utils'
+import { getChannelTypeIcon } from '@renderer/utils/agentSession'
 import { buildAgentSessionTopicId } from '@renderer/utils/agentSession'
 import type { MenuProps } from 'antd'
 import { Dropdown, Tooltip } from 'antd'
@@ -112,6 +114,15 @@ const SessionItem = ({ session, agentId, onDelete, onPress }: SessionItemProps) 
     }
   }, [activeSessionId, dispatch, isFulfilled, session.id, sessionTopicId])
 
+  const { agent } = useAgent(agentId)
+  const sourceChannelId = (session.configuration as any)?.source_channel_id as string | undefined
+  const channelIcon = getChannelTypeIcon((session.configuration as any)?.source_channel_type)
+  const channelName = useMemo(() => {
+    if (!sourceChannelId || !agent?.configuration) return undefined
+    const channels = (agent.configuration as CherryClawConfiguration)?.channels
+    return channels?.find((ch) => ch.id === sourceChannelId)?.name
+  }, [sourceChannelId, agent?.configuration])
+
   const { topicPosition, setTopicPosition } = useSettings()
   const singlealone = topicPosition === 'right'
 
@@ -198,12 +209,14 @@ const SessionItem = ({ session, agentId, onDelete, onPress }: SessionItemProps) 
             <SessionEditInput {...inputProps} style={{ opacity: isSaving ? 0.5 : 1 }} />
           ) : (
             <>
-              <div className="truncate text-[13px]">
+              <SessionName>
+                {channelIcon && <ChannelIconImg src={channelIcon} />}
+                {channelName && <ChannelNameTag>{channelName}</ChannelNameTag>}
                 <SessionLabel
                   session={session}
                   className={isRenaming ? 'animation-shimmer' : isNewlyRenamed ? 'animation-reveal' : ''}
                 />
-              </div>
+              </SessionName>
               <DeleteButton />
             </>
           )}
@@ -267,6 +280,34 @@ const SessionNameContainer = styled.div`
   gap: 4px;
   height: 20px;
   justify-content: space-between;
+`
+
+const SessionName = styled.div`
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  overflow: hidden;
+  font-size: 13px;
+  position: relative;
+  min-width: 0;
+`
+
+const ChannelIconImg = styled.img`
+  width: 14px;
+  height: 14px;
+  flex-shrink: 0;
+  border-radius: 2px;
+  object-fit: contain;
+`
+
+const ChannelNameTag = styled.span`
+  font-size: 11px;
+  color: var(--color-text-3);
+  flex-shrink: 0;
+  max-width: 60px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 `
 
 const SessionEditInput = styled.input`

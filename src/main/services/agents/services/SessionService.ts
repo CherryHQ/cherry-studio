@@ -216,13 +216,43 @@ export class SessionService extends BaseService {
 
     const sessions = result.map((row) => this.deserializeJsonFields(row)) as GetAgentSessionResponse[]
 
-    for (const session of sessions) {
-      const { tools, legacyIdMap } = await this.listMcpTools(session.agent_type, session.mcps)
-      session.tools = tools
-      session.allowed_tools = this.normalizeAllowedTools(session.allowed_tools, session.tools, legacyIdMap)
-    }
+    await Promise.all(
+      sessions.map(async (session) => {
+        const { tools, legacyIdMap } = await this.listMcpTools(session.agent_type, session.mcps)
+        session.tools = tools
+        session.allowed_tools = this.normalizeAllowedTools(session.allowed_tools, session.tools, legacyIdMap)
+      })
+    )
 
     return { sessions, total }
+  }
+
+  async findSessionByChannel(
+    agentId: string,
+    channelId: string,
+    chatId: string
+  ): Promise<GetAgentSessionResponse | null> {
+    const database = await this.getDatabase()
+    const rows = await database
+      .select()
+      .from(sessionsTable)
+      .where(
+        and(
+          eq(sessionsTable.agent_id, agentId),
+          sql`json_extract(${sessionsTable.configuration}, '$.source_channel_id') = ${channelId}`,
+          sql`json_extract(${sessionsTable.configuration}, '$.source_chat_id') = ${chatId}`
+        )
+      )
+      .orderBy(desc(sessionsTable.updated_at))
+      .limit(1)
+
+    if (rows.length === 0) return null
+
+    const session = this.deserializeJsonFields(rows[0]) as GetAgentSessionResponse
+    const { tools, legacyIdMap } = await this.listMcpTools(session.agent_type, session.mcps)
+    session.tools = tools
+    session.allowed_tools = this.normalizeAllowedTools(session.allowed_tools, session.tools, legacyIdMap)
+    return session
   }
 
   async updateSession(

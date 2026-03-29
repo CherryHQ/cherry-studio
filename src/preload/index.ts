@@ -541,6 +541,80 @@ const api = {
       updatedPermissions?: PermissionUpdate[]
     }) => ipcRenderer.invoke(IpcChannel.AgentToolPermission_Response, payload)
   },
+  agentSessionStream: {
+    subscribe: (sessionId: string) => ipcRenderer.invoke(IpcChannel.AgentSessionStream_Subscribe, { sessionId }),
+    unsubscribe: (sessionId: string) => ipcRenderer.invoke(IpcChannel.AgentSessionStream_Unsubscribe, { sessionId }),
+    onChunk: (
+      callback: (chunk: {
+        sessionId: string
+        agentId: string
+        type: string
+        chunk?: any
+        error?: any
+        userMessage?: { chatId: string; userId: string; userName: string; text: string }
+      }) => void
+    ): (() => void) => {
+      const listener = (
+        _event: Electron.IpcRendererEvent,
+        chunk: {
+          sessionId: string
+          agentId: string
+          type: string
+          chunk?: any
+          error?: any
+          userMessage?: { chatId: string; userId: string; userName: string; text: string }
+        }
+      ) => {
+        callback(chunk)
+      }
+      ipcRenderer.on(IpcChannel.AgentSessionStream_Chunk, listener)
+      return () => ipcRenderer.off(IpcChannel.AgentSessionStream_Chunk, listener)
+    },
+    onSessionChanged: (callback: (data: { agentId: string; sessionId: string }) => void): (() => void) => {
+      const listener = (_event: Electron.IpcRendererEvent, data: { agentId: string; sessionId: string }) => {
+        callback(data)
+      }
+      ipcRenderer.on(IpcChannel.AgentSession_Changed, listener)
+      return () => ipcRenderer.off(IpcChannel.AgentSession_Changed, listener)
+    }
+  },
+  wechat: {
+    onQrLogin: (
+      callback: (data: { channelId: string; agentId: string; url: string; status: string; userId?: string }) => void
+    ): (() => void) => {
+      const listener = (
+        _event: Electron.IpcRendererEvent,
+        data: { channelId: string; agentId: string; url: string; status: string; userId?: string }
+      ) => {
+        callback(data)
+      }
+      ipcRenderer.on(IpcChannel.WeChat_QrLogin, listener)
+      return () => ipcRenderer.off(IpcChannel.WeChat_QrLogin, listener)
+    },
+    hasCredentials: (channelId: string): Promise<{ exists: boolean; userId?: string }> =>
+      ipcRenderer.invoke(IpcChannel.WeChat_HasCredentials, channelId)
+  },
+  feishu: {
+    onQrLogin: (
+      callback: (data: {
+        channelId: string
+        agentId: string
+        url: string
+        status: string
+        appId?: string
+        appSecret?: string
+      }) => void
+    ): (() => void) => {
+      const listener = (
+        _event: Electron.IpcRendererEvent,
+        data: { channelId: string; agentId: string; url: string; status: string; appId?: string; appSecret?: string }
+      ) => {
+        callback(data)
+      }
+      ipcRenderer.on(IpcChannel.Feishu_QrLogin, listener)
+      return () => ipcRenderer.off(IpcChannel.Feishu_QrLogin, listener)
+    }
+  },
   quoteToMainWindow: (text: string) => ipcRenderer.invoke(IpcChannel.App_QuoteToMain, text),
   setDisableHardwareAcceleration: (isDisable: boolean) =>
     ipcRenderer.invoke(IpcChannel.App_SetDisableHardwareAcceleration, isDisable),
