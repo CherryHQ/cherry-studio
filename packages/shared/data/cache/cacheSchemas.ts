@@ -230,10 +230,12 @@ export const DefaultUseCache: UseCacheSchema = {
  */
 export type SharedCacheSchema = {
   'chat.web_search.active_searches': CacheValueTypes.CacheActiveSearches
+  'file_processing.active_tasks': CacheValueTypes.CacheActiveFileProcessingTasks
 }
 
 export const DefaultSharedCache: SharedCacheSchema = {
-  'chat.web_search.active_searches': {}
+  'chat.web_search.active_searches': {},
+  'file_processing.active_tasks': {}
 }
 
 /**

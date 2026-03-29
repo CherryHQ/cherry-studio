@@ -12,6 +12,10 @@ import {
   PRESETS_FILE_PROCESSORS
 } from '../data/presets/file-processing'
 import { FILE_TYPE } from '../data/types/file'
+import {
+  FileProcessingMarkdownTaskResultSchema,
+  FileProcessingMarkdownTaskStartResultSchema
+} from '../data/types/fileProcessing'
 
 describe('FileProcessorFeatureCapabilitySchema', () => {
   it('supports multiple input types for a single capability', () => {
@@ -132,5 +136,76 @@ describe('FileProcessorOverrideSchema', () => {
     })
 
     expect(result.success).toBe(false)
+  })
+})
+
+describe('FileProcessingMarkdownTaskStartResultSchema', () => {
+  it('requires processorId on task start results', () => {
+    expect(() =>
+      FileProcessingMarkdownTaskStartResultSchema.parse({
+        providerTaskId: 'task-1',
+        status: 'processing',
+        progress: 0
+      })
+    ).toThrow()
+  })
+
+  it('accepts valid task start results', () => {
+    const result = FileProcessingMarkdownTaskStartResultSchema.parse({
+      providerTaskId: 'task-1',
+      status: 'processing',
+      progress: 0,
+      processorId: 'mineru'
+    })
+
+    expect(result.processorId).toBe('mineru')
+  })
+})
+
+describe('FileProcessingMarkdownTaskResultSchema', () => {
+  it('rejects completed results without markdownPath', () => {
+    expect(() =>
+      FileProcessingMarkdownTaskResultSchema.parse({
+        status: 'completed',
+        progress: 100,
+        processorId: 'mineru'
+      })
+    ).toThrow()
+  })
+
+  it('rejects failed results without error', () => {
+    expect(() =>
+      FileProcessingMarkdownTaskResultSchema.parse({
+        status: 'failed',
+        progress: 0,
+        processorId: 'mineru'
+      })
+    ).toThrow()
+  })
+
+  it('rejects processing results with completed-only fields', () => {
+    expect(() =>
+      FileProcessingMarkdownTaskResultSchema.parse({
+        status: 'processing',
+        progress: 50,
+        processorId: 'mineru',
+        markdownPath: '/tmp/output.md'
+      })
+    ).toThrow()
+  })
+
+  it('accepts valid completed results', () => {
+    const result = FileProcessingMarkdownTaskResultSchema.parse({
+      status: 'completed',
+      progress: 100,
+      processorId: 'mineru',
+      markdownPath: '/tmp/output.md'
+    })
+
+    expect(result.status).toBe('completed')
+    if (result.status !== 'completed') {
+      throw new Error('Expected completed markdown task result')
+    }
+    expect(result.markdownPath).toBe('/tmp/output.md')
   })
 })

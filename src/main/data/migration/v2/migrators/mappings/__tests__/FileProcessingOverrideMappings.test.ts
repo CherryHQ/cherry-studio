@@ -88,10 +88,6 @@ describe('FileProcessingOverrideMappings', () => {
           mistral: {
             apiKeys: ['mistral-key'],
             capabilities: {
-              markdown_conversion: {
-                apiHost: 'https://mistral-proxy.example.com',
-                modelId: 'mistral-ocr-custom'
-              },
               text_extraction: {
                 apiHost: 'https://mistral-proxy.example.com',
                 modelId: 'mistral-ocr-custom'
@@ -147,7 +143,7 @@ describe('FileProcessingOverrideMappings', () => {
       })
     })
 
-    it('should apply mistral preprocess credentials to both markdown and text extraction', () => {
+    it('should apply mistral preprocess credentials to text extraction only', () => {
       const result = mergeFileProcessingOverrides({
         preprocessProviders: [
           {
@@ -166,10 +162,6 @@ describe('FileProcessingOverrideMappings', () => {
           mistral: {
             apiKeys: ['mistral-key'],
             capabilities: {
-              markdown_conversion: {
-                apiHost: 'https://mistral-proxy.example.com',
-                modelId: 'mistral-ocr-custom'
-              },
               text_extraction: {
                 apiHost: 'https://mistral-proxy.example.com',
                 modelId: 'mistral-ocr-custom'

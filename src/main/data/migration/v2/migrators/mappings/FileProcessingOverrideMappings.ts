@@ -78,6 +78,16 @@ function getPresetCapability(processorId: FileProcessorId, feature: FileProcesso
   }
 }
 
+function resolvePreprocessFeature(processorId: FileProcessorId): FileProcessorFeature {
+  const processor = PRESETS_FILE_PROCESSORS.find((preset) => preset.id === processorId)!
+
+  if (processor.capabilities.some((capability) => capability.feature === 'markdown_conversion')) {
+    return 'markdown_conversion'
+  }
+
+  return 'text_extraction'
+}
+
 function setCapabilityApiHost(
   override: FileProcessorOverride,
   processorId: FileProcessorId,
@@ -179,16 +189,13 @@ function mergePreprocessProvider(overrides: FileProcessorOverrides, provider: un
   }
 
   const override = ensureOverride(overrides, providerId)
-  const features: FileProcessorFeature[] =
-    providerId === 'mistral' ? ['markdown_conversion', 'text_extraction'] : ['markdown_conversion']
+  const feature = resolvePreprocessFeature(providerId)
 
   addApiKey(override, provider.apiKey)
 
   if (providerId !== 'paddleocr') {
-    features.forEach((feature) => {
-      setCapabilityApiHost(override, providerId, feature, provider.apiHost)
-      setCapabilityModelId(override, providerId, feature, provider.model)
-    })
+    setCapabilityApiHost(override, providerId, feature, provider.apiHost)
+    setCapabilityModelId(override, providerId, feature, provider.model)
   }
 
   if (isRecord(provider.options)) {
