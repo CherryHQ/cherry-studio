@@ -92,15 +92,15 @@ describe('SchedulerService', () => {
     service.stopAll()
   })
 
-  it('stopScheduler is a no-op (poll loop handles everything)', () => {
+  it('stopAll stops the poll loop', () => {
     const service = SchedulerServiceModule.schedulerService
-    // Should not throw for any agent ID
-    service.stopScheduler('nonexistent')
+    // Should not throw even if not started
+    service.stopAll()
   })
 
-  it('startScheduler starts the poll loop', () => {
+  it('startLoop starts the poll loop', () => {
     const service = SchedulerServiceModule.schedulerService
-    service.startScheduler({ id: 'agent-1' })
+    service.startLoop()
     service.stopAll()
   })
 
