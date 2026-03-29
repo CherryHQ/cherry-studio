@@ -759,6 +759,16 @@ export const SYSTEM_MODELS: Record<SystemProviderId | 'defaultModel', Model[]> =
       capabilities: [{ type: 'text' }, { type: 'function_calling' }]
     }
   ],
+  'kimi-coding': [
+    {
+      id: 'kimi-coding',
+      name: 'Kimi Coding',
+      provider: 'kimi-coding',
+      group: 'Kimi Coding',
+      owned_by: 'moonshot',
+      capabilities: [{ type: 'text' }, { type: 'function_calling' }]
+    }
+  ],
   baichuan: [
     {
       id: 'Baichuan4',
