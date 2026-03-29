@@ -1,5 +1,5 @@
 import { readTextFileWithAutoEncoding } from '@main/utils/file'
-import { TraceMethod } from '@mcp-trace/trace-core'
+import { TraceMethod } from '@shared/trace'
 import fs from 'fs/promises'
 
 export default class FileService {

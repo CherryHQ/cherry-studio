@@ -80,7 +80,6 @@ src/
 packages/
   aiCore/        # @cherrystudio/ai-core — AI SDK middleware & provider abstraction
   shared/        # Cross-process types, constants, IPC channel definitions
-  mcp-trace/     # OpenTelemetry tracing for MCP operations
   ai-sdk-provider/  # Custom AI SDK provider implementations
   extension-table-plus/  # TipTap table extension
 ```
@@ -94,7 +93,7 @@ packages/
 | `@shared` | `packages/shared/` |
 | `@types` | `src/renderer/src/types/` |
 | `@logger` | `src/main/services/LoggerService` (main) / `src/renderer/src/services/LoggerService` (renderer) |
-| `@mcp-trace/trace-core` | `packages/mcp-trace/trace-core/` |
+| `@shared/trace` | `packages/shared/trace/` |
 | `@cherrystudio/ai-core` | `packages/aiCore/src/` |
 
 ### Main Process (`src/main/`)
@@ -225,7 +224,7 @@ logger.error("message", error);
 
 ### Tracing (OpenTelemetry)
 
-- `packages/mcp-trace/` provides trace-core and trace-node/trace-web adapters
+- Trace core types and utilities in `packages/shared/trace/`, Node tracer in `src/main/trace/`, Web tracer in `src/renderer/src/trace/core/`
 - `NodeTraceService` exports spans via OTLP HTTP
 - `SpanCacheService` caches span entities for the trace viewer window
 - IPC calls can carry span context via `tracedInvoke()`
