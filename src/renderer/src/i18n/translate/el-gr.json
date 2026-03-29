@@ -30,7 +30,9 @@
     },
     "cherryClaw": {
       "channels": {
+        "add": "[to be translated]:Add",
         "comingSoon": "Σύντομα διαθέσιμο",
+        "deleteConfirm": "[to be translated]:Delete channel \"{{name}}\"?",
         "description": "Συνδέστε τον πράκτορά σας σε πλατφόρμες μηνυμάτων.",
         "feishu": {
           "appId": "App ID",
@@ -56,6 +58,7 @@
           "verificationToken": "Token επαλήθευσης",
           "verificationTokenPlaceholder": "Εισαγάγετε το token επαλήθευσης της εφαρμογής Feishu"
         },
+        "noInstances": "[to be translated]:No {{type}} channels configured. Click \"+ Add\" to create one.",
         "notifyReceiver": "Λήψη ειδοποιήσεων εργασιών",
         "notifyReceiverHint": "Αποστολή αποτελεσμάτων προγραμματισμένων εργασιών σε αυτό το κανάλι.",
         "qq": {

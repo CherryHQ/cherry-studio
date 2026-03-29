@@ -30,7 +30,9 @@
     },
     "cherryClaw": {
       "channels": {
+        "add": "Add",
         "comingSoon": "Coming soon",
+        "deleteConfirm": "Delete channel \"{{name}}\"?",
         "description": "Connect your agent to messaging platforms.",
         "feishu": {
           "appId": "App ID",
@@ -56,6 +58,7 @@
           "verificationToken": "Verification Token",
           "verificationTokenPlaceholder": "Enter the Verification Token from your Feishu app"
         },
+        "noInstances": "No {{type}} channels configured. Click \"+ Add\" to create one.",
         "notifyReceiver": "Receive task notifications",
         "notifyReceiverHint": "Send scheduler task results to this channel.",
         "qq": {

@@ -30,7 +30,9 @@
     },
     "cherryClaw": {
       "channels": {
+        "add": "新增",
         "comingSoon": "即將推出",
+        "deleteConfirm": "確定刪除頻道「{{name}}」？",
         "description": "將您的 Agent 連接到訊息平台。",
         "feishu": {
           "appId": "應用程式 ID",
@@ -56,6 +58,7 @@
           "verificationToken": "驗證權杖",
           "verificationTokenPlaceholder": "從您的 Feishu 應用程式輸入驗證碼"
         },
+        "noInstances": "尚無 {{type}} 頻道，點擊「+ 新增」建立。",
         "notifyReceiver": "接收任務通知",
         "notifyReceiverHint": "將排程任務結果傳送到此頻道。",
         "qq": {

@@ -30,7 +30,9 @@
     },
     "cherryClaw": {
       "channels": {
+        "add": "[to be translated]:Add",
         "comingSoon": "În curând",
+        "deleteConfirm": "[to be translated]:Delete channel \"{{name}}\"?",
         "description": "Conectați agentul la platforme de mesagerie.",
         "feishu": {
           "appId": "App ID",
@@ -56,6 +58,7 @@
           "verificationToken": "Token de verificare",
           "verificationTokenPlaceholder": "Introduceți tokenul de verificare al aplicației Feishu"
         },
+        "noInstances": "[to be translated]:No {{type}} channels configured. Click \"+ Add\" to create one.",
         "notifyReceiver": "Primește notificări de sarcini",
         "notifyReceiverHint": "Trimite rezultatele sarcinilor programate pe acest canal.",
         "qq": {

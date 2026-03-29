@@ -30,7 +30,9 @@
     },
     "cherryClaw": {
       "channels": {
+        "add": "[to be translated]:Add",
         "comingSoon": "近日公開",
+        "deleteConfirm": "[to be translated]:Delete channel \"{{name}}\"?",
         "description": "エージェントをメッセージングプラットフォームに接続します。",
         "feishu": {
           "appId": "App ID",
@@ -56,6 +58,7 @@
           "verificationToken": "検証トークン",
           "verificationTokenPlaceholder": "Feishuアプリの検証トークンを入力してください"
         },
+        "noInstances": "[to be translated]:No {{type}} channels configured. Click \"+ Add\" to create one.",
         "notifyReceiver": "タスク通知を受信",
         "notifyReceiverHint": "スケジュールタスクの結果をこのチャンネルに送信します。",
         "qq": {

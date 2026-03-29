@@ -30,7 +30,9 @@
     },
     "cherryClaw": {
       "channels": {
+        "add": "添加",
         "comingSoon": "即将推出",
+        "deleteConfirm": "确定删除频道「{{name}}」？",
         "description": "将您的 Agent 连接到消息平台。",
         "feishu": {
           "appId": "应用ID",
@@ -56,6 +58,7 @@
           "verificationToken": "验证令牌",
           "verificationTokenPlaceholder": "输入您飞书应用中的验证令牌"
         },
+        "noInstances": "暂无 {{type}} 频道，点击「+ 添加」创建。",
         "notifyReceiver": "接收任务通知",
         "notifyReceiverHint": "将定时任务结果发送到此频道。",
         "qq": {

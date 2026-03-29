@@ -30,7 +30,9 @@
     },
     "cherryClaw": {
       "channels": {
+        "add": "[to be translated]:Add",
         "comingSoon": "Em breve",
+        "deleteConfirm": "[to be translated]:Delete channel \"{{name}}\"?",
         "description": "Conecte o seu agente a plataformas de mensagens.",
         "feishu": {
           "appId": "App ID",
@@ -56,6 +58,7 @@
           "verificationToken": "Token de verificação",
           "verificationTokenPlaceholder": "Introduza o token de verificação da sua aplicação Feishu"
         },
+        "noInstances": "[to be translated]:No {{type}} channels configured. Click \"+ Add\" to create one.",
         "notifyReceiver": "Receber notificações de tarefas",
         "notifyReceiverHint": "Enviar resultados de tarefas agendadas para este canal.",
         "qq": {
