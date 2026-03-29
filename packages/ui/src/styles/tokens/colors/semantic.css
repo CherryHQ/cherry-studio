@@ -14,7 +14,7 @@
 
   /* Background & Foreground */
   --cs-background: var(--cs-zinc-50);
-  --cs-background-subtle: oklch(0 0 0 / 0.02);
+  --cs-background-subtle: oklch(0 0 0 / 0.04);
   --cs-foreground: oklch(0 0 0 / 0.9);
   --cs-foreground-secondary: oklch(0 0 0 / 0.6);
   --cs-foreground-muted: oklch(0 0 0 / 0.4);
@@ -49,7 +49,7 @@
 .dark {
   /* Background & Foreground */
   --cs-background: var(--cs-zinc-900);
-  --cs-background-subtle: oklch(1 0 0 / 0.02);
+  --cs-background-subtle: oklch(1 0 0 / 0.06);
   --cs-foreground: oklch(1 0 0 / 0.9);
   --cs-foreground-secondary: oklch(1 0 0 / 0.6);
   --cs-foreground-muted: oklch(1 0 0 / 0.4);
