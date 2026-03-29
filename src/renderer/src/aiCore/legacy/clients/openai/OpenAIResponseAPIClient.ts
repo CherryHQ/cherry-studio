@@ -38,6 +38,7 @@ import { addImageFileToContents } from '@renderer/utils/formats'
 import {
   isSupportedToolUse,
   mcpToolCallResponseToOpenAIMessage,
+  mcpToolCallResponseToOpenAIResponsesOutput,
   mcpToolsToOpenAIResponseTools,
   openAIToolsToMcpTool
 } from '@renderer/utils/mcp-tools'
@@ -290,7 +291,7 @@ export class OpenAIResponseAPIClient extends OpenAIBaseClient<
       return {
         type: 'function_call_output',
         call_id: mcpToolResponse.toolCallId,
-        output: JSON.stringify(resp.content)
+        output: mcpToolCallResponseToOpenAIResponsesOutput(resp, isVisionModel(model))
       }
     }
     return
