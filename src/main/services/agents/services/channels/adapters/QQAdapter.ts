@@ -1,5 +1,6 @@
 import { loggerService } from '@logger'
 import type { CherryClawChannel } from '@types'
+import { net } from 'electron'
 import WebSocket from 'ws'
 
 import { ChannelAdapter, type ChannelAdapterConfig, type SendMessageOptions } from '../ChannelAdapter'
@@ -144,7 +145,7 @@ class QQAdapter extends ChannelAdapter {
       return this.tokenCache.accessToken
     }
 
-    const response = await fetch('https://bots.qq.com/app/getAppAccessToken', {
+    const response = await net.fetch('https://bots.qq.com/app/getAppAccessToken', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -176,7 +177,7 @@ class QQAdapter extends ChannelAdapter {
     options?: { method?: string; body?: Record<string, unknown> }
   ): Promise<Response> {
     const token = await this.getAccessToken()
-    const response = await fetch(endpoint, {
+    const response = await net.fetch(endpoint, {
       method: options?.method ?? 'GET',
       headers: {
         Authorization: `QQBot ${token}`,
