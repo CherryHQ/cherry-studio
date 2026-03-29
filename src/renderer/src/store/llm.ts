@@ -1,3 +1,19 @@
+/**
+ * @deprecated Scheduled for removal in v2.0.0
+ * --------------------------------------------------------------------------
+ * ⚠️ NOTICE: V2 DATA&UI REFACTORING (by 0xfullex)
+ * --------------------------------------------------------------------------
+ * STOP: Feature PRs affecting this file are currently BLOCKED.
+ * Only critical bug fixes are accepted during this migration phase.
+ *
+ * This file is being refactored to v2 standards.
+ * Any non-critical changes will conflict with the ongoing work.
+ *
+ * 🔗 Context & Status:
+ * - Contribution Hold: https://github.com/CherryHQ/cherry-studio/issues/10954
+ * - v2 Refactor PR   : https://github.com/CherryHQ/cherry-studio/pull/10162
+ * --------------------------------------------------------------------------
+ */
 import type { PayloadAction } from '@reduxjs/toolkit'
 import { createSlice } from '@reduxjs/toolkit'
 import { isLocalAi } from '@renderer/config/env'
@@ -30,6 +46,10 @@ type LlmSettings = {
     secretAccessKey: string
     apiKey: string
     region: string
+  }
+  cherryIn: {
+    accessToken: string
+    refreshToken: string
   }
 }
 
@@ -75,6 +95,10 @@ export const initialState: LlmState = {
       secretAccessKey: '',
       apiKey: '',
       region: ''
+    },
+    cherryIn: {
+      accessToken: '',
+      refreshToken: ''
     }
   }
 }
@@ -216,6 +240,24 @@ const llmSlice = createSlice({
     setAwsBedrockRegion: (state, action: PayloadAction<string>) => {
       state.settings.awsBedrock.region = action.payload
     },
+    setCherryInTokens: (state, action: PayloadAction<{ accessToken: string; refreshToken?: string }>) => {
+      if (!state.settings.cherryIn) {
+        state.settings.cherryIn = {
+          accessToken: '',
+          refreshToken: ''
+        }
+      }
+
+      state.settings.cherryIn.accessToken = action.payload.accessToken
+
+      if (action.payload.refreshToken !== undefined) {
+        state.settings.cherryIn.refreshToken = action.payload.refreshToken
+      }
+    },
+    clearCherryInTokens: (state) => {
+      state.settings.cherryIn.accessToken = ''
+      state.settings.cherryIn.refreshToken = ''
+    },
     updateModel: (
       state,
       action: PayloadAction<{
@@ -257,6 +299,8 @@ export const {
   setAwsBedrockSecretAccessKey,
   setAwsBedrockApiKey,
   setAwsBedrockRegion,
+  setCherryInTokens,
+  clearCherryInTokens,
   updateModel
 } = llmSlice.actions
 

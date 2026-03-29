@@ -18,20 +18,19 @@ interface PyodideOutput {
 const PYODIDE_INDEX_URL = 'https://cdn.jsdelivr.net/pyodide/v0.28.0/full/'
 const PYODIDE_MODULE_URL = PYODIDE_INDEX_URL + 'pyodide.mjs'
 
-// 垫片代码，用于在 Worker 中捕获 Matplotlib 绘图
 const MATPLOTLIB_SHIM_CODE = `
 def __cherry_studio_matplotlib_setup():
     import os
-    # 在导入 pyplot 前设置后端
+    # Set backend before importing pyplot
     os.environ["MPLBACKEND"] = "AGG"
     import io
     import base64
     import matplotlib.pyplot as plt
 
-    # 保存原始的 show 函数
+    # Save original show function
     _original_show = plt.show
 
-    # 定义并替换为新的 show 函数
+    # Define and replace with new show function
     def _new_show(*args, **kwargs):
         global pyodide_matplotlib_image
         fig = plt.gcf()
@@ -45,13 +44,13 @@ def __cherry_studio_matplotlib_setup():
 
         img_str = base64.b64encode(buf.read()).decode('utf-8')
 
-        # 通过全局变量传递数据
+        # Pass data via global variable
         pyodide_matplotlib_image = f"data:image/png;base64,{img_str}"
 
         plt.clf()
         plt.close(fig)
 
-    # 替换全局的 show 函数
+    # Replace global show function
     plt.show = _new_show
 
 __cherry_studio_matplotlib_setup()

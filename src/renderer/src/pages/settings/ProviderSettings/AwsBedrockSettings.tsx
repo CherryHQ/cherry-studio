@@ -54,7 +54,7 @@ const AwsBedrockSettings: FC = () => {
           </SettingSubtitle>
           <Input
             value={localAccessKeyId}
-            placeholder="Access Key ID"
+            placeholder={t('settings.provider.aws-bedrock.access_key_id')}
             onChange={(e) => setLocalAccessKeyId(e.target.value)}
             onBlur={() => setAccessKeyId(localAccessKeyId)}
             style={{ marginTop: 5 }}
@@ -68,7 +68,7 @@ const AwsBedrockSettings: FC = () => {
           </SettingSubtitle>
           <Input.Password
             value={localSecretAccessKey}
-            placeholder="Secret Access Key"
+            placeholder={t('settings.provider.aws-bedrock.secret_access_key')}
             onChange={(e) => setLocalSecretAccessKey(e.target.value)}
             onBlur={() => setSecretAccessKey(localSecretAccessKey)}
             style={{ marginTop: 5 }}
@@ -92,7 +92,7 @@ const AwsBedrockSettings: FC = () => {
           <SettingSubtitle style={{ marginTop: 15 }}>{t('settings.provider.aws-bedrock.api_key')}</SettingSubtitle>
           <Input.Password
             value={localApiKey}
-            placeholder="Bedrock API Key"
+            placeholder={t('settings.provider.aws-bedrock.api_key')}
             onChange={(e) => setLocalApiKey(e.target.value)}
             onBlur={() => setApiKey(localApiKey)}
             style={{ marginTop: 5 }}

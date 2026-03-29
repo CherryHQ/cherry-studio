@@ -28,6 +28,12 @@ files:
   - "!**/{tsconfig.json,tsconfig.tsbuildinfo,tsconfig.node.json,tsconfig.web.json}"
   - "!**/{.editorconfig,.jekyll-metadata}"
   - "!src"
+  - "!config"
+  - "!patches"
+  - "!app-upgrade-config.json"
+  - "!**/node_modules/**/*.cpp"
+  - "!**/node_modules/node-addon-api/**"
+  - "!**/node_modules/prebuild-install/**"
   - "!scripts"
   - "!local"
   - "!docs"
@@ -67,11 +73,6 @@ asarUnpack:
   - "**/*.{metal,exp,lib}"
   - "node_modules/@img/sharp-libvips-*/**"
 
-# copy from node_modules/claude-code-plugins/plugins to resources/data/claude-code-pluginso
-extraResources:
-  - from: "./node_modules/claude-code-plugins/plugins/"
-    to: "claude-code-plugins"
-
 win:
   executableName: Cherry Studio
   artifactName: ${productName}-${version}-${arch}-setup.${ext}
@@ -90,6 +91,7 @@ nsis:
   oneClick: false
   include: build/nsis-installer.nsh
   buildUniversalInstaller: false
+  differentialPackage: false
 portable:
   artifactName: ${productName}-${version}-${arch}-portable.${ext}
   buildUniversalInstaller: false
@@ -105,8 +107,11 @@ mac:
   target:
     - target: dmg
     - target: zip
+dmg:
+  writeUpdateInfo: false
 linux:
   artifactName: ${productName}-${version}-${arch}.${ext}
+  executableName: CherryStudio
   target:
     - target: AppImage
     - target: deb
@@ -115,6 +120,7 @@ linux:
   category: Utility
   desktop:
     entry:
+      Name: Cherry Studio
       StartupWMClass: CherryStudio
   mimeTypes:
     - x-scheme-handler/cherrystudio
@@ -134,66 +140,22 @@ artifactBuildCompleted: scripts/artifact-build-completed.js
 releaseInfo:
   releaseNotes: |
     <!--LANG:en-->
-    Cherry Studio 1.7.2 - Stability & Enhancement Update
+    Cherry Studio 1.8.4 - Bug Fixes and New Features
 
-    This release focuses on stability improvements, bug fixes, and quality-of-life enhancements.
-
-    🔧 Improvements
-    - Enhanced update dialog functionality and state management
-    - Improved ImageViewer context menu UX
-    - Better temperature and top_p parameter handling
-    - User-configurable stream options for OpenAI API
-    - Translation feature now supports document files
-
-    🤖 AI & Models
-    - Added explicit thinking token support for Gemini 3 Pro Image
-    - Updated DeepSeek logic to match DeepSeek v3.2
-    - Updated AiOnly default models
-    - Updated AI model configurations to latest versions
-
-    ♿ Accessibility
-    - Improved screen reader (NVDA) support with aria-label attributes
-    - Added Slovak language support for spell check
+    ✨ New Features
+    - [API] Add knowledge base REST API endpoints
+    - [SelectionAssistant] Add Linux support for text selection toolbar
 
     🐛 Bug Fixes
-    - Fixed Quick Assistant shortcut registration issue
-    - Fixed UI freeze on multi-file selection via batch processing
-    - Fixed assistant default model update when editing model capabilities
-    - Fixed provider handling and API key rotation logic
-    - Fixed OVMS API URL path formation
-    - Fixed custom parameters placement for Vercel AI Gateway
-    - Fixed topic message blocks clearing
-    - Fixed input bar blocking enter send while generating
+    - [Files] Fix PDF upload failing with "invalid part type: file" error for OpenAI-compatible providers (Moonshot, DeepSeek, Groq, etc.)
 
     <!--LANG:zh-CN-->
-    Cherry Studio 1.7.2 - 稳定性与功能增强更新
+    Cherry Studio 1.8.4 - 错误修复和新功能
 
-    本次更新专注于稳定性改进、问题修复和用户体验提升。
-
-    🔧 功能改进
-    - 增强更新对话框功能和状态管理
-    - 优化图片查看器右键菜单体验
-    - 改进温度和 top_p 参数处理逻辑
-    - 支持用户自定义 OpenAI API 流式选项
-    - 翻译功能现已支持文档文件
-
-    🤖 AI 与模型
-    - 为 Gemini 3 Pro Image 添加显式思考 token 支持
-    - 更新 DeepSeek 逻辑以适配 DeepSeek v3.2
-    - 更新 AiOnly 默认模型
-    - 更新 AI 模型配置至最新版本
-
-    ♿ 无障碍支持
-    - 改进屏幕阅读器 (NVDA) 支持，添加 aria-label 属性
-    - 新增斯洛伐克语拼写检查支持
+    ✨ 新功能
+    - [API] 添加知识库 REST API 端点
+    - [选择助手] 为文本选择工具栏添加 Linux 支持
 
     🐛 问题修复
-    - 修复快捷助手无法注册快捷键的问题
-    - 修复多文件选择时 UI 冻结问题（通过批处理优化）
-    - 修复编辑模型能力时助手默认模型更新问题
-    - 修复服务商处理和 API 密钥轮换逻辑
-    - 修复 OVMS API URL 路径格式问题
-    - 修复 Vercel AI Gateway 自定义参数位置问题
-    - 修复话题消息块清理问题
-    - 修复生成时输入框阻止回车发送的问题
+    - [文件] 修复 OpenAI 兼容提供商（Moonshot、DeepSeek、Groq 等）的 PDF 上传失败问题（"invalid part type: file" 错误）
     <!--LANG:END-->

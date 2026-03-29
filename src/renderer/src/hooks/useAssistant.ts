@@ -83,7 +83,14 @@ export function useAssistant(id: string) {
     throw new Error(`Assistant model is not set for assistant with name: ${assistant?.name ?? 'unknown'}`)
   }
 
-  const assistantWithModel = useMemo(() => ({ ...assistant, model }), [assistant, model])
+  const normalizedTopics = useMemo(
+    () => (Array.isArray(assistant?.topics) ? assistant.topics : []),
+    [assistant?.topics]
+  )
+  const assistantWithModel = useMemo(
+    () => ({ ...assistant, model, topics: normalizedTopics }),
+    [assistant, model, normalizedTopics]
+  )
 
   const settingsRef = useRef(assistant?.settings)
 
@@ -146,14 +153,14 @@ export function useAssistant(id: string) {
     model,
     addTopic: (topic: Topic) => dispatch(addTopic({ assistantId: assistant.id, topic })),
     removeTopic: (topic: Topic) => {
-      TopicManager.removeTopic(topic.id)
+      void TopicManager.removeTopic(topic.id)
       dispatch(removeTopic({ assistantId: assistant.id, topic }))
     },
     moveTopic: (topic: Topic, toAssistant: Assistant) => {
       dispatch(addTopic({ assistantId: toAssistant.id, topic: { ...topic, assistantId: toAssistant.id } }))
       dispatch(removeTopic({ assistantId: assistant.id, topic }))
       // update topic messages in database
-      db.topics
+      void db.topics
         .where('id')
         .equals(topic.id)
         .modify((dbTopic) => {

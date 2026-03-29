@@ -13,7 +13,7 @@ import { isFunctionCallingModel, isVisionModel } from '@renderer/config/models'
 import i18n from '@renderer/i18n'
 import { currentSpan } from '@renderer/services/SpanManagerService'
 import store from '@renderer/store'
-import { addMCPServer } from '@renderer/store/mcp'
+import { addMCPServer, hubMCPServer } from '@renderer/store/mcp'
 import type {
   Assistant,
   MCPCallToolResponse,
@@ -325,15 +325,35 @@ export function filterMCPTools(
 
 export function getMcpServerByTool(tool: MCPTool) {
   const servers = store.getState().mcp.servers
-  return servers.find((s) => s.id === tool.serverId)
+  const server = servers.find((s) => s.id === tool.serverId)
+  if (server) {
+    return server
+  }
+  // For hub server (auto mode), the server isn't in the store
+  // Return the hub server constant if the tool's serverId matches
+  if (tool.serverId === 'hub') {
+    return hubMCPServer
+  }
+  return undefined
 }
 
-export function isToolAutoApproved(tool: MCPTool, server?: MCPServer): boolean {
+export function isToolAutoApproved(tool: MCPTool, server?: MCPServer, allowedTools?: string[]): boolean {
   if (tool.isBuiltIn) {
     return true
   }
+  // Check agent-level pre-authorization (allowed_tools from Agent Settings)
+  if (allowedTools?.includes(tool.id)) {
+    return true
+  }
+  // Fall back to server-level auto-approve setting
   const effectiveServer = server ?? getMcpServerByTool(tool)
-  return effectiveServer ? !effectiveServer.disabledAutoApproveTools?.includes(tool.name) : false
+  if (!effectiveServer) return false
+  // Hub meta-tools: read-only tools (list, inspect) are auto-approved;
+  // execution tools (invoke, exec) require approval.
+  if (effectiveServer.id === 'hub') {
+    return tool.name === 'list' || tool.name === 'inspect'
+  }
+  return !effectiveServer.disabledAutoApproveTools?.includes(tool.name)
 }
 
 export function parseToolUse(

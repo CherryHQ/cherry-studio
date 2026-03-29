@@ -1,6 +1,6 @@
 import { loggerService } from '@logger'
 import type { Assistant, FileMetadata, Topic } from '@renderer/types'
-import { FileTypes } from '@renderer/types'
+import { FILE_TYPE } from '@renderer/types'
 import type { SerializedError } from '@renderer/types/error'
 import type {
   BaseMessageBlock,
@@ -105,7 +105,7 @@ export function createImageBlock(
   messageId: string,
   overrides: Partial<Omit<ImageMessageBlock, 'id' | 'messageId' | 'type'>> = {}
 ): ImageMessageBlock {
-  if (overrides.file && overrides.file.type !== FileTypes.IMAGE) {
+  if (overrides.file && overrides.file.type !== FILE_TYPE.IMAGE) {
     logger.warn(`Attempted to create ImageBlock with non-image file type: ${overrides.file.type}`)
   }
   const { file, url, metadata, ...baseOverrides } = overrides
@@ -182,7 +182,7 @@ export function createFileBlock(
   file: FileMetadata,
   overrides: Partial<Omit<FileMessageBlock, 'id' | 'messageId' | 'type' | 'file'>> = {}
 ): FileMessageBlock {
-  if (file.type === FileTypes.IMAGE) {
+  if (file.type === FILE_TYPE.IMAGE) {
     logger.warn('Use createImageBlock for image file types.')
   }
   return {

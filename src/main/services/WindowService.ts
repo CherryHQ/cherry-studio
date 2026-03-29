@@ -5,13 +5,14 @@ import { is } from '@electron-toolkit/utils'
 import { loggerService } from '@logger'
 import { isDev, isLinux, isMac, isWin } from '@main/constant'
 import { getFilesDir } from '@main/utils/file'
+import { getWindowsBackgroundMaterial } from '@main/utils/windowUtil'
 import { MIN_WINDOW_HEIGHT, MIN_WINDOW_WIDTH } from '@shared/config/constant'
 import { IpcChannel } from '@shared/IpcChannel'
-import { app, BrowserWindow, nativeTheme, screen, shell } from 'electron'
+import { app, BrowserWindow, nativeImage, nativeTheme, screen, shell } from 'electron'
 import windowStateKeeper from 'electron-window-state'
 import { join } from 'path'
 
-import icon from '../../../build/icon.png?asset'
+import iconPath from '../../../build/icon.png?asset'
 import { titleBarOverlayDark, titleBarOverlayLight } from '../config'
 import { configManager } from './ConfigManager'
 import { contextMenu } from './ContextMenu'
@@ -22,6 +23,9 @@ const DEFAULT_MINIWINDOW_HEIGHT = 400
 
 // const logger = loggerService.withContext('WindowService')
 const logger = loggerService.withContext('WindowService')
+
+// Create nativeImage for Linux window icon (required for Wayland)
+const linuxIcon = isLinux ? nativeImage.createFromPath(iconPath) : undefined
 
 export class WindowService {
   private static instance: WindowService | null = null
@@ -58,6 +62,12 @@ export class WindowService {
       fullScreen: false,
       maximize: false
     })
+    const windowsBackgroundMaterial = getWindowsBackgroundMaterial()
+    let mainWindowBackgroundColor: string | undefined
+
+    if (!isMac && !windowsBackgroundMaterial) {
+      mainWindowBackgroundColor = nativeTheme.shouldUseDarkColors ? '#181818' : '#FFFFFF'
+    }
 
     this.mainWindow = new BrowserWindow({
       x: mainWindowState.x,
@@ -80,11 +90,13 @@ export class WindowService {
             trafficLightPosition: { x: 8, y: 13 }
           }
         : {
-            frame: false // Frameless window for Windows and Linux
+            // On Linux, allow using system title bar if setting is enabled
+            frame: isLinux && configManager.getUseSystemTitleBar() ? true : false
           }),
-      backgroundColor: isMac ? undefined : nativeTheme.shouldUseDarkColors ? '#181818' : '#FFFFFF',
+      ...(windowsBackgroundMaterial ? { backgroundMaterial: windowsBackgroundMaterial } : {}),
+      ...(mainWindowBackgroundColor ? { backgroundColor: mainWindowBackgroundColor } : {}),
       darkTheme: nativeTheme.shouldUseDarkColors,
-      ...(isLinux ? { icon } : {}),
+      ...(isLinux ? { icon: linuxIcon } : {}),
       webPreferences: {
         preload: join(__dirname, '../preload/index.js'),
         sandbox: false,
@@ -185,7 +197,7 @@ export class WindowService {
       const isLaunchToTray = configManager.getLaunchToTray()
       if (!isLaunchToTray) {
         //[mac]hacky-fix: miniWindow set visibleOnFullScreen:true will cause dock icon disappeared
-        app.dock?.show()
+        void app.dock?.show()
         mainWindow.show()
       }
     })
@@ -227,13 +239,19 @@ export class WindowService {
   }
 
   private setupWebContentsHandlers(mainWindow: BrowserWindow) {
+    // Fix for Electron bug where zoom resets during in-page navigation (route changes)
+    // This complements the resize-based workaround by catching navigation events
+    mainWindow.webContents.on('did-navigate-in-page', () => {
+      mainWindow.webContents.setZoomFactor(configManager.getZoomFactor())
+    })
+
     mainWindow.webContents.on('will-navigate', (event, url) => {
       if (url.includes('localhost:517')) {
         return
       }
 
       event.preventDefault()
-      shell.openExternal(url)
+      void shell.openExternal(url)
     })
 
     mainWindow.webContents.setWindowOpenHandler((details) => {
@@ -248,7 +266,7 @@ export class WindowService {
         'https://console.aihubmix.com/statistics',
         'https://dash.302.ai/sso/login',
         'https://dash.302.ai/charge',
-        'https://www.aiionly.com/login'
+        'https://maas.aiionly.com/login'
       ]
 
       if (oauthProviderUrls.some((link) => url.startsWith(link))) {
@@ -270,7 +288,7 @@ export class WindowService {
           .openPath(filePath)
           .catch((err) => logger.error('Failed to open file:', err))
       } else {
-        shell.openExternal(details.url)
+        void shell.openExternal(details.url)
       }
 
       return { action: 'deny' }
@@ -299,10 +317,10 @@ export class WindowService {
 
   private loadMainWindowContent(mainWindow: BrowserWindow) {
     if (is.dev && process.env['ELECTRON_RENDERER_URL']) {
-      mainWindow.loadURL(process.env['ELECTRON_RENDERER_URL'])
+      void mainWindow.loadURL(process.env['ELECTRON_RENDERER_URL'])
       // mainWindow.webContents.openDevTools()
     } else {
-      mainWindow.loadFile(join(__dirname, '../renderer/index.html'))
+      void mainWindow.loadFile(join(__dirname, '../renderer/index.html'))
     }
   }
 
@@ -354,7 +372,7 @@ export class WindowService {
         mainWindow.once('show', () => {
           // restore the window can hide by cmd+h when the window is shown again
           // https://github.com/electron/electron/pull/47970
-          app.dock?.show()
+          void app.dock?.show()
         })
       }
     })
@@ -397,6 +415,34 @@ export class WindowService {
         return
       }
 
+      /**
+       * [Linux] Special handling for window activation
+       * When the window is visible but covered by other windows, simply calling show() and focus()
+       * is not enough to bring it to the front. We need to hide it first, then show it again.
+       * This mimics the "close to tray and reopen" behavior which works correctly.
+       */
+      if (isLinux && this.mainWindow.isVisible() && !this.mainWindow.isFocused()) {
+        this.mainWindow.hide()
+        setImmediate(() => {
+          if (this.mainWindow && !this.mainWindow.isDestroyed()) {
+            this.mainWindow.show()
+            this.mainWindow.focus()
+          }
+        })
+        return
+      }
+
+      /**
+       * About setVisibleOnAllWorkspaces
+       *
+       * [macOS] Known Issue
+       *  setVisibleOnAllWorkspaces true/false will NOT bring window to current desktop in Mac (works fine with Windows)
+       *  AppleScript may be a solution, but it's not worth
+       *
+       * [Linux] Known Issue
+       *  setVisibleOnAllWorkspaces 在 Linux 环境下（特别是 KDE Wayland）会导致窗口进入"假弹出"状态
+       *  因此在 Linux 环境下不执行这两行代码
+       */
       if (!isLinux) {
         this.mainWindow.setVisibleOnAllWorkspaces(true)
       }
@@ -481,10 +527,12 @@ export class WindowService {
 
     miniWindowState.manage(this.miniWindow)
 
-    // miniWindow should show in current desktop
-    this.miniWindow.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true })
-    // make miniWindow always on top of fullscreen apps with level set
-    // [mac] level higher than 'floating' will cover the pinyin input method
+    //miniWindow should show in current desktop
+    this.miniWindow?.setVisibleOnAllWorkspaces(true, {
+      visibleOnFullScreen: true
+    })
+    //make miniWindow always on top of fullscreen apps with level set
+    //[mac] level higher than 'floating' will cover the pinyin input method
     this.miniWindow.setAlwaysOnTop(true, 'floating')
 
     this.miniWindow.on('ready-to-show', () => {
@@ -516,9 +564,9 @@ export class WindowService {
     })
 
     if (is.dev && process.env['ELECTRON_RENDERER_URL']) {
-      this.miniWindow.loadURL(process.env['ELECTRON_RENDERER_URL'] + '/miniWindow.html')
+      void this.miniWindow.loadURL(process.env['ELECTRON_RENDERER_URL'] + '/miniWindow.html')
     } else {
-      this.miniWindow.loadFile(join(__dirname, '../renderer/miniWindow.html'))
+      void this.miniWindow.loadFile(join(__dirname, '../renderer/miniWindow.html'))
     }
 
     return this.miniWindow
@@ -609,7 +657,12 @@ export class WindowService {
       return
     } else if (isMac) {
       this.miniWindow.hide()
-      if (this.appHiddenByMiniWindow) {
+      const majorVersion = parseInt(process.getSystemVersion().split('.')[0], 10)
+      if (majorVersion >= 26) {
+        // on macOS 26+, the popup of the mimiWindow would not change the focus to previous application.
+        return
+      }
+      if (!this.wasMainWindowFocused) {
         app.hide()
       }
       return

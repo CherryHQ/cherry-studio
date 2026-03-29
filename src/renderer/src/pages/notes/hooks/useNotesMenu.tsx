@@ -153,7 +153,7 @@ export const useNotesMenu = ({
           key: 'open_outside',
           icon: <FolderOpen size={14} />,
           onClick: () => {
-            window.api.openPath(node.externalPath)
+            void window.api.openPath(node.externalPath)
           }
         }
       )
@@ -172,7 +172,7 @@ export const useNotesMenu = ({
             key: 'export_knowledge',
             icon: <FileSearch size={14} />,
             onClick: () => {
-              handleExportKnowledge(node)
+              void handleExportKnowledge(node)
             }
           },
           {

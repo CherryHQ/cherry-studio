@@ -580,7 +580,7 @@ const RichEditor = ({
               <GripVertical />
             </Tooltip>
           </DragHandle>
-          <EditorContent style={{ height: '100%' }} editor={editor} />
+          <EditorContent style={{ minHeight: '100%' }} editor={editor} />
         </StyledEditorContent>
       </Scrollbar>
       {enableContentSearch && (
@@ -589,7 +589,7 @@ const RichEditor = ({
           searchTarget={scrollContainerRef as React.RefObject<HTMLElement>}
           filter={{
             acceptNode(node) {
-              const inEditor = (node as Node).parentElement?.closest('.ProseMirror')
+              const inEditor = node.parentElement?.closest('.ProseMirror')
               return inEditor ? NodeFilter.FILTER_ACCEPT : NodeFilter.FILTER_REJECT
             }
           }}

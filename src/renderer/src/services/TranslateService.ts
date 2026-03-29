@@ -1,8 +1,10 @@
 import { loggerService } from '@logger'
 import { db } from '@renderer/databases'
 import type {
+  AssistantSettings,
   CustomTranslateLanguage,
   FetchChatCompletionRequestOptions,
+  ReasoningEffortOption,
   TranslateHistory,
   TranslateLanguage,
   TranslateLanguageCode
@@ -11,6 +13,7 @@ import type { Chunk } from '@renderer/types/chunk'
 import { ChunkType } from '@renderer/types/chunk'
 import { uuid } from '@renderer/utils'
 import { readyToAbort } from '@renderer/utils/abortController'
+import { trackTokenUsage } from '@renderer/utils/analytics'
 import { isAbortError } from '@renderer/utils/error'
 import { NoOutputGeneratedError } from 'ai'
 import { t } from 'i18next'
@@ -19,6 +22,10 @@ import { fetchChatCompletion } from './ApiService'
 import { getDefaultTranslateAssistant } from './AssistantService'
 
 const logger = loggerService.withContext('TranslateService')
+
+type TranslateOptions = {
+  reasoningEffort: ReasoningEffortOption
+}
 
 /**
  * 翻译文本到目标语言
@@ -33,23 +40,31 @@ export const translateText = async (
   text: string,
   targetLanguage: TranslateLanguage,
   onResponse?: (text: string, isComplete: boolean) => void,
-  abortKey?: string
+  abortKey?: string,
+  options?: TranslateOptions
 ) => {
-  let abortError
-  const assistant = getDefaultTranslateAssistant(targetLanguage, text)
+  let error
+  const assistantSettings: Partial<AssistantSettings> | undefined = options
+    ? { reasoning_effort: options?.reasoningEffort }
+    : undefined
+  const assistant = getDefaultTranslateAssistant(targetLanguage, text, assistantSettings)
 
   const signal = abortKey ? readyToAbort(abortKey) : undefined
 
   let translatedText = ''
   let completed = false
+  const model = assistant.model
   const onChunk = (chunk: Chunk) => {
     if (chunk.type === ChunkType.TEXT_DELTA) {
       translatedText = chunk.text
     } else if (chunk.type === ChunkType.TEXT_COMPLETE) {
       completed = true
+    } else if (chunk.type === ChunkType.BLOCK_COMPLETE) {
+      const usage = chunk.response?.usage
+      trackTokenUsage({ usage, model })
     } else if (chunk.type === ChunkType.ERROR) {
+      error = chunk.error
       if (isAbortError(chunk.error)) {
-        abortError = chunk.error
         completed = true
       }
     }
@@ -74,8 +89,8 @@ export const translateText = async (
     }
   }
 
-  if (abortError) {
-    throw abortError
+  if (error !== undefined && !isAbortError(error)) {
+    throw error
   }
 
   const trimmedText = translatedText.trim()
@@ -228,7 +243,7 @@ export const updateTranslateHistory = async (id: string, update: Omit<Partial<Tr
  */
 export const deleteHistory = async (id: string) => {
   try {
-    db.translate_history.delete(id)
+    void db.translate_history.delete(id)
   } catch (e) {
     logger.error('Failed to delete translate history', e as Error)
     throw e
@@ -240,5 +255,5 @@ export const deleteHistory = async (id: string) => {
  * @returns Promise<void>
  */
 export const clearHistory = async () => {
-  db.translate_history.clear()
+  void db.translate_history.clear()
 }

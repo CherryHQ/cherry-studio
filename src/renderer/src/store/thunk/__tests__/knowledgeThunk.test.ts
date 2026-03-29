@@ -1,6 +1,6 @@
 import { addFiles as addFilesAction, addItem, updateNotes } from '@renderer/store/knowledge'
 import type { FileMetadata, KnowledgeItem } from '@renderer/types'
-import { FileTypes } from '@renderer/types'
+import { FILE_TYPE } from '@renderer/types'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { addFilesThunk, addItemThunk, addNoteThunk } from '../knowledgeThunk'
@@ -80,7 +80,7 @@ describe('knowledgeThunk', () => {
       path: '/fake/path/test.pdf',
       size: 1024,
       ext: '.pdf',
-      type: FileTypes.DOCUMENT,
+      type: FILE_TYPE.DOCUMENT,
       created_at: new Date().toISOString(),
       count: 1
     },
@@ -91,7 +91,7 @@ describe('knowledgeThunk', () => {
       path: '/fake/path/document.txt',
       size: 512,
       ext: '.txt',
-      type: FileTypes.TEXT,
+      type: FILE_TYPE.TEXT,
       created_at: new Date().toISOString(),
       count: 1
     }

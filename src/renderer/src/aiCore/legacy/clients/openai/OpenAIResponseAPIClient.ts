@@ -23,7 +23,7 @@ import type {
   Provider,
   ToolCallResponse
 } from '@renderer/types'
-import { FileTypes, WebSearchSource } from '@renderer/types'
+import { FILE_TYPE, WEB_SEARCH_SOURCE } from '@renderer/types'
 import { ChunkType } from '@renderer/types/chunk'
 import type { Message } from '@renderer/types/newMessage'
 import type {
@@ -122,6 +122,7 @@ export class OpenAIResponseAPIClient extends OpenAIBaseClient<
     if (this.sdkInstance) {
       return this.sdkInstance
     }
+    const baseUrl = this.getBaseURL()
 
     if (this.provider.id === 'azure-openai' || this.provider.type === 'azure-openai') {
       return new AzureOpenAI({
@@ -134,7 +135,7 @@ export class OpenAIResponseAPIClient extends OpenAIBaseClient<
       return new OpenAI({
         dangerouslyAllowBrowser: true,
         apiKey: this.apiKey,
-        baseURL: this.getBaseURL(),
+        baseURL: baseUrl,
         defaultHeaders: {
           ...this.defaultHeaders(),
           ...this.provider.extra_headers
@@ -214,7 +215,7 @@ export class OpenAIResponseAPIClient extends OpenAIBaseClient<
           parts.push({
             detail: 'auto',
             type: 'input_image',
-            image_url: image.data as string
+            image_url: image.data
           })
         } else if (imageBlock.url && imageBlock.url.startsWith('data:')) {
           parts.push({
@@ -238,7 +239,7 @@ export class OpenAIResponseAPIClient extends OpenAIBaseClient<
         }
       }
 
-      if ([FileTypes.TEXT, FileTypes.DOCUMENT].includes(file.type)) {
+      if ([FILE_TYPE.TEXT, FILE_TYPE.DOCUMENT].some((type) => file.type === type)) {
         const fileContent = (await window.api.file.read(file.id + file.ext, true)).trim()
         parts.push({
           type: 'input_text',
@@ -575,7 +576,7 @@ export class OpenAIResponseAPIClient extends OpenAIBaseClient<
                     controller.enqueue({
                       type: ChunkType.LLM_WEB_SEARCH_COMPLETE,
                       llm_web_search: {
-                        source: WebSearchSource.OPENAI_RESPONSE,
+                        source: WEB_SEARCH_SOURCE.OPENAI_RESPONSE,
                         results: output.content[0].annotations
                       }
                     })
@@ -711,7 +712,7 @@ export class OpenAIResponseAPIClient extends OpenAIBaseClient<
                 controller.enqueue({
                   type: ChunkType.LLM_WEB_SEARCH_COMPLETE,
                   llm_web_search: {
-                    source: WebSearchSource.OPENAI_RESPONSE,
+                    source: WEB_SEARCH_SOURCE.OPENAI_RESPONSE,
                     results: chunk.part.annotations
                   }
                 })

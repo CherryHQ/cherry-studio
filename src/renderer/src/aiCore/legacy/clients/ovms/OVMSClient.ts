@@ -3,7 +3,8 @@ import { loggerService } from '@logger'
 import { isSupportedModel } from '@renderer/config/models'
 import type { Provider } from '@renderer/types'
 import { objectKeys } from '@renderer/types'
-import { formatApiHost, withoutTrailingApiVersion } from '@renderer/utils'
+import { formatApiHost } from '@renderer/utils'
+import { withoutTrailingApiVersion } from '@shared/utils'
 
 import { OpenAIAPIClient } from '../openai/OpenAIApiClient'
 

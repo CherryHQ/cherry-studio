@@ -13,7 +13,7 @@ interface MessageTokensProps {
 const MessageTokens: React.FC<MessageTokensProps> = ({ message }) => {
   // const { generating } = useRuntime()
   const locateMessage = () => {
-    EventEmitter.emit(EVENT_NAMES.LOCATE_MESSAGE + ':' + message.id, false)
+    void EventEmitter.emit(EVENT_NAMES.LOCATE_MESSAGE + ':' + message.id, false)
   }
 
   const getPrice = () => {
@@ -51,7 +51,7 @@ const MessageTokens: React.FC<MessageTokensProps> = ({ message }) => {
   }
 
   if (!message.usage) {
-    return <div />
+    return null
   }
 
   if (message.role === 'user') {

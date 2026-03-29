@@ -1,4 +1,5 @@
 import { isLinux, isWin } from '@renderer/config/constant'
+import { useSettings } from '@renderer/hooks/useSettings'
 import { Tooltip } from 'antd'
 import { Minus, Square, X } from 'lucide-react'
 import type { SVGProps } from 'react'
@@ -49,10 +50,11 @@ const DEFAULT_DELAY = 1
 const WindowControls: React.FC = () => {
   const [isMaximized, setIsMaximized] = useState(false)
   const { t } = useTranslation()
+  const { useSystemTitleBar } = useSettings()
 
   useEffect(() => {
     // Check initial maximized state
-    window.api.windowControls.isMaximized().then(setIsMaximized)
+    void window.api.windowControls.isMaximized().then(setIsMaximized)
 
     // Listen for maximized state changes
     const unsubscribe = window.api.windowControls.onMaximizedChange(setIsMaximized)
@@ -67,20 +69,25 @@ const WindowControls: React.FC = () => {
     return null
   }
 
+  // Hide on Linux if using system title bar
+  if (isLinux && useSystemTitleBar) {
+    return null
+  }
+
   const handleMinimize = () => {
-    window.api.windowControls.minimize()
+    void window.api.windowControls.minimize()
   }
 
   const handleMaximize = () => {
     if (isMaximized) {
-      window.api.windowControls.unmaximize()
+      void window.api.windowControls.unmaximize()
     } else {
-      window.api.windowControls.maximize()
+      void window.api.windowControls.maximize()
     }
   }
 
   const handleClose = () => {
-    window.api.windowControls.close()
+    void window.api.windowControls.close()
   }
 
   return (

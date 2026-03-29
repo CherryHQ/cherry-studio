@@ -108,7 +108,8 @@ export const PreprocessProviderIds = {
   doc2x: 'doc2x',
   mistral: 'mistral',
   mineru: 'mineru',
-  'open-mineru': 'open-mineru'
+  'open-mineru': 'open-mineru',
+  paddleocr: 'paddleocr'
 } as const
 
 export type PreprocessProviderId = keyof typeof PreprocessProviderIds
@@ -124,7 +125,6 @@ export interface PreprocessProvider {
   apiHost?: string
   model?: string
   options?: any
-  quota?: number
 }
 
 export type KnowledgeBaseParams = {
@@ -155,4 +155,8 @@ export interface KnowledgeSearchResult {
   pageContent: string
   score: number
   metadata: Record<string, any>
+}
+
+export interface PreprocessReadPdfResult {
+  numPages: number
 }

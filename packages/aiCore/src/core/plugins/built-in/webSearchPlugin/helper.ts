@@ -1,11 +1,12 @@
 import { anthropic } from '@ai-sdk/anthropic'
 import { google } from '@ai-sdk/google'
 import { openai } from '@ai-sdk/openai'
+import { xai } from '@ai-sdk/xai'
 import type { InferToolInput, InferToolOutput } from 'ai'
 import { type Tool } from 'ai'
 
-import { createOpenRouterOptions, createXaiOptions, mergeProviderOptions } from '../../../options'
-import type { ProviderOptionsMap } from '../../../options/types'
+import { createOpenRouterOptions, mergeProviderOptions } from '../../../options'
+import type { AiRequestContext } from '../../'
 import type { OpenRouterSearchConfig } from './openrouter'
 
 /**
@@ -15,7 +16,8 @@ export type OpenAISearchConfig = NonNullable<Parameters<typeof openai.tools.webS
 export type OpenAISearchPreviewConfig = NonNullable<Parameters<typeof openai.tools.webSearchPreview>[0]>
 export type AnthropicSearchConfig = NonNullable<Parameters<typeof anthropic.tools.webSearch_20250305>[0]>
 export type GoogleSearchConfig = NonNullable<Parameters<typeof google.tools.googleSearch>[0]>
-export type XAISearchConfig = NonNullable<ProviderOptionsMap['xai']['searchParameters']>
+export type XAIWebSearchConfig = NonNullable<Parameters<typeof xai.tools.webSearch>[0]>
+export type XAIXSearchConfig = NonNullable<Parameters<typeof xai.tools.xSearch>[0]>
 
 type NormalizeTool<T> = T extends Tool<infer INPUT, infer OUTPUT> ? Tool<INPUT, OUTPUT> : Tool<any, any>
 
@@ -23,6 +25,8 @@ type AnthropicWebSearchTool = NormalizeTool<ReturnType<typeof anthropic.tools.we
 type OpenAIWebSearchTool = NormalizeTool<ReturnType<typeof openai.tools.webSearch>>
 type OpenAIChatWebSearchTool = NormalizeTool<ReturnType<typeof openai.tools.webSearchPreview>>
 type GoogleWebSearchTool = NormalizeTool<ReturnType<typeof google.tools.googleSearch>>
+type XAIWebSearchTool = NormalizeTool<ReturnType<typeof xai.tools.webSearch>>
+type XAIXSearchTool = NormalizeTool<ReturnType<typeof xai.tools.xSearch>>
 
 /**
  * 插件初始化时接收的完整配置对象
@@ -33,7 +37,8 @@ export interface WebSearchPluginConfig {
   openai?: OpenAISearchConfig
   'openai-chat'?: OpenAISearchPreviewConfig
   anthropic?: AnthropicSearchConfig
-  xai?: ProviderOptionsMap['xai']['searchParameters']
+  xai?: XAIWebSearchConfig
+  'xai-xsearch'?: XAIXSearchConfig
   google?: GoogleSearchConfig
   openrouter?: OpenRouterSearchConfig
 }
@@ -46,10 +51,10 @@ export const DEFAULT_WEB_SEARCH_CONFIG: WebSearchPluginConfig = {
   openai: {},
   'openai-chat': {},
   xai: {
-    mode: 'on',
-    returnCitations: true,
-    maxSearchResults: 5,
-    sources: [{ type: 'web' }, { type: 'x' }, { type: 'news' }]
+    enableImageUnderstanding: true
+  },
+  'xai-xsearch': {
+    enableImageUnderstanding: true
   },
   anthropic: {
     maxUses: 5
@@ -86,6 +91,9 @@ export type WebSearchToolOutputSchema = {
       web?: { uri: string; title: string }
     }>
   }
+  // xAI 工具
+  xai: InferToolOutput<XAIWebSearchTool>
+  'xai-xsearch': InferToolOutput<XAIXSearchTool>
 }
 
 export type WebSearchToolInputSchema = {
@@ -93,30 +101,89 @@ export type WebSearchToolInputSchema = {
   openai: InferToolInput<OpenAIWebSearchTool>
   google: InferToolInput<GoogleWebSearchTool>
   'openai-chat': InferToolInput<OpenAIChatWebSearchTool>
+  xai: InferToolInput<XAIWebSearchTool>
+  'xai-xsearch': InferToolInput<XAIXSearchTool>
 }
 
-export const switchWebSearchTool = (config: WebSearchPluginConfig, params: any) => {
-  if (config.openai) {
-    if (!params.tools) params.tools = {}
-    params.tools.web_search = openai.tools.webSearch(config.openai)
-  } else if (config['openai-chat']) {
-    if (!params.tools) params.tools = {}
-    params.tools.web_search_preview = openai.tools.webSearchPreview(config['openai-chat'])
-  } else if (config.anthropic) {
-    if (!params.tools) params.tools = {}
-    params.tools.web_search = anthropic.tools.webSearch_20250305(config.anthropic)
-  } else if (config.google) {
-    // case 'google-vertex':
-    if (!params.tools) params.tools = {}
-    params.tools.web_search = google.tools.googleSearch(config.google || {})
-  } else if (config.xai) {
-    const searchOptions = createXaiOptions({
-      searchParameters: { ...config.xai, mode: 'on' }
-    })
-    params.providerOptions = mergeProviderOptions(params.providerOptions, searchOptions)
-  } else if (config.openrouter) {
-    const searchOptions = createOpenRouterOptions(config.openrouter)
-    params.providerOptions = mergeProviderOptions(params.providerOptions, searchOptions)
+/**
+ * Helper function to ensure params.tools object exists
+ */
+const ensureToolsObject = (params: any) => {
+  if (!params.tools) params.tools = {}
+}
+
+/**
+ * Helper function to apply tool-based web search configuration
+ */
+const applyToolBasedSearch = (params: any, toolName: string, toolInstance: any) => {
+  ensureToolsObject(params)
+  params.tools[toolName] = toolInstance
+}
+
+/**
+ * Helper function to apply provider options-based web search configuration
+ */
+const applyProviderOptionsSearch = (params: any, searchOptions: any) => {
+  params.providerOptions = mergeProviderOptions(params.providerOptions, searchOptions)
+}
+
+export const switchWebSearchTool = (config: WebSearchPluginConfig, params: any, context?: AiRequestContext) => {
+  const providerId = context?.providerId
+
+  // Provider-specific configuration map
+  const providerHandlers: Record<string, () => void> = {
+    openai: () => {
+      const cfg = config.openai ?? DEFAULT_WEB_SEARCH_CONFIG.openai
+      applyToolBasedSearch(params, 'web_search', openai.tools.webSearch(cfg))
+    },
+    'openai-chat': () => {
+      const cfg = (config['openai-chat'] ?? DEFAULT_WEB_SEARCH_CONFIG['openai-chat']) as OpenAISearchPreviewConfig
+      applyToolBasedSearch(params, 'web_search_preview', openai.tools.webSearchPreview(cfg))
+    },
+    anthropic: () => {
+      const cfg = config.anthropic ?? DEFAULT_WEB_SEARCH_CONFIG.anthropic
+      applyToolBasedSearch(params, 'web_search', anthropic.tools.webSearch_20250305(cfg))
+    },
+    google: () => {
+      const cfg = (config.google ?? DEFAULT_WEB_SEARCH_CONFIG.google) as GoogleSearchConfig
+      applyToolBasedSearch(params, 'web_search', google.tools.googleSearch(cfg))
+    },
+    xai: () => {
+      const cfg = config.xai ?? DEFAULT_WEB_SEARCH_CONFIG.xai
+      applyToolBasedSearch(params, 'web_search', xai.tools.webSearch(cfg))
+      const xSearchCfg = config['xai-xsearch'] ?? DEFAULT_WEB_SEARCH_CONFIG['xai-xsearch']
+      applyToolBasedSearch(params, 'x_search', xai.tools.xSearch(xSearchCfg))
+    },
+    openrouter: () => {
+      const cfg = (config.openrouter ?? DEFAULT_WEB_SEARCH_CONFIG.openrouter) as OpenRouterSearchConfig
+      const searchOptions = createOpenRouterOptions(cfg)
+      applyProviderOptionsSearch(params, searchOptions)
+    }
   }
+
+  // Try provider-specific handler first
+  const handler = providerId && providerHandlers[providerId]
+  if (handler) {
+    handler()
+    return params
+  }
+
+  // Fallback: apply based on available config keys (prioritized order)
+  const fallbackOrder: Array<keyof WebSearchPluginConfig> = [
+    'openai',
+    'openai-chat',
+    'anthropic',
+    'google',
+    'xai',
+    'openrouter'
+  ]
+
+  for (const key of fallbackOrder) {
+    if (config[key]) {
+      providerHandlers[key]()
+      break
+    }
+  }
+
   return params
 }

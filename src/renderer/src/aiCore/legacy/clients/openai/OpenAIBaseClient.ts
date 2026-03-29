@@ -10,7 +10,6 @@ import {
 import { getStoreSetting } from '@renderer/hooks/useSettings'
 import { getAssistantSettings } from '@renderer/services/AssistantService'
 import store from '@renderer/store'
-import type { SettingsState } from '@renderer/store/settings'
 import { type Assistant, type GenerateImageParams, type Model, type Provider } from '@renderer/types'
 import type {
   OpenAIResponseSdkMessageParam,
@@ -25,10 +24,11 @@ import type {
   OpenAISdkRawOutput,
   ReasoningEffortOptionalParams
 } from '@renderer/types/sdk'
-import { formatApiHost, withoutTrailingSlash } from '@renderer/utils/api'
+import { withoutTrailingSlash } from '@renderer/utils/api'
 import { isOllamaProvider } from '@renderer/utils/provider'
 
 import { BaseApiClient } from '../BaseApiClient'
+import { normalizeAzureOpenAIEndpoint } from './azureOpenAIEndpoint'
 
 const logger = loggerService.withContext('OpenAIBaseClient')
 
@@ -49,8 +49,9 @@ export abstract class OpenAIBaseClient<
   }
 
   // 仅适用于openai
-  override getBaseURL(isSupportedAPIVerion: boolean = true): string {
-    return formatApiHost(this.provider.apiHost, isSupportedAPIVerion)
+  override getBaseURL(): string {
+    // apiHost is formatted when called by AiProvider
+    return this.provider.apiHost
   }
 
   override async generateImage({
@@ -68,7 +69,7 @@ export abstract class OpenAIBaseClient<
     const sdk = await this.getSdkInstance()
     const response = (await sdk.request({
       method: 'post',
-      path: '/images/generations',
+      path: '/v1/images/generations',
       signal,
       body: {
         model,
@@ -87,7 +88,11 @@ export abstract class OpenAIBaseClient<
   }
 
   override async getEmbeddingDimensions(model: Model): Promise<number> {
-    const sdk = await this.getSdkInstance()
+    let sdk: OpenAI = await this.getSdkInstance()
+    if (isOllamaProvider(this.provider)) {
+      const embedBaseUrl = `${this.provider.apiHost.replace(/(\/(api|v1))\/?$/, '')}/v1`
+      sdk = sdk.withOptions({ baseURL: embedBaseUrl })
+    }
 
     const data = await sdk.embeddings.create({
       model: model.id,
@@ -129,7 +134,7 @@ export abstract class OpenAIBaseClient<
       }
 
       if (isOllamaProvider(this.provider)) {
-        const baseUrl = withoutTrailingSlash(this.getBaseURL(false))
+        const baseUrl = withoutTrailingSlash(this.getBaseURL())
           .replace(/\/v1$/, '')
           .replace(/\/api$/, '')
         const response = await fetch(`${baseUrl}/api/tags`, {
@@ -170,6 +175,14 @@ export abstract class OpenAIBaseClient<
         model.id = model.id.trim()
       })
 
+      if (this.provider.id === 'copilot') {
+        return models.filter((model) => {
+          // Filter out models that not enabled for your copilot account
+          // @ts-ignore policy is not typed
+          return model?.policy?.state !== 'disabled' && isSupportedModel(model)
+        })
+      }
+
       return models.filter(isSupportedModel)
     } catch (error) {
       logger.error('Error listing models:', error as Error)
@@ -184,6 +197,7 @@ export abstract class OpenAIBaseClient<
 
     let apiKeyForSdkInstance = this.apiKey
     let baseURLForSdkInstance = this.getBaseURL()
+    logger.debug('baseURLForSdkInstance', { baseURLForSdkInstance })
     let headersForSdkInstance = {
       ...this.defaultHeaders(),
       ...this.provider.extra_headers
@@ -195,7 +209,7 @@ export abstract class OpenAIBaseClient<
       // this.provider.apiKey不允许修改
       // this.provider.apiKey = token
       apiKeyForSdkInstance = token
-      baseURLForSdkInstance = this.getBaseURL(false)
+      baseURLForSdkInstance = this.getBaseURL()
       headersForSdkInstance = {
         ...headersForSdkInstance,
         ...COPILOT_DEFAULT_HEADERS
@@ -207,7 +221,7 @@ export abstract class OpenAIBaseClient<
         dangerouslyAllowBrowser: true,
         apiKey: apiKeyForSdkInstance,
         apiVersion: this.provider.apiVersion,
-        endpoint: this.provider.apiHost
+        endpoint: normalizeAzureOpenAIEndpoint(this.provider.apiHost)
       }) as TSdkInstance
     } else {
       this.sdkInstance = new OpenAI({
@@ -272,7 +286,7 @@ export abstract class OpenAIBaseClient<
       return {}
     }
 
-    const openAI = getStoreSetting('openAI') as SettingsState['openAI']
+    const openAI = getStoreSetting('openAI')
     const summaryText = openAI?.summaryText || 'off'
 
     let summary: string | undefined = undefined

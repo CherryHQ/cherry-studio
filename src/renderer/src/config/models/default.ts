@@ -1,15 +1,8 @@
 import type { Model, SystemProviderId } from '@renderer/types'
 
-export const glm45FlashModel: Model = {
-  id: 'glm-4.5-flash',
-  name: 'GLM-4.5-Flash',
-  provider: 'cherryai',
-  group: 'GLM-4.5'
-}
-
-export const qwen38bModel: Model = {
-  id: 'Qwen/Qwen3-8B',
-  name: 'Qwen3-8B',
+export const qwenModel: Model = {
+  id: 'qwen',
+  name: 'Qwen',
   provider: 'cherryai',
   group: 'Qwen'
 }
@@ -17,13 +10,13 @@ export const qwen38bModel: Model = {
 export const SYSTEM_MODELS: Record<SystemProviderId | 'defaultModel', Model[]> = {
   defaultModel: [
     // Default assistant model
-    glm45FlashModel,
+    qwenModel,
     // Default topic naming model
-    qwen38bModel,
+    qwenModel,
     // Default translation model
-    glm45FlashModel,
+    qwenModel,
     // Default quick assistant model
-    glm45FlashModel
+    qwenModel
   ],
   cherryin: [],
   vertexai: [],
@@ -238,7 +231,6 @@ export const SYSTEM_MODELS: Record<SystemProviderId | 'defaultModel', Model[]> =
       group: 'llama'
     }
   ],
-
   burncloud: [
     { id: 'claude-opus-4-5-20251101', provider: 'burncloud', name: 'Claude 4.5 Opus', group: 'Claude 4.5' },
     { id: 'claude-sonnet-4-5-20250929', provider: 'burncloud', name: 'Claude 4.5 Sonnet', group: 'Claude 4.5' },
@@ -318,13 +310,15 @@ export const SYSTEM_MODELS: Record<SystemProviderId | 'defaultModel', Model[]> =
   ],
   alayanew: [],
   openai: [
-    { id: 'gpt-5.1', provider: 'openai', name: ' GPT 5.1', group: 'GPT 5.1' },
-    { id: 'gpt-5', provider: 'openai', name: ' GPT 5', group: 'GPT 5' },
-    { id: 'gpt-5-mini', provider: 'openai', name: ' GPT 5 Mini', group: 'GPT 5' },
-    { id: 'gpt-5-nano', provider: 'openai', name: ' GPT 5 Nano', group: 'GPT 5' },
-    { id: 'gpt-5-pro', provider: 'openai', name: ' GPT 5 Pro', group: 'GPT 5' },
-    { id: 'gpt-5-chat', provider: 'openai', name: ' GPT 5 Chat', group: 'GPT 5' },
-    { id: 'gpt-image-1', provider: 'openai', name: ' GPT Image 1', group: 'GPT Image' }
+    { id: 'gpt-5.4', provider: 'openai', name: ' GPT 5.4', group: 'gpt-5.4' },
+    { id: 'gpt-5.4-pro', provider: 'openai', name: ' GPT 5.4 Pro', group: 'gpt-5.4' },
+    { id: 'gpt-5.2', provider: 'openai', name: ' GPT 5.2', group: 'gpt-5.2' },
+    { id: 'gpt-5.2-pro', provider: 'openai', name: ' GPT 5.2 Pro', group: 'gpt-5.2' },
+    { id: 'gpt-5.1', provider: 'openai', name: ' GPT 5.1', group: 'gpt-5.1' },
+    { id: 'gpt-5', provider: 'openai', name: ' GPT 5', group: 'gpt-5' },
+    { id: 'gpt-5-pro', provider: 'openai', name: ' GPT 5 Pro', group: 'gpt-5' },
+    { id: 'gpt-5-chat', provider: 'openai', name: ' GPT 5 Chat', group: 'gpt-5' },
+    { id: 'gpt-image-1', provider: 'openai', name: ' GPT Image 1', group: 'gpt-image' }
   ],
   'azure-openai': [
     {
@@ -362,7 +356,7 @@ export const SYSTEM_MODELS: Record<SystemProviderId | 'defaultModel', Model[]> =
     {
       id: 'gemini-3-pro-image-preview',
       provider: 'gemini',
-      name: 'Gemini 3 Pro Image Privew',
+      name: 'Gemini 3 Pro Image Preview',
       group: 'Gemini 3'
     },
     {
@@ -370,9 +364,27 @@ export const SYSTEM_MODELS: Record<SystemProviderId | 'defaultModel', Model[]> =
       provider: 'gemini',
       name: 'Gemini 3 Pro Preview',
       group: 'Gemini 3'
+    },
+    {
+      id: 'gemini-3.1-pro-preview',
+      provider: 'gemini',
+      name: 'Gemini 3.1 Pro Preview',
+      group: 'Gemini 3'
     }
   ],
   anthropic: [
+    {
+      id: 'claude-opus-4-6',
+      provider: 'anthropic',
+      name: 'Claude Opus 4.6',
+      group: 'Claude 4.6'
+    },
+    {
+      id: 'claude-sonnet-4-6',
+      provider: 'anthropic',
+      name: 'Claude Sonnet 4.6',
+      group: 'Claude 4.6'
+    },
     {
       id: 'claude-sonnet-4-5',
       provider: 'anthropic',
@@ -606,6 +618,18 @@ export const SYSTEM_MODELS: Record<SystemProviderId | 'defaultModel', Model[]> =
   ],
   zhipu: [
     {
+      id: 'glm-5',
+      provider: 'zhipu',
+      name: 'GLM-5',
+      group: 'GLM-5'
+    },
+    {
+      id: 'glm-4.7',
+      provider: 'zhipu',
+      name: 'GLM-4.7',
+      group: 'GLM-4.7'
+    },
+    {
       id: 'glm-4.5-flash',
       provider: 'zhipu',
       name: 'GLM-4.5-Flash',
@@ -616,6 +640,30 @@ export const SYSTEM_MODELS: Record<SystemProviderId | 'defaultModel', Model[]> =
       provider: 'zhipu',
       name: 'GLM-4.6',
       group: 'GLM-4.6'
+    },
+    {
+      id: 'glm-4.6v',
+      provider: 'zhipu',
+      name: 'GLM-4.6V',
+      group: 'GLM-4.6V'
+    },
+    {
+      id: 'glm-4.6v-flash',
+      provider: 'zhipu',
+      name: 'GLM-4.6V-Flash',
+      group: 'GLM-4.6V'
+    },
+    {
+      id: 'glm-4.6v-flashx',
+      provider: 'zhipu',
+      name: 'GLM-4.6V-FlashX',
+      group: 'GLM-4.6V'
+    },
+    {
+      id: 'glm-4.7',
+      provider: 'zhipu',
+      name: 'GLM-4.7',
+      group: 'GLM-4.7'
     },
     {
       id: 'glm-4.5',
@@ -669,6 +717,46 @@ export const SYSTEM_MODELS: Record<SystemProviderId | 'defaultModel', Model[]> =
         output_per_million_tokens: 2.5,
         currencySymbol: 'USD'
       }
+    },
+    {
+      id: 'kimi-k2.5',
+      provider: 'moonshot',
+      name: 'Kimi K2.5',
+      group: 'Kimi K2.5',
+      owned_by: 'moonshot',
+      capabilities: [{ type: 'text' }, { type: 'vision' }, { type: 'function_calling' }]
+    },
+    {
+      id: 'kimi-k2-0905-Preview',
+      provider: 'moonshot',
+      name: 'Kimi K2 0905 Preview',
+      group: 'Kimi K2',
+      owned_by: 'moonshot',
+      capabilities: [{ type: 'text' }, { type: 'function_calling' }]
+    },
+    {
+      id: 'kimi-k2-turbo-preview',
+      provider: 'moonshot',
+      name: 'Kimi K2 Turbo Preview',
+      group: 'Kimi K2',
+      owned_by: 'moonshot',
+      capabilities: [{ type: 'text' }, { type: 'function_calling' }]
+    },
+    {
+      id: 'kimi-k2-thinking',
+      provider: 'moonshot',
+      name: 'Kimi K2 Thinking',
+      group: 'Kimi K2 Thinking',
+      owned_by: 'moonshot',
+      capabilities: [{ type: 'text' }, { type: 'function_calling' }]
+    },
+    {
+      id: 'kimi-k2-thinking-turbo',
+      provider: 'moonshot',
+      name: 'Kimi K2 Thinking Turbo',
+      group: 'Kimi K2 Thinking',
+      owned_by: 'moonshot',
+      capabilities: [{ type: 'text' }, { type: 'function_calling' }]
     }
   ],
   baichuan: [
@@ -689,6 +777,42 @@ export const SYSTEM_MODELS: Record<SystemProviderId | 'defaultModel', Model[]> =
       provider: 'baichuan',
       name: 'Baichuan3 Turbo 128k',
       group: 'Baichuan3'
+    },
+    {
+      id: 'Baichuan4-Turbo',
+      provider: 'baichuan',
+      name: 'Baichuan4 Turbo',
+      group: 'Baichuan4'
+    },
+    {
+      id: 'Baichuan4-Air',
+      provider: 'baichuan',
+      name: 'Baichuan4 Air',
+      group: 'Baichuan4'
+    },
+    {
+      id: 'Baichuan-M2',
+      provider: 'baichuan',
+      name: 'Baichuan M2',
+      group: 'Baichuan-M2'
+    },
+    {
+      id: 'Baichuan-M2-Plus',
+      provider: 'baichuan',
+      name: 'Baichuan M2 Plus',
+      group: 'Baichuan-M2'
+    },
+    {
+      id: 'Baichuan-M3',
+      provider: 'baichuan',
+      name: 'Baichuan M3',
+      group: 'Baichuan-M3'
+    },
+    {
+      id: 'Baichuan-M3-Plus',
+      provider: 'baichuan',
+      name: 'Baichuan M3 Plus',
+      group: 'Baichuan-M3'
     }
   ],
   modelscope: [
@@ -724,12 +848,13 @@ export const SYSTEM_MODELS: Record<SystemProviderId | 'defaultModel', Model[]> =
     }
   ],
   dashscope: [
-    { id: 'qwen-vl-plus', name: 'qwen-vl-plus', provider: 'dashscope', group: 'qwen-vl', owned_by: 'system' },
-    { id: 'qwen-coder-plus', name: 'qwen-coder-plus', provider: 'dashscope', group: 'qwen-coder', owned_by: 'system' },
-    { id: 'qwen-flash', name: 'qwen-flash', provider: 'dashscope', group: 'qwen-flash', owned_by: 'system' },
-    { id: 'qwen-plus', name: 'qwen-plus', provider: 'dashscope', group: 'qwen-plus', owned_by: 'system' },
-    { id: 'qwen-max', name: 'qwen-max', provider: 'dashscope', group: 'qwen-max', owned_by: 'system' },
-    { id: 'qwen3-max', name: 'qwen3-max', provider: 'dashscope', group: 'qwen-max', owned_by: 'system' }
+    { id: 'qwen3.5-plus', name: 'Qwen3.5-Plus', provider: 'dashscope', group: 'Qwen' },
+    { id: 'qwen3.5-flash', name: 'Qwen3.5-Flash', provider: 'dashscope', group: 'Qwen' },
+    { id: 'qwen3-max', name: 'Qwen3-Max', provider: 'dashscope', group: 'Qwen' },
+    { id: 'kimi-k2.5', name: 'Kimi K2.5', provider: 'dashscope', group: 'Kimi' },
+    { id: 'glm-5', name: 'GLM-5', provider: 'dashscope', group: 'GLM' },
+    { id: 'MiniMax/MiniMax-M2.5', name: 'MiniMax M2.5', provider: 'dashscope', group: 'MiniMax' },
+    { id: 'deepseek-v3.2', name: 'DeepSeek V3.2', provider: 'dashscope', group: 'DeepSeek' }
   ],
   stepfun: [
     {
@@ -746,6 +871,12 @@ export const SYSTEM_MODELS: Record<SystemProviderId | 'defaultModel', Model[]> =
     }
   ],
   doubao: [
+    {
+      id: 'doubao-seed-1-8-251228',
+      provider: 'doubao',
+      name: 'Doubao-Seed-1.8',
+      group: 'Doubao-Seed-1.8'
+    },
     {
       id: 'doubao-1-5-vision-pro-32k-250115',
       provider: 'doubao',
@@ -871,50 +1002,142 @@ export const SYSTEM_MODELS: Record<SystemProviderId | 'defaultModel', Model[]> =
       provider: 'doubao',
       name: 'Doubao-vision-lite-32k',
       group: 'Doubao-vision-lite-32k'
+    },
+    {
+      id: 'doubao-seed-2-0-pro-260215',
+      provider: 'doubao',
+      name: 'Doubao-Seed-2.0-Pro',
+      group: 'Doubao-Seed-2.0'
+    },
+    {
+      id: 'doubao-seed-2-0-lite-260215',
+      provider: 'doubao',
+      name: 'Doubao-Seed-2.0-Lite',
+      group: 'Doubao-Seed-2.0'
+    },
+    {
+      id: 'doubao-seed-2-0-code-preview-260215',
+      provider: 'doubao',
+      name: 'Doubao-Seed-2.0-Code-Preview',
+      group: 'Doubao-Seed-2.0'
+    },
+    {
+      id: 'doubao-seed-2-0-mini-260215',
+      provider: 'doubao',
+      name: 'Doubao-Seed-2.0-Mini',
+      group: 'Doubao-Seed-2.0'
     }
   ],
   minimax: [
     {
-      id: 'abab6.5s-chat',
+      id: 'MiniMax-M2.7',
       provider: 'minimax',
-      name: 'abab6.5s',
-      group: 'abab6'
+      name: 'MiniMax-M2.7',
+      group: 'M2.7'
     },
     {
-      id: 'abab6.5g-chat',
+      id: 'MiniMax-M2.7-highspeed',
       provider: 'minimax',
-      name: 'abab6.5g',
-      group: 'abab6'
+      name: 'MiniMax-M2.7-highspeed',
+      group: 'M2.7'
     },
     {
-      id: 'abab6.5t-chat',
+      id: 'MiniMax-M2.5',
       provider: 'minimax',
-      name: 'abab6.5t',
-      group: 'abab6'
+      name: 'MiniMax-M2.5',
+      group: 'M2.5'
     },
     {
-      id: 'abab5.5s-chat',
+      id: 'MiniMax-M2.5-highspeed',
       provider: 'minimax',
-      name: 'abab5.5s',
-      group: 'abab5'
+      name: 'MiniMax-M2.5-highspeed',
+      group: 'M2.5'
     },
     {
-      id: 'minimax-text-01',
+      id: 'MiniMax-M2.5-lightning',
       provider: 'minimax',
-      name: 'minimax-01',
-      group: 'minimax-01'
+      name: 'MiniMax-M2.5-lightning',
+      group: 'M2.5'
+    },
+    {
+      id: 'MiniMax-M2.1',
+      provider: 'minimax',
+      name: 'MiniMax-M2.1',
+      group: 'M2.1'
+    },
+    {
+      id: 'MiniMax-M2.1-lightning',
+      provider: 'minimax',
+      name: 'MiniMax-M2.1-lightning',
+      group: 'M2.1'
     },
     {
       id: 'MiniMax-M2',
       provider: 'minimax',
-      name: 'MiniMax M2',
-      group: 'minimax-m2'
+      name: 'MiniMax-M2',
+      group: 'M2'
     },
     {
-      id: 'MiniMax-M2-Stable',
+      id: 'M2-her',
       provider: 'minimax',
-      name: 'MiniMax M2 Stable',
-      group: 'minimax-m2'
+      name: 'M2-her',
+      group: 'M2'
+    }
+  ],
+  'minimax-global': [
+    {
+      id: 'MiniMax-M2.7',
+      provider: 'minimax-global',
+      name: 'MiniMax-M2.7',
+      group: 'M2.7'
+    },
+    {
+      id: 'MiniMax-M2.7-highspeed',
+      provider: 'minimax-global',
+      name: 'MiniMax-M2.7-highspeed',
+      group: 'M2.7'
+    },
+    {
+      id: 'MiniMax-M2.5',
+      provider: 'minimax-global',
+      name: 'MiniMax-M2.5',
+      group: 'M2.5'
+    },
+    {
+      id: 'MiniMax-M2.5-highspeed',
+      provider: 'minimax-global',
+      name: 'MiniMax-M2.5-highspeed',
+      group: 'M2.5'
+    },
+    {
+      id: 'MiniMax-M2.5-lightning',
+      provider: 'minimax-global',
+      name: 'MiniMax-M2.5-lightning',
+      group: 'M2.5'
+    },
+    {
+      id: 'MiniMax-M2.1',
+      provider: 'minimax-global',
+      name: 'MiniMax-M2.1',
+      group: 'M2.1'
+    },
+    {
+      id: 'MiniMax-M2.1-lightning',
+      provider: 'minimax-global',
+      name: 'MiniMax-M2.1-lightning',
+      group: 'M2.1'
+    },
+    {
+      id: 'MiniMax-M2',
+      provider: 'minimax-global',
+      name: 'MiniMax-M2',
+      group: 'M2'
+    },
+    {
+      id: 'M2-her',
+      provider: 'minimax-global',
+      name: 'M2-her',
+      group: 'M2'
     }
   ],
   hyperbolic: [
@@ -1784,6 +2007,82 @@ export const SYSTEM_MODELS: Record<SystemProviderId | 'defaultModel', Model[]> =
       name: 'Qwen 3 235B A22B Instruct',
       provider: 'cerebras',
       group: 'qwen'
+    }
+  ],
+  mimo: [
+    {
+      id: 'mimo-v2-flash',
+      name: 'Mimo V2 Flash',
+      provider: 'mimo',
+      group: 'Mimo'
+    },
+    {
+      id: 'mimo-v2-pro',
+      name: 'Mimo V2 Pro',
+      provider: 'mimo',
+      group: 'Mimo'
+    },
+    {
+      id: 'mimo-v2-omni',
+      name: 'Mimo V2 Omni',
+      provider: 'mimo',
+      group: 'Mimo'
+    }
+  ],
+  zai: [
+    {
+      id: 'glm-5',
+      provider: 'zai',
+      name: 'GLM-5',
+      group: 'GLM-5'
+    },
+    {
+      id: 'glm-4.7',
+      provider: 'zai',
+      name: 'GLM-4.7',
+      group: 'GLM-4.7'
+    },
+    {
+      id: 'glm-4.5-flash',
+      provider: 'zai',
+      name: 'GLM-4.5-Flash',
+      group: 'GLM-4.5'
+    },
+    {
+      id: 'glm-4.6',
+      provider: 'zai',
+      name: 'GLM-4.6',
+      group: 'GLM-4.6'
+    },
+    {
+      id: 'glm-4.6v',
+      provider: 'zai',
+      name: 'GLM-4.6V',
+      group: 'GLM-4.6V'
+    },
+    {
+      id: 'glm-4.6v-flash',
+      provider: 'zai',
+      name: 'GLM-4.6V-Flash',
+      group: 'GLM-4.6V'
+    },
+    {
+      id: 'glm-4.5',
+      provider: 'zai',
+      name: 'GLM-4.5',
+      group: 'GLM-4.5'
+    },
+    {
+      id: 'glm-4.5-air',
+      provider: 'zai',
+      name: 'GLM-4.5-Air',
+      group: 'GLM-4.5'
+    },
+    {
+      id: 'glm-4.5v',
+      provider: 'zai',
+      name: 'GLM-4.5V',
+      group: 'GLM-4.5V'
     }
   ]
 }

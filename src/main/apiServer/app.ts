@@ -9,6 +9,7 @@ import { errorHandler } from './middleware/error'
 import { setupOpenAPIDocumentation } from './middleware/openapi'
 import { agentsRoutes } from './routes/agents'
 import { chatRoutes } from './routes/chat'
+import { knowledgeRoutes } from './routes/knowledge'
 import { mcpRoutes } from './routes/mcp'
 import { messagesProviderRoutes, messagesRoutes } from './routes/messages'
 import { modelsRoutes } from './routes/models'
@@ -120,7 +121,21 @@ app.get('/', (_req, res) => {
     name: 'Cherry Studio API',
     version: '1.0.0',
     endpoints: {
-      health: 'GET /health'
+      health: 'GET /health',
+      docs: 'GET /api-docs',
+      docs_json: 'GET /api-docs.json',
+      chat_completions: 'POST /v1/chat/completions',
+      models: 'GET /v1/models',
+      messages: 'POST /v1/messages',
+      messages_provider: 'POST /:provider/v1/messages',
+      mcps: 'GET /v1/mcps',
+      mcp_server: 'GET /v1/mcps/:server_id',
+      mcp_proxy: 'ALL /v1/mcps/:server_id/mcp',
+      agents: 'GET /v1/agents',
+      agent_sessions: 'GET /v1/agents/:agentId/sessions',
+      session_messages: 'GET /v1/agents/:agentId/sessions/:sessionId/messages',
+      knowledge_bases: 'GET /v1/knowledge-bases',
+      knowledge_search: 'POST /v1/knowledge-bases/search'
     }
   })
 })
@@ -140,6 +155,7 @@ apiRouter.use('/mcps', mcpRoutes)
 apiRouter.use('/messages', extendMessagesTimeout, messagesRoutes)
 apiRouter.use('/models', modelsRoutes)
 apiRouter.use('/agents', agentsRoutes)
+apiRouter.use('/knowledge-bases', knowledgeRoutes)
 app.use('/v1', apiRouter)
 
 // Error handling (must be last)

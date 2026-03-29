@@ -75,9 +75,9 @@ const WebviewContainer = memo(
       const handleDomReady = () => {
         const webviewId = webviewRef.current?.getWebContentsId()
         if (webviewId) {
-          window.api?.webview?.setSpellCheckEnabled?.(webviewId, enableSpellCheck)
+          void window.api?.webview?.setSpellCheckEnabled?.(webviewId, enableSpellCheck)
           // Set link opening behavior for this webview
-          window.api?.webview?.setOpenLinkExternal?.(webviewId, minappsOpenLinkExternal)
+          void window.api?.webview?.setOpenLinkExternal?.(webviewId, minappsOpenLinkExternal)
         }
       }
 
@@ -106,6 +106,51 @@ const WebviewContainer = memo(
       // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [appid, url])
 
+    // Setup keyboard shortcuts handler for print and save
+    useEffect(() => {
+      if (!webviewRef.current) return
+
+      const unsubscribe = window.api?.webview?.onFindShortcut?.(async (payload) => {
+        // Get webviewId when event is triggered
+        const webviewId = webviewRef.current?.getWebContentsId()
+
+        // Only handle events for this webview
+        if (!webviewId || payload.webviewId !== webviewId) return
+
+        const key = payload.key?.toLowerCase()
+        const isModifier = payload.control || payload.meta
+
+        if (!isModifier || !key) return
+
+        try {
+          if (key === 'p') {
+            // Print to PDF
+            logger.info(`Printing webview ${appid} to PDF`)
+            const filePath = await window.api.webview.printToPDF(webviewId)
+            if (filePath) {
+              window.toast?.success?.(`PDF saved to: ${filePath}`)
+              logger.info(`PDF saved to: ${filePath}`)
+            }
+          } else if (key === 's') {
+            // Save as HTML
+            logger.info(`Saving webview ${appid} as HTML`)
+            const filePath = await window.api.webview.saveAsHTML(webviewId)
+            if (filePath) {
+              window.toast?.success?.(`HTML saved to: ${filePath}`)
+              logger.info(`HTML saved to: ${filePath}`)
+            }
+          }
+        } catch (error) {
+          logger.error(`Failed to handle shortcut for webview ${appid}:`, error as Error)
+          window.toast?.error?.(`Failed: ${(error as Error).message}`)
+        }
+      })
+
+      return () => {
+        unsubscribe?.()
+      }
+    }, [appid])
+
     // Update webview settings when they change
     useEffect(() => {
       if (!webviewRef.current) return
@@ -113,8 +158,8 @@ const WebviewContainer = memo(
       try {
         const webviewId = webviewRef.current.getWebContentsId()
         if (webviewId) {
-          window.api?.webview?.setSpellCheckEnabled?.(webviewId, enableSpellCheck)
-          window.api?.webview?.setOpenLinkExternal?.(webviewId, minappsOpenLinkExternal)
+          void window.api?.webview?.setSpellCheckEnabled?.(webviewId, enableSpellCheck)
+          void window.api?.webview?.setOpenLinkExternal?.(webviewId, minappsOpenLinkExternal)
         }
       } catch (error) {
         // WebView may not be ready yet, settings will be applied in dom-ready event

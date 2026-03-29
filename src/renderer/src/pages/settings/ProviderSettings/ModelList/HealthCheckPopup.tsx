@@ -2,7 +2,7 @@ import { Box } from '@renderer/components/Layout'
 import { TopView } from '@renderer/components/TopView'
 import type { Provider } from '@renderer/types'
 import { maskApiKey } from '@renderer/utils/api'
-import { Flex, InputNumber, Modal, Radio, Segmented, Typography } from 'antd'
+import { Divider, Flex, InputNumber, Modal, Radio, Segmented, Typography } from 'antd'
 import { Alert } from 'antd'
 import { useCallback, useMemo, useReducer } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -141,7 +141,6 @@ const PopupContainer: React.FC<Props> = ({ title, apiKeys, resolve }) => {
           <Segmented
             value={keyCheckMode}
             onChange={(value) => dispatch({ type: 'SET_KEY_CHECK_MODE', payload: value as 'single' | 'all' })}
-            size="small"
             options={[
               { value: 'single', label: t('settings.models.check.single') },
               { value: 'all', label: t('settings.models.check.all') }
@@ -153,7 +152,6 @@ const PopupContainer: React.FC<Props> = ({ title, apiKeys, resolve }) => {
           <Segmented
             value={isConcurrent ? 'enabled' : 'disabled'}
             onChange={(value) => dispatch({ type: 'SET_CONCURRENT', payload: value === 'enabled' })}
-            size="small"
             options={[
               { value: 'disabled', label: t('settings.models.check.disabled') },
               { value: 'enabled', label: t('settings.models.check.enabled') }
@@ -167,8 +165,7 @@ const PopupContainer: React.FC<Props> = ({ title, apiKeys, resolve }) => {
             onChange={(value) => dispatch({ type: 'SET_TIMEOUT_SECONDS', payload: value || 15 })}
             min={5}
             max={60}
-            size="small"
-            style={{ width: 90 }}
+            style={{ width: 110 }}
             addonAfter="s"
           />
         </Flex>
@@ -192,6 +189,7 @@ const PopupContainer: React.FC<Props> = ({ title, apiKeys, resolve }) => {
       footer={(_, { OkBtn, CancelBtn }) => (
         <>
           {renderFooter}
+          <Divider />
           <Flex justify="space-between" style={{ marginTop: 16 }}>
             <div /> {/* Empty div for spacing */}
             <Flex gap={8}>
@@ -202,11 +200,10 @@ const PopupContainer: React.FC<Props> = ({ title, apiKeys, resolve }) => {
         </>
       )}>
       <Alert
-        message={t('common.warning')}
         description={t('settings.models.check.disclaimer')}
         type="warning"
         showIcon
-        style={{ fontSize: 12 }}
+        style={{ fontSize: 12, padding: 10, marginTop: 10 }}
       />
 
       {/* API key selection section - only shown for 'single' mode and multiple keys */}

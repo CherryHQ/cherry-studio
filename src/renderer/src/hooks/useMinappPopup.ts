@@ -1,4 +1,4 @@
-import { DEFAULT_MIN_APPS } from '@renderer/config/minapps'
+import { allMinApps } from '@renderer/config/minapps'
 import { useRuntime } from '@renderer/hooks/useRuntime'
 import { useSettings } from '@renderer/hooks/useSettings' // 使用设置中的值
 import NavigationService from '@renderer/services/NavigationService'
@@ -120,10 +120,10 @@ export const useMinappPopup = () => {
     [openMinapp]
   )
 
-  /** Open a minapp by id (look up the minapp in DEFAULT_MIN_APPS) */
+  /** Open a minapp by id (look up the minapp in allMinApps) */
   const openMinappById = useCallback(
     (id: string, keepAlive: boolean = false) => {
-      const app = DEFAULT_MIN_APPS.find((app) => app?.id === id)
+      const app = allMinApps.find((app) => app?.id === id)
       if (app) {
         openMinapp(app, keepAlive)
       }

@@ -74,20 +74,24 @@ export type RequestOptions = Anthropic.RequestOptions | OpenAI.RequestOptions | 
  */
 
 type OpenAIParamsPurified = Omit<OpenAI.Chat.Completions.ChatCompletionCreateParams, 'reasoning_effort' | 'modalities'>
-
+type OpenAIReasoningEffort = NonNullable<OpenAI.ReasoningEffort> | 'auto'
 export type ReasoningEffortOptionalParams = {
   thinking?: { type: 'disabled' | 'enabled' | 'auto'; budget_tokens?: number }
   reasoning?: { max_tokens?: number; exclude?: boolean; effort?: string; enabled?: boolean } | OpenAI.Reasoning
-  reasoningEffort?: OpenAI.Chat.Completions.ChatCompletionCreateParams['reasoning_effort'] | 'none' | 'auto'
+  reasoningEffort?: OpenAIReasoningEffort
   // WARN: This field will be overwrite to undefined by aisdk if the provider is openai-compatible. Use reasoningEffort instead.
-  reasoning_effort?: OpenAI.Chat.Completions.ChatCompletionCreateParams['reasoning_effort'] | 'none' | 'auto'
+  reasoning_effort?: OpenAIReasoningEffort
   enable_thinking?: boolean
   thinking_budget?: number
   incremental_output?: boolean
   enable_reasoning?: boolean
-  // nvidia
+  // nvidia, etc.
   chat_template_kwargs?: {
-    thinking: boolean
+    thinking?: boolean
+    enable_thinking?: boolean
+    // mainstream inference backend doesn't support thinking_budget, so it may not work as expected
+    // https://github.com/vllm-project/vllm/issues/17887
+    thinking_budget?: number
   }
   extra_body?: {
     google?: {
@@ -100,7 +104,7 @@ export type ReasoningEffortOptionalParams = {
       type: 'enabled' | 'disabled'
     }
     thinking_budget?: number
-    reasoning_effort?: OpenAI.Chat.Completions.ChatCompletionCreateParams['reasoning_effort'] | 'auto'
+    reasoning_effort?: OpenAIReasoningEffort
   }
   disable_reasoning?: boolean
   // Add any other potential reasoning-related keys here if they exist

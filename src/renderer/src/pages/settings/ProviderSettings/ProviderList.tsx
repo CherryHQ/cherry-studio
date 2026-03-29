@@ -13,14 +13,16 @@ import ImageStorage from '@renderer/services/ImageStorage'
 import type { Provider, ProviderType } from '@renderer/types'
 import { isSystemProvider } from '@renderer/types'
 import { getFancyProviderName, matchKeywordsInModel, matchKeywordsInProvider, uuid } from '@renderer/utils'
+import { isAnthropicSupportedProvider } from '@renderer/utils/provider'
 import type { MenuProps } from 'antd'
 import { Button, Dropdown, Input, Tag } from 'antd'
-import { GripVertical, PlusIcon, Search, UserPen } from 'lucide-react'
+import { Check, Filter, GripVertical, PlusIcon, Search, UserPen } from 'lucide-react'
 import type { FC } from 'react'
 import { startTransition, useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useSearchParams } from 'react-router-dom'
 import styled from 'styled-components'
+import useSWRImmutable from 'swr/immutable'
 
 import AddProviderPopup from './AddProviderPopup'
 import ModelNotesPopup from './ModelNotesPopup'
@@ -30,10 +32,23 @@ import UrlSchemaInfoPopup from './UrlSchemaInfoPopup'
 const logger = loggerService.withContext('ProviderList')
 
 const BUTTON_WRAPPER_HEIGHT = 50
-const systemType = await window.api.system.getDeviceType()
-const cpuName = await window.api.system.getCpuName()
 
-const ProviderList: FC = () => {
+const getIsOvmsSupported = async (): Promise<boolean> => {
+  try {
+    const result = await window.api.ovms.isSupported()
+    return result
+  } catch (e) {
+    logger.warn('Fetching isOvmsSupported failed. Fallback to false.', e as Error)
+    return false
+  }
+}
+
+interface ProviderListProps {
+  /** Whether in onboarding mode for new users */
+  isOnboarding?: boolean
+}
+
+const ProviderList: FC<ProviderListProps> = ({ isOnboarding = false }) => {
   const [searchParams, setSearchParams] = useSearchParams()
   const providers = useAllProviders()
   const { updateProviders, addProvider, removeProvider, updateProvider } = useProviders()
@@ -42,8 +57,11 @@ const ProviderList: FC = () => {
   const { t } = useTranslation()
   const [searchText, setSearchText] = useState<string>('')
   const [dragging, setDragging] = useState(false)
+  const [agentFilterEnabled, setAgentFilterEnabled] = useState(false)
   const [providerLogos, setProviderLogos] = useState<Record<string, string>>({})
   const listRef = useRef<DraggableVirtualListRef>(null)
+
+  const { data: isOvmsSupported } = useSWRImmutable('ovms/isSupported', getIsOvmsSupported)
 
   const setSelectedProvider = useCallback((provider: Provider) => {
     startTransition(() => _setSelectedProvider(provider))
@@ -67,11 +85,20 @@ const ProviderList: FC = () => {
       setProviderLogos(logos)
     }
 
-    loadAllLogos()
+    void loadAllLogos()
   }, [providers])
 
   useEffect(() => {
-    if (searchParams.get('id')) {
+    let shouldUpdate = false
+    const hasFilterParam = searchParams.get('filter') === 'agent'
+
+    // Handle filter param first - when filter is enabled, ignore id param
+    if (hasFilterParam) {
+      setAgentFilterEnabled(true)
+      searchParams.delete('filter')
+      searchParams.delete('id') // Clear id param when filter is enabled
+      shouldUpdate = true
+    } else if (searchParams.get('id')) {
       const providerId = searchParams.get('id')
       const provider = providers.find((p) => p.id === providerId)
       if (provider) {
@@ -89,6 +116,10 @@ const ProviderList: FC = () => {
         setSelectedProvider(providers[0])
       }
       searchParams.delete('id')
+      shouldUpdate = true
+    }
+
+    if (shouldUpdate) {
       setSearchParams(searchParams)
     }
   }, [providers, searchParams, setSearchParams, setSelectedProvider, setTimeoutTimer])
@@ -135,7 +166,7 @@ const ProviderList: FC = () => {
         return
       }
 
-      handleProviderAddKey({ id, apiKey: newApiKey, baseUrl, type, name })
+      void handleProviderAddKey({ id, apiKey: newApiKey, baseUrl, type, name })
     } catch (error) {
       window.toast.error(t('settings.models.provider_key_add_failed_by_invalid_data'))
       window.navigate('/settings/provider')
@@ -172,7 +203,7 @@ const ProviderList: FC = () => {
         setProviderLogos(updatedLogos)
       } catch (error) {
         logger.error('Failed to save logo', error as Error)
-        window.toast.error('保存Provider Logo失败')
+        window.toast.error(t('message.error.save_provider_logo'))
       }
     }
 
@@ -207,7 +238,7 @@ const ProviderList: FC = () => {
                 }))
               } catch (error) {
                 logger.error('Failed to save logo', error as Error)
-                window.toast.error('更新Provider Logo失败')
+                window.toast.error(t('message.error.update_provider_logo'))
               }
             } else if (logo === undefined && logoFile === undefined) {
               try {
@@ -278,7 +309,13 @@ const ProviderList: FC = () => {
   }
 
   const filteredProviders = providers.filter((provider) => {
-    if (provider.id === 'ovms' && (systemType !== 'windows' || !cpuName.toLowerCase().includes('intel'))) {
+    // don't show it when isOvmsSupported is loading
+    if (provider.id === 'ovms' && !isOvmsSupported) {
+      return false
+    }
+
+    // Filter by agent support
+    if (agentFilterEnabled && !isAnthropicSupportedProvider(provider)) {
       return false
     }
 
@@ -316,7 +353,34 @@ const ProviderList: FC = () => {
             placeholder={t('settings.provider.search')}
             value={searchText}
             style={{ borderRadius: 'var(--list-item-border-radius)', height: 35 }}
-            suffix={<Search size={14} />}
+            prefix={<Search size={14} />}
+            suffix={
+              <Dropdown
+                menu={{
+                  items: [
+                    {
+                      label: t('settings.provider.filter.all'),
+                      key: 'all',
+                      icon: agentFilterEnabled ? <CheckPlaceholder /> : <Check size={14} />,
+                      onClick: () => setAgentFilterEnabled(false)
+                    },
+                    {
+                      label: t('settings.provider.filter.agent'),
+                      key: 'agent',
+                      icon: agentFilterEnabled ? <Check size={14} /> : <CheckPlaceholder />,
+                      onClick: () => setAgentFilterEnabled(true)
+                    }
+                  ]
+                }}
+                trigger={['click']}>
+                <FilterButton>
+                  <Filter
+                    size={14}
+                    className={agentFilterEnabled ? 'text-[var(--color-primary)]' : 'text-[var(--color-text-3)]'}
+                  />
+                </FilterButton>
+              </Dropdown>
+            }
             onChange={(e) => setSearchText(e.target.value)}
             onKeyDown={(e) => {
               if (e.key === 'Escape') {
@@ -381,7 +445,7 @@ const ProviderList: FC = () => {
           </Button>
         </AddButtonWrapper>
       </ProviderListContainer>
-      <ProviderSetting providerId={selectedProvider.id} key={selectedProvider.id} />
+      <ProviderSetting providerId={selectedProvider.id} key={selectedProvider.id} isOnboarding={isOnboarding} />
     </Container>
   )
 }
@@ -397,7 +461,6 @@ const ProviderListContainer = styled.div`
   display: flex;
   flex-direction: column;
   min-width: calc(var(--settings-width) + 10px);
-  height: calc(100vh - var(--navbar-height));
   padding-bottom: 5px;
   border-right: 0.5px solid var(--color-border);
 `
@@ -455,6 +518,22 @@ const AddButtonWrapper = styled.div`
   justify-content: center;
   align-items: center;
   padding: 10px 8px;
+`
+
+const FilterButton = styled.div`
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  border-radius: 4px;
+  cursor: pointer;
+`
+
+const CheckPlaceholder = styled.span`
+  display: inline-block;
+  width: 14px;
+  height: 14px;
 `
 
 export default ProviderList

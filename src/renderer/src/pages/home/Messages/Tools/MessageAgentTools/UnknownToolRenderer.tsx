@@ -1,9 +1,9 @@
-import { useCodeStyle } from '@renderer/context/CodeStyleProvider'
 import type { CollapseProps } from 'antd'
 import { Wrench } from 'lucide-react'
-import { useEffect, useState } from 'react'
+import { useTranslation } from 'react-i18next'
 
-import { ToolTitle } from './GenericTools'
+import { ToolArgsTable } from '../shared/ArgsTable'
+import { ToolHeader } from './GenericTools'
 
 interface UnknownToolProps {
   toolName: string
@@ -21,75 +21,54 @@ const getToolDisplayName = (name: string) => {
   return name
 }
 
-const getToolDescription = (toolName: string) => {
-  if (toolName.startsWith('mcp__')) {
-    return 'MCP Server Tool'
-  }
-  return 'Tool'
-}
-
-const UnknownToolContent = ({ input, output }: { input?: unknown; output?: unknown }) => {
-  const { highlightCode } = useCodeStyle()
-  const [inputHtml, setInputHtml] = useState<string>('')
-  const [outputHtml, setOutputHtml] = useState<string>('')
-
-  useEffect(() => {
-    if (input !== undefined) {
-      const inputStr = JSON.stringify(input, null, 2)
-      highlightCode(inputStr, 'json').then(setInputHtml)
-    }
-  }, [input, highlightCode])
-
-  useEffect(() => {
-    if (output !== undefined) {
-      const outputStr = JSON.stringify(output, null, 2)
-      highlightCode(outputStr, 'json').then(setOutputHtml)
-    }
-  }, [output, highlightCode])
-
-  if (input === undefined && output === undefined) {
-    return <div className="text-foreground-500 text-xs">No data available for this tool</div>
-  }
-
-  return (
-    <div className="space-y-3">
-      {input !== undefined && (
-        <div>
-          <div className="mb-1 font-semibold text-foreground-600 text-xs dark:text-foreground-400">Input:</div>
-          <div
-            className="overflow-x-auto rounded bg-gray-50 dark:bg-gray-900"
-            dangerouslySetInnerHTML={{ __html: inputHtml }}
-          />
-        </div>
-      )}
-
-      {output !== undefined && (
-        <div>
-          <div className="mb-1 font-semibold text-foreground-600 text-xs dark:text-foreground-400">Output:</div>
-          <div
-            className="rounded bg-gray-50 dark:bg-gray-900 [&>*]:whitespace-pre-line"
-            dangerouslySetInnerHTML={{ __html: outputHtml }}
-          />
-        </div>
-      )}
-    </div>
-  )
-}
-
+/**
+ * Fallback renderer for unknown tool types
+ * Uses shared ArgsTable for consistent styling with MCP tools
+ */
 export function UnknownToolRenderer({
   toolName = '',
   input,
   output
 }: UnknownToolProps): NonNullable<CollapseProps['items']>[number] {
+  const { t } = useTranslation()
+
+  const getToolDescription = (name: string) => {
+    if (name.startsWith('mcp__')) {
+      return t('message.tools.labels.mcpServerTool')
+    }
+    return t('message.tools.labels.tool')
+  }
+
+  // Normalize input/output for table display
+  const normalizeArgs = (value: unknown): Record<string, unknown> | unknown[] | null => {
+    if (value === undefined || value === null) return null
+    if (typeof value === 'object') return value as Record<string, unknown> | unknown[]
+    // Wrap primitive values
+    return { value }
+  }
+
+  const normalizedInput = normalizeArgs(input)
+  const normalizedOutput = normalizeArgs(output)
+
   return {
     key: 'unknown-tool',
     label: (
-      <ToolTitle
+      <ToolHeader
+        toolName={getToolDisplayName(toolName)}
         icon={<Wrench className="h-4 w-4" />}
-        label={getToolDisplayName(toolName)}
         params={getToolDescription(toolName)}
+        variant="collapse-label"
+        showStatus={false}
       />
     ),
-    children: <UnknownToolContent input={input} output={output} />
+    children: (
+      <div className="space-y-1">
+        {normalizedInput && <ToolArgsTable args={normalizedInput} title={t('message.tools.sections.input')} />}
+        {normalizedOutput && <ToolArgsTable args={normalizedOutput} title={t('message.tools.sections.output')} />}
+        {!normalizedInput && !normalizedOutput && (
+          <div className="p-3 text-foreground-500 text-xs">{t('message.tools.noData')}</div>
+        )}
+      </div>
+    )
   }
 }

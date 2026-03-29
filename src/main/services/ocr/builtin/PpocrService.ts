@@ -67,7 +67,8 @@ export class PpocrService extends OcrBaseService {
     } satisfies OcrPayload
 
     const headers: Record<string, string> = {
-      'Content-Type': 'application/json'
+      'Content-Type': 'application/json',
+      'Client-Platform': 'cherry-studio'
     }
 
     if (options.accessToken) {

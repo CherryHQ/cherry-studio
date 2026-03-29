@@ -4,6 +4,7 @@ import {
   isSupportedThinkingTokenQwenModel,
   isVisionModel
 } from '@renderer/config/models'
+import { isQwen35Model } from '@renderer/config/models/qwen'
 import type { Model } from '@renderer/types'
 import { beforeEach, describe, expect, test, vi } from 'vitest'
 
@@ -53,27 +54,70 @@ describe('Qwen Model Detection', () => {
   test('isQwenReasoningModel', () => {
     expect(isQwenReasoningModel({ id: 'qwen3-thinking' } as Model)).toBe(true)
     expect(isQwenReasoningModel({ id: 'qwen3-instruct' } as Model)).toBe(false)
-    expect(isQwenReasoningModel({ id: 'qwen3-max' } as Model)).toBe(false)
+    expect(isQwenReasoningModel({ id: 'qwen3-max' } as Model)).toBe(true)
     expect(isQwenReasoningModel({ id: 'qwen3-8b' } as Model)).toBe(true)
     expect(isQwenReasoningModel({ id: 'qwq-32b' } as Model)).toBe(true)
     expect(isQwenReasoningModel({ id: 'qwen-plus' } as Model)).toBe(true)
     expect(isQwenReasoningModel({ id: 'qwen3-coder' } as Model)).toBe(false)
+    // Qwen 3.5 series
+    expect(isQwenReasoningModel({ id: 'qwen3.5-plus' } as Model)).toBe(true)
+    expect(isQwenReasoningModel({ id: 'qwen3.5-plus-2026-02-15' } as Model)).toBe(true)
+    expect(isQwenReasoningModel({ id: 'qwen3.5-397b-a17b' } as Model)).toBe(true)
   })
 
   test('isSupportedThinkingTokenQwenModel', () => {
-    expect(isSupportedThinkingTokenQwenModel({ id: 'qwen3-max' } as Model)).toBe(false)
+    // dashscope variants
+    // max
+    expect(isSupportedThinkingTokenQwenModel({ id: 'qwen3-max' } as Model)).toBe(true)
+    expect(isSupportedThinkingTokenQwenModel({ id: 'qwen3-max-2026-01-23' } as Model)).toBe(true)
+    expect(isSupportedThinkingTokenQwenModel({ id: 'qwen3-max-2025-09-23' } as Model)).toBe(false)
+    expect(isSupportedThinkingTokenQwenModel({ id: 'qwen3-max-preview' } as Model)).toBe(true)
+    expect(isSupportedThinkingTokenQwenModel({ id: 'qwen-max' } as Model)).toBe(false)
+    expect(isSupportedThinkingTokenQwenModel({ id: 'qwen-max-latest' } as Model)).toBe(true)
+    // plus
+    expect(isSupportedThinkingTokenQwenModel({ id: 'qwen3.5-plus' } as Model)).toBe(true)
+    expect(isSupportedThinkingTokenQwenModel({ id: 'qwen-plus' } as Model)).toBe(true)
+    expect(isSupportedThinkingTokenQwenModel({ id: 'qwen-plus-latest' } as Model)).toBe(true)
+    expect(isSupportedThinkingTokenQwenModel({ id: 'qwen3.5-plus-2026-02-15' } as Model)).toBe(true)
+    // flash
+    expect(isSupportedThinkingTokenQwenModel({ id: 'qwen3.5-flash' } as Model)).toBe(true)
+    expect(isSupportedThinkingTokenQwenModel({ id: 'qwen3.5-flash-2026-02-23' } as Model)).toBe(true)
+    expect(isSupportedThinkingTokenQwenModel({ id: 'qwen-flash' } as Model)).toBe(true)
+    expect(isSupportedThinkingTokenQwenModel({ id: 'qwen-flash-2025-07-28' } as Model)).toBe(true)
+    // turbo (deprecated variant in dashscope)
+    expect(isSupportedThinkingTokenQwenModel({ id: 'qwen-turbo' } as Model)).toBe(true)
+    expect(isSupportedThinkingTokenQwenModel({ id: 'qwen-turbo-latest' } as Model)).toBe(true)
+
+    // opensource variants
     expect(isSupportedThinkingTokenQwenModel({ id: 'qwen3-instruct' } as Model)).toBe(false)
     expect(isSupportedThinkingTokenQwenModel({ id: 'qwen3-thinking' } as Model)).toBe(false)
     expect(isSupportedThinkingTokenQwenModel({ id: 'qwen3-8b' } as Model)).toBe(true)
     expect(isSupportedThinkingTokenQwenModel({ id: 'qwen3-235b-a22b-thinking-2507' } as Model)).toBe(false)
-    expect(isSupportedThinkingTokenQwenModel({ id: 'qwen-plus' } as Model)).toBe(true)
     expect(isSupportedThinkingTokenQwenModel({ id: 'qwq-32b' } as Model)).toBe(false)
     expect(isSupportedThinkingTokenQwenModel({ id: 'qwen3-coder' } as Model)).toBe(false)
+    expect(isSupportedThinkingTokenQwenModel({ id: 'qwen3.5-397b-a17b' } as Model)).toBe(true)
+    expect(isSupportedThinkingTokenQwenModel({ id: 'qwen3.5-thinking' } as Model)).toBe(false)
+    expect(isSupportedThinkingTokenQwenModel({ id: 'qwen3.5-instruct' } as Model)).toBe(false)
   })
 
   test('isVisionModel', () => {
     expect(isVisionModel({ id: 'qwen-vl-max' } as Model)).toBe(true)
     expect(isVisionModel({ id: 'qwen-omni-turbo' } as Model)).toBe(true)
+  })
+
+  test('isQwen35Model', () => {
+    // Qwen 3.5 series
+    expect(isQwen35Model({ id: 'qwen3.5-plus' } as Model)).toBe(true)
+    expect(isQwen35Model({ id: 'qwen3.5-plus-2026-02-15' } as Model)).toBe(true)
+    expect(isQwen35Model({ id: 'qwen3.5-flash' } as Model)).toBe(true)
+    expect(isQwen35Model({ id: 'qwen3.5-397b-a17b' } as Model)).toBe(true)
+    expect(isQwen35Model({ id: 'qwen3.5-thinking' } as Model)).toBe(true)
+    expect(isQwen35Model({ id: 'qwen3.5-instruct' } as Model)).toBe(true)
+    // Not Qwen 3.5
+    expect(isQwen35Model({ id: 'qwen3-max' } as Model)).toBe(false)
+    expect(isQwen35Model({ id: 'qwen3-8b' } as Model)).toBe(false)
+    expect(isQwen35Model({ id: 'qwen-plus' } as Model)).toBe(false)
+    expect(isQwen35Model(undefined)).toBe(false)
   })
 })
 

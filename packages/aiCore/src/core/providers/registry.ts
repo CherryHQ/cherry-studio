@@ -30,7 +30,7 @@ export { globalRegistryManagement as providerRegistry }
 // ==================== 便捷访问方法 ====================
 
 export const getLanguageModel = (id: string) => globalRegistryManagement.languageModel(id as any)
-export const getTextEmbeddingModel = (id: string) => globalRegistryManagement.textEmbeddingModel(id as any)
+export const getTextEmbeddingModel = (id: string) => globalRegistryManagement.embeddingModel(id as any)
 export const getImageModel = (id: string) => globalRegistryManagement.imageModel(id as any)
 
 // ==================== 工具函数 ====================
@@ -187,15 +187,9 @@ export function registerProvider(providerId: string, provider: any): boolean {
       })
       globalRegistryManagement.registerProvider(`${providerId}-chat`, openaiChatProvider)
     } else if (providerId === 'azure') {
-      globalRegistryManagement.registerProvider(`${providerId}-chat`, provider, aliases)
-      // 跟上面相反,creator产出的默认会调用chat
-      const azureResponsesProvider = customProvider({
-        fallbackProvider: {
-          ...provider,
-          languageModel: (modelId: string) => provider.responses(modelId)
-        }
-      })
-      globalRegistryManagement.registerProvider(providerId, azureResponsesProvider)
+      globalRegistryManagement.registerProvider(providerId, provider, aliases)
+      // Keep the resolver's azure-chat fallback aligned with the local provider creator.
+      globalRegistryManagement.registerProvider(`${providerId}-chat`, provider)
     } else {
       // 其他provider直接注册
       globalRegistryManagement.registerProvider(providerId, provider, aliases)

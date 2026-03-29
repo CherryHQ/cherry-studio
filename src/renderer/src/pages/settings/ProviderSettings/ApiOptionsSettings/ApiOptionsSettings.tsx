@@ -1,8 +1,9 @@
 import { HStack } from '@renderer/components/Layout'
 import { InfoTooltip } from '@renderer/components/TooltipIcons'
 import { useProvider } from '@renderer/hooks/useProvider'
-import type { Provider } from '@renderer/types'
-import { Flex, Switch } from 'antd'
+import { type AnthropicCacheControlSettings, type Provider } from '@renderer/types'
+import { isSupportAnthropicPromptCacheProvider } from '@renderer/utils/provider'
+import { Divider, Flex, InputNumber, Switch } from 'antd'
 import { startTransition, useCallback, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -114,6 +115,27 @@ const ApiOptionsSettings = ({ providerId }: Props) => {
     return items
   }, [openAIOptions, provider.apiOptions, provider.type, t, updateProviderTransition])
 
+  const isSupportAnthropicPromptCache = isSupportAnthropicPromptCacheProvider(provider)
+
+  const cacheSettings = useMemo(
+    () =>
+      provider.anthropicCacheControl ?? {
+        tokenThreshold: 0,
+        cacheSystemMessage: true,
+        cacheLastNMessages: 0
+      },
+    [provider.anthropicCacheControl]
+  )
+
+  const updateCacheSettings = useCallback(
+    (updates: Partial<AnthropicCacheControlSettings>) => {
+      updateProviderTransition({
+        anthropicCacheControl: { ...cacheSettings, ...updates }
+      })
+    },
+    [cacheSettings, updateProviderTransition]
+  )
+
   return (
     <Flex vertical gap="middle">
       {options.map((item) => (
@@ -127,6 +149,52 @@ const ApiOptionsSettings = ({ providerId }: Props) => {
           <Switch id={item.key} checked={item.checked} onChange={item.onChange} />
         </HStack>
       ))}
+
+      {isSupportAnthropicPromptCache && (
+        <>
+          <Divider style={{ margin: '8px 0' }} />
+          <HStack justifyContent="space-between">
+            <HStack alignItems="center" gap={6}>
+              <span>{t('settings.provider.api.options.anthropic_cache.token_threshold')}</span>
+              <InfoTooltip title={t('settings.provider.api.options.anthropic_cache.token_threshold_help')} />
+            </HStack>
+            <InputNumber
+              min={0}
+              max={100000}
+              value={cacheSettings.tokenThreshold}
+              onChange={(v) => updateCacheSettings({ tokenThreshold: v ?? 0 })}
+              style={{ width: 100 }}
+            />
+          </HStack>
+          {cacheSettings.tokenThreshold > 0 && (
+            <>
+              <HStack justifyContent="space-between">
+                <HStack alignItems="center" gap={6}>
+                  <span>{t('settings.provider.api.options.anthropic_cache.cache_system')}</span>
+                  <InfoTooltip title={t('settings.provider.api.options.anthropic_cache.cache_system_help')} />
+                </HStack>
+                <Switch
+                  checked={cacheSettings.cacheSystemMessage}
+                  onChange={(v) => updateCacheSettings({ cacheSystemMessage: v })}
+                />
+              </HStack>
+              <HStack justifyContent="space-between">
+                <HStack alignItems="center" gap={6}>
+                  <span>{t('settings.provider.api.options.anthropic_cache.cache_last_n')}</span>
+                  <InfoTooltip title={t('settings.provider.api.options.anthropic_cache.cache_last_n_help')} />
+                </HStack>
+                <InputNumber
+                  min={0}
+                  max={10}
+                  value={cacheSettings.cacheLastNMessages}
+                  onChange={(v) => updateCacheSettings({ cacheLastNMessages: v ?? 0 })}
+                  style={{ width: 100 }}
+                />
+              </HStack>
+            </>
+          )}
+        </>
+      )}
     </Flex>
   )
 }

@@ -3,12 +3,10 @@ import { isMac } from '@renderer/config/constant'
 import { isLocalAi } from '@renderer/config/env'
 import { useTheme } from '@renderer/context/ThemeProvider'
 import db from '@renderer/databases'
-import i18n from '@renderer/i18n'
+import i18n, { setDayjsLocale } from '@renderer/i18n'
 import KnowledgeQueue from '@renderer/queue/KnowledgeQueue'
 import MemoryService from '@renderer/services/MemoryService'
-import { useAppDispatch } from '@renderer/store'
-import { useAppSelector } from '@renderer/store'
-import { handleSaveData } from '@renderer/store'
+import { handleSaveData, useAppDispatch, useAppSelector } from '@renderer/store'
 import { selectMemoryConfig } from '@renderer/store/memory'
 import { setAvatar, setFilesPath, setResourcesPath, setUpdateState } from '@renderer/store/runtime'
 import {
@@ -18,6 +16,7 @@ import {
 } from '@renderer/store/toolPermissions'
 import { delay, runAsyncFunction } from '@renderer/utils'
 import { checkDataLimit } from '@renderer/utils'
+import { sendToolApprovalNotification } from '@renderer/utils/userConfirmation'
 import { defaultLanguage } from '@shared/config/constant'
 import { IpcChannel } from '@shared/IpcChannel'
 import { useLiveQuery } from 'dexie-react-hooks'
@@ -62,7 +61,7 @@ export function useAppInit() {
   }, [])
 
   useEffect(() => {
-    window.api.getDataPathFromArgs().then((dataPath) => {
+    void window.api.getDataPathFromArgs().then((dataPath) => {
       if (dataPath) {
         window.navigate('/settings/data', { replace: true })
       }
@@ -95,7 +94,7 @@ export function useAppInit() {
     }
 
     // Initial check with delay
-    runAsyncFunction(async () => {
+    void runAsyncFunction(async () => {
       const { isPackaged } = await window.api.getAppInfo()
       if (isPackaged && autoCheckUpdate) {
         await delay(2)
@@ -112,17 +111,19 @@ export function useAppInit() {
 
   useEffect(() => {
     if (proxyMode === 'system') {
-      window.api.setProxy('system', undefined)
+      void window.api.setProxy('system', undefined)
     } else if (proxyMode === 'custom') {
-      proxyUrl && window.api.setProxy(proxyUrl, proxyBypassRules)
+      void (proxyUrl && window.api.setProxy(proxyUrl, proxyBypassRules))
     } else {
       // set proxy to none for direct mode
-      window.api.setProxy('', undefined)
+      void window.api.setProxy('', undefined)
     }
   }, [proxyUrl, proxyMode, proxyBypassRules])
 
   useEffect(() => {
-    i18n.changeLanguage(language || navigator.language || defaultLanguage)
+    const currentLanguage = language || navigator.language || defaultLanguage
+    void i18n.changeLanguage(currentLanguage)
+    setDayjsLocale(currentLanguage)
   }, [language])
 
   useEffect(() => {
@@ -148,14 +149,14 @@ export function useAppInit() {
 
   useEffect(() => {
     // set files path
-    window.api.getAppInfo().then((info) => {
+    void window.api.getAppInfo().then((info) => {
       dispatch(setFilesPath(info.filesPath))
       dispatch(setResourcesPath(info.resourcesPath))
     })
   }, [dispatch])
 
   useEffect(() => {
-    KnowledgeQueue.checkAllBases()
+    void KnowledgeQueue.checkAllBases()
   }, [])
 
   useEffect(() => {
@@ -179,20 +180,15 @@ export function useAppInit() {
       logger.debug('Renderer received tool permission request', {
         requestId: payload.requestId,
         toolName: payload.toolName,
-        expiresAt: payload.expiresAt,
         suggestionCount: payload.suggestions.length,
         autoApprove: payload.autoApprove
       })
-      dispatch(toolPermissionsActions.requestReceived(payload))
 
-      // Auto-approve if requested
       if (payload.autoApprove) {
         logger.debug('Auto-approving tool permission request', {
           requestId: payload.requestId,
           toolName: payload.toolName
         })
-
-        dispatch(toolPermissionsActions.submissionSent({ requestId: payload.requestId, behavior: 'allow' }))
 
         try {
           const response = await window.api.agentTools.respondToPermission({
@@ -212,9 +208,16 @@ export function useAppInit() {
           })
         } catch (error) {
           logger.error('Failed to send auto-approval response', error as Error)
-          dispatch(toolPermissionsActions.submissionFailed({ requestId: payload.requestId }))
+          // Fall through to add to store for manual approval
+          dispatch(toolPermissionsActions.requestReceived(payload))
         }
+        return
       }
+
+      dispatch(toolPermissionsActions.requestReceived(payload))
+
+      // Send system notification for agent tool approval
+      sendToolApprovalNotification(payload.toolName)
     }
 
     const resultListener = (_event: Electron.IpcRendererEvent, payload: ToolPermissionResultPayload) => {
@@ -268,12 +271,10 @@ export function useAppInit() {
   // Update memory service configuration when it changes
   useEffect(() => {
     const memoryService = MemoryService.getInstance()
-    memoryService.updateConfig().catch((error) => {
-      logger.error('Failed to update memory config:', error)
-    })
+    memoryService.updateConfig().catch((error) => logger.error('Failed to update memory config:', error))
   }, [memoryConfig])
 
   useEffect(() => {
-    checkDataLimit()
+    void checkDataLimit()
   }, [])
 }

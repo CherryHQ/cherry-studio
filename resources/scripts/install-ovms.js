@@ -6,12 +6,12 @@ const { downloadWithPowerShell } = require('./download')
 
 // Base URL for downloading OVMS binaries
 const OVMS_RELEASE_BASE_URL =
-  'https://storage.openvinotoolkit.org/repositories/openvino_model_server/packages/2025.3.0/ovms_windows_python_on.zip'
-const OVMS_EX_URL = 'https://gitcode.com/gcw_ggDjjkY3/kjfile/releases/download/download/ovms_25.3_ex.zip'
+  'https://storage.openvinotoolkit.org/repositories/openvino_model_server/packages/2025.4.1/ovms_windows_python_on.zip'
+const OVMS_EX_URL = 'https://gitcode.com/gcw_ggDjjkY3/kjfile/releases/download/download/ovms_25.4_ex.zip'
 
 /**
  * error code:
- * 101: Unsupported CPU (not Intel Ultra)
+ * 101: Unsupported CPU (not Intel)
  * 102: Unsupported platform (not Windows)
  * 103: Download failed
  * 104: Installation failed
@@ -213,8 +213,8 @@ async function installOvms() {
   console.log(`CPU Name: ${cpuName}`)
 
   // Check if CPU name contains "Ultra"
-  if (!cpuName.toLowerCase().includes('intel') || !cpuName.toLowerCase().includes('ultra')) {
-    console.error('OVMS installation requires an Intel(R) Core(TM) Ultra CPU.')
+  if (!cpuName.toLowerCase().includes('intel')) {
+    console.error('OVMS installation requires an Intel CPU.')
     return 101
   }
 

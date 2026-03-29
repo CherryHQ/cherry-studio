@@ -31,6 +31,11 @@ export const WEB_SEARCH_PROVIDER_CONFIG: Record<WebSearchProviderId, WebSearchPr
       apiKey: 'https://dashboard.exa.ai/api-keys'
     }
   },
+  'exa-mcp': {
+    websites: {
+      official: 'https://exa.ai'
+    }
+  },
   bocha: {
     websites: {
       official: 'https://bochaai.com',
@@ -50,6 +55,12 @@ export const WEB_SEARCH_PROVIDER_CONFIG: Record<WebSearchProviderId, WebSearchPr
   'local-baidu': {
     websites: {
       official: 'https://www.baidu.com'
+    }
+  },
+  querit: {
+    websites: {
+      official: 'https://querit.ai',
+      apiKey: 'https://www.querit.ai/en/dashboard/api-keys'
     }
   }
 }
@@ -81,6 +92,11 @@ export const WEB_SEARCH_PROVIDERS: WebSearchProvider[] = [
     apiKey: ''
   },
   {
+    id: 'exa-mcp',
+    name: 'ExaMCP',
+    apiHost: 'https://mcp.exa.ai/mcp'
+  },
+  {
     id: 'bocha',
     name: 'Bocha',
     apiHost: 'https://api.bochaai.com',
@@ -100,5 +116,11 @@ export const WEB_SEARCH_PROVIDERS: WebSearchProvider[] = [
     id: 'local-baidu',
     name: 'Baidu',
     url: 'https://www.baidu.com/s?wd=%s'
+  },
+  {
+    id: 'querit',
+    name: 'Querit',
+    apiHost: 'https://api.querit.ai',
+    apiKey: ''
   }
 ] as const
