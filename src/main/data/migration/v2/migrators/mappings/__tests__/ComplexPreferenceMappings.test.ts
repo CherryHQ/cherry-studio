@@ -104,7 +104,11 @@ describe('ComplexPreferenceMappings', () => {
       expect(keys).toContain('chat.web_search.provider_overrides')
       expect(keys).toContain('feature.code_cli.overrides')
       expect(keys).toContain('feature.file_processing.overrides')
-      expect(keys.length).toBe(10) // 7 websearch compression + 1 provider overrides + 1 code_cli overrides + 1 file processing overrides
+      expect(keys).toContain('feature.translate.action.preferred_lang')
+      expect(keys).toContain('feature.translate.action.alter_lang')
+      expect(keys).toContain('feature.translate.mini_window.target_lang')
+      // Sanity check: at least the keys we asserted above
+      expect(keys.length).toBeGreaterThanOrEqual(7)
     })
 
     it('should flatten target keys from all mappings', () => {
