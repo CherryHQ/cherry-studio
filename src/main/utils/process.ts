@@ -55,19 +55,11 @@ export async function getBinaryName(name: string): Promise<string> {
 let _binDir: string | null = null
 
 /**
- * Reset the binary directory cache. Used for testing.
- * @internal
- */
-export function resetBinDirCache(): void {
-  _binDir = null
-}
-
-/**
  * Get the binary directory path, creating it if necessary.
  * Uses lazy initialization with directory creation.
  * @throws Error if directory cannot be created due to permission issues
  */
-export async function getBinDir(): Promise<string> {
+async function getBinDir(): Promise<string> {
   if (_binDir === null) {
     const binDir = path.join(os.homedir(), HOME_CHERRY_DIR, 'bin')
     const result = makeSureDirExists(binDir)

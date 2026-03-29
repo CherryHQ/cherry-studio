@@ -14,8 +14,6 @@ import {
   findGitBash,
   findViaMise,
   getBinaryPath,
-  getBinDir,
-  resetBinDirCache,
   validateGitBashPath
 } from '../process'
 
@@ -1414,13 +1412,12 @@ describe('decodeBufferFromShell', () => {
   })
 })
 
-// Tests for getBinDir and getBinaryPath
-describe('getBinDir and getBinaryPath', () => {
+// Tests for getBinaryPath
+describe('getBinaryPath', () => {
   const mockHomedir = '/home/testuser'
   const expectedBinDir = '/home/testuser/.cherrystudio/bin'
 
   beforeEach(() => {
-    resetBinDirCache()
     vi.clearAllMocks()
 
     // Mock os.homedir to return a consistent test home directory
@@ -1432,100 +1429,16 @@ describe('getBinDir and getBinaryPath', () => {
   })
 
   afterEach(() => {
-    resetBinDirCache()
     vi.restoreAllMocks()
   })
 
-  describe('getBinDir', () => {
-    it('should return cached path when directory already exists', async () => {
-      vi.mocked(fs.existsSync).mockReturnValue(true)
-
-      const result = await getBinDir()
-
-      expect(result).toBe(expectedBinDir)
-      expect(fs.mkdirSync).not.toHaveBeenCalled()
-    })
-
-    it('should create directory when it does not exist', async () => {
-      vi.mocked(fs.existsSync).mockReturnValue(false)
-
-      const result = await getBinDir()
-
-      expect(result).toBe(expectedBinDir)
-      expect(fs.mkdirSync).toHaveBeenCalledWith(expectedBinDir, { recursive: true })
-    })
-
-    it('should throw friendly error on EACCES permission denied', async () => {
-      vi.mocked(fs.existsSync).mockReturnValue(false)
-      const error = new Error('Permission denied') as NodeJS.ErrnoException
-      error.code = 'EACCES'
-      vi.mocked(fs.mkdirSync).mockImplementation(() => {
-        throw error
-      })
-
-      await expect(getBinDir()).rejects.toThrow('Permission denied: cannot create directory')
-    })
-
-    it('should throw friendly error on EPERM operation not permitted', async () => {
-      vi.mocked(fs.existsSync).mockReturnValue(false)
-      const error = new Error('Operation not permitted') as NodeJS.ErrnoException
-      error.code = 'EPERM'
-      vi.mocked(fs.mkdirSync).mockImplementation(() => {
-        throw error
-      })
-
-      await expect(getBinDir()).rejects.toThrow('Permission denied: cannot create directory')
-    })
-
-    it('should rethrow other errors', async () => {
-      vi.mocked(fs.existsSync).mockReturnValue(false)
-      const error = new Error('Disk full')
-      vi.mocked(fs.mkdirSync).mockImplementation(() => {
-        throw error
-      })
-
-      await expect(getBinDir()).rejects.toThrow('Disk full')
-    })
-
-    it('should use cache on subsequent calls', async () => {
-      vi.mocked(fs.existsSync).mockReturnValue(false)
-
-      await getBinDir()
-      await getBinDir()
-
-      expect(fs.existsSync).toHaveBeenCalledTimes(1)
-      expect(fs.mkdirSync).toHaveBeenCalledTimes(1)
-    })
-
-    it('should not cache path when directory creation fails', async () => {
-      vi.mocked(fs.existsSync).mockReturnValue(false)
-      const error = new Error('Permission denied') as NodeJS.ErrnoException
-      error.code = 'EACCES'
-      vi.mocked(fs.mkdirSync).mockImplementation(() => {
-        throw error
-      })
-
-      // First call should throw
-      await expect(getBinDir()).rejects.toThrow('Permission denied')
-
-      // Reset the mock to succeed
-      vi.mocked(fs.mkdirSync).mockImplementation(() => undefined)
-
-      // Second call should succeed (cache was not poisoned)
-      const result = await getBinDir()
-      expect(result).toBe(expectedBinDir)
-    })
+  it('should return bin directory when called without name', async () => {
+    const result = await getBinaryPath()
+    expect(result).toBe(expectedBinDir)
   })
 
-  describe('getBinaryPath', () => {
-    it('should return bin directory when called without name', async () => {
-      const result = await getBinaryPath()
-      expect(result).toBe(expectedBinDir)
-    })
-
-    it('should return path with binary name', async () => {
-      const result = await getBinaryPath('uvx')
-      expect(result).toBe(`${expectedBinDir}/uvx`)
-    })
+  it('should return path with binary name', async () => {
+    const result = await getBinaryPath('uvx')
+    expect(result).toBe(`${expectedBinDir}/uvx`)
   })
 })
