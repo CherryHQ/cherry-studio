@@ -6,9 +6,9 @@ import { mineruProcessor } from './api/mineru/mineruProcessor'
 import { mistralProcessor } from './api/mistral/mistralProcessors'
 import { OpenMineruProcessor } from './api/OpenMineruProcessor'
 import { PaddleProcessor } from './api/PaddleProcessor'
-import { OvOcrProcessor } from './builtin/OvOcrProcessor'
+import { OvOcrProcessor } from './builtin/ovocr/OvOcrProcessor'
 import { SystemOcrProcessor } from './builtin/system/SystemOcrProcessor'
-import { TesseractProcessor } from './builtin/TesseractProcessor'
+import { TesseractProcessor } from './builtin/tesseract/TesseractProcessor'
 
 export function createTextExtractionProcessor(processorId: FileProcessorId): ITextExtractionProcessor {
   switch (processorId) {

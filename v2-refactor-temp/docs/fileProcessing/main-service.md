@@ -200,6 +200,96 @@
 2. `FileProcessingService` 当前只是 provider-aware facade，不负责屏蔽所有 provider 差异。
 3. `providerTaskId` 目前是显式暴露给调用方的。
 
+### 6.5 当前 processor 目录组织约定
+
+当前 `file-processing` 模块内的 processor 组织方式也已经形成了明确约定，这属于本次 PR 的实际产出之一。
+
+#### 按 provider 建目录，而不是继续平铺
+
+当前新增和已迁移完成的 processor，默认不再平铺在 `providers/api` 或 `providers/builtin` 根目录下，而是按 provider 建子目录：
+
+1. `providers/api/<provider>/...`
+2. `providers/builtin/<provider>/...`
+
+当前已落地的例子包括：
+
+1. `api/mineru/`
+2. `api/doc2x/`
+3. `api/mistral/`
+4. `builtin/system/`
+5. `builtin/tesseract/`
+6. `builtin/ovocr/`
+
+换句话说，新实现默认应遵循“一个 provider 一个目录”的组织方式，而不是再新增平铺文件。
+
+#### processor 文件本体应保持薄壳
+
+当前目录下的文件职责约定是：
+
+1. `*Processor.ts`
+   - 负责 capability 接口实现
+   - 负责准备 context
+   - 负责 orchestration / 状态推进
+   - 不承载大段杂糅的协议细节或工具函数
+2. `type.ts` / `types.ts`
+   - 负责 provider 本地 schema、context、局部类型定义
+3. `utils.ts`
+   - 负责与 provider 强绑定但可独立复用的执行细节
+   - 包括请求封装、worker 初始化、下载/上传辅助、结果解析等
+
+当前代码里已经体现出两类具体模式：
+
+1. 远程 API provider：
+   通常拆成 `processor + types + utils`
+2. builtin provider：
+   至少拆成 `processor + type`
+   如果执行逻辑已经明显超出几行 orchestration，则继续拆出 `utils`
+
+例如：
+
+1. `system` 当前是 `SystemOcrProcessor.ts + type.ts`
+2. `tesseract`、`ovocr` 当前是 `Processor.ts + type.ts + utils.ts`
+
+这意味着 `utils.ts` 不是强制文件，但“按 provider 建目录”是当前默认约定。
+
+#### file-processing 内部优先自持 provider 实现
+
+当前 processor 的组织还有一条重要约束：
+
+1. `file-processing` provider 不应再绕回旧的知识库 preprocess service
+2. builtin OCR processor 也不应继续依赖旧的 `main/services/ocr` service 作为中转层
+
+允许复用的是：
+
+1. 通用底层工具，例如 `loadOcrImage`
+2. 第三方 SDK / 原生库
+3. 少量稳定的 shared config / constants
+
+不鼓励继续复用的是：
+
+1. 老的 provider registry
+2. 旧 OCR service 的 facade 层
+3. 旧 knowledge preprocess 的业务编排层
+
+原因很明确：
+
+1. 当前目标是让 `file-processing` 成为独立 Main-side 模块
+2. provider 行为应在 `file-processing` 模块内闭环
+3. 避免形成“新 service 仍依赖旧 service 中转”的反向耦合
+
+#### 当前 flat 文件的理解
+
+当前仓库中仍存在少量平铺文件，例如：
+
+1. `OpenMineruProcessor.ts`
+2. `PaddleProcessor.ts`
+
+对这些文件的理解应是：
+
+1. 它们属于当前阶段尚未继续拆分的实现或占位实现
+2. 不应被当作后续新增 processor 的推荐组织方式
+3. 后续新增或重构 provider，应优先采用 provider 目录化组织
+
 ---
 
 ## 7. Shared Cache 设计预留
