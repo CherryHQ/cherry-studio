@@ -375,7 +375,13 @@ const FeishuChannelCard: FC<ChannelCardProps> = ({ channel, onConfigChange }) =>
         open={!!qrUrl}
         title={t('agent.cherryClaw.channels.feishu.qrTitle')}
         footer={null}
-        onCancel={() => setQrUrl(null)}
+        onCancel={() => {
+          setQrUrl(null)
+          // User intentionally closed the QR modal — reset to idle
+          if (status === 'pending') {
+            setStatus('idle')
+          }
+        }}
         centered
         width={360}>
         <div className="flex flex-col items-center gap-4 py-4">
