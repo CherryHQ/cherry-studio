@@ -205,8 +205,6 @@ export class CacheService extends BaseService {
       value,
       expireAt
     })
-
-    logger.verbose(`Set shared cache key "${key}"`)
   }
 
   /**
@@ -246,7 +244,6 @@ export class CacheService extends BaseService {
       value: undefined // undefined means deletion
     })
 
-    logger.verbose(`Deleted shared cache key "${key}"`)
     return true
   }
 
@@ -313,7 +310,6 @@ export class CacheService extends BaseService {
 
       // Broadcast to other windows
       this.broadcastSync(message, senderWindowId)
-      logger.verbose(`Broadcasted cache sync: ${message.type}:${message.key}`)
     })
 
     // Handle getAllShared request for renderer initialization

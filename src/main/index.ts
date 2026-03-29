@@ -50,7 +50,6 @@ import {
   registerMigrationIpcHandlers,
   unregisterMigrationIpcHandlers
 } from '@data/migration/v2'
-import { initWebviewHotkeys } from './services/WebviewService'
 import { application, serviceList } from './core/application'
 
 const logger = loggerService.withContext('MainEntry')
@@ -247,7 +246,6 @@ if (!app.requestSingleInstanceLock()) {
     // A preparation for v2 data refactoring
     versionService.recordCurrentVersion()
 
-    initWebviewHotkeys()
     // Set app user model id for windows
     electronApp.setAppUserModelId(import.meta.env.VITE_MAIN_BUNDLE_ID || 'com.kangfenmao.CherryStudio')
 

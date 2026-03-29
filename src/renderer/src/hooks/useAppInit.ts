@@ -9,7 +9,7 @@ import { useAppUpdateHandler, useAppUpdateState } from '@renderer/hooks/useAppUp
 import i18n, { setDayjsLocale } from '@renderer/i18n'
 import { knowledgeQueue } from '@renderer/queue/KnowledgeQueue'
 import { memoryService } from '@renderer/services/MemoryService'
-import { handleSaveData, useAppDispatch, useAppSelector } from '@renderer/store'
+import { useAppDispatch, useAppSelector } from '@renderer/store'
 import { selectMemoryConfig } from '@renderer/store/memory'
 import {
   type ToolPermissionRequestPayload,
@@ -67,11 +67,12 @@ export function useAppInit() {
     })
   }, [])
 
-  useEffect(() => {
-    window.electron.ipcRenderer.on(IpcChannel.App_SaveData, async () => {
-      await handleSaveData()
-    })
-  }, [])
+  // [v2] Removed: Redux persistor flush is no longer needed after v2 data refactoring
+  // useEffect(() => {
+  //   window.electron.ipcRenderer.on(IpcChannel.App_SaveData, async () => {
+  //     await handleSaveData()
+  //   })
+  // }, [])
 
   useAppUpdateHandler()
   useFullScreenNotice()

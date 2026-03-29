@@ -17,7 +17,6 @@ import {
   validateGitBashPath
 } from '@main/utils/process'
 import { handleZoomFactor } from '@main/utils/zoom'
-import type { UpgradeChannel } from '@shared/data/preference/preferenceTypes'
 import { IpcChannel } from '@shared/IpcChannel'
 import { extractPdfText } from '@shared/utils/pdf'
 import type {
@@ -37,7 +36,6 @@ import fontList from 'font-list'
 import { agentMessageRepository } from './services/agents/database'
 import { pluginService } from './services/agents/plugins/PluginService'
 import { appService } from './services/AppService'
-import AppUpdater from './services/AppUpdater'
 import BackupManager from './services/BackupManager'
 import { cherryINOAuthService } from './services/CherryINOAuthService'
 import { ConfigKeys, configManager } from './services/ConfigManager'
@@ -57,9 +55,7 @@ import { proxyManager } from './services/ProxyManager'
 import { pythonService } from './services/PythonService'
 import { fileServiceManager } from './services/remotefile/FileServiceManager'
 import { searchService } from './services/SearchService'
-import { storeSyncService } from './services/StoreSyncService'
 import { vertexAIService } from './services/VertexAIService'
-import { setOpenLinkExternal } from './services/WebviewService'
 import { calculateDirectorySize, getResourcePath } from './utils'
 import { decrypt, encrypt } from './utils/aes'
 import {
@@ -96,21 +92,16 @@ function extractPluginError(error: unknown): PluginError | null {
 }
 
 export async function registerIpc(mainWindow: BrowserWindow, app: Electron.App) {
-  const appUpdater = new AppUpdater()
   const notificationService = new NotificationService()
 
-  // Register shutdown handlers
-  const powerMonitorService = application.get('PowerMonitorService')
-  powerMonitorService.registerShutdownHandler(() => {
-    appUpdater.setAutoUpdate(false)
-  })
-
-  powerMonitorService.registerShutdownHandler(() => {
-    const mw = application.get('WindowService').getMainWindow()
-    if (mw && !mw.isDestroyed()) {
-      mw.webContents.send(IpcChannel.App_SaveData)
-    }
-  })
+  // [v2] Removed: Redux persistor flush is no longer needed after v2 data refactoring
+  // const powerMonitorService = application.get('PowerMonitorService')
+  // powerMonitorService.registerShutdownHandler(() => {
+  //   const mw = application.get('WindowService').getMainWindow()
+  //   if (mw && !mw.isDestroyed()) {
+  //     mw.webContents.send(IpcChannel.App_SaveData)
+  //   }
+  // })
 
   ipcMain.handle(IpcChannel.App_Info, () => ({
     version: app.getVersion(),
@@ -145,9 +136,6 @@ export async function registerIpc(mainWindow: BrowserWindow, app: Electron.App) 
   ipcMain.handle(IpcChannel.App_Reload, () => mainWindow.reload())
   // Application_Quit is registered by Application.registerApplicationIpc()
   ipcMain.handle(IpcChannel.Open_Website, (_, url: string) => shell.openExternal(url))
-
-  // Update
-  ipcMain.handle(IpcChannel.App_QuitAndInstall, () => appUpdater.quitAndInstall())
 
   // language
   // ipcMain.handle(IpcChannel.App_SetLanguage, (_, language) => {
@@ -200,20 +188,6 @@ export async function registerIpc(mainWindow: BrowserWindow, app: Electron.App) 
   //   appUpdater.setAutoUpdate(isActive)
   //   configManager.setAutoUpdate(isActive)
   // })
-
-  ipcMain.handle(IpcChannel.App_SetTestPlan, async (_, isActive: boolean) => {
-    logger.info(`set test plan: ${isActive}`)
-    if (isActive !== application.get('PreferenceService').get('app.dist.test_plan.enabled')) {
-      appUpdater.cancelDownload()
-    }
-  })
-
-  ipcMain.handle(IpcChannel.App_SetTestChannel, async (_, channel: UpgradeChannel) => {
-    logger.info(`set test channel: ${channel}`)
-    if (channel !== application.get('PreferenceService').get('app.dist.test_plan.channel')) {
-      appUpdater.cancelDownload()
-    }
-  })
 
   ipcMain.handle(IpcChannel.AgentMessage_PersistExchange, async (_event, payload) => {
     try {
@@ -407,11 +381,6 @@ export async function registerIpc(mainWindow: BrowserWindow, app: Electron.App) 
 
   // Reset all data (factory reset)
   ipcMain.handle(IpcChannel.App_ResetData, () => backupManager.resetData())
-
-  // check for update
-  ipcMain.handle(IpcChannel.App_CheckForUpdate, async () => {
-    return await appUpdater.checkForUpdates()
-  })
 
   // notification
   ipcMain.handle(IpcChannel.Notification_Send, async (_, notification: Notification) => {
@@ -715,30 +684,6 @@ export async function registerIpc(mainWindow: BrowserWindow, app: Electron.App) 
   ipcMain.handle(IpcChannel.SearchWindow_OpenUrl, async (_, uid: string, url: string) => {
     return await searchService.openUrlInSearchWindow(uid, url)
   })
-
-  // webview
-  ipcMain.handle(IpcChannel.Webview_SetOpenLinkExternal, (_, webviewId: number, isExternal: boolean) =>
-    setOpenLinkExternal(webviewId, isExternal)
-  )
-  ipcMain.handle(IpcChannel.Webview_SetSpellCheckEnabled, (_, webviewId: number, isEnable: boolean) => {
-    const webview = webContents.fromId(webviewId)
-    if (!webview) return
-    webview.session.setSpellCheckerEnabled(isEnable)
-  })
-
-  // Webview print and save handlers
-  ipcMain.handle(IpcChannel.Webview_PrintToPDF, async (_, webviewId: number) => {
-    const { printWebviewToPDF } = await import('./services/WebviewService')
-    return await printWebviewToPDF(webviewId)
-  })
-
-  ipcMain.handle(IpcChannel.Webview_SaveAsHTML, async (_, webviewId: number) => {
-    const { saveWebviewAsHTML } = await import('./services/WebviewService')
-    return await saveWebviewAsHTML(webviewId)
-  })
-
-  // store sync
-  storeSyncService.registerIpcHandler()
 
   // ipcMain.handle(IpcChannel.App_SetDisableHardwareAcceleration, (_, isDisable: boolean) => {
   //   configManager.setDisableHardwareAcceleration(isDisable)

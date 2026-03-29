@@ -32,6 +32,17 @@ vi.mock('@main/core/application', async () => {
   return result
 })
 
+vi.mock('@main/core/lifecycle', () => {
+  class MockBaseService {}
+  return {
+    BaseService: MockBaseService,
+    Injectable: () => (target: unknown) => target,
+    ServicePhase: () => (target: unknown) => target,
+    DependsOn: () => (target: unknown) => target,
+    Phase: { Background: 'background', WhenReady: 'whenReady', BeforeReady: 'beforeReady' }
+  }
+})
+
 vi.mock('@main/constant', () => ({
   isWin: false
 }))
@@ -95,7 +106,7 @@ import { UpdateMirror } from '@shared/config/constant'
 import { MockMainPreferenceServiceUtils } from '@test-mocks/main/PreferenceService'
 import { app, net } from 'electron'
 
-import AppUpdater from '../AppUpdater'
+import { AppUpdaterService } from '../AppUpdaterService'
 
 // Mock clientId for ConfigManager since it's not migrated yet
 vi.mock('../ConfigManager', () => ({
@@ -104,13 +115,13 @@ vi.mock('../ConfigManager', () => ({
   }
 }))
 
-describe('AppUpdater', () => {
-  let appUpdater: AppUpdater
+describe('AppUpdaterService', () => {
+  let appUpdater: AppUpdaterService
 
   beforeEach(() => {
     vi.clearAllMocks()
     MockMainPreferenceServiceUtils.resetMocks()
-    appUpdater = new AppUpdater()
+    appUpdater = new AppUpdaterService()
   })
 
   describe('parseMultiLangReleaseNotes', () => {
@@ -196,7 +207,7 @@ describe('AppUpdater', () => {
 
     it('should handle errors gracefully', () => {
       // Create a fresh instance for this test to avoid issues with constructor mocking
-      const testAppUpdater = new AppUpdater()
+      const testAppUpdater = new AppUpdaterService()
 
       // Force an error by mocking PreferenceService to throw
       vi.mocked(application.get('PreferenceService').get).mockImplementationOnce(() => {
