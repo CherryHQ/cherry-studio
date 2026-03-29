@@ -60,7 +60,11 @@ class TelegramAdapter extends ChannelAdapter {
     this.notifyChatIds = [...this.allowedChatIds]
   }
 
-  async connect(): Promise<void> {
+  protected override async checkReady(): Promise<boolean> {
+    return !!this.botToken
+  }
+
+  protected override async performConnect(_signal: AbortSignal): Promise<void> {
     if (!this.botToken) {
       throw new Error('Telegram bot token is required')
     }
@@ -155,7 +159,7 @@ class TelegramAdapter extends ChannelAdapter {
     logger.info('Telegram bot started', { agentId: this.agentId, channelId: this.channelId })
   }
 
-  async disconnect(): Promise<void> {
+  protected override async performDisconnect(): Promise<void> {
     if (this.bot) {
       await this.bot.stop()
       this.bot = null

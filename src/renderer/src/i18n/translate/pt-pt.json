@@ -40,12 +40,18 @@
           "chatIds": "IDs de chat permitidos",
           "chatIdsHint": "IDs de chat separados por vírgulas. Deixe vazio para permitir todos os chats.",
           "chatIdsPlaceholder": "oc_xxxxx, oc_yyyyy",
+          "connected": "[to be translated]:Connected",
           "description": "Receber e responder a mensagens através de um bot Feishu/Lark usando WebSocket.",
           "domain": "Domínio",
           "domainFeishu": "Feishu (China)",
           "domainLark": "Lark (Internacional)",
           "encryptKey": "Chave de encriptação",
           "encryptKeyPlaceholder": "Introduza a chave de encriptação da sua aplicação Feishu",
+          "loginHint": "[to be translated]:No credentials configured. Enable the channel to start QR code registration, or enter App ID and App Secret manually.",
+          "qrExpired": "[to be translated]:QR code expired. Please retry by toggling the channel.",
+          "qrHint": "[to be translated]:Waiting for QR code scan...",
+          "qrScanHint": "[to be translated]:Open Feishu on your phone and scan the QR code to create a bot app.",
+          "qrTitle": "[to be translated]:Feishu QR Registration",
           "title": "Feishu",
           "verificationToken": "Token de verificação",
           "verificationTokenPlaceholder": "Introduza o token de verificação da sua aplicação Feishu"
@@ -76,13 +82,18 @@
         },
         "title": "Canais",
         "wechat": {
+          "addAccount": "[to be translated]:Add WeChat Account",
+          "chatIds": "[to be translated]:Allowed User IDs",
+          "chatIdsHint": "[to be translated]:Comma-separated. Leave empty to allow all users.",
+          "chatIdsPlaceholder": "[to be translated]:wxid_abc123, wxid_def456",
           "connected": "[to be translated]:Connected",
           "description": "[to be translated]:Receive and respond to messages via WeChat using the iLink Bot API.",
           "disconnected": "[to be translated]:Disconnected",
           "loginHint": "[to be translated]:First login requires scanning a QR code. Check the app logs for the login URL.",
           "qrHint": "[to be translated]:Open WeChat on your phone, scan the QR code to log in.",
           "qrTitle": "[to be translated]:WeChat QR Login",
-          "title": "[to be translated]:WeChat"
+          "title": "[to be translated]:WeChat",
+          "whoamiTip": "[to be translated]:Tip: Send /whoami in WeChat to get a user's ID."
         }
       },
       "heartbeat": {
@@ -424,6 +435,12 @@
         "uninstalling": "Desinstalando..."
       },
       "prompt": "Configurações de Prompt",
+      "soulMode": {
+        "description": "[to be translated]:When enabled, the agent uses a custom system prompt from workspace soul files, injects autonomous task management tools, and disables interactive tools not suited for autonomous operation.",
+        "disabledBadge": "[to be translated]:Disabled by Autonomous Mode",
+        "disabledTooltip": "[to be translated]:This tool is automatically disabled when Autonomous Mode is active",
+        "title": "[to be translated]:Autonomous Mode"
+      },
       "tooling": {
         "mcp": {
           "description": "Conecte servidores MCP para desbloquear ferramentas adicionais que você pode aprovar acima.",

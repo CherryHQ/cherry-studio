@@ -1170,10 +1170,11 @@ export async function registerIpc(mainWindow: BrowserWindow, app: Electron.App) 
   ipcMain.handle(IpcChannel.WeChat_HasCredentials, async (_, channelId: string) => {
     const tokenPath = path.join(app.getPath('userData'), 'Data', `weixin_bot_${channelId}.json`)
     try {
-      await fs.promises.access(tokenPath)
-      return true
+      const raw = await fs.promises.readFile(tokenPath, 'utf8')
+      const parsed = JSON.parse(raw)
+      return { exists: true, userId: parsed.userId as string | undefined }
     } catch {
-      return false
+      return { exists: false }
     }
   })
 

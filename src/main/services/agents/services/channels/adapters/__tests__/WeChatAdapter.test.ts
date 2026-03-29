@@ -25,6 +25,7 @@ vi.mock('../../../../../WindowService', () => ({
 let messageHandler: ((msg: any) => void | Promise<void>) | null = null
 
 const mockBot = {
+  hasCredentials: vi.fn().mockResolvedValue(true),
   login: vi.fn().mockResolvedValue({ userId: 'test-user' }),
   onMessage: vi.fn().mockImplementation((handler: any) => {
     messageHandler = handler
@@ -56,6 +57,7 @@ function getFactory() {
 describe('WeChatAdapter', () => {
   beforeEach(() => {
     messageHandler = null
+    mockBot.hasCredentials.mockClear().mockResolvedValue(true)
     mockBot.login.mockClear().mockResolvedValue({ userId: 'test-user' })
     mockBot.onMessage.mockClear().mockImplementation((handler: any) => {
       messageHandler = handler

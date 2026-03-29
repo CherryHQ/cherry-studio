@@ -19,6 +19,10 @@ class ChannelManager {
   private static instance: ChannelManager | null = null
   private readonly adapters = new Map<string, ChannelAdapter>() // key: `${agentId}:${channelId}`
   private readonly notifyChannels = new Set<string>() // key: `${agentId}:${channelId}`
+  private readonly qrWaiters = new Map<
+    string,
+    { resolve: (url: string) => void; timer: ReturnType<typeof setTimeout> }
+  >()
 
   static getInstance(): ChannelManager {
     if (!ChannelManager.instance) {
@@ -63,6 +67,32 @@ class ChannelManager {
     this.adapters.clear()
     this.notifyChannels.clear()
     logger.info('Channel manager stopped')
+  }
+
+  /**
+   * Wait for a QR URL from a specific channel adapter during connect.
+   * Resolves when the adapter emits 'qr', or rejects on timeout.
+   */
+  waitForQrUrl(agentId: string, channelId: string, timeoutMs = 30_000): Promise<string> {
+    const key = `${agentId}:${channelId}`
+    return new Promise<string>((resolve, reject) => {
+      const timer = setTimeout(() => {
+        this.qrWaiters.delete(key)
+        reject(new Error('Timed out waiting for QR code'))
+      }, timeoutMs)
+      this.qrWaiters.set(key, { resolve, timer })
+    })
+  }
+
+  /** Return connection state for all adapters of an agent. */
+  getAdapterStatuses(agentId: string): Array<{ channelId: string; connected: boolean }> {
+    const result: Array<{ channelId: string; connected: boolean }> = []
+    for (const [key, adapter] of this.adapters) {
+      if (adapter.agentId !== agentId) continue
+      const channelId = key.split(':')[1]
+      result.push({ channelId, connected: adapter.connected })
+    }
+    return result
   }
 
   /** Return connected adapters for an agent whose channel has `is_notify_receiver: true`. */
@@ -111,56 +141,114 @@ class ChannelManager {
     await this.startAgentChannels(agentId, config.channels)
   }
 
+  /**
+   * Persist credentials obtained from QR registration into the channel config,
+   * then re-sync so a new adapter connects with the saved credentials.
+   */
+  private async saveCredentialsAndReconnect(
+    agentId: string,
+    channelId: string,
+    creds: { appId: string; appSecret: string }
+  ): Promise<void> {
+    const agent = await agentService.getAgent(agentId)
+    if (!agent) return
+
+    const config = agent.configuration as CherryClawConfiguration | undefined
+    const channels = [...(config?.channels ?? [])]
+    const idx = channels.findIndex((ch) => ch.id === channelId)
+    if (idx === -1) return
+
+    channels[idx] = {
+      ...channels[idx],
+      config: { ...channels[idx].config, app_id: creds.appId, app_secret: creds.appSecret }
+    }
+
+    await agentService.updateAgent(agentId, {
+      configuration: { ...config, channels } as CherryClawConfiguration
+    })
+
+    logger.info('Saved QR registration credentials, reconnecting', { agentId, channelId })
+    await this.syncAgent(agentId)
+  }
+
   private async startAgentChannels(agentId: string, channels?: CherryClawChannel[]): Promise<void> {
     if (!channels || channels.length === 0) return
 
-    for (const channel of channels) {
-      if (channel.enabled === false) continue
+    const connectTasks = channels
+      .filter((channel) => channel.enabled !== false)
+      .map((channel) => this.connectChannel(agentId, channel))
 
-      const factory = adapterFactories.get(channel.type)
-      if (!factory) {
-        logger.warn('No adapter factory for channel type', { type: channel.type, agentId })
-        continue
-      }
+    // Connect all channels in parallel so one blocking login doesn't stall others
+    await Promise.all(connectTasks)
+  }
 
-      const key = `${agentId}:${channel.id}`
-      try {
-        const adapter = factory(channel, agentId)
+  private async connectChannel(agentId: string, channel: CherryClawChannel): Promise<void> {
+    const factory = adapterFactories.get(channel.type)
+    if (!factory) {
+      logger.warn('No adapter factory for channel type', { type: channel.type, agentId })
+      return
+    }
 
-        adapter.on('message', (msg) => {
-          channelMessageHandler.handleIncoming(adapter, msg).catch((err) => {
-            logger.error('Unhandled error in message handler', {
-              agentId,
-              channelId: channel.id,
-              error: err instanceof Error ? err.message : String(err)
-            })
+    const key = `${agentId}:${channel.id}`
+    try {
+      const adapter = factory(channel, agentId)
+
+      adapter.on('message', (msg) => {
+        channelMessageHandler.handleIncoming(adapter, msg).catch((err) => {
+          logger.error('Unhandled error in message handler', {
+            agentId,
+            channelId: channel.id,
+            error: err instanceof Error ? err.message : String(err)
           })
         })
+      })
 
-        adapter.on('command', (cmd) => {
-          channelMessageHandler.handleCommand(adapter, cmd).catch((err) => {
-            logger.error('Unhandled error in command handler', {
-              agentId,
-              channelId: channel.id,
-              error: err instanceof Error ? err.message : String(err)
-            })
+      adapter.on('command', (cmd) => {
+        channelMessageHandler.handleCommand(adapter, cmd).catch((err) => {
+          logger.error('Unhandled error in command handler', {
+            agentId,
+            channelId: channel.id,
+            error: err instanceof Error ? err.message : String(err)
           })
         })
+      })
 
-        await adapter.connect()
-        this.adapters.set(key, adapter)
-        if (channel.is_notify_receiver) {
-          this.notifyChannels.add(key)
+      // Forward QR events to any pending waiters
+      adapter.on('qr', (url) => {
+        const waiterKey = `${agentId}:${channel.id}`
+        const waiter = this.qrWaiters.get(waiterKey)
+        if (waiter) {
+          clearTimeout(waiter.timer)
+          this.qrWaiters.delete(waiterKey)
+          waiter.resolve(url)
         }
-        logger.info('Channel adapter connected', { agentId, channelId: channel.id, type: channel.type })
-      } catch (error) {
-        logger.error('Failed to connect channel adapter', {
-          agentId,
-          channelId: channel.id,
-          type: channel.type,
-          error: error instanceof Error ? error.message : String(error)
+      })
+
+      // When an adapter obtains credentials via QR registration, persist them
+      // to the channel config and re-sync so a new adapter connects with creds.
+      adapter.on('credentials', (creds) => {
+        this.saveCredentialsAndReconnect(agentId, channel.id, creds).catch((err) => {
+          logger.error('Failed to save credentials and reconnect', {
+            agentId,
+            channelId: channel.id,
+            error: err instanceof Error ? err.message : String(err)
+          })
         })
+      })
+
+      await adapter.connect()
+      this.adapters.set(key, adapter)
+      if (channel.is_notify_receiver) {
+        this.notifyChannels.add(key)
       }
+      logger.info('Channel adapter connected', { agentId, channelId: channel.id, type: channel.type })
+    } catch (error) {
+      logger.error('Failed to connect channel adapter', {
+        agentId,
+        channelId: channel.id,
+        type: channel.type,
+        error: error instanceof Error ? error.message : String(error)
+      })
     }
   }
 }

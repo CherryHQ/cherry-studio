@@ -9,8 +9,9 @@ import { taskService } from '@main/services/agents/services/TaskService'
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
 import type { Tool } from '@modelcontextprotocol/sdk/types.js'
 import { CallToolRequestSchema, ErrorCode, ListToolsRequestSchema, McpError } from '@modelcontextprotocol/sdk/types.js'
-import type { TaskContextMode, TaskScheduleType } from '@types'
+import type { CherryClawChannel, CherryClawConfiguration, TaskContextMode, TaskScheduleType } from '@types'
 import { net } from 'electron'
+import QRCode from 'qrcode'
 
 const logger = loggerService.withContext('MCPServer:Claw')
 
@@ -196,6 +197,74 @@ type JournalEntry = {
   text: string
 }
 
+/** Per-adapter-type config schema descriptions (for agent self-documentation). */
+const CHANNEL_CONFIG_SCHEMAS: Record<string, { required: string[]; optional: string[]; description: string }> = {
+  telegram: {
+    required: ['bot_token'],
+    optional: ['allowed_chat_ids'],
+    description: 'Telegram Bot. Get bot_token from @BotFather.'
+  },
+  feishu: {
+    required: [],
+    optional: ['app_id', 'app_secret', 'encrypt_key', 'verification_token', 'allowed_chat_ids', 'domain'],
+    description:
+      'Feishu/Lark bot. If app_id and app_secret are omitted, a QR code is returned for the user to scan with Feishu to auto-create a bot app and obtain credentials. domain defaults to "feishu" (use "lark" for international).'
+  },
+  qq: {
+    required: ['app_id', 'client_secret'],
+    optional: ['allowed_chat_ids'],
+    description: 'QQ official bot via QQ Open Platform.'
+  },
+  wechat: {
+    required: [],
+    optional: ['token_path', 'allowed_chat_ids'],
+    description:
+      'WeChat via local WeChat desktop client bridge. After adding, a QR code image is returned — display it inline for the user to scan with their phone.'
+  }
+}
+
+const CONFIG_TOOL: Tool = {
+  name: 'config',
+  description:
+    "Inspect and manage your own agent configuration. Use 'status' to see current channels, model, and supported adapter types. Use 'add_channel', 'update_channel', 'remove_channel', or 'reconnect_channel' to manage IM channel connections. Use 'reconnect_channel' when a WeChat or Feishu channel needs to re-scan a QR code (e.g. session expired or initial setup failed).",
+  inputSchema: {
+    type: 'object',
+    properties: {
+      action: {
+        type: 'string',
+        enum: ['status', 'add_channel', 'update_channel', 'remove_channel', 'reconnect_channel'],
+        description: 'The action to perform'
+      },
+      type: {
+        type: 'string',
+        enum: ['telegram', 'feishu', 'qq', 'wechat'],
+        description: "Channel adapter type (required for 'add_channel')"
+      },
+      name: {
+        type: 'string',
+        description: "Human-readable channel name (required for 'add_channel')"
+      },
+      channel_id: {
+        type: 'string',
+        description: "Channel ID (required for 'update_channel' and 'remove_channel')"
+      },
+      config: {
+        type: 'object',
+        description: "Adapter-specific configuration (required for 'add_channel', optional for 'update_channel')"
+      },
+      enabled: {
+        type: 'boolean',
+        description: 'Enable or disable the channel (optional for add/update, defaults to true)'
+      },
+      is_notify_receiver: {
+        type: 'boolean',
+        description: 'Whether this channel receives notifications from the notify tool (optional, defaults to false)'
+      }
+    },
+    required: ['action']
+  }
+}
+
 const MEMORY_TOOL: Tool = {
   name: 'memory',
   description:
@@ -261,7 +330,7 @@ class ClawServer {
 
   private setupHandlers() {
     this.mcpServer.server.setRequestHandler(ListToolsRequestSchema, async () => ({
-      tools: [CRON_TOOL, NOTIFY_TOOL, SKILLS_TOOL, MEMORY_TOOL]
+      tools: [CRON_TOOL, NOTIFY_TOOL, SKILLS_TOOL, MEMORY_TOOL, CONFIG_TOOL]
     }))
 
     this.mcpServer.server.setRequestHandler(CallToolRequestSchema, async (request) => {
@@ -314,6 +383,26 @@ class ClawServer {
                 return await this.memorySearch(args)
               default:
                 throw new McpError(ErrorCode.InvalidParams, `Unknown action "${action}", expected update/append/search`)
+            }
+          }
+          case 'config': {
+            const action = args.action
+            switch (action) {
+              case 'status':
+                return await this.configStatus()
+              case 'add_channel':
+                return await this.configAddChannel(args)
+              case 'update_channel':
+                return await this.configUpdateChannel(args)
+              case 'remove_channel':
+                return await this.configRemoveChannel(args)
+              case 'reconnect_channel':
+                return await this.configReconnectChannel(args)
+              default:
+                throw new McpError(
+                  ErrorCode.InvalidParams,
+                  `Unknown action "${action}", expected status/add_channel/update_channel/remove_channel/reconnect_channel`
+                )
             }
           }
           default:
@@ -658,6 +747,327 @@ class ClawServer {
     logger.info('Journal search via tool', { agentId: this.agentId, query, tag: tagFilter, resultCount: result.length })
     return {
       content: [{ type: 'text' as const, text: JSON.stringify(result, null, 2) }]
+    }
+  }
+
+  // ── Config tool handlers ──────────────────────────────────────────
+
+  private async configStatus() {
+    const agent = await agentService.getAgent(this.agentId)
+    if (!agent) throw new McpError(ErrorCode.InternalError, `Agent not found: ${this.agentId}`)
+
+    const config = agent.configuration as CherryClawConfiguration | undefined
+    const channels = config?.channels ?? []
+
+    const adapterStatuses = channelManager.getAdapterStatuses(this.agentId)
+    const statusMap = new Map(adapterStatuses.map((s) => [s.channelId, s.connected]))
+
+    const channelSummary = channels.map((ch) => ({
+      id: ch.id,
+      type: ch.type,
+      name: ch.name,
+      enabled: ch.enabled !== false,
+      connected: statusMap.get(ch.id) ?? false,
+      is_notify_receiver: ch.is_notify_receiver ?? false
+    }))
+
+    const result = {
+      agent_id: agent.id,
+      name: agent.name,
+      model: agent.model,
+      supported_channel_types: Object.entries(CHANNEL_CONFIG_SCHEMAS).map(([type, schema]) => ({
+        type,
+        description: schema.description,
+        required_fields: schema.required,
+        optional_fields: schema.optional
+      })),
+      channels: channelSummary,
+      soul_enabled: config?.soul_enabled ?? false,
+      heartbeat_enabled: config?.heartbeat_enabled ?? false
+    }
+
+    logger.info('Config status queried', { agentId: this.agentId })
+    return {
+      content: [{ type: 'text' as const, text: JSON.stringify(result, null, 2) }]
+    }
+  }
+
+  private async configAddChannel(args: Record<string, unknown>) {
+    const type = args.type as string | undefined
+    const name = args.name as string | undefined
+    const channelConfig = args.config as Record<string, unknown> | undefined
+    const enabled = args.enabled as boolean | undefined
+    const isNotifyReceiver = args.is_notify_receiver as boolean | undefined
+
+    if (!type) throw new McpError(ErrorCode.InvalidParams, "'type' is required for add_channel")
+    if (!name) throw new McpError(ErrorCode.InvalidParams, "'name' is required for add_channel")
+
+    const schema = CHANNEL_CONFIG_SCHEMAS[type]
+    if (!schema) {
+      throw new McpError(
+        ErrorCode.InvalidParams,
+        `Unknown channel type "${type}". Supported: ${Object.keys(CHANNEL_CONFIG_SCHEMAS).join(', ')}`
+      )
+    }
+
+    // Validate required config fields
+    const cfg = channelConfig ?? {}
+    for (const field of schema.required) {
+      if (!cfg[field]) {
+        throw new McpError(ErrorCode.InvalidParams, `Missing required config field "${field}" for ${type} channel`)
+      }
+    }
+
+    const agent = await agentService.getAgent(this.agentId)
+    if (!agent) throw new McpError(ErrorCode.InternalError, `Agent not found: ${this.agentId}`)
+
+    const existingConfig = agent.configuration as CherryClawConfiguration | undefined
+    const channels: CherryClawChannel[] = [...(existingConfig?.channels ?? [])]
+
+    const newChannel: CherryClawChannel = {
+      id: `ch_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
+      type: type as CherryClawChannel['type'],
+      name,
+      enabled: enabled ?? true,
+      config: cfg as CherryClawChannel['config'],
+      is_notify_receiver: isNotifyReceiver ?? false
+    }
+
+    channels.push(newChannel)
+
+    await agentService.updateAgent(this.agentId, {
+      configuration: { ...existingConfig, channels } as CherryClawConfiguration
+    })
+
+    // For channels that use QR-based setup (WeChat login, Feishu app registration),
+    // connect is blocking (waits for QR scan), so run sync in background
+    // and wait only for the QR URL to return it to the agent.
+    const needsQr = type === 'wechat' || (type === 'feishu' && !cfg.app_id && !cfg.app_secret)
+
+    if (needsQr) {
+      const qrPromise = channelManager.waitForQrUrl(this.agentId, newChannel.id, 30_000)
+      // Fire-and-forget: syncAgent will complete once the user scans
+      channelManager.syncAgent(this.agentId).catch((err) => {
+        logger.error(`${type} sync failed`, {
+          agentId: this.agentId,
+          channelId: newChannel.id,
+          error: err instanceof Error ? err.message : String(err)
+        })
+      })
+
+      const channelLabel = type === 'wechat' ? 'WeChat' : 'Feishu'
+      const scanHint =
+        type === 'wechat'
+          ? 'scan with WeChat to log in'
+          : 'scan with Feishu to create a bot app and obtain credentials automatically'
+
+      try {
+        const qrUrl = await qrPromise
+        const qrDataUrl = await QRCode.toDataURL(qrUrl, { width: 300, margin: 2 })
+        // Extract base64 from data URI: "data:image/png;base64,..."
+        const base64 = qrDataUrl.split(',')[1]
+
+        logger.info(`${channelLabel} channel added, QR code generated`, {
+          agentId: this.agentId,
+          channelId: newChannel.id
+        })
+        return {
+          content: [
+            {
+              type: 'text' as const,
+              text: `${channelLabel} channel created (ID: ${newChannel.id}). QR code generated — display it to the user so they can ${scanHint}.`
+            },
+            {
+              type: 'image' as const,
+              data: base64,
+              mimeType: 'image/png'
+            }
+          ]
+        }
+      } catch (err) {
+        // QR timed out — remove the orphan channel so it doesn't block future syncAgent calls
+        await this.removeOrphanChannel(newChannel.id)
+
+        logger.warn(`Failed to get ${channelLabel} QR code, orphan channel removed`, {
+          agentId: this.agentId,
+          channelId: newChannel.id,
+          error: err instanceof Error ? err.message : String(err)
+        })
+        return {
+          content: [
+            {
+              type: 'text' as const,
+              text: `Failed to set up ${channelLabel} channel: ${err instanceof Error ? err.message : String(err)}. The channel was not saved. Please try again.`
+            }
+          ],
+          isError: true
+        }
+      }
+    }
+
+    await channelManager.syncAgent(this.agentId)
+
+    logger.info('Channel added via config tool', { agentId: this.agentId, channelId: newChannel.id, type })
+    return {
+      content: [
+        {
+          type: 'text' as const,
+          text: `Channel added and activated:\n${JSON.stringify({ id: newChannel.id, type, name, enabled: newChannel.enabled }, null, 2)}`
+        }
+      ]
+    }
+  }
+
+  private async configUpdateChannel(args: Record<string, unknown>) {
+    const channelId = args.channel_id as string | undefined
+    if (!channelId) throw new McpError(ErrorCode.InvalidParams, "'channel_id' is required for update_channel")
+
+    const agent = await agentService.getAgent(this.agentId)
+    if (!agent) throw new McpError(ErrorCode.InternalError, `Agent not found: ${this.agentId}`)
+
+    const existingConfig = agent.configuration as CherryClawConfiguration | undefined
+    const channels = [...(existingConfig?.channels ?? [])]
+    const idx = channels.findIndex((ch) => ch.id === channelId)
+    if (idx === -1) throw new McpError(ErrorCode.InvalidParams, `Channel "${channelId}" not found`)
+
+    const channel = { ...channels[idx] }
+
+    if (args.name !== undefined) channel.name = args.name as string
+    if (args.enabled !== undefined) channel.enabled = args.enabled as boolean
+    if (args.is_notify_receiver !== undefined) channel.is_notify_receiver = args.is_notify_receiver as boolean
+    if (args.config !== undefined) {
+      channel.config = { ...channel.config, ...(args.config as Record<string, unknown>) } as CherryClawChannel['config']
+    }
+
+    channels[idx] = channel
+
+    await agentService.updateAgent(this.agentId, {
+      configuration: { ...existingConfig, channels } as CherryClawConfiguration
+    })
+
+    await channelManager.syncAgent(this.agentId)
+
+    logger.info('Channel updated via config tool', { agentId: this.agentId, channelId })
+    return {
+      content: [{ type: 'text' as const, text: `Channel "${channelId}" updated and reloaded.` }]
+    }
+  }
+
+  private async configRemoveChannel(args: Record<string, unknown>) {
+    const channelId = args.channel_id as string | undefined
+    if (!channelId) throw new McpError(ErrorCode.InvalidParams, "'channel_id' is required for remove_channel")
+
+    const agent = await agentService.getAgent(this.agentId)
+    if (!agent) throw new McpError(ErrorCode.InternalError, `Agent not found: ${this.agentId}`)
+
+    const existingConfig = agent.configuration as CherryClawConfiguration | undefined
+    const channels = [...(existingConfig?.channels ?? [])]
+    const idx = channels.findIndex((ch) => ch.id === channelId)
+    if (idx === -1) throw new McpError(ErrorCode.InvalidParams, `Channel "${channelId}" not found`)
+
+    const removed = channels.splice(idx, 1)[0]
+
+    await agentService.updateAgent(this.agentId, {
+      configuration: { ...existingConfig, channels } as CherryClawConfiguration
+    })
+
+    await channelManager.syncAgent(this.agentId)
+
+    logger.info('Channel removed via config tool', { agentId: this.agentId, channelId, type: removed.type })
+    return {
+      content: [{ type: 'text' as const, text: `Channel "${channelId}" (${removed.name}) removed.` }]
+    }
+  }
+
+  private async configReconnectChannel(args: Record<string, unknown>) {
+    const channelId = args.channel_id as string | undefined
+    if (!channelId) throw new McpError(ErrorCode.InvalidParams, "'channel_id' is required for reconnect_channel")
+
+    const agent = await agentService.getAgent(this.agentId)
+    if (!agent) throw new McpError(ErrorCode.InternalError, `Agent not found: ${this.agentId}`)
+
+    const existingConfig = agent.configuration as CherryClawConfiguration | undefined
+    const channel = existingConfig?.channels?.find((ch) => ch.id === channelId)
+    if (!channel) throw new McpError(ErrorCode.InvalidParams, `Channel "${channelId}" not found`)
+
+    const needsQr =
+      channel.type === 'wechat' || (channel.type === 'feishu' && !(channel.config as Record<string, unknown>).app_id)
+
+    if (!needsQr) {
+      // For non-QR channels, just re-sync
+      await channelManager.syncAgent(this.agentId)
+      return {
+        content: [{ type: 'text' as const, text: `Channel "${channelId}" reconnected.` }]
+      }
+    }
+
+    // QR-based reconnect: sync in background, wait for QR URL
+    const qrPromise = channelManager.waitForQrUrl(this.agentId, channelId, 30_000)
+    channelManager.syncAgent(this.agentId).catch((err) => {
+      logger.error('Reconnect sync failed', {
+        agentId: this.agentId,
+        channelId,
+        error: err instanceof Error ? err.message : String(err)
+      })
+    })
+
+    const channelLabel = channel.type === 'wechat' ? 'WeChat' : 'Feishu'
+
+    try {
+      const qrUrl = await qrPromise
+      const qrDataUrl = await QRCode.toDataURL(qrUrl, { width: 300, margin: 2 })
+      const base64 = qrDataUrl.split(',')[1]
+
+      logger.info(`${channelLabel} channel reconnect QR generated`, { agentId: this.agentId, channelId })
+      return {
+        content: [
+          {
+            type: 'text' as const,
+            text: `${channelLabel} channel "${channelId}" needs re-authentication. Display this QR code for the user to scan.`
+          },
+          {
+            type: 'image' as const,
+            data: base64,
+            mimeType: 'image/png'
+          }
+        ]
+      }
+    } catch (err) {
+      return {
+        content: [
+          {
+            type: 'text' as const,
+            text: `Failed to generate QR for reconnect: ${err instanceof Error ? err.message : String(err)}`
+          }
+        ],
+        isError: true
+      }
+    }
+  }
+
+  /**
+   * Remove a channel from config that failed to connect (e.g. QR timeout).
+   * Prevents orphaned channels from blocking future syncAgent calls.
+   */
+  private async removeOrphanChannel(channelId: string): Promise<void> {
+    try {
+      const agent = await agentService.getAgent(this.agentId)
+      if (!agent) return
+
+      const existingConfig = agent.configuration as CherryClawConfiguration | undefined
+      const channels = (existingConfig?.channels ?? []).filter((ch) => ch.id !== channelId)
+
+      await agentService.updateAgent(this.agentId, {
+        configuration: { ...existingConfig, channels } as CherryClawConfiguration
+      })
+
+      await channelManager.syncAgent(this.agentId)
+    } catch (err) {
+      logger.error('Failed to remove orphan channel', {
+        agentId: this.agentId,
+        channelId,
+        error: err instanceof Error ? err.message : String(err)
+      })
     }
   }
 

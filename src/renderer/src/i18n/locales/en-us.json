@@ -40,12 +40,18 @@
           "chatIds": "Allowed Chat IDs",
           "chatIdsHint": "Comma-separated chat IDs. Leave empty to allow all chats.",
           "chatIdsPlaceholder": "oc_xxxxx, oc_yyyyy",
+          "connected": "Connected",
           "description": "Receive and respond to messages via a Feishu/Lark bot using WebSocket.",
           "domain": "Domain",
           "domainFeishu": "Feishu (China)",
           "domainLark": "Lark (International)",
           "encryptKey": "Encrypt Key",
           "encryptKeyPlaceholder": "Enter the Encrypt Key from your Feishu app",
+          "loginHint": "No credentials configured. Enable the channel to start QR code registration, or enter App ID and App Secret manually.",
+          "qrExpired": "QR code expired. Please retry by toggling the channel.",
+          "qrHint": "Waiting for QR code scan...",
+          "qrScanHint": "Open Feishu on your phone and scan the QR code to create a bot app.",
+          "qrTitle": "Feishu QR Registration",
           "title": "Feishu",
           "verificationToken": "Verification Token",
           "verificationTokenPlaceholder": "Enter the Verification Token from your Feishu app"
@@ -76,13 +82,18 @@
         },
         "title": "Channels",
         "wechat": {
+          "addAccount": "Add WeChat Account",
+          "chatIds": "Allowed User IDs",
+          "chatIdsHint": "Comma-separated. Leave empty to allow all users.",
+          "chatIdsPlaceholder": "wxid_abc123, wxid_def456",
           "connected": "Logged in",
           "description": "Receive and respond to messages via WeChat using the iLink Bot API.",
           "disconnected": "Not logged in",
           "loginHint": "First login requires scanning a QR code. A QR code will appear automatically when the channel connects.",
           "qrHint": "Open WeChat on your phone, scan the QR code to log in.",
           "qrTitle": "WeChat QR Login",
-          "title": "WeChat"
+          "title": "WeChat",
+          "whoamiTip": "Tip: Send /whoami in WeChat to get a user's ID."
         }
       },
       "heartbeat": {
@@ -354,12 +365,6 @@
         "title": "Advanced Settings"
       },
       "essential": "Essential Settings",
-      "soulMode": {
-        "title": "Autonomous Mode",
-        "description": "When enabled, the agent uses a custom system prompt from workspace soul files, injects autonomous task management tools, and disables interactive tools not suited for autonomous operation.",
-        "disabledBadge": "Disabled by Autonomous Mode",
-        "disabledTooltip": "This tool is automatically disabled when Autonomous Mode is active"
-      },
       "permissionMode": {
         "tab": "Permission Mode",
         "title": "Permission Mode"
@@ -430,6 +435,12 @@
         "uninstalling": "Uninstalling..."
       },
       "prompt": "Prompt Settings",
+      "soulMode": {
+        "description": "When enabled, the agent uses a custom system prompt from workspace soul files, injects autonomous task management tools, and disables interactive tools not suited for autonomous operation.",
+        "disabledBadge": "Disabled by Autonomous Mode",
+        "disabledTooltip": "This tool is automatically disabled when Autonomous Mode is active",
+        "title": "Autonomous Mode"
+      },
       "tooling": {
         "mcp": {
           "description": "Connect MCP servers to unlock additional tools you can approve above.",

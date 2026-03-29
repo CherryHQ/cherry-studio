@@ -40,12 +40,18 @@
           "chatIds": "ID-uri de chat permise",
           "chatIdsHint": "ID-uri de chat separate prin virgulă. Lăsați gol pentru a permite toate chat-urile.",
           "chatIdsPlaceholder": "oc_xxxxx, oc_yyyyy",
+          "connected": "[to be translated]:Connected",
           "description": "Primiți și răspundeți la mesaje printr-un bot Feishu/Lark folosind WebSocket.",
           "domain": "Domeniu",
           "domainFeishu": "Feishu (China)",
           "domainLark": "Lark (Internațional)",
           "encryptKey": "Cheie de criptare",
           "encryptKeyPlaceholder": "Introduceți cheia de criptare a aplicației Feishu",
+          "loginHint": "[to be translated]:No credentials configured. Enable the channel to start QR code registration, or enter App ID and App Secret manually.",
+          "qrExpired": "[to be translated]:QR code expired. Please retry by toggling the channel.",
+          "qrHint": "[to be translated]:Waiting for QR code scan...",
+          "qrScanHint": "[to be translated]:Open Feishu on your phone and scan the QR code to create a bot app.",
+          "qrTitle": "[to be translated]:Feishu QR Registration",
           "title": "Feishu",
           "verificationToken": "Token de verificare",
           "verificationTokenPlaceholder": "Introduceți tokenul de verificare al aplicației Feishu"
@@ -76,13 +82,18 @@
         },
         "title": "Canale",
         "wechat": {
+          "addAccount": "[to be translated]:Add WeChat Account",
+          "chatIds": "[to be translated]:Allowed User IDs",
+          "chatIdsHint": "[to be translated]:Comma-separated. Leave empty to allow all users.",
+          "chatIdsPlaceholder": "[to be translated]:wxid_abc123, wxid_def456",
           "connected": "[to be translated]:Connected",
           "description": "[to be translated]:Receive and respond to messages via WeChat using the iLink Bot API.",
           "disconnected": "[to be translated]:Disconnected",
           "loginHint": "[to be translated]:First login requires scanning a QR code. Check the app logs for the login URL.",
           "qrHint": "[to be translated]:Open WeChat on your phone, scan the QR code to log in.",
           "qrTitle": "[to be translated]:WeChat QR Login",
-          "title": "[to be translated]:WeChat"
+          "title": "[to be translated]:WeChat",
+          "whoamiTip": "[to be translated]:Tip: Send /whoami in WeChat to get a user's ID."
         }
       },
       "heartbeat": {
@@ -217,6 +228,10 @@
     "edit": {
       "title": "Editează agentul"
     },
+    "empty": {
+      "description": "[to be translated]:Create an agent to handle complex tasks with AI-powered tools",
+      "title": "[to be translated]:No agents yet"
+    },
     "get": {
       "error": {
         "failed": "Nu s-a putut obține agentul.",
@@ -256,6 +271,11 @@
     "list": {
       "error": {
         "failed": "Nu s-a putut afișa lista de agenți."
+      }
+    },
+    "reorder": {
+      "error": {
+        "failed": "[to be translated]:Failed to reorder agents"
       }
     },
     "server": {
@@ -308,6 +328,11 @@
       },
       "label_one": "Sesiune",
       "label_other": "Sesiuni",
+      "reorder": {
+        "error": {
+          "failed": "[to be translated]:Failed to reorder sessions"
+        }
+      },
       "update": {
         "error": {
           "failed": "Nu s-a putut actualiza sesiunea"
@@ -410,6 +435,12 @@
         "uninstalling": "Se dezinstalează..."
       },
       "prompt": "Setări prompt",
+      "soulMode": {
+        "description": "[to be translated]:When enabled, the agent uses a custom system prompt from workspace soul files, injects autonomous task management tools, and disables interactive tools not suited for autonomous operation.",
+        "disabledBadge": "[to be translated]:Disabled by Autonomous Mode",
+        "disabledTooltip": "[to be translated]:This tool is automatically disabled when Autonomous Mode is active",
+        "title": "[to be translated]:Autonomous Mode"
+      },
       "tooling": {
         "mcp": {
           "description": "Conectează servere MCP pentru a debloca instrumente suplimentare pe care le poți aproba mai sus.",
@@ -474,6 +505,7 @@
         }
       }
     },
+    "sidebar_title": "[to be translated]:Agents",
     "todo": {
       "panel": {
         "title": "{{completed}}/{{total}} sarcini finalizate"
@@ -553,6 +585,9 @@
         "TodoWrite": {
           "description": "Creează și gestionează liste de sarcini structurate"
         },
+        "ToolSearch": {
+          "description": "[to be translated]:Discovers deferred tools from large libraries"
+        },
         "WebFetch": {
           "description": "Preia conținutul de la o adresă URL specificată"
         },
@@ -574,7 +609,11 @@
       }
     },
     "warning": {
-      "enable_server": "Activează serverul API pentru a folosi agenți."
+      "enable_and_start": "[to be translated]:Enable & Start",
+      "enable_server": "Activează serverul API pentru a folosi agenți.",
+      "enable_server_description": "[to be translated]:The API server must be enabled for agents to work. You can enable it directly or configure it in settings.",
+      "server_not_running": "[to be translated]:API Server is enabled but not running. Please check the server configuration.",
+      "server_not_running_description": "[to be translated]:The API server needs to be running for agents to work. You can start it directly or check the settings."
     }
   },
   "apiServer": {
@@ -800,6 +839,10 @@
           "tip": "Asistentul va folosi capacitatea de recunoaștere a intenției modelului mare pentru a determina dacă să folosească baza de cunoștințe pentru a răspunde. Această funcție depinde de capacitățile modelului"
         }
       },
+      "max_tool_calls": {
+        "label": "[to be translated]:Max Tool Calls",
+        "tip": "[to be translated]:Maximum number of tool calls allowed in a single conversation. Higher values allow more complex multi-step operations but may increase token usage and response time."
+      },
       "mcp": {
         "description": "Servere MCP activate implicit",
         "enableFirst": "Activează mai întâi acest server în setările MCP",
@@ -891,6 +934,7 @@
     "progress": {
       "completed": "Backup finalizat",
       "compressing": "Se comprimă fișierele...",
+      "copying_database": "[to be translated]:Copying database...",
       "copying_files": "Se copiază fișierele... {{progress}}%",
       "preparing": "Se pregătește backup-ul...",
       "preparing_compression": "Se pregătește compresia...",
@@ -928,6 +972,7 @@
       }
     },
     "alerts": {
+      "create_agent": "[to be translated]:Create an agent to get started",
       "create_session": "Creează o sesiune",
       "select_agent": "Selectați un agent"
     },
@@ -1043,7 +1088,11 @@
         "collapse": "Restrânge",
         "collapse_in": "Restrânge",
         "collapse_out": "Elimină din restrângere",
-        "expand": "Extinde"
+        "expand": "Extinde",
+        "file_not_found": "[to be translated]:File not found: {{path}}",
+        "open_file": "[to be translated]:Open File",
+        "open_file_error": "[to be translated]:Failed to open file: {{path}}",
+        "reveal_in_finder": "[to be translated]:Reveal in Finder"
       },
       "topics": " Subiecte ",
       "translate": "Tradu în {{target_language}}",
@@ -1537,6 +1586,7 @@
     "off": "Oprit",
     "on": "Pornit",
     "open": "Deschide",
+    "open_in": "[to be translated]:Open in {{name}}",
     "paste": "Lipește",
     "placeholders": {
       "select": {
@@ -1564,6 +1614,7 @@
     "selected": "Selectat",
     "selectedItems": "{{count}} elemente selectate",
     "selectedMessages": "{{count}} mesaje selectate",
+    "sessions": "[to be translated]:Sessions",
     "settings": "Setări",
     "sort": {
       "pinyin": {
@@ -1673,7 +1724,6 @@
     "originalError": "Eroare originală",
     "originalMessage": "Mesaj original",
     "parameter": "Parametru",
-    "pause_placeholder": "În pauză",
     "prompt": "Prompt",
     "provider": "Furnizor",
     "providerId": "ID furnizor",
@@ -1687,6 +1737,7 @@
     "requestBody": "Corp cerere",
     "requestBodyValues": "Valori corp cerere",
     "requestUrl": "URL cerere",
+    "request_timeout": "[to be translated]:Request timed out",
     "response": "Răspuns",
     "responseBody": "Corp răspuns",
     "responseHeaders": "Header răspuns",
@@ -1696,6 +1747,7 @@
     "status": "Cod stare",
     "statusCode": "Cod stare",
     "statusText": "Text stare",
+    "stream_paused": "[to be translated]:Paused",
     "text": "Text",
     "toolInput": "Intrare instrument",
     "toolName": "Nume instrument",
@@ -2174,6 +2226,10 @@
         "export": "Eroare la exportul Excel"
       },
       "fetchTopicName": "Nu s-a putut numi subiectul",
+      "file": {
+        "process_failed": "[to be translated]:File {{name}} could not be processed",
+        "text_extraction_failed": "[to be translated]:Failed to extract text from {{name}}"
+      },
       "get_embedding_dimensions": "Nu s-au putut obține dimensiunile embedding",
       "invalid": {
         "api": {
@@ -2417,6 +2473,11 @@
       }
     },
     "warning": {
+      "file": {
+        "pdf_exceeds_limit": "[to be translated]:PDF file {{name}} exceeds size limit ({{limit}}), falling back to text extraction",
+        "pdf_text_extraction_failed": "[to be translated]:Failed to extract text from PDF {{name}}",
+        "pdf_upload_failed": "[to be translated]:Failed to upload PDF {{name}}, falling back to text extraction"
+      },
       "rate": {
         "limit": "Prea multe cereri. Te rugăm să aștepți {{seconds}} secunde înainte de a încerca din nou."
       }
@@ -2470,7 +2531,10 @@
     "dangbei": "Dangbei",
     "doubao": "Doubao",
     "hailuo": "MINIMAX",
+    "ima": "[to be translated]:ima",
     "metaso": "Metaso",
+    "minimax-agent": "[to be translated]:Minimax Agent CN",
+    "minimax-global": "[to be translated]:Minimax Agent",
     "nami-ai": "Nami AI",
     "nami-ai-search": "Nami AI Search",
     "qwen": "Qwen",
@@ -2770,6 +2834,11 @@
     },
     "install_progress": "Progresul instalării",
     "installed_at": "OpenClaw instalat la",
+    "migration": {
+      "description": "[to be translated]:An outdated version of OpenClaw installed via npm has been detected. Please reinstall to get the latest official version.",
+      "install_button": "[to be translated]:Reinstall OpenClaw",
+      "title": "[to be translated]:OpenClaw Needs Update"
+    },
     "model_config": {
       "auth_token": "Token de autentificare",
       "auth_token_hint": "Token pentru autentificarea gateway-ului. Lăsați gol pentru a dezactiva autentificarea.",
@@ -2805,6 +2874,7 @@
       "windows_title": "Windows"
     },
     "quick_actions": {
+      "check_update": "[to be translated]:Check for Updates",
       "open_dashboard": "Deschide Tabloul de Bord",
       "title": "Acțiuni rapide",
       "uninstall": "Dezinstalare",
@@ -2831,6 +2901,16 @@
     "uninstalling": {
       "description": "Vă rugăm să așteptați în timp ce OpenClaw este dezinstalat...",
       "title": "Dezinstalarea OpenClaw"
+    },
+    "update": {
+      "available": "[to be translated]:New version available: v{{latest}} (current: v{{current}})",
+      "checking": "[to be translated]:Checking for updates...",
+      "confirm_button": "[to be translated]:Update Now",
+      "failed": "[to be translated]:Failed to check for updates",
+      "modal_title": "[to be translated]:OpenClaw Update",
+      "success": "[to be translated]:Update completed successfully!",
+      "up_to_date": "[to be translated]:Already up to date (v{{current}})",
+      "updating": "[to be translated]:Updating..."
     }
   },
   "ovms": {
@@ -3232,6 +3312,7 @@
     "longcat": "LongCat AI",
     "mimo": "Xiaomi MiMo",
     "minimax": "MiniMax",
+    "minimax-global": "[to be translated]:MiniMax",
     "mistral": "Mistral",
     "modelscope": "ModelScope",
     "moonshot": "Moonshot",
@@ -3259,6 +3340,7 @@
     "voyageai": "Voyage AI",
     "xirang": "State Cloud Xirang",
     "yi": "Yi",
+    "zai": "[to be translated]:Z.ai",
     "zhinao": "360AI",
     "zhipu": "BigModel"
   },
@@ -3275,7 +3357,10 @@
       "extracting": "Se extrage backup-ul...",
       "preparing": "Se pregătește restaurarea...",
       "reading_data": "Se citesc datele...",
-      "title": "Progres restaurare"
+      "restoring_data": "[to be translated]:Restoring files...",
+      "restoring_database": "[to be translated]:Restoring database...",
+      "title": "Progres restaurare",
+      "validating": "[to be translated]:Validating backup..."
     },
     "title": "Restaurare date"
   },
@@ -3828,7 +3913,15 @@
           "button": "Selectează fișierul de backup"
         },
         "content": "Exportă unele date, inclusiv jurnalele de chat și setările. Te rugăm să reții că procesul de backup poate dura ceva timp. Îți mulțumim pentru răbdare.",
+        "file": {
+          "button": "[to be translated]:Export to file",
+          "content": "[to be translated]:Export data as a backup file that can be imported on mobile via file.",
+          "export_failed": "[to be translated]:Export failed",
+          "export_success": "[to be translated]:Export successful",
+          "title": "[to be translated]:Export as file"
+        },
         "lan": {
+          "button": "[to be translated]:Start Transfer",
           "connected": "Conectat",
           "connection_failed": "Conexiune eșuată",
           "content": "Te rugăm să te asiguri că computerul și telefonul sunt în aceeași rețea pentru transferul LAN.",

@@ -11,7 +11,15 @@ vi.mock('../../ChannelManager', () => ({
 }))
 
 vi.mock('electron', () => ({
+  app: { getPath: () => '/mock/userData' },
+  nativeTheme: { themeSource: '', shouldUseDarkColors: false },
   net: { fetch: vi.fn() }
+}))
+
+vi.mock('../../../../../WindowService', () => ({
+  windowService: {
+    getMainWindow: () => null
+  }
 }))
 
 const mockImCreate = vi.fn().mockResolvedValue({ code: 0, data: { message_id: 'msg-1' } })
@@ -103,9 +111,12 @@ describe('FeishuAdapter', () => {
     expect(mockWsStart).toHaveBeenCalledWith({ eventDispatcher: expect.anything() })
   })
 
-  it('connect() throws if app_id is missing', async () => {
+  it('connect() with missing app_id starts background registration instead of WebSocket', async () => {
     const adapter = createAdapter({ app_id: '' })
-    await expect(adapter.connect()).rejects.toThrow('Feishu app_id and app_secret are required')
+    await adapter.connect()
+    // checkReady() returns false → performConnect runs in background,
+    // starts registration flow instead of WebSocket
+    expect(mockWsStart).not.toHaveBeenCalled()
   })
 
   it('sendMessage() sends post-type message via SDK', async () => {

@@ -1,7 +1,8 @@
+import { PlusOutlined } from '@ant-design/icons'
 import type { CherryClawChannel, CherryClawConfiguration, FeishuChannelConfig, FeishuDomain } from '@renderer/types'
 import { getChannelTypeIcon } from '@renderer/utils/agentSession'
 import type { CardProps } from 'antd'
-import { Card, Checkbox, Input, Modal, Select, Switch } from 'antd'
+import { Button, Card, Checkbox, Input, Modal, Select, Switch } from 'antd'
 import { QRCodeSVG } from 'qrcode.react'
 import type { ReactNode } from 'react'
 import { type FC, useCallback, useEffect, useMemo, useState } from 'react'
@@ -263,45 +264,121 @@ const FeishuDomainSelector: FC<{
   )
 }
 
+type FeishuStatus = 'idle' | 'pending' | 'confirmed' | 'expired' | 'disconnected'
+
 const FeishuChannelCard: FC<ChannelCardProps> = ({ channel, onConfigChange }) => {
   const { t } = useTranslation()
+  const cfg = channel.config as FeishuChannelConfig
+  const hasCredentials = !!(cfg.app_id && cfg.app_secret)
+  const [qrUrl, setQrUrl] = useState<string | null>(null)
+  const [status, setStatus] = useState<FeishuStatus>(hasCredentials ? 'confirmed' : 'idle')
+
+  useEffect(() => {
+    const cleanup = window.api.feishu.onQrLogin((data) => {
+      if (data.channelId !== channel.id) return
+
+      if (data.status === 'confirmed' && data.appId && data.appSecret) {
+        setQrUrl(null)
+        setStatus('confirmed')
+        // Save the obtained credentials back to channel config
+        onConfigChange({
+          config: { ...cfg, app_id: data.appId, app_secret: data.appSecret }
+        })
+      } else if (data.status === 'expired') {
+        setQrUrl(null)
+        setStatus('expired')
+      } else if (data.status === 'disconnected') {
+        setStatus('disconnected')
+      } else if (data.url) {
+        setQrUrl(data.url)
+        setStatus('pending')
+      }
+    })
+    return cleanup
+  }, [channel.id, cfg, onConfigChange])
 
   return (
-    <ChannelFieldsCard
-      channel={channel}
-      onConfigChange={onConfigChange}
-      fields={[
-        {
-          key: 'app_id',
-          label: t('agent.cherryClaw.channels.feishu.appId'),
-          placeholder: t('agent.cherryClaw.channels.feishu.appIdPlaceholder')
-        },
-        {
-          key: 'app_secret',
-          label: t('agent.cherryClaw.channels.feishu.appSecret'),
-          placeholder: t('agent.cherryClaw.channels.feishu.appSecretPlaceholder'),
-          secret: true
-        },
-        {
-          key: 'encrypt_key',
-          label: t('agent.cherryClaw.channels.feishu.encryptKey'),
-          placeholder: t('agent.cherryClaw.channels.feishu.encryptKeyPlaceholder'),
-          secret: true
-        },
-        {
-          key: 'verification_token',
-          label: t('agent.cherryClaw.channels.feishu.verificationToken'),
-          placeholder: t('agent.cherryClaw.channels.feishu.verificationTokenPlaceholder'),
-          secret: true
-        }
-      ]}
-      extraContent={<FeishuDomainSelector channel={channel} onConfigChange={onConfigChange} />}
-      chatIds={{
-        label: t('agent.cherryClaw.channels.feishu.chatIds'),
-        placeholder: t('agent.cherryClaw.channels.feishu.chatIdsPlaceholder'),
-        hint: t('agent.cherryClaw.channels.feishu.chatIdsHint')
-      }}
-    />
+    <div className="flex flex-col gap-3 pb-3">
+      {/* QR status indicator */}
+      {!hasCredentials && (
+        <div className="flex flex-col gap-1">
+          <div className="flex items-center gap-2">
+            {status === 'pending' && (
+              <span className="text-blue-400 text-xs">{t('agent.cherryClaw.channels.feishu.qrHint')}</span>
+            )}
+            {status === 'expired' && (
+              <>
+                <span className="inline-block h-2 w-2 rounded-full bg-red-500" />
+                <span className="text-red-500 text-xs">{t('agent.cherryClaw.channels.feishu.qrExpired')}</span>
+              </>
+            )}
+            {status === 'idle' && (
+              <span className="text-blue-400 text-xs">{t('agent.cherryClaw.channels.feishu.loginHint')}</span>
+            )}
+          </div>
+        </div>
+      )}
+
+      {hasCredentials && (
+        <div className="flex items-center gap-2">
+          <span className="inline-block h-2 w-2 rounded-full bg-green-500" />
+          <span className="text-green-600 text-xs">{t('agent.cherryClaw.channels.feishu.connected')}</span>
+        </div>
+      )}
+
+      {/* Standard credential fields (shown always, auto-filled after QR scan) */}
+      <ChannelFieldsCard
+        channel={channel}
+        onConfigChange={onConfigChange}
+        fields={[
+          {
+            key: 'app_id',
+            label: t('agent.cherryClaw.channels.feishu.appId'),
+            placeholder: t('agent.cherryClaw.channels.feishu.appIdPlaceholder')
+          },
+          {
+            key: 'app_secret',
+            label: t('agent.cherryClaw.channels.feishu.appSecret'),
+            placeholder: t('agent.cherryClaw.channels.feishu.appSecretPlaceholder'),
+            secret: true
+          },
+          {
+            key: 'encrypt_key',
+            label: t('agent.cherryClaw.channels.feishu.encryptKey'),
+            placeholder: t('agent.cherryClaw.channels.feishu.encryptKeyPlaceholder'),
+            secret: true
+          },
+          {
+            key: 'verification_token',
+            label: t('agent.cherryClaw.channels.feishu.verificationToken'),
+            placeholder: t('agent.cherryClaw.channels.feishu.verificationTokenPlaceholder'),
+            secret: true
+          }
+        ]}
+        extraContent={<FeishuDomainSelector channel={channel} onConfigChange={onConfigChange} />}
+        chatIds={{
+          label: t('agent.cherryClaw.channels.feishu.chatIds'),
+          placeholder: t('agent.cherryClaw.channels.feishu.chatIdsPlaceholder'),
+          hint: t('agent.cherryClaw.channels.feishu.chatIdsHint')
+        }}
+      />
+
+      {/* QR Code Modal */}
+      <Modal
+        open={!!qrUrl}
+        title={t('agent.cherryClaw.channels.feishu.qrTitle')}
+        footer={null}
+        onCancel={() => setQrUrl(null)}
+        centered
+        width={360}>
+        <div className="flex flex-col items-center gap-4 py-4">
+          {qrUrl && <QRCodeSVG value={qrUrl} size={240} level="M" />}
+          <span className="text-center text-foreground-500 text-xs">
+            {t('agent.cherryClaw.channels.feishu.qrScanHint')}
+          </span>
+        </div>
+      </Modal>
+    </div>
   )
 }
 
@@ -341,61 +418,84 @@ const QQChannelCard: FC<ChannelCardProps> = ({ channel, onConfigChange }) => {
 
 type WeChatStatus = 'idle' | 'pending' | 'confirmed' | 'disconnected'
 
-const WeChatChannelCard: FC<ChannelCardProps> = ({ channel, onConfigChange }) => {
+/** Status row for a single WeChat channel instance. */
+const WeChatInstanceStatus: FC<{ channelId: string; name: string; onRemove?: () => void }> = ({
+  channelId,
+  name,
+  onRemove
+}) => {
   const { t } = useTranslation()
-  const [qrUrl, setQrUrl] = useState<string | null>(null)
   const [status, setStatus] = useState<WeChatStatus>('idle')
+  const [loginUserId, setLoginUserId] = useState<string | null>(null)
+  const [qrUrl, setQrUrl] = useState<string | null>(null)
 
   useEffect(() => {
-    window.api.wechat.hasCredentials(channel.id).then((has) => {
-      if (has) setStatus('confirmed')
+    window.api.wechat.hasCredentials(channelId).then((result) => {
+      if (result.exists) {
+        setStatus('confirmed')
+        if (result.userId) setLoginUserId(result.userId)
+      }
     })
-  }, [channel.id])
+  }, [channelId])
 
   useEffect(() => {
     const cleanup = window.api.wechat.onQrLogin((data) => {
-      if (data.channelId !== channel.id) return
-
+      if (data.channelId !== channelId) return
       if (data.status === 'confirmed') {
         setQrUrl(null)
         setStatus('confirmed')
+        if (data.userId) setLoginUserId(data.userId)
       } else if (data.status === 'expired') {
         setQrUrl(null)
       } else if (data.status === 'disconnected') {
         setStatus('disconnected')
+        setLoginUserId(null)
       } else if (data.url) {
         setQrUrl(data.url)
         setStatus('pending')
       }
     })
     return cleanup
-  }, [channel.id])
+  }, [channelId])
 
   return (
-    <div className="flex flex-col gap-3 pb-3">
-      <div className="flex items-center gap-2">
-        {status === 'confirmed' && (
-          <>
-            <span className="inline-block h-2 w-2 rounded-full bg-green-500" />
-            <span className="text-green-600 text-xs">{t('agent.cherryClaw.channels.wechat.connected')}</span>
-          </>
-        )}
-        {status === 'disconnected' && (
-          <>
-            <span className="inline-block h-2 w-2 rounded-full bg-red-500" />
-            <span className="text-red-500 text-xs">{t('agent.cherryClaw.channels.wechat.disconnected')}</span>
-          </>
-        )}
-        {(status === 'idle' || status === 'pending') && (
-          <span className="text-blue-400 text-xs">{t('agent.cherryClaw.channels.wechat.loginHint')}</span>
+    <>
+      <div className="flex flex-col gap-1">
+        <div className="flex items-center gap-2">
+          {status === 'confirmed' && (
+            <>
+              <span className="inline-block h-2 w-2 rounded-full bg-green-500" />
+              <span className="text-green-600 text-xs">{t('agent.cherryClaw.channels.wechat.connected')}</span>
+            </>
+          )}
+          {status === 'disconnected' && (
+            <>
+              <span className="inline-block h-2 w-2 rounded-full bg-red-500" />
+              <span className="text-red-500 text-xs">{t('agent.cherryClaw.channels.wechat.disconnected')}</span>
+            </>
+          )}
+          {(status === 'idle' || status === 'pending') && (
+            <span className="text-blue-400 text-xs">{t('agent.cherryClaw.channels.wechat.loginHint')}</span>
+          )}
+          {name && <span className="text-gray-400 text-xs">({name})</span>}
+        </div>
+        {loginUserId && status === 'confirmed' && (
+          <span className="text-gray-400 text-xs">
+            User ID: <code className="select-all rounded bg-gray-100 px-1 dark:bg-gray-800">{loginUserId}</code>
+          </span>
         )}
       </div>
-      <NotifyCheckbox channel={channel} onConfigChange={onConfigChange} />
       <Modal
         open={!!qrUrl}
         title={t('agent.cherryClaw.channels.wechat.qrTitle')}
         footer={null}
-        onCancel={() => setQrUrl(null)}
+        onCancel={() => {
+          setQrUrl(null)
+          // If the channel hasn't been confirmed yet, remove it to stop the login flow
+          if (status !== 'confirmed' && onRemove) {
+            onRemove()
+          }
+        }}
         centered
         width={360}>
         <div className="flex flex-col items-center gap-4 py-4">
@@ -405,6 +505,43 @@ const WeChatChannelCard: FC<ChannelCardProps> = ({ channel, onConfigChange }) =>
           </span>
         </div>
       </Modal>
+    </>
+  )
+}
+
+type WeChatChannelCardProps = {
+  channels: CherryClawChannel[]
+  primaryChannel: CherryClawChannel
+  onConfigChange: (channelId: string, updates: Partial<CherryClawChannel>) => void
+  onAddAccount: () => void
+  onRemoveAccount: (channelId: string) => void
+}
+
+const WeChatChannelCard: FC<WeChatChannelCardProps> = ({
+  channels,
+  primaryChannel,
+  onConfigChange,
+  onAddAccount,
+  onRemoveAccount
+}) => {
+  const { t } = useTranslation()
+  return (
+    <div className="flex flex-col gap-3 pb-3">
+      {channels.map((ch) => (
+        <WeChatInstanceStatus
+          key={ch.id}
+          channelId={ch.id}
+          name={channels.length > 1 ? ch.name : ''}
+          onRemove={() => onRemoveAccount(ch.id)}
+        />
+      ))}
+      <Button type="dashed" size="small" icon={<PlusOutlined />} onClick={onAddAccount} className="self-start">
+        {t('agent.cherryClaw.channels.wechat.addAccount')}
+      </Button>
+      <NotifyCheckbox
+        channel={primaryChannel}
+        onConfigChange={(updates) => onConfigChange(primaryChannel.id, updates)}
+      />
     </div>
   )
 }
@@ -418,6 +555,7 @@ const ChannelsSettings: FC<AgentOrSessionSettingsProps> = ({ agentBase, update }
   const channels = useMemo(() => config.channels ?? [], [config.channels])
 
   const getChannel = useCallback((type: string) => channels.find((ch) => ch.type === type), [channels])
+  const getChannelsByType = useCallback((type: string) => channels.filter((ch) => ch.type === type), [channels])
 
   const updateChannels = useCallback(
     (newChannels: CherryClawChannel[]) => {
@@ -449,6 +587,7 @@ const ChannelsSettings: FC<AgentOrSessionSettingsProps> = ({ agentBase, update }
           }
         ])
       } else if (existing) {
+        // Toggle all channels of this type
         updateChannels(channels.map((ch) => (ch.type === channelDef.type ? { ...ch, enabled } : ch)))
       }
     },
@@ -456,11 +595,34 @@ const ChannelsSettings: FC<AgentOrSessionSettingsProps> = ({ agentBase, update }
   )
 
   const handleConfigChange = useCallback(
-    (type: string, updates: Partial<CherryClawChannel>) => {
-      updateChannels(channels.map((ch) => (ch.type === type ? { ...ch, ...updates } : ch)))
+    (channelId: string, updates: Partial<CherryClawChannel>) => {
+      updateChannels(channels.map((ch) => (ch.id === channelId ? { ...ch, ...updates } : ch)))
     },
     [channels, updateChannels]
   )
+
+  const handleRemoveWeChatAccount = useCallback(
+    (channelId: string) => {
+      updateChannels(channels.filter((ch) => ch.id !== channelId))
+    },
+    [channels, updateChannels]
+  )
+
+  const handleAddWeChatAccount = useCallback(() => {
+    const wechatDef = AVAILABLE_CHANNELS.find((d) => d.type === 'wechat')!
+    const existingCount = channels.filter((ch) => ch.type === 'wechat').length
+    updateChannels([
+      ...channels,
+      {
+        id: `ch_wechat_${Date.now()}`,
+        type: 'wechat',
+        name: existingCount > 0 ? `${wechatDef.name} ${existingCount + 1}` : wechatDef.name,
+        enabled: true,
+        config: wechatDef.defaultConfig,
+        is_notify_receiver: false
+      }
+    ])
+  }, [channels, updateChannels])
 
   if (!agentBase) return null
 
@@ -473,8 +635,8 @@ const ChannelsSettings: FC<AgentOrSessionSettingsProps> = ({ agentBase, update }
 
       <div className="mt-2 flex flex-col gap-3">
         {AVAILABLE_CHANNELS.map((channelDef) => {
-          const channel = getChannel(channelDef.type)
-          const isEnabled = !!channel && channel.enabled !== false
+          const primaryChannel = getChannel(channelDef.type)
+          const isEnabled = !!primaryChannel && primaryChannel.enabled !== false
 
           return (
             <Card
@@ -502,28 +664,31 @@ const ChannelsSettings: FC<AgentOrSessionSettingsProps> = ({ agentBase, update }
                 </div>
               }
               styles={cardStyles}>
-              {isEnabled && channel && channel.type === 'telegram' && (
+              {isEnabled && primaryChannel && primaryChannel.type === 'telegram' && (
                 <TelegramChannelCard
-                  channel={channel}
-                  onConfigChange={(updates) => handleConfigChange(channel.type, updates)}
+                  channel={primaryChannel}
+                  onConfigChange={(updates) => handleConfigChange(primaryChannel.id, updates)}
                 />
               )}
-              {isEnabled && channel && channel.type === 'feishu' && (
+              {isEnabled && primaryChannel && primaryChannel.type === 'feishu' && (
                 <FeishuChannelCard
-                  channel={channel}
-                  onConfigChange={(updates) => handleConfigChange(channel.type, updates)}
+                  channel={primaryChannel}
+                  onConfigChange={(updates) => handleConfigChange(primaryChannel.id, updates)}
                 />
               )}
-              {isEnabled && channel && channel.type === 'qq' && (
+              {isEnabled && primaryChannel && primaryChannel.type === 'qq' && (
                 <QQChannelCard
-                  channel={channel}
-                  onConfigChange={(updates) => handleConfigChange(channel.type, updates)}
+                  channel={primaryChannel}
+                  onConfigChange={(updates) => handleConfigChange(primaryChannel.id, updates)}
                 />
               )}
-              {isEnabled && channel && channel.type === 'wechat' && (
+              {isEnabled && primaryChannel && primaryChannel.type === 'wechat' && (
                 <WeChatChannelCard
-                  channel={channel}
-                  onConfigChange={(updates) => handleConfigChange(channel.type, updates)}
+                  channels={getChannelsByType('wechat')}
+                  primaryChannel={primaryChannel}
+                  onConfigChange={(id, updates) => handleConfigChange(id, updates)}
+                  onAddAccount={handleAddWeChatAccount}
+                  onRemoveAccount={handleRemoveWeChatAccount}
                 />
               )}
             </Card>

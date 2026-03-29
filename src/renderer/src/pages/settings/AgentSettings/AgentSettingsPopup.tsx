@@ -14,7 +14,7 @@ import { InstalledPluginsSettings, PluginBrowserSettings } from './components/Pl
 import PromptSettings from './components/PromptSettings'
 import TasksSettings from './components/TasksSettings'
 import ToolsSettings from './components/ToolsSettings'
-import { AgentLabel } from './shared'
+import { AgentLabel, isSoulModeEnabled } from './shared'
 
 interface AgentSettingPopupShowParams {
   agentId: string
@@ -30,20 +30,23 @@ const AgentSettingPopupContainer: React.FC<AgentSettingPopupParams> = ({ tab, ag
   const { agent, isLoading, error } = useAgent(agentId)
   const { updateAgent } = useUpdateAgent()
 
+  const isSoul = isSoulModeEnabled(agent?.configuration)
+
   const menuItems: SettingsMenuItem[] = useMemo(
-    () => [
-      { key: 'essential', label: t('agent.settings.essential') },
-      { key: 'prompt', label: t('agent.settings.prompt') },
-      { key: 'permission-mode', label: t('agent.settings.permissionMode.tab', 'Permission Mode') },
-      { key: 'tools-mcp', label: t('agent.settings.toolsMcp.tab', 'Tools & MCP') },
-      { key: 'mcp', label: t('agent.settings.toolsMcp.mcp.tab', 'MCP') },
-      { key: 'plugins', label: t('agent.settings.plugins.available.title', 'Available Plugins') },
-      { key: 'installed', label: t('agent.settings.plugins.installed.title', 'Installed Plugins') },
-      { key: 'channels', label: t('agent.cherryClaw.channels.tab', 'Channels') },
-      { key: 'tasks', label: t('agent.cherryClaw.tasks.tab', 'Tasks') },
-      { key: 'advanced', label: t('agent.settings.advance.title', 'Advanced Settings') }
-    ],
-    [t]
+    () =>
+      [
+        { key: 'essential', label: t('agent.settings.essential') },
+        { key: 'prompt', label: t('agent.settings.prompt') },
+        !isSoul && { key: 'permission-mode', label: t('agent.settings.permissionMode.tab', 'Permission Mode') },
+        { key: 'tools-mcp', label: t('agent.settings.toolsMcp.tab', 'Tools & MCP') },
+        { key: 'mcp', label: t('agent.settings.toolsMcp.mcp.tab', 'MCP') },
+        { key: 'plugins', label: t('agent.settings.plugins.available.title', 'Available Plugins') },
+        { key: 'installed', label: t('agent.settings.plugins.installed.title', 'Installed Plugins') },
+        { key: 'channels', label: t('agent.cherryClaw.channels.tab', 'Channels') },
+        { key: 'tasks', label: t('agent.cherryClaw.tasks.tab', 'Tasks') },
+        { key: 'advanced', label: t('agent.settings.advance.title', 'Advanced Settings') }
+      ].filter(Boolean) as SettingsMenuItem[],
+    [t, isSoul]
   )
 
   const renderTabContent = (currentTab: SettingsPopupTab) => {

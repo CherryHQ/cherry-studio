@@ -94,11 +94,17 @@ class QQAdapter extends ChannelAdapter {
   private lastSeq: number | null = null
   private heartbeatInterval: ReturnType<typeof setInterval> | null = null
   private reconnectAttempts = 0
+  private rapidDisconnects = 0
+  private connectedAt = 0
   private isConnecting = false
   private shouldStop = false
 
   private readonly reconnectDelays = [1000, 2000, 5000, 10000, 30000, 60000]
   private readonly maxReconnectAttempts = 100
+  /** Minimum connection duration (ms) to consider stable */
+  private readonly stableConnectionThreshold = 30_000
+  /** Number of rapid disconnects before invalidating session */
+  private readonly maxRapidDisconnects = 3
 
   constructor(config: ChannelAdapterConfig) {
     super(config)
@@ -111,7 +117,11 @@ class QQAdapter extends ChannelAdapter {
     this.notifyChatIds = [...this.allowedChatIds]
   }
 
-  async connect(): Promise<void> {
+  protected override async checkReady(): Promise<boolean> {
+    return !!(this.appId && this.clientSecret)
+  }
+
+  protected override async performConnect(_signal: AbortSignal): Promise<void> {
     if (!this.appId || !this.clientSecret) {
       throw new Error('QQ Bot AppID and ClientSecret are required')
     }
@@ -122,7 +132,7 @@ class QQAdapter extends ChannelAdapter {
     logger.info('QQ bot started', { agentId: this.agentId, channelId: this.channelId })
   }
 
-  async disconnect(): Promise<void> {
+  protected override async performDisconnect(): Promise<void> {
     this.shouldStop = true
     this.cleanup()
     logger.info('QQ bot stopped', { agentId: this.agentId, channelId: this.channelId })
@@ -340,6 +350,8 @@ class QQAdapter extends ChannelAdapter {
         const readyData = data as { session_id: string; user: { id: string; username: string } }
         this.sessionId = readyData.session_id
         this.reconnectAttempts = 0
+        this.rapidDisconnects = 0
+        this.connectedAt = Date.now()
         logger.info('QQ bot ready', {
           agentId: this.agentId,
           sessionId: this.sessionId,
@@ -348,7 +360,7 @@ class QQAdapter extends ChannelAdapter {
         break
       }
       case 'RESUMED':
-        this.reconnectAttempts = 0
+        this.connectedAt = Date.now()
         logger.info('QQ session resumed', { agentId: this.agentId })
         break
       case 'C2C_MESSAGE_CREATE':
@@ -573,10 +585,30 @@ class QQAdapter extends ChannelAdapter {
   }
 
   private scheduleReconnect(): void {
-    if (this.shouldStop || this.reconnectAttempts >= this.maxReconnectAttempts) {
-      if (!this.shouldStop) {
-        logger.error('Max reconnect attempts reached', { agentId: this.agentId })
+    if (this.shouldStop) return
+
+    // Detect rapid disconnects: if the connection lasted less than the threshold, it's unstable
+    const connectionDuration = this.connectedAt > 0 ? Date.now() - this.connectedAt : 0
+    if (this.connectedAt > 0 && connectionDuration < this.stableConnectionThreshold) {
+      this.rapidDisconnects++
+      // After repeated rapid disconnects, the session is likely stale — force fresh IDENTIFY
+      if (this.rapidDisconnects >= this.maxRapidDisconnects && this.sessionId) {
+        logger.warn('Too many rapid disconnects after resume, invalidating session', {
+          agentId: this.agentId,
+          rapidDisconnects: this.rapidDisconnects
+        })
+        this.sessionId = null
+        this.lastSeq = null
+        this.rapidDisconnects = 0
       }
+    } else if (connectionDuration >= this.stableConnectionThreshold) {
+      // Connection was stable — reset counters
+      this.reconnectAttempts = 0
+      this.rapidDisconnects = 0
+    }
+
+    if (this.reconnectAttempts >= this.maxReconnectAttempts) {
+      logger.error('Max reconnect attempts reached', { agentId: this.agentId })
       return
     }
 

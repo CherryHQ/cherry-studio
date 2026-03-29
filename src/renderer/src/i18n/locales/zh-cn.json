@@ -40,12 +40,18 @@
           "chatIds": "[to be translated]:Allowed Chat IDs",
           "chatIdsHint": "[to be translated]:Comma-separated chat IDs. Leave empty to allow all chats.",
           "chatIdsPlaceholder": "[to be translated]:oc_xxxxx, oc_yyyyy",
+          "connected": "已连接",
           "description": "[to be translated]:Receive and respond to messages via a Feishu/Lark bot using WebSocket.",
           "domain": "[to be translated]:Domain",
           "domainFeishu": "[to be translated]:Feishu (China)",
           "domainLark": "[to be translated]:Lark (International)",
           "encryptKey": "[to be translated]:Encrypt Key",
           "encryptKeyPlaceholder": "[to be translated]:Enter the Encrypt Key from your Feishu app",
+          "loginHint": "未配置凭证。启用频道后将自动开始扫码注册，或手动输入 App ID 和 App Secret。",
+          "qrExpired": "二维码已过期，请重新切换频道开关重试。",
+          "qrHint": "等待扫描二维码...",
+          "qrScanHint": "打开手机飞书，扫描二维码以创建机器人应用。",
+          "qrTitle": "飞书扫码注册",
           "title": "[to be translated]:Feishu",
           "verificationToken": "[to be translated]:Verification Token",
           "verificationTokenPlaceholder": "[to be translated]:Enter the Verification Token from your Feishu app"
@@ -76,13 +82,18 @@
         },
         "title": "频道",
         "wechat": {
+          "addAccount": "添加微信账号",
+          "chatIds": "允许的用户 ID",
+          "chatIdsHint": "用逗号分隔。留空表示允许所有用户。",
+          "chatIdsPlaceholder": "wxid_abc123, wxid_def456",
           "connected": "已登录",
           "description": "通过微信 iLink Bot API 接收和回复消息。",
           "disconnected": "未登录",
           "loginHint": "首次登录需要扫描二维码，启用频道后将自动弹出二维码。",
           "qrHint": "请使用手机微信扫描二维码完成登录。",
           "qrTitle": "微信扫码登录",
-          "title": "微信"
+          "title": "微信",
+          "whoamiTip": "提示：在微信中发送 /whoami 可获取用户 ID。"
         }
       },
       "heartbeat": {
@@ -354,12 +365,6 @@
         "title": "高级设置"
       },
       "essential": "基础设置",
-      "soulMode": {
-        "title": "自主模式",
-        "description": "启用后，Agent 将使用工作区灵魂文件构建自定义系统提示词，注入自主任务管理工具，并禁用不适合自主运行的交互式工具。",
-        "disabledBadge": "自主模式已禁用",
-        "disabledTooltip": "该工具在自主模式开启时被自动禁用"
-      },
       "permissionMode": {
         "tab": "权限模式",
         "title": "权限模式"
@@ -430,6 +435,12 @@
         "uninstalling": "卸载中..."
       },
       "prompt": "提示词设置",
+      "soulMode": {
+        "description": "启用后，Agent 将使用工作区灵魂文件构建自定义系统提示词，注入自主任务管理工具，并禁用不适合自主运行的交互式工具。",
+        "disabledBadge": "自主模式已禁用",
+        "disabledTooltip": "该工具在自主模式开启时被自动禁用",
+        "title": "自主模式"
+      },
       "tooling": {
         "mcp": {
           "description": "连接 MCP 服务器即可解锁更多可在上方预先授权的工具。",

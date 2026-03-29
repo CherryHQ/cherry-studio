@@ -40,12 +40,18 @@
           "chatIds": "Επιτρεπόμενα Chat IDs",
           "chatIdsHint": "Chat IDs διαχωρισμένα με κόμμα. Αφήστε κενό για να επιτρέψετε όλες τις συνομιλίες.",
           "chatIdsPlaceholder": "oc_xxxxx, oc_yyyyy",
+          "connected": "[to be translated]:Connected",
           "description": "Λήψη και απάντηση μηνυμάτων μέσω bot Feishu/Lark χρησιμοποιώντας WebSocket.",
           "domain": "Τομέας",
           "domainFeishu": "Feishu (Κίνα)",
           "domainLark": "Lark (Διεθνές)",
           "encryptKey": "Κλειδί κρυπτογράφησης",
           "encryptKeyPlaceholder": "Εισαγάγετε το κλειδί κρυπτογράφησης της εφαρμογής Feishu",
+          "loginHint": "[to be translated]:No credentials configured. Enable the channel to start QR code registration, or enter App ID and App Secret manually.",
+          "qrExpired": "[to be translated]:QR code expired. Please retry by toggling the channel.",
+          "qrHint": "[to be translated]:Waiting for QR code scan...",
+          "qrScanHint": "[to be translated]:Open Feishu on your phone and scan the QR code to create a bot app.",
+          "qrTitle": "[to be translated]:Feishu QR Registration",
           "title": "Feishu",
           "verificationToken": "Token επαλήθευσης",
           "verificationTokenPlaceholder": "Εισαγάγετε το token επαλήθευσης της εφαρμογής Feishu"
@@ -76,13 +82,18 @@
         },
         "title": "Κανάλια",
         "wechat": {
+          "addAccount": "[to be translated]:Add WeChat Account",
+          "chatIds": "[to be translated]:Allowed User IDs",
+          "chatIdsHint": "[to be translated]:Comma-separated. Leave empty to allow all users.",
+          "chatIdsPlaceholder": "[to be translated]:wxid_abc123, wxid_def456",
           "connected": "[to be translated]:Connected",
           "description": "[to be translated]:Receive and respond to messages via WeChat using the iLink Bot API.",
           "disconnected": "[to be translated]:Disconnected",
           "loginHint": "[to be translated]:First login requires scanning a QR code. Check the app logs for the login URL.",
           "qrHint": "[to be translated]:Open WeChat on your phone, scan the QR code to log in.",
           "qrTitle": "[to be translated]:WeChat QR Login",
-          "title": "[to be translated]:WeChat"
+          "title": "[to be translated]:WeChat",
+          "whoamiTip": "[to be translated]:Tip: Send /whoami in WeChat to get a user's ID."
         }
       },
       "heartbeat": {
@@ -424,6 +435,12 @@
         "uninstalling": "Απεγκατάσταση..."
       },
       "prompt": "Ρυθμίσεις Προτροπής",
+      "soulMode": {
+        "description": "[to be translated]:When enabled, the agent uses a custom system prompt from workspace soul files, injects autonomous task management tools, and disables interactive tools not suited for autonomous operation.",
+        "disabledBadge": "[to be translated]:Disabled by Autonomous Mode",
+        "disabledTooltip": "[to be translated]:This tool is automatically disabled when Autonomous Mode is active",
+        "title": "[to be translated]:Autonomous Mode"
+      },
       "tooling": {
         "mcp": {
           "description": "Συνδέστε διακομιστές MCP για να ξεκλειδώσετε πρόσθετα εργαλεία που μπορείτε να εγκρίνετε παραπάνω.",

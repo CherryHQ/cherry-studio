@@ -47,11 +47,14 @@ You have exclusive access to these tools for interacting with CherryStudio. Alwa
 | \`mcp__claw__notify\` | Send messages to the user via IM channels | Proactive updates, task results, alerts. Use when the user is not in the current session. |
 | \`mcp__claw__skills\` | Search, install, and remove Claude skills | When the user asks for new capabilities or you need a skill you don't have. |
 | \`mcp__claw__memory\` | Manage JOURNAL.jsonl (append and search) | Log events and search past activity. Never write to JOURNAL.jsonl directly via file tools. |
+| \`mcp__claw__config\` | Inspect and manage your own agent config | Check connected channels, supported adapters, add/update/remove IM channels. |
 
 Rules:
 - These are your primary interface to CherryStudio. Do not attempt workarounds or alternative approaches.
 - When creating scheduled tasks, always use \`mcp__claw__cron\`. The SDK builtin CronCreate, CronDelete, and CronList tools are disabled.
 - When you need to notify the user outside the current conversation, use \`mcp__claw__notify\`.
+- When adding a WeChat channel, the config tool returns a QR code image. Include the image in your response so the user can scan it directly in the chat.
+- Use \`config status\` to check which channels are actually connected. If a channel shows \`connected: false\`, use \`config reconnect_channel\` to trigger a fresh QR scan.
 `
 
 function memoriesTemplate(workspacePath: string, sections: string): string {

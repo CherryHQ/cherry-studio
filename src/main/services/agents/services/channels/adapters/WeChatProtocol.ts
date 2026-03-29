@@ -363,8 +363,12 @@ interface LoginOptions {
   baseUrl: string
   tokenPath: string
   force?: boolean
+  signal?: AbortSignal
   onQrUrl?: (url: string) => void
 }
+
+/** Maximum number of expired QR codes before giving up. */
+const MAX_QR_RETRIES = 3
 
 async function loginFlow(options: LoginOptions): Promise<Credentials> {
   if (!options.force) {
@@ -372,14 +376,24 @@ async function loginFlow(options: LoginOptions): Promise<Credentials> {
     if (existing) return existing
   }
 
-  for (;;) {
+  let qrRetries = 0
+
+  while (qrRetries < MAX_QR_RETRIES) {
+    if (options.signal?.aborted) {
+      throw new Error('Login cancelled')
+    }
+
     const qr = await fetchQrCode(options.baseUrl)
     options.onQrUrl?.(qr.qrcode_img_content)
-    logger.info('QR code generated, waiting for scan')
+    logger.info('QR code generated, waiting for scan', { attempt: qrRetries + 1, maxAttempts: MAX_QR_RETRIES })
 
     let lastStatus: string | undefined
 
     for (;;) {
+      if (options.signal?.aborted) {
+        throw new Error('Login cancelled')
+      }
+
       const status = await pollQrStatus(options.baseUrl, qr.qrcode)
 
       if (status.status !== lastStatus) {
@@ -388,7 +402,7 @@ async function loginFlow(options: LoginOptions): Promise<Credentials> {
         } else if (status.status === 'confirmed') {
           logger.info('Login confirmed')
         } else if (status.status === 'expired') {
-          logger.info('QR code expired, requesting a new one')
+          logger.info('QR code expired', { attempt: qrRetries + 1, maxAttempts: MAX_QR_RETRIES })
         }
         lastStatus = status.status
       }
@@ -412,7 +426,11 @@ async function loginFlow(options: LoginOptions): Promise<Credentials> {
 
       await delay(QR_POLL_INTERVAL_MS)
     }
+
+    qrRetries++
   }
+
+  throw new Error(`QR login failed after ${MAX_QR_RETRIES} expired QR codes. Use config tool to reconnect.`)
 }
 
 // --------------- WeixinBot ---------------
@@ -443,6 +461,7 @@ export class WeixinBot {
   private cursor = ''
   private stopped = false
   private currentPollController: AbortController | null = null
+  private loginAbort: AbortController | null = null
   private runPromise: Promise<void> | null = null
 
   constructor(options: WeixinBotOptions = {}) {
@@ -453,14 +472,25 @@ export class WeixinBot {
     this.onQrUrlCallback = options.onQrUrl
   }
 
-  async login(options: { force?: boolean } = {}): Promise<Credentials> {
+  async hasCredentials(): Promise<boolean> {
+    if (!this.tokenPath) return false
+    const creds = await loadCredentials(this.tokenPath)
+    return creds !== undefined
+  }
+
+  async login(options: { force?: boolean; signal?: AbortSignal } = {}): Promise<Credentials> {
     const previousToken = this.credentials?.token
+    // Use provided signal or create an internal one that stop() can cancel
+    this.loginAbort = new AbortController()
+    const signal = options.signal ? AbortSignal.any([options.signal, this.loginAbort.signal]) : this.loginAbort.signal
     const credentials = await loginFlow({
       baseUrl: this.baseUrl,
       tokenPath: this.tokenPath!,
       force: options.force,
+      signal,
       onQrUrl: this.onQrUrlCallback
     })
+    this.loginAbort = null
 
     this.credentials = credentials
     this.baseUrl = normalizeBaseUrl(credentials.baseUrl)
@@ -535,6 +565,7 @@ export class WeixinBot {
   stop(): void {
     this.stopped = true
     this.currentPollController?.abort()
+    this.loginAbort?.abort()
   }
 
   private async runLoop(): Promise<void> {

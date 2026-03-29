@@ -1,10 +1,13 @@
 import * as Lark from '@larksuiteoapi/node-sdk'
 import { loggerService } from '@logger'
+import { IpcChannel } from '@shared/IpcChannel'
 import type { CherryClawChannel, FeishuDomain } from '@types'
 import { net } from 'electron'
 
+import { windowService } from '../../../../WindowService'
 import { ChannelAdapter, type ChannelAdapterConfig, type SendMessageOptions } from '../ChannelAdapter'
 import { registerAdapterFactory } from '../ChannelManager'
+import { registrationBegin, registrationPoll } from './FeishuAppRegistration'
 
 const logger = loggerService.withContext('FeishuAdapter')
 
@@ -326,12 +329,13 @@ class FeishuStreamingSession {
 class FeishuAdapter extends ChannelAdapter {
   private client: Lark.Client | null = null
   private wsClient: Lark.WSClient | null = null
-  private readonly appId: string
-  private readonly appSecret: string
+  private appId: string
+  private appSecret: string
   private readonly encryptKey: string
   private readonly verificationToken: string
   private readonly allowedChatIds: string[]
   private readonly domain: FeishuDomain
+  private registrationAbort: AbortController | null = null
   // Track active streaming sessions: draftId -> { session, chatId, messageId }
   private readonly streamingSessions = new Map<
     number,
@@ -351,11 +355,23 @@ class FeishuAdapter extends ChannelAdapter {
     this.notifyChatIds = [...this.allowedChatIds]
   }
 
-  async connect(): Promise<void> {
+  protected override async checkReady(): Promise<boolean> {
+    return !!(this.appId && this.appSecret)
+  }
+
+  protected override async performConnect(_signal: AbortSignal): Promise<void> {
     if (!this.appId || !this.appSecret) {
-      throw new Error('Feishu app_id and app_secret are required')
+      // No credentials — start the QR registration flow in the background.
+      // The base class already runs performConnect in the background when
+      // checkReady() returns false, so this will not block.
+      this.startRegistrationInBackground()
+      return
     }
 
+    await this.connectWebSocket()
+  }
+
+  private async connectWebSocket(): Promise<void> {
     const larkDomain = resolveDomain(this.domain)
 
     this.client = new Lark.Client({
@@ -388,7 +404,80 @@ class FeishuAdapter extends ChannelAdapter {
     logger.info('Feishu bot started (WebSocket)', { agentId: this.agentId, channelId: this.channelId })
   }
 
-  async disconnect(): Promise<void> {
+  /**
+   * Start the Feishu App Registration Device Flow in the background.
+   * Emits the QR URL immediately via 'qr' event and IPC, then polls
+   * asynchronously.  Does NOT block the caller.
+   */
+  private startRegistrationInBackground(): void {
+    logger.info('Starting Feishu app registration flow (background)', {
+      agentId: this.agentId,
+      channelId: this.channelId,
+      domain: this.domain
+    })
+
+    this.sendQrToRenderer('', 'pending')
+
+    // Fire-and-forget — errors are logged, not thrown
+    registrationBegin(this.domain)
+      .then(({ deviceCode, verificationUri, interval, expiresIn }) => {
+        // Emit QR URL for ChannelManager waiters and send to renderer
+        this.emit('qr', verificationUri)
+        this.sendQrToRenderer(verificationUri, 'pending')
+
+        this.registrationAbort = new AbortController()
+
+        return registrationPoll(this.domain, deviceCode, {
+          interval,
+          expiresIn,
+          signal: this.registrationAbort.signal
+        })
+      })
+      .then((result) => {
+        this.appId = result.appId
+        this.appSecret = result.appSecret
+        this.registrationAbort = null
+
+        this.sendQrToRenderer('', 'confirmed', result.appId, result.appSecret)
+        this.emit('credentials', { appId: result.appId, appSecret: result.appSecret })
+        logger.info('Feishu app registration completed', { agentId: this.agentId, appId: result.appId })
+      })
+      .catch((error) => {
+        this.registrationAbort = null
+        this.sendQrToRenderer('', 'expired')
+        logger.warn('Feishu app registration failed', {
+          agentId: this.agentId,
+          channelId: this.channelId,
+          error: error instanceof Error ? error.message : String(error)
+        })
+      })
+  }
+
+  private sendQrToRenderer(
+    url: string,
+    status: 'pending' | 'confirmed' | 'expired' | 'disconnected',
+    appId?: string,
+    appSecret?: string
+  ): void {
+    const mainWindow = windowService.getMainWindow()
+    if (mainWindow && !mainWindow.isDestroyed()) {
+      mainWindow.webContents.send(IpcChannel.Feishu_QrLogin, {
+        channelId: this.channelId,
+        agentId: this.agentId,
+        url,
+        status,
+        appId,
+        appSecret
+      })
+    }
+  }
+
+  protected override async performDisconnect(): Promise<void> {
+    if (this.registrationAbort) {
+      this.registrationAbort.abort()
+      this.registrationAbort = null
+    }
+
     for (const [, entry] of this.streamingSessions) {
       await entry.session.close().catch(() => {})
     }
@@ -396,6 +485,7 @@ class FeishuAdapter extends ChannelAdapter {
 
     this.wsClient = null
     this.client = null
+    this.sendQrToRenderer('', 'disconnected')
     logger.info('Feishu bot stopped', { agentId: this.agentId, channelId: this.channelId })
   }
 

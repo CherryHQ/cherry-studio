@@ -33,6 +33,9 @@ class MockAdapter extends ChannelAdapter {
   sendMessageDraft = vi.fn().mockResolvedValue(undefined)
   sendTypingIndicator = vi.fn().mockResolvedValue(undefined)
 
+  protected async performConnect(): Promise<void> {}
+  protected async performDisconnect(): Promise<void> {}
+
   constructor(config: ChannelAdapterConfig) {
     super(config)
   }

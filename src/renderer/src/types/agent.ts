@@ -51,8 +51,8 @@ export const FeishuDomainSchema = z.enum(['feishu', 'lark'])
 export type FeishuDomain = z.infer<typeof FeishuDomainSchema>
 
 export const FeishuChannelConfigSchema = z.object({
-  app_id: z.string().min(1),
-  app_secret: z.string().min(1),
+  app_id: z.string().default(''),
+  app_secret: z.string().default(''),
   encrypt_key: z.string().default(''),
   verification_token: z.string().default(''),
   allowed_chat_ids: z.array(z.string()).default([]),
