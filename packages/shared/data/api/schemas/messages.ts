@@ -15,7 +15,6 @@ import type {
   MessageStatus,
   TreeResponse
 } from '@shared/data/types/message'
-import type { AssistantMeta, ModelMeta } from '@shared/data/types/meta'
 
 // ============================================================================
 // DTOs
@@ -47,14 +46,8 @@ export interface CreateMessageDto {
   status?: MessageStatus
   /** Siblings group ID (0 = normal, >0 = multi-model group) */
   siblingsGroupId?: number
-  /** Assistant ID */
-  assistantId?: string
-  /** Preserved assistant info */
-  assistantMeta?: AssistantMeta
   /** Model identifier */
   modelId?: string
-  /** Preserved model info */
-  modelMeta?: ModelMeta
   /** Trace ID */
   traceId?: string
   /** Statistics */

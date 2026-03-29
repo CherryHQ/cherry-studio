@@ -1,4 +1,5 @@
 import type { CursorPaginationResponse } from '@shared/data/api/apiTypes'
+import type { Assistant } from '@shared/data/types/assistant'
 /**
  * Message Statistics - combines token usage and performance metrics
  * Replaces the separate `usage` and `metrics` fields
@@ -346,10 +347,34 @@ export type MessageDataBlock =
   | CompactBlock
 
 // ============================================================================
-// Message Entity Types
+// Snapshot Types (immutable records captured at message creation time)
 // ============================================================================
 
-import type { AssistantMeta, ModelMeta } from './meta'
+/**
+ * Assistant snapshot captured at message creation time.
+ * Preserves the full configuration used to generate this message,
+ * enabling audit, replay, and display even if the assistant is later modified or deleted.
+ *
+ * Equivalent to Assistant minus timestamps and relation IDs (those are captured by value).
+ */
+export type AssistantSnapshot = Omit<Assistant, 'createdAt' | 'updatedAt'>
+
+/**
+ * Model snapshot captured at message creation time.
+ * Preserves model identity and metadata even if the model is later removed from provider.
+ *
+ * TODO: Replace with Pick/Omit from v2 Model type once stabilized.
+ */
+export interface ModelSnapshot {
+  id: string
+  name: string
+  provider: string
+  group?: string
+}
+
+// ============================================================================
+// Message Entity Types
+// ============================================================================
 
 /**
  * Message role - user, assistant, or system
@@ -385,14 +410,14 @@ export interface Message {
   status: MessageStatus
   /** Siblings group ID (0 = normal branch, >0 = multi-model response group) */
   siblingsGroupId: number
-  /** Assistant ID */
+  /** Assistant identifier */
   assistantId?: string | null
-  /** Preserved assistant info for display */
-  assistantMeta?: AssistantMeta | null
+  /** Snapshot of assistant at message creation time */
+  assistantSnapshot?: AssistantSnapshot | null
   /** Model identifier */
   modelId?: string | null
-  /** Preserved model info (provider, name) */
-  modelMeta?: ModelMeta | null
+  /** Snapshot of model at message creation time */
+  modelSnapshot?: ModelSnapshot | null
   /** Trace ID for tracking */
   traceId?: string | null
   /** Statistics: token usage, performance metrics */
@@ -422,8 +447,6 @@ export interface TreeNode {
   preview: string
   /** Model identifier */
   modelId?: string | null
-  /** Model display info */
-  modelMeta?: ModelMeta | null
   /** Message status */
   status: MessageStatus
   /** Creation timestamp (ISO string) */

@@ -4,6 +4,12 @@
  */
 
 import { appStateTable } from '@data/db/schemas/appState'
+import { assistantTable } from '@data/db/schemas/assistant'
+import {
+  assistantKnowledgeBaseTable,
+  assistantMcpServerTable,
+  assistantModelTable
+} from '@data/db/schemas/assistantRelations'
 import { mcpServerTable } from '@data/db/schemas/mcpServer'
 import { messageTable } from '@data/db/schemas/message'
 import { preferenceTable } from '@data/db/schemas/preference'
@@ -262,13 +268,16 @@ export class MigrationEngine {
     // Order matters: child tables must be cleared before parent tables
     const tables = [
       { table: messageTable, name: 'message' }, // Must clear before topic (FK reference)
-      { table: topicTable, name: 'topic' },
+      { table: topicTable, name: 'topic' }, // Must clear before assistant (FK reference)
+      { table: assistantModelTable, name: 'assistant_model' }, // Junction: clear before assistant
+      { table: assistantMcpServerTable, name: 'assistant_mcp_server' }, // Junction: clear before assistant
+      { table: assistantKnowledgeBaseTable, name: 'assistant_knowledge_base' }, // Junction: clear before assistant
+      { table: assistantTable, name: 'assistant' },
       { table: mcpServerTable, name: 'mcp_server' },
       { table: preferenceTable, name: 'preference' },
       { table: translateHistoryTable, name: 'translate_history' },
       { table: translateLanguageTable, name: 'translate_language' }
       // TODO: Add these when tables are created
-      // { table: assistantTable, name: 'assistant' },
       // { table: fileTable, name: 'file' },
       // { table: knowledgeBaseTable, name: 'knowledge_base' }
     ]
@@ -283,17 +292,16 @@ export class MigrationEngine {
     }
 
     // Clear tables in dependency order (children before parents)
-    // Messages reference topics, so delete messages first
-    await db.delete(messageTable)
-    await db.delete(topicTable)
+    await db.delete(messageTable) // FK → topic
+    await db.delete(topicTable) // FK → assistant
+    await db.delete(assistantModelTable) // FK → assistant
+    await db.delete(assistantMcpServerTable) // FK → assistant, mcp_server
+    await db.delete(assistantKnowledgeBaseTable) // FK → assistant
+    await db.delete(assistantTable)
     await db.delete(mcpServerTable)
     await db.delete(preferenceTable)
     await db.delete(translateHistoryTable)
     await db.delete(translateLanguageTable)
-    // TODO: Add these when tables are created (in correct order)
-    // await db.delete(fileTable)
-    // await db.delete(knowledgeBaseTable)
-    // await db.delete(assistantTable)
 
     logger.info('All new architecture tables cleared successfully')
   }

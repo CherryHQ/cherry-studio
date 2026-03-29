@@ -13,6 +13,7 @@
 
 import type { ApiImplementation } from '@shared/data/api/apiTypes'
 
+import { assistantHandlers } from './assistants'
 import { fileProcessingHandlers } from './fileProcessing'
 import { mcpServerHandlers } from './mcpServers'
 import { messageHandlers } from './messages'
@@ -28,6 +29,7 @@ import { translateHandlers } from './translate'
  * TypeScript ensures exhaustive coverage - missing handlers cause compile errors.
  */
 export const apiHandlers: ApiImplementation = {
+  ...assistantHandlers,
   ...fileProcessingHandlers,
   ...testHandlers,
   ...topicHandlers,

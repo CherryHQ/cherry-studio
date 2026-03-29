@@ -1,7 +1,7 @@
-import type { AssistantMeta } from '@shared/data/types/meta'
 import { index, integer, sqliteTable, text } from 'drizzle-orm/sqlite-core'
 
 import { createUpdateDeleteTimestamps, uuidPrimaryKey } from './_columnHelpers'
+import { assistantTable } from './assistant'
 import { groupTable } from './group'
 
 /**
@@ -17,12 +17,9 @@ export const topicTable = sqliteTable(
     name: text(),
     // Whether the name was manually edited by user
     isNameManuallyEdited: integer({ mode: 'boolean' }).default(false),
-    // FK to assistant table
-    assistantId: text(),
-    // Preserved assistant info for display when assistant is deleted
-    assistantMeta: text({ mode: 'json' }).$type<AssistantMeta>(),
-    // Topic-specific prompt override
-    prompt: text(),
+    // FK to assistant table - "last used assistant"
+    // SET NULL: preserve topic when assistant is deleted
+    assistantId: text().references(() => assistantTable.id, { onDelete: 'set null' }),
     // Active node ID in the message tree
     activeNodeId: text(),
 

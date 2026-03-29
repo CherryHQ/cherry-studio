@@ -421,7 +421,6 @@ describe('ThinkingButton', () => {
       fireEvent.click(getActionIconButton())
       expect(mockUpdateSettings).toHaveBeenCalledWith({
         reasoning_effort: 'none',
-        reasoning_effort_cache: 'none',
         qwenThinkMode: false
       })
     })

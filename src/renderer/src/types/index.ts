@@ -193,12 +193,6 @@ export type AssistantSettings = {
   defaultModel?: Model
   customParameters?: AssistantSettingCustomParameters[]
   reasoning_effort: ReasoningEffortOption
-  /**
-   * Preserve the effective reasoning effort (not 'default') from the last use of a thinking model which supports thinking control,
-   * and restore it when switching back from a non-thinking or fixed reasoning model.
-   * FIXME: It should be managed by external cache service instead of being stored in the assistant
-   */
-  reasoning_effort_cache?: ReasoningEffortOption
   qwenThinkMode?: boolean
   toolUseMode: 'function' | 'prompt'
   maxToolCalls?: number
