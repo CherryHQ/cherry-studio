@@ -322,6 +322,17 @@ export const SYSTEM_PROVIDERS_CONFIG: Record<SystemProviderId, SystemProvider> =
     isSystem: true,
     enabled: false
   },
+  'kimi-coding': {
+    id: 'kimi-coding',
+    name: 'Kimi Coding',
+    type: 'openai',
+    apiKey: '',
+    apiHost: 'https://api.kimi.com/coding/v1',
+    anthropicApiHost: 'https://api.kimi.com/coding/v1/anthropic',
+    models: SYSTEM_MODELS['kimi-coding'],
+    isSystem: true,
+    enabled: false
+  },
   qiniu: {
     id: 'qiniu',
     name: 'Qiniu',
@@ -757,6 +768,7 @@ export const PROVIDER_LOGO_MAP: AtLeast<SystemProviderId, string> = {
   ollama: OllamaProviderLogo,
   lmstudio: LMStudioProviderLogo,
   moonshot: MoonshotProviderLogo,
+  'kimi-coding': MoonshotProviderLogo,
   openrouter: OpenRouterProviderLogo,
   baichuan: BaichuanProviderLogo,
   dashscope: BailianProviderLogo,
@@ -1052,6 +1064,17 @@ export const PROVIDER_URLS: Record<SystemProviderId, ProviderUrls> = {
     },
     websites: {
       official: 'https://www.moonshot.cn/',
+      apiKey: 'https://platform.moonshot.cn/console/api-keys',
+      docs: 'https://platform.moonshot.cn/docs/',
+      models: 'https://platform.moonshot.cn/docs/intro#%E6%A8%A1%E5%9E%8B%E5%88%97%E8%A1%A8'
+    }
+  },
+  'kimi-coding': {
+    api: {
+      url: 'https://api.kimi.com/coding/v1'
+    },
+    websites: {
+      official: 'https://kimi.moonshot.cn/',
       apiKey: 'https://platform.moonshot.cn/console/api-keys',
       docs: 'https://platform.moonshot.cn/docs/',
       models: 'https://platform.moonshot.cn/docs/intro#%E6%A8%A1%E5%9E%8B%E5%88%97%E8%A1%A8'
