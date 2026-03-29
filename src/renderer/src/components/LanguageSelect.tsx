@@ -54,11 +54,10 @@ const LanguageSelect = (props: Props) => {
     }
     const before = extraOptionsBefore ?? []
     const after = extraOptionsAfter ?? []
-    const options =
-      languages.map((lang) => ({
-        value: lang.langCode,
-        label: languageRenderer ? languageRenderer(lang) : defaultLanguageRenderer(lang)
-      })) ?? []
+    const options = languages.map((lang) => ({
+      value: lang.langCode,
+      label: languageRenderer ? languageRenderer(lang) : defaultLanguageRenderer(lang)
+    }))
     return [...before, ...options, ...after]
   }, [defaultLanguageRenderer, extraOptionsAfter, extraOptionsBefore, languageRenderer, languages])
 
