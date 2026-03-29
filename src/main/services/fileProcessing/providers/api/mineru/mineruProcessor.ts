@@ -11,10 +11,17 @@ import AdmZip from 'adm-zip'
 import { net } from 'electron'
 
 import { BaseMarkdownConversionProcessor } from '../../base/BaseFileProcessor'
-import type { MineruExtractFileResult, PreparedMineruQueryContext, PreparedMineruStartContext } from './types'
+import type {
+  MineruExtractFileResult,
+  MineruTaskContext,
+  PreparedMineruQueryContext,
+  PreparedMineruStartContext
+} from './types'
 import { createUploadTask, getBatchResult, mapProgress, uploadFile } from './utils'
 
 export class MineruProcessor extends BaseMarkdownConversionProcessor {
+  private readonly taskContextById = new Map<string, MineruTaskContext>()
+
   constructor() {
     super('mineru')
   }
@@ -28,6 +35,10 @@ export class MineruProcessor extends BaseMarkdownConversionProcessor {
     const uploadTask = await createUploadTask(context)
 
     await uploadFile(file, uploadTask.uploadUrl, uploadTask.uploadHeaders, context.signal)
+    this.taskContextById.set(uploadTask.batchId, {
+      apiHost: context.apiHost,
+      apiKey: context.apiKey
+    })
 
     return {
       providerTaskId: uploadTask.batchId,
@@ -39,10 +50,34 @@ export class MineruProcessor extends BaseMarkdownConversionProcessor {
 
   async getMarkdownConversionTaskResult(
     providerTaskId: string,
-    config: FileProcessorMerged,
     signal?: AbortSignal
   ): Promise<FileProcessingMarkdownTaskResult> {
-    const context = this.prepareQueryContext(config, signal)
+    const markdownPath = path.join(this.getFileProcessingResultsDir(providerTaskId), 'output.md')
+    const hasPersistedMarkdown = await fs
+      .access(markdownPath)
+      .then(() => true)
+      .catch(() => false)
+
+    if (hasPersistedMarkdown) {
+      return {
+        status: 'completed',
+        progress: 100,
+        processorId: 'mineru',
+        markdownPath
+      }
+    }
+
+    const taskContext = this.taskContextById.get(providerTaskId)
+
+    if (!taskContext) {
+      throw new Error(`Mineru task context not found for task ${providerTaskId}`)
+    }
+
+    const context: PreparedMineruQueryContext = {
+      apiHost: taskContext.apiHost,
+      apiKey: taskContext.apiKey,
+      signal
+    }
     const batchResult = await getBatchResult(providerTaskId, context)
 
     return this.buildMarkdownTaskResult(providerTaskId, batchResult.extract_result[0])
@@ -126,25 +161,6 @@ export class MineruProcessor extends BaseMarkdownConversionProcessor {
     }
   }
 
-  private prepareQueryContext(config: FileProcessorMerged, signal?: AbortSignal): PreparedMineruQueryContext {
-    const capability = this.getRequiredCapability(config, 'markdown_conversion')
-    const apiHost = capability.apiHost?.trim()
-    if (!apiHost) {
-      throw new Error('API host is required')
-    }
-
-    const apiKey = this.getApiKey(config)
-    if (!apiKey) {
-      throw new Error('API key is required')
-    }
-
-    return {
-      apiHost,
-      apiKey,
-      signal
-    }
-  }
-
   private async buildMarkdownTaskResult(
     providerTaskId: string,
     fileResult: MineruExtractFileResult | undefined
@@ -181,6 +197,7 @@ export class MineruProcessor extends BaseMarkdownConversionProcessor {
     // TODO: Persist additional extracted assets from Mineru results when the provider
     // result contract is expanded beyond a markdown string.
     const markdownPath = await this.persistMarkdownConversionResult(providerTaskId, fileResult.full_zip_url)
+    this.taskContextById.delete(providerTaskId)
 
     return {
       status: 'completed',

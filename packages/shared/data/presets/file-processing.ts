@@ -248,7 +248,7 @@ export const FILE_PROCESSOR_PRESET_MAP = {
         inputs: ['image'],
         output: 'text',
         apiHost: 'https://paddleocr.aistudio-app.com/',
-        modelId: 'PP-OCRv5'
+        modelId: 'PaddleOCR-VL-1.5'
       },
       {
         feature: 'markdown_conversion',

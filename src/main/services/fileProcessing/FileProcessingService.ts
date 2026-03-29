@@ -50,15 +50,14 @@ export class FileProcessingService {
   async getMarkdownConversionTaskResult(
     input: GetMarkdownConversionTaskResultInput
   ): Promise<FileProcessingMarkdownTaskResult> {
-    const resolvedConfig = await this.resolveProcessorConfig('markdown_conversion', input.processorId)
-    const processor = createMarkdownConversionProcessor(resolvedConfig.id)
+    const processor = createMarkdownConversionProcessor(input.processorId)
 
     logger.debug('Getting markdown conversion task result with file-processing service', {
-      processorId: resolvedConfig.id,
+      processorId: input.processorId,
       providerTaskId: input.providerTaskId
     })
 
-    return processor.getMarkdownConversionTaskResult(input.providerTaskId, resolvedConfig, input.signal)
+    return processor.getMarkdownConversionTaskResult(input.providerTaskId, input.signal)
   }
 
   private async resolveProcessorConfig(

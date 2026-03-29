@@ -23,7 +23,6 @@ export interface IMarkdownConversionProcessor {
 
   getMarkdownConversionTaskResult(
     providerTaskId: string,
-    config: FileProcessorMerged,
     signal?: AbortSignal
   ): Promise<FileProcessingMarkdownTaskResult>
 }

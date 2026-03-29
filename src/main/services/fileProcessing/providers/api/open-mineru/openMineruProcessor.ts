@@ -49,10 +49,8 @@ export class OpenMineruProcessor extends BaseMarkdownConversionProcessor {
 
   async getMarkdownConversionTaskResult(
     providerTaskId: string,
-    config: FileProcessorMerged,
     signal?: AbortSignal
   ): Promise<FileProcessingMarkdownTaskResult> {
-    void config
     signal?.throwIfAborted()
 
     const taskState = this.taskStateById.get(providerTaskId)

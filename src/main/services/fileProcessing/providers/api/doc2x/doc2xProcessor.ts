@@ -11,11 +11,11 @@ import AdmZip from 'adm-zip'
 import { net } from 'electron'
 
 import { BaseMarkdownConversionProcessor } from '../../base/BaseFileProcessor'
-import type { Doc2xTaskStage, Doc2xTaskState, PreparedDoc2xQueryContext, PreparedDoc2xStartContext } from './types'
+import type { Doc2xTaskContext, Doc2xTaskStage, PreparedDoc2xQueryContext, PreparedDoc2xStartContext } from './types'
 import { createUploadTask, getExportResult, getParseStatus, triggerExportTask, uploadFile } from './utils'
 
 export class Doc2xProcessor extends BaseMarkdownConversionProcessor {
-  private readonly taskStateByUid = new Map<string, Doc2xTaskState>()
+  private readonly taskContextById = new Map<string, Doc2xTaskContext>()
 
   constructor() {
     super('doc2x')
@@ -31,7 +31,9 @@ export class Doc2xProcessor extends BaseMarkdownConversionProcessor {
 
     await uploadFile(file.path, uploadTask.uploadUrl, context.signal)
 
-    this.taskStateByUid.set(uploadTask.uid, {
+    this.taskContextById.set(uploadTask.uid, {
+      apiHost: context.apiHost,
+      apiKey: context.apiKey,
       stage: 'parsing',
       createdAt: Date.now()
     })
@@ -46,18 +48,36 @@ export class Doc2xProcessor extends BaseMarkdownConversionProcessor {
 
   async getMarkdownConversionTaskResult(
     providerTaskId: string,
-    config: FileProcessorMerged,
     signal?: AbortSignal
   ): Promise<FileProcessingMarkdownTaskResult> {
-    const taskState = this.taskStateByUid.get(providerTaskId)
+    const markdownPath = path.join(this.getFileProcessingResultsDir(providerTaskId), 'output.md')
+    const hasPersistedMarkdown = await fs
+      .access(markdownPath)
+      .then(() => true)
+      .catch(() => false)
 
-    if (!taskState) {
-      throw new Error(`Doc2x task state not found for uid ${providerTaskId}`)
+    if (hasPersistedMarkdown) {
+      return {
+        status: 'completed',
+        progress: 100,
+        processorId: 'doc2x',
+        markdownPath
+      }
     }
 
-    const context = this.prepareQueryContext(config, signal)
+    const taskContext = this.taskContextById.get(providerTaskId)
 
-    if (taskState.stage === 'parsing') {
+    if (!taskContext) {
+      throw new Error(`Doc2x task context not found for uid ${providerTaskId}`)
+    }
+
+    const context: PreparedDoc2xQueryContext = {
+      apiHost: taskContext.apiHost,
+      apiKey: taskContext.apiKey,
+      signal
+    }
+
+    if (taskContext.stage === 'parsing') {
       return this.handleParseStage(providerTaskId, context)
     }
 
@@ -142,25 +162,6 @@ export class Doc2xProcessor extends BaseMarkdownConversionProcessor {
     }
   }
 
-  private prepareQueryContext(config: FileProcessorMerged, signal?: AbortSignal): PreparedDoc2xQueryContext {
-    const capability = this.getRequiredCapability(config, 'markdown_conversion')
-    const apiHost = capability.apiHost?.trim()
-    if (!apiHost) {
-      throw new Error('API host is required')
-    }
-
-    const apiKey = this.getApiKey(config)
-    if (!apiKey) {
-      throw new Error('API key is required')
-    }
-
-    return {
-      apiHost,
-      apiKey,
-      signal
-    }
-  }
-
   private async handleParseStage(
     providerTaskId: string,
     context: PreparedDoc2xQueryContext
@@ -168,7 +169,6 @@ export class Doc2xProcessor extends BaseMarkdownConversionProcessor {
     const payload = await getParseStatus(providerTaskId, context)
 
     if (payload.code !== 'success') {
-      this.clearTaskState(providerTaskId)
       return {
         status: 'failed',
         progress: 0,
@@ -184,7 +184,6 @@ export class Doc2xProcessor extends BaseMarkdownConversionProcessor {
     }
 
     if (parseStatus.status === 'failed') {
-      this.clearTaskState(providerTaskId)
       return {
         status: 'failed',
         progress: 0,
@@ -204,7 +203,6 @@ export class Doc2xProcessor extends BaseMarkdownConversionProcessor {
     const exportPayload = await triggerExportTask(providerTaskId, context)
 
     if (exportPayload.code !== 'success') {
-      this.clearTaskState(providerTaskId)
       return {
         status: 'failed',
         progress: 0,
@@ -216,7 +214,6 @@ export class Doc2xProcessor extends BaseMarkdownConversionProcessor {
     const exportStatus = exportPayload.data
 
     if (exportStatus?.status === 'failed') {
-      this.clearTaskState(providerTaskId)
       return {
         status: 'failed',
         progress: 0,
@@ -241,7 +238,6 @@ export class Doc2xProcessor extends BaseMarkdownConversionProcessor {
     const payload = await getExportResult(providerTaskId, context)
 
     if (payload.code !== 'success') {
-      this.clearTaskState(providerTaskId)
       return {
         status: 'failed',
         progress: 0,
@@ -257,7 +253,6 @@ export class Doc2xProcessor extends BaseMarkdownConversionProcessor {
     }
 
     if (exportStatus.status === 'failed') {
-      this.clearTaskState(providerTaskId)
       return {
         status: 'failed',
         progress: 0,
@@ -279,7 +274,7 @@ export class Doc2xProcessor extends BaseMarkdownConversionProcessor {
     }
 
     const markdownPath = await this.persistMarkdownConversionResult(providerTaskId, exportStatus.url)
-    this.clearTaskState(providerTaskId)
+    this.taskContextById.delete(providerTaskId)
 
     return {
       status: 'completed',
@@ -290,16 +285,18 @@ export class Doc2xProcessor extends BaseMarkdownConversionProcessor {
   }
 
   private setTaskStage(providerTaskId: string, stage: Doc2xTaskStage): void {
-    const current = this.taskStateByUid.get(providerTaskId)
+    const current = this.taskContextById.get(providerTaskId)
 
-    this.taskStateByUid.set(providerTaskId, {
+    if (!current) {
+      throw new Error(`Doc2x task context not found for uid ${providerTaskId}`)
+    }
+
+    this.taskContextById.set(providerTaskId, {
+      apiHost: current.apiHost,
+      apiKey: current.apiKey,
       stage,
-      createdAt: current?.createdAt ?? Date.now()
+      createdAt: current.createdAt
     })
-  }
-
-  private clearTaskState(providerTaskId: string): void {
-    this.taskStateByUid.delete(providerTaskId)
   }
 }
 

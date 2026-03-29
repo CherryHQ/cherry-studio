@@ -5,7 +5,7 @@ import { doc2xProcessor } from './api/doc2x/doc2xProcessor'
 import { mineruProcessor } from './api/mineru/mineruProcessor'
 import { mistralProcessor } from './api/mistral/mistralProcessors'
 import { openMineruProcessor } from './api/open-mineru/openMineruProcessor'
-import { PaddleProcessor } from './api/PaddleProcessor'
+import { paddleProcessor } from './api/paddleocr/PaddleProcessor'
 import { OvOcrProcessor } from './builtin/ovocr/OvOcrProcessor'
 import { SystemOcrProcessor } from './builtin/system/SystemOcrProcessor'
 import { TesseractProcessor } from './builtin/tesseract/TesseractProcessor'
@@ -17,7 +17,7 @@ export function createTextExtractionProcessor(processorId: FileProcessorId): ITe
     case 'system':
       return new SystemOcrProcessor()
     case 'paddleocr':
-      return new PaddleProcessor()
+      return paddleProcessor
     case 'ovocr':
       return new OvOcrProcessor()
     case 'mistral':
@@ -30,7 +30,7 @@ export function createTextExtractionProcessor(processorId: FileProcessorId): ITe
 export function createMarkdownConversionProcessor(processorId: FileProcessorId): IMarkdownConversionProcessor {
   switch (processorId) {
     case 'paddleocr':
-      return new PaddleProcessor()
+      return paddleProcessor
     case 'mineru':
       return mineruProcessor
     case 'doc2x':

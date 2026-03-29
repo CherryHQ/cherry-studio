@@ -67,7 +67,7 @@ export type Doc2xExportStatusResponse = z.infer<typeof Doc2xExportStatusResponse
 
 export type Doc2xTaskStage = 'parsing' | 'exporting'
 
-export type Doc2xTaskState = {
+export type Doc2xTaskContext = Omit<PreparedDoc2xQueryContext, 'signal'> & {
   stage: Doc2xTaskStage
   createdAt: number
 }

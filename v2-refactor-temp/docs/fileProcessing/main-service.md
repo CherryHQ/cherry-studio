@@ -217,9 +217,10 @@
 2. `api/doc2x/`
 3. `api/mistral/`
 4. `api/open-mineru/`
-5. `builtin/system/`
-6. `builtin/tesseract/`
-7. `builtin/ovocr/`
+5. `api/paddleocr/`
+6. `builtin/system/`
+7. `builtin/tesseract/`
+8. `builtin/ovocr/`
 
 换句话说，新实现默认应遵循“一个 provider 一个目录”的组织方式，而不是再新增平铺文件。
 
@@ -280,15 +281,13 @@
 
 #### 当前 flat 文件的理解
 
-当前仓库中仍存在少量平铺文件，例如：
+当前 `file-processing` provider 已不再保留推荐性的平铺实现。
 
-1. `PaddleProcessor.ts`
+这里的约束可以直接理解为：
 
-对这些文件的理解应是：
-
-1. 它们属于当前阶段尚未继续拆分的实现或占位实现
-2. 不应被当作后续新增 processor 的推荐组织方式
-3. 后续新增或重构 provider，应优先采用 provider 目录化组织
+1. 新增 provider 默认进入各自子目录
+2. 已迁移 provider 也应继续保持目录化组织
+3. 不再继续向 `providers/api` 或 `providers/builtin` 根目录追加新的 provider 实现文件
 
 ---
 
