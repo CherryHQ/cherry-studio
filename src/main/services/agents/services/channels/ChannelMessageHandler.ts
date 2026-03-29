@@ -2,7 +2,7 @@ import { loggerService } from '@logger'
 import type { CherryClawConfiguration, GetAgentSessionResponse } from '@types'
 
 import { agentService } from '../AgentService'
-import { channelRateLimiter, sanitizeChannelOutput, wrapExternalContent } from '../security'
+import { sanitizeChannelOutput, wrapExternalContent } from '../security'
 import { sessionMessageService } from '../SessionMessageService'
 import { sessionService } from '../SessionService'
 import type { ChannelAdapter, ChannelCommandEvent, ChannelMessageEvent } from './ChannelAdapter'
@@ -29,13 +29,6 @@ export class ChannelMessageHandler {
 
   async handleIncoming(adapter: ChannelAdapter, message: ChannelMessageEvent): Promise<void> {
     const { agentId } = adapter
-    const rateLimitKey = `${agentId}:${adapter.channelId}:${message.chatId}`
-
-    // Rate limiting: reject bursts that exceed threshold
-    if (!channelRateLimiter.isAllowed(rateLimitKey)) {
-      logger.warn('Channel message rate-limited, dropping', { agentId, chatId: message.chatId })
-      return
-    }
 
     try {
       const session = await this.resolveSession(agentId, adapter.channelId, adapter.channelType, message.chatId)
@@ -43,6 +36,11 @@ export class ChannelMessageHandler {
         logger.error('Failed to resolve session', { agentId })
         return
       }
+
+      // Apply channel-level permission mode override on every message (not just session creation).
+      // This ensures changes to the channel's permission_mode take effect immediately,
+      // even for sessions created before the setting was changed.
+      await this.applyChannelPermissionMode(session, agentId, adapter.channelId)
 
       // Wrap untrusted channel input with security boundary markers
       const securedContent = wrapExternalContent(message.text, {
@@ -170,6 +168,25 @@ export class ChannelMessageHandler {
         command: command.command,
         error: error instanceof Error ? error.message : String(error)
       })
+    }
+  }
+
+  /**
+   * Look up the channel's current permission_mode from the agent config and
+   * override the session's configuration in-place. This ensures that changes
+   * to the channel permission mode take effect immediately — even for sessions
+   * that were created before the setting was changed.
+   */
+  private async applyChannelPermissionMode(
+    session: GetAgentSessionResponse,
+    agentId: string,
+    channelId: string
+  ): Promise<void> {
+    const agent = await agentService.getAgent(agentId)
+    const cherryClawConfig = agent?.configuration as CherryClawConfiguration | undefined
+    const channelConfig = cherryClawConfig?.channels?.find((ch) => ch.id === channelId)
+    if (channelConfig?.permission_mode && session.configuration) {
+      session.configuration = { ...session.configuration, permission_mode: channelConfig.permission_mode }
     }
   }
 

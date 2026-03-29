@@ -58,11 +58,6 @@
         },
         "notifyReceiver": "Receive task notifications",
         "notifyReceiverHint": "Send scheduler task results to this channel.",
-        "security": {
-          "inheritFromAgent": "Inherit from agent",
-          "permissionMode": "Channel Permission Mode",
-          "permissionModeHint": "Override the agent's permission mode for messages from this channel. \"Inherit\" uses the agent's default."
-        },
         "qq": {
           "appId": "App ID",
           "appIdPlaceholder": "Enter your QQ Bot App ID",
@@ -74,6 +69,11 @@
           "description": "Receive and respond to messages via QQ Bot official API.",
           "title": "QQ",
           "whoamiTip": "💡 Tip: Send /whoami to the bot to get your chat ID in the correct format."
+        },
+        "security": {
+          "inheritFromAgent": "Inherit from agent",
+          "permissionMode": "Channel Permission Mode",
+          "permissionModeHint": "Override the agent's permission mode for messages from this channel. \"Inherit\" uses the agent's default."
         },
         "tab": "Channels",
         "telegram": {

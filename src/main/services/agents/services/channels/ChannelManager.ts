@@ -2,7 +2,6 @@ import { loggerService } from '@logger'
 import type { CherryClawChannel, CherryClawConfiguration } from '@types'
 
 import { agentService } from '../AgentService'
-import { channelRateLimiter } from '../security'
 import type { ChannelAdapter } from './ChannelAdapter'
 import { channelMessageHandler } from './ChannelMessageHandler'
 
@@ -34,7 +33,6 @@ class ChannelManager {
 
   async start(): Promise<void> {
     logger.info('Starting channel manager')
-    channelRateLimiter.start()
     try {
       const { agents } = await agentService.listAgents()
       const agentsWithChannels = agents.filter((a) => {
@@ -56,7 +54,6 @@ class ChannelManager {
 
   async stop(): Promise<void> {
     logger.info('Stopping channel manager')
-    channelRateLimiter.stop()
     const disconnects = Array.from(this.adapters.values()).map((adapter) =>
       adapter.disconnect().catch((err) => {
         logger.warn('Error disconnecting adapter', {

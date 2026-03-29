@@ -70,6 +70,11 @@
           "title": "QQ",
           "whoamiTip": "💡 Consejo: Envíe /whoami al bot para obtener su ID de chat en el formato correcto."
         },
+        "security": {
+          "inheritFromAgent": "[to be translated]:Inherit from agent",
+          "permissionMode": "[to be translated]:Channel Permission Mode",
+          "permissionModeHint": "[to be translated]:Override the agent's permission mode for messages from this channel. \"Inherit\" uses the agent's default."
+        },
         "tab": "Canales",
         "telegram": {
           "botToken": "Token del bot",

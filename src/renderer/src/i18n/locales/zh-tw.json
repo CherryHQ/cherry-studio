@@ -58,11 +58,6 @@
         },
         "notifyReceiver": "接收任務通知",
         "notifyReceiverHint": "將排程任務結果傳送到此頻道。",
-        "security": {
-          "inheritFromAgent": "繼承智能體設定",
-          "permissionMode": "頻道權限模式",
-          "permissionModeHint": "覆寫此頻道訊息的智能體權限模式。選擇「繼承」則使用智能體預設設定。"
-        },
         "qq": {
           "appId": "App ID",
           "appIdPlaceholder": "輸入您的 QQ 機器人 App ID",
@@ -74,6 +69,11 @@
           "description": "透過 QQ 機器人官方 API 接收和回覆訊息。",
           "title": "QQ",
           "whoamiTip": "💡 提示：發送 /whoami 給機器人即可獲取正確格式的對話 ID。"
+        },
+        "security": {
+          "inheritFromAgent": "繼承智能體設定",
+          "permissionMode": "頻道權限模式",
+          "permissionModeHint": "覆寫此頻道訊息的智能體權限模式。選擇「繼承」則使用智能體預設設定。"
         },
         "tab": "頻道",
         "telegram": {

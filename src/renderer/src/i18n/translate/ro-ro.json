@@ -70,6 +70,11 @@
           "title": "QQ",
           "whoamiTip": "💡 Sfat: Trimiteți /whoami la bot pentru a obține ID-ul de chat în formatul corect."
         },
+        "security": {
+          "inheritFromAgent": "[to be translated]:Inherit from agent",
+          "permissionMode": "[to be translated]:Channel Permission Mode",
+          "permissionModeHint": "[to be translated]:Override the agent's permission mode for messages from this channel. \"Inherit\" uses the agent's default."
+        },
         "tab": "Canale",
         "telegram": {
           "botToken": "Token Bot",

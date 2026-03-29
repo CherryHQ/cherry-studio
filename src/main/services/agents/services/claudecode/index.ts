@@ -22,7 +22,11 @@ import { pluginService } from '@main/services/agents/plugins/PluginService'
 import { configManager } from '@main/services/ConfigManager'
 import { autoDiscoverGitBash } from '@main/utils/process'
 import getLoginShellEnvironment from '@main/utils/shell-env'
-import { GLOBALLY_DISALLOWED_TOOLS, SOUL_MODE_DISALLOWED_TOOLS } from '@shared/agents/claudecode/constants'
+import {
+  CHANNEL_SECURITY_PROMPT,
+  GLOBALLY_DISALLOWED_TOOLS,
+  SOUL_MODE_DISALLOWED_TOOLS
+} from '@shared/agents/claudecode/constants'
 import { languageEnglishNameMap } from '@shared/config/languages'
 import { withoutTrailingApiVersion } from '@shared/utils'
 import type { CherryClawConfiguration } from '@types'
@@ -328,6 +332,10 @@ class ClaudeCodeService implements AgentServiceInterface {
       logger.info('Built Soul Mode system prompt', { cwd, promptLength: soulSystemPrompt.length })
     }
 
+    // Inject channel security policy into system prompt when session is from an external channel
+    const isChannelSession = !!soulConfig?.source_channel_type
+    const channelSecurityBlock = isChannelSession ? `\n\n${CHANNEL_SECURITY_PROMPT}` : ''
+
     // Build SDK options from session configuration
     const options: Options = {
       abortController,
@@ -339,17 +347,17 @@ class ClaudeCodeService implements AgentServiceInterface {
         errorChunks.push(chunk)
       },
       systemPrompt: soulSystemPrompt
-        ? `${soulSystemPrompt}\n\n${getLanguageInstruction()}`
+        ? `${soulSystemPrompt}${channelSecurityBlock}\n\n${getLanguageInstruction()}`
         : session.instructions
           ? {
               type: 'preset',
               preset: 'claude_code',
-              append: `${session.instructions}\n\n${getLanguageInstruction()}`
+              append: `${session.instructions}${channelSecurityBlock}\n\n${getLanguageInstruction()}`
             }
           : {
               type: 'preset',
               preset: 'claude_code',
-              append: getLanguageInstruction()
+              append: `${channelSecurityBlock}\n\n${getLanguageInstruction()}`
             },
       settingSources: ['project', 'local'],
       includePartialMessages: true,
