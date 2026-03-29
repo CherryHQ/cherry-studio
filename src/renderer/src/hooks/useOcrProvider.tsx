@@ -1,14 +1,11 @@
+import { Intel, Paddleocr, TesseractJs } from '@cherrystudio/ui/icons'
 import { loggerService } from '@logger'
-import IntelLogo from '@renderer/assets/images/providers/intel.png'
-import PaddleocrLogo from '@renderer/assets/images/providers/paddleocr.png'
-import TesseractLogo from '@renderer/assets/images/providers/Tesseract.js.png'
 import { BUILTIN_OCR_PROVIDERS_MAP, DEFAULT_OCR_PROVIDER } from '@renderer/config/ocr'
 import { getBuiltinOcrProviderLabel } from '@renderer/i18n/label'
 import { useAppSelector } from '@renderer/store'
 import { addOcrProvider, removeOcrProvider, setImageOcrProviderId, updateOcrProviderConfig } from '@renderer/store/ocr'
 import type { ImageOcrProvider, OcrProvider, OcrProviderConfig } from '@renderer/types'
 import { isBuiltinOcrProvider, isBuiltinOcrProviderId, isImageOcrProvider } from '@renderer/types'
-import { Avatar } from 'antd'
 import { FileQuestionMarkIcon, MonitorIcon } from 'lucide-react'
 import { useCallback, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -73,13 +70,13 @@ export const useOcrProviders = () => {
     if (isBuiltinOcrProvider(p)) {
       switch (p.id) {
         case 'tesseract':
-          return <Avatar size={size} src={TesseractLogo} />
+          return <TesseractJs.Avatar size={size} shape="rounded" />
         case 'system':
           return <MonitorIcon size={size} />
         case 'paddleocr':
-          return <Avatar size={size} src={PaddleocrLogo} />
+          return <Paddleocr.Avatar size={size} shape="rounded" />
         case 'ovocr':
-          return <Avatar size={size} src={IntelLogo} />
+          return <Intel.Avatar size={size} shape="rounded" />
       }
     }
     return <FileQuestionMarkIcon size={size} />

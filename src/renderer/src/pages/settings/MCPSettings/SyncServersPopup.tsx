@@ -1,7 +1,9 @@
+import { Button } from '@cherrystudio/ui'
+import { dataApiService } from '@data/DataApiService'
 import { TopView } from '@renderer/components/TopView'
 import { useMCPServers } from '@renderer/hooks/useMCPServers'
-import type { MCPServer } from '@renderer/types'
-import { Button, Form, Input, Modal, Select } from 'antd'
+import type { MCPServer } from '@shared/data/types/mcpServer'
+import { Form, Input, Modal, Select } from 'antd'
 import { useCallback, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
@@ -100,7 +102,7 @@ interface Props {
 }
 
 const PopupContainer: React.FC<Props> = ({ resolve, existingServers }) => {
-  const { addMCPServer, updateMCPServer } = useMCPServers()
+  const { addMCPServer, refetch } = useMCPServers()
   const [open, setOpen] = useState(true)
   const [isSyncing, setIsSyncing] = useState(false)
   const [selectedProviderKey, setSelectedProviderKey] = useState(providers[0].key)
@@ -153,14 +155,16 @@ const PopupContainer: React.FC<Props> = ({ resolve, existingServers }) => {
       if (result.success && (result.addedServers?.length > 0 || result.updatedServers?.length > 0)) {
         // Add new servers to the store
         for (const server of result.addedServers) {
-          addMCPServer(server)
+          await addMCPServer(server)
         }
         // Update existing servers with latest info
         const updatedServers = result.updatedServers
         if (updatedServers?.length > 0) {
           for (const server of updatedServers) {
-            updateMCPServer(server)
+            const { id, ...updates } = server
+            await dataApiService.patch(`/mcp-servers/${id}`, { body: updates })
           }
+          await refetch()
         }
         window.toast.success(result.message)
         setOpen(false)
@@ -177,7 +181,7 @@ const PopupContainer: React.FC<Props> = ({ resolve, existingServers }) => {
     } finally {
       setIsSyncing(false)
     }
-  }, [addMCPServer, updateMCPServer, existingServers, form, selectedProvider, t])
+  }, [addMCPServer, refetch, existingServers, form, selectedProvider, t])
 
   const onCancel = () => {
     setOpen(false)
@@ -286,10 +290,10 @@ const PopupContainer: React.FC<Props> = ({ resolve, existingServers }) => {
         </ProviderContent>
 
         <ButtonContainer>
-          <Button type="default" onClick={onCancel}>
+          <Button variant="default" onClick={onCancel}>
             {t('common.cancel')}
           </Button>
-          <Button type="primary" onClick={handleSync} loading={isSyncing} disabled={isSyncDisabled()}>
+          <Button variant="default" onClick={handleSync} disabled={isSyncing || isSyncDisabled()}>
             {t('settings.mcp.sync.button', 'Sync')}
           </Button>
         </ButtonContainer>

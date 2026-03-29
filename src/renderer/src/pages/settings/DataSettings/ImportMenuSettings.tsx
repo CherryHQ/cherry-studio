@@ -1,4 +1,4 @@
-import { HStack } from '@renderer/components/Layout'
+import { RowFlex } from '@cherrystudio/ui'
 import ImportPopup from '@renderer/components/Popups/ImportPopup'
 import { useTheme } from '@renderer/context/ThemeProvider'
 import { Button } from 'antd'
@@ -18,9 +18,9 @@ const ImportMenuOptions: FC = () => {
       <SettingDivider />
       <SettingRow>
         <SettingRowTitle>{t('settings.data.import_settings.chatgpt')}</SettingRowTitle>
-        <HStack gap="5px" justifyContent="space-between">
+        <RowFlex className="justify-between gap-[5px]">
           <Button onClick={ImportPopup.show}>{t('settings.data.import_settings.button')}</Button>
-        </HStack>
+        </RowFlex>
       </SettingRow>
     </SettingGroup>
   )

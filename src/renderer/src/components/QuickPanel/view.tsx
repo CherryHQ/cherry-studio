@@ -1,10 +1,10 @@
 import { RightOutlined } from '@ant-design/icons'
+import { Flex } from '@cherrystudio/ui'
 import { DynamicVirtualList, type DynamicVirtualListRef } from '@renderer/components/VirtualList'
 import { isMac } from '@renderer/config/constant'
 import { useTimer } from '@renderer/hooks/useTimer'
 import useUserTheme from '@renderer/hooks/useUserTheme'
 import { classNames } from '@renderer/utils'
-import { Flex } from 'antd'
 import { t } from 'i18next'
 import { debounce } from 'lodash'
 import { Check } from 'lucide-react'
@@ -164,7 +164,7 @@ export const QuickPanelView: React.FC<Props> = ({ setInputText }) => {
 
   const clearSearchText = useCallback(
     (includeSymbol = false) => {
-      const textArea = document.querySelector('.inputbar textarea') as HTMLTextAreaElement
+      const textArea = document.querySelector<HTMLTextAreaElement>('.inputbar textarea')
       if (!textArea) return
 
       const cursorPosition = textArea.selectionStart ?? 0
@@ -238,7 +238,7 @@ export const QuickPanelView: React.FC<Props> = ({ setInputText }) => {
         setTimeoutTimer(
           'quickpanel_focus',
           () => {
-            const textareaEl = document.querySelector('.inputbar textarea') as HTMLTextAreaElement | null
+            const textareaEl = document.querySelector<HTMLTextAreaElement>('.inputbar textarea')
             if (!textareaEl) return
             textareaEl.focus()
             textareaEl.setSelectionRange(clampedDeleteStart, clampedDeleteStart)
@@ -263,7 +263,7 @@ export const QuickPanelView: React.FC<Props> = ({ setInputText }) => {
       scrollTriggerRef.current = 'initial'
 
       if (action === 'delete-symbol') {
-        const textArea = document.querySelector('.inputbar textarea') as HTMLTextAreaElement
+        const textArea = document.querySelector<HTMLTextAreaElement>('.inputbar textarea')
         if (textArea) {
           setInputText(textArea.value)
         }
@@ -429,7 +429,7 @@ export const QuickPanelView: React.FC<Props> = ({ setInputText }) => {
   useEffect(() => {
     if (!ctx.isVisible) return
 
-    const textArea = document.querySelector('.inputbar textarea') as HTMLTextAreaElement
+    const textArea = document.querySelector<HTMLTextAreaElement>('.inputbar textarea')
     if (!textArea) return
 
     const handleInput = (e: Event) => {
@@ -767,13 +767,11 @@ export const QuickPanelView: React.FC<Props> = ({ setInputText }) => {
           <QuickPanelFooterTips $footerWidth={footerWidth}>
             <span>ESC {t('settings.quickPanel.close')}</span>
 
-            <Flex align="center" gap={4}>
-              ▲▼ {t('settings.quickPanel.select')}
-            </Flex>
+            <Flex className="items-center gap-1">▲▼ {t('settings.quickPanel.select')}</Flex>
 
             {footerWidth >= 500 && (
               <>
-                <Flex align="center" gap={4}>
+                <Flex className="items-center gap-1">
                   <span style={{ color: isAssistiveKeyPressed ? 'var(--color-primary)' : 'var(--color-text-3)' }}>
                     {ASSISTIVE_KEY}
                   </span>
@@ -781,7 +779,7 @@ export const QuickPanelView: React.FC<Props> = ({ setInputText }) => {
                 </Flex>
 
                 {canForwardAndBackward && (
-                  <Flex align="center" gap={4}>
+                  <Flex className="items-center gap-1">
                     <span style={{ color: isAssistiveKeyPressed ? 'var(--color-primary)' : 'var(--color-text-3)' }}>
                       {ASSISTIVE_KEY}
                     </span>
@@ -791,9 +789,7 @@ export const QuickPanelView: React.FC<Props> = ({ setInputText }) => {
               </>
             )}
 
-            <Flex align="center" gap={4}>
-              ↩︎ {t('settings.quickPanel.confirm')}
-            </Flex>
+            <Flex className="items-center gap-1">↩︎ {t('settings.quickPanel.confirm')}</Flex>
           </QuickPanelFooterTips>
         </QuickPanelFooter>
       </QuickPanelBody>

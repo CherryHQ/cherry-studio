@@ -1,3 +1,4 @@
+import { Button } from '@cherrystudio/ui'
 import type { DropResult } from '@hello-pangea/dnd'
 import { loggerService } from '@logger'
 import {
@@ -14,13 +15,13 @@ import type { Provider, ProviderType } from '@renderer/types'
 import { isSystemProvider } from '@renderer/types'
 import { getFancyProviderName, matchKeywordsInModel, matchKeywordsInProvider, uuid } from '@renderer/utils'
 import { isAnthropicSupportedProvider } from '@renderer/utils/provider'
+import { useNavigate, useSearch } from '@tanstack/react-router'
 import type { MenuProps } from 'antd'
-import { Button, Dropdown, Input, Tag } from 'antd'
+import { Dropdown, Input, Tag } from 'antd'
 import { Check, Filter, GripVertical, PlusIcon, Search, UserPen } from 'lucide-react'
 import type { FC } from 'react'
 import { startTransition, useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { useSearchParams } from 'react-router-dom'
 import styled from 'styled-components'
 import useSWRImmutable from 'swr/immutable'
 
@@ -49,7 +50,10 @@ interface ProviderListProps {
 }
 
 const ProviderList: FC<ProviderListProps> = ({ isOnboarding = false }) => {
-  const [searchParams, setSearchParams] = useSearchParams()
+  // TODO: Define validateSearch in routes/settings/provider.tsx and replace with Route.useSearch()
+  // for type-safe search params. Currently using untyped useSearch as a stopgap after removing react-router-dom.
+  const search = useSearch({ strict: false })
+  const navigate = useNavigate()
   const providers = useAllProviders()
   const { updateProviders, addProvider, removeProvider, updateProvider } = useProviders()
   const { setTimeoutTimer } = useTimer()
@@ -90,16 +94,13 @@ const ProviderList: FC<ProviderListProps> = ({ isOnboarding = false }) => {
 
   useEffect(() => {
     let shouldUpdate = false
-    const hasFilterParam = searchParams.get('filter') === 'agent'
 
     // Handle filter param first - when filter is enabled, ignore id param
-    if (hasFilterParam) {
+    if (search.filter === 'agent') {
       setAgentFilterEnabled(true)
-      searchParams.delete('filter')
-      searchParams.delete('id') // Clear id param when filter is enabled
       shouldUpdate = true
-    } else if (searchParams.get('id')) {
-      const providerId = searchParams.get('id')
+    } else if (search.id) {
+      const providerId = search.id
       const provider = providers.find((p) => p.id === providerId)
       if (provider) {
         setSelectedProvider(provider)
@@ -115,14 +116,18 @@ const ProviderList: FC<ProviderListProps> = ({ isOnboarding = false }) => {
       } else {
         setSelectedProvider(providers[0])
       }
-      searchParams.delete('id')
       shouldUpdate = true
     }
 
     if (shouldUpdate) {
-      setSearchParams(searchParams)
+      // FIXME: Using navigate + Object.fromEntries to strip consumed params is a workaround.
+      // Ideal: define validateSearch on the route so navigate({ search }) is fully typed,
+      // and consumed params can be cleared without manual filtering or type casts.
+      const restSearch = Object.fromEntries(Object.entries(search).filter(([key]) => key !== 'filter' && key !== 'id'))
+      void navigate({ to: '/settings/provider', search: restSearch as Record<string, string>, replace: true })
     }
-  }, [providers, searchParams, setSearchParams, setSelectedProvider, setTimeoutTimer])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [providers, search.filter, search.id, navigate, setSelectedProvider, setTimeoutTimer])
 
   // Handle provider add key from URL schema
   useEffect(() => {
@@ -136,7 +141,7 @@ const ProviderList: FC<ProviderListProps> = ({ isOnboarding = false }) => {
       const { id } = data
 
       const { updatedProvider, isNew, displayName } = await UrlSchemaInfoPopup.show(data)
-      window.navigate(`/settings/provider?id=${id}`)
+      void navigate({ to: '/settings/provider', search: { id } })
 
       if (!updatedProvider) {
         return
@@ -153,7 +158,7 @@ const ProviderList: FC<ProviderListProps> = ({ isOnboarding = false }) => {
     }
 
     // 检查 URL 参数
-    const addProviderData = searchParams.get('addProviderData')
+    const addProviderData = search.addProviderData
     if (!addProviderData) {
       return
     }
@@ -162,17 +167,17 @@ const ProviderList: FC<ProviderListProps> = ({ isOnboarding = false }) => {
       const { id, apiKey: newApiKey, baseUrl, type, name } = JSON.parse(addProviderData)
       if (!id || !newApiKey || !baseUrl) {
         window.toast.error(t('settings.models.provider_key_add_failed_by_invalid_data'))
-        window.navigate('/settings/provider')
+        void navigate({ to: '/settings/provider' })
         return
       }
 
       void handleProviderAddKey({ id, apiKey: newApiKey, baseUrl, type, name })
     } catch (error) {
       window.toast.error(t('settings.models.provider_key_add_failed_by_invalid_data'))
-      window.navigate('/settings/provider')
+      void navigate({ to: '/settings/provider' })
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [searchParams])
+  }, [search.addProviderData])
 
   const onAddProvider = async () => {
     const { name: providerName, type, logo } = await AddProviderPopup.show()
@@ -437,10 +442,11 @@ const ProviderList: FC<ProviderListProps> = ({ isOnboarding = false }) => {
         </DraggableVirtualList>
         <AddButtonWrapper>
           <Button
+            size="sm"
             style={{ width: '100%', borderRadius: 'var(--list-item-border-radius)' }}
-            icon={<PlusIcon size={16} />}
             onClick={onAddProvider}
             disabled={dragging}>
+            <PlusIcon size={16} />
             {t('button.add')}
           </Button>
         </AddButtonWrapper>

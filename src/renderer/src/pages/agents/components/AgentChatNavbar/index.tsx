@@ -23,7 +23,7 @@ const AgentChatNavbar = ({ activeAgent, className }: Props) => {
 
   useShortcut('toggle_show_topics', () => {
     if (topicPosition === 'right') {
-      toggleShowTopics()
+      void toggleShowTopics()
     } else {
       void EventEmitter.emit(EVENT_NAMES.SHOW_TOPIC_SIDEBAR)
     }

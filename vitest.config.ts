@@ -89,6 +89,19 @@ export default defineConfig({
             include: ['packages/shared/**/*.bench.{ts,tsx}', 'packages/shared/**/__tests__/**/*.bench.{ts,tsx}']
           }
         }
+      },
+      // packages/ui 单元测试配置
+      {
+        extends: true,
+        test: {
+          name: 'ui',
+          environment: 'node',
+          include: [
+            'packages/ui/scripts/**/*.{test,spec}.{ts,tsx}',
+            'packages/ui/src/**/*.{test,spec}.{ts,tsx}',
+            'packages/ui/src/**/__tests__/**/*.{test,spec}.{ts,tsx}'
+          ]
+        }
       }
     ],
     // 全局共享配置

@@ -1,9 +1,9 @@
+import { loggerService } from '@logger'
 import type { ApiModelsResponse } from '@types'
 import { ApiModelsFilterSchema } from '@types'
 import type { Request, Response } from 'express'
 import express from 'express'
 
-import { loggerService } from '../../services/LoggerService'
 import { modelsService } from '../services/models'
 
 const logger = loggerService.withContext('ApiServerModelsRoutes')

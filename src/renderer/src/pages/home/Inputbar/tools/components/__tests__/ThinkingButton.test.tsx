@@ -105,14 +105,7 @@ vi.mock('@renderer/components/Icons/SVGIcon', () => ({
 
 // Mock ActionIconButton component
 vi.mock('@renderer/components/Buttons', () => ({
-  ActionIconButton: ({
-    onClick,
-    active,
-    'aria-label': ariaLabel,
-    'aria-pressed': ariaPressed,
-    style,
-    children
-  }: any) => (
+  ActionIconButton: ({ onClick, active, 'aria-label': ariaLabel, 'aria-pressed': ariaPressed, style, icon }: any) => (
     <button
       type="button"
       data-testid="action-icon-button"
@@ -121,20 +114,15 @@ vi.mock('@renderer/components/Buttons', () => ({
       aria-label={ariaLabel}
       aria-pressed={ariaPressed}
       style={style}>
-      {children}
+      {icon}
     </button>
   )
 }))
 
-// Mock Ant Design Tooltip
-vi.mock('antd', () => ({
-  Tooltip: ({ title, children, placement, mouseLeaveDelay, arrow }: any) => (
-    <div
-      data-testid="tooltip"
-      data-title={title}
-      data-placement={placement}
-      data-mouse-leave-delay={mouseLeaveDelay}
-      data-arrow={arrow}>
+// Mock @cherrystudio/ui Tooltip
+vi.mock('@cherrystudio/ui', () => ({
+  Tooltip: ({ content, children, placement, closeDelay }: any) => (
+    <div data-testid="tooltip" data-title={content} data-placement={placement} data-close-delay={closeDelay}>
       {children}
     </div>
   )

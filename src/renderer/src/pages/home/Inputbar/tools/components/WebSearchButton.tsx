@@ -33,9 +33,8 @@ const WebSearchButton: FC<Props> = ({ quickPanelController, assistantId }) => {
         onClick={onClick}
         active={!!enableWebSearch}
         aria-label={ariaLabel}
-        aria-pressed={!!enableWebSearch}>
-        <WebSearchProviderIcon pid={selectedProviderId} />
-      </ActionIconButton>
+        aria-pressed={!!enableWebSearch}
+        icon={<WebSearchProviderIcon pid={selectedProviderId} />}></ActionIconButton>
     </Tooltip>
   )
 }

@@ -1,8 +1,8 @@
+import { preferenceService } from '@data/PreferenceService'
 import { loggerService } from '@logger'
 import db from '@renderer/databases'
-import { getStoreSetting } from '@renderer/hooks/useSettings'
 import { getKnowledgeBaseParams } from '@renderer/services/KnowledgeService'
-import { NotificationService } from '@renderer/services/NotificationService'
+import { notificationService } from '@renderer/services/NotificationService'
 import store from '@renderer/store'
 import {
   clearCompletedProcessing,
@@ -17,7 +17,7 @@ import { t } from 'i18next'
 
 const logger = loggerService.withContext('KnowledgeQueue')
 
-class KnowledgeQueue {
+export class KnowledgeQueue {
   private processing: Map<string, boolean> = new Map()
   private readonly MAX_RETRIES = 1
 
@@ -121,7 +121,7 @@ class KnowledgeQueue {
       message = t('notification.knowledge.batch_mixed', { succeeded, failed })
     }
 
-    void NotificationService.getInstance().send({
+    void notificationService.send({
       id: uuid(),
       type,
       title: t('common.knowledge_base'),
@@ -133,7 +133,7 @@ class KnowledgeQueue {
   }
 
   private async processItem(baseId: string, item: KnowledgeItem): Promise<boolean> {
-    const userId = getStoreSetting('userId')
+    const userId = await preferenceService.get('app.user.id')
     try {
       if (item.retryCount && item.retryCount >= this.MAX_RETRIES) {
         const errorMessage = item.processingError
@@ -264,4 +264,4 @@ class KnowledgeQueue {
   }
 }
 
-export default new KnowledgeQueue()
+export const knowledgeQueue = new KnowledgeQueue()

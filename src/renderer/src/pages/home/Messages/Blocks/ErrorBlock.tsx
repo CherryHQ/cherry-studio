@@ -1,15 +1,14 @@
+import { Button } from '@cherrystudio/ui'
 import { ErrorDetailModal } from '@renderer/components/ErrorDetailModal'
 import { useTimer } from '@renderer/hooks/useTimer'
 import { getHttpMessageLabel, getProviderLabel } from '@renderer/i18n/label'
-import { getProviderById } from '@renderer/services/ProviderService'
 import { useAppDispatch } from '@renderer/store'
 import { removeBlocksThunk } from '@renderer/store/thunk/messageThunk'
 import type { ErrorMessageBlock, Message } from '@renderer/types/newMessage'
-import { Button } from 'antd'
+import { Link } from '@tanstack/react-router'
 import { Alert as AntdAlert } from 'antd'
 import React, { useState } from 'react'
 import { Trans, useTranslation } from 'react-i18next'
-import { Link } from 'react-router-dom'
 import styled from 'styled-components'
 
 const HTTP_ERROR_CODES = [400, 401, 403, 404, 429, 500, 502, 503, 504]
@@ -42,11 +41,7 @@ const ErrorMessage: React.FC<{ block: ErrorMessageBlock }> = ({ block }) => {
           values={{ provider: getProviderLabel(providerId) }}
           components={{
             provider: (
-              <Link
-                style={{ color: 'var(--color-link)' }}
-                to={`/settings/provider`}
-                state={{ provider: getProviderById(providerId) }}
-              />
+              <Link style={{ color: 'var(--color-link)' }} to="/settings/provider" search={{ id: providerId }} />
             )
           }}
         />
@@ -117,11 +112,9 @@ const MessageErrorInfo: React.FC<{ block: ErrorMessageBlock; message: Message }>
         onClick={showErrorDetail}
         style={{ cursor: 'pointer' }}
         action={
-          <>
-            <Button size="middle" color="default" variant="text" onClick={showErrorDetail}>
-              {t('common.detail')}
-            </Button>
-          </>
+          <Button size="sm" className="p-0" variant="ghost" onClick={showErrorDetail}>
+            {t('common.detail')}
+          </Button>
         }
       />
       <ErrorDetailModal open={showDetailModal} onClose={() => setShowDetailModal(false)} error={block.error} />

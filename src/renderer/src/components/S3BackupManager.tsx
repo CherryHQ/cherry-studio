@@ -1,8 +1,9 @@
 import { DeleteOutlined, ExclamationCircleOutlined, ReloadOutlined } from '@ant-design/icons'
+import { Button, Tooltip } from '@cherrystudio/ui'
 import { restoreFromS3 } from '@renderer/services/BackupService'
 import type { S3Config } from '@renderer/types'
 import { formatFileSize } from '@renderer/utils'
-import { Button, Modal, Space, Table, Tooltip } from 'antd'
+import { Modal, Table } from 'antd'
 import dayjs from 'dayjs'
 import { useCallback, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -206,7 +207,7 @@ export function S3BackupManager({ visible, onClose, s3Config, restoreMethod }: S
         showTitle: false
       },
       render: (fileName: string) => (
-        <Tooltip placement="topLeft" title={fileName}>
+        <Tooltip placement="top-start" content={fileName}>
           {fileName}
         </Tooltip>
       )
@@ -231,14 +232,10 @@ export function S3BackupManager({ visible, onClose, s3Config, restoreMethod }: S
       width: 160,
       render: (_: any, record: BackupFile) => (
         <>
-          <Button type="link" onClick={() => handleRestore(record.fileName)} disabled={restoring || deleting}>
+          <Button variant="ghost" onClick={() => handleRestore(record.fileName)} disabled={restoring || deleting}>
             {t('settings.data.s3.manager.restore')}
           </Button>
-          <Button
-            type="link"
-            danger
-            onClick={() => handleDeleteSingle(record.fileName)}
-            disabled={deleting || restoring}>
+          <Button variant="ghost" onClick={() => handleDeleteSingle(record.fileName)} disabled={deleting || restoring}>
             {t('settings.data.s3.manager.delete.label')}
           </Button>
         </>
@@ -253,26 +250,6 @@ export function S3BackupManager({ visible, onClose, s3Config, restoreMethod }: S
     }
   }
 
-  const footerContent = (
-    <Space align="center">
-      <Button key="refresh" icon={<ReloadOutlined />} onClick={fetchBackupFiles} disabled={loading}>
-        {t('settings.data.s3.manager.refresh')}
-      </Button>
-      <Button
-        key="delete"
-        danger
-        icon={<DeleteOutlined />}
-        onClick={handleDeleteSelected}
-        disabled={selectedRowKeys.length === 0 || deleting}
-        loading={deleting}>
-        {t('settings.data.s3.manager.delete.selected', { count: selectedRowKeys.length })}
-      </Button>
-      <Button key="close" onClick={onClose}>
-        {t('settings.data.s3.manager.close')}
-      </Button>
-    </Space>
-  )
-
   return (
     <Modal
       title={t('settings.data.s3.manager.title')}
@@ -281,7 +258,23 @@ export function S3BackupManager({ visible, onClose, s3Config, restoreMethod }: S
       width={800}
       centered
       transitionName="animation-move-down"
-      footer={footerContent}>
+      footer={[
+        <Button key="refresh" onClick={fetchBackupFiles} disabled={loading}>
+          <ReloadOutlined />
+          {t('settings.data.s3.manager.refresh')}
+        </Button>,
+        <Button
+          key="delete"
+          variant="destructive"
+          onClick={handleDeleteSelected}
+          disabled={selectedRowKeys.length === 0 || deleting}>
+          <DeleteOutlined />
+          {t('settings.data.s3.manager.delete.selected', { count: selectedRowKeys.length })}
+        </Button>,
+        <Button key="close" onClick={onClose}>
+          {t('settings.data.s3.manager.close')}
+        </Button>
+      ]}>
       <Table
         rowKey="fileName"
         columns={columns}

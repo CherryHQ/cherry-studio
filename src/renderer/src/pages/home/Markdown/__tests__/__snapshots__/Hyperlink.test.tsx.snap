@@ -4,7 +4,6 @@ exports[`Hyperlink > should match snapshot for normal url 1`] = `
 <div>
   <div
     data-arrow="false"
-    data-placement="top"
     data-styles="{"body":{"padding":0,"borderRadius":"8px","overflow":"hidden"}}"
     data-testid="popover"
   >

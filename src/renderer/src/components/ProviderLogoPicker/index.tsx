@@ -1,8 +1,9 @@
 import { SearchOutlined } from '@ant-design/icons'
+import { Tooltip } from '@cherrystudio/ui'
+import { PROVIDER_ICON_CATALOG } from '@cherrystudio/ui/icons'
 import { ProviderAvatarPrimitive } from '@renderer/components/ProviderAvatar'
-import { PROVIDER_LOGO_MAP } from '@renderer/config/providers'
 import { getProviderLabel } from '@renderer/i18n/label'
-import { Input, Tooltip } from 'antd'
+import { Input } from 'antd'
 import type { FC } from 'react'
 import { useMemo, useState } from 'react'
 import styled from 'styled-components'
@@ -16,9 +17,9 @@ const ProviderLogoPicker: FC<Props> = ({ onProviderClick }) => {
   const [searchText, setSearchText] = useState('')
 
   const filteredProviders = useMemo(() => {
-    const providers = Object.entries(PROVIDER_LOGO_MAP).map(([id, logo]) => ({
+    const providers = Object.entries(PROVIDER_ICON_CATALOG).map(([id, icon]) => ({
       id,
-      logo,
+      icon,
       name: getProviderLabel(id)
     }))
 
@@ -50,10 +51,15 @@ const ProviderLogoPicker: FC<Props> = ({ onProviderClick }) => {
         />
       </SearchContainer>
       <LogoGrid>
-        {filteredProviders.map(({ id, name, logo }) => (
-          <Tooltip key={id} title={name} placement="top" mouseLeaveDelay={0}>
+        {filteredProviders.map(({ id, name, icon }) => (
+          <Tooltip key={id} content={name} closeDelay={0}>
             <LogoItem onClick={(e) => handleProviderClick(e, id)}>
-              <ProviderAvatarPrimitive providerId={id} size={52} providerName={name} logoSrc={logo} />
+              <ProviderAvatarPrimitive
+                providerId={id}
+                style={{ width: '52px', height: '52px' }}
+                providerName={name}
+                logo={icon}
+              />
             </LogoItem>
           </Tooltip>
         ))}

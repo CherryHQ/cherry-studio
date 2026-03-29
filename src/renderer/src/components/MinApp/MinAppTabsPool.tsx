@@ -1,11 +1,11 @@
 import { loggerService } from '@logger'
 import WebviewContainer from '@renderer/components/MinApp/WebviewContainer'
-import { useRuntime } from '@renderer/hooks/useRuntime'
-import { useNavbarPosition } from '@renderer/hooks/useSettings'
+import { useMinapps } from '@renderer/hooks/useMinapps'
+import { useNavbarPosition } from '@renderer/hooks/useNavbar'
 import { getWebviewLoaded, setWebviewLoaded } from '@renderer/utils/webviewStateManager'
+import { useLocation } from '@tanstack/react-router'
 import type { WebviewTag } from 'electron'
 import React, { useEffect, useRef } from 'react'
-import { useLocation } from 'react-router-dom'
 import styled from 'styled-components'
 
 /**
@@ -21,7 +21,7 @@ import styled from 'styled-components'
 const logger = loggerService.withContext('MinAppTabsPool')
 
 const MinAppTabsPool: React.FC = () => {
-  const { openedKeepAliveMinapps, currentMinappId } = useRuntime()
+  const { openedKeepAliveMinapps, currentMinappId } = useMinapps()
   const { isTopNavbar } = useNavbarPosition()
   const location = useLocation()
 
@@ -31,10 +31,10 @@ const MinAppTabsPool: React.FC = () => {
   // 使用集中工具进行更稳健的路由判断
   const isAppDetail = (() => {
     const pathname = location.pathname
-    if (pathname === '/apps') return false
-    if (!pathname.startsWith('/apps/')) return false
-    const parts = pathname.split('/').filter(Boolean) // ['apps', '<id>', ...]
-    return parts.length >= 2
+    if (pathname === '/app/minapp') return false
+    if (!pathname.startsWith('/app/minapp/')) return false
+    const parts = pathname.split('/').filter(Boolean) // ['app', 'minapp', '<id>', ...]
+    return parts.length >= 3
   })()
   const shouldShow = isTopNavbar && isAppDetail
 

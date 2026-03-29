@@ -1,7 +1,7 @@
-import { REFERENCE_PROMPT } from '@renderer/config/prompts'
-import WebSearchService from '@renderer/services/WebSearchService'
+import { webSearchService } from '@renderer/services/WebSearchService'
 import type { WebSearchProvider, WebSearchProviderResponse } from '@renderer/types'
 import type { ExtractResults } from '@renderer/utils/extract'
+import { REFERENCE_PROMPT } from '@shared/config/prompts'
 import { type InferToolInput, type InferToolOutput, tool } from 'ai'
 import * as z from 'zod'
 
@@ -17,7 +17,7 @@ export const webSearchToolWithPreExtractedKeywords = (
   },
   requestId: string
 ) => {
-  const webSearchProvider = WebSearchService.getWebSearchProvider(webSearchProviderId)
+  const webSearchProvider = webSearchService.getWebSearchProvider(webSearchProviderId)
 
   return tool({
     description: `Web search tool for finding current information, news, and real-time data from the internet.
@@ -66,7 +66,7 @@ You can use this tool as-is to search with the prepared queries, or provide addi
           links: extractedKeywords.links
         }
       }
-      searchResults = await WebSearchService.processWebsearch(webSearchProvider!, extractResults, requestId)
+      searchResults = await webSearchService.processWebsearch(webSearchProvider!, extractResults, requestId)
 
       return searchResults
     },

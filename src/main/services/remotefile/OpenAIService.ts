@@ -1,10 +1,10 @@
 import OpenAI from '@cherrystudio/openai'
 import { loggerService } from '@logger'
+import { application } from '@main/core/application'
 import { fileStorage } from '@main/services/FileStorage'
 import type { FileListResponse, FileMetadata, FileUploadResponse, Provider } from '@types'
 import * as fs from 'fs'
 
-import { CacheService } from '../CacheService'
 import { BaseFileService } from './BaseFileService'
 
 const logger = loggerService.withContext('OpenAIService')
@@ -38,11 +38,9 @@ export class OpenaiService extends BaseFileService {
         throw new Error('File id not found in response')
       }
       // 映射RemoteFileId到UIFileId上
-      CacheService.set<string>(
-        OpenaiService.generateUIFileIdCacheKey(file.id),
-        response.id,
-        OpenaiService.FILE_CACHE_DURATION
-      )
+      application
+        .get('CacheService')
+        .set<string>(OpenaiService.generateUIFileIdCacheKey(file.id), response.id, OpenaiService.FILE_CACHE_DURATION)
       return {
         fileId: response.id,
         displayName: file.origin_name,
@@ -88,7 +86,9 @@ export class OpenaiService extends BaseFileService {
 
   async deleteFile(fileId: string): Promise<void> {
     try {
-      const cachedRemoteFileId = CacheService.get<string>(OpenaiService.generateUIFileIdCacheKey(fileId))
+      const cachedRemoteFileId = application
+        .get('CacheService')
+        .get<string>(OpenaiService.generateUIFileIdCacheKey(fileId))
       await this.client.files.delete(cachedRemoteFileId || fileId)
       logger.debug(`File ${fileId} deleted`)
     } catch (error) {
@@ -100,7 +100,9 @@ export class OpenaiService extends BaseFileService {
   async retrieveFile(fileId: string): Promise<FileUploadResponse> {
     try {
       // 尝试反映射RemoteFileId
-      const cachedRemoteFileId = CacheService.get<string>(OpenaiService.generateUIFileIdCacheKey(fileId))
+      const cachedRemoteFileId = application
+        .get('CacheService')
+        .get<string>(OpenaiService.generateUIFileIdCacheKey(fileId))
       const response = await this.client.files.retrieve(cachedRemoteFileId || fileId)
 
       return {

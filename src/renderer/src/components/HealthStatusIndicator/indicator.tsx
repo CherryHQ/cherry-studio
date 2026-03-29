@@ -1,6 +1,7 @@
 import { CheckCircleFilled, CloseCircleFilled, ExclamationCircleFilled, LoadingOutlined } from '@ant-design/icons'
+import { Flex, Tooltip } from '@cherrystudio/ui'
 import { HealthStatus } from '@renderer/types/healthCheck'
-import { Flex, Tooltip, Typography } from 'antd'
+import { Typography } from 'antd'
 import React, { memo, useCallback } from 'react'
 import styled from 'styled-components'
 
@@ -61,9 +62,9 @@ const HealthStatusIndicator: React.FC<HealthStatusIndicatorProps> = ({
   }
 
   return (
-    <Flex align="center" gap={6}>
+    <Flex className="items-center gap-1.5">
       {latencyText && <LatencyText type="secondary">{latencyText}</LatencyText>}
-      <Tooltip title={tooltip} styles={{ body: { userSelect: 'text' } }}>
+      <Tooltip content={tooltip} className="select-text">
         <IndicatorWrapper
           $type={overallStatus}
           $clickable={isClickable}

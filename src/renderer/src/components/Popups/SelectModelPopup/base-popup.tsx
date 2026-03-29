@@ -1,4 +1,6 @@
 import { PushpinOutlined } from '@ant-design/icons'
+import { Tooltip } from '@cherrystudio/ui'
+import { Avatar, AvatarFallback } from '@cherrystudio/ui'
 import { FreeTrialModelTag } from '@renderer/components/FreeTrialModelTag'
 import ModelTagsWithLabel from '@renderer/components/ModelTagsWithLabel'
 import { TopView } from '@renderer/components/TopView'
@@ -11,7 +13,7 @@ import type { Model, Provider } from '@renderer/types'
 import { objectEntries } from '@renderer/types'
 import { classNames, filterModelsByKeywords, getFancyProviderName } from '@renderer/utils'
 import { getDuplicateModelNames, getModelTags } from '@renderer/utils/model'
-import { Avatar, Divider, Empty, Modal, Tooltip } from 'antd'
+import { Divider, Empty, Modal } from 'antd'
 import { first, sortBy } from 'lodash'
 import { Settings2 } from 'lucide-react'
 import React, {
@@ -154,11 +156,16 @@ const SelectModelPopupView: React.FC<Props> = ({
             <ModelTagsWithLabel model={model} size={11} showLabel={true} />
           </TagsContainer>
         ),
-        icon: (
-          <Avatar src={getModelLogo(model)} size={24}>
-            {first(model.name) || 'M'}
-          </Avatar>
-        ),
+        icon: (() => {
+          const Icon = getModelLogo(model)
+          return Icon ? (
+            <Icon.Avatar size={20} />
+          ) : (
+            <Avatar size="sm">
+              <AvatarFallback>{first(model.name) || 'M'}</AvatarFallback>
+            </Avatar>
+          )
+        })(),
         model,
         isPinned,
         isSelected: modelId === currentModelId
@@ -219,7 +226,7 @@ const SelectModelPopupView: React.FC<Props> = ({
         type: 'group',
         name: getFancyProviderName(provider),
         actions: canNavigateToSettings && (
-          <Tooltip title={t('navigate.provider_settings')} mouseEnterDelay={0.5} mouseLeaveDelay={0}>
+          <Tooltip content={t('navigate.provider_settings')} delay={500} closeDelay={0}>
             <Settings2
               size={12}
               color="var(--color-text)"
@@ -228,7 +235,7 @@ const SelectModelPopupView: React.FC<Props> = ({
                 e.stopPropagation()
                 setOpen(false)
                 resolve(undefined)
-                window.navigate(`/settings/provider?id=${provider.id}`)
+                void window.navigate({ to: '/settings/provider', search: { id: provider.id } })
               }}
             />
           </Tooltip>

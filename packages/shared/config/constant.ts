@@ -207,11 +207,11 @@ export enum UpdateConfigUrl {
   GITCODE = 'https://raw.gitcode.com/CherryHQ/cherry-studio/raw/x-files%2Fapp-upgrade-config/app-upgrade-config.json'
 }
 
-export enum UpgradeChannel {
-  LATEST = 'latest', // 最新稳定版本
-  RC = 'rc', // 公测版本
-  BETA = 'beta' // 预览版本
-}
+// export enum UpgradeChannel {
+//   LATEST = 'latest', // 最新稳定版本
+//   RC = 'rc', // 公测版本
+//   BETA = 'beta' // 预览版本
+// }
 
 export enum UpdateMirror {
   GITHUB = 'github',
@@ -227,7 +227,7 @@ export const SECOND_MIN_WINDOW_WIDTH = 520
 export const MIN_WINDOW_HEIGHT = 600
 export const defaultByPassRules = 'localhost,127.0.0.1,::1'
 
-export enum codeTools {
+export enum codeCLI {
   qwenCode = 'qwen-code',
   claudeCode = 'claude-code',
   geminiCli = 'gemini-cli',

@@ -9,6 +9,46 @@ vi.mock('@logger', async () => {
   }
 })
 
+// Mock service modules globally for main tests.
+// These mocks export both the class and instance names for backward compat.
+vi.mock('@main/data/PreferenceService', async () => {
+  const { MockMainPreferenceServiceExport } = await import('./__mocks__/main/PreferenceService')
+  return {
+    ...MockMainPreferenceServiceExport,
+    PreferenceService: vi.fn() // Class export for serviceRegistry
+  }
+})
+
+vi.mock('@main/data/DataApiService', async () => {
+  const { MockMainDataApiServiceExport } = await import('./__mocks__/main/DataApiService')
+  return {
+    ...MockMainDataApiServiceExport,
+    DataApiService: vi.fn() // Class export for serviceRegistry
+  }
+})
+
+vi.mock('@main/data/CacheService', async () => {
+  const { MockMainCacheServiceExport } = await import('./__mocks__/main/CacheService')
+  return {
+    ...MockMainCacheServiceExport,
+    CacheService: vi.fn() // Class export for serviceRegistry
+  }
+})
+
+vi.mock('@main/data/db/DbService', async () => {
+  const { MockMainDbServiceExport } = await import('./__mocks__/main/DbService')
+  return {
+    ...MockMainDbServiceExport,
+    DbService: vi.fn() // Class export for serviceRegistry
+  }
+})
+
+// Mock application globally - provides type-safe service access via application.get()
+vi.mock('@main/core/application', async () => {
+  const { mockApplicationFactory } = await import('./__mocks__/main/application')
+  return mockApplicationFactory()
+})
+
 // Mock electron modules that are commonly used in main process
 vi.mock('electron', () => {
   const mock = {
@@ -32,6 +72,7 @@ vi.mock('electron', () => {
       on: vi.fn(),
       once: vi.fn(),
       removeHandler: vi.fn(),
+      removeListener: vi.fn(),
       removeAllListeners: vi.fn()
     },
     BrowserWindow: vi.fn(),

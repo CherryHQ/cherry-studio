@@ -1,5 +1,5 @@
-import { CheckOutlined, CloseOutlined } from '@ant-design/icons'
-import { Button } from 'antd'
+import { Button } from '@cherrystudio/ui'
+import { CheckIcon, XIcon } from 'lucide-react'
 import type { FC } from 'react'
 import { createPortal } from 'react-dom'
 
@@ -28,22 +28,14 @@ const ConfirmDialog: FC<Props> = ({ x, y, message, onConfirm, onCancel }) => {
         <div className="flex min-w-[160px] items-center rounded-lg border border-[var(--color-border)] bg-[var(--color-background)] p-3 shadow-[0_4px_12px_rgba(0,0,0,0.15)]">
           <div className="mr-2 text-sm leading-[1.4]">{message}</div>
           <div className="flex justify-center gap-2">
-            <Button
-              onClick={onCancel}
-              shape="circle"
-              size="small"
-              danger
-              icon={<CloseOutlined />}
-              style={{ width: 24, height: 24, minWidth: 24 }}
-            />
+            <Button onClick={onCancel} className="h-6 w-6 min-w-0 rounded-full p-1" variant="destructive">
+              <XIcon size={16} />
+            </Button>
             <Button
               onClick={onConfirm}
-              shape="circle"
-              size="small"
-              type="primary"
-              icon={<CheckOutlined />}
-              style={{ width: 24, height: 24, minWidth: 24, backgroundColor: '#52c41a' }}
-            />
+              className="h-6 w-6 min-w-0 rounded-full bg-green-500 p-1 text-white hover:bg-green-600">
+              <CheckIcon size={16} />
+            </Button>
           </div>
         </div>
       </div>

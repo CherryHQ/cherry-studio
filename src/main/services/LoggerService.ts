@@ -48,8 +48,7 @@ const DEFAULT_LEVEL = isDev ? LEVEL.SILLY : LEVEL.INFO
  *   English: `docs/technical/how-to-use-logger-en.md`
  *   Chinese: `docs/technical/how-to-use-logger-zh.md`
  */
-class LoggerService {
-  private static instance: LoggerService
+export class LoggerService {
   private logger: winston.Logger
 
   // env variables, only used in dev mode
@@ -61,7 +60,7 @@ class LoggerService {
   private module: string = ''
   private context: Record<string, any> = {}
 
-  private constructor() {
+  constructor() {
     if (!isMainThread) {
       throw new Error('[LoggerService] NOT support worker thread yet, can only be instantiated in main process.')
     }
@@ -143,16 +142,6 @@ class LoggerService {
 
     //register ipc handler, for renderer process to log to main process
     this.registerIpcHandler()
-  }
-
-  /**
-   * Get the singleton instance of LoggerService
-   */
-  public static getInstance(): LoggerService {
-    if (!LoggerService.instance) {
-      LoggerService.instance = new LoggerService()
-    }
-    return LoggerService.instance
   }
 
   /**
@@ -388,4 +377,4 @@ class LoggerService {
   }
 }
 
-export const loggerService = LoggerService.getInstance()
+export const loggerService = new LoggerService()

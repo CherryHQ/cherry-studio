@@ -1,3 +1,4 @@
+import { useSharedCache } from '@data/hooks/useCache'
 import type { GroundingMetadata } from '@google/genai'
 import Spinner from '@renderer/components/Spinner'
 import type { RootState } from '@renderer/store'
@@ -14,9 +15,10 @@ import CitationsList from '../CitationsList'
 function CitationBlock({ block }: { block: CitationMessageBlock }) {
   const { t } = useTranslation()
   const formattedCitations = useSelector((state: RootState) => selectFormattedCitationsByBlockId(state, block.id))
-  const { websearch } = useSelector((state: RootState) => state.runtime)
+  // const { websearch } = useSelector((state: RootState) => state.runtime)
   const message = useSelector((state: RootState) => state.messages.entities[block.messageId])
   const userMessageId = message?.askId || block.messageId // 如果没有 askId 则回退到 messageId
+  const [activeSearches] = useSharedCache('chat.web_search.active_searches')
 
   const hasGeminiBlock = block.response?.source === WEB_SEARCH_SOURCE.GEMINI
   const hasCitations = useMemo(() => {
@@ -29,7 +31,7 @@ function CitationBlock({ block }: { block: CitationMessageBlock }) {
   }, [formattedCitations, block.knowledge, block.memories, hasGeminiBlock])
 
   const getWebSearchStatusText = (requestId: string) => {
-    const status = websearch.activeSearches[requestId] ?? { phase: 'default' }
+    const status = activeSearches[requestId] ?? { phase: 'default' }
 
     switch (status.phase) {
       case 'fetch_complete':
@@ -70,8 +72,8 @@ function CitationBlock({ block }: { block: CitationMessageBlock }) {
               dangerouslySetInnerHTML={{
                 __html:
                   (block.response?.results as GroundingMetadata)?.searchEntryPoint?.renderedContent
-                    ?.replace(/@media \(prefers-color-scheme: light\)/g, 'body[theme-mode="light"]')
-                    .replace(/@media \(prefers-color-scheme: dark\)/g, 'body[theme-mode="dark"]')
+                    ?.replace(/@media \(prefers-color-scheme: light\)/g, 'body.light')
+                    .replace(/@media \(prefers-color-scheme: dark\)/g, 'body.dark')
                     .replace(
                       /background-color\s*:\s*#[0-9a-fA-F]{3,6}\b|\bbackground-color\s*:\s*[a-zA-Z-]+\b/g,
                       'background-color: var(--color-background-soft)'

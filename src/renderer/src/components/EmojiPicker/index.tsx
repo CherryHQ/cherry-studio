@@ -2,7 +2,7 @@ import 'emoji-picker-element'
 
 import TwemojiCountryFlagsWoff2 from '@renderer/assets/fonts/country-flag-fonts/TwemojiCountryFlags.woff2?url'
 import { useTheme } from '@renderer/context/ThemeProvider'
-import type { LanguageVarious } from '@renderer/types'
+import type { LanguageVarious } from '@shared/data/preference/preferenceTypes'
 import { polyfillCountryFlagEmojis } from 'country-flag-emoji-polyfill'
 // i18n translations from emoji-picker-element
 import de from 'emoji-picker-element/i18n/de'

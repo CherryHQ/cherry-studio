@@ -1,22 +1,39 @@
+/**
+ * @fileoverview Compact callbacks for handling /compact command responses
+ *
+ * This module provides callbacks for processing compact command responses
+ * from Claude Code. It detects compact_boundary messages and creates
+ * compact blocks that contain both summary and compacted content.
+ *
+ * ARCHITECTURE NOTE:
+ * These callbacks now use StreamingService for state management instead of Redux dispatch.
+ * This is part of the v2 data refactoring to use CacheService + Data API.
+ *
+ * Key changes:
+ * - dispatch/getState replaced with streamingService methods
+ * - saveUpdatesToDB removed (handled by finalize)
+ */
+
 import { loggerService } from '@logger'
-import type { AppDispatch, RootState } from '@renderer/store'
-import { updateOneBlock } from '@renderer/store/messageBlock'
-import { newMessagesActions } from '@renderer/store/newMessage'
 import type { MainTextMessageBlock } from '@renderer/types/newMessage'
 import { MessageBlockStatus, MessageBlockType } from '@renderer/types/newMessage'
 import type { ClaudeCodeRawValue } from '@shared/agents/claudecode/types'
 
 import type { BlockManager } from '../BlockManager'
+import { streamingService } from '../StreamingService'
 
 const logger = loggerService.withContext('CompactCallbacks')
 
+/**
+ * Dependencies required for compact callbacks
+ *
+ * NOTE: Simplified from original design - removed dispatch, getState, and saveUpdatesToDB
+ * since StreamingService now handles state management and persistence.
+ */
 interface CompactCallbacksDeps {
   blockManager: BlockManager
   assistantMsgId: string
-  dispatch: AppDispatch
-  getState: () => RootState
   topicId: string
-  saveUpdatesToDB: any
 }
 
 interface CompactState {
@@ -27,7 +44,7 @@ interface CompactState {
 }
 
 export const createCompactCallbacks = (deps: CompactCallbacksDeps) => {
-  const { blockManager, assistantMsgId, dispatch, getState, topicId, saveUpdatesToDB } = deps
+  const { blockManager, assistantMsgId } = deps
 
   // State to track compact command processing
   const compactState: CompactState = {
@@ -78,9 +95,8 @@ export const createCompactCallbacks = (deps: CompactCallbacksDeps) => {
       return false
     }
 
-    // Get the current main text block to check its full content
-    const state = getState()
-    const currentBlock = state.messageBlocks.entities[currentMainTextBlockId] as MainTextMessageBlock | undefined
+    // Get the current main text block from StreamingService
+    const currentBlock = streamingService.getBlock(currentMainTextBlockId) as MainTextMessageBlock | null
 
     if (!currentBlock) {
       return false
@@ -99,14 +115,9 @@ export const createCompactCallbacks = (deps: CompactCallbacksDeps) => {
 
       // Hide this block by marking it as a placeholder temporarily
       // We'll convert it to compact block when we get the second block
-      dispatch(
-        updateOneBlock({
-          id: currentMainTextBlockId,
-          changes: {
-            status: MessageBlockStatus.PROCESSING
-          }
-        })
-      )
+      streamingService.updateBlock(currentMainTextBlockId, {
+        status: MessageBlockStatus.PROCESSING
+      })
 
       return true // Prevent normal text block completion
     }
@@ -125,53 +136,25 @@ export const createCompactCallbacks = (deps: CompactCallbacksDeps) => {
       })
 
       // Update the summary block to compact type
-      dispatch(
-        updateOneBlock({
-          id: summaryBlockId,
-          changes: {
-            type: MessageBlockType.COMPACT,
-            content: compactState.summaryText,
-            compactedContent: compactedContent,
-            status: MessageBlockStatus.SUCCESS
-          }
-        })
-      )
-
-      // Update block reference
-      dispatch(
-        newMessagesActions.upsertBlockReference({
-          messageId: assistantMsgId,
-          blockId: summaryBlockId,
-          status: MessageBlockStatus.SUCCESS,
-          blockType: MessageBlockType.COMPACT
-        })
-      )
+      streamingService.updateBlock(summaryBlockId, {
+        type: MessageBlockType.COMPACT,
+        content: compactState.summaryText,
+        compactedContent: compactedContent,
+        status: MessageBlockStatus.SUCCESS
+      } as any) // Using 'as any' for compactedContent which is specific to CompactMessageBlock
 
       // Clear active block info and update lastBlockType since the compact block is now complete
       blockManager.activeBlockInfo = null
       blockManager.lastBlockType = MessageBlockType.COMPACT
 
       // Remove the current block (the one with XML tags) from message.blocks
-      const currentState = getState()
-      const currentMessage = currentState.messages.entities[assistantMsgId]
+      const currentMessage = streamingService.getMessage(assistantMsgId)
       if (currentMessage && currentMessage.blocks) {
         const updatedBlocks = currentMessage.blocks.filter((id) => id !== currentMainTextBlockId)
-        dispatch(
-          newMessagesActions.updateMessage({
-            topicId,
-            messageId: assistantMsgId,
-            updates: { blocks: updatedBlocks }
-          })
-        )
+        streamingService.updateMessage(assistantMsgId, { blocks: updatedBlocks })
       }
 
-      // Save to DB
-      const updatedState = getState()
-      const updatedMessage = updatedState.messages.entities[assistantMsgId]
-      const updatedBlock = updatedState.messageBlocks.entities[summaryBlockId]
-      if (updatedMessage && updatedBlock) {
-        await saveUpdatesToDB(assistantMsgId, topicId, { blocks: updatedMessage.blocks }, [updatedBlock])
-      }
+      // NOTE: DB save is removed - will be handled by finalize()
 
       // Reset compact state
       compactState.compactBoundaryDetected = false

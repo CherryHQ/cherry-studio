@@ -1,7 +1,8 @@
 import { DeleteOutlined, ExclamationCircleOutlined, ReloadOutlined } from '@ant-design/icons'
+import { Button, Tooltip } from '@cherrystudio/ui'
 import { restoreFromWebdav } from '@renderer/services/BackupService'
 import { formatFileSize } from '@renderer/utils'
-import { Button, message, Modal, Table, Tooltip } from 'antd'
+import { Modal, Table } from 'antd'
 import dayjs from 'dayjs'
 import { useCallback, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -101,7 +102,7 @@ export function WebdavBackupManager({
 
   const handleDeleteSelected = async () => {
     if (selectedRowKeys.length === 0) {
-      message.warning(t('settings.data.webdav.backup.manager.select.files.delete'))
+      window.toast.warning(t('settings.data.webdav.backup.manager.select.files.delete'))
       return
     }
 
@@ -213,7 +214,7 @@ export function WebdavBackupManager({
         showTitle: false
       },
       render: (fileName: string) => (
-        <Tooltip placement="topLeft" title={fileName}>
+        <Tooltip placement="top-start" content={fileName}>
           {fileName}
         </Tooltip>
       )
@@ -238,14 +239,10 @@ export function WebdavBackupManager({
       width: 160,
       render: (_: any, record: BackupFile) => (
         <>
-          <Button type="link" onClick={() => handleRestore(record.fileName)} disabled={restoring || deleting}>
+          <Button variant="ghost" onClick={() => handleRestore(record.fileName)} disabled={restoring || deleting}>
             {t('settings.data.webdav.backup.manager.restore.text')}
           </Button>
-          <Button
-            type="link"
-            danger
-            onClick={() => handleDeleteSingle(record.fileName)}
-            disabled={deleting || restoring}>
+          <Button variant="ghost" onClick={() => handleDeleteSingle(record.fileName)} disabled={deleting || restoring}>
             {t('settings.data.webdav.backup.manager.delete.text')}
           </Button>
         </>
@@ -269,16 +266,16 @@ export function WebdavBackupManager({
       centered
       transitionName="animation-move-down"
       footer={[
-        <Button key="refresh" icon={<ReloadOutlined />} onClick={fetchBackupFiles} disabled={loading}>
+        <Button key="refresh" onClick={fetchBackupFiles} disabled={loading}>
+          <ReloadOutlined />
           {t('settings.data.webdav.backup.manager.refresh')}
         </Button>,
         <Button
           key="delete"
-          danger
-          icon={<DeleteOutlined />}
+          variant="destructive"
           onClick={handleDeleteSelected}
-          disabled={selectedRowKeys.length === 0 || deleting}
-          loading={deleting}>
+          disabled={selectedRowKeys.length === 0 || deleting}>
+          <DeleteOutlined />
           {t('settings.data.webdav.backup.manager.delete.selected')} ({selectedRowKeys.length})
         </Button>,
         <Button key="close" onClick={onClose}>

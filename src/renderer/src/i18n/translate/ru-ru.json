@@ -5512,6 +5512,9 @@
       "title": "Масштаб страницы"
     }
   },
+  "tab": {
+    "new": "[to be translated]:New Tab"
+  },
   "title": {
     "apps": "Приложения",
     "code": "Code",

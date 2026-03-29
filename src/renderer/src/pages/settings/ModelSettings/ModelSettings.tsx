@@ -1,18 +1,14 @@
 import { RedoOutlined } from '@ant-design/icons'
-import { HStack } from '@renderer/components/Layout'
+import { Button, InfoTooltip, RowFlex, Tooltip } from '@cherrystudio/ui'
+import { usePreference } from '@data/hooks/usePreference'
 import ModelSelector from '@renderer/components/ModelSelector'
-import { InfoTooltip } from '@renderer/components/TooltipIcons'
 import { isEmbeddingModel, isRerankModel, isTextToImageModel } from '@renderer/config/models'
-import { TRANSLATE_PROMPT } from '@renderer/config/prompts'
 import { useTheme } from '@renderer/context/ThemeProvider'
 import { useDefaultModel } from '@renderer/hooks/useAssistant'
 import { useProviders } from '@renderer/hooks/useProvider'
-import { useSettings } from '@renderer/hooks/useSettings'
 import { getModelUniqId, hasModel } from '@renderer/services/ModelService'
-import { useAppDispatch } from '@renderer/store'
-import { setTranslateModelPrompt } from '@renderer/store/settings'
 import type { Model } from '@renderer/types'
-import { Button, Tooltip } from 'antd'
+import { TRANSLATE_PROMPT } from '@shared/config/prompts'
 import { find } from 'lodash'
 import { Languages, MessageSquareMore, Rocket, Settings2 } from 'lucide-react'
 import type { FC } from 'react'
@@ -41,9 +37,8 @@ const ModelSettings: FC<ModelSettingsProps> = ({
   const allModels = providers.map((p) => p.models).flat()
   const { theme } = useTheme()
   const { t } = useTranslation()
-  const { translateModelPrompt } = useSettings()
 
-  const dispatch = useAppDispatch()
+  const [translateModelPrompt, setTranslateModelPrompt] = usePreference('feature.translate.model_prompt')
 
   const modelPredicate = useCallback(
     (m: Model) => !isEmbeddingModel(m) && !isRerankModel(m) && !isTextToImageModel(m),
@@ -63,7 +58,7 @@ const ModelSettings: FC<ModelSettingsProps> = ({
   )
 
   const onResetTranslatePrompt = () => {
-    dispatch(setTranslateModelPrompt(TRANSLATE_PROMPT))
+    void setTranslateModelPrompt(TRANSLATE_PROMPT)
   }
 
   const containerStyle = compact ? { padding: 0, background: 'transparent' } : undefined
@@ -73,12 +68,12 @@ const ModelSettings: FC<ModelSettingsProps> = ({
     <SettingContainer theme={theme} style={containerStyle}>
       <SettingGroup theme={theme} style={groupStyle}>
         <SettingTitle style={{ marginBottom: 12 }}>
-          <HStack alignItems="center" gap={10}>
+          <RowFlex className="items-center gap-2.5">
             <MessageSquareMore size={18} color="var(--color-text)" />
             {t('settings.models.default_assistant_model')}
-          </HStack>
+          </RowFlex>
         </SettingTitle>
-        <HStack alignItems="center">
+        <RowFlex className="items-center">
           <ModelSelector
             providers={providers}
             predicate={modelPredicate}
@@ -90,22 +85,24 @@ const ModelSettings: FC<ModelSettingsProps> = ({
             placeholder={t('settings.models.empty')}
           />
           {showSettingsButton && (
-            <Button icon={<Settings2 size={16} />} style={{ marginLeft: 8 }} onClick={DefaultAssistantSettings.show} />
+            <Button className="ml-2" onClick={DefaultAssistantSettings.show} size="icon">
+              <Settings2 size={16} />
+            </Button>
           )}
-        </HStack>
+        </RowFlex>
         {showDescription && (
           <SettingDescription>{t('settings.models.default_assistant_model_description')}</SettingDescription>
         )}
       </SettingGroup>
       <SettingGroup theme={theme} style={groupStyle}>
         <SettingTitle style={{ marginBottom: 12 }}>
-          <HStack alignItems="center" gap={10}>
+          <RowFlex className="items-center gap-2.5">
             <Rocket size={18} color="var(--color-text)" />
             {t('settings.models.quick_model.label')}
-            <InfoTooltip title={t('settings.models.quick_model.tooltip')} />
-          </HStack>
+            <InfoTooltip content={t('settings.models.quick_model.tooltip')} />
+          </RowFlex>
         </SettingTitle>
-        <HStack alignItems="center">
+        <RowFlex className="items-center">
           <ModelSelector
             providers={providers}
             predicate={modelPredicate}
@@ -117,19 +114,21 @@ const ModelSettings: FC<ModelSettingsProps> = ({
             placeholder={t('settings.models.empty')}
           />
           {showSettingsButton && (
-            <Button icon={<Settings2 size={16} />} style={{ marginLeft: 8 }} onClick={TopicNamingModalPopup.show} />
+            <Button className="ml-2" onClick={TopicNamingModalPopup.show} size="icon">
+              <Settings2 size={16} />
+            </Button>
           )}
-        </HStack>
+        </RowFlex>
         {showDescription && <SettingDescription>{t('settings.models.quick_model.description')}</SettingDescription>}
       </SettingGroup>
       <SettingGroup theme={theme} style={groupStyle}>
         <SettingTitle style={{ marginBottom: 12 }}>
-          <HStack alignItems="center" gap={10}>
+          <RowFlex className="items-center gap-2.5">
             <Languages size={18} color="var(--color-text)" />
             {t('settings.models.translate_model')}
-          </HStack>
+          </RowFlex>
         </SettingTitle>
-        <HStack alignItems="center">
+        <RowFlex className="items-center">
           <ModelSelector
             providers={providers}
             predicate={modelPredicate}
@@ -142,20 +141,20 @@ const ModelSettings: FC<ModelSettingsProps> = ({
           />
           {showSettingsButton && (
             <>
-              <Button
-                icon={<Settings2 size={16} />}
-                style={{ marginLeft: 8 }}
-                onClick={() => TranslateSettingsPopup.show()}
-              />
+              <Button className="ml-2" onClick={TranslateSettingsPopup.show} size="icon">
+                <Settings2 size={16} />
+              </Button>
               {translateModelPrompt !== TRANSLATE_PROMPT && (
                 <Tooltip title={t('common.reset')}>
-                  <Button icon={<RedoOutlined />} style={{ marginLeft: 8 }} onClick={onResetTranslatePrompt}></Button>
+                  <Button className="ml-2" onClick={onResetTranslatePrompt} size="icon">
+                    <RedoOutlined size={16} />
+                  </Button>
                 </Tooltip>
               )}
             </>
           )}
-        </HStack>
-        {showDescription && <SettingDescription>{t('settings.models.translate_model_description')}</SettingDescription>}
+        </RowFlex>
+        <SettingDescription>{t('settings.models.translate_model_description')}</SettingDescription>
       </SettingGroup>
     </SettingContainer>
   )

@@ -7,7 +7,7 @@ import {
 import { type EndpointType, type Model, type Provider } from '@renderer/types'
 import { formatApiHost } from '@renderer/utils/api'
 import { getFancyProviderName, sanitizeProviderName } from '@renderer/utils/naming'
-import { codeTools } from '@shared/config/constant'
+import { codeCLI } from '@shared/config/constant'
 import { CLAUDE_SUPPORTED_PROVIDERS } from '@shared/config/providers'
 
 export interface LaunchValidationResult {
@@ -16,7 +16,7 @@ export interface LaunchValidationResult {
 }
 
 export interface ToolEnvironmentConfig {
-  tool: codeTools
+  tool: codeCLI
   model: Model
   modelProvider: Provider
   apiKey: string
@@ -29,14 +29,14 @@ export interface ToolEnvironmentConfig {
 
 // CLI 工具选项
 export const CLI_TOOLS = [
-  { value: codeTools.claudeCode, label: 'Claude Code' },
-  { value: codeTools.qwenCode, label: 'Qwen Code' },
-  { value: codeTools.geminiCli, label: 'Gemini CLI' },
-  { value: codeTools.openaiCodex, label: 'OpenAI Codex' },
-  { value: codeTools.iFlowCli, label: 'iFlow CLI' },
-  { value: codeTools.githubCopilotCli, label: 'GitHub Copilot CLI' },
-  { value: codeTools.kimiCli, label: 'Kimi CLI' },
-  { value: codeTools.openCode, label: 'OpenCode' }
+  { value: codeCLI.claudeCode, label: 'Claude Code' },
+  { value: codeCLI.qwenCode, label: 'Qwen Code' },
+  { value: codeCLI.geminiCli, label: 'Gemini CLI' },
+  { value: codeCLI.openaiCodex, label: 'OpenAI Codex' },
+  { value: codeCLI.iFlowCli, label: 'iFlow CLI' },
+  { value: codeCLI.githubCopilotCli, label: 'GitHub Copilot CLI' },
+  { value: codeCLI.kimiCli, label: 'Kimi CLI' },
+  { value: codeCLI.openCode, label: 'OpenCode' }
 ]
 
 export const GEMINI_SUPPORTED_PROVIDERS = ['aihubmix', 'dmxapi', 'new-api', 'cherryin']
@@ -45,24 +45,24 @@ export const OPENAI_CODEX_SUPPORTED_PROVIDERS = ['openai', 'openrouter', 'aihubm
 
 // Provider 过滤映射
 export const CLI_TOOL_PROVIDER_MAP: Record<string, (providers: Provider[]) => Provider[]> = {
-  [codeTools.claudeCode]: (providers) =>
+  [codeCLI.claudeCode]: (providers) =>
     providers.filter(
       (p) => p.type === 'anthropic' || CLAUDE_SUPPORTED_PROVIDERS.includes(p.id) || !!p.anthropicApiHost
     ),
-  [codeTools.geminiCli]: (providers) =>
+  [codeCLI.geminiCli]: (providers) =>
     providers.filter((p) => p.type === 'gemini' || GEMINI_SUPPORTED_PROVIDERS.includes(p.id)),
-  [codeTools.qwenCode]: (providers) => providers.filter((p) => p.type.includes('openai')),
-  [codeTools.openaiCodex]: (providers) =>
+  [codeCLI.qwenCode]: (providers) => providers.filter((p) => p.type.includes('openai')),
+  [codeCLI.openaiCodex]: (providers) =>
     providers.filter((p) => p.type === 'openai-response' || OPENAI_CODEX_SUPPORTED_PROVIDERS.includes(p.id)),
-  [codeTools.iFlowCli]: (providers) => providers.filter((p) => p.type.includes('openai')),
-  [codeTools.githubCopilotCli]: () => [],
-  [codeTools.kimiCli]: (providers) => providers.filter((p) => p.type.includes('openai')),
-  [codeTools.openCode]: (providers) =>
+  [codeCLI.iFlowCli]: (providers) => providers.filter((p) => p.type.includes('openai')),
+  [codeCLI.githubCopilotCli]: () => [],
+  [codeCLI.kimiCli]: (providers) => providers.filter((p) => p.type.includes('openai')),
+  [codeCLI.openCode]: (providers) =>
     providers.filter((p) => ['openai', 'openai-response', 'anthropic'].includes(p.type))
 }
 
-export const getCodeToolsApiBaseUrl = (model: Model, type: EndpointType) => {
-  const CODE_TOOLS_API_ENDPOINTS = {
+export const getCodeCliApiBaseUrl = (model: Model, type: EndpointType) => {
+  const CODE_CLI_API_ENDPOINTS = {
     aihubmix: {
       gemini: {
         api_base_url: 'https://aihubmix.com/gemini'
@@ -107,7 +107,7 @@ export const getCodeToolsApiBaseUrl = (model: Model, type: EndpointType) => {
 
   const provider = model.provider
 
-  return CODE_TOOLS_API_ENDPOINTS[provider]?.[type]?.api_base_url
+  return CODE_CLI_API_ENDPOINTS[provider]?.[type]?.api_base_url
 }
 
 // 解析环境变量字符串为对象
@@ -139,7 +139,7 @@ export const generateToolEnvironment = ({
   baseUrl,
   context
 }: {
-  tool: codeTools
+  tool: codeCLI
   model: Model
   modelProvider: Provider
   apiKey: string
@@ -153,9 +153,9 @@ export const generateToolEnvironment = ({
   const formattedBaseUrl = formatApiHost(baseUrl)
 
   switch (tool) {
-    case codeTools.claudeCode: {
+    case codeCLI.claudeCode: {
       env.ANTHROPIC_BASE_URL =
-        getCodeToolsApiBaseUrl(model, 'anthropic') || modelProvider.anthropicApiHost || modelProvider.apiHost
+        getCodeCliApiBaseUrl(model, 'anthropic') || modelProvider.anthropicApiHost || modelProvider.apiHost
       env.ANTHROPIC_MODEL = model.id
       if (modelProvider.type === 'anthropic') {
         env.ANTHROPIC_API_KEY = apiKey
@@ -165,8 +165,8 @@ export const generateToolEnvironment = ({
       break
     }
 
-    case codeTools.geminiCli: {
-      const apiBaseUrl = getCodeToolsApiBaseUrl(model, 'gemini') || modelProvider.apiHost
+    case codeCLI.geminiCli: {
+      const apiBaseUrl = getCodeCliApiBaseUrl(model, 'gemini') || modelProvider.apiHost
       env.GEMINI_API_KEY = apiKey
       env.GEMINI_BASE_URL = apiBaseUrl
       env.GOOGLE_GEMINI_BASE_URL = apiBaseUrl
@@ -174,12 +174,12 @@ export const generateToolEnvironment = ({
       break
     }
 
-    case codeTools.qwenCode:
+    case codeCLI.qwenCode:
       env.OPENAI_API_KEY = apiKey
       env.OPENAI_BASE_URL = formattedBaseUrl
       env.OPENAI_MODEL = model.id
       break
-    case codeTools.openaiCodex:
+    case codeCLI.openaiCodex:
       env.OPENAI_API_KEY = apiKey
       env.OPENAI_BASE_URL = formattedBaseUrl
       env.OPENAI_MODEL = model.id
@@ -187,23 +187,23 @@ export const generateToolEnvironment = ({
       env.OPENAI_MODEL_PROVIDER_NAME = modelProvider.name
       break
 
-    case codeTools.iFlowCli:
+    case codeCLI.iFlowCli:
       env.IFLOW_API_KEY = apiKey
       env.IFLOW_BASE_URL = formattedBaseUrl
       env.IFLOW_MODEL_NAME = model.id
       break
 
-    case codeTools.githubCopilotCli:
+    case codeCLI.githubCopilotCli:
       env.GITHUB_TOKEN = apiKey || ''
       break
 
-    case codeTools.kimiCli:
+    case codeCLI.kimiCli:
       env.KIMI_API_KEY = apiKey
       env.KIMI_BASE_URL = formattedBaseUrl
       env.KIMI_MODEL_NAME = model.id
       break
 
-    case codeTools.openCode:
+    case codeCLI.openCode:
       // Set environment variable with provider-specific suffix for security
       {
         env.OPENCODE_BASE_URL = formattedBaseUrl
@@ -232,4 +232,4 @@ export const generateToolEnvironment = ({
   return { env }
 }
 
-export { default } from './CodeToolsPage'
+export { default } from './CodeCliPage'

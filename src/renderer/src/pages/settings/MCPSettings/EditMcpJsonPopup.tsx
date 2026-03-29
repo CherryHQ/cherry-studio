@@ -1,8 +1,10 @@
+import { CodeEditor } from '@cherrystudio/ui'
+import { dataApiService } from '@data/DataApiService'
+import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
-import CodeEditor from '@renderer/components/CodeEditor'
 import { TopView } from '@renderer/components/TopView'
-import { useAppDispatch, useAppSelector } from '@renderer/store'
-import { setMCPServers } from '@renderer/store/mcp'
+import { useCodeStyle } from '@renderer/context/CodeStyleProvider'
+import { useMCPServers } from '@renderer/hooks/useMCPServers'
 import type { MCPServer } from '@renderer/types'
 import { safeValidateMcpConfig } from '@renderer/types'
 import { parseJSON } from '@renderer/utils'
@@ -23,9 +25,9 @@ const PopupContainer: React.FC<Props> = ({ resolve }) => {
   const [jsonSaving, setJsonSaving] = useState(false)
   const [jsonError, setJsonError] = useState('')
   const [isLoading, setIsLoading] = useState(true)
-  const mcpServers = useAppSelector((state) => state.mcp.servers)
-
-  const dispatch = useAppDispatch()
+  const { mcpServers, refetch } = useMCPServers()
+  const [fontSize] = usePreference('chat.message.font_size')
+  const { activeCmTheme } = useCodeStyle()
   const { t } = useTranslation()
 
   useEffect(() => {
@@ -58,7 +60,11 @@ const PopupContainer: React.FC<Props> = ({ resolve }) => {
 
     try {
       if (!jsonConfig.trim()) {
-        dispatch(setMCPServers([]))
+        // Delete all existing servers
+        for (const server of mcpServers) {
+          await dataApiService.delete(`/mcp-servers/${server.id}`)
+        }
+        void refetch()
         window.toast.success(t('settings.mcp.jsonSaveSuccess'))
         setJsonError('')
         setJsonSaving(false)
@@ -66,7 +72,7 @@ const PopupContainer: React.FC<Props> = ({ resolve }) => {
       }
 
       const parsedJson = parseJSON(jsonConfig)
-      if (parseJSON === null) {
+      if (parsedJson === null) {
         throw new Error(t('settings.mcp.addServer.importFrom.invalid'))
       }
 
@@ -88,7 +94,23 @@ const PopupContainer: React.FC<Props> = ({ resolve }) => {
         serversArray.push(server)
       }
 
-      dispatch(setMCPServers(serversArray))
+      // Delete existing servers not in the new config, update existing ones, create new ones
+      const newServerIds = new Set(serversArray.map((s) => s.id))
+      for (const server of mcpServers) {
+        if (!newServerIds.has(server.id)) {
+          await dataApiService.delete(`/mcp-servers/${server.id}`)
+        }
+      }
+      const existingIds = new Set(mcpServers.map((s) => s.id))
+      for (const server of serversArray) {
+        if (existingIds.has(server.id)) {
+          const { id, ...updates } = server
+          await dataApiService.patch(`/mcp-servers/${id}`, { body: updates })
+        } else {
+          await dataApiService.post('/mcp-servers', { body: server })
+        }
+      }
+      void refetch()
 
       window.toast.success(t('settings.mcp.jsonSaveSuccess'))
       setJsonError('')
@@ -132,6 +154,8 @@ const PopupContainer: React.FC<Props> = ({ resolve }) => {
         <Spin size="large" />
       ) : (
         <CodeEditor
+          theme={activeCmTheme}
+          fontSize={fontSize - 1}
           value={jsonConfig}
           language="json"
           onChange={(value) => setJsonConfig(value)}

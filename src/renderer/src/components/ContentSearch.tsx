@@ -1,7 +1,7 @@
+import { Tooltip } from '@cherrystudio/ui'
 import { ActionIconButton } from '@renderer/components/Buttons'
 import NarrowLayout from '@renderer/pages/home/Messages/NarrowLayout'
 import { scrollElementIntoView } from '@renderer/utils'
-import { Tooltip } from 'antd'
 import { debounce } from 'lodash'
 import { CaseSensitive, ChevronDown, ChevronUp, User, WholeWord, X } from 'lucide-react'
 import React, { useCallback, useEffect, useImperativeHandle, useMemo, useRef, useState } from 'react'
@@ -361,24 +361,33 @@ export const ContentSearch = React.forwardRef<ContentSearchRef, Props>(
               />
               <ToolBar>
                 {showUserToggle && (
-                  <Tooltip title={t('button.includes_user_questions')} mouseEnterDelay={0.8} placement="bottom">
-                    <ActionIconButton onClick={userOutlinedButtonOnClick}>
-                      <User size={18} style={{ color: includeUser ? 'var(--color-link)' : 'var(--color-icon)' }} />
-                    </ActionIconButton>
+                  <Tooltip placement="bottom" content={t('button.includes_user_questions')} delay={800}>
+                    <ActionIconButton
+                      onClick={userOutlinedButtonOnClick}
+                      icon={
+                        <User size={18} style={{ color: includeUser ? 'var(--color-link)' : 'var(--color-icon)' }} />
+                      }
+                    />{' '}
                   </Tooltip>
                 )}
-                <Tooltip title={t('button.case_sensitive')} mouseEnterDelay={0.8} placement="bottom">
-                  <ActionIconButton onClick={caseSensitiveButtonOnClick}>
-                    <CaseSensitive
-                      size={18}
-                      style={{ color: isCaseSensitive ? 'var(--color-link)' : 'var(--color-icon)' }}
-                    />
-                  </ActionIconButton>
+                <Tooltip placement="bottom" content={t('button.case_sensitive')} delay={800}>
+                  <ActionIconButton
+                    onClick={caseSensitiveButtonOnClick}
+                    icon={
+                      <CaseSensitive
+                        size={18}
+                        style={{ color: isCaseSensitive ? 'var(--color-link)' : 'var(--color-icon)' }}
+                      />
+                    }
+                  />{' '}
                 </Tooltip>
-                <Tooltip title={t('button.whole_word')} mouseEnterDelay={0.8} placement="bottom">
-                  <ActionIconButton onClick={wholeWordButtonOnClick}>
-                    <WholeWord size={18} style={{ color: isWholeWord ? 'var(--color-link)' : 'var(--color-icon)' }} />
-                  </ActionIconButton>
+                <Tooltip placement="bottom" content={t('button.whole_word')} delay={800}>
+                  <ActionIconButton
+                    onClick={wholeWordButtonOnClick}
+                    icon={
+                      <WholeWord size={18} style={{ color: isWholeWord ? 'var(--color-link)' : 'var(--color-icon)' }} />
+                    }
+                  />
                 </Tooltip>
               </ToolBar>
             </InputWrapper>
@@ -395,15 +404,17 @@ export const ContentSearch = React.forwardRef<ContentSearchRef, Props>(
               )}
             </SearchResults>
             <ToolBar>
-              <ActionIconButton onClick={prevButtonOnClick} disabled={allRanges.length === 0}>
-                <ChevronUp size={18} />
-              </ActionIconButton>
-              <ActionIconButton onClick={nextButtonOnClick} disabled={allRanges.length === 0}>
-                <ChevronDown size={18} />
-              </ActionIconButton>
-              <ActionIconButton onClick={closeButtonOnClick}>
-                <X size={18} />
-              </ActionIconButton>
+              <ActionIconButton
+                onClick={prevButtonOnClick}
+                disabled={allRanges.length === 0}
+                icon={<ChevronUp size={18} />}
+              />
+              <ActionIconButton
+                onClick={nextButtonOnClick}
+                disabled={allRanges.length === 0}
+                icon={<ChevronDown size={18} />}
+              />
+              <ActionIconButton onClick={closeButtonOnClick} icon={<X size={18} />} />
             </ToolBar>
           </SearchBarContainer>
         </NarrowLayout>

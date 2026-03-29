@@ -1,16 +1,17 @@
+import { Flex } from '@cherrystudio/ui'
+import { Tooltip } from '@cherrystudio/ui'
+import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
 import { CallToolResultSchema } from '@modelcontextprotocol/sdk/types.js'
 import { CopyIcon } from '@renderer/components/Icons'
 import { useCodeStyle } from '@renderer/context/CodeStyleProvider'
-import { useSettings } from '@renderer/hooks/useSettings'
 import { useTimer } from '@renderer/hooks/useTimer'
 import type { MCPToolResponse } from '@renderer/types'
 import type { ToolMessageBlock } from '@renderer/types/newMessage'
 import { isToolAutoApproved } from '@renderer/utils/mcp-tools'
 import type { MCPProgressEvent } from '@shared/config/types'
 import { IpcChannel } from '@shared/IpcChannel'
-import { Collapse, ConfigProvider, Flex, Progress, Tooltip } from 'antd'
-import { message } from 'antd'
+import { Collapse, ConfigProvider, Progress } from 'antd'
 import { Check, ChevronRight, ShieldCheck } from 'lucide-react'
 import { parse as parsePartialJson } from 'partial-json'
 import type { FC } from 'react'
@@ -47,7 +48,8 @@ const MessageMcpTool: FC<Props> = ({ block }) => {
   const [activeKeys, setActiveKeys] = useState<string[]>([])
   const [copiedMap, setCopiedMap] = useState<Record<string, boolean>>({})
   const { t } = useTranslation()
-  const { messageFont, fontSize } = useSettings()
+  const [messageFont] = usePreference('chat.message.font')
+  const [fontSize] = usePreference('chat.message.font_size')
   const [progress, setProgress] = useState<number>(0)
   const { setTimeoutTimer } = useTimer()
 
@@ -111,11 +113,11 @@ const MessageMcpTool: FC<Props> = ({ block }) => {
         if (success) {
           window.toast.success(t('message.tools.aborted'))
         } else {
-          message.error({ content: t('message.tools.abort_failed'), key: 'abort-tool' })
+          window.toast.error(t('message.tools.abort_failed'))
         }
       } catch (error) {
         logger.error('Failed to abort tool:', error as Error)
-        message.error({ content: t('message.tools.abort_failed'), key: 'abort-tool' })
+        window.toast.error(t('message.tools.abort_failed'))
       }
     }
   }
@@ -133,10 +135,10 @@ const MessageMcpTool: FC<Props> = ({ block }) => {
       label: (
         <MessageTitleLabel>
           <TitleContent>
-            <ToolName align="center" gap={4}>
+            <ToolName className="items-center gap-1">
               {tool.serverName} : {tool.name}
               {isToolAutoApproved(tool) && (
-                <Tooltip title={t('message.tools.autoApproveEnabled')} mouseLeaveDelay={0}>
+                <Tooltip content={t('message.tools.autoApproveEnabled')} closeDelay={0}>
                   <ShieldCheck size={14} color="var(--status-color-success)" />
                 </Tooltip>
               )}
@@ -149,7 +151,7 @@ const MessageMcpTool: FC<Props> = ({ block }) => {
               <ToolStatusIndicator status={getEffectiveStatus(status, approval.isWaiting)} hasError={hasError} />
             )}
             {!isPending && (
-              <Tooltip title={t('common.copy')} mouseEnterDelay={0.5}>
+              <Tooltip content={t('common.copy')} delay={500}>
                 <ActionButton
                   className="message-action-button"
                   onClick={(e) => {

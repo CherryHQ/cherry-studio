@@ -1,4 +1,5 @@
-import { Button, Row, Tooltip } from 'antd'
+import { Button, Tooltip } from '@cherrystudio/ui'
+import { Row } from 'antd'
 import { Plus } from 'lucide-react'
 import { memo } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -21,23 +22,19 @@ const SettingsActionsListHeader = memo(({ customItemsCount, maxCustomItems, onRe
     <Row>
       <SettingTitle>{t('selection.settings.actions.title')}</SettingTitle>
       <Spacer />
-      <Tooltip title={t('selection.settings.actions.reset.tooltip')}>
-        <ResetButton type="text" onClick={onReset}>
+      <Tooltip content={t('selection.settings.actions.reset.tooltip')}>
+        <ResetButton variant="ghost" onClick={onReset}>
           {t('selection.settings.actions.reset.button')}
         </ResetButton>
       </Tooltip>
       <Tooltip
-        title={
+        content={
           isCustomItemLimitReached
             ? t('selection.settings.actions.add_tooltip.disabled', { max: maxCustomItems })
             : t('selection.settings.actions.add_tooltip.enabled')
         }>
-        <Button
-          type="primary"
-          icon={<Plus size={16} />}
-          onClick={onAdd}
-          disabled={isCustomItemLimitReached}
-          style={{ paddingInline: '8px' }}>
+        <Button onClick={onAdd} disabled={isCustomItemLimitReached} style={{ paddingInline: '8px' }}>
+          <Plus size={16} />
           {t('selection.settings.actions.custom')}
         </Button>
       </Tooltip>

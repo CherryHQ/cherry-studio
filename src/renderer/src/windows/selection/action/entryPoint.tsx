@@ -2,13 +2,12 @@ import '@renderer/assets/styles/index.css'
 import '@renderer/assets/styles/tailwind.css'
 import '@ant-design/v5-patch-for-react-19'
 
-import KeyvStorage from '@kangfenmao/keyv-storage'
+import { preferenceService } from '@data/PreferenceService'
 import { loggerService } from '@logger'
 import { getToastUtilities } from '@renderer/components/TopView/toast'
 import AntdProvider from '@renderer/context/AntdProvider'
 import { CodeStyleProvider } from '@renderer/context/CodeStyleProvider'
 import { ThemeProvider } from '@renderer/context/ThemeProvider'
-import storeSyncService from '@renderer/services/StoreSyncService'
 import store, { persistor } from '@renderer/store'
 import type { FC } from 'react'
 import { useEffect } from 'react'
@@ -20,19 +19,15 @@ import SelectionActionApp from './SelectionActionApp'
 
 loggerService.initWindowSource('SelectionActionWindow')
 
-/**
- * fetchChatCompletion depends on this,
- * which is not a good design, but we have to add it for now
- */
-function initKeyv() {
-  window.keyv = new KeyvStorage()
-  void window.keyv.init()
-}
-
-initKeyv()
-
-//subscribe to store sync
-storeSyncService.subscribe()
+await preferenceService.preload([
+  'app.language',
+  'ui.custom_css',
+  'ui.theme_mode',
+  'ui.theme_user.color_primary',
+  'feature.selection.auto_close',
+  'feature.selection.auto_pin',
+  'feature.selection.action_window_opacity'
+])
 
 const App: FC = () => {
   //actionWindow should register its own message component

@@ -1,5 +1,5 @@
+import { usePreference } from '@data/hooks/usePreference'
 import { TopView } from '@renderer/components/TopView'
-import { useEnableDeveloperMode } from '@renderer/hooks/useSettings'
 import type { Message } from '@renderer/types'
 import type { MessageBlock } from '@renderer/types/newMessage'
 import { Modal } from 'antd'
@@ -18,7 +18,7 @@ interface Props extends ShowParams {
 }
 
 const InspectMessagePopupContainer: React.FC<Props> = ({ title, message, blocks, resolve }) => {
-  const { enableDeveloperMode } = useEnableDeveloperMode()
+  const [enableDeveloperMode] = usePreference('app.developer_mode.enabled')
   const [open, setOpen] = useState(true)
 
   const onOk = () => {

@@ -24,9 +24,7 @@ const newTopicTool = defineTool({
         title={t('chat.input.new_topic', { Command: newTopicShortcut })}
         mouseLeaveDelay={0}
         arrow>
-        <ActionIconButton onClick={actions.addNewTopic}>
-          <MessageSquareDiff size={19} />
-        </ActionIconButton>
+        <ActionIconButton onClick={actions.addNewTopic} icon={<MessageSquareDiff size={19} />}></ActionIconButton>
       </Tooltip>
     )
   }

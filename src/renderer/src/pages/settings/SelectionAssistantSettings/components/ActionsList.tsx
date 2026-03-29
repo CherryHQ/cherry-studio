@@ -1,6 +1,6 @@
 import type { DroppableProvided } from '@hello-pangea/dnd'
 import { Draggable, Droppable } from '@hello-pangea/dnd'
-import type { ActionItem as ActionItemType } from '@renderer/types/selectionTypes'
+import type { SelectionActionItem } from '@shared/data/preference/preferenceTypes'
 import { memo } from 'react'
 import styled from 'styled-components'
 
@@ -8,9 +8,9 @@ import ActionsListItemComponent from './ActionsListItem'
 
 interface ActionListProps {
   droppableId: 'enabled' | 'disabled'
-  items: ActionItemType[]
+  items: SelectionActionItem[]
   isLastEnabledItem: boolean
-  onEdit: (item: ActionItemType) => void
+  onEdit: (item: SelectionActionItem) => void
   onDelete: (id: string) => void
   getSearchEngineInfo: (engine: string) => { icon: any; name: string } | null
 }

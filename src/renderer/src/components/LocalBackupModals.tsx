@@ -1,6 +1,7 @@
+import { Button } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
 import { backupToLocal } from '@renderer/services/BackupService'
-import { Button, Input, Modal } from 'antd'
+import { Input, Modal } from 'antd'
 import dayjs from 'dayjs'
 import { useCallback, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -32,11 +33,12 @@ export function LocalBackupModal({
       open={isModalVisible}
       onOk={handleBackup}
       onCancel={handleCancel}
+      classNames={{ footer: 'flex justify-end gap-1' }}
       footer={[
         <Button key="back" onClick={handleCancel}>
           {t('common.cancel')}
         </Button>,
-        <Button key="submit" type="primary" loading={backuping} onClick={handleBackup}>
+        <Button key="submit" disabled={backuping} onClick={handleBackup}>
           {t('common.confirm')}
         </Button>
       ]}>

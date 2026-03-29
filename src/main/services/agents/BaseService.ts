@@ -1,17 +1,15 @@
 import { loggerService } from '@logger'
 import { mcpApiService } from '@main/apiServer/services/mcp'
-import type { ModelValidationError } from '@main/apiServer/utils'
-import { validateModelId } from '@main/apiServer/utils'
+import { type ModelValidationError, validateModelId } from '@main/apiServer/utils'
 import { getDataPath } from '@main/utils'
 import { buildFunctionCallToolName } from '@shared/mcp'
-import type { AgentType, MCPTool, SlashCommand, SystemProviderId, Tool } from '@types'
+import type { AgentType, SlashCommand, SystemProviderId, Tool } from '@types'
 import { objectKeys } from '@types'
 import fs from 'fs'
 import path from 'path'
 
-import { DatabaseManager } from './database/DatabaseManager'
-import type { AgentModelField } from './errors'
-import { AgentModelValidationError } from './errors'
+import { databaseManager } from './database/DatabaseManager'
+import { type AgentModelField, AgentModelValidationError } from './errors'
 import { builtinSlashCommands } from './services/claudecode/commands'
 import { builtinTools } from './services/claudecode/tools'
 
@@ -62,7 +60,7 @@ export abstract class BaseService {
         try {
           const server = await mcpApiService.getServerInfo(id)
           if (server) {
-            server.tools.forEach((tool: MCPTool) => {
+            server.tools.forEach((tool) => {
               const canonicalId = buildFunctionCallToolName(server.name, tool.name)
               const serverIdBasedId = buildMcpToolId(id, tool.name)
               const legacyId = toLegacyMcpToolId(serverIdBasedId)
@@ -150,8 +148,8 @@ export abstract class BaseService {
    * Automatically waits for initialization to complete
    */
   public async getDatabase() {
-    const dbManager = await DatabaseManager.getInstance()
-    return dbManager.getDatabase()
+    await databaseManager.initialize()
+    return databaseManager.getDatabase()
   }
 
   protected serializeJsonFields(data: any): any {

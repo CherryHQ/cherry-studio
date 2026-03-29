@@ -1,6 +1,6 @@
+import { loggerService } from '@logger'
 import { formatProviderApiHost } from '@main/aiCore/provider/providerConfig'
-import { CacheService } from '@main/services/CacheService'
-import { loggerService } from '@main/services/LoggerService'
+import { application } from '@main/core/application'
 import { reduxService } from '@main/services/ReduxService'
 import { isSiliconAnthropicCompatibleModel } from '@shared/config/providers'
 import type { ApiModel, Model, Provider, ProviderType } from '@types'
@@ -13,8 +13,10 @@ const PROVIDERS_CACHE_TTL = 10 * 1000 // 10 seconds
 
 export async function getAvailableProviders(): Promise<Provider[]> {
   try {
+    const cacheService = application.get('CacheService')
+
     // Try to get from cache first (faster)
-    const cachedSupportedProviders = CacheService.get<Provider[]>(PROVIDERS_CACHE_KEY)
+    const cachedSupportedProviders = cacheService.get<Provider[]>(PROVIDERS_CACHE_KEY)
     if (cachedSupportedProviders && cachedSupportedProviders.length > 0) {
       logger.debug('Providers resolved from cache', {
         count: cachedSupportedProviders.length
@@ -49,7 +51,7 @@ export async function getAvailableProviders(): Promise<Provider[]> {
     }
 
     // Cache the formatted results
-    CacheService.set(PROVIDERS_CACHE_KEY, formattedProviders, PROVIDERS_CACHE_TTL)
+    cacheService.set(PROVIDERS_CACHE_KEY, formattedProviders, PROVIDERS_CACHE_TTL)
 
     logger.info('Providers filtered and formatted', {
       supported: formattedProviders.length,

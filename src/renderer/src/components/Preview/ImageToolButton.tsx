@@ -1,4 +1,4 @@
-import { Button, Tooltip } from 'antd'
+import { Button, Tooltip } from '@cherrystudio/ui'
 import { memo } from 'react'
 
 interface ImageToolButtonProps {
@@ -9,8 +9,10 @@ interface ImageToolButtonProps {
 
 const ImageToolButton = ({ tooltip, icon, onClick }: ImageToolButtonProps) => {
   return (
-    <Tooltip title={tooltip} mouseEnterDelay={0.5} mouseLeaveDelay={0}>
-      <Button shape="circle" icon={icon} onClick={onClick} role="button" aria-label={tooltip} />
+    <Tooltip content={tooltip} delay={500} closeDelay={0}>
+      <Button className="rounded-full" onClick={onClick} size="icon" aria-label={tooltip}>
+        {icon}
+      </Button>
     </Tooltip>
   )
 }

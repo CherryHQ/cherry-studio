@@ -1,11 +1,11 @@
 import AddButton from '@renderer/components/AddButton'
 import DraggableVirtualList, { type DraggableVirtualListRef } from '@renderer/components/DraggableList/virtual-list'
+import { cacheService } from '@renderer/data/CacheService'
+import { useCache } from '@renderer/data/hooks/useCache'
 import { useCreateDefaultSession } from '@renderer/hooks/agents/useCreateDefaultSession'
 import { useSessions } from '@renderer/hooks/agents/useSessions'
-import { useRuntime } from '@renderer/hooks/useRuntime'
 import { useAppDispatch } from '@renderer/store'
 import { newMessagesActions } from '@renderer/store/newMessage'
-import { setActiveSessionIdAction } from '@renderer/store/runtime'
 import { buildAgentSessionTopicId } from '@renderer/utils/agentSession'
 import { formatErrorMessage } from '@renderer/utils/error'
 import { Alert, Button, Spin } from 'antd'
@@ -38,8 +38,8 @@ const Sessions = ({ agentId, onSelectItem }: SessionsProps) => {
     reload,
     reorderSessions
   } = useSessions(agentId)
-  const { chat } = useRuntime()
-  const { activeSessionIdMap } = chat
+  const [activeSessionIdMap] = useCache('agent.session.active_id_map')
+
   const dispatch = useAppDispatch()
   const { createDefaultSession, creatingSession } = useCreateDefaultSession(agentId)
   const listRef = useRef<DraggableVirtualListRef>(null)
@@ -84,12 +84,10 @@ const Sessions = ({ agentId, onSelectItem }: SessionsProps) => {
     }
   }, [handleScroll])
 
-  const setActiveSessionId = useCallback(
-    (agentId: string, sessionId: string | null) => {
-      dispatch(setActiveSessionIdAction({ agentId, sessionId }))
-    },
-    [dispatch]
-  )
+  const setActiveSessionId = useCallback((agentId: string, sessionId: string | null) => {
+    const currentMap = cacheService.get('agent.session.active_id_map') ?? {}
+    cacheService.set('agent.session.active_id_map', { ...currentMap, [agentId]: sessionId })
+  }, [])
 
   const handleDeleteSession = useCallback(
     async (id: string) => {
@@ -101,13 +99,14 @@ const Sessions = ({ agentId, onSelectItem }: SessionsProps) => {
       if (success) {
         const newSessionId = sessions.find((s) => s.id !== id)?.id
         if (newSessionId) {
-          dispatch(setActiveSessionIdAction({ agentId, sessionId: newSessionId }))
+          const currentMap = cacheService.get('agent.session.active_id_map') ?? {}
+          cacheService.set('agent.session.active_id_map', { ...currentMap, [agentId]: newSessionId })
         } else {
           // may clear messages instead of forbidden deletion
         }
       }
     },
-    [agentId, deleteSession, dispatch, sessions, t]
+    [agentId, deleteSession, sessions, t]
   )
 
   const activeSessionId = activeSessionIdMap[agentId]
@@ -171,7 +170,7 @@ const Sessions = ({ agentId, onSelectItem }: SessionsProps) => {
         itemKey={(index) => sessions[index]?.id ?? index}
         header={
           <div className="-mt-0.5 mb-1.5">
-            <AddButton onClick={createDefaultSession} disabled={creatingSession}>
+            <AddButton className="w-full" onClick={createDefaultSession} disabled={creatingSession}>
               {t('agent.session.add.title')}
             </AddButton>
           </div>

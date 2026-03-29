@@ -1,6 +1,6 @@
 import { loggerService } from '@logger'
 import i18n from '@renderer/i18n'
-import { NotificationService } from '@renderer/services/NotificationService'
+import { notificationService } from '@renderer/services/NotificationService'
 
 import { uuid } from '.'
 
@@ -130,7 +130,7 @@ function flushToolApprovalNotification() {
       ? i18n.t('message.tools.approvalRequired', { tool: tools[0] })
       : i18n.t('message.tools.approvalRequired', { tool: `${tools.length} tools` })
 
-  void NotificationService.getInstance().send({
+  void notificationService.send({
     id: uuid(),
     type: 'action',
     title: i18n.t('notification.assistant'),

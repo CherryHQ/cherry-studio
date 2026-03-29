@@ -3,9 +3,9 @@ import 'katex/dist/contrib/copy-tex'
 import 'katex/dist/contrib/mhchem'
 import 'remark-github-blockquote-alert/alert.css'
 
+import { usePreference } from '@data/hooks/usePreference'
 import ImageViewer from '@renderer/components/ImageViewer'
 import MarkdownShadowDOMRenderer from '@renderer/components/MarkdownShadowDOMRenderer'
-import { useSettings } from '@renderer/hooks/useSettings'
 import { useSmoothStream } from '@renderer/hooks/useSmoothStream'
 import type {
   CompactMessageBlock,
@@ -50,7 +50,8 @@ interface Props {
 
 const Markdown: FC<Props> = ({ block, postProcess }) => {
   const { t } = useTranslation()
-  const { mathEngine, mathEnableSingleDollar } = useSettings()
+  const [mathEngine] = usePreference('chat.message.math.engine')
+  const [mathEnableSingleDollar] = usePreference('chat.message.math.single_dollar')
 
   const isTrulyDone = 'status' in block && block.status === 'success'
   const [displayedContent, setDisplayedContent] = useState(postProcess ? postProcess(block.content) : block.content)
