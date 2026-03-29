@@ -46,8 +46,8 @@ function createSessionEntry(agentId: string): SessionEntry {
   setTimeout(() => {
     if (!initialized && sessions.has(pendingId)) {
       sessions.delete(pendingId)
-      transport.close?.()
-      server.mcpServer.close?.()
+      void transport.close?.()
+      void server.mcpServer.close?.()
       logger.warn('Claw MCP session timed out before initialization', { agentId, pendingId })
     }
   }, INIT_TIMEOUT_MS)
@@ -134,8 +134,8 @@ export function cleanupClawServer(agentId: string): void {
   for (const [sessionId, entry] of sessions) {
     if (entry.agentId === agentId) {
       sessions.delete(sessionId)
-      entry.transport.close?.()
-      entry.server.mcpServer.close?.()
+      void entry.transport.close?.()
+      void entry.server.mcpServer.close?.()
     }
   }
 }

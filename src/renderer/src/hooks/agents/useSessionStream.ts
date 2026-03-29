@@ -20,7 +20,7 @@ export function useSessionStream(sessionId: string | null, onChunk: (chunk: Sess
   useEffect(() => {
     if (!sessionId) return
 
-    window.api.agentSessionStream.subscribe(sessionId)
+    void window.api.agentSessionStream.subscribe(sessionId)
 
     const cleanup = window.api.agentSessionStream.onChunk((chunk) => {
       if (chunk.sessionId !== sessionId) return
@@ -29,7 +29,7 @@ export function useSessionStream(sessionId: string | null, onChunk: (chunk: Sess
 
     return () => {
       cleanup()
-      window.api.agentSessionStream.unsubscribe(sessionId)
+      void window.api.agentSessionStream.unsubscribe(sessionId)
     }
   }, [sessionId, stableOnChunk])
 }

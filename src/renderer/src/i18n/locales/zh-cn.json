@@ -58,6 +58,11 @@
         },
         "notifyReceiver": "接收任务通知",
         "notifyReceiverHint": "将定时任务结果发送到此频道。",
+        "security": {
+          "inheritFromAgent": "继承智能体设置",
+          "permissionMode": "频道权限模式",
+          "permissionModeHint": "覆盖此频道消息的智能体权限模式。选择「继承」则使用智能体默认设置。"
+        },
         "qq": {
           "appId": "App ID",
           "appIdPlaceholder": "输入您的 QQ 机器人 App ID",

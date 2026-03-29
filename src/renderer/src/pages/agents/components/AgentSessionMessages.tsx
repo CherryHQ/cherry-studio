@@ -44,7 +44,7 @@ const AgentSessionMessages = ({ agentId, sessionId }: Props) => {
 
   useEffect(() => {
     // Subscribe to IPC stream chunks for this session
-    window.api.agentSessionStream.subscribe(sessionId)
+    void window.api.agentSessionStream.subscribe(sessionId)
 
     const getOrCreateStream = () => {
       if (!streamCtrlRef.current) {
@@ -80,7 +80,7 @@ const AgentSessionMessages = ({ agentId, sessionId }: Props) => {
       cleanupChunk()
       streamCtrlRef.current?.complete()
       streamCtrlRef.current = null
-      window.api.agentSessionStream.unsubscribe(sessionId)
+      void window.api.agentSessionStream.unsubscribe(sessionId)
     }
   }, [sessionId, sessionTopicId, agentId, dispatch])
 

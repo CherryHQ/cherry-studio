@@ -79,7 +79,9 @@ export const CherryClawChannelSchema = z.object({
     QQChannelConfigSchema,
     WeChatChannelConfigSchema
   ]),
-  is_notify_receiver: z.boolean().default(false)
+  is_notify_receiver: z.boolean().default(false),
+  /** Per-channel permission mode override. When unset, inherits from agent configuration. */
+  permission_mode: PermissionModeSchema.optional()
 })
 
 export type CherryClawChannel = z.infer<typeof CherryClawChannelSchema>

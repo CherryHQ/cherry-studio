@@ -6,7 +6,7 @@ import type {
 } from '@renderer/types'
 import { Switch, Tooltip } from 'antd'
 import { Info } from 'lucide-react'
-import { useCallback } from 'react'
+import { useCallback, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { isSoulModeEnabled, SettingsItem, SettingsTitle } from '../shared'
@@ -19,13 +19,13 @@ interface SoulModeSettingProps {
 export const SoulModeSetting = ({ base: agentBase, update }: SoulModeSettingProps) => {
   const { t } = useTranslation()
 
-  const config = (agentBase?.configuration ?? {}) as CherryClawConfiguration
+  const config = useMemo(() => (agentBase?.configuration ?? {}) as CherryClawConfiguration, [agentBase?.configuration])
   const soulEnabled = isSoulModeEnabled(agentBase?.configuration)
 
   const handleToggle = useCallback(
     (checked: boolean) => {
       if (!agentBase) return
-      update({
+      void update({
         id: agentBase.id,
         configuration: { ...config, soul_enabled: checked }
       } satisfies UpdateAgentBaseForm)

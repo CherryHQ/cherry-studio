@@ -43,7 +43,7 @@ export const useCreateTask = (agentId: string) => {
     async (req: CreateTaskRequest): Promise<ScheduledTaskEntity | undefined> => {
       try {
         const result = await client.createTask(agentId, req)
-        mutate(listKey)
+        void mutate(listKey)
         window.toast.success({ key: 'create-task', title: t('common.create_success') })
         return result
       } catch (error) {
@@ -68,7 +68,7 @@ export const useUpdateTask = (agentId: string) => {
     async (taskId: string, updates: UpdateTaskRequest): Promise<ScheduledTaskEntity | undefined> => {
       try {
         const result = await client.updateTask(agentId, taskId, updates)
-        mutate(listKey)
+        void mutate(listKey)
         window.toast.success({ key: 'update-task', title: t('common.update_success') })
         return result
       } catch (error) {
@@ -93,7 +93,7 @@ export const useRunTask = (agentId: string) => {
     async (taskId: string): Promise<boolean> => {
       try {
         await client.runTask(agentId, taskId)
-        mutate(listKey)
+        void mutate(listKey)
         window.toast.success({ key: 'run-task', title: t('agent.cherryClaw.tasks.runTriggered') })
         return true
       } catch (error) {
@@ -118,7 +118,7 @@ export const useDeleteTask = (agentId: string) => {
     async (taskId: string): Promise<boolean> => {
       try {
         await client.deleteTask(agentId, taskId)
-        mutate(listKey)
+        void mutate(listKey)
         window.toast.success({ key: 'delete-task', title: t('common.delete_success') })
         return true
       } catch (error) {

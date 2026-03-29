@@ -628,7 +628,7 @@ class FeishuAdapter extends ChannelAdapter {
           chatId,
           userId,
           userName: '',
-          command: cmd as 'new' | 'compact' | 'help' | 'whoami',
+          command: cmd,
           args: parts.slice(1).join(' ') || undefined
         })
         return

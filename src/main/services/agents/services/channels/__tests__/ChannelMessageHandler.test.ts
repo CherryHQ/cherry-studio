@@ -12,6 +12,16 @@ vi.mock('@logger', () => ({
   }
 }))
 
+vi.mock('../../security', () => ({
+  channelRateLimiter: {
+    isAllowed: vi.fn().mockReturnValue(true),
+    start: vi.fn(),
+    stop: vi.fn()
+  },
+  wrapExternalContent: vi.fn((text: string) => text),
+  sanitizeChannelOutput: vi.fn((text: string) => ({ text, redacted: false }))
+}))
+
 vi.mock('../../AgentService', () => ({
   agentService: {
     getAgent: vi.fn().mockResolvedValue({ configuration: {} })

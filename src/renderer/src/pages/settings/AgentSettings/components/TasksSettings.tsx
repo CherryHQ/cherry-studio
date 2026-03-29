@@ -35,7 +35,7 @@ const HeartbeatSection: FC<HeartbeatProps> = ({ agentBase, update }) => {
   const updateConfig = useCallback(
     (updates: Partial<CherryClawConfiguration>) => {
       if (!agentBase) return
-      update({
+      void update({
         id: agentBase.id,
         configuration: { ...config, ...updates }
       } satisfies UpdateAgentBaseForm)
@@ -147,9 +147,7 @@ const TasksSettings: FC<AgentOrSessionSettingsProps> = ({ agentBase, update }) =
   return (
     <SettingsContainer>
       {/* Heartbeat settings — only shown for agent-level settings (not session) */}
-      {'type' in agentBase && (
-        <HeartbeatSection agentBase={agentBase as GetAgentResponse} update={update as UpdateAgentFunction} />
-      )}
+      {'type' in agentBase && <HeartbeatSection agentBase={agentBase} update={update as UpdateAgentFunction} />}
 
       {/* Regular tasks */}
       <div className="mb-3 flex items-center justify-between">

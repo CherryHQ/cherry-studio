@@ -119,6 +119,7 @@ class WeChatAdapter extends ChannelAdapter {
     }
   }
 
+  // oxlint-disable-next-line no-unused-vars -- abstract method signature
   async sendMessage(chatId: string, text: string, _opts?: SendMessageOptions): Promise<void> {
     if (!this.bot) {
       throw new Error('Bot is not connected')
@@ -135,6 +136,7 @@ class WeChatAdapter extends ChannelAdapter {
     }
   }
 
+  // oxlint-disable-next-line no-unused-vars -- no-op abstract method
   async sendMessageDraft(_chatId: string, _draftId: number, _text: string): Promise<void> {
     // WeChat does not have a native draft/streaming API
   }

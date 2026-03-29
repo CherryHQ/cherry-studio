@@ -1,5 +1,11 @@
 import { PlusOutlined } from '@ant-design/icons'
-import type { CherryClawChannel, CherryClawConfiguration, FeishuChannelConfig, FeishuDomain } from '@renderer/types'
+import type {
+  CherryClawChannel,
+  CherryClawConfiguration,
+  FeishuChannelConfig,
+  FeishuDomain,
+  PermissionMode
+} from '@renderer/types'
 import { getChannelTypeIcon } from '@renderer/utils/agentSession'
 import type { CardProps } from 'antd'
 import { Button, Card, Checkbox, Input, Modal, Select, Switch } from 'antd'
@@ -91,6 +97,42 @@ const NotifyCheckbox: FC<NotifyCheckboxProps> = ({ channel, onConfigChange }) =>
         <span className="text-sm">{t('agent.cherryClaw.channels.notifyReceiver')}</span>
         <span className="block text-gray-400 text-xs">{t('agent.cherryClaw.channels.notifyReceiverHint')}</span>
       </div>
+    </div>
+  )
+}
+
+// --------------- Shared channel permission mode ---------------
+
+const PERMISSION_MODE_OPTIONS: Array<{ value: PermissionMode | ''; labelKey: string }> = [
+  { value: '', labelKey: 'agent.cherryClaw.channels.security.inheritFromAgent' },
+  { value: 'default', labelKey: 'agent.settings.tooling.permissionMode.default.title' },
+  { value: 'acceptEdits', labelKey: 'agent.settings.tooling.permissionMode.acceptEdits.title' },
+  { value: 'bypassPermissions', labelKey: 'agent.settings.tooling.permissionMode.bypassPermissions.title' },
+  { value: 'plan', labelKey: 'agent.settings.tooling.permissionMode.plan.title' }
+]
+
+type ChannelPermissionModeProps = {
+  channel: CherryClawChannel
+  onConfigChange: (updates: Partial<CherryClawChannel>) => void
+}
+
+// oxlint-disable-next-line no-unused-vars -- used in JSX below
+const ChannelPermissionMode: FC<ChannelPermissionModeProps> = ({ channel, onConfigChange }) => {
+  const { t } = useTranslation()
+  return (
+    <div className="flex flex-col gap-1">
+      <label className="font-medium text-xs">{t('agent.cherryClaw.channels.security.permissionMode')}</label>
+      <Select
+        value={channel.permission_mode ?? ''}
+        onChange={(value) => onConfigChange({ permission_mode: value === '' ? undefined : (value as PermissionMode) })}
+        size="small"
+        className="w-full"
+        options={PERMISSION_MODE_OPTIONS.map((opt) => ({
+          value: opt.value,
+          label: t(opt.labelKey)
+        }))}
+      />
+      <span className="text-gray-400 text-xs">{t('agent.cherryClaw.channels.security.permissionModeHint')}</span>
     </div>
   )
 }
@@ -207,6 +249,7 @@ const ChannelFieldsCard: FC<ChannelFieldsCardProps> = ({
           )}
         </div>
       </div>
+      <ChannelPermissionMode channel={channel} onConfigChange={onConfigChange} />
       <NotifyCheckbox channel={channel} onConfigChange={onConfigChange} />
     </div>
   )
@@ -444,7 +487,7 @@ const WeChatInstanceStatus: FC<{ channelId: string; name: string; onRemove?: () 
   const [qrUrl, setQrUrl] = useState<string | null>(null)
 
   useEffect(() => {
-    window.api.wechat.hasCredentials(channelId).then((result) => {
+    void window.api.wechat.hasCredentials(channelId).then((result) => {
       if (result.exists) {
         setStatus('confirmed')
         if (result.userId) setLoginUserId(result.userId)
@@ -552,6 +595,10 @@ const WeChatChannelCard: FC<WeChatChannelCardProps> = ({
       <Button type="dashed" size="small" icon={<PlusOutlined />} onClick={onAddAccount} className="self-start">
         {t('agent.cherryClaw.channels.wechat.addAccount')}
       </Button>
+      <ChannelPermissionMode
+        channel={primaryChannel}
+        onConfigChange={(updates) => onConfigChange(primaryChannel.id, updates)}
+      />
       <NotifyCheckbox
         channel={primaryChannel}
         onConfigChange={(updates) => onConfigChange(primaryChannel.id, updates)}
@@ -574,7 +621,7 @@ const ChannelsSettings: FC<AgentOrSessionSettingsProps> = ({ agentBase, update }
   const updateChannels = useCallback(
     (newChannels: CherryClawChannel[]) => {
       if (!agentBase) return
-      update({
+      void update({
         id: agentBase.id,
         configuration: {
           ...config,

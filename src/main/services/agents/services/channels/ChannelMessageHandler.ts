@@ -1,7 +1,8 @@
 import { loggerService } from '@logger'
-import type { GetAgentSessionResponse } from '@types'
+import type { CherryClawConfiguration, GetAgentSessionResponse } from '@types'
 
 import { agentService } from '../AgentService'
+import { channelRateLimiter, sanitizeChannelOutput, wrapExternalContent } from '../security'
 import { sessionMessageService } from '../SessionMessageService'
 import { sessionService } from '../SessionService'
 import type { ChannelAdapter, ChannelCommandEvent, ChannelMessageEvent } from './ChannelAdapter'
@@ -28,12 +29,28 @@ export class ChannelMessageHandler {
 
   async handleIncoming(adapter: ChannelAdapter, message: ChannelMessageEvent): Promise<void> {
     const { agentId } = adapter
+    const rateLimitKey = `${agentId}:${adapter.channelId}:${message.chatId}`
+
+    // Rate limiting: reject bursts that exceed threshold
+    if (!channelRateLimiter.isAllowed(rateLimitKey)) {
+      logger.warn('Channel message rate-limited, dropping', { agentId, chatId: message.chatId })
+      return
+    }
+
     try {
       const session = await this.resolveSession(agentId, adapter.channelId, adapter.channelType, message.chatId)
       if (!session) {
         logger.error('Failed to resolve session', { agentId })
         return
       }
+
+      // Wrap untrusted channel input with security boundary markers
+      const securedContent = wrapExternalContent(message.text, {
+        chatId: message.chatId,
+        userId: message.userId,
+        userName: message.userName,
+        channelType: adapter.channelType
+      })
 
       // Broadcast user message to renderer so it can display it during streaming
       sessionStreamBus.publish(session.id, {
@@ -59,14 +76,16 @@ export class ChannelMessageHandler {
       )
 
       try {
-        const responseText = await this.collectStreamResponse(session, message.text, abortController, (text) =>
+        const responseText = await this.collectStreamResponse(session, securedContent, abortController, (text) =>
           adapter.sendMessageDraft(message.chatId, draftId, text).catch(() => {})
         )
 
         if (responseText) {
-          const finalized = await adapter.finalizeStream(draftId, responseText).catch(() => false)
+          // Sanitize output to prevent accidental secret leakage through channels
+          const { text: sanitizedText } = sanitizeChannelOutput(responseText)
+          const finalized = await adapter.finalizeStream(draftId, sanitizedText).catch(() => false)
           if (!finalized) {
-            await this.sendChunked(adapter, message.chatId, responseText)
+            await this.sendChunked(adapter, message.chatId, sanitizedText)
           }
         }
       } finally {
@@ -209,6 +228,12 @@ export class ChannelMessageHandler {
 
     // No existing session found — create a new one
     const agent = await agentService.getAgent(agentId)
+
+    // Resolve per-channel permission mode override (if configured)
+    const cherryClawConfig = agent?.configuration as CherryClawConfiguration | undefined
+    const channelConfig = cherryClawConfig?.channels?.find((ch) => ch.id === channelId)
+    const channelPermissionMode = channelConfig?.permission_mode
+
     const newSession = await sessionService.createSession(agentId, {
       ...(agent?.configuration
         ? {
@@ -216,7 +241,8 @@ export class ChannelMessageHandler {
               ...agent.configuration,
               source_channel_id: channelId,
               source_channel_type: channelType,
-              source_chat_id: chatId
+              source_chat_id: chatId,
+              ...(channelPermissionMode ? { permission_mode: channelPermissionMode } : {})
             }
           }
         : {})

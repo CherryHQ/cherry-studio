@@ -518,6 +518,7 @@ class QQAdapter extends ChannelAdapter {
     }
   }
 
+  // oxlint-disable-next-line no-unused-vars -- abstract method signature
   async sendMessage(chatId: string, text: string, _opts?: SendMessageOptions): Promise<void> {
     const chunks = splitMessage(text)
 
@@ -560,11 +561,13 @@ class QQAdapter extends ChannelAdapter {
     await this.apiRequest(endpoint, { method: 'POST', body })
   }
 
+  // oxlint-disable-next-line no-unused-vars -- no-op abstract method
   async sendMessageDraft(_chatId: string, _draftId: number, _text: string): Promise<void> {
     // QQ does not have a native draft/streaming API like Telegram
     // This is a no-op; final message is sent via sendMessage
   }
 
+  // oxlint-disable-next-line no-unused-vars -- no-op abstract method
   async sendTypingIndicator(_chatId: string): Promise<void> {
     // QQ Bot API does not support typing indicators for most message types
     // For C2C, there's sendC2CInputNotify but it requires message_id context
