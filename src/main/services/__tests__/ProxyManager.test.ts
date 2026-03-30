@@ -1,7 +1,12 @@
 import { beforeEach, describe, expect, it } from 'vitest'
 
-import { applyNodeProxyFromEnvironment, buildNodeProxyEnvironment, getProxyProtocol } from '../proxy/nodeProxy'
-import { isByPass, updateByPassRules } from '../ProxyManager'
+import {
+  applyNodeProxyFromEnvironment,
+  buildNodeProxyEnvironment,
+  getProxyProtocol,
+  isByPass,
+  updateByPassRules
+} from '../proxy/nodeProxy'
 
 describe('ProxyManager - bypass evaluation', () => {
   beforeEach(() => {

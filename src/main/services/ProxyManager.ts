@@ -7,8 +7,6 @@ import { type NodeProxyConfig, NodeProxyController } from './proxy/nodeProxy'
 
 const logger = loggerService.withContext('ProxyManager')
 
-export { isByPass, updateByPassRules } from './proxy/nodeProxy'
-
 export class ProxyManager {
   private config: ProxyConfig = { mode: 'direct' }
   private systemProxyInterval: NodeJS.Timeout | null = null
