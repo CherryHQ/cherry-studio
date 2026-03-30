@@ -2,6 +2,15 @@ import * as z from 'zod'
 
 import { FILE_PROCESSOR_IDS } from '../preference/preferenceTypes'
 
+export const CacheActiveFileProcessingTaskSchema = z
+  .object({
+    status: z.enum(['pending', 'processing']),
+    progress: z.number().min(0).max(100)
+  })
+  .strict()
+
+export type CacheActiveFileProcessingTask = z.infer<typeof CacheActiveFileProcessingTaskSchema>
+
 export const FileProcessingTaskPhaseSchema = z.enum(['pending', 'processing', 'completed', 'failed'])
 export type FileProcessingTaskPhase = z.infer<typeof FileProcessingTaskPhaseSchema>
 

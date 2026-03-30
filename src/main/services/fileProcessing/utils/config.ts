@@ -1,3 +1,4 @@
+import { application } from '@main/core/application'
 import type {
   FileProcessorCapabilityOverride,
   FileProcessorFeature,
@@ -59,38 +60,40 @@ function mergeProcessorConfig(processorId: FileProcessorId, overrides: FileProce
 }
 
 async function resolveProcessorId(
-  input: ResolveProcessorConfigInput,
-  preferences: FileProcessingPreferenceReader
+  feature: FileProcessorFeature,
+  processorId?: FileProcessorId
 ): Promise<FileProcessorId> {
-  if (input.processorId) {
-    if (!supportsFeature(input.processorId, input.feature)) {
-      throw new Error(`File processor ${input.processorId} does not support ${input.feature}`)
+  const preferences = application.get('PreferenceService')
+  if (processorId) {
+    if (!supportsFeature(processorId, feature)) {
+      throw new Error(`File processor ${processorId} does not support ${feature}`)
     }
 
-    return input.processorId
+    return processorId
   }
 
-  const defaultProcessorId = await preferences.get(DEFAULT_PROCESSOR_KEY_BY_FEATURE[input.feature])
+  const defaultProcessorId = preferences.get(DEFAULT_PROCESSOR_KEY_BY_FEATURE[feature])
 
   if (defaultProcessorId) {
-    if (!supportsFeature(defaultProcessorId, input.feature)) {
-      throw new Error(`File processor ${defaultProcessorId} does not support ${input.feature}`)
+    if (!supportsFeature(defaultProcessorId, feature)) {
+      throw new Error(`File processor ${defaultProcessorId} does not support ${feature}`)
     }
 
     return defaultProcessorId
   }
 
-  throw new Error(`Default file processor for ${input.feature} is not configured`)
+  throw new Error(`Default file processor for ${feature} is not configured`)
 }
 
 export async function resolveProcessorConfig(
-  input: ResolveProcessorConfigInput,
-  preferences: FileProcessingPreferenceReader
+  feature: FileProcessorFeature,
+  processorId?: FileProcessorId
 ): Promise<FileProcessorMerged> {
-  const [processorId, overrides] = await Promise.all([
-    resolveProcessorId(input, preferences),
+  const preferences = application.get('PreferenceService')
+  const [resolvedProcessorId, overrides] = await Promise.all([
+    resolveProcessorId(feature, processorId),
     preferences.get('feature.file_processing.overrides')
   ])
 
-  return mergeProcessorConfig(processorId, overrides)
+  return mergeProcessorConfig(resolvedProcessorId, overrides)
 }

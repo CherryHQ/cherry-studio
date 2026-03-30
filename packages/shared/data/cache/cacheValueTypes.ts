@@ -1,7 +1,7 @@
 import type { MinAppType, Topic } from '@types'
 import type { UpdateInfo } from 'builder-util-runtime'
 
-import type { FileProcessingMarkdownTaskResult } from '../types/fileProcessing'
+import type { CacheActiveFileProcessingTask } from '../types/fileProcessing'
 import type { WebSearchStatus } from '../types/webSearch'
 
 export type CacheAppUpdateState = {
@@ -18,7 +18,7 @@ export type CacheAppUpdateState = {
 
 export type CacheActiveSearches = Record<string, WebSearchStatus>
 
-export type CacheActiveFileProcessingTasks = Record<string, FileProcessingMarkdownTaskResult>
+export type CacheActiveFileProcessingTasks = Record<string, CacheActiveFileProcessingTask>
 
 // For cache schema, we use any for complex types to avoid circular dependencies
 // The actual type checking will be done at runtime by the cache system
