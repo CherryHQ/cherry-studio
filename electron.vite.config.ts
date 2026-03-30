@@ -1,15 +1,13 @@
-import { builtinModules } from 'node:module'
-
 import react from '@vitejs/plugin-react-swc'
 import { CodeInspectorPlugin } from 'code-inspector-plugin'
 import { defineConfig } from 'electron-vite'
 import { resolve } from 'path'
 import { visualizer } from 'rollup-plugin-visualizer'
-import { build as viteBuild, type Plugin } from 'vite'
 
 // assert not supported by biome
 // import pkg from './package.json' assert { type: 'json' }
 import pkg from './package.json'
+import { buildProxyBootstrapPlugin } from './scripts/buildProxyBootstrapPlugin'
 
 const visualizerPlugin = (type: 'renderer' | 'main') => {
   return process.env[`VISUALIZER_${type.toUpperCase()}`] ? [visualizer({ open: true })] : []
@@ -18,59 +16,17 @@ const visualizerPlugin = (type: 'renderer' | 'main') => {
 const isDev = process.env.NODE_ENV === 'development'
 const isProd = process.env.NODE_ENV === 'production'
 
-const buildProxyBootstrapPlugin = (): Plugin => {
-  return {
-    name: 'cherry-build-proxy-bootstrap',
-    apply: 'build',
-    async closeBundle() {
-      if (isDev) return
-
-      const mainAlias = {
-        '@main': resolve('src/main'),
-        '@types': resolve('src/renderer/src/types'),
-        '@shared': resolve('packages/shared'),
-        '@logger': resolve('src/main/services/LoggerService'),
-        '@mcp-trace/trace-core': resolve('packages/mcp-trace/trace-core'),
-        '@mcp-trace/trace-node': resolve('packages/mcp-trace/trace-node')
-      }
-
-      await viteBuild({
-        configFile: false,
-        publicDir: false,
-        resolve: {
-          mainFields: ['module', 'jsnext:main', 'jsnext'],
-          conditions: ['node'],
-          alias: mainAlias
-        },
-        build: {
-          outDir: resolve(__dirname, 'out/proxy'),
-          target: 'node22',
-          minify: false,
-          reportCompressedSize: false,
-          copyPublicDir: false,
-          lib: {
-            entry: resolve(__dirname, 'src/main/services/proxy/bootstrap.ts'),
-            formats: ['cjs'],
-            fileName: () => 'index.js'
-          },
-          rollupOptions: {
-            external: [
-              'electron',
-              /^electron\/.+/,
-              ...builtinModules.flatMap((moduleName) => [moduleName, `node:${moduleName}`]),
-              ...Object.keys(pkg.dependencies)
-            ]
-          }
-        },
-        esbuild: { legalComments: 'none' }
-      })
-    }
-  }
-}
-
 export default defineConfig({
   main: {
-    plugins: [...visualizerPlugin('main'), buildProxyBootstrapPlugin()],
+    plugins: [
+      ...visualizerPlugin('main'),
+      buildProxyBootstrapPlugin({
+        dependencies: Object.keys(pkg.dependencies),
+        isDev,
+        isProd,
+        rootDir: __dirname
+      })
+    ],
     resolve: {
       alias: {
         '@main': resolve('src/main'),
