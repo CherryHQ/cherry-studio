@@ -264,8 +264,6 @@ export enum IpcChannel {
   DataMigrate_RetryMigration = 'data-migrate:retry-migration',
   DataMigrate_RestartApp = 'data-migrate:restart-app',
   DataMigrate_CloseWindow = 'data-migrate:close-window',
-  DataMigrate_SendReduxData = 'data-migrate:send-redux-data',
-  DataMigrate_GetReduxData = 'data-migrate:get-redux-data',
 
   // zip
   Zip_Compress = 'zip:compress',
