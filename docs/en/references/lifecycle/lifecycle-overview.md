@@ -150,17 +150,32 @@ After all phases complete:
 
 ### Automatic Resource Cleanup
 
-BaseService tracks two categories of resources for automatic cleanup:
+BaseService uses a single unified Disposable tracking mechanism. All resources — IPC handlers, event subscriptions, signals, cleanup functions — are tracked as Disposables and cleaned up together during the stop lifecycle.
 
-1. **IPC handlers** registered via `this.ipcHandle()` / `this.ipcOn()`
-2. **Disposables** registered via `this.registerDisposable()` (event subscriptions, signals, etc.)
+`registerDisposable()` accepts both `Disposable` objects (anything with a `dispose()` method) and plain `() => void` cleanup functions:
 
-Both are automatically cleaned up as part of the stop/destroy lifecycle:
+```typescript
+// Disposable object (e.g., event subscription)
+this.registerDisposable(someEmitter.on('event', handler))
+
+// Plain cleanup function
+this.registerDisposable(() => clearInterval(timer))
+```
+
+`ipcHandle()` and `ipcOn()` return a `Disposable` and register it through the same mechanism, so IPC handlers are no longer a separate cleanup category:
+
+```typescript
+const d = this.ipcHandle(IpcChannel.MyAction, (_, arg) => this.handle(arg))
+// d is a Disposable — already tracked, removed automatically on stop
+```
+
+Cleanup flow:
 
 ```
-onStop() → IPC handlers removed → Disposables disposed → state = Stopped
-onDestroy() → IPC handlers removed → Disposables disposed (safety net) → state = Destroyed
+onStop() → all disposables disposed → state = Stopped
 ```
+
+`_doDestroy` is idempotent — calling it on an already-destroyed service is a safe no-op.
 
 See [IPC Handler Management](./lifecycle-usage.md#ipc-handler-management) and [Service Events](./lifecycle-usage.md#service-events-emitter--event) for usage details.
 

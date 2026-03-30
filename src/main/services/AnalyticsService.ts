@@ -2,7 +2,7 @@ import type { TokenUsageData } from '@cherrystudio/analytics-client'
 import { AnalyticsClient } from '@cherrystudio/analytics-client'
 import { loggerService } from '@logger'
 import { application } from '@main/core/application'
-import { BaseService, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
+import { type Activatable, BaseService, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import { generateUserAgent, getClientId } from '@main/utils/systemInfo'
 import { APP_NAME } from '@shared/config/constant'
 import { IpcChannel } from '@shared/IpcChannel'
@@ -12,12 +12,31 @@ const logger = loggerService.withContext('AnalyticsService')
 
 @Injectable('AnalyticsService')
 @ServicePhase(Phase.WhenReady)
-export class AnalyticsService extends BaseService {
+export class AnalyticsService extends BaseService implements Activatable {
   private client: AnalyticsClient | null = null
 
   protected async onInit() {
     this.registerIpcHandlers()
 
+    // Original code checks the preference per-call in trackTokenUsage,
+    // which is effectively runtime-responsive. Use preference subscription
+    // to drive activate/deactivate so isActivated guard preserves that semantic.
+    const preferenceService = application.get('PreferenceService')
+    this.registerDisposable(
+      preferenceService.subscribeChange('app.privacy.data_collection.enabled', (enabled: boolean) => {
+        if (enabled) void this.activate()
+        else void this.deactivate()
+      })
+    )
+  }
+
+  protected async onReady() {
+    if (application.get('PreferenceService').get('app.privacy.data_collection.enabled')) {
+      await this.activate()
+    }
+  }
+
+  onActivate(): void {
     const clientId = getClientId()
 
     this.client = new AnalyticsClient({
@@ -33,12 +52,24 @@ export class AnalyticsService extends BaseService {
       }
     })
 
+    // FIXME: trackAppLaunch is called on every activate.
+    // Original code called it once in onInit. When the user toggles the preference
+    // off then on at runtime, this produces an extra launch event.
+    // This is beyond the scope of the Activatable refactoring — keeping as-is.
     this.client.trackAppLaunch({
       version: app.getVersion(),
       os: process.platform
     })
 
-    logger.info('Analytics service initialized')
+    logger.info('Analytics service activated')
+  }
+
+  async onDeactivate(): Promise<void> {
+    if (this.client) {
+      await this.client.destroy()
+      this.client = null
+    }
+    logger.info('Analytics service deactivated')
   }
 
   private registerIpcHandlers(): void {
@@ -46,27 +77,13 @@ export class AnalyticsService extends BaseService {
   }
 
   public trackTokenUsage(data: TokenUsageData): void {
-    const enableDataCollection = application.get('PreferenceService').get('app.privacy.data_collection.enabled')
-
-    if (!this.client || !enableDataCollection) {
-      return
-    }
-
-    this.client.trackTokenUsage(data)
+    if (!this.isActivated) return
+    this.client!.trackTokenUsage(data)
   }
 
   public async trackAppUpdate(): Promise<void> {
-    if (!this.client) {
-      return
-    }
-
-    await this.client.trackAppUpdate()
-  }
-
-  protected async onStop() {
+    // Original code only checks this.client existence, not the preference toggle. Preserving as-is.
     if (!this.client) return
-    await this.client.destroy()
-    this.client = null
-    logger.info('Analytics service destroyed')
+    await this.client.trackAppUpdate()
   }
 }

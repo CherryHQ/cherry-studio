@@ -15,8 +15,6 @@ type ShutdownHandler = () => void | Promise<void>
 @ServicePhase(Phase.Background)
 export class PowerMonitorService extends BaseService {
   private shutdownHandlers: ShutdownHandler[] = []
-  private zeroMemoryWindow: BrowserWindow | null = null
-  private shutdownListener: (() => Promise<void>) | null = null
 
   /**
    * Register a shutdown handler to be called when system shutdown is detected
@@ -42,16 +40,6 @@ export class PowerMonitorService extends BaseService {
   }
 
   protected async onStop(): Promise<void> {
-    if (isWin) {
-      if (this.zeroMemoryWindow && !this.zeroMemoryWindow.isDestroyed()) {
-        this.zeroMemoryWindow.destroy()
-      }
-      this.zeroMemoryWindow = null
-    } else if (this.shutdownListener) {
-      powerMonitor.removeListener('shutdown', this.shutdownListener)
-      this.shutdownListener = null
-    }
-
     this.shutdownHandlers = []
     logger.info('PowerMonitorService stopped')
   }
@@ -69,13 +57,19 @@ export class PowerMonitorService extends BaseService {
 
   private initWindowsShutdownHandler(): void {
     try {
-      this.zeroMemoryWindow = new BrowserWindow({ show: false })
-      ElectronShutdownHandler.setWindowHandle(this.zeroMemoryWindow.getNativeWindowHandle())
+      const zeroMemoryWindow = new BrowserWindow({ show: false })
+      ElectronShutdownHandler.setWindowHandle(zeroMemoryWindow.getNativeWindowHandle())
 
       ElectronShutdownHandler.on('shutdown', async () => {
         logger.info('System shutdown event detected (Windows)')
         await this.executeShutdownHandlers()
         ElectronShutdownHandler.releaseShutdown()
+      })
+
+      this.registerDisposable(() => {
+        if (!zeroMemoryWindow.isDestroyed()) {
+          zeroMemoryWindow.destroy()
+        }
       })
 
       logger.info('Windows shutdown handler registered')
@@ -86,11 +80,12 @@ export class PowerMonitorService extends BaseService {
 
   private initElectronPowerMonitor(): void {
     try {
-      this.shutdownListener = async () => {
+      const shutdownListener = async () => {
         logger.info('System shutdown event detected', { platform: process.platform })
         await this.executeShutdownHandlers()
       }
-      powerMonitor.on('shutdown', this.shutdownListener)
+      powerMonitor.on('shutdown', shutdownListener)
+      this.registerDisposable(() => powerMonitor.removeListener('shutdown', shutdownListener))
 
       logger.info('Electron powerMonitor shutdown listener registered')
     } catch (error) {

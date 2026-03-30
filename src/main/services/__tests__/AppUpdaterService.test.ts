@@ -32,6 +32,17 @@ vi.mock('@main/core/application', async () => {
   return result
 })
 
+vi.mock('@main/core/lifecycle', () => {
+  class MockBaseService {}
+  return {
+    BaseService: MockBaseService,
+    Injectable: () => (target: unknown) => target,
+    ServicePhase: () => (target: unknown) => target,
+    DependsOn: () => (target: unknown) => target,
+    Phase: { Background: 'background', WhenReady: 'whenReady', BeforeReady: 'beforeReady' }
+  }
+})
+
 vi.mock('@main/constant', () => ({
   isWin: false
 }))
@@ -95,7 +106,7 @@ import { UpdateMirror } from '@shared/config/constant'
 import { MockMainPreferenceServiceUtils } from '@test-mocks/main/PreferenceService'
 import { app, net } from 'electron'
 
-import AppUpdater from '../AppUpdater'
+import { AppUpdaterService } from '../AppUpdaterService'
 
 // Mock clientId for ConfigManager since it's not migrated yet
 vi.mock('../ConfigManager', () => ({
@@ -104,13 +115,13 @@ vi.mock('../ConfigManager', () => ({
   }
 }))
 
-describe('AppUpdater', () => {
-  let appUpdater: AppUpdater
+describe('AppUpdaterService', () => {
+  let appUpdater: AppUpdaterService
 
   beforeEach(() => {
     vi.clearAllMocks()
     MockMainPreferenceServiceUtils.resetMocks()
-    appUpdater = new AppUpdater()
+    appUpdater = new AppUpdaterService()
   })
 
   describe('parseMultiLangReleaseNotes', () => {
@@ -196,7 +207,7 @@ describe('AppUpdater', () => {
 
     it('should handle errors gracefully', () => {
       // Create a fresh instance for this test to avoid issues with constructor mocking
-      const testAppUpdater = new AppUpdater()
+      const testAppUpdater = new AppUpdaterService()
 
       // Force an error by mocking PreferenceService to throw
       vi.mocked(application.get('PreferenceService').get).mockImplementationOnce(() => {
@@ -716,7 +727,7 @@ describe('AppUpdater', () => {
       })
     })
 
-    it('should return null when no version has the requested channel', () => {
+    it('should fallback to latest channel when requested channel is null', () => {
       const configWithoutRc = {
         lastUpdated: '2025-01-05T00:00:00Z',
         versions: {
@@ -741,6 +752,30 @@ describe('AppUpdater', () => {
       }
 
       const result = (appUpdater as any)._findCompatibleChannel('1.5.0', 'rc', configWithoutRc)
+
+      expect(result).toEqual({
+        config: configWithoutRc.versions['1.6.7'].channels.latest,
+        channel: 'latest'
+      })
+    })
+
+    it('should return null when no version has the requested channel or latest channel', () => {
+      const configWithoutAny = {
+        lastUpdated: '2025-01-05T00:00:00Z',
+        versions: {
+          '1.6.7': {
+            minCompatibleVersion: '1.0.0',
+            description: 'v1.6.7',
+            channels: {
+              latest: null,
+              rc: null,
+              beta: null
+            }
+          }
+        }
+      }
+
+      const result = (appUpdater as any)._findCompatibleChannel('1.5.0', 'rc', configWithoutAny)
 
       expect(result).toBeNull()
     })

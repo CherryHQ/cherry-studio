@@ -1,6 +1,25 @@
 import { describe, expect, it, vi } from 'vitest'
 
-import { Emitter } from '../event'
+import { Emitter, toDisposable } from '../event'
+
+describe('toDisposable', () => {
+  it('should wrap a function as a Disposable', () => {
+    const fn = vi.fn()
+    const disposable = toDisposable(fn)
+    expect(fn).not.toHaveBeenCalled()
+    disposable.dispose()
+    expect(fn).toHaveBeenCalledOnce()
+  })
+
+  it('should be idempotent — multiple dispose() calls only execute fn once', () => {
+    const fn = vi.fn()
+    const disposable = toDisposable(fn)
+    disposable.dispose()
+    disposable.dispose()
+    disposable.dispose()
+    expect(fn).toHaveBeenCalledOnce()
+  })
+})
 
 describe('Emitter', () => {
   describe('fire and subscribe', () => {

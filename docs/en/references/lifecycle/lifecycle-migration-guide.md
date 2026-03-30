@@ -219,6 +219,8 @@ private registerIpcHandlers(): void {
 
 Remove the `unregisterIpcHandlers()` method and its call from `onStop()`. BaseService cleans up all tracked handlers automatically after `onStop()` returns.
 
+> **Tip**: `ipcHandle()` and `ipcOn()` now return a `Disposable`, allowing manual early unregistration if needed (e.g., `const d = this.ipcHandle(...); d.dispose()`). For most services, automatic cleanup on stop is sufficient.
+
 **Migration caveat**: Services using `ipcMain.removeAllListeners(channel)` (e.g., CacheService) need careful review — `this.ipcOn()` tracks specific listeners and uses `removeListener()`, not `removeAllListeners()`. If other code also listens on the same channel, this is the correct behavior; if the intent was to remove all listeners, verify the migration won't leave orphans.
 
 ## Before/After Summary
@@ -227,7 +229,7 @@ Remove the `unregisterIpcHandlers()` method and its call from `onStop()`. BaseSe
 | -------------- | ------------------------------------------- | -------------------------------------------- |
 | Singleton      | `private static instance` + `getInstance()` | `@Injectable('Name')` — container manages it |
 | Init           | Manual `init()` called from `index.ts`      | `onInit()` — called automatically            |
-| Cleanup        | Manual `destroy()` in `will-quit` handler   | `onStop()` / `onDestroy()` — automatic       |
+| Cleanup        | Manual cleanup in `will-quit` / `before-quit` handler | `onStop()` / `onDestroy()` — automatic |
 | Dependencies   | `import { otherService } from '...'`        | `@DependsOn([...])` + `application.get()`    |
 | Access         | `import { myService } from '...'`           | `application.get('MyService')`               |
 | Ordering       | Manual call order in `index.ts`             | `@ServicePhase` + `@DependsOn` + `@Priority` |

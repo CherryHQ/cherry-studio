@@ -2653,6 +2653,44 @@ describe('Kimi Models', () => {
   })
 })
 
+describe('isSupportedThinkingTokenZhipuModel', () => {
+  it('matches GLM-5 series (with or without hyphen)', () => {
+    expect(isSupportedThinkingTokenZhipuModel(createModel({ id: 'glm5' }))).toBe(true)
+    expect(isSupportedThinkingTokenZhipuModel(createModel({ id: 'glm-5' }))).toBe(true)
+    expect(isSupportedThinkingTokenZhipuModel(createModel({ id: 'glm-5-plus' }))).toBe(true)
+    expect(isSupportedThinkingTokenZhipuModel(createModel({ id: 'GLM-5-Pro' }))).toBe(true)
+  })
+
+  it('matches GLM-4.5 / 4.6 / 4.7 series', () => {
+    expect(isSupportedThinkingTokenZhipuModel(createModel({ id: 'glm-4.5' }))).toBe(true)
+    expect(isSupportedThinkingTokenZhipuModel(createModel({ id: 'glm-4.6' }))).toBe(true)
+    expect(isSupportedThinkingTokenZhipuModel(createModel({ id: 'glm-4.7' }))).toBe(true)
+    expect(isSupportedThinkingTokenZhipuModel(createModel({ id: 'glm-4.6-pro' }))).toBe(true)
+    expect(isSupportedThinkingTokenZhipuModel(createModel({ id: 'glm-4.5-flash' }))).toBe(true)
+  })
+
+  it('rejects GLM-4 base and GLM-Z1 models', () => {
+    expect(isSupportedThinkingTokenZhipuModel(createModel({ id: 'glm-4' }))).toBe(false)
+    expect(isSupportedThinkingTokenZhipuModel(createModel({ id: 'glm-4-plus' }))).toBe(false)
+    expect(isSupportedThinkingTokenZhipuModel(createModel({ id: 'glm-4.0' }))).toBe(false)
+    expect(isSupportedThinkingTokenZhipuModel(createModel({ id: 'glm-4.3' }))).toBe(false)
+    expect(isSupportedThinkingTokenZhipuModel(createModel({ id: 'glm-z1' }))).toBe(false)
+    expect(isSupportedThinkingTokenZhipuModel(createModel({ id: 'glm-z1-plus' }))).toBe(false)
+  })
+
+  it('rejects unrelated model IDs', () => {
+    expect(isSupportedThinkingTokenZhipuModel(createModel({ id: 'gpt-4o' }))).toBe(false)
+    expect(isSupportedThinkingTokenZhipuModel(createModel({ id: 'claude-3.5-sonnet' }))).toBe(false)
+    expect(isSupportedThinkingTokenZhipuModel(createModel({ id: 'deepseek-v3' }))).toBe(false)
+  })
+
+  it('handles provider-prefixed model IDs', () => {
+    expect(isSupportedThinkingTokenZhipuModel(createModel({ id: 'accounts/fireworks/models/glm-4p7' }))).toBe(true)
+    expect(isSupportedThinkingTokenZhipuModel(createModel({ id: 'accounts/fireworks/models/glm-4p5' }))).toBe(true)
+    expect(isSupportedThinkingTokenZhipuModel(createModel({ id: 'zhipu/glm-4.6' }))).toBe(true)
+  })
+})
+
 describe('Fireworks provider model name normalization', () => {
   it('should detect DeepSeek hybrid inference models from Fireworks', () => {
     expect(isDeepSeekHybridInferenceModel(createModel({ id: 'accounts/fireworks/models/deepseek-v3p2' }))).toBe(true)

@@ -592,9 +592,19 @@ export const isSupportedReasoningEffortPerplexityModel = (model: Model): boolean
   return modelId.includes('sonar-deep-research')
 }
 
+/**
+ * Checks whether a Zhipu model supports thinking token control.
+ *
+ * Matches model IDs containing:
+ * - `glm5` or `glm-5` (GLM-5 series)
+ * - `glm-4.5`, `glm-4.6`, `glm-4.7` (GLM-4.x advanced series)
+ *
+ * Note: GLM-Z1 reasoning models are NOT included here — they are covered
+ * by {@link isZhipuReasoningModel} instead.
+ */
 export const isSupportedThinkingTokenZhipuModel = (model: Model): boolean => {
   const modelId = getLowerBaseModelName(model.id, '/')
-  return ['glm-5', 'glm-4.5', 'glm-4.6', 'glm-4.7'].some((id) => modelId.includes(id))
+  return /glm-?5|glm-4\.[567]/.test(modelId)
 }
 
 export const isSupportedThinkingTokenMiMoModel = (model: Model): boolean => {
