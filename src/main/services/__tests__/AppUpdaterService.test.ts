@@ -727,7 +727,7 @@ describe('AppUpdaterService', () => {
       })
     })
 
-    it('should return null when no version has the requested channel', () => {
+    it('should fallback to latest channel when requested channel is null', () => {
       const configWithoutRc = {
         lastUpdated: '2025-01-05T00:00:00Z',
         versions: {
@@ -752,6 +752,30 @@ describe('AppUpdaterService', () => {
       }
 
       const result = (appUpdater as any)._findCompatibleChannel('1.5.0', 'rc', configWithoutRc)
+
+      expect(result).toEqual({
+        config: configWithoutRc.versions['1.6.7'].channels.latest,
+        channel: 'latest'
+      })
+    })
+
+    it('should return null when no version has the requested channel or latest channel', () => {
+      const configWithoutAny = {
+        lastUpdated: '2025-01-05T00:00:00Z',
+        versions: {
+          '1.6.7': {
+            minCompatibleVersion: '1.0.0',
+            description: 'v1.6.7',
+            channels: {
+              latest: null,
+              rc: null,
+              beta: null
+            }
+          }
+        }
+      }
+
+      const result = (appUpdater as any)._findCompatibleChannel('1.5.0', 'rc', configWithoutAny)
 
       expect(result).toBeNull()
     })

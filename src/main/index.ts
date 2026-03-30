@@ -50,6 +50,7 @@ import {
   unregisterMigrationIpcHandlers
 } from '@data/migration/v2'
 import { application, serviceList } from './core/application'
+import { extractRtkBinaries } from './utils/rtk'
 
 const logger = loggerService.withContext('MainEntry')
 
@@ -203,6 +204,14 @@ if (!app.requestSingleInstanceLock()) {
     // otherwise Chromium holds file handles causing EBUSY on Windows or data corruption on macOS/Linux.
     const { BackupManager } = await import('./services/BackupManager')
     await BackupManager.handleStartupRestore()
+
+    // Extract bundled rtk binary to ~/.cherrystudio/bin/ on first run
+    // TODO: v2 refactor to use lifecycle
+    extractRtkBinaries().catch((error) => {
+      logger.warn('Failed to extract rtk binaries (non-fatal)', {
+        error: error instanceof Error ? error.message : String(error)
+      })
+    })
 
     // Start lifecycle (BeforeReady runs parallel with app.whenReady)
     application.registerAll(serviceList)
