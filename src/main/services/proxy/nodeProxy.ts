@@ -11,7 +11,7 @@ export const CHERRY_NODE_PROXY_BYPASS_RULES_ENV = 'CHERRY_STUDIO_NODE_PROXY_BYPA
 
 export interface NodeProxyConfig {
   proxyRules?: string
-  proxyBypassRules?: string
+  proxyBypassRules?: string | string[]
 }
 
 interface NodeProxyLogger {
@@ -223,7 +223,11 @@ const isLocalHostname = (hostname: string): boolean => {
   return false
 }
 
-export const normalizeProxyBypassRules = (rules?: string): string[] => {
+export const normalizeProxyBypassRules = (rules?: string | string[]): string[] => {
+  if (Array.isArray(rules)) {
+    return rules.map((rule) => rule.trim()).filter((rule) => rule.length > 0)
+  }
+
   return rules
     ? rules
         .split(/[;,]/)
@@ -237,7 +241,11 @@ export const getProxyProtocol = (proxyRules?: string): string | null => {
     return null
   }
 
-  return new URL(proxyRules).protocol.replace(':', '').toLowerCase()
+  try {
+    return new URL(proxyRules).protocol.replace(':', '').toLowerCase()
+  } catch {
+    return null
+  }
 }
 
 export const isSocksProxyProtocol = (protocol: string | null): boolean => {
@@ -478,7 +486,7 @@ export class NodeProxyController {
 
     const env = buildNodeProxyEnvironment({
       proxyRules: url,
-      proxyBypassRules: normalizedByPassRules.join(',')
+      proxyBypassRules: normalizedByPassRules
     })
 
     for (const [key, value] of Object.entries(env)) {

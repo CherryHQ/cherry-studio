@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it } from 'vitest'
 
-import { applyNodeProxyFromEnvironment, buildNodeProxyEnvironment } from '../proxy/nodeProxy'
+import { applyNodeProxyFromEnvironment, buildNodeProxyEnvironment, getProxyProtocol } from '../proxy/nodeProxy'
 import { isByPass, updateByPassRules } from '../ProxyManager'
 
 describe('ProxyManager - bypass evaluation', () => {
@@ -133,5 +133,9 @@ describe('ProxyManager - bypass evaluation', () => {
 
   it('returns false when bootstrap env has no proxy rules', () => {
     expect(applyNodeProxyFromEnvironment({})).toBe(false)
+  })
+
+  it('returns null for invalid proxy urls when detecting protocol', () => {
+    expect(getProxyProtocol('127.0.0.1:7890')).toBe(null)
   })
 })

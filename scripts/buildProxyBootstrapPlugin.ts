@@ -27,15 +27,7 @@ export const buildProxyBootstrapPlugin = ({
         publicDir: false,
         resolve: {
           mainFields: ['module', 'jsnext:main', 'jsnext'],
-          conditions: ['node'],
-          alias: {
-            '@main': resolve(rootDir, 'src/main'),
-            '@types': resolve(rootDir, 'src/renderer/src/types'),
-            '@shared': resolve(rootDir, 'packages/shared'),
-            '@logger': resolve(rootDir, 'src/main/services/LoggerService'),
-            '@mcp-trace/trace-core': resolve(rootDir, 'packages/mcp-trace/trace-core'),
-            '@mcp-trace/trace-node': resolve(rootDir, 'packages/mcp-trace/trace-node')
-          }
+          conditions: ['node']
         },
         build: {
           outDir: resolve(rootDir, 'out/proxy'),
