@@ -9,9 +9,12 @@ import { useShowTopics } from '@renderer/hooks/useStore'
 import { cn } from '@renderer/utils'
 import { buildAgentSessionTopicId } from '@renderer/utils/agentSession'
 import { Alert, Spin } from 'antd'
+import { Terminal as TerminalIcon } from 'lucide-react'
 import { AnimatePresence, motion } from 'motion/react'
 import type { PropsWithChildren } from 'react'
+import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
+import { Panel, PanelGroup, PanelResizeHandle } from 'react-resizable-panels'
 
 import { PinnedTodoPanel } from '../home/Inputbar/components/PinnedTodoPanel'
 import ChatNavigation from '../home/Messages/ChatNavigation'
@@ -20,6 +23,7 @@ import AgentChatNavbar from './components/AgentChatNavbar'
 import AgentSessionInputbar from './components/AgentSessionInputbar'
 import AgentSessionMessages from './components/AgentSessionMessages'
 import Sessions from './components/Sessions'
+import TerminalPanel from './components/TerminalPanel'
 
 const AgentChat = () => {
   const { t } = useTranslation()
@@ -33,6 +37,9 @@ const AgentChat = () => {
   const { agent: activeAgent, isLoading: isAgentLoading } = useActiveAgent()
   const { isLoading: isAgentsLoading, agents } = useAgents()
   const { createDefaultSession } = useCreateDefaultSession(activeAgentId)
+
+  const [terminalVisible, setTerminalVisible] = useState(false)
+  const [terminalError, setTerminalError] = useState<string | null>(null)
 
   // Don't show select/create alerts while data is still loading
   // apiServerRunning is guaranteed by AgentPage guard
@@ -95,18 +102,67 @@ const AgentChat = () => {
             {activeAgent && <AgentChatNavbar className="min-w-0" activeAgent={activeAgent} />}
           </div>
 
-          {/* Messages */}
-          <div className="translate-z-0 relative flex w-full flex-1 flex-col justify-between overflow-y-auto overflow-x-hidden">
-            <AgentSessionMessages agentId={activeAgentId} sessionId={activeSessionId} />
-            <div className="mt-auto px-4.5 pb-2">
-              <NarrowLayout>
-                <PinnedTodoPanel topicId={buildAgentSessionTopicId(activeSessionId)} />
-              </NarrowLayout>
-            </div>
-            {messageNavigation === 'buttons' && <ChatNavigation containerId="messages" />}
-          </div>
+          {/* Messages + Terminal Split */}
+          <PanelGroup direction="vertical" className="flex-1">
+            {/* Messages */}
+            <Panel defaultSize={terminalVisible ? 70 : 100} minSize={20}>
+              <div className="translate-z-0 relative flex h-full w-full flex-col justify-between overflow-y-auto overflow-x-hidden">
+                <AgentSessionMessages agentId={activeAgentId} sessionId={activeSessionId} />
+                <div className="mt-auto px-4.5 pb-2">
+                  <NarrowLayout>
+                    <PinnedTodoPanel topicId={buildAgentSessionTopicId(activeSessionId)} />
+                  </NarrowLayout>
+                </div>
+                {messageNavigation === 'buttons' && <ChatNavigation containerId="messages" />}
+              </div>
+            </Panel>
+
+            {/* Terminal Panel */}
+            {terminalVisible && (
+              <>
+                <PanelResizeHandle className="flex h-1 items-center justify-center bg-[var(--color-border)] transition-colors hover:bg-[var(--color-primary)]" />
+                <Panel defaultSize={30} minSize={15} collapsible>
+                  <div className="flex h-full flex-col">
+                    <div className="flex items-center justify-between border-b border-[var(--color-border)] px-3 py-1">
+                      <span className="text-xs text-[var(--color-text-secondary)]">Terminal</span>
+                      <div className="flex items-center gap-1">
+                        {terminalError && <span className="mr-2 text-xs text-red-400">{terminalError}</span>}
+                        <button
+                          type="button"
+                          onClick={() => setTerminalVisible(false)}
+                          className="text-xs text-[var(--color-text-secondary)] hover:text-[var(--color-text)]">
+                          Hide
+                        </button>
+                      </div>
+                    </div>
+                    <div className="flex-1 overflow-hidden">
+                      <TerminalPanel
+                        sessionId={activeSessionId}
+                        cwd={activeAgent?.accessible_paths?.[0]}
+                        visible={terminalVisible}
+                        onError={setTerminalError}
+                        onExited={() => setTerminalVisible(false)}
+                      />
+                    </div>
+                  </div>
+                </Panel>
+              </>
+            )}
+          </PanelGroup>
+
           {/* Inputbar */}
-          <AgentSessionInputbar agentId={activeAgentId} sessionId={activeSessionId} />
+          <div className="relative">
+            <AgentSessionInputbar agentId={activeAgentId} sessionId={activeSessionId} />
+            {!terminalVisible && (
+              <button
+                type="button"
+                onClick={() => setTerminalVisible(true)}
+                className="absolute bottom-20 right-4 z-10 rounded-md border border-[var(--color-border)] bg-[var(--color-background)] p-1.5 shadow-md hover:bg-[var(--color-hover)]"
+                title="Open Terminal">
+                <TerminalIcon size={16} className="text-[var(--color-text-secondary)]" />
+              </button>
+            )}
+          </div>
         </div>
       </QuickPanelProvider>
 
