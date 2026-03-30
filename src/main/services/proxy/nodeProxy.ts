@@ -43,8 +43,6 @@ interface ParsedProxyBypassRule {
 const SOCKS_DISPATCHER_SYMBOL = Symbol.for('undici.globalDispatcher.1')
 const globalDispatcherRegistry = globalThis as typeof globalThis & Record<symbol, Dispatcher | undefined>
 
-let parsedByPassRules: ParsedProxyBypassRule[] = []
-
 const getDefaultPortForProtocol = (protocol: string): string | null => {
   switch (protocol.toLowerCase()) {
     case 'http:':
@@ -246,87 +244,101 @@ export const isSocksProxyProtocol = (protocol: string | null): boolean => {
   return protocol !== null && protocol.startsWith('socks')
 }
 
-export const updateByPassRules = (rules: string[], logger?: NodeProxyLogger): void => {
-  parsedByPassRules = []
+class ProxyBypassRuleMatcher {
+  private parsedByPassRules: ParsedProxyBypassRule[] = []
 
-  for (const rule of rules) {
-    const parsedRule = parseProxyBypassRule(rule)
-    if (parsedRule) {
-      parsedByPassRules.push(parsedRule)
-    } else {
-      logger?.warn?.(`Skipping invalid proxy bypass rule: ${rule}`)
+  updateByPassRules(rules: string[], logger?: NodeProxyLogger): void {
+    this.parsedByPassRules = []
+
+    for (const rule of rules) {
+      const parsedRule = parseProxyBypassRule(rule)
+      if (parsedRule) {
+        this.parsedByPassRules.push(parsedRule)
+      } else {
+        logger?.warn?.(`Skipping invalid proxy bypass rule: ${rule}`)
+      }
     }
+  }
+
+  isByPass(url: string, logger?: NodeProxyLogger) {
+    if (this.parsedByPassRules.length === 0) {
+      return false
+    }
+
+    try {
+      const parsedUrl = new URL(url)
+      const hostname = parsedUrl.hostname
+      const cleanedHostname = hostname.replace(/^\[|\]$/g, '')
+      const protocol = parsedUrl.protocol
+      const protocolName = protocol.replace(':', '').toLowerCase()
+      const defaultPort = getDefaultPortForProtocol(protocol)
+      const port = parsedUrl.port || defaultPort || ''
+      const hostnameIsIp = ipaddr.isValid(cleanedHostname)
+
+      for (const rule of this.parsedByPassRules) {
+        if (rule.scheme && rule.scheme !== protocolName) {
+          continue
+        }
+
+        if (rule.port && rule.port !== port) {
+          continue
+        }
+
+        switch (rule.type) {
+          case ProxyBypassRuleType.Local:
+            if (isLocalHostname(hostname)) {
+              return true
+            }
+            break
+          case ProxyBypassRuleType.Ip:
+            if (!hostnameIsIp) {
+              break
+            }
+
+            if (rule.ip && cleanedHostname === rule.ip) {
+              return true
+            }
+
+            if (rule.regex && rule.regex.test(cleanedHostname)) {
+              return true
+            }
+            break
+          case ProxyBypassRuleType.Cidr:
+            if (hostnameIsIp && rule.cidr) {
+              const parsedHost = ipaddr.parse(cleanedHostname)
+              const [cidrAddress, prefixLength] = rule.cidr
+              if (parsedHost.kind() === cidrAddress.kind() && parsedHost.match([cidrAddress, prefixLength])) {
+                return true
+              }
+            }
+            break
+          case ProxyBypassRuleType.Domain:
+            if (!hostnameIsIp && matchHostnameRule(hostname, rule)) {
+              return true
+            }
+            break
+          default:
+            logger?.error?.(`Unknown proxy bypass rule type: ${rule.type}`)
+            break
+        }
+      }
+    } catch (error) {
+      logger?.error?.('Failed to check bypass:', error as Error)
+      return false
+    }
+
+    return false
   }
 }
 
+const defaultProxyBypassRuleMatcher = new ProxyBypassRuleMatcher()
+
+export const updateByPassRules = (rules: string[], logger?: NodeProxyLogger): void => {
+  defaultProxyBypassRuleMatcher.updateByPassRules(rules, logger)
+}
+
 export const isByPass = (url: string, logger?: NodeProxyLogger) => {
-  if (parsedByPassRules.length === 0) {
-    return false
-  }
-
-  try {
-    const parsedUrl = new URL(url)
-    const hostname = parsedUrl.hostname
-    const cleanedHostname = hostname.replace(/^\[|\]$/g, '')
-    const protocol = parsedUrl.protocol
-    const protocolName = protocol.replace(':', '').toLowerCase()
-    const defaultPort = getDefaultPortForProtocol(protocol)
-    const port = parsedUrl.port || defaultPort || ''
-    const hostnameIsIp = ipaddr.isValid(cleanedHostname)
-
-    for (const rule of parsedByPassRules) {
-      if (rule.scheme && rule.scheme !== protocolName) {
-        continue
-      }
-
-      if (rule.port && rule.port !== port) {
-        continue
-      }
-
-      switch (rule.type) {
-        case ProxyBypassRuleType.Local:
-          if (isLocalHostname(hostname)) {
-            return true
-          }
-          break
-        case ProxyBypassRuleType.Ip:
-          if (!hostnameIsIp) {
-            break
-          }
-
-          if (rule.ip && cleanedHostname === rule.ip) {
-            return true
-          }
-
-          if (rule.regex && rule.regex.test(cleanedHostname)) {
-            return true
-          }
-          break
-        case ProxyBypassRuleType.Cidr:
-          if (hostnameIsIp && rule.cidr) {
-            const parsedHost = ipaddr.parse(cleanedHostname)
-            const [cidrAddress, prefixLength] = rule.cidr
-            if (parsedHost.kind() === cidrAddress.kind() && parsedHost.match([cidrAddress, prefixLength])) {
-              return true
-            }
-          }
-          break
-        case ProxyBypassRuleType.Domain:
-          if (!hostnameIsIp && matchHostnameRule(hostname, rule)) {
-            return true
-          }
-          break
-        default:
-          logger?.error?.(`Unknown proxy bypass rule type: ${rule.type}`)
-          break
-      }
-    }
-  } catch (error) {
-    logger?.error?.('Failed to check bypass:', error as Error)
-    return false
-  }
-
-  return false
+  return defaultProxyBypassRuleMatcher.isByPass(url, logger)
 }
 
 export const buildNodeProxyEnvironment = (config: NodeProxyConfig): Record<string, string> => {
@@ -370,13 +382,14 @@ class SelectiveDispatcher extends Dispatcher {
   constructor(
     private proxyDispatcher: Dispatcher,
     private directDispatcher: Dispatcher,
+    private shouldByPass: (url: string) => boolean,
     private logger?: NodeProxyLogger
   ) {
     super()
   }
 
   dispatch(opts: Dispatcher.DispatchOptions, handler: Dispatcher.DispatchHandlers) {
-    if (opts.origin && isByPass(opts.origin.toString(), this.logger)) {
+    if (opts.origin && this.shouldByPass(opts.origin.toString())) {
       return this.directDispatcher.dispatch(opts, handler)
     }
 
@@ -404,6 +417,8 @@ class SelectiveDispatcher extends Dispatcher {
 export class NodeProxyController {
   private proxyDispatcher: Dispatcher | null = null
   private proxyAgent: ProxyAgent | null = null
+  private currentConfigKey: string | null = null
+  private readonly proxyBypassRuleMatcher = new ProxyBypassRuleMatcher()
 
   private readonly originalGlobalDispatcher: Dispatcher
   private readonly originalSocksDispatcher: Dispatcher
@@ -426,11 +441,20 @@ export class NodeProxyController {
   configure(config: NodeProxyConfig): void {
     const proxyUrl = config.proxyRules?.trim()
     const normalizedByPassRules = normalizeProxyBypassRules(config.proxyBypassRules)
+    const configKey = JSON.stringify({
+      proxyUrl: proxyUrl ?? null,
+      proxyByPassRules: normalizedByPassRules
+    })
 
-    updateByPassRules(normalizedByPassRules, this.logger)
+    if (this.currentConfigKey === configKey) {
+      return
+    }
+
+    this.proxyBypassRuleMatcher.updateByPassRules(normalizedByPassRules, this.logger)
     this.setEnvironment(proxyUrl, normalizedByPassRules)
     this.setGlobalFetchProxy(proxyUrl)
     this.setGlobalHttpProxy(proxyUrl)
+    this.currentConfigKey = configKey
   }
 
   private setEnvironment(url: string | undefined, normalizedByPassRules: string[]): void {
@@ -512,7 +536,7 @@ export class NodeProxyController {
         callback = args[1]
       }
 
-      if (url && isByPass(url.toString(), this.logger)) {
+      if (url && this.proxyBypassRuleMatcher.isByPass(url.toString(), this.logger)) {
         return originalMethod(url, options, callback)
       }
 
@@ -546,6 +570,7 @@ export class NodeProxyController {
       this.proxyDispatcher = new SelectiveDispatcher(
         new EnvHttpProxyAgent(),
         this.originalGlobalDispatcher,
+        (origin) => this.proxyBypassRuleMatcher.isByPass(origin, this.logger),
         this.logger
       )
       setGlobalDispatcher(this.proxyDispatcher)
@@ -561,6 +586,7 @@ export class NodeProxyController {
         password: url.password || undefined
       }),
       this.originalSocksDispatcher,
+      (origin) => this.proxyBypassRuleMatcher.isByPass(origin, this.logger),
       this.logger
     )
     setGlobalDispatcher(this.proxyDispatcher)

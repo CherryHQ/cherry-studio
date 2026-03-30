@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it } from 'vitest'
 
-import { buildNodeProxyEnvironment } from '../proxy/nodeProxy'
+import { applyNodeProxyFromEnvironment, buildNodeProxyEnvironment } from '../proxy/nodeProxy'
 import { isByPass, updateByPassRules } from '../ProxyManager'
 
 describe('ProxyManager - bypass evaluation', () => {
@@ -116,5 +116,22 @@ describe('ProxyManager - bypass evaluation', () => {
     expect(env.https_proxy).toBeUndefined()
     expect(env.NO_PROXY).toBe('localhost,*.local')
     expect(env.no_proxy).toBe('localhost,*.local')
+  })
+
+  it('returns empty env when proxy rules are missing', () => {
+    expect(buildNodeProxyEnvironment({})).toEqual({})
+  })
+
+  it('omits no_proxy env vars when bypass rules are missing', () => {
+    const env = buildNodeProxyEnvironment({
+      proxyRules: 'http://127.0.0.1:7890'
+    })
+
+    expect(env.NO_PROXY).toBeUndefined()
+    expect(env.no_proxy).toBeUndefined()
+  })
+
+  it('returns false when bootstrap env has no proxy rules', () => {
+    expect(applyNodeProxyFromEnvironment({})).toBe(false)
   })
 })
