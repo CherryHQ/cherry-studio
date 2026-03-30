@@ -2,8 +2,8 @@ import { loggerService } from '@logger'
 import type { CherryClawChannel } from '@types'
 import { Bot } from 'grammy'
 
-import { ChannelAdapter, type ChannelAdapterConfig, type SendMessageOptions } from '../ChannelAdapter'
-import { registerAdapterFactory } from '../ChannelManager'
+import { ChannelAdapter, type ChannelAdapterConfig, type SendMessageOptions } from '../../ChannelAdapter'
+import { registerAdapterFactory } from '../../ChannelManager'
 
 const logger = loggerService.withContext('TelegramAdapter')
 
