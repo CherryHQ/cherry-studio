@@ -9,6 +9,7 @@ import type {
   HookCallback,
   McpHttpServerConfig,
   Options,
+  PreToolUseHookInput,
   SDKMessage,
   SdkPluginConfig,
   SpawnedProcess
