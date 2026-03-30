@@ -14,7 +14,7 @@ import { AnimatePresence, motion } from 'motion/react'
 import type { PropsWithChildren } from 'react'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { Panel, PanelGroup, PanelResizeHandle } from 'react-resizable-panels'
+import { Group, Panel } from 'react-resizable-panels'
 
 import { PinnedTodoPanel } from '../home/Inputbar/components/PinnedTodoPanel'
 import ChatNavigation from '../home/Messages/ChatNavigation'
@@ -103,7 +103,7 @@ const AgentChat = () => {
           </div>
 
           {/* Messages + Terminal Split */}
-          <PanelGroup direction="vertical" className="flex-1">
+          <Group orientation="vertical" className="flex-1">
             {/* Messages */}
             <Panel defaultSize={terminalVisible ? 70 : 100} minSize={20}>
               <div className="translate-z-0 relative flex h-full w-full flex-col justify-between overflow-y-auto overflow-x-hidden">
@@ -148,7 +148,7 @@ const AgentChat = () => {
                 </Panel>
               </>
             )}
-          </PanelGroup>
+          </Group>
 
           {/* Inputbar */}
           <div className="relative">
