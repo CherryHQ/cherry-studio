@@ -10,13 +10,12 @@ import type { FileMetadata } from '@types'
 import AdmZip from 'adm-zip'
 import { net } from 'electron'
 
+import { fileProcessingTaskStore } from '../../../runtime/FileProcessingTaskStore'
 import { BaseMarkdownConversionProcessor } from '../../base/BaseFileProcessor'
-import type { Doc2xTaskContext, Doc2xTaskStage, PreparedDoc2xQueryContext, PreparedDoc2xStartContext } from './types'
+import type { Doc2xTaskContext, PreparedDoc2xQueryContext, PreparedDoc2xStartContext } from './types'
 import { createUploadTask, getExportResult, getParseStatus, triggerExportTask, uploadFile } from './utils'
 
 export class Doc2xProcessor extends BaseMarkdownConversionProcessor {
-  private readonly taskContextById = new Map<string, Doc2xTaskContext>()
-
   constructor() {
     super('doc2x')
   }
@@ -31,7 +30,7 @@ export class Doc2xProcessor extends BaseMarkdownConversionProcessor {
 
     await uploadFile(file.path, uploadTask.uploadUrl, context.signal)
 
-    this.taskContextById.set(uploadTask.uid, {
+    fileProcessingTaskStore.create<Doc2xTaskContext>('doc2x', uploadTask.uid, {
       apiHost: context.apiHost,
       apiKey: context.apiKey,
       stage: 'parsing',
@@ -65,7 +64,7 @@ export class Doc2xProcessor extends BaseMarkdownConversionProcessor {
       }
     }
 
-    const taskContext = this.taskContextById.get(providerTaskId)
+    const taskContext = fileProcessingTaskStore.get<Doc2xTaskContext>('doc2x', providerTaskId)
 
     if (!taskContext) {
       throw new Error(`Doc2x task context not found for uid ${providerTaskId}`)
@@ -117,7 +116,7 @@ export class Doc2xProcessor extends BaseMarkdownConversionProcessor {
       zip.extractAllTo(fileProcessingResultsDir, true)
 
       const extractedMarkdownPath = path.join(fileProcessingResultsDir, entry.entryName)
-      const markdownPath = path.join(path.dirname(extractedMarkdownPath), 'output.md')
+      const markdownPath = path.join(fileProcessingResultsDir, 'output.md')
 
       if (extractedMarkdownPath !== markdownPath) {
         await fs.rename(extractedMarkdownPath, markdownPath)
@@ -169,6 +168,7 @@ export class Doc2xProcessor extends BaseMarkdownConversionProcessor {
     const payload = await getParseStatus(providerTaskId, context)
 
     if (payload.code !== 'success') {
+      fileProcessingTaskStore.delete('doc2x', providerTaskId)
       return {
         status: 'failed',
         progress: 0,
@@ -184,6 +184,7 @@ export class Doc2xProcessor extends BaseMarkdownConversionProcessor {
     }
 
     if (parseStatus.status === 'failed') {
+      fileProcessingTaskStore.delete('doc2x', providerTaskId)
       return {
         status: 'failed',
         progress: 0,
@@ -203,6 +204,7 @@ export class Doc2xProcessor extends BaseMarkdownConversionProcessor {
     const exportPayload = await triggerExportTask(providerTaskId, context)
 
     if (exportPayload.code !== 'success') {
+      fileProcessingTaskStore.delete('doc2x', providerTaskId)
       return {
         status: 'failed',
         progress: 0,
@@ -214,6 +216,7 @@ export class Doc2xProcessor extends BaseMarkdownConversionProcessor {
     const exportStatus = exportPayload.data
 
     if (exportStatus?.status === 'failed') {
+      fileProcessingTaskStore.delete('doc2x', providerTaskId)
       return {
         status: 'failed',
         progress: 0,
@@ -222,7 +225,12 @@ export class Doc2xProcessor extends BaseMarkdownConversionProcessor {
       }
     }
 
-    this.setTaskStage(providerTaskId, 'exporting')
+    fileProcessingTaskStore.update<Doc2xTaskContext>('doc2x', providerTaskId, (current) => ({
+      apiHost: current.apiHost,
+      apiKey: current.apiKey,
+      stage: 'exporting',
+      createdAt: current.createdAt
+    }))
 
     return {
       status: 'processing',
@@ -238,6 +246,7 @@ export class Doc2xProcessor extends BaseMarkdownConversionProcessor {
     const payload = await getExportResult(providerTaskId, context)
 
     if (payload.code !== 'success') {
+      fileProcessingTaskStore.delete('doc2x', providerTaskId)
       return {
         status: 'failed',
         progress: 0,
@@ -253,6 +262,7 @@ export class Doc2xProcessor extends BaseMarkdownConversionProcessor {
     }
 
     if (exportStatus.status === 'failed') {
+      fileProcessingTaskStore.delete('doc2x', providerTaskId)
       return {
         status: 'failed',
         progress: 0,
@@ -274,7 +284,7 @@ export class Doc2xProcessor extends BaseMarkdownConversionProcessor {
     }
 
     const markdownPath = await this.persistMarkdownConversionResult(providerTaskId, exportStatus.url)
-    this.taskContextById.delete(providerTaskId)
+    fileProcessingTaskStore.delete('doc2x', providerTaskId)
 
     return {
       status: 'completed',
@@ -282,21 +292,6 @@ export class Doc2xProcessor extends BaseMarkdownConversionProcessor {
       processorId: 'doc2x',
       markdownPath
     }
-  }
-
-  private setTaskStage(providerTaskId: string, stage: Doc2xTaskStage): void {
-    const current = this.taskContextById.get(providerTaskId)
-
-    if (!current) {
-      throw new Error(`Doc2x task context not found for uid ${providerTaskId}`)
-    }
-
-    this.taskContextById.set(providerTaskId, {
-      apiHost: current.apiHost,
-      apiKey: current.apiKey,
-      stage,
-      createdAt: current.createdAt
-    })
   }
 }
 

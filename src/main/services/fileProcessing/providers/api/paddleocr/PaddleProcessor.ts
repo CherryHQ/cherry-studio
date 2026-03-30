@@ -11,14 +11,13 @@ import { isImageFileMetadata } from '@types'
 import { net } from 'electron'
 
 import type { ITextExtractionProcessor } from '../../../interfaces'
+import { fileProcessingTaskStore } from '../../../runtime/FileProcessingTaskStore'
 import type { FileProcessingTextExtractionResult } from '../../../types'
 import { BaseMarkdownConversionProcessor } from '../../base/BaseFileProcessor'
 import type { PaddleTaskContext, PreparedPaddleQueryContext, PreparedPaddleStartContext } from './types'
 import { createJob, getJobResult, mapProgress, waitForJobCompletion } from './utils'
 
 export class PaddleProcessor extends BaseMarkdownConversionProcessor implements ITextExtractionProcessor {
-  private readonly taskContextById = new Map<string, PaddleTaskContext>()
-
   constructor() {
     super('paddleocr')
   }
@@ -57,7 +56,7 @@ export class PaddleProcessor extends BaseMarkdownConversionProcessor implements 
   ): Promise<FileProcessingMarkdownTaskStartResult> {
     const context = this.prepareStartContext(config, signal, file, 'markdown_conversion')
     const job = await createJob(context)
-    this.taskContextById.set(job.jobId, {
+    fileProcessingTaskStore.create<PaddleTaskContext>('paddleocr', job.jobId, {
       apiHost: context.apiHost,
       apiKey: context.apiKey
     })
@@ -89,7 +88,7 @@ export class PaddleProcessor extends BaseMarkdownConversionProcessor implements 
       }
     }
 
-    const taskContext = this.taskContextById.get(providerTaskId)
+    const taskContext = fileProcessingTaskStore.get<PaddleTaskContext>('paddleocr', providerTaskId)
 
     if (!taskContext) {
       throw new Error(`PaddleOCR task context not found for task ${providerTaskId}`)
@@ -103,6 +102,7 @@ export class PaddleProcessor extends BaseMarkdownConversionProcessor implements 
     const jobResult = await getJobResult(providerTaskId, context)
 
     if (jobResult.state === 'failed') {
+      fileProcessingTaskStore.delete('paddleocr', providerTaskId)
       return {
         status: 'failed',
         progress: 0,
@@ -128,7 +128,7 @@ export class PaddleProcessor extends BaseMarkdownConversionProcessor implements 
       jobResult.resultUrl.markdownUrl,
       context.signal
     )
-    this.taskContextById.delete(providerTaskId)
+    fileProcessingTaskStore.delete('paddleocr', providerTaskId)
 
     return {
       status: 'completed',

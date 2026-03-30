@@ -90,6 +90,7 @@
 2. `FileProcessingService` 当前不维护统一的本地 `taskId`。
 3. 对支持异步文档解析的 provider，外部 service 直接持有 `providerTaskId` 并负责轮询。
 4. 当前阶段调用方需要感知 `processorId` 与 `providerTaskId`，这属于明确接受的过渡设计。
+5. 当前实现允许使用 Main 进程内存态 `FileProcessingTaskStore` 保存运行期任务上下文；任务仅保证在当前 Main 进程生命周期内可查询，不承诺重启恢复。
 
 当前接口语义：
 
@@ -114,6 +115,7 @@
 1. 当前 `FileProcessingService` 还没有抽象出统一 `taskId -> providerTaskId` 映射层。
 2. 当前 `markdown_conversion` 已经不再建模成“同步立即返回最终结果”，但查询行为也还没有被 service 完全屏蔽掉 provider 差异。
 3. 这次 PR 的重点是先把 Main-side 能力和 provider 入口拆出来，而不是在本次内完成统一任务编排平台。
+4. 当前查询契约是“当前 Main 进程会话内可轮询”；如果 Main 进程重启，调用方应视为任务上下文失效并重新发起任务。
 
 ---
 
@@ -168,7 +170,6 @@
 1. `mineru`
 2. `paddleocr`
 3. `doc2x`
-4. `open-mineru`
 
 这类 provider 的特点：
 
@@ -186,11 +187,13 @@
 2. `system`
 3. `ovocr`
 4. `mistral`
+5. `open-mineru`
 
 这类 provider 的特点：
 
 1. `tesseract`、`system`、`ovocr`、`mistral` 当前仅支持图片 `text_extraction`，不参与 `markdown_conversion` 文档解析。
-2. 对不支持某项能力的方法，当前实现允许直接抛明确错误。
+2. `open-mineru` 当前通过 Main 进程内存态异步封装接入 `markdown_conversion`，返回的是当前会话内可轮询的任务句柄，而不是可跨进程恢复的远程任务 ID。
+3. 对不支持某项能力的方法，当前实现允许直接抛明确错误。
 
 ### 6.4 当前抽象边界
 
@@ -293,19 +296,19 @@
 
 ## 7. Shared Cache 设计预留
 
-当前仓库已经有 `file_processing.active_tasks` shared cache schema，但当前主流程尚未接入。
+当前仓库已经有 `file_processing.active_tasks` shared cache schema，但当前主流程的 source of truth 仍应是 Main 进程内的 `FileProcessingTaskStore`。
 
 当前状态应理解为：
 
 1. 当前对外查询接口仍然走 `providerTaskId + processorId` 输入。
-2. shared cache 当前仍是预留设计，不承担主流程状态同步。
-3. 当前不应把 shared cache 当作已经落地的 file-processing 状态系统。
+2. 当前允许将 active task 的轻量状态镜像到 shared cache，供后续 renderer 观察使用。
+3. shared cache 不是任务上下文的权威存储，不承担恢复或编排职责。
 
 换句话说：
 
-1. `file_processing.active_tasks` 当前仍是预留 schema。
-2. 后续如果需要 renderer 直接观察 file-processing 状态，再按具体 provider 执行模型接入。
-3. 当前仍不应把 shared cache 误解成已经完整落地的统一 file-processing 状态系统。
+1. `file_processing.active_tasks` 当前可作为运行中任务摘要镜像。
+2. 后续如果需要 renderer 直接观察 file-processing 状态，再按具体 provider 执行模型扩展。
+3. 当前仍不应把 shared cache 误解成已经完整落地的统一 file-processing 状态系统；运行时查询上下文仍以 Main 进程内 store 为准。
 
 ---
 

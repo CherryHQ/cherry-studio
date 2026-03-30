@@ -5,6 +5,7 @@ export {
   BaseMarkdownConversionProcessor,
   BaseTextExtractionProcessor
 } from './providers/base/BaseFileProcessor'
+export { FileProcessingTaskStore, fileProcessingTaskStore } from './runtime/FileProcessingTaskStore'
 export type {
   BaseProcessFileInput,
   ExtractTextInput,

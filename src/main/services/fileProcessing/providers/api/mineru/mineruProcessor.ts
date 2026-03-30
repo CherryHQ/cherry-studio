@@ -10,6 +10,7 @@ import type { FileMetadata } from '@types'
 import AdmZip from 'adm-zip'
 import { net } from 'electron'
 
+import { fileProcessingTaskStore } from '../../../runtime/FileProcessingTaskStore'
 import { BaseMarkdownConversionProcessor } from '../../base/BaseFileProcessor'
 import type {
   MineruExtractFileResult,
@@ -20,8 +21,6 @@ import type {
 import { createUploadTask, getBatchResult, mapProgress, uploadFile } from './utils'
 
 export class MineruProcessor extends BaseMarkdownConversionProcessor {
-  private readonly taskContextById = new Map<string, MineruTaskContext>()
-
   constructor() {
     super('mineru')
   }
@@ -35,7 +34,7 @@ export class MineruProcessor extends BaseMarkdownConversionProcessor {
     const uploadTask = await createUploadTask(context)
 
     await uploadFile(file, uploadTask.uploadUrl, uploadTask.uploadHeaders, context.signal)
-    this.taskContextById.set(uploadTask.batchId, {
+    fileProcessingTaskStore.create<MineruTaskContext>('mineru', uploadTask.batchId, {
       apiHost: context.apiHost,
       apiKey: context.apiKey
     })
@@ -67,7 +66,7 @@ export class MineruProcessor extends BaseMarkdownConversionProcessor {
       }
     }
 
-    const taskContext = this.taskContextById.get(providerTaskId)
+    const taskContext = fileProcessingTaskStore.get<MineruTaskContext>('mineru', providerTaskId)
 
     if (!taskContext) {
       throw new Error(`Mineru task context not found for task ${providerTaskId}`)
@@ -116,7 +115,7 @@ export class MineruProcessor extends BaseMarkdownConversionProcessor {
       zip.extractAllTo(fileProcessingResultsDir, true)
 
       const extractedMarkdownPath = path.join(fileProcessingResultsDir, entry.entryName)
-      const markdownPath = path.join(path.dirname(extractedMarkdownPath), 'output.md')
+      const markdownPath = path.join(fileProcessingResultsDir, 'output.md')
 
       if (extractedMarkdownPath !== markdownPath) {
         await fs.rename(extractedMarkdownPath, markdownPath)
@@ -174,6 +173,7 @@ export class MineruProcessor extends BaseMarkdownConversionProcessor {
     }
 
     if (fileResult.state === 'failed') {
+      fileProcessingTaskStore.delete('mineru', providerTaskId)
       return {
         status: 'failed',
         progress: 0,
@@ -197,7 +197,7 @@ export class MineruProcessor extends BaseMarkdownConversionProcessor {
     // TODO: Persist additional extracted assets from Mineru results when the provider
     // result contract is expanded beyond a markdown string.
     const markdownPath = await this.persistMarkdownConversionResult(providerTaskId, fileResult.full_zip_url)
-    this.taskContextById.delete(providerTaskId)
+    fileProcessingTaskStore.delete('mineru', providerTaskId)
 
     return {
       status: 'completed',
