@@ -136,6 +136,46 @@ router.get('/:server_id', async (req: Request, res: Response) => {
   }
 })
 
+/**
+ * @swagger
+ * /v1/mcps/{server_id}/mcp:
+ *   post:
+ *     summary: MCP protocol proxy
+ *     description: Proxy endpoint for Model Context Protocol communication with a specific MCP server. Accepts all HTTP methods (GET, POST, DELETE, etc.).
+ *     tags: [MCP]
+ *     parameters:
+ *       - in: path
+ *         name: server_id
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: MCP server ID
+ *     requestBody:
+ *       description: MCP protocol request body (JSON-RPC format)
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *     responses:
+ *       200:
+ *         description: MCP protocol response
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *       404:
+ *         description: MCP server not found
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: false
+ *                 error:
+ *                   $ref: '#/components/schemas/Error'
+ */
 // Connect to MCP server
 router.all('/:server_id/mcp', async (req: Request, res: Response) => {
   const server = await mcpApiService.getServerById(req.params.server_id)

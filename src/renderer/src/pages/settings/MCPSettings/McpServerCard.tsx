@@ -63,7 +63,7 @@ const McpServerCard: FC<McpServerCardProps> = ({
 
       const onClickDetails = (e: React.MouseEvent<HTMLDivElement>) => {
         e.stopPropagation()
-        GeneralPopup.show({ content: <ErrorDetails /> })
+        void GeneralPopup.show({ content: <ErrorDetails /> })
       }
       return (
         <Alert

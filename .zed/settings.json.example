@@ -1,0 +1,70 @@
+// Cherry Studio Zed Settings Example
+//
+// NOTE: Please install extensions: biome, oxc
+//
+// Folder-specific settings
+//
+// For a full list of overridable settings, and general information on folder-specific settings,
+// see the documentation: https://zed.dev/docs/configuring-zed#settings-files
+{
+  "languages": {
+    "JSON": {
+      "code_actions_on_format": {
+        "source.fixAll.biome": true
+      },
+      "format_on_save": "on",
+      "formatter": {
+        "language_server": {
+          "name": "biome"
+        }
+      }
+    },
+    "JSONC": {
+      "code_actions_on_format": {
+        "source.fixAll.biome": true
+      },
+      "format_on_save": "on",
+      "formatter": {
+        "language_server": {
+          "name": "biome"
+        }
+      }
+    },
+    "TSX": {
+      "code_actions_on_format": {
+        "source.fixAll.biome": true,
+        "source.fixAll.eslint": true,
+        "source.fixAll.oxc": true,
+        "source.organizeImports.biome": true
+      },
+      "format_on_save": "on",
+      "formatter": {
+        "language_server": {
+          "name": "biome"
+        }
+      }
+    },
+    "TypeScript": {
+      "code_actions_on_format": {
+        "source.fixAll.biome": true,
+        "source.fixAll.eslint": true,
+        "source.fixAll.oxc": true,
+        "source.organizeImports.biome": true
+      },
+      "format_on_save": "on",
+      "formatter": {
+        "language_server": {
+          "name": "biome"
+        }
+      }
+    }
+  },
+  "lsp": {
+    "biome": {
+      "settings": {
+        "config_path": "biome.jsonc",
+        "require_config_file": true
+      }
+    }
+  }
+}

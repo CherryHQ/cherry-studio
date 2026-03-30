@@ -23,8 +23,6 @@ export interface ToolApprovalActionsProps extends ToolApprovalState, ToolApprova
 export const ToolApprovalActionsComponent: FC<ToolApprovalActionsProps> = ({
   isWaiting,
   isExecuting,
-  remainingSeconds,
-  isExpired,
   isSubmitting,
   confirm,
   cancel,
@@ -43,15 +41,6 @@ export const ToolApprovalActionsComponent: FC<ToolApprovalActionsProps> = ({
 
   // Nothing to show if not waiting and not executing
   if (!isWaiting && !isExecuting) return null
-
-  // Expired state for agent tools
-  if (isExpired && !isExecuting) {
-    return (
-      <ExpiredBadge $compact={compact} onClick={(e) => e.stopPropagation()}>
-        {t('agent.toolPermission.expired')}
-      </ExpiredBadge>
-    )
-  }
 
   // Executing state - show loading or abort button
   if (isExecuting) {
@@ -105,16 +94,12 @@ export const ToolApprovalActionsComponent: FC<ToolApprovalActionsProps> = ({
             ]
           }}>
           <CirclePlay size={compact ? 13 : 15} className="lucide-custom" />
-          <CountdownText $compact={compact}>
-            {compact ? `${remainingSeconds}s` : `${t('settings.mcp.tools.run', 'Run')} (${remainingSeconds}s)`}
-          </CountdownText>
+          {t('settings.mcp.tools.run', 'Run')}
         </StyledDropdownButton>
       ) : (
         <Button size="small" type="primary" disabled={isSubmitting} onClick={(e) => handleClick(e, confirm)}>
           <CirclePlay size={compact ? 13 : 15} className="lucide-custom" />
-          <CountdownText $compact={compact}>
-            {compact ? `${remainingSeconds}s` : `${t('settings.mcp.tools.run', 'Run')} (${remainingSeconds}s)`}
-          </CountdownText>
+          {t('settings.mcp.tools.run', 'Run')}
         </Button>
       )}
     </ActionsContainer>
@@ -135,25 +120,12 @@ const ActionsContainer = styled.div<{ $compact: boolean }>`
   }
 `
 
-const ExpiredBadge = styled.span<{ $compact: boolean }>`
-  font-size: ${(props) => (props.$compact ? '11px' : '12px')};
-  color: var(--color-status-error, #ff4d4f);
-  padding: ${(props) => (props.$compact ? '2px 6px' : '4px 8px')};
-  background: var(--color-status-error-bg, rgba(255, 77, 79, 0.1));
-  border-radius: 4px;
-`
-
 const LoadingIndicator = styled.div`
   display: flex;
   align-items: center;
   gap: 6px;
   color: var(--color-primary);
   font-size: 12px;
-`
-
-const CountdownText = styled.span<{ $compact: boolean }>`
-  min-width: ${(props) => (props.$compact ? '24px' : '65px')};
-  text-align: left;
 `
 
 const StyledDropdownButton = styled(Dropdown.Button)`

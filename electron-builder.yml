@@ -140,37 +140,22 @@ artifactBuildCompleted: scripts/artifact-build-completed.js
 releaseInfo:
   releaseNotes: |
     <!--LANG:en-->
-    Cherry Studio 1.7.20 - New Models & Features
+    Cherry Studio 1.8.4 - Bug Fixes and New Features
 
     ✨ New Features
-    - [Models] Add support for Claude Sonnet 4.6 model with reasoning effort configuration
-    - [Models] Add support for Gemini 3.1 Pro models with reasoning effort and vision capabilities
-    - [Models] Add support for Qwen 3.5 series models
-    - [Models] Add support for Moonshot Kimi K2.5 series models (kimi-k2.5, kimi-k2-thinking, etc.)
-    - [Models] Add support for Zhipu GLM-5 model with thinking tokens and function calling
-    - [Models] Add support for Doubao Seed 2.0 models with function-calling capabilities
-    - [Mini Apps] Add proper region/language tags for all mini apps, pinned apps no longer filtered by region
-    - [Chat] Add keyboard shortcut Cmd+Shift+M (Ctrl+Shift+M) to open model selector
-    - [Search] Add keyword-based topic search with whole-word matching and result sorting
+    - [API] Add knowledge base REST API endpoints
+    - [SelectionAssistant] Add Linux support for text selection toolbar
 
     🐛 Bug Fixes
-    - [i18n] Fix PluginCard translation not updating when language is switched
-    - [OpenClaw] Fix installation failure on Windows when npm path contains spaces
+    - [Files] Fix PDF upload failing with "invalid part type: file" error for OpenAI-compatible providers (Moonshot, DeepSeek, Groq, etc.)
+
     <!--LANG:zh-CN-->
-    Cherry Studio 1.7.20 - 新模型与功能
+    Cherry Studio 1.8.4 - 错误修复和新功能
 
     ✨ 新功能
-    - [模型] 添加 Claude Sonnet 4.6 模型支持，包含推理配置
-    - [模型] 添加 Gemini 3.1 Pro 模型支持，包含推理能力和视觉功能
-    - [模型] 添加 Qwen 3.5 系列模型支持
-    - [模型] 添加 Moonshot Kimi K2.5 系列模型支持（kimi-k2.5、kimi-k2-thinking 等）
-    - [模型] 添加智谱 GLM-5 模型支持，包含思维令牌和函数调用
-    - [模型] 添加豆包 Seed 2.0 模型支持，包含函数调用能力
-    - [小程序] 为所有小程序添加正确的地区/语言标签，固定的小程序不再受地区过滤影响
-    - [聊天] 添加键盘快捷键 Cmd+Shift+M (Ctrl+Shift+M) 打开模型选择器
-    - [搜索] 添加基于关键词的话题搜索，支持全词匹配和结果排序
+    - [API] 添加知识库 REST API 端点
+    - [选择助手] 为文本选择工具栏添加 Linux 支持
 
     🐛 问题修复
-    - [国际化] 修复切换语言时插件卡片翻译不更新的问题
-    - [OpenClaw] 修复 Windows 上 npm 路径包含空格时的安装失败问题
+    - [文件] 修复 OpenAI 兼容提供商（Moonshot、DeepSeek、Groq 等）的 PDF 上传失败问题（"invalid part type: file" 错误）
     <!--LANG:END-->

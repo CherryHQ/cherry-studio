@@ -1,0 +1,26 @@
+diff --git a/dist/index.js b/dist/index.js
+index 942a0103fa4f21e30c1f8fa7dd29bfdb02800643..212e117d7a2d68579f1da1d4e9a7c1e3d76dbbf0 100644
+--- a/dist/index.js
++++ b/dist/index.js
+@@ -14577,7 +14577,7 @@ function createGitHubCopilotOpenAICompatible(options = {}) {
+   };
+   const getHeaders = () => (0, import_provider_utils16.withUserAgentSuffix)(headers, `opeoginni/github-copilot-openai-compatible/${VERSION}`);
+   const createChatModel = (modelId) => {
+-    if (modelId.includes("codex")) {
++    if (modelId.startsWith('gpt-5')) {
+       return new OpenAIResponsesLanguageModel(modelId, {
+         provider: `${options.name ?? "githubcopilot"}.responses`,
+         headers: getHeaders,
+diff --git a/dist/index.mjs b/dist/index.mjs
+index 8d2134d189ae5d40eaa9a7feee3048faf1f60ae7..fc3e29d5c503be912a1259d29d3c9319d3e87f53 100644
+--- a/dist/index.mjs
++++ b/dist/index.mjs
+@@ -14613,7 +14613,7 @@ function createGitHubCopilotOpenAICompatible(options = {}) {
+   };
+   const getHeaders = () => withUserAgentSuffix(headers, `opeoginni/github-copilot-openai-compatible/${VERSION}`);
+   const createChatModel = (modelId) => {
+-    if (modelId.includes("codex")) {
++    if (modelId.startsWith('gpt-5')) {
+       return new OpenAIResponsesLanguageModel(modelId, {
+         provider: `${options.name ?? "githubcopilot"}.responses`,
+         headers: getHeaders,

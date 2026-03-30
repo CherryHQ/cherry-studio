@@ -162,7 +162,7 @@ const AssistantPresetsPage: FC = () => {
   }
 
   const handleAddAgent = () => {
-    AddAssistantPresetPopup.show().then(() => {
+    void AddAssistantPresetPopup.show().then(() => {
       handleSearchClear()
     })
   }

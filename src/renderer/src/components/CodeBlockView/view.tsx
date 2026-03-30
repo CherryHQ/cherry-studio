@@ -1,3 +1,4 @@
+import { Icon } from '@iconify/react'
 import { loggerService } from '@logger'
 import type { ActionTool } from '@renderer/components/ActionTools'
 import type { CodeEditorHandles } from '@renderer/components/CodeEditor'
@@ -20,6 +21,7 @@ import { MAX_COLLAPSED_CODE_HEIGHT } from '@renderer/config/constant'
 import { useSettings } from '@renderer/hooks/useSettings'
 import { pyodideService } from '@renderer/services/PyodideService'
 import { getExtensionByLanguage } from '@renderer/utils/code-language'
+import { getFileIconName } from '@renderer/utils/fileIconName'
 import { extractHtmlTitle, getFileNameFromHtmlTitle } from '@renderer/utils/formats'
 import dayjs from 'dayjs'
 import React, { memo, startTransition, useCallback, useEffect, useMemo, useRef, useState } from 'react'
@@ -155,7 +157,7 @@ export const CodeBlockView: React.FC<Props> = memo(({ children, language, onSave
     }
 
     const ext = getExtensionByLanguage(language)
-    window.api.file.save(`${fileName}${ext}`, children)
+    void window.api.file.save(`${fileName}${ext}`, children)
   }, [children, language])
 
   const handleRunScript = useCallback(() => {
@@ -293,8 +295,17 @@ export const CodeBlockView: React.FC<Props> = memo(({ children, language, onSave
   }, [children, codeImageTools, language])
 
   const renderHeader = useMemo(() => {
-    const langTag = '<' + language.toUpperCase() + '>'
-    return <CodeHeader $isInSpecialView={isInSpecialView}>{isInSpecialView ? '' : langTag}</CodeHeader>
+    if (isInSpecialView) {
+      return <CodeHeader $isInSpecialView>{''}</CodeHeader>
+    }
+    const ext = getExtensionByLanguage(language)
+    const iconName = getFileIconName(`file${ext}`)
+    return (
+      <CodeHeader $isInSpecialView={false}>
+        <Icon icon={`material-icon-theme:${iconName}`} style={{ fontSize: '1.1em', marginRight: 6 }} />
+        {language.charAt(0).toUpperCase() + language.slice(1)}
+      </CodeHeader>
+    )
   }, [isInSpecialView, language])
 
   // 根据视图模式和语言选择组件，优先展示特殊视图，fallback是源代码视图

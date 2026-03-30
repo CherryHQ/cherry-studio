@@ -54,7 +54,7 @@ export class AsyncIterableHandler {
         .join()
     }
     if (context) {
-      window.api.trace.addStreamMessage(this.span.spanContext().spanId, this.modelName || '', context, chunk)
+      void window.api.trace.addStreamMessage(this.span.spanContext().spanId, this.modelName || '', context, chunk)
     }
     if ('usageMetadata' in chunk && chunk.usageMetadata) {
       this.usageToken.prompt_tokens = chunk.usageMetadata.promptTokenCount || 0
@@ -65,7 +65,7 @@ export class AsyncIterableHandler {
   }
 
   async finish() {
-    window.api.trace.tokenUsage(this.span.spanContext().spanId, this.usageToken)
+    void window.api.trace.tokenUsage(this.span.spanContext().spanId, this.usageToken)
     endSpan({ topicId: this.topicId, span: this.span, modelName: this.modelName })
   }
 
@@ -76,21 +76,21 @@ export class AsyncIterableHandler {
   async *transformStream(stream: AsyncIterable<SdkRawChunk>) {
     try {
       for await (const chunk of stream) {
-        this.handleChunk(chunk)
+        void this.handleChunk(chunk)
         yield chunk
       }
     } catch (err) {
-      this.handleError(err)
+      void this.handleError(err)
       throw err
     }
-    this.finish()
+    void this.finish()
   }
 
   static handleStream(stream: AsyncIterable<SdkRawChunk>, span?: Span, topicId?: string, modelName?: string) {
     if (!span || !topicId) {
       return stream
     }
-    const handler = new AsyncIterableHandler(stream, span!, topicId, modelName)
+    const handler = new AsyncIterableHandler(stream, span, topicId, modelName)
     return handler.stream
   }
 }

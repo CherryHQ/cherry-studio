@@ -6,7 +6,7 @@ import type {
   NormalToolResponse,
   WebSearchResponse
 } from '@renderer/types'
-import type { Chunk } from '@renderer/types/chunk'
+import type { Chunk, ProviderMetadata } from '@renderer/types/chunk'
 import { ChunkType } from '@renderer/types/chunk'
 import type { Response } from '@renderer/types/newMessage'
 import { AssistantMessageStatus } from '@renderer/types/newMessage'
@@ -20,9 +20,9 @@ export interface StreamProcessorCallbacks {
   // Text content start
   onTextStart?: () => void
   // Text content chunk received
-  onTextChunk?: (text: string) => void
+  onTextChunk?: (text: string, providerMetadata?: ProviderMetadata) => void
   // Full text content received
-  onTextComplete?: (text: string) => void
+  onTextComplete?: (text: string, providerMetadata?: ProviderMetadata) => void
   // thinking content start
   onThinkingStart?: () => void
   // Thinking/reasoning content chunk received (e.g., from Claude)
@@ -83,11 +83,11 @@ export function createStreamProcessor(callbacks: StreamProcessorCallbacks = {}) 
           break
         }
         case ChunkType.TEXT_DELTA: {
-          if (callbacks.onTextChunk) callbacks.onTextChunk(data.text)
+          if (callbacks.onTextChunk) callbacks.onTextChunk(data.text, data.providerMetadata)
           break
         }
         case ChunkType.TEXT_COMPLETE: {
-          if (callbacks.onTextComplete) callbacks.onTextComplete(data.text)
+          if (callbacks.onTextComplete) callbacks.onTextComplete(data.text, data.providerMetadata)
           break
         }
         case ChunkType.THINKING_START: {
@@ -128,7 +128,7 @@ export function createStreamProcessor(callbacks: StreamProcessorCallbacks = {}) 
           break
         }
         case ChunkType.EXTERNEL_TOOL_COMPLETE: {
-          if (callbacks.onExternalToolComplete) callbacks.onExternalToolComplete(data.external_tool)
+          if (callbacks.onExternalToolComplete) void callbacks.onExternalToolComplete(data.external_tool)
           break
         }
         case ChunkType.LLM_WEB_SEARCH_IN_PROGRESS: {

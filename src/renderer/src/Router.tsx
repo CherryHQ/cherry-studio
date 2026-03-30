@@ -8,7 +8,9 @@ import Sidebar from './components/app/Sidebar'
 import { ErrorBoundary } from './components/ErrorBoundary'
 import TabsContainer from './components/Tab/TabContainer'
 import NavigationHandler from './handler/NavigationHandler'
+import { useOnboardingState } from './hooks/useOnboardingState'
 import { useNavbarPosition } from './hooks/useSettings'
+import AgentPage from './pages/agents/AgentPage'
 import CodeToolsPage from './pages/code/CodeToolsPage'
 import FilesPage from './pages/files/FilesPage'
 import HomePage from './pages/home/HomePage'
@@ -17,6 +19,7 @@ import LaunchpadPage from './pages/launchpad/LaunchpadPage'
 import MinAppPage from './pages/minapps/MinAppPage'
 import MinAppsPage from './pages/minapps/MinAppsPage'
 import NotesPage from './pages/notes/NotesPage'
+import { OnboardingPage } from './pages/onboarding'
 import OpenClawPage from './pages/openclaw/OpenClawPage'
 import PaintingsRoutePage from './pages/paintings/PaintingsRoutePage'
 import SettingsPage from './pages/settings/SettingsPage'
@@ -24,6 +27,7 @@ import AssistantPresetsPage from './pages/store/assistants/presets/AssistantPres
 import TranslatePage from './pages/translate/TranslatePage'
 
 const Router: FC = () => {
+  const { onboardingCompleted, completeOnboarding } = useOnboardingState()
   const { navbarPosition } = useNavbarPosition()
 
   const routes = useMemo(() => {
@@ -31,6 +35,7 @@ const Router: FC = () => {
       <ErrorBoundary>
         <Routes>
           <Route path="/" element={<HomePage />} />
+          <Route path="/agents" element={<AgentPage />} />
           <Route path="/store" element={<AssistantPresetsPage />} />
           <Route path="/paintings/*" element={<PaintingsRoutePage />} />
           <Route path="/translate" element={<TranslatePage />} />
@@ -47,6 +52,10 @@ const Router: FC = () => {
       </ErrorBoundary>
     )
   }, [])
+
+  if (!onboardingCompleted) {
+    return <OnboardingPage onComplete={completeOnboarding} />
+  }
 
   if (navbarPosition === 'left') {
     return (

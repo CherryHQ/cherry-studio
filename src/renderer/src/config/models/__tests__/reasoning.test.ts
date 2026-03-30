@@ -348,6 +348,8 @@ describe('Claude & regional providers', () => {
     expect(isZhipuReasoningModel(createModel({ id: 'glm-z1' }))).toBe(true)
     expect(isStepReasoningModel(createModel({ id: 'step-r1-v-mini' }))).toBe(true)
     expect(isMiniMaxReasoningModel(createModel({ id: 'minimax-m2-pro' }))).toBe(true)
+    expect(isMiniMaxReasoningModel(createModel({ id: 'minimax-m2.7' }))).toBe(true)
+    expect(isMiniMaxReasoningModel(createModel({ id: 'minimax-m2.7-highspeed' }))).toBe(true)
   })
 })
 
@@ -479,6 +481,16 @@ describe('GPT-5.1 Series Models', () => {
 
     it('should not support GPT-5.1 chat models', () => {
       expect(isSupportedReasoningEffortOpenAIModel(createModel({ id: 'gpt-5.1-chat' }))).toBe(false)
+    })
+
+    it('should support future GPT-5.x sub-version models', () => {
+      expect(isSupportedReasoningEffortOpenAIModel(createModel({ id: 'gpt-5.4' }))).toBe(true)
+      expect(isSupportedReasoningEffortOpenAIModel(createModel({ id: 'gpt-5.4-mini' }))).toBe(true)
+      expect(isSupportedReasoningEffortOpenAIModel(createModel({ id: 'gpt-5.9' }))).toBe(true)
+    })
+
+    it('should not support future GPT-5.x chat models', () => {
+      expect(isSupportedReasoningEffortOpenAIModel(createModel({ id: 'gpt-5.4-chat' }))).toBe(false)
     })
   })
 
@@ -630,9 +642,13 @@ describe('Thinking model classification', () => {
 })
 
 describe('Reasoning option configuration', () => {
-  it('allows GPT-5.1 series models to disable reasoning', () => {
+  it('allows GPT-5.1 base models to disable reasoning', () => {
     expect(MODEL_SUPPORTED_OPTIONS.gpt5_1).toContain('none')
-    expect(MODEL_SUPPORTED_OPTIONS.gpt5_1_codex).toContain('none')
+  })
+
+  it('does not allow GPT-5.1 codex models to disable reasoning', () => {
+    expect(MODEL_SUPPORTED_OPTIONS.gpt5_1_codex).not.toContain('none')
+    expect(MODEL_SUPPORTED_OPTIONS.gpt5_1_codex_max).not.toContain('none')
   })
 
   it('restricts GPT-5 Pro reasoning to high effort only', () => {
@@ -663,7 +679,46 @@ describe('getThinkModelType - Comprehensive Coverage', () => {
     })
   })
 
-  describe('GPT-5 series models', () => {
+  describe('GPT-5.2 series models', () => {
+    it('should return gpt5_2 for GPT-5.2 models', () => {
+      expect(getThinkModelType(createModel({ id: 'gpt-5.2' }))).toBe('gpt5_2')
+      expect(getThinkModelType(createModel({ id: 'gpt-5.2-preview' }))).toBe('gpt5_2')
+      expect(getThinkModelType(createModel({ id: 'gpt-5.2-mini' }))).toBe('gpt5_2')
+    })
+
+    it('should return gpt52pro for GPT-5.2 Pro models', () => {
+      expect(getThinkModelType(createModel({ id: 'gpt-5.2-pro' }))).toBe('gpt52pro')
+      expect(getThinkModelType(createModel({ id: 'gpt-5.2-pro-preview' }))).toBe('gpt52pro')
+    })
+
+    it('should return gpt5_2_codex for GPT-5.2 codex models', () => {
+      expect(getThinkModelType(createModel({ id: 'gpt-5.2-codex' }))).toBe('gpt5_2_codex')
+      expect(getThinkModelType(createModel({ id: 'gpt-5.2-codex-mini' }))).toBe('gpt5_2_codex')
+    })
+  })
+
+  describe('GPT-5.x future sub-version fallback', () => {
+    it('should return gpt5_2 for future GPT-5.x models', () => {
+      expect(getThinkModelType(createModel({ id: 'gpt-5.3' }))).toBe('gpt5_2')
+      expect(getThinkModelType(createModel({ id: 'gpt-5.4' }))).toBe('gpt5_2')
+      expect(getThinkModelType(createModel({ id: 'gpt-5.4-mini' }))).toBe('gpt5_2')
+      expect(getThinkModelType(createModel({ id: 'gpt-5.9' }))).toBe('gpt5_2')
+    })
+
+    it('should return gpt5_2 for future GPT-5.x codex models (5.3+, supports none)', () => {
+      expect(getThinkModelType(createModel({ id: 'gpt-5.3-codex' }))).toBe('gpt5_2')
+      expect(getThinkModelType(createModel({ id: 'gpt-5.4-codex' }))).toBe('gpt5_2')
+    })
+
+    it('should return gpt52pro for future GPT-5.x Pro models', () => {
+      expect(getThinkModelType(createModel({ id: 'gpt-5.3-pro' }))).toBe('gpt52pro')
+      expect(getThinkModelType(createModel({ id: 'gpt-5.4-pro' }))).toBe('gpt52pro')
+      expect(getThinkModelType(createModel({ id: 'gpt-5.4-pro-preview' }))).toBe('gpt52pro')
+      expect(getThinkModelType(createModel({ id: 'gpt-5.9-pro' }))).toBe('gpt52pro')
+    })
+  })
+
+  describe('GPT-5 base series models', () => {
     it('should return gpt5_codex for GPT-5 codex models', () => {
       expect(getThinkModelType(createModel({ id: 'gpt-5-codex' }))).toBe('gpt5_codex')
       expect(getThinkModelType(createModel({ id: 'gpt-5-codex-mini' }))).toBe('gpt5_codex')
@@ -1895,13 +1950,11 @@ describe('getModelSupportedReasoningEffortOptions', () => {
     it('should return correct options for GPT-5.1 Codex models', () => {
       expect(getModelSupportedReasoningEffortOptions(createModel({ id: 'gpt-5.1-codex' }))).toEqual([
         'default',
-        'none',
         'medium',
         'high'
       ])
       expect(getModelSupportedReasoningEffortOptions(createModel({ id: 'gpt-5.1-codex-mini' }))).toEqual([
         'default',
-        'none',
         'medium',
         'high'
       ])
@@ -2383,46 +2436,73 @@ describe('isInterleavedThinkingModel', () => {
 })
 
 describe('Claude Models', () => {
-  describe('getThinkModelType for Claude 4.6 series models', () => {
+  describe('getThinkModelType for Claude reasoning models', () => {
+    it('should return claude for Claude 3.7 models', () => {
+      expect(getThinkModelType(createModel({ id: 'claude-3.7-sonnet' }))).toBe('claude')
+      expect(getThinkModelType(createModel({ id: 'claude-3-7-sonnet' }))).toBe('claude')
+      expect(getThinkModelType(createModel({ id: 'claude-3-7-sonnet-20250219' }))).toBe('claude')
+    })
+
+    it('should return claude for Claude 4.0 models', () => {
+      expect(getThinkModelType(createModel({ id: 'claude-sonnet-4' }))).toBe('claude')
+      expect(getThinkModelType(createModel({ id: 'claude-opus-4' }))).toBe('claude')
+      expect(getThinkModelType(createModel({ id: 'claude-sonnet-4@20250514' }))).toBe('claude')
+      expect(getThinkModelType(createModel({ id: 'anthropic.claude-sonnet-4-20250514-v1:0' }))).toBe('claude')
+    })
+
+    it('should return claude for Claude 4.5 models', () => {
+      expect(getThinkModelType(createModel({ id: 'claude-sonnet-4.5' }))).toBe('claude')
+      expect(getThinkModelType(createModel({ id: 'claude-opus-4.5' }))).toBe('claude')
+      expect(getThinkModelType(createModel({ id: 'claude-haiku-4.5' }))).toBe('claude')
+      expect(getThinkModelType(createModel({ id: 'claude-sonnet-4-5-20250929' }))).toBe('claude')
+    })
+
     it('should return claude46 for Claude 4.6 models', () => {
       expect(getThinkModelType(createModel({ id: 'claude-opus-4-6' }))).toBe('claude46')
       expect(getThinkModelType(createModel({ id: 'claude-sonnet-4-6' }))).toBe('claude46')
       expect(getThinkModelType(createModel({ id: 'anthropic.claude-opus-4-6-v1' }))).toBe('claude46')
     })
+
+    it('should return default for non-reasoning Claude models', () => {
+      expect(getThinkModelType(createModel({ id: 'claude-3-opus' }))).toBe('default')
+      expect(getThinkModelType(createModel({ id: 'claude-3-haiku' }))).toBe('default')
+      expect(getThinkModelType(createModel({ id: 'claude-3.5-sonnet' }))).toBe('default')
+    })
   })
 
-  describe('MODEL_SUPPORTED_OPTIONS for Claude 4.6', () => {
+  describe('MODEL_SUPPORTED_OPTIONS for Claude', () => {
+    it('should have correct options for claude (3.7/4.0/4.5)', () => {
+      expect(MODEL_SUPPORTED_OPTIONS.claude).toEqual(['default', 'none', 'low', 'medium', 'high'])
+    })
+
     it('should have correct options for claude46', () => {
       expect(MODEL_SUPPORTED_OPTIONS.claude46).toEqual(['default', 'none', 'low', 'medium', 'high', 'xhigh'])
     })
   })
 
-  describe('MODEL_SUPPORTED_REASONING_EFFORT for Claude 4.6', () => {
+  describe('MODEL_SUPPORTED_REASONING_EFFORT for Claude', () => {
+    it('should have correct effort levels for claude (3.7/4.0/4.5)', () => {
+      expect(MODEL_SUPPORTED_REASONING_EFFORT.claude).toEqual(['low', 'medium', 'high'])
+    })
+
     it('should have correct effort levels for claude46', () => {
       expect(MODEL_SUPPORTED_REASONING_EFFORT.claude46).toEqual(['low', 'medium', 'high', 'xhigh'])
     })
   })
 
-  describe('getModelSupportedReasoningEffortOptions for Claude 4.6', () => {
-    it('should return correct options for Opus 4.6 models', () => {
-      expect(getModelSupportedReasoningEffortOptions(createModel({ id: 'claude-opus-4-6' }))).toEqual([
-        'default',
-        'none',
-        'low',
-        'medium',
-        'high',
-        'xhigh'
-      ])
+  describe('getModelSupportedReasoningEffortOptions for Claude', () => {
+    it('should return correct options for Claude 3.7/4.0/4.5 models', () => {
+      const expected = ['default', 'none', 'low', 'medium', 'high']
+      expect(getModelSupportedReasoningEffortOptions(createModel({ id: 'claude-3.7-sonnet' }))).toEqual(expected)
+      expect(getModelSupportedReasoningEffortOptions(createModel({ id: 'claude-sonnet-4' }))).toEqual(expected)
+      expect(getModelSupportedReasoningEffortOptions(createModel({ id: 'claude-sonnet-4.5' }))).toEqual(expected)
+      expect(getModelSupportedReasoningEffortOptions(createModel({ id: 'claude-opus-4' }))).toEqual(expected)
     })
-    it('should return correct options for Sonnet 4.6 models', () => {
-      expect(getModelSupportedReasoningEffortOptions(createModel({ id: 'claude-sonnet-4-6' }))).toEqual([
-        'default',
-        'none',
-        'low',
-        'medium',
-        'high',
-        'xhigh'
-      ])
+
+    it('should return correct options for Claude 4.6 models', () => {
+      const expected = ['default', 'none', 'low', 'medium', 'high', 'xhigh']
+      expect(getModelSupportedReasoningEffortOptions(createModel({ id: 'claude-opus-4-6' }))).toEqual(expected)
+      expect(getModelSupportedReasoningEffortOptions(createModel({ id: 'claude-sonnet-4-6' }))).toEqual(expected)
     })
   })
 
@@ -2570,6 +2650,44 @@ describe('Kimi Models', () => {
         expect(isSupportedThinkingTokenKimiModel(createModel({ id: 'kimi-k2.5-turbo' }))).toBe(true)
       })
     })
+  })
+})
+
+describe('isSupportedThinkingTokenZhipuModel', () => {
+  it('matches GLM-5 series (with or without hyphen)', () => {
+    expect(isSupportedThinkingTokenZhipuModel(createModel({ id: 'glm5' }))).toBe(true)
+    expect(isSupportedThinkingTokenZhipuModel(createModel({ id: 'glm-5' }))).toBe(true)
+    expect(isSupportedThinkingTokenZhipuModel(createModel({ id: 'glm-5-plus' }))).toBe(true)
+    expect(isSupportedThinkingTokenZhipuModel(createModel({ id: 'GLM-5-Pro' }))).toBe(true)
+  })
+
+  it('matches GLM-4.5 / 4.6 / 4.7 series', () => {
+    expect(isSupportedThinkingTokenZhipuModel(createModel({ id: 'glm-4.5' }))).toBe(true)
+    expect(isSupportedThinkingTokenZhipuModel(createModel({ id: 'glm-4.6' }))).toBe(true)
+    expect(isSupportedThinkingTokenZhipuModel(createModel({ id: 'glm-4.7' }))).toBe(true)
+    expect(isSupportedThinkingTokenZhipuModel(createModel({ id: 'glm-4.6-pro' }))).toBe(true)
+    expect(isSupportedThinkingTokenZhipuModel(createModel({ id: 'glm-4.5-flash' }))).toBe(true)
+  })
+
+  it('rejects GLM-4 base and GLM-Z1 models', () => {
+    expect(isSupportedThinkingTokenZhipuModel(createModel({ id: 'glm-4' }))).toBe(false)
+    expect(isSupportedThinkingTokenZhipuModel(createModel({ id: 'glm-4-plus' }))).toBe(false)
+    expect(isSupportedThinkingTokenZhipuModel(createModel({ id: 'glm-4.0' }))).toBe(false)
+    expect(isSupportedThinkingTokenZhipuModel(createModel({ id: 'glm-4.3' }))).toBe(false)
+    expect(isSupportedThinkingTokenZhipuModel(createModel({ id: 'glm-z1' }))).toBe(false)
+    expect(isSupportedThinkingTokenZhipuModel(createModel({ id: 'glm-z1-plus' }))).toBe(false)
+  })
+
+  it('rejects unrelated model IDs', () => {
+    expect(isSupportedThinkingTokenZhipuModel(createModel({ id: 'gpt-4o' }))).toBe(false)
+    expect(isSupportedThinkingTokenZhipuModel(createModel({ id: 'claude-3.5-sonnet' }))).toBe(false)
+    expect(isSupportedThinkingTokenZhipuModel(createModel({ id: 'deepseek-v3' }))).toBe(false)
+  })
+
+  it('handles provider-prefixed model IDs', () => {
+    expect(isSupportedThinkingTokenZhipuModel(createModel({ id: 'accounts/fireworks/models/glm-4p7' }))).toBe(true)
+    expect(isSupportedThinkingTokenZhipuModel(createModel({ id: 'accounts/fireworks/models/glm-4p5' }))).toBe(true)
+    expect(isSupportedThinkingTokenZhipuModel(createModel({ id: 'zhipu/glm-4.6' }))).toBe(true)
   })
 })
 

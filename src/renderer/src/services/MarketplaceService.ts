@@ -117,7 +117,7 @@ function createResponseParser<TItem>(
       logger.error(`Marketplace ${logContext} response parse failed`, parsed.error)
       return { items: [], total: 0 }
     }
-    const data = parsed.data as Record<string, unknown>
+    const data = parsed.data
     return { items: (data[itemsKey] ?? []) as TItem[], total: (data.total as number) ?? 0 }
   }
 }
@@ -166,7 +166,7 @@ const buildListUrl = (endpoint: 'plugins' | 'skills', params: MarketplaceListPar
   url.searchParams.set('limit', String(clampLimit(params.limit)))
   url.searchParams.set('offset', String(params.offset ?? 0))
   if (params.query) {
-    url.searchParams.set('q', params.query)
+    url.searchParams.set('q', params.query.replace(/[-_]+/g, ' ').trim())
   }
   return url.toString()
 }
@@ -283,7 +283,7 @@ export const createMarketplacePager = (options: {
     prefetch = null
 
     if (page.hasMore) {
-      prefetchNext(nextOffset)
+      void prefetchNext(nextOffset)
     }
 
     return page

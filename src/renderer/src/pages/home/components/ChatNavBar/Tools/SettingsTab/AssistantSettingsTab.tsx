@@ -1,4 +1,3 @@
-import { loggerService } from '@logger'
 import EditableNumber from '@renderer/components/EditableNumber'
 import Scrollbar from '@renderer/components/Scrollbar'
 import Selector from '@renderer/components/Selector'
@@ -9,7 +8,6 @@ import { useCodeStyle } from '@renderer/context/CodeStyleProvider'
 import { useTheme } from '@renderer/context/ThemeProvider'
 import { useAssistant } from '@renderer/hooks/useAssistant'
 import { useProvider } from '@renderer/hooks/useProvider'
-import { useRuntime } from '@renderer/hooks/useRuntime'
 import { useSettings } from '@renderer/hooks/useSettings'
 import useTranslate from '@renderer/hooks/useTranslate'
 import { SettingDivider, SettingRow, SettingRowTitle } from '@renderer/pages/settings'
@@ -62,14 +60,11 @@ import styled from 'styled-components'
 import GroqSettingsGroup from './GroqSettingsGroup'
 import OpenAISettingsGroup from './OpenAISettingsGroup'
 
-const logger = loggerService.withContext('AssistantSettingsTab')
-
 interface Props {
   assistant: Assistant
 }
 
 const AssistantSettingsTab = (props: Props) => {
-  const { chat } = useRuntime()
   const { assistant } = useAssistant(props.assistant.id)
   const { provider } = useProvider(assistant.model.provider)
 
@@ -150,13 +145,6 @@ const AssistantSettingsTab = (props: Props) => {
     isSupportServiceTierProvider(provider) ||
     (isSupportVerbosityModel(model) && isSupportVerbosityProvider(provider))
 
-  const isTopicSettings = chat.activeTopicOrSession === 'topic'
-
-  if (!isTopicSettings) {
-    logger.warn('AssistantSettingsTab is rendered when not topic activated.')
-    return null
-  }
-
   return (
     <Container className="settings-tab">
       {showOpenAiSettings && (
@@ -211,7 +199,7 @@ const AssistantSettingsTab = (props: Props) => {
             <SettingRowTitleSmall>{t('message.message.style.label')}</SettingRowTitleSmall>
             <Selector
               value={messageStyle}
-              onChange={(value) => dispatch(setMessageStyle(value as 'plain' | 'bubble'))}
+              onChange={(value) => dispatch(setMessageStyle(value))}
               options={[
                 { value: 'plain', label: t('message.message.style.plain') },
                 { value: 'bubble', label: t('message.message.style.bubble') }
@@ -238,7 +226,7 @@ const AssistantSettingsTab = (props: Props) => {
             <SettingRowTitleSmall>{t('settings.messages.navigation.label')}</SettingRowTitleSmall>
             <Selector
               value={messageNavigation}
-              onChange={(value) => dispatch(setMessageNavigation(value as 'none' | 'buttons' | 'anchor'))}
+              onChange={(value) => dispatch(setMessageNavigation(value))}
               options={[
                 { value: 'none', label: t('settings.messages.navigation.none') },
                 { value: 'buttons', label: t('settings.messages.navigation.buttons') },
@@ -305,7 +293,7 @@ const AssistantSettingsTab = (props: Props) => {
             <SettingRowTitleSmall>{t('message.message.code_style')}</SettingRowTitleSmall>
             <Selector
               value={codeStyle}
-              onChange={(value) => onCodeStyleChange(value as CodeStyleVarious)}
+              onChange={(value) => onCodeStyleChange(value)}
               options={themeNames.map((theme) => ({
                 value: theme,
                 label: theme

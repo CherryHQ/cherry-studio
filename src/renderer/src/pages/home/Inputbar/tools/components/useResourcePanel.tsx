@@ -1,9 +1,11 @@
+import { Icon } from '@iconify/react'
 import { loggerService } from '@logger'
 import type { QuickPanelListItem } from '@renderer/components/QuickPanel'
 import { QuickPanelReservedSymbol } from '@renderer/components/QuickPanel'
 import type { ToolQuickPanelApi, ToolQuickPanelController } from '@renderer/pages/home/Inputbar/types'
 import type { InstalledPlugin } from '@renderer/types/plugin'
-import { Bot, File, Folder, Zap } from 'lucide-react'
+import { getFileIconName } from '@renderer/utils/fileIconName'
+import { Bot, Folder, Zap } from 'lucide-react'
 import type React from 'react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -374,7 +376,7 @@ export const useResourcePanel = (params: Params, role: 'button' | 'manager' = 'b
 
         return {
           label: relativePath,
-          icon: <File size={16} />,
+          icon: <Icon icon={`material-icon-theme:${getFileIconName(filePath)}`} style={{ fontSize: 16 }} />,
           filterText: filterText,
           action: () => onSelectFile(filePath),
           isSelected: false
@@ -561,7 +563,7 @@ export const useResourcePanel = (params: Params, role: 'button' | 'manager' = 'b
     if (isMentionPanelActive()) {
       close()
     } else {
-      openQuickPanel({ type: 'button' })
+      void openQuickPanel({ type: 'button' })
     }
   }, [close, isMentionPanelActive, openQuickPanel])
 
@@ -601,7 +603,7 @@ export const useResourcePanel = (params: Params, role: 'button' | 'manager' = 'b
 
           context.close('select')
           setTimeout(() => {
-            openQuickPanel(rootTrigger ?? { type: 'button' })
+            void openQuickPanel(rootTrigger ?? { type: 'button' })
           }, 0)
         }
       }
@@ -609,7 +611,7 @@ export const useResourcePanel = (params: Params, role: 'button' | 'manager' = 'b
 
     const disposeTrigger = registerTrigger(QuickPanelReservedSymbol.MentionModels, (payload) => {
       const trigger = (payload || {}) as ResourcePanelTriggerInfo
-      openQuickPanel(trigger)
+      void openQuickPanel(trigger)
     })
 
     return () => {

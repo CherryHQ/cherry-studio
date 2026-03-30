@@ -358,7 +358,7 @@ const NotesSidebar: FC<NotesSidebarProps> = ({
                   onDragLeave={() => setIsDragOverSidebar(false)}
                   onDrop={(e) => {
                     if (!draggedNodeId) {
-                      handleDropFiles(e)
+                      void handleDropFiles(e)
                     }
                   }}>
                   <NotesSidebarHeader

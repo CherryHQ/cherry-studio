@@ -17,6 +17,7 @@ import type { StartSpanParams } from '@renderer/trace/types/ModelSpanEntity'
 import { type Assistant, type GenerateImageParams, type Model, type Provider, SystemProviderIds } from '@renderer/types'
 import type { StreamTextParams } from '@renderer/types/aiCoreTypes'
 import { SUPPORTED_IMAGE_ENDPOINT_LIST } from '@renderer/utils'
+import type { IdleTimeoutHandle } from '@renderer/utils/IdleTimeoutController'
 import { buildClaudeCodeSystemModelMessage } from '@shared/anthropic'
 import { gateway, type LanguageModel, type Provider as AiSdkProvider } from 'ai'
 
@@ -42,6 +43,7 @@ export type ModernAiProviderConfig = AiSdkMiddlewareConfig & {
   // topicId for tracing
   topicId?: string
   callType: string
+  idleTimeout?: IdleTimeoutHandle
 }
 
 export default class ModernAiProvider {
@@ -116,6 +118,10 @@ export default class ModernAiProvider {
     return this.actualProvider
   }
 
+  /**
+   * Note: This method routes text completions through `modernCompletions`,
+   * which only calls `streamText` (no `generateText` path).
+   */
   public async completions(modelId: string, params: StreamTextParams, providerConfig: ModernAiProviderConfig) {
     // 检查model是否存在
     if (!this.model) {
@@ -125,7 +131,7 @@ export default class ModernAiProvider {
     // Config is now set in constructor, ApiService handles key rotation before passing provider
     if (!this.config) {
       // If config wasn't set in constructor (when provider only), generate it now
-      this.config = providerToAiSdkConfig(this.actualProvider, this.model!)
+      this.config = providerToAiSdkConfig(this.actualProvider, this.model)
     }
     logger.debug('Using provider config for completions', this.config)
 
@@ -302,23 +308,21 @@ export default class ModernAiProvider {
   /**
    * 使用现代化AI SDK的completions实现
    */
+  /**
+   * Note: This implementation always uses `executor.streamText` and never
+   * calls `generateText`, even when `onChunk` is not provided.
+   */
   private async modernCompletions(
     model: LanguageModel,
     params: StreamTextParams,
     config: ModernAiProviderConfig
   ): Promise<CompletionsResult> {
-    // const modelId = this.model!.id
-    // logger.info('Starting modernCompletions', {
-    //   modelId,
-    //   providerId: this.config!.providerId,
-    //   topicId: config.topicId,
-    //   hasOnChunk: !!config.onChunk,
-    //   hasTools: !!params.tools && Object.keys(params.tools).length > 0,
-    //   toolCount: params.tools ? Object.keys(params.tools).length : 0
-    // })
-
     // 根据条件构建插件数组
-    const plugins = buildPlugins(config)
+    const plugins = buildPlugins({
+      provider: this.actualProvider,
+      model: this.model!,
+      config
+    })
 
     // 用构建好的插件数组创建executor
     const executor = createExecutor(this.config!.providerId, this.config!.options, plugins)
@@ -326,7 +330,16 @@ export default class ModernAiProvider {
     // 创建带有中间件的执行器
     if (config.onChunk) {
       const accumulate = this.model!.supported_text_delta !== false // true and undefined
-      const adapter = new AiSdkToChunkAdapter(config.onChunk, config.mcpTools, accumulate, config.enableWebSearch)
+      const adapter = new AiSdkToChunkAdapter(
+        config.onChunk,
+        config.mcpTools,
+        accumulate,
+        config.enableWebSearch,
+        undefined,
+        undefined,
+        this.config!.providerId,
+        config.idleTimeout
+      )
 
       const streamResult = await executor.streamText({
         ...params,
@@ -340,20 +353,45 @@ export default class ModernAiProvider {
         getText: () => finalText
       }
     } else {
+      // Since no onChunk is provided, the external consumer would not handle error chunk.
+      // So we need to capture the actual stream error so we can throw it instead of the
+      // generic NoTextGeneratedError ("No output generated. Check the stream
+      // for errors.") that AI SDK raises when streamResult.text is accessed
+      // after a failed stream.
+      let streamError: unknown = undefined
+
       const streamResult = await executor.streamText({
         ...params,
-        model
+        model,
+        onError({ error }) {
+          streamError = error
+        }
       })
 
       // 强制消费流,不然await streamResult.text会阻塞
-      await streamResult?.consumeStream()
+      await streamResult?.consumeStream({
+        onError(error) {
+          if (!streamError) {
+            streamError = error
+          }
+        }
+      })
 
-      const finalText = await streamResult.text
-      const usage = await streamResult.totalUsage
+      try {
+        const finalText = await streamResult.text
+        const usage = await streamResult.totalUsage
 
-      return {
-        getText: () => finalText,
-        usage
+        return {
+          getText: () => finalText,
+          usage
+        }
+      } catch (error) {
+        // If we captured the real stream error, throw that instead of the
+        // generic NoTextGeneratedError so callers get actionable diagnostics.
+        if (streamError) {
+          throw streamError
+        }
+        throw error
       }
     }
   }

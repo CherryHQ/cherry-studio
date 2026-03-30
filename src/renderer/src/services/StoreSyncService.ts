@@ -62,7 +62,7 @@ export class StoreSyncService {
       if (!syncAction.meta?.fromSync && this.shouldSyncAction(syncAction.type)) {
         // Send to main process for broadcasting to other windows using the preload API
         if (window.api?.storeSync) {
-          window.api.storeSync.onUpdate(syncAction)
+          void window.api.storeSync.onUpdate(syncAction)
         }
       }
 
@@ -110,7 +110,7 @@ export class StoreSyncService {
       }
     )
 
-    window.api.storeSync.subscribe()
+    void window.api.storeSync.subscribe()
 
     window.addEventListener('beforeunload', () => {
       this.unsubscribe()
@@ -123,7 +123,7 @@ export class StoreSyncService {
    */
   public unsubscribe(): void {
     if (window.api?.storeSync) {
-      window.api.storeSync.unsubscribe()
+      void window.api.storeSync.unsubscribe()
     }
 
     if (this.broadcastSyncRemover) {

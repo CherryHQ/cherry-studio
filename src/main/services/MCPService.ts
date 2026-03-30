@@ -53,7 +53,6 @@ import {
 import { app, net } from 'electron'
 import { EventEmitter } from 'events'
 import { v4 as uuidv4 } from 'uuid'
-import * as z from 'zod'
 
 import { CacheService } from './CacheService'
 import DxtService from './DxtService'
@@ -361,7 +360,7 @@ class McpService {
               getServerLogger(server).debug(`StreamableHTTPClientTransport options`, {
                 options: redactSensitive(options)
               })
-              return new StreamableHTTPClientTransport(new URL(server.baseUrl!), options)
+              return new StreamableHTTPClientTransport(new URL(server.baseUrl), options)
             } else if (server.type === 'sse') {
               const options: SSEClientTransportOptions = {
                 eventSourceInit: {
@@ -374,7 +373,7 @@ class McpService {
                 },
                 authProvider
               }
-              return new SSEClientTransport(new URL(server.baseUrl!), options)
+              return new SSEClientTransport(new URL(server.baseUrl), options)
             } else {
               throw new Error('Invalid server type')
             }
@@ -556,7 +555,7 @@ class McpService {
           // Set a timeout to close the callback server
           const timeoutId = setTimeout(() => {
             getServerLogger(server).warn(`OAuth flow timed out`)
-            callbackServer.close()
+            void callbackServer.close()
           }, 300000) // 5 minutes timeout
 
           try {
@@ -582,7 +581,7 @@ class McpService {
           } finally {
             // Clear the timeout and close the callback server
             clearTimeout(timeoutId)
-            callbackServer.close()
+            void callbackServer.close()
           }
         }
 
@@ -848,8 +847,8 @@ class McpService {
       tools.map((tool: SDKTool) => {
         const serverTool: MCPTool = {
           ...tool,
-          inputSchema: z.parse(MCPToolInputSchema, tool.inputSchema),
-          outputSchema: tool.outputSchema ? z.parse(MCPToolOutputSchema, tool.outputSchema) : undefined,
+          inputSchema: MCPToolInputSchema.parse(tool.inputSchema),
+          outputSchema: tool.outputSchema ? MCPToolOutputSchema.parse(tool.outputSchema) : undefined,
           id: buildFunctionCallToolName(server.name, tool.name),
           serverId: server.id,
           serverName: server.name,

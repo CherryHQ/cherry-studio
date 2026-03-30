@@ -19,6 +19,7 @@ import {
 } from '@shared/config/constant'
 import { getFunctionalKeys, parseJSONC, sanitizeEnvForLogging } from '@shared/utils'
 import { spawn } from 'child_process'
+import semver from 'semver'
 import { promisify } from 'util'
 
 const execAsync = promisify(require('child_process').exec)
@@ -31,6 +32,10 @@ interface VersionInfo {
 }
 
 class CodeToolsService {
+  // Static properties for cleanup management (avoid listener accumulation)
+  private static pendingBatCleanups = new Set<string>()
+  private static exitCleanupRegistered = false
+
   private versionCache: Map<string, { version: string; timestamp: number }> = new Map()
   private terminalsCache: {
     terminals: TerminalConfig[]
@@ -52,7 +57,7 @@ class CodeToolsService {
     this.run = this.run.bind(this)
 
     if (isMac || isWin) {
-      this.preloadTerminals()
+      void this.preloadTerminals()
     }
   }
 
@@ -761,11 +766,16 @@ class CodeToolsService {
       const bunInstallPath = path.join(os.homedir(), HOME_CHERRY_DIR)
       const registryUrl = await this.getNpmRegistryUrl()
 
+      // Get logs directory for update output redirection
+      const logsDir = loggerService.getLogsDir()
+      const updateLogPath = path.join(logsDir, 'cli-tools-update.log').replace(/\\/g, '/')
+
       const installEnvPrefix = isWin
         ? `set "BUN_INSTALL=${bunInstallPath}" && set "NPM_CONFIG_REGISTRY=${registryUrl}" &&`
         : `export BUN_INSTALL="${bunInstallPath}" && export NPM_CONFIG_REGISTRY="${registryUrl}" &&`
 
-      const updateCommand = `${installEnvPrefix} "${bunPath}" install -g ${packageName}`
+      // Use > to truncate log file on each update
+      const updateCommand = `${installEnvPrefix} "${bunPath}" install -g ${packageName} > "${updateLogPath}" 2>&1`
       logger.info(`Executing update command: ${updateCommand}`)
 
       await execAsync(updateCommand, { timeout: 60000 })
@@ -832,25 +842,30 @@ class CodeToolsService {
 
     // Check for updates and auto-update if requested
     let updateMessage = ''
-    if (isInstalled && options.autoUpdateToLatest) {
-      logger.info(`Auto update to latest enabled for ${cliTool}`)
+    let installedVersion: string | null = null
+
+    // Get installed version if package is installed (needed for qwen-code auth-type check)
+    if (isInstalled) {
       try {
         const versionInfo = await this.getVersionInfo(cliTool)
-        if (versionInfo.needsUpdate) {
-          logger.info(`Update available for ${cliTool}: ${versionInfo.installed} -> ${versionInfo.latest}`)
-          logger.info(`Auto-updating ${cliTool} to latest version`)
-          updateMessage = ` && echo "Updating ${cliTool} from ${versionInfo.installed} to ${versionInfo.latest}..."`
-          const updateResult = await this.updatePackage(cliTool)
-          if (updateResult.success) {
-            logger.info(`Update completed successfully for ${cliTool}`)
-            updateMessage += ` && echo "Update completed successfully"`
-          } else {
-            logger.error(`Update failed for ${cliTool}: ${updateResult.message}`)
-            updateMessage += ` && echo "Update failed: ${updateResult.message}"`
+        installedVersion = versionInfo.installed
+
+        // Handle auto-update if enabled
+        if (options.autoUpdateToLatest) {
+          logger.info(`Auto update to latest enabled for ${cliTool}`)
+          if (versionInfo.needsUpdate) {
+            logger.info(`Update available for ${cliTool}: ${versionInfo.installed} -> ${versionInfo.latest}`)
+            logger.info(`Auto-updating ${cliTool} to latest version`)
+            updateMessage = ` && echo "Updating ${escapeBatchText(cliTool)} from ${escapeBatchText(versionInfo.installed || '')} to ${escapeBatchText(versionInfo.latest || '')}..."`
+            const updateResult = await this.updatePackage(cliTool)
+            if (updateResult.success) {
+              logger.info(`Update completed successfully for ${cliTool}`)
+              updateMessage += ` && echo "Update completed successfully"`
+            } else {
+              logger.error(`Update failed for ${cliTool}: ${updateResult.message}`)
+              updateMessage += ` && echo "Update failed: ${escapeBatchText(updateResult.message)}"`
+            }
           }
-        } else if (versionInfo.installed && versionInfo.latest) {
-          logger.info(`${cliTool} is already up to date (${versionInfo.installed})`)
-          updateMessage = ` && echo "${cliTool} is up to date (${versionInfo.installed})"`
         }
       } catch (error) {
         logger.warn(`Failed to check version for ${cliTool}:`, error as Error)
@@ -874,8 +889,9 @@ class CodeToolsService {
 
       if (isWindows) {
         // Windows uses set command
+        // Escape all cmd.exe metacharacters in env values to prevent command injection
         return Object.entries(env)
-          .map(([key, value]) => `set "${key}=${value.replace(/"/g, '\\"')}"`)
+          .map(([key, value]) => `set "${key}=${escapeBatchText(value)}"`)
           .join(' && ')
       } else {
         // Unix-like systems use export command
@@ -907,6 +923,19 @@ class CodeToolsService {
     if (cliTool === codeTools.kimiCli) {
       const uvPath = path.join(os.homedir(), HOME_CHERRY_DIR, 'bin', await getBinaryName('uv'))
       baseCommand = `${uvPath} tool run ${packageName}`
+    }
+
+    // Special handling for qwen-code: add --auth-type openai for version >= 0.12.3
+    if (cliTool === codeTools.qwenCode) {
+      // Use semver for proper version comparison (handles v-prefix, prereleases, etc.)
+      const coerced = semver.coerce(installedVersion)
+      const needsAuthType = installedVersion && coerced && semver.gte(coerced, '0.12.3')
+      if (needsAuthType) {
+        baseCommand = `${baseCommand} --auth-type openai`
+        logger.info(`qwen-code version ${installedVersion} >= 0.12.3, using --auth-type openai`)
+      } else {
+        logger.info(`qwen-code version ${installedVersion || 'unknown'} < 0.12.3, not using --auth-type`)
+      }
     }
 
     // Add configuration parameters for OpenAI Codex using command line args
@@ -963,6 +992,7 @@ class CodeToolsService {
     } else if (isInstalled) {
       // If already installed, run executable directly (with optional update message)
       if (updateMessage) {
+        // updateMessage already has escaped dynamic content, && connectors are intentional
         baseCommand = `echo "Checking ${cliTool} version..."${updateMessage} && ${baseCommand}`
       }
     } else {
@@ -973,7 +1003,25 @@ class CodeToolsService {
           ? `set "BUN_INSTALL=${bunInstallPath}" && set "NPM_CONFIG_REGISTRY=${registryUrl}" &&`
           : `export BUN_INSTALL="${bunInstallPath}" && export NPM_CONFIG_REGISTRY="${registryUrl}" &&`
 
-      const installCommand = `${installEnvPrefix} "${bunPath}" install -g ${packageName}`
+      // Windows: Redirect bun output to log file to prevent cmd.exe from
+      // misinterpreting multiline output as separate commands
+      // macOS/Linux: Keep output visible in terminal (handles multiline correctly)
+      let installCommand: string
+      if (platform === 'win32') {
+        const logsDir = loggerService.getLogsDir()
+        // Use forward slashes for cmd.exe compatibility
+        const installLogPath = path.join(logsDir, 'cli-tools-install.log').replace(/\\/g, '/')
+
+        // Ensure logs directory exists
+        if (!fs.existsSync(logsDir)) {
+          fs.mkdirSync(logsDir, { recursive: true })
+        }
+
+        installCommand = `${installEnvPrefix} "${bunPath}" install -g ${packageName} >> "${installLogPath}" 2>&1`
+      } else {
+        installCommand = `${installEnvPrefix} "${bunPath}" install -g ${packageName}`
+      }
+
       baseCommand = `echo "Installing ${packageName}..." && ${installCommand} && echo "Installation complete, starting ${cliTool}..." && ${baseCommand}`
     }
 
@@ -1011,42 +1059,58 @@ class CodeToolsService {
           fs.mkdirSync(tempDir, { recursive: true })
         }
 
+        // Escape special characters in paths for Windows batch scripting
+        // Using double quotes for compatibility with CMD
+
         // Build bat file content, including debug information
+        // Use labels and goto to handle errors properly (fixes CMD control-flow issue)
         const batContent = [
           '@echo off',
           'chcp 65001 >nul 2>&1', // Switch to UTF-8 code page for international path support
-          `title ${cliTool} - Cherry Studio`, // Set window title in bat file
+          `title ${cliTool} - Cherry Studio`,
           'echo ================================================',
           'echo Cherry Studio CLI Tool Launcher',
-          `echo Tool: ${cliTool}`,
-          `echo Directory: ${directory}`,
+          `echo Tool: ${CodeToolsService.escapeBatchTextForEcho(cliTool)}`,
+          `echo Directory: ${CodeToolsService.escapeBatchTextForEcho(directory)}`,
           `echo Time: ${new Date().toLocaleString()}`,
           'echo ================================================',
           '',
-          ':: Change to target directory',
-          `cd /d "${directory}" || (`,
-          '  echo ERROR: Failed to change directory',
-          `  echo Target directory: ${directory}`,
-          '  pause',
-          '  exit /b 1',
-          ')',
+          ':: Verify directory exists',
+          `if not exist "${directory.replace(/%/g, '%%')}" goto :dir_missing`,
           '',
-          ':: Clear screen',
+          ':: Change to target directory',
+          `pushd "${directory.replace(/%/g, '%%')}"`,
+          'if errorlevel 1 goto :pushd_failed',
+          '',
+          ':: Clear screen before running CLI',
           'cls',
           '',
-          ':: Execute command (without displaying environment variable settings)',
+          ':: Execute command',
           command,
           '',
-          ':: Command execution completed',
-          'echo.',
-          'echo Command execution completed.',
-          'echo Press any key to close this window...',
-          'pause >nul'
+          'goto :end',
+          '',
+          ':: Error handlers (using labels to ensure entire branch is conditional)',
+          ':dir_missing',
+          'echo ERROR: Directory does not exist',
+          `echo Target: ${CodeToolsService.escapeBatchTextForEcho(directory)}`,
+          'pause',
+          'exit /b 1',
+          '',
+          ':pushd_failed',
+          'echo ERROR: Failed to change directory',
+          'pause',
+          'exit /b 1',
+          '',
+          ':end',
+          'pause'
         ].join('\r\n')
 
         // Write to bat file
         try {
           fs.writeFileSync(batFilePath, batContent, 'utf8')
+          // Set restrictive permissions for bat file
+          fs.chmodSync(batFilePath, 0o600)
           logger.info(`Created temp bat file: ${batFilePath}`)
         } catch (error) {
           logger.error(`Failed to create bat file: ${error}`)
@@ -1071,15 +1135,43 @@ class CodeToolsService {
           terminalArgs = args
         }
 
-        // Set cleanup task (delete temp file after 60 seconds)
-        // Windows Terminal (UWP app) may take longer to initialize and read the file
-        setTimeout(() => {
+        // Add to cleanup set
+        CodeToolsService.pendingBatCleanups.add(batFilePath)
+
+        // Register exit handler only once (using process.once to avoid accumulation)
+        if (!CodeToolsService.exitCleanupRegistered) {
+          process.once('exit', () => {
+            // Clean up all remaining bat files on process exit
+            for (const filePath of CodeToolsService.pendingBatCleanups) {
+              try {
+                if (fs.existsSync(filePath)) {
+                  fs.unlinkSync(filePath)
+                  logger.debug(`Cleaned up temp bat file on exit: ${filePath}`)
+                }
+              } catch (error) {
+                logger.warn(`Failed to cleanup temp bat file: ${error}`)
+              }
+            }
+            CodeToolsService.pendingBatCleanups.clear()
+          })
+          CodeToolsService.exitCleanupRegistered = true
+        }
+
+        // Set timeout for cleanup (normal case - file deleted after 60 seconds)
+        const cleanup = () => {
           try {
-            fs.existsSync(batFilePath) && fs.unlinkSync(batFilePath)
+            if (fs.existsSync(batFilePath)) {
+              fs.unlinkSync(batFilePath)
+              logger.debug(`Cleaned up temp bat file: ${batFilePath}`)
+            }
+            // Remove from pending set
+            CodeToolsService.pendingBatCleanups.delete(batFilePath)
           } catch (error) {
             logger.warn(`Failed to cleanup temp bat file: ${error}`)
           }
-        }, 60 * 1000) // Delete temp file after 60 seconds
+        }
+
+        setTimeout(cleanup, 60 * 1000)
 
         break
       }
@@ -1143,7 +1235,8 @@ class CodeToolsService {
         detached: true,
         stdio: 'ignore',
         cwd: directory,
-        env: processEnv
+        env: processEnv,
+        shell: isWin
       })
 
       const successMessage = `Launched ${cliTool} in new terminal window`
@@ -1165,6 +1258,42 @@ class CodeToolsService {
       }
     }
   }
+
+  /**
+   * Escape text for safe use in batch echo statements
+   * Only handles critical issues: newlines and % characters
+   * Preserves command syntax (e.g., &&) - use for constructed command strings
+   * @param text - Raw text from command output or user input
+   * @returns Escaped text safe for batch echo statements
+   */
+  private static escapeBatchTextForEcho(text: string): string {
+    if (!text) return ''
+    return text
+      .replace(/%/g, '%%') // Escape % to avoid variable expansion
+      .replace(/\r\n/g, ' ') // Windows newline to space
+      .replace(/\n/g, ' ') // Unix newline to space
+  }
+}
+
+/**
+ * Escape text for safe use in Windows batch files
+ * Handles ALL cmd.exe metacharacters to prevent command injection
+ * Use this for arbitrary untrusted input that may contain any characters
+ * @param text - Raw text that may contain user input or error messages
+ * @returns Fully escaped text safe for batch files
+ */
+export function escapeBatchText(text: string): string {
+  if (!text) return ''
+  return text
+    .replace(/\^/g, '^^') // Escape caret first (before other escapes)
+    .replace(/%/g, '%%') // Escape % to avoid variable expansion
+    .replace(/&/g, '^&') // Escape & command separator
+    .replace(/\|/g, '^|') // Escape | pipe
+    .replace(/>/g, '^>') // Escape > output redirect
+    .replace(/</g, '^<') // Escape < input redirect
+    .replace(/"/g, '""') // Escape double quotes to prevent echo injection
+    .replace(/\r\n/g, ' ') // Windows newline to space
+    .replace(/\n/g, ' ') // Unix newline to space
 }
 
 export const codeToolsService = new CodeToolsService()

@@ -387,6 +387,9 @@ const agentsRouter = express.Router()
  *             schema:
  *               $ref: '#/components/schemas/ErrorResponse'
  */
+// Reorder route — must be before /:agentId to avoid treating "reorder" as an agentId
+agentsRouter.put('/reorder', agentHandlers.reorderAgents)
+
 // Agent CRUD routes
 agentsRouter.post('/', validateAgent, handleValidationErrors, agentHandlers.createAgent)
 
@@ -605,6 +608,53 @@ const createSessionsRouter = (): express.Router => {
    *             schema:
    *               $ref: '#/components/schemas/ErrorResponse'
    */
+  // Reorder route — must be before /:sessionId to avoid treating "reorder" as a sessionId
+  /**
+   * @swagger
+   * /agents/{agentId}/sessions/reorder:
+   *   put:
+   *     summary: Reorder sessions for an agent
+   *     tags: [Sessions]
+   *     parameters:
+   *       - in: path
+   *         name: agentId
+   *         required: true
+   *         schema:
+   *           type: string
+   *         description: Agent ID
+   *     requestBody:
+   *       required: true
+   *       content:
+   *         application/json:
+   *           schema:
+   *             type: object
+   *             properties:
+   *               ordered_ids:
+   *                 type: array
+   *                 items:
+   *                   type: string
+   *                 description: Array of session IDs in desired order
+   *             required:
+   *               - ordered_ids
+   *     responses:
+   *       200:
+   *         description: Sessions reordered successfully
+   *         content:
+   *           application/json:
+   *             schema:
+   *               type: object
+   *               properties:
+   *                 success:
+   *                   type: boolean
+   *       400:
+   *         description: Invalid request body
+   *         content:
+   *           application/json:
+   *             schema:
+   *               $ref: '#/components/schemas/ErrorResponse'
+   */
+  sessionsRouter.put('/reorder', sessionHandlers.reorderSessions)
+
   sessionsRouter.post('/', validateSession, handleValidationErrors, sessionHandlers.createSession)
 
   /**

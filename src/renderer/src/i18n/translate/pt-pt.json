@@ -7,7 +7,9 @@
         "invalid_agent": "Agent inválido"
       },
       "model": {
-        "tooltip": "Atualmente, apenas modelos que suportam endpoints da Anthropic estão disponíveis para o recurso Agente."
+        "supported_providers": "Provedores Suportados",
+        "tooltip": "Atualmente, apenas modelos que suportam endpoints da Anthropic estão disponíveis para o recurso Agente.",
+        "view_providers": "Ver provedores suportados"
       },
       "title": "Adicionar Agente",
       "type": {
@@ -35,6 +37,10 @@
     },
     "edit": {
       "title": "Agent Editor"
+    },
+    "empty": {
+      "description": "Crie um agente para lidar com tarefas complexas com ferramentas baseadas em IA",
+      "title": "Ainda não há agentes"
     },
     "get": {
       "error": {
@@ -77,6 +83,11 @@
         "failed": "Falha ao listar agentes."
       }
     },
+    "reorder": {
+      "error": {
+        "failed": "Falha ao reordenar agentes"
+      }
+    },
     "server": {
       "error": {
         "not_running": "O servidor de API está habilitado, mas não está funcionando corretamente."
@@ -85,6 +96,7 @@
     "session": {
       "accessible_paths": {
         "add": "Adicionar diretório",
+        "default_hint": "Padrão: {{path}}",
         "duplicate": "Este diretório já está incluído.",
         "empty": "Selecione pelo menos um diretório ao qual o agente possa acessar.",
         "error": {
@@ -126,6 +138,11 @@
       },
       "label_one": "Sessão",
       "label_other": "Sessões",
+      "reorder": {
+        "error": {
+          "failed": "Falha ao reordenar as sessões"
+        }
+      },
       "update": {
         "error": {
           "failed": "Falha ao atualizar a sessão"
@@ -134,6 +151,11 @@
     },
     "settings": {
       "advance": {
+        "envVars": {
+          "description": "Definir variáveis de ambiente personalizadas para o tempo de execução do agente.",
+          "helper": "Insira variáveis de ambiente personalizadas (uma por linha, formato: CHAVE=valor)",
+          "label": "Variáveis de Ambiente"
+        },
         "maxTurns": {
           "description": "Defina o número de ciclos de solicitação/resposta executados automaticamente pelo agente.",
           "helper": "Quanto maior o valor, mais tempo pode funcionar de forma autônoma; quanto menor o valor, mais fácil de controlar.",
@@ -283,10 +305,11 @@
         },
         "tab": "Ferramentas",
         "tools": {
-          "title": "Ferramentas"
+          "title": "Ferramentas pré-aprovadas"
         }
       }
     },
+    "sidebar_title": "Agentes",
     "todo": {
       "panel": {
         "title": "{{completed}}/{{total}} tarefas concluídas"
@@ -366,6 +389,9 @@
         "TodoWrite": {
           "description": "Cria e gere listas de tarefas estruturadas"
         },
+        "ToolSearch": {
+          "description": "Descobre ferramentas diferidas de grandes bibliotecas"
+        },
         "WebFetch": {
           "description": "Busca conteúdo de um URL especificado"
         },
@@ -387,7 +413,11 @@
       }
     },
     "warning": {
-      "enable_server": "Ativar o Servidor de API para usar agentes."
+      "enable_and_start": "Ativar & Iniciar",
+      "enable_server": "Ativar o Servidor de API para usar agentes.",
+      "enable_server_description": "O servidor de API deve estar habilitado para que os agentes funcionem. Você pode habilitá-lo diretamente ou configurá-lo nas configurações.",
+      "server_not_running": "O Servidor API está ativado, mas não está em execução. Verifique a configuração do servidor.",
+      "server_not_running_description": "O servidor da API precisa estar em execução para que os agentes funcionem. Você pode iniciá-lo diretamente ou verificar as configurações."
     }
   },
   "apiServer": {
@@ -613,6 +643,10 @@
           "tip": "O agente usará a capacidade de reconhecimento de intenção do grande modelo para decidir se deve chamar a base de conhecimento para responder. Esta função depende da capacidade do modelo"
         }
       },
+      "max_tool_calls": {
+        "label": "Máximo de Chamadas de Ferramentas",
+        "tip": "Número máximo de chamadas de ferramentas permitidas em uma única conversa. Valores mais altos permitem operações mais complexas de múltiplas etapas, mas podem aumentar o uso de tokens e o tempo de resposta."
+      },
       "mcp": {
         "description": "Servidor MCP ativado por padrão",
         "enableFirst": "Por favor, ative este servidor nas configurações do MCP primeiro",
@@ -704,6 +738,7 @@
     "progress": {
       "completed": "Backup concluído",
       "compressing": "Comprimindo arquivo...",
+      "copying_database": "Copiando banco de dados...",
       "copying_files": "Copiando arquivos... {{progress}}%",
       "preparing": "Preparando backup...",
       "preparing_compression": "Preparando compressão...",
@@ -741,6 +776,7 @@
       }
     },
     "alerts": {
+      "create_agent": "Crie um agente para começar",
       "create_session": "Criar uma sessão",
       "select_agent": "Selecione um agente"
     },
@@ -856,7 +892,11 @@
         "collapse": "Recolher",
         "collapse_in": "Incluir no recolhimento",
         "collapse_out": "Remover do recolhimento",
-        "expand": "Expandir"
+        "expand": "Expandir",
+        "file_not_found": "Arquivo não encontrado: {{path}}",
+        "open_file": "Abrir Arquivo",
+        "open_file_error": "Falha ao abrir o arquivo: {{path}}",
+        "reveal_in_finder": "Revelar no Finder"
       },
       "topics": "Tópicos",
       "translate": "Traduzir para {{target_language}}",
@@ -1155,6 +1195,8 @@
             "content": "Tem certeza de que deseja excluir {{count}} tópico(s) selecionado(s)? Esta ação não pode ser desfeita.",
             "title": "Excluir Tópicos"
           },
+          "error": "Falha ao excluir. Tente novamente.",
+          "partial_success": "Excluídos com sucesso {{successCount}} tópicos, {{failedCount}} falharam",
           "success": "Excluído(s) {{count}} tópico(s)"
         },
         "deselect_all": "Desmarcar Todos",
@@ -1350,6 +1392,7 @@
     "off": "Desligado",
     "on": "Ligado",
     "open": "Abrir",
+    "open_in": "Abrir em {{name}}",
     "paste": "Colar",
     "placeholders": {
       "select": {
@@ -1377,6 +1420,7 @@
     "selected": "Selecionado",
     "selectedItems": "{{count}} itens selecionados",
     "selectedMessages": "{{count}} mensagens selecionadas",
+    "sessions": "Sessões",
     "settings": "Configurações",
     "sort": {
       "pinyin": {
@@ -1486,7 +1530,6 @@
     "originalError": "Erro original",
     "originalMessage": "Mensagem original",
     "parameter": "parâmetro",
-    "pause_placeholder": "Interrompido",
     "prompt": "prompt",
     "provider": "fornecedor",
     "providerId": "ID do fornecedor",
@@ -1500,6 +1543,7 @@
     "requestBody": "Conteúdo da solicitação",
     "requestBodyValues": "Corpo da solicitação",
     "requestUrl": "Caminho da solicitação",
+    "request_timeout": "Tempo limite esgotado",
     "response": "resposta",
     "responseBody": "Conteúdo da resposta",
     "responseHeaders": "Cabeçalho de resposta",
@@ -1509,6 +1553,7 @@
     "status": "Código de status",
     "statusCode": "Código de status",
     "statusText": "Texto de estado",
+    "stream_paused": "Interrompido",
     "text": "texto",
     "toolInput": "ferramenta de entrada",
     "toolName": "Nome da ferramenta",
@@ -1987,6 +2032,10 @@
         "export": "Falha ao exportar Excel"
       },
       "fetchTopicName": "Falha ao nomear o tópico",
+      "file": {
+        "process_failed": "O arquivo {{name}} não pôde ser processado",
+        "text_extraction_failed": "Falha ao extrair texto de {{name}}"
+      },
       "get_embedding_dimensions": "Falha ao obter dimensões de incorporação",
       "invalid": {
         "api": {
@@ -2146,6 +2195,7 @@
     "tools": {
       "abort_failed": "Falha ao interromper a chamada da ferramenta",
       "aborted": "Chamada da ferramenta foi interrompida",
+      "approvalRequired": "Ferramenta \"{{tool}}\" requer aprovação",
       "autoApproveEnabled": "Esta ferramenta tem aprovação automática ativada",
       "cancelled": "Cancelado",
       "completed": "Completo",
@@ -2229,6 +2279,11 @@
       }
     },
     "warning": {
+      "file": {
+        "pdf_exceeds_limit": "O arquivo PDF {{name}} excede o limite de tamanho ({{limit}}), recorrendo à extração de texto",
+        "pdf_text_extraction_failed": "Falha ao extrair texto do PDF {{name}}",
+        "pdf_upload_failed": "Falha ao carregar o PDF {{name}}, recorrendo à extração de texto"
+      },
       "rate": {
         "limit": "Envio muito frequente, aguarde {{seconds}} segundos antes de tentar novamente"
       }
@@ -2281,8 +2336,11 @@
     "chatglm": "ChatGLM",
     "dangbei": "Dangbei",
     "doubao": "Doubao",
-    "hailuo": "MINIMAX",
+    "hailuo": "Hailuo",
+    "ima": "ima",
     "metaso": "Metaso",
+    "minimax-agent": "MiniMax Agent CN",
+    "minimax-global": "MiniMax Agent",
     "nami-ai": "Nami AI",
     "nami-ai-search": "Nami AI Search",
     "qwen": "Qwen",
@@ -2520,6 +2578,9 @@
   "notification": {
     "assistant": "Resposta do assistente",
     "knowledge": {
+      "batch_error": "{{failed}} itens falharam ao ser processados",
+      "batch_mixed": "{{succeeded}} itens foram bem-sucedidos, {{failed}} itens falharam",
+      "batch_success": "{{succeeded}} itens processados com sucesso",
       "error": "{{error}}",
       "success": "Adicionado com sucesso {{type}} à base de conhecimento"
     },
@@ -2557,6 +2618,27 @@
     },
     "title": "Ollama"
   },
+  "onboarding": {
+    "select_model": {
+      "change_later": "Você pode alterar isso a qualquer momento nas configurações",
+      "start": "Comece",
+      "subtitle": "Selecionar modelo padrão para cada cenário",
+      "title": "Escolha Seus Modelos Padrão"
+    },
+    "skip": "Pular",
+    "toast": {
+      "connected": "Conectado com sucesso ao CherryIN"
+    },
+    "welcome": {
+      "login_cherryin": "Entrar com CherryIN",
+      "or_continue_with": "OU CONTINUAR COM",
+      "other_provider": "Escolher Outros Provedores",
+      "select_other_provider": "Selecionar Outro Provedor",
+      "setup_hint": "Por favor, configure pelo menos um provedor para a melhor experiência",
+      "subtitle": "Desfrute de serviços de IA de alto nível com CherryIN",
+      "title": "Bem-vindo ao Cherry Studio"
+    }
+  },
   "openclaw": {
     "checking_installation": "Verificando a instalação do OpenClaw...",
     "description": "Integre provedores do Cherry Studio com o Gateway OpenClaw para habilitar agentes de codificação de IA como Claude Code, Qwen-Coder e muitos outros.",
@@ -2579,6 +2661,11 @@
     },
     "install_progress": "Progresso da Instalação",
     "installed_at": "OpenClaw instalado em",
+    "migration": {
+      "description": "Foi detectada uma versão desatualizada do OpenClaw instalada via npm. Por favor, reinstale para obter a versão oficial mais recente.",
+      "install_button": "Reinstale o OpenClaw",
+      "title": "OpenClaw Precisa de Atualização"
+    },
     "model_config": {
       "auth_token": "Token de Autenticação",
       "auth_token_hint": "Token para autenticação do gateway. Deixe vazio para desativar a autenticação.",
@@ -2614,6 +2701,7 @@
       "windows_title": "Windows"
     },
     "quick_actions": {
+      "check_update": "Verificar Atualizações",
       "open_dashboard": "Abrir Painel",
       "title": "Ações Rápidas",
       "uninstall": "Desinstalar",
@@ -2640,6 +2728,16 @@
     "uninstalling": {
       "description": "Aguarde enquanto o OpenClaw está sendo desinstalado...",
       "title": "Desinstalando OpenClaw"
+    },
+    "update": {
+      "available": "Nova versão disponível: v{{latest}} (atual: v{{current}})",
+      "checking": "Verificando atualizações...",
+      "confirm_button": "Atualizar agora",
+      "failed": "Falha ao verificar atualizações",
+      "modal_title": "Atualização do OpenClaw",
+      "success": "Atualização concluída com sucesso!",
+      "up_to_date": "Já está atualizado (v{{current}})",
+      "updating": "Atualizando..."
     }
   },
   "ovms": {
@@ -2957,7 +3055,9 @@
     "no_description": "Sem descrição",
     "no_installed_plugins": "Nenhum plugin foi instalado ainda",
     "no_results": "Plugin não encontrado",
+    "no_results_skills": "Nenhuma habilidade encontrada",
     "search_placeholder": "Pesquisar plugin...",
+    "search_placeholder_skills": "Pesquisar habilidades...",
     "showing_results": "Exibir {{count}} extensões",
     "showing_results_one": "Mostrar {{count}} extensões",
     "showing_results_other": "Exibir {{count}} extensões",
@@ -3038,7 +3138,8 @@
     "lmstudio": "Estúdio LM",
     "longcat": "Totoro",
     "mimo": "Xiaomi MiMo",
-    "minimax": "Minimax",
+    "minimax": "Minimax CN",
+    "minimax-global": "MiniMax",
     "mistral": "Mistral",
     "modelscope": "ModelScope MôDá",
     "moonshot": "Disparo Lunar",
@@ -3066,6 +3167,7 @@
     "voyageai": "Voyage AI",
     "xirang": "XiRang do Nuvem Telecom",
     "yi": "ZeroUmTudo",
+    "zai": "Z.ai",
     "zhinao": "360 Inteligência Artificial",
     "zhipu": "BigModel"
   },
@@ -3082,7 +3184,10 @@
       "extracting": "Descompactando backup...",
       "preparing": "Preparando restauração...",
       "reading_data": "Lendo dados...",
-      "title": "Progresso da Restauração"
+      "restoring_data": "Restaurando arquivos...",
+      "restoring_database": "Restaurando banco de dados...",
+      "title": "Progresso da Restauração",
+      "validating": "Validando backup..."
     },
     "title": "Restauração de Dados"
   },
@@ -3388,6 +3493,19 @@
           "windows": "Insira o nome do arquivo executável do aplicativo, um por linha, sem distinção entre maiúsculas e minúsculas, correspondência parcial permitida. Por exemplo: chrome.exe, weixin.exe, Cherry Studio.exe, etc."
         }
       },
+      "linux": {
+        "compositor_incompatible": "Seu ambiente de área de trabalho não suporta o recurso de seleção. Por favor, mude para uma sessão X11 para a experiência completa.",
+        "filter_warning_text": "Não disponível na sessão Wayland",
+        "input_group_fail": "Não concedido, execute `sudo usermod -aG input $USER` e entre novamente",
+        "input_group_label": "permissão do grupo de entrada:",
+        "input_group_pass": "Concedido",
+        "wayland_checklist_subtitle": "Certifique-se de que as seguintes condições sejam atendidas para otimizar a experiência com Wayland:",
+        "wayland_description": "Você está em uma sessão Wayland. Devido a limitações do sistema, a barra de ferramentas pode aparecer apenas no centro da tela em vez de seguir o texto selecionado em alguns ambientes de desktop. Recomenda-se alternar para uma sessão X11 para a experiência completa.",
+        "wayland_title": "Aviso de Sessão Wayland",
+        "xwayland_fail": "Não ativado, por favor inicie o Cherry Studio com a flag `--ozone-platform=x11`",
+        "xwayland_label": "Modo XWayland:",
+        "xwayland_pass": "Ativado"
+      },
       "search_modal": {
         "custom": {
           "name": {
@@ -3421,6 +3539,7 @@
           "ctrlkey_note": "Após selecionar uma palavra, mantenha pressionada a tecla Ctrl para exibir a barra de ferramentas",
           "description": "Método de ativação da captura de palavras e exibição da barra de ferramentas após selecionar o texto",
           "description_note": {
+            "linux": "Se você remapeou teclas modificadoras usando ferramentas como xmodmap ou xremap, isso pode fazer com que alguns aplicativos falhem ao selecionar texto.",
             "mac": "Se você estiver usando atalhos ou ferramentas de mapeamento de teclado para remapear a tecla ⌘, isso poderá fazer com que alguns aplicativos não permitam a seleção de texto.",
             "windows": "Alguns aplicativos não suportam a seleção de texto pela tecla Ctrl. Se você estiver usando ferramentas de mapeamento de teclas como AHK para remapear a tecla Ctrl, isso poderá fazer com que alguns aplicativos não permitam a seleção de texto."
           },
@@ -3635,7 +3754,15 @@
           "button": "Selecionar arquivo de backup"
         },
         "content": "Exportar parte dos dados, incluindo registros de conversas e configurações. Observe que o processo de backup pode demorar um pouco; agradecemos sua paciência.",
+        "file": {
+          "button": "Exportar para arquivo",
+          "content": "Exportar dados como arquivo de backup que pode ser importado no celular via arquivo.",
+          "export_failed": "Falha na exportação",
+          "export_success": "Exportação bem-sucedida",
+          "title": "Exportar como arquivo"
+        },
         "lan": {
+          "button": "Iniciar transferência",
           "connected": "Conectado",
           "connection_failed": "Falha na conexão",
           "content": "Certifique-se de que o computador e o telefone estejam na mesma rede para usar a transferência via LAN. Abra o aplicativo Cherry Studio e escaneie este código QR.",
@@ -4734,6 +4861,7 @@
           "label": "Adicionar modelo da lista"
         },
         "add_whole_group": "Adicionar todo o grupo",
+        "fetch_list": "Buscar lista de modelos",
         "refetch_list": "Obter novamente a lista de modelos",
         "remove_listed": "Remover modelo da lista",
         "remove_model": "Remover Modelo",
@@ -4850,6 +4978,7 @@
         "logout_failed": "Falha ao sair da conta, tente novamente",
         "logout_success": "Logout bem-sucedido do login Anthropic",
         "oauth": "OAuth da Página Web",
+        "oauth_disabled_warning": "A Anthropic suspendeu temporariamente o uso do Claude via OAuth. Este método de autenticação está atualmente indisponível. Por favor, use uma chave de API por enquanto.",
         "start_auth": "Iniciar autorização",
         "submit_code": "Concluir login"
       },
@@ -5010,6 +5139,11 @@
       },
       "docs_check": "Verificar",
       "docs_more_details": "Obter mais detalhes",
+      "filter": {
+        "agent": "Suportado por Agente",
+        "all": "Todos os Provedores"
+      },
+      "filter_agent": "Agente de Filtro - Provedores Suportados",
       "get_api_key": "Clique aqui para obter a chave",
       "misc": "outro",
       "no_models_for_check": "Não há modelos disponíveis para verificação (por exemplo, modelos de conversa)",
