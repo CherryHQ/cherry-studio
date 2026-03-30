@@ -9,7 +9,6 @@ import type {
   HookCallback,
   McpHttpServerConfig,
   Options,
-  PreToolUseHookInput,
   SDKMessage,
   SdkPluginConfig,
   SpawnedProcess
@@ -319,14 +318,12 @@ class ClaudeCodeService implements AgentServiceInterface {
         return {}
       }
 
-      const hookInput = input as PreToolUseHookInput
-
       // Only rewrite Bash tool commands
-      if (hookInput.tool_name !== 'Bash' && hookInput.tool_name !== 'builtin_Bash') {
+      if (input.tool_name !== 'Bash' && input.tool_name !== 'builtin_Bash') {
         return {}
       }
 
-      const toolInput = hookInput.tool_input as Record<string, unknown> | undefined
+      const toolInput = input.tool_input as Record<string, unknown> | undefined
       const command = toolInput?.command
       if (typeof command !== 'string' || !command.trim()) {
         return {}
