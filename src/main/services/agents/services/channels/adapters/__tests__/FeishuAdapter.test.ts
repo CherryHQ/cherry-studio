@@ -60,7 +60,7 @@ vi.mock('@larksuiteoapi/node-sdk', () => ({
   LoggerLevel: { warn: 2 }
 }))
 
-import '../FeishuAdapter'
+import '../feishu/FeishuAdapter'
 
 import { registerAdapterFactory } from '../../ChannelManager'
 

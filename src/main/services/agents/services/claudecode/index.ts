@@ -433,7 +433,7 @@ class ClaudeCodeService implements AgentServiceInterface {
       resume: options.resume
     })
 
-    const { stream: userInputStream, close: closeUserStream } = this.createUserMessageStream(
+    const { stream: userInputStream, close: closeUserStream } = await this.createUserMessageStream(
       prompt,
       abortController.signal,
       images
@@ -463,7 +463,7 @@ class ClaudeCodeService implements AgentServiceInterface {
     return aiStream
   }
 
-  private createUserMessageStream(
+  private async createUserMessageStream(
     initialPrompt: string,
     abortSignal: AbortSignal,
     images?: Array<{ data: string; media_type: string }>
@@ -538,7 +538,7 @@ class ClaudeCodeService implements AgentServiceInterface {
     })()
 
     // Kick off image processing asynchronously; enqueue the first message once ready
-    this.buildMessageContent(initialPrompt, images).then((content) => {
+    await this.buildMessageContent(initialPrompt, images).then((content) => {
       enqueue({
         type: 'user',
         parent_tool_use_id: null,
