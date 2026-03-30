@@ -666,8 +666,14 @@ describe('ClawServer', () => {
         expect(parsed.model).toBe('claude-sonnet-4-20250514')
         expect(parsed.channels).toHaveLength(1)
         expect(parsed.channels[0].type).toBe('telegram')
-        expect(parsed.supported_channel_types).toHaveLength(4)
-        expect(parsed.supported_channel_types.map((t: any) => t.type)).toEqual(['telegram', 'feishu', 'qq', 'wechat'])
+        expect(parsed.supported_channel_types).toHaveLength(5)
+        expect(parsed.supported_channel_types.map((t: any) => t.type)).toEqual([
+          'telegram',
+          'feishu',
+          'qq',
+          'wechat',
+          'discord'
+        ])
         expect(parsed.soul_enabled).toBe(true)
       })
 
@@ -745,7 +751,7 @@ describe('ClawServer', () => {
 
       it('should error when unsupported type is given', async () => {
         const server = createServer('agent_1')
-        const result = await callTool(server, { action: 'add_channel', type: 'discord', name: 'test' }, 'config')
+        const result = await callTool(server, { action: 'add_channel', type: 'slack', name: 'test' }, 'config')
 
         expect(result.isError).toBe(true)
         expect(result.content[0].text).toContain('Unknown channel type')

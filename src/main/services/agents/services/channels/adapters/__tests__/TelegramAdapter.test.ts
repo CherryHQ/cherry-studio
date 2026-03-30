@@ -31,7 +31,7 @@ vi.mock('grammy', () => ({
 }))
 
 // Import the module to trigger self-registration side effect
-import '../TelegramAdapter'
+import '../telegram/TelegramAdapter'
 
 import { registerAdapterFactory } from '../../ChannelManager'
 

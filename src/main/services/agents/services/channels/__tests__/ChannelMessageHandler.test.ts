@@ -84,8 +84,8 @@ async function handleIncomingAndFlush(
   message: { chatId: string; userId: string; userName: string; text: string }
 ) {
   const promise = channelMessageHandler.handleIncoming(adapter, message)
-  // Advance past the MESSAGE_BATCH_DELAY_MS debounce (3 000 ms)
-  await vi.advanceTimersByTimeAsync(3500)
+  // Advance past the MESSAGE_BATCH_DELAY_MS debounce (10 000 ms)
+  await vi.advanceTimersByTimeAsync(10500)
   return promise
 }
 
@@ -183,7 +183,13 @@ describe('ChannelMessageHandler', () => {
       command: 'new'
     })
 
-    expect(sessionService.createSession).toHaveBeenCalledWith('agent-1', {})
+    expect(sessionService.createSession).toHaveBeenCalledWith('agent-1', {
+      configuration: {
+        source_channel_id: 'channel-1',
+        source_channel_type: 'telegram',
+        source_chat_id: 'chat-1'
+      }
+    })
     expect(adapter.sendMessage).toHaveBeenCalledWith('chat-1', 'New session created.')
   })
 
