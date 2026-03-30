@@ -447,7 +447,9 @@ export const useRichEditor = (options: UseRichEditorOptions = {}): UseRichEditor
       }
     },
     onUpdate: ({ editor, transaction }) => {
-      if (!editable || !transaction.docChanged) return
+      // Ignore non-user updates (initialization/mode toggles/programmatic transactions)
+      // to avoid re-serializing markdown while switching view modes.
+      if (!editable || !transaction.docChanged || !editor.isFocused) return
 
       const content = editor.getText()
       const htmlContent = editor.getHTML()
