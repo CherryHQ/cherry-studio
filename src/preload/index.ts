@@ -530,7 +530,8 @@ const api = {
     // [Windows only] Electron bug workaround - can be removed once https://github.com/electron/electron/issues/48554 is fixed
     resizeActionWindow: (deltaX: number, deltaY: number, direction: string) =>
       ipcRenderer.invoke(IpcChannel.Selection_ActionWindowResize, deltaX, deltaY, direction),
-    getLinuxEnvInfo: () => ipcRenderer.invoke(IpcChannel.Selection_GetLinuxEnvInfo)
+    getLinuxEnvInfo: () => ipcRenderer.invoke(IpcChannel.Selection_GetLinuxEnvInfo),
+    captureScreenshot: (): Promise<FileMetadata | null> => ipcRenderer.invoke(IpcChannel.Selection_CaptureScreenshot)
   },
   agentTools: {
     respondToPermission: (payload: {

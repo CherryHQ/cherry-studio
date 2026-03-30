@@ -2,7 +2,8 @@ import { loggerService } from '@logger'
 import { SELECTION_FINETUNED_LIST, SELECTION_PREDEFINED_BLACKLIST } from '@main/configs/SelectionConfig'
 import { isDev, isLinux, isMac, isWin } from '@main/constant'
 import { IpcChannel } from '@shared/IpcChannel'
-import { app, BrowserWindow, clipboard, ipcMain, screen, systemPreferences } from 'electron'
+import type { FileMetadata } from '@types'
+import { app, BrowserWindow, clipboard, ipcMain, screen, shell, systemPreferences } from 'electron'
 import { join } from 'path'
 import type {
   KeyboardEventData,
@@ -14,6 +15,7 @@ import type {
 
 import type { ActionItem } from '../../renderer/src/types/selectionTypes'
 import { ConfigKeys, configManager } from './ConfigManager'
+import { fileStorage } from './FileStorage'
 import storeSyncService from './StoreSyncService'
 
 const logger = loggerService.withContext('SelectionService')
@@ -1588,6 +1590,44 @@ export class SelectionService {
     return this.selectionHook.writeToClipboard(text)
   }
 
+  public async captureScreenshot(): Promise<FileMetadata | null> {
+    if (!isWin) {
+      logger.warn('Screenshot capture is only supported on Windows')
+      return null
+    }
+
+    try {
+      const baselineImage = clipboard.readImage()
+      const baselineSignature = baselineImage.isEmpty() ? '' : baselineImage.toDataURL()
+
+      await shell.openExternal('ms-screenclip:')
+
+      const timeoutMs = 30_000
+      const startTime = Date.now()
+
+      while (Date.now() - startTime < timeoutMs) {
+        await new Promise((resolve) => setTimeout(resolve, 200))
+
+        const image = clipboard.readImage()
+        if (image.isEmpty()) {
+          continue
+        }
+
+        const signature = image.toDataURL()
+        if (signature === baselineSignature) {
+          continue
+        }
+
+        return fileStorage.savePastedImage({} as Electron.IpcMainInvokeEvent, image.toPNG(), '.png')
+      }
+
+      return null
+    } catch (error) {
+      logger.error('Failed to capture screenshot:', error as Error)
+      throw error
+    }
+  }
+
   /**
    * Register IPC handlers for communication with renderer process
    * Handles toolbar, action window, and selection-related commands
@@ -1681,6 +1721,10 @@ export class SelectionService {
         )
       })
     }
+
+    ipcMain.handle(IpcChannel.Selection_CaptureScreenshot, async () => {
+      return selectionService?.captureScreenshot() ?? null
+    })
 
     this.isIpcHandlerRegistered = true
   }

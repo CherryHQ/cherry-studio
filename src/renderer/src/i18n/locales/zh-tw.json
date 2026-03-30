@@ -3413,6 +3413,7 @@
         "explain": "解釋",
         "quote": "引用",
         "refine": "潤飾",
+        "screenshot": "截圖翻譯",
         "search": "搜尋",
         "summary": "總結",
         "translate": "翻譯"
@@ -3421,6 +3422,13 @@
         "explain": "請說明以下內容。要求：以{{language}}回覆；不要包含任何對此提示的說明，直接給出回應：",
         "refine": "請優化或潤飾以 XML 標籤 <INPUT> 包覆的使用者輸入內容，同時保留原意與完整性。要求：輸出須與使用者輸入使用相同語言；不需包含本提示的任何說明，直接給出回應；勿輸出 XML 標籤，直接輸出優化後的內容：\n\n{{text}}",
         "summary": "請直接以{{language}}回覆，無須任何說明。"
+      },
+      "screenshot": {
+        "cancelled": "已取消截圖",
+        "empty_text": "未辨識到可翻譯文字",
+        "failed": "截圖翻譯失敗",
+        "start_hint": "請在系統截圖工具開啟後框選要翻譯的區域",
+        "unsupported": "截圖翻譯目前僅支援 Windows"
       },
       "translate": {
         "smart_translate_tips": "智慧翻譯：內容將優先翻譯為目標語言；內容已是目標語言時，將翻譯為備用語言"

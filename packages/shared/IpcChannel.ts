@@ -321,6 +321,7 @@ export enum IpcChannel {
   Selection_ProcessAction = 'selection:process-action',
   Selection_UpdateActionData = 'selection:update-action-data',
   Selection_GetLinuxEnvInfo = 'selection:get-linux-env-info',
+  Selection_CaptureScreenshot = 'selection:capture-screenshot',
 
   // Memory
   Memory_Add = 'memory:add',

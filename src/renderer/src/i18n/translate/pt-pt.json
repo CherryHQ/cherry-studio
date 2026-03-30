@@ -3413,6 +3413,7 @@
         "explain": "Explicar",
         "quote": "Citar",
         "refine": "Aperfeiçoar",
+        "screenshot": "[to be translated]:Screenshot Translate",
         "search": "Pesquisar",
         "summary": "Resumir",
         "translate": "Traduzir"
@@ -3421,6 +3422,13 @@
         "explain": "Por favor, explique o seguinte conteúdo.",
         "refine": "Por favor, otimize ou aprimore o conteúdo fornecido pelo usuário dentro da tag XML <INPUT>, mantendo o significado e a integridade do conteúdo original. Requisitos: sua saída deve estar no mesmo idioma que o entrada do usuário; não inclua nenhuma explicação deste prompt, apenas forneça a resposta diretamente; não inclua tags XML, forneça o conteúdo otimizado diretamente:",
         "summary": "Resuma o conteúdo a seguir. Requisitos: Responda em {{language}}; não inclua nenhuma explicação deste prompt, apenas forneça a resposta diretamente:"
+      },
+      "screenshot": {
+        "cancelled": "[to be translated]:Screenshot capture cancelled",
+        "empty_text": "[to be translated]:No text was recognized in the screenshot",
+        "failed": "[to be translated]:Screenshot translation failed",
+        "start_hint": "[to be translated]:Select a screen area after Snipping Tool opens",
+        "unsupported": "[to be translated]:Screenshot translation is currently supported on Windows only"
       },
       "translate": {
         "smart_translate_tips": "Tradução inteligente: o conteúdo será priorizado para tradução no idioma de destino; se o conteúdo já estiver no idioma de destino, será traduzido para o idioma alternativo"

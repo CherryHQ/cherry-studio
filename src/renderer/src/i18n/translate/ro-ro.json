@@ -3413,6 +3413,7 @@
         "explain": "Explică",
         "quote": "Citează",
         "refine": "Rafinează",
+        "screenshot": "[to be translated]:Screenshot Translate",
         "search": "Caută",
         "summary": "Rezumat",
         "translate": "Tradu"
@@ -3421,6 +3422,13 @@
         "explain": "Te rog să explici următorul conținut. Cerințe: Răspunde în {{language}}; nu include nicio explicație a acestui prompt, oferă direct răspunsul:",
         "refine": "Te rugăm să optimizezi sau să îmbunătățești conținutul introdus de utilizator, cuprins în eticheta XML <INPUT>, păstrând sensul și integritatea textului original. Cerințe: rezultatul tău trebuie să fie în aceeași limbă cu cel introdus de utilizator; nu include nicio explicație referitoare la acest prompt, oferă direct răspunsul; nu afișa etichetele XML, ci doar conținutul optimizat.",
         "summary": "Vă rog să rezumați următorul conținut. Cerințe: Răspundeți în {{language}}; nu includeți nicio explicație a acestui prompt, oferiți direct răspunsul:"
+      },
+      "screenshot": {
+        "cancelled": "[to be translated]:Screenshot capture cancelled",
+        "empty_text": "[to be translated]:No text was recognized in the screenshot",
+        "failed": "[to be translated]:Screenshot translation failed",
+        "start_hint": "[to be translated]:Select a screen area after Snipping Tool opens",
+        "unsupported": "[to be translated]:Screenshot translation is currently supported on Windows only"
       },
       "translate": {
         "smart_translate_tips": "Traducere inteligentă: Conținutul va fi tradus mai întâi în limba țintă; conținutul aflat deja în limba țintă va fi tradus în limba alternativă"

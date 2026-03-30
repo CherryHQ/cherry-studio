@@ -3413,6 +3413,7 @@
         "explain": "解説",
         "quote": "引用",
         "refine": "最適化",
+        "screenshot": "[to be translated]:Screenshot Translate",
         "search": "検索",
         "summary": "要約",
         "translate": "翻訳"
@@ -3421,6 +3422,13 @@
         "explain": "以下の内容を説明してください。要件：{{language}}で返答すること；このプロンプトの説明は一切含めず、直接回答してください。",
         "refine": "ユーザー入力内容をXMLタグ<INPUT>で囲み、元の意味と整合性を保ちながら最適化または磨きをかけてください。要件：出力はユーザー入力と同じ言語で行い、このプロンプトの説明は一切含めず、直接応答を提供してください；XMLタグは出力せず、最適化された内容を直接出力してください。",
         "summary": "以下の内容を要約してください。要件：{{language}}で返答；このプロンプトの説明は一切含めず、直接回答してください。"
+      },
+      "screenshot": {
+        "cancelled": "[to be translated]:Screenshot capture cancelled",
+        "empty_text": "[to be translated]:No text was recognized in the screenshot",
+        "failed": "[to be translated]:Screenshot translation failed",
+        "start_hint": "[to be translated]:Select a screen area after Snipping Tool opens",
+        "unsupported": "[to be translated]:Screenshot translation is currently supported on Windows only"
       },
       "translate": {
         "smart_translate_tips": "スマート翻訳：内容は優先的に目標言語に翻訳されます。すでに目標言語の場合は、備用言語に翻訳されます。"
