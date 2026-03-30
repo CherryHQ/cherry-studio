@@ -4,6 +4,7 @@ import { app, dialog, session, shell, webContents } from 'electron'
 import { promises as fs } from 'fs'
 
 import { configManager } from './ConfigManager'
+import { isSafeExternalUrl } from './security'
 
 /**
  * init the useragent of the webview session
@@ -36,7 +37,9 @@ export function setOpenLinkExternal(webviewId: number, isExternal: boolean) {
 
   webview.setWindowOpenHandler(({ url }) => {
     if (isExternal) {
-      void shell.openExternal(url)
+      if (isSafeExternalUrl(url)) {
+        void shell.openExternal(url)
+      }
       return { action: 'deny' }
     } else {
       return { action: 'allow' }
