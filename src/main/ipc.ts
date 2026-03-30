@@ -90,6 +90,7 @@ import {
 import storeSyncService from './services/StoreSyncService'
 import { themeService } from './services/ThemeService'
 import VertexAIService from './services/VertexAIService'
+import { isSafeExternalUrl } from './services/security'
 import { setOpenLinkExternal } from './services/WebviewService'
 import { windowService } from './services/WindowService'
 import { calculateDirectorySize, getResourcePath } from './utils'
@@ -182,7 +183,13 @@ export async function registerIpc(mainWindow: BrowserWindow, app: Electron.App) 
 
   ipcMain.handle(IpcChannel.App_Reload, () => mainWindow.reload())
   ipcMain.handle(IpcChannel.App_Quit, () => app.quit())
-  ipcMain.handle(IpcChannel.Open_Website, (_, url: string) => shell.openExternal(url))
+  ipcMain.handle(IpcChannel.Open_Website, (_, url: string) => {
+    if (!isSafeExternalUrl(url)) {
+      logger.warn(`Blocked shell.openExternal for untrusted URL scheme: ${url}`)
+      return
+    }
+    return shell.openExternal(url)
+  })
 
   // Update
   ipcMain.handle(IpcChannel.App_QuitAndInstall, () => appUpdater.quitAndInstall())
