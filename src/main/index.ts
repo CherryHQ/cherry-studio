@@ -38,6 +38,7 @@ import { TrayService } from './services/TrayService'
 import { versionService } from './services/VersionService'
 import { windowService } from './services/WindowService'
 import { initWebviewHotkeys } from './services/WebviewService'
+import { terminalService } from './services/TerminalService'
 import { runAsyncFunction } from './utils'
 import { isOvmsSupported } from './services/OvmsManager'
 import { extractRtkBinaries } from './utils/rtk'
@@ -164,6 +165,7 @@ if (!app.requestSingleInstanceLock()) {
     nodeTraceService.init()
     powerMonitorService.init()
     analyticsService.init()
+    terminalService.init(mainWindow)
 
     // Extract bundled rtk binary to ~/.cherrystudio/bin/ on first run
     extractRtkBinaries().catch((error) => {
@@ -287,6 +289,7 @@ if (!app.requestSingleInstanceLock()) {
       await openClawService.stopGateway()
       await mcpService.cleanup()
       await apiServerService.stop()
+      terminalService.killAll()
     } catch (error) {
       logger.warn('Error cleaning up services:', error as Error)
     }
