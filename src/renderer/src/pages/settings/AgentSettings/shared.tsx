@@ -1,3 +1,4 @@
+import cherryClawLogo from '@renderer/assets/images/cherry-claw-logo.png'
 import EmojiIcon from '@renderer/components/EmojiIcon'
 import type { ScrollbarProps } from '@renderer/components/Scrollbar'
 import Scrollbar from '@renderer/components/Scrollbar'
@@ -95,12 +96,29 @@ export const SOUL_MODE_EMOJI = '🦞'
 export const isSoulModeEnabled = (configuration: AgentConfiguration | undefined | null): boolean =>
   (configuration as CherryClawConfiguration | undefined)?.soul_enabled === true
 
+export const CherryClawIcon = ({ size = 24, className }: { size?: number; className?: string }) => (
+  <img
+    src={cherryClawLogo}
+    alt="CherryClaw"
+    width={size}
+    height={size}
+    className={cn('rounded-full object-cover', className)}
+    draggable={false}
+  />
+)
+
 export const AgentLabel = ({ agent, classNames, hideIcon }: AgentLabelProps) => {
-  const emoji = isSoulModeEnabled(agent?.configuration) ? SOUL_MODE_EMOJI : agent?.configuration?.avatar || '⭐️'
+  const isDefaultCherryClaw = agent?.id === 'cherry-claw-default'
+  const emoji = agent?.configuration?.avatar || '⭐️'
 
   return (
     <div className={cn('flex w-full items-center gap-2 truncate', classNames?.container)}>
-      {!hideIcon && <EmojiIcon emoji={emoji} className={classNames?.avatar} size={24} />}
+      {!hideIcon &&
+        (isDefaultCherryClaw ? (
+          <CherryClawIcon size={24} className={classNames?.avatar} />
+        ) : (
+          <EmojiIcon emoji={emoji} className={classNames?.avatar} size={24} />
+        ))}
       <span className={cn('truncate', 'text-[var(--color-text)]', classNames?.name)}>{agent?.name ?? ''}</span>
     </div>
   )

@@ -1,4 +1,5 @@
 import { DeleteIcon, EditIcon } from '@renderer/components/Icons'
+import MarqueeText from '@renderer/components/MarqueeText'
 import { isMac } from '@renderer/config/constant'
 import { useAgent } from '@renderer/hooks/agents/useAgent'
 import { useUpdateSession } from '@renderer/hooks/agents/useUpdateSession'
@@ -211,15 +212,13 @@ const SessionItem = ({ session, agentId, onDelete, onPress }: SessionItemProps) 
             <>
               <SessionName>
                 {channelIcon && <ChannelIconImg src={channelIcon} />}
-                {channelName && (
-                  <ChannelNameTag>
-                    <span>{channelName}</span>
-                  </ChannelNameTag>
-                )}
-                <SessionLabel
-                  session={session}
-                  className={isRenaming ? 'animation-shimmer' : isNewlyRenamed ? 'animation-reveal' : ''}
-                />
+                {channelName && <ChannelNameTag>{channelName}</ChannelNameTag>}
+                <MarqueeText className="min-w-0 flex-1">
+                  <SessionLabel
+                    session={session}
+                    className={isRenaming ? 'animation-shimmer' : isNewlyRenamed ? 'animation-reveal' : ''}
+                  />
+                </MarqueeText>
               </SessionName>
               <DeleteButton />
             </>
@@ -308,28 +307,7 @@ const ChannelNameTag = styled.span`
   font-size: 11px;
   color: var(--color-text-3);
   flex-shrink: 0;
-  max-width: 80px;
-  overflow: hidden;
   white-space: nowrap;
-  display: inline-flex;
-
-  > span {
-    display: inline-block;
-    padding-right: 8px;
-  }
-
-  &:hover > span {
-    animation: channel-scroll 2.5s ease-in-out infinite alternate;
-  }
-
-  @keyframes channel-scroll {
-    0%, 20% {
-      transform: translateX(0);
-    }
-    80%, 100% {
-      transform: translateX(calc(80px - 100%));
-    }
-  }
 `
 
 const SessionEditInput = styled.input`

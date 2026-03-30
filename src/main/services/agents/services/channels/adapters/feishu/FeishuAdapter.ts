@@ -287,7 +287,7 @@ class FeishuStreamingSession {
           await this.client.cardkit.v1.cardElement.content({
             path: { card_id: this.cardId!, element_id: STREAMING_ELEMENT_ID },
             data: {
-              content: JSON.stringify({ tag: 'markdown', content: text }),
+              content: text,
               sequence: this.sequence
             }
           }),

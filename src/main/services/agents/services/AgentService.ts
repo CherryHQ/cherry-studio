@@ -17,14 +17,13 @@ import { BaseService } from '../BaseService'
 import { type AgentRow, agentsTable, type InsertAgentRow } from '../database/schema'
 import type { AgentModelField } from '../errors'
 import { seedWorkspaceTemplates } from './cherryclaw/seedWorkspace'
-import { schedulerService } from './SchedulerService'
-import { sessionService } from './SessionService'
 
 const logger = loggerService.withContext('AgentService')
 
 export class AgentService extends BaseService {
+  static readonly DEFAULT_AGENT_ID = 'cherry-claw-default'
+
   private static instance: AgentService | null = null
-  private defaultCherryClawEnsured = false
   private readonly modelFields: AgentModelField[] = ['model', 'plan_model', 'small_model']
 
   static getInstance(): AgentService {
@@ -123,9 +122,6 @@ export class AgentService extends BaseService {
   }
 
   async listAgents(options: ListOptions = {}): Promise<{ agents: AgentEntity[]; total: number }> {
-    // Ensure a default CherryClaw agent exists
-    await this.ensureDefaultCherryClaw()
-
     // Build query with pagination
     const database = await this.getDatabase()
     const totalResult = await database.select({ count: count() }).from(agentsTable)
@@ -162,31 +158,42 @@ export class AgentService extends BaseService {
     return { agents, total: totalResult[0].count }
   }
 
-  private async ensureDefaultCherryClaw(): Promise<void> {
-    if (this.defaultCherryClawEnsured) return
+  /**
+   * Initialize the built-in CherryClaw agent with a fixed ID.
+   * Called once at app startup. Safe to call multiple times — skips if the agent already exists.
+   * Returns the agent ID if created or already present, or null if no compatible model is available yet.
+   */
+  async initDefaultCherryClawAgent(): Promise<string | null> {
+    const id = AgentService.DEFAULT_AGENT_ID
     try {
       const database = await this.getDatabase()
-      // Check for existing CherryClaw agent by name (type is now unified as 'claude-code')
       const existing = await database
         .select({ id: agentsTable.id })
         .from(agentsTable)
-        .where(eq(agentsTable.name, 'CherryClaw'))
+        .where(eq(agentsTable.id, id))
         .limit(1)
 
       if (existing.length > 0) {
-        this.defaultCherryClawEnsured = true
-        return
+        return id
       }
 
-      // Find the first available Anthropic-compatible model.
-      // This includes native Anthropic providers and any provider with anthropicApiHost set.
       const modelsRes = await modelsService.getModels({ providerType: 'anthropic', limit: 1 })
       const firstModel = modelsRes.data?.[0]
       if (!firstModel) {
-        // Do NOT set defaultCherryClawEnsured here — retry on next listAgents() call
-        // so the default agent is created once the user configures a compatible model.
-        logger.info('No Anthropic-compatible models available yet — will retry default CherryClaw creation later')
-        return
+        logger.info('No Anthropic-compatible models available yet — skipping default CherryClaw creation')
+        return null
+      }
+
+      const now = new Date().toISOString()
+      const configuration: CreateAgentRequest['configuration'] = {
+        permission_mode: 'bypassPermissions',
+        max_turns: 100,
+        soul_enabled: true,
+        scheduler_enabled: true,
+        scheduler_type: 'interval',
+        heartbeat_enabled: true,
+        heartbeat_interval: 30,
+        env_vars: {}
       }
 
       const req: CreateAgentRequest = {
@@ -195,29 +202,44 @@ export class AgentService extends BaseService {
         description: 'Default autonomous CherryClaw agent',
         model: firstModel.id,
         accessible_paths: [],
-        configuration: {
-          permission_mode: 'bypassPermissions',
-          max_turns: 100,
-          soul_enabled: true,
-          scheduler_enabled: false,
-          scheduler_type: 'interval',
-          heartbeat_enabled: true,
-          heartbeat_interval: 30,
-          env_vars: {}
-        }
+        configuration
       }
 
-      const agent = await this.createAgent(req)
-      this.defaultCherryClawEnsured = true
-      logger.info('Auto-created default CherryClaw agent', { id: agent.id })
+      const resolvedPaths = this.resolveAccessiblePaths(req.accessible_paths, id)
+      await this.validateAgentModels(req.type, { model: req.model })
 
-      await sessionService.createSession(agent.id, {})
-      logger.info('Default session created for CherryClaw agent', { agentId: agent.id })
+      const serialized = this.serializeJsonFields({ ...req, accessible_paths: resolvedPaths })
 
-      await schedulerService.ensureHeartbeatTask(agent.id, 30)
-      logger.info('Heartbeat task created for CherryClaw agent', { agentId: agent.id })
+      const insertData: InsertAgentRow = {
+        id,
+        type: req.type,
+        name: req.name || 'CherryClaw',
+        description: req.description,
+        instructions: 'You are a helpful assistant.',
+        model: req.model,
+        configuration: serialized.configuration,
+        accessible_paths: serialized.accessible_paths,
+        sort_order: 0,
+        created_at: now,
+        updated_at: now
+      }
+
+      await database.transaction(async (tx) => {
+        await tx.update(agentsTable).set({ sort_order: sql`${agentsTable.sort_order} + 1` })
+        await tx.insert(agentsTable).values(insertData)
+      })
+
+      // Seed workspace templates for soul mode
+      const workspace = resolvedPaths?.[0]
+      if (workspace) {
+        await seedWorkspaceTemplates(workspace)
+      }
+
+      logger.info('Created default CherryClaw agent', { id })
+      return id
     } catch (error) {
-      logger.error('Failed to ensure default CherryClaw agent', error as Error)
+      logger.error('Failed to init default CherryClaw agent', error as Error)
+      return null
     }
   }
 

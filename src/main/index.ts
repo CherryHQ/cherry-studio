@@ -17,6 +17,7 @@ import process from 'node:process'
 import { registerIpc } from './ipc'
 import { agentService } from './services/agents'
 import { schedulerService } from './services/agents/services/SchedulerService'
+import { sessionService } from './services/agents/services/SessionService'
 import { channelManager } from './services/agents/services/channels'
 import { registerSessionStreamIpc } from './services/agents/services/channels/sessionStreamIpc'
 import { analyticsService } from './services/AnalyticsService'
@@ -204,6 +205,22 @@ if (!app.requestSingleInstanceLock()) {
     initSelectionService()
 
     void runAsyncFunction(async () => {
+      // Initialize built-in CherryClaw agent (idempotent)
+      try {
+        const defaultAgentId = await agentService.initDefaultCherryClawAgent()
+        if (defaultAgentId) {
+          // Ensure the default agent has at least one session
+          const { total } = await sessionService.listSessions(defaultAgentId, { limit: 1 })
+          if (total === 0) {
+            await sessionService.createSession(defaultAgentId, {})
+            logger.info('Default session created for CherryClaw agent')
+          }
+          await schedulerService.ensureHeartbeatTask(defaultAgentId, 30)
+        }
+      } catch (error: any) {
+        logger.warn('Failed to init default CherryClaw agent:', error)
+      }
+
       // Start API server if enabled or if agents exist
       try {
         const config = await apiServerService.getCurrentConfig()
