@@ -30,6 +30,12 @@ export abstract class BaseMigrator {
   }
 
   /**
+   * Reset attempt-local state before a new migration run starts.
+   * Subclasses with cached data or counters should override this hook.
+   */
+  reset(): void {}
+
+  /**
    * Report progress to UI
    * @param progress - Progress percentage (0-100)
    * @param message - Progress message (fallback text)

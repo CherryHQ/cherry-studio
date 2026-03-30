@@ -152,6 +152,10 @@ export class MigrationEngine {
     const results: MigratorResult[] = []
 
     try {
+      for (const migrator of this.migrators) {
+        migrator.reset()
+      }
+
       // Safety check: verify new tables status before clearing
       await this.verifyAndClearNewTables()
 

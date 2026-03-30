@@ -126,6 +126,19 @@ export class ChatMigrator extends BaseMigrator {
   // Block statistics for diagnostics
   private blockStats = { requested: 0, resolved: 0, messagesWithMissingBlocks: 0, messagesWithEmptyBlocks: 0 }
 
+  override reset(): void {
+    this.topicCount = 0
+    this.messageCount = 0
+    this.blockLookup = new Map()
+    this.assistantLookup = new Map()
+    this.topicMetaLookup = new Map()
+    this.topicAssistantLookup = new Map()
+    this.skippedTopics = 0
+    this.skippedMessages = 0
+    this.seenMessageIds = new Set()
+    this.blockStats = { requested: 0, resolved: 0, messagesWithMissingBlocks: 0, messagesWithEmptyBlocks: 0 }
+  }
+
   /**
    * Prepare phase - validate source data and count items
    *
