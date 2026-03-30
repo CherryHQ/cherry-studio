@@ -157,13 +157,8 @@ class ClaudeCodeService implements AgentServiceInterface {
       modelInfo.provider.anthropicApiHost?.trim() || modelInfo.provider.apiHost
     )
 
-    // Remove CLAUDECODE from inherited env to prevent "nested session" error
-    // when running inside another Claude Code process (e.g. Conductor)
-    // oxlint-disable-next-line no-unused-vars -- destructured to exclude from env
-    const { CLAUDECODE: _claudeCode, ...cleanShellEnv } = loginShellEnvWithoutProxies
-
     const env = {
-      ...cleanShellEnv,
+      ...loginShellEnvWithoutProxies,
       // prevent claude agent sdk using bedrock api
       CLAUDE_CODE_USE_BEDROCK: '0',
       // TODO: fix the proxy api server
