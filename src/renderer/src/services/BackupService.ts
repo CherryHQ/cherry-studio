@@ -166,7 +166,7 @@ export async function reset() {
           await clearDatabase()
           await window.api.resetData()
           window.toast.success(i18n.t('message.reset.success'))
-          setTimeout(() => window.api.relaunchApp(), 1000)
+          setTimeout(() => window.api.application.relaunch(), 1000)
         }
       })
     }
@@ -966,7 +966,7 @@ export async function handleData(data: Record<string, any>) {
 
     localStorage.setItem('persist:cherry-studio', data.localStorage['persist:cherry-studio'])
     window.toast.success(i18n.t('message.restore.success'))
-    setTimeout(() => window.api.relaunchApp(), 1000)
+    setTimeout(() => window.api.application.relaunch(), 1000)
     return
   }
 
@@ -994,7 +994,7 @@ export async function handleData(data: Record<string, any>) {
     }
 
     window.toast.success(i18n.t('message.restore.success'))
-    setTimeout(() => window.api.relaunchApp(), 1000)
+    setTimeout(() => window.api.application.relaunch(), 1000)
     return
   }
 

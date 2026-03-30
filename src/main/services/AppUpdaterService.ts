@@ -1,20 +1,21 @@
 import { loggerService } from '@logger'
 import { isWin } from '@main/constant'
 import { application } from '@main/core/application'
+import { BaseService, DependsOn, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import { getIpCountry } from '@main/utils/ipService'
 import { generateUserAgent, getClientId } from '@main/utils/systemInfo'
 import { APP_NAME, FeedUrl, UpdateConfigUrl, UpdateMirror } from '@shared/config/constant'
 import { UpgradeChannel } from '@shared/data/preference/preferenceTypes'
 import { IpcChannel } from '@shared/IpcChannel'
-import type { UpdateInfo } from 'builder-util-runtime'
+import type { ProgressInfo, UpdateInfo } from 'builder-util-runtime'
 import { CancellationToken } from 'builder-util-runtime'
 import { app, net } from 'electron'
-import type { AppUpdater as _AppUpdater, Logger, NsisUpdater, UpdateCheckResult } from 'electron-updater'
+import type { Logger, NsisUpdater, UpdateCheckResult } from 'electron-updater'
 import { autoUpdater } from 'electron-updater'
 import path from 'path'
 import semver from 'semver'
 
-const logger = loggerService.withContext('AppUpdater')
+const logger = loggerService.withContext('AppUpdaterService')
 
 function getCommonHeaders() {
   return {
@@ -56,12 +57,14 @@ interface ChannelConfig {
   feedUrls: Record<UpdateMirror, string>
 }
 
-export default class AppUpdater {
-  autoUpdater: _AppUpdater = autoUpdater
+@Injectable('AppUpdaterService')
+@ServicePhase(Phase.WhenReady)
+@DependsOn(['WindowService'])
+export class AppUpdaterService extends BaseService {
   private cancellationToken: CancellationToken = new CancellationToken()
   private updateCheckResult: UpdateCheckResult | null = null
 
-  constructor() {
+  protected async onInit(): Promise<void> {
     autoUpdater.logger = logger as Logger
     autoUpdater.forceDevUpdateConfig = !app.isPackaged
     autoUpdater.autoDownload = application.get('PreferenceService').get('app.dist.auto_update.enabled')
@@ -74,45 +77,79 @@ export default class AppUpdater {
       ...getCommonHeaders()
     }
 
-    autoUpdater.on('error', (error) => {
+    this.registerAutoUpdaterListeners()
+
+    if (isWin) {
+      ;(autoUpdater as NsisUpdater).installDirectory = path.dirname(app.getPath('exe'))
+    }
+
+    this.registerIpcHandlers()
+  }
+
+  protected async onAllReady(): Promise<void> {
+    application.get('PowerMonitorService').registerShutdownHandler(() => {
+      this.setAutoUpdate(false)
+    })
+  }
+
+  private registerAutoUpdaterListeners(): void {
+    const onError = (error: Error) => {
       logger.error('update error', error)
       application.get('WindowService').getMainWindow()?.webContents.send(IpcChannel.UpdateError, error)
-    })
+    }
+    autoUpdater.on('error', onError)
+    this.registerDisposable(() => autoUpdater.removeListener('error', onError))
 
-    autoUpdater.on('update-available', (releaseInfo: UpdateInfo) => {
+    const onUpdateAvailable = (releaseInfo: UpdateInfo) => {
       logger.info('update available', releaseInfo)
       const processedReleaseInfo = this.processReleaseInfo(releaseInfo)
       application
         .get('WindowService')
         .getMainWindow()
         ?.webContents.send(IpcChannel.UpdateAvailable, processedReleaseInfo)
-    })
+    }
+    autoUpdater.on('update-available', onUpdateAvailable)
+    this.registerDisposable(() => autoUpdater.removeListener('update-available', onUpdateAvailable))
 
-    // 检测到不需要更新时
-    autoUpdater.on('update-not-available', () => {
+    const onUpdateNotAvailable = () => {
       application.get('WindowService').getMainWindow()?.webContents.send(IpcChannel.UpdateNotAvailable)
-    })
+    }
+    autoUpdater.on('update-not-available', onUpdateNotAvailable)
+    this.registerDisposable(() => autoUpdater.removeListener('update-not-available', onUpdateNotAvailable))
 
-    // 更新下载进度
-    autoUpdater.on('download-progress', (progress) => {
+    const onDownloadProgress = (progress: ProgressInfo) => {
       application.get('WindowService').getMainWindow()?.webContents.send(IpcChannel.DownloadProgress, progress)
-    })
+    }
+    autoUpdater.on('download-progress', onDownloadProgress)
+    this.registerDisposable(() => autoUpdater.removeListener('download-progress', onDownloadProgress))
 
-    // 当需要更新的内容下载完成后
-    autoUpdater.on('update-downloaded', (releaseInfo: UpdateInfo) => {
+    const onUpdateDownloaded = (releaseInfo: UpdateInfo) => {
       const processedReleaseInfo = this.processReleaseInfo(releaseInfo)
       application
         .get('WindowService')
         .getMainWindow()
         ?.webContents.send(IpcChannel.UpdateDownloaded, processedReleaseInfo)
       logger.info('update downloaded', processedReleaseInfo)
-    })
-
-    if (isWin) {
-      ;(autoUpdater as NsisUpdater).installDirectory = path.dirname(app.getPath('exe'))
     }
+    autoUpdater.on('update-downloaded', onUpdateDownloaded)
+    this.registerDisposable(() => autoUpdater.removeListener('update-downloaded', onUpdateDownloaded))
+  }
 
-    this.autoUpdater = autoUpdater
+  private registerIpcHandlers(): void {
+    this.ipcHandle(IpcChannel.App_CheckForUpdate, async () => this.checkForUpdates())
+    this.ipcHandle(IpcChannel.App_QuitAndInstall, () => this.quitAndInstall())
+    this.ipcHandle(IpcChannel.App_SetTestPlan, async (_e, isActive: boolean) => {
+      logger.info(`set test plan: ${isActive}`)
+      if (isActive !== application.get('PreferenceService').get('app.dist.test_plan.enabled')) {
+        this.cancelDownload()
+      }
+    })
+    this.ipcHandle(IpcChannel.App_SetTestChannel, async (_e, channel: UpgradeChannel) => {
+      logger.info(`set test channel: ${channel}`)
+      if (channel !== application.get('PreferenceService').get('app.dist.test_plan.channel')) {
+        this.cancelDownload()
+      }
+    })
   }
 
   public setAutoUpdate(isActive: boolean) {
@@ -200,8 +237,12 @@ export default class AppUpdater {
       const channelConfig = versionConfig.channels[requestedChannel]
       const latestChannelConfig = versionConfig.channels[UpgradeChannel.LATEST]
 
+      if (!semver.gte(currentVersion, versionConfig.minCompatibleVersion)) {
+        continue
+      }
+
       // Check version compatibility and channel availability
-      if (semver.gte(currentVersion, versionConfig.minCompatibleVersion) && channelConfig !== null) {
+      if (channelConfig !== null) {
         logger.info(
           `Found compatible version: ${versionKey} (minCompatibleVersion: ${versionConfig.minCompatibleVersion}), version: ${channelConfig.version}`
         )
@@ -218,6 +259,12 @@ export default class AppUpdater {
         }
 
         return { config: channelConfig, channel: requestedChannel }
+      } else if (requestedChannel !== UpgradeChannel.LATEST && latestChannelConfig !== null) {
+        // Fallback: requested channel (rc/beta) is null, but latest channel is available
+        logger.info(
+          `Requested channel ${requestedChannel} is null for ${versionKey}, falling back to latest channel: ${latestChannelConfig.version}`
+        )
+        return { config: latestChannelConfig, channel: UpgradeChannel.LATEST }
       }
     }
 
@@ -226,13 +273,13 @@ export default class AppUpdater {
   }
 
   private _setChannel(channel: UpgradeChannel, feedUrl: string) {
-    this.autoUpdater.channel = channel
-    this.autoUpdater.setFeedURL(feedUrl)
+    autoUpdater.channel = channel
+    autoUpdater.setFeedURL(feedUrl)
 
     // disable downgrade after change the channel
-    this.autoUpdater.allowDowngrade = false
+    autoUpdater.allowDowngrade = false
     // github and gitcode don't support multiple range download
-    this.autoUpdater.disableDifferentialDownload = true
+    autoUpdater.disableDifferentialDownload = true
   }
 
   private async _setFeedUrl() {
@@ -277,7 +324,7 @@ export default class AppUpdater {
   public cancelDownload() {
     this.cancellationToken.cancel()
     this.cancellationToken = new CancellationToken()
-    if (this.autoUpdater.autoDownload) {
+    if (autoUpdater.autoDownload) {
       this.updateCheckResult?.cancellationToken?.cancel()
     }
   }
@@ -295,20 +342,20 @@ export default class AppUpdater {
     try {
       await this._setFeedUrl()
 
-      this.updateCheckResult = await this.autoUpdater.checkForUpdates()
+      this.updateCheckResult = await autoUpdater.checkForUpdates()
       logger.info(
-        `update check result: ${this.updateCheckResult?.isUpdateAvailable}, channel: ${this.autoUpdater.channel}, currentVersion: ${this.autoUpdater.currentVersion}`
+        `update check result: ${this.updateCheckResult?.isUpdateAvailable}, channel: ${autoUpdater.channel}, currentVersion: ${autoUpdater.currentVersion}`
       )
 
-      if (this.updateCheckResult?.isUpdateAvailable && !this.autoUpdater.autoDownload) {
+      if (this.updateCheckResult?.isUpdateAvailable && !autoUpdater.autoDownload) {
         // 如果 autoDownload 为 false，则需要再调用下面的函数触发下
         // do not use await, because it will block the return of this function
         logger.info('downloadUpdate manual by check for updates', this.cancellationToken)
-        void this.autoUpdater.downloadUpdate(this.cancellationToken)
+        void autoUpdater.downloadUpdate(this.cancellationToken)
       }
 
       return {
-        currentVersion: this.autoUpdater.currentVersion,
+        currentVersion: autoUpdater.currentVersion,
         updateInfo: this.updateCheckResult?.isUpdateAvailable ? this.updateCheckResult?.updateInfo : null
       }
     } catch (error) {

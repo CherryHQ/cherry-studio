@@ -1,9 +1,18 @@
 import { loggerService } from '@logger'
 import { isDev } from '@main/constant'
 import { application } from '@main/core/application'
-import { BaseService, DependsOn, Injectable, Phase, Priority, ServicePhase } from '@main/core/lifecycle'
-import { CacheBatchSpanProcessor, FunctionSpanExporter } from '@mcp-trace/trace-core'
-import { NodeTracer as MCPNodeTracer } from '@mcp-trace/trace-node/nodeTracer'
+import {
+  type Activatable,
+  BaseService,
+  DependsOn,
+  Injectable,
+  Phase,
+  Priority,
+  ServicePhase
+} from '@main/core/lifecycle'
+// Heavy OTel modules (trace-core processors, trace-node, opentelemetry SDK) are loaded
+// via dynamic import() in initTracer() to avoid startup overhead when developer_mode is off.
+// Only type imports remain static as they are erased at compile time.
 import type { SpanContext } from '@opentelemetry/api'
 import { context, trace } from '@opentelemetry/api'
 import { IpcChannel } from '@shared/IpcChannel'
@@ -25,36 +34,79 @@ const logger = loggerService.withContext('NodeTraceService')
 @ServicePhase(Phase.WhenReady)
 @DependsOn(['SpanCacheService'])
 @Priority(0)
-export class NodeTraceService extends BaseService {
+export class NodeTraceService extends BaseService implements Activatable {
   private traceWin: BrowserWindow | null = null
   private unsubscribeLanguage: (() => void) | null = null
 
-  // Saved reference to the original ipcMain.handle, used to restore in onStop()
-  private originalHandle: typeof ipcMain.handle | null = null
+  // Stored from dynamic import, needed for shutdown in onDeactivate()
+  private nodeTracer: { shutdown(): Promise<void> } | null = null
 
+  /**
+   * IPC handlers are always registered (renderer may call them regardless).
+   * ipcMain.handle patch is applied only when developer_mode is enabled at startup.
+   * Runtime preference changes take effect after restart.
+   */
   protected async onInit() {
-    this.patchIpcMainHandle()
-    this.initTracer()
+    if (application.get('PreferenceService').get('app.developer_mode.enabled')) {
+      this.patchIpcMainHandle()
+    }
     this.registerIpcHandlers()
   }
 
-  protected async onStop() {
+  /**
+   * Activate only when developer_mode is enabled at startup.
+   * Runtime preference changes take effect after restart — no runtime activate/deactivate.
+   */
+  protected async onReady() {
+    const enabled = application.get('PreferenceService').get('app.developer_mode.enabled')
+    logger.info(`Developer mode is ${enabled ? 'enabled' : 'disabled'}, tracing ${enabled ? 'activated' : 'skipped'}`)
+    if (enabled) {
+      await this.activate()
+    }
+  }
+
+  async onActivate() {
+    await this.initTracer()
+  }
+
+  /**
+   * Only called during app shutdown (auto-deactivation in _doStop).
+   * Runtime deactivation is not supported — developer_mode changes require restart.
+   *
+   * Note: MCPNodeTracer.shutdown() only flushes the span processor.
+   * Global OTel registrations (TracerProvider, ContextManager, Propagator) persist
+   * until process exit. This is acceptable for shutdown-only deactivation.
+   */
+  async onDeactivate() {
     this.destroyTraceWindow()
-    this.restoreIpcMainHandle()
-    await MCPNodeTracer.shutdown()
+    if (this.nodeTracer) {
+      await this.nodeTracer.shutdown()
+      this.nodeTracer = null
+    }
   }
 
   /**
    * Initialize the OpenTelemetry tracer with a CacheBatchSpanProcessor
    * that feeds span data into SpanCacheService.
+   *
+   * Dependencies are loaded via dynamic import() to avoid pulling in heavy OTel SDK
+   * modules (NodeTracerProvider, BatchSpanProcessor, OTLPTraceExporter, etc.)
+   * at file evaluation time — keeping startup fast when developer_mode is off.
    */
-  private initTracer() {
+  private async initTracer() {
+    const [{ FunctionSpanExporter }, { CacheBatchSpanProcessor }, { NodeTracer }] = await Promise.all([
+      import('@mcp-trace/trace-core/exporters/FuncSpanExporter'),
+      import('@mcp-trace/trace-core/processors/CacheSpanProcessor'),
+      import('@mcp-trace/trace-node/nodeTracer')
+    ])
+
+    this.nodeTracer = NodeTracer
     const spanCacheService = application.get('SpanCacheService')
     const exporter = new FunctionSpanExporter(async (spans) => {
       logger.info(`Spans length: ${spans.length}`)
     })
 
-    MCPNodeTracer.init(
+    NodeTracer.init(
       {
         defaultTracerName: TRACER_NAME,
         serviceName: TRACER_NAME
@@ -70,8 +122,7 @@ export class NodeTraceService extends BaseService {
    * context for the handler execution, enabling cross-process distributed tracing.
    */
   private patchIpcMainHandle() {
-    this.originalHandle = ipcMain.handle
-    const originalHandle = this.originalHandle
+    const originalHandle = ipcMain.handle
     ipcMain.handle = (channel: string, handler: (...args: any[]) => Promise<any>) => {
       return originalHandle.call(ipcMain, channel, async (event, ...args) => {
         const carray = args && args.length > 0 ? args[args.length - 1] : {}
@@ -85,16 +136,9 @@ export class NodeTraceService extends BaseService {
         return context.with(ctx, () => handler(event, ...newArgs))
       })
     }
-  }
-
-  /**
-   * Restore the original ipcMain.handle() to undo the monkey-patch on shutdown.
-   */
-  private restoreIpcMainHandle() {
-    if (this.originalHandle) {
-      ipcMain.handle = this.originalHandle
-      this.originalHandle = null
-    }
+    this.registerDisposable(() => {
+      ipcMain.handle = originalHandle
+    })
   }
 
   private registerIpcHandlers() {
@@ -107,6 +151,7 @@ export class NodeTraceService extends BaseService {
   }
 
   private openTraceWindow(topicId: string, traceId: string, autoOpen = true, modelName?: string) {
+    if (!this.isActivated) return
     if (this.traceWin && !this.traceWin.isDestroyed()) {
       this.traceWin.focus()
       this.traceWin.webContents.send('set-trace', { traceId, topicId, modelName })

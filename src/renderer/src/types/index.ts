@@ -942,15 +942,6 @@ export interface Citation {
 
 export type MathEngine = 'KaTeX' | 'MathJax' | 'none'
 
-export interface StoreSyncAction {
-  type: string
-  payload: any
-  meta?: {
-    fromSync?: boolean
-    source?: string
-  }
-}
-
 export type S3Config = {
   endpoint: string
   region: string

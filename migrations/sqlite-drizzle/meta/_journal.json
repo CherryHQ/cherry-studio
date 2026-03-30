@@ -49,6 +49,13 @@
       "when": 1774620313936,
       "tag": "0006_gorgeous_the_twelve",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "6",
+      "when": 1774697808332,
+      "tag": "0006_silly_screwball",
+      "breakpoints": true
     }
   ],
   "version": "7"

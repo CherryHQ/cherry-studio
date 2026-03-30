@@ -8,7 +8,7 @@
   "changelog": ["@changesets/changelog-github", { "repo": "CherryHQ/cherry-studio" }],
   "commit": false,
   "fixed": [],
-  "ignore": [],
+  "ignore": ["@cherrystudio/ui"],
   "linked": [],
   "updateInternalDependencies": "patch"
 }

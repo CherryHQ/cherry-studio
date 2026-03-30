@@ -98,7 +98,7 @@ const BasicDataSettings: React.FC = () => {
         setTimeoutTimer(
           'doubleConfirmModalBeforeCopyData',
           () => {
-            void window.api.relaunchApp({
+            void window.api.application.relaunch({
               args: ['--new-data-path=' + newPath]
             })
           },
@@ -183,7 +183,7 @@ const BasicDataSettings: React.FC = () => {
             setTimeoutTimer(
               'showMigrationConfirmModal_1',
               () => {
-                void window.api.relaunchApp({
+                void window.api.application.relaunch({
                   args: ['--new-data-path=' + newPath]
                 })
               },
@@ -200,13 +200,11 @@ const BasicDataSettings: React.FC = () => {
             'showMigrationConfirmModal_2',
             () => {
               window.toast.success(t('settings.data.app_data.select_success'))
-              void window.api.setStopQuitApp(false, '')
-              void window.api.relaunchApp()
+              void window.api.application.relaunch()
             },
             500
           )
         } catch (error) {
-          void window.api.setStopQuitApp(false, '')
           window.toast.error({
             title: t('settings.data.app_data.path_change_failed') + ': ' + error,
             timeout: 5000
@@ -360,8 +358,8 @@ const BasicDataSettings: React.FC = () => {
       )
 
       const { loadingModal, progressInterval, updateProgress } = showProgressModal(title, className, PathsContent)
+      const holdId = await window.api.application.preventQuit(t('settings.data.app_data.stop_quit_app_reason'))
       try {
-        void window.api.setStopQuitApp(true, t('settings.data.app_data.stop_quit_app_reason'))
         await startMigration(originalPath, newDataPath, progressInterval, updateProgress, loadingModal)
 
         setAppInfo(await window.api.getAppInfo())
@@ -370,15 +368,15 @@ const BasicDataSettings: React.FC = () => {
           'handleDataMigration',
           () => {
             window.toast.success(t('settings.data.app_data.select_success'))
-            void window.api.setStopQuitApp(false, '')
-            void window.api.relaunchApp({
+            void window.api.application.allowQuit(holdId)
+            void window.api.application.relaunch({
               args: ['--user-data-dir=' + newDataPath]
             })
           },
           1000
         )
       } catch (error) {
-        void window.api.setStopQuitApp(false, '')
+        void window.api.application.allowQuit(holdId)
         window.toast.error({
           title: t('settings.data.app_data.copy_failed') + ': ' + error,
           timeout: 5000

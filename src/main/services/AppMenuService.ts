@@ -9,19 +9,10 @@ import { app, Menu, shell } from 'electron'
 @ServicePhase(Phase.WhenReady)
 @Conditional(onPlatform('darwin'))
 export class AppMenuService extends BaseService {
-  private unsubscribes: (() => void)[] = []
-
   protected async onInit() {
     const preferenceService = application.get('PreferenceService')
-    this.unsubscribes.push(preferenceService.subscribeChange('app.language', () => this.setupApplicationMenu()))
+    this.registerDisposable(preferenceService.subscribeChange('app.language', () => this.setupApplicationMenu()))
     this.setupApplicationMenu()
-  }
-
-  protected async onStop() {
-    for (const unsub of this.unsubscribes) {
-      unsub()
-    }
-    this.unsubscribes = []
   }
 
   private setupApplicationMenu(): void {

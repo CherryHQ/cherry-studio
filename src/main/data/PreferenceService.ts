@@ -94,17 +94,12 @@ class PreferenceNotifier {
     const keySubscriptions = this.subscriptions.get(key)!
     keySubscriptions.add(callback)
 
-    logger.debug(`Added subscription for ${key}, total for this key: ${keySubscriptions.size}`)
-
     return () => {
       const currentKeySubscriptions = this.subscriptions.get(key)
       if (currentKeySubscriptions) {
         currentKeySubscriptions.delete(callback)
         if (currentKeySubscriptions.size === 0) {
           this.subscriptions.delete(key)
-          logger.debug(`Removed last subscription for ${key}, cleaned up key`)
-        } else {
-          logger.debug(`Removed subscription for ${key}, remaining: ${currentKeySubscriptions.size}`)
         }
       }
     }
@@ -120,7 +115,6 @@ class PreferenceNotifier {
   notify = (key: string, newValue: any, oldValue?: any): void => {
     const keySubscriptions = this.subscriptions.get(key)
     if (keySubscriptions && keySubscriptions.size > 0) {
-      logger.debug(`Notifying ${keySubscriptions.size} subscribers for preference ${key}`)
       keySubscriptions.forEach((callback) => {
         try {
           callback(key, newValue, oldValue)
@@ -327,7 +321,6 @@ export class PreferenceService extends BaseService {
       const configKey = toBootConfigKey(key)
       const oldValue = bootConfigService.get(configKey) as UnifiedPreferenceType[K]
       if (this.isEqual(oldValue, value)) {
-        logger.debug(`BootConfig ${configKey} value unchanged, skipping write and notification`)
         return
       }
       // TS cannot correlate UnifiedPreferenceType[K] with BootConfigSchema via prefix stripping
@@ -345,7 +338,6 @@ export class PreferenceService extends BaseService {
 
       // Performance optimization: skip update if value hasn't changed
       if (this.isEqual(oldValue, value)) {
-        logger.debug(`Preference ${key} value unchanged, skipping database write and notification`)
         return
       }
 
@@ -361,8 +353,6 @@ export class PreferenceService extends BaseService {
 
       // Unified notification to both main and renderer processes
       await this.notifyChange(key, value, oldValue)
-
-      logger.debug(`Preference ${key} updated successfully`)
     } catch (error) {
       logger.error(`Failed to set preference ${key}:`, error as Error)
       throw error
@@ -524,8 +514,6 @@ export class PreferenceService extends BaseService {
 
     const windowKeys = this.windowSubscriptions.get(windowId)!
     keys.forEach((key) => windowKeys.add(key))
-
-    logger.verbose(`Window ${windowId} subscribed to ${keys.length} preference keys: ${keys.join(', ')}`)
   }
 
   /**
@@ -534,9 +522,6 @@ export class PreferenceService extends BaseService {
    */
   public unsubscribeForWindow(windowId: number): void {
     this.windowSubscriptions.delete(windowId)
-    logger.verbose(
-      `Window ${windowId} unsubscribed from preference changes: ${Array.from(this.windowSubscriptions.keys()).join(', ')}`
-    )
   }
 
   /**
@@ -738,7 +723,6 @@ export class PreferenceService extends BaseService {
     }
 
     if (affectedWindows.length === 0) {
-      logger.debug(`Preference ${key} changed, notified main listeners only`)
       return
     }
 
@@ -757,7 +741,7 @@ export class PreferenceService extends BaseService {
       }
     }
 
-    logger.debug(`Preference ${key} changed, notified main listeners and ${affectedWindows.length} renderer windows`)
+    logger.debug(`Preference ${key} changed, notified ${affectedWindows.length} renderer windows`)
   }
 
   /**

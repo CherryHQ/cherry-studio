@@ -20,8 +20,6 @@ const AgentNavbar = () => {
   const [narrowMode, setNarrowMode] = usePreference('chat.narrow_mode')
   const [topicPosition] = usePreference('topic.position')
 
-  useShortcut('toggle_show_assistants', toggleShowAssistants)
-
   useShortcut('search_message', () => {
     void SearchPopup.show()
   })

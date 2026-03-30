@@ -140,10 +140,10 @@ When a lifecycle service registers IPC handlers, it should use BaseService's bui
 
 ### API
 
-| Method | Wraps | Auto-cleanup via |
-|--------|-------|------------------|
-| `this.ipcHandle(channel, listener)` | `ipcMain.handle()` | `ipcMain.removeHandler()` |
-| `this.ipcOn(channel, listener)` | `ipcMain.on()` | `ipcMain.removeListener()` |
+| Method | Wraps | Auto-cleanup via | Returns |
+|--------|-------|------------------|---------|
+| `this.ipcHandle(channel, listener)` | `ipcMain.handle()` | `ipcMain.removeHandler()` | `Disposable` |
+| `this.ipcOn(channel, listener)` | `ipcMain.on()` | `ipcMain.removeListener()` | `Disposable` |
 
 > `ipcOnce()` is intentionally not provided — once-listeners fire once and auto-remove, so they do not need lifecycle tracking.
 
@@ -178,9 +178,9 @@ export class WindowService extends BaseService {
 1. **On stop**: All tracked handlers are removed **after** `onStop()` returns, so the service can still use IPC during its own shutdown if needed.
 2. **On stop failure**: If `onStop()` throws, IPC cleanup still executes (via try/finally).
 3. **On destroy**: Safety-net cleanup runs in `_doDestroy()` for edge cases where a service is destroyed without being stopped first (e.g., init failure).
-4. **On restart**: Tracking arrays are reset after cleanup, so `onInit()` can re-register handlers cleanly.
+4. **On restart**: Disposables array is reset after cleanup, so `onInit()` can re-register handlers cleanly.
 5. **Backward compatible**: Safe to mix with manual `ipcMain.removeHandler()` in `onStop()` — double-remove is a no-op.
-6. **Disposables**: Resources registered via `registerDisposable()` are disposed after `onStop()` returns, alongside IPC cleanup. Same guarantees apply (try/finally, safety-net in destroy, reset on restart).
+6. **Unified cleanup**: IPC handlers and other disposables (event subscriptions, cleanup functions) are tracked through a single `registerDisposable()` mechanism and cleaned up together.
 
 ### Phase Behavior
 
@@ -356,3 +356,86 @@ await application.stop('HeavyComputeService')    // calls onStop()
 await application.start('HeavyComputeService')   // calls onInit() again
 await application.restart('HeavyComputeService') // stop + start
 ```
+
+## Activatable (Optional — On-Demand Resource Loading)
+
+Services can implement the `Activatable` interface to defer loading heavy resources (native modules, windows, caches, file I/O) until a condition is met at runtime.
+
+Unlike `@Conditional` (which excludes a service entirely at boot), activatable services are always registered and initialized — their IPC handlers remain available regardless of activation state. Only the heavy resources are loaded/released on demand.
+
+Unlike `Pausable` (which temporarily suspends execution), `Activatable` controls whether resources are allocated at all. Activation state is orthogonal to `LifecycleState` — a Ready service can be activated or inactive.
+
+### Interface
+
+```typescript
+import { application } from '@main/core/application'
+import { BaseService, Injectable, type Activatable } from '@main/core/lifecycle'
+
+@Injectable('SelectionService')
+class SelectionService extends BaseService implements Activatable {
+  protected onInit() {
+    this.registerIpcHandlers()
+    // Set up trigger: subscribe to preference changes
+    // Note: PreferenceService is Phase.BeforeReady — guaranteed ready before WhenReady services
+    const prefService = application.get('PreferenceService')
+    this.registerDisposable(
+      prefService.subscribeChange('feature.selection.enabled', async (enabled) => {
+        if (enabled) await this.activate()
+        else await this.deactivate()
+      })
+    )
+  }
+
+  protected async onReady() {
+    // Initial activation check (state is Ready, so activate() works)
+    if (application.get('PreferenceService').get('feature.selection.enabled')) {
+      await this.activate()
+    }
+  }
+
+  onActivate() {
+    // Load native module, create windows, etc.
+  }
+
+  onDeactivate() {
+    // Release native module, close windows, etc.
+  }
+}
+```
+
+### Hook Responsibilities (Five-Phase Model)
+
+| Hook | Responsibility | Example |
+|------|---------------|---------|
+| `onInit()` | Infrastructure: IPC handlers, event subscriptions, trigger setup | `registerIpcHandlers()`, `registerDisposable(...)` |
+| `onReady()` | Initial activation check (state = Ready, `activate()` works) | `if (enabled) await this.activate()` |
+| `onActivate()` | Load heavy resources | Native modules, windows, caches |
+| `onDeactivate()` | Release heavy resources | Close windows, clear caches |
+| `onStop()` | Lifecycle cleanup (`_doStop()` auto-deactivates before this) | Clean up non-activation subscriptions |
+
+### Two Activation Paths
+
+Both paths share the same base state checks in `_doActivate()` (Ready state, idempotency, concurrency guard). The difference is what wraps them:
+
+- **Self-activation** (within the service): `this.activate()` / `this.deactivate()` — calls `_doActivate()` directly, no lifecycle events or logging
+- **External activation** (from other code): `application.activate('ServiceName')` / `application.deactivate('ServiceName')` — adds LifecycleManager validation, logging, and lifecycle event emission
+
+### Method-Level Guard Pattern
+
+For methods called externally (e.g., by other services or via IPC), use `isActivated` as a guard:
+
+```typescript
+createSpan(span: ReadableSpan) {
+  if (!this.isActivated) return
+  // ... heavy work only when activated
+}
+```
+
+### `onActivate()` Failure Contract
+
+If `onActivate()` throws after partially allocating resources, it **must** clean up those resources before throwing. Since `isActivated` remains `false` on failure, activation may be retried — partial state must not leak.
+
+### Automatic Deactivation
+
+- `_doStop()` auto-deactivates before calling `onStop()` (failure does not block stop)
+- `_doDestroy()` auto-deactivates as a safety net (for destroy-without-stop scenarios)

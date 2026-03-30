@@ -50,7 +50,7 @@ const PopupContainer: React.FC<Props> = ({ title, showDeclineButton = true, reso
 
   const handleDecline = () => {
     setOpen(false)
-    void window.api.quit()
+    void window.api.application.quit()
     resolve({ accepted: false })
   }
 

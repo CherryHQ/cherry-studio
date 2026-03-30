@@ -1,5 +1,5 @@
 import { application } from '@main/core/application'
-import { BaseService, DependsOn, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
+import { type Activatable, BaseService, DependsOn, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import { IpcChannel } from '@shared/IpcChannel'
 import type {
   ApiServerConfig,
@@ -16,31 +16,53 @@ import { loggerService } from './LoggerService'
 
 const logger = loggerService.withContext('ApiServerService')
 
-//FIXME v2 refactor: ApiServer的启动/停止，是否运行的逻辑，现在比较乱。特别是在v2的新数据架构下，需要进一步优化，现在仅仅是做了简单的替换
-// 例如： 这样的warning：[mainWindow::PreferenceService] Attempted to confirm mismatched request for feature.csaas.enabled: expected req_1764650398717_0zb6wc350_feature.csaas.enabled, got req_1764650398704_41o5b5l1b_feature.csaas.enabled
 @Injectable('ApiServerService')
 @ServicePhase(Phase.WhenReady)
 @DependsOn(['WindowService'])
-export class ApiServerService extends BaseService {
-  private apiServer = new ApiServer()
+export class ApiServerService extends BaseService implements Activatable {
+  private apiServer: ApiServer | null = null
 
   protected async onInit(): Promise<void> {
     this.registerIpcHandlers()
+    // FIXME: Original code does not subscribe to feature.csaas.enabled runtime changes.
+    // Start/stop is driven entirely by the renderer UI via IPC.
+    // Consider adding a preference subscription for automatic runtime toggle in the future.
   }
 
-  protected async onStop(): Promise<void> {
-    await this.apiServer.stop()
-    logger.info('API Server stopped via lifecycle')
+  protected async onReady(): Promise<void> {
+    const shouldStart = await this.shouldAutoStart()
+    if (shouldStart) {
+      await this.activate()
+    }
   }
 
-  protected async onAllReady(): Promise<void> {
-    await this.autoStartIfNeeded()
+  async onActivate(): Promise<void> {
+    try {
+      await this.ensureValidApiKey()
+      this.apiServer = new ApiServer()
+      await this.apiServer.start()
+      logger.info('API Server activated')
+    } catch (error) {
+      // Activatable failure contract: clean up partial state before throwing
+      if (this.apiServer) {
+        await this.apiServer.stop().catch(() => {})
+        this.apiServer = null
+      }
+      throw error
+    }
+  }
+
+  async onDeactivate(): Promise<void> {
+    if (this.apiServer) {
+      await this.apiServer.stop()
+      this.apiServer = null
+    }
+    logger.info('API Server deactivated')
   }
 
   async start(): Promise<void> {
     try {
-      await this.ensureValidApiKey()
-      await this.apiServer.start()
+      await this.activate()
       logger.info('API Server started successfully')
     } catch (error: any) {
       logger.error('Failed to start API Server:', error)
@@ -50,7 +72,7 @@ export class ApiServerService extends BaseService {
 
   async stop(): Promise<void> {
     try {
-      await this.apiServer.stop()
+      await this.deactivate()
       logger.info('API Server stopped successfully')
     } catch (error: any) {
       logger.error('Failed to stop API Server:', error)
@@ -60,7 +82,8 @@ export class ApiServerService extends BaseService {
 
   async restart(): Promise<void> {
     try {
-      await this.apiServer.restart()
+      await this.deactivate()
+      await this.activate()
       logger.info('API Server restarted successfully')
     } catch (error: any) {
       logger.error('Failed to restart API Server:', error)
@@ -69,7 +92,7 @@ export class ApiServerService extends BaseService {
   }
 
   isRunning(): boolean {
-    return this.apiServer.isRunning()
+    return this.apiServer?.isRunning() ?? false
   }
 
   getCurrentConfig(): ApiServerConfig {
@@ -147,29 +170,29 @@ export class ApiServerService extends BaseService {
     })
   }
 
-  private async autoStartIfNeeded(): Promise<void> {
+  private async shouldAutoStart(): Promise<boolean> {
     try {
       const config = this.getCurrentConfig()
       logger.info('API server config:', config)
 
-      let shouldStart = config.enabled
-      if (!shouldStart) {
-        try {
-          const { total } = await agentService.listAgents({ limit: 1 })
-          if (total > 0) {
-            shouldStart = true
-            logger.info(`Detected ${total} agent(s), auto-starting API server`)
-          }
-        } catch (error: any) {
-          logger.warn('Failed to check agent count:', error)
-        }
+      if (config.enabled) {
+        return true
       }
 
-      if (shouldStart) {
-        await this.start()
+      try {
+        const { total } = await agentService.listAgents({ limit: 1 })
+        if (total > 0) {
+          logger.info(`Detected ${total} agent(s), auto-starting API server`)
+          return true
+        }
+      } catch (error: any) {
+        logger.warn('Failed to check agent count:', error)
       }
+
+      return false
     } catch (error: any) {
-      logger.error('Failed to check/start API server:', error)
+      logger.error('Failed to check API server auto-start condition:', error)
+      return false
     }
   }
 }

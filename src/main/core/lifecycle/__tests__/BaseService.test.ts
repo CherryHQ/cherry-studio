@@ -425,6 +425,95 @@ describe('BaseService', () => {
     })
   })
 
+  describe('registerDisposable overload', () => {
+    it('should accept () => void and dispose on stop', async () => {
+      const fn = vi.fn()
+      class FnService extends BaseService {
+        protected override async onInit() {
+          this.registerDisposable(fn)
+        }
+      }
+      const service = new FnService()
+      await service._doInit()
+      await service._doStop()
+      expect(fn).toHaveBeenCalledOnce()
+    })
+
+    it('should return the disposable for inline assignment', async () => {
+      const disposeFn = vi.fn()
+      let captured: { dispose(): void } | null = null
+      class ReturnService extends BaseService {
+        protected override async onInit() {
+          captured = this.registerDisposable({ dispose: disposeFn })
+        }
+      }
+      const service = new ReturnService()
+      await service._doInit()
+      expect(captured).not.toBeNull()
+      expect(captured!.dispose).toBe(disposeFn)
+    })
+
+    it('should handle mixed Disposable objects and plain functions', async () => {
+      const objDispose = vi.fn()
+      const plainFn = vi.fn()
+      class MixedService extends BaseService {
+        protected override async onInit() {
+          this.registerDisposable({ dispose: objDispose })
+          this.registerDisposable(plainFn)
+        }
+      }
+      const service = new MixedService()
+      await service._doInit()
+      await service._doStop()
+      expect(objDispose).toHaveBeenCalledOnce()
+      expect(plainFn).toHaveBeenCalledOnce()
+    })
+  })
+
+  describe('ipcHandle / ipcOn return Disposable', () => {
+    it('should return a Disposable from ipcHandle', async () => {
+      let disposable: { dispose(): void } | null = null
+      class IpcReturnService extends BaseService {
+        protected override async onInit() {
+          disposable = this.ipcHandle('test-channel', vi.fn())
+        }
+      }
+      const service = new IpcReturnService()
+      await service._doInit()
+      expect(disposable).not.toBeNull()
+      expect(typeof disposable!.dispose).toBe('function')
+    })
+
+    it('should allow early manual unregister via returned Disposable', async () => {
+      let disposable: { dispose(): void } | null = null
+      class EarlyUnregService extends BaseService {
+        protected override async onInit() {
+          disposable = this.ipcHandle('early-channel', vi.fn())
+        }
+      }
+      const service = new EarlyUnregService()
+      await service._doInit()
+
+      // Manual early unregister
+      disposable!.dispose()
+      expect(ipcMain.removeHandler).toHaveBeenCalledWith('early-channel')
+    })
+  })
+
+  describe('_doDestroy idempotency', () => {
+    it('should be idempotent — second destroy is a no-op', async () => {
+      class DestroyService extends BaseService {}
+      const service = new DestroyService()
+      await service._doInit()
+      await service._doDestroy()
+      expect(service.state).toBe(LifecycleState.Destroyed)
+
+      // Second destroy should be a no-op
+      await service._doDestroy()
+      expect(service.state).toBe(LifecycleState.Destroyed)
+    })
+  })
+
   describe('_doPause / _doResume', () => {
     it('should return false for non-Pausable service', async () => {
       class NonPausable extends BaseService {}

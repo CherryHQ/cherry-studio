@@ -26,14 +26,16 @@ export {
   ServicePhase
 } from './decorators'
 export { CircularDependencyError, DependencyResolver, type PhaseAdjustment } from './DependencyResolver'
-export { type Disposable, Emitter, type Event } from './event'
+export { type Disposable, Emitter, type Event, toDisposable } from './event'
 export { LifecycleManager } from './LifecycleManager'
 export { ServiceContainer } from './ServiceContainer'
 export { Signal } from './signal'
 export {
+  type Activatable,
   type ConditionContext,
   type DependencyNode,
   type ErrorStrategy,
+  isActivatable,
   isPausable,
   type LifecycleEvent,
   type LifecycleEventPayload,
