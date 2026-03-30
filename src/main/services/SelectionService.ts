@@ -2,7 +2,7 @@ import { loggerService } from '@logger'
 import { SELECTION_FINETUNED_LIST, SELECTION_PREDEFINED_BLACKLIST } from '@main/configs/SelectionConfig'
 import { isDev, isLinux, isMac, isWin } from '@main/constant'
 import { application } from '@main/core/application'
-import { BaseService, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
+import { type Activatable, BaseService, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import type { SelectionActionItem } from '@shared/data/preference/preferenceTypes'
 import { SelectionTriggerMode } from '@shared/data/preference/preferenceTypes'
 import { IpcChannel } from '@shared/IpcChannel'
@@ -47,11 +47,10 @@ type RelativeOrientation =
  */
 @Injectable('SelectionService')
 @ServicePhase(Phase.WhenReady)
-export class SelectionService extends BaseService {
+export class SelectionService extends BaseService implements Activatable {
   private selectionHook: SelectionHookInstance | null = null
 
   private initStatus: boolean = false
-  private started: boolean = false
 
   private triggerMode = SelectionTriggerMode.Selected
   private isFollowToolbar = true
@@ -60,7 +59,6 @@ export class SelectionService extends BaseService {
   private filterList: string[] = []
 
   private unsubscriberForChangeListeners: (() => void)[] = []
-  private lifecycleUnsubscribers: (() => void)[] = []
 
   private toolbarWindow: BrowserWindow | null = null
   private actionWindows = new Set<BrowserWindow>()
@@ -98,10 +96,6 @@ export class SelectionService extends BaseService {
   private lastActionWindowSize: { width: number; height: number } = {
     width: this.ACTION_WINDOW_WIDTH,
     height: this.ACTION_WINDOW_HEIGHT
-  }
-
-  constructor() {
-    super()
   }
 
   private loadModuleAndCreateInstance(): boolean {
@@ -157,15 +151,51 @@ export class SelectionService extends BaseService {
     }
   }
 
-  private enableSelection(): void {
+  onActivate(): void {
+    // Load native module if not yet loaded (lazy loading preserved across activation cycles)
     if (!this.initStatus) {
       if (!this.loadModuleAndCreateInstance()) {
+        // Setting preference to false triggers the subscription which calls deactivate(),
+        // but _activating guard in BaseService ensures the deactivate() is a safe no-op.
         const preferenceService = application.get('PreferenceService')
         void preferenceService.set('feature.selection.enabled', false)
-        return
+        throw new Error('Failed to load selection-hook module')
       }
     }
-    this.start()
+
+    if (isMac) {
+      if (!systemPreferences.isTrustedAccessibilityClient(false)) {
+        this.logError('process is not trusted on macOS, please turn on the Accessibility permission')
+        throw new Error('macOS accessibility permission not granted')
+      }
+    }
+
+    try {
+      this.createToolbarWindow()
+      void this.initPreloadedActionWindows()
+
+      this.selectionHook!.on('error', (error: { message: string }) => {
+        this.logError('Error in SelectionHook:', error as Error)
+      })
+      this.selectionHook!.on('text-selection', this.processTextSelection)
+
+      if (!this.selectionHook!.start({ debug: isDev })) {
+        throw new Error('Failed to start text selection hook')
+      }
+
+      this.initConfig()
+      this.processTriggerMode()
+      this.logInfo('SelectionService activated', true)
+    } catch (error) {
+      // Clean up partial state before throwing (Activatable failure contract)
+      this.releaseActivationResources()
+      throw error
+    }
+  }
+
+  onDeactivate(): void {
+    this.releaseActivationResources()
+    this.logInfo('SelectionService deactivated', true)
   }
 
   protected async onInit(): Promise<void> {
@@ -173,38 +203,32 @@ export class SelectionService extends BaseService {
     this.registerIpcHandlers()
 
     const preferenceService = application.get('PreferenceService')
-    const enabled = preferenceService.get('feature.selection.enabled')
-
-    this.lifecycleUnsubscribers.push(
-      preferenceService.subscribeChange('feature.selection.enabled', (enabled: boolean): void => {
-        if (enabled) {
-          this.enableSelection()
-        } else {
-          this.stop()
-        }
+    this.registerDisposable({
+      dispose: preferenceService.subscribeChange('feature.selection.enabled', (enabled: boolean) => {
+        if (enabled) void this.activate()
+        else void this.deactivate()
       })
-    )
+    })
+  }
 
-    if (enabled) {
+  protected async onReady(): Promise<void> {
+    const preferenceService = application.get('PreferenceService')
+    if (preferenceService.get('feature.selection.enabled')) {
       this.logInfo('Selection feature enabled, loading selection-hook module')
-      this.enableSelection()
+      await this.activate()
     } else {
       this.logInfo('Selection feature disabled, skipping selection-hook module loading')
     }
   }
 
   protected async onStop(): Promise<void> {
-    for (const unsubscriber of this.lifecycleUnsubscribers) {
-      unsubscriber()
+    // _doStop() auto-deactivates before onStop() — releaseActivationResources() already called
+    // Disposables (preference subscriptions) are cleaned up after onStop() by the framework
+
+    // Final cleanup: release the native module entirely
+    if (this.selectionHook) {
+      this.selectionHook.cleanup()
     }
-    this.lifecycleUnsubscribers = []
-
-    if (!this.selectionHook) return
-
-    if (this.started) {
-      this.stop()
-    }
-
     this.selectionHook = null
     this.initStatus = false
     this.logInfo('SelectionService stopped via lifecycle', true)
@@ -240,11 +264,11 @@ export class SelectionService extends BaseService {
       this.setZoomFactor(zoomFactor)
     }
 
-    this.lifecycleUnsubscribers.push(
-      preferenceService.subscribeChange('app.zoom_factor', (zoomFactor: number) => {
+    this.registerDisposable({
+      dispose: preferenceService.subscribeChange('app.zoom_factor', (zoomFactor: number) => {
         this.setZoomFactor(zoomFactor)
       })
-    )
+    })
   }
 
   public setZoomFactor = (zoomFactor: number) => {
@@ -368,96 +392,6 @@ export class SelectionService extends BaseService {
       SelectionHook!.FineTunedListType.INCLUDE_CLIPBOARD_DELAY_READ,
       includeClipboardDelayReadList
     )
-  }
-
-  /**
-   * Start the selection service and initialize required windows
-   * @returns {boolean} Success status of service start
-   */
-  public start(): boolean {
-    if (!this.selectionHook) {
-      this.logError('SelectionService start(): instance is null')
-      return false
-    }
-
-    if (this.started) {
-      this.logError('SelectionService start(): already started')
-      return false
-    }
-
-    //On macOS, we need to check if the process is trusted
-    if (isMac) {
-      if (!systemPreferences.isTrustedAccessibilityClient(false)) {
-        this.logError(
-          'SelectionSerice not started: process is not trusted on macOS, please turn on the Accessibility permission'
-        )
-        return false
-      }
-    }
-
-    try {
-      //make sure the toolbar window is ready
-      this.createToolbarWindow()
-      // Initialize preloaded windows
-      void this.initPreloadedActionWindows()
-      // Handle errors
-      this.selectionHook.on('error', (error: { message: string }) => {
-        this.logError('Error in SelectionHook:', error as Error)
-      })
-      // Handle text selection events
-      this.selectionHook.on('text-selection', this.processTextSelection)
-
-      // Start the hook
-      if (this.selectionHook.start({ debug: isDev })) {
-        //init basic configs
-        this.initConfig()
-
-        //init trigger mode configs
-        this.processTriggerMode()
-
-        this.started = true
-        this.logInfo('SelectionService Started', true)
-        return true
-      }
-
-      this.logError('Failed to start text selection hook.')
-      return false
-    } catch (error) {
-      this.logError('Failed to set up text selection hook:', error as Error)
-      return false
-    }
-  }
-
-  /**
-   * Stop the selection service and cleanup resources
-   * Called when user disables selection assistant
-   * @returns {boolean} Success status of service stop
-   */
-  public stop(): boolean {
-    if (!this.selectionHook) return false
-
-    this.selectionHook.stop()
-    this.selectionHook.cleanup() //already remove all listeners
-
-    for (const unsubscriber of this.unsubscriberForChangeListeners) {
-      unsubscriber()
-    }
-    this.unsubscriberForChangeListeners = []
-
-    //reset the listener states
-    this.isCtrlkeyListenerActive = false
-    this.isHideByMouseKeyListenerActive = false
-
-    if (this.toolbarWindow && !this.toolbarWindow.isDestroyed()) {
-      this.toolbarWindow.close()
-    }
-    this.toolbarWindow = null
-
-    this.closePreloadedActionWindows()
-
-    this.started = false
-    this.logInfo('SelectionService Stopped', true)
-    return true
   }
 
   /**
@@ -828,7 +762,7 @@ export class SelectionService extends BaseService {
    * it's a public method used by shortcut service
    */
   public processSelectTextByShortcut(): void {
-    if (!this.selectionHook || !this.started || this.triggerMode !== SelectionTriggerMode.Shortcut) return
+    if (!this.selectionHook || !this.isActivated || this.triggerMode !== SelectionTriggerMode.Shortcut) return
 
     const selectionData = this.selectionHook.getCurrentSelection()
 
@@ -1289,6 +1223,37 @@ export class SelectionService extends BaseService {
   }
 
   /**
+   * Release all activation-scoped resources.
+   * Uses stop() + removeAllListeners() instead of cleanup() to preserve the native instance
+   * for efficient reactivation. Safe to call even if onActivate() never ran or partially ran.
+   */
+  private releaseActivationResources(): void {
+    if (this.selectionHook) {
+      try {
+        this.selectionHook.stop()
+        this.selectionHook.removeAllListeners()
+      } catch (error) {
+        this.logError('Failed to stop selection hook:', error as Error)
+      }
+    }
+
+    for (const unsub of this.unsubscriberForChangeListeners) {
+      unsub()
+    }
+    this.unsubscriberForChangeListeners = []
+
+    this.isCtrlkeyListenerActive = false
+    this.isHideByMouseKeyListenerActive = false
+
+    if (this.toolbarWindow && !this.toolbarWindow.isDestroyed()) {
+      this.toolbarWindow.close()
+    }
+    this.toolbarWindow = null
+
+    this.closePreloadedActionWindows()
+  }
+
+  /**
    * Preload a new action window asynchronously
    * This method is called after popping a window to ensure we always have windows ready
    */
@@ -1625,7 +1590,7 @@ export class SelectionService extends BaseService {
         return false
       }
     }
-    if (!this.selectionHook || !this.started) return false
+    if (!this.selectionHook || !this.isActivated) return false
     return this.selectionHook.writeToClipboard(text)
   }
 

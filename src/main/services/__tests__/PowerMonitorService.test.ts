@@ -49,7 +49,18 @@ vi.mock('@paymoapp/electron-shutdown-handler', () => ({
 }))
 
 vi.mock('@main/core/lifecycle', () => {
-  class MockBaseService {}
+  class MockBaseService {
+    _disposables: { dispose: () => void }[] = []
+    registerDisposable(disposableOrFn: any) {
+      const disposable = typeof disposableOrFn === 'function' ? { dispose: disposableOrFn } : disposableOrFn
+      this._disposables.push(disposable)
+      return disposable
+    }
+    _cleanupDisposables() {
+      for (const d of this._disposables) d.dispose()
+      this._disposables = []
+    }
+  }
 
   return {
     BaseService: MockBaseService,
@@ -91,11 +102,11 @@ describe('PowerMonitorService', () => {
       expect(mockPowerMonitorOn).toHaveBeenCalledWith('shutdown', expect.any(Function))
     })
 
-    it('should store shutdown listener reference for cleanup', async () => {
+    it('should register cleanup disposable for shutdown listener', async () => {
       const service = createService()
       await (service as any).onInit()
 
-      expect((service as any).shutdownListener).toBeTypeOf('function')
+      expect((service as any)._disposables.length).toBeGreaterThan(0)
     })
   })
 
@@ -118,7 +129,7 @@ describe('PowerMonitorService', () => {
 
       expect(mockSetWindowHandle).toHaveBeenCalled()
       expect(mockShutdownHandlerOn).toHaveBeenCalledWith('shutdown', expect.any(Function))
-      expect((service as any).zeroMemoryWindow).toBeTruthy()
+      expect((service as any)._disposables.length).toBeGreaterThan(0)
     })
   })
 
@@ -178,28 +189,26 @@ describe('PowerMonitorService', () => {
     })
   })
 
-  describe('onStop', () => {
-    it('should remove powerMonitor listener on macOS/Linux', async () => {
+  describe('onStop / disposable cleanup', () => {
+    it('should remove powerMonitor listener on macOS/Linux via disposable', async () => {
       const service = createService()
       await (service as any).onInit()
 
-      const listener = (service as any).shutdownListener
-      await (service as any).onStop()
+      ;(service as any)._cleanupDisposables()
 
-      expect(mockPowerMonitorRemoveListener).toHaveBeenCalledWith('shutdown', listener)
-      expect((service as any).shutdownListener).toBeNull()
+      expect(mockPowerMonitorRemoveListener).toHaveBeenCalledWith('shutdown', expect.any(Function))
     })
 
-    it('should destroy BrowserWindow on Windows', async () => {
+    it('should destroy BrowserWindow on Windows via disposable', async () => {
       platformMock.isMac = false
       platformMock.isWin = true
 
       const service = createService()
       await (service as any).onInit()
-      await (service as any).onStop()
+
+      ;(service as any)._cleanupDisposables()
 
       expect(mockWindowDestroy).toHaveBeenCalled()
-      expect((service as any).zeroMemoryWindow).toBeNull()
     })
 
     it('should not destroy already-destroyed window on Windows', async () => {
@@ -209,7 +218,8 @@ describe('PowerMonitorService', () => {
 
       const service = createService()
       await (service as any).onInit()
-      await (service as any).onStop()
+
+      ;(service as any)._cleanupDisposables()
 
       expect(mockWindowDestroy).not.toHaveBeenCalled()
     })

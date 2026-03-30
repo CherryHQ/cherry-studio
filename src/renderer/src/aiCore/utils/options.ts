@@ -634,6 +634,7 @@ function buildGenericProviderOptions(
   let providerOptions: Record<string, any> = {}
 
   const reasoningParams = getReasoningEffort(assistant, model)
+  logger.debug('reasoningParams', reasoningParams)
   providerOptions = {
     ...providerOptions,
     ...reasoningParams

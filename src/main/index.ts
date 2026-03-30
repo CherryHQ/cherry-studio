@@ -28,7 +28,6 @@ import '@main/config'
 
 import { loggerService } from '@logger'
 import { electronApp, optimizer } from '@electron-toolkit/utils'
-import { replaceDevtoolsFont } from '@main/utils/windowUtil'
 import { app, dialog, crashReporter } from 'electron'
 import installExtension, { REACT_DEVELOPER_TOOLS, REDUX_DEVTOOLS } from 'electron-devtools-installer'
 import { isDev, isLinux, isWin } from './constant'
@@ -36,7 +35,6 @@ import { isDev, isLinux, isWin } from './constant'
 import process from 'node:process'
 
 import { registerIpc } from './ipc'
-import { openClawService } from './services/OpenClawService'
 import {
   CHERRY_STUDIO_PROTOCOL,
   handleProtocolUrl,
@@ -51,8 +49,8 @@ import {
   registerMigrationIpcHandlers,
   unregisterMigrationIpcHandlers
 } from '@data/migration/v2'
-import { initWebviewHotkeys } from './services/WebviewService'
 import { application, serviceList } from './core/application'
+import { extractRtkBinaries } from './utils/rtk'
 
 const logger = loggerService.withContext('MainEntry')
 
@@ -200,6 +198,21 @@ if (!app.requestSingleInstanceLock()) {
     // ── Normal path: no migration needed ──
     migrationEngine.close()
 
+    // Check for backup restore marker and complete restoration BEFORE bootstrap.
+    // BackupManager physically removes/replaces IndexedDB and Local Storage directories.
+    // Must run before bootstrap creates the main window (which starts the renderer),
+    // otherwise Chromium holds file handles causing EBUSY on Windows or data corruption on macOS/Linux.
+    const { BackupManager } = await import('./services/BackupManager')
+    await BackupManager.handleStartupRestore()
+
+    // Extract bundled rtk binary to ~/.cherrystudio/bin/ on first run
+    // TODO: v2 refactor to use lifecycle
+    extractRtkBinaries().catch((error) => {
+      logger.warn('Failed to extract rtk binaries (non-fatal)', {
+        error: error instanceof Error ? error.message : String(error)
+      })
+    })
+
     // Start lifecycle (BeforeReady runs parallel with app.whenReady)
     application.registerAll(serviceList)
     const bootstrapPromise = application.bootstrap().catch((error) => {
@@ -236,28 +249,6 @@ if (!app.requestSingleInstanceLock()) {
       optimizer.watchWindowShortcuts(window)
     })
 
-    app.on('before-quit', () => {
-      application.markQuitting()
-    })
-
-    app.on('will-quit', async () => {
-      // Flush boot config to ensure pending writes are saved
-      // FIXME：临时方案，等改造本文件时应在 application 中统一处理
-      bootConfigService.flush()
-
-      try {
-        await openClawService.stopGateway()
-      } catch (error) {
-        logger.warn('Error cleaning up services:', error as Error)
-      }
-
-      // v2 Refactoring: Shutdown lifecycle-managed services
-      await application.shutdown()
-
-      // finish the logger
-      logger.finish()
-    })
-
     // This method will be called when Electron has finished
     // initialization and is ready to create browser windows.
     // Some APIs can only be used after this event occurs.
@@ -270,35 +261,13 @@ if (!app.requestSingleInstanceLock()) {
     // A preparation for v2 data refactoring
     versionService.recordCurrentVersion()
 
-    initWebviewHotkeys()
     // Set app user model id for windows
     electronApp.setAppUserModelId(import.meta.env.VITE_MAIN_BUNDLE_ID || 'com.kangfenmao.CherryStudio')
 
-    // Mac: Hide dock icon before window creation when launch to tray is set
-    const isLaunchToTray = application.get('PreferenceService').get('app.tray.on_launch')
-    if (isLaunchToTray) {
-      app.dock?.hide()
-    }
-
-    // Check for backup restore marker and complete restoration (highest priority, before window creation)
-    const { BackupManager } = await import('./services/BackupManager')
-    await BackupManager.handleStartupRestore()
-
-    // Create main window - migration has either completed or was not needed
-    const mainWindow = application.get('WindowService').createMainWindow()
-
-    app.on('activate', function () {
-      const mainWindow = application.get('WindowService').getMainWindow()
-      if (!mainWindow || mainWindow.isDestroyed()) {
-        application.get('WindowService').createMainWindow()
-      } else {
-        application.get('WindowService').showMainWindow()
-      }
-    })
-
+    // Main window was created by WindowService.onReady() during bootstrap.
+    // registerIpc still needs the window reference for legacy IPC handlers.
+    const mainWindow = application.get('WindowService').getMainWindow()!
     await registerIpc(mainWindow, app)
-
-    replaceDevtoolsFont(mainWindow)
 
     // Setup deep link for AppImage on Linux
     await setupAppImageDeepLink()

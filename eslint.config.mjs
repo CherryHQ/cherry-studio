@@ -92,7 +92,7 @@ export default defineConfig([
       ]
     }
   },
-  // Application quit/exit - enforce using application.quit()/forceExit() instead of app.quit()/app.exit()
+  // Application lifecycle - all quit-related APIs and events are managed by Application.ts
   {
     files: ['src/main/**/*.{ts,tsx,js,jsx}'],
     ignores: [
@@ -102,21 +102,76 @@ export default defineConfig([
       'src/main/**/__mocks__/**',
       'src/main/**/*.test.*'
     ],
-    rules: {
-      'no-restricted-properties': [
-        'warn',
-        {
-          object: 'app',
-          property: 'quit',
-          message: 'Use application.quit() instead of app.quit(). See docs/en/references/lifecycle/application-overview.md'
-        },
-        {
-          object: 'app',
-          property: 'exit',
-          message:
-            'Use application.forceExit(code) instead of app.exit(). See docs/en/references/lifecycle/application-overview.md'
+    plugins: {
+      lifecycle: {
+        rules: {
+          'no-direct-quit': {
+            meta: {
+              type: 'problem',
+              docs: {
+                description:
+                  'Disallow direct use of quit-related Electron/Node.js APIs. All quit handling is centralized in Application.ts.',
+                recommended: true
+              },
+              messages: {
+                restricted:
+                  'Quit-related APIs and events are managed by the Application lifecycle. Do not use "{{name}}" directly. See docs/en/references/lifecycle/application-overview.md'
+              }
+            },
+            create(context) {
+              const RESTRICTED_APP_METHODS = new Set(['quit', 'exit', 'relaunch'])
+              const RESTRICTED_APP_EVENTS = new Set(['before-quit', 'will-quit', 'window-all-closed'])
+              const RESTRICTED_SIGNALS = new Set(['SIGINT', 'SIGTERM'])
+
+              return {
+                CallExpression(node) {
+                  const { callee } = node
+                  if (callee.type !== 'MemberExpression') return
+                  if (callee.object.type !== 'Identifier') return
+
+                  const obj = callee.object.name
+                  const prop = callee.property.type === 'Identifier' ? callee.property.name : null
+                  if (!prop) return
+
+                  // app.quit() / app.exit() / app.relaunch()
+                  if (obj === 'app' && RESTRICTED_APP_METHODS.has(prop)) {
+                    context.report({ node, messageId: 'restricted', data: { name: `app.${prop}()` } })
+                    return
+                  }
+
+                  // app.on/once('before-quit'|'will-quit'|'window-all-closed', ...)
+                  if (obj === 'app' && (prop === 'on' || prop === 'once')) {
+                    const firstArg = node.arguments[0]
+                    if (firstArg?.type === 'Literal' && RESTRICTED_APP_EVENTS.has(firstArg.value)) {
+                      context.report({
+                        node,
+                        messageId: 'restricted',
+                        data: { name: `app.${prop}('${firstArg.value}')` }
+                      })
+                    }
+                    return
+                  }
+
+                  // process.on/once('SIGINT'|'SIGTERM', ...)
+                  if (obj === 'process' && (prop === 'on' || prop === 'once')) {
+                    const firstArg = node.arguments[0]
+                    if (firstArg?.type === 'Literal' && RESTRICTED_SIGNALS.has(firstArg.value)) {
+                      context.report({
+                        node,
+                        messageId: 'restricted',
+                        data: { name: `process.${prop}('${firstArg.value}')` }
+                      })
+                    }
+                  }
+                }
+              }
+            }
+          }
         }
-      ]
+      }
+    },
+    rules: {
+      'lifecycle/no-direct-quit': 'warn'
     }
   },
   // i18n
