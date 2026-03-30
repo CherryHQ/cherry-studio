@@ -44,8 +44,13 @@ function normalizeModels<T>(models: T[], transformer: (entry: T) => Model | null
   return uniqueModels
 }
 
+function stripModelPrefix(id: string): string {
+  return id.startsWith('models/') ? id.slice('models/'.length) : id
+}
+
 function adaptSdkModel(provider: Provider, model: SdkModel): Model | null {
-  const id = pickPreferredString([(model as any)?.id, (model as any)?.modelId, (model as any)?.name])
+  const rawId = pickPreferredString([(model as any)?.id, (model as any)?.modelId, (model as any)?.name])
+  const id = rawId ? stripModelPrefix(rawId) : rawId
   const name = pickPreferredString([
     (model as any)?.display_name,
     (model as any)?.displayName,

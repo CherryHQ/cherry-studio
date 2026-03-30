@@ -1,5 +1,5 @@
 import { application } from '@main/core/application'
-import { BaseService, ExcludePlatforms, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
+import { BaseService, Conditional, Injectable, onPlatform, Phase, ServicePhase } from '@main/core/lifecycle'
 import { getAppLanguage, locales } from '@main/utils/language'
 import { IpcChannel } from '@shared/IpcChannel'
 import type { MenuItemConstructorOptions } from 'electron'
@@ -7,21 +7,12 @@ import { app, Menu, shell } from 'electron'
 
 @Injectable('AppMenuService')
 @ServicePhase(Phase.WhenReady)
-@ExcludePlatforms(['win32', 'linux'])
+@Conditional(onPlatform('darwin'))
 export class AppMenuService extends BaseService {
-  private unsubscribes: (() => void)[] = []
-
   protected async onInit() {
     const preferenceService = application.get('PreferenceService')
-    this.unsubscribes.push(preferenceService.subscribeChange('app.language', () => this.setupApplicationMenu()))
+    this.registerDisposable(preferenceService.subscribeChange('app.language', () => this.setupApplicationMenu()))
     this.setupApplicationMenu()
-  }
-
-  protected async onStop() {
-    for (const unsub of this.unsubscribes) {
-      unsub()
-    }
-    this.unsubscribes = []
   }
 
   private setupApplicationMenu(): void {

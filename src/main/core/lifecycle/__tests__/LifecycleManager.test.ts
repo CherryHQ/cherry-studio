@@ -1,7 +1,8 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import { BaseService } from '../BaseService'
-import { DependsOn, ErrorHandling, Injectable } from '../decorators'
+import { when } from '../conditions'
+import { Conditional, DependsOn, ErrorHandling, Injectable } from '../decorators'
 import { LifecycleManager } from '../LifecycleManager'
 import { ServiceContainer } from '../ServiceContainer'
 import { LifecycleEvents, LifecycleState, type Pausable, Phase, ServiceInitError } from '../types'
@@ -14,7 +15,6 @@ afterEach(() => {
 
 /** Initialize all default-phase (WhenReady) services via startPhase */
 async function initializeServices(manager: LifecycleManager): Promise<void> {
-  manager.validateAndAdjustPhases()
   await manager.startPhase(Phase.WhenReady)
 }
 
@@ -111,35 +111,28 @@ describe('LifecycleManager', () => {
       // No services registered, should not throw
       await expect(initializeServices(manager)).resolves.toBeUndefined()
     })
-  })
 
-  // ── startAll ──
+    it('should initialize a conditional service whose condition passes', async () => {
+      const order: string[] = []
 
-  describe('startAll', () => {
-    it('should prevent double initialization', async () => {
-      @Injectable('OnceService')
-      class OnceService extends BaseService {}
-
-      const manager = LifecycleManager.getInstance()
-      const container = manager['container']
-      container.register(OnceService)
-
-      await manager.startAll()
-
-      // Second call should be a no-op (no error)
-      await expect(manager.startAll()).resolves.toBeUndefined()
-    })
-
-    it('should set initialized flag', async () => {
-      @Injectable('TestService')
-      class TestService extends BaseService {}
+      @Injectable('ConditionalService')
+      @Conditional(when(() => true, 'always active'))
+      class ConditionalService extends BaseService {
+        protected override onInit() {
+          order.push('Conditional')
+        }
+      }
 
       const manager = LifecycleManager.getInstance()
       const container = manager['container']
-      container.register(TestService)
+      container.register(ConditionalService)
 
-      await manager.startAll()
-      expect(manager.isInitialized()).toBe(true)
+      await initializeServices(manager)
+
+      expect(order).toEqual(['Conditional'])
+
+      const instance = container.getOptional('ConditionalService')
+      expect(instance).toBeDefined()
     })
   })
 

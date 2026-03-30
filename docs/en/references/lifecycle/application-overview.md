@@ -35,6 +35,7 @@ const dbService = application.get('DbService')
 
 ```
 setupSignalHandlers()                    ← SIGINT/SIGTERM → graceful shutdown
+setupQuitHandlers()                      ← before-quit (preventQuit gate) + will-quit (shutdown)
     │
     ├── startPhase(Background)           ← fire-and-forget (non-blocking)
     │
@@ -42,7 +43,7 @@ setupSignalHandlers()                    ← SIGINT/SIGTERM → graceful shutdow
     │                             ├──── run in parallel
     └── app.whenReady()          ─┘
             │
-            ├── setupElectronHandlers()  ← activate, window-all-closed, before-quit
+            ├── setupElectronHandlers()  ← window-all-closed, preventQuit IPC
             │
             ├── startPhase(WhenReady)    ← services requiring Electron API
             │
@@ -56,15 +57,18 @@ If a `fail-fast` service throws during bootstrap, a dialog is shown offering Exi
 ## Shutdown Flow
 
 `application.shutdown()` is called automatically on:
-- `before-quit` (Electron event)
-- `SIGINT` / `SIGTERM` (with 5-second force-exit timeout)
-- `window-all-closed` (non-macOS)
+- `will-quit` (Electron event, after all windows closed)
+- `SIGINT` / `SIGTERM` (with 5-second force-exit timeout, bypasses Electron event chain)
 
 ```
 shutdown()
-    ├── stopAll()      ← onStop() in reverse initialization order
-    └── destroyAll()   ← onDestroy() in reverse initialization order
+    ├── bootConfigService.flush()   ← save pending debounced writes
+    ├── stopAll()                   ← onStop() in reverse initialization order
+    ├── destroyAll()                ← onDestroy() in reverse initialization order
+    └── loggerService.finish()      ← close logger (must be last)
 ```
+
+On non-macOS, `window-all-closed` triggers `application.quit()` which flows through `before-quit` → `will-quit` → `shutdown()`.
 
 ## Service Registry
 
@@ -84,7 +88,7 @@ This gives you type-safe access via `application.get('NewService')`.
 
 ## Service Access Rules
 
-Services managed by the lifecycle system must **not** export singleton instances. The service CLASS is exported for type references only (e.g., `ServiceRegistry`, `@DependsOn`). All runtime access goes through `application.get()`.
+Services managed by the lifecycle system must **not** export singleton instances. The service CLASS is exported for type references only (e.g., `ServiceRegistry`, `@DependsOn`). All runtime access goes through `application.get()` (unconditional services) or `application.getOptional()` (conditional services with `@Conditional`).
 
 ### Assign to a local variable before use
 
@@ -102,6 +106,19 @@ preferenceService.set('app.zoom_factor', 1)
 ```
 
 This improves readability, avoids repeated container lookups, and makes the code easier to refactor.
+
+### Conditional service access
+
+Services with `@Conditional` must be accessed via `getOptional()`, which returns `T | undefined`. Using `get()` on a conditional service throws an error, even when the service is active on the current platform — this prevents cross-platform bugs.
+
+```typescript
+// ✗ BAD: get() on conditional service — throws even if service is active
+const menu = application.get('AppMenuService')
+
+// ✓ GOOD: getOptional() for conditional services
+const menu = application.getOptional('AppMenuService')
+menu?.buildMenu()
+```
 
 ## Runtime Service Control
 
@@ -172,6 +189,10 @@ application.forceExit(1)
 // Mark as quitting without triggering quit — for external quit flows (e.g. autoUpdater)
 application.markQuitting()
 
+// Prevent quit during critical operations (e.g. data migration)
+const hold = application.preventQuit('Migrating data')
+try { /* critical work */ } finally { hold.dispose() }
+
 // Check quit status
 if (application.isQuitting) { /* ... */ }
 ```
@@ -181,10 +202,39 @@ if (application.isQuitting) { /* ... */ }
 | `quit()` | Triggers `before-quit` → `will-quit` | Normal user-initiated quit |
 | `forceExit(code)` | Skipped | Fatal errors, repeated renderer crash |
 | `markQuitting()` | None (flag only) | `autoUpdater.quitAndInstall()` owns its own quit flow |
+| `preventQuit(reason)` | Blocks `before-quit` | Critical operations (returns hold with `dispose()`) |
 
 **Exceptions** (where direct `app.quit()` is acceptable):
 - Before `application` is initialized (e.g., single-instance lock failure in `index.ts`)
 - Migration files (`src/main/data/migration/`) that run before the full app lifecycle
+
+### Renderer Usage
+
+The renderer accesses application lifecycle methods via `window.api.application`:
+
+```typescript
+// Quit the app (triggers before-quit → will-quit event chain)
+await window.api.application.quit()
+
+// Relaunch the app
+await window.api.application.relaunch()
+await window.api.application.relaunch({ args: ['--safe-mode'] })
+
+// Prevent quit during critical operations (returns opaque holdId)
+const holdId = await window.api.application.preventQuit('Migrating user data')
+try {
+  await performCriticalWork()
+} finally {
+  await window.api.application.allowQuit(holdId)
+}
+```
+
+| Method | Returns | Description |
+|--------|---------|-------------|
+| `quit()` | `Promise<void>` | Graceful quit via Electron event chain |
+| `relaunch(options?)` | `Promise<void>` | Relaunch the app (with optional args) |
+| `preventQuit(reason)` | `Promise<string>` (holdId) | Block app quit until released |
+| `allowQuit(holdId)` | `Promise<void>` | Release a specific quit prevention hold |
 
 ## The `application` Proxy
 

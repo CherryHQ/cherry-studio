@@ -92,5 +92,3 @@ export class ApiServer {
     return result
   }
 }
-
-export const apiServer = new ApiServer()

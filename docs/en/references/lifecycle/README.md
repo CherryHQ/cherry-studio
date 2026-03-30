@@ -9,7 +9,7 @@ This is the main entry point for Cherry Studio's service lifecycle and applicati
 - [Application Overview](./application-overview.md) - Bootstrap/shutdown orchestration, service registry, runtime control
 
 ### Usage Guide (Code Examples)
-- [Lifecycle Usage](./lifecycle-usage.md) - Decorators, error handling, platform-specific services, pause/resume
+- [Lifecycle Usage](./lifecycle-usage.md) - Decorators, error handling, conditional activation, pause/resume
 
 ### Reference Guides (Standards)
 - [Lifecycle Decision Guide](./lifecycle-decision-guide.md) - "Should I use lifecycle?" decision framework

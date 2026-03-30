@@ -6,7 +6,9 @@ import { useAgents } from '@renderer/hooks/agents/useAgents'
 import { useApiServer } from '@renderer/hooks/useApiServer'
 import { useNavbarPosition } from '@renderer/hooks/useNavbar'
 import { useSettings } from '@renderer/hooks/useSettings'
+import { useShortcut } from '@renderer/hooks/useShortcuts'
 import { useShowAssistants, useShowTopics } from '@renderer/hooks/useStore'
+import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import { cn } from '@renderer/utils'
 import { MIN_WINDOW_HEIGHT, MIN_WINDOW_WIDTH, SECOND_MIN_WINDOW_WIDTH } from '@shared/config/constant'
 import { AnimatePresence, motion } from 'motion/react'
@@ -21,14 +23,31 @@ import { AgentEmpty, AgentServerDisabled, AgentServerStopped } from './component
 
 const AgentPage = () => {
   const { isLeftNavbar } = useNavbarPosition()
-  const { showAssistants } = useShowAssistants()
-  const { showTopics } = useShowTopics()
+  const { showAssistants, toggleShowAssistants } = useShowAssistants()
+  const { showTopics, toggleShowTopics } = useShowTopics()
   const { topicPosition } = useSettings()
   const [activeAgentId] = useCache('agent.active_id')
   const { agents } = useAgents()
   const { setActiveAgentId } = useActiveAgent()
   const { apiServerConfig, apiServerRunning, apiServerLoading } = useApiServer()
   const { t } = useTranslation()
+
+  useShortcut('toggle_show_assistants', () => {
+    if (topicPosition === 'left') {
+      void toggleShowAssistants()
+      return
+    }
+
+    void EventEmitter.emit(EVENT_NAMES.SHOW_ASSISTANTS)
+  })
+
+  useShortcut('toggle_show_topics', () => {
+    if (topicPosition === 'right') {
+      void toggleShowTopics()
+    } else {
+      void EventEmitter.emit(EVENT_NAMES.SHOW_TOPIC_SIDEBAR)
+    }
+  })
 
   // Auto-select first agent when none is active
   useEffect(() => {

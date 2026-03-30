@@ -1,12 +1,13 @@
 import { EventEmitter } from 'events'
-import { beforeEach, describe, expect, it, type Mock, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, type Mock, vi } from 'vitest'
 
 // Use vi.hoisted() so mock variables are available in hoisted vi.mock() factories
 const { mockLogger, mocks } = vi.hoisted(() => ({
   mockLogger: {
     info: vi.fn(),
     warn: vi.fn(),
-    error: vi.fn()
+    error: vi.fn(),
+    debug: vi.fn()
   },
   mocks: {
     mainWindow: null as {
@@ -49,25 +50,50 @@ vi.mock('bonjour-service', () => ({
   default: vi.fn(() => mocks.bonjour)
 }))
 
+vi.mock('node:net', async (importOriginal) => {
+  const actual = (await importOriginal()) as Record<string, unknown>
+  return {
+    ...actual,
+    createConnection: vi.fn()
+  }
+})
+
+vi.mock('electron', () => ({
+  app: {
+    getName: vi.fn(() => 'Cherry Studio'),
+    getVersion: vi.fn(() => '1.0.0')
+  },
+  ipcMain: {
+    handle: vi.fn(),
+    removeHandler: vi.fn()
+  }
+}))
+
 vi.mock('@main/core/lifecycle', () => {
   class MockBaseService {
     ipcHandle = vi.fn()
+    ipcOn = vi.fn()
   }
   return {
     BaseService: MockBaseService,
     Injectable: () => (target: unknown) => target,
     ServicePhase: () => (target: unknown) => target,
+    DependsOn: () => (target: unknown) => target,
     Phase: { Background: 'background', WhenReady: 'whenReady', BeforeReady: 'beforeReady' }
   }
 })
 
-import { LocalTransferService } from '../LocalTransferService'
+import { LanTransferService } from '../LanTransferService'
 
-function createService(): LocalTransferService {
-  return new LocalTransferService()
+function createService(): LanTransferService {
+  return new LanTransferService()
 }
 
-describe('LocalTransferService', () => {
+// =============================================================================
+// Discovery Tests
+// =============================================================================
+
+describe('LanTransferService - Discovery', () => {
   beforeEach(() => {
     vi.clearAllMocks()
 
@@ -90,14 +116,15 @@ describe('LocalTransferService', () => {
   })
 
   describe('onInit', () => {
-    it('should register IPC handlers and start discovery on init', async () => {
+    it('should register IPC handlers without starting discovery', async () => {
       const service = createService()
       await (service as any).onInit()
 
-      expect((service as any).ipcHandle).toHaveBeenCalledTimes(3)
-      expect(mocks.bonjour!.find).toHaveBeenCalledWith({ type: 'cherrystudio', protocol: 'tcp' })
-      expect(mocks.browser!.start).toHaveBeenCalled()
-      expect(service.getState().isScanning).toBe(true)
+      // 3 discovery + 4 transfer = 7 IPC handlers
+      expect((service as any).ipcHandle).toHaveBeenCalledTimes(7)
+      // Discovery should NOT start automatically (lazy start)
+      expect(mocks.bonjour!.find).not.toHaveBeenCalled()
+      expect(service.getState().isScanning).toBe(false)
     })
   })
 
@@ -507,6 +534,114 @@ describe('LocalTransferService', () => {
       service.startDiscovery()
 
       expect(mocks.browser!.removeAllListeners).toHaveBeenCalled()
+    })
+  })
+})
+
+// =============================================================================
+// Transfer Tests
+// =============================================================================
+
+describe('LanTransferService - Transfer', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+
+    mocks.mainWindow = {
+      isDestroyed: vi.fn(() => false),
+      webContents: { send: vi.fn() }
+    }
+
+    mocks.browser = Object.assign(new EventEmitter(), {
+      start: vi.fn(),
+      stop: vi.fn(),
+      removeAllListeners: vi.fn()
+    })
+
+    mocks.bonjour = {
+      find: vi.fn(() => mocks.browser),
+      destroy: vi.fn()
+    }
+  })
+
+  afterEach(() => {
+    vi.resetAllMocks()
+  })
+
+  describe('connectAndHandshake - validation', () => {
+    it('should throw error when peer is not found', async () => {
+      const service = createService()
+      await (service as any).onInit()
+
+      await expect(
+        service.connectAndHandshake({
+          peerId: 'non-existent'
+        })
+      ).rejects.toThrow('Selected LAN peer is no longer available')
+    })
+
+    it('should throw error when peer has no port', async () => {
+      const service = createService()
+      await (service as any).onInit()
+      service.startDiscovery()
+
+      // Add a peer without port via discovery
+      mocks.browser!.emit('up', {
+        name: 'Test Peer',
+        host: 'localhost',
+        addresses: ['192.168.1.100']
+      })
+
+      const peerId = service.getState().services[0].id
+
+      await expect(service.connectAndHandshake({ peerId })).rejects.toThrow('Selected peer does not expose a TCP port')
+    })
+
+    it('should throw error when no reachable host', async () => {
+      const service = createService()
+      await (service as any).onInit()
+      service.startDiscovery()
+
+      // Add a peer with port but no addresses
+      mocks.browser!.emit('up', {
+        name: 'Test Peer',
+        port: 12345,
+        addresses: []
+      })
+
+      const peerId = service.getState().services[0].id
+
+      await expect(service.connectAndHandshake({ peerId })).rejects.toThrow(
+        'Unable to resolve a reachable host for the peer'
+      )
+    })
+  })
+
+  describe('cancelTransfer', () => {
+    it('should not throw when no active transfer', async () => {
+      const service = createService()
+      await (service as any).onInit()
+
+      // Should not throw, just log warning
+      expect(() => service.cancelTransfer()).not.toThrow()
+    })
+  })
+
+  describe('sendFile', () => {
+    it('should throw error when not connected', async () => {
+      const service = createService()
+      await (service as any).onInit()
+
+      await expect(service.sendFile('/path/to/file.zip')).rejects.toThrow(
+        'No active connection. Please connect to a peer first.'
+      )
+    })
+  })
+
+  describe('HANDSHAKE_PROTOCOL_VERSION', () => {
+    it('should export protocol version', async () => {
+      const { HANDSHAKE_PROTOCOL_VERSION } = await import('../LanTransferService')
+
+      expect(HANDSHAKE_PROTOCOL_VERSION).toBe('1')
     })
   })
 })
