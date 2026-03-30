@@ -1,6 +1,7 @@
 // src/main/services/agents/services/claudecode/index.ts
 import { fork } from 'node:child_process'
 import { EventEmitter } from 'node:events'
+import { existsSync } from 'node:fs'
 import { createRequire } from 'node:module'
 import path from 'node:path'
 
@@ -20,6 +21,8 @@ import { validateModelId } from '@main/apiServer/utils'
 import { isWin } from '@main/constant'
 import { pluginService } from '@main/services/agents/plugins/PluginService'
 import { configManager } from '@main/services/ConfigManager'
+import { buildNodeProxyEnvironment, getProxyProtocol } from '@main/services/proxy/nodeProxy'
+import { proxyManager } from '@main/services/ProxyManager'
 import { autoDiscoverGitBash } from '@main/utils/process'
 import { rtkRewrite } from '@main/utils/rtk'
 import getLoginShellEnvironment from '@main/utils/shell-env'
@@ -72,12 +75,18 @@ class ClaudeCodeStream extends EventEmitter implements AgentStream {
 
 class ClaudeCodeService implements AgentServiceInterface {
   private claudeExecutablePath: string
+  private claudeProxyBootstrapPath: string
 
   constructor() {
     // Resolve Claude Code CLI robustly (works in dev and in asar)
     this.claudeExecutablePath = path.join(path.dirname(require_.resolve('@anthropic-ai/claude-agent-sdk')), 'cli.js')
     if (app.isPackaged) {
       this.claudeExecutablePath = this.claudeExecutablePath.replace(/\.asar([\\/])/, '.asar.unpacked$1')
+    }
+
+    this.claudeProxyBootstrapPath = path.join(app.getAppPath(), 'out', 'proxy', 'index.js')
+    if (app.isPackaged) {
+      this.claudeProxyBootstrapPath = this.claudeProxyBootstrapPath.replace(/\.asar([\\/])/, '.asar.unpacked$1')
     }
   }
 
@@ -188,6 +197,8 @@ class ClaudeCodeService implements AgentServiceInterface {
         'CLAUDE_CONFIG_DIR',
         'CLAUDE_CODE_USE_BEDROCK',
         'CLAUDE_CODE_GIT_BASH_PATH',
+        'CHERRY_STUDIO_NODE_PROXY_RULES',
+        'CHERRY_STUDIO_NODE_PROXY_BYPASS_RULES',
         'NODE_OPTIONS',
         '__PROTO__',
         'CONSTRUCTOR',
@@ -356,9 +367,36 @@ class ClaudeCodeService implements AgentServiceInterface {
         errorChunks.push(chunk)
       },
       spawnClaudeCodeProcess: (spawnOptions) => {
+        const childEnv = { ...spawnOptions.env } as NodeJS.ProcessEnv
+        let execArgv = process.execArgv
+
+        const activeProxyConfig = proxyManager.getActiveNodeProxyConfig()
+        if (activeProxyConfig) {
+          const proxyProtocol = getProxyProtocol(activeProxyConfig.proxyRules)
+          const hasProxyBootstrap = existsSync(this.claudeProxyBootstrapPath)
+          Object.assign(childEnv, buildNodeProxyEnvironment(activeProxyConfig))
+
+          logger.info('Injecting proxy into Claude Code child process', {
+            proxyProtocol,
+            proxyRules: activeProxyConfig.proxyRules,
+            proxyBypassRules: activeProxyConfig.proxyBypassRules,
+            proxyBootstrapPath: this.claudeProxyBootstrapPath,
+            hasProxyBootstrap
+          })
+
+          if (hasProxyBootstrap) {
+            execArgv = [...process.execArgv, '--require', this.claudeProxyBootstrapPath]
+          } else {
+            logger.warn('Claude proxy bootstrap not found, falling back to env-only proxy injection', {
+              proxyBootstrapPath: this.claudeProxyBootstrapPath
+            })
+          }
+        }
+
         const child = fork(spawnOptions.args[0], spawnOptions.args.slice(1), {
           cwd: spawnOptions.cwd,
-          env: spawnOptions.env as NodeJS.ProcessEnv,
+          env: childEnv,
+          execArgv,
           stdio: ['pipe', 'pipe', 'pipe', 'ipc'],
           signal: spawnOptions.signal
         })

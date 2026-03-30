@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it } from 'vitest'
 
+import { buildNodeProxyEnvironment } from '../proxy/nodeProxy'
 import { isByPass, updateByPassRules } from '../ProxyManager'
 
 describe('ProxyManager - bypass evaluation', () => {
@@ -82,5 +83,38 @@ describe('ProxyManager - bypass evaluation', () => {
     expect(isByPass('http://127.0.0.1')).toBe(true)
     expect(isByPass('http://[::1]')).toBe(true)
     expect(isByPass('http://dev.localdomain')).toBe(false)
+  })
+
+  it('exports standard HTTP proxy env vars for http proxies', () => {
+    const env = buildNodeProxyEnvironment({
+      proxyRules: 'http://127.0.0.1:7890',
+      proxyBypassRules: 'localhost,*.local'
+    })
+
+    expect(env.HTTP_PROXY).toBe('http://127.0.0.1:7890')
+    expect(env.HTTPS_PROXY).toBe('http://127.0.0.1:7890')
+    expect(env.http_proxy).toBe('http://127.0.0.1:7890')
+    expect(env.https_proxy).toBe('http://127.0.0.1:7890')
+    expect(env.ALL_PROXY).toBe('http://127.0.0.1:7890')
+    expect(env.NO_PROXY).toBe('localhost,*.local')
+    expect(env.no_proxy).toBe('localhost,*.local')
+  })
+
+  it('exports only socks-compatible env vars for socks proxies', () => {
+    const env = buildNodeProxyEnvironment({
+      proxyRules: 'socks5://127.0.0.1:6153',
+      proxyBypassRules: 'localhost,*.local'
+    })
+
+    expect(env.SOCKS_PROXY).toBe('socks5://127.0.0.1:6153')
+    expect(env.socks_proxy).toBe('socks5://127.0.0.1:6153')
+    expect(env.ALL_PROXY).toBe('socks5://127.0.0.1:6153')
+    expect(env.all_proxy).toBe('socks5://127.0.0.1:6153')
+    expect(env.HTTP_PROXY).toBeUndefined()
+    expect(env.HTTPS_PROXY).toBeUndefined()
+    expect(env.http_proxy).toBeUndefined()
+    expect(env.https_proxy).toBeUndefined()
+    expect(env.NO_PROXY).toBe('localhost,*.local')
+    expect(env.no_proxy).toBe('localhost,*.local')
   })
 })
