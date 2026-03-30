@@ -1,3 +1,9 @@
+/**
+ * --------------------------------------------------------------------------
+ * ⚠️ NOTICE: this type need be refactored after FileSystem is designed
+ * --------------------------------------------------------------------------
+ */
+import type OpenAI from '@cherrystudio/openai'
 import * as z from 'zod'
 
 export const FILE_TYPE = {
@@ -19,3 +25,20 @@ export const FileTypeSchema = z.enum([
 ])
 
 export type FileType = z.infer<typeof FileTypeSchema>
+
+/**
+ * File metadata stored by the app.
+ */
+export interface FileMetadata {
+  id: string
+  name: string
+  origin_name: string
+  path: string
+  size: number
+  ext: string
+  type: FileType
+  created_at: string
+  count: number
+  tokens?: number
+  purpose?: OpenAI.FilePurpose
+}
