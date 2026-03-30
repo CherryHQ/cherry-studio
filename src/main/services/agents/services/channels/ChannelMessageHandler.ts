@@ -1,3 +1,7 @@
+import { randomUUID } from 'node:crypto'
+import fs from 'node:fs/promises'
+import path from 'node:path'
+
 import { loggerService } from '@logger'
 import type { CherryClawConfiguration, GetAgentSessionResponse } from '@types'
 
@@ -144,8 +148,35 @@ export class ChannelMessageHandler {
       // even for sessions created before the setting was changed.
       await this.applyChannelPermissionMode(session, agentId, adapter.channelId)
 
+      // Save images to agent workspace so the agent can read them via the Read tool
+      let imagePaths: string[] = []
+      if (message.images && message.images.length > 0) {
+        const workDir = session.accessible_paths[0]
+        if (workDir) {
+          try {
+            imagePaths = await this.persistImages(workDir, message.images)
+            logger.info('Persisted channel images to workspace', {
+              agentId,
+              count: imagePaths.length,
+              dir: path.join(workDir, '.cherry', 'channel-images')
+            })
+          } catch (error) {
+            logger.warn('Failed to persist channel images', {
+              agentId,
+              error: error instanceof Error ? error.message : String(error)
+            })
+          }
+        }
+      }
+
+      // Build text with image file paths appended so the agent knows where images are saved
+      const textWithImages =
+        imagePaths.length > 0
+          ? `${message.text}\n\n[Attached images saved to workspace]\n${imagePaths.map((p) => `- ${p}`).join('\n')}`
+          : message.text
+
       // Wrap untrusted channel input with security boundary markers
-      const securedContent = wrapExternalContent(message.text, {
+      const securedContent = wrapExternalContent(textWithImages, {
         chatId: message.chatId,
         userId: message.userId,
         userName: message.userName,
@@ -518,6 +549,26 @@ export class ChannelMessageHandler {
     for (const chunk of chunks) {
       await adapter.sendMessage(chatId, chunk)
     }
+  }
+
+  /**
+   * Save images to the agent's workspace so the agent can read them via the Read tool.
+   * Returns the list of absolute file paths written.
+   */
+  private async persistImages(workDir: string, images: ImageAttachment[]): Promise<string[]> {
+    const dir = path.join(workDir, '.cherry', 'channel-images')
+    await fs.mkdir(dir, { recursive: true })
+
+    const paths: string[] = []
+    for (const img of images) {
+      const ext = img.media_type.split('/')[1]?.replace('jpeg', 'jpg') || 'png'
+      const filename = `${Date.now()}-${randomUUID().slice(0, 8)}.${ext}`
+      const filePath = path.join(dir, filename)
+      await fs.writeFile(filePath, Buffer.from(img.data, 'base64'))
+      paths.push(filePath)
+    }
+
+    return paths
   }
 
   private chunkText(text: string, maxLength: number): string[] {

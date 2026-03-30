@@ -2,7 +2,13 @@ import { loggerService } from '@logger'
 import type { CherryClawChannel } from '@types'
 import { Bot } from 'grammy'
 
-import { ChannelAdapter, type ChannelAdapterConfig, type SendMessageOptions } from '../../ChannelAdapter'
+import {
+  ChannelAdapter,
+  type ChannelAdapterConfig,
+  downloadImageAsBase64,
+  type ImageAttachment,
+  type SendMessageOptions
+} from '../../ChannelAdapter'
 import { registerAdapterFactory } from '../../ChannelManager'
 
 const logger = loggerService.withContext('TelegramAdapter')
@@ -119,13 +125,34 @@ class TelegramAdapter extends ChannelAdapter {
       })
     })
 
-    // Message handler
+    // Text message handler
     bot.on('message:text', (ctx) => {
       this.emit('message', {
         chatId: ctx.chat.id.toString(),
         userId: ctx.from?.id?.toString() ?? '',
         userName: ctx.from?.first_name ?? '',
         text: ctx.message.text
+      })
+    })
+
+    // Photo message handler — download the largest resolution and emit with caption
+    bot.on('message:photo', async (ctx) => {
+      const photos = ctx.message.photo
+      if (!photos || photos.length === 0) return
+
+      // Last element is the highest resolution
+      const largest = photos[photos.length - 1]
+      const images = await this.downloadTelegramFile(largest.file_id)
+      const text = ctx.message.caption?.trim() ?? ''
+
+      if (!text && images.length === 0) return
+
+      this.emit('message', {
+        chatId: ctx.chat.id.toString(),
+        userId: ctx.from?.id?.toString() ?? '',
+        userName: ctx.from?.first_name ?? '',
+        text,
+        ...(images.length > 0 ? { images } : {})
       })
     })
 
@@ -165,6 +192,23 @@ class TelegramAdapter extends ChannelAdapter {
       await this.bot.stop()
       this.bot = null
       logger.info('Telegram bot stopped', { agentId: this.agentId, channelId: this.channelId })
+    }
+  }
+
+  private async downloadTelegramFile(fileId: string): Promise<ImageAttachment[]> {
+    if (!this.bot) return []
+    try {
+      const file = await this.bot.api.getFile(fileId)
+      if (!file.file_path) return []
+      const url = `https://api.telegram.org/file/bot${this.botToken}/${file.file_path}`
+      const attachment = await downloadImageAsBase64(url)
+      return attachment ? [attachment] : []
+    } catch (error) {
+      logger.warn('Failed to download Telegram file', {
+        fileId,
+        error: error instanceof Error ? error.message : String(error)
+      })
+      return []
     }
   }
 
