@@ -19,7 +19,7 @@ import { type AgentOrSessionSettingsProps, SettingsContainer, SettingsItem, Sett
 // --------------- Channel catalog registry ---------------
 
 type AvailableChannel = {
-  type: 'telegram' | 'feishu' | 'qq' | 'wechat'
+  type: 'telegram' | 'feishu' | 'qq' | 'wechat' | 'discord'
   name: string
   description: string
   available: boolean
@@ -61,6 +61,13 @@ const AVAILABLE_CHANNELS: AvailableChannel[] = [
     description: 'agent.cherryClaw.channels.wechat.description',
     available: true,
     defaultConfig: { token_path: '', allowed_chat_ids: [] }
+  },
+  {
+    type: 'discord',
+    name: 'Discord',
+    description: 'agent.cherryClaw.channels.discord.description',
+    available: true,
+    defaultConfig: { bot_token: '', allowed_channel_ids: [] }
   }
 ]
 
@@ -80,6 +87,8 @@ function hasRequiredCredentials(channel: CherryClawChannel): boolean {
       return !!cfg.bot_token
     case 'qq':
       return !!(cfg.app_id && cfg.client_secret)
+    case 'discord':
+      return !!cfg.bot_token
     case 'wechat':
       return true // credential check is async; assume ok if enabled
     default:
@@ -107,6 +116,12 @@ function getChannelSummary(channel: CherryClawChannel): string {
       if (cfg.app_id) parts.push(truncateId(cfg.app_id as string))
       if (chatIds.length > 0) parts.push(`${chatIds.length} chat IDs`)
       break
+    case 'discord': {
+      if (cfg.bot_token) parts.push(`Token: ${truncateId(cfg.bot_token as string)}`)
+      const channelIds = (cfg.allowed_channel_ids as string[]) ?? []
+      if (channelIds.length > 0) parts.push(`${channelIds.length} channel IDs`)
+      break
+    }
     case 'wechat':
       break
   }
@@ -180,6 +195,8 @@ type ChatIdsConfig = {
   hint: string
   extraHint?: string
   fullWidth?: boolean
+  /** Config key for the array of IDs. Defaults to 'allowed_chat_ids'. */
+  configKey?: string
 }
 
 type ChannelFieldsCardProps = ChannelCardProps & {
@@ -196,17 +213,18 @@ const ChannelFieldsCard: FC<ChannelFieldsCardProps> = ({
   extraContent
 }) => {
   const cfg = channel.config as unknown as Record<string, unknown>
+  const idsKey = chatIdsConfig.configKey ?? 'allowed_chat_ids'
 
   const [fieldValues, setFieldValues] = useState<Record<string, string>>(() =>
     Object.fromEntries(fields.map((f) => [f.key, (cfg[f.key] as string) ?? '']))
   )
-  const [chatIds, setChatIds] = useState(((cfg.allowed_chat_ids as string[]) ?? []).join(', '))
+  const [chatIds, setChatIds] = useState(((cfg[idsKey] as string[]) ?? []).join(', '))
 
   useEffect(() => {
     setFieldValues(Object.fromEntries(fields.map((f) => [f.key, (cfg[f.key] as string) ?? ''])))
-    setChatIds(((cfg.allowed_chat_ids as string[]) ?? []).join(', '))
+    setChatIds(((cfg[idsKey] as string[]) ?? []).join(', '))
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [JSON.stringify(fields.map((f) => cfg[f.key])), cfg.allowed_chat_ids])
+  }, [JSON.stringify(fields.map((f) => cfg[f.key])), cfg[idsKey]])
 
   const saveField = useCallback(
     (key: string, value: string) => {
@@ -223,10 +241,10 @@ const ChannelFieldsCard: FC<ChannelFieldsCardProps> = ({
       .split(',')
       .map((s) => s.trim())
       .filter(Boolean)
-    if (JSON.stringify(ids) !== JSON.stringify((cfg.allowed_chat_ids as string[]) ?? [])) {
-      onConfigChange({ config: { ...cfg, allowed_chat_ids: ids } as CherryClawChannel['config'] })
+    if (JSON.stringify(ids) !== JSON.stringify((cfg[idsKey] as string[]) ?? [])) {
+      onConfigChange({ config: { ...cfg, [idsKey]: ids } as CherryClawChannel['config'] })
     }
-  }, [chatIds, cfg, onConfigChange])
+  }, [chatIds, cfg, idsKey, onConfigChange])
 
   return (
     <div className="flex flex-col gap-3">
@@ -439,6 +457,33 @@ const FeishuChannelForm: FC<ChannelCardProps> = ({ channel, onConfigChange }) =>
   )
 }
 
+const DiscordChannelForm: FC<ChannelCardProps> = ({ channel, onConfigChange }) => {
+  const { t } = useTranslation()
+  return (
+    <ChannelFieldsCard
+      channel={channel}
+      onConfigChange={onConfigChange}
+      fields={[
+        {
+          key: 'bot_token',
+          label: t('agent.cherryClaw.channels.discord.botToken'),
+          placeholder: t('agent.cherryClaw.channels.discord.botTokenPlaceholder'),
+          secret: true,
+          span: 2
+        }
+      ]}
+      chatIds={{
+        label: t('agent.cherryClaw.channels.discord.channelIds'),
+        placeholder: t('agent.cherryClaw.channels.discord.channelIdsPlaceholder'),
+        hint: t('agent.cherryClaw.channels.discord.channelIdsHint'),
+        extraHint: t('agent.cherryClaw.channels.discord.whoamiTip'),
+        fullWidth: true,
+        configKey: 'allowed_channel_ids'
+      }}
+    />
+  )
+}
+
 const QQChannelForm: FC<ChannelCardProps> = ({ channel, onConfigChange }) => {
   const { t } = useTranslation()
   return (
@@ -605,6 +650,7 @@ const ChannelEditModal: FC<EditModalProps> = ({ open, channel, onClose, onConfig
         {channel.type === 'telegram' && <TelegramChannelForm channel={channel} onConfigChange={handleUpdate} />}
         {channel.type === 'feishu' && <FeishuChannelForm channel={channel} onConfigChange={handleUpdate} />}
         {channel.type === 'qq' && <QQChannelForm channel={channel} onConfigChange={handleUpdate} />}
+        {channel.type === 'discord' && <DiscordChannelForm channel={channel} onConfigChange={handleUpdate} />}
         {channel.type === 'wechat' && (
           <WeChatChannelForm channel={channel} onConfigChange={handleUpdate} onRemove={() => onRemove(channel.id)} />
         )}

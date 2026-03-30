@@ -68,16 +68,24 @@ export const WeChatChannelConfigSchema = z.object({
 
 export type WeChatChannelConfig = z.infer<typeof WeChatChannelConfigSchema>
 
+export const DiscordChannelConfigSchema = z.object({
+  bot_token: z.string().min(1),
+  allowed_channel_ids: z.array(z.string()).default([])
+})
+
+export type DiscordChannelConfig = z.infer<typeof DiscordChannelConfigSchema>
+
 export const CherryClawChannelSchema = z.object({
   id: z.string(),
-  type: z.enum(['telegram', 'feishu', 'qq', 'wechat']),
+  type: z.enum(['telegram', 'feishu', 'qq', 'wechat', 'discord']),
   name: z.string(),
   enabled: z.boolean().default(true),
   config: z.union([
     TelegramChannelConfigSchema,
     FeishuChannelConfigSchema,
     QQChannelConfigSchema,
-    WeChatChannelConfigSchema
+    WeChatChannelConfigSchema,
+    DiscordChannelConfigSchema
   ]),
   is_notify_receiver: z.boolean().default(false),
   /** Per-channel permission mode override. When unset, inherits from agent configuration. */

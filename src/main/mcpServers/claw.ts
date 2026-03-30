@@ -220,6 +220,20 @@ const CHANNEL_CONFIG_SCHEMAS: Record<string, { required: string[]; optional: str
     optional: ['token_path', 'allowed_chat_ids'],
     description:
       'WeChat via local WeChat desktop client bridge. After adding, a QR code image is returned — display it inline for the user to scan with their phone.'
+  },
+  discord: {
+    required: ['bot_token'],
+    optional: ['allowed_channel_ids'],
+    description: [
+      'Discord bot via WebSocket gateway.',
+      'Setup steps:',
+      '1. Go to https://discord.com/developers/applications and click "New Application".',
+      '2. Go to the "Bot" tab, click "Reset Token" to generate a new token — this is your bot_token.',
+      '3. Under "Privileged Gateway Intents", enable "MESSAGE CONTENT INTENT".',
+      '4. Go to "OAuth2 > URL Generator", select scopes: "bot", and bot permissions: "Send Messages", "Read Message History", "View Channels".',
+      '5. Copy the generated URL, open it in a browser to invite the bot to your server.',
+      '6. allowed_channel_ids format: "channel:<channel_id>" for guild channels, "dm:<channel_id>" for DMs. Send /whoami in Discord to get the correct ID.'
+    ].join(' ')
   }
 }
 
@@ -246,7 +260,7 @@ const CONFIG_TOOL: Tool = {
       },
       type: {
         type: 'string',
-        enum: ['telegram', 'feishu', 'qq', 'wechat'],
+        enum: ['telegram', 'feishu', 'qq', 'wechat', 'discord'],
         description: "Channel adapter type (required for 'add_channel')"
       },
       name: {

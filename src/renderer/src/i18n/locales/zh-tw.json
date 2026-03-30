@@ -34,6 +34,16 @@
         "comingSoon": "即將推出",
         "deleteConfirm": "確定刪除頻道「{{name}}」？",
         "description": "將您的 Agent 連接到訊息平台。",
+        "discord": {
+          "botToken": "Bot Token",
+          "botTokenPlaceholder": "輸入您的 Discord 機器人 Token",
+          "channelIds": "允許的頻道 ID",
+          "channelIdsHint": "格式：channel:id 或 dm:id。留空表示允許所有。",
+          "channelIdsPlaceholder": "channel:123456789, dm:987654321",
+          "description": "透過 Discord 機器人使用 WebSocket 閘道接收和回覆訊息。",
+          "title": "Discord",
+          "whoamiTip": "💡 提示：發送 /whoami 給機器人即可取得正確格式的頻道 ID。"
+        },
         "feishu": {
           "appId": "應用程式 ID",
           "appIdPlaceholder": "輸入您的飛書應用程式 ID",

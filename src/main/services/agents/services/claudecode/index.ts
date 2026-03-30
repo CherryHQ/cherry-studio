@@ -51,6 +51,7 @@ const require_ = createRequire(import.meta.url)
 const logger = loggerService.withContext('ClaudeCodeService')
 const promptBuilder = new PromptBuilder()
 const DEFAULT_AUTO_ALLOW_TOOLS = new Set(['Read', 'Glob', 'Grep'])
+const IMAGE_MAX_DIMENSION = 2000
 const shouldAutoApproveTools = process.env.CHERRY_AUTO_ALLOW_TOOLS === '1'
 const NO_RESUME_COMMANDS = ['/clear']
 
@@ -536,16 +537,17 @@ class ClaudeCodeService implements AgentServiceInterface {
       }
     })()
 
-    const content = this.buildMessageContent(initialPrompt, images)
-
-    enqueue({
-      type: 'user',
-      parent_tool_use_id: null,
-      session_id: '',
-      message: {
-        role: 'user',
-        content
-      }
+    // Kick off image processing asynchronously; enqueue the first message once ready
+    this.buildMessageContent(initialPrompt, images).then((content) => {
+      enqueue({
+        type: 'user',
+        parent_tool_use_id: null,
+        session_id: '',
+        message: {
+          role: 'user',
+          content
+        }
+      })
     })
 
     return {
@@ -555,28 +557,86 @@ class ClaudeCodeService implements AgentServiceInterface {
     }
   }
 
-  private buildMessageContent(
+  private async buildMessageContent(
     prompt: string,
     images?: Array<{ data: string; media_type: string }>
-  ): string | ContentBlockParam[] {
+  ): Promise<string | ContentBlockParam[]> {
     if (!images || images.length === 0) {
       return prompt
     }
 
     const blocks: ContentBlockParam[] = [{ type: 'text', text: prompt }]
 
-    for (const img of images) {
+    const resizedImages = await Promise.all(images.map((img) => this.resizeImageIfNeeded(img.data, img.media_type)))
+
+    for (const resized of resizedImages) {
       blocks.push({
         type: 'image',
         source: {
           type: 'base64',
-          media_type: img.media_type as Base64ImageSource['media_type'],
-          data: img.data
+          media_type: resized.media_type as Base64ImageSource['media_type'],
+          data: resized.data
         }
       })
     }
 
     return blocks
+  }
+
+  /**
+   * Resize base64 image if it exceeds the Claude API's dimension limit.
+   * Uses sharp which handles JPEG/PNG/WebP/GIF/AVIF/TIFF.
+   */
+  private async resizeImageIfNeeded(
+    base64Data: string,
+    mediaType: string
+  ): Promise<{ data: string; media_type: string }> {
+    try {
+      const { default: sharp } = await import('sharp')
+      const buffer = Buffer.from(base64Data, 'base64')
+      const metadata = await sharp(buffer).metadata()
+
+      const width = metadata.width ?? 0
+      const height = metadata.height ?? 0
+
+      const needsResize = width > IMAGE_MAX_DIMENSION || height > IMAGE_MAX_DIMENSION
+      const needsConvert = mediaType !== 'image/png'
+
+      if (!needsResize && !needsConvert) {
+        return { data: base64Data, media_type: mediaType }
+      }
+
+      if (!needsResize) {
+        // Only convert format, no resize needed
+        const converted = await sharp(buffer).png().toBuffer()
+        logger.info('Converted image to PNG for Claude SDK', { original: mediaType })
+        return { data: converted.toString('base64'), media_type: 'image/png' }
+      }
+
+      const scale = Math.min(IMAGE_MAX_DIMENSION / width, IMAGE_MAX_DIMENSION / height)
+      const newWidth = Math.round(width * scale)
+      const newHeight = Math.round(height * scale)
+
+      const resizedBuffer = await sharp(buffer)
+        .resize(newWidth, newHeight, { fit: 'inside', withoutEnlargement: true })
+        .png()
+        .toBuffer()
+
+      logger.info('Resized oversized image for Claude API', {
+        original: `${width}x${height}`,
+        resized: `${newWidth}x${newHeight}`
+      })
+
+      return {
+        data: resizedBuffer.toString('base64'),
+        media_type: 'image/png'
+      }
+    } catch (error) {
+      logger.warn('Image resize failed, passing through as-is', {
+        error: error instanceof Error ? error.message : String(error)
+      })
+      return { data: base64Data, media_type: mediaType }
+    }
   }
 
   /**

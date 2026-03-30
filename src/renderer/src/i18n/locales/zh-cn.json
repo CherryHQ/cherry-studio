@@ -34,6 +34,16 @@
         "comingSoon": "即将推出",
         "deleteConfirm": "确定删除频道「{{name}}」？",
         "description": "将您的 Agent 连接到消息平台。",
+        "discord": {
+          "botToken": "Bot Token",
+          "botTokenPlaceholder": "输入您的 Discord 机器人 Token",
+          "channelIds": "允许的频道 ID",
+          "channelIdsHint": "格式：channel:id 或 dm:id。留空表示允许所有。",
+          "channelIdsPlaceholder": "channel:123456789, dm:987654321",
+          "description": "通过 Discord 机器人使用 WebSocket 网关接收和回复消息。",
+          "title": "Discord",
+          "whoamiTip": "💡 提示：发送 /whoami 给机器人即可获取正确格式的频道 ID。"
+        },
         "feishu": {
           "appId": "应用ID",
           "appIdPlaceholder": "输入你的飞书应用 ID",

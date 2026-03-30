@@ -34,6 +34,16 @@
         "comingSoon": "近日公開",
         "deleteConfirm": "[to be translated]:Delete channel \"{{name}}\"?",
         "description": "エージェントをメッセージングプラットフォームに接続します。",
+        "discord": {
+          "botToken": "[to be translated]:Bot Token",
+          "botTokenPlaceholder": "[to be translated]:Enter your Discord bot token",
+          "channelIds": "[to be translated]:Allowed Channel IDs",
+          "channelIdsHint": "[to be translated]:Format: channel:id or dm:id. Leave empty to allow all.",
+          "channelIdsPlaceholder": "[to be translated]:channel:123456789, dm:987654321",
+          "description": "[to be translated]:Receive and respond to messages via a Discord bot using WebSocket gateway.",
+          "title": "[to be translated]:Discord",
+          "whoamiTip": "[to be translated]:💡 Tip: Send /whoami to the bot to get your channel ID in the correct format."
+        },
         "feishu": {
           "appId": "App ID",
           "appIdPlaceholder": "FeishuアプリのApp IDを入力してください",

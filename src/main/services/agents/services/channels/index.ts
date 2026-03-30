@@ -11,7 +11,8 @@ export { sessionStreamBus, type SessionStreamChunk } from './SessionStreamBus'
 export { broadcastSessionChanged, registerSessionStreamIpc } from './sessionStreamIpc'
 
 // Register adapters (side-effect imports)
-import './adapters/FeishuAdapter'
-import './adapters/QQAdapter'
+import './adapters/discord/DiscordAdapter'
+import './adapters/feishu/FeishuAdapter'
+import './adapters/qq/QQAdapter'
 import './adapters/TelegramAdapter'
-import './adapters/WeChatAdapter'
+import './adapters/wechat/WeChatAdapter'

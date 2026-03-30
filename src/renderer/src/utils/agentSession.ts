@@ -14,6 +14,7 @@ export const extractAgentSessionIdFromTopicId = (topicId: string): string => {
   return topicId.replace(SESSION_TOPIC_PREFIX, '')
 }
 
+import discordIcon from '@renderer/assets/images/channel/discord.svg'
 import feishuIcon from '@renderer/assets/images/channel/feishu.jpeg'
 import qqIcon from '@renderer/assets/images/channel/qq.svg'
 import telegramIcon from '@renderer/assets/images/channel/telegram.png'
@@ -23,7 +24,8 @@ const CHANNEL_TYPE_ICONS: Record<string, string> = {
   telegram: telegramIcon,
   feishu: feishuIcon,
   qq: qqIcon,
-  wechat: wechatIcon
+  wechat: wechatIcon,
+  discord: discordIcon
 }
 
 export const getChannelTypeIcon = (channelType: string | undefined): string | undefined => {

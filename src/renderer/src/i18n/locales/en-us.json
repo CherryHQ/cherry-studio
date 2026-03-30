@@ -34,6 +34,16 @@
         "comingSoon": "Coming soon",
         "deleteConfirm": "Delete channel \"{{name}}\"?",
         "description": "Connect your agent to messaging platforms.",
+        "discord": {
+          "botToken": "Bot Token",
+          "botTokenPlaceholder": "Enter your Discord bot token",
+          "channelIds": "Allowed Channel IDs",
+          "channelIdsHint": "Format: channel:id or dm:id. Leave empty to allow all.",
+          "channelIdsPlaceholder": "channel:123456789, dm:987654321",
+          "description": "Receive and respond to messages via a Discord bot using WebSocket gateway.",
+          "title": "Discord",
+          "whoamiTip": "💡 Tip: Send /whoami to the bot to get your channel ID in the correct format."
+        },
         "feishu": {
           "appId": "App ID",
           "appIdPlaceholder": "Enter your Feishu app ID",

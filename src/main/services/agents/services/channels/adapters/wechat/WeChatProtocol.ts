@@ -10,7 +10,7 @@ import path from 'node:path'
 import { setTimeout as delay } from 'node:timers/promises'
 
 import { loggerService } from '@logger'
-import { nativeImage, net } from 'electron'
+import { net } from 'electron'
 import * as z from 'zod'
 
 const logger = loggerService.withContext('WeChatProtocol')
@@ -681,22 +681,16 @@ export class WeixinBot {
 
   /**
    * Download and decrypt an image from WeChat CDN.
-   * Returns a data URL (data:image/png;base64,...) or null on failure.
-   * Always converts to PNG since some model APIs only accept PNG format.
+   * Returns a data URL (data:<mime>;base64,...) or null on failure.
+   * Format conversion (to PNG) is handled downstream by ClaudeCodeService.
    */
   async downloadImage(imageItem: ImageItem): Promise<string | null> {
     try {
       const data = await cdnDownloadImage(imageItem)
       if (!data) return null
 
-      const img = nativeImage.createFromBuffer(data)
-      if (img.isEmpty()) {
-        logger.warn('Failed to decode image with nativeImage, using raw data')
-        const mime = detectImageMime(data)
-        return `data:${mime};base64,${data.toString('base64')}`
-      }
-      const pngBuffer = img.toPNG()
-      return `data:image/png;base64,${pngBuffer.toString('base64')}`
+      const mime = detectImageMime(data)
+      return `data:${mime};base64,${data.toString('base64')}`
     } catch (error) {
       logger.error('Failed to download WeChat image', error instanceof Error ? error : { error: String(error) })
       return null
