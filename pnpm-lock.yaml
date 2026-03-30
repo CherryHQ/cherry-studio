@@ -101,6 +101,9 @@ importers:
       '@libsql/client':
         specifier: 0.14.0
         version: 0.14.0
+      '@lydell/node-pty':
+        specifier: 1.2.0-beta.3
+        version: 1.2.0-beta.3
       '@napi-rs/canvas':
         specifier: 0.1.97
         version: 0.1.97
@@ -131,9 +134,6 @@ importers:
       jsdom:
         specifier: 26.1.0
         version: 26.1.0
-      node-pty:
-        specifier: ^1.1.0
-        version: 1.1.0
       node-stream-zip:
         specifier: 1.15.0
         version: 1.15.0
@@ -3442,6 +3442,39 @@ packages:
     resolution: {integrity: sha512-7pJzOWzPm6oJUxml+PCDRzYQ4A1hTMHAciTAHfFK4fkbDZX33nWPVG7Y3vqdKtslcwAzwmrNDc6sXy2nwWnbiw==}
     cpu: [x64]
     os: [win32]
+
+  '@lydell/node-pty-darwin-arm64@1.2.0-beta.3':
+    resolution: {integrity: sha512-owcv+e1/OSu3bf9ZBdUQqJsQF888KyuSIiPYFNn0fLhgkhm9F3Pvha76Kj5mCPnodf7hh3suDe7upw7GPRXftQ==}
+    cpu: [arm64]
+    os: [darwin]
+
+  '@lydell/node-pty-darwin-x64@1.2.0-beta.3':
+    resolution: {integrity: sha512-k38O+UviWrWdxtqZBBc/D8NJU11Rey8Y2YMwSWNxLv3eXZZdF5IVpbBkI/2RmLsV5nCcciqLPbukxeZnEfPlwA==}
+    cpu: [x64]
+    os: [darwin]
+
+  '@lydell/node-pty-linux-arm64@1.2.0-beta.3':
+    resolution: {integrity: sha512-HUwRpGu3O+4sv9DAQFKnyW5LYhyYu2SDUa/bdFO/t4dIFCM4uDJEq47wfRM7+aYtJTi1b3lakN8SlWeuFQqJQQ==}
+    cpu: [arm64]
+    os: [linux]
+
+  '@lydell/node-pty-linux-x64@1.2.0-beta.3':
+    resolution: {integrity: sha512-+RRY0PoCUeQaCvPR7/UnkGbxulwbFtoTWJfe+o4T1RcNtngrgaI55I9nl8CD8uqhGrB3smKuyvPM5UtwGhASUw==}
+    cpu: [x64]
+    os: [linux]
+
+  '@lydell/node-pty-win32-arm64@1.2.0-beta.3':
+    resolution: {integrity: sha512-UEDd9ASp2M3iIYpIzfmfBlpyn4+K1G4CAjYcHWStptCkefoSVXWTiUBIa1KjBjZi3/xmsHIDpBEYTkGWuvLt2Q==}
+    cpu: [arm64]
+    os: [win32]
+
+  '@lydell/node-pty-win32-x64@1.2.0-beta.3':
+    resolution: {integrity: sha512-TpdqSFYx7/Rj+68tuP6F/lkRYrHCYAIJgaS1bx3SctTkb5QAQCFwOKHd4xlsivmEOMT2LdhkJggPxwX9PAO5pQ==}
+    cpu: [x64]
+    os: [win32]
+
+  '@lydell/node-pty@1.2.0-beta.3':
+    resolution: {integrity: sha512-ngGAItlRhmJXrhspxt8kX13n1dVFqzETOq0m/+gqSkO8NJBvNMwP7FZckMwps2UFySdr4yxCXNGu/bumg5at6A==}
 
   '@malept/cross-spawn-promise@2.0.0':
     resolution: {integrity: sha512-1DpKU0Z5ThltBwjNySMC14g0CkbyhCaz9FkhxqNsZI6uAPJXFS8cMXlBKo26FJ8ZuW6S9GCMcR9IO5k2X5/9Fg==}
@@ -9766,9 +9799,6 @@ packages:
   node-addon-api@5.1.0:
     resolution: {integrity: sha512-eh0GgfEkpnoWDq+VY8OyvYhFEzBk6jIYbRKdIlyTiAXIVJ8PyBaKb0rp7oDtoddbdoHWhq8wwr+XZ81F1rpNdA==}
 
-  node-addon-api@7.1.1:
-    resolution: {integrity: sha512-5m3bsyrjFWE1xf7nz7YXdN4udnVtXK6/Yfgn5qnahL6bCkf2yKt4k3nuTKAtT4r3IG8JNR2ncsIMdZuAzJjHQQ==}
-
   node-addon-api@8.5.0:
     resolution: {integrity: sha512-/bRZty2mXUIFY/xU5HLvveNHlswNJej+RnxBjOMkidWfwZzgTbPG1E3K5TOxRLOR+5hX7bSofy8yf1hZevMS8A==}
     engines: {node: ^18 || ^20 || >= 21}
@@ -9805,9 +9835,6 @@ packages:
     resolution: {integrity: sha512-ra7Kvlhxn5V9Slyus0ygMa2h+UqExPqUIkfk7Pc8QTLT956JLSy51uWFwHtIYy0vI8cB4BDhc/S03+880My/LQ==}
     engines: {node: ^18.17.0 || >=20.5.0}
     hasBin: true
-
-  node-pty@1.1.0:
-    resolution: {integrity: sha512-20JqtutY6JPXTUnL0ij1uad7Qe1baT46lyolh2sSENDd4sTzKZ4nmAFkeAARDKwmlLjPx6XKRlwRUxwjOy+lUg==}
 
   node-releases@2.0.27:
     resolution: {integrity: sha512-nmh3lCkYZ3grZvqcCH+fjmQ7X+H0OeZgP40OierEaAptX4XofMh5kwNbWh7lBduUzCcV/8kZ+NDLCwm2iorIlA==}
@@ -12403,7 +12430,7 @@ packages:
         optional: true
 
   xlsx@https://cdn.sheetjs.com/xlsx-0.20.2/xlsx-0.20.2.tgz:
-    resolution: {integrity: sha512-+nKZ39+nvK7Qq6i0PvWWRA4j/EkfWOtkP/YhMtupm+lJIiHxUrgTr1CcKv1nBk1rHtkRRQ3O2+Ih/q/sA+FXZA==, tarball: https://cdn.sheetjs.com/xlsx-0.20.2/xlsx-0.20.2.tgz}
+    resolution: {tarball: https://cdn.sheetjs.com/xlsx-0.20.2/xlsx-0.20.2.tgz}
     version: 0.20.2
     engines: {node: '>=0.8'}
     hasBin: true
@@ -15380,6 +15407,33 @@ snapshots:
 
   '@libsql/win32-x64-msvc@0.4.7':
     optional: true
+
+  '@lydell/node-pty-darwin-arm64@1.2.0-beta.3':
+    optional: true
+
+  '@lydell/node-pty-darwin-x64@1.2.0-beta.3':
+    optional: true
+
+  '@lydell/node-pty-linux-arm64@1.2.0-beta.3':
+    optional: true
+
+  '@lydell/node-pty-linux-x64@1.2.0-beta.3':
+    optional: true
+
+  '@lydell/node-pty-win32-arm64@1.2.0-beta.3':
+    optional: true
+
+  '@lydell/node-pty-win32-x64@1.2.0-beta.3':
+    optional: true
+
+  '@lydell/node-pty@1.2.0-beta.3':
+    optionalDependencies:
+      '@lydell/node-pty-darwin-arm64': 1.2.0-beta.3
+      '@lydell/node-pty-darwin-x64': 1.2.0-beta.3
+      '@lydell/node-pty-linux-arm64': 1.2.0-beta.3
+      '@lydell/node-pty-linux-x64': 1.2.0-beta.3
+      '@lydell/node-pty-win32-arm64': 1.2.0-beta.3
+      '@lydell/node-pty-win32-x64': 1.2.0-beta.3
 
   '@malept/cross-spawn-promise@2.0.0':
     dependencies:
@@ -22862,8 +22916,6 @@ snapshots:
 
   node-addon-api@5.1.0: {}
 
-  node-addon-api@7.1.1: {}
-
   node-addon-api@8.5.0: {}
 
   node-api-version@0.2.1:
@@ -22902,10 +22954,6 @@ snapshots:
       which: 5.0.0
     transitivePeerDependencies:
       - supports-color
-
-  node-pty@1.1.0:
-    dependencies:
-      node-addon-api: 7.1.1
 
   node-releases@2.0.27: {}
 

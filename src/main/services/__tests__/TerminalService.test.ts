@@ -11,7 +11,7 @@ const loggerWarnMock = vi.fn()
 const loggerErrorMock = vi.fn()
 const registeredHandlers = new Map<string, (...args: unknown[]) => unknown>()
 
-vi.mock('node-pty', () => ({
+vi.mock('@lydell/node-pty', () => ({
   spawn: (...args: unknown[]) => spawnMock(...args)
 }))
 

@@ -1,13 +1,13 @@
 import path from 'node:path'
 
 import { loggerService } from '@logger'
+import type { IPty } from '@lydell/node-pty'
+import { spawn } from '@lydell/node-pty'
 import { sessionService } from '@main/services/agents'
 import { getDataPath, makeSureDirExists } from '@main/utils'
 import { IpcChannel } from '@shared/IpcChannel'
 import type { BrowserWindow } from 'electron'
 import { ipcMain } from 'electron'
-import type { IPty } from 'node-pty'
-import { spawn } from 'node-pty'
 
 const logger = loggerService.withContext('TerminalService')
 

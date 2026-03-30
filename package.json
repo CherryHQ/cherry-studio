@@ -88,6 +88,7 @@
     "@anthropic-ai/claude-agent-sdk": "0.2.81",
     "@expo/sudo-prompt": "^9.3.2",
     "@libsql/client": "0.14.0",
+    "@lydell/node-pty": "1.2.0-beta.3",
     "@napi-rs/canvas": "0.1.80",
     "@napi-rs/system-ocr": "1.0.2",
     "@paymoapp/electron-shutdown-handler": "1.1.2",
@@ -98,7 +99,6 @@
     "graceful-fs": "4.2.11",
     "gray-matter": "4.0.3",
     "jsdom": "26.1.0",
-    "node-pty": "^1.1.0",
     "node-stream-zip": "1.15.0",
     "officeparser": "4.2.0",
     "os-proxy-config": "1.1.2",
@@ -507,8 +507,7 @@
       "selection-hook",
       "sharp",
       "tesseract.js",
-      "zipfile",
-      "node-pty"
+      "zipfile"
     ]
   },
   "packageManager": "pnpm@10.27.0",
