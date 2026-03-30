@@ -150,7 +150,6 @@ describe('KnowledgeItemService', () => {
         returning: vi.fn().mockResolvedValue([
           createMockRow({
             id: 'item-1',
-            groupId: 'group-directory-import',
             type: 'directory',
             data: { path: '/tmp/files', recursive: true }
           }),
@@ -166,7 +165,6 @@ describe('KnowledgeItemService', () => {
       const dto: CreateKnowledgeItemsDto = {
         items: [
           {
-            groupId: 'group-directory-import',
             type: 'directory',
             data: { path: '/tmp/files', recursive: true }
           },
@@ -182,7 +180,7 @@ describe('KnowledgeItemService', () => {
       expect(values).toHaveBeenCalledWith([
         {
           baseId: 'kb-1',
-          groupId: 'group-directory-import',
+          groupId: null,
           type: 'directory',
           data: { path: '/tmp/files', recursive: true },
           status: 'idle',
@@ -199,8 +197,7 @@ describe('KnowledgeItemService', () => {
       ])
       expect(result.items).toHaveLength(2)
       expect(result.items[0]).toMatchObject({
-        id: 'item-1',
-        groupId: 'group-directory-import'
+        id: 'item-1'
       })
     })
   })
@@ -402,6 +399,26 @@ describe('KnowledgeItemService', () => {
           createdAt: 50
         })
       ).rejects.toThrow()
+    })
+
+    it('createMany accepts groupId when the owner already exists in the same base', async () => {
+      const result = await service.createMany('kb-1', {
+        items: [
+          {
+            groupId: 'dir-a',
+            type: 'note',
+            data: { content: 'new grouped note' }
+          }
+        ]
+      })
+
+      expect(result.items).toHaveLength(1)
+      expect(result.items[0]).toMatchObject({
+        baseId: 'kb-1',
+        groupId: 'dir-a',
+        type: 'note',
+        data: { content: 'new grouped note' }
+      })
     })
   })
 
