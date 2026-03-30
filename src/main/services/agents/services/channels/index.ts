@@ -14,5 +14,5 @@ export { broadcastSessionChanged, registerSessionStreamIpc } from './sessionStre
 import './adapters/discord/DiscordAdapter'
 import './adapters/feishu/FeishuAdapter'
 import './adapters/qq/QQAdapter'
-import './adapters/TelegramAdapter'
+import './adapters/telegram/TelegramAdapter'
 import './adapters/wechat/WeChatAdapter'
