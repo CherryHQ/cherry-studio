@@ -52,7 +52,7 @@ export function handleNavigateProtocolUrl(url: URL) {
       .executeJavaScript(`typeof window.navigate === 'function'`)
       .then((hasNavigate) => {
         if (hasNavigate) {
-          mainWindow.webContents.executeJavaScript(`window.navigate('${fullPath}')`)
+          void mainWindow.webContents.executeJavaScript(`window.navigate('${fullPath}')`)
           if (isMac) {
             windowService.showMainWindow()
           }

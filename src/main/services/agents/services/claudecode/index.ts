@@ -159,6 +159,7 @@ class ClaudeCodeService implements AgentServiceInterface {
 
     // Remove CLAUDECODE from inherited env to prevent "nested session" error
     // when running inside another Claude Code process (e.g. Conductor)
+    // oxlint-disable-next-line no-unused-vars -- destructured to exclude from env
     const { CLAUDECODE: _claudeCode, ...cleanShellEnv } = loginShellEnvWithoutProxies
 
     const env = {
@@ -506,7 +507,7 @@ class ClaudeCodeService implements AgentServiceInterface {
     // Cherry Assistant: inject navigate + diagnose MCP server
     if (isAssistant) {
       const assistantServer = new AssistantServer()
-      options.mcpServers!.assistant = { type: 'sdk', name: 'assistant', instance: assistantServer.mcpServer }
+      options.mcpServers.assistant = { type: 'sdk', name: 'assistant', instance: assistantServer.mcpServer }
 
       // Auto-approve assistant MCP tools
       if (Array.isArray(options.allowedTools) && options.allowedTools.length > 0) {
@@ -520,7 +521,7 @@ class ClaudeCodeService implements AgentServiceInterface {
 
       logger.debug('Cherry Assistant: injected assistant MCP server', {
         agentId: session.agent_id,
-        totalMcpServers: Object.keys(options.mcpServers!).length
+        totalMcpServers: Object.keys(options.mcpServers).length
       })
     }
 

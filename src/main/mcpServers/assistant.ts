@@ -107,7 +107,7 @@ class AssistantServer {
 
     this.mcpServer.server.setRequestHandler(CallToolRequestSchema, async (request) => {
       const toolName = request.params.name
-      const args = (request.params.arguments ?? {}) as Record<string, unknown>
+      const args = request.params.arguments ?? {}
 
       try {
         switch (toolName) {
