@@ -1,5 +1,6 @@
 import { loggerService } from '@logger'
 import { AgentModelValidationError, agentService, sessionService } from '@main/services/agents'
+import { terminalService } from '@main/services/TerminalService'
 import type { ListAgentsResponse } from '@types'
 import { type ReplaceAgentRequest, type UpdateAgentRequest } from '@types'
 import type { Request, Response } from 'express'
@@ -555,6 +556,7 @@ export const deleteAgent = async (req: Request, res: Response): Promise<Response
   try {
     const { agentId } = req.params
     logger.debug('Deleting agent', { agentId })
+    const { sessions } = await sessionService.listSessions(agentId)
 
     const deleted = await agentService.deleteAgent(agentId)
 
@@ -569,6 +571,9 @@ export const deleteAgent = async (req: Request, res: Response): Promise<Response
       })
     }
 
+    sessions.forEach((session) => {
+      terminalService.kill(session.id)
+    })
     logger.info('Agent deleted', { agentId })
     return res.status(204).send()
   } catch (error: any) {

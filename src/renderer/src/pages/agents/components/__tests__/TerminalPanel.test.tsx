@@ -3,6 +3,13 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import TerminalPanel from '../TerminalPanel'
 
+type TerminalEvent = {
+  data: string
+  exitCode?: number
+  exited?: boolean
+  sessionId: string
+}
+
 const terminalInstances: Array<{
   dispose: ReturnType<typeof vi.fn>
   loadAddon: ReturnType<typeof vi.fn>
@@ -58,10 +65,12 @@ describe('TerminalPanel', () => {
   const onError = vi.fn()
   const onExited = vi.fn()
   const onDataCleanupMocks: Array<ReturnType<typeof vi.fn>> = []
+  const terminalEventHandlers: Array<(event: TerminalEvent) => void> = []
 
   beforeEach(() => {
     terminalInstances.length = 0
     onDataCleanupMocks.length = 0
+    terminalEventHandlers.length = 0
     createMock.mockReset()
     killMock.mockReset()
     onError.mockReset()
@@ -75,8 +84,15 @@ describe('TerminalPanel', () => {
         terminal: {
           create: createMock,
           kill: killMock,
-          onData: vi.fn(() => {
+          onData: vi.fn((handler: (event: TerminalEvent) => void) => {
+            terminalEventHandlers.push(handler)
             const cleanup = vi.fn()
+            cleanup.mockImplementation(() => {
+              const index = terminalEventHandlers.indexOf(handler)
+              if (index >= 0) {
+                terminalEventHandlers.splice(index, 1)
+              }
+            })
             onDataCleanupMocks.push(cleanup)
             return cleanup
           }),
@@ -110,5 +126,39 @@ describe('TerminalPanel', () => {
 
     expect(onDataCleanupMocks[0]).toHaveBeenCalled()
     expect(terminalInstances[0]?.dispose).toHaveBeenCalled()
+  })
+
+  it('disposes listeners and xterm instance before reopening an exited session', async () => {
+    const view = render(
+      <TerminalPanel sessionId="session-1" cwd="/workspace-1" visible onError={onError} onExited={onExited} />
+    )
+
+    await waitFor(() => {
+      expect(createMock).toHaveBeenCalledTimes(1)
+    })
+
+    terminalEventHandlers[0]?.({
+      sessionId: 'session-1',
+      data: '\r\n[Process exited with code 0]\r\n',
+      exited: true,
+      exitCode: 0
+    })
+
+    expect(onExited).toHaveBeenCalledTimes(1)
+    expect(onDataCleanupMocks[0]).toHaveBeenCalledTimes(1)
+    expect(terminalInstances[0]?.dispose).toHaveBeenCalledTimes(1)
+
+    view.rerender(
+      <TerminalPanel sessionId="session-1" cwd="/workspace-1" visible={false} onError={onError} onExited={onExited} />
+    )
+    view.rerender(
+      <TerminalPanel sessionId="session-1" cwd="/workspace-1" visible onError={onError} onExited={onExited} />
+    )
+
+    await waitFor(() => {
+      expect(createMock).toHaveBeenCalledTimes(2)
+    })
+
+    expect(terminalEventHandlers).toHaveLength(1)
   })
 })

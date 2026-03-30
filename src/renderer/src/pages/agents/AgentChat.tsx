@@ -13,7 +13,7 @@ import { Alert, Spin } from 'antd'
 import { X } from 'lucide-react'
 import { AnimatePresence, motion } from 'motion/react'
 import type { PropsWithChildren } from 'react'
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { PinnedTodoPanel } from '../home/Inputbar/components/PinnedTodoPanel'
@@ -54,6 +54,30 @@ const AgentChat = () => {
     }
     setTerminalVisibleMap((prev) => ({ ...prev, [activeSessionId]: visible }))
   }
+
+  useEffect(() => {
+    if (mountedTerminalSessions.length === 0) return
+
+    let cancelled = false
+    const syncMountedTerminalSessions = async () => {
+      try {
+        const activeTerminalIds = new Set(await window.api.terminal.list())
+        if (cancelled) return
+
+        setMountedTerminalSessions((prev) =>
+          prev.filter((sid) => activeTerminalIds.has(sid) || (sid === activeSessionId && terminalVisible))
+        )
+      } catch {
+        // ignore sync failures and fall back to local state
+      }
+    }
+
+    void syncMountedTerminalSessions()
+
+    return () => {
+      cancelled = true
+    }
+  }, [activeSessionId, mountedTerminalSessions.length, terminalVisible])
 
   // Don't show select/create alerts while data is still loading
   // apiServerRunning is guaranteed by AgentPage guard
@@ -169,7 +193,10 @@ const AgentChat = () => {
                         cwd={sid === activeSessionId ? activeSession?.accessible_paths?.[0] : undefined}
                         visible={sid === activeSessionId && terminalVisible}
                         onError={(err) => setTerminalErrorMap((prev) => ({ ...prev, [sid]: err }))}
-                        onExited={() => setTerminalVisibleMap((prev) => ({ ...prev, [sid]: false }))}
+                        onExited={() => {
+                          setTerminalVisibleMap((prev) => ({ ...prev, [sid]: false }))
+                          setMountedTerminalSessions((prev) => prev.filter((id) => id !== sid))
+                        }}
                       />
                     </div>
                   ))}

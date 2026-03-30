@@ -1,10 +1,13 @@
 import '@xterm/xterm/css/xterm.css'
 
+import { loggerService } from '@logger'
 import { useTheme } from '@renderer/context/ThemeProvider'
 import { FitAddon } from '@xterm/addon-fit'
 import { Terminal } from '@xterm/xterm'
 import { useCallback, useEffect, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
+
+const logger = loggerService.withContext('TerminalPanel')
 
 interface TerminalPanelProps {
   sessionId: string
@@ -26,18 +29,25 @@ const TerminalPanel = ({ sessionId, cwd, visible, onError, onExited }: TerminalP
 
   const isDark = theme === 'dark'
 
-  const disposeTerminal = useCallback((terminalSessionId?: string) => {
+  const resetTerminalState = useCallback(() => {
     cleanupDataRef.current?.()
     cleanupDataRef.current = null
     xtermRef.current?.dispose()
     xtermRef.current = null
     fitAddonRef.current = null
     terminalCreatedRef.current = false
-
-    if (terminalSessionId) {
-      void window.api.terminal.kill(terminalSessionId).catch(() => {})
-    }
   }, [])
+
+  const disposeTerminal = useCallback(
+    (terminalSessionId?: string) => {
+      resetTerminalState()
+
+      if (terminalSessionId) {
+        void window.api.terminal.kill(terminalSessionId).catch(() => {})
+      }
+    },
+    [resetTerminalState]
+  )
 
   // Build xterm theme from CSS variables
   const buildTheme = useCallback(() => {
@@ -119,8 +129,8 @@ const TerminalPanel = ({ sessionId, cwd, visible, onError, onExited }: TerminalP
     setTimeout(() => {
       try {
         fitAddon.fit()
-      } catch {
-        // ignore
+      } catch (error) {
+        logger.warn('Failed to fit terminal after mount', error as Error)
       }
     }, 50)
 
@@ -132,11 +142,12 @@ const TerminalPanel = ({ sessionId, cwd, visible, onError, onExited }: TerminalP
     // Listen for PTY output
     const cleanupData = window.api.terminal.onData((event) => {
       if (event.sessionId !== sessionId) return
-      if (xtermRef.current) {
-        xtermRef.current.write(event.data)
+      const xterm = xtermRef.current
+      if (xterm) {
+        xterm.write(event.data)
       }
       if (event.exited) {
-        terminalCreatedRef.current = false
+        resetTerminalState()
         onExited()
       }
     })
@@ -150,7 +161,7 @@ const TerminalPanel = ({ sessionId, cwd, visible, onError, onExited }: TerminalP
     terminalCreatedRef.current = true
     sessionIdRef.current = sessionId
     onError(null)
-  }, [sessionId, cwd, buildTheme, onError, onExited, t])
+  }, [sessionId, cwd, buildTheme, onError, onExited, resetTerminalState, t])
 
   // Create terminal when panel becomes visible
   useEffect(() => {
@@ -178,8 +189,8 @@ const TerminalPanel = ({ sessionId, cwd, visible, onError, onExited }: TerminalP
           if (dims) {
             void window.api.terminal.resize(sessionId, dims.cols, dims.rows)
           }
-        } catch {
-          // ignore resize errors
+        } catch (error) {
+          logger.warn('Failed to resize terminal view', error as Error)
         }
       }
     })

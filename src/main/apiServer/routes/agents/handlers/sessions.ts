@@ -1,5 +1,6 @@
 import { loggerService } from '@logger'
 import { AgentModelValidationError, sessionMessageService, sessionService } from '@main/services/agents'
+import { terminalService } from '@main/services/TerminalService'
 import type { ListAgentSessionsResponse, UpdateSessionResponse } from '@types'
 import { type ReplaceSessionRequest } from '@types'
 import type { Request, Response } from 'express'
@@ -291,6 +292,7 @@ export const deleteSession = async (req: Request, res: Response): Promise<Respon
       })
     }
 
+    terminalService.kill(sessionId)
     logger.info('Session deleted', { agentId, sessionId })
 
     const { total } = await sessionService.listSessions(agentId, { limit: 1 })

@@ -1,9 +1,17 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
-import { describe, expect, it, vi } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import AgentChat from '../AgentChat'
 
 let terminalPanelProps: Record<string, unknown> | undefined
+let terminalListMock: ReturnType<typeof vi.fn>
+const chatState = {
+  activeAgentId: 'agent-1',
+  activeSessionIdMap: {
+    'agent-1': 'session-1'
+  },
+  isMultiSelectMode: false
+}
 
 vi.mock('react-i18next', () => ({
   initReactI18next: {
@@ -39,10 +47,16 @@ vi.mock('@renderer/hooks/agents/useActiveAgent', () => ({
 
 vi.mock('@renderer/hooks/agents/useActiveSession', () => ({
   useActiveSession: () => ({
-    session: {
-      id: 'session-1',
-      accessible_paths: ['/session-workspace']
-    }
+    session:
+      chatState.activeSessionIdMap['agent-1'] === 'session-2'
+        ? {
+            id: 'session-2',
+            accessible_paths: ['/session-2-workspace']
+          }
+        : {
+            id: 'session-1',
+            accessible_paths: ['/session-workspace']
+          }
   })
 }))
 
@@ -61,13 +75,7 @@ vi.mock('@renderer/hooks/agents/useCreateDefaultSession', () => ({
 
 vi.mock('@renderer/hooks/useRuntime', () => ({
   useRuntime: () => ({
-    chat: {
-      activeAgentId: 'agent-1',
-      activeSessionIdMap: {
-        'agent-1': 'session-1'
-      },
-      isMultiSelectMode: false
-    }
+    chat: chatState
   })
 }))
 
@@ -136,7 +144,7 @@ vi.mock('../components/Sessions', () => ({
 vi.mock('../components/TerminalPanel', () => ({
   default: (props: Record<string, unknown>) => {
     terminalPanelProps = props
-    return <div data-testid="terminal-panel" />
+    return <div data-testid={`terminal-panel-${props.sessionId as string}`} />
   }
 }))
 
@@ -153,8 +161,22 @@ vi.mock('../../home/Messages/NarrowLayout', () => ({
 }))
 
 describe('AgentChat', () => {
-  it('passes the active session workspace to TerminalPanel', async () => {
+  beforeEach(() => {
     terminalPanelProps = undefined
+    chatState.activeAgentId = 'agent-1'
+    chatState.activeSessionIdMap = { 'agent-1': 'session-1' }
+    chatState.isMultiSelectMode = false
+    terminalListMock = vi.fn().mockResolvedValue([])
+    Object.assign(window, {
+      api: {
+        terminal: {
+          list: terminalListMock
+        }
+      }
+    })
+  })
+
+  it('passes the active session workspace to TerminalPanel', async () => {
     render(<AgentChat />)
 
     fireEvent.click(screen.getByTestId('toggle-terminal'))
@@ -167,6 +189,26 @@ describe('AgentChat', () => {
       cwd: '/session-workspace',
       sessionId: 'session-1',
       visible: true
+    })
+  })
+
+  it('prunes mounted terminal panels after their session disappears', async () => {
+    terminalListMock.mockResolvedValue(['session-1'])
+    const view = render(<AgentChat />)
+
+    fireEvent.click(screen.getByTestId('toggle-terminal'))
+
+    await waitFor(() => {
+      expect(screen.getByTestId('terminal-panel-session-1')).toBeInTheDocument()
+    })
+
+    chatState.activeSessionIdMap = { 'agent-1': 'session-2' }
+    terminalListMock.mockResolvedValue([])
+
+    view.rerender(<AgentChat />)
+
+    await waitFor(() => {
+      expect(screen.queryByTestId('terminal-panel-session-1')).not.toBeInTheDocument()
     })
   })
 })
