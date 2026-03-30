@@ -30,10 +30,11 @@ export abstract class BaseMigrator {
   }
 
   /**
-   * Reset attempt-local state before a new migration run starts.
-   * Subclasses with cached data or counters should override this hook.
+   * Reset instance state accumulated from a previous run.
+   * MigrationEngine reuses migrator instances and calls this before each run()
+   * so retries start with clean counters, caches, and prepared data.
    */
-  reset(): void {}
+  abstract reset(): void
 
   /**
    * Report progress to UI

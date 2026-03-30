@@ -22,6 +22,8 @@ export class KnowledgeMigrator extends BaseMigrator {
   readonly description = 'Migrate knowledge base and file data'
   readonly order = 3
 
+  override reset(): void {}
+
   async prepare(): Promise<PrepareResult> {
     logger.info('KnowledgeMigrator.prepare - placeholder implementation')
 
