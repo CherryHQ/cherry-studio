@@ -62,7 +62,7 @@ export class MessageStreamHandler {
     if (!span || !topicId) {
       return stream
     }
-    const handler = new MessageStreamHandler(stream, span!, topicId, modelName)
+    const handler = new MessageStreamHandler(stream, span, topicId, modelName)
     return handler.stream
   }
 }

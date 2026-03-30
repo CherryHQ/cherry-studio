@@ -165,7 +165,7 @@ const CodeViewer = ({
           const lineContainer = element.parentElement
           const lineContent = lineContainer?.querySelector('.line-content')
           if (lineContent) {
-            element = lineContent as Element
+            element = lineContent
             break
           }
         }

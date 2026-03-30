@@ -41,6 +41,7 @@ import { initWebviewHotkeys } from './services/WebviewService'
 import { runAsyncFunction } from './utils'
 import { installBuiltinSkills } from './utils/builtinSkills'
 import { isOvmsSupported } from './services/OvmsManager'
+import { extractRtkBinaries } from './utils/rtk'
 
 const logger = loggerService.withContext('MainEntry')
 
@@ -164,6 +165,13 @@ if (!app.requestSingleInstanceLock()) {
     nodeTraceService.init()
     powerMonitorService.init()
     analyticsService.init()
+
+    // Extract bundled rtk binary to ~/.cherrystudio/bin/ on first run
+    extractRtkBinaries().catch((error) => {
+      logger.warn('Failed to extract rtk binaries (non-fatal)', {
+        error: error instanceof Error ? error.message : String(error)
+      })
+    })
 
     app.on('activate', function () {
       const mainWindow = windowService.getMainWindow()

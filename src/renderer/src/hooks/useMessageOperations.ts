@@ -264,7 +264,7 @@ export function useMessageOperations(topic: Topic) {
 
       return throttle(
         (accumulatedText: string, isComplete: boolean = false) => {
-          void dispatch(updateTranslationBlockThunk(blockId!, accumulatedText, isComplete))
+          void dispatch(updateTranslationBlockThunk(blockId, accumulatedText, isComplete))
         },
         200,
         { leading: true, trailing: true }
@@ -313,9 +313,9 @@ export function useMessageOperations(topic: Topic) {
 
         // 2. Get all original blocks
         const originalBlocks = message.blocks
-          ? (message.blocks
+          ? message.blocks
               .map((blockId) => state.messageBlocks.entities[blockId])
-              .filter((block) => block !== undefined) as MessageBlock[])
+              .filter((block) => block !== undefined)
           : []
 
         // 3. Create sets for efficient comparison

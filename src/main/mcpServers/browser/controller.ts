@@ -697,7 +697,7 @@ export class CdpBrowserController {
         })
       ])
 
-      const evalResult = result as any
+      const evalResult = result
 
       if (evalResult?.exceptionDetails) {
         const message = evalResult.exceptionDetails.exception?.description || 'Unknown script error'

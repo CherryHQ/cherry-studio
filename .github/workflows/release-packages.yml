@@ -6,7 +6,9 @@ on:
       - main
     paths:
       - ".changeset/**"
-      - "packages/**"
+      - "packages/aiCore/**"
+      - "packages/ai-sdk-provider/**"
+      - "packages/extension-table-plus/**"
   workflow_dispatch:
 
 concurrency: ${{ github.workflow }}-${{ github.ref }}
@@ -19,6 +21,7 @@ permissions:
 jobs:
   release:
     name: Release Packages
+    if: github.repository == 'CherryHQ/cherry-studio' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     steps:
       - name: Checkout Repo

@@ -3371,6 +3371,8 @@ const migrateConfig = {
   },
   '205': (state: RootState) => {
     try {
+      localStorage.setItem('onboarding-completed', 'true')
+
       // Add anthropicApiHost to lmstudio and ollama providers for CodeTools compatibility
       state.llm.providers.forEach((provider) => {
         if (provider.id === 'lmstudio' && !provider.anthropicApiHost) {
@@ -3380,6 +3382,7 @@ const migrateConfig = {
           provider.anthropicApiHost = provider.apiHost || 'http://localhost:11434'
         }
       })
+
       logger.info('migrate 205 success')
       return state
     } catch (error) {
