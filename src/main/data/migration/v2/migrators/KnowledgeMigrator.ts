@@ -16,7 +16,6 @@ import path from 'node:path'
 import { pathToFileURL } from 'node:url'
 
 import { knowledgeBaseTable, knowledgeItemTable } from '@data/db/schemas/knowledge'
-import { validateKnowledgeBaseConfig } from '@data/services/knowledgeBaseConfig'
 import { createClient, type Value as LibsqlValue } from '@libsql/client'
 import { loggerService } from '@logger'
 import { getDataPath } from '@main/utils'
@@ -89,21 +88,22 @@ const getRequiredFileLookupId = (content: LegacyKnowledgeItem['content']): strin
   return null
 }
 
-const getInvalidKnowledgeBaseConfigWarning = (base: LegacyKnowledgeBaseWithIdentity): string | null => {
-  const fieldErrors = validateKnowledgeBaseConfig({
-    chunkSize: base.chunkSize,
-    chunkOverlap: base.chunkOverlap,
-    threshold: base.threshold,
-    documentCount: base.documentCount,
-    searchMode: 'default'
-  })
+const getInvalidKnowledgeBaseConfigWarning = (
+  base: LegacyKnowledgeBaseWithIdentity,
+  normalizedBase: NewKnowledgeBase
+): string | null => {
+  const clearedFields = [
+    ['chunkSize', base.chunkSize, normalizedBase.chunkSize],
+    ['chunkOverlap', base.chunkOverlap, normalizedBase.chunkOverlap],
+    ['threshold', base.threshold, normalizedBase.threshold],
+    ['documentCount', base.documentCount, normalizedBase.documentCount]
+  ].flatMap(([field, previousValue, nextValue]) => ((previousValue ?? null) !== (nextValue ?? null) ? [field] : []))
 
-  const invalidFields = Object.keys(fieldErrors)
-  if (invalidFields.length === 0) {
+  if (clearedFields.length === 0) {
     return null
   }
 
-  return `Knowledge base ${base.id}: cleared invalid config fields: ${invalidFields.join(', ')}`
+  return `Knowledge base ${base.id}: cleared invalid config fields: ${clearedFields.join(', ')}`
 }
 
 export class KnowledgeMigrator extends BaseMigrator {
@@ -432,7 +432,7 @@ export class KnowledgeMigrator extends BaseMigrator {
         this.seenBaseIds.add(baseResult.value.id!)
         this.preparedBases.push(baseResult.value)
 
-        const invalidConfigWarning = getInvalidKnowledgeBaseConfigWarning(validBase)
+        const invalidConfigWarning = getInvalidKnowledgeBaseConfigWarning(validBase, baseResult.value)
         if (invalidConfigWarning) {
           logger.warn(invalidConfigWarning)
           this.warnings.push(invalidConfigWarning)

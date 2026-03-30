@@ -42,18 +42,19 @@ export function normalizeKnowledgeBaseConfig<T extends KnowledgeBaseConfigInput>
     normalized.hybridAlpha = undefined as T['hybridAlpha']
   }
 
-  if (normalized.chunkOverlap != null && normalized.chunkOverlap >= 0) {
+  return normalizeKnowledgeBaseConfigDependencies(normalized)
+}
+
+export function normalizeKnowledgeBaseConfigDependencies<T extends KnowledgeBaseConfigInput>(config: T): T {
+  const normalized = { ...config }
+
+  if (normalized.chunkOverlap != null) {
     if (normalized.chunkSize == null || normalized.chunkOverlap >= normalized.chunkSize) {
       normalized.chunkOverlap = undefined as T['chunkOverlap']
     }
   }
 
-  if (
-    normalized.hybridAlpha != null &&
-    normalized.hybridAlpha >= 0 &&
-    normalized.hybridAlpha <= 1 &&
-    normalized.searchMode !== 'hybrid'
-  ) {
+  if (normalized.hybridAlpha != null && normalized.searchMode !== 'hybrid') {
     normalized.hybridAlpha = undefined as T['hybridAlpha']
   }
 

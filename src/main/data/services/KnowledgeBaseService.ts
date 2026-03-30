@@ -17,7 +17,7 @@ import {
 import type { KnowledgeBase } from '@shared/data/types/knowledge'
 import { desc, eq, sql } from 'drizzle-orm'
 
-import { validateKnowledgeBaseConfig } from './knowledgeBaseConfig'
+import { normalizeKnowledgeBaseConfigDependencies, validateKnowledgeBaseConfig } from './knowledgeBaseConfig'
 
 const logger = loggerService.withContext('DataApi:KnowledgeBaseService')
 
@@ -123,16 +123,63 @@ export class KnowledgeBaseService {
       return existing
     }
 
-    const updateFieldErrors = validateKnowledgeBaseConfig({
+    const mergedConfig = {
       chunkSize: dto.chunkSize !== undefined ? dto.chunkSize : existing.chunkSize,
       chunkOverlap: dto.chunkOverlap !== undefined ? dto.chunkOverlap : existing.chunkOverlap,
       threshold: dto.threshold !== undefined ? dto.threshold : existing.threshold,
       documentCount: dto.documentCount !== undefined ? dto.documentCount : existing.documentCount,
       searchMode: dto.searchMode !== undefined ? dto.searchMode : existing.searchMode,
       hybridAlpha: dto.hybridAlpha !== undefined ? dto.hybridAlpha : existing.hybridAlpha
-    })
+    }
+    const normalizedConfig = { ...mergedConfig }
+
+    if (dto.chunkSize !== undefined && dto.chunkOverlap === undefined) {
+      normalizedConfig.chunkOverlap = normalizeKnowledgeBaseConfigDependencies({
+        chunkSize: mergedConfig.chunkSize,
+        chunkOverlap: mergedConfig.chunkOverlap
+      }).chunkOverlap
+    }
+
+    if (dto.searchMode !== undefined && dto.hybridAlpha === undefined) {
+      normalizedConfig.hybridAlpha = normalizeKnowledgeBaseConfigDependencies({
+        searchMode: mergedConfig.searchMode,
+        hybridAlpha: mergedConfig.hybridAlpha
+      }).hybridAlpha
+    }
+
+    const updateFieldErrors = validateKnowledgeBaseConfig(normalizedConfig)
     if (Object.keys(updateFieldErrors).length > 0) {
       throw DataApiErrorFactory.validation(updateFieldErrors)
+    }
+
+    const nextChunkSize = normalizedConfig.chunkSize ?? null
+    if (nextChunkSize !== (existing.chunkSize ?? null)) {
+      updates.chunkSize = nextChunkSize
+    }
+
+    const nextChunkOverlap = normalizedConfig.chunkOverlap ?? null
+    if (nextChunkOverlap !== (existing.chunkOverlap ?? null)) {
+      updates.chunkOverlap = nextChunkOverlap
+    }
+
+    const nextThreshold = normalizedConfig.threshold ?? null
+    if (nextThreshold !== (existing.threshold ?? null)) {
+      updates.threshold = nextThreshold
+    }
+
+    const nextDocumentCount = normalizedConfig.documentCount ?? null
+    if (nextDocumentCount !== (existing.documentCount ?? null)) {
+      updates.documentCount = nextDocumentCount
+    }
+
+    const nextSearchMode = normalizedConfig.searchMode ?? null
+    if (nextSearchMode !== (existing.searchMode ?? null)) {
+      updates.searchMode = nextSearchMode
+    }
+
+    const nextHybridAlpha = normalizedConfig.hybridAlpha ?? null
+    if (nextHybridAlpha !== (existing.hybridAlpha ?? null)) {
+      updates.hybridAlpha = nextHybridAlpha
     }
 
     const [row] = await db.update(knowledgeBaseTable).set(updates).where(eq(knowledgeBaseTable.id, id)).returning()

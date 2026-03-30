@@ -200,6 +200,57 @@ describe('KnowledgeItemService', () => {
         id: 'item-1'
       })
     })
+
+    it('should reject invalid item data with validation error before insert', async () => {
+      await expect(
+        service.createMany('kb-1', {
+          items: [
+            {
+              type: 'note',
+              data: {} as any
+            }
+          ]
+        })
+      ).rejects.toMatchObject({
+        code: ErrorCode.VALIDATION_ERROR,
+        details: {
+          fieldErrors: {
+            'items.0.data': ["Data payload does not match knowledge item type 'note'"]
+          }
+        }
+      })
+
+      expect(mockInsert).not.toHaveBeenCalled()
+    })
+
+    it('should reject nonexistent groupId with validation error before insert', async () => {
+      mockSelect.mockReturnValue({
+        from: vi.fn().mockReturnValue({
+          where: vi.fn().mockResolvedValue([])
+        })
+      })
+
+      await expect(
+        service.createMany('kb-1', {
+          items: [
+            {
+              groupId: 'missing-owner',
+              type: 'note',
+              data: { content: 'child note' }
+            }
+          ]
+        })
+      ).rejects.toMatchObject({
+        code: ErrorCode.VALIDATION_ERROR,
+        details: {
+          fieldErrors: {
+            groupId: ["Knowledge item group owner not found in base 'kb-1': missing-owner"]
+          }
+        }
+      })
+
+      expect(mockInsert).not.toHaveBeenCalled()
+    })
   })
 
   describe('query semantics (db-backed)', () => {

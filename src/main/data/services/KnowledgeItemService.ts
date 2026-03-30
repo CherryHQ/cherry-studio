@@ -22,7 +22,7 @@ import {
   SitemapItemDataSchema,
   UrlItemDataSchema
 } from '@shared/data/types/knowledge'
-import { and, desc, eq, sql } from 'drizzle-orm'
+import { and, desc, eq, inArray, sql } from 'drizzle-orm'
 
 import { knowledgeBaseService } from './KnowledgeBaseService'
 
@@ -109,14 +109,39 @@ export class KnowledgeItemService {
   async createMany(baseId: string, dto: CreateKnowledgeItemsDto): Promise<{ items: KnowledgeItem[] }> {
     const db = application.get('DbService').getDb()
     await knowledgeBaseService.getById(baseId)
-    const values: Array<typeof knowledgeItemTable.$inferInsert> = dto.items.map((item) => ({
-      baseId,
-      groupId: item.groupId ?? null,
-      type: item.type,
-      data: item.data,
-      status: 'idle',
-      error: null
-    }))
+    const values: Array<typeof knowledgeItemTable.$inferInsert> = dto.items.map((item, index) => {
+      const parsed = KNOWLEDGE_ITEM_DATA_SCHEMAS[item.type].safeParse(item.data)
+      if (!parsed.success) {
+        throw DataApiErrorFactory.validation({
+          [`items.${index}.data`]: [`Data payload does not match knowledge item type '${item.type}'`]
+        })
+      }
+
+      return {
+        baseId,
+        groupId: item.groupId ?? null,
+        type: item.type,
+        data: parsed.data,
+        status: 'idle',
+        error: null
+      }
+    })
+    const requestedGroupIds = [...new Set(dto.items.map((item) => item.groupId).filter((groupId) => groupId != null))]
+
+    if (requestedGroupIds.length > 0) {
+      const existingGroupRows = await db
+        .select({ id: knowledgeItemTable.id })
+        .from(knowledgeItemTable)
+        .where(and(eq(knowledgeItemTable.baseId, baseId), inArray(knowledgeItemTable.id, requestedGroupIds)))
+      const existingGroupIds = new Set(existingGroupRows.map((row) => row.id))
+      const missingGroupIds = requestedGroupIds.filter((groupId) => !existingGroupIds.has(groupId))
+
+      if (missingGroupIds.length > 0) {
+        throw DataApiErrorFactory.validation({
+          groupId: [`Knowledge item group owner not found in base '${baseId}': ${missingGroupIds.join(', ')}`]
+        })
+      }
+    }
 
     const rows = await db.insert(knowledgeItemTable).values(values).returning()
     const items = rows.map((row) => rowToKnowledgeItem(row))
@@ -166,7 +191,7 @@ export class KnowledgeItemService {
     const db = application.get('DbService').getDb()
     await this.getById(id)
     await db.delete(knowledgeItemTable).where(eq(knowledgeItemTable.id, id))
-    logger.info('Deleted knowledge item group', { id })
+    logger.info('Deleted knowledge item', { id })
   }
 }
 

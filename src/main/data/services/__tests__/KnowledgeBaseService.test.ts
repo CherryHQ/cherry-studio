@@ -255,7 +255,53 @@ describe('KnowledgeBaseService', () => {
       expect(result.description).toBeUndefined()
     })
 
-    it('should reject invalid config combinations during update', async () => {
+    it('should clear stale dependent config fields during update', async () => {
+      const existing = createMockRow({
+        chunkSize: 256,
+        chunkOverlap: 120,
+        searchMode: 'hybrid',
+        hybridAlpha: 0.7
+      })
+      const updated = createMockRow({
+        chunkSize: 100,
+        chunkOverlap: null,
+        searchMode: 'default',
+        hybridAlpha: null
+      })
+      mockSelect.mockReturnValue({
+        from: vi.fn().mockReturnValue({
+          where: vi.fn().mockReturnValue({
+            limit: vi.fn().mockResolvedValue([existing])
+          })
+        })
+      })
+      const set = vi.fn().mockReturnValue({
+        where: vi.fn().mockReturnValue({
+          returning: vi.fn().mockResolvedValue([updated])
+        })
+      })
+      mockUpdate.mockReturnValue({ set })
+
+      const result = await service.update('kb-1', {
+        chunkSize: 100,
+        searchMode: 'default'
+      })
+
+      expect(set).toHaveBeenCalledWith({
+        chunkSize: 100,
+        chunkOverlap: null,
+        searchMode: 'default',
+        hybridAlpha: null
+      })
+      expect(result).toMatchObject({
+        chunkSize: 100,
+        searchMode: 'default'
+      })
+      expect(result.chunkOverlap).toBeUndefined()
+      expect(result.hybridAlpha).toBeUndefined()
+    })
+
+    it('should reject explicitly provided hybridAlpha when search mode is not hybrid', async () => {
       const existing = createMockRow({
         searchMode: 'hybrid',
         hybridAlpha: 0.7
@@ -270,13 +316,73 @@ describe('KnowledgeBaseService', () => {
 
       await expect(
         service.update('kb-1', {
-          searchMode: 'default'
+          searchMode: 'default',
+          hybridAlpha: 0.7
         })
       ).rejects.toMatchObject({
         code: ErrorCode.VALIDATION_ERROR,
         details: {
           fieldErrors: {
             hybridAlpha: ['Hybrid alpha requires hybrid search mode']
+          }
+        }
+      })
+
+      expect(mockUpdate).not.toHaveBeenCalled()
+    })
+
+    it('should not silently clean stale dependent fields during unrelated updates', async () => {
+      const existing = createMockRow({
+        searchMode: 'default',
+        hybridAlpha: 0.7
+      })
+      mockSelect.mockReturnValue({
+        from: vi.fn().mockReturnValue({
+          where: vi.fn().mockReturnValue({
+            limit: vi.fn().mockResolvedValue([existing])
+          })
+        })
+      })
+
+      await expect(
+        service.update('kb-1', {
+          name: 'Renamed Base'
+        })
+      ).rejects.toMatchObject({
+        code: ErrorCode.VALIDATION_ERROR,
+        details: {
+          fieldErrors: {
+            hybridAlpha: ['Hybrid alpha requires hybrid search mode']
+          }
+        }
+      })
+
+      expect(mockUpdate).not.toHaveBeenCalled()
+    })
+
+    it('should reject explicitly provided chunkOverlap when it no longer fits chunkSize', async () => {
+      const existing = createMockRow({
+        chunkSize: 256,
+        chunkOverlap: 64
+      })
+      mockSelect.mockReturnValue({
+        from: vi.fn().mockReturnValue({
+          where: vi.fn().mockReturnValue({
+            limit: vi.fn().mockResolvedValue([existing])
+          })
+        })
+      })
+
+      await expect(
+        service.update('kb-1', {
+          chunkSize: 100,
+          chunkOverlap: 120
+        })
+      ).rejects.toMatchObject({
+        code: ErrorCode.VALIDATION_ERROR,
+        details: {
+          fieldErrors: {
+            chunkOverlap: ['Chunk overlap must be smaller than chunk size']
           }
         }
       })

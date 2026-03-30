@@ -1,6 +1,10 @@
 import { describe, expect, it } from 'vitest'
 
-import { normalizeKnowledgeBaseConfig, validateKnowledgeBaseConfig } from '../knowledgeBaseConfig'
+import {
+  normalizeKnowledgeBaseConfig,
+  normalizeKnowledgeBaseConfigDependencies,
+  validateKnowledgeBaseConfig
+} from '../knowledgeBaseConfig'
 
 describe('knowledgeBaseConfig', () => {
   describe('normalizeKnowledgeBaseConfig', () => {
@@ -19,6 +23,24 @@ describe('knowledgeBaseConfig', () => {
         chunkOverlap: undefined,
         threshold: undefined,
         documentCount: undefined,
+        searchMode: 'default',
+        hybridAlpha: undefined
+      })
+    })
+  })
+
+  describe('normalizeKnowledgeBaseConfigDependencies', () => {
+    it('should clear stale dependent fields after primary config changes', () => {
+      expect(
+        normalizeKnowledgeBaseConfigDependencies({
+          chunkSize: 100,
+          chunkOverlap: 120,
+          searchMode: 'default' as const,
+          hybridAlpha: 0.6
+        })
+      ).toEqual({
+        chunkSize: 100,
+        chunkOverlap: undefined,
         searchMode: 'default',
         hybridAlpha: undefined
       })
