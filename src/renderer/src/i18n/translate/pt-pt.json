@@ -30,19 +30,19 @@
     },
     "cherryClaw": {
       "channels": {
-        "add": "[to be translated]:Add",
+        "add": "Adicionar",
         "comingSoon": "Em breve",
-        "deleteConfirm": "[to be translated]:Delete channel \"{{name}}\"?",
+        "deleteConfirm": "Excluir canal \"{{name}}\"?",
         "description": "Conecte o seu agente a plataformas de mensagens.",
         "discord": {
-          "botToken": "[to be translated]:Bot Token",
-          "botTokenPlaceholder": "[to be translated]:Enter your Discord bot token",
-          "channelIds": "[to be translated]:Allowed Channel IDs",
-          "channelIdsHint": "[to be translated]:Format: channel:id or dm:id. Leave empty to allow all.",
-          "channelIdsPlaceholder": "[to be translated]:channel:123456789, dm:987654321",
-          "description": "[to be translated]:Receive and respond to messages via a Discord bot using WebSocket gateway.",
-          "title": "[to be translated]:Discord",
-          "whoamiTip": "[to be translated]:💡 Tip: Send /whoami to the bot to get your channel ID in the correct format."
+          "botToken": "Token do Bot",
+          "botTokenPlaceholder": "Insira o token do seu bot do Discord",
+          "channelIds": "IDs de Canais Permitidos",
+          "channelIdsHint": "Formato: canal:id ou dm:id. Deixe vazio para permitir todos.",
+          "channelIdsPlaceholder": "canal:123456789, mp:987654321",
+          "description": "Receba e responda a mensagens por meio de um bot do Discord usando o gateway WebSocket.",
+          "title": "Discord",
+          "whoamiTip": "💡 Dica: Envie /whoami para o bot para obter o ID do seu canal no formato correto."
         },
         "feishu": {
           "appId": "App ID",
@@ -68,7 +68,7 @@
           "verificationToken": "Token de verificação",
           "verificationTokenPlaceholder": "Introduza o token de verificação da sua aplicação Feishu"
         },
-        "noInstances": "[to be translated]:No {{type}} channels configured. Click \"+ Add\" to create one.",
+        "noInstances": "Nenhum canal {{type}} configurado. Clique em \"+ Adicionar\" para criar um.",
         "notifyReceiver": "Receber notificações de tarefas",
         "notifyReceiverHint": "Enviar resultados de tarefas agendadas para este canal.",
         "qq": {
@@ -84,9 +84,9 @@
           "whoamiTip": "💡 Dica: Envie /whoami ao bot para obter o seu ID de chat no formato correto."
         },
         "security": {
-          "inheritFromAgent": "[to be translated]:Inherit from agent",
-          "permissionMode": "[to be translated]:Channel Permission Mode",
-          "permissionModeHint": "[to be translated]:Override the agent's permission mode for messages from this channel. \"Inherit\" uses the agent's default."
+          "inheritFromAgent": "Herdar do agente",
+          "permissionMode": "Modo de Permissão do Canal",
+          "permissionModeHint": "Substitua o modo de permissão do agente para mensagens deste canal. \"Herdar\" utiliza o padrão do agente."
         },
         "tab": "Canais",
         "telegram": {
@@ -284,7 +284,8 @@
       "tooltip": "O Git Bash é necessário para executar agentes no Windows. Instale-o a partir de git-scm.com, caso não esteja disponível."
     },
     "input": {
-      "placeholder": "Digite sua mensagem aqui, envie com {{key}} - @ selecionar caminho, / selecionar comando"
+      "placeholder": "Digite sua mensagem aqui, envie com {{key}} - @ selecionar caminho, / selecionar comando",
+      "soul_placeholder": "Ajude-me a conectar ao Telegram"
     },
     "list": {
       "error": {

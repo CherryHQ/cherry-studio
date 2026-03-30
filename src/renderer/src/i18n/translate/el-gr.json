@@ -30,19 +30,19 @@
     },
     "cherryClaw": {
       "channels": {
-        "add": "[to be translated]:Add",
+        "add": "Προσθήκη",
         "comingSoon": "Σύντομα διαθέσιμο",
-        "deleteConfirm": "[to be translated]:Delete channel \"{{name}}\"?",
+        "deleteConfirm": "Διαγραφή καναλιού \"{{name}}\";",
         "description": "Συνδέστε τον πράκτορά σας σε πλατφόρμες μηνυμάτων.",
         "discord": {
-          "botToken": "[to be translated]:Bot Token",
-          "botTokenPlaceholder": "[to be translated]:Enter your Discord bot token",
-          "channelIds": "[to be translated]:Allowed Channel IDs",
-          "channelIdsHint": "[to be translated]:Format: channel:id or dm:id. Leave empty to allow all.",
-          "channelIdsPlaceholder": "[to be translated]:channel:123456789, dm:987654321",
-          "description": "[to be translated]:Receive and respond to messages via a Discord bot using WebSocket gateway.",
-          "title": "[to be translated]:Discord",
-          "whoamiTip": "[to be translated]:💡 Tip: Send /whoami to the bot to get your channel ID in the correct format."
+          "botToken": "Διακριτικό Bot",
+          "botTokenPlaceholder": "Εισάγετε το διακριτικό του bot σας στο Discord",
+          "channelIds": "Επιτρεπόμενα Αναγνωριστικά Καναλιών",
+          "channelIdsHint": "Μορφή: channel:id ή dm:id. Αφήστε κενό για να επιτρέψετε όλα.",
+          "channelIdsPlaceholder": "κανάλι:123456789, dm:987654321",
+          "description": "Λάβετε και απαντήστε σε μηνύματα μέσω ενός bot Discord χρησιμοποιώντας την πύλη WebSocket.",
+          "title": "Discord",
+          "whoamiTip": "💡 Συμβουλή: Στείλτε /whoami στο bot για να λάβετε το ID του καναλιού σας στη σωστή μορφή."
         },
         "feishu": {
           "appId": "App ID",
@@ -68,7 +68,7 @@
           "verificationToken": "Token επαλήθευσης",
           "verificationTokenPlaceholder": "Εισαγάγετε το token επαλήθευσης της εφαρμογής Feishu"
         },
-        "noInstances": "[to be translated]:No {{type}} channels configured. Click \"+ Add\" to create one.",
+        "noInstances": "Δεν έχουν διαμορφωθεί κανάλια {{type}}. Κάντε κλικ στο \"+ Προσθήκη\" για να δημιουργήσετε ένα.",
         "notifyReceiver": "Λήψη ειδοποιήσεων εργασιών",
         "notifyReceiverHint": "Αποστολή αποτελεσμάτων προγραμματισμένων εργασιών σε αυτό το κανάλι.",
         "qq": {
@@ -84,9 +84,9 @@
           "whoamiTip": "💡 Συμβουλή: Στείλτε /whoami στο bot για να λάβετε το ID συνομιλίας σας στη σωστή μορφή."
         },
         "security": {
-          "inheritFromAgent": "[to be translated]:Inherit from agent",
-          "permissionMode": "[to be translated]:Channel Permission Mode",
-          "permissionModeHint": "[to be translated]:Override the agent's permission mode for messages from this channel. \"Inherit\" uses the agent's default."
+          "inheritFromAgent": "Κληρονομήστε από τον πράκτορα",
+          "permissionMode": "Λειτουργία Αδειών Καναλιού",
+          "permissionModeHint": "Παράκαμψη της λειτουργίας αδειών του πράκτορα για μηνύματα από αυτό το κανάλι. Η επιλογή «Κληρονόμηση» χρησιμοποιεί την προεπιλογή του πράκτορα."
         },
         "tab": "Κανάλια",
         "telegram": {
@@ -284,7 +284,8 @@
       "tooltip": "Το Git Bash απαιτείται για την εκτέλεση πρακτόρων στα Windows. Εγκαταστήστε το από το git-scm.com εάν δεν είναι διαθέσιμο."
     },
     "input": {
-      "placeholder": "Εισάγετε το μήνυμά σας εδώ, στείλτε με {{key}} - @ επιλέξτε διαδρομή, / επιλέξτε εντολή"
+      "placeholder": "Εισάγετε το μήνυμά σας εδώ, στείλτε με {{key}} - @ επιλέξτε διαδρομή, / επιλέξτε εντολή",
+      "soul_placeholder": "Βοηθήστε με να συνδεθώ στο Telegram"
     },
     "list": {
       "error": {

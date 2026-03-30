@@ -30,19 +30,19 @@
     },
     "cherryClaw": {
       "channels": {
-        "add": "[to be translated]:Add",
+        "add": "追加",
         "comingSoon": "近日公開",
-        "deleteConfirm": "[to be translated]:Delete channel \"{{name}}\"?",
+        "deleteConfirm": "チャンネル「{{name}}」を削除しますか？",
         "description": "エージェントをメッセージングプラットフォームに接続します。",
         "discord": {
-          "botToken": "[to be translated]:Bot Token",
-          "botTokenPlaceholder": "[to be translated]:Enter your Discord bot token",
-          "channelIds": "[to be translated]:Allowed Channel IDs",
-          "channelIdsHint": "[to be translated]:Format: channel:id or dm:id. Leave empty to allow all.",
-          "channelIdsPlaceholder": "[to be translated]:channel:123456789, dm:987654321",
-          "description": "[to be translated]:Receive and respond to messages via a Discord bot using WebSocket gateway.",
-          "title": "[to be translated]:Discord",
-          "whoamiTip": "[to be translated]:💡 Tip: Send /whoami to the bot to get your channel ID in the correct format."
+          "botToken": "ボットトークン",
+          "botTokenPlaceholder": "Discordボットのトークンを入力してください",
+          "channelIds": "許可されたチャンネルID",
+          "channelIdsHint": "フォーマット: channel:id または dm:id。すべてを許可するには空のままにしてください。",
+          "channelIdsPlaceholder": "channel:123456789, dm:987654321",
+          "description": "WebSocketゲートウェイを介してDiscordボットでメッセージを受信し、応答する。",
+          "title": "ディスコード",
+          "whoamiTip": "💡 ヒント：正しい形式でチャンネルIDを取得するには、ボットに /whoami を送信してください。"
         },
         "feishu": {
           "appId": "App ID",
@@ -68,7 +68,7 @@
           "verificationToken": "検証トークン",
           "verificationTokenPlaceholder": "Feishuアプリの検証トークンを入力してください"
         },
-        "noInstances": "[to be translated]:No {{type}} channels configured. Click \"+ Add\" to create one.",
+        "noInstances": "{{type}}チャンネルが設定されていません。「＋追加」をクリックして作成してください。",
         "notifyReceiver": "タスク通知を受信",
         "notifyReceiverHint": "スケジュールタスクの結果をこのチャンネルに送信します。",
         "qq": {
@@ -84,9 +84,9 @@
           "whoamiTip": "💡 ヒント: ボットに /whoami を送信すると、正しい形式のチャット ID を取得できます。"
         },
         "security": {
-          "inheritFromAgent": "[to be translated]:Inherit from agent",
-          "permissionMode": "[to be translated]:Channel Permission Mode",
-          "permissionModeHint": "[to be translated]:Override the agent's permission mode for messages from this channel. \"Inherit\" uses the agent's default."
+          "inheritFromAgent": "エージェントから継承",
+          "permissionMode": "チャンネル権限モード",
+          "permissionModeHint": "このチャンネルからのメッセージについて、エージェントの権限モードを上書きします。「継承」を選択すると、エージェントのデフォルト設定が使用されます。"
         },
         "tab": "チャンネル",
         "telegram": {
@@ -284,7 +284,8 @@
       "tooltip": "Windowsでエージェントを実行するにはGit Bashが必要です。まだインストールされていない場合は、git-scm.comからインストールしてください。"
     },
     "input": {
-      "placeholder": "メッセージをここに入力し、{{key}}で送信 - @でパスを選択、/でコマンドを選択"
+      "placeholder": "メッセージをここに入力し、{{key}}で送信 - @でパスを選択、/でコマンドを選択",
+      "soul_placeholder": "Telegramに接続するのを手伝ってください"
     },
     "list": {
       "error": {

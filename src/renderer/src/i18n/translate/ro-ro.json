@@ -30,19 +30,19 @@
     },
     "cherryClaw": {
       "channels": {
-        "add": "[to be translated]:Add",
+        "add": "Adaugă",
         "comingSoon": "În curând",
-        "deleteConfirm": "[to be translated]:Delete channel \"{{name}}\"?",
+        "deleteConfirm": "Șterge canalul „{{name}}”?",
         "description": "Conectați agentul la platforme de mesagerie.",
         "discord": {
-          "botToken": "[to be translated]:Bot Token",
-          "botTokenPlaceholder": "[to be translated]:Enter your Discord bot token",
-          "channelIds": "[to be translated]:Allowed Channel IDs",
-          "channelIdsHint": "[to be translated]:Format: channel:id or dm:id. Leave empty to allow all.",
-          "channelIdsPlaceholder": "[to be translated]:channel:123456789, dm:987654321",
-          "description": "[to be translated]:Receive and respond to messages via a Discord bot using WebSocket gateway.",
-          "title": "[to be translated]:Discord",
-          "whoamiTip": "[to be translated]:💡 Tip: Send /whoami to the bot to get your channel ID in the correct format."
+          "botToken": "Token Bot",
+          "botTokenPlaceholder": "Introdu token-ul botului tău Discord",
+          "channelIds": "ID-uri de canale permise",
+          "channelIdsHint": "Format: canal:id sau dm:id. Lasă gol pentru a permite tot.",
+          "channelIdsPlaceholder": "canal:123456789, dm:987654321",
+          "description": "Primește și răspunde la mesaje printr-un bot Discord folosind gateway WebSocket.",
+          "title": "Discord",
+          "whoamiTip": "💡 Sfaturi: Trimite /whoami către bot pentru a obține ID-ul canalului tău în formatul corect."
         },
         "feishu": {
           "appId": "App ID",
@@ -68,7 +68,7 @@
           "verificationToken": "Token de verificare",
           "verificationTokenPlaceholder": "Introduceți tokenul de verificare al aplicației Feishu"
         },
-        "noInstances": "[to be translated]:No {{type}} channels configured. Click \"+ Add\" to create one.",
+        "noInstances": "Niciun canal {{type}} configurat. Faceți clic pe „+ Adăugare” pentru a crea unul.",
         "notifyReceiver": "Primește notificări de sarcini",
         "notifyReceiverHint": "Trimite rezultatele sarcinilor programate pe acest canal.",
         "qq": {
@@ -84,9 +84,9 @@
           "whoamiTip": "💡 Sfat: Trimiteți /whoami la bot pentru a obține ID-ul de chat în formatul corect."
         },
         "security": {
-          "inheritFromAgent": "[to be translated]:Inherit from agent",
-          "permissionMode": "[to be translated]:Channel Permission Mode",
-          "permissionModeHint": "[to be translated]:Override the agent's permission mode for messages from this channel. \"Inherit\" uses the agent's default."
+          "inheritFromAgent": "Moștenește de la agent",
+          "permissionMode": "Modul de permisiune al canalului",
+          "permissionModeHint": "Suprascrie modul de permisiune al agentului pentru mesajele de pe acest canal. „Moștenire” utilizează setarea implicită a agentului."
         },
         "tab": "Canale",
         "telegram": {
@@ -284,7 +284,8 @@
       "tooltip": "Git Bash este necesar pentru a rula agenți pe Windows. Instalează-l de pe git-scm.com dacă nu este disponibil."
     },
     "input": {
-      "placeholder": "Introdu mesajul aici, trimite cu {{key}} - @ selectează calea, / selectează comanda"
+      "placeholder": "Introdu mesajul aici, trimite cu {{key}} - @ selectează calea, / selectează comanda",
+      "soul_placeholder": "Ajută-mă să mă conectez la Telegram"
     },
     "list": {
       "error": {

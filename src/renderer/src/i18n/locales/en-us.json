@@ -284,7 +284,8 @@
       "tooltip": "Git Bash is required to run agents on Windows. Install from git-scm.com if not available."
     },
     "input": {
-      "placeholder": "Enter your message here, send with {{key}} - @ select path, / select command"
+      "placeholder": "Enter your message here, send with {{key}} - @ select path, / select command",
+      "soul_placeholder": "Help me connect to Telegram"
     },
     "list": {
       "error": {
