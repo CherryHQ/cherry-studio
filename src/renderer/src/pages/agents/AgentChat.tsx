@@ -14,7 +14,7 @@ import { AnimatePresence, motion } from 'motion/react'
 import type { PropsWithChildren } from 'react'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { Group, Panel } from 'react-resizable-panels'
+import { Group, Panel, Separator } from 'react-resizable-panels'
 
 import { PinnedTodoPanel } from '../home/Inputbar/components/PinnedTodoPanel'
 import ChatNavigation from '../home/Messages/ChatNavigation'
@@ -120,7 +120,7 @@ const AgentChat = () => {
             {/* Terminal Panel */}
             {terminalVisible && (
               <>
-                <PanelResizeHandle className="flex h-1 items-center justify-center bg-[var(--color-border)] transition-colors hover:bg-[var(--color-primary)]" />
+                <Separator className="flex h-1 items-center justify-center bg-[var(--color-border)] transition-colors hover:bg-[var(--color-primary)]" />
                 <Panel defaultSize={30} minSize={15} collapsible>
                   <div className="flex h-full flex-col">
                     <div className="flex items-center justify-between border-b border-[var(--color-border)] px-3 py-1">
