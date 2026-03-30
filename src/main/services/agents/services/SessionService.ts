@@ -177,6 +177,26 @@ export class SessionService extends BaseService {
     return session
   }
 
+  async getSessionById(id: string): Promise<GetAgentSessionResponse | null> {
+    const database = await this.getDatabase()
+    const result = await database.select().from(sessionsTable).where(eq(sessionsTable.id, id)).limit(1)
+
+    if (!result[0]) {
+      return null
+    }
+
+    const session = this.deserializeJsonFields(result[0]) as GetAgentSessionResponse
+    const { tools, legacyIdMap } = await this.listMcpTools(session.agent_type, session.mcps)
+    session.tools = tools
+    session.allowed_tools = this.normalizeAllowedTools(session.allowed_tools, session.tools, legacyIdMap)
+
+    if (!session.slash_commands || session.slash_commands.length === 0) {
+      session.slash_commands = await this.listSlashCommands(session.agent_type, session.agent_id)
+    }
+
+    return session
+  }
+
   async listSessions(
     agentId?: string,
     options: ListOptions = {}

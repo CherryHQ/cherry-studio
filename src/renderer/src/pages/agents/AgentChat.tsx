@@ -1,5 +1,6 @@
 import { QuickPanelProvider } from '@renderer/components/QuickPanel'
 import { useActiveAgent } from '@renderer/hooks/agents/useActiveAgent'
+import { useActiveSession } from '@renderer/hooks/agents/useActiveSession'
 import { useAgents } from '@renderer/hooks/agents/useAgents'
 import { useCreateDefaultSession } from '@renderer/hooks/agents/useCreateDefaultSession'
 import { useRuntime } from '@renderer/hooks/useRuntime'
@@ -9,12 +10,11 @@ import { useShowTopics } from '@renderer/hooks/useStore'
 import { cn } from '@renderer/utils'
 import { buildAgentSessionTopicId } from '@renderer/utils/agentSession'
 import { Alert, Spin } from 'antd'
-import { Terminal as TerminalIcon } from 'lucide-react'
+import { X } from 'lucide-react'
 import { AnimatePresence, motion } from 'motion/react'
 import type { PropsWithChildren } from 'react'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { Group, Panel, Separator } from 'react-resizable-panels'
 
 import { PinnedTodoPanel } from '../home/Inputbar/components/PinnedTodoPanel'
 import ChatNavigation from '../home/Messages/ChatNavigation'
@@ -35,11 +35,25 @@ const AgentChat = () => {
   // undefined = session not yet initialized, null = initialized but no sessions
   const isSessionInitialized = !activeAgentId || activeAgentId in activeSessionIdMap
   const { agent: activeAgent, isLoading: isAgentLoading } = useActiveAgent()
+  const { session: activeSession } = useActiveSession()
   const { isLoading: isAgentsLoading, agents } = useAgents()
   const { createDefaultSession } = useCreateDefaultSession(activeAgentId)
 
-  const [terminalVisible, setTerminalVisible] = useState(false)
-  const [terminalError, setTerminalError] = useState<string | null>(null)
+  const [terminalVisibleMap, setTerminalVisibleMap] = useState<Record<string, boolean>>({})
+  const [terminalErrorMap, setTerminalErrorMap] = useState<Record<string, string | null>>({})
+  // Track which sessions have ever opened a terminal (to keep them mounted)
+  const [mountedTerminalSessions, setMountedTerminalSessions] = useState<string[]>([])
+
+  const terminalVisible = activeSessionId ? (terminalVisibleMap[activeSessionId] ?? false) : false
+  const terminalError = activeSessionId ? (terminalErrorMap[activeSessionId] ?? null) : null
+
+  const setTerminalVisible = (visible: boolean) => {
+    if (!activeSessionId) return
+    if (visible) {
+      setMountedTerminalSessions((prev) => (prev.includes(activeSessionId) ? prev : [...prev, activeSessionId]))
+    }
+    setTerminalVisibleMap((prev) => ({ ...prev, [activeSessionId]: visible }))
+  }
 
   // Don't show select/create alerts while data is still loading
   // apiServerRunning is guaranteed by AgentPage guard
@@ -99,70 +113,70 @@ const AgentChat = () => {
         <div className="flex min-w-0 flex-1 flex-col">
           {/* Header */}
           <div className="flex h-fit w-full min-w-0">
-            {activeAgent && <AgentChatNavbar className="min-w-0" activeAgent={activeAgent} />}
+            {activeAgent && (
+              <AgentChatNavbar
+                className="min-w-0"
+                activeAgent={activeAgent}
+                terminalVisible={terminalVisible}
+                onToggleTerminal={() => setTerminalVisible(!terminalVisible)}
+              />
+            )}
           </div>
 
-          {/* Messages + Terminal Split */}
-          <Group orientation="vertical" className="flex-1">
-            {/* Messages */}
-            <Panel defaultSize={terminalVisible ? 70 : 100} minSize={20}>
-              <div className="translate-z-0 relative flex h-full w-full flex-col justify-between overflow-y-auto overflow-x-hidden">
-                <AgentSessionMessages agentId={activeAgentId} sessionId={activeSessionId} />
-                <div className="mt-auto px-4.5 pb-2">
-                  <NarrowLayout>
-                    <PinnedTodoPanel topicId={buildAgentSessionTopicId(activeSessionId)} />
-                  </NarrowLayout>
-                </div>
-                {messageNavigation === 'buttons' && <ChatNavigation containerId="messages" />}
-              </div>
-            </Panel>
-
-            {/* Terminal Panel */}
-            {terminalVisible && (
-              <>
-                <Separator className="flex h-1 items-center justify-center bg-[var(--color-border)] transition-colors hover:bg-[var(--color-primary)]" />
-                <Panel defaultSize={30} minSize={15} collapsible>
-                  <div className="flex h-full flex-col">
-                    <div className="flex items-center justify-between border-b border-[var(--color-border)] px-3 py-1">
-                      <span className="text-xs text-[var(--color-text-secondary)]">Terminal</span>
-                      <div className="flex items-center gap-1">
-                        {terminalError && <span className="mr-2 text-xs text-red-400">{terminalError}</span>}
-                        <button
-                          type="button"
-                          onClick={() => setTerminalVisible(false)}
-                          className="text-xs text-[var(--color-text-secondary)] hover:text-[var(--color-text)]">
-                          Hide
-                        </button>
-                      </div>
-                    </div>
-                    <div className="flex-1 overflow-hidden">
-                      <TerminalPanel
-                        sessionId={activeSessionId}
-                        cwd={activeAgent?.accessible_paths?.[0]}
-                        visible={terminalVisible}
-                        onError={setTerminalError}
-                        onExited={() => setTerminalVisible(false)}
-                      />
-                    </div>
-                  </div>
-                </Panel>
-              </>
-            )}
-          </Group>
+          {/* Messages */}
+          <div className="translate-z-0 relative flex min-h-0 flex-1 flex-col justify-between overflow-y-auto overflow-x-hidden">
+            <AgentSessionMessages agentId={activeAgentId} sessionId={activeSessionId} />
+            <div className="mt-auto px-4.5 pb-2">
+              <NarrowLayout>
+                <PinnedTodoPanel topicId={buildAgentSessionTopicId(activeSessionId)} />
+              </NarrowLayout>
+            </div>
+            {messageNavigation === 'buttons' && <ChatNavigation containerId="messages" />}
+          </div>
 
           {/* Inputbar */}
           <div className="relative">
             <AgentSessionInputbar agentId={activeAgentId} sessionId={activeSessionId} />
-            {!terminalVisible && (
-              <button
-                type="button"
-                onClick={() => setTerminalVisible(true)}
-                className="absolute bottom-20 right-4 z-10 rounded-md border border-[var(--color-border)] bg-[var(--color-background)] p-1.5 shadow-md hover:bg-[var(--color-hover)]"
-                title="Open Terminal">
-                <TerminalIcon size={16} className="text-[var(--color-text-secondary)]" />
-              </button>
-            )}
           </div>
+
+          {/* Terminal Panel (below inputbar) — keep all sessions mounted to preserve history */}
+          {/* Always render when any terminal has been opened; animate height per-session */}
+          {mountedTerminalSessions.length > 0 && (
+            <motion.div
+              animate={{ height: terminalVisible ? 280 : 0, opacity: terminalVisible ? 1 : 0 }}
+              transition={{ duration: 0.25, ease: 'easeInOut' }}
+              style={{ height: 0, overflow: 'hidden' }}
+              className="border-[var(--color-border)] border-t">
+              <div className="flex h-full flex-col">
+                <div className="flex items-center justify-between bg-[var(--color-background-mute)] px-3 py-2">
+                  <span className="font-medium text-[var(--color-text)] text-xs">{t('code.terminal')}</span>
+                  <div className="flex items-center gap-2">
+                    {terminalError && <span className="mr-2 text-[var(--color-error)] text-xs">{terminalError}</span>}
+                    <button
+                      type="button"
+                      onClick={() => setTerminalVisible(false)}
+                      aria-label={t('common.close')}
+                      className="flex items-center justify-center rounded p-1 text-[var(--color-icon)] transition-colors hover:bg-[var(--color-hover)] hover:text-[var(--color-text)]">
+                      <X size={14} />
+                    </button>
+                  </div>
+                </div>
+                <div className="flex-1 overflow-hidden">
+                  {mountedTerminalSessions.map((sid) => (
+                    <div key={sid} style={{ display: sid === activeSessionId ? 'block' : 'none', height: '100%' }}>
+                      <TerminalPanel
+                        sessionId={sid}
+                        cwd={sid === activeSessionId ? activeSession?.accessible_paths?.[0] : undefined}
+                        visible={sid === activeSessionId && terminalVisible}
+                        onError={(err) => setTerminalErrorMap((prev) => ({ ...prev, [sid]: err }))}
+                        onExited={() => setTerminalVisibleMap((prev) => ({ ...prev, [sid]: false }))}
+                      />
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </motion.div>
+          )}
         </div>
       </QuickPanelProvider>
 

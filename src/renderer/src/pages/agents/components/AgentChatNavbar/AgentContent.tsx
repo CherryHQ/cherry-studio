@@ -9,8 +9,7 @@ import { AgentLabel, SessionLabel } from '@renderer/pages/settings/AgentSettings
 import type { AgentEntity, ApiModel } from '@renderer/types'
 import { Tooltip } from 'antd'
 import { t } from 'i18next'
-import { ChevronRight } from 'lucide-react'
-import { Menu, PanelLeftClose, PanelRightClose } from 'lucide-react'
+import { ChevronRight, Menu, PanelLeftClose, PanelRightClose, Terminal } from 'lucide-react'
 import { AnimatePresence, motion } from 'motion/react'
 import { useCallback } from 'react'
 
@@ -22,9 +21,11 @@ import Tools from './Tools'
 
 type AgentContentProps = {
   activeAgent: AgentEntity
+  terminalVisible?: boolean
+  onToggleTerminal?: () => void
 }
 
-const AgentContent = ({ activeAgent }: AgentContentProps) => {
+const AgentContent = ({ activeAgent, terminalVisible, onToggleTerminal }: AgentContentProps) => {
   const { showAssistants, toggleShowAssistants } = useShowAssistants()
   const { isTopNavbar } = useNavbarPosition()
   const { session: activeSession } = useActiveSession()
@@ -122,6 +123,14 @@ const AgentContent = ({ activeAgent }: AgentContentProps) => {
         {/* Open External Apps */}
         {activeSession && activeSession.accessible_paths?.[0] && (
           <OpenExternalAppButton workdir={activeSession.accessible_paths[0]} className="mr-2" />
+        )}
+        {/* Terminal Toggle */}
+        {activeSession && onToggleTerminal && (
+          <Tooltip title={t('code.terminal')} mouseEnterDelay={0.8}>
+            <NavbarIcon onClick={onToggleTerminal} style={{ marginRight: 8 }}>
+              <Terminal size={18} className={terminalVisible ? 'text-[var(--color-primary)]' : undefined} />
+            </NavbarIcon>
+          </Tooltip>
         )}
         <Tools />
       </div>

@@ -39,7 +39,7 @@ export function useTerminal({ sessionId, cwd, visible }: UseTerminalOptions): Us
   // Create terminal when panel becomes visible
   useEffect(() => {
     if (!visible || !sessionId) return
-    createTerminal()
+    void createTerminal()
   }, [visible, sessionId, createTerminal])
 
   // Cleanup terminal when hook unmounts (session switches or component removed)
@@ -58,7 +58,7 @@ export function useTerminal({ sessionId, cwd, visible }: UseTerminalOptions): Us
     terminalCreatedRef.current = false
     setTerminalReady(false)
     setError(null)
-    createTerminal()
+    void createTerminal()
   }, [sessionId, createTerminal])
 
   return { terminalReady, error, restart }

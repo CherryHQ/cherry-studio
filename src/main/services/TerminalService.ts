@@ -1,6 +1,7 @@
-import os from 'node:os'
+import path from 'node:path'
 
 import { loggerService } from '@logger'
+import { sessionService } from '@main/services/agents'
 import { IpcChannel } from '@shared/IpcChannel'
 import type { BrowserWindow } from 'electron'
 import { ipcMain } from 'electron'
@@ -50,14 +51,18 @@ class TerminalService {
     })
   }
 
-  create(sessionId: string, cwd?: string, cols: number = 80, rows: number = 24): { success: boolean; error?: string } {
+  async create(
+    sessionId: string,
+    cwd?: string,
+    cols: number = 80,
+    rows: number = 24
+  ): Promise<{ success: boolean; error?: string }> {
     if (this.terminals.has(sessionId)) {
       return { success: true }
     }
 
-    const resolvedCwd = cwd || os.homedir()
-
     try {
+      const resolvedCwd = await this.resolveCwd(sessionId, cwd)
       const shell = this.getDefaultShell()
       const pty = spawn(shell, [], {
         cwd: resolvedCwd,
@@ -145,6 +150,31 @@ class TerminalService {
       return process.env.COMSPEC || 'powershell.exe'
     }
     return process.env.SHELL || '/bin/bash'
+  }
+
+  private async resolveCwd(sessionId: string, cwd?: string): Promise<string> {
+    const session = await sessionService.getSessionById(sessionId)
+
+    if (!session) {
+      throw new Error(`Session not found for terminal: ${sessionId}`)
+    }
+
+    const accessiblePaths = session.accessible_paths?.map((item) => path.resolve(item)) ?? []
+    if (accessiblePaths.length === 0) {
+      throw new Error(`No accessible paths configured for terminal session: ${sessionId}`)
+    }
+
+    const requestedCwd = path.resolve(cwd ?? accessiblePaths[0])
+    const isAllowedPath = accessiblePaths.some((allowedPath) => {
+      const relative = path.relative(allowedPath, requestedCwd)
+      return relative === '' || (!relative.startsWith('..') && !path.isAbsolute(relative))
+    })
+
+    if (!isAllowedPath) {
+      throw new Error(`Terminal cwd must stay within session accessible paths: ${requestedCwd}`)
+    }
+
+    return requestedCwd
   }
 }
 
