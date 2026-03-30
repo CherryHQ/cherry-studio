@@ -64,12 +64,6 @@ type UserInputMessage = {
   }
 }
 
-type PreToolUseHookInput = {
-  hook_event_name: 'PreToolUse'
-  tool_input?: unknown
-  tool_name?: string
-}
-
 class ClaudeCodeStream extends EventEmitter implements AgentStream {
   declare emit: (event: 'data', data: AgentStreamEvent) => boolean
   declare on: (event: 'data', listener: (data: AgentStreamEvent) => void) => this
