@@ -9,6 +9,22 @@ import { Dispatcher, EnvHttpProxyAgent, getGlobalDispatcher, setGlobalDispatcher
 export const CHERRY_NODE_PROXY_RULES_ENV = 'CHERRY_STUDIO_NODE_PROXY_RULES'
 export const CHERRY_NODE_PROXY_BYPASS_RULES_ENV = 'CHERRY_STUDIO_NODE_PROXY_BYPASS_RULES'
 
+const NODE_PROXY_ENV_KEYS = [
+  CHERRY_NODE_PROXY_RULES_ENV,
+  CHERRY_NODE_PROXY_BYPASS_RULES_ENV,
+  'HTTP_PROXY',
+  'HTTPS_PROXY',
+  'http_proxy',
+  'https_proxy',
+  'ALL_PROXY',
+  'all_proxy',
+  'SOCKS_PROXY',
+  'socks_proxy',
+  'NO_PROXY',
+  'no_proxy',
+  'grpc_proxy'
+] as const
+
 export interface NodeProxyConfig {
   proxyRules?: string
   proxyBypassRules?: string | string[]
@@ -234,6 +250,42 @@ export const normalizeProxyBypassRules = (rules?: string | string[]): string[] =
         .map((rule) => rule.trim())
         .filter((rule) => rule.length > 0)
     : []
+}
+
+export const getProxyEnvironment = (env: NodeJS.ProcessEnv = process.env): Record<string, string> => {
+  const proxyEnv: Record<string, string> = {}
+
+  for (const key of NODE_PROXY_ENV_KEYS) {
+    const value = env[key]
+    if (typeof value === 'string' && value.trim() !== '') {
+      proxyEnv[key] = value
+    }
+  }
+
+  return proxyEnv
+}
+
+export const getNodeProxyConfigFromEnvironment = (env: NodeJS.ProcessEnv = process.env): NodeProxyConfig | null => {
+  const proxyEnv = getProxyEnvironment(env)
+  const proxyRules =
+    proxyEnv[CHERRY_NODE_PROXY_RULES_ENV] ||
+    proxyEnv.ALL_PROXY ||
+    proxyEnv.all_proxy ||
+    proxyEnv.SOCKS_PROXY ||
+    proxyEnv.socks_proxy ||
+    proxyEnv.HTTPS_PROXY ||
+    proxyEnv.https_proxy ||
+    proxyEnv.HTTP_PROXY ||
+    proxyEnv.http_proxy
+
+  if (!proxyRules) {
+    return null
+  }
+
+  return {
+    proxyRules,
+    proxyBypassRules: proxyEnv[CHERRY_NODE_PROXY_BYPASS_RULES_ENV] || proxyEnv.NO_PROXY || proxyEnv.no_proxy
+  }
 }
 
 export const getProxyProtocol = (proxyRules?: string): string | null => {
@@ -603,16 +655,13 @@ export class NodeProxyController {
 }
 
 export const applyNodeProxyFromEnvironment = (env: NodeJS.ProcessEnv = process.env): boolean => {
-  const proxyRules = env[CHERRY_NODE_PROXY_RULES_ENV]
-  if (!proxyRules) {
+  const proxyConfig = getNodeProxyConfigFromEnvironment(env)
+  if (!proxyConfig) {
     return false
   }
 
   const controller = new NodeProxyController()
-  controller.configure({
-    proxyRules,
-    proxyBypassRules: env[CHERRY_NODE_PROXY_BYPASS_RULES_ENV]
-  })
+  controller.configure(proxyConfig)
 
   return true
 }

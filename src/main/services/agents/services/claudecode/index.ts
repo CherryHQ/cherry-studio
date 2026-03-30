@@ -21,8 +21,11 @@ import { validateModelId } from '@main/apiServer/utils'
 import { isWin } from '@main/constant'
 import { pluginService } from '@main/services/agents/plugins/PluginService'
 import { configManager } from '@main/services/ConfigManager'
-import { buildNodeProxyEnvironment, getProxyProtocol } from '@main/services/proxy/nodeProxy'
-import { proxyManager } from '@main/services/ProxyManager'
+import {
+  getNodeProxyConfigFromEnvironment,
+  getProxyEnvironment,
+  getProxyProtocol
+} from '@main/services/proxy/nodeProxy'
 import { autoDiscoverGitBash } from '@main/utils/process'
 import { rtkRewrite } from '@main/utils/rtk'
 import getLoginShellEnvironment from '@main/utils/shell-env'
@@ -141,9 +144,6 @@ class ClaudeCodeService implements AgentServiceInterface {
 
     const apiConfig = await apiConfigService.get()
     const loginShellEnv = await getLoginShellEnvironment()
-    const loginShellEnvWithoutProxies = Object.fromEntries(
-      Object.entries(loginShellEnv).filter(([key]) => !key.toLowerCase().endsWith('_proxy'))
-    ) as Record<string, string>
 
     // Auto-discover Git Bash path on Windows (already logs internally)
     const customGitBashPath = isWin ? autoDiscoverGitBash() : null
@@ -156,7 +156,8 @@ class ClaudeCodeService implements AgentServiceInterface {
     )
 
     const env = {
-      ...loginShellEnvWithoutProxies,
+      ...loginShellEnv,
+      ...getProxyEnvironment(process.env),
       // prevent claude agent sdk using bedrock api
       CLAUDE_CODE_USE_BEDROCK: '0',
       // TODO: fix the proxy api server
@@ -370,11 +371,10 @@ class ClaudeCodeService implements AgentServiceInterface {
         const childEnv = { ...spawnOptions.env } as NodeJS.ProcessEnv
         let execArgv = process.execArgv
 
-        const activeProxyConfig = proxyManager.getActiveNodeProxyConfig()
+        const activeProxyConfig = getNodeProxyConfigFromEnvironment(childEnv)
         if (activeProxyConfig) {
           const proxyProtocol = getProxyProtocol(activeProxyConfig.proxyRules)
           const hasProxyBootstrap = existsSync(this.claudeProxyBootstrapPath)
-          Object.assign(childEnv, buildNodeProxyEnvironment(activeProxyConfig))
 
           logger.info('Injecting proxy into Claude Code child process', {
             proxyProtocol,

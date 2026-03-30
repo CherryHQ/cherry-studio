@@ -3,6 +3,8 @@ import { beforeEach, describe, expect, it } from 'vitest'
 import {
   applyNodeProxyFromEnvironment,
   buildNodeProxyEnvironment,
+  getNodeProxyConfigFromEnvironment,
+  getProxyEnvironment,
   getProxyProtocol,
   isByPass,
   updateByPassRules
@@ -142,5 +144,30 @@ describe('ProxyManager - bypass evaluation', () => {
 
   it('returns null for invalid proxy urls when detecting protocol', () => {
     expect(getProxyProtocol('127.0.0.1:7890')).toBe(null)
+  })
+
+  it('extracts only proxy-related env vars', () => {
+    expect(
+      getProxyEnvironment({
+        HTTP_PROXY: 'http://127.0.0.1:7890',
+        NO_PROXY: 'localhost',
+        PATH: '/usr/bin'
+      })
+    ).toEqual({
+      HTTP_PROXY: 'http://127.0.0.1:7890',
+      NO_PROXY: 'localhost'
+    })
+  })
+
+  it('derives proxy config from standard proxy env vars', () => {
+    expect(
+      getNodeProxyConfigFromEnvironment({
+        ALL_PROXY: 'socks5://127.0.0.1:6153',
+        NO_PROXY: 'localhost'
+      })
+    ).toEqual({
+      proxyRules: 'socks5://127.0.0.1:6153',
+      proxyBypassRules: 'localhost'
+    })
   })
 })
