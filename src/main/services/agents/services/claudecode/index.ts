@@ -1,4 +1,5 @@
 // src/main/services/agents/services/claudecode/index.ts
+import { fork } from 'node:child_process'
 import { EventEmitter } from 'node:events'
 import { createRequire } from 'node:module'
 import os from 'node:os'
@@ -11,7 +12,8 @@ import type {
   Options,
   SDKMessage,
   SdkPluginConfig,
-  SDKUserMessage
+  SDKUserMessage,
+  SpawnedProcess
 } from '@anthropic-ai/claude-agent-sdk'
 import { query } from '@anthropic-ai/claude-agent-sdk'
 import type { Base64ImageSource, ContentBlockParam } from '@anthropic-ai/sdk/resources/messages/messages'
@@ -25,6 +27,7 @@ import ClawServer from '@main/mcpServers/claw'
 import { pluginService } from '@main/services/agents/plugins/PluginService'
 import { configManager } from '@main/services/ConfigManager'
 import { autoDiscoverGitBash } from '@main/utils/process'
+import { rtkRewrite } from '@main/utils/rtk'
 import getLoginShellEnvironment from '@main/utils/shell-env'
 import {
   CHANNEL_SECURITY_PROMPT,
@@ -325,6 +328,37 @@ class ClaudeCodeService implements AgentServiceInterface {
       return {}
     }
 
+    const rtkRewriteHook: HookCallback = async (input) => {
+      if (input.hook_event_name !== 'PreToolUse') {
+        return {}
+      }
+
+      // Only rewrite Bash tool commands
+      if (input.tool_name !== 'Bash' && input.tool_name !== 'builtin_Bash') {
+        return {}
+      }
+
+      const toolInput = input.tool_input as Record<string, unknown> | undefined
+      const command = toolInput?.command
+      if (typeof command !== 'string' || !command.trim()) {
+        return {}
+      }
+
+      const rewritten = await rtkRewrite(command)
+      if (!rewritten) {
+        return {}
+      }
+
+      logger.info('rtk rewrote Bash command', { original: command, rewritten })
+
+      return {
+        hookSpecificOutput: {
+          hookEventName: 'PreToolUse',
+          updatedInput: { ...toolInput, command: rewritten }
+        }
+      }
+    }
+
     // Soul Mode: build custom system prompt and inject claw MCP when enabled
     const soulConfig = session.configuration as CherryClawConfiguration | undefined
     const soulEnabled = soulConfig?.soul_enabled === true
@@ -373,9 +407,19 @@ class ClaudeCodeService implements AgentServiceInterface {
       env,
       // model: modelInfo.modelId,
       pathToClaudeCodeExecutable: this.claudeExecutablePath,
-      stderr: (chunk: string) => {
-        logger.warn('claude stderr', { chunk })
-        errorChunks.push(chunk)
+      spawnClaudeCodeProcess: (spawnOptions) => {
+        const child = fork(spawnOptions.args[0], spawnOptions.args.slice(1), {
+          cwd: spawnOptions.cwd,
+          env: spawnOptions.env as NodeJS.ProcessEnv,
+          stdio: ['pipe', 'pipe', 'pipe', 'ipc'],
+          signal: spawnOptions.signal
+        })
+        child.stderr?.on('data', (data: Buffer) => {
+          const text = data.toString()
+          logger.warn('claude stderr', { chunk: text })
+          errorChunks.push(text)
+        })
+        return child as unknown as SpawnedProcess
       },
       systemPrompt: assistantSystemPrompt
         ? `${assistantSystemPrompt}\n\n${getLanguageInstruction()}`
@@ -403,7 +447,7 @@ class ClaudeCodeService implements AgentServiceInterface {
       hooks: {
         PreToolUse: [
           {
-            hooks: [preToolUseHook]
+            hooks: [rtkRewriteHook, preToolUseHook]
           }
         ]
       },
