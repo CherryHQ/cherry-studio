@@ -1,9 +1,11 @@
+import type { AgentSessionSnapshot } from '@shared/data/types/agent'
 import type { MessageData, MessageStats } from '@shared/data/types/message'
 import type { AssistantMeta, ModelMeta } from '@shared/data/types/meta'
 import { sql } from 'drizzle-orm'
 import { check, foreignKey, index, integer, sqliteTable, text } from 'drizzle-orm/sqlite-core'
 
 import { createUpdateDeleteTimestamps, uuidPrimaryKeyOrdered } from './_columnHelpers'
+import { agentSessionTable } from './agentSession'
 import { topicTable } from './topic'
 
 /**
@@ -49,6 +51,11 @@ export const messageTable = sqliteTable(
     // Statistics: token usage, performance metrics, etc.
     stats: text({ mode: 'json' }).$type<MessageStats>(),
 
+    // Agent session that produced this message (SET NULL on session delete)
+    agentSessionId: text(),
+    // Snapshot of agent session config at message creation time
+    agentSnapshot: text({ mode: 'json' }).$type<AgentSessionSnapshot>(),
+
     ...createUpdateDeleteTimestamps
   },
   (t) => [
@@ -58,8 +65,15 @@ export const messageTable = sqliteTable(
     index('message_parent_id_idx').on(t.parentId),
     index('message_topic_created_idx').on(t.topicId, t.createdAt),
     index('message_trace_id_idx').on(t.traceId),
+    // Agent session FK
+    index('message_agent_session_id_idx').on(t.agentSessionId),
+    foreignKey({
+      columns: [t.agentSessionId],
+      foreignColumns: [agentSessionTable.id],
+      name: 'fk_message_agent_session'
+    }).onDelete('set null'),
     // Check constraints for enum fields
-    check('message_role_check', sql`${t.role} IN ('user', 'assistant', 'system')`),
+    check('message_role_check', sql`${t.role} IN ('user', 'assistant', 'system', 'tool')`),
     check('message_status_check', sql`${t.status} IN ('pending', 'success', 'error', 'paused')`)
   ]
 )

@@ -26,6 +26,9 @@ export const topicTable = sqliteTable(
     // Active node ID in the message tree
     activeNodeId: text(),
 
+    // Source type: 'chat' for normal conversations, 'agent' for agent sessions
+    sourceType: text().notNull().default('chat'),
+
     // FK to group table for organization
     // SET NULL: preserve topic when group is deleted
     groupId: text().references(() => groupTable.id, { onDelete: 'set null' }),
@@ -42,6 +45,7 @@ export const topicTable = sqliteTable(
     index('topic_group_sort_idx').on(t.groupId, t.sortOrder),
     index('topic_updated_at_idx').on(t.updatedAt),
     index('topic_is_pinned_idx').on(t.isPinned, t.pinnedOrder),
-    index('topic_assistant_id_idx').on(t.assistantId)
+    index('topic_assistant_id_idx').on(t.assistantId),
+    index('topic_source_type_idx').on(t.sourceType)
   ]
 )
