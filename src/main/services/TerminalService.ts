@@ -129,7 +129,7 @@ class TerminalService {
   }
 
   killAll(): void {
-    for (const [sessionId, terminal] of this.terminals) {
+    for (const terminal of this.terminals.values()) {
       try {
         terminal.pty.kill()
       } catch {
