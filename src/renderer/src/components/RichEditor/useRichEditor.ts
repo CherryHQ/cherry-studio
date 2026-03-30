@@ -446,7 +446,9 @@ export const useRichEditor = (options: UseRichEditorOptions = {}): UseRichEditor
         spellcheck: enableSpellCheck ? 'true' : 'false'
       }
     },
-    onUpdate: ({ editor }) => {
+    onUpdate: ({ editor, transaction }) => {
+      if (!editable || !transaction.docChanged) return
+
       const content = editor.getText()
       const htmlContent = editor.getHTML()
       try {
