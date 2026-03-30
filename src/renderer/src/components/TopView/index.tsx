@@ -1,7 +1,11 @@
 // import { loggerService } from '@logger'
+import { ErrorDetailModal } from '@renderer/components/ErrorDetailModal'
 import TopViewMinappContainer from '@renderer/components/MinApp/TopViewMinappContainer'
 import { useAppInit } from '@renderer/hooks/useAppInit'
 import { useShortcuts } from '@renderer/hooks/useShortcuts'
+import type { DiagnosisContext } from '@renderer/services/ErrorDiagnosisService'
+import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
+import type { SerializedError } from '@renderer/types/error'
 import { message, Modal } from 'antd'
 import type { PropsWithChildren } from 'react'
 import React, { useCallback, useEffect, useRef, useState } from 'react'
@@ -39,6 +43,24 @@ const TopViewContainer: React.FC<Props> = ({ children }) => {
   const [messageApi, messageContextHolder] = message.useMessage()
   const { shortcuts } = useShortcuts()
   const enableQuitFullScreen = shortcuts.find((item) => item.key === 'exit_fullscreen')?.enabled
+
+  // Global ErrorDetailModal for toast "View Details" link
+  const [globalError, setGlobalError] = useState<SerializedError | undefined>()
+  const [globalFailingModelId, setGlobalFailingModelId] = useState<string | undefined>()
+  const [globalDiagnosisContext, setGlobalDiagnosisContext] = useState<DiagnosisContext | undefined>()
+  const [showGlobalErrorModal, setShowGlobalErrorModal] = useState(false)
+
+  useEffect(() => {
+    const unsub = EventEmitter.on(EVENT_NAMES.SHOW_ERROR_DETAIL, (data: any) => {
+      setGlobalError(data?.error)
+      setGlobalFailingModelId(data?.failingModelId)
+      setGlobalDiagnosisContext(data?.diagnosisContext)
+      setShowGlobalErrorModal(true)
+    })
+    return () => {
+      unsub()
+    }
+  }, [])
 
   useAppInit()
 
@@ -102,6 +124,13 @@ const TopViewContainer: React.FC<Props> = ({ children }) => {
       {messageContextHolder}
       {modalContextHolder}
       <TopViewMinappContainer />
+      <ErrorDetailModal
+        open={showGlobalErrorModal}
+        onClose={() => setShowGlobalErrorModal(false)}
+        error={globalError}
+        failingModelId={globalFailingModelId}
+        diagnosisContext={globalDiagnosisContext}
+      />
       {elements.map(({ element: Element, id }) => (
         <FullScreenContainer key={`TOPVIEW_${id}`}>
           {typeof Element === 'function' ? <Element /> : Element}
