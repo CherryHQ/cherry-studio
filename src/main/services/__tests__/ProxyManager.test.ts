@@ -6,13 +6,17 @@ import {
   getNodeProxyConfigFromEnvironment,
   getProxyEnvironment,
   getProxyProtocol,
-  isByPass,
-  updateByPassRules
+  ProxyBypassRuleMatcher
 } from '../proxy/nodeProxy'
 
 describe('ProxyManager - bypass evaluation', () => {
+  let matcher: ProxyBypassRuleMatcher
+
+  const updateByPassRules = (rules: string[]) => matcher.updateByPassRules(rules)
+  const isByPass = (url: string) => matcher.isByPass(url)
+
   beforeEach(() => {
-    updateByPassRules([])
+    matcher = new ProxyBypassRuleMatcher()
   })
 
   it('matches simple hostname patterns', () => {

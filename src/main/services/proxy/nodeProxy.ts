@@ -304,7 +304,7 @@ export const isSocksProxyProtocol = (protocol: string | null): boolean => {
   return protocol !== null && protocol.startsWith('socks')
 }
 
-class ProxyBypassRuleMatcher {
+export class ProxyBypassRuleMatcher {
   private parsedByPassRules: ParsedProxyBypassRule[] = []
 
   updateByPassRules(rules: string[], logger?: NodeProxyLogger): void {
@@ -389,16 +389,6 @@ class ProxyBypassRuleMatcher {
 
     return false
   }
-}
-
-const defaultProxyBypassRuleMatcher = new ProxyBypassRuleMatcher()
-
-export const updateByPassRules = (rules: string[], logger?: NodeProxyLogger): void => {
-  defaultProxyBypassRuleMatcher.updateByPassRules(rules, logger)
-}
-
-export const isByPass = (url: string, logger?: NodeProxyLogger) => {
-  return defaultProxyBypassRuleMatcher.isByPass(url, logger)
 }
 
 export const buildNodeProxyEnvironment = (config: NodeProxyConfig): Record<string, string> => {
@@ -623,9 +613,16 @@ export class NodeProxyController {
       return
     }
 
+    let url: URL
+    try {
+      url = new URL(proxyUrl)
+    } catch {
+      this.logger?.error?.(`Invalid proxy URL: ${proxyUrl}`)
+      return
+    }
+
     axios.defaults.adapter = 'fetch'
 
-    const url = new URL(proxyUrl)
     if (url.protocol === 'http:' || url.protocol === 'https:') {
       this.proxyDispatcher = new SelectiveDispatcher(
         new EnvHttpProxyAgent(),
