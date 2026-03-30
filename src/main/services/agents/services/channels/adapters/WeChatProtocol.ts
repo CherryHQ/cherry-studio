@@ -4,13 +4,13 @@
  * Inlined from @pinixai/weixin-bot to avoid the external dependency
  * and its fragile postinstall build step.
  */
-import { randomBytes, randomUUID } from 'node:crypto'
+import { createCipheriv, createDecipheriv, randomBytes, randomUUID } from 'node:crypto'
 import { chmod, mkdir, readFile, rm, writeFile } from 'node:fs/promises'
 import path from 'node:path'
 import { setTimeout as delay } from 'node:timers/promises'
 
 import { loggerService } from '@logger'
-import { net } from 'electron'
+import { nativeImage, net } from 'electron'
 import * as z from 'zod'
 
 const logger = loggerService.withContext('WeChatProtocol')
@@ -40,10 +40,28 @@ enum MessageItemType {
   VIDEO = 5
 }
 
+interface CDNMedia {
+  encrypt_query_param?: string
+  aes_key?: string
+  encrypt_type?: number
+}
+
+interface ImageItem {
+  media?: CDNMedia
+  thumb_media?: CDNMedia
+  aeskey?: string
+  url?: string
+  mid_size?: number
+  thumb_size?: number
+  thumb_height?: number
+  thumb_width?: number
+  hd_size?: number
+}
+
 interface MessageItem {
   type: MessageItemType
   text_item?: { text: string }
-  image_item?: { url?: string }
+  image_item?: ImageItem
   voice_item?: { text?: string }
   file_item?: { file_name?: string }
   video_item?: unknown
@@ -68,6 +86,8 @@ export interface IncomingMessage {
   type: 'text' | 'image' | 'voice' | 'file' | 'video'
   _contextToken: string
   timestamp: Date
+  /** Raw image items from WeChat CDN (encrypted, need download+decrypt). */
+  _imageItems?: ImageItem[]
 }
 
 // --------------- Zod response schemas ---------------
@@ -136,9 +156,120 @@ interface SendTypingReq {
 // --------------- Constants ---------------
 
 const DEFAULT_BASE_URL = 'https://ilinkai.weixin.qq.com'
+const CDN_BASE_URL = 'https://novac2c.cdn.weixin.qq.com/c2c'
 const CHANNEL_VERSION = '1.0.0'
 const QR_POLL_INTERVAL_MS = 2_000
 const MAX_CONTEXT_TOKENS = 1000
+
+// --------------- AES-128-ECB helpers ---------------
+
+function aesEcbDecrypt(encrypted: Buffer, key: Buffer): Buffer {
+  const decipher = createDecipheriv('aes-128-ecb', key, null)
+  return Buffer.concat([decipher.update(encrypted), decipher.final()])
+}
+
+function aesEcbEncrypt(data: Buffer, key: Buffer): Buffer {
+  const cipher = createCipheriv('aes-128-ecb', key, null)
+  return Buffer.concat([cipher.update(data), cipher.final()])
+}
+
+/**
+ * Resolve the 16-byte AES key from an image_item.
+ * Priority: image_item.aeskey (hex) > image_item.media.aes_key (base64)
+ */
+function resolveImageAesKey(item: ImageItem): Buffer | null {
+  if (item.aeskey) {
+    return Buffer.from(item.aeskey, 'hex')
+  }
+  if (item.media?.aes_key) {
+    return Buffer.from(item.media.aes_key, 'base64')
+  }
+  return null
+}
+
+// --------------- CDN download ---------------
+
+async function cdnDownloadImage(item: ImageItem): Promise<Buffer | null> {
+  const encryptQueryParam = item.media?.encrypt_query_param
+  if (!encryptQueryParam) return null
+
+  const aesKey = resolveImageAesKey(item)
+  if (!aesKey) {
+    logger.warn('Image item has encrypt_query_param but no AES key')
+    return null
+  }
+
+  const url = `${CDN_BASE_URL}/download?encrypted_query_param=${encodeURIComponent(encryptQueryParam)}`
+  const response = await net.fetch(url, { method: 'GET' })
+
+  if (!response.ok) {
+    return null
+  }
+
+  const encrypted = Buffer.from(await response.arrayBuffer())
+  return aesEcbDecrypt(encrypted, aesKey)
+}
+
+// --------------- CDN upload ---------------
+
+const GetUploadUrlRespSchema = z.object({
+  upload_param: z.string()
+})
+
+async function cdnUploadImage(
+  baseUrl: string,
+  token: string,
+  uin: string,
+  toUserId: string,
+  imageData: Buffer
+): Promise<{ downloadEncryptedQueryParam: string; aeskey: Buffer; ciphertextSize: number } | null> {
+  const aeskey = randomBytes(16)
+  const filekey = randomBytes(16).toString('hex')
+  const md5Hash = await import('node:crypto').then((c) => c.createHash('md5').update(imageData).digest('hex'))
+
+  // Step 1: get upload URL
+  const raw = await apiFetch(
+    baseUrl,
+    '/ilink/bot/getuploadurl',
+    {
+      filekey,
+      media_type: 1,
+      to_user_id: toUserId,
+      rawsize: imageData.length,
+      rawfilemd5: md5Hash,
+      filesize: imageData.length,
+      no_need_thumb: true,
+      aeskey: aeskey.toString('hex'),
+      base_info: buildBaseInfo()
+    },
+    token,
+    uin,
+    15_000
+  )
+  const { upload_param } = GetUploadUrlRespSchema.parse(raw)
+
+  // Step 2: encrypt and upload
+  const ciphertext = aesEcbEncrypt(imageData, aeskey)
+  const uploadUrl = `${CDN_BASE_URL}/upload?encrypted_query_param=${encodeURIComponent(upload_param)}&filekey=${encodeURIComponent(filekey)}`
+  const uploadResp = await net.fetch(uploadUrl, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/octet-stream' },
+    body: new Uint8Array(ciphertext)
+  })
+
+  if (!uploadResp.ok) {
+    logger.error('CDN upload failed', { status: uploadResp.status })
+    return null
+  }
+
+  const downloadEncryptedQueryParam = uploadResp.headers.get('x-encrypted-param')
+  if (!downloadEncryptedQueryParam) {
+    logger.error('CDN upload response missing x-encrypted-param header')
+    return null
+  }
+
+  return { downloadEncryptedQueryParam, aeskey, ciphertextSize: ciphertext.length }
+}
 
 // --------------- API helpers ---------------
 
@@ -548,6 +679,70 @@ export class WeixinBot {
     await this.sendText(userId, text, contextToken)
   }
 
+  /**
+   * Download and decrypt an image from WeChat CDN.
+   * Returns a data URL (data:image/png;base64,...) or null on failure.
+   * Always converts to PNG since some model APIs only accept PNG format.
+   */
+  async downloadImage(imageItem: ImageItem): Promise<string | null> {
+    try {
+      const data = await cdnDownloadImage(imageItem)
+      if (!data) return null
+
+      const img = nativeImage.createFromBuffer(data)
+      if (img.isEmpty()) {
+        logger.warn('Failed to decode image with nativeImage, using raw data')
+        const mime = detectImageMime(data)
+        return `data:${mime};base64,${data.toString('base64')}`
+      }
+      const pngBuffer = img.toPNG()
+      return `data:image/png;base64,${pngBuffer.toString('base64')}`
+    } catch (error) {
+      logger.error('Failed to download WeChat image', error instanceof Error ? error : { error: String(error) })
+      return null
+    }
+  }
+
+  /**
+   * Send an image to a user by uploading to WeChat CDN.
+   */
+  async sendImage(userId: string, imageData: Buffer): Promise<void> {
+    const contextToken = this.contextTokens.get(userId)
+    if (!contextToken) {
+      throw new Error(`No cached context token for user ${userId}. Reply to an incoming message first.`)
+    }
+
+    const credentials = await this.ensureCredentials()
+    const uploaded = await cdnUploadImage(this.baseUrl, credentials.token, this.uin, userId, imageData)
+    if (!uploaded) {
+      throw new Error('Failed to upload image to WeChat CDN')
+    }
+
+    const msg = {
+      from_user_id: '',
+      to_user_id: userId,
+      client_id: randomUUID(),
+      message_type: MessageType.BOT,
+      message_state: MessageState.FINISH,
+      context_token: contextToken,
+      item_list: [
+        {
+          type: MessageItemType.IMAGE,
+          image_item: {
+            media: {
+              encrypt_query_param: uploaded.downloadEncryptedQueryParam,
+              aes_key: Buffer.from(uploaded.aeskey).toString('base64'),
+              encrypt_type: 1
+            },
+            mid_size: uploaded.ciphertextSize
+          }
+        }
+      ]
+    }
+
+    await apiSendMessage(this.baseUrl, credentials.token, this.uin, msg)
+  }
+
   async run(): Promise<void> {
     if (this.runPromise) return this.runPromise
 
@@ -675,12 +870,17 @@ export class WeixinBot {
   private toIncomingMessage(message: WeixinMessage): IncomingMessage | null {
     if (message.message_type !== MessageType.USER) return null
 
+    const imageItems = message.item_list
+      .filter((item) => item.type === MessageItemType.IMAGE && item.image_item?.media?.encrypt_query_param)
+      .map((item) => item.image_item!)
+
     return {
       userId: message.from_user_id,
       text: extractText(message.item_list),
       type: detectType(message.item_list),
       _contextToken: message.context_token,
-      timestamp: new Date(message.create_time_ms)
+      timestamp: new Date(message.create_time_ms),
+      _imageItems: imageItems.length > 0 ? imageItems : undefined
     }
   }
 
@@ -715,7 +915,7 @@ function extractText(items: MessageItem[]): string {
         case MessageItemType.TEXT:
           return item.text_item?.text ?? ''
         case MessageItemType.IMAGE:
-          return item.image_item?.url ?? '[image]'
+          return ''
         case MessageItemType.VOICE:
           return item.voice_item?.text ?? '[voice]'
         case MessageItemType.FILE:
@@ -728,6 +928,14 @@ function extractText(items: MessageItem[]): string {
     })
     .filter(Boolean)
     .join('\n')
+}
+
+function detectImageMime(data: Buffer): string {
+  if (data[0] === 0xff && data[1] === 0xd8) return 'image/jpeg'
+  if (data[0] === 0x89 && data[1] === 0x50) return 'image/png'
+  if (data[0] === 0x47 && data[1] === 0x49) return 'image/gif'
+  if (data[0] === 0x52 && data[1] === 0x49) return 'image/webp'
+  return 'image/jpeg'
 }
 
 function isAbortError(error: unknown): boolean {

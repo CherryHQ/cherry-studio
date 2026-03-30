@@ -2,11 +2,17 @@ import path from 'node:path'
 
 import { loggerService } from '@logger'
 import { IpcChannel } from '@shared/IpcChannel'
+import { parseDataUrl } from '@shared/utils'
 import type { CherryClawChannel } from '@types'
 import { app } from 'electron'
 
 import { windowService } from '../../../../WindowService'
-import { ChannelAdapter, type ChannelAdapterConfig, type SendMessageOptions } from '../ChannelAdapter'
+import {
+  ChannelAdapter,
+  type ChannelAdapterConfig,
+  type ImageAttachment,
+  type SendMessageOptions
+} from '../ChannelAdapter'
 import { registerAdapterFactory } from '../ChannelManager'
 import { type IncomingMessage, WeixinBot } from './WeChatProtocol'
 
@@ -173,14 +179,30 @@ class WeChatAdapter extends ChannelAdapter {
   }
 
   private registerMessageHandler(bot: WeixinBot): void {
-    bot.onMessage((msg: IncomingMessage) => {
+    bot.onMessage(async (msg: IncomingMessage) => {
       if (this.allowedChatIds.length > 0 && !this.allowedChatIds.includes(msg.userId)) {
         logger.debug('Dropping message from unauthorized user', { userId: msg.userId })
         return
       }
 
+      // Download images from WeChat CDN (returns data URIs with base64)
+      let images: ImageAttachment[] | undefined
+      if (msg._imageItems && msg._imageItems.length > 0) {
+        const dataUris = (await Promise.all(msg._imageItems.map((item) => bot.downloadImage(item)))).filter(
+          (uri): uri is string => uri !== null
+        )
+        const parsed = dataUris
+          .map((uri) => {
+            const result = parseDataUrl(uri)
+            if (!result || !result.isBase64 || !result.mediaType) return null
+            return { media_type: result.mediaType, data: result.data } as ImageAttachment
+          })
+          .filter((img): img is ImageAttachment => img !== null)
+        if (parsed.length > 0) images = parsed
+      }
+
       const text = msg.text.trim()
-      if (!text) return
+      if (!text && !images) return
 
       if (this.isCommand(text)) {
         if (text.startsWith('/whoami')) {
@@ -206,7 +228,8 @@ class WeChatAdapter extends ChannelAdapter {
           chatId: msg.userId,
           userId: msg.userId,
           userName: msg.userId,
-          text
+          text,
+          images
         })
       }
     })

@@ -75,13 +75,32 @@ function createMockAdapter(overrides: Record<string, unknown> = {}) {
   return adapter
 }
 
+/**
+ * Helper: call handleIncoming and advance fake timers so the debounce fires,
+ * then await the returned promise to wait for processing to complete.
+ */
+async function handleIncomingAndFlush(
+  adapter: ReturnType<typeof createMockAdapter>,
+  message: { chatId: string; userId: string; userName: string; text: string }
+) {
+  const promise = channelMessageHandler.handleIncoming(adapter, message)
+  // Advance past the MESSAGE_BATCH_DELAY_MS debounce (3 000 ms)
+  await vi.advanceTimersByTimeAsync(3500)
+  return promise
+}
+
 describe('ChannelMessageHandler', () => {
   beforeEach(() => {
+    vi.useFakeTimers()
     vi.clearAllMocks()
     // Reset the default mock for listSessions after clearAllMocks
     vi.mocked(sessionService.listSessions).mockResolvedValue({ sessions: [] as any[], total: 0 })
     // Clear session tracker to ensure clean state
     channelMessageHandler.clearSessionTracker('agent-1')
+  })
+
+  afterEach(() => {
+    vi.useRealTimers()
   })
 
   it('collectStreamResponse accumulates text across turns and sends via adapter', async () => {
@@ -101,7 +120,7 @@ describe('ChannelMessageHandler', () => {
       ]) as any
     )
 
-    await channelMessageHandler.handleIncoming(adapter, {
+    await handleIncomingAndFlush(adapter, {
       chatId: 'chat-1',
       userId: 'user-1',
       userName: 'User',
@@ -121,7 +140,7 @@ describe('ChannelMessageHandler', () => {
       createMockStream([{ type: 'text-delta', text: 'Hello world!' }]) as any
     )
 
-    await channelMessageHandler.handleIncoming(adapter, {
+    await handleIncomingAndFlush(adapter, {
       chatId: 'chat-1',
       userId: 'user-1',
       userName: 'User',
@@ -143,7 +162,7 @@ describe('ChannelMessageHandler', () => {
       createMockStream([{ type: 'text-delta', text: longText }]) as any
     )
 
-    await channelMessageHandler.handleIncoming(adapter, {
+    await handleIncomingAndFlush(adapter, {
       chatId: 'chat-1',
       userId: 'user-1',
       userName: 'User',
@@ -252,7 +271,7 @@ describe('ChannelMessageHandler', () => {
       createMockStream([{ type: 'text-delta', text: 'OK' }]) as any
     )
 
-    await channelMessageHandler.handleIncoming(adapter, {
+    await handleIncomingAndFlush(adapter, {
       chatId: 'chat-1',
       userId: 'user-1',
       userName: 'User',
@@ -272,7 +291,7 @@ describe('ChannelMessageHandler', () => {
       createMockStream([{ type: 'text-delta', text: 'R1' }]) as any
     )
 
-    await channelMessageHandler.handleIncoming(adapter, {
+    await handleIncomingAndFlush(adapter, {
       chatId: 'chat-1',
       userId: 'user-1',
       userName: 'User',
@@ -288,7 +307,7 @@ describe('ChannelMessageHandler', () => {
       createMockStream([{ type: 'text-delta', text: 'R2' }]) as any
     )
 
-    await channelMessageHandler.handleIncoming(adapter, {
+    await handleIncomingAndFlush(adapter, {
       chatId: 'chat-1',
       userId: 'user-1',
       userName: 'User',

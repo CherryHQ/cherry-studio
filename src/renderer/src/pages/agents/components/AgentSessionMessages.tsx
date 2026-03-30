@@ -69,7 +69,7 @@ const AgentSessionMessages = ({ agentId, sessionId }: Props) => {
       if (event.sessionId !== sessionId) return
 
       if (event.type === 'user-message' && event.userMessage) {
-        addChannelUserMessage(dispatch, sessionTopicId, agentId, event.userMessage.text)
+        addChannelUserMessage(dispatch, sessionTopicId, agentId, event.userMessage.text, event.userMessage.images)
         getOrCreateStream()
       } else if (event.type === 'chunk' && event.chunk) {
         getOrCreateStream().pushChunk(event.chunk)

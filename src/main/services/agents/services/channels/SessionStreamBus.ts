@@ -7,7 +7,13 @@ export type SessionStreamChunk = {
   agentId: string
   type: 'user-message' | 'chunk' | 'complete' | 'error'
   chunk?: TextStreamPart<Record<string, any>>
-  userMessage?: { chatId: string; userId: string; userName: string; text: string }
+  userMessage?: {
+    chatId: string
+    userId: string
+    userName: string
+    text: string
+    images?: Array<{ data: string; media_type: string }>
+  }
   error?: { message: string }
 }
 

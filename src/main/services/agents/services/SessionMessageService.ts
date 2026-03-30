@@ -34,6 +34,8 @@ export type CreateMessageOptions = {
   persist?: boolean
   /** Optional display-safe user content for persistence. When set, this is stored instead of req.content (which may contain security wrappers not meant for display). */
   displayContent?: string
+  /** Pre-downloaded base64 images to include as vision content alongside the text prompt. */
+  images?: Array<{ data: string; media_type: string }>
 }
 
 // Ensure errors emitted through SSE are serializable
@@ -182,10 +184,17 @@ export class SessionMessageService extends BaseService {
     const agentSessionId = await this.getLastAgentSessionId(session.id)
     logger.debug('Session Message stream message data:', { message: req, session_id: agentSessionId })
 
-    const claudeStream = await claudeCodeService.invoke(req.content, session, abortController, agentSessionId, {
-      effort: req.effort,
-      thinking: req.thinking
-    })
+    const claudeStream = await claudeCodeService.invoke(
+      req.content,
+      session,
+      abortController,
+      agentSessionId,
+      {
+        effort: req.effort,
+        thinking: req.thinking
+      },
+      options?.images
+    )
     const accumulator = new TextStreamAccumulator()
 
     let resolveCompletion!: (value: {
@@ -253,7 +262,8 @@ export class SessionMessageService extends BaseService {
                     session,
                     options?.displayContent ?? req.content,
                     accumulator.getText(),
-                    resolvedSessionId
+                    resolvedSessionId,
+                    options?.images
                   )
                     .then(resolveCompletion)
                     .catch((err) => {
@@ -304,7 +314,8 @@ export class SessionMessageService extends BaseService {
     session: GetAgentSessionResponse,
     userContent: string,
     assistantContent: string,
-    agentSessionId: string
+    agentSessionId: string,
+    images?: Array<{ data: string; media_type: string }>
   ): Promise<{ userMessage?: AgentSessionMessageEntity; assistantMessage?: AgentSessionMessageEntity }> {
     const now = new Date().toISOString()
     const userMsgId = randomUUID()
@@ -312,6 +323,28 @@ export class SessionMessageService extends BaseService {
     const userBlockId = randomUUID()
     const assistantBlockId = randomUUID()
     const topicId = `agent-session:${session.id}`
+
+    // Build image blocks for user message
+    const imageBlocks: Array<{
+      id: string
+      messageId: string
+      type: string
+      createdAt: string
+      status: string
+      url: string
+    }> = []
+    if (images && images.length > 0) {
+      for (const img of images) {
+        imageBlocks.push({
+          id: randomUUID(),
+          messageId: userMsgId,
+          type: 'image',
+          createdAt: now,
+          status: 'success',
+          url: `data:${img.media_type};base64,${img.data}`
+        })
+      }
+    }
 
     const userPayload = {
       message: {
@@ -321,7 +354,7 @@ export class SessionMessageService extends BaseService {
         topicId,
         createdAt: now,
         status: 'success',
-        blocks: [userBlockId]
+        blocks: [userBlockId, ...imageBlocks.map((b) => b.id)]
       },
       blocks: [
         {
@@ -331,7 +364,8 @@ export class SessionMessageService extends BaseService {
           createdAt: now,
           status: 'success',
           content: userContent
-        }
+        },
+        ...imageBlocks
       ]
     } as AgentPersistedMessage
 

@@ -1,13 +1,46 @@
 import { loggerService } from '@logger'
+import { net } from 'electron'
 import { EventEmitter } from 'events'
 
 const logger = loggerService.withContext('ChannelAdapter')
+
+/** Pre-downloaded, base64-encoded image ready for multimodal AI input. */
+export type ImageAttachment = {
+  data: string // base64-encoded image bytes
+  media_type: string // e.g. 'image/png', 'image/jpeg', 'image/gif', 'image/webp'
+}
+
+/**
+ * Download an image URL via Electron's net.fetch (respects system proxy) and
+ * return base64-encoded data. Returns null on failure.
+ */
+export async function downloadImageAsBase64(url: string): Promise<ImageAttachment | null> {
+  try {
+    const response = await net.fetch(url)
+    if (!response.ok) {
+      logger.warn('Failed to download image', { url, status: response.status })
+      return null
+    }
+    const contentType = response.headers.get('content-type') || 'image/png'
+    const mediaType = contentType.split(';')[0].trim()
+    const buffer = Buffer.from(await response.arrayBuffer())
+    return { data: buffer.toString('base64'), media_type: mediaType }
+  } catch (error) {
+    logger.warn('Failed to fetch image', {
+      url,
+      error: error instanceof Error ? error.message : String(error)
+    })
+    return null
+  }
+}
 
 export type ChannelMessageEvent = {
   chatId: string
   userId: string
   userName: string
   text: string
+  /** Pre-downloaded base64 images attached to the message. */
+  images?: ImageAttachment[]
 }
 
 export type ChannelCommandEvent = {

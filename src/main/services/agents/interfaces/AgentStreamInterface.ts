@@ -35,6 +35,7 @@ export interface AgentServiceInterface {
     session: GetAgentSessionResponse,
     abortController: AbortController,
     lastAgentSessionId?: string,
-    thinkingOptions?: AgentThinkingOptions
+    thinkingOptions?: AgentThinkingOptions,
+    images?: Array<{ data: string; media_type: string }>
   ): Promise<AgentStream>
 }

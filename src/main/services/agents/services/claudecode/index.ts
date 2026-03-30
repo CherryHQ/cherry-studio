@@ -9,9 +9,11 @@ import type {
   McpHttpServerConfig,
   Options,
   SDKMessage,
-  SdkPluginConfig
+  SdkPluginConfig,
+  SDKUserMessage
 } from '@anthropic-ai/claude-agent-sdk'
 import { query } from '@anthropic-ai/claude-agent-sdk'
+import type { Base64ImageSource, ContentBlockParam } from '@anthropic-ai/sdk/resources/messages/messages'
 import { loggerService } from '@logger'
 import { config as apiConfigService } from '@main/apiServer/config'
 import { validateModelId } from '@main/apiServer/utils'
@@ -61,15 +63,7 @@ const getLanguageInstruction = () => {
   `
 }
 
-type UserInputMessage = {
-  type: 'user'
-  parent_tool_use_id: string | null
-  session_id: string
-  message: {
-    role: 'user'
-    content: string
-  }
-}
+type UserInputMessage = SDKUserMessage
 
 class ClaudeCodeStream extends EventEmitter implements AgentStream {
   declare emit: (event: 'data', data: AgentStreamEvent) => boolean
@@ -95,7 +89,8 @@ class ClaudeCodeService implements AgentServiceInterface {
     session: GetAgentSessionResponse,
     abortController: AbortController,
     lastAgentSessionId?: string,
-    thinkingOptions?: AgentThinkingOptions
+    thinkingOptions?: AgentThinkingOptions,
+    images?: Array<{ data: string; media_type: string }>
   ): Promise<AgentStream> {
     const aiStream = new ClaudeCodeStream()
 
@@ -341,6 +336,7 @@ class ClaudeCodeService implements AgentServiceInterface {
       abortController,
       cwd,
       env,
+      // model: modelInfo.modelId,
       pathToClaudeCodeExecutable: this.claudeExecutablePath,
       stderr: (chunk: string) => {
         logger.warn('claude stderr', { chunk })
@@ -382,8 +378,8 @@ class ClaudeCodeService implements AgentServiceInterface {
       options.additionalDirectories = session.accessible_paths.slice(1)
     }
 
-    // Build MCP server list from session config + Soul Mode claw server
     if (session.mcps && session.mcps.length > 0) {
+      // mcp configs
       const mcpList: Record<string, McpHttpServerConfig> = {}
       for (const mcpId of session.mcps) {
         mcpList[mcpId] = {
@@ -438,7 +434,8 @@ class ClaudeCodeService implements AgentServiceInterface {
 
     const { stream: userInputStream, close: closeUserStream } = this.createUserMessageStream(
       prompt,
-      abortController.signal
+      abortController.signal,
+      images
     )
 
     // Start async processing on the next tick so listeners can subscribe first
@@ -465,7 +462,11 @@ class ClaudeCodeService implements AgentServiceInterface {
     return aiStream
   }
 
-  private createUserMessageStream(initialPrompt: string, abortSignal: AbortSignal) {
+  private createUserMessageStream(
+    initialPrompt: string,
+    abortSignal: AbortSignal,
+    images?: Array<{ data: string; media_type: string }>
+  ) {
     const queue: Array<UserInputMessage | null> = []
     const waiters: Array<(value: UserInputMessage | null) => void> = []
     let closed = false
@@ -535,13 +536,15 @@ class ClaudeCodeService implements AgentServiceInterface {
       }
     })()
 
+    const content = this.buildMessageContent(initialPrompt, images)
+
     enqueue({
       type: 'user',
       parent_tool_use_id: null,
       session_id: '',
       message: {
         role: 'user',
-        content: initialPrompt
+        content
       }
     })
 
@@ -550,6 +553,30 @@ class ClaudeCodeService implements AgentServiceInterface {
       enqueue,
       close
     }
+  }
+
+  private buildMessageContent(
+    prompt: string,
+    images?: Array<{ data: string; media_type: string }>
+  ): string | ContentBlockParam[] {
+    if (!images || images.length === 0) {
+      return prompt
+    }
+
+    const blocks: ContentBlockParam[] = [{ type: 'text', text: prompt }]
+
+    for (const img of images) {
+      blocks.push({
+        type: 'image',
+        source: {
+          type: 'base64',
+          media_type: img.media_type as Base64ImageSource['media_type'],
+          data: img.data
+        }
+      })
+    }
+
+    return blocks
   }
 
   /**
@@ -575,7 +602,7 @@ class ClaudeCodeService implements AgentServiceInterface {
 
         jsonOutput.push(message)
 
-        // Handle init message - capture SDK session_id and merge slash_commands
+        // Handle init message - merge builtin and SDK slash_commands
         if (message.type === 'system' && message.subtype === 'init') {
           if (message.session_id) {
             stream.sdkSessionId = message.session_id

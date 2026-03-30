@@ -2113,18 +2113,39 @@ export type ChannelStreamController = {
  * Dispatches an IM channel user message to Redux and persists to DB.
  * Call this BEFORE setupChannelStream so the user message appears first.
  */
-export const addChannelUserMessage = (dispatch: AppDispatch, topicId: string, agentId: string, text: string) => {
+export const addChannelUserMessage = (
+  dispatch: AppDispatch,
+  topicId: string,
+  agentId: string,
+  text: string,
+  images?: Array<{ data: string; media_type: string }>
+) => {
   const now = new Date().toISOString()
   const userMsgId = uuid()
   const blockId = uuid()
 
-  const userBlock: MessageBlock = {
-    id: blockId,
-    messageId: userMsgId,
-    type: MessageBlockType.MAIN_TEXT,
-    content: text,
-    status: MessageBlockStatus.SUCCESS,
-    createdAt: now
+  const allBlocks: MessageBlock[] = [
+    {
+      id: blockId,
+      messageId: userMsgId,
+      type: MessageBlockType.MAIN_TEXT,
+      content: text,
+      status: MessageBlockStatus.SUCCESS,
+      createdAt: now
+    }
+  ]
+
+  if (images && images.length > 0) {
+    for (const img of images) {
+      allBlocks.push({
+        id: uuid(),
+        messageId: userMsgId,
+        type: MessageBlockType.IMAGE,
+        url: `data:${img.media_type};base64,${img.data}`,
+        status: MessageBlockStatus.SUCCESS,
+        createdAt: now
+      } as MessageBlock)
+    }
   }
 
   const userMessage: Message = {
@@ -2134,13 +2155,15 @@ export const addChannelUserMessage = (dispatch: AppDispatch, topicId: string, ag
     topicId,
     createdAt: now,
     status: UserMessageStatus.SUCCESS,
-    blocks: [blockId]
+    blocks: allBlocks.map((b) => b.id)
   }
 
-  dispatch(upsertOneBlock(userBlock))
+  for (const block of allBlocks) {
+    dispatch(upsertOneBlock(block))
+  }
   dispatch(newMessagesActions.addMessage({ topicId, message: userMessage }))
 
-  dbService.appendMessage(topicId, userMessage, [userBlock]).catch((err) => {
+  dbService.appendMessage(topicId, userMessage, allBlocks).catch((err) => {
     logger.error('Failed to persist channel user message', err as Error)
   })
 }

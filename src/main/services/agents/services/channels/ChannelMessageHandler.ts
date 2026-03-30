@@ -5,7 +5,7 @@ import { agentService } from '../AgentService'
 import { sanitizeChannelOutput, wrapExternalContent } from '../security'
 import { sessionMessageService } from '../SessionMessageService'
 import { sessionService } from '../SessionService'
-import type { ChannelAdapter, ChannelCommandEvent, ChannelMessageEvent } from './ChannelAdapter'
+import type { ChannelAdapter, ChannelCommandEvent, ChannelMessageEvent, ImageAttachment } from './ChannelAdapter'
 import { sessionStreamBus } from './SessionStreamBus'
 import { broadcastSessionChanged } from './sessionStreamIpc'
 
@@ -15,10 +15,34 @@ const MAX_MESSAGE_LENGTH = 4096
 const DRAFT_THROTTLE_MS = 500
 const TYPING_INTERVAL_MS = 4000
 
+/**
+ * How long to wait for additional messages before flushing a batch.
+ * IM users (especially on WeChat) often send multiple short messages in rapid
+ * succession. Debouncing prevents each fragment from triggering a separate
+ * agent round-trip and avoids concurrent stream interleaving.
+ */
+const MESSAGE_BATCH_DELAY_MS = 5500
+
+type BatchResolver = {
+  resolve: () => void
+  reject: (err: unknown) => void
+}
+
+type PendingBatch = {
+  adapter: ChannelAdapter
+  messages: ChannelMessageEvent[]
+  timer: ReturnType<typeof setTimeout>
+  resolvers: BatchResolver[]
+}
+
 export class ChannelMessageHandler {
   private static instance: ChannelMessageHandler | null = null
   private readonly sessionTracker = new Map<string, string>() // `${agentId}:${channelId}:${chatId}` -> sessionId
   private readonly pendingResolutions = new Map<string, Promise<GetAgentSessionResponse | null>>()
+  /** Per-chat debounce buffer — accumulates rapid messages before flushing */
+  private readonly pendingBatches = new Map<string, PendingBatch>()
+  /** Per-chat serial queue — ensures only one stream runs at a time per chat */
+  private readonly chatQueues = new Map<string, Promise<void>>()
 
   static getInstance(): ChannelMessageHandler {
     if (!ChannelMessageHandler.instance) {
@@ -27,7 +51,85 @@ export class ChannelMessageHandler {
     return ChannelMessageHandler.instance
   }
 
-  async handleIncoming(adapter: ChannelAdapter, message: ChannelMessageEvent): Promise<void> {
+  handleIncoming(adapter: ChannelAdapter, message: ChannelMessageEvent): Promise<void> {
+    const batchKey = `${adapter.agentId}:${adapter.channelId}:${message.chatId}`
+
+    return new Promise<void>((resolve, reject) => {
+      const existing = this.pendingBatches.get(batchKey)
+      if (existing) {
+        // Append to existing batch and reset the debounce timer
+        existing.messages.push(message)
+        existing.resolvers.push({ resolve, reject })
+        clearTimeout(existing.timer)
+        existing.timer = setTimeout(() => this.flushBatch(batchKey), MESSAGE_BATCH_DELAY_MS)
+        logger.debug('Message appended to pending batch', {
+          batchKey,
+          batchSize: existing.messages.length
+        })
+        return
+      }
+
+      // Start a new batch
+      const batch: PendingBatch = {
+        adapter,
+        messages: [message],
+        timer: setTimeout(() => this.flushBatch(batchKey), MESSAGE_BATCH_DELAY_MS),
+        resolvers: [{ resolve, reject }]
+      }
+      this.pendingBatches.set(batchKey, batch)
+    })
+  }
+
+  private flushBatch(batchKey: string): void {
+    const batch = this.pendingBatches.get(batchKey)
+    if (!batch) return
+    this.pendingBatches.delete(batchKey)
+
+    const merged = this.mergeMessages(batch.messages)
+    const { resolvers } = batch
+
+    if (batch.messages.length > 1) {
+      logger.info('Flushing merged message batch', {
+        batchKey,
+        messageCount: batch.messages.length
+      })
+    }
+
+    // Serialize with any in-flight stream to avoid interleaving
+    const prev = this.chatQueues.get(batchKey) ?? Promise.resolve()
+    const current = prev
+      .then(() => this.processIncoming(batch.adapter, merged))
+      .then(
+        () => resolvers.forEach((r) => r.resolve()),
+        (err) => resolvers.forEach((r) => r.reject(err))
+      )
+    // Swallow errors so the queue chain never breaks
+    this.chatQueues.set(
+      batchKey,
+      current.catch(() => {})
+    )
+  }
+
+  private mergeMessages(messages: ChannelMessageEvent[]): ChannelMessageEvent {
+    if (messages.length === 1) return messages[0]
+
+    const first = messages[0]
+    const mergedText = messages
+      .map((m) => m.text)
+      .filter(Boolean)
+      .join('\n')
+    const mergedImages = messages.flatMap((m) => m.images ?? [])
+
+    return {
+      chatId: first.chatId,
+      userId: first.userId,
+      userName: first.userName,
+      text: mergedText,
+      ...(mergedImages.length > 0 ? { images: mergedImages } : {})
+    }
+  }
+
+  private async processIncoming(adapter: ChannelAdapter, message: ChannelMessageEvent): Promise<void> {
     const { agentId } = adapter
 
     try {
@@ -59,7 +161,8 @@ export class ChannelMessageHandler {
           chatId: message.chatId,
           userId: message.userId,
           userName: message.userName,
-          text: message.text
+          text: message.text,
+          images: message.images
         }
       })
 
@@ -79,7 +182,8 @@ export class ChannelMessageHandler {
           securedContent,
           abortController,
           (text) => adapter.sendMessageDraft(message.chatId, draftId, text).catch(() => {}),
-          message.text
+          message.text,
+          message.images
         )
 
         if (responseText) {
@@ -107,7 +211,19 @@ export class ChannelMessageHandler {
     try {
       switch (command.command) {
         case 'new': {
-          const newSession = await sessionService.createSession(agentId, {})
+          const agent = await agentService.getAgent(agentId)
+          const newSession = await sessionService.createSession(agentId, {
+            ...(agent?.configuration
+              ? {
+                  configuration: {
+                    ...agent.configuration,
+                    source_channel_id: adapter.channelId,
+                    source_channel_type: adapter.channelType,
+                    source_chat_id: command.chatId
+                  }
+                }
+              : {})
+          })
           if (newSession) {
             const trackerKey = `${agentId}:${adapter.channelId}:${command.chatId}`
             this.sessionTracker.set(trackerKey, newSession.id)
@@ -201,6 +317,17 @@ export class ChannelMessageHandler {
         this.sessionTracker.delete(key)
       }
     }
+    for (const [key, batch] of this.pendingBatches.entries()) {
+      if (key.startsWith(`${agentId}:`)) {
+        clearTimeout(batch.timer)
+        this.pendingBatches.delete(key)
+      }
+    }
+    for (const key of this.chatQueues.keys()) {
+      if (key.startsWith(`${agentId}:`)) {
+        this.chatQueues.delete(key)
+      }
+    }
   }
 
   private async resolveSession(
@@ -281,7 +408,8 @@ export class ChannelMessageHandler {
     content: string,
     abortController: AbortController,
     onDraft?: (text: string) => void,
-    displayContent?: string
+    displayContent?: string,
+    images?: ImageAttachment[]
   ): Promise<string> {
     // If renderer is subscribed, it handles persistence via the same BlockManager
     // pipeline as normal agent messages. Otherwise, fall back to persistHeadlessExchange.
@@ -290,7 +418,7 @@ export class ChannelMessageHandler {
       session,
       { content },
       abortController,
-      { persist: !rendererIsWatching, displayContent }
+      { persist: !rendererIsWatching, displayContent, images }
     )
 
     const reader = stream.getReader()

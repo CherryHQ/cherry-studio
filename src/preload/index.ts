@@ -551,7 +551,13 @@ const api = {
         type: string
         chunk?: any
         error?: any
-        userMessage?: { chatId: string; userId: string; userName: string; text: string }
+        userMessage?: {
+          chatId: string
+          userId: string
+          userName: string
+          text: string
+          images?: Array<{ data: string; media_type: string }>
+        }
       }) => void
     ): (() => void) => {
       const listener = (
@@ -562,7 +568,13 @@ const api = {
           type: string
           chunk?: any
           error?: any
-          userMessage?: { chatId: string; userId: string; userName: string; text: string }
+          userMessage?: {
+            chatId: string
+            userId: string
+            userName: string
+            text: string
+            images?: Array<{ data: string; media_type: string }>
+          }
         }
       ) => {
         callback(chunk)
