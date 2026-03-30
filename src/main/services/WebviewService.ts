@@ -1,3 +1,4 @@
+import { loggerService } from '@logger'
 import { t } from '@main/utils/locales'
 import { IpcChannel } from '@shared/IpcChannel'
 import { app, dialog, session, shell, webContents } from 'electron'
@@ -5,6 +6,8 @@ import { promises as fs } from 'fs'
 
 import { configManager } from './ConfigManager'
 import { isSafeExternalUrl } from './security'
+
+const logger = loggerService.withContext('WebviewService')
 
 /**
  * init the useragent of the webview session
@@ -39,6 +42,8 @@ export function setOpenLinkExternal(webviewId: number, isExternal: boolean) {
     if (isExternal) {
       if (isSafeExternalUrl(url)) {
         void shell.openExternal(url)
+      } else {
+        logger.warn(`Blocked shell.openExternal for untrusted URL scheme: ${url}`)
       }
       return { action: 'deny' }
     } else {

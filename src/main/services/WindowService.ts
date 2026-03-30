@@ -315,10 +315,14 @@ export class WindowService {
 
       if (url.includes('http://file/')) {
         const fileName = url.replace('http://file/', '')
+        if (!fileName) {
+          logger.warn('Blocked empty file name in http://file/ URL')
+          return { action: 'deny' }
+        }
         const storageDir = getFilesDir()
         const filePath = path.resolve(storageDir, fileName)
         // Prevent path traversal: ensure resolved path is within storageDir
-        if (!filePath.startsWith(path.resolve(storageDir) + path.sep) && filePath !== path.resolve(storageDir)) {
+        if (!filePath.startsWith(path.resolve(storageDir) + path.sep)) {
           logger.warn(`Blocked path traversal attempt: ${fileName}`)
         } else {
           shell.openPath(filePath).catch((err) => logger.error('Failed to open file:', err))
