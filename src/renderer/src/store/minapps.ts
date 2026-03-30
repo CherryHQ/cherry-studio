@@ -46,10 +46,14 @@ const minAppsSlice = createSlice({
     },
     setPinnedMinApps: (state, action: PayloadAction<MinAppType[]>) => {
       state.pinned = action.payload.map((app) => ({ ...app, logo: undefined }))
+    },
+    // Direct removal by ID — bypasses preservedHidden logic in the hook
+    removePinnedMinapp: (state, action: PayloadAction<string>) => {
+      state.pinned = state.pinned.filter((app) => app.id !== action.payload)
     }
   }
 })
 
-export const { setMinApps, addMinApp, setDisabledMinApps, setPinnedMinApps } = minAppsSlice.actions
+export const { setMinApps, addMinApp, setDisabledMinApps, setPinnedMinApps, removePinnedMinapp } = minAppsSlice.actions
 
 export default minAppsSlice.reducer

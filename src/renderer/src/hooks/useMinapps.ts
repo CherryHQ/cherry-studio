@@ -1,7 +1,7 @@
 import { allMinApps } from '@renderer/config/minapps'
 import type { RootState } from '@renderer/store'
 import { useAppDispatch, useAppSelector } from '@renderer/store'
-import { setDisabledMinApps, setMinApps, setPinnedMinApps } from '@renderer/store/minapps'
+import { setDisabledMinApps, setMinApps, setPinnedMinApps, removePinnedMinapp as removePinnedMinappAction } from '@renderer/store/minapps'
 import { setDetectedRegion } from '@renderer/store/runtime'
 import type { MinAppRegion, MinAppType } from '@renderer/types'
 import { useCallback, useEffect, useMemo, useRef } from 'react'
@@ -184,12 +184,30 @@ export const useMinapps = () => {
     [dispatch, pinned, effectiveRegion, getHiddenApps]
   )
 
+  // Direct removal — bypasses preservedHidden so user can remove region-hidden pinned apps
+  const removePinnedMinapp = useCallback(
+    (appId: string) => {
+      dispatch(removePinnedMinappAction(appId))
+    },
+    [dispatch]
+  )
+
+  // Direct set — bypasses preservedHidden for bulk updates (e.g. disabling pinned apps)
+  const setPinnedMinappsDirect = useCallback(
+    (apps: MinAppType[]) => {
+      dispatch(setPinnedMinApps(apps))
+    },
+    [dispatch]
+  )
+
   return {
     minapps,
     disabled: disabledApps,
     pinned: pinnedApps,
     updateMinapps,
     updateDisabledMinapps,
-    updatePinnedMinapps
+    updatePinnedMinapps,
+    removePinnedMinapp,
+    setPinnedMinappsDirect
   }
 }
