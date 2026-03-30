@@ -1,4 +1,5 @@
 // src/main/services/agents/services/claudecode/index.ts
+import { fork } from 'node:child_process'
 import { EventEmitter } from 'node:events'
 import { createRequire } from 'node:module'
 import path from 'node:path'
@@ -9,7 +10,8 @@ import type {
   McpHttpServerConfig,
   Options,
   SDKMessage,
-  SdkPluginConfig
+  SdkPluginConfig,
+  SpawnedProcess
 } from '@anthropic-ai/claude-agent-sdk'
 import { query } from '@anthropic-ai/claude-agent-sdk'
 import { loggerService } from '@logger'
@@ -320,6 +322,20 @@ class ClaudeCodeService implements AgentServiceInterface {
       stderr: (chunk: string) => {
         logger.warn('claude stderr', { chunk })
         errorChunks.push(chunk)
+      },
+      spawnClaudeCodeProcess: (spawnOptions) => {
+        const child = fork(spawnOptions.args[0], spawnOptions.args.slice(1), {
+          cwd: spawnOptions.cwd,
+          env: spawnOptions.env as NodeJS.ProcessEnv,
+          stdio: ['pipe', 'pipe', 'pipe', 'ipc'],
+          signal: spawnOptions.signal
+        })
+        child.stderr?.on('data', (data: Buffer) => {
+          const text = data.toString()
+          logger.warn('claude stderr', { chunk: text })
+          errorChunks.push(text)
+        })
+        return child as unknown as SpawnedProcess
       },
       systemPrompt: session.instructions
         ? {
