@@ -1,12 +1,12 @@
 import * as Lark from '@larksuiteoapi/node-sdk'
 import { loggerService } from '@logger'
+import { windowService } from '@main/services/WindowService'
 import { IpcChannel } from '@shared/IpcChannel'
 import type { CherryClawChannel, FeishuDomain } from '@types'
 import { net } from 'electron'
 
-import { windowService } from '../../../../WindowService'
-import { ChannelAdapter, type ChannelAdapterConfig, type SendMessageOptions } from '../ChannelAdapter'
-import { registerAdapterFactory } from '../ChannelManager'
+import { ChannelAdapter, type ChannelAdapterConfig, type SendMessageOptions } from '../../ChannelAdapter'
+import { registerAdapterFactory } from '../../ChannelManager'
 import { registrationBegin, registrationPoll } from './FeishuAppRegistration'
 
 const logger = loggerService.withContext('FeishuAdapter')

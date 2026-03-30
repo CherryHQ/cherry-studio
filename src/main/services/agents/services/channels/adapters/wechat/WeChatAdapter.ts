@@ -6,14 +6,14 @@ import { parseDataUrl } from '@shared/utils'
 import type { CherryClawChannel } from '@types'
 import { app } from 'electron'
 
-import { windowService } from '../../../../WindowService'
+import { windowService } from '../../../../../WindowService'
 import {
   ChannelAdapter,
   type ChannelAdapterConfig,
   type ImageAttachment,
   type SendMessageOptions
-} from '../ChannelAdapter'
-import { registerAdapterFactory } from '../ChannelManager'
+} from '../../ChannelAdapter'
+import { registerAdapterFactory } from '../../ChannelManager'
 import { type IncomingMessage, WeixinBot } from './WeChatProtocol'
 
 const logger = loggerService.withContext('WeChatAdapter')

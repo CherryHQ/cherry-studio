@@ -3,8 +3,8 @@ import type { CherryClawChannel } from '@types'
 import { net } from 'electron'
 import WebSocket from 'ws'
 
-import { ChannelAdapter, type ChannelAdapterConfig, type SendMessageOptions } from '../ChannelAdapter'
-import { registerAdapterFactory } from '../ChannelManager'
+import { ChannelAdapter, type ChannelAdapterConfig, type SendMessageOptions } from '../../ChannelAdapter'
+import { registerAdapterFactory } from '../../ChannelManager'
 
 const logger = loggerService.withContext('QQAdapter')
 

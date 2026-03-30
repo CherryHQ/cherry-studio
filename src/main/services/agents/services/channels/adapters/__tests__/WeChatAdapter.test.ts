@@ -44,7 +44,7 @@ vi.mock('../WeChatProtocol', () => ({
 }))
 
 // Import the module to trigger self-registration side effect
-import '../WeChatAdapter'
+import '../wechat/WeChatAdapter'
 
 import { registerAdapterFactory } from '../../ChannelManager'
 
