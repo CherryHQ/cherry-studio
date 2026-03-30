@@ -568,15 +568,14 @@ export class NodeProxyController {
   }
 }
 
-const bootstrapNodeProxyController = new NodeProxyController()
-
 export const applyNodeProxyFromEnvironment = (env: NodeJS.ProcessEnv = process.env): boolean => {
   const proxyRules = env[CHERRY_NODE_PROXY_RULES_ENV]
   if (!proxyRules) {
     return false
   }
 
-  bootstrapNodeProxyController.configure({
+  const controller = new NodeProxyController()
+  controller.configure({
     proxyRules,
     proxyBypassRules: env[CHERRY_NODE_PROXY_BYPASS_RULES_ENV]
   })

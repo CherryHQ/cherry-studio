@@ -17,73 +17,53 @@ const visualizerPlugin = (type: 'renderer' | 'main') => {
 
 const isDev = process.env.NODE_ENV === 'development'
 const isProd = process.env.NODE_ENV === 'production'
-const externalDependencies = ['bufferutil', 'utf-8-validate', 'electron', ...Object.keys(pkg.dependencies)]
-const mainAlias = {
-  '@main': resolve('src/main'),
-  '@types': resolve('src/renderer/src/types'),
-  '@shared': resolve('packages/shared'),
-  '@logger': resolve('src/main/services/LoggerService'),
-  '@mcp-trace/trace-core': resolve('packages/mcp-trace/trace-core'),
-  '@mcp-trace/trace-node': resolve('packages/mcp-trace/trace-node')
-}
 
 const buildProxyBootstrapPlugin = (): Plugin => {
-  let isBuildingProxyBootstrap = false
-  let shouldRebuildProxyBootstrap = false
-
-  const buildProxyBootstrap = async () => {
-    if (isBuildingProxyBootstrap) {
-      shouldRebuildProxyBootstrap = true
-      return
-    }
-
-    isBuildingProxyBootstrap = true
-
-    try {
-      do {
-        shouldRebuildProxyBootstrap = false
-        await viteBuild({
-          configFile: false,
-          publicDir: false,
-          resolve: {
-            mainFields: ['module', 'jsnext:main', 'jsnext'],
-            conditions: ['node'],
-            alias: mainAlias
-          },
-          build: {
-            outDir: resolve(__dirname, 'out/proxy'),
-            target: 'node22',
-            minify: false,
-            sourcemap: isDev,
-            reportCompressedSize: false,
-            copyPublicDir: false,
-            lib: {
-              entry: resolve(__dirname, 'src/main/services/proxy/bootstrap.ts'),
-              formats: ['cjs'],
-              fileName: () => 'index.js'
-            },
-            rollupOptions: {
-              external: [
-                'electron',
-                /^electron\/.+/,
-                ...builtinModules.flatMap((moduleName) => [moduleName, `node:${moduleName}`]),
-                ...Object.keys(pkg.dependencies)
-              ]
-            }
-          },
-          esbuild: isProd ? { legalComments: 'none' } : {}
-        })
-      } while (shouldRebuildProxyBootstrap)
-    } finally {
-      isBuildingProxyBootstrap = false
-    }
-  }
-
   return {
     name: 'cherry-build-proxy-bootstrap',
     apply: 'build',
-    async writeBundle() {
-      await buildProxyBootstrap()
+    async closeBundle() {
+      if (isDev) return
+
+      const mainAlias = {
+        '@main': resolve('src/main'),
+        '@types': resolve('src/renderer/src/types'),
+        '@shared': resolve('packages/shared'),
+        '@logger': resolve('src/main/services/LoggerService'),
+        '@mcp-trace/trace-core': resolve('packages/mcp-trace/trace-core'),
+        '@mcp-trace/trace-node': resolve('packages/mcp-trace/trace-node')
+      }
+
+      await viteBuild({
+        configFile: false,
+        publicDir: false,
+        resolve: {
+          mainFields: ['module', 'jsnext:main', 'jsnext'],
+          conditions: ['node'],
+          alias: mainAlias
+        },
+        build: {
+          outDir: resolve(__dirname, 'out/proxy'),
+          target: 'node22',
+          minify: false,
+          reportCompressedSize: false,
+          copyPublicDir: false,
+          lib: {
+            entry: resolve(__dirname, 'src/main/services/proxy/bootstrap.ts'),
+            formats: ['cjs'],
+            fileName: () => 'index.js'
+          },
+          rollupOptions: {
+            external: [
+              'electron',
+              /^electron\/.+/,
+              ...builtinModules.flatMap((moduleName) => [moduleName, `node:${moduleName}`]),
+              ...Object.keys(pkg.dependencies)
+            ]
+          }
+        },
+        esbuild: { legalComments: 'none' }
+      })
     }
   }
 }
@@ -92,11 +72,18 @@ export default defineConfig({
   main: {
     plugins: [...visualizerPlugin('main'), buildProxyBootstrapPlugin()],
     resolve: {
-      alias: mainAlias
+      alias: {
+        '@main': resolve('src/main'),
+        '@types': resolve('src/renderer/src/types'),
+        '@shared': resolve('packages/shared'),
+        '@logger': resolve('src/main/services/LoggerService'),
+        '@mcp-trace/trace-core': resolve('packages/mcp-trace/trace-core'),
+        '@mcp-trace/trace-node': resolve('packages/mcp-trace/trace-node')
+      }
     },
     build: {
       rollupOptions: {
-        external: externalDependencies,
+        external: ['bufferutil', 'utf-8-validate', 'electron', ...Object.keys(pkg.dependencies)],
         output: {
           manualChunks: undefined, // 彻底禁用代码分割 - 返回 null 强制单文件打包
           inlineDynamicImports: true // 内联所有动态导入，这是关键配置
