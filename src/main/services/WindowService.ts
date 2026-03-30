@@ -82,7 +82,7 @@ export class WindowService {
         ? {
             titleBarStyle: 'hidden',
             titleBarOverlay: nativeTheme.shouldUseDarkColors ? titleBarOverlayDark : titleBarOverlayLight,
-            trafficLightPosition: { x: 12, y: 12 }
+            trafficLightPosition: { x: 13, y: 13 }
           }
         : {
             // On Linux, allow using system title bar if setting is enabled

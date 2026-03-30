@@ -350,7 +350,7 @@ export class CdpBrowserController {
         ? {
             titleBarStyle: 'hidden',
             titleBarOverlay: nativeTheme.shouldUseDarkColors ? titleBarOverlayDark : titleBarOverlayLight,
-            trafficLightPosition: { x: 12, y: 12 }
+            trafficLightPosition: { x: 13, y: 13 }
           }
         : {
             frame: false // Frameless window for Windows and Linux
