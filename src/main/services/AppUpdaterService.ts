@@ -64,13 +64,6 @@ export class AppUpdaterService extends BaseService {
   private cancellationToken: CancellationToken = new CancellationToken()
   private updateCheckResult: UpdateCheckResult | null = null
 
-  // Event handler references for cleanup in onStop()
-  private onErrorHandler: ((error: Error) => void) | null = null
-  private onUpdateAvailableHandler: ((releaseInfo: UpdateInfo) => void) | null = null
-  private onUpdateNotAvailableHandler: (() => void) | null = null
-  private onDownloadProgressHandler: ((progress: ProgressInfo) => void) | null = null
-  private onUpdateDownloadedHandler: ((releaseInfo: UpdateInfo) => void) | null = null
-
   protected async onInit(): Promise<void> {
     autoUpdater.logger = logger as Logger
     autoUpdater.forceDevUpdateConfig = !app.isPackaged
@@ -84,41 +77,7 @@ export class AppUpdaterService extends BaseService {
       ...getCommonHeaders()
     }
 
-    this.onErrorHandler = (error) => {
-      logger.error('update error', error)
-      application.get('WindowService').getMainWindow()?.webContents.send(IpcChannel.UpdateError, error)
-    }
-    autoUpdater.on('error', this.onErrorHandler)
-
-    this.onUpdateAvailableHandler = (releaseInfo: UpdateInfo) => {
-      logger.info('update available', releaseInfo)
-      const processedReleaseInfo = this.processReleaseInfo(releaseInfo)
-      application
-        .get('WindowService')
-        .getMainWindow()
-        ?.webContents.send(IpcChannel.UpdateAvailable, processedReleaseInfo)
-    }
-    autoUpdater.on('update-available', this.onUpdateAvailableHandler)
-
-    this.onUpdateNotAvailableHandler = () => {
-      application.get('WindowService').getMainWindow()?.webContents.send(IpcChannel.UpdateNotAvailable)
-    }
-    autoUpdater.on('update-not-available', this.onUpdateNotAvailableHandler)
-
-    this.onDownloadProgressHandler = (progress) => {
-      application.get('WindowService').getMainWindow()?.webContents.send(IpcChannel.DownloadProgress, progress)
-    }
-    autoUpdater.on('download-progress', this.onDownloadProgressHandler)
-
-    this.onUpdateDownloadedHandler = (releaseInfo: UpdateInfo) => {
-      const processedReleaseInfo = this.processReleaseInfo(releaseInfo)
-      application
-        .get('WindowService')
-        .getMainWindow()
-        ?.webContents.send(IpcChannel.UpdateDownloaded, processedReleaseInfo)
-      logger.info('update downloaded', processedReleaseInfo)
-    }
-    autoUpdater.on('update-downloaded', this.onUpdateDownloadedHandler)
+    this.registerAutoUpdaterListeners()
 
     if (isWin) {
       ;(autoUpdater as NsisUpdater).installDirectory = path.dirname(app.getPath('exe'))
@@ -133,19 +92,47 @@ export class AppUpdaterService extends BaseService {
     })
   }
 
-  protected async onStop(): Promise<void> {
-    if (this.onErrorHandler) autoUpdater.removeListener('error', this.onErrorHandler)
-    if (this.onUpdateAvailableHandler) autoUpdater.removeListener('update-available', this.onUpdateAvailableHandler)
-    if (this.onUpdateNotAvailableHandler)
-      autoUpdater.removeListener('update-not-available', this.onUpdateNotAvailableHandler)
-    if (this.onDownloadProgressHandler) autoUpdater.removeListener('download-progress', this.onDownloadProgressHandler)
-    if (this.onUpdateDownloadedHandler) autoUpdater.removeListener('update-downloaded', this.onUpdateDownloadedHandler)
+  private registerAutoUpdaterListeners(): void {
+    const onError = (error: Error) => {
+      logger.error('update error', error)
+      application.get('WindowService').getMainWindow()?.webContents.send(IpcChannel.UpdateError, error)
+    }
+    autoUpdater.on('error', onError)
+    this.registerDisposable(() => autoUpdater.removeListener('error', onError))
 
-    this.onErrorHandler = null
-    this.onUpdateAvailableHandler = null
-    this.onUpdateNotAvailableHandler = null
-    this.onDownloadProgressHandler = null
-    this.onUpdateDownloadedHandler = null
+    const onUpdateAvailable = (releaseInfo: UpdateInfo) => {
+      logger.info('update available', releaseInfo)
+      const processedReleaseInfo = this.processReleaseInfo(releaseInfo)
+      application
+        .get('WindowService')
+        .getMainWindow()
+        ?.webContents.send(IpcChannel.UpdateAvailable, processedReleaseInfo)
+    }
+    autoUpdater.on('update-available', onUpdateAvailable)
+    this.registerDisposable(() => autoUpdater.removeListener('update-available', onUpdateAvailable))
+
+    const onUpdateNotAvailable = () => {
+      application.get('WindowService').getMainWindow()?.webContents.send(IpcChannel.UpdateNotAvailable)
+    }
+    autoUpdater.on('update-not-available', onUpdateNotAvailable)
+    this.registerDisposable(() => autoUpdater.removeListener('update-not-available', onUpdateNotAvailable))
+
+    const onDownloadProgress = (progress: ProgressInfo) => {
+      application.get('WindowService').getMainWindow()?.webContents.send(IpcChannel.DownloadProgress, progress)
+    }
+    autoUpdater.on('download-progress', onDownloadProgress)
+    this.registerDisposable(() => autoUpdater.removeListener('download-progress', onDownloadProgress))
+
+    const onUpdateDownloaded = (releaseInfo: UpdateInfo) => {
+      const processedReleaseInfo = this.processReleaseInfo(releaseInfo)
+      application
+        .get('WindowService')
+        .getMainWindow()
+        ?.webContents.send(IpcChannel.UpdateDownloaded, processedReleaseInfo)
+      logger.info('update downloaded', processedReleaseInfo)
+    }
+    autoUpdater.on('update-downloaded', onUpdateDownloaded)
+    this.registerDisposable(() => autoUpdater.removeListener('update-downloaded', onUpdateDownloaded))
   }
 
   private registerIpcHandlers(): void {
@@ -250,8 +237,12 @@ export class AppUpdaterService extends BaseService {
       const channelConfig = versionConfig.channels[requestedChannel]
       const latestChannelConfig = versionConfig.channels[UpgradeChannel.LATEST]
 
+      if (!semver.gte(currentVersion, versionConfig.minCompatibleVersion)) {
+        continue
+      }
+
       // Check version compatibility and channel availability
-      if (semver.gte(currentVersion, versionConfig.minCompatibleVersion) && channelConfig !== null) {
+      if (channelConfig !== null) {
         logger.info(
           `Found compatible version: ${versionKey} (minCompatibleVersion: ${versionConfig.minCompatibleVersion}), version: ${channelConfig.version}`
         )
@@ -268,6 +259,12 @@ export class AppUpdaterService extends BaseService {
         }
 
         return { config: channelConfig, channel: requestedChannel }
+      } else if (requestedChannel !== UpgradeChannel.LATEST && latestChannelConfig !== null) {
+        // Fallback: requested channel (rc/beta) is null, but latest channel is available
+        logger.info(
+          `Requested channel ${requestedChannel} is null for ${versionKey}, falling back to latest channel: ${latestChannelConfig.version}`
+        )
+        return { config: latestChannelConfig, channel: UpgradeChannel.LATEST }
       }
     }
 

@@ -13,6 +13,7 @@ import { NodeTraceService } from '@main/services/NodeTraceService'
 import { OpenClawService } from '@main/services/OpenClawService'
 import { OvmsManager } from '@main/services/OvmsManager'
 import { PowerMonitorService } from '@main/services/PowerMonitorService'
+import { ProxyManager } from '@main/services/ProxyManager'
 import { SelectionService } from '@main/services/SelectionService'
 import { ShortcutService } from '@main/services/ShortcutService'
 import { SpanCacheService } from '@main/services/SpanCacheService'
@@ -62,6 +63,7 @@ export const services = {
   SpanCacheService,
   NodeTraceService,
   OvmsManager,
+  ProxyManager,
   TrayService,
   WebviewService,
   WindowService,

@@ -147,7 +147,7 @@ export class Application {
 
     const totalDuration = performance.now() - bootstrapStart
     logger.info(`Bootstrap complete (${totalDuration.toFixed(3)}ms)`)
-    logger.info(`\n${this.lifecycleManager.getBootstrapSummary(totalDuration, regSummary.excluded)}`)
+    logger.debug(`\n${this.lifecycleManager.getBootstrapSummary(totalDuration, regSummary.excluded)}`)
   }
 
   /**
@@ -545,6 +545,26 @@ export class Application {
    */
   public async restart<K extends keyof ServiceRegistry>(name: K): Promise<void> {
     return this.lifecycleManager.restart(name)
+  }
+
+  /**
+   * Activate a service's heavy resources.
+   * The service must implement Activatable (onActivate/onDeactivate).
+   * No cascade — activation is service-specific.
+   * @param name - Service name from ServiceRegistry
+   */
+  public async activate<K extends keyof ServiceRegistry>(name: K): Promise<void> {
+    return this.lifecycleManager.activate(name)
+  }
+
+  /**
+   * Deactivate a service, releasing heavy resources.
+   * The service must implement Activatable.
+   * No cascade — deactivation is service-specific.
+   * @param name - Service name from ServiceRegistry
+   */
+  public async deactivate<K extends keyof ServiceRegistry>(name: K): Promise<void> {
+    return this.lifecycleManager.deactivate(name)
   }
 }
 

@@ -37,10 +37,7 @@ export function useAppInit() {
   const [language] = usePreference('app.language')
   const [windowStyle] = usePreference('ui.window_style')
   const [customCss] = usePreference('ui.custom_css')
-  const [proxyUrl] = usePreference('app.proxy.url')
-  const [proxyBypassRules] = usePreference('app.proxy.bypass_rules')
   const [autoCheckUpdate] = usePreference('app.dist.auto_update.enabled')
-  const [proxyMode] = usePreference('app.proxy.mode')
   const [enableDataCollection] = usePreference('app.privacy.data_collection.enabled')
 
   const { isLeftNavbar } = useNavbarPosition()
@@ -108,17 +105,6 @@ export function useAppInit() {
 
     return () => clearInterval(intervalId)
   }, [autoCheckUpdate, updateAppUpdateState])
-
-  useEffect(() => {
-    if (proxyMode === 'system') {
-      void window.api.setProxy('system', undefined)
-    } else if (proxyMode === 'custom') {
-      void (proxyUrl && window.api.setProxy(proxyUrl, proxyBypassRules))
-    } else {
-      // set proxy to none for direct mode
-      void window.api.setProxy('', undefined)
-    }
-  }, [proxyUrl, proxyMode, proxyBypassRules])
 
   useEffect(() => {
     const currentLanguage = language || navigator.language || defaultLanguage

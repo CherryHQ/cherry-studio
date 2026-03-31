@@ -29,7 +29,6 @@ import type {
   SupportedOcrFile
 } from '@types'
 import checkDiskSpace from 'check-disk-space'
-import type { ProxyConfig } from 'electron'
 import { BrowserWindow, dialog, ipcMain, session, shell, systemPreferences, webContents } from 'electron'
 import fontList from 'font-list'
 
@@ -51,7 +50,6 @@ import NotificationService from './services/NotificationService'
 import * as NutstoreService from './services/NutstoreService'
 import ObsidianVaultService from './services/ObsidianVaultService'
 import { ocrService } from './services/ocr/OcrService'
-import { proxyManager } from './services/ProxyManager'
 import { pythonService } from './services/PythonService'
 import { fileServiceManager } from './services/remotefile/FileServiceManager'
 import { searchService } from './services/SearchService'
@@ -117,21 +115,6 @@ export async function registerIpc(mainWindow: BrowserWindow, app: Electron.App) 
     isPortable: isWin && 'PORTABLE_EXECUTABLE_DIR' in process.env,
     installPath: path.dirname(app.getPath('exe'))
   }))
-
-  ipcMain.handle(IpcChannel.App_Proxy, async (_, proxy: string, bypassRules?: string) => {
-    let proxyConfig: ProxyConfig
-
-    if (proxy === 'system') {
-      // system proxy will use the system filter by themselves
-      proxyConfig = { mode: 'system' }
-    } else if (proxy) {
-      proxyConfig = { mode: 'fixed_servers', proxyRules: proxy, proxyBypassRules: bypassRules }
-    } else {
-      proxyConfig = { mode: 'direct' }
-    }
-
-    await proxyManager.configureProxy(proxyConfig)
-  })
 
   ipcMain.handle(IpcChannel.App_Reload, () => mainWindow.reload())
   // Application_Quit is registered by Application.registerApplicationIpc()

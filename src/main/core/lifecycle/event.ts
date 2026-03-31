@@ -26,6 +26,22 @@ export interface Disposable {
 }
 
 /**
+ * Wrap a cleanup function as a Disposable.
+ * Bridges APIs that return () => void (e.g., PreferenceService.subscribeChange)
+ * to the Disposable interface used by BaseService.registerDisposable().
+ */
+export function toDisposable(fn: () => void): Disposable {
+  let disposed = false
+  return {
+    dispose() {
+      if (disposed) return
+      disposed = true
+      fn()
+    }
+  }
+}
+
+/**
  * Function signature for subscribing to a typed event.
  * Call with a listener to subscribe; returns a Disposable to unsubscribe.
  */

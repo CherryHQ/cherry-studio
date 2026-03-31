@@ -4,7 +4,7 @@ import { isDev, isLinux, isMac, isWin } from '@main/constant'
 import { application } from '@main/core/application'
 import { BaseService, Emitter, type Event, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import { getFilesDir } from '@main/utils/file'
-import { getWindowsBackgroundMaterial } from '@main/utils/windowUtil'
+import { getWindowsBackgroundMaterial, replaceDevtoolsFont } from '@main/utils/windowUtil'
 import { MIN_WINDOW_HEIGHT, MIN_WINDOW_WIDTH } from '@shared/config/constant'
 import { IpcChannel } from '@shared/IpcChannel'
 import { app, BrowserWindow, nativeImage, nativeTheme, screen, shell } from 'electron'
@@ -26,8 +26,8 @@ const linuxIcon = isLinux ? nativeImage.createFromPath(iconPath) : undefined
 @Injectable('WindowService')
 @ServicePhase(Phase.WhenReady)
 export class WindowService extends BaseService {
-  private readonly _onMainWindowCreated = new Emitter<BrowserWindow>()
-  public readonly onMainWindowCreated: Event<BrowserWindow> = this._onMainWindowCreated.event
+  private readonly _onMainWindowCreated: Emitter<BrowserWindow>
+  public readonly onMainWindowCreated: Event<BrowserWindow>
 
   private mainWindow: BrowserWindow | null = null
   private miniWindow: BrowserWindow | null = null
@@ -36,22 +36,28 @@ export class WindowService extends BaseService {
   //to restore the focus status when miniWindow hides
   private wasMainWindowFocused: boolean = false
   private lastRendererProcessCrashTime: number = 0
-  private activateHandler: (() => void) | null = null
+
+  constructor() {
+    super()
+    this._onMainWindowCreated = this.registerDisposable(new Emitter<BrowserWindow>())
+    this.onMainWindowCreated = this._onMainWindowCreated.event
+  }
 
   protected async onInit() {
     this.registerIpcHandlers()
     this.registerActivateHandler()
   }
 
-  protected async onStop() {
-    if (this.activateHandler) {
-      app.removeListener('activate', this.activateHandler)
-      this.activateHandler = null
+  protected async onReady() {
+    // Mac: hide dock icon before window creation when launch to tray is set.
+    // Dock icon is visible from app launch; must hide early.
+    // The ready-to-show handler's app.dock?.show() restores it for non-tray mode.
+    const isLaunchToTray = application.get('PreferenceService').get('app.tray.on_launch')
+    if (isLaunchToTray) {
+      app.dock?.hide()
     }
-  }
 
-  protected async onDestroy() {
-    this._onMainWindowCreated.dispose()
+    this.createMainWindow()
   }
 
   private checkMainWindow() {
@@ -61,7 +67,7 @@ export class WindowService extends BaseService {
   }
 
   private registerActivateHandler() {
-    this.activateHandler = () => {
+    const handler = () => {
       const mainWindow = this.getMainWindow()
       if (!mainWindow || mainWindow.isDestroyed()) {
         this.createMainWindow()
@@ -69,7 +75,8 @@ export class WindowService extends BaseService {
         this.showMainWindow()
       }
     }
-    app.on('activate', this.activateHandler)
+    app.on('activate', handler)
+    this.registerDisposable(() => app.removeListener('activate', handler))
   }
 
   private registerIpcHandlers() {
@@ -211,6 +218,7 @@ export class WindowService extends BaseService {
     this.setupWebContentsHandlers(mainWindow)
     this.setupWindowLifecycleEvents(mainWindow)
     this.setupMainWindowMonitor(mainWindow)
+    replaceDevtoolsFont(mainWindow)
     this.loadMainWindowContent(mainWindow)
   }
 

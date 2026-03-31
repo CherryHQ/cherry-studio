@@ -5,6 +5,7 @@ import { loggerService } from '@logger'
 import { DependencyResolver, type PhaseAdjustment } from './DependencyResolver'
 import { ServiceContainer } from './ServiceContainer'
 import {
+  isActivatable,
   isPausable,
   type LifecycleEvent,
   type LifecycleEventPayload,
@@ -205,6 +206,7 @@ export class LifecycleManager extends EventEmitter {
       await instance._doInit()
       const duration = performance.now() - start
       this.serviceTiming.set(serviceName, duration)
+      logger.info(`Service '${serviceName}' initialized (${duration.toFixed(3)}ms)`)
 
       this.emitLifecycleEvent(LifecycleEvents.SERVICE_READY, serviceName, LifecycleState.Ready)
     } catch (error) {
@@ -224,9 +226,11 @@ export class LifecycleManager extends EventEmitter {
 
     try {
       this.emitLifecycleEvent(LifecycleEvents.SERVICE_STOPPING, serviceName, LifecycleState.Stopping)
+      const start = performance.now()
       await instance._doStop()
+      const duration = performance.now() - start
       this.emitLifecycleEvent(LifecycleEvents.SERVICE_STOPPED, serviceName, LifecycleState.Stopped)
-      logger.debug(`Service '${serviceName}' stopped`)
+      logger.info(`Service '${serviceName}' stopped (${duration.toFixed(3)}ms)`)
     } catch (error) {
       logger.error(`Error stopping service '${serviceName}':`, error as Error)
     }
@@ -240,9 +244,11 @@ export class LifecycleManager extends EventEmitter {
     if (!instance || instance.state === LifecycleState.Destroyed) return
 
     try {
+      const start = performance.now()
       await instance._doDestroy()
+      const duration = performance.now() - start
       this.emitLifecycleEvent(LifecycleEvents.SERVICE_DESTROYED, serviceName, LifecycleState.Destroyed)
-      logger.debug(`Service '${serviceName}' destroyed`)
+      logger.info(`Service '${serviceName}' destroyed (${duration.toFixed(3)}ms)`)
     } catch (error) {
       logger.error(`Error destroying service '${serviceName}':`, error as Error)
     }
@@ -346,7 +352,8 @@ export class LifecycleManager extends EventEmitter {
         const title = `[${phase}] ${timing.serviceCount} services`
         lines.push(row(`  ${title.padEnd(30)} ${fmt(timing.duration).padStart(12)}`))
         for (const [name, ms] of services) {
-          lines.push(row(`    ${name.padEnd(28)} ${fmt(ms).padStart(12)}`))
+          const tags = this.getServiceTags(name)
+          lines.push(row(`    ${name.padEnd(26)} ${tags}  ${fmt(ms).padStart(10)}`))
         }
       } else {
         lines.push(row(`  [${phase}]`))
@@ -354,17 +361,23 @@ export class LifecycleManager extends EventEmitter {
 
       if (excludedServices && excludedServices.length > 0) {
         for (const name of excludedServices) {
-          lines.push(row(`    ${name.padEnd(28)} ${'Excluded'.padStart(12)}`))
+          lines.push(row(`    ${name.padEnd(26)} C   ${'Excluded'.padStart(10)}`))
         }
       }
     }
 
-    // Phase adjustments & exclusions
-    if (this.phaseAdjustments.length > 0 || excludedCount > 0) {
-      lines.push(sep('├', '┤'))
-      lines.push(row(`  Adjustments: ${this.phaseAdjustments.length}  |  Excluded: ${excludedCount}`))
+    // Count tags: initialized services + excluded (which are always Conditional)
+    let conditionalCount = excludedCount
+    let activatableCount = 0
+    for (const name of this.initializationOrder) {
+      const tags = this.getServiceTags(name)
+      if (tags[0] === 'C') conditionalCount++
+      if (tags[1] === 'A') activatableCount++
     }
 
+    lines.push(sep('├', '┤'))
+    lines.push(row(`  (C)onditional: ${conditionalCount}  |  (A)ctivatable: ${activatableCount}`))
+    lines.push(row(`  Adjustments: ${this.phaseAdjustments.length}  |  Excluded: ${excludedCount}`))
     lines.push(sep('└', '┘'))
     return lines.join('\n')
   }
@@ -597,9 +610,11 @@ export class LifecycleManager extends EventEmitter {
     // Re-initialize the service (calls _doInit)
     try {
       this.emitLifecycleEvent(LifecycleEvents.SERVICE_INITIALIZING, name, LifecycleState.Initializing)
+      const start = performance.now()
       await instance._doInit()
+      const duration = performance.now() - start
       this.emitLifecycleEvent(LifecycleEvents.SERVICE_READY, name, LifecycleState.Ready)
-      logger.debug(`Service '${name}' started`)
+      logger.info(`Service '${name}' started (${duration.toFixed(3)}ms)`)
     } catch (error) {
       const metadata = this.container.getMetadata(name)
       this.emitLifecycleEvent(LifecycleEvents.SERVICE_ERROR, name, LifecycleState.Stopped, error as Error)
@@ -617,9 +632,11 @@ export class LifecycleManager extends EventEmitter {
 
       try {
         this.emitLifecycleEvent(LifecycleEvents.SERVICE_INITIALIZING, depName, LifecycleState.Initializing)
+        const depStart = performance.now()
         await depInstance._doInit()
+        const depDuration = performance.now() - depStart
         this.emitLifecycleEvent(LifecycleEvents.SERVICE_READY, depName, LifecycleState.Ready)
-        logger.debug(`Service '${depName}' started (cascade)`)
+        logger.info(`Service '${depName}' started (cascade) (${depDuration.toFixed(3)}ms)`)
       } catch (error) {
         const metadata = this.container.getMetadata(depName)
         this.emitLifecycleEvent(LifecycleEvents.SERVICE_ERROR, depName, LifecycleState.Stopped, error as Error)
@@ -673,10 +690,12 @@ export class LifecycleManager extends EventEmitter {
 
     try {
       this.emitLifecycleEvent(LifecycleEvents.SERVICE_PAUSING, serviceName, LifecycleState.Pausing)
+      const start = performance.now()
       const success = await instance._doPause()
+      const duration = performance.now() - start
       if (success) {
         this.emitLifecycleEvent(LifecycleEvents.SERVICE_PAUSED, serviceName, LifecycleState.Paused)
-        logger.debug(`Service '${serviceName}' paused`)
+        logger.info(`Service '${serviceName}' paused (${duration.toFixed(3)}ms)`)
       }
     } catch (error) {
       logger.error(`Error pausing service '${serviceName}':`, error as Error)
@@ -695,14 +714,94 @@ export class LifecycleManager extends EventEmitter {
 
     try {
       this.emitLifecycleEvent(LifecycleEvents.SERVICE_RESUMING, serviceName, LifecycleState.Resuming)
+      const start = performance.now()
       const success = await instance._doResume()
+      const duration = performance.now() - start
       if (success) {
         this.emitLifecycleEvent(LifecycleEvents.SERVICE_RESUMED, serviceName, LifecycleState.Ready)
-        logger.debug(`Service '${serviceName}' resumed`)
+        logger.info(`Service '${serviceName}' resumed (${duration.toFixed(3)}ms)`)
       }
     } catch (error) {
       logger.error(`Error resuming service '${serviceName}':`, error as Error)
       this.emitLifecycleEvent(LifecycleEvents.SERVICE_ERROR, serviceName, instance.state, error as Error)
+    }
+  }
+
+  /**
+   * Build service annotation tags for bootstrap summary display.
+   * Fixed 2-char string: position 0 = C (Conditional), position 1 = A (Activatable).
+   */
+  private getServiceTags(name: string): string {
+    const metadata = this.container.getMetadata(name)
+    const instance = this.container.getInstance(name)
+    const c = metadata?.conditions?.length ? 'C' : ' '
+    const a = instance && isActivatable(instance) ? 'A' : ' '
+    return c + a
+  }
+
+  // ============================================================================
+  // Feature Activation Operations
+  // ============================================================================
+
+  /**
+   * Activate a service's heavy resources.
+   * The service must implement Activatable (onActivate/onDeactivate).
+   * No cascade — activation is service-specific.
+   * @param name - Service name to activate
+   */
+  public async activate(name: string): Promise<void> {
+    const instance = this.container.getInstance(name)
+    if (!instance) {
+      logger.warn(`Cannot activate: service '${name}' not found`)
+      return
+    }
+    if (instance.state !== LifecycleState.Ready) {
+      logger.warn(`Cannot activate: '${name}' not Ready (${instance.state})`)
+      return
+    }
+    if (!isActivatable(instance)) {
+      logger.error(`Cannot activate: '${name}' does not implement Activatable`)
+      return
+    }
+    if (instance.isActivated) return
+
+    try {
+      await instance._doActivate()
+      this.emitLifecycleEvent(LifecycleEvents.SERVICE_ACTIVATED, name, LifecycleState.Ready)
+    } catch (error) {
+      logger.error(`Error activating '${name}':`, error as Error)
+      this.emitLifecycleEvent(LifecycleEvents.SERVICE_ERROR, name, LifecycleState.Ready, error as Error)
+    }
+  }
+
+  /**
+   * Deactivate a service, releasing heavy resources.
+   * The service must implement Activatable.
+   * No cascade — deactivation is service-specific.
+   * @param name - Service name to deactivate
+   */
+  public async deactivate(name: string): Promise<void> {
+    const instance = this.container.getInstance(name)
+    if (!instance) {
+      logger.warn(`Cannot deactivate: service '${name}' not found`)
+      return
+    }
+    if (!isActivatable(instance)) {
+      logger.error(`Cannot deactivate: '${name}' does not implement Activatable`)
+      return
+    }
+    if (!instance.isActivated) return
+    if (instance.state !== LifecycleState.Ready) {
+      logger.warn(`Cannot deactivate: '${name}' not Ready (${instance.state})`)
+      return
+    }
+
+    try {
+      await instance._doDeactivate()
+      this.emitLifecycleEvent(LifecycleEvents.SERVICE_DEACTIVATED, name, LifecycleState.Ready)
+    } catch (error) {
+      logger.error(`Error deactivating '${name}':`, error as Error)
+      this.emitLifecycleEvent(LifecycleEvents.SERVICE_ERROR, name, LifecycleState.Ready, error as Error)
     }
   }
 }

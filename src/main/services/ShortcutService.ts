@@ -47,6 +47,16 @@ export class ShortcutService extends BaseService {
 
     const windowService = application.get('WindowService')
     this.registerDisposable(windowService.onMainWindowCreated((window) => this.registerShortcutsForWindow(window)))
+
+    // WORKAROUND: WindowService.onReady() creates the window before ShortcutService initializes
+    // (dependency layer ordering), so the onMainWindowCreated event fires before we subscribe.
+    // Emitter does not replay past events — check if the window already exists.
+    // TODO: resolve during ShortcutService refactoring (e.g., move shortcut registration
+    // into WindowService's window setup pipeline, or use a replay-capable event).
+    const existingWindow = windowService.getMainWindow()
+    if (existingWindow && !existingWindow.isDestroyed()) {
+      this.registerShortcutsForWindow(existingWindow)
+    }
   }
 
   protected async onStop() {

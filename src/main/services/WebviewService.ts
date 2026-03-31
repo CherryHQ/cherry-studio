@@ -74,20 +74,10 @@ const attachKeyboardHandler = (contents: Electron.WebContents) => {
 @Injectable('WebviewService')
 @ServicePhase(Phase.WhenReady)
 export class WebviewService extends BaseService {
-  private webContentsCreatedHandler: ((event: Electron.Event, contents: Electron.WebContents) => void) | null = null
-
   protected async onInit() {
     this.initSessionUserAgent()
     this.initWebviewHotkeys()
     this.registerIpcHandlers()
-  }
-
-  protected async onStop() {
-    if (this.webContentsCreatedHandler) {
-      app.removeListener('web-contents-created', this.webContentsCreatedHandler)
-      this.webContentsCreatedHandler = null
-    }
-    session.fromPartition('persist:webview').webRequest.onBeforeSendHeaders(null)
   }
 
   private registerIpcHandlers() {
@@ -139,6 +129,7 @@ export class WebviewService extends BaseService {
       }
       cb({ requestHeaders: headers })
     })
+    this.registerDisposable(() => wvSession.webRequest.onBeforeSendHeaders(null))
   }
 
   /**
@@ -150,10 +141,11 @@ export class WebviewService extends BaseService {
       attachKeyboardHandler(contents)
     })
 
-    this.webContentsCreatedHandler = (_, contents) => {
+    const handler = (_: Electron.Event, contents: Electron.WebContents) => {
       attachKeyboardHandler(contents)
     }
-    app.on('web-contents-created', this.webContentsCreatedHandler)
+    app.on('web-contents-created', handler)
+    this.registerDisposable(() => app.removeListener('web-contents-created', handler))
   }
 
   /**
