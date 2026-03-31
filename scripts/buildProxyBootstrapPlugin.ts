@@ -5,14 +5,12 @@ import { build as viteBuild, type Plugin } from 'vite'
 
 interface BuildProxyBootstrapPluginOptions {
   dependencies: string[]
-  isDev: boolean
   isProd: boolean
   rootDir: string
 }
 
 export const buildProxyBootstrapPlugin = ({
   dependencies,
-  isDev,
   isProd,
   rootDir
 }: BuildProxyBootstrapPluginOptions): Plugin => {
@@ -20,8 +18,6 @@ export const buildProxyBootstrapPlugin = ({
     name: 'cherry-build-proxy-bootstrap',
     apply: 'build',
     async closeBundle() {
-      if (isDev) return
-
       await viteBuild({
         configFile: false,
         publicDir: false,

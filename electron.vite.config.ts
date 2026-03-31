@@ -22,7 +22,6 @@ export default defineConfig({
       ...visualizerPlugin('main'),
       buildProxyBootstrapPlugin({
         dependencies: Object.keys(pkg.dependencies),
-        isDev,
         isProd,
         rootDir: __dirname
       })
