@@ -19,6 +19,8 @@ export class AssistantMigrator extends BaseMigrator {
   readonly description = 'Migrate assistant and model configuration'
   readonly order = 2
 
+  override reset(): void {}
+
   async prepare(): Promise<PrepareResult> {
     logger.info('AssistantMigrator.prepare - placeholder implementation')
 

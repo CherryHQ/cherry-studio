@@ -121,6 +121,16 @@ export class KnowledgeMigrator extends BaseMigrator {
   private seenBaseIds = new Set<string>()
   private seenItemIds = new Set<string>()
 
+  override reset(): void {
+    this.sourceCount = 0
+    this.skippedCount = 0
+    this.preparedBases = []
+    this.preparedItems = []
+    this.warnings = []
+    this.seenBaseIds = new Set<string>()
+    this.seenItemIds = new Set<string>()
+  }
+
   private getLegacyKnowledgeDbPath(baseId: string): string | null {
     const rootPath = path.resolve(getDataPath(), 'KnowledgeBase')
     const sanitizedBaseId = sanitizeFilename(baseId, '_')
@@ -349,14 +359,6 @@ export class KnowledgeMigrator extends BaseMigrator {
   }
 
   async prepare(ctx: MigrationContext): Promise<PrepareResult> {
-    this.sourceCount = 0
-    this.skippedCount = 0
-    this.preparedBases = []
-    this.preparedItems = []
-    this.warnings = []
-    this.seenBaseIds = new Set<string>()
-    this.seenItemIds = new Set<string>()
-
     try {
       const knowledgeState = ctx.sources.reduxState.getCategory<LegacyKnowledgeState>('knowledge')
 
