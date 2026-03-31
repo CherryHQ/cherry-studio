@@ -3,7 +3,7 @@ import type { LanguageCode } from 'tesseract.js'
 import * as z from 'zod'
 
 export const TesseractProcessorOptionsSchema = z.looseObject({
-  langs: z.record(z.string(), z.boolean()).optional()
+  langs: z.array(z.string()).optional()
 })
 
 export type PreparedTesseractContext = {

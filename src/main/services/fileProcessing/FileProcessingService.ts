@@ -1,10 +1,8 @@
 import { loggerService } from '@logger'
-import { application } from '@main/core/application'
 import type { FileProcessorId } from '@shared/data/preference/preferenceTypes'
 import type { FileMetadata } from '@types'
 
 import { createMarkdownConversionProcessor, createTextExtractionProcessor } from './providers/factory'
-import { syncActiveFileProcessingTask } from './runtime/status'
 import type {
   FileProcessingMarkdownTaskResult,
   FileProcessingMarkdownTaskStartResult,
@@ -46,10 +44,7 @@ export class FileProcessingService {
       fileId: file.id
     })
 
-    const task = await processor.startMarkdownConversionTask(file, resolvedConfig, signal)
-    await syncActiveFileProcessingTask(application.get('CacheService'), task.providerTaskId, task)
-
-    return task
+    return await processor.startMarkdownConversionTask(file, resolvedConfig, signal)
   }
 
   async getMarkdownConversionTaskResult(
@@ -64,10 +59,7 @@ export class FileProcessingService {
       providerTaskId: providerTaskId
     })
 
-    const result = await processor.getMarkdownConversionTaskResult(providerTaskId, signal)
-    await syncActiveFileProcessingTask(application.get('CacheService'), providerTaskId, result)
-
-    return result
+    return await processor.getMarkdownConversionTaskResult(providerTaskId, signal)
   }
 }
 

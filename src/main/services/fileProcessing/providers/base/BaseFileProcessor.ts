@@ -51,7 +51,9 @@ export abstract class BaseFileProcessor {
   }
 
   protected getFileProcessingResultsDir(providerTaskId: string): string {
-    // TODO: Move file-processing artifacts under the unified file filesystem once processor outputs are managed there.
+    // TODO(file-processing): Results currently live under the temp directory as an
+    // interim solution. Once the unified file-management design lands, migrate
+    // these artifacts into the canonical file storage tree instead of temp.
     return path.join(getTempDir(), 'file-processing', providerTaskId)
   }
 }

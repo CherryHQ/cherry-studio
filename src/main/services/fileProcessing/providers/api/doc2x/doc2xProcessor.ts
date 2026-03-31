@@ -1,5 +1,4 @@
 import fs from 'node:fs/promises'
-import path from 'node:path'
 
 import type { FileProcessorMerged } from '@shared/data/presets/file-processing'
 import type {
@@ -7,10 +6,10 @@ import type {
   FileProcessingMarkdownTaskStartResult
 } from '@shared/data/types/fileProcessing'
 import type { FileMetadata } from '@types'
-import AdmZip from 'adm-zip'
 import { net } from 'electron'
 
 import { fileProcessingTaskStore } from '../../../runtime/FileProcessingTaskStore'
+import { persistZipResult, readPersistedMarkdownPath } from '../../../utils/zip'
 import { BaseMarkdownConversionProcessor } from '../../base/BaseFileProcessor'
 import type { Doc2xTaskContext, PreparedDoc2xQueryContext, PreparedDoc2xStartContext } from './types'
 import { createUploadTask, getExportResult, getParseStatus, triggerExportTask, uploadFile } from './utils'
@@ -49,13 +48,11 @@ export class Doc2xProcessor extends BaseMarkdownConversionProcessor {
     providerTaskId: string,
     signal?: AbortSignal
   ): Promise<FileProcessingMarkdownTaskResult> {
-    const markdownPath = path.join(this.getFileProcessingResultsDir(providerTaskId), 'output.md')
-    const hasPersistedMarkdown = await fs
-      .access(markdownPath)
-      .then(() => true)
-      .catch(() => false)
+    const markdownPath = await readPersistedMarkdownPath(this.getFileProcessingResultsDir(providerTaskId)).catch(
+      () => undefined
+    )
 
-    if (hasPersistedMarkdown) {
+    if (markdownPath) {
       return {
         status: 'completed',
         progress: 100,
@@ -83,18 +80,21 @@ export class Doc2xProcessor extends BaseMarkdownConversionProcessor {
     return this.handleExportStage(providerTaskId, context)
   }
 
-  private async persistMarkdownConversionResult(providerTaskId: string, downloadUrl: string): Promise<string> {
+  private async persistMarkdownConversionResult(
+    providerTaskId: string,
+    downloadUrl: string,
+    signal?: AbortSignal
+  ): Promise<string> {
     if (!downloadUrl) {
       throw new Error('Doc2x result download URL is empty')
     }
 
     const fileProcessingResultsDir = this.getFileProcessingResultsDir(providerTaskId)
-    const zipPath = path.join(fileProcessingResultsDir, 'result.zip')
-
-    await fs.mkdir(fileProcessingResultsDir, { recursive: true })
+    signal?.throwIfAborted()
 
     const response = await net.fetch(downloadUrl.replace(/\\u0026/g, '&'), {
-      method: 'GET'
+      method: 'GET',
+      signal
     })
 
     if (!response.ok) {
@@ -103,30 +103,16 @@ export class Doc2xProcessor extends BaseMarkdownConversionProcessor {
     }
 
     const zipBuffer = Buffer.from(await response.arrayBuffer())
-    await fs.writeFile(zipPath, zipBuffer)
+    signal?.throwIfAborted()
 
     try {
-      const zip = new AdmZip(zipBuffer)
-      const entry = zip.getEntries().find((item) => !item.isDirectory && item.entryName.toLowerCase().endsWith('.md'))
-
-      if (!entry) {
-        throw new Error('Doc2x result zip does not contain a markdown file')
-      }
-
-      zip.extractAllTo(fileProcessingResultsDir, true)
-
-      const extractedMarkdownPath = path.join(fileProcessingResultsDir, entry.entryName)
-      const markdownPath = path.join(fileProcessingResultsDir, 'output.md')
-
-      if (extractedMarkdownPath !== markdownPath) {
-        await fs.rename(extractedMarkdownPath, markdownPath)
-      }
-
-      await fs.unlink(zipPath)
-
-      return markdownPath
+      return await persistZipResult({
+        zipBuffer,
+        resultsDir: fileProcessingResultsDir,
+        isMarkdownEntry: (entryName) => entryName.toLowerCase().endsWith('.md')
+      })
     } catch (error) {
-      await fs.unlink(zipPath).catch(() => undefined)
+      await fs.rm(fileProcessingResultsDir, { recursive: true, force: true }).catch(() => undefined)
       throw error
     }
   }
@@ -283,7 +269,7 @@ export class Doc2xProcessor extends BaseMarkdownConversionProcessor {
       throw new Error(`Doc2x export result completed without a download URL for uid ${providerTaskId}`)
     }
 
-    const markdownPath = await this.persistMarkdownConversionResult(providerTaskId, exportStatus.url)
+    const markdownPath = await this.persistMarkdownConversionResult(providerTaskId, exportStatus.url, context.signal)
     fileProcessingTaskStore.delete('doc2x', providerTaskId)
 
     return {

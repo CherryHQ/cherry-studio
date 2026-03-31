@@ -23,6 +23,10 @@ const TESSERACT_LANGS_DOWNLOAD_URL_CN = 'https://gitcode.com/beyondkmp/tessdata-
 
 let sharedWorker: Tesseract.Worker | null = null
 let previousLangsKey: string | null = null
+// TODO(file-processing): This queue is a temporary safety guard. If Tesseract
+// moves behind unified utility-process/process-pool management, migrate worker
+// lifecycle and concurrency control there instead of expanding local process logic.
+let extractionQueue: Promise<void> = Promise.resolve()
 
 export function prepareContext(
   file: FileMetadata,
@@ -35,36 +39,40 @@ export function prepareContext(
 
   const optionsResult = TesseractProcessorOptionsSchema.safeParse(config.options ?? {})
   const enabledLangs = optionsResult.success
-    ? Object.entries(optionsResult.data.langs ?? {})
-        .filter(([, enabled]) => enabled)
-        .map(([lang]) => lang as LanguageCode)
+    ? (optionsResult.data.langs ?? [])
+        .map((lang) => lang.trim())
+        .filter(Boolean)
+        .sort()
+        .map((lang) => lang as LanguageCode)
     : []
 
   return {
     file,
     signal,
-    langs: enabledLangs.length === 0 ? DEFAULT_LANGS : enabledLangs.sort()
+    langs: enabledLangs.length === 0 ? DEFAULT_LANGS : enabledLangs
   }
 }
 
 export async function executeExtraction(
   context: PreparedTesseractContext
 ): Promise<FileProcessingTextExtractionResult> {
-  context.signal?.throwIfAborted()
+  return runInExtractionQueue(async () => {
+    context.signal?.throwIfAborted()
 
-  const worker = await getWorker(context.langs)
-  const stat = await fs.promises.stat(context.file.path)
+    const worker = await getWorker(context.langs)
+    const stat = await fs.promises.stat(context.file.path)
 
-  if (stat.size > MB_SIZE_THRESHOLD * MB) {
-    throw new Error(`This image is too large (max ${MB_SIZE_THRESHOLD}MB)`)
-  }
+    if (stat.size > MB_SIZE_THRESHOLD * MB) {
+      throw new Error(`This image is too large (max ${MB_SIZE_THRESHOLD}MB)`)
+    }
 
-  const buffer = await loadOcrImage(context.file)
-  const result = await worker.recognize(buffer)
+    const buffer = await loadOcrImage(context.file)
+    const result = await worker.recognize(buffer)
 
-  return {
-    text: result.data.text
-  }
+    return {
+      text: result.data.text
+    }
+  })
 }
 
 async function getWorker(langs: LanguageCode[]): Promise<Tesseract.Worker> {
@@ -99,4 +107,13 @@ async function getCacheDir(): Promise<string> {
   const cacheDir = path.join(app.getPath('userData'), 'tesseract')
   await fs.promises.mkdir(cacheDir, { recursive: true })
   return cacheDir
+}
+
+function runInExtractionQueue<T>(task: () => Promise<T>): Promise<T> {
+  const nextTask = extractionQueue.then(task)
+  extractionQueue = nextTask.then(
+    () => undefined,
+    () => undefined
+  )
+  return nextTask
 }

@@ -1,5 +1,4 @@
 import fs from 'node:fs/promises'
-import path from 'node:path'
 
 import type { FileProcessorMerged } from '@shared/data/presets/file-processing'
 import type {
@@ -7,10 +6,10 @@ import type {
   FileProcessingMarkdownTaskStartResult
 } from '@shared/data/types/fileProcessing'
 import type { FileMetadata } from '@types'
-import AdmZip from 'adm-zip'
 import { net } from 'electron'
 
 import { fileProcessingTaskStore } from '../../../runtime/FileProcessingTaskStore'
+import { persistZipResult, readPersistedMarkdownPath } from '../../../utils/zip'
 import { BaseMarkdownConversionProcessor } from '../../base/BaseFileProcessor'
 import type {
   MineruExtractFileResult,
@@ -51,13 +50,11 @@ export class MineruProcessor extends BaseMarkdownConversionProcessor {
     providerTaskId: string,
     signal?: AbortSignal
   ): Promise<FileProcessingMarkdownTaskResult> {
-    const markdownPath = path.join(this.getFileProcessingResultsDir(providerTaskId), 'output.md')
-    const hasPersistedMarkdown = await fs
-      .access(markdownPath)
-      .then(() => true)
-      .catch(() => false)
+    const markdownPath = await readPersistedMarkdownPath(this.getFileProcessingResultsDir(providerTaskId)).catch(
+      () => undefined
+    )
 
-    if (hasPersistedMarkdown) {
+    if (markdownPath) {
       return {
         status: 'completed',
         progress: 100,
@@ -79,21 +76,24 @@ export class MineruProcessor extends BaseMarkdownConversionProcessor {
     }
     const batchResult = await getBatchResult(providerTaskId, context)
 
-    return this.buildMarkdownTaskResult(providerTaskId, batchResult.extract_result[0])
+    return this.buildMarkdownTaskResult(providerTaskId, batchResult.extract_result[0], signal)
   }
 
-  private async persistMarkdownConversionResult(providerTaskId: string, downloadUrl: string): Promise<string> {
+  private async persistMarkdownConversionResult(
+    providerTaskId: string,
+    downloadUrl: string,
+    signal?: AbortSignal
+  ): Promise<string> {
     if (!downloadUrl) {
       throw new Error('Markdown conversion result download URL is empty')
     }
 
     const fileProcessingResultsDir = this.getFileProcessingResultsDir(providerTaskId)
-    const zipPath = path.join(fileProcessingResultsDir, 'result.zip')
-
-    await fs.mkdir(fileProcessingResultsDir, { recursive: true })
+    signal?.throwIfAborted()
 
     const response = await net.fetch(downloadUrl, {
-      method: 'GET'
+      method: 'GET',
+      signal
     })
 
     if (!response.ok) {
@@ -102,30 +102,16 @@ export class MineruProcessor extends BaseMarkdownConversionProcessor {
     }
 
     const zipBuffer = Buffer.from(await response.arrayBuffer())
-    await fs.writeFile(zipPath, zipBuffer)
+    signal?.throwIfAborted()
 
     try {
-      const zip = new AdmZip(zipBuffer)
-      const entry = zip.getEntries().find((item) => !item.isDirectory && item.entryName.endsWith('full.md'))
-
-      if (!entry) {
-        throw new Error('Mineru result zip does not contain full.md')
-      }
-
-      zip.extractAllTo(fileProcessingResultsDir, true)
-
-      const extractedMarkdownPath = path.join(fileProcessingResultsDir, entry.entryName)
-      const markdownPath = path.join(fileProcessingResultsDir, 'output.md')
-
-      if (extractedMarkdownPath !== markdownPath) {
-        await fs.rename(extractedMarkdownPath, markdownPath)
-      }
-
-      await fs.unlink(zipPath)
-
-      return markdownPath
+      return await persistZipResult({
+        zipBuffer,
+        resultsDir: fileProcessingResultsDir,
+        isMarkdownEntry: (entryName) => entryName.endsWith('full.md')
+      })
     } catch (error) {
-      await fs.unlink(zipPath).catch(() => undefined)
+      await fs.rm(fileProcessingResultsDir, { recursive: true, force: true }).catch(() => undefined)
       throw error
     }
   }
@@ -162,7 +148,8 @@ export class MineruProcessor extends BaseMarkdownConversionProcessor {
 
   private async buildMarkdownTaskResult(
     providerTaskId: string,
-    fileResult: MineruExtractFileResult | undefined
+    fileResult: MineruExtractFileResult | undefined,
+    signal?: AbortSignal
   ): Promise<FileProcessingMarkdownTaskResult> {
     if (!fileResult) {
       return {
@@ -196,7 +183,7 @@ export class MineruProcessor extends BaseMarkdownConversionProcessor {
 
     // TODO: Persist additional extracted assets from Mineru results when the provider
     // result contract is expanded beyond a markdown string.
-    const markdownPath = await this.persistMarkdownConversionResult(providerTaskId, fileResult.full_zip_url)
+    const markdownPath = await this.persistMarkdownConversionResult(providerTaskId, fileResult.full_zip_url, signal)
     fileProcessingTaskStore.delete('mineru', providerTaskId)
 
     return {

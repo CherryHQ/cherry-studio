@@ -116,6 +116,7 @@
 2. 当前 `markdown_conversion` 已经不再建模成“同步立即返回最终结果”，但查询行为也还没有被 service 完全屏蔽掉 provider 差异。
 3. 这次 PR 的重点是先把 Main-side 能力和 provider 入口拆出来，而不是在本次内完成统一任务编排平台。
 4. 当前查询契约是“当前 Main 进程会话内可轮询”；如果 Main 进程重启，调用方应视为任务上下文失效并重新发起任务。
+5. 对失败结果，当前允许采用“一次性消费”语义：调用方查询到 `failed` 后，provider 可以立即清理该任务上下文；后续再次查询同一 `providerTaskId` 返回 task not found 属于当前接受的行为，而不是缺陷。
 
 ---
 
@@ -157,6 +158,13 @@
 3. `getMarkdownConversionTaskResult(...)`：
    主要用于查询文档解析任务状态
 
+这里需要再明确一条 `markdown_conversion` 的输入约束：
+
+1. `markdown_conversion` 当前允许“所有文档类型输入进入解析链路”。
+2. 具体某个 provider 实际支持哪些文档格式，由上游调用方和 provider 自身共同决定，不要求在 `FileProcessingService` 层统一做一层前置格式准入校验。
+3. 换句话说，`FileProcessingService` 当前不负责回答“这个文档格式是否一定能被某 provider 成功解析”；它只负责按 feature 选 processor 并转发调用。
+4. 如果上游把不适合某 provider 的文档交给了该 provider，当前允许由 provider 在执行阶段返回明确错误，而不是要求 `FileProcessingService` 预先拦截。
+
 ### 6.3 provider 行为差异
 
 虽然 `FileProcessingService` 对外仍保持统一 service 入口，但 provider 内部实现和能力分布仍分成两类：
@@ -176,6 +184,12 @@
 1. `startMarkdownConversionTask(...)` 会返回远程 `providerTaskId`
 2. `getMarkdownConversionTaskResult(...)` 会继续查询远程状态
 3. 调用方需要持有 `providerTaskId`
+4. `paddleocr` 在本次迁移里需要特别按“能力重定义”来理解：
+   - v1 中与 preprocess 相关的 Paddle 路径是同步解析语义
+   - 当前 `file-processing` 中的 `markdown_conversion` 已统一改成异步任务查询语义
+   - 因此，旧 preprocess/ocr 配置中的 Paddle `apiHost` 不继续迁移到新的 capability override，这属于明确接受的迁移策略，不应按“用户 host 丢失”理解
+   - 当前保留的是可复用的认证信息，例如同一组 `apiKey`
+   - 评审时不应把 “PaddleOCR 不迁移 apiHost、只保留 key” 单独判定为缺陷；这是因为能力模型已经从旧同步入口切换到当前异步入口，host 也随之固定到新实现约束
 
 #### 本地/同步封装型 provider
 
@@ -202,6 +216,36 @@
 1. 统一的是 `FileProcessingService` 对外入口和 capability 分层接口，而不是统一任务 ID 模型。
 2. `FileProcessingService` 当前只是 provider-aware facade，不负责屏蔽所有 provider 差异。
 3. `providerTaskId` 目前是显式暴露给调用方的。
+
+### 6.4.1 与统一进程管理的未来边界
+
+当前 `file-processing` 只负责 provider 选择、必要的运行时输入校验、任务上下文、状态映射和结果落盘，不负责建设通用进程管理能力。
+
+这里的“必要的运行时输入校验”应理解为：
+
+1. 文件路径、必填配置、provider 请求参数等能否执行当前调用的基本校验。
+2. 不包含对 `markdown_conversion` 支持文档范围的统一前置格式拦截。
+3. 对“某类文档是否适合某 provider”这类更高层的准入判断，当前仍由上游调用方负责。
+
+当前结果落盘位置仍可接受使用 Main 进程 temp 目录作为过渡方案，只要满足“当前会话内可查询”的约束即可；等未来统一文件管理方案定稿后，需要把这些 file-processing 产物迁移到正式文件存储目录，而不是继续长期落在 temp 路径下。
+
+如果后续主进程引入统一的 `ProcessManagerService` / utility process / process pool，边界应理解为：
+
+1. `file-processing` 保留：
+   - capability 分发
+   - providerTaskId / 本地任务上下文
+   - 结果状态映射
+   - 输入输出路径与结果解析
+2. 统一进程管理应接管：
+   - 外部二进制或 utility process 的创建 / 停止 / 重启
+   - 进程句柄追踪
+   - 进程级日志、崩溃恢复和优雅关闭
+   - 进程级并发池 / worker 池
+3. 因此，当前 provider 内部与本地执行器直接耦合的实现，只应保持“当前可运行的最小闭环”，不应在 `file-processing` 内继续扩展成通用进程生命周期系统。
+4. 典型地：
+   - `ovocr` 未来如果继续依赖外部二进制，应切到统一 `ChildProcess` 管理
+   - `tesseract` 如果未来迁到独立 utility process 或进程池，则其 worker 生命周期与并发控制也应迁出 `file-processing`
+   - `doc2x`、`mineru`、`paddleocr` 这类远程 HTTP provider 不属于统一进程管理重点范围
 
 ### 6.5 当前 processor 目录组织约定
 
@@ -294,21 +338,21 @@
 
 ---
 
-## 7. Shared Cache 设计预留
+## 7. 运行时状态边界
 
-当前仓库已经有 `file_processing.active_tasks` shared cache schema，但当前主流程的 source of truth 仍应是 Main 进程内的 `FileProcessingTaskStore`。
+当前 `file-processing` 不再维护独立的 shared cache 任务摘要镜像。
 
 当前状态应理解为：
 
 1. 当前对外查询接口仍然走 `providerTaskId + processorId` 输入。
-2. 当前允许将 active task 的轻量状态镜像到 shared cache，供后续 renderer 观察使用。
-3. shared cache 不是任务上下文的权威存储，不承担恢复或编排职责。
+2. 运行时任务上下文的 source of truth 是 Main 进程内的 `FileProcessingTaskStore`。
+3. `file-processing` 当前不额外承担跨窗口状态分发职责，也不尝试对 UI 暴露独立任务中心。
 
 换句话说：
 
-1. `file_processing.active_tasks` 当前可作为运行中任务摘要镜像。
-2. 后续如果需要 renderer 直接观察 file-processing 状态，再按具体 provider 执行模型扩展。
-3. 当前仍不应把 shared cache 误解成已经完整落地的统一 file-processing 状态系统；运行时查询上下文仍以 Main 进程内 store 为准。
+1. 当前阶段不再把 `file-processing` 任务状态额外镜像到 shared cache。
+2. 如果后续由 `KnowledgeService` 或其他上层 service 编排 file-processing 流程，则应由上层 service 负责聚合进度并对 UI 暴露状态。
+3. 当前仍不应把 `file-processing` 误解成已经完整落地的统一任务编排与状态分发系统；运行时查询上下文仍以 Main 进程内 store 为准。
 
 ---
 

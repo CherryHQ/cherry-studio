@@ -32,39 +32,55 @@ export function prepareContext(
     throw new Error('OV OCR is not available on this device')
   }
 
+  const workingDirectory = fs.mkdtempSync(path.join(os.tmpdir(), 'cherry-ovocr-'))
+  const imgDirectory = path.join(workingDirectory, 'img')
+  const outputDirectory = path.join(workingDirectory, 'output')
+
   return {
     file,
-    signal
+    signal,
+    workingDirectory,
+    imgDirectory,
+    outputDirectory
   }
 }
 
 export async function executeExtraction(context: PreparedOvOcrContext): Promise<FileProcessingTextExtractionResult> {
   context.signal?.throwIfAborted()
 
-  logger.info(`OV OCR called on ${context.file.path}`)
-
-  await prepareWorkingDirectory(getImgDir())
-  await prepareWorkingDirectory(getOutputDir())
-
-  const fileName = path.basename(context.file.path)
-  await fs.promises.copyFile(context.file.path, path.join(getImgDir(), fileName))
-
-  await execAsync(`"${PATH_BAT_FILE}"`, {
-    cwd: getOvOcrPath(),
-    timeout: 60000
+  logger.info(`OV OCR called on ${context.file.path}`, {
+    workingDirectory: context.workingDirectory
   })
 
-  const baseNameWithoutExt = path.basename(fileName, path.extname(fileName))
-  const outputFilePath = path.join(getOutputDir(), `${baseNameWithoutExt}.txt`)
+  try {
+    await prepareWorkingDirectory(context.imgDirectory)
+    await prepareWorkingDirectory(context.outputDirectory)
 
-  if (!fs.existsSync(outputFilePath)) {
-    throw new Error(`OV OCR output file not found at: ${outputFilePath}`)
-  }
+    const fileName = path.basename(context.file.path)
+    await fs.promises.copyFile(context.file.path, path.join(context.imgDirectory, fileName))
 
-  context.signal?.throwIfAborted()
+    // TODO(file-processing): Once unified ProcessManagerService lands, delegate
+    // OV OCR process lifecycle/logging/restart handling there and keep this
+    // provider focused on input/output preparation plus result parsing.
+    await execAsync(`"${PATH_BAT_FILE}"`, {
+      cwd: context.workingDirectory,
+      timeout: 60000
+    })
 
-  return {
-    text: await fs.promises.readFile(outputFilePath, 'utf-8')
+    const baseNameWithoutExt = path.basename(fileName, path.extname(fileName))
+    const outputFilePath = path.join(context.outputDirectory, `${baseNameWithoutExt}.txt`)
+
+    if (!fs.existsSync(outputFilePath)) {
+      throw new Error(`OV OCR output file not found at: ${outputFilePath}`)
+    }
+
+    context.signal?.throwIfAborted()
+
+    return {
+      text: await fs.promises.readFile(outputFilePath, 'utf-8')
+    }
+  } finally {
+    await fs.promises.rm(context.workingDirectory, { recursive: true, force: true })
   }
 }
 
@@ -75,18 +91,6 @@ function isAvailable(): boolean {
     os.cpus()[0]?.model.toLowerCase().includes('ultra') &&
     fs.existsSync(PATH_BAT_FILE)
   )
-}
-
-function getOvOcrPath(): string {
-  return path.join(os.homedir(), HOME_CHERRY_DIR, 'ovms', 'ovocr')
-}
-
-function getImgDir(): string {
-  return path.join(getOvOcrPath(), 'img')
-}
-
-function getOutputDir(): string {
-  return path.join(getOvOcrPath(), 'output')
 }
 
 async function prepareWorkingDirectory(dirPath: string): Promise<void> {

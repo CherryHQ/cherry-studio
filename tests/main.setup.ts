@@ -170,6 +170,7 @@ vi.mock('node:os', () => {
     version: vi.fn(() => '20.0.0'),
     cpus: vi.fn(() => [{ model: 'Mock CPU' }]),
     homedir: vi.fn(() => '/mock/home'),
+    tmpdir: vi.fn(() => '/mock/tmp'),
     totalmem: vi.fn(() => 8 * 1024 * 1024 * 1024) // 8GB
   }
   return { ...mock, default: mock }
@@ -191,6 +192,7 @@ vi.mock('node:fs', () => {
       readFile: vi.fn(),
       writeFile: vi.fn(),
       mkdir: vi.fn(),
+      rm: vi.fn(),
       readdir: vi.fn(),
       stat: vi.fn(),
       unlink: vi.fn(),
@@ -200,6 +202,7 @@ vi.mock('node:fs', () => {
     readFileSync: vi.fn(),
     writeFileSync: vi.fn(),
     mkdirSync: vi.fn(),
+    mkdtempSync: vi.fn(),
     readdirSync: vi.fn(),
     statSync: vi.fn(),
     unlinkSync: vi.fn(),

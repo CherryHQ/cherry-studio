@@ -64,6 +64,11 @@ async function resolveProcessorId(
   processorId?: FileProcessorId
 ): Promise<FileProcessorId> {
   const preferences = application.get('PreferenceService')
+
+  // Resolution contract:
+  // 1. If the caller provides processorId explicitly, use it after capability validation.
+  // 2. Otherwise, fall back to the feature-specific default preference.
+  // 3. If neither exists, fail fast instead of silently choosing a preset.
   if (processorId) {
     if (!supportsFeature(processorId, feature)) {
       throw new Error(`File processor ${processorId} does not support ${feature}`)
