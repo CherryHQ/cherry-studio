@@ -1,7 +1,12 @@
 import { allMinApps } from '@renderer/config/minapps'
 import type { RootState } from '@renderer/store'
 import { useAppDispatch, useAppSelector } from '@renderer/store'
-import { setDisabledMinApps, setMinApps, setPinnedMinApps, removePinnedMinapp as removePinnedMinappAction } from '@renderer/store/minapps'
+import {
+  removePinnedMinapp as removePinnedMinappAction,
+  setDisabledMinApps,
+  setMinApps,
+  setPinnedMinApps
+} from '@renderer/store/minapps'
 import { setDetectedRegion } from '@renderer/store/runtime'
 import type { MinAppRegion, MinAppType } from '@renderer/types'
 import { useCallback, useEffect, useMemo, useRef } from 'react'

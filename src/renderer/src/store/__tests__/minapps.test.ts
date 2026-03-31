@@ -1,7 +1,4 @@
-import minAppsReducer, {
-  type MinAppsState,
-  removePinnedMinapp,
-  setPinnedMinApps} from '@renderer/store/minapps'
+import minAppsReducer, { type MinAppsState, removePinnedMinapp, setPinnedMinApps } from '@renderer/store/minapps'
 import type { MinAppType } from '@renderer/types'
 import { describe, expect, it } from 'vitest'
 

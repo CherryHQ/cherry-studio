@@ -1,8 +1,5 @@
 import { configureStore } from '@reduxjs/toolkit'
-import minAppsReducer, {
-  type MinAppsState,
-  removePinnedMinapp,
-  setPinnedMinApps} from '@renderer/store/minapps'
+import minAppsReducer, { removePinnedMinapp, setPinnedMinApps } from '@renderer/store/minapps'
 import type { MinAppRegion } from '@renderer/types'
 import type { MinAppType } from '@renderer/types'
 import { describe, expect, it } from 'vitest'
@@ -16,11 +13,9 @@ const createApp = (id: string, overrides?: Partial<MinAppType>): MinAppType => (
   ...overrides
 })
 
-const createGlobalApp = (id: string): MinAppType =>
-  createApp(id, { supportedRegions: ['Global'] as MinAppRegion[] })
+const createGlobalApp = (id: string): MinAppType => createApp(id, { supportedRegions: ['Global'] as MinAppRegion[] })
 
-const createCnOnlyApp = (id: string): MinAppType =>
-  createApp(id, { supportedRegions: ['CN'] as MinAppRegion[] })
+const createCnOnlyApp = (id: string): MinAppType => createApp(id, { supportedRegions: ['CN'] as MinAppRegion[] })
 
 describe('useMinapps hook — preservedHidden integration', () => {
   // Test that removePinnedMinapp bypasses preservedHidden
@@ -38,7 +33,7 @@ describe('useMinapps hook — preservedHidden integration', () => {
     store.dispatch(removePinnedMinapp('yi'))
 
     // Assert: CN-only app is gone, NOT re-appended
-    const state = store.getState().minApps as MinAppsState
+    const state = store.getState().minApps
     expect(state.pinned.map((a) => a.id)).toEqual(['openai'])
   })
 
@@ -57,7 +52,7 @@ describe('useMinapps hook — preservedHidden integration', () => {
     store.dispatch(setPinnedMinApps([globalApp]))
 
     // Assert: only global app remains
-    const state = store.getState().minApps as MinAppsState
+    const state = store.getState().minApps
     expect(state.pinned.map((a) => a.id)).toEqual(['openai'])
   })
 
@@ -72,7 +67,7 @@ describe('useMinapps hook — preservedHidden integration', () => {
 
     store.dispatch(removePinnedMinapp('nonexistent'))
 
-    const state = store.getState().minApps as MinAppsState
+    const state = store.getState().minApps
     expect(state.pinned.map((a) => a.id)).toEqual(['openai'])
   })
 
@@ -85,7 +80,7 @@ describe('useMinapps hook — preservedHidden integration', () => {
 
     store.dispatch(setPinnedMinApps([app]))
 
-    const state = store.getState().minApps as MinAppsState
+    const state = store.getState().minApps
     expect(state.pinned[0].logo).toBeUndefined()
     expect(state.pinned[0].id).toBe('a')
   })

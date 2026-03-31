@@ -29,8 +29,15 @@ const logger = loggerService.withContext('App')
 const MinApp: FC<Props> = ({ app, onClick, size = 60, isLast }) => {
   const { openMinappKeepAlive } = useMinappPopup()
   const { t } = useTranslation()
-  const { minapps, pinned, disabled, updateMinapps, updateDisabledMinapps, removePinnedMinapp, setPinnedMinappsDirect } =
-    useMinapps()
+  const {
+    minapps,
+    pinned,
+    disabled,
+    updateMinapps,
+    updateDisabledMinapps,
+    removePinnedMinapp,
+    setPinnedMinappsDirect
+  } = useMinapps()
   const { openedKeepAliveMinapps, currentMinappId, minappShow } = useRuntime()
   const dispatch = useDispatch()
   const navigate = useNavigate()
