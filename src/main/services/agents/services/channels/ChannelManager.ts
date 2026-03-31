@@ -204,8 +204,28 @@ class ChannelManager {
     try {
       const adapter = factory(row, agentId)
 
+      // Seed notifyChatIds from DB-persisted activeChatIds (when allowed_chat_ids is empty)
+      const hasAllowedIds = adapter.notifyChatIds.length > 0
+      if (!hasAllowedIds) {
+        const dbChatIds = row.activeChatIds ?? []
+        adapter.notifyChatIds = [...dbChatIds]
+      }
+
+      const trackChatId = (chatId: string) => {
+        if (hasAllowedIds) return
+        if (adapter.notifyChatIds.includes(chatId)) return
+        adapter.notifyChatIds.push(chatId)
+        channelService.addActiveChatId(row.id, chatId).catch((err) => {
+          logger.warn('Failed to persist activeChatId', {
+            channelId: row.id,
+            chatId,
+            error: err instanceof Error ? err.message : String(err)
+          })
+        })
+      }
+
       adapter.on('message', (msg) => {
-        adapter.trackChatId(msg.chatId)
+        trackChatId(msg.chatId)
         channelMessageHandler.handleIncoming(adapter, msg).catch((err) => {
           logger.error('Unhandled error in message handler', {
             agentId,
@@ -216,7 +236,7 @@ class ChannelManager {
       })
 
       adapter.on('command', (cmd) => {
-        adapter.trackChatId(cmd.chatId)
+        trackChatId(cmd.chatId)
         channelMessageHandler.handleCommand(adapter, cmd).catch((err) => {
           logger.error('Unhandled error in command handler', {
             agentId,

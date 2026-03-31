@@ -2,17 +2,13 @@
  * Drizzle ORM schema for channels and channel_task_subscriptions tables
  */
 
-import { type ChannelConfig } from '@shared/channelConfig'
 import { sql } from 'drizzle-orm'
 import { check, index, integer, primaryKey, sqliteTable, text } from 'drizzle-orm/sqlite-core'
 import { v4 as uuidv4 } from 'uuid'
 
 import { agentsTable } from './agents.schema'
-import { sessionsTable } from './sessions.schema'
-import { scheduledTasksTable } from './tasks.schema'
-
-export type { ChannelConfig } from '@shared/channelConfig'
-export {
+import {
+  type ChannelConfig,
   ChannelConfigSchema,
   type DiscordChannelConfig,
   type FeishuChannelConfig,
@@ -20,7 +16,20 @@ export {
   type QQChannelConfig,
   type TelegramChannelConfig,
   type WeChatChannelConfig
-} from '@shared/channelConfig'
+} from './channelConfig'
+import { sessionsTable } from './sessions.schema'
+import { scheduledTasksTable } from './tasks.schema'
+
+export type {
+  ChannelConfig,
+  DiscordChannelConfig,
+  FeishuChannelConfig,
+  FeishuDomain,
+  QQChannelConfig,
+  TelegramChannelConfig,
+  WeChatChannelConfig
+}
+export { ChannelConfigSchema }
 
 // ---- Channels table ----
 
@@ -36,6 +45,7 @@ export const channelsTable = sqliteTable(
     sessionId: text('session_id').references(() => sessionsTable.id, { onDelete: 'set null' }),
     config: text('config', { mode: 'json' }).$type<ChannelConfig>().notNull(),
     isActive: integer('is_active', { mode: 'boolean' }).notNull().default(true),
+    activeChatIds: text('active_chat_ids', { mode: 'json' }).$type<string[]>().default([]),
     permissionMode: text('permission_mode'),
     createdAt: integer('created_at').$defaultFn(() => Date.now()),
     updatedAt: integer('updated_at')

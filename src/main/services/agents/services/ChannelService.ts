@@ -77,9 +77,25 @@ export class ChannelService extends BaseService {
     return database.select().from(channelsTable)
   }
 
+  /**
+   * Add a chatId to the channel's activeChatIds if not already present.
+   * Used to auto-track conversations when allowed_chat_ids is empty.
+   */
+  async addActiveChatId(channelId: string, chatId: string): Promise<void> {
+    const channel = await this.getChannel(channelId)
+    if (!channel) return
+
+    const existing = channel.activeChatIds ?? []
+    if (existing.includes(chatId)) return
+
+    await this.updateChannel(channelId, { activeChatIds: [...existing, chatId] })
+  }
+
   async updateChannel(
     id: string,
-    updates: Partial<Pick<ChannelRow, 'name' | 'agentId' | 'sessionId' | 'config' | 'isActive' | 'permissionMode'>>
+    updates: Partial<
+      Pick<ChannelRow, 'name' | 'agentId' | 'sessionId' | 'config' | 'isActive' | 'activeChatIds' | 'permissionMode'>
+    >
   ): Promise<ChannelRow | null> {
     const database = await this.getDatabase()
     const result = await database.update(channelsTable).set(updates).where(eq(channelsTable.id, id)).returning()

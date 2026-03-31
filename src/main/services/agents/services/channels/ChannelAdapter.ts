@@ -143,12 +143,9 @@ export abstract class ChannelAdapter extends EventEmitter {
   readonly agentId: string
   /**
    * Chat IDs that this adapter can send notifications/task results to.
-   * Initialized from allowed_chat_ids config. When allowed_chat_ids is empty
-   * (accept all), chat IDs are auto-collected from incoming messages so that
-   * scheduled tasks can still push results to known conversations.
+   * Initialized from allowed_chat_ids config + DB activeChatIds.
    */
   notifyChatIds: string[] = []
-  private autoCollectNotifyIds = false
 
   private connectAbort: AbortController | null = null
   private _connected = false
@@ -192,25 +189,6 @@ export abstract class ChannelAdapter extends EventEmitter {
    * Mark the adapter as disconnected when the underlying connection drops unexpectedly.
    * Subclasses should call this from error handlers (e.g. WebSocket close, polling failure).
    */
-  /**
-   * Enable auto-collection of chat IDs from incoming messages.
-   * Call this in subclass constructors when allowed_chat_ids is empty.
-   */
-  protected enableAutoCollectNotifyIds(): void {
-    this.autoCollectNotifyIds = true
-  }
-
-  /**
-   * Track a chatId for future push notifications.
-   * When auto-collect is enabled (allowed_chat_ids is empty), this adds the
-   * chatId to notifyChatIds so scheduled tasks can push results to it.
-   */
-  trackChatId(chatId: string): void {
-    if (this.autoCollectNotifyIds && !this.notifyChatIds.includes(chatId)) {
-      this.notifyChatIds.push(chatId)
-    }
-  }
-
   protected markDisconnected(error?: string): void {
     this._connected = false
     this.emitStatusChange(false, error)
