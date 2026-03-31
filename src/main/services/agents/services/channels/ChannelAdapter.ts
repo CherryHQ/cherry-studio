@@ -167,7 +167,9 @@ export abstract class ChannelAdapter extends EventEmitter {
       (acc, level) => {
         acc[level] = (message: string, meta?: Record<string, unknown>) => {
           fileLogger[level](message, { ...baseMeta, ...meta })
-          this.emitLog(level, message)
+          // Append error detail from meta so the UI log shows the reason
+          const errorDetail = meta?.error ? `: ${typeof meta.error === 'string' ? meta.error : String(meta.error)}` : ''
+          this.emitLog(level, `${message}${errorDetail}`)
         }
         return acc
       },
