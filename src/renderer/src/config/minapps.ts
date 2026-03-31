@@ -25,11 +25,12 @@ import {
   Grok,
   Groq,
   Huggingface,
+  Ima,
   Lambda,
   Lingxi,
   Longcat,
   Metaso,
-  Minimax,
+  MinimaxAgent,
   MinTop3,
   Mistral,
   ModelIcons,
@@ -59,7 +60,6 @@ import {
 } from '@cherrystudio/ui/icons'
 import { loggerService } from '@logger'
 import ApplicationLogo from '@renderer/assets/images/apps/application.png?url'
-import ImaAppLogo from '@renderer/assets/images/apps/ima.svg?url'
 import type { MinAppType } from '@renderer/types'
 
 const logger = loggerService.withContext('Config:minapps')
@@ -203,7 +203,7 @@ const ORIGIN_DEFAULT_MIN_APPS: MinAppType[] = [
     name: 'Minimax Agent',
     nameKey: 'minapps.minimax-agent',
     url: 'https://agent.minimaxi.com/',
-    logo: Minimax,
+    logo: MinimaxAgent,
     bodered: true,
     supportedRegions: ['CN']
   },
@@ -212,7 +212,7 @@ const ORIGIN_DEFAULT_MIN_APPS: MinAppType[] = [
     name: 'Minimax Agent',
     nameKey: 'minapps.minimax-global',
     url: 'https://agent.minimax.io/',
-    logo: Minimax,
+    logo: MinimaxAgent,
     bodered: true,
     supportedRegions: ['CN', 'Global']
   },
@@ -221,7 +221,7 @@ const ORIGIN_DEFAULT_MIN_APPS: MinAppType[] = [
     name: 'ima',
     nameKey: 'minapps.ima',
     url: 'https://ima.qq.com/',
-    logo: ImaAppLogo,
+    logo: Ima,
     bodered: true,
     supportedRegions: ['CN']
   },
