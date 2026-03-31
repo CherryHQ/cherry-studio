@@ -60,7 +60,7 @@ const AssistantSettingsTab: FC<Props> = (props) => {
   const [showPrompt, setShowPrompt] = usePreference('chat.message.show_prompt')
   const [confirmDeleteMessage, setConfirmDeleteMessage] = usePreference('chat.message.confirm_delete')
   const [confirmRegenerateMessage, setConfirmRegenerateMessage] = usePreference('chat.message.confirm_regenerate')
-  const [showTranslateConfirm, setShowTranslateConfirm] = usePreference('chat.input.translate.show_confirm')
+  const [showTranslateConfirm, setShowTranslateConfirm] = usePreference('feature.translate.chat.show_confirm')
   const [enableQuickPanelTriggers, setEnableQuickPanelTriggers] = usePreference(
     'chat.input.quick_panel.triggers_enabled'
   )
@@ -76,7 +76,7 @@ const AssistantSettingsTab: FC<Props> = (props) => {
     'chat.message.render_as_markdown'
   )
   const [autoTranslateWithSpace, setAutoTranslateWithSpace] = usePreference(
-    'chat.input.translate.auto_translate_with_space'
+    'feature.translate.chat.auto_translate_with_space'
   )
   const [showMessageOutline, setShowMessageOutline] = usePreference('chat.message.show_outline')
   const [codeShowLineNumbers, setCodeShowLineNumbers] = usePreference('chat.code.show_line_numbers')

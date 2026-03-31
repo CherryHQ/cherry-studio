@@ -56,7 +56,7 @@ const TokenFluxPage: FC<{ Options: string[] }> = ({ Options }) => {
 
   const navigate = useNavigate()
   const location = useLocation()
-  const [autoTranslateWithSpace] = usePreference('chat.input.translate.auto_translate_with_space')
+  const [autoTranslateWithSpace] = usePreference('feature.translate.chat.auto_translate_with_space')
   const spaceClickTimer = useRef<NodeJS.Timeout>(null)
   const tokenfluxProvider = providers.find((p) => p.id === 'tokenflux')!
   const textareaRef = useRef<any>(null)

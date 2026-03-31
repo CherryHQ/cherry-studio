@@ -1522,7 +1522,7 @@
           "defaultValue": false,
           "status": "classified",
           "category": "preferences",
-          "targetKey": "chat.input.translate.auto_translate_with_space"
+          "targetKey": "feature.translate.chat.auto_translate_with_space"
         },
         {
           "originalKey": "showTranslateConfirm",
@@ -1530,7 +1530,7 @@
           "defaultValue": true,
           "status": "classified",
           "category": "preferences",
-          "targetKey": "chat.input.translate.show_confirm"
+          "targetKey": "feature.translate.chat.show_confirm"
         },
         {
           "originalKey": "enableTopicNaming",
