@@ -102,6 +102,13 @@ export const NEW_PROVIDER_CONFIGS: ProviderConfig[] = [
     import: () => import('ollama-ai-provider-v2'),
     creatorFunctionName: 'createOllama',
     supportsImageGeneration: false
+  },
+  {
+    id: 'groq',
+    name: 'Groq',
+    import: () => import('@ai-sdk/groq'),
+    creatorFunctionName: 'createGroq',
+    supportsImageGeneration: false
   }
 ] as const
 

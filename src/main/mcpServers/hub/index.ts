@@ -2,28 +2,27 @@ import { loggerService } from '@logger'
 import { CacheService } from '@main/services/CacheService'
 import { Server } from '@modelcontextprotocol/sdk/server/index.js'
 import { CallToolRequestSchema, ErrorCode, ListToolsRequestSchema, McpError } from '@modelcontextprotocol/sdk/types.js'
+import type { MCPTool } from '@types'
 
-import { generateToolFunction } from './generator'
-import { callMcpTool, clearToolMap, listAllTools, syncToolMapFromGeneratedTools } from './mcp-bridge'
+import { formatAsText, schemaToJSDoc } from './format'
+import { formatListResultAsText, listTools } from './list'
+import { callMcpTool, clearToolMap, listAllTools, syncToolMapFromHubTools, syncToolMapFromTools } from './mcp-bridge'
 import { Runtime } from './runtime'
-import { searchTools } from './search'
-import type { ExecInput, GeneratedTool, SearchQuery } from './types'
+import { buildToolNameMapping, resolveToolId } from './toolname'
+import type { ExecInput, HubTool, InspectInput, InvokeInput, ListInput } from './types'
 
 const logger = loggerService.withContext('MCPServer:Hub')
-const TOOLS_CACHE_KEY = 'hub:tools'
+const TOOLS_CACHE_KEY = 'hub:tools:v2'
 const TOOLS_CACHE_TTL = 60 * 1000 // 1 minute
 
 /**
  * Hub MCP Server - A meta-server that aggregates all active MCP servers.
  *
- * This server is NOT included in builtinMCPServers because:
- * 1. It aggregates tools from all other MCP servers, not a standalone tool provider
- * 2. It's designed for LLM "code mode" - enabling AI to discover and call tools programmatically
- * 3. It should be auto-enabled when code mode features are used, not manually installed by users
- *
- * The server exposes two tools:
- * - `search`: Find available tools by keywords, returns JS function signatures
- * - `exec`: Execute JavaScript code that calls discovered tools
+ * This server exposes a small set of built-in meta-tools (aligned with mcphub):
+ * - `list`: list/search available tools (by keyword)
+ * - `inspect`: get a JSDoc stub for a single tool
+ * - `invoke`: call a single tool
+ * - `exec`: execute JavaScript to orchestrate multiple tool calls via `mcp.callTool()`
  */
 export class HubServer {
   public server: Server
@@ -35,7 +34,7 @@ export class HubServer {
     this.server = new Server(
       {
         name: 'hub-server',
-        version: '1.0.0'
+        version: '2.0.0'
       },
       {
         capabilities: {
@@ -52,36 +51,65 @@ export class HubServer {
       return {
         tools: [
           {
-            name: 'search',
-            description:
-              'Search for available MCP tools by keywords. Use this FIRST to discover tools. Returns JavaScript async function declarations with JSDoc showing exact function names, parameters, and return types for use in `exec`.',
+            name: 'list',
+            description: 'List available MCP tools from all active servers. Results are paginated via limit/offset.',
             inputSchema: {
               type: 'object',
               properties: {
-                query: {
-                  type: 'string',
-                  description:
-                    'Comma-separated search keywords. A tool matches if ANY keyword appears in its name, description, or server name. Example: "chrome,browser,tab" matches tools related to Chrome OR browser OR tabs.'
-                },
                 limit: {
                   type: 'number',
-                  description: 'Maximum number of tools to return (default: 10, max: 50)'
+                  description: 'Optional maximum results to return (default: 30, max: 100).'
+                },
+                offset: {
+                  type: 'number',
+                  description: 'Optional zero-based offset for pagination (default: 0).'
+                }
+              }
+            }
+          },
+          {
+            name: 'inspect',
+            description: "Get a single tool's signature as a JSDoc stub. Use this before `invoke` or `exec`.",
+            inputSchema: {
+              type: 'object',
+              properties: {
+                name: {
+                  type: 'string',
+                  description: 'Tool name in JS form (camelCase) OR original namespaced id (serverId__toolName).'
                 }
               },
-              required: ['query']
+              required: ['name']
+            }
+          },
+          {
+            name: 'invoke',
+            description: 'Call a single tool with parameters. Prefer `inspect` first to confirm parameters.',
+            inputSchema: {
+              type: 'object',
+              properties: {
+                name: {
+                  type: 'string',
+                  description: 'Tool name in JS form (camelCase) OR original namespaced id (serverId__toolName).'
+                },
+                params: {
+                  type: 'object',
+                  description: 'Tool parameters as a JSON object (optional).'
+                }
+              },
+              required: ['name']
             }
           },
           {
             name: 'exec',
             description:
-              'Execute JavaScript that calls MCP tools discovered via `search`. IMPORTANT: You MUST explicitly `return` the final value, or the result will be `undefined`.',
+              'Execute JavaScript code to orchestrate multiple tool calls. Use `mcp.callTool(name, params)` inside the code. IMPORTANT: you MUST explicitly `return` the final value.',
             inputSchema: {
               type: 'object',
               properties: {
                 code: {
                   type: 'string',
                   description:
-                    'JavaScript code to execute. The code runs inside an async context, so use `await` directly. Do NOT wrap your code in `(async () => { ... })()` - this causes double-wrapping and returns undefined. All discovered tools are async functions (call as `await ToolName(params)`). Helpers: `parallel(...promises)`, `settle(...promises)`, `console.*`. You MUST `return` the final value. Examples: `const r = await Tool({ id: "1" }); return r` or `return await Tool({ x: 1 })`'
+                    'JavaScript code to execute. Available globals: `mcp.callTool(name, params)`, `mcp.log(level, message, fields?)`, `parallel(...)`, `settle(...)`, `console.*`. The code runs inside an async context so you can use `await` directly. You MUST `return` the final value.'
                 }
               },
               required: ['code']
@@ -100,8 +128,12 @@ export class HubServer {
 
       try {
         switch (name) {
-          case 'search':
-            return await this.handleSearch(args as unknown as SearchQuery)
+          case 'list':
+            return await this.handleList(args as unknown as ListInput)
+          case 'inspect':
+            return await this.handleInspect(args as unknown as InspectInput)
+          case 'invoke':
+            return await this.handleInvoke(args as unknown as InvokeInput)
           case 'exec':
             return await this.handleExec(args as unknown as ExecInput)
           default:
@@ -120,21 +152,47 @@ export class HubServer {
     })
   }
 
-  private async fetchTools(): Promise<GeneratedTool[]> {
-    const cached = CacheService.get<GeneratedTool[]>(TOOLS_CACHE_KEY)
+  private async fetchTools(): Promise<HubTool[]> {
+    const cached = CacheService.get<HubTool[]>(TOOLS_CACHE_KEY)
     if (cached) {
       logger.debug('Returning cached tools')
-      syncToolMapFromGeneratedTools(cached)
+      syncToolMapFromHubTools(cached)
       return cached
     }
 
     logger.debug('Fetching fresh tools')
-    const allTools = await listAllTools()
-    const existingNames = new Set<string>()
-    const tools = allTools.map((tool) => generateToolFunction(tool, existingNames, callMcpTool))
-    CacheService.set(TOOLS_CACHE_KEY, tools, TOOLS_CACHE_TTL)
-    syncToolMapFromGeneratedTools(tools)
+    const tools = await listAllTools()
+    const hubTools = this.toHubTools(tools)
+
+    CacheService.set(TOOLS_CACHE_KEY, hubTools, TOOLS_CACHE_TTL)
+    syncToolMapFromTools(tools)
+
+    return hubTools
+  }
+
+  private toHubTools(tools: MCPTool[]): HubTool[] {
+    const mapping = buildToolNameMapping(
+      tools.map((tool) => ({
+        id: `${tool.serverId}__${tool.name}`,
+        serverName: tool.serverName,
+        toolName: tool.name
+      }))
+    )
+
     return tools
+      .map((tool) => {
+        const id = `${tool.serverId}__${tool.name}`
+        return {
+          id,
+          serverId: tool.serverId,
+          serverName: tool.serverName,
+          toolName: tool.name,
+          description: tool.description,
+          inputSchema: tool.inputSchema,
+          jsName: mapping.toJs.get(id) ?? id
+        } satisfies HubTool
+      })
+      .sort((a, b) => a.id.localeCompare(b.id))
   }
 
   invalidateCache(): void {
@@ -143,19 +201,56 @@ export class HubServer {
     logger.debug('Tools cache invalidated')
   }
 
-  private async handleSearch(query: SearchQuery) {
-    if (!query.query || typeof query.query !== 'string') {
-      throw new McpError(ErrorCode.InvalidParams, 'query parameter is required and must be a string')
-    }
-
+  private async handleList(input: ListInput) {
     const tools = await this.fetchTools()
-    const result = searchTools(tools, query)
+    const result = listTools(tools, input)
+    const output = formatListResultAsText(result)
 
     return {
       content: [
         {
           type: 'text',
-          text: JSON.stringify(result, null, 2)
+          text: output
+        }
+      ]
+    }
+  }
+
+  private async handleInspect(input: InspectInput) {
+    if (!input.name || typeof input.name !== 'string') {
+      throw new McpError(ErrorCode.InvalidParams, 'name parameter is required and must be a string')
+    }
+
+    const tools = await this.fetchTools()
+    const tool = this.resolveHubTool(tools, input.name)
+
+    const jsDoc = schemaToJSDoc(tool.jsName, tool.description, tool.inputSchema)
+
+    return {
+      content: [
+        {
+          type: 'text',
+          text: jsDoc
+        }
+      ]
+    }
+  }
+
+  private async handleInvoke(input: InvokeInput) {
+    if (!input.name || typeof input.name !== 'string') {
+      throw new McpError(ErrorCode.InvalidParams, 'name parameter is required and must be a string')
+    }
+
+    // Ensure mapping is warm
+    await this.fetchTools()
+
+    const result = await callMcpTool(input.name, input.params ?? {})
+
+    return {
+      content: [
+        {
+          type: 'text',
+          text: formatAsText(result)
         }
       ]
     }
@@ -166,8 +261,10 @@ export class HubServer {
       throw new McpError(ErrorCode.InvalidParams, 'code parameter is required and must be a string')
     }
 
-    const tools = await this.fetchTools()
-    const result = await this.runtime.execute(input.code, tools)
+    // Ensure mapping is warm
+    await this.fetchTools()
+
+    const result = await this.runtime.execute(input.code)
 
     return {
       content: [
@@ -178,6 +275,22 @@ export class HubServer {
       ],
       isError: result.isError
     }
+  }
+
+  private resolveHubTool(tools: HubTool[], nameOrId: string): HubTool {
+    // Resolve via cached mapping first (supports both jsName and namespaced id)
+    const mapping = buildToolNameMapping(
+      tools.map((t) => ({ id: t.id, serverName: t.serverName, toolName: t.toolName }))
+    )
+    const resolvedId = resolveToolId(mapping, nameOrId) ?? nameOrId
+
+    const found = tools.find((t) => t.id === resolvedId) ?? tools.find((t) => t.jsName === nameOrId)
+
+    if (!found) {
+      throw new McpError(ErrorCode.MethodNotFound, `Tool not found: ${nameOrId}`)
+    }
+
+    return found
   }
 }
 

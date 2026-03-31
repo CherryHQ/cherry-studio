@@ -71,7 +71,7 @@ const PopupContainer: React.FC<Props> = ({ provider, resolve, reject }) => {
         placeholder={i18n.t('settings.models.empty')}
         style={{ width: '100%' }}
         onChange={(value) => {
-          setModel(models.find((m) => value === getModelUniqId(m))!)
+          setModel(models.find((m) => value === getModelUniqId(m)))
         }}
       />
     </Modal>

@@ -24,13 +24,13 @@ export function TaskTool({
   // Combine all text outputs and truncate
   const { truncatedText, isTruncated, originalLength } = useMemo(() => {
     if (!hasOutput) return { truncatedText: '', isTruncated: false, originalLength: 0 }
-    const combinedText = output!.map((item) => item.text).join('\n\n')
+    const combinedText = output.map((item) => item.text).join('\n\n')
     const result = truncateOutput(combinedText)
     return { truncatedText: result.data, isTruncated: result.isTruncated, originalLength: result.originalLength }
   }, [output, hasOutput])
 
   return {
-    key: 'tool',
+    key: AgentToolsType.Task,
     label: (
       <ToolHeader
         toolName={AgentToolsType.Task}

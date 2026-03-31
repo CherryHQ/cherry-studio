@@ -1,4 +1,5 @@
 // src/main/services/agents/services/claudecode/index.ts
+import { fork } from 'node:child_process'
 import { EventEmitter } from 'node:events'
 import { createRequire } from 'node:module'
 import path from 'node:path'
@@ -8,22 +9,31 @@ import type {
   HookCallback,
   McpHttpServerConfig,
   Options,
-  PreToolUseHookInput,
-  SDKMessage
+  SDKMessage,
+  SdkPluginConfig,
+  SpawnedProcess
 } from '@anthropic-ai/claude-agent-sdk'
 import { query } from '@anthropic-ai/claude-agent-sdk'
 import { loggerService } from '@logger'
 import { config as apiConfigService } from '@main/apiServer/config'
 import { validateModelId } from '@main/apiServer/utils'
 import { isWin } from '@main/constant'
+import { pluginService } from '@main/services/agents/plugins/PluginService'
 import { configManager } from '@main/services/ConfigManager'
 import { autoDiscoverGitBash } from '@main/utils/process'
+import { rtkRewrite } from '@main/utils/rtk'
 import getLoginShellEnvironment from '@main/utils/shell-env'
+import { languageEnglishNameMap } from '@shared/config/languages'
 import { withoutTrailingApiVersion } from '@shared/utils'
 import { app } from 'electron'
 
 import type { GetAgentSessionResponse } from '../..'
-import type { AgentServiceInterface, AgentStream, AgentStreamEvent } from '../../interfaces/AgentStreamInterface'
+import type {
+  AgentServiceInterface,
+  AgentStream,
+  AgentStreamEvent,
+  AgentThinkingOptions
+} from '../../interfaces/AgentStreamInterface'
 import { sessionService } from '../SessionService'
 import { buildNamespacedToolCallId } from './claude-stream-state'
 import { promptForToolApproval } from './tool-permissions'
@@ -35,8 +45,14 @@ const DEFAULT_AUTO_ALLOW_TOOLS = new Set(['Read', 'Glob', 'Grep'])
 const shouldAutoApproveTools = process.env.CHERRY_AUTO_ALLOW_TOOLS === '1'
 const NO_RESUME_COMMANDS = ['/clear']
 
-const getLanguageInstruction = () =>
-  `IMPORTANT: You MUST use ${configManager.getLanguage()} language for ALL your outputs, including: (1) text responses, (2) tool call parameters like "description" fields, and (3) any user-facing content. Never use English unless the content is code, file paths, or technical identifiers.`
+const getLanguageInstruction = () => {
+  const lang = configManager.getLanguage()
+  return `
+  IMPORTANT: You MUST use ${languageEnglishNameMap[lang]} language for ALL your outputs, including:
+  (1) text responses, (2) tool call parameters like "description" fields, and (3) any user-facing content.
+  ${lang === 'en-US' ? '' : 'Never use English unless the content is code, file paths, or technical identifiers.'}
+  `
+}
 
 type UserInputMessage = {
   type: 'user'
@@ -59,7 +75,7 @@ class ClaudeCodeService implements AgentServiceInterface {
 
   constructor() {
     // Resolve Claude Code CLI robustly (works in dev and in asar)
-    this.claudeExecutablePath = require_.resolve('@anthropic-ai/claude-agent-sdk/cli.js')
+    this.claudeExecutablePath = path.join(path.dirname(require_.resolve('@anthropic-ai/claude-agent-sdk')), 'cli.js')
     if (app.isPackaged) {
       this.claudeExecutablePath = this.claudeExecutablePath.replace(/\.asar([\\/])/, '.asar.unpacked$1')
     }
@@ -69,7 +85,8 @@ class ClaudeCodeService implements AgentServiceInterface {
     prompt: string,
     session: GetAgentSessionResponse,
     abortController: AbortController,
-    lastAgentSessionId?: string
+    lastAgentSessionId?: string,
+    thinkingOptions?: AgentThinkingOptions
   ): Promise<AgentStream> {
     const aiStream = new ClaudeCodeStream()
 
@@ -93,9 +110,8 @@ class ClaudeCodeService implements AgentServiceInterface {
       return aiStream
     }
     if (
-      (modelInfo.provider?.type !== 'anthropic' &&
-        (modelInfo.provider?.anthropicApiHost === undefined || modelInfo.provider.anthropicApiHost.trim() === '')) ||
-      modelInfo.provider.apiKey === ''
+      modelInfo.provider?.type !== 'anthropic' &&
+      (modelInfo.provider?.anthropicApiHost === undefined || modelInfo.provider.anthropicApiHost.trim() === '')
     ) {
       logger.error('Anthropic provider configuration is missing', {
         modelInfo
@@ -106,6 +122,12 @@ class ClaudeCodeService implements AgentServiceInterface {
         error: new Error(`Invalid provider type '${modelInfo.provider?.type}'. Expected 'anthropic' provider type.`)
       })
       return aiStream
+    }
+
+    // Providers like Ollama and LM Studio don't require real API keys,
+    // but the Claude Agent SDK needs a non-empty placeholder value
+    if (!modelInfo.provider.apiKey) {
+      modelInfo.provider.apiKey = modelInfo.provider.id
     }
 
     const apiConfig = await apiConfigService.get()
@@ -146,7 +168,39 @@ class ClaudeCodeService implements AgentServiceInterface {
       // on Windows when the username contains non-ASCII characters (e.g., Chinese characters)
       // This prevents the SDK from using the user's home directory which may have encoding problems
       CLAUDE_CONFIG_DIR: path.join(app.getPath('userData'), '.claude'),
+      ENABLE_TOOL_SEARCH: 'auto',
       ...(customGitBashPath ? { CLAUDE_CODE_GIT_BASH_PATH: customGitBashPath } : {})
+    }
+
+    // Merge user-defined environment variables from session configuration
+    const userEnvVars = session.configuration?.env_vars
+    if (userEnvVars && typeof userEnvVars === 'object') {
+      const BLOCKED_ENV_KEYS = new Set([
+        'ANTHROPIC_API_KEY',
+        'ANTHROPIC_AUTH_TOKEN',
+        'ANTHROPIC_BASE_URL',
+        'ANTHROPIC_MODEL',
+        'ANTHROPIC_DEFAULT_OPUS_MODEL',
+        'ANTHROPIC_DEFAULT_SONNET_MODEL',
+        'ANTHROPIC_DEFAULT_HAIKU_MODEL',
+        'ELECTRON_RUN_AS_NODE',
+        'ELECTRON_NO_ATTACH_CONSOLE',
+        'CLAUDE_CONFIG_DIR',
+        'CLAUDE_CODE_USE_BEDROCK',
+        'CLAUDE_CODE_GIT_BASH_PATH',
+        'NODE_OPTIONS',
+        '__PROTO__',
+        'CONSTRUCTOR',
+        'PROTOTYPE'
+      ])
+      for (const [key, value] of Object.entries(userEnvVars)) {
+        const upperKey = key.toUpperCase()
+        if (BLOCKED_ENV_KEYS.has(upperKey)) {
+          logger.warn('Blocked user env var override for system-critical variable', { key })
+        } else if (typeof value === 'string') {
+          env[key] = value
+        }
+      }
     }
 
     const errorChunks: string[] = []
@@ -154,6 +208,19 @@ class ClaudeCodeService implements AgentServiceInterface {
     const sessionAllowedTools = new Set<string>(session.allowed_tools ?? [])
     const autoAllowTools = new Set<string>([...DEFAULT_AUTO_ALLOW_TOOLS, ...sessionAllowedTools])
     const normalizeToolName = (name: string) => (name.startsWith('builtin_') ? name.slice('builtin_'.length) : name)
+
+    let plugins: SdkPluginConfig[] | undefined
+    try {
+      const pluginPaths = await pluginService.listInstalledPluginPackagePaths(session.agent_id)
+      if (pluginPaths.length > 0) {
+        plugins = pluginPaths.map((pluginPath) => ({ type: 'local', path: pluginPath }))
+      }
+    } catch (error) {
+      logger.warn('Failed to load plugin packages for Claude Code', {
+        agentId: session.agent_id,
+        error: error instanceof Error ? error.message : String(error)
+      })
+    }
 
     const canUseTool: CanUseTool = async (toolName, input, options) => {
       logger.info('Handling tool permission check', {
@@ -195,7 +262,7 @@ class ClaudeCodeService implements AgentServiceInterface {
         return {}
       }
 
-      const hookInput = input as PreToolUseHookInput
+      const hookInput = input
       const toolName = hookInput.tool_name
 
       logger.debug('PreToolUse hook triggered', {
@@ -246,6 +313,37 @@ class ClaudeCodeService implements AgentServiceInterface {
       return {}
     }
 
+    const rtkRewriteHook: HookCallback = async (input) => {
+      if (input.hook_event_name !== 'PreToolUse') {
+        return {}
+      }
+
+      // Only rewrite Bash tool commands
+      if (input.tool_name !== 'Bash' && input.tool_name !== 'builtin_Bash') {
+        return {}
+      }
+
+      const toolInput = input.tool_input as Record<string, unknown> | undefined
+      const command = toolInput?.command
+      if (typeof command !== 'string' || !command.trim()) {
+        return {}
+      }
+
+      const rewritten = await rtkRewrite(command)
+      if (!rewritten) {
+        return {}
+      }
+
+      logger.info('rtk rewrote Bash command', { original: command, rewritten })
+
+      return {
+        hookSpecificOutput: {
+          hookEventName: 'PreToolUse',
+          updatedInput: { ...toolInput, command: rewritten }
+        }
+      }
+    }
+
     // Build SDK options from parameters
     const options: Options = {
       abortController,
@@ -256,6 +354,20 @@ class ClaudeCodeService implements AgentServiceInterface {
       stderr: (chunk: string) => {
         logger.warn('claude stderr', { chunk })
         errorChunks.push(chunk)
+      },
+      spawnClaudeCodeProcess: (spawnOptions) => {
+        const child = fork(spawnOptions.args[0], spawnOptions.args.slice(1), {
+          cwd: spawnOptions.cwd,
+          env: spawnOptions.env as NodeJS.ProcessEnv,
+          stdio: ['pipe', 'pipe', 'pipe', 'ipc'],
+          signal: spawnOptions.signal
+        })
+        child.stderr?.on('data', (data: Buffer) => {
+          const text = data.toString()
+          logger.warn('claude stderr', { chunk: text })
+          errorChunks.push(text)
+        })
+        return child as unknown as SpawnedProcess
       },
       systemPrompt: session.instructions
         ? {
@@ -268,19 +380,22 @@ class ClaudeCodeService implements AgentServiceInterface {
             preset: 'claude_code',
             append: getLanguageInstruction()
           },
-      settingSources: ['project'],
+      settingSources: ['project', 'local'],
       includePartialMessages: true,
       permissionMode: session.configuration?.permission_mode,
       maxTurns: session.configuration?.max_turns,
       allowedTools: session.allowed_tools,
+      plugins,
       canUseTool,
       hooks: {
         PreToolUse: [
           {
-            hooks: [preToolUseHook]
+            hooks: [rtkRewriteHook, preToolUseHook]
           }
         ]
-      }
+      },
+      ...(thinkingOptions?.effort ? { effort: thinkingOptions.effort } : {}),
+      ...(thinkingOptions?.thinking ? { thinking: thinkingOptions.thinking } : {})
     }
 
     if (session.accessible_paths.length > 1) {

@@ -54,15 +54,16 @@ const AboutSettings: FC = () => {
 
       if (update.downloaded) {
         // Open update dialog directly in renderer
-        UpdateDialogPopup.show({ releaseInfo: update.info || null })
+        void UpdateDialogPopup.show({ releaseInfo: update.info || null })
         return
       }
 
-      dispatch(setUpdateState({ checking: true }))
+      dispatch(setUpdateState({ checking: true, manualCheck: true }))
 
       try {
         await window.api.checkForUpdate()
       } catch (error) {
+        dispatch(setUpdateState({ manualCheck: false }))
         window.toast.error(t('settings.about.updateError'))
       }
 
@@ -73,7 +74,7 @@ const AboutSettings: FC = () => {
   )
 
   const onOpenWebsite = (url: string) => {
-    window.api.openWebsite(url)
+    void window.api.openWebsite(url)
   }
 
   const mailto = async () => {
@@ -169,7 +170,7 @@ const AboutSettings: FC = () => {
   }
 
   useEffect(() => {
-    runAsyncFunction(async () => {
+    void runAsyncFunction(async () => {
       const appInfo = await window.api.getAppInfo()
       setVersion(appInfo.version)
       setIsPortable(appInfo.isPortable)
@@ -179,7 +180,7 @@ const AboutSettings: FC = () => {
 
   const onOpenDocs = () => {
     const isChinese = i18n.language.startsWith('zh')
-    window.api.openWebsite(isChinese ? 'https://docs.cherry-ai.com/' : 'https://docs.cherry-ai.com/docs/en-us')
+    void window.api.openWebsite(isChinese ? 'https://docs.cherry-ai.com/' : 'https://docs.cherry-ai.com/docs/en-us')
   }
 
   return (

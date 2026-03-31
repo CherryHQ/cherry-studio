@@ -110,7 +110,7 @@ const AssistantSettingPopupContainer: React.FC<Props> = ({ resolve, tab, ...prop
           padding: 0
         }
       }}
-      width="min(800px, 70vw)"
+      width="min(900px, 70vw)"
       height="80vh"
       centered>
       <HStack>

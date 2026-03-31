@@ -222,7 +222,7 @@ const MinappPopupContainer: React.FC = () => {
         try {
           const webviewId = webviewElement.getWebContentsId()
           if (webviewId) {
-            window.api.webview.setOpenLinkExternal(webviewId, minappsOpenLinkExternal)
+            void window.api.webview.setOpenLinkExternal(webviewId, minappsOpenLinkExternal)
           }
         } catch (error) {
           // WebView not ready yet, will be set when it's loaded
@@ -296,7 +296,7 @@ const MinappPopupContainer: React.FC = () => {
       try {
         const webviewId = webviewElement.getWebContentsId()
         if (webviewId) {
-          window.api.webview.setOpenLinkExternal(webviewId, minappsOpenLinkExternal)
+          void window.api.webview.setOpenLinkExternal(webviewId, minappsOpenLinkExternal)
         }
       } catch (error) {
         logger.debug(`WebView ${appid} not ready for getWebContentsId() in handleWebviewLoaded`)
@@ -337,7 +337,7 @@ const MinappPopupContainer: React.FC = () => {
 
   /** open the giving url in browser */
   const handleOpenLink = (url: string) => {
-    window.api.openWebsite(url)
+    void window.api.openWebsite(url)
   }
 
   /** toggle the pin status of the minapp */

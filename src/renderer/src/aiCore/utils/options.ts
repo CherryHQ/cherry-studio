@@ -3,17 +3,17 @@ import { type AnthropicProviderOptions } from '@ai-sdk/anthropic'
 import type { GoogleGenerativeAIProviderOptions } from '@ai-sdk/google'
 import type { OpenAIResponsesProviderOptions } from '@ai-sdk/openai'
 import type { XaiProviderOptions } from '@ai-sdk/xai'
-import { baseProviderIdSchema, customProviderIdSchema, hasProviderConfig } from '@cherrystudio/ai-core/provider'
+import { baseProviderIdSchema, customProviderIdSchema } from '@cherrystudio/ai-core/provider'
 import { loggerService } from '@logger'
 import {
   getModelSupportedVerbosity,
   isAnthropicModel,
   isGeminiModel,
   isGrokModel,
-  isInterleavedThinkingModel,
   isOpenAIModel,
   isOpenAIOpenWeightModel,
   isQwenMTModel,
+  isReasoningModel,
   isSupportFlexServiceTierModel,
   isSupportVerbosityModel
 } from '@renderer/config/models'
@@ -41,7 +41,8 @@ import { type AiSdkParam, isAiSdkParam, type OpenAIVerbosity } from '@renderer/t
 import { isSupportServiceTierProvider, isSupportVerbosityProvider } from '@renderer/utils/provider'
 import type { JSONValue } from 'ai'
 import { t } from 'i18next'
-import type { OllamaCompletionProviderOptions } from 'ollama-ai-provider-v2'
+import { merge } from 'lodash'
+import type { OllamaProviderOptions } from 'ollama-ai-provider-v2'
 
 import { addAnthropicHeaders } from '../prepareParams/header'
 import { getAiSdkProviderId } from '../provider/factory'
@@ -284,6 +285,16 @@ export function buildProviderOptions(
   const actualAiSdkProviderIds = Object.keys(providerSpecificOptions)
   const primaryAiSdkProviderId = actualAiSdkProviderIds[0] // Use the first one as primary for non-scoped params
 
+  // For openai-compatible providers, auto-convert reasoning_effort (snake_case) to reasoningEffort (camelCase).
+  // The AI SDK's openai-compatible provider overwrites reasoning_effort to undefined,
+  // but accepts reasoningEffort. See: https://github.com/CherryHQ/cherry-studio/issues/11987
+  if (primaryAiSdkProviderId === 'openai-compatible' && 'reasoning_effort' in providerParams) {
+    if (!('reasoningEffort' in providerParams)) {
+      providerParams.reasoningEffort = providerParams.reasoning_effort
+    }
+    delete providerParams.reasoning_effort
+  }
+
   /**
    * Merge custom parameters into providerSpecificOptions.
    * Simple logic:
@@ -372,7 +383,12 @@ function buildOpenAIProviderOptions(
     const reasoningParams = getOpenAIReasoningParams(assistant, model)
     providerOptions = {
       ...providerOptions,
-      ...reasoningParams
+      ...reasoningParams,
+      // TODO: Remove this workaround after migrating to @ai-sdk/open-responses (#13462)
+      // Bypass @ai-sdk/openai's model ID allowlist for reasoning detection.
+      // Third-party providers often use non-canonical model IDs (e.g., "openai/gpt-5.2")
+      // that fail the SDK's startsWith() checks, causing reasoning params to be silently dropped.
+      ...(isReasoningModel(model) && { forceReasoning: true })
     }
   }
   const provider = getProviderById(model.provider)
@@ -574,19 +590,27 @@ function buildOllamaProviderOptions(
     enableWebSearch: boolean
     enableGenerateImage: boolean
   }
-): Record<string, OllamaCompletionProviderOptions> {
+): Record<string, OllamaProviderOptions> {
   const { enableReasoning } = capabilities
-  const providerOptions: OllamaCompletionProviderOptions = {}
+  const providerOptions: OllamaProviderOptions = {}
   const reasoningEffort = assistant.settings?.reasoning_effort
   if (enableReasoning) {
     if (isOpenAIOpenWeightModel(model)) {
-      // For gpt-oss models, Ollama accepts: 'low' | 'medium' | 'high'
+      // gpt-oss models accept 'low' | 'medium' | 'high' string values
       if (reasoningEffort === 'low' || reasoningEffort === 'medium' || reasoningEffort === 'high') {
         providerOptions.think = reasoningEffort
+      } else if (reasoningEffort === 'none') {
+        providerOptions.think = false
+      } else {
+        providerOptions.think = true
       }
     } else {
-      providerOptions.think = !['none', undefined].includes(reasoningEffort)
+      // Other models: boolean only. undefined defaults to true (user enabled reasoning)
+      providerOptions.think = reasoningEffort !== 'none'
     }
+  } else {
+    // Explicitly disable thinking when reasoning is turned off (fixes Issue #11612)
+    providerOptions.think = false
   }
   return {
     ollama: providerOptions
@@ -606,34 +630,19 @@ function buildGenericProviderOptions(
     enableGenerateImage: boolean
   }
 ): Record<string, any> {
-  const { enableWebSearch, enableReasoning } = capabilities
+  const { enableWebSearch } = capabilities
   let providerOptions: Record<string, any> = {}
 
   const reasoningParams = getReasoningEffort(assistant, model)
+  logger.debug('reasoningParams', reasoningParams)
   providerOptions = {
     ...providerOptions,
     ...reasoningParams
   }
-  if (enableReasoning) {
-    if (isInterleavedThinkingModel(model)) {
-      // sendReasoning is a patch specific to @ai-sdk/openai-compatible
-      // Only apply when provider will actually use openai-compatible SDK
-      // (i.e., no dedicated SDK registered OR explicitly openai-compatible)
-      if (!hasProviderConfig(providerId) || providerId === 'openai-compatible') {
-        providerOptions = {
-          ...providerOptions,
-          sendReasoning: true
-        }
-      }
-    }
-  }
 
   if (enableWebSearch) {
     const webSearchParams = getWebSearchParams(model)
-    providerOptions = {
-      ...providerOptions,
-      ...webSearchParams
-    }
+    providerOptions = merge({}, providerOptions, webSearchParams)
   }
 
   // 特殊处理 Qwen MT
@@ -651,10 +660,6 @@ function buildGenericProviderOptions(
     } else {
       throw new Error(t('translate.error.chat_qwen_mt'))
     }
-  }
-
-  if (isOpenAIModel(model)) {
-    providerOptions.strictJsonSchema = false
   }
 
   return {

@@ -37,7 +37,7 @@ const PreprocessProviderSettings: FC<Props> = ({ provider: _provider }) => {
 
   const onUpdateApiKey = () => {
     if (apiKey !== preprocessProvider.apiKey) {
-      updateProvider({ apiKey, quota: undefined })
+      updateProvider({ apiKey })
     }
   }
 
@@ -97,11 +97,9 @@ const PreprocessProviderSettings: FC<Props> = ({ provider: _provider }) => {
             <Input.Password
               value={apiKey}
               placeholder={
-                preprocessProvider.id === 'mineru'
-                  ? t('settings.mineru.api_key')
-                  : preprocessProvider.id === 'paddleocr'
-                    ? t('settings.tool.preprocess.paddleocr.aistudio_access_token')
-                    : t('settings.provider.api_key.label')
+                preprocessProvider.id === 'paddleocr'
+                  ? t('settings.tool.preprocess.paddleocr.aistudio_access_token')
+                  : t('settings.provider.api_key.label')
               }
               onChange={(e) => setApiKey(formatApiKeys(e.target.value))}
               onBlur={onUpdateApiKey}

@@ -26,7 +26,7 @@ import type {
   WebSearchResponse
 } from '@renderer/types'
 import {
-  FileTypes,
+  FILE_TYPE,
   GroqServiceTiers,
   isGroqServiceTier,
   isOpenAIServiceTier,
@@ -50,7 +50,7 @@ import { isJSON, parseJSON } from '@renderer/utils'
 import { addAbortController, removeAbortController } from '@renderer/utils/abortController'
 import { findFileBlocks, getMainTextContent } from '@renderer/utils/messageUtils/find'
 import { isSupportServiceTierProvider } from '@renderer/utils/provider'
-import { defaultTimeout } from '@shared/config/constant'
+import { DEFAULT_TIMEOUT } from '@shared/config/constant'
 import { defaultAppHeaders } from '@shared/utils'
 import { isEmpty } from 'lodash'
 
@@ -267,7 +267,7 @@ export abstract class BaseApiClient<
     if (isSupportFlexServiceTierModel(model)) {
       return 15 * 1000 * 60
     }
-    return defaultTimeout
+    return DEFAULT_TIMEOUT
   }
 
   public async getMessageContent(
@@ -321,7 +321,7 @@ export abstract class BaseApiClient<
     const fileBlocks = findFileBlocks(message)
     if (fileBlocks.length > 0) {
       const textFileBlocks = fileBlocks.filter(
-        (fb) => fb.file && [FileTypes.TEXT, FileTypes.DOCUMENT].includes(fb.file.type)
+        (fb) => fb.file && [FILE_TYPE.TEXT, FILE_TYPE.DOCUMENT].some((type) => fb.file.type === type)
       )
 
       if (textFileBlocks.length > 0) {

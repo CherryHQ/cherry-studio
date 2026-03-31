@@ -72,6 +72,7 @@ function handleSpecialProviders(model: Model, provider: Provider): Provider {
  * @param provider - The provider whose API host is to be formatted.
  * @returns A new provider instance with the formatted API host.
  */
+// WARNING: if any changes are made here, please sync it to src/main/aiCore/provider/providerConfig.ts:formatProviderApiHost
 export function formatProviderApiHost(provider: Provider): Provider {
   const formatted = { ...provider }
   const appendApiVersion = !isWithTrailingSharp(provider.apiHost)
@@ -397,6 +398,10 @@ export function isModernSdkSupported(provider: Provider): boolean {
  * Creates a custom fetch wrapper that converts 'developer' role to 'system' role in request body.
  * This is needed for providers that don't support the 'developer' role (e.g., Azure DeepSeek R1).
  *
+ * Handles both:
+ * - Responses API format: body.input array
+ * - Chat Completions API format: body.messages array
+ *
  * @param originalFetch - Optional original fetch function to wrap
  * @returns A fetch function that transforms the request body
  */
@@ -407,8 +412,10 @@ function createDeveloperToSystemFetch(originalFetch?: typeof fetch): typeof fetc
     if (options?.body && typeof options.body === 'string') {
       try {
         const body = JSON.parse(options.body)
+        let hasChanges = false
+
+        // Handle Responses API format (body.input)
         if (body.input && Array.isArray(body.input)) {
-          let hasChanges = false
           body.input = body.input.map((msg: { role: string }) => {
             if (msg.role === 'developer') {
               hasChanges = true
@@ -416,11 +423,23 @@ function createDeveloperToSystemFetch(originalFetch?: typeof fetch): typeof fetc
             }
             return msg
           })
-          if (hasChanges) {
-            options = {
-              ...options,
-              body: JSON.stringify(body)
+        }
+
+        // Handle Chat Completions API format (body.messages)
+        if (body.messages && Array.isArray(body.messages)) {
+          body.messages = body.messages.map((msg: { role: string }) => {
+            if (msg.role === 'developer') {
+              hasChanges = true
+              return { ...msg, role: 'system' }
             }
+            return msg
+          })
+        }
+
+        if (hasChanges) {
+          options = {
+            ...options,
+            body: JSON.stringify(body)
           }
         }
       } catch {

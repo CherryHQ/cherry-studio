@@ -2,6 +2,7 @@ import type { CollapseProps } from 'antd'
 import { useTranslation } from 'react-i18next'
 
 import { countLines, truncateOutput } from '../shared/truncateOutput'
+import { ClickableFilePath } from './ClickableFilePath'
 import { ToolHeader, TruncatedIndicator } from './GenericTools'
 import { AgentToolsType, type GrepToolInput, type GrepToolOutput } from './types'
 
@@ -18,7 +19,7 @@ export function GrepTool({
   const { data: truncatedOutput, isTruncated, originalLength } = truncateOutput(output)
 
   return {
-    key: 'tool',
+    key: AgentToolsType.Grep,
     label: (
       <ToolHeader
         toolName={AgentToolsType.Grep}
@@ -28,18 +29,27 @@ export function GrepTool({
             {input?.output_mode && <span className="ml-1">({input.output_mode})</span>}
           </>
         }
-        stats={
-          output
-            ? `${resultLines} ${t(resultLines === 1 ? 'message.tools.units.line' : 'message.tools.units.lines')}`
-            : undefined
-        }
+        stats={output ? t('message.tools.units.line', { count: resultLines }) : undefined}
         variant="collapse-label"
         showStatus={false}
       />
     ),
     children: (
       <div>
-        <div>{truncatedOutput}</div>
+        <div>
+          {truncatedOutput?.split('\n').map((line, i) => {
+            const match = line.match(/^(\/[\w./@+-][^:]*[^:])(:.*)?$/)
+            if (match) {
+              return (
+                <div key={i}>
+                  <ClickableFilePath path={match[1]} />
+                  {match[2] ?? ''}
+                </div>
+              )
+            }
+            return <div key={i}>{line}</div>
+          })}
+        </div>
         {isTruncated && <TruncatedIndicator originalLength={originalLength} />}
       </div>
     )

@@ -32,7 +32,14 @@ import { estimateTextTokens as estimateTxtTokens, estimateUserPromptUsage } from
 import WebSearchService from '@renderer/services/WebSearchService'
 import { useAppDispatch, useAppSelector } from '@renderer/store'
 import { sendMessage as _sendMessage } from '@renderer/store/thunk/messageThunk'
-import { type Assistant, type FileType, type KnowledgeBase, type Model, type Topic, TopicType } from '@renderer/types'
+import {
+  type Assistant,
+  type FileMetadata,
+  type KnowledgeBase,
+  type Model,
+  type Topic,
+  TopicType
+} from '@renderer/types'
 import type { MessageInputBaseParams } from '@renderer/types/newMessage'
 import { delay } from '@renderer/utils'
 import { getSendMessageShortcutLabel } from '@renderer/utils/input'
@@ -95,7 +102,7 @@ const Inputbar: FC<Props> = ({ assistant: initialAssistant, setActiveTopic, topi
 
   const initialState = useMemo(
     () => ({
-      files: [] as FileType[],
+      files: [] as FileMetadata[],
       mentionedModels: initialMentionedModels,
       selectedKnowledgeBases: initialAssistant.knowledge_bases ?? [],
       isExpanded: false,
@@ -236,7 +243,7 @@ const InputbarInner: FC<InputbarInnerProps> = ({ assistant: initialAssistant, se
       { topicId: topic.id, name: 'sendMessage', inputs: text },
       mentionedModels.length > 0 ? mentionedModels : [assistant.model]
     )
-    EventEmitter.emit(EVENT_NAMES.SEND_MESSAGE, { topicId: topic.id, traceId: parent?.spanContext().traceId })
+    void EventEmitter.emit(EVENT_NAMES.SEND_MESSAGE, { topicId: topic.id, traceId: parent?.spanContext().traceId })
 
     try {
       const uploadedFiles = await FileManager.uploadFiles(files)
@@ -254,7 +261,7 @@ const InputbarInner: FC<InputbarInnerProps> = ({ assistant: initialAssistant, se
       const { message, blocks } = getUserMessage(baseUserMessage)
       message.traceId = parent?.spanContext().traceId
 
-      dispatch(_sendMessage(message, blocks, assistant, topic.id))
+      void dispatch(_sendMessage(message, blocks, assistant, topic.id))
 
       setText('')
       setFiles([])
@@ -302,16 +309,16 @@ const InputbarInner: FC<InputbarInnerProps> = ({ assistant: initialAssistant, se
       await delay(1)
     }
 
-    EventEmitter.emit(EVENT_NAMES.CLEAR_MESSAGES, topic)
+    void EventEmitter.emit(EVENT_NAMES.CLEAR_MESSAGES, topic)
     focusTextarea()
   }, [focusTextarea, loading, onPause, topic])
 
   const onNewContext = useCallback(() => {
     if (loading) {
-      onPause()
+      void onPause()
       return
     }
-    EventEmitter.emit(EVENT_NAMES.NEW_CONTEXT)
+    void EventEmitter.emit(EVENT_NAMES.NEW_CONTEXT)
   }, [loading, onPause])
 
   const addNewTopic = useCallback(async () => {
@@ -368,8 +375,8 @@ const InputbarInner: FC<InputbarInnerProps> = ({ assistant: initialAssistant, se
   useShortcut(
     'new_topic',
     () => {
-      addNewTopic()
-      EventEmitter.emit(EVENT_NAMES.SHOW_TOPIC_SIDEBAR)
+      void addNewTopic()
+      void EventEmitter.emit(EVENT_NAMES.SHOW_TOPIC_SIDEBAR)
       focusTextarea()
     },
     { preventDefault: true, enableOnFormTags: true }
@@ -471,7 +478,7 @@ const InputbarInner: FC<InputbarInnerProps> = ({ assistant: initialAssistant, se
   )
 
   // leftToolbar: 左侧工具栏
-  const leftToolbar = config.showTools ? <InputbarTools scope={scope} assistantId={assistant.id} /> : null
+  const leftToolbar = config.showTools ? <InputbarTools scope={scope} assistant={assistant} model={model} /> : null
 
   // rightToolbar: 右侧工具栏
   const rightToolbar = (

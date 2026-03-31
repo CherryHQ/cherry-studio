@@ -259,8 +259,10 @@ const NewApiPage: FC<{ Options: string[] }> = ({ Options }) => {
     const headers: Record<string, string> = {
       Authorization: `Bearer ${AI.getApiKey()}`
     }
-    const url = newApiProvider.apiHost + `/v1/images/generations`
-    const editUrl = newApiProvider.apiHost + `/v1/images/edits`
+    // NOTE: Cherry Studio当下 newapi只接受v1/images/xxx的请求
+    // TODO: support gemini https://www.newapi.ai/zh/docs/api/ai-model/images/gemini/geminirelayv1beta-383837589
+    const url = newApiProvider.apiHost.replace(/\/v1$/, '') + `/v1/images/generations`
+    const editUrl = newApiProvider.apiHost.replace(/\/v1$/, '') + `/v1/images/edits`
 
     try {
       if (mode === 'openai_image_generate') {
@@ -339,7 +341,7 @@ const NewApiPage: FC<{ Options: string[] }> = ({ Options }) => {
           })
         )
         await FileManager.addFiles(validFiles)
-        updatePaintingState({ files: validFiles, urls: validFiles.map((file) => file.name) })
+        updatePaintingState({ files: validFiles, urls: [] })
       }
     } catch (error: unknown) {
       handleError(error)
@@ -393,7 +395,7 @@ const NewApiPage: FC<{ Options: string[] }> = ({ Options }) => {
       }
     }
 
-    removePainting(mode, paintingToDelete)
+    void removePainting(mode, paintingToDelete)
   }
 
   const translate = async () => {
@@ -431,7 +433,7 @@ const NewApiPage: FC<{ Options: string[] }> = ({ Options }) => {
       if (spaceClickCount === 2) {
         setSpaceClickCount(0)
         setIsTranslating(true)
-        translate()
+        void translate()
       }
     }
   }
