@@ -3,7 +3,7 @@ import type { ProxyConfig } from 'electron'
 import { app, session } from 'electron'
 import { getSystemProxy } from 'os-proxy-config'
 
-import { type NodeProxyConfig, NodeProxyController } from './proxy/nodeProxy'
+import { NodeProxyController } from './proxy/nodeProxy'
 
 const logger = loggerService.withContext('ProxyManager')
 
@@ -70,18 +70,6 @@ export class ProxyManager {
       throw error
     } finally {
       this.isSettingProxy = false
-    }
-  }
-
-  getActiveNodeProxyConfig(): NodeProxyConfig | null {
-    const proxyRules = this.config.mode === 'direct' ? undefined : this.config.proxyRules
-    if (!proxyRules) {
-      return null
-    }
-
-    return {
-      proxyRules,
-      proxyBypassRules: this.config.proxyBypassRules
     }
   }
 
