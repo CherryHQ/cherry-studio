@@ -15,7 +15,7 @@ export function isOpenAILLMModel(model: Model): boolean {
   if (isOpenAIReasoningModel(model)) {
     return true
   }
-  if (modelId.includes('gpt')) {
+  if (/\bgpt\b/.test(modelId)) {
     return true
   }
   return false
