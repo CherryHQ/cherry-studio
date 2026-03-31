@@ -1050,6 +1050,14 @@ export function buildMessageTree(
     }
   }
 
+  // Build set of known message IDs for validating references
+  const knownIds = new Set(messages.map((m) => m.id))
+
+  // Track fallback parent for orphaned askId groups (user message deleted)
+  // All messages in the same orphaned group share the previousMessageId at the time
+  // the first group member is encountered, preserving sibling relationships.
+  const orphanedGroupParent = new Map<string, string | null>()
+
   // Second pass: build parent/sibling relationships
   let previousMessageId: string | null = null
   let lastNonGroupMessageId: string | null = null // Last message not in a group, for linking subsequent user messages
@@ -1060,9 +1068,18 @@ export function buildMessageTree(
     let siblingsGroupId = 0
 
     if (msg.askId && askIdToGroupId.has(msg.askId)) {
-      // This is part of a multi-model response group
-      parentId = msg.askId // Parent is the user message
       siblingsGroupId = askIdToGroupId.get(msg.askId)!
+
+      if (knownIds.has(msg.askId)) {
+        // Normal multi-model: parent is the user message
+        parentId = msg.askId
+      } else {
+        // Orphaned multi-model: user message deleted, share a common fallback parent
+        if (!orphanedGroupParent.has(msg.askId)) {
+          orphanedGroupParent.set(msg.askId, previousMessageId)
+        }
+        parentId = orphanedGroupParent.get(msg.askId) ?? null
+      }
 
       // If this is the selected response, update lastNonGroupMessageId for subsequent user messages
       if (msg.foldSelected) {

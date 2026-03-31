@@ -116,6 +116,15 @@ export class TranslateMigrator extends BaseMigrator {
   private languageSkippedCount = 0
   private cachedLanguageRecords: OldCustomTranslateLanguage[] = []
 
+  override reset(): void {
+    this.historySourceCount = 0
+    this.historySkippedCount = 0
+    this.cachedHistoryRecords = []
+    this.languageSourceCount = 0
+    this.languageSkippedCount = 0
+    this.cachedLanguageRecords = []
+  }
+
   async prepare(ctx: MigrationContext): Promise<PrepareResult> {
     const warnings: string[] = []
 
