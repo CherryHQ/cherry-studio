@@ -25,6 +25,7 @@ import {
   getProxyEnvironment,
   getProxyProtocol
 } from '@main/services/proxy/nodeProxy'
+import { toAsarUnpackedPath } from '@main/utils'
 import { autoDiscoverGitBash } from '@main/utils/process'
 import { rtkRewrite } from '@main/utils/rtk'
 import getLoginShellEnvironment from '@main/utils/shell-env'
@@ -81,15 +82,10 @@ class ClaudeCodeService implements AgentServiceInterface {
 
   constructor() {
     // Resolve Claude Code CLI robustly (works in dev and in asar)
-    this.claudeExecutablePath = path.join(path.dirname(require_.resolve('@anthropic-ai/claude-agent-sdk')), 'cli.js')
-    if (app.isPackaged) {
-      this.claudeExecutablePath = this.claudeExecutablePath.replace(/\.asar([\\/])/, '.asar.unpacked$1')
-    }
-
-    this.claudeProxyBootstrapPath = path.join(app.getAppPath(), 'out', 'proxy', 'index.js')
-    if (app.isPackaged) {
-      this.claudeProxyBootstrapPath = this.claudeProxyBootstrapPath.replace(/\.asar([\\/])/, '.asar.unpacked$1')
-    }
+    this.claudeExecutablePath = toAsarUnpackedPath(
+      path.join(path.dirname(require_.resolve('@anthropic-ai/claude-agent-sdk')), 'cli.js')
+    )
+    this.claudeProxyBootstrapPath = toAsarUnpackedPath(path.join(app.getAppPath(), 'out', 'proxy', 'index.js'))
   }
 
   async invoke(

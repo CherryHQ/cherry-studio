@@ -1,4 +1,5 @@
 import { loggerService } from '@logger'
+import { toAsarUnpackedPath } from '@main/utils'
 import {
   checkName,
   getFilesDir,
@@ -19,7 +20,7 @@ import type { FSWatcher } from 'chokidar'
 import chokidar from 'chokidar'
 import * as crypto from 'crypto'
 import type { OpenDialogOptions, OpenDialogReturnValue, SaveDialogOptions, SaveDialogReturnValue } from 'electron'
-import { app, dialog, net, shell } from 'electron'
+import { dialog, net, shell } from 'electron'
 import * as fs from 'fs'
 import { writeFileSync } from 'fs'
 import { readFile } from 'fs/promises'
@@ -44,9 +45,7 @@ const getRipgrepBinaryPath = (): string | null => {
       process.platform === 'win32' ? 'rg.exe' : 'rg'
     )
 
-    if (app.isPackaged) {
-      ripgrepBinaryPath = ripgrepBinaryPath.replace(/\.asar([\\/])/, '.asar.unpacked$1')
-    }
+    ripgrepBinaryPath = toAsarUnpackedPath(ripgrepBinaryPath)
 
     if (fs.existsSync(ripgrepBinaryPath)) {
       return ripgrepBinaryPath
