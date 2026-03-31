@@ -100,10 +100,10 @@ function getApiKey(provider: Provider): string {
 }
 
 function defaultHeaders(provider: Provider): Record<string, string> {
+  const apiKey = getApiKey(provider)
   return {
     ...defaultAppHeaders(),
-    Authorization: `Bearer ${getApiKey(provider)}`,
-    'X-Api-Key': getApiKey(provider),
+    ...(apiKey ? { Authorization: `Bearer ${apiKey}`, 'X-Api-Key': apiKey } : {}),
     ...provider.extra_headers
   }
 }
