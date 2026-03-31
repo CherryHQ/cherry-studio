@@ -30,3 +30,12 @@ export const LEVEL_MAP: Record<LogLevel, number> = {
   silly: 0,
   none: -1
 }
+
+export const LOG_LEVEL_OPTIONS: { value: LogLevel; label: string }[] = [
+  { value: LEVEL.ERROR, label: 'Error' },
+  { value: LEVEL.WARN, label: 'Warn' },
+  { value: LEVEL.INFO, label: 'Info' },
+  { value: LEVEL.DEBUG, label: 'Debug' },
+  { value: LEVEL.VERBOSE, label: 'Verbose' },
+  { value: LEVEL.SILLY, label: 'Silly' }
+]

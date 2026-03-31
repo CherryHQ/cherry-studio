@@ -13,7 +13,7 @@ import { setUpdateState } from '@renderer/store/runtime'
 import { ThemeMode } from '@renderer/types'
 import { runAsyncFunction } from '@renderer/utils'
 import { UpgradeChannel } from '@shared/config/constant'
-import type { LogLevel } from '@shared/config/logger'
+import { LOG_LEVEL_OPTIONS, type LogLevel } from '@shared/config/logger'
 import { Avatar, Button, Progress, Radio, Row, Select, Switch, Tag, Tooltip } from 'antd'
 import { debounce } from 'lodash'
 import { Briefcase, Bug, Building2, FileText, Github, Globe, Mail, Rss } from 'lucide-react'
@@ -365,14 +365,7 @@ const AboutSettings: FC = () => {
             value={logLevel}
             onChange={(value) => setLogLevel(value as LogLevel)}
             style={{ width: 120 }}
-            options={[
-              { value: 'error', label: 'Error' },
-              { value: 'warn', label: 'Warn' },
-              { value: 'info', label: 'Info' },
-              { value: 'debug', label: 'Debug' },
-              { value: 'verbose', label: 'Verbose' },
-              { value: 'silly', label: 'Silly' }
-            ]}
+            options={LOG_LEVEL_OPTIONS}
           />
         </SettingRow>
       </SettingGroup>

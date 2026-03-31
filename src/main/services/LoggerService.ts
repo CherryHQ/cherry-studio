@@ -367,7 +367,6 @@ class LoggerService {
    */
   public setLevel(level: LogLevel): void {
     this.consoleLevel = level
-    this.logger.level = level
   }
 
   /**
