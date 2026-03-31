@@ -12,8 +12,9 @@ import {
   type SendMessageOptions
 } from '../../ChannelAdapter'
 import { registerAdapterFactory } from '../../ChannelManager'
-import { isSlashCommand, SLASH_COMMANDS, splitMessage as splitMessageShared } from '../../constants'
+import { isSlashCommand, SLASH_COMMANDS } from '../../constants'
 import { FlushController } from '../../FlushController'
+import { splitMessage } from '../../utils'
 
 const DISCORD_API_BASE = 'https://discord.com/api/v10'
 const DISCORD_MAX_LENGTH = 2000
@@ -58,10 +59,6 @@ type DiscordMessage = {
   content: string
   attachments?: DiscordAttachment[]
   timestamp: string
-}
-
-function splitMessage(text: string): string[] {
-  return splitMessageShared(text, DISCORD_MAX_LENGTH)
 }
 
 /**
@@ -683,7 +680,7 @@ class DiscordAdapter extends ChannelAdapter {
 
   // oxlint-disable-next-line no-unused-vars -- abstract method signature
   async sendMessage(chatId: string, text: string, _opts?: SendMessageOptions): Promise<void> {
-    const chunks = splitMessage(text)
+    const chunks = splitMessage(text, DISCORD_MAX_LENGTH)
     const channelId = chatId.split(':')[1]
 
     for (let i = 0; i < chunks.length; i++) {

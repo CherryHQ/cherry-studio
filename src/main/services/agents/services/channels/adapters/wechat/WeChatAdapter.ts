@@ -13,14 +13,11 @@ import {
   type SendMessageOptions
 } from '../../ChannelAdapter'
 import { registerAdapterFactory } from '../../ChannelManager'
-import { FILE_EXTENSION_MIME_MAP, isSlashCommand, splitMessage as splitMessageShared } from '../../constants'
+import { isSlashCommand } from '../../constants'
+import { FILE_EXTENSION_MIME_MAP, splitMessage } from '../../utils'
 import { type IncomingMessage, WeixinBot } from './WeChatProtocol'
 
 const WECHAT_MAX_LENGTH = 2000
-
-function splitMessage(text: string): string[] {
-  return splitMessageShared(text, WECHAT_MAX_LENGTH)
-}
 
 class WeChatAdapter extends ChannelAdapter {
   private bot: WeixinBot | null = null
@@ -96,7 +93,7 @@ class WeChatAdapter extends ChannelAdapter {
       throw new Error('Bot is not connected')
     }
 
-    const chunks = splitMessage(text)
+    const chunks = splitMessage(text, WECHAT_MAX_LENGTH)
 
     for (let i = 0; i < chunks.length; i++) {
       await this.bot.send(chatId, chunks[i])

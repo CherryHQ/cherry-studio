@@ -17,9 +17,10 @@ import type {
   FileAttachment,
   ImageAttachment
 } from './ChannelAdapter'
-import { SLASH_COMMANDS, splitMessage } from './constants'
+import { SLASH_COMMANDS } from './constants'
 import { sessionStreamBus } from './SessionStreamBus'
 import { broadcastSessionChanged } from './sessionStreamIpc'
+import { splitMessage } from './utils'
 
 const logger = loggerService.withContext('ChannelMessageHandler')
 

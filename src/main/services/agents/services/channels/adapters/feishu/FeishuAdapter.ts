@@ -14,8 +14,9 @@ import {
   type SendMessageOptions
 } from '../../ChannelAdapter'
 import { registerAdapterFactory } from '../../ChannelManager'
-import { FILE_EXTENSION_MIME_MAP, isSlashCommand, splitMessage as splitMessageShared } from '../../constants'
+import { isSlashCommand } from '../../constants'
 import { FlushController } from '../../FlushController'
+import { FILE_EXTENSION_MIME_MAP, splitMessage } from '../../utils'
 import { registrationBegin, registrationPoll } from './FeishuAppRegistration'
 
 const FEISHU_MAX_LENGTH = 4000
@@ -178,10 +179,6 @@ function ensureFeishuSuccess<T>(response: unknown, action: string): FeishuApiRes
   }
 
   throw new Error(`${action} failed: ${unwrapped.msg || unwrapped.message || `code=${String(unwrapped.code)}`}`)
-}
-
-function splitMessage(text: string): string[] {
-  return splitMessageShared(text, FEISHU_MAX_LENGTH)
 }
 
 /**
@@ -600,12 +597,7 @@ class FeishuAdapter extends ChannelAdapter {
     this.streamingControllers.clear()
 
     if (this.wsClient) {
-      try {
-        // Stop the Lark WSClient to release WebSocket and internal timers
-        await (this.wsClient as any).close?.()
-      } catch {
-        // Lark SDK may not expose close(); ignore
-      }
+      this.wsClient.close()
       this.wsClient = null
     }
     this.client = null
@@ -619,7 +611,7 @@ class FeishuAdapter extends ChannelAdapter {
     }
     void _opts
 
-    const chunks = splitMessage(text)
+    const chunks = splitMessage(text, FEISHU_MAX_LENGTH)
 
     for (let i = 0; i < chunks.length; i++) {
       ensureFeishuSuccess(

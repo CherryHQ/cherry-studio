@@ -10,7 +10,8 @@ import {
   type SendMessageOptions
 } from '../../ChannelAdapter'
 import { registerAdapterFactory } from '../../ChannelManager'
-import { isSlashCommand, splitMessage as splitMessageShared } from '../../constants'
+import { isSlashCommand } from '../../constants'
+import { splitMessage } from '../../utils'
 
 const QQ_MAX_LENGTH = 2000
 const QQ_API_BASE = 'https://api.sgroup.qq.com'
@@ -61,10 +62,6 @@ type QQMessage = {
   group_id?: string
   group_openid?: string
   attachments?: QQAttachment[]
-}
-
-function splitMessage(text: string): string[] {
-  return splitMessageShared(text, QQ_MAX_LENGTH)
 }
 
 class QQAdapter extends ChannelAdapter {
@@ -516,7 +513,7 @@ class QQAdapter extends ChannelAdapter {
 
   // oxlint-disable-next-line no-unused-vars -- abstract method signature
   async sendMessage(chatId: string, text: string, _opts?: SendMessageOptions): Promise<void> {
-    const chunks = splitMessage(text)
+    const chunks = splitMessage(text, QQ_MAX_LENGTH)
 
     for (let i = 0; i < chunks.length; i++) {
       await this.sendToChat(chatId, chunks[i])

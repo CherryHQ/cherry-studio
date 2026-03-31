@@ -15,11 +15,7 @@ import { registerAdapterFactory } from '../../ChannelManager'
 
 const TELEGRAM_MAX_LENGTH = 4096
 
-import { splitMessage as splitMessageShared } from '../../constants'
-
-function splitMessage(text: string): string[] {
-  return splitMessageShared(text, TELEGRAM_MAX_LENGTH)
-}
+import { splitMessage } from '../../utils'
 
 class TelegramAdapter extends ChannelAdapter {
   private bot: Bot | null = null
@@ -234,7 +230,7 @@ class TelegramAdapter extends ChannelAdapter {
 
     const parseMode = opts?.parseMode ?? 'MarkdownV2'
     const formatted = parseMode === 'MarkdownV2' ? toMarkdownV2(text).trimEnd() : text
-    const chunks = splitMessage(formatted)
+    const chunks = splitMessage(formatted, TELEGRAM_MAX_LENGTH)
 
     for (let i = 0; i < chunks.length; i++) {
       const replyParams =
@@ -252,7 +248,7 @@ class TelegramAdapter extends ChannelAdapter {
             chatId,
             error: error instanceof Error ? error.message : String(error)
           })
-          await this.bot.api.sendMessage(chatId, splitMessage(text)[i], replyParams)
+          await this.bot.api.sendMessage(chatId, splitMessage(text, TELEGRAM_MAX_LENGTH)[i], replyParams)
         } else {
           throw error
         }
