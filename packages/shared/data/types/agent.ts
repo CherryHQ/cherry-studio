@@ -22,15 +22,15 @@ export const AgentSchema = z.object({
   id: z.uuidv4(),
   type: AgentTypeSchema,
   name: z.string().min(1),
-  description: z.string().nullable().optional(),
+  description: z.string().nullable(),
   model: z.string().min(1),
-  planModel: z.string().nullable().optional(),
-  smallModel: z.string().nullable().optional(),
-  accessiblePaths: z.array(z.string()).nullable().optional(),
-  instructions: z.record(z.string(), z.unknown()).nullable().optional(),
-  mcps: z.array(z.string()).nullable().optional(),
-  allowedTools: z.array(z.string()).nullable().optional(),
-  configuration: z.record(z.string(), z.unknown()).nullable().optional(),
+  planModel: z.string().nullable(),
+  smallModel: z.string().nullable(),
+  accessiblePaths: z.array(z.string()).nullable(),
+  instructions: z.record(z.string(), z.unknown()).nullable(),
+  mcps: z.array(z.string()).nullable(),
+  allowedTools: z.array(z.string()).nullable(),
+  configuration: z.record(z.string(), z.unknown()).nullable(),
   sortOrder: z.number().default(0),
   createdAt: z.iso.datetime(),
   updatedAt: z.iso.datetime()
@@ -43,19 +43,19 @@ export type Agent = z.infer<typeof AgentSchema>
 
 export const AgentSessionSchema = z.object({
   id: z.uuidv4(),
-  agentId: z.string().nullable().optional(),
+  agentId: z.string().nullable(),
   agentType: AgentTypeSchema,
   topicId: z.string(),
   model: z.string().min(1),
-  planModel: z.string().nullable().optional(),
-  smallModel: z.string().nullable().optional(),
-  accessiblePaths: z.array(z.string()).nullable().optional(),
-  instructions: z.record(z.string(), z.unknown()).nullable().optional(),
-  mcps: z.array(z.string()).nullable().optional(),
-  allowedTools: z.array(z.string()).nullable().optional(),
-  slashCommands: z.array(z.unknown()).nullable().optional(),
-  configuration: z.record(z.string(), z.unknown()).nullable().optional(),
-  sdkSessionId: z.string().nullable().optional(),
+  planModel: z.string().nullable(),
+  smallModel: z.string().nullable(),
+  accessiblePaths: z.array(z.string()).nullable(),
+  instructions: z.record(z.string(), z.unknown()).nullable(),
+  mcps: z.array(z.string()).nullable(),
+  allowedTools: z.array(z.string()).nullable(),
+  slashCommands: z.array(z.unknown()).nullable(),
+  configuration: z.record(z.string(), z.unknown()).nullable(),
+  sdkSessionId: z.string().nullable(),
   sortOrder: z.number().default(0),
   createdAt: z.iso.datetime(),
   updatedAt: z.iso.datetime()
@@ -78,10 +78,10 @@ export interface AgentSessionSnapshot {
   agentId: string | null
   agentType: string
   model: string
-  planModel?: string | null
-  smallModel?: string | null
-  instructions?: Record<string, unknown> | null
-  mcps?: string[] | null
-  allowedTools?: string[] | null
-  configuration?: Record<string, unknown> | null
+  planModel: string | null
+  smallModel: string | null
+  instructions: Record<string, unknown> | null
+  mcps: string[] | null
+  allowedTools: string[] | null
+  configuration: Record<string, unknown> | null
 }
