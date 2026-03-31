@@ -44,7 +44,12 @@ export function classifyError(error?: SerializedError): ErrorClassification {
   }
 
   // Model not found (404)
-  if (numStatus === 404 || msg.includes('model_not_found') || msg.includes('does not exist')) {
+  if (
+    numStatus === 404 ||
+    msg.includes('model_not_found') ||
+    msg.includes('model not found') ||
+    msg.includes('model does not exist')
+  ) {
     return { category: 'model', i18nKey: 'error.diagnosis.model', navTarget: '/settings/provider' }
   }
 

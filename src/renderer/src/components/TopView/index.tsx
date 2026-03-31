@@ -45,17 +45,21 @@ const TopViewContainer: React.FC<Props> = ({ children }) => {
   const enableQuitFullScreen = shortcuts.find((item) => item.key === 'exit_fullscreen')?.enabled
 
   // Global ErrorDetailModal for toast "View Details" link
-  const [globalError, setGlobalError] = useState<SerializedError | undefined>()
-  const [globalFailingModelId, setGlobalFailingModelId] = useState<string | undefined>()
-  const [globalDiagnosisContext, setGlobalDiagnosisContext] = useState<DiagnosisContext | undefined>()
-  const [showGlobalErrorModal, setShowGlobalErrorModal] = useState(false)
+  const [errorModal, setErrorModal] = useState<{
+    open: boolean
+    error?: SerializedError
+    failingModelId?: string
+    diagnosisContext?: DiagnosisContext
+  }>({ open: false })
 
   useEffect(() => {
     const unsub = EventEmitter.on(EVENT_NAMES.SHOW_ERROR_DETAIL, (data: any) => {
-      setGlobalError(data?.error)
-      setGlobalFailingModelId(data?.failingModelId)
-      setGlobalDiagnosisContext(data?.diagnosisContext)
-      setShowGlobalErrorModal(true)
+      setErrorModal({
+        open: true,
+        error: data?.error,
+        failingModelId: data?.failingModelId,
+        diagnosisContext: data?.diagnosisContext
+      })
     })
     return () => {
       unsub()
@@ -125,11 +129,11 @@ const TopViewContainer: React.FC<Props> = ({ children }) => {
       {modalContextHolder}
       <TopViewMinappContainer />
       <ErrorDetailModal
-        open={showGlobalErrorModal}
-        onClose={() => setShowGlobalErrorModal(false)}
-        error={globalError}
-        failingModelId={globalFailingModelId}
-        diagnosisContext={globalDiagnosisContext}
+        open={errorModal.open}
+        onClose={() => setErrorModal((prev) => ({ ...prev, open: false }))}
+        error={errorModal.error}
+        failingModelId={errorModal.failingModelId}
+        diagnosisContext={errorModal.diagnosisContext}
       />
       {elements.map(({ element: Element, id }) => (
         <FullScreenContainer key={`TOPVIEW_${id}`}>

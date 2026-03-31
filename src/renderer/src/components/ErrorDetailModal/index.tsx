@@ -1,10 +1,9 @@
-import { CheckCircleOutlined } from '@ant-design/icons'
 import CodeViewer from '@renderer/components/CodeViewer'
 import { useCodeStyle } from '@renderer/context/CodeStyleProvider'
 import { dbService } from '@renderer/services/db/DbService'
 import type { DiagnosisContext, DiagnosisResult } from '@renderer/services/ErrorDiagnosisService'
 import { diagnoseError } from '@renderer/services/ErrorDiagnosisService'
-import store, { useAppSelector } from '@renderer/store'
+import store from '@renderer/store'
 import { updateOneBlock } from '@renderer/store/messageBlock'
 import type { SerializedAiSdkError, SerializedAiSdkErrorUnion, SerializedError } from '@renderer/types/error'
 import {
@@ -33,8 +32,9 @@ import {
 } from '@renderer/types/error'
 import { formatAiSdkError, formatError, safeToString } from '@renderer/utils/error'
 import { parseDataUrl } from '@shared/utils'
-import { Button, Spin } from 'antd'
+import { Button } from 'antd'
 import { Modal } from 'antd'
+import { CheckCircle, Loader2 } from 'lucide-react'
 import React, { memo, useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Link } from 'react-router-dom'
@@ -54,7 +54,7 @@ function persistDiagnosis(blockId: string, diagnosis: DiagnosisResult) {
   const block = store.getState().messageBlocks.entities[blockId]
   const updatedMetadata = { ...block?.metadata, diagnosis }
   store.dispatch(updateOneBlock({ id: blockId, changes: { metadata: updatedMetadata } }))
-  void dbService.updateSingleBlock(blockId, { metadata: updatedMetadata } as any)
+  void dbService.updateSingleBlock(blockId, { metadata: updatedMetadata })
 }
 
 const truncateLargeData = (
@@ -526,62 +526,24 @@ function isSafeUrl(url: string): boolean {
   }
 }
 
-// --- AI Diagnosis Panel ---
+// Valid internal routes for AI-generated navigation
+const VALID_NAV_PREFIXES = [
+  '/settings/',
+  '/knowledge',
+  '/files',
+  '/agents',
+  '/translate',
+  '/notes',
+  '/paintings',
+  '/code',
+  '/openclaw',
+  '/store',
+  '/launchpad'
+]
 
-const DiagnosisPanel = styled.div`
-  margin-top: 16px;
-  padding: 14px 16px;
-  border-radius: 8px;
-  border: 1px solid color-mix(in srgb, var(--color-primary) 15%, transparent);
-  background: color-mix(in srgb, var(--color-primary) 3%, transparent);
-`
-
-const DiagnosisHeader = styled.div`
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  font-size: 14px;
-  font-weight: 600;
-  color: var(--color-primary);
-  margin-bottom: 10px;
-`
-
-const DiagnosisBody = styled.div`
-  font-size: 13px;
-  color: var(--color-text-2);
-  line-height: 1.7;
-`
-
-const DiagnosisSteps = styled.div`
-  margin-top: 10px;
-  display: flex;
-  flex-direction: column;
-  gap: 5px;
-`
-
-const StepItem = styled.div`
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  font-size: 13px;
-  padding: 6px 10px;
-  border-radius: 6px;
-  background: color-mix(in srgb, var(--color-primary) 4%, transparent);
-`
-
-const StepNumber = styled.span`
-  width: 20px;
-  height: 20px;
-  border-radius: 50%;
-  background: var(--color-primary);
-  color: var(--color-white-soft, #fff);
-  font-size: 10px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  flex-shrink: 0;
-  font-weight: 700;
-`
+function isValidNavRoute(nav: string): boolean {
+  return VALID_NAV_PREFIXES.some((prefix) => nav.startsWith(prefix))
+}
 
 // --- Main Component ---
 
@@ -596,10 +558,12 @@ const ErrorDetailModal: React.FC<ErrorDetailModalProps> = ({
 }) => {
   const { t } = useTranslation()
   const [diagStatus, setDiagStatus] = useState<'idle' | 'loading' | 'done' | 'error'>(cachedDiagnosis ? 'done' : 'idle')
-  const defaultModel = useAppSelector((state) => state.llm.defaultModel)
-  // Disable AI diagnosis when the diagnosis model is the same as the failing model
-  const diagModelId = (defaultModel ?? { id: 'qwen' }).id
-  const shouldDisableDiag = failingModelId != null && diagModelId === failingModelId
+  const diagSectionRef = useRef<{ runDiagnosis: () => void }>(null)
+
+  const checkModelConflict = useCallback((): boolean => {
+    const defaultModel = store.getState().llm.defaultModel
+    return failingModelId != null && defaultModel?.id === failingModelId
+  }, [failingModelId])
 
   const copyErrorDetails = useCallback(() => {
     if (!error) return
@@ -628,12 +592,12 @@ const ErrorDetailModal: React.FC<ErrorDetailModalProps> = ({
     )
   }
 
-  // Reset diagnosis state when modal opens/closes or error changes
+  // Reset diagnosis state when modal closes
   useEffect(() => {
     if (!open) {
       setDiagStatus(cachedDiagnosis ? 'done' : 'idle')
     }
-  }, [open, error, cachedDiagnosis])
+  }, [open, cachedDiagnosis])
 
   const getDiagButtonText = () => {
     switch (diagStatus) {
@@ -657,13 +621,16 @@ const ErrorDetailModal: React.FC<ErrorDetailModalProps> = ({
           key="diagnose"
           variant="text"
           color="default"
-          disabled={diagStatus === 'loading' || shouldDisableDiag}
-          title={shouldDisableDiag ? t('error.diagnosis.model_conflict') : undefined}
+          disabled={diagStatus === 'loading'}
           style={diagStatus === 'done' ? { color: 'var(--color-primary)' } : undefined}
           onClick={() => {
-            if (diagStatus !== 'loading' && !shouldDisableDiag) {
-              setDiagStatus('loading')
+            if (diagStatus === 'loading') return
+            if (checkModelConflict()) {
+              window.toast.warning(t('error.diagnosis.model_conflict'))
+              return
             }
+            setDiagStatus('loading')
+            diagSectionRef.current?.runDiagnosis()
           }}>
           {getDiagButtonText()}
         </Button>,
@@ -680,6 +647,8 @@ const ErrorDetailModal: React.FC<ErrorDetailModalProps> = ({
         {renderErrorDetails(error)}
         {diagStatus !== 'idle' && (
           <AIDiagnosisSectionWithStatus
+            key={blockId ?? error?.message}
+            ref={diagSectionRef}
             error={error}
             status={diagStatus}
             onStatusChange={setDiagStatus}
@@ -693,6 +662,10 @@ const ErrorDetailModal: React.FC<ErrorDetailModalProps> = ({
   )
 }
 
+interface AIDiagnosisSectionHandle {
+  runDiagnosis: () => void
+}
+
 const AIDiagnosisSectionWithStatus = memo(
   ({
     error,
@@ -700,7 +673,8 @@ const AIDiagnosisSectionWithStatus = memo(
     onStatusChange,
     diagnosisContext,
     blockId,
-    cachedDiagnosis
+    cachedDiagnosis,
+    ref
   }: {
     error?: SerializedError
     status: 'idle' | 'loading' | 'done' | 'error'
@@ -708,17 +682,34 @@ const AIDiagnosisSectionWithStatus = memo(
     diagnosisContext?: DiagnosisContext
     blockId?: string
     cachedDiagnosis?: DiagnosisResult
+    ref?: React.Ref<AIDiagnosisSectionHandle>
   }) => {
     const { t, i18n } = useTranslation()
     const [result, setResult] = useState<DiagnosisResult | null>(cachedDiagnosis ?? null)
     const [diagError, setDiagError] = useState<string>('')
-    const hasStarted = useRef(false)
+    const mountedRef = useRef(true)
     const cancelledRef = useRef(false)
     const panelRef = useRef<HTMLDivElement>(null)
+
+    useEffect(() => {
+      mountedRef.current = true
+      return () => {
+        mountedRef.current = false
+        cancelledRef.current = true
+      }
+    }, [])
 
     // Scroll diagnosis panel into view when it first renders
     useEffect(() => {
       panelRef.current?.scrollIntoView({ behavior: 'smooth', block: 'nearest' })
+    }, [])
+
+    // Auto-start diagnosis when section mounts with loading status (first click from parent)
+    useEffect(() => {
+      if (status === 'loading' && !cachedDiagnosis) {
+        void runDiagnosis()
+      }
+      // eslint-disable-next-line react-hooks/exhaustive-deps -- only run on mount
     }, [])
 
     const runDiagnosis = useCallback(async () => {
@@ -728,92 +719,102 @@ const AIDiagnosisSectionWithStatus = memo(
       setDiagError('')
       try {
         const diagnosis = await diagnoseError(error, i18n.language, diagnosisContext)
-        if (cancelledRef.current) return
+        if (cancelledRef.current || !mountedRef.current) return
         setResult(diagnosis)
         onStatusChange('done')
         if (blockId) {
           persistDiagnosis(blockId, diagnosis)
         }
-      } catch (err: any) {
-        if (cancelledRef.current) return
-        setDiagError(err?.message || 'Diagnosis failed')
+      } catch (err: unknown) {
+        if (cancelledRef.current || !mountedRef.current) return
+        setDiagError(err instanceof Error ? err.message : 'Diagnosis failed')
         onStatusChange('error')
       }
     }, [error, i18n.language, onStatusChange, diagnosisContext, blockId])
 
-    // Reset state when error changes; mark in-flight requests as stale
-    useEffect(() => {
-      cancelledRef.current = false
-      hasStarted.current = false
-      setResult(cachedDiagnosis ?? null)
-      setDiagError('')
-      return () => {
-        cancelledRef.current = true
-      }
-    }, [error, cachedDiagnosis])
+    React.useImperativeHandle(ref, () => ({ runDiagnosis }), [runDiagnosis])
 
-    useEffect(() => {
-      if (status === 'loading' && !hasStarted.current) {
-        hasStarted.current = true
-        void runDiagnosis()
-      }
-    }, [status, runDiagnosis])
+    const diagPanelStyle: React.CSSProperties = {
+      border: '1px solid color-mix(in srgb, var(--color-primary) 15%, transparent)',
+      background: 'color-mix(in srgb, var(--color-primary) 3%, transparent)'
+    }
+
+    const stepBgStyle: React.CSSProperties = {
+      background: 'color-mix(in srgb, var(--color-primary) 4%, transparent)'
+    }
 
     return (
-      <DiagnosisPanel ref={panelRef}>
+      <div ref={panelRef} className="mt-4 rounded-lg p-3.5 px-4" style={diagPanelStyle}>
         {status === 'loading' && (
-          <DiagnosisHeader>
-            <Spin size="small" />
+          <div
+            className="mb-2.5 flex items-center gap-1.5 font-semibold text-sm"
+            style={{ color: 'var(--color-primary)' }}>
+            <Loader2 size={14} className="animation-rotate" />
             {t('error.diagnosis.ai_loading')}...
-          </DiagnosisHeader>
+          </div>
         )}
         {status === 'error' && (
           <>
-            <DiagnosisHeader style={{ color: 'var(--color-error)' }}>{diagError}</DiagnosisHeader>
-            <Button
-              size="small"
-              onClick={() => {
-                hasStarted.current = false
-                onStatusChange('loading')
-              }}>
+            <div
+              className="mb-2.5 flex items-center gap-1.5 font-semibold text-sm"
+              style={{ color: 'var(--color-error)' }}>
+              {diagError}
+            </div>
+            <button
+              type="button"
+              className="cursor-pointer rounded border px-2 py-1 text-xs"
+              style={{ borderColor: 'var(--color-border)', color: 'var(--color-text)' }}
+              onClick={() => void runDiagnosis()}>
               {t('common.retry')}
-            </Button>
+            </button>
           </>
         )}
         {status === 'done' && result && (
           <>
-            <DiagnosisHeader>
-              <CheckCircleOutlined />
+            <div
+              className="mb-2.5 flex items-center gap-1.5 font-semibold text-sm"
+              style={{ color: 'var(--color-primary)' }}>
+              <CheckCircle size={14} />
               {t('error.diagnosis.ai_result')}
-            </DiagnosisHeader>
-            <DiagnosisBody>{result.explanation || result.summary}</DiagnosisBody>
+            </div>
+            <div className="text-[13px] leading-[1.7]" style={{ color: 'var(--color-text-2)' }}>
+              {result.explanation || result.summary}
+            </div>
             {result.steps.length > 0 && (
-              <DiagnosisSteps>
+              <div className="mt-2.5 flex flex-col gap-1.5">
                 {result.steps.map((step, i) => (
-                  <StepItem key={i}>
-                    <StepNumber>{i + 1}</StepNumber>
+                  <div
+                    key={i}
+                    className="flex items-center gap-2 rounded-md px-2.5 py-1.5 text-[13px]"
+                    style={stepBgStyle}>
+                    <span
+                      className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full font-bold text-[10px] text-white"
+                      style={{ background: 'var(--color-primary)' }}>
+                      {i + 1}
+                    </span>
                     {step.link && isSafeUrl(step.link) ? (
                       <a
                         href={step.link}
                         target="_blank"
                         rel="noopener noreferrer"
+                        title={step.link}
                         style={{ color: 'var(--color-primary)' }}>
                         {step.text} ↗
                       </a>
-                    ) : step.nav ? (
+                    ) : step.nav && isValidNavRoute(step.nav) ? (
                       <Link to={step.nav} style={{ color: 'var(--color-primary)' }}>
                         → {step.text}
                       </Link>
                     ) : (
                       <span>{step.text}</span>
                     )}
-                  </StepItem>
+                  </div>
                 ))}
-              </DiagnosisSteps>
+              </div>
             )}
           </>
         )}
-      </DiagnosisPanel>
+      </div>
     )
   }
 )

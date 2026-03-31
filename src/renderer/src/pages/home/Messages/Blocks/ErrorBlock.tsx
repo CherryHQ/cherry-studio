@@ -11,12 +11,15 @@ import type { ErrorMessageBlock, Message } from '@renderer/types/newMessage'
 import { classifyError } from '@renderer/utils/errorClassifier'
 import { Button } from 'antd'
 import { Alert as AntdAlert } from 'antd'
-import React, { useEffect, useMemo, useState } from 'react'
+import React, { useCallback, useEffect, useMemo, useState } from 'react'
 import { Trans, useTranslation } from 'react-i18next'
 import { Link, useNavigate } from 'react-router-dom'
 import styled from 'styled-components'
 
 const HTTP_ERROR_CODES = [400, 401, 403, 404, 429, 500, 502, 503, 504]
+
+// Module-level cache for AI classification to avoid duplicate API calls
+const aiClassifyCache = new Map<string, Promise<string>>()
 
 interface Props {
   block: ErrorMessageBlock
@@ -84,10 +87,20 @@ const MessageErrorInfo: React.FC<{ block: ErrorMessageBlock; message: Message }>
   const classification = useMemo(() => classifyError(block.error), [block.error])
 
   // AI fallback: when rule-based classification returns 'unknown', ask AI for a one-line summary
+  const errorForAI = block.error
   useEffect(() => {
-    if (classification.category !== 'unknown' || !block.error) return
+    if (classification.category !== 'unknown' || !errorForAI?.message) return
     let cancelled = false
-    classifyErrorByAI(block.error, i18n.language)
+    const cacheKey = `${errorForAI.message}:${i18n.language}`
+    const cached = aiClassifyCache.get(cacheKey)
+    const promise =
+      cached ??
+      classifyErrorByAI(errorForAI, i18n.language).then((summary) => {
+        if (!summary) aiClassifyCache.delete(cacheKey)
+        return summary
+      })
+    if (!cached) aiClassifyCache.set(cacheKey, promise)
+    promise
       .then((summary) => {
         if (!cancelled && summary) setAiSummary(summary)
       })
@@ -95,12 +108,24 @@ const MessageErrorInfo: React.FC<{ block: ErrorMessageBlock; message: Message }>
     return () => {
       cancelled = true
     }
-  }, [classification.category, block.error, i18n.language])
+  }, [classification.category, errorForAI, i18n.language])
 
-  const onRemoveBlock = (e: React.MouseEvent) => {
-    e.stopPropagation()
-    setTimeoutTimer('onRemoveBlock', () => dispatch(removeBlocksThunk(message.topicId, message.id, [block.id])), 350)
-  }
+  const diagnosisContext = useMemo(
+    () => ({
+      errorSource: 'chat' as const,
+      providerName: block.error?.providerId as string | undefined,
+      modelId: block.error?.modelId as string | undefined
+    }),
+    [block.error?.providerId, block.error?.modelId]
+  )
+
+  const onRemoveBlock = useCallback(
+    (e: React.MouseEvent) => {
+      e.stopPropagation()
+      setTimeoutTimer('onRemoveBlock', () => dispatch(removeBlocksThunk(message.topicId, message.id, [block.id])), 350)
+    },
+    [setTimeoutTimer, dispatch, message.topicId, message.id, block.id]
+  )
 
   const showErrorDetail = () => {
     setShowDetailModal(true)
@@ -131,11 +156,7 @@ const MessageErrorInfo: React.FC<{ block: ErrorMessageBlock; message: Message }>
   return (
     <>
       <Alert
-        message={
-          classification.category === 'unknown'
-            ? aiSummary || (block.error?.message as string) || t(classification.i18nKey)
-            : t(classification.i18nKey)
-        }
+        message={aiSummary || t(classification.i18nKey)}
         description={getAlertDescription()}
         type="error"
         closable
@@ -156,12 +177,8 @@ const MessageErrorInfo: React.FC<{ block: ErrorMessageBlock; message: Message }>
         error={block.error}
         failingModelId={block.error?.modelId as string | undefined}
         blockId={block.id}
-        cachedDiagnosis={(block as any).metadata?.diagnosis as DiagnosisResult | undefined}
-        diagnosisContext={{
-          errorSource: 'chat',
-          providerName: block.error?.providerId as string | undefined,
-          modelId: block.error?.modelId as string | undefined
-        }}
+        cachedDiagnosis={block.metadata?.diagnosis as DiagnosisResult | undefined}
+        diagnosisContext={diagnosisContext}
       />
     </>
   )
