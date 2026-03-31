@@ -1,4 +1,5 @@
 import { Readable } from 'node:stream'
+import type { ReadableStream as NodeReadableStream } from 'node:stream/web'
 
 import * as Lark from '@larksuiteoapi/node-sdk'
 import type { FeishuDomain } from '@main/services/agents/database/schema'
@@ -96,7 +97,7 @@ function createElectronHttpInstance(): Lark.HttpInstance {
     const isStream = opts?.responseType === 'stream'
     const responseData = isStream
       ? res.body
-        ? Readable.fromWeb(res.body)
+        ? Readable.fromWeb(res.body as NodeReadableStream)
         : Readable.from([])
       : await res.text().then((text) => {
           if (!text) {
@@ -104,7 +105,7 @@ function createElectronHttpInstance(): Lark.HttpInstance {
           }
 
           try {
-            return JSON.parse(text) as unknown
+            return JSON.parse(text)
           } catch {
             return text
           }

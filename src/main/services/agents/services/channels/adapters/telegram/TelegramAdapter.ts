@@ -176,7 +176,7 @@ class TelegramAdapter extends ChannelAdapter {
         chatId: ctx.chat.id.toString(),
         userId: ctx.from?.id?.toString() ?? '',
         userName: ctx.from?.first_name ?? '',
-        text: text || `[File: ${doc.file_name ?? 'document'}]`,
+        text,
         ...(files.length > 0 ? { files } : {})
       })
     })

@@ -240,7 +240,7 @@ class WeChatAdapter extends ChannelAdapter {
           chatId: msg.userId,
           userId: msg.userId,
           userName: msg.userId,
-          text: text || (files ? `[File: ${files[0].filename}]` : ''),
+          text,
           images,
           files
         })

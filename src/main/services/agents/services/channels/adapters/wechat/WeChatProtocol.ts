@@ -992,7 +992,7 @@ function extractText(items: MessageItem[]): string {
         case MessageItemType.VOICE:
           return item.voice_item?.text ?? '[voice]'
         case MessageItemType.FILE:
-          return item.file_item?.file_name ?? '[file]'
+          return ''
         case MessageItemType.VIDEO:
           return '[video]'
         default:

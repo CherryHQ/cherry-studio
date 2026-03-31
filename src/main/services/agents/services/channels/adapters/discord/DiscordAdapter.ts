@@ -512,9 +512,7 @@ class DiscordAdapter extends ChannelAdapter {
       // Download non-image file attachments in parallel
       let files: FileAttachment[] | undefined
       if (fileAttachments.length > 0) {
-        const results = await Promise.all(
-          fileAttachments.map((att) => downloadFileAsBase64(att.proxy_url || att.url, att.filename))
-        )
+        const results = await Promise.all(fileAttachments.map((att) => downloadFileAsBase64(att.url, att.filename)))
         const downloaded = results.filter((r): r is FileAttachment => r !== null)
         if (downloaded.length > 0) files = downloaded
       }
@@ -545,7 +543,7 @@ class DiscordAdapter extends ChannelAdapter {
     if (msg.attachments?.length) {
       for (const att of msg.attachments) {
         if (att.content_type?.startsWith('image/')) {
-          imageUrls.push(att.proxy_url || att.url)
+          imageUrls.push(att.url)
         } else if (att.size <= MAX_FILE_SIZE_BYTES) {
           fileAttachments.push(att)
         }

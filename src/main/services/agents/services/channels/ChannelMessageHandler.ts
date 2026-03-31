@@ -219,6 +219,13 @@ export class ChannelMessageHandler {
         channelType: adapter.channelType
       })
 
+      // Build display text: append filenames so the user can see them in the UI
+      let displayText = message.text
+      if (message.files && message.files.length > 0) {
+        const names = message.files.map((f) => `📎 ${f.filename}`).join('\n')
+        displayText = displayText ? `${displayText}\n${names}` : names
+      }
+
       sessionStreamBus.publish(session.id, {
         sessionId: session.id,
         agentId: session.agent_id,
@@ -227,9 +234,8 @@ export class ChannelMessageHandler {
           chatId: message.chatId,
           userId: message.userId,
           userName: message.userName,
-          text: message.text,
-          images: message.images,
-          files: message.files?.map((f) => ({ filename: f.filename, media_type: f.media_type, size: f.size }))
+          text: displayText,
+          images: message.images
         }
       })
 
