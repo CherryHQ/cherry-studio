@@ -213,12 +213,39 @@ class DiscordStreamingController {
   }
 }
 
+// Discord Interaction types
+const INTERACTION_TYPE_PING = 1
+const INTERACTION_TYPE_APPLICATION_COMMAND = 2
+// Interaction callback response types
+const INTERACTION_CALLBACK_CHANNEL_MESSAGE = 4
+const INTERACTION_CALLBACK_DEFERRED_CHANNEL_MESSAGE = 5
+
+type DiscordInteraction = {
+  id: string
+  type: number
+  token: string
+  channel_id: string
+  guild_id?: string
+  member?: { user: { id: string; username: string } }
+  user?: { id: string; username: string }
+  data?: { name: string; options?: Array<{ name: string; value: unknown }> }
+}
+
+/** Slash commands to register with Discord */
+const SLASH_COMMANDS = [
+  { name: 'new', description: 'Start a new conversation' },
+  { name: 'compact', description: 'Compact conversation history' },
+  { name: 'help', description: 'Show available commands' },
+  { name: 'whoami', description: 'Show chat info' }
+]
+
 class DiscordAdapter extends ChannelAdapter {
   private ws: WebSocket | null = null
   private readonly botToken: string
   private readonly allowedChannelIds: string[]
 
   private sessionId: string | null = null
+  private applicationId: string | null = null
   private lastSeq: number | null = null
   private heartbeatTimer: ReturnType<typeof setInterval> | null = null
   private heartbeatAcked = true
@@ -458,12 +485,19 @@ class DiscordAdapter extends ChannelAdapter {
           session_id: string
           resume_gateway_url: string
           user: { id: string; username: string }
+          application: { id: string }
         }
         this.sessionId = ready.session_id
         this.resumeGatewayUrl = ready.resume_gateway_url
+        this.applicationId = ready.application.id
         this.reconnectAttempts = 0
         this.markConnected()
         this.log.info(`Discord bot ready (user: ${ready.user.username})`)
+        this.registerSlashCommands().catch((err) => {
+          this.log.warn('Failed to register slash commands', {
+            error: err instanceof Error ? err.message : String(err)
+          })
+        })
         break
       }
       case 'RESUMED':
@@ -473,6 +507,9 @@ class DiscordAdapter extends ChannelAdapter {
         break
       case 'MESSAGE_CREATE':
         await this.handleMessageCreate(data as DiscordMessage)
+        break
+      case 'INTERACTION_CREATE':
+        await this.handleInteraction(data as DiscordInteraction)
         break
     }
   }
@@ -593,6 +630,81 @@ class DiscordAdapter extends ChannelAdapter {
     }
   }
 
+  // ─── Slash Commands ──────────────────────────────────────────
+
+  private async registerSlashCommands(): Promise<void> {
+    if (!this.applicationId) return
+
+    await this.apiRequest(`${DISCORD_API_BASE}/applications/${this.applicationId}/commands`, {
+      method: 'PUT',
+      body: SLASH_COMMANDS as Record<string, unknown>[]
+    })
+    this.log.info('Registered Discord slash commands', { count: SLASH_COMMANDS.length })
+  }
+
+  private async handleInteraction(interaction: DiscordInteraction): Promise<void> {
+    // Must always ACK a PING
+    if (interaction.type === INTERACTION_TYPE_PING) return
+
+    if (interaction.type !== INTERACTION_TYPE_APPLICATION_COMMAND || !interaction.data) return
+
+    const commandName = interaction.data.name
+    const user = interaction.member?.user ?? interaction.user
+    const chatId = interaction.guild_id ? `channel:${interaction.channel_id}` : `dm:${interaction.channel_id}`
+
+    if (!this.isAllowed(chatId, interaction.channel_id)) {
+      await this.respondToInteraction(interaction, 'This bot is not enabled in this channel.', true)
+      return
+    }
+
+    if (commandName === 'whoami') {
+      const [type] = chatId.split(':')
+      const typeLabel = type === 'dm' ? 'Direct Message' : 'Guild Channel'
+      const info = [
+        `**Chat Info**`,
+        `Type: ${typeLabel}`,
+        `Chat ID: \`${chatId}\``,
+        ``,
+        `Add \`${chatId}\` to Allowed Channel IDs in Agent Settings to enable notifications.`
+      ].join('\n')
+      await this.respondToInteraction(interaction, info, true)
+      return
+    }
+
+    // For /new, /compact, /help — ACK with deferred response, then emit command
+    await this.ackInteraction(interaction)
+
+    this.emit('command', {
+      chatId,
+      userId: user?.id ?? '',
+      userName: user?.username ?? '',
+      command: commandName as 'new' | 'compact' | 'help'
+    })
+  }
+
+  private async respondToInteraction(
+    interaction: DiscordInteraction,
+    content: string,
+    ephemeral = false
+  ): Promise<void> {
+    await net.fetch(`${DISCORD_API_BASE}/interactions/${interaction.id}/${interaction.token}/callback`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        type: INTERACTION_CALLBACK_CHANNEL_MESSAGE,
+        data: { content, ...(ephemeral ? { flags: 64 } : {}) }
+      })
+    })
+  }
+
+  private async ackInteraction(interaction: DiscordInteraction): Promise<void> {
+    await net.fetch(`${DISCORD_API_BASE}/interactions/${interaction.id}/${interaction.token}/callback`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ type: INTERACTION_CALLBACK_DEFERRED_CHANNEL_MESSAGE })
+    })
+  }
+
   // ─── Message Sending (REST API) ──────────────────────────────
 
   // oxlint-disable-next-line no-unused-vars -- abstract method signature
@@ -659,7 +771,7 @@ class DiscordAdapter extends ChannelAdapter {
 
   private async apiRequest(
     url: string,
-    options?: { method?: string; body?: Record<string, unknown> }
+    options?: { method?: string; body?: Record<string, unknown> | Record<string, unknown>[] }
   ): Promise<Response> {
     const response = await net.fetch(url, {
       method: options?.method ?? 'GET',
