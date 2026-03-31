@@ -61,8 +61,13 @@ class SchedulerService {
   }
 
   /** Ensure the poll loop is running after agent config changes. */
-  syncScheduler(): void {
-    this.startLoop()
+  async syncScheduler(): Promise<void> {
+    const hasActive = await taskService.hasActiveTasks()
+    if (hasActive) {
+      this.startLoop()
+    } else {
+      logger.debug('No active tasks, skipping scheduler start')
+    }
   }
 
   stopAll(): void {
@@ -70,7 +75,12 @@ class SchedulerService {
   }
 
   async restoreSchedulers(): Promise<void> {
-    this.startLoop()
+    const hasActive = await taskService.hasActiveTasks()
+    if (hasActive) {
+      this.startLoop()
+    } else {
+      logger.debug('No active tasks found, scheduler not started')
+    }
   }
 
   /**
@@ -96,6 +106,7 @@ class SchedulerService {
         schedule_value: String(intervalMinutes)
       })
       logger.info('Created heartbeat task', { agentId, interval: intervalMinutes })
+      this.startLoop()
     }
   }
 

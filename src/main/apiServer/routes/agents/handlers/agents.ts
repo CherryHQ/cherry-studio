@@ -17,7 +17,7 @@ function syncSchedulerIfNeeded(agentId: string, agent: { configuration?: unknown
   const config = getCherryClawConfig(agent)
   if (!config.heartbeat_enabled && !config.scheduler_enabled) return
 
-  schedulerService.syncScheduler()
+  void schedulerService.syncScheduler()
   void channelManager.syncAgent(agentId)
   schedulerService.ensureHeartbeatTask(agentId, config.heartbeat_interval ?? 30).catch((err) => {
     logger.warn('Failed to sync heartbeat task', {

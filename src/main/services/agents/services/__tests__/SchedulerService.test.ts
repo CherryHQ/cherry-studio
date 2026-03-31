@@ -30,6 +30,7 @@ vi.mock('../SessionMessageService', () => ({
 vi.mock('../TaskService', () => ({
   taskService: {
     getDueTasks: vi.fn().mockResolvedValue([]),
+    hasActiveTasks: vi.fn().mockResolvedValue(false),
     updateTaskAfterRun: vi.fn(),
     logTaskRun: vi.fn(),
     computeNextRun: vi.fn().mockReturnValue(null),
@@ -94,10 +95,19 @@ describe('SchedulerService', () => {
     // Should not throw, loop should be stopped
   })
 
-  it('restoreSchedulers starts the poll loop', async () => {
+  it('restoreSchedulers skips poll loop when no active tasks', async () => {
+    const { taskService } = await import('../TaskService')
+    vi.mocked(taskService.hasActiveTasks).mockResolvedValueOnce(false)
     const service = SchedulerServiceModule.schedulerService
     await service.restoreSchedulers()
-    // The poll loop should be running
+    service.stopAll()
+  })
+
+  it('restoreSchedulers starts poll loop when active tasks exist', async () => {
+    const { taskService } = await import('../TaskService')
+    vi.mocked(taskService.hasActiveTasks).mockResolvedValueOnce(true)
+    const service = SchedulerServiceModule.schedulerService
+    await service.restoreSchedulers()
     service.stopAll()
   })
 

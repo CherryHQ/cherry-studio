@@ -293,42 +293,46 @@ export function McpLogo(props: SVGProps<SVGSVGElement>) {
 
 export function OpenClawIcon(props: SVGProps<SVGSVGElement>) {
   return (
-    <svg width="20" height="20" viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg" fill="currentColor" {...props}>
+    <svg
+      width="24"
+      height="24"
+      viewBox="0 0 24 24"
+      fill="currentColor"
+      stroke="currentColor"
+      xmlns="http://www.w3.org/2000/svg"
+      {...props}>
       <path
-        d="M8 4.33325C7.67491 3.46638 7.08552 2.72366 6.31518 2.21012L6 2"
-        stroke="#1A1A1A"
-        stroke-width="1.5"
+        d="M9.59995 5.19993C9.20985 4.15968 8.50258 3.26841 7.57817 2.65216L7.19995 2.40002"
+        stroke-width="2"
         stroke-linecap="round"
+        stroke-linejoin="round"
       />
       <path
-        d="M12 4.33325C12.3251 3.46638 12.9145 2.72366 13.6848 2.21012L14 2"
-        stroke="#1A1A1A"
-        stroke-width="1.5"
+        d="M14.4 5.19993C14.7902 4.15968 15.4974 3.26841 16.4218 2.65216L16.8 2.40002"
+        stroke-width="2"
         stroke-linecap="round"
+        stroke-linejoin="round"
       />
       <path
-        d="M10 16C13.3137 16 16 13.3137 16 10C16 6.68629 13.3137 4 10 4C6.68629 4 4 6.68629 4 10C4 13.3137 6.68629 16 10 16Z"
-        stroke="#1A1A1A"
-        stroke-width="1.5"
+        d="M12 19.2C15.9765 19.2 19.2 15.9765 19.2 12C19.2 8.0236 15.9765 4.80005 12 4.80005C8.0236 4.80005 4.80005 8.0236 4.80005 12C4.80005 15.9765 8.0236 19.2 12 19.2Z"
+        stroke-width="2"
       />
       <path
-        d="M2.34109 9.77944C3.05552 10.1919 4.04944 9.80791 4.56107 8.92175C5.0727 8.03558 4.90829 6.98282 4.19386 6.57034C3.47943 6.15787 2.48551 6.54187 1.97388 7.42804C1.46225 8.3142 1.62666 9.36696 2.34109 9.77944Z"
-        fill="#1A1A1A"
+        d="M5.55986 8.43286C4.75245 8.93286 3.62202 9.93286 3.62207 11.4329"
+        stroke-width="2"
+        stroke-linecap="round"
+        stroke-linejoin="round"
       />
       <path
-        d="M17.461 9.77468C18.1776 9.36097 18.3441 8.30793 17.833 7.42265C17.3219 6.53737 16.3266 6.15508 15.6101 6.56879C14.8935 6.9825 14.727 8.03553 15.2381 8.92082C15.7492 9.8061 16.7444 10.1884 17.461 9.77468Z"
-        fill="#1A1A1A"
+        d="M18.5598 8.43286C19.3672 8.93286 20.4976 9.93286 20.4976 11.4329"
+        stroke-width="2"
+        stroke-linecap="round"
+        stroke-linejoin="round"
       />
-      <path d="M7.12497 16.0003L6.45065 18.2091" stroke="#1A1A1A" stroke-width="1.5" stroke-linecap="round" />
-      <path d="M12.4506 16.0001L13.1249 18.2088" stroke="#1A1A1A" stroke-width="1.5" stroke-linecap="round" />
-      <path
-        d="M7.49996 9.28516C7.9602 9.28516 8.33329 8.94036 8.33329 8.25C8.33329 7.55964 7.9602 7 7.49996 7C7.03972 7 6.66663 7.55964 6.66663 8.25C6.66663 8.94036 7.03972 9.28516 7.49996 9.28516Z"
-        fill="#1A1A1A"
-      />
-      <path
-        d="M12.5 9.28516C12.9602 9.28516 13.3333 8.94036 13.3333 8.25C13.3333 7.55964 12.9602 7 12.5 7C12.0397 7 11.6666 7.55964 11.6666 8.25C11.6666 8.94036 12.0397 9.28516 12.5 9.28516Z"
-        fill="#1A1A1A"
-      />
+      <path d="M7.90978 18.9329L7.10059 21.5834" stroke-width="2" stroke-linecap="round" />
+      <path d="M15.1005 18.9328L15.9097 21.5833" stroke-width="2" stroke-linecap="round" />
+      <path d="M9.55981 8.93286V9.93286" stroke-width="2" stroke-linecap="round" />
+      <path d="M14.5598 8.93286V9.93286" stroke-width="2" stroke-linecap="round" />
     </svg>
   )
 }

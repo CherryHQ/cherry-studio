@@ -3,6 +3,7 @@ import type { FC } from 'react'
 import { type AgentOrSessionSettingsProps, SettingsContainer } from '../shared'
 import { AccessibleDirsSetting } from './AccessibleDirsSetting'
 import { DescriptionSetting } from './DescriptionSetting'
+import { HeartbeatSetting } from './HeartbeatSetting'
 import { ModelSetting } from './ModelSetting'
 import { NameSetting } from './NameSetting'
 import { SoulModeSetting } from './SoulModeSetting'
@@ -21,6 +22,7 @@ const EssentialSettings: FC<EssentialSettingsProps> = ({ agentBase, update, show
       <AccessibleDirsSetting base={agentBase} update={update} />
       <DescriptionSetting base={agentBase} update={update} />
       <SoulModeSetting base={agentBase} update={update} />
+      <HeartbeatSetting base={agentBase} update={update} />
     </SettingsContainer>
   )
 }

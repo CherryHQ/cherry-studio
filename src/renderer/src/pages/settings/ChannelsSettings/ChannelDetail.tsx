@@ -5,7 +5,7 @@ import { useChannels } from '@renderer/hooks/agents/useChannels'
 import { getChannelTypeIcon } from '@renderer/utils/agentSession'
 import { Button, Empty, Input, Modal, Popconfirm, Select, Spin, Switch, Tag, Tooltip } from 'antd'
 import type { FC } from 'react'
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
@@ -295,7 +295,7 @@ const ChannelDetail: FC<ChannelDetailProps> = ({ channelDef }) => {
   // SWR-managed remote data
   const { channels, isLoading, mutate, createChannel, updateChannel, deleteChannel } = useChannels(channelDef.type)
   const { agents: agentList } = useAgents()
-  const agents = (agentList ?? []).map((a) => ({ id: a.id, name: a.name ?? a.id }))
+  const agents = useMemo(() => (agentList ?? []).map((a) => ({ id: a.id, name: a.name ?? a.id })), [agentList])
 
   const channelList = channels ?? []
 

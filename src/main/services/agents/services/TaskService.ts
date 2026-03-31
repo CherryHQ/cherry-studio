@@ -284,6 +284,15 @@ export class TaskService extends BaseService {
 
   // --- Due tasks (used by SchedulerService poll loop) ---
 
+  async hasActiveTasks(): Promise<boolean> {
+    const database = await this.getDatabase()
+    const [result] = await database
+      .select({ count: count() })
+      .from(scheduledTasksTable)
+      .where(eq(scheduledTasksTable.status, 'active'))
+    return (result?.count ?? 0) > 0
+  }
+
   async getDueTasks(): Promise<ScheduledTaskEntity[]> {
     const now = new Date().toISOString()
     const database = await this.getDatabase()

@@ -11,6 +11,7 @@ export const createTask = async (req: Request, res: Response): Promise<Response>
   try {
     logger.debug('Creating task', { agentId })
     const task = await taskService.createTask(agentId, req.body)
+    schedulerService.startLoop()
     logger.info('Task created', { agentId, taskId: task.id })
     return res.status(201).json(task)
   } catch (error: any) {
