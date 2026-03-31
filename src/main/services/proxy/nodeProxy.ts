@@ -447,6 +447,9 @@ class SelectiveDispatcher extends Dispatcher {
   }
 
   async close(): Promise<void> {
+    // Only the proxy dispatcher is owned by this wrapper. The direct dispatcher
+    // is a snapshot of the original global dispatcher and must remain intact so
+    // NodeProxyController can restore it when proxying is disabled.
     try {
       await this.proxyDispatcher.close()
     } catch (error) {
