@@ -42,7 +42,7 @@ const TreeNode = memo<TreeNodeProps>(({ node, depth, renderChildren = true, onHi
   const isHintNode = node.type === 'hint'
 
   // 检查是否是搜索结果
-  const searchResult = 'matchType' in node ? (node as SearchResult) : null
+  const searchResult = 'matchType' in node ? node : null
   const hasMatches = searchResult && searchResult.matches && searchResult.matches.length > 0
 
   // 处理匹配项点击
@@ -192,7 +192,7 @@ const TreeNode = memo<TreeNodeProps>(({ node, depth, renderChildren = true, onHi
 
       {showMatches && hasMatches && (
         <SearchMatchesContainer depth={depth}>
-          {(showAllMatches ? searchResult!.matches! : searchResult!.matches!.slice(0, 3)).map((match, idx) => (
+          {(showAllMatches ? searchResult.matches! : searchResult.matches!.slice(0, 3)).map((match, idx) => (
             <MatchItem key={idx} onClick={() => handleMatchClick(match)}>
               <MatchLineNumber>{match.lineNumber}</MatchLineNumber>
               <MatchContext>
@@ -200,7 +200,7 @@ const TreeNode = memo<TreeNodeProps>(({ node, depth, renderChildren = true, onHi
               </MatchContext>
             </MatchItem>
           ))}
-          {searchResult!.matches!.length > 3 && (
+          {searchResult.matches!.length > 3 && (
             <MoreMatches
               depth={depth}
               onClick={(e) => {
@@ -214,7 +214,7 @@ const TreeNode = memo<TreeNodeProps>(({ node, depth, renderChildren = true, onHi
                 </>
               ) : (
                 <>
-                  <ChevronRight size={12} style={{ marginRight: 4 }} />+{searchResult!.matches!.length - 3}{' '}
+                  <ChevronRight size={12} style={{ marginRight: 4 }} />+{searchResult.matches!.length - 3}{' '}
                   {t('notes.search.more_matches')}
                 </>
               )}

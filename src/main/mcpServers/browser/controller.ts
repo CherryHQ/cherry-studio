@@ -350,7 +350,7 @@ export class CdpBrowserController {
         ? {
             titleBarStyle: 'hidden',
             titleBarOverlay: nativeTheme.shouldUseDarkColors ? titleBarOverlayDark : titleBarOverlayLight,
-            trafficLightPosition: { x: 8, y: 13 }
+            trafficLightPosition: { x: 13, y: 13 }
           }
         : {
             frame: false // Frameless window for Windows and Linux
@@ -697,7 +697,7 @@ export class CdpBrowserController {
         })
       ])
 
-      const evalResult = result as any
+      const evalResult = result
 
       if (evalResult?.exceptionDetails) {
         const message = evalResult.exceptionDetails.exception?.description || 'Unknown script error'

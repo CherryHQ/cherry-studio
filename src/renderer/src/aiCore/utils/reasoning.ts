@@ -65,6 +65,7 @@ type ReasoningEffortOptionalParams = {
   chat_template_kwargs?: {
     thinking?: boolean
     enable_thinking?: boolean
+    thinking_budget?: number
   }
   extra_body?: {
     google?: {
@@ -86,6 +87,7 @@ type ReasoningEffortOptionalParams = {
 // The function is only for generic provider. May extract some logics to independent provider
 export function getReasoningEffort(assistant: Assistant, model: Model): ReasoningEffortOptionalParams {
   const provider = getProviderByModel(model)
+  const modelId = getLowerBaseModelName(model.id)
   if (provider.id === 'groq') {
     return {}
   }
@@ -116,6 +118,21 @@ export function getReasoningEffort(assistant: Assistant, model: Model): Reasonin
         return { reasoning: { effort: 'none' } }
       }
       return { reasoning: { enabled: false, exclude: true } }
+    }
+
+    // nvidia: must use chat_template_kwargs
+    // Since limited documentation, it's hard to find what parameters should be set
+    // only part of mainstream oss model covered, all verified by nvidia api
+    if (model.provider === SystemProviderIds.nvidia) {
+      if (isSupportedThinkingTokenQwenModel(model)) {
+        return { chat_template_kwargs: { enable_thinking: false } }
+      } else if (isDeepSeekHybridInferenceModel(model)) {
+        return { chat_template_kwargs: { thinking: false } }
+      } else if (isSupportedThinkingTokenKimiModel(model)) {
+        return { chat_template_kwargs: { thinking: false } }
+      } else if (isSupportedThinkingTokenZhipuModel(model)) {
+        return { chat_template_kwargs: { enable_thinking: false } }
+      }
     }
 
     // providers that use enable_thinking
@@ -279,10 +296,31 @@ export function getReasoningEffort(assistant: Assistant, model: Model): Reasonin
   }
 
   const effortRatio = EFFORT_RATIO[reasoningEffort]
-  const tokenLimit = findTokenLimit(model.id)
+  const tokenLimit = findTokenLimit(modelId)
   let budgetTokens: number | undefined
   if (tokenLimit) {
     budgetTokens = Math.floor((tokenLimit.max - tokenLimit.min) * effortRatio + tokenLimit.min)
+  }
+
+  // nvidia: must use chat_template_kwargs
+  // Since limited documentation, it's hard to find what parameters should be set
+  // only part of mainstream oss model covered, all verified by nvidia api
+  if (model.provider === SystemProviderIds.nvidia) {
+    if (isSupportedThinkingTokenQwenModel(model)) {
+      const enableThinkingConfig = isQwenAlwaysThinkModel(model) ? {} : { enable_thinking: true }
+      return {
+        chat_template_kwargs: {
+          ...enableThinkingConfig,
+          thinking_budget: budgetTokens
+        }
+      }
+    } else if (isDeepSeekHybridInferenceModel(model)) {
+      return { chat_template_kwargs: { thinking: true } }
+    } else if (isSupportedThinkingTokenKimiModel(model)) {
+      return { chat_template_kwargs: { thinking: true } }
+    } else if (isSupportedThinkingTokenZhipuModel(model)) {
+      return { chat_template_kwargs: { enable_thinking: true } }
+    }
   }
 
   // See https://docs.siliconflow.cn/cn/api-reference/chat-completions/chat-completions
@@ -341,12 +379,6 @@ export function getReasoningEffort(assistant: Assistant, model: Model): Reasonin
           return {
             reasoning: {
               enabled: true
-            }
-          }
-        case 'nvidia':
-          return {
-            chat_template_kwargs: {
-              thinking: true
             }
           }
         default:
@@ -426,9 +458,9 @@ export function getReasoningEffort(assistant: Assistant, model: Model): Reasonin
       }
     } else {
       return {
-        thinking_budget: budgetTokens,
         chat_template_kwargs: {
-          ...enableThinkingConfig
+          ...enableThinkingConfig,
+          thinking_budget: budgetTokens
         }
       }
     }

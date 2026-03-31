@@ -1,4 +1,5 @@
 // src/main/services/agents/services/claudecode/index.ts
+import { fork } from 'node:child_process'
 import { EventEmitter } from 'node:events'
 import { createRequire } from 'node:module'
 import path from 'node:path'
@@ -8,9 +9,9 @@ import type {
   HookCallback,
   McpHttpServerConfig,
   Options,
-  PreToolUseHookInput,
   SDKMessage,
-  SdkPluginConfig
+  SdkPluginConfig,
+  SpawnedProcess
 } from '@anthropic-ai/claude-agent-sdk'
 import { query } from '@anthropic-ai/claude-agent-sdk'
 import { loggerService } from '@logger'
@@ -20,6 +21,7 @@ import { isWin } from '@main/constant'
 import { pluginService } from '@main/services/agents/plugins/PluginService'
 import { configManager } from '@main/services/ConfigManager'
 import { autoDiscoverGitBash } from '@main/utils/process'
+import { rtkRewrite } from '@main/utils/rtk'
 import getLoginShellEnvironment from '@main/utils/shell-env'
 import { languageEnglishNameMap } from '@shared/config/languages'
 import { withoutTrailingApiVersion } from '@shared/utils'
@@ -108,9 +110,8 @@ class ClaudeCodeService implements AgentServiceInterface {
       return aiStream
     }
     if (
-      (modelInfo.provider?.type !== 'anthropic' &&
-        (modelInfo.provider?.anthropicApiHost === undefined || modelInfo.provider.anthropicApiHost.trim() === '')) ||
-      modelInfo.provider.apiKey === ''
+      modelInfo.provider?.type !== 'anthropic' &&
+      (modelInfo.provider?.anthropicApiHost === undefined || modelInfo.provider.anthropicApiHost.trim() === '')
     ) {
       logger.error('Anthropic provider configuration is missing', {
         modelInfo
@@ -121,6 +122,12 @@ class ClaudeCodeService implements AgentServiceInterface {
         error: new Error(`Invalid provider type '${modelInfo.provider?.type}'. Expected 'anthropic' provider type.`)
       })
       return aiStream
+    }
+
+    // Providers like Ollama and LM Studio don't require real API keys,
+    // but the Claude Agent SDK needs a non-empty placeholder value
+    if (!modelInfo.provider.apiKey) {
+      modelInfo.provider.apiKey = modelInfo.provider.id
     }
 
     const apiConfig = await apiConfigService.get()
@@ -255,7 +262,7 @@ class ClaudeCodeService implements AgentServiceInterface {
         return {}
       }
 
-      const hookInput = input as PreToolUseHookInput
+      const hookInput = input
       const toolName = hookInput.tool_name
 
       logger.debug('PreToolUse hook triggered', {
@@ -306,6 +313,37 @@ class ClaudeCodeService implements AgentServiceInterface {
       return {}
     }
 
+    const rtkRewriteHook: HookCallback = async (input) => {
+      if (input.hook_event_name !== 'PreToolUse') {
+        return {}
+      }
+
+      // Only rewrite Bash tool commands
+      if (input.tool_name !== 'Bash' && input.tool_name !== 'builtin_Bash') {
+        return {}
+      }
+
+      const toolInput = input.tool_input as Record<string, unknown> | undefined
+      const command = toolInput?.command
+      if (typeof command !== 'string' || !command.trim()) {
+        return {}
+      }
+
+      const rewritten = await rtkRewrite(command)
+      if (!rewritten) {
+        return {}
+      }
+
+      logger.info('rtk rewrote Bash command', { original: command, rewritten })
+
+      return {
+        hookSpecificOutput: {
+          hookEventName: 'PreToolUse',
+          updatedInput: { ...toolInput, command: rewritten }
+        }
+      }
+    }
+
     // Build SDK options from parameters
     const options: Options = {
       abortController,
@@ -316,6 +354,20 @@ class ClaudeCodeService implements AgentServiceInterface {
       stderr: (chunk: string) => {
         logger.warn('claude stderr', { chunk })
         errorChunks.push(chunk)
+      },
+      spawnClaudeCodeProcess: (spawnOptions) => {
+        const child = fork(spawnOptions.args[0], spawnOptions.args.slice(1), {
+          cwd: spawnOptions.cwd,
+          env: spawnOptions.env as NodeJS.ProcessEnv,
+          stdio: ['pipe', 'pipe', 'pipe', 'ipc'],
+          signal: spawnOptions.signal
+        })
+        child.stderr?.on('data', (data: Buffer) => {
+          const text = data.toString()
+          logger.warn('claude stderr', { chunk: text })
+          errorChunks.push(text)
+        })
+        return child as unknown as SpawnedProcess
       },
       systemPrompt: session.instructions
         ? {
@@ -338,7 +390,7 @@ class ClaudeCodeService implements AgentServiceInterface {
       hooks: {
         PreToolUse: [
           {
-            hooks: [preToolUseHook]
+            hooks: [rtkRewriteHook, preToolUseHook]
           }
         ]
       },
