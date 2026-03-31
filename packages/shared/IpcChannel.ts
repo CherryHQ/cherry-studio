@@ -30,6 +30,7 @@ export enum IpcChannel {
   App_FlushAppData = 'app:flush-app-data',
   App_IsNotEmptyDir = 'app:is-not-empty-dir',
   App_RelaunchApp = 'app:relaunch-app',
+  App_ResetData = 'app:reset-data',
   App_IsBinaryExist = 'app:is-binary-exist',
   App_GetBinaryPath = 'app:get-binary-path',
   App_InstallUvBinary = 'app:install-uv-binary',
@@ -41,6 +42,7 @@ export enum IpcChannel {
   App_SetFullScreen = 'app:set-full-screen',
   App_IsFullScreen = 'app:is-full-screen',
   App_GetSystemFonts = 'app:get-system-fonts',
+  App_GetIpCountry = 'app:get-ip-country',
   APP_CrashRenderProcess = 'app:crash-render-process',
 
   App_MacIsProcessTrusted = 'app:mac-is-process-trusted',
@@ -91,6 +93,7 @@ export enum IpcChannel {
   Mcp_CheckConnectivity = 'mcp:check-connectivity',
   Mcp_UploadDxt = 'mcp:upload-dxt',
   Mcp_AbortTool = 'mcp:abort-tool',
+  Mcp_ResolveHubTool = 'mcp:resolve-hub-tool',
   Mcp_GetServerVersion = 'mcp:get-server-version',
   Mcp_Progress = 'mcp:progress',
   Mcp_GetServerLogs = 'mcp:get-server-logs',
@@ -113,6 +116,14 @@ export enum IpcChannel {
   Copilot_GetToken = 'copilot:get-token',
   Copilot_Logout = 'copilot:logout',
   Copilot_GetUser = 'copilot:get-user',
+
+  // CherryIN OAuth
+  CherryIN_SaveToken = 'cherryin:save-token',
+  CherryIN_HasToken = 'cherryin:has-token',
+  CherryIN_GetBalance = 'cherryin:get-balance',
+  CherryIN_Logout = 'cherryin:logout',
+  CherryIN_StartOAuthFlow = 'cherryin:start-oauth-flow',
+  CherryIN_ExchangeToken = 'cherryin:exchange-token',
 
   // obsidian
   Obsidian_GetVaults = 'obsidian:get-vaults',
@@ -157,7 +168,6 @@ export enum IpcChannel {
   KnowledgeBase_Remove = 'knowledge-base:remove',
   KnowledgeBase_Search = 'knowledge-base:search',
   KnowledgeBase_Rerank = 'knowledge-base:rerank',
-  KnowledgeBase_Check_Quota = 'knowledge-base:check-quota',
 
   //file
   File_Open = 'file:open',
@@ -195,6 +205,7 @@ export enum IpcChannel {
   Fs_ReadText = 'fs:readText',
   File_OpenWithRelativePath = 'file:openWithRelativePath',
   File_IsTextFile = 'file:isTextFile',
+  File_IsDirectory = 'file:isDirectory',
   File_ListDirectory = 'file:listDirectory',
   File_GetDirectoryStructure = 'file:getDirectoryStructure',
   File_CheckFileName = 'file:checkFileName',
@@ -205,6 +216,9 @@ export enum IpcChannel {
   File_ResumeWatcher = 'file:resumeWatcher',
   File_BatchUploadMarkdown = 'file:batchUploadMarkdown',
   File_ShowInFolder = 'file:showInFolder',
+
+  // PDF
+  Pdf_ExtractText = 'pdf:extractText',
 
   // file service
   FileService_Upload = 'file-service:upload',
@@ -235,7 +249,7 @@ export enum IpcChannel {
   Backup_DeleteS3File = 'backup:deleteS3File',
   Backup_CheckS3Connection = 'backup:checkS3Connection',
   Backup_CreateLanTransferBackup = 'backup:createLanTransferBackup',
-  Backup_DeleteTempBackup = 'backup:deleteTempBackup',
+  Backup_DeleteLanTransferBackup = 'backup:deleteLanTransferBackup',
 
   // zip
   Zip_Compress = 'zip:compress',
@@ -271,7 +285,6 @@ export enum IpcChannel {
   HideMiniWindow = 'hide-mini-window',
   ShowMiniWindow = 'show-mini-window',
 
-  ReduxStateChange = 'redux-state-change',
   ReduxStoreReady = 'redux-store-ready',
 
   // Search Window
@@ -307,6 +320,7 @@ export enum IpcChannel {
   Selection_ActionWindowResize = 'selection:action-window-resize',
   Selection_ProcessAction = 'selection:process-action',
   Selection_UpdateActionData = 'selection:update-action-data',
+  Selection_GetLinuxEnvInfo = 'selection:get-linux-env-info',
 
   // Memory
   Memory_Add = 'memory:add',
@@ -353,6 +367,9 @@ export enum IpcChannel {
   Anthropic_HasCredentials = 'anthropic:has-credentials',
   Anthropic_ClearCredentials = 'anthropic:clear-credentials',
 
+  // ExternalApps
+  ExternalApps_DetectInstalled = 'external-apps:detect-installed',
+
   // CodeTools
   CodeTools_Run = 'code-tools:run',
   CodeTools_GetAvailableTerminals = 'code-tools:get-available-terminals',
@@ -378,13 +395,13 @@ export enum IpcChannel {
   Cherryai_GetSignature = 'cherryai:get-signature',
 
   // Claude Code Plugins
-  ClaudeCodePlugin_ListAvailable = 'claudeCodePlugin:list-available',
   ClaudeCodePlugin_Install = 'claudeCodePlugin:install',
   ClaudeCodePlugin_Uninstall = 'claudeCodePlugin:uninstall',
+  ClaudeCodePlugin_UninstallPackage = 'claudeCodePlugin:uninstall-package',
   ClaudeCodePlugin_ListInstalled = 'claudeCodePlugin:list-installed',
-  ClaudeCodePlugin_InvalidateCache = 'claudeCodePlugin:invalidate-cache',
-  ClaudeCodePlugin_ReadContent = 'claudeCodePlugin:read-content',
   ClaudeCodePlugin_WriteContent = 'claudeCodePlugin:write-content',
+  ClaudeCodePlugin_InstallFromZip = 'claudeCodePlugin:install-from-zip',
+  ClaudeCodePlugin_InstallFromDirectory = 'claudeCodePlugin:install-from-directory',
 
   // Local Transfer
   LocalTransfer_ListServices = 'local-transfer:list',
@@ -395,5 +412,23 @@ export enum IpcChannel {
   LocalTransfer_Disconnect = 'local-transfer:disconnect',
   LocalTransfer_ClientEvent = 'local-transfer:client-event',
   LocalTransfer_SendFile = 'local-transfer:send-file',
-  LocalTransfer_CancelTransfer = 'local-transfer:cancel-transfer'
+  LocalTransfer_CancelTransfer = 'local-transfer:cancel-transfer',
+
+  // OpenClaw
+  OpenClaw_CheckInstalled = 'openclaw:check-installed',
+  OpenClaw_Install = 'openclaw:install',
+  OpenClaw_Uninstall = 'openclaw:uninstall',
+  OpenClaw_InstallProgress = 'openclaw:install-progress',
+  OpenClaw_StartGateway = 'openclaw:start-gateway',
+  OpenClaw_StopGateway = 'openclaw:stop-gateway',
+  OpenClaw_GetStatus = 'openclaw:get-status',
+  OpenClaw_CheckHealth = 'openclaw:check-health',
+  OpenClaw_GetDashboardUrl = 'openclaw:get-dashboard-url',
+  OpenClaw_SyncConfig = 'openclaw:sync-config',
+  OpenClaw_GetChannels = 'openclaw:get-channels',
+  OpenClaw_CheckUpdate = 'openclaw:check-update',
+  OpenClaw_PerformUpdate = 'openclaw:perform-update',
+
+  // Analytics
+  Analytics_TrackTokenUsage = 'analytics:track-token-usage'
 }

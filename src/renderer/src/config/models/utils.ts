@@ -6,7 +6,7 @@ import type { OpenAIVerbosity, ValidOpenAIVerbosity } from '@renderer/types/aiCo
 import { getLowerBaseModelName } from '@renderer/utils'
 
 import {
-  isGPT5ProModel,
+  isGPT5FamilyModel,
   isGPT5SeriesModel,
   isGPT51SeriesModel,
   isGPT52SeriesModel,
@@ -20,6 +20,14 @@ import { isClaude45ReasoningModel } from './reasoning'
 import { isGenerateImageModel, isTextToImageModel, isVisionModel } from './vision'
 export const NOT_SUPPORTED_REGEX = /(?:^tts|whisper|speech)/i
 export const GEMINI_FLASH_MODEL_REGEX = new RegExp('gemini.*-flash.*$', 'i')
+
+export const withModelIdAndNameAsId = <T>(model: Model, fn: (model: Model) => T): { idResult: T; nameResult: T } => {
+  const modelWithNameAsId = { ...model, id: model.name }
+  return {
+    idResult: fn(model),
+    nameResult: fn(modelWithNameAsId)
+  }
+}
 
 export function isSupportFlexServiceTierModel(model: Model): boolean {
   if (!model) {
@@ -73,6 +81,11 @@ export function isSupportTemperatureModel(model: Model | undefined | null, assis
     return false
   }
 
+  // Kimi K2.5 doesn't support custom temperature
+  if (isKimi25Model(model)) {
+    return false
+  }
+
   return true
 }
 
@@ -101,6 +114,11 @@ export function isSupportTopPModel(model: Model | undefined | null, assistant?: 
 
   // Qwen MT models don't support top_p
   if (isQwenMTModel(model)) {
+    return false
+  }
+
+  // Kimi K2.5 only accepts top_p=0.95
+  if (isKimi25Model(model)) {
     return false
   }
 
@@ -135,6 +153,14 @@ export function isZhipuModel(model: Model): boolean {
 export function isMoonshotModel(model: Model): boolean {
   const modelId = getLowerBaseModelName(model.id)
   return ['moonshot', 'kimi'].some((m) => modelId.includes(m))
+}
+
+export function isKimi25Model(model: Model | undefined | null): boolean {
+  if (!model) {
+    return false
+  }
+  const modelId = getLowerBaseModelName(model.id)
+  return modelId.includes('kimi-k2.5')
 }
 
 /**
@@ -192,28 +218,53 @@ export const isNotSupportSystemMessageModel = (model: Model): boolean => {
 }
 
 // Verbosity settings is only supported by GPT-5 and newer models
-// Specifically, GPT-5 and GPT-5.1 for now
-// gpt-5-pro only supports 'high', other GPT-5 models support all levels
 const MODEL_SUPPORTED_VERBOSITY: readonly {
   readonly validator: (model: Model) => boolean
   readonly values: readonly ValidOpenAIVerbosity[]
 }[] = [
-  // gpt-5-pro
-  { validator: isGPT5ProModel, values: ['high'] },
-  // gpt-5 except gpt-5-pro
+  // Filter out models that do not support verbosity
   {
-    validator: (model: Model) => isGPT5SeriesModel(model) && !isGPT5ProModel(model),
+    validator: (model: Model) => !isSupportVerbosityModel(model),
+    values: []
+  },
+  // Either only one value is supported(medium), or [low, medium, high]
+  {
+    validator: (model: Model) => {
+      const modelId = getLowerBaseModelName(model.id)
+      // chat variant: only medium is supported
+      if (modelId.includes('chat')) {
+        return false
+      }
+      // codex variant: only medium is supported before 5.3-codex
+      // Since 5.3-codex, all levels are supported.
+      if (modelId.includes('codex')) {
+        if (isGPT5SeriesModel(model) || isGPT51SeriesModel(model) || isGPT52SeriesModel(model)) {
+          return false
+        }
+        return true
+      }
+      // pro variant: all support
+      return isGPT5FamilyModel(model)
+    },
     values: ['low', 'medium', 'high']
   },
-  // gpt-5.1
-  { validator: isGPT51SeriesModel, values: ['low', 'medium', 'high'] }
+  // Fallback to medium
+  {
+    validator: isGPT5FamilyModel,
+    values: ['medium']
+  }
 ]
 
 /**
  * Returns the list of supported verbosity levels for the given model.
- * If the model is not recognized as a GPT-5 series model, only `undefined` is returned.
- * For GPT-5-pro, only 'high' is supported; for other GPT-5 models, 'low', 'medium', and 'high' are supported.
- * For GPT-5.1 series models, 'low', 'medium', and 'high' are supported.
+ * If the model is not a GPT-5 family model, only `[undefined]` is returned.
+ *
+ * Verbosity levels are version-aware:
+ * - GPT-5 pro: `[low, medium, high]`
+ * - GPT-5 chat / old codex (5.1/5.2): `[medium]` only
+ * - GPT-5.3+ codex: `[low, medium, high]`
+ * - Other GPT-5 family models: `[low, medium, high]`
+ *
  * @param model - The model to check
  * @returns An array of supported verbosity levels, always including `undefined` as the first element and `null` when applicable
  */
@@ -258,11 +309,13 @@ export const isMaxTemperatureOneModel = (model: Model): boolean => {
   return false
 }
 
+// major version, including 3.x
 export const isGemini3Model = (model: Model) => {
   const modelId = getLowerBaseModelName(model.id)
   return modelId.includes('gemini-3')
 }
 
+// major version, including 3.x
 export const isGemini3ThinkingTokenModel = (model: Model) => {
   const modelId = getLowerBaseModelName(model.id)
   return isGemini3Model(model) && !modelId.includes('image')
@@ -271,7 +324,7 @@ export const isGemini3ThinkingTokenModel = (model: Model) => {
 /**
  * Check if the model is a Gemini 3 Flash model
  * Matches: gemini-3-flash, gemini-3-flash-preview, gemini-3-flash-preview-09-2025, gemini-flash-latest (alias)
- * Excludes: gemini-3-flash-image-preview
+ * Excludes: gemini-3-flash-image-preview, 3.x flash versions
  * @param model - The model to check
  * @returns true if the model is a Gemini 3 Flash model
  */
@@ -289,9 +342,23 @@ export const isGemini3FlashModel = (model: Model | undefined | null): boolean =>
 }
 
 /**
+ * Check if the model is a Gemini 3.1 Flash Lite model
+ * Matches: gemini-3.1-flash-lite-preview, gemini-3.1-flash-lite-preview-06-2025
+ * @param model - The model to check
+ * @returns true if the model is a Gemini 3.1 Flash Lite model
+ */
+export const isGemini31FlashLiteModel = (model: Model | undefined | null): boolean => {
+  if (!model) {
+    return false
+  }
+  const modelId = getLowerBaseModelName(model.id)
+  return /gemini-3\.1-flash-lite(?:-[\w-]+)*$/i.test(modelId)
+}
+
+/**
  * Check if the model is a Gemini 3 Pro model
  * Matches: gemini-3-pro, gemini-3-pro-preview, gemini-3-pro-preview-09-2025, gemini-pro-latest (alias)
- * Excludes: gemini-3-pro-image-preview
+ * Excludes: gemini-3-pro-image-preview, 3.x pro versions
  * @param model - The model to check
  * @returns true if the model is a Gemini 3 Pro model
  */
@@ -300,10 +367,49 @@ export const isGemini3ProModel = (model: Model | undefined | null): boolean => {
     return false
   }
   const modelId = getLowerBaseModelName(model.id)
-  // Check for gemini-pro-latest alias (currently points to gemini-3-pro, may change in future)
+
+  // Check for gemini-3-pro with optional suffixes, excluding image variants
+  return /gemini-3-pro(?!-image)(?:-[\w-]+)*$/i.test(modelId)
+}
+
+/**
+ * Check if the model is a Gemini 3.1 Pro model
+ * Matches: gemini-3.1-pro, gemini-3.1-pro-preview, gemini-3.1-pro-preview-09-2025, gemini-3.1-pro-latest (alias)
+ * Excludes: gemini-3.1-pro-image-preview
+ * @param model - The model to check
+ * @returns
+ */
+export const isGemini31ProModel = (model: Model | undefined | null): boolean => {
+  if (!model) {
+    return false
+  }
+  const modelId = getLowerBaseModelName(model.id)
+  // Check for gemini-pro-latest alias (currently points to gemini-3.1-pro, may change in future)
   if (modelId === 'gemini-pro-latest') {
     return true
   }
-  // Check for gemini-3-pro with optional suffixes, excluding image variants
-  return /gemini-3-pro(?!-image)(?:-[\w-]+)*$/i.test(modelId)
+  // Check for gemini-3.1-pro with optional suffixes, excluding image variants
+  return /gemini-3.1-pro(?!-image)(?:-[\w-]+)*$/i.test(modelId)
+}
+
+/**
+ * Check if the model is Claude Opus 4.6
+ * Supports various formats including:
+ * - Direct API: claude-opus-4-6
+ * - AWS Bedrock: anthropic.claude-opus-4-6-v1
+ * - GCP Vertex AI: claude-opus-4-6
+ * @param model - The model to check
+ * @returns true if the model is Claude 4.6 series model
+ */
+export function isClaude46SeriesModel(model: Model | undefined | null): boolean {
+  if (!model) {
+    return false
+  }
+  const modelId = getLowerBaseModelName(model.id, '/')
+  // Supports various formats:
+  // - Direct API: claude-opus-4-6, claude-opus-4.6
+  // - AWS Bedrock: anthropic.claude-opus-4-6-v1
+  // - GCP Vertex AI: claude-opus-4-6
+  const regex = /(?:anthropic\.)?claude-(?:opus|sonnet)-4[.-]6(?:[@\-:][\w\-:]+)?$/i
+  return regex.test(modelId)
 }

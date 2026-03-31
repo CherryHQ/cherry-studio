@@ -36,7 +36,8 @@ import type { MCPProgressEvent } from '@shared/config/types'
 import type { MCPServerLogEntry } from '@shared/config/types'
 import { IpcChannel } from '@shared/IpcChannel'
 import { buildFunctionCallToolName } from '@shared/mcp'
-import { defaultAppHeaders, mergeHeaders } from '@shared/utils'
+import { defaultAppHeaders } from '@shared/utils'
+import { safeSerialize } from '@shared/utils/serialize'
 import {
   BuiltinMCPServerNames,
   type GetResourceResponse,
@@ -52,7 +53,6 @@ import {
 import { app, net } from 'electron'
 import { EventEmitter } from 'events'
 import { v4 as uuidv4 } from 'uuid'
-import * as z from 'zod'
 
 import { CacheService } from './CacheService'
 import DxtService from './DxtService'
@@ -285,7 +285,10 @@ class McpService {
     }
 
     const prepareHeaders = () => {
-      return mergeHeaders(defaultAppHeaders(), server.headers)
+      return {
+        ...defaultAppHeaders(),
+        ...server.headers
+      }
     }
 
     // Create a promise for the initialization process
@@ -317,9 +320,10 @@ class McpService {
                 return net.fetch(typeof url === 'string' ? url : url.toString(), init)
               },
               requestInit: {
-                headers: mergeHeaders(defaultAppHeaders(), {
+                headers: {
+                  ...defaultAppHeaders(),
                   APP: 'Cherry Studio'
-                })
+                }
               },
               authProvider
             }
@@ -356,7 +360,7 @@ class McpService {
               getServerLogger(server).debug(`StreamableHTTPClientTransport options`, {
                 options: redactSensitive(options)
               })
-              return new StreamableHTTPClientTransport(new URL(server.baseUrl!), options)
+              return new StreamableHTTPClientTransport(new URL(server.baseUrl), options)
             } else if (server.type === 'sse') {
               const options: SSEClientTransportOptions = {
                 eventSourceInit: {
@@ -369,7 +373,7 @@ class McpService {
                 },
                 authProvider
               }
-              return new SSEClientTransport(new URL(server.baseUrl!), options)
+              return new SSEClientTransport(new URL(server.baseUrl), options)
             } else {
               throw new Error('Invalid server type')
             }
@@ -551,7 +555,7 @@ class McpService {
           // Set a timeout to close the callback server
           const timeoutId = setTimeout(() => {
             getServerLogger(server).warn(`OAuth flow timed out`)
-            callbackServer.close()
+            void callbackServer.close()
           }, 300000) // 5 minutes timeout
 
           try {
@@ -577,7 +581,7 @@ class McpService {
           } finally {
             // Clear the timeout and close the callback server
             clearTimeout(timeoutId)
-            callbackServer.close()
+            void callbackServer.close()
           }
         }
 
@@ -686,13 +690,15 @@ class McpService {
 
       // Set up logging message notification handler
       client.setNotificationHandler(LoggingMessageNotificationSchema, async (notification) => {
-        logger.debug(`Message from server ${server.name}:`, notification.params)
-        const msg = notification.params?.message
-        if (msg) {
+        const data = notification.params?.data
+        const message = safeSerialize(notification.params.data) ?? 'No data'
+        logger.debug(`Message from server ${server.name}: ${message}`)
+        if (data) {
           this.emitServerLog(server, {
             timestamp: Date.now(),
+            // FIXME: as MCPServerLogEntry['level'] not type safe
             level: (notification.params?.level as MCPServerLogEntry['level']) || 'info',
-            message: typeof msg === 'string' ? msg : JSON.stringify(msg),
+            message,
             data: redactSensitive(notification.params?.data),
             source: notification.params?.logger || 'server'
           })
@@ -841,8 +847,8 @@ class McpService {
       tools.map((tool: SDKTool) => {
         const serverTool: MCPTool = {
           ...tool,
-          inputSchema: z.parse(MCPToolInputSchema, tool.inputSchema),
-          outputSchema: tool.outputSchema ? z.parse(MCPToolOutputSchema, tool.outputSchema) : undefined,
+          inputSchema: MCPToolInputSchema.parse(tool.inputSchema),
+          outputSchema: tool.outputSchema ? MCPToolOutputSchema.parse(tool.outputSchema) : undefined,
           id: buildFunctionCallToolName(server.name, tool.name),
           serverId: server.id,
           serverName: server.name,

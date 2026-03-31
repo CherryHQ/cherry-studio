@@ -14,7 +14,7 @@ const logger = loggerService.withContext('ProviderFactory')
  * 初始化动态Provider系统
  * 在模块加载时自动注册新的providers
  */
-;(async () => {
+void (async () => {
   try {
     await initializeNewProviders()
   } catch (error) {
@@ -31,6 +31,7 @@ const STATIC_PROVIDER_MAPPING: Record<string, ProviderId> = {
   'azure-openai': 'azure', // Azure OpenAI -> azure
   'openai-response': 'openai', // OpenAI Responses -> openai
   grok: 'xai', // Grok -> xai
+  groq: 'groq', // Groq -> dedicated @ai-sdk/groq provider
   copilot: 'github-copilot-openai-compatible',
   tokenflux: 'openrouter' // TokenFlux -> openrouter (fully compatible)
 }
@@ -48,7 +49,7 @@ function tryResolveProviderId(identifier: string): ProviderId | null {
   // 2. 检查AiCore是否支持（包括别名支持）
   if (hasProviderConfigByAlias(identifier)) {
     // 解析为真实的Provider ID
-    return resolveProviderConfigId(identifier) as ProviderId
+    return resolveProviderConfigId(identifier)
   }
 
   return null

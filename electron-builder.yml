@@ -73,11 +73,6 @@ asarUnpack:
   - "**/*.{metal,exp,lib}"
   - "node_modules/@img/sharp-libvips-*/**"
 
-# copy from node_modules/claude-code-plugins/plugins to resources/data/claude-code-pluginso
-extraResources:
-  - from: "./node_modules/claude-code-plugins/plugins/"
-    to: "claude-code-plugins"
-
 win:
   executableName: Cherry Studio
   artifactName: ${productName}-${version}-${arch}-setup.${ext}
@@ -121,7 +116,6 @@ linux:
     - target: AppImage
     - target: deb
     - target: rpm
-    - target: pacman
   maintainer: electronjs.org
   category: Utility
   desktop:
@@ -146,30 +140,22 @@ artifactBuildCompleted: scripts/artifact-build-completed.js
 releaseInfo:
   releaseNotes: |
     <!--LANG:en-->
-    Cherry Studio 1.7.13 - Security & Bug Fixes
+    Cherry Studio 1.8.4 - Bug Fixes and New Features
 
-    🔒 Security
-    - [Plugin] Fix security vulnerability in DXT plugin system on Windows
+    ✨ New Features
+    - [API] Add knowledge base REST API endpoints
+    - [SelectionAssistant] Add Linux support for text selection toolbar
 
     🐛 Bug Fixes
-    - [Agent] Fix Agent not working when Node.js is not installed on system
-    - [Chat] Fix app crash when opening certain agents
-    - [Chat] Fix reasoning process not displaying correctly for some providers
-    - [Chat] Fix memory leak issue during streaming conversations
-    - [MCP] Fix timeout field not accepting string format in MCP configuration
-    - [Settings] Add careers section in About page
+    - [Files] Fix PDF upload failing with "invalid part type: file" error for OpenAI-compatible providers (Moonshot, DeepSeek, Groq, etc.)
 
     <!--LANG:zh-CN-->
-    Cherry Studio 1.7.13 - 安全与问题修复
+    Cherry Studio 1.8.4 - 错误修复和新功能
 
-    🔒 安全修复
-    - [插件] 修复 Windows 系统 DXT 插件的安全漏洞
+    ✨ 新功能
+    - [API] 添加知识库 REST API 端点
+    - [选择助手] 为文本选择工具栏添加 Linux 支持
 
     🐛 问题修复
-    - [Agent] 修复系统未安装 Node.js 时 Agent 功能无法使用的问题
-    - [对话] 修复打开某些智能体时应用崩溃的问题
-    - [对话] 修复部分服务商推理过程无法正确显示的问题
-    - [对话] 修复流式对话时的内存泄漏问题
-    - [MCP] 修复 MCP 配置的 timeout 字段不支持字符串格式的问题
-    - [设置] 关于页面新增招聘入口
+    - [文件] 修复 OpenAI 兼容提供商（Moonshot、DeepSeek、Groq 等）的 PDF 上传失败问题（"invalid part type: file" 错误）
     <!--LANG:END-->

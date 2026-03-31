@@ -1,8 +1,5 @@
-import path from 'node:path'
-
 import { loggerService } from '@logger'
 import { pluginService } from '@main/services/agents/plugins/PluginService'
-import { getDataPath } from '@main/utils'
 import type {
   AgentEntity,
   CreateAgentRequest,
@@ -13,7 +10,7 @@ import type {
   UpdateAgentResponse
 } from '@types'
 import { AgentBaseSchema } from '@types'
-import { asc, count, desc, eq } from 'drizzle-orm'
+import { asc, count, desc, eq, sql } from 'drizzle-orm'
 
 import { BaseService } from '../BaseService'
 import { type AgentRow, agentsTable, type InsertAgentRow } from '../database/schema'
@@ -37,14 +34,7 @@ export class AgentService extends BaseService {
     const id = `agent_${Date.now()}_${Math.random().toString(36).substring(2, 11)}`
     const now = new Date().toISOString()
 
-    if (!req.accessible_paths || req.accessible_paths.length === 0) {
-      const defaultPath = path.join(getDataPath(), 'agents', id)
-      req.accessible_paths = [defaultPath]
-    }
-
-    if (req.accessible_paths !== undefined) {
-      req.accessible_paths = this.ensurePathsExist(req.accessible_paths)
-    }
+    req.accessible_paths = this.resolveAccessiblePaths(req.accessible_paths, id)
 
     await this.validateAgentModels(req.type, {
       model: req.model,
@@ -65,12 +55,17 @@ export class AgentService extends BaseService {
       small_model: req.small_model,
       configuration: serializedReq.configuration,
       accessible_paths: serializedReq.accessible_paths,
+      sort_order: 0,
       created_at: now,
       updated_at: now
     }
 
     const database = await this.getDatabase()
-    await database.insert(agentsTable).values(insertData)
+    // Shift all existing agents' sort_order up by 1 and insert new agent at position 0 atomically
+    await database.transaction(async (tx) => {
+      await tx.update(agentsTable).set({ sort_order: sql`${agentsTable.sort_order} + 1` })
+      await tx.insert(agentsTable).values(insertData)
+    })
     const result = await database.select().from(agentsTable).where(eq(agentsTable.id, id)).limit(1)
     if (!result[0]) {
       throw new Error('Failed to create agent')
@@ -118,13 +113,17 @@ export class AgentService extends BaseService {
     const database = await this.getDatabase()
     const totalResult = await database.select({ count: count() }).from(agentsTable)
 
-    const sortBy = options.sortBy || 'created_at'
-    const orderBy = options.orderBy || 'desc'
+    const sortBy = options.sortBy || 'sort_order'
+    const orderBy = options.orderBy || (sortBy === 'sort_order' ? 'asc' : 'desc')
 
     const sortField = agentsTable[sortBy]
     const orderFn = orderBy === 'asc' ? asc : desc
 
-    const baseQuery = database.select().from(agentsTable).orderBy(orderFn(sortField))
+    // Use created_at DESC as secondary sort for tie-breaking (e.g., after migration when all sort_order = 0)
+    const baseQuery =
+      sortBy === 'sort_order'
+        ? database.select().from(agentsTable).orderBy(orderFn(sortField), desc(agentsTable.created_at))
+        : database.select().from(agentsTable).orderBy(orderFn(sortField))
 
     const result =
       options.limit !== undefined
@@ -158,7 +157,10 @@ export class AgentService extends BaseService {
     const now = new Date().toISOString()
 
     if (updates.accessible_paths !== undefined) {
-      updates.accessible_paths = this.ensurePathsExist(updates.accessible_paths)
+      if (updates.accessible_paths.length === 0) {
+        throw new Error('accessible_paths must not be empty')
+      }
+      updates.accessible_paths = this.resolveAccessiblePaths(updates.accessible_paths, id)
     }
 
     const modelUpdates: Partial<Record<AgentModelField, string | undefined>> = {}
@@ -194,6 +196,16 @@ export class AgentService extends BaseService {
     const database = await this.getDatabase()
     await database.update(agentsTable).set(updateData).where(eq(agentsTable.id, id))
     return await this.getAgent(id)
+  }
+
+  async reorderAgents(orderedIds: string[]): Promise<void> {
+    const database = await this.getDatabase()
+    await database.transaction(async (tx) => {
+      for (let i = 0; i < orderedIds.length; i++) {
+        await tx.update(agentsTable).set({ sort_order: i }).where(eq(agentsTable.id, orderedIds[i]))
+      }
+    })
+    logger.info('Agents reordered', { count: orderedIds.length })
   }
 
   async deleteAgent(id: string): Promise<boolean> {

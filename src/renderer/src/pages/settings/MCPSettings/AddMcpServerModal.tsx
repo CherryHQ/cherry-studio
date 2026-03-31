@@ -29,7 +29,7 @@ interface ParsedServerData extends MCPServer {
 }
 
 // 預設的 JSON 範例內容
-const initialJsonExample = `// 示例 JSON (stdio):
+const initialJsonExample = `// Example JSON (stdio):
 // {
 //   "mcpServers": {
 //     "stdio-server-example": {
@@ -39,7 +39,7 @@ const initialJsonExample = `// 示例 JSON (stdio):
 //   }
 // }
 
-// 示例 JSON (sse):
+// Example JSON (sse):
 // {
 //   "mcpServers": {
 //     "sse-server-example": {
@@ -49,7 +49,7 @@ const initialJsonExample = `// 示例 JSON (stdio):
 //   }
 // }
 
-// 示例 JSON (streamableHttp):
+// Example JSON (streamableHttp):
 // {
 //   "mcpServers": {
 //     "streamable-http-example": {

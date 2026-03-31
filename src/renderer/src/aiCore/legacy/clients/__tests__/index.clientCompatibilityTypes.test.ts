@@ -35,8 +35,7 @@ vi.mock('@renderer/config/models', () => ({
   findTokenLimit: vi.fn().mockReturnValue(4096),
   isFunctionCallingModel: vi.fn().mockReturnValue(false),
   DEFAULT_MAX_TOKENS: 4096,
-  qwen38bModel: {},
-  glm45FlashModel: {}
+  qwenModel: {}
 }))
 
 vi.mock('@renderer/services/AssistantService', () => ({

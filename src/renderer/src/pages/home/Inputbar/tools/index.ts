@@ -17,7 +17,7 @@ import './newContextTool'
 // Agent Session tools
 import './createSessionTool'
 import './slashCommandsTool'
-import './activityDirectoryTool'
+import './resourceTool'
 
 // Export registry functions
 export { getAllTools, getTool, getToolsForScope, registerTool } from '../types'

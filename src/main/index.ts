@@ -16,12 +16,14 @@ import process from 'node:process'
 
 import { registerIpc } from './ipc'
 import { agentService } from './services/agents'
+import { analyticsService } from './services/AnalyticsService'
 import { apiServerService } from './services/ApiServerService'
 import { appMenuService } from './services/AppMenuService'
 import { configManager } from './services/ConfigManager'
 import { lanTransferClientService } from './services/lanTransfer'
 import mcpService from './services/MCPService'
 import { localTransferService } from './services/LocalTransferService'
+import { openClawService } from './services/OpenClawService'
 import { nodeTraceService } from './services/NodeTraceService'
 import powerMonitorService from './services/PowerMonitorService'
 import {
@@ -38,6 +40,7 @@ import { windowService } from './services/WindowService'
 import { initWebviewHotkeys } from './services/WebviewService'
 import { runAsyncFunction } from './utils'
 import { isOvmsSupported } from './services/OvmsManager'
+import { extractRtkBinaries } from './utils/rtk'
 
 const logger = loggerService.withContext('MainEntry')
 
@@ -132,7 +135,7 @@ if (!app.requestSingleInstanceLock()) {
   // initialization and is ready to create browser windows.
   // Some APIs can only be used after this event occurs.
 
-  app.whenReady().then(async () => {
+  void app.whenReady().then(async () => {
     // Record current version for tracking
     // A preparation for v2 data refactoring
     versionService.recordCurrentVersion()
@@ -147,7 +150,12 @@ if (!app.requestSingleInstanceLock()) {
       app.dock?.hide()
     }
 
+    // Check for backup restore marker and complete restoration (highest priority, before window creation)
+    const { BackupManager } = await import('./services/BackupManager')
+    await BackupManager.handleStartupRestore()
+
     const mainWindow = windowService.createMainWindow()
+
     new TrayService()
 
     // Setup macOS application menu
@@ -155,6 +163,14 @@ if (!app.requestSingleInstanceLock()) {
 
     nodeTraceService.init()
     powerMonitorService.init()
+    analyticsService.init()
+
+    // Extract bundled rtk binary to ~/.cherrystudio/bin/ on first run
+    extractRtkBinaries().catch((error) => {
+      logger.warn('Failed to extract rtk binaries (non-fatal)', {
+        error: error instanceof Error ? error.message : String(error)
+      })
+    })
 
     app.on('activate', function () {
       const mainWindow = windowService.getMainWindow()
@@ -184,7 +200,7 @@ if (!app.requestSingleInstanceLock()) {
     //start selection assistant service
     initSelectionService()
 
-    runAsyncFunction(async () => {
+    void runAsyncFunction(async () => {
       // Start API server if enabled or if agents exist
       try {
         const config = await apiServerService.getCurrentConfig()
@@ -267,10 +283,12 @@ if (!app.requestSingleInstanceLock()) {
     }
 
     try {
+      await analyticsService.destroy()
+      await openClawService.stopGateway()
       await mcpService.cleanup()
       await apiServerService.stop()
     } catch (error) {
-      logger.warn('Error cleaning up MCP service:', error as Error)
+      logger.warn('Error cleaning up services:', error as Error)
     }
 
     // finish the logger

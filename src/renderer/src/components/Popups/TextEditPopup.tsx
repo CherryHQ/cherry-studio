@@ -151,7 +151,7 @@ const PopupContainer: React.FC<Props> = ({
         {showTranslate && (
           <TranslateButton
             onClick={handleTranslate}
-            aria-label="Translate text"
+            aria-label={t('common.translate_text')}
             disabled={isTranslating || !textValue.trim()}>
             {isTranslating ? <LoadingOutlined spin /> : <Languages size={16} />}
           </TranslateButton>

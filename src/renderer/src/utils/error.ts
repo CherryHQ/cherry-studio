@@ -10,6 +10,7 @@ import type {
   SerializedError
 } from '@renderer/types/error'
 import { isSerializedAiSdkAPICallError } from '@renderer/types/error'
+import { safeSerialize } from '@shared/utils/serialize'
 import type { NoSuchToolError } from 'ai'
 import { AISDKError } from 'ai'
 import { InvalidToolInputError } from 'ai'
@@ -20,7 +21,6 @@ import type * as z from 'zod'
 import { ZodError } from 'zod'
 
 import { parseJSON } from './json'
-import { safeSerialize } from './serialize'
 
 const logger = loggerService.withContext('Utils:error')
 
@@ -80,7 +80,7 @@ export function formatErrorMessage(error: unknown): string {
 }
 
 export function getErrorMessage(error: unknown): string {
-  if (error instanceof Error) {
+  if (error instanceof Error && error.message) {
     return error.message
   } else {
     return t('error.unknown')
@@ -92,7 +92,25 @@ export function formatErrorMessageWithPrefix(error: unknown, prefix: string): st
   return `${prefix}: ${msg}`
 }
 
+export const isTimeoutError = (error: any): boolean => {
+  if (error instanceof DOMException && error.name === 'TimeoutError') {
+    return true
+  }
+
+  const cause = error?.cause
+  if (cause instanceof DOMException && cause.name === 'TimeoutError') {
+    return true
+  }
+
+  return false
+}
+
 export const isAbortError = (error: any): boolean => {
+  // Timeout errors should not be treated as user-initiated aborts
+  if (isTimeoutError(error)) {
+    return false
+  }
+
   // Convert message to string for consistent checking
   const errorMessage = String(error?.message || '')
 
@@ -193,7 +211,7 @@ export const serializeError = (error: AiSdkErrorUnion): SerializedError => {
   if ('toolInput' in error) serializedError.toolInput = error.toolInput
   if ('text' in error) serializedError.text = error.text ?? null
   if ('originalMessage' in error) serializedError.originalMessage = safeSerialize(error.originalMessage)
-  if ('response' in error) serializedError.response = error.response ?? null
+  if ('response' in error) serializedError.response = safeSerialize(error.response)
   if ('usage' in error) serializedError.usage = safeSerialize(error.usage)
   if ('finishReason' in error) serializedError.finishReason = error.finishReason ?? null
   if ('modelId' in error) serializedError.modelId = error.modelId

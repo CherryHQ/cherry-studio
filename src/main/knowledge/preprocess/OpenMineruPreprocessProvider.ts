@@ -17,10 +17,7 @@ export default class OpenMineruPreprocessProvider extends BasePreprocessProvider
     super(provider, userId)
   }
 
-  public async parseFile(
-    sourceId: string,
-    file: FileMetadata
-  ): Promise<{ processedFile: FileMetadata; quota: number }> {
+  public async parseFile(sourceId: string, file: FileMetadata): Promise<{ processedFile: FileMetadata }> {
     try {
       const filePath = fileStorage.getFilePathById(file)
       logger.info(`Open MinerU preprocess processing started: ${filePath}`)
@@ -33,23 +30,14 @@ export default class OpenMineruPreprocessProvider extends BasePreprocessProvider
       // 2. Upload file and extract
       const { path: outputPath } = await this.uploadFileAndExtract(file)
 
-      // 3. Check quota
-      const quota = await this.checkQuota()
-
-      // 4. Create processed file info
+      // 3. Create processed file info
       return {
-        processedFile: this.createProcessedFileInfo(file, outputPath),
-        quota
+        processedFile: this.createProcessedFileInfo(file, outputPath)
       }
     } catch (error) {
       logger.error(`Open MinerU preprocess processing failed for:`, error as Error)
       throw error
     }
-  }
-
-  public async checkQuota() {
-    // self-hosted version always has enough quota
-    return Infinity
   }
 
   private async validateFile(filePath: string): Promise<void> {

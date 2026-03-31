@@ -243,7 +243,6 @@ function DynamicVirtualList<T>(props: DynamicVirtualListProps<T>) {
       ref={scrollerRef}
       className={className ? `dynamic-virtual-list ${className}` : 'dynamic-virtual-list'}
       role="region"
-      aria-label="Dynamic Virtual List"
       aria-hidden={!showScrollbar}
       $autoHide={autoHideScrollbar}
       $show={showScrollbar}

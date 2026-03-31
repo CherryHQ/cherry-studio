@@ -174,9 +174,8 @@ describe('Copilot responses routing', () => {
     const config = providerToAiSdkConfig(provider, createModel('gpt-5-codex', 'GPT-5-CODEX'))
 
     expect(config.providerId).toBe('github-copilot-openai-compatible')
-    // Headers are normalized to lowercase by mergeHeaders
-    expect(config.options.headers?.['editor-version']).toBe(COPILOT_EDITOR_VERSION)
-    expect(config.options.headers?.['copilot-integration-id']).toBe(COPILOT_DEFAULT_HEADERS['Copilot-Integration-Id'])
+    expect(config.options.headers?.['Editor-Version']).toBe(COPILOT_EDITOR_VERSION)
+    expect(config.options.headers?.['Copilot-Integration-Id']).toBe(COPILOT_DEFAULT_HEADERS['Copilot-Integration-Id'])
     expect(config.options.headers?.['copilot-vision-request']).toBe('true')
   })
 
@@ -185,9 +184,8 @@ describe('Copilot responses routing', () => {
     const config = providerToAiSdkConfig(provider, createModel('gpt-4'))
 
     expect(config.providerId).toBe('github-copilot-openai-compatible')
-    // Headers are normalized to lowercase by mergeHeaders
-    expect(config.options.headers?.['editor-version']).toBe(COPILOT_DEFAULT_HEADERS['Editor-Version'])
-    expect(config.options.headers?.['copilot-integration-id']).toBe(COPILOT_DEFAULT_HEADERS['Copilot-Integration-Id'])
+    expect(config.options.headers?.['Editor-Version']).toBe(COPILOT_DEFAULT_HEADERS['Editor-Version'])
+    expect(config.options.headers?.['Copilot-Integration-Id']).toBe(COPILOT_DEFAULT_HEADERS['Copilot-Integration-Id'])
   })
 })
 
@@ -542,6 +540,7 @@ describe('Azure OpenAI traditional API routing', () => {
     const config = providerToAiSdkConfig(provider, createModel('gpt-4o', 'GPT-4o', provider.id))
 
     expect(config.providerId).toBe('azure')
+    expect(config.options.mode).toBe('chat')
     expect(config.options.apiVersion).toBe('2024-02-15-preview')
     expect(config.options.useDeploymentBasedUrls).toBe(true)
   })
@@ -550,12 +549,14 @@ describe('Azure OpenAI traditional API routing', () => {
     const v1Provider = createAzureProvider('v1')
     const v1Config = providerToAiSdkConfig(v1Provider, createModel('gpt-4o', 'GPT-4o', v1Provider.id))
     expect(v1Config.providerId).toBe('azure-responses')
+    expect(v1Config.options.mode).toBe('responses')
     expect(v1Config.options.apiVersion).toBe('v1')
     expect(v1Config.options.useDeploymentBasedUrls).toBeUndefined()
 
     const previewProvider = createAzureProvider('preview')
     const previewConfig = providerToAiSdkConfig(previewProvider, createModel('gpt-4o', 'GPT-4o', previewProvider.id))
     expect(previewConfig.providerId).toBe('azure-responses')
+    expect(previewConfig.options.mode).toBe('responses')
     expect(previewConfig.options.apiVersion).toBe('preview')
     expect(previewConfig.options.useDeploymentBasedUrls).toBeUndefined()
   })

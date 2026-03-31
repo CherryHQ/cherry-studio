@@ -10,6 +10,18 @@ import type {
 import type { Response, ResponseError } from './newMessage'
 import type { SdkToolCall } from './sdk'
 
+/**
+ * Provider metadata type for passing provider-specific data through chunks
+ * Currently used for passing thoughtSignature from Gemini through the chunk pipeline
+ */
+export interface ProviderMetadata {
+  google?: {
+    thoughtSignature?: string
+    [key: string]: unknown
+  }
+  [provider: string]: unknown
+}
+
 // Define Enum for Chunk Types
 // 目前用到的，并没有列出完整的生命周期
 export enum ChunkType {
@@ -24,6 +36,7 @@ export enum ChunkType {
   MCP_TOOL_PENDING = 'mcp_tool_pending',
   MCP_TOOL_IN_PROGRESS = 'mcp_tool_in_progress',
   MCP_TOOL_COMPLETE = 'mcp_tool_complete',
+  MCP_TOOL_STREAMING = 'mcp_tool_streaming', // NEW: Streaming tool arguments
   EXTERNEL_TOOL_COMPLETE = 'externel_tool_complete',
   LLM_RESPONSE_CREATED = 'llm_response_created',
   LLM_RESPONSE_IN_PROGRESS = 'llm_response_in_progress',
@@ -81,6 +94,11 @@ export interface TextStartChunk {
    * The ID of the chunk
    */
   chunk_id?: number
+
+  /**
+   * Provider metadata for passing provider-specific data (e.g., thoughtSignature for Gemini)
+   */
+  providerMetadata?: ProviderMetadata
 }
 export interface TextDeltaChunk {
   /**
@@ -97,6 +115,11 @@ export interface TextDeltaChunk {
    * The type of the chunk
    */
   type: ChunkType.TEXT_DELTA
+
+  /**
+   * Provider metadata for passing provider-specific data (e.g., thoughtSignature for Gemini)
+   */
+  providerMetadata?: ProviderMetadata
 }
 
 export interface TextCompleteChunk {
@@ -114,6 +137,11 @@ export interface TextCompleteChunk {
    * The type of the chunk
    */
   type: ChunkType.TEXT_COMPLETE
+
+  /**
+   * Provider metadata for passing provider-specific data (e.g., thoughtSignature for Gemini)
+   */
+  providerMetadata?: ProviderMetadata
 }
 
 export interface AudioStartChunk {
@@ -329,6 +357,20 @@ export interface MCPToolCompleteChunk {
   type: ChunkType.MCP_TOOL_COMPLETE
 }
 
+/**
+ * Streaming tool arguments chunk - emitted during tool-input-delta events
+ */
+export interface MCPToolStreamingChunk {
+  /**
+   * The type of the chunk
+   */
+  type: ChunkType.MCP_TOOL_STREAMING
+  /**
+   * The tool responses with streaming arguments
+   */
+  responses: (MCPToolResponse | NormalToolResponse)[]
+}
+
 export interface LLMResponseCompleteChunk {
   /**
    * The response
@@ -438,6 +480,7 @@ export type Chunk =
   | MCPToolPendingChunk // MCP工具调用等待中
   | MCPToolInProgressChunk // MCP工具调用中
   | MCPToolCompleteChunk // MCP工具调用完成
+  | MCPToolStreamingChunk // MCP工具参数流式传输中
   | ExternalToolCompleteChunk // 外部工具调用完成，外部工具包含搜索互联网，知识库，MCP服务器
   | LLMResponseCreatedChunk // 大模型响应创建，返回即将创建的块类型
   | LLMResponseInProgressChunk // 大模型响应进行中

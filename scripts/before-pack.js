@@ -2,7 +2,7 @@ const { Arch } = require('electron-builder')
 const { execSync } = require('child_process')
 const fs = require('fs')
 const path = require('path')
-const yaml = require('js-yaml')
+const { parse, stringify } = require('yaml')
 
 const workspaceConfigPath = path.join(__dirname, '..', 'pnpm-workspace.yaml')
 
@@ -34,6 +34,14 @@ const packages = [
   '@napi-rs/system-ocr-darwin-x64',
   '@napi-rs/system-ocr-win32-arm64-msvc',
   '@napi-rs/system-ocr-win32-x64-msvc',
+  '@napi-rs/canvas-linux-x64-gnu',
+  '@napi-rs/canvas-linux-x64-musl',
+  '@napi-rs/canvas-linux-arm64-gnu',
+  '@napi-rs/canvas-linux-arm64-musl',
+  '@napi-rs/canvas-darwin-x64',
+  '@napi-rs/canvas-darwin-arm64',
+  '@napi-rs/canvas-win32-x64-msvc',
+  '@napi-rs/canvas-win32-arm64-msvc',
   '@strongtz/win32-arm64-msvc'
 ]
 
@@ -49,6 +57,14 @@ exports.default = async function (context) {
   const platformName = context.packager.platform.name
   const platform = platformToArch[platformName]
 
+  // Download rtk binary for the target platform
+  try {
+    console.log(`Downloading rtk binary for ${platform}-${arch}...`)
+    execSync(`node "${path.join(__dirname, 'download-rtk-binaries.js')}" ${platform} ${arch}`, { stdio: 'inherit' })
+  } catch (error) {
+    console.warn(`Warning: rtk binary download failed (non-fatal): ${error.message}`)
+  }
+
   const downloadPackages = async () => {
     // Skip if target platform and architecture match current system
     if (platform === process.platform && arch === process.arch) {
@@ -60,7 +76,7 @@ exports.default = async function (context) {
 
     // Backup and modify pnpm-workspace.yaml to add target platform support
     const originalWorkspaceConfig = fs.readFileSync(workspaceConfigPath, 'utf-8')
-    const workspaceConfig = yaml.load(originalWorkspaceConfig)
+    const workspaceConfig = parse(originalWorkspaceConfig)
 
     // Add target platform to supportedArchitectures.os
     if (!workspaceConfig.supportedArchitectures.os.includes(platform)) {
@@ -72,7 +88,7 @@ exports.default = async function (context) {
       workspaceConfig.supportedArchitectures.cpu.push(arch)
     }
 
-    const modifiedWorkspaceConfig = yaml.dump(workspaceConfig)
+    const modifiedWorkspaceConfig = stringify(workspaceConfig)
     console.log('Modified workspace config:', modifiedWorkspaceConfig)
     fs.writeFileSync(workspaceConfigPath, modifiedWorkspaceConfig)
 
@@ -89,7 +105,7 @@ exports.default = async function (context) {
   const excludePackages = async (packagesToExclude) => {
     // 从项目根目录的 electron-builder.yml 读取 files 配置，避免多次覆盖配置导致出错
     const electronBuilderConfigPath = path.join(__dirname, '..', 'electron-builder.yml')
-    const electronBuilderConfig = yaml.load(fs.readFileSync(electronBuilderConfigPath, 'utf-8'))
+    const electronBuilderConfig = parse(fs.readFileSync(electronBuilderConfigPath, 'utf-8'))
     let filters = electronBuilderConfig.files
 
     // add filters for other architectures (exclude them)
@@ -118,9 +134,16 @@ exports.default = async function (context) {
     })
     .map((f) => '!node_modules/@anthropic-ai/claude-agent-sdk/vendor/ripgrep/' + f + '/**')
 
+  // Exclude rtk binaries for other platform-arch combinations
+  const currentPlatformKey = `${platform}-${arch}`
+  const allRtkPlatforms = ['darwin-arm64', 'darwin-x64', 'linux-x64', 'linux-arm64', 'win32-x64']
+  const excludeRtkFilters = allRtkPlatforms
+    .filter((p) => p !== currentPlatformKey)
+    .map((p) => '!resources/binaries/' + p + '/**')
+
   if (context.arch === Arch.arm64) {
-    await excludePackages([...arm64ExcludePackages, ...excludeRipgrepFilters])
+    await excludePackages([...arm64ExcludePackages, ...excludeRipgrepFilters, ...excludeRtkFilters])
   } else {
-    await excludePackages([...x64ExcludePackages, ...excludeRipgrepFilters])
+    await excludePackages([...x64ExcludePackages, ...excludeRipgrepFilters, ...excludeRtkFilters])
   }
 }

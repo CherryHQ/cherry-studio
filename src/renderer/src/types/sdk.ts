@@ -85,9 +85,13 @@ export type ReasoningEffortOptionalParams = {
   thinking_budget?: number
   incremental_output?: boolean
   enable_reasoning?: boolean
-  // nvidia
+  // nvidia, etc.
   chat_template_kwargs?: {
-    thinking: boolean
+    thinking?: boolean
+    enable_thinking?: boolean
+    // mainstream inference backend doesn't support thinking_budget, so it may not work as expected
+    // https://github.com/vllm-project/vllm/issues/17887
+    thinking_budget?: number
   }
   extra_body?: {
     google?: {

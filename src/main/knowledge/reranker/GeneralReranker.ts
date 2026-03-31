@@ -58,7 +58,7 @@ export default class GeneralReranker extends BaseReranker {
       return this.getRerankResult(searchResults, rerankResults)
     } catch (error: any) {
       const errorDetails = this.formatErrorMessage(url, error, requestBody)
-      throw new Error(`重排序请求失败: ${error.message}\n请求详情: ${errorDetails}`)
+      throw new Error(`Rerank request failed: ${error.message}\nRequest details: ${errorDetails}`)
     }
   }
 }

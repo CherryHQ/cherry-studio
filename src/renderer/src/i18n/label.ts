@@ -89,7 +89,9 @@ const providerKeyMap = {
   sophnet: 'provider.sophnet',
   gateway: 'provider.ai-gateway',
   cerebras: 'provider.cerebras',
-  mimo: 'provider.mimo'
+  mimo: 'provider.mimo',
+  'minimax-global': 'provider.minimax-global',
+  zai: 'provider.zai'
 } as const
 
 /**
@@ -108,9 +110,10 @@ export const getProviderLabel = (id: string): string => {
 const backupProgressKeyMap = {
   completed: 'backup.progress.completed',
   compressing: 'backup.progress.compressing',
+  copying_database: 'backup.progress.copying_database',
   copying_files: 'backup.progress.copying_files',
-  preparing_compression: 'backup.progress.preparing_compression',
   preparing: 'backup.progress.preparing',
+  preparing_compression: 'backup.progress.preparing_compression',
   title: 'backup.progress.title',
   writing_data: 'backup.progress.writing_data'
 } as const
@@ -126,7 +129,10 @@ const restoreProgressKeyMap = {
   extracting: 'restore.progress.extracting',
   preparing: 'restore.progress.preparing',
   reading_data: 'restore.progress.reading_data',
-  title: 'restore.progress.title'
+  restoring_data: 'restore.progress.restoring_data',
+  restoring_database: 'restore.progress.restoring_database',
+  title: 'restore.progress.title',
+  validating: 'restore.progress.validating'
 }
 
 export const getRestoreProgressLabel = (key: string): string => {
@@ -147,7 +153,9 @@ const titleKeyMap = {
   notes: 'title.notes',
   paintings: 'title.paintings',
   settings: 'title.settings',
-  translate: 'title.translate'
+  translate: 'title.translate',
+  openclaw: 'openclaw.title',
+  agents: 'agent.sidebar_title'
 } as const
 
 export const getTitleLabel = (key: string): string => {
@@ -178,6 +186,7 @@ export const getThemeModeLabel = (key: string): string => {
 
 const sidebarIconKeyMap = {
   assistants: 'assistants.title',
+  agents: 'agent.sidebar_title',
   store: 'assistants.presets.title',
   paintings: 'paintings.title',
   translate: 'translate.title',
@@ -185,7 +194,8 @@ const sidebarIconKeyMap = {
   knowledge: 'knowledge.title',
   files: 'files.title',
   code_tools: 'code.title',
-  notes: 'notes.title'
+  notes: 'notes.title',
+  openclaw: 'openclaw.title'
 } as const
 
 export const getSidebarIconLabel = (key: string): string => {
@@ -211,6 +221,7 @@ const shortcutKeyMap = {
   reset_to_default: 'settings.shortcuts.reset_to_default',
   search_message: 'settings.shortcuts.search_message',
   search_message_in_chat: 'settings.shortcuts.search_message_in_chat',
+  select_model: 'settings.shortcuts.select_model',
   selection_assistant_select_text: 'settings.shortcuts.selection_assistant_select_text',
   selection_assistant_toggle: 'settings.shortcuts.selection_assistant_toggle',
   show_app: 'settings.shortcuts.show_app',
@@ -229,6 +240,7 @@ export const getShortcutLabel = (key: string): string => {
 }
 
 const selectionDescriptionKeyMap = {
+  linux: 'selection.settings.toolbar.trigger_mode.description_note.linux',
   mac: 'selection.settings.toolbar.trigger_mode.description_note.mac',
   windows: 'selection.settings.toolbar.trigger_mode.description_note.windows'
 } as const
@@ -284,6 +296,19 @@ const mcpTypeKeyMap = {
 
 export const getMcpTypeLabel = (key: string): string => {
   return getLabel(mcpTypeKeyMap, key)
+}
+
+const mcpProviderDescriptionKeyMap = {
+  '302ai': 'settings.mcp.sync.providerDescriptions.302ai',
+  bailian: 'settings.mcp.sync.providerDescriptions.bailian',
+  lanyun: 'settings.mcp.sync.providerDescriptions.lanyun',
+  mcprouter: 'settings.mcp.sync.providerDescriptions.mcprouter',
+  modelscope: 'settings.mcp.sync.providerDescriptions.modelscope',
+  tokenflux: 'settings.mcp.sync.providerDescriptions.tokenflux'
+} as const
+
+export const getMcpProviderDescriptionLabel = (key: string): string => {
+  return getLabel(mcpProviderDescriptionKeyMap, key)
 }
 
 const miniappsStatusKeyMap = {

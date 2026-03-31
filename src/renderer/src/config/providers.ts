@@ -35,7 +35,7 @@ import MiMoProviderLogo from '@renderer/assets/images/providers/mimo.svg'
 import MinimaxProviderLogo from '@renderer/assets/images/providers/minimax.png'
 import MistralProviderLogo from '@renderer/assets/images/providers/mistral.png'
 import ModelScopeProviderLogo from '@renderer/assets/images/providers/modelscope.png'
-import MoonshotProviderLogo from '@renderer/assets/images/providers/moonshot.png'
+import MoonshotProviderLogo from '@renderer/assets/images/providers/moonshot.webp'
 import NewAPIProviderLogo from '@renderer/assets/images/providers/newapi.png'
 import NvidiaProviderLogo from '@renderer/assets/images/providers/nvidia.png'
 import O3ProviderLogo from '@renderer/assets/images/providers/o3.png'
@@ -58,22 +58,22 @@ import VertexAIProviderLogo from '@renderer/assets/images/providers/vertexai.svg
 import BytedanceProviderLogo from '@renderer/assets/images/providers/volcengine.png'
 import VoyageAIProviderLogo from '@renderer/assets/images/providers/voyageai.png'
 import XirangProviderLogo from '@renderer/assets/images/providers/xirang.png'
+import ZaiAppLogo from '@renderer/assets/images/providers/zai.svg'
 import ZeroOneProviderLogo from '@renderer/assets/images/providers/zero-one.png'
 import ZhipuProviderLogo from '@renderer/assets/images/providers/zhipu.png'
 import type { AtLeast, SystemProvider, SystemProviderId } from '@renderer/types'
 import { OpenAIServiceTiers } from '@renderer/types'
 
 import { TOKENFLUX_HOST } from './constant'
-import { glm45FlashModel, qwen38bModel, SYSTEM_MODELS } from './models'
+import { qwenModel, SYSTEM_MODELS } from './models'
 
 export const CHERRYAI_PROVIDER: SystemProvider = {
   id: 'cherryai' as SystemProviderId,
   name: 'CherryAI',
   type: 'openai',
   apiKey: '',
-  apiHost: 'https://api.cherry-ai.com/',
-  anthropicApiHost: 'https://api.cherry-ai.com',
-  models: [glm45FlashModel, qwen38bModel],
+  apiHost: 'https://api.cherry-ai.com',
+  models: [qwenModel],
   isSystem: true,
   enabled: true
 }
@@ -140,6 +140,17 @@ export const SYSTEM_PROVIDERS_CONFIG: Record<SystemProviderId, SystemProvider> =
     apiHost: 'https://open.bigmodel.cn/api/paas/v4/',
     anthropicApiHost: 'https://open.bigmodel.cn/api/anthropic',
     models: SYSTEM_MODELS.zhipu,
+    isSystem: true,
+    enabled: false
+  },
+  zai: {
+    id: 'zai',
+    name: 'Z.ai',
+    type: 'openai',
+    apiKey: '',
+    apiHost: 'https://api.z.ai/api/paas/v4/',
+    anthropicApiHost: 'https://api.z.ai/api/anthropic',
+    models: SYSTEM_MODELS.zai,
     isSystem: true,
     enabled: false
   },
@@ -267,6 +278,50 @@ export const SYSTEM_PROVIDERS_CONFIG: Record<SystemProviderId, SystemProvider> =
     isSystem: true,
     enabled: false
   },
+  dashscope: {
+    id: 'dashscope',
+    name: 'Bailian',
+    type: 'openai',
+    apiKey: '',
+    apiHost: 'https://dashscope.aliyuncs.com/compatible-mode/v1/',
+    anthropicApiHost: 'https://dashscope.aliyuncs.com/apps/anthropic',
+    models: SYSTEM_MODELS.dashscope,
+    isSystem: true,
+    enabled: false
+  },
+  minimax: {
+    id: 'minimax',
+    name: 'MiniMax',
+    type: 'openai',
+    apiKey: '',
+    apiHost: 'https://api.minimaxi.com/v1/',
+    anthropicApiHost: 'https://api.minimaxi.com/anthropic',
+    models: SYSTEM_MODELS.minimax,
+    isSystem: true,
+    enabled: false
+  },
+  'minimax-global': {
+    id: 'minimax-global',
+    name: 'MiniMax Global',
+    type: 'openai',
+    apiKey: '',
+    apiHost: 'https://api.minimax.io/v1/',
+    anthropicApiHost: 'https://api.minimax.io/anthropic',
+    models: SYSTEM_MODELS['minimax-global'],
+    isSystem: true,
+    enabled: false
+  },
+  moonshot: {
+    id: 'moonshot',
+    name: 'Moonshot AI',
+    type: 'openai',
+    apiKey: '',
+    apiHost: 'https://api.moonshot.cn',
+    anthropicApiHost: 'https://api.moonshot.cn/anthropic',
+    models: SYSTEM_MODELS.moonshot,
+    isSystem: true,
+    enabled: false
+  },
   qiniu: {
     id: 'qiniu',
     name: 'Qiniu',
@@ -284,17 +339,10 @@ export const SYSTEM_PROVIDERS_CONFIG: Record<SystemProviderId, SystemProvider> =
     type: 'openai',
     apiKey: '',
     apiHost: 'https://openrouter.ai/api/v1/',
+    // Anthropic-compatible endpoint for Agent mode (Claude Code SDK)
+    // https://openrouter.ai/docs/guides/guides/coding-agents/claude-code-integration
+    anthropicApiHost: 'https://openrouter.ai/api',
     models: SYSTEM_MODELS.openrouter,
-    isSystem: true,
-    enabled: false
-  },
-  ollama: {
-    id: 'ollama',
-    name: 'Ollama',
-    type: 'ollama',
-    apiKey: '',
-    apiHost: 'http://localhost:11434',
-    models: SYSTEM_MODELS.ollama,
     isSystem: true,
     enabled: false
   },
@@ -309,12 +357,24 @@ export const SYSTEM_PROVIDERS_CONFIG: Record<SystemProviderId, SystemProvider> =
     isSystem: true,
     enabled: false
   },
+  ollama: {
+    id: 'ollama',
+    name: 'Ollama',
+    type: 'ollama',
+    apiKey: '',
+    apiHost: 'http://localhost:11434',
+    anthropicApiHost: 'http://localhost:11434',
+    models: SYSTEM_MODELS.ollama,
+    isSystem: true,
+    enabled: false
+  },
   lmstudio: {
     id: 'lmstudio',
     name: 'LM Studio',
     type: 'openai',
     apiKey: '',
     apiHost: 'http://localhost:1234',
+    anthropicApiHost: 'http://localhost:1234',
     models: SYSTEM_MODELS.lmstudio,
     isSystem: true,
     enabled: false
@@ -394,24 +454,13 @@ export const SYSTEM_PROVIDERS_CONFIG: Record<SystemProviderId, SystemProvider> =
     enabled: false,
     isAuthed: false
   },
-  yi: {
-    id: 'yi',
-    name: 'Yi',
+  doubao: {
+    id: 'doubao',
+    name: 'doubao',
     type: 'openai',
     apiKey: '',
-    apiHost: 'https://api.lingyiwanwu.com',
-    models: SYSTEM_MODELS.yi,
-    isSystem: true,
-    enabled: false
-  },
-  moonshot: {
-    id: 'moonshot',
-    name: 'Moonshot AI',
-    type: 'openai',
-    apiKey: '',
-    apiHost: 'https://api.moonshot.cn',
-    anthropicApiHost: 'https://api.moonshot.cn/anthropic',
-    models: SYSTEM_MODELS.moonshot,
+    apiHost: 'https://ark.cn-beijing.volces.com/api/v3/',
+    models: SYSTEM_MODELS.doubao,
     isSystem: true,
     enabled: false
   },
@@ -425,17 +474,6 @@ export const SYSTEM_PROVIDERS_CONFIG: Record<SystemProviderId, SystemProvider> =
     isSystem: true,
     enabled: false
   },
-  dashscope: {
-    id: 'dashscope',
-    name: 'Bailian',
-    type: 'openai',
-    apiKey: '',
-    apiHost: 'https://dashscope.aliyuncs.com/compatible-mode/v1/',
-    anthropicApiHost: 'https://dashscope.aliyuncs.com/apps/anthropic',
-    models: SYSTEM_MODELS.dashscope,
-    isSystem: true,
-    enabled: false
-  },
   stepfun: {
     id: 'stepfun',
     name: 'StepFun',
@@ -446,13 +484,13 @@ export const SYSTEM_PROVIDERS_CONFIG: Record<SystemProviderId, SystemProvider> =
     isSystem: true,
     enabled: false
   },
-  doubao: {
-    id: 'doubao',
-    name: 'doubao',
+  yi: {
+    id: 'yi',
+    name: 'Yi',
     type: 'openai',
     apiKey: '',
-    apiHost: 'https://ark.cn-beijing.volces.com/api/v3/',
-    models: SYSTEM_MODELS.doubao,
+    apiHost: 'https://api.lingyiwanwu.com',
+    models: SYSTEM_MODELS.yi,
     isSystem: true,
     enabled: false
   },
@@ -463,17 +501,6 @@ export const SYSTEM_PROVIDERS_CONFIG: Record<SystemProviderId, SystemProvider> =
     apiKey: '',
     apiHost: 'https://cloud.infini-ai.com/maas',
     models: SYSTEM_MODELS.infini,
-    isSystem: true,
-    enabled: false
-  },
-  minimax: {
-    id: 'minimax',
-    name: 'MiniMax',
-    type: 'openai',
-    apiKey: '',
-    apiHost: 'https://api.minimaxi.com/v1',
-    anthropicApiHost: 'https://api.minimaxi.com/anthropic',
-    models: SYSTEM_MODELS.minimax,
     isSystem: true,
     enabled: false
   },
@@ -725,6 +752,7 @@ export const PROVIDER_LOGO_MAP: AtLeast<SystemProviderId, string> = {
   yi: ZeroOneProviderLogo,
   groq: GroqProviderLogo,
   zhipu: ZhipuProviderLogo,
+  zai: ZaiAppLogo,
   ovms: IntelOvmsLogo,
   ollama: OllamaProviderLogo,
   lmstudio: LMStudioProviderLogo,
@@ -741,6 +769,7 @@ export const PROVIDER_LOGO_MAP: AtLeast<SystemProviderId, string> = {
   stepfun: StepProviderLogo,
   doubao: BytedanceProviderLogo,
   minimax: MinimaxProviderLogo,
+  'minimax-global': MinimaxProviderLogo,
   github: GithubProviderLogo,
   copilot: GithubProviderLogo,
   ocoolai: OcoolAiProviderLogo,
@@ -932,7 +961,7 @@ export const PROVIDER_URLS: Record<SystemProviderId, ProviderUrls> = {
       official: 'https://www.together.ai/',
       apiKey: 'https://api.together.ai/settings/api-keys',
       docs: 'https://docs.together.ai/docs/introduction',
-      models: 'https://docs.together.ai/docs/chat-models'
+      models: 'https://docs.together.ai/docs/serverless-models'
     }
   },
   dmxapi: {
@@ -1004,6 +1033,17 @@ export const PROVIDER_URLS: Record<SystemProviderId, ProviderUrls> = {
       apiKey: 'https://open.bigmodel.cn/usercenter/apikeys',
       docs: 'https://docs.bigmodel.cn/',
       models: 'https://open.bigmodel.cn/modelcenter/square'
+    }
+  },
+  zai: {
+    api: {
+      url: 'https://api.z.ai/api/paas/v4/'
+    },
+    websites: {
+      official: 'https://z.ai',
+      apiKey: 'https://z.ai/manage-apikey/apikey-list',
+      docs: 'https://docs.z.ai/',
+      models: 'https://docs.z.ai/models'
     }
   },
   moonshot: {
@@ -1092,6 +1132,17 @@ export const PROVIDER_URLS: Record<SystemProviderId, ProviderUrls> = {
       apiKey: 'https://platform.minimaxi.com/user-center/basic-information/interface-key',
       docs: 'https://platform.minimaxi.com/docs/api-reference/text-openai-api',
       models: 'https://platform.minimaxi.com/document/Models'
+    }
+  },
+  'minimax-global': {
+    api: {
+      url: 'https://api.minimax.io/v1/'
+    },
+    websites: {
+      official: 'https://platform.minimax.io/',
+      apiKey: 'https://platform.minimax.io/user-center/basic-information/interface-key',
+      docs: 'https://platform.minimax.io/docs/api-reference/text-openai-api',
+      models: 'https://platform.minimax.io/document/Models'
     }
   },
   alayanew: {
@@ -1390,7 +1441,7 @@ export const PROVIDER_URLS: Record<SystemProviderId, ProviderUrls> = {
     },
     websites: {
       official: 'https://poe.com/',
-      apiKey: 'https://poe.com/api_key',
+      apiKey: 'https://poe.com/api/keys',
       docs: 'https://creator.poe.com/docs/external-applications/openai-compatible-api',
       models: 'https://poe.com/'
     }
@@ -1401,9 +1452,9 @@ export const PROVIDER_URLS: Record<SystemProviderId, ProviderUrls> = {
     },
     websites: {
       official: 'https://www.aiionly.com',
-      apiKey: 'https://www.aiionly.com/keyApi',
-      docs: 'https://www.aiionly.com/document',
-      models: 'https://www.aiionly.com'
+      apiKey: 'https://maas.aiionly.com/keyApi',
+      docs: 'https://maas.aiionly.com/document',
+      models: 'https://maas.aiionly.com'
     }
   },
   longcat: {

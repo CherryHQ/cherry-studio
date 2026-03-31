@@ -1,6 +1,7 @@
 import { loggerService } from '@logger'
 import { NavbarCenter, NavbarHeader, NavbarRight } from '@renderer/components/app/Navbar'
 import { HStack } from '@renderer/components/Layout'
+import BaseNavbarIcon from '@renderer/components/NavbarIcon'
 import GeneralPopup from '@renderer/components/Popups/GeneralPopup'
 import { useActiveNode } from '@renderer/hooks/useNotesQuery'
 import { useNotesSettings } from '@renderer/hooks/useNotesSettings'
@@ -73,7 +74,7 @@ const HeaderNavbar = ({ notesTree, getCurrentNoteContent, onToggleStar, onExpand
   }, [getCurrentNoteContent, activeNode])
 
   const handleShowSettings = useCallback(() => {
-    GeneralPopup.show({
+    void GeneralPopup.show({
       title: t('notes.settings.title'),
       content: <NotesSettings />,
       footer: null,
@@ -160,9 +161,9 @@ const HeaderNavbar = ({ notesTree, getCurrentNoteContent, onToggleStar, onExpand
       ),
       onClick: () => {
         if (item.copyAction) {
-          handleCopyContent()
+          void handleCopyContent()
         } else if (item.exportToWordAction) {
-          handleExportToWord()
+          void handleExportToWord()
         } else if (item.showSettingsPopup) {
           handleShowSettings()
         } else if (item.action) {
@@ -292,43 +293,12 @@ const HeaderNavbar = ({ notesTree, getCurrentNoteContent, onToggleStar, onExpand
   )
 }
 
-export const NavbarIcon = styled.div`
-  -webkit-app-region: none;
-  border-radius: 8px;
-  height: 30px;
-  padding: 0 7px;
-  display: flex;
-  flex-direction: row;
-  justify-content: center;
-  align-items: center;
-  transition: all 0.2s ease-in-out;
-  cursor: pointer;
-  .iconfont {
-    font-size: 18px;
-    color: var(--color-icon);
-    &.icon-a-addchat {
-      font-size: 20px;
-    }
-    &.icon-a-darkmode {
-      font-size: 20px;
-    }
-    &.icon-appstore {
-      font-size: 20px;
-    }
-  }
-  .anticon {
-    color: var(--color-icon);
-    font-size: 16px;
-  }
+const NavbarIcon = styled(BaseNavbarIcon)`
   svg {
-    color: var(--color-icon);
-    width: 18px;
-    height: 18px;
-  }
-  &:hover {
-    background-color: var(--color-background-mute);
-    color: var(--color-icon-white);
-  }
+      color: var(--color-icon);
+      width: 18px;
+      height: 18px;
+    }
 `
 
 export const StarButton = styled.div`

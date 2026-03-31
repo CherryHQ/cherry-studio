@@ -1,12 +1,11 @@
 // just import the themeService to ensure the theme is initialized
 import './ThemeService'
 
-import { normalizeHeaders, withUserAgentSuffix } from '@ai-sdk/provider-utils'
 import { is } from '@electron-toolkit/utils'
 import { loggerService } from '@logger'
 import { isDev, isLinux, isMac, isWin } from '@main/constant'
 import { getFilesDir } from '@main/utils/file'
-import { generateUserAgent } from '@main/utils/systemInfo'
+import { getWindowsBackgroundMaterial } from '@main/utils/windowUtil'
 import { MIN_WINDOW_HEIGHT, MIN_WINDOW_WIDTH } from '@shared/config/constant'
 import { IpcChannel } from '@shared/IpcChannel'
 import { app, BrowserWindow, nativeImage, nativeTheme, screen, shell } from 'electron'
@@ -58,6 +57,12 @@ export class WindowService {
       fullScreen: false,
       maximize: false
     })
+    const windowsBackgroundMaterial = getWindowsBackgroundMaterial()
+    let mainWindowBackgroundColor: string | undefined
+
+    if (!isMac && !windowsBackgroundMaterial) {
+      mainWindowBackgroundColor = nativeTheme.shouldUseDarkColors ? '#181818' : '#FFFFFF'
+    }
 
     this.mainWindow = new BrowserWindow({
       x: mainWindowState.x,
@@ -77,13 +82,14 @@ export class WindowService {
         ? {
             titleBarStyle: 'hidden',
             titleBarOverlay: nativeTheme.shouldUseDarkColors ? titleBarOverlayDark : titleBarOverlayLight,
-            trafficLightPosition: { x: 8, y: 13 }
+            trafficLightPosition: { x: 13, y: 13 }
           }
         : {
             // On Linux, allow using system title bar if setting is enabled
             frame: isLinux && configManager.getUseSystemTitleBar() ? true : false
           }),
-      backgroundColor: isMac ? undefined : nativeTheme.shouldUseDarkColors ? '#181818' : '#FFFFFF',
+      ...(windowsBackgroundMaterial ? { backgroundMaterial: windowsBackgroundMaterial } : {}),
+      ...(mainWindowBackgroundColor ? { backgroundColor: mainWindowBackgroundColor } : {}),
       darkTheme: nativeTheme.shouldUseDarkColors,
       ...(isLinux ? { icon: linuxIcon } : {}),
       webPreferences: {
@@ -186,7 +192,7 @@ export class WindowService {
       const isLaunchToTray = configManager.getLaunchToTray()
       if (!isLaunchToTray) {
         //[mac]hacky-fix: miniWindow set visibleOnFullScreen:true will cause dock icon disappeared
-        app.dock?.show()
+        void app.dock?.show()
         mainWindow.show()
       }
     })
@@ -273,7 +279,7 @@ export class WindowService {
       }
 
       event.preventDefault()
-      shell.openExternal(url)
+      void shell.openExternal(url)
     })
 
     mainWindow.webContents.setWindowOpenHandler((details) => {
@@ -288,7 +294,7 @@ export class WindowService {
         'https://console.aihubmix.com/statistics',
         'https://dash.302.ai/sso/login',
         'https://dash.302.ai/charge',
-        'https://www.aiionly.com/login'
+        'https://maas.aiionly.com/login'
       ]
 
       if (oauthProviderUrls.some((link) => url.startsWith(link))) {
@@ -308,7 +314,7 @@ export class WindowService {
         const filePath = storageDir + '/' + fileName
         shell.openPath(filePath).catch((err) => logger.error('Failed to open file:', err))
       } else {
-        shell.openExternal(details.url)
+        void shell.openExternal(details.url)
       }
 
       return { action: 'deny' }
@@ -318,23 +324,7 @@ export class WindowService {
   }
 
   private setupWebRequestHeaders(mainWindow: BrowserWindow) {
-    const webSession = mainWindow.webContents.session
-
-    // 拦截请求头，将 x-custom-user-agent 转换为 User-Agent
-    // 这是因为 User-Agent 在 renderer 进程的 Fetch API 中是 forbidden header，无法直接设置
-    webSession.webRequest.onBeforeSendHeaders({ urls: ['*://*/*'] }, (details, callback) => {
-      const requestHeaders = normalizeHeaders(details.requestHeaders)
-
-      const customUA = requestHeaders['x-custom-user-agent']
-      if (customUA) {
-        requestHeaders['User-Agent'] = customUA
-        delete requestHeaders['x-custom-user-agent']
-      }
-
-      callback({ requestHeaders: withUserAgentSuffix(requestHeaders, generateUserAgent()) })
-    })
-
-    webSession.webRequest.onHeadersReceived({ urls: ['*://*/*'] }, (details, callback) => {
+    mainWindow.webContents.session.webRequest.onHeadersReceived({ urls: ['*://*/*'] }, (details, callback) => {
       if (details.responseHeaders?.['X-Frame-Options']) {
         delete details.responseHeaders['X-Frame-Options']
       }
@@ -353,10 +343,10 @@ export class WindowService {
 
   private loadMainWindowContent(mainWindow: BrowserWindow) {
     if (is.dev && process.env['ELECTRON_RENDERER_URL']) {
-      mainWindow.loadURL(process.env['ELECTRON_RENDERER_URL'])
+      void mainWindow.loadURL(process.env['ELECTRON_RENDERER_URL'])
       // mainWindow.webContents.openDevTools()
     } else {
-      mainWindow.loadFile(join(__dirname, '../renderer/index.html'))
+      void mainWindow.loadFile(join(__dirname, '../renderer/index.html'))
     }
   }
 
@@ -410,7 +400,7 @@ export class WindowService {
         mainWindow.once('show', () => {
           //restore the window can hide by cmd+h when the window is shown again
           // https://github.com/electron/electron/pull/47970
-          app.dock?.show()
+          void app.dock?.show()
         })
       }
     })
@@ -597,9 +587,9 @@ export class WindowService {
     })
 
     if (is.dev && process.env['ELECTRON_RENDERER_URL']) {
-      this.miniWindow.loadURL(process.env['ELECTRON_RENDERER_URL'] + '/miniWindow.html')
+      void this.miniWindow.loadURL(process.env['ELECTRON_RENDERER_URL'] + '/miniWindow.html')
     } else {
-      this.miniWindow.loadFile(join(__dirname, '../renderer/miniWindow.html'))
+      void this.miniWindow.loadFile(join(__dirname, '../renderer/miniWindow.html'))
     }
 
     return this.miniWindow
