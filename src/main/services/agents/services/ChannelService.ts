@@ -1,5 +1,5 @@
 import { loggerService } from '@logger'
-import { and, eq } from 'drizzle-orm'
+import { and, eq, inArray } from 'drizzle-orm'
 
 import { BaseService } from '../BaseService'
 import {
@@ -129,8 +129,7 @@ export class ChannelService extends BaseService {
     if (subs.length === 0) return []
 
     const channelIds = subs.map((s) => s.channelId)
-    const channels = await database.select().from(channelsTable)
-    return channels.filter((ch) => channelIds.includes(ch.id))
+    return database.select().from(channelsTable).where(inArray(channelsTable.id, channelIds))
   }
 
   async getSubscribedTasks(channelId: string): Promise<string[]> {

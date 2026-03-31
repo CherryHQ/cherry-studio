@@ -10,7 +10,7 @@ import {
   type SendMessageOptions
 } from '../../ChannelAdapter'
 import { registerAdapterFactory } from '../../ChannelManager'
-import { isSlashCommand } from '../../constants'
+import { isSlashCommand, splitMessage as splitMessageShared } from '../../constants'
 
 const QQ_MAX_LENGTH = 2000
 const QQ_API_BASE = 'https://api.sgroup.qq.com'
@@ -63,39 +63,8 @@ type QQMessage = {
   attachments?: QQAttachment[]
 }
 
-/**
- * Split a long message into chunks that fit within QQ's character limit.
- */
 function splitMessage(text: string): string[] {
-  if (text.length <= QQ_MAX_LENGTH) {
-    return [text]
-  }
-
-  const chunks: string[] = []
-  let remaining = text
-
-  while (remaining.length > 0) {
-    if (remaining.length <= QQ_MAX_LENGTH) {
-      chunks.push(remaining)
-      break
-    }
-
-    let splitIndex = remaining.lastIndexOf('\n\n', QQ_MAX_LENGTH)
-    if (splitIndex <= 0) {
-      splitIndex = remaining.lastIndexOf('\n', QQ_MAX_LENGTH)
-    }
-    if (splitIndex <= 0) {
-      splitIndex = remaining.lastIndexOf(' ', QQ_MAX_LENGTH)
-    }
-    if (splitIndex <= 0) {
-      splitIndex = QQ_MAX_LENGTH
-    }
-
-    chunks.push(remaining.slice(0, splitIndex))
-    remaining = remaining.slice(splitIndex).replace(/^\n+/, '').trimStart()
-  }
-
-  return chunks
+  return splitMessageShared(text, QQ_MAX_LENGTH)
 }
 
 class QQAdapter extends ChannelAdapter {
@@ -421,7 +390,7 @@ class QQAdapter extends ChannelAdapter {
   private async processMessage(msg: QQMessage, chatId: string, userId: string, userName: string): Promise<void> {
     const text = this.parseContent(msg.content)
 
-    if (this.isCommand(text)) {
+    if (isSlashCommand(text)) {
       if (text.startsWith('/whoami')) {
         await this.sendWhoami(chatId)
         return
@@ -454,30 +423,32 @@ class QQAdapter extends ChannelAdapter {
 
     const images: ImageAttachment[] = []
     const files: FileAttachment[] = []
+    const token = await this.getAccessToken()
 
-    for (const att of attachments) {
-      if (att.size && att.size > MAX_FILE_SIZE_BYTES) continue
-
-      try {
-        const token = await this.getAccessToken()
-        const url = att.url.startsWith('http') ? att.url : `https://${att.url}`
-        const response = await net.fetch(url, {
-          headers: { Authorization: `QQBot ${token}`, 'X-Union-Appid': this.appId }
+    await Promise.all(
+      attachments
+        .filter((att) => !att.size || att.size <= MAX_FILE_SIZE_BYTES)
+        .map(async (att) => {
+          try {
+            const url = att.url.startsWith('http') ? att.url : `https://${att.url}`
+            const response = await net.fetch(url, {
+              headers: { Authorization: `QQBot ${token}`, 'X-Union-Appid': this.appId }
+            })
+            if (!response.ok) {
+              // Retry without auth header (some CDN URLs are public)
+              const retry = await net.fetch(url)
+              if (!retry.ok) return
+              const buffer = Buffer.from(await retry.arrayBuffer())
+              this.pushAttachment(att, buffer, images, files)
+            } else {
+              const buffer = Buffer.from(await response.arrayBuffer())
+              this.pushAttachment(att, buffer, images, files)
+            }
+          } catch {
+            this.log.warn('Failed to download QQ attachment', { filename: att.filename, url: att.url })
+          }
         })
-        if (!response.ok) {
-          // Retry without auth header (some CDN URLs are public)
-          const retry = await net.fetch(url)
-          if (!retry.ok) continue
-          const buffer = Buffer.from(await retry.arrayBuffer())
-          this.pushAttachment(att, buffer, images, files)
-        } else {
-          const buffer = Buffer.from(await response.arrayBuffer())
-          this.pushAttachment(att, buffer, images, files)
-        }
-      } catch {
-        this.log.warn('Failed to download QQ attachment', { filename: att.filename, url: att.url })
-      }
-    }
+    )
 
     return {
       ...(images.length > 0 ? { images } : {}),
@@ -507,10 +478,6 @@ class QQAdapter extends ChannelAdapter {
   private isAllowed(chatId: string, rawId?: string): boolean {
     if (this.allowedChatIds.length === 0) return true
     return this.allowedChatIds.includes(chatId) || (rawId !== undefined && this.allowedChatIds.includes(rawId))
-  }
-
-  private isCommand(text: string): boolean {
-    return isSlashCommand(text)
   }
 
   private emitCommand(chatId: string, userId: string, userName: string, text: string): void {

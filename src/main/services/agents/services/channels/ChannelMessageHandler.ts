@@ -17,7 +17,7 @@ import type {
   FileAttachment,
   ImageAttachment
 } from './ChannelAdapter'
-import { SLASH_COMMANDS } from './constants'
+import { SLASH_COMMANDS, splitMessage } from './constants'
 import { sessionStreamBus } from './SessionStreamBus'
 import { broadcastSessionChanged } from './sessionStreamIpc'
 
@@ -600,7 +600,7 @@ export class ChannelMessageHandler {
       return
     }
 
-    const chunks = this.chunkText(text, MAX_MESSAGE_LENGTH)
+    const chunks = splitMessage(text, MAX_MESSAGE_LENGTH)
     for (const chunk of chunks) {
       await adapter.sendMessage(chatId, chunk)
     }
@@ -645,34 +645,6 @@ export class ChannelMessageHandler {
     }
 
     return paths
-  }
-
-  private chunkText(text: string, maxLength: number): string[] {
-    const chunks: string[] = []
-    let remaining = text
-
-    while (remaining.length > 0) {
-      if (remaining.length <= maxLength) {
-        chunks.push(remaining)
-        break
-      }
-
-      // Try paragraph boundary
-      let splitIdx = remaining.lastIndexOf('\n\n', maxLength)
-      if (splitIdx <= 0) {
-        // Try line boundary
-        splitIdx = remaining.lastIndexOf('\n', maxLength)
-      }
-      if (splitIdx <= 0) {
-        // Hard split
-        splitIdx = maxLength
-      }
-
-      chunks.push(remaining.slice(0, splitIdx))
-      remaining = remaining.slice(splitIdx).replace(/^\n+/, '')
-    }
-
-    return chunks
   }
 }
 

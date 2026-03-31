@@ -176,6 +176,7 @@ class SchedulerService {
 
     let result: string | null = null
     let error: string | null = null
+    let subscribedChannels: { id: string; sessionId?: string | null }[] = []
 
     try {
       logger.info('Running scheduled task', { taskId: task.id, agentId: task.agent_id })
@@ -217,7 +218,7 @@ class SchedulerService {
       }
 
       // Resolve session from subscribed channels, or create a new one
-      const subscribedChannels = await channelService.getSubscribedChannels(task.id)
+      subscribedChannels = await channelService.getSubscribedChannels(task.id)
       let sessionId: string | undefined
 
       // Try to reuse a session from a subscribed channel
@@ -298,7 +299,7 @@ class SchedulerService {
 
     // Send error notification or final response to channels
     if (error) {
-      await this.notifyTaskError(task, durationMs, error)
+      await this.notifyTaskError(task, durationMs, error, subscribedChannels)
     }
   }
 
@@ -371,9 +372,13 @@ class SchedulerService {
     }
   }
 
-  private async notifyTaskError(task: ScheduledTaskEntity, durationMs: number, error: string): Promise<void> {
+  private async notifyTaskError(
+    task: ScheduledTaskEntity,
+    durationMs: number,
+    error: string,
+    subscribedChannels: { id: string; sessionId?: string | null }[]
+  ): Promise<void> {
     try {
-      const subscribedChannels = await channelService.getSubscribedChannels(task.id)
       if (subscribedChannels.length === 0) return
 
       const durationSec = Math.round(durationMs / 1000)

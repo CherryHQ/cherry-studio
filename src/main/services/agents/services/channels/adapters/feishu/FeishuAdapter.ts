@@ -14,6 +14,7 @@ import {
   type SendMessageOptions
 } from '../../ChannelAdapter'
 import { registerAdapterFactory } from '../../ChannelManager'
+import { FILE_EXTENSION_MIME_MAP, isSlashCommand, splitMessage as splitMessageShared } from '../../constants'
 import { FlushController } from '../../FlushController'
 import { registrationBegin, registrationPoll } from './FeishuAppRegistration'
 
@@ -180,32 +181,7 @@ function ensureFeishuSuccess<T>(response: unknown, action: string): FeishuApiRes
 }
 
 function splitMessage(text: string): string[] {
-  if (text.length <= FEISHU_MAX_LENGTH) {
-    return [text]
-  }
-
-  const chunks: string[] = []
-  let remaining = text
-
-  while (remaining.length > 0) {
-    if (remaining.length <= FEISHU_MAX_LENGTH) {
-      chunks.push(remaining)
-      break
-    }
-
-    let splitIndex = remaining.lastIndexOf('\n\n', FEISHU_MAX_LENGTH)
-    if (splitIndex <= 0) {
-      splitIndex = remaining.lastIndexOf('\n', FEISHU_MAX_LENGTH)
-    }
-    if (splitIndex <= 0) {
-      splitIndex = FEISHU_MAX_LENGTH
-    }
-
-    chunks.push(remaining.slice(0, splitIndex))
-    remaining = remaining.slice(splitIndex).replace(/^\n+/, '')
-  }
-
-  return chunks
+  return splitMessageShared(text, FEISHU_MAX_LENGTH)
 }
 
 /**
@@ -623,7 +599,15 @@ class FeishuAdapter extends ChannelAdapter {
     }
     this.streamingControllers.clear()
 
-    this.wsClient = null
+    if (this.wsClient) {
+      try {
+        // Stop the Lark WSClient to release WebSocket and internal timers
+        await (this.wsClient as any).close?.()
+      } catch {
+        // Lark SDK may not expose close(); ignore
+      }
+      this.wsClient = null
+    }
     this.client = null
     this.sendQrToRenderer('', 'disconnected')
     this.log.info('Feishu bot stopped')
@@ -722,19 +706,17 @@ class FeishuAdapter extends ChannelAdapter {
     if (!text) return
 
     // Check for commands (Feishu doesn't have native bot commands, use text prefix)
-    if (text.startsWith('/')) {
+    if (isSlashCommand(text)) {
       const parts = text.split(/\s+/)
-      const cmd = parts[0].slice(1).toLowerCase()
-      if (cmd === 'new' || cmd === 'compact' || cmd === 'help' || cmd === 'whoami') {
-        this.emit('command', {
-          chatId,
-          userId,
-          userName: '',
-          command: cmd,
-          args: parts.slice(1).join(' ') || undefined
-        })
-        return
-      }
+      const cmd = parts[0].slice(1).toLowerCase() as 'new' | 'compact' | 'help' | 'whoami'
+      this.emit('command', {
+        chatId,
+        userId,
+        userName: '',
+        command: cmd,
+        args: parts.slice(1).join(' ') || undefined
+      })
+      return
     }
 
     this.emit('message', {
@@ -820,20 +802,7 @@ class FeishuAdapter extends ChannelAdapter {
     this.log.info('Feishu file downloaded', { fileName, totalSize })
     const buffer = Buffer.concat(chunks)
     const ext = fileName.includes('.') ? fileName.split('.').pop()!.toLowerCase() : ''
-    const mimeMap: Record<string, string> = {
-      pdf: 'application/pdf',
-      doc: 'application/msword',
-      docx: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-      xls: 'application/vnd.ms-excel',
-      xlsx: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-      ppt: 'application/vnd.ms-powerpoint',
-      pptx: 'application/vnd.openxmlformats-officedocument.presentationml.presentation',
-      txt: 'text/plain',
-      csv: 'text/csv',
-      md: 'text/markdown',
-      zip: 'application/zip'
-    }
-    const mediaType = mimeMap[ext] || 'application/octet-stream'
+    const mediaType = FILE_EXTENSION_MIME_MAP[ext] || 'application/octet-stream'
 
     return [{ filename: fileName, data: buffer.toString('base64'), media_type: mediaType, size: buffer.length }]
   }

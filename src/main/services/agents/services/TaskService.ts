@@ -1,6 +1,6 @@
 import { loggerService } from '@logger'
 import type { CreateTaskRequest, ListOptions, ScheduledTaskEntity, TaskRunLogEntity, UpdateTaskRequest } from '@types'
-import { and, asc, count, desc, eq, lte, ne } from 'drizzle-orm'
+import { and, asc, count, desc, eq, inArray, lte, ne } from 'drizzle-orm'
 
 import { BaseService } from '../BaseService'
 import {
@@ -245,7 +245,11 @@ export class TaskService extends BaseService {
   private async enrichManyWithChannels(rows: TaskRow[]): Promise<ScheduledTaskEntity[]> {
     if (rows.length === 0) return []
     const database = await this.getDatabase()
-    const allSubs = await database.select().from(channelTaskSubscriptionsTable)
+    const taskIds = rows.map((r) => r.id)
+    const allSubs = await database
+      .select()
+      .from(channelTaskSubscriptionsTable)
+      .where(inArray(channelTaskSubscriptionsTable.taskId, taskIds))
     const subsByTask = new Map<string, string[]>()
     for (const sub of allSubs) {
       const arr = subsByTask.get(sub.taskId) ?? []

@@ -12,7 +12,7 @@ import {
   type SendMessageOptions
 } from '../../ChannelAdapter'
 import { registerAdapterFactory } from '../../ChannelManager'
-import { isSlashCommand, SLASH_COMMANDS } from '../../constants'
+import { isSlashCommand, SLASH_COMMANDS, splitMessage as splitMessageShared } from '../../constants'
 import { FlushController } from '../../FlushController'
 
 const DISCORD_API_BASE = 'https://discord.com/api/v10'
@@ -28,6 +28,9 @@ const OP_RECONNECT = 7
 const OP_INVALID_SESSION = 9
 const OP_HELLO = 10
 const OP_HEARTBEAT_ACK = 11
+
+// Message Flags
+const DISCORD_FLAG_EPHEMERAL = 64
 
 // Gateway Intents
 const INTENTS = {
@@ -58,27 +61,7 @@ type DiscordMessage = {
 }
 
 function splitMessage(text: string): string[] {
-  if (text.length <= DISCORD_MAX_LENGTH) return [text]
-
-  const chunks: string[] = []
-  let remaining = text
-
-  while (remaining.length > 0) {
-    if (remaining.length <= DISCORD_MAX_LENGTH) {
-      chunks.push(remaining)
-      break
-    }
-
-    let splitIndex = remaining.lastIndexOf('\n\n', DISCORD_MAX_LENGTH)
-    if (splitIndex <= 0) splitIndex = remaining.lastIndexOf('\n', DISCORD_MAX_LENGTH)
-    if (splitIndex <= 0) splitIndex = remaining.lastIndexOf(' ', DISCORD_MAX_LENGTH)
-    if (splitIndex <= 0) splitIndex = DISCORD_MAX_LENGTH
-
-    chunks.push(remaining.slice(0, splitIndex))
-    remaining = remaining.slice(splitIndex).replace(/^\n+/, '').trimStart()
-  }
-
-  return chunks
+  return splitMessageShared(text, DISCORD_MAX_LENGTH)
 }
 
 /**
@@ -241,6 +224,7 @@ class DiscordAdapter extends ChannelAdapter {
   private applicationId: string | null = null
   private lastSeq: number | null = null
   private heartbeatTimer: ReturnType<typeof setInterval> | null = null
+  private heartbeatJitterTimer: ReturnType<typeof setTimeout> | null = null
   private heartbeatAcked = true
   private resumeGatewayUrl: string | null = null
   private reconnectAttempts = 0
@@ -405,7 +389,8 @@ class DiscordAdapter extends ChannelAdapter {
 
     // Jittered first heartbeat as per Discord docs
     const jitter = Math.random()
-    setTimeout(() => {
+    this.heartbeatJitterTimer = setTimeout(() => {
+      this.heartbeatJitterTimer = null
       this.sendHeartbeat()
       this.heartbeatTimer = setInterval(() => {
         if (!this.heartbeatAcked) {
@@ -518,7 +503,7 @@ class DiscordAdapter extends ChannelAdapter {
     const { text, imageUrls, fileAttachments } = this.parseMessageContent(msg)
     if (!text && imageUrls.length === 0 && fileAttachments.length === 0) return
 
-    if (this.isCommand(text)) {
+    if (isSlashCommand(text)) {
       if (text.startsWith('/whoami')) {
         await this.sendWhoami(chatId)
         return
@@ -589,10 +574,6 @@ class DiscordAdapter extends ChannelAdapter {
       this.allowedChannelIds.includes(chatId) ||
       (rawChannelId !== undefined && this.allowedChannelIds.includes(rawChannelId))
     )
-  }
-
-  private isCommand(text: string): boolean {
-    return isSlashCommand(text)
   }
 
   private async sendWhoami(chatId: string): Promise<void> {
@@ -685,7 +666,7 @@ class DiscordAdapter extends ChannelAdapter {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         type: INTERACTION_CALLBACK_CHANNEL_MESSAGE,
-        data: { content, ...(ephemeral ? { flags: 64 } : {}) }
+        data: { content, ...(ephemeral ? { flags: DISCORD_FLAG_EPHEMERAL } : {}) }
       })
     })
   }
@@ -790,6 +771,10 @@ class DiscordAdapter extends ChannelAdapter {
     if (this.reconnectTimer) {
       clearTimeout(this.reconnectTimer)
       this.reconnectTimer = null
+    }
+    if (this.heartbeatJitterTimer) {
+      clearTimeout(this.heartbeatJitterTimer)
+      this.heartbeatJitterTimer = null
     }
     if (this.heartbeatTimer) {
       clearInterval(this.heartbeatTimer)

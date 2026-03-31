@@ -13,42 +13,13 @@ import {
   type SendMessageOptions
 } from '../../ChannelAdapter'
 import { registerAdapterFactory } from '../../ChannelManager'
-import { isSlashCommand } from '../../constants'
+import { FILE_EXTENSION_MIME_MAP, isSlashCommand, splitMessage as splitMessageShared } from '../../constants'
 import { type IncomingMessage, WeixinBot } from './WeChatProtocol'
 
 const WECHAT_MAX_LENGTH = 2000
 
-/**
- * Split a long message into chunks that fit within WeChat's 2000 character limit.
- * Tries to split on paragraph boundaries first, then line boundaries, then hard-splits.
- */
 function splitMessage(text: string): string[] {
-  if (text.length <= WECHAT_MAX_LENGTH) {
-    return [text]
-  }
-
-  const chunks: string[] = []
-  let remaining = text
-
-  while (remaining.length > 0) {
-    if (remaining.length <= WECHAT_MAX_LENGTH) {
-      chunks.push(remaining)
-      break
-    }
-
-    let splitIndex = remaining.lastIndexOf('\n\n', WECHAT_MAX_LENGTH)
-    if (splitIndex <= 0) {
-      splitIndex = remaining.lastIndexOf('\n', WECHAT_MAX_LENGTH)
-    }
-    if (splitIndex <= 0) {
-      splitIndex = WECHAT_MAX_LENGTH
-    }
-
-    chunks.push(remaining.slice(0, splitIndex))
-    remaining = remaining.slice(splitIndex).replace(/^\n+/, '')
-  }
-
-  return chunks
+  return splitMessageShared(text, WECHAT_MAX_LENGTH)
 }
 
 class WeChatAdapter extends ChannelAdapter {
@@ -195,20 +166,10 @@ class WeChatAdapter extends ChannelAdapter {
           .filter((r): r is NonNullable<typeof r> => r !== null)
           .map((r) => {
             const ext = r.filename.includes('.') ? r.filename.split('.').pop()!.toLowerCase() : ''
-            const mimeMap: Record<string, string> = {
-              pdf: 'application/pdf',
-              doc: 'application/msword',
-              docx: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-              xls: 'application/vnd.ms-excel',
-              xlsx: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-              txt: 'text/plain',
-              csv: 'text/csv',
-              zip: 'application/zip'
-            }
             return {
               filename: r.filename,
               data: r.data.toString('base64'),
-              media_type: mimeMap[ext] || 'application/octet-stream',
+              media_type: FILE_EXTENSION_MIME_MAP[ext] || 'application/octet-stream',
               size: r.data.length
             } satisfies FileAttachment
           })
@@ -218,7 +179,7 @@ class WeChatAdapter extends ChannelAdapter {
       const text = msg.text.trim()
       if (!text && !images && !files) return
 
-      if (this.isCommand(text)) {
+      if (isSlashCommand(text)) {
         if (text.startsWith('/whoami')) {
           this.sendWhoami(msg).catch((err) => {
             this.log.error('Failed to send whoami response', {
@@ -247,10 +208,6 @@ class WeChatAdapter extends ChannelAdapter {
         })
       }
     })
-  }
-
-  private isCommand(text: string): boolean {
-    return isSlashCommand(text)
   }
 
   private async sendWhoami(msg: IncomingMessage): Promise<void> {
