@@ -1,4 +1,6 @@
 import { Button } from '@cherrystudio/ui'
+import { dataApiService } from '@data/DataApiService'
+import { useInvalidateCache, useQuery } from '@data/hooks/useDataApi'
 import type { DropResult } from '@hello-pangea/dnd'
 import { loggerService } from '@logger'
 import {
@@ -8,13 +10,16 @@ import {
 } from '@renderer/components/DraggableList'
 import { DeleteIcon, EditIcon } from '@renderer/components/Icons'
 import { ProviderAvatar } from '@renderer/components/ProviderAvatar'
-import { useAllProviders, useProviders } from '@renderer/hooks/useProvider'
 import { useTimer } from '@renderer/hooks/useTimer'
 import ImageStorage from '@renderer/services/ImageStorage'
-import type { Provider, ProviderType } from '@renderer/types'
-import { isSystemProvider } from '@renderer/types'
-import { getFancyProviderName, matchKeywordsInModel, matchKeywordsInProvider, uuid } from '@renderer/utils'
-import { isAnthropicSupportedProvider } from '@renderer/utils/provider'
+import { uuid } from '@renderer/utils'
+import {
+  getFancyProviderName,
+  isAnthropicSupportedProvider,
+  isSystemProvider,
+  matchKeywordsInProvider
+} from '@renderer/utils/provider.v2'
+import type { Provider } from '@shared/data/types/provider'
 import { useNavigate, useSearch } from '@tanstack/react-router'
 import type { MenuProps } from 'antd'
 import { Dropdown, Input, Tag } from 'antd'
@@ -49,8 +54,8 @@ const ProviderList: FC = () => {
   // for type-safe search params. Currently using untyped useSearch as a stopgap after removing react-router-dom.
   const search = useSearch({ strict: false }) as Record<string, string | undefined>
   const navigate = useNavigate()
-  const providers = useAllProviders()
-  const { updateProviders, addProvider, removeProvider, updateProvider } = useProviders()
+  const { data: providers = [] } = useQuery('/providers')
+  const invalidate = useInvalidateCache()
   const { setTimeoutTimer } = useTimer()
   const [selectedProvider, _setSelectedProvider] = useState<Provider>(providers[0])
   const { t } = useTranslation()
@@ -130,25 +135,32 @@ const ProviderList: FC = () => {
       id: string
       apiKey: string
       baseUrl: string
-      type?: ProviderType
+      type?: string
       name?: string
     }) => {
       const { id } = data
 
-      const { updatedProvider, isNew, displayName } = await UrlSchemaInfoPopup.show(data)
+      const { updatedProvider, isNew, displayName } = await UrlSchemaInfoPopup.show(data as any)
       navigate({ to: '/settings/provider', search: { id } })
 
       if (!updatedProvider) {
         return
       }
 
+      // TODO: UrlSchemaInfoPopup still returns v1 Provider — adapt to v2 API
       if (isNew) {
-        addProvider(updatedProvider)
+        await dataApiService.post('/providers', {
+          body: { providerId: updatedProvider.id, name: updatedProvider.name || id }
+        })
       } else {
-        updateProvider(updatedProvider)
+        await dataApiService.patch(`/providers/${updatedProvider.id}` as any, {
+          body: { name: updatedProvider.name }
+        })
       }
+      await invalidate('/providers')
 
-      setSelectedProvider(updatedProvider)
+      const created = providers.find((p) => p.id === id) ?? (updatedProvider as unknown as Provider)
+      setSelectedProvider(created)
       window.toast.success(t('settings.models.provider_key_added', { provider: displayName }))
     }
 
@@ -175,40 +187,29 @@ const ProviderList: FC = () => {
   }, [search.addProviderData])
 
   const onAddProvider = async () => {
-    const { name: providerName, type, logo } = await AddProviderPopup.show()
+    const { name: providerName, logo } = await AddProviderPopup.show()
 
     if (!providerName.trim()) {
       return
     }
 
-    const provider = {
-      id: uuid(),
-      name: providerName.trim(),
-      type,
-      apiKey: '',
-      apiHost: '',
-      models: [],
-      enabled: true,
-      isSystem: false
-    } as Provider
+    const providerId = uuid()
 
-    let updatedLogos = { ...providerLogos }
     if (logo) {
       try {
-        await ImageStorage.set(`provider-${provider.id}`, logo)
-        updatedLogos = {
-          ...updatedLogos,
-          [provider.id]: logo
-        }
-        setProviderLogos(updatedLogos)
+        await ImageStorage.set(`provider-${providerId}`, logo)
+        setProviderLogos((prev) => ({ ...prev, [providerId]: logo }))
       } catch (error) {
         logger.error('Failed to save logo', error as Error)
         window.toast.error(t('message.error.save_provider_logo'))
       }
     }
 
-    addProvider(provider)
-    setSelectedProvider(provider)
+    const newProvider = (await dataApiService.post('/providers', {
+      body: { providerId, name: providerName.trim() }
+    })) as Provider
+    await invalidate('/providers')
+    setSelectedProvider(newProvider)
   }
 
   const getDropdownMenus = (provider: Provider): MenuProps['items'] => {
@@ -216,7 +217,7 @@ const ProviderList: FC = () => {
       label: t('settings.provider.notes.title'),
       key: 'notes',
       icon: <UserPen size={14} />,
-      onClick: () => ModelNotesPopup.show({ provider })
+      onClick: () => ModelNotesPopup.show({ provider: provider as any })
     }
 
     const editMenu = {
@@ -224,10 +225,11 @@ const ProviderList: FC = () => {
       key: 'edit',
       icon: <EditIcon size={14} />,
       async onClick() {
-        const { name, type, logoFile, logo } = await AddProviderPopup.show(provider)
+        const { name, logoFile, logo } = await AddProviderPopup.show(provider as any)
 
         if (name) {
-          updateProvider({ ...provider, name, type })
+          await dataApiService.patch(`/providers/${provider.id}` as any, { body: { name } })
+          await invalidate('/providers')
           if (provider.id) {
             if (logo) {
               try {
@@ -285,7 +287,8 @@ const ProviderList: FC = () => {
             }
 
             setSelectedProvider(providers.filter((p) => isSystemProvider(p))[0])
-            removeProvider(provider)
+            await dataApiService.delete(`/providers/${provider.id}` as any)
+            await invalidate('/providers')
           }
         })
       }
@@ -299,10 +302,6 @@ const ProviderList: FC = () => {
 
     if (isSystemProvider(provider)) {
       return [noteMenu]
-    } else if (provider.isSystem) {
-      // 这里是处理数据中存在新版本删掉的系统提供商的情况
-      // 未来期望能重构一下，不要依赖isSystem字段
-      return [noteMenu, deleteMenu]
     } else {
       return menus
     }
@@ -320,15 +319,25 @@ const ProviderList: FC = () => {
     }
 
     const keywords = searchText.toLowerCase().split(/\s+/).filter(Boolean)
-    const isProviderMatch = matchKeywordsInProvider(keywords, provider)
-    const isModelMatch = provider.models.some((model) => matchKeywordsInModel(keywords, model))
-    return isProviderMatch || isModelMatch
+    return matchKeywordsInProvider(keywords, provider)
   })
+
+  const persistSortOrder = useCallback(
+    async (reorderedList: Provider[]) => {
+      await Promise.all(
+        reorderedList.map((p, index) =>
+          dataApiService.patch(`/providers/${p.id}` as any, { body: { sortOrder: index } })
+        )
+      )
+      await invalidate('/providers')
+    },
+    [invalidate]
+  )
 
   const { onDragEnd: handleReorder, itemKey } = useDraggableReorder({
     originalList: providers,
     filteredList: filteredProviders,
-    onUpdate: updateProviders,
+    onUpdate: persistSortOrder,
     itemKey: 'id'
   })
 
@@ -422,11 +431,11 @@ const ProviderList: FC = () => {
                     width: 24,
                     height: 24
                   }}
-                  provider={provider}
+                  provider={provider as any}
                   customLogos={providerLogos}
                 />
                 <ProviderItemName className="text-nowrap">{getFancyProviderName(provider)}</ProviderItemName>
-                {provider.enabled && (
+                {provider.isEnabled && (
                   <Tag color="green" style={{ marginLeft: 'auto', marginRight: 0, borderRadius: 16 }}>
                     ON
                   </Tag>
