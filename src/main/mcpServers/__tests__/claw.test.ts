@@ -22,6 +22,11 @@ const mockAppendFile = vi.fn()
 const mockReadFile = vi.fn()
 const mockReaddir = vi.fn()
 const mockStat = vi.fn()
+const mockListChannels = vi.fn()
+const mockCreateChannel = vi.fn()
+const mockGetChannel = vi.fn()
+const mockUpdateChannel = vi.fn()
+const mockDeleteChannel = vi.fn()
 
 vi.mock('node:fs/promises', () => ({
   mkdir: (...args: unknown[]) => mockMkdir(...args),
@@ -51,6 +56,7 @@ vi.mock('@main/services/agents/services/AgentService', () => ({
 vi.mock('@main/services/agents/services/channels/ChannelManager', () => ({
   channelManager: {
     getNotifyAdapters: mockGetNotifyAdapters,
+    getAgentAdapters: mockGetNotifyAdapters,
     getAdapterStatuses: vi.fn().mockReturnValue([]),
     syncAgent: mockSyncAgent,
     waitForQrUrl: mockWaitForQrUrl
@@ -71,13 +77,27 @@ vi.mock('@main/services/agents/plugins/PluginService', () => ({
   }
 }))
 
-vi.mock('electron', () => ({
-  net: {
-    fetch: mockNetFetch
+vi.mock('@main/services/agents/services/ChannelService', () => ({
+  channelService: {
+    listChannels: mockListChannels,
+    createChannel: mockCreateChannel,
+    getChannel: mockGetChannel,
+    updateChannel: mockUpdateChannel,
+    deleteChannel: mockDeleteChannel
   }
 }))
 
-// Import after mocks
+vi.mock('@main/services/WindowService', () => ({
+  windowService: {
+    getMainWindow: vi.fn().mockReturnValue(null)
+  }
+}))
+
+// Import after mocks — electron is mocked globally in main.setup.ts
+// Override net.fetch with our local mock
+const electron = await import('electron')
+vi.mocked(electron.net.fetch).mockImplementation(mockNetFetch)
+
 const { default: ClawServer } = await import('../claw')
 type ClawServerInstance = InstanceType<typeof ClawServer>
 
@@ -313,7 +333,7 @@ describe('ClawServer', () => {
       const server = createServer('agent_1')
       const result = await callTool(server, { message: 'Hello' }, 'notify')
 
-      expect(result.content[0].text).toContain('No notify-enabled channels')
+      expect(result.content[0].text).toContain('No connected channels found')
       expect(mockSendMessage).not.toHaveBeenCalled()
     })
 
@@ -598,28 +618,26 @@ describe('ClawServer', () => {
   })
 
   describe('config tool', () => {
-    const agentWithChannels = {
+    const telegramChannel = {
+      id: 'ch_1',
+      type: 'telegram',
+      name: 'My Telegram',
+      isActive: true,
+      config: { type: 'telegram', bot_token: 'tok_123', allowed_chat_ids: ['100'] }
+    }
+
+    const agentWithConfig = {
       id: 'agent_1',
       name: 'CherryClaw',
       model: 'claude-sonnet-4-20250514',
       configuration: {
         soul_enabled: true,
-        heartbeat_enabled: true,
-        channels: [
-          {
-            id: 'ch_1',
-            type: 'telegram',
-            name: 'My Telegram',
-            enabled: true,
-            config: { bot_token: 'tok_123', allowed_chat_ids: ['100'] },
-            is_notify_receiver: true
-          }
-        ]
+        heartbeat_enabled: true
       },
       accessible_paths: ['/workspace/test']
     }
 
-    const agentNoChannels = {
+    const agentNoConfig = {
       id: 'agent_1',
       name: 'CherryClaw',
       model: 'claude-sonnet-4-20250514',
@@ -628,13 +646,17 @@ describe('ClawServer', () => {
     }
 
     beforeEach(() => {
-      mockUpdateAgent.mockResolvedValue(agentWithChannels)
       mockSyncAgent.mockResolvedValue(undefined)
+      mockListChannels.mockResolvedValue([])
+      mockGetChannel.mockResolvedValue(null)
+      mockDeleteChannel.mockResolvedValue(undefined)
+      mockUpdateChannel.mockResolvedValue(undefined)
     })
 
     describe('status action', () => {
       it('should return agent status with channels and supported types', async () => {
-        mockGetAgent.mockResolvedValue(agentWithChannels)
+        mockGetAgent.mockResolvedValue(agentWithConfig)
+        mockListChannels.mockResolvedValue([telegramChannel])
 
         const server = createServer('agent_1')
         const result = await callTool(server, { action: 'status' }, 'config')
@@ -656,7 +678,8 @@ describe('ClawServer', () => {
       })
 
       it('should return empty channels when none configured', async () => {
-        mockGetAgent.mockResolvedValue(agentNoChannels)
+        mockGetAgent.mockResolvedValue(agentNoConfig)
+        mockListChannels.mockResolvedValue([])
 
         const server = createServer('agent_1')
         const result = await callTool(server, { action: 'status' }, 'config')
@@ -678,7 +701,7 @@ describe('ClawServer', () => {
 
     describe('add_channel action', () => {
       it('should add a new channel and sync', async () => {
-        mockGetAgent.mockResolvedValue(agentNoChannels)
+        mockCreateChannel.mockResolvedValue({ id: 'ch_new', type: 'telegram', name: 'Work Bot', isActive: true })
 
         const server = createServer('agent_1')
         const result = await callTool(
@@ -687,25 +710,18 @@ describe('ClawServer', () => {
             action: 'add_channel',
             type: 'telegram',
             name: 'Work Bot',
-            config: { bot_token: 'tok_abc', allowed_chat_ids: ['42'] },
-            is_notify_receiver: true
+            config: { bot_token: 'tok_abc', allowed_chat_ids: ['42'] }
           },
           'config'
         )
 
         expect(result.content[0].text).toContain('Channel added')
-        expect(mockUpdateAgent).toHaveBeenCalledWith(
-          'agent_1',
+        expect(mockCreateChannel).toHaveBeenCalledWith(
           expect.objectContaining({
-            configuration: expect.objectContaining({
-              channels: expect.arrayContaining([
-                expect.objectContaining({
-                  type: 'telegram',
-                  name: 'Work Bot',
-                  is_notify_receiver: true
-                })
-              ])
-            })
+            type: 'telegram',
+            name: 'Work Bot',
+            agentId: 'agent_1',
+            isActive: true
           })
         )
         expect(mockSyncAgent).toHaveBeenCalledWith('agent_1')
@@ -736,12 +752,16 @@ describe('ClawServer', () => {
       })
 
       it('should add a wechat channel and return QR code image', async () => {
-        mockGetAgent.mockResolvedValue(agentNoChannels)
+        mockCreateChannel.mockResolvedValue({ id: 'ch_wc1', type: 'wechat', name: 'My WeChat', isActive: true })
         mockWaitForQrUrl.mockResolvedValue('https://login.weixin.qq.com/l/abc123')
         mockQRCodeToDataURL.mockResolvedValue('data:image/png;base64,iVBORw0KGgo=')
 
         const server = createServer('agent_1')
-        const result = await callTool(server, { action: 'add_channel', type: 'wechat', name: 'My WeChat' }, 'config')
+        const result = await callTool(
+          server,
+          { action: 'add_channel', type: 'wechat', name: 'My WeChat', config: { token_path: '/tmp/wechat' } },
+          'config'
+        )
 
         expect(result.content).toHaveLength(2)
         expect(result.content[0].type).toBe('text')
@@ -749,25 +769,27 @@ describe('ClawServer', () => {
         expect(result.content[1].type).toBe('image')
         expect(result.content[1].data).toBe('iVBORw0KGgo=')
         expect(result.content[1].mimeType).toBe('image/png')
-        // syncAgent should be called (fire-and-forget)
         expect(mockSyncAgent).toHaveBeenCalledWith('agent_1')
-        // waitForQrUrl should be called with agent and channel IDs
-        expect(mockWaitForQrUrl).toHaveBeenCalledWith('agent_1', expect.stringContaining('ch_'), 30_000)
+        expect(mockWaitForQrUrl).toHaveBeenCalledWith('agent_1', 'ch_wc1', 30_000)
       })
 
       it('should clean up orphan channel when wechat QR times out', async () => {
-        mockGetAgent.mockResolvedValue(agentNoChannels)
+        mockCreateChannel.mockResolvedValue({ id: 'ch_wc2', type: 'wechat', name: 'My WeChat', isActive: true })
         mockWaitForQrUrl.mockRejectedValue(new Error('Timed out waiting for QR code'))
 
         const server = createServer('agent_1')
-        const result = await callTool(server, { action: 'add_channel', type: 'wechat', name: 'My WeChat' }, 'config')
+        const result = await callTool(
+          server,
+          { action: 'add_channel', type: 'wechat', name: 'My WeChat', config: { token_path: '/tmp/wechat' } },
+          'config'
+        )
 
         expect(result.isError).toBe(true)
         expect(result.content).toHaveLength(1)
         expect(result.content[0].text).toContain('Timed out')
         expect(result.content[0].text).toContain('not saved')
-        // Should have called updateAgent twice: once to add, once to remove orphan
-        expect(mockUpdateAgent).toHaveBeenCalledTimes(2)
+        // Should have deleted the orphan channel
+        expect(mockDeleteChannel).toHaveBeenCalledWith('ch_wc2')
         // Should have synced twice: once for add (fire-and-forget), once for orphan cleanup
         expect(mockSyncAgent).toHaveBeenCalledTimes(2)
       })
@@ -787,7 +809,7 @@ describe('ClawServer', () => {
 
     describe('update_channel action', () => {
       it('should update an existing channel and sync', async () => {
-        mockGetAgent.mockResolvedValue(agentWithChannels)
+        mockGetChannel.mockResolvedValue(telegramChannel)
 
         const server = createServer('agent_1')
         const result = await callTool(
@@ -797,7 +819,7 @@ describe('ClawServer', () => {
         )
 
         expect(result.content[0].text).toContain('updated and reloaded')
-        expect(mockUpdateAgent).toHaveBeenCalled()
+        expect(mockUpdateChannel).toHaveBeenCalledWith('ch_1', expect.objectContaining({ isActive: false }))
         expect(mockSyncAgent).toHaveBeenCalledWith('agent_1')
       })
 
@@ -810,7 +832,7 @@ describe('ClawServer', () => {
       })
 
       it('should error when channel not found', async () => {
-        mockGetAgent.mockResolvedValue(agentWithChannels)
+        mockGetChannel.mockResolvedValue(null)
 
         const server = createServer('agent_1')
         const result = await callTool(server, { action: 'update_channel', channel_id: 'ch_nonexistent' }, 'config')
@@ -822,21 +844,14 @@ describe('ClawServer', () => {
 
     describe('remove_channel action', () => {
       it('should remove a channel and sync', async () => {
-        mockGetAgent.mockResolvedValue(agentWithChannels)
+        mockGetChannel.mockResolvedValue(telegramChannel)
 
         const server = createServer('agent_1')
         const result = await callTool(server, { action: 'remove_channel', channel_id: 'ch_1' }, 'config')
 
         expect(result.content[0].text).toContain('removed')
         expect(result.content[0].text).toContain('My Telegram')
-        expect(mockUpdateAgent).toHaveBeenCalledWith(
-          'agent_1',
-          expect.objectContaining({
-            configuration: expect.objectContaining({
-              channels: []
-            })
-          })
-        )
+        expect(mockDeleteChannel).toHaveBeenCalledWith('ch_1')
         expect(mockSyncAgent).toHaveBeenCalledWith('agent_1')
       })
 
@@ -849,7 +864,7 @@ describe('ClawServer', () => {
       })
 
       it('should error when channel not found', async () => {
-        mockGetAgent.mockResolvedValue(agentWithChannels)
+        mockGetChannel.mockResolvedValue(null)
 
         const server = createServer('agent_1')
         const result = await callTool(server, { action: 'remove_channel', channel_id: 'ch_999' }, 'config')
