@@ -4,7 +4,7 @@ import { useDeleteHistory, useLanguages, useUpdateHistory } from '@renderer/hook
 import type { TranslateHistory } from '@shared/data/types/translate'
 import dayjs from 'dayjs'
 import { StarIcon, TrashIcon } from 'lucide-react'
-import type { PropsWithChildren } from 'react'
+import type { ComponentPropsWithoutRef } from 'react'
 import { useCallback, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -31,19 +31,27 @@ export const TranslateHistoryItem = ({ data, onClick }: TranslateHistoryItemProp
     }
   }, [data, getLabel])
 
-  const handleStar = useCallback(async () => {
-    if (!preparedData) {
-      return
-    }
-    return updateHistory({ star: !preparedData.star })
-  }, [preparedData, updateHistory])
+  const handleStar = useCallback(
+    async (e: React.MouseEvent) => {
+      e.stopPropagation()
+      if (!preparedData) {
+        return
+      }
+      return updateHistory({ star: !preparedData.star })
+    },
+    [preparedData, updateHistory]
+  )
 
-  const handleDelete = useCallback(async () => {
-    if (!preparedData) {
-      return
-    }
-    return await deleteHistory()
-  }, [preparedData, deleteHistory])
+  const handleDelete = useCallback(
+    async (e: React.MouseEvent) => {
+      e.stopPropagation()
+      if (!preparedData) {
+        return
+      }
+      return await deleteHistory()
+    },
+    [preparedData, deleteHistory]
+  )
 
   if (!preparedData) {
     return (
@@ -54,50 +62,58 @@ export const TranslateHistoryItem = ({ data, onClick }: TranslateHistoryItemProp
   }
 
   return (
-    <Container>
-      <div className="flex h-7.5 items-center justify-between" onClick={onClick}>
+    <Container onClick={onClick}>
+      <div className="flex h-7.5 items-center justify-between">
         {/* Lang */}
         <div className="flex items-center gap-1.5">
-          <div className="text-secondary text-xs">{preparedData.sourceLang} →</div>
-          <div className="text-secondary text-xs">{preparedData.targetLang}</div>
+          <div className="text-foreground-secondary text-xs">{preparedData.sourceLang} →</div>
+          <div className="text-foreground-secondary text-xs">{preparedData.targetLang}</div>
         </div>
         {/* Tool bar */}
         <div className="mt-2 flex items-center justify-end">
-          <Button onClick={handleStar}>{preparedData.star ? <StarIcon fill="yellow" /> : <StarIcon />}</Button>
+          <Button variant="ghost" onClick={handleStar} className="">
+            {preparedData.star ? (
+              <StarIcon fill="yellow" className="hover:primary" />
+            ) : (
+              <StarIcon className="hover:primary" />
+            )}
+          </Button>
           <Popover>
-            <PopoverTrigger>
+            <PopoverTrigger asChild onClick={(e) => e.stopPropagation()}>
               <Button variant="destructive">
                 <TrashIcon className="text-destructive" />
               </Button>
             </PopoverTrigger>
             <PopoverContent>
               <div>{t('translate.history.delete')}</div>
-              <div>{t('translate.history.delete_description')}</div>
               <footer className="flex flex-end p-2">
                 <Button onClick={handleDelete}>{t('common.confirm')}</Button>
               </footer>
             </PopoverContent>
           </Popover>
         </div>
-        {/* Text */}
-        <div className="flex flex-1 flex-col">
-          <div className="line-clamp-2 overflow-hidden truncate text-sm">{preparedData.sourceText}</div>
-          <div className="line-clamp-2 overflow-hidden truncate text-secondary text-sm">{preparedData.targetText}</div>
+      </div>
+      {/* Text */}
+      <div className="flex flex-1 flex-col">
+        <div className="flex-1 line-clamp-2 overflow-hidden truncate text-sm">{preparedData.sourceText}</div>
+        <div className="flex-1 line-clamp-2 overflow-hidden truncate text-foreground-secondary text-sm">
+          {preparedData.targetText}
         </div>
       </div>
       {/* Timestamp */}
-      <div className="text-secondary text-xs">{preparedData.createdAt}</div>
+      <div className="text-foreground-secondary text-xs">{preparedData.createdAt}</div>
     </Container>
   )
 }
 
-const Container = ({ children, className }: PropsWithChildren<{ className?: string }>) => {
+const Container = ({ children, className, onClick }: ComponentPropsWithoutRef<'div'>) => {
   return (
     <div
       className={cn(
-        'relative flex h-40 flex-1 cursor-pointer flex-col justify-between gap-1 px-6 py-2.5 transition-colors hover:bg-muted',
+        'relative flex h-40 flex-1 cursor-pointer flex-col justify-between gap-1 px-6 py-2.5 transition-colors hover:bg-muted border-b border-dashed',
         className
-      )}>
+      )}
+      onClick={onClick}>
       {children}
     </div>
   )
