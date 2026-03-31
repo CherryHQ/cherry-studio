@@ -5,6 +5,7 @@
 export { BaseMigrator } from './BaseMigrator'
 
 // Import all migrators
+import { AgentMigrator } from './AgentMigrator'
 import { AssistantMigrator } from './AssistantMigrator'
 import { BootConfigMigrator } from './BootConfigMigrator'
 import { ChatMigrator } from './ChatMigrator'
@@ -15,6 +16,7 @@ import { TranslateMigrator } from './TranslateMigrator'
 
 // Export migrator classes
 export {
+  AgentMigrator,
   AssistantMigrator,
   BootConfigMigrator,
   ChatMigrator,
@@ -34,6 +36,7 @@ export function getAllMigrators() {
     new McpServerMigrator(),
     new AssistantMigrator(),
     new KnowledgeMigrator(),
+    new AgentMigrator(),
     new ChatMigrator(),
     new TranslateMigrator()
   ]
