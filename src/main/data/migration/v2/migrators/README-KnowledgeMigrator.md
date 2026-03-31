@@ -83,6 +83,7 @@
 
 - `video` items are skipped.
 - `memory` items are skipped.
+- Legacy per-base knowledge store paths that resolve to directories are skipped as unsupported pre-v2 layouts.
 - Invalid/malformed items are skipped and recorded as warnings in `prepare`.
 - Invalid knowledge-base tuning fields are cleared during migration; they do not cause the base or its items to be skipped.
 
@@ -94,6 +95,7 @@
   - the per-base legacy vector DB file
   - the `vectors` table
   - a non-null vector blob whose byte length can be converted to a positive dimension count (`length(vector)/4`)
+- If the per-base legacy knowledge store path resolves to a directory instead of a SQLite file, that base is treated as an unsupported legacy layout and is skipped.
 - If the legacy vector DB is missing, empty, invalid, or the vector blob length cannot be parsed into a valid positive dimension count, that base is treated as unusable in V2 migration:
   - the base is skipped
   - all items under that base are skipped
