@@ -150,6 +150,12 @@ describe('model utils', () => {
       it('returns true for GPT-prefixed models', () => {
         expect(isOpenAILLMModel(createModel({ id: 'GPT-5-turbo' }))).toBe(true)
       })
+
+      it('returns false for GPTQ quantized models', () => {
+        expect(isOpenAILLMModel(createModel({ id: 'Qwen3.5-122B-A10B-GPTQ' }))).toBe(false)
+        expect(isOpenAILLMModel(createModel({ id: 'Qwen/Qwen3.5-122B-Instruct-GPTQ-Int4' }))).toBe(false)
+        expect(isOpenAILLMModel(createModel({ id: 'llama-3-70b-gptq' }))).toBe(false)
+      })
     })
 
     describe('isOpenAIModel', () => {
