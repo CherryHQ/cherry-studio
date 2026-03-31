@@ -64,12 +64,31 @@ describe('OpenAI Model Detection', () => {
   })
 
   describe('isOpenAIModel', () => {
+    it('returns false for undefined model', () => {
+      expect(isOpenAIModel(undefined as unknown as Model)).toBe(false)
+    })
+
     it('detects models via GPT prefix', () => {
       expect(isOpenAIModel(createModel({ id: 'gpt-4.1' }))).toBe(true)
+      expect(isOpenAIModel(createModel({ id: 'gpt-4o' }))).toBe(true)
+      expect(isOpenAIModel(createModel({ id: 'gpt-4o-image' }))).toBe(true)
     })
 
     it('detects models via reasoning support', () => {
       expect(isOpenAIModel(createModel({ id: 'o3' }))).toBe(true)
+      expect(isOpenAIModel(createModel({ id: 'o4-mini' }))).toBe(true)
+      expect(isOpenAIModel(createModel({ id: 'o1' }))).toBe(true)
+    })
+
+    it('returns false for non-OpenAI models', () => {
+      expect(isOpenAIModel(createModel({ id: 'claude-3.5-sonnet' }))).toBe(false)
+      expect(isOpenAIModel(createModel({ id: 'gemini-2.0' }))).toBe(false)
+      expect(isOpenAIModel(createModel({ id: 'deepseek-r1' }))).toBe(false)
+    })
+
+    it('returns false for GPTQ quantized models', () => {
+      expect(isOpenAIModel(createModel({ id: 'Qwen3.5-122B-A10B-GPTQ' }))).toBe(false)
+      expect(isOpenAIModel(createModel({ id: 'llama-3-70b-gptq' }))).toBe(false)
     })
   })
 
