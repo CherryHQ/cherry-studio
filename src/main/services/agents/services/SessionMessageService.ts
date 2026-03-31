@@ -34,7 +34,7 @@ export type CreateMessageOptions = {
   persist?: boolean
   /** Optional display-safe user content for persistence. When set, this is stored instead of req.content (which may contain security wrappers not meant for display). */
   displayContent?: string
-  /** Pre-downloaded base64 images to include as vision content alongside the text prompt. */
+  /** Images to persist in the user message for UI display (not sent to AI model). */
   images?: Array<{ data: string; media_type: string }>
 }
 
@@ -193,7 +193,7 @@ export class SessionMessageService extends BaseService {
         effort: req.effort,
         thinking: req.thinking
       },
-      options?.images
+      undefined
     )
     const accumulator = new TextStreamAccumulator()
 
