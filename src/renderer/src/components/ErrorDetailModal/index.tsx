@@ -1,5 +1,7 @@
 import CodeViewer from '@renderer/components/CodeViewer'
+import GeneralPopup from '@renderer/components/Popups/GeneralPopup'
 import { useCodeStyle } from '@renderer/context/CodeStyleProvider'
+import i18n from '@renderer/i18n'
 import { dbService } from '@renderer/services/db/DbService'
 import type { DiagnosisContext, DiagnosisResult } from '@renderer/services/ErrorDiagnosisService'
 import { diagnoseError } from '@renderer/services/ErrorDiagnosisService'
@@ -33,18 +35,13 @@ import {
 import { formatAiSdkError, formatError, safeToString } from '@renderer/utils/error'
 import { parseDataUrl } from '@shared/utils'
 import { Button } from 'antd'
-import { Modal } from 'antd'
 import { CheckCircle, Loader2 } from 'lucide-react'
 import React, { memo, useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { Link } from 'react-router-dom'
 import styled from 'styled-components'
 
-interface ErrorDetailModalProps {
-  open: boolean
-  onClose: () => void
+interface ErrorDetailContentProps {
   error?: SerializedError
-  failingModelId?: string
   diagnosisContext?: DiagnosisContext
   blockId?: string
   cachedDiagnosis?: DiagnosisResult
@@ -545,13 +542,10 @@ function isValidNavRoute(nav: string): boolean {
   return VALID_NAV_PREFIXES.some((prefix) => nav.startsWith(prefix))
 }
 
-// --- Main Component ---
+// --- Main Content Component ---
 
-const ErrorDetailModal: React.FC<ErrorDetailModalProps> = ({
-  open,
-  onClose,
+const ErrorDetailContent: React.FC<ErrorDetailContentProps> = ({
   error,
-  failingModelId,
   diagnosisContext,
   blockId,
   cachedDiagnosis
@@ -559,11 +553,6 @@ const ErrorDetailModal: React.FC<ErrorDetailModalProps> = ({
   const { t } = useTranslation()
   const [diagStatus, setDiagStatus] = useState<'idle' | 'loading' | 'done' | 'error'>(cachedDiagnosis ? 'done' : 'idle')
   const diagSectionRef = useRef<{ runDiagnosis: () => void }>(null)
-
-  const checkModelConflict = useCallback((): boolean => {
-    const defaultModel = store.getState().llm.defaultModel
-    return failingModelId != null && defaultModel?.id === failingModelId
-  }, [failingModelId])
 
   const copyErrorDetails = useCallback(() => {
     if (!error) return
@@ -592,12 +581,11 @@ const ErrorDetailModal: React.FC<ErrorDetailModalProps> = ({
     )
   }
 
-  // Reset diagnosis state when modal closes
-  useEffect(() => {
-    if (!open) {
-      setDiagStatus(cachedDiagnosis ? 'done' : 'idle')
-    }
-  }, [open, cachedDiagnosis])
+  const handleDiagnose = () => {
+    if (diagStatus === 'loading') return
+    setDiagStatus('loading')
+    diagSectionRef.current?.runDiagnosis()
+  }
 
   const getDiagButtonText = () => {
     switch (diagStatus) {
@@ -611,38 +599,7 @@ const ErrorDetailModal: React.FC<ErrorDetailModalProps> = ({
   }
 
   return (
-    <Modal
-      centered
-      title={t('error.detail')}
-      open={open}
-      onCancel={onClose}
-      footer={[
-        <Button
-          key="diagnose"
-          variant="text"
-          color="default"
-          disabled={diagStatus === 'loading'}
-          style={diagStatus === 'done' ? { color: 'var(--color-primary)' } : undefined}
-          onClick={() => {
-            if (diagStatus === 'loading') return
-            if (checkModelConflict()) {
-              window.toast.warning(t('error.diagnosis.model_conflict'))
-              return
-            }
-            setDiagStatus('loading')
-            diagSectionRef.current?.runDiagnosis()
-          }}>
-          {getDiagButtonText()}
-        </Button>,
-        <Button key="copy" variant="text" color="default" onClick={copyErrorDetails}>
-          {t('common.copy')}
-        </Button>,
-        <Button key="close" variant="text" color="default" onClick={onClose}>
-          {t('common.close')}
-        </Button>
-      ]}
-      width="80%"
-      style={{ maxWidth: '1200px', minWidth: '600px' }}>
+    <div>
       <ErrorDetailContainer>
         {renderErrorDetails(error)}
         {diagStatus !== 'idle' && (
@@ -658,7 +615,23 @@ const ErrorDetailModal: React.FC<ErrorDetailModalProps> = ({
           />
         )}
       </ErrorDetailContainer>
-    </Modal>
+      <div className="mt-4 flex justify-end gap-2">
+        <Button
+          variant="text"
+          color="default"
+          disabled={diagStatus === 'loading'}
+          style={diagStatus === 'done' ? { color: 'var(--color-primary)' } : undefined}
+          onClick={handleDiagnose}>
+          {getDiagButtonText()}
+        </Button>
+        <Button variant="text" color="default" onClick={copyErrorDetails}>
+          {t('common.copy')}
+        </Button>
+        <Button variant="text" color="default" onClick={() => GeneralPopup.hide()}>
+          {t('common.close')}
+        </Button>
+      </div>
+    </div>
   )
 }
 
@@ -802,9 +775,16 @@ const AIDiagnosisSectionWithStatus = memo(
                         {step.text} ↗
                       </a>
                     ) : step.nav && isValidNavRoute(step.nav) ? (
-                      <Link to={step.nav} style={{ color: 'var(--color-primary)' }}>
+                      <a
+                        href="#"
+                        style={{ color: 'var(--color-primary)' }}
+                        onClick={(e) => {
+                          e.preventDefault()
+                          GeneralPopup.hide()
+                          window.location.hash = `#${step.nav}`
+                        }}>
                         → {step.text}
-                      </Link>
+                      </a>
                     ) : (
                       <span>{step.text}</span>
                     )}
@@ -819,6 +799,15 @@ const AIDiagnosisSectionWithStatus = memo(
   }
 )
 
-export { ErrorDetailModal }
-export default ErrorDetailModal
-export type { ErrorDetailModalProps }
+export function showErrorDetailPopup(params: ErrorDetailContentProps) {
+  void GeneralPopup.show({
+    title: i18n.t('error.detail'),
+    content: <ErrorDetailContent {...params} />,
+    footer: null,
+    width: '80%',
+    style: { maxWidth: '1200px', minWidth: '600px' }
+  })
+}
+
+export { ErrorDetailContent }
+export type { ErrorDetailContentProps }

@@ -102,7 +102,7 @@ describe('ErrorDiagnosisService', () => {
       await expect(diagnoseError(makeError(), 'en')).rejects.toThrow('Invalid diagnosis response format')
     })
 
-    it('uses defaultModel when available', async () => {
+    it('uses CherryAI free model as primary', async () => {
       const customModel = { id: 'gpt-4', name: 'GPT-4', provider: 'openai' }
       mockGetState.mockReturnValue({ llm: { defaultModel: customModel } } as any)
 
@@ -115,11 +115,30 @@ describe('ErrorDiagnosisService', () => {
       mockFetchGenerate.mockResolvedValue(JSON.stringify(mockResult))
 
       await diagnoseError(makeError(), 'en')
-      // First call should use the defaultModel
+      // First call should use CherryAI free model (primary), not defaultModel
+      expect(mockFetchGenerate.mock.calls[0][0]).toEqual(
+        expect.objectContaining({ model: expect.objectContaining({ id: 'qwen' }) })
+      )
+    })
+
+    it('falls back to defaultModel when CherryAI is unavailable', async () => {
+      mockFetchModels.mockResolvedValue([])
+      const customModel = { id: 'gpt-4', name: 'GPT-4', provider: 'openai' }
+      mockGetState.mockReturnValue({ llm: { defaultModel: customModel } } as any)
+
+      const mockResult = {
+        summary: 'Error',
+        category: 'unknown',
+        explanation: 'Something went wrong.',
+        steps: []
+      }
+      mockFetchGenerate.mockResolvedValue(JSON.stringify(mockResult))
+
+      await diagnoseError(makeError(), 'en')
       expect(mockFetchGenerate.mock.calls[0][0]).toEqual(expect.objectContaining({ model: customModel }))
     })
 
-    it('falls back to qwen model when no default', async () => {
+    it('uses only CherryAI when no default model', async () => {
       mockGetState.mockReturnValue({ llm: { defaultModel: null } } as any)
 
       const mockResult = {

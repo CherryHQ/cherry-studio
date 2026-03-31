@@ -1,5 +1,5 @@
 import { SettingOutlined } from '@ant-design/icons'
-import { ErrorDetailModal } from '@renderer/components/ErrorDetailModal'
+import { showErrorDetailPopup } from '@renderer/components/ErrorDetailModal'
 import { useTimer } from '@renderer/hooks/useTimer'
 import { getHttpMessageLabel, getProviderLabel } from '@renderer/i18n/label'
 import type { DiagnosisResult } from '@renderer/services/ErrorDiagnosisService'
@@ -79,7 +79,6 @@ const ErrorMessage: React.FC<{ block: ErrorMessageBlock }> = ({ block }) => {
 const MessageErrorInfo: React.FC<{ block: ErrorMessageBlock; message: Message }> = ({ block, message }) => {
   const dispatch = useAppDispatch()
   const { setTimeoutTimer } = useTimer()
-  const [showDetailModal, setShowDetailModal] = useState(false)
   const { t, i18n } = useTranslation()
   const navigate = useNavigate()
   const [aiSummary, setAiSummary] = useState<string>('')
@@ -108,7 +107,7 @@ const MessageErrorInfo: React.FC<{ block: ErrorMessageBlock; message: Message }>
     return () => {
       cancelled = true
     }
-  }, [classification.category, errorForAI, i18n.language])
+  }, [classification.category, errorForAI?.message, i18n.language])
 
   const diagnosisContext = useMemo(
     () => ({
@@ -128,7 +127,12 @@ const MessageErrorInfo: React.FC<{ block: ErrorMessageBlock; message: Message }>
   )
 
   const showErrorDetail = () => {
-    setShowDetailModal(true)
+    showErrorDetailPopup({
+      error: block.error,
+      blockId: block.id,
+      cachedDiagnosis: block.metadata?.diagnosis as DiagnosisResult | undefined,
+      diagnosisContext
+    })
   }
 
   const onNavigate = (e: React.MouseEvent) => {
@@ -170,15 +174,6 @@ const MessageErrorInfo: React.FC<{ block: ErrorMessageBlock; message: Message }>
             </Button>
           </>
         }
-      />
-      <ErrorDetailModal
-        open={showDetailModal}
-        onClose={() => setShowDetailModal(false)}
-        error={block.error}
-        failingModelId={block.error?.modelId as string | undefined}
-        blockId={block.id}
-        cachedDiagnosis={block.metadata?.diagnosis as DiagnosisResult | undefined}
-        diagnosisContext={diagnosisContext}
       />
     </>
   )

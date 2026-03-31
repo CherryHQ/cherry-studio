@@ -1,11 +1,7 @@
 // import { loggerService } from '@logger'
-import { ErrorDetailModal } from '@renderer/components/ErrorDetailModal'
 import TopViewMinappContainer from '@renderer/components/MinApp/TopViewMinappContainer'
 import { useAppInit } from '@renderer/hooks/useAppInit'
 import { useShortcuts } from '@renderer/hooks/useShortcuts'
-import type { DiagnosisContext } from '@renderer/services/ErrorDiagnosisService'
-import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
-import type { SerializedError } from '@renderer/types/error'
 import { message, Modal } from 'antd'
 import type { PropsWithChildren } from 'react'
 import React, { useCallback, useEffect, useRef, useState } from 'react'
@@ -43,28 +39,6 @@ const TopViewContainer: React.FC<Props> = ({ children }) => {
   const [messageApi, messageContextHolder] = message.useMessage()
   const { shortcuts } = useShortcuts()
   const enableQuitFullScreen = shortcuts.find((item) => item.key === 'exit_fullscreen')?.enabled
-
-  // Global ErrorDetailModal for toast "View Details" link
-  const [errorModal, setErrorModal] = useState<{
-    open: boolean
-    error?: SerializedError
-    failingModelId?: string
-    diagnosisContext?: DiagnosisContext
-  }>({ open: false })
-
-  useEffect(() => {
-    const unsub = EventEmitter.on(EVENT_NAMES.SHOW_ERROR_DETAIL, (data: any) => {
-      setErrorModal({
-        open: true,
-        error: data?.error,
-        failingModelId: data?.failingModelId,
-        diagnosisContext: data?.diagnosisContext
-      })
-    })
-    return () => {
-      unsub()
-    }
-  }, [])
 
   useAppInit()
 
@@ -128,13 +102,6 @@ const TopViewContainer: React.FC<Props> = ({ children }) => {
       {messageContextHolder}
       {modalContextHolder}
       <TopViewMinappContainer />
-      <ErrorDetailModal
-        open={errorModal.open}
-        onClose={() => setErrorModal((prev) => ({ ...prev, open: false }))}
-        error={errorModal.error}
-        failingModelId={errorModal.failingModelId}
-        diagnosisContext={errorModal.diagnosisContext}
-      />
       {elements.map(({ element: Element, id }) => (
         <FullScreenContainer key={`TOPVIEW_${id}`}>
           {typeof Element === 'function' ? <Element /> : Element}

@@ -41,15 +41,15 @@ async function buildModelsToTry(context?: DiagnosisContext): Promise<Model[]> {
   const defaultModel = store.getState().llm.defaultModel
   const models: Model[] = []
 
-  // Skip the failing model itself to avoid diagnosing with a broken model
-  if (defaultModel && defaultModel.id !== context?.modelId) {
-    models.push(defaultModel)
+  // CherryAI free model as primary diagnosis model
+  const cherryModel = await getCherryAiFreeModel()
+  if (cherryModel) {
+    models.push(cherryModel)
   }
 
-  // Add CherryAI free model as fallback (dynamically fetched from API)
-  const cherryModel = await getCherryAiFreeModel()
-  if (cherryModel && !models.some((m) => m.id === cherryModel.id)) {
-    models.push(cherryModel)
+  // User's default model as fallback (skip if same as failing model)
+  if (defaultModel && defaultModel.id !== context?.modelId && !models.some((m) => m.id === defaultModel.id)) {
+    models.push(defaultModel)
   }
 
   return models

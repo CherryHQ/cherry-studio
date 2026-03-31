@@ -76,7 +76,7 @@ const ToastContent: React.FC<{
             link.onClick()
           }}
           style={{
-            color: 'var(--color-primary)',
+            color: 'var(--color-link)',
             cursor: 'pointer',
             fontSize: 13,
             fontWeight: 500,
