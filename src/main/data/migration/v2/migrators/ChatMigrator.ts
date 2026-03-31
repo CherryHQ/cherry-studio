@@ -457,6 +457,22 @@ export class ChatMigrator extends BaseMigrator {
         })
       }
 
+      // Check for dangling parentId self-references (parentId points to non-existent message)
+      const danglingParentCheck = await db
+        .select({ count: sql<number>`count(*)` })
+        .from(messageTable)
+        .where(
+          sql`${messageTable.parentId} IS NOT NULL AND ${messageTable.parentId} NOT IN (SELECT id FROM ${messageTable})`
+        )
+        .get()
+
+      if (danglingParentCheck && danglingParentCheck.count > 0) {
+        errors.push({
+          key: 'dangling_parent_ids',
+          message: `Found ${danglingParentCheck.count} messages with dangling parentId`
+        })
+      }
+
       return {
         success: errors.length === 0,
         errors,
@@ -634,6 +650,25 @@ export class ChatMigrator extends BaseMigrator {
       } catch (error) {
         logger.warn(`Failed to transform message ${oldMsg.id}`, { error })
         this.skippedMessages++
+      }
+    }
+
+    // Fix dangling parentIds from second-pass skips (transform failure).
+    // resolveParentId only handles first-pass skips; if a message passed the first
+    // pass (had blocks) but failed transform, its children still reference it.
+    // Walk the ancestor chain to find the nearest migrated parent.
+    const migratedMessageIds = new Set(newMessages.map((m) => m.id))
+    for (const msg of newMessages) {
+      if (msg.parentId && !migratedMessageIds.has(msg.parentId)) {
+        let ancestor = messageParentMap.get(msg.parentId) ?? null
+        const visited = new Set<string>([msg.parentId])
+        while (ancestor && !migratedMessageIds.has(ancestor)) {
+          if (visited.has(ancestor)) break
+          visited.add(ancestor)
+          ancestor = messageParentMap.get(ancestor) ?? null
+        }
+        logger.warn(`Resolved dangling parentId for message ${msg.id}: ${msg.parentId} → ${ancestor}`)
+        msg.parentId = ancestor
       }
     }
 
