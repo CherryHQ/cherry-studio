@@ -33,9 +33,6 @@ overrides:
   '@napi-rs/canvas': 0.1.97
 
 patchedDependencies:
-  '@ai-sdk/google@3.0.43':
-    hash: 5e19ce06720cdbb9dfc24627e8d98fa832f5ef502c82c78efd5b48965e3a3837
-    path: patches/@ai-sdk__google@3.0.43.patch
   '@ai-sdk/openai-compatible@2.0.35':
     hash: 75058a2443f9c0eb3d44e09a419a2c9720e51329bbb174019c772e57521843f1
     path: patches/@ai-sdk__openai-compatible@2.0.35.patch
@@ -179,7 +176,7 @@ importers:
         version: 3.0.80(zod@4.3.4)
       '@ai-sdk/google':
         specifier: ^3.0.43
-        version: 3.0.43(patch_hash=5e19ce06720cdbb9dfc24627e8d98fa832f5ef502c82c78efd5b48965e3a3837)(zod@4.3.4)
+        version: 3.0.43(zod@4.3.4)
       '@ai-sdk/google-vertex':
         specifier: ^4.0.80
         version: 4.0.95(zod@4.3.4)
@@ -12817,7 +12814,7 @@ snapshots:
     transitivePeerDependencies:
       - supports-color
 
-  '@ai-sdk/google@3.0.43(patch_hash=5e19ce06720cdbb9dfc24627e8d98fa832f5ef502c82c78efd5b48965e3a3837)(zod@4.3.4)':
+  '@ai-sdk/google@3.0.43(zod@4.3.4)':
     dependencies:
       '@ai-sdk/provider': 3.0.8
       '@ai-sdk/provider-utils': 4.0.19(zod@4.3.4)
