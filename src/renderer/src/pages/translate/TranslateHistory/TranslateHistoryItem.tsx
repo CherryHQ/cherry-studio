@@ -62,7 +62,7 @@ export const TranslateHistoryItem = ({ data, onClick }: TranslateHistoryItemProp
           <div className="text-secondary text-xs">{preparedData.targetLang}</div>
         </div>
         {/* Tool bar */}
-        <div className="flex mt-2 items-center justify-end">
+        <div className="mt-2 flex items-center justify-end">
           <Button onClick={handleStar}>{preparedData.star ? <StarIcon fill="yellow" /> : <StarIcon />}</Button>
           <Popover>
             <PopoverTrigger>
