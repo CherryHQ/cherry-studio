@@ -17,32 +17,12 @@
 /**
  * Drizzle Kit configuration for agents database
  */
-
-import path from 'node:path'
-
 import { defineConfig } from 'drizzle-kit'
-import { app } from 'electron'
-
-function getDbPath() {
-  return path.join(app.getPath('userData'), 'Data', 'agents.db')
-}
-
-export function getOldDbPath() {
-  // production
-  return path.join(app.getPath('userData'), 'agents.db')
-}
-
-const resolvedDbPath = getDbPath()
-
-export const dbPath = resolvedDbPath
 
 export default defineConfig({
   dialect: 'sqlite',
   schema: './src/main/services/agents/database/schema/index.ts',
   out: './resources/database/drizzle',
-  dbCredentials: {
-    url: `file:${resolvedDbPath}`
-  },
   verbose: true,
   strict: true
 })
