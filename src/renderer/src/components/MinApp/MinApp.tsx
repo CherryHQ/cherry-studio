@@ -71,7 +71,7 @@ const MinApp: FC<Props> = ({ app, onClick, size = 60, isLast }) => {
         if (isPinned) {
           removePinnedMinapp(app.id)
         } else {
-          setPinnedMinappsDirect([...(pinned || []), app])
+          setPinnedMinappsDirect([...pinned, app])
         }
       }
     },

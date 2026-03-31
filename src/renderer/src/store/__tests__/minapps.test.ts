@@ -1,12 +1,9 @@
-import { describe, expect, it } from 'vitest'
-
 import minAppsReducer, {
+  type MinAppsState,
   removePinnedMinapp,
-  setPinnedMinApps,
-  type MinAppsState
-} from '@renderer/store/minapps'
-
+  setPinnedMinApps} from '@renderer/store/minapps'
 import type { MinAppType } from '@renderer/types'
+import { describe, expect, it } from 'vitest'
 
 // Test fixture factory
 const createApp = (id: string, name?: string): MinAppType => ({
