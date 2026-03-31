@@ -59,6 +59,7 @@ const logger = loggerService.withContext('ClaudeCodeService')
 const promptBuilder = new PromptBuilder()
 const DEFAULT_AUTO_ALLOW_TOOLS = new Set(['Read', 'Glob', 'Grep'])
 const IMAGE_MAX_DIMENSION = 2000
+const IMAGE_MAX_BYTES = 5 * 1024 * 1024 // 5MB API limit
 const shouldAutoApproveTools = process.env.CHERRY_AUTO_ALLOW_TOOLS === '1'
 const NO_RESUME_COMMANDS = ['/clear']
 
@@ -716,42 +717,58 @@ class ClaudeCodeService implements AgentServiceInterface {
   ): Promise<{ data: string; media_type: string }> {
     try {
       const { default: sharp } = await import('sharp')
-      const buffer = Buffer.from(base64Data, 'base64')
+      let buffer: Buffer = Buffer.from(base64Data, 'base64')
       const metadata = await sharp(buffer).metadata()
 
-      const width = metadata.width ?? 0
-      const height = metadata.height ?? 0
+      let width = metadata.width ?? 0
+      let height = metadata.height ?? 0
 
       const needsResize = width > IMAGE_MAX_DIMENSION || height > IMAGE_MAX_DIMENSION
+      const needsShrink = buffer.length > IMAGE_MAX_BYTES
       const needsConvert = mediaType !== 'image/png'
 
-      if (!needsResize && !needsConvert) {
+      if (!needsResize && !needsShrink && !needsConvert) {
         return { data: base64Data, media_type: mediaType }
       }
 
-      if (!needsResize) {
-        // Only convert format, no resize needed
-        const converted = await sharp(buffer).png().toBuffer()
-        logger.info('Converted image to PNG for Claude SDK', { original: mediaType })
-        return { data: converted.toString('base64'), media_type: 'image/png' }
+      // Step 1: Resize if dimensions exceed limit
+      if (needsResize) {
+        const scale = Math.min(IMAGE_MAX_DIMENSION / width, IMAGE_MAX_DIMENSION / height)
+        width = Math.round(width * scale)
+        height = Math.round(height * scale)
+        buffer = await sharp(buffer).resize(width, height, { fit: 'inside', withoutEnlargement: true }).png().toBuffer()
+        logger.info('Resized oversized image for Claude API', {
+          original: `${metadata.width}x${metadata.height}`,
+          resized: `${width}x${height}`
+        })
+      } else if (needsConvert || needsShrink) {
+        // Convert to PNG first (may reduce size for some formats)
+        buffer = await sharp(buffer).png().toBuffer()
       }
 
-      const scale = Math.min(IMAGE_MAX_DIMENSION / width, IMAGE_MAX_DIMENSION / height)
-      const newWidth = Math.round(width * scale)
-      const newHeight = Math.round(height * scale)
+      // Step 2: If still over 5MB, progressively scale down
+      let attempt = 0
+      while (buffer.length > IMAGE_MAX_BYTES && attempt < 5) {
+        attempt++
+        const shrinkFactor = 0.7
+        width = Math.round(width * shrinkFactor)
+        height = Math.round(height * shrinkFactor)
+        buffer = await sharp(buffer).resize(width, height, { fit: 'inside', withoutEnlargement: true }).png().toBuffer()
+        logger.info('Shrinking image to fit 5MB API limit', {
+          attempt,
+          size: `${(buffer.length / 1024 / 1024).toFixed(1)}MB`,
+          dimensions: `${width}x${height}`
+        })
+      }
 
-      const resizedBuffer = await sharp(buffer)
-        .resize(newWidth, newHeight, { fit: 'inside', withoutEnlargement: true })
-        .png()
-        .toBuffer()
-
-      logger.info('Resized oversized image for Claude API', {
-        original: `${width}x${height}`,
-        resized: `${newWidth}x${newHeight}`
-      })
+      if (buffer.length > IMAGE_MAX_BYTES) {
+        logger.warn('Image still exceeds 5MB after shrinking, passing through', {
+          size: `${(buffer.length / 1024 / 1024).toFixed(1)}MB`
+        })
+      }
 
       return {
-        data: resizedBuffer.toString('base64'),
+        data: buffer.toString('base64'),
         media_type: 'image/png'
       }
     } catch (error) {
