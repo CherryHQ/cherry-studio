@@ -6,7 +6,7 @@
  * is performed by the ORM-derived Zod schema in userProvider.ts (main process).
  */
 
-import type { EndpointType } from '../../types/model'
+import type { EndpointType, Model } from '../../types/model'
 import type { ApiFeatures, ApiKeyEntry, AuthConfig, Provider, ProviderSettings } from '../../types/provider'
 
 export interface ListProvidersQuery {
@@ -125,6 +125,17 @@ export interface ProviderSchemas {
       params: { providerId: string }
       body: { key: string; label?: string }
       response: Provider
+    }
+  }
+
+  /**
+   * Get all catalog preset models for a provider (read-only, no DB writes)
+   * @example GET /providers/openai/catalog-models
+   */
+  '/providers/:providerId/catalog-models': {
+    GET: {
+      params: { providerId: string }
+      response: Model[]
     }
   }
 }

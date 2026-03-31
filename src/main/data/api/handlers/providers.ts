@@ -10,6 +10,7 @@
  */
 
 import { userProviderInsertSchema } from '@data/db/schemas/userProvider'
+import { catalogService } from '@data/services/ProviderCatalogService'
 import { providerService } from '@data/services/ProviderService'
 import type { ApiHandler, ApiMethods } from '@shared/data/api/apiTypes'
 import type { CreateProviderDto, ListProvidersQuery, UpdateProviderDto } from '@shared/data/api/schemas/providers'
@@ -81,6 +82,12 @@ export const providerHandlers: {
         throw new Error('API key value is required')
       }
       return await providerService.addApiKey(params.providerId, key, label)
+    }
+  },
+
+  '/providers/:providerId/catalog-models': {
+    GET: async ({ params }) => {
+      return catalogService.getCatalogModelsForProvider(params.providerId)
     }
   }
 }

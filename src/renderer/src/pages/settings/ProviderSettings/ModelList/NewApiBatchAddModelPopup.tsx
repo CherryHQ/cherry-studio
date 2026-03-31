@@ -1,11 +1,11 @@
 import { Flex } from '@cherrystudio/ui'
 import { Button } from '@cherrystudio/ui'
+import { dataApiService } from '@data/DataApiService'
+import { useInvalidateCache } from '@data/hooks/useDataApi'
 import { TopView } from '@renderer/components/TopView'
 import { endpointTypeOptions } from '@renderer/config/endpointTypes'
-import { isNotSupportTextDeltaModel } from '@renderer/config/models'
 import { useDynamicLabelWidth } from '@renderer/hooks/useDynamicLabelWidth'
-import { useProvider } from '@renderer/hooks/useProvider'
-import type { EndpointType, Model, Provider } from '@renderer/types'
+import { parseUniqueModelId } from '@shared/data/types/model'
 import type { FormProps } from 'antd'
 import { Form, Modal, Select } from 'antd'
 import { useState } from 'react'
@@ -13,8 +13,8 @@ import { useTranslation } from 'react-i18next'
 
 interface ShowParams {
   title: string
-  provider: Provider
-  batchModels: Model[]
+  provider: any
+  batchModels: any[]
 }
 
 interface Props extends ShowParams {
@@ -24,13 +24,13 @@ interface Props extends ShowParams {
 type FieldType = {
   provider: string
   group?: string
-  endpointType?: EndpointType
+  endpointType?: number | string
 }
 
 const PopupContainer: React.FC<Props> = ({ title, provider, resolve, batchModels }) => {
   const [open, setOpen] = useState(true)
   const [form] = Form.useForm()
-  const { addModel } = useProvider(provider.id)
+  const invalidate = useInvalidateCache()
   const { t } = useTranslation()
 
   const onOk = () => {
@@ -42,22 +42,28 @@ const PopupContainer: React.FC<Props> = ({ title, provider, resolve, batchModels
   }
 
   const onClose = () => {
+    invalidate('/models')
     resolve({})
   }
 
-  const onAddModel = (values: FieldType) => {
-    batchModels.forEach((model) => {
-      addModel({
-        ...model,
-        endpoint_type: values.endpointType,
-        supported_text_delta: !isNotSupportTextDeltaModel(model)
+  const onAddModel = async (values: FieldType) => {
+    for (const model of batchModels) {
+      const modelId = model.apiModelId ?? parseUniqueModelId(model.id).modelId
+      await dataApiService.post('/models' as any, {
+        body: {
+          providerId: provider.id,
+          modelId,
+          name: model.name,
+          group: model.group,
+          endpointTypes: values.endpointType ? [values.endpointType] : undefined
+        }
       })
-    })
+    }
     return true
   }
 
-  const onFinish: FormProps<FieldType>['onFinish'] = (values) => {
-    if (onAddModel(values)) {
+  const onFinish: FormProps<FieldType>['onFinish'] = async (values) => {
+    if (await onAddModel(values)) {
       resolve({})
     }
   }

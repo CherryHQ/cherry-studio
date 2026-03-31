@@ -1,19 +1,19 @@
 import { Flex } from '@cherrystudio/ui'
 import { Button } from '@cherrystudio/ui'
+import { dataApiService } from '@data/DataApiService'
+import { useInvalidateCache, useQuery } from '@data/hooks/useDataApi'
 import { TopView } from '@renderer/components/TopView'
-import { isNotSupportTextDeltaModel } from '@renderer/config/models'
-import { useProvider } from '@renderer/hooks/useProvider'
-import type { Model, Provider } from '@renderer/types'
 import { getDefaultGroupName } from '@renderer/utils'
+import type { Model } from '@shared/data/types/model'
+import type { Provider } from '@shared/data/types/provider'
 import type { FormProps } from 'antd'
 import { Form, Input, Modal } from 'antd'
-import { find } from 'lodash'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 interface ShowParams {
   title: string
-  provider: Provider
+  provider: Provider | any
 }
 
 interface Props extends ShowParams {
@@ -30,7 +30,10 @@ type FieldType = {
 const PopupContainer: React.FC<Props> = ({ title, provider, resolve }) => {
   const [open, setOpen] = useState(true)
   const [form] = Form.useForm()
-  const { addModel, models } = useProvider(provider.id)
+  const { data: models = [] } = useQuery('/models' as any, { query: { providerId: provider.id } }) as {
+    data: Model[]
+  }
+  const invalidate = useInvalidateCache()
   const { t } = useTranslation()
 
   const onOk = () => {
@@ -42,40 +45,43 @@ const PopupContainer: React.FC<Props> = ({ title, provider, resolve }) => {
   }
 
   const onClose = () => {
+    invalidate('/models')
     resolve({})
   }
 
-  const onAddModel = (values: FieldType) => {
-    const id = values.id.trim()
+  const onAddModel = async (values: FieldType) => {
+    const modelId = values.id.trim()
 
-    if (find(models, { id })) {
+    if (models.some((m) => m.id.endsWith(`::${modelId}`))) {
       window.toast.error(t('error.model.exists'))
       return
     }
 
-    const model: Model = {
-      id,
-      provider: provider.id,
-      name: values.name ? values.name : id.toUpperCase(),
-      group: values.group ?? getDefaultGroupName(id)
-    }
-
-    addModel({ ...model, supported_text_delta: !isNotSupportTextDeltaModel(model) })
+    await dataApiService.post('/models' as any, {
+      body: {
+        providerId: provider.id,
+        modelId,
+        name: values.name ? values.name : modelId.toUpperCase(),
+        group: values.group ?? getDefaultGroupName(modelId)
+      }
+    })
 
     return true
   }
 
-  const onFinish: FormProps<FieldType>['onFinish'] = (values) => {
+  const onFinish: FormProps<FieldType>['onFinish'] = async (values) => {
     const id = values.id.trim().replaceAll('，', ',')
 
     if (id.includes(',')) {
       const ids = id.split(',')
-      ids.forEach((id) => onAddModel({ id, name: id } as FieldType))
+      for (const singleId of ids) {
+        await onAddModel({ id: singleId, name: singleId } as FieldType)
+      }
       resolve({})
       return
     }
 
-    if (onAddModel(values)) {
+    if (await onAddModel(values)) {
       resolve({})
     }
   }

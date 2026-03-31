@@ -1,4 +1,6 @@
 import { Button, Flex, RowFlex, Tooltip } from '@cherrystudio/ui'
+import { dataApiService } from '@data/DataApiService'
+import { useInvalidateCache, useQuery } from '@data/hooks/useDataApi'
 import { loggerService } from '@logger'
 import { LoadingIcon } from '@renderer/components/Icons'
 import { TopView } from '@renderer/components/TopView'
@@ -6,21 +8,20 @@ import {
   groupQwenModels,
   isEmbeddingModel,
   isFunctionCallingModel,
-  isNotSupportTextDeltaModel,
   isReasoningModel,
   isRerankModel,
   isVisionModel,
-  isWebSearchModel,
-  SYSTEM_MODELS
+  isWebSearchModel
 } from '@renderer/config/models'
-import { useProvider } from '@renderer/hooks/useProvider'
 import NewApiAddModelPopup from '@renderer/pages/settings/ProviderSettings/ModelList/NewApiAddModelPopup'
 import NewApiBatchAddModelPopup from '@renderer/pages/settings/ProviderSettings/ModelList/NewApiBatchAddModelPopup'
 import { fetchModels } from '@renderer/services/ApiService'
-import type { Model, Provider } from '@renderer/types'
-import { filterModelsByKeywords, getFancyProviderName } from '@renderer/utils'
+import { filterModelsByKeywords } from '@renderer/utils'
 import { isFreeModel } from '@renderer/utils/model'
-import { isNewApiProvider } from '@renderer/utils/provider'
+import { getFancyProviderName, isNewApiProvider } from '@renderer/utils/provider.v2'
+import type { Model } from '@shared/data/types/model'
+import { parseUniqueModelId } from '@shared/data/types/model'
+import type { Provider } from '@shared/data/types/provider'
 import { Empty, Modal, Spin, Tabs } from 'antd'
 import Input from 'antd/es/input/Input'
 import { groupBy, isEmpty, uniqBy } from 'lodash'
@@ -31,7 +32,7 @@ import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
 import ManageModelsList from './ManageModelsList'
-import { isModelInProvider, isValidNewApiModel } from './utils'
+import { isValidNewApiModel } from './utils'
 
 const logger = loggerService.withContext('ManageModelsPopup')
 
@@ -45,7 +46,13 @@ interface Props extends ShowParams {
 
 const PopupContainer: React.FC<Props> = ({ providerId, resolve }) => {
   const [open, setOpen] = useState(true)
-  const { provider, models, addModel, removeModel } = useProvider(providerId)
+  const { data: provider } = useQuery(`/providers/${providerId}` as any) as { data: Provider | undefined }
+  const { data: existingModels = [] } = useQuery('/models' as any, { query: { providerId } }) as { data: Model[] }
+  const { data: catalogModels = [] } = useQuery(`/providers/${providerId}/catalog-models` as any) as {
+    data: Model[]
+  }
+  const invalidate = useInvalidateCache()
+  const existingModelIds = useMemo(() => new Set<string>(existingModels.map((m) => m.id)), [existingModels])
   const [listModels, setListModels] = useState<Model[]>([])
   const [loadingModels, setLoadingModels] = useState(false)
   const [searchText, setSearchText] = useState('')
@@ -74,17 +81,20 @@ const PopupContainer: React.FC<Props> = ({ providerId, resolve }) => {
   const { t, i18n } = useTranslation()
   const searchInputRef = useRef<any>(null)
 
-  const systemModels = SYSTEM_MODELS[provider.id] || []
-  const allModels = uniqBy([...systemModels, ...listModels, ...models], 'id')
+  // v2 three-way merge: catalog + remote-fetched + existing DB models
+  const allModels = useMemo(
+    () => uniqBy([...catalogModels, ...listModels, ...existingModels], 'id'),
+    [catalogModels, listModels, existingModels]
+  )
 
   const isLoading = useMemo(
     () => loadingModels || isFilterTypePending || isSearchPending,
     [loadingModels, isFilterTypePending, isSearchPending]
   )
 
-  const list = useMemo(
+  const list: any[] = useMemo(
     () =>
-      filterModelsByKeywords(filterSearchText, allModels).filter((model) => {
+      filterModelsByKeywords(filterSearchText, allModels as any).filter((model: any) => {
         switch (actualFilterType) {
           case 'reasoning':
             return isReasoningModel(model)
@@ -109,7 +119,7 @@ const PopupContainer: React.FC<Props> = ({ providerId, resolve }) => {
 
   const modelGroups = useMemo(
     () =>
-      provider.id === 'dashscope'
+      provider?.id === 'dashscope'
         ? {
             ...groupBy(
               list.filter((model) => !model.id.startsWith('qwen')),
@@ -118,7 +128,7 @@ const PopupContainer: React.FC<Props> = ({ providerId, resolve }) => {
             ...groupQwenModels(list.filter((model) => model.id.startsWith('qwen')))
           }
         : groupBy(list, 'group'),
-    [list, provider.id]
+    [list, provider?.id]
   )
 
   const onOk = useCallback(() => setOpen(false), [])
@@ -128,74 +138,109 @@ const PopupContainer: React.FC<Props> = ({ providerId, resolve }) => {
   const onClose = useCallback(() => resolve({}), [resolve])
 
   const onAddModel = useCallback(
-    (model: Model) => {
-      if (!isEmpty(model.name)) {
+    async (model: Model) => {
+      if (!isEmpty(model.name) && provider) {
+        const { modelId } = parseUniqueModelId(model.id)
         if (isNewApiProvider(provider)) {
-          const endpointTypes = model.supported_endpoint_types
+          const endpointTypes = model.endpointTypes
           if (endpointTypes && endpointTypes.length > 0) {
-            addModel({
-              ...model,
-              endpoint_type: endpointTypes.includes('image-generation') ? 'image-generation' : endpointTypes[0],
-              supported_text_delta: !isNotSupportTextDeltaModel(model)
+            await dataApiService.post('/models' as any, {
+              body: { providerId, modelId, name: model.name, group: model.group, endpointTypes }
             })
+            await invalidate('/models')
           } else {
-            NewApiAddModelPopup.show({ title: t('settings.models.add.add_model'), provider, model })
+            NewApiAddModelPopup.show({
+              title: t('settings.models.add.add_model'),
+              provider: provider as any,
+              model: model as any
+            })
           }
         } else {
-          addModel({ ...model, supported_text_delta: !isNotSupportTextDeltaModel(model) })
+          await dataApiService.post('/models' as any, {
+            body: { providerId, modelId, name: model.name, group: model.group }
+          })
+          await invalidate('/models')
         }
       }
     },
-    [addModel, provider, t]
+    [provider, providerId, invalidate, t]
   )
 
-  const onRemoveModel = useCallback((model: Model) => removeModel(model), [removeModel])
+  const onRemoveModel = useCallback(
+    async (model: Model) => {
+      const { modelId } = parseUniqueModelId(model.id)
+      await dataApiService.delete(`/models/${providerId}/${modelId}` as any)
+      await invalidate('/models')
+    },
+    [providerId, invalidate]
+  )
 
   const onRemoveAll = useCallback(() => {
-    list.filter((model) => isModelInProvider(provider, model.id)).forEach(onRemoveModel)
-  }, [list, onRemoveModel, provider])
+    list.filter((model) => existingModelIds.has(model.id)).forEach((m) => onRemoveModel(m))
+  }, [list, onRemoveModel, existingModelIds])
 
   const onAddAll = useCallback(() => {
-    const wouldAddModel = list.filter((model) => !isModelInProvider(provider, model.id))
+    const wouldAddModel = list.filter((model) => !existingModelIds.has(model.id))
     window.modal.confirm({
       title: t('settings.models.manage.add_listed.label'),
       content: t('settings.models.manage.add_listed.confirm'),
       centered: true,
       onOk: () => {
-        if (isNewApiProvider(provider)) {
-          if (models.every(isValidNewApiModel)) {
-            wouldAddModel.forEach(onAddModel)
+        if (provider && isNewApiProvider(provider)) {
+          if (existingModels.every((m: any) => isValidNewApiModel(m))) {
+            wouldAddModel.forEach((m) => onAddModel(m))
           } else {
             NewApiBatchAddModelPopup.show({
               title: t('settings.models.add.batch_add_models'),
-              batchModels: wouldAddModel,
-              provider
+              batchModels: wouldAddModel as any,
+              provider: provider as any
             })
           }
         } else {
-          wouldAddModel.forEach(onAddModel)
+          wouldAddModel.forEach((m) => onAddModel(m))
         }
       }
     })
-  }, [list, models, onAddModel, provider, t])
+  }, [list, existingModels, existingModelIds, onAddModel, provider, t])
 
-  const loadModels = useCallback(async (provider: Provider) => {
-    setLoadingModels(true)
-    try {
-      const models = await fetchModels(provider)
-      const filteredModels = models.filter((model) => !isEmpty(model.name))
-      setListModels(filteredModels)
-    } catch (error) {
-      logger.error(`Failed to load models for provider ${getFancyProviderName(provider)}`, error as Error)
-    } finally {
-      setLoadingModels(false)
-    }
-  }, [])
+  const loadModels = useCallback(
+    async (prov: Provider) => {
+      setLoadingModels(true)
+      try {
+        // fetchModels still uses v1 types internally; cast for compatibility
+        const fetched = await fetchModels(prov as any)
+        const filteredModels = fetched.filter((model: any) => !isEmpty(model.name))
+        // Resolve fetched models against catalog via POST /models/resolve
+        try {
+          const resolved = await dataApiService.post('/models/resolve' as any, {
+            body: {
+              providerId,
+              models: filteredModels.map((m: any) => ({
+                modelId: m.id,
+                name: m.name,
+                group: m.group,
+                description: m.description
+              }))
+            }
+          })
+          setListModels(resolved as Model[])
+        } catch {
+          // Fallback: use raw fetched models (cast to v2 Model[])
+          setListModels(filteredModels as unknown as Model[])
+        }
+      } catch (error) {
+        logger.error(`Failed to load models for provider ${getFancyProviderName(prov)}`, error as Error)
+      } finally {
+        setLoadingModels(false)
+      }
+    },
+    [providerId]
+  )
 
   useEffect(() => {
-    loadModels(provider)
+    if (provider) loadModels(provider)
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
+  }, [provider?.id])
 
   useEffect(() => {
     if (open && searchInputRef.current) {
@@ -214,7 +259,7 @@ const PopupContainer: React.FC<Props> = ({ providerId, resolve }) => {
     return (
       <Flex>
         <ModelHeaderTitle>
-          {getFancyProviderName(provider)}
+          {provider ? getFancyProviderName(provider) : ''}
           {i18n.language.startsWith('zh') ? '' : ' '}
           {t('common.models')}
         </ModelHeaderTitle>
@@ -223,7 +268,7 @@ const PopupContainer: React.FC<Props> = ({ providerId, resolve }) => {
   }
 
   const renderTopTools = useCallback(() => {
-    const isAllFilteredInProvider = list.length > 0 && list.every((model) => isModelInProvider(provider, model.id))
+    const isAllFilteredInProvider = list.length > 0 && list.every((model) => existingModelIds.has(model.id))
 
     return (
       <RowFlex className="gap-2">
@@ -244,13 +289,17 @@ const PopupContainer: React.FC<Props> = ({ providerId, resolve }) => {
           </Button>
         </Tooltip>
         <Tooltip content={t('settings.models.manage.refetch_list')} closeDelay={0}>
-          <Button variant="ghost" size="icon-lg" onClick={() => loadModels(provider)} disabled={loadingModels}>
+          <Button
+            variant="ghost"
+            size="icon-lg"
+            onClick={() => provider && loadModels(provider)}
+            disabled={loadingModels}>
             <RefreshCcw size={16} />
           </Button>
         </Tooltip>
       </RowFlex>
     )
-  }, [list, t, loadingModels, provider, onRemoveAll, onAddAll, loadModels])
+  }, [list, t, loadingModels, provider, existingModelIds, onRemoveAll, onAddAll, loadModels])
 
   return (
     <Modal
@@ -327,10 +376,10 @@ const PopupContainer: React.FC<Props> = ({ providerId, resolve }) => {
             />
           ) : (
             <ManageModelsList
-              modelGroups={modelGroups}
-              provider={provider}
-              onAddModel={onAddModel}
-              onRemoveModel={onRemoveModel}
+              modelGroups={modelGroups as any}
+              provider={provider as any}
+              onAddModel={onAddModel as any}
+              onRemoveModel={onRemoveModel as any}
             />
           )}
         </ListContainer>

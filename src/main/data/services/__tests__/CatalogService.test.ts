@@ -457,4 +457,63 @@ describe('CatalogService', () => {
       expect(result.catalogOverride).toBeNull()
     })
   })
+
+  // ─── getCatalogModelsForProvider ──────────────────────────────────────────
+
+  describe('getCatalogModelsForProvider', () => {
+    it('returns merged models for a provider with overrides', () => {
+      const models = [
+        makeModelConfig({ id: 'gpt-4o', name: 'GPT-4o' }),
+        makeModelConfig({ id: 'gpt-4o-mini', name: 'GPT-4o Mini' })
+      ]
+      const overrides = [
+        makeProviderModelOverride({ providerId: 'openai', modelId: 'gpt-4o' }),
+        makeProviderModelOverride({ providerId: 'openai', modelId: 'gpt-4o-mini' })
+      ]
+      mockCatalogData({ models, overrides, providers: [{ id: 'openai', name: 'OpenAI' }] })
+
+      const svc = CatalogService.getInstance()
+      const result = svc.getCatalogModelsForProvider('openai')
+
+      expect(result).toHaveLength(2)
+      expect(result[0].providerId).toBe('openai')
+      expect(result[0].id).toContain('openai')
+    })
+
+    it('returns empty array when no overrides exist for provider', () => {
+      const models = [makeModelConfig({ id: 'gpt-4o', name: 'GPT-4o' })]
+      mockCatalogData({ models, overrides: [], providers: [] })
+
+      const svc = CatalogService.getInstance()
+      const result = svc.getCatalogModelsForProvider('nonexistent')
+
+      expect(result).toEqual([])
+    })
+
+    it('skips models when base model is not found in catalog', () => {
+      const models = [makeModelConfig({ id: 'gpt-4o', name: 'GPT-4o' })]
+      const overrides = [
+        makeProviderModelOverride({ providerId: 'openai', modelId: 'gpt-4o' }),
+        makeProviderModelOverride({ providerId: 'openai', modelId: 'nonexistent-model' })
+      ]
+      mockCatalogData({ models, overrides, providers: [{ id: 'openai', name: 'OpenAI' }] })
+
+      const svc = CatalogService.getInstance()
+      const result = svc.getCatalogModelsForProvider('openai')
+
+      expect(result).toHaveLength(1)
+      expect(result[0].name).toBe('GPT-4o')
+    })
+
+    it('does NOT call batchUpsert (read-only operation)', () => {
+      const models = [makeModelConfig({ id: 'gpt-4o', name: 'GPT-4o' })]
+      const overrides = [makeProviderModelOverride({ providerId: 'openai', modelId: 'gpt-4o' })]
+      mockCatalogData({ models, overrides, providers: [{ id: 'openai', name: 'OpenAI' }] })
+
+      const svc = CatalogService.getInstance()
+      svc.getCatalogModelsForProvider('openai')
+
+      expect(modelService.batchUpsert).not.toHaveBeenCalled()
+    })
+  })
 })

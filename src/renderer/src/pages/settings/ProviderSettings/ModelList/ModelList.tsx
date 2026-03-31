@@ -1,9 +1,10 @@
 import { Button, ColFlex, Flex, RowFlex, Tooltip } from '@cherrystudio/ui'
+import { dataApiService } from '@data/DataApiService'
+import { useInvalidateCache, useQuery } from '@data/hooks/useDataApi'
 import CollapsibleSearchBar from '@renderer/components/CollapsibleSearchBar'
 import { LoadingIcon, StreamlineGoodHealthAndWellBeing } from '@renderer/components/Icons'
 import CustomTag from '@renderer/components/Tags/CustomTag'
 import { PROVIDER_URLS } from '@renderer/config/providers'
-import { useProvider } from '@renderer/hooks/useProvider'
 import { getProviderLabel } from '@renderer/i18n/label'
 import { SettingHelpLink, SettingHelpText, SettingHelpTextRow, SettingSubtitle } from '@renderer/pages/settings'
 import EditModelPopup from '@renderer/pages/settings/ProviderSettings/EditModelPopup/EditModelPopup'
@@ -11,9 +12,11 @@ import AddModelPopup from '@renderer/pages/settings/ProviderSettings/ModelList/A
 import DownloadOVMSModelPopup from '@renderer/pages/settings/ProviderSettings/ModelList/DownloadOVMSModelPopup'
 import ManageModelsPopup from '@renderer/pages/settings/ProviderSettings/ModelList/ManageModelsPopup'
 import NewApiAddModelPopup from '@renderer/pages/settings/ProviderSettings/ModelList/NewApiAddModelPopup'
-import type { Model } from '@renderer/types'
 import { filterModelsByKeywords } from '@renderer/utils'
-import { isNewApiProvider } from '@renderer/utils/provider'
+import { isNewApiProvider } from '@renderer/utils/provider.v2'
+import type { Model } from '@shared/data/types/model'
+import { parseUniqueModelId } from '@shared/data/types/model'
+import type { Provider } from '@shared/data/types/provider'
 import { Spin } from 'antd'
 import { groupBy, isEmpty, sortBy, toPairs } from 'lodash'
 import { ListCheck, Plus } from 'lucide-react'
@@ -34,7 +37,7 @@ const MODEL_COUNT_THRESHOLD = 10
  * 根据搜索文本筛选模型、分组并排序
  */
 const calculateModelGroups = (models: Model[], searchText: string): ModelGroups => {
-  const filteredModels = searchText ? filterModelsByKeywords(searchText, models) : models
+  const filteredModels = searchText ? filterModelsByKeywords(searchText, models as any) : models
   const grouped = groupBy(filteredModels, 'group')
   return sortBy(toPairs(grouped), [0]).reduce((acc, [key, value]) => {
     acc[key] = value
@@ -47,14 +50,28 @@ const calculateModelGroups = (models: Model[], searchText: string): ModelGroups 
  */
 const ModelList: React.FC<ModelListProps> = ({ providerId }) => {
   const { t } = useTranslation()
-  const { provider, models, removeModel } = useProvider(providerId)
+  const { data: provider } = useQuery(`/providers/${providerId}` as any) as { data: Provider | undefined }
+  const { data: models = [] } = useQuery('/models' as any, { query: { providerId } }) as { data: Model[] }
+  const invalidate = useInvalidateCache()
+
+  const removeModel = useCallback(
+    async (model: Model) => {
+      const { modelId } = parseUniqueModelId(model.id)
+      await dataApiService.delete(`/models/${model.providerId}/${modelId}` as any)
+      await invalidate('/models')
+    },
+    [invalidate]
+  )
 
   // 稳定的编辑模型回调，避免内联函数导致子组件 memo 失效
-  const handleEditModel = useCallback((model: Model) => EditModelPopup.show({ provider, model }), [provider])
+  const handleEditModel = useCallback(
+    (model: Model) => provider && EditModelPopup.show({ provider: provider as any, model: model as any }),
+    [provider]
+  )
 
-  const providerConfig = PROVIDER_URLS[provider.id]
-  const docsWebsite = providerConfig?.websites?.docs
-  const modelsWebsite = providerConfig?.websites?.models
+  const providerConfig = provider ? PROVIDER_URLS[provider.id as keyof typeof PROVIDER_URLS] : undefined
+  const docsWebsite = provider?.websites?.docs ?? providerConfig?.websites?.docs
+  const modelsWebsite = provider?.websites?.models ?? providerConfig?.websites?.models
 
   const [searchText, _setSearchText] = useState('')
   const [displayedModelGroups, setDisplayedModelGroups] = useState<ModelGroups | null>(() => {
@@ -64,7 +81,7 @@ const ModelList: React.FC<ModelListProps> = ({ providerId }) => {
     return calculateModelGroups(models, '')
   })
 
-  const { isChecking: isHealthChecking, modelStatuses, runHealthCheck } = useHealthCheck(provider, models)
+  const { isChecking: isHealthChecking, modelStatuses, runHealthCheck } = useHealthCheck(provider as any, models as any)
 
   // 将 modelStatuses 数组转换为 Map，实现 O(1) 查找
   const modelStatusMap = useMemo(() => {
@@ -92,19 +109,20 @@ const ModelList: React.FC<ModelListProps> = ({ providerId }) => {
   }, [displayedModelGroups])
 
   const onManageModel = useCallback(() => {
-    ManageModelsPopup.show({ providerId: provider.id })
-  }, [provider.id])
+    if (provider) ManageModelsPopup.show({ providerId: provider.id })
+  }, [provider])
 
   const onAddModel = useCallback(() => {
+    if (!provider) return
     if (isNewApiProvider(provider)) {
-      NewApiAddModelPopup.show({ title: t('settings.models.add.add_model'), provider })
+      NewApiAddModelPopup.show({ title: t('settings.models.add.add_model'), provider: provider as any })
     } else {
-      AddModelPopup.show({ title: t('settings.models.add.add_model'), provider })
+      AddModelPopup.show({ title: t('settings.models.add.add_model'), provider: provider as any })
     }
   }, [provider, t])
 
   const onDownloadModel = useCallback(
-    () => DownloadOVMSModelPopup.show({ title: t('ovms.download.title'), provider }),
+    () => provider && DownloadOVMSModelPopup.show({ title: t('ovms.download.title'), provider: provider as any }),
     [provider, t]
   )
 
@@ -143,11 +161,11 @@ const ModelList: React.FC<ModelListProps> = ({ providerId }) => {
               <ModelListGroup
                 key={group}
                 groupName={group}
-                models={displayedModelGroups[group]}
-                modelStatusMap={modelStatusMap}
+                models={displayedModelGroups[group] as any}
+                modelStatusMap={modelStatusMap as any}
                 defaultOpen={i <= 5}
-                onEditModel={handleEditModel}
-                onRemoveModel={removeModel}
+                onEditModel={handleEditModel as any}
+                onRemoveModel={removeModel as any}
                 onRemoveGroup={() => displayedModelGroups[group].forEach((model) => removeModel(model))}
               />
             ))}
@@ -160,7 +178,7 @@ const ModelList: React.FC<ModelListProps> = ({ providerId }) => {
             <SettingHelpText>{t('settings.provider.docs_check')} </SettingHelpText>
             {docsWebsite && (
               <SettingHelpLink target="_blank" href={docsWebsite}>
-                {getProviderLabel(provider.id) + ' '}
+                {getProviderLabel(provider?.id ?? '') + ' '}
                 {t('common.docs')}
               </SettingHelpLink>
             )}
@@ -181,7 +199,7 @@ const ModelList: React.FC<ModelListProps> = ({ providerId }) => {
           <ListCheck fill="currentColor" size={16} />
           {t('button.manage')}
         </Button>
-        {provider.id !== 'ovms' ? (
+        {provider?.id !== 'ovms' ? (
           <Button variant="default" onClick={onAddModel} disabled={isHealthChecking}>
             <Plus size={16} />
             {t('button.add')}

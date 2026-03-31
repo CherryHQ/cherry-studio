@@ -542,6 +542,40 @@ export class CatalogService {
   }
 
   /**
+   * Get all catalog preset models for a specific provider (read-only).
+   *
+   * Unlike initializeProvider, this does NOT write to the database.
+   * Used by the renderer to display available models before the user adds them.
+   */
+  getCatalogModelsForProvider(providerId: string): Model[] {
+    const catalogModels = this.loadCatalogModels()
+    const providerModels = this.loadProviderModels()
+    const reasoningFormatType = this.getReasoningFormatType(providerId)
+
+    const overrides = providerModels.filter((pm) => pm.providerId === providerId)
+    if (overrides.length === 0) {
+      return []
+    }
+
+    const modelMap = new Map<string, ProtoModelConfig>()
+    for (const model of catalogModels) {
+      modelMap.set(model.id, model)
+    }
+
+    const results: Model[] = []
+    for (const override of overrides) {
+      const baseModel = modelMap.get(override.modelId) ?? null
+      if (!baseModel) {
+        logger.warn('Base model not found for catalog override', { providerId, modelId: override.modelId })
+        continue
+      }
+      results.push(mergeModelConfig(null, override, baseModel, providerId, reasoningFormatType))
+    }
+
+    return results
+  }
+
+  /**
    * Clear cached catalog data
    */
   clearCache(): void {
