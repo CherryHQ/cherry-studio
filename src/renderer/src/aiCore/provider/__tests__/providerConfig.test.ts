@@ -59,7 +59,6 @@ vi.mock('@renderer/hooks/useAwsBedrock', () => ({
   getAwsBedrockRegion: vi.fn(() => 'us-east-1')
 }))
 
-import type { AmazonBedrockProviderSettings } from '@ai-sdk/amazon-bedrock'
 import type { GoogleVertexProviderSettings } from '@ai-sdk/google-vertex/edge'
 import type { OpenAICompatibleProviderSettings } from '@ai-sdk/openai-compatible'
 import type { CherryInProviderSettings } from '@cherrystudio/ai-sdk-provider'
@@ -706,7 +705,7 @@ describe('providerToAiSdkConfig', () => {
       )) as ProviderConfig<'bedrock'>
 
       expect(config.providerId).toBe('bedrock')
-      const settings = config.providerSettings as AmazonBedrockProviderSettings
+      const settings = config.providerSettings
       expect(settings.region).toBe('us-east-1')
       expect(settings.apiKey).toBe('bedrock-api-key')
     })
@@ -726,7 +725,7 @@ describe('providerToAiSdkConfig', () => {
       )) as ProviderConfig<'bedrock'>
 
       expect(config.providerId).toBe('bedrock')
-      const settings = config.providerSettings as AmazonBedrockProviderSettings
+      const settings = config.providerSettings
       expect(settings.accessKeyId).toBe('AKID_TEST')
       expect(settings.secretAccessKey).toBe('SECRET_TEST')
     })

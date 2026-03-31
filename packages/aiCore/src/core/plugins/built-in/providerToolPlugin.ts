@@ -19,7 +19,7 @@ export const providerToolPlugin = (capability: ToolCapability, config: Record<st
 
       const modelProvider =
         context.model && typeof context.model !== 'string' && 'provider' in context.model
-          ? (context.model.provider as string)
+          ? context.model.provider
           : undefined
 
       const resolved = await extensionRegistry.resolveToolCapability(providerId, capability, modelProvider)

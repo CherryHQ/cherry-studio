@@ -112,7 +112,7 @@ export default class AiProvider {
     // Config is now set in constructor, ApiService handles key rotation before passing provider
     if (!this.config) {
       // If config wasn't set in constructor (when provider only), generate it now
-      this.config = await Promise.resolve(providerToAiSdkConfig(this.actualProvider, this.model!))
+      this.config = await Promise.resolve(providerToAiSdkConfig(this.actualProvider, this.model))
     }
     logger.debug('Using provider config for completions', this.config)
 
@@ -140,7 +140,7 @@ export default class AiProvider {
         ...middlewareConfig,
         topicId: middlewareConfig.topicId
       }
-      return await this._completionsForTrace(modelId, params, traceConfig, this.config!)
+      return await this._completionsForTrace(modelId, params, traceConfig, this.config)
     } else {
       return await this.modernCompletions(modelId, params, middlewareConfig, this.config)
     }
