@@ -221,7 +221,7 @@ class CodeToolsService {
     this.openCodeConfigBackups.set(configPath, backupContent)
 
     // config with env variable Build CherryStudio provider reference for security
-    const envVarKey = `OPENCODE_API_KEY_${providerName.toUpperCase().replace(/-/g, '_')}`
+    const envVarKey = `OPENCODE_API_KEY_${providerName.toUpperCase().replace(/[-.]/g, '_')}`
     const cherryProviderConfig = {
       npm: npmPackage,
       name: dynamicProviderName,
