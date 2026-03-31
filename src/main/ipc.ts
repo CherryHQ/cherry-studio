@@ -256,6 +256,8 @@ export async function registerIpc(mainWindow: BrowserWindow, app: Electron.App) 
     }
   })
 
+  ipcMain.handle(IpcChannel.App_GetLogLevel, () => configManager.getLogLevel())
+
   ipcMain.handle(IpcChannel.App_SetLogLevel, (_, level: LogLevel) => {
     logger.info(`set log level: ${level}`)
     loggerService.setLevel(level)

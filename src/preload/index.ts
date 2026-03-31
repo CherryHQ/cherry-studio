@@ -123,6 +123,7 @@ const api = {
     ipcRenderer.invoke(IpcChannel.App_HandleZoomFactor, delta, reset),
   setAutoUpdate: (isActive: boolean) => ipcRenderer.invoke(IpcChannel.App_SetAutoUpdate, isActive),
   setLogLevel: (level: LogLevel) => ipcRenderer.invoke(IpcChannel.App_SetLogLevel, level),
+  getLogLevel: (): Promise<LogLevel> => ipcRenderer.invoke(IpcChannel.App_GetLogLevel),
   select: (options: Electron.OpenDialogOptions) => ipcRenderer.invoke(IpcChannel.App_Select, options),
   hasWritePermission: (path: string) => ipcRenderer.invoke(IpcChannel.App_HasWritePermission, path),
   resolvePath: (path: string) => ipcRenderer.invoke(IpcChannel.App_ResolvePath, path),
