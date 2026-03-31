@@ -26,6 +26,11 @@ export const createThinkingCallbacks = (deps: ThinkingCallbacksDependencies) => 
     }),
 
     onThinkingStart: async () => {
+      // Set the start time immediately before any async operations to prevent a race condition
+      // where onThinkingChunk fires while handleBlockTransition is still awaiting, causing
+      // thinking_millsec to be computed as `performance.now() - 0` (a huge value).
+      thinking_millsec_now = performance.now()
+
       if (blockManager.hasInitialPlaceholder) {
         const changes: Partial<MessageBlock> = {
           type: MessageBlockType.THINKING,
@@ -43,7 +48,6 @@ export const createThinkingCallbacks = (deps: ThinkingCallbacksDependencies) => 
         thinkingBlockId = newBlock.id
         await blockManager.handleBlockTransition(newBlock, MessageBlockType.THINKING)
       }
-      thinking_millsec_now = performance.now()
     },
 
     onThinkingChunk: async (text: string) => {
@@ -51,7 +55,7 @@ export const createThinkingCallbacks = (deps: ThinkingCallbacksDependencies) => 
         const blockChanges: Partial<MessageBlock> = {
           content: text,
           status: MessageBlockStatus.STREAMING,
-          thinking_millsec: performance.now() - thinking_millsec_now
+          thinking_millsec: thinking_millsec_now > 0 ? performance.now() - thinking_millsec_now : 0
         }
         blockManager.smartBlockUpdate(thinkingBlockId, blockChanges, MessageBlockType.THINKING)
       }
