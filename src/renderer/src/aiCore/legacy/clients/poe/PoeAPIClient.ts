@@ -27,7 +27,7 @@ export class PoeAPIClient extends OpenAIAPIClient {
   }
 
   override getClientCompatibilityType(): string[] {
-    return ['PoeAPIClient']
+    return ['OpenAIAPIClient']
   }
 
   /**
