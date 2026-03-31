@@ -1,6 +1,6 @@
 /**
  * Auto-generated preference mappings from classification.json
- * Generated at: 2026-03-28T13:06:42.926Z
+ * Generated at: 2026-03-31T07:13:12.804Z
  *
  * This file contains pure mapping relationships without default values.
  * Default values are managed in packages/shared/data/preferences.ts
@@ -336,11 +336,11 @@ export const REDUX_STORE_MAPPINGS = {
     },
     {
       originalKey: 'autoTranslateWithSpace',
-      targetKey: 'chat.input.translate.auto_translate_with_space'
+      targetKey: 'feature.translate.chat.auto_translate_with_space'
     },
     {
       originalKey: 'showTranslateConfirm',
-      targetKey: 'chat.input.translate.show_confirm'
+      targetKey: 'feature.translate.chat.show_confirm'
     },
     {
       originalKey: 'enableTopicNaming',

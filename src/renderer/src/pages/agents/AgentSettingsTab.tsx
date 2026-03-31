@@ -38,9 +38,9 @@ const AgentSettingsTab = () => {
     'chat.message.render_as_markdown'
   )
   const [autoTranslateWithSpace, setAutoTranslateWithSpace] = usePreference(
-    'chat.input.translate.auto_translate_with_space'
+    'feature.translate.chat.auto_translate_with_space'
   )
-  const [showTranslateConfirm, setShowTranslateConfirm] = usePreference('chat.input.translate.show_confirm')
+  const [showTranslateConfirm, setShowTranslateConfirm] = usePreference('feature.translate.chat.show_confirm')
   const [enableQuickPanelTriggers, setEnableQuickPanelTriggers] = usePreference(
     'chat.input.quick_panel.triggers_enabled'
   )

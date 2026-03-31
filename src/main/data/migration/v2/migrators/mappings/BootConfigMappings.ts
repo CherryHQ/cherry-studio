@@ -1,6 +1,6 @@
 /**
  * Auto-generated boot config mappings from classification.json
- * Generated at: 2026-03-28T13:06:42.926Z
+ * Generated at: 2026-03-31T07:13:12.804Z
  *
  * This file contains pure mapping relationships without default values.
  * Default values are managed in packages/shared/data/bootConfig/bootConfigSchemas.ts
