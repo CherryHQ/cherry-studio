@@ -120,7 +120,7 @@ describe('buildMessageTree', () => {
     expect(tree.get('a3')!.siblingsGroupId).toBe(tree.get('a4')!.siblingsGroupId)
   })
 
-  it('single askId reference does not form a group even when valid', () => {
+  it('does not form a group for single askId reference even when valid', () => {
     // Only one response with askId — not a multi-model group (count == 1)
     const messages = [msg('u1', 'user'), msg('a1', 'assistant', { askId: 'u1' })]
 
@@ -129,5 +129,22 @@ describe('buildMessageTree', () => {
     // Single askId doesn't create a group, falls through to sequential
     expect(tree.get('a1')!.parentId).toBe('u1')
     expect(tree.get('a1')!.siblingsGroupId).toBe(0)
+  })
+
+  it('links user message after orphaned foldSelected group to the selected response', () => {
+    const messages = [
+      msg('prev', 'assistant'),
+      msg('a1', 'assistant', { askId: 'deleted', foldSelected: true }),
+      msg('a2', 'assistant', { askId: 'deleted' }),
+      msg('u1', 'user')
+    ]
+
+    const tree = buildMessageTree(messages)
+
+    // Orphaned siblings share 'prev' as parent
+    expect(tree.get('a1')!.parentId).toBe('prev')
+    expect(tree.get('a2')!.parentId).toBe('prev')
+    // u1 should link to foldSelected response a1
+    expect(tree.get('u1')!.parentId).toBe('a1')
   })
 })

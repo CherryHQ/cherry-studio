@@ -57,10 +57,7 @@ function topic(id: string, messages: OldMessage[]): OldTopic {
   }
 }
 
-/**
- * Set up ChatMigrator internal state and call prepareTopicData.
- * Uses Reflect to access private members without `as any` cast.
- */
+/** Set up ChatMigrator internal state and call prepareTopicData. */
 function prepareTopic(oldTopic: OldTopic, blocks: OldBlock[]): PreparedTopicData | null {
   const migrator = new ChatMigrator()
   // Access private fields via index signature to avoid `as any`
@@ -170,7 +167,7 @@ describe('ChatMigrator.prepareTopicData', () => {
     expect(msgMap.get('a2')?.parentId).toBe('prev')
   })
 
-  it('no migrated message has a dangling parentId', () => {
+  it('produces no dangling parentId across mixed edge cases', () => {
     // Mix of all edge cases: deleted askId target, missing blocks, valid messages
     const b1 = block('b1', 'u1')
     const b3 = block('b3', 'a2')
@@ -208,5 +205,27 @@ describe('ChatMigrator.prepareTopicData', () => {
 
     expect(result).not.toBeNull()
     assertNoDanglingParentIds(result?.messages ?? [])
+  })
+
+  it('resolves multi-hop ancestor chain when consecutive messages are skipped', () => {
+    // u1 → a1 (no blocks, skipped) → u2 (no blocks, skipped) → a2 (has blocks)
+    // a2's parentId should resolve through u2 → a1 → u1
+    const b1 = block('b1', 'u1')
+    const b4 = block('b4', 'a2')
+    const messages = [
+      msg('u1', 'user', ['b1']),
+      msg('a1', 'assistant', []), // skipped: no blocks
+      msg('u2', 'user', []), // skipped: no blocks
+      msg('a2', 'assistant', ['b4'])
+    ]
+
+    const result = prepareTopic(topic('t1', messages), [b1, b4])
+
+    expect(result).not.toBeNull()
+    const msgMap = toMsgMap(result?.messages ?? [])
+    expect(msgMap.has('a1')).toBe(false)
+    expect(msgMap.has('u2')).toBe(false)
+    // a2 should resolve through the chain to u1
+    expect(msgMap.get('a2')?.parentId).toBe('u1')
   })
 })

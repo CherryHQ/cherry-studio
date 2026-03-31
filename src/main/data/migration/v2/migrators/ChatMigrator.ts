@@ -457,7 +457,7 @@ export class ChatMigrator extends BaseMigrator {
         })
       }
 
-      // Check for dangling parentId self-references (parentId points to non-existent message)
+      // Check for dangling parentId references (parentId points to non-existent message)
       const danglingParentCheck = await db
         .select({ count: sql<number>`count(*)` })
         .from(messageTable)
@@ -667,7 +667,13 @@ export class ChatMigrator extends BaseMigrator {
           visited.add(ancestor)
           ancestor = messageParentMap.get(ancestor) ?? null
         }
-        logger.warn(`Resolved dangling parentId for message ${msg.id}: ${msg.parentId} → ${ancestor}`)
+        if (ancestor) {
+          logger.warn(`Resolved dangling parentId for message ${msg.id}: ${msg.parentId} → ${ancestor}`)
+        } else {
+          logger.warn(
+            `No migrated ancestor found for message ${msg.id} (original parentId: ${msg.parentId}), setting as root`
+          )
+        }
         msg.parentId = ancestor
       }
     }
