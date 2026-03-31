@@ -17,6 +17,7 @@ import type {
   FileAttachment,
   ImageAttachment
 } from './ChannelAdapter'
+import { SLASH_COMMANDS } from './constants'
 import { sessionStreamBus } from './SessionStreamBus'
 import { broadcastSessionChanged } from './sessionStreamIpc'
 
@@ -349,10 +350,7 @@ export class ChannelMessageHandler {
             description ? `_${description}_` : '',
             '',
             'Available commands:',
-            '/new - Start a new conversation session',
-            '/compact - Compact current session context',
-            '/help - Show this help message',
-            '/whoami - Show the current chat ID for allow_ids'
+            ...SLASH_COMMANDS.map((cmd) => `/${cmd.name} - ${cmd.description}`)
           ]
             .filter(Boolean)
             .join('\n')

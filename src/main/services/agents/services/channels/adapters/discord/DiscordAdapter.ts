@@ -12,6 +12,7 @@ import {
   type SendMessageOptions
 } from '../../ChannelAdapter'
 import { registerAdapterFactory } from '../../ChannelManager'
+import { isSlashCommand, SLASH_COMMANDS } from '../../constants'
 import { FlushController } from '../../FlushController'
 
 const DISCORD_API_BASE = 'https://discord.com/api/v10'
@@ -230,14 +231,6 @@ type DiscordInteraction = {
   user?: { id: string; username: string }
   data?: { name: string; options?: Array<{ name: string; value: unknown }> }
 }
-
-/** Slash commands to register with Discord */
-const SLASH_COMMANDS = [
-  { name: 'new', description: 'Start a new conversation' },
-  { name: 'compact', description: 'Compact conversation history' },
-  { name: 'help', description: 'Show available commands' },
-  { name: 'whoami', description: 'Show chat info' }
-]
 
 class DiscordAdapter extends ChannelAdapter {
   private ws: WebSocket | null = null
@@ -599,7 +592,7 @@ class DiscordAdapter extends ChannelAdapter {
   }
 
   private isCommand(text: string): boolean {
-    return /^\/(new|compact|help|whoami)\b/.test(text)
+    return isSlashCommand(text)
   }
 
   private async sendWhoami(chatId: string): Promise<void> {
@@ -637,7 +630,7 @@ class DiscordAdapter extends ChannelAdapter {
 
     await this.apiRequest(`${DISCORD_API_BASE}/applications/${this.applicationId}/commands`, {
       method: 'PUT',
-      body: SLASH_COMMANDS as Record<string, unknown>[]
+      body: SLASH_COMMANDS as unknown as Record<string, unknown>[]
     })
     this.log.info('Registered Discord slash commands', { count: SLASH_COMMANDS.length })
   }

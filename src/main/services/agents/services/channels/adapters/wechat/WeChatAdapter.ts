@@ -13,6 +13,7 @@ import {
   type SendMessageOptions
 } from '../../ChannelAdapter'
 import { registerAdapterFactory } from '../../ChannelManager'
+import { isSlashCommand } from '../../constants'
 import { type IncomingMessage, WeixinBot } from './WeChatProtocol'
 
 const WECHAT_MAX_LENGTH = 2000
@@ -249,9 +250,7 @@ class WeChatAdapter extends ChannelAdapter {
   }
 
   private isCommand(text: string): boolean {
-    return (
-      text.startsWith('/new') || text.startsWith('/compact') || text.startsWith('/help') || text.startsWith('/whoami')
-    )
+    return isSlashCommand(text)
   }
 
   private async sendWhoami(msg: IncomingMessage): Promise<void> {

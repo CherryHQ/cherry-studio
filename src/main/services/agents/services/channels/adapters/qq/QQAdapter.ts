@@ -10,6 +10,7 @@ import {
   type SendMessageOptions
 } from '../../ChannelAdapter'
 import { registerAdapterFactory } from '../../ChannelManager'
+import { isSlashCommand } from '../../constants'
 
 const QQ_MAX_LENGTH = 2000
 const QQ_API_BASE = 'https://api.sgroup.qq.com'
@@ -509,9 +510,7 @@ class QQAdapter extends ChannelAdapter {
   }
 
   private isCommand(text: string): boolean {
-    return (
-      text.startsWith('/new') || text.startsWith('/compact') || text.startsWith('/help') || text.startsWith('/whoami')
-    )
+    return isSlashCommand(text)
   }
 
   private emitCommand(chatId: string, userId: string, userName: string, text: string): void {
