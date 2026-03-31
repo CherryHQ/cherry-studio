@@ -403,7 +403,7 @@ class QQAdapter extends ChannelAdapter {
       chatId,
       userId,
       userName,
-      text: text || (images ? 'What is in this image?' : ''),
+      text,
       images,
       files
     })

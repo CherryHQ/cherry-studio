@@ -533,7 +533,7 @@ class DiscordAdapter extends ChannelAdapter {
         chatId,
         userId: msg.author.id,
         userName: msg.author.username ?? '',
-        text: text || (images ? 'What is in this image?' : ''),
+        text,
         images,
         files
       })
