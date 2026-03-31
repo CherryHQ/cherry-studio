@@ -166,6 +166,41 @@ export function removeSpecialCharactersForTopicName(str: string): string {
 }
 
 /**
+ * Extract the first Markdown level-1 heading from text, ignoring fenced code blocks.
+ * Returns a sanitized heading string, or null when no valid heading is found.
+ */
+export function extractMarkdownTopicHeading(text: string): string | null {
+  if (!text) {
+    return null
+  }
+
+  const lines = text.split(/\r?\n/)
+  let inFence = false
+
+  for (const line of lines) {
+    const trimmed = line.trim()
+    if (trimmed.startsWith('```') || trimmed.startsWith('~~~')) {
+      inFence = !inFence
+      continue
+    }
+    if (inFence) {
+      continue
+    }
+
+    // ATX H1 with optional up to 3 leading spaces: "# Heading"
+    const match = line.match(/^\s{0,3}#\s+(.+?)\s*#*\s*$/)
+    if (!match?.[1]) {
+      continue
+    }
+
+    const heading = removeSpecialCharactersForTopicName(match[1])
+    return heading || null
+  }
+
+  return null
+}
+
+/**
  * 获取字符串的第一个字符。
  * @param {string} str 输入字符串
  * @returns {string} 第一个字符，或者空字符串
