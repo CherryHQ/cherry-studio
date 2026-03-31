@@ -4,6 +4,7 @@ import { and, asc, count, desc, eq, lte, ne } from 'drizzle-orm'
 
 import { BaseService } from '../BaseService'
 import {
+  channelTaskSubscriptionsTable,
   type InsertTaskRow,
   type InsertTaskRunLogRow,
   scheduledTasksTable,
@@ -36,7 +37,6 @@ export class TaskService extends BaseService {
       prompt: req.prompt,
       schedule_type: req.schedule_type,
       schedule_value: req.schedule_value,
-      context_mode: req.context_mode ?? 'session',
       next_run: nextRun,
       status: 'active',
       created_at: now,
@@ -45,14 +45,25 @@ export class TaskService extends BaseService {
 
     const database = await this.getDatabase()
     await database.insert(scheduledTasksTable).values(insertData)
-    const result = await database.select().from(scheduledTasksTable).where(eq(scheduledTasksTable.id, id)).limit(1)
 
-    if (!result[0]) {
-      throw new Error('Failed to create task')
+    // Create channel subscriptions
+    if (req.channel_ids?.length) {
+      await database
+        .insert(channelTaskSubscriptionsTable)
+        .values(req.channel_ids.map((channelId) => ({ channelId, taskId: id })))
+        .onConflictDoNothing()
     }
 
     logger.info('Task created', { taskId: id, agentId })
-    return result[0] as ScheduledTaskEntity
+    return this.getTaskWithChannels(id)
+  }
+
+  /** Fetch a task row enriched with its subscribed channel_ids. */
+  private async getTaskWithChannels(taskId: string): Promise<ScheduledTaskEntity> {
+    const database = await this.getDatabase()
+    const result = await database.select().from(scheduledTasksTable).where(eq(scheduledTasksTable.id, taskId)).limit(1)
+    if (!result[0]) throw new Error('Task not found')
+    return this.enrichWithChannels(result[0])
   }
 
   async getTask(agentId: string, taskId: string): Promise<ScheduledTaskEntity | null> {
@@ -63,7 +74,8 @@ export class TaskService extends BaseService {
       .where(and(eq(scheduledTasksTable.id, taskId), eq(scheduledTasksTable.agent_id, agentId)))
       .limit(1)
 
-    return (result[0] as ScheduledTaskEntity) ?? null
+    if (!result[0]) return null
+    return this.enrichWithChannels(result[0])
   }
 
   async listTasks(
@@ -94,7 +106,85 @@ export class TaskService extends BaseService {
         : await baseQuery
 
     return {
-      tasks: result as ScheduledTaskEntity[],
+      tasks: await this.enrichManyWithChannels(result),
+      total: totalResult[0].count
+    }
+  }
+
+  async getTaskById(taskId: string): Promise<ScheduledTaskEntity | null> {
+    const database = await this.getDatabase()
+    const result = await database.select().from(scheduledTasksTable).where(eq(scheduledTasksTable.id, taskId)).limit(1)
+
+    if (!result[0]) return null
+    return this.enrichWithChannels(result[0])
+  }
+
+  async updateTaskById(taskId: string, updates: UpdateTaskRequest): Promise<ScheduledTaskEntity | null> {
+    const existing = await this.getTaskById(taskId)
+    if (!existing) return null
+
+    const now = new Date().toISOString()
+    const updateData: Partial<TaskRow> = { updated_at: now }
+
+    if (updates.name !== undefined) updateData.name = updates.name
+    if (updates.prompt !== undefined) updateData.prompt = updates.prompt
+    if (updates.status !== undefined) updateData.status = updates.status
+
+    if (updates.schedule_type !== undefined || updates.schedule_value !== undefined) {
+      const schedType = updates.schedule_type ?? existing.schedule_type
+      const schedValue = updates.schedule_value ?? existing.schedule_value
+      updateData.schedule_type = schedType
+      updateData.schedule_value = schedValue
+      updateData.next_run = this.computeInitialNextRun(schedType, schedValue)
+    }
+
+    if (updates.status === 'active' && existing.status === 'paused') {
+      const schedType = updates.schedule_type ?? existing.schedule_type
+      const schedValue = updates.schedule_value ?? existing.schedule_value
+      updateData.next_run = this.computeInitialNextRun(schedType, schedValue)
+    }
+
+    const database = await this.getDatabase()
+    await database.update(scheduledTasksTable).set(updateData).where(eq(scheduledTasksTable.id, taskId))
+
+    // Sync channel subscriptions if provided
+    if (updates.channel_ids !== undefined) {
+      await this.syncTaskChannels(taskId, updates.channel_ids)
+    }
+
+    logger.info('Task updated', { taskId })
+    return this.getTaskWithChannels(taskId)
+  }
+
+  async deleteTaskById(taskId: string): Promise<boolean> {
+    const database = await this.getDatabase()
+    const result = await database.delete(scheduledTasksTable).where(eq(scheduledTasksTable.id, taskId))
+
+    logger.info('Task deleted', { taskId })
+    return result.rowsAffected > 0
+  }
+
+  async listAllTasks(options: ListOptions = {}): Promise<{ tasks: ScheduledTaskEntity[]; total: number }> {
+    const database = await this.getDatabase()
+    const whereCondition = ne(scheduledTasksTable.name, 'heartbeat')
+
+    const totalResult = await database.select({ count: count() }).from(scheduledTasksTable).where(whereCondition)
+
+    const baseQuery = database
+      .select()
+      .from(scheduledTasksTable)
+      .where(whereCondition)
+      .orderBy(desc(scheduledTasksTable.created_at))
+
+    const result =
+      options.limit !== undefined
+        ? options.offset !== undefined
+          ? await baseQuery.limit(options.limit).offset(options.offset)
+          : await baseQuery.limit(options.limit)
+        : await baseQuery
+
+    return {
+      tasks: await this.enrichManyWithChannels(result),
       total: totalResult[0].count
     }
   }
@@ -108,7 +198,6 @@ export class TaskService extends BaseService {
 
     if (updates.name !== undefined) updateData.name = updates.name
     if (updates.prompt !== undefined) updateData.prompt = updates.prompt
-    if (updates.context_mode !== undefined) updateData.context_mode = updates.context_mode
     if (updates.status !== undefined) updateData.status = updates.status
 
     // If schedule type or value changed, recompute next_run
@@ -133,8 +222,54 @@ export class TaskService extends BaseService {
       .set(updateData)
       .where(and(eq(scheduledTasksTable.id, taskId), eq(scheduledTasksTable.agent_id, agentId)))
 
+    // Sync channel subscriptions if provided
+    if (updates.channel_ids !== undefined) {
+      await this.syncTaskChannels(taskId, updates.channel_ids)
+    }
+
     logger.info('Task updated', { taskId, agentId })
-    return this.getTask(agentId, taskId)
+    return this.getTaskWithChannels(taskId)
+  }
+
+  /** Enrich a single task row with its subscribed channel_ids. */
+  private async enrichWithChannels(row: TaskRow): Promise<ScheduledTaskEntity> {
+    const database = await this.getDatabase()
+    const subs = await database
+      .select({ channelId: channelTaskSubscriptionsTable.channelId })
+      .from(channelTaskSubscriptionsTable)
+      .where(eq(channelTaskSubscriptionsTable.taskId, row.id))
+    return { ...row, channel_ids: subs.map((s) => s.channelId) } as ScheduledTaskEntity
+  }
+
+  /** Enrich multiple task rows with their subscribed channel_ids (batched). */
+  private async enrichManyWithChannels(rows: TaskRow[]): Promise<ScheduledTaskEntity[]> {
+    if (rows.length === 0) return []
+    const database = await this.getDatabase()
+    const allSubs = await database.select().from(channelTaskSubscriptionsTable)
+    const subsByTask = new Map<string, string[]>()
+    for (const sub of allSubs) {
+      const arr = subsByTask.get(sub.taskId) ?? []
+      arr.push(sub.channelId)
+      subsByTask.set(sub.taskId, arr)
+    }
+    return rows.map((row) => ({
+      ...row,
+      channel_ids: subsByTask.get(row.id) ?? []
+    })) as ScheduledTaskEntity[]
+  }
+
+  /** Replace all channel subscriptions for a task. */
+  private async syncTaskChannels(taskId: string, channelIds: string[]): Promise<void> {
+    const database = await this.getDatabase()
+    // Delete existing subscriptions
+    await database.delete(channelTaskSubscriptionsTable).where(eq(channelTaskSubscriptionsTable.taskId, taskId))
+    // Insert new ones
+    if (channelIds.length > 0) {
+      await database
+        .insert(channelTaskSubscriptionsTable)
+        .values(channelIds.map((channelId) => ({ channelId, taskId })))
+        .onConflictDoNothing()
+    }
   }
 
   async deleteTask(agentId: string, taskId: string): Promise<boolean> {

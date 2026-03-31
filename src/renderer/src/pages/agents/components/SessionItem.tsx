@@ -1,7 +1,6 @@
 import { DeleteIcon, EditIcon } from '@renderer/components/Icons'
 import MarqueeText from '@renderer/components/MarqueeText'
 import { isMac } from '@renderer/config/constant'
-import { useAgent } from '@renderer/hooks/agents/useAgent'
 import { useUpdateSession } from '@renderer/hooks/agents/useUpdateSession'
 import { useInPlaceEdit } from '@renderer/hooks/useInPlaceEdit'
 import { useRuntime } from '@renderer/hooks/useRuntime'
@@ -13,7 +12,7 @@ import { SessionLabel } from '@renderer/pages/settings/AgentSettings/shared'
 import store, { type RootState, useAppDispatch, useAppSelector } from '@renderer/store'
 import { newMessagesActions } from '@renderer/store/newMessage'
 import { loadTopicMessagesThunk, renameAgentSessionIfNeeded } from '@renderer/store/thunk/messageThunk'
-import type { AgentSessionEntity, CherryClawConfiguration } from '@renderer/types'
+import type { AgentSessionEntity } from '@renderer/types'
 import { classNames } from '@renderer/utils'
 import { getChannelTypeIcon } from '@renderer/utils/agentSession'
 import { buildAgentSessionTopicId } from '@renderer/utils/agentSession'
@@ -30,11 +29,12 @@ interface SessionItemProps {
   session: AgentSessionEntity
   // use external agentId as SSOT, instead of session.agent_id
   agentId: string
+  channelType?: string
   onDelete: () => void
   onPress: () => void
 }
 
-const SessionItem = ({ session, agentId, onDelete, onPress }: SessionItemProps) => {
+const SessionItem = ({ session, agentId, channelType, onDelete, onPress }: SessionItemProps) => {
   const { t } = useTranslation()
   const { chat } = useRuntime()
   const { updateSession } = useUpdateSession(agentId)
@@ -115,14 +115,7 @@ const SessionItem = ({ session, agentId, onDelete, onPress }: SessionItemProps) 
     }
   }, [activeSessionId, dispatch, isFulfilled, session.id, sessionTopicId])
 
-  const { agent } = useAgent(agentId)
-  const sourceChannelId = (session.configuration as any)?.source_channel_id as string | undefined
-  const channelIcon = getChannelTypeIcon((session.configuration as any)?.source_channel_type)
-  const channelName = useMemo(() => {
-    if (!sourceChannelId || !agent?.configuration) return undefined
-    const channels = (agent.configuration as CherryClawConfiguration)?.channels
-    return channels?.find((ch) => ch.id === sourceChannelId)?.name
-  }, [sourceChannelId, agent?.configuration])
+  const channelIcon = getChannelTypeIcon(channelType)
 
   const { topicPosition, setTopicPosition } = useSettings()
   const singlealone = topicPosition === 'right'
@@ -212,7 +205,6 @@ const SessionItem = ({ session, agentId, onDelete, onPress }: SessionItemProps) 
             <>
               <SessionName>
                 {channelIcon && <ChannelIconImg src={channelIcon} />}
-                {channelName && <ChannelNameTag>{channelName}</ChannelNameTag>}
                 <MarqueeText className="min-w-0 flex-1">
                   <SessionLabel
                     session={session}
@@ -301,13 +293,6 @@ const ChannelIconImg = styled.img`
   flex-shrink: 0;
   border-radius: 2px;
   object-fit: contain;
-`
-
-const ChannelNameTag = styled.span`
-  font-size: 11px;
-  color: var(--color-text-3);
-  flex-shrink: 0;
-  white-space: nowrap;
 `
 
 const SessionEditInput = styled.input`

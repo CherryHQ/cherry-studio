@@ -31,9 +31,13 @@
     "cherryClaw": {
       "channels": {
         "add": "Adaugă",
+        "bindAgent": "[to be translated]:Bind Agent",
         "comingSoon": "În curând",
+        "connected": "[to be translated]:Connected",
+        "connecting": "[to be translated]:Connecting",
         "deleteConfirm": "Șterge canalul „{{name}}”?",
         "description": "Conectați agentul la platforme de mesagerie.",
+        "disconnected": "[to be translated]:Disconnected",
         "discord": {
           "botToken": "Token Bot",
           "botTokenPlaceholder": "Introdu token-ul botului tău Discord",
@@ -44,6 +48,7 @@
           "title": "Discord",
           "whoamiTip": "💡 Sfaturi: Trimite /whoami către bot pentru a obține ID-ul canalului tău în formatul corect."
         },
+        "error": "[to be translated]:Error",
         "feishu": {
           "appId": "App ID",
           "appIdPlaceholder": "Introduceți App ID-ul aplicației Feishu",
@@ -68,7 +73,9 @@
           "verificationToken": "Token de verificare",
           "verificationTokenPlaceholder": "Introduceți tokenul de verificare al aplicației Feishu"
         },
+        "logs": "[to be translated]:Logs",
         "noInstances": "Niciun canal {{type}} configurat. Faceți clic pe „+ Adăugare” pentru a crea unul.",
+        "noLogs": "[to be translated]:No logs yet",
         "notifyReceiver": "Primește notificări de sarcini",
         "notifyReceiverHint": "Trimite rezultatele sarcinilor programate pe acest canal.",
         "qq": {
@@ -88,6 +95,7 @@
           "permissionMode": "Modul de permisiune al canalului",
           "permissionModeHint": "Suprascrie modul de permisiune al agentului pentru mesajele de pe acest canal. „Moștenire” utilizează setarea implicită a agentului."
         },
+        "selectAgent": "[to be translated]:Select an agent to bind",
         "tab": "Canale",
         "telegram": {
           "botToken": "Token Bot",
@@ -177,12 +185,9 @@
       "tasks": {
         "add": "Adaugă sarcină",
         "cancel": "Anulează",
-        "contextMode": {
-          "isolated": "Izolat",
-          "isolatedDesc": "Creează o nouă sesiune la fiecare rulare",
-          "label": "Mod context",
-          "session": "Reutilizează sesiunea",
-          "sessionDesc": "Reutilizează cea mai recentă sesiune"
+        "channels": {
+          "label": "[to be translated]:Send to Channels",
+          "placeholder": "[to be translated]:Select channels to receive results"
         },
         "cronPlaceholder": "ex: 0 9 * * * (în fiecare zi la ora 9)",
         "delete": {
@@ -197,6 +202,7 @@
           "duration": "Durată",
           "empty": "Nu există încă istoric de rulare.",
           "error": "Eroare",
+          "justNow": "[to be translated]:just now",
           "label": "Istoric rulări",
           "result": "Rezultat",
           "runAt": "Rulat la",
@@ -3888,6 +3894,10 @@
       "model_params": "Parametri model",
       "title": "Asistent implicit"
     },
+    "channels": {
+      "description": "[to be translated]:Connect agents to messaging platforms like Telegram, Feishu, Discord, and more.",
+      "title": "[to be translated]:Channels"
+    },
     "data": {
       "app_data": {
         "copy_data_option": "Copiază datele, va reporni automat după copierea datelor din directorul original în noul director",
@@ -5466,6 +5476,13 @@
       "title": "Expresii rapide",
       "titleLabel": "Titlu",
       "titlePlaceholder": "Te rugăm să introduci titlul expresiei"
+    },
+    "scheduledTasks": {
+      "description": "[to be translated]:Manage scheduled tasks across all agents. Tasks run automatically on the configured schedule.",
+      "noAgents": "[to be translated]:No agents found. Create an agent first to add scheduled tasks.",
+      "noTasks": "[to be translated]:No scheduled tasks. Click \"+ Add\" to create one for an agent.",
+      "selectTask": "[to be translated]:Select a task to view details",
+      "title": "[to be translated]:Scheduled Tasks"
     },
     "shortcuts": {
       "action": "Acțiune",

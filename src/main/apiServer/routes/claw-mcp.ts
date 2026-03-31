@@ -63,7 +63,7 @@ function createSessionEntry(agentId: string): SessionEntry {
   return entry
 }
 
-const router = express.Router({ mergeParams: true })
+const router: express.Router = express.Router({ mergeParams: true })
 
 router.all('/:agentId/claw-mcp', async (req: Request, res: Response): Promise<void> => {
   const { agentId } = req.params

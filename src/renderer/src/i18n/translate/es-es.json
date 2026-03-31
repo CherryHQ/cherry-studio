@@ -31,9 +31,13 @@
     "cherryClaw": {
       "channels": {
         "add": "Agregar",
+        "bindAgent": "[to be translated]:Bind Agent",
         "comingSoon": "Próximamente",
+        "connected": "[to be translated]:Connected",
+        "connecting": "[to be translated]:Connecting",
         "deleteConfirm": "¿Eliminar canal \"{{name}}\"?",
         "description": "Conecte su agente a plataformas de mensajería.",
+        "disconnected": "[to be translated]:Disconnected",
         "discord": {
           "botToken": "Token del Bot",
           "botTokenPlaceholder": "Introduce tu token de bot de Discord",
@@ -44,6 +48,7 @@
           "title": "Discord",
           "whoamiTip": "💡 Consejo: Envía /whoami al bot para obtener tu ID de canal en el formato correcto."
         },
+        "error": "[to be translated]:Error",
         "feishu": {
           "appId": "App ID",
           "appIdPlaceholder": "Introduzca el App ID de su aplicación Feishu",
@@ -68,7 +73,9 @@
           "verificationToken": "Token de verificación",
           "verificationTokenPlaceholder": "Introduzca el token de verificación de su aplicación Feishu"
         },
+        "logs": "[to be translated]:Logs",
         "noInstances": "No hay canales de {{type}} configurados. Haz clic en \"+ Añadir\" para crear uno.",
+        "noLogs": "[to be translated]:No logs yet",
         "notifyReceiver": "Recibir notificaciones de tareas",
         "notifyReceiverHint": "Enviar resultados de tareas programadas a este canal.",
         "qq": {
@@ -88,6 +95,7 @@
           "permissionMode": "Modo de Permisos del Canal",
           "permissionModeHint": "Anular el modo de permisos del agente para los mensajes de este canal. \"Heredar\" utiliza la configuración predeterminada del agente."
         },
+        "selectAgent": "[to be translated]:Select an agent to bind",
         "tab": "Canales",
         "telegram": {
           "botToken": "Token del bot",
@@ -177,12 +185,9 @@
       "tasks": {
         "add": "Agregar tarea",
         "cancel": "Cancelar",
-        "contextMode": {
-          "isolated": "Aislado",
-          "isolatedDesc": "Crear una nueva sesión en cada ejecución",
-          "label": "Modo de contexto",
-          "session": "Reutilizar sesión",
-          "sessionDesc": "Reutilizar la sesión más reciente"
+        "channels": {
+          "label": "[to be translated]:Send to Channels",
+          "placeholder": "[to be translated]:Select channels to receive results"
         },
         "cronPlaceholder": "ej: 0 9 * * * (todos los días a las 9 AM)",
         "delete": {
@@ -197,6 +202,7 @@
           "duration": "Duración",
           "empty": "Aún no hay historial de ejecución.",
           "error": "Error",
+          "justNow": "[to be translated]:just now",
           "label": "Historial de ejecución",
           "result": "Resultado",
           "runAt": "Ejecutado en",
@@ -3888,6 +3894,10 @@
       "model_params": "Parámetros del modelo",
       "title": "Asistente predeterminado"
     },
+    "channels": {
+      "description": "[to be translated]:Connect agents to messaging platforms like Telegram, Feishu, Discord, and more.",
+      "title": "[to be translated]:Channels"
+    },
     "data": {
       "app_data": {
         "copy_data_option": "Copiar datos: se reiniciará automáticamente y se copiarán los datos del directorio original al nuevo directorio",
@@ -5466,6 +5476,13 @@
       "title": "Frases rápidas",
       "titleLabel": "Título",
       "titlePlaceholder": "Ingrese el título de la frase"
+    },
+    "scheduledTasks": {
+      "description": "[to be translated]:Manage scheduled tasks across all agents. Tasks run automatically on the configured schedule.",
+      "noAgents": "[to be translated]:No agents found. Create an agent first to add scheduled tasks.",
+      "noTasks": "[to be translated]:No scheduled tasks. Click \"+ Add\" to create one for an agent.",
+      "selectTask": "[to be translated]:Select a task to view details",
+      "title": "[to be translated]:Scheduled Tasks"
     },
     "shortcuts": {
       "action": "Acción",

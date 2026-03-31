@@ -98,12 +98,17 @@ export class AgentApiClient {
     withId: (id: number) => `/${this.apiVersion}/agents/${agentId}/sessions/${sessionId}/messages/${id}`
   })
 
-  public getTaskPaths = (agentId: string) => ({
-    base: `/${this.apiVersion}/agents/${agentId}/tasks`,
-    withId: (taskId: string) => `/${this.apiVersion}/agents/${agentId}/tasks/${taskId}`,
-    run: (taskId: string) => `/${this.apiVersion}/agents/${agentId}/tasks/${taskId}/run`,
-    logs: (taskId: string) => `/${this.apiVersion}/agents/${agentId}/tasks/${taskId}/logs`
-  })
+  public channelPaths = {
+    base: `/${this.apiVersion}/channels`,
+    withId: (id: string) => `/${this.apiVersion}/channels/${id}`
+  }
+
+  public taskPaths = {
+    base: `/${this.apiVersion}/tasks`,
+    withId: (taskId: string) => `/${this.apiVersion}/tasks/${taskId}`,
+    run: (taskId: string) => `/${this.apiVersion}/tasks/${taskId}/run`,
+    logs: (taskId: string) => `/${this.apiVersion}/tasks/${taskId}/logs`
+  }
 
   public getModelsPath = (props?: ApiModelsFilter) => {
     const base = `/${this.apiVersion}/models`
@@ -297,8 +302,8 @@ export class AgentApiClient {
 
   // --- Task CRUD ---
 
-  public async listTasks(agentId: string, options?: ListOptions): Promise<ListTasksResponse> {
-    const url = this.getTaskPaths(agentId).base
+  public async listTasks(options?: ListOptions): Promise<ListTasksResponse> {
+    const url = this.taskPaths.base
     try {
       const response = await this.axios.get(url, { params: options })
       const result = ListTasksResponseSchema.safeParse(response.data)
@@ -312,9 +317,9 @@ export class AgentApiClient {
   }
 
   public async createTask(agentId: string, task: CreateTaskRequest): Promise<ScheduledTaskEntity> {
-    const url = this.getTaskPaths(agentId).base
+    const url = this.taskPaths.base
     try {
-      const response = await this.axios.post(url, task)
+      const response = await this.axios.post(url, { agent_id: agentId, ...task })
       const data = ScheduledTaskEntitySchema.parse(response.data)
       return data
     } catch (error) {
@@ -322,8 +327,8 @@ export class AgentApiClient {
     }
   }
 
-  public async getTask(agentId: string, taskId: string): Promise<ScheduledTaskEntity> {
-    const url = this.getTaskPaths(agentId).withId(taskId)
+  public async getTask(taskId: string): Promise<ScheduledTaskEntity> {
+    const url = this.taskPaths.withId(taskId)
     try {
       const response = await this.axios.get(url)
       const data = ScheduledTaskEntitySchema.parse(response.data)
@@ -333,8 +338,8 @@ export class AgentApiClient {
     }
   }
 
-  public async updateTask(agentId: string, taskId: string, updates: UpdateTaskRequest): Promise<ScheduledTaskEntity> {
-    const url = this.getTaskPaths(agentId).withId(taskId)
+  public async updateTask(taskId: string, updates: UpdateTaskRequest): Promise<ScheduledTaskEntity> {
+    const url = this.taskPaths.withId(taskId)
     try {
       const response = await this.axios.patch(url, updates)
       const data = ScheduledTaskEntitySchema.parse(response.data)
@@ -344,8 +349,8 @@ export class AgentApiClient {
     }
   }
 
-  public async deleteTask(agentId: string, taskId: string): Promise<void> {
-    const url = this.getTaskPaths(agentId).withId(taskId)
+  public async deleteTask(taskId: string): Promise<void> {
+    const url = this.taskPaths.withId(taskId)
     try {
       await this.axios.delete(url)
     } catch (error) {
@@ -353,8 +358,8 @@ export class AgentApiClient {
     }
   }
 
-  public async runTask(agentId: string, taskId: string): Promise<void> {
-    const url = this.getTaskPaths(agentId).run(taskId)
+  public async runTask(taskId: string): Promise<void> {
+    const url = this.taskPaths.run(taskId)
     try {
       await this.axios.post(url)
     } catch (error) {
@@ -362,8 +367,49 @@ export class AgentApiClient {
     }
   }
 
-  public async getTaskLogs(agentId: string, taskId: string, options?: ListOptions): Promise<ListTaskLogsResponse> {
-    const url = this.getTaskPaths(agentId).logs(taskId)
+  // --- Channel CRUD ---
+
+  public async listChannels(filters?: { agent_id?: string; type?: string }): Promise<{ data: any[]; total: number }> {
+    const url = this.channelPaths.base
+    try {
+      const response = await this.axios.get(url, { params: filters })
+      return response.data
+    } catch (error) {
+      throw processError(error, 'Failed to list channels.')
+    }
+  }
+
+  public async createChannel(data: Record<string, unknown>): Promise<any> {
+    const url = this.channelPaths.base
+    try {
+      const response = await this.axios.post(url, data)
+      return response.data
+    } catch (error) {
+      throw processError(error, 'Failed to create channel.')
+    }
+  }
+
+  public async updateChannel(id: string, data: Record<string, unknown>): Promise<any> {
+    const url = this.channelPaths.withId(id)
+    try {
+      const response = await this.axios.patch(url, data)
+      return response.data
+    } catch (error) {
+      throw processError(error, 'Failed to update channel.')
+    }
+  }
+
+  public async deleteChannel(id: string): Promise<void> {
+    const url = this.channelPaths.withId(id)
+    try {
+      await this.axios.delete(url)
+    } catch (error) {
+      throw processError(error, 'Failed to delete channel.')
+    }
+  }
+
+  public async getTaskLogs(taskId: string, options?: ListOptions): Promise<ListTaskLogsResponse> {
+    const url = this.taskPaths.logs(taskId)
     try {
       const response = await this.axios.get(url, { params: options })
       const result = ListTaskLogsResponseSchema.safeParse(response.data)

@@ -122,6 +122,12 @@ export enum IpcChannel {
   // Feishu channel
   Feishu_QrLogin = 'feishu:qr-login',
 
+  // Channel status & logs
+  Channel_StatusChange = 'channel:status-change',
+  Channel_Log = 'channel:log',
+  Channel_GetLogs = 'channel:get-logs',
+  Channel_GetStatuses = 'channel:get-statuses',
+
   //copilot
   Copilot_GetAuthMessage = 'copilot:get-auth-message',
   Copilot_GetCopilotToken = 'copilot:get-copilot-token',

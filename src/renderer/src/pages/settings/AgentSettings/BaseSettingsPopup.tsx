@@ -16,8 +16,6 @@ export type SettingsPopupTab =
   | 'advanced'
   | 'plugins'
   | 'installed'
-  | 'channels'
-  | 'tasks'
 
 export type SettingsMenuItem = NonNullable<MenuProps['items']>[number] & {
   key: SettingsPopupTab

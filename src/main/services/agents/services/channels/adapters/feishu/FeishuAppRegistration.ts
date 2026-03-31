@@ -7,7 +7,7 @@
  * Flow: init -> begin (returns QR URL) -> poll (returns client_id + client_secret)
  */
 import { loggerService } from '@logger'
-import type { FeishuDomain } from '@types'
+import type { FeishuDomain } from '@shared/channelConfig'
 import { net } from 'electron'
 
 const logger = loggerService.withContext('FeishuAppRegistration')

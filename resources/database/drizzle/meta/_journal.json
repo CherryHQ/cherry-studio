@@ -35,6 +35,13 @@
       "when": 1774731328231,
       "tag": "0004_blue_talisman",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "6",
+      "when": 1774890127687,
+      "tag": "0005_material_human_cannonball",
+      "breakpoints": true
     }
   ],
   "version": "7"

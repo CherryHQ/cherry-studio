@@ -49,6 +49,13 @@ function copyDirSync(src: string, dest: string): void {
   }
 }
 
+export interface BuiltinAgentConfig {
+  name?: string
+  description?: string
+  instructions?: string
+  configuration?: Record<string, unknown>
+}
+
 /**
  * Provision a built-in agent's workspace with template files.
  *
@@ -57,9 +64,12 @@ function copyDirSync(src: string, dest: string): void {
  *
  * @param workspacePath - The agent's working directory (accessible_paths[0])
  * @param builtinRole - The built-in role identifier ('assistant' or 'skill-creator')
- * @returns The instructions string from agent.json, or undefined if not found
+ * @returns The parsed agent.json config, or undefined if not found
  */
-export async function provisionBuiltinAgent(workspacePath: string, builtinRole: string): Promise<string | undefined> {
+export async function provisionBuiltinAgent(
+  workspacePath: string,
+  builtinRole: string
+): Promise<BuiltinAgentConfig | undefined> {
   const templateName = ROLE_TO_TEMPLATE[builtinRole]
   if (!templateName) {
     logger.warn('Unknown builtin role, skipping provisioning', { builtinRole })
@@ -88,11 +98,16 @@ export async function provisionBuiltinAgent(workspacePath: string, builtinRole: 
       })
     }
 
-    // Read agent.json to extract instructions
+    // Read agent.json to extract full config
     const agentJsonPath = path.join(templateDir, 'agent.json')
     if (fs.existsSync(agentJsonPath)) {
       const agentConfig = JSON.parse(fs.readFileSync(agentJsonPath, 'utf-8'))
-      return agentConfig.instructions as string | undefined
+      return {
+        name: agentConfig.name,
+        description: agentConfig.description,
+        instructions: agentConfig.instructions,
+        configuration: agentConfig.configuration
+      } as BuiltinAgentConfig
     }
 
     return undefined

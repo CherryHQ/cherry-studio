@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { agentService } from '../../AgentService'
+import { channelService } from '../../ChannelService'
 import { ChannelAdapter, type ChannelAdapterConfig } from '../ChannelAdapter'
 import { channelManager, registerAdapterFactory } from '../ChannelManager'
 import { channelMessageHandler } from '../ChannelMessageHandler'
@@ -11,10 +11,17 @@ vi.mock('@logger', () => ({
   }
 }))
 
-vi.mock('../../AgentService', () => ({
-  agentService: {
-    listAgents: vi.fn().mockResolvedValue({ agents: [], total: 0 }),
-    getAgent: vi.fn()
+vi.mock('@main/services/WindowService', () => ({
+  windowService: {
+    getMainWindow: vi.fn().mockReturnValue(null)
+  }
+}))
+
+vi.mock('../../ChannelService', () => ({
+  channelService: {
+    listChannels: vi.fn().mockResolvedValue([]),
+    getChannel: vi.fn(),
+    updateChannel: vi.fn()
   }
 }))
 
@@ -30,7 +37,6 @@ class MockAdapter extends ChannelAdapter {
   connect = vi.fn().mockResolvedValue(undefined)
   disconnect = vi.fn().mockResolvedValue(undefined)
   sendMessage = vi.fn().mockResolvedValue(undefined)
-  sendMessageDraft = vi.fn().mockResolvedValue(undefined)
   sendTypingIndicator = vi.fn().mockResolvedValue(undefined)
 
   protected async performConnect(): Promise<void> {}
@@ -67,32 +73,29 @@ describe('ChannelManager', () => {
     await channelManager.stop()
   })
 
-  it('start() with no agents does not error', async () => {
-    vi.mocked(agentService.listAgents).mockResolvedValueOnce({ agents: [] as any[], total: 0 })
+  const makeChannelRow = (overrides: Record<string, unknown> = {}) =>
+    ({
+      id: 'ch-1',
+      type: 'telegram',
+      name: 'Test',
+      agentId: 'agent-1',
+      sessionId: null,
+      config: { bot_token: 'tok', allowed_chat_ids: [] },
+      isActive: true,
+      permissionMode: null,
+      createdAt: Date.now(),
+      updatedAt: Date.now(),
+      ...overrides
+    }) as any
+
+  it('start() with no channels does not error', async () => {
+    vi.mocked(channelService.listChannels).mockResolvedValueOnce([])
     await expect(channelManager.start()).resolves.not.toThrow()
     expect(createdAdapters).toHaveLength(0)
   })
 
-  it('start() connects adapters for agents with channels', async () => {
-    vi.mocked(agentService.listAgents).mockResolvedValueOnce({
-      agents: [
-        {
-          id: 'agent-1',
-          type: 'claude-code',
-          configuration: {
-            channels: [
-              {
-                id: 'ch-1',
-                type: 'telegram',
-                enabled: true,
-                config: { bot_token: 'tok', allowed_chat_ids: [] }
-              }
-            ]
-          }
-        }
-      ] as any[],
-      total: 1
-    })
+  it('start() connects adapters for active channels', async () => {
+    vi.mocked(channelService.listChannels).mockResolvedValueOnce([makeChannelRow()])
 
     await channelManager.start()
 
@@ -101,21 +104,10 @@ describe('ChannelManager', () => {
   })
 
   it('stop() disconnects all adapters', async () => {
-    vi.mocked(agentService.listAgents).mockResolvedValueOnce({
-      agents: [
-        {
-          id: 'agent-1',
-          type: 'claude-code',
-          configuration: {
-            channels: [
-              { id: 'ch-1', type: 'telegram', enabled: true, config: { bot_token: 'tok' } },
-              { id: 'ch-2', type: 'telegram', enabled: true, config: { bot_token: 'tok2' } }
-            ]
-          }
-        }
-      ] as any[],
-      total: 1
-    })
+    vi.mocked(channelService.listChannels).mockResolvedValueOnce([
+      makeChannelRow({ id: 'ch-1', config: { bot_token: 'tok' } }),
+      makeChannelRow({ id: 'ch-2', config: { bot_token: 'tok2' } })
+    ])
 
     await channelManager.start()
     expect(createdAdapters).toHaveLength(2)
@@ -126,30 +118,13 @@ describe('ChannelManager', () => {
   })
 
   it('syncAgent disconnects old and reconnects', async () => {
-    vi.mocked(agentService.listAgents).mockResolvedValueOnce({
-      agents: [
-        {
-          id: 'agent-1',
-          type: 'claude-code',
-          configuration: {
-            channels: [{ id: 'ch-1', type: 'telegram', enabled: true, config: { bot_token: 'tok' } }]
-          }
-        }
-      ] as any[],
-      total: 1
-    })
+    vi.mocked(channelService.listChannels).mockResolvedValueOnce([makeChannelRow()])
 
     await channelManager.start()
     expect(createdAdapters).toHaveLength(1)
 
-    // Sync with updated config
-    vi.mocked(agentService.getAgent).mockResolvedValueOnce({
-      id: 'agent-1',
-      type: 'claude-code',
-      configuration: {
-        channels: [{ id: 'ch-1', type: 'telegram', enabled: true, config: { bot_token: 'new-tok' } }]
-      }
-    } as any)
+    // Sync — channelService.listChannels with agentId filter returns updated channel
+    vi.mocked(channelService.listChannels).mockResolvedValueOnce([makeChannelRow({ config: { bot_token: 'new-tok' } })])
 
     await channelManager.syncAgent('agent-1')
 
@@ -160,42 +135,21 @@ describe('ChannelManager', () => {
   })
 
   it('syncAgent for deleted agent disconnects without reconnecting', async () => {
-    vi.mocked(agentService.listAgents).mockResolvedValueOnce({
-      agents: [
-        {
-          id: 'agent-1',
-          type: 'claude-code',
-          configuration: {
-            channels: [{ id: 'ch-1', type: 'telegram', enabled: true, config: { bot_token: 'tok' } }]
-          }
-        }
-      ] as any[],
-      total: 1
-    })
+    vi.mocked(channelService.listChannels).mockResolvedValueOnce([makeChannelRow()])
 
     await channelManager.start()
     expect(createdAdapters).toHaveLength(1)
 
-    vi.mocked(agentService.getAgent).mockResolvedValueOnce(null as any)
+    // No channels for agent after deletion
+    vi.mocked(channelService.listChannels).mockResolvedValueOnce([])
     await channelManager.syncAgent('agent-1')
 
     expect(createdAdapters[0].disconnect).toHaveBeenCalledTimes(1)
     expect(createdAdapters).toHaveLength(1) // no new adapter
   })
 
-  it('disabled channels are skipped', async () => {
-    vi.mocked(agentService.listAgents).mockResolvedValueOnce({
-      agents: [
-        {
-          id: 'agent-1',
-          type: 'claude-code',
-          configuration: {
-            channels: [{ id: 'ch-1', type: 'telegram', enabled: false, config: { bot_token: 'tok' } }]
-          }
-        }
-      ] as any[],
-      total: 1
-    })
+  it('inactive channels are skipped', async () => {
+    vi.mocked(channelService.listChannels).mockResolvedValueOnce([makeChannelRow({ isActive: false })])
 
     await channelManager.start()
     expect(createdAdapters).toHaveLength(0)

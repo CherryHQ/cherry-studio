@@ -138,8 +138,7 @@ describe('ClawServer', () => {
         name: 'Daily standup',
         prompt: 'Run standup check',
         schedule_type: 'cron',
-        schedule_value: '0 9 * * 1-5',
-        context_mode: 'session'
+        schedule_value: '0 9 * * 1-5'
       })
       expect(result.content[0].text).toContain('Job created')
     })
@@ -160,8 +159,7 @@ describe('ClawServer', () => {
         name: 'Health check',
         prompt: 'Check system health',
         schedule_type: 'interval',
-        schedule_value: '30',
-        context_mode: 'session'
+        schedule_value: '30'
       })
     })
 
@@ -200,26 +198,6 @@ describe('ClawServer', () => {
         'agent_test',
         expect.objectContaining({
           schedule_type: 'once'
-        })
-      )
-    })
-
-    it('should use isolated context mode when session_mode is new', async () => {
-      mockCreateTask.mockResolvedValue({ id: 'task_5' })
-
-      const server = createServer()
-      await callTool(server, {
-        action: 'add',
-        name: 'test',
-        message: 'test',
-        cron: '* * * * *',
-        session_mode: 'new'
-      })
-
-      expect(mockCreateTask).toHaveBeenCalledWith(
-        'agent_test',
-        expect.objectContaining({
-          context_mode: 'isolated'
         })
       )
     })

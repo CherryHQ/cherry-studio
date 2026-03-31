@@ -2,6 +2,7 @@ import { EventEmitter } from 'events'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { agentService } from '../../AgentService'
+import { channelService } from '../../ChannelService'
 import { sessionMessageService } from '../../SessionMessageService'
 import { sessionService } from '../../SessionService'
 import { channelMessageHandler } from '../ChannelMessageHandler'
@@ -27,14 +28,21 @@ vi.mock('../../SessionService', () => ({
   sessionService: {
     listSessions: vi.fn().mockResolvedValue({ sessions: [], total: 0 }),
     getSession: vi.fn(),
-    createSession: vi.fn(),
-    findSessionByChannel: vi.fn().mockResolvedValue(null)
+    createSession: vi.fn()
   }
 }))
 
 vi.mock('../../SessionMessageService', () => ({
   sessionMessageService: {
     createSessionMessage: vi.fn()
+  }
+}))
+
+vi.mock('../../ChannelService', () => ({
+  channelService: {
+    getChannel: vi.fn().mockResolvedValue({ id: 'channel-1', sessionId: null, permissionMode: null }),
+    updateChannel: vi.fn().mockResolvedValue(null),
+    findBySessionId: vi.fn().mockResolvedValue(null)
   }
 }))
 
@@ -69,9 +77,10 @@ function createMockAdapter(overrides: Record<string, unknown> = {}) {
   adapter.channelId = overrides.channelId ?? 'channel-1'
   adapter.channelType = overrides.channelType ?? 'telegram'
   adapter.sendMessage = vi.fn().mockResolvedValue(undefined)
-  adapter.sendMessageDraft = vi.fn().mockResolvedValue(undefined)
   adapter.sendTypingIndicator = vi.fn().mockResolvedValue(undefined)
-  adapter.finalizeStream = vi.fn().mockResolvedValue(false)
+  adapter.onTextUpdate = vi.fn().mockResolvedValue(undefined)
+  adapter.onStreamComplete = vi.fn().mockResolvedValue(false)
+  adapter.onStreamError = vi.fn().mockResolvedValue(undefined)
   return adapter
 }
 
@@ -130,11 +139,11 @@ describe('ChannelMessageHandler', () => {
     expect(adapter.sendMessage).toHaveBeenCalledWith('chat-1', 'Hello world!\n\nDone.')
   })
 
-  it('skips final send when adapter finalizes the draft stream', async () => {
+  it('skips final send when adapter handles stream completion', async () => {
     const adapter = createMockAdapter()
     const session = { id: 'session-1', agent_id: 'agent-1', agent_type: 'claude-code' }
 
-    adapter.finalizeStream.mockResolvedValueOnce(true)
+    adapter.onStreamComplete.mockResolvedValueOnce(true)
     vi.mocked(sessionService.createSession).mockResolvedValueOnce(session as any)
     vi.mocked(sessionMessageService.createSessionMessage).mockResolvedValueOnce(
       createMockStream([{ type: 'text-delta', text: 'Hello world!' }]) as any
@@ -147,7 +156,7 @@ describe('ChannelMessageHandler', () => {
       text: 'Hi'
     })
 
-    expect(adapter.finalizeStream).toHaveBeenCalledWith(expect.any(Number), 'Hello world!')
+    expect(adapter.onStreamComplete).toHaveBeenCalledWith('chat-1', 'Hello world!')
     expect(adapter.sendMessage).not.toHaveBeenCalled()
   })
 
@@ -184,11 +193,7 @@ describe('ChannelMessageHandler', () => {
     })
 
     expect(sessionService.createSession).toHaveBeenCalledWith('agent-1', {
-      configuration: {
-        source_channel_id: 'channel-1',
-        source_channel_type: 'telegram',
-        source_chat_id: 'chat-1'
-      }
+      configuration: {}
     })
     expect(adapter.sendMessage).toHaveBeenCalledWith('chat-1', 'New session created.')
   })
@@ -307,8 +312,13 @@ describe('ChannelMessageHandler', () => {
     // Clear session tracker
     channelMessageHandler.clearSessionTracker('agent-1')
 
-    // Next interaction should find existing session from DB via findSessionByChannel
-    vi.mocked(sessionService.findSessionByChannel).mockResolvedValueOnce(session1 as any)
+    // Next interaction should find existing session via channel's session_id
+    vi.mocked(channelService.getChannel).mockResolvedValueOnce({
+      id: 'channel-1',
+      sessionId: 'session-1',
+      permissionMode: null
+    } as any)
+    vi.mocked(sessionService.getSession).mockResolvedValueOnce(session1 as any)
     vi.mocked(sessionMessageService.createSessionMessage).mockResolvedValueOnce(
       createMockStream([{ type: 'text-delta', text: 'R2' }]) as any
     )
@@ -320,8 +330,8 @@ describe('ChannelMessageHandler', () => {
       text: 'msg2'
     })
 
-    // After clearing tracker, should query DB instead of creating new session
-    expect(sessionService.findSessionByChannel).toHaveBeenCalledWith('agent-1', 'channel-1', 'chat-1')
+    // After clearing tracker, should look up channel then getSession instead of creating new session
+    expect(channelService.getChannel).toHaveBeenCalledWith('channel-1')
     // Only 1 createSession call (the first one), not 2
     expect(sessionService.createSession).toHaveBeenCalledTimes(1)
   })

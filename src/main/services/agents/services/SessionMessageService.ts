@@ -377,7 +377,8 @@ export class SessionMessageService extends BaseService {
         topicId,
         createdAt: now,
         status: 'success',
-        blocks: [assistantBlockId]
+        blocks: [assistantBlockId],
+        modelId: session.model
       },
       blocks: [
         {

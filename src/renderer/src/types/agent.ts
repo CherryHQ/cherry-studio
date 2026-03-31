@@ -32,67 +32,17 @@ export type AgentType = z.infer<typeof AgentTypeSchema>
 export const SchedulerTypeSchema = z.enum(['cron', 'interval', 'one-time'])
 export type SchedulerType = z.infer<typeof SchedulerTypeSchema>
 
-export const TelegramChannelConfigSchema = z.object({
-  bot_token: z.string().min(1),
-  allowed_chat_ids: z.array(z.string()).default([])
-})
-
-export type TelegramChannelConfig = z.infer<typeof TelegramChannelConfigSchema>
-
-export const QQChannelConfigSchema = z.object({
-  app_id: z.string().min(1),
-  client_secret: z.string().min(1),
-  allowed_chat_ids: z.array(z.string()).default([])
-})
-
-export type QQChannelConfig = z.infer<typeof QQChannelConfigSchema>
-
-export const FeishuDomainSchema = z.enum(['feishu', 'lark'])
-export type FeishuDomain = z.infer<typeof FeishuDomainSchema>
-
-export const FeishuChannelConfigSchema = z.object({
-  app_id: z.string().default(''),
-  app_secret: z.string().default(''),
-  encrypt_key: z.string().default(''),
-  verification_token: z.string().default(''),
-  allowed_chat_ids: z.array(z.string()).default([]),
-  domain: FeishuDomainSchema.default('feishu')
-})
-
-export type FeishuChannelConfig = z.infer<typeof FeishuChannelConfigSchema>
-
-export const WeChatChannelConfigSchema = z.object({
-  token_path: z.string().default(''),
-  allowed_chat_ids: z.array(z.string()).default([])
-})
-
-export type WeChatChannelConfig = z.infer<typeof WeChatChannelConfigSchema>
-
-export const DiscordChannelConfigSchema = z.object({
-  bot_token: z.string().min(1),
-  allowed_channel_ids: z.array(z.string()).default([])
-})
-
-export type DiscordChannelConfig = z.infer<typeof DiscordChannelConfigSchema>
-
-export const CherryClawChannelSchema = z.object({
-  id: z.string(),
-  type: z.enum(['telegram', 'feishu', 'qq', 'wechat', 'discord']),
-  name: z.string(),
-  enabled: z.boolean().default(true),
-  config: z.union([
-    TelegramChannelConfigSchema,
-    FeishuChannelConfigSchema,
-    QQChannelConfigSchema,
-    WeChatChannelConfigSchema,
-    DiscordChannelConfigSchema
-  ]),
-  is_notify_receiver: z.boolean().default(false),
-  /** Per-channel permission mode override. When unset, inherits from agent configuration. */
-  permission_mode: PermissionModeSchema.optional()
-})
-
-export type CherryClawChannel = z.infer<typeof CherryClawChannelSchema>
+// Channel config types are defined in @shared/channelConfig (single source of truth)
+export type {
+  ChannelConfig,
+  ChannelType,
+  DiscordChannelConfig,
+  FeishuChannelConfig,
+  FeishuDomain,
+  QQChannelConfig,
+  TelegramChannelConfig,
+  WeChatChannelConfig
+} from '@shared/channelConfig'
 
 export const isAgentType = (type: unknown): type is AgentType => {
   return AgentTypeSchema.safeParse(type).success
@@ -149,9 +99,6 @@ export type CherryClawConfiguration = AgentConfiguration & {
   // Heartbeat
   heartbeat_enabled?: boolean
   heartbeat_interval?: number // minutes, default 30
-
-  // Channels (placeholder)
-  channels?: CherryClawChannel[]
 }
 
 // ------------------ Scheduled Task types ------------------
@@ -161,9 +108,6 @@ export type TaskScheduleType = z.infer<typeof TaskScheduleTypeSchema>
 export const TaskStatusSchema = z.enum(['active', 'paused', 'completed'])
 export type TaskStatus = z.infer<typeof TaskStatusSchema>
 
-export const TaskContextModeSchema = z.enum(['session', 'isolated'])
-export type TaskContextMode = z.infer<typeof TaskContextModeSchema>
-
 export const ScheduledTaskEntitySchema = z.object({
   id: z.string(),
   agent_id: z.string(),
@@ -171,7 +115,7 @@ export const ScheduledTaskEntitySchema = z.object({
   prompt: z.string(),
   schedule_type: TaskScheduleTypeSchema,
   schedule_value: z.string(),
-  context_mode: TaskContextModeSchema,
+  channel_ids: z.array(z.string()).optional(), // populated from channel_task_subscriptions
   next_run: z.string().nullable().optional(),
   last_run: z.string().nullable().optional(),
   last_result: z.string().nullable().optional(),
@@ -463,7 +407,7 @@ export const CreateTaskRequestSchema = z.object({
   prompt: z.string().min(1, 'Prompt is required'),
   schedule_type: TaskScheduleTypeSchema,
   schedule_value: z.string().min(1, 'Schedule value is required'),
-  context_mode: TaskContextModeSchema.optional().default('session')
+  channel_ids: z.array(z.string()).optional()
 })
 
 export type CreateTaskRequest = z.infer<typeof CreateTaskRequestSchema>
@@ -473,7 +417,7 @@ export const UpdateTaskRequestSchema = z.object({
   prompt: z.string().min(1).optional(),
   schedule_type: TaskScheduleTypeSchema.optional(),
   schedule_value: z.string().min(1).optional(),
-  context_mode: TaskContextModeSchema.optional(),
+  channel_ids: z.array(z.string()).optional(),
   status: TaskStatusSchema.optional()
 })
 

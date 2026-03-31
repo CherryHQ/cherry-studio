@@ -31,9 +31,13 @@
     "cherryClaw": {
       "channels": {
         "add": "添加",
+        "bindAgent": "绑定 Agent",
         "comingSoon": "即将推出",
+        "connected": "已连接",
+        "connecting": "连接中",
         "deleteConfirm": "确定删除频道「{{name}}」？",
         "description": "将您的 Agent 连接到消息平台。",
+        "disconnected": "已断开",
         "discord": {
           "botToken": "Bot Token",
           "botTokenPlaceholder": "输入您的 Discord 机器人 Token",
@@ -44,6 +48,7 @@
           "title": "Discord",
           "whoamiTip": "💡 提示：发送 /whoami 给机器人即可获取正确格式的频道 ID。"
         },
+        "error": "错误",
         "feishu": {
           "appId": "应用ID",
           "appIdPlaceholder": "输入你的飞书应用 ID",
@@ -68,7 +73,9 @@
           "verificationToken": "验证令牌",
           "verificationTokenPlaceholder": "输入您飞书应用中的验证令牌"
         },
+        "logs": "日志",
         "noInstances": "暂无 {{type}} 频道，点击「+ 添加」创建。",
+        "noLogs": "暂无日志",
         "notifyReceiver": "接收任务通知",
         "notifyReceiverHint": "将定时任务结果发送到此频道。",
         "qq": {
@@ -88,6 +95,7 @@
           "permissionMode": "频道权限模式",
           "permissionModeHint": "覆盖此频道消息的智能体权限模式。选择「继承」则使用智能体默认设置。"
         },
+        "selectAgent": "选择要绑定的 Agent",
         "tab": "频道",
         "telegram": {
           "botToken": "Bot Token",
@@ -177,12 +185,9 @@
       "tasks": {
         "add": "添加任务",
         "cancel": "取消",
-        "contextMode": {
-          "isolated": "隔离",
-          "isolatedDesc": "每次运行创建新会话",
-          "label": "上下文模式",
-          "session": "复用会话",
-          "sessionDesc": "复用最近的会话"
+        "channels": {
+          "label": "发送到频道",
+          "placeholder": "选择接收结果的频道"
         },
         "cronPlaceholder": "例如 0 9 * * *（每天上午 9 点）",
         "delete": {
@@ -197,6 +202,7 @@
           "duration": "耗时",
           "empty": "暂无运行历史。",
           "error": "错误",
+          "justNow": "刚刚",
           "label": "运行历史",
           "result": "结果",
           "runAt": "运行时间",
@@ -285,7 +291,7 @@
     },
     "input": {
       "placeholder": "在这里输入消息，按 {{key}} 发送 - @ 选择路径， / 选择命令",
-      "soul_placeholder": "帮我连接Telegram"
+      "soul_placeholder": "帮我连接微信"
     },
     "list": {
       "error": {
@@ -3888,6 +3894,10 @@
       "model_params": "模型参数",
       "title": "默认助手"
     },
+    "channels": {
+      "description": "将 Agent 连接到 Telegram、飞书、Discord 等消息平台。",
+      "title": "频道"
+    },
     "data": {
       "app_data": {
         "copy_data_option": "复制数据，会自动重启后将原始目录数据复制到新目录",
@@ -5466,6 +5476,13 @@
       "title": "快捷短语",
       "titleLabel": "标题",
       "titlePlaceholder": "请输入短语标题"
+    },
+    "scheduledTasks": {
+      "description": "管理所有 Agent 的定时任务。任务将按照配置的时间计划自动运行。",
+      "noAgents": "未找到 Agent。请先创建一个 Agent 以添加定时任务。",
+      "noTasks": "暂无定时任务。点击「+ 添加」为某个 Agent 创建任务。",
+      "selectTask": "选择一个任务以查看详情",
+      "title": "定时任务"
     },
     "shortcuts": {
       "action": "操作",

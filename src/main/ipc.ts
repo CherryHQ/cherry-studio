@@ -822,6 +822,17 @@ export async function registerIpc(mainWindow: BrowserWindow, app: Electron.App) 
   ipcMain.handle(IpcChannel.Mcp_GetServerVersion, mcpService.getServerVersion)
   ipcMain.handle(IpcChannel.Mcp_GetServerLogs, mcpService.getServerLogs)
 
+  // Channel logs & status
+  ipcMain.handle(IpcChannel.Channel_GetLogs, async (_event, channelId: string) => {
+    const { channelManager } = await import('@main/services/agents/services/channels/ChannelManager')
+    return channelManager.getChannelLogs(channelId)
+  })
+
+  ipcMain.handle(IpcChannel.Channel_GetStatuses, async () => {
+    const { channelManager } = await import('@main/services/agents/services/channels/ChannelManager')
+    return channelManager.getAllStatuses()
+  })
+
   // DXT upload handler
   ipcMain.handle(IpcChannel.Mcp_UploadDxt, async (event, fileBuffer: ArrayBuffer, fileName: string) => {
     try {

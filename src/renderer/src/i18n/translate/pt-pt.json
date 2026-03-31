@@ -31,9 +31,13 @@
     "cherryClaw": {
       "channels": {
         "add": "Adicionar",
+        "bindAgent": "[to be translated]:Bind Agent",
         "comingSoon": "Em breve",
+        "connected": "[to be translated]:Connected",
+        "connecting": "[to be translated]:Connecting",
         "deleteConfirm": "Excluir canal \"{{name}}\"?",
         "description": "Conecte o seu agente a plataformas de mensagens.",
+        "disconnected": "[to be translated]:Disconnected",
         "discord": {
           "botToken": "Token do Bot",
           "botTokenPlaceholder": "Insira o token do seu bot do Discord",
@@ -44,6 +48,7 @@
           "title": "Discord",
           "whoamiTip": "💡 Dica: Envie /whoami para o bot para obter o ID do seu canal no formato correto."
         },
+        "error": "[to be translated]:Error",
         "feishu": {
           "appId": "App ID",
           "appIdPlaceholder": "Introduza o App ID da sua aplicação Feishu",
@@ -68,7 +73,9 @@
           "verificationToken": "Token de verificação",
           "verificationTokenPlaceholder": "Introduza o token de verificação da sua aplicação Feishu"
         },
+        "logs": "[to be translated]:Logs",
         "noInstances": "Nenhum canal {{type}} configurado. Clique em \"+ Adicionar\" para criar um.",
+        "noLogs": "[to be translated]:No logs yet",
         "notifyReceiver": "Receber notificações de tarefas",
         "notifyReceiverHint": "Enviar resultados de tarefas agendadas para este canal.",
         "qq": {
@@ -88,6 +95,7 @@
           "permissionMode": "Modo de Permissão do Canal",
           "permissionModeHint": "Substitua o modo de permissão do agente para mensagens deste canal. \"Herdar\" utiliza o padrão do agente."
         },
+        "selectAgent": "[to be translated]:Select an agent to bind",
         "tab": "Canais",
         "telegram": {
           "botToken": "Token do bot",
@@ -177,12 +185,9 @@
       "tasks": {
         "add": "Adicionar tarefa",
         "cancel": "Cancelar",
-        "contextMode": {
-          "isolated": "Isolado",
-          "isolatedDesc": "Criar uma nova sessão em cada execução",
-          "label": "Modo de contexto",
-          "session": "Reutilizar sessão",
-          "sessionDesc": "Reutilizar a sessão mais recente"
+        "channels": {
+          "label": "[to be translated]:Send to Channels",
+          "placeholder": "[to be translated]:Select channels to receive results"
         },
         "cronPlaceholder": "ex: 0 9 * * * (todos os dias às 9h)",
         "delete": {
@@ -197,6 +202,7 @@
           "duration": "Duração",
           "empty": "Ainda sem histórico de execução.",
           "error": "Erro",
+          "justNow": "[to be translated]:just now",
           "label": "Histórico de execução",
           "result": "Resultado",
           "runAt": "Executado em",
@@ -3888,6 +3894,10 @@
       "model_params": "Parâmetros do modelo",
       "title": "Assistente padrão"
     },
+    "channels": {
+      "description": "[to be translated]:Connect agents to messaging platforms like Telegram, Feishu, Discord, and more.",
+      "title": "[to be translated]:Channels"
+    },
     "data": {
       "app_data": {
         "copy_data_option": "Copiar dados, irá reiniciar automaticamente e copiar os dados do diretório original para o novo diretório",
@@ -5466,6 +5476,13 @@
       "title": "Frases Rápidas",
       "titleLabel": "Título",
       "titlePlaceholder": "Por favor, insira o título da frase"
+    },
+    "scheduledTasks": {
+      "description": "[to be translated]:Manage scheduled tasks across all agents. Tasks run automatically on the configured schedule.",
+      "noAgents": "[to be translated]:No agents found. Create an agent first to add scheduled tasks.",
+      "noTasks": "[to be translated]:No scheduled tasks. Click \"+ Add\" to create one for an agent.",
+      "selectTask": "[to be translated]:Select a task to view details",
+      "title": "[to be translated]:Scheduled Tasks"
     },
     "shortcuts": {
       "action": "Ação",

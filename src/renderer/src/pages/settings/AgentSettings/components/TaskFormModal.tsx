@@ -1,14 +1,17 @@
-import type { CreateTaskRequest, TaskContextMode, TaskScheduleType, UpdateTaskRequest } from '@renderer/types'
-import { Input, Modal, Radio, Select } from 'antd'
+import type { CreateTaskRequest, TaskScheduleType, UpdateTaskRequest } from '@renderer/types'
+import { Input, Modal, Select } from 'antd'
+import type { ReactNode } from 'react'
 import { type FC, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
+
+type ChannelOption = { id: string; name: string }
 
 type TaskFormData = {
   name: string
   prompt: string
   schedule_type: TaskScheduleType
   schedule_value: string
-  context_mode: TaskContextMode
+  channel_ids: string[]
 }
 
 type TaskFormModalProps = {
@@ -17,11 +20,21 @@ type TaskFormModalProps = {
   onSave: (data: CreateTaskRequest | UpdateTaskRequest) => Promise<void>
   onCancel: () => void
   isEdit?: boolean
+  agentSelector?: ReactNode
+  channels?: ChannelOption[]
 }
 
 const { TextArea } = Input
 
-const TaskFormModal: FC<TaskFormModalProps> = ({ open, initialData, onSave, onCancel, isEdit = false }) => {
+const TaskFormModal: FC<TaskFormModalProps> = ({
+  open,
+  initialData,
+  onSave,
+  onCancel,
+  isEdit = false,
+  agentSelector,
+  channels = []
+}) => {
   const { t } = useTranslation()
   const [loading, setLoading] = useState(false)
   const [form, setForm] = useState<TaskFormData>({
@@ -29,7 +42,7 @@ const TaskFormModal: FC<TaskFormModalProps> = ({ open, initialData, onSave, onCa
     prompt: '',
     schedule_type: 'interval',
     schedule_value: '',
-    context_mode: 'session'
+    channel_ids: []
   })
 
   useEffect(() => {
@@ -39,7 +52,7 @@ const TaskFormModal: FC<TaskFormModalProps> = ({ open, initialData, onSave, onCa
         prompt: initialData.prompt ?? '',
         schedule_type: initialData.schedule_type ?? 'interval',
         schedule_value: initialData.schedule_value ?? '',
-        context_mode: initialData.context_mode ?? 'session'
+        channel_ids: initialData.channel_ids ?? []
       })
     } else if (open) {
       setForm({
@@ -47,7 +60,7 @@ const TaskFormModal: FC<TaskFormModalProps> = ({ open, initialData, onSave, onCa
         prompt: '',
         schedule_type: 'interval',
         schedule_value: '',
-        context_mode: 'session'
+        channel_ids: []
       })
     }
   }, [open, initialData])
@@ -106,9 +119,9 @@ const TaskFormModal: FC<TaskFormModalProps> = ({ open, initialData, onSave, onCa
       okText={t('agent.cherryClaw.tasks.save')}
       cancelText={t('agent.cherryClaw.tasks.cancel')}
       confirmLoading={loading}
-      okButtonProps={{ disabled: !isValid }}
-      destroyOnClose>
+      okButtonProps={{ disabled: !isValid }}>
       <div className="flex flex-col gap-4 py-2">
+        {agentSelector}
         <div>
           <label className="mb-1 block font-medium text-sm">{t('agent.cherryClaw.tasks.name.label')}</label>
           <Input
@@ -148,21 +161,19 @@ const TaskFormModal: FC<TaskFormModalProps> = ({ open, initialData, onSave, onCa
           </div>
         </div>
 
-        <div>
-          <label className="mb-1 block font-medium text-sm">{t('agent.cherryClaw.tasks.contextMode.label')}</label>
-          <Radio.Group
-            value={form.context_mode}
-            onChange={(e) => setForm((f) => ({ ...f, context_mode: e.target.value }))}>
-            <Radio value="session">
-              <span className="text-sm">{t('agent.cherryClaw.tasks.contextMode.session')}</span>
-              <span className="ml-1 text-gray-400 text-xs">{t('agent.cherryClaw.tasks.contextMode.sessionDesc')}</span>
-            </Radio>
-            <Radio value="isolated">
-              <span className="text-sm">{t('agent.cherryClaw.tasks.contextMode.isolated')}</span>
-              <span className="ml-1 text-gray-400 text-xs">{t('agent.cherryClaw.tasks.contextMode.isolatedDesc')}</span>
-            </Radio>
-          </Radio.Group>
-        </div>
+        {channels.length > 0 && (
+          <div>
+            <label className="mb-1 block font-medium text-sm">{t('agent.cherryClaw.tasks.channels.label')}</label>
+            <Select
+              mode="multiple"
+              value={form.channel_ids}
+              onChange={(value) => setForm((f) => ({ ...f, channel_ids: value }))}
+              className="w-full"
+              placeholder={t('agent.cherryClaw.tasks.channels.placeholder')}
+              options={channels.map((ch) => ({ value: ch.id, label: ch.name }))}
+            />
+          </div>
+        )}
       </div>
     </Modal>
   )

@@ -13,7 +13,6 @@ export const scheduledTasksTable = sqliteTable('scheduled_tasks', {
   prompt: text('prompt').notNull(),
   schedule_type: text('schedule_type').notNull(), // 'cron' | 'interval' | 'once'
   schedule_value: text('schedule_value').notNull(), // cron expression, milliseconds as string, or ISO timestamp
-  context_mode: text('context_mode').notNull().default('session'), // 'session' | 'isolated'
   next_run: text('next_run'),
   last_run: text('last_run'),
   last_result: text('last_result'),

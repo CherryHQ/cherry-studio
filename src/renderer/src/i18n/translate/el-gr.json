@@ -31,9 +31,13 @@
     "cherryClaw": {
       "channels": {
         "add": "Προσθήκη",
+        "bindAgent": "[to be translated]:Bind Agent",
         "comingSoon": "Σύντομα διαθέσιμο",
+        "connected": "[to be translated]:Connected",
+        "connecting": "[to be translated]:Connecting",
         "deleteConfirm": "Διαγραφή καναλιού \"{{name}}\";",
         "description": "Συνδέστε τον πράκτορά σας σε πλατφόρμες μηνυμάτων.",
+        "disconnected": "[to be translated]:Disconnected",
         "discord": {
           "botToken": "Διακριτικό Bot",
           "botTokenPlaceholder": "Εισάγετε το διακριτικό του bot σας στο Discord",
@@ -44,6 +48,7 @@
           "title": "Discord",
           "whoamiTip": "💡 Συμβουλή: Στείλτε /whoami στο bot για να λάβετε το ID του καναλιού σας στη σωστή μορφή."
         },
+        "error": "[to be translated]:Error",
         "feishu": {
           "appId": "App ID",
           "appIdPlaceholder": "Εισαγάγετε το App ID της εφαρμογής Feishu",
@@ -68,7 +73,9 @@
           "verificationToken": "Token επαλήθευσης",
           "verificationTokenPlaceholder": "Εισαγάγετε το token επαλήθευσης της εφαρμογής Feishu"
         },
+        "logs": "[to be translated]:Logs",
         "noInstances": "Δεν έχουν διαμορφωθεί κανάλια {{type}}. Κάντε κλικ στο \"+ Προσθήκη\" για να δημιουργήσετε ένα.",
+        "noLogs": "[to be translated]:No logs yet",
         "notifyReceiver": "Λήψη ειδοποιήσεων εργασιών",
         "notifyReceiverHint": "Αποστολή αποτελεσμάτων προγραμματισμένων εργασιών σε αυτό το κανάλι.",
         "qq": {
@@ -88,6 +95,7 @@
           "permissionMode": "Λειτουργία Αδειών Καναλιού",
           "permissionModeHint": "Παράκαμψη της λειτουργίας αδειών του πράκτορα για μηνύματα από αυτό το κανάλι. Η επιλογή «Κληρονόμηση» χρησιμοποιεί την προεπιλογή του πράκτορα."
         },
+        "selectAgent": "[to be translated]:Select an agent to bind",
         "tab": "Κανάλια",
         "telegram": {
           "botToken": "Token Bot",
@@ -177,12 +185,9 @@
       "tasks": {
         "add": "Προσθήκη εργασίας",
         "cancel": "Ακύρωση",
-        "contextMode": {
-          "isolated": "Απομονωμένο",
-          "isolatedDesc": "Δημιουργία νέας συνεδρίας σε κάθε εκτέλεση",
-          "label": "Λειτουργία πλαισίου",
-          "session": "Επαναχρησιμοποίηση συνεδρίας",
-          "sessionDesc": "Επαναχρησιμοποίηση της πιο πρόσφατης συνεδρίας"
+        "channels": {
+          "label": "[to be translated]:Send to Channels",
+          "placeholder": "[to be translated]:Select channels to receive results"
         },
         "cronPlaceholder": "π.χ. 0 9 * * * (κάθε μέρα στις 9 π.μ.)",
         "delete": {
@@ -197,6 +202,7 @@
           "duration": "Διάρκεια",
           "empty": "Δεν υπάρχει ακόμα ιστορικό εκτελέσεων.",
           "error": "Σφάλμα",
+          "justNow": "[to be translated]:just now",
           "label": "Ιστορικό εκτελέσεων",
           "result": "Αποτέλεσμα",
           "runAt": "Εκτελέστηκε στις",
@@ -3888,6 +3894,10 @@
       "model_params": "Παράμετροι Μοντέλου",
       "title": "Πρόεδρος Υπηρεσίας"
     },
+    "channels": {
+      "description": "[to be translated]:Connect agents to messaging platforms like Telegram, Feishu, Discord, and more.",
+      "title": "[to be translated]:Channels"
+    },
     "data": {
       "app_data": {
         "copy_data_option": "Αντιγραφή δεδομένων, θα γίνει αυτόματα επανεκκίνηση και τα δεδομένα από τον αρχικό κατάλογο θα αντιγραφούν στο νέο κατάλογο",
@@ -5466,6 +5476,13 @@
       "title": "Γρήγορες Φράσεις",
       "titleLabel": "Τίτλος",
       "titlePlaceholder": "Παρακαλώ εισάγετε τίτλο φράσης"
+    },
+    "scheduledTasks": {
+      "description": "[to be translated]:Manage scheduled tasks across all agents. Tasks run automatically on the configured schedule.",
+      "noAgents": "[to be translated]:No agents found. Create an agent first to add scheduled tasks.",
+      "noTasks": "[to be translated]:No scheduled tasks. Click \"+ Add\" to create one for an agent.",
+      "selectTask": "[to be translated]:Select a task to view details",
+      "title": "[to be translated]:Scheduled Tasks"
     },
     "shortcuts": {
       "action": "Ενέργεια",

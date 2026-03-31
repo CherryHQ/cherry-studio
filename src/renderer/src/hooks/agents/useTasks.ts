@@ -13,16 +13,17 @@ import useSWR, { mutate } from 'swr'
 import { useApiServer } from '../useApiServer'
 import { useAgentClient } from './useAgentClient'
 
-export const useTasks = (agentId: string | null) => {
+const TASKS_LIST_KEY = '/v1/tasks'
+
+export const useTasks = () => {
   const client = useAgentClient()
   const { apiServerRunning } = useApiServer()
 
-  const key = apiServerRunning && agentId ? client.getTaskPaths(agentId).base : null
+  const key = apiServerRunning ? TASKS_LIST_KEY : null
 
   const fetcher = useCallback(async () => {
-    if (!agentId) throw new Error('Agent ID required')
-    return client.listTasks(agentId, { limit: 100 })
-  }, [client, agentId])
+    return client.listTasks({ limit: 200 })
+  }, [client])
 
   const { data, error, isLoading } = useSWR<ListTasksResponse>(key, fetcher)
 
@@ -34,16 +35,15 @@ export const useTasks = (agentId: string | null) => {
   }
 }
 
-export const useCreateTask = (agentId: string) => {
+export const useCreateTask = () => {
   const { t } = useTranslation()
   const client = useAgentClient()
-  const listKey = client.getTaskPaths(agentId).base
 
   const createTask = useCallback(
-    async (req: CreateTaskRequest): Promise<ScheduledTaskEntity | undefined> => {
+    async (agentId: string, req: CreateTaskRequest): Promise<ScheduledTaskEntity | undefined> => {
       try {
         const result = await client.createTask(agentId, req)
-        void mutate(listKey)
+        void mutate(TASKS_LIST_KEY)
         window.toast.success({ key: 'create-task', title: t('common.create_success') })
         return result
       } catch (error) {
@@ -53,22 +53,21 @@ export const useCreateTask = (agentId: string) => {
         return undefined
       }
     },
-    [agentId, client, listKey, t]
+    [client, t]
   )
 
   return { createTask }
 }
 
-export const useUpdateTask = (agentId: string) => {
+export const useUpdateTask = () => {
   const { t } = useTranslation()
   const client = useAgentClient()
-  const listKey = client.getTaskPaths(agentId).base
 
   const updateTask = useCallback(
     async (taskId: string, updates: UpdateTaskRequest): Promise<ScheduledTaskEntity | undefined> => {
       try {
-        const result = await client.updateTask(agentId, taskId, updates)
-        void mutate(listKey)
+        const result = await client.updateTask(taskId, updates)
+        void mutate(TASKS_LIST_KEY)
         window.toast.success({ key: 'update-task', title: t('common.update_success') })
         return result
       } catch (error) {
@@ -78,22 +77,21 @@ export const useUpdateTask = (agentId: string) => {
         return undefined
       }
     },
-    [agentId, client, listKey, t]
+    [client, t]
   )
 
   return { updateTask }
 }
 
-export const useRunTask = (agentId: string) => {
+export const useRunTask = () => {
   const { t } = useTranslation()
   const client = useAgentClient()
-  const listKey = client.getTaskPaths(agentId).base
 
   const runTask = useCallback(
     async (taskId: string): Promise<boolean> => {
       try {
-        await client.runTask(agentId, taskId)
-        void mutate(listKey)
+        await client.runTask(taskId)
+        void mutate(TASKS_LIST_KEY)
         window.toast.success({ key: 'run-task', title: t('agent.cherryClaw.tasks.runTriggered') })
         return true
       } catch (error) {
@@ -103,22 +101,21 @@ export const useRunTask = (agentId: string) => {
         return false
       }
     },
-    [agentId, client, listKey, t]
+    [client, t]
   )
 
   return { runTask }
 }
 
-export const useDeleteTask = (agentId: string) => {
+export const useDeleteTask = () => {
   const { t } = useTranslation()
   const client = useAgentClient()
-  const listKey = client.getTaskPaths(agentId).base
 
   const deleteTask = useCallback(
     async (taskId: string): Promise<boolean> => {
       try {
-        await client.deleteTask(agentId, taskId)
-        void mutate(listKey)
+        await client.deleteTask(taskId)
+        void mutate(TASKS_LIST_KEY)
         window.toast.success({ key: 'delete-task', title: t('common.delete_success') })
         return true
       } catch (error) {
@@ -128,22 +125,22 @@ export const useDeleteTask = (agentId: string) => {
         return false
       }
     },
-    [agentId, client, listKey, t]
+    [client, t]
   )
 
   return { deleteTask }
 }
 
-export const useTaskLogs = (agentId: string | null, taskId: string | null) => {
+export const useTaskLogs = (taskId: string | null) => {
   const client = useAgentClient()
   const { apiServerRunning } = useApiServer()
 
-  const key = apiServerRunning && agentId && taskId ? client.getTaskPaths(agentId).logs(taskId) : null
+  const key = apiServerRunning && taskId ? client.taskPaths.logs(taskId) : null
 
   const fetcher = useCallback(async () => {
-    if (!agentId || !taskId) throw new Error('Agent ID and Task ID required')
-    return client.getTaskLogs(agentId, taskId, { limit: 50 })
-  }, [client, agentId, taskId])
+    if (!taskId) throw new Error('Task ID required')
+    return client.getTaskLogs(taskId, { limit: 50 })
+  }, [client, taskId])
 
   const { data, error, isLoading } = useSWR<ListTaskLogsResponse>(key, fetcher)
 

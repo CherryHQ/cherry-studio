@@ -1,14 +1,18 @@
 import { loggerService } from '@logger'
-import type { CherryClawChannel, CherryClawConfiguration } from '@types'
+import { windowService } from '@main/services/WindowService'
+import type { ChannelLogEntry, ChannelStatusEvent } from '@shared/config/types'
+import { IpcChannel } from '@shared/IpcChannel'
 
-import { agentService } from '../AgentService'
+import type { ChannelConfig, ChannelRow } from '../../database/schema'
+import { channelService } from '../ChannelService'
 import type { ChannelAdapter } from './ChannelAdapter'
+import { ChannelLogBuffer } from './ChannelLogBuffer'
 import { channelMessageHandler } from './ChannelMessageHandler'
 
 const logger = loggerService.withContext('ChannelManager')
 
 // Adapter factory registry -- adapters register themselves here
-type AdapterFactory = (channelConfig: CherryClawChannel, agentId: string) => ChannelAdapter
+type AdapterFactory = (channel: ChannelRow, agentId: string) => ChannelAdapter
 const adapterFactories = new Map<string, AdapterFactory>()
 
 export function registerAdapterFactory(type: string, factory: AdapterFactory): void {
@@ -18,11 +22,12 @@ export function registerAdapterFactory(type: string, factory: AdapterFactory): v
 class ChannelManager {
   private static instance: ChannelManager | null = null
   private readonly adapters = new Map<string, ChannelAdapter>() // key: `${agentId}:${channelId}`
-  private readonly notifyChannels = new Set<string>() // key: `${agentId}:${channelId}`
   private readonly qrWaiters = new Map<
     string,
     { resolve: (url: string) => void; timer: ReturnType<typeof setTimeout> }
   >()
+  private readonly channelLogs = new ChannelLogBuffer()
+  private readonly channelStatuses = new Map<string, ChannelStatusEvent>()
 
   static getInstance(): ChannelManager {
     if (!ChannelManager.instance) {
@@ -32,16 +37,12 @@ class ChannelManager {
   }
 
   async start(): Promise<void> {
-    logger.info('Starting channel manager')
     try {
-      const { agents } = await agentService.listAgents()
-      const agentsWithChannels = agents.filter((a) => {
-        const config = a.configuration as CherryClawConfiguration | undefined
-        return config?.channels && config.channels.length > 0
-      })
+      const channels = await channelService.listChannels()
+      const activeChannels = channels.filter((ch) => ch.isActive && ch.agentId)
 
-      for (const agent of agentsWithChannels) {
-        await this.startAgentChannels(agent.id, (agent.configuration as CherryClawConfiguration)?.channels)
+      for (const channel of activeChannels) {
+        await this.connectChannelFromRow(channel)
       }
 
       logger.info('Channel manager started', { adapterCount: this.adapters.size })
@@ -65,7 +66,6 @@ class ChannelManager {
     )
     await Promise.all(disconnects)
     this.adapters.clear()
-    this.notifyChannels.clear()
     logger.info('Channel manager stopped')
   }
 
@@ -95,18 +95,48 @@ class ChannelManager {
     return result
   }
 
-  /** Return connected adapters for an agent whose channel has `is_notify_receiver: true`. */
-  getNotifyAdapters(agentId: string): ChannelAdapter[] {
+  /** Return all connected adapters for an agent. */
+  getAgentAdapters(agentId: string): ChannelAdapter[] {
     const result: ChannelAdapter[] = []
-    for (const [key, adapter] of this.adapters) {
+    for (const [, adapter] of this.adapters) {
       if (adapter.agentId !== agentId) continue
-      // Look up original channel config to check is_notify_receiver
-      const channelId = key.split(':')[1]
-      if (this.notifyChannels.has(`${agentId}:${channelId}`)) {
-        result.push(adapter)
-      }
+      result.push(adapter)
     }
     return result
+  }
+
+  /** Return the adapter for a specific channel, if connected. */
+  getAdapter(channelId: string): ChannelAdapter | undefined {
+    for (const [, adapter] of this.adapters) {
+      if (adapter.channelId === channelId) return adapter
+    }
+    return undefined
+  }
+
+  /** Get buffered logs for a channel. */
+  getChannelLogs(channelId: string): ChannelLogEntry[] {
+    return this.channelLogs.get(channelId)
+  }
+
+  /** Get live connection status for all active adapters. */
+  getAllStatuses(): ChannelStatusEvent[] {
+    const result: ChannelStatusEvent[] = []
+    for (const [, adapter] of this.adapters) {
+      const cached = this.channelStatuses.get(adapter.channelId)
+      result.push({
+        channelId: adapter.channelId,
+        connected: adapter.connected,
+        ...(cached?.error && !adapter.connected ? { error: cached.error } : {})
+      })
+    }
+    return result
+  }
+
+  private sendToRenderer(channel: string, data: unknown): void {
+    const mainWindow = windowService.getMainWindow()
+    if (mainWindow && !mainWindow.isDestroyed()) {
+      mainWindow.webContents.send(channel, data)
+    }
   }
 
   async syncAgent(agentId: string): Promise<void> {
@@ -124,21 +154,19 @@ class ChannelManager {
           })
           .finally(() => {
             this.adapters.delete(key)
-            this.notifyChannels.delete(key)
           })
       )
     )
 
     channelMessageHandler.clearSessionTracker(agentId)
 
-    // Re-create from current config (agent may have been deleted)
-    const agent = await agentService.getAgent(agentId)
-    if (!agent) return
+    // Re-create from current DB rows
+    const channels = await channelService.listChannels({ agentId })
+    const activeChannels = channels.filter((ch) => ch.isActive)
 
-    const config = agent.configuration as CherryClawConfiguration | undefined
-    if (!config?.channels?.length) return
-
-    await this.startAgentChannels(agentId, config.channels)
+    for (const channel of activeChannels) {
+      await this.connectChannelFromRow(channel)
+    }
   }
 
   /**
@@ -150,54 +178,37 @@ class ChannelManager {
     channelId: string,
     creds: { appId: string; appSecret: string }
   ): Promise<void> {
-    const agent = await agentService.getAgent(agentId)
-    if (!agent) return
+    const channel = await channelService.getChannel(channelId)
+    if (!channel) return
 
-    const config = agent.configuration as CherryClawConfiguration | undefined
-    const channels = [...(config?.channels ?? [])]
-    const idx = channels.findIndex((ch) => ch.id === channelId)
-    if (idx === -1) return
-
-    channels[idx] = {
-      ...channels[idx],
-      config: { ...channels[idx].config, app_id: creds.appId, app_secret: creds.appSecret }
-    }
-
-    await agentService.updateAgent(agentId, {
-      configuration: { ...config, channels } as CherryClawConfiguration
+    const config = channel.config as ChannelConfig & Record<string, unknown>
+    await channelService.updateChannel(channelId, {
+      config: { ...config, app_id: creds.appId, app_secret: creds.appSecret } as ChannelConfig
     })
 
     logger.info('Saved QR registration credentials, reconnecting', { agentId, channelId })
     await this.syncAgent(agentId)
   }
 
-  private async startAgentChannels(agentId: string, channels?: CherryClawChannel[]): Promise<void> {
-    if (!channels || channels.length === 0) return
+  private async connectChannelFromRow(row: ChannelRow): Promise<void> {
+    const agentId = row.agentId
+    if (!agentId) return
 
-    const connectTasks = channels
-      .filter((channel) => channel.enabled !== false)
-      .map((channel) => this.connectChannel(agentId, channel))
-
-    // Connect all channels in parallel so one blocking login doesn't stall others
-    await Promise.all(connectTasks)
-  }
-
-  private async connectChannel(agentId: string, channel: CherryClawChannel): Promise<void> {
-    const factory = adapterFactories.get(channel.type)
+    const factory = adapterFactories.get(row.type)
     if (!factory) {
-      logger.warn('No adapter factory for channel type', { type: channel.type, agentId })
+      logger.warn('No adapter factory for channel type', { type: row.type, agentId })
       return
     }
 
-    const key = `${agentId}:${channel.id}`
+    const key = `${agentId}:${row.id}`
     try {
-      const adapter = factory(channel, agentId)
+      const adapter = factory(row, agentId)
 
       adapter.on('message', (msg) => {
         channelMessageHandler.handleIncoming(adapter, msg).catch((err) => {
           logger.error('Unhandled error in message handler', {
             agentId,
-            channelId: channel.id,
+            channelId: row.id,
             error: err instanceof Error ? err.message : String(err)
           })
         })
@@ -207,7 +218,7 @@ class ChannelManager {
         channelMessageHandler.handleCommand(adapter, cmd).catch((err) => {
           logger.error('Unhandled error in command handler', {
             agentId,
-            channelId: channel.id,
+            channelId: row.id,
             error: err instanceof Error ? err.message : String(err)
           })
         })
@@ -215,7 +226,7 @@ class ChannelManager {
 
       // Forward QR events to any pending waiters
       adapter.on('qr', (url) => {
-        const waiterKey = `${agentId}:${channel.id}`
+        const waiterKey = `${agentId}:${row.id}`
         const waiter = this.qrWaiters.get(waiterKey)
         if (waiter) {
           clearTimeout(waiter.timer)
@@ -227,26 +238,34 @@ class ChannelManager {
       // When an adapter obtains credentials via QR registration, persist them
       // to the channel config and re-sync so a new adapter connects with creds.
       adapter.on('credentials', (creds) => {
-        this.saveCredentialsAndReconnect(agentId, channel.id, creds).catch((err) => {
+        this.saveCredentialsAndReconnect(agentId, row.id, creds).catch((err) => {
           logger.error('Failed to save credentials and reconnect', {
             agentId,
-            channelId: channel.id,
+            channelId: row.id,
             error: err instanceof Error ? err.message : String(err)
           })
         })
       })
 
+      // Forward log & status events to renderer via IPC
+      adapter.on('log', (entry) => {
+        this.channelLogs.append(entry.channelId, entry)
+        this.sendToRenderer(IpcChannel.Channel_Log, entry)
+      })
+
+      adapter.on('statusChange', (status) => {
+        this.channelStatuses.set(status.channelId, status)
+        this.sendToRenderer(IpcChannel.Channel_StatusChange, status)
+      })
+
       await adapter.connect()
       this.adapters.set(key, adapter)
-      if (channel.is_notify_receiver) {
-        this.notifyChannels.add(key)
-      }
-      logger.info('Channel adapter connected', { agentId, channelId: channel.id, type: channel.type })
+      logger.info('Channel adapter connected', { agentId, channelId: row.id, type: row.type })
     } catch (error) {
       logger.error('Failed to connect channel adapter', {
         agentId,
-        channelId: channel.id,
-        type: channel.type,
+        channelId: row.id,
+        type: row.type,
         error: error instanceof Error ? error.message : String(error)
       })
     }

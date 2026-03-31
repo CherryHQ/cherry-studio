@@ -15,7 +15,7 @@ const getCherryClawConfig = (agent: { configuration?: unknown }): CherryClawConf
 
 function syncSchedulerIfNeeded(agentId: string, agent: { configuration?: unknown }): void {
   const config = getCherryClawConfig(agent)
-  if (!config.heartbeat_enabled && !config.scheduler_enabled && !config.channels?.length) return
+  if (!config.heartbeat_enabled && !config.scheduler_enabled) return
 
   schedulerService.syncScheduler()
   void channelManager.syncAgent(agentId)

@@ -26,6 +26,7 @@ const mockImCreate = vi.fn().mockResolvedValue({ code: 0, data: { message_id: 'm
 const mockImUpdate = vi.fn().mockResolvedValue({ code: 0 })
 const mockCardCreate = vi.fn().mockResolvedValue({ code: 0, data: { card_id: 'card-1' } })
 const mockCardSettings = vi.fn().mockResolvedValue({ code: 0 })
+const mockCardUpdate = vi.fn().mockResolvedValue({ code: 0 })
 const mockElementContent = vi.fn().mockResolvedValue({ code: 0 })
 
 const mockClient = {
@@ -37,7 +38,7 @@ const mockClient = {
   },
   cardkit: {
     v1: {
-      card: { create: mockCardCreate, settings: mockCardSettings },
+      card: { create: mockCardCreate, settings: mockCardSettings, update: mockCardUpdate },
       cardElement: { content: mockElementContent }
     }
   }
@@ -77,6 +78,7 @@ describe('FeishuAdapter', () => {
     mockImUpdate.mockClear().mockResolvedValue({ code: 0 })
     mockCardCreate.mockClear().mockResolvedValue({ code: 0, data: { card_id: 'card-1' } })
     mockCardSettings.mockClear().mockResolvedValue({ code: 0 })
+    mockCardUpdate.mockClear().mockResolvedValue({ code: 0 })
     mockElementContent.mockClear().mockResolvedValue({ code: 0 })
     mockWsStart.mockClear().mockResolvedValue(undefined)
     capturedEventHandlers = {}
@@ -162,13 +164,14 @@ describe('FeishuAdapter', () => {
     )
   })
 
-  it('sendMessageDraft() creates streaming card and updates content via SDK', async () => {
+  it('onTextUpdate() creates streaming card and updates content via CardKit', async () => {
+    vi.useFakeTimers()
     const adapter = createAdapter()
     await adapter.connect()
 
-    await adapter.sendMessageDraft('oc_123', 1, 'partial text...')
+    await adapter.onTextUpdate('oc_123', 'partial text...')
 
-    // Should create a streaming card
+    // Card is created eagerly (before throttle)
     expect(mockCardCreate).toHaveBeenCalledWith({
       data: {
         type: 'card_json',
@@ -176,7 +179,6 @@ describe('FeishuAdapter', () => {
       }
     })
 
-    // Should send the card as an interactive message
     expect(mockImCreate).toHaveBeenCalledWith({
       params: { receive_id_type: 'chat_id' },
       data: {
@@ -186,28 +188,34 @@ describe('FeishuAdapter', () => {
       }
     })
 
-    // Should update element content
+    // Flush is deferred (long-gap batching) — advance timers to trigger it
+    await vi.advanceTimersByTimeAsync(500)
+
     expect(mockElementContent).toHaveBeenCalledWith({
       path: { card_id: 'card-1', element_id: 'streaming_content' },
       data: {
-        content: expect.stringContaining('partial text...'),
+        content: 'partial text...',
         sequence: expect.any(Number)
       }
     })
   })
 
-  it('finalizeStream() updates the existing card and returns true', async () => {
+  it('onStreamComplete() closes streaming mode and returns true', async () => {
+    vi.useFakeTimers()
     const adapter = createAdapter()
     await adapter.connect()
 
-    await adapter.sendMessageDraft('oc_123', 1, 'partial text...')
+    await adapter.onTextUpdate('oc_123', 'partial text...')
+    // Advance past the long-gap batch delay so the flush completes
+    await vi.advanceTimersByTimeAsync(500)
 
-    await expect(adapter.finalizeStream(1, 'final text')).resolves.toBe(true)
-    expect(mockImUpdate).toHaveBeenCalledWith({
-      path: { message_id: 'msg-1' },
+    await expect(adapter.onStreamComplete('oc_123', 'final text')).resolves.toBe(true)
+
+    expect(mockCardSettings).toHaveBeenCalledWith({
+      path: { card_id: 'card-1' },
       data: {
-        msg_type: 'interactive',
-        content: expect.stringContaining('final text')
+        settings: expect.stringContaining('streaming_mode'),
+        sequence: expect.any(Number)
       }
     })
   })

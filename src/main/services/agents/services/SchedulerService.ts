@@ -1,7 +1,10 @@
 import { loggerService } from '@logger'
 import type { CherryClawConfiguration, ScheduledTaskEntity } from '@types'
 
+import { agentService } from './AgentService'
+import type { ChannelAdapter } from './channels'
 import { channelManager } from './channels/ChannelManager'
+import { channelService } from './ChannelService'
 import { readHeartbeat } from './cherryclaw/heartbeat'
 import { sessionMessageService } from './SessionMessageService'
 import { sessionService } from './SessionService'
@@ -90,8 +93,7 @@ class SchedulerService {
         name: 'heartbeat',
         prompt: '__heartbeat__',
         schedule_type: 'interval',
-        schedule_value: String(intervalMinutes),
-        context_mode: 'session'
+        schedule_value: String(intervalMinutes)
       })
       logger.info('Created heartbeat task', { agentId, interval: intervalMinutes })
     }
@@ -166,8 +168,6 @@ class SchedulerService {
 
     try {
       logger.info('Running scheduled task', { taskId: task.id, agentId: task.agent_id })
-
-      const { agentService } = await import('./AgentService')
       const agent = await agentService.getAgent(task.agent_id)
       if (!agent) {
         throw new Error(`Agent not found: ${task.agent_id}`)
@@ -205,19 +205,25 @@ class SchedulerService {
         ].join('\n')
       }
 
-      // Find or create session based on context mode
-      let sessionId: string
-      if (task.context_mode === 'session') {
-        const { sessions } = await sessionService.listSessions(task.agent_id, { limit: 1 })
-        if (sessions.length === 0) {
-          const newSession = await sessionService.createSession(task.agent_id, {})
-          sessionId = newSession!.id
-        } else {
-          sessionId = sessions[0].id
+      // Resolve session from subscribed channels, or create a new one
+      const subscribedChannels = await channelService.getSubscribedChannels(task.id)
+      let sessionId: string | undefined
+
+      // Try to reuse a session from a subscribed channel
+      for (const ch of subscribedChannels) {
+        if (ch.sessionId) {
+          sessionId = ch.sessionId
+          break
         }
-      } else {
+      }
+
+      // No channel has a session — create one and bind it to the first channel
+      if (!sessionId) {
         const newSession = await sessionService.createSession(task.agent_id, {})
         sessionId = newSession!.id
+        if (subscribedChannels.length > 0) {
+          await channelService.updateChannel(subscribedChannels[0].id, { sessionId })
+        }
       }
 
       const session = await sessionService.getSession(task.agent_id, sessionId)
@@ -233,14 +239,14 @@ class SchedulerService {
         { persist: true }
       )
 
-      // Drain the stream so completion resolves
-      const reader = stream.getReader()
-      while (!(await reader.read()).done) {
-        // discard chunks
-      }
+      // Collect the response text and stream to subscribed channels only
+      const targetAdapters = subscribedChannels
+        .map((ch) => channelManager.getAdapter(ch.id))
+        .filter((a) => a !== undefined)
+      const responseText = await this.collectAndStreamResponse(stream, targetAdapters)
       await completion
 
-      result = 'Completed'
+      result = responseText.slice(0, 200) || 'Completed'
       this.consecutiveErrors.delete(task.id)
       logger.info('Task completed', { taskId: task.id, durationMs: Date.now() - startTime })
     } catch (err) {
@@ -279,30 +285,97 @@ class SchedulerService {
     const resultSummary = error ? `Error: ${error}` : result ? result.slice(0, 200) : 'Completed'
     await taskService.updateTaskAfterRun(task.id, nextRun, resultSummary)
 
-    // Send notification to notify-enabled channels
-    await this.notifyTaskResult(task, durationMs, error)
+    // Send error notification or final response to channels
+    if (error) {
+      await this.notifyTaskError(task, durationMs, error)
+    }
   }
 
-  private async notifyTaskResult(task: ScheduledTaskEntity, durationMs: number, error: string | null): Promise<void> {
+  /**
+   * Collect the stream response text and simultaneously stream to channel adapters.
+   * Mirrors the logic in ChannelMessageHandler.collectStreamResponse.
+   */
+  private async collectAndStreamResponse(stream: ReadableStream, adapters: ChannelAdapter[]): Promise<string> {
+    const reader = stream.getReader()
+    let completedText = ''
+    let currentBlockText = ''
+
+    // Pick the first notifyChatId from each adapter for streaming
+    const adapterChats = adapters.flatMap((a) => a.notifyChatIds.map((chatId) => ({ adapter: a, chatId })))
+
     try {
-      const adapters = channelManager.getNotifyAdapters(task.agent_id)
-      if (adapters.length === 0) return
+      while (true) {
+        const { done, value } = await reader.read()
+        if (done) break
 
-      const status = error ? 'failed' : 'completed'
+        // Skip user message echoes
+        const rawType = value.providerMetadata?.raw?.type
+        if (rawType === 'user') continue
+
+        switch (value.type) {
+          case 'text-delta':
+            if (value.text) {
+              currentBlockText = value.text
+              const fullText = completedText + currentBlockText
+              // Stream to all channel adapters
+              for (const { adapter, chatId } of adapterChats) {
+                adapter.onTextUpdate(chatId, fullText).catch(() => {})
+              }
+            }
+            break
+          case 'text-end':
+            if (currentBlockText) {
+              completedText += currentBlockText + '\n\n'
+              currentBlockText = ''
+            }
+            break
+        }
+      }
+
+      const finalText = (completedText + currentBlockText).replace(/\n+$/, '')
+
+      // Finalize streaming on all adapters, fall back to sendMessage if not handled
+      for (const { adapter, chatId } of adapterChats) {
+        try {
+          const handled = await adapter.onStreamComplete(chatId, finalText)
+          if (!handled && finalText) {
+            await adapter.sendMessage(chatId, finalText)
+          }
+        } catch (err) {
+          logger.warn('Failed to send task response to channel', {
+            channelId: adapter.channelId,
+            chatId,
+            error: err instanceof Error ? err.message : String(err)
+          })
+        }
+      }
+
+      return finalText
+    } catch (error) {
+      const errorMsg = error instanceof Error ? error.message : String(error)
+      for (const { adapter, chatId } of adapterChats) {
+        adapter.onStreamError(chatId, errorMsg).catch(() => {})
+      }
+      throw error
+    }
+  }
+
+  private async notifyTaskError(task: ScheduledTaskEntity, durationMs: number, error: string): Promise<void> {
+    try {
+      const subscribedChannels = await channelService.getSubscribedChannels(task.id)
+      if (subscribedChannels.length === 0) return
+
       const durationSec = Math.round(durationMs / 1000)
-      const lines = [
-        `[Task ${status}] ${task.name}`,
-        `Duration: ${durationSec}s`,
-        ...(error ? [`Error: ${error}`] : [])
-      ]
-      const text = lines.join('\n')
+      const text = `[Task failed] ${task.name}\nDuration: ${durationSec}s\nError: ${error}`
 
-      for (const adapter of adapters) {
+      for (const ch of subscribedChannels) {
+        const adapter = channelManager.getAdapter(ch.id)
+        if (!adapter) continue
         for (const chatId of adapter.notifyChatIds) {
           adapter.sendMessage(chatId, text).catch((err) => {
-            logger.warn('Failed to send task notification', {
+            logger.warn('Failed to send task error notification', {
               taskId: task.id,
-              channelId: adapter.channelId,
+              channelId: ch.id,
               chatId,
               error: err instanceof Error ? err.message : String(err)
             })
@@ -310,7 +383,7 @@ class SchedulerService {
         }
       }
     } catch (err) {
-      logger.warn('Error sending task notifications', {
+      logger.warn('Error sending task error notification', {
         taskId: task.id,
         error: err instanceof Error ? err.message : String(err)
       })

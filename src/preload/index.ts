@@ -627,6 +627,38 @@ const api = {
       return () => ipcRenderer.off(IpcChannel.Feishu_QrLogin, listener)
     }
   },
+  channel: {
+    onLog: (
+      callback: (log: { timestamp: number; level: string; message: string; channelId: string }) => void
+    ): (() => void) => {
+      const listener = (
+        _event: Electron.IpcRendererEvent,
+        log: { timestamp: number; level: string; message: string; channelId: string }
+      ) => {
+        callback(log)
+      }
+      ipcRenderer.on(IpcChannel.Channel_Log, listener)
+      return () => ipcRenderer.off(IpcChannel.Channel_Log, listener)
+    },
+    onStatusChange: (
+      callback: (status: { channelId: string; connected: boolean; error?: string }) => void
+    ): (() => void) => {
+      const listener = (
+        _event: Electron.IpcRendererEvent,
+        status: { channelId: string; connected: boolean; error?: string }
+      ) => {
+        callback(status)
+      }
+      ipcRenderer.on(IpcChannel.Channel_StatusChange, listener)
+      return () => ipcRenderer.off(IpcChannel.Channel_StatusChange, listener)
+    },
+    getLogs: (
+      channelId: string
+    ): Promise<Array<{ timestamp: number; level: string; message: string; channelId: string }>> =>
+      ipcRenderer.invoke(IpcChannel.Channel_GetLogs, channelId),
+    getStatuses: (): Promise<Array<{ channelId: string; connected: boolean; error?: string }>> =>
+      ipcRenderer.invoke(IpcChannel.Channel_GetStatuses)
+  },
   quoteToMainWindow: (text: string) => ipcRenderer.invoke(IpcChannel.App_QuoteToMain, text),
   setDisableHardwareAcceleration: (isDisable: boolean) =>
     ipcRenderer.invoke(IpcChannel.App_SetDisableHardwareAcceleration, isDisable),

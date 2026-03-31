@@ -31,9 +31,13 @@
     "cherryClaw": {
       "channels": {
         "add": "追加",
+        "bindAgent": "[to be translated]:Bind Agent",
         "comingSoon": "近日公開",
+        "connected": "[to be translated]:Connected",
+        "connecting": "[to be translated]:Connecting",
         "deleteConfirm": "チャンネル「{{name}}」を削除しますか？",
         "description": "エージェントをメッセージングプラットフォームに接続します。",
+        "disconnected": "[to be translated]:Disconnected",
         "discord": {
           "botToken": "ボットトークン",
           "botTokenPlaceholder": "Discordボットのトークンを入力してください",
@@ -44,6 +48,7 @@
           "title": "ディスコード",
           "whoamiTip": "💡 ヒント：正しい形式でチャンネルIDを取得するには、ボットに /whoami を送信してください。"
         },
+        "error": "[to be translated]:Error",
         "feishu": {
           "appId": "App ID",
           "appIdPlaceholder": "FeishuアプリのApp IDを入力してください",
@@ -68,7 +73,9 @@
           "verificationToken": "検証トークン",
           "verificationTokenPlaceholder": "Feishuアプリの検証トークンを入力してください"
         },
+        "logs": "[to be translated]:Logs",
         "noInstances": "{{type}}チャンネルが設定されていません。「＋追加」をクリックして作成してください。",
+        "noLogs": "[to be translated]:No logs yet",
         "notifyReceiver": "タスク通知を受信",
         "notifyReceiverHint": "スケジュールタスクの結果をこのチャンネルに送信します。",
         "qq": {
@@ -88,6 +95,7 @@
           "permissionMode": "チャンネル権限モード",
           "permissionModeHint": "このチャンネルからのメッセージについて、エージェントの権限モードを上書きします。「継承」を選択すると、エージェントのデフォルト設定が使用されます。"
         },
+        "selectAgent": "[to be translated]:Select an agent to bind",
         "tab": "チャンネル",
         "telegram": {
           "botToken": "Bot Token",
@@ -177,12 +185,9 @@
       "tasks": {
         "add": "タスクを追加",
         "cancel": "キャンセル",
-        "contextMode": {
-          "isolated": "隔離",
-          "isolatedDesc": "実行ごとに新しいセッションを作成",
-          "label": "コンテキストモード",
-          "session": "セッションを再利用",
-          "sessionDesc": "最新のセッションを再利用"
+        "channels": {
+          "label": "[to be translated]:Send to Channels",
+          "placeholder": "[to be translated]:Select channels to receive results"
         },
         "cronPlaceholder": "例: 0 9 * * *（毎日午前 9 時）",
         "delete": {
@@ -197,6 +202,7 @@
           "duration": "所要時間",
           "empty": "実行履歴がありません。",
           "error": "エラー",
+          "justNow": "[to be translated]:just now",
           "label": "実行履歴",
           "result": "結果",
           "runAt": "実行時刻",
@@ -3888,6 +3894,10 @@
       "model_params": "モデルパラメータ",
       "title": "デフォルトアシスタント"
     },
+    "channels": {
+      "description": "[to be translated]:Connect agents to messaging platforms like Telegram, Feishu, Discord, and more.",
+      "title": "[to be translated]:Channels"
+    },
     "data": {
       "app_data": {
         "copy_data_option": "データをコピーする, 開くと元のディレクトリのデータが新しいディレクトリにコピーされます。",
@@ -5466,6 +5476,13 @@
       "title": "クイックフレーズ",
       "titleLabel": "タイトル",
       "titlePlaceholder": "フレーズのタイトルを入力してください"
+    },
+    "scheduledTasks": {
+      "description": "[to be translated]:Manage scheduled tasks across all agents. Tasks run automatically on the configured schedule.",
+      "noAgents": "[to be translated]:No agents found. Create an agent first to add scheduled tasks.",
+      "noTasks": "[to be translated]:No scheduled tasks. Click \"+ Add\" to create one for an agent.",
+      "selectTask": "[to be translated]:Select a task to view details",
+      "title": "[to be translated]:Scheduled Tasks"
     },
     "shortcuts": {
       "action": "操作",

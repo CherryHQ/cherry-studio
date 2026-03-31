@@ -2,14 +2,16 @@ import { appendFile, mkdir, readdir, readFile, rename, stat, writeFile } from 'n
 import path from 'node:path'
 
 import { loggerService } from '@logger'
+import { type ChannelConfig, ChannelConfigSchema } from '@main/services/agents/database/schema'
 import { PluginService } from '@main/services/agents/plugins/PluginService'
 import { agentService } from '@main/services/agents/services/AgentService'
 import { channelManager } from '@main/services/agents/services/channels/ChannelManager'
+import { channelService } from '@main/services/agents/services/ChannelService'
 import { taskService } from '@main/services/agents/services/TaskService'
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
 import type { Tool } from '@modelcontextprotocol/sdk/types.js'
 import { CallToolRequestSchema, ErrorCode, ListToolsRequestSchema, McpError } from '@modelcontextprotocol/sdk/types.js'
-import type { CherryClawChannel, CherryClawConfiguration, TaskContextMode, TaskScheduleType } from '@types'
+import type { CherryClawConfiguration, TaskScheduleType } from '@types'
 import { net } from 'electron'
 import QRCode from 'qrcode'
 
@@ -101,11 +103,11 @@ const CRON_TOOL: Tool = {
         description:
           "RFC3339 timestamp for a one-time job, e.g. '2024-01-15T14:30:00+08:00' (use at OR cron OR every, not combined)"
       },
-      session_mode: {
-        type: 'string',
-        enum: ['reuse', 'new'],
+      channel_ids: {
+        type: 'array',
+        items: { type: 'string' },
         description:
-          "Session behavior: 'reuse' (default) keeps conversation history across executions, 'new' starts a fresh session each time"
+          'Channel IDs to send task results to. Omit to auto-bind all agent channels. Use an empty array [] to skip channel delivery.'
       },
       id: {
         type: 'string',
@@ -278,10 +280,6 @@ const CONFIG_TOOL: Tool = {
       enabled: {
         type: 'boolean',
         description: 'Enable or disable the channel (optional for add/update, defaults to true)'
-      },
-      is_notify_receiver: {
-        type: 'boolean',
-        description: 'Whether this channel receives notifications from the notify tool (optional, defaults to false)'
       }
     },
     required: ['action']
@@ -334,9 +332,11 @@ const MEMORY_TOOL: Tool = {
 class ClawServer {
   public mcpServer: McpServer
   private agentId: string
+  private sourceChannelId: string | undefined
 
-  constructor(agentId: string) {
+  constructor(agentId: string, sourceChannelId?: string) {
     this.agentId = agentId
+    this.sourceChannelId = sourceChannelId
     this.mcpServer = new McpServer(
       {
         name: 'claw',
@@ -448,14 +448,13 @@ class ClawServer {
     })
   }
 
-  private async addJob(args: Record<string, string | undefined>) {
-    const name = args.name
-    const message = args.message
-    const cronExpr = args.cron
-    const every = args.every
-    const at = args.at
-    const sessionMode = args.session_mode
-
+  private async addJob(args: Record<string, unknown>) {
+    const name = args.name as string | undefined
+    const message = args.message as string | undefined
+    const cronExpr = args.cron as string | undefined
+    const every = args.every as string | undefined
+    const at = args.at as string | undefined
+    const rawChannelIds = args.channel_ids as string[] | undefined
     if (!name) throw new McpError(ErrorCode.InvalidParams, "'name' is required for add")
     if (!message) throw new McpError(ErrorCode.InvalidParams, "'message' is required for add")
 
@@ -481,14 +480,20 @@ class ClawServer {
       scheduleValue = date.toISOString()
     }
 
-    const contextMode: TaskContextMode = sessionMode === 'new' ? 'isolated' : 'session'
+    // Resolve channel_ids: explicit array, or default to the current channel
+    let channelIds: string[] | undefined
+    if (Array.isArray(rawChannelIds)) {
+      channelIds = rawChannelIds
+    } else if (this.sourceChannelId) {
+      channelIds = [this.sourceChannelId]
+    }
 
     const task = await taskService.createTask(this.agentId, {
       name,
       prompt: message,
       schedule_type: scheduleType,
       schedule_value: scheduleValue,
-      context_mode: contextMode
+      channel_ids: channelIds && channelIds.length > 0 ? channelIds : undefined
     })
 
     logger.info('Cron job created via tool', { agentId: this.agentId, taskId: task.id })
@@ -514,7 +519,7 @@ class ClawServer {
     if (!message) throw new McpError(ErrorCode.InvalidParams, "'message' is required for notify")
 
     const targetChannelId = args.channel_id
-    let adapters = channelManager.getNotifyAdapters(this.agentId)
+    let adapters = channelManager.getAgentAdapters(this.agentId)
 
     if (targetChannelId) {
       adapters = adapters.filter((a) => a.channelId === targetChannelId)
@@ -525,7 +530,7 @@ class ClawServer {
         content: [
           {
             type: 'text' as const,
-            text: 'No notify-enabled channels found. Enable `is_notify_receiver` on at least one channel in agent settings.'
+            text: 'No connected channels found. Configure at least one channel in settings.'
           }
         ]
       }
@@ -786,7 +791,7 @@ class ClawServer {
     if (!agent) throw new McpError(ErrorCode.InternalError, `Agent not found: ${this.agentId}`)
 
     const config = agent.configuration as CherryClawConfiguration | undefined
-    const channels = config?.channels ?? []
+    const channels = await channelService.listChannels({ agentId: this.agentId })
 
     const adapterStatuses = channelManager.getAdapterStatuses(this.agentId)
     const statusMap = new Map(adapterStatuses.map((s) => [s.channelId, s.connected]))
@@ -795,9 +800,8 @@ class ClawServer {
       id: ch.id,
       type: ch.type,
       name: ch.name,
-      enabled: ch.enabled !== false,
-      connected: statusMap.get(ch.id) ?? false,
-      is_notify_receiver: ch.is_notify_receiver ?? false
+      enabled: ch.isActive,
+      connected: statusMap.get(ch.id) ?? false
     }))
 
     const result = {
@@ -826,7 +830,6 @@ class ClawServer {
     const name = args.name as string | undefined
     const channelConfig = args.config as Record<string, unknown> | undefined
     const enabled = args.enabled as boolean | undefined
-    const isNotifyReceiver = args.is_notify_receiver as boolean | undefined
 
     if (!type) throw new McpError(ErrorCode.InvalidParams, "'type' is required for add_channel")
     if (!name) throw new McpError(ErrorCode.InvalidParams, "'name' is required for add_channel")
@@ -847,25 +850,14 @@ class ClawServer {
       }
     }
 
-    const agent = await agentService.getAgent(this.agentId)
-    if (!agent) throw new McpError(ErrorCode.InternalError, `Agent not found: ${this.agentId}`)
-
-    const existingConfig = agent.configuration as CherryClawConfiguration | undefined
-    const channels: CherryClawChannel[] = [...(existingConfig?.channels ?? [])]
-
-    const newChannel: CherryClawChannel = {
-      id: `ch_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
-      type: type as CherryClawChannel['type'],
+    const channelType = type as ChannelConfig['type']
+    const config = ChannelConfigSchema.parse({ type: channelType, ...cfg })
+    const newChannel = await channelService.createChannel({
+      type: channelType,
       name,
-      enabled: enabled ?? true,
-      config: cfg as CherryClawChannel['config'],
-      is_notify_receiver: isNotifyReceiver ?? false
-    }
-
-    channels.push(newChannel)
-
-    await agentService.updateAgent(this.agentId, {
-      configuration: { ...existingConfig, channels } as CherryClawConfiguration
+      agentId: this.agentId,
+      config,
+      isActive: enabled ?? true
     })
 
     // For channels that use QR-based setup (WeChat login, Feishu app registration),
@@ -941,7 +933,7 @@ class ClawServer {
       content: [
         {
           type: 'text' as const,
-          text: `Channel added and activated:\n${JSON.stringify({ id: newChannel.id, type, name, enabled: newChannel.enabled }, null, 2)}`
+          text: `Channel added and activated:\n${JSON.stringify({ id: newChannel.id, type, name, enabled: newChannel.isActive }, null, 2)}`
         }
       ]
     }
@@ -951,29 +943,17 @@ class ClawServer {
     const channelId = args.channel_id as string | undefined
     if (!channelId) throw new McpError(ErrorCode.InvalidParams, "'channel_id' is required for update_channel")
 
-    const agent = await agentService.getAgent(this.agentId)
-    if (!agent) throw new McpError(ErrorCode.InternalError, `Agent not found: ${this.agentId}`)
+    const existing = await channelService.getChannel(channelId)
+    if (!existing) throw new McpError(ErrorCode.InvalidParams, `Channel "${channelId}" not found`)
 
-    const existingConfig = agent.configuration as CherryClawConfiguration | undefined
-    const channels = [...(existingConfig?.channels ?? [])]
-    const idx = channels.findIndex((ch) => ch.id === channelId)
-    if (idx === -1) throw new McpError(ErrorCode.InvalidParams, `Channel "${channelId}" not found`)
-
-    const channel = { ...channels[idx] }
-
-    if (args.name !== undefined) channel.name = args.name as string
-    if (args.enabled !== undefined) channel.enabled = args.enabled as boolean
-    if (args.is_notify_receiver !== undefined) channel.is_notify_receiver = args.is_notify_receiver as boolean
+    const updates: Record<string, unknown> = {}
+    if (args.name !== undefined) updates.name = args.name as string
+    if (args.enabled !== undefined) updates.isActive = args.enabled as boolean
     if (args.config !== undefined) {
-      channel.config = { ...channel.config, ...(args.config as Record<string, unknown>) } as CherryClawChannel['config']
+      updates.config = { ...existing.config, ...(args.config as Record<string, unknown>) }
     }
 
-    channels[idx] = channel
-
-    await agentService.updateAgent(this.agentId, {
-      configuration: { ...existingConfig, channels } as CherryClawConfiguration
-    })
-
+    await channelService.updateChannel(channelId, updates)
     await channelManager.syncAgent(this.agentId)
 
     logger.info('Channel updated via config tool', { agentId: this.agentId, channelId })
@@ -986,25 +966,15 @@ class ClawServer {
     const channelId = args.channel_id as string | undefined
     if (!channelId) throw new McpError(ErrorCode.InvalidParams, "'channel_id' is required for remove_channel")
 
-    const agent = await agentService.getAgent(this.agentId)
-    if (!agent) throw new McpError(ErrorCode.InternalError, `Agent not found: ${this.agentId}`)
+    const channel = await channelService.getChannel(channelId)
+    if (!channel) throw new McpError(ErrorCode.InvalidParams, `Channel "${channelId}" not found`)
 
-    const existingConfig = agent.configuration as CherryClawConfiguration | undefined
-    const channels = [...(existingConfig?.channels ?? [])]
-    const idx = channels.findIndex((ch) => ch.id === channelId)
-    if (idx === -1) throw new McpError(ErrorCode.InvalidParams, `Channel "${channelId}" not found`)
-
-    const removed = channels.splice(idx, 1)[0]
-
-    await agentService.updateAgent(this.agentId, {
-      configuration: { ...existingConfig, channels } as CherryClawConfiguration
-    })
-
+    await channelService.deleteChannel(channelId)
     await channelManager.syncAgent(this.agentId)
 
-    logger.info('Channel removed via config tool', { agentId: this.agentId, channelId, type: removed.type })
+    logger.info('Channel removed via config tool', { agentId: this.agentId, channelId, type: channel.type })
     return {
-      content: [{ type: 'text' as const, text: `Channel "${channelId}" (${removed.name}) removed.` }]
+      content: [{ type: 'text' as const, text: `Channel "${channelId}" (${channel.name}) removed.` }]
     }
   }
 
@@ -1012,11 +982,7 @@ class ClawServer {
     const channelId = args.channel_id as string | undefined
     if (!channelId) throw new McpError(ErrorCode.InvalidParams, "'channel_id' is required for reconnect_channel")
 
-    const agent = await agentService.getAgent(this.agentId)
-    if (!agent) throw new McpError(ErrorCode.InternalError, `Agent not found: ${this.agentId}`)
-
-    const existingConfig = agent.configuration as CherryClawConfiguration | undefined
-    const channel = existingConfig?.channels?.find((ch) => ch.id === channelId)
+    const channel = await channelService.getChannel(channelId)
     if (!channel) throw new McpError(ErrorCode.InvalidParams, `Channel "${channelId}" not found`)
 
     const needsQr =
@@ -1126,16 +1092,7 @@ class ClawServer {
    */
   private async removeOrphanChannel(channelId: string): Promise<void> {
     try {
-      const agent = await agentService.getAgent(this.agentId)
-      if (!agent) return
-
-      const existingConfig = agent.configuration as CherryClawConfiguration | undefined
-      const channels = (existingConfig?.channels ?? []).filter((ch) => ch.id !== channelId)
-
-      await agentService.updateAgent(this.agentId, {
-        configuration: { ...existingConfig, channels } as CherryClawConfiguration
-      })
-
+      await channelService.deleteChannel(channelId)
       await channelManager.syncAgent(this.agentId)
     } catch (err) {
       logger.error('Failed to remove orphan channel', {

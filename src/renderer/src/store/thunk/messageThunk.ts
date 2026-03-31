@@ -18,6 +18,7 @@ import { loggerService } from '@logger'
 import { AiSdkToChunkAdapter } from '@renderer/aiCore/chunk/AiSdkToChunkAdapter'
 import { AgentApiClient } from '@renderer/api/agent'
 import db from '@renderer/databases'
+import { getModel } from '@renderer/hooks/useModel'
 import { fetchMessagesSummary, transformMessagesAndFetch } from '@renderer/services/ApiService'
 import { dbService } from '@renderer/services/db'
 import { DbService } from '@renderer/services/db/DbService'
@@ -2180,7 +2181,9 @@ export const setupChannelStream = (
   agentId: string,
   modelId?: string
 ): ChannelStreamController => {
-  const model: Model | undefined = modelId ? { id: modelId, provider: '', name: '', group: '' } : undefined
+  const model: Model | undefined =
+    (modelId ? getModel(modelId) : undefined) ??
+    (modelId ? { id: modelId, provider: '', name: '', group: '' } : undefined)
   const assistantMessage = createAssistantMessage(agentId, topicId, {
     ...(model ? { modelId: model.id, model } : {})
   })

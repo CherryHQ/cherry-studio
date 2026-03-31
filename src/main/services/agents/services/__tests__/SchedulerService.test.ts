@@ -37,9 +37,18 @@ vi.mock('../TaskService', () => ({
   }
 }))
 
+vi.mock('../ChannelService', () => ({
+  channelService: {
+    getSubscribedChannels: vi.fn().mockResolvedValue([]),
+    updateChannel: vi.fn()
+  }
+}))
+
 vi.mock('../channels/ChannelManager', () => ({
   channelManager: {
-    getNotifyAdapters: vi.fn().mockReturnValue([])
+    getNotifyAdapters: vi.fn().mockReturnValue([]),
+    getAgentAdapters: vi.fn().mockReturnValue([]),
+    getAdapter: vi.fn().mockReturnValue(undefined)
   }
 }))
 
@@ -117,7 +126,6 @@ describe('SchedulerService', () => {
       prompt: 'Do something',
       schedule_type: 'once' as const,
       schedule_value: new Date().toISOString(),
-      context_mode: 'session' as const,
       next_run: new Date(Date.now() - 1000).toISOString(),
       last_run: null,
       last_result: null,

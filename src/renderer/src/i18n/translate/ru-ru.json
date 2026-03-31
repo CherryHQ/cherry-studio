@@ -31,9 +31,13 @@
     "cherryClaw": {
       "channels": {
         "add": "Добавить",
+        "bindAgent": "[to be translated]:Bind Agent",
         "comingSoon": "Скоро",
+        "connected": "[to be translated]:Connected",
+        "connecting": "[to be translated]:Connecting",
         "deleteConfirm": "Удалить канал \"{{name}}\"?",
         "description": "Подключите вашего агента к платформам обмена сообщениями.",
+        "disconnected": "[to be translated]:Disconnected",
         "discord": {
           "botToken": "Токен бота",
           "botTokenPlaceholder": "Введите токен вашего бота Discord",
@@ -44,6 +48,7 @@
           "title": "Дискорд",
           "whoamiTip": "💡 Совет: Отправьте боту команду /whoami, чтобы получить ваш ID канала в правильном формате."
         },
+        "error": "[to be translated]:Error",
         "feishu": {
           "appId": "App ID",
           "appIdPlaceholder": "Введите App ID вашего приложения Feishu",
@@ -68,7 +73,9 @@
           "verificationToken": "Токен верификации",
           "verificationTokenPlaceholder": "Введите токен верификации вашего приложения Feishu"
         },
+        "logs": "[to be translated]:Logs",
         "noInstances": "Каналы {{type}} не настроены. Нажмите «+ Добавить», чтобы создать канал.",
+        "noLogs": "[to be translated]:No logs yet",
         "notifyReceiver": "Получать уведомления о задачах",
         "notifyReceiverHint": "Отправлять результаты запланированных задач в этот канал.",
         "qq": {
@@ -88,6 +95,7 @@
           "permissionMode": "Режим прав доступа канала",
           "permissionModeHint": "Переопределить режим разрешений агента для сообщений из этого канала. «Наследовать» использует настройки агента по умолчанию."
         },
+        "selectAgent": "[to be translated]:Select an agent to bind",
         "tab": "Каналы",
         "telegram": {
           "botToken": "Токен бота",
@@ -177,12 +185,9 @@
       "tasks": {
         "add": "Добавить задачу",
         "cancel": "Отмена",
-        "contextMode": {
-          "isolated": "Изолированный",
-          "isolatedDesc": "Создавать новую сессию при каждом запуске",
-          "label": "Режим контекста",
-          "session": "Повторно использовать сессию",
-          "sessionDesc": "Повторно использовать последнюю сессию"
+        "channels": {
+          "label": "[to be translated]:Send to Channels",
+          "placeholder": "[to be translated]:Select channels to receive results"
         },
         "cronPlaceholder": "напр. 0 9 * * * (каждый день в 9 утра)",
         "delete": {
@@ -197,6 +202,7 @@
           "duration": "Длительность",
           "empty": "История запусков пуста.",
           "error": "Ошибка",
+          "justNow": "[to be translated]:just now",
           "label": "История запусков",
           "result": "Результат",
           "runAt": "Запущено в",
@@ -3888,6 +3894,10 @@
       "model_params": "Параметры модели",
       "title": "Ассистент по умолчанию"
     },
+    "channels": {
+      "description": "[to be translated]:Connect agents to messaging platforms like Telegram, Feishu, Discord, and more.",
+      "title": "[to be translated]:Channels"
+    },
     "data": {
       "app_data": {
         "copy_data_option": "Копировать данные, будет автоматически перезапущено после копирования данных из исходной директории в новую директорию",
@@ -5466,6 +5476,13 @@
       "title": "Быстрые фразы",
       "titleLabel": "Заголовок",
       "titlePlaceholder": "Введите заголовок фразы"
+    },
+    "scheduledTasks": {
+      "description": "[to be translated]:Manage scheduled tasks across all agents. Tasks run automatically on the configured schedule.",
+      "noAgents": "[to be translated]:No agents found. Create an agent first to add scheduled tasks.",
+      "noTasks": "[to be translated]:No scheduled tasks. Click \"+ Add\" to create one for an agent.",
+      "selectTask": "[to be translated]:Select a task to view details",
+      "title": "[to be translated]:Scheduled Tasks"
     },
     "shortcuts": {
       "action": "Действие",

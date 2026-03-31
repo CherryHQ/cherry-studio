@@ -159,6 +159,101 @@ export class AgentService extends BaseService {
   }
 
   /**
+   * Initialize a built-in agent from its bundled agent.json template.
+   * Called once at app startup. Safe to call multiple times — skips if the agent already exists.
+   * Returns the agent ID if created or already present, or null if no compatible model is available yet.
+   *
+   * @param opts.id - Fixed agent ID
+   * @param opts.builtinRole - Role key used by BuiltinAgentProvisioner (e.g. 'assistant')
+   * @param opts.provisionWorkspace - Callback to provision skills/plugins into the workspace and return agent config
+   */
+  async initBuiltinAgent(opts: {
+    id: string
+    builtinRole: string
+    provisionWorkspace: (
+      workspacePath: string,
+      builtinRole: string
+    ) => Promise<
+      | { name?: string; description?: string; instructions?: string; configuration?: Record<string, unknown> }
+      | undefined
+    >
+  }): Promise<string | null> {
+    const { id, builtinRole, provisionWorkspace } = opts
+    try {
+      const database = await this.getDatabase()
+      const existing = await database
+        .select({ id: agentsTable.id })
+        .from(agentsTable)
+        .where(eq(agentsTable.id, id))
+        .limit(1)
+
+      if (existing.length > 0) {
+        return id
+      }
+
+      const modelsRes = await modelsService.getModels({ providerType: 'anthropic', limit: 1 })
+      const firstModel = modelsRes.data?.[0]
+      if (!firstModel) {
+        logger.info(`No Anthropic-compatible models available yet — skipping ${builtinRole} creation`)
+        return null
+      }
+
+      // Resolve workspace path first so provisioner can copy template files
+      const resolvedPaths = this.resolveAccessiblePaths([], id)
+      const workspace = resolvedPaths[0]
+
+      // Provision workspace (.claude/skills, plugins) and read agent.json config
+      const agentConfig = workspace ? await provisionWorkspace(workspace, builtinRole) : undefined
+
+      const now = new Date().toISOString()
+      const configuration: CreateAgentRequest['configuration'] = {
+        permission_mode: 'default',
+        max_turns: 100,
+        env_vars: {},
+        ...agentConfig?.configuration
+      }
+
+      const req: CreateAgentRequest = {
+        type: 'claude-code',
+        name: agentConfig?.name || builtinRole,
+        description: agentConfig?.description || `Built-in ${builtinRole} agent`,
+        instructions: agentConfig?.instructions || 'You are a helpful assistant.',
+        model: firstModel.id,
+        accessible_paths: resolvedPaths,
+        configuration
+      }
+
+      await this.validateAgentModels(req.type, { model: req.model })
+      const serialized = this.serializeJsonFields(req)
+
+      const insertData: InsertAgentRow = {
+        id,
+        type: req.type,
+        name: req.name || builtinRole,
+        description: req.description,
+        instructions: req.instructions || 'You are a helpful assistant.',
+        model: req.model,
+        configuration: serialized.configuration,
+        accessible_paths: serialized.accessible_paths,
+        sort_order: 0,
+        created_at: now,
+        updated_at: now
+      }
+
+      await database.transaction(async (tx) => {
+        await tx.update(agentsTable).set({ sort_order: sql`${agentsTable.sort_order} + 1` })
+        await tx.insert(agentsTable).values(insertData)
+      })
+
+      logger.info(`Created built-in ${builtinRole} agent`, { id })
+      return id
+    } catch (error) {
+      logger.error(`Failed to init built-in ${builtinRole} agent`, error as Error)
+      return null
+    }
+  }
+
+  /**
    * Initialize the built-in CherryClaw agent with a fixed ID.
    * Called once at app startup. Safe to call multiple times — skips if the agent already exists.
    * Returns the agent ID if created or already present, or null if no compatible model is available yet.
@@ -198,7 +293,7 @@ export class AgentService extends BaseService {
 
       const req: CreateAgentRequest = {
         type: 'claude-code',
-        name: 'CherryClaw',
+        name: 'Cherry Claw',
         description: 'Default autonomous CherryClaw agent',
         model: firstModel.id,
         accessible_paths: [],

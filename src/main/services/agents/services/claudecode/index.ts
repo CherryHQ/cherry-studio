@@ -47,6 +47,7 @@ import type {
   AgentThinkingOptions
 } from '../../interfaces/AgentStreamInterface'
 import { isProvisioned, provisionBuiltinAgent } from '../builtin/BuiltinAgentProvisioner'
+import { channelService } from '../ChannelService'
 import { PromptBuilder } from '../cherryclaw/prompt'
 import { sessionService } from '../SessionService'
 import { buildNamespacedToolCallId } from './claude-stream-state'
@@ -366,7 +367,8 @@ class ClaudeCodeService implements AgentServiceInterface {
     }
 
     // Inject channel security policy into system prompt when session is from an external channel
-    const isChannelSession = !!soulConfig?.source_channel_type
+    const linkedChannel = await channelService.findBySessionId(session.id)
+    const isChannelSession = !!linkedChannel
     const channelSecurityBlock = isChannelSession ? `\n\n${CHANNEL_SECURITY_PROMPT}` : ''
 
     // Built-in agent mode: check builtin_role in configuration
@@ -377,9 +379,9 @@ class ClaudeCodeService implements AgentServiceInterface {
 
     // Provision built-in agent workspace (copy skills/plugins to working directory)
     if (builtinRole && cwd && !isProvisioned(cwd)) {
-      const instructions = await provisionBuiltinAgent(cwd, builtinRole)
-      if (instructions && !session.instructions) {
-        session = { ...session, instructions }
+      const agentConfig = await provisionBuiltinAgent(cwd, builtinRole)
+      if (agentConfig?.instructions && !session.instructions) {
+        session = { ...session, instructions: agentConfig.instructions }
       }
       logger.info('Provisioned builtin agent workspace', { builtinRole, cwd })
     }
@@ -482,8 +484,16 @@ class ClaudeCodeService implements AgentServiceInterface {
     const browserServer = new BrowserServer()
     options.mcpServers.browser = { type: 'sdk', name: '@cherry/browser', instance: browserServer.mcpServer }
 
+    // Inject Exa MCP for structured web search (free tier, no API key required)
+    options.mcpServers.exa = {
+      type: 'http',
+      url: 'https://mcp.exa.ai/mcp'
+    }
+
     if (soulEnabled) {
-      const clawServer = new ClawServer(session.agent_id)
+      // Find the channel that owns this session (if any) for context-aware cron defaults
+      const sourceChannelId = await this.resolveSourceChannel(session.agent_id, session.id)
+      const clawServer = new ClawServer(session.agent_id, sourceChannelId)
       options.mcpServers.claw = { type: 'sdk', name: 'claw', instance: clawServer.mcpServer }
 
       // Ensure claw MCP tools are in allowed_tools whitelist
@@ -564,6 +574,16 @@ class ClaudeCodeService implements AgentServiceInterface {
     })
 
     return aiStream
+  }
+
+  private async resolveSourceChannel(agentId: string, sessionId: string): Promise<string | undefined> {
+    try {
+      const { channelService } = await import('../ChannelService')
+      const channels = await channelService.listChannels({ agentId })
+      return channels.find((ch) => ch.sessionId === sessionId)?.id
+    } catch {
+      return undefined
+    }
   }
 
   private async createUserMessageStream(

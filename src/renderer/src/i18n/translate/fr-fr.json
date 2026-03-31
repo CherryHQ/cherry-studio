@@ -31,9 +31,13 @@
     "cherryClaw": {
       "channels": {
         "add": "Ajouter",
+        "bindAgent": "[to be translated]:Bind Agent",
         "comingSoon": "Bientôt disponible",
+        "connected": "[to be translated]:Connected",
+        "connecting": "[to be translated]:Connecting",
         "deleteConfirm": "Supprimer le canal \"{{name}}\" ?",
         "description": "Connectez votre agent aux plateformes de messagerie.",
+        "disconnected": "[to be translated]:Disconnected",
         "discord": {
           "botToken": "Jeton de bot",
           "botTokenPlaceholder": "Entrez votre jeton de bot Discord",
@@ -44,6 +48,7 @@
           "title": "Discord",
           "whoamiTip": "💡 Astuce : Envoyez /whoami au bot pour obtenir l’ID de votre chaîne au bon format."
         },
+        "error": "[to be translated]:Error",
         "feishu": {
           "appId": "App ID",
           "appIdPlaceholder": "Saisissez l'App ID de votre application Feishu",
@@ -68,7 +73,9 @@
           "verificationToken": "Jeton de vérification",
           "verificationTokenPlaceholder": "Saisissez le jeton de vérification de votre application Feishu"
         },
+        "logs": "[to be translated]:Logs",
         "noInstances": "Aucun canal {{type}} configuré. Cliquez sur « + Ajouter » pour en créer un.",
+        "noLogs": "[to be translated]:No logs yet",
         "notifyReceiver": "Recevoir les notifications de tâches",
         "notifyReceiverHint": "Envoyer les résultats des tâches planifiées à ce canal.",
         "qq": {
@@ -88,6 +95,7 @@
           "permissionMode": "Mode de permission du canal",
           "permissionModeHint": "Remplace le mode d'autorisation de l'agent pour les messages provenant de ce canal. « Hériter » utilise la valeur par défaut de l'agent."
         },
+        "selectAgent": "[to be translated]:Select an agent to bind",
         "tab": "Canaux",
         "telegram": {
           "botToken": "Token du bot",
@@ -177,12 +185,9 @@
       "tasks": {
         "add": "Ajouter une tâche",
         "cancel": "Annuler",
-        "contextMode": {
-          "isolated": "Isolé",
-          "isolatedDesc": "Créer une nouvelle session à chaque exécution",
-          "label": "Mode de contexte",
-          "session": "Réutiliser la session",
-          "sessionDesc": "Réutiliser la session la plus récente"
+        "channels": {
+          "label": "[to be translated]:Send to Channels",
+          "placeholder": "[to be translated]:Select channels to receive results"
         },
         "cronPlaceholder": "ex: 0 9 * * * (tous les jours à 9h)",
         "delete": {
@@ -197,6 +202,7 @@
           "duration": "Durée",
           "empty": "Aucun historique d'exécution.",
           "error": "Erreur",
+          "justNow": "[to be translated]:just now",
           "label": "Historique d'exécution",
           "result": "Résultat",
           "runAt": "Exécuté le",
@@ -3888,6 +3894,10 @@
       "model_params": "Paramètres du modèle",
       "title": "Assistant par défaut"
     },
+    "channels": {
+      "description": "[to be translated]:Connect agents to messaging platforms like Telegram, Feishu, Discord, and more.",
+      "title": "[to be translated]:Channels"
+    },
     "data": {
       "app_data": {
         "copy_data_option": "Copier les données, redémarrera automatiquement puis copiera les données du répertoire d'origine vers le nouveau répertoire",
@@ -5466,6 +5476,13 @@
       "title": "Быстрые фразы",
       "titleLabel": "Заголовок",
       "titlePlaceholder": "Введите заголовок фразы"
+    },
+    "scheduledTasks": {
+      "description": "[to be translated]:Manage scheduled tasks across all agents. Tasks run automatically on the configured schedule.",
+      "noAgents": "[to be translated]:No agents found. Create an agent first to add scheduled tasks.",
+      "noTasks": "[to be translated]:No scheduled tasks. Click \"+ Add\" to create one for an agent.",
+      "selectTask": "[to be translated]:Select a task to view details",
+      "title": "[to be translated]:Scheduled Tasks"
     },
     "shortcuts": {
       "action": "Action",

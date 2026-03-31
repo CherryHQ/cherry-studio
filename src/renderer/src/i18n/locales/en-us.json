@@ -31,9 +31,13 @@
     "cherryClaw": {
       "channels": {
         "add": "Add",
+        "bindAgent": "Bind Agent",
         "comingSoon": "Coming soon",
+        "connected": "Connected",
+        "connecting": "Connecting",
         "deleteConfirm": "Delete channel \"{{name}}\"?",
         "description": "Connect your agent to messaging platforms.",
+        "disconnected": "Disconnected",
         "discord": {
           "botToken": "Bot Token",
           "botTokenPlaceholder": "Enter your Discord bot token",
@@ -44,6 +48,7 @@
           "title": "Discord",
           "whoamiTip": "💡 Tip: Send /whoami to the bot to get your channel ID in the correct format."
         },
+        "error": "Error",
         "feishu": {
           "appId": "App ID",
           "appIdPlaceholder": "Enter your Feishu app ID",
@@ -68,7 +73,9 @@
           "verificationToken": "Verification Token",
           "verificationTokenPlaceholder": "Enter the Verification Token from your Feishu app"
         },
+        "logs": "Logs",
         "noInstances": "No {{type}} channels configured. Click \"+ Add\" to create one.",
+        "noLogs": "No logs yet",
         "notifyReceiver": "Receive task notifications",
         "notifyReceiverHint": "Send scheduler task results to this channel.",
         "qq": {
@@ -88,6 +95,7 @@
           "permissionMode": "Channel Permission Mode",
           "permissionModeHint": "Override the agent's permission mode for messages from this channel. \"Inherit\" uses the agent's default."
         },
+        "selectAgent": "Select an agent to bind",
         "tab": "Channels",
         "telegram": {
           "botToken": "Bot Token",
@@ -177,12 +185,9 @@
       "tasks": {
         "add": "Add Task",
         "cancel": "Cancel",
-        "contextMode": {
-          "isolated": "Isolated",
-          "isolatedDesc": "Create a new session each run",
-          "label": "Context Mode",
-          "session": "Reuse Session",
-          "sessionDesc": "Reuse the most recent session"
+        "channels": {
+          "label": "Send to Channels",
+          "placeholder": "Select channels to receive results"
         },
         "cronPlaceholder": "e.g. 0 9 * * * (every day at 9 AM)",
         "delete": {
@@ -197,6 +202,7 @@
           "duration": "Duration",
           "empty": "No run history yet.",
           "error": "Error",
+          "justNow": "just now",
           "label": "Run History",
           "result": "Result",
           "runAt": "Run At",
@@ -3888,6 +3894,10 @@
       "model_params": "Model Parameters",
       "title": "Default Assistant"
     },
+    "channels": {
+      "description": "Connect agents to messaging platforms like Telegram, Feishu, Discord, and more.",
+      "title": "Channels"
+    },
     "data": {
       "app_data": {
         "copy_data_option": "Copy data, will automatically restart after copying the original directory data to the new directory",
@@ -5466,6 +5476,13 @@
       "title": "Quick Phrases",
       "titleLabel": "Title",
       "titlePlaceholder": "Please enter phrase title"
+    },
+    "scheduledTasks": {
+      "description": "Manage scheduled tasks across all agents. Tasks run automatically on the configured schedule.",
+      "noAgents": "No agents found. Create an agent first to add scheduled tasks.",
+      "noTasks": "No scheduled tasks. Click \"+ Add\" to create one for an agent.",
+      "selectTask": "Select a task to view details",
+      "title": "Scheduled Tasks"
     },
     "shortcuts": {
       "action": "Action",
