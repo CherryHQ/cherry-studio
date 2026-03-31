@@ -17,6 +17,7 @@ import { translateHistoryTable } from '@data/db/schemas/translateHistory'
 import { translateLanguageTable } from '@data/db/schemas/translateLanguage'
 import { loggerService } from '@logger'
 import type { ExecuteResult, PrepareResult, ValidateResult, ValidationError } from '@shared/data/migration/v2/types'
+import { BUILTIN_TRANSLATE_LANGUAGES } from '@shared/data/presets/translate-languages'
 import { sql } from 'drizzle-orm'
 
 import type { MigrationContext } from '../core/MigrationContext'
@@ -207,6 +208,25 @@ export class TranslateMigrator extends BaseMigrator {
           processedCount: newLanguageRecords.length,
           skipped: this.languageSkippedCount
         })
+      }
+
+      // ── Seed builtin languages (history FK requires them to exist) ──
+      {
+        const existing = await db.select({ langCode: translateLanguageTable.langCode }).from(translateLanguageTable)
+        const existingCodes = new Set(existing.map((r) => r.langCode))
+        const now = Date.now()
+        const missing = BUILTIN_TRANSLATE_LANGUAGES.filter((l) => !existingCodes.has(l.langCode)).map((l) => ({
+          id: l.langCode,
+          langCode: l.langCode,
+          value: l.value,
+          emoji: l.emoji,
+          createdAt: now,
+          updatedAt: now
+        }))
+        if (missing.length > 0) {
+          await db.insert(translateLanguageTable).values(missing)
+          logger.info(`Seeded ${missing.length} builtin translate languages`)
+        }
       }
 
       // ── Migrate translate history (batched) ──
