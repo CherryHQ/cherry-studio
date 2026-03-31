@@ -27,6 +27,21 @@ vi.mock('@libsql/client', () => ({
 describe('KnowledgeMigrator dimensions resolution', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+
+    const existsSyncMock = fs.existsSync as unknown as {
+      mockReset?: () => void
+      mockReturnValue?: (value: boolean) => void
+    }
+    existsSyncMock.mockReset?.()
+
+    const statSyncMock = fs.statSync as unknown as {
+      mockReset?: () => void
+      mockReturnValue?: (value: unknown) => void
+    }
+    statSyncMock.mockReset?.()
+    statSyncMock.mockReturnValue?.({
+      isDirectory: () => false
+    })
   })
 
   it('resolves dimensions from vector blob even when legacy dimensions exists', async () => {
@@ -131,6 +146,27 @@ describe('KnowledgeMigrator dimensions resolution', () => {
     expect(createClient).not.toHaveBeenCalled()
   })
 
+  it('returns legacy_vector_store_directory when resolved path is a directory', async () => {
+    const migrator = new KnowledgeMigrator() as any
+    vi.spyOn(migrator, 'getLegacyKnowledgeDbPath').mockReturnValue('/mock/userData/Data/KnowledgeBase/kb-dir')
+
+    const existsSyncMock = fs.existsSync as unknown as { mockReturnValue: (value: boolean) => void }
+    existsSyncMock.mockReturnValue(true)
+
+    const statSyncMock = fs.statSync as unknown as { mockReturnValue: (value: unknown) => void }
+    statSyncMock.mockReturnValue({
+      isDirectory: () => true
+    })
+
+    const result = await migrator.resolveDimensionsForBase({
+      id: 'kb-dir',
+      name: 'Directory KB'
+    })
+
+    expect(result).toEqual({ dimensions: null, reason: 'legacy_vector_store_directory' })
+    expect(createClient).not.toHaveBeenCalled()
+  })
+
   it('records a warning when closing the legacy vector DB client fails', async () => {
     const migrator = new KnowledgeMigrator() as any
     vi.spyOn(migrator, 'getLegacyKnowledgeDbPath').mockReturnValue('/mock/userData/Data/KnowledgeBase/kb-close-error')
@@ -159,6 +195,34 @@ describe('KnowledgeMigrator dimensions resolution', () => {
     )
     expect(loggerWarnMock).toHaveBeenCalledWith(
       'Failed to close legacy vector DB client for knowledge base kb-close-error: close failed'
+    )
+  })
+
+  it('returns vector_db_error when createClient throws synchronously', async () => {
+    const migrator = new KnowledgeMigrator() as any
+    vi.spyOn(migrator, 'getLegacyKnowledgeDbPath').mockReturnValue('/mock/userData/Data/KnowledgeBase/kb-create-error')
+
+    const existsSyncMock = fs.existsSync as unknown as { mockReturnValue: (value: boolean) => void }
+    existsSyncMock.mockReturnValue(true)
+
+    const statSyncMock = fs.statSync as unknown as { mockReturnValue: (value: unknown) => void }
+    statSyncMock.mockReturnValue({
+      isDirectory: () => false
+    })
+
+    const createClientMock = createClient as unknown as { mockImplementation: (value: () => never) => void }
+    createClientMock.mockImplementation(() => {
+      throw new Error('open failed')
+    })
+
+    const result = await migrator.resolveDimensionsForBase({
+      id: 'kb-create-error',
+      name: 'Create Error KB'
+    })
+
+    expect(result).toEqual({ dimensions: null, reason: 'vector_db_error' })
+    expect(migrator.warnings).toContain(
+      'Failed to inspect legacy vector DB for knowledge base kb-create-error: open failed'
     )
   })
 
@@ -201,6 +265,51 @@ describe('KnowledgeMigrator dimensions resolution', () => {
     expect(migrator.skippedCount).toBe(3)
     expect(migrator.sourceCount).toBe(3)
     expect(result.warnings?.some((warning: string) => warning.includes('Skipped knowledge base kb-empty'))).toBe(true)
+  })
+
+  it('prepare skips base and items when legacy knowledge store path is a directory', async () => {
+    const migrator = new KnowledgeMigrator() as any
+    vi.spyOn(migrator, 'resolveDimensionsForBase').mockResolvedValue({
+      dimensions: null,
+      reason: 'legacy_vector_store_directory'
+    })
+
+    const ctx = {
+      sources: {
+        reduxState: {
+          getCategory: vi.fn().mockReturnValue({
+            bases: [
+              {
+                id: 'kb-dir',
+                name: 'Directory KB',
+                model: { id: 'm1', name: 'model-1', provider: 'openai' },
+                items: [
+                  { id: 'i1', type: 'url', content: 'https://example.com' },
+                  { id: 'i2', type: 'note', content: 'test' }
+                ]
+              }
+            ]
+          })
+        },
+        dexieExport: {
+          tableExists: vi.fn().mockResolvedValue(false),
+          readTable: vi.fn()
+        }
+      }
+    } as any
+
+    const result = await migrator.prepare(ctx)
+
+    expect(result.success).toBe(true)
+    expect(migrator.preparedBases).toHaveLength(0)
+    expect(migrator.preparedItems).toHaveLength(0)
+    expect(migrator.skippedCount).toBe(3)
+    expect(migrator.sourceCount).toBe(3)
+    expect(
+      result.warnings?.some((warning: string) =>
+        warning.includes('Skipped knowledge base kb-dir: legacy_vector_store_directory')
+      )
+    ).toBe(true)
   })
 
   it('prepare returns a warning when the knowledge Redux category is unavailable', async () => {
