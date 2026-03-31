@@ -1,6 +1,5 @@
-import { loggerService } from '@logger'
-import type { CherryClawChannel } from '@types'
 import { Bot } from 'grammy'
+import { convert as toMarkdownV2 } from 'telegram-markdown-v2'
 
 import {
   ChannelAdapter,
@@ -10,8 +9,6 @@ import {
   type SendMessageOptions
 } from '../../ChannelAdapter'
 import { registerAdapterFactory } from '../../ChannelManager'
-
-const logger = loggerService.withContext('TelegramAdapter')
 
 const TELEGRAM_MAX_LENGTH = 4096
 
@@ -82,7 +79,7 @@ class TelegramAdapter extends ChannelAdapter {
     bot.use(async (ctx, next) => {
       const chatId = ctx.chat?.id?.toString()
       if (this.allowedChatIds.length > 0 && (!chatId || !this.allowedChatIds.includes(chatId))) {
-        logger.debug('Dropping message from unauthorized chat', { chatId })
+        this.log.debug('Dropping message from unauthorized chat', { chatId })
         return
       }
       await next()
@@ -167,31 +164,26 @@ class TelegramAdapter extends ChannelAdapter {
     // Error handler — err is a BotError wrapping the original cause in err.error
     bot.catch((err) => {
       const cause = err.error
-      logger.error('Bot error', {
-        agentId: this.agentId,
-        channelId: this.channelId,
-        error: cause instanceof Error ? cause.message : String(cause)
-      })
+      const msg = cause instanceof Error ? cause.message : String(cause)
+      this.log.error(`Bot error: ${msg}`)
     })
 
     // Start long polling (fire-and-forget)
     bot.start().catch((err) => {
-      this.markDisconnected()
-      logger.error('Bot polling stopped with error', {
-        agentId: this.agentId,
-        channelId: this.channelId,
-        error: err instanceof Error ? err.message : String(err)
-      })
+      const msg = err instanceof Error ? err.message : String(err)
+      this.markDisconnected(msg)
+      this.log.error(`Polling stopped: ${msg}`)
     })
 
-    logger.info('Telegram bot started', { agentId: this.agentId, channelId: this.channelId })
+    this.markConnected()
+    this.log.info('Telegram bot polling started')
   }
 
   protected override async performDisconnect(): Promise<void> {
     if (this.bot) {
       await this.bot.stop()
       this.bot = null
-      logger.info('Telegram bot stopped', { agentId: this.agentId, channelId: this.channelId })
+      this.log.info('Telegram bot stopped')
     }
   }
 
@@ -204,7 +196,7 @@ class TelegramAdapter extends ChannelAdapter {
       const attachment = await downloadImageAsBase64(url)
       return attachment ? [attachment] : []
     } catch (error) {
-      logger.warn('Failed to download Telegram file', {
+      this.log.warn('Failed to download Telegram file', {
         fileId,
         error: error instanceof Error ? error.message : String(error)
       })
@@ -217,13 +209,31 @@ class TelegramAdapter extends ChannelAdapter {
       throw new Error('Bot is not connected')
     }
 
-    const chunks = splitMessage(text)
+    const parseMode = opts?.parseMode ?? 'MarkdownV2'
+    const formatted = parseMode === 'MarkdownV2' ? toMarkdownV2(text).trimEnd() : text
+    const chunks = splitMessage(formatted)
 
     for (let i = 0; i < chunks.length; i++) {
-      await this.bot.api.sendMessage(chatId, chunks[i], {
-        ...(opts?.parseMode ? { parse_mode: opts.parseMode } : {}),
-        ...(opts?.replyToMessageId && i === 0 ? { reply_parameters: { message_id: opts.replyToMessageId } } : {})
-      })
+      const replyParams =
+        opts?.replyToMessageId && i === 0 ? { reply_parameters: { message_id: opts.replyToMessageId } } : {}
+
+      try {
+        await this.bot.api.sendMessage(chatId, chunks[i], {
+          parse_mode: parseMode,
+          ...replyParams
+        })
+      } catch (error) {
+        // Fallback to plain text if MarkdownV2 parsing fails
+        if (parseMode === 'MarkdownV2') {
+          this.log.warn('MarkdownV2 send failed, falling back to plain text', {
+            chatId,
+            error: error instanceof Error ? error.message : String(error)
+          })
+          await this.bot.api.sendMessage(chatId, splitMessage(text)[i], replyParams)
+        } else {
+          throw error
+        }
+      }
 
       // Small delay between chunks to avoid rate limiting
       if (i < chunks.length - 1) {
@@ -232,12 +242,11 @@ class TelegramAdapter extends ChannelAdapter {
     }
   }
 
-  async sendMessageDraft(chatId: string, draftId: number, text: string): Promise<void> {
-    if (!this.bot) {
-      throw new Error('Bot is not connected')
-    }
-
-    await this.bot.api.sendMessageDraft(Number(chatId), draftId, text)
+  override async onTextUpdate(chatId: string, fullText: string): Promise<void> {
+    if (!this.bot) return
+    // Telegram's sendMessageDraft edits the message in-place. The bot library
+    // handles its own throttle internally.
+    await this.bot.api.sendMessageDraft(Number(chatId), 0, fullText)
   }
 
   async sendTypingIndicator(chatId: string): Promise<void> {
@@ -250,7 +259,7 @@ class TelegramAdapter extends ChannelAdapter {
 }
 
 // Self-registration
-registerAdapterFactory('telegram', (channel: CherryClawChannel, agentId: string) => {
+registerAdapterFactory('telegram', (channel, agentId) => {
   return new TelegramAdapter({
     channelId: channel.id,
     channelType: channel.type,

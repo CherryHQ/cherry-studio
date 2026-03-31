@@ -18,7 +18,6 @@ const mockBot = {
   api: {
     setMyCommands: vi.fn().mockResolvedValue(undefined),
     sendMessage: vi.fn().mockResolvedValue(undefined),
-    sendMessageDraft: vi.fn().mockResolvedValue(true),
     sendChatAction: vi.fn().mockResolvedValue(undefined)
   },
   catch: vi.fn(),
@@ -49,7 +48,6 @@ describe('TelegramAdapter', () => {
     mockBot.on.mockClear()
     mockBot.api.setMyCommands.mockClear().mockResolvedValue(undefined)
     mockBot.api.sendMessage.mockClear().mockResolvedValue(undefined)
-    mockBot.api.sendMessageDraft.mockClear().mockResolvedValue(true)
     mockBot.api.sendChatAction.mockClear().mockResolvedValue(undefined)
     mockBot.catch.mockClear()
     mockBot.start.mockClear().mockResolvedValue(undefined)
@@ -101,12 +99,37 @@ describe('TelegramAdapter', () => {
     expect(mockBot.stop).toHaveBeenCalledTimes(1)
   })
 
-  it('sendMessage() sends text via bot API', async () => {
+  it('sendMessage() sends text with MarkdownV2 by default', async () => {
     const adapter = createAdapter()
     await adapter.connect()
     await adapter.sendMessage('123', 'Hello')
 
-    expect(mockBot.api.sendMessage).toHaveBeenCalledWith('123', 'Hello', {})
+    expect(mockBot.api.sendMessage).toHaveBeenCalledWith('123', 'Hello', { parse_mode: 'MarkdownV2' })
+  })
+
+  it('sendMessage() converts markdown to MarkdownV2 via library', async () => {
+    const adapter = createAdapter()
+    await adapter.connect()
+    await adapter.sendMessage('123', 'Price is 10.5!')
+
+    const call = mockBot.api.sendMessage.mock.calls[0]
+    expect(call[0]).toBe('123')
+    expect(call[2]).toEqual({ parse_mode: 'MarkdownV2' })
+    // The library converts the text — special chars should be escaped
+    expect(call[1]).not.toBe('Price is 10.5!')
+  })
+
+  it('sendMessage() falls back to plain text on MarkdownV2 error', async () => {
+    const adapter = createAdapter()
+    await adapter.connect()
+
+    mockBot.api.sendMessage.mockRejectedValueOnce(new Error("Bad Request: can't parse"))
+
+    await adapter.sendMessage('123', 'Hello')
+
+    expect(mockBot.api.sendMessage).toHaveBeenCalledTimes(2)
+    // Second call should be plain text fallback
+    expect(mockBot.api.sendMessage.mock.calls[1][1]).toBe('Hello')
   })
 
   it('sendMessage() chunks long messages', async () => {
@@ -122,9 +145,9 @@ describe('TelegramAdapter', () => {
     await sendPromise
 
     expect(mockBot.api.sendMessage).toHaveBeenCalledTimes(2)
-    // Verify chunk sizes: first chunk is 4096 chars, second is the remainder
-    expect(mockBot.api.sendMessage.mock.calls[0][1]).toHaveLength(4096)
-    expect(mockBot.api.sendMessage.mock.calls[1][1]).toHaveLength(904)
+    // After MarkdownV2 conversion the total length may differ slightly
+    const totalSent = mockBot.api.sendMessage.mock.calls[0][1].length + mockBot.api.sendMessage.mock.calls[1][1].length
+    expect(totalSent).toBe(5000)
   })
 
   it('sendTypingIndicator() sends typing action', async () => {

@@ -1,9 +1,7 @@
 import path from 'node:path'
 
-import { loggerService } from '@logger'
 import { IpcChannel } from '@shared/IpcChannel'
 import { parseDataUrl } from '@shared/utils'
-import type { CherryClawChannel } from '@types'
 import { app } from 'electron'
 
 import { windowService } from '../../../../../WindowService'
@@ -15,8 +13,6 @@ import {
 } from '../../ChannelAdapter'
 import { registerAdapterFactory } from '../../ChannelManager'
 import { type IncomingMessage, WeixinBot } from './WeChatProtocol'
-
-const logger = loggerService.withContext('WeChatAdapter')
 
 const WECHAT_MAX_LENGTH = 2000
 
@@ -78,9 +74,7 @@ class WeChatAdapter extends ChannelAdapter {
     const bot = new WeixinBot({
       tokenPath: this.tokenPath,
       onError: (error) => {
-        logger.error('WeChat bot error', {
-          agentId: this.agentId,
-          channelId: this.channelId,
+        this.log.error('WeChat bot error', {
           error: error instanceof Error ? error.message : String(error)
         })
       },
@@ -98,23 +92,20 @@ class WeChatAdapter extends ChannelAdapter {
     if (signal.aborted) return
 
     this.sendQrToRenderer('', 'confirmed', credentials.userId)
-    logger.info('WeChat bot logged in', { agentId: this.agentId, userId: credentials.userId })
-
     this.registerMessageHandler(bot)
+    this.markConnected()
+    this.log.info('WeChat bot logged in and polling started', { userId: credentials.userId })
 
     // Start long-polling (fire-and-forget)
     bot.run().catch((err) => {
       if (!signal.aborted) {
-        this.markDisconnected()
-        logger.error('WeChat bot polling stopped with error', {
-          agentId: this.agentId,
-          channelId: this.channelId,
-          error: err instanceof Error ? err.message : String(err)
-        })
+        const msg = err instanceof Error ? err.message : String(err)
+        this.markDisconnected(msg)
+        this.log.error(`Polling stopped: ${msg}`)
       }
     })
 
-    logger.info('WeChat bot started', { agentId: this.agentId, channelId: this.channelId })
+    this.log.info('WeChat bot started')
   }
 
   protected override async performDisconnect(): Promise<void> {
@@ -122,7 +113,7 @@ class WeChatAdapter extends ChannelAdapter {
       this.bot.stop()
       this.bot = null
       this.sendQrToRenderer('', 'disconnected')
-      logger.info('WeChat bot stopped', { agentId: this.agentId, channelId: this.channelId })
+      this.log.info('WeChat bot stopped')
     }
   }
 
@@ -141,11 +132,6 @@ class WeChatAdapter extends ChannelAdapter {
         await new Promise((resolve) => setTimeout(resolve, 100))
       }
     }
-  }
-
-  // oxlint-disable-next-line no-unused-vars -- no-op abstract method
-  async sendMessageDraft(_chatId: string, _draftId: number, _text: string): Promise<void> {
-    // WeChat does not have a native draft/streaming API
   }
 
   async sendTypingIndicator(chatId: string): Promise<void> {
@@ -169,8 +155,6 @@ class WeChatAdapter extends ChannelAdapter {
     const mainWindow = windowService.getMainWindow()
     if (mainWindow && !mainWindow.isDestroyed()) {
       mainWindow.webContents.send(IpcChannel.WeChat_QrLogin, {
-        channelId: this.channelId,
-        agentId: this.agentId,
         url,
         status,
         userId
@@ -181,7 +165,7 @@ class WeChatAdapter extends ChannelAdapter {
   private registerMessageHandler(bot: WeixinBot): void {
     bot.onMessage(async (msg: IncomingMessage) => {
       if (this.allowedChatIds.length > 0 && !this.allowedChatIds.includes(msg.userId)) {
-        logger.debug('Dropping message from unauthorized user', { userId: msg.userId })
+        this.log.debug('Dropping message from unauthorized user', { userId: msg.userId })
         return
       }
 
@@ -207,8 +191,7 @@ class WeChatAdapter extends ChannelAdapter {
       if (this.isCommand(text)) {
         if (text.startsWith('/whoami')) {
           this.sendWhoami(msg).catch((err) => {
-            logger.error('Failed to send whoami response', {
-              agentId: this.agentId,
+            this.log.error('Failed to send whoami response', {
               error: err instanceof Error ? err.message : String(err)
             })
           })
@@ -260,7 +243,7 @@ class WeChatAdapter extends ChannelAdapter {
 }
 
 // Self-registration
-registerAdapterFactory('wechat', (channel: CherryClawChannel, agentId: string) => {
+registerAdapterFactory('wechat', (channel, agentId) => {
   return new WeChatAdapter({
     channelId: channel.id,
     channelType: channel.type,

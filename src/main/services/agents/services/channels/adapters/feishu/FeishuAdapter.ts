@@ -1,15 +1,13 @@
 import * as Lark from '@larksuiteoapi/node-sdk'
-import { loggerService } from '@logger'
+import type { FeishuDomain } from '@main/services/agents/database/schema'
 import { windowService } from '@main/services/WindowService'
 import { IpcChannel } from '@shared/IpcChannel'
-import type { CherryClawChannel, FeishuDomain } from '@types'
 import { net } from 'electron'
 
 import { ChannelAdapter, type ChannelAdapterConfig, type SendMessageOptions } from '../../ChannelAdapter'
 import { registerAdapterFactory } from '../../ChannelManager'
+import { FlushController } from '../../FlushController'
 import { registrationBegin, registrationPoll } from './FeishuAppRegistration'
-
-const logger = loggerService.withContext('FeishuAdapter')
 
 const FEISHU_MAX_LENGTH = 4000
 
@@ -206,35 +204,188 @@ function buildPostPayload(text: string): string {
   })
 }
 
-/**
- * Build a Feishu interactive card with markdown content (schema 2.0).
- */
-function buildMarkdownCard(text: string): string {
-  return JSON.stringify({
-    schema: '2.0',
-    config: { wide_screen_mode: true },
-    body: {
-      elements: [{ tag: 'markdown', content: text }]
-    }
-  })
-}
-
 const STREAMING_ELEMENT_ID = 'streaming_content'
 
+/** Throttle interval for CardKit streaming updates (ms). */
+const CARDKIT_THROTTLE_MS = 200
+
 /**
- * Manages a streaming card session using the Lark SDK's CardKit API.
- * Creates a card with streaming_mode, updates content incrementally, and closes when done.
+ * Manages the full lifecycle of a streaming CardKit card for one response.
+ *
+ * Uses FlushController for mutex-guarded, throttled flushing to the
+ * CardKit API — no concurrent API calls, automatic reflush on conflict.
+ *
+ * Lifecycle: idle → created → streaming → completed/error
  */
-class FeishuStreamingSession {
+class FeishuStreamingController {
   private cardId: string | null = null
+  private messageId: string | null = null
   private sequence = 0
-  private lastUpdateTime = 0
-  private updateQueue: Promise<void> = Promise.resolve()
-  private readonly throttleMs = 150
+  private currentText = ''
+  private readonly flush: FlushController
+  private cardCreationPromise: Promise<void> | null = null
+  private _completed = false
 
-  constructor(private readonly client: Lark.Client) {}
+  constructor(
+    private readonly client: Lark.Client,
+    private readonly chatId: string,
+    private readonly log: Record<string, (msg: string, meta?: Record<string, unknown>) => void>
+  ) {
+    this.flush = new FlushController(() => this.performFlush())
+  }
 
-  async create(): Promise<string | null> {
+  /** Whether this controller has finished (complete or error). */
+  get completed(): boolean {
+    return this._completed
+  }
+
+  /**
+   * Update the text being streamed. The FlushController decides when to
+   * actually call the CardKit API based on throttle and mutex.
+   */
+  async onText(text: string): Promise<void> {
+    if (this._completed) return
+    this.currentText = text
+    await this.ensureCardCreated()
+    if (this.cardId && this.messageId) {
+      await this.flush.throttledUpdate(CARDKIT_THROTTLE_MS)
+    }
+  }
+
+  /**
+   * Finalize the streaming card: wait for pending flushes, close streaming
+   * mode, and replace with a static markdown card.
+   * @returns true if finalization succeeded.
+   */
+  async complete(finalText: string): Promise<boolean> {
+    if (this._completed) return false
+    this._completed = true
+    this.flush.complete()
+
+    // Wait for card creation if still in progress
+    if (this.cardCreationPromise) await this.cardCreationPromise
+    if (!this.cardId || !this.messageId) return false
+
+    await this.flush.waitForFlush()
+
+    try {
+      // Close streaming mode
+      this.sequence++
+      ensureFeishuSuccess(
+        await this.client.cardkit.v1.card.settings({
+          path: { card_id: this.cardId },
+          data: {
+            settings: JSON.stringify({ streaming_mode: false }),
+            sequence: this.sequence
+          }
+        }),
+        'Close streaming card'
+      )
+
+      // Replace with static markdown card
+      this.sequence++
+      ensureFeishuSuccess(
+        await this.client.cardkit.v1.card.update({
+          data: {
+            card: {
+              type: 'card_json',
+              data: JSON.stringify({
+                schema: '2.0',
+                config: { wide_screen_mode: true },
+                body: {
+                  elements: [{ tag: 'markdown', content: finalText }]
+                }
+              })
+            },
+            sequence: this.sequence
+          },
+          path: { card_id: this.cardId }
+        }),
+        'Update final card'
+      )
+
+      return true
+    } catch (error) {
+      this.log.warn('Failed to finalize streaming card', {
+        error: error instanceof Error ? error.message : String(error)
+      })
+      return false
+    }
+  }
+
+  /** Mark the streaming card as errored and close it. */
+  async error(errorMessage: string): Promise<void> {
+    if (this._completed) return
+    this._completed = true
+    this.flush.complete()
+
+    if (this.cardCreationPromise) await this.cardCreationPromise
+    if (!this.cardId || !this.messageId) return
+
+    await this.flush.waitForFlush()
+
+    try {
+      this.sequence++
+      ensureFeishuSuccess(
+        await this.client.cardkit.v1.card.settings({
+          path: { card_id: this.cardId },
+          data: {
+            settings: JSON.stringify({ streaming_mode: false }),
+            sequence: this.sequence
+          }
+        }),
+        'Close streaming card on error'
+      )
+
+      const displayText = this.currentText
+        ? `${this.currentText}\n\n---\n**Error**: ${errorMessage}`
+        : `**Error**: ${errorMessage}`
+
+      this.sequence++
+      ensureFeishuSuccess(
+        await this.client.cardkit.v1.card.update({
+          data: {
+            card: {
+              type: 'card_json',
+              data: JSON.stringify({
+                schema: '2.0',
+                config: { wide_screen_mode: true },
+                body: {
+                  elements: [{ tag: 'markdown', content: displayText }]
+                }
+              })
+            },
+            sequence: this.sequence
+          },
+          path: { card_id: this.cardId }
+        }),
+        'Update error card'
+      )
+    } catch {
+      // Best-effort error card update
+    }
+  }
+
+  /** Abort and clean up without sending a final card. */
+  dispose(): void {
+    this._completed = true
+    this.flush.cancelPendingFlush()
+    this.flush.complete()
+  }
+
+  // ---- Internal ----
+
+  private async ensureCardCreated(): Promise<void> {
+    if (this.cardId) return
+    if (this.cardCreationPromise) {
+      await this.cardCreationPromise
+      return
+    }
+    this.cardCreationPromise = this.createCard()
+    await this.cardCreationPromise
+  }
+
+  private async createCard(): Promise<void> {
     try {
       const res = ensureFeishuSuccess<{ card_id?: string }>(
         await this.client.cardkit.v1.card.create({
@@ -252,76 +403,51 @@ class FeishuStreamingSession {
         'Create streaming card'
       )
 
-      if (res.data?.card_id) {
-        this.cardId = res.data.card_id
-        return this.cardId
+      if (!res.data?.card_id) {
+        this.log.warn('Failed to create streaming card — no card_id returned')
+        return
       }
 
-      logger.warn('Failed to create streaming card', { code: res.code, msg: res.msg })
-      return null
+      this.cardId = res.data.card_id
+
+      // Send the card message to the chat
+      const sendRes = ensureFeishuSuccess<{ message_id?: string }>(
+        await this.client.im.message.create({
+          params: { receive_id_type: 'chat_id' },
+          data: {
+            receive_id: this.chatId,
+            msg_type: 'interactive',
+            content: JSON.stringify({ type: 'card', data: { card_id: this.cardId } })
+          }
+        }),
+        'Send streaming card message'
+      )
+
+      this.messageId = sendRes.data?.message_id ?? null
     } catch (error) {
-      logger.error('Error creating streaming card', {
+      this.log.warn('Failed to create/send streaming card', {
         error: error instanceof Error ? error.message : String(error)
       })
-      return null
     }
   }
 
-  getCardContent(): string {
-    return JSON.stringify({ type: 'card', data: { card_id: this.cardId } })
-  }
+  private async performFlush(): Promise<void> {
+    if (!this.cardId || !this.currentText) return
 
-  async update(text: string): Promise<void> {
-    if (!this.cardId) return
-
-    const now = Date.now()
-    if (now - this.lastUpdateTime < this.throttleMs) {
-      return
-    }
-
-    this.updateQueue = this.updateQueue.then(async () => {
-      this.lastUpdateTime = Date.now()
-      this.sequence++
-      try {
-        ensureFeishuSuccess(
-          await this.client.cardkit.v1.cardElement.content({
-            path: { card_id: this.cardId!, element_id: STREAMING_ELEMENT_ID },
-            data: {
-              content: text,
-              sequence: this.sequence
-            }
-          }),
-          'Update streaming card'
-        )
-      } catch {
-        // Swallow update errors to avoid blocking the stream
-      }
-    })
-
-    await this.updateQueue
-  }
-
-  async close(): Promise<void> {
-    if (!this.cardId) return
-
-    await this.updateQueue
-
+    this.sequence++
     try {
-      this.sequence++
       ensureFeishuSuccess(
-        await this.client.cardkit.v1.card.settings({
-          path: { card_id: this.cardId },
+        await this.client.cardkit.v1.cardElement.content({
+          path: { card_id: this.cardId, element_id: STREAMING_ELEMENT_ID },
           data: {
-            settings: JSON.stringify({ streaming_mode: false }),
+            content: this.currentText,
             sequence: this.sequence
           }
         }),
-        'Close streaming card'
+        'Stream card content'
       )
-    } catch (error) {
-      logger.warn('Error closing streaming card', {
-        error: error instanceof Error ? error.message : String(error)
-      })
+    } catch {
+      // Swallow flush errors — FlushController will reflush if needed
     }
   }
 }
@@ -336,11 +462,8 @@ class FeishuAdapter extends ChannelAdapter {
   private readonly allowedChatIds: string[]
   private readonly domain: FeishuDomain
   private registrationAbort: AbortController | null = null
-  // Track active streaming sessions: draftId -> { session, chatId, messageId }
-  private readonly streamingSessions = new Map<
-    number,
-    { session: FeishuStreamingSession; chatId: string; messageId?: string }
-  >()
+  /** Per-chat streaming controller. One stream at a time per chat. */
+  private readonly streamingControllers = new Map<string, FeishuStreamingController>()
 
   constructor(config: ChannelAdapterConfig) {
     super(config)
@@ -362,8 +485,10 @@ class FeishuAdapter extends ChannelAdapter {
   protected override async performConnect(_signal: AbortSignal): Promise<void> {
     if (!this.appId || !this.appSecret) {
       // No credentials — start the QR registration flow in the background.
-      // The base class already runs performConnect in the background when
-      // checkReady() returns false, so this will not block.
+      // Return without connecting. The base class background branch will call
+      // markConnected via .then(), but we override that below: checkReady()
+      // returned false, so we explicitly mark as NOT connected. The adapter
+      // will be recreated by syncAgent once credentials arrive.
       this.startRegistrationInBackground()
       return
     }
@@ -407,7 +532,8 @@ class FeishuAdapter extends ChannelAdapter {
       throw new Error(`Feishu WebSocket connection failed: ${error instanceof Error ? error.message : String(error)}`)
     }
 
-    logger.info('Feishu bot started (WebSocket)', { agentId: this.agentId, channelId: this.channelId })
+    this.markConnected()
+    this.log.info('Feishu bot started (WebSocket)')
   }
 
   /**
@@ -416,9 +542,7 @@ class FeishuAdapter extends ChannelAdapter {
    * asynchronously.  Does NOT block the caller.
    */
   private startRegistrationInBackground(): void {
-    logger.info('Starting Feishu app registration flow (background)', {
-      agentId: this.agentId,
-      channelId: this.channelId,
+    this.log.info('Starting Feishu app registration flow (background)', {
       domain: this.domain
     })
 
@@ -446,16 +570,12 @@ class FeishuAdapter extends ChannelAdapter {
 
         this.sendQrToRenderer('', 'confirmed', result.appId, result.appSecret)
         this.emit('credentials', { appId: result.appId, appSecret: result.appSecret })
-        logger.info('Feishu app registration completed', { agentId: this.agentId, appId: result.appId })
+        this.log.info('Feishu app registration completed')
       })
       .catch((error) => {
         this.registrationAbort = null
         this.sendQrToRenderer('', 'expired')
-        logger.warn('Feishu app registration failed', {
-          agentId: this.agentId,
-          channelId: this.channelId,
-          error: error instanceof Error ? error.message : String(error)
-        })
+        this.log.warn(`Registration failed: ${error instanceof Error ? error.message : String(error)}`)
       })
   }
 
@@ -468,8 +588,6 @@ class FeishuAdapter extends ChannelAdapter {
     const mainWindow = windowService.getMainWindow()
     if (mainWindow && !mainWindow.isDestroyed()) {
       mainWindow.webContents.send(IpcChannel.Feishu_QrLogin, {
-        channelId: this.channelId,
-        agentId: this.agentId,
         url,
         status,
         appId,
@@ -484,15 +602,15 @@ class FeishuAdapter extends ChannelAdapter {
       this.registrationAbort = null
     }
 
-    for (const [, entry] of this.streamingSessions) {
-      await entry.session.close().catch(() => {})
+    for (const [, controller] of this.streamingControllers) {
+      controller.dispose()
     }
-    this.streamingSessions.clear()
+    this.streamingControllers.clear()
 
     this.wsClient = null
     this.client = null
     this.sendQrToRenderer('', 'disconnected')
-    logger.info('Feishu bot stopped', { agentId: this.agentId, channelId: this.channelId })
+    this.log.info('Feishu bot stopped')
   }
 
   async sendMessage(chatId: string, text: string, _opts?: SendMessageOptions): Promise<void> {
@@ -522,82 +640,38 @@ class FeishuAdapter extends ChannelAdapter {
     }
   }
 
-  async sendMessageDraft(chatId: string, draftId: number, text: string): Promise<void> {
-    if (!this.client) {
-      throw new Error('Client is not connected')
-    }
-
-    let entry = this.streamingSessions.get(draftId)
-
-    if (!entry) {
-      const session = new FeishuStreamingSession(this.client)
-      const cardId = await session.create()
-      if (!cardId) return
-
-      try {
-        const res = ensureFeishuSuccess<{ message_id?: string }>(
-          await this.client.im.message.create({
-            params: { receive_id_type: 'chat_id' },
-            data: {
-              receive_id: chatId,
-              msg_type: 'interactive',
-              content: session.getCardContent()
-            }
-          }),
-          'Send streaming card message'
-        )
-        const messageId = res.data?.message_id
-        entry = { session, chatId, messageId }
-        this.streamingSessions.set(draftId, entry)
-      } catch (error) {
-        logger.warn('Failed to send streaming card message', {
-          error: error instanceof Error ? error.message : String(error)
-        })
-        return
-      }
-    }
-
-    await entry.session.update(text)
-  }
-
   async sendTypingIndicator(_chatId: string): Promise<void> {
     void _chatId
     // Feishu doesn't have a native typing indicator API.
     // The streaming card itself serves as a visual indicator.
   }
 
-  /**
-   * Finalize a streaming session: close the streaming card and optionally
-   * update the message to a static markdown card for long-term readability.
-   */
-  override async finalizeStream(draftId: number, finalText: string): Promise<boolean> {
-    const entry = this.streamingSessions.get(draftId)
-    if (!entry) return false
+  override async onTextUpdate(chatId: string, fullText: string): Promise<void> {
+    if (!this.client) return
 
-    await entry.session.close()
-    this.streamingSessions.delete(draftId)
-
-    if (entry.messageId && this.client) {
-      try {
-        ensureFeishuSuccess(
-          await this.client.im.message.update({
-            path: { message_id: entry.messageId },
-            data: {
-              msg_type: 'interactive',
-              content: buildMarkdownCard(finalText)
-            }
-          }),
-          'Finalize Feishu streaming card'
-        )
-        return true
-      } catch (error) {
-        logger.warn('Failed to finalize streaming card', {
-          error: error instanceof Error ? error.message : String(error)
-        })
-      }
+    let controller = this.streamingControllers.get(chatId)
+    if (!controller) {
+      controller = new FeishuStreamingController(this.client, chatId, this.log)
+      this.streamingControllers.set(chatId, controller)
     }
 
-    return false
+    await controller.onText(fullText)
+  }
+
+  override async onStreamComplete(chatId: string, finalText: string): Promise<boolean> {
+    const controller = this.streamingControllers.get(chatId)
+    if (!controller) return false
+
+    this.streamingControllers.delete(chatId)
+    return controller.complete(finalText)
+  }
+
+  override async onStreamError(chatId: string, error: string): Promise<void> {
+    const controller = this.streamingControllers.get(chatId)
+    if (!controller) return
+
+    this.streamingControllers.delete(chatId)
+    await controller.error(error)
   }
 
   private handleMessageEvent(event: FeishuMessageEvent): void {
@@ -605,7 +679,7 @@ class FeishuAdapter extends ChannelAdapter {
     if (!chatId) return
 
     if (this.allowedChatIds.length > 0 && !this.allowedChatIds.includes(chatId)) {
-      logger.debug('Dropping message from unauthorized chat', { chatId })
+      this.log.debug('Dropping message from unauthorized chat', { chatId })
       return
     }
 
@@ -651,7 +725,7 @@ class FeishuAdapter extends ChannelAdapter {
 }
 
 // Self-registration
-registerAdapterFactory('feishu', (channel: CherryClawChannel, agentId: string) => {
+registerAdapterFactory('feishu', (channel, agentId) => {
   return new FeishuAdapter({
     channelId: channel.id,
     channelType: channel.type,

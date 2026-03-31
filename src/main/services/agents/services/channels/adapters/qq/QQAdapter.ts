@@ -1,12 +1,8 @@
-import { loggerService } from '@logger'
-import type { CherryClawChannel } from '@types'
 import { net } from 'electron'
 import WebSocket from 'ws'
 
 import { ChannelAdapter, type ChannelAdapterConfig, type SendMessageOptions } from '../../ChannelAdapter'
 import { registerAdapterFactory } from '../../ChannelManager'
-
-const logger = loggerService.withContext('QQAdapter')
 
 const QQ_MAX_LENGTH = 2000
 const QQ_API_BASE = 'https://api.sgroup.qq.com'
@@ -95,6 +91,7 @@ class QQAdapter extends ChannelAdapter {
   private lastSeq: number | null = null
   private heartbeatInterval: ReturnType<typeof setInterval> | null = null
   private reconnectAttempts = 0
+  private reconnectTimer: ReturnType<typeof setTimeout> | null = null
   private rapidDisconnects = 0
   private connectedAt = 0
   private isConnecting = false
@@ -130,13 +127,13 @@ class QQAdapter extends ChannelAdapter {
     this.shouldStop = false
     await this.startGateway()
 
-    logger.info('QQ bot started', { agentId: this.agentId, channelId: this.channelId })
+    this.log.info('QQ bot started')
   }
 
   protected override async performDisconnect(): Promise<void> {
     this.shouldStop = true
     this.cleanup()
-    logger.info('QQ bot stopped', { agentId: this.agentId, channelId: this.channelId })
+    this.log.info('QQ bot stopped')
   }
 
   private async getAccessToken(): Promise<string> {
@@ -209,28 +206,27 @@ class QQAdapter extends ChannelAdapter {
       this.cleanup()
 
       const gatewayUrl = await this.getGatewayUrl()
-      logger.info('Connecting to QQ gateway', { agentId: this.agentId, url: gatewayUrl })
+      this.log.info('Connecting to QQ gateway', { url: gatewayUrl })
 
       const ws = new WebSocket(gatewayUrl)
       this.ws = ws
 
       ws.on('open', () => {
-        logger.info('QQ WebSocket connected', { agentId: this.agentId })
+        this.log.info('QQ WebSocket connected')
       })
 
       ws.on('message', (data: Buffer) => {
         this.handleWsMessage(data).catch((err) => {
-          logger.error('Error handling WS message', {
-            agentId: this.agentId,
+          this.log.error('Error handling WS message', {
             error: err instanceof Error ? err.message : String(err)
           })
         })
       })
 
       ws.on('close', (code, reason) => {
-        this.markDisconnected()
-        logger.info('QQ WebSocket closed', {
-          agentId: this.agentId,
+        this.markDisconnected(`WebSocket closed: ${code}`)
+        this.log.warn(`WebSocket closed (code=${code}, reason=${reason.toString()})`)
+        this.log.info('QQ WebSocket closed', {
           code,
           reason: reason.toString()
         })
@@ -238,14 +234,12 @@ class QQAdapter extends ChannelAdapter {
       })
 
       ws.on('error', (err) => {
-        logger.error('QQ WebSocket error', {
-          agentId: this.agentId,
+        this.log.error('QQ WebSocket error', {
           error: err.message
         })
       })
     } catch (error) {
-      logger.error('Failed to start QQ gateway', {
-        agentId: this.agentId,
+      this.log.error('Failed to start QQ gateway', {
         error: error instanceof Error ? error.message : String(error)
       })
       this.scheduleReconnect()
@@ -259,7 +253,7 @@ class QQAdapter extends ChannelAdapter {
     try {
       payload = JSON.parse(data.toString())
     } catch {
-      logger.warn('Invalid JSON from QQ WebSocket', { agentId: this.agentId })
+      this.log.warn('Invalid JSON from QQ WebSocket')
       return
     }
 
@@ -280,11 +274,11 @@ class QQAdapter extends ChannelAdapter {
         // Heartbeat acknowledged
         break
       case OP_RECONNECT:
-        logger.info('QQ gateway requested reconnect', { agentId: this.agentId })
+        this.log.info('QQ gateway requested reconnect')
         this.scheduleReconnect()
         break
       case OP_INVALID_SESSION:
-        logger.warn('QQ invalid session', { agentId: this.agentId })
+        this.log.warn('QQ invalid session')
         this.sessionId = null
         this.lastSeq = null
         this.scheduleReconnect()
@@ -355,8 +349,8 @@ class QQAdapter extends ChannelAdapter {
         this.rapidDisconnects = 0
         this.connectedAt = Date.now()
         this.markConnected()
-        logger.info('QQ bot ready', {
-          agentId: this.agentId,
+        this.log.info(`QQ bot ready (user: ${readyData.user.username})`)
+        this.log.info('QQ bot ready', {
           sessionId: this.sessionId,
           botUser: readyData.user.username
         })
@@ -365,7 +359,7 @@ class QQAdapter extends ChannelAdapter {
       case 'RESUMED':
         this.connectedAt = Date.now()
         this.markConnected()
-        logger.info('QQ session resumed', { agentId: this.agentId })
+        this.log.info('QQ session resumed')
         break
       case 'C2C_MESSAGE_CREATE':
         await this.handleC2CMessage(data as QQMessage)
@@ -513,8 +507,7 @@ class QQAdapter extends ChannelAdapter {
     try {
       await this.sendMessage(chatId, message)
     } catch (err) {
-      logger.error('Failed to send whoami response', {
-        agentId: this.agentId,
+      this.log.error('Failed to send whoami response', {
         chatId,
         error: err instanceof Error ? err.message : String(err)
       })
@@ -565,12 +558,6 @@ class QQAdapter extends ChannelAdapter {
   }
 
   // oxlint-disable-next-line no-unused-vars -- no-op abstract method
-  async sendMessageDraft(_chatId: string, _draftId: number, _text: string): Promise<void> {
-    // QQ does not have a native draft/streaming API like Telegram
-    // This is a no-op; final message is sent via sendMessage
-  }
-
-  // oxlint-disable-next-line no-unused-vars -- no-op abstract method
   async sendTypingIndicator(_chatId: string): Promise<void> {
     // QQ Bot API does not support typing indicators for most message types
     // For C2C, there's sendC2CInputNotify but it requires message_id context
@@ -578,6 +565,10 @@ class QQAdapter extends ChannelAdapter {
   }
 
   private cleanup(): void {
+    if (this.reconnectTimer) {
+      clearTimeout(this.reconnectTimer)
+      this.reconnectTimer = null
+    }
     if (this.heartbeatInterval) {
       clearInterval(this.heartbeatInterval)
       this.heartbeatInterval = null
@@ -600,8 +591,7 @@ class QQAdapter extends ChannelAdapter {
       this.rapidDisconnects++
       // After repeated rapid disconnects, the session is likely stale — force fresh IDENTIFY
       if (this.rapidDisconnects >= this.maxRapidDisconnects && this.sessionId) {
-        logger.warn('Too many rapid disconnects after resume, invalidating session', {
-          agentId: this.agentId,
+        this.log.warn('Too many rapid disconnects after resume, invalidating session', {
           rapidDisconnects: this.rapidDisconnects
         })
         this.sessionId = null
@@ -615,25 +605,25 @@ class QQAdapter extends ChannelAdapter {
     }
 
     if (this.reconnectAttempts >= this.maxReconnectAttempts) {
-      this.markDisconnected()
-      logger.error('Max reconnect attempts reached', { agentId: this.agentId })
+      this.markDisconnected('Max reconnect attempts reached')
+      this.log.error('Max reconnect attempts reached, giving up')
       return
     }
 
     const delay = this.reconnectDelays[Math.min(this.reconnectAttempts, this.reconnectDelays.length - 1)]
     this.reconnectAttempts++
 
-    logger.info('Scheduling QQ reconnect', {
-      agentId: this.agentId,
+    this.log.info(`Reconnecting in ${delay}ms (attempt ${this.reconnectAttempts})`)
+    this.log.info('Scheduling QQ reconnect', {
       attempt: this.reconnectAttempts,
       delay
     })
 
-    setTimeout(() => {
+    this.reconnectTimer = setTimeout(() => {
+      this.reconnectTimer = null
       if (!this.shouldStop) {
         this.startGateway().catch((err) => {
-          logger.error('Reconnect failed', {
-            agentId: this.agentId,
+          this.log.error('Reconnect failed', {
             error: err instanceof Error ? err.message : String(err)
           })
         })
@@ -643,7 +633,7 @@ class QQAdapter extends ChannelAdapter {
 }
 
 // Self-registration
-registerAdapterFactory('qq', (channel: CherryClawChannel, agentId: string) => {
+registerAdapterFactory('qq', (channel, agentId) => {
   return new QQAdapter({
     channelId: channel.id,
     channelType: channel.type,

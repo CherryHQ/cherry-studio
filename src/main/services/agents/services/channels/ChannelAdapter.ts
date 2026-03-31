@@ -1,4 +1,5 @@
 import { loggerService } from '@logger'
+import type { ChannelLogEntry, ChannelLogLevel, ChannelStatusEvent } from '@shared/config/types'
 import { net } from 'electron'
 import { EventEmitter } from 'events'
 
@@ -90,11 +91,32 @@ export abstract class ChannelAdapter extends EventEmitter {
   private connectAbort: AbortController | null = null
   private _connected = false
 
+  /**
+   * Dual-destination logger: writes to the file logger AND emits to the UI log panel.
+   * Subclasses should use `this.log.*` instead of a module-level `logger.*` so that
+   * gateway-level details are visible in the channel log modal.
+   */
+  protected readonly log: Record<ChannelLogLevel, (message: string, meta?: Record<string, unknown>) => void>
+
   constructor(protected readonly config: ChannelAdapterConfig) {
     super()
     this.channelId = config.channelId
     this.channelType = config.channelType
     this.agentId = config.agentId
+
+    const fileLogger = loggerService.withContext(`Channel:${config.channelType}`)
+    const baseMeta = { agentId: config.agentId, channelId: config.channelId }
+
+    this.log = (['debug', 'info', 'warn', 'error'] as const).reduce(
+      (acc, level) => {
+        acc[level] = (message: string, meta?: Record<string, unknown>) => {
+          fileLogger[level](message, { ...baseMeta, ...meta })
+          this.emitLog(level, message)
+        }
+        return acc
+      },
+      {} as Record<ChannelLogLevel, (message: string, meta?: Record<string, unknown>) => void>
+    )
   }
 
   /** Whether the adapter has completed performConnect successfully and not since disconnected. */
@@ -106,8 +128,9 @@ export abstract class ChannelAdapter extends EventEmitter {
    * Mark the adapter as disconnected when the underlying connection drops unexpectedly.
    * Subclasses should call this from error handlers (e.g. WebSocket close, polling failure).
    */
-  protected markDisconnected(): void {
+  protected markDisconnected(error?: string): void {
     this._connected = false
+    this.emitStatusChange(false, error)
   }
 
   /**
@@ -116,11 +139,26 @@ export abstract class ChannelAdapter extends EventEmitter {
    */
   protected markConnected(): void {
     this._connected = true
+    this.emitStatusChange(true)
+  }
+
+  /** Emit a log event for this channel. */
+  protected emitLog(level: ChannelLogLevel, message: string): void {
+    this.emit('log', { timestamp: Date.now(), level, message, channelId: this.channelId })
+  }
+
+  private emitStatusChange(connected: boolean, error?: string): void {
+    const event: ChannelStatusEvent = { channelId: this.channelId, connected }
+    if (error) event.error = error
+    this.emit('statusChange', event)
   }
 
   /**
    * Connect the adapter. If checkReady() returns true, awaits performConnect.
    * Otherwise, runs performConnect in the background so connect() returns immediately.
+   *
+   * The base class does NOT set connected state. Subclasses must call
+   * markConnected() / markDisconnected() themselves.
    */
   async connect(): Promise<void> {
     this.connectAbort = new AbortController()
@@ -129,30 +167,12 @@ export abstract class ChannelAdapter extends EventEmitter {
     const ready = await this.checkReady()
     if (ready) {
       await this.performConnect(signal)
-      this._connected = true
     } else {
-      // Background connect — fire and forget
-      this.performConnect(signal)
-        .then(() => {
-          if (!signal.aborted) {
-            this._connected = true
-            logger.info('Background connect completed', {
-              agentId: this.agentId,
-              channelId: this.channelId,
-              type: this.channelType
-            })
-          }
-        })
-        .catch((err) => {
-          if (!signal.aborted) {
-            logger.error('Background connect failed', {
-              agentId: this.agentId,
-              channelId: this.channelId,
-              type: this.channelType,
-              error: err instanceof Error ? err.message : String(err)
-            })
-          }
-        })
+      this.performConnect(signal).catch((err) => {
+        if (!signal.aborted) {
+          this.markDisconnected(err instanceof Error ? err.message : String(err))
+        }
+      })
     }
   }
 
@@ -190,13 +210,36 @@ export abstract class ChannelAdapter extends EventEmitter {
   protected abstract performDisconnect(): Promise<void>
 
   abstract sendMessage(chatId: string, text: string, opts?: SendMessageOptions): Promise<void>
-  /** Stream a partial/draft message to the chat. Same draftId updates the existing draft in-place. */
-  abstract sendMessageDraft(chatId: string, draftId: number, text: string): Promise<void>
   abstract sendTypingIndicator(chatId: string): Promise<void>
-  async finalizeStream(_draftId: number, _finalText: string): Promise<boolean> {
-    void _draftId
-    void _finalText
+
+  /**
+   * Called on every text update during streaming. The adapter decides
+   * internally when/how to flush to the platform (throttle, mutex, etc.).
+   * @param fullText - The full cumulative response text so far.
+   */
+  // oxlint-disable-next-line no-unused-vars
+  async onTextUpdate(_chatId: string, _fullText: string): Promise<void> {
+    // Default no-op — adapters that support streaming should override.
+  }
+
+  /**
+   * Called when the stream is complete. The adapter should finalize the
+   * streaming UI (close streaming card, send final message, etc.).
+   * @returns true if the adapter handled the final delivery (e.g. updated the card).
+   *          false means the caller should fall back to sendMessage().
+   */
+  // oxlint-disable-next-line no-unused-vars
+  async onStreamComplete(_chatId: string, _finalText: string): Promise<boolean> {
     return false
+  }
+
+  /**
+   * Called when the stream errors out. The adapter can update the streaming
+   * UI to show an error state.
+   */
+  // oxlint-disable-next-line no-unused-vars
+  async onStreamError(_chatId: string, _error: string): Promise<void> {
+    // Default no-op.
   }
 
   // Typed event emitter overrides
@@ -204,6 +247,8 @@ export abstract class ChannelAdapter extends EventEmitter {
   override emit(event: 'command', data: ChannelCommandEvent): boolean
   override emit(event: 'qr', url: string): boolean
   override emit(event: 'credentials', data: { appId: string; appSecret: string }): boolean
+  override emit(event: 'log', data: ChannelLogEntry): boolean
+  override emit(event: 'statusChange', data: ChannelStatusEvent): boolean
   override emit(event: string, ...args: unknown[]): boolean {
     return super.emit(event, ...args)
   }
@@ -212,6 +257,8 @@ export abstract class ChannelAdapter extends EventEmitter {
   override on(event: 'command', listener: (data: ChannelCommandEvent) => void): this
   override on(event: 'qr', listener: (url: string) => void): this
   override on(event: 'credentials', listener: (data: { appId: string; appSecret: string }) => void): this
+  override on(event: 'log', listener: (data: ChannelLogEntry) => void): this
+  override on(event: 'statusChange', listener: (data: ChannelStatusEvent) => void): this
   override on(event: string, listener: (...args: any[]) => void): this {
     return super.on(event, listener)
   }

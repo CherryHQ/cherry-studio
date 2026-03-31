@@ -1,5 +1,3 @@
-import { loggerService } from '@logger'
-import type { CherryClawChannel } from '@types'
 import { net } from 'electron'
 import WebSocket from 'ws'
 
@@ -11,8 +9,7 @@ import {
   type SendMessageOptions
 } from '../../ChannelAdapter'
 import { registerAdapterFactory } from '../../ChannelManager'
-
-const logger = loggerService.withContext('DiscordAdapter')
+import { FlushController } from '../../FlushController'
 
 const DISCORD_API_BASE = 'https://discord.com/api/v10'
 const DISCORD_MAX_LENGTH = 2000
@@ -80,6 +77,139 @@ function splitMessage(text: string): string[] {
   return chunks
 }
 
+/**
+ * Discord rate limit: 5 message operations per 5 seconds per channel.
+ * Use 1200ms throttle to stay safely within limits.
+ */
+const DISCORD_STREAM_THROTTLE_MS = 1200
+
+/**
+ * Manages a single streaming response by creating a message, then
+ * editing it in-place with throttled updates via FlushController.
+ */
+class DiscordStreamingController {
+  private messageId: string | null = null
+  private currentText = ''
+  private readonly flush: FlushController
+  private messageCreationPromise: Promise<void> | null = null
+  private _completed = false
+
+  constructor(
+    private readonly discordChannelId: string,
+    private readonly apiRequest: DiscordAdapter['apiRequest'],
+    private readonly log: Record<string, (msg: string, meta?: Record<string, unknown>) => void>
+  ) {
+    this.flush = new FlushController(() => this.performFlush())
+  }
+
+  get completed(): boolean {
+    return this._completed
+  }
+
+  async onText(text: string): Promise<void> {
+    if (this._completed) return
+    this.currentText = text
+    await this.ensureMessageCreated()
+    if (this.messageId) {
+      await this.flush.throttledUpdate(DISCORD_STREAM_THROTTLE_MS)
+    }
+  }
+
+  async complete(finalText: string): Promise<boolean> {
+    if (this._completed) return false
+    this._completed = true
+    this.flush.complete()
+
+    if (this.messageCreationPromise) await this.messageCreationPromise
+    if (!this.messageId) return false
+
+    await this.flush.waitForFlush()
+
+    try {
+      this.currentText = finalText
+      await this.editMessage(finalText)
+      return true
+    } catch (error) {
+      this.log.warn('Failed to finalize Discord stream', {
+        error: error instanceof Error ? error.message : String(error)
+      })
+      return false
+    }
+  }
+
+  async error(errorMessage: string): Promise<void> {
+    if (this._completed) return
+    this._completed = true
+    this.flush.complete()
+
+    if (this.messageCreationPromise) await this.messageCreationPromise
+    if (!this.messageId) return
+
+    await this.flush.waitForFlush()
+
+    try {
+      const displayText = this.currentText
+        ? `${this.currentText}\n\n---\n**Error**: ${errorMessage}`
+        : `**Error**: ${errorMessage}`
+      await this.editMessage(displayText)
+    } catch {
+      // Best-effort error update
+    }
+  }
+
+  dispose(): void {
+    this._completed = true
+    this.flush.cancelPendingFlush()
+    this.flush.complete()
+  }
+
+  // ---- Internal ----
+
+  private async ensureMessageCreated(): Promise<void> {
+    if (this.messageId) return
+    if (this.messageCreationPromise) {
+      await this.messageCreationPromise
+      return
+    }
+    this.messageCreationPromise = this.createMessage()
+    await this.messageCreationPromise
+  }
+
+  private async createMessage(): Promise<void> {
+    try {
+      const response = await this.apiRequest(`${DISCORD_API_BASE}/channels/${this.discordChannelId}/messages`, {
+        method: 'POST',
+        body: { content: this.currentText || '...' }
+      })
+      const data = (await response.json()) as { id?: string }
+      this.messageId = data.id ?? null
+    } catch (error) {
+      this.log.warn('Failed to create Discord streaming message', {
+        error: error instanceof Error ? error.message : String(error)
+      })
+    }
+  }
+
+  private async editMessage(text: string): Promise<void> {
+    if (!this.messageId) return
+    // Discord messages max 2000 chars — truncate with indicator if needed
+    const content = text.length > DISCORD_MAX_LENGTH ? text.slice(0, DISCORD_MAX_LENGTH - 3) + '...' : text
+    await this.apiRequest(`${DISCORD_API_BASE}/channels/${this.discordChannelId}/messages/${this.messageId}`, {
+      method: 'PATCH',
+      body: { content }
+    })
+  }
+
+  private async performFlush(): Promise<void> {
+    if (!this.messageId || !this.currentText) return
+    try {
+      await this.editMessage(this.currentText)
+    } catch {
+      // Swallow flush errors — FlushController will reflush if needed
+    }
+  }
+}
+
 class DiscordAdapter extends ChannelAdapter {
   private ws: WebSocket | null = null
   private readonly botToken: string
@@ -91,11 +221,14 @@ class DiscordAdapter extends ChannelAdapter {
   private heartbeatAcked = true
   private resumeGatewayUrl: string | null = null
   private reconnectAttempts = 0
+  private reconnectTimer: ReturnType<typeof setTimeout> | null = null
   private isConnecting = false
   private shouldStop = false
 
   private readonly reconnectDelays = [1000, 2000, 5000, 10000, 30000, 60000]
   private readonly maxReconnectAttempts = 50
+  /** Per-chat streaming controller. One stream at a time per chat. */
+  private readonly streamingControllers = new Map<string, DiscordStreamingController>()
 
   constructor(config: ChannelAdapterConfig) {
     super(config)
@@ -114,13 +247,17 @@ class DiscordAdapter extends ChannelAdapter {
     if (!this.botToken) throw new Error('Discord bot token is required')
     this.shouldStop = false
     await this.startGateway()
-    logger.info('Discord bot started', { agentId: this.agentId, channelId: this.channelId })
+    this.log.info('Discord bot started')
   }
 
   protected override async performDisconnect(): Promise<void> {
     this.shouldStop = true
+    for (const controller of this.streamingControllers.values()) {
+      controller.dispose()
+    }
+    this.streamingControllers.clear()
     this.cleanup()
-    logger.info('Discord bot stopped', { agentId: this.agentId, channelId: this.channelId })
+    this.log.info('Discord bot stopped')
   }
 
   // ─── Gateway Connection ───────────────────────────────────────
@@ -149,31 +286,26 @@ class DiscordAdapter extends ChannelAdapter {
 
       const gatewayUrl = this.resumeGatewayUrl ?? (await this.getGatewayUrl())
       const wsUrl = `${gatewayUrl}?v=10&encoding=json`
-      logger.info('Connecting to Discord gateway', { agentId: this.agentId, url: wsUrl })
+      this.log.info('Connecting to Discord gateway', { url: wsUrl })
 
       const ws = new WebSocket(wsUrl)
       this.ws = ws
 
       ws.on('open', () => {
-        logger.info('Discord WebSocket connected', { agentId: this.agentId })
+        this.log.info('Discord WebSocket connected')
       })
 
       ws.on('message', (data: Buffer) => {
         this.handleWsMessage(data).catch((err) => {
-          logger.error('Error handling WS message', {
-            agentId: this.agentId,
+          this.log.error('Error handling WS message', {
             error: err instanceof Error ? err.message : String(err)
           })
         })
       })
 
       ws.on('close', (code, reason) => {
-        this.markDisconnected()
-        logger.info('Discord WebSocket closed', {
-          agentId: this.agentId,
-          code,
-          reason: reason.toString()
-        })
+        this.markDisconnected(`WebSocket closed: ${code}`)
+        this.log.warn(`WebSocket closed (code=${code}, reason=${reason.toString()})`)
         // 4004 = Authentication failed — do not reconnect
         if (code !== 4004) {
           this.scheduleReconnect()
@@ -181,14 +313,12 @@ class DiscordAdapter extends ChannelAdapter {
       })
 
       ws.on('error', (err) => {
-        logger.error('Discord WebSocket error', {
-          agentId: this.agentId,
+        this.log.error('Discord WebSocket error', {
           error: err.message
         })
       })
     } catch (error) {
-      logger.error('Failed to start Discord gateway', {
-        agentId: this.agentId,
+      this.log.error('Failed to start Discord gateway', {
         error: error instanceof Error ? error.message : String(error)
       })
       this.scheduleReconnect()
@@ -226,7 +356,7 @@ class DiscordAdapter extends ChannelAdapter {
         this.sendHeartbeat()
         break
       case OP_RECONNECT:
-        logger.info('Discord gateway requested reconnect', { agentId: this.agentId })
+        this.log.info('Discord gateway requested reconnect')
         this.ws?.close(4000, 'Reconnect requested')
         break
       case OP_INVALID_SESSION: {
@@ -256,7 +386,7 @@ class DiscordAdapter extends ChannelAdapter {
       this.sendHeartbeat()
       this.heartbeatTimer = setInterval(() => {
         if (!this.heartbeatAcked) {
-          logger.warn('Discord heartbeat not acked, reconnecting', { agentId: this.agentId })
+          this.log.warn('Discord heartbeat not acked, reconnecting')
           this.ws?.close(4000, 'Heartbeat timeout')
           return
         }
@@ -330,17 +460,13 @@ class DiscordAdapter extends ChannelAdapter {
         this.resumeGatewayUrl = ready.resume_gateway_url
         this.reconnectAttempts = 0
         this.markConnected()
-        logger.info('Discord bot ready', {
-          agentId: this.agentId,
-          sessionId: this.sessionId,
-          botUser: ready.user.username
-        })
+        this.log.info(`Discord bot ready (user: ${ready.user.username})`)
         break
       }
       case 'RESUMED':
         this.reconnectAttempts = 0
         this.markConnected()
-        logger.info('Discord session resumed', { agentId: this.agentId })
+        this.log.info('Discord session resumed')
         break
       case 'MESSAGE_CREATE':
         await this.handleMessageCreate(data as DiscordMessage)
@@ -445,8 +571,7 @@ class DiscordAdapter extends ChannelAdapter {
     try {
       await this.sendMessage(chatId, message)
     } catch (err) {
-      logger.error('Failed to send whoami', {
-        agentId: this.agentId,
+      this.log.error('Failed to send whoami', {
         chatId,
         error: err instanceof Error ? err.message : String(err)
       })
@@ -472,12 +597,6 @@ class DiscordAdapter extends ChannelAdapter {
     }
   }
 
-  // oxlint-disable-next-line no-unused-vars -- no-op abstract method
-  async sendMessageDraft(_chatId: string, _draftId: number, _text: string): Promise<void> {
-    // Discord does not have a native draft/streaming API like Telegram
-    // This is a no-op; final message is sent via sendMessage
-  }
-
   async sendTypingIndicator(chatId: string): Promise<void> {
     const channelId = chatId.split(':')[1]
     try {
@@ -486,6 +605,38 @@ class DiscordAdapter extends ChannelAdapter {
       })
     } catch {
       // Typing indicator is best-effort
+    }
+  }
+
+  // ─── Streaming ─────────────────────────────────────────────────
+
+  override async onTextUpdate(chatId: string, fullText: string): Promise<void> {
+    const discordChannelId = chatId.split(':')[1]
+    let controller = this.streamingControllers.get(chatId)
+    if (!controller || controller.completed) {
+      controller = new DiscordStreamingController(discordChannelId, this.apiRequest.bind(this), this.log)
+      this.streamingControllers.set(chatId, controller)
+    }
+    await controller.onText(fullText)
+  }
+
+  override async onStreamComplete(chatId: string, finalText: string): Promise<boolean> {
+    const controller = this.streamingControllers.get(chatId)
+    if (!controller) return false
+    try {
+      return await controller.complete(finalText)
+    } finally {
+      this.streamingControllers.delete(chatId)
+    }
+  }
+
+  override async onStreamError(chatId: string, error: string): Promise<void> {
+    const controller = this.streamingControllers.get(chatId)
+    if (!controller) return
+    try {
+      await controller.error(error)
+    } finally {
+      this.streamingControllers.delete(chatId)
     }
   }
 
@@ -516,6 +667,10 @@ class DiscordAdapter extends ChannelAdapter {
   // ─── Lifecycle Helpers ────────────────────────────────────────
 
   private cleanup(): void {
+    if (this.reconnectTimer) {
+      clearTimeout(this.reconnectTimer)
+      this.reconnectTimer = null
+    }
     if (this.heartbeatTimer) {
       clearInterval(this.heartbeatTimer)
       this.heartbeatTimer = null
@@ -532,25 +687,21 @@ class DiscordAdapter extends ChannelAdapter {
     if (this.shouldStop) return
 
     if (this.reconnectAttempts >= this.maxReconnectAttempts) {
-      this.markDisconnected()
-      logger.error('Max reconnect attempts reached', { agentId: this.agentId })
+      this.markDisconnected('Max reconnect attempts reached')
+      this.log.error('Max reconnect attempts reached, giving up')
       return
     }
 
     const delay = this.reconnectDelays[Math.min(this.reconnectAttempts, this.reconnectDelays.length - 1)]
     this.reconnectAttempts++
 
-    logger.info('Scheduling Discord reconnect', {
-      agentId: this.agentId,
-      attempt: this.reconnectAttempts,
-      delay
-    })
+    this.log.info(`Reconnecting in ${delay}ms (attempt ${this.reconnectAttempts})`)
 
-    setTimeout(() => {
+    this.reconnectTimer = setTimeout(() => {
+      this.reconnectTimer = null
       if (!this.shouldStop) {
         this.startGateway().catch((err) => {
-          logger.error('Reconnect failed', {
-            agentId: this.agentId,
+          this.log.error('Reconnect failed', {
             error: err instanceof Error ? err.message : String(err)
           })
         })
@@ -560,11 +711,11 @@ class DiscordAdapter extends ChannelAdapter {
 }
 
 // Self-registration
-registerAdapterFactory('discord', (channel: CherryClawChannel, agentId: string) => {
+registerAdapterFactory('discord', (channel, agentId) => {
   return new DiscordAdapter({
     channelId: channel.id,
     channelType: channel.type,
     agentId,
-    channelConfig: channel.config
+    channelConfig: channel.config as Record<string, unknown>
   })
 })
