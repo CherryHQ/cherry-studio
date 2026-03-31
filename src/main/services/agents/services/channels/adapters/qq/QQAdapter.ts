@@ -532,19 +532,19 @@ class QQAdapter extends ChannelAdapter {
     switch (type) {
       case 'c2c':
         endpoint = `${QQ_API_BASE}/v2/users/${id}/messages`
-        body = { content: text, msg_type: 0 }
+        body = { markdown: { content: text }, msg_type: 2 }
         break
       case 'group':
         endpoint = `${QQ_API_BASE}/v2/groups/${id}/messages`
-        body = { content: text, msg_type: 0 }
+        body = { markdown: { content: text }, msg_type: 2 }
         break
       case 'channel':
         endpoint = `${QQ_API_BASE}/channels/${id}/messages`
-        body = { content: text }
+        body = { markdown: { content: text }, msg_type: 2 }
         break
       case 'dm':
         endpoint = `${QQ_API_BASE}/dms/${id}/messages`
-        body = { content: text }
+        body = { markdown: { content: text }, msg_type: 2 }
         break
       default:
         throw new Error(`Unknown chat type: ${type}`)
