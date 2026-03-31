@@ -23,7 +23,8 @@ import { isMac, isWin } from '@main/constant'
 import { BaseService, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import { removeEnvProxy } from '@main/utils'
 import { isUserInChina } from '@main/utils/ipService'
-import { getBinaryName } from '@main/utils/process'
+import { findCommandInShellEnv, getBinaryName, getBinaryPath, isBinaryExists } from '@main/utils/process'
+import getShellEnv from '@main/utils/shell-env'
 import type { TerminalConfig, TerminalConfigWithCommand } from '@shared/config/constant'
 import {
   codeCLI,
@@ -270,7 +271,7 @@ export class CodeCliService extends BaseService {
     this.openCodeConfigBackups.set(configPath, backupContent)
 
     // config with env variable Build CherryStudio provider reference for security
-    const envVarKey = `OPENCODE_API_KEY_${providerName.toUpperCase().replace(/-/g, '_')}`
+    const envVarKey = `OPENCODE_API_KEY_${providerName.toUpperCase().replace(/[-.]/g, '_')}`
     const cherryProviderConfig = {
       npm: npmPackage,
       name: dynamicProviderName,
@@ -970,7 +971,24 @@ export class CodeCliService extends BaseService {
 
     // Special handling for kimi-cli: use uvx instead of bun
     if (cliTool === codeCLI.kimiCli) {
-      const uvPath = path.join(os.homedir(), HOME_CHERRY_DIR, 'bin', await getBinaryName('uv'))
+      const shellEnv = await getShellEnv()
+      let uvPath = await findCommandInShellEnv('uv', shellEnv)
+
+      if (!uvPath) {
+        if (await isBinaryExists('uv')) {
+          uvPath = await getBinaryPath('uv')
+          logger.info('Using bundled uv as fallback (not found in PATH)', { command: uvPath })
+        } else {
+          throw new Error(
+            'uv not found in PATH and bundled version is not available.\n' +
+              'Please either:\n' +
+              '1. Install uv from https://github.com/astral-sh/uv\n' +
+              '2. Run the MCP dependencies installer from Settings\n' +
+              '3. Restart the application if you recently installed uv'
+          )
+        }
+      }
+
       baseCommand = `${uvPath} tool run ${packageName}`
     }
 
