@@ -123,7 +123,7 @@ export function useSettings() {
     },
     setLogLevel(level: LogLevel) {
       dispatch(_setLogLevel(level))
-      window.api.setLogLevel(level)
+      void window.api.setLogLevel(level)
     },
     setUseSystemTitleBar(useSystemTitleBar: boolean) {
       dispatch(_setUseSystemTitleBar(useSystemTitleBar))
