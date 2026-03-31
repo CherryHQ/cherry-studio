@@ -1,7 +1,6 @@
 // src/main/services/agents/services/claudecode/index.ts
 import { fork } from 'node:child_process'
 import { EventEmitter } from 'node:events'
-import { existsSync } from 'node:fs'
 import { createRequire } from 'node:module'
 import path from 'node:path'
 
@@ -374,23 +373,15 @@ class ClaudeCodeService implements AgentServiceInterface {
         const activeProxyConfig = getNodeProxyConfigFromEnvironment(childEnv)
         if (activeProxyConfig) {
           const proxyProtocol = getProxyProtocol(activeProxyConfig.proxyRules)
-          const hasProxyBootstrap = existsSync(this.claudeProxyBootstrapPath)
 
           logger.info('Injecting proxy into Claude Code child process', {
             proxyProtocol,
             proxyRules: activeProxyConfig.proxyRules,
             proxyBypassRules: activeProxyConfig.proxyBypassRules,
-            proxyBootstrapPath: this.claudeProxyBootstrapPath,
-            hasProxyBootstrap
+            proxyBootstrapPath: this.claudeProxyBootstrapPath
           })
 
-          if (hasProxyBootstrap) {
-            execArgv = [...process.execArgv, '--require', this.claudeProxyBootstrapPath]
-          } else {
-            logger.warn('Claude proxy bootstrap not found, falling back to env-only proxy injection', {
-              proxyBootstrapPath: this.claudeProxyBootstrapPath
-            })
-          }
+          execArgv = [...process.execArgv, '--require', this.claudeProxyBootstrapPath]
         }
 
         const child = fork(spawnOptions.args[0], spawnOptions.args.slice(1), {
