@@ -196,8 +196,12 @@ export default class AppUpdater {
       const channelConfig = versionConfig.channels[requestedChannel]
       const latestChannelConfig = versionConfig.channels[UpgradeChannel.LATEST]
 
+      if (!semver.gte(currentVersion, versionConfig.minCompatibleVersion)) {
+        continue
+      }
+
       // Check version compatibility and channel availability
-      if (semver.gte(currentVersion, versionConfig.minCompatibleVersion) && channelConfig !== null) {
+      if (channelConfig !== null) {
         logger.info(
           `Found compatible version: ${versionKey} (minCompatibleVersion: ${versionConfig.minCompatibleVersion}), version: ${channelConfig.version}`
         )
@@ -214,6 +218,12 @@ export default class AppUpdater {
         }
 
         return { config: channelConfig, channel: requestedChannel }
+      } else if (requestedChannel !== UpgradeChannel.LATEST && latestChannelConfig !== null) {
+        // Fallback: requested channel (rc/beta) is null, but latest channel is available
+        logger.info(
+          `Requested channel ${requestedChannel} is null for ${versionKey}, falling back to latest channel: ${latestChannelConfig.version}`
+        )
+        return { config: latestChannelConfig, channel: UpgradeChannel.LATEST }
       }
     }
 

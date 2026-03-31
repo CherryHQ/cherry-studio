@@ -3493,6 +3493,19 @@
           "windows": "Insira o nome do arquivo executável do aplicativo, um por linha, sem distinção entre maiúsculas e minúsculas, correspondência parcial permitida. Por exemplo: chrome.exe, weixin.exe, Cherry Studio.exe, etc."
         }
       },
+      "linux": {
+        "compositor_incompatible": "Seu ambiente de área de trabalho não suporta o recurso de seleção. Por favor, mude para uma sessão X11 para a experiência completa.",
+        "filter_warning_text": "Não disponível na sessão Wayland",
+        "input_group_fail": "Não concedido, execute `sudo usermod -aG input $USER` e entre novamente",
+        "input_group_label": "permissão do grupo de entrada:",
+        "input_group_pass": "Concedido",
+        "wayland_checklist_subtitle": "Certifique-se de que as seguintes condições sejam atendidas para otimizar a experiência com Wayland:",
+        "wayland_description": "Você está em uma sessão Wayland. Devido a limitações do sistema, a barra de ferramentas pode aparecer apenas no centro da tela em vez de seguir o texto selecionado em alguns ambientes de desktop. Recomenda-se alternar para uma sessão X11 para a experiência completa.",
+        "wayland_title": "Aviso de Sessão Wayland",
+        "xwayland_fail": "Não ativado, por favor inicie o Cherry Studio com a flag `--ozone-platform=x11`",
+        "xwayland_label": "Modo XWayland:",
+        "xwayland_pass": "Ativado"
+      },
       "search_modal": {
         "custom": {
           "name": {
@@ -3526,6 +3539,7 @@
           "ctrlkey_note": "Após selecionar uma palavra, mantenha pressionada a tecla Ctrl para exibir a barra de ferramentas",
           "description": "Método de ativação da captura de palavras e exibição da barra de ferramentas após selecionar o texto",
           "description_note": {
+            "linux": "Se você remapeou teclas modificadoras usando ferramentas como xmodmap ou xremap, isso pode fazer com que alguns aplicativos falhem ao selecionar texto.",
             "mac": "Se você estiver usando atalhos ou ferramentas de mapeamento de teclado para remapear a tecla ⌘, isso poderá fazer com que alguns aplicativos não permitam a seleção de texto.",
             "windows": "Alguns aplicativos não suportam a seleção de texto pela tecla Ctrl. Se você estiver usando ferramentas de mapeamento de teclas como AHK para remapear a tecla Ctrl, isso poderá fazer com que alguns aplicativos não permitam a seleção de texto."
           },
