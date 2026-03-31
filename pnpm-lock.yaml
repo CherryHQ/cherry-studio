@@ -33,9 +33,6 @@ overrides:
   '@napi-rs/canvas': 0.1.97
 
 patchedDependencies:
-  '@ai-sdk/google@3.0.33':
-    hash: 5e19ce06720cdbb9dfc24627e8d98fa832f5ef502c82c78efd5b48965e3a3837
-    path: patches/@ai-sdk__google@3.0.33.patch
   '@ai-sdk/openai-compatible@2.0.30':
     hash: 75058a2443f9c0eb3d44e09a419a2c9720e51329bbb174019c772e57521843f1
     path: patches/@ai-sdk__openai-compatible@2.0.30.patch
@@ -182,7 +179,7 @@ importers:
         version: 3.0.57(zod@4.3.4)
       '@ai-sdk/google':
         specifier: ^3.0.33
-        version: 3.0.33(patch_hash=5e19ce06720cdbb9dfc24627e8d98fa832f5ef502c82c78efd5b48965e3a3837)(zod@4.3.4)
+        version: 3.0.33(zod@4.3.4)
       '@ai-sdk/google-vertex':
         specifier: ^4.0.66
         version: 4.0.66(zod@4.3.4)
@@ -354,6 +351,12 @@ importers:
       '@hello-pangea/dnd':
         specifier: ^18.0.1
         version: 18.0.1(@types/react@19.2.7)(react-dom@19.2.3(react@19.2.3))(react@19.2.3)
+      '@iconify-json/material-icon-theme':
+        specifier: ^1.2.56
+        version: 1.2.56
+      '@iconify/react':
+        specifier: ^6.0.2
+        version: 6.0.2(react@19.2.3)
       '@j178/prek':
         specifier: ^0.3.4
         version: 0.3.4
@@ -411,6 +414,9 @@ importers:
       '@opeoginni/github-copilot-openai-compatible':
         specifier: ^1.0.0
         version: 1.0.0(patch_hash=4bea0e526136ed32d0be4849ec5cbb41bd5de7b7418dd6920598357438cfef25)(zod@4.3.4)
+      '@pierre/diffs':
+        specifier: ^1.1.3
+        version: 1.1.3(react-dom@19.2.3(react@19.2.3))(react@19.2.3)
       '@playwright/test':
         specifier: ^1.55.1
         version: 1.57.0
@@ -648,6 +654,9 @@ importers:
       ai:
         specifier: ^6.0.103
         version: 6.0.103(zod@4.3.4)
+      ansi-to-react:
+        specifier: ^6.2.6
+        version: 6.2.6(react-dom@19.2.3(react@19.2.3))(react@19.2.3)
       antd:
         specifier: 5.27.0
         version: 5.27.0(patch_hash=cdc383bd0d9b9fe0df2ce7b1f1d4ead200012b7f9517d9257b4ea0a5b324e243)(moment@2.30.1)(react-dom@19.2.3(react@19.2.3))(react@19.2.3)
@@ -1254,7 +1263,7 @@ importers:
         version: 3.0.48(zod@4.3.6)
       '@ai-sdk/google':
         specifier: ^3.0.33
-        version: 3.0.33(patch_hash=5e19ce06720cdbb9dfc24627e8d98fa832f5ef502c82c78efd5b48965e3a3837)(zod@4.3.6)
+        version: 3.0.33(zod@4.3.6)
       '@ai-sdk/openai':
         specifier: ^3.0.36
         version: 3.0.36(zod@4.3.6)
@@ -1291,7 +1300,7 @@ importers:
         version: 2.0.20(zod@4.3.4)
       '@ai-sdk/google':
         specifier: ^3.0.33
-        version: 3.0.33(patch_hash=5e19ce06720cdbb9dfc24627e8d98fa832f5ef502c82c78efd5b48965e3a3837)(zod@4.3.4)
+        version: 3.0.33(zod@4.3.4)
       '@ai-sdk/openai':
         specifier: ^3.0.36
         version: 3.0.36(zod@4.3.4)
@@ -2656,6 +2665,14 @@ packages:
     resolution: {integrity: sha512-j9iQ7cuMbE3fYF+midMDMG16ziZLVZa0IMO3kd2HUFMjIxJ7JN6O29WSt9KaOeDAWRMb7wkN1jcdMcYWpFtytw==}
     engines: {node: '>=18.0.0'}
 
+  '@iconify-json/material-icon-theme@1.2.56':
+    resolution: {integrity: sha512-Kg2MkTL1oQmY6Rs031sMsyW5d9OXnWDJ4rRxIJvrJs03fz5rywUlPyMwlU0W9QJuZifzXTItiXJUIs4MwSJAxA==}
+
+  '@iconify/react@6.0.2':
+    resolution: {integrity: sha512-SMmC2sactfpJD427WJEDN6PMyznTFMhByK9yLW0gOTtnjzzbsi/Ke/XqsumsavFPwNiXs8jSiYeZTmLCLwO+Fg==}
+    peerDependencies:
+      react: '>=16'
+
   '@iconify/types@2.0.0':
     resolution: {integrity: sha512-+wluvCrRhXrhyOmRDJ3q8mux9JkKy5SJ/v8ol2tu4FVjyYvtEzkc/3pK15ET6RKg4b4w4BmTk1+gsCUhf21Ykg==}
 
@@ -3884,6 +3901,16 @@ packages:
   '@pdf-lib/upng@1.0.1':
     resolution: {integrity: sha512-dQK2FUMQtowVP00mtIksrlZhdFXQZPC+taih1q4CvPZ5vqdxR/LKBaFg0oAfzd1GlHZXXSPdQfzQnt+ViGvEIQ==}
 
+  '@pierre/diffs@1.1.3':
+    resolution: {integrity: sha512-sV6G1FL0L4UtequXi+50Uge4QVsouo5vgJx7pCawQ4+ctFglh03zIsB81W8PNheh3coIlVzLzFgB9kI7X4eyjw==}
+    peerDependencies:
+      react: ^18.3.1 || ^19.0.0
+      react-dom: ^18.3.1 || ^19.0.0
+
+  '@pierre/theme@0.0.22':
+    resolution: {integrity: sha512-ePUIdQRNGjrveELTU7fY89Xa7YGHHEy5Po5jQy/18lm32eRn96+tnYJEtFooGdffrx55KBUtOXfvVy/7LDFFhA==}
+    engines: {vscode: ^1.0.0}
+
   '@pkgjs/parseargs@0.11.0':
     resolution: {integrity: sha512-+1VkjdD0QBLPodGrJUeqarH8VAIvQODIbwh9XpP5Syisf7YoQgsJKPNFoqqLQlu+VQ/tVSshMR6loPMn8U+dPg==}
     engines: {node: '>=14'}
@@ -4476,6 +4503,9 @@ packages:
   '@shikijs/core@3.20.0':
     resolution: {integrity: sha512-f2ED7HYV4JEk827mtMDwe/yQ25pRiXZmtHjWF8uzZKuKiEsJR7Ce1nuQ+HhV9FzDcbIo4ObBCD9GPTzNuy9S1g==}
 
+  '@shikijs/core@3.23.0':
+    resolution: {integrity: sha512-NSWQz0riNb67xthdm5br6lAkvpDJRTgB36fxlo37ZzM2yq0PQFFzbd8psqC2XMPgCzo1fW6cVi18+ArJ44wqgA==}
+
   '@shikijs/engine-javascript@3.20.0':
     resolution: {integrity: sha512-OFx8fHAZuk7I42Z9YAdZ95To6jDePQ9Rnfbw9uSRTSbBhYBp1kEOKv/3jOimcj3VRUKusDYM6DswLauwfhboLg==}
 
@@ -4496,8 +4526,14 @@ packages:
   '@shikijs/themes@3.20.0':
     resolution: {integrity: sha512-U1NSU7Sl26Q7ErRvJUouArxfM2euWqq1xaSrbqMu2iqa+tSp0D1Yah8216sDYbdDHw4C8b75UpE65eWorm2erQ==}
 
+  '@shikijs/transformers@3.23.0':
+    resolution: {integrity: sha512-F9msZVxdF+krQNSdQ4V+Ja5QemeAoTQ2jxt7nJCwhDsdF1JWS3KxIQXA3lQbyKwS3J61oHRUSv4jYWv3CkaKTQ==}
+
   '@shikijs/types@3.20.0':
     resolution: {integrity: sha512-lhYAATn10nkZcBQ0BlzSbJA3wcmL5MXUUF8d2Zzon6saZDlToKaiRX60n2+ZaHJCmXEcZRWNzn+k9vplr8Jhsw==}
+
+  '@shikijs/types@3.23.0':
+    resolution: {integrity: sha512-3JZ5HXOZfYjsYSk0yPwBrkupyYSLpAE26Qc0HLghhZNGTZg/SKxXIIgoxOpmmeQP0RRSDJTk1/vPfw9tbw+jSQ==}
 
   '@shikijs/vscode-textmate@10.0.2':
     resolution: {integrity: sha512-83yeghZ2xxin3Nj8z1NMd/NCuca+gsYXswywDy5bHvwlWL8tpTQmzGeUuHd9FC3E/SBEMvzJRwWEOz5gGes9Qg==}
@@ -5952,6 +5988,9 @@ packages:
   ajv@8.17.1:
     resolution: {integrity: sha512-B/gBuNg5SiMTrPkC+A2+cW0RszwxYmn6VYxB/inlBStS5nx6xHIt/ehKRhIMhqusl7a8LjQoZnjCs5vhwxOQ1g==}
 
+  anser@2.3.5:
+    resolution: {integrity: sha512-vcZjxvvVoxTeR5XBNJB38oTu/7eDCZlwdz32N1eNgpyPF7j/Z7Idf+CUwQOkKKpJ7RJyjxgLHCM7vdIK0iCNMQ==}
+
   ansi-colors@4.1.3:
     resolution: {integrity: sha512-/6w/C21Pm1A7aZitlI5Ni/2J6FFQN8i1Cvz3kHABAAbw93v/NlvKdVOqz7CCWz/3iv/JplRSEEZ83XION15ovw==}
     engines: {node: '>=6'}
@@ -5979,6 +6018,12 @@ packages:
   ansi-styles@6.2.3:
     resolution: {integrity: sha512-4Dj6M28JB+oAH8kFkTLUo+a2jwOFkuqb3yucU0CANcRRUbxS0cP0nZYCGjcc3BNXwRIsUVmDGgzawme7zvJHvg==}
     engines: {node: '>=12'}
+
+  ansi-to-react@6.2.6:
+    resolution: {integrity: sha512-Eqi0iaMK5OZ3jsVFxWvU2B74UZBnGuHlkflKMX6wTOeH+luy9KE2O0gUkc2PxhIP1R4IO0xohv62UMFInQOSeg==}
+    peerDependencies:
+      react: ^16.3.2 || ^17.0.0 || ^18.0.0 || ^19.0.0
+      react-dom: ^16.3.2 || ^17.0.0 || ^18.0.0 || ^19.0.0
 
   ansis@4.2.0:
     resolution: {integrity: sha512-HqZ5rWlFjGiV0tDm3UxxgNRqsOTniqoKZu0pIAfh7TZQMGuZK+hH0drySty0si0QXj1ieop4+SkSfPZBPPkHig==}
@@ -7455,6 +7500,9 @@ packages:
   escalade@3.2.0:
     resolution: {integrity: sha512-WUj2qlxaQtO4g6Pq5c29GTcWGDyd8itL8zTlipgECz3JesAiiOKotd8JU6otB3PACgG6xkJUyVhboMS+bje/jA==}
     engines: {node: '>=6'}
+
+  escape-carriage@1.3.1:
+    resolution: {integrity: sha512-GwBr6yViW3ttx1kb7/Oh+gKQ1/TrhYwxKqVmg5gS+BK+Qe2KrOa/Vh7w3HPBvgGf0LfcDGoY9I6NHKoA5Hozhw==}
 
   escape-html@1.0.3:
     resolution: {integrity: sha512-NiSupZ4OeuGwr68lGIeym/ksIZMJodUGOSCZ/FSnTxcrekbvqrgdUxlJOMpijaKZVjAJrWrGs/6Jy8OMuyj9ow==}
@@ -8952,6 +9000,9 @@ packages:
   linguist-languages@8.2.0:
     resolution: {integrity: sha512-KCUUH9x97QWYU0SXOCGxUrZR6cSfuQrMhABB7L/0I8N0LXOeaKe7+RZs7FAwvWCV2qKfZ4Wv1luLq4OfMezSJg==}
 
+  linkify-it@3.0.3:
+    resolution: {integrity: sha512-ynTsyrFSdE5oZ/O9GEf00kPngmOfVwazR5GKDq6EYfhlpFug3J2zybX56a2PRRpc9P+FuSoGNAwjlbDs9jJBPQ==}
+
   linkify-it@5.0.0:
     resolution: {integrity: sha512-5aHCbzQRADcdP+ATqnDuhhJ/MRIqDkZX5pyjFHRRysS8vZ5AbqGEoFIb6pYHPZ+L/OC2Lc+xT8uHVVR5CAK/wQ==}
 
@@ -9081,6 +9132,9 @@ packages:
   lru-cache@7.18.3:
     resolution: {integrity: sha512-jumlc0BIUrS3qJGgIkWZsyfAM7NCWiBcCDhnd+3NNM5KbBmLTgHVfWBcg6W+rLUsIpzpERPsvwUP7CckAQSOoA==}
     engines: {node: '>=12'}
+
+  lru_map@0.4.1:
+    resolution: {integrity: sha512-I+lBvqMMFfqaV8CJCISjI3wbjmwVu/VyOoU7+qtu9d7ioW5klMgsTTiUOUp+DJvfTTzKXoPbyC6YfgkNcyPSOg==}
 
   lucide-react@0.525.0:
     resolution: {integrity: sha512-Tm1txJ2OkymCGkvwoHt33Y2JpN5xucVq1slHcgE6Lk0WjDfjgKWor5CdVER8U6DvcfMwh4M8XxmpTiyzfmfDYQ==}
@@ -11834,6 +11888,9 @@ packages:
     resolution: {integrity: sha512-LbBDqdIC5s8iROCUjMbW1f5dJQTEFB1+KO9ogbvlb3nm9n4YHa5p4KTvFPWvh2Hs8gZMBuiB1/8+pdfe/tDPug==}
     hasBin: true
 
+  uc.micro@1.0.6:
+    resolution: {integrity: sha512-8Y75pvTYkLJW2hWQHXxoqRgV7qb9B+9vFEtidML+7koHUFapnVJAZ6cKs+Qjz5Aw3aZWHMC6u0wJE3At+nSGwA==}
+
   uc.micro@2.1.0:
     resolution: {integrity: sha512-ARDJmphmdvUk6Glw7y9DQ2bFkKBHwQHLi2lsaH6PPmz/Ka9sFOBsBluozhDltWmnv9u/cF6Rt87znRTPV+yp/A==}
 
@@ -12540,7 +12597,7 @@ snapshots:
   '@ai-sdk/google-vertex@4.0.66(zod@4.3.4)':
     dependencies:
       '@ai-sdk/anthropic': 3.0.48(zod@4.3.4)
-      '@ai-sdk/google': 3.0.33(patch_hash=5e19ce06720cdbb9dfc24627e8d98fa832f5ef502c82c78efd5b48965e3a3837)(zod@4.3.4)
+      '@ai-sdk/google': 3.0.33(zod@4.3.4)
       '@ai-sdk/provider': 3.0.8
       '@ai-sdk/provider-utils': 4.0.15(zod@4.3.4)
       google-auth-library: 10.5.0
@@ -12548,13 +12605,13 @@ snapshots:
     transitivePeerDependencies:
       - supports-color
 
-  '@ai-sdk/google@3.0.33(patch_hash=5e19ce06720cdbb9dfc24627e8d98fa832f5ef502c82c78efd5b48965e3a3837)(zod@4.3.4)':
+  '@ai-sdk/google@3.0.33(zod@4.3.4)':
     dependencies:
       '@ai-sdk/provider': 3.0.8
       '@ai-sdk/provider-utils': 4.0.15(zod@4.3.4)
       zod: 4.3.4
 
-  '@ai-sdk/google@3.0.33(patch_hash=5e19ce06720cdbb9dfc24627e8d98fa832f5ef502c82c78efd5b48965e3a3837)(zod@4.3.6)':
+  '@ai-sdk/google@3.0.33(zod@4.3.6)':
     dependencies:
       '@ai-sdk/provider': 3.0.8
       '@ai-sdk/provider-utils': 4.0.15(zod@4.3.6)
@@ -14783,6 +14840,15 @@ snapshots:
     transitivePeerDependencies:
       - supports-color
 
+  '@iconify-json/material-icon-theme@1.2.56':
+    dependencies:
+      '@iconify/types': 2.0.0
+
+  '@iconify/react@6.0.2(react@19.2.3)':
+    dependencies:
+      '@iconify/types': 2.0.0
+      react: 19.2.3
+
   '@iconify/types@2.0.0': {}
 
   '@iconify/utils@3.1.0':
@@ -15704,6 +15770,19 @@ snapshots:
     dependencies:
       pako: 1.0.11
 
+  '@pierre/diffs@1.1.3(react-dom@19.2.3(react@19.2.3))(react@19.2.3)':
+    dependencies:
+      '@pierre/theme': 0.0.22
+      '@shikijs/transformers': 3.23.0
+      diff: 8.0.3
+      hast-util-to-html: 9.0.5
+      lru_map: 0.4.1
+      react: 19.2.3
+      react-dom: 19.2.3(react@19.2.3)
+      shiki: 3.20.0
+
+  '@pierre/theme@0.0.22': {}
+
   '@pkgjs/parseargs@0.11.0':
     optional: true
 
@@ -16197,6 +16276,13 @@ snapshots:
       '@types/hast': 3.0.4
       hast-util-to-html: 9.0.5
 
+  '@shikijs/core@3.23.0':
+    dependencies:
+      '@shikijs/types': 3.23.0
+      '@shikijs/vscode-textmate': 10.0.2
+      '@types/hast': 3.0.4
+      hast-util-to-html: 9.0.5
+
   '@shikijs/engine-javascript@3.20.0':
     dependencies:
       '@shikijs/types': 3.20.0
@@ -16221,7 +16307,17 @@ snapshots:
     dependencies:
       '@shikijs/types': 3.20.0
 
+  '@shikijs/transformers@3.23.0':
+    dependencies:
+      '@shikijs/core': 3.23.0
+      '@shikijs/types': 3.23.0
+
   '@shikijs/types@3.20.0':
+    dependencies:
+      '@shikijs/vscode-textmate': 10.0.2
+      '@types/hast': 3.0.4
+
+  '@shikijs/types@3.23.0':
     dependencies:
       '@shikijs/vscode-textmate': 10.0.2
       '@types/hast': 3.0.4
@@ -18231,6 +18327,8 @@ snapshots:
       json-schema-traverse: 1.0.0
       require-from-string: 2.0.2
 
+  anser@2.3.5: {}
+
   ansi-colors@4.1.3: {}
 
   ansi-regex@2.1.1: {}
@@ -18246,6 +18344,14 @@ snapshots:
   ansi-styles@5.2.0: {}
 
   ansi-styles@6.2.3: {}
+
+  ansi-to-react@6.2.6(react-dom@19.2.3(react@19.2.3))(react@19.2.3):
+    dependencies:
+      anser: 2.3.5
+      escape-carriage: 1.3.1
+      linkify-it: 3.0.3
+      react: 19.2.3
+      react-dom: 19.2.3(react@19.2.3)
 
   ansis@4.2.0: {}
 
@@ -19949,6 +20055,8 @@ snapshots:
       '@esbuild/win32-x64': 0.25.12
 
   escalade@3.2.0: {}
+
+  escape-carriage@1.3.1: {}
 
   escape-html@1.0.3: {}
 
@@ -21699,6 +21807,10 @@ snapshots:
 
   linguist-languages@8.2.0: {}
 
+  linkify-it@3.0.3:
+    dependencies:
+      uc.micro: 1.0.6
+
   linkify-it@5.0.0:
     dependencies:
       uc.micro: 2.1.0
@@ -21807,6 +21919,8 @@ snapshots:
       yallist: 4.0.0
 
   lru-cache@7.18.3: {}
+
+  lru_map@0.4.1: {}
 
   lucide-react@0.525.0(react@19.2.3):
     dependencies:
@@ -25260,6 +25374,8 @@ snapshots:
     optional: true
 
   ua-parser-js@1.0.41: {}
+
+  uc.micro@1.0.6: {}
 
   uc.micro@2.1.0: {}
 

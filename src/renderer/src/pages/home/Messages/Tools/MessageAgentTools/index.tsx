@@ -119,7 +119,7 @@ function ToolContent({
   return (
     <StreamingContext value={isStreaming}>
       <Collapse
-        className="w-max max-w-full"
+        className="w-max max-w-full has-[.ant-collapse-item-active]:w-full"
         expandIconPosition="end"
         size="small"
         defaultActiveKey={toolName === AgentToolsType.TodoWrite ? [AgentToolsType.TodoWrite] : []}

@@ -22,8 +22,6 @@ const AgentNavbar = () => {
   const { narrowMode, topicPosition } = useSettings()
   const dispatch = useAppDispatch()
 
-  useShortcut('toggle_show_assistants', toggleShowAssistants)
-
   useShortcut('search_message', () => {
     void SearchPopup.show()
   })
