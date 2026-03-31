@@ -465,6 +465,7 @@ class FeishuAdapter extends ChannelAdapter {
     this.allowedChatIds = Array.isArray(rawIds) ? rawIds.map(String) : []
     this.domain = ((domain as string) ?? 'feishu') as FeishuDomain
     this.notifyChatIds = [...this.allowedChatIds]
+    if (this.allowedChatIds.length === 0) this.enableAutoCollectNotifyIds()
   }
 
   protected override async checkReady(): Promise<boolean> {

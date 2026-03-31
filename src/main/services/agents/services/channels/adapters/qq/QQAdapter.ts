@@ -95,8 +95,8 @@ class QQAdapter extends ChannelAdapter {
     this.clientSecret = (client_secret as string) ?? ''
     const rawIds = allowed_chat_ids as string[] | undefined
     this.allowedChatIds = Array.isArray(rawIds) ? rawIds.map(String) : []
-    // Expose for notify tool
     this.notifyChatIds = [...this.allowedChatIds]
+    if (this.allowedChatIds.length === 0) this.enableAutoCollectNotifyIds()
   }
 
   protected override async checkReady(): Promise<boolean> {

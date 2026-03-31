@@ -205,6 +205,7 @@ class ChannelManager {
       const adapter = factory(row, agentId)
 
       adapter.on('message', (msg) => {
+        adapter.trackChatId(msg.chatId)
         channelMessageHandler.handleIncoming(adapter, msg).catch((err) => {
           logger.error('Unhandled error in message handler', {
             agentId,
@@ -215,6 +216,7 @@ class ChannelManager {
       })
 
       adapter.on('command', (cmd) => {
+        adapter.trackChatId(cmd.chatId)
         channelMessageHandler.handleCommand(adapter, cmd).catch((err) => {
           logger.error('Unhandled error in command handler', {
             agentId,

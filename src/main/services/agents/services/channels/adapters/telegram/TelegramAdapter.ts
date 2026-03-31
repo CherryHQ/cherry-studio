@@ -28,8 +28,8 @@ class TelegramAdapter extends ChannelAdapter {
     this.botToken = (bot_token as string) ?? ''
     const rawIds = allowed_chat_ids as string[] | undefined
     this.allowedChatIds = Array.isArray(rawIds) ? rawIds.map(String) : []
-    // Expose for notify tool — all allowed chats receive notifications
     this.notifyChatIds = [...this.allowedChatIds]
+    if (this.allowedChatIds.length === 0) this.enableAutoCollectNotifyIds()
   }
 
   protected override async checkReady(): Promise<boolean> {

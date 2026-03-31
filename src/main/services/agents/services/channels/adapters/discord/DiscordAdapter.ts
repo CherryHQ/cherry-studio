@@ -241,6 +241,7 @@ class DiscordAdapter extends ChannelAdapter {
     const rawIds = allowed_channel_ids as string[] | undefined
     this.allowedChannelIds = Array.isArray(rawIds) ? rawIds.map(String) : []
     this.notifyChatIds = [...this.allowedChannelIds]
+    if (this.allowedChannelIds.length === 0) this.enableAutoCollectNotifyIds()
   }
 
   protected override async checkReady(): Promise<boolean> {
