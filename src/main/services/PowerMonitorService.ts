@@ -1,6 +1,5 @@
 import { loggerService } from '@logger'
 import { isLinux, isMac, isWin } from '@main/constant'
-import ElectronShutdownHandler from '@paymoapp/electron-shutdown-handler'
 import { BrowserWindow } from 'electron'
 import { powerMonitor } from 'electron'
 
@@ -36,14 +35,14 @@ export class PowerMonitorService {
   /**
    * Initialize power monitor to listen for shutdown events
    */
-  public init(): void {
+  public async init(): Promise<void> {
     if (this.initialized) {
       logger.warn('PowerMonitorService already initialized')
       return
     }
 
     if (isWin) {
-      this.initWindowsShutdownHandler()
+      await this.initWindowsShutdownHandler()
     } else if (isMac || isLinux) {
       this.initElectronPowerMonitor()
     }
@@ -69,18 +68,15 @@ export class PowerMonitorService {
   /**
    * Initialize shutdown handler for Windows using @paymoapp/electron-shutdown-handler
    */
-  private initWindowsShutdownHandler(): void {
+  private async initWindowsShutdownHandler(): Promise<void> {
     try {
+      const { default: ElectronShutdownHandler } = await import('@paymoapp/electron-shutdown-handler')
       const zeroMemoryWindow = new BrowserWindow({ show: false })
-      // Set the window handle for the shutdown handler
       ElectronShutdownHandler.setWindowHandle(zeroMemoryWindow.getNativeWindowHandle())
 
-      // Listen for shutdown event
       ElectronShutdownHandler.on('shutdown', async () => {
         logger.info('System shutdown event detected (Windows)')
-        // Execute all registered shutdown handlers
         await this.executeShutdownHandlers()
-        // Release the shutdown block to allow the system to shut down
         ElectronShutdownHandler.releaseShutdown()
       })
 

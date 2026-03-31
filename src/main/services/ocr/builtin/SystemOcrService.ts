@@ -1,12 +1,10 @@
 import { isLinux, isWin } from '@main/constant'
 import { loadOcrImage } from '@main/utils/ocr'
-import { OcrAccuracy, recognize } from '@napi-rs/system-ocr'
 import type { ImageFileMetadata, OcrResult, OcrSystemConfig, SupportedOcrFile } from '@types'
 import { isImageFileMetadata } from '@types'
 
 import { OcrBaseService } from './OcrBaseService'
 
-// const logger = loggerService.withContext('SystemOcrService')
 export class SystemOcrService extends OcrBaseService {
   constructor() {
     super()
@@ -16,6 +14,7 @@ export class SystemOcrService extends OcrBaseService {
     if (isLinux) {
       return { text: '' }
     }
+    const { OcrAccuracy, recognize } = await import('@napi-rs/system-ocr')
     const buffer = await loadOcrImage(file)
     const langs = isWin ? options?.langs : undefined
     const result = await recognize(buffer, OcrAccuracy.Accurate, langs)

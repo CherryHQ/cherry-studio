@@ -162,7 +162,7 @@ if (!app.requestSingleInstanceLock()) {
     appMenuService?.setupApplicationMenu()
 
     nodeTraceService.init()
-    powerMonitorService.init()
+    void powerMonitorService.init()
     analyticsService.init()
 
     // Extract bundled rtk binary to ~/.cherrystudio/bin/ on first run
