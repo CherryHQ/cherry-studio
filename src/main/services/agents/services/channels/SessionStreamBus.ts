@@ -13,6 +13,7 @@ export type SessionStreamChunk = {
     userName: string
     text: string
     images?: Array<{ data: string; media_type: string }>
+    files?: Array<{ filename: string; media_type: string; size: number }>
   }
   error?: { message: string }
 }

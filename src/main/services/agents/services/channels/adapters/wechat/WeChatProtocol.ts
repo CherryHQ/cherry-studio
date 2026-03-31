@@ -63,7 +63,7 @@ interface MessageItem {
   text_item?: { text: string }
   image_item?: ImageItem
   voice_item?: { text?: string }
-  file_item?: { file_name?: string }
+  file_item?: { file_name?: string; file_size?: number; media?: CDNMedia; aeskey?: string }
   video_item?: unknown
   ref_msg?: unknown
 }
@@ -88,6 +88,8 @@ export interface IncomingMessage {
   timestamp: Date
   /** Raw image items from WeChat CDN (encrypted, need download+decrypt). */
   _imageItems?: ImageItem[]
+  /** Raw file items from WeChat CDN (encrypted, need download+decrypt). */
+  _fileItems?: Array<{ file_name?: string; file_size?: number; media?: CDNMedia; aeskey?: string }>
 }
 
 // --------------- Zod response schemas ---------------
@@ -182,7 +184,7 @@ function resolveImageAesKey(item: ImageItem): Buffer | null {
     return Buffer.from(item.aeskey, 'hex')
   }
   if (item.media?.aes_key) {
-    return Buffer.from(item.media.aes_key, 'base64')
+    return parseAesKey(item.media.aes_key)
   }
   return null
 }
@@ -196,6 +198,63 @@ async function cdnDownloadImage(item: ImageItem): Promise<Buffer | null> {
   const aesKey = resolveImageAesKey(item)
   if (!aesKey) {
     logger.warn('Image item has encrypt_query_param but no AES key')
+    return null
+  }
+
+  const url = `${CDN_BASE_URL}/download?encrypted_query_param=${encodeURIComponent(encryptQueryParam)}`
+  const response = await net.fetch(url, { method: 'GET' })
+
+  if (!response.ok) {
+    return null
+  }
+
+  const encrypted = Buffer.from(await response.arrayBuffer())
+  return aesEcbDecrypt(encrypted, aesKey)
+}
+
+type FileItem = NonNullable<MessageItem['file_item']>
+
+/**
+ * Parse a CDNMedia.aes_key into a raw 16-byte AES key.
+ *
+ * Two encodings exist in the wild (per Tencent/openclaw-weixin):
+ *   - base64(raw 16 bytes)            → images
+ *   - base64(32-char hex ASCII string) → file / voice / video
+ *
+ * In the second case, base64-decoding yields 32 ASCII hex chars which must
+ * then be parsed as hex to recover the actual 16-byte key.
+ */
+function parseAesKey(aesKeyBase64: string): Buffer | null {
+  const decoded = Buffer.from(aesKeyBase64, 'base64')
+  if (decoded.length === 16) return decoded
+  if (decoded.length === 32 && /^[0-9a-fA-F]{32}$/.test(decoded.toString('ascii'))) {
+    return Buffer.from(decoded.toString('ascii'), 'hex')
+  }
+  logger.warn('Unexpected aes_key length after base64 decode', { length: decoded.length })
+  return null
+}
+
+/**
+ * Resolve the 16-byte AES key from a file_item.
+ * Priority: file_item.aeskey (hex) > file_item.media.aes_key (base64, with hex re-decode for files)
+ */
+function resolveFileAesKey(item: FileItem): Buffer | null {
+  if (item.aeskey) {
+    return Buffer.from(item.aeskey, 'hex')
+  }
+  if (item.media?.aes_key) {
+    return parseAesKey(item.media.aes_key)
+  }
+  return null
+}
+
+async function cdnDownloadFile(item: FileItem): Promise<Buffer | null> {
+  const encryptQueryParam = item.media?.encrypt_query_param
+  if (!encryptQueryParam) return null
+
+  const aesKey = resolveFileAesKey(item)
+  if (!aesKey) {
+    logger.warn('File item has encrypt_query_param but no AES key')
     return null
   }
 
@@ -698,6 +757,21 @@ export class WeixinBot {
   }
 
   /**
+   * Download and decrypt a file from WeChat CDN.
+   * Returns { data: Buffer, filename: string } or null on failure.
+   */
+  async downloadFile(fileItem: FileItem): Promise<{ data: Buffer; filename: string } | null> {
+    try {
+      const data = await cdnDownloadFile(fileItem)
+      if (!data) return null
+      return { data, filename: fileItem.file_name ?? 'file' }
+    } catch (error) {
+      logger.error('Failed to download WeChat file', error instanceof Error ? error : { error: String(error) })
+      return null
+    }
+  }
+
+  /**
    * Send an image to a user by uploading to WeChat CDN.
    */
   async sendImage(userId: string, imageData: Buffer): Promise<void> {
@@ -868,13 +942,18 @@ export class WeixinBot {
       .filter((item) => item.type === MessageItemType.IMAGE && item.image_item?.media?.encrypt_query_param)
       .map((item) => item.image_item!)
 
+    const fileItems = message.item_list
+      .filter((item) => item.type === MessageItemType.FILE && item.file_item?.media?.encrypt_query_param)
+      .map((item) => item.file_item!)
+
     return {
       userId: message.from_user_id,
       text: extractText(message.item_list),
       type: detectType(message.item_list),
       _contextToken: message.context_token,
       timestamp: new Date(message.create_time_ms),
-      _imageItems: imageItems.length > 0 ? imageItems : undefined
+      _imageItems: imageItems.length > 0 ? imageItems : undefined,
+      _fileItems: fileItems.length > 0 ? fileItems : undefined
     }
   }
 

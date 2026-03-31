@@ -10,7 +10,13 @@ import { channelService } from '../ChannelService'
 import { sanitizeChannelOutput, wrapExternalContent } from '../security'
 import { sessionMessageService } from '../SessionMessageService'
 import { sessionService } from '../SessionService'
-import type { ChannelAdapter, ChannelCommandEvent, ChannelMessageEvent, ImageAttachment } from './ChannelAdapter'
+import type {
+  ChannelAdapter,
+  ChannelCommandEvent,
+  ChannelMessageEvent,
+  FileAttachment,
+  ImageAttachment
+} from './ChannelAdapter'
 import { sessionStreamBus } from './SessionStreamBus'
 import { broadcastSessionChanged } from './sessionStreamIpc'
 
@@ -131,13 +137,15 @@ export class ChannelMessageHandler {
       .filter(Boolean)
       .join('\n')
     const mergedImages = messages.flatMap((m) => m.images ?? [])
+    const mergedFiles = messages.flatMap((m) => m.files ?? [])
 
     return {
       chatId: first.chatId,
       userId: first.userId,
       userName: first.userName,
       text: mergedText,
-      ...(mergedImages.length > 0 ? { images: mergedImages } : {})
+      ...(mergedImages.length > 0 ? { images: mergedImages } : {}),
+      ...(mergedFiles.length > 0 ? { files: mergedFiles } : {})
     }
   }
 
@@ -156,35 +164,55 @@ export class ChannelMessageHandler {
       // even for sessions created before the setting was changed.
       await this.applyChannelPermissionMode(session, adapter.channelId)
 
+      const workDir = session.accessible_paths[0]
+
       // Save images to agent workspace so the agent can read them via the Read tool
       let imagePaths: string[] = []
-      if (message.images && message.images.length > 0) {
-        const workDir = session.accessible_paths[0]
-        if (workDir) {
-          try {
-            imagePaths = await this.persistImages(workDir, message.images)
-            logger.info('Persisted channel images to workspace', {
-              agentId,
-              count: imagePaths.length,
-              dir: path.join(workDir, '.cherry', 'channel-images')
-            })
-          } catch (error) {
-            logger.warn('Failed to persist channel images', {
-              agentId,
-              error: error instanceof Error ? error.message : String(error)
-            })
-          }
+      if (message.images && message.images.length > 0 && workDir) {
+        try {
+          imagePaths = await this.persistImages(workDir, message.images)
+          logger.info('Persisted channel images to workspace', {
+            agentId,
+            count: imagePaths.length,
+            dir: path.join(workDir, '.cherry-studio', 'channel-images')
+          })
+        } catch (error) {
+          logger.warn('Failed to persist channel images', {
+            agentId,
+            error: error instanceof Error ? error.message : String(error)
+          })
         }
       }
 
-      // Build text with image file paths appended so the agent knows where images are saved
-      const textWithImages =
-        imagePaths.length > 0
-          ? `${message.text}\n\n[Attached images saved to workspace]\n${imagePaths.map((p) => `- ${p}`).join('\n')}`
-          : message.text
+      // Save files to agent workspace so the agent can read them via the Read tool
+      let filePaths: string[] = []
+      if (message.files && message.files.length > 0 && workDir) {
+        try {
+          filePaths = await this.persistFiles(workDir, message.files)
+          logger.info('Persisted channel files to workspace', {
+            agentId,
+            count: filePaths.length,
+            dir: path.join(workDir, '.cherry-studio', 'channel-files')
+          })
+        } catch (error) {
+          logger.warn('Failed to persist channel files', {
+            agentId,
+            error: error instanceof Error ? error.message : String(error)
+          })
+        }
+      }
+
+      // Build text with attachment file paths appended so the agent knows where they are saved
+      let textWithAttachments = message.text
+      if (imagePaths.length > 0) {
+        textWithAttachments += `\n\n[Attached images saved to workspace]\n${imagePaths.map((p) => `- ${p}`).join('\n')}`
+      }
+      if (filePaths.length > 0) {
+        textWithAttachments += `\n\n[Attached files saved to workspace]\n${filePaths.map((p) => `- ${p}`).join('\n')}`
+      }
 
       // Wrap untrusted channel input with security boundary markers
-      const securedContent = wrapExternalContent(textWithImages, {
+      const securedContent = wrapExternalContent(textWithAttachments, {
         chatId: message.chatId,
         userId: message.userId,
         userName: message.userName,
@@ -200,7 +228,8 @@ export class ChannelMessageHandler {
           userId: message.userId,
           userName: message.userName,
           text: message.text,
-          images: message.images
+          images: message.images,
+          files: message.files?.map((f) => ({ filename: f.filename, media_type: f.media_type, size: f.size }))
         }
       })
 
@@ -578,7 +607,7 @@ export class ChannelMessageHandler {
    * Returns the list of absolute file paths written.
    */
   private async persistImages(workDir: string, images: ImageAttachment[]): Promise<string[]> {
-    const dir = path.join(workDir, '.cherry', 'channel-images')
+    const dir = path.join(workDir, '.cherry-studio', 'channel-images')
     await fs.mkdir(dir, { recursive: true })
 
     const paths: string[] = []
@@ -587,6 +616,27 @@ export class ChannelMessageHandler {
       const filename = `${Date.now()}-${randomUUID().slice(0, 8)}.${ext}`
       const filePath = path.join(dir, filename)
       await fs.writeFile(filePath, Buffer.from(img.data, 'base64'))
+      paths.push(filePath)
+    }
+
+    return paths
+  }
+
+  /**
+   * Save files to the agent's workspace so the agent can read them via the Read tool.
+   * Returns the list of absolute file paths written.
+   */
+  private async persistFiles(workDir: string, files: FileAttachment[]): Promise<string[]> {
+    const dir = path.join(workDir, '.cherry-studio', 'channel-files')
+    await fs.mkdir(dir, { recursive: true })
+
+    const paths: string[] = []
+    for (const file of files) {
+      // Prefix with timestamp to avoid collisions, preserve original filename for readability
+      const safeName = file.filename.replace(/[/\\:*?"<>|]/g, '_')
+      const filename = `${Date.now()}-${safeName}`
+      const filePath = path.join(dir, filename)
+      await fs.writeFile(filePath, Buffer.from(file.data, 'base64'))
       paths.push(filePath)
     }
 

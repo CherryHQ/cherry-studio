@@ -1,7 +1,14 @@
 import { net } from 'electron'
 import WebSocket from 'ws'
 
-import { ChannelAdapter, type ChannelAdapterConfig, type SendMessageOptions } from '../../ChannelAdapter'
+import {
+  ChannelAdapter,
+  type ChannelAdapterConfig,
+  type FileAttachment,
+  type ImageAttachment,
+  MAX_FILE_SIZE_BYTES,
+  type SendMessageOptions
+} from '../../ChannelAdapter'
 import { registerAdapterFactory } from '../../ChannelManager'
 
 const QQ_MAX_LENGTH = 2000
@@ -29,6 +36,15 @@ type QQTokenCache = {
   expiresAt: number
 }
 
+type QQAttachment = {
+  content_type?: string
+  filename?: string
+  height?: number
+  width?: number
+  size?: number
+  url: string
+}
+
 type QQMessage = {
   id: string
   author: {
@@ -43,6 +59,7 @@ type QQMessage = {
   guild_id?: string
   group_id?: string
   group_openid?: string
+  attachments?: QQAttachment[]
 }
 
 /**
@@ -378,88 +395,105 @@ class QQAdapter extends ChannelAdapter {
 
   private async handleC2CMessage(msg: QQMessage): Promise<void> {
     const chatId = `c2c:${msg.author.user_openid}`
-
     if (!this.isAllowed(chatId, msg.author.user_openid)) return
-
-    const text = this.parseContent(msg.content)
-    if (this.isCommand(text)) {
-      if (text.startsWith('/whoami')) {
-        await this.sendWhoami(chatId)
-        return
-      }
-      this.emitCommand(chatId, msg.author.user_openid ?? '', '', text)
-    } else {
-      this.emit('message', {
-        chatId,
-        userId: msg.author.user_openid ?? msg.author.id,
-        userName: msg.author.username ?? '',
-        text
-      })
-    }
+    await this.processMessage(msg, chatId, msg.author.user_openid ?? msg.author.id, msg.author.username ?? '')
   }
 
   private async handleGroupMessage(msg: QQMessage): Promise<void> {
     const chatId = `group:${msg.group_openid}`
-
     if (!this.isAllowed(chatId, msg.group_openid)) return
-
-    const text = this.parseContent(msg.content)
-    if (this.isCommand(text)) {
-      if (text.startsWith('/whoami')) {
-        await this.sendWhoami(chatId)
-        return
-      }
-      this.emitCommand(chatId, msg.author.member_openid ?? '', '', text)
-    } else {
-      this.emit('message', {
-        chatId,
-        userId: msg.author.member_openid ?? msg.author.id,
-        userName: msg.author.username ?? '',
-        text
-      })
-    }
+    await this.processMessage(msg, chatId, msg.author.member_openid ?? msg.author.id, msg.author.username ?? '')
   }
 
   private async handleGuildMessage(msg: QQMessage): Promise<void> {
     const chatId = `channel:${msg.channel_id}`
-
     if (!this.isAllowed(chatId, msg.channel_id)) return
-
-    const text = this.parseContent(msg.content)
-    if (this.isCommand(text)) {
-      if (text.startsWith('/whoami')) {
-        await this.sendWhoami(chatId)
-        return
-      }
-      this.emitCommand(chatId, msg.author.id, msg.author.username ?? '', text)
-    } else {
-      this.emit('message', {
-        chatId,
-        userId: msg.author.id,
-        userName: msg.author.username ?? '',
-        text
-      })
-    }
+    await this.processMessage(msg, chatId, msg.author.id, msg.author.username ?? '')
   }
 
   private async handleDirectMessage(msg: QQMessage): Promise<void> {
     const chatId = `dm:${msg.guild_id}`
-
     if (!this.isAllowed(chatId, msg.guild_id)) return
+    await this.processMessage(msg, chatId, msg.author.id, msg.author.username ?? '')
+  }
 
+  private async processMessage(msg: QQMessage, chatId: string, userId: string, userName: string): Promise<void> {
     const text = this.parseContent(msg.content)
+
     if (this.isCommand(text)) {
       if (text.startsWith('/whoami')) {
         await this.sendWhoami(chatId)
         return
       }
-      this.emitCommand(chatId, msg.author.id, msg.author.username ?? '', text)
+      this.emitCommand(chatId, userId, userName, text)
+      return
+    }
+
+    const { images, files } = await this.downloadAttachments(msg.attachments)
+    if (!text && !images && !files) return
+
+    this.emit('message', {
+      chatId,
+      userId,
+      userName,
+      text: text || (images ? 'What is in this image?' : ''),
+      images,
+      files
+    })
+  }
+
+  /**
+   * Download QQ attachments, splitting into images and files.
+   * QQ CDN URLs may require the QQBot auth header.
+   */
+  private async downloadAttachments(
+    attachments?: QQAttachment[]
+  ): Promise<{ images?: ImageAttachment[]; files?: FileAttachment[] }> {
+    if (!attachments || attachments.length === 0) return {}
+
+    const images: ImageAttachment[] = []
+    const files: FileAttachment[] = []
+
+    for (const att of attachments) {
+      if (att.size && att.size > MAX_FILE_SIZE_BYTES) continue
+
+      try {
+        const token = await this.getAccessToken()
+        const url = att.url.startsWith('http') ? att.url : `https://${att.url}`
+        const response = await net.fetch(url, {
+          headers: { Authorization: `QQBot ${token}`, 'X-Union-Appid': this.appId }
+        })
+        if (!response.ok) {
+          // Retry without auth header (some CDN URLs are public)
+          const retry = await net.fetch(url)
+          if (!retry.ok) continue
+          const buffer = Buffer.from(await retry.arrayBuffer())
+          this.pushAttachment(att, buffer, images, files)
+        } else {
+          const buffer = Buffer.from(await response.arrayBuffer())
+          this.pushAttachment(att, buffer, images, files)
+        }
+      } catch {
+        this.log.warn('Failed to download QQ attachment', { filename: att.filename, url: att.url })
+      }
+    }
+
+    return {
+      ...(images.length > 0 ? { images } : {}),
+      ...(files.length > 0 ? { files } : {})
+    }
+  }
+
+  private pushAttachment(att: QQAttachment, buffer: Buffer, images: ImageAttachment[], files: FileAttachment[]): void {
+    const mediaType = att.content_type || 'application/octet-stream'
+    if (mediaType.startsWith('image/')) {
+      images.push({ data: buffer.toString('base64'), media_type: mediaType })
     } else {
-      this.emit('message', {
-        chatId,
-        userId: msg.author.id,
-        userName: msg.author.username ?? '',
-        text
+      files.push({
+        filename: att.filename || 'file',
+        data: buffer.toString('base64'),
+        media_type: mediaType,
+        size: buffer.length
       })
     }
   }

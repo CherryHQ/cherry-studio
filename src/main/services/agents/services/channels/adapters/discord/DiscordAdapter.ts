@@ -4,8 +4,11 @@ import WebSocket from 'ws'
 import {
   ChannelAdapter,
   type ChannelAdapterConfig,
+  downloadFileAsBase64,
   downloadImageAsBase64,
+  type FileAttachment,
   type ImageAttachment,
+  MAX_FILE_SIZE_BYTES,
   type SendMessageOptions
 } from '../../ChannelAdapter'
 import { registerAdapterFactory } from '../../ChannelManager'
@@ -482,8 +485,8 @@ class DiscordAdapter extends ChannelAdapter {
 
     if (!this.isAllowed(chatId, msg.channel_id)) return
 
-    const { text, imageUrls, fileLines } = this.parseMessageContent(msg)
-    if (!text && imageUrls.length === 0) return
+    const { text, imageUrls, fileAttachments } = this.parseMessageContent(msg)
+    if (!text && imageUrls.length === 0 && fileAttachments.length === 0) return
 
     if (this.isCommand(text)) {
       if (text.startsWith('/whoami')) {
@@ -506,36 +509,50 @@ class DiscordAdapter extends ChannelAdapter {
         if (downloaded.length > 0) images = downloaded
       }
 
-      const parts = [text, ...fileLines].filter(Boolean)
+      // Download non-image file attachments in parallel
+      let files: FileAttachment[] | undefined
+      if (fileAttachments.length > 0) {
+        const results = await Promise.all(
+          fileAttachments.map((att) => downloadFileAsBase64(att.proxy_url || att.url, att.filename))
+        )
+        const downloaded = results.filter((r): r is FileAttachment => r !== null)
+        if (downloaded.length > 0) files = downloaded
+      }
+
       this.emit('message', {
         chatId,
         userId: msg.author.id,
         userName: msg.author.username ?? '',
-        text: parts.join('\n') || 'What is in this image?',
-        images
+        text: text || (images ? 'What is in this image?' : ''),
+        images,
+        files
       })
     }
   }
 
   /**
-   * Parse message text, extract image URLs and non-image file links from attachments.
+   * Parse message text, extract image URLs and downloadable file attachments.
    */
-  private parseMessageContent(msg: DiscordMessage): { text: string; imageUrls: string[]; fileLines: string[] } {
+  private parseMessageContent(msg: DiscordMessage): {
+    text: string
+    imageUrls: string[]
+    fileAttachments: DiscordAttachment[]
+  } {
     const text = msg.content.replace(/<@!?\d+>/g, '').trim()
     const imageUrls: string[] = []
-    const fileLines: string[] = []
+    const fileAttachments: DiscordAttachment[] = []
 
     if (msg.attachments?.length) {
       for (const att of msg.attachments) {
         if (att.content_type?.startsWith('image/')) {
           imageUrls.push(att.proxy_url || att.url)
-        } else {
-          fileLines.push(`[${att.filename}](${att.url})`)
+        } else if (att.size <= MAX_FILE_SIZE_BYTES) {
+          fileAttachments.push(att)
         }
       }
     }
 
-    return { text, imageUrls, fileLines }
+    return { text, imageUrls, fileAttachments }
   }
 
   private isAllowed(chatId: string, rawChannelId?: string): boolean {

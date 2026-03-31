@@ -1,10 +1,17 @@
+import { Readable } from 'node:stream'
+
 import * as Lark from '@larksuiteoapi/node-sdk'
 import type { FeishuDomain } from '@main/services/agents/database/schema'
 import { windowService } from '@main/services/WindowService'
 import { IpcChannel } from '@shared/IpcChannel'
-import { net } from 'electron'
 
-import { ChannelAdapter, type ChannelAdapterConfig, type SendMessageOptions } from '../../ChannelAdapter'
+import {
+  ChannelAdapter,
+  type ChannelAdapterConfig,
+  type FileAttachment,
+  MAX_FILE_SIZE_BYTES,
+  type SendMessageOptions
+} from '../../ChannelAdapter'
 import { registerAdapterFactory } from '../../ChannelManager'
 import { FlushController } from '../../FlushController'
 import { registrationBegin, registrationPoll } from './FeishuAppRegistration'
@@ -45,9 +52,10 @@ function resolveDomain(domain: FeishuDomain): Lark.Domain {
 }
 
 /**
- * A lightweight HttpInstance adapter that routes requests through Electron's net.fetch,
- * which respects system proxy settings. This ensures the Lark SDK works behind
- * corporate proxies where raw Node.js fetch/axios would fail.
+ * A lightweight HttpInstance adapter for the Lark SDK using Node.js native fetch.
+ * We use fetch instead of Electron's net.fetch because Lark SDK
+ * sometimes sends GET requests with a body and non-ASCII header values,
+ * both of which Electron's net.fetch rejects.
  */
 function createElectronHttpInstance(): Lark.HttpInstance {
   async function doRequest(method: string, url: string, data?: unknown, opts?: Record<string, any>): Promise<any> {
@@ -74,15 +82,22 @@ function createElectronHttpInstance(): Lark.HttpInstance {
       }
     }
 
-    const res = await net.fetch(fetchUrl.toString(), {
-      method: method.toUpperCase(),
+    const upperMethod = method.toUpperCase()
+
+    // Use Node.js native fetch instead of Electron's net.fetch here because:
+    // 1. net.fetch rejects GET requests with a body (Lark SDK sends payload on GET)
+    // 2. net.fetch rejects header values with non-ASCII chars (Lark SDK sends Chinese filenames)
+    const res = await fetch(fetchUrl.toString(), {
+      method: upperMethod,
       headers,
-      body
+      ...(upperMethod !== 'GET' && upperMethod !== 'HEAD' && body ? { body } : {})
     })
 
     const isStream = opts?.responseType === 'stream'
     const responseData = isStream
       ? res.body
+        ? Readable.fromWeb(res.body)
+        : Readable.from([])
       : await res.text().then((text) => {
           if (!text) {
             return ''
@@ -683,7 +698,15 @@ class FeishuAdapter extends ChannelAdapter {
       return
     }
 
-    if (event.message.message_type !== 'text') return
+    const messageType = event.message.message_type
+    const userId = event.sender.sender_id.open_id ?? event.sender.sender_id.user_id ?? ''
+
+    if (messageType === 'file') {
+      this.handleFileMessage(event, chatId, userId)
+      return
+    }
+
+    if (messageType !== 'text') return
 
     let text: string
     try {
@@ -696,8 +719,6 @@ class FeishuAdapter extends ChannelAdapter {
     // Strip @mention tags (e.g., @_user_1 in group chats)
     text = text.replace(/@_user_\d+/g, '').trim()
     if (!text) return
-
-    const userId = event.sender.sender_id.open_id ?? event.sender.sender_id.user_id ?? ''
 
     // Check for commands (Feishu doesn't have native bot commands, use text prefix)
     if (text.startsWith('/')) {
@@ -721,6 +742,99 @@ class FeishuAdapter extends ChannelAdapter {
       userName: '',
       text
     })
+  }
+
+  private handleFileMessage(event: FeishuMessageEvent, chatId: string, userId: string): void {
+    let fileKey: string
+    let fileName: string
+    try {
+      const parsed = JSON.parse(event.message.content) as { file_key?: string; file_name?: string }
+      fileKey = parsed.file_key ?? ''
+      fileName = parsed.file_name ?? 'file'
+    } catch {
+      return
+    }
+    if (!fileKey) return
+
+    this.downloadFeishuFile(event.message.message_id, fileKey, fileName)
+      .then((files) => {
+        this.emit('message', {
+          chatId,
+          userId,
+          userName: '',
+          text: `[File: ${fileName}]`,
+          ...(files.length > 0 ? { files } : {})
+        })
+      })
+      .catch((error) => {
+        this.log.warn('Failed to download Feishu file', {
+          fileKey,
+          error: error instanceof Error ? error.message : String(error)
+        })
+        // Emit text-only fallback
+        this.emit('message', {
+          chatId,
+          userId,
+          userName: '',
+          text: `[File: ${fileName} — download failed]`
+        })
+      })
+  }
+
+  private async downloadFeishuFile(messageId: string, fileKey: string, fileName: string): Promise<FileAttachment[]> {
+    if (!this.client) return []
+
+    this.log.info('Downloading Feishu file', { messageId, fileKey, fileName })
+
+    let resp: Awaited<ReturnType<typeof this.client.im.messageResource.get>>
+    try {
+      resp = await this.client.im.messageResource.get({
+        params: { type: 'file' },
+        path: { message_id: messageId, file_key: fileKey }
+      })
+    } catch (error) {
+      this.log.error('Feishu messageResource.get failed', {
+        messageId,
+        fileKey,
+        error: error instanceof Error ? error.message : String(error),
+        stack: error instanceof Error ? error.stack : undefined
+      })
+      throw error
+    }
+
+    const stream = resp.getReadableStream()
+    const chunks: Buffer[] = []
+    let totalSize = 0
+
+    for await (const chunk of stream) {
+      totalSize += chunk.length
+      if (totalSize > MAX_FILE_SIZE_BYTES) {
+        this.log.warn('Feishu file too large, aborting download', { fileName, size: totalSize })
+        stream.destroy()
+        return []
+      }
+      chunks.push(Buffer.from(chunk))
+    }
+
+    this.log.info('Feishu file downloaded', { fileName, totalSize })
+    const buffer = Buffer.concat(chunks)
+    const ext = fileName.includes('.') ? fileName.split('.').pop()!.toLowerCase() : ''
+    const mimeMap: Record<string, string> = {
+      pdf: 'application/pdf',
+      doc: 'application/msword',
+      docx: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+      xls: 'application/vnd.ms-excel',
+      xlsx: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+      ppt: 'application/vnd.ms-powerpoint',
+      pptx: 'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+      txt: 'text/plain',
+      csv: 'text/csv',
+      md: 'text/markdown',
+      zip: 'application/zip'
+    }
+    const mediaType = mimeMap[ext] || 'application/octet-stream'
+
+    return [{ filename: fileName, data: buffer.toString('base64'), media_type: mediaType, size: buffer.length }]
   }
 }
 

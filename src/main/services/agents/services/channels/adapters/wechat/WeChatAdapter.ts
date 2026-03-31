@@ -8,6 +8,7 @@ import { windowService } from '../../../../../WindowService'
 import {
   ChannelAdapter,
   type ChannelAdapterConfig,
+  type FileAttachment,
   type ImageAttachment,
   type SendMessageOptions
 } from '../../ChannelAdapter'
@@ -185,8 +186,36 @@ class WeChatAdapter extends ChannelAdapter {
         if (parsed.length > 0) images = parsed
       }
 
+      // Download files from WeChat CDN
+      let files: FileAttachment[] | undefined
+      if (msg._fileItems && msg._fileItems.length > 0) {
+        const results = await Promise.all(msg._fileItems.map((item) => bot.downloadFile(item)))
+        const downloaded = results
+          .filter((r): r is NonNullable<typeof r> => r !== null)
+          .map((r) => {
+            const ext = r.filename.includes('.') ? r.filename.split('.').pop()!.toLowerCase() : ''
+            const mimeMap: Record<string, string> = {
+              pdf: 'application/pdf',
+              doc: 'application/msword',
+              docx: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+              xls: 'application/vnd.ms-excel',
+              xlsx: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+              txt: 'text/plain',
+              csv: 'text/csv',
+              zip: 'application/zip'
+            }
+            return {
+              filename: r.filename,
+              data: r.data.toString('base64'),
+              media_type: mimeMap[ext] || 'application/octet-stream',
+              size: r.data.length
+            } satisfies FileAttachment
+          })
+        if (downloaded.length > 0) files = downloaded
+      }
+
       const text = msg.text.trim()
-      if (!text && !images) return
+      if (!text && !images && !files) return
 
       if (this.isCommand(text)) {
         if (text.startsWith('/whoami')) {
@@ -211,8 +240,9 @@ class WeChatAdapter extends ChannelAdapter {
           chatId: msg.userId,
           userId: msg.userId,
           userName: msg.userId,
-          text,
-          images
+          text: text || (files ? `[File: ${files[0].filename}]` : ''),
+          images,
+          files
         })
       }
     })

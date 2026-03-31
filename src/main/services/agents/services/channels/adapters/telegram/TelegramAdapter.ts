@@ -4,8 +4,11 @@ import { convert as toMarkdownV2 } from 'telegram-markdown-v2'
 import {
   ChannelAdapter,
   type ChannelAdapterConfig,
+  downloadFileAsBase64,
   downloadImageAsBase64,
+  type FileAttachment,
   type ImageAttachment,
+  MAX_FILE_SIZE_BYTES,
   type SendMessageOptions
 } from '../../ChannelAdapter'
 import { registerAdapterFactory } from '../../ChannelManager'
@@ -153,6 +156,31 @@ class TelegramAdapter extends ChannelAdapter {
       })
     })
 
+    // Document/file handler — download and emit as file attachment
+    bot.on('message:document', async (ctx) => {
+      const doc = ctx.message.document
+      if (!doc) return
+
+      // Skip files that are too large
+      if (doc.file_size && doc.file_size > MAX_FILE_SIZE_BYTES) {
+        this.log.warn('Document too large, skipping', { filename: doc.file_name, size: doc.file_size })
+        return
+      }
+
+      const files = await this.downloadTelegramDocument(doc.file_id, doc.file_name ?? 'document', doc.mime_type)
+      const text = ctx.message.caption?.trim() ?? ''
+
+      if (!text && files.length === 0) return
+
+      this.emit('message', {
+        chatId: ctx.chat.id.toString(),
+        userId: ctx.from?.id?.toString() ?? '',
+        userName: ctx.from?.first_name ?? '',
+        text: text || `[File: ${doc.file_name ?? 'document'}]`,
+        ...(files.length > 0 ? { files } : {})
+      })
+    })
+
     // Register bot commands with Telegram
     await bot.api.setMyCommands([
       { command: 'new', description: 'Start a new conversation' },
@@ -198,6 +226,31 @@ class TelegramAdapter extends ChannelAdapter {
     } catch (error) {
       this.log.warn('Failed to download Telegram file', {
         fileId,
+        error: error instanceof Error ? error.message : String(error)
+      })
+      return []
+    }
+  }
+
+  private async downloadTelegramDocument(
+    fileId: string,
+    filename: string,
+    mimeType?: string
+  ): Promise<FileAttachment[]> {
+    if (!this.bot) return []
+    try {
+      const file = await this.bot.api.getFile(fileId)
+      if (!file.file_path) return []
+      const url = `https://api.telegram.org/file/bot${this.botToken}/${file.file_path}`
+      const attachment = await downloadFileAsBase64(url, filename)
+      if (!attachment) return []
+      // Override media_type with Telegram's reported mime_type if available
+      if (mimeType) attachment.media_type = mimeType
+      return [attachment]
+    } catch (error) {
+      this.log.warn('Failed to download Telegram document', {
+        fileId,
+        filename,
         error: error instanceof Error ? error.message : String(error)
       })
       return []
