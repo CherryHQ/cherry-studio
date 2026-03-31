@@ -29,7 +29,8 @@ const logger = loggerService.withContext('App')
 const MinApp: FC<Props> = ({ app, onClick, size = 60, isLast }) => {
   const { openMinappKeepAlive } = useMinappPopup()
   const { t } = useTranslation()
-  const { minapps, pinned, disabled, updateMinapps, updateDisabledMinapps, updatePinnedMinapps } = useMinapps()
+  const { minapps, pinned, disabled, updateMinapps, updateDisabledMinapps, removePinnedMinapp, setPinnedMinappsDirect } =
+    useMinapps()
   const { openedKeepAliveMinapps, currentMinappId, minappShow } = useRuntime()
   const dispatch = useDispatch()
   const navigate = useNavigate()
@@ -66,8 +67,12 @@ const MinApp: FC<Props> = ({ app, onClick, size = 60, isLast }) => {
           ? t('minapp.add_to_launchpad')
           : t('minapp.add_to_sidebar'),
       onClick: () => {
-        const newPinned = isPinned ? pinned.filter((item) => item.id !== app.id) : [...(pinned || []), app]
-        updatePinnedMinapps(newPinned)
+        // Bypass preservedHidden — user explicitly toggling pin state
+        if (isPinned) {
+          removePinnedMinapp(app.id)
+        } else {
+          setPinnedMinappsDirect([...(pinned || []), app])
+        }
       }
     },
     {
@@ -78,8 +83,7 @@ const MinApp: FC<Props> = ({ app, onClick, size = 60, isLast }) => {
         updateMinapps(newMinapps)
         const newDisabled = [...(disabled || []), app]
         updateDisabledMinapps(newDisabled)
-        const newPinned = pinned.filter((item) => item.id !== app.id)
-        updatePinnedMinapps(newPinned)
+        removePinnedMinapp(app.id)
         // 更新 openedKeepAliveMinapps
         const newOpenedKeepAliveMinapps = openedKeepAliveMinapps.filter((item) => item.id !== app.id)
         dispatch(setOpenedKeepAliveMinapps(newOpenedKeepAliveMinapps))
@@ -101,7 +105,7 @@ const MinApp: FC<Props> = ({ app, onClick, size = 60, isLast }) => {
                 const reloadedApps = [...ORIGIN_DEFAULT_MIN_APPS, ...(await loadCustomMiniApp())]
                 updateAllMinApps(reloadedApps)
                 updateMinapps(minapps.filter((item) => item.id !== app.id))
-                updatePinnedMinapps(pinned.filter((item) => item.id !== app.id))
+                removePinnedMinapp(app.id)
                 updateDisabledMinapps(disabled.filter((item) => item.id !== app.id))
               } catch (error) {
                 window.toast.error(t('settings.miniapps.custom.remove_error'))

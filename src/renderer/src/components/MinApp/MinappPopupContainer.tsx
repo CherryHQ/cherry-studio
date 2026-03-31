@@ -144,7 +144,7 @@ const GoogleLoginTip = ({
 const MinappPopupContainer: React.FC = () => {
   const { openedKeepAliveMinapps, openedOneOffMinapp, currentMinappId, minappShow } = useRuntime()
   const { closeMinapp, hideMinappPopup } = useMinappPopup()
-  const { pinned, updatePinnedMinapps } = useMinapps()
+  const { pinned, removePinnedMinapp, setPinnedMinappsDirect } = useMinapps()
   const { t } = useTranslation()
   const backgroundColor = useNavBackgroundColor()
   const { isTopNavbar } = useNavbarPosition()
@@ -345,8 +345,12 @@ const MinappPopupContainer: React.FC = () => {
     const app = combinedApps.find((item) => item.id === appid)
     if (!app) return
 
-    const newPinned = appsExtraInfo[appid].isPinned ? pinned.filter((item) => item.id !== appid) : [...pinned, app]
-    updatePinnedMinapps(newPinned)
+    // Bypass preservedHidden — user explicitly toggling pin state
+    if (appsExtraInfo[appid].isPinned) {
+      removePinnedMinapp(appid)
+    } else {
+      setPinnedMinappsDirect([...pinned, app])
+    }
   }
 
   /** set the open external status */
