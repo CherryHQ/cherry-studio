@@ -1,4 +1,5 @@
 import { DeleteOutlined, EditOutlined, FileTextOutlined, PlusOutlined } from '@ant-design/icons'
+import CopyButton from '@renderer/components/CopyButton'
 import Scrollbar from '@renderer/components/Scrollbar'
 import { useAgents } from '@renderer/hooks/agents/useAgents'
 import { useChannels } from '@renderer/hooks/agents/useChannels'
@@ -106,10 +107,20 @@ const ChannelLogModal: FC<{
     logEndRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [logs.length])
 
+  const logsText = useMemo(
+    () => logs.map((e) => `${formatTime(e.timestamp)} [${e.level.toUpperCase()}] ${e.message}`).join('\n'),
+    [logs]
+  )
+
   return (
     <Modal
       open={open}
-      title={`${channelName} — ${t('agent.cherryClaw.channels.logs')}`}
+      title={
+        <div className="flex items-center gap-2">
+          <span>{`${channelName} — ${t('agent.cherryClaw.channels.logs')}`}</span>
+          {logs.length > 0 && <CopyButton textToCopy={logsText} size={14} />}
+        </div>
+      }
       footer={null}
       onCancel={onClose}
       width={600}
