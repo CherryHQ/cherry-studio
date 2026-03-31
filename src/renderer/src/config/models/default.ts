@@ -1925,8 +1925,8 @@ export const SYSTEM_MODELS: Record<SystemProviderId | 'defaultModel', Model[]> =
   ],
   aionly: [
     {
-      id: 'claude-opus-4-5-20251101',
-      name: 'Claude Opus 4.5',
+      id: 'claude-opus-4-6',
+      name: 'Claude Opus 4.6',
       provider: 'aionly',
       group: 'Anthropic'
     },
@@ -1937,32 +1937,38 @@ export const SYSTEM_MODELS: Record<SystemProviderId | 'defaultModel', Model[]> =
       group: 'Anthropic'
     },
     {
-      id: 'claude-sonnet-4-5-20250929',
-      name: 'Claude Sonnet 4.5',
+      id: 'claude-sonnet-4-6',
+      name: 'Claude Sonnet 4.6',
       provider: 'aionly',
       group: 'Anthropic'
     },
     {
-      id: 'gpt-5.1',
-      name: 'GPT-5.1',
+      id: 'gpt-5.4',
+      name: 'GPT-5.4',
       provider: 'aionly',
       group: 'OpenAI'
     },
     {
-      id: 'gpt-5.1-chat',
-      name: 'GPT-5.1 Chat',
+      id: 'gpt-5.4-mini',
+      name: 'GPT-5.4-MiNi',
       provider: 'aionly',
       group: 'OpenAI'
     },
     {
-      id: 'gpt-5-pro',
-      name: 'GPT 5 Pro',
+      id: 'gpt-5.4-nano',
+      name: 'GPT-5.4-NaNo',
       provider: 'aionly',
       group: 'OpenAI'
     },
     {
-      id: 'gemini-3-pro-preview',
-      name: 'Gemini 3 Pro Preview',
+      id: 'gemini-3.1-flash-lite-preview',
+      name: 'Gemini 3.1 Flash-Lite',
+      provider: 'aionly',
+      group: 'Google'
+    },
+    {
+      id: 'gemini-3.1-pro-preview',
+      name: 'Gemini 3.1 Pro Preview',
       provider: 'aionly',
       group: 'Google'
     },
