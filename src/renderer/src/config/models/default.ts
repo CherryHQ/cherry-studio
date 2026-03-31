@@ -1919,12 +1919,6 @@ export const SYSTEM_MODELS: Record<SystemProviderId | 'defaultModel', Model[]> =
   ],
   aionly: [
     {
-      id: 'aionly-magic-1',
-      name: 'AIONLY-MAGIC-1',
-      provider: 'aionly',
-      group: 'AiOnly'
-    },
-    {
       id: 'claude-opus-4-6',
       name: 'Claude Opus 4.6',
       provider: 'aionly',
