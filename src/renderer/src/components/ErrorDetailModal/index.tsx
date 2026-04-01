@@ -40,6 +40,8 @@ import React, { memo, useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
+import Scrollbar from '../Scrollbar'
+
 interface ErrorDetailContentProps {
   error?: SerializedError
   diagnosisContext?: DiagnosisContext
@@ -82,9 +84,9 @@ const truncateLargeData = (
 
 // --- Styled Components ---
 
-const ErrorDetailContainer = styled.div`
+const ErrorDetailContainer = styled(Scrollbar)`
   max-height: 60vh;
-  overflow-y: auto;
+  padding-right: 5px;
 `
 
 const ErrorDetailList = styled.div`
@@ -152,13 +154,13 @@ const BuiltinError = memo(({ error }: { error: SerializedError }) => {
       {error.name && (
         <ErrorDetailItem>
           <ErrorDetailLabel>{t('error.name')}:</ErrorDetailLabel>
-          <ErrorDetailValue>{error.name}</ErrorDetailValue>
+          <ErrorDetailValue className="selectable">{error.name}</ErrorDetailValue>
         </ErrorDetailItem>
       )}
       {error.message && (
         <ErrorDetailItem>
           <ErrorDetailLabel>{t('error.message')}:</ErrorDetailLabel>
-          <ErrorDetailValue>{error.message}</ErrorDetailValue>
+          <ErrorDetailValue className="selectable">{error.message}</ErrorDetailValue>
         </ErrorDetailItem>
       )}
       {error.stack && (
@@ -261,7 +263,7 @@ const AiSdkError = memo(({ error }: { error: SerializedAiSdkErrorUnion }) => {
       {(isSerializedAiSdkAPICallError(error) || isSerializedAiSdkDownloadError(error)) && error.url && (
         <ErrorDetailItem>
           <ErrorDetailLabel>{t('error.requestUrl')}:</ErrorDetailLabel>
-          <ErrorDetailValue>{error.url}</ErrorDetailValue>
+          <ErrorDetailValue className="selectable">{error.url}</ErrorDetailValue>
         </ErrorDetailItem>
       )}
 
@@ -272,7 +274,7 @@ const AiSdkError = memo(({ error }: { error: SerializedAiSdkErrorUnion }) => {
       {(isSerializedAiSdkAPICallError(error) || isSerializedAiSdkDownloadError(error)) && error.statusCode && (
         <ErrorDetailItem>
           <ErrorDetailLabel>{t('error.statusCode')}:</ErrorDetailLabel>
-          <ErrorDetailValue>{error.statusCode}</ErrorDetailValue>
+          <ErrorDetailValue className="selectable">{error.statusCode}</ErrorDetailValue>
         </ErrorDetailItem>
       )}
 
@@ -569,7 +571,7 @@ const ErrorDetailContent: React.FC<ErrorDetailContentProps> = ({
   }
 
   return (
-    <div>
+    <>
       <ErrorDetailContainer>
         {renderErrorDetails(error)}
         {diagStatus !== 'idle' && (
@@ -600,7 +602,7 @@ const ErrorDetailContent: React.FC<ErrorDetailContentProps> = ({
           {t('common.close')}
         </Button>
       </div>
-    </div>
+    </>
   )
 }
 
@@ -641,11 +643,6 @@ const AIDiagnosisSectionWithStatus = memo(
       }
     }, [])
 
-    // Scroll diagnosis panel into view when it first renders
-    useEffect(() => {
-      panelRef.current?.scrollIntoView({ behavior: 'smooth', block: 'nearest' })
-    }, [])
-
     // Auto-start diagnosis when section mounts with loading status (first click from parent)
     useEffect(() => {
       if (status === 'loading' && !cachedDiagnosis) {
@@ -659,6 +656,10 @@ const AIDiagnosisSectionWithStatus = memo(
       cancelledRef.current = false
       onStatusChange('loading')
       setDiagError('')
+      // Scroll diagnosis panel into view when diagnosis starts
+      requestAnimationFrame(() => {
+        panelRef.current?.scrollIntoView({ behavior: 'smooth', block: 'nearest' })
+      })
       try {
         const diagnosis = await diagnoseError(error, i18n.language, diagnosisContext)
         if (cancelledRef.current || !mountedRef.current) return
@@ -749,7 +750,7 @@ export function showErrorDetailPopup(params: ErrorDetailContentProps) {
     title: i18n.t('error.detail'),
     content: <ErrorDetailContent {...params} />,
     footer: null,
-    width: '80%',
+    width: '60vw',
     style: { maxWidth: '1200px', minWidth: '600px' }
   })
 }

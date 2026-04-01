@@ -168,7 +168,7 @@ export async function diagnoseError(
   if (url && typeof url === 'string') {
     // Include API endpoint (strip query params for privacy)
     try {
-      const parsed = new URL(url as string)
+      const parsed = new URL(url)
       errorInfo.endpoint = `${parsed.origin}${parsed.pathname}`
     } catch {
       // ignore invalid URLs
