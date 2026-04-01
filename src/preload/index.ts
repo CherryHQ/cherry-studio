@@ -311,15 +311,38 @@ const api = {
       item: KnowledgeItem
       userId?: string
       forceReload?: boolean
-    }) => ipcRenderer.invoke(IpcChannel.KnowledgeBase_Add, { base, item, forceReload, userId }),
+    }) =>
+      ipcRenderer.invoke(IpcChannel.KnowledgeBase_Add, {
+        base,
+        item,
+        forceReload,
+        userId
+      }),
     remove: ({ uniqueId, uniqueIds, base }: { uniqueId: string; uniqueIds: string[]; base: KnowledgeBaseParams }) =>
-      ipcRenderer.invoke(IpcChannel.KnowledgeBase_Remove, { uniqueId, uniqueIds, base }),
+      ipcRenderer.invoke(IpcChannel.KnowledgeBase_Remove, {
+        uniqueId,
+        uniqueIds,
+        base
+      }),
     search: ({ search, base }: { search: string; base: KnowledgeBaseParams }, context?: SpanContext) =>
       tracedInvoke(IpcChannel.KnowledgeBase_Search, context, { search, base }),
     rerank: (
-      { search, base, results }: { search: string; base: KnowledgeBaseParams; results: KnowledgeSearchResult[] },
+      {
+        search,
+        base,
+        results
+      }: {
+        search: string
+        base: KnowledgeBaseParams
+        results: KnowledgeSearchResult[]
+      },
       context?: SpanContext
-    ) => tracedInvoke(IpcChannel.KnowledgeBase_Rerank, context, { search, base, results })
+    ) =>
+      tracedInvoke(IpcChannel.KnowledgeBase_Rerank, context, {
+        search,
+        base,
+        results
+      })
   },
   memory: {
     add: (messages: string | AssistantMessage[], options?: AddMemoryOptions) =>
@@ -401,7 +424,13 @@ const api = {
     callTool: (
       { server, name, args, callId }: { server: MCPServer; name: string; args: any; callId?: string },
       context?: SpanContext
-    ) => tracedInvoke(IpcChannel.Mcp_CallTool, context, { server, name, args, callId }),
+    ) =>
+      tracedInvoke(IpcChannel.Mcp_CallTool, context, {
+        server,
+        name,
+        args,
+        callId
+      }),
     listPrompts: (server: MCPServer) => ipcRenderer.invoke(IpcChannel.Mcp_ListPrompts, server),
     getPrompt: ({ server, name, args }: { server: MCPServer; name: string; args?: Record<string, any> }) =>
       ipcRenderer.invoke(IpcChannel.Mcp_GetPrompt, { server, name, args }),
@@ -455,6 +484,9 @@ const api = {
     startOAuthFlow: (oauthServer: string, apiHost?: string) =>
       ipcRenderer.invoke(IpcChannel.CherryIN_StartOAuthFlow, oauthServer, apiHost),
     exchangeToken: (code: string, state: string) => ipcRenderer.invoke(IpcChannel.CherryIN_ExchangeToken, code, state)
+  },
+  provider: {
+    poeOAuthLogin: () => ipcRenderer.invoke(IpcChannel.Provider_PoeOAuthLogin)
   },
   // Binary related APIs
   isBinaryExist: (name: string) => ipcRenderer.invoke(IpcChannel.App_IsBinaryExist, name),
@@ -674,8 +706,11 @@ const api = {
     cancelTransfer: (): Promise<void> => ipcRenderer.invoke(IpcChannel.LocalTransfer_CancelTransfer)
   },
   openclaw: {
-    checkInstalled: (): Promise<{ installed: boolean; path: string | null; needsMigration: boolean }> =>
-      ipcRenderer.invoke(IpcChannel.OpenClaw_CheckInstalled),
+    checkInstalled: (): Promise<{
+      installed: boolean
+      path: string | null
+      needsMigration: boolean
+    }> => ipcRenderer.invoke(IpcChannel.OpenClaw_CheckInstalled),
     install: (): Promise<OperationResult> => ipcRenderer.invoke(IpcChannel.OpenClaw_Install),
     uninstall: (): Promise<OperationResult> => ipcRenderer.invoke(IpcChannel.OpenClaw_Uninstall),
     startGateway: (port?: number): Promise<OperationResult> =>

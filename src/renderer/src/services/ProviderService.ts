@@ -1,6 +1,56 @@
 import { getStoreProviders } from '@renderer/hooks/useStore'
 import type { Model, Provider } from '@renderer/types'
 import { getFancyProviderName } from '@renderer/utils'
+import {
+  oauthWith302AI,
+  oauthWithAihubmix,
+  oauthWithAiOnly,
+  oauthWithPoe,
+  oauthWithPPIO,
+  oauthWithSiliconFlow,
+  oauthWithTokenFlux,
+  type ProviderOAuthResult
+} from '@renderer/utils/oauth'
+
+export type ProviderOAuthAction = 'charge' | 'bills' | 'apiKey' | 'officialWebsite'
+
+type ProviderAuthHandler = (setKey?: (result: ProviderOAuthResult) => void) => Promise<unknown> | void
+
+type ProviderCapability = {
+  authHandler?: ProviderAuthHandler
+  actions?: ProviderOAuthAction[]
+}
+
+const PROVIDER_CAPABILITIES: Record<string, ProviderCapability> = {
+  '302ai': {
+    authHandler: oauthWith302AI,
+    actions: ['charge', 'bills']
+  },
+  silicon: {
+    authHandler: oauthWithSiliconFlow,
+    actions: ['charge', 'bills']
+  },
+  aihubmix: {
+    authHandler: oauthWithAihubmix,
+    actions: ['charge', 'bills']
+  },
+  ppio: {
+    authHandler: oauthWithPPIO,
+    actions: ['charge', 'bills']
+  },
+  tokenflux: {
+    authHandler: oauthWithTokenFlux,
+    actions: ['charge', 'bills']
+  },
+  aionly: {
+    authHandler: oauthWithAiOnly,
+    actions: ['charge', 'bills']
+  },
+  poe: {
+    authHandler: oauthWithPoe,
+    actions: ['apiKey']
+  }
+}
 
 export function getProviderName(model?: Model) {
   const provider = getProviderByModel(model)
@@ -42,14 +92,28 @@ export function getProviderByModel(model?: Model) {
   return provider
 }
 
+function getProviderCapability(provider: Provider) {
+  return PROVIDER_CAPABILITIES[provider.id]
+}
+
+export function getProviderAuthHandler(provider: Provider) {
+  return getProviderCapability(provider)?.authHandler
+}
+
+export function getProviderOAuthActions(provider: Provider): ProviderOAuthAction[] {
+  return getProviderCapability(provider)?.actions || []
+}
+
 export function isProviderSupportAuth(provider: Provider) {
-  const supportProviders = ['302ai', 'silicon', 'aihubmix', 'ppio', 'tokenflux', 'aionly']
-  return supportProviders.includes(provider.id)
+  return !!getProviderAuthHandler(provider)
 }
 
 export function isProviderSupportCharge(provider: Provider) {
-  const supportProviders = ['302ai', 'silicon', 'aihubmix', 'ppio']
-  return supportProviders.includes(provider.id)
+  return getProviderOAuthActions(provider).includes('charge')
+}
+
+export function isProviderSupportBills(provider: Provider) {
+  return getProviderOAuthActions(provider).includes('bills')
 }
 
 export function getProviderById(id: string) {

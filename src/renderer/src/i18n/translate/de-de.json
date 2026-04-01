@@ -390,7 +390,7 @@
           "description": "Erstellt und verwaltet strukturierte Aufgabenlisten"
         },
         "ToolSearch": {
-          "description": "Entdeckt aufgeschobene Werkzeuge aus großen Bibliotheken"
+          "description": "Erkennt verzögerte Werkzeuge aus großen Bibliotheken"
         },
         "WebFetch": {
           "description": "Ruft Inhalte von einer angegebenen URL ab"

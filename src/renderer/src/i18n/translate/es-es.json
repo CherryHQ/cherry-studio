@@ -390,7 +390,7 @@
           "description": "Crea y gestiona listas de tareas estructuradas"
         },
         "ToolSearch": {
-          "description": "Descubre herramientas diferidas de bibliotecas grandes"
+          "description": "Descubre herramientas diferidas de grandes bibliotecas"
         },
         "WebFetch": {
           "description": "Obtiene contenido desde una URL especificada"
@@ -5165,6 +5165,7 @@
           "title": "Inicio de sesión con OAuth"
         },
         "connect": "Conectar {{provider}}",
+        "connected": "Conectado",
         "description": "Este servicio es proporcionado por <website>{{provider}}</website>",
         "error": "Fallo en la autenticación",
         "logged_in": "Conectado",
@@ -5173,8 +5174,42 @@
         "logout_success": "Cierre de sesión exitoso",
         "logout_warning": "Desconectado localmente, pero la revocación del token del servidor puede haber fallado",
         "official_website": "Sitio web oficial",
+        "open_api_keys": "Abrir API Keys",
+        "open_provider_website": "Abrir sitio web del proveedor",
+        "poe": {
+          "error": {
+            "access_denied": "La autorización de Poe fue denegada. Apruebe el acceso para continuar.",
+            "authorization_failed": "El inicio de sesión en Poe falló durante la autorización.",
+            "browser_open_failed": "Cherry Studio no pudo abrir el navegador para iniciar sesión en Poe. Verifique la configuración del navegador predeterminado del sistema e intente de nuevo.",
+            "callback_port_unavailable": "El inicio de sesión en Poe no pudo determinar el puerto de retorno.",
+            "callback_processing_failed": "Error al procesar la respuesta de Poe.",
+            "callback_server_error": "El inicio de sesión en Poe no pudo iniciar el servidor de retorno local.",
+            "callback_timeout": "Se agotó el tiempo de espera para la respuesta de autorización de Poe. Intente iniciar sesión de nuevo.",
+            "invalid_grant": "La autorización de Poe expiró o no pudo ser verificada. Inicie sesión de nuevo.",
+            "invalid_request": "Poe no pudo procesar la solicitud de inicio de sesión. Intente de nuevo.",
+            "invalid_scope": "Poe rechazó los permisos solicitados.",
+            "missing_api_key": "El inicio de sesión en Poe se completó, pero no se devolvió ninguna clave API.",
+            "missing_code": "Poe no devolvió un código de autorización.",
+            "missing_state": "El inicio de sesión en Poe no devolvió un valor de state válido.",
+            "server_error": "Poe no pudo completar el inicio de sesión temporalmente. Intente de nuevo.",
+            "state_mismatch": "La solicitud de inicio de sesión en Poe no pudo ser verificada. Intente de nuevo.",
+            "token_exchange_failed": "El inicio de sesión en Poe falló al solicitar una clave API.",
+            "token_invalid_request": "Poe no pudo completar el intercambio de tokens. Intente de nuevo.",
+            "token_request_failed": "Cherry Studio no pudo conectarse a Poe para completar el inicio de sesión. Verifique su conexión de red e intente de nuevo.",
+            "unsupported_grant_type": "Poe rechazó el tipo de concesión de token solicitado.",
+            "unsupported_response_type": "Poe no aceptó el flujo de autorización solicitado."
+          },
+          "failure": {
+            "title": "Inicio de sesión en Poe fallido"
+          },
+          "success": {
+            "description": "Puede volver a Cherry Studio ahora.",
+            "title": "Conectado a Poe"
+          }
+        },
         "provided_by": "Proporcionado por",
-        "provided_by_suffix": "I’m ready—please provide the text you’d like translated into Spanish.",
+        "provided_by_suffix": "I'm ready—please provide the text you'd like translated into Spanish.",
+        "reconnect": "Reconectar",
         "requests": "Solicitudes",
         "topup": "Recargar",
         "usage_title": "Uso"
