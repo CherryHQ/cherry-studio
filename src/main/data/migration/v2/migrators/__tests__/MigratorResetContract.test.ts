@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 
 import { ChatMigrator } from '../ChatMigrator'
 import { getAllMigrators } from '../index'
+import { PromptMigrator } from '../PromptMigrator'
 import { TranslateMigrator } from '../TranslateMigrator'
 
 describe('migrator reset contract', () => {
@@ -50,6 +51,21 @@ describe('migrator reset contract', () => {
       messagesWithMissingBlocks: 0,
       messagesWithEmptyBlocks: 0
     })
+  })
+
+  it('clears cached source data and counters in PromptMigrator', () => {
+    const migrator = new PromptMigrator()
+    const state = migrator as any
+
+    state.promptCount = 5
+    state.skippedCount = 2
+    state.preparedPhrases = [{ id: 'phrase-1' }]
+
+    migrator.reset()
+
+    expect(state.promptCount).toBe(0)
+    expect(state.skippedCount).toBe(0)
+    expect(state.preparedPhrases).toStrictEqual([])
   })
 
   it('clears cached source data and counters in TranslateMigrator', () => {
