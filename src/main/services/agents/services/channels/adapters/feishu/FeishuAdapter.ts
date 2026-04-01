@@ -577,6 +577,7 @@ class FeishuAdapter extends ChannelAdapter {
     const mainWindow = windowService.getMainWindow()
     if (mainWindow && !mainWindow.isDestroyed()) {
       mainWindow.webContents.send(IpcChannel.Feishu_QrLogin, {
+        channelId: this.channelId,
         url,
         status,
         appId,

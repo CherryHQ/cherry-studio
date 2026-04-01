@@ -541,6 +541,7 @@
       },
       "toolsMcp": {
         "mcp": {
+          "tab": "MCP",
           "title": "MCP 服务器"
         },
         "tab": "工具",

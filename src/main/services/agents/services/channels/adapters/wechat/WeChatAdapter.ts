@@ -125,6 +125,7 @@ class WeChatAdapter extends ChannelAdapter {
     const mainWindow = windowService.getMainWindow()
     if (mainWindow && !mainWindow.isDestroyed()) {
       mainWindow.webContents.send(IpcChannel.WeChat_QrLogin, {
+        channelId: this.channelId,
         url,
         status,
         userId

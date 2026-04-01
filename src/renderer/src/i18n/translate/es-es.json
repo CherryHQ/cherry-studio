@@ -541,6 +541,7 @@
       },
       "toolsMcp": {
         "mcp": {
+          "tab": "[to be translated]:MCP",
           "title": "Servidores MCP"
         },
         "tab": "Herramientas",
