@@ -4,7 +4,12 @@
 
 import { loggerService } from '@logger'
 import BackupManager from '@main/services/BackupManager'
-import { MigrationIpcChannels, type MigrationProgress } from '@shared/data/migration/v2/types'
+import {
+  MigrationIpcChannels,
+  type MigrationProgress,
+  type MigrationResult,
+  type StartMigrationPayload
+} from '@shared/data/migration/v2/types'
 import { app, dialog, ipcMain } from 'electron'
 import fs from 'fs/promises'
 import path from 'path'
@@ -13,11 +18,9 @@ import { migrationEngine } from '../core/MigrationEngine'
 import { migrationWindowManager } from './MigrationWindowManager'
 
 const logger = loggerService.withContext('MigrationIpcHandler')
+const CONCURRENT_MIGRATION_ERROR = 'Migration is already in progress.'
 
-// Store for cached data from Renderer
-let cachedReduxData: Record<string, unknown> | null = null
-let cachedDexieExportPath: string | null = null
-let cachedLocalStorageExportPath: string | null = null
+let inFlightMigration: Promise<MigrationResult> | null = null
 const backupManager = new BackupManager()
 
 // Current migration progress
@@ -116,21 +119,11 @@ export function registerMigrationIpcHandlers(): void {
 
         if (backupResult.success) {
           updateProgress({
-            stage: 'backup_progress',
+            stage: 'backup_confirmed',
             overallProgress: 100,
-            currentMessage: 'Backup created successfully!',
+            currentMessage: 'Backup completed! Ready to start migration. Click "Start Migration" to continue.',
             migrators: []
           })
-
-          // Wait a moment to show the success message, then transition to confirmed state
-          setTimeout(() => {
-            updateProgress({
-              stage: 'backup_confirmed',
-              overallProgress: 100,
-              currentMessage: 'Backup completed! Ready to start migration. Click "Start Migration" to continue.',
-              migrators: []
-            })
-          }, 1000)
         } else {
           updateProgress({
             stage: 'backup_required',
@@ -179,44 +172,6 @@ export function registerMigrationIpcHandlers(): void {
     }
   })
 
-  // Receive Redux data from Renderer
-  ipcMain.handle(MigrationIpcChannels.SendReduxData, async (_event, data: Record<string, unknown>) => {
-    try {
-      cachedReduxData = data
-      logger.info('Redux data received', {
-        categories: Object.keys(data)
-      })
-      return true
-    } catch (error) {
-      logger.error('Error receiving Redux data', error as Error)
-      throw error
-    }
-  })
-
-  // Dexie export completed
-  ipcMain.handle(MigrationIpcChannels.DexieExportCompleted, async (_event, exportPath: string) => {
-    try {
-      cachedDexieExportPath = exportPath
-      logger.info('Dexie export completed', { exportPath })
-      return true
-    } catch (error) {
-      logger.error('Error receiving Dexie export path', error as Error)
-      throw error
-    }
-  })
-
-  // localStorage export completed
-  ipcMain.handle(MigrationIpcChannels.LocalStorageExportCompleted, async (_event, exportPath: string) => {
-    try {
-      cachedLocalStorageExportPath = exportPath
-      logger.info('localStorage export completed', { exportPath })
-      return true
-    } catch (error) {
-      logger.error('Error receiving localStorage export path', error as Error)
-      throw error
-    }
-  })
-
   // Write export file from Renderer
   ipcMain.handle(
     MigrationIpcChannels.WriteExportFile,
@@ -239,9 +194,18 @@ export function registerMigrationIpcHandlers(): void {
   )
 
   // Start the migration process
-  ipcMain.handle(MigrationIpcChannels.StartMigration, async () => {
+  ipcMain.handle(MigrationIpcChannels.StartMigration, async (_event, payload: StartMigrationPayload) => {
+    if (inFlightMigration) {
+      logger.warn(CONCURRENT_MIGRATION_ERROR)
+      throw new Error(CONCURRENT_MIGRATION_ERROR)
+    }
+
+    let runPromise: Promise<MigrationResult> | null = null
+
     try {
-      if (!cachedReduxData || !cachedDexieExportPath) {
+      const { reduxData, dexieExportPath, localStorageExportPath } = payload
+
+      if (!reduxData || !dexieExportPath) {
         throw new Error('Migration data not ready. Redux data or Dexie export path missing.')
       }
 
@@ -251,11 +215,10 @@ export function registerMigrationIpcHandlers(): void {
       })
 
       // Run migration
-      const result = await migrationEngine.run(
-        cachedReduxData,
-        cachedDexieExportPath,
-        cachedLocalStorageExportPath ?? undefined
-      )
+      runPromise = migrationEngine.run(reduxData, dexieExportPath, localStorageExportPath)
+      inFlightMigration = runPromise
+
+      const result = await runPromise
 
       if (result.success) {
         updateProgress({
@@ -282,6 +245,10 @@ export function registerMigrationIpcHandlers(): void {
       const errorMessage = error instanceof Error ? error.message : String(error)
       logger.error('Error starting migration', error as Error)
 
+      if (errorMessage === CONCURRENT_MIGRATION_ERROR) {
+        throw error
+      }
+
       updateProgress({
         stage: 'error',
         overallProgress: currentProgress.overallProgress,
@@ -291,6 +258,10 @@ export function registerMigrationIpcHandlers(): void {
       })
 
       throw error
+    } finally {
+      if (runPromise && inFlightMigration === runPromise) {
+        inFlightMigration = null
+      }
     }
   })
 
@@ -361,9 +332,7 @@ function updateProgress(progress: MigrationProgress): void {
  * Reset cached data
  */
 export function resetMigrationData(): void {
-  cachedReduxData = null
-  cachedDexieExportPath = null
-  cachedLocalStorageExportPath = null
+  inFlightMigration = null
   currentProgress = {
     stage: 'introduction',
     overallProgress: 0,

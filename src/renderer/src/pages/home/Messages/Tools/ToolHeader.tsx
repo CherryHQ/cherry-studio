@@ -168,13 +168,15 @@ const ToolName = styled(Flex)`
 const Description = styled.span`
   color: var(--color-text-2);
   font-weight: 400;
-  font-size: 12px;
+  font-size: 13px;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
   min-width: 0;
   flex: 1;
   max-width: 300px;
+  display: inline-flex;
+  align-items: center;
 `
 
 const Stats = styled.span`

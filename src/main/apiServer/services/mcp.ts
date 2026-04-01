@@ -1,5 +1,5 @@
 import { mcpServerService } from '@data/services/McpServerService'
-import { mcpService } from '@main/services/MCPService'
+import { application } from '@main/core/application'
 import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp'
 import type { JSONRPCMessage, Tool } from '@modelcontextprotocol/sdk/types'
 import { isJSONRPCRequest, JSONRPCMessageSchema } from '@modelcontextprotocol/sdk/types'
@@ -61,7 +61,7 @@ class MCPApiService {
         return null
       }
 
-      const client = await mcpService.initClient(server)
+      const client = await application.get('MCPService').initClient(server)
       const tools = await client.listTools()
       return {
         id: server.id,

@@ -5,7 +5,6 @@ import SearchPopup from '@renderer/components/Popups/SearchPopup'
 import { modelGenerating } from '@renderer/hooks/useModel'
 import { useShortcut } from '@renderer/hooks/useShortcuts'
 import { useShowAssistants, useShowTopics } from '@renderer/hooks/useStore'
-import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import type { Assistant, Topic } from '@renderer/types'
 import { t } from 'i18next'
 import { Menu, PanelLeftClose, PanelRightClose, Search } from 'lucide-react'
@@ -31,16 +30,6 @@ const HeaderNavbar: FC<Props> = ({ activeAssistant, setActiveAssistant, activeTo
 
   const { showAssistants, toggleShowAssistants } = useShowAssistants()
   const { showTopics, toggleShowTopics } = useShowTopics()
-
-  useShortcut('toggle_show_assistants', toggleShowAssistants)
-
-  useShortcut('toggle_show_topics', () => {
-    if (topicPosition === 'right') {
-      void toggleShowTopics()
-    } else {
-      void EventEmitter.emit(EVENT_NAMES.SHOW_TOPIC_SIDEBAR)
-    }
-  })
 
   useShortcut('search_message', () => {
     void SearchPopup.show()

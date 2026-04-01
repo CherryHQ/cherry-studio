@@ -17,7 +17,6 @@ import {
   validateGitBashPath
 } from '@main/utils/process'
 import { handleZoomFactor } from '@main/utils/zoom'
-import type { UpgradeChannel } from '@shared/data/preference/preferenceTypes'
 import { IpcChannel } from '@shared/IpcChannel'
 import { extractPdfText } from '@shared/utils/pdf'
 import type {
@@ -27,19 +26,15 @@ import type {
   OcrProvider,
   PluginError,
   Provider,
-  Shortcut,
   SupportedOcrFile
 } from '@types'
 import checkDiskSpace from 'check-disk-space'
-import type { ProxyConfig } from 'electron'
 import { BrowserWindow, dialog, ipcMain, session, shell, systemPreferences, webContents } from 'electron'
 import fontList from 'font-list'
 
 import { agentMessageRepository } from './services/agents/database'
 import { pluginService } from './services/agents/plugins/PluginService'
-import { apiServerService } from './services/ApiServerService'
 import { appService } from './services/AppService'
-import AppUpdater from './services/AppUpdater'
 import BackupManager from './services/BackupManager'
 import { cherryINOAuthService } from './services/CherryINOAuthService'
 import { ConfigKeys, configManager } from './services/ConfigManager'
@@ -50,22 +45,15 @@ import { externalAppsService } from './services/ExternalAppsService'
 import { fileStorage as fileManager } from './services/FileStorage'
 import FileService from './services/FileSystemService'
 import { knowledgeService } from './services/KnowledgeService'
-import { mcpService } from './services/MCPService'
 import { memoryService } from './services/memory/MemoryService'
 import NotificationService from './services/NotificationService'
 import * as NutstoreService from './services/NutstoreService'
 import ObsidianVaultService from './services/ObsidianVaultService'
 import { ocrService } from './services/ocr/OcrService'
-import { openClawService } from './services/OpenClawService'
-import { isOvmsSupported } from './services/OvmsManager'
-import { proxyManager } from './services/ProxyManager'
 import { pythonService } from './services/PythonService'
 import { fileServiceManager } from './services/remotefile/FileServiceManager'
 import { searchService } from './services/SearchService'
-import { registerShortcuts, unregisterAllShortcuts } from './services/ShortcutService'
-import { storeSyncService } from './services/StoreSyncService'
 import { vertexAIService } from './services/VertexAIService'
-import { setOpenLinkExternal } from './services/WebviewService'
 import { calculateDirectorySize, getResourcePath } from './utils'
 import { decrypt, encrypt } from './utils/aes'
 import {
@@ -102,21 +90,16 @@ function extractPluginError(error: unknown): PluginError | null {
 }
 
 export async function registerIpc(mainWindow: BrowserWindow, app: Electron.App) {
-  const appUpdater = new AppUpdater()
   const notificationService = new NotificationService()
 
-  // Register shutdown handlers
-  const powerMonitorService = application.get('PowerMonitorService')
-  powerMonitorService.registerShutdownHandler(() => {
-    appUpdater.setAutoUpdate(false)
-  })
-
-  powerMonitorService.registerShutdownHandler(() => {
-    const mw = application.get('WindowService').getMainWindow()
-    if (mw && !mw.isDestroyed()) {
-      mw.webContents.send(IpcChannel.App_SaveData)
-    }
-  })
+  // [v2] Removed: Redux persistor flush is no longer needed after v2 data refactoring
+  // const powerMonitorService = application.get('PowerMonitorService')
+  // powerMonitorService.registerShutdownHandler(() => {
+  //   const mw = application.get('WindowService').getMainWindow()
+  //   if (mw && !mw.isDestroyed()) {
+  //     mw.webContents.send(IpcChannel.App_SaveData)
+  //   }
+  // })
 
   ipcMain.handle(IpcChannel.App_Info, () => ({
     version: app.getVersion(),
@@ -133,27 +116,9 @@ export async function registerIpc(mainWindow: BrowserWindow, app: Electron.App) 
     installPath: path.dirname(app.getPath('exe'))
   }))
 
-  ipcMain.handle(IpcChannel.App_Proxy, async (_, proxy: string, bypassRules?: string) => {
-    let proxyConfig: ProxyConfig
-
-    if (proxy === 'system') {
-      // system proxy will use the system filter by themselves
-      proxyConfig = { mode: 'system' }
-    } else if (proxy) {
-      proxyConfig = { mode: 'fixed_servers', proxyRules: proxy, proxyBypassRules: bypassRules }
-    } else {
-      proxyConfig = { mode: 'direct' }
-    }
-
-    await proxyManager.configureProxy(proxyConfig)
-  })
-
   ipcMain.handle(IpcChannel.App_Reload, () => mainWindow.reload())
-  ipcMain.handle(IpcChannel.App_Quit, () => application.quit())
+  // Application_Quit is registered by Application.registerApplicationIpc()
   ipcMain.handle(IpcChannel.Open_Website, (_, url: string) => shell.openExternal(url))
-
-  // Update
-  ipcMain.handle(IpcChannel.App_QuitAndInstall, () => appUpdater.quitAndInstall())
 
   // language
   // ipcMain.handle(IpcChannel.App_SetLanguage, (_, language) => {
@@ -206,20 +171,6 @@ export async function registerIpc(mainWindow: BrowserWindow, app: Electron.App) 
   //   appUpdater.setAutoUpdate(isActive)
   //   configManager.setAutoUpdate(isActive)
   // })
-
-  ipcMain.handle(IpcChannel.App_SetTestPlan, async (_, isActive: boolean) => {
-    logger.info(`set test plan: ${isActive}`)
-    if (isActive !== application.get('PreferenceService').get('app.dist.test_plan.enabled')) {
-      appUpdater.cancelDownload()
-    }
-  })
-
-  ipcMain.handle(IpcChannel.App_SetTestChannel, async (_, channel: UpgradeChannel) => {
-    logger.info(`set test channel: ${channel}`)
-    if (channel !== application.get('PreferenceService').get('app.dist.test_plan.channel')) {
-      appUpdater.cancelDownload()
-    }
-  })
 
   ipcMain.handle(IpcChannel.AgentMessage_PersistExchange, async (_event, payload) => {
     try {
@@ -333,29 +284,6 @@ export async function registerIpc(mainWindow: BrowserWindow, app: Electron.App) 
     }
   })
 
-  let preventQuitListener: ((event: Electron.Event) => void) | null = null
-  ipcMain.handle(IpcChannel.App_SetStopQuitApp, (_, stop: boolean = false, reason: string = '') => {
-    if (stop) {
-      // Only add listener if not already added
-      if (!preventQuitListener) {
-        preventQuitListener = (event: Electron.Event) => {
-          event.preventDefault()
-          void notificationService.sendNotification({
-            title: reason,
-            message: reason
-          } as Notification)
-        }
-        app.on('before-quit', preventQuitListener)
-      }
-    } else {
-      // Remove listener if it exists
-      if (preventQuitListener) {
-        app.removeListener('before-quit', preventQuitListener)
-        preventQuitListener = null
-      }
-    }
-  })
-
   // Select app data path
   ipcMain.handle(IpcChannel.App_Select, async (_, options: Electron.OpenDialogOptions) => {
     try {
@@ -432,18 +360,10 @@ export async function registerIpc(mainWindow: BrowserWindow, app: Electron.App) 
     }
   })
 
-  // Relaunch app
-  ipcMain.handle(IpcChannel.App_RelaunchApp, (_, options?: Electron.RelaunchOptions) => {
-    application.relaunch(options)
-  })
+  // Application_Relaunch is registered by Application.registerApplicationIpc()
 
   // Reset all data (factory reset)
   ipcMain.handle(IpcChannel.App_ResetData, () => backupManager.resetData())
-
-  // check for update
-  ipcMain.handle(IpcChannel.App_CheckForUpdate, async () => {
-    return await appUpdater.checkForUpdates()
-  })
 
   // notification
   ipcMain.handle(IpcChannel.Notification_Send, async (_, notification: Notification) => {
@@ -629,16 +549,6 @@ export async function registerIpc(mainWindow: BrowserWindow, app: Electron.App) 
     await shell.openPath(path)
   })
 
-  // shortcuts
-  ipcMain.handle(IpcChannel.Shortcuts_Update, (_, shortcuts: Shortcut[]) => {
-    configManager.setShortcuts(shortcuts)
-    // Refresh shortcuts registration
-    if (mainWindow) {
-      unregisterAllShortcuts()
-      registerShortcuts(mainWindow)
-    }
-  })
-
   ipcMain.handle(IpcChannel.KnowledgeBase_Create, knowledgeService.create.bind(knowledgeService))
   ipcMain.handle(IpcChannel.KnowledgeBase_Reset, knowledgeService.reset.bind(knowledgeService))
   ipcMain.handle(IpcChannel.KnowledgeBase_Delete, knowledgeService.delete.bind(knowledgeService))
@@ -682,26 +592,6 @@ export async function registerIpc(mainWindow: BrowserWindow, app: Electron.App) 
   ipcMain.handle(IpcChannel.Aes_Decrypt, (_, encryptedData: string, iv: string, secretKey: string) =>
     decrypt(encryptedData, iv, secretKey)
   )
-
-  // Register MCP handlers
-  ipcMain.handle(IpcChannel.Mcp_RemoveServer, (_e, server) => mcpService.removeServer(server))
-  ipcMain.handle(IpcChannel.Mcp_RestartServer, (_e, server) => mcpService.restartServer(server))
-  ipcMain.handle(IpcChannel.Mcp_StopServer, (_e, server) => mcpService.stopServer(server))
-  ipcMain.handle(IpcChannel.Mcp_ListTools, (_e, server) => mcpService.listTools(server))
-  ipcMain.handle(IpcChannel.Mcp_CallTool, (_e, args) => mcpService.callTool(args))
-  ipcMain.handle(IpcChannel.Mcp_ListPrompts, (_e, server) => mcpService.listPrompts(server))
-  ipcMain.handle(IpcChannel.Mcp_GetPrompt, (_e, args) => mcpService.getPrompt(args))
-  ipcMain.handle(IpcChannel.Mcp_ListResources, (_e, server) => mcpService.listResources(server))
-  ipcMain.handle(IpcChannel.Mcp_GetResource, (_e, args) => mcpService.getResource(args))
-  ipcMain.handle(IpcChannel.Mcp_GetInstallInfo, () => mcpService.getInstallInfo())
-  ipcMain.handle(IpcChannel.Mcp_CheckConnectivity, (_e, server) => mcpService.checkMcpConnectivity(server))
-  ipcMain.handle(IpcChannel.Mcp_AbortTool, (_e, callId) => mcpService.abortTool(callId))
-  ipcMain.handle(IpcChannel.Mcp_ResolveHubTool, async (_event, nameOrId: string) => {
-    const { resolveHubToolName } = await import('@main/mcpServers/hub/mcp-bridge')
-    return resolveHubToolName(nameOrId)
-  })
-  ipcMain.handle(IpcChannel.Mcp_GetServerVersion, (_e, server) => mcpService.getServerVersion(server))
-  ipcMain.handle(IpcChannel.Mcp_GetServerLogs, (_e, server) => mcpService.getServerLogs(server))
 
   // DXT upload handler
   ipcMain.handle(IpcChannel.Mcp_UploadDxt, async (event, fileBuffer: ArrayBuffer, fileName: string) => {
@@ -778,30 +668,6 @@ export async function registerIpc(mainWindow: BrowserWindow, app: Electron.App) 
     return await searchService.openUrlInSearchWindow(uid, url)
   })
 
-  // webview
-  ipcMain.handle(IpcChannel.Webview_SetOpenLinkExternal, (_, webviewId: number, isExternal: boolean) =>
-    setOpenLinkExternal(webviewId, isExternal)
-  )
-  ipcMain.handle(IpcChannel.Webview_SetSpellCheckEnabled, (_, webviewId: number, isEnable: boolean) => {
-    const webview = webContents.fromId(webviewId)
-    if (!webview) return
-    webview.session.setSpellCheckerEnabled(isEnable)
-  })
-
-  // Webview print and save handlers
-  ipcMain.handle(IpcChannel.Webview_PrintToPDF, async (_, webviewId: number) => {
-    const { printWebviewToPDF } = await import('./services/WebviewService')
-    return await printWebviewToPDF(webviewId)
-  })
-
-  ipcMain.handle(IpcChannel.Webview_SaveAsHTML, async (_, webviewId: number) => {
-    const { saveWebviewAsHTML } = await import('./services/WebviewService')
-    return await saveWebviewAsHTML(webviewId)
-  })
-
-  // store sync
-  storeSyncService.registerIpcHandler()
-
   // ipcMain.handle(IpcChannel.App_SetDisableHardwareAcceleration, (_, isDisable: boolean) => {
   //   configManager.setDisableHardwareAcceleration(isDisable)
   // })
@@ -822,9 +688,6 @@ export async function registerIpc(mainWindow: BrowserWindow, app: Electron.App) 
       return null
     }
   })
-  // API Server
-  apiServerService.registerIpcHandlers()
-
   // Anthropic OAuth
   ipcMain.handle(IpcChannel.Anthropic_StartOAuthFlow, () => anthropicService.startOAuthFlow())
   ipcMain.handle(IpcChannel.Anthropic_CompleteOAuthWithCode, (_, code: string) =>
@@ -844,37 +707,9 @@ export async function registerIpc(mainWindow: BrowserWindow, app: Electron.App) 
   )
   ipcMain.handle(IpcChannel.OCR_ListProviders, () => ocrService.listProviderIds())
 
-  // OVMS
-  ipcMain.handle(IpcChannel.Ovms_IsSupported, () => isOvmsSupported)
-  if (isOvmsSupported) {
-    const { ovmsManager } = await import('./services/OvmsManager')
-    if (ovmsManager) {
-      ipcMain.handle(
-        IpcChannel.Ovms_AddModel,
-        (_, modelName: string, modelId: string, modelSource: string, task: string) =>
-          ovmsManager.addModel(modelName, modelId, modelSource, task)
-      )
-      ipcMain.handle(IpcChannel.Ovms_StopAddModel, () => ovmsManager.stopAddModel())
-      ipcMain.handle(IpcChannel.Ovms_GetModels, () => ovmsManager.getModels())
-      ipcMain.handle(IpcChannel.Ovms_IsRunning, () => ovmsManager.initializeOvms())
-      ipcMain.handle(IpcChannel.Ovms_GetStatus, () => ovmsManager.getOvmsStatus())
-      ipcMain.handle(IpcChannel.Ovms_RunOVMS, () => ovmsManager.runOvms())
-      ipcMain.handle(IpcChannel.Ovms_StopOVMS, () => ovmsManager.stopOvms())
-    } else {
-      logger.error('Unexpected behavior: undefined ovmsManager, but OVMS should be supported.')
-    }
-  } else {
-    const fallback = () => {
-      throw new Error('OVMS is only supported on Windows with intel CPU.')
-    }
-    ipcMain.handle(IpcChannel.Ovms_AddModel, fallback)
-    ipcMain.handle(IpcChannel.Ovms_StopAddModel, fallback)
-    ipcMain.handle(IpcChannel.Ovms_GetModels, fallback)
-    ipcMain.handle(IpcChannel.Ovms_IsRunning, fallback)
-    ipcMain.handle(IpcChannel.Ovms_GetStatus, fallback)
-    ipcMain.handle(IpcChannel.Ovms_RunOVMS, fallback)
-    ipcMain.handle(IpcChannel.Ovms_StopOVMS, fallback)
-  }
+  // OVMS — operation handlers registered by OvmsManager.onInit() (activated only on Win+Intel)
+  // Condition logic must stay in sync with OvmsManager's @Conditional(onPlatform('win32'), onCpuVendor('intel'))
+  ipcMain.handle(IpcChannel.Ovms_IsSupported, () => isWin && getCpuName().toLowerCase().includes('intel'))
 
   // CherryAI
   ipcMain.handle(IpcChannel.Cherryai_GetSignature, (_, params) => generateSignature(params))
@@ -977,17 +812,5 @@ export async function registerIpc(mainWindow: BrowserWindow, app: Electron.App) 
   // Preference handlers
   // PreferenceService IPC handlers are now registered via lifecycle onReady()
 
-  // OpenClaw
-  ipcMain.handle(IpcChannel.OpenClaw_CheckInstalled, openClawService.checkInstalled)
-  ipcMain.handle(IpcChannel.OpenClaw_Install, openClawService.install)
-  ipcMain.handle(IpcChannel.OpenClaw_Uninstall, openClawService.uninstall)
-  ipcMain.handle(IpcChannel.OpenClaw_StartGateway, openClawService.startGateway)
-  ipcMain.handle(IpcChannel.OpenClaw_StopGateway, openClawService.stopGateway)
-  ipcMain.handle(IpcChannel.OpenClaw_GetStatus, openClawService.getStatus)
-  ipcMain.handle(IpcChannel.OpenClaw_CheckHealth, openClawService.checkHealth)
-  ipcMain.handle(IpcChannel.OpenClaw_GetDashboardUrl, openClawService.getDashboardUrl)
-  ipcMain.handle(IpcChannel.OpenClaw_SyncConfig, openClawService.syncProviderConfig)
-  ipcMain.handle(IpcChannel.OpenClaw_GetChannels, openClawService.getChannelStatus)
-  ipcMain.handle(IpcChannel.OpenClaw_CheckUpdate, openClawService.checkUpdate)
-  ipcMain.handle(IpcChannel.OpenClaw_PerformUpdate, openClawService.performUpdate)
+  // OpenClaw IPC handlers are registered by OpenClawService lifecycle (onInit)
 }

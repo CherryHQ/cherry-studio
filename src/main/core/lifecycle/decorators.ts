@@ -1,6 +1,6 @@
 import 'reflect-metadata'
 
-import { type ErrorStrategy, Phase, type PlatformTarget, type ServiceConstructor } from './types'
+import { type ErrorStrategy, Phase, type ServiceCondition, type ServiceConstructor } from './types'
 
 /** Metadata keys for decorator storage */
 const METADATA_KEYS = {
@@ -10,7 +10,7 @@ const METADATA_KEYS = {
   ERROR_STRATEGY: 'lifecycle:errorStrategy',
   SERVICE_NAME: 'lifecycle:serviceName',
   PHASE: 'lifecycle:phase',
-  EXCLUDE_PLATFORMS: 'lifecycle:excludePlatforms'
+  CONDITIONS: 'lifecycle:conditions'
 } as const
 
 /**
@@ -117,20 +117,21 @@ export function getPhase(target: ServiceConstructor): Phase {
 }
 
 /**
- * Declare platforms this service does NOT support.
- * On excluded platforms, the service will be skipped during registration.
- * @param platforms - Array of platform or platform-architecture targets to exclude
+ * Declare activation conditions for a service.
+ * Multiple conditions in a single call use AND logic — all must match.
+ * Does not support stacking — a second @Conditional call overwrites the first.
+ * @param conditions - One or more ServiceCondition instances
  */
-export function ExcludePlatforms(platforms: PlatformTarget[]): ClassDecorator {
+export function Conditional(...conditions: ServiceCondition[]): ClassDecorator {
   return (target) => {
-    Reflect.defineMetadata(METADATA_KEYS.EXCLUDE_PLATFORMS, platforms, target)
+    Reflect.defineMetadata(METADATA_KEYS.CONDITIONS, conditions, target)
   }
 }
 
 /**
- * Get excluded platform targets from metadata
+ * Get activation conditions from metadata
  * @param target - Class constructor
  */
-export function getExcludePlatforms(target: ServiceConstructor): PlatformTarget[] | undefined {
-  return Reflect.getMetadata(METADATA_KEYS.EXCLUDE_PLATFORMS, target)
+export function getConditions(target: ServiceConstructor): ServiceCondition[] | undefined {
+  return Reflect.getMetadata(METADATA_KEYS.CONDITIONS, target)
 }

@@ -1,8 +1,9 @@
 import { loggerService } from '@logger'
 import { application } from '@main/core/application'
-import { BaseService, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
-import type { Attributes, SpanEntity, TokenUsage, TraceCache } from '@mcp-trace/trace-core'
-import { convertSpanToSpanEntity } from '@mcp-trace/trace-core'
+import { type Activatable, BaseService, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
+import { convertSpanToSpanEntity } from '@mcp-trace/trace-core/core/spanConvert'
+import type { TraceCache } from '@mcp-trace/trace-core/core/traceCache'
+import type { Attributes, SpanEntity, TokenUsage } from '@mcp-trace/trace-core/types/config'
 import { SpanStatusCode } from '@opentelemetry/api'
 import type { ReadableSpan } from '@opentelemetry/sdk-trace-base'
 import { HOME_CHERRY_DIR } from '@shared/config/constant'
@@ -15,17 +16,38 @@ const logger = loggerService.withContext('SpanCacheService')
 
 @Injectable('SpanCacheService')
 @ServicePhase(Phase.WhenReady)
-export class SpanCacheService extends BaseService implements TraceCache {
+export class SpanCacheService extends BaseService implements TraceCache, Activatable {
   private topicMap: Map<string, string> = new Map<string, string>()
   private fileDir: string = path.join(os.homedir(), HOME_CHERRY_DIR, 'trace')
   private cache: Map<string, SpanEntity> = new Map<string, SpanEntity>()
 
   protected async onInit() {
-    await this._checkFolder(this.fileDir)
     this.registerIpcHandlers()
   }
 
-  protected async onStop() {
+  /**
+   * Activate only when developer_mode is enabled at startup.
+   * Runtime preference changes take effect after restart — no runtime activate/deactivate.
+   */
+  protected async onReady() {
+    const enabled = application.get('PreferenceService').get('app.developer_mode.enabled')
+    logger.info(
+      `Developer mode is ${enabled ? 'enabled' : 'disabled'}, span caching ${enabled ? 'activated' : 'skipped'}`
+    )
+    if (enabled) {
+      await this.activate()
+    }
+  }
+
+  async onActivate() {
+    await this._checkFolder(this.fileDir)
+  }
+
+  /**
+   * Only called during app shutdown (auto-deactivation in _doStop).
+   * Runtime deactivation is not supported — developer_mode changes require restart.
+   */
+  async onDeactivate() {
     this.cache.clear()
     this.topicMap.clear()
   }
@@ -61,9 +83,7 @@ export class SpanCacheService extends BaseService implements TraceCache {
   }
 
   createSpan: (span: ReadableSpan) => void = (span: ReadableSpan) => {
-    if (!application.get('PreferenceService').get('app.developer_mode.enabled')) {
-      return
-    }
+    if (!this.isActivated) return
     const spanEntity = convertSpanToSpanEntity(span)
     spanEntity.topicId = this.topicMap.get(spanEntity.traceId)
     this.cache.set(span.spanContext().spanId, spanEntity)
@@ -71,9 +91,7 @@ export class SpanCacheService extends BaseService implements TraceCache {
   }
 
   endSpan: (span: ReadableSpan) => void = (span: ReadableSpan) => {
-    if (!application.get('PreferenceService').get('app.developer_mode.enabled')) {
-      return
-    }
+    if (!this.isActivated) return
     const spanId = span.spanContext().spanId
     const spanEntity = this.cache.get(spanId)
     if (!spanEntity) {
@@ -125,9 +143,7 @@ export class SpanCacheService extends BaseService implements TraceCache {
   }
 
   async saveSpans(topicId: string) {
-    if (!application.get('PreferenceService').get('app.developer_mode.enabled')) {
-      return
-    }
+    if (!this.isActivated) return
     let traceId: string | undefined
     for (const [key, value] of this.topicMap.entries()) {
       if (value === topicId) {
@@ -168,6 +184,7 @@ export class SpanCacheService extends BaseService implements TraceCache {
    * @param topicId topicId
    */
   setTopicId(traceId: string, topicId: string): void {
+    if (!this.isActivated) return
     this.topicMap.set(traceId, topicId)
   }
 
@@ -176,9 +193,7 @@ export class SpanCacheService extends BaseService implements TraceCache {
   }
 
   saveEntity(entity: SpanEntity) {
-    if (!application.get('PreferenceService').get('app.developer_mode.enabled')) {
-      return
-    }
+    if (!this.isActivated) return
     if (this.cache.has(entity.id)) {
       this._updateEntity(entity)
     } else {
@@ -188,6 +203,7 @@ export class SpanCacheService extends BaseService implements TraceCache {
   }
 
   updateTokenUsage(spanId: string, usage: TokenUsage) {
+    if (!this.isActivated) return
     const entity = this.cache.get(spanId)
     if (entity) {
       entity.usage = { ...usage }
@@ -198,6 +214,7 @@ export class SpanCacheService extends BaseService implements TraceCache {
   }
 
   addStreamMessage(spanId: string, modelName: string, context: string, message: any) {
+    if (!this.isActivated) return
     const span = this.cache.get(spanId)
     if (!span) {
       return
@@ -216,6 +233,7 @@ export class SpanCacheService extends BaseService implements TraceCache {
   }
 
   setEndMessage(spanId: string, modelName: string, message: string) {
+    if (!this.isActivated) return
     const span = this.cache.get(spanId)
     if (span && span.attributes) {
       let outputs = span.attributes['outputs']

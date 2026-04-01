@@ -4296,7 +4296,7 @@
     },
     "developer": {
       "enable_developer_mode": "Enable Developer Mode",
-      "help": "After enabling developer mode, you can use the trace feature to view the data flow during model invocation.",
+      "help": "After enabling developer mode, you can use the trace feature to view the data flow during model invocation. Changes take effect after restarting the application.",
       "title": "Developer Mode"
     },
     "display": {

@@ -27,20 +27,30 @@ const PaintingsRoutePage: FC = () => {
   const provider = params._splat
   const dispatch = useAppDispatch()
   const providers = useAllProviders()
+  const [isOvmsSupported, setIsOvmsSupported] = useState(false)
   const [ovmsStatus, setOvmsStatus] = useState<'not-installed' | 'not-running' | 'running'>('not-running')
 
   const Options = useMemo(() => [...BASE_OPTIONS, ...providers.filter(isNewApiProvider).map((p) => p.id)], [providers])
   const newApiProviders = useMemo(() => providers.filter(isNewApiProvider), [providers])
 
   useEffect(() => {
-    const checkStatus = async () => {
-      const status = await window.api.ovms.getStatus()
-      setOvmsStatus(status)
+    const checkOvms = async () => {
+      const supported = await window.api.ovms.isSupported()
+      setIsOvmsSupported(supported)
+      if (supported) {
+        const status = await window.api.ovms.getStatus()
+        setOvmsStatus(status)
+      }
     }
-    void checkStatus()
+    void checkOvms()
   }, [])
 
-  const validOptions = Options.filter((option) => option !== 'ovms' || ovmsStatus === 'running')
+  const validOptions = Options.filter((option) => {
+    if (option === 'ovms') {
+      return isOvmsSupported && ovmsStatus === 'running'
+    }
+    return true
+  })
 
   useEffect(() => {
     logger.debug(`defaultPaintingProvider: ${provider}`)
@@ -64,6 +74,7 @@ const PaintingsRoutePage: FC = () => {
       case 'tokenflux':
         return <TokenFluxPage Options={validOptions} />
       case 'ovms':
+        if (!isOvmsSupported) return null
         return <OvmsPage Options={validOptions} />
       case 'ppio':
         return <PpioPage Options={validOptions} />

@@ -46,10 +46,13 @@ export class BootConfigMigrator extends BaseMigrator {
   private preparedItems: PreparedData[] = []
   private skippedCount = 0
 
-  async prepare(ctx: MigrationContext): Promise<PrepareResult> {
-    const warnings: string[] = []
+  override reset(): void {
     this.preparedItems = []
     this.skippedCount = 0
+  }
+
+  async prepare(ctx: MigrationContext): Promise<PrepareResult> {
+    const warnings: string[] = []
 
     try {
       const migrationItems = this.loadMigrationItems()

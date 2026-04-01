@@ -1,6 +1,3 @@
-// TODO: Consider merging LanTransferClientService (TCP transfer) and LocalTransferService (mDNS discovery)
-// into a single service — they share the same IPC namespace (LocalTransfer_*) and the renderer
-// already treats them as one unified feature.
 import * as crypto from 'node:crypto'
 import { createConnection, type Socket } from 'node:net'
 
@@ -11,11 +8,14 @@ import type {
   LanClientEvent,
   LanFileCompleteMessage,
   LanHandshakeAckMessage,
-  LocalTransferConnectPayload,
-  LocalTransferPeer
+  LanTransferConnectPayload,
+  LanTransferPeer,
+  LanTransferState
 } from '@shared/config/types'
 import { LAN_TRANSFER_GLOBAL_TIMEOUT_MS } from '@shared/config/types'
 import { IpcChannel } from '@shared/IpcChannel'
+import type { Browser, Service } from 'bonjour-service'
+import Bonjour from 'bonjour-service'
 
 import {
   abortTransfer,
@@ -38,30 +38,56 @@ import {
 import { ResponseManager } from './responseManager'
 import type { ActiveFileTransfer, ConnectionContext, FileTransferContext } from './types'
 
+const DISCOVERY_SERVICE_TYPE = 'cherrystudio'
+const DISCOVERY_SERVICE_PROTOCOL = 'tcp' as const
 const DEFAULT_HANDSHAKE_TIMEOUT_MS = 10_000
 
-const logger = loggerService.withContext('LanTransferClientService')
+const logger = loggerService.withContext('LanTransferService')
+
+type StartDiscoveryOptions = {
+  resetList?: boolean
+}
 
 /**
- * LAN Transfer Client Service
+ * LAN Transfer Service
  *
- * Handles outgoing file transfers to LAN peers via TCP.
+ * Handles LAN peer discovery via mDNS/Bonjour and outgoing file transfers via TCP.
  * Protocol v1 with streaming mode (no per-chunk acknowledgment).
  */
-@Injectable('LanTransferClientService')
+@Injectable('LanTransferService')
 @ServicePhase(Phase.WhenReady)
-@DependsOn(['WindowService', 'LocalTransferService'])
-export class LanTransferClientService extends BaseService {
+@DependsOn(['WindowService'])
+export class LanTransferService extends BaseService {
+  // =============================================================================
+  // Discovery State
+  // =============================================================================
+
+  private bonjour: Bonjour | null = null
+  private browser: Browser | null = null
+  private discoveredServices = new Map<string, LanTransferPeer>()
+  private isScanning = false
+  private lastScanStartedAt?: number
+  private lastUpdatedAt = Date.now()
+  private lastError?: string
+
+  // =============================================================================
+  // Transfer State
+  // =============================================================================
+
   private socket: Socket | null = null
-  private currentPeer?: LocalTransferPeer
+  private currentPeer?: LanTransferPeer
   private dataHandler?: ReturnType<typeof createDataHandler>
   private responseManager = new ResponseManager()
   private isConnecting = false
   private activeTransfer?: ActiveFileTransfer
-  private lastConnectOptions?: LocalTransferConnectPayload
+  private lastConnectOptions?: LanTransferConnectPayload
   private consecutiveJsonErrors = 0
   private static readonly MAX_CONSECUTIVE_JSON_ERRORS = 3
   private reconnectPromise: Promise<void> | null = null
+
+  // =============================================================================
+  // Lifecycle
+  // =============================================================================
 
   protected async onInit() {
     this.responseManager.setTimeoutCallback(() => void this.disconnect())
@@ -69,7 +95,8 @@ export class LanTransferClientService extends BaseService {
   }
 
   protected async onStop() {
-    this.responseManager.rejectAll(new Error('LAN transfer client disposed'))
+    // Clean up transfer resources first
+    this.responseManager.rejectAll(new Error('LAN transfer service disposed'))
     cleanupTransfer(this.activeTransfer)
     this.activeTransfer = undefined
     if (this.socket) {
@@ -78,28 +105,214 @@ export class LanTransferClientService extends BaseService {
     }
     this.dataHandler?.resetBuffer()
     this.isConnecting = false
+
+    // Clean up discovery resources
+    this.stopDiscovery()
+    this.discoveredServices.clear()
+    this.browser?.removeAllListeners()
+    this.browser = null
+    if (this.bonjour) {
+      try {
+        this.bonjour.destroy()
+      } catch (error) {
+        logger.warn('Failed to destroy Bonjour instance', error as Error)
+      }
+      this.bonjour = null
+    }
   }
 
+  // =============================================================================
+  // IPC Handlers
+  // =============================================================================
+
   private registerIpcHandlers(): void {
-    this.ipcHandle(IpcChannel.LocalTransfer_Connect, (_, payload: LocalTransferConnectPayload) =>
+    // Discovery
+    this.ipcHandle(IpcChannel.LanTransfer_ListServices, () => this.getState())
+    this.ipcHandle(IpcChannel.LanTransfer_StartScan, () => this.startDiscovery({ resetList: true }))
+    this.ipcHandle(IpcChannel.LanTransfer_StopScan, () => this.stopDiscovery())
+
+    // Transfer
+    this.ipcHandle(IpcChannel.LanTransfer_Connect, (_, payload: LanTransferConnectPayload) =>
       this.connectAndHandshake(payload)
     )
-    this.ipcHandle(IpcChannel.LocalTransfer_Disconnect, () => this.disconnect())
-    this.ipcHandle(IpcChannel.LocalTransfer_SendFile, (_, payload: { filePath: string }) =>
+    this.ipcHandle(IpcChannel.LanTransfer_Disconnect, () => this.disconnect())
+    this.ipcHandle(IpcChannel.LanTransfer_SendFile, (_, payload: { filePath: string }) =>
       this.sendFile(payload.filePath)
     )
-    this.ipcHandle(IpcChannel.LocalTransfer_CancelTransfer, () => this.cancelTransfer())
+    this.ipcHandle(IpcChannel.LanTransfer_CancelTransfer, () => this.cancelTransfer())
   }
+
+  // =============================================================================
+  // Discovery Methods
+  // =============================================================================
+
+  public startDiscovery(options?: StartDiscoveryOptions): LanTransferState {
+    if (options?.resetList) {
+      this.discoveredServices.clear()
+    }
+
+    this.isScanning = true
+    this.lastScanStartedAt = Date.now()
+    this.lastUpdatedAt = Date.now()
+    this.lastError = undefined
+    this.restartBrowser()
+    this.broadcastState()
+    return this.getState()
+  }
+
+  public stopDiscovery(): LanTransferState {
+    if (this.browser) {
+      try {
+        this.browser.stop()
+      } catch (error) {
+        logger.warn('Failed to stop LAN transfer browser', error as Error)
+      }
+    }
+    this.isScanning = false
+    this.lastUpdatedAt = Date.now()
+    this.broadcastState()
+    return this.getState()
+  }
+
+  public getState(): LanTransferState {
+    const services = Array.from(this.discoveredServices.values()).sort((a, b) => a.name.localeCompare(b.name))
+    return {
+      services,
+      isScanning: this.isScanning,
+      lastScanStartedAt: this.lastScanStartedAt,
+      lastUpdatedAt: this.lastUpdatedAt,
+      lastError: this.lastError
+    }
+  }
+
+  public getPeerById(id: string): LanTransferPeer | undefined {
+    return this.discoveredServices.get(id)
+  }
+
+  private getBonjour(): Bonjour {
+    if (!this.bonjour) {
+      this.bonjour = new Bonjour()
+    }
+    return this.bonjour
+  }
+
+  private restartBrowser(): void {
+    // Clean up existing browser
+    if (this.browser) {
+      this.browser.removeAllListeners()
+      try {
+        this.browser.stop()
+      } catch (error) {
+        logger.warn('Error while stopping Bonjour browser', error as Error)
+      }
+      this.browser = null
+    }
+
+    // Destroy and recreate Bonjour instance to prevent socket leaks
+    if (this.bonjour) {
+      try {
+        this.bonjour.destroy()
+      } catch (error) {
+        logger.warn('Error while destroying Bonjour instance', error as Error)
+      }
+      this.bonjour = null
+    }
+
+    const browser = this.getBonjour().find({ type: DISCOVERY_SERVICE_TYPE, protocol: DISCOVERY_SERVICE_PROTOCOL })
+    this.browser = browser
+    this.bindBrowserEvents(browser)
+
+    try {
+      browser.start()
+      logger.info('LAN transfer discovery started')
+    } catch (error) {
+      const err = error instanceof Error ? error : new Error(String(error))
+      this.lastError = err.message
+      logger.error('Failed to start LAN transfer discovery', err)
+    }
+  }
+
+  private bindBrowserEvents(browser: Browser) {
+    browser.on('up', (service) => {
+      const peer = this.normalizeService(service)
+      logger.info(`LAN peer detected: ${peer.name} (${peer.addresses.join(', ')})`)
+      this.discoveredServices.set(peer.id, peer)
+      this.lastUpdatedAt = Date.now()
+      this.broadcastState()
+    })
+
+    browser.on('down', (service) => {
+      const key = this.buildServiceKey(service.fqdn || service.name, service.host, service.port)
+      if (this.discoveredServices.delete(key)) {
+        logger.info(`LAN peer removed: ${service.name}`)
+        this.lastUpdatedAt = Date.now()
+        this.broadcastState()
+      }
+    })
+
+    browser.on('error', (error) => {
+      const err = error instanceof Error ? error : new Error(String(error))
+      logger.error('LAN transfer discovery error', err)
+      this.lastError = err.message
+      this.broadcastState()
+    })
+  }
+
+  private normalizeService(service: Service): LanTransferPeer {
+    const addressCandidates = [...(service.addresses || []), service.referer?.address].filter(
+      (value): value is string => typeof value === 'string' && value.length > 0
+    )
+    const addresses = Array.from(new Set(addressCandidates))
+    const txtEntries = Object.entries(service.txt || {})
+    const txt =
+      txtEntries.length > 0
+        ? Object.fromEntries(
+            txtEntries.map(([key, value]) => [key, value === undefined || value === null ? '' : String(value)])
+          )
+        : undefined
+
+    const peer: LanTransferPeer = {
+      id: this.buildServiceKey(service.fqdn || service.name, service.host, service.port),
+      name: service.name,
+      host: service.host,
+      fqdn: service.fqdn,
+      port: service.port,
+      type: service.type,
+      protocol: service.protocol,
+      addresses,
+      txt,
+      updatedAt: Date.now()
+    }
+
+    return peer
+  }
+
+  private buildServiceKey(name?: string, host?: string, port?: number): string {
+    const raw = [name, host, port?.toString()].filter(Boolean).join('-')
+    return raw || `service-${Date.now()}`
+  }
+
+  private broadcastState() {
+    const mainWindow = application.get('WindowService').getMainWindow()
+    if (!mainWindow || mainWindow.isDestroyed()) {
+      return
+    }
+    mainWindow.webContents.send(IpcChannel.LanTransfer_ServicesUpdated, this.getState())
+  }
+
+  // =============================================================================
+  // Connection & Transfer Methods
+  // =============================================================================
 
   /**
    * Connect to a LAN peer and perform handshake.
    */
-  public async connectAndHandshake(options: LocalTransferConnectPayload): Promise<LanHandshakeAckMessage> {
+  public async connectAndHandshake(options: LanTransferConnectPayload): Promise<LanHandshakeAckMessage> {
     if (this.isConnecting) {
       throw new Error('LAN transfer client is busy')
     }
 
-    const peer = application.get('LocalTransferService').getPeerById(options.peerId)
+    const peer = this.getPeerById(options.peerId)
     if (!peer) {
       throw new Error('Selected LAN peer is no longer available')
     }
@@ -323,7 +536,7 @@ export class LanTransferClientService extends BaseService {
   }
 
   // =============================================================================
-  // Private Methods
+  // Private Transfer Methods
   // =============================================================================
 
   private async ensureConnection(): Promise<void> {
@@ -439,7 +652,7 @@ export class LanTransferClientService extends BaseService {
       this.consecutiveJsonErrors++
       logger.warn('Received invalid JSON control message', { line, consecutiveErrors: this.consecutiveJsonErrors })
 
-      if (this.consecutiveJsonErrors >= LanTransferClientService.MAX_CONSECUTIVE_JSON_ERRORS) {
+      if (this.consecutiveJsonErrors >= LanTransferService.MAX_CONSECUTIVE_JSON_ERRORS) {
         const message = `Protocol error: ${this.consecutiveJsonErrors} consecutive invalid messages, disconnecting`
         logger.error(message)
         this.broadcastClientEvent({
@@ -526,7 +739,7 @@ export class LanTransferClientService extends BaseService {
     if (!mainWindow || mainWindow.isDestroyed()) {
       return
     }
-    mainWindow.webContents.send(IpcChannel.LocalTransfer_ClientEvent, {
+    mainWindow.webContents.send(IpcChannel.LanTransfer_ClientEvent, {
       ...event,
       peerId: event.peerId ?? this.currentPeer?.id,
       peerName: event.peerName ?? this.currentPeer?.name

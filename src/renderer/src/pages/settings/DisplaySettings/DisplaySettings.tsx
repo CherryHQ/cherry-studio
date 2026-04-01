@@ -94,7 +94,7 @@ const DisplaySettings: FC = () => {
         setTimeoutTimer(
           'handleUseSystemTitleBarChange',
           () => {
-            void window.api.relaunchApp()
+            void window.api.application.relaunch()
           },
           500
         )

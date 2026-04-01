@@ -31,10 +31,12 @@ export class McpServerMigrator extends BaseMigrator {
   private preparedRows: McpServerInsert[] = []
   private skippedCount = 0
 
-  async prepare(ctx: MigrationContext): Promise<PrepareResult> {
+  override reset(): void {
     this.preparedRows = []
     this.skippedCount = 0
+  }
 
+  async prepare(ctx: MigrationContext): Promise<PrepareResult> {
     try {
       const warnings: string[] = []
       const servers = ctx.sources.reduxState.get<unknown[]>('mcp', 'servers') ?? []
