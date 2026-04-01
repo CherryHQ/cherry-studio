@@ -278,6 +278,13 @@ export function providerToAiSdkConfig(actualProvider: Provider, model: Model): A
     _fetch = createDeveloperToSystemFetch(fetch)
   }
 
+  // Wrap fetch to preserve request headers on HTTP 3xx redirects.
+  // By default, browsers/Chromium strip sensitive headers (e.g. Authorization)
+  // when following cross-origin redirects. We use redirect: 'manual' and
+  // re-issue the request ourselves to keep all headers intact.
+  // Fixes: https://github.com/CherryHQ/cherry-studio/issues/13236
+  _fetch = createRedirectSafeFetch(_fetch)
+
   const baseExtraOptions = {
     fetch: _fetch,
     endpoint,
@@ -451,6 +458,69 @@ function createDeveloperToSystemFetch(originalFetch?: typeof fetch): typeof fetc
 }
 
 /**
+ * Maximum number of redirects to follow manually.
+ * Prevents infinite redirect loops.
+ */
+const MAX_REDIRECTS = 10
+
+/**
+ * Creates a fetch wrapper that manually follows HTTP 3xx redirects while
+ * preserving all request headers (including Authorization and custom headers).
+ *
+ * By default, browsers strip sensitive headers such as `Authorization` when
+ * following cross-origin redirects. This wrapper uses `redirect: 'manual'`
+ * and re-issues the request to the new location with the original headers
+ * intact.
+ *
+ * @param baseFetch - The fetch function to wrap. Defaults to the global `fetch`.
+ * @returns A fetch function that preserves headers across redirects.
+ * @see https://github.com/CherryHQ/cherry-studio/issues/13236
+ */
+function createRedirectSafeFetch(baseFetch?: typeof fetch): typeof fetch {
+  const innerFetch = baseFetch ?? fetch
+  return async (input: RequestInfo | URL, init?: RequestInit) => {
+    let currentInput = input
+    let remainingRedirects = MAX_REDIRECTS
+
+    // Only intercept if the caller has not already set a redirect policy
+    if (init?.redirect && init.redirect !== 'follow') {
+      return innerFetch(currentInput, init)
+    }
+
+    const options: RequestInit = { ...init, redirect: 'manual' }
+
+    while (remainingRedirects > 0) {
+      const response = await innerFetch(currentInput, options)
+
+      if (response.status >= 300 && response.status < 400) {
+        const location = response.headers.get('location')
+        if (!location) {
+          // No Location header — return the response as-is
+          return response
+        }
+
+        // Resolve relative redirect URLs
+        const currentUrl = typeof currentInput === 'string' ? currentInput : currentInput instanceof URL ? currentInput.href : (currentInput as Request).url
+        currentInput = new URL(location, currentUrl).href
+
+        // For 303 See Other, switch method to GET and drop the body
+        if (response.status === 303) {
+          options.method = 'GET'
+          delete options.body
+        }
+
+        remainingRedirects--
+        continue
+      }
+
+      return response
+    }
+
+    throw new Error(`Too many redirects (max ${MAX_REDIRECTS})`)
+  }
+}
+
+/**
  * 准备特殊provider的配置,主要用于异步处理的配置
  */
 export async function prepareSpecialProviderConfig(
@@ -473,7 +543,7 @@ export async function prepareSpecialProviderConfig(
       break
     }
     case 'cherryai': {
-      config.options.fetch = async (url, options) => {
+      const cherryaiFetch: typeof fetch = async (url, options) => {
         // 在这里对最终参数进行签名
         const signature = await window.api.cherryai.generateSignature({
           method: 'POST',
@@ -489,6 +559,8 @@ export async function prepareSpecialProviderConfig(
           }
         })
       }
+      // Wrap with redirect-safe fetch to preserve headers on 3xx redirects
+      config.options.fetch = createRedirectSafeFetch(cherryaiFetch)
       break
     }
     case 'anthropic': {
