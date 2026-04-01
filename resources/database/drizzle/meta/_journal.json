@@ -23,45 +23,10 @@
       "when": 1762526423527
     },
     {
-      "breakpoints": true,
       "idx": 3,
-      "tag": "0003_slippery_wild_pack",
       "version": "6",
-      "when": 1773483572773
-    },
-    {
-      "idx": 4,
-      "version": "6",
-      "when": 1774731328231,
-      "tag": "0004_blue_talisman",
-      "breakpoints": true
-    },
-    {
-      "idx": 5,
-      "version": "6",
-      "when": 1774890127687,
-      "tag": "0005_material_human_cannonball",
-      "breakpoints": true
-    },
-    {
-      "idx": 6,
-      "version": "6",
-      "when": 1774993138589,
-      "tag": "0006_wet_captain_cross",
-      "breakpoints": true
-    },
-    {
-      "idx": 7,
-      "version": "6",
-      "when": 1775015954322,
-      "tag": "0007_dapper_slipstream",
-      "breakpoints": true
-    },
-    {
-      "idx": 8,
-      "version": "6",
-      "when": 1775023931391,
-      "tag": "0008_clever_king_bedlam",
+      "when": 1775027062051,
+      "tag": "0003_dapper_ricochet",
       "breakpoints": true
     }
   ],
