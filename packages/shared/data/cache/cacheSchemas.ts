@@ -242,12 +242,14 @@ export const DefaultSharedCache: SharedCacheSchema = {
  */
 export type RendererPersistCacheSchema = {
   'ui.tab.pinned_tabs': CacheValueTypes.Tab[]
+  'ui.sidebar.width': number
   'feature.mcp.is_uv_installed': boolean
   'feature.mcp.is_bun_installed': boolean
 }
 
 export const DefaultRendererPersistCache: RendererPersistCacheSchema = {
   'ui.tab.pinned_tabs': [],
+  'ui.sidebar.width': 200,
   'feature.mcp.is_uv_installed': false,
   'feature.mcp.is_bun_installed': false
 }

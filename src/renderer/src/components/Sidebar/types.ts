@@ -19,6 +19,7 @@ export interface SidebarTab {
   miniAppInitial?: string
   miniAppUrl?: string
   miniAppLogoUrl?: string
+  miniAppLogo?: string | object
 }
 
 export type SidebarLayout = 'hidden' | 'icon' | 'vertical-card' | 'full'
