@@ -5,6 +5,7 @@
  */
 
 import type { Prompt, PromptVersion } from '@shared/data/types/prompt'
+import { PromptVariablesSchema } from '@shared/data/types/prompt'
 import * as z from 'zod'
 
 // ============================================================================
@@ -13,18 +14,27 @@ import * as z from 'zod'
 
 export const CreatePromptDtoSchema = z.object({
   title: z.string().min(1),
-  content: z.string().min(1)
+  content: z.string().min(1),
+  variables: PromptVariablesSchema.nullable().optional()
 })
 
 export const UpdatePromptDtoSchema = z
   .object({
     title: z.string().min(1).optional(),
     content: z.string().min(1).optional(),
-    sortOrder: z.number().int().min(0).optional()
+    sortOrder: z.number().int().min(0).optional(),
+    variables: PromptVariablesSchema.nullable().optional()
   })
-  .refine((dto) => dto.title !== undefined || dto.content !== undefined || dto.sortOrder !== undefined, {
-    message: 'At least one field is required'
-  })
+  .refine(
+    (dto) =>
+      dto.title !== undefined ||
+      dto.content !== undefined ||
+      dto.sortOrder !== undefined ||
+      dto.variables !== undefined,
+    {
+      message: 'At least one field is required'
+    }
+  )
 
 export const RollbackPromptDtoSchema = z.object({
   version: z.number().int().min(1)

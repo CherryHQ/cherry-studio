@@ -5,7 +5,8 @@ CREATE TABLE `prompt` (
 	`current_version` integer DEFAULT 1 NOT NULL,
 	`sort_order` integer DEFAULT 0 NOT NULL,
 	`created_at` integer NOT NULL,
-	`updated_at` integer NOT NULL
+	`updated_at` integer NOT NULL,
+	`variables` text
 );
 --> statement-breakpoint
 CREATE INDEX `prompt_sort_order_idx` ON `prompt` (`sort_order`);--> statement-breakpoint
@@ -16,6 +17,7 @@ CREATE TABLE `prompt_version` (
 	`version` integer NOT NULL,
 	`content` text NOT NULL,
 	`rollback_from` integer,
+	`variables` text,
 	`created_at` integer NOT NULL,
 	FOREIGN KEY (`prompt_id`) REFERENCES `prompt`(`id`) ON UPDATE no action ON DELETE cascade
 );
