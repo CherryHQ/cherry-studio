@@ -209,6 +209,7 @@
         "edit": "Editar",
         "empty": "No hay tareas programadas. Agregue una para comenzar.",
         "intervalPlaceholder": "Intervalo en minutos",
+        "intervalUnit": "minutos",
         "lastRun": "Última ejecución",
         "logs": {
           "duration": "Duración",
@@ -221,6 +222,7 @@
           "running": "Corriendo...",
           "search": "Buscar registros...",
           "status": "Estado",
+          "success": "Éxito",
           "viewSession": "Ver sesión"
         },
         "name": {
@@ -231,6 +233,7 @@
         "oncePlaceholder": "Seleccionar fecha y hora",
         "pause": "Pausar",
         "prompt": {
+          "expand": "Expandir editor",
           "label": "Prompt",
           "placeholder": "¿Qué debe hacer el agente cuando se ejecute esta tarea?"
         },
@@ -251,6 +254,10 @@
           "paused": "Pausado"
         },
         "tab": "Tareas",
+        "time": {
+          "hoursAgo": "hace {{count}}h",
+          "minutesAgo": "{{count}}m hace"
+        },
         "timeout": {
           "label": "Tiempo de espera agotado",
           "placeholder": "Sin límite"

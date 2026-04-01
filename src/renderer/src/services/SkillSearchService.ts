@@ -44,7 +44,6 @@ function normalizeClaudePlugins(raw: unknown): SkillSearchResult[] {
 
 function normalizeSkillsSh(raw: unknown): SkillSearchResult[] {
   const parsed = SkillsShSearchResponseSchema.safeParse(raw)
-  console.log('normalizeSkillsSh', { raw, parsed })
   if (!parsed.success) return []
 
   return parsed.data.skills.map((s) => ({

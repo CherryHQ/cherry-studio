@@ -209,6 +209,7 @@
         "edit": "Bearbeiten",
         "empty": "Keine geplanten Aufgaben. Fügen Sie eine hinzu, um zu beginnen.",
         "intervalPlaceholder": "Intervall in Minuten",
+        "intervalUnit": "Minuten",
         "lastRun": "Letzte Ausführung",
         "logs": {
           "duration": "Dauer",
@@ -221,6 +222,7 @@
           "running": "Läuft...",
           "search": "Suchprotokolle...",
           "status": "Status",
+          "success": "Erfolg",
           "viewSession": "Sitzung anzeigen"
         },
         "name": {
@@ -231,6 +233,7 @@
         "oncePlaceholder": "Datum und Uhrzeit auswählen",
         "pause": "Pausieren",
         "prompt": {
+          "expand": "Editor erweitern",
           "label": "Prompt",
           "placeholder": "Was soll der Agent tun, wenn diese Aufgabe ausgeführt wird?"
         },
@@ -251,6 +254,10 @@
           "paused": "Pausiert"
         },
         "tab": "Aufgaben",
+        "time": {
+          "hoursAgo": "vor {{count}} Stunden",
+          "minutesAgo": "vor {{count}} m"
+        },
         "timeout": {
           "label": "Zeitlimit überschritten",
           "placeholder": "Kein Limit"

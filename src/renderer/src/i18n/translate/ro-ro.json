@@ -209,6 +209,7 @@
         "edit": "Editează",
         "empty": "Nu există sarcini programate. Adăugați una pentru a începe.",
         "intervalPlaceholder": "Interval în minute",
+        "intervalUnit": "minute",
         "lastRun": "Ultima rulare",
         "logs": {
           "duration": "Durată",
@@ -221,6 +222,7 @@
           "running": "Alergând...",
           "search": "Caută jurnalele...",
           "status": "Stare",
+          "success": "Succes",
           "viewSession": "Vizualizare sesiune"
         },
         "name": {
@@ -231,6 +233,7 @@
         "oncePlaceholder": "Selectați data și ora",
         "pause": "Pauză",
         "prompt": {
+          "expand": "Extinde editorul",
           "label": "Prompt",
           "placeholder": "Ce ar trebui să facă agentul când rulează această sarcină?"
         },
@@ -251,6 +254,10 @@
           "paused": "În pauză"
         },
         "tab": "Sarcini",
+        "time": {
+          "hoursAgo": "acum {{count}}h",
+          "minutesAgo": "acum {{count}}m"
+        },
         "timeout": {
           "label": "Timeout",
           "placeholder": "Fără limită"

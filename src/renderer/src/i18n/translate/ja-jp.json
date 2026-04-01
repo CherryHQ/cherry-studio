@@ -209,6 +209,7 @@
         "edit": "編集",
         "empty": "スケジュールタスクがありません。追加して開始しましょう。",
         "intervalPlaceholder": "間隔（分）",
+        "intervalUnit": "議事録",
         "lastRun": "前回の実行",
         "logs": {
           "duration": "所要時間",
@@ -221,6 +222,7 @@
           "running": "走っている…",
           "search": "検索ログ...",
           "status": "ステータス",
+          "success": "成功",
           "viewSession": "セッションを表示"
         },
         "name": {
@@ -231,6 +233,7 @@
         "oncePlaceholder": "日時を選択",
         "pause": "一時停止",
         "prompt": {
+          "expand": "エディタを展開",
           "label": "プロンプト",
           "placeholder": "このタスク実行時にエージェントが行うべきことは？"
         },
@@ -251,6 +254,10 @@
           "paused": "一時停止中"
         },
         "tab": "タスク",
+        "time": {
+          "hoursAgo": "{{count}}時間前",
+          "minutesAgo": "{{count}}分前"
+        },
         "timeout": {
           "label": "タイムアウト",
           "placeholder": "制限なし"

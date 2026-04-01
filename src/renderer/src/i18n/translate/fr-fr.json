@@ -209,6 +209,7 @@
         "edit": "Modifier",
         "empty": "Aucune tâche planifiée. Ajoutez-en une pour commencer.",
         "intervalPlaceholder": "Intervalle en minutes",
+        "intervalUnit": "minutes",
         "lastRun": "Dernière exécution",
         "logs": {
           "duration": "Durée",
@@ -221,6 +222,7 @@
           "running": "En cours d'exécution...",
           "search": "Rechercher les journaux...",
           "status": "Statut",
+          "success": "Succès",
           "viewSession": "Voir la session"
         },
         "name": {
@@ -231,6 +233,7 @@
         "oncePlaceholder": "Sélectionner la date et l'heure",
         "pause": "Pause",
         "prompt": {
+          "expand": "Développer l'éditeur",
           "label": "Prompt",
           "placeholder": "Que doit faire l'agent lors de l'exécution de cette tâche ?"
         },
@@ -251,6 +254,10 @@
           "paused": "En pause"
         },
         "tab": "Tâches",
+        "time": {
+          "hoursAgo": "{{count}}h il y a",
+          "minutesAgo": "{{count}}m il y a"
+        },
         "timeout": {
           "label": "Délai d'attente dépassé",
           "placeholder": "Aucune limite"

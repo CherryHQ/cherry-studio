@@ -209,6 +209,7 @@
         "edit": "編輯",
         "empty": "暫無排程任務。新增一個開始吧。",
         "intervalPlaceholder": "間隔（分鐘）",
+        "intervalUnit": "分鐘",
         "lastRun": "上次執行",
         "logs": {
           "duration": "耗時",
@@ -221,6 +222,7 @@
           "running": "執行中...",
           "search": "搜尋執行記錄...",
           "status": "狀態",
+          "success": "成功",
           "viewSession": "查看會話"
         },
         "name": {

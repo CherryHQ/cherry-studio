@@ -209,6 +209,7 @@
         "edit": "Editar",
         "empty": "Sem tarefas agendadas. Adicione uma para começar.",
         "intervalPlaceholder": "Intervalo em minutos",
+        "intervalUnit": "minutos",
         "lastRun": "Última execução",
         "logs": {
           "duration": "Duração",
@@ -221,6 +222,7 @@
           "running": "Correndo...",
           "search": "Pesquisar registros...",
           "status": "Estado",
+          "success": "Sucesso",
           "viewSession": "Ver sessão"
         },
         "name": {
@@ -231,6 +233,7 @@
         "oncePlaceholder": "Selecionar data e hora",
         "pause": "Pausar",
         "prompt": {
+          "expand": "Expandir editor",
           "label": "Prompt",
           "placeholder": "O que o agente deve fazer quando esta tarefa for executada?"
         },
@@ -251,6 +254,10 @@
           "paused": "Em pausa"
         },
         "tab": "Tarefas",
+        "time": {
+          "hoursAgo": "{{count}}h atrás",
+          "minutesAgo": "{{count}}m atrás"
+        },
         "timeout": {
           "label": "Tempo esgotado",
           "placeholder": "Sem limite"

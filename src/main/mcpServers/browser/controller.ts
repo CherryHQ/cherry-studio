@@ -458,6 +458,7 @@ export class CdpBrowserController {
         sandbox: true,
         nodeIntegration: false,
         devTools: true,
+        backgroundThrottling: false,
         partition
       }
     })
