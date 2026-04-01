@@ -92,7 +92,7 @@ export const ClickableFilePath = memo(function ClickableFilePath({ path, display
           tabIndex={0}
           onClick={handleOpen}
           onKeyDown={handleKeyDown}
-          className="inline-flex items-center gap-1 cursor-pointer hover:underline"
+          className="inline-flex cursor-pointer items-center gap-1 hover:underline"
           style={{ color: 'var(--color-link)', wordBreak: 'break-all' }}>
           <Icon icon={`material-icon-theme:${iconName}`} className="shrink-0" style={{ fontSize: '1.1em' }} />
           {displayName ?? path}
