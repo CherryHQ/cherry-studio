@@ -2,6 +2,7 @@ import { Tooltip } from '@cherrystudio/ui'
 import { useMutation, useQuery } from '@data/hooks/useDataApi'
 import { loggerService } from '@logger'
 import { ActionIconButton } from '@renderer/components/Buttons'
+import PromptEditModal from '@renderer/components/PromptEditModal'
 import {
   type QuickPanelListItem,
   type QuickPanelOpenOptions,
@@ -13,8 +14,7 @@ import { useTimer } from '@renderer/hooks/useTimer'
 import { useInputbarToolsDispatch } from '@renderer/pages/home/Inputbar/context/InputbarToolsProvider'
 import type { ToolQuickPanelApi } from '@renderer/pages/home/Inputbar/types'
 import { getPromptVersionRollbackMarker } from '@renderer/utils/promptVersion'
-import type { Prompt, PromptVersion } from '@shared/data/types/prompt'
-import { Input, Modal, Space } from 'antd'
+import type { Prompt, PromptVariable, PromptVersion } from '@shared/data/types/prompt'
 import { Plus, Zap } from 'lucide-react'
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -29,7 +29,6 @@ const logger = loggerService.withContext('QuickPhrasesButton')
 
 const QuickPhrasesButton = ({ quickPanel, setInputValue, resizeTextArea }: Props) => {
   const [isAddModalOpen, setIsAddModalOpen] = useState(false)
-  const [addFormData, setAddFormData] = useState({ title: '', content: '' })
   const [versionMenuPrompt, setVersionMenuPrompt] = useState<Prompt | null>(null)
   const { setVariablePrompt } = useInputbarToolsDispatch()
   const { t } = useTranslation()
@@ -207,24 +206,17 @@ const QuickPhrasesButton = ({ quickPanel, setInputValue, resizeTextArea }: Props
     setVersionMenuPrompt(null)
   }, [insertText, isVersionMenuLoading, quickPanelHook, t, versionMenuError, versionMenuPrompt, versionMenuVersions])
 
-  const handleAddModalOk = useCallback(async () => {
-    if (!addFormData.title.trim() || !addFormData.content.trim()) {
-      return
-    }
-
-    try {
-      await createPrompt({
-        body: {
-          title: addFormData.title,
-          content: addFormData.content
-        }
-      })
-      setIsAddModalOpen(false)
-      setAddFormData({ title: '', content: '' })
-    } catch {
-      // handled by useMutation onError
-    }
-  }, [addFormData, createPrompt])
+  const handleAddModalSave = useCallback(
+    async (data: { title: string; content: string; variables: PromptVariable[] | null }) => {
+      try {
+        await createPrompt({ body: data })
+        setIsAddModalOpen(false)
+      } catch {
+        // handled by useMutation onError
+      }
+    },
+    [createPrompt]
+  )
 
   const phraseItems = useMemo(() => {
     const newList: QuickPanelListItem[] = []
@@ -354,41 +346,12 @@ const QuickPhrasesButton = ({ quickPanel, setInputValue, resizeTextArea }: Props
         />
       </Tooltip>
 
-      {/* Add Prompt Modal */}
-      <Modal
-        title={t('settings.prompts.add')}
+      <PromptEditModal
         open={isAddModalOpen}
-        onOk={handleAddModalOk}
-        confirmLoading={isCreatingPrompt}
-        maskClosable={false}
-        onCancel={() => {
-          setIsAddModalOpen(false)
-          setAddFormData({ title: '', content: '' })
-        }}
-        width={520}
-        transitionName="animation-move-down"
-        centered>
-        <Space direction="vertical" style={{ width: '100%' }} size="middle">
-          <div>
-            <div className="mb-1 text-(--color-text) text-sm">{t('settings.prompts.titleLabel')}</div>
-            <Input
-              placeholder={t('settings.prompts.titlePlaceholder')}
-              value={addFormData.title}
-              onChange={(e) => setAddFormData({ ...addFormData, title: e.target.value })}
-            />
-          </div>
-          <div>
-            <div className="mb-1 text-(--color-text) text-sm">{t('settings.prompts.contentLabel')}</div>
-            <Input.TextArea
-              placeholder={t('settings.prompts.contentPlaceholder')}
-              value={addFormData.content}
-              onChange={(e) => setAddFormData({ ...addFormData, content: e.target.value })}
-              rows={6}
-              style={{ resize: 'none' }}
-            />
-          </div>
-        </Space>
-      </Modal>
+        saving={isCreatingPrompt}
+        onSave={handleAddModalSave}
+        onCancel={() => setIsAddModalOpen(false)}
+      />
     </>
   )
 }
