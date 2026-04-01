@@ -1,6 +1,7 @@
 import fs from 'node:fs/promises'
 import path from 'node:path'
 
+import { loggerService } from '@logger'
 import type { FileProcessorMerged } from '@shared/data/presets/file-processing'
 import type {
   FileProcessingMarkdownTaskResult,
@@ -8,14 +9,15 @@ import type {
 } from '@shared/data/types/fileProcessing'
 import type { FileMetadata } from '@types'
 import { isImageFileMetadata } from '@types'
-import { net } from 'electron'
 
 import type { ITextExtractionProcessor } from '../../../interfaces'
 import { fileProcessingTaskStore } from '../../../runtime/FileProcessingTaskStore'
 import type { FileProcessingTextExtractionResult } from '../../../types'
 import { BaseMarkdownConversionProcessor } from '../../base/BaseFileProcessor'
 import type { PaddleTaskContext, PreparedPaddleQueryContext, PreparedPaddleStartContext } from './types'
-import { createJob, getJobResult, mapProgress, waitForJobCompletion } from './utils'
+import { createJob, getJobResult, mapProgress, resolveJsonlResult, waitForJobCompletion } from './utils'
+
+const logger = loggerService.withContext('FileProcessing:PaddleProcessor')
 
 export class PaddleProcessor extends BaseMarkdownConversionProcessor implements ITextExtractionProcessor {
   constructor() {
@@ -40,12 +42,16 @@ export class PaddleProcessor extends BaseMarkdownConversionProcessor implements 
       throw new Error(jobResult.errorMsg || 'PaddleOCR text extraction failed')
     }
 
-    if (!jobResult.resultUrl?.markdownUrl) {
-      throw new Error(`PaddleOCR task ${job.jobId} completed without markdownUrl`)
-    }
+    logger.info('PaddleOCR text extraction job completed', {
+      processorId: 'paddleocr',
+      providerTaskId: job.jobId,
+      fileId: file.id,
+      model: startContext.model,
+      resultUrl: jobResult.resultUrl
+    })
 
     return {
-      text: await this.downloadMarkdownResult(jobResult.resultUrl.markdownUrl, queryContext.signal)
+      text: await resolveJsonlResult(job.jobId, jobResult, queryContext.signal)
     }
   }
 
@@ -119,15 +125,14 @@ export class PaddleProcessor extends BaseMarkdownConversionProcessor implements 
       }
     }
 
-    if (!jobResult.resultUrl?.markdownUrl) {
-      throw new Error(`PaddleOCR task ${providerTaskId} completed without markdownUrl`)
-    }
-
-    const persistedMarkdownPath = await this.persistMarkdownConversionResult(
+    logger.info('PaddleOCR markdown conversion job completed', {
+      processorId: 'paddleocr',
       providerTaskId,
-      jobResult.resultUrl.markdownUrl,
-      context.signal
-    )
+      resultUrl: jobResult.resultUrl
+    })
+
+    const markdownContent = await resolveJsonlResult(providerTaskId, jobResult, context.signal)
+    const persistedMarkdownPath = await this.persistMarkdownConversionResult(providerTaskId, markdownContent)
     fileProcessingTaskStore.delete('paddleocr', providerTaskId)
 
     return {
@@ -138,33 +143,14 @@ export class PaddleProcessor extends BaseMarkdownConversionProcessor implements 
     }
   }
 
-  private async persistMarkdownConversionResult(
-    providerTaskId: string,
-    downloadUrl: string,
-    signal?: AbortSignal
-  ): Promise<string> {
+  private async persistMarkdownConversionResult(providerTaskId: string, markdownContent: string): Promise<string> {
     const fileProcessingResultsDir = this.getFileProcessingResultsDir(providerTaskId)
     const markdownPath = path.join(fileProcessingResultsDir, 'output.md')
 
     await fs.mkdir(fileProcessingResultsDir, { recursive: true })
-    const markdownContent = await this.downloadMarkdownResult(downloadUrl, signal)
     await fs.writeFile(markdownPath, markdownContent, 'utf-8')
 
     return markdownPath
-  }
-
-  private async downloadMarkdownResult(downloadUrl: string, signal?: AbortSignal): Promise<string> {
-    const response = await net.fetch(downloadUrl, {
-      method: 'GET',
-      signal
-    })
-
-    if (!response.ok) {
-      const message = await response.text()
-      throw new Error(`PaddleOCR markdown download failed: ${response.status} ${response.statusText} ${message}`)
-    }
-
-    return response.text()
   }
 
   private prepareStartContext(

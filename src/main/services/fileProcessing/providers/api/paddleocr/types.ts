@@ -20,6 +20,31 @@ export const PaddleResultUrlSchema = z.object({
   markdownUrl: z.string().min(1).optional()
 })
 
+export const PaddleJsonlLayoutParsingResultSchema = z.looseObject({
+  markdown: z
+    .looseObject({
+      text: z.string().optional()
+    })
+    .optional()
+})
+
+export const PaddleJsonlOcrResultSchema = z.looseObject({
+  prunedResult: z
+    .looseObject({
+      rec_texts: z.array(z.string()).optional()
+    })
+    .optional()
+})
+
+export const PaddleJsonlLineSchema = z.looseObject({
+  result: z
+    .looseObject({
+      layoutParsingResults: z.array(PaddleJsonlLayoutParsingResultSchema).optional(),
+      ocrResults: z.array(PaddleJsonlOcrResultSchema).optional()
+    })
+    .optional()
+})
+
 export const PaddleExtractProgressSchema = z.object({
   startTime: z.string().optional(),
   endTime: z.string().optional(),
@@ -54,3 +79,4 @@ export type PaddleTaskContext = Omit<PreparedPaddleQueryContext, 'signal'>
 
 export type PaddleCreateJobData = z.infer<typeof PaddleCreateJobDataSchema>
 export type PaddleJobResultData = z.infer<typeof PaddleJobResultDataSchema>
+export type PaddleJsonlLine = z.infer<typeof PaddleJsonlLineSchema>

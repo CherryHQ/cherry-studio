@@ -2,20 +2,66 @@ import fs from 'node:fs/promises'
 
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { getJobResultMock, mapProgressMock } = vi.hoisted(() => ({
-  getJobResultMock: vi.fn(),
-  mapProgressMock: vi.fn()
-}))
+import type * as PaddleUtilsModule from '../utils'
 
-vi.mock('../utils', () => ({
-  createJob: vi.fn(),
-  waitForJobCompletion: vi.fn(),
-  getJobResult: getJobResultMock,
-  mapProgress: mapProgressMock
-}))
+const { createJobMock, waitForJobCompletionMock, getJobResultMock, mapProgressMock, resolveJsonlResultMock } =
+  vi.hoisted(() => ({
+    createJobMock: vi.fn(),
+    waitForJobCompletionMock: vi.fn(),
+    getJobResultMock: vi.fn(),
+    mapProgressMock: vi.fn(),
+    resolveJsonlResultMock: vi.fn()
+  }))
+
+vi.mock('../utils', async () => {
+  const actual = await vi.importActual<typeof PaddleUtilsModule>('../utils')
+
+  return {
+    ...actual,
+    createJob: createJobMock,
+    waitForJobCompletion: waitForJobCompletionMock,
+    getJobResult: getJobResultMock,
+    mapProgress: mapProgressMock,
+    resolveJsonlResult: resolveJsonlResultMock
+  }
+})
 
 import { fileProcessingTaskStore } from '../../../../runtime/FileProcessingTaskStore'
 import { paddleProcessor } from '../PaddleProcessor'
+
+const imageFile = {
+  id: 'file-1',
+  name: 'scan.png',
+  origin_name: 'scan.png',
+  path: '/tmp/scan.png',
+  size: 128,
+  ext: '.png',
+  type: 'image',
+  created_at: '2026-03-31T00:00:00.000Z',
+  count: 1
+} as const
+
+const processorConfig = {
+  id: 'paddleocr',
+  type: 'api',
+  apiKeys: ['secret'],
+  capabilities: [
+    {
+      feature: 'text_extraction',
+      inputs: ['image'],
+      output: 'text',
+      apiHost: 'https://paddle.example.com',
+      modelId: 'PaddleOCR-VL-1.5'
+    },
+    {
+      feature: 'markdown_conversion',
+      inputs: ['document'],
+      output: 'markdown',
+      apiHost: 'https://paddle.example.com',
+      modelId: 'PaddleOCR-VL-1.5'
+    }
+  ]
+} as const
 
 describe('paddleProcessor', () => {
   beforeEach(() => {
@@ -51,9 +97,10 @@ describe('paddleProcessor', () => {
     getJobResultMock.mockResolvedValueOnce({
       state: 'done',
       resultUrl: {
-        markdownUrl: 'https://download.example.com/output.md'
+        jsonUrl: 'https://download.example.com/output.jsonl'
       }
     })
+    resolveJsonlResultMock.mockResolvedValueOnce('# output')
 
     const persistSpy = vi
       .spyOn(paddleProcessor as any, 'persistMarkdownConversionResult')
@@ -66,7 +113,45 @@ describe('paddleProcessor', () => {
       markdownPath: '/tmp/paddle-output.md'
     })
 
-    expect(persistSpy).toHaveBeenCalledWith('task-2', 'https://download.example.com/output.md', undefined)
+    expect(resolveJsonlResultMock).toHaveBeenCalledWith(
+      'task-2',
+      expect.objectContaining({
+        state: 'done',
+        resultUrl: {
+          jsonUrl: 'https://download.example.com/output.jsonl'
+        }
+      }),
+      undefined
+    )
+    expect(persistSpy).toHaveBeenCalledWith('task-2', '# output')
     expect(fileProcessingTaskStore.get('paddleocr', 'task-2')).toBeUndefined()
+  })
+
+  it('extracts text through the shared jsonUrl resolver', async () => {
+    createJobMock.mockResolvedValueOnce({
+      jobId: 'job-1'
+    })
+    waitForJobCompletionMock.mockResolvedValueOnce({
+      state: 'done',
+      resultUrl: {
+        jsonUrl: 'https://download.example.com/output.jsonl'
+      }
+    })
+    resolveJsonlResultMock.mockResolvedValueOnce('page 1\n\npage 2\nline 2')
+
+    await expect(paddleProcessor.extractText(imageFile as never, processorConfig as never)).resolves.toEqual({
+      text: 'page 1\n\npage 2\nline 2'
+    })
+
+    expect(resolveJsonlResultMock).toHaveBeenCalledWith(
+      'job-1',
+      expect.objectContaining({
+        state: 'done',
+        resultUrl: {
+          jsonUrl: 'https://download.example.com/output.jsonl'
+        }
+      }),
+      undefined
+    )
   })
 })
