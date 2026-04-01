@@ -7,7 +7,6 @@ import { useTranslation } from 'react-i18next'
 import { BaseSettingsPopup, type SettingsMenuItem, type SettingsPopupTab } from './BaseSettingsPopup'
 import AdvancedSettings from './components/AdvancedSettings'
 import EssentialSettings from './components/EssentialSettings'
-import McpSettings from './components/McpSettings'
 import PermissionModeSettings from './components/PermissionModeSettings'
 import { InstalledPluginsSettings, PluginBrowserSettings } from './components/PluginsSettings/PluginsSettings'
 import PromptSettings from './components/PromptSettings'
@@ -37,7 +36,6 @@ const AgentSettingPopupContainer: React.FC<AgentSettingPopupParams> = ({ tab, ag
         { key: 'prompt', label: t('agent.settings.prompt') },
         !isSoul && { key: 'permission-mode', label: t('agent.settings.permissionMode.tab', 'Permission Mode') },
         { key: 'tools-mcp', label: t('agent.settings.toolsMcp.tab', 'Tools & MCP') },
-        { key: 'mcp', label: t('agent.settings.toolsMcp.mcp.tab', 'MCP') },
         { key: 'plugins', label: t('agent.settings.plugins.available.title', 'Available Plugins') },
         { key: 'installed', label: t('agent.settings.plugins.installed.title', 'Installed Plugins') },
         { key: 'advanced', label: t('agent.settings.advance.title', 'Advanced Settings') }
@@ -61,8 +59,6 @@ const AgentSettingPopupContainer: React.FC<AgentSettingPopupParams> = ({ tab, ag
         return <PluginBrowserSettings agentBase={agent} update={updateAgent} />
       case 'installed':
         return <InstalledPluginsSettings agentBase={agent} update={updateAgent} />
-      case 'mcp':
-        return <McpSettings agentBase={agent} update={updateAgent} />
       case 'advanced':
         return <AdvancedSettings agentBase={agent} update={updateAgent} />
       default:
