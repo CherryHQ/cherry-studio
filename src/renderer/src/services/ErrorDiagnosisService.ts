@@ -53,10 +53,19 @@ async function buildModelsToTry(context?: DiagnosisContext): Promise<Model[]> {
   return models
 }
 
+function isCherryInProvider(errorInfo: Record<string, unknown>, context?: DiagnosisContext): boolean {
+  const provider = String(errorInfo.provider || context?.providerName || '').toLowerCase()
+  return provider === 'cherryin' || provider === 'cherry in' || provider === 'cherryin'
+}
+
 function buildContextHint(errorInfo: Record<string, unknown>, context?: DiagnosisContext): string {
   const msg = String(errorInfo.message || '').toLowerCase()
   const status = Number(errorInfo.status) || 0
   const source = context?.errorSource || String(errorInfo.source || '')
+  const isCherryIn = isCherryInProvider(errorInfo, context)
+  const cherryInNote = isCherryIn
+    ? ' Note: CherryIN is an ecosystem partner of Cherry Studio, NOT an official relay service. Direct users to CherryIN support for account/billing issues.'
+    : ''
 
   // Auth / API key issues
   if (
@@ -67,19 +76,19 @@ function buildContextHint(errorInfo: Record<string, unknown>, context?: Diagnosi
     msg.includes('forbidden')
   ) {
     const provider = errorInfo.provider || context?.providerName || 'the provider'
-    return `## Context\nThe user is calling ${provider} API and got an authentication error. Cherry Studio lets users configure API keys per provider in provider settings.\n`
+    return `## Context\nThe user is calling ${provider} API and got an authentication error. Cherry Studio lets users configure API keys per provider in provider settings.${cherryInNote}\n`
   }
 
   // Quota / rate limit
   if (status === 429 || msg.includes('quota') || msg.includes('rate_limit') || msg.includes('insufficient')) {
     const provider = errorInfo.provider || context?.providerName || 'the provider'
-    return `## Context\nThe user hit a rate limit or quota issue with ${provider}. Users can check billing/quota on the provider's website or switch to a different model.\n`
+    return `## Context\nThe user hit a rate limit or quota issue with ${provider}. Users can check billing/quota on the provider's website or switch to a different model.${cherryInNote}\n`
   }
 
   // Model not found
   if (status === 404 || msg.includes('model_not_found') || msg.includes('model not found')) {
     const model = errorInfo.modelId || context?.modelId || 'unknown'
-    return `## Context\nModel "${model}" was not found. The model may be deprecated, the ID may be wrong, or the user's API plan may not include this model.\n`
+    return `## Context\nModel "${model}" was not found. The model may be deprecated, the ID may be wrong, or the user's API plan may not include this model.${cherryInNote}\n`
   }
 
   // Network / proxy
