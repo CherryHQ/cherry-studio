@@ -1,4 +1,4 @@
-import type { ElementType, MouseEvent, RefObject } from 'react'
+import type { ElementType } from 'react'
 
 export interface SidebarMenuItem {
   id: string
@@ -29,27 +29,4 @@ export interface SidebarUser {
   initial?: string
   avatarSrc?: string
   onClick?: () => void
-}
-
-export interface SidebarDragGhost {
-  tabId: string
-  x: number
-  y: number
-  overSidebar: boolean
-}
-
-export interface SidebarDragCallbacks {
-  onDockToSidebar: (tabId: string) => void
-  onDetachTab: (tabId: string, x: number, y: number) => void
-}
-
-export interface SidebarUndockCallbacks {
-  onUndockFromSidebar: (tabId: string) => void
-}
-
-export interface UseSidebarDragReturn {
-  dragGhost: SidebarDragGhost | null
-  sidebarContainerRef: RefObject<HTMLDivElement | null>
-  startTabDrag: (e: MouseEvent, tabId: string, callbacks: SidebarDragCallbacks) => void
-  startSidebarDrag: (e: MouseEvent, tabId: string, callbacks: SidebarUndockCallbacks) => void
 }
