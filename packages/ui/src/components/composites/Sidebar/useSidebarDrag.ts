@@ -1,10 +1,16 @@
-import { useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 
 import type { SidebarDragCallbacks, SidebarDragGhost, SidebarUndockCallbacks, UseSidebarDragReturn } from './types'
 
 export function useSidebarDrag(): UseSidebarDragReturn {
   const [dragGhost, setDragGhost] = useState<SidebarDragGhost | null>(null)
   const sidebarContainerRef = useRef<HTMLDivElement>(null)
+  const dragCleanupRef = useRef<(() => void) | null>(null)
+
+  // Cleanup drag listeners on unmount
+  useEffect(() => {
+    return () => dragCleanupRef.current?.()
+  }, [])
 
   const startTabDrag: UseSidebarDragReturn['startTabDrag'] = (e, tabId, callbacks: SidebarDragCallbacks) => {
     if (e.button !== 0) return
@@ -39,11 +45,16 @@ export function useSidebarDrag(): UseSidebarDragReturn {
       }
     }
 
-    const onUp = (event: MouseEvent) => {
+    const cleanup = () => {
       document.removeEventListener('mousemove', onMove)
       document.removeEventListener('mouseup', onUp)
       document.body.style.cursor = ''
       document.body.style.userSelect = ''
+      dragCleanupRef.current = null
+    }
+
+    const onUp = (event: MouseEvent) => {
+      cleanup()
 
       if (dragging) {
         const overSidebar = isOverSidebar(event.clientX, event.clientY)
@@ -59,6 +70,7 @@ export function useSidebarDrag(): UseSidebarDragReturn {
 
     document.addEventListener('mousemove', onMove)
     document.addEventListener('mouseup', onUp)
+    dragCleanupRef.current = cleanup
   }
 
   const startSidebarDrag: UseSidebarDragReturn['startSidebarDrag'] = (e, tabId, callbacks: SidebarUndockCallbacks) => {
@@ -94,11 +106,16 @@ export function useSidebarDrag(): UseSidebarDragReturn {
       }
     }
 
-    const onUp = (event: MouseEvent) => {
+    const cleanup = () => {
       document.removeEventListener('mousemove', onMove)
       document.removeEventListener('mouseup', onUp)
       document.body.style.cursor = ''
       document.body.style.userSelect = ''
+      dragCleanupRef.current = null
+    }
+
+    const onUp = (event: MouseEvent) => {
+      cleanup()
 
       if (dragging && !isOverSidebar(event.clientX, event.clientY)) {
         callbacks.onUndockFromSidebar(tabId)
@@ -109,6 +126,7 @@ export function useSidebarDrag(): UseSidebarDragReturn {
 
     document.addEventListener('mousemove', onMove)
     document.addEventListener('mouseup', onUp)
+    dragCleanupRef.current = cleanup
   }
 
   return {
