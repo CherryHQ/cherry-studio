@@ -246,7 +246,7 @@ const TruncatedCodeViewer = memo(
         {isLikelyBase64 ? (
           <ErrorDetailValue>{content}</ErrorDetailValue>
         ) : (
-          <CodeViewer value={content} className="source-view" language={language} expanded />
+          <CodeViewer value={content} className="source-view selectable" language={language} expanded />
         )}
       </ErrorDetailItem>
     )
@@ -585,19 +585,18 @@ const ErrorDetailContent: React.FC<ErrorDetailContentProps> = ({
           />
         )}
       </ErrorDetailContainer>
-      <div className="mt-4 flex justify-end gap-2">
+      <div className="my-2 mt-4 flex justify-end gap-2">
         <Button
-          variant="text"
           color="default"
           disabled={diagStatus === 'loading'}
           style={diagStatus === 'done' ? { color: 'var(--color-primary)' } : undefined}
           onClick={handleDiagnose}>
           {getDiagButtonText()}
         </Button>
-        <Button variant="text" color="default" onClick={copyErrorDetails}>
+        <Button color="default" onClick={copyErrorDetails}>
           {t('common.copy')}
         </Button>
-        <Button variant="text" color="default" onClick={() => GeneralPopup.hide()}>
+        <Button color="default" onClick={() => GeneralPopup.hide()}>
           {t('common.close')}
         </Button>
       </div>
@@ -689,9 +688,7 @@ const AIDiagnosisSectionWithStatus = memo(
     return (
       <div ref={panelRef} className="mt-4 rounded-lg p-3.5 px-4" style={diagPanelStyle}>
         {status === 'loading' && (
-          <div
-            className="mb-2.5 flex items-center gap-1.5 font-semibold text-sm"
-            style={{ color: 'var(--color-primary)' }}>
+          <div className="flex items-center gap-1.5 font-semibold text-sm" style={{ color: 'var(--color-primary)' }}>
             <Loader2 size={14} className="animation-rotate" />
             {t('error.diagnosis.ai_loading')}...
           </div>
