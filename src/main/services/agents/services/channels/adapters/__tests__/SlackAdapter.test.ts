@@ -606,7 +606,7 @@ describe('SlackAdapter', () => {
     const adapter = await connectAdapter()
 
     mockNetFetch.mockImplementation((url: string) => {
-      if ((url as string).includes('chat.postMessage')) {
+      if (url.includes('chat.postMessage')) {
         return Promise.resolve(mockJsonResponse({ ok: false, error: 'channel_not_found' }))
       }
       return Promise.resolve(mockJsonResponse({ ok: true }))
@@ -619,7 +619,7 @@ describe('SlackAdapter', () => {
     const adapter = await connectAdapter()
 
     mockNetFetch.mockImplementation((url: string) => {
-      if ((url as string).includes('chat.postMessage')) {
+      if (url.includes('chat.postMessage')) {
         return Promise.resolve(mockJsonResponse({}, false, 500))
       }
       return Promise.resolve(mockJsonResponse({ ok: true }))
