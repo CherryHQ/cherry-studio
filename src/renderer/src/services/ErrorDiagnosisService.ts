@@ -104,7 +104,9 @@ IMPORTANT:
 - "category" is the error category (e.g. "authentication", "quota", "model_unavailable", "network", "content_policy", "server_error", "mcp", "knowledge_base", "ocr", "unknown")
 - "explanation" is a 2-3 sentence plain language explanation of why the error occurred
 - "steps" are 2-4 actionable steps to fix the issue
-- Each step can optionally have "link" (external URL) or "nav" (internal app route like "/settings/provider")
+- Each step can optionally have "link" (external URL) or "nav" (internal app route)
+- Valid "nav" values are ONLY: "/settings/provider", "/settings/model", "/settings/general", "/settings/display", "/settings/data", "/settings/mcp/servers", "/settings/websearch", "/settings/memory", "/settings/shortcut", "/settings/about", "/knowledge", "/files", "/agents", "/translate", "/notes", "/paintings", "/code", "/openclaw", "/store", "/launchpad"
+- Do NOT use any nav value not in the above list
 - Do NOT include API keys, personal data, or file paths in your response`
 
   const content = `Error details:\n${JSON.stringify(errorInfo, null, 2)}`

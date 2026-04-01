@@ -524,8 +524,17 @@ function isSafeUrl(url: string): boolean {
 }
 
 // Valid internal routes for AI-generated navigation
-const VALID_NAV_PREFIXES = [
-  '/settings/',
+const VALID_NAV_ROUTES = new Set([
+  '/settings/provider',
+  '/settings/model',
+  '/settings/general',
+  '/settings/display',
+  '/settings/data',
+  '/settings/mcp/servers',
+  '/settings/websearch',
+  '/settings/memory',
+  '/settings/shortcut',
+  '/settings/about',
   '/knowledge',
   '/files',
   '/agents',
@@ -536,10 +545,10 @@ const VALID_NAV_PREFIXES = [
   '/openclaw',
   '/store',
   '/launchpad'
-]
+])
 
 function isValidNavRoute(nav: string): boolean {
-  return VALID_NAV_PREFIXES.some((prefix) => nav.startsWith(prefix))
+  return VALID_NAV_ROUTES.has(nav)
 }
 
 // --- Main Content Component ---
