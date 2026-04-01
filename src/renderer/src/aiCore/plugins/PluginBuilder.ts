@@ -1,3 +1,4 @@
+import type { LanguageModelV3 } from '@ai-sdk/provider'
 import type { AiPlugin } from '@cherrystudio/ai-core'
 import { createPromptToolUsePlugin, webSearchPlugin } from '@cherrystudio/ai-core/built-in/plugins'
 import { preferenceService } from '@data/PreferenceService'
@@ -11,6 +12,7 @@ import type { AiSdkMiddlewareConfig } from '../types/middlewareConfig'
 import { isOpenRouterGeminiGenerateImageModel } from '../utils/image'
 import { getReasoningTagName } from '../utils/reasoning'
 import { createAnthropicCachePlugin } from './anthropicCachePlugin'
+import { createContextChefPlugin } from './contextChefPlugin'
 import { createNoThinkPlugin } from './noThinkPlugin'
 import { createOpenrouterGenerateImagePlugin } from './openrouterGenerateImagePlugin'
 import { createOpenrouterReasoningPlugin } from './openrouterReasoningPlugin'
@@ -34,12 +36,19 @@ export interface BuildPluginsContext {
   provider: Provider
   model: Model
   config: AiSdkMiddlewareConfig & { assistant: Assistant; topicId?: string }
+  /** Resolved AI SDK LanguageModelV3, used by context-chef for compression */
+  languageModel?: LanguageModelV3
 }
 
 /**
  * 根据条件构建插件数组
  */
-export async function buildPlugins({ provider, model, config }: BuildPluginsContext): Promise<AiPlugin[]> {
+export async function buildPlugins({
+  provider,
+  model,
+  config,
+  languageModel
+}: BuildPluginsContext): Promise<AiPlugin[]> {
   const plugins: AiPlugin<any, any>[] = []
 
   if (config.topicId && (await preferenceService.get('app.developer_mode.enabled'))) {
@@ -139,6 +148,11 @@ export async function buildPlugins({ provider, model, config }: BuildPluginsCont
   // if (config.enableUrlContext && config.) {
   //   plugins.push(googleToolsPlugin({ urlContext: true }))
   // }
+
+  // 5. Context-chef: intelligent context management (truncation, compaction, compression)
+  if (languageModel) {
+    plugins.push(createContextChefPlugin({ languageModel }))
+  }
 
   logger.debug(
     'Final plugin list:',

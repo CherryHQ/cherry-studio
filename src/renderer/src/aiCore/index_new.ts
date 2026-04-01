@@ -7,6 +7,7 @@
  * 2. 暂时保持接口兼容性
  */
 
+import type { LanguageModelV3 } from '@ai-sdk/provider'
 import type { AiSdkModel } from '@cherrystudio/ai-core'
 import { createExecutor } from '@cherrystudio/ai-core'
 import { preferenceService } from '@data/PreferenceService'
@@ -321,7 +322,8 @@ export default class ModernAiProvider {
     const plugins = await buildPlugins({
       provider: this.actualProvider,
       model: this.model!,
-      config
+      config,
+      languageModel: model as LanguageModelV3
     })
 
     // 用构建好的插件数组创建executor

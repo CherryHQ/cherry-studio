@@ -1,0 +1,15 @@
+{
+  "version": 1,
+  "skills": {
+    "context-chef-core": {
+      "source": "MyPrototypeWhat/context-chef",
+      "sourceType": "github",
+      "computedHash": "a461a2ec78e653fad0d7793c17c9babd71747661b076502d2dc170c399268ab3"
+    },
+    "context-chef-middleware": {
+      "source": "MyPrototypeWhat/context-chef",
+      "sourceType": "github",
+      "computedHash": "3847d14f8eb9636122cb323ddf25c07f96c0c8dbb6ffb8bedb4fe7144a19e814"
+    }
+  }
+}

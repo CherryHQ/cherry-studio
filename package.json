@@ -88,6 +88,7 @@
   "dependencies": {
     "@ai-sdk/groq": "^3.0.31",
     "@anthropic-ai/claude-agent-sdk": "0.2.81",
+    "@context-chef/ai-sdk-middleware": "^1.0.1",
     "@expo/sudo-prompt": "^9.3.2",
     "@libsql/client": "0.14.0",
     "@napi-rs/canvas": "0.1.80",
