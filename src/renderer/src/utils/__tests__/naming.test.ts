@@ -2,8 +2,8 @@ import type { Provider, SystemProvider } from '@renderer/types'
 import { describe, expect, it } from 'vitest'
 
 import {
-  firstLetter,
   extractMarkdownTopicHeading,
+  firstLetter,
   getBaseModelName,
   getBriefInfo,
   getDefaultGroupName,
