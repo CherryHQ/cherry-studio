@@ -237,13 +237,49 @@ export class PluginService {
 
       // Filter to only the requested plugin by matching the identifier name
       const targetPluginName = identifier.name.toLowerCase()
-      const matchingRoot = allPluginRoots.find((root) => {
-        const folderName = path.basename(root).toLowerCase()
-        return folderName === targetPluginName || folderName.includes(targetPluginName)
-      })
+
+      // For inline marketplace plugins, find the matching entry and write its manifest
+      const marketplace = await this.readMarketplaceManifest(tempDir)
+      const matchingEntry = marketplace?.plugins.find((e) => e.name.toLowerCase() === targetPluginName)
+
+      // Resolve from entry source first (authoritative), then fall back to folder name heuristics
+      let matchingRoot: string | undefined
+      if (matchingEntry) {
+        const sourcePath = this.resolveMarketplacePluginSource(
+          tempDir,
+          matchingEntry,
+          marketplace?.metadata?.pluginRoot
+        )
+        if (isPathInside(sourcePath, tempDir) && (await directoryExists(sourcePath))) {
+          matchingRoot = sourcePath
+        }
+      }
+      if (!matchingRoot) {
+        matchingRoot = allPluginRoots.find((root) => {
+          const folderName = path.basename(root).toLowerCase()
+          return folderName === targetPluginName || folderName.includes(targetPluginName)
+        })
+      }
 
       if (!matchingRoot) {
-        // If no exact match, try reading manifests to match by plugin name
+        // If no folder name match, try inline marketplace plugins matched by entry name
+        if (matchingEntry) {
+          const sourcePath = this.resolveMarketplacePluginSource(
+            tempDir,
+            matchingEntry,
+            marketplace?.metadata?.pluginRoot
+          )
+          if (isPathInside(sourcePath, tempDir) && (await directoryExists(sourcePath))) {
+            await this.createSyntheticManifest(sourcePath, matchingEntry)
+            const result = await this.installPluginRoots([sourcePath], context.workdir, context.agent)
+            const installed = result.flatMap((item) => item.installed)
+            if (installed.length > 0) {
+              return installed[0]
+            }
+          }
+        }
+
+        // If no inline match, try reading manifests to match by plugin name
         for (const root of allPluginRoots) {
           try {
             const manifest = await this.readPluginManifest(root)
@@ -263,6 +299,11 @@ export class PluginService {
           reason: `Plugin '${identifier.name}' not found in repository`,
           path: tempDir
         } as PluginError
+      }
+
+      // For matching root, ensure synthetic manifest exists if it's an inline plugin
+      if (matchingEntry && !(await this.hasPluginJson(matchingRoot))) {
+        await this.createSyntheticManifest(matchingRoot, matchingEntry)
       }
 
       // Install only the matching plugin
@@ -1193,7 +1234,11 @@ export class PluginService {
   }
 
   /**
-   * Resolve plugin roots from marketplace manifest
+   * Resolve plugin roots from marketplace manifest.
+   * For inline plugins (no .claude-plugin/plugin.json), creates a synthetic manifest
+   * from the marketplace entry metadata so installSinglePlugin can process them.
+   * Handles shared source directories by writing the manifest per-entry just before installation
+   * (see installMarketplacePlugin for just-in-time manifest creation).
    */
   private async resolveMarketplacePluginRoots(
     marketplaceDir: string,
@@ -1206,20 +1251,9 @@ export class PluginService {
       try {
         const sourcePath = this.resolveMarketplacePluginSource(marketplaceDir, entry, pluginRoot)
 
-        // For relative paths, check if directory exists and has .claude-plugin
         if (await directoryExists(sourcePath)) {
-          if (await this.hasPluginJson(sourcePath)) {
-            roots.push(sourcePath)
-            logger.debug('Resolved marketplace plugin', { name: entry.name, sourcePath })
-          } else {
-            // Plugin defined inline in marketplace (strict: false)
-            // For now, skip these - they need special handling
-            logger.debug('Marketplace plugin without plugin.json (inline definition)', {
-              name: entry.name,
-              sourcePath,
-              strict: entry.strict
-            })
-          }
+          roots.push(sourcePath)
+          logger.debug('Resolved marketplace plugin', { name: entry.name, sourcePath })
         } else {
           logger.warn('Marketplace plugin source not found', { name: entry.name, sourcePath })
         }
@@ -1239,6 +1273,37 @@ export class PluginService {
    */
   private async hasPluginJson(dir: string): Promise<boolean> {
     return fileExists(path.join(dir, '.claude-plugin', 'plugin.json'))
+  }
+
+  /**
+   * Create a synthetic plugin.json for an inline marketplace plugin that doesn't have one.
+   * Preserves all manifest fields including hooks, mcpServers, lspServers, and outputStyles.
+   */
+  private async createSyntheticManifest(dir: string, entry: MarketplacePluginEntry): Promise<void> {
+    const pluginDir = path.join(dir, '.claude-plugin')
+    const manifestPath = path.join(pluginDir, 'plugin.json')
+
+    await fs.promises.mkdir(pluginDir, { recursive: true })
+
+    const manifest: PluginManifest = {
+      name: entry.name,
+      version: entry.version,
+      description: entry.description,
+      author: entry.author,
+      homepage: entry.homepage,
+      repository: entry.repository,
+      license: entry.license,
+      keywords: entry.keywords,
+      skills: entry.skills,
+      agents: entry.agents,
+      commands: entry.commands,
+      hooks: entry.hooks,
+      mcpServers: entry.mcpServers,
+      lspServers: entry.lspServers,
+      outputStyles: entry.outputStyles
+    }
+
+    await fs.promises.writeFile(manifestPath, JSON.stringify(manifest, null, 2), 'utf-8')
   }
 
   /**
@@ -1293,7 +1358,12 @@ export class PluginService {
   }
 
   /**
-   * Scan default directory + custom paths for components
+   * Scan component directories for a plugin package.
+   *
+   * When the manifest explicitly lists custom paths for a component type
+   * (e.g. `skills: ["./skills/xlsx", "./skills/docx"]`), only those paths
+   * are scanned. Otherwise the default subdirectory (`skills/`, `agents/`,
+   * `commands/`) is scanned as a whole.
    */
   private async scanComponentPaths(
     pluginDir: string,
@@ -1310,20 +1380,10 @@ export class PluginService {
     }
     const scannedPaths = new Set<string>()
 
-    // 1. Scan default directory
-    const defaultPath = path.join(pluginDir, defaultSubDir)
-    if (await directoryExists(defaultPath)) {
-      scannedPaths.add(defaultPath)
-      const result = await this.scanAndRegisterComponents(defaultPath, type, workdir, agent, packageInfo)
-      results.installed.push(...result.installed)
-      results.failed.push(...result.failed)
-    }
-
-    // 2. Scan custom paths (supplement, not replace)
     if (customPaths) {
+      // Manifest explicitly lists paths — scan only those
       const pathArray = Array.isArray(customPaths) ? customPaths : [customPaths]
       for (const p of pathArray) {
-        // Validate path doesn't escape plugin directory (path traversal protection)
         const fullPath = path.resolve(pluginDir, p)
         if (!isPathInside(fullPath, pluginDir)) {
           logger.warn('Skipping custom path with path traversal', { customPath: p, pluginDir })
@@ -1334,18 +1394,64 @@ export class PluginService {
           continue
         }
 
-        if (!scannedPaths.has(fullPath)) {
+        if (!scannedPaths.has(fullPath) && (await pathExists(fullPath))) {
           scannedPaths.add(fullPath)
-          if (await pathExists(fullPath)) {
+          // Try to register the path itself as a component (e.g. a skill dir or command file)
+          const directMetadata = await this.tryRegisterDirectComponent(fullPath, type, workdir, agent, packageInfo)
+          if (directMetadata) {
+            results.installed.push(directMetadata)
+          } else {
+            // Path is a parent directory — scan its children
             const result = await this.scanAndRegisterComponents(fullPath, type, workdir, agent, packageInfo)
             results.installed.push(...result.installed)
             results.failed.push(...result.failed)
           }
         }
       }
+    } else {
+      // No explicit paths — scan the default directory
+      const defaultPath = path.join(pluginDir, defaultSubDir)
+      if (await directoryExists(defaultPath)) {
+        const result = await this.scanAndRegisterComponents(defaultPath, type, workdir, agent, packageInfo)
+        results.installed.push(...result.installed)
+        results.failed.push(...result.failed)
+      }
     }
 
     return results
+  }
+
+  /**
+   * Try to register a path directly as a component.
+   * Returns metadata if the path is a direct component (a single file or a skill directory),
+   * or null if the path is a parent directory whose children should be scanned instead.
+   */
+  private async tryRegisterDirectComponent(
+    fullPath: string,
+    type: PluginType,
+    workdir: string,
+    agent: GetAgentResponse,
+    packageInfo?: { packageName: string; packageVersion?: string }
+  ): Promise<PluginMetadata | null> {
+    const stat = await fs.promises.stat(fullPath)
+
+    // Single file: must be an agent or command
+    if (stat.isFile()) {
+      if ((type === 'agent' || type === 'command') && (fullPath.endsWith('.md') || fullPath.endsWith('.markdown'))) {
+        return await this.registerComponent(fullPath, path.basename(fullPath), type, workdir, agent, packageInfo)
+      }
+      return null
+    }
+
+    // Directory: for skills, check if it is a skill directory itself (contains SKILL.md)
+    if (stat.isDirectory() && type === 'skill') {
+      const skillMdPath = await findSkillMdPath(fullPath)
+      if (skillMdPath) {
+        return await this.registerComponent(fullPath, path.basename(fullPath), 'skill', workdir, agent, packageInfo)
+      }
+    }
+
+    return null
   }
 
   /**
