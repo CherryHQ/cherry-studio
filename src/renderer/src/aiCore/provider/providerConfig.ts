@@ -500,7 +500,7 @@ function createRedirectSafeFetch(baseFetch?: typeof fetch): typeof fetch {
         }
 
         // Resolve relative redirect URLs
-        const currentUrl = typeof currentInput === 'string' ? currentInput : currentInput instanceof URL ? currentInput.href : (currentInput as Request).url
+        const currentUrl = typeof currentInput === 'string' ? currentInput : currentInput instanceof URL ? currentInput.href : currentInput.url
         currentInput = new URL(location, currentUrl).href
 
         // For 303 See Other, switch method to GET and drop the body
