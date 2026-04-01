@@ -144,8 +144,13 @@ export const useApiServer = () => {
     }
   }, [apiServerLoading, checkApiServerStatus, setApiServerEnabled, t])
 
+  // Only check status once on mount
+  const hasCheckedRef = useRef(false)
   useEffect(() => {
-    void checkApiServerStatus()
+    if (!hasCheckedRef.current) {
+      hasCheckedRef.current = true
+      checkApiServerStatus()
+    }
   }, [checkApiServerStatus])
 
   // Use ref to keep the latest checkApiServerStatus without causing re-subscription

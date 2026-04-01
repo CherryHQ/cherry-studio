@@ -60,6 +60,10 @@ export {
 } from './composites/Input'
 export { Sortable } from './composites/Sortable'
 
+// Sidebar
+export { Sidebar, type SidebarProps } from './composites/Sidebar'
+export type { SidebarLayout, SidebarMenuItem, SidebarTab, SidebarUser } from './composites/Sidebar/types'
+
 /* Shadcn Primitive Components */
 export * from './primitives/accordion'
 export * from './primitives/badge'
