@@ -31,13 +31,13 @@
     "cherryClaw": {
       "channels": {
         "add": "Agregar",
-        "bindAgent": "[to be translated]:Bind Agent",
+        "bindAgent": "Agente vinculante",
         "comingSoon": "Próximamente",
-        "connected": "[to be translated]:Connected",
-        "connecting": "[to be translated]:Connecting",
+        "connected": "Conectado",
+        "connecting": "Conectando",
         "deleteConfirm": "¿Eliminar canal \"{{name}}\"?",
         "description": "Conecte su agente a plataformas de mensajería.",
-        "disconnected": "[to be translated]:Disconnected",
+        "disconnected": "Desconectado",
         "discord": {
           "botToken": "Token del Bot",
           "botTokenPlaceholder": "Introduce tu token de bot de Discord",
@@ -48,7 +48,7 @@
           "title": "Discord",
           "whoamiTip": "💡 Consejo: Envía /whoami al bot para obtener tu ID de canal en el formato correcto."
         },
-        "error": "[to be translated]:Error",
+        "error": "Error",
         "feishu": {
           "appId": "App ID",
           "appIdPlaceholder": "Introduzca el App ID de su aplicación Feishu",
@@ -73,9 +73,9 @@
           "verificationToken": "Token de verificación",
           "verificationTokenPlaceholder": "Introduzca el token de verificación de su aplicación Feishu"
         },
-        "logs": "[to be translated]:Logs",
+        "logs": "Registros",
         "noInstances": "No hay canales de {{type}} configurados. Haz clic en \"+ Añadir\" para crear uno.",
-        "noLogs": "[to be translated]:No logs yet",
+        "noLogs": "Aún no hay registros",
         "notifyReceiver": "Recibir notificaciones de tareas",
         "notifyReceiverHint": "Enviar resultados de tareas programadas a este canal.",
         "qq": {
@@ -95,18 +95,18 @@
           "permissionMode": "Modo de Permisos del Canal",
           "permissionModeHint": "Anular el modo de permisos del agente para los mensajes de este canal. \"Heredar\" utiliza la configuración predeterminada del agente."
         },
-        "selectAgent": "[to be translated]:Select an agent to bind",
+        "selectAgent": "Selecciona un agente para vincular",
         "slack": {
-          "appToken": "[to be translated]:App-Level Token",
-          "appTokenPlaceholder": "[to be translated]:xapp-...",
-          "botToken": "[to be translated]:Bot Token",
-          "botTokenPlaceholder": "[to be translated]:xoxb-...",
-          "channelIds": "[to be translated]:Allowed Channel IDs",
-          "channelIdsHint": "[to be translated]:Slack channel IDs. Leave empty to allow all.",
-          "channelIdsPlaceholder": "[to be translated]:C01234567, D89012345",
-          "description": "[to be translated]:Receive and respond to messages via a Slack bot using Socket Mode.",
-          "title": "[to be translated]:Slack",
-          "whoamiTip": "[to be translated]:💡 Tip: Send /whoami to the bot to get the channel ID."
+          "appToken": "Token a nivel de aplicación",
+          "appTokenPlaceholder": "xapp-...",
+          "botToken": "Token del Bot",
+          "botTokenPlaceholder": "xoxb-...",
+          "channelIds": "IDs de Canales Permitidos",
+          "channelIdsHint": "IDs de canales de Slack. Dejar vacío para permitir todos.",
+          "channelIdsPlaceholder": "C01234567, D89012345",
+          "description": "Recibe y responde a mensajes mediante un bot de Slack usando el modo Socket.",
+          "title": "Slack",
+          "whoamiTip": "💡 Consejo: Envía /whoami al bot para obtener el ID del canal."
         },
         "tab": "Canales",
         "telegram": {
@@ -198,8 +198,8 @@
         "add": "Agregar tarea",
         "cancel": "Cancelar",
         "channels": {
-          "label": "[to be translated]:Send to Channels",
-          "placeholder": "[to be translated]:Select channels to receive results"
+          "label": "Enviar a Canales",
+          "placeholder": "Seleccionar canales para recibir resultados"
         },
         "cronPlaceholder": "ej: 0 9 * * * (todos los días a las 9 AM)",
         "delete": {
@@ -214,14 +214,14 @@
           "duration": "Duración",
           "empty": "Aún no hay historial de ejecución.",
           "error": "Error",
-          "justNow": "[to be translated]:just now",
+          "justNow": "ahora mismo",
           "label": "Historial de ejecución",
           "result": "Resultado",
           "runAt": "Ejecutado en",
-          "running": "[to be translated]:Running...",
-          "search": "[to be translated]:Search logs...",
+          "running": "Corriendo...",
+          "search": "Buscar registros...",
           "status": "Estado",
-          "viewSession": "[to be translated]:View session"
+          "viewSession": "Ver sesión"
         },
         "name": {
           "label": "Nombre",
@@ -252,8 +252,8 @@
         },
         "tab": "Tareas",
         "timeout": {
-          "label": "[to be translated]:Timeout",
-          "placeholder": "[to be translated]:No limit"
+          "label": "Tiempo de espera agotado",
+          "placeholder": "Sin límite"
         },
         "title": "Tareas programadas"
       },
@@ -479,6 +479,13 @@
         "uninstalling": "Desinstalando..."
       },
       "prompt": "Configuración de indicaciones",
+      "skills": {
+        "builtin": "Incorporado",
+        "noFilterResults": "Sin habilidades coincidentes",
+        "noSkills": "No hay habilidades instaladas. Instala habilidades desde Ajustes > Habilidades.",
+        "searchPlaceholder": "Habilidades de búsqueda...",
+        "tab": "Habilidades"
+      },
       "soulMode": {
         "description": "Cuando está habilitado, el agente utiliza un mensaje del sistema personalizado desde archivos soul del espacio de trabajo, inyecta herramientas de gestión de tareas autónomas y desactiva las herramientas interactivas no adecuadas para el funcionamiento autónomo.",
         "disabledBadge": "Desactivado por el Modo Autónomo",
@@ -541,7 +548,7 @@
       },
       "toolsMcp": {
         "mcp": {
-          "tab": "[to be translated]:MCP",
+          "tab": "MCP",
           "title": "Servidores MCP"
         },
         "tab": "Herramientas",
@@ -3915,8 +3922,8 @@
       "title": "Asistente predeterminado"
     },
     "channels": {
-      "description": "[to be translated]:Connect agents to messaging platforms like Telegram, Feishu, Discord, and more.",
-      "title": "[to be translated]:Channels"
+      "description": "Conecta agentes a plataformas de mensajería como Telegram, Feishu, Discord y más.",
+      "title": "Canales"
     },
     "data": {
       "app_data": {
@@ -5499,12 +5506,12 @@
       "titlePlaceholder": "Ingrese el título de la frase"
     },
     "scheduledTasks": {
-      "description": "[to be translated]:Manage scheduled tasks across all agents. Tasks run automatically on the configured schedule.",
-      "noAgents": "[to be translated]:No agents found. Create an agent first to add scheduled tasks.",
-      "noAgentsTip": "[to be translated]:Tip: You can also ask your agent to create scheduled tasks via chat.",
-      "noTasks": "[to be translated]:No scheduled tasks. Click \"+ Add\" to create one for an agent.",
-      "selectTask": "[to be translated]:Select a task to view details",
-      "title": "[to be translated]:Scheduled Tasks"
+      "description": "Administrar tareas programadas en todos los agentes. Las tareas se ejecutan automáticamente según el horario configurado.",
+      "noAgents": "No se encontraron agentes. Crea primero un agente para añadir tareas programadas.",
+      "noAgentsTip": "Consejo: También puedes pedirle a tu agente que cree tareas programadas mediante el chat.",
+      "noTasks": "No hay tareas programadas. Haz clic en \"+ Agregar\" para crear una para un agente.",
+      "selectTask": "Selecciona una tarea para ver los detalles",
+      "title": "Tareas programadas"
     },
     "shortcuts": {
       "action": "Acción",
@@ -5537,6 +5544,41 @@
       "zoom_in": "Ampliar interfaz",
       "zoom_out": "Reducir interfaz",
       "zoom_reset": "Restablecer zoom"
+    },
+    "skills": {
+      "author": "Autor",
+      "batchUninstallSuccess": "{{count}} habilidades desinstaladas",
+      "builtin": "Integrado",
+      "confirmBatchUninstall": "¿Estás seguro de que quieres desinstalar las {{count}} habilidades seleccionadas?",
+      "confirmUninstall": "¿Estás seguro de que quieres desinstalar esta habilidad?",
+      "directory": "Directorio",
+      "dropHint": "O arrastra y suelta aquí un archivo ZIP o una carpeta",
+      "emptyDesc": "Instala habilidades desde ZIP, directorio o busca en registros en línea para ampliar las capacidades del agente.",
+      "emptyTip": "Consejo: También puedes pedirle a un agente que te instale habilidades.",
+      "emptyTitle": "Sin habilidad seleccionada",
+      "filterPlaceholder": "Filtrar habilidades...",
+      "install": "Instalar",
+      "installFailed": "Error al instalar la habilidad: {{name}}",
+      "installFromDirectory": "Instalar desde directorio",
+      "installFromZip": "Instalar desde archivo ZIP",
+      "installSuccess": "Habilidad instalada: {{name}}",
+      "installed": "Habilidades Instaladas",
+      "invalidFormat": "Solo se admiten archivos ZIP y directorios",
+      "localInstall": "Instalación local",
+      "multiSelect": "Selección múltiple",
+      "noFilterResults": "Sin habilidades coincidentes",
+      "noInstalled": "Sin habilidades instaladas",
+      "noResults": "Sin habilidades encontradas",
+      "noSkillFile": "No se encontró SKILL.md",
+      "searchPlaceholder": "Buscar habilidades en los registros...",
+      "searchRegistryTitle": "Buscar registros de habilidades en línea",
+      "searchTitle": "Habilidades de búsqueda",
+      "selectFile": "Selecciona un archivo para ver",
+      "title": "Habilidades",
+      "uninstall": "Desinstalar",
+      "uninstallSuccess": "Habilidad desinstalada: {{name}}",
+      "viewSource": "Ver fuente",
+      "zip": "CÓDIGO POSTAL"
     },
     "theme": {
       "color_primary": "Color del tema",

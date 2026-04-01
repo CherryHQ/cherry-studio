@@ -233,6 +233,7 @@
         "oncePlaceholder": "Select date and time",
         "pause": "Pause",
         "prompt": {
+          "expand": "Expand editor",
           "label": "Prompt",
           "placeholder": "What should the agent do when this task runs?"
         },
@@ -253,6 +254,10 @@
           "paused": "Paused"
         },
         "tab": "Tasks",
+        "time": {
+          "hoursAgo": "{{count}}h ago",
+          "minutesAgo": "{{count}}m ago"
+        },
         "timeout": {
           "label": "Timeout",
           "placeholder": "No limit"
@@ -439,15 +444,15 @@
           "title": "Install Plugins"
         },
         "installed": {
-          "empty": "No plugins installed yet. Browse available plugins to get started.",
-          "title": "Installed Plugins"
+          "empty": "No skills installed yet. Browse available skills to get started.",
+          "title": "Installed Skills"
         },
         "installing": "Installing...",
         "plugin_upload": {
           "all_failed": "All {{failed}} components failed to install",
           "error": "Installation failed",
-          "format_hint": "Supports plugin packages (.claude-plugin/plugin.json)",
-          "hint": "Drag and drop plugin ZIP here, or click to select",
+          "format_hint": "Supports skill packages (.claude-plugin/plugin.json)",
+          "hint": "Drag and drop skill ZIP here, or click to select",
           "invalid_format": "Please upload a ZIP file",
           "partial_success": "Installed {{installed}} components, {{failed}} failed",
           "select_folder": "Select Folder",
@@ -481,6 +486,13 @@
         "uninstalling": "Uninstalling..."
       },
       "prompt": "Prompt Settings",
+      "skills": {
+        "builtin": "Built-in",
+        "noFilterResults": "No matching skills",
+        "noSkills": "No skills installed. Install skills from Settings > Skills.",
+        "searchPlaceholder": "Search skills...",
+        "tab": "Skills"
+      },
       "soulMode": {
         "description": "When enabled, the agent uses a custom system prompt from workspace soul files, injects autonomous task management tools, and disables interactive tools not suited for autonomous operation.",
         "disabledBadge": "Disabled by Autonomous Mode",
@@ -3292,11 +3304,11 @@
       "tools": "Tools"
     },
     "install": "Install",
-    "install_plugins_from_browser": "Browse available plugins to get started",
+    "install_plugins_from_browser": "Browse available skills to get started",
     "installing": "Installing...",
     "name": "Name",
     "no_description": "No description available",
-    "no_installed_plugins": "No plugins installed yet",
+    "no_installed_plugins": "No skills installed yet",
     "no_results": "No plugins found",
     "no_results_skills": "No skills found",
     "search_placeholder": "Search plugins...",
@@ -5539,6 +5551,41 @@
       "zoom_in": "Zoom In",
       "zoom_out": "Zoom Out",
       "zoom_reset": "Reset Zoom"
+    },
+    "skills": {
+      "author": "Author",
+      "batchUninstallSuccess": "{{count}} skills uninstalled",
+      "builtin": "Built-in",
+      "confirmBatchUninstall": "Are you sure you want to uninstall {{count}} selected skills?",
+      "confirmUninstall": "Are you sure you want to uninstall this skill?",
+      "directory": "Directory",
+      "dropHint": "Or drag & drop a ZIP file or folder here",
+      "emptyDesc": "Install skills from ZIP, directory, or search online registries to extend agent capabilities.",
+      "emptyTip": "Tip: You can also ask an agent to install skills for you.",
+      "emptyTitle": "No skill selected",
+      "filterPlaceholder": "Filter skills...",
+      "install": "Install",
+      "installFailed": "Failed to install skill: {{name}}",
+      "installFromDirectory": "Install from directory",
+      "installFromZip": "Install from ZIP file",
+      "installSuccess": "Skill installed: {{name}}",
+      "installed": "Installed",
+      "invalidFormat": "Only ZIP files and directories are supported",
+      "localInstall": "Local Install",
+      "multiSelect": "Multi-select",
+      "noFilterResults": "No matching skills",
+      "noInstalled": "No skills installed",
+      "noResults": "No skills found",
+      "noSkillFile": "No SKILL.md found",
+      "searchPlaceholder": "Search skills across registries...",
+      "searchRegistryTitle": "Search skill registries online",
+      "searchTitle": "Search Skills",
+      "selectFile": "Select a file to view",
+      "title": "Skills",
+      "uninstall": "Uninstall",
+      "uninstallSuccess": "Skill uninstalled: {{name}}",
+      "viewSource": "View Source",
+      "zip": "ZIP"
     },
     "theme": {
       "color_primary": "Primary Color",

@@ -31,13 +31,13 @@
     "cherryClaw": {
       "channels": {
         "add": "追加",
-        "bindAgent": "[to be translated]:Bind Agent",
+        "bindAgent": "バインドエージェント",
         "comingSoon": "近日公開",
-        "connected": "[to be translated]:Connected",
-        "connecting": "[to be translated]:Connecting",
+        "connected": "接続済み",
+        "connecting": "接続",
         "deleteConfirm": "チャンネル「{{name}}」を削除しますか？",
         "description": "エージェントをメッセージングプラットフォームに接続します。",
-        "disconnected": "[to be translated]:Disconnected",
+        "disconnected": "切断済み",
         "discord": {
           "botToken": "ボットトークン",
           "botTokenPlaceholder": "Discordボットのトークンを入力してください",
@@ -48,7 +48,7 @@
           "title": "ディスコード",
           "whoamiTip": "💡 ヒント：正しい形式でチャンネルIDを取得するには、ボットに /whoami を送信してください。"
         },
-        "error": "[to be translated]:Error",
+        "error": "エラー",
         "feishu": {
           "appId": "App ID",
           "appIdPlaceholder": "FeishuアプリのApp IDを入力してください",
@@ -73,9 +73,9 @@
           "verificationToken": "検証トークン",
           "verificationTokenPlaceholder": "Feishuアプリの検証トークンを入力してください"
         },
-        "logs": "[to be translated]:Logs",
+        "logs": "ログ",
         "noInstances": "{{type}}チャンネルが設定されていません。「＋追加」をクリックして作成してください。",
-        "noLogs": "[to be translated]:No logs yet",
+        "noLogs": "まだログはありません",
         "notifyReceiver": "タスク通知を受信",
         "notifyReceiverHint": "スケジュールタスクの結果をこのチャンネルに送信します。",
         "qq": {
@@ -95,18 +95,18 @@
           "permissionMode": "チャンネル権限モード",
           "permissionModeHint": "このチャンネルからのメッセージについて、エージェントの権限モードを上書きします。「継承」を選択すると、エージェントのデフォルト設定が使用されます。"
         },
-        "selectAgent": "[to be translated]:Select an agent to bind",
+        "selectAgent": "エージェントを選択してバインドしてください",
         "slack": {
-          "appToken": "[to be translated]:App-Level Token",
-          "appTokenPlaceholder": "[to be translated]:xapp-...",
-          "botToken": "[to be translated]:Bot Token",
-          "botTokenPlaceholder": "[to be translated]:xoxb-...",
-          "channelIds": "[to be translated]:Allowed Channel IDs",
-          "channelIdsHint": "[to be translated]:Slack channel IDs. Leave empty to allow all.",
-          "channelIdsPlaceholder": "[to be translated]:C01234567, D89012345",
-          "description": "[to be translated]:Receive and respond to messages via a Slack bot using Socket Mode.",
-          "title": "[to be translated]:Slack",
-          "whoamiTip": "[to be translated]:💡 Tip: Send /whoami to the bot to get the channel ID."
+          "appToken": "アプリレベルトークン",
+          "appTokenPlaceholder": "xapp-...",
+          "botToken": "ボットトークン",
+          "botTokenPlaceholder": "xoxb-...",
+          "channelIds": "許可されたチャンネルID",
+          "channelIdsHint": "SlackチャンネルID。すべてを許可する場合は空のままにしてください。",
+          "channelIdsPlaceholder": "C01234567、D89012345",
+          "description": "Socket Mode を使用して Slack ボット経由でメッセージを受信し、返信する。",
+          "title": "スラック",
+          "whoamiTip": "💡ヒント：チャンネルIDを取得するには、ボットに /whoami を送信してください。"
         },
         "tab": "チャンネル",
         "telegram": {
@@ -198,8 +198,8 @@
         "add": "タスクを追加",
         "cancel": "キャンセル",
         "channels": {
-          "label": "[to be translated]:Send to Channels",
-          "placeholder": "[to be translated]:Select channels to receive results"
+          "label": "チャンネルに送信",
+          "placeholder": "結果を受け取るチャンネルを選択してください"
         },
         "cronPlaceholder": "例: 0 9 * * *（毎日午前 9 時）",
         "delete": {
@@ -214,14 +214,14 @@
           "duration": "所要時間",
           "empty": "実行履歴がありません。",
           "error": "エラー",
-          "justNow": "[to be translated]:just now",
+          "justNow": "さっき",
           "label": "実行履歴",
           "result": "結果",
           "runAt": "実行時刻",
-          "running": "[to be translated]:Running...",
-          "search": "[to be translated]:Search logs...",
+          "running": "走っている…",
+          "search": "検索ログ...",
           "status": "ステータス",
-          "viewSession": "[to be translated]:View session"
+          "viewSession": "セッションを表示"
         },
         "name": {
           "label": "名前",
@@ -252,8 +252,8 @@
         },
         "tab": "タスク",
         "timeout": {
-          "label": "[to be translated]:Timeout",
-          "placeholder": "[to be translated]:No limit"
+          "label": "タイムアウト",
+          "placeholder": "制限なし"
         },
         "title": "スケジュールタスク"
       },
@@ -479,6 +479,13 @@
         "uninstalling": "アンインストール中..."
       },
       "prompt": "プロンプト設定",
+      "skills": {
+        "builtin": "組み込み",
+        "noFilterResults": "一致するスキルがありません",
+        "noSkills": "スキルがインストールされていません。設定 > スキルからスキルをインストールしてください。",
+        "searchPlaceholder": "検索スキル…",
+        "tab": "スキル"
+      },
       "soulMode": {
         "description": "有効にすると、エージェントはワークスペースのsoulファイルからカスタムシステムプロンプトを使用し、自律的タスク管理ツールを注入し、自律動作には不適切なインタラクティブツールを無効化します。",
         "disabledBadge": "自律モードにより無効化されました",
@@ -541,7 +548,7 @@
       },
       "toolsMcp": {
         "mcp": {
-          "tab": "[to be translated]:MCP",
+          "tab": "MCP",
           "title": "MCPサーバー"
         },
         "tab": "ツール",
@@ -3915,8 +3922,8 @@
       "title": "デフォルトアシスタント"
     },
     "channels": {
-      "description": "[to be translated]:Connect agents to messaging platforms like Telegram, Feishu, Discord, and more.",
-      "title": "[to be translated]:Channels"
+      "description": "エージェントをTelegram、Feishu、Discordなどのメッセージングプラットフォームに接続します。",
+      "title": "チャンネル"
     },
     "data": {
       "app_data": {
@@ -5499,12 +5506,12 @@
       "titlePlaceholder": "フレーズのタイトルを入力してください"
     },
     "scheduledTasks": {
-      "description": "[to be translated]:Manage scheduled tasks across all agents. Tasks run automatically on the configured schedule.",
-      "noAgents": "[to be translated]:No agents found. Create an agent first to add scheduled tasks.",
-      "noAgentsTip": "[to be translated]:Tip: You can also ask your agent to create scheduled tasks via chat.",
-      "noTasks": "[to be translated]:No scheduled tasks. Click \"+ Add\" to create one for an agent.",
-      "selectTask": "[to be translated]:Select a task to view details",
-      "title": "[to be translated]:Scheduled Tasks"
+      "description": "すべてのエージェントにわたるスケジュールされたタスクを管理します。タスクは設定されたスケジュールに従って自動的に実行されます。",
+      "noAgents": "エージェントが見つかりません。スケジュールされたタスクを追加するには、まずエージェントを作成してください。",
+      "noAgentsTip": "ヒント: チャットでエージェントにスケジュールされたタスクを作成してもらうこともできます。",
+      "noTasks": "スケジュールされたタスクはありません。「＋追加」をクリックしてエージェント用のタスクを作成してください。",
+      "selectTask": "タスクを選択して詳細を表示",
+      "title": "スケジュールされたタスク"
     },
     "shortcuts": {
       "action": "操作",
@@ -5537,6 +5544,41 @@
       "zoom_in": "ズームイン",
       "zoom_out": "ズームアウト",
       "zoom_reset": "ズームをリセット"
+    },
+    "skills": {
+      "author": "著者",
+      "batchUninstallSuccess": "{{count}}個のスキルがアンインストールされました",
+      "builtin": "組み込み",
+      "confirmBatchUninstall": "{{count}}個の選択したスキルをアンインストールしてもよろしいですか？",
+      "confirmUninstall": "このスキルをアンインストールしてもよろしいですか？",
+      "directory": "ディレクトリ",
+      "dropHint": "または、ZIPファイルまたはフォルダをここにドラッグ＆ドロップしてください",
+      "emptyDesc": "ZIP、ディレクトリからスキルをインストールするか、オンラインのレジストリを検索してエージェントの機能を拡張します。",
+      "emptyTip": "ヒント: エージェントにスキルをインストールしてもらうこともできます。",
+      "emptyTitle": "スキルが選択されていません",
+      "filterPlaceholder": "スキルをフィルター...",
+      "install": "インストール",
+      "installFailed": "スキルのインストールに失敗しました: {{name}}",
+      "installFromDirectory": "ディレクトリからインストール",
+      "installFromZip": "ZIPファイルからインストール",
+      "installSuccess": "スキルをインストールしました：{{name}}",
+      "installed": "インストール済みスキル",
+      "invalidFormat": "ZIPファイルとディレクトリのみがサポートされています",
+      "localInstall": "ローカルインストール",
+      "multiSelect": "複数選択",
+      "noFilterResults": "一致するスキルがありません",
+      "noInstalled": "スキルがインストールされていません",
+      "noResults": "スキルが見つかりません",
+      "noSkillFile": "SKILL.mdが見つかりません",
+      "searchPlaceholder": "レジストリ全体でスキルを検索...",
+      "searchRegistryTitle": "オンラインでスキルレジストリを検索してください",
+      "searchTitle": "検索スキル",
+      "selectFile": "ファイルを選択して表示",
+      "title": "スキル",
+      "uninstall": "アンインストール",
+      "uninstallSuccess": "スキルがアンインストールされました: {{name}}",
+      "viewSource": "ソースを表示",
+      "zip": "ZIP"
     },
     "theme": {
       "color_primary": "テーマ色",

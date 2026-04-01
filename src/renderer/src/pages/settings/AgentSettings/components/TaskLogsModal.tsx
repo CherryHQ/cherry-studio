@@ -11,7 +11,8 @@ type TaskLogsModalProps = {
 }
 
 const TaskLogsModal: FC<TaskLogsModalProps> = ({ open, taskId, taskName, onClose }) => {
-  const { t } = useTranslation()
+  const { t, i18n } = useTranslation()
+  const locale = i18n.language
   const { logs, isLoading } = useTaskLogs(open ? taskId : null)
 
   const columns = [
@@ -20,7 +21,7 @@ const TaskLogsModal: FC<TaskLogsModalProps> = ({ open, taskId, taskName, onClose
       dataIndex: 'run_at',
       key: 'run_at',
       width: 180,
-      render: (val: string) => new Date(val).toLocaleString()
+      render: (val: string) => new Date(val).toLocaleString(locale)
     },
     {
       title: t('agent.cherryClaw.tasks.logs.duration'),

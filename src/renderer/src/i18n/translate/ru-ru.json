@@ -31,13 +31,13 @@
     "cherryClaw": {
       "channels": {
         "add": "Добавить",
-        "bindAgent": "[to be translated]:Bind Agent",
+        "bindAgent": "Связать агента",
         "comingSoon": "Скоро",
-        "connected": "[to be translated]:Connected",
-        "connecting": "[to be translated]:Connecting",
+        "connected": "Подключено",
+        "connecting": "Подключение",
         "deleteConfirm": "Удалить канал \"{{name}}\"?",
         "description": "Подключите вашего агента к платформам обмена сообщениями.",
-        "disconnected": "[to be translated]:Disconnected",
+        "disconnected": "Отключено",
         "discord": {
           "botToken": "Токен бота",
           "botTokenPlaceholder": "Введите токен вашего бота Discord",
@@ -48,7 +48,7 @@
           "title": "Дискорд",
           "whoamiTip": "💡 Совет: Отправьте боту команду /whoami, чтобы получить ваш ID канала в правильном формате."
         },
-        "error": "[to be translated]:Error",
+        "error": "Ошибка",
         "feishu": {
           "appId": "App ID",
           "appIdPlaceholder": "Введите App ID вашего приложения Feishu",
@@ -73,9 +73,9 @@
           "verificationToken": "Токен верификации",
           "verificationTokenPlaceholder": "Введите токен верификации вашего приложения Feishu"
         },
-        "logs": "[to be translated]:Logs",
+        "logs": "Журналы",
         "noInstances": "Каналы {{type}} не настроены. Нажмите «+ Добавить», чтобы создать канал.",
-        "noLogs": "[to be translated]:No logs yet",
+        "noLogs": "Журналы пока отсутствуют",
         "notifyReceiver": "Получать уведомления о задачах",
         "notifyReceiverHint": "Отправлять результаты запланированных задач в этот канал.",
         "qq": {
@@ -95,18 +95,18 @@
           "permissionMode": "Режим прав доступа канала",
           "permissionModeHint": "Переопределить режим разрешений агента для сообщений из этого канала. «Наследовать» использует настройки агента по умолчанию."
         },
-        "selectAgent": "[to be translated]:Select an agent to bind",
+        "selectAgent": "Выберите агента для привязки",
         "slack": {
-          "appToken": "[to be translated]:App-Level Token",
-          "appTokenPlaceholder": "[to be translated]:xapp-...",
-          "botToken": "[to be translated]:Bot Token",
-          "botTokenPlaceholder": "[to be translated]:xoxb-...",
-          "channelIds": "[to be translated]:Allowed Channel IDs",
-          "channelIdsHint": "[to be translated]:Slack channel IDs. Leave empty to allow all.",
-          "channelIdsPlaceholder": "[to be translated]:C01234567, D89012345",
-          "description": "[to be translated]:Receive and respond to messages via a Slack bot using Socket Mode.",
-          "title": "[to be translated]:Slack",
-          "whoamiTip": "[to be translated]:💡 Tip: Send /whoami to the bot to get the channel ID."
+          "appToken": "Токен уровня приложения",
+          "appTokenPlaceholder": "xapp-...",
+          "botToken": "Токен бота",
+          "botTokenPlaceholder": "xoxb-...",
+          "channelIds": "Разрешённые идентификаторы каналов",
+          "channelIdsHint": "ID каналов Slack. Оставьте пустым, чтобы разрешить все.",
+          "channelIdsPlaceholder": "C01234567, D89012345",
+          "description": "Получайте и отвечайте на сообщения через бота в Slack с использованием Socket Mode.",
+          "title": "Слак",
+          "whoamiTip": "💡 Совет: Отправьте боту команду /whoami, чтобы получить ID канала."
         },
         "tab": "Каналы",
         "telegram": {
@@ -198,8 +198,8 @@
         "add": "Добавить задачу",
         "cancel": "Отмена",
         "channels": {
-          "label": "[to be translated]:Send to Channels",
-          "placeholder": "[to be translated]:Select channels to receive results"
+          "label": "Отправить в каналы",
+          "placeholder": "Выберите каналы для получения результатов"
         },
         "cronPlaceholder": "напр. 0 9 * * * (каждый день в 9 утра)",
         "delete": {
@@ -214,14 +214,14 @@
           "duration": "Длительность",
           "empty": "История запусков пуста.",
           "error": "Ошибка",
-          "justNow": "[to be translated]:just now",
+          "justNow": "только что",
           "label": "История запусков",
           "result": "Результат",
           "runAt": "Запущено в",
-          "running": "[to be translated]:Running...",
-          "search": "[to be translated]:Search logs...",
+          "running": "Бежит...",
+          "search": "Искать журналы...",
           "status": "Статус",
-          "viewSession": "[to be translated]:View session"
+          "viewSession": "Просмотр сеанса"
         },
         "name": {
           "label": "Название",
@@ -252,8 +252,8 @@
         },
         "tab": "Задачи",
         "timeout": {
-          "label": "[to be translated]:Timeout",
-          "placeholder": "[to be translated]:No limit"
+          "label": "Тайм-аут",
+          "placeholder": "Без ограничений"
         },
         "title": "Запланированные задачи"
       },
@@ -479,6 +479,13 @@
         "uninstalling": "Удаление..."
       },
       "prompt": "Настройки подсказки",
+      "skills": {
+        "builtin": "Встроенный",
+        "noFilterResults": "Нет подходящих навыков",
+        "noSkills": "Навыки не установлены. Установите навыки в разделе Настройки > Навыки.",
+        "searchPlaceholder": "навыки поиска...",
+        "tab": "Навыки"
+      },
       "soulMode": {
         "description": "При включении агент использует пользовательский системный промпт из файлов soul рабочей области, внедряет инструменты автономного управления задачами и отключает интерактивные инструменты, не подходящие для автономной работы.",
         "disabledBadge": "Отключено автономным режимом",
@@ -541,7 +548,7 @@
       },
       "toolsMcp": {
         "mcp": {
-          "tab": "[to be translated]:MCP",
+          "tab": "MCP",
           "title": "Серверы MCP"
         },
         "tab": "Инструменты",
@@ -3915,8 +3922,8 @@
       "title": "Ассистент по умолчанию"
     },
     "channels": {
-      "description": "[to be translated]:Connect agents to messaging platforms like Telegram, Feishu, Discord, and more.",
-      "title": "[to be translated]:Channels"
+      "description": "Подключайте агентов к платформам обмена сообщениями, таким как Telegram, Feishu, Discord и другим.",
+      "title": "Каналы"
     },
     "data": {
       "app_data": {
@@ -5499,12 +5506,12 @@
       "titlePlaceholder": "Введите заголовок фразы"
     },
     "scheduledTasks": {
-      "description": "[to be translated]:Manage scheduled tasks across all agents. Tasks run automatically on the configured schedule.",
-      "noAgents": "[to be translated]:No agents found. Create an agent first to add scheduled tasks.",
-      "noAgentsTip": "[to be translated]:Tip: You can also ask your agent to create scheduled tasks via chat.",
-      "noTasks": "[to be translated]:No scheduled tasks. Click \"+ Add\" to create one for an agent.",
-      "selectTask": "[to be translated]:Select a task to view details",
-      "title": "[to be translated]:Scheduled Tasks"
+      "description": "Управляйте запланированными задачами на всех агентах. Задачи выполняются автоматически по заданному расписанию.",
+      "noAgents": "Агенты не найдены. Сначала создайте агента, чтобы добавить запланированные задачи.",
+      "noAgentsTip": "Совет: вы также можете попросить своего агента создать запланированные задачи через чат.",
+      "noTasks": "Нет запланированных задач. Нажмите «Добавить», чтобы создать задачу для агента.",
+      "selectTask": "Выберите задачу для просмотра подробностей",
+      "title": "Запланированные задачи"
     },
     "shortcuts": {
       "action": "Действие",
@@ -5537,6 +5544,41 @@
       "zoom_in": "Увеличить",
       "zoom_out": "Уменьшить",
       "zoom_reset": "Сбросить масштаб"
+    },
+    "skills": {
+      "author": "Автор",
+      "batchUninstallSuccess": "{{count}} навыков удалено",
+      "builtin": "Встроенный",
+      "confirmBatchUninstall": "Вы уверены, что хотите удалить выбранные навыки ({{count}})?",
+      "confirmUninstall": "Вы уверены, что хотите удалить этот навык?",
+      "directory": "Каталог",
+      "dropHint": "Или перетащите сюда ZIP-файл или папку",
+      "emptyDesc": "Устанавливайте навыки из ZIP-файла, каталога или ищите в онлайн-реестрах, чтобы расширить возможности агента.",
+      "emptyTip": "Совет: вы также можете попросить агента установить навыки за вас.",
+      "emptyTitle": "Навык не выбран",
+      "filterPlaceholder": "Фильтровать навыки...",
+      "install": "Установить",
+      "installFailed": "Не удалось установить навык: {{name}}",
+      "installFromDirectory": "Установить из каталога",
+      "installFromZip": "Установить из ZIP-файла",
+      "installSuccess": "Навык установлен: {{name}}",
+      "installed": "Установленные навыки",
+      "invalidFormat": "Поддерживаются только ZIP-файлы и каталоги",
+      "localInstall": "Локальная установка",
+      "multiSelect": "Множественный выбор",
+      "noFilterResults": "Нет соответствующих навыков",
+      "noInstalled": "Навыков не установлено",
+      "noResults": "Навыки не найдены",
+      "noSkillFile": "Файл SKILL.md не найден",
+      "searchPlaceholder": "Поиск навыков в реестрах...",
+      "searchRegistryTitle": "Ищите реестры навыков онлайн",
+      "searchTitle": "Навыки поиска",
+      "selectFile": "Выберите файл для просмотра",
+      "title": "Навыки",
+      "uninstall": "Удалить",
+      "uninstallSuccess": "Навык удалён: {{name}}",
+      "viewSource": "Посмотреть исходный код",
+      "zip": "ЗИП"
     },
     "theme": {
       "color_primary": "Цвет темы",

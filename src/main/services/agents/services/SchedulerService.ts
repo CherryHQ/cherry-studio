@@ -4,6 +4,7 @@ import type { CherryClawConfiguration, ScheduledTaskEntity } from '@types'
 import { agentService } from './AgentService'
 import type { ChannelAdapter } from './channels'
 import { channelManager } from './channels/ChannelManager'
+import { broadcastSessionChanged } from './channels/sessionStreamIpc'
 import { channelService } from './ChannelService'
 import { readHeartbeat } from './cherryclaw/heartbeat'
 import { sessionMessageService } from './SessionMessageService'
@@ -242,13 +243,21 @@ class SchedulerService {
       // Resolve subscribed channels
       subscribedChannels = await channelService.getSubscribedChannels(task.id)
 
-      // Always create a new session per run to pick up the latest agent config (model, etc.)
-      const newSession = await sessionService.createSession(task.agent_id, {})
-      sessionId = newSession!.id
+      // Try to reuse the session from the last successful run for context continuity
+      const lastSessionId = await taskService.getLastRunSessionId(task.id)
+      let session = lastSessionId ? await sessionService.getSession(task.agent_id, lastSessionId) : null
 
-      const session = await sessionService.getSession(task.agent_id, sessionId)
-      if (!session) {
-        throw new Error(`Session not found: ${sessionId}`)
+      if (session) {
+        sessionId = session.id
+        logger.debug('Reusing session from last run', { taskId: task.id, sessionId })
+      } else {
+        const newSession = await sessionService.createSession(task.agent_id, {})
+        sessionId = newSession!.id
+        session = await sessionService.getSession(task.agent_id, sessionId)
+        if (!session) {
+          throw new Error(`Session not found: ${sessionId}`)
+        }
+        logger.debug('Created new session for task', { taskId: task.id, sessionId })
       }
 
       // Send as user message (triggers agent response)
@@ -273,6 +282,9 @@ class SchedulerService {
         .filter((a) => a !== undefined)
       const responseText = await this.collectAndStreamResponse(stream, targetAdapters)
       await completion
+
+      // Notify renderer so the session list refreshes and messages can be loaded
+      broadcastSessionChanged(task.agent_id, sessionId, true)
 
       // Check if the task was aborted (e.g. by timeout)
       if (abortController.signal.aborted) {

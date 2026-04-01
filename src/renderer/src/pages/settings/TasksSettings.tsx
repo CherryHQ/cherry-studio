@@ -14,8 +14,9 @@ import type {
   TaskRunLogEntity,
   UpdateTaskRequest
 } from '@renderer/types'
-import { Button, Empty, Input, Popconfirm, Select, Spin, Table, Tag, Tooltip } from 'antd'
-import { CalendarClock, Clock, ExternalLink, History, Pause, Play, Search, Trash2 } from 'lucide-react'
+import { Button, DatePicker, Empty, Input, Modal, Popconfirm, Select, Spin, Table, Tag, Tooltip } from 'antd'
+import dayjs from 'dayjs'
+import { CalendarClock, Clock, ExternalLink, History, Maximize2, Pause, Play, Search, Trash2 } from 'lucide-react'
 import { type FC, useCallback, useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useNavigate } from 'react-router-dom'
@@ -57,6 +58,7 @@ const TaskDetail: FC<{
 
   const [name, setName] = useState(task.name)
   const [prompt, setPrompt] = useState(task.prompt)
+  const [promptModalOpen, setPromptModalOpen] = useState(false)
   const [agentId, setAgentId] = useState(task.agent_id)
   const [scheduleType, setScheduleType] = useState(task.schedule_type)
   const [scheduleValue, setScheduleValue] = useState(task.schedule_value)
@@ -201,10 +203,22 @@ const TaskDetail: FC<{
           </>
         )}
         <SettingRow style={{ flexDirection: 'column', alignItems: 'stretch' }}>
-          <SettingRowTitle>{t('agent.cherryClaw.tasks.prompt.label')}</SettingRowTitle>
+          <div className="flex items-center justify-between">
+            <SettingRowTitle>{t('agent.cherryClaw.tasks.prompt.label')}</SettingRowTitle>
+            {!isCompleted && (
+              <Tooltip title={t('agent.cherryClaw.tasks.prompt.expand')}>
+                <Button
+                  type="text"
+                  size="small"
+                  icon={<Maximize2 size={13} />}
+                  onClick={() => setPromptModalOpen(true)}
+                />
+              </Tooltip>
+            )}
+          </div>
           <Input.TextArea
             size="small"
-            rows={4}
+            autoSize={{ minRows: 3, maxRows: 8 }}
             value={prompt}
             onChange={(e) => setPrompt(e.target.value)}
             onBlur={() => prompt.trim() && prompt !== task.prompt && saveField({ prompt: prompt.trim() })}
@@ -266,14 +280,17 @@ const TaskDetail: FC<{
               />
             )}
             {scheduleType === 'once' && (
-              <Input
+              <DatePicker
                 size="small"
-                type="datetime-local"
-                value={scheduleValue}
-                onChange={(e) => {
-                  const iso = new Date(e.target.value).toISOString()
-                  setScheduleValue(iso)
-                  saveField({ schedule_value: iso })
+                showTime
+                className="w-full"
+                value={scheduleValue ? dayjs(scheduleValue) : null}
+                onChange={(val) => {
+                  if (val) {
+                    const iso = val.toISOString()
+                    setScheduleValue(iso)
+                    saveField({ schedule_value: iso })
+                  }
                 }}
                 disabled={isCompleted}
               />
@@ -327,6 +344,26 @@ const TaskDetail: FC<{
         <SettingDivider />
         <TaskLogsInline taskId={task.id} agentId={task.agent_id} />
       </SettingGroup>
+
+      <Modal
+        title={t('agent.cherryClaw.tasks.prompt.label')}
+        open={promptModalOpen}
+        onCancel={() => {
+          if (prompt.trim() && prompt !== task.prompt) {
+            saveField({ prompt: prompt.trim() })
+          }
+          setPromptModalOpen(false)
+        }}
+        footer={null}
+        width={640}>
+        <Input.TextArea
+          autoSize={{ minRows: 12, maxRows: 30 }}
+          value={prompt}
+          onChange={(e) => setPrompt(e.target.value)}
+          disabled={isCompleted}
+          style={{ marginTop: 8 }}
+        />
+      </Modal>
     </SettingContainer>
   )
 }
@@ -334,7 +371,8 @@ const TaskDetail: FC<{
 // --------------- Inline Logs ---------------
 
 const TaskLogsInline: FC<{ taskId: string; agentId: string }> = ({ taskId, agentId }) => {
-  const { t } = useTranslation()
+  const { t, i18n } = useTranslation()
+  const locale = i18n.language
   const navigate = useNavigate()
   const dispatch = useAppDispatch()
   const { logs, isLoading } = useTaskLogs(taskId)
@@ -348,7 +386,7 @@ const TaskLogsInline: FC<{ taskId: string; agentId: string }> = ({ taskId, agent
         log.result?.toLowerCase().includes(query) ||
         log.error?.toLowerCase().includes(query) ||
         log.status.toLowerCase().includes(query) ||
-        new Date(log.run_at).toLocaleString().toLowerCase().includes(query)
+        new Date(log.run_at).toLocaleString(locale).toLowerCase().includes(query)
     )
   }, [logs, searchText])
 
@@ -503,6 +541,7 @@ const CreateForm: FC<{
   const [agentId, setAgentId] = useState<string | null>(agents.length === 1 ? agents[0].id : null)
   const [name, setName] = useState('')
   const [prompt, setPrompt] = useState('')
+  const [promptModalOpen, setPromptModalOpen] = useState(false)
   const [scheduleType, setScheduleType] = useState<'cron' | 'interval' | 'once'>('interval')
   const [scheduleValue, setScheduleValue] = useState('')
   const [timeoutMinutes, setTimeoutMinutes] = useState('')
@@ -564,16 +603,41 @@ const CreateForm: FC<{
         <SettingDivider />
 
         <SettingRow style={{ flexDirection: 'column', alignItems: 'stretch' }}>
-          <SettingRowTitle>{t('agent.cherryClaw.tasks.prompt.label')}</SettingRowTitle>
+          <div className="flex items-center justify-between">
+            <SettingRowTitle>{t('agent.cherryClaw.tasks.prompt.label')}</SettingRowTitle>
+            <Tooltip title={t('agent.cherryClaw.tasks.prompt.expand')}>
+              <Button
+                type="text"
+                size="small"
+                icon={<Maximize2 size={13} />}
+                onClick={() => setPromptModalOpen(true)}
+              />
+            </Tooltip>
+          </div>
           <Input.TextArea
             size="small"
-            rows={4}
+            autoSize={{ minRows: 3, maxRows: 8 }}
             value={prompt}
             onChange={(e) => setPrompt(e.target.value)}
             placeholder={t('agent.cherryClaw.tasks.prompt.placeholder')}
           />
         </SettingRow>
         <SettingDivider />
+
+        <Modal
+          title={t('agent.cherryClaw.tasks.prompt.label')}
+          open={promptModalOpen}
+          onCancel={() => setPromptModalOpen(false)}
+          footer={null}
+          width={640}>
+          <Input.TextArea
+            autoSize={{ minRows: 12, maxRows: 30 }}
+            value={prompt}
+            onChange={(e) => setPrompt(e.target.value)}
+            placeholder={t('agent.cherryClaw.tasks.prompt.placeholder')}
+            style={{ marginTop: 8 }}
+          />
+        </Modal>
 
         <div className="grid grid-cols-3 gap-3">
           <div>
@@ -615,11 +679,16 @@ const CreateForm: FC<{
               />
             )}
             {scheduleType === 'once' && (
-              <Input
+              <DatePicker
                 size="small"
-                type="datetime-local"
-                value={scheduleValue}
-                onChange={(e) => setScheduleValue(new Date(e.target.value).toISOString())}
+                showTime
+                className="w-full"
+                value={scheduleValue ? dayjs(scheduleValue) : null}
+                onChange={(val) => {
+                  if (val) {
+                    setScheduleValue(val.toISOString())
+                  }
+                }}
               />
             )}
           </div>

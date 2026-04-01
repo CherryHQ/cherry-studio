@@ -6,9 +6,9 @@ const mockListTasks = vi.fn()
 const mockDeleteTask = vi.fn()
 const mockGetNotifyAdapters = vi.fn()
 const mockSendMessage = vi.fn()
-const mockPluginInstall = vi.fn()
-const mockPluginUninstall = vi.fn()
-const mockPluginListInstalled = vi.fn()
+const mockSkillInstall = vi.fn()
+const mockSkillUninstallByFolderName = vi.fn()
+const mockSkillList = vi.fn()
 const mockNetFetch = vi.fn()
 const mockGetAgent = vi.fn()
 const mockUpdateAgent = vi.fn()
@@ -67,13 +67,11 @@ vi.mock('qrcode', () => ({
   default: { toDataURL: mockQRCodeToDataURL }
 }))
 
-vi.mock('@main/services/agents/plugins/PluginService', () => ({
-  PluginService: {
-    getInstance: () => ({
-      install: mockPluginInstall,
-      uninstall: mockPluginUninstall,
-      listInstalled: mockPluginListInstalled
-    })
+vi.mock('@main/services/agents/skills', () => ({
+  skillService: {
+    install: mockSkillInstall,
+    uninstallByFolderName: mockSkillUninstallByFolderName,
+    list: mockSkillList
   }
 }))
 
@@ -407,19 +405,19 @@ describe('ClawServer', () => {
     })
 
     it('should install a marketplace skill', async () => {
-      mockPluginInstall.mockResolvedValue({
+      mockSkillInstall.mockResolvedValue({
+        id: 'skill-1',
         name: 'gh-create-pr',
         description: 'Create PRs',
-        filename: 'gh-create-pr'
+        folderName: 'gh-create-pr',
+        isEnabled: false
       })
 
       const server = createServer('agent_1')
       const result = await callTool(server, { action: 'install', identifier: 'owner/repo/gh-create-pr' }, 'skills')
 
-      expect(mockPluginInstall).toHaveBeenCalledWith({
-        agentId: 'agent_1',
-        sourcePath: 'marketplace:skill:owner/repo/gh-create-pr',
-        type: 'skill'
+      expect(mockSkillInstall).toHaveBeenCalledWith({
+        installSource: 'claude-plugins:owner/repo/gh-create-pr'
       })
       expect(result.content[0].text).toContain('Skill installed')
       expect(result.content[0].text).toContain('gh-create-pr')
@@ -434,16 +432,12 @@ describe('ClawServer', () => {
     })
 
     it('should remove an installed skill', async () => {
-      mockPluginUninstall.mockResolvedValue(undefined)
+      mockSkillUninstallByFolderName.mockResolvedValue(undefined)
 
       const server = createServer('agent_1')
       const result = await callTool(server, { action: 'remove', name: 'gh-create-pr' }, 'skills')
 
-      expect(mockPluginUninstall).toHaveBeenCalledWith({
-        agentId: 'agent_1',
-        filename: 'gh-create-pr',
-        type: 'skill'
-      })
+      expect(mockSkillUninstallByFolderName).toHaveBeenCalledWith('gh-create-pr')
       expect(result.content[0].text).toContain('removed')
     })
 
@@ -456,24 +450,21 @@ describe('ClawServer', () => {
     })
 
     it('should list installed skills', async () => {
-      mockPluginListInstalled.mockResolvedValue([
-        { type: 'skill', filename: 'gh-create-pr', metadata: { name: 'gh-create-pr', description: 'Create PRs' } },
-        { type: 'agent', filename: 'some-agent.md', metadata: { name: 'some-agent', description: 'An agent' } },
-        { type: 'skill', filename: 'code-review', metadata: { name: 'code-review', description: 'Review code' } }
+      mockSkillList.mockResolvedValue([
+        { id: '1', name: 'gh-create-pr', description: 'Create PRs', folderName: 'gh-create-pr', isEnabled: true },
+        { id: '2', name: 'code-review', description: 'Review code', folderName: 'code-review', isEnabled: true }
       ])
 
       const server = createServer('agent_1')
       const result = await callTool(server, { action: 'list' }, 'skills')
 
-      expect(mockPluginListInstalled).toHaveBeenCalledWith('agent_1')
+      expect(mockSkillList).toHaveBeenCalled()
       expect(result.content[0].text).toContain('gh-create-pr')
       expect(result.content[0].text).toContain('code-review')
-      // Should not include the agent
-      expect(result.content[0].text).not.toContain('some-agent')
     })
 
     it('should handle empty skills list', async () => {
-      mockPluginListInstalled.mockResolvedValue([])
+      mockSkillList.mockResolvedValue([])
 
       const server = createServer()
       const result = await callTool(server, { action: 'list' }, 'skills')

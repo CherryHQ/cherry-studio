@@ -3,11 +3,11 @@ import path from 'node:path'
 
 import { loggerService } from '@logger'
 import { type ChannelConfig, ChannelConfigSchema } from '@main/services/agents/database/schema'
-import { PluginService } from '@main/services/agents/plugins/PluginService'
 import { agentService } from '@main/services/agents/services/AgentService'
 import { channelManager } from '@main/services/agents/services/channels/ChannelManager'
 import { channelService } from '@main/services/agents/services/ChannelService'
 import { taskService } from '@main/services/agents/services/TaskService'
+import { skillService } from '@main/services/agents/skills'
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
 import type { Tool } from '@modelcontextprotocol/sdk/types.js'
 import { CallToolRequestSchema, ErrorCode, ListToolsRequestSchema, McpError } from '@modelcontextprotocol/sdk/types.js'
@@ -632,21 +632,16 @@ class ClawServer {
       )
     }
 
-    const pluginService = PluginService.getInstance()
-    const sourcePath = `marketplace:skill:${identifier}`
-
-    const metadata = await pluginService.install({
-      agentId: this.agentId,
-      sourcePath,
-      type: 'skill'
+    const installed = await skillService.install({
+      installSource: `claude-plugins:${identifier}`
     })
 
-    logger.info('Skill installed via tool', { agentId: this.agentId, identifier, name: metadata.name })
+    logger.info('Skill installed via tool', { agentId: this.agentId, identifier, name: installed.name })
     return {
       content: [
         {
           type: 'text' as const,
-          text: `Skill installed:\n  Name: ${metadata.name}\n  Description: ${metadata.description ?? 'N/A'}\n  Folder: ${metadata.filename}`
+          text: `Skill installed:\n  Name: ${installed.name}\n  Description: ${installed.description ?? 'N/A'}\n  Folder: ${installed.folderName}`
         }
       ]
     }
@@ -656,13 +651,7 @@ class ClawServer {
     const name = args.name
     if (!name) throw new McpError(ErrorCode.InvalidParams, "'name' is required for remove (skill folder name)")
 
-    const pluginService = PluginService.getInstance()
-
-    await pluginService.uninstall({
-      agentId: this.agentId,
-      filename: name,
-      type: 'skill'
-    })
+    await skillService.uninstallByFolderName(name)
 
     logger.info('Skill removed via tool', { agentId: this.agentId, name })
     return {
@@ -671,18 +660,17 @@ class ClawServer {
   }
 
   private async listSkills() {
-    const pluginService = PluginService.getInstance()
-    const allPlugins = await pluginService.listInstalled(this.agentId)
-    const skills = allPlugins.filter((p) => p.type === 'skill')
+    const skills = await skillService.list()
 
     if (skills.length === 0) {
       return { content: [{ type: 'text' as const, text: 'No skills installed.' }] }
     }
 
     const results = skills.map((s) => ({
-      name: s.metadata.name,
-      folder: s.filename,
-      description: s.metadata.description ?? null
+      name: s.name,
+      folder: s.folderName,
+      description: s.description ?? null,
+      enabled: s.isEnabled
     }))
 
     logger.info('Skills list via tool', { agentId: this.agentId, count: results.length })

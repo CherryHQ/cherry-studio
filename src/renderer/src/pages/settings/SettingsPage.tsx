@@ -18,6 +18,7 @@ import {
   Search,
   Server,
   Settings2,
+  Sparkles,
   TextCursorInput,
   Zap
 } from 'lucide-react'
@@ -39,6 +40,7 @@ import QuickAssistantSettings from './QuickAssistantSettings'
 import QuickPhraseSettings from './QuickPhraseSettings'
 import SelectionAssistantSettings from './SelectionAssistantSettings/SelectionAssistantSettings'
 import ShortcutSettings from './ShortcutSettings'
+import SkillsSettings from './SkillsSettings'
 import TasksSettings from './TasksSettings'
 import { ApiServerSettings } from './ToolSettings/ApiServerSettings'
 import WebSearchSettings from './WebSearchSettings'
@@ -92,6 +94,12 @@ const SettingsPage: FC = () => {
             <MenuItem className={isRoute('/settings/mcp')}>
               <McpLogo width={18} height={18} style={{ opacity: 0.8 }} />
               {t('settings.mcp.title')}
+            </MenuItem>
+          </MenuItemLink>
+          <MenuItemLink to="/settings/skills">
+            <MenuItem className={isRoute('/settings/skills')}>
+              <Sparkles size={18} />
+              {t('settings.skills.title')}
             </MenuItem>
           </MenuItemLink>
           <MenuItemLink to="/settings/websearch">
@@ -174,6 +182,7 @@ const SettingsPage: FC = () => {
             <Route path="docprocess" element={<DocProcessSettings />} />
             <Route path="quickphrase" element={<QuickPhraseSettings />} />
             <Route path="mcp/*" element={<MCPSettings />} />
+            <Route path="skills" element={<SkillsSettings />} />
             <Route path="memory" element={<MemorySettings />} />
             <Route path="general/*" element={<GeneralSettings />} />
             <Route path="display" element={<DisplaySettings />} />

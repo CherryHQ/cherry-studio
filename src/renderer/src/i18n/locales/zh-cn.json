@@ -233,6 +233,7 @@
         "oncePlaceholder": "选择日期和时间",
         "pause": "暂停",
         "prompt": {
+          "expand": "展开编辑器",
           "label": "提示词",
           "placeholder": "此任务运行时 Agent 应该做什么？"
         },
@@ -253,6 +254,10 @@
           "paused": "已暂停"
         },
         "tab": "任务",
+        "time": {
+          "hoursAgo": "{{count}}小时前",
+          "minutesAgo": "{{count}}分钟前"
+        },
         "timeout": {
           "label": "超时时间",
           "placeholder": "无限制"
@@ -439,15 +444,15 @@
           "title": "安装插件"
         },
         "installed": {
-          "empty": "尚未安装任何插件。浏览可用插件以开始使用。",
-          "title": "已安装插件"
+          "empty": "尚未安装任何技能。浏览可用技能以开始使用。",
+          "title": "已安装技能"
         },
         "installing": "安装中...",
         "plugin_upload": {
           "all_failed": "全部 {{failed}} 个组件安装失败",
           "error": "安装失败",
-          "format_hint": "支持插件包格式（.claude-plugin/plugin.json）",
-          "hint": "拖拽插件 ZIP 到此处，或点击选择文件",
+          "format_hint": "支持技能包格式（.claude-plugin/plugin.json）",
+          "hint": "拖拽技能 ZIP 到此处，或点击选择文件",
           "invalid_format": "请上传 ZIP 格式的文件",
           "partial_success": "已安装 {{installed}} 个组件，{{failed}} 个失败",
           "select_folder": "选择文件夹",
@@ -481,6 +486,13 @@
         "uninstalling": "卸载中..."
       },
       "prompt": "提示词设置",
+      "skills": {
+        "builtin": "内置",
+        "noFilterResults": "没有匹配的技能",
+        "noSkills": "暂无已安装的技能。前往 设置 > 技能 安装技能。",
+        "searchPlaceholder": "搜索技能...",
+        "tab": "技能"
+      },
       "soulMode": {
         "description": "启用后，Agent 将使用工作区灵魂文件构建自定义系统提示词，注入自主任务管理工具，并禁用不适合自主运行的交互式工具。",
         "disabledBadge": "自主模式已禁用",
@@ -3292,11 +3304,11 @@
       "tools": "工具"
     },
     "install": "安装",
-    "install_plugins_from_browser": "浏览可用插件以开始使用",
+    "install_plugins_from_browser": "浏览可用技能以开始使用",
     "installing": "安装中...",
     "name": "名称",
     "no_description": "无描述",
-    "no_installed_plugins": "尚未安装任何插件",
+    "no_installed_plugins": "尚未安装任何技能",
     "no_results": "未找到插件",
     "no_results_skills": "未找到技能",
     "search_placeholder": "搜索插件...",
@@ -5539,6 +5551,41 @@
       "zoom_in": "放大界面",
       "zoom_out": "缩小界面",
       "zoom_reset": "重置缩放"
+    },
+    "skills": {
+      "author": "作者",
+      "batchUninstallSuccess": "已卸载 {{count}} 个技能",
+      "builtin": "内置",
+      "confirmBatchUninstall": "确定要卸载选中的 {{count}} 个技能吗？",
+      "confirmUninstall": "确定要卸载此技能吗？",
+      "directory": "文件夹",
+      "dropHint": "或将 ZIP 文件或文件夹拖放到此处",
+      "emptyDesc": "通过 ZIP、文件夹安装，或在线搜索注册表来扩展 Agent 的能力。",
+      "emptyTip": "提示：你也可以让 Agent 帮你安装技能。",
+      "emptyTitle": "未选择技能",
+      "filterPlaceholder": "筛选技能...",
+      "install": "安装",
+      "installFailed": "技能安装失败：{{name}}",
+      "installFromDirectory": "从文件夹安装",
+      "installFromZip": "从 ZIP 文件安装",
+      "installSuccess": "技能已安装：{{name}}",
+      "installed": "已安装",
+      "invalidFormat": "仅支持 ZIP 文件和文件夹",
+      "localInstall": "本地安装",
+      "multiSelect": "多选",
+      "noFilterResults": "没有匹配的技能",
+      "noInstalled": "暂无已安装的技能",
+      "noResults": "未找到技能",
+      "noSkillFile": "未找到 SKILL.md 文件",
+      "searchPlaceholder": "跨注册表搜索技能...",
+      "searchRegistryTitle": "在线搜索技能注册表",
+      "searchTitle": "搜索技能",
+      "selectFile": "选择一个文件查看",
+      "title": "技能",
+      "uninstall": "卸载",
+      "uninstallSuccess": "技能已卸载：{{name}}",
+      "viewSource": "查看源码",
+      "zip": "ZIP"
     },
     "theme": {
       "color_primary": "主题颜色",

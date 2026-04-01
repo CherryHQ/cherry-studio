@@ -31,13 +31,13 @@
     "cherryClaw": {
       "channels": {
         "add": "Adaugă",
-        "bindAgent": "[to be translated]:Bind Agent",
+        "bindAgent": "Agent de legătură",
         "comingSoon": "În curând",
-        "connected": "[to be translated]:Connected",
-        "connecting": "[to be translated]:Connecting",
+        "connected": "Conectat",
+        "connecting": "Conectare",
         "deleteConfirm": "Șterge canalul „{{name}}”?",
         "description": "Conectați agentul la platforme de mesagerie.",
-        "disconnected": "[to be translated]:Disconnected",
+        "disconnected": "Deconectat",
         "discord": {
           "botToken": "Token Bot",
           "botTokenPlaceholder": "Introdu token-ul botului tău Discord",
@@ -48,7 +48,7 @@
           "title": "Discord",
           "whoamiTip": "💡 Sfaturi: Trimite /whoami către bot pentru a obține ID-ul canalului tău în formatul corect."
         },
-        "error": "[to be translated]:Error",
+        "error": "Eroare",
         "feishu": {
           "appId": "App ID",
           "appIdPlaceholder": "Introduceți App ID-ul aplicației Feishu",
@@ -73,9 +73,9 @@
           "verificationToken": "Token de verificare",
           "verificationTokenPlaceholder": "Introduceți tokenul de verificare al aplicației Feishu"
         },
-        "logs": "[to be translated]:Logs",
+        "logs": "Jurnale",
         "noInstances": "Niciun canal {{type}} configurat. Faceți clic pe „+ Adăugare” pentru a crea unul.",
-        "noLogs": "[to be translated]:No logs yet",
+        "noLogs": "Niciun jurnal încă",
         "notifyReceiver": "Primește notificări de sarcini",
         "notifyReceiverHint": "Trimite rezultatele sarcinilor programate pe acest canal.",
         "qq": {
@@ -95,18 +95,18 @@
           "permissionMode": "Modul de permisiune al canalului",
           "permissionModeHint": "Suprascrie modul de permisiune al agentului pentru mesajele de pe acest canal. „Moștenire” utilizează setarea implicită a agentului."
         },
-        "selectAgent": "[to be translated]:Select an agent to bind",
+        "selectAgent": "Selectați un agent pentru a-l lega",
         "slack": {
-          "appToken": "[to be translated]:App-Level Token",
-          "appTokenPlaceholder": "[to be translated]:xapp-...",
-          "botToken": "[to be translated]:Bot Token",
-          "botTokenPlaceholder": "[to be translated]:xoxb-...",
-          "channelIds": "[to be translated]:Allowed Channel IDs",
-          "channelIdsHint": "[to be translated]:Slack channel IDs. Leave empty to allow all.",
-          "channelIdsPlaceholder": "[to be translated]:C01234567, D89012345",
-          "description": "[to be translated]:Receive and respond to messages via a Slack bot using Socket Mode.",
-          "title": "[to be translated]:Slack",
-          "whoamiTip": "[to be translated]:💡 Tip: Send /whoami to the bot to get the channel ID."
+          "appToken": "Token la nivel de aplicație",
+          "appTokenPlaceholder": "xapp-...",
+          "botToken": "Token bot",
+          "botTokenPlaceholder": "xoxb-...",
+          "channelIds": "ID-uri canale permise",
+          "channelIdsHint": "ID-urile canalelor Slack. Lăsați gol pentru a permite toate.",
+          "channelIdsPlaceholder": "C01234567, D89012345",
+          "description": "Primește și răspunde la mesaje printr-un bot Slack folosind Socket Mode.",
+          "title": "Slack",
+          "whoamiTip": "💡 Sfat: Trimite /whoami către bot pentru a obține ID-ul canalului."
         },
         "tab": "Canale",
         "telegram": {
@@ -198,8 +198,8 @@
         "add": "Adaugă sarcină",
         "cancel": "Anulează",
         "channels": {
-          "label": "[to be translated]:Send to Channels",
-          "placeholder": "[to be translated]:Select channels to receive results"
+          "label": "Trimite către canale",
+          "placeholder": "Selectați canalele pentru a primi rezultatele"
         },
         "cronPlaceholder": "ex: 0 9 * * * (în fiecare zi la ora 9)",
         "delete": {
@@ -214,14 +214,14 @@
           "duration": "Durată",
           "empty": "Nu există încă istoric de rulare.",
           "error": "Eroare",
-          "justNow": "[to be translated]:just now",
+          "justNow": "chiar acum",
           "label": "Istoric rulări",
           "result": "Rezultat",
           "runAt": "Rulat la",
-          "running": "[to be translated]:Running...",
-          "search": "[to be translated]:Search logs...",
+          "running": "Alergând...",
+          "search": "Caută jurnalele...",
           "status": "Stare",
-          "viewSession": "[to be translated]:View session"
+          "viewSession": "Vizualizare sesiune"
         },
         "name": {
           "label": "Nume",
@@ -252,8 +252,8 @@
         },
         "tab": "Sarcini",
         "timeout": {
-          "label": "[to be translated]:Timeout",
-          "placeholder": "[to be translated]:No limit"
+          "label": "Timeout",
+          "placeholder": "Fără limită"
         },
         "title": "Sarcini programate"
       },
@@ -479,6 +479,13 @@
         "uninstalling": "Se dezinstalează..."
       },
       "prompt": "Setări prompt",
+      "skills": {
+        "builtin": "Încorporat",
+        "noFilterResults": "Nicio abilitate potrivită",
+        "noSkills": "Nicio abilitate instalată. Instalează abilități din Setări > Abilități.",
+        "searchPlaceholder": "Abilități de căutare...",
+        "tab": "Abilități"
+      },
       "soulMode": {
         "description": "Când este activată, agentul folosește o comandă de sistem personalizată din fișierele soul ale spațiului de lucru, injectează instrumente autonome de gestionare a sarcinilor și dezactivează instrumentele interactive care nu sunt potrivite pentru funcționarea autonomă.",
         "disabledBadge": "Dezactivat de Modul Autonom",
@@ -541,7 +548,7 @@
       },
       "toolsMcp": {
         "mcp": {
-          "tab": "[to be translated]:MCP",
+          "tab": "MCP",
           "title": "Servere MCP"
         },
         "tab": "Unelte",
@@ -3915,8 +3922,8 @@
       "title": "Asistent implicit"
     },
     "channels": {
-      "description": "[to be translated]:Connect agents to messaging platforms like Telegram, Feishu, Discord, and more.",
-      "title": "[to be translated]:Channels"
+      "description": "Conectați agenți la platforme de mesagerie precum Telegram, Feishu, Discord și altele.",
+      "title": "Canale"
     },
     "data": {
       "app_data": {
@@ -5499,12 +5506,12 @@
       "titlePlaceholder": "Te rugăm să introduci titlul expresiei"
     },
     "scheduledTasks": {
-      "description": "[to be translated]:Manage scheduled tasks across all agents. Tasks run automatically on the configured schedule.",
-      "noAgents": "[to be translated]:No agents found. Create an agent first to add scheduled tasks.",
-      "noAgentsTip": "[to be translated]:Tip: You can also ask your agent to create scheduled tasks via chat.",
-      "noTasks": "[to be translated]:No scheduled tasks. Click \"+ Add\" to create one for an agent.",
-      "selectTask": "[to be translated]:Select a task to view details",
-      "title": "[to be translated]:Scheduled Tasks"
+      "description": "Gestionați sarcinile programate pentru toți agenții. Sarcinile rulează automat conform programului configurat.",
+      "noAgents": "Niciun agent găsit. Creează mai întâi un agent pentru a adăuga sarcini programate.",
+      "noAgentsTip": "Sfat: Îți poți ruga, de asemenea, agentul să creeze sarcini programate prin chat.",
+      "noTasks": "Nu există sarcini programate. Faceți clic pe „+ Adăugați” pentru a crea una pentru un agent.",
+      "selectTask": "Selectați o sarcină pentru a vizualiza detaliile",
+      "title": "Sarcini programate"
     },
     "shortcuts": {
       "action": "Acțiune",
@@ -5537,6 +5544,41 @@
       "zoom_in": "Mărește",
       "zoom_out": "Micșorează",
       "zoom_reset": "Resetează zoom-ul"
+    },
+    "skills": {
+      "author": "Autor",
+      "batchUninstallSuccess": "{{count}} competențe dezinstalate",
+      "builtin": "Încorporat",
+      "confirmBatchUninstall": "Sigur dorești să dezinstalezi {{count}} competențe selectate?",
+      "confirmUninstall": "Ești sigur că vrei să dezinstalezi această abilitate?",
+      "directory": "Director",
+      "dropHint": "Sau trageți și plasați aici un fișier ZIP sau un folder",
+      "emptyDesc": "Instalează abilități din ZIP, director sau caută în registre online pentru a extinde capabilitățile agentului.",
+      "emptyTip": "Sfat: Poți, de asemenea, să ceri unui agent să instaleze abilități pentru tine.",
+      "emptyTitle": "Nicio competență selectată",
+      "filterPlaceholder": "Filtrează abilitățile...",
+      "install": "Instalare",
+      "installFailed": "Nu s-a putut instala abilitatea: {{name}}",
+      "installFromDirectory": "Instalează din director",
+      "installFromZip": "Instalează din fișier ZIP",
+      "installSuccess": "Abilitate instalată: {{name}}",
+      "installed": "Abilități Instalate",
+      "invalidFormat": "Sunt acceptate doar fișiere ZIP și directoare.",
+      "localInstall": "Instalare locală",
+      "multiSelect": "Selecție multiplă",
+      "noFilterResults": "Niciun abilitate potrivită",
+      "noInstalled": "Nicio competență instalată",
+      "noResults": "Nicio competență găsită",
+      "noSkillFile": "Nu s-a găsit SKILL.md",
+      "searchPlaceholder": "Caută competențe în registre...",
+      "searchRegistryTitle": "Caută registre de competențe online",
+      "searchTitle": "Abilități de căutare",
+      "selectFile": "Selectați un fișier pentru vizualizare",
+      "title": "Abilități",
+      "uninstall": "Dezinstalare",
+      "uninstallSuccess": "Abilitate dezinstalată: {{name}}",
+      "viewSource": "Vezi sursa",
+      "zip": "ZIP"
     },
     "theme": {
       "color_primary": "Culoare primară",

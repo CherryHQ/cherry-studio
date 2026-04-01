@@ -31,13 +31,13 @@
     "cherryClaw": {
       "channels": {
         "add": "Ajouter",
-        "bindAgent": "[to be translated]:Bind Agent",
+        "bindAgent": "Agent Lier",
         "comingSoon": "Bientôt disponible",
-        "connected": "[to be translated]:Connected",
-        "connecting": "[to be translated]:Connecting",
+        "connected": "Connecté",
+        "connecting": "Connexion",
         "deleteConfirm": "Supprimer le canal \"{{name}}\" ?",
         "description": "Connectez votre agent aux plateformes de messagerie.",
-        "disconnected": "[to be translated]:Disconnected",
+        "disconnected": "Déconnecté",
         "discord": {
           "botToken": "Jeton de bot",
           "botTokenPlaceholder": "Entrez votre jeton de bot Discord",
@@ -48,7 +48,7 @@
           "title": "Discord",
           "whoamiTip": "💡 Astuce : Envoyez /whoami au bot pour obtenir l’ID de votre chaîne au bon format."
         },
-        "error": "[to be translated]:Error",
+        "error": "Erreur",
         "feishu": {
           "appId": "App ID",
           "appIdPlaceholder": "Saisissez l'App ID de votre application Feishu",
@@ -73,9 +73,9 @@
           "verificationToken": "Jeton de vérification",
           "verificationTokenPlaceholder": "Saisissez le jeton de vérification de votre application Feishu"
         },
-        "logs": "[to be translated]:Logs",
+        "logs": "Journaux",
         "noInstances": "Aucun canal {{type}} configuré. Cliquez sur « + Ajouter » pour en créer un.",
-        "noLogs": "[to be translated]:No logs yet",
+        "noLogs": "Pas encore de journaux",
         "notifyReceiver": "Recevoir les notifications de tâches",
         "notifyReceiverHint": "Envoyer les résultats des tâches planifiées à ce canal.",
         "qq": {
@@ -95,18 +95,18 @@
           "permissionMode": "Mode de permission du canal",
           "permissionModeHint": "Remplace le mode d'autorisation de l'agent pour les messages provenant de ce canal. « Hériter » utilise la valeur par défaut de l'agent."
         },
-        "selectAgent": "[to be translated]:Select an agent to bind",
+        "selectAgent": "Sélectionnez un agent à lier",
         "slack": {
-          "appToken": "[to be translated]:App-Level Token",
-          "appTokenPlaceholder": "[to be translated]:xapp-...",
-          "botToken": "[to be translated]:Bot Token",
-          "botTokenPlaceholder": "[to be translated]:xoxb-...",
-          "channelIds": "[to be translated]:Allowed Channel IDs",
-          "channelIdsHint": "[to be translated]:Slack channel IDs. Leave empty to allow all.",
-          "channelIdsPlaceholder": "[to be translated]:C01234567, D89012345",
-          "description": "[to be translated]:Receive and respond to messages via a Slack bot using Socket Mode.",
-          "title": "[to be translated]:Slack",
-          "whoamiTip": "[to be translated]:💡 Tip: Send /whoami to the bot to get the channel ID."
+          "appToken": "Jeton au niveau de l'application",
+          "appTokenPlaceholder": "xapp-...",
+          "botToken": "Jeton du bot",
+          "botTokenPlaceholder": "xoxb-...",
+          "channelIds": "ID de canaux autorisés",
+          "channelIdsHint": "IDs de canaux Slack. Laissez vide pour autoriser tous.",
+          "channelIdsPlaceholder": "C01234567, D89012345",
+          "description": "Recevoir et répondre aux messages via un bot Slack en mode Socket.",
+          "title": "Slack",
+          "whoamiTip": "💡 Astuce : Envoie /whoami au bot pour obtenir l’ID du canal."
         },
         "tab": "Canaux",
         "telegram": {
@@ -198,8 +198,8 @@
         "add": "Ajouter une tâche",
         "cancel": "Annuler",
         "channels": {
-          "label": "[to be translated]:Send to Channels",
-          "placeholder": "[to be translated]:Select channels to receive results"
+          "label": "Envoyer aux chaînes",
+          "placeholder": "Sélectionnez les chaînes pour recevoir les résultats"
         },
         "cronPlaceholder": "ex: 0 9 * * * (tous les jours à 9h)",
         "delete": {
@@ -214,14 +214,14 @@
           "duration": "Durée",
           "empty": "Aucun historique d'exécution.",
           "error": "Erreur",
-          "justNow": "[to be translated]:just now",
+          "justNow": "à l'instant",
           "label": "Historique d'exécution",
           "result": "Résultat",
           "runAt": "Exécuté le",
-          "running": "[to be translated]:Running...",
-          "search": "[to be translated]:Search logs...",
+          "running": "En cours d'exécution...",
+          "search": "Rechercher les journaux...",
           "status": "Statut",
-          "viewSession": "[to be translated]:View session"
+          "viewSession": "Voir la session"
         },
         "name": {
           "label": "Nom",
@@ -252,8 +252,8 @@
         },
         "tab": "Tâches",
         "timeout": {
-          "label": "[to be translated]:Timeout",
-          "placeholder": "[to be translated]:No limit"
+          "label": "Délai d'attente dépassé",
+          "placeholder": "Aucune limite"
         },
         "title": "Tâches planifiées"
       },
@@ -479,6 +479,13 @@
         "uninstalling": "Désinstallation en cours..."
       },
       "prompt": "Paramètres de l'invite",
+      "skills": {
+        "builtin": "Intégré",
+        "noFilterResults": "Aucune compétence correspondante",
+        "noSkills": "Aucune compétence installée. Installez des compétences depuis Paramètres > Compétences.",
+        "searchPlaceholder": "Compétences de recherche...",
+        "tab": "Compétences"
+      },
       "soulMode": {
         "description": "Lorsqu'il est activé, l'agent utilise une invite système personnée provenant des fichiers soul de l'espace de travail, injecte des outils de gestion autonome des tâches et désactive les outils interactifs non adaptés au fonctionnement autonome.",
         "disabledBadge": "Désactivé par le mode autonome",
@@ -541,7 +548,7 @@
       },
       "toolsMcp": {
         "mcp": {
-          "tab": "[to be translated]:MCP",
+          "tab": "MCP",
           "title": "Serveurs MCP"
         },
         "tab": "Outils",
@@ -3915,8 +3922,8 @@
       "title": "Assistant par défaut"
     },
     "channels": {
-      "description": "[to be translated]:Connect agents to messaging platforms like Telegram, Feishu, Discord, and more.",
-      "title": "[to be translated]:Channels"
+      "description": "Connectez des agents à des plateformes de messagerie comme Telegram, Feishu, Discord, et bien plus encore.",
+      "title": "Chaînes"
     },
     "data": {
       "app_data": {
@@ -5499,12 +5506,12 @@
       "titlePlaceholder": "Введите заголовок фразы"
     },
     "scheduledTasks": {
-      "description": "[to be translated]:Manage scheduled tasks across all agents. Tasks run automatically on the configured schedule.",
-      "noAgents": "[to be translated]:No agents found. Create an agent first to add scheduled tasks.",
-      "noAgentsTip": "[to be translated]:Tip: You can also ask your agent to create scheduled tasks via chat.",
-      "noTasks": "[to be translated]:No scheduled tasks. Click \"+ Add\" to create one for an agent.",
-      "selectTask": "[to be translated]:Select a task to view details",
-      "title": "[to be translated]:Scheduled Tasks"
+      "description": "Gérez les tâches planifiées sur tous les agents. Les tâches s'exécutent automatiquement selon le planning configuré.",
+      "noAgents": "Aucun agent trouvé. Créez d'abord un agent pour ajouter des tâches planifiées.",
+      "noAgentsTip": "Conseil : vous pouvez également demander à votre agent de créer des tâches planifiées via le chat.",
+      "noTasks": "Aucune tâche planifiée. Cliquez sur « + Ajouter » pour en créer une pour un agent.",
+      "selectTask": "Sélectionnez une tâche pour afficher les détails",
+      "title": "Tâches planifiées"
     },
     "shortcuts": {
       "action": "Action",
@@ -5537,6 +5544,41 @@
       "zoom_in": "Agrandir l'interface",
       "zoom_out": "Réduire l'interface",
       "zoom_reset": "Réinitialiser le zoom"
+    },
+    "skills": {
+      "author": "Auteur",
+      "batchUninstallSuccess": "{{count}} compétences désinstallées",
+      "builtin": "Intégré",
+      "confirmBatchUninstall": "Êtes-vous sûr de vouloir désinstaller les {{count}} compétences sélectionnées ?",
+      "confirmUninstall": "Êtes-vous sûr de vouloir désinstaller cette compétence ?",
+      "directory": "Répertoire",
+      "dropHint": "Ou glissez-déposez ici un fichier ZIP ou un dossier",
+      "emptyDesc": "Installez des compétences à partir d’un fichier ZIP, d’un répertoire ou recherchez dans les registres en ligne pour étendre les capacités de l’agent.",
+      "emptyTip": "Astuce : vous pouvez aussi demander à un agent d’installer des compétences pour vous.",
+      "emptyTitle": "Aucune compétence sélectionnée",
+      "filterPlaceholder": "Filtrer les compétences...",
+      "install": "Installer",
+      "installFailed": "Échec de l'installation de la compétence : {{name}}",
+      "installFromDirectory": "Installer depuis le répertoire",
+      "installFromZip": "Installer à partir du fichier ZIP",
+      "installSuccess": "Compétence installée : {{name}}",
+      "installed": "Compétences installées",
+      "invalidFormat": "Seuls les fichiers ZIP et les répertoires sont pris en charge",
+      "localInstall": "Installation locale",
+      "multiSelect": "Sélection multiple",
+      "noFilterResults": "Aucune compétence correspondante",
+      "noInstalled": "Aucune compétence installée",
+      "noResults": "Aucune compétence trouvée",
+      "noSkillFile": "Aucun SKILL.md trouvé",
+      "searchPlaceholder": "Rechercher des compétences dans les registres...",
+      "searchRegistryTitle": "Rechercher des registres de compétences en ligne",
+      "searchTitle": "Compétences de recherche",
+      "selectFile": "Sélectionner un fichier à afficher",
+      "title": "Compétences",
+      "uninstall": "Désinstaller",
+      "uninstallSuccess": "Compétence désinstallée : {{name}}",
+      "viewSource": "Afficher la source",
+      "zip": "ZIP"
     },
     "theme": {
       "color_primary": "Couleur principale",

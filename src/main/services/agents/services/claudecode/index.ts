@@ -26,7 +26,7 @@ import BrowserServer from '@main/mcpServers/browser/server'
 import ClawServer from '@main/mcpServers/claw'
 import { pluginService } from '@main/services/agents/plugins/PluginService'
 import { configManager } from '@main/services/ConfigManager'
-import { autoDiscoverGitBash } from '@main/utils/process'
+import { autoDiscoverGitBash, getBinaryPath } from '@main/utils/process'
 import { rtkRewrite } from '@main/utils/rtk'
 import getLoginShellEnvironment from '@main/utils/shell-env'
 import {
@@ -151,6 +151,7 @@ class ClaudeCodeService implements AgentServiceInterface {
 
     // Auto-discover Git Bash path on Windows (already logs internally)
     const customGitBashPath = isWin ? autoDiscoverGitBash() : null
+    const bunPath = await getBinaryPath('bun')
 
     // Claude Agent SDK builds the final endpoint as `${ANTHROPIC_BASE_URL}/v1/messages`.
     // To avoid malformed URLs like `/v1/v1/messages`, we normalize the provider host
@@ -182,6 +183,7 @@ class ClaudeCodeService implements AgentServiceInterface {
       // This prevents the SDK from using the user's home directory which may have encoding problems
       CLAUDE_CONFIG_DIR: path.join(app.getPath('userData'), '.claude'),
       ENABLE_TOOL_SEARCH: 'auto',
+      CHERRY_STUDIO_BUN_PATH: bunPath,
       ...(customGitBashPath ? { CLAUDE_CODE_GIT_BASH_PATH: customGitBashPath } : {})
     }
 

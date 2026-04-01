@@ -42,13 +42,14 @@ const IconButton: FC<{
 )
 
 const TaskListItem: FC<TaskListItemProps> = ({ task, onEdit, onToggleStatus, onDelete, onRun, onViewLogs }) => {
-  const { t } = useTranslation()
+  const { t, i18n } = useTranslation()
+  const locale = i18n.language
 
   const formatScheduleValue = () => {
     if (task.schedule_type === 'cron') return task.schedule_value
     if (task.schedule_type === 'interval') return `${task.schedule_value} min`
     if (task.schedule_type === 'once' && task.schedule_value) {
-      return new Date(task.schedule_value).toLocaleString()
+      return new Date(task.schedule_value).toLocaleString(locale)
     }
     return task.schedule_value
   }
@@ -59,10 +60,10 @@ const TaskListItem: FC<TaskListItemProps> = ({ task, onEdit, onToggleStatus, onD
     const now = Date.now()
     const diff = now - d.getTime()
 
-    if (diff < 60_000) return 'just now'
-    if (diff < 3600_000) return `${Math.floor(diff / 60_000)}m ago`
-    if (diff < 86400_000) return `${Math.floor(diff / 3600_000)}h ago`
-    return d.toLocaleDateString()
+    if (diff < 60_000) return t('agent.cherryClaw.tasks.logs.justNow', 'just now')
+    if (diff < 3600_000) return t('agent.cherryClaw.tasks.time.minutesAgo', { count: Math.floor(diff / 60_000) })
+    if (diff < 86400_000) return t('agent.cherryClaw.tasks.time.hoursAgo', { count: Math.floor(diff / 3600_000) })
+    return d.toLocaleDateString(locale)
   }
 
   const isCompleted = task.status === 'completed'

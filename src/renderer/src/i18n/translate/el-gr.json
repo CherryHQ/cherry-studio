@@ -31,13 +31,13 @@
     "cherryClaw": {
       "channels": {
         "add": "Προσθήκη",
-        "bindAgent": "[to be translated]:Bind Agent",
+        "bindAgent": "Δέσμευση Πράκτορα",
         "comingSoon": "Σύντομα διαθέσιμο",
-        "connected": "[to be translated]:Connected",
-        "connecting": "[to be translated]:Connecting",
+        "connected": "Συνδεδεμένος",
+        "connecting": "Σύνδεση",
         "deleteConfirm": "Διαγραφή καναλιού \"{{name}}\";",
         "description": "Συνδέστε τον πράκτορά σας σε πλατφόρμες μηνυμάτων.",
-        "disconnected": "[to be translated]:Disconnected",
+        "disconnected": "Αποσυνδέθηκε",
         "discord": {
           "botToken": "Διακριτικό Bot",
           "botTokenPlaceholder": "Εισάγετε το διακριτικό του bot σας στο Discord",
@@ -48,7 +48,7 @@
           "title": "Discord",
           "whoamiTip": "💡 Συμβουλή: Στείλτε /whoami στο bot για να λάβετε το ID του καναλιού σας στη σωστή μορφή."
         },
-        "error": "[to be translated]:Error",
+        "error": "Σφάλμα",
         "feishu": {
           "appId": "App ID",
           "appIdPlaceholder": "Εισαγάγετε το App ID της εφαρμογής Feishu",
@@ -73,9 +73,9 @@
           "verificationToken": "Token επαλήθευσης",
           "verificationTokenPlaceholder": "Εισαγάγετε το token επαλήθευσης της εφαρμογής Feishu"
         },
-        "logs": "[to be translated]:Logs",
+        "logs": "Κούτσουρα",
         "noInstances": "Δεν έχουν διαμορφωθεί κανάλια {{type}}. Κάντε κλικ στο \"+ Προσθήκη\" για να δημιουργήσετε ένα.",
-        "noLogs": "[to be translated]:No logs yet",
+        "noLogs": "Δεν υπάρχουν αρχεία καταγραφής ακόμα",
         "notifyReceiver": "Λήψη ειδοποιήσεων εργασιών",
         "notifyReceiverHint": "Αποστολή αποτελεσμάτων προγραμματισμένων εργασιών σε αυτό το κανάλι.",
         "qq": {
@@ -95,18 +95,18 @@
           "permissionMode": "Λειτουργία Αδειών Καναλιού",
           "permissionModeHint": "Παράκαμψη της λειτουργίας αδειών του πράκτορα για μηνύματα από αυτό το κανάλι. Η επιλογή «Κληρονόμηση» χρησιμοποιεί την προεπιλογή του πράκτορα."
         },
-        "selectAgent": "[to be translated]:Select an agent to bind",
+        "selectAgent": "Επιλέξτε έναν πράκτορα για σύνδεση",
         "slack": {
-          "appToken": "[to be translated]:App-Level Token",
-          "appTokenPlaceholder": "[to be translated]:xapp-...",
-          "botToken": "[to be translated]:Bot Token",
-          "botTokenPlaceholder": "[to be translated]:xoxb-...",
-          "channelIds": "[to be translated]:Allowed Channel IDs",
-          "channelIdsHint": "[to be translated]:Slack channel IDs. Leave empty to allow all.",
-          "channelIdsPlaceholder": "[to be translated]:C01234567, D89012345",
-          "description": "[to be translated]:Receive and respond to messages via a Slack bot using Socket Mode.",
-          "title": "[to be translated]:Slack",
-          "whoamiTip": "[to be translated]:💡 Tip: Send /whoami to the bot to get the channel ID."
+          "appToken": "Διακριτικό Επιπέδου Εφαρμογής",
+          "appTokenPlaceholder": "xapp-...",
+          "botToken": "Διακριτικό Bot",
+          "botTokenPlaceholder": "xoxb-...",
+          "channelIds": "Επιτρεπόμενα Αναγνωριστικά Καναλιών",
+          "channelIdsHint": "Αναγνωριστικά καναλιών του Slack. Αφήστε κενό για να επιτρέπονται όλα.",
+          "channelIdsPlaceholder": "C01234567, D89012345",
+          "description": "Λάβετε και απαντήστε σε μηνύματα μέσω ενός bot του Slack χρησιμοποιώντας τη λειτουργία Socket.",
+          "title": "Slack",
+          "whoamiTip": "💡 Συμβουλή: Στείλε /whoami στο bot για να πάρεις το ID του καναλιού."
         },
         "tab": "Κανάλια",
         "telegram": {
@@ -198,8 +198,8 @@
         "add": "Προσθήκη εργασίας",
         "cancel": "Ακύρωση",
         "channels": {
-          "label": "[to be translated]:Send to Channels",
-          "placeholder": "[to be translated]:Select channels to receive results"
+          "label": "Αποστολή σε Κανάλια",
+          "placeholder": "Επιλέξτε κανάλια για να λαμβάνετε αποτελέσματα"
         },
         "cronPlaceholder": "π.χ. 0 9 * * * (κάθε μέρα στις 9 π.μ.)",
         "delete": {
@@ -214,14 +214,14 @@
           "duration": "Διάρκεια",
           "empty": "Δεν υπάρχει ακόμα ιστορικό εκτελέσεων.",
           "error": "Σφάλμα",
-          "justNow": "[to be translated]:just now",
+          "justNow": "μόλις τώρα",
           "label": "Ιστορικό εκτελέσεων",
           "result": "Αποτέλεσμα",
           "runAt": "Εκτελέστηκε στις",
-          "running": "[to be translated]:Running...",
-          "search": "[to be translated]:Search logs...",
+          "running": "Τρέχει...",
+          "search": "Αναζήτηση αρχείων καταγραφής...",
           "status": "Κατάσταση",
-          "viewSession": "[to be translated]:View session"
+          "viewSession": "Δείτε τη συνεδρία"
         },
         "name": {
           "label": "Όνομα",
@@ -252,8 +252,8 @@
         },
         "tab": "Εργασίες",
         "timeout": {
-          "label": "[to be translated]:Timeout",
-          "placeholder": "[to be translated]:No limit"
+          "label": "Λήξη χρόνου",
+          "placeholder": "Χωρίς όριο"
         },
         "title": "Προγραμματισμένες εργασίες"
       },
@@ -479,6 +479,13 @@
         "uninstalling": "Απεγκατάσταση..."
       },
       "prompt": "Ρυθμίσεις Προτροπής",
+      "skills": {
+        "builtin": "Ενσωματωμένο",
+        "noFilterResults": "Δεν υπάρχουν αντιστοιχιζόμενες δεξιότητες",
+        "noSkills": "Δεν έχουν εγκατασταθεί δεξιότητες. Εγκαταστήστε δεξιότητες από Ρυθμίσεις > Δεξιότητες.",
+        "searchPlaceholder": "Δεξιότητες αναζήτησης...",
+        "tab": "Δεξιότητες"
+      },
       "soulMode": {
         "description": "Όταν είναι ενεργοποιημένο, ο πράκτορας χρησιμοποιεί ένα προσαρμοσμένο σύστημα προτροπής από αρχεία soul του χώρου εργασίας, εισάγει αυτόνομα εργαλεία διαχείρισης εργασιών και απενεργοποιεί διαδραστικά εργαλεία που δεν είναι κατάλληλα για αυτόνομη λειτουργία.",
         "disabledBadge": "Απενεργοποιημένο από Αυτόνομη Λειτουργία",
@@ -541,7 +548,7 @@
       },
       "toolsMcp": {
         "mcp": {
-          "tab": "[to be translated]:MCP",
+          "tab": "MCP",
           "title": "Διακομιστές MCP"
         },
         "tab": "Εργαλεία",
@@ -3915,8 +3922,8 @@
       "title": "Πρόεδρος Υπηρεσίας"
     },
     "channels": {
-      "description": "[to be translated]:Connect agents to messaging platforms like Telegram, Feishu, Discord, and more.",
-      "title": "[to be translated]:Channels"
+      "description": "Συνδέστε πράκτορες με πλατφόρμες μηνυμάτων όπως το Telegram, το Feishu, το Discord και άλλες.",
+      "title": "Κανάλια"
     },
     "data": {
       "app_data": {
@@ -5499,12 +5506,12 @@
       "titlePlaceholder": "Παρακαλώ εισάγετε τίτλο φράσης"
     },
     "scheduledTasks": {
-      "description": "[to be translated]:Manage scheduled tasks across all agents. Tasks run automatically on the configured schedule.",
-      "noAgents": "[to be translated]:No agents found. Create an agent first to add scheduled tasks.",
-      "noAgentsTip": "[to be translated]:Tip: You can also ask your agent to create scheduled tasks via chat.",
-      "noTasks": "[to be translated]:No scheduled tasks. Click \"+ Add\" to create one for an agent.",
-      "selectTask": "[to be translated]:Select a task to view details",
-      "title": "[to be translated]:Scheduled Tasks"
+      "description": "Διαχειριστείτε προγραμματισμένες εργασίες σε όλους τους πράκτορες. Οι εργασίες εκτελούνται αυτόματα σύμφωνα με το διαμορφωμένο πρόγραμμα.",
+      "noAgents": "Δεν βρέθηκαν πράκτορες. Δημιουργήστε πρώτα έναν πράκτορα για να προσθέσετε προγραμματισμένες εργασίες.",
+      "noAgentsTip": "Συμβουλή: Μπορείτε επίσης να ζητήσετε από τον παράγοντά σας να δημιουργήσει προγραμματισμένες εργασίες μέσω συνομιλίας.",
+      "noTasks": "Κανένα προγραμματισμένο task. Κάντε κλικ στο \"+ Προσθήκη\" για να δημιουργήσετε ένα για έναν πράκτορα.",
+      "selectTask": "Επιλέξτε μια εργασία για να δείτε λεπτομέρειες",
+      "title": "Προγραμματισμένες Εργασίες"
     },
     "shortcuts": {
       "action": "Ενέργεια",
@@ -5537,6 +5544,41 @@
       "zoom_in": "Μεγέθυνση εμφάνισης",
       "zoom_out": "Σμικρύνση εμφάνισης",
       "zoom_reset": "Επαναφορά εμφάνισης"
+    },
+    "skills": {
+      "author": "Συγγραφέας",
+      "batchUninstallSuccess": "{{count}} δεξιότητες απεγκαταστάθηκαν",
+      "builtin": "Ενσωματωμένο",
+      "confirmBatchUninstall": "Είστε σίγουροι ότι θέλετε να απεγκαταστήσετε {{count}} επιλεγμένες δεξιότητες;",
+      "confirmUninstall": "Είσαι σίγουρος ότι θέλεις να απεγκαταστήσεις αυτή την ικανότητα;",
+      "directory": "Κατάλογος",
+      "dropHint": "Ή σύρετε και αφήστε εδώ ένα αρχείο ZIP ή έναν φάκελο",
+      "emptyDesc": "Εγκαταστήστε δεξιότητες από ZIP, φάκελο ή αναζητήστε σε διαδικτυακά μητρώα για να επεκτείνετε τις δυνατότητες του πράκτορα.",
+      "emptyTip": "Συμβουλή: Μπορείς επίσης να ζητήσεις από έναν πράκτορα να εγκαταστήσει δεξιότητες για εσένα.",
+      "emptyTitle": "Δεν έχει επιλεγεί δεξιότητα",
+      "filterPlaceholder": "Φιλτράρισμα δεξιοτήτων...",
+      "install": "Εγκατάσταση",
+      "installFailed": "Αποτυχία εγκατάστασης δεξιότητας: {{name}}",
+      "installFromDirectory": "Εγκατάσταση από φάκελο",
+      "installFromZip": "Εγκατάσταση από αρχείο ZIP",
+      "installSuccess": "Δεξιότητα εγκαταστάθηκε: {{name}}",
+      "installed": "Εγκατεστημένες Δεξιότητες",
+      "invalidFormat": "Μόνο αρχεία ZIP και κατάλογοι υποστηρίζονται",
+      "localInstall": "Τοπική Εγκατάσταση",
+      "multiSelect": "Πολλαπλής επιλογής",
+      "noFilterResults": "Καμία αντιστοιχία δεξιοτήτων",
+      "noInstalled": "Δεν έχουν εγκατασταθεί δεξιότητες",
+      "noResults": "Δεν βρέθηκαν δεξιότητες",
+      "noSkillFile": "Δεν βρέθηκε SKILL.md",
+      "searchPlaceholder": "Αναζήτηση δεξιοτήτων στα μητρώα...",
+      "searchRegistryTitle": "Αναζητήστε μητρώα δεξιοτήτων στο διαδίκτυο",
+      "searchTitle": "Δεξιότητες Αναζήτησης",
+      "selectFile": "Επιλέξτε ένα αρχείο για προβολή",
+      "title": "Δεξιότητες",
+      "uninstall": "Απεγκατάσταση",
+      "uninstallSuccess": "Δεξιότητα απεγκαταστάθηκε: {{name}}",
+      "viewSource": "Προβολή Πηγής",
+      "zip": "Τ.Κ."
     },
     "theme": {
       "color_primary": "Κύριο Χρώμα Θέματος",

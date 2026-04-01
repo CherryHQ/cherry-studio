@@ -35,7 +35,8 @@ vi.mock('../TaskService', () => ({
     logTaskRun: vi.fn().mockResolvedValue(1),
     updateTaskRunLog: vi.fn(),
     computeNextRun: vi.fn().mockReturnValue(null),
-    updateTask: vi.fn()
+    updateTask: vi.fn(),
+    getLastRunSessionId: vi.fn().mockResolvedValue(null)
   }
 }))
 
@@ -54,10 +55,12 @@ vi.mock('../channels/ChannelManager', () => ({
   }
 }))
 
-vi.mock('../cherryclaw', () => ({
-  CherryClawService: vi.fn().mockImplementation(() => ({
-    heartbeatReader: { readHeartbeat: vi.fn().mockResolvedValue(undefined) }
-  }))
+vi.mock('../channels/sessionStreamIpc', () => ({
+  broadcastSessionChanged: vi.fn()
+}))
+
+vi.mock('../cherryclaw/heartbeat', () => ({
+  readHeartbeat: vi.fn().mockResolvedValue(undefined)
 }))
 
 describe('SchedulerService', () => {

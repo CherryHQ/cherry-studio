@@ -377,6 +377,22 @@ export class TaskService extends BaseService {
     }
   }
 
+  /**
+   * Get the session_id from the most recent successful run of a task.
+   * Used by SchedulerService to reuse an existing session for context continuity.
+   */
+  async getLastRunSessionId(taskId: string): Promise<string | null> {
+    const database = await this.getDatabase()
+    const result = await database
+      .select({ session_id: taskRunLogsTable.session_id })
+      .from(taskRunLogsTable)
+      .where(and(eq(taskRunLogsTable.task_id, taskId), eq(taskRunLogsTable.status, 'success')))
+      .orderBy(desc(taskRunLogsTable.run_at))
+      .limit(1)
+
+    return result[0]?.session_id ?? null
+  }
+
   // --- Next run computation (nanoclaw-inspired, drift-resistant) ---
 
   computeNextRun(task: ScheduledTaskEntity): string | null {
