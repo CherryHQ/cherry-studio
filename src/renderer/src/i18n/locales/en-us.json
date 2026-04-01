@@ -5500,7 +5500,8 @@
     },
     "scheduledTasks": {
       "description": "Manage scheduled tasks across all agents. Tasks run automatically on the configured schedule.",
-      "noAgents": "No agents found. Create an agent first to add scheduled tasks.",
+      "noAgents": "Scheduled tasks require agents with Soul Mode or Bypass Permissions enabled. Update an agent's settings to get started.",
+      "noAgentsTip": "Tip: You can also ask your agent to create scheduled tasks via chat.",
       "noTasks": "No scheduled tasks. Click \"+ Add\" to create one for an agent.",
       "selectTask": "Select a task to view details",
       "title": "Scheduled Tasks"

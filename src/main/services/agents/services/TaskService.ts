@@ -26,7 +26,7 @@ export class TaskService extends BaseService {
   }
 
   async createTask(agentId: string, req: CreateTaskRequest): Promise<ScheduledTaskEntity> {
-    await this.assertSoulEnabled(agentId)
+    await this.assertAutonomous(agentId)
 
     const id = `task_${Date.now()}_${Math.random().toString(36).substring(2, 11)}`
     const now = new Date().toISOString()
@@ -415,11 +415,11 @@ export class TaskService extends BaseService {
   }
 
   /**
-   * Scheduled tasks require Soul Mode (soul_enabled) — without it the agent
-   * session lacks the `bypassPermissions` permission mode, causing tool calls
-   * during task execution to fail with permission errors.
+   * Scheduled tasks require an autonomous agent — either Soul Mode
+   * (soul_enabled) or bypassPermissions permission mode — otherwise
+   * tool calls during task execution will fail with permission errors.
    */
-  private async assertSoulEnabled(agentId: string): Promise<void> {
+  private async assertAutonomous(agentId: string): Promise<void> {
     const database = await this.getDatabase()
     const [row] = await database
       .select({ configuration: agentsTable.configuration })
@@ -436,13 +436,15 @@ export class TaskService extends BaseService {
       try {
         config = JSON.parse(row.configuration) as Record<string, unknown>
       } catch {
-        // malformed JSON — treat as non-soul
+        // malformed JSON — treat as non-autonomous
       }
     }
 
-    if (config.soul_enabled !== true) {
-      throw new Error('Scheduled tasks require Soul Mode. Enable Soul Mode in the agent settings first.')
+    if (config.soul_enabled === true || config.permission_mode === 'bypassPermissions') {
+      return
     }
+
+    throw new Error('Scheduled tasks require Soul Mode or Bypass Permissions mode. Update the agent settings first.')
   }
 
   private computeInitialNextRun(scheduleType: string, scheduleValue: string): string | null {

@@ -5500,7 +5500,8 @@
     },
     "scheduledTasks": {
       "description": "管理所有 Agent 的定时任务。任务将按照配置的时间计划自动运行。",
-      "noAgents": "未找到 Agent。请先创建一个 Agent 以添加定时任务。",
+      "noAgents": "定时任务需要开启灵魂模式或无权限模式的 Agent 才能运行。请先在 Agent 设置中启用。",
+      "noAgentsTip": "提示：你也可以直接在对话中让 Agent 创建定时任务。",
       "noTasks": "暂无定时任务。点击「+ 添加」为某个 Agent 创建任务。",
       "selectTask": "选择一个任务以查看详情",
       "title": "定时任务"

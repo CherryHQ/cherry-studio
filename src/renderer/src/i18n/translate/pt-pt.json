@@ -5501,6 +5501,7 @@
     "scheduledTasks": {
       "description": "[to be translated]:Manage scheduled tasks across all agents. Tasks run automatically on the configured schedule.",
       "noAgents": "[to be translated]:No agents found. Create an agent first to add scheduled tasks.",
+      "noAgentsTip": "[to be translated]:Tip: You can also ask your agent to create scheduled tasks via chat.",
       "noTasks": "[to be translated]:No scheduled tasks. Click \"+ Add\" to create one for an agent.",
       "selectTask": "[to be translated]:Select a task to view details",
       "title": "[to be translated]:Scheduled Tasks"

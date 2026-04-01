@@ -659,7 +659,10 @@ const TasksSettings: FC = () => {
       setTasks(tasksRes.data)
       setAgents(
         agentsRes.data
-          .filter((a) => (a.configuration as CherryClawConfiguration | undefined)?.soul_enabled === true)
+          .filter((a) => {
+            const cfg = a.configuration as CherryClawConfiguration | undefined
+            return cfg?.soul_enabled === true || cfg?.permission_mode === 'bypassPermissions'
+          })
           .map((a) => ({ id: a.id, name: a.name ?? a.id }))
       )
     } finally {
@@ -753,7 +756,18 @@ const TasksSettings: FC = () => {
               <Empty
                 image={Empty.PRESENTED_IMAGE_SIMPLE}
                 description={
-                  agents.length === 0 ? t('settings.scheduledTasks.noAgents') : t('settings.scheduledTasks.noTasks')
+                  <div className="flex flex-col gap-2">
+                    <span>
+                      {agents.length === 0
+                        ? t('settings.scheduledTasks.noAgents')
+                        : t('settings.scheduledTasks.noTasks')}
+                    </span>
+                    {agents.length === 0 && (
+                      <span className="text-[var(--color-text-3)] text-xs">
+                        {t('settings.scheduledTasks.noAgentsTip')}
+                      </span>
+                    )}
+                  </div>
                 }
                 style={{ marginTop: 20 }}
               />
