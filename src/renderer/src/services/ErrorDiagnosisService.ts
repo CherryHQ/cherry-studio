@@ -10,8 +10,6 @@ const logger = loggerService.withContext('ErrorDiagnosisService')
 
 export interface DiagnosisStep {
   text: string
-  link?: string
-  nav?: string
 }
 
 export interface DiagnosisResult {
@@ -99,14 +97,14 @@ Analyze the following error and provide a diagnosis in ${language}.
 
 IMPORTANT:
 - Respond ONLY with valid JSON, no markdown code blocks
-- The JSON must match this exact structure: { "summary": "string", "category": "string", "explanation": "string", "steps": [{ "text": "string", "link?": "url", "nav?": "internal route" }] }
+- The JSON must match this exact structure: { "summary": "string", "category": "string", "explanation": "string", "steps": [{ "text": "string" }] }
 - "summary" is a one-line summary of what went wrong
 - "category" is the error category (e.g. "authentication", "quota", "model_unavailable", "network", "content_policy", "server_error", "mcp", "knowledge_base", "ocr", "unknown")
 - "explanation" is a 2-3 sentence plain language explanation of why the error occurred
-- "steps" are 2-4 actionable steps to fix the issue
-- Each step can optionally have "link" (external URL) or "nav" (internal app route)
-- Valid "nav" values are ONLY: "/settings/provider", "/settings/model", "/settings/general", "/settings/display", "/settings/data", "/settings/mcp/servers", "/settings/websearch", "/settings/memory", "/settings/shortcut", "/settings/about", "/knowledge", "/files", "/agents", "/translate", "/notes", "/paintings", "/code", "/openclaw", "/store", "/launchpad"
-- Do NOT use any nav value not in the above list
+- "steps" are 2-4 actionable steps the user can take to fix the issue
+- Steps should be concrete and specific (e.g. "Check your API key in provider settings", "Try a different model")
+- Do NOT tell the user to restart the application unless the error is clearly caused by a corrupted local state
+- Do NOT include URLs, links, or internal route paths in steps — just plain text instructions
 - Do NOT include API keys, personal data, or file paths in your response`
 
   const content = `Error details:\n${JSON.stringify(errorInfo, null, 2)}`

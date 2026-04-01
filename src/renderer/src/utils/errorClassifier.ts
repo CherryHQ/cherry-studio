@@ -22,7 +22,7 @@ export interface ErrorClassification {
   navTarget: string | null
 }
 
-export function classifyError(error?: SerializedError): ErrorClassification {
+export function classifyError(error?: SerializedError, providerId?: string): ErrorClassification {
   if (!error) {
     return { category: 'unknown', i18nKey: 'error.diagnosis.unknown', navTarget: null }
   }
@@ -30,6 +30,7 @@ export function classifyError(error?: SerializedError): ErrorClassification {
   const status = (error as Record<string, unknown>).statusCode ?? (error as Record<string, unknown>).status
   const numStatus = typeof status === 'number' ? status : typeof status === 'string' ? parseInt(status, 10) : undefined
   const msg = ((error.message as string) || '').toLowerCase()
+  const providerSuffix = providerId ? `?id=${providerId}` : ''
 
   // Auth errors (401/403)
   if (
@@ -40,7 +41,7 @@ export function classifyError(error?: SerializedError): ErrorClassification {
     msg.includes('unauthorized') ||
     msg.includes('forbidden')
   ) {
-    return { category: 'auth', i18nKey: 'error.diagnosis.auth', navTarget: '/settings/provider' }
+    return { category: 'auth', i18nKey: 'error.diagnosis.auth', navTarget: `/settings/provider${providerSuffix}` }
   }
 
   // Model not found (404)
@@ -50,7 +51,7 @@ export function classifyError(error?: SerializedError): ErrorClassification {
     msg.includes('model not found') ||
     msg.includes('model does not exist')
   ) {
-    return { category: 'model', i18nKey: 'error.diagnosis.model', navTarget: '/settings/provider' }
+    return { category: 'model', i18nKey: 'error.diagnosis.model', navTarget: `/settings/provider${providerSuffix}` }
   }
 
   // Quota / rate limit (429)
@@ -62,7 +63,7 @@ export function classifyError(error?: SerializedError): ErrorClassification {
     msg.includes('insufficient_balance') ||
     msg.includes('insufficient_quota')
   ) {
-    return { category: 'quota', i18nKey: 'error.diagnosis.quota', navTarget: '/settings/provider' }
+    return { category: 'quota', i18nKey: 'error.diagnosis.quota', navTarget: `/settings/provider${providerSuffix}` }
   }
 
   // Context length exceeded
@@ -122,7 +123,11 @@ export function classifyError(error?: SerializedError): ErrorClassification {
 
   // Model deprecated / retired
   if (msg.includes('deprecated') || msg.includes('retired') || msg.includes('sunset') || msg.includes('decommission')) {
-    return { category: 'deprecated', i18nKey: 'error.diagnosis.deprecated', navTarget: '/settings/provider' }
+    return {
+      category: 'deprecated',
+      i18nKey: 'error.diagnosis.deprecated',
+      navTarget: `/settings/provider${providerSuffix}`
+    }
   }
 
   // Knowledge base / embedding

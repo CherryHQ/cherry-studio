@@ -26,6 +26,12 @@ describe('classifyError', () => {
     expect(result.navTarget).toBe('/settings/provider')
   })
 
+  it('classifies 401 as auth with providerId in navTarget', () => {
+    const result = classifyError(makeError({ statusCode: 401 }), 'openai')
+    expect(result.category).toBe('auth')
+    expect(result.navTarget).toBe('/settings/provider?id=openai')
+  })
+
   it('classifies 403 as auth', () => {
     const result = classifyError(makeError({ statusCode: 403 }))
     expect(result.category).toBe('auth')

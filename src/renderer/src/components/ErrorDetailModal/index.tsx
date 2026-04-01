@@ -512,45 +512,6 @@ const AiSdkError = memo(({ error }: { error: SerializedAiSdkErrorUnion }) => {
   )
 })
 
-// --- URL Safety Check ---
-
-function isSafeUrl(url: string): boolean {
-  try {
-    const parsed = new URL(url)
-    return parsed.protocol === 'http:' || parsed.protocol === 'https:'
-  } catch {
-    return false
-  }
-}
-
-// Valid internal routes for AI-generated navigation
-const VALID_NAV_ROUTES = new Set([
-  '/settings/provider',
-  '/settings/model',
-  '/settings/general',
-  '/settings/display',
-  '/settings/data',
-  '/settings/mcp/servers',
-  '/settings/websearch',
-  '/settings/memory',
-  '/settings/shortcut',
-  '/settings/about',
-  '/knowledge',
-  '/files',
-  '/agents',
-  '/translate',
-  '/notes',
-  '/paintings',
-  '/code',
-  '/openclaw',
-  '/store',
-  '/launchpad'
-])
-
-function isValidNavRoute(nav: string): boolean {
-  return VALID_NAV_ROUTES.has(nav)
-}
-
 // --- Main Content Component ---
 
 const ErrorDetailContent: React.FC<ErrorDetailContentProps> = ({
@@ -774,29 +735,7 @@ const AIDiagnosisSectionWithStatus = memo(
                       style={{ background: 'var(--color-primary)' }}>
                       {i + 1}
                     </span>
-                    {step.link && isSafeUrl(step.link) ? (
-                      <a
-                        href={step.link}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        title={step.link}
-                        style={{ color: 'var(--color-primary)' }}>
-                        {step.text} ↗
-                      </a>
-                    ) : step.nav && isValidNavRoute(step.nav) ? (
-                      <a
-                        href="#"
-                        style={{ color: 'var(--color-primary)' }}
-                        onClick={(e) => {
-                          e.preventDefault()
-                          GeneralPopup.hide()
-                          window.location.hash = `#${step.nav}`
-                        }}>
-                        → {step.text}
-                      </a>
-                    ) : (
-                      <span>{step.text}</span>
-                    )}
+                    <span>{step.text}</span>
                   </div>
                 ))}
               </div>
