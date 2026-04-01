@@ -84,8 +84,8 @@ const MessageErrorInfo: React.FC<{ block: ErrorMessageBlock; message: Message }>
   const [aiSummary, setAiSummary] = useState<string>('')
 
   const classification = useMemo(
-    () => classifyError(block.error, block.error?.providerId as string | undefined),
-    [block.error]
+    () => classifyError(block.error, block.model?.provider),
+    [block.error, block.model?.provider]
   )
 
   // AI fallback: when rule-based classification returns 'unknown', ask AI for a one-line summary
