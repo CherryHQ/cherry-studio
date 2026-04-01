@@ -148,7 +148,7 @@ export const useApiServer = () => {
   useEffect(() => {
     if (!hasCheckedRef.current) {
       hasCheckedRef.current = true
-      checkApiServerStatus()
+      void checkApiServerStatus()
     }
   }, [checkApiServerStatus])
 
