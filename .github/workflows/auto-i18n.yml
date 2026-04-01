@@ -34,7 +34,7 @@ jobs:
           node-version-file: '.node-version'
 
       - name: 📦 Install pnpm
-        uses: pnpm/action-setup@v4
+        uses: pnpm/action-setup@v5
 
       - name: 📂 Get pnpm store directory
         id: pnpm-cache
