@@ -14,12 +14,11 @@ import type {
   TaskRunLogEntity,
   UpdateTaskRequest
 } from '@renderer/types'
-import { Button, Empty, Flex, Input, Popconfirm, Select, Spin, Table, Tag, Tooltip } from 'antd'
+import { Button, Empty, Input, Popconfirm, Select, Spin, Table, Tag, Tooltip } from 'antd'
 import { Clock, ExternalLink, Pause, Play, Search, Trash2 } from 'lucide-react'
 import { type FC, useCallback, useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useNavigate } from 'react-router-dom'
-import styled from 'styled-components'
 
 import { SettingContainer, SettingDivider, SettingGroup, SettingRow, SettingRowTitle, SettingTitle } from '.'
 
@@ -735,19 +734,23 @@ const TasksSettings: FC = () => {
 
   if (loading) {
     return (
-      <Container>
+      <div className="flex flex-1">
         <div className="flex flex-1 items-center justify-center">
           <Spin />
         </div>
-      </Container>
+      </div>
     )
   }
 
   return (
-    <Container>
-      <MainContainer>
+    <div className="flex flex-1">
+      <div
+        className="flex w-full flex-1 flex-row overflow-hidden"
+        style={{ height: 'calc(100vh - var(--navbar-height) - 6px)' }}>
         {/* Left panel: task list */}
-        <MenuList>
+        <Scrollbar
+          className="flex flex-col gap-1.25 border-(--color-border) border-r-[0.5px] p-3 pb-12"
+          style={{ width: 'var(--settings-width)', height: 'calc(100vh - var(--navbar-height))' }}>
           <div className="flex items-center justify-between">
             <SettingTitle>{t('settings.scheduledTasks.title')}</SettingTitle>
             <Button
@@ -770,9 +773,7 @@ const TasksSettings: FC = () => {
                         : t('settings.scheduledTasks.noTasks')}
                     </span>
                     {agents.length === 0 && (
-                      <span className="text-[var(--color-text-3)] text-xs">
-                        {t('settings.scheduledTasks.noAgentsTip')}
-                      </span>
+                      <span className="text-(--color-text-3) text-xs">{t('settings.scheduledTasks.noAgentsTip')}</span>
                     )}
                   </div>
                 }
@@ -798,10 +799,10 @@ const TasksSettings: FC = () => {
               ))
             )}
           </div>
-        </MenuList>
+        </Scrollbar>
 
         {/* Right panel */}
-        <RightContainer>
+        <div className="relative flex flex-1">
           {creating ? (
             <CreateForm
               agents={agents}
@@ -827,40 +828,10 @@ const TasksSettings: FC = () => {
                 : t('settings.scheduledTasks.noTasks')}
             </div>
           )}
-        </RightContainer>
-      </MainContainer>
-    </Container>
+        </div>
+      </div>
+    </div>
   )
 }
-
-const Container = styled(Flex)`
-  flex: 1;
-`
-
-const MainContainer = styled.div`
-  display: flex;
-  flex: 1;
-  flex-direction: row;
-  width: 100%;
-  height: calc(100vh - var(--navbar-height) - 6px);
-  overflow: hidden;
-`
-
-const MenuList = styled(Scrollbar)`
-  display: flex;
-  flex-direction: column;
-  gap: 5px;
-  width: var(--settings-width);
-  padding: 12px;
-  padding-bottom: 48px;
-  border-right: 0.5px solid var(--color-border);
-  height: calc(100vh - var(--navbar-height));
-`
-
-const RightContainer = styled.div`
-  flex: 1;
-  position: relative;
-  display: flex;
-`
 
 export default TasksSettings

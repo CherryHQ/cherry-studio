@@ -8,7 +8,6 @@ import { Button, Empty, Input, Modal, Popconfirm, Select, Spin, Switch, Tag, Too
 import type { FC } from 'react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import styled from 'styled-components'
 
 import { SettingDivider, SettingTitle } from '..'
 import { getFormForType } from './ChannelForms'
@@ -132,21 +131,21 @@ const ChannelLogModal: FC<{
       width={600}
       destroyOnHidden
       centered>
-      <LogContainer>
+      <div className="max-h-100 overflow-y-auto rounded-[6px] bg-(--color-background-soft) p-2 font-mono text-[11px] leading-[1.6]">
         {logs.length === 0 && (
           <div className="py-8 text-center text-foreground-400 text-xs">{t('agent.cherryClaw.channels.noLogs')}</div>
         )}
         {logs.map((entry, i) => (
-          <LogLine key={i}>
+          <div key={i} className="flex gap-2 whitespace-pre-wrap py-px">
             <span className="shrink-0 text-foreground-400">{formatTime(entry.timestamp)}</span>
             <span style={{ color: LOG_LEVEL_COLORS[entry.level] ?? '#8c8c8c', fontWeight: 500 }}>
               [{entry.level.toUpperCase()}]
             </span>
             <span className="break-all">{entry.message}</span>
-          </LogLine>
+          </div>
         ))}
         <div ref={logEndRef} />
-      </LogContainer>
+      </div>
     </Modal>
   )
 }
@@ -269,7 +268,7 @@ const ChannelInstanceRow: FC<{
   }
 
   return (
-    <RowContainer>
+    <div className="flex items-center gap-3 border-(--color-border) border-b-[0.5px] px-1 py-2.5 last:border-b-0">
       <span className={`inline-block h-2 w-2 shrink-0 rounded-full ${statusColor}`} />
       <div className="min-w-0 flex-1">
         <div className="flex items-center gap-2 font-medium text-sm">
@@ -297,7 +296,7 @@ const ChannelInstanceRow: FC<{
         </Tooltip>
       </Popconfirm>
       <Switch checked={channel.isActive} size="small" onChange={onToggle} />
-    </RowContainer>
+    </div>
   )
 }
 
@@ -404,22 +403,23 @@ const ChannelDetail: FC<ChannelDetailProps> = ({ channelDef }) => {
 
   if (isLoading) {
     return (
-      <Container style={{ alignItems: 'center', justifyContent: 'center' }}>
+      <Scrollbar
+        className="flex flex-1 flex-col items-center justify-center px-5 py-4"
+        style={{ height: 'calc(100vh - var(--navbar-height))' }}>
         <Spin />
-      </Container>
+      </Scrollbar>
     )
   }
 
   const icon = getChannelTypeIcon(channelDef.type)
 
   return (
-    <Container>
-      <Header>
+    <Scrollbar className="flex flex-1 flex-col px-5 py-4" style={{ height: 'calc(100vh - var(--navbar-height))' }}>
+      <div className="mb-1">
         <SettingTitle>
           <div className="flex items-center gap-2">
             {icon && <img src={icon} className="h-5 w-5 rounded-sm object-contain" />}
             <span>{channelDef.name}</span>
-            <CountBadge $hasItems={channelList.length > 0}>{channelList.length}</CountBadge>
           </div>
           <Button
             type="primary"
@@ -430,12 +430,12 @@ const ChannelDetail: FC<ChannelDetailProps> = ({ channelDef }) => {
             {t('agent.cherryClaw.channels.add')}
           </Button>
         </SettingTitle>
-        <Description>
+        <p className="mt-1.5 mb-0 text-(--color-text-3) text-xs">
           {channelDef.available ? t(channelDef.description) : t('agent.cherryClaw.channels.comingSoon')}
-        </Description>
-      </Header>
+        </p>
+      </div>
       <SettingDivider style={{ margin: '0 0 4px 0' }} />
-      <ListContainer>
+      <div className="flex flex-col">
         {channelList.length === 0 && (
           <Empty
             image={Empty.PRESENTED_IMAGE_SIMPLE}
@@ -454,7 +454,7 @@ const ChannelDetail: FC<ChannelDetailProps> = ({ channelDef }) => {
             onShowLogs={() => setLogChannel({ id: ch.id, name: ch.name })}
           />
         ))}
-      </ListContainer>
+      </div>
 
       <ChannelEditModal
         open={!!editingChannel}
@@ -471,75 +471,8 @@ const ChannelDetail: FC<ChannelDetailProps> = ({ channelDef }) => {
         channelName={logChannel?.name ?? ''}
         onClose={() => setLogChannel(null)}
       />
-    </Container>
+    </Scrollbar>
   )
 }
-
-const Container = styled(Scrollbar)`
-  display: flex;
-  flex-direction: column;
-  flex: 1;
-  height: calc(100vh - var(--navbar-height));
-  padding: 15px 20px;
-`
-
-const Header = styled.div`
-  margin-bottom: 4px;
-`
-
-const Description = styled.p`
-  font-size: 12px;
-  color: var(--color-text-3);
-  margin: 6px 0 0 0;
-`
-
-const CountBadge = styled.span<{ $hasItems: boolean }>`
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  min-width: 18px;
-  height: 18px;
-  padding: 0 5px;
-  border-radius: 9px;
-  font-size: 11px;
-  font-weight: 600;
-  color: white;
-  background: ${(props) => (props.$hasItems ? 'var(--color-primary)' : 'var(--color-text-3)')};
-`
-
-const ListContainer = styled.div`
-  display: flex;
-  flex-direction: column;
-`
-
-const RowContainer = styled.div`
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  padding: 10px 4px;
-  border-bottom: 0.5px solid var(--color-border);
-
-  &:last-child {
-    border-bottom: none;
-  }
-`
-
-const LogContainer = styled.div`
-  max-height: 400px;
-  overflow-y: auto;
-  font-family: 'SF Mono', 'Fira Code', 'Cascadia Code', monospace;
-  font-size: 11px;
-  line-height: 1.6;
-  padding: 8px;
-  background: var(--color-background-soft);
-  border-radius: 6px;
-`
-
-const LogLine = styled.div`
-  display: flex;
-  gap: 8px;
-  padding: 1px 0;
-  white-space: pre-wrap;
-`
 
 export default ChannelDetail
