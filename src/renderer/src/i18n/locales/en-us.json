@@ -209,6 +209,7 @@
         "edit": "Edit",
         "empty": "No scheduled tasks. Add one to get started.",
         "intervalPlaceholder": "Interval in minutes",
+        "intervalUnit": "minutes",
         "lastRun": "Last Run",
         "logs": {
           "duration": "Duration",
@@ -221,6 +222,7 @@
           "running": "Running...",
           "search": "Search logs...",
           "status": "Status",
+          "success": "Success",
           "viewSession": "View session"
         },
         "name": {

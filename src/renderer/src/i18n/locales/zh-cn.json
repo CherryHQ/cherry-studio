@@ -209,6 +209,7 @@
         "edit": "编辑",
         "empty": "暂无定时任务。添加一个开始吧。",
         "intervalPlaceholder": "间隔（分钟）",
+        "intervalUnit": "分钟",
         "lastRun": "上次运行",
         "logs": {
           "duration": "耗时",
@@ -221,6 +222,7 @@
           "running": "运行中...",
           "search": "搜索运行记录...",
           "status": "状态",
+          "success": "成功",
           "viewSession": "查看会话"
         },
         "name": {

@@ -15,7 +15,7 @@ import type {
   UpdateTaskRequest
 } from '@renderer/types'
 import { Button, Empty, Input, Popconfirm, Select, Spin, Table, Tag, Tooltip } from 'antd'
-import { Clock, ExternalLink, Pause, Play, Search, Trash2 } from 'lucide-react'
+import { CalendarClock, Clock, ExternalLink, History, Pause, Play, Search, Trash2 } from 'lucide-react'
 import { type FC, useCallback, useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useNavigate } from 'react-router-dom'
@@ -43,6 +43,16 @@ const TaskDetail: FC<{
 
   const isCompleted = task.status === 'completed'
   const statusColors: Record<string, string> = { active: 'green', paused: 'orange', completed: 'blue' }
+  const statusLabels: Record<string, string> = {
+    active: t('agent.cherryClaw.tasks.status.active'),
+    paused: t('agent.cherryClaw.tasks.status.paused'),
+    completed: t('agent.cherryClaw.tasks.status.completed')
+  }
+  const scheduleTypeLabels: Record<string, string> = {
+    cron: t('agent.cherryClaw.tasks.scheduleType.cron'),
+    interval: t('agent.cherryClaw.tasks.scheduleType.interval'),
+    once: t('agent.cherryClaw.tasks.scheduleType.once')
+  }
   const agentName = agents.find((a) => a.id === task.agent_id)?.name ?? task.agent_id
 
   const [name, setName] = useState(task.name)
@@ -70,24 +80,29 @@ const TaskDetail: FC<{
     [task.id, onUpdate]
   )
 
-  const formatScheduleValue = () => {
-    if (task.schedule_type === 'cron') return task.schedule_value
-    if (task.schedule_type === 'interval') return `${task.schedule_value} min`
-    if (task.schedule_type === 'once' && task.schedule_value) {
-      return new Date(task.schedule_value).toLocaleString()
-    }
-    return task.schedule_value
-  }
-
-  const formatTime = (iso: string | null | undefined) => {
+  const formatDateTime = (iso: string | null | undefined) => {
     if (!iso) return '-'
     const d = new Date(iso)
-    const now = Date.now()
-    const diff = now - d.getTime()
-    if (diff < 60_000) return t('agent.cherryClaw.tasks.logs.justNow', 'just now')
-    if (diff < 3600_000) return `${Math.floor(diff / 60_000)}m ago`
-    if (diff < 86400_000) return `${Math.floor(diff / 3600_000)}h ago`
-    return d.toLocaleDateString()
+    const diff = Math.abs(Date.now() - d.getTime())
+    if (diff < 86400_000) {
+      return d.toLocaleString(undefined, { hour: '2-digit', minute: '2-digit', hour12: false })
+    }
+    return d.toLocaleString(undefined, {
+      month: 'numeric',
+      day: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: false
+    })
+  }
+
+  const formatScheduleValue = () => {
+    if (task.schedule_type === 'cron') return task.schedule_value
+    if (task.schedule_type === 'interval') return `${task.schedule_value} ${t('agent.cherryClaw.tasks.intervalUnit')}`
+    if (task.schedule_type === 'once' && task.schedule_value) {
+      return formatDateTime(task.schedule_value)
+    }
+    return task.schedule_value
   }
 
   return (
@@ -96,7 +111,7 @@ const TaskDetail: FC<{
       <SettingGroup theme={theme}>
         <SettingTitle>
           <div className="flex items-center gap-2">
-            <Tag color={statusColors[task.status] ?? 'default'}>{task.status}</Tag>
+            <Tag color={statusColors[task.status] ?? 'default'}>{statusLabels[task.status] ?? task.status}</Tag>
             <span className="text-(--color-text-3) text-xs">{agentName}</span>
           </div>
           <div className="flex items-center gap-1">
@@ -129,15 +144,25 @@ const TaskDetail: FC<{
         </SettingTitle>
         <SettingDivider />
         <div className="flex flex-wrap items-center gap-3 text-xs">
-          <Tag color={scheduleTypeConfig[task.schedule_type]?.color ?? 'default'}>
-            {scheduleTypeConfig[task.schedule_type]?.label ?? task.schedule_type}
+          <Tag color={scheduleTypeColors[task.schedule_type] ?? 'default'}>
+            {scheduleTypeLabels[task.schedule_type] ?? task.schedule_type}
           </Tag>
-          <span className="text-(--color-text-3)">
-            <Clock size={11} className="mr-0.5 inline" />
+          <span className="inline-flex items-center gap-1 text-(--color-text-3)">
+            <Clock size={12} />
             {formatScheduleValue()}
           </span>
-          {task.next_run && <span className="text-(--color-text-3)">Next: {formatTime(task.next_run)}</span>}
-          {task.last_run && <span className="text-(--color-text-3)">Last: {formatTime(task.last_run)}</span>}
+          {task.last_run && (
+            <span className="inline-flex items-center gap-1 text-(--color-text-3)">
+              <History size={12} />
+              {t('agent.cherryClaw.tasks.lastRun')}: {formatDateTime(task.last_run)}
+            </span>
+          )}
+          {task.next_run && (
+            <span className="inline-flex items-center gap-1 text-(--color-text-3)">
+              <CalendarClock size={12} />
+              {t('agent.cherryClaw.tasks.nextRun')}: {formatDateTime(task.next_run)}
+            </span>
+          )}
         </div>
       </SettingGroup>
 
@@ -236,7 +261,7 @@ const TaskDetail: FC<{
                   saveField({ schedule_value: scheduleValue.trim() })
                 }
                 placeholder={t('agent.cherryClaw.tasks.intervalPlaceholder')}
-                suffix="min"
+                suffix={t('agent.cherryClaw.tasks.intervalUnit')}
                 disabled={isCompleted}
               />
             )}
@@ -268,7 +293,7 @@ const TaskDetail: FC<{
                 if (val !== prev) saveField({ timeout_minutes: val })
               }}
               placeholder={t('agent.cherryClaw.tasks.timeout.placeholder')}
-              suffix="min"
+              suffix={t('agent.cherryClaw.tasks.intervalUnit')}
               disabled={isCompleted}
             />
           </div>
@@ -342,7 +367,14 @@ const TaskLogsInline: FC<{ taskId: string; agentId: string }> = ({ taskId, agent
       dataIndex: 'run_at',
       key: 'run_at',
       width: 160,
-      render: (val: string) => new Date(val).toLocaleString()
+      render: (val: string) =>
+        new Date(val).toLocaleString(undefined, {
+          month: 'numeric',
+          day: 'numeric',
+          hour: '2-digit',
+          minute: '2-digit',
+          hour12: false
+        })
     },
     {
       title: t('agent.cherryClaw.tasks.logs.duration'),
@@ -363,7 +395,12 @@ const TaskLogsInline: FC<{ taskId: string; agentId: string }> = ({ taskId, agent
       width: 70,
       render: (val: string) => {
         const color = val === 'success' ? 'green' : val === 'running' ? 'processing' : 'red'
-        return <Tag color={color}>{val}</Tag>
+        const logStatusLabels: Record<string, string> = {
+          success: t('agent.cherryClaw.tasks.logs.success'),
+          running: t('agent.cherryClaw.tasks.logs.running'),
+          error: t('agent.cherryClaw.tasks.logs.error')
+        }
+        return <Tag color={color}>{logStatusLabels[val] ?? val}</Tag>
       }
     },
     {
@@ -440,10 +477,10 @@ const TaskLogsInline: FC<{ taskId: string; agentId: string }> = ({ taskId, agent
 
 // --------------- Schedule type config ---------------
 
-const scheduleTypeConfig: Record<string, { label: string; color: string }> = {
-  cron: { label: 'Cron', color: 'purple' },
-  interval: { label: 'Interval', color: 'blue' },
-  once: { label: 'Once', color: 'orange' }
+const scheduleTypeColors: Record<string, string> = {
+  cron: 'purple',
+  interval: 'blue',
+  once: 'orange'
 }
 
 const statusDotColors: Record<string, string> = {
@@ -683,6 +720,11 @@ const TasksSettings: FC = () => {
   const selectedTask = useMemo(() => tasks.find((t) => t.id === selectedTaskId) ?? null, [tasks, selectedTaskId])
 
   const getAgentName = useCallback((agentId: string) => agents.find((a) => a.id === agentId)?.name ?? agentId, [agents])
+  const scheduleTypeLabelsMap: Record<string, string> = {
+    cron: t('agent.cherryClaw.tasks.scheduleType.cron'),
+    interval: t('agent.cherryClaw.tasks.scheduleType.interval'),
+    once: t('agent.cherryClaw.tasks.scheduleType.once')
+  }
 
   const handleStartCreate = useCallback(() => {
     setSelectedTaskId(null)
@@ -785,7 +827,7 @@ const TasksSettings: FC = () => {
                   key={task.id}
                   active={selectedTaskId === task.id && !creating}
                   title={task.name}
-                  subtitle={`${getAgentName(task.agent_id)} · ${scheduleTypeConfig[task.schedule_type]?.label ?? task.schedule_type}`}
+                  subtitle={`${getAgentName(task.agent_id)} · ${scheduleTypeLabelsMap[task.schedule_type] ?? task.schedule_type}`}
                   icon={
                     <span
                       className={`inline-block h-2 w-2 rounded-full ${statusDotColors[task.status] ?? 'bg-gray-400'}`}

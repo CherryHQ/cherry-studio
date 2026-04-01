@@ -57,6 +57,7 @@ const TaskLogsModal: FC<TaskLogsModalProps> = ({ open, taskId, taskName, onClose
       onCancel={onClose}
       footer={null}
       width={700}
+      transitionName="animation-move-down"
       destroyOnClose>
       {isLoading ? (
         <div className="flex justify-center py-8">

@@ -42,6 +42,7 @@ export const PluginDetailModal: FC<PluginDetailModalProps> = ({
       onCancel={onClose}
       footer={null}
       width={560}
+      transitionName="animation-move-down"
       title={
         <div className="flex flex-col gap-1">
           {/* Name and type row */}

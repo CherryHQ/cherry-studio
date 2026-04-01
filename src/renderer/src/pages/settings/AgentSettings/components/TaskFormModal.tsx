@@ -118,6 +118,7 @@ const TaskFormModal: FC<TaskFormModalProps> = ({
       onCancel={onCancel}
       okText={t('agent.cherryClaw.tasks.save')}
       cancelText={t('agent.cherryClaw.tasks.cancel')}
+      transitionName="animation-move-down"
       confirmLoading={loading}
       okButtonProps={{ disabled: !isValid }}>
       <div className="flex flex-col gap-4 py-2">

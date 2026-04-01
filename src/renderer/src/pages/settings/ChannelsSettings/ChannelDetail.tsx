@@ -130,6 +130,7 @@ const ChannelLogModal: FC<{
       onCancel={onClose}
       width={600}
       destroyOnHidden
+      transitionName="animation-move-down"
       centered>
       <div className="max-h-100 overflow-y-auto rounded-[6px] bg-(--color-background-soft) p-2 font-mono text-[11px] leading-[1.6]">
         {logs.length === 0 && (
@@ -201,7 +202,15 @@ const ChannelEditModal: FC<EditModalProps> = ({ open, channel, agents, onClose, 
   const FormComponent = getFormForType(channel.type)
 
   return (
-    <Modal open={open} title={channel.name} footer={null} onCancel={onClose} width={500} destroyOnHidden centered>
+    <Modal
+      open={open}
+      title={channel.name}
+      footer={null}
+      onCancel={onClose}
+      width={500}
+      destroyOnHidden
+      centered
+      transitionName="animation-move-down">
       <div className="flex flex-col gap-4 py-2">
         <div>
           <label className="mb-1 block font-medium text-xs">{t('common.name')}</label>
