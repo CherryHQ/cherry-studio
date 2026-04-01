@@ -78,11 +78,11 @@
 
 当前实现阶段中，`FileProcessingService` 对外提供的是 provider-aware 的薄 facade，而不是统一 `taskId` 任务管理器。
 
-建议接口：
+当前推荐能力面：
 
-1. `extractText(input)`
-2. `startMarkdownConversionTask(input)`
-3. `getMarkdownConversionTaskResult(input)`
+1. `extractText(...)`
+2. `startMarkdownConversionTask(...)`
+3. `getMarkdownConversionTaskResult(...)`
 
 设计原则：
 
@@ -91,14 +91,15 @@
 3. 对支持异步文档解析的 provider，外部 service 直接持有 `providerTaskId` 并负责轮询。
 4. 当前阶段调用方需要感知 `processorId` 与 `providerTaskId`，这属于明确接受的过渡设计。
 5. 当前实现允许使用 Main 进程内存态 `FileProcessingTaskStore` 保存运行期任务上下文；任务仅保证在当前 Main 进程生命周期内可查询，不承诺重启恢复。
+6. 当前阶段方法签名允许继续使用少量位置参数；等后续参数维度明显增加时，再统一收口为 `input object` 风格即可，本次 PR 不要求为此提前改形。
 
 当前接口语义：
 
-1. `extractText(input)`：
+1. `extractText(...)`：
    返回 `FileProcessingTextExtractionResult`
-2. `startMarkdownConversionTask(input)`：
+2. `startMarkdownConversionTask(...)`：
    返回 `FileProcessingMarkdownTaskStartResult`
-3. `getMarkdownConversionTaskResult(input)`：
+3. `getMarkdownConversionTaskResult(...)`：
    返回 `FileProcessingMarkdownTaskResult`
 
 其中：
@@ -164,6 +165,8 @@
 2. 具体某个 provider 实际支持哪些文档格式，由上游调用方和 provider 自身共同决定，不要求在 `FileProcessingService` 层统一做一层前置格式准入校验。
 3. 换句话说，`FileProcessingService` 当前不负责回答“这个文档格式是否一定能被某 provider 成功解析”；它只负责按 feature 选 processor 并转发调用。
 4. 如果上游把不适合某 provider 的文档交给了该 provider，当前允许由 provider 在执行阶段返回明确错误，而不是要求 `FileProcessingService` 预先拦截。
+5. 这里的“上游调用方负责”也包括输入分类判断：当前不要求在 `FileProcessingService` 或各 markdown provider 内统一增加 `file.type === 'document'` 前置校验。
+6. 评审时不应把“未在 file-processing 内统一校验 `file.type === 'document'`”单独判定为缺陷；这是当前明确保留给上游调用方的职责边界。
 
 ### 6.3 provider 行为差异
 
@@ -228,6 +231,13 @@
 3. 对“某类文档是否适合某 provider”这类更高层的准入判断，当前仍由上游调用方负责。
 
 当前结果落盘位置仍可接受使用 Main 进程 temp 目录作为过渡方案，只要满足“当前会话内可查询”的约束即可；等未来统一文件管理方案定稿后，需要把这些 file-processing 产物迁移到正式文件存储目录，而不是继续长期落在 temp 路径下。
+
+当前结果落盘还有一条需要明确的过渡约束：
+
+1. 当前持久化结果目录按 `fileId` 分桶，而不是按 `providerTaskId` 分桶。
+2. 这意味着同一个文件在当前会话内重复触发 file-processing 时，后一次成功结果可以覆盖前一次落盘产物；当前优先保证的是“按文件读取最新可用结果”，而不是“为每次 providerTaskId 查询永久保留一份独立产物目录”。
+3. 与之对应，当前 `getPersistedMarkdownResult(fileId)` 的语义本来就是 file-level helper，而不是 `providerTaskId -> markdownPath` 的稳定映射。
+4. 评审时不应把“结果目录未按 providerTaskId 隔离”单独判定为本次 PR 的 blocker；这是当前明确接受的过渡实现，后续如需引入按任务维度的正式文件管理，再在统一文件管理方案里整体收口。
 
 如果后续主进程引入统一的 `ProcessManagerService` / utility process / process pool，边界应理解为：
 

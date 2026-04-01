@@ -1,5 +1,7 @@
+import { createReadStream } from 'node:fs'
 import fs from 'node:fs/promises'
 
+import { MB } from '@shared/config/constant'
 import type { FileMetadata } from '@types'
 import { net } from 'electron'
 
@@ -12,6 +14,8 @@ import {
   type PreparedMineruQueryContext,
   type PreparedMineruStartContext
 } from './types'
+
+const MINERU_MAX_FILE_SIZE = 200 * MB
 
 export async function createUploadTask(context: PreparedMineruStartContext): Promise<{
   batchId: string
@@ -63,18 +67,29 @@ export async function uploadFile(
   uploadHeaders?: Record<string, string>,
   signal?: AbortSignal
 ): Promise<void> {
-  const fileBuffer = await fs.readFile(file.path)
+  const stat = await fs.stat(file.path)
 
-  const response = await net.fetch(uploadUrl, {
-    method: 'PUT',
-    headers: uploadHeaders,
-    body: new Uint8Array(fileBuffer),
-    signal
-  })
+  if (stat.size >= MINERU_MAX_FILE_SIZE) {
+    throw new Error('Mineru file is too large (must be smaller than 200MB)')
+  }
 
-  if (!response.ok) {
-    const message = await response.text()
-    throw new Error(`Mineru file upload failed: ${response.status} ${response.statusText} ${message}`)
+  const fileStream = createReadStream(file.path)
+
+  try {
+    const response = await net.fetch(uploadUrl, {
+      method: 'PUT',
+      headers: uploadHeaders,
+      body: fileStream as any,
+      duplex: 'half',
+      signal
+    } as any)
+
+    if (!response.ok) {
+      const message = await response.text()
+      throw new Error(`Mineru file upload failed: ${response.status} ${response.statusText} ${message}`)
+    }
+  } finally {
+    fileStream.destroy()
   }
 }
 

@@ -1,5 +1,3 @@
-import fs from 'node:fs/promises'
-
 import type { FileProcessorMerged } from '@shared/data/presets/file-processing'
 import type {
   FileProcessingMarkdownTaskResult,
@@ -9,8 +7,8 @@ import type { FileMetadata } from '@types'
 import { net } from 'electron'
 
 import { fileProcessingTaskStore } from '../../../runtime/FileProcessingTaskStore'
-import { persistZipResult } from '../../../utils/resultPersistence'
-import { BaseMarkdownConversionProcessor } from '../../base/BaseFileProcessor'
+import { persistResponseZipResult } from '../../../utils/resultPersistence'
+import { BaseMarkdownConversionProcessor, getFileProcessingResultsDir } from '../../base/BaseFileProcessor'
 import type {
   MineruExtractFileResult,
   MineruTaskContext,
@@ -76,7 +74,7 @@ export class MineruProcessor extends BaseMarkdownConversionProcessor {
       throw new Error('Markdown conversion result download URL is empty')
     }
 
-    const fileProcessingResultsDir = this.getFileProcessingResultsDir(fileId)
+    const fileProcessingResultsDir = getFileProcessingResultsDir(fileId)
     signal?.throwIfAborted()
 
     const response = await net.fetch(downloadUrl, {
@@ -89,19 +87,11 @@ export class MineruProcessor extends BaseMarkdownConversionProcessor {
       throw new Error(`Mineru result download failed: ${response.status} ${response.statusText} ${message}`)
     }
 
-    const zipBuffer = Buffer.from(await response.arrayBuffer())
-    signal?.throwIfAborted()
-
-    try {
-      return await persistZipResult({
-        zipBuffer,
-        resultsDir: fileProcessingResultsDir,
-        isMarkdownEntry: (entryName) => entryName.endsWith('full.md')
-      })
-    } catch (error) {
-      await fs.rm(fileProcessingResultsDir, { recursive: true, force: true }).catch(() => undefined)
-      throw error
-    }
+    return await persistResponseZipResult({
+      response,
+      resultsDir: fileProcessingResultsDir,
+      signal
+    })
   }
 
   private prepareStartContext(

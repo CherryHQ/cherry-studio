@@ -1,5 +1,3 @@
-import fs from 'node:fs/promises'
-
 import type { FileProcessorMerged } from '@shared/data/presets/file-processing'
 import type {
   FileProcessingMarkdownTaskResult,
@@ -9,12 +7,14 @@ import type { FileMetadata } from '@types'
 import { net } from 'electron'
 
 import { fileProcessingTaskStore } from '../../../runtime/FileProcessingTaskStore'
-import { persistZipResult } from '../../../utils/resultPersistence'
-import { BaseMarkdownConversionProcessor } from '../../base/BaseFileProcessor'
+import { persistResponseZipResult } from '../../../utils/resultPersistence'
+import { BaseMarkdownConversionProcessor, getFileProcessingResultsDir } from '../../base/BaseFileProcessor'
 import type { Doc2xTaskContext, PreparedDoc2xQueryContext, PreparedDoc2xStartContext } from './types'
 import { createUploadTask, getExportResult, getParseStatus, triggerExportTask, uploadFile } from './utils'
 
 export class Doc2xProcessor extends BaseMarkdownConversionProcessor {
+  private readonly inFlightResultQueries = new Map<string, Promise<FileProcessingMarkdownTaskResult>>()
+
   constructor() {
     super('doc2x')
   }
@@ -49,6 +49,64 @@ export class Doc2xProcessor extends BaseMarkdownConversionProcessor {
     providerTaskId: string,
     signal?: AbortSignal
   ): Promise<FileProcessingMarkdownTaskResult> {
+    signal?.throwIfAborted()
+
+    const existingQuery = this.inFlightResultQueries.get(providerTaskId)
+
+    if (existingQuery) {
+      return this.withCallerAbort(existingQuery, signal)
+    }
+
+    const queryPromise = this.queryMarkdownConversionTaskResult(providerTaskId).finally(() => {
+      if (this.inFlightResultQueries.get(providerTaskId) === queryPromise) {
+        this.inFlightResultQueries.delete(providerTaskId)
+      }
+    })
+
+    this.inFlightResultQueries.set(providerTaskId, queryPromise)
+    return this.withCallerAbort(queryPromise, signal)
+  }
+
+  private withCallerAbort<T>(promise: Promise<T>, signal?: AbortSignal): Promise<T> {
+    if (!signal) {
+      return promise
+    }
+
+    if (signal.aborted) {
+      return Promise.reject(this.createAbortError(signal))
+    }
+
+    return new Promise<T>((resolve, reject) => {
+      const abortHandler = () => reject(this.createAbortError(signal))
+
+      signal.addEventListener('abort', abortHandler, { once: true })
+
+      void promise.then(
+        (value) => {
+          signal.removeEventListener('abort', abortHandler)
+          resolve(value)
+        },
+        (error) => {
+          signal.removeEventListener('abort', abortHandler)
+          reject(error)
+        }
+      )
+    })
+  }
+
+  private createAbortError(signal: AbortSignal): Error {
+    const reason = signal.reason
+
+    if (reason instanceof Error) {
+      return reason
+    }
+
+    const error = new Error(typeof reason === 'string' ? reason : 'The operation was aborted')
+    error.name = 'AbortError'
+    return error
+  }
+
+  private async queryMarkdownConversionTaskResult(providerTaskId: string): Promise<FileProcessingMarkdownTaskResult> {
     const taskContext = fileProcessingTaskStore.get<Doc2xTaskContext>('doc2x', providerTaskId)
 
     if (!taskContext) {
@@ -57,8 +115,7 @@ export class Doc2xProcessor extends BaseMarkdownConversionProcessor {
 
     const context: PreparedDoc2xQueryContext = {
       apiHost: taskContext.apiHost,
-      apiKey: taskContext.apiKey,
-      signal
+      apiKey: taskContext.apiKey
     }
 
     if (taskContext.stage === 'parsing') {
@@ -77,7 +134,7 @@ export class Doc2xProcessor extends BaseMarkdownConversionProcessor {
       throw new Error('Doc2x result download URL is empty')
     }
 
-    const fileProcessingResultsDir = this.getFileProcessingResultsDir(fileId)
+    const fileProcessingResultsDir = getFileProcessingResultsDir(fileId)
     signal?.throwIfAborted()
 
     const response = await net.fetch(downloadUrl.replace(/\\u0026/g, '&'), {
@@ -90,19 +147,11 @@ export class Doc2xProcessor extends BaseMarkdownConversionProcessor {
       throw new Error(`Doc2x result download failed: ${response.status} ${response.statusText} ${message}`)
     }
 
-    const zipBuffer = Buffer.from(await response.arrayBuffer())
-    signal?.throwIfAborted()
-
-    try {
-      return await persistZipResult({
-        zipBuffer,
-        resultsDir: fileProcessingResultsDir,
-        isMarkdownEntry: (entryName) => entryName.toLowerCase().endsWith('.md')
-      })
-    } catch (error) {
-      await fs.rm(fileProcessingResultsDir, { recursive: true, force: true }).catch(() => undefined)
-      throw error
-    }
+    return await persistResponseZipResult({
+      response,
+      resultsDir: fileProcessingResultsDir,
+      signal
+    })
   }
 
   private prepareStartContext(

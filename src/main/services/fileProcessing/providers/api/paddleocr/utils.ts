@@ -1,6 +1,8 @@
+import { createReadStream } from 'node:fs'
 import fs from 'node:fs/promises'
 
 import { loggerService } from '@logger'
+import { MB } from '@shared/config/constant'
 import { net } from 'electron'
 import FormData from 'form-data'
 
@@ -16,48 +18,60 @@ import {
 
 const POLL_INTERVAL_MS = 1000
 const MAX_POLL_DURATION_MS = 5 * 60 * 1000
+const PADDLE_MAX_FILE_SIZE = 50 * MB
 const logger = loggerService.withContext('FileProcessing:PaddleProcessorUtils')
 
 export async function createJob(context: PreparedPaddleStartContext): Promise<{
   jobId: string
 }> {
   const endpoint = `${context.apiHost}/api/v2/ocr/jobs`
-  const fileBuffer = await fs.readFile(context.file.path)
+  const stat = await fs.stat(context.file.path)
+
+  if (stat.size >= PADDLE_MAX_FILE_SIZE) {
+    throw new Error('PaddleOCR file is too large (must be smaller than 50MB)')
+  }
+
+  const fileStream = createReadStream(context.file.path)
 
   const formData = new FormData()
   if (context.model) {
     formData.append('model', context.model)
   }
-  formData.append('file', fileBuffer, {
+  formData.append('file', fileStream, {
     filename: context.file.origin_name
   })
 
-  const response = await net.fetch(endpoint, {
-    method: 'POST',
-    headers: {
-      Authorization: `Bearer ${context.apiKey}`,
-      ...formData.getHeaders()
-    },
-    body: new Uint8Array(formData.getBuffer()),
-    signal: context.signal
-  })
+  try {
+    const response = await net.fetch(endpoint, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${context.apiKey}`,
+        ...formData.getHeaders()
+      },
+      body: formData as any,
+      duplex: 'half',
+      signal: context.signal
+    } as any)
 
-  if (!response.ok) {
-    const message = await response.text()
-    throw new Error(`PaddleOCR job creation failed: ${response.status} ${response.statusText} ${message}`)
+    if (!response.ok) {
+      const message = await response.text()
+      throw new Error(`PaddleOCR job creation failed: ${response.status} ${response.statusText} ${message}`)
+    }
+
+    const payload = PaddleCreateJobResponseSchema.parse(await response.json())
+
+    if (payload.code !== 0) {
+      throw new Error(payload.msg || 'PaddleOCR job creation failed')
+    }
+
+    if (!payload.data) {
+      throw new Error('PaddleOCR job creation response is missing data')
+    }
+
+    return payload.data
+  } finally {
+    fileStream.destroy()
   }
-
-  const payload = PaddleCreateJobResponseSchema.parse(await response.json())
-
-  if (payload.code !== 0) {
-    throw new Error(payload.msg || 'PaddleOCR job creation failed')
-  }
-
-  if (!payload.data) {
-    throw new Error('PaddleOCR job creation response is missing data')
-  }
-
-  return payload.data
 }
 
 export async function getJobResult(

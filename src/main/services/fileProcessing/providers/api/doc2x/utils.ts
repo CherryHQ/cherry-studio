@@ -1,5 +1,6 @@
-import { createReadStream } from 'node:fs'
+import fs, { createReadStream } from 'node:fs'
 
+import { GB } from '@shared/config/constant'
 import { net } from 'electron'
 
 import {
@@ -11,6 +12,8 @@ import {
   type PreparedDoc2xQueryContext,
   type PreparedDoc2xStartContext
 } from './types'
+
+const DOC2X_MAX_FILE_SIZE = GB
 
 export async function createUploadTask(context: PreparedDoc2xStartContext): Promise<{
   uid: string
@@ -46,18 +49,28 @@ export async function createUploadTask(context: PreparedDoc2xStartContext): Prom
 }
 
 export async function uploadFile(filePath: string, uploadUrl: string, signal?: AbortSignal): Promise<void> {
+  const stat = await fs.promises.stat(filePath)
+
+  if (stat.size >= DOC2X_MAX_FILE_SIZE) {
+    throw new Error('Doc2x file is too large (must be smaller than 1GB)')
+  }
+
   const fileStream = createReadStream(filePath)
 
-  const response = await net.fetch(uploadUrl, {
-    method: 'PUT',
-    body: fileStream as any,
-    duplex: 'half',
-    signal
-  } as any)
+  try {
+    const response = await net.fetch(uploadUrl, {
+      method: 'PUT',
+      body: fileStream as any,
+      duplex: 'half',
+      signal
+    } as any)
 
-  if (!response.ok) {
-    const message = await response.text()
-    throw new Error(`Doc2x file upload failed: ${response.status} ${response.statusText} ${message}`)
+    if (!response.ok) {
+      const message = await response.text()
+      throw new Error(`Doc2x file upload failed: ${response.status} ${response.statusText} ${message}`)
+    }
+  } finally {
+    fileStream.destroy()
   }
 }
 

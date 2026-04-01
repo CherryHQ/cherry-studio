@@ -10,6 +10,12 @@ import type { IMarkdownConversionProcessor, ITextExtractionProcessor } from '../
 
 const lastUsedKeyByProcessor = new Map<FileProcessorId, string>()
 
+export function getFileProcessingResultsDir(fileId: string): string {
+  // TODO(file-processing): Move this derived-file path calculation into the
+  // unified FileSystem/FileManager once that layer lands.
+  return path.join(getFilesDir(), fileId, 'file-processing')
+}
+
 export abstract class BaseFileProcessor {
   protected readonly processorId: FileProcessorId
 
@@ -48,12 +54,6 @@ export abstract class BaseFileProcessor {
 
     lastUsedKeyByProcessor.set(this.processorId, nextKey)
     return nextKey
-  }
-
-  protected getFileProcessingResultsDir(fileId: string): string {
-    // TODO(file-processing): Move this derived-file path calculation into the
-    // unified FileSystem/FileManager once that layer lands.
-    return path.join(getFilesDir(), fileId, 'file-processing')
   }
 }
 

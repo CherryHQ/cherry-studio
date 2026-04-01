@@ -1,15 +1,51 @@
+import fs from 'node:fs/promises'
+
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { executeTaskMock } = vi.hoisted(() => ({
-  executeTaskMock: vi.fn()
+const { executeTaskMock, persistResponseZipResultMock } = vi.hoisted(() => ({
+  executeTaskMock: vi.fn(),
+  persistResponseZipResultMock: vi.fn()
 }))
 
 vi.mock('../utils', () => ({
   executeTask: executeTaskMock
 }))
 
+vi.mock('@main/utils/file', () => ({
+  getFilesDir: vi.fn(() => '/tmp/files')
+}))
+
+vi.mock('../../../../utils/resultPersistence', () => ({
+  persistResponseZipResult: persistResponseZipResultMock
+}))
+
 import { fileProcessingTaskStore } from '../../../../runtime/FileProcessingTaskStore'
 import { openMineruProcessor } from '../openMineruProcessor'
+
+const documentFile = {
+  id: 'file-1',
+  name: 'input.pdf',
+  origin_name: 'input.pdf',
+  path: '/tmp/input.pdf',
+  size: 512,
+  ext: '.pdf',
+  type: 'document',
+  created_at: '2026-03-31T00:00:00.000Z',
+  count: 1
+} as const
+
+const processorConfig = {
+  id: 'open-mineru',
+  type: 'api',
+  capabilities: [
+    {
+      feature: 'markdown_conversion',
+      inputs: ['document'],
+      output: 'markdown',
+      apiHost: 'http://127.0.0.1:8000'
+    }
+  ]
+} as const
 
 describe('openMineruProcessor', () => {
   beforeEach(() => {
@@ -19,13 +55,19 @@ describe('openMineruProcessor', () => {
 
   it('deletes task state after persisting a successful markdown conversion result', async () => {
     const processor = openMineruProcessor as any
+    const response = new Response(new Uint8Array([1, 2, 3]), {
+      status: 200,
+      headers: {
+        'content-type': 'application/zip'
+      }
+    })
 
     fileProcessingTaskStore.create('open-mineru', 'task-1', {
       status: 'processing',
       progress: 0
     })
 
-    executeTaskMock.mockResolvedValueOnce(Buffer.from('zip'))
+    executeTaskMock.mockResolvedValueOnce(response)
 
     const persistSpy = vi.spyOn(processor, 'persistMarkdownConversionResult').mockResolvedValueOnce('/tmp/output.md')
 
@@ -38,7 +80,7 @@ describe('openMineruProcessor', () => {
     })
 
     expect(executeTaskMock).toHaveBeenCalledTimes(1)
-    expect(persistSpy).toHaveBeenCalledWith('file-1', expect.any(Buffer))
+    expect(persistSpy).toHaveBeenCalledWith('file-1', response)
     expect(fileProcessingTaskStore.get('open-mineru', 'task-1')).toEqual({
       status: 'completed',
       progress: 100,
@@ -61,5 +103,76 @@ describe('openMineruProcessor', () => {
     })
 
     expect(fileProcessingTaskStore.get('open-mineru', 'task-2')).toBeUndefined()
+  })
+
+  it('keeps the background task running after the caller aborts the start request', async () => {
+    const processor = openMineruProcessor as any
+    const controller = new AbortController()
+
+    let resolveTaskWithResponse: ((value: Response) => void) | undefined
+    executeTaskMock.mockImplementation(
+      (context: { signal?: AbortSignal }) =>
+        new Promise<Response>((resolve, reject) => {
+          if (context.signal) {
+            context.signal.addEventListener('abort', () => reject(new Error('should not be aborted')))
+          }
+          resolveTaskWithResponse = resolve
+        })
+    )
+
+    const persistSpy = vi.spyOn(processor, 'persistMarkdownConversionResult').mockResolvedValueOnce('/tmp/output.md')
+
+    const startResult = await openMineruProcessor.startMarkdownConversionTask(
+      documentFile as never,
+      processorConfig as never,
+      controller.signal
+    )
+
+    controller.abort()
+    await Promise.resolve()
+
+    resolveTaskWithResponse?.(
+      new Response(new Uint8Array([1, 2, 3]), {
+        status: 200,
+        headers: {
+          'content-type': 'application/zip'
+        }
+      })
+    )
+    await Promise.resolve()
+    await Promise.resolve()
+
+    expect(executeTaskMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        apiHost: 'http://127.0.0.1:8000',
+        file: expect.objectContaining({ id: 'file-1' })
+      })
+    )
+    expect(executeTaskMock.mock.calls[0]?.[0]).not.toHaveProperty('signal')
+    expect(persistSpy).toHaveBeenCalledWith('file-1', expect.any(Response))
+    expect(fileProcessingTaskStore.get('open-mineru', startResult.providerTaskId)).toEqual({
+      status: 'completed',
+      progress: 100,
+      markdownPath: '/tmp/output.md'
+    })
+  })
+
+  it('keeps the existing result directory when persistence fails', async () => {
+    persistResponseZipResultMock.mockRejectedValueOnce(new Error('persist failed'))
+    const rmSpy = vi.spyOn(fs, 'rm').mockResolvedValue(undefined)
+
+    await expect(
+      (openMineruProcessor as any).persistMarkdownConversionResult(
+        'file-9',
+        new Response(new Uint8Array([1, 2, 3]), {
+          status: 200,
+          headers: {
+            'content-type': 'application/zip'
+          }
+        })
+      )
+    ).rejects.toThrow('persist failed')
+
+    expect(rmSpy).not.toHaveBeenCalled()
   })
 })

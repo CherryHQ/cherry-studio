@@ -2,9 +2,11 @@ import fs from 'node:fs/promises'
 
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { getBatchResultMock, mapProgressMock } = vi.hoisted(() => ({
+const { getBatchResultMock, mapProgressMock, fetchMock, persistResponseZipResultMock } = vi.hoisted(() => ({
   getBatchResultMock: vi.fn(),
-  mapProgressMock: vi.fn()
+  mapProgressMock: vi.fn(),
+  fetchMock: vi.fn(),
+  persistResponseZipResultMock: vi.fn()
 }))
 
 vi.mock('../utils', () => ({
@@ -12,6 +14,20 @@ vi.mock('../utils', () => ({
   uploadFile: vi.fn(),
   getBatchResult: getBatchResultMock,
   mapProgress: mapProgressMock
+}))
+
+vi.mock('electron', () => ({
+  net: {
+    fetch: fetchMock
+  }
+}))
+
+vi.mock('@main/utils/file', () => ({
+  getFilesDir: vi.fn(() => '/tmp/files')
+}))
+
+vi.mock('../../../../utils/resultPersistence', () => ({
+  persistResponseZipResult: persistResponseZipResultMock
 }))
 
 import { fileProcessingTaskStore } from '../../../../runtime/FileProcessingTaskStore'
@@ -80,5 +96,22 @@ describe('mineruProcessor', () => {
 
     expect(persistSpy).toHaveBeenCalledWith('file-2', 'https://download.example.com/full.zip', undefined)
     expect(fileProcessingTaskStore.get('mineru', 'task-2')).toBeUndefined()
+  })
+
+  it('keeps the existing result directory when persistence fails', async () => {
+    fetchMock.mockResolvedValueOnce(
+      new Response(new Uint8Array([1, 2, 3]), {
+        status: 200,
+        statusText: 'OK'
+      })
+    )
+    persistResponseZipResultMock.mockRejectedValueOnce(new Error('persist failed'))
+    const rmSpy = vi.spyOn(fs, 'rm').mockResolvedValue(undefined)
+
+    await expect(
+      (mineruProcessor as any).persistMarkdownConversionResult('file-3', 'https://download.example.com/full.zip')
+    ).rejects.toThrow('persist failed')
+
+    expect(rmSpy).not.toHaveBeenCalled()
   })
 })

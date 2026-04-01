@@ -1,10 +1,9 @@
-import fs from 'node:fs/promises'
-
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const {
   resolveProcessorConfigMock,
   getFilesDirMock,
+  pathExistsMock,
   createTextExtractionProcessorMock,
   createMarkdownConversionProcessorMock,
   extractTextMock,
@@ -13,6 +12,7 @@ const {
 } = vi.hoisted(() => ({
   resolveProcessorConfigMock: vi.fn(),
   getFilesDirMock: vi.fn(() => '/files'),
+  pathExistsMock: vi.fn(),
   createTextExtractionProcessorMock: vi.fn(),
   createMarkdownConversionProcessorMock: vi.fn(),
   extractTextMock: vi.fn(),
@@ -25,7 +25,8 @@ vi.mock('../utils/config', () => ({
 }))
 
 vi.mock('@main/utils/file', () => ({
-  getFilesDir: getFilesDirMock
+  getFilesDir: getFilesDirMock,
+  pathExists: pathExistsMock
 }))
 
 vi.mock('../providers/factory', () => ({
@@ -62,7 +63,7 @@ const documentFile = {
 describe('fileProcessingService (runtime)', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    vi.spyOn(fs, 'access').mockRejectedValue(new Error('missing'))
+    pathExistsMock.mockResolvedValue(false)
   })
 
   it('resolves text extraction config and forwards the request to the selected processor', async () => {
@@ -164,12 +165,18 @@ describe('fileProcessingService (runtime)', () => {
   })
 
   it('reads the persisted markdown result by file id', async () => {
-    vi.spyOn(fs, 'access').mockResolvedValueOnce(undefined)
+    pathExistsMock.mockResolvedValueOnce(true)
 
     await expect(fileProcessingService.getPersistedMarkdownResult('file-2')).resolves.toBe(
       '/files/file-2/file-processing/output.md'
     )
 
-    expect(fs.access).toHaveBeenCalledWith('/files/file-2/file-processing/output.md')
+    expect(pathExistsMock).toHaveBeenCalledWith('/files/file-2/file-processing/output.md')
+  })
+
+  it('returns undefined when the persisted markdown result is not available', async () => {
+    pathExistsMock.mockResolvedValueOnce(false)
+
+    await expect(fileProcessingService.getPersistedMarkdownResult('file-2')).resolves.toBeUndefined()
   })
 })

@@ -1,6 +1,3 @@
-import fs from 'node:fs/promises'
-import path from 'node:path'
-
 import { loggerService } from '@logger'
 import type { FileProcessorMerged } from '@shared/data/presets/file-processing'
 import type {
@@ -13,8 +10,8 @@ import { isImageFileMetadata } from '@types'
 import type { ITextExtractionProcessor } from '../../../interfaces'
 import { fileProcessingTaskStore } from '../../../runtime/FileProcessingTaskStore'
 import type { FileProcessingTextExtractionResult } from '../../../types'
-import { OUTPUT_MARKDOWN_FILE } from '../../../utils/resultPersistence'
-import { BaseMarkdownConversionProcessor } from '../../base/BaseFileProcessor'
+import { persistMarkdownResult } from '../../../utils/resultPersistence'
+import { BaseMarkdownConversionProcessor, getFileProcessingResultsDir } from '../../base/BaseFileProcessor'
 import type { PaddleTaskContext, PreparedPaddleQueryContext, PreparedPaddleStartContext } from './types'
 import { createJob, getJobResult, mapProgress, resolveJsonlResult, waitForJobCompletion } from './utils'
 
@@ -131,14 +128,12 @@ export class PaddleProcessor extends BaseMarkdownConversionProcessor implements 
   }
 
   private async persistMarkdownConversionResult(fileId: string, markdownContent: string): Promise<string> {
-    const fileProcessingResultsDir = this.getFileProcessingResultsDir(fileId)
-    const markdownPath = path.join(fileProcessingResultsDir, OUTPUT_MARKDOWN_FILE)
+    const fileProcessingResultsDir = getFileProcessingResultsDir(fileId)
 
-    await fs.rm(fileProcessingResultsDir, { recursive: true, force: true })
-    await fs.mkdir(fileProcessingResultsDir, { recursive: true })
-    await fs.writeFile(markdownPath, markdownContent, 'utf-8')
-
-    return markdownPath
+    return persistMarkdownResult({
+      resultsDir: fileProcessingResultsDir,
+      markdownContent
+    })
   }
 
   private prepareStartContext(

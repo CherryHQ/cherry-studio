@@ -1,41 +1,55 @@
+import { createReadStream } from 'node:fs'
 import fs from 'node:fs/promises'
 
+import { MB } from '@shared/config/constant'
 import { net } from 'electron'
 import FormData from 'form-data'
 
 import type { PreparedOpenMineruContext } from './types'
 
-export async function executeTask(context: PreparedOpenMineruContext): Promise<Buffer> {
+const OPEN_MINERU_MAX_FILE_SIZE = 200 * MB
+
+export async function executeTask(context: PreparedOpenMineruContext): Promise<Response> {
   const endpoint = `${context.apiHost}/file_parse`
-  const fileBuffer = await fs.readFile(context.file.path)
+  const stat = await fs.stat(context.file.path)
+
+  if (stat.size >= OPEN_MINERU_MAX_FILE_SIZE) {
+    throw new Error('Open MinerU file is too large (must be smaller than 200MB)')
+  }
+
+  const fileStream = createReadStream(context.file.path)
 
   const formData = new FormData()
   formData.append('return_md', 'true')
   formData.append('response_format_zip', 'true')
-  formData.append('files', fileBuffer, {
+  formData.append('files', fileStream, {
     filename: context.file.name
   })
 
-  const response = await net.fetch(endpoint, {
-    method: 'POST',
-    headers: {
-      ...(context.apiKey ? { Authorization: `Bearer ${context.apiKey}` } : {}),
-      ...formData.getHeaders()
-    },
-    body: new Uint8Array(formData.getBuffer()),
-    signal: context.signal
-  })
+  try {
+    const response = await net.fetch(endpoint, {
+      method: 'POST',
+      headers: {
+        ...(context.apiKey ? { Authorization: `Bearer ${context.apiKey}` } : {}),
+        ...formData.getHeaders()
+      },
+      body: formData as any,
+      duplex: 'half'
+    } as any)
 
-  if (!response.ok) {
-    const message = await response.text()
-    throw new Error(`Open MinerU request failed: ${response.status} ${response.statusText} ${message}`)
+    if (!response.ok) {
+      const message = await response.text()
+      throw new Error(`Open MinerU request failed: ${response.status} ${response.statusText} ${message}`)
+    }
+
+    const contentType = response.headers.get('content-type')
+
+    if (contentType !== 'application/zip') {
+      throw new Error(`Open MinerU returned unexpected content-type: ${contentType}`)
+    }
+
+    return response
+  } finally {
+    fileStream.destroy()
   }
-
-  const contentType = response.headers.get('content-type')
-
-  if (contentType !== 'application/zip') {
-    throw new Error(`Open MinerU returned unexpected content-type: ${contentType}`)
-  }
-
-  return Buffer.from(await response.arrayBuffer())
 }

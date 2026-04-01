@@ -1,3 +1,4 @@
+import { fileProcessingService as dataFileProcessingService } from '@data/services/FileProcessingService'
 import { MockMainPreferenceServiceUtils } from '@test-mocks/main/PreferenceService'
 import { beforeEach, describe, expect, it } from 'vitest'
 
@@ -58,5 +59,29 @@ describe('resolveProcessorConfig', () => {
     await expect(resolveProcessorConfig('markdown_conversion')).rejects.toThrow(
       'Default file processor for markdown_conversion is not configured'
     )
+  })
+
+  it('keeps runtime and data-service merged processor configs in sync', async () => {
+    MockMainPreferenceServiceUtils.setPreferenceValue('feature.file_processing.overrides', {
+      paddleocr: {
+        apiKeys: ['sync-key'],
+        options: {
+          concurrency: 2
+        },
+        capabilities: {
+          markdown_conversion: {
+            apiHost: 'https://override.example.com',
+            modelId: 'override-model'
+          }
+        }
+      }
+    })
+
+    const [runtimeConfig, dataConfig] = await Promise.all([
+      resolveProcessorConfig('markdown_conversion', 'paddleocr'),
+      dataFileProcessingService.getProcessorById('paddleocr')
+    ])
+
+    expect(runtimeConfig).toEqual(dataConfig)
   })
 })

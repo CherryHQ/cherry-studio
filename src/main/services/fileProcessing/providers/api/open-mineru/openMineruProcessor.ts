@@ -1,5 +1,3 @@
-import fs from 'node:fs/promises'
-
 import { loggerService } from '@logger'
 import type { FileProcessorMerged } from '@shared/data/presets/file-processing'
 import type {
@@ -10,8 +8,8 @@ import type { FileMetadata } from '@types'
 import { v4 as uuidv4 } from 'uuid'
 
 import { fileProcessingTaskStore } from '../../../runtime/FileProcessingTaskStore'
-import { persistZipResult } from '../../../utils/resultPersistence'
-import { BaseMarkdownConversionProcessor } from '../../base/BaseFileProcessor'
+import { persistResponseZipResult } from '../../../utils/resultPersistence'
+import { BaseMarkdownConversionProcessor, getFileProcessingResultsDir } from '../../base/BaseFileProcessor'
 import type { OpenMineruTaskState, PreparedOpenMineruContext } from './types'
 import { executeTask } from './utils'
 
@@ -89,6 +87,8 @@ export class OpenMineruProcessor extends BaseMarkdownConversionProcessor {
     config: FileProcessorMerged,
     signal?: AbortSignal
   ): PreparedOpenMineruContext {
+    signal?.throwIfAborted()
+
     const capability = this.getRequiredCapability(config, 'markdown_conversion')
 
     if (!file.path) {
@@ -103,7 +103,6 @@ export class OpenMineruProcessor extends BaseMarkdownConversionProcessor {
     return {
       apiHost,
       apiKey: this.getApiKey(config),
-      signal,
       file
     }
   }
@@ -115,14 +114,14 @@ export class OpenMineruProcessor extends BaseMarkdownConversionProcessor {
         progress: 10
       }))
 
-      const zipBuffer = await executeTask(context)
+      const response = await executeTask(context)
 
       fileProcessingTaskStore.update<OpenMineruTaskState>('open-mineru', providerTaskId, () => ({
         status: 'processing',
         progress: 80
       }))
 
-      const markdownPath = await this.persistMarkdownConversionResult(context.file.id, zipBuffer)
+      const markdownPath = await this.persistMarkdownConversionResult(context.file.id, response)
       fileProcessingTaskStore.update<OpenMineruTaskState>('open-mineru', providerTaskId, () => ({
         status: 'completed',
         progress: 100,
@@ -138,19 +137,13 @@ export class OpenMineruProcessor extends BaseMarkdownConversionProcessor {
     }
   }
 
-  private async persistMarkdownConversionResult(fileId: string, zipBuffer: Buffer): Promise<string> {
-    const fileProcessingResultsDir = this.getFileProcessingResultsDir(fileId)
+  private async persistMarkdownConversionResult(fileId: string, response: Response): Promise<string> {
+    const fileProcessingResultsDir = getFileProcessingResultsDir(fileId)
 
-    try {
-      return await persistZipResult({
-        zipBuffer,
-        resultsDir: fileProcessingResultsDir,
-        isMarkdownEntry: (entryName) => entryName.toLowerCase().endsWith('.md')
-      })
-    } catch (error) {
-      await fs.rm(fileProcessingResultsDir, { recursive: true, force: true }).catch(() => undefined)
-      throw error
-    }
+    return await persistResponseZipResult({
+      response,
+      resultsDir: fileProcessingResultsDir
+    })
   }
 }
 
