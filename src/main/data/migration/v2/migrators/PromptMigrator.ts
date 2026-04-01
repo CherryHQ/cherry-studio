@@ -46,6 +46,12 @@ export class PromptMigrator extends BaseMigrator {
   private skippedCount = 0
   private preparedPhrases: LegacyQuickPhrase[] = []
 
+  override reset(): void {
+    this.promptCount = 0
+    this.skippedCount = 0
+    this.preparedPhrases = []
+  }
+
   async prepare(ctx: MigrationContext): Promise<PrepareResult> {
     try {
       const exists = await ctx.sources.dexieExport.tableExists('quick_phrases')
