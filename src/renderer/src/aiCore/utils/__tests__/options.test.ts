@@ -61,10 +61,8 @@ vi.mock('@cherrystudio/ai-core/provider', async (importOriginal) => {
 
 vi.mock('@renderer/config/models', async (importOriginal) => ({
   ...(await importOriginal()),
-  isOpenAIModel: vi.fn((model) => model.id.includes('gpt') || model.id.includes('o1')),
   isQwenMTModel: vi.fn(() => false),
   isSupportFlexServiceTierModel: vi.fn(() => true),
-  isOpenAILLMModel: vi.fn(() => true),
   SYSTEM_MODELS: {
     defaultModel: [
       { id: 'default-1', name: 'Default 1' },
