@@ -1,6 +1,5 @@
+import { Tooltip } from '@cherrystudio/ui'
 import React from 'react'
-
-import { Tooltip } from '../../primitives/tooltip'
 
 const sideToPlacement = {
   bottom: 'bottom',
