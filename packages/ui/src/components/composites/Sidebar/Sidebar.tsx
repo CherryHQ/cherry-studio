@@ -1,5 +1,5 @@
 import { ChevronRight, Columns2, Search, X } from 'lucide-react'
-import React, { useCallback, useRef } from 'react'
+import React, { useCallback, useEffect, useRef } from 'react'
 
 import {
   getSidebarLayout,
@@ -23,7 +23,7 @@ function DefaultLogo({ title }: { title: string }) {
 
 function MiniAppIcon({ tab, size = 'sm' }: { tab: SidebarTab; size?: 'sm' | 'md' }) {
   const iconSize = size === 'sm' ? 'h-3.5 w-3.5' : 'h-4 w-4'
-  const fontSize = size === 'sm' ? 'text-[6px]' : 'text-[6px]'
+  const fontSize = size === 'sm' ? 'text-[6px]' : 'text-[8px]'
   const backgroundColor = tab.miniAppColor ?? 'transparent'
   const initial = tab.miniAppInitial ?? ''
 
@@ -269,10 +269,20 @@ export function Sidebar({
   onDismiss
 }: SidebarProps) {
   const isResizing = useRef(false)
+  const resizeCleanupRef = useRef<(() => void) | null>(null)
   const sidebarRef = useRef<HTMLDivElement>(null)
   const hoverTimeout = useRef<ReturnType<typeof setTimeout> | null>(null)
   const layout = getSidebarLayout(width)
   const showBottomSection = Boolean(extensionsLabel || user || onExtensionsClick)
+  const showSearch = Boolean(onSearchClick)
+
+  // Cleanup pending timeouts and resize listeners on unmount
+  useEffect(() => {
+    return () => {
+      if (hoverTimeout.current) clearTimeout(hoverTimeout.current)
+      resizeCleanupRef.current?.()
+    }
+  }, [])
 
   const startResizing = useCallback(
     (event: React.MouseEvent) => {
@@ -294,16 +304,20 @@ export function Sidebar({
         else setWidth(Math.min(SIDEBAR_MAX_WIDTH, Math.max(SIDEBAR_FULL_WIDTH, nextWidth)))
       }
 
-      const onMouseUp = () => {
+      const cleanup = () => {
         isResizing.current = false
         document.body.style.cursor = ''
         document.body.style.userSelect = ''
         document.removeEventListener('mousemove', onMouseMove)
         document.removeEventListener('mouseup', onMouseUp)
+        resizeCleanupRef.current = null
       }
+
+      const onMouseUp = () => cleanup()
 
       document.addEventListener('mousemove', onMouseMove)
       document.addEventListener('mouseup', onMouseUp)
+      resizeCleanupRef.current = cleanup
     },
     [setWidth]
   )
@@ -340,17 +354,19 @@ export function Sidebar({
             <span className="truncate text-sm text-sidebar-foreground">{title}</span>
           </div>
 
-          <div className="px-3 py-2">
-            <div
-              onClick={() => {
-                onSearchClick?.()
-                handleDismiss()
-              }}
-              className="flex cursor-pointer items-center gap-2 rounded-md bg-sidebar-accent/50 px-2.5 py-1.5 text-xs text-muted-foreground transition-colors hover:bg-accent">
-              <Search size={13} />
-              <span>{searchLabel}</span>
+          {showSearch && (
+            <div className="px-3 py-2">
+              <div
+                onClick={() => {
+                  onSearchClick?.()
+                  handleDismiss()
+                }}
+                className="flex cursor-pointer items-center gap-2 rounded-md bg-sidebar-accent/50 px-2.5 py-1.5 text-xs text-muted-foreground transition-colors hover:bg-accent">
+                <Search size={13} />
+                <span>{searchLabel}</span>
+              </div>
             </div>
-          </div>
+          )}
 
           <div className="flex-1 overflow-y-auto py-1 [&::-webkit-scrollbar]:hidden">
             <FullMenuItems
@@ -423,26 +439,28 @@ export function Sidebar({
         {layout === 'full' && <span className="truncate text-sm text-sidebar-foreground">{title}</span>}
       </div>
 
-      {layout === 'full' ? (
-        <div className="px-3 py-2">
-          <div
-            onClick={onSearchClick}
-            className="flex cursor-pointer items-center gap-2 rounded-md bg-sidebar-accent px-2.5 py-1.5 text-xs text-muted-foreground transition-colors hover:bg-accent">
-            <Search size={13} />
-            <span>{searchLabel}</span>
-          </div>
-        </div>
-      ) : (
-        <div className="flex justify-center py-1.5">
-          <SidebarTooltip content={searchLabel}>
-            <button
+      {showSearch &&
+        (layout === 'full' ? (
+          <div className="px-3 py-2">
+            <div
               onClick={onSearchClick}
-              className="flex h-9 w-9 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-accent/60 hover:text-foreground">
-              <Search size={16} strokeWidth={1.6} />
-            </button>
-          </SidebarTooltip>
-        </div>
-      )}
+              className="flex cursor-pointer items-center gap-2 rounded-md bg-sidebar-accent px-2.5 py-1.5 text-xs text-muted-foreground transition-colors hover:bg-accent">
+              <Search size={13} />
+              <span>{searchLabel}</span>
+            </div>
+          </div>
+        ) : (
+          <div className="flex justify-center py-1.5">
+            <SidebarTooltip content={searchLabel}>
+              <button
+                type="button"
+                onClick={onSearchClick}
+                className="flex h-9 w-9 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-accent/60 hover:text-foreground">
+                <Search size={16} strokeWidth={1.6} />
+              </button>
+            </SidebarTooltip>
+          </div>
+        ))}
 
       <div className="flex-1 overflow-y-auto py-1 [&::-webkit-scrollbar]:hidden">
         {layout === 'icon' && (

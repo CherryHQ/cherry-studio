@@ -8,9 +8,9 @@ import { getSidebarIconLabel } from '@renderer/i18n/label'
 import { getDefaultRouteTitle } from '@renderer/utils/routeTitle'
 import type { SidebarIcon as SidebarIconType } from '@shared/data/preference/preferenceTypes'
 import {
-  BarChart3,
   Code,
   FileSearch,
+  Folder,
   Languages,
   LayoutGrid,
   MessageSquare,
@@ -20,7 +20,6 @@ import {
   Sparkle
 } from 'lucide-react'
 import { useEffect, useMemo, useState } from 'react'
-import { useTranslation } from 'react-i18next'
 
 import { useTabs } from '../../hooks/useTabs'
 import { OpenClawSidebarIcon } from '../Icons/SVGIcon'
@@ -48,7 +47,7 @@ const iconMap: Record<SidebarIconType, SidebarMenuItem['icon']> = {
   translate: Languages,
   minapp: LayoutGrid,
   knowledge: FileSearch,
-  files: BarChart3,
+  files: Folder,
   code_tools: Code,
   notes: NotepadText,
   openclaw: ({ size = 16 }) => <OpenClawSidebarIcon style={{ width: size, height: size }} />
@@ -78,7 +77,6 @@ const Sidebar = () => {
   const [visibleSidebarIcons] = usePreference('ui.sidebar.icons.visible')
   const { activeTab, activeTabId, updateTab } = useTabs()
   const { defaultPaintingProvider } = useSettings()
-  const { t } = useTranslation()
   const [sidebarWidth, setSidebarWidth] = useState(getInitialSidebarWidth)
 
   const pathname = activeTab?.url || '/'
@@ -115,7 +113,11 @@ const Sidebar = () => {
       return
     }
 
-    await modelGenerating()
+    try {
+      await modelGenerating()
+    } catch {
+      return
+    }
     if (activeTabId) {
       updateTab(activeTabId, { url: path, title: getDefaultRouteTitle(path) })
     }
@@ -130,10 +132,8 @@ const Sidebar = () => {
         items={items}
         title="Cherry Studio"
         logo={<img src={AppLogo} alt="Cherry Studio" className="h-9 w-9 rounded-lg" draggable={false} />}
-        searchLabel={t('common.search')}
         extensionsLabel=""
         onItemClick={handleNavigate}
-        onSearchClick={() => {}}
       />
     </div>
   )
