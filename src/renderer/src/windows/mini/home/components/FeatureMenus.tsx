@@ -11,6 +11,7 @@ interface FeatureMenusProps {
   text: string
   setRoute: Dispatch<SetStateAction<'translate' | 'summary' | 'chat' | 'explanation' | 'home'>>
   onSendMessage: (prompt?: string) => void
+  hasChatInput: boolean
 }
 
 export interface FeatureMenusRef {
@@ -23,6 +24,7 @@ export interface FeatureMenusRef {
 const FeatureMenus = ({
   ref,
   text,
+  hasChatInput,
   setRoute,
   onSendMessage
 }: FeatureMenusProps & { ref?: React.RefObject<FeatureMenusRef | null> }) => {
@@ -36,7 +38,7 @@ const FeatureMenus = ({
         title: t('miniwindow.feature.chat'),
         active: true,
         onClick: () => {
-          if (text) {
+          if (hasChatInput) {
             setRoute('chat')
             onSendMessage()
           }
@@ -68,7 +70,7 @@ const FeatureMenus = ({
         }
       }
     ],
-    [onSendMessage, setRoute, t, text]
+    [hasChatInput, onSendMessage, setRoute, t, text]
   )
 
   useImperativeHandle(ref, () => ({
