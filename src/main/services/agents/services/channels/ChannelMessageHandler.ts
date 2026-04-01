@@ -36,7 +36,7 @@ const SESSION_TRACKER_MAX_SIZE = 500
  * succession. Debouncing prevents each fragment from triggering a separate
  * agent round-trip and avoids concurrent stream interleaving.
  */
-const MESSAGE_BATCH_DELAY_MS = 5500
+const MESSAGE_BATCH_DELAY_MS = 8000
 
 type BatchResolver = {
   resolve: () => void
