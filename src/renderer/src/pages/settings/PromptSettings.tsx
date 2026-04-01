@@ -4,10 +4,16 @@ import { dataApiService } from '@data/DataApiService'
 import { useMutation, useQuery } from '@data/hooks/useDataApi'
 import { DraggableList } from '@renderer/components/DraggableList'
 import { DeleteIcon, EditIcon } from '@renderer/components/Icons'
+import PromptVariableConfigPanel from '@renderer/components/PromptVariableConfigPanel'
 import { useTheme } from '@renderer/context/ThemeProvider'
 import FileItem from '@renderer/pages/files/FileItem'
+import {
+  extractVariableKeys,
+  removeVariableFromContent,
+  renameVariableInContent
+} from '@renderer/utils/promptVariables'
 import { getPromptVersionRollbackMarker } from '@renderer/utils/promptVersion'
-import type { Prompt, PromptVersion } from '@shared/data/types/prompt'
+import type { Prompt, PromptVariable, PromptVersion } from '@shared/data/types/prompt'
 import { Input, Modal, Popconfirm, Space } from 'antd'
 import { HistoryIcon, PlusIcon, RotateCcwIcon } from 'lucide-react'
 import type { FC } from 'react'
@@ -24,15 +30,21 @@ const PromptSettings: FC = () => {
   const [isModalOpen, setIsModalOpen] = useState(false)
   const [isVersionModalOpen, setIsVersionModalOpen] = useState(false)
   const [editingPrompt, setEditingPrompt] = useState<Prompt | null>(null)
-  const [formData, setFormData] = useState<{ title: string; content: string }>({
+  const [formData, setFormData] = useState<{ title: string; content: string; variables: PromptVariable[] }>({
     title: '',
-    content: ''
+    content: '',
+    variables: []
   })
   const [dragging, setDragging] = useState(false)
   const [pendingDeletePromptId, setPendingDeletePromptId] = useState<string | null>(null)
   const [pendingRollbackVersion, setPendingRollbackVersion] = useState<number | null>(null)
 
-  const { data: promptsList = [], isLoading: isPromptsLoading, error: promptsError } = useQuery('/prompts')
+  const {
+    data: promptsList = [],
+    isLoading: isPromptsLoading,
+    error: promptsError,
+    refetch: refetchPrompts
+  } = useQuery('/prompts')
 
   const promptPath: `/prompts/${string}` = `/prompts/${editingPrompt?.id ?? '__pending__'}`
   const deletePromptPath: `/prompts/${string}` = `/prompts/${pendingDeletePromptId ?? '__pending__'}`
@@ -108,7 +120,7 @@ const PromptSettings: FC = () => {
 
   const handleAdd = () => {
     setEditingPrompt(null)
-    setFormData({ title: '', content: '' })
+    setFormData({ title: '', content: '', variables: [] })
     setIsModalOpen(true)
   }
 
@@ -116,7 +128,8 @@ const PromptSettings: FC = () => {
     setEditingPrompt(prompt)
     setFormData({
       title: prompt.title,
-      content: prompt.content
+      content: prompt.content,
+      variables: prompt.variables ?? []
     })
     setIsModalOpen(true)
   }
@@ -130,19 +143,37 @@ const PromptSettings: FC = () => {
       return
     }
 
+    // Clean up variables: remove orphaned keys and empty select options
+    const activeKeys = new Set(extractVariableKeys(formData.content))
+    const cleanedVariables = formData.variables
+      .filter((v) => activeKeys.has(v.key))
+      .map((v) => {
+        if (v.type === 'select') {
+          const options = v.options.filter(Boolean)
+          if (options.length === 0) return null
+          const defaultValue = v.defaultValue && options.includes(v.defaultValue) ? v.defaultValue : undefined
+          return { ...v, options, defaultValue }
+        }
+        return v
+      })
+      .filter(Boolean) as PromptVariable[]
+    const variablesPayload = cleanedVariables.length > 0 ? cleanedVariables : null
+
     try {
       if (editingPrompt) {
         await updatePrompt({
           body: {
             title: formData.title,
-            content: formData.content
+            content: formData.content,
+            variables: variablesPayload
           }
         })
       } else {
         await createPrompt({
           body: {
             title: formData.title,
-            content: formData.content
+            content: formData.content,
+            variables: variablesPayload
           }
         })
       }
@@ -155,6 +186,7 @@ const PromptSettings: FC = () => {
   const handleUpdateOrder = async (newPrompts: Prompt[]) => {
     try {
       await Promise.all(newPrompts.map((p, i) => dataApiService.patch(`/prompts/${p.id}`, { body: { sortOrder: i } })))
+      refetchPrompts()
     } catch {
       window.toast.error(t('message.error.unknown'))
     }
@@ -301,6 +333,18 @@ const PromptSettings: FC = () => {
               onChange={(e) => setFormData({ ...formData, content: e.target.value })}
               rows={8}
               style={{ resize: 'none' }}
+            />
+            <PromptVariableConfigPanel
+              content={formData.content}
+              variables={formData.variables}
+              onChange={(variables) => setFormData((prev) => ({ ...prev, variables }))}
+              onKeyRename={(oldKey, newKey) =>
+                setFormData((prev) => ({ ...prev, content: renameVariableInContent(prev.content, oldKey, newKey) }))
+              }
+              onDeleteVariable={(key) =>
+                setFormData((prev) => ({ ...prev, content: removeVariableFromContent(prev.content, key) }))
+              }
+              onAddVariable={(key) => setFormData((prev) => ({ ...prev, content: `${prev.content}\${${key}}` }))}
             />
           </div>
         </Space>
