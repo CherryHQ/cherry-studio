@@ -2108,6 +2108,7 @@ export type ChannelStreamController = {
   pushChunk: (chunk: TextStreamPart<Record<string, any>>) => void
   complete: () => void
   error: (err: Error) => void
+  assistantMessageId: string
 }
 
 /**
@@ -2240,6 +2241,7 @@ export const setupChannelStream = (
     })
 
   return {
+    assistantMessageId: assistantMessage.id,
     pushChunk(chunk: TextStreamPart<Record<string, any>>) {
       streamController?.enqueue(chunk)
     },

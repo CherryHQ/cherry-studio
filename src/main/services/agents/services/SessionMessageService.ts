@@ -279,7 +279,28 @@ export class SessionMessageService extends BaseService {
               case 'cancelled': {
                 cleanup()
                 controller.close()
-                resolveCompletion({})
+                if (options?.persist) {
+                  const resolvedSessionId = claudeStream.sdkSessionId || agentSessionId
+                  const partialText = accumulator.getText()
+                  if (partialText) {
+                    this.persistHeadlessExchange(
+                      session,
+                      options?.displayContent ?? req.content,
+                      partialText,
+                      resolvedSessionId,
+                      options?.images
+                    )
+                      .then(resolveCompletion)
+                      .catch((err) => {
+                        logger.error('Failed to persist cancelled exchange', err as Error)
+                        resolveCompletion({})
+                      })
+                  } else {
+                    resolveCompletion({})
+                  }
+                } else {
+                  resolveCompletion({})
+                }
                 break
               }
 

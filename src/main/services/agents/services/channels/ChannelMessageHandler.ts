@@ -59,6 +59,8 @@ export class ChannelMessageHandler {
   private readonly pendingBatches = new Map<string, PendingBatch>()
   /** Per-chat serial queue — ensures only one stream runs at a time per chat */
   private readonly chatQueues = new Map<string, Promise<void>>()
+  /** Active abort controllers per session — allows renderer to abort via IPC */
+  private readonly activeAbortControllers = new Map<string, AbortController>()
 
   static getInstance(): ChannelMessageHandler {
     if (!ChannelMessageHandler.instance) {
@@ -252,6 +254,7 @@ export class ChannelMessageHandler {
       }
 
       const abortController = new AbortController()
+      this.activeAbortControllers.set(session.id, abortController)
 
       // Show typing indicator immediately and keep refreshing every 4s
       adapter.sendTypingIndicator(message.chatId).catch(() => {})
@@ -287,6 +290,7 @@ export class ChannelMessageHandler {
           .catch(() => {})
         throw streamError
       } finally {
+        this.activeAbortControllers.delete(session.id)
         clearInterval(typingInterval)
       }
     } catch (error) {
@@ -435,6 +439,16 @@ export class ChannelMessageHandler {
         this.chatQueues.delete(key)
       }
     }
+  }
+
+  /** Abort an active stream for the given session. Returns true if aborted. */
+  abortSession(sessionId: string): boolean {
+    const controller = this.activeAbortControllers.get(sessionId)
+    if (controller) {
+      controller.abort()
+      return true
+    }
+    return false
   }
 
   private async resolveSession(

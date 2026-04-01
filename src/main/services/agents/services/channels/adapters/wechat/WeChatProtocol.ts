@@ -5,6 +5,7 @@
  * and its fragile postinstall build step.
  */
 import { createCipheriv, createDecipheriv, randomBytes, randomUUID } from 'node:crypto'
+import fs from 'node:fs'
 import { chmod, mkdir, readFile, rm, writeFile } from 'node:fs/promises'
 import path from 'node:path'
 import { setTimeout as delay } from 'node:timers/promises'
@@ -643,6 +644,7 @@ export class WeixinBot {
   private baseUrl: string
   private readonly uin: string
   private readonly tokenPath?: string
+  private readonly contextTokenPath?: string
   private readonly onErrorCallback?: (error: unknown) => void
   private readonly onQrUrlCallback?: (url: string) => void
   private readonly handlers: MessageHandler[] = []
@@ -658,8 +660,10 @@ export class WeixinBot {
     this.baseUrl = normalizeBaseUrl(options.baseUrl ?? DEFAULT_BASE_URL)
     this.uin = Buffer.from(String(randomBytes(4).readUInt32BE(0)), 'utf8').toString('base64')
     this.tokenPath = options.tokenPath
+    this.contextTokenPath = options.tokenPath ? options.tokenPath.replace(/\.json$/, '.context-tokens.json') : undefined
     this.onErrorCallback = options.onError
     this.onQrUrlCallback = options.onQrUrl
+    this.restoreContextTokens()
   }
 
   async hasCredentials(): Promise<boolean> {
@@ -688,6 +692,7 @@ export class WeixinBot {
     if (previousToken && previousToken !== credentials.token) {
       this.cursor = ''
       this.contextTokens.clear()
+      this.clearPersistedContextTokens()
     }
 
     logger.info('Logged in', { userId: credentials.userId })
@@ -701,15 +706,14 @@ export class WeixinBot {
 
   async reply(message: IncomingMessage, text: string): Promise<void> {
     this.contextTokens.set(message.userId, message._contextToken)
+    this.persistContextTokens()
     await this.sendText(message.userId, text, message._contextToken)
     this.stopTyping(message.userId).catch(() => {})
   }
 
   async sendTyping(userId: string): Promise<void> {
     const contextToken = this.contextTokens.get(userId)
-    if (!contextToken) {
-      throw new Error(`No cached context token for user ${userId}. Reply to an incoming message first.`)
-    }
+    if (!contextToken) return
 
     const credentials = await this.ensureCredentials()
     const config = await apiGetConfig(this.baseUrl, credentials.token, this.uin, userId, contextToken)
@@ -732,10 +736,10 @@ export class WeixinBot {
   async send(userId: string, text: string): Promise<void> {
     const contextToken = this.contextTokens.get(userId)
     if (!contextToken) {
-      throw new Error(`No cached context token for user ${userId}. Reply to an incoming message first.`)
+      logger.warn('No cached context token, sending without context', { userId })
     }
 
-    await this.sendText(userId, text, contextToken)
+    await this.sendText(userId, text, contextToken ?? '')
   }
 
   /**
@@ -777,7 +781,7 @@ export class WeixinBot {
   async sendImage(userId: string, imageData: Buffer): Promise<void> {
     const contextToken = this.contextTokens.get(userId)
     if (!contextToken) {
-      throw new Error(`No cached context token for user ${userId}. Reply to an incoming message first.`)
+      logger.warn('No cached context token for sendImage, sending without context', { userId })
     }
 
     const credentials = await this.ensureCredentials()
@@ -792,7 +796,7 @@ export class WeixinBot {
       client_id: randomUUID(),
       message_type: MessageType.BOT,
       message_state: MessageState.FINISH,
-      context_token: contextToken,
+      context_token: contextToken ?? '',
       item_list: [
         {
           type: MessageItemType.IMAGE,
@@ -932,6 +936,7 @@ export class WeixinBot {
         if (oldest !== undefined) this.contextTokens.delete(oldest)
       }
       this.contextTokens.set(userId, message.context_token)
+      this.persistContextTokens()
     }
   }
 
@@ -955,6 +960,47 @@ export class WeixinBot {
       _imageItems: imageItems.length > 0 ? imageItems : undefined,
       _fileItems: fileItems.length > 0 ? fileItems : undefined
     }
+  }
+
+  private persistContextTokens(): void {
+    if (!this.contextTokenPath) return
+    try {
+      const tokens: Record<string, string> = {}
+      for (const [k, v] of this.contextTokens) {
+        tokens[k] = v
+      }
+      writeFile(this.contextTokenPath, JSON.stringify(tokens), { mode: 0o600 }).catch((err) => {
+        logger.warn('Failed to persist context tokens', { error: err instanceof Error ? err.message : String(err) })
+      })
+    } catch (err) {
+      logger.warn('Failed to persist context tokens', { error: err instanceof Error ? err.message : String(err) })
+    }
+  }
+
+  private restoreContextTokens(): void {
+    if (!this.contextTokenPath) return
+    try {
+      if (!fs.existsSync(this.contextTokenPath)) return
+      const raw = fs.readFileSync(this.contextTokenPath, 'utf8')
+      const tokens = JSON.parse(raw) as Record<string, string>
+      let count = 0
+      for (const [userId, token] of Object.entries(tokens)) {
+        if (typeof token === 'string' && token) {
+          this.contextTokens.set(userId, token)
+          count++
+        }
+      }
+      if (count > 0) {
+        logger.info('Restored context tokens from disk', { count })
+      }
+    } catch (err) {
+      logger.warn('Failed to restore context tokens', { error: err instanceof Error ? err.message : String(err) })
+    }
+  }
+
+  private clearPersistedContextTokens(): void {
+    if (!this.contextTokenPath) return
+    rm(this.contextTokenPath, { force: true }).catch(() => {})
   }
 
   private reportError(error: unknown): void {

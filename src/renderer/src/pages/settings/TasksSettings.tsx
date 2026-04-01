@@ -5,11 +5,14 @@ import { useTheme } from '@renderer/context/ThemeProvider'
 import { useAgentClient } from '@renderer/hooks/agents/useAgentClient'
 import { useChannels } from '@renderer/hooks/agents/useChannels'
 import { useTaskLogs } from '@renderer/hooks/agents/useTasks'
-import type { CreateTaskRequest, ScheduledTaskEntity, UpdateTaskRequest } from '@renderer/types'
-import { Button, Empty, Flex, Input, Popconfirm, Select, Spin, Table, Tag } from 'antd'
-import { Clock, Pause, Play, Trash2 } from 'lucide-react'
+import { useAppDispatch } from '@renderer/store'
+import { setActiveAgentId, setActiveSessionIdAction } from '@renderer/store/runtime'
+import type { CreateTaskRequest, ScheduledTaskEntity, TaskRunLogEntity, UpdateTaskRequest } from '@renderer/types'
+import { Button, Empty, Flex, Input, Popconfirm, Select, Spin, Table, Tag, Tooltip } from 'antd'
+import { Clock, ExternalLink, Pause, Play, Search, Trash2 } from 'lucide-react'
 import { type FC, useCallback, useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
+import { useNavigate } from 'react-router-dom'
 import styled from 'styled-components'
 
 import { SettingContainer, SettingDivider, SettingGroup, SettingRow, SettingRowTitle, SettingTitle } from '.'
@@ -23,30 +26,35 @@ type ChannelInfo = { id: string; name: string }
 
 const TaskDetail: FC<{
   task: ScheduledTaskEntity
-  agentName: string
+  agents: AgentInfo[]
   channels: ChannelInfo[]
   onUpdate: (taskId: string, updates: UpdateTaskRequest) => Promise<void>
   onDelete: (taskId: string) => Promise<void>
   onRun: (taskId: string) => Promise<void>
   onToggleStatus: (taskId: string, newStatus: string) => Promise<void>
-}> = ({ task, agentName, channels, onUpdate, onDelete, onRun, onToggleStatus }) => {
+}> = ({ task, agents, channels, onUpdate, onDelete, onRun, onToggleStatus }) => {
   const { t } = useTranslation()
   const { theme } = useTheme()
 
   const isCompleted = task.status === 'completed'
   const statusColors: Record<string, string> = { active: 'green', paused: 'orange', completed: 'blue' }
+  const agentName = agents.find((a) => a.id === task.agent_id)?.name ?? task.agent_id
 
   const [name, setName] = useState(task.name)
   const [prompt, setPrompt] = useState(task.prompt)
+  const [agentId, setAgentId] = useState(task.agent_id)
   const [scheduleType, setScheduleType] = useState(task.schedule_type)
   const [scheduleValue, setScheduleValue] = useState(task.schedule_value)
+  const [timeoutMinutes, setTimeoutMinutes] = useState<string>(task.timeout_minutes?.toString() ?? '')
   const [channelIds, setChannelIds] = useState<string[]>(task.channel_ids ?? [])
 
   useEffect(() => {
     setName(task.name)
     setPrompt(task.prompt)
+    setAgentId(task.agent_id)
     setScheduleType(task.schedule_type)
     setScheduleValue(task.schedule_value)
+    setTimeoutMinutes(task.timeout_minutes?.toString() ?? '')
     setChannelIds(task.channel_ids ?? [])
   }, [task])
 
@@ -143,6 +151,25 @@ const TaskDetail: FC<{
           />
         </SettingRow>
         <SettingDivider />
+        {agents.length > 1 && (
+          <>
+            <SettingRow style={{ flexDirection: 'column', alignItems: 'stretch' }}>
+              <SettingRowTitle>{t('agent.cherryClaw.channels.bindAgent')}</SettingRowTitle>
+              <Select
+                size="small"
+                className="w-full"
+                value={agentId}
+                disabled={isCompleted}
+                onChange={(value) => {
+                  setAgentId(value)
+                  saveField({ agent_id: value })
+                }}
+                options={agents.map((a) => ({ value: a.id, label: a.name }))}
+              />
+            </SettingRow>
+            <SettingDivider />
+          </>
+        )}
         <SettingRow style={{ flexDirection: 'column', alignItems: 'stretch' }}>
           <SettingRowTitle>{t('agent.cherryClaw.tasks.prompt.label')}</SettingRowTitle>
           <Input.TextArea
@@ -155,7 +182,7 @@ const TaskDetail: FC<{
           />
         </SettingRow>
         <SettingDivider />
-        <div className="grid grid-cols-2 gap-3">
+        <div className="grid grid-cols-3 gap-3">
           <div>
             <SettingRowTitle>{t('agent.cherryClaw.tasks.scheduleType.label')}</SettingRowTitle>
             <Select
@@ -222,6 +249,24 @@ const TaskDetail: FC<{
               />
             )}
           </div>
+          <div>
+            <SettingRowTitle>{t('agent.cherryClaw.tasks.timeout.label')}</SettingRowTitle>
+            <Input
+              size="small"
+              type="number"
+              min={1}
+              value={timeoutMinutes}
+              onChange={(e) => setTimeoutMinutes(e.target.value)}
+              onBlur={() => {
+                const val = timeoutMinutes.trim() ? parseInt(timeoutMinutes, 10) : null
+                const prev = task.timeout_minutes ?? null
+                if (val !== prev) saveField({ timeout_minutes: val })
+              }}
+              placeholder={t('agent.cherryClaw.tasks.timeout.placeholder')}
+              suffix="min"
+              disabled={isCompleted}
+            />
+          </div>
         </div>
         {channels.length > 0 && (
           <>
@@ -250,7 +295,7 @@ const TaskDetail: FC<{
       <SettingGroup theme={theme}>
         <SettingTitle>{t('agent.cherryClaw.tasks.logs.label')}</SettingTitle>
         <SettingDivider />
-        <TaskLogsInline taskId={task.id} />
+        <TaskLogsInline taskId={task.id} agentId={task.agent_id} />
       </SettingGroup>
     </SettingContainer>
   )
@@ -258,9 +303,33 @@ const TaskDetail: FC<{
 
 // --------------- Inline Logs ---------------
 
-const TaskLogsInline: FC<{ taskId: string }> = ({ taskId }) => {
+const TaskLogsInline: FC<{ taskId: string; agentId: string }> = ({ taskId, agentId }) => {
   const { t } = useTranslation()
+  const navigate = useNavigate()
+  const dispatch = useAppDispatch()
   const { logs, isLoading } = useTaskLogs(taskId)
+  const [searchText, setSearchText] = useState('')
+
+  const filteredLogs = useMemo(() => {
+    if (!searchText.trim()) return logs
+    const query = searchText.toLowerCase()
+    return logs.filter(
+      (log) =>
+        log.result?.toLowerCase().includes(query) ||
+        log.error?.toLowerCase().includes(query) ||
+        log.status.toLowerCase().includes(query) ||
+        new Date(log.run_at).toLocaleString().toLowerCase().includes(query)
+    )
+  }, [logs, searchText])
+
+  const navigateToSession = useCallback(
+    (sessionId: string) => {
+      dispatch(setActiveAgentId(agentId))
+      dispatch(setActiveSessionIdAction({ agentId, sessionId }))
+      navigate('/agents')
+    },
+    [agentId, dispatch, navigate]
+  )
 
   const columns = [
     {
@@ -275,7 +344,8 @@ const TaskLogsInline: FC<{ taskId: string }> = ({ taskId }) => {
       dataIndex: 'duration_ms',
       key: 'duration_ms',
       width: 80,
-      render: (val: number) => {
+      render: (val: number, record: TaskRunLogEntity) => {
+        if (record.status === 'running') return '-'
         if (val < 1000) return `${val}ms`
         if (val < 60_000) return `${(val / 1000).toFixed(1)}s`
         return `${(val / 60_000).toFixed(1)}m`
@@ -286,15 +356,46 @@ const TaskLogsInline: FC<{ taskId: string }> = ({ taskId }) => {
       dataIndex: 'status',
       key: 'status',
       width: 70,
-      render: (val: string) => <Tag color={val === 'success' ? 'green' : 'red'}>{val}</Tag>
+      render: (val: string) => {
+        const color = val === 'success' ? 'green' : val === 'running' ? 'processing' : 'red'
+        return <Tag color={color}>{val}</Tag>
+      }
     },
     {
       title: t('agent.cherryClaw.tasks.logs.result'),
       dataIndex: 'result',
       key: 'result',
       ellipsis: true,
-      render: (val: string | null, record: any) =>
-        record.status === 'error' ? <span className="text-red-500">{record.error}</span> : (val ?? '-')
+      render: (val: string | null, record: TaskRunLogEntity) => {
+        const text =
+          record.status === 'running'
+            ? t('agent.cherryClaw.tasks.logs.running', 'Running...')
+            : record.status === 'error'
+              ? record.error
+              : (val ?? '-')
+        const hasSession = !!record.session_id
+
+        return (
+          <div className="flex items-center gap-1">
+            <span
+              className={record.status === 'error' ? 'text-red-500' : ''}
+              style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+              {text}
+            </span>
+            {hasSession && (
+              <Tooltip title={t('agent.cherryClaw.tasks.logs.viewSession', 'View session')}>
+                <Button
+                  type="text"
+                  size="small"
+                  icon={<ExternalLink size={12} />}
+                  style={{ flexShrink: 0 }}
+                  onClick={() => navigateToSession(record.session_id!)}
+                />
+              </Tooltip>
+            )}
+          </div>
+        )
+      }
     }
   ]
 
@@ -310,7 +411,26 @@ const TaskLogsInline: FC<{ taskId: string }> = ({ taskId }) => {
     return <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description={t('agent.cherryClaw.tasks.logs.empty')} />
   }
 
-  return <Table dataSource={logs} columns={columns} rowKey="id" size="small" pagination={false} scroll={{ y: 300 }} />
+  return (
+    <div className="flex flex-col gap-2">
+      <Input
+        size="small"
+        prefix={<Search size={12} className="text-[var(--color-text-3)]" />}
+        placeholder={t('agent.cherryClaw.tasks.logs.search', 'Search logs...')}
+        value={searchText}
+        onChange={(e) => setSearchText(e.target.value)}
+        allowClear
+      />
+      <Table
+        dataSource={filteredLogs}
+        columns={columns}
+        rowKey="id"
+        size="small"
+        pagination={false}
+        scroll={{ y: 300 }}
+      />
+    </div>
+  )
 }
 
 // --------------- Schedule type config ---------------
@@ -343,6 +463,7 @@ const CreateForm: FC<{
   const [prompt, setPrompt] = useState('')
   const [scheduleType, setScheduleType] = useState<'cron' | 'interval' | 'once'>('interval')
   const [scheduleValue, setScheduleValue] = useState('')
+  const [timeoutMinutes, setTimeoutMinutes] = useState('')
   const [channelIds, setChannelIds] = useState<string[]>([])
   const [saving, setSaving] = useState(false)
 
@@ -352,17 +473,19 @@ const CreateForm: FC<{
     if (!agentId || !name.trim() || !prompt.trim() || !scheduleValue.trim()) return
     setSaving(true)
     try {
+      const timeout = timeoutMinutes.trim() ? parseInt(timeoutMinutes, 10) : null
       await onCreate(agentId, {
         name: name.trim(),
         prompt: prompt.trim(),
         schedule_type: scheduleType,
         schedule_value: scheduleValue.trim(),
+        timeout_minutes: timeout && timeout > 0 ? timeout : undefined,
         channel_ids: channelIds.length > 0 ? channelIds : undefined
       })
     } finally {
       setSaving(false)
     }
-  }, [agentId, name, prompt, scheduleType, scheduleValue, channelIds, onCreate])
+  }, [agentId, name, prompt, scheduleType, scheduleValue, timeoutMinutes, channelIds, onCreate])
 
   return (
     <SettingContainer theme={theme}>
@@ -410,7 +533,7 @@ const CreateForm: FC<{
         </SettingRow>
         <SettingDivider />
 
-        <div className="grid grid-cols-2 gap-3">
+        <div className="grid grid-cols-3 gap-3">
           <div>
             <SettingRowTitle>{t('agent.cherryClaw.tasks.scheduleType.label')}</SettingRowTitle>
             <Select
@@ -457,6 +580,18 @@ const CreateForm: FC<{
                 onChange={(e) => setScheduleValue(new Date(e.target.value).toISOString())}
               />
             )}
+          </div>
+          <div>
+            <SettingRowTitle>{t('agent.cherryClaw.tasks.timeout.label')}</SettingRowTitle>
+            <Input
+              size="small"
+              type="number"
+              min={1}
+              value={timeoutMinutes}
+              onChange={(e) => setTimeoutMinutes(e.target.value)}
+              placeholder={t('agent.cherryClaw.tasks.timeout.placeholder')}
+              suffix="min"
+            />
           </div>
         </div>
         {channels.length > 0 && (
@@ -647,7 +782,7 @@ const TasksSettings: FC = () => {
             <TaskDetail
               key={selectedTask.id}
               task={selectedTask}
-              agentName={getAgentName(selectedTask.agent_id)}
+              agents={agents}
               channels={channels}
               onUpdate={handleUpdate}
               onDelete={handleDelete}

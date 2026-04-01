@@ -114,6 +114,7 @@ export const ScheduledTaskEntitySchema = z.object({
   prompt: z.string(),
   schedule_type: TaskScheduleTypeSchema,
   schedule_value: z.string(),
+  timeout_minutes: z.number(),
   channel_ids: z.array(z.string()).optional(), // populated from channel_task_subscriptions
   next_run: z.string().nullable().optional(),
   last_run: z.string().nullable().optional(),
@@ -128,9 +129,10 @@ export type ScheduledTaskEntity = z.infer<typeof ScheduledTaskEntitySchema>
 export const TaskRunLogEntitySchema = z.object({
   id: z.number(),
   task_id: z.string(),
+  session_id: z.string().nullable().optional(),
   run_at: z.string(),
   duration_ms: z.number(),
-  status: z.enum(['success', 'error']),
+  status: z.enum(['running', 'success', 'error']),
   result: z.string().nullable().optional(),
   error: z.string().nullable().optional()
 })
@@ -406,6 +408,7 @@ export const CreateTaskRequestSchema = z.object({
   prompt: z.string().min(1, 'Prompt is required'),
   schedule_type: TaskScheduleTypeSchema,
   schedule_value: z.string().min(1, 'Schedule value is required'),
+  timeout_minutes: z.number().min(1).nullable().optional(),
   channel_ids: z.array(z.string()).optional()
 })
 
@@ -414,8 +417,10 @@ export type CreateTaskRequest = z.infer<typeof CreateTaskRequestSchema>
 export const UpdateTaskRequestSchema = z.object({
   name: z.string().min(1).optional(),
   prompt: z.string().min(1).optional(),
+  agent_id: z.string().min(1).optional(),
   schedule_type: TaskScheduleTypeSchema.optional(),
   schedule_value: z.string().min(1).optional(),
+  timeout_minutes: z.number().min(1).nullable().optional(),
   channel_ids: z.array(z.string()).optional(),
   status: TaskStatusSchema.optional()
 })

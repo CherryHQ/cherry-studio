@@ -206,7 +206,10 @@
           "label": "运行历史",
           "result": "结果",
           "runAt": "运行时间",
-          "status": "状态"
+          "running": "运行中...",
+          "search": "搜索运行记录...",
+          "status": "状态",
+          "viewSession": "查看会话"
         },
         "name": {
           "label": "名称",
@@ -236,6 +239,10 @@
           "paused": "已暂停"
         },
         "tab": "任务",
+        "timeout": {
+          "label": "超时时间",
+          "placeholder": "无限制"
+        },
         "title": "定时任务"
       },
       "warning": {

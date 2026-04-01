@@ -544,6 +544,7 @@ const api = {
   agentSessionStream: {
     subscribe: (sessionId: string) => ipcRenderer.invoke(IpcChannel.AgentSessionStream_Subscribe, { sessionId }),
     unsubscribe: (sessionId: string) => ipcRenderer.invoke(IpcChannel.AgentSessionStream_Unsubscribe, { sessionId }),
+    abort: (sessionId: string) => ipcRenderer.invoke(IpcChannel.AgentSessionStream_Abort, { sessionId }),
     onChunk: (
       callback: (chunk: {
         sessionId: string

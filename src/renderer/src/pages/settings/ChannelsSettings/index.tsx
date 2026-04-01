@@ -25,7 +25,7 @@ const ChannelsSettings: FC = () => {
             return (
               <ListItem
                 key={ch.type}
-                title={ch.name}
+                title={t(`agent.cherryClaw.channels.${ch.type}.title`)}
                 active={selectedType.type === ch.type}
                 onClick={() => setSelectedType(ch)}
                 icon={iconSrc ? <ChannelIcon src={iconSrc} alt={ch.name} /> : undefined}

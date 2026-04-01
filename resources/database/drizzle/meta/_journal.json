@@ -49,6 +49,13 @@
       "when": 1774993138589,
       "tag": "0006_wet_captain_cross",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "6",
+      "when": 1775015954322,
+      "tag": "0007_dapper_slipstream",
+      "breakpoints": true
     }
   ],
   "version": "7"

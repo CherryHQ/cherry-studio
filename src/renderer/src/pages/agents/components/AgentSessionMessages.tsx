@@ -16,9 +16,11 @@ import store, { useAppDispatch } from '@renderer/store'
 import {
   addChannelUserMessage,
   type ChannelStreamController,
+  loadTopicMessagesThunk,
   setupChannelStream
 } from '@renderer/store/thunk/messageThunk'
 import { type Topic, TopicType } from '@renderer/types'
+import { addAbortController } from '@renderer/utils/abortController'
 import { buildAgentSessionTopicId } from '@renderer/utils/agentSession'
 import { Spin } from 'antd'
 import { memo, useCallback, useEffect, useMemo, useRef } from 'react'
@@ -38,6 +40,11 @@ const AgentSessionMessages = ({ agentId, sessionId }: Props) => {
   const { messageNavigation } = useSettings()
   const dispatch = useAppDispatch()
 
+  // Ensure messages are loaded when session changes (e.g. navigating from task logs)
+  useEffect(() => {
+    void dispatch(loadTopicMessagesThunk(sessionTopicId))
+  }, [dispatch, sessionTopicId])
+
   // Use agent's model as fallback when session model is not yet available
   const { agent } = useAgent(agentId)
   const agentModelRef = useRef(agent?.model)
@@ -48,11 +55,18 @@ const AgentSessionMessages = ({ agentId, sessionId }: Props) => {
   const sessionRef = useRef(session)
   sessionRef.current = session
 
+  // Guard flag: once the current exchange is done (complete/error), prevent
+  // getOrCreateStream() from creating a second assistant message if any
+  // late-arriving chunk events are processed after the controller is cleared.
+  const exchangeDoneRef = useRef(false)
+
   useEffect(() => {
     let cancelled = false
     let cleanupChunk: (() => void) | null = null
+    exchangeDoneRef.current = false
 
     const getOrCreateStream = () => {
+      if (exchangeDoneRef.current) return streamCtrlRef.current
       if (!streamCtrlRef.current) {
         streamCtrlRef.current = setupChannelStream(
           dispatch,
@@ -77,15 +91,35 @@ const AgentSessionMessages = ({ agentId, sessionId }: Props) => {
         if (event.sessionId !== sessionId) return
 
         if (event.type === 'user-message' && event.userMessage) {
+          // A new exchange starts — reset the done flag
+          exchangeDoneRef.current = false
           addChannelUserMessage(dispatch, sessionTopicId, agentId, event.userMessage.text, event.userMessage.images)
-          getOrCreateStream()
+          const ctrl = getOrCreateStream()
+          if (ctrl) {
+            // Register abort callback so the input bar's stop button can abort the main process stream
+            addAbortController(ctrl.assistantMessageId, () => {
+              void window.api.agentSessionStream.abort(sessionId)
+            })
+          }
         } else if (event.type === 'chunk' && event.chunk) {
-          getOrCreateStream().pushChunk(event.chunk)
+          getOrCreateStream()?.pushChunk(event.chunk)
         } else if (event.type === 'complete') {
+          exchangeDoneRef.current = true
           streamCtrlRef.current?.complete()
           streamCtrlRef.current = null
         } else if (event.type === 'error') {
-          streamCtrlRef.current?.error(new Error(event.error?.message ?? 'Stream error'))
+          exchangeDoneRef.current = true
+          // Push the error as a data chunk so the adapter can render it via
+          // onError, then close the stream normally. Using complete() instead
+          // of error() preserves any previously-enqueued chunks that the
+          // adapter hasn't read yet (ReadableStream.error() discards them).
+          if (streamCtrlRef.current) {
+            streamCtrlRef.current.pushChunk({
+              type: 'error',
+              error: new Error(event.error?.message ?? 'Stream error')
+            } as any)
+            streamCtrlRef.current.complete()
+          }
           streamCtrlRef.current = null
         }
       })

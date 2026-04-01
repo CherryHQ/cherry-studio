@@ -206,7 +206,10 @@
           "label": "執行歷史",
           "result": "結果",
           "runAt": "執行時間",
-          "status": "狀態"
+          "running": "執行中...",
+          "search": "搜尋執行記錄...",
+          "status": "狀態",
+          "viewSession": "查看會話"
         },
         "name": {
           "label": "名稱",
@@ -236,6 +239,10 @@
           "paused": "已暫停"
         },
         "tab": "任務",
+        "timeout": {
+          "label": "逾時時間",
+          "placeholder": "無限制"
+        },
         "title": "排程任務"
       },
       "warning": {

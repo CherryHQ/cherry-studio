@@ -206,7 +206,10 @@
           "label": "Run History",
           "result": "Result",
           "runAt": "Run At",
-          "status": "Status"
+          "running": "Running...",
+          "search": "Search logs...",
+          "status": "Status",
+          "viewSession": "View session"
         },
         "name": {
           "label": "Name",
@@ -236,6 +239,10 @@
           "paused": "Paused"
         },
         "tab": "Tasks",
+        "timeout": {
+          "label": "Timeout",
+          "placeholder": "No limit"
+        },
         "title": "Scheduled Tasks"
       },
       "warning": {

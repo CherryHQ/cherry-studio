@@ -174,9 +174,31 @@ class SchedulerService {
     }
     this.activeTasks.set(task.id, runningTask)
 
+    // Set up timeout if configured
+    let timeoutTimer: ReturnType<typeof setTimeout> | null = null
+    if (task.timeout_minutes && task.timeout_minutes > 0) {
+      const timeoutMs = task.timeout_minutes * 60_000
+      timeoutTimer = setTimeout(() => {
+        logger.warn('Task timed out, aborting', { taskId: task.id, timeoutMinutes: task.timeout_minutes })
+        abortController.abort(new Error(`Task timed out after ${task.timeout_minutes} minutes`))
+      }, timeoutMs)
+    }
+
     let result: string | null = null
     let error: string | null = null
+    let sessionId: string | undefined
     let subscribedChannels: { id: string; sessionId?: string | null }[] = []
+
+    // Create log entry immediately so UI shows the running task
+    const logId = await taskService.logTaskRun({
+      task_id: task.id,
+      session_id: null,
+      run_at: new Date().toISOString(),
+      duration_ms: 0,
+      status: 'running',
+      result: null,
+      error: null
+    })
 
     try {
       logger.info('Running scheduled task', { taskId: task.id, agentId: task.agent_id })
@@ -217,26 +239,12 @@ class SchedulerService {
         ].join('\n')
       }
 
-      // Resolve session from subscribed channels, or create a new one
+      // Resolve subscribed channels
       subscribedChannels = await channelService.getSubscribedChannels(task.id)
-      let sessionId: string | undefined
 
-      // Try to reuse a session from a subscribed channel
-      for (const ch of subscribedChannels) {
-        if (ch.sessionId) {
-          sessionId = ch.sessionId
-          break
-        }
-      }
-
-      // No channel has a session — create one and bind it to the first channel
-      if (!sessionId) {
-        const newSession = await sessionService.createSession(task.agent_id, {})
-        sessionId = newSession!.id
-        if (subscribedChannels.length > 0) {
-          await channelService.updateChannel(subscribedChannels[0].id, { sessionId })
-        }
-      }
+      // Always create a new session per run to pick up the latest agent config (model, etc.)
+      const newSession = await sessionService.createSession(task.agent_id, {})
+      sessionId = newSession!.id
 
       const session = await sessionService.getSession(task.agent_id, sessionId)
       if (!session) {
@@ -253,10 +261,24 @@ class SchedulerService {
 
       // Collect the response text and stream to subscribed channels only
       const targetAdapters = subscribedChannels
-        .map((ch) => channelManager.getAdapter(ch.id))
+        .map((ch) => {
+          const adapter = channelManager.getAdapter(ch.id)
+          logger.info('Task stream channel check', {
+            channelId: ch.id,
+            hasAdapter: !!adapter,
+            notifyChatIds: adapter?.notifyChatIds ?? []
+          })
+          return adapter
+        })
         .filter((a) => a !== undefined)
       const responseText = await this.collectAndStreamResponse(stream, targetAdapters)
       await completion
+
+      // Check if the task was aborted (e.g. by timeout)
+      if (abortController.signal.aborted) {
+        const reason = abortController.signal.reason
+        throw reason instanceof Error ? reason : new Error(String(reason ?? 'Task aborted'))
+      }
 
       result = responseText.slice(0, 200) || 'Completed'
       this.consecutiveErrors.delete(task.id)
@@ -277,15 +299,15 @@ class SchedulerService {
         this.consecutiveErrors.delete(task.id)
       }
     } finally {
+      if (timeoutTimer) clearTimeout(timeoutTimer)
       this.activeTasks.delete(task.id)
     }
 
     const durationMs = Date.now() - startTime
 
-    // Log the run
-    await taskService.logTaskRun({
-      task_id: task.id,
-      run_at: new Date().toISOString(),
+    // Update the log entry with final results
+    await taskService.updateTaskRunLog(logId, {
+      session_id: sessionId ?? null,
       duration_ms: durationMs,
       status: error ? 'error' : 'success',
       result,
@@ -386,6 +408,11 @@ class SchedulerService {
 
       for (const ch of subscribedChannels) {
         const adapter = channelManager.getAdapter(ch.id)
+        logger.info('Task notification channel check', {
+          channelId: ch.id,
+          hasAdapter: !!adapter,
+          notifyChatIds: adapter?.notifyChatIds ?? []
+        })
         if (!adapter) continue
         for (const chatId of adapter.notifyChatIds) {
           adapter.sendMessage(chatId, text).catch((err) => {

@@ -112,6 +112,7 @@ export enum IpcChannel {
   // Agent session stream (IM channel -> renderer real-time)
   AgentSessionStream_Subscribe = 'agent-session-stream:subscribe',
   AgentSessionStream_Unsubscribe = 'agent-session-stream:unsubscribe',
+  AgentSessionStream_Abort = 'agent-session-stream:abort',
   AgentSessionStream_Chunk = 'agent-session-stream:chunk',
   AgentSession_Changed = 'agent-session:changed',
 

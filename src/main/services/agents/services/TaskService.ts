@@ -37,6 +37,7 @@ export class TaskService extends BaseService {
       prompt: req.prompt,
       schedule_type: req.schedule_type,
       schedule_value: req.schedule_value,
+      ...(req.timeout_minutes != null ? { timeout_minutes: req.timeout_minutes } : {}),
       next_run: nextRun,
       status: 'active',
       created_at: now,
@@ -128,6 +129,8 @@ export class TaskService extends BaseService {
 
     if (updates.name !== undefined) updateData.name = updates.name
     if (updates.prompt !== undefined) updateData.prompt = updates.prompt
+    if (updates.agent_id !== undefined) updateData.agent_id = updates.agent_id
+    if (updates.timeout_minutes !== undefined) updateData.timeout_minutes = updates.timeout_minutes ?? 2
     if (updates.status !== undefined) updateData.status = updates.status
 
     if (updates.schedule_type !== undefined || updates.schedule_value !== undefined) {
@@ -198,6 +201,7 @@ export class TaskService extends BaseService {
 
     if (updates.name !== undefined) updateData.name = updates.name
     if (updates.prompt !== undefined) updateData.prompt = updates.prompt
+    if (updates.timeout_minutes !== undefined) updateData.timeout_minutes = updates.timeout_minutes ?? 2
     if (updates.status !== undefined) updateData.status = updates.status
 
     // If schedule type or value changed, recompute next_run
@@ -329,9 +333,18 @@ export class TaskService extends BaseService {
 
   // --- Task run logs ---
 
-  async logTaskRun(log: Omit<InsertTaskRunLogRow, 'id'>): Promise<void> {
+  async logTaskRun(log: Omit<InsertTaskRunLogRow, 'id'>): Promise<number> {
     const database = await this.getDatabase()
-    await database.insert(taskRunLogsTable).values(log)
+    const result = await database.insert(taskRunLogsTable).values(log).returning({ id: taskRunLogsTable.id })
+    return result[0].id
+  }
+
+  async updateTaskRunLog(
+    logId: number,
+    updates: Partial<Pick<InsertTaskRunLogRow, 'status' | 'result' | 'error' | 'duration_ms' | 'session_id'>>
+  ): Promise<void> {
+    const database = await this.getDatabase()
+    await database.update(taskRunLogsTable).set(updates).where(eq(taskRunLogsTable.id, logId))
   }
 
   async getTaskLogs(taskId: string, options: ListOptions = {}): Promise<{ logs: TaskRunLogEntity[]; total: number }> {

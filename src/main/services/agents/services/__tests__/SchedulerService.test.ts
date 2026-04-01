@@ -32,7 +32,8 @@ vi.mock('../TaskService', () => ({
     getDueTasks: vi.fn().mockResolvedValue([]),
     hasActiveTasks: vi.fn().mockResolvedValue(false),
     updateTaskAfterRun: vi.fn(),
-    logTaskRun: vi.fn(),
+    logTaskRun: vi.fn().mockResolvedValue(1),
+    updateTaskRunLog: vi.fn(),
     computeNextRun: vi.fn().mockReturnValue(null),
     updateTask: vi.fn()
   }
@@ -136,6 +137,7 @@ describe('SchedulerService', () => {
       prompt: 'Do something',
       schedule_type: 'once' as const,
       schedule_value: new Date().toISOString(),
+      timeout_minutes: 2,
       next_run: new Date(Date.now() - 1000).toISOString(),
       last_run: null,
       last_result: null,
