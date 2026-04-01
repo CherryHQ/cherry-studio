@@ -15,6 +15,15 @@ function persistDiagnosis(blockId: string, diagnosis: DiagnosisResult) {
   void dbService.updateSingleBlock(blockId, { metadata: updatedMetadata })
 }
 
+const diagPanelStyle: React.CSSProperties = {
+  border: '1px solid color-mix(in srgb, var(--color-primary) 15%, transparent)',
+  background: 'color-mix(in srgb, var(--color-primary) 3%, transparent)'
+}
+
+const stepBgStyle: React.CSSProperties = {
+  background: 'color-mix(in srgb, var(--color-primary) 4%, transparent)'
+}
+
 export interface AIDiagnosisSectionHandle {
   runDiagnosis: () => void
 }
@@ -40,13 +49,11 @@ const AIDiagnosisSectionWithStatus = memo(
     const { t, i18n } = useTranslation()
     const [result, setResult] = useState<DiagnosisResult | null>(cachedDiagnosis ?? null)
     const [diagError, setDiagError] = useState<string>('')
-    const mountedRef = useRef(true)
     const cancelledRef = useRef(false)
 
     useEffect(() => {
-      mountedRef.current = true
+      cancelledRef.current = false
       return () => {
-        mountedRef.current = false
         cancelledRef.current = true
       }
     }, [])
@@ -66,29 +73,20 @@ const AIDiagnosisSectionWithStatus = memo(
       setDiagError('')
       try {
         const diagnosis = await diagnoseError(error, i18n.language, diagnosisContext)
-        if (cancelledRef.current || !mountedRef.current) return
+        if (cancelledRef.current) return
         setResult(diagnosis)
         onStatusChange('done')
         if (blockId) {
           persistDiagnosis(blockId, diagnosis)
         }
       } catch (err: unknown) {
-        if (cancelledRef.current || !mountedRef.current) return
+        if (cancelledRef.current) return
         setDiagError(err instanceof Error ? err.message : 'Diagnosis failed')
         onStatusChange('error')
       }
     }, [error, i18n.language, onStatusChange, diagnosisContext, blockId])
 
     React.useImperativeHandle(ref, () => ({ runDiagnosis }), [runDiagnosis])
-
-    const diagPanelStyle: React.CSSProperties = {
-      border: '1px solid color-mix(in srgb, var(--color-primary) 15%, transparent)',
-      background: 'color-mix(in srgb, var(--color-primary) 3%, transparent)'
-    }
-
-    const stepBgStyle: React.CSSProperties = {
-      background: 'color-mix(in srgb, var(--color-primary) 4%, transparent)'
-    }
 
     return (
       <div className="mt-4 rounded-lg p-3.5 px-4" style={diagPanelStyle}>
