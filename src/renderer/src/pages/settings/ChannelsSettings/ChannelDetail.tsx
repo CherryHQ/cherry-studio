@@ -52,6 +52,12 @@ function getChannelSummary(channel: ChannelData): string {
       if (channelIds.length > 0) parts.push(`${channelIds.length} channel IDs`)
       break
     }
+    case 'slack': {
+      if (cfg.bot_token) parts.push(`Token: ${truncateId(cfg.bot_token as string)}`)
+      const slackChannelIds = (cfg.allowed_channel_ids as string[]) ?? []
+      if (slackChannelIds.length > 0) parts.push(`${slackChannelIds.length} channel IDs`)
+      break
+    }
     case 'wechat':
       break
   }

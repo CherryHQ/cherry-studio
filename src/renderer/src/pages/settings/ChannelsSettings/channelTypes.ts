@@ -1,5 +1,5 @@
 export type AvailableChannel = {
-  type: 'telegram' | 'feishu' | 'qq' | 'wechat' | 'discord'
+  type: 'telegram' | 'feishu' | 'qq' | 'wechat' | 'discord' | 'slack'
   name: string
   description: string
   available: boolean
@@ -48,6 +48,13 @@ export const AVAILABLE_CHANNELS: AvailableChannel[] = [
     description: 'agent.cherryClaw.channels.discord.description',
     available: true,
     defaultConfig: { bot_token: '', allowed_channel_ids: [] }
+  },
+  {
+    type: 'slack',
+    name: 'Slack',
+    description: 'agent.cherryClaw.channels.slack.description',
+    available: true,
+    defaultConfig: { bot_token: '', app_token: '', allowed_channel_ids: [] }
   }
 ]
 

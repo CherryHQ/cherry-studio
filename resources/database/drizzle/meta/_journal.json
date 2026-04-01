@@ -56,6 +56,13 @@
       "when": 1775015954322,
       "tag": "0007_dapper_slipstream",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "6",
+      "when": 1775023931391,
+      "tag": "0008_clever_king_bedlam",
+      "breakpoints": true
     }
   ],
   "version": "7"

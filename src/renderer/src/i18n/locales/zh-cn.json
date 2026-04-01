@@ -96,6 +96,18 @@
           "permissionModeHint": "覆盖此频道消息的智能体权限模式。选择「继承」则使用智能体默认设置。"
         },
         "selectAgent": "选择要绑定的 Agent",
+        "slack": {
+          "appToken": "应用级别 Token",
+          "appTokenPlaceholder": "xapp-...",
+          "botToken": "Bot Token",
+          "botTokenPlaceholder": "xoxb-...",
+          "channelIds": "允许的频道 ID",
+          "channelIdsHint": "Slack 频道 ID。留空表示允许所有。",
+          "channelIdsPlaceholder": "C01234567, D89012345",
+          "description": "通过 Slack 机器人使用 Socket Mode 接收和回复消息。",
+          "title": "Slack",
+          "whoamiTip": "💡 提示：发送 /whoami 给机器人即可获取频道 ID。"
+        },
         "tab": "频道",
         "telegram": {
           "botToken": "Bot Token",

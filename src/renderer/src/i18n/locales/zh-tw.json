@@ -96,6 +96,18 @@
           "permissionModeHint": "覆寫此頻道訊息的智能體權限模式。選擇「繼承」則使用智能體預設設定。"
         },
         "selectAgent": "選擇要綁定的代理",
+        "slack": {
+          "appToken": "應用層級 Token",
+          "appTokenPlaceholder": "xapp-...",
+          "botToken": "Bot Token",
+          "botTokenPlaceholder": "xoxb-...",
+          "channelIds": "允許的頻道 ID",
+          "channelIdsHint": "Slack 頻道 ID。留空表示允許所有。",
+          "channelIdsPlaceholder": "C01234567, D89012345",
+          "description": "透過 Slack 機器人使用 Socket Mode 接收和回覆訊息。",
+          "title": "Slack",
+          "whoamiTip": "💡 提示：發送 /whoami 給機器人即可取得頻道 ID。"
+        },
         "tab": "頻道",
         "telegram": {
           "botToken": "Bot Token",

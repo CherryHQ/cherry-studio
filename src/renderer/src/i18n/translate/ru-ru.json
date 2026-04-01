@@ -96,6 +96,18 @@
           "permissionModeHint": "Переопределить режим разрешений агента для сообщений из этого канала. «Наследовать» использует настройки агента по умолчанию."
         },
         "selectAgent": "[to be translated]:Select an agent to bind",
+        "slack": {
+          "appToken": "[to be translated]:App-Level Token",
+          "appTokenPlaceholder": "[to be translated]:xapp-...",
+          "botToken": "[to be translated]:Bot Token",
+          "botTokenPlaceholder": "[to be translated]:xoxb-...",
+          "channelIds": "[to be translated]:Allowed Channel IDs",
+          "channelIdsHint": "[to be translated]:Slack channel IDs. Leave empty to allow all.",
+          "channelIdsPlaceholder": "[to be translated]:C01234567, D89012345",
+          "description": "[to be translated]:Receive and respond to messages via a Slack bot using Socket Mode.",
+          "title": "[to be translated]:Slack",
+          "whoamiTip": "[to be translated]:💡 Tip: Send /whoami to the bot to get the channel ID."
+        },
         "tab": "Каналы",
         "telegram": {
           "botToken": "Токен бота",
@@ -206,7 +218,10 @@
           "label": "История запусков",
           "result": "Результат",
           "runAt": "Запущено в",
-          "status": "Статус"
+          "running": "[to be translated]:Running...",
+          "search": "[to be translated]:Search logs...",
+          "status": "Статус",
+          "viewSession": "[to be translated]:View session"
         },
         "name": {
           "label": "Название",
@@ -236,6 +251,10 @@
           "paused": "Приостановлена"
         },
         "tab": "Задачи",
+        "timeout": {
+          "label": "[to be translated]:Timeout",
+          "placeholder": "[to be translated]:No limit"
+        },
         "title": "Запланированные задачи"
       },
       "warning": {

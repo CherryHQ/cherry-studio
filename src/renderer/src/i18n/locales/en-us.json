@@ -96,6 +96,18 @@
           "permissionModeHint": "Override the agent's permission mode for messages from this channel. \"Inherit\" uses the agent's default."
         },
         "selectAgent": "Select an agent to bind",
+        "slack": {
+          "appToken": "App-Level Token",
+          "appTokenPlaceholder": "xapp-...",
+          "botToken": "Bot Token",
+          "botTokenPlaceholder": "xoxb-...",
+          "channelIds": "Allowed Channel IDs",
+          "channelIdsHint": "Slack channel IDs. Leave empty to allow all.",
+          "channelIdsPlaceholder": "C01234567, D89012345",
+          "description": "Receive and respond to messages via a Slack bot using Socket Mode.",
+          "title": "Slack",
+          "whoamiTip": "💡 Tip: Send /whoami to the bot to get the channel ID."
+        },
         "tab": "Channels",
         "telegram": {
           "botToken": "Bot Token",

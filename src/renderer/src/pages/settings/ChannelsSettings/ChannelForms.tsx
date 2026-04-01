@@ -453,6 +453,40 @@ export const WeChatForm: FC<ChannelFormProps & { onRemove?: () => void }> = ({ c
   )
 }
 
+export const SlackForm: FC<ChannelFormProps> = ({ channel, onConfigChange }) => {
+  const { t } = useTranslation()
+  return (
+    <ChannelFieldsForm
+      channel={channel}
+      onConfigChange={onConfigChange}
+      fields={[
+        {
+          key: 'bot_token',
+          label: t('agent.cherryClaw.channels.slack.botToken'),
+          placeholder: t('agent.cherryClaw.channels.slack.botTokenPlaceholder'),
+          secret: true,
+          span: 2
+        },
+        {
+          key: 'app_token',
+          label: t('agent.cherryClaw.channels.slack.appToken'),
+          placeholder: t('agent.cherryClaw.channels.slack.appTokenPlaceholder'),
+          secret: true,
+          span: 2
+        }
+      ]}
+      chatIds={{
+        label: t('agent.cherryClaw.channels.slack.channelIds'),
+        placeholder: t('agent.cherryClaw.channels.slack.channelIdsPlaceholder'),
+        hint: t('agent.cherryClaw.channels.slack.channelIdsHint'),
+        extraHint: t('agent.cherryClaw.channels.slack.whoamiTip'),
+        fullWidth: true,
+        configKey: 'allowed_channel_ids'
+      }}
+    />
+  )
+}
+
 export const getFormForType = (type: string) => {
   switch (type) {
     case 'telegram':
@@ -463,6 +497,8 @@ export const getFormForType = (type: string) => {
       return QQForm
     case 'discord':
       return DiscordForm
+    case 'slack':
+      return SlackForm
     case 'wechat':
       return WeChatForm
     default:

@@ -96,6 +96,18 @@
           "permissionModeHint": "Remplace le mode d'autorisation de l'agent pour les messages provenant de ce canal. « Hériter » utilise la valeur par défaut de l'agent."
         },
         "selectAgent": "[to be translated]:Select an agent to bind",
+        "slack": {
+          "appToken": "[to be translated]:App-Level Token",
+          "appTokenPlaceholder": "[to be translated]:xapp-...",
+          "botToken": "[to be translated]:Bot Token",
+          "botTokenPlaceholder": "[to be translated]:xoxb-...",
+          "channelIds": "[to be translated]:Allowed Channel IDs",
+          "channelIdsHint": "[to be translated]:Slack channel IDs. Leave empty to allow all.",
+          "channelIdsPlaceholder": "[to be translated]:C01234567, D89012345",
+          "description": "[to be translated]:Receive and respond to messages via a Slack bot using Socket Mode.",
+          "title": "[to be translated]:Slack",
+          "whoamiTip": "[to be translated]:💡 Tip: Send /whoami to the bot to get the channel ID."
+        },
         "tab": "Canaux",
         "telegram": {
           "botToken": "Token du bot",
@@ -206,7 +218,10 @@
           "label": "Historique d'exécution",
           "result": "Résultat",
           "runAt": "Exécuté le",
-          "status": "Statut"
+          "running": "[to be translated]:Running...",
+          "search": "[to be translated]:Search logs...",
+          "status": "Statut",
+          "viewSession": "[to be translated]:View session"
         },
         "name": {
           "label": "Nom",
@@ -236,6 +251,10 @@
           "paused": "En pause"
         },
         "tab": "Tâches",
+        "timeout": {
+          "label": "[to be translated]:Timeout",
+          "placeholder": "[to be translated]:No limit"
+        },
         "title": "Tâches planifiées"
       },
       "warning": {

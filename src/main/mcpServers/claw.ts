@@ -236,6 +236,21 @@ const CHANNEL_CONFIG_SCHEMAS: Record<string, { required: string[]; optional: str
       '5. Copy the generated URL, open it in a browser to invite the bot to your server.',
       '6. allowed_channel_ids format: "channel:<channel_id>" for guild channels, "dm:<channel_id>" for DMs. Send /whoami in Discord to get the correct ID.'
     ].join(' ')
+  },
+  slack: {
+    required: ['bot_token', 'app_token'],
+    optional: ['allowed_channel_ids'],
+    description: [
+      'Slack bot via Socket Mode (WebSocket).',
+      'Setup steps:',
+      '1. Go to https://api.slack.com/apps and click "Create New App" > "From scratch".',
+      '2. Go to "OAuth & Permissions", add Bot Token Scopes: "chat:write", "reactions:write", "channels:history", "groups:history", "im:history", "mpim:history", "users:read", "files:read".',
+      '3. Click "Install to Workspace" and copy the "Bot User OAuth Token" (xoxb-...) — this is your bot_token.',
+      '4. Go to "Socket Mode" and enable it. Generate an App-Level Token with scope "connections:write" — this is your app_token (xapp-...).',
+      '5. Go to "Event Subscriptions", enable events, and subscribe to bot events: "message.channels", "message.groups", "message.im", "message.mpim", "app_mention".',
+      '6. Invite the bot to channels by typing /invite @YourBotName in the desired Slack channel.',
+      '7. allowed_channel_ids is optional — leave empty to allow all channels the bot is in.'
+    ].join(' ')
   }
 }
 
@@ -262,7 +277,7 @@ const CONFIG_TOOL: Tool = {
       },
       type: {
         type: 'string',
-        enum: ['telegram', 'feishu', 'qq', 'wechat', 'discord'],
+        enum: ['telegram', 'feishu', 'qq', 'wechat', 'discord', 'slack'],
         description: "Channel adapter type (required for 'add_channel')"
       },
       name: {

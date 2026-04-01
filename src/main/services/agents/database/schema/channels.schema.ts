@@ -14,6 +14,7 @@ import {
   type FeishuChannelConfig,
   type FeishuDomain,
   type QQChannelConfig,
+  type SlackChannelConfig,
   type TelegramChannelConfig,
   type WeChatChannelConfig
 } from './channelConfig'
@@ -26,6 +27,7 @@ export type {
   FeishuChannelConfig,
   FeishuDomain,
   QQChannelConfig,
+  SlackChannelConfig,
   TelegramChannelConfig,
   WeChatChannelConfig
 }
@@ -56,7 +58,7 @@ export const channelsTable = sqliteTable(
     index('channels_agent_id_idx').on(t.agentId),
     index('channels_type_idx').on(t.type),
     index('channels_session_id_idx').on(t.sessionId),
-    check('channels_type_check', sql`${t.type} IN ('telegram', 'feishu', 'qq', 'wechat', 'discord')`),
+    check('channels_type_check', sql`${t.type} IN ('telegram', 'feishu', 'qq', 'wechat', 'discord', 'slack')`),
     check(
       'channels_permission_mode_check',
       sql`${t.permissionMode} IS NULL OR ${t.permissionMode} IN ('default', 'acceptEdits', 'bypassPermissions', 'plan')`
