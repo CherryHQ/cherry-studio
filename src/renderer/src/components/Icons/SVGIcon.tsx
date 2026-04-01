@@ -294,45 +294,25 @@ export function McpLogo(props: SVGProps<SVGSVGElement>) {
 export function OpenClawIcon(props: SVGProps<SVGSVGElement>) {
   return (
     <svg
+      xmlns="http://www.w3.org/2000/svg"
       width="24"
       height="24"
       viewBox="0 0 24 24"
-      fill="currentColor"
+      fill="none"
       stroke="currentColor"
-      xmlns="http://www.w3.org/2000/svg"
+      stroke-width="2"
+      stroke-linecap="round"
+      stroke-linejoin="round"
       {...props}>
-      <path
-        d="M9.59995 5.19993C9.20985 4.15968 8.50258 3.26841 7.57817 2.65216L7.19995 2.40002"
-        stroke-width="2"
-        stroke-linecap="round"
-        stroke-linejoin="round"
-      />
-      <path
-        d="M14.4 5.19993C14.7902 4.15968 15.4974 3.26841 16.4218 2.65216L16.8 2.40002"
-        stroke-width="2"
-        stroke-linecap="round"
-        stroke-linejoin="round"
-      />
-      <path
-        d="M12 19.2C15.9765 19.2 19.2 15.9765 19.2 12C19.2 8.0236 15.9765 4.80005 12 4.80005C8.0236 4.80005 4.80005 8.0236 4.80005 12C4.80005 15.9765 8.0236 19.2 12 19.2Z"
-        stroke-width="2"
-      />
-      <path
-        d="M5.55986 8.43286C4.75245 8.93286 3.62202 9.93286 3.62207 11.4329"
-        stroke-width="2"
-        stroke-linecap="round"
-        stroke-linejoin="round"
-      />
-      <path
-        d="M18.5598 8.43286C19.3672 8.93286 20.4976 9.93286 20.4976 11.4329"
-        stroke-width="2"
-        stroke-linecap="round"
-        stroke-linejoin="round"
-      />
-      <path d="M7.90978 18.9329L7.10059 21.5834" stroke-width="2" stroke-linecap="round" />
-      <path d="M15.1005 18.9328L15.9097 21.5833" stroke-width="2" stroke-linecap="round" />
-      <path d="M9.55981 8.93286V9.93286" stroke-width="2" stroke-linecap="round" />
-      <path d="M14.5598 8.93286V9.93286" stroke-width="2" stroke-linecap="round" />
+      <path d="M14.4 5.2a5.3 5.3 0 0 1 2.022-2.548L16.8 2.4" />
+      <path d="M14.56 8.933v1" />
+      <path d="m15.1 18.933.81 2.65" />
+      <path d="M18.56 8.433c.833.333 2 1 2 2" />
+      <path d="M5.56 8.433c-.833.333-2 1-2 2" />
+      <path d="m7.91 18.933-.81 2.65" />
+      <path d="M9.56 8.933v1" />
+      <path d="M9.6 5.2a5.3 5.3 0 0 0-2.022-2.548L7.2 2.4" />
+      <circle cx="12" cy="12" r="7.2" />
     </svg>
   )
 }
@@ -341,22 +321,24 @@ export function OpenClawSidebarIcon(props: SVGProps<SVGSVGElement>) {
   return (
     <svg
       xmlns="http://www.w3.org/2000/svg"
-      width="1em"
-      height="1em"
+      width="24"
+      height="24"
       viewBox="0 0 24 24"
       fill="none"
       stroke="currentColor"
-      strokeWidth="2"
-      strokeLinecap="round"
-      strokeLinejoin="round"
+      stroke-width="2"
+      stroke-linecap="round"
+      stroke-linejoin="round"
       {...props}>
-      <path d="M8 4Q6 1 4 2" />
-      <path d="M16 4q2-3 4-2" />
-      <circle cx="12" cy="12" r="9" />
-      <circle cx="9" cy="10" r="1.5" fill="currentColor" stroke="none" />
-      <circle cx="15" cy="10" r="1.5" fill="currentColor" stroke="none" />
-      <path d="M9 21v2" />
-      <path d="M15 21v2" />
+      <path d="M14.4 5.2a5.3 5.3 0 0 1 2.022-2.548L16.8 2.4" />
+      <path d="M14.56 8.933v1" />
+      <path d="m15.1 18.933.81 2.65" />
+      <path d="M18.56 8.433c.833.333 2 1 2 2" />
+      <path d="M5.56 8.433c-.833.333-2 1-2 2" />
+      <path d="m7.91 18.933-.81 2.65" />
+      <path d="M9.56 8.933v1" />
+      <path d="M9.6 5.2a5.3 5.3 0 0 0-2.022-2.548L7.2 2.4" />
+      <circle cx="12" cy="12" r="7.2" />
     </svg>
   )
 }
