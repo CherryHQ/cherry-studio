@@ -190,6 +190,7 @@ const sidebarIconKeyMap = {
   store: 'assistants.presets.title',
   paintings: 'paintings.title',
   translate: 'translate.title',
+  screenshot: 'screenshot.title',
   minapp: 'minapp.title',
   knowledge: 'knowledge.title',
   files: 'files.title',

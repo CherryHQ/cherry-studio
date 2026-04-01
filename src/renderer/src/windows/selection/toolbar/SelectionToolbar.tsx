@@ -1,14 +1,11 @@
 import '@renderer/assets/styles/selection-toolbar.css'
 
 import { loggerService } from '@logger'
-import { isWin } from '@renderer/config/constant'
 import { AppLogo } from '@renderer/config/env'
-import { useOcr } from '@renderer/hooks/useOcr'
 import { useSelectionAssistant } from '@renderer/hooks/useSelectionAssistant'
 import { useSettings } from '@renderer/hooks/useSettings'
 import { useTimer } from '@renderer/hooks/useTimer'
 import i18n from '@renderer/i18n'
-import type { ImageFileMetadata } from '@renderer/types'
 import type { ActionItem } from '@renderer/types/selectionTypes'
 import { defaultLanguage } from '@shared/config/constant'
 import { IpcChannel } from '@shared/IpcChannel'
@@ -117,10 +114,8 @@ const ActionIcons: FC<{
  * demo is used in the settings page
  */
 const SelectionToolbar: FC<{ demo?: boolean }> = ({ demo = false }) => {
-  const { t } = useTranslation()
   const { language, customCss } = useSettings()
   const { isCompact, actionItems } = useSelectionAssistant()
-  const { ocr } = useOcr()
   const [animateKey, setAnimateKey] = useState(0)
   const [copyIconStatus, setCopyIconStatus] = useState<'normal' | 'success' | 'fail'>('normal')
   const [copyIconAnimation, setCopyIconAnimation] = useState<'none' | 'enter' | 'exit'>('none')
@@ -285,45 +280,6 @@ const SelectionToolbar: FC<{ demo?: boolean }> = ({ demo = false }) => {
     void window.api?.selection.hideToolbar()
   }
 
-  const handleScreenshotAction = useCallback(async () => {
-    try {
-      if (!isWin) {
-        window.toast.warning(t('selection.action.screenshot.unsupported'))
-        return
-      }
-
-      window.toast.info(t('selection.action.screenshot.start_hint'))
-
-      const screenshotFile = await window.api.selection.captureScreenshot()
-      if (!screenshotFile) {
-        window.toast.info(t('selection.action.screenshot.cancelled'))
-        return
-      }
-
-      const ocrResult = await ocr(screenshotFile as ImageFileMetadata)
-      const text = ocrResult.text.trim()
-
-      if (!text) {
-        window.toast.warning(t('selection.action.screenshot.empty_text'))
-        return
-      }
-
-      const action: ActionItem = {
-        id: 'translate',
-        name: 'selection.action.builtin.translate',
-        enabled: true,
-        isBuiltIn: true,
-        icon: 'languages',
-        selectedText: text
-      }
-
-      void window.api.selection.processAction(action, isFullScreen.current)
-    } catch (error) {
-      logger.error('Failed to process screenshot action:', error as Error)
-      window.toast.error(t('selection.action.screenshot.failed'))
-    }
-  }, [ocr, t])
-
   const handleAction = useCallback(
     (action: ActionItem) => {
       if (demo) return
@@ -334,10 +290,6 @@ const SelectionToolbar: FC<{ demo?: boolean }> = ({ demo = false }) => {
       switch (action.id) {
         case 'copy':
           void handleCopy()
-          break
-        case 'screenshot':
-          void window.api?.selection.hideToolbar()
-          void handleScreenshotAction()
           break
         case 'search':
           handleSearch(newAction)
@@ -350,7 +302,7 @@ const SelectionToolbar: FC<{ demo?: boolean }> = ({ demo = false }) => {
           break
       }
     },
-    [demo, handleCopy, handleSearch, handleScreenshotAction]
+    [demo, handleCopy, handleSearch]
   )
 
   return (

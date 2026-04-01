@@ -14,6 +14,7 @@ import { ThemeMode } from '@renderer/types'
 import { isEmoji } from '@renderer/utils'
 import { Avatar, Tooltip } from 'antd'
 import {
+  Camera,
   Code,
   FileSearch,
   Folder,
@@ -135,6 +136,7 @@ const MainMenus: FC = () => {
     store: <Sparkle size={18} className="icon" />,
     paintings: <Palette size={18} className="icon" />,
     translate: <Languages size={18} className="icon" />,
+    screenshot: <Camera size={18} className="icon" />,
     minapp: <LayoutGrid size={18} className="icon" />,
     knowledge: <FileSearch size={18} className="icon" />,
     files: <Folder size={18} className="icon" />,
@@ -149,6 +151,7 @@ const MainMenus: FC = () => {
     store: '/store',
     paintings: `/paintings/${defaultPaintingProvider}`,
     translate: '/translate',
+    screenshot: '/screenshot',
     minapp: '/apps',
     knowledge: '/knowledge',
     files: '/files',

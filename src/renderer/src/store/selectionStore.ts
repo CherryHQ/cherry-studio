@@ -19,13 +19,6 @@ import { createSlice } from '@reduxjs/toolkit'
 import type { ActionItem, FilterMode, SelectionState, TriggerMode } from '@renderer/types/selectionTypes'
 
 export const defaultActionItems: ActionItem[] = [
-  {
-    id: 'screenshot',
-    name: 'selection.action.builtin.screenshot',
-    enabled: true,
-    isBuiltIn: true,
-    icon: 'scan-search'
-  },
   { id: 'translate', name: 'selection.action.builtin.translate', enabled: true, isBuiltIn: true, icon: 'languages' },
   { id: 'explain', name: 'selection.action.builtin.explain', enabled: true, isBuiltIn: true, icon: 'file-question' },
   { id: 'summary', name: 'selection.action.builtin.summary', enabled: true, isBuiltIn: true, icon: 'scan-text' },

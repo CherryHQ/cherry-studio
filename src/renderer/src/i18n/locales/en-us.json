@@ -3406,6 +3406,20 @@
       "undo": "Undo"
     }
   },
+  "screenshot": {
+    "cancelled": "Screenshot capture cancelled",
+    "capture": "Capture Screenshot",
+    "empty_text": "No text was recognized in the screenshot",
+    "failed": "Screenshot capture failed",
+    "ocr_placeholder": "Captured text will appear here...",
+    "ocr_text": "Recognized Text",
+    "process": "Process",
+    "process_failed": "Failed to process screenshot",
+    "result_placeholder": "Processed result will appear here...",
+    "start_hint": "Select a screen area after Snipping Tool opens",
+    "title": "Screenshot",
+    "unsupported": "Screenshot capture is currently supported on Windows only"
+  },
   "selection": {
     "action": {
       "builtin": {
@@ -3413,7 +3427,6 @@
         "explain": "Explain",
         "quote": "Quote",
         "refine": "Refine",
-        "screenshot": "Screenshot Translate",
         "search": "Search",
         "summary": "Summarize",
         "translate": "Translate"
@@ -3422,13 +3435,6 @@
         "explain": "Please explain the following content. Requirements: Reply in {{language}}; do not include any explanation of this prompt, just give the response directly: \n\n",
         "refine": "Please optimize or polish the user input content wrapped in the XML tag <INPUT>, while maintaining the meaning and integrity of the original content. Requirements: Your output should be in the same language as the user input; do not include any explanation of this prompt, just give the response directly; do not output XML tags, output the optimized content directly: \n\n<INPUT>{{text}}</INPUT>",
         "summary": "Please summarize the following content. Requirements: Reply in {{language}}; do not include any explanation of this prompt, just give the response directly: \n\n"
-      },
-      "screenshot": {
-        "cancelled": "Screenshot capture cancelled",
-        "empty_text": "No text was recognized in the screenshot",
-        "failed": "Screenshot translation failed",
-        "start_hint": "Select a screen area after Snipping Tool opens",
-        "unsupported": "Screenshot translation is currently supported on Windows only"
       },
       "translate": {
         "smart_translate_tips": "Smart Translation: Content will be translated to the target language first; content already in the target language will be translated to the alternative language"

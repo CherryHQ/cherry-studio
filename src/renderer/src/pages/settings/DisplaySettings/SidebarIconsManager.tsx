@@ -8,6 +8,7 @@ import { setSidebarIcons } from '@renderer/store/settings'
 import type { SidebarIcon } from '@renderer/types'
 import { message } from 'antd'
 import {
+  Camera,
   Code,
   FileSearch,
   Folder,
@@ -122,6 +123,7 @@ const SidebarIconsManager: FC<SidebarIconsManagerProps> = ({
         store: <Sparkle size={16} />,
         paintings: <Palette size={16} />,
         translate: <Languages size={16} />,
+        screenshot: <Camera size={16} />,
         minapp: <LayoutGrid size={16} />,
         knowledge: <FileSearch size={16} />,
         files: <Folder size={16} />,
