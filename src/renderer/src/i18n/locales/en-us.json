@@ -2584,7 +2584,7 @@
       "error": "{{error}}",
       "success": "Successfully added {{type}} to the knowledge base"
     },
-    "tip": "If the response is successful, then only messages exceeding 30 seconds will trigger a reminder"
+    "tip": "When enabled, a system notification will be shown when the assistant finishes generating a response while the window is not focused"
   },
   "ocr": {
     "builtin": {
@@ -4912,7 +4912,8 @@
       "assistant": "Assistant Message",
       "backup": "Backup Message",
       "knowledge_embed": "KnowledgeBase Message",
-      "title": "Notification Settings"
+      "title": "Notification Settings",
+      "sound": "Notification Sound"
     },
     "openai": {
       "service_tier": {

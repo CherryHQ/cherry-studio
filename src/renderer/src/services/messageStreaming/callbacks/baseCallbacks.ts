@@ -24,6 +24,7 @@ import { isAbortError, isTimeoutError, serializeError } from '@renderer/utils/er
 import { createBaseMessageBlock, createErrorBlock } from '@renderer/utils/messageUtils/create'
 import { findAllBlocks, getMainTextContent } from '@renderer/utils/messageUtils/find'
 import { isFocused, isOnHomePage } from '@renderer/utils/window'
+import store from '@renderer/store'
 import type { AISDKError } from 'ai'
 import { NoOutputGeneratedError } from 'ai'
 
@@ -103,14 +104,20 @@ export const createBaseCallbacks = (deps: BaseCallbacksDependencies) => {
       const duration = Date.now() - startTime
       // 发送错误通知（除了中止错误）
       if (!isErrorTypeAbort) {
+        const notificationSettings = store.getState().settings.notification
         const timeOut = duration > 30 * 1000
-        if ((!isOnHomePage() && timeOut) || (!isFocused() && timeOut)) {
+        // Send notification when: user enabled assistant notification and window is not focused,
+        // or legacy behavior (>30s and not on home page or not focused)
+        const shouldNotify =
+          (notificationSettings?.assistant && !isFocused()) ||
+          ((!isOnHomePage() && timeOut) || (!isFocused() && timeOut))
+        if (shouldNotify) {
           await notificationService.send({
             id: uuid(),
             type: 'error',
             title: i18n.t('notification.assistant'),
             message: serializableError.message ?? '',
-            silent: false,
+            silent: !notificationSettings?.sound,
             timestamp: Date.now(),
             source: 'assistant'
           })
@@ -258,15 +265,20 @@ export const createBaseCallbacks = (deps: BaseCallbacksDependencies) => {
         const duration = Date.now() - startTime
         const content = getMainTextContent(finalAssistantMsg)
 
+        const notificationSettings = store.getState().settings.notification
         const timeOut = duration > 30 * 1000
-        // 发送长时间运行消息的成功通知
-        if ((!isOnHomePage() && timeOut) || (!isFocused() && timeOut)) {
+        // Send notification when: user enabled assistant notification and window is not focused,
+        // or legacy behavior (>30s and not on home page or not focused)
+        const shouldNotify =
+          (notificationSettings?.assistant && !isFocused()) ||
+          ((!isOnHomePage() && timeOut) || (!isFocused() && timeOut))
+        if (shouldNotify) {
           await notificationService.send({
             id: uuid(),
             type: 'success',
             title: i18n.t('notification.assistant'),
             message: content.length > 50 ? content.slice(0, 47) + '...' : content,
-            silent: false,
+            silent: !notificationSettings?.sound,
             timestamp: Date.now(),
             source: 'assistant',
             channel: 'system'

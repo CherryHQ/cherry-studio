@@ -305,6 +305,11 @@ const GeneralSettings: FC = () => {
         </SettingRow>
         <SettingDivider />
         <SettingRow>
+          <SettingRowTitle>{t('settings.notification.sound')}</SettingRowTitle>
+          <Switch checked={notificationSettings.sound} onChange={(v) => handleNotificationChange('sound', v)} />
+        </SettingRow>
+        <SettingDivider />
+        <SettingRow>
           <SettingRowTitle>{t('settings.notification.backup')}</SettingRowTitle>
           <Switch checked={notificationSettings.backup} onChange={(v) => handleNotificationChange('backup', v)} />
         </SettingRow>

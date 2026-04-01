@@ -2584,7 +2584,7 @@
       "error": "{{error}}",
       "success": "成功添加 {{type}} 到知识库"
     },
-    "tip": "如果响应成功，则只针对超过30秒的消息进行提醒"
+    "tip": "开启后，当助手在窗口未聚焦时完成回答，将发送系统通知提醒"
   },
   "ocr": {
     "builtin": {
@@ -4912,7 +4912,8 @@
       "assistant": "助手消息",
       "backup": "备份",
       "knowledge_embed": "知识库",
-      "title": "通知设置"
+      "title": "通知设置",
+      "sound": "通知提示音"
     },
     "openai": {
       "service_tier": {

@@ -3389,6 +3389,20 @@ const migrateConfig = {
       logger.error('migrate 205 error', error as Error)
       return state
     }
+  },
+  '206': (state: RootState) => {
+    try {
+      // Add sound field to notification settings
+      if (state.settings.notification && !('sound' in state.settings.notification)) {
+        ;(state.settings.notification as any).sound = false
+      }
+
+      logger.info('migrate 206 success')
+      return state
+    } catch (error) {
+      logger.error('migrate 206 error', error as Error)
+      return state
+    }
   }
 }
 

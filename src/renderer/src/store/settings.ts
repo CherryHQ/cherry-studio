@@ -230,6 +230,7 @@ export interface SettingsState {
   // Notification
   notification: {
     assistant: boolean
+    sound: boolean
     backup: boolean
     knowledge: boolean
   }
@@ -415,6 +416,7 @@ export const initialState: SettingsState = {
   },
   notification: {
     assistant: false,
+    sound: false,
     backup: false,
     knowledge: false
   },

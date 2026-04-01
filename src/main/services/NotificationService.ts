@@ -8,7 +8,8 @@ class NotificationService {
     // 使用 Electron Notification API
     const electronNotification = new ElectronNotification({
       title: notification.title,
-      body: notification.message
+      body: notification.message,
+      silent: notification.silent ?? false
     })
 
     electronNotification.on('click', () => {

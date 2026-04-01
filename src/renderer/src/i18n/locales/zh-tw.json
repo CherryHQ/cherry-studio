@@ -2584,7 +2584,7 @@
       "error": "無法將 {{type}} 加入知識庫：{{error}}",
       "success": "成功將 {{type}} 新增至知識庫"
     },
-    "tip": "如果回應成功，則只針對超過 30 秒的訊息發出提醒"
+    "tip": "開啟後，當助手在視窗未聚焦時完成回答，將發送系統通知提醒"
   },
   "ocr": {
     "builtin": {
@@ -4912,7 +4912,8 @@
       "assistant": "助手訊息",
       "backup": "備份訊息",
       "knowledge_embed": "知識庫訊息",
-      "title": "通知設定"
+      "title": "通知設定",
+      "sound": "通知提示音"
     },
     "openai": {
       "service_tier": {
