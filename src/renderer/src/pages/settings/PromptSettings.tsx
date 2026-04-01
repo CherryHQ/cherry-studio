@@ -4,17 +4,12 @@ import { dataApiService } from '@data/DataApiService'
 import { useMutation, useQuery } from '@data/hooks/useDataApi'
 import { DraggableList } from '@renderer/components/DraggableList'
 import { DeleteIcon, EditIcon } from '@renderer/components/Icons'
-import PromptVariableConfigPanel from '@renderer/components/PromptVariableConfigPanel'
+import PromptEditModal from '@renderer/components/PromptEditModal'
 import { useTheme } from '@renderer/context/ThemeProvider'
 import FileItem from '@renderer/pages/files/FileItem'
-import {
-  extractVariableKeys,
-  removeVariableFromContent,
-  renameVariableInContent
-} from '@renderer/utils/promptVariables'
 import { getPromptVersionRollbackMarker } from '@renderer/utils/promptVersion'
 import type { Prompt, PromptVariable, PromptVersion } from '@shared/data/types/prompt'
-import { Input, Modal, Popconfirm, Space } from 'antd'
+import { Modal, Popconfirm } from 'antd'
 import { HistoryIcon, PlusIcon, RotateCcwIcon } from 'lucide-react'
 import type { FC } from 'react'
 import { useEffect, useMemo, useRef, useState } from 'react'
@@ -22,19 +17,12 @@ import { useTranslation } from 'react-i18next'
 
 import { SettingContainer, SettingDivider, SettingGroup, SettingRow, SettingTitle } from '.'
 
-const { TextArea } = Input
-
 const PromptSettings: FC = () => {
   const { t } = useTranslation()
   const { theme } = useTheme()
   const [isModalOpen, setIsModalOpen] = useState(false)
   const [isVersionModalOpen, setIsVersionModalOpen] = useState(false)
   const [editingPrompt, setEditingPrompt] = useState<Prompt | null>(null)
-  const [formData, setFormData] = useState<{ title: string; content: string; variables: PromptVariable[] }>({
-    title: '',
-    content: '',
-    variables: []
-  })
   const [dragging, setDragging] = useState(false)
   const [pendingDeletePromptId, setPendingDeletePromptId] = useState<string | null>(null)
   const [pendingRollbackVersion, setPendingRollbackVersion] = useState<number | null>(null)
@@ -120,17 +108,11 @@ const PromptSettings: FC = () => {
 
   const handleAdd = () => {
     setEditingPrompt(null)
-    setFormData({ title: '', content: '', variables: [] })
     setIsModalOpen(true)
   }
 
   const handleEdit = (prompt: Prompt) => {
     setEditingPrompt(prompt)
-    setFormData({
-      title: prompt.title,
-      content: prompt.content,
-      variables: prompt.variables ?? []
-    })
     setIsModalOpen(true)
   }
 
@@ -138,44 +120,12 @@ const PromptSettings: FC = () => {
     setPendingDeletePromptId(id)
   }
 
-  const handleModalOk = async () => {
-    if (!formData.title.trim() || !formData.content.trim()) {
-      return
-    }
-
-    // Clean up variables: remove orphaned keys and empty select options
-    const activeKeys = new Set(extractVariableKeys(formData.content))
-    const cleanedVariables = formData.variables
-      .filter((v) => activeKeys.has(v.key))
-      .map((v) => {
-        if (v.type === 'select') {
-          const options = v.options.filter(Boolean)
-          if (options.length === 0) return null
-          const defaultValue = v.defaultValue && options.includes(v.defaultValue) ? v.defaultValue : undefined
-          return { ...v, options, defaultValue }
-        }
-        return v
-      })
-      .filter(Boolean) as PromptVariable[]
-    const variablesPayload = cleanedVariables.length > 0 ? cleanedVariables : null
-
+  const handleModalSave = async (data: { title: string; content: string; variables: PromptVariable[] | null }) => {
     try {
       if (editingPrompt) {
-        await updatePrompt({
-          body: {
-            title: formData.title,
-            content: formData.content,
-            variables: variablesPayload
-          }
-        })
+        await updatePrompt({ body: data })
       } else {
-        await createPrompt({
-          body: {
-            title: formData.title,
-            content: formData.content,
-            variables: variablesPayload
-          }
-        })
+        await createPrompt({ body: data })
       }
       setIsModalOpen(false)
     } catch {
@@ -305,50 +255,13 @@ const PromptSettings: FC = () => {
         </SettingRow>
       </SettingGroup>
 
-      {/* Edit / Create Modal */}
-      <Modal
-        title={editingPrompt ? t('settings.prompts.edit') : t('settings.prompts.add')}
+      <PromptEditModal
         open={isModalOpen}
-        onOk={handleModalOk}
-        confirmLoading={isSavingPrompt}
+        prompt={editingPrompt}
+        saving={isSavingPrompt}
+        onSave={handleModalSave}
         onCancel={() => setIsModalOpen(false)}
-        width={600}
-        transitionName="animation-move-down"
-        centered
-        maskClosable={false}>
-        <Space direction="vertical" style={{ width: '100%' }} size="middle">
-          <div>
-            <div className="mb-1 text-[var(--color-text)] text-sm">{t('settings.prompts.titleLabel')}</div>
-            <Input
-              placeholder={t('settings.prompts.titlePlaceholder')}
-              value={formData.title}
-              onChange={(e) => setFormData({ ...formData, title: e.target.value })}
-            />
-          </div>
-          <div>
-            <div className="mb-1 text-[var(--color-text)] text-sm">{t('settings.prompts.contentLabel')}</div>
-            <TextArea
-              placeholder={t('settings.prompts.contentPlaceholder')}
-              value={formData.content}
-              onChange={(e) => setFormData({ ...formData, content: e.target.value })}
-              rows={8}
-              style={{ resize: 'none' }}
-            />
-            <PromptVariableConfigPanel
-              content={formData.content}
-              variables={formData.variables}
-              onChange={(variables) => setFormData((prev) => ({ ...prev, variables }))}
-              onKeyRename={(oldKey, newKey) =>
-                setFormData((prev) => ({ ...prev, content: renameVariableInContent(prev.content, oldKey, newKey) }))
-              }
-              onDeleteVariable={(key) =>
-                setFormData((prev) => ({ ...prev, content: removeVariableFromContent(prev.content, key) }))
-              }
-              onAddVariable={(key) => setFormData((prev) => ({ ...prev, content: `${prev.content}\${${key}}` }))}
-            />
-          </div>
-        </Space>
-      </Modal>
+      />
 
       {/* Version History Modal */}
       <Modal
