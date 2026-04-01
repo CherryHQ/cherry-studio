@@ -7,9 +7,18 @@ export type PreparedOpenMineruContext = {
   file: FileMetadata
 }
 
-export type OpenMineruTaskState = {
-  status: 'processing' | 'completed' | 'failed'
-  progress: number
-  markdownPath?: string
-  error?: string
-}
+export type OpenMineruTaskState =
+  | {
+      status: 'processing'
+      progress: number
+    }
+  | {
+      status: 'completed'
+      progress: 100
+      markdownPath: string
+    }
+  | {
+      status: 'failed'
+      progress: number
+      error?: string
+    }

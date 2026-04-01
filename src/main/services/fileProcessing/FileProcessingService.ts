@@ -1,4 +1,8 @@
+import fs from 'node:fs/promises'
+import path from 'node:path'
+
 import { loggerService } from '@logger'
+import { getFilesDir } from '@main/utils/file'
 import type { FileProcessorId } from '@shared/data/preference/preferenceTypes'
 import type { FileMetadata } from '@types'
 
@@ -9,6 +13,7 @@ import type {
   FileProcessingTextExtractionResult
 } from './types'
 import { resolveProcessorConfig } from './utils/config'
+import { OUTPUT_MARKDOWN_FILE } from './utils/resultPersistence'
 
 const logger = loggerService.withContext('FileProcessingService')
 
@@ -60,6 +65,18 @@ export class FileProcessingService {
     })
 
     return await processor.getMarkdownConversionTaskResult(providerTaskId, signal)
+  }
+
+  async getPersistedMarkdownResult(fileId: string): Promise<string | undefined> {
+    // TODO(file-processing): Move this derived-file path lookup into the unified
+    // FileSystem/FileManager once that layer lands.
+    const markdownPath = path.join(getFilesDir(), fileId, 'file-processing', OUTPUT_MARKDOWN_FILE)
+    const exists = await fs
+      .access(markdownPath)
+      .then(() => true)
+      .catch(() => false)
+
+    return exists ? markdownPath : undefined
   }
 }
 

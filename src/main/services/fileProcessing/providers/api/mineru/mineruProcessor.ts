@@ -9,7 +9,7 @@ import type { FileMetadata } from '@types'
 import { net } from 'electron'
 
 import { fileProcessingTaskStore } from '../../../runtime/FileProcessingTaskStore'
-import { persistZipResult, readPersistedMarkdownPath } from '../../../utils/zip'
+import { persistZipResult } from '../../../utils/resultPersistence'
 import { BaseMarkdownConversionProcessor } from '../../base/BaseFileProcessor'
 import type {
   MineruExtractFileResult,
@@ -35,7 +35,8 @@ export class MineruProcessor extends BaseMarkdownConversionProcessor {
     await uploadFile(file, uploadTask.uploadUrl, uploadTask.uploadHeaders, context.signal)
     fileProcessingTaskStore.create<MineruTaskContext>('mineru', uploadTask.batchId, {
       apiHost: context.apiHost,
-      apiKey: context.apiKey
+      apiKey: context.apiKey,
+      fileId: file.id
     })
 
     return {
@@ -50,19 +51,6 @@ export class MineruProcessor extends BaseMarkdownConversionProcessor {
     providerTaskId: string,
     signal?: AbortSignal
   ): Promise<FileProcessingMarkdownTaskResult> {
-    const markdownPath = await readPersistedMarkdownPath(this.getFileProcessingResultsDir(providerTaskId)).catch(
-      () => undefined
-    )
-
-    if (markdownPath) {
-      return {
-        status: 'completed',
-        progress: 100,
-        processorId: 'mineru',
-        markdownPath
-      }
-    }
-
     const taskContext = fileProcessingTaskStore.get<MineruTaskContext>('mineru', providerTaskId)
 
     if (!taskContext) {
@@ -76,11 +64,11 @@ export class MineruProcessor extends BaseMarkdownConversionProcessor {
     }
     const batchResult = await getBatchResult(providerTaskId, context)
 
-    return this.buildMarkdownTaskResult(providerTaskId, batchResult.extract_result[0], signal)
+    return this.buildMarkdownTaskResult(providerTaskId, taskContext.fileId, batchResult.extract_result[0], signal)
   }
 
   private async persistMarkdownConversionResult(
-    providerTaskId: string,
+    fileId: string,
     downloadUrl: string,
     signal?: AbortSignal
   ): Promise<string> {
@@ -88,7 +76,7 @@ export class MineruProcessor extends BaseMarkdownConversionProcessor {
       throw new Error('Markdown conversion result download URL is empty')
     }
 
-    const fileProcessingResultsDir = this.getFileProcessingResultsDir(providerTaskId)
+    const fileProcessingResultsDir = this.getFileProcessingResultsDir(fileId)
     signal?.throwIfAborted()
 
     const response = await net.fetch(downloadUrl, {
@@ -148,6 +136,7 @@ export class MineruProcessor extends BaseMarkdownConversionProcessor {
 
   private async buildMarkdownTaskResult(
     providerTaskId: string,
+    fileId: string,
     fileResult: MineruExtractFileResult | undefined,
     signal?: AbortSignal
   ): Promise<FileProcessingMarkdownTaskResult> {
@@ -183,7 +172,7 @@ export class MineruProcessor extends BaseMarkdownConversionProcessor {
 
     // TODO: Persist additional extracted assets from Mineru results when the provider
     // result contract is expanded beyond a markdown string.
-    const markdownPath = await this.persistMarkdownConversionResult(providerTaskId, fileResult.full_zip_url, signal)
+    const markdownPath = await this.persistMarkdownConversionResult(fileId, fileResult.full_zip_url, signal)
     fileProcessingTaskStore.delete('mineru', providerTaskId)
 
     return {

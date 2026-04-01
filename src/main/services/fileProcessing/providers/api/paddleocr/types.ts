@@ -75,7 +75,9 @@ export type PreparedPaddleStartContext = PreparedPaddleContext & {
 }
 
 export type PreparedPaddleQueryContext = PreparedPaddleContext
-export type PaddleTaskContext = Omit<PreparedPaddleQueryContext, 'signal'>
+export type PaddleTaskContext = Omit<PreparedPaddleQueryContext, 'signal'> & {
+  fileId: string
+}
 
 export type PaddleCreateJobData = z.infer<typeof PaddleCreateJobDataSchema>
 export type PaddleJobResultData = z.infer<typeof PaddleJobResultDataSchema>

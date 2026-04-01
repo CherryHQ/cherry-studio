@@ -38,7 +38,28 @@ describe('openMineruProcessor', () => {
     })
 
     expect(executeTaskMock).toHaveBeenCalledTimes(1)
-    expect(persistSpy).toHaveBeenCalledWith('task-1', expect.any(Buffer))
-    expect(fileProcessingTaskStore.get('open-mineru', 'task-1')).toBeUndefined()
+    expect(persistSpy).toHaveBeenCalledWith('file-1', expect.any(Buffer))
+    expect(fileProcessingTaskStore.get('open-mineru', 'task-1')).toEqual({
+      status: 'completed',
+      progress: 100,
+      markdownPath: '/tmp/output.md'
+    })
+  })
+
+  it('returns completed status from task state and deletes it after consumption', async () => {
+    fileProcessingTaskStore.create('open-mineru', 'task-2', {
+      status: 'completed',
+      progress: 100,
+      markdownPath: '/tmp/output.md'
+    })
+
+    await expect(openMineruProcessor.getMarkdownConversionTaskResult('task-2')).resolves.toEqual({
+      status: 'completed',
+      progress: 100,
+      processorId: 'open-mineru',
+      markdownPath: '/tmp/output.md'
+    })
+
+    expect(fileProcessingTaskStore.get('open-mineru', 'task-2')).toBeUndefined()
   })
 })

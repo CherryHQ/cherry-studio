@@ -27,7 +27,8 @@ describe('mineruProcessor', () => {
   it('maps non-final batch results to a processing response', async () => {
     fileProcessingTaskStore.create('mineru', 'task-1', {
       apiHost: 'https://mineru.example.com',
-      apiKey: 'secret'
+      apiKey: 'secret',
+      fileId: 'file-1'
     })
 
     getBatchResultMock.mockResolvedValueOnce({
@@ -53,7 +54,8 @@ describe('mineruProcessor', () => {
   it('persists completed results and deletes task state', async () => {
     fileProcessingTaskStore.create('mineru', 'task-2', {
       apiHost: 'https://mineru.example.com',
-      apiKey: 'secret'
+      apiKey: 'secret',
+      fileId: 'file-2'
     })
 
     getBatchResultMock.mockResolvedValueOnce({
@@ -76,7 +78,7 @@ describe('mineruProcessor', () => {
       markdownPath: '/tmp/mineru-output.md'
     })
 
-    expect(persistSpy).toHaveBeenCalledWith('task-2', 'https://download.example.com/full.zip', undefined)
+    expect(persistSpy).toHaveBeenCalledWith('file-2', 'https://download.example.com/full.zip', undefined)
     expect(fileProcessingTaskStore.get('mineru', 'task-2')).toBeUndefined()
   })
 })

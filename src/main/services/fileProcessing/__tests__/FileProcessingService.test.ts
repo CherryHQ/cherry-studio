@@ -1,7 +1,10 @@
+import fs from 'node:fs/promises'
+
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const {
   resolveProcessorConfigMock,
+  getFilesDirMock,
   createTextExtractionProcessorMock,
   createMarkdownConversionProcessorMock,
   extractTextMock,
@@ -9,6 +12,7 @@ const {
   getMarkdownConversionTaskResultMock
 } = vi.hoisted(() => ({
   resolveProcessorConfigMock: vi.fn(),
+  getFilesDirMock: vi.fn(() => '/files'),
   createTextExtractionProcessorMock: vi.fn(),
   createMarkdownConversionProcessorMock: vi.fn(),
   extractTextMock: vi.fn(),
@@ -18,6 +22,10 @@ const {
 
 vi.mock('../utils/config', () => ({
   resolveProcessorConfig: resolveProcessorConfigMock
+}))
+
+vi.mock('@main/utils/file', () => ({
+  getFilesDir: getFilesDirMock
 }))
 
 vi.mock('../providers/factory', () => ({
@@ -54,6 +62,7 @@ const documentFile = {
 describe('fileProcessingService (runtime)', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    vi.spyOn(fs, 'access').mockRejectedValue(new Error('missing'))
   })
 
   it('resolves text extraction config and forwards the request to the selected processor', async () => {
@@ -152,5 +161,15 @@ describe('fileProcessingService (runtime)', () => {
     expect(resolveProcessorConfigMock).not.toHaveBeenCalled()
     expect(createMarkdownConversionProcessorMock).toHaveBeenCalledWith('doc2x')
     expect(getMarkdownConversionTaskResultMock).toHaveBeenCalledWith('provider-task-1', signal)
+  })
+
+  it('reads the persisted markdown result by file id', async () => {
+    vi.spyOn(fs, 'access').mockResolvedValueOnce(undefined)
+
+    await expect(fileProcessingService.getPersistedMarkdownResult('file-2')).resolves.toBe(
+      '/files/file-2/file-processing/output.md'
+    )
+
+    expect(fs.access).toHaveBeenCalledWith('/files/file-2/file-processing/output.md')
   })
 })

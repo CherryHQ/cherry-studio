@@ -9,7 +9,7 @@ import type { FileMetadata } from '@types'
 import { net } from 'electron'
 
 import { fileProcessingTaskStore } from '../../../runtime/FileProcessingTaskStore'
-import { persistZipResult, readPersistedMarkdownPath } from '../../../utils/zip'
+import { persistZipResult } from '../../../utils/resultPersistence'
 import { BaseMarkdownConversionProcessor } from '../../base/BaseFileProcessor'
 import type { Doc2xTaskContext, PreparedDoc2xQueryContext, PreparedDoc2xStartContext } from './types'
 import { createUploadTask, getExportResult, getParseStatus, triggerExportTask, uploadFile } from './utils'
@@ -32,6 +32,7 @@ export class Doc2xProcessor extends BaseMarkdownConversionProcessor {
     fileProcessingTaskStore.create<Doc2xTaskContext>('doc2x', uploadTask.uid, {
       apiHost: context.apiHost,
       apiKey: context.apiKey,
+      fileId: file.id,
       stage: 'parsing',
       createdAt: Date.now()
     })
@@ -48,19 +49,6 @@ export class Doc2xProcessor extends BaseMarkdownConversionProcessor {
     providerTaskId: string,
     signal?: AbortSignal
   ): Promise<FileProcessingMarkdownTaskResult> {
-    const markdownPath = await readPersistedMarkdownPath(this.getFileProcessingResultsDir(providerTaskId)).catch(
-      () => undefined
-    )
-
-    if (markdownPath) {
-      return {
-        status: 'completed',
-        progress: 100,
-        processorId: 'doc2x',
-        markdownPath
-      }
-    }
-
     const taskContext = fileProcessingTaskStore.get<Doc2xTaskContext>('doc2x', providerTaskId)
 
     if (!taskContext) {
@@ -77,11 +65,11 @@ export class Doc2xProcessor extends BaseMarkdownConversionProcessor {
       return this.handleParseStage(providerTaskId, context)
     }
 
-    return this.handleExportStage(providerTaskId, context)
+    return this.handleExportStage(providerTaskId, taskContext.fileId, context)
   }
 
   private async persistMarkdownConversionResult(
-    providerTaskId: string,
+    fileId: string,
     downloadUrl: string,
     signal?: AbortSignal
   ): Promise<string> {
@@ -89,7 +77,7 @@ export class Doc2xProcessor extends BaseMarkdownConversionProcessor {
       throw new Error('Doc2x result download URL is empty')
     }
 
-    const fileProcessingResultsDir = this.getFileProcessingResultsDir(providerTaskId)
+    const fileProcessingResultsDir = this.getFileProcessingResultsDir(fileId)
     signal?.throwIfAborted()
 
     const response = await net.fetch(downloadUrl.replace(/\\u0026/g, '&'), {
@@ -214,6 +202,7 @@ export class Doc2xProcessor extends BaseMarkdownConversionProcessor {
     fileProcessingTaskStore.update<Doc2xTaskContext>('doc2x', providerTaskId, (current) => ({
       apiHost: current.apiHost,
       apiKey: current.apiKey,
+      fileId: current.fileId,
       stage: 'exporting',
       createdAt: current.createdAt
     }))
@@ -227,6 +216,7 @@ export class Doc2xProcessor extends BaseMarkdownConversionProcessor {
 
   private async handleExportStage(
     providerTaskId: string,
+    fileId: string,
     context: PreparedDoc2xQueryContext
   ): Promise<FileProcessingMarkdownTaskResult> {
     const payload = await getExportResult(providerTaskId, context)
@@ -269,7 +259,7 @@ export class Doc2xProcessor extends BaseMarkdownConversionProcessor {
       throw new Error(`Doc2x export result completed without a download URL for uid ${providerTaskId}`)
     }
 
-    const markdownPath = await this.persistMarkdownConversionResult(providerTaskId, exportStatus.url, context.signal)
+    const markdownPath = await this.persistMarkdownConversionResult(fileId, exportStatus.url, context.signal)
     fileProcessingTaskStore.delete('doc2x', providerTaskId)
 
     return {

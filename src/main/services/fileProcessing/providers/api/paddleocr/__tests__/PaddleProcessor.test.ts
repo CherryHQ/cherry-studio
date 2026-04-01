@@ -1,5 +1,3 @@
-import fs from 'node:fs/promises'
-
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type * as PaddleUtilsModule from '../utils'
@@ -67,13 +65,13 @@ describe('paddleProcessor', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     fileProcessingTaskStore.clear()
-    vi.spyOn(fs, 'access').mockRejectedValue(new Error('missing'))
   })
 
   it('returns pending or processing status based on remote job state', async () => {
     fileProcessingTaskStore.create('paddleocr', 'task-1', {
       apiHost: 'https://paddle.example.com',
-      apiKey: 'secret'
+      apiKey: 'secret',
+      fileId: 'file-1'
     })
 
     getJobResultMock.mockResolvedValueOnce({
@@ -91,7 +89,8 @@ describe('paddleProcessor', () => {
   it('persists completed markdown results and deletes task state', async () => {
     fileProcessingTaskStore.create('paddleocr', 'task-2', {
       apiHost: 'https://paddle.example.com',
-      apiKey: 'secret'
+      apiKey: 'secret',
+      fileId: 'file-2'
     })
 
     getJobResultMock.mockResolvedValueOnce({
@@ -123,7 +122,7 @@ describe('paddleProcessor', () => {
       }),
       undefined
     )
-    expect(persistSpy).toHaveBeenCalledWith('task-2', '# output')
+    expect(persistSpy).toHaveBeenCalledWith('file-2', '# output')
     expect(fileProcessingTaskStore.get('paddleocr', 'task-2')).toBeUndefined()
   })
 

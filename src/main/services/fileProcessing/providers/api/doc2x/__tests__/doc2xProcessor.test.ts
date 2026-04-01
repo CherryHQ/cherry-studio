@@ -30,6 +30,7 @@ describe('doc2xProcessor', () => {
     fileProcessingTaskStore.create('doc2x', 'task-1', {
       apiHost: 'https://doc2x.example.com',
       apiKey: 'secret',
+      fileId: 'file-1',
       stage: 'parsing',
       createdAt: 1
     })
@@ -63,6 +64,7 @@ describe('doc2xProcessor', () => {
     fileProcessingTaskStore.create('doc2x', 'task-2', {
       apiHost: 'https://doc2x.example.com',
       apiKey: 'secret',
+      fileId: 'file-2',
       stage: 'exporting',
       createdAt: 1
     })
@@ -86,7 +88,7 @@ describe('doc2xProcessor', () => {
       markdownPath: '/tmp/doc2x-output.md'
     })
 
-    expect(persistSpy).toHaveBeenCalledWith('task-2', 'https://download.example.com/output.zip', undefined)
+    expect(persistSpy).toHaveBeenCalledWith('file-2', 'https://download.example.com/output.zip', undefined)
     expect(fileProcessingTaskStore.get('doc2x', 'task-2')).toBeUndefined()
   })
 })

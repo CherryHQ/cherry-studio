@@ -3,7 +3,7 @@ import path from 'node:path'
 
 import AdmZip from 'adm-zip'
 
-const OUTPUT_MARKDOWN_FILE = 'output.md'
+export const OUTPUT_MARKDOWN_FILE = 'output.md'
 
 function normalizeEntryPath(entryName: string): string {
   const posixPath = entryName.replace(/\\/g, '/')
@@ -38,20 +38,6 @@ function stripMarkdownBaseDir(relativePath: string, markdownBaseDir: string): st
   return relativePath
 }
 
-export async function readPersistedMarkdownPath(resultsDir: string): Promise<string | undefined> {
-  const markdownPath = getPersistedMarkdownPath(resultsDir)
-  const exists = await fs
-    .access(markdownPath)
-    .then(() => true)
-    .catch(() => false)
-
-  if (!exists) {
-    return undefined
-  }
-
-  return markdownPath
-}
-
 export async function persistZipResult(options: {
   zipBuffer: Buffer
   resultsDir: string
@@ -79,6 +65,8 @@ export async function persistZipResult(options: {
   const markdownBaseDir =
     path.posix.dirname(markdownRelativePath) === '.' ? '' : path.posix.dirname(markdownRelativePath)
 
+  // A successful task replaces the previous persisted result for the same file.
+  await fs.rm(options.resultsDir, { recursive: true, force: true })
   await fs.mkdir(options.resultsDir, { recursive: true })
 
   for (const entry of entries) {

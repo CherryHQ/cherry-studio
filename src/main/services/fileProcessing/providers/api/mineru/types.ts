@@ -49,7 +49,9 @@ export type PreparedMineruStartContext = PreparedMineruContext & {
 }
 
 export type PreparedMineruQueryContext = PreparedMineruContext
-export type MineruTaskContext = Omit<PreparedMineruQueryContext, 'signal'>
+export type MineruTaskContext = Omit<PreparedMineruQueryContext, 'signal'> & {
+  fileId: string
+}
 
 export type MineruExtractFileResult = z.infer<typeof MineruExtractFileResultSchema>
 export type MineruExtractResultsData = z.infer<typeof MineruExtractResultsDataSchema>

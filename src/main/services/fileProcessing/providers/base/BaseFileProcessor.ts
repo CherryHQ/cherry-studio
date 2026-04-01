@@ -1,6 +1,6 @@
 import path from 'node:path'
 
-import { getTempDir } from '@main/utils/file'
+import { getFilesDir } from '@main/utils/file'
 import type { FileProcessorFeature, FileProcessorId } from '@shared/data/preference/preferenceTypes'
 import type { FileProcessorFeatureCapability, FileProcessorMerged } from '@shared/data/presets/file-processing'
 import type { FileProcessingTextExtractionResult } from '@shared/data/types/fileProcessing'
@@ -50,11 +50,10 @@ export abstract class BaseFileProcessor {
     return nextKey
   }
 
-  protected getFileProcessingResultsDir(providerTaskId: string): string {
-    // TODO(file-processing): Results currently live under the temp directory as an
-    // interim solution. Once the unified file-management design lands, migrate
-    // these artifacts into the canonical file storage tree instead of temp.
-    return path.join(getTempDir(), 'file-processing', providerTaskId)
+  protected getFileProcessingResultsDir(fileId: string): string {
+    // TODO(file-processing): Move this derived-file path calculation into the
+    // unified FileSystem/FileManager once that layer lands.
+    return path.join(getFilesDir(), fileId, 'file-processing')
   }
 }
 

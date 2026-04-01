@@ -10,7 +10,7 @@ import type { FileMetadata } from '@types'
 import { v4 as uuidv4 } from 'uuid'
 
 import { fileProcessingTaskStore } from '../../../runtime/FileProcessingTaskStore'
-import { persistZipResult, readPersistedMarkdownPath } from '../../../utils/zip'
+import { persistZipResult } from '../../../utils/resultPersistence'
 import { BaseMarkdownConversionProcessor } from '../../base/BaseFileProcessor'
 import type { OpenMineruTaskState, PreparedOpenMineruContext } from './types'
 import { executeTask } from './utils'
@@ -51,23 +51,20 @@ export class OpenMineruProcessor extends BaseMarkdownConversionProcessor {
   ): Promise<FileProcessingMarkdownTaskResult> {
     signal?.throwIfAborted()
 
-    const markdownPath = await readPersistedMarkdownPath(this.getFileProcessingResultsDir(providerTaskId)).catch(
-      () => undefined
-    )
-
-    if (markdownPath) {
-      return {
-        status: 'completed',
-        progress: 100,
-        processorId: 'open-mineru',
-        markdownPath
-      }
-    }
-
     const taskState = fileProcessingTaskStore.get<OpenMineruTaskState>('open-mineru', providerTaskId)
 
     if (!taskState) {
       throw new Error(`Open MinerU task state not found for task ${providerTaskId}`)
+    }
+
+    if (taskState.status === 'completed') {
+      fileProcessingTaskStore.delete('open-mineru', providerTaskId)
+      return {
+        status: 'completed',
+        progress: 100,
+        processorId: 'open-mineru',
+        markdownPath: taskState.markdownPath
+      }
     }
 
     if (taskState.status === 'failed') {
@@ -125,8 +122,12 @@ export class OpenMineruProcessor extends BaseMarkdownConversionProcessor {
         progress: 80
       }))
 
-      await this.persistMarkdownConversionResult(providerTaskId, zipBuffer)
-      fileProcessingTaskStore.delete('open-mineru', providerTaskId)
+      const markdownPath = await this.persistMarkdownConversionResult(context.file.id, zipBuffer)
+      fileProcessingTaskStore.update<OpenMineruTaskState>('open-mineru', providerTaskId, () => ({
+        status: 'completed',
+        progress: 100,
+        markdownPath
+      }))
     } catch (error) {
       logger.error('Open MinerU markdown conversion task failed', error as Error)
       fileProcessingTaskStore.update<OpenMineruTaskState>('open-mineru', providerTaskId, () => ({
@@ -137,8 +138,8 @@ export class OpenMineruProcessor extends BaseMarkdownConversionProcessor {
     }
   }
 
-  private async persistMarkdownConversionResult(providerTaskId: string, zipBuffer: Buffer): Promise<string> {
-    const fileProcessingResultsDir = this.getFileProcessingResultsDir(providerTaskId)
+  private async persistMarkdownConversionResult(fileId: string, zipBuffer: Buffer): Promise<string> {
+    const fileProcessingResultsDir = this.getFileProcessingResultsDir(fileId)
 
     try {
       return await persistZipResult({

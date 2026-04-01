@@ -3,9 +3,9 @@ import fs from 'node:fs/promises'
 import AdmZip from 'adm-zip'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { persistZipResult, readPersistedMarkdownPath } from '../zip'
+import { persistZipResult } from '../resultPersistence'
 
-describe('fileProcessing zip utils', () => {
+describe('fileProcessing result persistence utils', () => {
   beforeEach(() => {
     vi.clearAllMocks()
   })
@@ -47,15 +47,5 @@ describe('fileProcessing zip utils', () => {
     ).rejects.toThrow('Unsafe zip entry path')
 
     expect(rmSpy).not.toHaveBeenCalled()
-  })
-
-  it('restores the persisted markdown path from the fixed output location', async () => {
-    const accessSpy = vi.spyOn(fs, 'access').mockResolvedValue(undefined)
-
-    await expect(readPersistedMarkdownPath('/tmp/file-processing/task-3')).resolves.toBe(
-      '/tmp/file-processing/task-3/output.md'
-    )
-
-    expect(accessSpy).toHaveBeenCalledWith('/tmp/file-processing/task-3/output.md')
   })
 })

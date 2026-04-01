@@ -13,6 +13,7 @@ import { isImageFileMetadata } from '@types'
 import type { ITextExtractionProcessor } from '../../../interfaces'
 import { fileProcessingTaskStore } from '../../../runtime/FileProcessingTaskStore'
 import type { FileProcessingTextExtractionResult } from '../../../types'
+import { OUTPUT_MARKDOWN_FILE } from '../../../utils/resultPersistence'
 import { BaseMarkdownConversionProcessor } from '../../base/BaseFileProcessor'
 import type { PaddleTaskContext, PreparedPaddleQueryContext, PreparedPaddleStartContext } from './types'
 import { createJob, getJobResult, mapProgress, resolveJsonlResult, waitForJobCompletion } from './utils'
@@ -64,7 +65,8 @@ export class PaddleProcessor extends BaseMarkdownConversionProcessor implements 
     const job = await createJob(context)
     fileProcessingTaskStore.create<PaddleTaskContext>('paddleocr', job.jobId, {
       apiHost: context.apiHost,
-      apiKey: context.apiKey
+      apiKey: context.apiKey,
+      fileId: file.id
     })
 
     return {
@@ -79,21 +81,6 @@ export class PaddleProcessor extends BaseMarkdownConversionProcessor implements 
     providerTaskId: string,
     signal?: AbortSignal
   ): Promise<FileProcessingMarkdownTaskResult> {
-    const markdownPath = path.join(this.getFileProcessingResultsDir(providerTaskId), 'output.md')
-    const hasPersistedMarkdown = await fs
-      .access(markdownPath)
-      .then(() => true)
-      .catch(() => false)
-
-    if (hasPersistedMarkdown) {
-      return {
-        status: 'completed',
-        progress: 100,
-        processorId: 'paddleocr',
-        markdownPath
-      }
-    }
-
     const taskContext = fileProcessingTaskStore.get<PaddleTaskContext>('paddleocr', providerTaskId)
 
     if (!taskContext) {
@@ -132,7 +119,7 @@ export class PaddleProcessor extends BaseMarkdownConversionProcessor implements 
     })
 
     const markdownContent = await resolveJsonlResult(providerTaskId, jobResult, context.signal)
-    const persistedMarkdownPath = await this.persistMarkdownConversionResult(providerTaskId, markdownContent)
+    const persistedMarkdownPath = await this.persistMarkdownConversionResult(taskContext.fileId, markdownContent)
     fileProcessingTaskStore.delete('paddleocr', providerTaskId)
 
     return {
@@ -143,10 +130,11 @@ export class PaddleProcessor extends BaseMarkdownConversionProcessor implements 
     }
   }
 
-  private async persistMarkdownConversionResult(providerTaskId: string, markdownContent: string): Promise<string> {
-    const fileProcessingResultsDir = this.getFileProcessingResultsDir(providerTaskId)
-    const markdownPath = path.join(fileProcessingResultsDir, 'output.md')
+  private async persistMarkdownConversionResult(fileId: string, markdownContent: string): Promise<string> {
+    const fileProcessingResultsDir = this.getFileProcessingResultsDir(fileId)
+    const markdownPath = path.join(fileProcessingResultsDir, OUTPUT_MARKDOWN_FILE)
 
+    await fs.rm(fileProcessingResultsDir, { recursive: true, force: true })
     await fs.mkdir(fileProcessingResultsDir, { recursive: true })
     await fs.writeFile(markdownPath, markdownContent, 'utf-8')
 
