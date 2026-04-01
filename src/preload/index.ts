@@ -10,18 +10,18 @@ import type {
   LanClientEvent,
   LanFileCompleteMessage,
   LanHandshakeAckMessage,
-  LocalTransferConnectPayload,
-  LocalTransferState,
+  LanTransferConnectPayload,
+  LanTransferState,
   OperationResult,
   WebviewKeyEvent
 } from '@shared/config/types'
 import type { MCPServerLogEntry } from '@shared/config/types'
 import type { CacheEntry, CacheSyncMessage } from '@shared/data/cache/cacheTypes'
 import type {
-  PreferenceDefaultScopeType,
-  PreferenceKeyType,
-  PreferenceMultipleResultType,
-  SelectionActionItem
+  SelectionActionItem,
+  UnifiedPreferenceKeyType,
+  UnifiedPreferenceMultipleResultType,
+  UnifiedPreferenceType
 } from '@shared/data/preference/preferenceTypes'
 import type { UpgradeChannel } from '@shared/data/preference/preferenceTypes'
 import type { ExternalAppInfo } from '@shared/externalApp/types'
@@ -110,11 +110,7 @@ const api = {
   getDiskInfo: (directoryPath: string): Promise<{ free: number; size: number } | null> =>
     ipcRenderer.invoke(IpcChannel.App_GetDiskInfo, directoryPath),
   reload: () => ipcRenderer.invoke(IpcChannel.App_Reload),
-  quit: () => ipcRenderer.invoke(IpcChannel.App_Quit),
-  setProxy: (proxy: string | undefined, bypassRules?: string) =>
-    ipcRenderer.invoke(IpcChannel.App_Proxy, proxy, bypassRules),
   checkForUpdate: () => ipcRenderer.invoke(IpcChannel.App_CheckForUpdate),
-  quitAndInstall: () => ipcRenderer.invoke(IpcChannel.App_QuitAndInstall),
   // setLanguage: (lang: string) => ipcRenderer.invoke(IpcChannel.App_SetLanguage, lang),
   setEnableSpellCheck: (isEnable: boolean) => ipcRenderer.invoke(IpcChannel.App_SetEnableSpellCheck, isEnable),
   setSpellCheckLanguages: (languages: string[]) => ipcRenderer.invoke(IpcChannel.App_SetSpellCheckLanguages, languages),
@@ -137,10 +133,16 @@ const api = {
   getDataPathFromArgs: () => ipcRenderer.invoke(IpcChannel.App_GetDataPathFromArgs),
   copy: (oldPath: string, newPath: string, occupiedDirs: string[] = []) =>
     ipcRenderer.invoke(IpcChannel.App_Copy, oldPath, newPath, occupiedDirs),
-  setStopQuitApp: (stop: boolean, reason: string) => ipcRenderer.invoke(IpcChannel.App_SetStopQuitApp, stop, reason),
+  quitAndInstall: () => ipcRenderer.invoke(IpcChannel.App_QuitAndInstall),
+  application: {
+    quit: (): Promise<void> => ipcRenderer.invoke(IpcChannel.Application_Quit),
+    preventQuit: (reason: string): Promise<string> => ipcRenderer.invoke(IpcChannel.Application_PreventQuit, reason),
+    allowQuit: (holdId: string): Promise<void> => ipcRenderer.invoke(IpcChannel.Application_AllowQuit, holdId),
+    relaunch: (options?: Electron.RelaunchOptions): Promise<void> =>
+      ipcRenderer.invoke(IpcChannel.Application_Relaunch, options)
+  },
   flushAppData: () => ipcRenderer.invoke(IpcChannel.App_FlushAppData),
   isNotEmptyDir: (path: string) => ipcRenderer.invoke(IpcChannel.App_IsNotEmptyDir, path),
-  relaunchApp: (options?: Electron.RelaunchOptions) => ipcRenderer.invoke(IpcChannel.App_RelaunchApp, options),
   resetData: () => ipcRenderer.invoke(IpcChannel.App_ResetData),
   openWebsite: (url: string) => ipcRenderer.invoke(IpcChannel.Open_Website, url),
   getCacheSize: () => ipcRenderer.invoke(IpcChannel.App_GetCacheSize),
@@ -510,11 +512,6 @@ const api = {
       }
     }
   },
-  storeSync: {
-    subscribe: () => ipcRenderer.invoke(IpcChannel.StoreSync_Subscribe),
-    unsubscribe: () => ipcRenderer.invoke(IpcChannel.StoreSync_Unsubscribe),
-    onUpdate: (action: any) => ipcRenderer.invoke(IpcChannel.StoreSync_OnUpdate, action)
-  },
   selection: {
     hideToolbar: () => ipcRenderer.invoke(IpcChannel.Selection_ToolbarHide),
     writeToClipboard: (text: string) => ipcRenderer.invoke(IpcChannel.Selection_WriteToClipboard, text),
@@ -527,7 +524,8 @@ const api = {
     pinActionWindow: (isPinned: boolean) => ipcRenderer.invoke(IpcChannel.Selection_ActionWindowPin, isPinned),
     // [Windows only] Electron bug workaround - can be removed once https://github.com/electron/electron/issues/48554 is fixed
     resizeActionWindow: (deltaX: number, deltaY: number, direction: string) =>
-      ipcRenderer.invoke(IpcChannel.Selection_ActionWindowResize, deltaX, deltaY, direction)
+      ipcRenderer.invoke(IpcChannel.Selection_ActionWindowResize, deltaX, deltaY, direction),
+    getLinuxEnvInfo: () => ipcRenderer.invoke(IpcChannel.Selection_GetLinuxEnvInfo)
   },
   agentTools: {
     respondToPermission: (payload: {
@@ -571,22 +569,22 @@ const api = {
     hasCredentials: () => ipcRenderer.invoke(IpcChannel.Anthropic_HasCredentials),
     clearCredentials: () => ipcRenderer.invoke(IpcChannel.Anthropic_ClearCredentials)
   },
-  codeTools: {
+  codeCli: {
     run: (
       cliTool: string,
       model: string,
       directory: string,
       env: Record<string, string>,
       options?: { autoUpdateToLatest?: boolean; terminal?: string }
-    ) => ipcRenderer.invoke(IpcChannel.CodeTools_Run, cliTool, model, directory, env, options),
+    ) => ipcRenderer.invoke(IpcChannel.CodeCli_Run, cliTool, model, directory, env, options),
     getAvailableTerminals: (): Promise<TerminalConfig[]> =>
-      ipcRenderer.invoke(IpcChannel.CodeTools_GetAvailableTerminals),
+      ipcRenderer.invoke(IpcChannel.CodeCli_GetAvailableTerminals),
     setCustomTerminalPath: (terminalId: string, path: string): Promise<void> =>
-      ipcRenderer.invoke(IpcChannel.CodeTools_SetCustomTerminalPath, terminalId, path),
+      ipcRenderer.invoke(IpcChannel.CodeCli_SetCustomTerminalPath, terminalId, path),
     getCustomTerminalPath: (terminalId: string): Promise<string | undefined> =>
-      ipcRenderer.invoke(IpcChannel.CodeTools_GetCustomTerminalPath, terminalId),
+      ipcRenderer.invoke(IpcChannel.CodeCli_GetCustomTerminalPath, terminalId),
     removeCustomTerminalPath: (terminalId: string): Promise<void> =>
-      ipcRenderer.invoke(IpcChannel.CodeTools_RemoveCustomTerminalPath, terminalId)
+      ipcRenderer.invoke(IpcChannel.CodeCli_RemoveCustomTerminalPath, terminalId)
   },
   ocr: {
     ocr: (file: SupportedOcrFile, provider: OcrProvider): Promise<OcrResult> =>
@@ -631,18 +629,18 @@ const api = {
   // PreferenceService related APIs
   // DO NOT MODIFY THIS SECTION
   preference: {
-    get: <K extends PreferenceKeyType>(key: K): Promise<PreferenceDefaultScopeType[K]> =>
+    get: <K extends UnifiedPreferenceKeyType>(key: K): Promise<UnifiedPreferenceType[K]> =>
       ipcRenderer.invoke(IpcChannel.Preference_Get, key),
-    set: <K extends PreferenceKeyType>(key: K, value: PreferenceDefaultScopeType[K]): Promise<void> =>
+    set: <K extends UnifiedPreferenceKeyType>(key: K, value: UnifiedPreferenceType[K]): Promise<void> =>
       ipcRenderer.invoke(IpcChannel.Preference_Set, key, value),
-    getMultipleRaw: <K extends PreferenceKeyType>(keys: K[]): Promise<PreferenceMultipleResultType<K>> =>
+    getMultipleRaw: <K extends UnifiedPreferenceKeyType>(keys: K[]): Promise<UnifiedPreferenceMultipleResultType<K>> =>
       ipcRenderer.invoke(IpcChannel.Preference_GetMultipleRaw, keys),
-    setMultiple: (updates: Partial<PreferenceDefaultScopeType>) =>
+    setMultiple: (updates: Partial<UnifiedPreferenceType>) =>
       ipcRenderer.invoke(IpcChannel.Preference_SetMultiple, updates),
-    getAll: (): Promise<PreferenceDefaultScopeType> => ipcRenderer.invoke(IpcChannel.Preference_GetAll),
-    subscribe: (keys: PreferenceKeyType[]) => ipcRenderer.invoke(IpcChannel.Preference_Subscribe, keys),
-    onChanged: (callback: (key: PreferenceKeyType, value: any) => void) => {
-      const listener = (_: any, key: PreferenceKeyType, value: any) => callback(key, value)
+    getAll: (): Promise<UnifiedPreferenceType> => ipcRenderer.invoke(IpcChannel.Preference_GetAll),
+    subscribe: (keys: UnifiedPreferenceKeyType[]) => ipcRenderer.invoke(IpcChannel.Preference_Subscribe, keys),
+    onChanged: (callback: (key: UnifiedPreferenceKeyType, value: any) => void) => {
+      const listener = (_: any, key: UnifiedPreferenceKeyType, value: any) => callback(key, value)
       ipcRenderer.on(IpcChannel.Preference_Changed, listener)
       return () => ipcRenderer.off(IpcChannel.Preference_Changed, listener)
     }
@@ -688,23 +686,23 @@ const api = {
     installFromDirectory: (options: InstallFromDirectoryOptions): Promise<PluginResult<InstallFromSourceResult>> =>
       ipcRenderer.invoke(IpcChannel.ClaudeCodePlugin_InstallFromDirectory, options)
   },
-  localTransfer: {
-    getState: (): Promise<LocalTransferState> => ipcRenderer.invoke(IpcChannel.LocalTransfer_ListServices),
-    startScan: (): Promise<LocalTransferState> => ipcRenderer.invoke(IpcChannel.LocalTransfer_StartScan),
-    stopScan: (): Promise<LocalTransferState> => ipcRenderer.invoke(IpcChannel.LocalTransfer_StopScan),
-    connect: (payload: LocalTransferConnectPayload): Promise<LanHandshakeAckMessage> =>
-      ipcRenderer.invoke(IpcChannel.LocalTransfer_Connect, payload),
-    disconnect: (): Promise<void> => ipcRenderer.invoke(IpcChannel.LocalTransfer_Disconnect),
-    onServicesUpdated: (callback: (state: LocalTransferState) => void): (() => void) => {
-      const channel = IpcChannel.LocalTransfer_ServicesUpdated
-      const listener = (_: Electron.IpcRendererEvent, state: LocalTransferState) => callback(state)
+  lanTransfer: {
+    getState: (): Promise<LanTransferState> => ipcRenderer.invoke(IpcChannel.LanTransfer_ListServices),
+    startScan: (): Promise<LanTransferState> => ipcRenderer.invoke(IpcChannel.LanTransfer_StartScan),
+    stopScan: (): Promise<LanTransferState> => ipcRenderer.invoke(IpcChannel.LanTransfer_StopScan),
+    connect: (payload: LanTransferConnectPayload): Promise<LanHandshakeAckMessage> =>
+      ipcRenderer.invoke(IpcChannel.LanTransfer_Connect, payload),
+    disconnect: (): Promise<void> => ipcRenderer.invoke(IpcChannel.LanTransfer_Disconnect),
+    onServicesUpdated: (callback: (state: LanTransferState) => void): (() => void) => {
+      const channel = IpcChannel.LanTransfer_ServicesUpdated
+      const listener = (_: Electron.IpcRendererEvent, state: LanTransferState) => callback(state)
       ipcRenderer.on(channel, listener)
       return () => {
         ipcRenderer.removeListener(channel, listener)
       }
     },
     onClientEvent: (callback: (event: LanClientEvent) => void): (() => void) => {
-      const channel = IpcChannel.LocalTransfer_ClientEvent
+      const channel = IpcChannel.LanTransfer_ClientEvent
       const listener = (_: Electron.IpcRendererEvent, event: LanClientEvent) => callback(event)
       ipcRenderer.on(channel, listener)
       return () => {
@@ -712,8 +710,8 @@ const api = {
       }
     },
     sendFile: (filePath: string): Promise<LanFileCompleteMessage> =>
-      ipcRenderer.invoke(IpcChannel.LocalTransfer_SendFile, { filePath }),
-    cancelTransfer: (): Promise<void> => ipcRenderer.invoke(IpcChannel.LocalTransfer_CancelTransfer)
+      ipcRenderer.invoke(IpcChannel.LanTransfer_SendFile, { filePath }),
+    cancelTransfer: (): Promise<void> => ipcRenderer.invoke(IpcChannel.LanTransfer_CancelTransfer)
   },
   openclaw: {
     checkInstalled: (): Promise<{ installed: boolean; path: string | null; needsMigration: boolean }> =>

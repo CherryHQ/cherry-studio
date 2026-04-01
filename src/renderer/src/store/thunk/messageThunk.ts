@@ -20,8 +20,7 @@ import { AiSdkToChunkAdapter } from '@renderer/aiCore/chunk/AiSdkToChunkAdapter'
 import { AgentApiClient } from '@renderer/api/agent'
 import db from '@renderer/databases'
 import { fetchMessagesSummary, transformMessagesAndFetch } from '@renderer/services/ApiService'
-import { dbService } from '@renderer/services/db'
-import { DbService } from '@renderer/services/db/DbService'
+import { dbService } from '@renderer/services/db/DbService'
 import FileManager from '@renderer/services/FileManager'
 import { BlockManager } from '@renderer/services/messageStreaming/BlockManager'
 import { createCallbacks } from '@renderer/services/messageStreaming/callbacks'
@@ -95,7 +94,7 @@ type AgentSessionContext = {
 }
 
 const agentSessionRenameLocks = new Set<string>()
-const dbFacade = DbService.getInstance()
+const dbFacade = dbService
 
 const findExistingAgentSessionContext = (
   state: RootState,
@@ -338,6 +337,49 @@ const createSSEReadableStream = (
   })
 }
 
+/**
+ * Wraps a parsed stream with abort-signal lifecycle handling.
+ * In the normal chat pipeline the AI SDK runtime converts abort signals into
+ * `{ type: 'abort' }` stream parts. The agent pipeline bypasses the AI SDK
+ * runtime, so this middleware fills that gap — keeping the SSE parser
+ * (transport) and the chunk adapter (protocol) free of lifecycle concerns.
+ */
+const withAbortStreamPart = (
+  source: ReadableStream<TextStreamPart<Record<string, any>>>,
+  signal: AbortSignal
+): ReadableStream<TextStreamPart<Record<string, any>>> => {
+  const reader = source.getReader()
+
+  return new ReadableStream<TextStreamPart<Record<string, any>>>({
+    async pull(controller) {
+      try {
+        const { value, done } = await reader.read()
+        if (done) {
+          controller.close()
+          return
+        }
+        controller.enqueue(value)
+      } catch (error) {
+        // When the source errors due to abort, emit the abort stream part
+        // so downstream consumers (AiSdkToChunkAdapter) can fire onError.
+        if (signal.aborted) {
+          try {
+            controller.enqueue({ type: 'abort' } as TextStreamPart<Record<string, any>>)
+          } catch {
+            // Controller may already be closed
+          }
+          controller.close()
+        } else {
+          controller.error(error)
+        }
+      }
+    },
+    cancel(reason) {
+      return reader.cancel(reason)
+    }
+  })
+}
+
 const createAgentMessageStream = async (
   apiServer: ApiServerConfig,
   agentSession: AgentSessionContext,
@@ -376,7 +418,8 @@ const createAgentMessageStream = async (
     throw new Error('Agent message stream has no body')
   }
 
-  return createSSEReadableStream(response.body, signal)
+  const sseStream = createSSEReadableStream(response.body, signal)
+  return withAbortStreamPart(sseStream, signal)
 }
 // TODO: 后续可以将db操作移到Listener Middleware中
 // export const saveMessageAndBlocksToDB = async (message: Message, blocks: MessageBlock[], messageIndex: number = -1) => {

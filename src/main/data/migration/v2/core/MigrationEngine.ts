@@ -4,14 +4,15 @@
  */
 
 import { appStateTable } from '@data/db/schemas/appState'
+import { knowledgeBaseTable, knowledgeItemTable } from '@data/db/schemas/knowledge'
 import { mcpServerTable } from '@data/db/schemas/mcpServer'
 import { messageTable } from '@data/db/schemas/message'
 import { preferenceTable } from '@data/db/schemas/preference'
 import { topicTable } from '@data/db/schemas/topic'
 import { translateHistoryTable } from '@data/db/schemas/translateHistory'
 import { translateLanguageTable } from '@data/db/schemas/translateLanguage'
+import type { DbType } from '@data/db/types'
 import { loggerService } from '@logger'
-import { application } from '@main/core/application'
 import type {
   MigrationProgress,
   MigrationResult,
@@ -28,11 +29,11 @@ import path from 'path'
 
 import type { BaseMigrator, ProgressMessage } from '../migrators/BaseMigrator'
 import { createMigrationContext } from './MigrationContext'
+import { MigrationDbService } from './MigrationDbService'
 
 // TODO: Import these tables when they are created in user data schema
 // import { assistantTable } from '../../db/schemas/assistant'
 // import { fileTable } from '../../db/schemas/file'
-// import { knowledgeBaseTable } from '../../db/schemas/knowledgeBase'
 
 const logger = loggerService.withContext('MigrationEngine')
 
@@ -41,8 +42,30 @@ const MIGRATION_V2_STATUS = 'migration_v2_status'
 export class MigrationEngine {
   private migrators: BaseMigrator[] = []
   private progressCallback?: (progress: MigrationProgress) => void
+  private migrationDb: MigrationDbService | null = null
 
-  constructor() {}
+  /**
+   * Initialize the migration engine by creating a bare DB connection.
+   * Must be called before needsMigration() or run().
+   */
+  async initialize(): Promise<void> {
+    this.migrationDb = await MigrationDbService.create()
+  }
+
+  /**
+   * Close the bare DB connection. Call when migration is not needed.
+   */
+  close(): void {
+    this.migrationDb?.close()
+    this.migrationDb = null
+  }
+
+  private getDb(): DbType {
+    if (!this.migrationDb) {
+      throw new Error('MigrationEngine not initialized — call initialize() first')
+    }
+    return this.migrationDb.getDb()
+  }
 
   /**
    * Register migrators in execution order
@@ -66,7 +89,7 @@ export class MigrationEngine {
    */
   //TODO 不能仅仅判断数据库，如果是全新安装，而不是升级上来的用户，其实并不需要迁移，但是按现在的逻辑，还是会进行迁移，这不正确
   async needsMigration(): Promise<boolean> {
-    const db = application.get('DbService').getDb()
+    const db = this.getDb()
     const status = await db.select().from(appStateTable).where(eq(appStateTable.key, MIGRATION_V2_STATUS)).get()
 
     if (status?.value) {
@@ -103,7 +126,7 @@ export class MigrationEngine {
    * Get last migration error (for UI display)
    */
   async getLastError(): Promise<string | null> {
-    const db = application.get('DbService').getDb()
+    const db = this.getDb()
     const status = await db.select().from(appStateTable).where(eq(appStateTable.key, MIGRATION_V2_STATUS)).get()
 
     if (status?.value) {
@@ -129,11 +152,15 @@ export class MigrationEngine {
     const results: MigratorResult[] = []
 
     try {
+      for (const migrator of this.migrators) {
+        migrator.reset()
+      }
+
       // Safety check: verify new tables status before clearing
       await this.verifyAndClearNewTables()
 
       // Create migration context
-      const context = await createMigrationContext(reduxData, dexieExportPath, localStorageExportPath)
+      const context = await createMigrationContext(this.getDb(), reduxData, dexieExportPath, localStorageExportPath)
 
       for (let i = 0; i < this.migrators.length; i++) {
         const migrator = this.migrators[i]
@@ -188,6 +215,9 @@ export class MigrationEngine {
         this.updateProgress('migration', this.calculateProgress(i + 1, 0), migrator)
       }
 
+      // Verify FK integrity after all inserts (FK was off during bulk inserts)
+      await this.verifyForeignKeys()
+
       // Mark migration completed
       await this.markCompleted()
 
@@ -230,7 +260,7 @@ export class MigrationEngine {
    * Safety check: log if tables are not empty (may indicate previous failed migration)
    */
   private async verifyAndClearNewTables(): Promise<void> {
-    const db = application.get('DbService').getDb()
+    const db = this.getDb()
 
     // Tables to clear - add more as they are created
     // Order matters: child tables must be cleared before parent tables
@@ -240,11 +270,12 @@ export class MigrationEngine {
       { table: mcpServerTable, name: 'mcp_server' },
       { table: preferenceTable, name: 'preference' },
       { table: translateHistoryTable, name: 'translate_history' },
-      { table: translateLanguageTable, name: 'translate_language' }
+      { table: translateLanguageTable, name: 'translate_language' },
+      { table: knowledgeItemTable, name: 'knowledge_item' }, // Must clear before knowledge_base (FK reference)
+      { table: knowledgeBaseTable, name: 'knowledge_base' }
       // TODO: Add these when tables are created
       // { table: assistantTable, name: 'assistant' },
-      // { table: fileTable, name: 'file' },
-      // { table: knowledgeBaseTable, name: 'knowledge_base' }
+      // { table: fileTable, name: 'file' }
     ]
 
     // Check if tables have data (safety check)
@@ -264,12 +295,39 @@ export class MigrationEngine {
     await db.delete(preferenceTable)
     await db.delete(translateHistoryTable)
     await db.delete(translateLanguageTable)
+    await db.delete(knowledgeItemTable)
+    // Knowledge items reference knowledge bases
+    await db.delete(knowledgeBaseTable)
     // TODO: Add these when tables are created (in correct order)
     // await db.delete(fileTable)
-    // await db.delete(knowledgeBaseTable)
     // await db.delete(assistantTable)
 
     logger.info('All new architecture tables cleared successfully')
+  }
+
+  /**
+   * Verify foreign key integrity after all data has been inserted.
+   * FK constraints were disabled during bulk inserts for performance;
+   * this post-insert check ensures referential integrity is correct.
+   */
+  private async verifyForeignKeys(): Promise<void> {
+    const db = this.getDb()
+
+    // PRAGMA foreign_key_check scans ALL tables for FK violations.
+    // Returns rows: { table, rowid, parent, fkid } for each violation.
+    const violations = await db.all<{ table: string; rowid: number; parent: string; fkid: number }>(
+      sql`PRAGMA foreign_key_check`
+    )
+
+    if (violations.length > 0) {
+      const sample = violations
+        .slice(0, 5)
+        .map((v) => `${v.table}(rowid=${v.rowid})→${v.parent}`)
+        .join('; ')
+      throw new Error(`Foreign key check failed: ${violations.length} violation(s). Sample: ${sample}`)
+    }
+
+    logger.info('Foreign key integrity verified')
   }
 
   /**
@@ -363,7 +421,7 @@ export class MigrationEngine {
    * Mark migration as completed in app_state
    */
   private async markCompleted(): Promise<void> {
-    const db = application.get('DbService').getDb()
+    const db = this.getDb()
     const statusValue: MigrationStatusValue = {
       status: 'completed',
       completedAt: Date.now(),
@@ -390,7 +448,7 @@ export class MigrationEngine {
    * Mark migration as failed in app_state with error details
    */
   private async markFailed(error: string): Promise<void> {
-    const db = application.get('DbService').getDb()
+    const db = this.getDb()
     const statusValue: MigrationStatusValue = {
       status: 'failed',
       failedAt: Date.now(),

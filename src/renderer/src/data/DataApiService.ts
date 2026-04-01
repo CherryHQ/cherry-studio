@@ -63,7 +63,6 @@ interface RetryOptions {
  * Focuses on IPC communication between renderer and main process
  */
 export class DataApiService implements ApiClient {
-  private static instance: DataApiService
   private requestId = 0
 
   // Subscriptions
@@ -83,18 +82,8 @@ export class DataApiService implements ApiClient {
     backoffMultiplier: 2
   }
 
-  private constructor() {
+  constructor() {
     // Initialization completed
-  }
-
-  /**
-   * Get singleton instance
-   */
-  public static getInstance(): DataApiService {
-    if (!DataApiService.instance) {
-      DataApiService.instance = new DataApiService()
-    }
-    return DataApiService.instance
   }
 
   /**
@@ -137,7 +126,7 @@ export class DataApiService implements ApiClient {
     const requestContext: RequestContext = {
       requestId: request.id,
       path: request.path,
-      method: request.method as HttpMethod,
+      method: request.method,
       timestamp: Date.now()
     }
 
@@ -376,4 +365,4 @@ export class DataApiService implements ApiClient {
 }
 
 // Export singleton instance
-export const dataApiService = DataApiService.getInstance()
+export const dataApiService = new DataApiService()

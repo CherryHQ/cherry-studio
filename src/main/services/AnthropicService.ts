@@ -223,4 +223,4 @@ class AnthropicService extends Error {
   }
 }
 
-export default new AnthropicService()
+export const anthropicService = new AnthropicService()

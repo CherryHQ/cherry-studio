@@ -120,7 +120,6 @@ export type UseCacheSchema = {
   'chat.selected_message_ids': string[]
   'chat.generating': boolean
   'chat.web_search.searching': boolean
-  'chat.web_search.active_searches': CacheValueTypes.CacheActiveSearches
 
   // Minapp management
   'minapp.opened_keep_alive': CacheValueTypes.CacheMinAppType[]
@@ -188,7 +187,6 @@ export const DefaultUseCache: UseCacheSchema = {
   'chat.selected_message_ids': [],
   'chat.generating': false,
   'chat.web_search.searching': false,
-  'chat.web_search.active_searches': {},
 
   // Minapp management
   'minapp.opened_keep_alive': [],
@@ -231,11 +229,11 @@ export const DefaultUseCache: UseCacheSchema = {
  * Use shared cache schema for renderer hook
  */
 export type SharedCacheSchema = {
-  'example_scope.example_key': string
+  'chat.web_search.active_searches': CacheValueTypes.CacheActiveSearches
 }
 
 export const DefaultSharedCache: SharedCacheSchema = {
-  'example_scope.example_key': 'example default value'
+  'chat.web_search.active_searches': {}
 }
 
 /**

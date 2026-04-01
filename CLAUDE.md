@@ -83,11 +83,12 @@ If the skill is unavailable, directly read `.agents/skills/gh-create-issue/SKILL
 
 **MUST READ**: [docs/en/references/data/README.md](docs/en/references/data/README.md) for system selection, architecture, and patterns.
 
-| System     | Use Case                     | APIs                                            |
-| ---------- | ---------------------------- | ----------------------------------------------- |
-| Cache      | Temp data (can lose)         | `useCache`, `useSharedCache`, `usePersistCache` |
-| Preference | User settings                | `usePreference`                                 |
-| DataApi    | Business data (**critical**) | `useQuery`, `useMutation`                       |
+| System     | Use Case                        | APIs                                            |
+| ---------- | ------------------------------- | ----------------------------------------------- |
+| BootConfig | Early boot settings (pre-lifecycle) | `bootConfigService.get()`, `usePreference('BootConfig.*')` |
+| Cache      | Temp data (can lose)            | `useCache`, `useSharedCache`, `usePersistCache` |
+| Preference | User settings                   | `usePreference`                                 |
+| DataApi    | Business data (**critical**)    | `useQuery`, `useMutation`                       |
 
 Database: SQLite + Drizzle ORM, schemas in `src/main/data/db/schemas/`, migrations via `yarn db:migrations:generate`
 
@@ -108,43 +109,24 @@ Database: SQLite + Drizzle ORM, schemas in `src/main/data/db/schemas/`, migratio
 
 #### Main Process Services (Lifecycle)
 
-**MUST READ**: [src/main/core/application/README.md](src/main/core/application/README.md) and [src/main/core/lifecycle/README.md](src/main/core/lifecycle/README.md)
+**MUST READ**: [docs/en/references/lifecycle/README.md](docs/en/references/lifecycle/README.md) — architecture, decision guides, usage patterns, and migration steps.
 
-All main-process services must use the lifecycle system. When creating or migrating a service:
+All main-process services that own long-lived resources or register persistent side effects **must** use the lifecycle system:
 
-1. **Extend `BaseService`** and apply decorators:
+- **Extend `BaseService`**, apply `@Injectable`, `@ServicePhase`, `@DependsOn` decorators
+- **Register in `serviceRegistry.ts`** (`src/main/core/application/serviceRegistry.ts`) — one line per service
+- **Access via `application.get('Name')`** (or `getOptional()` for `@Conditional` services)
+- **Use `this.ipcHandle()` / `this.ipcOn()`** for IPC — auto-cleaned on stop/destroy, returns `Disposable`
+- **Use `this.registerDisposable()`** for cleanup tracking — accepts `Disposable` objects or `() => void` cleanup functions
+- **Use `Emitter<T>` / `Event<T>`** for inter-service events, **`Signal<T>`** for one-shot completion
+- **Implement `Activatable`** for services with heavy on-demand resources (IPC stays registered, resources load/release via `onActivate()`/`onDeactivate()`)
+- **Do NOT** use `new` or manual singleton patterns — the container manages instantiation, ordering, and shutdown
 
-```typescript
-import { BaseService, Injectable, DependsOn, ServicePhase, Phase } from '@main/core/lifecycle'
+For detailed code examples, see [Usage Guide](docs/en/references/lifecycle/lifecycle-usage.md). For migrating legacy services, see [Migration Guide](docs/en/references/lifecycle/lifecycle-migration-guide.md).
 
-@Injectable('MyService')
-@ServicePhase(Phase.WhenReady)        // when to initialize (default: WhenReady)
-@DependsOn(['DbService'])             // what must be ready first
-export class MyService extends BaseService {
-  protected async onInit() { /* setup */ }
-  protected async onStop() { /* cleanup */ }
-}
-```
+#### Non-Lifecycle Services (Direct-Import Singleton)
 
-2. **Register in `serviceRegistry.ts`** (`src/main/core/application/serviceRegistry.ts`):
-
-```typescript
-export const services = {
-  // ...existing
-  MyService,  // ← one line, types auto-derived
-} as const
-```
-
-3. **Access at runtime** via the type-safe `application.get()`:
-
-```typescript
-import { application } from '@main/core/application'
-const myService = application.get('MyService')
-```
-
-**Do NOT** instantiate services with `new` or use manual singleton patterns for new services — the lifecycle container manages instantiation, ordering, and shutdown automatically.
-
-> **Migrating old services?** See the step-by-step migration guide in [src/main/core/lifecycle/README.md § Migrating from Old Service Patterns](src/main/core/lifecycle/README.md#migrating-from-old-service-patterns).
+Services without long-lived resources or persistent side effects: use **named export singleton** (`export const x = new X()`). No `getInstance()` patterns. See [Decision Guide](docs/en/references/lifecycle/lifecycle-decision-guide.md) for criteria.
 
 ### Key Patterns
 
@@ -168,6 +150,22 @@ The v2 branch is undergoing a major refactoring effort:
 - **Removing**: antd, HeroUI, styled-components
 - **Adopting**: `@cherrystudio/ui` (located in `packages/ui`, Tailwind CSS + Shadcn UI)
 - **Prohibited**: antd, HeroUI, styled-components
+
+### Data Classification Toolchain
+
+The `v2-refactor-temp/tools/data-classify/` directory contains the code generation pipeline for the v2 data layer. `classification.json` is the single source of truth.
+
+**Rule**: After modifying `classification.json` or `target-key-definitions.json`, you **MUST** run:
+
+```bash
+cd v2-refactor-temp/tools/data-classify && npm run generate
+```
+
+This regenerates the following TypeScript files:
+- `packages/shared/data/preference/preferenceSchemas.ts`
+- `packages/shared/data/bootConfig/bootConfigSchemas.ts`
+- `src/main/data/migration/v2/migrators/mappings/PreferencesMappings.ts`
+- `src/main/data/migration/v2/migrators/mappings/BootConfigMappings.ts`
 
 ### File Naming Convention
 

@@ -215,7 +215,7 @@ const MessageMenubar: FC<Props> = (props) => {
 
       let contentToCopy = ''
       if (latestMessageEntity) {
-        contentToCopy = getMainTextContent(latestMessageEntity as Message)
+        contentToCopy = getMainTextContent(latestMessageEntity)
       } else {
         contentToCopy = getMainTextContent(message)
       }

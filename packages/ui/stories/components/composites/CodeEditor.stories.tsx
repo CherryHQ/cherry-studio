@@ -97,8 +97,8 @@ export const Default: Story = {
   render: (args) => (
     <div className="w-[720px]">
       <CodeEditor
-        value={args.value as string}
-        language={args.language as string}
+        value={args.value}
+        language={args.language}
         languageConfig={exampleLanguageConfig}
         theme={getCmThemeByName((args as any).theme || 'light')}
         fontSize={args.fontSize as number}
@@ -106,9 +106,9 @@ export const Default: Story = {
         readOnly={args.readOnly as boolean}
         expanded={args.expanded as boolean}
         wrapped={args.wrapped as boolean}
-        height={args.height as string | undefined}
-        maxHeight={args.maxHeight as string | undefined}
-        minHeight={args.minHeight as string | undefined}
+        height={args.height}
+        maxHeight={args.maxHeight}
+        minHeight={args.minHeight}
         onChange={action('change')}
         onBlur={action('blur')}
         onHeightChange={action('height')}
@@ -128,7 +128,7 @@ export const JSONLint: Story = {
   render: (args) => (
     <div className="w-[720px]">
       <CodeEditor
-        value={args.value as string}
+        value={args.value}
         language="json"
         theme={getCmThemeByName((args as any).theme || 'light')}
         options={{ lint: true }}
@@ -151,8 +151,8 @@ export const SaveShortcut: Story = {
   render: (args) => (
     <div className="w-[720px] space-y-3">
       <CodeEditor
-        value={args.value as string}
-        language={args.language as string}
+        value={args.value}
+        language={args.language}
         languageConfig={exampleLanguageConfig}
         theme={getCmThemeByName((args as any).theme || 'light')}
         options={{ keymap: true }}
@@ -182,8 +182,8 @@ console.log(fibonacci(10));`,
   render: (args) => (
     <div className="w-[720px] space-y-3">
       <CodeEditor
-        value={args.value as string}
-        language={args.language as string}
+        value={args.value}
+        language={args.language}
         // 注意：这里没有传入 languageConfig，使用默认配置
         theme={getCmThemeByName((args as any).theme || 'light')}
         onChange={action('change')}

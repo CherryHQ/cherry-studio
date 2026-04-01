@@ -49,7 +49,7 @@ function tryResolveProviderId(identifier: string): ProviderId | null {
   // 2. 检查AiCore是否支持（包括别名支持）
   if (hasProviderConfigByAlias(identifier)) {
     // 解析为真实的Provider ID
-    return resolveProviderConfigId(identifier) as ProviderId
+    return resolveProviderConfigId(identifier)
   }
 
   return null

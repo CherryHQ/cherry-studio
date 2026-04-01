@@ -25,17 +25,6 @@ function rowToTranslateLanguage(row: typeof translateLanguageTable.$inferSelect)
 }
 
 export class TranslateLanguageService {
-  private static instance: TranslateLanguageService
-
-  private constructor() {}
-
-  public static getInstance(): TranslateLanguageService {
-    if (!TranslateLanguageService.instance) {
-      TranslateLanguageService.instance = new TranslateLanguageService()
-    }
-    return TranslateLanguageService.instance
-  }
-
   async list(): Promise<TranslateLanguage[]> {
     const db = application.get('DbService').getDb()
     const rows = await db.select().from(translateLanguageTable).orderBy(asc(translateLanguageTable.createdAt))
@@ -143,4 +132,4 @@ export class TranslateLanguageService {
   }
 }
 
-export const translateLanguageService = TranslateLanguageService.getInstance()
+export const translateLanguageService = new TranslateLanguageService()

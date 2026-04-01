@@ -1,12 +1,12 @@
 /**
  * Bridge module for Hub server to access MCPService.
  */
-import mcpService from '@main/services/MCPService'
+import { application } from '@main/core/application'
 import type { MCPCallToolResponse, MCPTool, MCPToolResultContent } from '@types'
 
 import { buildToolNameMapping, resolveToolId, type ToolIdentity, type ToolNameMapping } from './toolname'
 
-export const listAllTools = () => mcpService.listAllActiveServerTools()
+export const listAllTools = () => application.get('MCPService').listAllActiveServerTools()
 
 let toolNameMapping: ToolNameMapping | null = null
 
@@ -109,13 +109,13 @@ export const callMcpTool = async (nameOrId: string, params: unknown, callId?: st
     throw new Error(`Tool not found: ${nameOrId}`)
   }
 
-  const result = await mcpService.callToolById(toolId, params, callId)
+  const result = await application.get('MCPService').callToolById(toolId, params, callId)
   throwIfToolError(result)
   return extractToolResult(result)
 }
 
 export const abortMcpTool = async (callId: string): Promise<boolean> => {
-  return mcpService.abortTool(null as unknown as Electron.IpcMainInvokeEvent, callId)
+  return application.get('MCPService').abortTool(callId)
 }
 
 function extractToolResult(result: MCPCallToolResponse): unknown {

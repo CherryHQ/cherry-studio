@@ -3,7 +3,6 @@ import { loggerService } from '@logger'
 
 import { startAutoSync } from './services/BackupService'
 import { startNutstoreAutoSync } from './services/NutstoreService'
-import storeSyncService from './services/StoreSyncService'
 import { webTraceService } from './services/WebTraceService'
 loggerService.initWindowSource('mainWindow')
 
@@ -25,14 +24,9 @@ function initAutoSync() {
   }, 8000)
 }
 
-function initStoreSync() {
-  storeSyncService.subscribe()
-}
-
 function initWebTrace() {
   webTraceService.init()
 }
 
 initAutoSync()
-initStoreSync()
 initWebTrace()

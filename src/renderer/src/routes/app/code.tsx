@@ -1,6 +1,6 @@
-import CodeToolsPage from '@renderer/pages/code/CodeToolsPage'
+import CodeCliPage from '@renderer/pages/code/CodeCliPage'
 import { createFileRoute } from '@tanstack/react-router'
 
 export const Route = createFileRoute('/app/code')({
-  component: CodeToolsPage
+  component: CodeCliPage
 })

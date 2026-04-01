@@ -14,7 +14,7 @@ import pt_PT from 'emoji-picker-element/i18n/pt_PT'
 import ru_RU from 'emoji-picker-element/i18n/ru_RU'
 import zh_CN from 'emoji-picker-element/i18n/zh_CN'
 import type Picker from 'emoji-picker-element/picker'
-import type { EmojiClickEvent, NativeEmoji } from 'emoji-picker-element/shared'
+import type { EmojiClickEvent } from 'emoji-picker-element/shared'
 // Emoji data from emoji-picker-element-data (local, no CDN)
 // Using CLDR format for full multi-language search support (28 languages)
 import dataDE from 'emoji-picker-element-data/de/cldr/data.json?url'
@@ -109,7 +109,7 @@ const EmojiPicker: FC<Props> = ({ onEmojiClick }) => {
         event.stopPropagation()
         const { detail } = event
         // Use detail.unicode (processed with skin tone) or fallback to emoji's unicode for native emoji
-        const unicode = detail.unicode || ('unicode' in detail.emoji ? (detail.emoji as NativeEmoji).unicode : '')
+        const unicode = detail.unicode || ('unicode' in detail.emoji ? detail.emoji.unicode : '')
         onEmojiClick(unicode)
       }
       // 添加事件监听器

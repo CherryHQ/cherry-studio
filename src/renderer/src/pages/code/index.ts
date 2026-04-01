@@ -46,7 +46,9 @@ export const OPENAI_CODEX_SUPPORTED_PROVIDERS = ['openai', 'openrouter', 'aihubm
 // Provider 过滤映射
 export const CLI_TOOL_PROVIDER_MAP: Record<string, (providers: Provider[]) => Provider[]> = {
   [codeCLI.claudeCode]: (providers) =>
-    providers.filter((p) => p.type === 'anthropic' || CLAUDE_SUPPORTED_PROVIDERS.includes(p.id)),
+    providers.filter(
+      (p) => p.type === 'anthropic' || CLAUDE_SUPPORTED_PROVIDERS.includes(p.id) || !!p.anthropicApiHost
+    ),
   [codeCLI.geminiCli]: (providers) =>
     providers.filter((p) => p.type === 'gemini' || GEMINI_SUPPORTED_PROVIDERS.includes(p.id)),
   [codeCLI.qwenCode]: (providers) => providers.filter((p) => p.type.includes('openai')),
@@ -59,8 +61,8 @@ export const CLI_TOOL_PROVIDER_MAP: Record<string, (providers: Provider[]) => Pr
     providers.filter((p) => ['openai', 'openai-response', 'anthropic'].includes(p.type))
 }
 
-export const getCodeToolsApiBaseUrl = (model: Model, type: EndpointType) => {
-  const CODE_TOOLS_API_ENDPOINTS = {
+export const getCodeCliApiBaseUrl = (model: Model, type: EndpointType) => {
+  const CODE_CLI_API_ENDPOINTS = {
     aihubmix: {
       gemini: {
         api_base_url: 'https://aihubmix.com/gemini'
@@ -105,7 +107,7 @@ export const getCodeToolsApiBaseUrl = (model: Model, type: EndpointType) => {
 
   const provider = model.provider
 
-  return CODE_TOOLS_API_ENDPOINTS[provider]?.[type]?.api_base_url
+  return CODE_CLI_API_ENDPOINTS[provider]?.[type]?.api_base_url
 }
 
 // 解析环境变量字符串为对象
@@ -151,9 +153,9 @@ export const generateToolEnvironment = ({
   const formattedBaseUrl = formatApiHost(baseUrl)
 
   switch (tool) {
-    case codeCLI.claudeCode:
+    case codeCLI.claudeCode: {
       env.ANTHROPIC_BASE_URL =
-        getCodeToolsApiBaseUrl(model, 'anthropic') || modelProvider.anthropicApiHost || modelProvider.apiHost
+        getCodeCliApiBaseUrl(model, 'anthropic') || modelProvider.anthropicApiHost || modelProvider.apiHost
       env.ANTHROPIC_MODEL = model.id
       if (modelProvider.type === 'anthropic') {
         env.ANTHROPIC_API_KEY = apiKey
@@ -161,9 +163,10 @@ export const generateToolEnvironment = ({
         env.ANTHROPIC_AUTH_TOKEN = apiKey
       }
       break
+    }
 
     case codeCLI.geminiCli: {
-      const apiBaseUrl = getCodeToolsApiBaseUrl(model, 'gemini') || modelProvider.apiHost
+      const apiBaseUrl = getCodeCliApiBaseUrl(model, 'gemini') || modelProvider.apiHost
       env.GEMINI_API_KEY = apiKey
       env.GEMINI_BASE_URL = apiBaseUrl
       env.GOOGLE_GEMINI_BASE_URL = apiBaseUrl
@@ -220,7 +223,7 @@ export const generateToolEnvironment = ({
         }
         env.OPENCODE_PROVIDER_TYPE = providerType
         env.OPENCODE_PROVIDER_NAME = providerName
-        const envVarKey = `OPENCODE_API_KEY_${providerName.toUpperCase().replace(/-/g, '_')}`
+        const envVarKey = `OPENCODE_API_KEY_${providerName.toUpperCase().replace(/[-.]/g, '_')}`
         env[envVarKey] = apiKey
       }
       break
@@ -229,4 +232,4 @@ export const generateToolEnvironment = ({
   return { env }
 }
 
-export { default } from './CodeToolsPage'
+export { default } from './CodeCliPage'

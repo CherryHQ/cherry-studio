@@ -44,10 +44,15 @@ const getIsOvmsSupported = async (): Promise<boolean> => {
   }
 }
 
-const ProviderList: FC = () => {
+interface ProviderListProps {
+  /** Whether in onboarding mode for new users */
+  isOnboarding?: boolean
+}
+
+const ProviderList: FC<ProviderListProps> = ({ isOnboarding = false }) => {
   // TODO: Define validateSearch in routes/settings/provider.tsx and replace with Route.useSearch()
   // for type-safe search params. Currently using untyped useSearch as a stopgap after removing react-router-dom.
-  const search = useSearch({ strict: false }) as Record<string, string | undefined>
+  const search = useSearch({ strict: false })
   const navigate = useNavigate()
   const providers = useAllProviders()
   const { updateProviders, addProvider, removeProvider, updateProvider } = useProviders()
@@ -446,7 +451,7 @@ const ProviderList: FC = () => {
           </Button>
         </AddButtonWrapper>
       </ProviderListContainer>
-      <ProviderSetting providerId={selectedProvider.id} key={selectedProvider.id} />
+      <ProviderSetting providerId={selectedProvider.id} key={selectedProvider.id} isOnboarding={isOnboarding} />
     </Container>
   )
 }
@@ -462,7 +467,6 @@ const ProviderListContainer = styled.div`
   display: flex;
   flex-direction: column;
   min-width: calc(var(--settings-width) + 10px);
-  height: calc(100vh - var(--navbar-height));
   padding-bottom: 5px;
   border-right: 0.5px solid var(--color-border);
 `

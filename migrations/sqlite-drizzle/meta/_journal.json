@@ -39,8 +39,22 @@
     {
       "idx": 5,
       "version": "6",
-      "when": 1774417141518,
-      "tag": "0005_hot_black_cat",
+      "when": 1774262838468,
+      "tag": "0005_shocking_sphinx",
+      "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "6",
+      "when": 1774697808332,
+      "tag": "0006_silly_screwball",
+      "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "6",
+      "when": 1775024356418,
+      "tag": "0007_bouncy_payback",
       "breakpoints": true
     }
   ],

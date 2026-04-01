@@ -7,6 +7,8 @@ import path from 'node:path'
 
 import { loggerService } from '@logger'
 import { isWin } from '@main/constant'
+import { application } from '@main/core/application'
+import { BaseService, DependsOn, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import { isUserInChina } from '@main/utils/ipService'
 import { crossPlatformSpawn, findExecutableInEnv, getBinaryPath, runInstallScript } from '@main/utils/process'
 import getShellEnv, { refreshShellEnv } from '@main/utils/shell-env'
@@ -16,8 +18,7 @@ import { hasAPIVersion, withoutTrailingSlash } from '@shared/utils'
 import type { Model, Provider, ProviderType, VertexProvider } from '@types'
 
 import { parseCurrentVersion, parseUpdateStatus } from './utils/openClawParsers'
-import VertexAIService from './VertexAIService'
-import { windowService } from './WindowService'
+import { vertexAIService } from './VertexAIService'
 
 const logger = loggerService.withContext('OpenClawService')
 
@@ -63,15 +64,18 @@ export interface OpenClawConfig {
   }
 }
 
+export interface OpenClawModelConfig {
+  id: string
+  name: string
+  contextWindow?: number
+  [key: string]: unknown
+}
+
 export interface OpenClawProviderConfig {
   baseUrl: string
   apiKey: string
   api: string
-  models: Array<{
-    id: string
-    name: string
-    contextWindow?: number
-  }>
+  models: OpenClawModelConfig[]
 }
 
 /**
@@ -84,6 +88,16 @@ const OPENCLAW_API_TYPES = {
   ANTHROPIC: 'anthropic-messages',
   OPENAI_RESPOSNE: 'openai-responses'
 } as const
+
+/**
+ * Placeholder API keys for providers that don't require authentication.
+ * OpenClaw requires a non-empty apiKey value even for local providers.
+ * Keys are matched by provider id first, then by provider type.
+ */
+const NO_KEY_PLACEHOLDERS: Record<string, string> = {
+  ollama: 'ollama',
+  lmstudio: 'lmstudio'
+}
 
 /**
  * Providers that always use Anthropic API format
@@ -111,7 +125,10 @@ function isVertexProvider(provider: Provider): provider is VertexProvider {
   return provider.type === 'vertexai'
 }
 
-class OpenClawService {
+@Injectable('OpenClawService')
+@ServicePhase(Phase.WhenReady)
+@DependsOn(['WindowService'])
+export class OpenClawService extends BaseService {
   private gatewayStatus: GatewayStatus = 'stopped'
   private gatewayPort: number = DEFAULT_GATEWAY_PORT
   private gatewayAuthToken: string = ''
@@ -120,19 +137,29 @@ class OpenClawService {
     return `ws://127.0.0.1:${this.gatewayPort}/ws`
   }
 
-  constructor() {
-    this.checkInstalled = this.checkInstalled.bind(this)
-    this.install = this.install.bind(this)
-    this.uninstall = this.uninstall.bind(this)
-    this.startGateway = this.startGateway.bind(this)
-    this.stopGateway = this.stopGateway.bind(this)
-    this.getStatus = this.getStatus.bind(this)
-    this.checkHealth = this.checkHealth.bind(this)
-    this.getDashboardUrl = this.getDashboardUrl.bind(this)
-    this.syncProviderConfig = this.syncProviderConfig.bind(this)
-    this.getChannelStatus = this.getChannelStatus.bind(this)
-    this.checkUpdate = this.checkUpdate.bind(this)
-    this.performUpdate = this.performUpdate.bind(this)
+  protected async onInit(): Promise<void> {
+    this.registerIpcHandlers()
+  }
+
+  protected async onStop(): Promise<void> {
+    await this.stopGateway()
+  }
+
+  private registerIpcHandlers(): void {
+    this.ipcHandle(IpcChannel.OpenClaw_CheckInstalled, () => this.checkInstalled())
+    this.ipcHandle(IpcChannel.OpenClaw_Install, () => this.install())
+    this.ipcHandle(IpcChannel.OpenClaw_Uninstall, () => this.uninstall())
+    this.ipcHandle(IpcChannel.OpenClaw_StartGateway, (_e, port?: number) => this.startGateway(port))
+    this.ipcHandle(IpcChannel.OpenClaw_StopGateway, () => this.stopGateway())
+    this.ipcHandle(IpcChannel.OpenClaw_GetStatus, () => this.getStatus())
+    this.ipcHandle(IpcChannel.OpenClaw_CheckHealth, () => this.checkHealth())
+    this.ipcHandle(IpcChannel.OpenClaw_GetDashboardUrl, () => this.getDashboardUrl())
+    this.ipcHandle(IpcChannel.OpenClaw_SyncConfig, (_e, provider, primaryModel) =>
+      this.syncProviderConfig(provider, primaryModel)
+    )
+    this.ipcHandle(IpcChannel.OpenClaw_GetChannels, () => this.getChannelStatus())
+    this.ipcHandle(IpcChannel.OpenClaw_CheckUpdate, () => this.checkUpdate())
+    this.ipcHandle(IpcChannel.OpenClaw_PerformUpdate, () => this.performUpdate())
   }
 
   /**
@@ -168,7 +195,7 @@ class OpenClawService {
    * Send install progress to renderer
    */
   private sendInstallProgress(message: string, type: 'info' | 'warn' | 'error' = 'info') {
-    const win = windowService.getMainWindow()
+    const win = application.get('WindowService').getMainWindow()
     win?.webContents.send(IpcChannel.OpenClaw_InstallProgress, { message, type })
   }
 
@@ -323,7 +350,7 @@ class OpenClawService {
   /**
    * Start the OpenClaw Gateway
    */
-  public async startGateway(_: Electron.IpcMainInvokeEvent, port?: number): Promise<OperationResult> {
+  public async startGateway(port?: number): Promise<OperationResult> {
     this.gatewayPort = port ?? DEFAULT_GATEWAY_PORT
 
     // Prevent concurrent startup calls
@@ -722,11 +749,7 @@ class OpenClawService {
   /**
    * Sync Cherry Studio Provider configuration to OpenClaw
    */
-  public async syncProviderConfig(
-    _: Electron.IpcMainInvokeEvent,
-    provider: Provider,
-    primaryModel: Model
-  ): Promise<OperationResult> {
+  public async syncProviderConfig(provider: Provider, primaryModel: Model): Promise<OperationResult> {
     try {
       // Ensure config directory exists
       if (!fs.existsSync(OPENCLAW_CONFIG_DIR)) {
@@ -768,7 +791,7 @@ class OpenClawService {
       let apiKey = provider.apiKey ? provider.apiKey.split(',')[0].trim() : ''
       if (isVertexProvider(provider)) {
         try {
-          const vertexService = VertexAIService.getInstance()
+          const vertexService = vertexAIService
           apiKey = await vertexService.getAccessToken({
             projectId: provider.project,
             serviceAccount: {
@@ -781,17 +804,34 @@ class OpenClawService {
         }
       }
 
+      // Providers like Ollama and LM Studio don't require real API keys,
+      // but OpenClaw needs a non-empty placeholder value
+      if (!apiKey) {
+        apiKey = NO_KEY_PLACEHOLDERS[provider.id] ?? NO_KEY_PLACEHOLDERS[provider.type] ?? 'no-key-required'
+      }
+
       // Build OpenClaw provider config
+      // Preserve existing model-level config that users may have modified in OpenClaw
+      // (e.g., vision, custom context window, extra parameters)
+      config.models = config.models || { mode: 'merge', providers: {} }
+      config.models.providers = config.models.providers || {}
+      const existingModels = config.models.providers[providerKey]?.models || []
+      const existingModelMap = new Map(existingModels.map((m) => [m.id, m]))
+
+      // Build OpenClaw provider config with merge strategy
       const openclawProvider: OpenClawProviderConfig = {
         baseUrl,
         apiKey,
         api: apiType,
-        models: provider.models.map((m) => ({
-          id: m.id,
-          name: m.name,
-          // FIXME: in v2
-          contextWindow: 128000
-        }))
+        models: provider.models.map((m) => {
+          const existing = existingModelMap.get(m.id)
+          return {
+            ...existing,
+            id: m.id,
+            name: m.name,
+            contextWindow: existing?.contextWindow ?? 128000
+          }
+        })
       }
 
       // Set gateway mode to local (required for gateway to start)
@@ -804,8 +844,6 @@ class OpenClawService {
       this.gatewayAuthToken = token
 
       // Update config
-      config.models = config.models || { mode: 'merge', providers: {} }
-      config.models.providers = config.models.providers || {}
       config.models.providers[providerKey] = openclawProvider
 
       // Set primary model
@@ -1053,5 +1091,3 @@ class OpenClawService {
     return withoutTrailingSlash(apiHost)
   }
 }
-
-export const openClawService = new OpenClawService()

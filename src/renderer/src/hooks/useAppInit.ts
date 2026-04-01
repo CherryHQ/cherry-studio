@@ -7,9 +7,9 @@ import { useTheme } from '@renderer/context/ThemeProvider'
 import db from '@renderer/databases'
 import { useAppUpdateHandler, useAppUpdateState } from '@renderer/hooks/useAppUpdate'
 import i18n, { setDayjsLocale } from '@renderer/i18n'
-import KnowledgeQueue from '@renderer/queue/KnowledgeQueue'
-import MemoryService from '@renderer/services/MemoryService'
-import { handleSaveData, useAppDispatch, useAppSelector } from '@renderer/store'
+import { knowledgeQueue } from '@renderer/queue/KnowledgeQueue'
+import { memoryService } from '@renderer/services/MemoryService'
+import { useAppDispatch, useAppSelector } from '@renderer/store'
 import { selectMemoryConfig } from '@renderer/store/memory'
 import {
   type ToolPermissionRequestPayload,
@@ -37,10 +37,7 @@ export function useAppInit() {
   const [language] = usePreference('app.language')
   const [windowStyle] = usePreference('ui.window_style')
   const [customCss] = usePreference('ui.custom_css')
-  const [proxyUrl] = usePreference('app.proxy.url')
-  const [proxyBypassRules] = usePreference('app.proxy.bypass_rules')
   const [autoCheckUpdate] = usePreference('app.dist.auto_update.enabled')
-  const [proxyMode] = usePreference('app.proxy.mode')
   const [enableDataCollection] = usePreference('app.privacy.data_collection.enabled')
 
   const { isLeftNavbar } = useNavbarPosition()
@@ -56,8 +53,7 @@ export function useAppInit() {
     // eslint-disable-next-line no-restricted-syntax
     console.timeEnd('init')
 
-    // Initialize MemoryService after app is ready
-    MemoryService.getInstance()
+    // MemoryService is initialized at module level via export const
   }, [])
 
   useEffect(() => {
@@ -68,11 +64,12 @@ export function useAppInit() {
     })
   }, [])
 
-  useEffect(() => {
-    window.electron.ipcRenderer.on(IpcChannel.App_SaveData, async () => {
-      await handleSaveData()
-    })
-  }, [])
+  // [v2] Removed: Redux persistor flush is no longer needed after v2 data refactoring
+  // useEffect(() => {
+  //   window.electron.ipcRenderer.on(IpcChannel.App_SaveData, async () => {
+  //     await handleSaveData()
+  //   })
+  // }, [])
 
   useAppUpdateHandler()
   useFullScreenNotice()
@@ -110,17 +107,6 @@ export function useAppInit() {
   }, [autoCheckUpdate, updateAppUpdateState])
 
   useEffect(() => {
-    if (proxyMode === 'system') {
-      void window.api.setProxy('system', undefined)
-    } else if (proxyMode === 'custom') {
-      void (proxyUrl && window.api.setProxy(proxyUrl, proxyBypassRules))
-    } else {
-      // set proxy to none for direct mode
-      void window.api.setProxy('', undefined)
-    }
-  }, [proxyUrl, proxyMode, proxyBypassRules])
-
-  useEffect(() => {
     const currentLanguage = language || navigator.language || defaultLanguage
     void i18n.changeLanguage(currentLanguage)
     setDayjsLocale(currentLanguage)
@@ -156,7 +142,7 @@ export function useAppInit() {
   }, [])
 
   useEffect(() => {
-    void KnowledgeQueue.checkAllBases()
+    void knowledgeQueue.checkAllBases()
   }, [])
 
   useEffect(() => {
@@ -270,7 +256,6 @@ export function useAppInit() {
 
   // Update memory service configuration when it changes
   useEffect(() => {
-    const memoryService = MemoryService.getInstance()
     memoryService.updateConfig().catch((error) => logger.error('Failed to update memory config:', error))
   }, [memoryConfig])
 

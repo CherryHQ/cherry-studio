@@ -59,7 +59,7 @@ export interface WebSocketCandidatesResponse {
   priority: number
 }
 
-export type LocalTransferPeer = {
+export type LanTransferPeer = {
   id: string
   name: string
   host?: string
@@ -72,8 +72,8 @@ export type LocalTransferPeer = {
   updatedAt: number
 }
 
-export type LocalTransferState = {
-  services: LocalTransferPeer[]
+export type LanTransferState = {
+  services: LanTransferPeer[]
   isScanning: boolean
   lastScanStartedAt?: number
   lastUpdatedAt: number
@@ -94,7 +94,7 @@ export type LanHandshakeAckMessage = {
   message?: string
 }
 
-export type LocalTransferConnectPayload = {
+export type LanTransferConnectPayload = {
   peerId: string
   metadata?: Record<string, string>
   timeoutMs?: number

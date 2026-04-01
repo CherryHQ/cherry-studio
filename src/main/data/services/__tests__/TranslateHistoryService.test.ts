@@ -47,11 +47,11 @@ function createMockRow(overrides: Record<string, unknown> = {}) {
 }
 
 describe('TranslateHistoryService', () => {
-  let service: ReturnType<typeof TranslateHistoryService.getInstance>
+  let service: InstanceType<typeof TranslateHistoryService>
 
   beforeEach(() => {
     vi.clearAllMocks()
-    service = TranslateHistoryService.getInstance()
+    service = new TranslateHistoryService()
   })
 
   describe('list', () => {
@@ -137,7 +137,7 @@ describe('TranslateHistoryService', () => {
         })
       })
 
-      const result = await service.getById(row.id as string)
+      const result = await service.getById(row.id)
       expect(result.id).toBe(row.id)
       expect(result.sourceText).toBe('Hello')
       expect(result.targetText).toBe('Bonjour')
@@ -198,7 +198,7 @@ describe('TranslateHistoryService', () => {
       })
 
       const dto: UpdateTranslateHistoryDto = { star: true }
-      const result = await service.update(row.id as string, dto)
+      const result = await service.update(row.id, dto)
       expect(result.star).toBe(true)
     })
 
@@ -212,7 +212,7 @@ describe('TranslateHistoryService', () => {
         })
       })
 
-      const result = await service.update(row.id as string, {})
+      const result = await service.update(row.id, {})
       expect(result.id).toBe(row.id)
       expect(mockUpdate).not.toHaveBeenCalled()
     })
@@ -232,7 +232,7 @@ describe('TranslateHistoryService', () => {
         where: vi.fn().mockResolvedValue(undefined)
       })
 
-      await expect(service.delete(row.id as string)).resolves.toBeUndefined()
+      await expect(service.delete(row.id)).resolves.toBeUndefined()
     })
 
     it('should throw NotFound for non-existent id', async () => {

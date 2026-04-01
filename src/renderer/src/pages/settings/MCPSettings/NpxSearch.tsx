@@ -2,7 +2,6 @@ import { CheckOutlined, PlusOutlined } from '@ant-design/icons'
 import { Center, RowFlex } from '@cherrystudio/ui'
 import { Flex } from '@cherrystudio/ui'
 import { Button } from '@cherrystudio/ui'
-import { nanoid } from '@reduxjs/toolkit'
 import logo from '@renderer/assets/images/cherry-text-logo.svg'
 import { useMCPServers } from '@renderer/hooks/useMCPServers'
 import type { MCPServer } from '@renderer/types'
@@ -164,13 +163,12 @@ const NpxSearch: FC = () => {
                     <Button
                       variant="ghost"
                       size="icon-sm"
-                      onClick={() => {
+                      onClick={async () => {
                         if (isInstalled) {
                           return
                         }
 
                         const newServer = {
-                          id: nanoid(),
                           name: record.name,
                           description: `${record.description}\n\n${t('settings.mcp.npx_list.usage')}: ${record.usage}\n${t('settings.mcp.npx_list.npm')}: ${record.npmLink}`,
                           command: 'npx',
@@ -181,8 +179,12 @@ const NpxSearch: FC = () => {
                           searchKey: record.fullName
                         }
 
-                        addMCPServer(newServer)
-                        window.toast.success(t('settings.mcp.addSuccess'))
+                        try {
+                          await addMCPServer(newServer)
+                          window.toast.success(t('settings.mcp.addSuccess'))
+                        } catch {
+                          window.toast.error(t('settings.mcp.addError'))
+                        }
                       }}
                       disabled={isInstalled}>
                       {isInstalled ? <CheckOutlined style={{ color: 'var(--color-primary)' }} /> : <PlusOutlined />}

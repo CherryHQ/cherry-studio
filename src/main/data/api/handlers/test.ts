@@ -4,12 +4,9 @@
  * Implements all test-related API endpoints for development and testing purposes.
  */
 
-import { TestService } from '@data/services/TestService'
+import { testService } from '@data/services/TestService'
 import type { ApiHandler, ApiMethods } from '@shared/data/api/apiTypes'
 import type { TestSchemas } from '@shared/data/api/schemas/test'
-
-// Service instance
-const testService = TestService.getInstance()
 
 /**
  * Handler type for a specific test endpoint

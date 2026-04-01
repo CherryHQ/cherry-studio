@@ -1,4 +1,10 @@
-import { type ErrorStrategy, isPausable, LifecycleState } from './types'
+import { loggerService } from '@logger'
+import { ipcMain, type IpcMainEvent, type IpcMainInvokeEvent } from 'electron'
+
+import { type Disposable, toDisposable } from './event'
+import { type ErrorStrategy, isActivatable, isPausable, LifecycleState } from './types'
+
+const logger = loggerService.withContext('Lifecycle')
 
 /**
  * Abstract base class for all lifecycle-managed services
@@ -14,6 +20,15 @@ export abstract class BaseService {
 
   /** Guard flag to ensure onAllReady is called at most once per service instance */
   private _allReadyCalled = false
+
+  /** Disposables registered via registerDisposable(), auto-cleaned on stop */
+  private _disposables: Disposable[] = []
+
+  /** Whether the service's heavy resources are currently activated (Activatable interface) */
+  private _activated = false
+
+  /** Guard flag to prevent concurrent activate/deactivate execution */
+  private _activating = false
 
   /** Error handling strategy for this service */
   static errorStrategy: ErrorStrategy = 'graceful'
@@ -80,6 +95,72 @@ export abstract class BaseService {
   }
 
   /**
+   * Whether the service's heavy resources are currently activated.
+   * Only meaningful for services implementing the Activatable interface.
+   * Always false for non-Activatable services.
+   */
+  public get isActivated(): boolean {
+    return this._activated
+  }
+
+  /**
+   * Register an IPC handler (ipcMain.handle).
+   * Automatically tracked and removed on service stop/destroy.
+   * Returns a Disposable to manually unregister before service stop if needed.
+   */
+  protected ipcHandle(
+    channel: string,
+    listener: (event: IpcMainInvokeEvent, ...args: any[]) => Promise<any> | any
+  ): Disposable {
+    ipcMain.handle(channel, listener)
+    return this.registerDisposable(() => ipcMain.removeHandler(channel))
+  }
+
+  /**
+   * Register an IPC event listener (ipcMain.on).
+   * Automatically tracked and removed on service stop/destroy.
+   * Returns a Disposable to manually unregister before service stop if needed.
+   */
+  protected ipcOn(channel: string, listener: (event: IpcMainEvent, ...args: any[]) => void): Disposable {
+    ipcMain.on(channel, listener)
+    return this.registerDisposable(() => ipcMain.removeListener(channel, listener))
+  }
+
+  /**
+   * Register a disposable for automatic cleanup on service stop/destroy.
+   * Accepts either a Disposable object or a plain cleanup function.
+   * Returns the registered disposable for optional inline assignment.
+   *
+   * @example
+   * // Disposable object (e.g., Emitter subscription)
+   * this.registerDisposable(windowService.onMainWindowCreated((win) => this.bind(win)))
+   *
+   * // Plain cleanup function (e.g., PreferenceService.subscribeChange)
+   * this.registerDisposable(preferenceService.subscribeChange('key', handler))
+   *
+   * // Inline assignment
+   * this.emitter = this.registerDisposable(new Emitter<void>())
+   */
+  protected registerDisposable<T extends Disposable>(disposable: T): T
+  protected registerDisposable(dispose: () => void): Disposable
+  protected registerDisposable<T extends Disposable>(disposableOrFn: T | (() => void)): T | Disposable {
+    const disposable = typeof disposableOrFn === 'function' ? toDisposable(disposableOrFn) : disposableOrFn
+    this._disposables.push(disposable)
+    return disposable
+  }
+
+  /**
+   * Dispose all tracked disposables (IPC handlers, event subscriptions, signals, etc.).
+   * Called automatically after onStop() and in _doDestroy().
+   */
+  private _cleanupDisposables(): void {
+    for (const disposable of this._disposables) {
+      disposable.dispose()
+    }
+    this._disposables = []
+  }
+
+  /**
    * Called when the service is being initialized
    * Override this method to perform initialization logic
    */
@@ -139,7 +220,20 @@ export abstract class BaseService {
    */
   public async _doStop(): Promise<void> {
     this._state = LifecycleState.Stopping
-    await this.onStop()
+    try {
+      // Auto-deactivate: independent try/catch, failure does not block onStop
+      if (this._activated && isActivatable(this)) {
+        try {
+          await this.onDeactivate()
+        } catch {
+          // best-effort — logged by service
+        }
+        this._activated = false
+      }
+      await this.onStop()
+    } finally {
+      this._cleanupDisposables()
+    }
     this._state = LifecycleState.Stopped
   }
 
@@ -148,8 +242,86 @@ export abstract class BaseService {
    * Called by LifecycleManager
    */
   public async _doDestroy(): Promise<void> {
+    if (this._state === LifecycleState.Destroyed) {
+      return
+    }
+    // Safety net: deactivate if still active (e.g., destroy without stop)
+    if (this._activated && isActivatable(this)) {
+      try {
+        await this.onDeactivate()
+      } catch {
+        // best-effort
+      }
+      this._activated = false
+    }
     await this.onDestroy()
+    this._cleanupDisposables()
     this._state = LifecycleState.Destroyed
+  }
+
+  /**
+   * Internal method to execute feature activation.
+   * Only works if the service implements Activatable and is in Ready state.
+   * Idempotent. Guarded against concurrent execution.
+   * Called by LifecycleManager or via protected activate().
+   * @returns True if activation succeeded or was already active
+   */
+  public async _doActivate(): Promise<boolean> {
+    if (!isActivatable(this)) return false
+    if (this._activated || this._activating) return this._activated
+    if (this._state !== LifecycleState.Ready) return false
+    this._activating = true
+    try {
+      const start = performance.now()
+      await this.onActivate()
+      const duration = performance.now() - start
+      this._activated = true
+      logger.info(`Service '${this.constructor.name}' activated (${duration.toFixed(3)}ms)`)
+      return true
+    } finally {
+      this._activating = false
+    }
+  }
+
+  /**
+   * Internal method to execute feature deactivation.
+   * Only works if the service implements Activatable.
+   * Idempotent. Guarded against concurrent execution.
+   * Called by LifecycleManager or via protected deactivate().
+   * @returns True if deactivation succeeded or was already inactive
+   */
+  public async _doDeactivate(): Promise<boolean> {
+    if (!isActivatable(this)) return false
+    if (!this._activated || this._activating) return !this._activated
+    this._activating = true
+    try {
+      const start = performance.now()
+      await this.onDeactivate()
+      const duration = performance.now() - start
+      this._activated = false
+      logger.info(`Service '${this.constructor.name}' deactivated (${duration.toFixed(3)}ms)`)
+      return true
+    } finally {
+      this._activating = false
+    }
+  }
+
+  /**
+   * Self-activate: load heavy resources.
+   * For use within the service itself (e.g., in onReady() or event handlers).
+   * External callers should use application.activate(name) instead.
+   */
+  protected async activate(): Promise<boolean> {
+    return this._doActivate()
+  }
+
+  /**
+   * Self-deactivate: release heavy resources.
+   * For use within the service itself.
+   * External callers should use application.deactivate(name) instead.
+   */
+  protected async deactivate(): Promise<boolean> {
+    return this._doDeactivate()
   }
 
   /**
@@ -159,9 +331,7 @@ export abstract class BaseService {
    * @returns True if pause was successful, false if service doesn't support pause
    */
   public async _doPause(): Promise<boolean> {
-    if (!isPausable(this)) {
-      return false
-    }
+    if (!isPausable(this)) return false
     this._state = LifecycleState.Pausing
     await this.onPause()
     this._state = LifecycleState.Paused
@@ -175,9 +345,7 @@ export abstract class BaseService {
    * @returns True if resume was successful, false if service doesn't support resume
    */
   public async _doResume(): Promise<boolean> {
-    if (!isPausable(this)) {
-      return false
-    }
+    if (!isPausable(this)) return false
     this._state = LifecycleState.Resuming
     await this.onResume()
     this._state = LifecycleState.Ready

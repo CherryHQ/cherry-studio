@@ -1,5 +1,5 @@
 import { loggerService } from '@logger'
-import type { MCPServer } from '@renderer/types'
+import type { MCPServer } from '@shared/data/types/mcpServer'
 
 const logger = loggerService.withContext('MCPSettings/utils')
 
@@ -42,7 +42,7 @@ export const getCommandPreview = (server: MCPServer): string => {
 export async function ensureServerTrusted(
   currentServer: MCPServer,
   requestConfirm: (server: MCPServer) => Promise<boolean>,
-  updateServer: (server: MCPServer) => void
+  updateServer: (body: Partial<MCPServer>) => void
 ): Promise<MCPServer | null> {
   const isProtocolInstall = currentServer.installSource === 'protocol'
 
@@ -64,16 +64,14 @@ export async function ensureServerTrusted(
       baseUrl: currentServer.baseUrl
     })
 
-    const trustedServer = {
-      ...currentServer,
+    const trustFields = {
       installSource: 'protocol' as const,
       isTrusted: true,
       trustedAt: Date.now()
     }
+    updateServer(trustFields)
 
-    updateServer(trustedServer)
-
-    return trustedServer
+    return { ...currentServer, ...trustFields }
   }
 
   // Request user confirmation via callback
@@ -84,14 +82,12 @@ export async function ensureServerTrusted(
   }
 
   // Update server with trust information
-  const trustedServer = {
-    ...currentServer,
+  const trustFields = {
     installSource: 'protocol' as const,
     isTrusted: true,
     trustedAt: Date.now()
   }
+  updateServer(trustFields)
 
-  updateServer(trustedServer)
-
-  return trustedServer
+  return { ...currentServer, ...trustFields }
 }

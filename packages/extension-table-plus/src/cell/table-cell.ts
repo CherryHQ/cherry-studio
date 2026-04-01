@@ -142,7 +142,7 @@ export const TableCell = Node.create<TableCellOptions>({
       new Plugin({
         key: cellSelectionPluginKey,
         props: {
-          decorations: ({ doc, selection }) => createCellSelectionDecorationSet(doc as ProseMirrorNode, selection)
+          decorations: ({ doc, selection }) => createCellSelectionDecorationSet(doc, selection)
         }
       })
     ]

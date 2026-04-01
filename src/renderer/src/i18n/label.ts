@@ -240,6 +240,7 @@ export const getShortcutLabel = (key: string): string => {
 }
 
 const selectionDescriptionKeyMap = {
+  linux: 'selection.settings.toolbar.trigger_mode.description_note.linux',
   mac: 'selection.settings.toolbar.trigger_mode.description_note.mac',
   windows: 'selection.settings.toolbar.trigger_mode.description_note.windows'
 } as const

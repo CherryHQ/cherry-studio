@@ -6,6 +6,7 @@ export { BaseMigrator } from './BaseMigrator'
 
 // Import all migrators
 import { AssistantMigrator } from './AssistantMigrator'
+import { BootConfigMigrator } from './BootConfigMigrator'
 import { ChatMigrator } from './ChatMigrator'
 import { KnowledgeMigrator } from './KnowledgeMigrator'
 import { McpServerMigrator } from './McpServerMigrator'
@@ -16,6 +17,7 @@ import { TranslateMigrator } from './TranslateMigrator'
 // Export migrator classes
 export {
   AssistantMigrator,
+  BootConfigMigrator,
   ChatMigrator,
   KnowledgeMigrator,
   McpServerMigrator,
@@ -29,6 +31,7 @@ export {
  */
 export function getAllMigrators() {
   return [
+    new BootConfigMigrator(),
     new PreferencesMigrator(),
     new McpServerMigrator(),
     new AssistantMigrator(),

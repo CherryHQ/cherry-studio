@@ -49,7 +49,7 @@ export default function MessageTool({ block }: Props) {
 
   if (!toolResponse) return null
 
-  const toolRenderer = ChooseTool(toolResponse as NormalToolResponse)
+  const toolRenderer = ChooseTool(toolResponse)
 
   if (!toolRenderer) return null
 
