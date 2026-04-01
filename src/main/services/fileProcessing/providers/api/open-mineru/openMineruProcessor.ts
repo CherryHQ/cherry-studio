@@ -1,4 +1,5 @@
 import { loggerService } from '@logger'
+import { application } from '@main/core/application'
 import type { FileProcessorMerged } from '@shared/data/presets/file-processing'
 import type {
   FileProcessingMarkdownTaskResult,
@@ -7,7 +8,6 @@ import type {
 import type { FileMetadata } from '@types'
 import { v4 as uuidv4 } from 'uuid'
 
-import { fileProcessingTaskStore } from '../../../runtime/FileProcessingTaskStore'
 import { persistResponseZipResult } from '../../../utils/resultPersistence'
 import { BaseMarkdownConversionProcessor, getFileProcessingResultsDir } from '../../base/BaseFileProcessor'
 import type { OpenMineruTaskState, PreparedOpenMineruContext } from './types'
@@ -27,13 +27,19 @@ export class OpenMineruProcessor extends BaseMarkdownConversionProcessor {
   ): Promise<FileProcessingMarkdownTaskStartResult> {
     const context = this.prepareContext(file, config, signal)
     const providerTaskId = uuidv4()
+    const runtimeService = application.get('FileProcessingRuntimeService')
 
-    fileProcessingTaskStore.create<OpenMineruTaskState>('open-mineru', providerTaskId, {
+    runtimeService.createTask<OpenMineruTaskState>('open-mineru', providerTaskId, {
       status: 'processing',
       progress: 0
     })
 
-    void this.runTask(providerTaskId, context)
+    application.get('OpenMineruRuntimeService').startTask(providerTaskId, (runtimeSignal) =>
+      this.runTask(providerTaskId, {
+        ...context,
+        signal: runtimeSignal
+      })
+    )
 
     return {
       providerTaskId,
@@ -48,15 +54,16 @@ export class OpenMineruProcessor extends BaseMarkdownConversionProcessor {
     signal?: AbortSignal
   ): Promise<FileProcessingMarkdownTaskResult> {
     signal?.throwIfAborted()
+    const runtimeService = application.get('FileProcessingRuntimeService')
 
-    const taskState = fileProcessingTaskStore.get<OpenMineruTaskState>('open-mineru', providerTaskId)
+    const taskState = runtimeService.getTask<OpenMineruTaskState>('open-mineru', providerTaskId)
 
     if (!taskState) {
       throw new Error(`Open MinerU task state not found for task ${providerTaskId}`)
     }
 
     if (taskState.status === 'completed') {
-      fileProcessingTaskStore.delete('open-mineru', providerTaskId)
+      runtimeService.deleteTask('open-mineru', providerTaskId)
       return {
         status: 'completed',
         progress: 100,
@@ -66,7 +73,7 @@ export class OpenMineruProcessor extends BaseMarkdownConversionProcessor {
     }
 
     if (taskState.status === 'failed') {
-      fileProcessingTaskStore.delete('open-mineru', providerTaskId)
+      runtimeService.deleteTask('open-mineru', providerTaskId)
       return {
         status: 'failed',
         progress: 0,
@@ -108,28 +115,30 @@ export class OpenMineruProcessor extends BaseMarkdownConversionProcessor {
   }
 
   private async runTask(providerTaskId: string, context: PreparedOpenMineruContext): Promise<void> {
+    const runtimeService = application.get('FileProcessingRuntimeService')
+
     try {
-      fileProcessingTaskStore.update<OpenMineruTaskState>('open-mineru', providerTaskId, () => ({
+      runtimeService.updateTask<OpenMineruTaskState>('open-mineru', providerTaskId, () => ({
         status: 'processing',
         progress: 10
       }))
 
       const response = await executeTask(context)
 
-      fileProcessingTaskStore.update<OpenMineruTaskState>('open-mineru', providerTaskId, () => ({
+      runtimeService.updateTask<OpenMineruTaskState>('open-mineru', providerTaskId, () => ({
         status: 'processing',
         progress: 80
       }))
 
-      const markdownPath = await this.persistMarkdownConversionResult(context.file.id, response)
-      fileProcessingTaskStore.update<OpenMineruTaskState>('open-mineru', providerTaskId, () => ({
+      const markdownPath = await this.persistMarkdownConversionResult(context.file.id, response, context.signal)
+      runtimeService.updateTask<OpenMineruTaskState>('open-mineru', providerTaskId, () => ({
         status: 'completed',
         progress: 100,
         markdownPath
       }))
     } catch (error) {
       logger.error('Open MinerU markdown conversion task failed', error as Error)
-      fileProcessingTaskStore.update<OpenMineruTaskState>('open-mineru', providerTaskId, () => ({
+      runtimeService.updateTask<OpenMineruTaskState>('open-mineru', providerTaskId, () => ({
         status: 'failed',
         progress: 0,
         error: error instanceof Error ? error.message : String(error)
@@ -137,12 +146,17 @@ export class OpenMineruProcessor extends BaseMarkdownConversionProcessor {
     }
   }
 
-  private async persistMarkdownConversionResult(fileId: string, response: Response): Promise<string> {
+  private async persistMarkdownConversionResult(
+    fileId: string,
+    response: Response,
+    signal?: AbortSignal
+  ): Promise<string> {
     const fileProcessingResultsDir = getFileProcessingResultsDir(fileId)
 
     return await persistResponseZipResult({
       response,
-      resultsDir: fileProcessingResultsDir
+      resultsDir: fileProcessingResultsDir,
+      signal
     })
   }
 }

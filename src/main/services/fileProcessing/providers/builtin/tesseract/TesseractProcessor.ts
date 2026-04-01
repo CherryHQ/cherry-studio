@@ -1,9 +1,10 @@
+import { application } from '@main/core/application'
 import type { FileProcessorMerged } from '@shared/data/presets/file-processing'
 import type { FileMetadata } from '@types'
 
 import type { FileProcessingTextExtractionResult } from '../../../types'
 import { BaseTextExtractionProcessor } from '../../base/BaseFileProcessor'
-import { executeExtraction, prepareContext } from './utils'
+import { prepareContext } from './utils'
 
 export class TesseractProcessor extends BaseTextExtractionProcessor {
   constructor() {
@@ -16,6 +17,6 @@ export class TesseractProcessor extends BaseTextExtractionProcessor {
     signal?: AbortSignal
   ): Promise<FileProcessingTextExtractionResult> {
     const context = prepareContext(file, config, signal)
-    return executeExtraction(context)
+    return application.get('TesseractRuntimeService').extract(context)
   }
 }

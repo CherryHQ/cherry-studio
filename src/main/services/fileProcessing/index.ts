@@ -1,11 +1,13 @@
-export { FileProcessingService, fileProcessingService } from './FileProcessingService'
+export { FileProcessingFacade, fileProcessingFacade } from './FileProcessingFacade'
+export { FileProcessingRuntimeService } from './FileProcessingRuntimeService'
 export type { IMarkdownConversionProcessor, ITextExtractionProcessor } from './interfaces'
+export { OpenMineruRuntimeService } from './OpenMineruRuntimeService'
 export {
   BaseFileProcessor,
   BaseMarkdownConversionProcessor,
   BaseTextExtractionProcessor
 } from './providers/base/BaseFileProcessor'
-export { FileProcessingTaskStore, fileProcessingTaskStore } from './runtime/FileProcessingTaskStore'
+export { TesseractRuntimeService } from './TesseractRuntimeService'
 export type {
   BaseProcessFileInput,
   ExtractTextInput,

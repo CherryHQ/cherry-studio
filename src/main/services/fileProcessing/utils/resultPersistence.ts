@@ -8,8 +8,7 @@ import { pathExists } from '@main/utils/file'
 import StreamZip from 'node-stream-zip'
 
 export const OUTPUT_MARKDOWN_FILE = 'output.md'
-const LOCK_RETRY_DELAY_MS = 50
-const LOCK_MAX_RETRIES = 50
+const resultsDirWriteQueues = new Map<string, Promise<void>>()
 
 function normalizeEntryPath(entryName: string): string {
   const posixPath = entryName.replace(/\\/g, '/')
@@ -44,31 +43,26 @@ function stripMarkdownBaseDir(relativePath: string, markdownBaseDir: string): st
   return relativePath
 }
 
-async function withResultsDirLock<T>(resultsDir: string, action: () => Promise<T>): Promise<T> {
-  const lockFilePath = `${resultsDir}.lock`
+async function withResultsDirWriteLock<T>(resultsDir: string, action: () => Promise<T>): Promise<T> {
+  const previousWrite = resultsDirWriteQueues.get(resultsDir) ?? Promise.resolve()
+  let releaseCurrentWrite!: () => void
+  const currentWrite = new Promise<void>((resolve) => {
+    releaseCurrentWrite = resolve
+  })
+  const currentWriteTail = previousWrite.then(() => currentWrite)
 
-  for (let attempt = 0; attempt <= LOCK_MAX_RETRIES; attempt += 1) {
-    try {
-      const handle = await fs.open(lockFilePath, 'wx')
-      await handle.close()
+  resultsDirWriteQueues.set(resultsDir, currentWriteTail)
+  await previousWrite
 
-      try {
-        return await action()
-      } finally {
-        await fs.rm(lockFilePath, { force: true }).catch(() => undefined)
-      }
-    } catch (error) {
-      const nodeError = error as NodeJS.ErrnoException
+  try {
+    return await action()
+  } finally {
+    releaseCurrentWrite()
 
-      if (nodeError.code !== 'EEXIST' || attempt >= LOCK_MAX_RETRIES) {
-        throw error
-      }
-
-      await new Promise((resolve) => setTimeout(resolve, LOCK_RETRY_DELAY_MS))
+    if (resultsDirWriteQueues.get(resultsDir) === currentWriteTail) {
+      resultsDirWriteQueues.delete(resultsDir)
     }
   }
-
-  throw new Error(`Failed to acquire file processing results lock for ${resultsDir}`)
 }
 
 async function replaceResultsDirAtomically(
@@ -85,7 +79,7 @@ async function replaceResultsDirAtomically(
   try {
     await writer(tempDir)
 
-    await withResultsDirLock(resultsDir, async () => {
+    await withResultsDirWriteLock(resultsDir, async () => {
       const backupDir = path.join(parentDir, `${resultsDirName}.bak-${Date.now()}`)
       const hadExistingResults = await pathExists(resultsDir)
 

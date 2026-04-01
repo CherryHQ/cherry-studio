@@ -34,7 +34,8 @@ export async function executeTask(context: PreparedOpenMineruContext): Promise<R
         ...formData.getHeaders()
       },
       body: formData as any,
-      duplex: 'half'
+      duplex: 'half',
+      signal: context.signal
     } as any)
 
     if (!response.ok) {

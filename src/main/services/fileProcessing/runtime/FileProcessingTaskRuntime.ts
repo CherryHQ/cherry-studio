@@ -1,24 +1,20 @@
 import { loggerService } from '@logger'
 import type { FileProcessorId } from '@shared/data/preference/preferenceTypes'
 
-const FILE_PROCESSING_TASK_TTL_MS = 60 * 60 * 1000
-const FILE_PROCESSING_TASK_PRUNE_INTERVAL_MS = 5 * 60 * 1000
+export const FILE_PROCESSING_TASK_TTL_MS = 60 * 60 * 1000
+export const FILE_PROCESSING_TASK_PRUNE_INTERVAL_MS = 5 * 60 * 1000
 
-const logger = loggerService.withContext('FileProcessingTaskStore')
+const logger = loggerService.withContext('FileProcessingRuntimeService')
 
-interface FileProcessingTaskStoreEntry<TState> {
+interface FileProcessingTaskEntry<TState> {
   processorId: FileProcessorId
   state: TState
   createdAt: number
   updatedAt: number
 }
 
-function buildTaskStoreKey(processorId: FileProcessorId, providerTaskId: string): string {
-  return `${processorId}:${providerTaskId}`
-}
-
-export class FileProcessingTaskStore {
-  private readonly tasks = new Map<string, FileProcessingTaskStoreEntry<unknown>>()
+export class FileProcessingTaskRuntime {
+  private readonly tasks = new Map<string, FileProcessingTaskEntry<unknown>>()
   private readonly pruneTimer?: NodeJS.Timeout
 
   constructor(options?: { autoPruneIntervalMs?: number }) {
@@ -31,7 +27,7 @@ export class FileProcessingTaskStore {
   }
 
   create<TState>(processorId: FileProcessorId, providerTaskId: string, state: TState): TState {
-    const key = buildTaskStoreKey(processorId, providerTaskId)
+    const key = `${processorId}:${providerTaskId}`
     const now = Date.now()
 
     this.tasks.set(key, {
@@ -50,7 +46,7 @@ export class FileProcessingTaskStore {
   }
 
   get<TState>(processorId: FileProcessorId, providerTaskId: string): TState | undefined {
-    const key = buildTaskStoreKey(processorId, providerTaskId)
+    const key = `${processorId}:${providerTaskId}`
     const task = this.getTaskIfFresh<TState>(key)
 
     if (!task) {
@@ -64,7 +60,7 @@ export class FileProcessingTaskStore {
   }
 
   update<TState>(processorId: FileProcessorId, providerTaskId: string, updater: (current: TState) => TState): TState {
-    const key = buildTaskStoreKey(processorId, providerTaskId)
+    const key = `${processorId}:${providerTaskId}`
     const current = this.getTaskIfFresh<TState>(key)
 
     if (!current) {
@@ -89,7 +85,7 @@ export class FileProcessingTaskStore {
   }
 
   delete(processorId: FileProcessorId, providerTaskId: string): boolean {
-    const key = buildTaskStoreKey(processorId, providerTaskId)
+    const key = `${processorId}:${providerTaskId}`
     const task = this.getTaskIfFresh(key)
 
     if (!task) {
@@ -123,6 +119,10 @@ export class FileProcessingTaskStore {
     }
   }
 
+  get size(): number {
+    return this.tasks.size
+  }
+
   private pruneExpiredTasks(now = Date.now()): void {
     const expiredTasks: string[] = []
 
@@ -141,8 +141,8 @@ export class FileProcessingTaskStore {
     }
   }
 
-  private getTaskIfFresh<TState>(key: string, now = Date.now()): FileProcessingTaskStoreEntry<TState> | undefined {
-    const task = this.tasks.get(key) as FileProcessingTaskStoreEntry<TState> | undefined
+  private getTaskIfFresh<TState>(key: string, now = Date.now()): FileProcessingTaskEntry<TState> | undefined {
+    const task = this.tasks.get(key) as FileProcessingTaskEntry<TState> | undefined
 
     if (!task) {
       return undefined
@@ -159,7 +159,3 @@ export class FileProcessingTaskStore {
     return undefined
   }
 }
-
-export const fileProcessingTaskStore = new FileProcessingTaskStore({
-  autoPruneIntervalMs: FILE_PROCESSING_TASK_PRUNE_INTERVAL_MS
-})

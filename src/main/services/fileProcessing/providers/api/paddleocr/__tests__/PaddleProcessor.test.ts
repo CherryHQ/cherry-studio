@@ -1,3 +1,4 @@
+import { application } from '@main/core/application'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type * as PaddleUtilsModule from '../utils'
@@ -24,7 +25,6 @@ vi.mock('../utils', async () => {
   }
 })
 
-import { fileProcessingTaskStore } from '../../../../runtime/FileProcessingTaskStore'
 import { paddleProcessor } from '../PaddleProcessor'
 
 const imageFile = {
@@ -64,11 +64,11 @@ const processorConfig = {
 describe('paddleProcessor', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    fileProcessingTaskStore.clear()
+    application.get('FileProcessingRuntimeService').clearTasks()
   })
 
   it('returns pending or processing status based on remote job state', async () => {
-    fileProcessingTaskStore.create('paddleocr', 'task-1', {
+    application.get('FileProcessingRuntimeService').createTask('paddleocr', 'task-1', {
       apiHost: 'https://paddle.example.com',
       apiKey: 'secret',
       fileId: 'file-1'
@@ -87,7 +87,7 @@ describe('paddleProcessor', () => {
   })
 
   it('persists completed markdown results and deletes task state', async () => {
-    fileProcessingTaskStore.create('paddleocr', 'task-2', {
+    application.get('FileProcessingRuntimeService').createTask('paddleocr', 'task-2', {
       apiHost: 'https://paddle.example.com',
       apiKey: 'secret',
       fileId: 'file-2'
@@ -123,7 +123,32 @@ describe('paddleProcessor', () => {
       undefined
     )
     expect(persistSpy).toHaveBeenCalledWith('file-2', '# output')
-    expect(fileProcessingTaskStore.get('paddleocr', 'task-2')).toBeUndefined()
+    expect(application.get('FileProcessingRuntimeService').getTask('paddleocr', 'task-2')).toBeUndefined()
+  })
+
+  it('returns a failed task result when markdown result resolution fails', async () => {
+    application.get('FileProcessingRuntimeService').createTask('paddleocr', 'task-late-failure', {
+      apiHost: 'https://paddle.example.com',
+      apiKey: 'secret',
+      fileId: 'file-late-failure'
+    })
+
+    getJobResultMock.mockResolvedValueOnce({
+      state: 'done',
+      resultUrl: {
+        jsonUrl: 'https://download.example.com/output.jsonl'
+      }
+    })
+    resolveJsonlResultMock.mockRejectedValueOnce(new Error('jsonl parse failed'))
+
+    await expect(paddleProcessor.getMarkdownConversionTaskResult('task-late-failure')).resolves.toEqual({
+      status: 'failed',
+      progress: 0,
+      processorId: 'paddleocr',
+      error: 'jsonl parse failed'
+    })
+
+    expect(application.get('FileProcessingRuntimeService').getTask('paddleocr', 'task-late-failure')).toBeUndefined()
   })
 
   it('extracts text through the shared jsonUrl resolver', async () => {

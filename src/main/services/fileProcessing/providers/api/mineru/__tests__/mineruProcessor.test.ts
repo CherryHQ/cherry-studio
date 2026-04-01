@@ -1,5 +1,6 @@
 import fs from 'node:fs/promises'
 
+import { application } from '@main/core/application'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const { getBatchResultMock, mapProgressMock, fetchMock, persistResponseZipResultMock } = vi.hoisted(() => ({
@@ -30,18 +31,17 @@ vi.mock('../../../../utils/resultPersistence', () => ({
   persistResponseZipResult: persistResponseZipResultMock
 }))
 
-import { fileProcessingTaskStore } from '../../../../runtime/FileProcessingTaskStore'
 import { mineruProcessor } from '../mineruProcessor'
 
 describe('mineruProcessor', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    fileProcessingTaskStore.clear()
+    application.get('FileProcessingRuntimeService').clearTasks()
     vi.spyOn(fs, 'access').mockRejectedValue(new Error('missing'))
   })
 
   it('maps non-final batch results to a processing response', async () => {
-    fileProcessingTaskStore.create('mineru', 'task-1', {
+    application.get('FileProcessingRuntimeService').createTask('mineru', 'task-1', {
       apiHost: 'https://mineru.example.com',
       apiKey: 'secret',
       fileId: 'file-1'
@@ -62,13 +62,13 @@ describe('mineruProcessor', () => {
       processorId: 'mineru'
     })
 
-    expect(fileProcessingTaskStore.get('mineru', 'task-1')).toMatchObject({
+    expect(application.get('FileProcessingRuntimeService').getTask('mineru', 'task-1')).toMatchObject({
       apiHost: 'https://mineru.example.com'
     })
   })
 
   it('persists completed results and deletes task state', async () => {
-    fileProcessingTaskStore.create('mineru', 'task-2', {
+    application.get('FileProcessingRuntimeService').createTask('mineru', 'task-2', {
       apiHost: 'https://mineru.example.com',
       apiKey: 'secret',
       fileId: 'file-2'
@@ -95,7 +95,32 @@ describe('mineruProcessor', () => {
     })
 
     expect(persistSpy).toHaveBeenCalledWith('file-2', 'https://download.example.com/full.zip', undefined)
-    expect(fileProcessingTaskStore.get('mineru', 'task-2')).toBeUndefined()
+    expect(application.get('FileProcessingRuntimeService').getTask('mineru', 'task-2')).toBeUndefined()
+  })
+
+  it('returns a failed task result when a completed task is missing its download URL', async () => {
+    application.get('FileProcessingRuntimeService').createTask('mineru', 'task-late-failure', {
+      apiHost: 'https://mineru.example.com',
+      apiKey: 'secret',
+      fileId: 'file-late-failure'
+    })
+
+    getBatchResultMock.mockResolvedValueOnce({
+      extract_result: [
+        {
+          state: 'done'
+        }
+      ]
+    })
+
+    await expect(mineruProcessor.getMarkdownConversionTaskResult('task-late-failure')).resolves.toEqual({
+      status: 'failed',
+      progress: 0,
+      processorId: 'mineru',
+      error: 'Mineru task completed without full_zip_url'
+    })
+
+    expect(application.get('FileProcessingRuntimeService').getTask('mineru', 'task-late-failure')).toBeUndefined()
   })
 
   it('keeps the existing result directory when persistence fails', async () => {

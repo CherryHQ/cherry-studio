@@ -1,5 +1,6 @@
 import fs from 'node:fs/promises'
 
+import { application } from '@main/core/application'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const { getParseStatusMock, triggerExportTaskMock, getExportResultMock, fetchMock, persistResponseZipResultMock } =
@@ -33,18 +34,17 @@ vi.mock('../../../../utils/resultPersistence', () => ({
   persistResponseZipResult: persistResponseZipResultMock
 }))
 
-import { fileProcessingTaskStore } from '../../../../runtime/FileProcessingTaskStore'
 import { doc2xProcessor } from '../doc2xProcessor'
 
 describe('doc2xProcessor', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    fileProcessingTaskStore.clear()
+    application.get('FileProcessingRuntimeService').clearTasks()
     vi.spyOn(fs, 'access').mockRejectedValue(new Error('missing'))
   })
 
   it('moves parsing tasks into exporting state when parse succeeds and export starts', async () => {
-    fileProcessingTaskStore.create('doc2x', 'task-1', {
+    application.get('FileProcessingRuntimeService').createTask('doc2x', 'task-1', {
       apiHost: 'https://doc2x.example.com',
       apiKey: 'secret',
       fileId: 'file-1',
@@ -65,20 +65,37 @@ describe('doc2xProcessor', () => {
         status: 'processing'
       }
     })
+    const controller = new AbortController()
 
-    await expect(doc2xProcessor.getMarkdownConversionTaskResult('task-1')).resolves.toEqual({
+    await expect(doc2xProcessor.getMarkdownConversionTaskResult('task-1', controller.signal)).resolves.toEqual({
       status: 'processing',
       progress: 99,
       processorId: 'doc2x'
     })
 
-    expect(fileProcessingTaskStore.get('doc2x', 'task-1')).toMatchObject({
+    expect(getParseStatusMock).toHaveBeenCalledWith(
+      'task-1',
+      expect.objectContaining({
+        apiHost: 'https://doc2x.example.com',
+        apiKey: 'secret',
+        signal: controller.signal
+      })
+    )
+    expect(triggerExportTaskMock).toHaveBeenCalledWith(
+      'task-1',
+      expect.objectContaining({
+        apiHost: 'https://doc2x.example.com',
+        apiKey: 'secret',
+        signal: controller.signal
+      })
+    )
+    expect(application.get('FileProcessingRuntimeService').getTask('doc2x', 'task-1')).toMatchObject({
       stage: 'exporting'
     })
   })
 
   it('persists export results and deletes task state when export completes', async () => {
-    fileProcessingTaskStore.create('doc2x', 'task-2', {
+    application.get('FileProcessingRuntimeService').createTask('doc2x', 'task-2', {
       apiHost: 'https://doc2x.example.com',
       apiKey: 'secret',
       fileId: 'file-2',
@@ -93,24 +110,64 @@ describe('doc2xProcessor', () => {
         url: 'https://download.example.com/output.zip'
       }
     })
+    const controller = new AbortController()
 
     const persistSpy = vi
       .spyOn(doc2xProcessor as any, 'persistMarkdownConversionResult')
       .mockResolvedValueOnce('/tmp/doc2x-output.md')
 
-    await expect(doc2xProcessor.getMarkdownConversionTaskResult('task-2')).resolves.toEqual({
+    await expect(doc2xProcessor.getMarkdownConversionTaskResult('task-2', controller.signal)).resolves.toEqual({
       status: 'completed',
       progress: 100,
       processorId: 'doc2x',
       markdownPath: '/tmp/doc2x-output.md'
     })
 
-    expect(persistSpy).toHaveBeenCalledWith('file-2', 'https://download.example.com/output.zip', undefined)
-    expect(fileProcessingTaskStore.get('doc2x', 'task-2')).toBeUndefined()
+    expect(getExportResultMock).toHaveBeenCalledWith(
+      'task-2',
+      expect.objectContaining({
+        apiHost: 'https://doc2x.example.com',
+        apiKey: 'secret',
+        signal: controller.signal
+      })
+    )
+    expect(persistSpy).toHaveBeenCalledWith('file-2', 'https://download.example.com/output.zip', controller.signal)
+    expect(application.get('FileProcessingRuntimeService').getTask('doc2x', 'task-2')).toBeUndefined()
+  })
+
+  it('returns a failed task result when export persistence fails', async () => {
+    application.get('FileProcessingRuntimeService').createTask('doc2x', 'task-late-failure', {
+      apiHost: 'https://doc2x.example.com',
+      apiKey: 'secret',
+      fileId: 'file-late-failure',
+      stage: 'exporting',
+      createdAt: 1
+    })
+
+    getExportResultMock.mockResolvedValueOnce({
+      code: 'success',
+      data: {
+        status: 'success',
+        url: 'https://download.example.com/output.zip'
+      }
+    })
+
+    vi.spyOn(doc2xProcessor as any, 'persistMarkdownConversionResult').mockRejectedValueOnce(
+      new Error('persist failed')
+    )
+
+    await expect(doc2xProcessor.getMarkdownConversionTaskResult('task-late-failure')).resolves.toEqual({
+      status: 'failed',
+      progress: 0,
+      processorId: 'doc2x',
+      error: 'persist failed'
+    })
+
+    expect(application.get('FileProcessingRuntimeService').getTask('doc2x', 'task-late-failure')).toBeUndefined()
   })
 
   it('deduplicates concurrent polling for the same task while starting export', async () => {
-    fileProcessingTaskStore.create('doc2x', 'task-3', {
+    application.get('FileProcessingRuntimeService').createTask('doc2x', 'task-3', {
       apiHost: 'https://doc2x.example.com',
       apiKey: 'secret',
       fileId: 'file-3',
@@ -161,13 +218,13 @@ describe('doc2xProcessor', () => {
     })
 
     expect(getParseStatusMock).toHaveBeenCalledTimes(1)
-    expect(fileProcessingTaskStore.get('doc2x', 'task-3')).toMatchObject({
+    expect(application.get('FileProcessingRuntimeService').getTask('doc2x', 'task-3')).toMatchObject({
       stage: 'exporting'
     })
   })
 
   it('does not let the first caller abort cancel a concurrent follower', async () => {
-    fileProcessingTaskStore.create('doc2x', 'task-4', {
+    application.get('FileProcessingRuntimeService').createTask('doc2x', 'task-4', {
       apiHost: 'https://doc2x.example.com',
       apiKey: 'secret',
       fileId: 'file-4',
@@ -221,7 +278,7 @@ describe('doc2xProcessor', () => {
 
     expect(getParseStatusMock).toHaveBeenCalledTimes(1)
     expect(triggerExportTaskMock).toHaveBeenCalledTimes(1)
-    expect(fileProcessingTaskStore.get('doc2x', 'task-4')).toMatchObject({
+    expect(application.get('FileProcessingRuntimeService').getTask('doc2x', 'task-4')).toMatchObject({
       stage: 'exporting'
     })
   })

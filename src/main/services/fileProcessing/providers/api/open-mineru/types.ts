@@ -4,6 +4,7 @@ export type PreparedOpenMineruContext = {
   apiHost: string
   apiKey?: string
   file: FileMetadata
+  signal?: AbortSignal
 }
 
 export type OpenMineruTaskState =

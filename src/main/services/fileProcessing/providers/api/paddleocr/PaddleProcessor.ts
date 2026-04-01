@@ -1,4 +1,5 @@
 import { loggerService } from '@logger'
+import { application } from '@main/core/application'
 import type { FileProcessorMerged } from '@shared/data/presets/file-processing'
 import type {
   FileProcessingMarkdownTaskResult,
@@ -8,7 +9,6 @@ import type { FileMetadata } from '@types'
 import { isImageFileMetadata } from '@types'
 
 import type { ITextExtractionProcessor } from '../../../interfaces'
-import { fileProcessingTaskStore } from '../../../runtime/FileProcessingTaskStore'
 import type { FileProcessingTextExtractionResult } from '../../../types'
 import { persistMarkdownResult } from '../../../utils/resultPersistence'
 import { BaseMarkdownConversionProcessor, getFileProcessingResultsDir } from '../../base/BaseFileProcessor'
@@ -60,7 +60,7 @@ export class PaddleProcessor extends BaseMarkdownConversionProcessor implements 
   ): Promise<FileProcessingMarkdownTaskStartResult> {
     const context = this.prepareStartContext(config, signal, file, 'markdown_conversion')
     const job = await createJob(context)
-    fileProcessingTaskStore.create<PaddleTaskContext>('paddleocr', job.jobId, {
+    application.get('FileProcessingRuntimeService').createTask<PaddleTaskContext>('paddleocr', job.jobId, {
       apiHost: context.apiHost,
       apiKey: context.apiKey,
       fileId: file.id
@@ -78,7 +78,8 @@ export class PaddleProcessor extends BaseMarkdownConversionProcessor implements 
     providerTaskId: string,
     signal?: AbortSignal
   ): Promise<FileProcessingMarkdownTaskResult> {
-    const taskContext = fileProcessingTaskStore.get<PaddleTaskContext>('paddleocr', providerTaskId)
+    const runtimeService = application.get('FileProcessingRuntimeService')
+    const taskContext = runtimeService.getTask<PaddleTaskContext>('paddleocr', providerTaskId)
 
     if (!taskContext) {
       throw new Error(`PaddleOCR task context not found for task ${providerTaskId}`)
@@ -89,41 +90,57 @@ export class PaddleProcessor extends BaseMarkdownConversionProcessor implements 
       apiKey: taskContext.apiKey,
       signal
     }
-    const jobResult = await getJobResult(providerTaskId, context)
 
-    if (jobResult.state === 'failed') {
-      fileProcessingTaskStore.delete('paddleocr', providerTaskId)
+    try {
+      const jobResult = await getJobResult(providerTaskId, context)
+
+      if (jobResult.state === 'failed') {
+        runtimeService.deleteTask('paddleocr', providerTaskId)
+        return {
+          status: 'failed',
+          progress: 0,
+          processorId: 'paddleocr',
+          error: jobResult.errorMsg || 'PaddleOCR markdown conversion failed'
+        }
+      }
+
+      if (jobResult.state !== 'done') {
+        return {
+          status: jobResult.state === 'pending' ? 'pending' : 'processing',
+          progress: mapProgress(jobResult),
+          processorId: 'paddleocr'
+        }
+      }
+
+      logger.info('PaddleOCR markdown conversion job completed', {
+        processorId: 'paddleocr',
+        providerTaskId,
+        resultUrl: jobResult.resultUrl
+      })
+
+      const markdownContent = await resolveJsonlResult(providerTaskId, jobResult, context.signal)
+      const persistedMarkdownPath = await this.persistMarkdownConversionResult(taskContext.fileId, markdownContent)
+      runtimeService.deleteTask('paddleocr', providerTaskId)
+
+      return {
+        status: 'completed',
+        progress: 100,
+        processorId: 'paddleocr',
+        markdownPath: persistedMarkdownPath
+      }
+    } catch (error) {
+      if (error instanceof Error && error.name === 'AbortError') {
+        throw error
+      }
+
+      runtimeService.deleteTask('paddleocr', providerTaskId)
+
       return {
         status: 'failed',
         progress: 0,
         processorId: 'paddleocr',
-        error: jobResult.errorMsg || 'PaddleOCR markdown conversion failed'
+        error: error instanceof Error ? error.message : String(error)
       }
-    }
-
-    if (jobResult.state !== 'done') {
-      return {
-        status: jobResult.state === 'pending' ? 'pending' : 'processing',
-        progress: mapProgress(jobResult),
-        processorId: 'paddleocr'
-      }
-    }
-
-    logger.info('PaddleOCR markdown conversion job completed', {
-      processorId: 'paddleocr',
-      providerTaskId,
-      resultUrl: jobResult.resultUrl
-    })
-
-    const markdownContent = await resolveJsonlResult(providerTaskId, jobResult, context.signal)
-    const persistedMarkdownPath = await this.persistMarkdownConversionResult(taskContext.fileId, markdownContent)
-    fileProcessingTaskStore.delete('paddleocr', providerTaskId)
-
-    return {
-      status: 'completed',
-      progress: 100,
-      processorId: 'paddleocr',
-      markdownPath: persistedMarkdownPath
     }
   }
 

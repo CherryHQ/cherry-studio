@@ -1,28 +1,28 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { FileProcessingTaskStore } from '../FileProcessingTaskStore'
+import { FileProcessingTaskRuntime } from '../FileProcessingTaskRuntime'
 
-describe('FileProcessingTaskStore', () => {
-  let store: FileProcessingTaskStore
+describe('FileProcessingTaskRuntime', () => {
+  let runtime: FileProcessingTaskRuntime
 
   beforeEach(() => {
-    store = new FileProcessingTaskStore()
+    runtime = new FileProcessingTaskRuntime()
   })
 
   afterEach(() => {
-    store.destroy()
+    runtime.destroy()
     vi.useRealTimers()
   })
 
   it('stores task state per processor and provider task id', () => {
-    store.create('doc2x', 'task-1', {
+    runtime.create('doc2x', 'task-1', {
       apiHost: 'https://example.com',
       apiKey: 'secret',
       stage: 'parsing' as const,
       createdAt: 1
     })
 
-    expect(store.get('doc2x', 'task-1')).toEqual({
+    expect(runtime.get('doc2x', 'task-1')).toEqual({
       apiHost: 'https://example.com',
       apiKey: 'secret',
       stage: 'parsing',
@@ -31,15 +31,15 @@ describe('FileProcessingTaskStore', () => {
   })
 
   it('isolates states by processor even when provider task ids match', () => {
-    store.create('doc2x', 'shared-task-id', { stage: 'parsing' as const })
-    store.create('mineru', 'shared-task-id', { apiHost: 'https://mineru.net' })
+    runtime.create('doc2x', 'shared-task-id', { stage: 'parsing' as const })
+    runtime.create('mineru', 'shared-task-id', { apiHost: 'https://mineru.net' })
 
-    expect(store.get('doc2x', 'shared-task-id')).toEqual({ stage: 'parsing' })
-    expect(store.get('mineru', 'shared-task-id')).toEqual({ apiHost: 'https://mineru.net' })
+    expect(runtime.get('doc2x', 'shared-task-id')).toEqual({ stage: 'parsing' })
+    expect(runtime.get('mineru', 'shared-task-id')).toEqual({ apiHost: 'https://mineru.net' })
   })
 
   it('updates existing task state', () => {
-    const updated = store.create('open-mineru', 'task-2', {
+    const updated = runtime.create('open-mineru', 'task-2', {
       status: 'processing' as const,
       progress: 10
     })
@@ -49,7 +49,7 @@ describe('FileProcessingTaskStore', () => {
       progress: 10
     })
 
-    const next = store.update<{ status: 'processing'; progress: number }>('open-mineru', 'task-2', (current) => ({
+    const next = runtime.update<{ status: 'processing'; progress: number }>('open-mineru', 'task-2', (current) => ({
       ...current,
       progress: 80
     }))
@@ -58,7 +58,7 @@ describe('FileProcessingTaskStore', () => {
       status: 'processing',
       progress: 80
     })
-    expect(store.get('open-mineru', 'task-2')).toEqual({
+    expect(runtime.get('open-mineru', 'task-2')).toEqual({
       status: 'processing',
       progress: 80
     })
@@ -66,7 +66,7 @@ describe('FileProcessingTaskStore', () => {
 
   it('throws when updating a missing task', () => {
     expect(() =>
-      store.update('paddleocr', 'missing-task', (current: { progress: number }) => ({
+      runtime.update('paddleocr', 'missing-task', (current: { progress: number }) => ({
         ...current,
         progress: 100
       }))
@@ -74,10 +74,10 @@ describe('FileProcessingTaskStore', () => {
   })
 
   it('deletes task state explicitly', () => {
-    store.create('mineru', 'task-3', { apiHost: 'https://mineru.net' })
+    runtime.create('mineru', 'task-3', { apiHost: 'https://mineru.net' })
 
-    expect(store.delete('mineru', 'task-3')).toBe(true)
-    expect(store.get('mineru', 'task-3')).toBeUndefined()
+    expect(runtime.delete('mineru', 'task-3')).toBe(true)
+    expect(runtime.get('mineru', 'task-3')).toBeUndefined()
   })
 
   it('does not full-prune unrelated expired tasks on write, but prunes the accessed task on demand', () => {
@@ -86,14 +86,14 @@ describe('FileProcessingTaskStore', () => {
     Date.now = () => now
 
     try {
-      store.create('doc2x', 'expired-task', { stage: 'parsing' as const })
+      runtime.create('doc2x', 'expired-task', { stage: 'parsing' as const })
 
       now = 60 * 60 * 1000
-      store.create('mineru', 'fresh-task', { stage: 'running' as const })
+      runtime.create('mineru', 'fresh-task', { stage: 'running' as const })
 
-      expect((store as any).tasks.size).toBe(2)
-      expect(store.get('doc2x', 'expired-task')).toBeUndefined()
-      expect(store.get('mineru', 'fresh-task')).toEqual({ stage: 'running' })
+      expect(runtime.size).toBe(2)
+      expect(runtime.get('doc2x', 'expired-task')).toBeUndefined()
+      expect(runtime.get('mineru', 'fresh-task')).toEqual({ stage: 'running' })
     } finally {
       Date.now = originalNow
     }
@@ -105,11 +105,11 @@ describe('FileProcessingTaskStore', () => {
     Date.now = () => now
 
     try {
-      store.create('doc2x', 'expired-on-read', { stage: 'parsing' as const })
+      runtime.create('doc2x', 'expired-on-read', { stage: 'parsing' as const })
 
       now = 60 * 60 * 1000
 
-      expect(store.get('doc2x', 'expired-on-read')).toBeUndefined()
+      expect(runtime.get('doc2x', 'expired-on-read')).toBeUndefined()
     } finally {
       Date.now = originalNow
     }
@@ -121,7 +121,7 @@ describe('FileProcessingTaskStore', () => {
     Date.now = () => now
 
     try {
-      store.create('open-mineru', 'expired-on-update', {
+      runtime.create('open-mineru', 'expired-on-update', {
         status: 'processing' as const,
         progress: 10
       })
@@ -129,7 +129,7 @@ describe('FileProcessingTaskStore', () => {
       now = 60 * 60 * 1000
 
       expect(() =>
-        store.update<{ status: 'processing'; progress: number }>('open-mineru', 'expired-on-update', (current) => ({
+        runtime.update<{ status: 'processing'; progress: number }>('open-mineru', 'expired-on-update', (current) => ({
           ...current,
           progress: 80
         }))
@@ -145,21 +145,21 @@ describe('FileProcessingTaskStore', () => {
     Date.now = () => now
 
     try {
-      store.create('open-mineru', 'task-4', {
+      runtime.create('open-mineru', 'task-4', {
         status: 'processing' as const,
         progress: 10
       })
 
       now = 30 * 60 * 1000
-      store.update<{ status: 'processing'; progress: number }>('open-mineru', 'task-4', (current) => ({
+      runtime.update<{ status: 'processing'; progress: number }>('open-mineru', 'task-4', (current) => ({
         ...current,
         progress: 60
       }))
 
       now = 89 * 60 * 1000
-      store.create('paddleocr', 'task-5', { progress: 0 })
+      runtime.create('paddleocr', 'task-5', { progress: 0 })
 
-      expect(store.get('open-mineru', 'task-4')).toEqual({
+      expect(runtime.get('open-mineru', 'task-4')).toEqual({
         status: 'processing',
         progress: 60
       })
@@ -172,21 +172,21 @@ describe('FileProcessingTaskStore', () => {
     vi.useFakeTimers()
     vi.setSystemTime(0)
 
-    const autoPruneStore = new FileProcessingTaskStore({
+    const autoPruneRuntime = new FileProcessingTaskRuntime({
       autoPruneIntervalMs: 1_000
-    }) as any
+    })
 
     try {
-      autoPruneStore.create('mineru', 'background-expired', { stage: 'running' as const })
+      autoPruneRuntime.create('mineru', 'background-expired', { stage: 'running' as const })
 
-      expect(autoPruneStore.tasks.size).toBe(1)
+      expect(autoPruneRuntime.size).toBe(1)
 
       vi.setSystemTime(60 * 60 * 1000)
       vi.advanceTimersByTime(1_000)
 
-      expect(autoPruneStore.tasks.size).toBe(0)
+      expect(autoPruneRuntime.size).toBe(0)
     } finally {
-      autoPruneStore.destroy()
+      autoPruneRuntime.destroy()
     }
   })
 })

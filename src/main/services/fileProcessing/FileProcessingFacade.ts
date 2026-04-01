@@ -15,9 +15,9 @@ import type {
 import { resolveProcessorConfig } from './utils/config'
 import { OUTPUT_MARKDOWN_FILE } from './utils/resultPersistence'
 
-const logger = loggerService.withContext('FileProcessingService')
+const logger = loggerService.withContext('FileProcessingFacade')
 
-export class FileProcessingService {
+export class FileProcessingFacade {
   async extractText(
     file: FileMetadata,
     processorId?: FileProcessorId,
@@ -26,14 +26,12 @@ export class FileProcessingService {
     const resolvedConfig = await resolveProcessorConfig('text_extraction', processorId)
     const processor = createTextExtractionProcessor(resolvedConfig.id)
 
-    logger.debug('Extracting text with file-processing service', {
+    logger.debug('Extracting text with file-processing facade', {
       processorId: resolvedConfig.id,
       fileId: file.id
     })
 
-    const result = await processor.extractText(file, resolvedConfig, signal)
-
-    return result
+    return await processor.extractText(file, resolvedConfig, signal)
   }
 
   async startMarkdownConversionTask(
@@ -44,7 +42,7 @@ export class FileProcessingService {
     const resolvedConfig = await resolveProcessorConfig('markdown_conversion', processorId)
     const processor = createMarkdownConversionProcessor(resolvedConfig.id)
 
-    logger.debug('Starting markdown conversion task with file-processing service', {
+    logger.debug('Starting markdown conversion task with file-processing facade', {
       processorId: resolvedConfig.id,
       fileId: file.id
     })
@@ -59,9 +57,9 @@ export class FileProcessingService {
   ): Promise<FileProcessingMarkdownTaskResult> {
     const processor = createMarkdownConversionProcessor(processorId)
 
-    logger.debug('Getting markdown conversion task result with file-processing service', {
-      processorId: processorId,
-      providerTaskId: providerTaskId
+    logger.debug('Getting markdown conversion task result with file-processing facade', {
+      processorId,
+      providerTaskId
     })
 
     return await processor.getMarkdownConversionTaskResult(providerTaskId, signal)
@@ -75,4 +73,4 @@ export class FileProcessingService {
   }
 }
 
-export const fileProcessingService = new FileProcessingService()
+export const fileProcessingFacade = new FileProcessingFacade()

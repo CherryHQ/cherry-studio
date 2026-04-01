@@ -34,7 +34,7 @@ vi.mock('../providers/factory', () => ({
   createMarkdownConversionProcessor: createMarkdownConversionProcessorMock
 }))
 
-import { fileProcessingService } from '../FileProcessingService'
+import { fileProcessingFacade } from '../FileProcessingFacade'
 
 const imageFile = {
   id: 'file-1',
@@ -60,7 +60,7 @@ const documentFile = {
   count: 1
 } as const
 
-describe('fileProcessingService (runtime)', () => {
+describe('fileProcessingFacade', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     pathExistsMock.mockResolvedValue(false)
@@ -88,7 +88,7 @@ describe('fileProcessingService (runtime)', () => {
       text: 'hello'
     })
 
-    await expect(fileProcessingService.extractText(imageFile as never, undefined, signal)).resolves.toEqual({
+    await expect(fileProcessingFacade.extractText(imageFile as never, undefined, signal)).resolves.toEqual({
       text: 'hello'
     })
 
@@ -124,7 +124,7 @@ describe('fileProcessingService (runtime)', () => {
     })
 
     await expect(
-      fileProcessingService.startMarkdownConversionTask(documentFile as never, undefined, signal)
+      fileProcessingFacade.startMarkdownConversionTask(documentFile as never, undefined, signal)
     ).resolves.toEqual({
       providerTaskId: 'task-1',
       status: 'processing',
@@ -151,7 +151,7 @@ describe('fileProcessingService (runtime)', () => {
     })
 
     await expect(
-      fileProcessingService.getMarkdownConversionTaskResult('provider-task-1', 'doc2x', signal)
+      fileProcessingFacade.getMarkdownConversionTaskResult('provider-task-1', 'doc2x', signal)
     ).resolves.toEqual({
       status: 'completed',
       progress: 100,
@@ -167,7 +167,7 @@ describe('fileProcessingService (runtime)', () => {
   it('reads the persisted markdown result by file id', async () => {
     pathExistsMock.mockResolvedValueOnce(true)
 
-    await expect(fileProcessingService.getPersistedMarkdownResult('file-2')).resolves.toBe(
+    await expect(fileProcessingFacade.getPersistedMarkdownResult('file-2')).resolves.toBe(
       '/files/file-2/file-processing/output.md'
     )
 
@@ -177,6 +177,6 @@ describe('fileProcessingService (runtime)', () => {
   it('returns undefined when the persisted markdown result is not available', async () => {
     pathExistsMock.mockResolvedValueOnce(false)
 
-    await expect(fileProcessingService.getPersistedMarkdownResult('file-2')).resolves.toBeUndefined()
+    await expect(fileProcessingFacade.getPersistedMarkdownResult('file-2')).resolves.toBeUndefined()
   })
 })

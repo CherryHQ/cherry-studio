@@ -1,3 +1,4 @@
+import { application } from '@main/core/application'
 import type { FileProcessorMerged } from '@shared/data/presets/file-processing'
 import type {
   FileProcessingMarkdownTaskResult,
@@ -6,7 +7,6 @@ import type {
 import type { FileMetadata } from '@types'
 import { net } from 'electron'
 
-import { fileProcessingTaskStore } from '../../../runtime/FileProcessingTaskStore'
 import { persistResponseZipResult } from '../../../utils/resultPersistence'
 import { BaseMarkdownConversionProcessor, getFileProcessingResultsDir } from '../../base/BaseFileProcessor'
 import type {
@@ -29,9 +29,10 @@ export class MineruProcessor extends BaseMarkdownConversionProcessor {
   ): Promise<FileProcessingMarkdownTaskStartResult> {
     const context = this.prepareStartContext(config, signal, file)
     const uploadTask = await createUploadTask(context)
+    const runtimeService = application.get('FileProcessingRuntimeService')
 
     await uploadFile(file, uploadTask.uploadUrl, uploadTask.uploadHeaders, context.signal)
-    fileProcessingTaskStore.create<MineruTaskContext>('mineru', uploadTask.batchId, {
+    runtimeService.createTask<MineruTaskContext>('mineru', uploadTask.batchId, {
       apiHost: context.apiHost,
       apiKey: context.apiKey,
       fileId: file.id
@@ -49,7 +50,8 @@ export class MineruProcessor extends BaseMarkdownConversionProcessor {
     providerTaskId: string,
     signal?: AbortSignal
   ): Promise<FileProcessingMarkdownTaskResult> {
-    const taskContext = fileProcessingTaskStore.get<MineruTaskContext>('mineru', providerTaskId)
+    const runtimeService = application.get('FileProcessingRuntimeService')
+    const taskContext = runtimeService.getTask<MineruTaskContext>('mineru', providerTaskId)
 
     if (!taskContext) {
       throw new Error(`Mineru task context not found for task ${providerTaskId}`)
@@ -60,9 +62,30 @@ export class MineruProcessor extends BaseMarkdownConversionProcessor {
       apiKey: taskContext.apiKey,
       signal
     }
-    const batchResult = await getBatchResult(providerTaskId, context)
 
-    return this.buildMarkdownTaskResult(providerTaskId, taskContext.fileId, batchResult.extract_result[0], signal)
+    try {
+      const batchResult = await getBatchResult(providerTaskId, context)
+
+      return await this.buildMarkdownTaskResult(
+        providerTaskId,
+        taskContext.fileId,
+        batchResult.extract_result[0],
+        signal
+      )
+    } catch (error) {
+      if (error instanceof Error && error.name === 'AbortError') {
+        throw error
+      }
+
+      runtimeService.deleteTask('mineru', providerTaskId)
+
+      return {
+        status: 'failed',
+        progress: 0,
+        processorId: 'mineru',
+        error: error instanceof Error ? error.message : String(error)
+      }
+    }
   }
 
   private async persistMarkdownConversionResult(
@@ -139,7 +162,7 @@ export class MineruProcessor extends BaseMarkdownConversionProcessor {
     }
 
     if (fileResult.state === 'failed') {
-      fileProcessingTaskStore.delete('mineru', providerTaskId)
+      application.get('FileProcessingRuntimeService').deleteTask('mineru', providerTaskId)
       return {
         status: 'failed',
         progress: 0,
@@ -163,7 +186,7 @@ export class MineruProcessor extends BaseMarkdownConversionProcessor {
     // TODO: Persist additional extracted assets from Mineru results when the provider
     // result contract is expanded beyond a markdown string.
     const markdownPath = await this.persistMarkdownConversionResult(fileId, fileResult.full_zip_url, signal)
-    fileProcessingTaskStore.delete('mineru', providerTaskId)
+    application.get('FileProcessingRuntimeService').deleteTask('mineru', providerTaskId)
 
     return {
       status: 'completed',
