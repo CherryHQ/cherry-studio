@@ -109,8 +109,7 @@ export const createBaseCallbacks = (deps: BaseCallbacksDependencies) => {
         // Send notification when: user enabled assistant notification and window is not focused,
         // or legacy behavior (>30s and not on home page or not focused)
         const shouldNotify =
-          (notificationSettings?.assistant && !isFocused()) ||
-          ((!isOnHomePage() && timeOut) || (!isFocused() && timeOut))
+          (notificationSettings?.assistant && !isFocused()) || (!isOnHomePage() && timeOut) || (!isFocused() && timeOut)
         if (shouldNotify) {
           await notificationService.send({
             id: uuid(),
@@ -270,8 +269,7 @@ export const createBaseCallbacks = (deps: BaseCallbacksDependencies) => {
         // Send notification when: user enabled assistant notification and window is not focused,
         // or legacy behavior (>30s and not on home page or not focused)
         const shouldNotify =
-          (notificationSettings?.assistant && !isFocused()) ||
-          ((!isOnHomePage() && timeOut) || (!isFocused() && timeOut))
+          (notificationSettings?.assistant && !isFocused()) || (!isOnHomePage() && timeOut) || (!isFocused() && timeOut)
         if (shouldNotify) {
           await notificationService.send({
             id: uuid(),
