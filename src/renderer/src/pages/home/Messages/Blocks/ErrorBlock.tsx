@@ -83,10 +83,8 @@ const MessageErrorInfo: React.FC<{ block: ErrorMessageBlock; message: Message }>
   const navigate = useNavigate()
   const [aiSummary, setAiSummary] = useState<string>('')
 
-  const classification = useMemo(
-    () => classifyError(block.error, block.model?.provider),
-    [block.error, block.model?.provider]
-  )
+  const providerId = message.model?.provider ?? (block.error?.providerId as string | undefined)
+  const classification = useMemo(() => classifyError(block.error, providerId), [block.error, providerId])
 
   // AI fallback: when rule-based classification returns 'unknown', ask AI for a one-line summary
   const errorForAI = block.error
@@ -110,7 +108,7 @@ const MessageErrorInfo: React.FC<{ block: ErrorMessageBlock; message: Message }>
     return () => {
       cancelled = true
     }
-  }, [classification.category, errorForAI?.message, i18n.language])
+  }, [classification.category, errorForAI, i18n.language])
 
   const diagnosisContext = useMemo(
     () => ({
