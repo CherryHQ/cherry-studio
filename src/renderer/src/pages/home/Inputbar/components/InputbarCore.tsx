@@ -3,6 +3,7 @@ import { useCache } from '@data/hooks/useCache'
 import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
 import { ActionIconButton } from '@renderer/components/Buttons'
+import PromptVariableRenderer, { type PromptVariableRendererRef } from '@renderer/components/PromptVariableRenderer'
 import type { QuickPanelTriggerInfo } from '@renderer/components/QuickPanel'
 import { QuickPanelReservedSymbol, QuickPanelView, useQuickPanel } from '@renderer/components/QuickPanel'
 import TranslateButton from '@renderer/components/TranslateButton'
@@ -122,8 +123,8 @@ export const InputbarCore: FC<InputbarCoreProps> = ({
   forceEnableQuickPanelTriggers
 }) => {
   const config = useMemo(() => getInputbarConfig(scope), [scope])
-  const { files, isExpanded } = useInputbarToolsState()
-  const { setFiles, setIsExpanded, toolsRegistry, triggers } = useInputbarToolsDispatch()
+  const { files, isExpanded, variablePrompt } = useInputbarToolsState()
+  const { setFiles, setIsExpanded, setVariablePrompt, toolsRegistry, triggers } = useInputbarToolsDispatch()
   const { setExtensions } = useInputbarToolsInternalDispatch()
   const isEmpty = text.trim().length === 0
   const [inputFocus, setInputFocus] = useState(false)
@@ -147,6 +148,30 @@ export const InputbarCore: FC<InputbarCoreProps> = ({
   const startDragY = useRef<number>(0)
   const startHeight = useRef<number>(0)
   const { setTimeoutTimer } = useTimer()
+  const variableRendererRef = useRef<PromptVariableRendererRef | null>(null)
+
+  // When template resolves, store text and schedule send on next render
+  const pendingSendRef = useRef(false)
+
+  useEffect(() => {
+    if (pendingSendRef.current && !variablePrompt && text.trim().length > 0) {
+      pendingSendRef.current = false
+      handleSendMessage()
+    }
+  }, [variablePrompt, text, handleSendMessage])
+
+  // Wrap handleSendMessage to resolve template variables before sending
+  const handleSendMessageWrapped = useCallback(() => {
+    if (variablePrompt) {
+      const resolved = variableRendererRef.current?.resolve()
+      if (!resolved) return // validation failed or ref not ready
+      onTextChange(resolved)
+      setVariablePrompt(null)
+      pendingSendRef.current = true
+      return
+    }
+    handleSendMessage()
+  }, [variablePrompt, handleSendMessage, onTextChange, setVariablePrompt])
 
   // 全局 QuickPanel Hook (用于控制面板显示状态)
   const quickPanel = useQuickPanel()
@@ -181,8 +206,8 @@ export const InputbarCore: FC<InputbarCoreProps> = ({
     enabled: config.enableDragDrop,
     t
   })
-  // 判断是否有内容：文本不为空或有文件
-  const noContent = isEmpty && files.length === 0
+  // 判断是否有内容：文本不为空或有文件或处于模板模式
+  const noContent = isEmpty && files.length === 0 && !variablePrompt
   // 发送入口统一禁用条件：空内容、正在生成、全局搜索态
   const isSendDisabled = noContent || isLoading || searching
 
@@ -307,6 +332,12 @@ export const InputbarCore: FC<InputbarCoreProps> = ({
         }
       }
 
+      if (event.key === 'Escape' && variablePrompt) {
+        event.stopPropagation()
+        setVariablePrompt(null)
+        return
+      }
+
       if (isExpanded && event.key === 'Escape') {
         event.stopPropagation()
         handleToggleExpanded()
@@ -316,7 +347,7 @@ export const InputbarCore: FC<InputbarCoreProps> = ({
       const isEnterPressed = event.key === 'Enter' && !event.nativeEvent.isComposing
       if (isEnterPressed) {
         if (isSendMessageKeyPressed(event, sendMessageShortcut) && !isSendDisabled) {
-          handleSendMessage()
+          handleSendMessageWrapped()
           event.preventDefault()
           return
         }
@@ -343,8 +374,10 @@ export const InputbarCore: FC<InputbarCoreProps> = ({
       handleToggleExpanded,
       sendMessageShortcut,
       isSendDisabled,
-      handleSendMessage,
-      setFiles
+      handleSendMessageWrapped,
+      setFiles,
+      variablePrompt,
+      setVariablePrompt
     ]
   )
 
@@ -610,7 +643,7 @@ export const InputbarCore: FC<InputbarCoreProps> = ({
         isLoading={isTranslating}
       />
     )
-    extras.push(<SendMessageButton sendMessage={handleSendMessage} disabled={isSendDisabled} />)
+    extras.push(<SendMessageButton sendMessage={handleSendMessageWrapped} disabled={isSendDisabled} />)
 
     if (isLoading) {
       extras.push(
@@ -625,7 +658,7 @@ export const InputbarCore: FC<InputbarCoreProps> = ({
     }
 
     return <>{extras}</>
-  }, [text, onTranslated, isTranslating, handleSendMessage, isSendDisabled, isLoading, t, onPause])
+  }, [text, onTranslated, isTranslating, handleSendMessageWrapped, isSendDisabled, isLoading, t, onPause])
 
   const quickPanelElement = config.enableQuickPanel ? <QuickPanelView setInputText={setText} /> : null
 
@@ -650,32 +683,44 @@ export const InputbarCore: FC<InputbarCoreProps> = ({
           )}
           {topContent}
 
-          <Textarea
-            ref={textareaRef}
-            value={text}
-            onChange={handleTextareaChange}
-            onKeyDown={handleKeyDown}
-            onPaste={(e) => handlePaste(e.nativeEvent)}
-            onFocus={handleFocus}
-            onBlur={() => setInputFocus(false)}
-            placeholder={isTranslating ? t('chat.input.translating') : placeholder}
-            autoFocus
-            variant="borderless"
-            spellCheck={enableSpellCheck}
-            rows={2}
-            autoSize={height ? false : { minRows: 2, maxRows: 20 }}
-            styles={{ textarea: TextareaStyle }}
-            style={{
-              fontSize,
-              height: height,
-              minHeight: '30px'
-            }}
-            disabled={isTranslating || searching}
-            onClick={() => {
-              searching && setSearching(false)
-              quickPanel.close()
-            }}
-          />
+          {variablePrompt ? (
+            <PromptVariableRenderer
+              content={variablePrompt.content}
+              variables={variablePrompt.variables}
+              rendererRef={variableRendererRef}
+              fontSize={fontSize}
+              height={height}
+              onEmpty={() => setVariablePrompt(null)}
+              onCancel={() => setVariablePrompt(null)}
+            />
+          ) : (
+            <Textarea
+              ref={textareaRef}
+              value={text}
+              onChange={handleTextareaChange}
+              onKeyDown={handleKeyDown}
+              onPaste={(e) => handlePaste(e.nativeEvent)}
+              onFocus={handleFocus}
+              onBlur={() => setInputFocus(false)}
+              placeholder={isTranslating ? t('chat.input.translating') : placeholder}
+              autoFocus
+              variant="borderless"
+              spellCheck={enableSpellCheck}
+              rows={2}
+              autoSize={height ? false : { minRows: 2, maxRows: 20 }}
+              styles={{ textarea: TextareaStyle }}
+              style={{
+                fontSize,
+                height: height,
+                minHeight: '30px'
+              }}
+              disabled={isTranslating || searching}
+              onClick={() => {
+                searching && setSearching(false)
+                quickPanel.close()
+              }}
+            />
+          )}
 
           <BottomBar>
             <LeftSection>{leftToolbar}</LeftSection>

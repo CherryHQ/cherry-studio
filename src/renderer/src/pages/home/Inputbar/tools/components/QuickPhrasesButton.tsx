@@ -10,6 +10,7 @@ import {
 } from '@renderer/components/QuickPanel'
 import { useQuickPanel } from '@renderer/components/QuickPanel'
 import { useTimer } from '@renderer/hooks/useTimer'
+import { useInputbarToolsDispatch } from '@renderer/pages/home/Inputbar/context/InputbarToolsProvider'
 import type { ToolQuickPanelApi } from '@renderer/pages/home/Inputbar/types'
 import { getPromptVersionRollbackMarker } from '@renderer/utils/promptVersion'
 import type { Prompt, PromptVersion } from '@shared/data/types/prompt'
@@ -30,6 +31,7 @@ const QuickPhrasesButton = ({ quickPanel, setInputValue, resizeTextArea }: Props
   const [isAddModalOpen, setIsAddModalOpen] = useState(false)
   const [addFormData, setAddFormData] = useState({ title: '', content: '' })
   const [versionMenuPrompt, setVersionMenuPrompt] = useState<Prompt | null>(null)
+  const { setVariablePrompt } = useInputbarToolsDispatch()
   const { t } = useTranslation()
   const quickPanelHook = useQuickPanel()
   const { setTimeoutTimer } = useTimer()
@@ -57,7 +59,7 @@ const QuickPhrasesButton = ({ quickPanel, setInputValue, resizeTextArea }: Props
     }
   })
 
-  const promptItems = useMemo(() => (promptsRaw || []) as Prompt[], [promptsRaw])
+  const promptItems = useMemo(() => promptsRaw || [], [promptsRaw])
 
   const insertText = useCallback(
     (text: string) => {
@@ -130,9 +132,13 @@ const QuickPhrasesButton = ({ quickPanel, setInputValue, resizeTextArea }: Props
 
   const handleItemSelect = useCallback(
     (item: Prompt) => {
-      insertText(item.content)
+      if (item.variables && item.variables.length > 0) {
+        setVariablePrompt({ content: item.content, variables: item.variables })
+      } else {
+        insertText(item.content)
+      }
     },
-    [insertText]
+    [insertText, setVariablePrompt]
   )
 
   const openVersionSubMenu = useCallback(
@@ -184,7 +190,13 @@ const QuickPhrasesButton = ({ quickPanel, setInputValue, resizeTextArea }: Props
       description: version.content,
       icon: <Zap />,
       isSelected: version.version === versionMenuPrompt.currentVersion,
-      action: () => insertText(version.content)
+      action: () => {
+        if (version.variables && version.variables.length > 0) {
+          setVariablePrompt({ content: version.content, variables: version.variables })
+        } else {
+          insertText(version.content)
+        }
+      }
     }))
 
     quickPanelHook.open({
