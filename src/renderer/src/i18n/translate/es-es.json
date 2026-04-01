@@ -4891,7 +4891,8 @@
       "topic_naming": {
         "auto": "Renombrar temas automáticamente",
         "label": "Nombramiento del tema",
-        "prompt": "Sugerencias para nombramiento de temas"
+        "prompt": "Sugerencias para nombramiento de temas",
+        "use_heading": "Usar título H1 del asistente"
       },
       "translate_model": "Modelo de traducción",
       "translate_model_description": "Modelo utilizado para el servicio de traducción",

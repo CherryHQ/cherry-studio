@@ -4891,7 +4891,8 @@
       "topic_naming": {
         "auto": "Renomeação automática de tópicos",
         "label": "Nomeação do tópico",
-        "prompt": "Prompt de nomenclatura de tópicos"
+        "prompt": "Prompt de nomenclatura de tópicos",
+        "use_heading": "Usar título H1 do assistente"
       },
       "translate_model": "Modelo de tradução",
       "translate_model_description": "Modelo usado para serviços de tradução",

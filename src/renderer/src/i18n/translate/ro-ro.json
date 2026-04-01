@@ -4891,7 +4891,8 @@
       "topic_naming": {
         "auto": "Numire automată subiect",
         "label": "Numire subiect",
-        "prompt": "Prompt numire subiect"
+        "prompt": "Prompt numire subiect",
+        "use_heading": "Utilizează titlul H1 al asistentului"
       },
       "translate_model": "Model traducere",
       "translate_model_description": "Model folosit pentru serviciul de traducere",

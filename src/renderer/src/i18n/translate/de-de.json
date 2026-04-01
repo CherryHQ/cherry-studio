@@ -4891,7 +4891,8 @@
       "topic_naming": {
         "auto": "Thema automatisch umbenennen",
         "label": "Thema-Benennung",
-        "prompt": "Thema-Benennung-Prompt"
+        "prompt": "Thema-Benennung-Prompt",
+        "use_heading": "Assistent-H1-Überschrift verwenden"
       },
       "translate_model": "Übersetzungsmodell",
       "translate_model_description": "Modell für Übersetzungsdienst",

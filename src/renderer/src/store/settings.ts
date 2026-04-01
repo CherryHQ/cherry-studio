@@ -144,6 +144,7 @@ export interface SettingsState {
   autoTranslateWithSpace: boolean
   showTranslateConfirm: boolean
   enableTopicNaming: boolean
+  enableTopicHeadingNaming: boolean
   customCss: string
   topicNamingPrompt: string
   // 消息操作确认设置
@@ -339,6 +340,7 @@ export const initialState: SettingsState = {
   autoTranslateWithSpace: false,
   showTranslateConfirm: true,
   enableTopicNaming: true,
+  enableTopicHeadingNaming: true,
   customCss: '',
   topicNamingPrompt: '',
   sidebarIcons: {
@@ -686,6 +688,9 @@ const settingsSlice = createSlice({
     setEnableTopicNaming: (state, action: PayloadAction<boolean>) => {
       state.enableTopicNaming = action.payload
     },
+    setEnableTopicHeadingNaming: (state, action: PayloadAction<boolean>) => {
+      state.enableTopicHeadingNaming = action.payload
+    },
     setPasteLongTextThreshold: (state, action: PayloadAction<number>) => {
       state.pasteLongTextThreshold = action.payload
     },
@@ -968,6 +973,7 @@ export const {
   setAutoTranslateWithSpace,
   setShowTranslateConfirm,
   setEnableTopicNaming,
+  setEnableTopicHeadingNaming,
   setPasteLongTextThreshold,
   setCustomCss,
   setTopicNamingPrompt,

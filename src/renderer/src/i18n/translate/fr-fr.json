@@ -4891,7 +4891,8 @@
       "topic_naming": {
         "auto": "Renommage automatique des sujets",
         "label": "Nom de sujet",
-        "prompt": "Mot-clé de renommage des sujets"
+        "prompt": "Mot-clé de renommage des sujets",
+        "use_heading": "Utiliser le titre H1 de l'assistant"
       },
       "translate_model": "Modèle de traduction",
       "translate_model_description": "Modèle utilisé pour le service de traduction",

@@ -3,7 +3,7 @@ import { ResetIcon } from '@renderer/components/Icons'
 import { HStack } from '@renderer/components/Layout'
 import { useSettings } from '@renderer/hooks/useSettings'
 import { useAppDispatch } from '@renderer/store'
-import { setEnableTopicNaming, setTopicNamingPrompt } from '@renderer/store/settings'
+import { setEnableTopicHeadingNaming, setEnableTopicNaming, setTopicNamingPrompt } from '@renderer/store/settings'
 import { Button, Divider, Flex, Input, Modal, Popover, Switch } from 'antd'
 import { useCallback, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -18,7 +18,7 @@ interface Props {
 const PopupContainer: React.FC<Props> = ({ resolve }) => {
   const [open, setOpen] = useState(true)
   const { t } = useTranslation()
-  const { enableTopicNaming, topicNamingPrompt } = useSettings()
+  const { enableTopicNaming, enableTopicHeadingNaming, topicNamingPrompt } = useSettings()
   const dispatch = useAppDispatch()
 
   const onOk = () => {
@@ -59,6 +59,10 @@ const PopupContainer: React.FC<Props> = ({ resolve }) => {
         <HStack style={{ gap: 16 }} alignItems="center">
           <div>{t('settings.models.topic_naming.auto')}</div>
           <Switch checked={enableTopicNaming} onChange={(v) => dispatch(setEnableTopicNaming(v))} />
+        </HStack>
+        <HStack style={{ gap: 16 }} alignItems="center">
+          <div>{t('settings.models.topic_naming.use_heading')}</div>
+          <Switch checked={enableTopicHeadingNaming} onChange={(v) => dispatch(setEnableTopicHeadingNaming(v))} />
         </HStack>
         <Divider style={{ margin: 0 }} />
         <div>
