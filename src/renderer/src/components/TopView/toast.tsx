@@ -33,7 +33,6 @@ interface ToastConfig {
   style?: React.CSSProperties
   onClick?: () => void
   onClose?: () => void
-  link?: { text: string; onClick: () => void }
 }
 
 interface LoadingToastConfig extends ToastConfig {
@@ -54,12 +53,11 @@ const colorToType = (color: ToastColor): MessageType => {
 }
 
 // Toast content component
-const ToastContent: React.FC<{
-  title?: React.ReactNode
-  description?: React.ReactNode
-  icon?: React.ReactNode
-  link?: { text: string; onClick: () => void }
-}> = ({ title, description, icon, link }) => {
+const ToastContent: React.FC<{ title?: React.ReactNode; description?: React.ReactNode; icon?: React.ReactNode }> = ({
+  title,
+  description,
+  icon
+}) => {
   return (
     <div className="flex flex-col gap-1">
       {(icon || title) && (
@@ -69,22 +67,6 @@ const ToastContent: React.FC<{
         </div>
       )}
       {description && <div className="text-sm">{description}</div>}
-      {link && (
-        <a
-          onClick={(e) => {
-            e.preventDefault()
-            link.onClick()
-          }}
-          style={{
-            color: 'var(--color-link)',
-            cursor: 'pointer',
-            fontSize: 13,
-            fontWeight: 500,
-            marginTop: 2
-          }}>
-          {link.text}
-        </a>
-      )}
     </div>
   )
 }
@@ -100,7 +82,7 @@ const createToast = (color: ToastColor) => {
       return null
     }
 
-    const { title, description, icon, timeout, link, ...restConfig } = arg
+    const { title, description, icon, timeout, ...restConfig } = arg
 
     // Convert timeout from milliseconds to seconds (antd uses seconds)
     const duration = timeout !== undefined ? timeout / 1000 : 3
@@ -108,7 +90,7 @@ const createToast = (color: ToastColor) => {
     return (
       (api.open({
         type: type,
-        content: <ToastContent title={title} description={description} icon={icon} link={link} />,
+        content: <ToastContent title={title} description={description} icon={icon} />,
         duration,
         ...restConfig
       }) as any) || null
