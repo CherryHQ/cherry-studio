@@ -102,7 +102,7 @@ export const CherryClawIcon = ({ size = 24, className }: { size?: number; classN
     alt="CherryClaw"
     width={size}
     height={size}
-    className={cn('rounded-full object-cover', className)}
+    className={cn('mr-0.75 shrink-0 rounded-full object-cover', className)}
     draggable={false}
   />
 )
@@ -119,7 +119,7 @@ export const AgentLabel = ({ agent, classNames, hideIcon }: AgentLabelProps) => 
         ) : (
           <EmojiIcon emoji={emoji} className={classNames?.avatar} size={24} />
         ))}
-      <span className={cn('truncate', 'text-[var(--color-text)]', classNames?.name)}>{agent?.name ?? ''}</span>
+      <span className={cn('truncate', 'text-(--color-text)', classNames?.name)}>{agent?.name ?? ''}</span>
     </div>
   )
 }
