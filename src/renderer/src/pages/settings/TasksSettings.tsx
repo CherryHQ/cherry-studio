@@ -98,7 +98,7 @@ const TaskDetail: FC<{
         <SettingTitle>
           <div className="flex items-center gap-2">
             <Tag color={statusColors[task.status] ?? 'default'}>{task.status}</Tag>
-            <span className="text-[var(--color-text-3)] text-xs">{agentName}</span>
+            <span className="text-(--color-text-3) text-xs">{agentName}</span>
           </div>
           <div className="flex items-center gap-1">
             {!isCompleted && (
@@ -133,12 +133,12 @@ const TaskDetail: FC<{
           <Tag color={scheduleTypeConfig[task.schedule_type]?.color ?? 'default'}>
             {scheduleTypeConfig[task.schedule_type]?.label ?? task.schedule_type}
           </Tag>
-          <span className="text-[var(--color-text-3)]">
+          <span className="text-(--color-text-3)">
             <Clock size={11} className="mr-0.5 inline" />
             {formatScheduleValue()}
           </span>
-          {task.next_run && <span className="text-[var(--color-text-3)]">Next: {formatTime(task.next_run)}</span>}
-          {task.last_run && <span className="text-[var(--color-text-3)]">Last: {formatTime(task.last_run)}</span>}
+          {task.next_run && <span className="text-(--color-text-3)">Next: {formatTime(task.next_run)}</span>}
+          {task.last_run && <span className="text-(--color-text-3)">Last: {formatTime(task.last_run)}</span>}
         </div>
       </SettingGroup>
 
@@ -421,7 +421,7 @@ const TaskLogsInline: FC<{ taskId: string; agentId: string }> = ({ taskId, agent
     <div className="flex flex-col gap-2">
       <Input
         size="small"
-        prefix={<Search size={12} className="text-[var(--color-text-3)]" />}
+        prefix={<Search size={12} className="text-(--color-text-3)" />}
         placeholder={t('agent.cherryClaw.tasks.logs.search', 'Search logs...')}
         value={searchText}
         onChange={(e) => setSearchText(e.target.value)}
@@ -674,6 +674,13 @@ const TasksSettings: FC = () => {
     void loadData()
   }, [loadData])
 
+  // Auto-select the first task when data is loaded and nothing is selected
+  useEffect(() => {
+    if (!loading && !selectedTaskId && !creating && tasks.length > 0) {
+      setSelectedTaskId(tasks[0].id)
+    }
+  }, [loading, selectedTaskId, creating, tasks])
+
   const selectedTask = useMemo(() => tasks.find((t) => t.id === selectedTaskId) ?? null, [tasks, selectedTaskId])
 
   const getAgentName = useCallback((agentId: string) => agents.find((a) => a.id === agentId)?.name ?? agentId, [agents])
@@ -814,7 +821,7 @@ const TasksSettings: FC = () => {
               onToggleStatus={handleToggleStatus}
             />
           ) : (
-            <div className="flex flex-1 items-center justify-center text-[var(--color-text-3)] text-sm">
+            <div className="flex flex-1 items-center justify-center text-(--color-text-3) text-sm">
               {tasks.length > 0
                 ? t('settings.scheduledTasks.selectTask', 'Select a task to view details')
                 : t('settings.scheduledTasks.noTasks')}
