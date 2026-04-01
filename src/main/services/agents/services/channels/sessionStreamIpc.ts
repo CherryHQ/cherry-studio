@@ -31,9 +31,9 @@ export function registerSessionStreamIpc(): void {
   })
 }
 
-export function broadcastSessionChanged(agentId: string, sessionId: string): void {
+export function broadcastSessionChanged(agentId: string, sessionId: string, headless?: boolean): void {
   const mainWindow = windowService.getMainWindow()
   if (mainWindow && !mainWindow.isDestroyed()) {
-    mainWindow.webContents.send(IpcChannel.AgentSession_Changed, { agentId, sessionId })
+    mainWindow.webContents.send(IpcChannel.AgentSession_Changed, { agentId, sessionId, headless: !!headless })
   }
 }

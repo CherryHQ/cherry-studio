@@ -20,11 +20,15 @@ export function useSessionChanged(agentId: string | undefined, mutate: () => voi
             fulfilled: true
           })
         )
-        // If the user is currently viewing this session, force-reload messages
-        // from SQLite so headless-persisted exchanges appear immediately.
-        const currentTopicId = store.getState().messages.currentTopicId
-        if (currentTopicId === topicId) {
-          void dispatch(loadTopicMessagesThunk(topicId, true))
+        // Only force-reload from DB when the exchange was persisted headlessly
+        // (i.e. the renderer was NOT streaming in real-time). When the renderer
+        // was watching, it already has the rich data in Redux via BlockManager,
+        // and force-reloading here would race with its fire-and-forget DB writes.
+        if (data.headless) {
+          const currentTopicId = store.getState().messages.currentTopicId
+          if (currentTopicId === topicId) {
+            void dispatch(loadTopicMessagesThunk(topicId, true))
+          }
         }
       }
     })

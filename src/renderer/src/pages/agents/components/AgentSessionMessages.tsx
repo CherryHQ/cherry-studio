@@ -49,8 +49,8 @@ const AgentSessionMessages = ({ agentId, sessionId }: Props) => {
   sessionRef.current = session
 
   useEffect(() => {
-    // Subscribe to IPC stream chunks for this session
-    void window.api.agentSessionStream.subscribe(sessionId)
+    let cancelled = false
+    let cleanupChunk: (() => void) | null = null
 
     const getOrCreateStream = () => {
       if (!streamCtrlRef.current) {
@@ -65,25 +65,37 @@ const AgentSessionMessages = ({ agentId, sessionId }: Props) => {
       return streamCtrlRef.current
     }
 
-    const cleanupChunk = window.api.agentSessionStream.onChunk((event) => {
-      if (event.sessionId !== sessionId) return
+    // Await subscribe before registering the chunk listener.
+    // This ensures the main-process bus subscription is active before any
+    // events can be published, eliminating the race where user-message is
+    // published before the subscriber exists.
+    const init = async () => {
+      await window.api.agentSessionStream.subscribe(sessionId)
+      if (cancelled) return
 
-      if (event.type === 'user-message' && event.userMessage) {
-        addChannelUserMessage(dispatch, sessionTopicId, agentId, event.userMessage.text, event.userMessage.images)
-        getOrCreateStream()
-      } else if (event.type === 'chunk' && event.chunk) {
-        getOrCreateStream().pushChunk(event.chunk)
-      } else if (event.type === 'complete') {
-        streamCtrlRef.current?.complete()
-        streamCtrlRef.current = null
-      } else if (event.type === 'error') {
-        streamCtrlRef.current?.error(new Error(event.error?.message ?? 'Stream error'))
-        streamCtrlRef.current = null
-      }
-    })
+      cleanupChunk = window.api.agentSessionStream.onChunk((event) => {
+        if (event.sessionId !== sessionId) return
+
+        if (event.type === 'user-message' && event.userMessage) {
+          addChannelUserMessage(dispatch, sessionTopicId, agentId, event.userMessage.text, event.userMessage.images)
+          getOrCreateStream()
+        } else if (event.type === 'chunk' && event.chunk) {
+          getOrCreateStream().pushChunk(event.chunk)
+        } else if (event.type === 'complete') {
+          streamCtrlRef.current?.complete()
+          streamCtrlRef.current = null
+        } else if (event.type === 'error') {
+          streamCtrlRef.current?.error(new Error(event.error?.message ?? 'Stream error'))
+          streamCtrlRef.current = null
+        }
+      })
+    }
+
+    void init()
 
     return () => {
-      cleanupChunk()
+      cancelled = true
+      cleanupChunk?.()
       streamCtrlRef.current?.complete()
       streamCtrlRef.current = null
       void window.api.agentSessionStream.unsubscribe(sessionId)

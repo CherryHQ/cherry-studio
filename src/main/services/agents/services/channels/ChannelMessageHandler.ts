@@ -228,18 +228,28 @@ export class ChannelMessageHandler {
         displayText = displayText ? `${displayText}\n${names}` : names
       }
 
-      sessionStreamBus.publish(session.id, {
-        sessionId: session.id,
-        agentId: session.agent_id,
-        type: 'user-message',
-        userMessage: {
-          chatId: message.chatId,
-          userId: message.userId,
-          userName: message.userName,
-          text: displayText,
-          images: message.images
-        }
-      })
+      // Snapshot subscriber state ONCE — this single check drives:
+      // 1. Whether user-message is published to the renderer
+      // 2. The persist flag (renderer persistence vs headless persistence)
+      // 3. Whether stream chunks / complete events are forwarded
+      // Checking once eliminates the race where subscribe() IPC completes
+      // between the user-message publish and the persist decision.
+      const rendererIsWatching = sessionStreamBus.hasSubscribers(session.id)
+
+      if (rendererIsWatching) {
+        sessionStreamBus.publish(session.id, {
+          sessionId: session.id,
+          agentId: session.agent_id,
+          type: 'user-message',
+          userMessage: {
+            chatId: message.chatId,
+            userId: message.userId,
+            userName: message.userName,
+            text: displayText,
+            images: message.images
+          }
+        })
+      }
 
       const abortController = new AbortController()
 
@@ -258,7 +268,8 @@ export class ChannelMessageHandler {
           adapter,
           message.chatId,
           message.text,
-          message.images
+          message.images,
+          rendererIsWatching
         )
 
         if (responseText) {
@@ -519,11 +530,14 @@ export class ChannelMessageHandler {
     adapter: ChannelAdapter,
     chatId: string,
     displayContent?: string,
-    images?: ImageAttachment[]
+    images?: ImageAttachment[],
+    rendererIsWatching: boolean = false
   ): Promise<string> {
-    // If renderer is subscribed, it handles persistence via the same BlockManager
-    // pipeline as normal agent messages. Otherwise, fall back to persistHeadlessExchange.
-    const rendererIsWatching = sessionStreamBus.hasSubscribers(session.id)
+    // Use the pre-computed rendererIsWatching flag from processIncoming.
+    // When renderer is watching: persist=false (renderer handles rich block persistence),
+    //   stream chunks and events are forwarded to the renderer via the bus.
+    // When renderer is NOT watching: persist=true (main persists via persistHeadlessExchange),
+    //   stream events are NOT forwarded (no subscriber or subscriber arrived late).
     const { stream, completion } = await sessionMessageService.createSessionMessage(
       session,
       { content },
@@ -540,13 +554,17 @@ export class ChannelMessageHandler {
         const { done, value } = await reader.read()
         if (done) break
 
-        // Publish chunk to bus for renderer real-time rendering
-        sessionStreamBus.publish(session.id, {
-          sessionId: session.id,
-          agentId: session.agent_id,
-          type: 'chunk',
-          chunk: value
-        })
+        // Only forward chunks to renderer when it was confirmed watching at stream start.
+        // This prevents late-subscribing renderers from receiving partial chunks
+        // while main process is also persisting (which would cause duplicates).
+        if (rendererIsWatching) {
+          sessionStreamBus.publish(session.id, {
+            sessionId: session.id,
+            agentId: session.agent_id,
+            type: 'chunk',
+            chunk: value
+          })
+        }
 
         // Skip user message echoes — only accumulate assistant text for the channel reply
         const rawType = (value as any).providerMetadata?.raw?.type
@@ -574,23 +592,29 @@ export class ChannelMessageHandler {
 
       await completion
 
-      // Notify renderer that stream is complete and data is persisted
-      sessionStreamBus.publish(session.id, {
-        sessionId: session.id,
-        agentId: session.agent_id,
-        type: 'complete'
-      })
-      broadcastSessionChanged(session.agent_id, session.id)
+      if (rendererIsWatching) {
+        // Notify renderer that stream is complete and data is persisted
+        sessionStreamBus.publish(session.id, {
+          sessionId: session.id,
+          agentId: session.agent_id,
+          type: 'complete'
+        })
+      }
+      // headless=true means main process persisted; renderer should force-reload from DB.
+      // headless=false means renderer handled persistence; no reload needed.
+      broadcastSessionChanged(session.agent_id, session.id, !rendererIsWatching)
 
       // Trim trailing separator
       return (completedText + currentBlockText).replace(/\n+$/, '')
     } catch (error) {
-      sessionStreamBus.publish(session.id, {
-        sessionId: session.id,
-        agentId: session.agent_id,
-        type: 'error',
-        error: { message: error instanceof Error ? error.message : String(error) }
-      })
+      if (rendererIsWatching) {
+        sessionStreamBus.publish(session.id, {
+          sessionId: session.id,
+          agentId: session.agent_id,
+          type: 'error',
+          error: { message: error instanceof Error ? error.message : String(error) }
+        })
+      }
       throw error
     }
   }
