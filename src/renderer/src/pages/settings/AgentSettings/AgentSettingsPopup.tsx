@@ -36,7 +36,6 @@ const AgentSettingPopupContainer: React.FC<AgentSettingPopupParams> = ({ tab, ag
         { key: 'prompt', label: t('agent.settings.prompt') },
         !isSoul && { key: 'permission-mode', label: t('agent.settings.permissionMode.tab', 'Permission Mode') },
         { key: 'tools-mcp', label: t('agent.settings.toolsMcp.tab', 'Tools & MCP') },
-        { key: 'mcp', label: t('agent.settings.toolsMcp.mcp.tab', 'MCP') },
         { key: 'installed', label: t('agent.settings.skills.tab', 'Skills') },
         { key: 'advanced', label: t('agent.settings.advance.title', 'Advanced Settings') }
       ].filter(Boolean) as SettingsMenuItem[],
