@@ -515,6 +515,14 @@ const ErrorDetailContent: React.FC<ErrorDetailContentProps> = ({
   const { t } = useTranslation()
   const [diagStatus, setDiagStatus] = useState<'idle' | 'loading' | 'done' | 'error'>(cachedDiagnosis ? 'done' : 'idle')
   const diagSectionRef = useRef<{ runDiagnosis: () => void }>(null)
+  const containerRef = useRef<HTMLDivElement>(null)
+
+  // Scroll to bottom after DOM updates when status changes
+  useEffect(() => {
+    if (diagStatus !== 'idle') {
+      containerRef.current?.scrollTo({ top: containerRef.current.scrollHeight, behavior: 'instant' })
+    }
+  }, [diagStatus])
 
   const copyErrorDetails = useCallback(() => {
     if (!error) {
@@ -569,7 +577,7 @@ const ErrorDetailContent: React.FC<ErrorDetailContentProps> = ({
 
   return (
     <>
-      <ErrorDetailContainer>
+      <ErrorDetailContainer ref={containerRef}>
         {renderErrorDetails(error)}
         {diagStatus !== 'idle' && (
           <AIDiagnosisSectionWithStatus

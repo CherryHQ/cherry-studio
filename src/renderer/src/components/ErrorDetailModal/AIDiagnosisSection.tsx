@@ -42,7 +42,6 @@ const AIDiagnosisSectionWithStatus = memo(
     const [diagError, setDiagError] = useState<string>('')
     const mountedRef = useRef(true)
     const cancelledRef = useRef(false)
-    const panelRef = useRef<HTMLDivElement>(null)
 
     useEffect(() => {
       mountedRef.current = true
@@ -65,10 +64,6 @@ const AIDiagnosisSectionWithStatus = memo(
       cancelledRef.current = false
       onStatusChange('loading')
       setDiagError('')
-      // Scroll diagnosis panel into view when diagnosis starts
-      requestAnimationFrame(() => {
-        panelRef.current?.scrollIntoView({ behavior: 'smooth', block: 'nearest' })
-      })
       try {
         const diagnosis = await diagnoseError(error, i18n.language, diagnosisContext)
         if (cancelledRef.current || !mountedRef.current) return
@@ -96,7 +91,7 @@ const AIDiagnosisSectionWithStatus = memo(
     }
 
     return (
-      <div ref={panelRef} className="mt-4 rounded-lg p-3.5 px-4" style={diagPanelStyle}>
+      <div className="mt-4 rounded-lg p-3.5 px-4" style={diagPanelStyle}>
         {status === 'loading' && (
           <div className="flex items-center gap-1.5 font-semibold text-sm" style={{ color: 'var(--color-primary)' }}>
             <Loader2 size={14} className="animation-rotate" />
