@@ -516,11 +516,19 @@ const ErrorDetailContent: React.FC<ErrorDetailContentProps> = ({
   const [diagStatus, setDiagStatus] = useState<'idle' | 'loading' | 'done' | 'error'>(cachedDiagnosis ? 'done' : 'idle')
   const diagSectionRef = useRef<{ runDiagnosis: () => void }>(null)
   const containerRef = useRef<HTMLDivElement>(null)
+  const isInitialRenderRef = useRef(true)
 
-  // Scroll to bottom after DOM updates when status changes
+  // Scroll to bottom when diagnosis status changes, but skip initial render
   useEffect(() => {
+    if (isInitialRenderRef.current) {
+      isInitialRenderRef.current = false
+      return
+    }
+
     if (diagStatus !== 'idle') {
-      containerRef.current?.scrollTo({ top: containerRef.current.scrollHeight, behavior: 'instant' })
+      requestAnimationFrame(() => {
+        containerRef.current?.scrollTo({ top: containerRef.current.scrollHeight, behavior: 'smooth' })
+      })
     }
   }, [diagStatus])
 
@@ -538,7 +546,7 @@ const ErrorDetailContent: React.FC<ErrorDetailContentProps> = ({
       errorText = safeToString(error)
     }
 
-    navigator.clipboard.writeText(errorText)
+    void navigator.clipboard.writeText(errorText)
     window.toast.success(t('message.copied'))
   }, [error, t])
 
