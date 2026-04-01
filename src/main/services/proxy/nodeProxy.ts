@@ -56,6 +56,10 @@ interface ParsedProxyBypassRule {
   ip?: string
 }
 
+// This well-known symbol is used by Node.js built-in undici to store the global dispatcher.
+// Derived from undici (bundled with Node 22). If undici changes this symbol name in a future
+// Node.js release, SOCKS dispatcher save/restore will silently no-op (falls back to original).
+// Ref: https://github.com/nodejs/undici/blob/main/lib/global.js
 const SOCKS_DISPATCHER_SYMBOL = Symbol.for('undici.globalDispatcher.1')
 const globalDispatcherRegistry = globalThis as typeof globalThis & Record<symbol, Dispatcher | undefined>
 
