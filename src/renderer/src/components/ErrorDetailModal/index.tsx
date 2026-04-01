@@ -35,7 +35,7 @@ import {
 import { formatAiSdkError, formatError, safeToString } from '@renderer/utils/error'
 import { parseDataUrl } from '@shared/utils'
 import { Button } from 'antd'
-import { CheckCircle, Loader2 } from 'lucide-react'
+import { CheckCircle, Copy, Loader2, Stethoscope } from 'lucide-react'
 import React, { memo, useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
@@ -225,7 +225,7 @@ const AiSdkErrorBase = memo(({ error }: { error: SerializedAiSdkError }) => {
           </ErrorDetailLabel>
           <ErrorDetailValue>
             <div
-              className="markdown [&_pre]:!bg-transparent [&_pre_span]:whitespace-pre-wrap"
+              className="markdown [&_pre]:bg-transparent! [&_pre_span]:whitespace-pre-wrap"
               dangerouslySetInnerHTML={{ __html: highlightedString }}
             />
           </ErrorDetailValue>
@@ -527,7 +527,10 @@ const ErrorDetailContent: React.FC<ErrorDetailContentProps> = ({
   const diagSectionRef = useRef<{ runDiagnosis: () => void }>(null)
 
   const copyErrorDetails = useCallback(() => {
-    if (!error) return
+    if (!error) {
+      return
+    }
+
     let errorText: string
     if (isSerializedAiSdkError(error)) {
       errorText = formatAiSdkError(error)
@@ -537,15 +540,19 @@ const ErrorDetailContent: React.FC<ErrorDetailContentProps> = ({
       errorText = safeToString(error)
     }
 
-    void navigator.clipboard.writeText(errorText)
-    window.toast.addToast({ title: t('message.copied') })
+    navigator.clipboard.writeText(errorText)
+    window.toast.success(t('message.copied'))
   }, [error, t])
 
   const renderErrorDetails = (error?: SerializedError) => {
-    if (!error) return <div>{t('error.unknown')}</div>
+    if (!error) {
+      return <div>{t('error.unknown')}</div>
+    }
+
     if (isSerializedAiSdkErrorUnion(error)) {
       return <AiSdkError error={error} />
     }
+
     return (
       <ErrorDetailList>
         <BuiltinError error={error} />
@@ -588,18 +595,23 @@ const ErrorDetailContent: React.FC<ErrorDetailContentProps> = ({
         )}
       </ErrorDetailContainer>
       <div className="my-2 mt-4 flex justify-end gap-2">
-        <Button
-          color="default"
-          disabled={diagStatus === 'loading'}
-          style={diagStatus === 'done' ? { color: 'var(--color-primary)' } : undefined}
-          onClick={handleDiagnose}>
-          {getDiagButtonText()}
-        </Button>
-        <Button color="default" onClick={copyErrorDetails}>
+        <Button color="default" icon={<Copy size={14} />} onClick={copyErrorDetails}>
           {t('common.copy')}
         </Button>
-        <Button color="default" onClick={() => GeneralPopup.hide()}>
-          {t('common.close')}
+        <Button
+          type="primary"
+          disabled={diagStatus === 'loading'}
+          icon={
+            diagStatus === 'loading' ? (
+              <Loader2 size={14} className="animate-spin" />
+            ) : diagStatus === 'done' ? (
+              <CheckCircle size={14} />
+            ) : (
+              <Stethoscope size={14} />
+            )
+          }
+          onClick={handleDiagnose}>
+          {getDiagButtonText()}
         </Button>
       </div>
     </>
