@@ -130,7 +130,8 @@ const ChannelLogModal: FC<{
       footer={null}
       onCancel={onClose}
       width={600}
-      destroyOnHidden>
+      destroyOnHidden
+      centered>
       <LogContainer>
         {logs.length === 0 && (
           <div className="py-8 text-center text-foreground-400 text-xs">{t('agent.cherryClaw.channels.noLogs')}</div>
@@ -201,7 +202,7 @@ const ChannelEditModal: FC<EditModalProps> = ({ open, channel, agents, onClose, 
   const FormComponent = getFormForType(channel.type)
 
   return (
-    <Modal open={open} title={channel.name} footer={null} onCancel={onClose} width={500} destroyOnHidden>
+    <Modal open={open} title={channel.name} footer={null} onCancel={onClose} width={500} destroyOnHidden centered>
       <div className="flex flex-col gap-4 py-2">
         <div>
           <label className="mb-1 block font-medium text-xs">{t('common.name')}</label>

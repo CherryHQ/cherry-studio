@@ -20,9 +20,9 @@ const EssentialSettings: FC<EssentialSettingsProps> = ({ agentBase, update, show
       <NameSetting base={agentBase} update={update} />
       {showModelSetting && <ModelSetting base={agentBase} update={update} />}
       <AccessibleDirsSetting base={agentBase} update={update} />
-      <DescriptionSetting base={agentBase} update={update} />
       <SoulModeSetting base={agentBase} update={update} />
       <HeartbeatSetting base={agentBase} update={update} />
+      <DescriptionSetting base={agentBase} update={update} />
     </SettingsContainer>
   )
 }
