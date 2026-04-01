@@ -7,7 +7,13 @@ import { useChannels } from '@renderer/hooks/agents/useChannels'
 import { useTaskLogs } from '@renderer/hooks/agents/useTasks'
 import { useAppDispatch } from '@renderer/store'
 import { setActiveAgentId, setActiveSessionIdAction } from '@renderer/store/runtime'
-import type { CreateTaskRequest, ScheduledTaskEntity, TaskRunLogEntity, UpdateTaskRequest } from '@renderer/types'
+import type {
+  CherryClawConfiguration,
+  CreateTaskRequest,
+  ScheduledTaskEntity,
+  TaskRunLogEntity,
+  UpdateTaskRequest
+} from '@renderer/types'
 import { Button, Empty, Flex, Input, Popconfirm, Select, Spin, Table, Tag, Tooltip } from 'antd'
 import { Clock, ExternalLink, Pause, Play, Search, Trash2 } from 'lucide-react'
 import { type FC, useCallback, useEffect, useMemo, useState } from 'react'
@@ -651,7 +657,11 @@ const TasksSettings: FC = () => {
         client.listAgents({ limit: 100 })
       ])
       setTasks(tasksRes.data)
-      setAgents(agentsRes.data.map((a) => ({ id: a.id, name: a.name ?? a.id })))
+      setAgents(
+        agentsRes.data
+          .filter((a) => (a.configuration as CherryClawConfiguration | undefined)?.soul_enabled === true)
+          .map((a) => ({ id: a.id, name: a.name ?? a.id }))
+      )
     } finally {
       setLoading(false)
     }
