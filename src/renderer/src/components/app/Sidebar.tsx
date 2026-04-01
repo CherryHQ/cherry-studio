@@ -1,5 +1,3 @@
-import type { SidebarMenuItem } from '@cherrystudio/ui'
-import { Sidebar as UISidebar } from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
 import { AppLogo } from '@renderer/config/env'
 import { modelGenerating } from '@renderer/hooks/useModel'
@@ -23,6 +21,8 @@ import { useEffect, useMemo, useState } from 'react'
 
 import { useTabs } from '../../hooks/useTabs'
 import { OpenClawSidebarIcon } from '../Icons/SVGIcon'
+import { Sidebar as UISidebar } from '../Sidebar'
+import type { SidebarMenuItem } from '../Sidebar/types'
 const DEFAULT_SIDEBAR_WIDTH = 200
 
 const routePrefixMap: Record<SidebarIconType, string> = {
