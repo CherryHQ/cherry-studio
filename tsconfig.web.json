@@ -9,7 +9,6 @@
     "packages/aiCore/src/**/*",
     "packages/ai-sdk-provider/**/*",
     "packages/extension-table-plus/**/*",
-    "packages/mcp-trace/**/*",
     "packages/shared/**/*"
   ],
   "compilerOptions": {
@@ -23,7 +22,7 @@
       "@renderer/*": ["./src/renderer/src/*"],
       "@shared/*": ["./packages/shared/*"],
       "@types": ["./src/renderer/src/types/index.ts"],
-      "@mcp-trace/*": ["./packages/mcp-trace/*"],
+      "@shared/trace": ["./packages/shared/trace/index.ts"],
       "@cherrystudio/ai-core/provider": ["./packages/aiCore/src/core/providers/index.ts"],
       "@cherrystudio/ai-core/built-in/plugins": ["./packages/aiCore/src/core/plugins/built-in/index.ts"],
       "@cherrystudio/ai-core/*": ["./packages/aiCore/src/*"],

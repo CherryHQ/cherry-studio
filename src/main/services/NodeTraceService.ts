@@ -1,9 +1,9 @@
 import { loggerService } from '@logger'
 import { isDev } from '@main/constant'
-import { CacheBatchSpanProcessor, FunctionSpanExporter } from '@mcp-trace/trace-core'
-import { NodeTracer as MCPNodeTracer } from '@mcp-trace/trace-node/nodeTracer'
+import { NodeTracer as MCPNodeTracer } from '@main/trace/nodeTracer'
 import type { SpanContext } from '@opentelemetry/api'
 import { context, trace } from '@opentelemetry/api'
+import { CacheBatchSpanProcessor, FunctionSpanExporter } from '@shared/trace'
 import { BrowserWindow, ipcMain } from 'electron'
 import * as path from 'path'
 
