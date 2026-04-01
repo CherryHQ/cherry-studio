@@ -11,6 +11,8 @@ interface CreateMiniAppInput {
   logoUrl?: string
 }
 
+const EMPTY_MULTI_INSTANCE_IDS: string[] = []
+
 interface UseSidebarTabsOptions {
   initialTabs?: SidebarTab[]
   initialActiveTabId?: string
@@ -20,7 +22,7 @@ interface UseSidebarTabsOptions {
 export function useSidebarTabs(menuItems: SidebarMenuItem[], options: UseSidebarTabsOptions = {}) {
   const [tabs, setTabs] = useState<SidebarTab[]>(options.initialTabs ?? [])
   const [activeTabId, setActiveTabId] = useState(options.initialActiveTabId ?? '')
-  const multiInstanceItemIds = options.multiInstanceItemIds ?? []
+  const multiInstanceItemIds = options.multiInstanceItemIds ?? EMPTY_MULTI_INSTANCE_IDS
 
   const createTabForMenuItem = useCallback(
     (menuItemId: string) => {

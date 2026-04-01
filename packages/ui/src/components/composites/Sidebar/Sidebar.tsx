@@ -65,6 +65,7 @@ function FullMenuItems({
         return (
           <div key={item.id}>
             <button
+              type="button"
               onClick={() => onItemClick(item.id)}
               className={`relative flex w-full items-center gap-2.5 rounded-xl px-2.5 py-[7px] text-[13px] transition-all duration-150 ${
                 isActive
@@ -86,6 +87,7 @@ function FullMenuItems({
 
             {miniTabs.map((miniTab) => (
               <button
+                type="button"
                 key={miniTab.id}
                 onClick={() => onMiniAppTabClick?.(miniTab.id)}
                 className={`relative flex w-full items-center gap-2 rounded-xl pl-7 pr-2.5 py-[5px] text-[12px] transition-all duration-150 ${
@@ -163,6 +165,7 @@ function FullDockedTabs({
             )}
             <span className="flex-1 truncate">{dockedTab.title}</span>
             <button
+              type="button"
               onClick={(event) => {
                 event.stopPropagation()
                 onCloseDockedTab?.(dockedTab.id)
@@ -191,6 +194,7 @@ function SidebarBottomSection({
   return (
     <div className="space-y-1 px-2 py-2">
       <button
+        type="button"
         onClick={onExtensionsClick}
         className="flex w-full items-center gap-2.5 rounded-lg px-2.5 py-[7px] text-[13px] text-muted-foreground transition-colors hover:bg-accent/60 hover:text-foreground">
         <Columns2 size={16} strokeWidth={1.6} />
@@ -474,6 +478,7 @@ export function Sidebar({
                 <div key={item.id} className="contents">
                   <SidebarTooltip content={item.label}>
                     <button
+                      type="button"
                       onClick={() => onItemClick(item.id)}
                       className={`relative flex h-9 w-9 items-center justify-center rounded-md transition-all duration-150 ${
                         isActive
@@ -490,6 +495,7 @@ export function Sidebar({
                   {miniTabs.map((miniTab) => (
                     <SidebarTooltip key={miniTab.id} content={miniTab.title}>
                       <button
+                        type="button"
                         onClick={() => onMiniAppTabClick?.(miniTab.id)}
                         className={`relative flex h-7 w-7 items-center justify-center rounded-md transition-all duration-150 ${
                           activeTabId === miniTab.id ? 'bg-cherry-active-bg' : 'hover:bg-accent/50'
@@ -517,6 +523,7 @@ export function Sidebar({
               return (
                 <div key={item.id} className="contents">
                   <button
+                    type="button"
                     onClick={() => onItemClick(item.id)}
                     className={`relative flex w-full flex-col items-center gap-0.5 rounded-md py-2 transition-all duration-150 ${
                       isActive
@@ -532,6 +539,7 @@ export function Sidebar({
 
                   {miniTabs.map((miniTab) => (
                     <button
+                      type="button"
                       key={miniTab.id}
                       onClick={() => onMiniAppTabClick?.(miniTab.id)}
                       className={`relative flex w-full flex-col items-center gap-0.5 rounded-md py-1.5 transition-all duration-150 ${
@@ -575,6 +583,7 @@ export function Sidebar({
                     <div key={dockedTab.id} className="group/dock relative">
                       <SidebarTooltip content={dockedTab.title}>
                         <button
+                          type="button"
                           onClick={() => onMiniAppTabClick?.(dockedTab.id)}
                           onMouseDown={(event) => {
                             event.stopPropagation()
@@ -595,6 +604,7 @@ export function Sidebar({
                       </SidebarTooltip>
 
                       <button
+                        type="button"
                         onClick={(event) => {
                           event.stopPropagation()
                           onCloseDockedTab?.(dockedTab.id)
@@ -617,6 +627,7 @@ export function Sidebar({
                   return (
                     <div key={dockedTab.id} className="group/dock relative w-full">
                       <button
+                        type="button"
                         onClick={() => onMiniAppTabClick?.(dockedTab.id)}
                         onMouseDown={(event) => {
                           event.stopPropagation()
@@ -639,6 +650,7 @@ export function Sidebar({
                       </button>
 
                       <button
+                        type="button"
                         onClick={(event) => {
                           event.stopPropagation()
                           onCloseDockedTab?.(dockedTab.id)
@@ -671,6 +683,7 @@ export function Sidebar({
             <div className="flex flex-col items-center gap-1 px-1.5 py-2">
               <SidebarTooltip content={extensionsLabel}>
                 <button
+                  type="button"
                   onClick={onExtensionsClick}
                   className="flex h-9 w-9 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-accent/60 hover:text-foreground">
                   <Columns2 size={18} strokeWidth={1.6} />
@@ -693,6 +706,7 @@ export function Sidebar({
           {layout === 'vertical-card' && (
             <div className="flex flex-col items-center gap-0 px-1 py-1.5">
               <button
+                type="button"
                 onClick={onExtensionsClick}
                 className="flex w-full flex-col items-center gap-0.5 rounded-lg py-2 text-muted-foreground transition-colors hover:bg-accent/50 hover:text-foreground">
                 <Columns2 size={18} strokeWidth={1.6} />
