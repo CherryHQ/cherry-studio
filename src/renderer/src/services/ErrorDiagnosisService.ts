@@ -55,7 +55,16 @@ async function buildModelsToTry(context?: DiagnosisContext): Promise<Model[]> {
 
 function parseResponse(raw: string): DiagnosisResult {
   // Strip markdown code blocks if AI wraps response in ```json ... ```
-  const cleaned = raw.replace(/^```(?:json)?\s*\n?/i, '').replace(/\n?```\s*$/, '')
+  let cleaned = raw.replace(/^```(?:json)?\s*\n?/i, '').replace(/\n?```\s*$/, '')
+
+  // Try to extract JSON object if model returned extra text around it
+  if (!cleaned.trimStart().startsWith('{')) {
+    const jsonMatch = cleaned.match(/\{[\s\S]*\}/)
+    if (jsonMatch) {
+      cleaned = jsonMatch[0]
+    }
+  }
+
   const parsed = JSON.parse(cleaned) as DiagnosisResult
 
   if (!parsed.summary || !Array.isArray(parsed.steps)) {
@@ -66,7 +75,7 @@ function parseResponse(raw: string): DiagnosisResult {
     summary: parsed.summary,
     category: parsed.category || 'unknown',
     explanation: parsed.explanation || parsed.summary,
-    steps: parsed.steps
+    steps: parsed.steps.map((s) => ({ text: typeof s === 'string' ? s : s.text }))
   }
 }
 
@@ -89,25 +98,47 @@ export async function diagnoseError(
 
   const cause = (error as Record<string, unknown>).cause
   if (cause && typeof cause === 'string') {
-    errorInfo.responseBody = cause.slice(0, 500)
+    errorInfo.responseBody = cause.slice(0, 800)
   }
 
-  const prompt = `You are an error diagnosis assistant for Cherry Studio, an AI chat desktop application.
-Analyze the following error and provide a diagnosis in ${language}.
+  const url = (error as Record<string, unknown>).url
+  if (url && typeof url === 'string') {
+    // Include API endpoint (strip query params for privacy)
+    try {
+      const parsed = new URL(url as string)
+      errorInfo.endpoint = `${parsed.origin}${parsed.pathname}`
+    } catch {
+      // ignore invalid URLs
+    }
+  }
 
-IMPORTANT:
-- Respond ONLY with valid JSON, no markdown code blocks
-- The JSON must match this exact structure: { "summary": "string", "category": "string", "explanation": "string", "steps": [{ "text": "string" }] }
-- "summary" is a one-line summary of what went wrong
-- "category" is the error category (e.g. "authentication", "quota", "model_unavailable", "network", "content_policy", "server_error", "mcp", "knowledge_base", "ocr", "unknown")
-- "explanation" is a 2-3 sentence plain language explanation of why the error occurred
-- "steps" are 2-4 actionable steps the user can take to fix the issue
-- Steps should be concrete and specific (e.g. "Check your API key in provider settings", "Try a different model")
-- Do NOT tell the user to restart the application unless the error is clearly caused by a corrupted local state
-- Do NOT include URLs, links, or internal route paths in steps — just plain text instructions
-- Do NOT include API keys, personal data, or file paths in your response`
+  const prompt = `You are an error diagnosis assistant for Cherry Studio (an AI chat desktop app that connects to LLM providers like OpenAI, Anthropic, Google, etc.).
 
-  const content = `Error details:\n${JSON.stringify(errorInfo, null, 2)}`
+Your task: analyze the error below and return a JSON diagnosis in ${language}.
+
+## Context about Cherry Studio
+- Users configure AI providers (OpenAI, Anthropic, Google, Ollama, etc.) with API keys
+- Each provider has multiple models (e.g. gpt-4, claude-3, gemini-pro)
+- Users chat with AI models; errors occur during API calls to these providers
+- Common issues: wrong API key, expired quota, model not available, network/proxy problems, content filtered by safety policy
+
+## Output format
+Return ONLY a JSON object (no markdown, no code blocks, no extra text):
+{"summary":"one-line description of the error","category":"auth|quota|model|network|proxy|content|server|context_length|payload|stream|parse|mcp|knowledge|ocr|deprecated|unknown","explanation":"2-3 sentences explaining WHY this error happened in plain language the user can understand","steps":[{"text":"step 1"},{"text":"step 2"},{"text":"step 3"}]}
+
+## Rules for steps
+- Give 2-4 concrete, actionable steps
+- Be specific: say "Check your OpenAI API key in provider settings" not "Check settings"
+- Reference the actual provider/model name from the error when available
+- Do NOT suggest restarting the app unless error is about corrupted local state
+- Do NOT include any URLs or links
+- Each step is plain text only
+
+## Example
+Input: {"name":"APICallError","message":"invalid_api_key","status":401,"provider":"openai","modelId":"gpt-4"}
+Output: {"summary":"OpenAI API key is invalid or expired","category":"auth","explanation":"The OpenAI server rejected the request because the API key is invalid, expired, or has been revoked. This usually happens when the key was copied incorrectly or the key has been rotated.","steps":[{"text":"Open provider settings and check your OpenAI API key is correct"},{"text":"Verify the API key is still active in your OpenAI dashboard"},{"text":"If using a third-party proxy, confirm the key format matches their requirements"}]}`
+
+  const content = JSON.stringify(errorInfo)
 
   const modelsToTry = await buildModelsToTry(context)
   let lastError: Error | null = null
