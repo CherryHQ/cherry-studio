@@ -885,6 +885,13 @@
           "primaryKey": false,
           "notNull": true,
           "autoincrement": false
+        },
+        "variables": {
+          "name": "variables",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
         }
       },
       "indexes": {
@@ -938,6 +945,13 @@
         "rollback_from": {
           "name": "rollback_from",
           "type": "integer",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "variables": {
+          "name": "variables",
+          "type": "text",
           "primaryKey": false,
           "notNull": false,
           "autoincrement": false

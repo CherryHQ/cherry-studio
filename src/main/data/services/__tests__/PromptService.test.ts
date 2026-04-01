@@ -31,6 +31,7 @@ function makePromptRow(overrides: Partial<Record<string, unknown>> = {}) {
     content: 'Prompt content',
     currentVersion: 1,
     sortOrder: 0,
+    variables: null,
     createdAt: 1700000000000,
     updatedAt: 1700000000000,
     ...overrides
@@ -44,6 +45,7 @@ function makeVersionRow(overrides: Partial<Record<string, unknown>> = {}) {
     version: 1,
     content: 'Prompt content',
     rollbackFrom: null,
+    variables: null,
     createdAt: 1700000000000,
     ...overrides
   }
@@ -79,8 +81,9 @@ describe('PromptService', () => {
       content: existing.content,
       currentVersion: existing.currentVersion,
       sortOrder: existing.sortOrder,
-      createdAt: new Date(existing.createdAt as number).toISOString(),
-      updatedAt: new Date(existing.updatedAt as number).toISOString()
+      variables: null,
+      createdAt: new Date(existing.createdAt).toISOString(),
+      updatedAt: new Date(existing.updatedAt).toISOString()
     })
   })
 
@@ -122,7 +125,7 @@ describe('PromptService', () => {
       content: 'New content'
     })
 
-    const promptInsert = (tx.insert as ReturnType<typeof vi.fn>).mock.results[0]?.value.values
+    const promptInsert = tx.insert.mock.results[0]?.value.values
 
     expect(promptOrderLimitMock).toHaveBeenCalledWith(1)
     expect(promptInsert).toHaveBeenCalledWith(
@@ -176,10 +179,10 @@ describe('PromptService', () => {
 
     getDbMock.mockReturnValue(db)
 
-    const result = await promptService.rollback(existing.id as string, { version: 1 })
+    const result = await promptService.rollback(existing.id, { version: 1 })
 
     expect(targetLimitMock).toHaveBeenCalledWith(1)
-    expect((tx.insert as ReturnType<typeof vi.fn>).mock.results[0]?.value.values).toHaveBeenCalledWith(
+    expect(tx.insert.mock.results[0]?.value.values).toHaveBeenCalledWith(
       expect.objectContaining({
         rollbackFrom: 1
       })

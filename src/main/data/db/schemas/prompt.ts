@@ -25,7 +25,9 @@ export const promptTable = sqliteTable(
     updatedAt: integer()
       .notNull()
       .$defaultFn(() => Date.now())
-      .$onUpdateFn(() => Date.now())
+      .$onUpdateFn(() => Date.now()),
+    // JSON-serialized PromptVariable[] — rendering metadata for ${var} template variables
+    variables: text()
   },
   (t) => [index('prompt_sort_order_idx').on(t.sortOrder), index('prompt_updated_at_idx').on(t.updatedAt)]
 )
@@ -50,6 +52,8 @@ export const promptVersionTable = sqliteTable(
     content: text().notNull(),
     // If this version was created by a rollback, records the source version number
     rollbackFrom: integer(),
+    // JSON-serialized PromptVariable[] snapshot at this version
+    variables: text(),
 
     createdAt: integer()
       .notNull()

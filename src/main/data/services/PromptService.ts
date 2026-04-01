@@ -5,6 +5,7 @@
  * - Prompt CRUD operations
  * - Automatic version creation on content changes
  * - Version history and rollback
+ * - Template variable metadata (variables field)
  */
 
 import { promptTable, promptVersionTable } from '@data/db/schemas/prompt'
@@ -12,10 +13,37 @@ import { loggerService } from '@logger'
 import { application } from '@main/core/application'
 import { DataApiErrorFactory } from '@shared/data/api'
 import type { CreatePromptDto, RollbackPromptDto, UpdatePromptDto } from '@shared/data/api/schemas/prompts'
-import type { Prompt, PromptVersion } from '@shared/data/types/prompt'
+import type { Prompt, PromptVariable, PromptVersion } from '@shared/data/types/prompt'
+import { PromptVariablesSchema } from '@shared/data/types/prompt'
 import { and, desc, eq } from 'drizzle-orm'
 
 const logger = loggerService.withContext('DataApi:PromptService')
+
+/**
+ * Safely parse a JSON variables string from DB.
+ * Returns parsed array on success, null on failure (malformed JSON or invalid schema).
+ */
+function safeParseVariables(raw: string | null): PromptVariable[] | null {
+  if (raw === null) return null
+  try {
+    const parsed = JSON.parse(raw)
+    const result = PromptVariablesSchema.safeParse(parsed)
+    if (result.success) return result.data
+    logger.warn('Invalid variables JSON in DB, falling back to null', { error: result.error.message })
+    return null
+  } catch {
+    logger.warn('Malformed variables JSON in DB, falling back to null')
+    return null
+  }
+}
+
+/**
+ * Serialize variables to JSON string for DB storage.
+ */
+function serializeVariables(variables: PromptVariable[] | null | undefined): string | null {
+  if (variables === null || variables === undefined) return null
+  return JSON.stringify(variables)
+}
 
 /**
  * Convert database row to Prompt entity
@@ -27,6 +55,7 @@ function rowToPrompt(row: typeof promptTable.$inferSelect): Prompt {
     content: row.content,
     currentVersion: row.currentVersion,
     sortOrder: row.sortOrder,
+    variables: safeParseVariables(row.variables),
     createdAt: new Date(row.createdAt).toISOString(),
     updatedAt: new Date(row.updatedAt).toISOString()
   }
@@ -42,22 +71,12 @@ function rowToVersion(row: typeof promptVersionTable.$inferSelect): PromptVersio
     version: row.version,
     content: row.content,
     rollbackFrom: row.rollbackFrom,
+    variables: safeParseVariables(row.variables),
     createdAt: new Date(row.createdAt).toISOString()
   }
 }
 
-export class PromptService {
-  private static instance: PromptService
-
-  private constructor() {}
-
-  public static getInstance(): PromptService {
-    if (!PromptService.instance) {
-      PromptService.instance = new PromptService()
-    }
-    return PromptService.instance
-  }
-
+class PromptService {
   /**
    * Get all prompts, ordered by sortOrder
    */
@@ -86,6 +105,7 @@ export class PromptService {
    */
   async create(dto: CreatePromptDto): Promise<Prompt> {
     const db = application.get('DbService').getDb()
+    const variablesJson = serializeVariables(dto.variables ?? null)
 
     return db.transaction(async (tx) => {
       const [lastPrompt] = await tx
@@ -102,7 +122,8 @@ export class PromptService {
           title: dto.title,
           content: dto.content,
           currentVersion: 1,
-          sortOrder: nextSortOrder
+          sortOrder: nextSortOrder,
+          variables: variablesJson
         })
         .returning()
 
@@ -110,7 +131,8 @@ export class PromptService {
       await tx.insert(promptVersionTable).values({
         promptId: row.id,
         version: 1,
-        content: dto.content
+        content: dto.content,
+        variables: variablesJson
       })
 
       logger.info('Created prompt', { id: row.id, title: dto.title })
@@ -120,7 +142,9 @@ export class PromptService {
   }
 
   /**
-   * Update a prompt. Auto-creates a new version if content changed.
+   * Update a prompt.
+   * - Content change: creates a new version (snapshot includes current variables).
+   * - Variables-only change: updates the current version snapshot in-place, no new version.
    */
   async update(id: string, dto: UpdatePromptDto): Promise<Prompt> {
     const db = application.get('DbService').getDb()
@@ -132,7 +156,12 @@ export class PromptService {
         throw DataApiErrorFactory.notFound('Prompt', id)
       }
 
-      if (dto.title === undefined && dto.content === undefined && dto.sortOrder === undefined) {
+      if (
+        dto.title === undefined &&
+        dto.content === undefined &&
+        dto.sortOrder === undefined &&
+        dto.variables === undefined
+      ) {
         return rowToPrompt(existing)
       }
 
@@ -140,6 +169,7 @@ export class PromptService {
       if (dto.title !== undefined) updates.title = dto.title
       if (dto.content !== undefined) updates.content = dto.content
       if (dto.sortOrder !== undefined) updates.sortOrder = dto.sortOrder
+      if (dto.variables !== undefined) updates.variables = serializeVariables(dto.variables)
 
       // Check if content changed — if so, create a new version
       const contentChanged = dto.content !== undefined && dto.content !== existing.content
@@ -148,14 +178,24 @@ export class PromptService {
         const newVersion = existing.currentVersion + 1
         updates.currentVersion = newVersion
 
+        // New version snapshot includes the latest variables
+        const variablesJson = dto.variables !== undefined ? serializeVariables(dto.variables) : existing.variables
+
         await tx.insert(promptVersionTable).values({
           promptId: id,
           version: newVersion,
           content: dto.content!,
-          rollbackFrom: null
+          rollbackFrom: null,
+          variables: variablesJson
         })
 
         logger.info('Created prompt version', { id, version: newVersion })
+      } else if (dto.variables !== undefined) {
+        // Variables-only change: update the current version snapshot in-place
+        await tx
+          .update(promptVersionTable)
+          .set({ variables: serializeVariables(dto.variables) })
+          .where(and(eq(promptVersionTable.promptId, id), eq(promptVersionTable.version, existing.currentVersion)))
       }
 
       const [row] = await tx.update(promptTable).set(updates).where(eq(promptTable.id, id)).returning()
@@ -205,7 +245,7 @@ export class PromptService {
 
   /**
    * Rollback to a previous version.
-   * Creates a new version with the target version's content.
+   * Creates a new version with the target version's content and variables.
    */
   async rollback(promptId: string, dto: RollbackPromptDto): Promise<Prompt> {
     const db = application.get('DbService').getDb()
@@ -228,22 +268,24 @@ export class PromptService {
         throw DataApiErrorFactory.notFound('PromptVersion', `${promptId}@v${dto.version}`)
       }
 
-      // Create a new version with the target's content
+      // Create a new version with the target's content and variables
       const newVersion = existing.currentVersion + 1
 
       await tx.insert(promptVersionTable).values({
         promptId,
         version: newVersion,
         content: targetVersion.content,
-        rollbackFrom: dto.version
+        rollbackFrom: dto.version,
+        variables: targetVersion.variables
       })
 
-      // Update prompt to the rolled-back content
+      // Update prompt to the rolled-back content and variables
       const [row] = await tx
         .update(promptTable)
         .set({
           content: targetVersion.content,
-          currentVersion: newVersion
+          currentVersion: newVersion,
+          variables: targetVersion.variables
         })
         .where(eq(promptTable.id, promptId))
         .returning()
@@ -260,4 +302,4 @@ export class PromptService {
   }
 }
 
-export const promptService = PromptService.getInstance()
+export const promptService = new PromptService()
