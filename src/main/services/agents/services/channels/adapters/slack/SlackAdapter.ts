@@ -553,6 +553,7 @@ class SlackAdapter extends ChannelAdapter {
     }
   }
 
+  // oxlint-disable-next-line no-unused-vars -- abstract method signature
   async sendTypingIndicator(_chatId: string): Promise<void> {
     // Slack doesn't have a public "typing" API for bots.
     // Acknowledgment is handled via reactions in handleEvent() instead.

@@ -44,15 +44,21 @@ function convertTextSegment(text: string): string {
   // Links: [text](url) -> <url|text>
   text = text.replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<$2|$1>')
 
-  // Bold: **text** -> *text*  (must be done before italic)
-  // Use a placeholder to avoid conflict with italic conversion
-  text = text.replace(/\*\*(.+?)\*\*/g, '\x01$1\x01')
+  // Bold + italic: extract bold spans first to avoid * conflict.
+  // Replace **text** with numbered placeholders, convert remaining *text* to _text_,
+  // then restore bold placeholders as *text*.
+  const boldSpans: string[] = []
+  text = text.replace(/\*\*(.+?)\*\*/g, (_, content: string) => {
+    const idx = boldSpans.length
+    boldSpans.push(content)
+    return `%%BOLD_${idx}%%`
+  })
 
-  // Italic: *text* -> _text_  (single asterisks that aren't part of bold)
-  text = text.replace(/(?<!\x01)\*(.+?)\*(?!\x01)/g, '_$1_')
+  // Italic: *text* -> _text_  (remaining single asterisks are italic)
+  text = text.replace(/\*(.+?)\*/g, '_$1_')
 
-  // Restore bold placeholders
-  text = text.replace(/\x01(.+?)\x01/g, '*$1*')
+  // Restore bold placeholders -> *text*
+  text = text.replace(/%%BOLD_(\d+)%%/g, (_, idx: string) => `*${boldSpans[Number(idx)]}*`)
 
   // Strikethrough: ~~text~~ -> ~text~
   text = text.replace(/~~(.+?)~~/g, '~$1~')
