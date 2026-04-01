@@ -197,41 +197,41 @@ const ChannelEditModal: FC<EditModalProps> = ({ open, channel, agents, onClose, 
     [channel, onSave]
   )
 
-  if (!channel) return null
-
-  const FormComponent = getFormForType(channel.type)
+  const FormComponent = channel ? getFormForType(channel.type) : null
 
   return (
     <Modal
       open={open}
-      title={channel.name}
+      title={channel?.name}
       footer={null}
       onCancel={onClose}
       width={500}
       destroyOnHidden
       centered
       transitionName="animation-move-down">
-      <div className="flex flex-col gap-4 py-2">
-        <div>
-          <label className="mb-1 block font-medium text-xs">{t('common.name')}</label>
-          <Input value={name} onChange={(e) => setName(e.target.value)} onBlur={handleNameBlur} size="small" />
+      {channel && (
+        <div className="flex flex-col gap-4 py-2">
+          <div>
+            <label className="mb-1 block font-medium text-xs">{t('common.name')}</label>
+            <Input value={name} onChange={(e) => setName(e.target.value)} onBlur={handleNameBlur} size="small" />
+          </div>
+          <div>
+            <label className="mb-1 block font-medium text-xs">{t('agent.cherryClaw.channels.bindAgent')}</label>
+            <Select
+              value={agentId}
+              onChange={handleAgentChange}
+              size="small"
+              className="w-full"
+              allowClear
+              placeholder={t('agent.cherryClaw.channels.selectAgent')}
+              options={agents.map((a) => ({ value: a.id, label: a.name }))}
+            />
+          </div>
+          {FormComponent && (
+            <FormComponent channel={channel} onConfigChange={handleUpdate} onRemove={() => onDelete(channel.id)} />
+          )}
         </div>
-        <div>
-          <label className="mb-1 block font-medium text-xs">{t('agent.cherryClaw.channels.bindAgent')}</label>
-          <Select
-            value={agentId}
-            onChange={handleAgentChange}
-            size="small"
-            className="w-full"
-            allowClear
-            placeholder={t('agent.cherryClaw.channels.selectAgent')}
-            options={agents.map((a) => ({ value: a.id, label: a.name }))}
-          />
-        </div>
-        {FormComponent && (
-          <FormComponent channel={channel} onConfigChange={handleUpdate} onRemove={() => onDelete(channel.id)} />
-        )}
-      </div>
+      )}
     </Modal>
   )
 }
