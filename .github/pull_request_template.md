@@ -5,13 +5,14 @@
 
 <!--
 
-⚠️ Important: Redux/IndexedDB Data-Changing Feature PRs Temporarily On Hold ⚠️
+🚨 Branch Strategy Change (Effective April 3, 2026) 🚨
 
-Please note: For our current development cycle, we are not accepting feature Pull Requests that introduce changes to Redux data models or IndexedDB schemas.
+The `main` branch is now under CODE FREEZE.
 
-While we value your contributions, PRs of this nature will be blocked without merge. We welcome all other contributions (bug fixes, perf enhancements, docs, etc.). Thank you!
+- main branch: Only accepts critical bug fixes via `hotfix/*` branches. Fix PRs must be minimal in scope and must not include any refactoring code.
+- v2 branch: All new features, refactoring, and optimizations should be submitted to the `v2` branch.
 
-Once version 2.0.0 is released, we will resume reviewing feature PRs.
+If you are submitting a bug fix to main, please ensure your PR is from a `hotfix/*` branch.
 
 -->
 
