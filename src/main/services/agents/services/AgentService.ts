@@ -188,6 +188,16 @@ export class AgentService extends BaseService {
         .limit(1)
 
       if (existing.length > 0) {
+        // Sync localized description/instructions on every startup (language may have changed)
+        const resolvedPaths = this.resolveAccessiblePaths([], id)
+        const workspace = resolvedPaths[0]
+        const agentConfig = workspace ? await provisionWorkspace(workspace, builtinRole) : undefined
+        if (agentConfig && (agentConfig.description || agentConfig.instructions)) {
+          const updateData: Partial<InsertAgentRow> = { updated_at: new Date().toISOString() }
+          if (agentConfig.description) updateData.description = agentConfig.description
+          if (agentConfig.instructions) updateData.instructions = agentConfig.instructions
+          await database.update(agentsTable).set(updateData).where(eq(agentsTable.id, id))
+        }
         return id
       }
 

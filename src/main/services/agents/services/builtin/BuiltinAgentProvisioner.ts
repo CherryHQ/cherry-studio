@@ -9,11 +9,25 @@
  * plugins from .claude/plugins.json, so no programmatic injection is needed.
  */
 import { loggerService } from '@logger'
+import { configManager } from '@main/services/ConfigManager'
 import { app } from 'electron'
 import fs from 'fs'
 import path from 'path'
 
 const logger = loggerService.withContext('BuiltinAgentProvisioner')
+
+/** Resolve a localized field: string passes through; locale-keyed object resolves by current language. */
+function resolveLocalizedField(value: unknown): string | undefined {
+  if (typeof value === 'string') return value
+  if (typeof value !== 'object' || value === null) return undefined
+
+  const map = value as Record<string, string>
+  const lang = configManager.getLanguage()
+  const prefix = lang.split('-')[0]
+  const prefixKey = Object.keys(map).find((k) => k.startsWith(prefix))
+
+  return map[lang] || (prefixKey && map[prefixKey]) || map['en-US'] || Object.values(map)[0]
+}
 
 /**
  * Get the path to bundled builtin-agents resources.
@@ -104,8 +118,8 @@ export async function provisionBuiltinAgent(
       const agentConfig = JSON.parse(fs.readFileSync(agentJsonPath, 'utf-8'))
       return {
         name: agentConfig.name,
-        description: agentConfig.description,
-        instructions: agentConfig.instructions,
+        description: resolveLocalizedField(agentConfig.description),
+        instructions: resolveLocalizedField(agentConfig.instructions),
         configuration: agentConfig.configuration
       } as BuiltinAgentConfig
     }
