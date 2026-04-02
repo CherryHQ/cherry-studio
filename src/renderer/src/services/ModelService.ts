@@ -28,3 +28,11 @@ export function getModelName(model?: Model) {
 
   return modelName
 }
+
+export function getModelById(modelId: string) {
+  const allModels = getStoreProviders()
+    .filter((p) => p.enabled)
+    .map((p) => p.models)
+    .flat()
+  return allModels.find((m) => m.id === modelId)
+}

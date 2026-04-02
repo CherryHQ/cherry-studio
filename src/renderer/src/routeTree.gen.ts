@@ -311,8 +311,8 @@ export interface FileRoutesByFullPath {
   '/settings/mcp/npx-search': typeof SettingsMcpNpxSearchRoute
   '/settings/mcp/servers': typeof SettingsMcpServersRoute
   '/settings/websearch/general': typeof SettingsWebsearchGeneralRoute
-  '/app/minapp': typeof AppMinappIndexRoute
-  '/app/paintings': typeof AppPaintingsIndexRoute
+  '/app/minapp/': typeof AppMinappIndexRoute
+  '/app/paintings/': typeof AppPaintingsIndexRoute
   '/settings/mcp/': typeof SettingsMcpIndexRoute
   '/settings/websearch/': typeof SettingsWebsearchIndexRoute
   '/settings/mcp/settings/$serverId': typeof SettingsMcpSettingsServerIdRoute
@@ -446,8 +446,8 @@ export interface FileRouteTypes {
     | '/settings/mcp/npx-search'
     | '/settings/mcp/servers'
     | '/settings/websearch/general'
-    | '/app/minapp'
-    | '/app/paintings'
+    | '/app/minapp/'
+    | '/app/paintings/'
     | '/settings/mcp/'
     | '/settings/websearch/'
     | '/settings/mcp/settings/$serverId'
@@ -763,14 +763,14 @@ declare module '@tanstack/react-router' {
     '/app/paintings/': {
       id: '/app/paintings/'
       path: '/paintings'
-      fullPath: '/app/paintings'
+      fullPath: '/app/paintings/'
       preLoaderRoute: typeof AppPaintingsIndexRouteImport
       parentRoute: typeof AppRoute
     }
     '/app/minapp/': {
       id: '/app/minapp/'
       path: '/minapp'
-      fullPath: '/app/minapp'
+      fullPath: '/app/minapp/'
       preLoaderRoute: typeof AppMinappIndexRouteImport
       parentRoute: typeof AppRoute
     }
