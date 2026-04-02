@@ -4912,8 +4912,8 @@
       "assistant": "Assistant Message",
       "backup": "Backup Message",
       "knowledge_embed": "KnowledgeBase Message",
-      "title": "Notification Settings",
-      "sound": "Notification Sound"
+      "sound": "Notification Sound",
+      "title": "Notification Settings"
     },
     "openai": {
       "service_tier": {

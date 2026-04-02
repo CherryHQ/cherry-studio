@@ -4912,8 +4912,8 @@
       "assistant": "助手訊息",
       "backup": "備份訊息",
       "knowledge_embed": "知識庫訊息",
-      "title": "通知設定",
-      "sound": "通知提示音"
+      "sound": "通知提示音",
+      "title": "通知設定"
     },
     "openai": {
       "service_tier": {
