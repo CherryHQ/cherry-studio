@@ -38,7 +38,7 @@ export const TabRouter = ({ tab, isActive, onUrlChange }: TabRouterProps) => {
   useEffect(() => {
     const currentHref = router.state.location.href
     if (tab.url !== currentHref) {
-      router.navigate({ to: tab.url })
+      void router.navigate({ to: tab.url })
     }
   }, [router, tab.url])
 

@@ -19,19 +19,17 @@ import { loggerService } from '@logger'
 import { autoRenameTopic } from '@renderer/hooks/useTopic'
 import i18n from '@renderer/i18n'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
-import { NotificationService } from '@renderer/services/NotificationService'
+import { notificationService } from '@renderer/services/NotificationService'
 import { estimateMessagesUsage } from '@renderer/services/TokenService'
+import store from '@renderer/store'
+import { toolPermissionsActions } from '@renderer/store/toolPermissions'
 import type { Assistant } from '@renderer/types'
-import type {
-  PlaceholderMessageBlock,
-  Response,
-  ThinkingMessageBlock,
-  ToolMessageBlock
-} from '@renderer/types/newMessage'
+import { ERROR_I18N_KEY_REQUEST_TIMEOUT, ERROR_I18N_KEY_STREAM_PAUSED } from '@renderer/types/error'
+import type { PlaceholderMessageBlock, Response, ThinkingMessageBlock } from '@renderer/types/newMessage'
 import { AssistantMessageStatus, MessageBlockStatus, MessageBlockType } from '@renderer/types/newMessage'
 import { uuid } from '@renderer/utils'
 import { trackTokenUsage } from '@renderer/utils/analytics'
-import { isAbortError, serializeError } from '@renderer/utils/error'
+import { isAbortError, isTimeoutError, serializeError } from '@renderer/utils/error'
 import { createBaseMessageBlock, createErrorBlock } from '@renderer/utils/messageUtils/create'
 import { findAllBlocks, getMainTextContent } from '@renderer/utils/messageUtils/find'
 import { isFocused, isOnHomePage } from '@renderer/utils/window'
@@ -61,7 +59,7 @@ export const createBaseCallbacks = (deps: BaseCallbacksDependencies) => {
   const { blockManager, topicId, assistantMsgId, assistant, getCurrentThinkingInfo } = deps
 
   const startTime = Date.now()
-  const notificationService = NotificationService.getInstance()
+  // notificationService is imported as a module-level singleton
 
   /**
    * Find the block ID that should receive completion updates.
@@ -109,9 +107,12 @@ export const createBaseCallbacks = (deps: BaseCallbacksDependencies) => {
         return
       }
       const isErrorTypeAbort = isAbortError(error)
+      const isErrorTypeTimeout = isTimeoutError(error)
       const serializableError = serializeError(error)
       if (isErrorTypeAbort) {
-        serializableError.message = 'pause_placeholder'
+        serializableError.i18nKey = ERROR_I18N_KEY_STREAM_PAUSED
+      } else if (isErrorTypeTimeout) {
+        serializableError.i18nKey = ERROR_I18N_KEY_REQUEST_TIMEOUT
       }
 
       const duration = Date.now() - startTime
@@ -185,7 +186,7 @@ export const createBaseCallbacks = (deps: BaseCallbacksDependencies) => {
           // 当用户点击停止时，tool blocks 的 UI 状态依赖 rawMcpToolResponse.status，
           // 而不是 MessageBlockStatus，所以需要单独更新
           if (block.type === MessageBlockType.TOOL) {
-            const toolBlock = block as ToolMessageBlock
+            const toolBlock = block
             const toolResponse = toolBlock.metadata?.rawMcpToolResponse
             const toolStatus = toolResponse?.status
             if (
@@ -210,6 +211,10 @@ export const createBaseCallbacks = (deps: BaseCallbacksDependencies) => {
         }
       }
 
+      // Clean up pending/submitting tool permission requests from this stream.
+      // Preserve 'invoking' entries as they may belong to concurrent streams.
+      store.dispatch(toolPermissionsActions.clearPending())
+
       // Create error block
       const errorBlock = createErrorBlock(assistantMsgId, serializableError, { status: MessageBlockStatus.SUCCESS })
       await blockManager.handleBlockTransition(errorBlock, MessageBlockType.ERROR)
@@ -225,7 +230,7 @@ export const createBaseCallbacks = (deps: BaseCallbacksDependencies) => {
         isErrorTypeAbort ? AssistantMessageStatus.SUCCESS : AssistantMessageStatus.ERROR
       )
 
-      EventEmitter.emit(EVENT_NAMES.MESSAGE_COMPLETE, {
+      void EventEmitter.emit(EVENT_NAMES.MESSAGE_COMPLETE, {
         id: assistantMsgId,
         topicId,
         status: isErrorTypeAbort ? 'pause' : 'error',
@@ -269,7 +274,7 @@ export const createBaseCallbacks = (deps: BaseCallbacksDependencies) => {
         }
 
         // Rename topic if needed
-        autoRenameTopic(assistant, topicId)
+        void autoRenameTopic(assistant, topicId)
 
         // Process usage estimation
         // For OpenRouter, always use the accurate usage data from API, don't estimate
@@ -323,7 +328,7 @@ export const createBaseCallbacks = (deps: BaseCallbacksDependencies) => {
         trackTokenUsage({ usage: response?.usage, model: assistant?.model })
       }
 
-      EventEmitter.emit(EVENT_NAMES.MESSAGE_COMPLETE, { id: assistantMsgId, topicId, status })
+      void EventEmitter.emit(EVENT_NAMES.MESSAGE_COMPLETE, { id: assistantMsgId, topicId, status })
       logger.debug('onComplete finished')
     }
   }

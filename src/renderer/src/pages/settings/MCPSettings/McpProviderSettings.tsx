@@ -47,7 +47,7 @@ const McpProviderSettings: React.FC<Props> = ({ provider, existingServers }) => 
       }
     }
 
-    loadServersFromDb()
+    void loadServersFromDb()
   }, [provider.key])
 
   // Sort servers: servers with logo first, then by name
@@ -190,10 +190,14 @@ const McpProviderSettings: React.FC<Props> = ({ provider, existingServers }) => 
                     <Button
                       disabled={isAlreadyAdded}
                       style={{ marginLeft: 10 }}
-                      onClick={() => {
+                      onClick={async () => {
                         if (!isAlreadyAdded) {
-                          addMCPServer(server)
-                          window.toast.success(t('settings.mcp.addSuccess'))
+                          try {
+                            await addMCPServer(server)
+                            window.toast.success(t('settings.mcp.addSuccess'))
+                          } catch {
+                            window.toast.error(t('settings.mcp.addError'))
+                          }
                         }
                       }}
                       icon={isAlreadyAdded ? <Check size={14} /> : <Plus size={14} />}

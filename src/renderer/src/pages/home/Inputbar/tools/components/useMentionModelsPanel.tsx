@@ -143,11 +143,10 @@ export const useMentionModelsPanel = (params: Params, role: 'button' | 'manager'
               </>
             ),
             description: <ModelTagsWithLabel model={model} showLabel={false} size={10} style={{ opacity: 0.8 }} />,
-            icon: (
-              <Avatar src={getModelLogo(model)} size={20}>
-                {first(model.name)}
-              </Avatar>
-            ),
+            icon: (() => {
+              const Icon = getModelLogo(model)
+              return Icon ? <Icon.Avatar size={20} /> : <Avatar size={20}>{first(model.name)}</Avatar>
+            })(),
             filterText: getFancyProviderName(provider) + model.name,
             action: () => onMentionModel(model),
             isSelected: mentionedModels.some((selected) => getModelUniqId(selected) === getModelUniqId(model))
@@ -176,11 +175,10 @@ export const useMentionModelsPanel = (params: Params, role: 'button' | 'manager'
           </>
         ),
         description: <ModelTagsWithLabel model={model} showLabel={false} size={10} style={{ opacity: 0.8 }} />,
-        icon: (
-          <Avatar src={getModelLogo(model)} size={20}>
-            {first(model.name)}
-          </Avatar>
-        ),
+        icon: (() => {
+          const Icon = getModelLogo(model)
+          return Icon ? <Icon.Avatar size={20} /> : <Avatar size={20}>{first(model.name)}</Avatar>
+        })(),
         filterText: getFancyProviderName(provider) + model.name,
         action: () => onMentionModel(model),
         isSelected: mentionedModels.some((selected) => getModelUniqId(selected) === getModelUniqId(model))
@@ -209,7 +207,7 @@ export const useMentionModelsPanel = (params: Params, role: 'button' | 'manager'
 
         if (triggerInfoRef.current?.type === 'input') {
           setText((currentText) => {
-            const textArea = document.querySelector('.inputbar textarea') as HTMLTextAreaElement | null
+            const textArea = document.querySelector<HTMLTextAreaElement>('.inputbar textarea')
             const caret = textArea ? (textArea.selectionStart ?? currentText.length) : currentText.length
             return removeAtSymbolAndText(currentText, caret, undefined, triggerInfoRef.current?.position)
           })
@@ -252,9 +250,9 @@ export const useMentionModelsPanel = (params: Params, role: 'button' | 'manager'
             const trigger = context?.triggerInfo ?? triggerInfoRef.current
             if (hasModelActionRef.current && trigger?.type === 'input' && trigger?.position !== undefined) {
               setText((currentText) => {
-                const textArea = document.querySelector('.inputbar textarea') as HTMLTextAreaElement | null
+                const textArea = document.querySelector<HTMLTextAreaElement>('.inputbar textarea')
                 const caret = textArea ? (textArea.selectionStart ?? currentText.length) : currentText.length
-                return removeAtSymbolAndText(currentText, caret, searchText || '', trigger?.position!)
+                return removeAtSymbolAndText(currentText, caret, searchText || '', trigger?.position)
               })
             }
           }

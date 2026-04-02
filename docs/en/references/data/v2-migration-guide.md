@@ -40,6 +40,7 @@ src/main/data/migration/v2/
   - Use `MigrationContext.sources` instead of accessing raw files/stores directly.
   - Use `sharedData` to pass IDs or lookup tables between migrators (e.g., assistant -> chat references) instead of re-reading sources.
   - Stream large Dexie exports (`JSONStreamReader`) and batch inserts to avoid memory spikes.
+  - **Foreign keys during bulk inserts**: libsql (turso's SQLite fork) is compiled with `SQLITE_DEFAULT_FOREIGN_KEYS=1`, so every new connection has `foreign_keys = ON` by default (unlike standard SQLite). Additionally, `@libsql/client`'s `transaction()` nullifies its internal connection after each transaction (`this.#db = null`), and the lazily-created replacement inherits the compile-time default (FK ON). If your migrator does batch inserts into tables with self-referencing FKs (e.g., `message.parentId → message.id`), you **must** run `await db.run(sql\`PRAGMA foreign_keys = OFF\`)` before **each** `db.transaction()` call — setting it once is not enough. The engine runs `PRAGMA foreign_key_check` after all migrators complete to verify referential integrity.
   - Count validation is mandatory; engine will fail the run if `targetCount < sourceCount - skippedCount` or if `ValidateResult.errors` is non-empty.
   - Keep migrations idempotent per run—engine clears target tables before it starts, but each migrator should tolerate retries within the same run.
 

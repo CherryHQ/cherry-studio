@@ -1,6 +1,6 @@
 /**
  * Auto-generated preference mappings from classification.json
- * Generated at: 2026-03-13T06:52:25.030Z
+ * Generated at: 2026-03-25T15:56:52.716Z
  *
  * This file contains pure mapping relationships without default values.
  * Default values are managed in packages/shared/data/preferences.ts
@@ -75,10 +75,6 @@ export const REDUX_STORE_MAPPINGS = {
       targetKey: 'app.privacy.data_collection.enabled'
     },
     {
-      originalKey: 'disableHardwareAcceleration',
-      targetKey: 'app.disable_hardware_acceleration'
-    },
-    {
       originalKey: 'enableDeveloperMode',
       targetKey: 'app.developer_mode.enabled'
     },
@@ -100,7 +96,7 @@ export const REDUX_STORE_MAPPINGS = {
     },
     {
       originalKey: 'targetLanguage',
-      targetKey: 'feature.translate.target_language'
+      targetKey: 'feature.translate.chat.target_language'
     },
     {
       originalKey: 'proxyMode',
@@ -745,6 +741,12 @@ export const REDUX_STORE_MAPPINGS = {
       targetKey: 'data.backup.nutstore.max_backups'
     }
   ],
+  preprocess: [
+    {
+      originalKey: 'defaultProvider',
+      targetKey: 'feature.file_processing.default_markdown_conversion'
+    }
+  ],
   shortcuts: [
     {
       originalKey: 'shortcuts.zoom_in',
@@ -811,11 +813,13 @@ export const REDUX_STORE_MAPPINGS = {
       targetKey: 'shortcut.app.exit_fullscreen'
     }
   ],
-  websearch: [
+  translate: [
     {
-      originalKey: 'searchWithTime',
-      targetKey: 'chat.web_search.search_with_time'
-    },
+      originalKey: 'settings.autoCopy',
+      targetKey: 'feature.translate.page.auto_copy'
+    }
+  ],
+  websearch: [
     {
       originalKey: 'maxResults',
       targetKey: 'chat.web_search.max_results'
@@ -823,6 +827,12 @@ export const REDUX_STORE_MAPPINGS = {
     {
       originalKey: 'excludeDomains',
       targetKey: 'chat.web_search.exclude_domains'
+    }
+  ],
+  ocr: [
+    {
+      originalKey: 'imageProviderId',
+      targetKey: 'feature.file_processing.default_text_extraction'
     }
   ],
   note: [
@@ -879,17 +889,59 @@ export const REDUX_STORE_MAPPINGS = {
  * For complex transformations (value conversion, multi-key merging, etc.),
  * use ComplexPreferenceMappings with source: 'dexie-settings' instead.
  */
-export const DEXIE_SETTINGS_MAPPINGS: ReadonlyArray<{ originalKey: string; targetKey: string }> = [] as const
+export const DEXIE_SETTINGS_MAPPINGS: ReadonlyArray<{ originalKey: string; targetKey: string }> = [
+  {
+    originalKey: 'translate:detect:method',
+    targetKey: 'feature.translate.auto_detection_method'
+  },
+  {
+    originalKey: 'translate:markdown:enabled',
+    targetKey: 'feature.translate.page.enable_markdown'
+  },
+  {
+    originalKey: 'translate:scroll:sync',
+    targetKey: 'feature.translate.page.scroll_sync'
+  },
+  {
+    originalKey: 'translate:bidirectional:pair',
+    targetKey: 'feature.translate.page.bidirectional_pair'
+  },
+  {
+    originalKey: 'translate:bidirectional:enabled',
+    targetKey: 'feature.translate.page.bidirectional_enabled'
+  },
+  {
+    originalKey: 'translate:source:language',
+    targetKey: 'feature.translate.page.source_language'
+  },
+  {
+    originalKey: 'translate:target:language',
+    targetKey: 'feature.translate.page.target_language'
+  }
+] as const
+
+/**
+ * localStorage映射关系 - 简单KV结构
+ *
+ * Maps browser localStorage keys to new preference target keys.
+ * localStorage stores various UI state and provider tokens.
+ *
+ * These are simple 1:1 mappings where the value can be used as-is.
+ * For complex transformations (pattern-based keys, value conversion),
+ * use ComplexPreferenceMappings with source: 'localStorage' instead.
+ */
+export const LOCALSTORAGE_MAPPINGS: ReadonlyArray<{ originalKey: string; targetKey: string }> = [] as const
 
 // === AUTO-GENERATED CONTENT END ===
 
 /**
  * 映射统计:
  * - ElectronStore项: 1
- * - Redux Store项: 206
- * - Redux分类: settings, selectionStore, memory, nutstore, shortcuts, websearch, note
- * - DexieSettings项: 0
- * - 总配置项: 207
+ * - Redux Store项: 208
+ * - Redux分类: settings, selectionStore, memory, nutstore, preprocess, shortcuts, translate, websearch, ocr, note
+ * - DexieSettings项: 7
+ * - localStorage项: 0
+ * - 总配置项: 216
  *
  * 使用说明:
  * 1. ElectronStore读取: configManager.get(mapping.originalKey)

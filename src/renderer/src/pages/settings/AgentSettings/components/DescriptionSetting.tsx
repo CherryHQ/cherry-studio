@@ -17,7 +17,7 @@ export const DescriptionSetting = ({ base, update }: DescriptionSettingProps) =>
   const updateDesc = useCallback(
     (description: UpdateAgentBaseForm['description']) => {
       if (!base) return
-      update({ id: base.id, description })
+      void update({ id: base.id, description })
     },
     [base, update]
   )

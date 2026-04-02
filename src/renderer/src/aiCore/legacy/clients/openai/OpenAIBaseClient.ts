@@ -10,7 +10,6 @@ import {
 import { getStoreSetting } from '@renderer/hooks/useSettings'
 import { getAssistantSettings } from '@renderer/services/AssistantService'
 import store from '@renderer/store'
-import type { SettingsState } from '@renderer/store/settings'
 import { type Assistant, type GenerateImageParams, type Model, type Provider } from '@renderer/types'
 import type {
   OpenAIResponseSdkMessageParam,
@@ -176,6 +175,14 @@ export abstract class OpenAIBaseClient<
         model.id = model.id.trim()
       })
 
+      if (this.provider.id === 'copilot') {
+        return models.filter((model) => {
+          // Filter out models that not enabled for your copilot account
+          // @ts-ignore policy is not typed
+          return model?.policy?.state !== 'disabled' && isSupportedModel(model)
+        })
+      }
+
       return models.filter(isSupportedModel)
     } catch (error) {
       logger.error('Error listing models:', error as Error)
@@ -279,7 +286,7 @@ export abstract class OpenAIBaseClient<
       return {}
     }
 
-    const openAI = getStoreSetting('openAI') as SettingsState['openAI']
+    const openAI = getStoreSetting('openAI')
     const summaryText = openAI?.summaryText || 'off'
 
     let summary: string | undefined = undefined

@@ -1,3 +1,5 @@
+import type { CompoundIcon } from '@cherrystudio/ui'
+import { Ai302, Bailian, Lanyun, Mcprouter, Modelscope, Tokenflux } from '@cherrystudio/ui/icons'
 import type { MCPServer } from '@renderer/types'
 
 import { getAI302Token, saveAI302Token, syncAi302Servers } from './302ai'
@@ -6,6 +8,14 @@ import { getTokenLanYunToken, LANYUN_KEY_HOST, saveTokenLanYunToken, syncTokenLa
 import { getMCPRouterToken, saveMCPRouterToken, syncMCPRouterServers } from './mcprouter'
 import { getModelScopeToken, MODELSCOPE_HOST, saveModelScopeToken, syncModelScopeServers } from './modelscope'
 import { getTokenFluxToken, saveTokenFluxToken, syncTokenFluxServers, TOKENFLUX_HOST } from './tokenflux'
+
+export interface SyncResult {
+  success: boolean
+  message: string
+  addedServers: MCPServer[]
+  updatedServers?: MCPServer[]
+  allServers?: MCPServer[]
+}
 
 export interface ProviderConfig {
   key: string
@@ -18,7 +28,7 @@ export interface ProviderConfig {
   tokenFieldName: string
   getToken: () => string | null
   saveToken: (token: string) => void
-  syncServers: (token: string, existingServers: MCPServer[]) => Promise<any>
+  syncServers: (token: string, existingServers: MCPServer[]) => Promise<SyncResult>
 }
 
 export const providers: ProviderConfig[] = [
@@ -96,4 +106,17 @@ export const providers: ProviderConfig[] = [
  */
 export const getProviderDisplayName = (provider: ProviderConfig, t: (key: string) => string): string => {
   return provider.nameKey.startsWith('provider.') ? t(provider.nameKey) : provider.nameKey
+}
+
+const MCP_PROVIDER_ICONS: Record<string, CompoundIcon> = {
+  modelscope: Modelscope,
+  tokenflux: Tokenflux,
+  lanyun: Lanyun,
+  '302ai': Ai302,
+  bailian: Bailian,
+  mcprouter: Mcprouter
+}
+
+export function getMCPProviderLogo(providerKey: string): CompoundIcon | undefined {
+  return MCP_PROVIDER_ICONS[providerKey]
 }

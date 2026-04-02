@@ -21,13 +21,13 @@ const JoplinSettings: FC = () => {
   const { theme } = useTheme()
 
   const handleJoplinTokenChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    setJoplinToken(e.target.value)
+    void setJoplinToken(e.target.value)
   }
 
   const { openSmartMinapp } = useMinappPopup()
 
   const handleJoplinUrlChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    setJoplinUrl(e.target.value)
+    void setJoplinUrl(e.target.value)
   }
 
   const handleJoplinUrlBlur = (e: React.FocusEvent<HTMLInputElement>) => {
@@ -35,7 +35,7 @@ const JoplinSettings: FC = () => {
     // 确保URL以/结尾，但只在失去焦点时执行
     if (url && !url.endsWith('/')) {
       url = `${url}/`
-      setJoplinUrl(url)
+      void setJoplinUrl(url)
     }
   }
 
@@ -66,7 +66,7 @@ const JoplinSettings: FC = () => {
   }
 
   const handleToggleJoplinExportReasoning = (checked: boolean) => {
-    setJoplinExportReasoning(checked)
+    void setJoplinExportReasoning(checked)
   }
 
   const handleJoplinHelpClick = () => {

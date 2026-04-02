@@ -25,7 +25,7 @@ const UpdateAppButton: FC = () => {
   }
 
   const handleOpenUpdateDialog = () => {
-    UpdateDialogPopup.show({ releaseInfo: appUpdateState.info || null })
+    void UpdateDialogPopup.show({ releaseInfo: appUpdateState.info || null })
   }
 
   return (

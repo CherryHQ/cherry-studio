@@ -20,16 +20,18 @@ import {
   readToolDefinition,
   writeToolDefinition
 } from './tools'
-import { logger } from './types'
+import { expandHome, logger, normalizePath } from './types'
 
 export class FileSystemServer {
   public server: Server
   private baseDir: string
 
   constructor(baseDir?: string) {
-    if (baseDir && path.isAbsolute(baseDir)) {
-      this.baseDir = baseDir
-      logger.info(`Using provided baseDir for filesystem MCP: ${baseDir}`)
+    const expandedBaseDir = baseDir ? expandHome(baseDir) : undefined
+
+    if (expandedBaseDir && path.isAbsolute(expandedBaseDir)) {
+      this.baseDir = normalizePath(path.resolve(expandedBaseDir))
+      logger.info(`Using provided baseDir for filesystem MCP: ${this.baseDir}`)
     } else {
       const userData = app.getPath('userData')
       this.baseDir = path.join(userData, 'Data', 'Workspace')
@@ -48,17 +50,19 @@ export class FileSystemServer {
       }
     )
 
-    this.initialize()
+    this.registerHandlers()
+    void this.ensureBaseDir()
   }
 
-  async initialize() {
+  private async ensureBaseDir() {
     try {
       await fs.mkdir(this.baseDir, { recursive: true })
     } catch (error) {
       logger.error('Failed to create filesystem MCP baseDir', { error, baseDir: this.baseDir })
     }
+  }
 
-    // Register tool list handler
+  private registerHandlers() {
     this.server.setRequestHandler(ListToolsRequestSchema, async () => {
       return {
         tools: [

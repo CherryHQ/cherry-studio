@@ -1,4 +1,4 @@
-import { preferenceService } from '@data/PreferenceService'
+import { application } from '@main/core/application'
 import { defaultLanguage } from '@shared/config/constant'
 import type { LanguageVarious } from '@shared/data/preference/preferenceTypes'
 import { app } from 'electron'
@@ -33,7 +33,7 @@ export const locales = Object.fromEntries(
 )
 
 export const getAppLanguage = (): LanguageVarious => {
-  const language = preferenceService.get('app.language')
+  const language = application.get('PreferenceService').get('app.language')
   const appLocale = app.getLocale()
 
   if (language) {

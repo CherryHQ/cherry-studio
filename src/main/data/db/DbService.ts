@@ -1,8 +1,11 @@
 import { loggerService } from '@logger'
+import { BaseService, ErrorHandling, Injectable, Priority, ServicePhase } from '@main/core/lifecycle'
+import { Phase } from '@main/core/lifecycle'
 import { sql } from 'drizzle-orm'
 import { drizzle } from 'drizzle-orm/libsql'
 import { migrate } from 'drizzle-orm/libsql/migrator'
 import { app } from 'electron'
+import fs from 'fs'
 import path from 'path'
 import { pathToFileURL } from 'url'
 
@@ -17,7 +20,7 @@ const MIGRATIONS_BASE_PATH = 'migrations/sqlite-drizzle'
 
 /**
  * Database service managing SQLite connection via Drizzle ORM
- * Implements singleton pattern for centralized database access
+ * Managed by the lifecycle system for centralized database access
  *
  * Features:
  * - Database initialization and connection management
@@ -25,23 +28,23 @@ const MIGRATIONS_BASE_PATH = 'migrations/sqlite-drizzle'
  *
  * @example
  * ```typescript
- * import { dbService } from '@data/db/DbService'
+ * import { application } from '@main/core/application'
  *
- * // Run migrations
- * await dbService.migrateDb()
- *
- * // Get database instance
- * const db = dbService.getDb()
+ * const db = application.get('DbService').getDb()
  * ```
  */
-class DbService {
-  private static instance: DbService
+@Injectable('DbService')
+@ServicePhase(Phase.BeforeReady)
+@Priority(10)
+@ErrorHandling('fail-fast')
+export class DbService extends BaseService {
   private db: DbType
-  private isInitialized = false
-  private walConfigured = false
+  private pragmasConfigured = false
 
-  private constructor() {
+  constructor() {
+    super()
     try {
+      this.ensureDatabaseIntegrity()
       this.db = drizzle({
         connection: { url: pathToFileURL(path.join(app.getPath('userData'), DB_NAME)).href },
         casing: 'snake_case'
@@ -56,67 +59,63 @@ class DbService {
   }
 
   /**
-   * Get singleton instance of DbService
-   * Creates a new instance if one doesn't exist
-   * @returns {DbService} The singleton DbService instance
-   * @throws {Error} If database initialization fails
+   * Lifecycle: Initialize database with WAL mode, run migrations and seeds
    */
-  public static getInstance(): DbService {
-    if (!DbService.instance) {
-      DbService.instance = new DbService()
-    }
-    return DbService.instance
+  protected async onInit(): Promise<void> {
+    await this.configurePragmas()
+    await this.migrateDb()
+    await this.migrateSeed('preference')
+    await this.migrateSeed('translateLanguage')
   }
 
   /**
-   * Initialize the database
-   * @throws {Error} If database initialization fails
+   * Configure database PRAGMAs (WAL mode, synchronous, foreign keys).
+   *
+   * ## Known issue: per-connection PRAGMAs lost after transaction()
+   *
+   * `@libsql/client`'s `Sqlite3Client.transaction()` nullifies its internal
+   * connection (`this.#db = null`) after opening a transaction. The next
+   * non-transaction operation lazily creates a **new** `Database` connection
+   * whose PRAGMAs reset to libsql compile-time defaults:
+   * - `synchronous` reverts to FULL (standard SQLite default)
+   * - `foreign_keys` stays ON — libsql (turso's SQLite fork) is compiled with
+   *   `SQLITE_DEFAULT_FOREIGN_KEYS=1` (see libsql-ffi/build.rs), unlike
+   *   standard SQLite which defaults to OFF
+   * - `journal_mode = WAL` is unaffected (persisted in the database file)
+   *
+   * This is a known limitation with no upstream fix as of @libsql/client 0.17.2.
+   * Related issues:
+   * - https://github.com/tursodatabase/libsql-client-ts/issues/229
+   * - https://github.com/tursodatabase/libsql-client-ts/issues/288
+   *
+   * TODO: Patch @libsql/client to replay PRAGMAs in `#getDb()` when a new
+   * connection is lazily created (similar to PR #328's ATTACH replay pattern).
    */
-  public async init(): Promise<void> {
-    if (this.isInitialized) {
-      logger.warn('Database already initialized, do not need initialize again!')
+  private async configurePragmas(): Promise<void> {
+    if (this.pragmasConfigured) {
       return
     }
 
     try {
-      // Configure WAL mode on first database operation
-      await this.configureWAL()
-      this.isInitialized = true
+      // Each PRAGMA must be a separate db.run() call. @libsql/client uses
+      // db.prepare() internally which maps to SQLite's sqlite3_prepare_v2() —
+      // this API only compiles the FIRST statement in a multi-statement string
+      // and silently discards the rest. This is by design in the SQLite C API.
+      await this.db.run(sql`PRAGMA journal_mode = WAL`)
+      await this.db.run(sql`PRAGMA synchronous = NORMAL`)
+      await this.db.run(sql`PRAGMA foreign_keys = ON`)
+
+      this.pragmasConfigured = true
+      logger.info('Database PRAGMAs configured (WAL, synchronous, foreign_keys)')
     } catch (error) {
-      logger.error('Database initialization failed', error as Error)
-      throw error
-    }
-  }
-
-  /**
-   * Configure WAL mode for better concurrency performance
-   * Called once during the first database operation
-   */
-  private async configureWAL(): Promise<void> {
-    if (this.walConfigured) {
-      return
-    }
-
-    try {
-      await this.db.run(sql`PRAGMA journal_mode = WAL; PRAGMA synchronous = NORMAL; PRAGMA foreign_keys = ON`)
-
-      this.walConfigured = true
-      logger.info('WAL mode configured for database')
-    } catch (error) {
-      logger.warn('Failed to configure WAL mode, using default journal mode', error as Error)
-      // Don't throw error, allow database to continue with default mode
+      logger.warn('Failed to configure database PRAGMAs', error as Error)
     }
   }
 
   /**
    * Run database migrations
-   * @throws {Error} If migration fails
    */
-  public async migrateDb(): Promise<void> {
-    if (!this.isInitialized) {
-      throw new Error('Database is not initialized, please call init() first!')
-    }
-
+  private async migrateDb(): Promise<void> {
     try {
       const migrationsFolder = this.getMigrationsFolder()
       await migrate(this.db, { migrationsFolder })
@@ -157,29 +156,17 @@ class DbService {
    * @throws {Error} If database is not initialized
    */
   public getDb(): DbType {
-    if (!this.isInitialized) {
+    if (!this.isReady) {
       throw new Error('Database is not initialized, please call init() first!')
     }
     return this.db
   }
 
   /**
-   * Check if database is initialized
-   */
-  public isReady(): boolean {
-    return this.isInitialized
-  }
-
-  /**
    * Run seed data migration
    * @param seedName - Name of the seed to run
-   * @throws {Error} If seed migration fails
    */
-  public async migrateSeed(seedName: keyof typeof Seeding): Promise<void> {
-    if (!this.isInitialized) {
-      throw new Error('Database is not initialized, please call init() first!')
-    }
-
+  private async migrateSeed(seedName: keyof typeof Seeding): Promise<void> {
     try {
       const Seed = Seeding[seedName]
       if (!Seed) {
@@ -197,7 +184,6 @@ class DbService {
 
   /**
    * Get the migrations folder based on the app's packaging status
-   * @returns The path to the migrations folder
    */
   private getMigrationsFolder(): string {
     if (app.isPackaged) {
@@ -208,7 +194,35 @@ class DbService {
       return path.join(__dirname, '../../', MIGRATIONS_BASE_PATH)
     }
   }
-}
 
-// Export a singleton instance
-export const dbService = DbService.getInstance()
+  /**
+   * Ensure database file integrity before opening connection.
+   * Handles two scenarios that cause SQLITE_IOERR_SHORT_READ:
+   * 1. Main .db file is 0 bytes (corrupt) — remove so libsql recreates it
+   * 2. Main .db file missing but orphaned -wal/-shm remain — SQLite attempts
+   *    WAL recovery against an empty file and fails
+   */
+  private ensureDatabaseIntegrity(): void {
+    const dbPath = path.join(app.getPath('userData'), DB_NAME)
+
+    const dbExists = fs.existsSync(dbPath)
+
+    if (dbExists) {
+      const stats = fs.statSync(dbPath)
+      if (stats.size === 0) {
+        logger.warn('Database file is empty (0 bytes), removing')
+        fs.unlinkSync(dbPath)
+      } else {
+        return
+      }
+    }
+
+    for (const suffix of ['-wal', '-shm']) {
+      const auxPath = dbPath + suffix
+      if (fs.existsSync(auxPath)) {
+        logger.warn(`Removing orphaned auxiliary file: ${path.basename(auxPath)}`)
+        fs.unlinkSync(auxPath)
+      }
+    }
+  }
+}

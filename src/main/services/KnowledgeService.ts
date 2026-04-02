@@ -22,13 +22,13 @@ import { LibSqlDb } from '@cherrystudio/embedjs-libsql'
 import { SitemapLoader } from '@cherrystudio/embedjs-loader-sitemap'
 import { WebLoader } from '@cherrystudio/embedjs-loader-web'
 import { loggerService } from '@logger'
+import { application } from '@main/core/application'
 import Embeddings from '@main/knowledge/embedjs/embeddings/Embeddings'
 import { addFileLoader } from '@main/knowledge/embedjs/loader'
 import { NoteLoader } from '@main/knowledge/embedjs/loader/noteLoader'
 import PreprocessProvider from '@main/knowledge/preprocess/PreprocessProvider'
 import Reranker from '@main/knowledge/reranker/Reranker'
 import { fileStorage } from '@main/services/FileStorage'
-import { windowService } from '@main/services/WindowService'
 import { getDataPath } from '@main/utils'
 import { getAllFiles, sanitizeFilename } from '@main/utils/file'
 import { TraceMethod } from '@mcp-trace/trace-core'
@@ -361,7 +361,7 @@ class KnowledgeService {
     let processedFiles = 0
 
     const sendDirectoryProcessingPercent = (totalFiles: number, processedFiles: number) => {
-      const mainWindow = windowService.getMainWindow()
+      const mainWindow = application.get('WindowService').getMainWindow()
       mainWindow?.webContents.send(IpcChannel.DirectoryProcessingPercent, {
         itemId: item.id,
         percent: (processedFiles / totalFiles) * 100
@@ -589,7 +589,7 @@ class KnowledgeService {
     const subTasks = getSubtasksUntilMaximumLoad()
     if (subTasks.length > 0) {
       const subTaskPromises = subTasks.map(({ taskPromise }) => taskPromise())
-      Promise.all(subTaskPromises).then(() => {
+      void Promise.all(subTaskPromises).then(() => {
         subTasks.forEach(({ resolve }) => resolve())
       })
     }
@@ -627,7 +627,7 @@ class KnowledgeService {
           })()
 
           if (task) {
-            this.appendProcessingQueue(task).then(() => {
+            void this.appendProcessingQueue(task).then(() => {
               resolve(task.loaderDoneReturn!)
             })
             this.processingQueueHandle()
@@ -743,7 +743,7 @@ class KnowledgeService {
         logger.debug(`Starting preprocess processing for scanned PDF: ${filePath}`)
         const { processedFile } = await provider.parseFile(item.id, file)
         fileToProcess = processedFile
-        const mainWindow = windowService.getMainWindow()
+        const mainWindow = application.get('WindowService').getMainWindow()
         mainWindow?.webContents.send('file-preprocess-finished', {
           itemId: item.id
         })
@@ -759,4 +759,4 @@ class KnowledgeService {
   }
 }
 
-export default new KnowledgeService()
+export const knowledgeService = new KnowledgeService()

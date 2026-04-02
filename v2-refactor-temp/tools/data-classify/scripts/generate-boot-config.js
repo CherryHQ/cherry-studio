@@ -1,0 +1,208 @@
+#!/usr/bin/env node
+
+const fs = require('fs')
+const path = require('path')
+
+class BootConfigGenerator {
+  constructor() {
+    this.dataDir = path.resolve(__dirname, '../data')
+    this.targetFile = path.resolve(__dirname, '../../../../packages/shared/data/bootConfig/bootConfigSchemas.ts')
+    this.classificationFile = path.join(this.dataDir, 'classification.json')
+  }
+
+  generate() {
+    console.log('Generating bootConfigSchemas.ts...')
+
+    const classification = this.loadClassification()
+    const bootConfigData = this.extractBootConfigData(classification)
+    const content = this.generateTypeScriptCode(bootConfigData)
+    this.writeFile(content)
+
+    console.log('bootConfigSchemas.ts generated!')
+    this.printSummary(bootConfigData)
+  }
+
+  loadClassification() {
+    if (!fs.existsSync(this.classificationFile)) {
+      throw new Error(`Classification file not found: ${this.classificationFile}`)
+    }
+
+    const content = fs.readFileSync(this.classificationFile, 'utf8')
+    return JSON.parse(content)
+  }
+
+  extractBootConfigData(classification) {
+    const allItems = []
+    const sources = ['electronStore', 'redux', 'localStorage', 'dexieSettings']
+
+    const extractItems = (items, source, category, parentKey = '') => {
+      if (!Array.isArray(items)) return
+
+      items.forEach((item) => {
+        if (item.children && Array.isArray(item.children)) {
+          extractItems(item.children, source, category, `${parentKey}${item.originalKey}.`)
+          return
+        }
+
+        if (item.category === 'bootConfig' && item.status === 'classified' && item.targetKey) {
+          allItems.push({
+            ...item,
+            source,
+            sourceCategory: category,
+            originalKey: parentKey + item.originalKey,
+            fullPath: `${source}/${category}/${parentKey}${item.originalKey}`,
+          })
+        }
+      })
+    }
+
+    sources.forEach((source) => {
+      if (classification.classifications[source]) {
+        Object.keys(classification.classifications[source]).forEach((category) => {
+          const items = classification.classifications[source][category]
+          extractItems(items, source, category)
+        })
+      }
+    })
+
+    console.log(`Extracted ${allItems.length} bootConfig items`)
+
+    // Deduplicate by targetKey: redux(4) > dexieSettings(3) > localStorage(2) > electronStore(1)
+    const targetKeyGroups = {}
+    allItems.forEach((item) => {
+      if (!targetKeyGroups[item.targetKey]) {
+        targetKeyGroups[item.targetKey] = []
+      }
+      targetKeyGroups[item.targetKey].push(item)
+    })
+
+    const sourcePriority = { redux: 4, dexieSettings: 3, localStorage: 2, electronStore: 1 }
+    const deduplicatedData = []
+
+    Object.keys(targetKeyGroups).forEach((targetKey) => {
+      const items = targetKeyGroups[targetKey]
+      if (items.length > 1) {
+        console.log(`Duplicate targetKey: ${targetKey}, ${items.length} items`)
+        items.forEach((item) => console.log(`  - ${item.fullPath}`))
+
+        items.sort((a, b) => sourcePriority[b.source] - sourcePriority[a.source])
+        const selected = items[0]
+        console.log(`  Selected: ${selected.fullPath}`)
+        deduplicatedData.push(selected)
+      } else {
+        deduplicatedData.push(items[0])
+      }
+    })
+
+    console.log(`After deduplication: ${deduplicatedData.length} bootConfig items`)
+    return deduplicatedData
+  }
+
+  mapType(itemType, defaultValue) {
+    if (itemType && itemType !== 'unknown') {
+      if (itemType === 'boolean') return 'boolean'
+      if (itemType === 'string') return 'string'
+      if (itemType === 'number') return 'number'
+      return itemType
+    }
+
+    if (defaultValue !== null && defaultValue !== undefined) {
+      const valueType = typeof defaultValue
+      if (valueType === 'boolean' || valueType === 'string' || valueType === 'number') {
+        return valueType
+      }
+    }
+
+    return 'unknown'
+  }
+
+  formatDefaultValue(value) {
+    if (value === null || value === undefined) {
+      return 'null'
+    }
+    if (typeof value === 'string') {
+      if (value.startsWith('VALUE: ')) {
+        return value.substring(7)
+      }
+      return `'${value.replace(/'/g, "\\'")}'`
+    }
+    if (typeof value === 'boolean' || typeof value === 'number') {
+      return String(value)
+    }
+    if (Array.isArray(value)) {
+      return `[${value.map((item) => this.formatDefaultValue(item)).join(', ')}]`
+    }
+    if (typeof value === 'object') {
+      const entries = Object.entries(value).map(([k, v]) => `${k}: ${this.formatDefaultValue(v)}`)
+      return `{ ${entries.join(', ')} }`
+    }
+    return JSON.stringify(value)
+  }
+
+  generateTypeScriptCode(bootConfigData) {
+    const sortedData = [...bootConfigData].sort((a, b) => a.targetKey.localeCompare(b.targetKey))
+
+    const header = `/**
+ * Auto-generated boot config schema
+ * Generated at: ${new Date().toISOString()}
+ *
+ * This file is automatically generated from classification.json
+ * To update this file, modify classification.json and run:
+ * node v2-refactor-temp/tools/data-classify/scripts/generate-boot-config.js
+ *
+ * === AUTO-GENERATED CONTENT START ===
+ */`
+
+    let interfaceCode = 'export interface BootConfigSchema {\n'
+    sortedData.forEach((item) => {
+      const tsType = this.mapType(item.type, item.defaultValue)
+      interfaceCode += `  // ${item.source}/${item.sourceCategory}/${item.originalKey}\n`
+      interfaceCode += `  '${item.targetKey}': ${tsType}\n`
+    })
+    interfaceCode += '}'
+
+    let defaultsCode = 'export const DefaultBootConfig: BootConfigSchema = {\n'
+    sortedData.forEach((item, index) => {
+      const defaultVal = this.formatDefaultValue(item.defaultValue)
+      const isLast = index === sortedData.length - 1
+      defaultsCode += `  '${item.targetKey}': ${defaultVal}${isLast ? '' : ','}\n`
+    })
+    defaultsCode += '}'
+
+    const footer = '// === AUTO-GENERATED CONTENT END ==='
+
+    return [header, '', interfaceCode, '', defaultsCode, '', footer, ''].join('\n')
+  }
+
+  writeFile(content) {
+    const targetDir = path.dirname(this.targetFile)
+    if (!fs.existsSync(targetDir)) {
+      fs.mkdirSync(targetDir, { recursive: true })
+    }
+
+    fs.writeFileSync(this.targetFile, content, 'utf8')
+    console.log(`Written to: ${this.targetFile}`)
+  }
+
+  printSummary(bootConfigData) {
+    console.log(`\nSummary:`)
+    console.log(`- Total items: ${bootConfigData.length}`)
+    console.log(`- electronStore: ${bootConfigData.filter((p) => p.source === 'electronStore').length}`)
+    console.log(`- redux: ${bootConfigData.filter((p) => p.source === 'redux').length}`)
+    console.log(`- localStorage: ${bootConfigData.filter((p) => p.source === 'localStorage').length}`)
+    console.log(`- dexieSettings: ${bootConfigData.filter((p) => p.source === 'dexieSettings').length}`)
+    console.log(`- Output: ${this.targetFile}`)
+  }
+}
+
+if (require.main === module) {
+  try {
+    const generator = new BootConfigGenerator()
+    generator.generate()
+  } catch (error) {
+    console.error('Generation failed:', error.message)
+    process.exit(1)
+  }
+}
+
+module.exports = BootConfigGenerator

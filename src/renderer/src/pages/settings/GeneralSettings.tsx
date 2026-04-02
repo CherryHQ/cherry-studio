@@ -39,7 +39,7 @@ const spellCheckLanguageOptions: readonly SpellCheckOption[] = [
 const GeneralSettings: FC = () => {
   const [language, setLanguage] = usePreference('app.language')
   const [disableHardwareAcceleration, setDisableHardwareAcceleration] = usePreference(
-    'app.disable_hardware_acceleration'
+    'BootConfig.app.disable_hardware_acceleration'
   )
   const [enableDeveloperMode, setEnableDeveloperMode] = usePreference('app.developer_mode.enabled')
   const [launchOnBoot, setLaunchOnBoot] = usePreference('app.launch_on_boot')
@@ -64,7 +64,7 @@ const GeneralSettings: FC = () => {
   const { setTimeoutTimer } = useTimer()
 
   const updateTray = (isShowTray: boolean) => {
-    setTray(isShowTray)
+    void setTray(isShowTray)
     //only set tray on close/launch to tray when tray is enabled
     if (!isShowTray) {
       updateTrayOnClose(false)
@@ -73,7 +73,7 @@ const GeneralSettings: FC = () => {
   }
 
   const updateTrayOnClose = (isTrayOnClose: boolean) => {
-    setTrayOnClose(isTrayOnClose)
+    void setTrayOnClose(isTrayOnClose)
     //in case tray is not enabled, enable it
     if (isTrayOnClose && !tray) {
       updateTray(true)
@@ -81,11 +81,11 @@ const GeneralSettings: FC = () => {
   }
 
   const updateLaunchOnBoot = (isLaunchOnBoot: boolean) => {
-    setLaunchOnBoot(isLaunchOnBoot)
+    void setLaunchOnBoot(isLaunchOnBoot)
   }
 
   const updateLaunchToTray = (isLaunchToTray: boolean) => {
-    setLaunchToTray(isLaunchToTray)
+    void setLaunchToTray(isLaunchToTray)
     if (isLaunchToTray && !tray) {
       updateTray(true)
     }
@@ -97,14 +97,14 @@ const GeneralSettings: FC = () => {
   const onSelectLanguage = (value: LanguageVarious) => {
     // dispatch(setLanguage(value))
     // localStorage.setItem('language', value)
-    // window.api.setLanguage(value)
-    i18n.changeLanguage(value)
-    setLanguage(value)
+    // void window.api.setLanguage(value)
+    void i18n.changeLanguage(value)
+    void setLanguage(value)
   }
 
   const handleSpellCheckChange = (checked: boolean) => {
-    setEnableSpellCheck(checked)
-    window.api.setEnableSpellCheck(checked)
+    void setEnableSpellCheck(checked)
+    void window.api.setEnableSpellCheck(checked)
   }
 
   const onSetProxyUrl = () => {
@@ -113,11 +113,11 @@ const GeneralSettings: FC = () => {
       return
     }
 
-    _setProxyUrl(proxyUrl)
+    void _setProxyUrl(proxyUrl)
   }
 
   const onSetProxyBypassRules = () => {
-    _setProxyBypassRules(proxyBypassRules)
+    void _setProxyBypassRules(proxyBypassRules)
   }
 
   const proxyModeOptions: { value: 'system' | 'custom' | 'none'; label: string }[] = [
@@ -127,7 +127,7 @@ const GeneralSettings: FC = () => {
   ]
 
   const onProxyModeChange = (mode: 'system' | 'custom' | 'none') => {
-    setProxyMode(mode)
+    void setProxyMode(mode)
   }
 
   const languagesOptions: { value: LanguageVarious; label: string; flag: string }[] = [
@@ -145,11 +145,11 @@ const GeneralSettings: FC = () => {
   ]
 
   const handleNotificationChange = (type: NotificationSource, value: boolean) => {
-    setNotificationSettings({ [type]: value })
+    void setNotificationSettings({ [type]: value })
   }
 
   const handleSpellCheckLanguagesChange = (selectedLanguages: string[]) => {
-    setSpellCheckLanguages(selectedLanguages)
+    void setSpellCheckLanguages(selectedLanguages)
   }
 
   const handleHardwareAccelerationChange = (checked: boolean) => {
@@ -161,7 +161,7 @@ const GeneralSettings: FC = () => {
       centered: true,
       onOk() {
         try {
-          setDisableHardwareAcceleration(checked)
+          void setDisableHardwareAcceleration(checked)
         } catch (error) {
           window.toast.error(formatErrorMessage(error))
           return
@@ -171,7 +171,7 @@ const GeneralSettings: FC = () => {
         setTimeoutTimer(
           'handleHardwareAccelerationChange',
           () => {
-            window.api.relaunchApp()
+            void window.api.application.relaunch()
           },
           500
         )
@@ -349,8 +349,8 @@ const GeneralSettings: FC = () => {
           <Switch
             checked={enableDataCollection}
             onCheckedChange={(v) => {
-              setEnableDataCollection(v)
-              window.api.config.set('enableDataCollection', v)
+              void setEnableDataCollection(v)
+              void window.api.config.set('enableDataCollection', v)
             }}
           />
         </SettingRow>

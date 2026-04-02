@@ -38,6 +38,7 @@ out
 mcp_server
 stats.html
 .eslintcache
+resources/binaries/
 
 # ENV
 .env
@@ -58,15 +59,20 @@ local
 .claude-code-router/*
 .codebuddy/*
 .zed/*
+!.zed/settings.json.example
 CLAUDE.local.md
 
 # vitest
 coverage
 .vitest-cache
 vitest.config.*.timestamp-*
+.context/vitest-temp/
 
 # TypeScript incremental build
 .tsbuildinfo
+
+# Icon generation cache
+.icons-hash.json
 
 # playwright
 playwright-report

@@ -1,10 +1,9 @@
 import { createServer } from 'node:http'
 
-import { preferenceService } from '@data/PreferenceService'
 import { loggerService } from '@logger'
+import { application } from '@main/core/application'
 import { IpcChannel } from '@shared/IpcChannel'
 
-import { windowService } from '../services/WindowService'
 import { app } from './app'
 
 const logger = loggerService.withContext('ApiServer')
@@ -29,6 +28,7 @@ export class ApiServer {
     }
 
     // Load config from preference service
+    const preferenceService = application.get('PreferenceService')
     const port = preferenceService.get('feature.csaas.port')
     const host = preferenceService.get('feature.csaas.host')
 
@@ -42,7 +42,7 @@ export class ApiServer {
         logger.info('API server started', { host, port })
 
         // Notify renderer that API server is ready
-        const mainWindow = windowService.getMainWindow()
+        const mainWindow = application.get('WindowService').getMainWindow()
         if (mainWindow && !mainWindow.isDestroyed()) {
           mainWindow.webContents.send(IpcChannel.ApiServer_Ready)
         }
@@ -92,5 +92,3 @@ export class ApiServer {
     return result
   }
 }
-
-export const apiServer = new ApiServer()

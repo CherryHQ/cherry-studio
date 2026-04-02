@@ -4,10 +4,7 @@ import type { ProcessingStatus } from '@types'
 // OpenClaw IPC Types
 // =============================================================================
 
-export type NodeCheckResult =
-  | { status: 'not_found' }
-  | { status: 'version_low'; version: string; path: string }
-  | { status: 'ok'; version: string; path: string }
+export type OperationResult = { success: true } | { success: false; message: string }
 
 export type LoaderReturn = {
   entriesAdded: number
@@ -62,7 +59,7 @@ export interface WebSocketCandidatesResponse {
   priority: number
 }
 
-export type LocalTransferPeer = {
+export type LanTransferPeer = {
   id: string
   name: string
   host?: string
@@ -75,8 +72,8 @@ export type LocalTransferPeer = {
   updatedAt: number
 }
 
-export type LocalTransferState = {
-  services: LocalTransferPeer[]
+export type LanTransferState = {
+  services: LanTransferPeer[]
   isScanning: boolean
   lastScanStartedAt?: number
   lastUpdatedAt: number
@@ -97,7 +94,7 @@ export type LanHandshakeAckMessage = {
   message?: string
 }
 
-export type LocalTransferConnectPayload = {
+export type LanTransferConnectPayload = {
   peerId: string
   metadata?: Record<string, string>
   timeoutMs?: number

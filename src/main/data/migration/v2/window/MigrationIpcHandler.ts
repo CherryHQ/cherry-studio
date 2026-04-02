@@ -4,7 +4,12 @@
 
 import { loggerService } from '@logger'
 import BackupManager from '@main/services/BackupManager'
-import { MigrationIpcChannels, type MigrationProgress } from '@shared/data/migration/v2/types'
+import {
+  MigrationIpcChannels,
+  type MigrationProgress,
+  type MigrationResult,
+  type StartMigrationPayload
+} from '@shared/data/migration/v2/types'
 import { app, dialog, ipcMain } from 'electron'
 import fs from 'fs/promises'
 import path from 'path'
@@ -13,10 +18,9 @@ import { migrationEngine } from '../core/MigrationEngine'
 import { migrationWindowManager } from './MigrationWindowManager'
 
 const logger = loggerService.withContext('MigrationIpcHandler')
+const CONCURRENT_MIGRATION_ERROR = 'Migration is already in progress.'
 
-// Store for cached data from Renderer
-let cachedReduxData: Record<string, unknown> | null = null
-let cachedDexieExportPath: string | null = null
+let inFlightMigration: Promise<MigrationResult> | null = null
 const backupManager = new BackupManager()
 
 // Current migration progress
@@ -115,21 +119,11 @@ export function registerMigrationIpcHandlers(): void {
 
         if (backupResult.success) {
           updateProgress({
-            stage: 'backup_progress',
+            stage: 'backup_confirmed',
             overallProgress: 100,
-            currentMessage: 'Backup created successfully!',
+            currentMessage: 'Backup completed! Ready to start migration. Click "Start Migration" to continue.',
             migrators: []
           })
-
-          // Wait a moment to show the success message, then transition to confirmed state
-          setTimeout(() => {
-            updateProgress({
-              stage: 'backup_confirmed',
-              overallProgress: 100,
-              currentMessage: 'Backup completed! Ready to start migration. Click "Start Migration" to continue.',
-              migrators: []
-            })
-          }, 1000)
         } else {
           updateProgress({
             stage: 'backup_required',
@@ -178,32 +172,6 @@ export function registerMigrationIpcHandlers(): void {
     }
   })
 
-  // Receive Redux data from Renderer
-  ipcMain.handle(MigrationIpcChannels.SendReduxData, async (_event, data: Record<string, unknown>) => {
-    try {
-      cachedReduxData = data
-      logger.info('Redux data received', {
-        categories: Object.keys(data)
-      })
-      return true
-    } catch (error) {
-      logger.error('Error receiving Redux data', error as Error)
-      throw error
-    }
-  })
-
-  // Dexie export completed
-  ipcMain.handle(MigrationIpcChannels.DexieExportCompleted, async (_event, exportPath: string) => {
-    try {
-      cachedDexieExportPath = exportPath
-      logger.info('Dexie export completed', { exportPath })
-      return true
-    } catch (error) {
-      logger.error('Error receiving Dexie export path', error as Error)
-      throw error
-    }
-  })
-
   // Write export file from Renderer
   ipcMain.handle(
     MigrationIpcChannels.WriteExportFile,
@@ -226,9 +194,18 @@ export function registerMigrationIpcHandlers(): void {
   )
 
   // Start the migration process
-  ipcMain.handle(MigrationIpcChannels.StartMigration, async () => {
+  ipcMain.handle(MigrationIpcChannels.StartMigration, async (_event, payload: StartMigrationPayload) => {
+    if (inFlightMigration) {
+      logger.warn(CONCURRENT_MIGRATION_ERROR)
+      throw new Error(CONCURRENT_MIGRATION_ERROR)
+    }
+
+    let runPromise: Promise<MigrationResult> | null = null
+
     try {
-      if (!cachedReduxData || !cachedDexieExportPath) {
+      const { reduxData, dexieExportPath, localStorageExportPath } = payload
+
+      if (!reduxData || !dexieExportPath) {
         throw new Error('Migration data not ready. Redux data or Dexie export path missing.')
       }
 
@@ -238,7 +215,10 @@ export function registerMigrationIpcHandlers(): void {
       })
 
       // Run migration
-      const result = await migrationEngine.run(cachedReduxData, cachedDexieExportPath)
+      runPromise = migrationEngine.run(reduxData, dexieExportPath, localStorageExportPath)
+      inFlightMigration = runPromise
+
+      const result = await runPromise
 
       if (result.success) {
         updateProgress({
@@ -265,6 +245,10 @@ export function registerMigrationIpcHandlers(): void {
       const errorMessage = error instanceof Error ? error.message : String(error)
       logger.error('Error starting migration', error as Error)
 
+      if (errorMessage === CONCURRENT_MIGRATION_ERROR) {
+        throw error
+      }
+
       updateProgress({
         stage: 'error',
         overallProgress: currentProgress.overallProgress,
@@ -274,6 +258,10 @@ export function registerMigrationIpcHandlers(): void {
       })
 
       throw error
+    } finally {
+      if (runPromise && inFlightMigration === runPromise) {
+        inFlightMigration = null
+      }
     }
   })
 
@@ -299,6 +287,7 @@ export function registerMigrationIpcHandlers(): void {
     try {
       logger.info('Migration cancelled by user')
       migrationWindowManager.close()
+      app.quit()
       return true
     } catch (error) {
       logger.error('Error cancelling migration', error as Error)
@@ -310,7 +299,7 @@ export function registerMigrationIpcHandlers(): void {
   ipcMain.handle(MigrationIpcChannels.Restart, async () => {
     try {
       logger.info('Restarting app after migration')
-      migrationWindowManager.restartApp()
+      void migrationWindowManager.restartApp()
       return true
     } catch (error) {
       logger.error('Error restarting app', error as Error)
@@ -343,59 +332,12 @@ function updateProgress(progress: MigrationProgress): void {
  * Reset cached data
  */
 export function resetMigrationData(): void {
-  cachedReduxData = null
-  cachedDexieExportPath = null
+  inFlightMigration = null
   currentProgress = {
     stage: 'introduction',
     overallProgress: 0,
     currentMessage: 'Ready to start data migration',
     migrators: []
-  }
-}
-
-/**
- * Get backup data from the current application
- */
-async function getBackupData(): Promise<string> {
-  try {
-    const { getDataPath } = await import('@main/utils')
-    const dataPath = getDataPath()
-
-    // Gather basic system information
-    const data = {
-      backup: {
-        timestamp: new Date().toISOString(),
-        version: app.getVersion(),
-        type: 'pre-migration-backup',
-        note: 'This is a safety backup created before data migration'
-      },
-      system: {
-        platform: process.platform,
-        arch: process.arch,
-        nodeVersion: process.version
-      },
-      // Include basic configuration files if they exist
-      configs: {} as Record<string, any>
-    }
-
-    // Check if there are any config files we should backup
-    const configFiles = ['config.json', 'settings.json', 'preferences.json']
-    for (const configFile of configFiles) {
-      const configPath = path.join(dataPath, configFile)
-      try {
-        // Check if file exists
-        await fs.access(configPath)
-        const configContent = await fs.readFile(configPath, 'utf-8')
-        data.configs[configFile] = JSON.parse(configContent)
-      } catch (err) {
-        // Ignore if file doesn't exist or can't be read
-      }
-    }
-
-    return JSON.stringify(data, null, 2)
-  } catch (error) {
-    logger.error('Failed to get backup data:', error as Error)
-    throw error
   }
 }
 
@@ -406,9 +348,6 @@ async function performBackupToFile(filePath: string): Promise<{ success: boolean
   try {
     logger.info('Performing backup to file', { filePath })
 
-    // Get backup data
-    const backupData = await getBackupData()
-
     // Extract directory and filename from the full path
     const destinationDir = path.dirname(filePath)
     const fileName = path.basename(filePath)
@@ -417,7 +356,6 @@ async function performBackupToFile(filePath: string): Promise<{ success: boolean
     const backupPath = await backupManager.backup(
       null as any, // IpcMainInvokeEvent - we're calling directly so pass null
       fileName,
-      backupData,
       destinationDir,
       false // Don't skip backup files - full backup for migration safety
     )

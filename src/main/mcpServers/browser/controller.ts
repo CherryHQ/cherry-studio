@@ -313,7 +313,7 @@ export class CdpBrowserController {
     const [width] = windowInfo.window.getContentSize()
     tabBarView.setBounds({ x: 0, y: 0, width, height: TAB_BAR_HEIGHT })
     tabBarView.setAutoResize({ width: true, height: false })
-    tabBarView.webContents.loadURL(`data:text/html;charset=utf-8,${encodeURIComponent(TAB_BAR_HTML)}`)
+    void tabBarView.webContents.loadURL(`data:text/html;charset=utf-8,${encodeURIComponent(TAB_BAR_HTML)}`)
 
     tabBarView.webContents.on('did-finish-load', () => {
       // Initialize platform for proper styling
@@ -350,7 +350,7 @@ export class CdpBrowserController {
         ? {
             titleBarStyle: 'hidden',
             titleBarOverlay: nativeTheme.shouldUseDarkColors ? titleBarOverlayDark : titleBarOverlayLight,
-            trafficLightPosition: { x: 8, y: 13 }
+            trafficLightPosition: { x: 13, y: 13 }
           }
         : {
             frame: false // Frameless window for Windows and Linux
@@ -508,7 +508,7 @@ export class CdpBrowserController {
           return this.switchTab(privateMode, newTabId).then(() => {
             const newTab = windowInfo.tabs.get(newTabId)
             if (newTab && !newTab.view.webContents.isDestroyed()) {
-              newTab.view.webContents.loadURL(url)
+              void newTab.view.webContents.loadURL(url)
             }
           })
         })
@@ -657,7 +657,7 @@ export class CdpBrowserController {
     }
 
     const currentUrl = webContents.getURL()
-    const title = await webContents.getTitle()
+    const title = webContents.getTitle()
 
     // Update tab info
     tab.url = currentUrl
@@ -697,7 +697,7 @@ export class CdpBrowserController {
         })
       ])
 
-      const evalResult = result as any
+      const evalResult = result
 
       if (evalResult?.exceptionDetails) {
         const message = evalResult.exceptionDetails.exception?.description || 'Unknown script error'
