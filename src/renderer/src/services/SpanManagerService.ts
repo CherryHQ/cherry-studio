@@ -5,11 +5,9 @@ import type { SpanEntity, TokenUsage } from '@mcp-trace/trace-core'
 import { cleanContext, endContext, getContext, startContext } from '@mcp-trace/trace-web'
 import type { Context, Span } from '@opentelemetry/api'
 import { context, SpanStatusCode, trace } from '@opentelemetry/api'
-import { isAsyncIterable } from '@renderer/aiCore/legacy/middleware/utils'
 import { db } from '@renderer/databases'
 import { getEnableDeveloperMode } from '@renderer/hooks/useSettings'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
-import { handleAsyncIterable } from '@renderer/trace/dataHandler/AsyncIterableHandler'
 import { handleResult } from '@renderer/trace/dataHandler/CommonResultHandler'
 import { handleMessageStream } from '@renderer/trace/dataHandler/MessageStreamHandler'
 import { handleStream } from '@renderer/trace/dataHandler/StreamHandler'
@@ -18,7 +16,6 @@ import { ModelSpanEntity } from '@renderer/trace/types/ModelSpanEntity'
 import type { Model, Topic } from '@renderer/types'
 import type { Message } from '@renderer/types/newMessage'
 import { MessageBlockType } from '@renderer/types/newMessage'
-import type { SdkRawChunk } from '@renderer/types/sdk'
 
 const logger = loggerService.withContext('SpanManagerService')
 
@@ -344,8 +341,6 @@ export function withSpanResult<F extends (...args: any) => any>(
             return handleStream(data, span, params.topicId, params.modelName)
           } else if (data instanceof MessageStream) {
             return handleMessageStream(data, span, params.topicId, params.modelName)
-          } else if (isAsyncIterable<SdkRawChunk>(data)) {
-            return handleAsyncIterable(data, span, params.topicId, params.modelName)
           } else {
             return handleResult(data, span, params.topicId, params.modelName)
           }
