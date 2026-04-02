@@ -9,7 +9,6 @@ import { modelGenerating } from '@renderer/hooks/useModel'
 import { useSettings } from '@renderer/hooks/useSettings'
 import { getSidebarIconLabel } from '@renderer/i18n/label'
 import { ThemeMode } from '@renderer/types'
-import { isEmoji } from '@renderer/utils'
 import { getDefaultRouteTitle } from '@renderer/utils/routeTitle'
 import type { SidebarIcon as SidebarIconType } from '@shared/data/preference/preferenceTypes'
 import {
@@ -24,7 +23,6 @@ import {
   MousePointerClick,
   NotepadText,
   Palette,
-  Puzzle,
   Settings,
   Sparkle,
   Sun
@@ -37,7 +35,7 @@ import UserPopup from '../Popups/UserPopup'
 import { Sidebar as UISidebar } from '../Sidebar'
 import { getSidebarLayout } from '../Sidebar/constants'
 import { SidebarTooltip } from '../Sidebar/Tooltip'
-import type { SidebarMenuItem, SidebarTab, SidebarUser } from '../Sidebar/types'
+import type { SidebarMenuItem, SidebarMiniApp, SidebarMiniAppTab, SidebarUser } from '../Sidebar/types'
 
 const routePrefixMap: Record<SidebarIconType, string> = {
   assistants: '/app/chat',
@@ -64,7 +62,7 @@ const iconMap: Record<SidebarIconType, SidebarMenuItem['icon']> = {
   files: Folder,
   code_tools: Code,
   notes: NotepadText,
-  openclaw: ({ size = 16 }) => <OpenClawSidebarIcon style={{ width: size, height: size }} />
+  openclaw: OpenClawSidebarIcon
 }
 
 function getMenuPath(icon: SidebarIconType, defaultPaintingProvider: string): string {
@@ -103,9 +101,7 @@ const Sidebar = () => {
   const sidebarUser = useMemo<SidebarUser>(
     () => ({
       name: 'User',
-      email: '',
-      avatarSrc: isEmoji(avatar) ? undefined : avatar || undefined,
-      initial: isEmoji(avatar) ? avatar : undefined,
+      avatar: avatar || undefined,
       onClick: () => UserPopup.show()
     }),
     [avatar]
@@ -115,17 +111,18 @@ const Sidebar = () => {
   const { openedKeepAliveMinapps, currentMinappId, minappShow } = useMinapps()
   const { openMinappKeepAlive } = useMinappPopup()
 
-  const activeMiniAppTabs = useMemo<SidebarTab[]>(() => {
+  const activeMiniAppTabs = useMemo<SidebarMiniAppTab[]>(() => {
     if (!showOpenedInSidebar) return []
     return openedKeepAliveMinapps.map((app) => ({
+      type: 'miniapp',
       id: app.id,
       title: app.name,
-      icon: Puzzle,
-      miniAppId: app.id,
-      miniAppColor: app.background,
-      miniAppInitial: app.name?.[0],
-      miniAppLogo: app.logo,
-      miniAppLogoUrl: typeof app.logo === 'string' ? app.logo : undefined
+      miniApp: {
+        id: app.id,
+        color: app.background,
+        url: app.url,
+        logo: app.logo as SidebarMiniApp['logo']
+      }
     }))
   }, [showOpenedInSidebar, openedKeepAliveMinapps])
 
@@ -154,9 +151,16 @@ const Sidebar = () => {
         if (!path || !Icon) {
           return []
         }
-        return [{ id: icon, label: getSidebarIconLabel(icon), icon: Icon }]
+        return [
+          {
+            id: icon,
+            label: getSidebarIconLabel(icon),
+            icon: Icon,
+            ...(icon === 'minapp' ? { miniAppTabs: activeMiniAppTabs } : {})
+          }
+        ]
       }),
-    [defaultPaintingProvider, visibleSidebarIcons]
+    [defaultPaintingProvider, visibleSidebarIcons, activeMiniAppTabs]
   )
 
   const activeItem = resolveActiveItem(pathname)
@@ -239,7 +243,6 @@ const Sidebar = () => {
     logo: <img src={AppLogo} alt="Cherry Studio" className="h-9 w-9 rounded-lg" draggable={false} />,
     user: sidebarUser,
     actions: bottomActions,
-    activeMiniAppTabs,
     activeTabId: minappShow ? currentMinappId : undefined,
     onItemClick: handleNavigate,
     onMiniAppTabClick: handleMiniAppTabClick
