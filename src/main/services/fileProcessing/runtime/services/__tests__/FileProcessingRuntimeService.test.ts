@@ -8,11 +8,13 @@ describe('FileProcessingRuntimeService', () => {
 
   beforeEach(async () => {
     service = new FileProcessingRuntimeService()
-    await (service as any).onInit()
+    await service._doInit()
   })
 
   afterEach(async () => {
-    await (service as any).onStop()
+    if (!service.isStopped && !service.isDestroyed) {
+      await service._doStop()
+    }
     BaseService.resetInstances()
     vi.useRealTimers()
   })
@@ -39,12 +41,12 @@ describe('FileProcessingRuntimeService', () => {
       progress: 10
     })
 
-    await (service as any).onStop()
+    await service._doStop()
     expect((service as any).taskRuntime).toBeNull()
   })
 
   it('throws when accessed after stop', async () => {
-    await (service as any).onStop()
+    await service._doStop()
 
     expect(() => service.getTask('doc2x', 'task-1')).toThrow('FileProcessingRuntimeService is not initialized')
   })

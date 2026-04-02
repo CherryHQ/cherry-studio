@@ -37,14 +37,16 @@ vi.mock('../../../../persistence/resultPersistence', () => ({
 import { doc2xProcessor } from '../doc2xProcessor'
 
 describe('doc2xProcessor', () => {
+  const runtimeService = application.get('FileProcessingRuntimeService')
+
   beforeEach(() => {
     vi.clearAllMocks()
-    application.get('FileProcessingRuntimeService').clearTasks()
+    runtimeService.clearTasks()
     vi.spyOn(fs, 'access').mockRejectedValue(new Error('missing'))
   })
 
   it('moves parsing tasks into exporting state when parse succeeds and export starts', async () => {
-    application.get('FileProcessingRuntimeService').createTask('doc2x', 'task-1', {
+    runtimeService.createTask('doc2x', 'task-1', {
       apiHost: 'https://doc2x.example.com',
       apiKey: 'secret',
       fileId: 'file-1',
@@ -89,13 +91,13 @@ describe('doc2xProcessor', () => {
         signal: controller.signal
       })
     )
-    expect(application.get('FileProcessingRuntimeService').getTask('doc2x', 'task-1')).toMatchObject({
+    expect(runtimeService.getTask('doc2x', 'task-1')).toMatchObject({
       stage: 'exporting'
     })
   })
 
   it('persists export results and deletes task state when export completes', async () => {
-    application.get('FileProcessingRuntimeService').createTask('doc2x', 'task-2', {
+    runtimeService.createTask('doc2x', 'task-2', {
       apiHost: 'https://doc2x.example.com',
       apiKey: 'secret',
       fileId: 'file-2',
@@ -132,11 +134,11 @@ describe('doc2xProcessor', () => {
       })
     )
     expect(persistSpy).toHaveBeenCalledWith('file-2', 'https://download.example.com/output.zip', controller.signal)
-    expect(application.get('FileProcessingRuntimeService').getTask('doc2x', 'task-2')).toBeUndefined()
+    expect(runtimeService.getTask('doc2x', 'task-2')).toBeUndefined()
   })
 
   it('keeps task state when export persistence fails so polling can retry', async () => {
-    application.get('FileProcessingRuntimeService').createTask('doc2x', 'task-late-failure', {
+    runtimeService.createTask('doc2x', 'task-late-failure', {
       apiHost: 'https://doc2x.example.com',
       apiKey: 'secret',
       fileId: 'file-late-failure',
@@ -158,13 +160,13 @@ describe('doc2xProcessor', () => {
 
     await expect(doc2xProcessor.getMarkdownConversionTaskResult('task-late-failure')).rejects.toThrow('persist failed')
 
-    expect(application.get('FileProcessingRuntimeService').getTask('doc2x', 'task-late-failure')).toMatchObject({
+    expect(runtimeService.getTask('doc2x', 'task-late-failure')).toMatchObject({
       stage: 'exporting'
     })
   })
 
   it('allows retrying after a transient export query failure', async () => {
-    application.get('FileProcessingRuntimeService').createTask('doc2x', 'task-retry', {
+    runtimeService.createTask('doc2x', 'task-retry', {
       apiHost: 'https://doc2x.example.com',
       apiKey: 'secret',
       fileId: 'file-retry',
@@ -186,7 +188,7 @@ describe('doc2xProcessor', () => {
       'temporary network error'
     )
 
-    expect(application.get('FileProcessingRuntimeService').getTask('doc2x', 'task-retry')).toMatchObject({
+    expect(runtimeService.getTask('doc2x', 'task-retry')).toMatchObject({
       stage: 'exporting'
     })
 
@@ -197,11 +199,11 @@ describe('doc2xProcessor', () => {
       markdownPath: '/tmp/doc2x-retry.md'
     })
 
-    expect(application.get('FileProcessingRuntimeService').getTask('doc2x', 'task-retry')).toBeUndefined()
+    expect(runtimeService.getTask('doc2x', 'task-retry')).toBeUndefined()
   })
 
   it('deduplicates concurrent polling for the same task while starting export', async () => {
-    application.get('FileProcessingRuntimeService').createTask('doc2x', 'task-3', {
+    runtimeService.createTask('doc2x', 'task-3', {
       apiHost: 'https://doc2x.example.com',
       apiKey: 'secret',
       fileId: 'file-3',
@@ -252,13 +254,13 @@ describe('doc2xProcessor', () => {
     })
 
     expect(getParseStatusMock).toHaveBeenCalledTimes(1)
-    expect(application.get('FileProcessingRuntimeService').getTask('doc2x', 'task-3')).toMatchObject({
+    expect(runtimeService.getTask('doc2x', 'task-3')).toMatchObject({
       stage: 'exporting'
     })
   })
 
   it('does not let the first caller abort cancel a concurrent follower', async () => {
-    application.get('FileProcessingRuntimeService').createTask('doc2x', 'task-4', {
+    runtimeService.createTask('doc2x', 'task-4', {
       apiHost: 'https://doc2x.example.com',
       apiKey: 'secret',
       fileId: 'file-4',
@@ -312,7 +314,7 @@ describe('doc2xProcessor', () => {
 
     expect(getParseStatusMock).toHaveBeenCalledTimes(1)
     expect(triggerExportTaskMock).toHaveBeenCalledTimes(1)
-    expect(application.get('FileProcessingRuntimeService').getTask('doc2x', 'task-4')).toMatchObject({
+    expect(runtimeService.getTask('doc2x', 'task-4')).toMatchObject({
       stage: 'exporting'
     })
   })

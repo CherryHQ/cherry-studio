@@ -1,7 +1,7 @@
 import fs from 'node:fs'
 
 import { BaseService } from '@main/core/lifecycle'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const { createWorkerMock, getIpCountryMock, loadOcrImageMock, appGetPathMock } = vi.hoisted(() => ({
   createWorkerMock: vi.fn(),
@@ -31,6 +31,8 @@ vi.mock('electron', () => ({
 import { TesseractRuntimeService } from '../TesseractRuntimeService'
 
 describe('TesseractRuntimeService', () => {
+  let service: TesseractRuntimeService | undefined
+
   beforeEach(() => {
     vi.clearAllMocks()
     BaseService.resetInstances()
@@ -39,6 +41,14 @@ describe('TesseractRuntimeService', () => {
     appGetPathMock.mockReturnValue('/tmp/userData')
     vi.spyOn(fs.promises, 'stat').mockResolvedValue({ size: 1024 } as never)
     vi.spyOn(fs.promises, 'mkdir').mockResolvedValue(undefined)
+  })
+
+  afterEach(async () => {
+    if (service && !service.isStopped && !service.isDestroyed) {
+      await service._doStop()
+    }
+    service = undefined
+    BaseService.resetInstances()
   })
 
   it('terminates the shared worker on stop', async () => {
@@ -52,8 +62,8 @@ describe('TesseractRuntimeService', () => {
       terminate: terminateMock
     })
 
-    const service = new TesseractRuntimeService()
-    await (service as any).onInit()
+    service = new TesseractRuntimeService()
+    await service._doInit()
 
     await service.extract({
       file: {
@@ -70,7 +80,7 @@ describe('TesseractRuntimeService', () => {
       langs: ['eng']
     })
 
-    await (service as any).onStop()
+    await service._doStop()
 
     expect(terminateMock).toHaveBeenCalledTimes(1)
   })
@@ -91,8 +101,8 @@ describe('TesseractRuntimeService', () => {
       terminate: terminateMock
     })
 
-    const service = new TesseractRuntimeService()
-    await (service as any).onInit()
+    service = new TesseractRuntimeService()
+    await service._doInit()
 
     const extractPromise = service.extract({
       file: {
@@ -113,7 +123,7 @@ describe('TesseractRuntimeService', () => {
       expect(recognizeMock).toHaveBeenCalledTimes(1)
     })
 
-    const stopPromise = (service as any).onStop()
+    const stopPromise = service._doStop()
 
     await vi.waitFor(() => {
       expect(terminateMock).toHaveBeenCalledTimes(1)
@@ -128,9 +138,9 @@ describe('TesseractRuntimeService', () => {
   })
 
   it('rejects new work after stop', async () => {
-    const service = new TesseractRuntimeService()
-    await (service as any).onInit()
-    await (service as any).onStop()
+    service = new TesseractRuntimeService()
+    await service._doInit()
+    await service._doStop()
 
     await expect(
       service.extract({

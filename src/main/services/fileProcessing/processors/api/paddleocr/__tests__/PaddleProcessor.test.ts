@@ -62,13 +62,15 @@ const processorConfig = {
 } as const
 
 describe('paddleProcessor', () => {
+  const runtimeService = application.get('FileProcessingRuntimeService')
+
   beforeEach(() => {
     vi.clearAllMocks()
-    application.get('FileProcessingRuntimeService').clearTasks()
+    runtimeService.clearTasks()
   })
 
   it('returns pending or processing status based on remote job state', async () => {
-    application.get('FileProcessingRuntimeService').createTask('paddleocr', 'task-1', {
+    runtimeService.createTask('paddleocr', 'task-1', {
       apiHost: 'https://paddle.example.com',
       apiKey: 'secret',
       fileId: 'file-1'
@@ -87,7 +89,7 @@ describe('paddleProcessor', () => {
   })
 
   it('persists completed markdown results and deletes task state', async () => {
-    application.get('FileProcessingRuntimeService').createTask('paddleocr', 'task-2', {
+    runtimeService.createTask('paddleocr', 'task-2', {
       apiHost: 'https://paddle.example.com',
       apiKey: 'secret',
       fileId: 'file-2'
@@ -123,11 +125,11 @@ describe('paddleProcessor', () => {
       undefined
     )
     expect(persistSpy).toHaveBeenCalledWith('file-2', '# output')
-    expect(application.get('FileProcessingRuntimeService').getTask('paddleocr', 'task-2')).toBeUndefined()
+    expect(runtimeService.getTask('paddleocr', 'task-2')).toBeUndefined()
   })
 
   it('keeps task state when markdown result resolution fails so polling can retry', async () => {
-    application.get('FileProcessingRuntimeService').createTask('paddleocr', 'task-late-failure', {
+    runtimeService.createTask('paddleocr', 'task-late-failure', {
       apiHost: 'https://paddle.example.com',
       apiKey: 'secret',
       fileId: 'file-late-failure'
@@ -145,13 +147,13 @@ describe('paddleProcessor', () => {
       'jsonl parse failed'
     )
 
-    expect(application.get('FileProcessingRuntimeService').getTask('paddleocr', 'task-late-failure')).toMatchObject({
+    expect(runtimeService.getTask('paddleocr', 'task-late-failure')).toMatchObject({
       fileId: 'file-late-failure'
     })
   })
 
   it('allows retrying after a transient polling failure', async () => {
-    application.get('FileProcessingRuntimeService').createTask('paddleocr', 'task-retry', {
+    runtimeService.createTask('paddleocr', 'task-retry', {
       apiHost: 'https://paddle.example.com',
       apiKey: 'secret',
       fileId: 'file-retry'
@@ -173,7 +175,7 @@ describe('paddleProcessor', () => {
       'temporary network error'
     )
 
-    expect(application.get('FileProcessingRuntimeService').getTask('paddleocr', 'task-retry')).toMatchObject({
+    expect(runtimeService.getTask('paddleocr', 'task-retry')).toMatchObject({
       fileId: 'file-retry'
     })
 
@@ -192,7 +194,7 @@ describe('paddleProcessor', () => {
       undefined
     )
     expect(persistSpy).toHaveBeenCalledWith('file-retry', '# retry output')
-    expect(application.get('FileProcessingRuntimeService').getTask('paddleocr', 'task-retry')).toBeUndefined()
+    expect(runtimeService.getTask('paddleocr', 'task-retry')).toBeUndefined()
   })
 
   it('extracts text through the shared jsonUrl resolver', async () => {

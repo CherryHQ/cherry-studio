@@ -48,9 +48,11 @@ const processorConfig = {
 } as const
 
 describe('openMineruProcessor', () => {
+  const runtimeService = application.get('FileProcessingRuntimeService')
+
   beforeEach(() => {
     vi.clearAllMocks()
-    application.get('FileProcessingRuntimeService').clearTasks()
+    runtimeService.clearTasks()
   })
 
   it('deletes task state after persisting a successful markdown conversion result', async () => {
@@ -62,7 +64,7 @@ describe('openMineruProcessor', () => {
       }
     })
 
-    application.get('FileProcessingRuntimeService').createTask('open-mineru', 'task-1', {
+    runtimeService.createTask('open-mineru', 'task-1', {
       status: 'processing',
       progress: 0
     })
@@ -82,7 +84,7 @@ describe('openMineruProcessor', () => {
 
     expect(executeTaskMock).toHaveBeenCalledTimes(1)
     expect(persistSpy).toHaveBeenCalledWith('file-1', response, undefined)
-    expect(application.get('FileProcessingRuntimeService').getTask('open-mineru', 'task-1')).toEqual({
+    expect(runtimeService.getTask('open-mineru', 'task-1')).toEqual({
       status: 'completed',
       progress: 100,
       markdownPath: '/tmp/output.md'
@@ -90,7 +92,7 @@ describe('openMineruProcessor', () => {
   })
 
   it('returns completed status from task state and deletes it after consumption', async () => {
-    application.get('FileProcessingRuntimeService').createTask('open-mineru', 'task-2', {
+    runtimeService.createTask('open-mineru', 'task-2', {
       status: 'completed',
       progress: 100,
       markdownPath: '/tmp/output.md'
@@ -103,7 +105,7 @@ describe('openMineruProcessor', () => {
       markdownPath: '/tmp/output.md'
     })
 
-    expect(application.get('FileProcessingRuntimeService').getTask('open-mineru', 'task-2')).toBeUndefined()
+    expect(runtimeService.getTask('open-mineru', 'task-2')).toBeUndefined()
   })
 
   it('keeps the background task running after the caller aborts the start request', async () => {
@@ -153,7 +155,7 @@ describe('openMineruProcessor', () => {
     expect(executeTaskMock.mock.calls[0]?.[0]?.signal).not.toBe(controller.signal)
     expect(executeTaskMock.mock.calls[0]?.[0]?.signal?.aborted).toBe(false)
     expect(persistSpy).toHaveBeenCalledWith('file-1', expect.any(Response), expect.any(AbortSignal))
-    expect(application.get('FileProcessingRuntimeService').getTask('open-mineru', startResult.providerTaskId)).toEqual({
+    expect(runtimeService.getTask('open-mineru', startResult.providerTaskId)).toEqual({
       status: 'completed',
       progress: 100,
       markdownPath: '/tmp/output.md'

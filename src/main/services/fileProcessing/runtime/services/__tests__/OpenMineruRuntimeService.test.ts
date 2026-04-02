@@ -1,11 +1,24 @@
-import { describe, expect, it } from 'vitest'
+import { BaseService } from '@main/core/lifecycle'
+import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 
 import { OpenMineruRuntimeService } from '../OpenMineruRuntimeService'
 
 describe('OpenMineruRuntimeService', () => {
+  let service: OpenMineruRuntimeService
+
+  beforeEach(async () => {
+    service = new OpenMineruRuntimeService()
+    await service._doInit()
+  })
+
+  afterEach(async () => {
+    if (!service.isStopped && !service.isDestroyed) {
+      await service._doStop()
+    }
+    BaseService.resetInstances()
+  })
+
   it('aborts and awaits in-flight tasks on stop', async () => {
-    const service = new OpenMineruRuntimeService()
-    await (service as any).onInit()
     let aborted = false
     let settled = false
 
@@ -25,7 +38,7 @@ describe('OpenMineruRuntimeService', () => {
         })
     )
 
-    await (service as any).onStop()
+    await service._doStop()
 
     expect(aborted).toBe(true)
     expect(settled).toBe(true)

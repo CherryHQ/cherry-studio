@@ -34,14 +34,16 @@ vi.mock('../../../../persistence/resultPersistence', () => ({
 import { mineruProcessor } from '../mineruProcessor'
 
 describe('mineruProcessor', () => {
+  const runtimeService = application.get('FileProcessingRuntimeService')
+
   beforeEach(() => {
     vi.clearAllMocks()
-    application.get('FileProcessingRuntimeService').clearTasks()
+    runtimeService.clearTasks()
     vi.spyOn(fs, 'access').mockRejectedValue(new Error('missing'))
   })
 
   it('maps non-final batch results to a processing response', async () => {
-    application.get('FileProcessingRuntimeService').createTask('mineru', 'task-1', {
+    runtimeService.createTask('mineru', 'task-1', {
       apiHost: 'https://mineru.example.com',
       apiKey: 'secret',
       fileId: 'file-1'
@@ -62,13 +64,13 @@ describe('mineruProcessor', () => {
       processorId: 'mineru'
     })
 
-    expect(application.get('FileProcessingRuntimeService').getTask('mineru', 'task-1')).toMatchObject({
+    expect(runtimeService.getTask('mineru', 'task-1')).toMatchObject({
       apiHost: 'https://mineru.example.com'
     })
   })
 
   it('persists completed results and deletes task state', async () => {
-    application.get('FileProcessingRuntimeService').createTask('mineru', 'task-2', {
+    runtimeService.createTask('mineru', 'task-2', {
       apiHost: 'https://mineru.example.com',
       apiKey: 'secret',
       fileId: 'file-2'
@@ -95,11 +97,11 @@ describe('mineruProcessor', () => {
     })
 
     expect(persistSpy).toHaveBeenCalledWith('file-2', 'https://download.example.com/full.zip', undefined)
-    expect(application.get('FileProcessingRuntimeService').getTask('mineru', 'task-2')).toBeUndefined()
+    expect(runtimeService.getTask('mineru', 'task-2')).toBeUndefined()
   })
 
   it('keeps task state when persistence-related completion handling fails', async () => {
-    application.get('FileProcessingRuntimeService').createTask('mineru', 'task-late-failure', {
+    runtimeService.createTask('mineru', 'task-late-failure', {
       apiHost: 'https://mineru.example.com',
       apiKey: 'secret',
       fileId: 'file-late-failure'
@@ -120,13 +122,13 @@ describe('mineruProcessor', () => {
 
     await expect(mineruProcessor.getMarkdownConversionTaskResult('task-late-failure')).rejects.toThrow('persist failed')
 
-    expect(application.get('FileProcessingRuntimeService').getTask('mineru', 'task-late-failure')).toMatchObject({
+    expect(runtimeService.getTask('mineru', 'task-late-failure')).toMatchObject({
       fileId: 'file-late-failure'
     })
   })
 
   it('allows retrying after a transient polling failure', async () => {
-    application.get('FileProcessingRuntimeService').createTask('mineru', 'task-retry', {
+    runtimeService.createTask('mineru', 'task-retry', {
       apiHost: 'https://mineru.example.com',
       apiKey: 'secret',
       fileId: 'file-retry'
@@ -147,7 +149,7 @@ describe('mineruProcessor', () => {
       'temporary network error'
     )
 
-    expect(application.get('FileProcessingRuntimeService').getTask('mineru', 'task-retry')).toMatchObject({
+    expect(runtimeService.getTask('mineru', 'task-retry')).toMatchObject({
       fileId: 'file-retry'
     })
 
@@ -158,7 +160,7 @@ describe('mineruProcessor', () => {
       markdownPath: '/tmp/mineru-retry.md'
     })
 
-    expect(application.get('FileProcessingRuntimeService').getTask('mineru', 'task-retry')).toBeUndefined()
+    expect(runtimeService.getTask('mineru', 'task-retry')).toBeUndefined()
   })
 
   it('keeps the existing result directory when persistence fails', async () => {
