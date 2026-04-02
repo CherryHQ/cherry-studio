@@ -8,7 +8,7 @@
  * All input validation happens here at the system boundary.
  */
 
-import { miniappService } from '@data/services/MiniappService'
+import { miniappService } from '@data/services/MiniAppService'
 import type { ApiHandler, ApiMethods } from '@shared/data/api/apiTypes'
 import type { MiniappSchemas } from '@shared/data/api/schemas/miniapps'
 import {

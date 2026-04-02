@@ -130,7 +130,7 @@ export class MiniAppService {
       .where(customWhere)
       .orderBy(asc(miniappTable.status), asc(miniappTable.sortOrder))
 
-    // For builtin apps: if type filter is 'custom', skip them entirely
+    // N6: Handle type filters — 'custom' returns only DB custom apps, 'default' returns only builtins
     if (query.type === 'custom') {
       const items = customRows.map(rowToMiniApp)
       return {
@@ -173,8 +173,8 @@ export class MiniAppService {
         .sort((a: MiniApp, b: MiniApp) => a.sortOrder - b.sortOrder)
     }
 
-    // Combine: pinned first, then enabled, then disabled
-    const allItems = [...builtinItems, ...customRows.map(rowToMiniApp)]
+    // N6: Combine — skip custom rows when type filter is 'default'
+    const allItems = query.type === 'default' ? [...builtinItems] : [...builtinItems, ...customRows.map(rowToMiniApp)]
     allItems.sort((a, b) => {
       // Sort by status priority: pinned=0, enabled=1, disabled=2
       const statusOrder = (s: MiniAppStatus) => (s === 'pinned' ? 0 : s === 'enabled' ? 1 : 2)
@@ -222,6 +222,10 @@ export class MiniAppService {
       })
       .returning()
 
+    if (!row) {
+      throw DataApiErrorFactory.internal(new Error('Insert returned no rows'), 'MiniApp.create')
+    }
+
     logger.info('Created miniapp', { appId: row.appId, name: row.name })
 
     return rowToMiniApp(row)
@@ -258,6 +262,15 @@ export class MiniAppService {
       if (dto.configuration !== undefined) updates.configuration = dto.configuration
     }
 
+    // N5: Reject empty updates (e.g. non-status fields on a default app)
+    const appliedChanges = Object.keys(updates)
+    if (appliedChanges.length === 0) {
+      throw DataApiErrorFactory.validation(
+        { _root: [`No updatable fields provided for ${existing.type} miniapp "${appId}"`] },
+        `No applicable fields to update`
+      )
+    }
+
     const [row] = await this.db.update(miniappTable).set(updates).where(eq(miniappTable.appId, appId)).returning()
 
     // I2: Validate .returning() result
@@ -265,7 +278,7 @@ export class MiniAppService {
       throw DataApiErrorFactory.notFound('MiniApp', appId)
     }
 
-    logger.info('Updated miniapp', { appId, changes: Object.keys(dto) })
+    logger.info('Updated miniapp', { appId, changes: appliedChanges })
 
     // I1: Return merged preset for builtin apps
     const builtinDef = builtinMiniAppMap.get(appId)
@@ -336,8 +349,19 @@ export class MiniAppService {
       }
 
       // Update sort orders
+      const skipped: string[] = []
       for (const item of items) {
-        await tx.update(miniappTable).set({ sortOrder: item.sortOrder }).where(eq(miniappTable.appId, item.appId))
+        const result = await tx
+          .update(miniappTable)
+          .set({ sortOrder: item.sortOrder })
+          .where(eq(miniappTable.appId, item.appId))
+          .returning({ appId: miniappTable.appId })
+        if (result.length === 0) {
+          skipped.push(item.appId)
+        }
+      }
+      if (skipped.length > 0) {
+        logger.warn('Reorder skipped non-existent app IDs', { skipped })
       }
     })
 
@@ -371,7 +395,7 @@ export class MiniAppService {
       })
       .onConflictDoNothing()
 
-    logger.info('Ensured default app preference row', { appId })
+    logger.debug('Ensured default app preference row', { appId })
   }
 }
 

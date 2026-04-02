@@ -84,8 +84,9 @@ export class MiniAppMigrator extends BaseMigrator {
             // else: keep the higher-priority version already stored
           } catch (err) {
             this.skippedCount++
-            warnings.push(`Failed to transform ${status} app ${app.id}: ${(err as Error).message}`)
-            logger.warn(`Skipping ${status} app ${app.id}`, err as Error)
+            const errMsg = err instanceof Error ? err.message : String(err)
+            warnings.push(`Failed to transform ${status} app ${app.id}: ${errMsg}`)
+            logger.warn(`Skipping ${status} app ${app.id}`, err instanceof Error ? err : new Error(errMsg))
           }
         }
       }
