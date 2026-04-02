@@ -1,7 +1,7 @@
 import type { PermissionUpdate } from '@anthropic-ai/claude-agent-sdk'
+import { useSharedCache } from '@data/hooks/useCache'
 import { loggerService } from '@logger'
-import { useAppDispatch, useAppSelector } from '@renderer/store'
-import { selectPendingPermission, toolPermissionsActions } from '@renderer/store/toolPermissions'
+import { toolPermissionsCacheService } from '@renderer/services/ToolPermissionsCacheService'
 import type { NormalToolResponse } from '@renderer/types'
 import type { ToolMessageBlock } from '@renderer/types/newMessage'
 import { useCallback } from 'react'
@@ -27,12 +27,12 @@ export function useAgentToolApproval(
   options: UseAgentToolApprovalOptions = {}
 ): ToolApprovalState & ToolApprovalActions {
   const { t } = useTranslation()
-  const dispatch = useAppDispatch()
 
   const toolResponse = block?.metadata?.rawMcpToolResponse as NormalToolResponse | undefined
   const toolCallId = options.toolCallId ?? toolResponse?.toolCallId ?? ''
 
-  const request = useAppSelector((state) => selectPendingPermission(state.toolPermissions, toolCallId))
+  const [requests] = useSharedCache('tool.permission.requests')
+  const request = toolPermissionsCacheService.selectPendingPermission(requests, toolCallId)
 
   const isSubmittingAllow = request?.status === 'submitting-allow'
   const isSubmittingDeny = request?.status === 'submitting-deny'
@@ -57,7 +57,7 @@ export function useAgentToolApproval(
         behavior
       })
 
-      dispatch(toolPermissionsActions.submissionSent({ requestId: request.requestId, behavior }))
+      toolPermissionsCacheService.submissionSent(request.requestId, behavior)
 
       try {
         const payload = {
@@ -86,10 +86,10 @@ export function useAgentToolApproval(
       } catch (error) {
         logger.error('Failed to send tool permission response', error as Error)
         window.toast?.error?.(t('agent.toolPermission.error.sendFailed'))
-        dispatch(toolPermissionsActions.submissionFailed({ requestId: request.requestId }))
+        toolPermissionsCacheService.submissionFailed(request.requestId)
       }
     },
-    [dispatch, request, t]
+    [request, t]
   )
 
   const confirm = useCallback(() => {

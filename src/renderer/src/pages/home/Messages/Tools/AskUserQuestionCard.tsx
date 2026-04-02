@@ -1,6 +1,6 @@
+import { useSharedCache } from '@data/hooks/useCache'
 import { loggerService } from '@logger'
-import { useAppDispatch, useAppSelector } from '@renderer/store'
-import { selectPendingPermission, toolPermissionsActions } from '@renderer/store/toolPermissions'
+import { toolPermissionsCacheService } from '@renderer/services/ToolPermissionsCacheService'
 import type { NormalToolResponse } from '@renderer/types'
 import { cn } from '@renderer/utils'
 import { Button, Checkbox, Input, Radio, Tag } from 'antd'
@@ -261,8 +261,8 @@ function PendingContent({
 // ==================== Main Component ====================
 export function AskUserQuestionCard({ toolResponse }: { toolResponse: NormalToolResponse }) {
   const { t } = useTranslation()
-  const dispatch = useAppDispatch()
-  const request = useAppSelector((state) => selectPendingPermission(state.toolPermissions, toolResponse.toolCallId))
+  const [requests] = useSharedCache('tool.permission.requests')
+  const request = toolPermissionsCacheService.selectPendingPermission(requests, toolResponse.toolCallId)
 
   const isPending = toolResponse.status === 'pending' && !!request
 
@@ -370,7 +370,7 @@ export function AskUserQuestionCard({ toolResponse }: { toolResponse: NormalTool
     })
 
     setSubmittedAnswers(collectedAnswers)
-    dispatch(toolPermissionsActions.submissionSent({ requestId: request.requestId, behavior: 'allow' }))
+    toolPermissionsCacheService.submissionSent(request.requestId, 'allow')
 
     try {
       const response = await window.api.agentTools.respondToPermission({
@@ -383,9 +383,9 @@ export function AskUserQuestionCard({ toolResponse }: { toolResponse: NormalTool
     } catch (error) {
       logger.error('Failed to submit AskUserQuestion answers', { error })
       window.toast?.error?.(t('agent.toolPermission.error.sendFailed'))
-      dispatch(toolPermissionsActions.submissionFailed({ requestId: request.requestId }))
+      toolPermissionsCacheService.submissionFailed(request.requestId)
     }
-  }, [dispatch, request, questions, selectedAnswers, customInputs, showCustomInput, t])
+  }, [request, questions, selectedAnswers, customInputs, showCustomInput, t])
 
   if (isPending && (questions.length === 0 || !currentQuestion)) {
     return (

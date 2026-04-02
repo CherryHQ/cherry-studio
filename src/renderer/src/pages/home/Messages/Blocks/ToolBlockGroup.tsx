@@ -1,9 +1,9 @@
+import { useSharedCache } from '@data/hooks/useCache'
 import { ErrorBoundary } from '@renderer/components/ErrorBoundary'
-import { useAppSelector } from '@renderer/store'
-import type { ToolPermissionEntry } from '@renderer/store/toolPermissions'
 import type { MCPToolResponseStatus } from '@renderer/types'
 import type { ToolMessageBlock } from '@renderer/types/newMessage'
 import { isToolPending } from '@renderer/utils/userConfirmation'
+import type { ToolPermissionEntry } from '@shared/data/cache/cacheValueTypes'
 import { Collapse, type CollapseProps } from 'antd'
 import { Wrench } from 'lucide-react'
 import { AnimatePresence, motion } from 'motion/react'
@@ -174,7 +174,7 @@ interface GroupHeaderContentProps {
 
 const GroupHeaderContent = React.memo(({ blocks, allCompleted }: GroupHeaderContentProps) => {
   const { t } = useTranslation()
-  const agentPermissions = useAppSelector((state) => state.toolPermissions.requests)
+  const [agentPermissions] = useSharedCache('tool.permission.requests')
 
   if (allCompleted) {
     return (

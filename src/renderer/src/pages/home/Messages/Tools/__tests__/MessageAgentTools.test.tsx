@@ -1,3 +1,4 @@
+import { toolPermissionsCacheService } from '@renderer/services/ToolPermissionsCacheService'
 import type { NormalToolResponse } from '@renderer/types'
 import { render, screen } from '@testing-library/react'
 import { parse as parsePartialJson } from 'partial-json'
@@ -27,8 +28,14 @@ vi.mock('@renderer/store', () => ({
   useAppDispatch: () => vi.fn()
 }))
 
-vi.mock('@renderer/store/toolPermissions', () => ({
-  selectPendingPermission: vi.fn()
+vi.mock('@renderer/services/ToolPermissionsCacheService', () => ({
+  toolPermissionsCacheService: {
+    selectPendingPermission: vi.fn(() => null)
+  }
+}))
+
+vi.mock('@data/hooks/useCache', () => ({
+  useSharedCache: vi.fn(() => [{}])
 }))
 
 vi.mock('react-i18next', () => ({
@@ -166,7 +173,7 @@ describe('MessageAgentTools', () => {
   }
 
   beforeEach(() => {
-    mockUseAppSelector.mockReturnValue(null) // No pending permission
+    vi.mocked(toolPermissionsCacheService.selectPendingPermission).mockReturnValue(undefined)
     mockUseTranslation.mockReturnValue({
       t: (key: string, options?: string | { count?: number }) => {
         // Handle plural keys with count option
@@ -326,7 +333,18 @@ describe('MessageAgentTools', () => {
 
   describe('pending without streaming', () => {
     it('should show permission card when pending permission exists', () => {
-      mockUseAppSelector.mockReturnValue({ toolCallId: 'call-123' }) // Has pending permission
+      vi.mocked(toolPermissionsCacheService.selectPendingPermission).mockReturnValue({
+        requestId: 'req-1',
+        toolCallId: 'call-123',
+        toolName: 'Read',
+        toolId: 'Read',
+        requiresPermissions: true,
+        input: {},
+        inputPreview: '',
+        createdAt: Date.now(),
+        suggestions: [],
+        status: 'pending'
+      })
 
       const toolResponse = createToolResponse({
         status: 'pending',
