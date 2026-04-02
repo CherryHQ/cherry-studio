@@ -26,7 +26,7 @@ const MiniAppIconsManager: FC<MiniAppManagerProps> = ({
   setDisabledMiniApps
 }) => {
   const { t } = useTranslation()
-  const { pinned, updateMinapps, updateDisabledMinapps, setPinnedMinappsDirect } = useMinapps()
+  const { pinned, updateMinapps, updateDisabledMinapps, updatePinnedMinapps } = useMinapps()
 
   const handleListUpdate = useCallback(
     (newVisible: MinAppType[], newDisabled: MinAppType[]) => {
@@ -34,11 +34,10 @@ const MiniAppIconsManager: FC<MiniAppManagerProps> = ({
       setDisabledMiniApps(newDisabled)
       updateMinapps(newVisible)
       updateDisabledMinapps(newDisabled)
-      // Direct set to bypass preservedHidden — user intentionally disabled these apps
       const disabledIds = new Set(newDisabled.map((d) => d.id))
-      setPinnedMinappsDirect(pinned.filter((p) => !disabledIds.has(p.id)))
+      updatePinnedMinapps(pinned.filter((p) => !disabledIds.has(p.id)))
     },
-    [pinned, setDisabledMiniApps, setVisibleMiniApps, updateDisabledMinapps, updateMinapps, setPinnedMinappsDirect]
+    [pinned, setDisabledMiniApps, setVisibleMiniApps, updateDisabledMinapps, updateMinapps, updatePinnedMinapps]
   )
 
   const onDragEnd = useCallback(
