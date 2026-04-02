@@ -1,7 +1,12 @@
 import express from 'express'
 
-import { getKnowledgeBase, listKnowledgeBases, searchKnowledge } from './handlers'
-import { validateKnowledgeBaseId, validateKnowledgeSearch, validatePagination } from './validators'
+import { createKnowledgeItems, getKnowledgeBase, listKnowledgeBases, searchKnowledge } from './handlers'
+import {
+  validateCreateKnowledgeItems,
+  validateKnowledgeBaseId,
+  validateKnowledgeSearch,
+  validatePagination
+} from './validators'
 
 // Create main knowledge router
 const knowledgeRouter = express.Router()
@@ -156,6 +161,64 @@ const knowledgeRouter = express.Router()
  *           items:
  *             type: string
  *           description: Warning messages for partial search failures
+ *
+ *     KnowledgeItemEntity:
+ *       type: object
+ *       properties:
+ *         id:
+ *           type: string
+ *         baseId:
+ *           type: string
+ *         groupId:
+ *           type: string
+ *           nullable: true
+ *         type:
+ *           type: string
+ *           enum: [file, url, note, sitemap, directory]
+ *         data:
+ *           type: object
+ *           description: Type-specific item payload. Successful ingests include `ingestion.loaderId` and `ingestion.loaderIds`.
+ *         status:
+ *           type: string
+ *           enum: [idle, pending, ocr, read, embed, completed, failed]
+ *         error:
+ *           type: string
+ *           nullable: true
+ *         createdAt:
+ *           type: string
+ *           format: date-time
+ *         updatedAt:
+ *           type: string
+ *           format: date-time
+ *
+ *     CreateKnowledgeItemsRequest:
+ *       type: object
+ *       required:
+ *         - items
+ *       properties:
+ *         items:
+ *           type: array
+ *           minItems: 1
+ *           items:
+ *             type: object
+ *             required: [type, data]
+ *             properties:
+ *               groupId:
+ *                 type: string
+ *                 nullable: true
+ *               type:
+ *                 type: string
+ *                 enum: [file, url, note, sitemap, directory]
+ *               data:
+ *                 type: object
+ *
+ *     CreateKnowledgeItemsResponse:
+ *       type: object
+ *       properties:
+ *         items:
+ *           type: array
+ *           items:
+ *             $ref: '#/components/schemas/KnowledgeItemEntity'
  */
 
 /**
@@ -200,12 +263,6 @@ const knowledgeRouter = express.Router()
  *           application/json:
  *             schema:
  *               $ref: '#/components/schemas/ErrorResponse'
- *       503:
- *         description: Service unavailable (Redux store not accessible)
- *         content:
- *           application/json:
- *             schema:
- *               $ref: '#/components/schemas/ErrorResponse'
  */
 knowledgeRouter.get('/', validatePagination, listKnowledgeBases)
 
@@ -241,14 +298,76 @@ knowledgeRouter.get('/', validatePagination, listKnowledgeBases)
  *           application/json:
  *             schema:
  *               $ref: '#/components/schemas/ErrorResponse'
+ */
+knowledgeRouter.get('/:id', validateKnowledgeBaseId, getKnowledgeBase)
+
+/**
+ * @swagger
+ * /v1/knowledge-bases/{id}/items:
+ *   post:
+ *     summary: Create and ingest knowledge items
+ *     description: |
+ *       Create knowledge items for a knowledge base and ingest them into the vector store.
+ *
+ *       Supported item types:
+ *       - `file`
+ *       - `url`
+ *       - `note`
+ *       - `sitemap`
+ *       - `directory`
+ *
+ *       Each returned item includes the persisted processing status.
+ *       Successful ingests persist loader metadata inside `data.ingestion`.
+ *     tags: [Knowledge]
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: Knowledge base ID
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             $ref: '#/components/schemas/CreateKnowledgeItemsRequest'
+ *           example:
+ *             items:
+ *               - type: note
+ *                 data:
+ *                   content: "Cherry Studio knowledge ingestion"
+ *               - type: url
+ *                 data:
+ *                   url: "https://docs.cherry-ai.com"
+ *                   name: "Cherry Studio Docs"
+ *     responses:
+ *       201:
+ *         description: Knowledge items created and ingested
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/CreateKnowledgeItemsResponse'
+ *       404:
+ *         description: Knowledge base not found
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ErrorResponse'
+ *       422:
+ *         description: Validation failed
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ErrorResponse'
  *       503:
- *         description: Service unavailable (Redux store not accessible)
+ *         description: Provider configuration is unavailable
  *         content:
  *           application/json:
  *             schema:
  *               $ref: '#/components/schemas/ErrorResponse'
  */
-knowledgeRouter.get('/:id', validateKnowledgeBaseId, getKnowledgeBase)
+knowledgeRouter.post('/:id/items', validateCreateKnowledgeItems, createKnowledgeItems)
 
 /**
  * @swagger
@@ -310,7 +429,7 @@ knowledgeRouter.get('/:id', validateKnowledgeBaseId, getKnowledgeBase)
  *             schema:
  *               $ref: '#/components/schemas/ErrorResponse'
  *       503:
- *         description: Service unavailable (Redux store not accessible)
+ *         description: Provider configuration is unavailable
  *         content:
  *           application/json:
  *             schema:

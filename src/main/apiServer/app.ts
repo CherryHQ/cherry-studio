@@ -135,6 +135,7 @@ app.get('/', (_req, res) => {
       agent_sessions: 'GET /v1/agents/:agentId/sessions',
       session_messages: 'GET /v1/agents/:agentId/sessions/:sessionId/messages',
       knowledge_bases: 'GET /v1/knowledge-bases',
+      knowledge_items_create: 'POST /v1/knowledge-bases/:id/items',
       knowledge_search: 'POST /v1/knowledge-bases/search'
     }
   })
