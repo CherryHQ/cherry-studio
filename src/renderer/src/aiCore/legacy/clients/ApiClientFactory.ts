@@ -13,6 +13,7 @@ import { NewAPIClient } from './newapi/NewAPIClient'
 import { OpenAIAPIClient } from './openai/OpenAIApiClient'
 import { OpenAIResponseAPIClient } from './openai/OpenAIResponseAPIClient'
 import { OVMSClient } from './ovms/OVMSClient'
+import { PoeAPIClient } from './poe/PoeAPIClient'
 import { PPIOAPIClient } from './ppio/PPIOAPIClient'
 import { ZhipuAPIClient } from './zhipu/ZhipuAPIClient'
 
@@ -67,6 +68,12 @@ export class ApiClientFactory {
     if (provider.id === 'ovms') {
       logger.debug(`Creating OVMSClient for provider: ${provider.id}`)
       instance = new OVMSClient(provider) as BaseApiClient
+      return instance
+    }
+
+    if (provider.id === 'poe') {
+      logger.debug(`Creating PoeAPIClient for provider: ${provider.id}`)
+      instance = new PoeAPIClient(provider) as BaseApiClient
       return instance
     }
 
