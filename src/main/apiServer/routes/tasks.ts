@@ -51,6 +51,7 @@ tasksRouter.post('/', async (req: Request, res: Response) => {
 
     logger.debug('Creating task', { agentId: agent_id })
     const task = await taskService.createTask(agent_id, taskData)
+    schedulerService.startLoop()
     logger.info('Task created', { agentId: agent_id, taskId: task.id })
     return res.status(201).json(task)
   } catch (error: any) {
@@ -100,6 +101,7 @@ tasksRouter.patch('/:taskId', async (req: Request, res: Response) => {
       })
     }
 
+    void schedulerService.syncScheduler()
     logger.info('Task updated', { taskId })
     return res.json(task)
   } catch (error: any) {
@@ -127,6 +129,7 @@ tasksRouter.delete('/:taskId', async (req: Request, res: Response) => {
       })
     }
 
+    void schedulerService.syncScheduler()
     logger.info('Task deleted', { taskId })
     return res.status(204).send()
   } catch (error: any) {
