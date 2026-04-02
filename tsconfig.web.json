@@ -43,5 +43,6 @@
     "packages/shared/**/*",
     "packages/vectorstores/**/*",
     "packages/ui/**/*"
-  ]
+  ],
+  "exclude": ["packages/aiCore/src/**/__tests__/**"]
 }
