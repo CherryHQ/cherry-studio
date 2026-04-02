@@ -1,6 +1,8 @@
 import { ActionIconButton } from '@renderer/components/Buttons'
 import { permissionModeCards } from '@renderer/config/agent'
 import { useActiveSession } from '@renderer/hooks/agents/useActiveSession'
+import { useAgent } from '@renderer/hooks/agents/useAgent'
+import { useUpdateAgent } from '@renderer/hooks/agents/useUpdateAgent'
 import { useUpdateSession } from '@renderer/hooks/agents/useUpdateSession'
 import { computeModeDefaults, defaultConfiguration } from '@renderer/pages/settings/AgentSettings/shared'
 import type { PermissionMode } from '@renderer/types'
@@ -38,6 +40,8 @@ const permissionModeTool = defineTool({
     const { t, session: sessionContext, quickPanelController } = context
     const agentId = sessionContext?.agentId
     const { session } = useActiveSession()
+    const { agent } = useAgent(agentId ?? '')
+    const { updateAgent } = useUpdateAgent()
     const { updateSession } = useUpdateSession(agentId ?? null)
 
     const currentMode = session?.configuration?.permission_mode ?? 'default'
@@ -57,9 +61,18 @@ const permissionModeTool = defineTool({
 
         const updatedConfiguration = { ...configuration, permission_mode: nextMode }
 
-        // Disable soul mode when switching away from bypassPermissions
+        // Disable soul mode on the agent when switching away from bypassPermissions
         if (nextMode !== 'bypassPermissions' && configuration.soul_enabled === true) {
           updatedConfiguration.soul_enabled = false
+          if (agentId && agent?.configuration) {
+            void updateAgent(
+              {
+                id: agentId,
+                configuration: { ...agent.configuration, soul_enabled: false, permission_mode: nextMode }
+              },
+              { showSuccessToast: false }
+            )
+          }
         }
 
         void updateSession(
@@ -71,7 +84,7 @@ const permissionModeTool = defineTool({
           { showSuccessToast: false }
         )
       },
-      [currentMode, session, availableTools, updateSession]
+      [currentMode, session, availableTools, updateSession, agentId, agent, updateAgent]
     )
 
     const handleClick = useCallback(() => {
