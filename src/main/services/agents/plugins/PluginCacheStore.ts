@@ -253,15 +253,8 @@ export class PluginCacheStore {
     plugins: InstalledPlugin[],
     packageInfo: { packageName: string; packageVersion?: string }
   ): Promise<void> {
-    const scannedPaths = new Set<string>()
-
-    const defaultPath = path.join(pluginDir, defaultSubDir)
-    if (await directoryExists(defaultPath)) {
-      scannedPaths.add(defaultPath)
-      await this.scanAndCollectComponents(defaultPath, type, plugins, packageInfo)
-    }
-
     if (customPaths) {
+      // Manifest explicitly lists paths — scan only those
       const pathArray = Array.isArray(customPaths) ? customPaths : [customPaths]
       for (const customPath of pathArray) {
         const fullPath = path.resolve(pluginDir, customPath)
@@ -273,12 +266,91 @@ export class PluginCacheStore {
           continue
         }
 
-        if (!scannedPaths.has(fullPath) && (await pathExists(fullPath))) {
-          scannedPaths.add(fullPath)
-          await this.scanAndCollectComponents(fullPath, type, plugins, packageInfo)
+        if (await pathExists(fullPath)) {
+          // Try to collect the path itself as a component first
+          const collected = await this.tryCollectDirectComponent(fullPath, type, plugins, packageInfo)
+          if (!collected) {
+            // Path is a parent directory — scan its children
+            await this.scanAndCollectComponents(fullPath, type, plugins, packageInfo)
+          }
+        }
+      }
+    } else {
+      // No explicit paths — scan the default directory
+      const defaultPath = path.join(pluginDir, defaultSubDir)
+      if (await directoryExists(defaultPath)) {
+        await this.scanAndCollectComponents(defaultPath, type, plugins, packageInfo)
+      }
+    }
+  }
+
+  /**
+   * Try to collect a path directly as a component during cache rebuild.
+   * Returns true if the path was collected as a direct component,
+   * or false if the path is a parent directory that should be scanned.
+   */
+  private async tryCollectDirectComponent(
+    fullPath: string,
+    type: PluginType,
+    plugins: InstalledPlugin[],
+    packageInfo: { packageName: string; packageVersion?: string }
+  ): Promise<boolean> {
+    const stat = await fs.promises.stat(fullPath)
+
+    // Single file: must be an agent or command
+    if (stat.isFile()) {
+      if ((type === 'agent' || type === 'command') && (fullPath.endsWith('.md') || fullPath.endsWith('.markdown'))) {
+        try {
+          const metadata = await parsePluginMetadata(fullPath, path.basename(fullPath), 'plugins', type)
+          plugins.push({
+            filename: metadata.filename,
+            type,
+            metadata: {
+              ...metadata,
+              packageName: packageInfo.packageName,
+              packageVersion: packageInfo.packageVersion
+            }
+          })
+          return true
+        } catch (error) {
+          logger.warn('Failed to parse direct component while rebuilding cache', {
+            path: fullPath,
+            type,
+            error: error instanceof Error ? error.message : String(error)
+          })
+          return false
+        }
+      }
+      return false
+    }
+
+    // Directory: for skills, check if it is a skill directory itself (contains SKILL.md)
+    if (stat.isDirectory() && type === 'skill') {
+      const skillMdPath = await findSkillMdPath(fullPath)
+      if (skillMdPath) {
+        try {
+          const metadata = await parseSkillMetadata(fullPath, path.basename(fullPath), 'plugins')
+          plugins.push({
+            filename: metadata.filename,
+            type: 'skill',
+            metadata: {
+              ...metadata,
+              packageName: packageInfo.packageName,
+              packageVersion: packageInfo.packageVersion
+            }
+          })
+          return true
+        } catch (error) {
+          logger.warn('Failed to parse direct skill component while rebuilding cache', {
+            path: fullPath,
+            error: error instanceof Error ? error.message : String(error)
+          })
+          return false
         }
       }
     }
+
+    return false
   }
 
   private async scanAndCollectComponents(
