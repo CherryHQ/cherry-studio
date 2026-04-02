@@ -1,4 +1,6 @@
-import { useLMStudioSettings } from '@renderer/hooks/useLMStudio'
+import { dataApiService } from '@renderer/data/DataApiService'
+import { useInvalidateCache, useQuery } from '@renderer/data/hooks/useDataApi'
+import type { Provider } from '@shared/data/types/provider'
 import { InputNumber } from 'antd'
 import type { FC } from 'react'
 import { useState } from 'react'
@@ -7,10 +9,25 @@ import styled from 'styled-components'
 
 import { SettingHelpText, SettingHelpTextRow, SettingSubtitle } from '..'
 
-const LMStudioSettings: FC = () => {
-  const { keepAliveTime, setKeepAliveTime } = useLMStudioSettings()
-  const [keepAliveMinutes, setKeepAliveMinutes] = useState(keepAliveTime)
+interface Props {
+  providerId: string
+}
+
+const LMStudioSettings: FC<Props> = ({ providerId }) => {
+  const { data: provider } = useQuery(`/providers/${providerId}` as any) as { data: Provider | undefined }
+  const invalidate = useInvalidateCache()
   const { t } = useTranslation()
+
+  const keepAliveTime = provider?.settings?.keepAliveTime ?? 0
+  const [keepAliveMinutes, setKeepAliveMinutes] = useState(keepAliveTime)
+
+  const handleBlur = async () => {
+    if (keepAliveMinutes === keepAliveTime) return
+    await dataApiService.patch(`/providers/${providerId}` as any, {
+      body: { providerSettings: { ...provider?.settings, keepAliveTime: keepAliveMinutes } }
+    })
+    await invalidate([`/providers/${providerId}`])
+  }
 
   return (
     <Container>
@@ -20,7 +37,7 @@ const LMStudioSettings: FC = () => {
         value={keepAliveMinutes}
         min={0}
         onChange={(e) => setKeepAliveMinutes(Math.floor(Number(e)))}
-        onBlur={() => setKeepAliveTime(keepAliveMinutes)}
+        onBlur={handleBlur}
         suffix={t('lmstudio.keep_alive_time.placeholder')}
         step={5}
       />

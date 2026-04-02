@@ -1,7 +1,8 @@
 import MarkdownEditor from '@renderer/components/MarkdownEditor'
 import { TopView } from '@renderer/components/TopView'
-import { useProvider } from '@renderer/hooks/useProvider'
-import type { Provider } from '@renderer/types'
+import { dataApiService } from '@renderer/data/DataApiService'
+import { useInvalidateCache, useQuery } from '@renderer/data/hooks/useDataApi'
+import type { Provider } from '@shared/data/types/provider'
 import { Modal } from 'antd'
 import type { FC } from 'react'
 import { useState } from 'react'
@@ -9,24 +10,25 @@ import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
 interface ShowParams {
-  provider: Provider
+  providerId: string
 }
 
 interface Props extends ShowParams {
   resolve: (data: any) => void
 }
 
-const PopupContainer: FC<Props> = ({ provider: _provider, resolve }) => {
+const PopupContainer: FC<Props> = ({ providerId, resolve }) => {
   const { t } = useTranslation()
   const [open, setOpen] = useState(true)
-  const { provider, updateProvider } = useProvider(_provider.id)
-  const [notes, setNotes] = useState<string>(provider.notes || '')
+  const { data: provider } = useQuery(`/providers/${providerId}` as any) as { data: Provider | undefined }
+  const invalidate = useInvalidateCache()
+  const [notes, setNotes] = useState<string>(provider?.settings?.notes || '')
 
-  const handleSave = () => {
-    updateProvider({
-      ...provider,
-      notes
+  const handleSave = async () => {
+    await dataApiService.patch(`/providers/${providerId}` as any, {
+      body: { providerSettings: { ...provider?.settings, notes } }
     })
+    await invalidate([`/providers/${providerId}`])
     setOpen(false)
   }
 

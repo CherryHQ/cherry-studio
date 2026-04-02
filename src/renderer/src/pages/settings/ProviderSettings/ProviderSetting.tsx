@@ -647,8 +647,8 @@ const ProviderSetting: FC<Props> = ({ providerId }) => {
           </SettingHelpTextRow>
         </>
       )}
-      {provider.id === 'lmstudio' && <LMStudioSettings />}
-      {provider.id === 'gpustack' && <GPUStackSettings />}
+      {provider.id === 'lmstudio' && <LMStudioSettings providerId={provider.id} />}
+      {provider.id === 'gpustack' && <GPUStackSettings providerId={provider.id} />}
       {provider.id === 'copilot' && <GithubCopilotSettings providerId={provider.id} />}
       {provider.id === 'aws-bedrock' && <AwsBedrockSettings />}
       {provider.id === 'vertexai' && <VertexAISettings />}

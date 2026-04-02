@@ -217,7 +217,7 @@ const ProviderList: FC = () => {
       label: t('settings.provider.notes.title'),
       key: 'notes',
       icon: <UserPen size={14} />,
-      onClick: () => ModelNotesPopup.show({ provider: provider as any })
+      onClick: () => ModelNotesPopup.show({ providerId: provider.id })
     }
 
     const editMenu = {
