@@ -47,16 +47,25 @@ export class FileProcessingTaskRuntime {
 
   get<TState>(processorId: FileProcessorId, providerTaskId: string): TState | undefined {
     const key = `${processorId}:${providerTaskId}`
-    const task = this.getTaskIfFresh<TState>(key)
+    const now = Date.now()
+    const task = this.getTaskIfFresh<TState>(key, now)
 
     if (!task) {
       logger.debug('File processing task state not found', {
         processorId,
         providerTaskId
       })
+      return undefined
     }
 
-    return task?.state
+    this.tasks.set(key, {
+      processorId: task.processorId,
+      state: task.state,
+      createdAt: task.createdAt,
+      updatedAt: now
+    })
+
+    return task.state
   }
 
   update<TState>(processorId: FileProcessorId, providerTaskId: string, updater: (current: TState) => TState): TState {

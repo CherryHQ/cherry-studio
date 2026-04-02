@@ -135,7 +135,7 @@ describe('doc2xProcessor', () => {
     expect(application.get('FileProcessingRuntimeService').getTask('doc2x', 'task-2')).toBeUndefined()
   })
 
-  it('returns a failed task result when export persistence fails', async () => {
+  it('keeps task state when export persistence fails so polling can retry', async () => {
     application.get('FileProcessingRuntimeService').createTask('doc2x', 'task-late-failure', {
       apiHost: 'https://doc2x.example.com',
       apiKey: 'secret',
@@ -156,14 +156,48 @@ describe('doc2xProcessor', () => {
       new Error('persist failed')
     )
 
-    await expect(doc2xProcessor.getMarkdownConversionTaskResult('task-late-failure')).resolves.toEqual({
-      status: 'failed',
-      progress: 0,
-      processorId: 'doc2x',
-      error: 'persist failed'
+    await expect(doc2xProcessor.getMarkdownConversionTaskResult('task-late-failure')).rejects.toThrow('persist failed')
+
+    expect(application.get('FileProcessingRuntimeService').getTask('doc2x', 'task-late-failure')).toMatchObject({
+      stage: 'exporting'
+    })
+  })
+
+  it('allows retrying after a transient export query failure', async () => {
+    application.get('FileProcessingRuntimeService').createTask('doc2x', 'task-retry', {
+      apiHost: 'https://doc2x.example.com',
+      apiKey: 'secret',
+      fileId: 'file-retry',
+      stage: 'exporting',
+      createdAt: 1
     })
 
-    expect(application.get('FileProcessingRuntimeService').getTask('doc2x', 'task-late-failure')).toBeUndefined()
+    getExportResultMock.mockRejectedValueOnce(new Error('temporary network error')).mockResolvedValueOnce({
+      code: 'success',
+      data: {
+        status: 'success',
+        url: 'https://download.example.com/output.zip'
+      }
+    })
+
+    vi.spyOn(doc2xProcessor as any, 'persistMarkdownConversionResult').mockResolvedValueOnce('/tmp/doc2x-retry.md')
+
+    await expect(doc2xProcessor.getMarkdownConversionTaskResult('task-retry')).rejects.toThrow(
+      'temporary network error'
+    )
+
+    expect(application.get('FileProcessingRuntimeService').getTask('doc2x', 'task-retry')).toMatchObject({
+      stage: 'exporting'
+    })
+
+    await expect(doc2xProcessor.getMarkdownConversionTaskResult('task-retry')).resolves.toEqual({
+      status: 'completed',
+      progress: 100,
+      processorId: 'doc2x',
+      markdownPath: '/tmp/doc2x-retry.md'
+    })
+
+    expect(application.get('FileProcessingRuntimeService').getTask('doc2x', 'task-retry')).toBeUndefined()
   })
 
   it('deduplicates concurrent polling for the same task while starting export', async () => {

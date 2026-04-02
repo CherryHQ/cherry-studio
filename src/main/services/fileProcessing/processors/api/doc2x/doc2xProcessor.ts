@@ -58,13 +58,11 @@ export class Doc2xProcessor extends BaseMarkdownConversionProcessor {
       return this.withCallerAbort(existingQuery, signal)
     }
 
-    const queryPromise = this.queryMarkdownConversionTaskResult(providerTaskId, signal)
-      .catch(async (error) => this.handleQueryFailure(providerTaskId, error))
-      .finally(() => {
-        if (this.inFlightResultQueries.get(providerTaskId) === queryPromise) {
-          this.inFlightResultQueries.delete(providerTaskId)
-        }
-      })
+    const queryPromise = this.queryMarkdownConversionTaskResult(providerTaskId, signal).finally(() => {
+      if (this.inFlightResultQueries.get(providerTaskId) === queryPromise) {
+        this.inFlightResultQueries.delete(providerTaskId)
+      }
+    })
 
     this.inFlightResultQueries.set(providerTaskId, queryPromise)
     return this.withCallerAbort(queryPromise, signal)
@@ -107,26 +105,6 @@ export class Doc2xProcessor extends BaseMarkdownConversionProcessor {
     const error = new Error(typeof reason === 'string' ? reason : 'The operation was aborted')
     error.name = 'AbortError'
     return error
-  }
-
-  private async handleQueryFailure(providerTaskId: string, error: unknown): Promise<FileProcessingMarkdownTaskResult> {
-    if (error instanceof Error && error.name === 'AbortError') {
-      throw error
-    }
-
-    if (error instanceof Error && error.message === `Doc2x task context not found for uid ${providerTaskId}`) {
-      throw error
-    }
-
-    const runtimeService = application.get('FileProcessingRuntimeService')
-    runtimeService.deleteTask('doc2x', providerTaskId)
-
-    return {
-      status: 'failed',
-      progress: 0,
-      processorId: 'doc2x',
-      error: error instanceof Error ? error.message : String(error)
-    }
   }
 
   private async queryMarkdownConversionTaskResult(

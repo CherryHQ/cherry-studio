@@ -76,14 +76,16 @@ describe('TesseractRuntimeService', () => {
   })
 
   it('waits for queued work to finish before terminating the worker', async () => {
-    let resolveRecognize!: (value: { data: { text: string } }) => void
+    let rejectRecognize!: (error: Error) => void
     const recognizeMock = vi.fn().mockImplementation(
       () =>
-        new Promise<{ data: { text: string } }>((resolve) => {
-          resolveRecognize = resolve
+        new Promise<{ data: { text: string } }>((_, reject) => {
+          rejectRecognize = reject
         })
     )
-    const terminateMock = vi.fn().mockResolvedValue(undefined)
+    const terminateMock = vi.fn().mockImplementation(async () => {
+      rejectRecognize(new Error('worker terminated'))
+    })
     createWorkerMock.mockResolvedValue({
       recognize: recognizeMock,
       terminate: terminateMock
@@ -113,16 +115,12 @@ describe('TesseractRuntimeService', () => {
 
     const stopPromise = (service as any).onStop()
 
-    expect(terminateMock).not.toHaveBeenCalled()
-
-    resolveRecognize({
-      data: {
-        text: 'hello'
-      }
+    await vi.waitFor(() => {
+      expect(terminateMock).toHaveBeenCalledTimes(1)
     })
 
-    await expect(extractPromise).resolves.toEqual({
-      text: 'hello'
+    await expect(extractPromise).rejects.toMatchObject({
+      name: 'AbortError'
     })
     await stopPromise
 

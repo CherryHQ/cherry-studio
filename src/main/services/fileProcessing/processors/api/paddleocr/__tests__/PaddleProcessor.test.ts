@@ -126,7 +126,7 @@ describe('paddleProcessor', () => {
     expect(application.get('FileProcessingRuntimeService').getTask('paddleocr', 'task-2')).toBeUndefined()
   })
 
-  it('returns a failed task result when markdown result resolution fails', async () => {
+  it('keeps task state when markdown result resolution fails so polling can retry', async () => {
     application.get('FileProcessingRuntimeService').createTask('paddleocr', 'task-late-failure', {
       apiHost: 'https://paddle.example.com',
       apiKey: 'secret',
@@ -141,14 +141,58 @@ describe('paddleProcessor', () => {
     })
     resolveJsonlResultMock.mockRejectedValueOnce(new Error('jsonl parse failed'))
 
-    await expect(paddleProcessor.getMarkdownConversionTaskResult('task-late-failure')).resolves.toEqual({
-      status: 'failed',
-      progress: 0,
-      processorId: 'paddleocr',
-      error: 'jsonl parse failed'
+    await expect(paddleProcessor.getMarkdownConversionTaskResult('task-late-failure')).rejects.toThrow(
+      'jsonl parse failed'
+    )
+
+    expect(application.get('FileProcessingRuntimeService').getTask('paddleocr', 'task-late-failure')).toMatchObject({
+      fileId: 'file-late-failure'
+    })
+  })
+
+  it('allows retrying after a transient polling failure', async () => {
+    application.get('FileProcessingRuntimeService').createTask('paddleocr', 'task-retry', {
+      apiHost: 'https://paddle.example.com',
+      apiKey: 'secret',
+      fileId: 'file-retry'
     })
 
-    expect(application.get('FileProcessingRuntimeService').getTask('paddleocr', 'task-late-failure')).toBeUndefined()
+    getJobResultMock.mockRejectedValueOnce(new Error('temporary network error')).mockResolvedValueOnce({
+      state: 'done',
+      resultUrl: {
+        jsonUrl: 'https://download.example.com/output.jsonl'
+      }
+    })
+    resolveJsonlResultMock.mockResolvedValueOnce('# retry output')
+
+    const persistSpy = vi
+      .spyOn(paddleProcessor as any, 'persistMarkdownConversionResult')
+      .mockResolvedValueOnce('/tmp/paddle-retry.md')
+
+    await expect(paddleProcessor.getMarkdownConversionTaskResult('task-retry')).rejects.toThrow(
+      'temporary network error'
+    )
+
+    expect(application.get('FileProcessingRuntimeService').getTask('paddleocr', 'task-retry')).toMatchObject({
+      fileId: 'file-retry'
+    })
+
+    await expect(paddleProcessor.getMarkdownConversionTaskResult('task-retry')).resolves.toEqual({
+      status: 'completed',
+      progress: 100,
+      processorId: 'paddleocr',
+      markdownPath: '/tmp/paddle-retry.md'
+    })
+
+    expect(resolveJsonlResultMock).toHaveBeenCalledWith(
+      'task-retry',
+      expect.objectContaining({
+        state: 'done'
+      }),
+      undefined
+    )
+    expect(persistSpy).toHaveBeenCalledWith('file-retry', '# retry output')
+    expect(application.get('FileProcessingRuntimeService').getTask('paddleocr', 'task-retry')).toBeUndefined()
   })
 
   it('extracts text through the shared jsonUrl resolver', async () => {

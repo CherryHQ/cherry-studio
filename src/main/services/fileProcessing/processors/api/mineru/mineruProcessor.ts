@@ -77,14 +77,7 @@ export class MineruProcessor extends BaseMarkdownConversionProcessor {
         throw error
       }
 
-      runtimeService.deleteTask('mineru', providerTaskId)
-
-      return {
-        status: 'failed',
-        progress: 0,
-        processorId: 'mineru',
-        error: error instanceof Error ? error.message : String(error)
-      }
+      throw error
     }
   }
 

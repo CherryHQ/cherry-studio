@@ -179,4 +179,27 @@ describe('openMineruProcessor', () => {
 
     expect(rmSpy).not.toHaveBeenCalled()
   })
+
+  it('rolls back precreated task state when runtime scheduling fails', async () => {
+    const runtimeService = application.get('FileProcessingRuntimeService')
+    const openMineruRuntimeService = application.get('OpenMineruRuntimeService')
+    const createTaskSpy = vi.spyOn(runtimeService, 'createTask')
+    const deleteTaskSpy = vi.spyOn(runtimeService, 'deleteTask')
+
+    vi.spyOn(openMineruRuntimeService, 'startTask').mockImplementationOnce(() => {
+      throw new Error('runtime unavailable')
+    })
+
+    await expect(
+      openMineruProcessor.startMarkdownConversionTask(documentFile as never, processorConfig as never)
+    ).rejects.toThrow('runtime unavailable')
+
+    const createdProviderTaskId = createTaskSpy.mock.calls[0]?.[1]
+    expect(createdProviderTaskId).toBeTruthy()
+    expect(deleteTaskSpy).toHaveBeenCalledWith('open-mineru', createdProviderTaskId)
+
+    if (createdProviderTaskId) {
+      expect(runtimeService.getTask('open-mineru', createdProviderTaskId)).toBeUndefined()
+    }
+  })
 })

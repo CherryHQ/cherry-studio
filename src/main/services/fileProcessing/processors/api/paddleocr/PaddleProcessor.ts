@@ -117,14 +117,7 @@ export class PaddleProcessor extends BaseMarkdownConversionProcessor implements 
         throw error
       }
 
-      runtimeService.deleteTask('paddleocr', providerTaskId)
-
-      return {
-        status: 'failed',
-        progress: 0,
-        processorId: 'paddleocr',
-        error: error instanceof Error ? error.message : String(error)
-      }
+      throw error
     }
   }
 

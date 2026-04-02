@@ -98,7 +98,7 @@ describe('mineruProcessor', () => {
     expect(application.get('FileProcessingRuntimeService').getTask('mineru', 'task-2')).toBeUndefined()
   })
 
-  it('returns a failed task result when a completed task is missing its download URL', async () => {
+  it('keeps task state when persistence-related completion handling fails', async () => {
     application.get('FileProcessingRuntimeService').createTask('mineru', 'task-late-failure', {
       apiHost: 'https://mineru.example.com',
       apiKey: 'secret',
@@ -108,19 +108,57 @@ describe('mineruProcessor', () => {
     getBatchResultMock.mockResolvedValueOnce({
       extract_result: [
         {
-          state: 'done'
+          state: 'done',
+          full_zip_url: 'https://download.example.com/full.zip'
         }
       ]
     })
 
-    await expect(mineruProcessor.getMarkdownConversionTaskResult('task-late-failure')).resolves.toEqual({
-      status: 'failed',
-      progress: 0,
-      processorId: 'mineru',
-      error: 'Mineru task completed without full_zip_url'
+    vi.spyOn(mineruProcessor as any, 'persistMarkdownConversionResult').mockRejectedValueOnce(
+      new Error('persist failed')
+    )
+
+    await expect(mineruProcessor.getMarkdownConversionTaskResult('task-late-failure')).rejects.toThrow('persist failed')
+
+    expect(application.get('FileProcessingRuntimeService').getTask('mineru', 'task-late-failure')).toMatchObject({
+      fileId: 'file-late-failure'
+    })
+  })
+
+  it('allows retrying after a transient polling failure', async () => {
+    application.get('FileProcessingRuntimeService').createTask('mineru', 'task-retry', {
+      apiHost: 'https://mineru.example.com',
+      apiKey: 'secret',
+      fileId: 'file-retry'
     })
 
-    expect(application.get('FileProcessingRuntimeService').getTask('mineru', 'task-late-failure')).toBeUndefined()
+    getBatchResultMock.mockRejectedValueOnce(new Error('temporary network error')).mockResolvedValueOnce({
+      extract_result: [
+        {
+          state: 'done',
+          full_zip_url: 'https://download.example.com/full.zip'
+        }
+      ]
+    })
+
+    vi.spyOn(mineruProcessor as any, 'persistMarkdownConversionResult').mockResolvedValueOnce('/tmp/mineru-retry.md')
+
+    await expect(mineruProcessor.getMarkdownConversionTaskResult('task-retry')).rejects.toThrow(
+      'temporary network error'
+    )
+
+    expect(application.get('FileProcessingRuntimeService').getTask('mineru', 'task-retry')).toMatchObject({
+      fileId: 'file-retry'
+    })
+
+    await expect(mineruProcessor.getMarkdownConversionTaskResult('task-retry')).resolves.toEqual({
+      status: 'completed',
+      progress: 100,
+      processorId: 'mineru',
+      markdownPath: '/tmp/mineru-retry.md'
+    })
+
+    expect(application.get('FileProcessingRuntimeService').getTask('mineru', 'task-retry')).toBeUndefined()
   })
 
   it('keeps the existing result directory when persistence fails', async () => {

@@ -25,6 +25,7 @@ export class TesseractRuntimeService extends BaseService {
   private sharedWorker: Tesseract.Worker | null = null
   private previousLangsKey: string | null = null
   private acceptingTasks = false
+  private shutdownController: AbortController | null = null
   // TODO(file-processing): When ProcessManagerService lands, move the shared
   // worker lifecycle and concurrency control behind a managed utility process
   // or process pool instead of keeping the runtime in the main process.
@@ -32,12 +33,16 @@ export class TesseractRuntimeService extends BaseService {
 
   protected async onInit(): Promise<void> {
     this.acceptingTasks = true
+    this.shutdownController = new AbortController()
   }
 
   protected async onStop(): Promise<void> {
     this.acceptingTasks = false
-    await this.extractionQueue
+    this.shutdownController?.abort(this.createAbortError('Tesseract runtime is stopping'))
+    this.shutdownController = null
+
     await this.disposeWorker()
+    await this.extractionQueue
     this.extractionQueue = Promise.resolve()
 
     logger.debug('Tesseract runtime cleanup completed')
@@ -51,17 +56,26 @@ export class TesseractRuntimeService extends BaseService {
     context.signal?.throwIfAborted()
 
     return this.runInExtractionQueue(async () => {
+      this.throwIfStopped()
       context.signal?.throwIfAborted()
 
       const worker = await this.getWorker(context.langs)
+      this.throwIfStopped()
+
       const stat = await fs.promises.stat(context.file.path)
+      this.throwIfStopped()
 
       if (stat.size > MB_SIZE_THRESHOLD * MB) {
         throw new Error(`This image is too large (max ${MB_SIZE_THRESHOLD}MB)`)
       }
 
       const buffer = await loadOcrImage(context.file)
-      const result = await worker.recognize(buffer)
+      this.throwIfStopped()
+      const result = await worker.recognize(buffer).catch((error) => {
+        this.throwIfStopped()
+        throw error
+      })
+      this.throwIfStopped()
 
       return {
         text: result.data.text
@@ -70,10 +84,13 @@ export class TesseractRuntimeService extends BaseService {
   }
 
   private async getWorker(langs: LanguageCode[]): Promise<Tesseract.Worker> {
+    this.throwIfStopped()
+
     const langsKey = langs.join(',')
 
     if (!this.sharedWorker || this.previousLangsKey !== langsKey) {
       await this.disposeWorker()
+      this.throwIfStopped()
 
       logger.debug('Creating Tesseract worker for file-processing', {
         langs
@@ -120,5 +137,31 @@ export class TesseractRuntimeService extends BaseService {
       () => undefined
     )
     return nextTask
+  }
+
+  private throwIfStopped(): void {
+    const signal = this.shutdownController?.signal
+
+    if (!signal?.aborted) {
+      return
+    }
+
+    throw this.createAbortError(signal.reason)
+  }
+
+  private createAbortError(reason: unknown): Error {
+    if (reason instanceof Error && reason.name === 'AbortError') {
+      return reason
+    }
+
+    if (reason instanceof Error) {
+      const error = new Error(reason.message)
+      error.name = 'AbortError'
+      return error
+    }
+
+    const error = new Error(typeof reason === 'string' ? reason : 'The operation was aborted')
+    error.name = 'AbortError'
+    return error
   }
 }

@@ -10,7 +10,7 @@ import type {
 import { type FileProcessorMerged, PRESETS_FILE_PROCESSORS } from '@shared/data/presets/file-processing'
 
 export interface FileProcessingPreferenceReader {
-  get<K extends PreferenceKeyType>(key: K): PreferenceDefaultScopeType[K] | Promise<PreferenceDefaultScopeType[K]>
+  get<K extends PreferenceKeyType>(key: K): PreferenceDefaultScopeType[K]
 }
 
 export interface ResolveProcessorConfigInput {
@@ -59,10 +59,7 @@ function mergeProcessorConfig(processorId: FileProcessorId, overrides: FileProce
   }
 }
 
-async function resolveProcessorId(
-  feature: FileProcessorFeature,
-  processorId?: FileProcessorId
-): Promise<FileProcessorId> {
+function resolveProcessorId(feature: FileProcessorFeature, processorId?: FileProcessorId): FileProcessorId {
   const preferences = application.get('PreferenceService')
 
   // Resolution contract:
@@ -95,10 +92,8 @@ export async function resolveProcessorConfig(
   processorId?: FileProcessorId
 ): Promise<FileProcessorMerged> {
   const preferences = application.get('PreferenceService')
-  const [resolvedProcessorId, overrides] = await Promise.all([
-    resolveProcessorId(feature, processorId),
-    preferences.get('feature.file_processing.overrides')
-  ])
+  const resolvedProcessorId = resolveProcessorId(feature, processorId)
+  const overrides = preferences.get('feature.file_processing.overrides')
 
   return mergeProcessorConfig(resolvedProcessorId, overrides)
 }

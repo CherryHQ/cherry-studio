@@ -135,6 +135,8 @@ export async function persistZipResult(options: { zipFilePath: string; resultsDi
         throw new Error('Result zip does not contain a markdown file')
       }
 
+      // Current provider contract: the downloaded archive contains a single markdown file.
+      // We normalize that provider-specific path to the stable file-processing output name.
       const markdownBaseDir =
         path.posix.dirname(markdownRelativePath) === '.' ? '' : path.posix.dirname(markdownRelativePath)
 

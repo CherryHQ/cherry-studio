@@ -115,6 +115,24 @@ describe('FileProcessingTaskRuntime', () => {
     }
   })
 
+  it('refreshes task ttl on successful reads', () => {
+    const originalNow = Date.now
+    let now = 0
+    Date.now = () => now
+
+    try {
+      runtime.create('doc2x', 'read-refresh-task', { stage: 'parsing' as const })
+
+      now = 30 * 60 * 1000
+      expect(runtime.get('doc2x', 'read-refresh-task')).toEqual({ stage: 'parsing' })
+
+      now = 89 * 60 * 1000
+      expect(runtime.get('doc2x', 'read-refresh-task')).toEqual({ stage: 'parsing' })
+    } finally {
+      Date.now = originalNow
+    }
+  })
+
   it('treats expired tasks as missing on update', () => {
     const originalNow = Date.now
     let now = 0

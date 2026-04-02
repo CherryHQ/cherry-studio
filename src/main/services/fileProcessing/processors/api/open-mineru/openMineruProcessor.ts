@@ -35,12 +35,17 @@ export class OpenMineruProcessor extends BaseMarkdownConversionProcessor {
       progress: 0
     })
 
-    openMineruRuntimeService.startTask(providerTaskId, (runtimeSignal) =>
-      this.runTask(providerTaskId, {
-        ...context,
-        signal: runtimeSignal
-      })
-    )
+    try {
+      openMineruRuntimeService.startTask(providerTaskId, (runtimeSignal) =>
+        this.runTask(providerTaskId, {
+          ...context,
+          signal: runtimeSignal
+        })
+      )
+    } catch (error) {
+      runtimeService.deleteTask('open-mineru', providerTaskId)
+      throw error
+    }
 
     return {
       providerTaskId,
