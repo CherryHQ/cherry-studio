@@ -32,6 +32,7 @@
       "channels": {
         "add": "Hinzufügen",
         "bindAgent": "Bind-Agent",
+        "chatIdsAutoTrackHint": "Wenn es leer bleibt, verfolgt das System automatisch: Sie müssen dem Bot auf der Plattform zuerst eine Nachricht senden, dann zeichnet das System die Chat-ID für zukünftige Benachrichtigungen auf.",
         "comingSoon": "Demnächst verfügbar",
         "connected": "Verbunden",
         "connecting": "Verbinden",
@@ -108,6 +109,7 @@
           "title": "Slack",
           "whoamiTip": "💡 Tipp: Sende /whoami an den Bot, um die Kanal-ID zu erhalten."
         },
+        "soulModeRequired": "Dieser Agent hat den autonomen Modus nicht aktiviert. Kanal-Funktionen werden nicht funktionieren. Bitte aktivieren Sie ihn in den Agenten-Einstellungen.",
         "tab": "Kanäle",
         "telegram": {
           "botToken": "Bot-Token",
@@ -199,6 +201,7 @@
         "cancel": "Abbrechen",
         "channels": {
           "label": "An Kanäle senden",
+          "noActiveChatIds": "Die ausgewählten Kanäle verfügen über keine verfügbaren Empfänger (Chat-ID). Aufgabenergebnisse werden möglicherweise nicht zugestellt. Bitte senden Sie dem Bot zunächst eine Nachricht auf der Plattform.",
           "placeholder": "Wähle Kanäle, um Ergebnisse zu erhalten"
         },
         "cronPlaceholder": "z.B. 0 9 * * * (täglich um 9 Uhr)",
@@ -491,7 +494,8 @@
         "noFilterResults": "Keine übereinstimmenden Fähigkeiten",
         "noSkills": "Keine Skills installiert. Installiere Skills über Einstellungen > Skills.",
         "searchPlaceholder": "Suchfähigkeiten...",
-        "tab": "Fähigkeiten"
+        "tab": "Fähigkeiten",
+        "title": "Installierte Fertigkeiten"
       },
       "soulMode": {
         "description": "Wenn aktiviert, verwendet der Agent eine benutzerdefinierte Systemaufforderung aus Workspace-Soul-Dateien, fügt autonome Aufgabenverwaltungstools ein und deaktiviert interaktive Tools, die sich nicht für den autonomen Betrieb eignen.",

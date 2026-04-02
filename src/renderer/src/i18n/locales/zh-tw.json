@@ -32,6 +32,7 @@
       "channels": {
         "add": "新增",
         "bindAgent": "綁定代理",
+        "chatIdsAutoTrackHint": "若留空，系統將自動追蹤：您需先在平台上向機器人發送一則訊息，系統才會記錄聊天 ID，以供後續通知使用。",
         "comingSoon": "即將推出",
         "connected": "已連線",
         "connecting": "連接",
@@ -108,6 +109,7 @@
           "title": "Slack",
           "whoamiTip": "💡 提示：發送 /whoami 給機器人即可取得頻道 ID。"
         },
+        "soulModeRequired": "此代理未啟用自主模式，頻道功能將無法運作。請在代理設定中啟用。",
         "tab": "頻道",
         "telegram": {
           "botToken": "Bot Token",
@@ -199,6 +201,7 @@
         "cancel": "取消",
         "channels": {
           "label": "傳送至頻道",
+          "noActiveChatIds": "所選頻道沒有可用的收件人（聊天 ID）。任務結果可能無法送達。請先在平台上向機器人發送一則訊息。",
           "placeholder": "選擇接收結果的頻道"
         },
         "cronPlaceholder": "例如 0 9 * * *（每天上午 9 點）",
@@ -491,7 +494,8 @@
         "noFilterResults": "沒有符合的技能",
         "noSkills": "未安裝任何技能。請前往「設定」>「技能」安裝技能。",
         "searchPlaceholder": "搜尋技巧...",
-        "tab": "技能"
+        "tab": "技能",
+        "title": "已安裝技能"
       },
       "soulMode": {
         "description": "啟用後，代理程式會使用來自工作區靈魂檔案的自訂系統提示，注入自主任務管理工具，並停用不適合自主操作的互動式工具。",

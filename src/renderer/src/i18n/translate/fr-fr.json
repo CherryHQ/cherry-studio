@@ -32,6 +32,7 @@
       "channels": {
         "add": "Ajouter",
         "bindAgent": "Agent Lier",
+        "chatIdsAutoTrackHint": "Lorsqu'il est laissé vide, le système effectuera un suivi automatique : vous devez d'abord envoyer un message au Bot sur la plateforme, puis le système enregistrera l'ID du chat pour les notifications futures.",
         "comingSoon": "Bientôt disponible",
         "connected": "Connecté",
         "connecting": "Connexion",
@@ -108,6 +109,7 @@
           "title": "Slack",
           "whoamiTip": "💡 Astuce : Envoie /whoami au bot pour obtenir l’ID du canal."
         },
+        "soulModeRequired": "Cet agent n’a pas le Mode Autonome activé. Les fonctionnalités du canal ne fonctionneront pas. Veuillez l’activer dans les paramètres de l’agent.",
         "tab": "Canaux",
         "telegram": {
           "botToken": "Token du bot",
@@ -199,6 +201,7 @@
         "cancel": "Annuler",
         "channels": {
           "label": "Envoyer aux chaînes",
+          "noActiveChatIds": "Les canaux sélectionnés ne possèdent aucun destinataire disponible (ID de chat). Les résultats de la tâche peuvent ne pas être livrés. Veuillez d'abord envoyer un message au Bot sur la plateforme.",
           "placeholder": "Sélectionnez les chaînes pour recevoir les résultats"
         },
         "cronPlaceholder": "ex: 0 9 * * * (tous les jours à 9h)",
@@ -491,7 +494,8 @@
         "noFilterResults": "Aucune compétence correspondante",
         "noSkills": "Aucune compétence installée. Installez des compétences depuis Paramètres > Compétences.",
         "searchPlaceholder": "Compétences de recherche...",
-        "tab": "Compétences"
+        "tab": "Compétences",
+        "title": "Compétences installées"
       },
       "soulMode": {
         "description": "Lorsqu'il est activé, l'agent utilise une invite système personnée provenant des fichiers soul de l'espace de travail, injecte des outils de gestion autonome des tâches et désactive les outils interactifs non adaptés au fonctionnement autonome.",

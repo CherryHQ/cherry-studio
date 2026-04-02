@@ -32,6 +32,7 @@
       "channels": {
         "add": "Adaugă",
         "bindAgent": "Agent de legătură",
+        "chatIdsAutoTrackHint": "Când este lăsat gol, sistemul va urmări automat: trebuie să trimiți mai întâi un mesaj Bot-ului pe platformă, apoi sistemul va înregistra ID-ul conversației pentru notificările viitoare.",
         "comingSoon": "În curând",
         "connected": "Conectat",
         "connecting": "Conectare",
@@ -108,6 +109,7 @@
           "title": "Slack",
           "whoamiTip": "💡 Sfat: Trimite /whoami către bot pentru a obține ID-ul canalului."
         },
+        "soulModeRequired": "Acest agent nu are Activat Modul Autonom. Funcționalitățile canalului nu vor funcționa. Vă rugăm să-l activați în setările agentului.",
         "tab": "Canale",
         "telegram": {
           "botToken": "Token Bot",
@@ -199,6 +201,7 @@
         "cancel": "Anulează",
         "channels": {
           "label": "Trimite către canale",
+          "noActiveChatIds": "Canalele selectate nu au destinatari disponibili (ID de chat). Este posibil ca rezultatele sarcinii să nu fie livrate. Vă rugăm să trimiteți mai întâi un mesaj botului pe platformă.",
           "placeholder": "Selectați canalele pentru a primi rezultatele"
         },
         "cronPlaceholder": "ex: 0 9 * * * (în fiecare zi la ora 9)",
@@ -491,7 +494,8 @@
         "noFilterResults": "Nicio abilitate potrivită",
         "noSkills": "Nicio abilitate instalată. Instalează abilități din Setări > Abilități.",
         "searchPlaceholder": "Abilități de căutare...",
-        "tab": "Abilități"
+        "tab": "Abilități",
+        "title": "Abilități instalate"
       },
       "soulMode": {
         "description": "Când este activată, agentul folosește o comandă de sistem personalizată din fișierele soul ale spațiului de lucru, injectează instrumente autonome de gestionare a sarcinilor și dezactivează instrumentele interactive care nu sunt potrivite pentru funcționarea autonomă.",

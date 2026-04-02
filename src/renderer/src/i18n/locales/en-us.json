@@ -32,6 +32,7 @@
       "channels": {
         "add": "Add",
         "bindAgent": "Bind Agent",
+        "chatIdsAutoTrackHint": "When left empty, the system will auto-track: you need to send a message to the Bot on the platform first, then the system will record the Chat ID for future notifications.",
         "comingSoon": "Coming soon",
         "connected": "Connected",
         "connecting": "Connecting",
@@ -96,8 +97,6 @@
           "permissionModeHint": "Override the agent's permission mode for messages from this channel. \"Inherit\" uses the agent's default."
         },
         "selectAgent": "Select an agent to bind",
-        "soulModeRequired": "This agent does not have Autonomous Mode enabled. Channel features will not work. Please enable it in agent settings.",
-        "chatIdsAutoTrackHint": "When left empty, the system will auto-track: you need to send a message to the Bot on the platform first, then the system will record the Chat ID for future notifications.",
         "slack": {
           "appToken": "App-Level Token",
           "appTokenPlaceholder": "xapp-...",
@@ -110,6 +109,7 @@
           "title": "Slack",
           "whoamiTip": "💡 Tip: Send /whoami to the bot to get the channel ID."
         },
+        "soulModeRequired": "This agent does not have Autonomous Mode enabled. Channel features will not work. Please enable it in agent settings.",
         "tab": "Channels",
         "telegram": {
           "botToken": "Bot Token",
@@ -201,8 +201,8 @@
         "cancel": "Cancel",
         "channels": {
           "label": "Send to Channels",
-          "placeholder": "Select channels to receive results",
-          "noActiveChatIds": "The selected channels have no available recipients (Chat ID). Task results may not be delivered. Please send a message to the Bot on the platform first."
+          "noActiveChatIds": "The selected channels have no available recipients (Chat ID). Task results may not be delivered. Please send a message to the Bot on the platform first.",
+          "placeholder": "Select channels to receive results"
         },
         "cronPlaceholder": "e.g. 0 9 * * * (every day at 9 AM)",
         "delete": {
@@ -494,7 +494,8 @@
         "noFilterResults": "No matching skills",
         "noSkills": "No skills installed. Install skills from Settings > Skills.",
         "searchPlaceholder": "Search skills...",
-        "tab": "Skills"
+        "tab": "Skills",
+        "title": "Installed Skills"
       },
       "soulMode": {
         "description": "When enabled, the agent uses a custom system prompt from workspace soul files, injects autonomous task management tools, and disables interactive tools not suited for autonomous operation.",

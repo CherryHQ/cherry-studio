@@ -32,6 +32,7 @@
       "channels": {
         "add": "添加",
         "bindAgent": "绑定 Agent",
+        "chatIdsAutoTrackHint": "留空时系统将自动追踪：需要先在对应平台上主动给 Bot 发送一条消息，系统才会记录 Chat ID 用于后续通知。",
         "comingSoon": "即将推出",
         "connected": "已连接",
         "connecting": "连接中",
@@ -96,8 +97,6 @@
           "permissionModeHint": "覆盖此频道消息的智能体权限模式。选择「继承」则使用智能体默认设置。"
         },
         "selectAgent": "选择要绑定的 Agent",
-        "soulModeRequired": "该智能体尚未开启自主模式，频道功能将无法使用。请在智能体设置中开启自主模式。",
-        "chatIdsAutoTrackHint": "留空时系统将自动追踪：需要先在对应平台上主动给 Bot 发送一条消息，系统才会记录 Chat ID 用于后续通知。",
         "slack": {
           "appToken": "应用级别 Token",
           "appTokenPlaceholder": "xapp-...",
@@ -110,6 +109,7 @@
           "title": "Slack",
           "whoamiTip": "💡 提示：发送 /whoami 给机器人即可获取频道 ID。"
         },
+        "soulModeRequired": "该智能体尚未开启自主模式，频道功能将无法使用。请在智能体设置中开启自主模式。",
         "tab": "频道",
         "telegram": {
           "botToken": "Bot Token",
@@ -201,8 +201,8 @@
         "cancel": "取消",
         "channels": {
           "label": "发送到频道",
-          "placeholder": "选择接收结果的频道",
-          "noActiveChatIds": "所选频道当前无可用的接收目标（Chat ID），任务结果可能无法送达。请先在对应平台上给 Bot 发送一条消息。"
+          "noActiveChatIds": "所选频道当前无可用的接收目标（Chat ID），任务结果可能无法送达。请先在对应平台上给 Bot 发送一条消息。",
+          "placeholder": "选择接收结果的频道"
         },
         "cronPlaceholder": "例如 0 9 * * *（每天上午 9 点）",
         "delete": {
@@ -494,7 +494,8 @@
         "noFilterResults": "没有匹配的技能",
         "noSkills": "暂无已安装的技能。前往 设置 > 技能 安装技能。",
         "searchPlaceholder": "搜索技能...",
-        "tab": "技能"
+        "tab": "技能",
+        "title": "已安装技能"
       },
       "soulMode": {
         "description": "启用后，Agent 将使用工作区灵魂文件构建自定义系统提示词，注入自主任务管理工具，并禁用不适合自主运行的交互式工具。",

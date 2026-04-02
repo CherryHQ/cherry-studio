@@ -32,6 +32,7 @@
       "channels": {
         "add": "Adicionar",
         "bindAgent": "Bind Agente",
+        "chatIdsAutoTrackHint": "Quando deixado vazio, o sistema rastreará automaticamente: você precisa enviar uma mensagem ao Bot na plataforma primeiro, então o sistema registrará o ID do Chat para notificações futuras.",
         "comingSoon": "Em breve",
         "connected": "Conectado",
         "connecting": "Conectando",
@@ -108,6 +109,7 @@
           "title": "Slack",
           "whoamiTip": "💡 Dica: Envie /whoami ao bot para obter o ID do canal."
         },
+        "soulModeRequired": "Este agente não tem o Modo Autônomo ativado. Os recursos do canal não funcionarão. Ative-o nas configurações do agente.",
         "tab": "Canais",
         "telegram": {
           "botToken": "Token do bot",
@@ -199,6 +201,7 @@
         "cancel": "Cancelar",
         "channels": {
           "label": "Enviar para os Canais",
+          "noActiveChatIds": "Os canais selecionados não têm destinatários disponíveis (ID do Chat). Os resultados da tarefa podem não ser entregues. Por favor, envie uma mensagem ao Bot na plataforma primeiro.",
           "placeholder": "Selecione os canais para receber os resultados"
         },
         "cronPlaceholder": "ex: 0 9 * * * (todos os dias às 9h)",
@@ -491,7 +494,8 @@
         "noFilterResults": "Nenhuma habilidade correspondente",
         "noSkills": "Nenhuma habilidade instalada. Instale habilidades em Configurações > Habilidades.",
         "searchPlaceholder": "Habilidades de pesquisa...",
-        "tab": "Habilidades"
+        "tab": "Habilidades",
+        "title": "Habilidades Instaladas"
       },
       "soulMode": {
         "description": "Quando ativado, o agente utiliza um prompt de sistema personalizado dos arquivos soul do workspace, injeta ferramentas de gerenciamento de tarefas autônomas e desabilita ferramentas interativas inadequadas para operação autônoma.",
