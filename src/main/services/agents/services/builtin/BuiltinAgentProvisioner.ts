@@ -10,7 +10,7 @@
  */
 import { loggerService } from '@logger'
 import { configManager } from '@main/services/ConfigManager'
-import { app } from 'electron'
+import { getResourcePath } from '@main/utils'
 import fs from 'fs'
 import path from 'path'
 
@@ -27,19 +27,6 @@ function resolveLocalizedField(value: unknown): string | undefined {
   const prefixKey = Object.keys(map).find((k) => k.startsWith(prefix))
 
   return map[lang] || (prefixKey && map[prefixKey]) || map['en-US'] || Object.values(map)[0]
-}
-
-/**
- * Get the path to bundled builtin-agents resources.
- * In dev: resources/builtin-agents/
- * In prod: process.resourcesPath/builtin-agents/
- */
-function getBuiltinAgentsResourcePath(): string {
-  if (app.isPackaged) {
-    return path.join(process.resourcesPath, 'builtin-agents')
-  }
-  // Dev mode: relative to project root
-  return path.join(app.getAppPath(), 'resources', 'builtin-agents')
 }
 
 const ROLE_TO_TEMPLATE: Record<string, string> = {
@@ -90,7 +77,7 @@ export async function provisionBuiltinAgent(
     return undefined
   }
 
-  const resourceBase = getBuiltinAgentsResourcePath()
+  const resourceBase = path.join(getResourcePath(), 'builtin-agents')
   const templateDir = path.join(resourceBase, templateName)
 
   if (!fs.existsSync(templateDir)) {
