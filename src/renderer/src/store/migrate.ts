@@ -3389,6 +3389,29 @@ const migrateConfig = {
       logger.error('migrate 205 error', error as Error)
       return state
     }
+  },
+  '206': (state: RootState) => {
+    try {
+      const { sessionToolOrder } = state.inputTools
+      const permissionModeKey = 'permission_mode'
+      if (
+        sessionToolOrder &&
+        !sessionToolOrder?.visible?.includes(permissionModeKey) &&
+        !sessionToolOrder?.hidden?.includes(permissionModeKey)
+      ) {
+        const createSessionIndex = sessionToolOrder.visible.indexOf('create_session')
+        if (createSessionIndex !== -1) {
+          sessionToolOrder.visible.splice(createSessionIndex + 1, 0, permissionModeKey)
+        } else {
+          sessionToolOrder.visible.unshift(permissionModeKey)
+        }
+      }
+      logger.info('migrate 206 success')
+      return state
+    } catch (error) {
+      logger.error('migrate 206 error', error as Error)
+      return state
+    }
   }
 }
 

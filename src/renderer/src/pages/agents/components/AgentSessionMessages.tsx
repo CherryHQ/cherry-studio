@@ -8,7 +8,6 @@ import { useSettings } from '@renderer/hooks/useSettings'
 import MessageAnchorLine from '@renderer/pages/home/Messages/MessageAnchorLine'
 import MessageGroup from '@renderer/pages/home/Messages/MessageGroup'
 import NarrowLayout from '@renderer/pages/home/Messages/NarrowLayout'
-import PermissionModeDisplay from '@renderer/pages/home/Messages/PermissionModeDisplay'
 import { MessagesContainer, ScrollContainer } from '@renderer/pages/home/Messages/shared'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import { getGroupedMessages } from '@renderer/services/MessagesService'
@@ -203,13 +202,11 @@ const AgentSessionMessages = ({ agentId, sessionId }: Props) => {
               groupedMessages.map(([key, groupMessages]) => (
                 <MessageGroup key={key} messages={groupMessages} topic={derivedTopic} />
               ))
-            ) : session ? (
-              <PermissionModeDisplay session={session} agentId={agentId} />
-            ) : (
+            ) : !session ? (
               <div className="flex items-center justify-center py-5">
                 <Spin size="small" />
               </div>
-            )}
+            ) : null}
           </ScrollContainer>
         </ContextMenu>
       </NarrowLayout>
