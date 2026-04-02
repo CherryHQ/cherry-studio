@@ -27,6 +27,10 @@ vi.mock('electron', () => ({
   }
 }))
 
+vi.mock('../utils', () => ({
+  getDataPath: vi.fn(() => '/userData/Data')
+}))
+
 const mockRepo = {
   getByFolderName: vi.fn(),
   delete: vi.fn(),
@@ -54,7 +58,7 @@ vi.mock('../utils/markdownParser', () => ({
 }))
 
 const resourceSkillsPath = '/app/resources/skills'
-const globalSkillsPath = '/userData/global-skills'
+const globalSkillsPath = '/userData/Data/Skills'
 
 beforeEach(() => {
   vi.clearAllMocks()

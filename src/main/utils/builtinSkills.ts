@@ -7,6 +7,7 @@ import { parseSkillMetadata } from '@main/utils/markdownParser'
 import { app } from 'electron'
 
 import { SkillRepository } from '../services/agents/skills/SkillRepository'
+import { getDataPath } from '.'
 
 const logger = loggerService.withContext('builtinSkills')
 
@@ -17,7 +18,7 @@ const VERSION_FILE = '.version'
  * directory, then create symlinks in .claude/skills/ so they are
  * discoverable by Claude Code.
  *
- * Storage:  {userData}/global-skills/{folderName}/
+ * Storage:  {userData}/Data/Skills/{folderName}/
  * Symlink:  {userData}/.claude/skills/{folderName}/ → storage
  *
  * Each installed skill gets a `.version` file recording the app version that
@@ -31,7 +32,7 @@ const VERSION_FILE = '.version'
 // TODO: v2-backup
 export async function installBuiltinSkills(): Promise<void> {
   const resourceSkillsPath = path.join(app.getAppPath(), 'resources', 'skills')
-  const globalSkillsPath = path.join(app.getPath('userData'), 'global-skills')
+  const globalSkillsPath = path.join(getDataPath(), 'Skills')
   const linkBasePath = path.join(app.getPath('userData'), '.claude', 'skills')
   const appVersion = app.getVersion()
 

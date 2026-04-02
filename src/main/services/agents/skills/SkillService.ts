@@ -3,6 +3,7 @@ import * as fs from 'node:fs'
 import * as path from 'node:path'
 
 import { loggerService } from '@logger'
+import { getDataPath } from '@main/utils'
 import { directoryExists } from '@main/utils/file'
 import { deleteDirectoryRecursive } from '@main/utils/fileOperations'
 import { findAllSkillDirectories, findSkillMdPath, parseSkillMetadata } from '@main/utils/markdownParser'
@@ -552,9 +553,9 @@ export class SkillService {
   // Path helpers
   // ===========================================================================
 
-  /** Global storage: {userData}/global-skills/ */
+  /** Global storage: {userData}/Data/Skills/ */
   private getGlobalSkillsBasePath(): string {
-    return path.join(app.getPath('userData'), 'global-skills')
+    return path.join(getDataPath(), 'Skills')
   }
 
   /** Full path to a skill in global storage */
