@@ -44,7 +44,7 @@ interface Props {
 
 const MinimalToolbar: FC<Props> = ({ app, webviewRef, currentUrl, onReload, onOpenDevTools }) => {
   const { t } = useTranslation()
-  const { pinned, removePinnedMinapp, setPinnedMinappsDirect } = useMinapps()
+  const { pinned, updatePinnedMinapps } = useMinapps()
   const { minappsOpenLinkExternal } = useSettings()
   const dispatch = useAppDispatch()
   const navigate = useNavigate()
@@ -220,13 +220,9 @@ const MinimalToolbar: FC<Props> = ({ app, webviewRef, currentUrl, onReload, onOp
   }, [navigate])
 
   const handleTogglePin = useCallback(() => {
-    // Bypass preservedHidden — user explicitly toggling pin state
-    if (isPinned) {
-      removePinnedMinapp(app.id)
-    } else {
-      setPinnedMinappsDirect([...pinned, app])
-    }
-  }, [app, isPinned, pinned, removePinnedMinapp, setPinnedMinappsDirect])
+    const newPinned = isPinned ? pinned.filter((item) => item.id !== app.id) : [...pinned, app]
+    updatePinnedMinapps(newPinned)
+  }, [app, isPinned, pinned, updatePinnedMinapps])
 
   const handleToggleOpenExternal = useCallback(() => {
     dispatch(setMinappsOpenLinkExternal(!minappsOpenLinkExternal))

@@ -1,12 +1,7 @@
 import { allMinApps } from '@renderer/config/minapps'
 import type { RootState } from '@renderer/store'
 import { useAppDispatch, useAppSelector } from '@renderer/store'
-import {
-  removePinnedMinapp as removePinnedMinappAction,
-  setDisabledMinApps,
-  setMinApps,
-  setPinnedMinApps
-} from '@renderer/store/minapps'
+import { setDisabledMinApps, setMinApps, setPinnedMinApps } from '@renderer/store/minapps'
 import { setDetectedRegion } from '@renderer/store/runtime'
 import type { MinAppRegion, MinAppType } from '@renderer/types'
 import { useCallback, useEffect, useMemo, useRef } from 'react'
@@ -175,30 +170,9 @@ export const useMinapps = () => {
     [dispatch, disabled, effectiveRegion, getHiddenApps]
   )
 
-  // WRITE: Update pinned apps, preserving hidden pinned apps
+  // WRITE: Update pinned apps directly (no preservedHidden needed —
+  // pinned apps are never region-filtered in the read path)
   const updatePinnedMinapps = useCallback(
-    (visiblePinnedApps: MinAppType[]) => {
-      const hiddenIds = getHiddenApps(effectiveRegion)
-      const preservedHidden = pinned.filter((app) => hiddenIds.has(app.id))
-
-      const visibleIds = new Set(visiblePinnedApps.map((app) => app.id))
-      const toAppend = preservedHidden.filter((app) => !visibleIds.has(app.id))
-
-      dispatch(setPinnedMinApps([...visiblePinnedApps, ...toAppend]))
-    },
-    [dispatch, pinned, effectiveRegion, getHiddenApps]
-  )
-
-  // Direct removal — bypasses preservedHidden so user can remove region-hidden pinned apps
-  const removePinnedMinapp = useCallback(
-    (appId: string) => {
-      dispatch(removePinnedMinappAction(appId))
-    },
-    [dispatch]
-  )
-
-  // Direct set — bypasses preservedHidden for bulk updates (e.g. disabling pinned apps)
-  const setPinnedMinappsDirect = useCallback(
     (apps: MinAppType[]) => {
       dispatch(setPinnedMinApps(apps))
     },
@@ -211,8 +185,6 @@ export const useMinapps = () => {
     pinned: pinnedApps,
     updateMinapps,
     updateDisabledMinapps,
-    updatePinnedMinapps,
-    removePinnedMinapp,
-    setPinnedMinappsDirect
+    updatePinnedMinapps
   }
 }

@@ -1,4 +1,4 @@
-import minAppsReducer, { type MinAppsState, removePinnedMinapp, setPinnedMinApps } from '@renderer/store/minapps'
+import minAppsReducer, { type MinAppsState, setPinnedMinApps } from '@renderer/store/minapps'
 import type { MinAppType } from '@renderer/types'
 import { describe, expect, it } from 'vitest'
 
@@ -10,7 +10,7 @@ const createApp = (id: string, name?: string): MinAppType => ({
   logo: `logo-${id}`
 })
 
-describe('minApps slice — removePinnedMinapp', () => {
+describe('minApps slice — setPinnedMinApps', () => {
   const buildState = (pinned: MinAppType[]): MinAppsState =>
     ({
       enabled: [],
@@ -18,57 +18,32 @@ describe('minApps slice — removePinnedMinapp', () => {
       pinned
     }) as MinAppsState
 
-  it('removes target app from pinned list', () => {
-    // Arrange
+  it('replaces pinned list with new list', () => {
     const A = createApp('a')
     const B = createApp('b')
     const C = createApp('c')
     const state = buildState([A, B, C])
 
-    // Act
-    const next = minAppsReducer(state, removePinnedMinapp('b'))
+    const next = minAppsReducer(state, setPinnedMinApps([A, C]))
 
-    // Assert
     expect(next.pinned.map((a) => a.id)).toEqual(['a', 'c'])
   })
 
-  it('removes CN-only app without re-append (preservedHidden bypass)', () => {
-    // This is the core fix for issue #13875.
-    // removePinnedMinapp dispatches directly — no preservedHidden logic.
-    // Arrange
-    const globalApp = createApp('openai')
-    const cnOnlyApp = createApp('yi')
-    const state = buildState([globalApp, cnOnlyApp])
-
-    // Act — remove the CN-only app
-    const next = minAppsReducer(state, removePinnedMinapp('yi'))
-
-    // Assert — yi is gone, NOT re-appended by region-preserve logic
-    expect(next.pinned.map((a) => a.id)).toEqual(['openai'])
-  })
-
-  it('has no effect when removing non-existent app ID', () => {
-    // Arrange
+  it('can set an empty pinned list', () => {
     const A = createApp('a')
-    const B = createApp('b')
-    const state = buildState([A, B])
+    const state = buildState([A])
 
-    // Act
-    const next = minAppsReducer(state, removePinnedMinapp('nonexistent'))
+    const next = minAppsReducer(state, setPinnedMinApps([]))
 
-    // Assert — pinned list unchanged
-    expect(next.pinned.map((a) => a.id)).toEqual(['a', 'b'])
+    expect(next.pinned).toEqual([])
   })
 
-  it('setPinnedMinApps strips logo field (existing behavior preserved)', () => {
-    // Arrange
+  it('strips logo field from pinned apps', () => {
     const app = createApp('a')
     const state = buildState([])
 
-    // Act
     const next = minAppsReducer(state, setPinnedMinApps([app]))
 
-    // Assert — logo is stripped by the reducer
     expect(next.pinned[0].logo).toBeUndefined()
     expect(next.pinned[0].id).toBe('a')
   })

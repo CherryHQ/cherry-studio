@@ -1,7 +1,6 @@
 import { configureStore } from '@reduxjs/toolkit'
-import minAppsReducer, { removePinnedMinapp, setPinnedMinApps } from '@renderer/store/minapps'
-import type { MinAppRegion } from '@renderer/types'
-import type { MinAppType } from '@renderer/types'
+import minAppsReducer, { setPinnedMinApps } from '@renderer/store/minapps'
+import type { MinAppRegion, MinAppType } from '@renderer/types'
 import { describe, expect, it } from 'vitest'
 
 // Test fixture factory
@@ -17,8 +16,9 @@ const createGlobalApp = (id: string): MinAppType => createApp(id, { supportedReg
 
 const createCnOnlyApp = (id: string): MinAppType => createApp(id, { supportedRegions: ['CN'] as MinAppRegion[] })
 
-describe('useMinapps hook — preservedHidden integration', () => {
-  // Test that removePinnedMinapp bypasses preservedHidden
+describe('setPinnedMinApps — no preservedHidden re-append', () => {
+  // Core fix: setPinnedMinApps replaces the list directly,
+  // so removing a CN-only app from the pinned list stays removed.
   it('should remove CN-only pinned app without re-append', () => {
     const globalApp = createGlobalApp('openai')
     const cnOnlyApp = createCnOnlyApp('yi')
@@ -29,49 +29,29 @@ describe('useMinapps hook — preservedHidden integration', () => {
     // Pre-populate with both apps pinned
     store.dispatch(setPinnedMinApps([globalApp, cnOnlyApp]))
 
-    // Remove the CN-only app
-    store.dispatch(removePinnedMinapp('yi'))
+    // Simulate user removing the CN-only app (filter it out and set directly)
+    store.dispatch(setPinnedMinApps([globalApp]))
 
     // Assert: CN-only app is gone, NOT re-appended
     const state = store.getState().minApps
     expect(state.pinned.map((a) => a.id)).toEqual(['openai'])
   })
 
-  // Test that setPinnedMinApps (direct set) bypasses preservedHidden
-  it('should set pinned list directly without re-append', () => {
+  it('should allow setting an empty pinned list', () => {
     const globalApp = createGlobalApp('openai')
     const cnOnlyApp = createCnOnlyApp('yi')
     const store = configureStore({
       reducer: { minApps: minAppsReducer }
     })
 
-    // Pre-populate
     store.dispatch(setPinnedMinApps([globalApp, cnOnlyApp]))
-
-    // Direct set to only global app
-    store.dispatch(setPinnedMinApps([globalApp]))
-
-    // Assert: only global app remains
-    const state = store.getState().minApps
-    expect(state.pinned.map((a) => a.id)).toEqual(['openai'])
-  })
-
-  // Test that removePinnedMinapp with non-existent ID leaves list unchanged
-  it('should not alter pinned list when removing non-existent app', () => {
-    const globalApp = createGlobalApp('openai')
-    const store = configureStore({
-      reducer: { minApps: minAppsReducer }
-    })
-
-    store.dispatch(setPinnedMinApps([globalApp]))
-
-    store.dispatch(removePinnedMinapp('nonexistent'))
+    store.dispatch(setPinnedMinApps([]))
 
     const state = store.getState().minApps
-    expect(state.pinned.map((a) => a.id)).toEqual(['openai'])
+    expect(state.pinned).toEqual([])
   })
 
-  // Test that setPinnedMinApps strips logo field (regression)
+  // Regression: setPinnedMinApps strips logo field
   it('should strip logo field from pinned apps', () => {
     const app = createApp('a', { logo: 'logo-a' })
     const store = configureStore({
