@@ -4842,6 +4842,7 @@
         "glama": "Glama MCP-Server-Verzeichnis",
         "higress": "Higress MCP-Server",
         "mcpso": "MCP-Server-Discovery-Plattform",
+        "mcpworld": "Baidu MCP-Aggregationsplattform",
         "modelscope": "Modelscope MCP-Server",
         "official": "Offizielle MCP-Server-Sammlung",
         "pulsemcp": "Pulse MCP-Server",

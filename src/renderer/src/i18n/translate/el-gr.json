@@ -4842,6 +4842,7 @@
         "glama": "Κατάλογος διακομιστών Glama MCP",
         "higress": "Διακομιστής MCP Higress",
         "mcpso": "Πλατφόρμα ανακάλυψης διακομιστών MCP",
+        "mcpworld": "Πλατφόρμα συγκέντρωσης MCP της Baidu",
         "modelscope": "Διακομιστής MCP κοινότητας ModelScope",
         "official": "Επίσημη συλλογή διακομιστών MCP",
         "pulsemcp": "Διακομιστής Pulse MCP",

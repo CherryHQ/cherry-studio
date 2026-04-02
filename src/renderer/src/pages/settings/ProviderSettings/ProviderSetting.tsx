@@ -219,7 +219,13 @@ const ProviderSetting: FC<Props> = ({ providerId, isOnboarding = false }) => {
       return
     }
     if (isVertexProvider(provider) || apiHost.trim()) {
-      updateProvider({ apiHost })
+      // For new-api provider, keep apiHost and anthropicApiHost in sync
+      if (isNewApiProvider(provider)) {
+        updateProvider({ apiHost, anthropicApiHost: apiHost })
+        setAnthropicHost(apiHost)
+      } else {
+        updateProvider({ apiHost })
+      }
     } else {
       setApiHost(provider.apiHost)
     }
