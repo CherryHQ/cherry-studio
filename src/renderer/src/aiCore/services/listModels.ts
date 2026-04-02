@@ -18,6 +18,7 @@ import { defaultAppHeaders } from '@shared/utils'
 import * as z from 'zod'
 
 import {
+  AIHubMixModelsResponseSchema,
   GeminiModelsResponseSchema,
   GitHubModelsResponseSchema,
   NewApiModelsResponseSchema,
@@ -317,6 +318,24 @@ const ppioFetcher: ModelFetcher = {
   }
 }
 
+const aiHubMixFetcher: ModelFetcher = {
+  match: (p) => p.id === SystemProviderIds.aihubmix,
+  fetch: async (provider, signal) => {
+    const response = await getFromApi({
+      url: `https://aihubmix.com/api/v1/models`,
+      headers: defaultHeaders(provider),
+      responseSchema: AIHubMixModelsResponseSchema,
+      abortSignal: signal
+    })
+    return dedup(response.data, (m) => m.model_id).map((m) =>
+      toModel(m.model_id, provider, {
+        name: m.model_name || m.model_id,
+        description: m.desc
+      })
+    )
+  }
+}
+
 /** Default fallback: OpenAI-compatible /models endpoint */
 const openAICompatibleFetcher: ModelFetcher = {
   match: () => true,
@@ -335,6 +354,7 @@ const openAICompatibleFetcher: ModelFetcher = {
 // === Registry (order matters: first match wins) ===
 
 const fetchers: ModelFetcher[] = [
+  aiHubMixFetcher,
   ollamaFetcher,
   geminiFetcher,
   githubFetcher,

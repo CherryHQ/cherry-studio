@@ -1,5 +1,38 @@
 // Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
 
+exports[`listModels > AIHubMix > should convert real AIHubMix response with model_id and model_name 1`] = `
+[
+  {
+    "description": "Qwen 3.6, the native vision-language Plus series model.",
+    "group": "aihubmix",
+    "id": "qwen3.6-plus",
+    "name": "Qwen3.6 Plus",
+    "provider": "aihubmix",
+  },
+  {
+    "description": "Claude Sonnet 4.6 delivers frontier intelligence at scale.",
+    "group": "aihubmix",
+    "id": "claude-sonnet-4-6",
+    "name": "Claude Sonnet 4.6",
+    "provider": "aihubmix",
+  },
+  {
+    "description": "GPT-5.4 is our frontier model for complex professional work.",
+    "group": "aihubmix",
+    "id": "gpt-5.4",
+    "name": "GPT 5.4",
+    "provider": "aihubmix",
+  },
+  {
+    "description": "A new-generation professional-grade multimodal video-creation model.",
+    "group": "aihubmix",
+    "id": "doubao-seedance-2-0-260128",
+    "name": "Doubao Seedance 2.0 260128",
+    "provider": "aihubmix",
+  },
+]
+`;
+
 exports[`listModels > Gemini > should strip models/ prefix and use displayName from real response 1`] = `
 [
   {
