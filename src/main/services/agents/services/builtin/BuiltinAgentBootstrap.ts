@@ -1,11 +1,12 @@
 /**
  * BuiltinAgentBootstrap
  *
- * Encapsulates all startup initialization logic for built-in agents
+ * Encapsulates all startup initialization logic for built-in skills and agents
  * (CherryClaw, Cherry Assistant, etc.). Keeps business details out of
  * the main entry point (`src/main/index.ts`).
  */
 import { loggerService } from '@logger'
+import { installBuiltinSkills } from '@main/utils/builtinSkills'
 
 import { agentService } from '../AgentService'
 import { schedulerService } from '../SchedulerService'
@@ -15,10 +16,19 @@ import { provisionBuiltinAgent } from './BuiltinAgentProvisioner'
 const logger = loggerService.withContext('BuiltinAgentBootstrap')
 
 /**
- * Initialize all built-in agents. Safe to call multiple times (idempotent).
+ * Initialize all built-in skills and agents. Safe to call multiple times (idempotent).
+ *
+ * Runs sequentially to avoid concurrent SQLite writes (skills and agents share the
+ * same database — parallel transactions cause SQLITE_BUSY failures).
  */
-export async function initBuiltinAgents(): Promise<void> {
-  await Promise.allSettled([initCherryClaw(), initCherryAssistant()])
+export async function bootstrapBuiltinAgents(): Promise<void> {
+  try {
+    await installBuiltinSkills()
+  } catch (error) {
+    logger.error('Failed to install built-in skills', error as Error)
+  }
+  await initCherryClaw()
+  await initCherryAssistant()
 }
 
 // ── CherryClaw ──────────────────────────────────────────────────────

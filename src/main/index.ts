@@ -17,7 +17,7 @@ import process from 'node:process'
 import { registerIpc } from './ipc'
 import { agentService } from './services/agents'
 import { schedulerService } from './services/agents/services/SchedulerService'
-import { initBuiltinAgents } from './services/agents/services/builtin/BuiltinAgentBootstrap'
+import { bootstrapBuiltinAgents } from './services/agents/services/builtin/BuiltinAgentBootstrap'
 import { channelManager } from './services/agents/services/channels'
 import { registerSessionStreamIpc } from './services/agents/services/channels/sessionStreamIpc'
 import { analyticsService } from './services/AnalyticsService'
@@ -43,7 +43,6 @@ import { versionService } from './services/VersionService'
 import { windowService } from './services/WindowService'
 import { initWebviewHotkeys } from './services/WebviewService'
 import { runAsyncFunction } from './utils'
-import { installBuiltinSkills } from './utils/builtinSkills'
 import { isOvmsSupported } from './services/OvmsManager'
 import { extractRtkBinaries } from './utils/rtk'
 
@@ -205,16 +204,10 @@ if (!app.requestSingleInstanceLock()) {
     //start selection assistant service
     initSelectionService()
 
-    // Install built-in skills to user-level .claude/skills directory (non-blocking)
-    // TODO: v2 lifecycle
-    installBuiltinSkills().catch((error) => {
-      logger.error('Failed to install built-in skills', error)
-    })
-
     void runAsyncFunction(async () => {
-      // Initialize all built-in agents (CherryClaw, Cherry Assistant, etc.)
+      // Initialize built-in skills and agents (sequential to avoid SQLITE_BUSY)
       // TODO: v2 lifecycle
-      await initBuiltinAgents()
+      await bootstrapBuiltinAgents()
 
       // Start API server if enabled or if agents exist
       try {
