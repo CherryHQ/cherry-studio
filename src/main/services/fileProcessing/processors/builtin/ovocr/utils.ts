@@ -23,7 +23,6 @@ export function prepareContext(
   config: FileProcessorMerged,
   signal?: AbortSignal
 ): PreparedOvOcrContext {
-  logger.debug(`OvOcr Processor: ${config.id}`)
   if (!isImageFileMetadata(file)) {
     throw new Error('OV OCR only supports image files')
   }
@@ -47,10 +46,6 @@ export function prepareContext(
 
 export async function executeExtraction(context: PreparedOvOcrContext): Promise<FileProcessingTextExtractionResult> {
   context.signal?.throwIfAborted()
-
-  logger.info(`OV OCR called on ${context.file.path}`, {
-    workingDirectory: context.workingDirectory
-  })
 
   try {
     await prepareWorkingDirectory(context.imgDirectory)

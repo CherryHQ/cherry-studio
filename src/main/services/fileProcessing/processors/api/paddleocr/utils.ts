@@ -1,4 +1,3 @@
-import { createReadStream } from 'node:fs'
 import fs from 'node:fs/promises'
 
 import { loggerService } from '@logger'
@@ -31,47 +30,83 @@ export async function createJob(context: PreparedPaddleStartContext): Promise<{
     throw new Error('PaddleOCR file is too large (must be smaller than 50MB)')
   }
 
-  const fileStream = createReadStream(context.file.path)
+  // Keep Paddle uploads non-streaming. In practice this API was sensitive to
+  // streamed multipart bodies from Electron and returned misleading model
+  // parameter errors; sending a buffered multipart payload matches the working
+  // shape of the official example more closely.
+  const fileBuffer = await fs.readFile(context.file.path)
 
   const formData = new FormData()
   if (context.model) {
     formData.append('model', context.model)
   }
-  formData.append('file', fileStream, {
+  formData.append('file', fileBuffer, {
     filename: context.file.origin_name
   })
+  const requestBody = formData.getBuffer()
+  const requestHeaders = {
+    Authorization: `Bearer ${context.apiKey}`,
+    ...formData.getHeaders()
+  }
+
+  let response: Response
 
   try {
-    const response = await net.fetch(endpoint, {
+    response = await net.fetch(endpoint, {
       method: 'POST',
-      headers: {
-        Authorization: `Bearer ${context.apiKey}`,
-        ...formData.getHeaders()
-      },
-      body: formData as any,
-      duplex: 'half',
+      headers: requestHeaders,
+      body: requestBody as any,
       signal: context.signal
     } as any)
-
-    if (!response.ok) {
-      const message = await response.text()
-      throw new Error(`PaddleOCR job creation failed: ${response.status} ${response.statusText} ${message}`)
-    }
-
-    const payload = PaddleCreateJobResponseSchema.parse(await response.json())
-
-    if (payload.code !== 0) {
-      throw new Error(payload.msg || 'PaddleOCR job creation failed')
-    }
-
-    if (!payload.data) {
-      throw new Error('PaddleOCR job creation response is missing data')
-    }
-
-    return payload.data
-  } finally {
-    fileStream.destroy()
+  } catch (error) {
+    logger.warn('PaddleOCR job creation fetch threw before receiving a response', error as Error, {
+      processorId: 'paddleocr',
+      feature: context.feature,
+      fileId: context.file.id,
+      fileName: context.file.origin_name,
+      apiHost: context.apiHost,
+      model: context.model
+    })
+    throw error
   }
+
+  if (!response.ok) {
+    const message = await response.text()
+    logger.warn('PaddleOCR job creation request failed', {
+      processorId: 'paddleocr',
+      feature: context.feature,
+      fileId: context.file.id,
+      fileName: context.file.origin_name,
+      apiHost: context.apiHost,
+      model: context.model,
+      status: response.status,
+      statusText: response.statusText,
+      responseBody: message
+    })
+    throw new Error(`PaddleOCR job creation failed: ${response.status} ${response.statusText} ${message}`)
+  }
+
+  const payload = PaddleCreateJobResponseSchema.parse(await response.json())
+
+  if (payload.code !== 0) {
+    logger.warn('PaddleOCR job creation returned business error', {
+      processorId: 'paddleocr',
+      feature: context.feature,
+      fileId: context.file.id,
+      fileName: context.file.origin_name,
+      apiHost: context.apiHost,
+      model: context.model,
+      code: payload.code,
+      msg: payload.msg
+    })
+    throw new Error(payload.msg || 'PaddleOCR job creation failed')
+  }
+
+  if (!payload.data) {
+    throw new Error('PaddleOCR job creation response is missing data')
+  }
+
+  return payload.data
 }
 
 export async function getJobResult(
@@ -102,15 +137,6 @@ export async function getJobResult(
 
   if (!payload.data) {
     throw new Error(`PaddleOCR job result response is missing data for task ${providerTaskId}`)
-  }
-
-  if (payload.data.state === 'done' || payload.data.state === 'failed') {
-    logger.info('PaddleOCR job result received', {
-      processorId: 'paddleocr',
-      providerTaskId,
-      state: payload.data.state,
-      resultUrl: payload.data.resultUrl
-    })
   }
 
   return payload.data
@@ -162,12 +188,6 @@ export async function resolveJsonlResult(
   if (!jsonUrl) {
     throw new Error(`PaddleOCR task ${providerTaskId} completed without jsonUrl`)
   }
-
-  logger.info('PaddleOCR result is using jsonUrl payload', {
-    processorId: 'paddleocr',
-    providerTaskId,
-    jsonUrl
-  })
 
   const jsonlContent = await downloadPaddleResult(jsonUrl, signal)
   return extractMarkdownTextFromJsonl(jsonlContent, providerTaskId)

@@ -1,4 +1,3 @@
-import { loggerService } from '@logger'
 import { application } from '@main/core/application'
 import type { FileProcessorMerged } from '@shared/data/presets/file-processing'
 import type {
@@ -14,8 +13,6 @@ import { persistMarkdownResult } from '../../../persistence/resultPersistence'
 import { BaseMarkdownConversionProcessor, getFileProcessingResultsDir } from '../../base/BaseFileProcessor'
 import type { PaddleTaskContext, PreparedPaddleQueryContext, PreparedPaddleStartContext } from './types'
 import { createJob, getJobResult, mapProgress, resolveJsonlResult, waitForJobCompletion } from './utils'
-
-const logger = loggerService.withContext('FileProcessing:PaddleProcessor')
 
 export class PaddleProcessor extends BaseMarkdownConversionProcessor implements ITextExtractionProcessor {
   constructor() {
@@ -39,14 +36,6 @@ export class PaddleProcessor extends BaseMarkdownConversionProcessor implements 
     if (jobResult.state === 'failed') {
       throw new Error(jobResult.errorMsg || 'PaddleOCR text extraction failed')
     }
-
-    logger.info('PaddleOCR text extraction job completed', {
-      processorId: 'paddleocr',
-      providerTaskId: job.jobId,
-      fileId: file.id,
-      model: startContext.model,
-      resultUrl: jobResult.resultUrl
-    })
 
     return {
       text: await resolveJsonlResult(job.jobId, jobResult, queryContext.signal)
@@ -112,12 +101,6 @@ export class PaddleProcessor extends BaseMarkdownConversionProcessor implements 
           processorId: 'paddleocr'
         }
       }
-
-      logger.info('PaddleOCR markdown conversion job completed', {
-        processorId: 'paddleocr',
-        providerTaskId,
-        resultUrl: jobResult.resultUrl
-      })
 
       const markdownContent = await resolveJsonlResult(providerTaskId, jobResult, context.signal)
       const persistedMarkdownPath = await this.persistMarkdownConversionResult(taskContext.fileId, markdownContent)
@@ -191,7 +174,8 @@ export class PaddleProcessor extends BaseMarkdownConversionProcessor implements 
       apiKey,
       signal,
       file,
-      model
+      model,
+      feature
     }
   }
 }

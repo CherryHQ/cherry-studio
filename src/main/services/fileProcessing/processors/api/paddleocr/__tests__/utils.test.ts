@@ -1,15 +1,10 @@
-import type * as NodeFs from 'node:fs'
 import fs from 'node:fs/promises'
-import { Readable } from 'node:stream'
 
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { fetchMock, createReadStreamMock, destroyMock } = vi.hoisted(() => ({
-  fetchMock: vi.fn(),
-  destroyMock: vi.fn(),
-  createReadStreamMock: vi.fn(() => ({
-    destroy: vi.fn()
-  }))
+const { appendSpy, fetchMock } = vi.hoisted(() => ({
+  appendSpy: vi.fn(),
+  fetchMock: vi.fn()
 }))
 
 vi.mock('electron', () => ({
@@ -18,14 +13,21 @@ vi.mock('electron', () => ({
   }
 }))
 
-vi.mock('node:fs', async () => {
-  const actual = await vi.importActual<typeof NodeFs>('node:fs')
+vi.mock('form-data', () => ({
+  default: class MockFormData {
+    append = appendSpy
 
-  return {
-    ...actual,
-    createReadStream: createReadStreamMock
+    getBuffer() {
+      return Buffer.from('multipart-body')
+    }
+
+    getHeaders() {
+      return {
+        'content-type': 'multipart/form-data; boundary=test-boundary'
+      }
+    }
   }
-})
+}))
 
 import type { PaddleJobResultData } from '../types'
 import { createJob, resolveJsonlResult } from '../utils'
@@ -41,11 +43,8 @@ function createJobResult(resultUrl: PaddleJobResultData['resultUrl']): PaddleJob
 describe('paddleocr utils', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    createReadStreamMock.mockImplementation(() => {
-      const stream = Readable.from(['file-data']) as Readable & { destroy: typeof destroyMock }
-      stream.destroy = destroyMock
-      return stream
-    })
+    appendSpy.mockReset()
+    vi.spyOn(fs, 'readFile').mockResolvedValue(Buffer.from('file-data'))
   })
 
   it('extracts text from jsonUrl results', async () => {
@@ -111,6 +110,7 @@ describe('paddleocr utils', () => {
       createJob({
         apiHost: 'https://paddle.example.com',
         apiKey: 'secret',
+        feature: 'text_extraction',
         file: {
           path: '/tmp/large.pdf',
           origin_name: 'large.pdf'
@@ -140,8 +140,10 @@ describe('paddleocr utils', () => {
       createJob({
         apiHost: 'https://paddle.example.com',
         apiKey: 'secret',
+        feature: 'text_extraction',
         model: 'PaddleOCR-VL-1.5',
         file: {
+          id: 'file-1',
           path: '/tmp/file.pdf',
           origin_name: 'file.pdf'
         }
@@ -150,18 +152,26 @@ describe('paddleocr utils', () => {
       jobId: 'job-1'
     })
 
-    expect(createReadStreamMock).toHaveBeenCalledWith('/tmp/file.pdf')
+    expect(fs.readFile).toHaveBeenCalledWith('/tmp/file.pdf')
     expect(fetchMock).toHaveBeenCalledWith(
       'https://paddle.example.com/api/v2/ocr/jobs',
       expect.objectContaining({
         method: 'POST',
         headers: expect.objectContaining({
-          Authorization: 'Bearer secret'
+          Authorization: 'Bearer secret',
+          'content-type': 'multipart/form-data; boundary=test-boundary'
         }),
-        body: expect.any(Object),
-        duplex: 'half'
+        body: expect.any(Buffer)
       })
     )
-    expect(destroyMock).toHaveBeenCalled()
+    expect(appendSpy).toHaveBeenNthCalledWith(1, 'model', 'PaddleOCR-VL-1.5')
+    expect(appendSpy).toHaveBeenNthCalledWith(
+      2,
+      'file',
+      expect.any(Buffer),
+      expect.objectContaining({
+        filename: 'file.pdf'
+      })
+    )
   })
 })

@@ -138,7 +138,7 @@ export class OpenMineruProcessor extends BaseMarkdownConversionProcessor {
         markdownPath
       }))
     } catch (error) {
-      logger.error('Open MinerU markdown conversion task failed', error as Error)
+      logger.warn('Open MinerU markdown conversion task failed', error as Error)
       runtimeService.updateTask<OpenMineruTaskState>('open-mineru', providerTaskId, () => ({
         status: 'failed',
         progress: 0,

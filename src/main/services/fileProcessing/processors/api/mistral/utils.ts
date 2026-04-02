@@ -40,12 +40,6 @@ export async function executeExtraction(
   context: PreparedMistralContext,
   document: MistralImageDocument
 ): Promise<MistralOcrResponse> {
-  logger.debug('Calling Mistral OCR for text extraction', {
-    fileId: context.file.id,
-    filePath: context.file.path,
-    model: context.model
-  })
-
   return context.client.ocr.process(
     {
       model: context.model ?? null,

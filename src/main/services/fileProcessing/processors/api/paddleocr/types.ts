@@ -70,6 +70,7 @@ export type PreparedPaddleContext = {
 }
 
 export type PreparedPaddleStartContext = PreparedPaddleContext & {
+  feature: 'markdown_conversion' | 'text_extraction'
   file: FileMetadata
   model?: string
 }
