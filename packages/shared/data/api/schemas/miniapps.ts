@@ -62,14 +62,6 @@ export const ReorderMiniappsSchema = z.object({
 export type ReorderMiniappsDto = z.infer<typeof ReorderMiniappsSchema>
 
 /**
- * Zod schema for setting miniapp status
- */
-export const SetMiniappStatusSchema = z.object({
-  status: MiniAppStatusSchema
-})
-export type SetMiniappStatusDto = z.infer<typeof SetMiniappStatusSchema>
-
-/**
  * Query parameters for listing miniapps
  */
 export const ListMiniappsQuerySchema = z.object({
@@ -132,20 +124,6 @@ export interface MiniappSchemas {
     DELETE: {
       params: { id: string }
       response: void
-    }
-  }
-
-  /**
-   * Status sub-resource endpoint
-   * High-frequency operation for toggling app status
-   * @example PUT /miniapps/qwen/status { "status": "pinned" }
-   */
-  '/miniapps/:id/status': {
-    /** Set the status for a miniapp */
-    PUT: {
-      params: { id: string }
-      body: SetMiniappStatusDto
-      response: MiniApp
     }
   }
 }

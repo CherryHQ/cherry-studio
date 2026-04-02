@@ -3,7 +3,6 @@
  *
  * Implements all miniapp-related API endpoints including:
  * - Miniapp CRUD operations
- * - Status management
  * - Reordering
  *
  * All input validation happens here at the system boundary.
@@ -16,7 +15,6 @@ import {
   CreateMiniappSchema,
   ListMiniappsQuerySchema,
   ReorderMiniappsSchema,
-  SetMiniappStatusSchema,
   UpdateMiniappSchema
 } from '@shared/data/api/schemas/miniapps'
 
@@ -62,13 +60,6 @@ export const miniappHandlers: {
     DELETE: async ({ params }) => {
       await miniappService.delete(params.id)
       return undefined
-    }
-  },
-
-  '/miniapps/:id/status': {
-    PUT: async ({ params, body }) => {
-      const parsed = SetMiniappStatusSchema.parse(body)
-      return await miniappService.updateStatus(params.id, parsed.status)
     }
   }
 }

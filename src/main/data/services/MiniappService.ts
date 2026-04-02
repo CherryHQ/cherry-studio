@@ -295,34 +295,6 @@ export class MiniAppService {
   }
 
   /**
-   * Update miniapp status (enabled/disabled/pinned)
-   * Lazily creates a DB preference row for builtin apps.
-   */
-  async updateStatus(appId: string, status: MiniAppStatus): Promise<MiniApp> {
-    // Verify app exists (either builtin or in DB)
-    await this.getByAppId(appId)
-
-    // Ensure a DB row exists for builtin apps (lazy write)
-    await this.ensureDefaultAppPref(appId)
-
-    const [row] = await this.db.update(miniappTable).set({ status }).where(eq(miniappTable.appId, appId)).returning()
-
-    // I2: Validate .returning() result
-    if (!row) {
-      throw DataApiErrorFactory.notFound('MiniApp', appId)
-    }
-
-    logger.info('Updated miniapp status', { appId, status })
-
-    // Re-merge with builtin definition if applicable
-    const builtinDef = builtinMiniAppMap.get(appId)
-    if (builtinDef) {
-      return builtinToMiniApp(builtinDef, row)
-    }
-    return rowToMiniApp(row)
-  }
-
-  /**
    * Batch reorder miniapps.
    * I3: All ensureDefaultAppPref calls and updates happen inside a single transaction.
    */
