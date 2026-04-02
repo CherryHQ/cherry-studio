@@ -115,7 +115,7 @@ export const InstalledPluginsSettings: FC<PluginSettingsProps> = () => {
 }
 
 const SearchContainer = styled.div`
-  padding: 0 16px 12px;
+  padding: 0 0 12px;
 `
 
 const CenterContainer = styled.div`
@@ -133,7 +133,6 @@ const ErrorText = styled.div`
 const SkillList = styled.div`
   display: flex;
   flex-direction: column;
-  padding: 0 16px;
   gap: 2px;
 `
 

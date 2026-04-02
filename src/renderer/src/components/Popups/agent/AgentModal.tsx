@@ -1,6 +1,7 @@
 import { loggerService } from '@logger'
 import AnthropicProviderListPopover from '@renderer/components/AnthropicProviderListPopover'
 import { ErrorBoundary } from '@renderer/components/ErrorBoundary'
+import Scrollbar from '@renderer/components/Scrollbar'
 import { HelpTooltip } from '@renderer/components/TooltipIcons'
 import { TopView } from '@renderer/components/TopView'
 import { permissionModeCards } from '@renderer/config/agent'
@@ -583,22 +584,12 @@ const StyledForm = styled.form`
   gap: 16px;
 `
 
-const FormContent = styled.div`
+const FormContent = styled(Scrollbar)`
   display: flex;
   flex-direction: column;
   gap: 16px;
   max-height: 60vh;
-  overflow-y: auto;
   padding-right: 8px;
-
-  &::-webkit-scrollbar {
-    width: 6px;
-  }
-
-  &::-webkit-scrollbar-thumb {
-    background-color: var(--color-border);
-    border-radius: 3px;
-  }
 `
 
 const FormRow = styled.div`

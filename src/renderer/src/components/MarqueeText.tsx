@@ -93,7 +93,7 @@ const MarqueeText: FC<MarqueeTextProps> = ({ children, speed = 30, pauseDuration
   return (
     <div
       ref={containerRef}
-      className={cn('overflow-hidden whitespace-nowrap', className)}
+      className={cn('flex overflow-hidden whitespace-nowrap', className)}
       onMouseEnter={() => setIsHovered(true)}
       onMouseLeave={() => setIsHovered(false)}>
       <div ref={contentRef} className="inline-block whitespace-nowrap">

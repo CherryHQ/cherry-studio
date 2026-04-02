@@ -1231,6 +1231,7 @@ const CodeViewerContainer = styled.div`
 const DropZoneContainer = styled.div`
   height: 100%;
   display: flex;
+  padding-bottom: 2px;
 
   .ant-upload-wrapper,
   .ant-upload-drag {
@@ -1247,6 +1248,7 @@ const DropZoneContainer = styled.div`
     background: transparent;
     border-radius: 0;
     border: 2px dashed transparent;
+    border-bottom-right-radius: 6px;
     transition: border-color 0.2s;
 
     &.ant-upload-drag-hover {
