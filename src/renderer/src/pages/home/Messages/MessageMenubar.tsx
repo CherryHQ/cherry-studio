@@ -60,6 +60,7 @@ import {
   Languages,
   ListChecks,
   Menu,
+  MessageCircleQuestion,
   NotebookPen,
   Save,
   Split,
@@ -1008,6 +1009,22 @@ const buttonRenderers: Record<MessageMenubarButtonId, MessageMenubarButtonRender
       </Tooltip>
     )
   },
+  'side-question': ({ message, softHoverBg, t }) => {
+    return (
+      <Tooltip title={t('chat.sideQuestion.title')} mouseEnterDelay={0.8}>
+        <ActionButton
+          className="message-action-button"
+          onClick={(e) => {
+            e.stopPropagation()
+            void EventEmitter.emit('open-side-question', message)
+          }}
+          $softHoverBg={softHoverBg}>
+          <MessageCircleQuestion size={15} />
+        </ActionButton>
+      </Tooltip>
+    )
+  },
+
   'more-menu': ({ isUserMessage, dropdownItems, softHoverBg }) => {
     if (isUserMessage) {
       return null
