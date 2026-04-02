@@ -1,4 +1,7 @@
-import { useProvider } from '@renderer/hooks/useProvider'
+import { dataApiService } from '@renderer/data/DataApiService'
+import { useInvalidateCache, useQuery } from '@renderer/data/hooks/useDataApi'
+import { replaceBaseUrlDomain } from '@renderer/utils/provider.v2'
+import type { Provider } from '@shared/data/types/provider'
 import { Select } from 'antd'
 import type { FC } from 'react'
 import { useCallback, useMemo } from 'react'
@@ -6,43 +9,56 @@ import { useTranslation } from 'react-i18next'
 
 interface CherryINSettingsProps {
   providerId: string
-  apiHost: string
-  setApiHost: (host: string) => void
 }
 
 const API_HOST_OPTIONS = [
   {
-    value: 'https://open.cherryin.cc',
+    value: 'open.cherryin.cc',
     labelKey: '加速域名',
     description: 'open.cherryin.cc'
   },
   {
-    value: 'https://open.cherryin.net',
+    value: 'open.cherryin.net',
     labelKey: '国际域名',
     description: 'open.cherryin.net'
   },
   {
-    value: 'https://open.cherryin.ai',
+    value: 'open.cherryin.ai',
     labelKey: '备用域名',
     description: 'open.cherryin.ai'
   }
 ]
 
-const CherryINSettings: FC<CherryINSettingsProps> = ({ providerId, apiHost, setApiHost }) => {
-  const { updateProvider } = useProvider(providerId)
+const CherryINSettings: FC<CherryINSettingsProps> = ({ providerId }) => {
+  const { data: provider } = useQuery(`/providers/${providerId}` as any) as { data: Provider | undefined }
+  const invalidate = useInvalidateCache()
   const { t } = useTranslation()
 
+  const currentDomain = useMemo(() => {
+    if (!provider?.baseUrls) return API_HOST_OPTIONS[0].value
+    const firstUrl = Object.values(provider.baseUrls)[0]
+    if (!firstUrl) return API_HOST_OPTIONS[0].value
+    try {
+      return new URL(firstUrl).hostname
+    } catch {
+      return API_HOST_OPTIONS[0].value
+    }
+  }, [provider?.baseUrls])
+
   const getCurrentHost = useMemo(() => {
-    const matchedOption = API_HOST_OPTIONS.find((option) => apiHost?.includes(option.value.replace('https://', '')))
-    return matchedOption?.value ?? API_HOST_OPTIONS[0].value
-  }, [apiHost])
+    const matched = API_HOST_OPTIONS.find((option) => currentDomain.includes(option.value))
+    return matched?.value ?? API_HOST_OPTIONS[0].value
+  }, [currentDomain])
 
   const handleHostChange = useCallback(
-    (value: string) => {
-      setApiHost(value)
-      updateProvider({ apiHost: value, anthropicApiHost: value })
+    async (value: string) => {
+      const newBaseUrls = replaceBaseUrlDomain(provider?.baseUrls, value)
+      await dataApiService.patch(`/providers/${providerId}` as any, {
+        body: { baseUrls: newBaseUrls }
+      })
+      await invalidate([`/providers/${providerId}`])
     },
-    [setApiHost, updateProvider]
+    [provider?.baseUrls, providerId, invalidate]
   )
 
   const options = useMemo(

@@ -3,8 +3,9 @@ import { usePreference } from '@data/hooks/usePreference'
 import { TopView } from '@renderer/components/TopView'
 import { useCodeStyle } from '@renderer/context/CodeStyleProvider'
 import { useCopilot } from '@renderer/hooks/useCopilot'
-import { useProvider } from '@renderer/hooks/useProvider'
-import type { Provider } from '@renderer/types'
+import { dataApiService } from '@renderer/data/DataApiService'
+import { useInvalidateCache, useQuery } from '@renderer/data/hooks/useDataApi'
+import type { Provider } from '@shared/data/types/provider'
 import { Modal, Space } from 'antd'
 import { useCallback, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -12,43 +13,50 @@ import { useTranslation } from 'react-i18next'
 import { SettingHelpText } from '..'
 
 interface ShowParams {
-  provider: Provider
+  providerId: string
 }
 
 interface Props extends ShowParams {
   resolve: (data: any) => void
 }
 
-const PopupContainer: React.FC<Props> = ({ provider, resolve }) => {
+const PopupContainer: React.FC<Props> = ({ providerId, resolve }) => {
   const [open, setOpen] = useState(true)
   const { t } = useTranslation()
-  const { updateProvider } = useProvider(provider.id)
+  const { data: provider } = useQuery(`/providers/${providerId}` as any) as { data: Provider | undefined }
+  const invalidate = useInvalidateCache()
   const { defaultHeaders, updateDefaultHeaders } = useCopilot()
   const [fontSize] = usePreference('chat.message.font_size')
   const { activeCmTheme } = useCodeStyle()
 
   const headers =
-    provider.id === 'copilot'
+    providerId === 'copilot'
       ? JSON.stringify(defaultHeaders || {}, null, 2)
-      : JSON.stringify(provider.extra_headers || {}, null, 2)
+      : JSON.stringify(provider?.settings?.extraHeaders || {}, null, 2)
 
   const [headerText, setHeaderText] = useState<string>(headers)
 
   const onUpdateHeaders = useCallback(() => {
     try {
-      const headers = headerText.trim() ? JSON.parse(headerText) : {}
+      const parsedHeaders = headerText.trim() ? JSON.parse(headerText) : {}
 
-      if (provider.id === 'copilot') {
-        updateDefaultHeaders(headers)
-      } else {
-        updateProvider({ ...provider, extra_headers: headers })
+      // Copilot: dual-write to v2 providerSettings AND copilot Redux
+      // (aiCore still reads copilot Redux until Phase 5B)
+      if (providerId === 'copilot') {
+        updateDefaultHeaders(parsedHeaders)
       }
+
+      dataApiService
+        .patch(`/providers/${providerId}` as any, {
+          body: { providerSettings: { ...provider?.settings, extraHeaders: parsedHeaders } }
+        })
+        .then(() => invalidate([`/providers/${providerId}`]))
 
       window.toast.success(t('message.save.success.title'))
     } catch (error) {
       window.toast.error(t('settings.provider.copilot.invalid_json'))
     }
-  }, [headerText, provider, t, updateDefaultHeaders, updateProvider])
+  }, [headerText, providerId, provider?.settings, t, updateDefaultHeaders, invalidate])
 
   const onOk = () => {
     onUpdateHeaders()

@@ -560,17 +560,14 @@ const ProviderSetting: FC<Props> = ({ providerId }) => {
                   </Tooltip>
                   <HelpTooltip title={t('settings.provider.api.url.tip')}></HelpTooltip>
                 </div>
-                <Button
-                  variant="ghost"
-                  onClick={() => CustomHeaderPopup.show({ provider: provider as any })}
-                  size="icon">
+                <Button variant="ghost" onClick={() => CustomHeaderPopup.show({ providerId: provider.id })} size="icon">
                   <Settings2 size={16} />
                 </Button>
               </SettingSubtitle>
               {activeHostField === 'apiHost' && (
                 <>
                   {isCherryIN && isChineseUser ? (
-                    <CherryINSettings providerId={provider.id} apiHost={apiHost} setApiHost={setApiHost} />
+                    <CherryINSettings providerId={provider.id} />
                   ) : (
                     <Space.Compact style={{ width: '100%', marginTop: 5 }}>
                       <Input
