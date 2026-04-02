@@ -3406,6 +3406,20 @@
       "undo": "annuler"
     }
   },
+  "screenshot": {
+    "cancelled": "[to be translated]:Screenshot capture cancelled",
+    "capture": "[to be translated]:Capture Screenshot",
+    "empty_text": "[to be translated]:No text was recognized in the screenshot",
+    "failed": "[to be translated]:Screenshot capture failed",
+    "ocr_placeholder": "[to be translated]:Captured text will appear here...",
+    "ocr_text": "[to be translated]:Recognized Text",
+    "process": "[to be translated]:Process",
+    "process_failed": "[to be translated]:Failed to process screenshot",
+    "result_placeholder": "[to be translated]:Processed result will appear here...",
+    "start_hint": "[to be translated]:Select a screen area after Snipping Tool opens",
+    "title": "[to be translated]:Screenshot",
+    "unsupported": "[to be translated]:Screenshot capture is currently supported on Windows only"
+  },
   "selection": {
     "action": {
       "builtin": {
@@ -3413,7 +3427,6 @@
         "explain": "Expliquer",
         "quote": "Citer",
         "refine": "Affiner",
-        "screenshot": "[to be translated]:Screenshot Translate",
         "search": "Rechercher",
         "summary": "Résumé",
         "translate": "Traduire"
@@ -3422,13 +3435,6 @@
         "explain": "Veuillez expliquer le contenu suivant. Exigences : répondre en {{language}} ; n’incluez aucune explication de cette consigne, fournissez simplement la réponse directement :",
         "refine": "Veuillez optimiser ou peaufiner le contenu saisi par l’utilisateur inclus dans la balise XML <INPUT>, tout en conservant le sens et l’intégrité du contenu original. Exigences : votre réponse doit être dans la même langue que la saisie utilisateur ; n’incluez aucune explication de cette consigne, fournissez directement la réponse ; ne produisez pas de balises XML, affichez le contenu optimisé directement.",
         "summary": "Je ne peux pas résumer le contenu, car aucun texte à résumer n’a été fourni après {{language}}."
-      },
-      "screenshot": {
-        "cancelled": "[to be translated]:Screenshot capture cancelled",
-        "empty_text": "[to be translated]:No text was recognized in the screenshot",
-        "failed": "[to be translated]:Screenshot translation failed",
-        "start_hint": "[to be translated]:Select a screen area after Snipping Tool opens",
-        "unsupported": "[to be translated]:Screenshot translation is currently supported on Windows only"
       },
       "translate": {
         "smart_translate_tips": "Traduction intelligente : le contenu sera d'abord traduit dans la langue cible ; si le contenu est déjà dans la langue cible, il sera traduit dans la langue secondaire"

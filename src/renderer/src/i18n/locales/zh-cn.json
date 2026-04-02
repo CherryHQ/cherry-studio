@@ -3406,6 +3406,20 @@
       "undo": "撤销"
     }
   },
+  "screenshot": {
+    "cancelled": "[to be translated]:Screenshot capture cancelled",
+    "capture": "[to be translated]:Capture Screenshot",
+    "empty_text": "[to be translated]:No text was recognized in the screenshot",
+    "failed": "[to be translated]:Screenshot capture failed",
+    "ocr_placeholder": "[to be translated]:Captured text will appear here...",
+    "ocr_text": "[to be translated]:Recognized Text",
+    "process": "[to be translated]:Process",
+    "process_failed": "[to be translated]:Failed to process screenshot",
+    "result_placeholder": "[to be translated]:Processed result will appear here...",
+    "start_hint": "[to be translated]:Select a screen area after Snipping Tool opens",
+    "title": "[to be translated]:Screenshot",
+    "unsupported": "[to be translated]:Screenshot capture is currently supported on Windows only"
+  },
   "selection": {
     "action": {
       "builtin": {
@@ -3413,7 +3427,6 @@
         "explain": "解释",
         "quote": "引用",
         "refine": "优化",
-        "screenshot": "截屏翻译",
         "search": "搜索",
         "summary": "总结",
         "translate": "翻译"
@@ -3422,13 +3435,6 @@
         "explain": "请解释下面的内容。要求：使用 {{language}} 语言进行回复；请不要包含对本提示词的任何解释，直接给出回复： \n\n",
         "refine": "请对用XML标签<INPUT>包裹的用户输入内容进行优化或润色，并保持原内容的含义和完整性。要求：你的输出应当与用户输入内容的语言相同。；请不要包含对本提示词的任何解释，直接给出回复；请不要输出XML标签，直接输出优化后的内容: \n\n<INPUT>{{text}}</INPUT>",
         "summary": "请总结下面的内容。要求：使用 {{language}} 语言进行回复；请不要包含对本提示词的任何解释，直接给出回复： \n\n"
-      },
-      "screenshot": {
-        "cancelled": "已取消截屏",
-        "empty_text": "未识别到可翻译文本",
-        "failed": "截屏翻译失败",
-        "start_hint": "请在系统截图工具打开后框选要翻译的区域",
-        "unsupported": "截屏翻译当前仅支持 Windows"
       },
       "translate": {
         "smart_translate_tips": "智能翻译：内容将优先翻译为目标语言；内容已是目标语言的，将翻译为备选语言"

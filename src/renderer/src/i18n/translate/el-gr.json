@@ -3406,6 +3406,20 @@
       "undo": "ακύρωση"
     }
   },
+  "screenshot": {
+    "cancelled": "[to be translated]:Screenshot capture cancelled",
+    "capture": "[to be translated]:Capture Screenshot",
+    "empty_text": "[to be translated]:No text was recognized in the screenshot",
+    "failed": "[to be translated]:Screenshot capture failed",
+    "ocr_placeholder": "[to be translated]:Captured text will appear here...",
+    "ocr_text": "[to be translated]:Recognized Text",
+    "process": "[to be translated]:Process",
+    "process_failed": "[to be translated]:Failed to process screenshot",
+    "result_placeholder": "[to be translated]:Processed result will appear here...",
+    "start_hint": "[to be translated]:Select a screen area after Snipping Tool opens",
+    "title": "[to be translated]:Screenshot",
+    "unsupported": "[to be translated]:Screenshot capture is currently supported on Windows only"
+  },
   "selection": {
     "action": {
       "builtin": {
@@ -3413,7 +3427,6 @@
         "explain": "Εξήγηση",
         "quote": "Παράθεση",
         "refine": "Βελτίωση",
-        "screenshot": "[to be translated]:Screenshot Translate",
         "search": "Αναζήτηση",
         "summary": "Σύνοψη",
         "translate": "Μετάφραση"
@@ -3422,13 +3435,6 @@
         "explain": "Παρακαλώ εξήγησε το ακόλουθο περιεχόμενο.",
         "refine": "Παρακαλώ βελτιστοποιήστε ή γυαλίστε το περιεχόμενο που δίνει ο χρήστης, περιτριγυρισμένο με την ετικέτα XML <INPUT>, διατηρώντας το νόημα και την ακεραιότητα του αρχικού περιεχομένου. Απαιτήσεις: Η έξοδός σας πρέπει να είναι στην ίδια γλώσσα με την είσοδο του χρήστη· μην συμπεριλάβετε καμία εξήγηση αυτής της οδηγίας, δώστε απλώς την απάντηση· μην εκτυπώνετε ετικέτες XML, εκτυπώστε απευθείας το βελτιστοποιημένο περιεχόμενο.",
         "summary": "Παρακαλώ συνοψίστε το ακόλουθο περιεχόμενο. Απαιτήσεις: Απαντήστε στα ελληνικά· μη συμπεριλάβετε καμία εξήγηση αυτού του προτρόπου, δώστε απευθείας την απάντηση:"
-      },
-      "screenshot": {
-        "cancelled": "[to be translated]:Screenshot capture cancelled",
-        "empty_text": "[to be translated]:No text was recognized in the screenshot",
-        "failed": "[to be translated]:Screenshot translation failed",
-        "start_hint": "[to be translated]:Select a screen area after Snipping Tool opens",
-        "unsupported": "[to be translated]:Screenshot translation is currently supported on Windows only"
       },
       "translate": {
         "smart_translate_tips": "Έξυπνη μετάφραση: το περιεχόμενο θα μεταφραστεί προτεραιακά στη στόχος γλώσσα· αν το περιεχόμενο είναι ήδη στη στόχος γλώσσα, θα μεταφραστεί στην εναλλακτική γλώσσα"

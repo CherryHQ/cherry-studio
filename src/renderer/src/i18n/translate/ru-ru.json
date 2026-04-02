@@ -3406,6 +3406,20 @@
       "undo": "Отменить"
     }
   },
+  "screenshot": {
+    "cancelled": "[to be translated]:Screenshot capture cancelled",
+    "capture": "[to be translated]:Capture Screenshot",
+    "empty_text": "[to be translated]:No text was recognized in the screenshot",
+    "failed": "[to be translated]:Screenshot capture failed",
+    "ocr_placeholder": "[to be translated]:Captured text will appear here...",
+    "ocr_text": "[to be translated]:Recognized Text",
+    "process": "[to be translated]:Process",
+    "process_failed": "[to be translated]:Failed to process screenshot",
+    "result_placeholder": "[to be translated]:Processed result will appear here...",
+    "start_hint": "[to be translated]:Select a screen area after Snipping Tool opens",
+    "title": "[to be translated]:Screenshot",
+    "unsupported": "[to be translated]:Screenshot capture is currently supported on Windows only"
+  },
   "selection": {
     "action": {
       "builtin": {
@@ -3413,7 +3427,6 @@
         "explain": "Объяснить",
         "quote": "Цитировать",
         "refine": "Уточнить",
-        "screenshot": "[to be translated]:Screenshot Translate",
         "search": "Поиск",
         "summary": "Суммаризировать",
         "translate": "Перевести"
@@ -3422,13 +3435,6 @@
         "explain": "Пожалуйста, объясните следующее содержание. Требования: ответ на {{language}}; не включайте никаких пояснений к этому запросу, просто дайте ответ напрямую:",
         "refine": "Пожалуйста, оптимизируйте или отполируйте содержимое пользовательского ввода, заключённое в XML-тег <INPUT>, сохраняя смысл и целостность исходного текста. Требования: ваш ответ должен быть на том же языке, что и пользовательский ввод; не включайте никаких объяснений этого запроса, просто выдайте результат напрямую; не выводите XML-теги, выводите оптимизированное содержимое напрямую:",
         "summary": "Пожалуйста, кратко изложите следующий контент. Требования: ответить на {{language}}; не включать никаких пояснений к этому запросу, просто дать ответ напрямую."
-      },
-      "screenshot": {
-        "cancelled": "[to be translated]:Screenshot capture cancelled",
-        "empty_text": "[to be translated]:No text was recognized in the screenshot",
-        "failed": "[to be translated]:Screenshot translation failed",
-        "start_hint": "[to be translated]:Select a screen area after Snipping Tool opens",
-        "unsupported": "[to be translated]:Screenshot translation is currently supported on Windows only"
       },
       "translate": {
         "smart_translate_tips": "Смарт-перевод: содержимое будет переведено на целевой язык; содержимое уже на целевом языке будет переведено на альтернативный язык"
