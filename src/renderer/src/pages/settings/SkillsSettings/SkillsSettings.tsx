@@ -877,11 +877,11 @@ const ListHeader = styled.div`
   display: flex;
   align-items: center;
   gap: 8px;
-  padding: 4px 12px 8px;
+  padding: 4px 0 8px;
 `
 
 const FilterContainer = styled.div`
-  padding: 0 8px 8px;
+  padding: 0 0 8px;
 `
 
 const RightContainer = styled.div`
@@ -1170,7 +1170,6 @@ const EmptyText = styled.div`
 const FileTreeContainer = styled.div`
   flex: 1;
   overflow-y: auto;
-  padding: 0 4px;
 `
 
 const FileTreeItem = styled.div<{ $depth: number; $active: boolean }>`
