@@ -1,6 +1,6 @@
 import type {
   AgentBaseWithId,
-  CherryClawConfiguration,
+  AgentConfiguration,
   UpdateAgentBaseForm,
   UpdateAgentFunctionUnion
 } from '@renderer/types'
@@ -19,7 +19,7 @@ interface SoulModeSettingProps {
 export const SoulModeSetting = ({ base: agentBase, update }: SoulModeSettingProps) => {
   const { t } = useTranslation()
 
-  const config = useMemo(() => (agentBase?.configuration ?? {}) as CherryClawConfiguration, [agentBase?.configuration])
+  const config = useMemo(() => agentBase?.configuration ?? ({} as AgentConfiguration), [agentBase?.configuration])
   const soulEnabled = isSoulModeEnabled(agentBase?.configuration)
 
   const handleToggle = useCallback(

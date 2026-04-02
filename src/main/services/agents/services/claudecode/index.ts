@@ -36,7 +36,6 @@ import {
 } from '@shared/agents/claudecode/constants'
 import { languageEnglishNameMap } from '@shared/config/languages'
 import { withoutTrailingApiVersion } from '@shared/utils'
-import type { CherryClawConfiguration } from '@types'
 import { app } from 'electron'
 
 import type { GetAgentSessionResponse } from '../..'
@@ -372,7 +371,7 @@ class ClaudeCodeService implements AgentServiceInterface {
     }
 
     // Soul Mode: build custom system prompt and inject claw MCP when enabled
-    const soulConfig = session.configuration as CherryClawConfiguration | undefined
+    const soulConfig = session.configuration
     const soulEnabled = soulConfig?.soul_enabled === true
     let soulSystemPrompt: string | undefined
 

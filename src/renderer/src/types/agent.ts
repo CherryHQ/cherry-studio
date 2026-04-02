@@ -74,31 +74,30 @@ export const AgentConfigurationSchema = z
     // https://docs.claude.com/en/docs/claude-code/sdk/sdk-permissions#mode-specific-behaviors
     permission_mode: PermissionModeSchema.optional().default('default'), // Permission mode, default to 'default'
     max_turns: z.number().optional().default(100), // Maximum number of interaction turns, default to 100
-    env_vars: z.record(z.string(), z.string()).optional().default({}) // Custom environment variables for the agent runtime
+    env_vars: z.record(z.string(), z.string()).optional().default({}), // Custom environment variables for the agent runtime
+
+    // Soul
+    soul_enabled: z.boolean().optional(),
+    bootstrap_completed: z.boolean().optional(),
+
+    // Scheduler
+    scheduler_enabled: z.boolean().optional(),
+    scheduler_type: SchedulerTypeSchema.optional(),
+    scheduler_cron: z.string().optional(),
+    scheduler_interval: z.number().optional(),
+    scheduler_one_time_delay: z.number().optional(),
+    scheduler_last_run: z.string().optional(),
+
+    // Heartbeat
+    heartbeat_enabled: z.boolean().optional(),
+    heartbeat_interval: z.number().optional() // minutes, default 30
   })
   .loose()
 
 export type AgentConfiguration = z.infer<typeof AgentConfigurationSchema>
 
-// CherryClaw extends AgentConfiguration with scheduler/soul/heartbeat fields.
-// Since AgentConfigurationSchema uses .loose(), these are stored in the same JSON field.
-export type CherryClawConfiguration = AgentConfiguration & {
-  // Soul
-  soul_enabled?: boolean
-  bootstrap_completed?: boolean
-
-  // Scheduler
-  scheduler_enabled?: boolean
-  scheduler_type?: SchedulerType
-  scheduler_cron?: string
-  scheduler_interval?: number
-  scheduler_one_time_delay?: number
-  scheduler_last_run?: string
-
-  // Heartbeat
-  heartbeat_enabled?: boolean
-  heartbeat_interval?: number // minutes, default 30
-}
+/** @deprecated Use AgentConfiguration directly — all fields are now in AgentConfigurationSchema */
+export type CherryClawConfiguration = AgentConfiguration
 
 // ------------------ Scheduled Task types ------------------
 export const TaskScheduleTypeSchema = z.enum(['cron', 'interval', 'once'])

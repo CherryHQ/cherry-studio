@@ -1,4 +1,4 @@
-import type { AgentBase, CherryClawConfiguration } from '@renderer/types'
+import type { AgentBase, AgentConfiguration } from '@renderer/types'
 import type { PermissionModeCard } from '@renderer/types/agent'
 
 // base agent config. no default config for now.
@@ -11,7 +11,7 @@ export const DEFAULT_CLAUDE_CODE_CONFIG: Omit<AgentBase, 'model'> = {
   ...DEFAULT_AGENT_CONFIG
 } as const
 
-export const DEFAULT_CHERRY_CLAW_CONFIG: Omit<AgentBase, 'model'> & { configuration: CherryClawConfiguration } = {
+export const DEFAULT_CHERRY_CLAW_CONFIG: Omit<AgentBase, 'model'> & { configuration: AgentConfiguration } = {
   ...DEFAULT_AGENT_CONFIG,
   configuration: {
     permission_mode: 'bypassPermissions',

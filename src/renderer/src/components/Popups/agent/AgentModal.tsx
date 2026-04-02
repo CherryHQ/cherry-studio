@@ -14,7 +14,6 @@ import type {
   AgentEntity,
   ApiModel,
   BaseAgentForm,
-  CherryClawConfiguration,
   PermissionMode,
   Tool,
   UpdateAgentForm
@@ -128,7 +127,7 @@ const PopupContainer: React.FC<Props> = ({ agent, afterSubmit, resolve }) => {
     }
   }, [checkGitBash])
 
-  const soulEnabled = (form.configuration as CherryClawConfiguration | undefined)?.soul_enabled === true
+  const soulEnabled = form.configuration?.soul_enabled === true
 
   const onSoulModeChange = useCallback((checked: boolean) => {
     setForm((prev) => {
@@ -157,12 +156,19 @@ const PopupContainer: React.FC<Props> = ({ agent, afterSubmit, resolve }) => {
         return prev
       }
 
+      const nextConfig = {
+        ...parsedConfiguration,
+        permission_mode: value
+      }
+
+      // Disable soul mode when switching away from bypassPermissions
+      if (value !== 'bypassPermissions' && parsedConfiguration.soul_enabled === true) {
+        nextConfig.soul_enabled = false
+      }
+
       return {
         ...prev,
-        configuration: {
-          ...parsedConfiguration,
-          permission_mode: value
-        }
+        configuration: nextConfig
       }
     })
   }, [])

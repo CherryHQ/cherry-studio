@@ -6,7 +6,6 @@ import type {
   AgentConfiguration,
   AgentEntity,
   AgentSessionEntity,
-  CherryClawConfiguration,
   GetAgentResponse,
   GetAgentSessionResponse,
   PermissionMode,
@@ -94,7 +93,7 @@ export type AgentLabelProps = {
 export const SOUL_MODE_EMOJI = '🦞'
 
 export const isSoulModeEnabled = (configuration: AgentConfiguration | undefined | null): boolean =>
-  (configuration as CherryClawConfiguration | undefined)?.soul_enabled === true
+  configuration?.soul_enabled === true
 
 export const CherryClawIcon = ({ size = 24, className }: { size?: number; className?: string }) => (
   <img

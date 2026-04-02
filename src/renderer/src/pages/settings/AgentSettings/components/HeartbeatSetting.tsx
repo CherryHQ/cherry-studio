@@ -1,6 +1,6 @@
 import type {
   AgentBaseWithId,
-  CherryClawConfiguration,
+  AgentConfiguration,
   UpdateAgentBaseForm,
   UpdateAgentFunctionUnion
 } from '@renderer/types'
@@ -19,12 +19,12 @@ interface HeartbeatSettingProps {
 export const HeartbeatSetting = ({ base: agentBase, update }: HeartbeatSettingProps) => {
   const { t } = useTranslation()
 
-  const config = useMemo(() => (agentBase?.configuration ?? {}) as CherryClawConfiguration, [agentBase?.configuration])
+  const config = useMemo(() => (agentBase?.configuration ?? {}) as AgentConfiguration, [agentBase?.configuration])
   const enabled = config.heartbeat_enabled ?? true
   const interval = config.heartbeat_interval ?? 30
 
   const updateConfig = useCallback(
-    (patch: Partial<CherryClawConfiguration>) => {
+    (patch: Partial<AgentConfiguration>) => {
       if (!agentBase) return
       void update({
         id: agentBase.id,

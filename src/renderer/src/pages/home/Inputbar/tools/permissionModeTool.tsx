@@ -55,10 +55,17 @@ const permissionModeTool = defineTool({
         const userAddedIds = currentAllowed.filter((id) => !currentAutoToolIds.includes(id))
         const mergedAllowed = uniq([...nextAutoToolIds, ...userAddedIds])
 
+        const updatedConfiguration = { ...configuration, permission_mode: nextMode }
+
+        // Disable soul mode when switching away from bypassPermissions
+        if (nextMode !== 'bypassPermissions' && configuration.soul_enabled === true) {
+          updatedConfiguration.soul_enabled = false
+        }
+
         void updateSession(
           {
             id: session.id,
-            configuration: { ...configuration, permission_mode: nextMode },
+            configuration: updatedConfiguration,
             allowed_tools: mergedAllowed
           },
           { showSuccessToast: false }

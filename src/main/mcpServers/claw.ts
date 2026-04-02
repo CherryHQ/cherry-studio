@@ -793,7 +793,7 @@ class ClawServer {
     const agent = await agentService.getAgent(this.agentId)
     if (!agent) throw new McpError(ErrorCode.InternalError, `Agent not found: ${this.agentId}`)
 
-    const config = agent.configuration as CherryClawConfiguration | undefined
+    const config = agent.configuration
     const channels = await channelService.listChannels({ agentId: this.agentId })
 
     const adapterStatuses = channelManager.getAdapterStatuses(this.agentId)
@@ -1059,7 +1059,7 @@ class ClawServer {
     const agent = await agentService.getAgent(this.agentId)
     if (!agent) throw new McpError(ErrorCode.InternalError, `Agent not found: ${this.agentId}`)
 
-    const existingConfig = agent.configuration as CherryClawConfiguration | undefined
+    const existingConfig = agent.configuration
     await agentService.updateAgent(this.agentId, {
       configuration: { ...existingConfig, bootstrap_completed: true } as CherryClawConfiguration
     })
@@ -1076,7 +1076,7 @@ class ClawServer {
     const agent = await agentService.getAgent(this.agentId)
     if (!agent) throw new McpError(ErrorCode.InternalError, `Agent not found: ${this.agentId}`)
 
-    const existingConfig = agent.configuration as CherryClawConfiguration | undefined
+    const existingConfig = agent.configuration
     await agentService.updateAgent(this.agentId, {
       configuration: { ...existingConfig, bootstrap_completed: false } as CherryClawConfiguration
     })
