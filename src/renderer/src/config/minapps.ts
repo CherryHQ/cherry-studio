@@ -5,6 +5,7 @@
 // a `resolveMinAppIcon` helper) rather than hard-coding CompoundIcon references here.
 
 import type { CompoundIcon } from '@cherrystudio/ui'
+import { ModelIcons } from '@cherrystudio/ui/icons'
 import {
   Abacus,
   AiStudio,
@@ -724,6 +725,10 @@ export function getMiniAppsLogo(LogoId: string | undefined): CompoundIcon | unde
       return Ima
     case 'dangbei':
       return Dangbei
+    case 'hailuo':
+      return ModelIcons.Hailuo
+    case 'ling':
+      return ModelIcons.Ling
     default:
       return undefined
   }
