@@ -839,7 +839,9 @@ describe('ProviderService', () => {
       const svc = ProviderService.getInstance()
       const result = await svc.getEnabledApiKeys('mixed-keys')
 
-      expect(result).toEqual(['sk-enabled-1', 'sk-enabled-2'])
+      expect(result).toHaveLength(2)
+      expect(result[0].key).toBe('sk-enabled-1')
+      expect(result[1].key).toBe('sk-enabled-2')
     })
 
     it('returns empty array when all keys are disabled', async () => {
@@ -1168,6 +1170,116 @@ describe('ProviderService', () => {
     it('passes through defaultChatEndpoint when non-null', async () => {
       const provider = await getProvider(makeDbRow({ defaultChatEndpoint: '/v1/chat/completions' as any }))
       expect(provider.defaultChatEndpoint).toBe('/v1/chat/completions')
+    })
+  })
+
+  // ─── getAuthConfig ──────────────────────────────────────────────────────────
+
+  describe('getAuthConfig', () => {
+    it('returns full authConfig including sensitive credentials', async () => {
+      const authConfig = {
+        type: 'iam-gcp' as const,
+        project: 'my-project',
+        location: 'us-central1',
+        credentials: { privateKey: 'secret-key', clientEmail: 'test@gcp.com' }
+      }
+      const mockDb = buildMockDb([makeDbRow({ authConfig })])
+      vi.spyOn(dbService, 'getDb').mockReturnValue(mockDb)
+
+      const svc = ProviderService.getInstance()
+      const result = await svc.getAuthConfig('vertexai')
+
+      expect(result).toEqual(authConfig)
+      expect(result?.type).toBe('iam-gcp')
+    })
+
+    it('returns null when provider has no authConfig', async () => {
+      const mockDb = buildMockDb([makeDbRow({ authConfig: null })])
+      vi.spyOn(dbService, 'getDb').mockReturnValue(mockDb)
+
+      const svc = ProviderService.getInstance()
+      const result = await svc.getAuthConfig('openai')
+
+      expect(result).toBeNull()
+    })
+
+    it('throws when provider not found', async () => {
+      const mockDb = buildMockDb([])
+      vi.spyOn(dbService, 'getDb').mockReturnValue(mockDb)
+
+      const svc = ProviderService.getInstance()
+
+      await expect(svc.getAuthConfig('nonexistent')).rejects.toThrow()
+      expect(DataApiErrorFactory.notFound).toHaveBeenCalledWith('Provider', 'nonexistent')
+    })
+  })
+
+  // ─── removeApiKey ───────────────────────────────────────────────────────────
+
+  describe('removeApiKey', () => {
+    it('removes the specified key and returns updated provider', async () => {
+      const existingKeys = [
+        { id: 'key-1', key: 'sk-aaa', isEnabled: true, createdAt: 1000 },
+        { id: 'key-2', key: 'sk-bbb', isEnabled: true, createdAt: 2000 }
+      ]
+      const updatedRow = makeDbRow({
+        apiKeys: [existingKeys[1]] // key-1 removed
+      })
+
+      const mockDb = buildMockDb([makeDbRow({ apiKeys: existingKeys })], { returningWith: [updatedRow] })
+      vi.spyOn(dbService, 'getDb').mockReturnValue(mockDb)
+
+      const svc = ProviderService.getInstance()
+      const result = await svc.removeApiKey('test-provider', 'key-1')
+
+      expect(result.apiKeys).toHaveLength(1)
+      expect(result.apiKeys[0].id).toBe('key-2')
+    })
+
+    it('is idempotent when keyId does not exist', async () => {
+      const existingKeys = [{ id: 'key-1', key: 'sk-aaa', isEnabled: true, createdAt: 1000 }]
+      const updatedRow = makeDbRow({ apiKeys: existingKeys })
+
+      const mockDb = buildMockDb([makeDbRow({ apiKeys: existingKeys })], { returningWith: [updatedRow] })
+      vi.spyOn(dbService, 'getDb').mockReturnValue(mockDb)
+
+      const svc = ProviderService.getInstance()
+      const result = await svc.removeApiKey('test-provider', 'nonexistent-key')
+
+      expect(result.apiKeys).toHaveLength(1)
+    })
+
+    it('throws when provider not found', async () => {
+      const mockDb = buildMockDb([])
+      vi.spyOn(dbService, 'getDb').mockReturnValue(mockDb)
+
+      const svc = ProviderService.getInstance()
+
+      await expect(svc.removeApiKey('nonexistent', 'key-1')).rejects.toThrow()
+      expect(DataApiErrorFactory.notFound).toHaveBeenCalledWith('Provider', 'nonexistent')
+    })
+  })
+
+  // ─── getEnabledApiKeys (updated to return ApiKeyEntry[]) ────────────────────
+
+  describe('getEnabledApiKeys (ApiKeyEntry format)', () => {
+    it('returns full ApiKeyEntry objects for enabled keys', async () => {
+      const keys = [
+        { id: 'k1', key: 'sk-aaa', isEnabled: true, createdAt: 1000 },
+        { id: 'k2', key: 'sk-bbb', isEnabled: false, createdAt: 2000 },
+        { id: 'k3', key: 'sk-ccc', isEnabled: true, createdAt: 3000 }
+      ]
+      const mockDb = buildMockDb([makeDbRow({ apiKeys: keys })])
+      vi.spyOn(dbService, 'getDb').mockReturnValue(mockDb)
+
+      const svc = ProviderService.getInstance()
+      const result = await svc.getEnabledApiKeys('test-provider')
+
+      expect(result).toHaveLength(2)
+      expect(result[0]).toEqual(keys[0])
+      expect(result[1]).toEqual(keys[2])
+      // Verify key values are included (not stripped)
+      expect(result[0].key).toBe('sk-aaa')
     })
   })
 })

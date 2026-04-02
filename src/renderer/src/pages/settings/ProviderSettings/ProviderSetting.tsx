@@ -37,8 +37,8 @@ import {
   isSystemProvider,
   isVertexProvider
 } from '@renderer/utils/provider.v2'
-import type { Provider } from '@shared/data/types/provider'
 import { EndpointType } from '@shared/data/types/model'
+import type { Provider } from '@shared/data/types/provider'
 import { Divider, Input, Select, Space } from 'antd'
 import Link from 'antd/es/typography/Link'
 import { debounce, isEmpty } from 'lodash'

@@ -1,5 +1,5 @@
-import type { Provider } from '@shared/data/types/provider'
 import { EndpointType } from '@shared/data/types/model'
+import type { Provider } from '@shared/data/types/provider'
 import { describe, expect, it } from 'vitest'
 
 import {
@@ -9,7 +9,6 @@ import {
   isAwsBedrockProvider,
   isAzureOpenAIProvider,
   isCherryAIProvider,
-  matchKeywordsInProvider,
   isGeminiProvider,
   isNewApiProvider,
   isOllamaProvider,
@@ -24,7 +23,10 @@ import {
   isSupportStreamOptionsProvider,
   isSupportVerbosityProvider,
   isSystemProvider,
-  isVertexProvider
+  isVertexProvider,
+  matchKeywordsInProvider,
+  hasApiKeys,
+  replaceBaseUrlDomain
 } from '../provider.v2'
 
 /** Helper to create a minimal v2 Provider for testing */
@@ -227,6 +229,60 @@ describe('provider.v2 - Display helpers', () => {
   it('matchKeywordsInProvider: returns true for empty keywords', () => {
     const p = makeProvider()
     expect(matchKeywordsInProvider([], p)).toBe(true)
+  })
+})
+
+describe('provider.v2 - API Key helpers', () => {
+  it('hasApiKeys: returns false for empty apiKeys array', () => {
+    expect(hasApiKeys(makeProvider({ apiKeys: [] }))).toBe(false)
+  })
+
+  it('hasApiKeys: returns false when all keys are disabled', () => {
+    expect(
+      hasApiKeys(
+        makeProvider({
+          apiKeys: [
+            { id: '1', isEnabled: false },
+            { id: '2', isEnabled: false }
+          ]
+        })
+      )
+    ).toBe(false)
+  })
+
+  it('hasApiKeys: returns true when at least one key is enabled', () => {
+    expect(
+      hasApiKeys(
+        makeProvider({
+          apiKeys: [
+            { id: '1', isEnabled: false },
+            { id: '2', isEnabled: true }
+          ]
+        })
+      )
+    ).toBe(true)
+  })
+})
+
+describe('provider.v2 - Base URL helpers', () => {
+  it('replaceBaseUrlDomain: replaces domain in all URLs while preserving paths', () => {
+    const result = replaceBaseUrlDomain({ 1: 'https://old.com/v1', 3: 'https://old.com/anthropic' }, 'new.com')
+    expect(result[1]).toBe('https://new.com/v1')
+    expect(result[3]).toBe('https://new.com/anthropic')
+  })
+
+  it('replaceBaseUrlDomain: returns empty object for undefined input', () => {
+    expect(replaceBaseUrlDomain(undefined, 'new.com')).toEqual({})
+  })
+
+  it('replaceBaseUrlDomain: preserves invalid URLs unchanged', () => {
+    const result = replaceBaseUrlDomain({ 1: 'not-a-url' }, 'new.com')
+    expect(result[1]).toBe('not-a-url')
+  })
+
+  it('replaceBaseUrlDomain: handles URLs with ports and paths', () => {
+    const result = replaceBaseUrlDomain({ 6: 'http://localhost:11434/api' }, '192.168.1.100')
+    expect(result[6]).toBe('http://192.168.1.100:11434/api')
   })
 })
 

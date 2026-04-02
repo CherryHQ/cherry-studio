@@ -13,6 +13,8 @@ import { userProviderInsertSchema } from '@data/db/schemas/userProvider'
 import { catalogService } from '@data/services/ProviderCatalogService'
 import { providerService } from '@data/services/ProviderService'
 import type { ApiHandler, ApiMethods } from '@shared/data/api/apiTypes'
+import { ApiKeyEntrySchema } from '@shared/data/types/provider'
+import { z } from 'zod'
 import type { CreateProviderDto, ListProvidersQuery, UpdateProviderDto } from '@shared/data/api/schemas/providers'
 import type { ProviderSchemas } from '@shared/data/api/schemas/providers'
 
@@ -50,7 +52,16 @@ export const providerHandlers: {
     },
 
     PATCH: async ({ params, body }) => {
-      const parsed = userProviderInsertSchema.partial().safeParse(body)
+      // Use a relaxed schema for PATCH: apiKeys entries may omit 'key'
+      // (existing entries from Runtime don't have key values — smart merge fills them in service layer)
+      const patchApiKeySchema = ApiKeyEntrySchema.extend({
+        key: z.string().optional()
+      })
+      const patchBodySchema = userProviderInsertSchema.partial().extend({
+        apiKeys: z.array(patchApiKeySchema).nullable().optional()
+      })
+
+      const parsed = patchBodySchema.safeParse(body)
       if (!parsed.success) {
         throw new Error(`Invalid provider update data: ${parsed.error.message}`)
       }
@@ -88,6 +99,18 @@ export const providerHandlers: {
   '/providers/:providerId/catalog-models': {
     GET: async ({ params }) => {
       return catalogService.getCatalogModelsForProvider(params.providerId)
+    }
+  },
+
+  '/providers/:providerId/auth-config': {
+    GET: async ({ params }) => {
+      return await providerService.getAuthConfig(params.providerId)
+    }
+  },
+
+  '/providers/:providerId/api-keys/:keyId': {
+    DELETE: async ({ params }) => {
+      return await providerService.removeApiKey(params.providerId, params.keyId)
     }
   }
 }

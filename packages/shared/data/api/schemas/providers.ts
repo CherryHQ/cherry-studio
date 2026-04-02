@@ -118,7 +118,7 @@ export interface ProviderSchemas {
   '/providers/:providerId/api-keys': {
     GET: {
       params: { providerId: string }
-      response: { keys: string[] }
+      response: { keys: ApiKeyEntry[] }
     }
     /** Add an API key to a provider */
     POST: {
@@ -136,6 +136,31 @@ export interface ProviderSchemas {
     GET: {
       params: { providerId: string }
       response: Model[]
+    }
+  }
+
+  /**
+   * Get full auth config for a provider (includes sensitive credentials).
+   * SECURITY NOTE: Runtime Provider intentionally strips authConfig (only exposes authType).
+   * This endpoint is for settings pages only — never call in chat hot path.
+   * Acceptable in Electron (same-process IPC, no network exposure).
+   * @example GET /providers/vertexai/auth-config
+   */
+  '/providers/:providerId/auth-config': {
+    GET: {
+      params: { providerId: string }
+      response: AuthConfig | null
+    }
+  }
+
+  /**
+   * Delete a specific API key by ID
+   * @example DELETE /providers/openai/api-keys/abc-123
+   */
+  '/providers/:providerId/api-keys/:keyId': {
+    DELETE: {
+      params: { providerId: string; keyId: string }
+      response: Provider
     }
   }
 }

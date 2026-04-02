@@ -13,7 +13,14 @@ import { userProviderTable } from '@data/db/schemas/userProvider'
 import { loggerService } from '@logger'
 import { DataApiErrorFactory } from '@shared/data/api'
 import type { CreateProviderDto, ListProvidersQuery, UpdateProviderDto } from '@shared/data/api/schemas/providers'
-import type { AuthType, Provider, ProviderSettings, RuntimeApiFeatures } from '@shared/data/types/provider'
+import type {
+  ApiKeyEntry,
+  AuthConfig,
+  AuthType,
+  Provider,
+  ProviderSettings,
+  RuntimeApiFeatures
+} from '@shared/data/types/provider'
 import { DEFAULT_API_FEATURES, DEFAULT_PROVIDER_SETTINGS } from '@shared/data/types/provider'
 import { eq } from 'drizzle-orm'
 
@@ -152,7 +159,23 @@ export class ProviderService {
     if (dto.baseUrls !== undefined) updates.baseUrls = dto.baseUrls
     if (dto.modelsApiUrls !== undefined) updates.modelsApiUrls = dto.modelsApiUrls
     if (dto.defaultChatEndpoint !== undefined) updates.defaultChatEndpoint = dto.defaultChatEndpoint
-    if (dto.apiKeys !== undefined) updates.apiKeys = dto.apiKeys
+    // Smart merge for apiKeys: entries with id but no key → preserve existing key value
+    if (dto.apiKeys !== undefined) {
+      const [existingRow] = await db
+        .select()
+        .from(userProviderTable)
+        .where(eq(userProviderTable.providerId, providerId))
+        .limit(1)
+
+      const existingKeys = existingRow?.apiKeys ?? []
+      updates.apiKeys = dto.apiKeys.map((entry) => {
+        if (entry.id && !entry.key) {
+          const existing = existingKeys.find((k) => k.id === entry.id)
+          return existing ? { ...entry, key: existing.key } : entry
+        }
+        return entry
+      })
+    }
     if (dto.authConfig !== undefined) updates.authConfig = dto.authConfig
     if (dto.apiFeatures !== undefined) updates.apiFeatures = dto.apiFeatures
     if (dto.providerSettings !== undefined) updates.providerSettings = dto.providerSettings
@@ -245,10 +268,10 @@ export class ProviderService {
   }
 
   /**
-   * Get all enabled API key values for a provider.
-   * Used by health check to test each key individually.
+   * Get the full auth config for a provider (includes sensitive credentials).
+   * Only for settings pages — Runtime Provider intentionally strips this.
    */
-  async getEnabledApiKeys(providerId: string): Promise<string[]> {
+  async getAuthConfig(providerId: string): Promise<AuthConfig | null> {
     const db = dbService.getDb()
 
     const [row] = await db.select().from(userProviderTable).where(eq(userProviderTable.providerId, providerId)).limit(1)
@@ -257,7 +280,48 @@ export class ProviderService {
       throw DataApiErrorFactory.notFound('Provider', providerId)
     }
 
-    return (row.apiKeys ?? []).filter((k) => k.isEnabled).map((k) => k.key)
+    return row.authConfig ?? null
+  }
+
+  /**
+   * Get all enabled API keys for a provider (full ApiKeyEntry objects).
+   * Used by health check and API key management UI.
+   */
+  async getEnabledApiKeys(providerId: string): Promise<ApiKeyEntry[]> {
+    const db = dbService.getDb()
+
+    const [row] = await db.select().from(userProviderTable).where(eq(userProviderTable.providerId, providerId)).limit(1)
+
+    if (!row) {
+      throw DataApiErrorFactory.notFound('Provider', providerId)
+    }
+
+    return (row.apiKeys ?? []).filter((k) => k.isEnabled)
+  }
+
+  /**
+   * Remove a single API key by its UUID.
+   */
+  async removeApiKey(providerId: string, keyId: string): Promise<Provider> {
+    const db = dbService.getDb()
+
+    const [row] = await db.select().from(userProviderTable).where(eq(userProviderTable.providerId, providerId)).limit(1)
+
+    if (!row) {
+      throw DataApiErrorFactory.notFound('Provider', providerId)
+    }
+
+    const updatedKeys = (row.apiKeys ?? []).filter((k) => k.id !== keyId)
+
+    const [updated] = await db
+      .update(userProviderTable)
+      .set({ apiKeys: updatedKeys })
+      .where(eq(userProviderTable.providerId, providerId))
+      .returning()
+
+    logger.info('Removed API key from provider', { providerId, keyId })
+
+    return rowToRuntimeProvider(updated)
   }
 
   /**

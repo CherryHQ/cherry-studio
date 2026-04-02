@@ -177,7 +177,12 @@ export const ProviderSettingsSchema = z.object({
   extraHeaders: z.record(z.string(), z.string()).optional(),
 
   // User notes
-  notes: z.string().optional()
+  notes: z.string().optional(),
+
+  // GitHub Copilot auth state (stored here because v2 Provider has no isAuthed column)
+  isAuthed: z.boolean().optional(),
+  oauthUsername: z.string().optional(),
+  oauthAvatar: z.string().optional()
 })
 
 export type ProviderSettings = z.infer<typeof ProviderSettingsSchema>

@@ -1,6 +1,6 @@
 import { getProviderLabel } from '@renderer/i18n/label'
-import type { Provider } from '@shared/data/types/provider'
 import { EndpointType } from '@shared/data/types/model'
+import type { Provider } from '@shared/data/types/provider'
 
 // ─── Protocol-level: check defaultChatEndpoint ───────────────────────────────
 
@@ -114,4 +114,39 @@ export function matchKeywordsInProvider(keywords: string[], provider: Provider):
   if (keywords.length === 0) return true
   const searchStr = getProviderSearchString(provider).toLowerCase()
   return keywords.every((kw) => searchStr.includes(kw))
+}
+
+// ─── API Key helpers ────────────────────────────────────────────────────────
+
+/**
+ * Check if provider has at least one enabled API key.
+ * Replaces v1 `!isEmpty(provider.apiKey)`.
+ */
+export function hasApiKeys(provider: Provider): boolean {
+  return provider.apiKeys.length > 0 && provider.apiKeys.some((k) => k.isEnabled)
+}
+
+// ─── Base URL helpers ───────────────────────────────────────────────────────
+
+/**
+ * Replace the domain (host) in all baseUrls while preserving URL paths.
+ * Used by CherryIN/DMXAPI domain switching.
+ */
+export function replaceBaseUrlDomain(
+  baseUrls: Partial<Record<number, string>> | undefined,
+  newDomain: string
+): Partial<Record<number, string>> {
+  if (!baseUrls) return {}
+  const result: Partial<Record<number, string>> = {}
+  for (const [key, url] of Object.entries(baseUrls)) {
+    if (!url) continue
+    try {
+      const parsed = new URL(url)
+      parsed.hostname = newDomain
+      result[Number(key)] = parsed.toString().replace(/\/$/, '')
+    } catch {
+      result[Number(key)] = url
+    }
+  }
+  return result
 }
