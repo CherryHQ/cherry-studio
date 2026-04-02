@@ -212,6 +212,13 @@
 2. `open-mineru` 当前通过 Main 进程内存态异步封装接入 `markdown_conversion`，返回的是当前会话内可轮询的任务句柄，而不是可跨进程恢复的远程任务 ID。
 3. 对不支持某项能力的方法，当前实现允许直接抛明确错误。
 
+这里还需要把 `mistral` 的迁移语义明确写死：
+
+1. legacy `preprocess` 里的 `mistral` 配置，当前不再按 `markdown_conversion` 语义迁移。
+2. 当前接受的迁移策略是：legacy `preprocess` 里的 `mistral` 配置只迁移到新的 `text_extraction` 配置位。
+3. 换句话说，当前不应把 legacy `preprocess` 中的 `mistral` 理解成“仍然接入文档 markdown 解析链路”。
+4. 这是一条明确接受的过渡约束；评审时不应把“legacy preprocess 的 `mistral` 没有迁移到 `markdown_conversion`”单独判定为缺陷。
+
 ### 6.4 当前抽象边界
 
 当前阶段的边界是：

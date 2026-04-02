@@ -1,13 +1,4 @@
-export { FileProcessingFacade, fileProcessingFacade } from './FileProcessingFacade'
-export { FileProcessingRuntimeService } from './FileProcessingRuntimeService'
-export type { IMarkdownConversionProcessor, ITextExtractionProcessor } from './interfaces'
-export { OpenMineruRuntimeService } from './OpenMineruRuntimeService'
-export {
-  BaseFileProcessor,
-  BaseMarkdownConversionProcessor,
-  BaseTextExtractionProcessor
-} from './providers/base/BaseFileProcessor'
-export { TesseractRuntimeService } from './TesseractRuntimeService'
+export type { IMarkdownConversionProcessor, ITextExtractionProcessor } from './contracts/processorContracts'
 export type {
   BaseProcessFileInput,
   ExtractTextInput,
@@ -16,4 +7,13 @@ export type {
   FileProcessingTextExtractionResult,
   GetMarkdownConversionTaskResultInput,
   StartMarkdownConversionTaskInput
-} from './types'
+} from './contracts/types'
+export { FileProcessingFacade, fileProcessingFacade } from './facade/FileProcessingFacade'
+export {
+  BaseFileProcessor,
+  BaseMarkdownConversionProcessor,
+  BaseTextExtractionProcessor
+} from './processors/base/BaseFileProcessor'
+export { FileProcessingRuntimeService } from './runtime/services/FileProcessingRuntimeService'
+export { OpenMineruRuntimeService } from './runtime/services/OpenMineruRuntimeService'
+export { TesseractRuntimeService } from './runtime/services/TesseractRuntimeService'

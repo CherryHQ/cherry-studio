@@ -7,9 +7,11 @@ import { ApiServerService } from '@main/services/ApiServerService'
 import { AppMenuService } from '@main/services/AppMenuService'
 import { AppUpdaterService } from '@main/services/AppUpdaterService'
 import { CodeCliService } from '@main/services/CodeCliService'
-import { FileProcessingRuntimeService } from '@main/services/fileProcessing'
-import { OpenMineruRuntimeService } from '@main/services/fileProcessing/OpenMineruRuntimeService'
-import { TesseractRuntimeService } from '@main/services/fileProcessing/TesseractRuntimeService'
+import {
+  FileProcessingRuntimeService,
+  OpenMineruRuntimeService,
+  TesseractRuntimeService
+} from '@main/services/fileProcessing'
 import { LanTransferService } from '@main/services/lanTransfer'
 import { MCPService } from '@main/services/MCPService'
 import { NodeTraceService } from '@main/services/NodeTraceService'
