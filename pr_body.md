@@ -1,0 +1,83 @@
+<!-- Template from https://github.com/kubevirt/kubevirt/blob/main/.github/PULL_REQUEST_TEMPLATE.md?-->
+<!--  Thanks for sending a pull request!  Here are some tips for you:
+1. Consider creating this PR as draft: https://github.com/CherryHQ/cherry-studio/blob/main/CONTRIBUTING.md
+-->
+
+<!--
+
+⚠️ Important: Redux/IndexedDB Data-Changing Feature PRs Temporarily On Hold ⚠️
+
+Please note: For our current development cycle, we are not accepting feature Pull Requests that introduce changes to Redux data models or IndexedDB schemas.
+
+While we value your contributions, PRs of this nature will be blocked without merge. We welcome all other contributions (bug fixes, perf enhancements, docs, etc.). Thank you!
+
+Once version 2.0.0 is released, we will resume reviewing feature PRs.
+
+-->
+
+### What this PR does
+
+Fixes a bug where the Agent task list continues to show the last task as "running" after the session has completed. This occurs because Agent/Claude Code can end the session without emitting a `tool-result` for the final tool.
+
+### Before this PR:
+
+When an Agent session ends (e.g., after completing all tasks or when Claude Code exits), the last tool call remains in a pending/streaming state in the UI indefinitely.
+
+### After this PR:
+
+Added `finalizePendingToolsForStreamEnd()` method that is called when stream ends (success/cancelled/error). This clears any pending tool calls and updates their status appropriately, so the UI properly reflects that the session has ended.
+
+<!-- (optional, in `fixes #<issue number>(, fixes #<issue_number>, ...)` format, will close the issue(s) when PR gets merged)*: -->
+
+Fixes #13944
+
+### Why we need it and why it was done in this way
+
+User-facing bug: Tasks appear stuck in running state after session completion, causing confusion about whether the Agent is still working.
+
+The following tradeoffs were made:
+- Used instance-level tracking (`sessionToolCallIds`) to avoid clearing tool calls from other concurrent streams
+
+The following alternatives were considered:
+- None identified
+
+Links to places where the discussion took place: <!-- optional: slack, other GH issue, mailinglist, ... -->
+
+### Breaking changes
+
+<!-- optional -->
+
+If this PR introduces breaking changes, please describe the changes and the impact on users.
+
+None - this is a bug fix that improves UI state management.
+
+### Special notes for your reviewer
+
+<!-- optional -->
+
+This fix adds calls to `finalizePendingToolsForStreamEnd()` in multiple stream termination points (finish, abort, error, and early transport close) to ensure pending tools are properly cleared in all scenarios.
+
+### Checklist
+
+This checklist is not enforcing, but it's a reminder of items that could be relevant to every PR.
+Approvers are expected to review this list.
+
+- [ ] PR: The PR description is expressive enough and will help future contributors
+- [ ] Code: [Write code that humans can understand](https://en.wikiquote.org/wiki/Martin_Fowler#code-for-humans) and [Keep it simple](https://en.wikipedia.org/wiki/KISS_principle)
+- [ ] Refactor: You have [left the code cleaner than you found it (Boy Scout Rule)](https://learning.oreilly.com/library/view/97-things-every/9780596809515/ch08.html)
+- [ ] Upgrade: Impact of this change on upgrade flows was considered and addressed if required
+- [ ] Documentation: A [user-guide update](https://docs.cherry-ai.com) was considered and is present (link) or not required. Check this only when the PR introduces or changes a user-facing feature or behavior.
+- [x] Self-review: I have reviewed my own code (e.g., via [`/gh-pr-review`](/.claude/skills/gh-pr-review/SKILL.md), `gh pr diff`, or GitHub UI) before requesting review from others
+
+### Release note
+
+<!--  Write your release note:
+1. Enter your extended release note in the below block. If the PR requires additional action from users switching to the new release, include the string "action required".
+2. If no release note is required, just write "NONE".
+3. Only include user-facing changes (new features, bug fixes visible to users, UI changes, behavior changes). For CI, maintenance, internal refactoring, build tooling, or other non-user-facing work, write "NONE".
+-->
+
+```release-note
+fix(agents): Agent task list no longer shows last task as running after session completion
+```
+

@@ -7,7 +7,7 @@
 import { loggerService } from '@logger'
 import { CallToolResultSchema } from '@modelcontextprotocol/sdk/types.js'
 import { processKnowledgeReferences } from '@renderer/services/KnowledgeService'
-import type { BaseTool, MCPTool, MCPToolResponse, NormalToolResponse } from '@renderer/types'
+import type { BaseTool, MCPTool, MCPToolResponse, MCPToolResponseStatus, NormalToolResponse } from '@renderer/types'
 import type { Chunk } from '@renderer/types/chunk'
 import { ChunkType } from '@renderer/types/chunk'
 import type { ProviderMetadata, ToolSet, TypedToolCall, TypedToolError, TypedToolResult } from 'ai'
@@ -30,6 +30,9 @@ export class ToolCallChunkHandler {
   private static globalActiveToolCalls = new Map<string, ToolcallsMap>()
 
   private activeToolCalls = ToolCallChunkHandler.globalActiveToolCalls
+  /** Tool IDs touched by this adapter instance (avoids finalizing other concurrent streams). */
+  private readonly sessionToolCallIds = new Set<string>()
+
   constructor(
     private onChunk: (chunk: Chunk) => void,
     private mcpTools: MCPTool[]
@@ -50,7 +53,43 @@ export class ToolCallChunkHandler {
    * 实例方法：添加活跃工具调用
    */
   private addActiveToolCall(toolCallId: string, map: ToolcallsMap): boolean {
-    return ToolCallChunkHandler.addActiveToolCallImpl(toolCallId, map)
+    const added = ToolCallChunkHandler.addActiveToolCallImpl(toolCallId, map)
+    if (added) {
+      this.sessionToolCallIds.add(toolCallId)
+    }
+    return added
+  }
+
+  /**
+   * Agent / Claude Code can end the session without emitting `tool-result` for the last tool.
+   * Without this, tool rows stay in pending/streaming forever (see CherryHQ#13944).
+   */
+  finalizePendingToolsForStreamEnd(reason: 'success' | 'cancelled' | 'error'): void {
+    const status: MCPToolResponseStatus = reason === 'cancelled' ? 'cancelled' : reason === 'error' ? 'error' : 'done'
+
+    for (const toolCallId of [...this.sessionToolCallIds]) {
+      this.sessionToolCallIds.delete(toolCallId)
+      const toolCallInfo = this.activeToolCalls.get(toolCallId)
+      if (!toolCallInfo) {
+        continue
+      }
+
+      const toolResponse: MCPToolResponse | NormalToolResponse = {
+        id: toolCallId,
+        tool: toolCallInfo.tool,
+        arguments: toolCallInfo.args,
+        status,
+        response: undefined,
+        toolCallId
+      }
+
+      this.activeToolCalls.delete(toolCallId)
+
+      this.onChunk({
+        type: ChunkType.MCP_TOOL_COMPLETE,
+        responses: [toolResponse]
+      })
+    }
   }
 
   /**

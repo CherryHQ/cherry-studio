@@ -130,6 +130,8 @@ export class AiSdkToChunkAdapter {
               })
             }
           }
+          // No terminal `finish` part (e.g. transport closed early) — still clear spinning tool rows
+          this.toolCallHandler.finalizePendingToolsForStreamEnd('success')
           break
         }
 
@@ -352,6 +354,8 @@ export class AiSdkToChunkAdapter {
       }
 
       case 'finish': {
+        this.toolCallHandler.finalizePendingToolsForStreamEnd('success')
+
         // Check if session was cleared (e.g., /clear command) and no text was output
         const sessionCleared = this.getSessionWasCleared?.() ?? false
         if (sessionCleared && !this.hasTextContent) {
@@ -421,12 +425,14 @@ export class AiSdkToChunkAdapter {
         })
         break
       case 'abort':
+        this.toolCallHandler.finalizePendingToolsForStreamEnd('cancelled')
         this.onChunk({
           type: ChunkType.ERROR,
           error: new DOMException('Request was aborted', 'AbortError')
         })
         break
       case 'error':
+        this.toolCallHandler.finalizePendingToolsForStreamEnd('error')
         this.onChunk({
           type: ChunkType.ERROR,
           error: AISDKError.isInstance(chunk.error)
