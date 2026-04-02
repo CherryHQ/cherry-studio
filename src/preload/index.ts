@@ -50,19 +50,6 @@ import type { OpenDialogOptions } from 'electron'
 import { contextBridge, ipcRenderer, shell, webUtils } from 'electron'
 import type { CreateDirectoryOptions } from 'webdav'
 
-import type {
-  InstalledPlugin,
-  InstallFromDirectoryOptions,
-  InstallFromSourceResult,
-  InstallFromZipOptions,
-  InstallPluginOptions,
-  PluginMetadata,
-  PluginResult,
-  UninstallPluginOptions,
-  UninstallPluginPackageOptions,
-  UninstallPluginPackageResult,
-  WritePluginContentOptions
-} from '../renderer/src/types/plugin'
 import type { ActionItem } from '../renderer/src/types/selectionTypes'
 import type {
   InstalledSkill,
@@ -764,22 +751,6 @@ const api = {
         ipcRenderer.removeListener(IpcChannel.ApiServer_Ready, listener)
       }
     }
-  },
-  claudeCodePlugin: {
-    install: (options: InstallPluginOptions): Promise<PluginResult<PluginMetadata>> =>
-      ipcRenderer.invoke(IpcChannel.ClaudeCodePlugin_Install, options),
-    uninstall: (options: UninstallPluginOptions): Promise<PluginResult<void>> =>
-      ipcRenderer.invoke(IpcChannel.ClaudeCodePlugin_Uninstall, options),
-    uninstallPackage: (options: UninstallPluginPackageOptions): Promise<PluginResult<UninstallPluginPackageResult>> =>
-      ipcRenderer.invoke(IpcChannel.ClaudeCodePlugin_UninstallPackage, options),
-    listInstalled: (agentId: string): Promise<PluginResult<InstalledPlugin[]>> =>
-      ipcRenderer.invoke(IpcChannel.ClaudeCodePlugin_ListInstalled, agentId),
-    writeContent: (options: WritePluginContentOptions): Promise<PluginResult<void>> =>
-      ipcRenderer.invoke(IpcChannel.ClaudeCodePlugin_WriteContent, options),
-    installFromZip: (options: InstallFromZipOptions): Promise<PluginResult<InstallFromSourceResult>> =>
-      ipcRenderer.invoke(IpcChannel.ClaudeCodePlugin_InstallFromZip, options),
-    installFromDirectory: (options: InstallFromDirectoryOptions): Promise<PluginResult<InstallFromSourceResult>> =>
-      ipcRenderer.invoke(IpcChannel.ClaudeCodePlugin_InstallFromDirectory, options)
   },
   skill: {
     list: (): Promise<SkillResult<InstalledSkill[]>> => ipcRenderer.invoke(IpcChannel.Skill_List),

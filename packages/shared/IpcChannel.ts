@@ -414,15 +414,6 @@ export enum IpcChannel {
   // CherryAI
   Cherryai_GetSignature = 'cherryai:get-signature',
 
-  // Claude Code Plugins
-  ClaudeCodePlugin_Install = 'claudeCodePlugin:install',
-  ClaudeCodePlugin_Uninstall = 'claudeCodePlugin:uninstall',
-  ClaudeCodePlugin_UninstallPackage = 'claudeCodePlugin:uninstall-package',
-  ClaudeCodePlugin_ListInstalled = 'claudeCodePlugin:list-installed',
-  ClaudeCodePlugin_WriteContent = 'claudeCodePlugin:write-content',
-  ClaudeCodePlugin_InstallFromZip = 'claudeCodePlugin:install-from-zip',
-  ClaudeCodePlugin_InstallFromDirectory = 'claudeCodePlugin:install-from-directory',
-
   // Global Skills
   Skill_List = 'skill:list',
   Skill_Install = 'skill:install',

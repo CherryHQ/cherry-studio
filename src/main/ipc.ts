@@ -28,7 +28,6 @@ import type {
   FileMetadata,
   Notification,
   OcrProvider,
-  PluginError,
   Provider,
   Shortcut,
   SupportedOcrFile,
@@ -40,7 +39,6 @@ import { BrowserWindow, dialog, ipcMain, session, shell, systemPreferences, webC
 import fontList from 'font-list'
 
 import { agentMessageRepository } from './services/agents/database'
-import { PluginService } from './services/agents/plugins/PluginService'
 import { skillService } from './services/agents/skills/SkillService'
 import { analyticsService } from './services/AnalyticsService'
 import { apiServerService } from './services/ApiServerService'
@@ -116,18 +114,6 @@ const obsidianVaultService = new ObsidianVaultService()
 const vertexAIService = VertexAIService.getInstance()
 const memoryService = MemoryService.getInstance()
 const dxtService = new DxtService()
-const pluginService = PluginService.getInstance()
-
-function normalizeError(error: unknown): Error {
-  return error instanceof Error ? error : new Error(String(error))
-}
-
-function extractPluginError(error: unknown): PluginError | null {
-  if (error && typeof error === 'object' && 'type' in error && typeof (error as { type: unknown }).type === 'string') {
-    return error as PluginError
-  }
-  return null
-}
 
 export async function registerIpc(mainWindow: BrowserWindow, app: Electron.App) {
   const appUpdater = new AppUpdater()
@@ -1055,97 +1041,6 @@ export async function registerIpc(mainWindow: BrowserWindow, app: Electron.App) 
 
   // CherryAI
   ipcMain.handle(IpcChannel.Cherryai_GetSignature, (_, params) => generateSignature(params))
-
-  // Claude Code Plugins
-  ipcMain.handle(IpcChannel.ClaudeCodePlugin_Install, async (_, options) => {
-    try {
-      const data = await pluginService.install(options)
-      return { success: true, data }
-    } catch (error) {
-      logger.error('Failed to install plugin', { options, error })
-      return { success: false, error }
-    }
-  })
-
-  ipcMain.handle(IpcChannel.ClaudeCodePlugin_Uninstall, async (_, options) => {
-    try {
-      await pluginService.uninstall(options)
-      return { success: true, data: undefined }
-    } catch (error) {
-      logger.error('Failed to uninstall plugin', { options, error })
-      return { success: false, error }
-    }
-  })
-
-  ipcMain.handle(IpcChannel.ClaudeCodePlugin_UninstallPackage, async (_, options) => {
-    try {
-      const data = await pluginService.uninstallPluginPackage(options)
-      return { success: true, data }
-    } catch (error) {
-      logger.error('Failed to uninstall plugin package', { options, error })
-      return { success: false, error }
-    }
-  })
-
-  ipcMain.handle(IpcChannel.ClaudeCodePlugin_ListInstalled, async (_, agentId: string) => {
-    try {
-      const data = await pluginService.listInstalled(agentId)
-      return { success: true, data }
-    } catch (error) {
-      const pluginError = extractPluginError(error)
-      if (pluginError) {
-        logger.error('Failed to list installed plugins', {
-          agentId,
-          error: pluginError
-        })
-        return { success: false, error: pluginError }
-      }
-
-      const err = normalizeError(error)
-      logger.error('Failed to list installed plugins', {
-        agentId,
-        error: err
-      })
-      return {
-        success: false,
-        error: {
-          type: 'TRANSACTION_FAILED',
-          operation: 'list-installed',
-          reason: err.message
-        }
-      }
-    }
-  })
-
-  ipcMain.handle(IpcChannel.ClaudeCodePlugin_WriteContent, async (_, options) => {
-    try {
-      await pluginService.writeContent(options.agentId, options.filename, options.type, options.content)
-      return { success: true, data: undefined }
-    } catch (error) {
-      logger.error('Failed to write plugin content', { options, error })
-      return { success: false, error }
-    }
-  })
-
-  ipcMain.handle(IpcChannel.ClaudeCodePlugin_InstallFromZip, async (_, options) => {
-    try {
-      const data = await pluginService.installFromZip(options)
-      return { success: true, data }
-    } catch (error) {
-      logger.error('Failed to install plugin from ZIP', { options, error })
-      return { success: false, error }
-    }
-  })
-
-  ipcMain.handle(IpcChannel.ClaudeCodePlugin_InstallFromDirectory, async (_, options) => {
-    try {
-      const data = await pluginService.installFromDirectory(options)
-      return { success: true, data }
-    } catch (error) {
-      logger.error('Failed to install plugin from directory', { options, error })
-      return { success: false, error }
-    }
-  })
 
   // Global Skills
   ipcMain.handle(IpcChannel.Skill_List, async () => {

@@ -8,7 +8,7 @@ import type { ModelMessage, TextStreamPart } from 'ai'
 import * as z from 'zod'
 
 import type { Message, MessageBlock } from './newMessage'
-import { InstalledPluginSchema, PluginMetadataSchema } from './plugin'
+import { PluginMetadataSchema } from './plugin'
 
 // ------------------ Core enums and helper types ------------------
 export const PermissionModeSchema = z.enum(['default', 'acceptEdits', 'bypassPermissions', 'plan'])
@@ -336,8 +336,7 @@ export interface UpdateAgentRequest extends Partial<AgentBase> {}
 export type ReplaceAgentRequest = AgentBase
 
 export const GetAgentResponseSchema = AgentEntitySchema.extend({
-  tools: z.array(ToolSchema).optional(), // All tools available to the agent (including built-in and custom)
-  installed_plugins: z.array(InstalledPluginSchema).optional() // Plugins loaded from .claude/plugins.json cache
+  tools: z.array(ToolSchema).optional() // All tools available to the agent (including built-in and custom)
 })
 
 export type GetAgentResponse = z.infer<typeof GetAgentResponseSchema>

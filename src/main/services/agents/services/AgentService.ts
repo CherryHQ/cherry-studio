@@ -1,6 +1,5 @@
 import { loggerService } from '@logger'
 import { modelsService } from '@main/apiServer/services/models'
-import { pluginService } from '@main/services/agents/plugins/PluginService'
 import type {
   AgentEntity,
   CreateAgentRequest,
@@ -100,23 +99,6 @@ export class AgentService extends BaseService {
     const { tools, legacyIdMap } = await this.listMcpTools(agent.type, agent.mcps)
     agent.tools = tools
     agent.allowed_tools = this.normalizeAllowedTools(agent.allowed_tools, agent.tools, legacyIdMap)
-
-    // Load installed_plugins from cache file instead of database
-    const workdir = agent.accessible_paths?.[0]
-    if (workdir) {
-      try {
-        agent.installed_plugins = await pluginService.listInstalledFromCache(workdir)
-      } catch (error) {
-        // Log error but don't fail the request
-        logger.warn(`Failed to load installed plugins for agent ${id}`, {
-          workdir,
-          error: error instanceof Error ? error.message : String(error)
-        })
-        agent.installed_plugins = []
-      }
-    } else {
-      agent.installed_plugins = []
-    }
 
     return agent
   }

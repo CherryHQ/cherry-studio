@@ -8,8 +8,8 @@ import { BaseSettingsPopup, type SettingsMenuItem, type SettingsPopupTab } from 
 import AdvancedSettings from './components/AdvancedSettings'
 import EssentialSettings from './components/EssentialSettings'
 import PermissionModeSettings from './components/PermissionModeSettings'
-import { InstalledPluginsSettings } from './components/PluginsSettings/PluginsSettings'
 import PromptSettings from './components/PromptSettings'
+import { InstalledSkillsSettings } from './components/SkillsSettings/SkillsSettings'
 import ToolsSettings from './components/ToolsSettings'
 import { AgentLabel, isSoulModeEnabled } from './shared'
 
@@ -55,7 +55,7 @@ const AgentSettingPopupContainer: React.FC<AgentSettingPopupParams> = ({ tab, ag
       case 'tools-mcp':
         return <ToolsSettings agentBase={agent} update={updateAgent} />
       case 'installed':
-        return <InstalledPluginsSettings agentBase={agent} update={updateAgent} />
+        return <InstalledSkillsSettings agentBase={agent} update={updateAgent} />
       case 'advanced':
         return <AdvancedSettings agentBase={agent} update={updateAgent} />
       default:

@@ -1,6 +1,7 @@
 // src/main/services/agents/services/claudecode/index.ts
 import { fork } from 'node:child_process'
 import { EventEmitter } from 'node:events'
+import * as fs from 'node:fs'
 import { createRequire } from 'node:module'
 import os from 'node:os'
 import path from 'node:path'
@@ -24,7 +25,6 @@ import { isWin } from '@main/constant'
 import AssistantServer from '@main/mcpServers/assistant'
 import BrowserServer from '@main/mcpServers/browser/server'
 import ClawServer from '@main/mcpServers/claw'
-import { pluginService } from '@main/services/agents/plugins/PluginService'
 import { configManager } from '@main/services/ConfigManager'
 import { autoDiscoverGitBash, getBinaryPath } from '@main/utils/process'
 import { rtkRewrite } from '@main/utils/rtk'
@@ -226,7 +226,19 @@ class ClaudeCodeService implements AgentServiceInterface {
 
     let plugins: SdkPluginConfig[] | undefined
     try {
-      const pluginPaths = await pluginService.listInstalledPluginPackagePaths(session.agent_id)
+      const pluginsDir = path.join(cwd, '.claude', 'plugins')
+      const entries = await fs.promises.readdir(pluginsDir, { withFileTypes: true }).catch(() => [])
+      const pluginPaths: string[] = []
+      for (const entry of entries) {
+        if (!entry.isDirectory()) continue
+        const manifestPath = path.join(pluginsDir, entry.name, '.claude-plugin', 'plugin.json')
+        try {
+          await fs.promises.access(manifestPath, fs.constants.R_OK)
+          pluginPaths.push(path.join(pluginsDir, entry.name))
+        } catch {
+          // No manifest, skip
+        }
+      }
       if (pluginPaths.length > 0) {
         plugins = pluginPaths.map((pluginPath) => ({ type: 'local', path: pluginPath }))
       }

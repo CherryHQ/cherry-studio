@@ -265,12 +265,3 @@ export const SkillsResolveResponseSchema = z.object({
 })
 
 export type SkillsResolveResponse = z.infer<typeof SkillsResolveResponseSchema>
-
-// IPC Channel Constants
-export const CLAUDE_CODE_PLUGIN_IPC_CHANNELS = {
-  LIST_AVAILABLE: 'claudeCodePlugin:list-available',
-  INSTALL: 'claudeCodePlugin:install',
-  UNINSTALL: 'claudeCodePlugin:uninstall',
-  LIST_INSTALLED: 'claudeCodePlugin:list-installed',
-  INVALIDATE_CACHE: 'claudeCodePlugin:invalidate-cache'
-} as const
