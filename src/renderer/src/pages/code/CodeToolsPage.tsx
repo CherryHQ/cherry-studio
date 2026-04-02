@@ -330,20 +330,6 @@ const CodeToolsPage: FC = () => {
     setIsLaunching(true)
 
     try {
-      // Verify working directory exists before preparing environment
-      if (currentDirectory) {
-        try {
-          const isDir = await window.api.file.isDirectory(currentDirectory)
-          if (!isDir) {
-            window.toast.error(t('code.launch.workdir_not_found') || 'Path does not exist')
-            return
-          }
-        } catch (err) {
-          logger.error('Failed to check working directory existence:', err as Error)
-          window.toast.error(t('code.launch.workdir_check_failed') || 'Failed to check working directory')
-          return
-        }
-      }
       const result = await prepareLaunchEnvironment()
       if (!result) {
         window.toast.error(t('code.model_required'))
