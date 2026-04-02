@@ -205,7 +205,7 @@ const SessionItem = ({ session, agentId, channelType, onDelete, onPress }: Sessi
             <>
               <SessionName>
                 {channelIcon && <ChannelIconImg src={channelIcon} />}
-                <MarqueeText className="min-w-0 flex-1">
+                <MarqueeText className="flex min-w-0 flex-1">
                   <SessionLabel
                     session={session}
                     className={isRenaming ? 'animation-shimmer' : isNewlyRenamed ? 'animation-reveal' : ''}

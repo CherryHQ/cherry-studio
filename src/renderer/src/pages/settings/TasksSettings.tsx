@@ -429,7 +429,7 @@ const TaskLogsInline: FC<{ taskId: string; agentId: string }> = ({ taskId, agent
         log.status.toLowerCase().includes(query) ||
         new Date(log.run_at).toLocaleString(locale).toLowerCase().includes(query)
     )
-  }, [logs, searchText])
+  }, [locale, logs, searchText])
 
   const navigateToSession = useCallback(
     (sessionId: string) => {

@@ -78,7 +78,7 @@ const AgentItem = ({ agent, isActive, onDelete, onPress }: AgentItemProps) => {
         onMouseEnter={() => setIsHovered(true)}
         onMouseLeave={() => setIsHovered(false)}>
         <AssistantNameRow className="name" title={agent.name ?? agent.id}>
-          <MarqueeText className="min-w-0 flex-1">
+          <MarqueeText className="flex min-w-0 flex-1">
             <AgentLabel agent={agent} hideIcon={assistantIconType === 'none'} />
           </MarqueeText>
           {isSoulModeEnabled(agent.configuration) && <SoulTag>SOUL</SoulTag>}
