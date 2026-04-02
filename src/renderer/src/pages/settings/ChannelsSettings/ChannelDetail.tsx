@@ -341,7 +341,7 @@ const ChannelDetail: FC<ChannelDetailProps> = ({ channelDef }) => {
     const list = agentList ?? []
     return {
       agents: list.map((a) => ({ id: a.id, name: a.name ?? a.id })),
-      agentEntities: list.map((a) => ({ id: a.id, configuration: a.configuration as AgentConfiguration | undefined }))
+      agentEntities: list.map((a) => ({ id: a.id, configuration: a.configuration }))
     }
   }, [agentList])
 

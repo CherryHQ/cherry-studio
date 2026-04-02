@@ -40,8 +40,7 @@ const TaskChannelSelector: FC<{
 
   if (channels.length === 0) return null
 
-  const hasNoChatIds =
-    channelIds.length > 0 && channelIds.some((id) => !channels.find((c) => c.id === id)?.hasActiveChatIds)
+  const hasNoChatIds = channelIds.some((id) => !channels.find((c) => c.id === id)?.hasActiveChatIds)
 
   return (
     <>
