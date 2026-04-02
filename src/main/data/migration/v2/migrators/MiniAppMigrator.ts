@@ -94,9 +94,10 @@ export class MiniAppMigrator extends BaseMigrator {
       // Re-index sortOrder within each status group after dedup
       const statusGroups = new Map<MiniAppStatus, InsertMiniAppRow[]>()
       for (const row of seenIds.values()) {
-        const group = statusGroups.get(row.status!) ?? []
+        const status = row.status ?? 'enabled'
+        const group = statusGroups.get(status) ?? []
         group.push(row)
-        statusGroups.set(row.status!, group)
+        statusGroups.set(status, group)
       }
 
       // Re-assign sortOrder within each group
