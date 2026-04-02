@@ -1,16 +1,15 @@
 import { Avatar, AvatarFallback, Button, RowFlex, Tooltip } from '@cherrystudio/ui'
-import { ErrorDetailModal } from '@renderer/components/ErrorDetailModal'
+import { showErrorDetailPopup } from '@renderer/components/ErrorDetailModal'
 import { FreeTrialModelTag } from '@renderer/components/FreeTrialModelTag'
 import { type HealthResult, HealthStatusIndicator } from '@renderer/components/HealthStatusIndicator'
 import ModelIdWithTags from '@renderer/components/ModelIdWithTags'
 import { getModelLogo } from '@renderer/config/models'
 import type { Model } from '@renderer/types'
-import type { SerializedError } from '@renderer/types/error'
 import type { ModelWithStatus } from '@renderer/types/healthCheck'
 import { HealthStatus } from '@renderer/types/healthCheck'
 import { maskApiKey } from '@renderer/utils/api'
 import { Bolt, Minus } from 'lucide-react'
-import React, { memo, useCallback, useMemo, useState } from 'react'
+import React, { memo, useCallback, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
@@ -35,8 +34,6 @@ const ModelListItem: React.FC<ModelListItemProps> = ({
 }) => {
   const { t } = useTranslation()
   const isChecking = modelStatus?.checking === true
-  const [showErrorModal, setShowErrorModal] = useState(false)
-  const [selectedError, setSelectedError] = useState<SerializedError | undefined>()
 
   const healthResults = useMemo(
     () =>
@@ -55,16 +52,10 @@ const ModelListItem: React.FC<ModelListItemProps> = ({
     if (!hasFailedResult) return undefined
     return (result: HealthResult) => {
       if (result.error) {
-        setSelectedError(result.error)
-        setShowErrorModal(true)
+        showErrorDetailPopup({ error: result.error })
       }
     }
   }, [hasFailedResult])
-
-  const handleCloseErrorModal = useCallback(() => {
-    setShowErrorModal(false)
-    setSelectedError(undefined)
-  }, [])
 
   const handleEdit = useCallback(() => {
     onEdit(model)
@@ -120,9 +111,6 @@ const ModelListItem: React.FC<ModelListItemProps> = ({
           </RowFlex>
         </RowFlex>
       </ListItem>
-      {hasFailedResult && (
-        <ErrorDetailModal open={showErrorModal} onClose={handleCloseErrorModal} error={selectedError} />
-      )}
     </>
   )
 }

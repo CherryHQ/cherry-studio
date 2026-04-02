@@ -4,6 +4,8 @@ import { IpcChannel } from '@shared/IpcChannel'
 import { app, dialog, session, shell, webContents } from 'electron'
 import { promises as fs } from 'fs'
 
+import { isSafeExternalUrl } from './security'
+
 const attachKeyboardHandler = (contents: Electron.WebContents) => {
   if (contents.getType?.() !== 'webview') {
     return
@@ -87,7 +89,9 @@ export class WebviewService extends BaseService {
 
       webview.setWindowOpenHandler(({ url }) => {
         if (isExternal) {
-          void shell.openExternal(url)
+          if (isSafeExternalUrl(url)) {
+            void shell.openExternal(url)
+          }
           return { action: 'deny' as const }
         } else {
           return { action: 'allow' as const }

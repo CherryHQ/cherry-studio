@@ -2,7 +2,7 @@ import { Button, Flex, RowFlex, Switch, Tooltip, WarnTooltip } from '@cherrystud
 import { HelpTooltip } from '@cherrystudio/ui'
 import { adaptProvider } from '@renderer/aiCore/provider/providerConfig'
 import OpenAIAlert from '@renderer/components/Alert/OpenAIAlert'
-import { ErrorDetailModal } from '@renderer/components/ErrorDetailModal'
+import { showErrorDetailPopup } from '@renderer/components/ErrorDetailModal'
 import { LoadingIcon } from '@renderer/components/Icons'
 import { ApiKeyListPopup } from '@renderer/components/Popups/ApiKeyListPopup'
 import Selector from '@renderer/components/Selector'
@@ -134,7 +134,6 @@ const ProviderSetting: FC<Props> = ({ providerId, isOnboarding = false }) => {
     status: HealthStatus.NOT_CHECKED,
     checking: false
   })
-  const [showErrorModal, setShowErrorModal] = useState(false)
 
   const updateWebSearchProviderKey = useCallback(
     ({ apiKey }: { apiKey: string }) => {
@@ -375,12 +374,7 @@ const ProviderSetting: FC<Props> = ({ providerId, isOnboarding = false }) => {
             <ErrorOverlay>{apiKeyConnectivity.error?.message || t('settings.models.check.failed')}</ErrorOverlay>
           }
           iconProps={{ size: 16, color: 'var(--color-status-warning)' }}
-          onClick={() => setShowErrorModal(true)}
-        />
-        <ErrorDetailModal
-          open={showErrorModal}
-          onClose={() => setShowErrorModal(false)}
-          error={apiKeyConnectivity.error}
+          onClick={() => showErrorDetailPopup({ error: apiKeyConnectivity.error })}
         />
       </>
     )

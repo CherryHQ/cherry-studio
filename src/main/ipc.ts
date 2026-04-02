@@ -42,6 +42,7 @@ import NotificationService from './services/NotificationService'
 import * as NutstoreService from './services/NutstoreService'
 import ObsidianVaultService from './services/ObsidianVaultService'
 import { fileServiceManager } from './services/remotefile/FileServiceManager'
+import { isSafeExternalUrl } from './services/security'
 import { vertexAIService } from './services/VertexAIService'
 import { calculateDirectorySize, getResourcePath } from './utils'
 import { decrypt, encrypt } from './utils/aes'
@@ -107,7 +108,13 @@ export async function registerIpc(mainWindow: BrowserWindow, app: Electron.App) 
 
   ipcMain.handle(IpcChannel.App_Reload, () => mainWindow.reload())
   // Application_Quit is registered by Application.registerApplicationIpc()
-  ipcMain.handle(IpcChannel.Open_Website, (_, url: string) => shell.openExternal(url))
+  ipcMain.handle(IpcChannel.Open_Website, (_, url: string) => {
+    if (!isSafeExternalUrl(url)) {
+      logger.warn(`Blocked shell.openExternal for untrusted URL scheme: ${url}`)
+      return
+    }
+    return shell.openExternal(url)
+  })
 
   // language
   // ipcMain.handle(IpcChannel.App_SetLanguage, (_, language) => {
