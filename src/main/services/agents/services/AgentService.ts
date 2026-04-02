@@ -273,6 +273,7 @@ export class AgentService extends BaseService {
 
       const now = new Date().toISOString()
       const configuration: CreateAgentRequest['configuration'] = {
+        avatar: '🦞',
         permission_mode: 'bypassPermissions',
         max_turns: 100,
         soul_enabled: true,
