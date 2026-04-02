@@ -25,10 +25,10 @@ export const CreateMiniappSchema = z.object({
   appId: z.string().min(1),
   name: z.string().min(1),
   url: z.string().min(1),
-  logo: z.string().optional(),
-  bordered: z.boolean().optional(),
+  logo: z.string().min(1),
+  bordered: z.boolean(),
+  supportedRegions: z.array(MiniAppRegionSchema).min(1),
   background: z.string().nullable().optional(),
-  supportedRegions: z.array(MiniAppRegionSchema).optional(),
   configuration: z.unknown().nullable().optional()
 })
 export type CreateMiniappDto = z.infer<typeof CreateMiniappSchema>

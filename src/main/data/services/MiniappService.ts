@@ -211,7 +211,7 @@ export class MiniAppService {
         appId: dto.appId,
         name: dto.name,
         url: dto.url,
-        logo: dto.logo ?? null,
+        logo: dto.logo,
         type: 'custom',
         status: 'enabled',
         sortOrder: 0,
