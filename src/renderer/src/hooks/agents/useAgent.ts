@@ -24,11 +24,22 @@ export const useAgent = (id: string | null) => {
     const result = await client.getAgent(id)
     return result
   }, [apiServerConfig.enabled, client, id, t])
-  const { data, error, isLoading } = useSWR(swrKey, fetcher)
+  const {
+    data,
+    error,
+    isLoading,
+    mutate: revalidate
+  } = useSWR(swrKey, fetcher, {
+    // Agent config may be modified externally (e.g. claw MCP tool in main process),
+    // so always revalidate on mount and reduce dedup window to get fresh data.
+    revalidateOnMount: true,
+    dedupingInterval: 2000
+  })
 
   return {
     agent: data,
     error,
-    isLoading
+    isLoading,
+    revalidate
   }
 }

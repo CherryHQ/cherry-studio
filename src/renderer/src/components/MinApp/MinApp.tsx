@@ -66,7 +66,7 @@ const MinApp: FC<Props> = ({ app, onClick, size = 60, isLast }) => {
           ? t('minapp.add_to_launchpad')
           : t('minapp.add_to_sidebar'),
       onClick: () => {
-        const newPinned = isPinned ? pinned.filter((item) => item.id !== app.id) : [...(pinned || []), app]
+        const newPinned = isPinned ? pinned.filter((item) => item.id !== app.id) : [...pinned, app]
         updatePinnedMinapps(newPinned)
       }
     },
@@ -78,8 +78,7 @@ const MinApp: FC<Props> = ({ app, onClick, size = 60, isLast }) => {
         updateMinapps(newMinapps)
         const newDisabled = [...(disabled || []), app]
         updateDisabledMinapps(newDisabled)
-        const newPinned = pinned.filter((item) => item.id !== app.id)
-        updatePinnedMinapps(newPinned)
+        updatePinnedMinapps(pinned.filter((item) => item.id !== app.id))
         // 更新 openedKeepAliveMinapps
         const newOpenedKeepAliveMinapps = openedKeepAliveMinapps.filter((item) => item.id !== app.id)
         dispatch(setOpenedKeepAliveMinapps(newOpenedKeepAliveMinapps))

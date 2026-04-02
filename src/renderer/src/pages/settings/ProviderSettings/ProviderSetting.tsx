@@ -1,6 +1,6 @@
 import { adaptProvider } from '@renderer/aiCore/provider/providerConfig'
 import OpenAIAlert from '@renderer/components/Alert/OpenAIAlert'
-import { ErrorDetailModal } from '@renderer/components/ErrorDetailModal'
+import { showErrorDetailPopup } from '@renderer/components/ErrorDetailModal'
 import { LoadingIcon } from '@renderer/components/Icons'
 import { HStack } from '@renderer/components/Layout'
 import { ApiKeyListPopup } from '@renderer/components/Popups/ApiKeyListPopup'
@@ -134,7 +134,6 @@ const ProviderSetting: FC<Props> = ({ providerId, isOnboarding = false }) => {
     status: HealthStatus.NOT_CHECKED,
     checking: false
   })
-  const [showErrorModal, setShowErrorModal] = useState(false)
 
   const updateWebSearchProviderKey = useCallback(
     ({ apiKey }: { apiKey: string }) => {
@@ -220,7 +219,13 @@ const ProviderSetting: FC<Props> = ({ providerId, isOnboarding = false }) => {
       return
     }
     if (isVertexProvider(provider) || apiHost.trim()) {
-      updateProvider({ apiHost })
+      // For new-api provider, keep apiHost and anthropicApiHost in sync
+      if (isNewApiProvider(provider)) {
+        updateProvider({ apiHost, anthropicApiHost: apiHost })
+        setAnthropicHost(apiHost)
+      } else {
+        updateProvider({ apiHost })
+      }
     } else {
       setApiHost(provider.apiHost)
     }
@@ -375,14 +380,9 @@ const ProviderSetting: FC<Props> = ({ providerId, isOnboarding = false }) => {
             size={16}
             color="var(--color-status-warning)"
             style={{ cursor: 'pointer' }}
-            onClick={() => setShowErrorModal(true)}
+            onClick={() => showErrorDetailPopup({ error: apiKeyConnectivity.error })}
           />
         </Tooltip>
-        <ErrorDetailModal
-          open={showErrorModal}
-          onClose={() => setShowErrorModal(false)}
-          error={apiKeyConnectivity.error}
-        />
       </>
     )
   }

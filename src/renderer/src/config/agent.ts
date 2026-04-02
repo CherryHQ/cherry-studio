@@ -1,5 +1,4 @@
-import ClaudeAvatar from '@renderer/assets/images/models/claude.png'
-import type { AgentBase, AgentType } from '@renderer/types'
+import type { AgentBase, AgentConfiguration } from '@renderer/types'
 import type { PermissionModeCard } from '@renderer/types/agent'
 
 // base agent config. no default config for now.
@@ -12,14 +11,19 @@ export const DEFAULT_CLAUDE_CODE_CONFIG: Omit<AgentBase, 'model'> = {
   ...DEFAULT_AGENT_CONFIG
 } as const
 
-export const getAgentTypeAvatar = (type: AgentType): string => {
-  switch (type) {
-    case 'claude-code':
-      return ClaudeAvatar
-    default:
-      return ''
+export const DEFAULT_CHERRY_CLAW_CONFIG: Omit<AgentBase, 'model'> & { configuration: AgentConfiguration } = {
+  ...DEFAULT_AGENT_CONFIG,
+  configuration: {
+    permission_mode: 'bypassPermissions',
+    max_turns: 100,
+    env_vars: {},
+    soul_enabled: true,
+    scheduler_enabled: false,
+    scheduler_type: 'interval',
+    heartbeat_enabled: true,
+    heartbeat_interval: 30
   }
-}
+} as const
 
 export const permissionModeCards: PermissionModeCard[] = [
   {
