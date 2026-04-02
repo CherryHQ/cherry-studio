@@ -37,7 +37,8 @@ export const FUNCTION_CALLING_MODELS = [
   'minimax-m2(?:\\.\\d+)?(?:-[\\w-]+)?',
   'mimo-v2-flash',
   'mimo-v2-pro',
-  'mimo-v2-omni'
+  'mimo-v2-omni',
+  'glm-5v-turbo'
 ] as const
 
 const FUNCTION_CALLING_EXCLUDED_MODELS = [

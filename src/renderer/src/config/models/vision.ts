@@ -26,7 +26,7 @@ const visionAllowedModels = [
   'qwen2-vl',
   'qwen2.5-vl',
   'qwen3-vl',
-  'qwen3\\.5(?:-[\\w-]+)?',
+  'qwen3\\.[5-9](?:-[\\w-]+)?',
   'qwen2.5-omni',
   'qwen3-omni(?:-[\\w-]+)?',
   'qvq',
@@ -61,7 +61,8 @@ const visionAllowedModels = [
   'mistral-large-(2512|latest)',
   'mistral-medium-(2508|latest)',
   'mistral-small-(2506|latest)',
-  'mimo-v2-omni(?:-[\\w-]+)?'
+  'mimo-v2-omni(?:-[\\w-]+)?',
+  'glm-5v-turbo'
 ]
 
 const visionExcludedModels = [
