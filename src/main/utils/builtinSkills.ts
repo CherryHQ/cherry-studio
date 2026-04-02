@@ -28,6 +28,7 @@ const VERSION_FILE = '.version'
  * Built-in skills are also registered in the `skills` DB table so they appear
  * in the SkillsSettings UI alongside user-installed skills.
  */
+// TODO: v2-backup
 export async function installBuiltinSkills(): Promise<void> {
   const resourceSkillsPath = path.join(app.getAppPath(), 'resources', 'skills')
   const globalSkillsPath = path.join(app.getPath('userData'), 'global-skills')

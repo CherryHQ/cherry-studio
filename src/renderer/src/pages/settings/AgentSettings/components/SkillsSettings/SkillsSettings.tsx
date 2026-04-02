@@ -1,11 +1,10 @@
 import CollapsibleSearchBar from '@renderer/components/CollapsibleSearchBar'
 import { useInstalledSkills } from '@renderer/hooks/useSkills'
-import type { InstalledSkill } from '@types'
+import type { InstalledSkill, LocalSkill } from '@types'
 import type { CardProps } from 'antd'
 import { Card, Empty, Spin, Switch, Tag } from 'antd'
 import { Puzzle } from 'lucide-react'
-import type { FC } from 'react'
-import { useCallback, useMemo, useState } from 'react'
+import { type FC, memo, useCallback, useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { type AgentOrSessionSettingsProps, SettingsContainer, SettingsItem, SettingsTitle } from '../../shared'
@@ -24,16 +23,89 @@ const cardStyles: CardProps['styles'] = {
   }
 }
 
+const searchBarStyle = { borderRadius: 20 }
+const emptyIconStyle = { opacity: 0.3 }
+
+// rerender-memo: Extract card into memo component so toggling one skill
+// doesn't re-render every other skill card in the list.
+const SkillCard = memo<{
+  skill: InstalledSkill
+  toggling: boolean
+  onToggle: (skill: InstalledSkill, checked: boolean) => void
+}>(({ skill, toggling, onToggle }) => {
+  const { t } = useTranslation()
+  const handleChange = useCallback((checked: boolean) => onToggle(skill, checked), [skill, onToggle])
+
+  return (
+    <Card
+      className="border border-default-200"
+      title={
+        <div className="flex items-start justify-between gap-3 py-2">
+          <div className="flex min-w-0 flex-col gap-1">
+            <span className="truncate font-medium text-sm">{skill.name}</span>
+            {skill.description ? (
+              <span className="line-clamp-2 whitespace-normal text-foreground-500 text-xs">{skill.description}</span>
+            ) : null}
+            <div className="flex flex-wrap items-center gap-2">
+              {skill.author && <Tag>{skill.author}</Tag>}
+              <Tag color={skill.source === 'builtin' ? 'green' : 'blue'}>
+                {skill.source === 'builtin' ? t('agent.settings.skills.builtin', 'Built-in') : skill.source}
+              </Tag>
+            </div>
+          </div>
+          {skill.source !== 'builtin' && (
+            <Switch checked={skill.isEnabled} loading={toggling} onChange={handleChange} size="small" />
+          )}
+        </div>
+      }
+      styles={cardStyles}
+    />
+  )
+})
+SkillCard.displayName = 'SkillCard'
+
+const LocalSkillCard = memo<{ plugin: LocalSkill }>(({ plugin }) => (
+  <Card
+    className="border border-default-200"
+    title={
+      <div className="flex items-start justify-between gap-3 py-2">
+        <div className="flex min-w-0 flex-col gap-1">
+          <span className="truncate font-medium text-sm">{plugin.name}</span>
+          {plugin.description ? (
+            <span className="line-clamp-2 whitespace-normal text-foreground-500 text-xs">{plugin.description}</span>
+          ) : null}
+          <div className="flex flex-wrap items-center gap-2">
+            <Tag color="default">local</Tag>
+          </div>
+        </div>
+      </div>
+    }
+    styles={cardStyles}
+  />
+))
+LocalSkillCard.displayName = 'LocalSkillCard'
+
 /**
- * Agent Skills Settings - shows globally installed skills with enable/disable toggle.
- * Skills are installed globally via Settings > Skills page.
- * Enabling a skill makes it available to this agent via symlink.
+ * Agent Skills Settings - shows globally installed skills with enable/disable toggle
+ * and local skills from .claude/skills/.
  */
-export const InstalledSkillsSettings: FC<AgentOrSessionSettingsProps> = () => {
+export const InstalledSkillsSettings: FC<AgentOrSessionSettingsProps> = ({ agentBase }) => {
   const { t } = useTranslation()
   const { skills, loading, error, toggle } = useInstalledSkills()
   const [filter, setFilter] = useState('')
   const [togglingId, setTogglingId] = useState<string | null>(null)
+  const [localPlugins, setLocalSkills] = useState<LocalSkill[]>([])
+
+  const workdir = agentBase?.accessible_paths?.[0]
+
+  useEffect(() => {
+    if (!workdir) return
+    void window.api.skill.listLocal(workdir).then((result) => {
+      if (result.success) {
+        setLocalSkills(result.data)
+      }
+    })
+  }, [workdir])
 
   const filteredSkills = useMemo(() => {
     if (!filter.trim()) return skills
@@ -45,6 +117,12 @@ export const InstalledSkillsSettings: FC<AgentOrSessionSettingsProps> = () => {
         s.author?.toLowerCase().includes(q)
     )
   }, [skills, filter])
+
+  const filteredLocal = useMemo(() => {
+    if (!filter.trim()) return localPlugins
+    const q = filter.toLowerCase()
+    return localPlugins.filter((p) => p.name.toLowerCase().includes(q) || p.description?.toLowerCase().includes(q))
+  }, [localPlugins, filter])
 
   const handleToggle = useCallback(
     async (skill: InstalledSkill, checked: boolean) => {
@@ -58,6 +136,8 @@ export const InstalledSkillsSettings: FC<AgentOrSessionSettingsProps> = () => {
     [toggle]
   )
 
+  const hasNoResults = filteredSkills.length === 0 && filteredLocal.length === 0
+
   return (
     <SettingsContainer>
       <SettingsItem divider={false}>
@@ -67,7 +147,7 @@ export const InstalledSkillsSettings: FC<AgentOrSessionSettingsProps> = () => {
               onSearch={setFilter}
               placeholder={t('agent.settings.skills.searchPlaceholder', 'Search skills...')}
               tooltip={t('agent.settings.skills.searchPlaceholder', 'Search skills...')}
-              style={{ borderRadius: 20 }}
+              style={searchBarStyle}
             />
           }>
           {t('agent.settings.skills.title', 'Installed Skills')}
@@ -81,10 +161,10 @@ export const InstalledSkillsSettings: FC<AgentOrSessionSettingsProps> = () => {
             <div className="flex flex-1 items-center justify-center py-10">
               <Spin />
             </div>
-          ) : filteredSkills.length === 0 ? (
+          ) : hasNoResults ? (
             <div className="flex flex-1 items-center justify-center py-10">
               <Empty
-                image={<Puzzle size={40} strokeWidth={1} style={{ opacity: 0.3 }} />}
+                image={<Puzzle size={40} strokeWidth={1} style={emptyIconStyle} />}
                 description={
                   filter
                     ? t('agent.settings.skills.noFilterResults', 'No matching skills')
@@ -93,39 +173,14 @@ export const InstalledSkillsSettings: FC<AgentOrSessionSettingsProps> = () => {
               />
             </div>
           ) : (
-            filteredSkills.map((skill) => (
-              <Card
-                key={skill.id}
-                className="border border-default-200"
-                title={
-                  <div className="flex items-start justify-between gap-3 py-2">
-                    <div className="flex min-w-0 flex-col gap-1">
-                      <span className="truncate font-medium text-sm">{skill.name}</span>
-                      {skill.description ? (
-                        <span className="line-clamp-2 whitespace-normal text-foreground-500 text-xs">
-                          {skill.description}
-                        </span>
-                      ) : null}
-                      <div className="flex flex-wrap items-center gap-2">
-                        {skill.author && <Tag>{skill.author}</Tag>}
-                        <Tag color={skill.source === 'builtin' ? 'green' : 'blue'}>
-                          {skill.source === 'builtin' ? t('agent.settings.skills.builtin', 'Built-in') : skill.source}
-                        </Tag>
-                      </div>
-                    </div>
-                    {skill.source !== 'builtin' && (
-                      <Switch
-                        checked={skill.isEnabled}
-                        loading={togglingId === skill.id}
-                        onChange={(checked) => handleToggle(skill, checked)}
-                        size="small"
-                      />
-                    )}
-                  </div>
-                }
-                styles={cardStyles}
-              />
-            ))
+            <>
+              {filteredSkills.map((skill) => (
+                <SkillCard key={skill.id} skill={skill} toggling={togglingId === skill.id} onToggle={handleToggle} />
+              ))}
+              {filteredLocal.map((plugin) => (
+                <LocalSkillCard key={plugin.filename} plugin={plugin} />
+              ))}
+            </>
           )}
         </div>
       </SettingsItem>

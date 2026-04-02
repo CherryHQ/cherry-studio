@@ -53,6 +53,7 @@ import type { CreateDirectoryOptions } from 'webdav'
 import type { ActionItem } from '../renderer/src/types/selectionTypes'
 import type {
   InstalledSkill,
+  LocalSkill,
   SkillFileNode,
   SkillInstallFromDirectoryOptions,
   SkillInstallFromZipOptions,
@@ -778,7 +779,9 @@ const api = {
     readSkillFile: (skillId: string, filename: string): Promise<SkillResult<string | null>> =>
       ipcRenderer.invoke(IpcChannel.Skill_ReadFile, skillId, filename),
     listFiles: (skillId: string): Promise<SkillResult<SkillFileNode[]>> =>
-      ipcRenderer.invoke(IpcChannel.Skill_ListFiles, skillId)
+      ipcRenderer.invoke(IpcChannel.Skill_ListFiles, skillId),
+    listLocal: (workdir: string): Promise<SkillResult<LocalSkill[]>> =>
+      ipcRenderer.invoke(IpcChannel.Skill_ListLocal, workdir)
   },
   localTransfer: {
     getState: (): Promise<LocalTransferState> => ipcRenderer.invoke(IpcChannel.LocalTransfer_ListServices),

@@ -1130,6 +1130,16 @@ export async function registerIpc(mainWindow: BrowserWindow, app: Electron.App) 
     }
   })
 
+  ipcMain.handle(IpcChannel.Skill_ListLocal, async (_, workdir: string) => {
+    try {
+      const data = await skillService.listLocal(workdir)
+      return { success: true, data }
+    } catch (error) {
+      logger.error('Failed to list local plugins', { workdir, error })
+      return { success: false, error }
+    }
+  })
+
   ipcMain.handle(IpcChannel.LocalTransfer_ListServices, () => localTransferService.getState())
   ipcMain.handle(IpcChannel.LocalTransfer_StartScan, () => localTransferService.startDiscovery({ resetList: true }))
   ipcMain.handle(IpcChannel.LocalTransfer_StopScan, () => localTransferService.stopDiscovery())

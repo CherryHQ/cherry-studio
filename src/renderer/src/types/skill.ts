@@ -187,3 +187,13 @@ export interface SkillFileNode {
   type: 'file' | 'directory'
   children?: SkillFileNode[]
 }
+
+// ============================================================================
+// Legacy plugins (per-agent .claude/commands/ and .claude/agents/)
+// ============================================================================
+
+export interface LocalSkill {
+  name: string
+  description?: string
+  filename: string
+}

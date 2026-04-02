@@ -206,6 +206,7 @@ if (!app.requestSingleInstanceLock()) {
     initSelectionService()
 
     // Install built-in skills to user-level .claude/skills directory (non-blocking)
+    // TODO: v2 lifecycle
     installBuiltinSkills().catch((error) => {
       logger.error('Failed to install built-in skills', error)
     })

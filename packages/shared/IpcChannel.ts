@@ -423,6 +423,7 @@ export enum IpcChannel {
   Skill_InstallFromDirectory = 'skill:install-from-directory',
   Skill_ReadFile = 'skill:read-file',
   Skill_ListFiles = 'skill:list-files',
+  Skill_ListLocal = 'skill:list-local',
 
   // Local Transfer
   LocalTransfer_ListServices = 'local-transfer:list',

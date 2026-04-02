@@ -185,6 +185,32 @@ export class SkillService {
     return this.installSkillDir(directoryPath, 'local', null)
   }
 
+  /**
+   * List local skills from an agent workdir's .claude/skills/ directory.
+   */
+  async listLocal(workdir: string): Promise<Array<{ name: string; description?: string; filename: string }>> {
+    const results: Array<{ name: string; description?: string; filename: string }> = []
+    const skillsDir = path.join(workdir, '.claude', 'skills')
+
+    try {
+      const entries = await fs.promises.readdir(skillsDir, { withFileTypes: true })
+      for (const entry of entries) {
+        if (!entry.isDirectory()) continue
+        try {
+          const skillPath = path.join(skillsDir, entry.name)
+          const metadata = await parseSkillMetadata(skillPath, entry.name, 'skills')
+          results.push({ name: metadata.name, description: metadata.description, filename: entry.name })
+        } catch {
+          // No SKILL.md or parse error, skip
+        }
+      }
+    } catch {
+      // .claude/skills/ doesn't exist
+    }
+
+    return results
+  }
+
   // ===========================================================================
   // Symlink management
   // ===========================================================================
