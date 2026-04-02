@@ -9,6 +9,7 @@ import { AssistantMigrator } from './AssistantMigrator'
 import { BootConfigMigrator } from './BootConfigMigrator'
 import { ChatMigrator } from './ChatMigrator'
 import { KnowledgeMigrator } from './KnowledgeMigrator'
+import { KnowledgeVectorMigrator } from './KnowledgeVectorMigrator'
 import { McpServerMigrator } from './McpServerMigrator'
 import { PreferencesMigrator } from './PreferencesMigrator'
 import { TranslateMigrator } from './TranslateMigrator'
@@ -19,6 +20,7 @@ export {
   BootConfigMigrator,
   ChatMigrator,
   KnowledgeMigrator,
+  KnowledgeVectorMigrator,
   McpServerMigrator,
   PreferencesMigrator,
   TranslateMigrator
@@ -34,6 +36,7 @@ export function getAllMigrators() {
     new McpServerMigrator(),
     new AssistantMigrator(),
     new KnowledgeMigrator(),
+    new KnowledgeVectorMigrator(),
     new ChatMigrator(),
     new TranslateMigrator()
   ]
