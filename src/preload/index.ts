@@ -591,6 +591,25 @@ const api = {
     removeCustomTerminalPath: (terminalId: string): Promise<void> =>
       ipcRenderer.invoke(IpcChannel.CodeTools_RemoveCustomTerminalPath, terminalId)
   },
+  terminal: {
+    create: (sessionId: string, cwd?: string, cols?: number, rows?: number) =>
+      ipcRenderer.invoke(IpcChannel.Terminal_Create, sessionId, cwd, cols, rows),
+    write: (sessionId: string, data: string) => ipcRenderer.invoke(IpcChannel.Terminal_Write, sessionId, data),
+    resize: (sessionId: string, cols: number, rows: number) =>
+      ipcRenderer.invoke(IpcChannel.Terminal_Resize, sessionId, cols, rows),
+    kill: (sessionId: string) => ipcRenderer.invoke(IpcChannel.Terminal_Kill, sessionId),
+    list: () => ipcRenderer.invoke(IpcChannel.Terminal_List),
+    onData: (callback: (data: { sessionId: string; data: string; exited?: boolean; exitCode?: number }) => void) => {
+      const listener = (
+        _event: Electron.IpcRendererEvent,
+        data: { sessionId: string; data: string; exited?: boolean; exitCode?: number }
+      ) => {
+        callback(data)
+      }
+      ipcRenderer.on(IpcChannel.Terminal_OnData, listener)
+      return () => ipcRenderer.off(IpcChannel.Terminal_OnData, listener)
+    }
+  },
   ocr: {
     ocr: (file: SupportedOcrFile, provider: OcrProvider): Promise<OcrResult> =>
       ipcRenderer.invoke(IpcChannel.OCR_ocr, file, provider),
