@@ -10,6 +10,7 @@ import {
   Abacus,
   AiStudio,
   Anthropic,
+  Application,
   Baichuan,
   Baidu,
   BoltNew,
@@ -612,6 +613,8 @@ export function getMiniAppsLogo(LogoId: string | undefined): CompoundIcon | unde
     return
   }
   switch (LogoId.toLowerCase()) {
+    case 'application':
+      return Application
     case 'openai':
       return Openai
     case 'gemini':
