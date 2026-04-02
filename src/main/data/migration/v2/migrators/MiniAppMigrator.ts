@@ -2,7 +2,7 @@
  * MiniApp migrator - migrates miniapp configurations from Redux to SQLite
  */
 
-import type { InsertMiniAppRow, MiniAppStatus } from '@data/db/schemas/miniapp'
+import type { MiniAppInsert, MiniAppStatus } from '@data/db/schemas/miniapp'
 import { miniappTable } from '@data/db/schemas/miniapp'
 import { loggerService } from '@logger'
 import type { ExecuteResult, PrepareResult, ValidateResult } from '@shared/data/migration/v2/types'
@@ -20,7 +20,7 @@ export class MiniAppMigrator extends BaseMigrator {
   readonly description = 'Migrate miniapp configurations from Redux to SQLite'
   readonly order = 1.2
 
-  private preparedRows: InsertMiniAppRow[] = []
+  private preparedRows: MiniAppInsert[] = []
   private skippedCount = 0
 
   override reset(): void {
@@ -54,7 +54,7 @@ export class MiniAppMigrator extends BaseMigrator {
 
       // Track seen IDs to detect duplicates across groups
       // A pinned app also appears in enabled — prefer the pinned status (higher priority)
-      const seenIds = new Map<string, InsertMiniAppRow>()
+      const seenIds = new Map<string, MiniAppInsert>()
 
       // Process pinned first (highest priority), then enabled, then disabled
       const priorityOrder: MiniAppStatus[] = ['pinned', 'enabled', 'disabled']
@@ -92,7 +92,7 @@ export class MiniAppMigrator extends BaseMigrator {
 
       // Collect final unique rows, excluding duplicates that were demoted
       // Re-index sortOrder within each status group after dedup
-      const statusGroups = new Map<MiniAppStatus, InsertMiniAppRow[]>()
+      const statusGroups = new Map<MiniAppStatus, MiniAppInsert[]>()
       for (const row of seenIds.values()) {
         const status = row.status ?? 'enabled'
         const group = statusGroups.get(status) ?? []

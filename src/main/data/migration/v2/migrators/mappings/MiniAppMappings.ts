@@ -2,7 +2,7 @@
  * MiniApp migration mappings and transform functions
  */
 
-import type { InsertMiniAppRow, MiniAppRegion, MiniAppStatus } from '@data/db/schemas/miniapp'
+import type { MiniAppInsert, MiniAppRegion, MiniAppStatus } from '@data/db/schemas/miniapp'
 import { ORIGIN_DEFAULT_MIN_APPS } from '@shared/data/presets/miniapps'
 
 function toNullable<T>(value: unknown): T | null {
@@ -53,7 +53,7 @@ export function transformMiniApp(
   source: Record<string, unknown>,
   status: MiniAppStatus,
   sortOrder: number
-): InsertMiniAppRow {
+): MiniAppInsert {
   // [v2] Logo resolution: URL strings are preserved for custom apps,
   // built-in apps get their logo key from the mapping table
   const rawLogo = source.logo
