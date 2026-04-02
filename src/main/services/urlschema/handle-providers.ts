@@ -53,7 +53,7 @@ export async function handleProvidersProtocolUrl(url: URL) {
         !mainWindow.isDestroyed() &&
         (await mainWindow.webContents.executeJavaScript(`typeof window.navigate === 'function'`))
       ) {
-        mainWindow.webContents.executeJavaScript(
+        void mainWindow.webContents.executeJavaScript(
           `window.navigate('/settings/provider?addProviderData=${encodeURIComponent(data)}')`
         )
 
@@ -63,7 +63,7 @@ export async function handleProvidersProtocolUrl(url: URL) {
       } else {
         setTimeout(() => {
           logger.debug('handleProvidersProtocolUrl timeout', { data, version })
-          handleProvidersProtocolUrl(url)
+          void handleProvidersProtocolUrl(url)
         }, 1000)
       }
       break

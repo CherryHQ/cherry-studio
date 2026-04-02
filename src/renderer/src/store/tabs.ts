@@ -32,6 +32,10 @@ const initialState: TabsState = {
     {
       id: 'home',
       path: '/'
+    },
+    {
+      id: 'agents',
+      path: '/agents'
     }
   ],
   activeTabId: 'home'

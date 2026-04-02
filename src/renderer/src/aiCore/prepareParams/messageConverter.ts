@@ -5,12 +5,18 @@
 
 import type { ReasoningPart } from '@ai-sdk/provider-utils'
 import { loggerService } from '@logger'
-import { isImageEnhancementModel, isVisionModel } from '@renderer/config/models'
+import { isVisionModel } from '@renderer/config/models'
 import type { Message, Model } from '@renderer/types'
-import type { FileMessageBlock, ImageMessageBlock, ThinkingMessageBlock } from '@renderer/types/newMessage'
+import type {
+  FileMessageBlock,
+  ImageMessageBlock,
+  MainTextMessageBlock,
+  ThinkingMessageBlock
+} from '@renderer/types/newMessage'
 import {
   findFileBlocks,
   findImageBlocks,
+  findMainTextBlocks,
   findThinkingBlocks,
   getMainTextContent
 } from '@renderer/utils/messageUtils/find'
@@ -24,6 +30,7 @@ import type {
   TextPart,
   UserModelMessage
 } from 'ai'
+import i18n from 'i18next'
 
 import { convertFileBlockToFilePart, convertFileBlockToTextPart } from './fileProcessor'
 
@@ -42,10 +49,18 @@ export async function convertMessageToSdkParam(
   const fileBlocks = findFileBlocks(message)
   const imageBlocks = findImageBlocks(message)
   const reasoningBlocks = findThinkingBlocks(message)
+  const mainTextBlocks = findMainTextBlocks(message)
   if (message.role === 'user' || message.role === 'system') {
     return convertMessageToUserModelMessage(content, fileBlocks, imageBlocks, isVisionModel, model)
   } else {
-    return convertMessageToAssistantModelMessage(content, fileBlocks, imageBlocks, reasoningBlocks, model)
+    return convertMessageToAssistantModelMessage(
+      content,
+      fileBlocks,
+      imageBlocks,
+      reasoningBlocks,
+      mainTextBlocks,
+      model
+    )
   }
 }
 
@@ -54,7 +69,8 @@ async function convertImageBlockToImagePart(imageBlocks: ImageMessageBlock[]): P
   for (const imageBlock of imageBlocks) {
     if (imageBlock.file) {
       try {
-        const image = await window.api.file.base64Image(imageBlock.file.id + imageBlock.file.ext)
+        const ext = imageBlock.file.ext.startsWith('.') ? imageBlock.file.ext : `.${imageBlock.file.ext}`
+        const image = await window.api.file.base64Image(imageBlock.file.id + ext)
         parts.push({
           type: 'image',
           image: image.base64,
@@ -143,6 +159,7 @@ async function convertMessageToUserModelMessage(
         logger.debug(`File ${file.origin_name} processed as text content`)
       } else {
         logger.warn(`File ${file.origin_name} could not be processed in any format`)
+        window.toast.error(i18n.t('message.error.file.process_failed', { name: file.origin_name }))
       }
     }
   }
@@ -151,6 +168,52 @@ async function convertMessageToUserModelMessage(
     role: 'user',
     content: parts
   }
+}
+
+/**
+ * Replaces markdown images with data URI sources (e.g. `![alt](data:image/...;base64,...)`)
+ * with a placeholder `![alt](image)` to avoid sending huge base64 payloads to the API.
+ *
+ * Uses string scanning (indexOf) instead of regex to avoid OOM on multi-MB base64 strings.
+ */
+export function stripMarkdownBase64Images(text: string): string {
+  const marker = '](data:'
+  let result = ''
+  let searchFrom = 0
+
+  while (searchFrom < text.length) {
+    const markerIdx = text.indexOf(marker, searchFrom)
+    if (markerIdx === -1) {
+      result += text.slice(searchFrom)
+      break
+    }
+
+    // Find the `![` that starts this markdown image — walk backwards from `](`
+    const bangIdx = text.lastIndexOf('![', markerIdx)
+    if (bangIdx === -1 || text.indexOf(']', bangIdx + 2) !== markerIdx) {
+      // Not a valid markdown image — skip past this marker
+      result += text.slice(searchFrom, markerIdx + marker.length)
+      searchFrom = markerIdx + marker.length
+      continue
+    }
+
+    // Find the closing `)` — the URL part starts after `](`
+    const urlStart = markerIdx + 2 // position right after `](`
+    const closeIdx = text.indexOf(')', urlStart)
+    if (closeIdx === -1) {
+      result += text.slice(searchFrom)
+      break
+    }
+
+    // Extract alt text between `![` and `]`
+    const altText = text.slice(bangIdx + 2, markerIdx)
+
+    // Append everything before `![` plus the replacement
+    result += text.slice(searchFrom, bangIdx) + `![${altText}](image)`
+    searchFrom = closeIdx + 1
+  }
+
+  return result
 }
 
 /**
@@ -163,6 +226,7 @@ async function convertMessageToAssistantModelMessage(
   fileBlocks: FileMessageBlock[],
   imageBlocks: ImageMessageBlock[],
   thinkingBlocks: ThinkingMessageBlock[],
+  mainTextBlocks: MainTextMessageBlock[],
   model?: Model
 ): Promise<AssistantModelMessage> {
   const parts: Array<TextPart | ReasoningPart | FilePart> = []
@@ -173,9 +237,27 @@ async function convertMessageToAssistantModelMessage(
   }
 
   // Add text content after reasoning blocks, only if non-empty after trimming
-  const trimmedContent = content?.trim()
+  // Also add thoughtSignature from MainTextBlock metadata for Gemini thought signature persistence
+  // Strip inline base64 data URIs from markdown images to prevent HTTP 413 errors (#12602)
+  // Uses string scanning instead of regex to avoid OOM on large base64 payloads
+  const trimmedContent = stripMarkdownBase64Images(content?.trim() ?? '')
   if (trimmedContent) {
-    parts.push({ type: 'text', text: trimmedContent })
+    // Find the first MainTextBlock with thoughtSignature
+    const thoughtSignature = mainTextBlocks.find((block) => block.metadata?.thoughtSignature)?.metadata
+      ?.thoughtSignature
+
+    const textPart: TextPart = { type: 'text', text: trimmedContent }
+
+    // Add providerOptions with thoughtSignature if available (for Gemini)
+    if (thoughtSignature) {
+      textPart.providerOptions = {
+        google: {
+          thoughtSignature
+        }
+      }
+    }
+
+    parts.push(textPart)
   }
 
   for (const fileBlock of fileBlocks) {
@@ -241,7 +323,7 @@ export async function convertMessagesToSdkMessages(messages: Message[], model: M
     const sdkMessage = await convertMessageToSdkParam(message, isVision, model)
     sdkMessages.push(...(Array.isArray(sdkMessage) ? sdkMessage : [sdkMessage]))
   }
-  // Special handling for image enhancement models
+  // Special handling for vison models
   // These models support multi-turn conversations but need images from previous assistant messages
   // to be merged into the current user message for editing/enhancement operations.
   //
@@ -249,7 +331,7 @@ export async function convertMessagesToSdkMessages(messages: Message[], model: M
   // 1. Preserve all conversation history for context
   // 2. Find images from the previous assistant message and merge them into the last user message
   // 3. This allows users to switch from LLM conversations and use that context for image generation
-  if (isImageEnhancementModel(model)) {
+  if (isVision) {
     // Find the last user SDK message index
     const lastUserSdkIndex = (() => {
       for (let i = sdkMessages.length - 1; i >= 0; i--) {

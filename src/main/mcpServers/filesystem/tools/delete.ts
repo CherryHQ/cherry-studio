@@ -20,7 +20,7 @@ CAUTION: This operation cannot be undone!
 - For files: simply provide the path
 - For empty directories: provide the path
 - For non-empty directories: set recursive=true
-- The path must be an absolute path, not a relative path
+- The path must resolve within the configured workspace root
 - Always verify the path before deleting to avoid data loss`,
   inputSchema: z.toJSONSchema(DeleteToolSchema)
 }

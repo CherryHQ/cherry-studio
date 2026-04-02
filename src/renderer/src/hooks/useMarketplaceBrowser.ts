@@ -55,7 +55,7 @@ const mapPluginToEntry = (item: MarketplacePlugin): MarketplaceEntry => {
       tags: item.keywords && item.keywords.length > 0 ? item.keywords : undefined,
       version,
       author: item.author ?? undefined,
-      size: 0,
+      size: null,
       contentHash: item.id ?? `${sourcePath}:${version ?? ''}`
     },
     stats: {
@@ -119,7 +119,7 @@ const mapSkillToEntry = (item: MarketplaceSkill): MarketplaceEntry => {
       tags: undefined,
       version,
       author: item.author ?? undefined,
-      size: 0,
+      size: null,
       contentHash: item.id ?? `${sourcePath}:${version ?? ''}`
     },
     stats: {

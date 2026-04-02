@@ -9,7 +9,7 @@ import type { DocumentURLChunk } from '@mistralai/mistralai/models/components/do
 import type { ImageURLChunk } from '@mistralai/mistralai/models/components/imageurlchunk'
 import type { OCRResponse } from '@mistralai/mistralai/models/components/ocrresponse'
 import type { FileMetadata, PreprocessProvider, Provider } from '@types'
-import { FileTypes } from '@types'
+import { FILE_TYPE } from '@types'
 import path from 'path'
 
 import BasePreprocessProvider from './BasePreprocessProvider'
@@ -179,7 +179,7 @@ export default class MistralPreprocessProvider extends BasePreprocessProvider {
       origin_name: file.origin_name,
       path: mdFilePath,
       created_at: new Date().toISOString(),
-      type: FileTypes.DOCUMENT,
+      type: FILE_TYPE.DOCUMENT,
       ext: '.md',
       size: fs.statSync(mdFilePath).size,
       count: 1

@@ -1,14 +1,17 @@
-import type {
-  ExternalToolResult,
-  KnowledgeReference,
-  MCPTool,
-  MCPToolResponse,
-  NormalToolResponse,
-  ToolUseResponse,
-  WebSearchResponse
-} from '.'
+import type { ExternalToolResult, KnowledgeReference, MCPToolResponse, NormalToolResponse, WebSearchResponse } from '.'
 import type { Response, ResponseError } from './newMessage'
-import type { SdkToolCall } from './sdk'
+
+/**
+ * Provider metadata type for passing provider-specific data through chunks
+ * Currently used for passing thoughtSignature from Gemini through the chunk pipeline
+ */
+export interface ProviderMetadata {
+  google?: {
+    thoughtSignature?: string
+    [key: string]: unknown
+  }
+  [provider: string]: unknown
+}
 
 // Define Enum for Chunk Types
 // 目前用到的，并没有列出完整的生命周期
@@ -82,6 +85,11 @@ export interface TextStartChunk {
    * The ID of the chunk
    */
   chunk_id?: number
+
+  /**
+   * Provider metadata for passing provider-specific data (e.g., thoughtSignature for Gemini)
+   */
+  providerMetadata?: ProviderMetadata
 }
 export interface TextDeltaChunk {
   /**
@@ -98,6 +106,11 @@ export interface TextDeltaChunk {
    * The type of the chunk
    */
   type: ChunkType.TEXT_DELTA
+
+  /**
+   * Provider metadata for passing provider-specific data (e.g., thoughtSignature for Gemini)
+   */
+  providerMetadata?: ProviderMetadata
 }
 
 export interface TextCompleteChunk {
@@ -115,6 +128,11 @@ export interface TextCompleteChunk {
    * The type of the chunk
    */
   type: ChunkType.TEXT_COMPLETE
+
+  /**
+   * Provider metadata for passing provider-specific data (e.g., thoughtSignature for Gemini)
+   */
+  providerMetadata?: ProviderMetadata
 }
 
 export interface AudioStartChunk {
@@ -296,12 +314,6 @@ export interface ExternalToolCompleteChunk {
   type: ChunkType.EXTERNEL_TOOL_COMPLETE
 }
 
-export interface MCPToolCreatedChunk {
-  type: ChunkType.MCP_TOOL_CREATED
-  tool_calls?: SdkToolCall[] // 工具调用
-  tool_use_responses?: (Omit<ToolUseResponse, 'tool'> & { tool: MCPTool })[] // 工具使用响应
-}
-
 export interface MCPToolPendingChunk {
   type: ChunkType.MCP_TOOL_PENDING
   responses: MCPToolResponse[] | NormalToolResponse[]
@@ -449,7 +461,6 @@ export type Chunk =
   | WebSearchCompleteChunk // 互联网搜索完成
   | KnowledgeSearchInProgressChunk // 知识库搜索进行中
   | KnowledgeSearchCompleteChunk // 知识库搜索完成
-  | MCPToolCreatedChunk // MCP工具被大模型创建
   | MCPToolPendingChunk // MCP工具调用等待中
   | MCPToolInProgressChunk // MCP工具调用中
   | MCPToolCompleteChunk // MCP工具调用完成

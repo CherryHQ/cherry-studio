@@ -45,7 +45,7 @@ export function debounce(func: (...args: any[]) => void, wait: number, immediate
 //   return JSON.stringify(persistState)
 // }
 
-export const runAsyncFunction = async (fn: () => void) => {
+export const runAsyncFunction = async (fn: () => Promise<void>) => {
   await fn()
 }
 

@@ -5,6 +5,8 @@
  * Used by both the Code Tools page and the Anthropic SDK client.
  */
 
+import { SystemProviderIds } from '@types'
+
 /**
  * Silicon provider models that support Anthropic API endpoint.
  * These models can be used with Claude Code via the Anthropic-compatible API.
@@ -46,3 +48,25 @@ export function isSiliconAnthropicCompatibleModel(modelId: string): boolean {
  * Silicon provider's Anthropic API host URL.
  */
 export const SILICON_ANTHROPIC_API_HOST = 'https://api.siliconflow.cn'
+
+export const CLAUDE_OFFICIAL_SUPPORTED_PROVIDERS = [
+  'deepseek',
+  'moonshot',
+  'zhipu',
+  'dashscope',
+  'modelscope',
+  'minimax',
+  'longcat',
+  SystemProviderIds.qiniu,
+  SystemProviderIds.silicon,
+  SystemProviderIds.mimo,
+  SystemProviderIds.openrouter
+]
+export const CLAUDE_SUPPORTED_PROVIDERS = [
+  'aihubmix',
+  'dmxapi',
+  'new-api',
+  'cherryin',
+  '302ai',
+  ...CLAUDE_OFFICIAL_SUPPORTED_PROVIDERS
+]

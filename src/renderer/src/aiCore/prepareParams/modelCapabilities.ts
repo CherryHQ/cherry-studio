@@ -5,8 +5,8 @@
 
 import { isVisionModel } from '@renderer/config/models'
 import { getProviderByModel } from '@renderer/services/AssistantService'
-import type { Model } from '@renderer/types'
-import { FileTypes } from '@renderer/types'
+import type { FileType, Model } from '@renderer/types'
+import { FILE_TYPE } from '@renderer/types'
 
 import { getAiSdkProviderId } from '../provider/factory'
 
@@ -48,26 +48,6 @@ function modelSupportValidator(
 }
 
 /**
- * 检查模型是否支持原生PDF输入
- */
-export function supportsPdfInput(model: Model): boolean {
-  // 基于AI SDK文档，以下模型或提供商支持PDF输入
-  return modelSupportValidator(model, {
-    supportedModels: ['qwen-long', 'qwen-doc'],
-    supportedProviders: [
-      'openai',
-      'azure-openai',
-      'anthropic',
-      'google',
-      'google-generative-ai',
-      'google-vertex',
-      'bedrock',
-      'amazon-bedrock'
-    ]
-  })
-}
-
-/**
  * 检查模型是否支持原生图片输入
  */
 export function supportsImageInput(model: Model): boolean {
@@ -88,12 +68,12 @@ export function supportsLargeFileUpload(model: Model): boolean {
 /**
  * 获取提供商特定的文件大小限制
  */
-export function getFileSizeLimit(model: Model, fileType: FileTypes): number {
+export function getFileSizeLimit(model: Model, fileType: FileType): number {
   const provider = getProviderByModel(model)
   const aiSdkId = getAiSdkProviderId(provider)
 
   // Anthropic PDF限制32MB
-  if (aiSdkId === 'anthropic' && fileType === FileTypes.DOCUMENT) {
+  if (aiSdkId === 'anthropic' && fileType === FILE_TYPE.DOCUMENT) {
     return 32 * 1024 * 1024 // 32MB
   }
 

@@ -6,7 +6,13 @@
  * 2. transformParams: 根据意图分析结果动态添加对应的工具
  * 3. onRequestEnd: 自动记忆存储
  */
-import { type AiRequestContext, definePlugin } from '@cherrystudio/ai-core'
+import {
+  type AiPlugin,
+  type AiRequestContext,
+  definePlugin,
+  type StreamTextParams,
+  type StreamTextResult
+} from '@cherrystudio/ai-core'
 import { loggerService } from '@logger'
 // import { generateObject } from '@cherrystudio/ai-core'
 import {
@@ -236,18 +242,21 @@ async function storeConversationMemory(
 /**
  * 🎯 搜索编排插件
  */
-export const searchOrchestrationPlugin = (assistant: Assistant, topicId: string) => {
+export const searchOrchestrationPlugin = (
+  assistant: Assistant,
+  topicId: string
+): AiPlugin<StreamTextParams, StreamTextResult> => {
   // 存储意图分析结果
   const intentAnalysisResults: { [requestId: string]: ExtractResults } = {}
   const userMessages: { [requestId: string]: ModelMessage } = {}
 
-  return definePlugin({
+  return definePlugin<StreamTextParams, StreamTextResult>({
     name: 'search-orchestration',
     enforce: 'pre', // 确保在其他插件之前执行
     /**
      * 🔍 Step 1: 意图识别阶段
      */
-    onRequestStart: async (context: AiRequestContext) => {
+    onRequestStart: async (context) => {
       // 没开启任何搜索则不进行意图分析
       if (!(assistant.webSearchProviderId || assistant.knowledge_bases?.length || assistant.enableMemory)) return
 
@@ -297,7 +306,7 @@ export const searchOrchestrationPlugin = (assistant: Assistant, topicId: string)
     /**
      * 🔧 Step 2: 工具配置阶段
      */
-    transformParams: async (params: any, context: AiRequestContext) => {
+    transformParams: async (params, context) => {
       // logger.info('🔧 Configuring tools based on intent...', context.requestId)
 
       try {
@@ -346,8 +355,8 @@ export const searchOrchestrationPlugin = (assistant: Assistant, topicId: string)
             params.tools['builtin_knowledge_search'] = knowledgeSearchTool(
               assistant,
               analysisResult.knowledge,
-              getMessageContent(userMessage),
-              topicId
+              topicId,
+              getMessageContent(userMessage)
             )
           }
         }
@@ -356,7 +365,7 @@ export const searchOrchestrationPlugin = (assistant: Assistant, topicId: string)
         const globalMemoryEnabled = selectGlobalMemoryEnabled(store.getState())
         if (globalMemoryEnabled && assistant.enableMemory) {
           // logger.info('🧠 Adding memory search tool')
-          params.tools['builtin_memory_search'] = memorySearchTool()
+          params.tools['builtin_memory_search'] = memorySearchTool(assistant.id)
         }
 
         // logger.info('🔧 Tools configured:', Object.keys(params.tools))
@@ -371,11 +380,12 @@ export const searchOrchestrationPlugin = (assistant: Assistant, topicId: string)
      * 💾 Step 3: 记忆存储阶段
      */
 
-    onRequestEnd: async (context: AiRequestContext) => {
+    onRequestEnd: async (context) => {
       // context.isAnalyzing = false
       // logger.info('context.isAnalyzing', context, result)
       // logger.info('💾 Starting memory storage...', context.requestId)
       try {
+        // ✅ 类型安全访问：context.originalParams 已通过泛型正确类型化
         const messages = context.originalParams.messages
 
         if (messages && assistant) {
