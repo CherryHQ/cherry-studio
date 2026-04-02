@@ -8,7 +8,7 @@ import { useSettings } from '@renderer/hooks/useSettings'
 import { estimateTextTokens } from '@renderer/services/TokenService'
 import { useAppDispatch } from '@renderer/store'
 import { setTranslateAbortKey } from '@renderer/store/runtime'
-import type { ImageFileMetadata, Model, TranslateLanguage } from '@renderer/types'
+import type { ImageFileMetadata, TranslateLanguage } from '@renderer/types'
 import { uuid } from '@renderer/utils'
 import { formatErrorMessageWithPrefix, isAbortError } from '@renderer/utils/error'
 import { Button, Flex, Select, Typography } from 'antd'
@@ -144,7 +144,7 @@ const ScreenshotPage: FC = () => {
     dispatch(setTranslateAbortKey(abortKey))
 
     const assistant = getDefaultAssistant()
-    assistant.model = translateModel as Model
+    assistant.model = translateModel
     assistant.prompt = prompt
 
     try {
