@@ -1,8 +1,5 @@
 import * as z from 'zod'
 
-// Plugin Type
-export type PluginType = 'agent' | 'command' | 'skill'
-
 // Plugin Metadata Type
 export const PluginMetadataSchema = z.object({
   // Identification
@@ -39,23 +36,6 @@ export const PluginMetadataSchema = z.object({
 
 export type PluginMetadata = z.infer<typeof PluginMetadataSchema>
 
-export const InstalledPluginSchema = z.object({
-  filename: z.string(),
-  type: z.enum(['agent', 'command', 'skill']),
-  metadata: PluginMetadataSchema
-})
-
-export type InstalledPlugin = z.infer<typeof InstalledPluginSchema>
-
-// Cache file schema for .claude/plugins.json
-export const CachedPluginsDataSchema = z.object({
-  version: z.number().default(1),
-  lastUpdated: z.number(), // Unix timestamp in milliseconds
-  plugins: z.array(InstalledPluginSchema)
-})
-
-export type CachedPluginsData = z.infer<typeof CachedPluginsDataSchema>
-
 // Error handling types
 export type PluginError =
   | { type: 'PATH_TRAVERSAL'; message: string; path: string }
@@ -79,74 +59,6 @@ export type PluginError =
   | { type: 'PLUGIN_MANIFEST_INVALID'; path: string; reason: string }
   | { type: 'EMPTY_PLUGIN_PACKAGE'; path: string }
   | { type: 'PLUGIN_PACKAGE_NOT_FOUND'; packageName: string }
-
-export type PluginResult<T> = { success: true; data: T } | { success: false; error: PluginError }
-
-export interface InstallPluginOptions {
-  agentId: string
-  sourcePath: string
-  type: 'agent' | 'command' | 'skill'
-}
-
-export interface UninstallPluginOptions {
-  agentId: string
-  filename: string
-  type: 'agent' | 'command' | 'skill'
-}
-
-// Package-level uninstall options
-export interface UninstallPluginPackageOptions {
-  agentId: string
-  packageName: string
-}
-
-// Package-level uninstall result
-export interface UninstallPluginPackageResult {
-  packageName: string
-  uninstalledComponents: Array<{ filename: string; type: PluginType }>
-  directoryRemoved: boolean
-}
-
-export interface WritePluginContentOptions {
-  agentId: string
-  filename: string
-  type: 'agent' | 'command' | 'skill'
-  content: string
-}
-
-export interface InstallSkillFromZipOptions {
-  agentId: string
-  zipFilePath: string
-}
-
-// Plugin package installation options (for ZIP upload)
-export interface InstallFromZipOptions {
-  agentId: string
-  zipFilePath: string
-}
-
-// Single plugin package installation result
-export interface SinglePluginInstallResult {
-  pluginName: string // Plugin name from plugin.json
-  installed: PluginMetadata[] // Successfully installed items
-  failed: Array<{ path: string; error: string }> // Failed items
-}
-
-// Plugin package installation result (supports multiple packages from ZIP, directory, or marketplace)
-export interface InstallFromSourceResult {
-  packages: SinglePluginInstallResult[] // Results for each plugin package
-  totalInstalled: number // Total successfully installed components
-  totalFailed: number // Total failed components
-}
-
-/** @deprecated Use InstallFromSourceResult instead */
-export type InstallFromZipResult = InstallFromSourceResult
-
-// Plugin directory installation options (for folder upload)
-export interface InstallFromDirectoryOptions {
-  agentId: string
-  directoryPath: string
-}
 
 // Plugin manifest schema (.claude-plugin/plugin.json)
 // Reference: https://code.claude.com/docs/en/plugins-reference
