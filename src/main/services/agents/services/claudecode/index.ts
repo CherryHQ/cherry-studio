@@ -19,6 +19,12 @@ import { validateModelId } from '@main/apiServer/utils'
 import { isWin } from '@main/constant'
 import { application } from '@main/core/application'
 import { pluginService } from '@main/services/agents/plugins/PluginService'
+import {
+  getNodeProxyConfigFromEnvironment,
+  getProxyEnvironment,
+  getProxyProtocol
+} from '@main/services/proxy/nodeProxy'
+import { toAsarUnpackedPath } from '@main/utils'
 import { getAppLanguage } from '@main/utils/language'
 import { autoDiscoverGitBash } from '@main/utils/process'
 import { rtkRewrite } from '@main/utils/rtk'
@@ -72,13 +78,14 @@ class ClaudeCodeStream extends EventEmitter implements AgentStream {
 
 class ClaudeCodeService implements AgentServiceInterface {
   private claudeExecutablePath: string
+  private claudeProxyBootstrapPath: string
 
   constructor() {
     // Resolve Claude Code CLI robustly (works in dev and in asar)
-    this.claudeExecutablePath = path.join(path.dirname(require_.resolve('@anthropic-ai/claude-agent-sdk')), 'cli.js')
-    if (app.isPackaged) {
-      this.claudeExecutablePath = this.claudeExecutablePath.replace(/\.asar([\\/])/, '.asar.unpacked$1')
-    }
+    this.claudeExecutablePath = toAsarUnpackedPath(
+      path.join(path.dirname(require_.resolve('@anthropic-ai/claude-agent-sdk')), 'cli.js')
+    )
+    this.claudeProxyBootstrapPath = toAsarUnpackedPath(path.join(app.getAppPath(), 'out', 'proxy', 'index.js'))
   }
 
   async invoke(
@@ -136,9 +143,6 @@ class ClaudeCodeService implements AgentServiceInterface {
       apiKey: 'feature.csaas.api_key'
     })
     const loginShellEnv = await getLoginShellEnvironment()
-    const loginShellEnvWithoutProxies = Object.fromEntries(
-      Object.entries(loginShellEnv).filter(([key]) => !key.toLowerCase().endsWith('_proxy'))
-    ) as Record<string, string>
 
     // Auto-discover Git Bash path on Windows (already logs internally)
     const customGitBashPath = isWin ? autoDiscoverGitBash() : null
@@ -151,7 +155,8 @@ class ClaudeCodeService implements AgentServiceInterface {
     )
 
     const env = {
-      ...loginShellEnvWithoutProxies,
+      ...loginShellEnv,
+      ...getProxyEnvironment(process.env),
       // prevent claude agent sdk using bedrock api
       CLAUDE_CODE_USE_BEDROCK: '0',
       // TODO: fix the proxy api server
@@ -192,6 +197,8 @@ class ClaudeCodeService implements AgentServiceInterface {
         'CLAUDE_CONFIG_DIR',
         'CLAUDE_CODE_USE_BEDROCK',
         'CLAUDE_CODE_GIT_BASH_PATH',
+        'CHERRY_STUDIO_NODE_PROXY_RULES',
+        'CHERRY_STUDIO_NODE_PROXY_BYPASS_RULES',
         'NODE_OPTIONS',
         '__PROTO__',
         'CONSTRUCTOR',
@@ -360,9 +367,27 @@ class ClaudeCodeService implements AgentServiceInterface {
         errorChunks.push(chunk)
       },
       spawnClaudeCodeProcess: (spawnOptions) => {
+        const childEnv = { ...spawnOptions.env } as NodeJS.ProcessEnv
+        let execArgv = process.execArgv
+
+        const activeProxyConfig = getNodeProxyConfigFromEnvironment(childEnv)
+        if (activeProxyConfig) {
+          const proxyProtocol = getProxyProtocol(activeProxyConfig.proxyRules)
+
+          logger.info('Injecting proxy into Claude Code child process', {
+            proxyProtocol,
+            proxyRules: activeProxyConfig.proxyRules,
+            proxyBypassRules: activeProxyConfig.proxyBypassRules,
+            proxyBootstrapPath: this.claudeProxyBootstrapPath
+          })
+
+          execArgv = [...process.execArgv, '--require', this.claudeProxyBootstrapPath]
+        }
+
         const child = fork(spawnOptions.args[0], spawnOptions.args.slice(1), {
           cwd: spawnOptions.cwd,
-          env: spawnOptions.env as NodeJS.ProcessEnv,
+          env: childEnv,
+          execArgv,
           stdio: ['pipe', 'pipe', 'pipe', 'ipc'],
           signal: spawnOptions.signal
         })
