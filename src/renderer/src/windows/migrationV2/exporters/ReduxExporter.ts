@@ -14,6 +14,8 @@ const SLICES_TO_EXPORT = [
   'mcp', // MCP server configurations
   'note', // Note-related settings
   'selectionStore', // Selection assistant settings
+  'preprocess', // File preprocess provider configurations
+  'ocr', // OCR provider configurations
   'websearch', // Web search configurations
   'codeTools' // Code tools settings (CLI tool, models, terminal)
 ]

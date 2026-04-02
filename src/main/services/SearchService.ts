@@ -1,11 +1,38 @@
 import { is } from '@electron-toolkit/utils'
 import { loggerService } from '@logger'
+import { BaseService, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
+import { IpcChannel } from '@shared/IpcChannel'
 import { BrowserWindow } from 'electron'
 
 const logger = loggerService.withContext('SearchService')
 
-export class SearchService {
+@Injectable('SearchService')
+@ServicePhase(Phase.WhenReady)
+export class SearchService extends BaseService {
   private searchWindows: Record<string, BrowserWindow> = {}
+
+  protected async onInit() {
+    this.registerIpcHandlers()
+  }
+
+  private registerIpcHandlers() {
+    this.ipcHandle(IpcChannel.SearchWindow_Open, async (_, uid: string, show?: boolean) => {
+      await this.openSearchWindow(uid, show)
+    })
+    this.ipcHandle(IpcChannel.SearchWindow_Close, async (_, uid: string) => {
+      await this.closeSearchWindow(uid)
+    })
+    this.ipcHandle(IpcChannel.SearchWindow_OpenUrl, async (_, uid: string, url: string) => {
+      return await this.openUrlInSearchWindow(uid, url)
+    })
+  }
+
+  protected async onStop() {
+    for (const uid of Object.keys(this.searchWindows)) {
+      this.searchWindows[uid]?.close()
+    }
+    this.searchWindows = {}
+  }
 
   private async createNewSearchWindow(uid: string, show: boolean = false): Promise<BrowserWindow> {
     const newWindow = new BrowserWindow({
@@ -72,5 +99,3 @@ export class SearchService {
     return await window.webContents.executeJavaScript('document.documentElement.outerHTML')
   }
 }
-
-export const searchService = new SearchService()
