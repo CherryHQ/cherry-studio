@@ -1,7 +1,6 @@
 import fs from 'node:fs/promises'
 import path from 'node:path'
 
-import { loggerService } from '@logger'
 import type { FileMetadata } from '@types'
 
 import type { FileProcessingTextExtractionResult } from '../../../contracts/types'
@@ -11,8 +10,6 @@ import {
   MistralOcrResponseSchema,
   type PreparedMistralContext
 } from './types'
-
-const logger = loggerService.withContext('FileProcessing:MistralProcessor')
 
 // TODO: Move file-type / mime resolution into the unified file management layer when file handling is consolidated.
 const IMAGE_MIME_BY_EXTENSION: Record<string, string> = {

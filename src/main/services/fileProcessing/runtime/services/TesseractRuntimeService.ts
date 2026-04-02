@@ -39,11 +39,11 @@ export class TesseractRuntimeService extends BaseService {
   protected async onStop(): Promise<void> {
     this.acceptingTasks = false
     this.shutdownController?.abort(this.createAbortError('Tesseract runtime is stopping'))
-    this.shutdownController = null
 
     await this.disposeWorker()
     await this.extractionQueue
     this.extractionQueue = Promise.resolve()
+    this.shutdownController = null
 
     logger.debug('Tesseract runtime cleanup completed')
   }

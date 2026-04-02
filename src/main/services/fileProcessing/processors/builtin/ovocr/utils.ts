@@ -4,7 +4,6 @@ import os from 'node:os'
 import path from 'node:path'
 import { promisify } from 'node:util'
 
-import { loggerService } from '@logger'
 import { isWin } from '@main/constant'
 import { HOME_CHERRY_DIR } from '@shared/config/constant'
 import type { FileProcessorMerged } from '@shared/data/presets/file-processing'
@@ -14,13 +13,12 @@ import { isImageFileMetadata } from '@types'
 import type { FileProcessingTextExtractionResult } from '../../../contracts/types'
 import type { PreparedOvOcrContext } from './type'
 
-const logger = loggerService.withContext('FileProcessing:OvOcrProcessor')
 const execAsync = promisify(exec)
 const PATH_BAT_FILE = path.join(os.homedir(), HOME_CHERRY_DIR, 'ovms', 'ovocr', 'run.npu.bat')
 
 export function prepareContext(
   file: FileMetadata,
-  config: FileProcessorMerged,
+  _config: FileProcessorMerged,
   signal?: AbortSignal
 ): PreparedOvOcrContext {
   if (!isImageFileMetadata(file)) {
