@@ -28,7 +28,7 @@ vi.mock('electron', () => ({
 }))
 
 vi.mock('../utils', () => ({
-  getDataPath: vi.fn(() => '/userData/Data')
+  getDataPath: vi.fn((subPath?: string) => (subPath ? path.join('/userData/Data', subPath) : '/userData/Data'))
 }))
 
 const mockRepo = {

@@ -553,14 +553,9 @@ export class SkillService {
   // Path helpers
   // ===========================================================================
 
-  /** Global storage: {userData}/Data/Skills/ */
-  private getGlobalSkillsBasePath(): string {
-    return path.join(getDataPath(), 'Skills')
-  }
-
   /** Full path to a skill in global storage */
   private getSkillStoragePath(folderName: string): string {
-    return path.join(this.getGlobalSkillsBasePath(), folderName)
+    return path.join(getDataPath('Skills'), folderName)
   }
 
   /** Symlink location: {userData}/.claude/skills/{folderName} */

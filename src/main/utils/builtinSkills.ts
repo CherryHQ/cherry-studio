@@ -32,7 +32,7 @@ const VERSION_FILE = '.version'
 // TODO: v2-backup
 export async function installBuiltinSkills(): Promise<void> {
   const resourceSkillsPath = path.join(app.getAppPath(), 'resources', 'skills')
-  const globalSkillsPath = path.join(getDataPath(), 'Skills')
+  const globalSkillsPath = getDataPath('Skills')
   const linkBasePath = path.join(app.getPath('userData'), '.claude', 'skills')
   const appVersion = app.getVersion()
 

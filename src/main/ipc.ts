@@ -92,7 +92,7 @@ import { themeService } from './services/ThemeService'
 import VertexAIService from './services/VertexAIService'
 import { setOpenLinkExternal } from './services/WebviewService'
 import { windowService } from './services/WindowService'
-import { calculateDirectorySize, getResourcePath } from './utils'
+import { calculateDirectorySize, getDataPath, getResourcePath } from './utils'
 import { decrypt, encrypt } from './utils/aes'
 import {
   getCacheDir,
@@ -1172,7 +1172,7 @@ export async function registerIpc(mainWindow: BrowserWindow, app: Electron.App) 
 
   // WeChat
   ipcMain.handle(IpcChannel.WeChat_HasCredentials, async (_, channelId: string) => {
-    const tokenPath = path.join(app.getPath('userData'), 'Data', `weixin_bot_${channelId}.json`)
+    const tokenPath = path.join(getDataPath('Channels'), `weixin_bot_${channelId}.json`)
     try {
       const raw = await fs.promises.readFile(tokenPath, 'utf8')
       const parsed = JSON.parse(raw)
