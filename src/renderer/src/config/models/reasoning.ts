@@ -762,7 +762,8 @@ export function isReasoningModel(model?: Model): boolean {
     modelId.includes('magistral') ||
     modelId.includes('pangu-pro-moe') ||
     modelId.includes('seed-oss') ||
-    modelId.includes('deepseek-v3.2-speciale')
+    modelId.includes('deepseek-v3.2-speciale') ||
+    modelId.includes('gemma-4')
   ) {
     return true
   }
