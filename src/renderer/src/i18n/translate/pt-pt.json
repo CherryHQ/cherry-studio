@@ -4579,6 +4579,7 @@
         "glama": "Diretório de servidores MCP Glama",
         "higress": "Servidor MCP Higress",
         "mcpso": "Plataforma de descoberta de servidores MCP",
+        "mcpworld": "Plataforma de agregação MCP da Baidu",
         "modelscope": "Servidor MCP da comunidade ModelScope",
         "official": "Coleção oficial de servidores MCP",
         "pulsemcp": "Servidor MCP Pulse",
