@@ -1,7 +1,8 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import { BaseService } from '../BaseService'
-import { DependsOn, ErrorHandling, Injectable } from '../decorators'
+import { when } from '../conditions'
+import { Conditional, DependsOn, ErrorHandling, Injectable } from '../decorators'
 import { LifecycleManager } from '../LifecycleManager'
 import { ServiceContainer } from '../ServiceContainer'
 import { LifecycleEvents, LifecycleState, type Pausable, Phase, ServiceInitError } from '../types'
@@ -109,6 +110,29 @@ describe('LifecycleManager', () => {
 
       // No services registered, should not throw
       await expect(initializeServices(manager)).resolves.toBeUndefined()
+    })
+
+    it('should initialize a conditional service whose condition passes', async () => {
+      const order: string[] = []
+
+      @Injectable('ConditionalService')
+      @Conditional(when(() => true, 'always active'))
+      class ConditionalService extends BaseService {
+        protected override onInit() {
+          order.push('Conditional')
+        }
+      }
+
+      const manager = LifecycleManager.getInstance()
+      const container = manager['container']
+      container.register(ConditionalService)
+
+      await initializeServices(manager)
+
+      expect(order).toEqual(['Conditional'])
+
+      const instance = container.getOptional('ConditionalService')
+      expect(instance).toBeDefined()
     })
   })
 

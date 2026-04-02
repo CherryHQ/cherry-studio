@@ -46,8 +46,15 @@
     {
       "idx": 6,
       "version": "6",
+      "when": 1774697808332,
+      "tag": "0006_silly_screwball",
+      "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "6",
       "when": 1774622546141,
-      "tag": "0006_steep_hedge_knight",
+      "tag": "0007_steep_hedge_knight",
       "breakpoints": true
     }
   ],

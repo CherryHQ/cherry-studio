@@ -2,7 +2,10 @@ import { usePreference } from '@data/hooks/usePreference'
 import { ErrorBoundary } from '@renderer/components/ErrorBoundary'
 import { useAssistants } from '@renderer/hooks/useAssistant'
 import { useNavbarPosition } from '@renderer/hooks/useNavbar'
+import { useShortcut } from '@renderer/hooks/useShortcuts'
+import { useShowAssistants, useShowTopics } from '@renderer/hooks/useStore'
 import { useActiveTopic } from '@renderer/hooks/useTopic'
+import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import NavigationService from '@renderer/services/NavigationService'
 import { newMessagesActions } from '@renderer/store/newMessage'
 import type { Assistant, Topic } from '@renderer/types'
@@ -36,9 +39,45 @@ const HomePage: FC = () => {
   const [showAssistants] = usePreference('assistant.tab.show')
   const [showTopics] = usePreference('topic.tab.show')
   const [topicPosition] = usePreference('topic.position')
+  const { setShowAssistants, toggleShowAssistants } = useShowAssistants()
+  const { toggleShowTopics } = useShowTopics()
   const dispatch = useDispatch()
 
   _activeAssistant = activeAssistant
+
+  useShortcut('toggle_show_assistants', () => {
+    if (topicPosition === 'right') {
+      void toggleShowAssistants()
+      return
+    }
+
+    if (!showAssistants) {
+      void setShowAssistants(true)
+      requestAnimationFrame(() => {
+        void EventEmitter.emit(EVENT_NAMES.SHOW_ASSISTANTS)
+      })
+      return
+    }
+
+    void EventEmitter.emit(EVENT_NAMES.SHOW_ASSISTANTS)
+  })
+
+  useShortcut('toggle_show_topics', () => {
+    if (topicPosition === 'right') {
+      void toggleShowTopics()
+      return
+    }
+
+    if (!showAssistants) {
+      void setShowAssistants(true)
+      requestAnimationFrame(() => {
+        void EventEmitter.emit(EVENT_NAMES.SHOW_TOPIC_SIDEBAR)
+      })
+      return
+    }
+
+    void EventEmitter.emit(EVENT_NAMES.SHOW_TOPIC_SIDEBAR)
+  })
 
   const setActiveAssistant = useCallback(
     (newAssistant: Assistant) => {

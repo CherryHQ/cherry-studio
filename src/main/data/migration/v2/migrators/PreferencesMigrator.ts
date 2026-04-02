@@ -44,10 +44,13 @@ export class PreferencesMigrator extends BaseMigrator {
   private preparedItems: PreparedData[] = []
   private skippedCount = 0
 
-  async prepare(ctx: MigrationContext): Promise<PrepareResult> {
-    const warnings: string[] = []
+  override reset(): void {
     this.preparedItems = []
     this.skippedCount = 0
+  }
+
+  async prepare(ctx: MigrationContext): Promise<PrepareResult> {
+    const warnings: string[] = []
 
     try {
       // Step 1: Detect conflicts between simple and complex mappings (strict mode)

@@ -22,7 +22,7 @@ const logger = loggerService.withContext('Lifecycle')
 export class ServiceContainer {
   private static instance: ServiceContainer | null = null
   private services: Map<string, ServiceEntry> = new Map()
-  private excluded: Set<string> = new Set()
+  private excluded: Map<string, Phase> = new Map()
   private conditionContext: ConditionContext
 
   private constructor() {
@@ -69,15 +69,16 @@ export class ServiceContainer {
     // Check activation conditions before registering
     const conditions = getConditions(target)
     if (conditions && conditions.length > 0) {
+      const phase = getPhase(target)
       for (const condition of conditions) {
         try {
           if (!condition.matches(this.conditionContext)) {
-            this.excluded.add(name)
+            this.excluded.set(name, phase)
             logger.info(`Service '${name}' excluded: ${condition.description}`)
             return
           }
         } catch (error) {
-          this.excluded.add(name)
+          this.excluded.set(name, phase)
           logger.warn(
             `Service '${name}' excluded: condition '${condition.description}' threw during evaluation`,
             error as Error
@@ -274,6 +275,22 @@ export class ServiceContainer {
   }
 
   /**
+   * Get excluded services grouped by phase
+   */
+  public getExcludedByPhase(): Map<Phase, string[]> {
+    const result = new Map<Phase, string[]>()
+    for (const [name, phase] of this.excluded) {
+      let list = result.get(phase)
+      if (!list) {
+        list = []
+        result.set(phase, list)
+      }
+      list.push(name)
+    }
+    return result
+  }
+
+  /**
    * Remove services whose dependencies were excluded (transitive exclusion).
    * Iterates until no new exclusions are found to handle multi-layer dependency chains.
    */
@@ -284,8 +301,8 @@ export class ServiceContainer {
       for (const [name, entry] of this.services) {
         const excludedDep = entry.provider.metadata.dependencies.find((dep) => this.excluded.has(dep))
         if (excludedDep) {
+          this.excluded.set(name, entry.provider.metadata.phase)
           this.services.delete(name)
-          this.excluded.add(name)
           logger.warn(`Service '${name}' transitively excluded: depends on excluded '${excludedDep}'`)
           changed = true
         }

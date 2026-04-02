@@ -3,16 +3,26 @@ import { DataApiService } from '@data/DataApiService'
 import { DbService } from '@data/db/DbService'
 import { PreferenceService } from '@data/PreferenceService'
 import { AnalyticsService } from '@main/services/AnalyticsService'
+import { ApiServerService } from '@main/services/ApiServerService'
 import { AppMenuService } from '@main/services/AppMenuService'
+import { AppUpdaterService } from '@main/services/AppUpdaterService'
 import { CodeCliService } from '@main/services/CodeCliService'
-import { LanTransferClientService } from '@main/services/lanTransfer'
-import { LocalTransferService } from '@main/services/LocalTransferService'
+import { LanTransferService } from '@main/services/lanTransfer'
+import { MCPService } from '@main/services/MCPService'
 import { NodeTraceService } from '@main/services/NodeTraceService'
+import { OcrService } from '@main/services/ocr/OcrService'
+import { OpenClawService } from '@main/services/OpenClawService'
+import { OvmsManager } from '@main/services/OvmsManager'
 import { PowerMonitorService } from '@main/services/PowerMonitorService'
+import { ProxyManager } from '@main/services/ProxyManager'
+import { PythonService } from '@main/services/PythonService'
+import { SearchService } from '@main/services/SearchService'
 import { SelectionService } from '@main/services/SelectionService'
+import { ShortcutService } from '@main/services/ShortcutService'
 import { SpanCacheService } from '@main/services/SpanCacheService'
 import { ThemeService } from '@main/services/ThemeService'
 import { TrayService } from '@main/services/TrayService'
+import { WebviewService } from '@main/services/WebviewService'
 import { WindowService } from '@main/services/WindowService'
 
 import type { ServiceConstructor } from '../lifecycle/types'
@@ -48,15 +58,25 @@ export const services = {
   AnalyticsService,
   AppMenuService,
   CodeCliService,
-  LanTransferClientService,
-  LocalTransferService,
+  LanTransferService,
   PowerMonitorService,
   SelectionService,
+  ShortcutService,
   ThemeService,
   SpanCacheService,
   NodeTraceService,
+  OcrService,
+  OvmsManager,
+  ProxyManager,
+  PythonService,
   TrayService,
-  WindowService
+  WebviewService,
+  WindowService,
+  MCPService,
+  OpenClawService,
+  SearchService,
+  ApiServerService,
+  AppUpdaterService
 } as const
 
 /** Auto-derived service name to instance type mapping */

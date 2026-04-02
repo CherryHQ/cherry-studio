@@ -88,6 +88,32 @@ describe('ModelAdapter', () => {
     })
   })
 
+  it('strips models/ prefix from Google API model IDs', () => {
+    const provider = createProvider({ id: 'google', type: 'gemini' })
+    const [model] = normalizeSdkModels(provider, [
+      {
+        id: 'models/gemini-2.0-flash',
+        display_name: 'Gemini 2.0 Flash',
+        description: 'Fast model'
+      } as unknown as SdkModel
+    ])
+
+    expect(model.id).toBe('gemini-2.0-flash')
+    expect(model.name).toBe('Gemini 2.0 Flash')
+  })
+
+  it('does not alter model IDs without models/ prefix', () => {
+    const provider = createProvider({ id: 'openai' })
+    const [model] = normalizeSdkModels(provider, [
+      {
+        id: 'gpt-4o',
+        name: 'GPT-4o'
+      } as unknown as SdkModel
+    ])
+
+    expect(model.id).toBe('gpt-4o')
+  })
+
   it('drops invalid entries without ids or names', () => {
     const provider = createProvider()
     const models = normalizeSdkModels(provider, [

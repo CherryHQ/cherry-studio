@@ -109,71 +109,24 @@ Database: SQLite + Drizzle ORM, schemas in `src/main/data/db/schemas/`, migratio
 
 #### Main Process Services (Lifecycle)
 
-**MUST READ**: [docs/en/references/lifecycle/README.md](docs/en/references/lifecycle/README.md) for architecture, decision guides, and usage patterns.
+**MUST READ**: [docs/en/references/lifecycle/README.md](docs/en/references/lifecycle/README.md) — architecture, decision guides, usage patterns, and migration steps.
 
-All main-process services must use the lifecycle system. When creating or migrating a service:
+All main-process services that own long-lived resources or register persistent side effects **must** use the lifecycle system:
 
-1. **Extend `BaseService`** and apply decorators:
+- **Extend `BaseService`**, apply `@Injectable`, `@ServicePhase`, `@DependsOn` decorators
+- **Register in `serviceRegistry.ts`** (`src/main/core/application/serviceRegistry.ts`) — one line per service
+- **Access via `application.get('Name')`** (or `getOptional()` for `@Conditional` services)
+- **Use `this.ipcHandle()` / `this.ipcOn()`** for IPC — auto-cleaned on stop/destroy, returns `Disposable`
+- **Use `this.registerDisposable()`** for cleanup tracking — accepts `Disposable` objects or `() => void` cleanup functions
+- **Use `Emitter<T>` / `Event<T>`** for inter-service events, **`Signal<T>`** for one-shot completion
+- **Implement `Activatable`** for services with heavy on-demand resources (IPC stays registered, resources load/release via `onActivate()`/`onDeactivate()`)
+- **Do NOT** use `new` or manual singleton patterns — the container manages instantiation, ordering, and shutdown
 
-```typescript
-import { BaseService, Injectable, DependsOn, ServicePhase, Phase } from '@main/core/lifecycle'
-
-@Injectable('MyService')
-@ServicePhase(Phase.WhenReady)        // when to initialize (default: WhenReady)
-@DependsOn(['DbService'])             // what must be ready first
-export class MyService extends BaseService {
-  protected async onInit() {
-    this.registerIpcHandlers()
-  }
-
-  private registerIpcHandlers() {
-    // Use this.ipcHandle() / this.ipcOn() for auto-tracked IPC handlers
-    this.ipcHandle(IpcChannel.MyAction, (_, arg) => this.handleAction(arg))
-  }
-
-  protected async onStop() { /* service-specific cleanup — IPC auto-removed */ }
-}
-```
-
-> Use `this.ipcHandle()` / `this.ipcOn()` instead of `ipcMain.handle()` / `ipcMain.on()` for lifecycle-managed services — handlers are automatically removed on service stop/destroy. Always extract IPC registrations into a `private registerIpcHandlers()` method.
-
-2. **Register in `serviceRegistry.ts`** (`src/main/core/application/serviceRegistry.ts`):
-
-```typescript
-export const services = {
-  // ...existing
-  MyService,  // ← one line, types auto-derived
-} as const
-```
-
-3. **Access at runtime** via the type-safe `application.get()` (or `application.getOptional()` for `@Conditional` services):
-
-```typescript
-import { application } from '@main/core/application'
-const myService = application.get('MyService')
-const optionalService = application.getOptional('ConditionalService') // T | undefined
-```
-
-**Do NOT** instantiate services with `new` or use manual singleton patterns for new services — the lifecycle container manages instantiation, ordering, and shutdown automatically.
-
-> **Migrating old services?** See the step-by-step [Lifecycle Migration Guide](docs/en/references/lifecycle/lifecycle-migration-guide.md).
+For detailed code examples, see [Usage Guide](docs/en/references/lifecycle/lifecycle-usage.md). For migrating legacy services, see [Migration Guide](docs/en/references/lifecycle/lifecycle-migration-guide.md).
 
 #### Non-Lifecycle Services (Direct-Import Singleton)
 
-Services that do **not** own long-lived resources or register persistent side effects (both main and renderer process) should **not** use the lifecycle system. Use a named export singleton instead:
-
-```typescript
-export class ExportService {
-  async exportToDocx(messages: Message[]) { /* ... */ }
-}
-export const exportService = new ExportService()
-```
-
-Rules:
-- **Always use named export** (`export const x = new X()`), never `export default new X()` or `export default X.getInstance()`
-- Export both the class (for type references) and the instance (for runtime use)
-- Do not use manual singleton patterns (`private static instance` + `getInstance()`) — a module-level `const` is already a singleton
-- See [Lifecycle Decision Guide](docs/en/references/lifecycle/lifecycle-decision-guide.md) for the decision criteria (main process only)
+Services without long-lived resources or persistent side effects: use **named export singleton** (`export const x = new X()`). No `getInstance()` patterns. See [Decision Guide](docs/en/references/lifecycle/lifecycle-decision-guide.md) for criteria.
 
 ### Key Patterns
 

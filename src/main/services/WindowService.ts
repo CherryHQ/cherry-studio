@@ -2,9 +2,9 @@ import { is } from '@electron-toolkit/utils'
 import { loggerService } from '@logger'
 import { isDev, isLinux, isMac, isWin } from '@main/constant'
 import { application } from '@main/core/application'
-import { BaseService, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
+import { BaseService, Emitter, type Event, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import { getFilesDir } from '@main/utils/file'
-import { getWindowsBackgroundMaterial } from '@main/utils/windowUtil'
+import { getWindowsBackgroundMaterial, replaceDevtoolsFont } from '@main/utils/windowUtil'
 import { MIN_WINDOW_HEIGHT, MIN_WINDOW_WIDTH } from '@shared/config/constant'
 import { IpcChannel } from '@shared/IpcChannel'
 import { app, BrowserWindow, nativeImage, nativeTheme, screen, shell } from 'electron'
@@ -14,7 +14,6 @@ import { join } from 'path'
 import iconPath from '../../../build/icon.png?asset'
 import { titleBarOverlayDark, titleBarOverlayLight } from '../config'
 import { contextMenu } from './ContextMenu'
-import { initSessionUserAgent } from './WebviewService'
 
 const DEFAULT_MINIWINDOW_WIDTH = 550
 const DEFAULT_MINIWINDOW_HEIGHT = 400
@@ -27,6 +26,9 @@ const linuxIcon = isLinux ? nativeImage.createFromPath(iconPath) : undefined
 @Injectable('WindowService')
 @ServicePhase(Phase.WhenReady)
 export class WindowService extends BaseService {
+  private readonly _onMainWindowCreated: Emitter<BrowserWindow>
+  public readonly onMainWindowCreated: Event<BrowserWindow>
+
   private mainWindow: BrowserWindow | null = null
   private miniWindow: BrowserWindow | null = null
   private isPinnedMiniWindow: boolean = false
@@ -35,16 +37,46 @@ export class WindowService extends BaseService {
   private wasMainWindowFocused: boolean = false
   private lastRendererProcessCrashTime: number = 0
 
-  protected async onInit() {
-    this.registerIpcHandlers()
+  constructor() {
+    super()
+    this._onMainWindowCreated = this.registerDisposable(new Emitter<BrowserWindow>())
+    this.onMainWindowCreated = this._onMainWindowCreated.event
   }
 
-  protected async onStop() {}
+  protected async onInit() {
+    this.registerIpcHandlers()
+    this.registerActivateHandler()
+  }
+
+  protected async onReady() {
+    // Mac: hide dock icon before window creation when launch to tray is set.
+    // Dock icon is visible from app launch; must hide early.
+    // The ready-to-show handler's app.dock?.show() restores it for non-tray mode.
+    const isLaunchToTray = application.get('PreferenceService').get('app.tray.on_launch')
+    if (isLaunchToTray) {
+      app.dock?.hide()
+    }
+
+    this.createMainWindow()
+  }
 
   private checkMainWindow() {
     if (!this.mainWindow || this.mainWindow.isDestroyed()) {
       throw new Error('Main window does not exist or has been destroyed')
     }
+  }
+
+  private registerActivateHandler() {
+    const handler = () => {
+      const mainWindow = this.getMainWindow()
+      if (!mainWindow || mainWindow.isDestroyed()) {
+        this.createMainWindow()
+      } else {
+        this.showMainWindow()
+      }
+    }
+    app.on('activate', handler)
+    this.registerDisposable(() => app.removeListener('activate', handler))
   }
 
   private registerIpcHandlers() {
@@ -142,7 +174,7 @@ export class WindowService extends BaseService {
         ? {
             titleBarStyle: 'hidden',
             titleBarOverlay: nativeTheme.shouldUseDarkColors ? titleBarOverlayDark : titleBarOverlayLight,
-            trafficLightPosition: { x: 8, y: 13 }
+            trafficLightPosition: { x: 13, y: 13 }
           }
         : {
             // On Linux, allow using system title bar if setting is enabled
@@ -171,8 +203,7 @@ export class WindowService extends BaseService {
       this.miniWindow = this.createMiniWindow(true)
     }
 
-    //init the MinApp webviews' useragent
-    initSessionUserAgent()
+    this._onMainWindowCreated.fire(this.mainWindow)
 
     return this.mainWindow
   }
@@ -187,6 +218,7 @@ export class WindowService extends BaseService {
     this.setupWebContentsHandlers(mainWindow)
     this.setupWindowLifecycleEvents(mainWindow)
     this.setupMainWindowMonitor(mainWindow)
+    replaceDevtoolsFont(mainWindow)
     this.loadMainWindowContent(mainWindow)
   }
 
@@ -420,12 +452,12 @@ export class WindowService extends BaseService {
 
   private setupWindowLifecycleEvents(mainWindow: BrowserWindow) {
     mainWindow.on('close', (event) => {
-      // save data before when close window
-      try {
-        mainWindow.webContents.send(IpcChannel.App_SaveData)
-      } catch (error) {
-        logger.error('Failed to save data:', error as Error)
-      }
+      // [v2] Removed: Redux persistor flush is no longer needed after v2 data refactoring
+      // try {
+      //   mainWindow.webContents.send(IpcChannel.App_SaveData)
+      // } catch (error) {
+      //   logger.error('Failed to save data:', error as Error)
+      // }
 
       // 如果已经触发退出，直接放行窗口关闭
       if (application.isQuitting) {

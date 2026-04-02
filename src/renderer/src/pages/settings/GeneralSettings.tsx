@@ -171,7 +171,7 @@ const GeneralSettings: FC = () => {
         setTimeoutTimer(
           'handleHardwareAccelerationChange',
           () => {
-            void window.api.relaunchApp()
+            void window.api.application.relaunch()
           },
           500
         )

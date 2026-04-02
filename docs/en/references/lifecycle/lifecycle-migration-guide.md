@@ -219,6 +219,8 @@ private registerIpcHandlers(): void {
 
 Remove the `unregisterIpcHandlers()` method and its call from `onStop()`. BaseService cleans up all tracked handlers automatically after `onStop()` returns.
 
+> **Tip**: `ipcHandle()` and `ipcOn()` now return a `Disposable`, allowing manual early unregistration if needed (e.g., `const d = this.ipcHandle(...); d.dispose()`). For most services, automatic cleanup on stop is sufficient.
+
 **Migration caveat**: Services using `ipcMain.removeAllListeners(channel)` (e.g., CacheService) need careful review — `this.ipcOn()` tracks specific listeners and uses `removeListener()`, not `removeAllListeners()`. If other code also listens on the same channel, this is the correct behavior; if the intent was to remove all listeners, verify the migration won't leave orphans.
 
 ## Before/After Summary
@@ -227,12 +229,41 @@ Remove the `unregisterIpcHandlers()` method and its call from `onStop()`. BaseSe
 | -------------- | ------------------------------------------- | -------------------------------------------- |
 | Singleton      | `private static instance` + `getInstance()` | `@Injectable('Name')` — container manages it |
 | Init           | Manual `init()` called from `index.ts`      | `onInit()` — called automatically            |
-| Cleanup        | Manual `destroy()` in `will-quit` handler   | `onStop()` / `onDestroy()` — automatic       |
+| Cleanup        | Manual cleanup in `will-quit` / `before-quit` handler | `onStop()` / `onDestroy()` — automatic |
 | Dependencies   | `import { otherService } from '...'`        | `@DependsOn([...])` + `application.get()`    |
 | Access         | `import { myService } from '...'`           | `application.get('MyService')`               |
 | Ordering       | Manual call order in `index.ts`             | `@ServicePhase` + `@DependsOn` + `@Priority` |
 | Error handling | try/catch in `index.ts`                     | `@ErrorHandling('fail-fast' \| 'graceful')`  |
 | IPC handlers   | Manual `ipcMain.handle()` + `removeHandler()` | `this.ipcHandle()` — auto-cleanup on stop |
+
+### Step 9: Migrate ad-hoc event communication to Emitter/Event
+
+If the old service used `app.emit()` / `app.on()` or custom EventEmitter patterns for inter-service communication, replace them with typed `Emitter<T>` / `Event<T>`:
+
+```typescript
+// OLD — ad-hoc event on Electron's app object
+// Producer:
+app.emit('main-window-created', this.mainWindow)
+// Consumer:
+;(app as NodeJS.EventEmitter).on('main-window-created', (event, window) => { ... })
+// Manual cleanup in onStop():
+;(app as NodeJS.EventEmitter).off('main-window-created', this.handler)
+
+// NEW — typed Emitter/Event
+// Producer:
+private readonly _onMainWindowCreated = new Emitter<BrowserWindow>()
+public readonly onMainWindowCreated: Event<BrowserWindow> = this._onMainWindowCreated.event
+// Fire:
+this._onMainWindowCreated.fire(this.mainWindow)
+
+// Consumer:
+this.registerDisposable(
+  windowService.onMainWindowCreated((window) => { ... })
+)
+// No manual cleanup needed — registerDisposable handles it
+```
+
+See [Service Events](./lifecycle-usage.md#service-events-emitter--event) for full patterns.
 
 ## Common Pitfalls
 

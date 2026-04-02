@@ -800,6 +800,7 @@ export const isBuiltinMCPServer = (server: MCPServer): server is BuiltinMCPServe
 }
 
 export const BuiltinMCPServerNames = {
+  flomo: '@cherry/flomo',
   mcpAutoInstall: '@cherry/mcp-auto-install',
   memory: '@cherry/memory',
   sequentialThinking: '@cherry/sequentialthinking',
@@ -946,15 +947,6 @@ export interface Citation {
 }
 
 export type MathEngine = 'KaTeX' | 'MathJax' | 'none'
-
-export interface StoreSyncAction {
-  type: string
-  payload: any
-  meta?: {
-    fromSync?: boolean
-    source?: string
-  }
-}
 
 export type S3Config = {
   endpoint: string

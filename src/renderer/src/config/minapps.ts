@@ -31,7 +31,6 @@ import {
   Lingxi,
   Longcat,
   Metaso,
-  Minimax,
   MinTop3,
   Mistral,
   Monica,
