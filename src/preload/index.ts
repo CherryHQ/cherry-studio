@@ -17,6 +17,7 @@ import type {
 } from '@shared/config/types'
 import type { MCPServerLogEntry } from '@shared/config/types'
 import type { CacheEntry, CacheSyncMessage } from '@shared/data/cache/cacheTypes'
+import type { FileProcessorId } from '@shared/data/preference/preferenceTypes'
 import type {
   SelectionActionItem,
   UnifiedPreferenceKeyType,
@@ -24,6 +25,11 @@ import type {
   UnifiedPreferenceType
 } from '@shared/data/preference/preferenceTypes'
 import type { UpgradeChannel } from '@shared/data/preference/preferenceTypes'
+import type {
+  FileProcessingMarkdownTaskResult,
+  FileProcessingMarkdownTaskStartResult,
+  FileProcessingTextExtractionResult
+} from '@shared/data/types/fileProcessing'
 import type { ExternalAppInfo } from '@shared/externalApp/types'
 import { IpcChannel } from '@shared/IpcChannel'
 import type { Notification } from '@types'
@@ -590,6 +596,20 @@ const api = {
     ocr: (file: SupportedOcrFile, provider: OcrProvider): Promise<OcrResult> =>
       ipcRenderer.invoke(IpcChannel.OCR_ocr, file, provider),
     listProviders: (): Promise<string[]> => ipcRenderer.invoke(IpcChannel.OCR_ListProviders)
+  },
+  fileProcessing: {
+    extractText: (file: FileMetadata, processorId?: FileProcessorId): Promise<FileProcessingTextExtractionResult> =>
+      ipcRenderer.invoke(IpcChannel.FileProcessing_ExtractText, file, processorId),
+    startMarkdownConversionTask: (
+      file: FileMetadata,
+      processorId?: FileProcessorId
+    ): Promise<FileProcessingMarkdownTaskStartResult> =>
+      ipcRenderer.invoke(IpcChannel.FileProcessing_StartMarkdownConversionTask, file, processorId),
+    getMarkdownConversionTaskResult: (
+      providerTaskId: string,
+      processorId: FileProcessorId
+    ): Promise<FileProcessingMarkdownTaskResult> =>
+      ipcRenderer.invoke(IpcChannel.FileProcessing_GetMarkdownConversionTaskResult, providerTaskId, processorId)
   },
   cherryai: {
     generateSignature: (params: { method: string; path: string; query: string; body: Record<string, any> }) =>

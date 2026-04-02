@@ -12,6 +12,7 @@ import {
   OpenMineruRuntimeService,
   TesseractRuntimeService
 } from '@main/services/fileProcessing'
+import { FileProcessingIpcService } from '@main/services/fileProcessing/FileProcessingIpcService'
 import { LanTransferService } from '@main/services/lanTransfer'
 import { MCPService } from '@main/services/MCPService'
 import { NodeTraceService } from '@main/services/NodeTraceService'
@@ -67,6 +68,7 @@ export const services = {
   AppMenuService,
   CodeCliService,
   LanTransferService,
+  FileProcessingIpcService,
   PowerMonitorService,
   SelectionService,
   ShortcutService,

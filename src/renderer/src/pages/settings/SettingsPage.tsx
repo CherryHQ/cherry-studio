@@ -8,6 +8,7 @@ import {
   Cloud,
   Command,
   FileCode,
+  FlaskConical,
   HardDrive,
   Info,
   MonitorCog,
@@ -99,6 +100,12 @@ const SettingsPage: FC = () => {
               {t('settings.tool.preprocess.title')}
             </MenuItem>
           </MenuItemLink>
+          <MenuItemLink to="/settings/docprocess-test">
+            <MenuItem className={isRoute('/settings/docprocess-test')}>
+              <FlaskConical size={18} />
+              {t('settings.tool.preprocess.test_panel.title')}
+            </MenuItem>
+          </MenuItemLink>
           <MenuItemLink to="/settings/quickphrase">
             <MenuItem className={isRoute('/settings/quickphrase')}>
               <Zap size={18} />
@@ -144,6 +151,10 @@ const Container = styled.div`
   display: flex;
   flex-direction: column;
   flex: 1;
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+  overflow: hidden;
 `
 
 const ContentContainer = styled.div`
@@ -151,7 +162,9 @@ const ContentContainer = styled.div`
   flex: 1;
   flex-direction: row;
   height: calc(100vh - var(--navbar-height));
+  min-height: 0;
   padding: 1px 0;
+  overflow: hidden;
 `
 
 const SettingMenus = styled(Scrollbar)`
@@ -198,6 +211,9 @@ const SettingContent = styled.div`
   display: flex;
   height: 100%;
   flex: 1;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
 `
 
 const Divider = styled(AntDivider)`
