@@ -4,7 +4,7 @@ import i18n from '@renderer/i18n'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import { NotificationService } from '@renderer/services/NotificationService'
 import { estimateMessagesUsage } from '@renderer/services/TokenService'
-import { updateOneBlock } from '@renderer/store/messageBlock'
+import { isTodoWriteBlock, updateOneBlock } from '@renderer/store/messageBlock'
 import { selectMessagesForTopic } from '@renderer/store/newMessage'
 import { newMessagesActions } from '@renderer/store/newMessage'
 import { toolPermissionsActions } from '@renderer/store/toolPermissions'
@@ -76,6 +76,50 @@ export const createBaseCallbacks = (deps: BaseCallbacksDependencies) => {
 
     // 最后的备选方案：从 blockManager 获取占位符块ID
     return blockManager.initialPlaceholderBlockId
+  }
+
+  /**
+   * Mark in_progress todos as completed when stream ends,
+   * since the model will no longer update them.
+   */
+  const cleanupInProgressTodos = (): string[] => {
+    const currentMessage = getState().messages.entities[assistantMsgId]
+    if (!currentMessage) return []
+
+    const allBlockRefs = findAllBlocks(currentMessage)
+    const blockState = getState().messageBlocks
+    const cleanedBlockIds: string[] = []
+
+    for (const blockRef of allBlockRefs) {
+      const block = blockState.entities[blockRef.id]
+      if (!isTodoWriteBlock(block)) continue
+
+      const toolResponse = block.metadata.rawMcpToolResponse
+      const todos = toolResponse.arguments.todos
+      if (!todos.some((todo) => todo.status === 'in_progress')) continue
+
+      const updatedTodos = todos.map((todo) =>
+        todo.status === 'in_progress' ? { ...todo, status: 'completed' as const } : todo
+      )
+
+      dispatch(
+        updateOneBlock({
+          id: block.id,
+          changes: {
+            metadata: {
+              ...block.metadata,
+              rawMcpToolResponse: {
+                ...toolResponse,
+                arguments: { todos: updatedTodos }
+              }
+            }
+          }
+        })
+      )
+      cleanedBlockIds.push(block.id)
+    }
+
+    return cleanedBlockIds
   }
 
   return {
@@ -208,6 +252,10 @@ export const createBaseCallbacks = (deps: BaseCallbacksDependencies) => {
       // Preserve 'invoking' entries as they may belong to concurrent streams.
       dispatch(toolPermissionsActions.clearPending())
 
+      // Mark in_progress todos as completed since stream ended
+      const todoCleanupIds = cleanupInProgressTodos()
+      updatedBlockIds.push(...todoCleanupIds)
+
       const errorBlock = createErrorBlock(assistantMsgId, serializableError, { status: MessageBlockStatus.SUCCESS })
       await blockManager.handleBlockTransition(errorBlock, MessageBlockType.ERROR)
       const messageErrorUpdate = {
@@ -303,6 +351,12 @@ export const createBaseCallbacks = (deps: BaseCallbacksDependencies) => {
         }
       }
 
+      // Mark in_progress todos as completed since stream ended
+      const todoCleanupIds = cleanupInProgressTodos()
+      const todoBlocksToSave = todoCleanupIds
+        .map((id) => getState().messageBlocks.entities[id])
+        .filter(Boolean) as MessageBlock[]
+
       const messageUpdates = { status, metrics: response?.metrics, usage: response?.usage }
       dispatch(
         newMessagesActions.updateMessage({
@@ -311,7 +365,7 @@ export const createBaseCallbacks = (deps: BaseCallbacksDependencies) => {
           updates: messageUpdates
         })
       )
-      await saveUpdatesToDB(assistantMsgId, topicId, messageUpdates, [])
+      await saveUpdatesToDB(assistantMsgId, topicId, messageUpdates, todoBlocksToSave)
 
       // Track token usage analytics
       if (status === 'success') {
