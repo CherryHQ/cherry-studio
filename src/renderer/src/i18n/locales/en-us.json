@@ -96,6 +96,8 @@
           "permissionModeHint": "Override the agent's permission mode for messages from this channel. \"Inherit\" uses the agent's default."
         },
         "selectAgent": "Select an agent to bind",
+        "soulModeRequired": "This agent does not have Autonomous Mode enabled. Channel features will not work. Please enable it in agent settings.",
+        "chatIdsAutoTrackHint": "When left empty, the system will auto-track: you need to send a message to the Bot on the platform first, then the system will record the Chat ID for future notifications.",
         "slack": {
           "appToken": "App-Level Token",
           "appTokenPlaceholder": "xapp-...",
@@ -199,7 +201,8 @@
         "cancel": "Cancel",
         "channels": {
           "label": "Send to Channels",
-          "placeholder": "Select channels to receive results"
+          "placeholder": "Select channels to receive results",
+          "noActiveChatIds": "The selected channels have no available recipients (Chat ID). Task results may not be delivered. Please send a message to the Bot on the platform first."
         },
         "cronPlaceholder": "e.g. 0 9 * * * (every day at 9 AM)",
         "delete": {

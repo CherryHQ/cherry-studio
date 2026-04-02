@@ -127,8 +127,29 @@ export class ChannelMessageHandler {
           this.chatQueues.delete(batchKey)
         }
       })
-    // Swallow errors so the queue chain never breaks
-    const settled = current.catch(() => {})
+    // Log errors but keep the queue chain intact
+    const settled = current.catch((err) => {
+      const errMsg = err instanceof Error ? err.message : String(err)
+      logger.error('Channel message processing failed', { batchKey, error: errMsg })
+
+      // Best-effort: notify the user with a generic message (no internal details)
+      try {
+        const adapter = batch.adapter
+        const chatId = merged.chatId
+        if (adapter && chatId) {
+          adapter
+            .sendMessage(chatId, '⚠️ An error occurred while processing your message. Please try again later.')
+            .catch((sendErr) => {
+              logger.debug('Failed to send error notification to channel', {
+                chatId,
+                error: sendErr instanceof Error ? sendErr.message : String(sendErr)
+              })
+            })
+        }
+      } catch {
+        // Do not let error notification break the queue
+      }
+    })
     this.chatQueues.set(batchKey, settled)
   }
 

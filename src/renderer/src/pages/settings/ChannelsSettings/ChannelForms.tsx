@@ -75,6 +75,7 @@ const ChannelFieldsForm: FC<ChannelFieldsFormProps> = ({
   chatIds: chatIdsConfig,
   extraContent
 }) => {
+  const { t } = useTranslation()
   const cfg = channel.config
   const idsKey = chatIdsConfig.configKey ?? 'allowed_chat_ids'
 
@@ -145,6 +146,11 @@ const ChannelFieldsForm: FC<ChannelFieldsFormProps> = ({
             size="small"
           />
           <span className="mt-1 block text-gray-400 text-xs">{chatIdsConfig.hint}</span>
+          {!chatIds.trim() && idsKey === 'allowed_chat_ids' && (
+            <span className="mt-1 block text-orange-400 text-xs">
+              {t('agent.cherryClaw.channels.chatIdsAutoTrackHint')}
+            </span>
+          )}
           {chatIdsConfig.extraHint && (
             <span className="mt-1 block text-blue-400 text-xs">{chatIdsConfig.extraHint}</span>
           )}

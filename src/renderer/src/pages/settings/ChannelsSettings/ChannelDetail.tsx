@@ -3,8 +3,10 @@ import CopyButton from '@renderer/components/CopyButton'
 import Scrollbar from '@renderer/components/Scrollbar'
 import { useAgents } from '@renderer/hooks/agents/useAgents'
 import { useChannels } from '@renderer/hooks/agents/useChannels'
+import { isSoulModeEnabled } from '@renderer/pages/settings/AgentSettings/shared'
+import type { AgentConfiguration } from '@renderer/types'
 import { getChannelTypeIcon } from '@renderer/utils/agentSession'
-import { Button, Empty, Input, Modal, Popconfirm, Select, Spin, Switch, Tag, Tooltip } from 'antd'
+import { Alert, Button, Empty, Input, Modal, Popconfirm, Select, Spin, Switch, Tag, Tooltip } from 'antd'
 import type { FC } from 'react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -162,7 +164,9 @@ type EditModalProps = {
   onDelete: (id: string) => void
 }
 
-const ChannelEditModal: FC<EditModalProps> = ({ open, channel, agents, onClose, onSave, onDelete }) => {
+const ChannelEditModal: FC<
+  EditModalProps & { agentEntities?: Array<{ id: string; configuration?: AgentConfiguration }> }
+> = ({ open, channel, agents, onClose, onSave, onDelete, agentEntities }) => {
   const { t } = useTranslation()
   const [name, setName] = useState('')
   const [agentId, setAgentId] = useState<string | null>(null)
@@ -173,6 +177,9 @@ const ChannelEditModal: FC<EditModalProps> = ({ open, channel, agents, onClose, 
       setAgentId(channel.agentId ?? null)
     }
   }, [channel])
+
+  const selectedAgent = agentEntities?.find((a) => a.id === agentId)
+  const showSoulModeWarning = agentId && selectedAgent && !isSoulModeEnabled(selectedAgent.configuration)
 
   const handleNameBlur = useCallback(() => {
     if (channel && name.trim() && name.trim() !== channel.name) {
@@ -226,6 +233,15 @@ const ChannelEditModal: FC<EditModalProps> = ({ open, channel, agents, onClose, 
               placeholder={t('agent.cherryClaw.channels.selectAgent')}
               options={agents.map((a) => ({ value: a.id, label: a.name }))}
             />
+            {showSoulModeWarning && (
+              <Alert
+                type="warning"
+                showIcon
+                message={t('agent.cherryClaw.channels.soulModeRequired')}
+                className="mt-2"
+                style={{ fontSize: 12 }}
+              />
+            )}
           </div>
           {FormComponent && (
             <FormComponent channel={channel} onConfigChange={handleUpdate} onRemove={() => onDelete(channel.id)} />
@@ -321,7 +337,13 @@ const ChannelDetail: FC<ChannelDetailProps> = ({ channelDef }) => {
   // SWR-managed remote data
   const { channels, isLoading, mutate, createChannel, updateChannel, deleteChannel } = useChannels(channelDef.type)
   const { agents: agentList } = useAgents()
-  const agents = useMemo(() => (agentList ?? []).map((a) => ({ id: a.id, name: a.name ?? a.id })), [agentList])
+  const { agents, agentEntities } = useMemo(() => {
+    const list = agentList ?? []
+    return {
+      agents: list.map((a) => ({ id: a.id, name: a.name ?? a.id })),
+      agentEntities: list.map((a) => ({ id: a.id, configuration: a.configuration as AgentConfiguration | undefined }))
+    }
+  }, [agentList])
 
   const channelList = channels ?? []
 
@@ -469,6 +491,7 @@ const ChannelDetail: FC<ChannelDetailProps> = ({ channelDef }) => {
         open={!!editingChannel}
         channel={editingChannel}
         agents={agents}
+        agentEntities={agentEntities}
         onClose={() => setEditingChannelId(null)}
         onSave={handleSave}
         onDelete={handleDelete}

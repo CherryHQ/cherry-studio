@@ -14,7 +14,7 @@ import type {
   TaskRunLogEntity,
   UpdateTaskRequest
 } from '@renderer/types'
-import { Button, DatePicker, Empty, Input, Modal, Popconfirm, Select, Spin, Table, Tag, Tooltip } from 'antd'
+import { Alert, Button, DatePicker, Empty, Input, Modal, Popconfirm, Select, Spin, Table, Tag, Tooltip } from 'antd'
 import dayjs from 'dayjs'
 import { CalendarClock, Clock, ExternalLink, History, Maximize2, Pause, Play, Search, Trash2 } from 'lucide-react'
 import { type FC, useCallback, useEffect, useMemo, useState } from 'react'
@@ -26,7 +26,61 @@ import { SettingContainer, SettingDivider, SettingGroup, SettingRow, SettingRowT
 // --------------- Types ---------------
 
 type AgentInfo = { id: string; name: string }
-type ChannelInfo = { id: string; name: string }
+type ChannelInfo = { id: string; name: string; isActive?: boolean; hasActiveChatIds?: boolean }
+
+// --------------- Shared channel selector with warnings ---------------
+
+const TaskChannelSelector: FC<{
+  channels: ChannelInfo[]
+  channelIds: string[]
+  onChange: (value: string[]) => void
+  disabled?: boolean
+}> = ({ channels, channelIds, onChange, disabled }) => {
+  const { t } = useTranslation()
+
+  if (channels.length === 0) return null
+
+  const hasNoChatIds =
+    channelIds.length > 0 && channelIds.some((id) => !channels.find((c) => c.id === id)?.hasActiveChatIds)
+
+  return (
+    <>
+      <SettingDivider />
+      <SettingRow style={{ flexDirection: 'column', alignItems: 'stretch' }}>
+        <SettingRowTitle>{t('agent.cherryClaw.tasks.channels.label')}</SettingRowTitle>
+        <Select
+          mode="multiple"
+          size="small"
+          className="w-full"
+          value={channelIds}
+          disabled={disabled}
+          onChange={onChange}
+          placeholder={t('agent.cherryClaw.tasks.channels.placeholder')}
+          options={channels.map((ch) => ({
+            value: ch.id,
+            label: (
+              <span className="flex items-center gap-1.5">
+                <span
+                  className={`inline-block h-1.5 w-1.5 rounded-full ${ch.isActive ? 'bg-green-500' : 'bg-gray-400'}`}
+                />
+                {ch.name}
+              </span>
+            )
+          }))}
+        />
+        {hasNoChatIds && (
+          <Alert
+            type="warning"
+            showIcon
+            message={t('agent.cherryClaw.tasks.channels.noActiveChatIds')}
+            className="mt-2"
+            style={{ fontSize: 12 }}
+          />
+        )}
+      </SettingRow>
+    </>
+  )
+}
 
 // --------------- Task Detail (right panel) ---------------
 
@@ -315,27 +369,15 @@ const TaskDetail: FC<{
             />
           </div>
         </div>
-        {channels.length > 0 && (
-          <>
-            <SettingDivider />
-            <SettingRow style={{ flexDirection: 'column', alignItems: 'stretch' }}>
-              <SettingRowTitle>{t('agent.cherryClaw.tasks.channels.label')}</SettingRowTitle>
-              <Select
-                mode="multiple"
-                size="small"
-                className="w-full"
-                value={channelIds}
-                disabled={isCompleted}
-                onChange={(value) => {
-                  setChannelIds(value)
-                  saveField({ channel_ids: value })
-                }}
-                placeholder={t('agent.cherryClaw.tasks.channels.placeholder')}
-                options={channels.map((ch) => ({ value: ch.id, label: ch.name }))}
-              />
-            </SettingRow>
-          </>
-        )}
+        <TaskChannelSelector
+          channels={channels}
+          channelIds={channelIds}
+          onChange={(value) => {
+            setChannelIds(value)
+            saveField({ channel_ids: value })
+          }}
+          disabled={isCompleted}
+        />
       </SettingGroup>
 
       {/* Logs card */}
@@ -705,23 +747,7 @@ const CreateForm: FC<{
             />
           </div>
         </div>
-        {channels.length > 0 && (
-          <>
-            <SettingDivider />
-            <SettingRow style={{ flexDirection: 'column', alignItems: 'stretch' }}>
-              <SettingRowTitle>{t('agent.cherryClaw.tasks.channels.label')}</SettingRowTitle>
-              <Select
-                mode="multiple"
-                size="small"
-                className="w-full"
-                value={channelIds}
-                onChange={setChannelIds}
-                placeholder={t('agent.cherryClaw.tasks.channels.placeholder')}
-                options={channels.map((ch) => ({ value: ch.id, label: ch.name }))}
-              />
-            </SettingRow>
-          </>
-        )}
+        <TaskChannelSelector channels={channels} channelIds={channelIds} onChange={setChannelIds} />
         <SettingDivider />
 
         <div className="flex gap-2">
@@ -751,7 +777,16 @@ const TasksSettings: FC = () => {
   const [creating, setCreating] = useState(false)
 
   const channels: ChannelInfo[] = useMemo(
-    () => rawChannels.map((ch: any) => ({ id: ch.id, name: ch.name || ch.type })),
+    () =>
+      rawChannels.map((ch: any) => ({
+        id: ch.id,
+        name: ch.name || ch.type,
+        isActive: ch.is_active === true || ch.isActive === true,
+        hasActiveChatIds:
+          ((ch.config?.allowed_chat_ids as string[]) ?? []).length > 0 ||
+          ((ch.config?.allowed_channel_ids as string[]) ?? []).length > 0 ||
+          ((ch.active_chat_ids ?? ch.activeChatIds ?? []) as string[]).length > 0
+      })),
     [rawChannels]
   )
 
