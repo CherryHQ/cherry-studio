@@ -4579,11 +4579,11 @@
         "glama": "Glama MCP Server Directory",
         "higress": "Higress MCP Server",
         "mcpso": "MCP Server Discovery Platform",
+        "mcpworld": "Baidu MCP Aggregation Platform",
         "modelscope": "ModelScope Community MCP Server",
         "official": "Official MCP Server Collection",
         "pulsemcp": "Pulse MCP Server",
         "smithery": "Smithery MCP Tools",
-        "mcpworld": "Baidu MCP Aggregation Platform",
         "zhipu": "Curated MCP, Fast Integration"
       },
       "name": "Name",
