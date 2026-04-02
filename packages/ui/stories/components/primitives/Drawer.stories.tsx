@@ -224,6 +224,7 @@ export const NavigationDrawer: Story = {
         <div className="flex flex-col gap-1 p-4">
           {['Dashboard', 'Projects', 'Team', 'Settings', 'Help'].map((item) => (
             <button
+              type="button"
               key={item}
               className="rounded-md px-3 py-2 text-left text-sm hover:bg-accent hover:text-accent-foreground">
               {item}
