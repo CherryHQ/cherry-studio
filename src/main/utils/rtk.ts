@@ -6,11 +6,10 @@ import { promisify } from 'node:util'
 
 import { loggerService } from '@logger'
 import { HOME_CHERRY_DIR } from '@shared/config/constant'
-import { app } from 'electron'
 import { gte as semverGte } from 'semver'
 
 import { isWin } from '../constant'
-import { getResourcePath } from '.'
+import { getResourcePath, toAsarUnpackedPath } from '.'
 
 const execFileAsync = promisify(execFile)
 const logger = loggerService.withContext('Utils:Rtk')
@@ -36,10 +35,7 @@ function isPlatformSupported(): boolean {
 
 function getBundledBinariesDir(): string {
   const dir = path.join(getResourcePath(), 'binaries', getPlatformKey())
-  if (app.isPackaged) {
-    return dir.replace(/\.asar([\\/])/, '.asar.unpacked$1')
-  }
-  return dir
+  return toAsarUnpackedPath(dir)
 }
 
 function getUserBinDir(): string {

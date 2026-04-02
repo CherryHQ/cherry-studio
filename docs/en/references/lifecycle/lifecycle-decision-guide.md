@@ -77,7 +77,7 @@ BaseService provides built-in IPC tracking for self-contained handlers — see [
 
 |                         | Lifecycle                                    | Direct-import singleton                        |
 | ----------------------- | -------------------------------------------- | ---------------------------------------------- |
-| Examples                | `DbService`, `CacheService`, `WindowService` | `ExportService`, `BackupManager`, `OcrService` |
+| Examples                | `DbService`, `CacheService`, `WindowService` | `ExportService`, `BackupManager`                |
 | Long-lived resources    | Yes                                          | No (or request-scoped)                         |
 | Persistent side effects | Yes                                          | No                                             |
 | `onInit` / `onStop`     | Meaningful                                   | Would be empty                                 |

@@ -6,6 +6,7 @@ import type { SpanContext } from '@opentelemetry/api'
 import type { GitBashPathInfo, TerminalConfig } from '@shared/config/constant'
 import type { LogLevel, LogSourceWithContext } from '@shared/config/logger'
 import type {
+  CodeToolsRunResult,
   FileChangeEvent,
   LanClientEvent,
   LanFileCompleteMessage,
@@ -442,7 +443,19 @@ const api = {
       ipcRenderer.invoke(IpcChannel.Python_Execute, script, context, timeout)
   },
   shell: {
-    openExternal: (url: string, options?: Electron.OpenExternalOptions) => shell.openExternal(url, options)
+    openExternal: (url: string, options?: Electron.OpenExternalOptions) => {
+      // Defense-in-depth: validate URL scheme before forwarding to shell.openExternal
+      const ALLOWED_PROTOCOLS = ['http:', 'https:', 'mailto:']
+      try {
+        const parsed = new URL(url)
+        if (!ALLOWED_PROTOCOLS.includes(parsed.protocol)) {
+          return Promise.reject(new Error(`Blocked openExternal for untrusted URL scheme: ${parsed.protocol}`))
+        }
+      } catch {
+        return Promise.reject(new Error('Blocked openExternal for invalid URL'))
+      }
+      return shell.openExternal(url, options)
+    }
   },
   copilot: {
     getAuthMessage: (headers?: Record<string, string>) =>
@@ -576,7 +589,8 @@ const api = {
       directory: string,
       env: Record<string, string>,
       options?: { autoUpdateToLatest?: boolean; terminal?: string }
-    ) => ipcRenderer.invoke(IpcChannel.CodeCli_Run, cliTool, model, directory, env, options),
+    ): Promise<CodeToolsRunResult> =>
+      ipcRenderer.invoke(IpcChannel.CodeCli_Run, cliTool, model, directory, env, options),
     getAvailableTerminals: (): Promise<TerminalConfig[]> =>
       ipcRenderer.invoke(IpcChannel.CodeCli_GetAvailableTerminals),
     setCustomTerminalPath: (terminalId: string, path: string): Promise<void> =>

@@ -19,15 +19,7 @@ import {
 import { handleZoomFactor } from '@main/utils/zoom'
 import { IpcChannel } from '@shared/IpcChannel'
 import { extractPdfText } from '@shared/utils/pdf'
-import type {
-  AgentPersistedMessage,
-  FileMetadata,
-  Notification,
-  OcrProvider,
-  PluginError,
-  Provider,
-  SupportedOcrFile
-} from '@types'
+import type { AgentPersistedMessage, FileMetadata, Notification, PluginError, Provider } from '@types'
 import checkDiskSpace from 'check-disk-space'
 import { BrowserWindow, dialog, ipcMain, session, shell, systemPreferences, webContents } from 'electron'
 import fontList from 'font-list'
@@ -49,10 +41,8 @@ import { memoryService } from './services/memory/MemoryService'
 import NotificationService from './services/NotificationService'
 import * as NutstoreService from './services/NutstoreService'
 import ObsidianVaultService from './services/ObsidianVaultService'
-import { ocrService } from './services/ocr/OcrService'
-import { pythonService } from './services/PythonService'
 import { fileServiceManager } from './services/remotefile/FileServiceManager'
-import { searchService } from './services/SearchService'
+import { isSafeExternalUrl } from './services/security'
 import { vertexAIService } from './services/VertexAIService'
 import { calculateDirectorySize, getResourcePath } from './utils'
 import { decrypt, encrypt } from './utils/aes'
@@ -118,7 +108,13 @@ export async function registerIpc(mainWindow: BrowserWindow, app: Electron.App) 
 
   ipcMain.handle(IpcChannel.App_Reload, () => mainWindow.reload())
   // Application_Quit is registered by Application.registerApplicationIpc()
-  ipcMain.handle(IpcChannel.Open_Website, (_, url: string) => shell.openExternal(url))
+  ipcMain.handle(IpcChannel.Open_Website, (_, url: string) => {
+    if (!isSafeExternalUrl(url)) {
+      logger.warn(`Blocked shell.openExternal for untrusted URL scheme: ${url}`)
+      return
+    }
+    return shell.openExternal(url)
+  })
 
   // language
   // ipcMain.handle(IpcChannel.App_SetLanguage, (_, language) => {
@@ -611,14 +607,6 @@ export async function registerIpc(mainWindow: BrowserWindow, app: Electron.App) 
     }
   })
 
-  // Register Python execution handler
-  ipcMain.handle(
-    IpcChannel.Python_Execute,
-    async (_, script: string, context?: Record<string, any>, timeout?: number) => {
-      return await pythonService.executeScript(script, context, timeout)
-    }
-  )
-
   ipcMain.handle(IpcChannel.App_IsBinaryExist, (_, name: string) => isBinaryExists(name))
   ipcMain.handle(IpcChannel.App_GetBinaryPath, (_, name: string) => getBinaryPath(name))
   ipcMain.handle(IpcChannel.App_InstallUvBinary, () => runInstallScript('install-uv.js'))
@@ -657,17 +645,6 @@ export async function registerIpc(mainWindow: BrowserWindow, app: Electron.App) 
     NutstoreService.getDirectoryContents(token, path)
   )
 
-  // search window
-  ipcMain.handle(IpcChannel.SearchWindow_Open, async (_, uid: string, show?: boolean) => {
-    await searchService.openSearchWindow(uid, show)
-  })
-  ipcMain.handle(IpcChannel.SearchWindow_Close, async (_, uid: string) => {
-    await searchService.closeSearchWindow(uid)
-  })
-  ipcMain.handle(IpcChannel.SearchWindow_OpenUrl, async (_, uid: string, url: string) => {
-    return await searchService.openUrlInSearchWindow(uid, url)
-  })
-
   // ipcMain.handle(IpcChannel.App_SetDisableHardwareAcceleration, (_, isDisable: boolean) => {
   //   configManager.setDisableHardwareAcceleration(isDisable)
   // })
@@ -700,12 +677,6 @@ export async function registerIpc(mainWindow: BrowserWindow, app: Electron.App) 
 
   // ExternalApps
   ipcMain.handle(IpcChannel.ExternalApps_DetectInstalled, () => externalAppsService.detectInstalledApps())
-
-  // OCR
-  ipcMain.handle(IpcChannel.OCR_ocr, (_, file: SupportedOcrFile, provider: OcrProvider) =>
-    ocrService.ocr(file, provider)
-  )
-  ipcMain.handle(IpcChannel.OCR_ListProviders, () => ocrService.listProviderIds())
 
   // OVMS — operation handlers registered by OvmsManager.onInit() (activated only on Win+Intel)
   // Condition logic must stay in sync with OvmsManager's @Conditional(onPlatform('win32'), onCpuVendor('intel'))
