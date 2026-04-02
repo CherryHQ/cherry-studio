@@ -6,6 +6,7 @@ import type { SpanContext } from '@opentelemetry/api'
 import type { GitBashPathInfo, TerminalConfig, UpgradeChannel } from '@shared/config/constant'
 import type { LogLevel, LogSourceWithContext } from '@shared/config/logger'
 import type {
+  CodeToolsRunResult,
   FileChangeEvent,
   LanClientEvent,
   LanFileCompleteMessage,
@@ -716,7 +717,8 @@ const api = {
       directory: string,
       env: Record<string, string>,
       options?: { autoUpdateToLatest?: boolean; terminal?: string }
-    ) => ipcRenderer.invoke(IpcChannel.CodeTools_Run, cliTool, model, directory, env, options),
+    ): Promise<CodeToolsRunResult> =>
+      ipcRenderer.invoke(IpcChannel.CodeTools_Run, cliTool, model, directory, env, options),
     getAvailableTerminals: (): Promise<TerminalConfig[]> =>
       ipcRenderer.invoke(IpcChannel.CodeTools_GetAvailableTerminals),
     setCustomTerminalPath: (terminalId: string, path: string): Promise<void> =>

@@ -280,8 +280,17 @@ const CodeToolsPage: FC = () => {
       terminal: selectedTerminal
     }
 
-    void window.api.codeTools.run(selectedCliTool, modelId, currentDirectory, env, runOptions)
-    window.toast.success(t('code.launch.success'))
+    try {
+      const result = await window.api.codeTools.run(selectedCliTool, modelId, currentDirectory, env, runOptions)
+      if (result && result.success) {
+        window.toast.success(t('code.launch.success'))
+      } else {
+        window.toast.error(result?.message || t('code.launch.error'))
+      }
+    } catch (error) {
+      logger.error('codeTools.run failed:', error as Error)
+      window.toast.error(t('code.launch.error'))
+    }
   }
 
   // 设置终端自定义路径

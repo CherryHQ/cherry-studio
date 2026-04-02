@@ -1,11 +1,13 @@
 ---
-'@cherrystudio/ai-core': minor
+'@cherrystudio/ai-core': major
 ---
 
-Remove unused exports, dead types, and over-engineered abstractions from aiCore
+Migrate to AI SDK v6 - complete rewrite of provider and middleware architecture
 
-- Remove unused public exports: `createOpenAICompatibleExecutor`, `create*Options`, `mergeProviderOptions`, `PluginManager`, `createContext`, `AI_CORE_VERSION`, `AI_CORE_NAME`, `BUILT_IN_PLUGIN_PREFIX`, `registeredProviderIds`, `ProviderInitializationError`, `ProviderExtensionBuilder`, `createProviderExtension`
-- Delete dead type definitions: `HookResult`, `PluginManagerConfig`, `AiRequestMetadata`, `ExtractProviderOptions`, `ProviderOptions`, `CoreProviderSettingsMap` (re-added as internal), `ExtractExtensionIds`, `ExtractExtensionSettings`
-- Remove over-engineered `ExtensionStorage` system: delete `ExtensionStorage`, `StorageAccessor`, `ExtensionContext`, `ExtensionHook`, `LifecycleHooks` types; remove `TStorage` generic parameter from `ProviderExtension` (4 → 3 type params); remove `_storage`, `storage` getter, `createContext`, `executeHook`, `initialStorage`, `hooks` from class and config
-- Delete `create*Options` convenience functions and inline `createOpenRouterOptions` at its only call site
-- Delete `DEFAULT_WEB_SEARCH_CONFIG` and plugins `README.md`
+- **BREAKING**: Remove all legacy API clients, middleware pipeline, and barrel `index.ts`
+- **Image generation**: Migrate to native AI SDK `generateImage`/`editImage`, remove legacy image middleware
+- **Embedding**: Migrate to AI SDK `embedMany`, remove legacy embedding clients
+- **Model listing**: Refactor `ModelListService` to Strategy Registry pattern, consolidate schema files
+- **OpenRouter image**: Native image endpoint support via `@openrouter/ai-sdk-provider` 2.3.3
+- **GitHub Copilot**: Simplify extension by removing `ProviderV2` cast and `wrapProvider`
+- **Rename**: `index_new.ts` → `AiProvider.ts`, `ModelListService.ts` → `listModels.ts`
