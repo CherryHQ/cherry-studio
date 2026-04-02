@@ -3,6 +3,7 @@
  */
 
 import type { InsertMiniAppRow, MiniAppRegion, MiniAppStatus } from '@data/db/schemas/miniapp'
+import { ORIGIN_DEFAULT_MIN_APPS } from '@shared/data/presets/miniapps'
 
 function toNullable<T>(value: unknown): T | null {
   return (value ?? null) as T | null
@@ -27,55 +28,12 @@ function normalizeType(raw: unknown): 'default' | 'custom' {
 
 /**
  * [v2] Built-in app ID to logo key mapping.
- * Maps app IDs to their corresponding icon keys for the v2 icon resolution system.
+ * Derived from the shared preset data (ORIGIN_DEFAULT_MIN_APPS) to stay in sync.
  * Custom apps with URL logos are not included here - their logos are preserved as-is.
  */
-const BUILTIN_APP_LOGO_MAP: Record<string, string> = {
-  openai: 'openai',
-  gemini: 'gemini',
-  silicon: 'silicon',
-  deepseek: 'deepseek',
-  yi: 'zeroone',
-  zhipu: 'zhipu',
-  moonshot: 'kimi',
-  baichuan: 'baichuan',
-  dashscope: 'qwen',
-  stepfun: 'step',
-  doubao: 'doubao',
-  cici: 'bytedance',
-  hailuo: 'hailuo',
-  'minimax-agent': 'minimax',
-  'minimax-agent-global': 'minimax',
-  ima: 'ima',
-  groq: 'groq',
-  anthropic: 'claude',
-  google: 'google',
-  'baidu-ai-chat': 'wenxin',
-  'baidu-ai-search': 'baidu',
-  'tencent-yuanbao': 'yuanbao',
-  'sensetime-chat': 'sensetime',
-  'spark-desk': 'xinghuo',
-  metaso: 'metaso',
-  poe: 'poe',
-  perplexity: 'perplexity',
-  devv: 'devv',
-  'tiangong-ai': 'tng',
-  Felo: 'felo',
-  duckduckgo: 'duck',
-  bolt: 'bolt',
-  nm: 'namiai',
-  thinkany: 'thinkany',
-  'github-copilot': 'githubcopilot',
-  genspark: 'genspark',
-  grok: 'grok',
-  'grok-x': 'twitter',
-  qwenlm: 'qwen',
-  flowith: 'flowith',
-  '3mintop': 'mintop3',
-  aistudio: 'aistudio',
-  xiaoyi: 'xiaoyi',
-  notebooklm: 'notebooklm'
-}
+const BUILTIN_APP_LOGO_MAP: Record<string, string> = Object.fromEntries(
+  ORIGIN_DEFAULT_MIN_APPS.filter((app) => app.logo).map((app) => [app.id, app.logo!])
+)
 
 const DEFAULT_LOGO_KEY = 'application'
 

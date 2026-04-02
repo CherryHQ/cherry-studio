@@ -5,11 +5,20 @@
  * - Miniapp CRUD operations
  * - Status management
  * - Reordering
+ *
+ * All input validation happens here at the system boundary.
  */
 
 import { miniappService } from '@data/services/MiniappService'
 import type { ApiHandler, ApiMethods } from '@shared/data/api/apiTypes'
 import type { MiniappSchemas } from '@shared/data/api/schemas/miniapps'
+import {
+  CreateMiniappSchema,
+  ListMiniappsQuerySchema,
+  ReorderMiniappsSchema,
+  SetMiniappStatusSchema,
+  UpdateMiniappSchema
+} from '@shared/data/api/schemas/miniapps'
 
 /**
  * Handler type for a specific miniapp endpoint
@@ -26,37 +35,40 @@ export const miniappHandlers: {
 } = {
   '/miniapps': {
     GET: async ({ query }) => {
-      const { items } = await miniappService.list(query ?? {})
-      return items
+      const parsed = ListMiniappsQuerySchema.parse(query ?? {})
+      return await miniappService.list(parsed)
     },
     POST: async ({ body }) => {
-      return await miniappService.create(body)
+      const parsed = CreateMiniappSchema.parse(body)
+      return await miniappService.create(parsed)
     },
     PATCH: async ({ body }) => {
-      await miniappService.reorder(body.items)
+      const parsed = ReorderMiniappsSchema.parse(body)
+      await miniappService.reorder(parsed.items)
       return undefined
     }
   },
 
-  '/miniapps/:appId': {
+  '/miniapps/:id': {
     GET: async ({ params }) => {
-      return await miniappService.getByAppId(params.appId)
+      return await miniappService.getByAppId(params.id)
     },
 
     PATCH: async ({ params, body }) => {
-      return await miniappService.update(params.appId, body)
+      const parsed = UpdateMiniappSchema.parse(body)
+      return await miniappService.update(params.id, parsed)
     },
 
     DELETE: async ({ params }) => {
-      await miniappService.delete(params.appId)
+      await miniappService.delete(params.id)
       return undefined
     }
   },
 
-  '/miniapps/:appId/status': {
+  '/miniapps/:id/status': {
     PUT: async ({ params, body }) => {
-      const miniapp = await miniappService.updateStatus(params.appId, body.status)
-      return { miniapp }
+      const parsed = SetMiniappStatusSchema.parse(body)
+      return await miniappService.updateStatus(params.id, parsed.status)
     }
   }
 }

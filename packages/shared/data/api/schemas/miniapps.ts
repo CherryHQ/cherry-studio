@@ -6,76 +6,77 @@
  */
 
 import type { MiniApp } from '@shared/data/types/miniapp'
+import * as z from 'zod'
+
+import type { OffsetPaginationResponse } from '../apiTypes'
 
 // ============================================================================
-// DTOs
+// Zod Schemas for runtime validation
 // ============================================================================
 
-/**
- * DTO for creating a new custom miniapp
- * Note: User-created apps are always type 'custom', cannot create type 'default'
- */
-export interface CreateMiniappDto {
-  /** App identifier */
-  appId: string
-  /** Display name */
-  name: string
-  /** App URL */
-  url: string
-  /** Logo URL or base64 */
-  logo?: string
-  /** Whether the app shows a border */
-  bordered?: boolean
-  /** Background color */
-  background?: string
-  /** Region availability */
-  supportedRegions?: ('CN' | 'Global')[]
-  /** Custom configuration */
-  configuration?: unknown
-}
+const MiniAppStatusSchema = z.enum(['enabled', 'disabled', 'pinned'])
+const MiniAppTypeSchema = z.enum(['default', 'custom'])
+const MiniAppRegionSchema = z.enum(['CN', 'Global'])
 
 /**
- * DTO for updating an existing miniapp
+ * Zod schema for creating a new custom miniapp
  */
-export interface UpdateMiniappDto {
-  /** Updated display name */
-  name?: string
-  /** Updated app URL */
-  url?: string
-  /** Updated logo */
-  logo?: string
-  /** Updated status */
-  status?: 'enabled' | 'disabled' | 'pinned'
-  /** Updated border setting */
-  bordered?: boolean
-  /** Updated background color */
-  background?: string
-  /** Updated region availability */
-  supportedRegions?: ('CN' | 'Global')[]
-  /** Updated custom configuration */
-  configuration?: unknown
-}
+export const CreateMiniappSchema = z.object({
+  appId: z.string().min(1),
+  name: z.string().min(1),
+  url: z.string().min(1),
+  logo: z.string().optional(),
+  bordered: z.boolean().optional(),
+  background: z.string().optional(),
+  supportedRegions: z.array(MiniAppRegionSchema).optional(),
+  configuration: z.unknown().optional()
+})
+export type CreateMiniappDto = z.infer<typeof CreateMiniappSchema>
 
 /**
- * DTO for batch reordering miniapps
+ * Zod schema for updating an existing miniapp
  */
-export interface ReorderMiniappsDto {
-  items: Array<{ appId: string; sortOrder: number }>
-}
+export const UpdateMiniappSchema = z.object({
+  name: z.string().min(1).optional(),
+  url: z.string().min(1).optional(),
+  logo: z.string().optional(),
+  status: MiniAppStatusSchema.optional(),
+  bordered: z.boolean().optional(),
+  background: z.string().optional(),
+  supportedRegions: z.array(MiniAppRegionSchema).optional(),
+  configuration: z.unknown().optional()
+})
+export type UpdateMiniappDto = z.infer<typeof UpdateMiniappSchema>
 
 /**
- * DTO for setting miniapp status
+ * Zod schema for batch reordering miniapps
  */
-export interface SetMiniappStatusDto {
-  status: 'enabled' | 'disabled' | 'pinned'
-}
+export const ReorderMiniappsSchema = z.object({
+  items: z.array(
+    z.object({
+      appId: z.string().min(1),
+      sortOrder: z.number().int()
+    })
+  )
+})
+export type ReorderMiniappsDto = z.infer<typeof ReorderMiniappsSchema>
 
 /**
- * Response for status update
+ * Zod schema for setting miniapp status
  */
-export interface StatusUpdateResponse {
-  miniapp: MiniApp
-}
+export const SetMiniappStatusSchema = z.object({
+  status: MiniAppStatusSchema
+})
+export type SetMiniappStatusDto = z.infer<typeof SetMiniappStatusSchema>
+
+/**
+ * Query parameters for listing miniapps
+ */
+export const ListMiniappsQuerySchema = z.object({
+  status: MiniAppStatusSchema.optional(),
+  type: MiniAppTypeSchema.optional()
+})
+export type ListMiniappsQuery = z.infer<typeof ListMiniappsQuerySchema>
 
 // ============================================================================
 // API Schema Definitions
@@ -94,11 +95,8 @@ export interface MiniappSchemas {
   '/miniapps': {
     /** Get all miniapps (optionally filtered by status/type) */
     GET: {
-      query?: {
-        status?: 'enabled' | 'disabled' | 'pinned'
-        type?: 'default' | 'custom'
-      }
-      response: MiniApp[]
+      query?: ListMiniappsQuery
+      response: OffsetPaginationResponse<MiniApp>
     }
     /** Create a new miniapp (for custom apps or default app preference rows) */
     POST: {
@@ -118,21 +116,21 @@ export interface MiniappSchemas {
    * @example PATCH /miniapps/qwen { "status": "disabled" }
    * @example DELETE /miniapps/qwen
    */
-  '/miniapps/:appId': {
+  '/miniapps/:id': {
     /** Get a miniapp by appId */
     GET: {
-      params: { appId: string }
+      params: { id: string }
       response: MiniApp
     }
     /** Update a miniapp */
     PATCH: {
-      params: { appId: string }
+      params: { id: string }
       body: UpdateMiniappDto
       response: MiniApp
     }
     /** Delete a miniapp */
     DELETE: {
-      params: { appId: string }
+      params: { id: string }
       response: void
     }
   }
@@ -142,12 +140,12 @@ export interface MiniappSchemas {
    * High-frequency operation for toggling app status
    * @example PUT /miniapps/qwen/status { "status": "pinned" }
    */
-  '/miniapps/:appId/status': {
+  '/miniapps/:id/status': {
     /** Set the status for a miniapp */
     PUT: {
-      params: { appId: string }
+      params: { id: string }
       body: SetMiniappStatusDto
-      response: StatusUpdateResponse
+      response: MiniApp
     }
   }
 }

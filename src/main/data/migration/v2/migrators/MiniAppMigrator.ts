@@ -23,6 +23,11 @@ export class MiniAppMigrator extends BaseMigrator {
   private preparedRows: InsertMiniAppRow[] = []
   private skippedCount = 0
 
+  override reset(): void {
+    this.preparedRows = []
+    this.skippedCount = 0
+  }
+
   async prepare(ctx: MigrationContext): Promise<PrepareResult> {
     this.preparedRows = []
     this.skippedCount = 0

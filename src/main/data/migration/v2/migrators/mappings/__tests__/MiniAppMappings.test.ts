@@ -102,7 +102,7 @@ describe('MiniAppMappings', () => {
       it('should handle all built-in app logo mappings', () => {
         const testCases = [
           { id: 'openai', expected: 'openai' },
-          { id: 'moonshot', expected: 'kimi' },
+          { id: 'moonshot', expected: 'Moonshot' },
           { id: 'dashscope', expected: 'qwen' },
           { id: 'anthropic', expected: 'claude' },
           { id: 'yi', expected: 'zeroone' },

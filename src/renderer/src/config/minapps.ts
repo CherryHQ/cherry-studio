@@ -14,6 +14,7 @@ import {
   BoltNew,
   Bytedance,
   Coze,
+  Dangbei,
   Deepseek,
   Devv,
   Dify,
@@ -27,10 +28,12 @@ import {
   Grok,
   Groq,
   Huggingface,
+  Ima,
   Lambda,
   Lingxi,
   Longcat,
   Metaso,
+  Minimax,
   MinTop3,
   Mistral,
   Monica,
@@ -69,10 +72,15 @@ const loadCustomMiniApp = async (): Promise<MinAppType[]> => {
     let content: string
     try {
       content = await window.api.file.read('custom-minapps.json')
-    } catch (error) {
-      // 如果文件不存在，创建一个空的 JSON 数组
-      content = '[]'
-      await window.api.file.writeWithId('custom-minapps.json', content)
+    } catch (error: any) {
+      // I6: Only create empty file on ENOENT; for other errors, log and return empty
+      if (error?.code === 'ENOENT' || error?.message?.includes('no such file')) {
+        content = '[]'
+        await window.api.file.writeWithId('custom-minapps.json', content)
+      } else {
+        logger.error('Failed to read custom mini apps file:', error as Error)
+        return []
+      }
     }
 
     const customApps = JSON.parse(content)
@@ -712,6 +720,10 @@ export function getMiniAppsLogo(LogoId: string | undefined): CompoundIcon | unde
       return BoltNew
     case 'huggingface':
       return Huggingface
+    case 'ima':
+      return Ima
+    case 'dangbei':
+      return Dangbei
     default:
       return undefined
   }

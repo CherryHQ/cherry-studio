@@ -5,7 +5,8 @@
  * Supports both system default apps and user-customized apps
  */
 
-import { index, integer, sqliteTable, text } from 'drizzle-orm/sqlite-core'
+import { sql } from 'drizzle-orm'
+import { check, index, integer, sqliteTable, text } from 'drizzle-orm/sqlite-core'
 
 import { createUpdateTimestamps } from './_columnHelpers'
 
@@ -57,9 +58,16 @@ export const miniappTable = sqliteTable(
   (t) => [
     index('miniapp_status_sort_idx').on(t.status, t.sortOrder),
     index('miniapp_type_idx').on(t.type),
-    index('miniapp_status_type_idx').on(t.status, t.type)
+    index('miniapp_status_type_idx').on(t.status, t.type),
+    check('miniapp_status_check', sql`${t.status} IN ('enabled', 'disabled', 'pinned')`),
+    check('miniapp_type_check', sql`${t.type} IN ('default', 'custom')`)
   ]
 )
 
-export type MiniAppRow = typeof miniappTable.$inferSelect
-export type InsertMiniAppRow = typeof miniappTable.$inferInsert
+export type MiniAppSelect = typeof miniappTable.$inferSelect
+export type MiniAppInsert = typeof miniappTable.$inferInsert
+
+/** @deprecated Use MiniAppSelect instead */
+export type MiniAppRow = MiniAppSelect
+/** @deprecated Use MiniAppInsert instead */
+export type InsertMiniAppRow = MiniAppInsert
