@@ -27,9 +27,9 @@ export const CreateMiniappSchema = z.object({
   url: z.string().min(1),
   logo: z.string().optional(),
   bordered: z.boolean().optional(),
-  background: z.string().optional(),
+  background: z.string().nullable().optional(),
   supportedRegions: z.array(MiniAppRegionSchema).optional(),
-  configuration: z.unknown().optional()
+  configuration: z.unknown().nullable().optional()
 })
 export type CreateMiniappDto = z.infer<typeof CreateMiniappSchema>
 
@@ -42,9 +42,9 @@ export const UpdateMiniappSchema = z.object({
   logo: z.string().optional(),
   status: MiniAppStatusSchema.optional(),
   bordered: z.boolean().optional(),
-  background: z.string().optional(),
+  background: z.string().nullable().optional(),
   supportedRegions: z.array(MiniAppRegionSchema).optional(),
-  configuration: z.unknown().optional()
+  configuration: z.unknown().nullable().optional()
 })
 export type UpdateMiniappDto = z.infer<typeof UpdateMiniappSchema>
 
