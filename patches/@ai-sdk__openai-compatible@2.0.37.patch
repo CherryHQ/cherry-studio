@@ -1,8 +1,8 @@
 diff --git a/dist/index.js b/dist/index.js
-index f5902dd4342750bf651a5f454d8d965bf91cf20d..6d906f880de4946cbae375bd3707137cdb50f752 100644
+index d73573b013e61903991cad2074187a3ade8921ab..919cbb2d14c0019716080c1bf041dde96c2b6cab 100644
 --- a/dist/index.js
 +++ b/dist/index.js
-@@ -570,6 +570,17 @@ var OpenAICompatibleChatLanguageModel = class {
+@@ -572,6 +572,17 @@ var OpenAICompatibleChatLanguageModel = class {
          text: reasoning
        });
      }
@@ -20,7 +20,7 @@ index f5902dd4342750bf651a5f454d8d965bf91cf20d..6d906f880de4946cbae375bd3707137c
      if (choice.message.tool_calls != null) {
        for (const toolCall of choice.message.tool_calls) {
          const thoughtSignature = (_c = (_b = toolCall.extra_content) == null ? void 0 : _b.google) == null ? void 0 : _c.thought_signature;
-@@ -730,6 +741,17 @@ var OpenAICompatibleChatLanguageModel = class {
+@@ -732,6 +743,17 @@ var OpenAICompatibleChatLanguageModel = class {
                  delta: delta.content
                });
              }
@@ -38,7 +38,7 @@ index f5902dd4342750bf651a5f454d8d965bf91cf20d..6d906f880de4946cbae375bd3707137c
              if (delta.tool_calls != null) {
                if (isActiveReasoning) {
                  controller.enqueue({
-@@ -926,6 +948,14 @@ var OpenAICompatibleChatResponseSchema = import_v43.z.looseObject({
+@@ -928,6 +950,14 @@ var OpenAICompatibleChatResponseSchema = import_v43.z.looseObject({
                }).nullish()
              }).nullish()
            })
@@ -53,7 +53,7 @@ index f5902dd4342750bf651a5f454d8d965bf91cf20d..6d906f880de4946cbae375bd3707137c
          ).nullish()
        }),
        finish_reason: import_v43.z.string().nullish()
-@@ -962,6 +992,14 @@ var chunkBaseSchema = import_v43.z.looseObject({
+@@ -964,6 +994,14 @@ var chunkBaseSchema = import_v43.z.looseObject({
                }).nullish()
              }).nullish()
            })
@@ -69,10 +69,10 @@ index f5902dd4342750bf651a5f454d8d965bf91cf20d..6d906f880de4946cbae375bd3707137c
        }).nullish(),
        finish_reason: import_v43.z.string().nullish()
 diff --git a/dist/index.mjs b/dist/index.mjs
-index 75d3b9d8fdb57e9eca7d9590a45a85340427fe59..302b7d62fb7291f7028bdf51525ac95759e0fa5f 100644
+index 237c9e209da9da2d4d557eb309e1adc2157c1426..2e140f053bb9d7e88ed6b54238d355e7f5aae49b 100644
 --- a/dist/index.mjs
 +++ b/dist/index.mjs
-@@ -554,6 +554,17 @@ var OpenAICompatibleChatLanguageModel = class {
+@@ -559,6 +559,17 @@ var OpenAICompatibleChatLanguageModel = class {
          text: reasoning
        });
      }
@@ -90,7 +90,7 @@ index 75d3b9d8fdb57e9eca7d9590a45a85340427fe59..302b7d62fb7291f7028bdf51525ac957
      if (choice.message.tool_calls != null) {
        for (const toolCall of choice.message.tool_calls) {
          const thoughtSignature = (_c = (_b = toolCall.extra_content) == null ? void 0 : _b.google) == null ? void 0 : _c.thought_signature;
-@@ -714,6 +725,17 @@ var OpenAICompatibleChatLanguageModel = class {
+@@ -719,6 +730,17 @@ var OpenAICompatibleChatLanguageModel = class {
                  delta: delta.content
                });
              }
@@ -108,7 +108,7 @@ index 75d3b9d8fdb57e9eca7d9590a45a85340427fe59..302b7d62fb7291f7028bdf51525ac957
              if (delta.tool_calls != null) {
                if (isActiveReasoning) {
                  controller.enqueue({
-@@ -910,6 +932,14 @@ var OpenAICompatibleChatResponseSchema = z3.looseObject({
+@@ -915,6 +937,14 @@ var OpenAICompatibleChatResponseSchema = z3.looseObject({
                }).nullish()
              }).nullish()
            })
@@ -123,7 +123,7 @@ index 75d3b9d8fdb57e9eca7d9590a45a85340427fe59..302b7d62fb7291f7028bdf51525ac957
          ).nullish()
        }),
        finish_reason: z3.string().nullish()
-@@ -946,6 +976,14 @@ var chunkBaseSchema = z3.looseObject({
+@@ -951,6 +981,14 @@ var chunkBaseSchema = z3.looseObject({
                }).nullish()
              }).nullish()
            })

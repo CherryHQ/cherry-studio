@@ -101,8 +101,10 @@ export const NewApiModelsResponseSchema = z.object({
       created: z.number().optional(),
       owned_by: z.string().optional(),
       supported_endpoint_types: z
-        .array(z.enum(['openai', 'anthropic', 'gemini', 'openai-response', 'image-generation']))
+        .array(z.string())
+        .nullable()
         .optional()
+        .transform((v) => v ?? undefined)
     })
   ),
   object: z.literal('list').optional()
