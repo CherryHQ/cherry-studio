@@ -62,17 +62,16 @@ const permissionModeTool = defineTool({
         const updatedConfiguration = { ...configuration, permission_mode: nextMode }
 
         // Disable soul mode on the agent when switching away from bypassPermissions
-        if (nextMode !== 'bypassPermissions' && configuration.soul_enabled === true) {
+        // Check agent-level soul_enabled since session may not have it
+        if (nextMode !== 'bypassPermissions' && agentId && agent?.configuration?.soul_enabled === true) {
           updatedConfiguration.soul_enabled = false
-          if (agentId && agent?.configuration) {
-            void updateAgent(
-              {
-                id: agentId,
-                configuration: { ...agent.configuration, soul_enabled: false, permission_mode: nextMode }
-              },
-              { showSuccessToast: false }
-            )
-          }
+          void updateAgent(
+            {
+              id: agentId,
+              configuration: { ...agent.configuration, soul_enabled: false, permission_mode: nextMode }
+            },
+            { showSuccessToast: false }
+          )
         }
 
         void updateSession(

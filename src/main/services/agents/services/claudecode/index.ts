@@ -45,6 +45,7 @@ import type {
   AgentStreamEvent,
   AgentThinkingOptions
 } from '../../interfaces/AgentStreamInterface'
+import { agentService } from '../AgentService'
 import { isProvisioned, provisionBuiltinAgent } from '../builtin/BuiltinAgentProvisioner'
 import { channelService } from '../ChannelService'
 import { PromptBuilder } from '../cherryclaw/prompt'
@@ -370,13 +371,14 @@ class ClaudeCodeService implements AgentServiceInterface {
       }
     }
 
-    // Soul Mode: build custom system prompt and inject claw MCP when enabled
-    const soulConfig = session.configuration
-    const soulEnabled = soulConfig?.soul_enabled === true
+    // Soul Mode: read soul_enabled from agent-level configuration (not session)
+    const agent = await agentService.getAgent(session.agent_id)
+    const agentConfig = agent?.configuration
+    const soulEnabled = agentConfig?.soul_enabled === true
     let soulSystemPrompt: string | undefined
 
     if (soulEnabled && cwd) {
-      soulSystemPrompt = await promptBuilder.buildSystemPrompt(cwd, soulConfig)
+      soulSystemPrompt = await promptBuilder.buildSystemPrompt(cwd, agentConfig)
       logger.info('Built Soul Mode system prompt', { cwd, promptLength: soulSystemPrompt.length })
     }
 
