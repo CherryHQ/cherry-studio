@@ -1,9 +1,11 @@
 import { Cherryin } from '@cherrystudio/ui/icons'
 import { loggerService } from '@logger'
-import { useProvider } from '@renderer/hooks/useProvider'
+import { dataApiService } from '@renderer/data/DataApiService'
+import { useInvalidateCache, useQuery } from '@renderer/data/hooks/useDataApi'
 import { oauthWithCherryIn } from '@renderer/utils/oauth'
+import { hasApiKeys } from '@renderer/utils/provider.v2'
+import type { Provider } from '@shared/data/types/provider'
 import { Button, Skeleton } from 'antd'
-import { isEmpty } from 'lodash'
 import { CreditCard, LogIn, LogOut, RefreshCw } from 'lucide-react'
 import type { FC } from 'react'
 import { useCallback, useEffect, useState } from 'react'
@@ -34,7 +36,8 @@ interface CherryINOAuthProps {
 }
 
 const CherryINOAuth: FC<CherryINOAuthProps> = ({ providerId }) => {
-  const { updateProvider, provider } = useProvider(providerId)
+  const { data: provider } = useQuery(`/providers/${providerId}` as any) as { data: Provider | undefined }
+  const invalidate = useInvalidateCache()
   const { t } = useTranslation()
 
   const [isLoggingOut, setIsLoggingOut] = useState(false)
@@ -42,9 +45,9 @@ const CherryINOAuth: FC<CherryINOAuthProps> = ({ providerId }) => {
   const [balanceInfo, setBalanceInfo] = useState<BalanceInfo | null>(null)
   const [hasOAuthToken, setHasOAuthToken] = useState<boolean | null>(null)
 
-  const hasApiKey = !isEmpty(provider.apiKey)
+  const hasKeys = provider ? hasApiKeys(provider) : false
   // User is considered logged in via OAuth only if they have both API key and OAuth token
-  const isOAuthLoggedIn = hasApiKey && hasOAuthToken === true
+  const isOAuthLoggedIn = hasKeys && hasOAuthToken === true
 
   const fetchData = useCallback(async () => {
     setIsLoadingData(true)
@@ -83,8 +86,15 @@ const CherryINOAuth: FC<CherryINOAuthProps> = ({ providerId }) => {
   const handleOAuthLogin = useCallback(async () => {
     try {
       await oauthWithCherryIn(
-        (apiKeys: string) => {
-          updateProvider({ apiKey: apiKeys })
+        async (apiKeys: string) => {
+          // POST each key to /api-keys endpoint
+          await dataApiService.post(`/providers/${providerId}/api-keys` as any, {
+            body: { key: apiKeys, label: 'OAuth' }
+          })
+          await dataApiService.patch(`/providers/${providerId}` as any, {
+            body: { isEnabled: true }
+          })
+          await invalidate([`/providers/${providerId}`])
           setHasOAuthToken(true)
           window.toast.success(t('auth.get_key_success'))
         },
@@ -96,7 +106,7 @@ const CherryINOAuth: FC<CherryINOAuthProps> = ({ providerId }) => {
       logger.error('OAuth Error:', error as Error)
       window.toast.error(t('settings.provider.oauth.error'))
     }
-  }, [updateProvider, t])
+  }, [providerId, invalidate, t])
 
   const handleLogout = useCallback(() => {
     window.modal.confirm({
@@ -108,23 +118,28 @@ const CherryINOAuth: FC<CherryINOAuthProps> = ({ providerId }) => {
 
         try {
           await window.api.cherryin.logout(CHERRYIN_OAUTH_SERVER)
-          updateProvider({ apiKey: '' })
+          // Delete OAuth key by label
+          const oauthKey = provider?.apiKeys.find((k) => k.label === 'OAuth')
+          if (oauthKey) {
+            await dataApiService.delete(`/providers/${providerId}/api-keys/${oauthKey.id}` as any)
+          }
+          await invalidate([`/providers/${providerId}`])
           setHasOAuthToken(false)
           setBalanceInfo(null)
           window.toast.success(t('settings.provider.oauth.logout_success'))
         } catch (error) {
           logger.error('Logout error:', error as Error)
           // Still clear local state even if server revocation failed
-          updateProvider({ apiKey: '' })
           setHasOAuthToken(false)
           setBalanceInfo(null)
+          await invalidate([`/providers/${providerId}`])
           window.toast.warning(t('settings.provider.oauth.logout_warning'))
         } finally {
           setIsLoggingOut(false)
         }
       }
     })
-  }, [updateProvider, t])
+  }, [provider?.apiKeys, providerId, invalidate, t])
 
   const handleTopup = useCallback(() => {
     window.open(CHERRYIN_TOPUP_URL, '_blank')
@@ -135,7 +150,7 @@ const CherryINOAuth: FC<CherryINOAuthProps> = ({ providerId }) => {
   // 2. Has API key + OAuth token → Show logged-in UI
   // 3. Has API key + No OAuth token (legacy manual key) → Show connect button to upgrade to OAuth
   const renderContent = () => {
-    if (!hasApiKey) {
+    if (!hasKeys) {
       // Case 1: No API key - show login button
       return (
         <Button type="primary" shape="round" icon={<LogIn size={16} />} onClick={handleOAuthLogin}>
