@@ -95,6 +95,7 @@
     "@paymoapp/electron-shutdown-handler": "1.1.2",
     "@vectorstores/core": "^0.1.8",
     "@vectorstores/libsql": "workspace:*",
+    "@vectorstores/readers": "^0.1.8",
     "express": "5.1.0",
     "font-list": "2.0.0",
     "graceful-fs": "4.2.11",
