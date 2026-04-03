@@ -216,12 +216,16 @@ const PromptVariableRenderer: FC<Props> = ({
           outline: none;
           padding: 6px 15px 0px;
           min-height: unset;
-          line-height: 1;
+          line-height: 1.5;
           overflow-y: auto;
           font-size: ${fontSize ?? 14}px;
         }
         .prompt-variable-editor.tiptap.tiptap p {
           margin: 0;
+          line-height: inherit;
+        }
+        .prompt-variable-editor.tiptap.tiptap::after {
+          height: 16px;
         }
       `}</style>
       <EditorContent editor={editor} style={{ height: height ?? undefined }} />
