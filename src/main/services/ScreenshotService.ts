@@ -9,7 +9,7 @@ import { join } from 'path'
 import path from 'path'
 import { v4 as uuidv4 } from 'uuid'
 
-let ScreenshotsModule: typeof import('node-screenshots') | null = null
+let ScreenshotsModule: any = null
 try {
   ScreenshotsModule = require('node-screenshots')
 } catch (error) {
