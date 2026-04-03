@@ -1,8 +1,6 @@
 import { loggerService } from '@logger'
 import ContextMenu from '@renderer/components/ContextMenu'
 import { LoadingIcon } from '@renderer/components/Icons'
-// Agent messages are typically long, so load in smaller batches
-const AGENT_PAGE_SIZE = 5
 import { useAgent } from '@renderer/hooks/agents/useAgent'
 import { useSession } from '@renderer/hooks/agents/useSession'
 import { useTopicMessages } from '@renderer/hooks/useMessageOperations'
@@ -32,6 +30,9 @@ import InfiniteScroll from 'react-infinite-scroll-component'
 import styled from 'styled-components'
 
 const logger = loggerService.withContext('AgentSessionMessages')
+
+// Agent messages are typically long, so load in smaller batches
+const AGENT_PAGE_SIZE = 5
 
 type Props = {
   agentId: string
@@ -152,6 +153,17 @@ const AgentSessionMessages = ({ agentId, sessionId }: Props) => {
   const [hasMore, setHasMore] = useState(false)
   const [isLoadingMore, setIsLoadingMore] = useState(false)
 
+  // Guard: suppress InfiniteScroll triggers during scroll position restoration
+  const isRestoringScrollRef = useRef(true)
+
+  useEffect(() => {
+    isRestoringScrollRef.current = true
+    const timer = setTimeout(() => {
+      isRestoringScrollRef.current = false
+    }, 150)
+    return () => clearTimeout(timer)
+  }, [sessionId])
+
   useEffect(() => {
     const newDisplayMessages = computeDisplayMessages(messages, 0, AGENT_PAGE_SIZE)
     setDisplayMessages(newDisplayMessages)
@@ -169,7 +181,7 @@ const AgentSessionMessages = ({ agentId, sessionId }: Props) => {
   }, [displayMessages])
 
   const loadMoreMessages = useCallback(() => {
-    if (!hasMore || isLoadingMore) return
+    if (!hasMore || isLoadingMore || isRestoringScrollRef.current) return
 
     setIsLoadingMore(true)
     setTimeoutTimer(
@@ -276,14 +288,14 @@ const computeDisplayMessages = (messages: Message[], startIndex: number, display
     }
     return result
   }
-  const userIdSet = new Set()
-  const assistantIdSet = new Set()
+  const userIdSet = new Set<string>()
+  const assistantIdSet = new Set<string>()
   const displayMessages: Message[] = []
 
   const processMessage = (message: Message) => {
     if (!message) return
     const idSet = message.role === 'user' ? userIdSet : assistantIdSet
-    const messageId = message.role === 'user' ? message.id : message.askId
+    const messageId = message.role === 'user' ? message.id : (message.askId ?? message.id)
     if (!idSet.has(messageId)) {
       idSet.add(messageId)
       displayMessages.push(message)
