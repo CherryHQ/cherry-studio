@@ -27,6 +27,7 @@ import type {
 } from '@shared/data/preference/preferenceTypes'
 import type { ExternalAppInfo } from '@shared/externalApp/types'
 import { IpcChannel } from '@shared/IpcChannel'
+import type { SerializedError } from '@shared/types/error'
 import type {
   AddMemoryOptions,
   AssistantMessage,
@@ -54,6 +55,7 @@ import type {
   SupportedOcrFile,
   WebDavConfig
 } from '@types'
+import type { UIMessageChunk } from 'ai'
 import type { OpenDialogOptions } from 'electron'
 import { contextBridge, ipcRenderer, shell, webUtils } from 'electron'
 import type { CreateDirectoryOptions } from 'webdav'
@@ -853,6 +855,34 @@ const api = {
       const listener = (_: any, data: any, event: string) => callback(data, event)
       ipcRenderer.on(channel, listener)
       return () => ipcRenderer.off(channel, listener)
+    }
+  },
+  ai: {
+    streamText: (request: {
+      requestId: string
+      chatId: string
+      trigger: 'submit-message' | 'regenerate-message'
+      messageId?: string
+      messages: unknown[]
+      [key: string]: unknown
+    }) => ipcRenderer.invoke(IpcChannel.Ai_StreamRequest, request),
+    abort: (requestId: string) => ipcRenderer.send(IpcChannel.Ai_Abort, requestId),
+    onStreamChunk: (callback: (data: { requestId: string; chunk: UIMessageChunk }) => void) => {
+      const listener = (_: Electron.IpcRendererEvent, data: { requestId: string; chunk: UIMessageChunk }) =>
+        callback(data)
+      ipcRenderer.on(IpcChannel.Ai_StreamChunk, listener)
+      return () => ipcRenderer.removeListener(IpcChannel.Ai_StreamChunk, listener)
+    },
+    onStreamDone: (callback: (data: { requestId: string }) => void) => {
+      const listener = (_: Electron.IpcRendererEvent, data: { requestId: string }) => callback(data)
+      ipcRenderer.on(IpcChannel.Ai_StreamDone, listener)
+      return () => ipcRenderer.removeListener(IpcChannel.Ai_StreamDone, listener)
+    },
+    onStreamError: (callback: (data: { requestId: string; error: SerializedError }) => void) => {
+      const listener = (_: Electron.IpcRendererEvent, data: { requestId: string; error: SerializedError }) =>
+        callback(data)
+      ipcRenderer.on(IpcChannel.Ai_StreamError, listener)
+      return () => ipcRenderer.removeListener(IpcChannel.Ai_StreamError, listener)
     }
   },
   apiServer: {

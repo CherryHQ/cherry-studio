@@ -476,5 +476,12 @@ export enum IpcChannel {
   OpenClaw_PerformUpdate = 'openclaw:perform-update',
 
   // Analytics
-  Analytics_TrackTokenUsage = 'analytics:track-token-usage'
+  Analytics_TrackTokenUsage = 'analytics:track-token-usage',
+
+  // AI Stream
+  Ai_StreamRequest = 'ai:stream-request',
+  Ai_StreamChunk = 'ai:stream-chunk',
+  Ai_StreamDone = 'ai:stream-done',
+  Ai_StreamError = 'ai:stream-error',
+  Ai_Abort = 'ai:abort'
 }
