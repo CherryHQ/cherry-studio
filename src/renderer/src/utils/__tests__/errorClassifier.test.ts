@@ -155,6 +155,39 @@ describe('classifyError', () => {
     expect(result.category).not.toBe('mcp')
   })
 
+  // Proxy - narrowed matching
+  it('does not match EnvHttpProxyAgent warning as proxy', () => {
+    const result = classifyError(makeError({ message: 'Warning: EnvHttpProxyAgent is experimental' }))
+    expect(result.category).not.toBe('proxy')
+  })
+
+  it('classifies proxy error correctly', () => {
+    const result = classifyError(makeError({ message: 'proxy connection refused' }))
+    expect(result.category).toBe('proxy')
+  })
+
+  // Stream - narrowed matching
+  it('does not match generic stream mention', () => {
+    const result = classifyError(makeError({ message: 'ReadableStream locked' }))
+    expect(result.category).not.toBe('stream')
+  })
+
+  it('classifies stream error correctly', () => {
+    const result = classifyError(makeError({ message: 'stream error during response' }))
+    expect(result.category).toBe('stream')
+  })
+
+  // Parse - json removed
+  it('does not match model name containing json', () => {
+    const result = classifyError(makeError({ message: 'model gpt-4-json not found' }))
+    expect(result.category).not.toBe('parse')
+  })
+
+  it('classifies unexpected token as parse', () => {
+    const result = classifyError(makeError({ message: 'unexpected token < in JSON at position 0' }))
+    expect(result.category).toBe('parse')
+  })
+
   // Status as string
   it('handles status as string', () => {
     const result = classifyError(makeError({ status: '401' }))
