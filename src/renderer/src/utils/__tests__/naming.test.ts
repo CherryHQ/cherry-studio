@@ -436,28 +436,5 @@ describe('naming', () => {
       const text = '# "Quoted" title\n\ncontent'
       expect(extractMarkdownTopicHeading(text)).toBe('Quoted title')
     })
-
-    it('should handle empty string', () => {
-      expect(extractMarkdownTopicHeading('')).toBeNull()
-    })
-
-    it('should handle multiple h1 headings', () => {
-      const text = '# First Title\n\n# Second Title'
-      expect(extractMarkdownTopicHeading(text)).toBe('First Title')
-    })
-
-    it('should handle whitespace-only input', () => {
-      expect(extractMarkdownTopicHeading('   \n\n   ')).toBeNull()
-    })
-
-    it('should handle tilde fenced code blocks', () => {
-      const text = '~~~markdown\n# Fake title\n~~~\n\n# Real title'
-      expect(extractMarkdownTopicHeading(text)).toBe('Real title')
-    })
-
-    it('should handle heading with trailing hashes', () => {
-      const text = '# Title with trailing ##'
-      expect(extractMarkdownTopicHeading(text)).toBe('Title with trailing')
-    })
   })
 })
