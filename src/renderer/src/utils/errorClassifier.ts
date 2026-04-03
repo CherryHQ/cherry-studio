@@ -94,7 +94,9 @@ export function classifyError(error?: SerializedError, providerId?: string): Err
 
   // Proxy / SSL certificate errors
   if (
-    msg.includes('proxy') ||
+    msg.includes('proxy error') ||
+    msg.includes('proxy connection') ||
+    msg.includes('proxy refused') ||
     msg.includes('socks') ||
     msg.includes('certificate') ||
     msg.includes('self-signed') ||
@@ -104,7 +106,13 @@ export function classifyError(error?: SerializedError, providerId?: string): Err
   }
 
   // Stream interrupted
-  if (msg.includes('econnreset') || msg.includes('stream') || msg.includes('connection reset')) {
+  if (
+    msg.includes('econnreset') ||
+    msg.includes('stream error') ||
+    msg.includes('stream interrupted') ||
+    msg.includes('stream closed') ||
+    msg.includes('connection reset')
+  ) {
     return { category: 'stream', i18nKey: 'error.diagnosis.stream', navTarget: null }
   }
 
@@ -146,12 +154,7 @@ export function classifyError(error?: SerializedError, providerId?: string): Err
   }
 
   // Response parse errors
-  if (
-    msg.includes('json') ||
-    msg.includes('unexpected token') ||
-    msg.includes('invalid response') ||
-    msg.includes('parse error')
-  ) {
+  if (msg.includes('unexpected token') || msg.includes('invalid response') || msg.includes('parse error')) {
     return { category: 'parse', i18nKey: 'error.diagnosis.parse', navTarget: null }
   }
 

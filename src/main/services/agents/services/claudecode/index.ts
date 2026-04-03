@@ -242,6 +242,7 @@ class ClaudeCodeService implements AgentServiceInterface {
     }
 
     const errorChunks: string[] = []
+    const isNodeWarning = (chunk: string) => /^\(node:\d+\)\s*\[/.test(chunk.trim())
 
     const sessionAllowedTools = new Set<string>(session.allowed_tools ?? [])
     const autoAllowTools = new Set<string>([...DEFAULT_AUTO_ALLOW_TOOLS, ...sessionAllowedTools])
@@ -472,7 +473,9 @@ class ClaudeCodeService implements AgentServiceInterface {
         child.stderr?.on('data', (data: Buffer) => {
           const text = data.toString()
           logger.warn('claude stderr', { chunk: text })
-          errorChunks.push(text)
+          if (!isNodeWarning(text)) {
+            errorChunks.push(text)
+          }
         })
         return child as unknown as SpawnedProcess
       },
