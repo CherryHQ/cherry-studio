@@ -167,6 +167,11 @@ describe('classifyError', () => {
     expect(result.category).toBe('proxy')
   })
 
+  it('classifies proxy refused as proxy', () => {
+    const result = classifyError(makeError({ message: 'proxy refused connection' }))
+    expect(result.category).toBe('proxy')
+  })
+
   it('does not match plain "proxy" without qualifier', () => {
     const result = classifyError(makeError({ message: 'something proxy related' }))
     expect(result.category).not.toBe('proxy')
@@ -180,6 +185,11 @@ describe('classifyError', () => {
 
   it('classifies stream interrupted as stream', () => {
     const result = classifyError(makeError({ message: 'stream interrupted by server' }))
+    expect(result.category).toBe('stream')
+  })
+
+  it('classifies stream closed as stream', () => {
+    const result = classifyError(makeError({ message: 'stream closed unexpectedly' }))
     expect(result.category).toBe('stream')
   })
 

@@ -98,6 +98,7 @@ function buildContextHint(errorInfo: Record<string, unknown>, context?: Diagnosi
     msg.includes('fetch failed') ||
     msg.includes('proxy error') ||
     msg.includes('proxy connection') ||
+    msg.includes('proxy refused') ||
     msg.includes('certificate')
   ) {
     return `## Context\nNetwork or proxy error. Cherry Studio supports HTTP/SOCKS proxy configuration in general settings. The user may be behind a firewall or using a custom API endpoint.\n`

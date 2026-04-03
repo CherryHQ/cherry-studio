@@ -242,7 +242,7 @@ class ClaudeCodeService implements AgentServiceInterface {
     }
 
     const errorChunks: string[] = []
-    const isNodeWarning = (chunk: string) => /^\(node:\d+\)\s*\[/.test(chunk.trim())
+    const isNodeWarning = (chunk: string) => /^\(node:\d+\).*Warning:/.test(chunk.trim())
 
     const sessionAllowedTools = new Set<string>(session.allowed_tools ?? [])
     const autoAllowTools = new Set<string>([...DEFAULT_AUTO_ALLOW_TOOLS, ...sessionAllowedTools])
