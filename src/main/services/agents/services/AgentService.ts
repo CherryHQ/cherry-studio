@@ -174,10 +174,23 @@ export class AgentService extends BaseService {
         const resolvedPaths = this.resolveAccessiblePaths([], id)
         const workspace = resolvedPaths[0]
         const agentConfig = workspace ? await provisionWorkspace(workspace, builtinRole) : undefined
-        if (agentConfig && (agentConfig.description || agentConfig.instructions)) {
+        if (agentConfig && (agentConfig.description || agentConfig.instructions || agentConfig.configuration)) {
           const updateData: Partial<InsertAgentRow> = { updated_at: new Date().toISOString() }
           if (agentConfig.description) updateData.description = agentConfig.description
           if (agentConfig.instructions) updateData.instructions = agentConfig.instructions
+          if (agentConfig.configuration) {
+            // Merge new configuration fields (e.g., avatar) without overwriting user-modified settings
+            const existingRow = await database
+              .select({ configuration: agentsTable.configuration })
+              .from(agentsTable)
+              .where(eq(agentsTable.id, id))
+              .limit(1)
+            const existingConfig = existingRow[0]?.configuration
+              ? JSON.parse(existingRow[0].configuration as string)
+              : {}
+            const merged = { ...existingConfig, ...agentConfig.configuration }
+            updateData.configuration = JSON.stringify(merged)
+          }
           await database.update(agentsTable).set(updateData).where(eq(agentsTable.id, id))
         }
         return id
