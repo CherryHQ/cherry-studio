@@ -1,7 +1,6 @@
 import { Flex } from '@cherrystudio/ui'
 import { Button } from '@cherrystudio/ui'
-import { dataApiService } from '@data/DataApiService'
-import { useInvalidateCache, useQuery } from '@data/hooks/useDataApi'
+import { useModelMutations, useModels } from '@data/hooks/useModels'
 import { TopView } from '@renderer/components/TopView'
 import { endpointTypeOptions } from '@renderer/config/endpointTypes'
 import { useDynamicLabelWidth } from '@renderer/hooks/useDynamicLabelWidth'
@@ -36,10 +35,8 @@ type FieldType = {
 const PopupContainer: React.FC<Props> = ({ title, provider, resolve, model, endpointType }) => {
   const [open, setOpen] = useState(true)
   const [form] = Form.useForm()
-  const { data: models = [] } = useQuery('/models' as any, { query: { providerId: provider.id } }) as {
-    data: Model[]
-  }
-  const invalidate = useInvalidateCache()
+  const { models } = useModels({ providerId: provider.id })
+  const { createModel } = useModelMutations()
   const { t } = useTranslation()
 
   const onOk = () => {
@@ -51,7 +48,6 @@ const PopupContainer: React.FC<Props> = ({ title, provider, resolve, model, endp
   }
 
   const onClose = () => {
-    invalidate('/models')
     resolve({})
   }
 
@@ -63,14 +59,12 @@ const PopupContainer: React.FC<Props> = ({ title, provider, resolve, model, endp
       return
     }
 
-    await dataApiService.post('/models' as any, {
-      body: {
-        providerId: provider.id,
-        modelId,
-        name: values.name ? values.name : modelId.toUpperCase(),
-        group: values.group ?? getDefaultGroupName(modelId),
-        endpointTypes: isNewApiProvider(provider) && values.endpointType ? [values.endpointType] : undefined
-      }
+    await createModel({
+      providerId: provider.id,
+      modelId,
+      name: values.name ? values.name : modelId.toUpperCase(),
+      group: values.group ?? getDefaultGroupName(modelId),
+      endpointTypes: isNewApiProvider(provider) && values.endpointType ? [values.endpointType as number] : undefined
     })
 
     return true

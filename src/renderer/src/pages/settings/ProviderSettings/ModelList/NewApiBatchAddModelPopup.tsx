@@ -1,7 +1,6 @@
 import { Flex } from '@cherrystudio/ui'
 import { Button } from '@cherrystudio/ui'
-import { dataApiService } from '@data/DataApiService'
-import { useInvalidateCache } from '@data/hooks/useDataApi'
+import { useModelMutations } from '@data/hooks/useModels'
 import { TopView } from '@renderer/components/TopView'
 import { endpointTypeOptions } from '@renderer/config/endpointTypes'
 import { useDynamicLabelWidth } from '@renderer/hooks/useDynamicLabelWidth'
@@ -30,7 +29,7 @@ type FieldType = {
 const PopupContainer: React.FC<Props> = ({ title, provider, resolve, batchModels }) => {
   const [open, setOpen] = useState(true)
   const [form] = Form.useForm()
-  const invalidate = useInvalidateCache()
+  const { createModel } = useModelMutations()
   const { t } = useTranslation()
 
   const onOk = () => {
@@ -42,21 +41,18 @@ const PopupContainer: React.FC<Props> = ({ title, provider, resolve, batchModels
   }
 
   const onClose = () => {
-    invalidate('/models')
     resolve({})
   }
 
   const onAddModel = async (values: FieldType) => {
     for (const model of batchModels) {
       const modelId = model.apiModelId ?? parseUniqueModelId(model.id).modelId
-      await dataApiService.post('/models' as any, {
-        body: {
-          providerId: provider.id,
-          modelId,
-          name: model.name,
-          group: model.group,
-          endpointTypes: values.endpointType ? [values.endpointType] : undefined
-        }
+      await createModel({
+        providerId: provider.id,
+        modelId,
+        name: model.name,
+        group: model.group,
+        endpointTypes: values.endpointType ? [values.endpointType as number] : undefined
       })
     }
     return true

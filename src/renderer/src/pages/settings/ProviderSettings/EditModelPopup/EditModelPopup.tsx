@@ -1,5 +1,4 @@
-import { dataApiService } from '@data/DataApiService'
-import { useInvalidateCache } from '@data/hooks/useDataApi'
+import { useModelMutations } from '@data/hooks/useModels'
 import { TopView } from '@renderer/components/TopView'
 import ModelEditContent from '@renderer/pages/settings/ProviderSettings/EditModelPopup/ModelEditContent'
 import { parseUniqueModelId } from '@shared/data/types/model'
@@ -16,7 +15,7 @@ interface Props extends ShowParams {
 
 const PopupContainer: React.FC<Props> = ({ provider, model, resolve }) => {
   const [open, setOpen] = useState(true)
-  const invalidate = useInvalidateCache()
+  const { patchModel } = useModelMutations()
 
   const onOk = () => {
     setOpen(false)
@@ -37,20 +36,17 @@ const PopupContainer: React.FC<Props> = ({ provider, model, resolve }) => {
       // Assistants reference models by UniqueModelId string, not embedded objects
       // Preferences store UniqueModelId strings for default/quick/translate models
       const { modelId } = parseUniqueModelId(updatedModel.id)
-      await dataApiService.patch(`/models/${updatedModel.providerId ?? provider.id}/${modelId}` as any, {
-        body: {
-          name: updatedModel.name,
-          group: updatedModel.group,
-          capabilities: updatedModel.capabilities,
-          supportsStreaming: updatedModel.supportsStreaming ?? updatedModel.supported_text_delta,
-          endpointTypes:
-            updatedModel.endpointTypes ?? (updatedModel.endpoint_type ? [updatedModel.endpoint_type] : undefined),
-          pricing: updatedModel.pricing
-        }
+      await patchModel(updatedModel.providerId ?? provider.id, modelId, {
+        name: updatedModel.name,
+        group: updatedModel.group,
+        capabilities: updatedModel.capabilities,
+        supportsStreaming: updatedModel.supportsStreaming ?? updatedModel.supported_text_delta,
+        endpointTypes:
+          updatedModel.endpointTypes ?? (updatedModel.endpoint_type ? [updatedModel.endpoint_type] : undefined),
+        pricing: updatedModel.pricing
       })
-      await invalidate('/models')
     },
-    [provider.id, invalidate]
+    [provider.id, patchModel]
   )
 
   return (

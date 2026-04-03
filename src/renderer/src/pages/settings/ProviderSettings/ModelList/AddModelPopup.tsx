@@ -1,10 +1,8 @@
 import { Flex } from '@cherrystudio/ui'
 import { Button } from '@cherrystudio/ui'
-import { dataApiService } from '@data/DataApiService'
-import { useInvalidateCache, useQuery } from '@data/hooks/useDataApi'
+import { useModelMutations, useModels } from '@data/hooks/useModels'
 import { TopView } from '@renderer/components/TopView'
 import { getDefaultGroupName } from '@renderer/utils'
-import type { Model } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
 import type { FormProps } from 'antd'
 import { Form, Input, Modal } from 'antd'
@@ -30,10 +28,8 @@ type FieldType = {
 const PopupContainer: React.FC<Props> = ({ title, provider, resolve }) => {
   const [open, setOpen] = useState(true)
   const [form] = Form.useForm()
-  const { data: models = [] } = useQuery('/models' as any, { query: { providerId: provider.id } }) as {
-    data: Model[]
-  }
-  const invalidate = useInvalidateCache()
+  const { models } = useModels({ providerId: provider.id })
+  const { createModel } = useModelMutations()
   const { t } = useTranslation()
 
   const onOk = () => {
@@ -45,7 +41,6 @@ const PopupContainer: React.FC<Props> = ({ title, provider, resolve }) => {
   }
 
   const onClose = () => {
-    invalidate('/models')
     resolve({})
   }
 
@@ -57,13 +52,11 @@ const PopupContainer: React.FC<Props> = ({ title, provider, resolve }) => {
       return
     }
 
-    await dataApiService.post('/models' as any, {
-      body: {
-        providerId: provider.id,
-        modelId,
-        name: values.name ? values.name : modelId.toUpperCase(),
-        group: values.group ?? getDefaultGroupName(modelId)
-      }
+    await createModel({
+      providerId: provider.id,
+      modelId,
+      name: values.name ? values.name : modelId.toUpperCase(),
+      group: values.group ?? getDefaultGroupName(modelId)
     })
 
     return true

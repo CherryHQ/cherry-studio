@@ -9,16 +9,16 @@ function isNotFoundError(e: unknown): boolean {
 }
 
 export async function getProvidersAsync(): Promise<Provider[]> {
-  return dataApiService.get('/providers' as any)
+  return dataApiService.get('/providers' as const)
 }
 
 export async function getEnabledProvidersAsync(): Promise<Provider[]> {
-  return dataApiService.get('/providers' as any, { query: { enabled: true } })
+  return dataApiService.get('/providers' as const, { query: { enabled: true } })
 }
 
 export async function getProviderByIdAsync(id: string): Promise<Provider | undefined> {
   try {
-    return await dataApiService.get(`/providers/${id}` as any)
+    return await dataApiService.get(`/providers/${id}` as const)
   } catch (e) {
     if (isNotFoundError(e)) return undefined
     throw e

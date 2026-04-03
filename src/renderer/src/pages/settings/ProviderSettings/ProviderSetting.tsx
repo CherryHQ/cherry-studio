@@ -1,7 +1,7 @@
 import { Button, Flex, RowFlex, Switch, Tooltip, WarnTooltip } from '@cherrystudio/ui'
 import { HelpTooltip } from '@cherrystudio/ui'
-import { dataApiService } from '@data/DataApiService'
-import { useInvalidateCache, useQuery } from '@data/hooks/useDataApi'
+import { useModels } from '@data/hooks/useModels'
+import { useProvider, useProviderApiKeys, useProviderMutations } from '@data/hooks/useProviders'
 import { adaptProvider } from '@renderer/aiCore/provider/providerConfig'
 import OpenAIAlert from '@renderer/components/Alert/OpenAIAlert'
 import { ErrorDetailModal } from '@renderer/components/ErrorDetailModal'
@@ -102,27 +102,33 @@ const isAnthropicCompatibleProviderId = (id: string): id is AnthropicCompatibleP
 type HostField = 'apiHost' | 'anthropicApiHost'
 
 const ProviderSetting: FC<Props> = ({ providerId }) => {
-  const { data: provider } = useQuery(`/providers/${providerId}` as any) as { data: Provider | undefined }
-  const { data: models = [] } = useQuery('/models' as any, { query: { providerId } }) as { data: any[] }
-  const { data: apiKeysData } = useQuery(`/providers/${providerId}/api-keys` as any) as {
-    data: { keys: string[] } | undefined
-  }
-  const invalidate = useInvalidateCache()
+  const { provider } = useProvider(providerId)
+  if (!provider) return null
+  return <ProviderSettingContent provider={provider} providerId={providerId} />
+}
 
+interface ContentProps {
+  provider: Provider
+  providerId: string
+}
+
+const ProviderSettingContent: FC<ContentProps> = ({ provider, providerId }) => {
+  const { updateProvider, updateApiKeys } = useProviderMutations(providerId)
+  const { models } = useModels({ providerId })
+  const { data: apiKeysData } = useProviderApiKeys(providerId)
   const patchProvider = useCallback(
     async (updates: Record<string, any>) => {
-      await dataApiService.patch(`/providers/${providerId}` as any, { body: updates })
-      await invalidate(['/providers', `/providers/${providerId}`])
+      await updateProvider(updates)
     },
-    [providerId, invalidate]
+    [updateProvider]
   )
 
   // Derive v1-like fields from v2 Provider
-  const primaryEndpoint = provider?.defaultChatEndpoint ?? EndpointType.OPENAI_CHAT_COMPLETIONS
-  const providerApiHost = provider?.baseUrls?.[primaryEndpoint] ?? ''
-  const providerAnthropicHost = provider?.baseUrls?.[EndpointType.ANTHROPIC_MESSAGES]
-  const providerApiVersion = provider?.settings?.apiVersion ?? ''
-  const providerApiKey = apiKeysData?.keys?.join(',') ?? ''
+  const primaryEndpoint = provider.defaultChatEndpoint ?? EndpointType.OPENAI_CHAT_COMPLETIONS
+  const providerApiHost = provider.baseUrls?.[primaryEndpoint] ?? ''
+  const providerAnthropicHost = provider.baseUrls?.[EndpointType.ANTHROPIC_MESSAGES]
+  const providerApiVersion = provider.settings?.apiVersion ?? ''
+  const providerApiKey = apiKeysData?.keys?.map((k) => k.key).join(',') ?? ''
 
   const [apiHost, setApiHost] = useState(providerApiHost)
   const [anthropicApiHost, setAnthropicHost] = useState<string | undefined>(providerAnthropicHost)
@@ -132,8 +138,6 @@ const ProviderSetting: FC<Props> = ({ providerId }) => {
   const { theme } = useTheme()
   const { setTimeoutTimer } = useTimer()
   const dispatch = useAppDispatch()
-
-  if (!provider) return null
 
   const isAzureOpenAI = isAzureOpenAIProvider(provider)
   const isDmxapi = provider.id === 'dmxapi'
@@ -172,11 +176,10 @@ const ProviderSetting: FC<Props> = ({ providerId }) => {
         const formatted = formatApiKeys(value)
         const keys = formatted.split(',').filter(Boolean)
         const apiKeys = keys.map((key) => ({ id: crypto.randomUUID(), key, isEnabled: true }))
-        await patchProvider({ apiKeys })
-        await invalidate(`/providers/${providerId}/api-keys`)
+        await updateApiKeys(apiKeys)
         updateWebSearchProviderKey({ apiKey: formatted })
       }, 150),
-    [patchProvider, invalidate, providerId, updateWebSearchProviderKey]
+    [updateApiKeys, updateWebSearchProviderKey]
   )
 
   // 同步 provider apiKey 到 localApiKey
@@ -200,13 +203,9 @@ const ProviderSetting: FC<Props> = ({ providerId }) => {
     return apiKeyConnectivity.status === 'success'
   }, [apiKeyConnectivity])
 
-  const moveProviderToTop = useCallback(
-    async (id: string) => {
-      await dataApiService.patch(`/providers/${id}` as any, { body: { sortOrder: 0, isEnabled: true } })
-      await invalidate('/providers')
-    },
-    [invalidate]
-  )
+  const moveProviderToTop = useCallback(async () => {
+    await updateProvider({ sortOrder: 0, isEnabled: true })
+  }, [updateProvider])
 
   const onUpdateApiHost = () => {
     if (!validateApiHost(apiHost)) {
@@ -242,8 +241,7 @@ const ProviderSetting: FC<Props> = ({ providerId }) => {
       const formatted = formatApiKeys(localApiKey)
       const keys = formatted.split(',').filter(Boolean)
       const apiKeys = keys.map((key) => ({ id: crypto.randomUUID(), key, isEnabled: true }))
-      await patchProvider({ apiKeys })
-      await invalidate(`/providers/${providerId}/api-keys`)
+      await updateApiKeys(apiKeys)
     }
 
     await ApiKeyListPopup.show({
@@ -261,7 +259,7 @@ const ProviderSetting: FC<Props> = ({ providerId }) => {
       return
     }
 
-    const modelsToCheck = models.filter((model) => !isRerankModel(model))
+    const modelsToCheck = models.filter((model) => !isRerankModel(model as any))
 
     if (isEmpty(modelsToCheck)) {
       window.toast.error({
@@ -461,7 +459,7 @@ const ProviderSetting: FC<Props> = ({ providerId }) => {
           onCheckedChange={(enabled) => {
             patchProvider({ isEnabled: enabled, baseUrls: { ...provider.baseUrls, [primaryEndpoint]: apiHost } })
             if (enabled) {
-              moveProviderToTop(provider.id)
+              moveProviderToTop()
             }
           }}
         />

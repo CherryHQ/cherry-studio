@@ -1,6 +1,4 @@
-import { dataApiService } from '@renderer/data/DataApiService'
-import { useInvalidateCache, useQuery } from '@renderer/data/hooks/useDataApi'
-import type { Provider } from '@shared/data/types/provider'
+import { useProvider } from '@renderer/data/hooks/useProviders'
 import { InputNumber } from 'antd'
 import type { FC } from 'react'
 import { useState } from 'react'
@@ -14,8 +12,7 @@ interface Props {
 }
 
 const LMStudioSettings: FC<Props> = ({ providerId }) => {
-  const { data: provider } = useQuery(`/providers/${providerId}` as any) as { data: Provider | undefined }
-  const invalidate = useInvalidateCache()
+  const { provider, updateProvider } = useProvider(providerId)
   const { t } = useTranslation()
 
   const keepAliveTime = provider?.settings?.keepAliveTime ?? 0
@@ -23,10 +20,7 @@ const LMStudioSettings: FC<Props> = ({ providerId }) => {
 
   const handleBlur = async () => {
     if (keepAliveMinutes === keepAliveTime) return
-    await dataApiService.patch(`/providers/${providerId}` as any, {
-      body: { providerSettings: { ...provider?.settings, keepAliveTime: keepAliveMinutes } }
-    })
-    await invalidate([`/providers/${providerId}`])
+    await updateProvider({ providerSettings: { ...provider?.settings, keepAliveTime: keepAliveMinutes } })
   }
 
   return (

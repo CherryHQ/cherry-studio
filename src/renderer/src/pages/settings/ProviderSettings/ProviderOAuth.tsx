@@ -3,12 +3,10 @@ import { Button } from '@cherrystudio/ui'
 import { resolveProviderIcon } from '@cherrystudio/ui/icons'
 import OAuthButton from '@renderer/components/OAuth/OAuthButton'
 import { PROVIDER_URLS } from '@renderer/config/providers'
-import { dataApiService } from '@renderer/data/DataApiService'
-import { useInvalidateCache, useQuery } from '@renderer/data/hooks/useDataApi'
+import { useProvider } from '@renderer/data/hooks/useProviders'
 import { getProviderLabel } from '@renderer/i18n/label'
 import { providerBills, providerCharge } from '@renderer/utils/oauth'
 import { hasApiKeys } from '@renderer/utils/provider.v2'
-import type { Provider } from '@shared/data/types/provider'
 import { CircleDollarSign, ReceiptText } from 'lucide-react'
 import type { FC } from 'react'
 import { Trans, useTranslation } from 'react-i18next'
@@ -20,17 +18,11 @@ interface Props {
 
 const ProviderOAuth: FC<Props> = ({ providerId }) => {
   const { t } = useTranslation()
-  const { data: provider } = useQuery(`/providers/${providerId}` as any) as { data: Provider | undefined }
-  const invalidate = useInvalidateCache()
+  const { provider, updateProvider, addApiKey } = useProvider(providerId)
 
   const setApiKey = async (newKey: string) => {
-    await dataApiService.post(`/providers/${providerId}/api-keys` as any, {
-      body: { key: newKey, label: 'OAuth' }
-    })
-    await dataApiService.patch(`/providers/${providerId}` as any, {
-      body: { isEnabled: true }
-    })
-    await invalidate([`/providers/${providerId}`])
+    await addApiKey(newKey, 'OAuth')
+    await updateProvider({ isEnabled: true })
   }
 
   if (!provider) return null

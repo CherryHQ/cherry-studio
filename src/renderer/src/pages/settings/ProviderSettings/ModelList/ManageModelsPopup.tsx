@@ -1,6 +1,7 @@
 import { Button, Flex, RowFlex, Tooltip } from '@cherrystudio/ui'
 import { dataApiService } from '@data/DataApiService'
-import { useInvalidateCache, useQuery } from '@data/hooks/useDataApi'
+import { useModelMutations, useModels } from '@data/hooks/useModels'
+import { useProvider, useProviderCatalogModels } from '@data/hooks/useProviders'
 import { loggerService } from '@logger'
 import { LoadingIcon } from '@renderer/components/Icons'
 import { TopView } from '@renderer/components/TopView'
@@ -46,12 +47,10 @@ interface Props extends ShowParams {
 
 const PopupContainer: React.FC<Props> = ({ providerId, resolve }) => {
   const [open, setOpen] = useState(true)
-  const { data: provider } = useQuery(`/providers/${providerId}` as any) as { data: Provider | undefined }
-  const { data: existingModels = [] } = useQuery('/models' as any, { query: { providerId } }) as { data: Model[] }
-  const { data: catalogModels = [] } = useQuery(`/providers/${providerId}/catalog-models` as any) as {
-    data: Model[]
-  }
-  const invalidate = useInvalidateCache()
+  const { provider } = useProvider(providerId)
+  const { models: existingModels } = useModels({ providerId })
+  const { data: catalogModels = [] } = useProviderCatalogModels(providerId)
+  const { createModel, deleteModel } = useModelMutations()
   const existingModelIds = useMemo(() => new Set<string>(existingModels.map((m) => m.id)), [existingModels])
   const [listModels, setListModels] = useState<Model[]>([])
   const [loadingModels, setLoadingModels] = useState(false)
@@ -144,10 +143,7 @@ const PopupContainer: React.FC<Props> = ({ providerId, resolve }) => {
         if (isNewApiProvider(provider)) {
           const endpointTypes = model.endpointTypes
           if (endpointTypes && endpointTypes.length > 0) {
-            await dataApiService.post('/models' as any, {
-              body: { providerId, modelId, name: model.name, group: model.group, endpointTypes }
-            })
-            await invalidate('/models')
+            await createModel({ providerId, modelId, name: model.name, group: model.group, endpointTypes })
           } else {
             NewApiAddModelPopup.show({
               title: t('settings.models.add.add_model'),
@@ -156,23 +152,19 @@ const PopupContainer: React.FC<Props> = ({ providerId, resolve }) => {
             })
           }
         } else {
-          await dataApiService.post('/models' as any, {
-            body: { providerId, modelId, name: model.name, group: model.group }
-          })
-          await invalidate('/models')
+          await createModel({ providerId, modelId, name: model.name, group: model.group })
         }
       }
     },
-    [provider, providerId, invalidate, t]
+    [provider, providerId, createModel, t]
   )
 
   const onRemoveModel = useCallback(
     async (model: Model) => {
       const { modelId } = parseUniqueModelId(model.id)
-      await dataApiService.delete(`/models/${providerId}/${modelId}` as any)
-      await invalidate('/models')
+      await deleteModel(providerId, modelId)
     },
-    [providerId, invalidate]
+    [providerId, deleteModel]
   )
 
   const onRemoveAll = useCallback(() => {
@@ -212,7 +204,7 @@ const PopupContainer: React.FC<Props> = ({ providerId, resolve }) => {
         const filteredModels = fetched.filter((model: any) => !isEmpty(model.name))
         // Resolve fetched models against catalog via POST /models/resolve
         try {
-          const resolved = await dataApiService.post('/models/resolve' as any, {
+          const resolved = await dataApiService.post('/models/resolve' as const, {
             body: {
               providerId,
               models: filteredModels.map((m: any) => ({

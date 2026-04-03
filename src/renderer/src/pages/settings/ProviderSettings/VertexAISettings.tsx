@@ -1,8 +1,6 @@
 import { RowFlex } from '@cherrystudio/ui'
 import { PROVIDER_URLS } from '@renderer/config/providers'
-import { dataApiService } from '@renderer/data/DataApiService'
-import { useInvalidateCache, useQuery } from '@renderer/data/hooks/useDataApi'
-import type { AuthConfig } from '@shared/data/types/provider'
+import { useProviderAuthConfig, useProviderMutations } from '@renderer/data/hooks/useProviders'
 import { Alert, Input } from 'antd'
 import type { FC } from 'react'
 import { useEffect, useState } from 'react'
@@ -16,10 +14,8 @@ interface Props {
 
 const VertexAISettings: FC<Props> = ({ providerId }) => {
   const { t } = useTranslation()
-  const { data: authConfig } = useQuery(`/providers/${providerId}/auth-config` as any) as {
-    data: AuthConfig | null | undefined
-  }
-  const invalidate = useInvalidateCache()
+  const { data: authConfig } = useProviderAuthConfig(providerId)
+  const { updateAuthConfig: saveAuthConfigToServer } = useProviderMutations(providerId)
 
   const gcpConfig = authConfig?.type === 'iam-gcp' ? authConfig : null
   const credentials = gcpConfig?.credentials as Record<string, string> | undefined
@@ -42,20 +38,15 @@ const VertexAISettings: FC<Props> = ({ providerId }) => {
   const apiKeyWebsite = providerConfig?.websites?.apiKey
 
   const saveAuthConfig = async () => {
-    await dataApiService.patch(`/providers/${providerId}` as any, {
-      body: {
-        authConfig: {
-          type: 'iam-gcp' as const,
-          project: localProjectId,
-          location: localLocation,
-          credentials: {
-            privateKey: localPrivateKey,
-            clientEmail: localClientEmail
-          }
-        }
+    await saveAuthConfigToServer({
+      type: 'iam-gcp' as const,
+      project: localProjectId,
+      location: localLocation,
+      credentials: {
+        privateKey: localPrivateKey,
+        clientEmail: localClientEmail
       }
     })
-    await invalidate([`/providers/${providerId}`, `/providers/${providerId}/auth-config`])
   }
 
   return (

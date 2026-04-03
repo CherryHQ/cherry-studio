@@ -1,7 +1,5 @@
-import { dataApiService } from '@renderer/data/DataApiService'
-import { useInvalidateCache, useQuery } from '@renderer/data/hooks/useDataApi'
+import { useProvider } from '@renderer/data/hooks/useProviders'
 import { replaceBaseUrlDomain } from '@renderer/utils/provider.v2'
-import type { Provider } from '@shared/data/types/provider'
 import { Select } from 'antd'
 import type { FC } from 'react'
 import { useCallback, useMemo } from 'react'
@@ -30,8 +28,7 @@ const API_HOST_OPTIONS = [
 ]
 
 const CherryINSettings: FC<CherryINSettingsProps> = ({ providerId }) => {
-  const { data: provider } = useQuery(`/providers/${providerId}` as any) as { data: Provider | undefined }
-  const invalidate = useInvalidateCache()
+  const { provider, updateProvider } = useProvider(providerId)
   const { t } = useTranslation()
 
   const currentDomain = useMemo(() => {
@@ -53,12 +50,9 @@ const CherryINSettings: FC<CherryINSettingsProps> = ({ providerId }) => {
   const handleHostChange = useCallback(
     async (value: string) => {
       const newBaseUrls = replaceBaseUrlDomain(provider?.baseUrls, value)
-      await dataApiService.patch(`/providers/${providerId}` as any, {
-        body: { baseUrls: newBaseUrls }
-      })
-      await invalidate([`/providers/${providerId}`])
+      await updateProvider({ baseUrls: newBaseUrls })
     },
-    [provider?.baseUrls, providerId, invalidate]
+    [provider?.baseUrls, updateProvider]
   )
 
   const options = useMemo(

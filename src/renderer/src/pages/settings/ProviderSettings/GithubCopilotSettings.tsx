@@ -1,10 +1,8 @@
 import { CheckCircleOutlined, CopyOutlined, ExclamationCircleOutlined } from '@ant-design/icons'
 import { Button, Tooltip } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
-import { dataApiService } from '@renderer/data/DataApiService'
-import { useInvalidateCache, useQuery } from '@renderer/data/hooks/useDataApi'
+import { useProvider } from '@renderer/data/hooks/useProviders'
 import { useCopilot } from '@renderer/hooks/useCopilot'
-import type { Provider } from '@shared/data/types/provider'
 import { Alert, Input, Slider, Steps, Typography } from 'antd'
 import type { FC } from 'react'
 import { useCallback, useEffect, useState } from 'react'
@@ -27,8 +25,7 @@ enum AuthStatus {
 
 const GithubCopilotSettings: FC<GithubCopilotSettingsProps> = ({ providerId }) => {
   const { t } = useTranslation()
-  const { data: provider } = useQuery(`/providers/${providerId}` as any) as { data: Provider | undefined }
-  const invalidate = useInvalidateCache()
+  const { provider, updateProvider, addApiKey, deleteApiKey } = useProvider(providerId)
   const { username, avatar, defaultHeaders, updateState } = useCopilot()
 
   const [authStatus, setAuthStatus] = useState<AuthStatus>(AuthStatus.NOT_STARTED)
@@ -98,25 +95,19 @@ const GithubCopilotSettings: FC<GithubCopilotSettingsProps> = ({ providerId }) =
         setAuthStatus(AuthStatus.AUTHENTICATED)
 
         // v2: POST key + update settings
-        await dataApiService.post(`/providers/${providerId}/api-keys` as any, {
-          body: { key: token, label: 'Copilot' }
-        })
-        await dataApiService.patch(`/providers/${providerId}` as any, {
-          body: {
-            isEnabled: true,
-            providerSettings: {
-              ...provider?.settings,
-              isAuthed: true,
-              oauthUsername: login,
-              oauthAvatar: userAvatar
-            }
+        await addApiKey(token, 'Copilot')
+        await updateProvider({
+          isEnabled: true,
+          providerSettings: {
+            ...provider?.settings,
+            isAuthed: true,
+            oauthUsername: login,
+            oauthAvatar: userAvatar
           }
         })
 
         // Dual-write copilot Redux (aiCore still reads this until Phase 5B)
         updateState({ username: login, avatar: userAvatar })
-
-        await invalidate([`/providers/${providerId}`])
         window.toast.success(t('settings.provider.copilot.auth_success'))
       }
     } catch (error) {
@@ -126,7 +117,7 @@ const GithubCopilotSettings: FC<GithubCopilotSettingsProps> = ({ providerId }) =
     } finally {
       setLoading(false)
     }
-  }, [deviceCode, t, provider?.settings, providerId, updateState, defaultHeaders, invalidate])
+  }, [deviceCode, t, provider?.settings, addApiKey, updateProvider, updateState, defaultHeaders])
 
   // Logout
   const handleLogout = useCallback(async () => {
@@ -136,18 +127,16 @@ const GithubCopilotSettings: FC<GithubCopilotSettingsProps> = ({ providerId }) =
       // Delete Copilot key
       const copilotKey = provider?.apiKeys.find((k) => k.label === 'Copilot')
       if (copilotKey) {
-        await dataApiService.delete(`/providers/${providerId}/api-keys/${copilotKey.id}` as any)
+        await deleteApiKey(copilotKey.id)
       }
 
       // Update settings
-      await dataApiService.patch(`/providers/${providerId}` as any, {
-        body: {
-          providerSettings: {
-            ...provider?.settings,
-            isAuthed: false,
-            oauthUsername: '',
-            oauthAvatar: ''
-          }
+      await updateProvider({
+        providerSettings: {
+          ...provider?.settings,
+          isAuthed: false,
+          oauthUsername: '',
+          oauthAvatar: ''
         }
       })
 
@@ -155,8 +144,6 @@ const GithubCopilotSettings: FC<GithubCopilotSettingsProps> = ({ providerId }) =
 
       // Dual-write copilot Redux
       updateState({ username: '', avatar: '', defaultHeaders: {} })
-
-      await invalidate([`/providers/${providerId}`])
 
       setAuthStatus(AuthStatus.NOT_STARTED)
       setDeviceCode('')
@@ -172,7 +159,7 @@ const GithubCopilotSettings: FC<GithubCopilotSettingsProps> = ({ providerId }) =
     } finally {
       setLoading(false)
     }
-  }, [t, provider?.apiKeys, provider?.settings, providerId, updateState, invalidate])
+  }, [t, provider?.apiKeys, provider?.settings, deleteApiKey, updateProvider, updateState])
 
   // Copy user code
   const handleCopyUserCode = useCallback(async () => {
@@ -231,10 +218,7 @@ const GithubCopilotSettings: FC<GithubCopilotSettingsProps> = ({ providerId }) =
   ]
 
   const handleRateLimitChange = async (value: number) => {
-    await dataApiService.patch(`/providers/${providerId}` as any, {
-      body: { providerSettings: { ...provider?.settings, rateLimit: value } }
-    })
-    await invalidate([`/providers/${providerId}`])
+    await updateProvider({ providerSettings: { ...provider?.settings, rateLimit: value } })
   }
 
   // Render content based on auth status

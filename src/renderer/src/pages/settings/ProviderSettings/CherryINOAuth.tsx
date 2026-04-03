@@ -1,10 +1,8 @@
 import { Cherryin } from '@cherrystudio/ui/icons'
 import { loggerService } from '@logger'
-import { dataApiService } from '@renderer/data/DataApiService'
-import { useInvalidateCache, useQuery } from '@renderer/data/hooks/useDataApi'
+import { useProvider } from '@renderer/data/hooks/useProviders'
 import { oauthWithCherryIn } from '@renderer/utils/oauth'
 import { hasApiKeys } from '@renderer/utils/provider.v2'
-import type { Provider } from '@shared/data/types/provider'
 import { Button, Skeleton } from 'antd'
 import { CreditCard, LogIn, LogOut, RefreshCw } from 'lucide-react'
 import type { FC } from 'react'
@@ -36,8 +34,7 @@ interface CherryINOAuthProps {
 }
 
 const CherryINOAuth: FC<CherryINOAuthProps> = ({ providerId }) => {
-  const { data: provider } = useQuery(`/providers/${providerId}` as any) as { data: Provider | undefined }
-  const invalidate = useInvalidateCache()
+  const { provider, updateProvider, addApiKey, deleteApiKey } = useProvider(providerId)
   const { t } = useTranslation()
 
   const [isLoggingOut, setIsLoggingOut] = useState(false)
@@ -88,13 +85,8 @@ const CherryINOAuth: FC<CherryINOAuthProps> = ({ providerId }) => {
       await oauthWithCherryIn(
         async (apiKeys: string) => {
           // POST each key to /api-keys endpoint
-          await dataApiService.post(`/providers/${providerId}/api-keys` as any, {
-            body: { key: apiKeys, label: 'OAuth' }
-          })
-          await dataApiService.patch(`/providers/${providerId}` as any, {
-            body: { isEnabled: true }
-          })
-          await invalidate([`/providers/${providerId}`])
+          await addApiKey(apiKeys, 'OAuth')
+          await updateProvider({ isEnabled: true })
           setHasOAuthToken(true)
           window.toast.success(t('auth.get_key_success'))
         },
@@ -106,7 +98,7 @@ const CherryINOAuth: FC<CherryINOAuthProps> = ({ providerId }) => {
       logger.error('OAuth Error:', error as Error)
       window.toast.error(t('settings.provider.oauth.error'))
     }
-  }, [providerId, invalidate, t])
+  }, [addApiKey, updateProvider, t])
 
   const handleLogout = useCallback(() => {
     window.modal.confirm({
@@ -121,9 +113,8 @@ const CherryINOAuth: FC<CherryINOAuthProps> = ({ providerId }) => {
           // Delete OAuth key by label
           const oauthKey = provider?.apiKeys.find((k) => k.label === 'OAuth')
           if (oauthKey) {
-            await dataApiService.delete(`/providers/${providerId}/api-keys/${oauthKey.id}` as any)
+            await deleteApiKey(oauthKey.id)
           }
-          await invalidate([`/providers/${providerId}`])
           setHasOAuthToken(false)
           setBalanceInfo(null)
           window.toast.success(t('settings.provider.oauth.logout_success'))
@@ -132,14 +123,13 @@ const CherryINOAuth: FC<CherryINOAuthProps> = ({ providerId }) => {
           // Still clear local state even if server revocation failed
           setHasOAuthToken(false)
           setBalanceInfo(null)
-          await invalidate([`/providers/${providerId}`])
           window.toast.warning(t('settings.provider.oauth.logout_warning'))
         } finally {
           setIsLoggingOut(false)
         }
       }
     })
-  }, [provider?.apiKeys, providerId, invalidate, t])
+  }, [provider?.apiKeys, deleteApiKey, t])
 
   const handleTopup = useCallback(() => {
     window.open(CHERRYIN_TOPUP_URL, '_blank')

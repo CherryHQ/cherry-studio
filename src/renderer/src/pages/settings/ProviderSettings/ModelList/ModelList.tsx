@@ -1,6 +1,6 @@
 import { Button, ColFlex, Flex, RowFlex, Tooltip } from '@cherrystudio/ui'
-import { dataApiService } from '@data/DataApiService'
-import { useInvalidateCache, useQuery } from '@data/hooks/useDataApi'
+import { useModelMutations, useModels } from '@data/hooks/useModels'
+import { useProvider } from '@data/hooks/useProviders'
 import CollapsibleSearchBar from '@renderer/components/CollapsibleSearchBar'
 import { LoadingIcon, StreamlineGoodHealthAndWellBeing } from '@renderer/components/Icons'
 import CustomTag from '@renderer/components/Tags/CustomTag'
@@ -16,7 +16,6 @@ import { filterModelsByKeywords } from '@renderer/utils'
 import { isNewApiProvider } from '@renderer/utils/provider.v2'
 import type { Model } from '@shared/data/types/model'
 import { parseUniqueModelId } from '@shared/data/types/model'
-import type { Provider } from '@shared/data/types/provider'
 import { Spin } from 'antd'
 import { groupBy, isEmpty, sortBy, toPairs } from 'lodash'
 import { ListCheck, Plus } from 'lucide-react'
@@ -50,17 +49,16 @@ const calculateModelGroups = (models: Model[], searchText: string): ModelGroups 
  */
 const ModelList: React.FC<ModelListProps> = ({ providerId }) => {
   const { t } = useTranslation()
-  const { data: provider } = useQuery(`/providers/${providerId}` as any) as { data: Provider | undefined }
-  const { data: models = [] } = useQuery('/models' as any, { query: { providerId } }) as { data: Model[] }
-  const invalidate = useInvalidateCache()
+  const { provider } = useProvider(providerId)
+  const { models } = useModels({ providerId })
+  const { deleteModel } = useModelMutations()
 
   const removeModel = useCallback(
     async (model: Model) => {
       const { modelId } = parseUniqueModelId(model.id)
-      await dataApiService.delete(`/models/${model.providerId}/${modelId}` as any)
-      await invalidate('/models')
+      await deleteModel(model.providerId, modelId)
     },
-    [invalidate]
+    [deleteModel]
   )
 
   // 稳定的编辑模型回调，避免内联函数导致子组件 memo 失效

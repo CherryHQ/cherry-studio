@@ -1,8 +1,6 @@
 import { Dmxapi } from '@cherrystudio/ui/icons'
-import { dataApiService } from '@renderer/data/DataApiService'
-import { useInvalidateCache, useQuery } from '@renderer/data/hooks/useDataApi'
+import { useProvider } from '@renderer/data/hooks/useProviders'
 import { replaceBaseUrlDomain } from '@renderer/utils/provider.v2'
-import type { Provider } from '@shared/data/types/provider'
 import type { RadioChangeEvent } from 'antd'
 import { Radio, Space } from 'antd'
 import type { FC } from 'react'
@@ -24,8 +22,7 @@ enum PlatformDomain {
 }
 
 const DMXAPISettings: FC<DMXAPISettingsProps> = ({ providerId }) => {
-  const { data: provider } = useQuery(`/providers/${providerId}` as any) as { data: Provider | undefined }
-  const invalidate = useInvalidateCache()
+  const { provider, updateProvider } = useProvider(providerId)
   const { t } = useTranslation()
 
   const PlatformOptions = [
@@ -63,12 +60,9 @@ const DMXAPISettings: FC<DMXAPISettingsProps> = ({ providerId }) => {
       const domain = e.target.value as PlatformDomain
       setSelectedPlatform(domain)
       const newBaseUrls = replaceBaseUrlDomain(provider?.baseUrls, domain)
-      await dataApiService.patch(`/providers/${providerId}` as any, {
-        body: { baseUrls: newBaseUrls }
-      })
-      await invalidate([`/providers/${providerId}`])
+      await updateProvider({ baseUrls: newBaseUrls })
     },
-    [provider?.baseUrls, providerId, invalidate]
+    [provider?.baseUrls, updateProvider]
   )
 
   return (

@@ -1,8 +1,6 @@
 import { RowFlex } from '@cherrystudio/ui'
 import { PROVIDER_URLS } from '@renderer/config/providers'
-import { dataApiService } from '@renderer/data/DataApiService'
-import { useInvalidateCache, useQuery } from '@renderer/data/hooks/useDataApi'
-import type { AuthConfig, Provider } from '@shared/data/types/provider'
+import { useProvider, useProviderAuthConfig } from '@renderer/data/hooks/useProviders'
 import { Alert, Input, Radio } from 'antd'
 import type { FC } from 'react'
 import { useEffect, useState } from 'react'
@@ -16,11 +14,8 @@ interface Props {
 
 const AwsBedrockSettings: FC<Props> = ({ providerId }) => {
   const { t } = useTranslation()
-  const { data: provider } = useQuery(`/providers/${providerId}` as any) as { data: Provider | undefined }
-  const { data: authConfig } = useQuery(`/providers/${providerId}/auth-config` as any) as {
-    data: AuthConfig | null | undefined
-  }
-  const invalidate = useInvalidateCache()
+  const { provider, updateAuthConfig } = useProvider(providerId)
+  const { data: authConfig } = useProviderAuthConfig(providerId)
 
   const isIamMode = provider?.authType === 'iam-aws'
   const awsConfig = authConfig?.type === 'iam-aws' ? authConfig : null
@@ -42,29 +37,19 @@ const AwsBedrockSettings: FC<Props> = ({ providerId }) => {
 
   const handleAuthTypeChange = async (value: string) => {
     if (value === 'iam') {
-      await dataApiService.patch(`/providers/${providerId}` as any, {
-        body: { authConfig: { type: 'iam-aws', region: localRegion || 'us-east-1' } }
-      })
+      await updateAuthConfig({ type: 'iam-aws', region: localRegion || 'us-east-1' })
     } else {
-      await dataApiService.patch(`/providers/${providerId}` as any, {
-        body: { authConfig: { type: 'api-key' } }
-      })
+      await updateAuthConfig({ type: 'api-key' })
     }
-    await invalidate([`/providers/${providerId}`, `/providers/${providerId}/auth-config`])
   }
 
   const saveIamConfig = async () => {
-    await dataApiService.patch(`/providers/${providerId}` as any, {
-      body: {
-        authConfig: {
-          type: 'iam-aws' as const,
-          region: localRegion,
-          accessKeyId: localAccessKeyId,
-          secretAccessKey: localSecretAccessKey
-        }
-      }
+    await updateAuthConfig({
+      type: 'iam-aws' as const,
+      region: localRegion,
+      accessKeyId: localAccessKeyId,
+      secretAccessKey: localSecretAccessKey
     })
-    await invalidate([`/providers/${providerId}`, `/providers/${providerId}/auth-config`])
   }
 
   const saveRegion = async () => {

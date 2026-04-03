@@ -1,9 +1,7 @@
 import { ColFlex, RowFlex, Switch } from '@cherrystudio/ui'
 import { InfoTooltip } from '@cherrystudio/ui'
-import { dataApiService } from '@renderer/data/DataApiService'
-import { useInvalidateCache, useQuery } from '@renderer/data/hooks/useDataApi'
+import { useProvider } from '@renderer/data/hooks/useProviders'
 import { isAnthropicProvider, isAzureOpenAIProvider, isOpenAICompatibleProvider } from '@renderer/utils/provider.v2'
-import type { Provider } from '@shared/data/types/provider'
 import { Divider, InputNumber } from 'antd'
 import { startTransition, useCallback, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -22,18 +20,15 @@ type OptionType = {
 
 const ApiOptionsSettings = ({ providerId }: Props) => {
   const { t } = useTranslation()
-  const { data: provider } = useQuery(`/providers/${providerId}` as any) as { data: Provider | undefined }
-  const invalidate = useInvalidateCache()
+  const { provider, updateProvider } = useProvider(providerId)
 
   const patchProvider = useCallback(
     (updates: Record<string, unknown>) => {
       startTransition(() => {
-        dataApiService
-          .patch(`/providers/${providerId}` as any, { body: updates })
-          .then(() => invalidate([`/providers/${providerId}`]))
+        updateProvider(updates)
       })
     },
-    [providerId, invalidate]
+    [updateProvider]
   )
 
   const openAIOptions: OptionType[] = useMemo(

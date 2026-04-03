@@ -1,6 +1,5 @@
 import { Button } from '@cherrystudio/ui'
-import { dataApiService } from '@data/DataApiService'
-import { useInvalidateCache, useQuery } from '@data/hooks/useDataApi'
+import { useProviderActions, useProviders } from '@data/hooks/useProviders'
 import type { DropResult } from '@hello-pangea/dnd'
 import { loggerService } from '@logger'
 import {
@@ -54,8 +53,8 @@ const ProviderList: FC = () => {
   // for type-safe search params. Currently using untyped useSearch as a stopgap after removing react-router-dom.
   const search = useSearch({ strict: false }) as Record<string, string | undefined>
   const navigate = useNavigate()
-  const { data: providers = [] } = useQuery('/providers')
-  const invalidate = useInvalidateCache()
+  const { providers, addProvider, reorderProviders } = useProviders()
+  const { patchProviderById, deleteProviderById } = useProviderActions()
   const { setTimeoutTimer } = useTimer()
   const [selectedProvider, _setSelectedProvider] = useState<Provider>(providers[0])
   const { t } = useTranslation()
@@ -149,15 +148,10 @@ const ProviderList: FC = () => {
 
       // TODO: UrlSchemaInfoPopup still returns v1 Provider — adapt to v2 API
       if (isNew) {
-        await dataApiService.post('/providers', {
-          body: { providerId: updatedProvider.id, name: updatedProvider.name || id }
-        })
+        await addProvider({ providerId: updatedProvider.id, name: updatedProvider.name || id })
       } else {
-        await dataApiService.patch(`/providers/${updatedProvider.id}` as any, {
-          body: { name: updatedProvider.name }
-        })
+        await patchProviderById(updatedProvider.id, { name: updatedProvider.name })
       }
-      await invalidate('/providers')
 
       const created = providers.find((p) => p.id === id) ?? (updatedProvider as unknown as Provider)
       setSelectedProvider(created)
@@ -205,10 +199,7 @@ const ProviderList: FC = () => {
       }
     }
 
-    const newProvider = (await dataApiService.post('/providers', {
-      body: { providerId, name: providerName.trim() }
-    })) as Provider
-    await invalidate('/providers')
+    const newProvider = (await addProvider({ providerId, name: providerName.trim() })) as Provider
     setSelectedProvider(newProvider)
   }
 
@@ -228,8 +219,7 @@ const ProviderList: FC = () => {
         const { name, logoFile, logo } = await AddProviderPopup.show(provider as any)
 
         if (name) {
-          await dataApiService.patch(`/providers/${provider.id}` as any, { body: { name } })
-          await invalidate('/providers')
+          await patchProviderById(provider.id, { name })
           if (provider.id) {
             if (logo) {
               try {
@@ -287,8 +277,7 @@ const ProviderList: FC = () => {
             }
 
             setSelectedProvider(providers.filter((p) => isSystemProvider(p))[0])
-            await dataApiService.delete(`/providers/${provider.id}` as any)
-            await invalidate('/providers')
+            await deleteProviderById(provider.id)
           }
         })
       }
@@ -322,22 +311,10 @@ const ProviderList: FC = () => {
     return matchKeywordsInProvider(keywords, provider)
   })
 
-  const persistSortOrder = useCallback(
-    async (reorderedList: Provider[]) => {
-      await Promise.all(
-        reorderedList.map((p, index) =>
-          dataApiService.patch(`/providers/${p.id}` as any, { body: { sortOrder: index } })
-        )
-      )
-      await invalidate('/providers')
-    },
-    [invalidate]
-  )
-
   const { onDragEnd: handleReorder, itemKey } = useDraggableReorder({
     originalList: providers,
     filteredList: filteredProviders,
-    onUpdate: persistSortOrder,
+    onUpdate: reorderProviders,
     itemKey: 'id'
   })
 

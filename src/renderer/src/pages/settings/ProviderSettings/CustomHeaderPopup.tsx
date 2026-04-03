@@ -2,10 +2,8 @@ import { CodeEditor } from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
 import { TopView } from '@renderer/components/TopView'
 import { useCodeStyle } from '@renderer/context/CodeStyleProvider'
+import { useProvider } from '@renderer/data/hooks/useProviders'
 import { useCopilot } from '@renderer/hooks/useCopilot'
-import { dataApiService } from '@renderer/data/DataApiService'
-import { useInvalidateCache, useQuery } from '@renderer/data/hooks/useDataApi'
-import type { Provider } from '@shared/data/types/provider'
 import { Modal, Space } from 'antd'
 import { useCallback, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -23,8 +21,7 @@ interface Props extends ShowParams {
 const PopupContainer: React.FC<Props> = ({ providerId, resolve }) => {
   const [open, setOpen] = useState(true)
   const { t } = useTranslation()
-  const { data: provider } = useQuery(`/providers/${providerId}` as any) as { data: Provider | undefined }
-  const invalidate = useInvalidateCache()
+  const { provider, updateProvider } = useProvider(providerId)
   const { defaultHeaders, updateDefaultHeaders } = useCopilot()
   const [fontSize] = usePreference('chat.message.font_size')
   const { activeCmTheme } = useCodeStyle()
@@ -46,17 +43,13 @@ const PopupContainer: React.FC<Props> = ({ providerId, resolve }) => {
         updateDefaultHeaders(parsedHeaders)
       }
 
-      dataApiService
-        .patch(`/providers/${providerId}` as any, {
-          body: { providerSettings: { ...provider?.settings, extraHeaders: parsedHeaders } }
-        })
-        .then(() => invalidate([`/providers/${providerId}`]))
+      updateProvider({ providerSettings: { ...provider?.settings, extraHeaders: parsedHeaders } })
 
       window.toast.success(t('message.save.success.title'))
     } catch (error) {
       window.toast.error(t('settings.provider.copilot.invalid_json'))
     }
-  }, [headerText, providerId, provider?.settings, t, updateDefaultHeaders, invalidate])
+  }, [headerText, providerId, provider?.settings, t, updateDefaultHeaders, updateProvider])
 
   const onOk = () => {
     onUpdateHeaders()
