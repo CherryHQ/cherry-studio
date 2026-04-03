@@ -1,5 +1,6 @@
 import { Button, Flex, RowFlex, Tooltip } from '@cherrystudio/ui'
 import { dataApiService } from '@data/DataApiService'
+import { useQuery } from '@data/hooks/useDataApi'
 import { useModelMutations, useModels } from '@data/hooks/useModels'
 import { useProvider, useProviderCatalogModels } from '@data/hooks/useProviders'
 import { loggerService } from '@logger'
@@ -50,6 +51,9 @@ const PopupContainer: React.FC<Props> = ({ providerId, resolve }) => {
   const { provider } = useProvider(providerId)
   const { models: existingModels } = useModels({ providerId })
   const { data: catalogModels = [] } = useProviderCatalogModels(providerId)
+  const { data: rotatedKeyData } = useQuery(`/providers/${providerId}/rotated-key` as const) as {
+    data: { apiKey: string } | undefined
+  }
   const { createModel, deleteModel } = useModelMutations()
   const existingModelIds = useMemo(() => new Set<string>(existingModels.map((m) => m.id)), [existingModels])
   const [listModels, setListModels] = useState<Model[]>([])
@@ -199,8 +203,13 @@ const PopupContainer: React.FC<Props> = ({ providerId, resolve }) => {
     async (prov: Provider) => {
       setLoadingModels(true)
       try {
-        // fetchModels still uses v1 types internally; cast for compatibility
-        const fetched = await fetchModels(prov as any)
+        // Bridge v2 Provider → v1 shape for fetchModels (reads apiHost/apiKey)
+        const v1Shim = {
+          ...prov,
+          apiHost: prov.baseUrls?.[prov.defaultChatEndpoint ?? 1] ?? '',
+          apiKey: rotatedKeyData?.apiKey ?? ''
+        }
+        const fetched = await fetchModels(v1Shim as any)
         const filteredModels = fetched.filter((model: any) => !isEmpty(model.name))
         // Resolve fetched models against catalog via POST /models/resolve
         try {
@@ -226,7 +235,7 @@ const PopupContainer: React.FC<Props> = ({ providerId, resolve }) => {
         setLoadingModels(false)
       }
     },
-    [providerId]
+    [providerId, rotatedKeyData]
   )
 
   useEffect(() => {
