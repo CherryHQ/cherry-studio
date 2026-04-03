@@ -14,16 +14,7 @@
     "dev": "pnpm proto:generate && tsc -w",
     "clean": "rm -rf dist",
     "test": "vitest run",
-    "test:watch": "vitest",
-    "import:modelsdev": "tsx scripts/import-modelsdev.ts",
-    "import:aihubmix": "tsx scripts/import-aihubmix.ts",
-    "import:openrouter": "tsx scripts/import-openrouter.ts",
-    "import:all": "pnpm import:modelsdev && pnpm import:aihubmix && pnpm import:openrouter",
-    "sync:all": "tsx scripts/generate-providers.ts",
-    "generate:provider-models": "tsx scripts/generate-provider-models.ts",
-    "populate:reasoning": "tsx scripts/populate-reasoning-data.ts",
-    "migrate:json-to-pb": "tsx scripts/migrate-json-to-pb.ts",
-    "pipeline": "pnpm import:all && pnpm sync:all && pnpm generate:provider-models && pnpm populate:reasoning"
+    "test:watch": "vitest"
   },
   "author": "Cherry Studio",
   "license": "MIT",
@@ -50,9 +41,7 @@
   "devDependencies": {
     "@bufbuild/buf": "^1.66.0",
     "@bufbuild/protoc-gen-es": "^2.11.0",
-    "@types/json-schema": "^7.0.15",
     "@types/node": "^24.10.2",
-    "dotenv": "^17.2.3",
     "tsdown": "^0.16.6",
     "typescript": "^5.9.3",
     "vitest": "^4.0.13",
@@ -60,9 +49,6 @@
   },
   "peerDependencies": {},
   "dependencies": {
-    "@bufbuild/protobuf": "^2.11.0",
-    "class-variance-authority": "^0.7.1",
-    "json-schema": "^0.4.0",
-    "lucide-react": "^0.563.0"
+    "@bufbuild/protobuf": "^2.11.0"
   }
 }
