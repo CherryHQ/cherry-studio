@@ -5,6 +5,7 @@ import { Link, Outlet, useLocation } from '@tanstack/react-router'
 import { Divider as AntDivider } from 'antd'
 import {
   Brain,
+  CalendarClock,
   Cloud,
   Command,
   FileCode,
@@ -13,9 +14,11 @@ import {
   MonitorCog,
   Package,
   PictureInPicture2,
+  Radio,
   Search,
   Server,
   Settings2,
+  Sparkles,
   TextCursorInput,
   Zap
 } from 'lucide-react'
@@ -75,6 +78,12 @@ const SettingsPage: FC = () => {
               {t('settings.mcp.title')}
             </MenuItem>
           </MenuItemLink>
+          <MenuItemLink to="/settings/skills">
+            <MenuItem className={isRoute('/settings/skills')}>
+              <Sparkles size={18} />
+              {t('settings.skills.title')}
+            </MenuItem>
+          </MenuItemLink>
           <MenuItemLink to="/settings/websearch">
             <MenuItem className={isRoute('/settings/websearch')}>
               <Search size={18} />
@@ -91,6 +100,18 @@ const SettingsPage: FC = () => {
             <MenuItem className={isRoute('/settings/api-server')}>
               <Server size={18} />
               {t('apiServer.title')}
+            </MenuItem>
+          </MenuItemLink>
+          <MenuItemLink to="/settings/channels">
+            <MenuItem className={isRoute('/settings/channels')}>
+              <Radio size={18} />
+              {t('settings.channels.title')}
+            </MenuItem>
+          </MenuItemLink>
+          <MenuItemLink to="/settings/scheduled-tasks">
+            <MenuItem className={isRoute('/settings/scheduled-tasks')}>
+              <CalendarClock size={18} />
+              {t('settings.scheduledTasks.title')}
             </MenuItem>
           </MenuItemLink>
           <MenuItemLink to="/settings/docprocess">

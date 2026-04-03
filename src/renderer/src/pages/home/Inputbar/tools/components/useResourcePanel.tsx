@@ -2,10 +2,11 @@ import { Icon } from '@iconify/react'
 import { loggerService } from '@logger'
 import type { QuickPanelListItem } from '@renderer/components/QuickPanel'
 import { QuickPanelReservedSymbol } from '@renderer/components/QuickPanel'
+import { useInstalledSkills } from '@renderer/hooks/useSkills'
 import type { ToolQuickPanelApi, ToolQuickPanelController } from '@renderer/pages/home/Inputbar/types'
-import type { InstalledPlugin } from '@renderer/types/plugin'
 import { getFileIconName } from '@renderer/utils/fileIconName'
-import { Bot, Folder, Zap } from 'lucide-react'
+import type { InstalledSkill } from '@types'
+import { Folder, Zap } from 'lucide-react'
 import type React from 'react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -14,14 +15,6 @@ const logger = loggerService.withContext('useResourcePanel')
 const MAX_FILE_RESULTS = 500
 const MAX_SEARCH_RESULTS = 20
 
-// Category configuration for icons and translation keys
-const CATEGORY_CONFIG = {
-  files: { Icon: Folder, labelKey: 'chat.input.resource_panel.categories.files' },
-  agents: { Icon: Bot, labelKey: 'chat.input.resource_panel.categories.agents' },
-  skills: { Icon: Zap, labelKey: 'chat.input.resource_panel.categories.skills' }
-} as const
-
-type CategoryKey = keyof typeof CATEGORY_CONFIG
 const areFileListsEqual = (prev: string[], next: string[]) => {
   if (prev === next) return true
   if (prev.length !== next.length) return false
@@ -42,16 +35,17 @@ interface Params {
   quickPanel: ToolQuickPanelApi
   quickPanelController: ToolQuickPanelController
   accessiblePaths: string[]
-  plugins: InstalledPlugin[]
-  pluginsLoading: boolean
   setText: React.Dispatch<React.SetStateAction<string>>
 }
 
 export const useResourcePanel = (params: Params, role: 'button' | 'manager' = 'button') => {
-  const { quickPanel, quickPanelController, accessiblePaths, plugins, pluginsLoading, setText } = params
+  const { quickPanel, quickPanelController, accessiblePaths, setText } = params
   const { registerTrigger, registerRootMenu } = quickPanel
   const { open, close, updateList, isVisible, symbol } = quickPanelController
   const { t } = useTranslation()
+
+  const { skills, loading: skillsLoading } = useInstalledSkills()
+  const enabledSkills = useMemo(() => skills.filter((s) => s.isEnabled), [skills])
 
   const [fileList, setFileList] = useState<string[]>([])
   const [isLoading, setIsLoading] = useState(false)
@@ -184,35 +178,7 @@ export const useResourcePanel = (params: Params, role: 'button' | 'manager' = 'b
   )
 
   /**
-   * Insert text at @ position (for plugins)
-   */
-  const insertText = useCallback(
-    (text: string, triggerInfo?: ResourcePanelTriggerInfo) => {
-      setText((currentText) => {
-        const symbolChar = triggerInfo?.symbol ?? QuickPanelReservedSymbol.MentionModels
-        const triggerIndex =
-          triggerInfo?.position !== undefined
-            ? triggerInfo.position
-            : symbolChar === QuickPanelReservedSymbol.Root
-              ? currentText.lastIndexOf('/')
-              : currentText.lastIndexOf('@')
-
-        if (triggerIndex !== -1) {
-          let endPos = triggerIndex + 1
-          while (endPos < currentText.length && !/\s/.test(currentText[endPos])) {
-            endPos++
-          }
-          return currentText.slice(0, triggerIndex) + text + ' ' + currentText.slice(endPos)
-        }
-        return currentText + ' ' + text + ' '
-      })
-    },
-    [setText]
-  )
-
-  /**
    * Load files from accessible directories
-   * @param searchPattern - Optional search pattern to filter files (default: '.')
    */
   const loadFiles = useCallback(
     async (searchPattern: string = '.') => {
@@ -281,87 +247,46 @@ export const useResourcePanel = (params: Params, role: 'button' | 'manager' = 'b
   )
 
   /**
-   * Handle plugin selection (agent or skill)
+   * Insert text at @ position (for skills)
    */
-  const onSelectPlugin = useCallback(
-    (plugin: InstalledPlugin) => {
+  const insertText = useCallback(
+    (text: string, triggerInfo?: ResourcePanelTriggerInfo) => {
+      setText((currentText) => {
+        const symbolChar = triggerInfo?.symbol ?? QuickPanelReservedSymbol.MentionModels
+        const triggerIndex =
+          triggerInfo?.position !== undefined
+            ? triggerInfo.position
+            : symbolChar === QuickPanelReservedSymbol.Root
+              ? currentText.lastIndexOf('/')
+              : currentText.lastIndexOf('@')
+
+        if (triggerIndex !== -1) {
+          let endPos = triggerIndex + 1
+          while (endPos < currentText.length && !/\s/.test(currentText[endPos])) {
+            endPos++
+          }
+          return currentText.slice(0, triggerIndex) + text + ' ' + currentText.slice(endPos)
+        }
+        return currentText + ' ' + text + ' '
+      })
+    },
+    [setText]
+  )
+
+  /**
+   * Handle skill selection
+   */
+  const onSelectSkill = useCallback(
+    (skill: InstalledSkill) => {
       const trigger = triggerInfoRef.current
-      const name = plugin.metadata.name || plugin.filename
-      insertText(name, trigger)
+      insertText(skill.name, trigger)
       close()
     },
     [close, insertText]
   )
 
   /**
-   * Get icon and label for a category
-   */
-  const getCategoryConfig = useCallback(
-    (category: string): { icon: React.ReactNode; label: string } => {
-      const config = CATEGORY_CONFIG[category as CategoryKey]
-      if (config) {
-        const { Icon, labelKey } = config
-        return { icon: <Icon size={16} />, label: t(labelKey) }
-      }
-      return { icon: <Folder size={16} />, label: category }
-    },
-    [t]
-  )
-
-  /**
-   * Create category header item
-   */
-  const createCategoryHeader = useCallback(
-    (categoryKey: string, count: number): QuickPanelListItem => {
-      const { icon, label } = getCategoryConfig(categoryKey)
-      return {
-        label,
-        description: `(${count})`,
-        icon,
-        disabled: true,
-        action: () => {}
-      }
-    },
-    [getCategoryConfig]
-  )
-
-  /**
-   * Create plugin list items for QuickPanel
-   */
-  const createPluginItems = useCallback(
-    (pluginList: InstalledPlugin[], type: 'agent' | 'skill'): QuickPanelListItem[] => {
-      return pluginList.map((plugin) => {
-        const name = plugin.metadata.name || plugin.filename
-        const description = plugin.metadata.description || ''
-
-        return {
-          label: name,
-          description,
-          icon: type === 'agent' ? <Bot size={16} /> : <Zap size={16} />,
-          filterText: `${name} ${description} ${plugin.filename}`,
-          action: () => onSelectPlugin(plugin),
-          isSelected: false
-        }
-      })
-    },
-    [onSelectPlugin]
-  )
-
-  /**
-   * Filter plugins by search text
-   */
-  const filterPlugins = useCallback((pluginList: InstalledPlugin[], searchText: string): InstalledPlugin[] => {
-    if (!searchText.trim()) return pluginList
-    const lowerSearch = searchText.toLowerCase()
-    return pluginList.filter((plugin) => {
-      const name = (plugin.metadata.name || plugin.filename).toLowerCase()
-      const desc = (plugin.metadata.description || '').toLowerCase()
-      return name.includes(lowerSearch) || desc.includes(lowerSearch)
-    })
-  }, [])
-
-  /**
-   * Create file list items for QuickPanel from a file list
+   * Create file list items for QuickPanel
    */
   const createFileItems = useCallback(
     (files: string[]): QuickPanelListItem[] => {
@@ -370,8 +295,6 @@ export const useResourcePanel = (params: Params, role: 'button' | 'manager' = 'b
         const fileName = relativePath.split('/').pop() || relativePath
 
         // Include both absolute path and relative path in filterText to improve matching
-        // This helps when server-side search returns files with different naming conventions
-        // (e.g., "app-updater" vs "appupdater")
         const filterText = `${fileName} ${relativePath} ${filePath}`
 
         return {
@@ -387,14 +310,41 @@ export const useResourcePanel = (params: Params, role: 'button' | 'manager' = 'b
   )
 
   /**
-   * Build categorized list with files, agents, and skills
+   * Create skill list items for QuickPanel
+   */
+  const createSkillItems = useCallback(
+    (skillList: InstalledSkill[]): QuickPanelListItem[] => {
+      return skillList.map((skill) => ({
+        label: skill.name,
+        description: skill.description || '',
+        icon: <Zap size={16} />,
+        filterText: `${skill.name} ${skill.description || ''} ${skill.folderName}`,
+        action: () => onSelectSkill(skill),
+        isSelected: false
+      }))
+    },
+    [onSelectSkill]
+  )
+
+  /**
+   * Filter skills by search text
+   */
+  const filterSkills = useCallback((skillList: InstalledSkill[], searchText: string): InstalledSkill[] => {
+    if (!searchText.trim()) return skillList
+    const lowerSearch = searchText.toLowerCase()
+    return skillList.filter((skill) => {
+      const name = skill.name.toLowerCase()
+      const desc = (skill.description || '').toLowerCase()
+      return name.includes(lowerSearch) || desc.includes(lowerSearch)
+    })
+  }, [])
+
+  /**
+   * Build categorized list with files and skills
    */
   const buildCategorizedList = useCallback(
-    (files: string[], pluginList: InstalledPlugin[], loading: boolean): QuickPanelListItem[] => {
-      const items: QuickPanelListItem[] = []
-
-      // Show loading state if all sources are empty and still loading
-      if (loading && files.length === 0 && pluginList.length === 0) {
+    (files: string[], skillList: InstalledSkill[], loading: boolean): QuickPanelListItem[] => {
+      if (loading && files.length === 0 && skillList.length === 0) {
         return [
           {
             label: t('common.loading'),
@@ -407,29 +357,32 @@ export const useResourcePanel = (params: Params, role: 'button' | 'manager' = 'b
         ]
       }
 
-      // Filter plugins by type
-      const agents = pluginList.filter((p) => p.type === 'agent')
-      const skills = pluginList.filter((p) => p.type === 'skill')
+      const items: QuickPanelListItem[] = []
 
-      // Add Files category
+      // Add Files
       if (files.length > 0) {
-        items.push(createCategoryHeader('files', files.length))
+        items.push({
+          label: t('chat.input.resource_panel.categories.files'),
+          description: `(${files.length})`,
+          icon: <Folder size={16} />,
+          disabled: true,
+          action: () => {}
+        })
         items.push(...createFileItems(files))
       }
 
-      // Add Agents category
-      if (agents.length > 0) {
-        items.push(createCategoryHeader('agents', agents.length))
-        items.push(...createPluginItems(agents, 'agent'))
+      // Add Skills
+      if (skillList.length > 0) {
+        items.push({
+          label: t('chat.input.resource_panel.categories.skills'),
+          description: `(${skillList.length})`,
+          icon: <Zap size={16} />,
+          disabled: true,
+          action: () => {}
+        })
+        items.push(...createSkillItems(skillList))
       }
 
-      // Add Skills category
-      if (skills.length > 0) {
-        items.push(createCategoryHeader('skills', skills.length))
-        items.push(...createPluginItems(skills, 'skill'))
-      }
-
-      // Empty state if no items found
       if (items.length === 0) {
         return [
           {
@@ -445,15 +398,15 @@ export const useResourcePanel = (params: Params, role: 'button' | 'manager' = 'b
 
       return items
     },
-    [createCategoryHeader, createFileItems, createPluginItems, t]
+    [createFileItems, createSkillItems, t]
   )
 
   /**
-   * Create categorized list items for QuickPanel (for current state)
+   * Current list items for QuickPanel
    */
   const categorizedItems = useMemo<QuickPanelListItem[]>(
-    () => buildCategorizedList(fileList, plugins, isLoading || pluginsLoading),
-    [buildCategorizedList, fileList, plugins, isLoading, pluginsLoading]
+    () => buildCategorizedList(fileList, enabledSkills, isLoading || skillsLoading),
+    [buildCategorizedList, fileList, enabledSkills, isLoading, skillsLoading]
   )
 
   /**
@@ -463,24 +416,20 @@ export const useResourcePanel = (params: Params, role: 'button' | 'manager' = 'b
     async (searchText: string) => {
       logger.debug('Search text changed', { searchText })
 
-      // Load files with search pattern
       const searchPattern = searchText.trim() || '.'
       const newFiles = await loadFiles(searchPattern)
 
       updateFileListState(newFiles)
 
-      // Filter plugins client-side
-      const filteredPlugins = filterPlugins(plugins, searchText)
-
-      // Rebuild categorized list
-      const newItems = buildCategorizedList(newFiles, filteredPlugins, false)
+      const filteredSkills = filterSkills(enabledSkills, searchText)
+      const newItems = buildCategorizedList(newFiles, filteredSkills, false)
       updateList(newItems)
     },
-    [loadFiles, plugins, filterPlugins, buildCategorizedList, updateList, updateFileListState]
+    [loadFiles, enabledSkills, filterSkills, buildCategorizedList, updateList, updateFileListState]
   )
 
   /**
-   * Open QuickPanel with categorized list
+   * Open QuickPanel with file list
    */
   const openQuickPanel = useCallback(
     async (triggerInfo?: ResourcePanelTriggerInfo) => {
@@ -497,13 +446,12 @@ export const useResourcePanel = (params: Params, role: 'button' | 'manager' = 'b
       const files = await loadFiles()
       updateFileListState(files)
 
-      // Build categorized list with files and plugins
-      const items = buildCategorizedList(files, plugins, pluginsLoading)
+      const items = buildCategorizedList(files, enabledSkills, skillsLoading)
 
       open({
         title: t('chat.input.resource_panel.description'),
         list: items,
-        symbol: QuickPanelReservedSymbol.MentionModels, // Reuse @ symbol
+        symbol: QuickPanelReservedSymbol.MentionModels,
         manageListExternally: true,
         triggerInfo: normalizedTriggerInfo
           ? {
@@ -546,8 +494,8 @@ export const useResourcePanel = (params: Params, role: 'button' | 'manager' = 'b
       t,
       handleSearchChange,
       buildCategorizedList,
-      plugins,
-      pluginsLoading,
+      enabledSkills,
+      skillsLoading,
       updateFileListState
     ]
   )
@@ -578,7 +526,7 @@ export const useResourcePanel = (params: Params, role: 'button' | 'manager' = 'b
     if (isVisible && symbol === QuickPanelReservedSymbol.MentionModels) {
       updateList(categorizedItems)
     }
-  }, [categorizedItems, fileList.length, isLoading, isVisible, plugins.length, role, symbol, updateList])
+  }, [categorizedItems, fileList.length, enabledSkills.length, isLoading, isVisible, role, symbol, updateList])
 
   /**
    * Register trigger and root menu (manager only)

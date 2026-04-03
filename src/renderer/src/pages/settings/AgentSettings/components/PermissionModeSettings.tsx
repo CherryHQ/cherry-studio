@@ -50,7 +50,12 @@ export const PermissionModeSettings: FC<AgentOrSessionSettingsProps> = ({ agentB
       const applyChange = async () => {
         setIsUpdatingMode(true)
         try {
-          const nextConfiguration = { ...configuration, permission_mode: nextMode } satisfies AgentConfigurationState
+          const nextConfiguration: AgentConfigurationState = { ...configuration, permission_mode: nextMode }
+
+          // Disable soul mode when switching away from bypassPermissions
+          if (nextMode !== 'bypassPermissions' && configuration.soul_enabled === true) {
+            nextConfiguration.soul_enabled = false
+          }
           await update({
             id: agentBase.id,
             configuration: nextConfiguration,

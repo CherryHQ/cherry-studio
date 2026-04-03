@@ -15,8 +15,10 @@ import { Route as AppRouteImport } from './routes/app'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as SettingsIndexRouteImport } from './routes/settings/index'
 import { Route as SettingsWebsearchRouteImport } from './routes/settings/websearch'
+import { Route as SettingsSkillsRouteImport } from './routes/settings/skills'
 import { Route as SettingsShortcutRouteImport } from './routes/settings/shortcut'
 import { Route as SettingsSelectionAssistantRouteImport } from './routes/settings/selectionAssistant'
+import { Route as SettingsScheduledTasksRouteImport } from './routes/settings/scheduled-tasks'
 import { Route as SettingsQuickAssistantRouteImport } from './routes/settings/quickAssistant'
 import { Route as SettingsProviderRouteImport } from './routes/settings/provider'
 import { Route as SettingsPromptsRouteImport } from './routes/settings/prompts'
@@ -28,6 +30,7 @@ import { Route as SettingsGeneralRouteImport } from './routes/settings/general'
 import { Route as SettingsDocprocessRouteImport } from './routes/settings/docprocess'
 import { Route as SettingsDisplayRouteImport } from './routes/settings/display'
 import { Route as SettingsDataRouteImport } from './routes/settings/data'
+import { Route as SettingsChannelsRouteImport } from './routes/settings/channels'
 import { Route as SettingsApiServerRouteImport } from './routes/settings/api-server'
 import { Route as SettingsAboutRouteImport } from './routes/settings/about'
 import { Route as AppTranslateRouteImport } from './routes/app/translate'
@@ -83,6 +86,11 @@ const SettingsWebsearchRoute = SettingsWebsearchRouteImport.update({
   path: '/websearch',
   getParentRoute: () => SettingsRoute,
 } as any)
+const SettingsSkillsRoute = SettingsSkillsRouteImport.update({
+  id: '/skills',
+  path: '/skills',
+  getParentRoute: () => SettingsRoute,
+} as any)
 const SettingsShortcutRoute = SettingsShortcutRouteImport.update({
   id: '/shortcut',
   path: '/shortcut',
@@ -94,6 +102,11 @@ const SettingsSelectionAssistantRoute =
     path: '/selectionAssistant',
     getParentRoute: () => SettingsRoute,
   } as any)
+const SettingsScheduledTasksRoute = SettingsScheduledTasksRouteImport.update({
+  id: '/scheduled-tasks',
+  path: '/scheduled-tasks',
+  getParentRoute: () => SettingsRoute,
+} as any)
 const SettingsQuickAssistantRoute = SettingsQuickAssistantRouteImport.update({
   id: '/quickAssistant',
   path: '/quickAssistant',
@@ -147,6 +160,11 @@ const SettingsDisplayRoute = SettingsDisplayRouteImport.update({
 const SettingsDataRoute = SettingsDataRouteImport.update({
   id: '/data',
   path: '/data',
+  getParentRoute: () => SettingsRoute,
+} as any)
+const SettingsChannelsRoute = SettingsChannelsRouteImport.update({
+  id: '/channels',
+  path: '/channels',
   getParentRoute: () => SettingsRoute,
 } as any)
 const SettingsApiServerRoute = SettingsApiServerRouteImport.update({
@@ -287,6 +305,7 @@ export interface FileRoutesByFullPath {
   '/app/translate': typeof AppTranslateRoute
   '/settings/about': typeof SettingsAboutRoute
   '/settings/api-server': typeof SettingsApiServerRoute
+  '/settings/channels': typeof SettingsChannelsRoute
   '/settings/data': typeof SettingsDataRoute
   '/settings/display': typeof SettingsDisplayRoute
   '/settings/docprocess': typeof SettingsDocprocessRoute
@@ -298,8 +317,10 @@ export interface FileRoutesByFullPath {
   '/settings/prompts': typeof SettingsPromptsRoute
   '/settings/provider': typeof SettingsProviderRoute
   '/settings/quickAssistant': typeof SettingsQuickAssistantRoute
+  '/settings/scheduled-tasks': typeof SettingsScheduledTasksRoute
   '/settings/selectionAssistant': typeof SettingsSelectionAssistantRoute
   '/settings/shortcut': typeof SettingsShortcutRoute
+  '/settings/skills': typeof SettingsSkillsRoute
   '/settings/websearch': typeof SettingsWebsearchRouteWithChildren
   '/settings/': typeof SettingsIndexRoute
   '/app/minapp/$appId': typeof AppMinappAppIdRoute
@@ -331,6 +352,7 @@ export interface FileRoutesByTo {
   '/app/translate': typeof AppTranslateRoute
   '/settings/about': typeof SettingsAboutRoute
   '/settings/api-server': typeof SettingsApiServerRoute
+  '/settings/channels': typeof SettingsChannelsRoute
   '/settings/data': typeof SettingsDataRoute
   '/settings/display': typeof SettingsDisplayRoute
   '/settings/docprocess': typeof SettingsDocprocessRoute
@@ -341,8 +363,10 @@ export interface FileRoutesByTo {
   '/settings/prompts': typeof SettingsPromptsRoute
   '/settings/provider': typeof SettingsProviderRoute
   '/settings/quickAssistant': typeof SettingsQuickAssistantRoute
+  '/settings/scheduled-tasks': typeof SettingsScheduledTasksRoute
   '/settings/selectionAssistant': typeof SettingsSelectionAssistantRoute
   '/settings/shortcut': typeof SettingsShortcutRoute
+  '/settings/skills': typeof SettingsSkillsRoute
   '/settings': typeof SettingsIndexRoute
   '/app/minapp/$appId': typeof AppMinappAppIdRoute
   '/app/paintings/$': typeof AppPaintingsSplatRoute
@@ -375,6 +399,7 @@ export interface FileRoutesById {
   '/app/translate': typeof AppTranslateRoute
   '/settings/about': typeof SettingsAboutRoute
   '/settings/api-server': typeof SettingsApiServerRoute
+  '/settings/channels': typeof SettingsChannelsRoute
   '/settings/data': typeof SettingsDataRoute
   '/settings/display': typeof SettingsDisplayRoute
   '/settings/docprocess': typeof SettingsDocprocessRoute
@@ -386,8 +411,10 @@ export interface FileRoutesById {
   '/settings/prompts': typeof SettingsPromptsRoute
   '/settings/provider': typeof SettingsProviderRoute
   '/settings/quickAssistant': typeof SettingsQuickAssistantRoute
+  '/settings/scheduled-tasks': typeof SettingsScheduledTasksRoute
   '/settings/selectionAssistant': typeof SettingsSelectionAssistantRoute
   '/settings/shortcut': typeof SettingsShortcutRoute
+  '/settings/skills': typeof SettingsSkillsRoute
   '/settings/websearch': typeof SettingsWebsearchRouteWithChildren
   '/settings/': typeof SettingsIndexRoute
   '/app/minapp/$appId': typeof AppMinappAppIdRoute
@@ -422,6 +449,7 @@ export interface FileRouteTypes {
     | '/app/translate'
     | '/settings/about'
     | '/settings/api-server'
+    | '/settings/channels'
     | '/settings/data'
     | '/settings/display'
     | '/settings/docprocess'
@@ -433,8 +461,10 @@ export interface FileRouteTypes {
     | '/settings/prompts'
     | '/settings/provider'
     | '/settings/quickAssistant'
+    | '/settings/scheduled-tasks'
     | '/settings/selectionAssistant'
     | '/settings/shortcut'
+    | '/settings/skills'
     | '/settings/websearch'
     | '/settings/'
     | '/app/minapp/$appId'
@@ -466,6 +496,7 @@ export interface FileRouteTypes {
     | '/app/translate'
     | '/settings/about'
     | '/settings/api-server'
+    | '/settings/channels'
     | '/settings/data'
     | '/settings/display'
     | '/settings/docprocess'
@@ -476,8 +507,10 @@ export interface FileRouteTypes {
     | '/settings/prompts'
     | '/settings/provider'
     | '/settings/quickAssistant'
+    | '/settings/scheduled-tasks'
     | '/settings/selectionAssistant'
     | '/settings/shortcut'
+    | '/settings/skills'
     | '/settings'
     | '/app/minapp/$appId'
     | '/app/paintings/$'
@@ -509,6 +542,7 @@ export interface FileRouteTypes {
     | '/app/translate'
     | '/settings/about'
     | '/settings/api-server'
+    | '/settings/channels'
     | '/settings/data'
     | '/settings/display'
     | '/settings/docprocess'
@@ -520,8 +554,10 @@ export interface FileRouteTypes {
     | '/settings/prompts'
     | '/settings/provider'
     | '/settings/quickAssistant'
+    | '/settings/scheduled-tasks'
     | '/settings/selectionAssistant'
     | '/settings/shortcut'
+    | '/settings/skills'
     | '/settings/websearch'
     | '/settings/'
     | '/app/minapp/$appId'
@@ -592,6 +628,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof SettingsWebsearchRouteImport
       parentRoute: typeof SettingsRoute
     }
+    '/settings/skills': {
+      id: '/settings/skills'
+      path: '/skills'
+      fullPath: '/settings/skills'
+      preLoaderRoute: typeof SettingsSkillsRouteImport
+      parentRoute: typeof SettingsRoute
+    }
     '/settings/shortcut': {
       id: '/settings/shortcut'
       path: '/shortcut'
@@ -604,6 +647,13 @@ declare module '@tanstack/react-router' {
       path: '/selectionAssistant'
       fullPath: '/settings/selectionAssistant'
       preLoaderRoute: typeof SettingsSelectionAssistantRouteImport
+      parentRoute: typeof SettingsRoute
+    }
+    '/settings/scheduled-tasks': {
+      id: '/settings/scheduled-tasks'
+      path: '/scheduled-tasks'
+      fullPath: '/settings/scheduled-tasks'
+      preLoaderRoute: typeof SettingsScheduledTasksRouteImport
       parentRoute: typeof SettingsRoute
     }
     '/settings/quickAssistant': {
@@ -681,6 +731,13 @@ declare module '@tanstack/react-router' {
       path: '/data'
       fullPath: '/settings/data'
       preLoaderRoute: typeof SettingsDataRouteImport
+      parentRoute: typeof SettingsRoute
+    }
+    '/settings/channels': {
+      id: '/settings/channels'
+      path: '/channels'
+      fullPath: '/settings/channels'
+      preLoaderRoute: typeof SettingsChannelsRouteImport
       parentRoute: typeof SettingsRoute
     }
     '/settings/api-server': {
@@ -929,6 +986,7 @@ const SettingsWebsearchRouteWithChildren =
 interface SettingsRouteChildren {
   SettingsAboutRoute: typeof SettingsAboutRoute
   SettingsApiServerRoute: typeof SettingsApiServerRoute
+  SettingsChannelsRoute: typeof SettingsChannelsRoute
   SettingsDataRoute: typeof SettingsDataRoute
   SettingsDisplayRoute: typeof SettingsDisplayRoute
   SettingsDocprocessRoute: typeof SettingsDocprocessRoute
@@ -940,8 +998,10 @@ interface SettingsRouteChildren {
   SettingsPromptsRoute: typeof SettingsPromptsRoute
   SettingsProviderRoute: typeof SettingsProviderRoute
   SettingsQuickAssistantRoute: typeof SettingsQuickAssistantRoute
+  SettingsScheduledTasksRoute: typeof SettingsScheduledTasksRoute
   SettingsSelectionAssistantRoute: typeof SettingsSelectionAssistantRoute
   SettingsShortcutRoute: typeof SettingsShortcutRoute
+  SettingsSkillsRoute: typeof SettingsSkillsRoute
   SettingsWebsearchRoute: typeof SettingsWebsearchRouteWithChildren
   SettingsIndexRoute: typeof SettingsIndexRoute
 }
@@ -949,6 +1009,7 @@ interface SettingsRouteChildren {
 const SettingsRouteChildren: SettingsRouteChildren = {
   SettingsAboutRoute: SettingsAboutRoute,
   SettingsApiServerRoute: SettingsApiServerRoute,
+  SettingsChannelsRoute: SettingsChannelsRoute,
   SettingsDataRoute: SettingsDataRoute,
   SettingsDisplayRoute: SettingsDisplayRoute,
   SettingsDocprocessRoute: SettingsDocprocessRoute,
@@ -960,8 +1021,10 @@ const SettingsRouteChildren: SettingsRouteChildren = {
   SettingsPromptsRoute: SettingsPromptsRoute,
   SettingsProviderRoute: SettingsProviderRoute,
   SettingsQuickAssistantRoute: SettingsQuickAssistantRoute,
+  SettingsScheduledTasksRoute: SettingsScheduledTasksRoute,
   SettingsSelectionAssistantRoute: SettingsSelectionAssistantRoute,
   SettingsShortcutRoute: SettingsShortcutRoute,
+  SettingsSkillsRoute: SettingsSkillsRoute,
   SettingsWebsearchRoute: SettingsWebsearchRouteWithChildren,
   SettingsIndexRoute: SettingsIndexRoute,
 }

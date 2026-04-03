@@ -40,5 +40,6 @@
     "packages/mcp-trace/**/*",
     "packages/shared/**/*",
     "packages/ui/**/*"
-  ]
+  ],
+  "exclude": ["packages/aiCore/src/**/__tests__/**"]
 }

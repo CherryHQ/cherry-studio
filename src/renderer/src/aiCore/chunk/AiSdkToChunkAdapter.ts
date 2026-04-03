@@ -72,18 +72,19 @@ export class AiSdkToChunkAdapter {
    * @returns 最终的文本内容
    */
   async processStream(aiSdkResult: any): Promise<string> {
-    try {
-      // 如果是流式且有 fullStream
-      if (aiSdkResult.fullStream) {
-        await this.readFullStream(aiSdkResult.fullStream)
-      }
+    // The stream is the single source of truth for abort handling.
+    // Both AI SDK (resilient stream) and the agent pipeline (withAbortStreamPart)
+    // guarantee: abort → enqueue { type: 'abort' } → close gracefully.
+    // convertAndEmitChunk processes the abort part and emits ChunkType.ERROR → onError.
+    if (aiSdkResult.fullStream) {
+      await this.readFullStream(aiSdkResult.fullStream)
+    }
 
-      // 使用 streamResult.text 获取最终结果
+    try {
       return await aiSdkResult.text
     } catch (error: any) {
-      // abort 时，AI SDK 通常会先通过流发送 'abort' chunk（在 readFullStream 中 convertAndEmitChunk
-      // 转为 ERROR chunk 发出）。随后 aiSdkResult.text 会抛出 AbortError
-      // 这里捕获它以避免 transformMessagesAndFetch 的 catch 再次发送重复的 ERROR chunk
+      // The text promise rejects when no steps completed (e.g. abort during thinking).
+      // The abort was already handled via the 'abort' stream part above.
       if (isAbortError(error)) {
         return ''
       }
@@ -304,25 +305,6 @@ export class AiSdkToChunkAdapter {
       case 'tool-result':
         this.toolCallHandler.handleToolResult(chunk)
         break
-
-      // === 步骤相关事件 ===
-      // case 'start':
-      //   this.onChunk({
-      //     type: ChunkType.LLM_RESPONSE_CREATED
-      //   })
-      //   break
-      // case 'start-step':
-      //   this.onChunk({
-      //     type: ChunkType.BLOCK_CREATED
-      //   })
-      //   break
-      // case 'step-finish':
-      //   this.onChunk({
-      //     type: ChunkType.TEXT_COMPLETE,
-      //     text: final.text || '' // TEXT_COMPLETE 需要 text 字段
-      //   })
-      //   final.text = ''
-      //   break
 
       case 'finish-step': {
         const { providerMetadata, finishReason } = chunk
