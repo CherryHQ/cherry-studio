@@ -465,7 +465,7 @@ class ClaudeCodeService implements AgentServiceInterface {
             proxyBootstrapPath: this.claudeProxyBootstrapPath
           })
 
-          execArgv = [...process.execArgv, '--require', this.claudeProxyBootstrapPath]
+          execArgv = [...process.execArgv, '--disable-warning=UNDICI-EHPA', '--require', this.claudeProxyBootstrapPath]
         }
 
         const child = fork(spawnOptions.args[0], spawnOptions.args.slice(1), {
