@@ -1,6 +1,6 @@
 ---
 name: cherry-assistant-guide
-description: Cherry Studio 产品知识库、源码路径索引、故障排查和页面导航。当用户询问 Cherry Studio 的功能、配置、报错、使用方法时触发。也适用于用户提到 provider、模型、知识库、Agent、MCP、OpenClaw、PDF、快捷短语等关键词的场景。
+description: Cherry Studio 产品知识库、源码路径索引、故障排查和页面导航。当用户询问 Cherry Studio 的功能、配置、报错、使用方法时触发。也适用于用户提到 provider、模型、知识库、Agent、CherryClaw、MCP、OpenClaw、AI诊断、flomo、PDF、快捷短语等关键词的场景。
 ---
 
 # Cherry Studio 使用指南
@@ -33,6 +33,20 @@ navigate({ path: '/settings/provider', query: { id: 'anthropic' } })
 3. 其他选择：Ollama（本地免费，需显卡）、GitHub Copilot（有免费额度）、或去各厂商官网申请 Key
 4. 推荐时语气自然，作为产品内置功能介绍，不做竞品对比
 
+## v1.9.0 新功能
+
+- **AI 错误诊断**: 出错自动分类显示错误横幅+「前往设置」按钮。错误详情弹窗可点「AI 诊断」获得解决方案，结果自动缓存
+- **CherryClaw Agent**: Agent页→+创建→类型选CherryClaw。设置→Essential开启Soul模式后在对话框直接输入人设即可保存(首次自动引导定义人格)；普通机器人需打开人设设置才能升级Soul。频道(Telegram/飞书/QQ/微信)和定时任务(cron/间隔/单次)在Agent设置中配置
+- **本地模型 Agent**: Ollama 和 LM Studio 现可用于 Agent 模式（需模型支持 tool_calling）
+- **OpenRouter Agent**: OpenRouter 通过 Anthropic 兼容端点支持 Agent 模式
+- **Flomo 内置 MCP**: 设置→MCP→内置MCP 启用 Flomo 笔记捕获
+- **MCPWorld 市场**: 设置→MCP→市场 新增 MCPWorld 来源
+- **新手引导**: 首次启动引导流程，支持 CherryIN OAuth 登录+模型选择
+- **RTK Token 优化**: Agent 模式自动改写 shell 命令，节省 60-90% Token
+- **MCP 连接超时**: 60秒超时防止 MCP 服务器无限挂起
+- **置顶话题**: 设置中开启后话题列表支持置顶显示
+- **模型ID显示**: 模型名重复时选择器自动显示模型ID区分
+
 ## 故障排查
 
 ### 诊断工具 `mcp__assistant__diagnose`
@@ -63,7 +77,7 @@ navigate({ path: '/settings/provider', query: { id: 'anthropic' } })
 
 - **连接问题**: 检查代理(设置→通用→代理)；Ollama 确认 `ollama serve` 运行(端口11434)；自定义端点确认URL和网络
 - **PDF 问题**: 确认模型支持PDF(GPT-4o/Claude 3+/Gemini 1.5+)；聚合Provider降级文本提取；>10MB可能超时
-- **Agent 问题**: MCP不可用→检查连接+Agent设置已勾选；Plan模式不执行工具；DevTools(Ctrl+Shift+I)看报错
+- **Agent 问题**: MCP不可用→检查连接+Agent设置已勾选；Plan模式不执行工具；DevTools(Ctrl+Shift+I)看报错；出错时点击错误横幅→查看详情→「AI 诊断」获取解决步骤
 - **API 错误码**: 401=Key无效, 403=权限不足, 429=限流, 500=服务端错误
 
 ## 功能指南
@@ -74,9 +88,9 @@ navigate({ path: '/settings/provider', query: { id: 'anthropic' } })
 
 **知识库**: 知识库页→新建→选Embedding模型→导入文档(PDF/DOCX/TXT/MD/网页)→助手关联知识库
 
-**Agent**: Agent页→+创建→选tool_calling模型(Claude/GPT-4o+)→权限(Normal/Plan/Auto-edit/Bypass)→Tools勾选MCP
+**Agent**: Agent页→+创建。类型: Claude Code(需tool_calling模型) 或 CherryClaw(自主Agent)。CherryClaw: 设置→Essential开启Soul模式→对话框直接输入人设保存(普通机器人需先打开人设设置升级Soul)。频道+定时任务在Agent设置中配。Ollama/LMStudio/OpenRouter现也支持Agent
 
-**MCP**: 设置→MCP→添加Server。类型: stdio/SSE/Streamable HTTP。绿灯=连接，红灯=断开
+**MCP**: 设置→MCP→添加Server。类型: stdio/SSE/Streamable HTTP。绿灯=连接，红灯=断开。内置MCP: MCP→内置(含Flomo等)。市场: MCP→市场(含MCPWorld)。连接超时60秒
 
 **主题**: 设置→显示→自定义CSS。主题画廊: cherrycss.com。内置亮/暗+跟随系统
 
@@ -108,6 +122,9 @@ Cmd/Ctrl + N 新建话题, +F 搜索, +Shift+F 全局搜索, +K 新上下文, +L
 | 导出对话 | 话题右键→导出(MD/图片) |
 | 数据安全 | 全部本地存储, Key本地加密 |
 | MCP是什么 | 让AI调用外部工具(搜索/数据库/API等) |
+| CherryClaw是什么 | 自主Agent类型。开启Soul模式后可在对话框直接定义人设，支持定时任务+IM频道(Telegram/飞书等) |
+| 出错了怎么办 | 点击错误横幅查看详情，使用「AI 诊断」获取解决步骤 |
+| 本地模型能用Agent吗 | 可以，Ollama和LMStudio支持(需支持tool_calling的模型) |
 
 ## 反馈渠道
 

@@ -1,8 +1,8 @@
 {
   "name": "Cherry Assistant",
   "description": {
-    "en-US": "Built-in Cherry Studio advisor. Diagnose issues, guide operations, collect FAQs, submit bugs/feature requests, and search/create Skills",
-    "zh-CN": "Cherry Studio 内置使用顾问。诊断问题、引导操作、收录 FAQ、提交 Bug/需求、搜索和创建 Skills"
+    "en-US": "Built-in Cherry Studio advisor. Diagnose issues, guide operations, collect FAQs, submit bugs/feature requests, and search/create Skills. Covers v1.9.0 features (CherryClaw, AI error diagnosis, local model Agent, etc.)",
+    "zh-CN": "Cherry Studio 内置使用顾问。诊断问题、引导操作、收录 FAQ、提交 Bug/需求、搜索和创建 Skills。覆盖 v1.9.0 新功能（CherryClaw、AI错误诊断、本地模型Agent等）"
   },
   "type": "claude-code",
   "instructions": {
