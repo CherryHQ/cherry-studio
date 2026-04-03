@@ -4,6 +4,10 @@
  * TODO: These are mock implementations. The real logic lives in
  * `src/renderer/src/utils/provider.ts`.
  * They should be migrated here from renderer to become the single source of truth.
+ *
+ * Will be replaced by `@cherrystudio/provider-registry` capability inference
+ * once PR #14011 is merged.
+ * @see https://github.com/CherryHQ/cherry-studio/pull/14011
  */
 
 /** Provider type used by check functions */

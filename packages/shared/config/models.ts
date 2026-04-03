@@ -6,10 +6,13 @@
  * They should be migrated here from renderer to become the single source of truth.
  * Until then, main process code uses these mocks with the same interface.
  *
- * Migration plan:
- * 1. Copy the actual implementations from renderer config/models/*.ts
- * 2. Update renderer to import from @shared/config/models
- * 3. Delete renderer's config/models/ originals
+ * These mocks will be replaced by `@cherrystudio/provider-registry` once
+ * PR #14011 (feat(data): add provider/model core data service) is merged.
+ * That PR introduces `ProviderRegistryService` with capability inference
+ * from protobuf-defined model metadata, which is the proper replacement
+ * for all `isXxxModel()` / `isXxxProvider()` check functions below.
+ *
+ * @see https://github.com/CherryHQ/cherry-studio/pull/14011
  */
 
 // ============================================================================
@@ -129,3 +132,111 @@ export function findTokenLimit(_model: ModelLike): number | undefined {
   // TODO: migrate from src/renderer/src/config/models/
   return undefined
 }
+
+// ============================================================================
+// Additional model check stubs — added to satisfy prepareParams/utils imports
+// TODO: All functions below are mocks. Migrate real implementations from renderer.
+// ============================================================================
+
+export function isClaude46SeriesModel(_model: ModelLike): boolean {
+  return false
+}
+export function isClaudeReasoningModel(_model: ModelLike): boolean {
+  return false
+}
+export function isMaxTemperatureOneModel(_model: ModelLike): boolean {
+  return false
+}
+export function isSupportedFlexServiceTier(_model: ModelLike): boolean {
+  return false
+}
+export function isSupportFlexServiceTierModel(_model: ModelLike): boolean {
+  return false
+}
+export function isSupportTemperatureModel(_model: ModelLike): boolean {
+  return true
+}
+export function isSupportTopPModel(_model: ModelLike): boolean {
+  return true
+}
+export function isTemperatureTopPMutuallyExclusiveModel(_model: ModelLike): boolean {
+  return false
+}
+export function isOpenAIModel(_model: ModelLike): boolean {
+  return false
+}
+export function isOpenAIReasoningModel(_model: ModelLike): boolean {
+  return false
+}
+export function isOpenAIOpenWeightModel(_model: ModelLike): boolean {
+  return false
+}
+export function isGrokModel(_model: ModelLike): boolean {
+  return false
+}
+export function isGrok4FastReasoningModel(_model: ModelLike): boolean {
+  return false
+}
+export function isDoubaoSeed18Model(_model: ModelLike): boolean {
+  return false
+}
+export function isDoubaoSeedAfter251015(_model: ModelLike): boolean {
+  return false
+}
+export function isDoubaoThinkingAutoModel(_model: ModelLike): boolean {
+  return false
+}
+export function isGemini3ThinkingTokenModel(_model: ModelLike): boolean {
+  return false
+}
+export function isQwenAlwaysThinkModel(_model: ModelLike): boolean {
+  return false
+}
+export function isQwenMTModel(_model: ModelLike): boolean {
+  return false
+}
+export function isQwenReasoningModel(_model: ModelLike): boolean {
+  return false
+}
+export function isSupportNoneReasoningEffortModel(_model: ModelLike): boolean {
+  return false
+}
+export function isSupportVerbosityModel(_model: ModelLike): boolean {
+  return false
+}
+export function isSupportedReasoningEffortModel(_model: ModelLike): boolean {
+  return false
+}
+export function isSupportedReasoningEffortOpenAIModel(_model: ModelLike): boolean {
+  return false
+}
+export function isSupportedThinkingTokenDoubaoModel(_model: ModelLike): boolean {
+  return false
+}
+export function isSupportedThinkingTokenGeminiModel(_model: ModelLike): boolean {
+  return false
+}
+export function isSupportedThinkingTokenHunyuanModel(_model: ModelLike): boolean {
+  return false
+}
+export function isSupportedThinkingTokenKimiModel(_model: ModelLike): boolean {
+  return false
+}
+export function isSupportedThinkingTokenMiMoModel(_model: ModelLike): boolean {
+  return false
+}
+export function isSupportedThinkingTokenModel(_model: ModelLike): boolean {
+  return false
+}
+export function isSupportedThinkingTokenZhipuModel(_model: ModelLike): boolean {
+  return false
+}
+export function getModelSupportedVerbosity(_model: ModelLike): string[] {
+  return []
+}
+export function getModelSupportedReasoningEffortOptions(_model: ModelLike): string[] {
+  return []
+}
+
+/** Gemini Flash model regex pattern */
+export const GEMINI_FLASH_MODEL_REGEX = /gemini.*flash/i
