@@ -345,9 +345,9 @@ describe('websearch utils', () => {
     })
 
     describe('poe provider', () => {
-      it('should resolve capitalized Poe Claude models to anthropic search config', () => {
+      it('should resolve Poe Claude models to anthropic search config', () => {
         const model: Model = {
-          id: 'Claude-Sonnet-4.6',
+          id: 'claude-sonnet-4.6',
           name: 'Claude Sonnet 4.6',
           provider: 'poe'
         } as Model
@@ -365,9 +365,9 @@ describe('websearch utils', () => {
         })
       })
 
-      it('should resolve capitalized Poe GPT models to responses search config', () => {
+      it('should resolve Poe GPT models to responses search config', () => {
         const model: Model = {
-          id: 'GPT-5.4',
+          id: 'gpt-5.4',
           name: 'GPT 5.4',
           provider: 'poe'
         } as Model

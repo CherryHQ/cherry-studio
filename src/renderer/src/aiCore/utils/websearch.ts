@@ -2,7 +2,6 @@ import type { WebSearchPluginConfig } from '@cherrystudio/ai-core/core/plugins/b
 import { isOpenAIDeepResearchModel, isOpenAIWebSearchChatCompletionOnlyModel } from '@renderer/config/models'
 import type { CherryWebSearchConfig } from '@renderer/store/websearch'
 import type { Model } from '@renderer/types'
-import { getLowerBaseModelName } from '@renderer/utils'
 import { mapRegexToPatterns } from '@renderer/utils/blacklistMatchPattern'
 import { getModel as getPoeModel } from 'ai-sdk-provider-poe/code'
 
@@ -41,7 +40,7 @@ function mapMaxResultToOpenAIContextSize(
 }
 
 function resolvePoeWebSearchProviderId(model: Model): 'anthropic' | 'openai' | 'openai-chat' {
-  const endpoint = getPoeModel(getLowerBaseModelName(model.id))?.supportedEndpoints?.[0]
+  const endpoint = getPoeModel(model.id)?.supportedEndpoints?.[0]
 
   if (endpoint === '/v1/messages') {
     return 'anthropic'
