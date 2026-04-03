@@ -578,6 +578,7 @@ class ClaudeCodeService implements AgentServiceInterface {
       url: 'https://mcp.exa.ai/mcp'
     }
 
+<<<<<<< HEAD
     // Inject skills MCP for all agents — managing Claude skills (search / install
     // / list / remove / init / register) is a generally useful capability and is
     // not coupled to Soul Mode's autonomous-agent semantics.
@@ -612,7 +613,7 @@ class ClaudeCodeService implements AgentServiceInterface {
       }
     }
 
-    if (soulEnabled) {
+    if (soulEnabled && !isAssistant) {
       // Find the channel that owns this session (if any) for context-aware cron defaults
       const sourceChannelId = await this.resolveSourceChannel(session.agent_id, session.id)
       const clawServer = new ClawServer(session.agent_id, sourceChannelId)

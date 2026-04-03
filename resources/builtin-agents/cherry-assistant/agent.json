@@ -22,7 +22,9 @@
     "permission_mode": "default",
     "max_turns": 100,
     "env_vars": {},
-    "avatar": "🍒"
+    "avatar": "🍒",
+    "soul_enabled": true,
+    "bootstrap_completed": true
   },
   "skills": ["cherry-assistant-guide", "faq-collector", "issue-reporter", "skills-manager"]
 }
