@@ -18,7 +18,7 @@ navigate({ path: '/settings/provider', query: { id: 'anthropic' } })
 
 **顶级**: `/` 首页, `/store` 助手商店, `/paintings` 绘图, `/translate` 翻译, `/files` 文件, `/notes` 笔记, `/knowledge` 知识库, `/apps` 小程序, `/code` 代码工具, `/openclaw` OpenClaw, `/launchpad` 启动台, `/agents` Agent, `/channels` 频道
 
-**设置** (`/settings/`): `provider` Provider配置, `model` 模型管理, `general` 通用(语言/主题/代理), `display` 显示(气泡/列表/字体), `data` 数据管理(备份/恢复), `mcp` MCP总览, `websearch` 网页搜索, `memory` 记忆, `api-server` API服务器, `docprocess` 文档处理, `quickphrase` 快捷短语, `shortcut` 快捷键, `quickAssistant` 快捷助手, `selectionAssistant` 划词助手, `about` 关于/版本/日志
+**设置** (`/settings/`): `provider` Provider配置, `model` 模型管理, `general` 通用(语言/主题/代理), `display` 显示(气泡/列表/字体), `data` 数据管理(备份/恢复), `mcp` MCP总览, `websearch` 网页搜索, `memory` 记忆, `scheduled-tasks` 定时任务, `api-server` API服务器, `docprocess` 文档处理, `quickphrase` 快捷短语, `shortcut` 快捷键, `quickAssistant` 快捷助手, `selectionAssistant` 划词助手, `about` 关于/版本/日志
 
 **MCP 子页** (`/settings/mcp/`): `servers` 服务列表, `builtin` 内置MCP, `marketplaces` MCP市场, `npx-search` NPX搜索, `mcp-install` 安装MCP, `settings/{serverId}` 配置详情
 
@@ -81,7 +81,7 @@ Agent 页 → + 创建 → 类型选择 CherryClaw
 
 ### 定时任务
 
-**配置路径**: Agent 设置 → Tasks → 添加任务；也可以在对话中直接让 Agent 创建/管理定时任务
+**配置路径**: 设置 → 定时任务（`/settings/scheduled-tasks`）→ 添加任务；也可以在对话中直接让 Agent 创建/管理定时任务
 
 | 调度类型 | 值格式 | 示例 |
 |---------|--------|------|
@@ -150,7 +150,7 @@ Agent 设置 → Heartbeat Setting。开关 + 间隔(1-1440分钟，默认30)。
 
 **知识库**: 知识库页→新建→选Embedding模型→导入文档(PDF/DOCX/TXT/MD/网页)→助手关联知识库
 
-**Agent**: Agent页→+创建。类型: Claude Code(需tool_calling模型) 或 CherryClaw(自主Agent)。CherryClaw: 设置→Essential开启Soul模式→对话框直接输入人设保存(普通机器人需先打开人设设置升级Soul)。频道+定时任务可在Agent设置或对话中配置。Ollama/LMStudio/OpenRouter现也支持Agent
+**Agent**: Agent页→+创建。类型: Claude Code(需tool_calling模型) 或 CherryClaw(自主Agent)。CherryClaw: 设置→Essential开启Soul模式→对话框直接输入人设保存(普通机器人需先打开人设设置升级Soul)。频道在设置→频道中配，定时任务在设置→定时任务中配(也可在对话中让Agent创建)。Ollama/LMStudio/OpenRouter现也支持Agent
 
 **MCP**: 设置→MCP→添加Server。类型: stdio/SSE/Streamable HTTP。绿灯=连接，红灯=断开。内置MCP: MCP→内置(含Flomo笔记/mcp_auto_install自动发现安装)。市场: MCP→市场(含MCPWorld等11个来源)。连接超时60秒
 
@@ -193,7 +193,7 @@ Cmd/Ctrl + N 新建话题, +F 搜索, +Shift+F 全局搜索, +K 新上下文, +L
 | CherryClaw是什么 | 自主Agent类型，支持多平台IM频道(Telegram/飞书/QQ/微信/Discord/Slack)+定时任务+Soul人格记忆。详见CherryClaw章节 |
 | 怎么配置频道 | 设置→频道→选平台→填凭据→绑定Agent→开启。详见CherryClaw→频道章节 |
 | Soul模式是什么 | 持久人格记忆。Agent设置→Essential→开启Soul→对话框输入人设保存。自动维护SOUL.md/USER.md/记忆文件 |
-| 定时任务怎么用 | 两种方式：1) Agent设置→Tasks→添加；2) 在对话中直接让Agent创建。填名称/指令/调度类型(cron/间隔/单次)→选通知频道 |
+| 定时任务怎么用 | 两种方式：1) 设置→定时任务→添加；2) 在对话中直接让Agent创建。填名称/指令/调度类型(cron/间隔/单次)→选通知频道 |
 | 出错了怎么办 | 点击错误横幅查看详情，使用「AI 诊断」获取结构化解决步骤 |
 | 本地模型能用Agent吗 | 可以，Ollama和LMStudio支持(需支持tool_calling的模型) |
 | 新用户怎么开始 | 首次启动有引导流程，可登录CherryIN一键配置或手动选Provider |
