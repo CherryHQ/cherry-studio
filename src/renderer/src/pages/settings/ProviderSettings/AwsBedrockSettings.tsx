@@ -5,7 +5,7 @@ import { useInvalidateCache, useQuery } from '@renderer/data/hooks/useDataApi'
 import type { AuthConfig, Provider } from '@shared/data/types/provider'
 import { Alert, Input, Radio } from 'antd'
 import type { FC } from 'react'
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { SettingHelpLink, SettingHelpText, SettingHelpTextRow, SettingSubtitle } from '..'
@@ -31,6 +31,14 @@ const AwsBedrockSettings: FC<Props> = ({ providerId }) => {
   const [localAccessKeyId, setLocalAccessKeyId] = useState(awsConfig?.accessKeyId ?? '')
   const [localSecretAccessKey, setLocalSecretAccessKey] = useState(awsConfig?.secretAccessKey ?? '')
   const [localRegion, setLocalRegion] = useState(awsConfig?.region ?? '')
+
+  useEffect(() => {
+    if (awsConfig) {
+      setLocalAccessKeyId(awsConfig.accessKeyId ?? '')
+      setLocalSecretAccessKey(awsConfig.secretAccessKey ?? '')
+      setLocalRegion(awsConfig.region ?? '')
+    }
+  }, [authConfig])
 
   const handleAuthTypeChange = async (value: string) => {
     if (value === 'iam') {

@@ -5,7 +5,7 @@ import { useInvalidateCache, useQuery } from '@renderer/data/hooks/useDataApi'
 import type { AuthConfig } from '@shared/data/types/provider'
 import { Alert, Input } from 'antd'
 import type { FC } from 'react'
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { SettingHelpLink, SettingHelpText, SettingHelpTextRow, SettingSubtitle } from '..'
@@ -28,6 +28,15 @@ const VertexAISettings: FC<Props> = ({ providerId }) => {
   const [localLocation, setLocalLocation] = useState(gcpConfig?.location ?? '')
   const [localPrivateKey, setLocalPrivateKey] = useState(credentials?.privateKey ?? '')
   const [localClientEmail, setLocalClientEmail] = useState(credentials?.clientEmail ?? '')
+
+  useEffect(() => {
+    if (gcpConfig) {
+      setLocalProjectId(gcpConfig.project ?? '')
+      setLocalLocation(gcpConfig.location ?? '')
+      setLocalPrivateKey((gcpConfig.credentials as Record<string, string> | undefined)?.privateKey ?? '')
+      setLocalClientEmail((gcpConfig.credentials as Record<string, string> | undefined)?.clientEmail ?? '')
+    }
+  }, [authConfig])
 
   const providerConfig = PROVIDER_URLS['vertexai']
   const apiKeyWebsite = providerConfig?.websites?.apiKey
