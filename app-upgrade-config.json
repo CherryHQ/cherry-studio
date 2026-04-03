@@ -1,5 +1,5 @@
 {
-  "lastUpdated": "2026-03-27T13:03:55.270Z",
+  "lastUpdated": "2026-04-03T11:02:39.378Z",
   "versions": {
     "2.0.0": {
       "metadata": {
@@ -25,7 +25,13 @@
             "gitcode": "https://releases.cherry-ai.com"
           }
         },
-        "rc": null,
+        "rc": {
+          "version": "1.9.0-rc.0",
+          "feedUrls": {
+            "github": "https://github.com/CherryHQ/cherry-studio/releases/download/v1.9.0-rc.0",
+            "gitcode": "https://github.com/CherryHQ/cherry-studio/releases/download/v1.9.0-rc.0"
+          }
+        },
         "beta": null
       },
       "metadata": {
