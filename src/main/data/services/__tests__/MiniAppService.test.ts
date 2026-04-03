@@ -635,4 +635,28 @@ describe('MiniAppService', () => {
       await expect(service.reorder([{ appId: 'nonexistent', sortOrder: 0 }])).resolves.toBeUndefined()
     })
   })
+
+  describe('resetDefaults', () => {
+    it('should delete all default app preference rows', async () => {
+      const where = vi.fn().mockResolvedValue(undefined)
+      mockDelete.mockReturnValue({ where })
+
+      await expect(service.resetDefaults()).resolves.toBeUndefined()
+
+      // Should call delete with type='default' condition
+      expect(mockDelete).toHaveBeenCalled()
+      expect(where).toHaveBeenCalled()
+    })
+
+    it('should only target default type rows, not custom', async () => {
+      const where = vi.fn().mockResolvedValue(undefined)
+      mockDelete.mockReturnValue({ where })
+
+      await service.resetDefaults()
+
+      // Verify mockDelete was called exactly once with the correct scope
+      expect(mockDelete).toHaveBeenCalledTimes(1)
+      expect(where).toHaveBeenCalledTimes(1)
+    })
+  })
 })

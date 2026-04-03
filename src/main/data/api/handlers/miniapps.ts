@@ -61,5 +61,12 @@ export const miniappHandlers: {
       await miniappService.delete(params.id)
       return undefined
     }
+  },
+
+  '/miniapps/defaults': {
+    DELETE: async () => {
+      await miniappService.resetDefaults()
+      return undefined
+    }
   }
 }

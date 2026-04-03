@@ -126,4 +126,16 @@ export interface MiniappSchemas {
       response: void
     }
   }
+
+  /**
+   * Reset all builtin (default) app preferences to factory defaults.
+   * Removes all DB preference rows for type='default', restoring original status/sortOrder.
+   * @example DELETE /miniapps/defaults
+   */
+  '/miniapps/defaults': {
+    /** Reset all default app preferences to builtin defaults */
+    DELETE: {
+      response: void
+    }
+  }
 }
