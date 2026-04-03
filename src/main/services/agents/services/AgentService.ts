@@ -186,7 +186,8 @@ export class AgentService extends BaseService {
               .where(eq(agentsTable.id, id))
               .limit(1)
             const existingConfig = existingRow[0]?.configuration ? JSON.parse(existingRow[0].configuration) : {}
-            const merged = { ...existingConfig, ...agentConfig.configuration }
+            // Template fills missing fields only — never overwrite user-modified settings
+            const merged = { ...agentConfig.configuration, ...existingConfig }
             updateData.configuration = JSON.stringify(merged)
           }
           await database.update(agentsTable).set(updateData).where(eq(agentsTable.id, id))
