@@ -20,7 +20,9 @@ const ImageBlock: React.FC<Props> = ({ block, isSingle = false }) => {
       ? block.metadata?.generateImageResponse?.images
       : block?.file
         ? [`file://${FileManager.getFilePath(block?.file)}`]
-        : []
+        : block?.url
+          ? [block.url]
+          : []
 
     return (
       <Container>

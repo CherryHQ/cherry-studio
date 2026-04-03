@@ -374,7 +374,7 @@ describe('formatProviderApiHost', () => {
   })
 
   describe('Azure OpenAI provider', () => {
-    it('strips /v1 and appends /openai', () => {
+    it('normalizes apiHost without appending version (deferred to build phase)', () => {
       const provider = makeProvider({
         id: 'azure-openai',
         type: 'azure-openai',
@@ -383,8 +383,20 @@ describe('formatProviderApiHost', () => {
 
       const result = formatProviderApiHost(provider)
 
-      // formatAzureOpenAIApiHost strips /v1 and /openai then re-appends /openai
+      // Azure now defers /openai suffix to buildAzureConfig; formatProviderApiHost only normalizes
       expect(result.apiHost).toBe('https://example.openai.azure.com/openai')
+    })
+
+    it('does not append /v1 to bare Azure host', () => {
+      const provider = makeProvider({
+        id: 'azure-openai',
+        type: 'azure-openai',
+        apiHost: 'https://example.openai.azure.com'
+      })
+
+      const result = formatProviderApiHost(provider)
+
+      expect(result.apiHost).toBe('https://example.openai.azure.com')
     })
   })
 
@@ -793,7 +805,7 @@ describe('providerToAiSdkConfig', () => {
       expect(config.providerId).toBe('cherryin')
       const settings = config.providerSettings as CherryInProviderSettings
       expect(settings.anthropicBaseURL).toBe('https://anthropic.cherryin.com/v1')
-      expect(settings.geminiBaseURL).toBe('https://api.cherryin.com/v1beta/models')
+      expect(settings.geminiBaseURL).toBe('https://api.cherryin.com/v1beta')
     })
   })
 
@@ -898,7 +910,7 @@ describe('providerToAiSdkConfig', () => {
         makeModel('gpt-4', provider.id)
       )) as ProviderConfig<'openai-compatible'>
 
-      const settings = config.providerSettings as OpenAICompatibleProviderSettings
+      const settings = config.providerSettings
       expect(settings.headers).toBeDefined()
       expect(settings.headers!['HTTP-Referer']).toBe('https://cherry-ai.com')
       expect(settings.headers!['X-Title']).toBe('Cherry Studio')
@@ -917,7 +929,7 @@ describe('providerToAiSdkConfig', () => {
         makeModel('gpt-4', provider.id)
       )) as ProviderConfig<'openai-compatible'>
 
-      const settings = config.providerSettings as OpenAICompatibleProviderSettings
+      const settings = config.providerSettings
       expect(settings.headers).toBeDefined()
       expect(settings.headers!['X-Custom']).toBe('custom-value')
     })

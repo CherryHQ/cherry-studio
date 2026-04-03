@@ -35,6 +35,8 @@ const normalizeOutputString = (output?: ReadToolOutputType): string | null => {
       .join('')
   }
 
+  if (typeof output !== 'string') return null
+
   return removeSystemReminderTags(output)
 }
 
