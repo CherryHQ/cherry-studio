@@ -86,7 +86,9 @@ export async function provisionBuiltinAgent(
   }
 
   try {
-    // Copy .claude/ directory (skills + plugins.json)
+    // Always overwrite .claude/ (skills + plugins.json) — this is product-managed content
+    // that must stay in sync with each release (e.g., knowledge base updates in SKILL.md).
+    // User-customized content (SOUL.md, USER.md, memory/) is handled separately below.
     const srcClaudeDir = path.join(templateDir, '.claude')
     const destClaudeDir = path.join(workspacePath, '.claude')
 
