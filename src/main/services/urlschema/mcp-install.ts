@@ -1,19 +1,20 @@
 import { loggerService } from '@logger'
 import { nanoid } from '@reduxjs/toolkit'
 import { IpcChannel } from '@shared/IpcChannel'
-import type { MCPServer } from '@types'
+import { type MCPServer, type McpServerConfig, safeValidateMcpConfig, safeValidateMcpServerConfig } from '@types'
 
 import { windowService } from '../WindowService'
 
 const logger = loggerService.withContext('URLSchema:handleMcpProtocolUrl')
 
-function installMCPServer(server: MCPServer) {
+function installMCPServer(server: McpServerConfig) {
   const mainWindow = windowService.getMainWindow()
   const now = Date.now()
 
   const payload: MCPServer = {
     ...server,
     id: server.id ?? nanoid(),
+    name: server.name ?? `Protocol MCP Server ${nanoid()}`,
     installSource: 'protocol',
     isTrusted: false,
     isActive: false,
@@ -26,14 +27,79 @@ function installMCPServer(server: MCPServer) {
   }
 }
 
-function installMCPServers(servers: Record<string, MCPServer>) {
-  for (const name in servers) {
-    const server = servers[name]
-    if (!server.name) {
-      server.name = name
-    }
-    installMCPServer(server)
+function parseProtocolServers(data: string): McpServerConfig[] {
+  let payload: unknown
+
+  try {
+    const normalized = data.replaceAll(' ', '+').replaceAll('-', '+').replaceAll('_', '/')
+    const decoded = Buffer.from(normalized, 'base64').toString('utf8')
+    logger.debug(`install MCP servers from urlschema: ${decoded}`)
+    payload = JSON.parse(decoded)
+  } catch (error) {
+    logger.error('Failed to parse MCP protocol payload:', error as Error)
+    return []
   }
+
+  const configResult = safeValidateMcpConfig(payload)
+  if (configResult.success) {
+    return Object.entries(configResult.data.mcpServers).map(([name, server]) => ({
+      ...server,
+      name: server.name ?? name
+    }))
+  }
+
+  if (
+    payload &&
+    typeof payload === 'object' &&
+    'mcpServers' in payload &&
+    payload.mcpServers &&
+    typeof payload.mcpServers === 'object' &&
+    !Array.isArray(payload.mcpServers)
+  ) {
+    return Object.entries(payload.mcpServers as Record<string, unknown>).flatMap(([name, server]) => {
+      const result = safeValidateMcpServerConfig(server)
+      if (!result.success) {
+        logger.warn('Skipping invalid MCP server from protocol map payload', {
+          name,
+          error: result.error.message
+        })
+        return []
+      }
+
+      return [
+        {
+          ...result.data,
+          name: result.data.name ?? name
+        }
+      ]
+    })
+  }
+
+  if (Array.isArray(payload)) {
+    return payload.flatMap((server, index) => {
+      const result = safeValidateMcpServerConfig(server)
+      if (!result.success) {
+        logger.warn('Skipping invalid MCP server from protocol array payload', {
+          index,
+          error: result.error.message
+        })
+        return []
+      }
+
+      return [result.data]
+    })
+  }
+
+  const singleResult = safeValidateMcpServerConfig(payload)
+  if (singleResult.success) {
+    return [singleResult.data]
+  }
+
+  logger.warn('Invalid MCP protocol payload', {
+    error: configResult.error.message,
+    singleServerError: singleResult.error.message
+  })
+  return []
 }
 
 export function handleMcpProtocolUrl(url: URL) {
@@ -57,20 +123,11 @@ export function handleMcpProtocolUrl(url: URL) {
       const data = params.get('servers')
 
       if (data) {
-        const stringify = Buffer.from(data, 'base64').toString('utf8')
-        logger.debug(`install MCP servers from urlschema: ${stringify}`)
-        const jsonConfig = JSON.parse(stringify)
-        logger.debug(`install MCP servers from urlschema: ${JSON.stringify(jsonConfig)}`)
+        const servers = parseProtocolServers(data)
+        logger.debug(`install MCP servers from urlschema: ${JSON.stringify(servers)}`)
 
-        // support both {mcpServers: [servers]}, [servers] and {server}
-        if (jsonConfig.mcpServers) {
-          installMCPServers(jsonConfig.mcpServers)
-        } else if (Array.isArray(jsonConfig)) {
-          for (const server of jsonConfig) {
-            installMCPServer(server)
-          }
-        } else {
-          installMCPServer(jsonConfig)
+        for (const server of servers) {
+          installMCPServer(server)
         }
       }
 
