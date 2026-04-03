@@ -177,6 +177,7 @@ releaseInfo:
 
     ⚡ Performance
     - [Backup] Faster backups with smaller file sizes
+    - [Agent] Improve session switch experience
 
     <!--LANG:zh-CN-->
     Cherry Studio 1.9.0-rc.0 - CherryClaw 智能体、技能系统与安全加固
