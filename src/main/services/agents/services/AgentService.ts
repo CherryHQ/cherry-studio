@@ -185,9 +185,7 @@ export class AgentService extends BaseService {
               .from(agentsTable)
               .where(eq(agentsTable.id, id))
               .limit(1)
-            const existingConfig = existingRow[0]?.configuration
-              ? JSON.parse(existingRow[0].configuration as string)
-              : {}
+            const existingConfig = existingRow[0]?.configuration ? JSON.parse(existingRow[0].configuration) : {}
             const merged = { ...existingConfig, ...agentConfig.configuration }
             updateData.configuration = JSON.stringify(merged)
           }

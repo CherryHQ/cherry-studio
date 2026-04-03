@@ -108,19 +108,6 @@ Agent 设置 → Heartbeat Setting。开关 + 间隔(1-1440分钟，默认30)。
 
 频道可单独覆盖 Agent 的默认权限模式
 
-## v1.9.0 新功能
-
-- **AI 错误诊断**: 出错自动分类显示错误横幅+「前往设置」按钮。点击错误横幅→查看详情→「AI 诊断」获取结构化解决方案（类别/原因/步骤），结果自动缓存
-- **新手引导**: 首次启动引导流程。可选「登录 CherryIN」(OAuth一键配置) 或「选择其他服务商」手动配置。引导完成后选择默认模型
-- **本地模型 Agent**: Ollama 和 LM Studio 现可用于 Agent 模式（需模型支持 tool_calling）
-- **OpenRouter Agent**: OpenRouter 通过 Anthropic 兼容端点支持 Agent 模式
-- **Flomo 内置 MCP**: 设置→MCP→内置MCP→启用 Flomo，连接 flomoapp.com 快速记笔记。需 Flomo 账号授权
-- **MCPWorld 市场**: 设置→MCP→市场，新增 MCPWorld（百度）等11个 MCP 市场来源
-- **置顶话题**: 话题右键→固定话题置顶。设置→聊天→话题→开启置顶功能
-- **模型ID显示**: 模型名重复时选择器自动显示模型ID区分（格式: 模型名 | model-id）
-- **MCP 连接超时**: 60秒超时防止 MCP 服务器无限挂起
-- **MCP 自动安装**: 设置→MCP→内置MCP→mcp_auto_install，通过 NPX 自动发现安装 MCP 服务器（测试版）
-
 ## 故障排查
 
 ### 诊断工具 `mcp__assistant__diagnose`
@@ -159,19 +146,25 @@ Agent 设置 → Heartbeat Setting。开关 + 间隔(1-1440分钟，默认30)。
 
 **Provider**: 设置→Provider→选服务商→填Key→点检查。自定义填OpenAI兼容端点。Copilot/CherryIN支持OAuth
 
-**模型**: Provider页→获取模型拉列表。手动+输入ID。能力标签: vision/reasoning/function_calling/web_search
+**模型**: Provider页→获取模型拉列表。手动+输入ID。能力标签: vision/reasoning/function_calling/web_search。模型名重复时选择器自动显示模型ID区分（格式: 模型名 | model-id）
 
 **知识库**: 知识库页→新建→选Embedding模型→导入文档(PDF/DOCX/TXT/MD/网页)→助手关联知识库
 
 **Agent**: Agent页→+创建。类型: Claude Code(需tool_calling模型) 或 CherryClaw(自主Agent)。CherryClaw: 设置→Essential开启Soul模式→对话框直接输入人设保存(普通机器人需先打开人设设置升级Soul)。频道+定时任务在Agent设置中配。Ollama/LMStudio/OpenRouter现也支持Agent
 
-**MCP**: 设置→MCP→添加Server。类型: stdio/SSE/Streamable HTTP。绿灯=连接，红灯=断开。内置MCP: MCP→内置(含Flomo等)。市场: MCP→市场(含MCPWorld)。连接超时60秒
+**MCP**: 设置→MCP→添加Server。类型: stdio/SSE/Streamable HTTP。绿灯=连接，红灯=断开。内置MCP: MCP→内置(含Flomo笔记/mcp_auto_install自动发现安装)。市场: MCP→市场(含MCPWorld等11个来源)。连接超时60秒
 
 **主题**: 设置→显示→自定义CSS。主题画廊: cherrycss.com。内置亮/暗+跟随系统
 
 **版本更新**: `diagnose(check_update)` 检查→有新版导航到 `/settings/about`→GitHub不可达建议 cherry-ai.com
 
 **数据备份**: 设置→数据管理。方式: 本地ZIP/WebDAV(坚果云等)/S3(AWS/MinIO/R2)/局域网传输。路径: macOS `~/Library/Application Support/cherry-studio/`, Windows `%LOCALAPPDATA%/cherry-studio/`, Linux `~/.config/cherry-studio/`
+
+**话题管理**: 话题右键→置顶/导出/删除。置顶功能需在设置→聊天→话题中开启
+
+**新手引导**: 首次启动自动引导。可选「登录 CherryIN」(OAuth一键配置) 或「选择其他服务商」手动配置→选择默认模型
+
+**AI 错误诊断**: 出错时自动显示错误横幅+分类。点击错误横幅→查看详情→「AI 诊断」获取结构化解决方案（类别/原因/步骤），结果自动缓存
 
 ## 支持的 Provider（62+）
 

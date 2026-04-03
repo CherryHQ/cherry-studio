@@ -99,7 +99,7 @@ export async function provisionBuiltinAgent(
       })
     }
 
-    // Copy SOUL.md and USER.md if present in template (for Soul mode agents)
+    // Copy SOUL.md, USER.md, and memory/ if present in template (for Soul mode agents)
     for (const soulFile of ['SOUL.md', 'USER.md']) {
       const srcFile = path.join(templateDir, soulFile)
       const destFile = path.join(workspacePath, soulFile)
@@ -107,6 +107,11 @@ export async function provisionBuiltinAgent(
         fs.mkdirSync(workspacePath, { recursive: true })
         fs.copyFileSync(srcFile, destFile)
       }
+    }
+
+    const srcMemoryDir = path.join(templateDir, 'memory')
+    if (fs.existsSync(srcMemoryDir)) {
+      copyDirSync(srcMemoryDir, path.join(workspacePath, 'memory'))
     }
 
     // Read agent.json to extract full config
