@@ -4917,7 +4917,8 @@
       "topic_naming": {
         "auto": "Topic Auto Naming",
         "label": "Topic naming",
-        "prompt": "Topic Naming Prompt"
+        "prompt": "Topic Naming Prompt",
+        "use_heading": "Use Assistant H1 Heading"
       },
       "translate_model": "Translate Model",
       "translate_model_description": "Model used for translation service",

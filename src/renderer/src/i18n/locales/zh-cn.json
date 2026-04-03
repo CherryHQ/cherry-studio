@@ -4917,7 +4917,8 @@
       "topic_naming": {
         "auto": "话题自动重命名",
         "label": "话题命名",
-        "prompt": "话题命名提示词"
+        "prompt": "话题命名提示词",
+        "use_heading": "使用助手 H1 标题"
       },
       "translate_model": "翻译模型",
       "translate_model_description": "翻译服务使用的模型",
