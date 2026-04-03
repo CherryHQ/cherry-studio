@@ -128,6 +128,9 @@ importers:
       jsdom:
         specifier: 26.1.0
         version: 26.1.0
+      node-screenshots:
+        specifier: 0.2.1
+        version: 0.2.1
       node-stream-zip:
         specifier: 1.15.0
         version: 1.15.0
@@ -9948,6 +9951,57 @@ packages:
 
   node-releases@2.0.27:
     resolution: {integrity: sha512-nmh3lCkYZ3grZvqcCH+fjmQ7X+H0OeZgP40OierEaAptX4XofMh5kwNbWh7lBduUzCcV/8kZ+NDLCwm2iorIlA==}
+
+  node-screenshots-darwin-arm64@0.2.1:
+    resolution: {integrity: sha512-mcNcdn5zABYNVXIb1vq58mItFlpr03T8VJetD892qy+hqNAQdZd/vvplw+ZIlb4tuH7sR1gia67WRsBRO5nrQA==}
+    engines: {node: '>= 10'}
+    cpu: [arm64]
+    os: [darwin]
+
+  node-screenshots-darwin-universal@0.2.1:
+    resolution: {integrity: sha512-cNqBasCyMU/P87Ej3hK/vedAk86DrVkpoxd2zz5qLA3h850Ew9qb/7g0MTYsRatbZFoLhw7MgFwAZkiNh4Mr9g==}
+    engines: {node: '>= 10'}
+    os: [darwin]
+
+  node-screenshots-darwin-x64@0.2.1:
+    resolution: {integrity: sha512-8TOou5WwytgGV+IuV1vnnYaGzwfYgIw6XkOoZtt4qhSmTEW0K8EGa46Uq42/W5qQPxKt3GLqjlY3wL69eZWIyA==}
+    engines: {node: '>= 10'}
+    cpu: [x64]
+    os: [darwin]
+
+  node-screenshots-linux-x64-gnu@0.2.1:
+    resolution: {integrity: sha512-P2h511my2JytMSAW8+uvO+lGj1BwapERWbC6i56u5WbLIy/zgT1SQwNvcZNbPE8sxb1q8pqF3MerLcftnW0f+w==}
+    engines: {node: '>= 10'}
+    cpu: [x64]
+    os: [linux]
+
+  node-screenshots-linux-x64-musl@0.2.1:
+    resolution: {integrity: sha512-+B37/VYzH86ywWyF9XkYYicyf/BTan4TADsmxPlK+a/UHHZEnp1YjEM66sBIQTIVhVhv1DC6YUv9AppBpoV9AA==}
+    engines: {node: '>= 10'}
+    cpu: [x64]
+    os: [linux]
+
+  node-screenshots-win32-arm64-msvc@0.2.1:
+    resolution: {integrity: sha512-+sj1FAF4qufcWO1KdmCOhPRMELfWu7hRv2qvr8e3jLPLM0/XGU8UTWWej9qAhf3UY83LaAsvxMhzai9JLIis1w==}
+    engines: {node: '>= 10'}
+    cpu: [arm64]
+    os: [win32]
+
+  node-screenshots-win32-ia32-msvc@0.2.1:
+    resolution: {integrity: sha512-8fzmFqbotHAzwIARG9fI8eD+Vw2g98Bl7aKlhu57nCjCXNrdl4Ck+b3uvMjdQD+v7rKC/sT+NZK973y4YgRoMA==}
+    engines: {node: '>= 10'}
+    cpu: [ia32]
+    os: [win32]
+
+  node-screenshots-win32-x64-msvc@0.2.1:
+    resolution: {integrity: sha512-dfxAck3LR9eTYpc/hVtomQYxpP/80p4+vP9k1whDBCClTzRlHvgx1U9b6c5bYpe8JZFtCZsJL75S5p0kQJk7Dg==}
+    engines: {node: '>= 10'}
+    cpu: [x64]
+    os: [win32]
+
+  node-screenshots@0.2.1:
+    resolution: {integrity: sha512-1UY7VY/34uE6Giq/Winl0J7022KKwWt9T9Gu5ZBCxhXkWrv9q5pTVQRgZCcUIsIHq3zu8UFu5s8rqgauK2CnLA==}
+    engines: {node: '>= 10'}
 
   node-stream-zip@1.15.0:
     resolution: {integrity: sha512-LN4fydt9TqhZhThkZIVQnF9cwjU3qmUH9h78Mx/K7d3VvfRqqwthLwJEUOEL0QPZ0XQmNN7be5Ggit5+4dq3Bw==}
@@ -23270,6 +23324,41 @@ snapshots:
       - supports-color
 
   node-releases@2.0.27: {}
+
+  node-screenshots-darwin-arm64@0.2.1:
+    optional: true
+
+  node-screenshots-darwin-universal@0.2.1:
+    optional: true
+
+  node-screenshots-darwin-x64@0.2.1:
+    optional: true
+
+  node-screenshots-linux-x64-gnu@0.2.1:
+    optional: true
+
+  node-screenshots-linux-x64-musl@0.2.1:
+    optional: true
+
+  node-screenshots-win32-arm64-msvc@0.2.1:
+    optional: true
+
+  node-screenshots-win32-ia32-msvc@0.2.1:
+    optional: true
+
+  node-screenshots-win32-x64-msvc@0.2.1:
+    optional: true
+
+  node-screenshots@0.2.1:
+    optionalDependencies:
+      node-screenshots-darwin-arm64: 0.2.1
+      node-screenshots-darwin-universal: 0.2.1
+      node-screenshots-darwin-x64: 0.2.1
+      node-screenshots-linux-x64-gnu: 0.2.1
+      node-screenshots-linux-x64-musl: 0.2.1
+      node-screenshots-win32-arm64-msvc: 0.2.1
+      node-screenshots-win32-ia32-msvc: 0.2.1
+      node-screenshots-win32-x64-msvc: 0.2.1
 
   node-stream-zip@1.15.0: {}
 
