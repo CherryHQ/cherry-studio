@@ -3,7 +3,6 @@ import { Document } from '@vectorstores/core'
 import { describe, expect, it, vi } from 'vitest'
 
 import { DocumentEmbedder } from '../DocumentEmbedder'
-import { EmbeddingModelFactory } from '../EmbeddingModelFactory'
 
 function createEmbeddingModel(): EmbeddingModelV3 {
   return {
@@ -26,12 +25,6 @@ function createEmbeddingModel(): EmbeddingModelV3 {
 describe('DocumentEmbedder', () => {
   it('embeds documents into TextNode instances', async () => {
     const embeddingModel = createEmbeddingModel()
-    const provider = {
-      textEmbeddingModel: vi.fn(() => embeddingModel)
-    }
-
-    const factory = EmbeddingModelFactory.fromProvider('ollama', provider)
-    const embedder = new DocumentEmbedder(factory)
     const documents = [
       new Document({
         text: 'first chunk',
@@ -43,14 +36,8 @@ describe('DocumentEmbedder', () => {
       })
     ]
 
-    const nodes = await embedder.embed(
-      {
-        embeddingModelId: 'ollama::nomic-embed-text'
-      },
-      documents
-    )
+    const nodes = await DocumentEmbedder.embed(embeddingModel, documents)
 
-    expect(provider.textEmbeddingModel).toHaveBeenCalledWith('nomic-embed-text')
     expect(nodes).toHaveLength(2)
     expect(nodes[0].getText()).toBe('first chunk')
     expect(nodes[0].metadata).toMatchObject({ itemId: 'item-1', chunkIndex: 0 })
@@ -60,21 +47,8 @@ describe('DocumentEmbedder', () => {
 
   it('returns an empty array for empty document input', async () => {
     const embeddingModel = createEmbeddingModel()
-    const provider = {
-      textEmbeddingModel: vi.fn(() => embeddingModel)
-    }
-
-    const factory = EmbeddingModelFactory.fromProvider('ollama', provider)
-    const embedder = new DocumentEmbedder(factory)
-
-    const nodes = await embedder.embed(
-      {
-        embeddingModelId: 'ollama::nomic-embed-text'
-      },
-      []
-    )
+    const nodes = await DocumentEmbedder.embed(embeddingModel, [])
 
     expect(nodes).toEqual([])
-    expect(provider.textEmbeddingModel).not.toHaveBeenCalled()
   })
 })

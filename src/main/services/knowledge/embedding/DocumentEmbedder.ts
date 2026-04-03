@@ -1,18 +1,13 @@
-import type { KnowledgeBase } from '@shared/data/types/knowledge'
+import type { EmbeddingModelV3 } from '@ai-sdk/provider'
 import { type Document as VectorStoreDocument, TextNode } from '@vectorstores/core'
 import { embedMany } from 'ai'
 
-import type { EmbeddingModelFactory } from './EmbeddingModelFactory'
-
 export class DocumentEmbedder {
-  constructor(private readonly embeddingModelFactory: EmbeddingModelFactory) {}
-
-  async embed(base: Pick<KnowledgeBase, 'embeddingModelId'>, documents: VectorStoreDocument[]): Promise<TextNode[]> {
+  static async embed(model: EmbeddingModelV3, documents: VectorStoreDocument[]): Promise<TextNode[]> {
     if (documents.length === 0) {
       return []
     }
 
-    const model = this.embeddingModelFactory.createFromCompositeModelId(base.embeddingModelId)
     const values = documents.map((document) => document.text)
     const result = await embedMany({
       model,

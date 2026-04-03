@@ -1,4 +1,5 @@
 import type { EmbeddingModelV3 } from '@ai-sdk/provider'
+import type { KnowledgeBase } from '@shared/data/types/knowledge'
 import { createOllama, type OllamaProvider } from 'ollama-ai-provider-v2'
 
 import { type CompositeModelRef, parseCompositeModelId } from '../utils/config'
@@ -27,8 +28,12 @@ export class EmbeddingModelFactory {
     return new EmbeddingModelFactory(ollamaProvider)
   }
 
-  static create(ref: CompositeModelRef): EmbeddingModelV3 {
-    return new EmbeddingModelFactory().fromRef(ref)
+  static create(input: CompositeModelRef | Pick<KnowledgeBase, 'embeddingModelId'>): EmbeddingModelV3 {
+    if ('embeddingModelId' in input) {
+      return EmbeddingModelFactory.createFromCompositeModelId(input.embeddingModelId)
+    }
+
+    return new EmbeddingModelFactory().fromRef(input)
   }
 
   static createFromCompositeModelId(compositeModelId: string): EmbeddingModelV3 {
