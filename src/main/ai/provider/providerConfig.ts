@@ -1,0 +1,456 @@
+// @ts-nocheck — TODO (Step 2 Phase C): Remove after full BuildContext refactor.
+/**
+ * Provider configuration builder.
+ *
+ * Migrated from src/renderer/src/aiCore/provider/providerConfig.ts
+ *
+ * Remaining TODO items:
+ * - store.getState() → BuildContext injection
+ * - useVertexAI hooks → Main-side Vertex config service
+ * - @renderer/utils/api format functions → extract to @shared/utils
+ * - Provider check functions → consolidate with @shared/config/providerChecks
+ */
+
+import { formatPrivateKey, hasProviderConfig, type StringKeys } from '@cherrystudio/ai-core/provider'
+import { generateSignature } from '@main/integration/cherryai'
+import { anthropicService } from '@main/services/AnthropicService'
+import { copilotService } from '@main/services/CopilotService'
+import { defaultAppHeaders } from '@shared/utils'
+import { type Model, type Provider, SystemProviderIds } from '@types'
+import { cloneDeep, isEmpty } from 'lodash'
+
+import type { ProviderConfig } from '../types'
+import { type AppProviderId, type AppProviderSettingsMap } from '../types'
+import { COPILOT_DEFAULT_HEADERS } from './constants'
+import { getAiSdkProviderId } from './factory'
+
+// === Stubs for renderer dependencies ===
+// TODO (Step 2 Phase C): Replace with BuildContext
+
+function getProviderByModel(_model: Model): Provider {
+  throw new Error('getProviderByModel stub: use BuildContext')
+}
+
+function getProviderById(_id: string): Provider | undefined {
+  throw new Error('getProviderById stub: use BuildContext')
+}
+
+// Format utils — TODO: extract to @shared/utils
+function formatApiHost(host: string, _appendApiVersion: boolean, _version?: string): string {
+  return host.replace(/\/+$/, '')
+}
+function formatOllamaApiHost(host: string): string {
+  return host.replace(/\/+$/, '')
+}
+function formatVertexApiHost(provider: any): string {
+  return provider.apiHost || ''
+}
+function isWithTrailingSharp(host: string): boolean {
+  return host.endsWith('#')
+}
+function routeToEndpoint(apiHost: string): { baseURL: string; endpoint?: string } {
+  return { baseURL: apiHost.replace(/\/+$/, '') }
+}
+
+// Provider checks — TODO: consolidate with @shared/config/providerChecks
+function isAnthropicProvider(p: Provider): boolean {
+  return p.type === 'anthropic' || p.id === 'anthropic'
+}
+function isAzureOpenAIProvider(p: Provider): boolean {
+  return p.type === 'azure-openai' || p.id === 'azure-openai'
+}
+function isCherryAIProvider(p: Provider): boolean {
+  return p.id === 'cherryai'
+}
+function isGeminiProvider(p: Provider): boolean {
+  return p.type === 'gemini' || p.id === 'google'
+}
+function isNewApiProvider(p: Provider): boolean {
+  return p.id === 'newapi' || p.id === 'new-api'
+}
+function isOllamaProvider(p: Provider): boolean {
+  return p.type === 'ollama' || p.id === 'ollama'
+}
+function isPerplexityProvider(p: Provider): boolean {
+  return p.id === 'perplexity'
+}
+// function isSupportStreamOptionsProvider(_p: Provider): boolean { return false }
+function isVertexProvider(p: Provider): boolean {
+  return p.type === 'vertexai' || p.id === 'google-vertex'
+}
+
+// AWS/Vertex stubs — TODO: Main-side credential services
+function getAwsBedrockAuthType(): string {
+  return 'apiKey'
+}
+function getAwsBedrockRegion(): string {
+  return 'us-east-1'
+}
+function getAwsBedrockApiKey(): string {
+  throw new Error('AWS Bedrock stub: use BuildContext')
+}
+function getAwsBedrockAccessKeyId(): string {
+  throw new Error('AWS Bedrock stub: use BuildContext')
+}
+function getAwsBedrockSecretAccessKey(): string {
+  throw new Error('AWS Bedrock stub: use BuildContext')
+}
+function isVertexAIConfigured(): boolean {
+  return false
+}
+function createVertexProvider(_provider: Provider): any {
+  throw new Error('Vertex stub: use BuildContext')
+}
+
+// === Types ===
+
+interface BaseConfig {
+  baseURL: string
+  apiKey: string
+}
+
+interface BuilderContext {
+  actualProvider: Provider
+  model: Model
+  baseConfig: BaseConfig
+  endpoint?: string
+  aiSdkProviderId: AppProviderId
+}
+
+// === Host Formatting ===
+
+type HostFormatter = {
+  match: (provider: Provider) => boolean
+  format: (provider: Provider, appendApiVersion: boolean) => string
+}
+
+export function formatProviderApiHost(provider: Provider): Provider {
+  const formatted = { ...provider }
+  const appendApiVersion = !isWithTrailingSharp(provider.apiHost)
+
+  if (formatted.anthropicApiHost) {
+    formatted.anthropicApiHost = formatApiHost(formatted.anthropicApiHost, appendApiVersion)
+  }
+
+  if (isAnthropicProvider(provider)) {
+    const baseHost = formatted.anthropicApiHost || formatted.apiHost
+    formatted.apiHost = formatApiHost(baseHost, appendApiVersion)
+    if (!formatted.anthropicApiHost) {
+      formatted.anthropicApiHost = formatted.apiHost
+    }
+    return formatted
+  }
+
+  const formatters: HostFormatter[] = [
+    {
+      match: (p) => p.id === SystemProviderIds.copilot || p.id === SystemProviderIds.github,
+      format: (p) => formatApiHost(p.apiHost, false)
+    },
+    { match: isCherryAIProvider, format: (p) => formatApiHost(p.apiHost, false) },
+    { match: isPerplexityProvider, format: (p) => formatApiHost(p.apiHost, false) },
+    { match: isNewApiProvider, format: (p) => formatApiHost(p.apiHost, false) },
+    { match: isOllamaProvider, format: (p) => formatOllamaApiHost(p.apiHost) },
+    { match: isGeminiProvider, format: (p, av) => formatApiHost(p.apiHost, av, 'v1beta') },
+    { match: isAzureOpenAIProvider, format: (p) => formatApiHost(p.apiHost, false) },
+    { match: isVertexProvider, format: (p) => formatVertexApiHost(p) }
+  ]
+
+  const formatter = formatters.find((f) => f.match(provider))
+  formatted.apiHost = formatter
+    ? formatter.format(formatted, appendApiVersion)
+    : formatApiHost(formatted.apiHost, appendApiVersion)
+
+  return formatted
+}
+
+// === SDK Config Building ===
+
+type ConfigBuilderEntry = {
+  match: (provider: Provider, aiSdkProviderId: AppProviderId) => boolean
+  build: (ctx: BuilderContext) => ProviderConfig | Promise<ProviderConfig>
+}
+
+export function providerToAiSdkConfig(
+  actualProvider: Provider,
+  model: Model
+): ProviderConfig | Promise<ProviderConfig> {
+  const aiSdkProviderId = getAiSdkProviderId(actualProvider)
+  const { baseURL, endpoint } = routeToEndpoint(actualProvider.apiHost)
+
+  const ctx: BuilderContext = {
+    actualProvider,
+    model,
+    baseConfig: { baseURL, apiKey: actualProvider.apiKey },
+    endpoint,
+    aiSdkProviderId
+  }
+
+  const builders: ConfigBuilderEntry[] = [
+    { match: (p) => p.id === SystemProviderIds.copilot, build: buildCopilotConfig },
+    { match: (p) => p.id === 'cherryai', build: buildCherryAIConfig },
+    { match: (p) => p.id === 'anthropic' && p.authType === 'oauth', build: buildAnthropicOAuthConfig },
+    { match: (p) => isOllamaProvider(p), build: buildOllamaConfig },
+    { match: (p) => isAzureOpenAIProvider(p), build: buildAzureConfig },
+    { match: (_, id) => id === 'bedrock', build: buildBedrockConfig },
+    { match: (_, id) => id === 'google-vertex', build: buildVertexConfig },
+    { match: (_, id) => id === 'cherryin', build: buildCherryinConfig },
+    { match: (_, id) => id === 'newapi', build: buildNewApiConfig },
+    { match: (_, id) => id === 'aihubmix', build: buildAiHubMixConfig }
+  ]
+
+  const builder = builders.find((b) => b.match(actualProvider, aiSdkProviderId))
+  if (builder) {
+    return builder.build(ctx)
+  }
+
+  if (hasProviderConfig(aiSdkProviderId) && aiSdkProviderId !== 'openai-compatible') {
+    return buildGenericProviderConfig(ctx)
+  }
+  return buildOpenAICompatibleConfig(ctx)
+}
+
+// === Public API ===
+
+export function getActualProvider(model: Model): Provider {
+  return adaptProvider({ provider: getProviderByModel(model), model })
+}
+
+export function adaptProvider({ provider }: { provider: Provider; model?: Model }): Provider {
+  return formatProviderApiHost(cloneDeep(provider))
+}
+
+export function isModernSdkSupported(provider: Provider): boolean {
+  return hasProviderConfig(getAiSdkProviderId(provider))
+}
+
+// === Config Builders ===
+
+async function buildCopilotConfig(ctx: BuilderContext): Promise<ProviderConfig<'github-copilot-openai-compatible'>> {
+  // Direct call to Main-side CopilotService (no window.api IPC needed)
+  const storedHeaders = {} // TODO: read from PreferenceService if copilot headers are persisted
+  const headers = { ...COPILOT_DEFAULT_HEADERS, ...storedHeaders }
+  const { token } = await copilotService.getToken(null as any, headers)
+
+  return {
+    providerId: 'github-copilot-openai-compatible',
+    endpoint: ctx.endpoint,
+    providerSettings: {
+      ...ctx.baseConfig,
+      apiKey: token,
+      headers: { ...headers, ...ctx.actualProvider.extra_headers },
+      name: ctx.actualProvider.id
+    }
+  }
+}
+
+async function buildCherryAIConfig(ctx: BuilderContext): Promise<ProviderConfig<'openai-compatible'>> {
+  return {
+    providerId: 'openai-compatible',
+    endpoint: ctx.endpoint,
+    providerSettings: {
+      ...ctx.baseConfig,
+      name: ctx.actualProvider.id,
+      headers: { ...defaultAppHeaders(), ...ctx.actualProvider.extra_headers },
+      fetch: async (input: RequestInfo | URL, init?: RequestInit) => {
+        // Direct call to Main-side generateSignature (no window.api IPC needed)
+        const signature = generateSignature({
+          method: 'POST',
+          path: '/chat/completions',
+          query: '',
+          body: init?.body && typeof init.body === 'string' ? JSON.parse(init.body) : undefined
+        })
+        return fetch(input, { ...init, headers: { ...init?.headers, ...signature } })
+      }
+    }
+  }
+}
+
+async function buildAnthropicOAuthConfig(ctx: BuilderContext): Promise<ProviderConfig<'anthropic'>> {
+  // Direct call to Main-side AnthropicService (no window.api IPC needed)
+  const oauthToken = await anthropicService.getValidAccessToken()
+
+  if (!oauthToken) {
+    throw new Error('Anthropic OAuth: no valid access token. Please re-authorize.')
+  }
+
+  return {
+    providerId: 'anthropic',
+    endpoint: ctx.endpoint,
+    providerSettings: {
+      baseURL: 'https://api.anthropic.com/v1',
+      apiKey: '',
+      headers: {
+        'Content-Type': 'application/json',
+        'anthropic-version': '2023-06-01',
+        Authorization: `Bearer ${oauthToken}`
+      }
+    }
+  }
+}
+
+function buildCommonOptions(ctx: BuilderContext) {
+  const options: Record<string, any> = {
+    headers: {
+      ...defaultAppHeaders(),
+      ...ctx.actualProvider.extra_headers
+    }
+  }
+  if (ctx.aiSdkProviderId === 'openai') {
+    options.headers['X-Api-Key'] = ctx.baseConfig.apiKey
+  }
+  return options
+}
+
+function buildOllamaConfig(ctx: BuilderContext): ProviderConfig<'ollama'> {
+  const headers: Record<string, string> = {
+    ...defaultAppHeaders(),
+    ...ctx.actualProvider.extra_headers
+  }
+  if (!isEmpty(ctx.baseConfig.apiKey)) {
+    headers.Authorization = `Bearer ${ctx.baseConfig.apiKey}`
+  }
+
+  return {
+    providerId: 'ollama',
+    endpoint: ctx.endpoint,
+    providerSettings: { ...ctx.baseConfig, headers }
+  }
+}
+
+function buildBedrockConfig(ctx: BuilderContext): ProviderConfig<'bedrock'> {
+  const authType = getAwsBedrockAuthType()
+  const region = getAwsBedrockRegion()
+  const base = { providerId: 'bedrock' as const, endpoint: ctx.endpoint }
+
+  if (authType === 'apiKey') {
+    return { ...base, providerSettings: { ...ctx.baseConfig, region, apiKey: getAwsBedrockApiKey() } }
+  }
+  return {
+    ...base,
+    providerSettings: {
+      ...ctx.baseConfig,
+      region,
+      accessKeyId: getAwsBedrockAccessKeyId(),
+      secretAccessKey: getAwsBedrockSecretAccessKey()
+    }
+  }
+}
+
+function buildVertexConfig(ctx: BuilderContext): ProviderConfig<'google-vertex'> {
+  if (!isVertexAIConfigured()) {
+    throw new Error('VertexAI is not configured.')
+  }
+  const { project, location, googleCredentials } = createVertexProvider(ctx.actualProvider)
+  const isAnthropic = ctx.aiSdkProviderId === 'google-vertex-anthropic' || ctx.model.id.startsWith('claude')
+  const baseURL = ctx.baseConfig.baseURL + (isAnthropic ? '/publishers/anthropic/models' : '/publishers/google')
+  const creds = { ...googleCredentials, privateKey: formatPrivateKey(googleCredentials.privateKey) }
+
+  return {
+    providerId: isAnthropic ? 'google-vertex-anthropic' : 'google-vertex',
+    endpoint: ctx.endpoint,
+    providerSettings: { ...ctx.baseConfig, baseURL, project, location, googleCredentials: creds }
+  } as ProviderConfig<'google-vertex'>
+}
+
+function buildCherryinConfig(ctx: BuilderContext): ProviderConfig<'cherryin'> {
+  const cherryinProvider = getProviderById(SystemProviderIds.cherryin)
+
+  return {
+    providerId: 'cherryin',
+    endpoint: ctx.endpoint,
+    providerSettings: {
+      ...ctx.baseConfig,
+      endpointType: ctx.model.endpoint_type,
+      anthropicBaseURL: cherryinProvider ? cherryinProvider.anthropicApiHost + '/v1' : undefined,
+      geminiBaseURL: cherryinProvider ? cherryinProvider.apiHost + '/v1beta' : undefined,
+      headers: { ...defaultAppHeaders(), ...ctx.actualProvider.extra_headers }
+    }
+  }
+}
+
+function formatAzureBaseURL(baseURL: string, forAnthropic: boolean): string {
+  const normalized = baseURL.replace(/\/v1$/, '').replace(/\/openai$/, '')
+  return forAnthropic ? normalized : normalized + '/openai'
+}
+
+function buildAzureConfig(ctx: BuilderContext): ProviderConfig<'azure'> {
+  if (ctx.model.id.startsWith('claude')) {
+    return {
+      providerId: 'azure-anthropic',
+      endpoint: ctx.endpoint,
+      providerSettings: {
+        ...ctx.baseConfig,
+        baseURL: formatAzureBaseURL(ctx.baseConfig.baseURL, true),
+        headers: { ...defaultAppHeaders(), ...ctx.actualProvider.extra_headers }
+      }
+    } as any
+  }
+
+  const apiVersion = ctx.actualProvider.apiVersion?.trim()
+  const useResponsesMode = apiVersion && ['preview', 'v1'].includes(apiVersion)
+
+  const providerSettings: any = {
+    ...ctx.baseConfig,
+    baseURL: formatAzureBaseURL(ctx.baseConfig.baseURL, false),
+    headers: { ...defaultAppHeaders(), ...ctx.actualProvider.extra_headers }
+  }
+
+  if (apiVersion) {
+    providerSettings.apiVersion = apiVersion
+    if (!useResponsesMode) {
+      providerSettings.useDeploymentBasedUrls = true
+    }
+  }
+
+  return {
+    providerId: useResponsesMode ? 'azure-responses' : 'azure',
+    endpoint: ctx.endpoint,
+    providerSettings
+  } as ProviderConfig<'azure'>
+}
+
+function buildOpenAICompatibleConfig(ctx: BuilderContext): ProviderConfig<'openai-compatible'> {
+  const commonOptions = buildCommonOptions(ctx)
+
+  return {
+    providerId: 'openai-compatible',
+    endpoint: ctx.endpoint,
+    providerSettings: { ...ctx.baseConfig, ...commonOptions, name: ctx.actualProvider.id }
+  }
+}
+
+function buildGenericProviderConfig(ctx: BuilderContext): ProviderConfig {
+  const commonOptions = buildCommonOptions(ctx)
+
+  return {
+    providerId: ctx.aiSdkProviderId as StringKeys<AppProviderSettingsMap>,
+    endpoint: ctx.endpoint,
+    providerSettings: { ...ctx.baseConfig, ...commonOptions }
+  }
+}
+
+function buildAiHubMixConfig(ctx: BuilderContext): ProviderConfig<'aihubmix'> {
+  return {
+    providerId: 'aihubmix',
+    endpoint: ctx.endpoint,
+    providerSettings: {
+      ...ctx.baseConfig,
+      headers: { ...defaultAppHeaders(), ...ctx.actualProvider.extra_headers }
+    }
+  }
+}
+
+function buildNewApiConfig(ctx: BuilderContext): ProviderConfig<'newapi'> {
+  const baseURL = formatApiHost(ctx.baseConfig.baseURL, true)
+
+  return {
+    providerId: 'newapi',
+    endpoint: ctx.endpoint,
+    providerSettings: {
+      ...ctx.baseConfig,
+      baseURL,
+      endpointType: ctx.model.endpoint_type,
+      headers: { ...defaultAppHeaders(), ...ctx.actualProvider.extra_headers }
+    }
+  }
+}
