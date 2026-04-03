@@ -2,11 +2,12 @@ import { dataApiService } from '@data/DataApiService'
 import type { CreateProviderDto, UpdateProviderDto } from '@shared/data/api/schemas/providers'
 import type { Model } from '@shared/data/types/model'
 import type { ApiKeyEntry, AuthConfig, Provider } from '@shared/data/types/provider'
-import { useCallback } from 'react'
+import { useCallback, useMemo } from 'react'
 
 import { useInvalidateCache, useMutation, useQuery } from './useDataApi'
 
 const REFRESH_PROVIDERS = ['/providers'] as const
+const EMPTY_PROVIDERS: Provider[] = []
 
 // ─── Layer 1: List + Create + Reorder ─────────────────────────────────
 export function useProviders(query?: { enabled?: boolean }) {
@@ -33,8 +34,10 @@ export function useProviders(query?: { enabled?: boolean }) {
     [mutate]
   )
 
+  const providers = useMemo(() => (data as Provider[] | undefined) ?? EMPTY_PROVIDERS, [data])
+
   return {
-    providers: (data ?? []) as Provider[],
+    providers,
     isLoading,
     addProvider,
     reorderProviders,

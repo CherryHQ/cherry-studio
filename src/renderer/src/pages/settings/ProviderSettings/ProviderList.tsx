@@ -432,7 +432,7 @@ const ProviderList: FC = () => {
           </Button>
         </AddButtonWrapper>
       </ProviderListContainer>
-      <ProviderSetting providerId={selectedProvider.id} key={selectedProvider.id} />
+      {selectedProvider && <ProviderSetting providerId={selectedProvider.id} key={selectedProvider.id} />}
     </Container>
   )
 }

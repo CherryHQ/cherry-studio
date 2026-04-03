@@ -1,6 +1,5 @@
 import { Button, Flex, RowFlex, Tooltip } from '@cherrystudio/ui'
 import { dataApiService } from '@data/DataApiService'
-import { useQuery } from '@data/hooks/useDataApi'
 import { useModelMutations, useModels } from '@data/hooks/useModels'
 import { useProvider, useProviderCatalogModels } from '@data/hooks/useProviders'
 import { loggerService } from '@logger'
@@ -51,9 +50,6 @@ const PopupContainer: React.FC<Props> = ({ providerId, resolve }) => {
   const { provider } = useProvider(providerId)
   const { models: existingModels } = useModels({ providerId })
   const { data: catalogModels = [] } = useProviderCatalogModels(providerId)
-  const { data: rotatedKeyData } = useQuery(`/providers/${providerId}/rotated-key` as const) as {
-    data: { apiKey: string } | undefined
-  }
   const { createModel, deleteModel } = useModelMutations()
   const existingModelIds = useMemo(() => new Set<string>(existingModels.map((m) => m.id)), [existingModels])
   const [listModels, setListModels] = useState<Model[]>([])
@@ -204,10 +200,21 @@ const PopupContainer: React.FC<Props> = ({ providerId, resolve }) => {
       setLoadingModels(true)
       try {
         // Bridge v2 Provider → v1 shape for fetchModels (reads apiHost/apiKey)
+        // defaultChatEndpoint comes as "1.0" (float string), baseUrls keys are "1" (int string)
+        const endpointKey = Math.floor(Number(prov.defaultChatEndpoint ?? 1))
+        const apiHost = prov.baseUrls?.[endpointKey] ?? ''
+        // Fetch key imperatively — useQuery may not have resolved yet at mount time
+        let apiKey = ''
+        try {
+          const keyData = await dataApiService.get(`/providers/${providerId}/rotated-key` as const)
+          apiKey = (keyData as any)?.apiKey ?? ''
+        } catch {
+          // Provider may have no keys configured
+        }
         const v1Shim = {
           ...prov,
-          apiHost: prov.baseUrls?.[prov.defaultChatEndpoint ?? 1] ?? '',
-          apiKey: rotatedKeyData?.apiKey ?? ''
+          apiHost,
+          apiKey
         }
         const fetched = await fetchModels(v1Shim as any)
         const filteredModels = fetched.filter((model: any) => !isEmpty(model.name))
@@ -235,7 +242,7 @@ const PopupContainer: React.FC<Props> = ({ providerId, resolve }) => {
         setLoadingModels(false)
       }
     },
-    [providerId, rotatedKeyData]
+    [providerId]
   )
 
   useEffect(() => {
