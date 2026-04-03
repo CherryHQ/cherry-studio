@@ -7,6 +7,7 @@ import { ApiServerService } from '@main/services/ApiServerService'
 import { AppMenuService } from '@main/services/AppMenuService'
 import { AppUpdaterService } from '@main/services/AppUpdaterService'
 import { CodeCliService } from '@main/services/CodeCliService'
+import { KnowledgeTaskService } from '@main/services/knowledge/KnowledgeTaskService'
 import { LanTransferService } from '@main/services/lanTransfer'
 import { MCPService } from '@main/services/MCPService'
 import { NodeTraceService } from '@main/services/NodeTraceService'
@@ -75,6 +76,7 @@ export const services = {
   MCPService,
   OpenClawService,
   SearchService,
+  KnowledgeTaskService,
   ApiServerService,
   AppUpdaterService
 } as const

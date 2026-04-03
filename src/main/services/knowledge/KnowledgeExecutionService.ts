@@ -20,7 +20,10 @@ export interface KnowledgeExecutionTask {
   readyAt: number
 }
 
-export type KnowledgeExecutionResult = { type: 'completed' } | { type: 'failed'; error: string }
+export type KnowledgeExecutionResult =
+  | { type: 'completed' }
+  | { type: 'failed'; error: string }
+  | { type: 'next'; task: KnowledgeExecutionTask }
 
 export class KnowledgeExecutionService {
   async execute(task: KnowledgeExecutionTask): Promise<KnowledgeExecutionResult> {
@@ -35,13 +38,11 @@ export class KnowledgeExecutionService {
   }
 
   async submitFileProcessing(task: KnowledgeExecutionTask): Promise<KnowledgeExecutionResult> {
-    logger.error(`task ${task.stage}`)
-    throw new Error('not implement')
+    return await this.failFileProcessingTask(task, 'submitFileProcessing is not implemented yet')
   }
 
   async pollFileProcessing(task: KnowledgeExecutionTask): Promise<KnowledgeExecutionResult> {
-    logger.error(`task ${task.stage}`)
-    throw new Error('not implement')
+    return await this.failFileProcessingTask(task, 'pollFileProcessing is not implemented yet')
   }
 
   async embed(task: KnowledgeExecutionTask): Promise<KnowledgeExecutionResult> {
@@ -109,6 +110,53 @@ export class KnowledgeExecutionService {
             'Failed to persist knowledge item failure state',
             updateError instanceof Error ? updateError : new Error(String(updateError)),
             { itemId: item.id, baseId: task.baseId }
+          )
+        }
+      }
+
+      return {
+        type: 'failed',
+        error: message
+      }
+    }
+  }
+
+  private async failFileProcessingTask(
+    task: KnowledgeExecutionTask,
+    errorMessage: string
+  ): Promise<KnowledgeExecutionResult> {
+    let item: KnowledgeItem | null = null
+
+    try {
+      item = await knowledgeItemService.getById(task.itemId)
+      await knowledgeItemService.update(item.id, {
+        status: 'file_processing',
+        error: null
+      })
+
+      throw new Error(errorMessage)
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error)
+
+      logger.error(
+        'Knowledge item file processing failed',
+        error instanceof Error ? error : new Error(message),
+        item
+          ? { itemId: item.id, baseId: task.baseId, stage: task.stage }
+          : { itemId: task.itemId, baseId: task.baseId, stage: task.stage }
+      )
+
+      if (item) {
+        try {
+          await knowledgeItemService.update(item.id, {
+            status: 'failed',
+            error: message
+          })
+        } catch (updateError) {
+          logger.error(
+            'Failed to persist knowledge item file processing failure state',
+            updateError instanceof Error ? updateError : new Error(String(updateError)),
+            { itemId: item.id, baseId: task.baseId, stage: task.stage }
           )
         }
       }

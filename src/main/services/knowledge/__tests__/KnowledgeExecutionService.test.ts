@@ -207,7 +207,9 @@ describe('KnowledgeExecutionService', () => {
 
     const result = await service.embed({
       itemId: item.id,
-      baseId: base.id
+      baseId: base.id,
+      stage: 'embed',
+      readyAt: Date.now()
     })
 
     expect(result).toEqual({ type: 'completed' })
@@ -250,7 +252,9 @@ describe('KnowledgeExecutionService', () => {
 
     const result = await service.embed({
       itemId: item.id,
-      baseId: base.id
+      baseId: base.id,
+      stage: 'embed',
+      readyAt: Date.now()
     })
 
     expect(result).toEqual({
@@ -277,7 +281,8 @@ describe('KnowledgeExecutionService', () => {
     const result = await service.submitFileProcessing({
       itemId: item.id,
       baseId: item.baseId,
-      stage: 'file_processing_submit'
+      stage: 'file_processing_submit',
+      readyAt: Date.now()
     })
 
     expect(result).toEqual({
@@ -303,7 +308,8 @@ describe('KnowledgeExecutionService', () => {
     const result = await service.pollFileProcessing({
       itemId: item.id,
       baseId: item.baseId,
-      stage: 'file_processing_poll'
+      stage: 'file_processing_poll',
+      readyAt: Date.now()
     })
 
     expect(result).toEqual({
