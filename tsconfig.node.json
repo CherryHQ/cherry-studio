@@ -14,6 +14,8 @@
       "@shared/*": ["./packages/shared/*"],
       "@cherrystudio/ai-core": ["./packages/aiCore/src"],
       "@cherrystudio/ai-core/*": ["./packages/aiCore/src/*"],
+      "@cherrystudio/ai-core/provider": ["./packages/aiCore/src/core/providers"],
+      "@cherrystudio/ai-core/built-in/plugins": ["./packages/aiCore/src/core/plugins/built-in"],
       "@cherrystudio/ai-sdk-provider": ["./packages/ai-sdk-provider/src"],
       "@cherrystudio/ai-sdk-provider/*": ["./packages/ai-sdk-provider/src/*"],
       "@test-mocks/*": ["./tests/__mocks__/*"],
