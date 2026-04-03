@@ -40,6 +40,11 @@ export const RollbackPromptDtoSchema = z.object({
   version: z.number().int().min(1)
 })
 
+/** Uses z.string().uuid() because prompt IDs are always UUIDv7 from uuidPrimaryKeyOrdered() */
+export const ReorderPromptsDtoSchema = z.object({
+  orderedIds: z.array(z.string().uuid()).min(1)
+})
+
 // ============================================================================
 // DTO Types (inferred from Zod schemas)
 // ============================================================================
@@ -47,6 +52,7 @@ export const RollbackPromptDtoSchema = z.object({
 export type CreatePromptDto = z.infer<typeof CreatePromptDtoSchema>
 export type UpdatePromptDto = z.infer<typeof UpdatePromptDtoSchema>
 export type RollbackPromptDto = z.infer<typeof RollbackPromptDtoSchema>
+export type ReorderPromptsDto = z.infer<typeof ReorderPromptsDtoSchema>
 
 // ============================================================================
 // API Schema Definitions
@@ -62,6 +68,14 @@ export interface PromptSchemas {
     POST: {
       body: CreatePromptDto
       response: Prompt
+    }
+  }
+
+  '/prompts/reorder': {
+    /** Reorder prompts by providing ordered IDs */
+    POST: {
+      body: ReorderPromptsDto
+      response: void
     }
   }
 

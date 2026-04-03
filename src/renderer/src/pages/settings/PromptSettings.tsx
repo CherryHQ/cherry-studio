@@ -1,6 +1,5 @@
 import { ExclamationCircleOutlined } from '@ant-design/icons'
 import { Button, Flex, Spinner } from '@cherrystudio/ui'
-import { dataApiService } from '@data/DataApiService'
 import { useMutation, useQuery } from '@data/hooks/useDataApi'
 import { DraggableList } from '@renderer/components/DraggableList'
 import { DeleteIcon, EditIcon } from '@renderer/components/Icons'
@@ -31,7 +30,7 @@ const PromptSettings: FC = () => {
     data: promptsList = [],
     isLoading: isPromptsLoading,
     error: promptsError,
-    refetch: refetchPrompts
+    mutate: mutatePrompts
   } = useQuery('/prompts')
 
   const promptPath: `/prompts/${string}` = `/prompts/${editingPrompt?.id ?? '__pending__'}`
@@ -66,6 +65,11 @@ const PromptSettings: FC = () => {
 
   const { trigger: rollbackPrompt, isLoading: isRollingBack } = useMutation('POST', rollbackPath, {
     refresh: ['/prompts', promptPath, versionsPath],
+    onError: () => window.toast.error(t('message.error.unknown'))
+  })
+
+  const { trigger: reorderPrompts } = useMutation('POST', '/prompts/reorder', {
+    refresh: ['/prompts'],
     onError: () => window.toast.error(t('message.error.unknown'))
   })
 
@@ -134,11 +138,12 @@ const PromptSettings: FC = () => {
   }
 
   const handleUpdateOrder = async (newPrompts: Prompt[]) => {
+    if (newPrompts.length === 0) return
+    void mutatePrompts(newPrompts, { revalidate: false })
     try {
-      await Promise.all(newPrompts.map((p, i) => dataApiService.patch(`/prompts/${p.id}`, { body: { sortOrder: i } })))
-      refetchPrompts()
+      await reorderPrompts({ body: { orderedIds: newPrompts.map((p) => p.id) } })
     } catch {
-      window.toast.error(t('message.error.unknown'))
+      void mutatePrompts()
     }
   }
 
