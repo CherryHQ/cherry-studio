@@ -3,7 +3,7 @@ import { SELECTION_FINETUNED_LIST, SELECTION_PREDEFINED_BLACKLIST } from '@main/
 import { isDev, isLinux, isMac, isWin } from '@main/constant'
 import { IpcChannel } from '@shared/IpcChannel'
 import type { FileMetadata } from '@types'
-import { app, BrowserWindow, clipboard, ipcMain, screen, shell, systemPreferences } from 'electron'
+import { app, BrowserWindow, clipboard, ipcMain, screen, systemPreferences } from 'electron'
 import { join } from 'path'
 import type {
   KeyboardEventData,
@@ -15,7 +15,7 @@ import type {
 
 import type { ActionItem } from '../../renderer/src/types/selectionTypes'
 import { ConfigKeys, configManager } from './ConfigManager'
-import { fileStorage } from './FileStorage'
+import { screenshotService } from './ScreenshotService'
 import storeSyncService from './StoreSyncService'
 
 const logger = loggerService.withContext('SelectionService')
@@ -1591,36 +1591,12 @@ export class SelectionService {
   }
 
   public async captureScreenshot(): Promise<FileMetadata | null> {
-    if (!isWin) {
-      logger.warn('Screenshot capture is only supported on Windows')
-      return null
-    }
-
     try {
-      const baselineImage = clipboard.readImage()
-      const baselineSignature = baselineImage.isEmpty() ? '' : baselineImage.toDataURL()
-
-      await shell.openExternal('ms-screenclip:')
-
-      const timeoutMs = 30_000
-      const startTime = Date.now()
-
-      while (Date.now() - startTime < timeoutMs) {
-        await new Promise((resolve) => setTimeout(resolve, 200))
-
-        const image = clipboard.readImage()
-        if (image.isEmpty()) {
-          continue
-        }
-
-        const signature = image.toDataURL()
-        if (signature === baselineSignature) {
-          continue
-        }
-
-        return fileStorage.savePastedImage({} as Electron.IpcMainInvokeEvent, image.toPNG(), '.png')
+      const result = await screenshotService.capture(`screenshot_${Date.now()}.png`)
+      if (result.success) {
+        return result.file
       }
-
+      logger.error('Screenshot capture failed:', new Error(result.message))
       return null
     } catch (error) {
       logger.error('Failed to capture screenshot:', error as Error)
@@ -1724,6 +1700,35 @@ export class SelectionService {
 
     ipcMain.handle(IpcChannel.Selection_CaptureScreenshot, async () => {
       return selectionService?.captureScreenshot() ?? null
+    })
+
+    ipcMain.handle(IpcChannel.Screenshot_CheckPermission, async () => {
+      if (!isMac) {
+        return { status: 'granted' as const }
+      }
+      const status = systemPreferences.getMediaAccessStatus('screen')
+      return {
+        status: status === 'granted' ? ('granted' as const) : ('denied' as const)
+      }
+    })
+
+    ipcMain.handle(IpcChannel.Screenshot_Capture, async (_event, fileName: string) => {
+      return await screenshotService.capture(fileName)
+    })
+
+    ipcMain.handle(IpcChannel.Screenshot_CaptureWithSelection, async (_event, fileName: string) => {
+      return await screenshotService.captureWithSelection(fileName)
+    })
+
+    ipcMain.handle(
+      IpcChannel.Screenshot_SelectionConfirm,
+      async (_event, selection: { x: number; y: number; width: number; height: number }) => {
+        screenshotService.confirmSelection(selection)
+      }
+    )
+
+    ipcMain.handle(IpcChannel.Screenshot_SelectionCancel, async () => {
+      screenshotService.cancelSelection()
     })
 
     this.isIpcHandlerRegistered = true

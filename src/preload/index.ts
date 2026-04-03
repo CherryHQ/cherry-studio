@@ -168,6 +168,25 @@ const api = {
     compress: (text: string) => ipcRenderer.invoke(IpcChannel.Zip_Compress, text),
     decompress: (text: Buffer) => ipcRenderer.invoke(IpcChannel.Zip_Decompress, text)
   },
+  screenshot: {
+    checkPermission: (): Promise<{ status: 'granted' | 'denied' }> =>
+      ipcRenderer.invoke(IpcChannel.Screenshot_CheckPermission),
+    capture: (
+      fileName: string
+    ): Promise<
+      | { success: true; file: FileMetadata }
+      | { success: false; status: 'granted' | 'denied'; needsRestart: boolean; message: string }
+    > => ipcRenderer.invoke(IpcChannel.Screenshot_Capture, fileName),
+    captureWithSelection: (
+      fileName: string
+    ): Promise<
+      | { success: true; file: FileMetadata }
+      | { success: false; status: 'cancelled' | 'denied' | 'error'; needsRestart?: boolean; message: string }
+    > => ipcRenderer.invoke(IpcChannel.Screenshot_CaptureWithSelection, fileName),
+    confirmSelection: (selection: { x: number; y: number; width: number; height: number }): Promise<void> =>
+      ipcRenderer.invoke(IpcChannel.Screenshot_SelectionConfirm, selection),
+    cancelSelection: (): Promise<void> => ipcRenderer.invoke(IpcChannel.Screenshot_SelectionCancel)
+  },
   backup: {
     restore: (path: string) => ipcRenderer.invoke(IpcChannel.Backup_Restore, path),
     // Direct backup methods (copy IndexedDB/LocalStorage directories directly)

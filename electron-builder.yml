@@ -73,6 +73,7 @@ asarUnpack:
   - resources/**
   - "**/*.{metal,exp,lib}"
   - "node_modules/@img/sharp-libvips-*/**"
+  - "node_modules/node-screenshots-*/**"
 
 win:
   executableName: Cherry Studio
