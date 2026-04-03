@@ -10,59 +10,27 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { buildProviderOptions } from '../options'
 
 // Mock dependencies
-vi.mock('@cherrystudio/ai-core/provider', async (importOriginal) => {
-  const actual = (await importOriginal()) as object
-  return {
-    ...actual,
-    baseProviderIdSchema: {
-      safeParse: vi.fn((id) => {
-        const baseProviders = [
-          'openai',
-          'openai-chat',
-          'azure',
-          'azure-responses',
-          'huggingface',
-          'anthropic',
-          'google',
-          'xai',
-          'deepseek',
-          'openrouter',
-          'openai-compatible',
-          'cherryin'
-        ]
-        if (baseProviders.includes(id)) {
-          return { success: true, data: id }
-        }
-        return { success: false }
-      })
-    },
-    customProviderIdSchema: {
-      safeParse: vi.fn((id) => {
-        const customProviders = [
-          'google-vertex',
-          'google-vertex-anthropic',
-          'bedrock',
-          'gateway',
-          'aihubmix',
-          'newapi',
-          'ollama',
-          'poe'
-        ]
-        if (customProviders.includes(id)) {
-          return { success: true, data: id }
-        }
-        return { success: false, error: new Error('Invalid provider') }
-      })
-    }
-  }
-})
+vi.mock('../provider/factory', () => ({
+  getAiSdkProviderId: vi.fn((provider: Provider) => {
+    if (provider.id === SystemProviderIds.gemini) return 'google'
+    if (provider.id === SystemProviderIds.grok) return 'xai'
+    if (provider.id === SystemProviderIds.ollama) return 'ollama'
+    if (provider.id === SystemProviderIds.gateway) return 'gateway'
+    return provider.id
+  })
+}))
 
-// Don't mock getAiSdkProviderId - use real implementation for more accurate tests
-
-vi.mock('@renderer/config/models', async (importOriginal) => ({
-  ...(await importOriginal()),
+vi.mock('@renderer/config/models', () => ({
+  getModelSupportedVerbosity: vi.fn(() => ['low', 'medium', 'high']),
+  isAnthropicModel: vi.fn((model: Model) => model?.id?.toLowerCase().includes('claude') ?? false),
+  isGeminiModel: vi.fn((model: Model) => model?.id?.toLowerCase().includes('gemini') ?? false),
+  isGrokModel: vi.fn((model: Model) => model?.id?.toLowerCase().includes('grok') ?? false),
+  isOpenAIModel: vi.fn((model: Model) => /(gpt|o\d)/i.test(model?.id ?? '')),
   isQwenMTModel: vi.fn(() => false),
+  isReasoningModel: vi.fn((model: Model) => /(gpt|claude|grok)/i.test(model?.id ?? '')),
   isSupportFlexServiceTierModel: vi.fn(() => true),
+  isSupportVerbosityModel: vi.fn((model: Model) => model?.id?.toLowerCase().includes('gpt-5') ?? false),
+  qwenModel: { id: 'qwen-max', provider: 'dashscope' },
   SYSTEM_MODELS: {
     defaultModel: [
       { id: 'default-1', name: 'Default 1' },
@@ -94,6 +62,10 @@ vi.mock('@renderer/hooks/useSettings', () => ({
   })
 }))
 
+vi.mock('@renderer/services/ProviderService', () => ({
+  getProviderById: vi.fn((id: string) => ({ id, name: `Mock ${id} Provider` }))
+}))
+
 vi.mock('@renderer/services/AssistantService', () => ({
   getDefaultAssistant: vi.fn(() => ({
     id: 'default',
@@ -111,7 +83,7 @@ vi.mock('@renderer/services/AssistantService', () => ({
 }))
 
 vi.mock('../reasoning', () => ({
-  getOpenAIReasoningParams: vi.fn(() => ({ reasoningEffort: 'medium' })),
+  getOpenAIReasoningParams: vi.fn(() => ({ reasoningEffort: 'medium', reasoningSummary: 'auto' })),
   getAnthropicReasoningParams: vi.fn(() => ({
     thinking: { type: 'enabled', budgetTokens: 5000 }
   })),
@@ -123,6 +95,7 @@ vi.mock('../reasoning', () => ({
     reasoningConfig: { type: 'enabled', budgetTokens: 5000 }
   })),
   getReasoningEffort: vi.fn(() => ({ reasoningEffort: 'medium' })),
+  getThinkingBudget: vi.fn(() => 5000),
   getCustomParameters: vi.fn(() => ({})),
   extractAiSdkStandardParams: vi.fn((customParams: Record<string, any>) => {
     const AI_SDK_STANDARD_PARAMS = ['topK', 'frequencyPenalty', 'presencePenalty', 'stopSequences', 'seed']
@@ -443,26 +416,18 @@ describe('options utils', () => {
       } as Provider
 
       const poeModel: Model = {
-        id: 'openai/gpt-4',
-        name: 'GPT-4',
+        id: 'gpt-5.2',
+        name: 'GPT-5.2',
         provider: SystemProviderIds.poe
       } as Model
 
-      it('should deep merge Poe extra_body reasoning and web search parameters', async () => {
-        const { getReasoningEffort } = await import('../reasoning')
-        const { getWebSearchParams } = await import('../websearch')
+      const poeClaudeModel: Model = {
+        id: 'claude-sonnet-4',
+        name: 'Claude Sonnet 4',
+        provider: SystemProviderIds.poe
+      } as Model
 
-        vi.mocked(getReasoningEffort).mockReturnValue({
-          extra_body: {
-            reasoning_effort: 'medium'
-          }
-        })
-        vi.mocked(getWebSearchParams).mockReturnValue({
-          extra_body: {
-            web_search: true
-          }
-        })
-
+      it('should build Poe providerOptions for Poe reasoning models routed through responses', () => {
         const result = buildProviderOptions(mockAssistant, poeModel, poeProvider, {
           enableReasoning: true,
           enableWebSearch: true,
@@ -471,11 +436,74 @@ describe('options utils', () => {
 
         expect(result.providerOptions).toHaveProperty('poe')
         expect(result.providerOptions.poe).toMatchObject({
-          extra_body: {
-            reasoning_effort: 'medium',
-            web_search: true
+          reasoningEffort: 'medium',
+          reasoningSummary: 'auto'
+        })
+        expect(result.providerOptions).not.toHaveProperty('openai')
+      })
+
+      it('should build Poe providerOptions for unprefixed Poe Anthropic models', () => {
+        const result = buildProviderOptions(mockAssistant, poeClaudeModel, poeProvider, {
+          enableReasoning: true,
+          enableWebSearch: true,
+          enableGenerateImage: false
+        })
+
+        expect(result.providerOptions).toHaveProperty('poe')
+        expect(result.providerOptions.poe).toMatchObject({
+          reasoningBudgetTokens: 5000
+        })
+        expect(result.providerOptions).not.toHaveProperty('anthropic')
+      })
+
+      it('should split Poe-scoped custom parameters between Poe and downstream namespaces', async () => {
+        const { getCustomParameters } = await import('../reasoning')
+
+        vi.mocked(getCustomParameters).mockReturnValue({
+          poe: {
+            cache: false,
+            customPoeOption: 'poe_value'
           }
         })
+
+        const result = buildProviderOptions(mockAssistant, poeModel, poeProvider, {
+          enableReasoning: false,
+          enableWebSearch: false,
+          enableGenerateImage: false
+        })
+
+        expect(result.providerOptions.poe).toMatchObject({ cache: false })
+        expect(result.providerOptions.openai).toMatchObject({
+          customPoeOption: 'poe_value'
+        })
+        expect(result.providerOptions.poe).not.toHaveProperty('customPoeOption')
+      })
+
+      it('should preserve explicit downstream provider namespaces for Poe custom parameters', async () => {
+        const { getCustomParameters } = await import('../reasoning')
+
+        vi.mocked(getCustomParameters).mockReturnValue({
+          openai: {
+            customOpenAIOption: 'openai_value'
+          },
+          anthropic: {
+            customAnthropicOption: 'anthropic_value'
+          }
+        })
+
+        const result = buildProviderOptions(mockAssistant, poeModel, poeProvider, {
+          enableReasoning: false,
+          enableWebSearch: false,
+          enableGenerateImage: false
+        })
+
+        expect(result.providerOptions.openai).toMatchObject({
+          customOpenAIOption: 'openai_value'
+        })
+        expect(result.providerOptions.anthropic).toMatchObject({
+          customAnthropicOption: 'anthropic_value'
+        })
+        expect(result.providerOptions).toHaveProperty('poe')
       })
     })
 

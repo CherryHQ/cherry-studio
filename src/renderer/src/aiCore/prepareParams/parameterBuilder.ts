@@ -117,6 +117,7 @@ export async function buildStreamTextParams(
 
   const model = assistant.model || getDefaultModel()
   const aiSdkProviderId = getAiSdkProviderId(provider)
+  const modelId = model.id
 
   // 这三个变量透传出来，交给下面启用插件/中间件
   // 也可以在外部构建好再传入buildStreamTextParams
@@ -238,7 +239,7 @@ export async function buildStreamTextParams(
 
   return {
     params,
-    modelId: model.id,
+    modelId,
     capabilities: { enableReasoning, enableWebSearch, enableGenerateImage, enableUrlContext },
     webSearchPluginConfig,
     idleTimeout

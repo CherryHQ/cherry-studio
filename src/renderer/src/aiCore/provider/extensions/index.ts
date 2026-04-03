@@ -4,6 +4,7 @@
  */
 
 import { type AmazonBedrockProviderSettings, createAmazonBedrock } from '@ai-sdk/amazon-bedrock'
+import { type AnthropicProvider, createAnthropic } from '@ai-sdk/anthropic'
 import { type CerebrasProviderSettings, createCerebras } from '@ai-sdk/cerebras'
 import { createGateway, type GatewayProviderSettings } from '@ai-sdk/gateway'
 import { createVertexAnthropic, type GoogleVertexAnthropicProvider } from '@ai-sdk/google-vertex/anthropic/edge'
@@ -11,21 +12,46 @@ import { createVertex, type GoogleVertexProvider, type GoogleVertexProviderSetti
 import { createGroq, type GroqProviderSettings } from '@ai-sdk/groq'
 import { createHuggingFace, type HuggingFaceProviderSettings } from '@ai-sdk/huggingface'
 import { createMistral, type MistralProviderSettings } from '@ai-sdk/mistral'
+import { createOpenAI, type OpenAIProvider } from '@ai-sdk/openai'
 import { createPerplexity, type PerplexityProviderSettings } from '@ai-sdk/perplexity'
-import type { ProviderV3 } from '@ai-sdk/provider'
-import { createTogetherAI, type TogetherAIProviderSettings } from '@ai-sdk/togetherai'
+import { NoSuchModelError, type ProviderV3 } from '@ai-sdk/provider'
 import { ProviderExtension, type ProviderExtensionConfig } from '@cherrystudio/ai-core/provider'
 import {
   createGitHubCopilotOpenAICompatible,
   type GitHubCopilotProviderSettings
 } from '@opeoginni/github-copilot-openai-compatible'
 import { SystemProviderIds } from '@types'
+import { createPoe, type PoeProvider, type PoeProviderSettings } from 'ai-sdk-provider-poe'
 import type { OllamaProviderSettings } from 'ollama-ai-provider-v2'
 import { createOllama } from 'ollama-ai-provider-v2'
-import { createVoyage, type VoyageProviderSettings } from 'voyage-ai-provider'
 
 import { type AihubmixProviderSettings, createAihubmix } from '../custom/aihubmix-provider'
 import { createNewApi, type NewApiProviderSettings } from '../custom/newapi-provider'
+
+async function importOptionalProviderModule<TModule>(moduleName: string): Promise<TModule> {
+  return (await new Function('moduleName', 'return import(moduleName)')(moduleName)) as TModule
+}
+
+function adaptPoeProvider(provider: PoeProvider): ProviderV3 {
+  return {
+    specificationVersion: 'v3',
+    languageModel: (modelId: string) => provider.languageModel(modelId),
+    embeddingModel: (modelId: string) => {
+      throw new NoSuchModelError({
+        modelId,
+        modelType: 'embeddingModel',
+        message: `Poe provider does not support embedding model "${modelId}".`
+      })
+    },
+    imageModel: (modelId: string) => {
+      throw new NoSuchModelError({
+        modelId,
+        modelType: 'imageModel',
+        message: `Poe provider does not support image model "${modelId}".`
+      })
+    }
+  }
+}
 
 /**
  * Google Vertex AI Extension
@@ -104,6 +130,63 @@ export const PerplexityExtension = ProviderExtension.create({
   supportsImageGeneration: false,
   create: createPerplexity
 } as const satisfies ProviderExtensionConfig<PerplexityProviderSettings, ProviderV3, 'perplexity'>)
+
+/**
+ * Poe Extension
+ */
+export const PoeExtension = ProviderExtension.create({
+  name: 'poe',
+  aliases: [SystemProviderIds.poe] as const,
+  supportsImageGeneration: false,
+  create: (options?: PoeProviderSettings) => adaptPoeProvider(createPoe(options)),
+  toolFactories: {
+    webSearch:
+      () =>
+      (
+        config:
+          | {
+              downstreamProviderId: 'anthropic'
+              anthropic?: NonNullable<Parameters<AnthropicProvider['tools']['webSearch_20250305']>[0]>
+            }
+          | {
+              downstreamProviderId: 'openai'
+              openai?: NonNullable<Parameters<OpenAIProvider['tools']['webSearch']>[0]>
+            }
+          | {
+              downstreamProviderId: 'openai-chat'
+              'openai-chat'?: NonNullable<Parameters<OpenAIProvider['tools']['webSearchPreview']>[0]>
+            }
+      ) => {
+        switch (config.downstreamProviderId) {
+          case 'anthropic': {
+            const anthropicProvider = createAnthropic({ apiKey: '_tool_descriptor' })
+            return {
+              tools: {
+                webSearch: anthropicProvider.tools.webSearch_20250305(config.anthropic ?? {})
+              }
+            }
+          }
+          case 'openai-chat': {
+            const openAIProvider = createOpenAI({ apiKey: '_tool_descriptor' })
+            return {
+              tools: {
+                webSearch: openAIProvider.tools.webSearchPreview(config['openai-chat'] ?? {})
+              }
+            }
+          }
+          case 'openai':
+          default: {
+            const openAIProvider = createOpenAI({ apiKey: '_tool_descriptor' })
+            return {
+              tools: {
+                webSearch: openAIProvider.tools.webSearch(config.openai ?? {})
+              }
+            }
+          }
+        }
+      }
+  }
+} as const satisfies ProviderExtensionConfig<PoeProviderSettings, ProviderV3, 'poe'>)
 
 /**
  * Mistral Extension
@@ -187,8 +270,13 @@ export const TogetherAIExtension = ProviderExtension.create({
   name: 'togetherai',
   aliases: [SystemProviderIds.together] as const,
   supportsImageGeneration: true,
-  create: createTogetherAI
-} as const satisfies ProviderExtensionConfig<TogetherAIProviderSettings, ProviderV3, 'togetherai'>)
+  create: async (options?: Record<string, unknown>) => {
+    const { createTogetherAI } = await importOptionalProviderModule<{
+      createTogetherAI: (options?: unknown) => ProviderV3
+    }>('@ai-sdk/togetherai')
+    return createTogetherAI(options as never)
+  }
+} as const satisfies ProviderExtensionConfig<Record<string, unknown>, ProviderV3, 'togetherai'>)
 
 /**
  * Voyage AI Extension - embeddings and reranking
@@ -197,8 +285,13 @@ export const VoyageExtension = ProviderExtension.create({
   name: 'voyage',
   aliases: [SystemProviderIds.voyageai] as const,
   supportsImageGeneration: false,
-  create: createVoyage
-} as const satisfies ProviderExtensionConfig<VoyageProviderSettings, ProviderV3, 'voyage'>)
+  create: async (options?: Record<string, unknown>) => {
+    const { createVoyage } = await importOptionalProviderModule<{ createVoyage: (options?: unknown) => ProviderV3 }>(
+      'voyage-ai-provider'
+    )
+    return createVoyage(options as never)
+  }
+} as const satisfies ProviderExtensionConfig<Record<string, unknown>, ProviderV3, 'voyage'>)
 
 /**
  * 所有项目特定的 Extensions
@@ -209,6 +302,7 @@ export const extensions = [
   GitHubCopilotExtension,
   BedrockExtension,
   PerplexityExtension,
+  PoeExtension,
   MistralExtension,
   HuggingFaceExtension,
   GatewayExtension,
