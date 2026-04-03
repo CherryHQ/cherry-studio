@@ -34,3 +34,34 @@ export function getStoreSetting<T>(_key: string): T {
 export function isToolUseModeFunction(_assistant: Assistant): boolean {
   return false
 }
+
+/** Stub: get default model. */
+export function getDefaultModel(): Model | undefined {
+  return undefined
+}
+
+/** Stub: get hub mode system prompt. */
+export function getHubModeSystemPrompt(): string {
+  return ''
+}
+
+/** Stub: replace prompt variables ({{date}}, {{time}}, etc). */
+export function replacePromptVariables(prompt: string): string {
+  // TODO: migrate from src/renderer/src/utils/prompt.ts
+  return prompt
+}
+
+/**
+ * Stub: IdleTimeoutController — resets timeout on each chunk.
+ * TODO: migrate from src/renderer/src/utils/IdleTimeoutController.ts
+ */
+export class IdleTimeoutController {
+  start(_timeoutMs: number, _onTimeout: () => void): IdleTimeoutHandle {
+    return { reset: () => {}, clear: () => {} }
+  }
+}
+
+export interface IdleTimeoutHandle {
+  reset: () => void
+  clear: () => void
+}
