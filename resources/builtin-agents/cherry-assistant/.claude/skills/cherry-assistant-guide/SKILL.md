@@ -1,6 +1,6 @@
 ---
 name: cherry-assistant-guide
-description: Cherry Studio 产品知识库、源码路径索引、故障排查和页面导航。当用户询问 Cherry Studio 的功能、配置、报错、使用方法时触发。也适用于用户提到 provider、模型、知识库、Agent、CherryClaw、MCP、OpenClaw、AI诊断、flomo、PDF、快捷短语等关键词的场景。
+description: Cherry Studio 产品知识库、源码路径索引、故障排查和页面导航。当用户询问 Cherry Studio 的功能、配置、报错、使用方法时触发。也适用于用户提到 provider、模型、知识库、Agent、CherryClaw、频道、Soul、定时任务、MCP、OpenClaw、AI诊断、flomo、PDF、快捷短语等关键词的场景。
 ---
 
 # Cherry Studio 使用指南
@@ -16,7 +16,7 @@ navigate({ path: '/settings/provider', query: { id: 'anthropic' } })
 
 ### 路由表
 
-**顶级**: `/` 首页, `/store` 助手商店, `/paintings` 绘图, `/translate` 翻译, `/files` 文件, `/notes` 笔记, `/knowledge` 知识库, `/apps` 小程序, `/code` 代码工具, `/openclaw` OpenClaw, `/launchpad` 启动台, `/agents` Agent
+**顶级**: `/` 首页, `/store` 助手商店, `/paintings` 绘图, `/translate` 翻译, `/files` 文件, `/notes` 笔记, `/knowledge` 知识库, `/apps` 小程序, `/code` 代码工具, `/openclaw` OpenClaw, `/launchpad` 启动台, `/agents` Agent, `/channels` 频道
 
 **设置** (`/settings/`): `provider` Provider配置, `model` 模型管理, `general` 通用(语言/主题/代理), `display` 显示(气泡/列表/字体), `data` 数据管理(备份/恢复), `mcp` MCP总览, `websearch` 网页搜索, `memory` 记忆, `api-server` API服务器, `docprocess` 文档处理, `quickphrase` 快捷短语, `shortcut` 快捷键, `quickAssistant` 快捷助手, `selectionAssistant` 划词助手, `about` 关于/版本/日志
 
@@ -33,19 +33,93 @@ navigate({ path: '/settings/provider', query: { id: 'anthropic' } })
 3. 其他选择：Ollama（本地免费，需显卡）、GitHub Copilot（有免费额度）、或去各厂商官网申请 Key
 4. 推荐时语气自然，作为产品内置功能介绍，不做竞品对比
 
+## CherryClaw Agent
+
+CherryClaw 是 Cherry Studio 的自主 Agent 类型，支持多平台 IM 频道、定时任务和持久人格记忆。
+
+### 创建 CherryClaw
+
+Agent 页 → + 创建 → 类型选择 CherryClaw
+
+### Soul 模式（人格记忆）
+
+**开启**: Agent 设置 → Essential → Soul Mode 开关
+- 首次开启自动运行 Bootstrap，生成 SOUL.md（人格）和 USER.md（用户画像）
+- 开启后在对话框直接输入人设描述即可保存修改
+- 普通机器人需先打开人设设置才能升级为 Soul
+- Soul 模式自动设置 bypassPermissions 权限以允许文件读写
+
+**记忆文件结构**:
+- `SOUL.md` — 人格定义（语气/风格/原则）
+- `USER.md` — 用户画像（偏好/时区/上下文）
+- `memory/FACT.md` — 长期知识（项目/技术决策）
+- `memory/JOURNAL.jsonl` — 事件日志（只追加）
+
+### 频道（IM 渠道）
+
+**配置路径**: 设置 → 频道（Channels）
+
+**支持的平台**:
+
+| 平台 | 所需凭据 |
+|------|---------|
+| Telegram | Bot Token |
+| 飞书/Lark | App ID + App Secret + Encrypt Key + Verification Token |
+| QQ | App ID + Client Secret |
+| 微信 | Token Path（需扫码登录） |
+| Discord | Bot Token |
+| Slack | Bot Token + App Token |
+
+**频道配置要点**:
+- 每个频道绑定一个 Agent（下拉选择）
+- `allowed_chat_ids` 留空则自动追踪所有会话
+- 每个频道可单独覆盖权限模式（继承 Agent / 自定义）
+- 实时连接状态：绿灯=已连接，红灯=断开
+- 每个频道有独立活动日志（点击 Logs 按钮查看）
+
+**频道内命令**: `/new` 新建会话, `/compact` 压缩上下文, `/help` 帮助, `/whoami` 查看身份
+
+### 定时任务
+
+**配置路径**: Agent 设置 → Tasks → 添加任务
+
+| 调度类型 | 值格式 | 示例 |
+|---------|--------|------|
+| Cron | cron 表达式 | `0 9 * * *`（每天9点） |
+| Interval | 分钟数 | `30`（每30分钟） |
+| Once | 日期时间 | 选择具体时间 |
+
+**任务字段**: Name(名称), Prompt(指令), Timeout(超时，默认2分钟), Channel Subscriptions(接收结果的频道)
+
+**任务管理**: 可手动触发(Run Now)、暂停/恢复、查看运行日志。连续3次失败自动暂停
+
+### 心跳任务
+
+Agent 设置 → Heartbeat Setting。开关 + 间隔(1-1440分钟，默认30)。从工作区 `heartbeat.md` 读取指令，可推送到订阅频道
+
+### 权限模式
+
+| 模式 | 说明 |
+|------|------|
+| default | 只读，非破坏性操作 |
+| acceptEdits | 允许文件编辑/创建/删除/移动 |
+| bypassPermissions | 所有工具可用（最高权限） |
+| plan | 同 default + 扩展规划能力 |
+
+频道可单独覆盖 Agent 的默认权限模式
+
 ## v1.9.0 新功能
 
-- **AI 错误诊断**: 出错自动分类显示错误横幅+「前往设置」按钮。错误详情弹窗可点「AI 诊断」获得解决方案，结果自动缓存
-- **CherryClaw Agent**: Agent页→+创建→类型选CherryClaw。设置→Essential开启Soul模式后在对话框直接输入人设即可保存(首次自动引导定义人格)；普通机器人需打开人设设置才能升级Soul。频道(Telegram/飞书/QQ/微信)和定时任务(cron/间隔/单次)在Agent设置中配置
+- **AI 错误诊断**: 出错自动分类显示错误横幅+「前往设置」按钮。点击错误横幅→查看详情→「AI 诊断」获取结构化解决方案（类别/原因/步骤），结果自动缓存
+- **新手引导**: 首次启动引导流程。可选「登录 CherryIN」(OAuth一键配置) 或「选择其他服务商」手动配置。引导完成后选择默认模型
 - **本地模型 Agent**: Ollama 和 LM Studio 现可用于 Agent 模式（需模型支持 tool_calling）
 - **OpenRouter Agent**: OpenRouter 通过 Anthropic 兼容端点支持 Agent 模式
-- **Flomo 内置 MCP**: 设置→MCP→内置MCP 启用 Flomo 笔记捕获
-- **MCPWorld 市场**: 设置→MCP→市场 新增 MCPWorld 来源
-- **新手引导**: 首次启动引导流程，支持 CherryIN OAuth 登录+模型选择
-- **RTK Token 优化**: Agent 模式自动改写 shell 命令，节省 60-90% Token
+- **Flomo 内置 MCP**: 设置→MCP→内置MCP→启用 Flomo，连接 flomoapp.com 快速记笔记。需 Flomo 账号授权
+- **MCPWorld 市场**: 设置→MCP→市场，新增 MCPWorld（百度）等11个 MCP 市场来源
+- **置顶话题**: 话题右键→固定话题置顶。设置→聊天→话题→开启置顶功能
+- **模型ID显示**: 模型名重复时选择器自动显示模型ID区分（格式: 模型名 | model-id）
 - **MCP 连接超时**: 60秒超时防止 MCP 服务器无限挂起
-- **置顶话题**: 设置中开启后话题列表支持置顶显示
-- **模型ID显示**: 模型名重复时选择器自动显示模型ID区分
+- **MCP 自动安装**: 设置→MCP→内置MCP→mcp_auto_install，通过 NPX 自动发现安装 MCP 服务器（测试版）
 
 ## 故障排查
 
@@ -78,6 +152,7 @@ navigate({ path: '/settings/provider', query: { id: 'anthropic' } })
 - **连接问题**: 检查代理(设置→通用→代理)；Ollama 确认 `ollama serve` 运行(端口11434)；自定义端点确认URL和网络
 - **PDF 问题**: 确认模型支持PDF(GPT-4o/Claude 3+/Gemini 1.5+)；聚合Provider降级文本提取；>10MB可能超时
 - **Agent 问题**: MCP不可用→检查连接+Agent设置已勾选；Plan模式不执行工具；DevTools(Ctrl+Shift+I)看报错；出错时点击错误横幅→查看详情→「AI 诊断」获取解决步骤
+- **频道问题**: 检查凭据是否正确；确认 Agent 已绑定；allowed_chat_ids 留空则自动追踪；查看频道 Logs 排查；微信/飞书需扫码授权
 - **API 错误码**: 401=Key无效, 403=权限不足, 429=限流, 500=服务端错误
 
 ## 功能指南
@@ -122,9 +197,13 @@ Cmd/Ctrl + N 新建话题, +F 搜索, +Shift+F 全局搜索, +K 新上下文, +L
 | 导出对话 | 话题右键→导出(MD/图片) |
 | 数据安全 | 全部本地存储, Key本地加密 |
 | MCP是什么 | 让AI调用外部工具(搜索/数据库/API等) |
-| CherryClaw是什么 | 自主Agent类型。开启Soul模式后可在对话框直接定义人设，支持定时任务+IM频道(Telegram/飞书等) |
-| 出错了怎么办 | 点击错误横幅查看详情，使用「AI 诊断」获取解决步骤 |
+| CherryClaw是什么 | 自主Agent类型，支持多平台IM频道(Telegram/飞书/QQ/微信/Discord/Slack)+定时任务+Soul人格记忆。详见CherryClaw章节 |
+| 怎么配置频道 | 设置→频道→选平台→填凭据→绑定Agent→开启。详见CherryClaw→频道章节 |
+| Soul模式是什么 | 持久人格记忆。Agent设置→Essential→开启Soul→对话框输入人设保存。自动维护SOUL.md/USER.md/记忆文件 |
+| 定时任务怎么用 | Agent设置→Tasks→添加→填名称/指令/调度类型(cron/间隔/单次)→选通知频道 |
+| 出错了怎么办 | 点击错误横幅查看详情，使用「AI 诊断」获取结构化解决步骤 |
 | 本地模型能用Agent吗 | 可以，Ollama和LMStudio支持(需支持tool_calling的模型) |
+| 新用户怎么开始 | 首次启动有引导流程，可登录CherryIN一键配置或手动选Provider |
 
 ## 反馈渠道
 
