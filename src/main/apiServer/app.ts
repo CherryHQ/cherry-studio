@@ -8,11 +8,14 @@ import { authMiddleware } from './middleware/auth'
 import { errorHandler } from './middleware/error'
 import { setupOpenAPIDocumentation } from './middleware/openapi'
 import { agentsRoutes } from './routes/agents'
+import { channelsRouter } from './routes/channels'
 import { chatRoutes } from './routes/chat'
+import { clawMcpRoutes } from './routes/claw-mcp'
 import { knowledgeRoutes } from './routes/knowledge'
 import { mcpRoutes } from './routes/mcp'
 import { messagesProviderRoutes, messagesRoutes } from './routes/messages'
 import { modelsRoutes } from './routes/models'
+import { tasksRouter } from './routes/tasks'
 
 const logger = loggerService.withContext('ApiServer')
 
@@ -132,6 +135,7 @@ app.get('/', (_req, res) => {
       mcp_server: 'GET /v1/mcps/:server_id',
       mcp_proxy: 'ALL /v1/mcps/:server_id/mcp',
       agents: 'GET /v1/agents',
+      channels: 'GET /v1/channels',
       agent_sessions: 'GET /v1/agents/:agentId/sessions',
       session_messages: 'GET /v1/agents/:agentId/sessions/:sessionId/messages',
       knowledge_bases: 'GET /v1/knowledge-bases',
@@ -155,6 +159,9 @@ apiRouter.use('/mcps', mcpRoutes)
 apiRouter.use('/messages', extendMessagesTimeout, messagesRoutes)
 apiRouter.use('/models', modelsRoutes)
 apiRouter.use('/agents', agentsRoutes)
+apiRouter.use('/channels', channelsRouter)
+apiRouter.use('/tasks', tasksRouter)
+apiRouter.use('/claw', clawMcpRoutes)
 apiRouter.use('/knowledge-bases', knowledgeRoutes)
 app.use('/v1', apiRouter)
 

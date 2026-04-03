@@ -28,7 +28,6 @@ import type {
   FileMetadata,
   Notification,
   OcrProvider,
-  PluginError,
   Provider,
   Shortcut,
   SupportedOcrFile,
@@ -40,7 +39,7 @@ import { BrowserWindow, dialog, ipcMain, session, shell, systemPreferences, webC
 import fontList from 'font-list'
 
 import { agentMessageRepository } from './services/agents/database'
-import { PluginService } from './services/agents/plugins/PluginService'
+import { skillService } from './services/agents/skills/SkillService'
 import { analyticsService } from './services/AnalyticsService'
 import { apiServerService } from './services/ApiServerService'
 import appService from './services/AppService'
@@ -72,6 +71,7 @@ import { proxyManager } from './services/ProxyManager'
 import { pythonService } from './services/PythonService'
 import { FileServiceManager } from './services/remotefile/FileServiceManager'
 import { searchService } from './services/SearchService'
+import { isSafeExternalUrl } from './services/security'
 import { SelectionService } from './services/SelectionService'
 import { registerShortcuts, unregisterAllShortcuts } from './services/ShortcutService'
 import {
@@ -92,7 +92,7 @@ import { themeService } from './services/ThemeService'
 import VertexAIService from './services/VertexAIService'
 import { setOpenLinkExternal } from './services/WebviewService'
 import { windowService } from './services/WindowService'
-import { calculateDirectorySize, getResourcePath } from './utils'
+import { calculateDirectorySize, getDataPath, getResourcePath } from './utils'
 import { decrypt, encrypt } from './utils/aes'
 import {
   getCacheDir,
@@ -115,18 +115,6 @@ const obsidianVaultService = new ObsidianVaultService()
 const vertexAIService = VertexAIService.getInstance()
 const memoryService = MemoryService.getInstance()
 const dxtService = new DxtService()
-const pluginService = PluginService.getInstance()
-
-function normalizeError(error: unknown): Error {
-  return error instanceof Error ? error : new Error(String(error))
-}
-
-function extractPluginError(error: unknown): PluginError | null {
-  if (error && typeof error === 'object' && 'type' in error && typeof (error as { type: unknown }).type === 'string') {
-    return error as PluginError
-  }
-  return null
-}
 
 export async function registerIpc(mainWindow: BrowserWindow, app: Electron.App) {
   const appUpdater = new AppUpdater()
@@ -182,7 +170,13 @@ export async function registerIpc(mainWindow: BrowserWindow, app: Electron.App) 
 
   ipcMain.handle(IpcChannel.App_Reload, () => mainWindow.reload())
   ipcMain.handle(IpcChannel.App_Quit, () => app.quit())
-  ipcMain.handle(IpcChannel.Open_Website, (_, url: string) => shell.openExternal(url))
+  ipcMain.handle(IpcChannel.Open_Website, (_, url: string) => {
+    if (!isSafeExternalUrl(url)) {
+      logger.warn(`Blocked shell.openExternal for untrusted URL scheme: ${url}`)
+      return
+    }
+    return shell.openExternal(url)
+  })
 
   // Update
   ipcMain.handle(IpcChannel.App_QuitAndInstall, () => appUpdater.quitAndInstall())
@@ -822,6 +816,17 @@ export async function registerIpc(mainWindow: BrowserWindow, app: Electron.App) 
   ipcMain.handle(IpcChannel.Mcp_GetServerVersion, mcpService.getServerVersion)
   ipcMain.handle(IpcChannel.Mcp_GetServerLogs, mcpService.getServerLogs)
 
+  // Channel logs & status
+  ipcMain.handle(IpcChannel.Channel_GetLogs, async (_event, channelId: string) => {
+    const { channelManager } = await import('@main/services/agents/services/channels/ChannelManager')
+    return channelManager.getChannelLogs(channelId)
+  })
+
+  ipcMain.handle(IpcChannel.Channel_GetStatuses, async () => {
+    const { channelManager } = await import('@main/services/agents/services/channels/ChannelManager')
+    return channelManager.getAllStatuses()
+  })
+
   // DXT upload handler
   ipcMain.handle(IpcChannel.Mcp_UploadDxt, async (event, fileBuffer: ArrayBuffer, fileName: string) => {
     try {
@@ -1044,93 +1049,93 @@ export async function registerIpc(mainWindow: BrowserWindow, app: Electron.App) 
   // CherryAI
   ipcMain.handle(IpcChannel.Cherryai_GetSignature, (_, params) => generateSignature(params))
 
-  // Claude Code Plugins
-  ipcMain.handle(IpcChannel.ClaudeCodePlugin_Install, async (_, options) => {
+  // Global Skills
+  ipcMain.handle(IpcChannel.Skill_List, async () => {
     try {
-      const data = await pluginService.install(options)
+      const data = await skillService.list()
       return { success: true, data }
     } catch (error) {
-      logger.error('Failed to install plugin', { options, error })
+      logger.error('Failed to list skills', { error })
       return { success: false, error }
     }
   })
 
-  ipcMain.handle(IpcChannel.ClaudeCodePlugin_Uninstall, async (_, options) => {
+  ipcMain.handle(IpcChannel.Skill_Install, async (_, options) => {
     try {
-      await pluginService.uninstall(options)
+      const data = await skillService.install(options)
+      return { success: true, data }
+    } catch (error) {
+      logger.error('Failed to install skill', { options, error })
+      return { success: false, error }
+    }
+  })
+
+  ipcMain.handle(IpcChannel.Skill_Uninstall, async (_, skillId: string) => {
+    try {
+      await skillService.uninstall(skillId)
       return { success: true, data: undefined }
     } catch (error) {
-      logger.error('Failed to uninstall plugin', { options, error })
+      logger.error('Failed to uninstall skill', { skillId, error })
       return { success: false, error }
     }
   })
 
-  ipcMain.handle(IpcChannel.ClaudeCodePlugin_UninstallPackage, async (_, options) => {
+  ipcMain.handle(IpcChannel.Skill_Toggle, async (_, options) => {
     try {
-      const data = await pluginService.uninstallPluginPackage(options)
+      const data = await skillService.toggle(options)
       return { success: true, data }
     } catch (error) {
-      logger.error('Failed to uninstall plugin package', { options, error })
+      logger.error('Failed to toggle skill', { options, error })
       return { success: false, error }
     }
   })
 
-  ipcMain.handle(IpcChannel.ClaudeCodePlugin_ListInstalled, async (_, agentId: string) => {
+  ipcMain.handle(IpcChannel.Skill_InstallFromZip, async (_, options) => {
     try {
-      const data = await pluginService.listInstalled(agentId)
+      const data = await skillService.installFromZip(options)
       return { success: true, data }
     } catch (error) {
-      const pluginError = extractPluginError(error)
-      if (pluginError) {
-        logger.error('Failed to list installed plugins', {
-          agentId,
-          error: pluginError
-        })
-        return { success: false, error: pluginError }
-      }
-
-      const err = normalizeError(error)
-      logger.error('Failed to list installed plugins', {
-        agentId,
-        error: err
-      })
-      return {
-        success: false,
-        error: {
-          type: 'TRANSACTION_FAILED',
-          operation: 'list-installed',
-          reason: err.message
-        }
-      }
-    }
-  })
-
-  ipcMain.handle(IpcChannel.ClaudeCodePlugin_WriteContent, async (_, options) => {
-    try {
-      await pluginService.writeContent(options.agentId, options.filename, options.type, options.content)
-      return { success: true, data: undefined }
-    } catch (error) {
-      logger.error('Failed to write plugin content', { options, error })
+      logger.error('Failed to install skill from ZIP', { options, error })
       return { success: false, error }
     }
   })
 
-  ipcMain.handle(IpcChannel.ClaudeCodePlugin_InstallFromZip, async (_, options) => {
+  ipcMain.handle(IpcChannel.Skill_InstallFromDirectory, async (_, options) => {
     try {
-      const data = await pluginService.installFromZip(options)
+      const data = await skillService.installFromDirectory(options)
       return { success: true, data }
     } catch (error) {
-      logger.error('Failed to install plugin from ZIP', { options, error })
+      logger.error('Failed to install skill from directory', { options, error })
       return { success: false, error }
     }
   })
 
-  ipcMain.handle(IpcChannel.ClaudeCodePlugin_InstallFromDirectory, async (_, options) => {
+  ipcMain.handle(IpcChannel.Skill_ReadFile, async (_, skillId: string, filename: string) => {
     try {
-      const data = await pluginService.installFromDirectory(options)
+      const data = await skillService.readFile(skillId, filename)
       return { success: true, data }
     } catch (error) {
-      logger.error('Failed to install plugin from directory', { options, error })
+      logger.error('Failed to read skill file', { skillId, filename, error })
+      return { success: false, error }
+    }
+  })
+
+  ipcMain.handle(IpcChannel.Skill_ListFiles, async (_, skillId: string) => {
+    try {
+      const data = await skillService.listFiles(skillId)
+      return { success: true, data }
+    } catch (error) {
+      logger.error('Failed to list skill files', { skillId, error })
+      return { success: false, error }
+    }
+  })
+
+  ipcMain.handle(IpcChannel.Skill_ListLocal, async (_, workdir: string) => {
+    try {
+      const data = await skillService.listLocal(workdir)
+      return { success: true, data }
+    } catch (error) {
+      logger.error('Failed to list local plugins', { workdir, error })
       return { success: false, error }
     }
   })
@@ -1164,6 +1169,18 @@ export async function registerIpc(mainWindow: BrowserWindow, app: Electron.App) 
   ipcMain.handle(IpcChannel.OpenClaw_GetChannels, openClawService.getChannelStatus)
   ipcMain.handle(IpcChannel.OpenClaw_CheckUpdate, openClawService.checkUpdate)
   ipcMain.handle(IpcChannel.OpenClaw_PerformUpdate, openClawService.performUpdate)
+
+  // WeChat
+  ipcMain.handle(IpcChannel.WeChat_HasCredentials, async (_, channelId: string) => {
+    const tokenPath = path.join(getDataPath('Channels'), `weixin_bot_${channelId}.json`)
+    try {
+      const raw = await fs.promises.readFile(tokenPath, 'utf8')
+      const parsed = JSON.parse(raw)
+      return { exists: true, userId: parsed.userId as string | undefined }
+    } catch {
+      return { exists: false }
+    }
+  })
 
   // Analytics
   ipcMain.handle(IpcChannel.Analytics_TrackTokenUsage, (_, data: TokenUsageData) =>

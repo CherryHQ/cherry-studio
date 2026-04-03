@@ -27,6 +27,7 @@ export * from './ocr'
 export * from './plugin'
 export * from './provider'
 export * from './serialize'
+export * from './skill'
 
 export type McpMode = 'disabled' | 'auto' | 'manual'
 
@@ -607,6 +608,25 @@ export type GenerateImageParams = {
   promptEnhancement?: boolean
   personGeneration?: PersonGeneration
   quality?: string
+}
+
+/**
+ * 图像编辑参数
+ * 用于基于输入图像和文本提示生成编辑后的图像
+ */
+export type EditImageParams = {
+  /** 模型 ID */
+  model: string
+  /** 编辑提示词 */
+  prompt: string
+  /** 需要编辑的输入图像（可以是 Buffer、Uint8Array 或 base64/URL 字符串） */
+  inputImages: (Buffer | Uint8Array | string)[]
+  /** 可选的 mask 图像用于 inpainting（指定需要编辑的区域） */
+  mask?: Buffer | Uint8Array | string
+  /** 输出图像尺寸 */
+  imageSize?: string
+  /** 中止信号 */
+  signal?: AbortSignal
 }
 
 export type GenerateImageResponse = {
