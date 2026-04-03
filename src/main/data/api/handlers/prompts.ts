@@ -11,6 +11,7 @@ import type { ApiHandler, ApiMethods } from '@shared/data/api/apiTypes'
 import {
   CreatePromptDtoSchema,
   type PromptSchemas,
+  ReorderPromptsDtoSchema,
   RollbackPromptDtoSchema,
   UpdatePromptDtoSchema
 } from '@shared/data/api/schemas/prompts'
@@ -29,6 +30,12 @@ export const promptHandlers: {
 
     POST: ({ body }) => {
       return promptService.create(CreatePromptDtoSchema.parse(body))
+    }
+  },
+
+  '/prompts/reorder': {
+    POST: ({ body }) => {
+      return promptService.reorder(ReorderPromptsDtoSchema.parse(body).orderedIds)
     }
   },
 

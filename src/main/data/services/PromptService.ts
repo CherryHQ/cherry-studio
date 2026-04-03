@@ -207,6 +207,21 @@ class PromptService {
   }
 
   /**
+   * Reorder prompts by updating sortOrder for each ID in the given order
+   */
+  async reorder(orderedIds: string[]): Promise<void> {
+    const db = application.get('DbService').getDb()
+
+    await db.transaction(async (tx) => {
+      for (let i = 0; i < orderedIds.length; i++) {
+        await tx.update(promptTable).set({ sortOrder: i }).where(eq(promptTable.id, orderedIds[i]))
+      }
+    })
+
+    logger.info('Reordered prompts', { count: orderedIds.length })
+  }
+
+  /**
    * Delete a prompt (versions are cascade deleted)
    */
   async delete(id: string): Promise<void> {

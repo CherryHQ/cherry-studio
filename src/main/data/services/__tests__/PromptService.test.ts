@@ -190,4 +190,50 @@ describe('PromptService', () => {
     expect(result.content).toBe('Rolled back content')
     expect(result.currentVersion).toBe(4)
   })
+
+  describe('reorder', () => {
+    it('should update sortOrder for each prompt in a transaction', async () => {
+      const setArgs: unknown[] = []
+      const txUpdate = vi.fn().mockImplementation(() => ({
+        set: vi.fn().mockImplementation((arg: unknown) => {
+          setArgs.push(arg)
+          return { where: vi.fn().mockResolvedValue(undefined) }
+        })
+      }))
+      const mockTx = { update: txUpdate }
+
+      const db = {
+        transaction: vi.fn(async (callback: (trx: typeof mockTx) => Promise<void>) => {
+          await callback(mockTx)
+        })
+      }
+
+      getDbMock.mockReturnValue(db)
+
+      await promptService.reorder(['id-a', 'id-b', 'id-c'])
+
+      expect(db.transaction).toHaveBeenCalledOnce()
+      expect(txUpdate).toHaveBeenCalledTimes(3)
+      expect(setArgs).toEqual([{ sortOrder: 0 }, { sortOrder: 1 }, { sortOrder: 2 }])
+    })
+
+    it('should handle empty array', async () => {
+      const mockTx = {
+        update: vi.fn()
+      }
+
+      const db = {
+        transaction: vi.fn(async (callback: (trx: typeof mockTx) => Promise<void>) => {
+          await callback(mockTx)
+        })
+      }
+
+      getDbMock.mockReturnValue(db)
+
+      await promptService.reorder([])
+
+      expect(db.transaction).toHaveBeenCalledOnce()
+      expect(mockTx.update).not.toHaveBeenCalled()
+    })
+  })
 })
