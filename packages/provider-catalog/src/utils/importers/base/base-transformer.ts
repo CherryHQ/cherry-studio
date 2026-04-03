@@ -3,8 +3,25 @@
  * Provides structure for transforming provider API responses to internal ModelConfig
  */
 
-import type { ModelCapabilityType, ModelConfig } from '../../../schemas'
-import { MODALITY, type Modality, MODEL_CAPABILITY } from '../../../schemas/enums'
+import { type Modality, type ModelCapability } from '../../../gen/v1/common_pb'
+import { MODALITY, MODEL_CAPABILITY } from '../../../schemas/enums'
+
+/** Numeric enum value from ModelCapability */
+type ModelCapabilityType = ModelCapability
+
+/** Minimal ModelConfig shape used by transformer classes (full type lives in schemas/) */
+interface ModelConfig {
+  id: string
+  name?: string
+  description?: string
+  capabilities?: ModelCapabilityType[]
+  inputModalities?: Modality[]
+  outputModalities?: Modality[]
+  contextWindow?: number
+  maxOutputTokens?: number
+  pricing?: { input?: { perMillionTokens: number }; output?: { perMillionTokens: number } }
+  metadata?: Record<string, unknown>
+}
 
 /**
  * Generic transformer interface
