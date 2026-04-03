@@ -23,6 +23,38 @@ export class JsonFileStorage implements IOAuthStorage {
     this.filePath = path.join(configDir, `${serverUrlHash}_oauth.json`)
   }
 
+  private createInitialStorage(): OAuthStorageData {
+    return { lastUpdated: Date.now() }
+  }
+
+  private async recoverCorruptedStorage(error: Error): Promise<OAuthStorageData> {
+    const backupPath = `${this.filePath}.corrupt-${Date.now()}`
+
+    logger.warn('Recovering corrupted OAuth storage', {
+      filePath: this.filePath,
+      error: error.message
+    })
+
+    try {
+      await fs.rename(this.filePath, backupPath)
+      logger.warn('Backed up corrupted OAuth storage', {
+        filePath: this.filePath,
+        backupPath
+      })
+    } catch (renameError) {
+      if (renameError instanceof Error && 'code' in renameError && renameError.code !== 'ENOENT') {
+        logger.warn('Failed to back up corrupted OAuth storage', {
+          filePath: this.filePath,
+          error: renameError.message
+        })
+      }
+    }
+
+    const initial = this.createInitialStorage()
+    await this.writeStorage(initial)
+    return initial
+  }
+
   private async readStorage(): Promise<OAuthStorageData> {
     if (this.cache) {
       return this.cache
@@ -37,10 +69,15 @@ export class JsonFileStorage implements IOAuthStorage {
     } catch (error) {
       if (error instanceof Error && 'code' in error && error.code === 'ENOENT') {
         // File doesn't exist, return initial state
-        const initial: OAuthStorageData = { lastUpdated: Date.now() }
+        const initial = this.createInitialStorage()
         await this.writeStorage(initial)
         return initial
       }
+
+      if (error instanceof SyntaxError || (error instanceof Error && error.name === 'ZodError')) {
+        return await this.recoverCorruptedStorage(error)
+      }
+
       logger.error('Error reading OAuth storage:', error as Error)
       throw new Error(`Failed to read OAuth storage: ${error instanceof Error ? error.message : String(error)}`)
     }
