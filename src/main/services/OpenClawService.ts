@@ -701,7 +701,9 @@ class OpenClawService {
     }
     let url = `http://127.0.0.1:${this.gatewayPort}`
     if (this.gatewayAuthToken) {
-      url += `#token=${encodeURIComponent(this.gatewayAuthToken)}`
+      // Use query string (not URL fragment) so dashboard app state can persist correctly.
+      // Fragment (#...) is often used by SPAs for transient client-side state.
+      url += `?token=${encodeURIComponent(this.gatewayAuthToken)}`
     }
     return url
   }
