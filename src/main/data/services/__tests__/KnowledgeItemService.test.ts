@@ -299,7 +299,7 @@ describe('KnowledgeItemService', () => {
           created_at INTEGER,
           updated_at INTEGER,
           CONSTRAINT knowledge_item_type_check CHECK (type IN ('file', 'url', 'note', 'sitemap', 'directory')),
-          CONSTRAINT knowledge_item_status_check CHECK (status IN ('idle', 'pending', 'ocr', 'read', 'embed', 'completed', 'failed')),
+          CONSTRAINT knowledge_item_status_check CHECK (status IN ('idle', 'pending', 'file_processing', 'read', 'embed', 'completed', 'failed')),
           FOREIGN KEY (base_id) REFERENCES knowledge_base(id) ON DELETE CASCADE,
           FOREIGN KEY (base_id, group_id) REFERENCES knowledge_item(base_id, id) ON DELETE CASCADE,
           CONSTRAINT knowledge_item_baseId_id_unique UNIQUE (base_id, id)
@@ -688,7 +688,7 @@ describe('KnowledgeItemService', () => {
           created_at INTEGER,
           updated_at INTEGER,
           CONSTRAINT knowledge_item_type_check CHECK (type IN ('file', 'url', 'note', 'sitemap', 'directory')),
-          CONSTRAINT knowledge_item_status_check CHECK (status IN ('idle', 'pending', 'ocr', 'read', 'embed', 'completed', 'failed')),
+          CONSTRAINT knowledge_item_status_check CHECK (status IN ('idle', 'pending', 'file_processing', 'read', 'embed', 'completed', 'failed')),
           FOREIGN KEY (base_id) REFERENCES knowledge_base(id) ON DELETE CASCADE,
           FOREIGN KEY (base_id, group_id) REFERENCES knowledge_item(base_id, id) ON DELETE CASCADE,
           CONSTRAINT knowledge_item_baseId_id_unique UNIQUE (base_id, id)

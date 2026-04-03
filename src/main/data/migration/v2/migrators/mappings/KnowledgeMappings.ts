@@ -1,7 +1,7 @@
 import type { knowledgeBaseTable, knowledgeItemTable } from '@data/db/schemas/knowledge'
 import { normalizeKnowledgeBaseConfig } from '@data/services/knowledgeBaseConfig'
 import type { FileMetadata } from '@shared/data/types/file'
-import type { ItemStatus, KnowledgeItemData } from '@shared/data/types/knowledge'
+import type { KnowledgeItemData, KnowledgeItemStatus } from '@shared/data/types/knowledge'
 
 export type NewKnowledgeBase = typeof knowledgeBaseTable.$inferInsert
 export type NewKnowledgeItem = typeof knowledgeItemTable.$inferInsert
@@ -127,7 +127,7 @@ export const toCompositeModelId = (model: LegacyModel | null | undefined): strin
   return `${providerId}::${modelId}`
 }
 
-export const inferKnowledgeItemStatus = (item: Pick<LegacyKnowledgeItem, 'uniqueId'>): ItemStatus =>
+export const inferKnowledgeItemStatus = (item: Pick<LegacyKnowledgeItem, 'uniqueId'>): KnowledgeItemStatus =>
   typeof item.uniqueId === 'string' && item.uniqueId.trim() !== '' ? 'completed' : 'idle'
 
 export const resolveLegacyFileMetadata = (

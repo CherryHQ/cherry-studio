@@ -6,9 +6,9 @@ import {
   DirectoryItemDataSchema,
   FileItemDataSchema,
   FileMetadataSchema,
-  ItemStatusSchema,
   type KnowledgeBase,
   type KnowledgeItem,
+  KnowledgeItemStatusSchema,
   KnowledgeItemTypeSchema,
   KnowledgeSearchModeSchema,
   NoteItemDataSchema,
@@ -55,7 +55,7 @@ export {
   DirectoryItemDataSchema,
   FileItemDataSchema,
   FileMetadataSchema,
-  ItemStatusSchema,
+  KnowledgeItemStatusSchema,
   KnowledgeItemTypeSchema,
   KnowledgeSearchModeSchema,
   NoteItemDataSchema,
@@ -125,7 +125,7 @@ export const UpdateKnowledgeItemDataSchema = z.union([
 export const UpdateKnowledgeItemSchema = z
   .object({
     data: UpdateKnowledgeItemDataSchema.optional(),
-    status: ItemStatusSchema.optional(),
+    status: KnowledgeItemStatusSchema.optional(),
     error: z.string().nullable().optional()
   })
   .strict()

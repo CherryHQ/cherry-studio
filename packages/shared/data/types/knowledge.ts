@@ -13,9 +13,17 @@ export const KNOWLEDGE_ITEM_TYPES = ['file', 'url', 'note', 'sitemap', 'director
 export const KnowledgeItemTypeSchema = z.enum(KNOWLEDGE_ITEM_TYPES)
 export type KnowledgeItemType = z.infer<typeof KnowledgeItemTypeSchema>
 
-export const KNOWLEDGE_ITEM_STATUSES = ['idle', 'pending', 'ocr', 'read', 'embed', 'completed', 'failed'] as const
-export const ItemStatusSchema = z.enum(KNOWLEDGE_ITEM_STATUSES)
-export type ItemStatus = z.infer<typeof ItemStatusSchema>
+export const KNOWLEDGE_ITEM_STATUSES = [
+  'idle',
+  'pending',
+  'file_processing',
+  'read',
+  'embed',
+  'completed',
+  'failed'
+] as const
+export const KnowledgeItemStatusSchema = z.enum(KNOWLEDGE_ITEM_STATUSES)
+export type KnowledgeItemStatus = z.infer<typeof KnowledgeItemStatusSchema>
 
 export const KNOWLEDGE_SEARCH_MODES = ['default', 'bm25', 'hybrid'] as const
 export const KnowledgeSearchModeSchema = z.enum(KNOWLEDGE_SEARCH_MODES)
@@ -129,7 +137,7 @@ const KnowledgeItemBaseSchema = z.object({
   id: z.string(),
   baseId: z.string(),
   groupId: z.string().nullable().optional(),
-  status: ItemStatusSchema,
+  status: KnowledgeItemStatusSchema,
   error: z.string().nullable().optional(),
   createdAt: z.iso.datetime(),
   updatedAt: z.iso.datetime()
