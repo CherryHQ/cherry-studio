@@ -1,34 +1,48 @@
 {
-  "version": "7",
   "dialect": "sqlite",
   "entries": [
     {
+      "breakpoints": true,
       "idx": 0,
-      "version": "6",
-      "when": 1758091173882,
       "tag": "0000_confused_wendigo",
-      "breakpoints": true
+      "version": "6",
+      "when": 1758091173882
     },
     {
+      "breakpoints": true,
       "idx": 1,
-      "version": "6",
-      "when": 1758187378775,
       "tag": "0001_woozy_captain_flint",
-      "breakpoints": true
+      "version": "6",
+      "when": 1758187378775
     },
     {
+      "breakpoints": true,
       "idx": 2,
-      "version": "6",
-      "when": 1762526423527,
       "tag": "0002_wealthy_naoko",
-      "breakpoints": true
+      "version": "6",
+      "when": 1762526423527
     },
     {
+      "breakpoints": true,
       "idx": 3,
-      "version": "6",
-      "when": 1773483572773,
       "tag": "0003_slippery_wild_pack",
-      "breakpoints": true
+      "version": "6",
+      "when": 1773483572773
+    },
+    {
+      "breakpoints": true,
+      "idx": 4,
+      "tag": "0004_busy_giant_girl",
+      "version": "6",
+      "when": 1775029551647
+    },
+    {
+      "breakpoints": true,
+      "idx": 5,
+      "tag": "0005_normal_doomsday",
+      "version": "6",
+      "when": 1775032005049
     }
-  ]
+  ],
+  "version": "7"
 }

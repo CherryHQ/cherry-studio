@@ -1,5 +1,6 @@
 import { CodeBlockView, HtmlArtifactsCard } from '@renderer/components/CodeBlockView'
 import { useSettings } from '@renderer/hooks/useSettings'
+import { ClickableFilePath } from '@renderer/pages/home/Messages/Tools/MessageAgentTools/ClickableFilePath'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import store from '@renderer/store'
 import { messageBlocksSelectors } from '@renderer/store/messageBlock'
@@ -39,7 +40,7 @@ const CodeBlock: React.FC<Props> = ({ children, className, node, blockId }) => {
   const handleSave = useCallback(
     (newContent: string) => {
       if (id !== undefined) {
-        EventEmitter.emit(EVENT_NAMES.EDIT_CODE_BLOCK, {
+        void EventEmitter.emit(EVENT_NAMES.EDIT_CODE_BLOCK, {
           msgBlockId: blockId,
           codeBlockId: id,
           newContent
@@ -62,6 +63,15 @@ const CodeBlock: React.FC<Props> = ({ children, className, node, blockId }) => {
       <CodeBlockView language={language} onSave={handleSave}>
         {children}
       </CodeBlockView>
+    )
+  }
+
+  // Detect inline code that looks like an absolute file path (e.g. /Users/foo/bar.tsx)
+  if (typeof children === 'string' && /^\/[\w.-]+(?:\/[\w.-]+)+$/.test(children)) {
+    return (
+      <code className={className} style={{ textWrap: 'wrap', fontSize: '95%', padding: '2px 4px' }}>
+        <ClickableFilePath path={children} />
+      </code>
     )
   }
 

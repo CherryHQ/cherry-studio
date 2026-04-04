@@ -1,15 +1,19 @@
+import { Navbar, NavbarCenter } from '@renderer/components/app/Navbar'
 import { ErrorBoundary } from '@renderer/components/ErrorBoundary'
 import { useActiveAgent } from '@renderer/hooks/agents/useActiveAgent'
 import { useAgents } from '@renderer/hooks/agents/useAgents'
 import { useApiServer } from '@renderer/hooks/useApiServer'
 import { useRuntime } from '@renderer/hooks/useRuntime'
 import { useNavbarPosition, useSettings } from '@renderer/hooks/useSettings'
+import { useShortcut } from '@renderer/hooks/useShortcuts'
 import { useShowAssistants, useShowTopics } from '@renderer/hooks/useStore'
+import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import { cn } from '@renderer/utils'
 import { MIN_WINDOW_HEIGHT, MIN_WINDOW_WIDTH, SECOND_MIN_WINDOW_WIDTH } from '@shared/config/constant'
 import { AnimatePresence, motion } from 'motion/react'
 import type { PropsWithChildren } from 'react'
 import { useEffect } from 'react'
+import { useTranslation } from 'react-i18next'
 
 import AgentChat from './AgentChat'
 import AgentNavbar from './AgentNavbar'
@@ -18,33 +22,54 @@ import { AgentEmpty, AgentServerDisabled, AgentServerStopped } from './component
 
 const AgentPage = () => {
   const { isLeftNavbar } = useNavbarPosition()
-  const { showAssistants } = useShowAssistants()
-  const { showTopics } = useShowTopics()
+  const { showAssistants, toggleShowAssistants } = useShowAssistants()
+  const { showTopics, toggleShowTopics } = useShowTopics()
   const { topicPosition } = useSettings()
   const { chat } = useRuntime()
   const { activeAgentId } = chat
   const { agents } = useAgents()
   const { setActiveAgentId } = useActiveAgent()
   const { apiServerConfig, apiServerRunning, apiServerLoading } = useApiServer()
+  const { t } = useTranslation()
+
+  useShortcut('toggle_show_assistants', () => {
+    if (topicPosition === 'left') {
+      toggleShowAssistants()
+      return
+    }
+
+    void EventEmitter.emit(EVENT_NAMES.SHOW_ASSISTANTS)
+  })
+
+  useShortcut('toggle_show_topics', () => {
+    if (topicPosition === 'right') {
+      toggleShowTopics()
+    } else {
+      void EventEmitter.emit(EVENT_NAMES.SHOW_TOPIC_SIDEBAR)
+    }
+  })
 
   // Auto-select first agent when none is active
   useEffect(() => {
     if (!activeAgentId && agents && agents.length > 0) {
-      setActiveAgentId(agents[0].id)
+      void setActiveAgentId(agents[0].id)
     }
   }, [activeAgentId, agents, setActiveAgentId])
 
   useEffect(() => {
     const canMinimize = topicPosition === 'left' ? !showAssistants : !showAssistants && !showTopics
-    window.api.window.setMinimumSize(canMinimize ? SECOND_MIN_WINDOW_WIDTH : MIN_WINDOW_WIDTH, MIN_WINDOW_HEIGHT)
+    void window.api.window.setMinimumSize(canMinimize ? SECOND_MIN_WINDOW_WIDTH : MIN_WINDOW_WIDTH, MIN_WINDOW_HEIGHT)
     return () => {
-      window.api.window.resetMinimumSize()
+      void window.api.window.resetMinimumSize()
     }
   }, [showAssistants, showTopics, topicPosition])
 
   if (!apiServerConfig.enabled) {
     return (
-      <Container className="bg-background">
+      <Container>
+        <Navbar>
+          <NavbarCenter style={{ borderRight: 'none' }}>{t('common.agent_one')}</NavbarCenter>
+        </Navbar>
         <AgentServerDisabled />
       </Container>
     )
@@ -52,7 +77,10 @@ const AgentPage = () => {
 
   if (!apiServerLoading && !apiServerRunning) {
     return (
-      <Container className="bg-background">
+      <Container>
+        <Navbar>
+          <NavbarCenter style={{ borderRight: 'none' }}>{t('common.agent_one')}</NavbarCenter>
+        </Navbar>
         <AgentServerStopped />
       </Container>
     )
@@ -60,7 +88,10 @@ const AgentPage = () => {
 
   if (agents && agents.length === 0) {
     return (
-      <Container className="bg-background">
+      <Container>
+        <Navbar>
+          <NavbarCenter style={{ borderRight: 'none' }}>{t('common.agent_one')}</NavbarCenter>
+        </Navbar>
         <AgentEmpty />
       </Container>
     )
@@ -68,7 +99,7 @@ const AgentPage = () => {
 
   return (
     <Container>
-      {isLeftNavbar && <AgentNavbar />}
+      <AgentNavbar />
       <div
         id={isLeftNavbar ? 'content-container' : undefined}
         className="flex min-w-0 flex-1 shrink flex-row overflow-hidden">

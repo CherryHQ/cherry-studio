@@ -83,7 +83,7 @@ const HomeWindow: FC<{ draggable?: boolean }> = ({ draggable = true }) => {
   }, [isFirstMessage, referenceText, userInputText])
 
   useEffect(() => {
-    i18n.changeLanguage(language || navigator.language || defaultLanguage)
+    void i18n.changeLanguage(language || navigator.language || defaultLanguage)
   }, [language])
 
   // Reset state when switching to home route
@@ -131,7 +131,7 @@ const HomeWindow: FC<{ draggable?: boolean }> = ({ draggable = true }) => {
   }, [readClipboard, focusInput])
 
   useEffect(() => {
-    window.api.miniWindow.setPin(isPinned)
+    void window.api.miniWindow.setPin(isPinned)
   }, [isPinned])
 
   useEffect(() => {
@@ -143,7 +143,7 @@ const HomeWindow: FC<{ draggable?: boolean }> = ({ draggable = true }) => {
   }, [onWindowShow])
 
   useEffect(() => {
-    readClipboard()
+    void readClipboard()
   }, [readClipboard])
 
   const handleCloseWindow = useCallback(() => window.api.miniWindow.hide(), [])
@@ -171,7 +171,7 @@ const HomeWindow: FC<{ draggable?: boolean }> = ({ draggable = true }) => {
             } else {
               // Currently text input is only available in 'chat' mode
               setRoute('chat')
-              handleSendMessage()
+              void handleSendMessage()
               focusInput()
             }
           }
@@ -180,7 +180,7 @@ const HomeWindow: FC<{ draggable?: boolean }> = ({ draggable = true }) => {
       case 'Backspace':
         {
           if (userInputText.length === 0) {
-            clearClipboard()
+            void clearClipboard()
           }
         }
         break
@@ -468,7 +468,7 @@ const HomeWindow: FC<{ draggable?: boolean }> = ({ draggable = true }) => {
       handlePause()
     } else {
       if (route === 'home') {
-        handleCloseWindow()
+        void handleCloseWindow()
       } else {
         // Clear the topic messages to reduce memory usage
         if (currentTopic.current) {
@@ -495,7 +495,7 @@ const HomeWindow: FC<{ draggable?: boolean }> = ({ draggable = true }) => {
 
     if (lastMessage) {
       const content = getMainTextContent(lastMessage)
-      navigator.clipboard.writeText(content)
+      void navigator.clipboard.writeText(content)
       window.toast.success(t('message.copy.success'))
     }
   }, [currentTopic, t])

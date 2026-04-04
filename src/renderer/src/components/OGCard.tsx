@@ -27,7 +27,7 @@ export const OGCard = ({ link, show }: Props) => {
   useEffect(() => {
     // use show to lazy loading
     if (show && isLoading) {
-      parseMetadata()
+      void parseMetadata()
     }
   }, [parseMetadata, isLoading, show])
 

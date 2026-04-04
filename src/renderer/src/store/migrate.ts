@@ -23,13 +23,7 @@ import {
   isMac
 } from '@renderer/config/constant'
 import { allMinApps } from '@renderer/config/minapps'
-import {
-  isFunctionCallingModel,
-  isNotSupportTextDeltaModel,
-  qwen3Next80BModel,
-  qwen38bModel,
-  SYSTEM_MODELS
-} from '@renderer/config/models'
+import { isFunctionCallingModel, isNotSupportTextDeltaModel, qwenModel, SYSTEM_MODELS } from '@renderer/config/models'
 import { BUILTIN_OCR_PROVIDERS, BUILTIN_OCR_PROVIDERS_MAP, DEFAULT_OCR_PROVIDER } from '@renderer/config/ocr'
 import { TRANSLATE_PROMPT } from '@renderer/config/prompts'
 import { SYSTEM_PROVIDERS } from '@renderer/config/providers'
@@ -658,14 +652,14 @@ const migrateConfig = {
       state.assistants.assistants.forEach((assistant) => {
         assistant.topics.forEach((topic) => {
           topic.assistantId = assistant.id
-          runAsyncFunction(async () => {
+          void runAsyncFunction(async () => {
             const _topic = await db.topics.get(topic.id)
             if (_topic) {
               const messages = (_topic?.messages || []).map((message) => ({
                 ...message,
                 assistantId: assistant.id
               }))
-              db.topics.put({ ..._topic, messages }, topic.id)
+              void db.topics.put({ ..._topic, messages }, topic.id)
             }
           })
         })
@@ -3084,7 +3078,7 @@ const migrateConfig = {
   // 1.7.7
   '189': (state: RootState) => {
     try {
-      window.api.memory.migrateMemoryDb()
+      void window.api.memory.migrateMemoryDb()
       // @ts-ignore
       const memoryLlmApiClient = state?.memory?.memoryConfig?.llmApiClient
       // @ts-ignore
@@ -3169,20 +3163,20 @@ const migrateConfig = {
     try {
       const GLM_4_5_FLASH_MODEL = 'glm-4.5-flash'
       if (state.llm.defaultModel?.provider === 'cherryai' && state.llm.defaultModel?.id === GLM_4_5_FLASH_MODEL) {
-        state.llm.defaultModel = qwen3Next80BModel
+        state.llm.defaultModel = qwenModel
       }
       if (state.llm.quickModel?.provider === 'cherryai' && state.llm.quickModel?.id === GLM_4_5_FLASH_MODEL) {
-        state.llm.quickModel = qwen38bModel
+        state.llm.quickModel = qwenModel
       }
       if (state.llm.translateModel?.provider === 'cherryai' && state.llm.translateModel?.id === GLM_4_5_FLASH_MODEL) {
-        state.llm.translateModel = qwen3Next80BModel
+        state.llm.translateModel = qwenModel
       }
       state.assistants.assistants.forEach((assistant) => {
         if (assistant.model?.provider === 'cherryai' && assistant.model?.id === GLM_4_5_FLASH_MODEL) {
-          assistant.model = qwen3Next80BModel
+          assistant.model = qwenModel
         }
         if (assistant.defaultModel?.provider === 'cherryai' && assistant.defaultModel?.id === GLM_4_5_FLASH_MODEL) {
-          assistant.defaultModel = qwen3Next80BModel
+          assistant.defaultModel = qwenModel
         }
       })
       // Initialize mini app region filter setting
@@ -3225,7 +3219,7 @@ const migrateConfig = {
   },
   '197': (state: RootState) => {
     try {
-      if (state.openclaw.gatewayPort === 18789) {
+      if (state.openclaw?.gatewayPort === 18789) {
         state.openclaw.gatewayPort = 18790
       }
       logger.info('migrate 197 success')
@@ -3351,10 +3345,80 @@ const migrateConfig = {
   },
   '204': (state: RootState) => {
     try {
-      updateProvider(state, 'aihubmix', { geminiApiHost: 'https://aihubmix.com/gemini/v1beta' })
+      if (state.llm.defaultModel?.provider === 'cherryai') {
+        state.llm.defaultModel = qwenModel
+      }
+      if (state.llm.quickModel?.provider === 'cherryai') {
+        state.llm.quickModel = qwenModel
+      }
+      if (state.llm.translateModel?.provider === 'cherryai') {
+        state.llm.translateModel = qwenModel
+      }
+      state.assistants.assistants.forEach((assistant) => {
+        if (assistant.model?.provider === 'cherryai') {
+          assistant.model = qwenModel
+        }
+        if (assistant.defaultModel?.provider === 'cherryai') {
+          assistant.defaultModel = qwenModel
+        }
+      })
+      logger.info('migrate 204 success')
       return state
     } catch (error) {
       logger.error('migrate 204 error', error as Error)
+      return state
+    }
+  },
+  '205': (state: RootState) => {
+    try {
+      localStorage.setItem('onboarding-completed', 'true')
+
+      // Add anthropicApiHost to lmstudio and ollama providers for CodeTools compatibility
+      state.llm.providers.forEach((provider) => {
+        if (provider.id === 'lmstudio' && !provider.anthropicApiHost) {
+          provider.anthropicApiHost = 'http://localhost:1234'
+        }
+        if (provider.id === 'ollama' && !provider.anthropicApiHost) {
+          provider.anthropicApiHost = provider.apiHost || 'http://localhost:11434'
+        }
+      })
+
+      logger.info('migrate 205 success')
+      return state
+    } catch (error) {
+      logger.error('migrate 205 error', error as Error)
+      return state
+    }
+  },
+  '206': (state: RootState) => {
+    try {
+      const { sessionToolOrder } = state.inputTools
+      const permissionModeKey = 'permission_mode'
+      if (
+        sessionToolOrder &&
+        !sessionToolOrder?.visible?.includes(permissionModeKey) &&
+        !sessionToolOrder?.hidden?.includes(permissionModeKey)
+      ) {
+        const createSessionIndex = sessionToolOrder.visible.indexOf('create_session')
+        if (createSessionIndex !== -1) {
+          sessionToolOrder.visible.splice(createSessionIndex + 1, 0, permissionModeKey)
+        } else {
+          sessionToolOrder.visible.unshift(permissionModeKey)
+        }
+      }
+      logger.info('migrate 206 success')
+      return state
+    } catch (error) {
+      logger.error('migrate 206 error', error as Error)
+      return state
+    }
+  },
+  '207': (state: RootState) => {
+    try {
+      updateProvider(state, 'aihubmix', { geminiApiHost: 'https://aihubmix.com/gemini/v1beta' })
+      return state
+    } catch (error) {
+      logger.error('migrate 207 error', error as Error)
       return state
     }
   }

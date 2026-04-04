@@ -16,7 +16,7 @@ const AgentSidePanel = ({ onSelectItem }: AgentSidePanelProps) => {
   const { t } = useTranslation()
   const { chat } = useRuntime()
   const { activeAgentId } = chat
-  const { isLeftNavbar } = useNavbarPosition()
+  const { isLeftNavbar, isTopNavbar } = useNavbarPosition()
   const { topicPosition } = useSettings()
 
   const sessionsOnRight = topicPosition === 'right'
@@ -34,7 +34,7 @@ const AgentSidePanel = ({ onSelectItem }: AgentSidePanelProps) => {
       {/* Tabs */}
       {!sessionsOnRight && (
         <div
-          className="mx-3 flex border-(--color-border) border-b bg-transparent py-1.5 pt-0.5"
+          className={cn('mx-3 flex border-(--color-border) border-b bg-transparent py-1.5', isTopNavbar && 'pt-0.5')}
           style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}>
           <TabButton active={tab === 'agents'} onClick={() => setTab('agents')}>
             {t('agent.sidebar_title')}
