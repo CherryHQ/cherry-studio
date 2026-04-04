@@ -83,7 +83,7 @@ export function createUniqueModelId(providerId: string, modelId: string): Unique
   if (providerId.includes(UNIQUE_MODEL_ID_SEPARATOR)) {
     throw new Error(`providerId cannot contain "${UNIQUE_MODEL_ID_SEPARATOR}": ${providerId}`)
   }
-  return `${providerId}${UNIQUE_MODEL_ID_SEPARATOR}${modelId}` as UniqueModelId
+  return `${providerId}${UNIQUE_MODEL_ID_SEPARATOR}${modelId}`
 }
 
 /**

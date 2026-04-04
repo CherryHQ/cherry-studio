@@ -13,7 +13,7 @@ import { userProviderInsertSchema } from '@data/db/schemas/userProvider'
 import { catalogService } from '@data/services/ProviderCatalogService'
 import { providerService } from '@data/services/ProviderService'
 import type { ApiHandler, ApiMethods } from '@shared/data/api/apiTypes'
-import type { CreateProviderDto, ListProvidersQuery, UpdateProviderDto } from '@shared/data/api/schemas/providers'
+import type { CreateProviderDto, UpdateProviderDto } from '@shared/data/api/schemas/providers'
 import type { ProviderSchemas } from '@shared/data/api/schemas/providers'
 
 /**
@@ -31,8 +31,7 @@ export const providerHandlers: {
 } = {
   '/providers': {
     GET: async ({ query }) => {
-      const q = (query || {}) as ListProvidersQuery
-      return await providerService.list(q)
+      return await providerService.list(query ?? {})
     },
 
     POST: async ({ body }) => {

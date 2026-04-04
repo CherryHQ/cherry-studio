@@ -36,7 +36,7 @@ function rowToRuntimeProvider(row: UserProvider): Provider {
   // Determine auth type
   let authType: AuthType = 'api-key'
   if (row.authConfig?.type) {
-    authType = row.authConfig.type as AuthType
+    authType = row.authConfig.type
   }
 
   // Merge API features

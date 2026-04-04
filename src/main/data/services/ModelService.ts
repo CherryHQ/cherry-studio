@@ -7,14 +7,13 @@
  * - Catalog import support
  */
 
-import type { EndpointType, Modality, ModelCapability } from '@cherrystudio/provider-catalog'
 import type { NewUserModel, UserModel } from '@data/db/schemas/userModel'
 import { isCatalogEnrichableField, userModelTable } from '@data/db/schemas/userModel'
 import { loggerService } from '@logger'
 import { application } from '@main/core/application'
 import { DataApiErrorFactory } from '@shared/data/api'
 import type { CreateModelDto, ListModelsQuery, UpdateModelDto } from '@shared/data/api/schemas/models'
-import type { Model, RuntimeModelPricing, RuntimeParameterSupport, RuntimeReasoning } from '@shared/data/types/model'
+import type { Model, RuntimeParameterSupport, RuntimeReasoning } from '@shared/data/types/model'
 import { createUniqueModelId } from '@shared/data/types/model'
 import { mergeModelConfig } from '@shared/data/utils/modelMerger'
 import { and, eq, inArray, type SQL } from 'drizzle-orm'
@@ -37,16 +36,16 @@ function rowToRuntimeModel(row: UserModel): Model {
     name: row.name ?? row.modelId,
     description: row.description ?? undefined,
     group: row.group ?? undefined,
-    capabilities: (row.capabilities ?? []) as ModelCapability[],
-    inputModalities: (row.inputModalities ?? undefined) as Modality[] | undefined,
-    outputModalities: (row.outputModalities ?? undefined) as Modality[] | undefined,
+    capabilities: row.capabilities ?? [],
+    inputModalities: row.inputModalities ?? undefined,
+    outputModalities: row.outputModalities ?? undefined,
     contextWindow: row.contextWindow ?? undefined,
     maxOutputTokens: row.maxOutputTokens ?? undefined,
-    endpointTypes: (row.endpointTypes ?? undefined) as EndpointType[] | undefined,
+    endpointTypes: row.endpointTypes ?? undefined,
     supportsStreaming: row.supportsStreaming ?? true,
     reasoning: (row.reasoning ?? undefined) as RuntimeReasoning | undefined,
     parameterSupport: (row.parameters ?? undefined) as RuntimeParameterSupport | undefined,
-    pricing: (row.pricing ?? undefined) as RuntimeModelPricing | undefined,
+    pricing: row.pricing ?? undefined,
     isEnabled: row.isEnabled ?? true,
     isHidden: row.isHidden ?? false
   }
