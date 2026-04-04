@@ -370,6 +370,30 @@ export const SYSTEM_MODELS: Record<SystemProviderId | 'defaultModel', Model[]> =
       provider: 'gemini',
       name: 'Gemini 3.1 Pro Preview',
       group: 'Gemini 3'
+    },
+    {
+      id: 'gemma-4-e2b',
+      provider: 'gemini',
+      name: 'Gemma 4 E2B',
+      group: 'Gemma 4'
+    },
+    {
+      id: 'gemma-4-e4b',
+      provider: 'gemini',
+      name: 'Gemma 4 E4B',
+      group: 'Gemma 4'
+    },
+    {
+      id: 'gemma-4-26b-moe',
+      provider: 'gemini',
+      name: 'Gemma 4 26B MoE',
+      group: 'Gemma 4'
+    },
+    {
+      id: 'gemma-4-31b',
+      provider: 'gemini',
+      name: 'Gemma 4 31B',
+      group: 'Gemma 4'
     }
   ],
   anthropic: [

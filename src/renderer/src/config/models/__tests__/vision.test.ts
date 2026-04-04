@@ -411,3 +411,68 @@ describe('Doubao Seed 2.0 Models', () => {
     expect(isVisionModel(model)).toBe(true)
   })
 })
+
+describe('Gemma 4 Models', () => {
+  it('detects Gemma 4 GenAI format as vision', () => {
+    expect(isVisionModel(createModel({ id: 'gemma-4-e2b' }))).toBe(true)
+    expect(isVisionModel(createModel({ id: 'gemma-4-e4b' }))).toBe(true)
+    expect(isVisionModel(createModel({ id: 'gemma-4-26b-moe' }))).toBe(true)
+    expect(isVisionModel(createModel({ id: 'gemma-4-31b' }))).toBe(true)
+  })
+
+  it('detects Gemma 4 Ollama format as vision', () => {
+    expect(isVisionModel(createModel({ id: 'gemma4' }))).toBe(true)
+    expect(isVisionModel(createModel({ id: 'gemma4:e2b' }))).toBe(true)
+    expect(isVisionModel(createModel({ id: 'gemma4:31b' }))).toBe(true)
+    expect(isVisionModel(createModel({ id: 'gemma4:latest' }))).toBe(true)
+  })
+
+  it('detects Gemma 4 with provider prefix', () => {
+    expect(isVisionModel(createModel({ id: 'google/gemma-4-31b' }))).toBe(true)
+  })
+
+  it('does NOT detect Gemma 2 as vision (no regression)', () => {
+    expect(isVisionModel(createModel({ id: 'gemma-2b' }))).toBe(false)
+    expect(isVisionModel(createModel({ id: 'gemma-2-27b-it' }))).toBe(false)
+  })
+})
+
+describe('Gemma 4 Models', () => {
+  it('detects Gemma 4 GenAI format as vision', () => {
+    expect(isVisionModel(createModel({ id: 'gemma-4-e2b' }))).toBe(true)
+    expect(isVisionModel(createModel({ id: 'gemma-4-e4b' }))).toBe(true)
+    expect(isVisionModel(createModel({ id: 'gemma-4-26b-moe' }))).toBe(true)
+    expect(isVisionModel(createModel({ id: 'gemma-4-31b' }))).toBe(true)
+  })
+
+  it('detects Gemma 4 Ollama format as vision', () => {
+    expect(isVisionModel(createModel({ id: 'gemma4' }))).toBe(true)
+    expect(isVisionModel(createModel({ id: 'gemma4:e2b' }))).toBe(true)
+    expect(isVisionModel(createModel({ id: 'gemma4:31b' }))).toBe(true)
+    expect(isVisionModel(createModel({ id: 'gemma4:latest' }))).toBe(true)
+  })
+
+  it('detects Gemma 4 with provider prefix', () => {
+    expect(isVisionModel(createModel({ id: 'google/gemma-4-31b' }))).toBe(true)
+  })
+})
+
+describe('Gemma 4 Models', () => {
+  it('detects Gemma 4 GenAI format as vision', () => {
+    expect(isVisionModel(createModel({ id: 'gemma-4-e2b' }))).toBe(true)
+    expect(isVisionModel(createModel({ id: 'gemma-4-e4b' }))).toBe(true)
+    expect(isVisionModel(createModel({ id: 'gemma-4-26b-moe' }))).toBe(true)
+    expect(isVisionModel(createModel({ id: 'gemma-4-31b' }))).toBe(true)
+  })
+
+  it('detects Gemma 4 Ollama format as vision', () => {
+    expect(isVisionModel(createModel({ id: 'gemma4' }))).toBe(true)
+    expect(isVisionModel(createModel({ id: 'gemma4:e2b' }))).toBe(true)
+    expect(isVisionModel(createModel({ id: 'gemma4:31b' }))).toBe(true)
+    expect(isVisionModel(createModel({ id: 'gemma4:latest' }))).toBe(true)
+  })
+
+  it('detects Gemma 4 with provider prefix', () => {
+    expect(isVisionModel(createModel({ id: 'google/gemma-4-31b' }))).toBe(true)
+  })
+})
