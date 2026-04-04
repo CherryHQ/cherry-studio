@@ -71,6 +71,9 @@ export function resolvePhysicalPath(node: PathResolvableNode, mount: MountInfo, 
 
     case 'remote':
       throw new Error('Remote path resolution is not yet implemented')
+
+    default:
+      throw new Error(`Unknown provider type: ${(config as Record<string, unknown>).providerType} for node ${node.id}`)
   }
 }
 
