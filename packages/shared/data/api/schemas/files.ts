@@ -5,6 +5,7 @@
  * file references, and mount management.
  */
 
+import type { OffsetPaginationResponse } from '@shared/data/api/apiTypes'
 import type { CreateFileRefDto, CreateNodeDto, FileNode, FileRef, UpdateNodeDto } from '@shared/data/types/fileNode'
 
 // ============================================================================
@@ -31,15 +32,17 @@ export interface FileSchemas {
    * @example POST /files/nodes { "type": "file", "name": "doc", "parentId": "..." }
    */
   '/files/nodes': {
-    /** List nodes with filters */
+    /** List nodes with filters and pagination */
     GET: {
       query: {
         mountId?: string
         parentId?: string
         type?: 'file' | 'dir'
         inTrash?: boolean
+        page?: number
+        limit?: number
       }
-      response: FileNode[]
+      response: OffsetPaginationResponse<FileNode>
     }
     /** Create a node (upload file / create directory) */
     POST: {
@@ -92,7 +95,7 @@ export interface FileSchemas {
         limit?: number
         offset?: number
       }
-      response: FileNode[]
+      response: OffsetPaginationResponse<FileNode>
     }
   }
 
