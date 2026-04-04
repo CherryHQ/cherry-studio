@@ -72,7 +72,7 @@ export class KnowledgeExecutionService {
       const nodes = await DocumentEmbedder.embed(embeddingModel, chunks)
 
       if (nodes.length > 0) {
-        const vectorStore = VectorStoreFactory.create(base)
+        const vectorStore = await VectorStoreFactory.createBase(base)
         await vectorStore.add(nodes)
       }
 

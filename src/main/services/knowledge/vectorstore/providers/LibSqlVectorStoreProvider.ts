@@ -9,24 +9,42 @@ import type { BaseVectorStore } from '@vectorstores/core'
 import { LibSQLVectorStore } from '@vectorstores/libsql'
 
 export class LibSqlVectorStoreProvider {
-  create(base: KnowledgeBase): BaseVectorStore {
+  async createBase(base: KnowledgeBase): Promise<BaseVectorStore> {
+    this.ensureKnowledgeBaseRootDir()
+    const dbPath = this.getKnowledgeBaseFilePath(base)
     return new LibSQLVectorStore({
       collection: base.id,
       dimensions: base.dimensions,
-      clientConfig: this.createKnowledgeBaseClientConfig(base.id)
+      clientConfig: {
+        url: pathToFileURL(dbPath).toString()
+      }
     })
   }
 
-  private createKnowledgeBaseClientConfig(baseId: string): { url: string } {
-    const rootDir = path.join(getDataPath(), 'KnowledgeBase')
+  async deleteBase(base: KnowledgeBase): Promise<void> {
+    const dbPath = this.getKnowledgeBaseFilePath(base)
+
+    try {
+      await fs.promises.rm(dbPath, { force: true })
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code !== 'ENOENT') {
+        throw error
+      }
+    }
+  }
+
+  private getKnowledgeBaseRootDir(): string {
+    return path.join(getDataPath(), 'KnowledgeBase')
+  }
+
+  private getKnowledgeBaseFilePath(base: Pick<KnowledgeBase, 'id'>): string {
+    return path.resolve(this.getKnowledgeBaseRootDir(), sanitizeFilename(base.id, '_'))
+  }
+
+  private ensureKnowledgeBaseRootDir(): void {
+    const rootDir = this.getKnowledgeBaseRootDir()
     if (!fs.existsSync(rootDir)) {
       fs.mkdirSync(rootDir, { recursive: true })
-    }
-
-    const dbPath = path.resolve(rootDir, sanitizeFilename(baseId, '_'))
-
-    return {
-      url: pathToFileURL(dbPath).toString()
     }
   }
 }

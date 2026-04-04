@@ -1,11 +1,25 @@
+import type * as fs from 'node:fs'
 import path from 'node:path'
 
 import type { KnowledgeBase } from '@shared/data/types/knowledge'
-import { describe, expect, it, vi } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const vectorStoreMocks = vi.hoisted(() => ({
-  constructorSpy: vi.fn()
+  constructorSpy: vi.fn(),
+  rm: vi.fn()
 }))
+
+vi.mock('node:fs', async () => {
+  const actual = await vi.importActual<typeof fs>('node:fs')
+
+  return {
+    ...actual,
+    promises: {
+      ...actual.promises,
+      rm: vectorStoreMocks.rm
+    }
+  }
+})
 
 vi.mock('@vectorstores/libsql', () => ({
   LibSQLVectorStore: class {
@@ -38,10 +52,12 @@ function createBase(overrides: Partial<KnowledgeBase> = {}): KnowledgeBase {
 }
 
 describe('VectorStoreFactory', () => {
-  it('maps collection and dimensions from the knowledge base', () => {
-    vectorStoreMocks.constructorSpy.mockClear()
+  beforeEach(() => {
+    vi.clearAllMocks()
+  })
 
-    VectorStoreFactory.create(createBase())
+  it('maps collection and dimensions from the knowledge base', async () => {
+    await VectorStoreFactory.createBase(createBase())
 
     expect(vectorStoreMocks.constructorSpy).toHaveBeenCalledWith({
       collection: 'base/1',
@@ -50,5 +66,21 @@ describe('VectorStoreFactory', () => {
         url: `file://${path.join('/tmp/cherry-data', 'KnowledgeBase', 'base_1')}`
       }
     })
+  })
+
+  it('deletes the base-specific vector store file', async () => {
+    vectorStoreMocks.rm.mockResolvedValue(undefined)
+
+    await VectorStoreFactory.deleteBase(createBase())
+
+    expect(vectorStoreMocks.rm).toHaveBeenCalledWith(path.join('/tmp/cherry-data', 'KnowledgeBase', 'base_1'), {
+      force: true
+    })
+  })
+
+  it('treats missing vector store files as a successful delete', async () => {
+    vectorStoreMocks.rm.mockRejectedValue(Object.assign(new Error('missing'), { code: 'ENOENT' }))
+
+    await expect(VectorStoreFactory.deleteBase(createBase())).resolves.toBeUndefined()
   })
 })

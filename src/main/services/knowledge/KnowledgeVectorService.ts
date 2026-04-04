@@ -4,7 +4,6 @@ import { BaseService, DependsOn, Injectable, Phase, ServicePhase } from '@main/c
 import type { KnowledgeBase, KnowledgeItem, KnowledgeSearchResult } from '@shared/data/types/knowledge'
 import { IpcChannel } from '@shared/IpcChannel'
 
-import type { EnqueueKnowledgeTaskInput } from './KnowledgeTaskService'
 import { VectorStoreFactory } from './vectorstore/VectorStoreFactory'
 
 const logger = loggerService.withContext('KnowledgeVectorService')
@@ -28,19 +27,32 @@ export class KnowledgeVectorService extends BaseService {
     // Minimal runtime initialization. Current vector store provider does not
     // require an eager collection creation step, but we still warm the runtime
     // boundary here so UI/main callers have a stable entrypoint.
-    VectorStoreFactory.create(base)
+    await VectorStoreFactory.createBase(base)
 
     logger.info('Initialized knowledge base vector runtime', { baseId: base.id })
   }
 
-  public async deleteBase(baseId: string): Promise<void> {
-    logger.warn('Knowledge base vector deletion is not implemented yet', { baseId })
+  public async deleteBase(base: KnowledgeBase): Promise<void> {
+    await VectorStoreFactory.deleteBase(base)
+
+    logger.info('Deleted knowledge base vector runtime store', { baseId: base.id })
   }
 
   public async addItems(base: KnowledgeBase, items: KnowledgeItem[]): Promise<void> {
-    await this.createBase(base)
+    const tasks = items
+      .filter((item) => {
+        if (item.baseId !== base.id) {
+          throw new Error(`Knowledge item ${item.id} does not belong to knowledge base ${base.id}`)
+        }
 
-    const tasks = this.toEnqueueTasks(base, items)
+        return item.type !== 'directory'
+      })
+      .map((item) => ({
+        itemId: item.id,
+        baseId: base.id,
+        // First version dispatches directly into the embed stage.
+        stage: 'embed' as const
+      }))
 
     if (tasks.length === 0) {
       logger.info('No knowledge items eligible for vector enqueue', {
@@ -85,34 +97,9 @@ export class KnowledgeVectorService extends BaseService {
     return []
   }
 
-  private toEnqueueTasks(base: KnowledgeBase, items: KnowledgeItem[]): EnqueueKnowledgeTaskInput[] {
-    return items.flatMap((item) => {
-      if (item.baseId !== base.id) {
-        throw new Error(`Knowledge item ${item.id} does not belong to knowledge base ${base.id}`)
-      }
-
-      if (!this.shouldEnqueue(item)) {
-        return []
-      }
-
-      return [
-        {
-          itemId: item.id,
-          baseId: base.id,
-          // First version dispatches directly into the embed stage.
-          stage: 'embed'
-        }
-      ]
-    })
-  }
-
-  private shouldEnqueue(item: KnowledgeItem): boolean {
-    return item.type === 'file' || item.type === 'note' || item.type === 'url' || item.type === 'sitemap'
-  }
-
   private registerIpcHandlers(): void {
     this.ipcHandle(IpcChannel.KnowledgeVector_CreateBase, async (_, base: KnowledgeBase) => this.createBase(base))
-    this.ipcHandle(IpcChannel.KnowledgeVector_DeleteBase, async (_, baseId: string) => this.deleteBase(baseId))
+    this.ipcHandle(IpcChannel.KnowledgeVector_DeleteBase, async (_, base: KnowledgeBase) => this.deleteBase(base))
     this.ipcHandle(
       IpcChannel.KnowledgeVector_AddItems,
       async (_, payload: { base: KnowledgeBase; items: KnowledgeItem[] }) => this.addItems(payload.base, payload.items)

@@ -4,11 +4,14 @@ import type { BaseVectorStore } from '@vectorstores/core'
 import { LibSqlVectorStoreProvider } from './providers/LibSqlVectorStoreProvider'
 
 /**
- * Minimal factory for building knowledge vector stores.
- * Scope intentionally limited to construction only.
+ * Minimal factory for knowledge vector store runtime operations.
  */
 export class VectorStoreFactory {
-  static create(base: KnowledgeBase): BaseVectorStore {
-    return new LibSqlVectorStoreProvider().create(base)
+  static async createBase(base: KnowledgeBase): Promise<BaseVectorStore> {
+    return await new LibSqlVectorStoreProvider().createBase(base)
+  }
+
+  static async deleteBase(base: KnowledgeBase): Promise<void> {
+    await new LibSqlVectorStoreProvider().deleteBase(base)
   }
 }

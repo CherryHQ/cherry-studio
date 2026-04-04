@@ -19,7 +19,7 @@ const embeddingModelFactoryMock = vi.hoisted(() => ({
 }))
 
 const vectorStoreFactoryMock = vi.hoisted(() => ({
-  create: vi.fn()
+  createBase: vi.fn()
 }))
 
 const knowledgeBaseServiceMock = vi.hoisted(() => ({
@@ -201,7 +201,7 @@ describe('KnowledgeExecutionService', () => {
     embeddingModelFactoryMock.create.mockReturnValue(embeddingModel)
     documentEmbedderMock.embed.mockResolvedValue(nodes)
     const add = vi.fn(async () => ['node-1'])
-    vectorStoreFactoryMock.create.mockReturnValue({ add })
+    vectorStoreFactoryMock.createBase.mockResolvedValue({ add })
 
     const service = new KnowledgeExecutionService()
 
@@ -224,7 +224,7 @@ describe('KnowledgeExecutionService', () => {
     expect(documentChunkerMock.chunk).toHaveBeenCalledWith(base, item, sourceDocuments)
     expect(embeddingModelFactoryMock.create).toHaveBeenCalledWith(base)
     expect(documentEmbedderMock.embed).toHaveBeenCalledWith(embeddingModel, chunks)
-    expect(vectorStoreFactoryMock.create).toHaveBeenCalledWith(base)
+    expect(vectorStoreFactoryMock.createBase).toHaveBeenCalledWith(base)
     expect(add).toHaveBeenCalledWith(nodes)
     expect(knowledgeItemServiceMock.update).toHaveBeenNthCalledWith(2, item.id, {
       status: 'completed',
@@ -246,7 +246,7 @@ describe('KnowledgeExecutionService', () => {
     readerFactoryMock.create.mockReturnValue({ load })
     embeddingModelFactoryMock.create.mockReset()
     documentEmbedderMock.embed.mockReset()
-    vectorStoreFactoryMock.create.mockReset()
+    vectorStoreFactoryMock.createBase.mockReset()
 
     const service = new KnowledgeExecutionService()
 
@@ -269,7 +269,7 @@ describe('KnowledgeExecutionService', () => {
       status: 'failed',
       error: 'reader failed'
     })
-    expect(vectorStoreFactoryMock.create).not.toHaveBeenCalled()
+    expect(vectorStoreFactoryMock.createBase).not.toHaveBeenCalled()
   })
 
   it('returns failed from submitFileProcessing skeleton and marks file_processing then failed', async () => {

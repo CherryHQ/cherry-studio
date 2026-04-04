@@ -338,7 +338,8 @@ const api = {
   knowledgeVector: {
     createBase: (base: KnowledgeVectorBase): Promise<void> =>
       ipcRenderer.invoke(IpcChannel.KnowledgeVector_CreateBase, base),
-    deleteBase: (baseId: string): Promise<void> => ipcRenderer.invoke(IpcChannel.KnowledgeVector_DeleteBase, baseId),
+    deleteBase: (base: KnowledgeVectorBase): Promise<void> =>
+      ipcRenderer.invoke(IpcChannel.KnowledgeVector_DeleteBase, base),
     addItems: (base: KnowledgeVectorBase, items: KnowledgeVectorItem[]): Promise<void> =>
       ipcRenderer.invoke(IpcChannel.KnowledgeVector_AddItems, { base, items }),
     deleteItems: (baseId: string, itemIds: string[]): Promise<void> =>
