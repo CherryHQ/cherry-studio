@@ -25,6 +25,7 @@ import type { FileProcessingSchemas } from './fileProcessing'
 import type { KnowledgeSchemas } from './knowledges'
 import type { MCPServerSchemas } from './mcpServers'
 import type { MessageSchemas } from './messages'
+import type { MiniappSchemas } from './miniapps'
 import type { TestSchemas } from './test'
 import type { TopicSchemas } from './topics'
 import type { TranslateSchemas } from './translate'
@@ -41,6 +42,7 @@ import type { TranslateSchemas } from './translate'
  * 1. Create the schema file (e.g., topic.ts)
  * 2. Import and add to intersection below
  */
+
 export type ApiSchemas = AssertValidSchemas<
   TestSchemas &
     TopicSchemas &
@@ -48,5 +50,6 @@ export type ApiSchemas = AssertValidSchemas<
     TranslateSchemas &
     FileProcessingSchemas &
     MCPServerSchemas &
-    KnowledgeSchemas
+    KnowledgeSchemas &
+    MiniappSchemas
 >
