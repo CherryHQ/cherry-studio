@@ -21,6 +21,10 @@ export const RemoteApiTypeSchema = z.enum([
 export type RemoteApiType = z.infer<typeof RemoteApiTypeSchema>
 
 // ─── Provider Config Schemas ───
+// These configs use snake_case intentionally: they are self-contained JSON blobs
+// stored in the DB providerConfig column, not transmitted as top-level API fields.
+// The snake_case aligns with the discriminated union discriminator (provider_type)
+// and keeps the config format consistent across all provider types.
 
 /** Managed files: app-internal storage, UUID-based naming */
 export const LocalManagedConfigSchema = z.object({
