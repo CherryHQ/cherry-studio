@@ -1,3 +1,4 @@
+import fs from 'node:fs'
 import path from 'node:path'
 
 import type { MountProviderConfig } from '@shared/data/types/fileProvider'
@@ -64,8 +65,11 @@ export function resolvePhysicalPath(node: PathResolvableNode, mount: MountInfo, 
         throw new Error('ancestorNames is required for local_external provider')
       }
       const resolved = path.resolve(config.basePath, ...ancestorNames, `${node.name}${getExtSuffix(node.ext)}`)
-      assertPathContained(resolved, config.basePath)
-      return resolved
+      // Resolve symlinks for local_external — user-chosen directories may contain symlinks
+      const realResolved = fs.realpathSync(resolved)
+      const realBase = fs.realpathSync(config.basePath)
+      assertPathContained(realResolved, realBase)
+      return realResolved
     }
 
     case 'system':
@@ -81,7 +85,8 @@ export function resolvePhysicalPath(node: PathResolvableNode, mount: MountInfo, 
 
 /**
  * Assert that a resolved path stays within the base directory.
- * Prevents path traversal attacks via '..' segments or symlink tricks.
+ * Prevents path traversal attacks via '..' segments.
+ * For symlink protection, callers should resolve paths with fs.realpathSync() before calling.
  */
 function assertPathContained(resolved: string, basePath: string): void {
   const base = path.resolve(basePath)
