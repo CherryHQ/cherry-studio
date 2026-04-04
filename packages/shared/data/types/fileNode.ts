@@ -52,6 +52,17 @@ import * as z from 'zod'
 
 import { MountProviderConfigSchema } from './fileProvider'
 
+// ─── Shared Validation ───
+
+/** Name schema with security validations: rejects null bytes, path separators, and traversal sequences */
+const SafeNameSchema = z
+  .string()
+  .min(1)
+  .max(255)
+  .refine((s) => !s.includes('\0'), 'Name must not contain null bytes')
+  .refine((s) => !/[/\\]/.test(s), 'Name must not contain path separators')
+  .refine((s) => !/^\.\.?$/.test(s), 'Name must not be . or ..')
+
 // ─── System Node IDs ───
 
 /** Well-known system mount node IDs, created at app initialization */
@@ -80,7 +91,7 @@ export const FileNodeSchema = z
     /** Node type */
     type: FileNodeTypeSchema,
     /** User-visible name (without extension) */
-    name: z.string().min(1),
+    name: SafeNameSchema,
     /** File extension without leading dot (e.g. 'pdf', 'md'). Null for dirs/mounts or extensionless files (e.g. Dockerfile) */
     ext: z.string().min(1).nullable(),
     /** Parent node ID. Null for mount nodes (top-level) */
@@ -201,7 +212,7 @@ export const CreateNodeDtoSchema = z.object({
   /** Node type (file or dir, not mount) */
   type: z.enum(['file', 'dir']),
   /** User-visible name */
-  name: z.string().min(1),
+  name: SafeNameSchema,
   /** File extension without leading dot */
   ext: z.string().min(1).optional(),
   /** Parent node ID */
@@ -216,7 +227,7 @@ export type CreateNodeDto = z.infer<typeof CreateNodeDtoSchema>
 /** DTO for updating a node's metadata */
 export const UpdateNodeDtoSchema = z.object({
   /** Updated name */
-  name: z.string().min(1).optional(),
+  name: SafeNameSchema.optional(),
   /** Updated extension */
   ext: z.string().min(1).optional()
 })
