@@ -79,7 +79,7 @@
     "changeset:status": "changeset status",
     "changeset:version": "changeset version && pnpm format",
     "changeset:publish": "changeset publish",
-    "packages:build": "pnpm --filter @cherrystudio/ai-sdk-provider build && pnpm --filter @cherrystudio/ai-core build && pnpm --filter @cherrystudio/extension-table-plus build",
+    "packages:build": "pnpm --filter @cherrystudio/ai-sdk-provider build && pnpm --filter @cherrystudio/ai-core build && pnpm --filter @cherrystudio/extension-table-plus build && pnpm --filter @vectorstores/libsql build",
     "packages:release": "pnpm packages:build && changeset publish",
     "ci:basic-check": "pnpm test:lint && pnpm format:check && pnpm typecheck && pnpm i18n:check && pnpm i18n:hardcoded:strict && pnpm openapi:check && pnpm skills:check",
     "ci:test-check": "pnpm test:main && pnpm test:renderer && pnpm test:aicore && pnpm test:shared && pnpm test:scripts",

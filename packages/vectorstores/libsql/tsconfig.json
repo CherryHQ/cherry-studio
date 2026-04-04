@@ -4,8 +4,8 @@
     "module": "ESNext",
     "moduleResolution": "bundler",
     "rootDir": "./src",
-    "outDir": "./lib",
-    "tsBuildInfoFile": "./lib/.tsbuildinfo"
+    "outDir": "./dist",
+    "tsBuildInfoFile": "./dist/.tsbuildinfo"
   },
   "include": ["./src"]
 }

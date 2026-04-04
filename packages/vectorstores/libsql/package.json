@@ -4,25 +4,14 @@
   "version": "0.1.0",
   "type": "module",
   "main": "./dist/index.cjs",
-  "module": "./dist/index.js",
+  "module": "./dist/index.mjs",
+  "types": "./dist/index.d.mts",
   "exports": {
     ".": {
-      "edge-light": {
-        "types": "./dist/index.edge-light.d.ts",
-        "default": "./dist/index.edge-light.js"
-      },
-      "workerd": {
-        "types": "./dist/index.edge-light.d.ts",
-        "default": "./dist/index.edge-light.js"
-      },
-      "require": {
-        "types": "./dist/index.d.cts",
-        "default": "./dist/index.cjs"
-      },
-      "import": {
-        "types": "./dist/index.d.ts",
-        "default": "./dist/index.js"
-      }
+      "types": "./dist/index.d.mts",
+      "import": "./dist/index.mjs",
+      "require": "./dist/index.cjs",
+      "default": "./dist/index.mjs"
     }
   },
   "files": [
@@ -31,14 +20,17 @@
   "repository": {
     "type": "git",
     "url": "git+https://github.com/marcusschiesser/vectorstores.git",
-    "directory": "packages/providers/storage/libsql"
+    "directory": "packages/vectorstores/libsql"
   },
   "scripts": {
-    "build": "bunchee",
-    "dev": "bunchee --watch",
+    "build": "tsdown",
+    "dev": "tsdown --watch",
+    "clean": "rm -rf dist",
     "test": "vitest run"
   },
   "devDependencies": {
+    "tsdown": "^0.20.3",
+    "typescript": "^5.8.3",
     "vitest": "2.1.0",
     "@vectorstores/core": "^0.1.8",
     "@vectorstores/env": "^0.1.0"
@@ -49,5 +41,9 @@
   },
   "dependencies": {
     "@libsql/client": "^0.15.15"
+  },
+  "sideEffects": false,
+  "engines": {
+    "node": ">=18.0.0"
   }
 }
