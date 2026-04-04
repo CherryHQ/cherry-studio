@@ -1,8 +1,26 @@
 # CherryStudio V2 备份系统重构规划
 
-**版本**: v2.0-draft
-**日期**: 2025-01-21
-**目的**: PR Draft - 与 V2 负责人讨论备份系统重构方向
+**版本**: v2.1-draft
+**日期**: 2026-04-04
+**目的**: V2 备份系统实现规划
+**状态**: 范围定义阶段，等待审阅确认
+
+---
+
+## 设计决策变更记录（v2.0 → v2.1）
+
+| 变更项 | v2.0 内容 | v2.1 决策 | 章节 |
+|--------|----------|----------|------|
+| V1 格式导入 | 包含 LegacyImporter | **移除** — V2 不支持 V1 格式导入 | 五、导入解析 |
+| V1 备份服务 | 简化为文件 I/O | **保留 BackupManager** — 用于导出 V1 格式 | 二、架构 |
+| 增量备份 | 第七章完整方案 | **延后** — 初始版本不做 | 七、增量备份 |
+| 加密 | 第九章完整方案 | **延后** — 初始版本不做 | 九、加密 |
+| VersionMigrator | 包含在架构中 | **移除** — V2 只处理 V2 格式 | 五、导入解析 |
+| 知识库备份 | 仅元数据 | **三层备份** — 配置+内容+向量二进制文件 | 四、导出格式 |
+| 媒体文件 | Base64 分离 | **扩展** — Dexie FileStorage 元数据+磁盘文件一并备份 | 四、导出格式 |
+| Preference 过滤 | 4 个机器相关 key | **5 类过滤** — 凭证+机器状态+平台路径+快捷键+字体 | 六、跨平台 |
+| 备份粒度 | 未提及 | **存为 Preference** — 支持自动备份静默执行 | 十、关键决策 |
+| 数据域 | 7 个（含 MEMORY/FILES） | **8 个域** — Phase 1 六个 + Phase 2 两个（Assistants/Providers） | 三、数据结构 |
 
 ---
 
@@ -88,17 +106,32 @@ ZIP/云存储 → BackupManager → StreamParser → VersionMigrator → BackupO
 
 ### 3.1 数据域枚举
 
+**Phase 1（立即可实现）**：
+
 ```typescript
 enum BackupDomain {
-  PROVIDERS = 'providers',       // 供应商配置
-  ASSISTANTS = 'assistants',     // 助手配置
-  TOPICS = 'topics',             // 话题和消息
-  KNOWLEDGE = 'knowledge',       // 知识库
-  PREFERENCES = 'preferences',   // 应用设置
-  MEMORY = 'memory',             // 全局记忆
-  FILES = 'files'                // 附件文件
+  TOPICS_MESSAGES = 'topics_messages',     // 话题+消息+媒体文件
+  KNOWLEDGE = 'knowledge',                  // 知识库（配置+内容+向量+文件）
+  PREFERENCES = 'preferences',              // 用户设置（过滤敏感项）
+  MCP_SERVERS = 'mcp_servers',              // MCP 服务器配置
+  TAGS_GROUPS = 'tags_groups',              // 标签+分组+关联
+  TRANSLATE_HISTORY = 'translate_history'   // 翻译历史
 }
 ```
+
+**Phase 2（阻塞中，等依赖 PR 合并）**：
+
+```typescript
+// PR #13851 — 助手数据层重构
+ASSISTANTS = 'assistants'
+
+// PR #13238 — 服务商数据层重构
+PROVIDERS_MODELS = 'providers_models'
+```
+
+**已移除的域**：
+- `MEMORY` — 全局记忆暂不纳入备份范围
+- `FILES` — 文件已纳入 TOPICS_MESSAGES 域，不再独立
 
 ### 3.2 备份元数据
 
@@ -149,21 +182,37 @@ interface MessageTreeRef {
 ```typescript
 interface BackupOptions {
   domains: BackupDomain[]
-  isIncremental?: boolean
-  flattenBranches?: boolean     // 将分支合并为线性对话
-  excludeImages?: boolean       // 排除图片附件
-  includeDataFolder?: boolean   // 包含 Data 目录
-  encrypt?: boolean             // 是否加密
-  password?: string             // 加密密码
+  // 已移除：isIncremental（延后）
+  // 已移除：encrypt/password（延后）
+  includeKnowledgeFiles?: boolean  // 默认开启 — 是否包含知识库原始文件
+  // 已移除：flattenBranches、excludeImages、includeDataFolder
 }
 
 interface RestoreOptions {
-  domains?: BackupDomain[]      // 默认为全部
-  conflictStrategy?: ConflictStrategy
-  mergeStrategy?: MergeStrategy
-  idMapping?: Map<string, string>
+  domains?: BackupDomain[]              // 默认为全部
+  conflictStrategy?: ConflictStrategy    // 默认 RENAME
+  idMapping?: Map<string, string>       // 两阶段导入时由第一遍扫描生成
+}
+
+enum ConflictStrategy {
+  RENAME = 'rename',   // 默认：生成新 ID，更新所有引用
+  SKIP = 'skip',       // 跳过已存在的记录
+  OVERWRITE = 'overwrite' // 覆盖已存在的记录
 }
 ```
+
+### 3.5 备份粒度控制
+
+域选择偏好**存为 Preference**，用于支持自动备份静默执行：
+
+```typescript
+// Preference keys
+'data.backup.default_domains'       // 默认备份域组合（JSON 数组）
+'data.backup.include_knowledge_files' // 是否包含知识库文件（boolean）
+```
+
+- 自动备份（WebDAV/S3/本地定时）直接读取 Preference，静默执行
+- 手动备份在对话框中展示选项，允许覆盖默认值，并提供"保存为默认"按钮
 
 ---
 
@@ -194,37 +243,55 @@ interface RestoreOptions {
 ### 4.3 ZIP 包结构
 
 ```
-cherry-studio-backup-v6.zip
-├── manifest.json              # 备份元数据
+backup_v2.zip
+├── manifest.json              # 备份元数据（版本、域、校验和）
 ├── checksums.json             # 各文件 xxHash 校验和
-├── providers/
-│   └── data.jsonl
-├── assistants/
-│   └── data.jsonl
 ├── topics/
-│   ├── index.jsonl            # Topic 元数据
-│   ├── tree_refs.jsonl        # 消息树结构引用
-│   └── messages/
-│       ├── chunk_0000.jsonl   # 消息分片 (~50MB/片)
-│       └── chunk_0001.jsonl
+│   └── {topicId}/
+│       ├── metadata.jsonl     # Topic 元数据
+│       ├── messages.jsonl     # 消息（每行一条）
+│       └── messages_0001.jsonl # 大话题自动分片（~50MB/片）
 ├── knowledge/
-│   └── bases.jsonl
+│   ├── bases.jsonl           # 知识库配置
+│   ├── items.jsonl           # 知识项元数据
+│   └── vectors/
+│       └── {baseId}/        # 向量嵌入数据（LibSQL 二进制文件）
+│           └── *.db          # 直接复制，恢复后无需重新 embedding
 ├── preferences/
-│   └── data.json
-├── memory/
-│   └── data.jsonl
+│   └── settings.jsonl        # 过滤后的偏好设置
+├── mcp_servers/
+│   └── servers.jsonl
+├── tags_groups/
+│   ├── tags.jsonl
+│   ├── entity_tags.jsonl
+│   └── groups.jsonl
+├── translate/
+│   ├── history.jsonl
+│   └── languages.jsonl
 └── files/
-    ├── manifest.json          # 文件索引 (id → hash 映射)
-    └── blobs/                 # 按 hash 去重存储
-        └── {hash}.bin
+    ├── filestorage.jsonl     # Dexie db.files 元数据
+    └── blobs/
+        └── {sha256_hash}.bin  # 按哈希去重的附件文件
 ```
 
-**重要：Base64 图片分离存储**
+**重要：消息媒体文件备份策略**
 
-消息中的 Base64 图片**必须**从 JSONL 中分离：
-- 单行 JSON 超过 50MB 会导致解析崩溃
-- 导出时：提取 `data.blocks` 中的 Base64 → 写入 `files/blobs/{hash}.bin` → JSONL 中存 `{ "image_ref": "hash" }`
-- 导入时：读取 `image_ref` → 从 `files/blobs/` 还原
+消息中的媒体文件（AI 绘图、附件、视频、音频）存储在 FileStorage 磁盘文件 + Dexie `db.files` 元数据：
+
+- **Dexie 元数据**：从 `db.files` 导出为 `files/filestorage.jsonl`
+- **磁盘文件**：按内容哈希去重存储在 `files/blobs/`
+- **Base64 分离**：消息 JSONL 中的 Base64 数据提取为独立文件，JSON 中替换为 `{ "image_ref": "hash" }`
+- **恢复顺序**：文件 → 元数据 → 消息 — 确保所有 `fileId`/`url` 引用正确
+
+**重要：知识库三层备份**
+
+知识库数据分布在三个存储位置，全部纳入备份：
+
+| 层 | 存储位置 | 备份格式 | 恢复方式 |
+|----|---------|---------|---------|
+| 配置层 | SQLite `knowledge_base` 表 | JSONL | 直接写入数据库 |
+| 内容层 | SQLite `knowledge_item` 表 | JSONL | 直接写入数据库 |
+| 向量层 | LibSQL 文件 `KnowledgeBase/{baseId}/` | 二进制文件直接复制 | 复制回原路径即可，**无需重新 embedding**（节省 Token + 时间） |
 
 ### 4.4 流式序列化策略
 
@@ -339,9 +406,11 @@ function adaptiveBatchSize(currentSize: number, memoryUsedMB: number): number {
 
 ### 5.1 版本兼容性
 
-- **最低可读版本**: V5
-- **当前写入版本**: V6
-- **迁移路径**: V5 → V6 (localStorage/indexedDB → 分域 JSONL)
+**已移除 VersionMigrator**：V2 备份系统只处理 V2 格式备份，不做 V1 格式兼容导入。**
+
+- V2 备份格式版本: V6
+- V1 格式导入已排除（V2 不支持）
+- V1 → V2 数据迁移由独立的迁移管线处理（MigrationEngine）
 
 ### 5.2 流式解压读取
 
@@ -414,16 +483,19 @@ async function* streamJsonlFromZip(zipPath: string, entryPath: string) {
 enum ConflictStrategy {
   SKIP = 'skip',          // 跳过冲突项
   OVERWRITE = 'overwrite', // 覆盖现有
-  RENAME = 'rename',       // 生成新 ID
-  MERGE = 'merge'          // 智能合并 (仅 topics)
+  RENAME = 'rename',       // 默认：生成新 ID，更新所有引用
 }
 ```
 
-**ID 映射**: 使用 `Map<oldId, newId>` 跟踪重命名，更新所有引用（parentId、topicId 等）
+**两阶段导入流程（默认 RENAME）**：
 
-**引用更新流程**:
-1. 第一遍：扫描所有记录，检测 ID 冲突，建立映射表
-2. 第二遍：读取数据时，使用映射表更新所有引用字段
+1. **第一遍扫描**：读取所有待导入记录，检测与现有数据的 ID 冲突，构建 ID 映射表 `Map<oldId, newId>`
+2. **第二遍导入**：使用映射表替换所有引用字段（`parentId`、`topicId`、`tagId`、`groupId`、`assistantId` 等），写入数据库
+
+**引用字段列表**：
+`parentId`、`topicId`、`groupId`、`baseId`（知识库）、`assistantId`、`siblingsGroupId`、Dexie `db.files` 中的 `id`
+
+**恢复顺序**：文件 → Dexie 元数据 → 消息 → 其他数据 — 确保文件存在后再写引用
 
 ### 5.4 数据验证流程
 
@@ -571,9 +643,24 @@ async function atomicWrite(finalPath: string, writeFunc: (tempPath: string) => P
 }
 ```
 
+### 6.4 Preference 跨平台过滤规则
+
+225 个 preference key 中，部分 key 跨平台恢复时会导致问题。导出时按 5 类规则过滤：
+
+| 分类 | 处理 | 匹配规则 | 示例 |
+|------|------|---------|------|
+| ✅ 安全可备份 | 导出 | — | `app.language`, `ui.theme_mode` |
+| ❌ 敏感凭证 | 排除 | `/secret\|token\|password\|api[_-]?key\|credential\|auth/i` | API Key、Token、密码 |
+| ❌ 机器状态 | 排除 | 精确匹配 | `app.zoom_factor`, `app.window_state` |
+| ❌ 平台路径 | 排除 | 精确匹配 | `feature.notes.path`, `data.backup.local.dir` 等绝对路径 |
+| ❌ 平台快捷键 | 排除 | 匹配 key 包含 `shortcut.*` 且值含 `CommandOrControl` | macOS=Cmd / Win=Ctrl |
+| ⚠️ 平台字体 | 可选排除 | 精确匹配 | `ui.theme_user.font_family` |
+
 ---
 
 ## 七、增量备份方案
+
+> ⚠️ **延后** — 初始版本不做增量备份，待后续 spec 定义
 
 ### 7.1 变更检测策略
 
@@ -805,7 +892,7 @@ enum MergeStrategy {
 
 ## 九、加密方案（可选）
 
-### 9.1 推荐方案：压缩后加密
+> ⚠️ **延后** — 初始版本不做加密，待后续 spec 定义
 
 **策略**: 先用 archiver 生成普通 ZIP，再使用 Node.js crypto 模块对整个文件进行 AES-256-GCM 加密。
 
@@ -913,13 +1000,20 @@ interface EncryptionInfo {
 | ZIP 读取 | `yauzl` + `unzipper` | yauzl 随机访问、unzipper 流式解析 |
 | 数据格式 | JSONL | 流式读写、突破 512MB 限制 |
 | 校验算法 | xxHash | 10x 快于 SHA-256、适合非加密校验 |
-| Base64 图片 | **必须分离存储** | 单行 JSON 过大导致解析崩溃 |
+| Base64 图片 | 必须分离存储 | 单行 JSON 过大导致解析崩溃 |
 | 数据源 | DataApiService | 与 V2 架构对齐 |
-| 版本迁移 | VersionMigrator | 向后兼容 V5 及更早 |
-| 错误处理 | 原子写入 + 事务回滚 | 提高可靠性 |
-| 增量备份 | 时间戳检测 + 软删除 | 轻量级实现 |
-| 加密 | 压缩后 AES-256-GCM | 安全性高、兼容性好 |
-| 密钥派生 | scrypt (Node.js 内置) | 抗 GPU、无原生模块依赖 |
+| V1 格式导入 | **已移除** | V2 不支持 V1 格式导入 |
+| 版本迁移 | **已移除** | V2 只处理 V2 格式 |
+| ID 冲突策略 | 默认 RENAME + 两阶段导入 | 现有数据与导入数据均完整保留 |
+| 知识库向量 | 直接备份 LibSQL 二进制 | 无需重新 embedding，节省 Token + 时间 |
+| 媒体文件 | Dexie FileStorage 元数据 + 磁盘文件 | 确保 fileId/url 引用正确，恢复顺序保证 |
+| 备份粒度 | 存为 Preference + 对话框覆盖 | 支持自动备份静默执行 |
+| 增量备份 | **延后** | 初始版本不做 |
+| 加密 | **延后** | 初始版本不做 |
+
+### 备份粒度控制
+
+见 3.5 节。核心：域选择偏好存为 Preference，自动备份静默使用，对话框允许覆盖。
 
 ---
 
@@ -929,45 +1023,50 @@ interface EncryptionInfo {
 
 | 文件 | 说明 |
 |------|------|
-| `src/main/services/BackupManager.ts` | 简化为纯文件 I/O |
-| `src/renderer/src/services/BackupService.ts` | 迁移到新架构 |
+| `src/main/services/BackupManager.ts` | 保留（可重命名为 `LegacyBackupManager`）用于 V1 格式导出 |
+| `packages/shared/backup/options.ts` | 更新 BackupOptions，添加 `includeKnowledgeFiles` |
+| `packages/shared/backup/types.ts` | 更新 BackupDomain 枚举 |
 
 ### 需新建
 
 ```
 packages/shared/backup/
-├── types.ts           # BackupManifest, BackupDomain, IncrementalManifest
-├── options.ts         # BackupOptions, RestoreOptions, ConflictStrategy
+├── types.ts           # BackupManifest, BackupDomain (已存在)
+├── options.ts         # BackupOptions, RestoreOptions, ConflictStrategy (已存在)
 ├── tree.ts            # MessageTreeRef
-└── compat.ts          # 版本兼容性, VERSION_COMPATIBILITY
+└── index.ts
 
 src/main/services/backup/
 ├── orchestrator/
-│   ├── BackupOrchestrator.ts      # 编排导出/导入流程
-│   ├── StreamSerializer.ts        # JSONL 流式序列化
-│   ├── StreamParser.ts            # JSONL 流式解析
-│   └── VersionMigrator.ts         # V5 → V6 迁移
+│   ├── BackupOrchestrator.ts      # 编排导出/导入流程（已存在）
+│   ├── StreamSerializer.ts        # JSONL 流式序列化（已存在）
+│   └── StreamParser.ts          # JSONL 流式解析（已存在）
 ├── exporters/
-│   ├── BaseExporter.ts            # 抽象基类
-│   ├── TopicExporter.ts           # 对话 + 消息
-│   ├── PreferenceExporter.ts
-│   ├── ProviderExporter.ts
-│   ├── AssistantExporter.ts
-│   ├── KnowledgeExporter.ts
-│   ├── MemoryExporter.ts
-│   └── FileExporter.ts            # 附件文件 (Base64 分离)
-├── importers/
+│   ├── BaseDomainExporter.ts     # 抽象基类（已存在）
+│   ├── TopicsExporter.ts         # 对话+消息（已存在，需扩展消息）
+│   ├── KnowledgeExporter.ts       # 知识库三层（已存在，需扩展向量+文件）
+│   ├── PreferencesExporter.ts    # 偏好设置（已存在，需扩展 5 类过滤）
+│   ├── GroupsExporter.ts         # 分组（已存在）
+│   ├── TagsExporter.ts           # 标签+实体关联（已存在）
+│   ├── FileStorageExporter.ts    # 新增：Dexie FileStorage 元数据
+│   ├── AssistantExporter.ts      # Phase 2
+│   └── ProviderExporter.ts      # Phase 2
+├── importers/                    # 全部新增
 │   ├── BaseImporter.ts
-│   ├── TopicImporter.ts
-│   ├── ConflictResolver.ts        # ID 冲突解决
-│   └── ...
+│   ├── TopicImporter.ts          # 两阶段导入：扫描冲突+替换引用
+│   ├── KnowledgeImporter.ts
+│   ├── PreferencesImporter.ts
+│   ├── GroupsImporter.ts
+│   ├── TagsImporter.ts
+│   ├── FileStorageImporter.ts
+│   ├── TranslateImporter.ts
+│   └── ConflictResolver.ts
 ├── validators/
-│   └── BackupValidator.ts         # 校验和验证
-├── incremental/
-│   ├── ChangeDetector.ts          # 变更检测
-│   └── BackupChainManager.ts      # 备份链管理
-└── encryption/
-    └── BackupEncryptor.ts         # AES-256-GCM 加密/解密
+│   └── BackupValidator.ts       # xxHash 校验（已存在）
+└── progress/
+    └── BackupProgressTracker.ts # 进度追踪（已存在）
+
+src/main/services/LegacyBackupManager.ts  # 原 BackupManager 重命名（保留 V1 导出）
 ```
 
 ### 新增依赖
@@ -995,17 +1094,18 @@ src/main/services/backup/
 
 1. **StreamSerializer**: 生成 JSONL 字符串、背压处理
 2. **StreamParser**: 逐行解析、错误行跳过
-3. **各 Exporter**: 序列化输出格式正确
-4. **各 Importer**: 反序列化 + ID 映射
-5. **BackupValidator**: 校验和验证、版本兼容性检查
-6. **ChangeDetector**: 增量检测逻辑
+3. **各 Exporter**: 序列化输出格式正确（含消息、向量、FileStorage）
+4. **各 Importer**: 反序列化 + ID 映射 + 两阶段导入
+5. **BackupValidator**: 校验和验证
+6. **Preference Filter**: 5 类过滤规则覆盖所有 225 个 key
 
 ### 集成测试
 
-1. 完整备份 → 恢复流程
-2. 增量备份 → 恢复流程
-3. V5 备份文件导入
-4. 加密备份 → 解密恢复
+1. 完整备份 → 恢复流程（全域）
+2. 选择性域备份 → 恢复（仅 Topics、仅 Knowledge 等）
+3. ID 冲突 RENAME 策略验证
+4. 知识库向量二进制恢复后立即可搜索
+5. Preference 过滤：确认敏感/平台相关 key 不出现在备份文件中
 
 ### 压力测试
 
