@@ -49,11 +49,20 @@ interface MessagesProps {
   setActiveTopic: (topic: Topic) => void
   onComponentUpdate?(): void
   onFirstUpdate?(): void
+  /** V2 mode: messages provided externally (bypasses Redux). */
+  messages?: Message[]
 }
 
 const logger = loggerService.withContext('Messages')
 
-const Messages: React.FC<MessagesProps> = ({ assistant, topic, setActiveTopic, onComponentUpdate, onFirstUpdate }) => {
+const Messages: React.FC<MessagesProps> = ({
+  assistant,
+  topic,
+  setActiveTopic,
+  onComponentUpdate,
+  onFirstUpdate,
+  messages: messagesProp
+}) => {
   const { containerRef: scrollContainerRef, handleScroll: handleScrollPosition } = useScrollPosition(
     `topic-${topic.id}`
   )
@@ -67,7 +76,9 @@ const Messages: React.FC<MessagesProps> = ({ assistant, topic, setActiveTopic, o
   const [messageNavigation] = usePreference('chat.message.navigation_mode')
   const { t } = useTranslation()
   const dispatch = useAppDispatch()
-  const messages = useTopicMessages(topic.id)
+  const reduxMessages = useTopicMessages(topic.id)
+  // V2 mode: use externally provided messages; V1 mode: read from Redux
+  const messages = messagesProp ?? reduxMessages
   const { displayCount, clearTopicMessages, deleteMessage, createTopicBranch } = useMessageOperations(topic)
   const { setTimeoutTimer } = useTimer()
 

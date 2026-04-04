@@ -74,6 +74,7 @@ interface Props {
   assistant: Assistant
   setActiveTopic: (topic: Topic) => void
   topic: Topic
+  onSendV2?: (text: string, options?: { files?: FileMetadata[]; mentionedModels?: Model[] }) => void
 }
 
 type ProviderActionHandlers = {
@@ -89,7 +90,7 @@ interface InputbarInnerProps extends Props {
   actionsRef: React.RefObject<ProviderActionHandlers>
 }
 
-const Inputbar: FC<Props> = ({ assistant: initialAssistant, setActiveTopic, topic }) => {
+const Inputbar: FC<Props> = ({ assistant: initialAssistant, setActiveTopic, topic, onSendV2 }) => {
   const actionsRef = useRef<ProviderActionHandlers>({
     resizeTextArea: () => {},
     addNewTopic: () => {},
@@ -129,12 +130,19 @@ const Inputbar: FC<Props> = ({ assistant: initialAssistant, setActiveTopic, topi
         setActiveTopic={setActiveTopic}
         topic={topic}
         actionsRef={actionsRef}
+        onSendV2={onSendV2}
       />
     </InputbarToolsProvider>
   )
 }
 
-const InputbarInner: FC<InputbarInnerProps> = ({ assistant: initialAssistant, setActiveTopic, topic, actionsRef }) => {
+const InputbarInner: FC<InputbarInnerProps> = ({
+  assistant: initialAssistant,
+  setActiveTopic,
+  topic,
+  actionsRef,
+  onSendV2
+}) => {
   const scope = topic.type ?? TopicType.Chat
   const config = getInputbarConfig(scope)
 
@@ -236,6 +244,22 @@ const InputbarInner: FC<InputbarInnerProps> = ({ assistant: initialAssistant, se
       })
 
   const sendMessage = useCallback(async () => {
+    // V2 mode: delegate to useAiChat.sendMessage via callback
+    if (onSendV2) {
+      const text_ = text.trim()
+      if (!text_) return
+      onSendV2(text_, {
+        files: files.length > 0 ? files : undefined,
+        mentionedModels: mentionedModels.length > 0 ? mentionedModels : undefined
+      })
+      setText('')
+      setFiles([])
+      setTimeoutTimer('sendMessage_v2', () => resizeTextArea(), 0)
+      focusTextarea()
+      return
+    }
+
+    // V1 mode: existing Redux thunk path
     if (checkRateLimit(assistant)) {
       return
     }
@@ -277,6 +301,7 @@ const InputbarInner: FC<InputbarInnerProps> = ({ assistant: initialAssistant, se
       parent?.recordException(error as Error)
     }
   }, [
+    onSendV2,
     assistant,
     topic,
     text,
