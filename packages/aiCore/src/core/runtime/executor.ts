@@ -9,13 +9,11 @@ import {
   embedMany as _embedMany,
   generateImage as _generateImage,
   generateText as _generateText,
-  streamText as _streamText,
-  wrapLanguageModel
+  streamText as _streamText
 } from 'ai'
 
-import { ModelResolutionError } from '../errors'
 import { isV3Model } from '../models/utils'
-import { type AiPlugin, createContext, definePlugin, PluginManager } from '../plugins'
+import { type AiPlugin, definePlugin } from '../plugins'
 import type { CoreProviderSettingsMap, StringKeys } from '../providers/types'
 import { ImageGenerationError, ImageModelResolutionError } from './errors'
 import { PluginEngine } from './pluginEngine'
@@ -189,38 +187,6 @@ export class RuntimeExecutor<
     })
   }
 
-  // === Public 模型解析 ===
-
-  /**
-   * 解析 modelId 并应用插件管道（configureContext → resolveModel → wrapLanguageModel）
-   * 返回经过 middleware 包装的 LanguageModel，可直接用于 ToolLoopAgent 等外部消费者
-   */
-  async resolveModelWithPlugins(modelId: string): Promise<LanguageModel> {
-    this.pluginEngine.usePlugins([this.createResolveModelPlugin(), this.createConfigureContextPlugin()])
-
-    const context = createContext(this.config.providerId, modelId, {})
-    const manager = new PluginManager(this.pluginEngine.getPlugins())
-
-    // 1. configureContext — 收集 middlewares
-    await manager.executeConfigureContext(context)
-
-    // 2. resolveModel — string → LanguageModel
-    const resolved = await manager.executeFirst<LanguageModel>('resolveModel', modelId, context)
-    if (!resolved) {
-      throw new ModelResolutionError(modelId, this.config.providerId)
-    }
-
-    // 3. 应用 middlewares
-    if (context.middlewares && context.middlewares.length > 0) {
-      return wrapLanguageModel({
-        model: resolved as LanguageModelV3,
-        middleware: context.middlewares
-      })
-    }
-
-    return resolved
-  }
-
   // === 辅助方法 ===
 
   /**
@@ -230,7 +196,7 @@ export class RuntimeExecutor<
    * 使用 resolver 函数解析模型，而不是通过 registry.languageModel()。
    * resolver 在 extension 声明处类型安全地捕获了具体 provider 方法。
    */
-  private async resolveModel(modelOrId: LanguageModel): Promise<LanguageModelV3> {
+  async resolveModel(modelOrId: LanguageModel): Promise<LanguageModelV3> {
     if (typeof modelOrId === 'string') {
       if (this.config.modelResolver) {
         return this.config.modelResolver(modelOrId)

@@ -6,6 +6,7 @@ import type { ToolLoopAgentSettings, ToolSet } from 'ai'
 import { ToolLoopAgent } from 'ai'
 
 import type { AiPlugin } from '../plugins'
+import { definePlugin } from '../plugins'
 import type { CoreProviderSettingsMap, StringKeys } from '../providers/types'
 import { createExecutor } from '../runtime'
 
@@ -31,10 +32,19 @@ export async function createAgent<
   // 1. 创建 executor（extensionRegistry 解析 provider + modelResolver）
   const executor = await createExecutor<TSettingsMap, T>(providerId, providerSettings, plugins)
 
-  // 2. 解析 model + 应用 middleware（plugin 管道）
-  const resolvedModel = await executor.resolveModelWithPlugins(modelId)
+  // 2. 挂载 resolveModel 插件（将 executor 的模型解析能力注入 pluginEngine）
+  executor.pluginEngine.use(
+    definePlugin({
+      name: '_agent_resolveModel',
+      enforce: 'post',
+      resolveModel: async (id: string) => executor.resolveModel(id)
+    })
+  )
 
-  // 3. 构造 ToolLoopAgent
+  // 3. 通过 pluginEngine 解析 model + 应用 middleware
+  const resolvedModel = await executor.pluginEngine.resolveModel(modelId)
+
+  // 4. 构造 ToolLoopAgent
   return new ToolLoopAgent({
     ...agentSettings,
     model: resolvedModel

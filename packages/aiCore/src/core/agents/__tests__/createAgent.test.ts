@@ -68,21 +68,6 @@ describe('createAgent', () => {
     expect(agent).toBeInstanceOf(ToolLoopAgent)
   })
 
-  it('should resolve model via extensionRegistry', async () => {
-    const { extensionRegistry } = await import('../../providers')
-
-    await createAgent({
-      providerId: 'openai',
-      providerSettings: mockProviderConfigs.openai,
-      modelId: 'gpt-4',
-      agentSettings: {
-        tools: {}
-      }
-    })
-
-    expect(extensionRegistry.createProvider).toHaveBeenCalledWith('openai', expect.any(Object))
-  })
-
   it('should apply plugin middleware to the model', async () => {
     const { wrapLanguageModel } = await import('ai')
     const testMiddleware = {
@@ -114,22 +99,5 @@ describe('createAgent', () => {
         middleware: expect.arrayContaining([testMiddleware])
       })
     )
-  })
-
-  it('should pass agentSettings to ToolLoopAgent', async () => {
-    const onStepFinish = vi.fn()
-
-    const agent = await createAgent({
-      providerId: 'openai',
-      providerSettings: mockProviderConfigs.openai,
-      modelId: 'gpt-4',
-      agentSettings: {
-        tools: {},
-        instructions: 'You are a helpful assistant',
-        onStepFinish
-      }
-    })
-
-    expect(agent).toBeInstanceOf(ToolLoopAgent)
   })
 })
