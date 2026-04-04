@@ -95,8 +95,8 @@ export const TranslateHistoryItem = ({ data, onClick }: TranslateHistoryItemProp
       </div>
       {/* Text */}
       <div className="flex flex-1 flex-col">
-        <div className="flex-1 line-clamp-2 overflow-hidden truncate text-sm">{preparedData.sourceText}</div>
-        <div className="flex-1 line-clamp-2 overflow-hidden truncate text-foreground-secondary text-sm">
+        <div className="line-clamp-2 flex-1 overflow-hidden truncate text-sm">{preparedData.sourceText}</div>
+        <div className="line-clamp-2 flex-1 overflow-hidden truncate text-foreground-secondary text-sm">
           {preparedData.targetText}
         </div>
       </div>
@@ -110,7 +110,7 @@ const Container = ({ children, className, onClick }: ComponentPropsWithoutRef<'d
   return (
     <div
       className={cn(
-        'relative flex h-40 flex-1 cursor-pointer flex-col justify-between gap-1 px-6 py-2.5 transition-colors hover:bg-muted border-b border-dashed',
+        'relative flex h-40 flex-1 cursor-pointer flex-col justify-between gap-1 border-b border-dashed px-6 py-2.5 transition-colors hover:bg-muted',
         className
       )}
       onClick={onClick}>
