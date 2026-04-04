@@ -183,6 +183,13 @@ export const FileNodeSchema = z
         message: 'previousParentId must only be set when parentId = system_trash'
       })
     }
+    if (node.parentId === SYSTEM_TRASH && node.previousParentId === null) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['previousParentId'],
+        message: 'Trashed nodes must have previousParentId set for restore'
+      })
+    }
   })
 export type FileNode = z.infer<typeof FileNodeSchema>
 
