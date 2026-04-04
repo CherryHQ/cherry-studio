@@ -82,14 +82,14 @@ export class PluginEngine<T extends string = RegisteredProviderId> {
   }
 
   /**
-   * 解析 modelId 并应用插件管道（configureContext → resolveModel → wrapLanguageModel）
-   * 返回经过 middleware 包装的 LanguageModel，可直接用于 ToolLoopAgent 等外部消费者
+   * Resolve modelId through the plugin pipeline (configureContext → resolveModel → wrapLanguageModel).
+   * Returns a middleware-wrapped LanguageModel ready for external consumers like ToolLoopAgent.
    */
   async resolveModel(modelId: string): Promise<LanguageModel> {
     const context = createContext(this.providerId, modelId, {})
     const manager = new PluginManager(this.basePlugins)
 
-    // 1. configureContext — 收集 middlewares
+    // 1. configureContext — collect middlewares
     await manager.executeConfigureContext(context)
 
     // 2. resolveModel — string → LanguageModel
@@ -98,7 +98,7 @@ export class PluginEngine<T extends string = RegisteredProviderId> {
       throw new ModelResolutionError(modelId, this.providerId)
     }
 
-    // 3. 应用 middlewares
+    // 3. Apply middlewares
     if (context.middlewares && context.middlewares.length > 0) {
       return wrapLanguageModel({
         model: resolved as LanguageModelV3,
