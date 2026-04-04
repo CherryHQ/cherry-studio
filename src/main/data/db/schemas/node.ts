@@ -29,6 +29,9 @@ export const nodeTable = sqliteTable(
     parentId: text(),
     // Mount ID this node belongs to (redundant for query performance). Mount nodes: mountId = id
     // Nodes in Trash keep their original mountId (pointing to the mount they belonged to before deletion)
+    // Soft reference by design: no FK constraint because mount nodes use well-known string IDs
+    // (e.g. 'mount_files') that don't fit a standard FK pattern. Integrity is enforced at the
+    // service layer. If a mount is ever removed, orphaned children must be cleaned up explicitly.
     mountId: text().notNull(),
 
     // ─── File attributes ───
