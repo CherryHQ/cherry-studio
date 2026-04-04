@@ -63,6 +63,13 @@
       "when": 1775137534101,
       "tag": "0008_wild_ultron",
       "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "6",
+      "when": 1775300033193,
+      "tag": "0009_hard_naoko",
+      "breakpoints": true
     }
   ],
   "version": "7"
