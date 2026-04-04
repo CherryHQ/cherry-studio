@@ -161,7 +161,10 @@ const TranslateLanguagesModal = ({ isOpen, editingCustomLanguage, onCancel }: Pr
               }
             }
           ]}>
-          <Input placeholder={t('settings.translate.custom.langCode.placeholder')} />
+          <Input
+            disabled={editingCustomLanguage !== undefined}
+            placeholder={t('settings.translate.custom.langCode.placeholder')}
+          />
         </Form.Item>
       </Form>
     </Modal>
