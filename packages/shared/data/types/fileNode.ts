@@ -75,6 +75,7 @@ export type SystemNodeId = z.infer<typeof SystemNodeIdSchema>
 
 /** Accepts UUID v7 or a known system node ID */
 export const NodeIdSchema = z.union([z.uuidv7(), SystemNodeIdSchema])
+export type NodeId = z.infer<typeof NodeIdSchema>
 
 // ─── Node Type ───
 

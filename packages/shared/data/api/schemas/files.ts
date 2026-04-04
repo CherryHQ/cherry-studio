@@ -6,7 +6,14 @@
  */
 
 import type { OffsetPaginationResponse } from '@shared/data/api/apiTypes'
-import type { CreateFileRefDto, CreateNodeDto, FileNode, FileRef, UpdateNodeDto } from '@shared/data/types/fileNode'
+import type {
+  CreateFileRefDto,
+  CreateNodeDto,
+  FileNode,
+  FileRef,
+  NodeId,
+  UpdateNodeDto
+} from '@shared/data/types/fileNode'
 
 // ============================================================================
 // Shared Types
@@ -14,8 +21,8 @@ import type { CreateFileRefDto, CreateNodeDto, FileNode, FileRef, UpdateNodeDto 
 
 /** Result for batch operations, allowing callers to detect partial failures */
 export interface BatchOperationResult {
-  succeeded: string[]
-  failed: Array<{ id: string; error: string }>
+  succeeded: NodeId[]
+  failed: Array<{ id: NodeId; error: string }>
 }
 
 // ============================================================================
