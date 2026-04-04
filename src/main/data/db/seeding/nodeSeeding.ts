@@ -1,7 +1,7 @@
 import { nodeTable } from '@data/db/schemas/node'
 import { getFilesDir, getNotesDir } from '@main/utils/file'
 import type { MountProviderConfig } from '@shared/data/types/fileProvider'
-import { inArray } from 'drizzle-orm'
+import { sql } from 'drizzle-orm'
 
 import type { DbType, ISeed } from '../types'
 
@@ -55,16 +55,17 @@ function getSystemNodes(): SystemNode[] {
 class NodeSeed implements ISeed {
   async migrate(db: DbType): Promise<void> {
     const systemNodes = getSystemNodes()
-    const systemIds = systemNodes.map((n) => n.id)
-
-    const existing = await db.select({ id: nodeTable.id }).from(nodeTable).where(inArray(nodeTable.id, systemIds))
-
-    const existingIds = new Set(existing.map((r) => r.id))
-    const toInsert = systemNodes.filter((n) => !existingIds.has(n.id))
-
-    if (toInsert.length > 0) {
-      await db.insert(nodeTable).values(toInsert)
-    }
+    // Upsert: insert new system nodes or update providerConfig if paths changed (e.g. after app upgrade)
+    await db
+      .insert(nodeTable)
+      .values(systemNodes)
+      .onConflictDoUpdate({
+        target: nodeTable.id,
+        set: {
+          name: sql`excluded.name`,
+          providerConfig: sql`excluded.provider_config`
+        }
+      })
   }
 }
 
