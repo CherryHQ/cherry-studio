@@ -99,7 +99,8 @@ export const fileRefTable = sqliteTable(
       .references(() => nodeTable.id, { onDelete: 'cascade' }),
 
     // Business source type (e.g. 'chat_message', 'knowledge_item', 'painting', 'note')
-    // Enum validated at application layer (Zod), no CHECK constraint
+    // Free-form string validated by z.string().min(1). Semantic validation
+    // (e.g. constraining to known source types) deferred to Phase 2 service layer.
     sourceType: text().notNull(),
     // Business object ID (polymorphic, no FK constraint)
     sourceId: text().notNull(),
