@@ -118,7 +118,7 @@ const TranslateLanguagesModal = ({ isOpen, editingLanguage: editingCustomLanguag
             }
             arrow
             trigger="click">
-            <Button style={{ aspectRatio: '1/1' }} size="icon">
+            <Button type="button" style={{ aspectRatio: '1/1' }} size="icon">
               <Emoji emoji={emoji} />
             </Button>
           </Popover>
