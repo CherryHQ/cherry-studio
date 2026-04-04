@@ -37,8 +37,8 @@ export async function createAgent<
     definePlugin({
       name: '_agent_resolveModel',
       enforce: 'post',
-      // biome-ignore lint: context unused but required by plugin signature
-      resolveModel: async (id: string, _context) => executor.resolveModel(id)
+
+      resolveModel: async (id: string) => executor.resolveModel(id)
     })
   )
 
