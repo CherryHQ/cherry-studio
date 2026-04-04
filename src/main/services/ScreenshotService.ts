@@ -159,9 +159,9 @@ class ScreenshotService {
     })
 
     if (isDev) {
-      window.loadURL(`http://localhost:5173/screenshotSelection.html`)
+      void window.loadURL(`http://localhost:5173/screenshotSelection.html`)
     } else {
-      window.loadFile(join(__dirname, '../renderer/screenshotSelection.html'))
+      void window.loadFile(join(__dirname, '../renderer/screenshotSelection.html'))
     }
 
     return window
@@ -203,7 +203,7 @@ class ScreenshotService {
       return
     }
 
-    this.processSelection(selection)
+    await this.processSelection(selection)
   }
 
   public async cancelSelection(): Promise<void> {
@@ -223,7 +223,7 @@ class ScreenshotService {
   private async processSelection(selection: Rectangle): Promise<void> {
     if (!this.screenshotBuffer || !this.selectionPromise) {
       logger.error('Missing screenshot buffer or selection promise')
-      this.cleanupSelection()
+      await this.cleanupSelection()
       return
     }
 

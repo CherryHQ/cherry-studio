@@ -60,7 +60,7 @@ const ScreenshotSelection = () => {
     }
     img.onerror = (e) => {
       logger.error('Failed to load screenshot image', { error: e })
-      window.api.screenshot.cancelSelection()
+      void window.api.screenshot.cancelSelection()
     }
     img.src = screenshotData
   }, [screenshotData])
@@ -82,12 +82,12 @@ const ScreenshotSelection = () => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
         logger.info('User cancelled selection with ESC')
-        window.api.screenshot.cancelSelection()
+        void window.api.screenshot.cancelSelection()
       } else if (e.key === 'Enter') {
         const rect = getSelectionRectangle()
         if (rect && rect.width >= 10 && rect.height >= 10) {
           logger.info('User confirmed selection with ENTER', rect)
-          window.api.screenshot.confirmSelection(rect)
+          void window.api.screenshot.confirmSelection(rect)
         }
       }
     }
@@ -134,7 +134,7 @@ const ScreenshotSelection = () => {
     const rect = getSelectionRectangle()
     if (rect && rect.width >= 10 && rect.height >= 10) {
       logger.info('Selection completed', rect)
-      window.api.screenshot.confirmSelection(rect)
+      void window.api.screenshot.confirmSelection(rect)
     } else {
       setSelection((prev) => ({ ...prev, isDragging: false }))
     }

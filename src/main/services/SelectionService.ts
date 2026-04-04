@@ -1723,12 +1723,12 @@ export class SelectionService {
     ipcMain.handle(
       IpcChannel.Screenshot_SelectionConfirm,
       async (_event, selection: { x: number; y: number; width: number; height: number }) => {
-        screenshotService.confirmSelection(selection)
+        await screenshotService.confirmSelection(selection)
       }
     )
 
     ipcMain.handle(IpcChannel.Screenshot_SelectionCancel, async () => {
-      screenshotService.cancelSelection()
+      await screenshotService.cancelSelection()
     })
 
     this.isIpcHandlerRegistered = true
