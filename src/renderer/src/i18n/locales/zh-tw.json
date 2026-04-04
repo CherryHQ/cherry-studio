@@ -3690,6 +3690,20 @@
       "undo": "復原"
     }
   },
+  "screenshot": {
+    "cancelled": "已取消截圖",
+    "capture": "擷取螢幕",
+    "empty_text": "未辨識到文字",
+    "failed": "截圖失敗",
+    "ocr_placeholder": "擷取的文字將顯示於此...",
+    "ocr_text": "辨識文字",
+    "process": "處理",
+    "process_failed": "處理截圖失敗",
+    "result_placeholder": "處理結果將顯示於此...",
+    "start_hint": "請在系統截圖工具開啟後框選要擷取的區域",
+    "title": "截圖",
+    "unsupported": "截圖功能目前僅支援 Windows"
+  },
   "selection": {
     "action": {
       "builtin": {
@@ -4630,6 +4644,9 @@
         },
         "painting": {
           "icon": "顯示繪圖圖示"
+        },
+        "screenshot": {
+          "icon": "顯示截圖圖示"
         },
         "title": "側邊欄設定",
         "translate": {
@@ -5860,6 +5877,7 @@
     "notes": "筆記",
     "openclaw": "OpenClaw",
     "paintings": "繪畫",
+    "screenshot": "截圖",
     "settings": "設定",
     "store": "助手庫",
     "translate": "翻譯"

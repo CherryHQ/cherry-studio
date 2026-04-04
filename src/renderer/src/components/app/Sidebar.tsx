@@ -15,6 +15,7 @@ import { isEmoji } from '@renderer/utils'
 import { getDefaultRouteTitle } from '@renderer/utils/routeTitle'
 import { ThemeMode } from '@shared/data/preference/preferenceTypes'
 import {
+  Camera,
   Code,
   FileSearch,
   Folder,
@@ -146,6 +147,7 @@ const MainMenus: FC = () => {
     store: <Sparkle size={18} className="icon" />,
     paintings: <Palette size={18} className="icon" />,
     translate: <Languages size={18} className="icon" />,
+    screenshot: <Camera size={18} className="icon" />,
     minapp: <LayoutGrid size={18} className="icon" />,
     knowledge: <FileSearch size={18} className="icon" />,
     files: <Folder size={18} className="icon" />,
@@ -160,6 +162,7 @@ const MainMenus: FC = () => {
     store: '/app/assistant',
     paintings: `/app/paintings/${defaultPaintingProvider}`,
     translate: '/app/translate',
+    screenshot: '/app/screenshot',
     minapp: '/app/minapp',
     knowledge: '/app/knowledge',
     files: '/app/files',

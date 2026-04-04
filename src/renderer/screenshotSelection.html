@@ -1,0 +1,47 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="initial-scale=1, width=device-width" />
+    <meta
+      http-equiv="Content-Security-Policy"
+      content="default-src 'self'; connect-src blob: *; script-src 'self' 'unsafe-eval' *; worker-src 'self' blob:; style-src 'self' 'unsafe-inline' *; font-src 'self' data: *; img-src 'self' data: file: * blob:; frame-src * file:" />
+    <title>Cherry Studio Screenshot Selection</title>
+  </head>
+
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/windows/screenshot/entryPoint.tsx"></script>
+    <style>
+      html {
+        margin: 0 !important;
+        padding: 0 !important;
+        overflow: hidden !important;
+        background-color: transparent !important;
+        background-image: none !important;
+      }
+
+      body {
+        margin: 0 !important;
+        padding: 0 !important;
+        overflow: hidden !important;
+        width: 100vw !important;
+        height: 100vh !important;
+        background-color: transparent !important;
+        cursor: crosshair !important;
+
+        -webkit-user-select: none;
+        -moz-user-select: none;
+        -ms-user-select: none;
+        user-select: none;
+      }
+
+      #root {
+        margin: 0 !important;
+        padding: 0 !important;
+        width: 100% !important;
+        height: 100% !important;
+      }
+    </style>
+  </body>
+</html>

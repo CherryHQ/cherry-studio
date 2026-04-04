@@ -100,6 +100,7 @@
     "grammy": "^1.36.3",
     "gray-matter": "4.0.3",
     "jsdom": "26.1.0",
+    "node-screenshots": "0.2.1",
     "node-stream-zip": "1.15.0",
     "officeparser": "4.2.0",
     "os-proxy-config": "1.1.2",
