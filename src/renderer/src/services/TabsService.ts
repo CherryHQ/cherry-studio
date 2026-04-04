@@ -1,8 +1,8 @@
 import { loggerService } from '@logger'
 import store from '@renderer/store'
 import { removeTab, setActiveTab } from '@renderer/store/tabs'
-import type { MinAppType } from '@renderer/types'
 import { clearWebviewState } from '@renderer/utils/webviewStateManager'
+import type { MiniApp } from '@shared/data/types/miniapp'
 import type { LRUCache } from 'lru-cache'
 
 import NavigationService from './NavigationService'
@@ -10,7 +10,7 @@ import NavigationService from './NavigationService'
 const logger = loggerService.withContext('TabsService')
 
 export class TabsService {
-  private minAppsCache: LRUCache<string, MinAppType> | null = null
+  private minAppsCache: LRUCache<string, MiniApp> | null = null
 
   /**
    * Sets the reference to the mini-apps LRU cache used for managing mini-app lifecycle and cleanup.
@@ -20,7 +20,7 @@ export class TabsService {
    * stale data.
    * @param cache The LRUCache instance containing mini-app data, provided by useMinappPopup.
    */
-  public setMinAppsCache(cache: LRUCache<string, MinAppType>) {
+  public setMinAppsCache(cache: LRUCache<string, MiniApp>) {
     this.minAppsCache = cache
     logger.debug('Mini-apps cache reference set in TabsService')
   }

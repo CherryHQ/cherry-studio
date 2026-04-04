@@ -6,6 +6,7 @@ import { useMinapps } from '@renderer/hooks/useMinapps'
 import { useNavbarPosition } from '@renderer/hooks/useNavbar'
 import { tabsService } from '@renderer/services/TabsService'
 import { getWebviewLoaded, onWebviewStateChange, setWebviewLoaded } from '@renderer/utils/webviewStateManager'
+import type { MiniApp } from '@shared/data/types/miniapp'
 import { useNavigate, useParams } from '@tanstack/react-router'
 import type { WebviewTag } from 'electron'
 import type { FC } from 'react'
@@ -47,18 +48,36 @@ const MinAppPage: FC = () => {
   }, [isTopNavbar])
 
   // Find the app from all available apps (including cached ones)
-  const app = useMemo(() => {
+  const app = useMemo((): MiniApp | null => {
     if (!appId) return null
 
     // First try to find in default and custom mini-apps
-    let foundApp = [...allMinApps, ...minapps].find((app) => app.id === appId)
+    const found = [...allMinApps, ...minapps].find((a) => ('id' in a ? a.id : a.appId) === appId)
 
     // If not found and we have cache, try to find in cache (for temporary apps)
-    if (!foundApp && minAppsCache) {
-      foundApp = minAppsCache.get(appId)
+    if (!found && minAppsCache) {
+      return minAppsCache.get(appId) ?? null
     }
 
-    return foundApp
+    if (!found) return null
+
+    // Normalize to MiniApp
+    if ('appId' in found) return found
+    const mt = found
+    return {
+      appId: mt.id,
+      type: 'default',
+      status: 'enabled',
+      sortOrder: 0,
+      name: mt.name,
+      url: mt.url,
+      logo: mt.logo,
+      bordered: mt.bordered,
+      background: mt.background,
+      nameKey: mt.nameKey,
+      supportedRegions: mt.supportedRegions,
+      style: mt.style
+    }
   }, [appId, minapps, minAppsCache])
 
   useEffect(() => {
@@ -90,7 +109,7 @@ const MinAppPage: FC = () => {
   // -------------- 新的 Tab Shell 逻辑 --------------
   // 注意：Hooks 必须在任何 return 之前调用，因此提前定义，并在内部判空
   const webviewRef = useRef<WebviewTag | null>(null)
-  const [isReady, setIsReady] = useState<boolean>(() => (app ? getWebviewLoaded(app.id) : false))
+  const [isReady, setIsReady] = useState<boolean>(() => (app ? getWebviewLoaded(app.appId) : false))
   const [currentUrl, setCurrentUrl] = useState<string | null>(app?.url ?? null)
 
   // 获取池中的 webview 元素（避免因为 openedKeepAliveMinapps.length 变化而频繁重跑）
@@ -98,7 +117,7 @@ const MinAppPage: FC = () => {
 
   const attachWebview = useCallback(() => {
     if (!app) return true // 没有 app 不再继续监控
-    const selector = `webview[data-minapp-id="${app.id}"]`
+    const selector = `webview[data-minapp-id="${app.appId}"]`
     const el = document.querySelector<WebviewTag>(selector)
     if (!el) return false
 
@@ -136,13 +155,13 @@ const MinAppPage: FC = () => {
   // 事件驱动等待加载完成（移除固定 150ms 轮询）
   useEffect(() => {
     if (!app) return
-    if (getWebviewLoaded(app.id)) {
+    if (getWebviewLoaded(app.appId)) {
       // 已经加载
       if (!isReady) setIsReady(true)
       return
     }
     let mounted = true
-    const unsubscribe = onWebviewStateChange(app.id, (loaded) => {
+    const unsubscribe = onWebviewStateChange(app.appId, (loaded) => {
       if (!mounted) return
       if (loaded) {
         setIsReady(true)
@@ -163,7 +182,7 @@ const MinAppPage: FC = () => {
   const handleReload = () => {
     if (!app) return
     if (webviewRef.current) {
-      setWebviewLoaded(app.id, false)
+      setWebviewLoaded(app.appId, false)
       setIsReady(false)
       webviewRef.current.src = app.url
       setCurrentUrl(app.url)
@@ -186,7 +205,7 @@ const MinAppPage: FC = () => {
           onOpenDevTools={handleOpenDevTools}
         />
       </ToolbarWrapper>
-      <WebviewSearch webviewRef={webviewRef} isWebviewReady={isReady} appId={app.id} />
+      <WebviewSearch webviewRef={webviewRef} isWebviewReady={isReady} appId={app.appId} />
       {!isReady && (
         <LoadingMask>
           <LogoAvatar logo={app.logo} size={60} />

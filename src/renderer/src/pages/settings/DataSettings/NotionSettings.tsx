@@ -65,7 +65,7 @@ const NotionSettings: FC = () => {
 
   const handleNotionTitleClick = () => {
     openSmartMinapp({
-      id: 'notion-help',
+      appId: 'notion-help',
       name: 'Notion Help',
       url: 'https://docs.cherry-ai.com/advanced-basic/notion',
       logo: AppLogo

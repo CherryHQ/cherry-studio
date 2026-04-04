@@ -260,7 +260,7 @@ const OpenClawPage: FC = () => {
       const dashboardUrl = await window.api.openclaw.getDashboardUrl()
 
       openSmartMinapp({
-        id: 'openclaw-dashboard',
+        appId: 'openclaw-dashboard',
         name: 'OpenClaw',
         url: dashboardUrl,
         logo: 'openclaw'
@@ -296,7 +296,7 @@ const OpenClawPage: FC = () => {
   const handleOpenDashboard = async () => {
     const dashboardUrl = await window.api.openclaw.getDashboardUrl()
     openSmartMinapp({
-      id: 'openclaw-dashboard',
+      appId: 'openclaw-dashboard',
       name: 'OpenClaw',
       url: dashboardUrl,
       logo: 'openclaw'

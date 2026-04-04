@@ -2,8 +2,8 @@ import { loggerService } from '@logger'
 import { LogoAvatar } from '@renderer/components/Icons'
 import WebviewContainer from '@renderer/components/MinApp/WebviewContainer'
 import { useSettings } from '@renderer/hooks/useSettings'
-import type { MinAppType } from '@renderer/types'
 import { getWebviewLoaded, setWebviewLoaded } from '@renderer/utils/webviewStateManager'
+import type { MiniApp } from '@shared/data/types/miniapp'
 import type { WebviewTag } from 'electron'
 import type { FC } from 'react'
 import { useCallback, useEffect, useRef, useState } from 'react'
@@ -15,7 +15,7 @@ import MinimalToolbar from './MinimalToolbar'
 const logger = loggerService.withContext('MinAppFullPageView')
 
 interface Props {
-  app: MinAppType
+  app: MiniApp
 }
 
 const MinAppFullPageView: FC<Props> = ({ app }) => {
@@ -34,12 +34,12 @@ const MinAppFullPageView: FC<Props> = ({ app }) => {
     setCurrentUrl(app.url)
 
     // Check if this WebView has been loaded before using global state manager
-    if (getWebviewLoaded(app.id)) {
-      logger.debug(`App ${app.id} already loaded before, setting ready immediately`)
+    if (getWebviewLoaded(app.appId)) {
+      logger.debug(`App ${app.appId} already loaded before, setting ready immediately`)
       setIsReady(true)
       return // No cleanup needed for immediate ready state
     } else {
-      logger.debug(`App ${app.id} not loaded before, showing loading state`)
+      logger.debug(`App ${app.appId} not loaded before, showing loading state`)
       setIsReady(false)
 
       // Backup timer logic removed as requested—loading animation will show indefinitely if needed.
@@ -66,14 +66,14 @@ const MinAppFullPageView: FC<Props> = ({ app }) => {
       setWebviewLoaded(appId, true)
 
       // Use small delay like MinappPopupContainer (100ms) to ensure content is visible
-      if (appId === app.id) {
+      if (appId === app.appId) {
         setTimeout(() => {
           logger.debug(`WebView loaded callback: setting isReady to true for ${appId}`)
           setIsReady(true)
         }, 100)
       }
     },
-    [minappsOpenLinkExternal, app.id]
+    [minappsOpenLinkExternal, app.appId]
   )
 
   const handleWebviewNavigate = useCallback((_appId: string, url: string) => {
@@ -84,11 +84,11 @@ const MinAppFullPageView: FC<Props> = ({ app }) => {
   const handleReload = useCallback(() => {
     if (webviewRef.current) {
       // Clear the loaded state for this app since we're reloading using global state
-      setWebviewLoaded(app.id, false)
+      setWebviewLoaded(app.appId, false)
       setIsReady(false) // Set loading state when reloading
       webviewRef.current.src = app.url
     }
-  }, [app.url, app.id])
+  }, [app.url, app.appId])
 
   const handleOpenDevTools = useCallback(() => {
     if (webviewRef.current) {
@@ -117,8 +117,8 @@ const MinAppFullPageView: FC<Props> = ({ app }) => {
         )}
 
         <WebviewContainer
-          key={app.id}
-          appid={app.id}
+          key={app.appId}
+          appid={app.appId}
           url={app.url}
           onSetRefCallback={handleWebviewSetRef}
           onLoadedCallback={handleWebviewLoaded}

@@ -4,7 +4,7 @@ import { useTheme } from '@renderer/context/ThemeProvider'
 import { useMinappPopup } from '@renderer/hooks/useMinappPopup'
 import { useMinapps } from '@renderer/hooks/useMinapps'
 import { useNavbarPosition } from '@renderer/hooks/useNavbar'
-import type { MinAppType } from '@renderer/types'
+import type { MiniApp } from '@shared/data/types/miniapp'
 import type { MenuProps } from 'antd'
 import { Dropdown } from 'antd'
 import type { FC } from 'react'
@@ -24,8 +24,8 @@ export const SidebarOpenedMinappTabs: FC = () => {
   const { t } = useTranslation()
   const { isLeftNavbar } = useNavbarPosition()
 
-  const handleOnClick = (app: MinAppType) => {
-    if (minappShow && currentMinappId === app.id) {
+  const handleOnClick = (app: MiniApp) => {
+    if (minappShow && currentMinappId === app.appId) {
       hideMinappPopup()
     } else {
       openMinappKeepAlive(app)
@@ -73,7 +73,7 @@ export const SidebarOpenedMinappTabs: FC = () => {
                 key: 'closeApp',
                 label: t('minapp.sidebar.close.title'),
                 onClick: () => {
-                  closeMinapp(app.id)
+                  closeMinapp(app.appId)
                 }
               },
               {
@@ -84,11 +84,11 @@ export const SidebarOpenedMinappTabs: FC = () => {
                 }
               }
             ]
-            const isActive = minappShow && currentMinappId === app.id
+            const isActive = minappShow && currentMinappId === app.appId
 
             return (
               <Dropdown
-                key={app.id}
+                key={app.appId}
                 menu={{ items: menuItems }}
                 trigger={['contextMenu']}
                 overlayStyle={{ zIndex: 10000 }}>
@@ -122,18 +122,18 @@ export const SidebarPinnedApps: FC = () => {
             key: 'togglePin',
             label: isTopNavbar ? t('minapp.remove_from_launchpad') : t('minapp.remove_from_sidebar'),
             onClick: () => {
-              updatePinnedMinapps(pinned.filter((item) => item.id !== app.id))
+              updatePinnedMinapps(pinned.filter((item) => item.appId !== app.appId))
             }
           }
         ]
-        const isActive = minappShow && currentMinappId === app.id
+        const isActive = minappShow && currentMinappId === app.appId
         return (
-          <Tooltip key={app.id} content={app.name} placement="right" delay={800}>
+          <Tooltip key={app.appId} content={app.name} placement="right" delay={800}>
             <Dropdown menu={{ items: menuItems }} trigger={['contextMenu']} overlayStyle={{ zIndex: 10000 }}>
               <Icon
                 theme={theme}
                 onClick={() => openMinappKeepAlive(app)}
-                className={`${isActive ? 'active' : ''} ${openedKeepAliveMinapps.some((item) => item.id === app.id) ? 'opened-minapp' : ''}`}>
+                className={`${isActive ? 'active' : ''} ${openedKeepAliveMinapps.some((item) => item.appId === app.appId) ? 'opened-minapp' : ''}`}>
                 <MinAppIcon size={20} app={app} style={{ borderRadius: 6 }} sidebar />
               </Icon>
             </Dropdown>

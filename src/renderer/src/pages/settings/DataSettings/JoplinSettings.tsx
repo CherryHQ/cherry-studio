@@ -71,7 +71,7 @@ const JoplinSettings: FC = () => {
 
   const handleJoplinHelpClick = () => {
     openSmartMinapp({
-      id: 'joplin-help',
+      appId: 'joplin-help',
       name: 'Joplin Help',
       url: 'https://joplinapp.org/help/apps/clipper',
       logo: AppLogo

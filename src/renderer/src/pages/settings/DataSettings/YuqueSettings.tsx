@@ -64,7 +64,7 @@ const YuqueSettings: FC = () => {
 
   const handleYuqueHelpClick = () => {
     openSmartMinapp({
-      id: 'yuque-help',
+      appId: 'yuque-help',
       name: 'Yuque Help',
       url: 'https://www.yuque.com/settings/tokens',
       logo: AppLogo

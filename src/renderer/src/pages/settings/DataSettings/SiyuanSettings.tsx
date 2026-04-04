@@ -41,7 +41,7 @@ const SiyuanSettings: FC = () => {
 
   const handleSiyuanHelpClick = () => {
     openSmartMinapp({
-      id: 'siyuan-help',
+      appId: 'siyuan-help',
       name: 'Siyuan Help',
       url: 'https://docs.cherry-ai.com/advanced-basic/siyuan',
       logo: AppLogo

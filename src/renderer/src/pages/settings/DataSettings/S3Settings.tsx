@@ -51,7 +51,7 @@ const S3Settings: FC = () => {
 
   const handleTitleClick = () => {
     openSmartMinapp({
-      id: 's3-help',
+      appId: 's3-help',
       name: 'S3 Compatible Storage Help',
       url: 'https://docs.cherry-ai.com/data-settings/s3-compatible',
       logo: AppLogo

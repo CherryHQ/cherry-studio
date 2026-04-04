@@ -354,6 +354,8 @@ export interface PreferenceSchemas {
     'feature.minapp.max_keep_alive': number
     // redux/settings/minappsOpenLinkExternal
     'feature.minapp.open_link_external': boolean
+    // redux/settings/minAppRegion
+    'feature.minapp.region': string
     // redux/settings/showOpenedMinappsInSidebar
     'feature.minapp.show_opened_in_sidebar': boolean
     // redux/note/settings.defaultEditMode
@@ -651,6 +653,7 @@ export const DefaultPreferences: PreferenceSchemas = {
     'feature.memory.update_memory_prompt': MEMORY_UPDATE_SYSTEM_PROMPT,
     'feature.minapp.max_keep_alive': 3,
     'feature.minapp.open_link_external': false,
+    'feature.minapp.region': 'auto',
     'feature.minapp.show_opened_in_sidebar': true,
     'feature.notes.default_edit_mode': 'preview',
     'feature.notes.default_view_mode': 'edit',

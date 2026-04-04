@@ -14,7 +14,7 @@ import { loggerService } from '@logger'
 import { isDev } from '@renderer/config/constant'
 import { allMinApps } from '@renderer/config/minapps'
 import { useMinapps } from '@renderer/hooks/useMinapps'
-import type { MinAppType } from '@renderer/types'
+import type { MiniApp } from '@shared/data/types/miniapp'
 import { useNavigate } from '@tanstack/react-router'
 import type { WebviewTag } from 'electron'
 import type { FC } from 'react'
@@ -33,7 +33,7 @@ const NAVIGATION_UPDATE_DELAY_MS = 50
 const NAVIGATION_COMPLETE_DELAY_MS = 100
 
 interface Props {
-  app: MinAppType
+  app: MiniApp
   webviewRef: React.RefObject<WebviewTag | null>
   currentUrl: string | null
   onReload: () => void
@@ -47,8 +47,8 @@ const MinimalToolbar: FC<Props> = ({ app, webviewRef, currentUrl, onReload, onOp
   const navigate = useNavigate()
   const [canGoBack, setCanGoBack] = useState(false)
   const [canGoForward, setCanGoForward] = useState(false)
-  const canPinned = allMinApps.some((item) => item.id === app.id)
-  const isPinned = pinned.some((item) => item.id === app.id)
+  const canPinned = allMinApps.some((item) => item.id === app.appId)
+  const isPinned = pinned.some((item) => item.appId === app.appId)
   const canOpenExternalLink = app.url.startsWith('http://') || app.url.startsWith('https://')
 
   // Ref to track navigation update timeout
@@ -61,7 +61,7 @@ const MinimalToolbar: FC<Props> = ({ app, webviewRef, currentUrl, onReload, onOp
         setCanGoBack(webviewRef.current.canGoBack())
         setCanGoForward(webviewRef.current.canGoForward())
       } catch (error) {
-        logger.debug('WebView not ready for navigation state update', { appId: app.id })
+        logger.debug('WebView not ready for navigation state update', { appId: app.appId })
         setCanGoBack(false)
         setCanGoForward(false)
       }
@@ -69,7 +69,7 @@ const MinimalToolbar: FC<Props> = ({ app, webviewRef, currentUrl, onReload, onOp
       setCanGoBack(false)
       setCanGoForward(false)
     }
-  }, [app.id, webviewRef])
+  }, [app.appId, webviewRef])
 
   // Schedule navigation state update with debouncing
   const scheduleNavigationUpdate = useCallback(
@@ -129,7 +129,7 @@ const MinimalToolbar: FC<Props> = ({ app, webviewRef, currentUrl, onReload, onOp
           checkTimeout = null
         }
 
-        logger.debug('Navigation listeners attached', { appId: app.id, attempts: attemptCount })
+        logger.debug('Navigation listeners attached', { appId: app.appId, attempts: attemptCount })
         return true
       }
       return false
@@ -144,7 +144,7 @@ const MinimalToolbar: FC<Props> = ({ app, webviewRef, currentUrl, onReload, onOp
             // Stop checking after max attempts to prevent infinite loops
             if (attemptCount >= WEBVIEW_CHECK_MAX_ATTEMPTS) {
               logger.warn('WebView attachment timeout', {
-                appId: app.id,
+                appId: app.appId,
                 attempts: attemptCount,
                 totalTimeMs: currentInterval * attemptCount
               })
@@ -157,7 +157,7 @@ const MinimalToolbar: FC<Props> = ({ app, webviewRef, currentUrl, onReload, onOp
             // Log only on first few attempts or when interval changes significantly
             if (attemptCount <= 3 || attemptCount % 10 === 0) {
               logger.debug('WebView not ready, scheduling next check', {
-                appId: app.id,
+                appId: app.appId,
                 nextCheckMs: currentInterval,
                 attempt: attemptCount
               })
@@ -182,7 +182,7 @@ const MinimalToolbar: FC<Props> = ({ app, webviewRef, currentUrl, onReload, onOp
       if (navigationListener) navigationListener()
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [app.id, updateNavigationState, scheduleNavigationUpdate]) // webviewRef excluded as it's a ref object
+  }, [app.appId, updateNavigationState, scheduleNavigationUpdate]) // webviewRef excluded as it's a ref object
 
   const handleGoBack = useCallback(() => {
     if (webviewRef.current) {
@@ -193,10 +193,10 @@ const MinimalToolbar: FC<Props> = ({ app, webviewRef, currentUrl, onReload, onOp
           scheduleNavigationUpdate(NAVIGATION_COMPLETE_DELAY_MS)
         }
       } catch (error) {
-        logger.debug('WebView not ready for navigation', { appId: app.id, action: 'goBack' })
+        logger.debug('WebView not ready for navigation', { appId: app.appId, action: 'goBack' })
       }
     }
-  }, [app.id, webviewRef, scheduleNavigationUpdate])
+  }, [app.appId, webviewRef, scheduleNavigationUpdate])
 
   const handleGoForward = useCallback(() => {
     if (webviewRef.current) {
@@ -207,17 +207,17 @@ const MinimalToolbar: FC<Props> = ({ app, webviewRef, currentUrl, onReload, onOp
           scheduleNavigationUpdate(NAVIGATION_COMPLETE_DELAY_MS)
         }
       } catch (error) {
-        logger.debug('WebView not ready for navigation', { appId: app.id, action: 'goForward' })
+        logger.debug('WebView not ready for navigation', { appId: app.appId, action: 'goForward' })
       }
     }
-  }, [app.id, webviewRef, scheduleNavigationUpdate])
+  }, [app.appId, webviewRef, scheduleNavigationUpdate])
 
   const handleMinimize = useCallback(() => {
     void navigate({ to: '/app/minapp' })
   }, [navigate])
 
   const handleTogglePin = useCallback(() => {
-    const newPinned = isPinned ? pinned.filter((item) => item.id !== app.id) : [...pinned, app]
+    const newPinned = isPinned ? pinned.filter((item) => item.appId !== app.appId) : [...pinned, app]
     updatePinnedMinapps(newPinned)
   }, [app, isPinned, pinned, updatePinnedMinapps])
 

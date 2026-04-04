@@ -2,7 +2,6 @@ import { InfoCircleOutlined, UndoOutlined } from '@ant-design/icons' // 导入�
 import { Button, Switch, Tooltip } from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
 import Selector from '@renderer/components/Selector'
-import { allMinApps } from '@renderer/config/minapps'
 import { useMinapps } from '@renderer/hooks/useMinapps'
 import { SettingDescription, SettingDivider, SettingRowTitle, SettingTitle } from '@renderer/pages/settings'
 import type { RootState } from '@renderer/store'
@@ -64,7 +63,7 @@ const MiniAppSettings: FC = () => {
     // 仅重置为当前地区可见的应用，以避免混淆
     setVisibleMiniApps(minapps)
     setDisabledMiniApps([])
-    updateMinapps(allMinApps)
+    updateMinapps(minapps)
     updateDisabledMinapps([])
   }, [minapps, updateDisabledMinapps, updateMinapps])
 

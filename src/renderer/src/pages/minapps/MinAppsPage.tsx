@@ -83,7 +83,7 @@ const AppsPage: FC = () => {
             <AppsContainerWrapper>
               <AppsContainer style={{ height: containerHeight }}>
                 {filteredApps.map((app) => (
-                  <App key={app.id} app={app} />
+                  <App key={app.appId} app={app} />
                 ))}
                 <NewAppButton />
               </AppsContainer>

@@ -20,6 +20,7 @@ export interface MiniApp {
   supportedRegions?: ('CN' | 'Global')[]
   configuration?: unknown
   nameKey?: string
+  style?: CSSProperties
   createdAt?: string
   updatedAt?: string
 }

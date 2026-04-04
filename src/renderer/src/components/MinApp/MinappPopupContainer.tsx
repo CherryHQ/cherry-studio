@@ -23,9 +23,9 @@ import { useMinapps } from '@renderer/hooks/useMinapps'
 import useNavBackgroundColor from '@renderer/hooks/useNavBackgroundColor'
 import { useNavbarPosition } from '@renderer/hooks/useNavbar'
 import { useTimer } from '@renderer/hooks/useTimer'
-import type { MinAppType } from '@renderer/types'
 import { delay } from '@renderer/utils'
 import { clearWebviewState, getWebviewLoaded, setWebviewLoaded } from '@renderer/utils/webviewStateManager'
+import type { MiniApp } from '@shared/data/types/miniapp'
 import { Alert, Drawer } from 'antd'
 import type { WebviewTag } from 'electron'
 import { useEffect, useMemo, useRef, useState } from 'react'
@@ -43,7 +43,7 @@ interface AppExtraInfo {
   canOpenExternalLink: boolean
 }
 
-type AppInfo = MinAppType & AppExtraInfo
+type AppInfo = MiniApp & AppExtraInfo
 
 /** Google login tip component */
 const GoogleLoginTip = ({
@@ -232,7 +232,7 @@ const MinappPopupContainer: React.FC = () => {
   }, [currentMinappId, minappsOpenLinkExternal])
 
   /** only the keepalive minapp can be minimized */
-  const canMinimize = !(openedOneOffMinapp && openedOneOffMinapp.id == currentMinappId)
+  const canMinimize = !(openedOneOffMinapp && openedOneOffMinapp.appId == currentMinappId)
 
   /** combine the openedKeepAliveMinapps and openedOneOffMinapp */
   const combinedApps = useMemo(() => {
@@ -244,9 +244,9 @@ const MinappPopupContainer: React.FC = () => {
     return combinedApps.reduce(
       (acc, app) => ({
         ...acc,
-        [app.id]: {
-          canPinned: allMinApps.some((item) => item.id === app.id),
-          isPinned: pinned.some((item) => item.id === app.id),
+        [app.appId]: {
+          canPinned: allMinApps.some((item) => item.id === app.appId),
+          isPinned: pinned.some((item) => item.appId === app.appId),
           canOpenExternalLink: app.url.startsWith('http://') || app.url.startsWith('https://')
         }
       }),
@@ -257,9 +257,9 @@ const MinappPopupContainer: React.FC = () => {
   /** get the current app info with extra info */
   let currentAppInfo: AppInfo | null = null
   if (currentMinappId) {
-    const currentApp = combinedApps.find((item) => item.id === currentMinappId)
+    const currentApp = combinedApps.find((item) => item.appId === currentMinappId)
     if (currentApp) {
-      currentAppInfo = { ...currentApp, ...appsExtraInfo[currentApp.id] }
+      currentAppInfo = { ...currentApp, ...appsExtraInfo[currentApp.appId] }
     }
   }
 
@@ -327,7 +327,7 @@ const MinappPopupContainer: React.FC = () => {
   const handleReload = (appid: string) => {
     const webview = webviewRefs.current.get(appid)
     if (webview) {
-      const url = combinedApps.find((item) => item.id === appid)?.url
+      const url = combinedApps.find((item) => item.appId === appid)?.url
       if (url) {
         webview.src = url
       }
@@ -341,10 +341,10 @@ const MinappPopupContainer: React.FC = () => {
 
   /** toggle the pin status of the minapp */
   const handleTogglePin = (appid: string) => {
-    const app = combinedApps.find((item) => item.id === appid)
+    const app = combinedApps.find((item) => item.appId === appid)
     if (!app) return
 
-    const newPinned = appsExtraInfo[appid].isPinned ? pinned.filter((item) => item.id !== appid) : [...pinned, app]
+    const newPinned = appsExtraInfo[appid].isPinned ? pinned.filter((item) => item.appId !== appid) : [...pinned, app]
     updatePinnedMinapps(newPinned)
   }
 
@@ -425,17 +425,17 @@ const MinappPopupContainer: React.FC = () => {
           style={{ marginRight: isWin || isLinux ? '140px' : 0 }}
           isTopNavbar={isTopNavbar}>
           <Tooltip placement="bottom" content={t('minapp.popup.goBack')} delay={800}>
-            <TitleButton onClick={() => handleGoBack(appInfo.id)}>
+            <TitleButton onClick={() => handleGoBack(appInfo.appId)}>
               <ArrowLeftOutlined />
             </TitleButton>
           </Tooltip>
           <Tooltip placement="bottom" content={t('minapp.popup.goForward')} delay={800}>
-            <TitleButton onClick={() => handleGoForward(appInfo.id)}>
+            <TitleButton onClick={() => handleGoForward(appInfo.appId)}>
               <ArrowRightOutlined />
             </TitleButton>
           </Tooltip>
           <Tooltip placement="bottom" content={t('minapp.popup.refresh')} delay={800}>
-            <TitleButton onClick={() => handleReload(appInfo.id)}>
+            <TitleButton onClick={() => handleReload(appInfo.appId)}>
               <ReloadOutlined />
             </TitleButton>
           </Tooltip>
@@ -452,7 +452,7 @@ const MinappPopupContainer: React.FC = () => {
               }
               placement="bottom"
               delay={800}>
-              <TitleButton onClick={() => handleTogglePin(appInfo.id)} className={appInfo.isPinned ? 'pinned' : ''}>
+              <TitleButton onClick={() => handleTogglePin(appInfo.appId)} className={appInfo.isPinned ? 'pinned' : ''}>
                 <PushpinOutlined style={{ fontSize: 16 }} />
               </TitleButton>
             </Tooltip>
@@ -471,7 +471,7 @@ const MinappPopupContainer: React.FC = () => {
           </Tooltip>
           {isDev && (
             <Tooltip placement="bottom" content={t('minapp.popup.devtools')} delay={800}>
-              <TitleButton onClick={() => handleOpenDevTools(appInfo.id)}>
+              <TitleButton onClick={() => handleOpenDevTools(appInfo.appId)}>
                 <CodeOutlined />
               </TitleButton>
             </Tooltip>
@@ -484,7 +484,7 @@ const MinappPopupContainer: React.FC = () => {
             </Tooltip>
           )}
           <Tooltip placement="bottom" content={t('minapp.popup.close')} delay={800}>
-            <TitleButton onClick={() => handlePopupClose(appInfo.id)}>
+            <TitleButton onClick={() => handlePopupClose(appInfo.appId)}>
               <CloseOutlined />
             </TitleButton>
           </Tooltip>
@@ -502,8 +502,8 @@ const MinappPopupContainer: React.FC = () => {
   const WebviewContainerGroup = useMemo(() => {
     return combinedApps.map((app) => (
       <WebviewContainer
-        key={app.id}
-        appid={app.id}
+        key={app.appId}
+        appid={app.appId}
         url={app.url}
         onSetRefCallback={handleWebviewSetRef}
         onLoadedCallback={handleWebviewLoaded}

@@ -9,9 +9,7 @@ import { afterEach, beforeEach, describe, expect, it, test, vi } from 'vitest'
 vi.mock('@renderer/config/minapps', () => {
   return {
     ORIGIN_DEFAULT_MIN_APPS: [],
-    allMinApps: [],
-    loadCustomMiniApp: async () => [],
-    updateAllMinApps: vi.fn()
+    allMinApps: []
   }
 })
 

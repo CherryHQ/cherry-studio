@@ -5,17 +5,17 @@ import { LogoAvatar } from '@renderer/components/Icons'
 import { allMinApps } from '@renderer/config/minapps'
 import { useMinapps } from '@renderer/hooks/useMinapps'
 import { getMiniappsStatusLabel } from '@renderer/i18n/label'
-import type { MinAppType } from '@renderer/types'
+import type { MiniApp } from '@shared/data/types/miniapp'
 import type { FC } from 'react'
 import { useCallback } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
 interface MiniAppManagerProps {
-  visibleMiniApps: MinAppType[]
-  disabledMiniApps: MinAppType[]
-  setVisibleMiniApps: (programs: MinAppType[]) => void
-  setDisabledMiniApps: (programs: MinAppType[]) => void
+  visibleMiniApps: MiniApp[]
+  disabledMiniApps: MiniApp[]
+  setVisibleMiniApps: (programs: MiniApp[]) => void
+  setDisabledMiniApps: (programs: MiniApp[]) => void
 }
 
 type ListType = 'visible' | 'disabled'
@@ -30,13 +30,13 @@ const MiniAppIconsManager: FC<MiniAppManagerProps> = ({
   const { pinned, updateMinapps, updateDisabledMinapps, updatePinnedMinapps } = useMinapps()
 
   const handleListUpdate = useCallback(
-    (newVisible: MinAppType[], newDisabled: MinAppType[]) => {
+    (newVisible: MiniApp[], newDisabled: MiniApp[]) => {
       setVisibleMiniApps(newVisible)
       setDisabledMiniApps(newDisabled)
       updateMinapps(newVisible)
       updateDisabledMinapps(newDisabled)
-      const disabledIds = new Set(newDisabled.map((d) => d.id))
-      updatePinnedMinapps(pinned.filter((p) => !disabledIds.has(p.id)))
+      const disabledIds = new Set(newDisabled.map((d) => d.appId))
+      updatePinnedMinapps(pinned.filter((p) => !disabledIds.has(p.appId)))
     },
     [pinned, setDisabledMiniApps, setVisibleMiniApps, updateDisabledMinapps, updateMinapps, updatePinnedMinapps]
   )
@@ -66,7 +66,7 @@ const MiniAppIconsManager: FC<MiniAppManagerProps> = ({
       const destList = destination.droppableId === 'visible' ? [...visibleMiniApps] : [...disabledMiniApps]
 
       const [removed] = sourceList.splice(source.index, 1)
-      const targetList = destList.filter((app) => app.id !== removed.id)
+      const targetList = destList.filter((app) => app.appId !== removed.appId)
       targetList.splice(destination.index, 0, removed)
 
       const newVisibleMiniApps = destination.droppableId === 'visible' ? targetList : sourceList
@@ -78,13 +78,13 @@ const MiniAppIconsManager: FC<MiniAppManagerProps> = ({
   )
 
   const onMoveMiniApp = useCallback(
-    (program: MinAppType, fromList: ListType) => {
+    (program: MiniApp, fromList: ListType) => {
       const isMovingToVisible = fromList === 'disabled'
       const newVisible = isMovingToVisible
         ? [...visibleMiniApps, program]
-        : visibleMiniApps.filter((p) => p.id !== program.id)
+        : visibleMiniApps.filter((p) => p.appId !== program.appId)
       const newDisabled = isMovingToVisible
-        ? disabledMiniApps.filter((p) => p.id !== program.id)
+        ? disabledMiniApps.filter((p) => p.appId !== program.appId)
         : [...disabledMiniApps, program]
 
       handleListUpdate(newVisible, newDisabled)
@@ -92,8 +92,8 @@ const MiniAppIconsManager: FC<MiniAppManagerProps> = ({
     [visibleMiniApps, disabledMiniApps, handleListUpdate]
   )
 
-  const renderProgramItem = (program: MinAppType, provided: DraggableProvided, listType: ListType) => {
-    const appData = allMinApps.find((app) => app.id === program.id)
+  const renderProgramItem = (program: MiniApp, provided: DraggableProvided, listType: ListType) => {
+    const appData = allMinApps.find((app) => app.id === program.appId)
     const name = appData?.nameKey ? t(appData.nameKey) : appData?.name || program.name
     const logo = appData?.logo || ''
 
@@ -120,7 +120,7 @@ const MiniAppIconsManager: FC<MiniAppManagerProps> = ({
               {(provided: DroppableProvided) => (
                 <ProgramList ref={provided.innerRef} {...provided.droppableProps}>
                   {(listType === 'visible' ? visibleMiniApps : disabledMiniApps).map((program, index) => (
-                    <Draggable key={program.id} draggableId={String(program.id)} index={index}>
+                    <Draggable key={program.appId} draggableId={String(program.appId)} index={index}>
                       {(provided: DraggableProvided) => renderProgramItem(program, provided, listType)}
                     </Draggable>
                   ))}

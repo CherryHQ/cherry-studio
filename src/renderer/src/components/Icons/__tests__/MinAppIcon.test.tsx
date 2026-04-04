@@ -27,7 +27,10 @@ vi.mock('@renderer/config/minapps', () => ({
 
 describe('MinAppIcon', () => {
   const mockApp = {
-    id: 'test-app-1',
+    appId: 'test-app-1',
+    type: 'default' as const,
+    status: 'enabled' as const,
+    sortOrder: 0,
     name: 'Test App',
     url: 'https://test.com',
     style: {
@@ -55,7 +58,10 @@ describe('MinAppIcon', () => {
 
   it('should return null when app is not found in allMinApps', () => {
     const unknownApp = {
-      id: 'unknown-app',
+      appId: 'unknown-app',
+      type: 'default' as const,
+      status: 'enabled' as const,
+      sortOrder: 0,
       name: 'Unknown App',
       url: 'https://unknown.com'
     }

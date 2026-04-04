@@ -79,7 +79,7 @@ const LaunchpadPage: FC = () => {
 
     // 再添加其他已打开但未固定的小程序
     openedKeepAliveMinapps.forEach((app) => {
-      if (!result.some((pinnedApp) => pinnedApp.id === app.id)) {
+      if (!result.some((pinnedApp) => pinnedApp.appId === app.appId)) {
         result.push(app)
       }
     })
@@ -109,7 +109,7 @@ const LaunchpadPage: FC = () => {
             <SectionTitle>{t('launchpad.minapps')}</SectionTitle>
             <Grid>
               {sortedMinapps.map((app) => (
-                <AppWrapper key={app.id}>
+                <AppWrapper key={app.appId}>
                   <App app={app} size={56} />
                 </AppWrapper>
               ))}

@@ -1,10 +1,10 @@
 import { allMinApps } from '@renderer/config/minapps'
 import { getMiniAppsLogo } from '@renderer/config/minapps'
-import type { MinAppType } from '@renderer/types'
+import type { MiniApp } from '@shared/data/types/miniapp'
 import type { FC } from 'react'
 
 interface Props {
-  app: MinAppType
+  app: MiniApp
   sidebar?: boolean
   size?: number
   style?: React.CSSProperties
@@ -12,7 +12,7 @@ interface Props {
 
 const MinAppIcon: FC<Props> = ({ app, size = 48, style, sidebar = false }) => {
   // First try to find in allMinApps for predefined styling
-  const _app = allMinApps.find((item) => item.id === app.id)
+  const _app = allMinApps.find((item) => item.id === app.appId)
 
   // If found in allMinApps, use predefined styling
   if (_app) {

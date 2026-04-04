@@ -17,7 +17,7 @@
 import type { PayloadAction } from '@reduxjs/toolkit'
 import { createSlice } from '@reduxjs/toolkit'
 import { allMinApps } from '@renderer/config/minapps'
-import type { MinAppType } from '@renderer/types'
+import type { MinAppType } from '@shared/data/types/miniapp'
 
 export interface MinAppsState {
   enabled: MinAppType[]

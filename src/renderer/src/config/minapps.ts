@@ -118,13 +118,9 @@ const ORIGIN_DEFAULT_MIN_APPS: MinAppType[] = SHARED_PRESETS.map((app) => ({
 }))
 
 // All mini apps: built-in defaults + custom apps loaded from user config
-let allMinApps = [...ORIGIN_DEFAULT_MIN_APPS, ...(await loadCustomMiniApp())]
+const allMinApps = [...ORIGIN_DEFAULT_MIN_APPS, ...(await loadCustomMiniApp())]
 
-function updateAllMinApps(apps: MinAppType[]) {
-  allMinApps = apps
-}
-
-export { allMinApps, loadCustomMiniApp, ORIGIN_DEFAULT_MIN_APPS, updateAllMinApps }
+export { allMinApps, ORIGIN_DEFAULT_MIN_APPS }
 
 export function getMiniAppsLogo(LogoId: string | undefined): CompoundIcon | undefined {
   if (!LogoId) {

@@ -126,6 +126,7 @@ export type UseCacheSchema = {
   'minapp.current_id': string
   'minapp.show': boolean
   'minapp.opened_oneoff': CacheValueTypes.CacheMinAppType | null
+  'minapp.detected_region': string | null
 
   // Topic management
   'topic.active': CacheValueTypes.CacheTopic | null
@@ -193,6 +194,7 @@ export const DefaultUseCache: UseCacheSchema = {
   'minapp.current_id': '',
   'minapp.show': false,
   'minapp.opened_oneoff': null,
+  'minapp.detected_region': null,
 
   // Topic management
   'topic.active': null,

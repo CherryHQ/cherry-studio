@@ -1,21 +1,23 @@
+import { dataApiService } from '@data/DataApiService'
 import { useCache } from '@data/hooks/useCache'
-import { allMinApps } from '@renderer/config/minapps'
-import type { RootState } from '@renderer/store'
-import { useAppDispatch, useAppSelector } from '@renderer/store'
-import { setDisabledMinApps, setMinApps, setPinnedMinApps } from '@renderer/store/minapps'
-import { setDetectedRegion } from '@renderer/store/runtime'
-import type { MinAppRegion, MinAppType } from '@renderer/types'
-import { useCallback, useEffect, useMemo, useRef } from 'react'
+import { useInvalidateCache, useMutation, useQuery } from '@data/hooks/useDataApi'
+import { usePreference } from '@data/hooks/usePreference'
+import { loggerService } from '@logger'
+import type { CreateMiniappDto, ReorderMiniappsDto, UpdateMiniappDto } from '@shared/data/api/schemas/miniapps'
+import { ORIGIN_DEFAULT_MIN_APPS } from '@shared/data/presets/miniapps'
+import type { MiniApp } from '@shared/data/types/miniapp'
+import type { MinAppRegion } from '@shared/data/types/miniapp'
+import { useCallback, useEffect, useMemo } from 'react'
 
 /**
  * Data Flow Design:
  *
  * PRINCIPLE: Region filtering is a VIEW concern, not a DATA concern.
  *
- * - Redux stores ALL apps (including region-restricted ones) to preserve user preferences
- * - allMinApps is the template data source containing region definitions
+ * - DataApi stores ALL apps (including region-restricted ones) to preserve user preferences
+ * - ORIGIN_DEFAULT_MIN_APPS is the preset data source containing region definitions
  * - This hook applies region filtering only when READING for UI display
- * - When WRITING, hidden apps are merged back to prevent data loss
+ * - Mutations target individual apps by appId, never touching region-hidden apps
  */
 
 /**
@@ -26,7 +28,7 @@ import { useCallback, useEffect, useMemo, useRef } from 'react'
  * 2. Global users: only show apps with supportedRegions including 'Global'
  *    (apps without supportedRegions field are treated as CN-only)
  */
-const isVisibleForRegion = (app: MinAppType, region: MinAppRegion): boolean => {
+const isVisibleForRegion = (app: MiniApp, region: MinAppRegion): boolean => {
   // CN users see everything
   if (region === 'CN') return true
 
@@ -39,13 +41,23 @@ const isVisibleForRegion = (app: MinAppType, region: MinAppRegion): boolean => {
 }
 
 // Filter apps by region
-const filterByRegion = (apps: MinAppType[], region: MinAppRegion): MinAppType[] => {
+const filterByRegion = (apps: MiniApp[], region: MinAppRegion): MiniApp[] => {
   return apps.filter((app) => isVisibleForRegion(app, region))
 }
 
-// Get region-hidden apps from allMinApps for the current region
-const getRegionHiddenApps = (region: MinAppRegion): MinAppType[] => {
-  return allMinApps.filter((app) => !isVisibleForRegion(app, region))
+// Merge DB data with preset display fields (logo, background, bordered, nameKey)
+const mergeWithPreset = (app: MiniApp): MiniApp => {
+  const preset = ORIGIN_DEFAULT_MIN_APPS.find((p) => p.id === app.appId)
+  if (!preset) return app
+  return {
+    ...app,
+    nameKey: app.nameKey ?? preset.nameKey,
+    logo: app.logo ?? preset.logo,
+    bordered: app.bordered ?? preset.bordered,
+    background: app.background ?? preset.background,
+    supportedRegions: app.supportedRegions ?? preset.supportedRegions,
+    style: app.style ?? preset.style
+  }
 }
 
 // Module-level promise to ensure only one IP detection request is made
@@ -71,118 +83,167 @@ const detectUserRegion = async (): Promise<MinAppRegion> => {
   return regionDetectionPromise
 }
 
+/**
+ * V2 useMinapps hook — DataApi + Preference + Cache
+ */
 export const useMinapps = () => {
-  const { enabled, disabled, pinned } = useAppSelector((state: RootState) => state.minapps)
-  const minAppRegionSetting = useAppSelector((state: RootState) => state.settings.minAppRegion)
-  const detectedRegion = useAppSelector((state: RootState) => state.runtime.detectedRegion)
-  const dispatch = useAppDispatch()
+  const logger = loggerService.withContext('useMinapps')
 
+  // === Data (DataApi) ===
+  const { data, isLoading, mutate: refetch } = useQuery('/miniapps')
+  const rawApps: MiniApp[] = useMemo(() => data?.items ?? [], [data])
+
+  // Merge with preset for display fields
+  const allApps = useMemo(() => rawApps.map(mergeWithPreset), [rawApps])
+
+  // Split by status
+  const enabled = useMemo(() => allApps.filter((a) => a.status === 'enabled'), [allApps])
+  const disabled = useMemo(() => allApps.filter((a) => a.status === 'disabled'), [allApps])
+  const pinned = useMemo(() => allApps.filter((a) => a.status === 'pinned'), [allApps])
+
+  // === Region (Preference + Cache) ===
+  const [minAppRegionSetting] = usePreference('feature.minapp.region')
+  const [detectedRegion, setDetectedRegion] = useCache('minapp.detected_region')
+
+  const effectiveRegion: MinAppRegion =
+    minAppRegionSetting === 'auto'
+      ? ((detectedRegion as MinAppRegion | null) ?? 'CN')
+      : minAppRegionSetting === 'CN' || minAppRegionSetting === 'Global'
+        ? (minAppRegionSetting as MinAppRegion)
+        : 'CN'
+
+  // Auto-detect region once per session
+  useEffect(() => {
+    if (minAppRegionSetting !== 'auto' || detectedRegion) return
+    detectUserRegion()
+      .then(setDetectedRegion)
+      .catch(() => setDetectedRegion('CN'))
+  }, [minAppRegionSetting, detectedRegion, setDetectedRegion])
+
+  // === Region-filtered views ===
+  const minapps = useMemo(() => filterByRegion(enabled, effectiveRegion), [enabled, effectiveRegion])
+  const disabledApps = useMemo(() => filterByRegion(disabled, effectiveRegion), [disabled, effectiveRegion])
+  // Pinned apps are always visible regardless of region
+  const pinnedApps = pinned
+
+  // === UI State Cache (unchanged) ===
   const [openedKeepAliveMinapps, setOpenedKeepAliveMinapps] = useCache('minapp.opened_keep_alive')
   const [currentMinappId, setCurrentMinappId] = useCache('minapp.current_id')
   const [minappShow, setMinappShow] = useCache('minapp.show')
   const [openedOneOffMinapp, setOpenedOneOffMinapp] = useCache('minapp.opened_oneoff')
 
-  // Track if this hook instance has initiated detection to avoid duplicate requests
-  const hasInitiatedDetection = useRef(false)
+  // === Mutations (DataApi) ===
+  const invalidate = useInvalidateCache()
 
-  // Compute effective region: use cached detection result or manual setting
-  const effectiveRegion: MinAppRegion = minAppRegionSetting === 'auto' ? (detectedRegion ?? 'CN') : minAppRegionSetting
-
-  // Only detect region once globally when in 'auto' mode and not yet detected
-  useEffect(() => {
-    const initRegion = async () => {
-      // Skip if not in auto mode, already detected, or this instance already initiated
-      if (minAppRegionSetting !== 'auto' || detectedRegion !== null || hasInitiatedDetection.current) {
-        return
-      }
-
-      hasInitiatedDetection.current = true
-      const detected = await detectUserRegion()
-      dispatch(setDetectedRegion(detected))
-    }
-    void initRegion()
-  }, [minAppRegionSetting, detectedRegion, dispatch])
-
-  const mapApps = useCallback(
-    (apps: MinAppType[]) => apps.map((app) => allMinApps.find((item) => item.id === app.id) || app),
-    []
-  )
-
-  const getAllApps = useCallback(
-    (apps: MinAppType[], disabledApps: MinAppType[]) => {
-      const mappedApps = mapApps(apps)
-      const existingIds = new Set(mappedApps.map((app) => app.id))
-      const disabledIds = new Set(disabledApps.map((app) => app.id))
-      const missingApps = allMinApps.filter((app) => !existingIds.has(app.id) && !disabledIds.has(app.id))
-      return [...mappedApps, ...missingApps]
+  // Dynamic-path PATCH/DELETE via dataApiService (useMutation requires ConcreteApiPaths, not templates)
+  const patchApp = useCallback(
+    async (appId: string, body: UpdateMiniappDto) => {
+      const result = await dataApiService.patch(`/miniapps/${appId}`, { body })
+      await invalidate('/miniapps')
+      return result
     },
-    [mapApps]
+    [invalidate]
   )
 
-  // READ: Get apps filtered by region for UI display
-  const minapps = useMemo(() => {
-    const allApps = getAllApps(enabled, disabled)
-    const disabledIds = new Set(disabled.map((app) => app.id))
-    const withoutDisabled = allApps.filter((app) => !disabledIds.has(app.id))
-    return filterByRegion(withoutDisabled, effectiveRegion)
-  }, [enabled, disabled, effectiveRegion, getAllApps])
-
-  const disabledApps = useMemo(
-    () => filterByRegion(mapApps(disabled), effectiveRegion),
-    [disabled, effectiveRegion, mapApps]
+  const deleteApp = useCallback(
+    async (appId: string) => {
+      const result = await dataApiService.delete(`/miniapps/${appId}`)
+      await invalidate('/miniapps')
+      return result
+    },
+    [invalidate]
   )
-  // Pinned apps are always visible regardless of region/language
-  // User explicitly pinned apps should not be hidden
-  const pinnedApps = useMemo(() => mapApps(pinned), [pinned, mapApps])
 
-  // Get hidden apps for preserving user preferences when writing
-  const getHiddenApps = useCallback((region: MinAppRegion) => {
-    const regionHidden = getRegionHiddenApps(region)
-    const hiddenIds = new Set(regionHidden.map((app) => app.id))
-    return hiddenIds
-  }, [])
+  // Fixed-path mutations (useMutation with auto-refresh)
+  const { trigger: postMiniapp } = useMutation('POST', '/miniapps', {
+    refresh: ['/miniapps']
+  })
+  const { trigger: reorderMiniappsApi } = useMutation('PATCH', '/miniapps', {
+    refresh: ['/miniapps']
+  })
 
+  // === Write: Update enabled apps (backward-compat) ===
   const updateMinapps = useCallback(
-    (visibleApps: MinAppType[]) => {
-      const disabledIds = new Set(disabled.map((app) => app.id))
-      const withoutDisabled = visibleApps.filter((app) => !disabledIds.has(app.id))
+    (visibleApps: MiniApp[]) => {
+      const currentVisibleIds = new Set(
+        enabled.filter((a) => isVisibleForRegion(a, effectiveRegion)).map((a) => a.appId)
+      )
+      const newVisibleIds = new Set(visibleApps.map((a) => a.appId))
 
-      const hiddenIds = getHiddenApps(effectiveRegion)
-      const preservedHidden = enabled.filter((app) => hiddenIds.has(app.id) && !disabledIds.has(app.id))
+      const toEnable = visibleApps.filter((a) => a.status !== 'enabled' && !currentVisibleIds.has(a.appId))
+      const toDisable = enabled.filter((a) => currentVisibleIds.has(a.appId) && !newVisibleIds.has(a.appId))
 
-      const visibleIds = new Set(withoutDisabled.map((app) => app.id))
-      const toAppend = preservedHidden.filter((app) => !visibleIds.has(app.id))
-      const merged = [...withoutDisabled, ...toAppend]
-
-      const existingIds = new Set(merged.map((app) => app.id))
-      const missingApps = allMinApps.filter((app) => !existingIds.has(app.id) && !disabledIds.has(app.id))
-
-      dispatch(setMinApps([...merged, ...missingApps]))
+      Promise.all([
+        ...toEnable.map((a) => patchApp(a.appId, { status: 'enabled' })),
+        ...toDisable.map((a) => patchApp(a.appId, { status: 'disabled' }))
+      ]).catch((err) => logger.warn('Failed to update minapps', err as Error))
     },
-    [dispatch, enabled, disabled, effectiveRegion, getHiddenApps]
+    [enabled, effectiveRegion, patchApp, logger]
   )
 
-  // WRITE: Update disabled apps, preserving hidden disabled apps
+  // Write: Update disabled apps (backward-compat) ===
   const updateDisabledMinapps = useCallback(
-    (visibleDisabledApps: MinAppType[]) => {
-      const hiddenIds = getHiddenApps(effectiveRegion)
-      const preservedHidden = disabled.filter((app) => hiddenIds.has(app.id))
+    (visibleApps: MiniApp[]) => {
+      const currentVisibleIds = new Set(
+        disabled.filter((a) => isVisibleForRegion(a, effectiveRegion)).map((a) => a.appId)
+      )
+      const newVisibleIds = new Set(visibleApps.map((a) => a.appId))
 
-      const visibleIds = new Set(visibleDisabledApps.map((app) => app.id))
-      const toAppend = preservedHidden.filter((app) => !visibleIds.has(app.id))
+      const toDisable = visibleApps.filter((a) => a.status !== 'disabled' && !currentVisibleIds.has(a.appId))
+      const toEnable = disabled.filter((a) => currentVisibleIds.has(a.appId) && !newVisibleIds.has(a.appId))
 
-      dispatch(setDisabledMinApps([...visibleDisabledApps, ...toAppend]))
+      Promise.all([
+        ...toDisable.map((a) => patchApp(a.appId, { status: 'disabled' })),
+        ...toEnable.map((a) => patchApp(a.appId, { status: 'enabled' }))
+      ]).catch((err) => logger.warn('Failed to update disabled minapps', err as Error))
     },
-    [dispatch, disabled, effectiveRegion, getHiddenApps]
+    [disabled, effectiveRegion, patchApp, logger]
   )
 
-  // WRITE: Update pinned apps directly (no preservedHidden needed —
-  // pinned apps are never region-filtered in the read path)
+  // Write: Update pinned apps (backward-compat) ===
   const updatePinnedMinapps = useCallback(
-    (apps: MinAppType[]) => {
-      dispatch(setPinnedMinApps(apps))
+    (apps: MiniApp[]) => {
+      const newPinnedIds = new Set(apps.map((a) => a.appId))
+      const currentPinnedIds = new Set(pinned.map((a) => a.appId))
+
+      const toPin = apps.filter((a) => !currentPinnedIds.has(a.appId))
+      const toUnpin = pinned.filter((a) => !newPinnedIds.has(a.appId))
+
+      Promise.all([
+        ...toPin.map((a) => patchApp(a.appId, { status: 'pinned' })),
+        ...toUnpin.map((a) => patchApp(a.appId, { status: 'enabled' }))
+      ]).catch((err) => logger.warn('Failed to update pinned minapps', err as Error))
     },
-    [dispatch]
+    [pinned, patchApp, logger]
+  )
+
+  // === V2-style mutations ===
+  const updateAppStatus = useCallback(
+    (appId: string, status: MiniApp['status']) => {
+      return patchApp(appId, { status })
+    },
+    [patchApp]
+  )
+
+  const createCustomMiniapp = useCallback(
+    (dto: CreateMiniappDto) => {
+      return postMiniapp({ body: dto })
+    },
+    [postMiniapp]
+  )
+
+  const removeCustomMiniapp = useCallback(
+    (appId: string) => {
+      return deleteApp(appId)
+    },
+    [deleteApp]
+  )
+
+  const reorderMiniapps = useCallback(
+    (items: ReorderMiniappsDto['items']) => {
+      return reorderMiniappsApi({ body: { items } })
+    },
+    [reorderMiniappsApi]
   )
 
   return {
@@ -197,8 +258,16 @@ export const useMinapps = () => {
     setCurrentMinappId,
     setMinappShow,
     setOpenedOneOffMinapp,
+    isLoading,
+    refetch,
     updateMinapps,
     updateDisabledMinapps,
-    updatePinnedMinapps
+    updatePinnedMinapps,
+    updateAppStatus,
+    createCustomMiniapp,
+    removeCustomMiniapp,
+    reorderMiniapps
   }
 }
+
+export type UseMinappsReturn = ReturnType<typeof useMinapps>

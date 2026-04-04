@@ -74,7 +74,7 @@ const MinAppTabsPool: React.FC = () => {
   useEffect(() => {
     const existing = Array.from(webviewRefs.current.keys())
     existing.forEach((id) => {
-      if (!apps.find((a) => a.id === id)) {
+      if (!apps.find((a) => a.appId === id)) {
         webviewRefs.current.delete(id)
         // loaded 状态也清理（LRU 已在其它地方清除，双保险）
         if (getWebviewLoaded(id)) {
@@ -101,9 +101,9 @@ const MinAppTabsPool: React.FC = () => {
       data-minapp-tabs-pool
       aria-hidden={!shouldShow}>
       {apps.map((app) => (
-        <WebviewWrapper key={app.id} $active={app.id === currentMinappId}>
+        <WebviewWrapper key={app.appId} $active={app.appId === currentMinappId}>
           <WebviewContainer
-            appid={app.id}
+            appid={app.appId}
             url={app.url}
             onSetRefCallback={handleSetRef}
             onLoadedCallback={handleLoaded}

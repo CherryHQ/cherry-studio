@@ -16,9 +16,9 @@ import { tabsService } from '@renderer/services/TabsService'
 import { useAppDispatch, useAppSelector } from '@renderer/store'
 import type { Tab } from '@renderer/store/tabs'
 import { addTab, removeTab, setActiveTab, setTabs } from '@renderer/store/tabs'
-import type { MinAppType } from '@renderer/types'
 import { classNames } from '@renderer/utils'
 import { ThemeMode } from '@shared/data/preference/preferenceTypes'
+import type { MiniApp } from '@shared/data/types/miniapp'
 import { useLocation, useNavigate } from '@tanstack/react-router'
 import type { LRUCache } from 'lru-cache'
 import {
@@ -55,13 +55,13 @@ const logger = loggerService.withContext('TabContainer')
 
 const getTabIcon = (
   tabId: string,
-  minapps: MinAppType[],
-  minAppsCache?: LRUCache<string, MinAppType>
+  minapps: MiniApp[],
+  minAppsCache?: LRUCache<string, MiniApp>
 ): React.ReactNode | undefined => {
   // Check if it's a minapp tab (format: apps:appId)
   if (tabId.startsWith('apps:')) {
     const appId = tabId.replace('apps:', '')
-    let app = [...allMinApps, ...minapps].find((app) => app.id === appId)
+    let app = [...allMinApps, ...minapps].find((a) => ('id' in a ? a.id : a.appId) === appId)
 
     // If not found in permanent apps, search in temporary apps cache
     // The cache stores apps opened via openSmartMinapp() for top navbar mode
@@ -80,7 +80,9 @@ const getTabIcon = (
     }
 
     if (app) {
-      return <MinAppIcon size={14} app={app} />
+      // Normalize: MinAppType uses .id, MiniApp uses .appId
+      const miniApp = 'appId' in app ? app : ({ ...app, appId: app.id } as unknown as MiniApp)
+      return <MinAppIcon size={14} app={miniApp} />
     }
 
     // Fallback: If no app found (cache evicted), show default icon
@@ -148,7 +150,7 @@ const TabsContainer: React.FC<TabsContainerProps> = ({ children }) => {
     // Check if it's a minapp tab
     if (tabId.startsWith('apps:')) {
       const appId = tabId.replace('apps:', '')
-      let app = [...allMinApps, ...minapps].find((app) => app.id === appId)
+      let app = [...allMinApps, ...minapps].find((a) => ('id' in a ? a.id : a.appId) === appId)
 
       // If not found in permanent apps, search in temporary apps cache
       // This ensures temporary MinApps display proper titles while being used
