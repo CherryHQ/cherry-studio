@@ -13,7 +13,7 @@ let ScreenshotsModule: any = null
 try {
   ScreenshotsModule = require('node-screenshots')
 } catch (error) {
-  logger.error('Failed to load node-screenshots:', error as Error)
+  loggerService.withContext('ScreenshotService').error('Failed to load node-screenshots:', error as Error)
 }
 
 const logger = loggerService.withContext('ScreenshotService')
