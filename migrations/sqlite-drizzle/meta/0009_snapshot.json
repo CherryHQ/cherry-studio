@@ -1,7 +1,7 @@
 {
   "version": "6",
   "dialect": "sqlite",
-  "id": "b80ea3bc-6bbe-44d2-a544-ce925bae1085",
+  "id": "d3590858-a5fc-4dec-a3ff-7c40933de4e8",
   "prevId": "4105c4f2-d9df-4048-acab-0049e5a95941",
   "tables": {
     "app_state": {
@@ -1066,7 +1066,7 @@
           "name": "is_readonly",
           "type": "integer",
           "primaryKey": false,
-          "notNull": false,
+          "notNull": true,
           "autoincrement": false,
           "default": false
         },

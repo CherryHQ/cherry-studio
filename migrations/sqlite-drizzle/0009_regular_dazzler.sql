@@ -21,7 +21,7 @@ CREATE TABLE `node` (
 	`mount_id` text NOT NULL,
 	`size` integer,
 	`provider_config` text,
-	`is_readonly` integer DEFAULT false,
+	`is_readonly` integer DEFAULT false NOT NULL,
 	`remote_id` text,
 	`cached_at` integer,
 	`previous_parent_id` text,
