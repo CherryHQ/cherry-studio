@@ -25,6 +25,11 @@ import type {
   UnifiedPreferenceType
 } from '@shared/data/preference/preferenceTypes'
 import type { UpgradeChannel } from '@shared/data/preference/preferenceTypes'
+import type {
+  KnowledgeBase as KnowledgeVectorBase,
+  KnowledgeItem as KnowledgeVectorItem,
+  KnowledgeSearchResult as KnowledgeVectorSearchResult
+} from '@shared/data/types/knowledge'
 import type { ExternalAppInfo } from '@shared/externalApp/types'
 import { IpcChannel } from '@shared/IpcChannel'
 import type { Notification } from '@types'
@@ -329,6 +334,21 @@ const api = {
       { search, base, results }: { search: string; base: KnowledgeBaseParams; results: KnowledgeSearchResult[] },
       context?: SpanContext
     ) => tracedInvoke(IpcChannel.KnowledgeBase_Rerank, context, { search, base, results })
+  },
+  knowledgeVector: {
+    createBase: (base: KnowledgeVectorBase): Promise<void> =>
+      ipcRenderer.invoke(IpcChannel.KnowledgeVector_CreateBase, base),
+    deleteBase: (baseId: string): Promise<void> => ipcRenderer.invoke(IpcChannel.KnowledgeVector_DeleteBase, baseId),
+    addItems: (base: KnowledgeVectorBase, items: KnowledgeVectorItem[]): Promise<void> =>
+      ipcRenderer.invoke(IpcChannel.KnowledgeVector_AddItems, { base, items }),
+    deleteItems: (baseId: string, itemIds: string[]): Promise<void> =>
+      ipcRenderer.invoke(IpcChannel.KnowledgeVector_DeleteItems, { baseId, itemIds }),
+    search: (
+      base: KnowledgeVectorBase,
+      query: string,
+      options?: Record<string, unknown>
+    ): Promise<KnowledgeVectorSearchResult[]> =>
+      ipcRenderer.invoke(IpcChannel.KnowledgeVector_Search, { base, query, options })
   },
   memory: {
     add: (messages: string | AssistantMessage[], options?: AddMemoryOptions) =>
