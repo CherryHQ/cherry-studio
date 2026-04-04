@@ -15,8 +15,8 @@
  * | providerConfig   | non-null                | null         | null                   |
  * | ext              | null                    | null         | string or null (null for extensionless files) |
  * | size             | null                    | null         | number or null         |
- * | remoteId         | null                    | null         | set under remote mount |
- * | cachedAt         | null                    | null         | ms epoch or null under remote mount |
+ * | remoteId         | null (enforced)         | null (enforced) | set under remote mount (convention, validated at service layer) |
+ * | cachedAt         | null (enforced)         | null (enforced) | ms epoch or null under remote mount (convention, validated at service layer) |
  *
  * ## Node lifecycle state machine
  *
