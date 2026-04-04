@@ -47,6 +47,8 @@ import type { MinAppRegion } from '@renderer/types'
 //   downloadProgress: number
 //   available: boolean
 //   ignore: boolean
+//   /** Whether the update check was manually triggered by user clicking the button */
+//   manualCheck: boolean
 // }
 
 export interface RuntimeState {
@@ -73,6 +75,9 @@ export interface RuntimeState {
   detectedRegion: MinAppRegion | null
   /** Query whether a task is processing or not. undefined and false share same semantics.  */
   loadingMap: Record<string, boolean>
+  // Migrated from useApiServer, it's global state now
+  /** Is the api server running */
+  apiServerRunning: boolean
   placeHolder: string
 }
 
@@ -98,6 +103,8 @@ const initialState: RuntimeState = {
   //   downloaded: false,
   //   downloadProgress: 0,
   //   available: false,
+  //  ignore: false,
+  //  manualCheck: false
   // ignore: false
   // },
   // export: {
@@ -119,6 +126,7 @@ const initialState: RuntimeState = {
   // },
   detectedRegion: null,
   loadingMap: {},
+  apiServerRunning: false,
   placeHolder: ''
 }
 
@@ -217,6 +225,9 @@ const runtimeSlice = createSlice({
     setDetectedRegion: (state, action: PayloadAction<MinAppRegion | null>) => {
       state.detectedRegion = action.payload
     },
+    setApiServerRunningAction: (state, action: PayloadAction<boolean>) => {
+      state.apiServerRunning = action.payload
+    },
     setPlaceholder: (state, action: PayloadAction<string>) => {
       state.placeHolder = action.payload
     }
@@ -253,7 +264,8 @@ export const {
   // setWebSearchStatus,
   setPlaceholder,
   // Region detection
-  setDetectedRegion
+  setDetectedRegion,
+  setApiServerRunningAction
 } = runtimeSlice.actions
 
 export default runtimeSlice.reducer

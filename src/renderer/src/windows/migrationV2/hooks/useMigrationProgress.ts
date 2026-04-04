@@ -6,7 +6,8 @@ import {
   MigrationIpcChannels,
   type MigrationProgress,
   type MigrationStage,
-  type MigratorStatus
+  type MigratorStatus,
+  type StartMigrationPayload
 } from '@shared/data/migration/v2/types'
 import { useCallback, useEffect, useState } from 'react'
 
@@ -102,15 +103,8 @@ export function useMigrationActions() {
     return window.electron.ipcRenderer.invoke(MigrationIpcChannels.ShowBackupDialog)
   }, [])
 
-  const startMigration = useCallback(async (reduxData: Record<string, unknown>, dexieExportPath: string) => {
-    // Send Redux data
-    await window.electron.ipcRenderer.invoke(MigrationIpcChannels.SendReduxData, reduxData)
-
-    // Send Dexie export path
-    await window.electron.ipcRenderer.invoke(MigrationIpcChannels.DexieExportCompleted, dexieExportPath)
-
-    // Start migration
-    return window.electron.ipcRenderer.invoke(MigrationIpcChannels.StartMigration)
+  const startMigration = useCallback(async (payload: StartMigrationPayload) => {
+    return window.electron.ipcRenderer.invoke(MigrationIpcChannels.StartMigration, payload)
   }, [])
 
   const retry = useCallback(() => {

@@ -1,5 +1,6 @@
 import { PlusOutlined } from '@ant-design/icons'
-import { Avatar, Button, InfoTooltip, Tooltip } from '@cherrystudio/ui'
+import { Button, InfoTooltip, Tooltip } from '@cherrystudio/ui'
+import { resolveProviderIcon } from '@cherrystudio/ui/icons'
 import { useCache } from '@data/hooks/useCache'
 import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
@@ -7,7 +8,6 @@ import { Navbar, NavbarCenter, NavbarRight } from '@renderer/components/app/Navb
 import Scrollbar from '@renderer/components/Scrollbar'
 import TranslateButton from '@renderer/components/TranslateButton'
 import { isMac } from '@renderer/config/constant'
-import { getProviderLogo } from '@renderer/config/providers'
 import { LanguagesEnum } from '@renderer/config/translate'
 import { usePaintings } from '@renderer/hooks/usePaintings'
 import { useAllProviders } from '@renderer/hooks/useProvider'
@@ -66,7 +66,7 @@ const TokenFluxPage: FC<{ Options: string[] }> = ({ Options }) => {
   )
 
   useEffect(() => {
-    tokenFluxService.fetchModels().then((models) => {
+    void tokenFluxService.fetchModels().then((models) => {
       setModels(models)
       if (models.length > 0) {
         setSelectedModel(models[0])
@@ -222,7 +222,7 @@ const TokenFluxPage: FC<{ Options: string[] }> = ({ Options }) => {
       }
     }
 
-    removePainting('tokenflux_paintings', paintingToDelete)
+    void removePainting('tokenflux_paintings', paintingToDelete)
   }
 
   const translate = async () => {
@@ -260,7 +260,7 @@ const TokenFluxPage: FC<{ Options: string[] }> = ({ Options }) => {
       if (spaceClickCount === 2) {
         setSpaceClickCount(0)
         setIsTranslating(true)
-        translate()
+        void translate()
       }
     }
   }
@@ -268,7 +268,7 @@ const TokenFluxPage: FC<{ Options: string[] }> = ({ Options }) => {
   const handleProviderChange = (providerId: string) => {
     const routeName = location.pathname.split('/').pop()
     if (providerId !== routeName) {
-      navigate({ to: '../' + providerId, replace: true })
+      void navigate({ to: '../' + providerId, replace: true })
     }
   }
 
@@ -333,7 +333,7 @@ const TokenFluxPage: FC<{ Options: string[] }> = ({ Options }) => {
         .then((result) => {
           if (result && result.images && result.images.length > 0) {
             const urls = result.images.map((img: { url: string }) => img.url)
-            tokenFluxService.downloadImages(urls).then(async (validFiles) => {
+            void tokenFluxService.downloadImages(urls).then(async (validFiles) => {
               await FileManager.addFiles(validFiles)
               updatePaintingState({ files: validFiles, urls, status: 'succeeded' })
             })
@@ -366,11 +366,10 @@ const TokenFluxPage: FC<{ Options: string[] }> = ({ Options }) => {
             <SettingTitle style={{ marginBottom: 8 }}>{t('common.provider')}</SettingTitle>
             <SettingHelpLink target="_blank" href="https://tokenflux.ai">
               {t('paintings.learn_more')}
-              <Avatar
-                radius="md"
-                src={getProviderLogo('tokenflux')}
-                className="ml-[5px] h-4 w-4 border-[0.5px] border-[var(--color-border)]"
-              />
+              {(() => {
+                const Icon = resolveProviderIcon('tokenflux')
+                return Icon ? <Icon.Avatar size={16} className="ml-[5px]" /> : null
+              })()}
             </SettingHelpLink>
           </ProviderTitleContainer>
 

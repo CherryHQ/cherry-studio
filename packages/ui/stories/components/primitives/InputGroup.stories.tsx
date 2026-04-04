@@ -794,7 +794,7 @@ export const CopyToClipboard: Story = {
     const value = 'https://example.com/share/abc123'
 
     const handleCopy = () => {
-      navigator.clipboard.writeText(value)
+      void navigator.clipboard.writeText(value)
       setCopied(true)
       setTimeout(() => setCopied(false), 2000)
     }

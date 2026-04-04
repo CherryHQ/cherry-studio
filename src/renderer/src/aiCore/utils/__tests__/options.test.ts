@@ -11,7 +11,7 @@ import { buildProviderOptions } from '../options'
 
 // Mock dependencies
 vi.mock('@cherrystudio/ai-core/provider', async (importOriginal) => {
-  const actual = (await importOriginal()) as object
+  const actual = (await importOriginal()) as Record<string, unknown>
   return {
     ...actual,
     baseProviderIdSchema: {
@@ -45,7 +45,8 @@ vi.mock('@cherrystudio/ai-core/provider', async (importOriginal) => {
           'gateway',
           'aihubmix',
           'newapi',
-          'ollama'
+          'ollama',
+          'poe'
         ]
         if (customProviders.includes(id)) {
           return { success: true, data: id }
@@ -60,10 +61,8 @@ vi.mock('@cherrystudio/ai-core/provider', async (importOriginal) => {
 
 vi.mock('@renderer/config/models', async (importOriginal) => ({
   ...(await importOriginal()),
-  isOpenAIModel: vi.fn((model) => model.id.includes('gpt') || model.id.includes('o1')),
   isQwenMTModel: vi.fn(() => false),
   isSupportFlexServiceTierModel: vi.fn(() => true),
-  isOpenAILLMModel: vi.fn(() => true),
   SYSTEM_MODELS: {
     defaultModel: [
       { id: 'default-1', name: 'Default 1' },
@@ -430,6 +429,53 @@ describe('options utils', () => {
         })
 
         expect(result.providerOptions.openrouter).toHaveProperty('enable_search')
+      })
+    })
+
+    describe('Poe provider', () => {
+      const poeProvider: Provider = {
+        id: SystemProviderIds.poe,
+        name: 'Poe',
+        type: 'openai',
+        apiKey: 'test-key',
+        apiHost: 'https://api.poe.com/v1',
+        isSystem: true
+      } as Provider
+
+      const poeModel: Model = {
+        id: 'openai/gpt-4',
+        name: 'GPT-4',
+        provider: SystemProviderIds.poe
+      } as Model
+
+      it('should deep merge Poe extra_body reasoning and web search parameters', async () => {
+        const { getReasoningEffort } = await import('../reasoning')
+        const { getWebSearchParams } = await import('../websearch')
+
+        vi.mocked(getReasoningEffort).mockReturnValue({
+          extra_body: {
+            reasoning_effort: 'medium'
+          }
+        })
+        vi.mocked(getWebSearchParams).mockReturnValue({
+          extra_body: {
+            web_search: true
+          }
+        })
+
+        const result = buildProviderOptions(mockAssistant, poeModel, poeProvider, {
+          enableReasoning: true,
+          enableWebSearch: true,
+          enableGenerateImage: false
+        })
+
+        expect(result.providerOptions).toHaveProperty('poe')
+        expect(result.providerOptions.poe).toMatchObject({
+          extra_body: {
+            reasoning_effort: 'medium',
+            web_search: true
+          }
+        })
       })
     })
 

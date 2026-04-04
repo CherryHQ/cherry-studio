@@ -2,7 +2,7 @@ import fs from 'node:fs'
 import path from 'node:path'
 
 import { loggerService } from '@logger'
-import { windowService } from '@main/services/WindowService'
+import { application } from '@main/core/application'
 import { getFileExt, getTempDir } from '@main/utils/file'
 import type { FileMetadata, PreprocessProvider, PreprocessReadPdfResult } from '@types'
 import { PDFDocument } from 'pdf-lib'
@@ -96,7 +96,7 @@ export default abstract class BasePreprocessProvider {
   }
 
   public async sendPreprocessProgress(sourceId: string, progress: number): Promise<void> {
-    const mainWindow = windowService.getMainWindow()
+    const mainWindow = application.get('WindowService').getMainWindow()
     mainWindow?.webContents.send('file-preprocess-progress', {
       itemId: sourceId,
       progress: progress

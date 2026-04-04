@@ -1,4 +1,5 @@
 import { allMinApps } from '@renderer/config/minapps'
+import { getMiniAppsLogo } from '@renderer/config/minapps'
 import type { MinAppType } from '@renderer/types'
 import type { FC } from 'react'
 
@@ -15,12 +16,20 @@ const MinAppIcon: FC<Props> = ({ app, size = 48, style, sidebar = false }) => {
 
   // If found in allMinApps, use predefined styling
   if (_app) {
+    const logo = getMiniAppsLogo(_app.logo)
+
+    // CompoundIcon: render its Avatar sub-component
+    if (logo && typeof logo !== 'string') {
+      const Icon = logo
+      return <Icon.Avatar size={size} className="select-none" shape="rounded" />
+    }
+
     return (
       <img
-        src={_app.logo}
+        src={logo}
         className="select-none rounded-2xl"
         style={{
-          border: _app.bodered ? '0.5px solid var(--color-border)' : 'none',
+          border: _app.bordered ? '0.5px solid var(--color-border)' : 'none',
           width: `${size}px`,
           height: `${size}px`,
           backgroundColor: _app.background,

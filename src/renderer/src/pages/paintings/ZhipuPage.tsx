@@ -1,13 +1,12 @@
 import { PlusOutlined } from '@ant-design/icons'
 import { RowFlex } from '@cherrystudio/ui'
 import { Button } from '@cherrystudio/ui'
-import { Avatar } from '@cherrystudio/ui'
+import { resolveProviderIcon } from '@cherrystudio/ui/icons'
 import { useCache } from '@data/hooks/useCache'
-import AiProvider from '@renderer/aiCore'
+import { AiProvider } from '@renderer/aiCore'
 import { Navbar, NavbarCenter, NavbarRight } from '@renderer/components/app/Navbar'
 import Scrollbar from '@renderer/components/Scrollbar'
 import { isMac } from '@renderer/config/constant'
-import { getProviderLogo } from '@renderer/config/providers'
 import { usePaintings } from '@renderer/hooks/usePaintings'
 import { useAllProviders } from '@renderer/hooks/useProvider'
 import FileManager from '@renderer/services/FileManager'
@@ -163,19 +162,15 @@ const ZhipuPage: FC<{ Options: string[] }> = ({ Options }) => {
         signal: controller.signal
       }
 
-      // 调用智谱AI绘图API
-      const imageUrls = await aiProvider.generateImage(request)
+      // NOTE: ai sdk内部已经处理成了base64
+      const images = await aiProvider.generateImage(request)
 
       // 下载图片到本地文件
-      if (imageUrls.length > 0) {
+      if (images.length > 0) {
         const downloadedFiles = await Promise.all(
-          imageUrls.map(async (url) => {
+          images.map(async (image) => {
             try {
-              if (!url || url.trim() === '') {
-                window.toast.warning(t('message.empty_url'))
-                return null
-              }
-              return await window.api.file.download(url)
+              return await window.api.file.saveBase64Image(image)
             } catch (error) {
               if (
                 error instanceof Error &&
@@ -195,7 +190,6 @@ const ZhipuPage: FC<{ Options: string[] }> = ({ Options }) => {
         // 处理响应结果
         const newPainting = {
           ...painting,
-          urls: imageUrls,
           files: validFiles
         }
 
@@ -260,7 +254,7 @@ const ZhipuPage: FC<{ Options: string[] }> = ({ Options }) => {
   const handleProviderChange = (providerId: string) => {
     const routeName = location.pathname.split('/').pop()
     if (providerId !== routeName) {
-      navigate({ to: '../' + providerId, replace: true })
+      void navigate({ to: '../' + providerId, replace: true })
     }
   }
 
@@ -348,12 +342,10 @@ const ZhipuPage: FC<{ Options: string[] }> = ({ Options }) => {
               <SettingHelpLink target="_blank" href={COURSE_URL}>
                 {t('paintings.paint_course')}
               </SettingHelpLink>
-              <ProviderLogo
-                radius="md"
-                src={getProviderLogo(zhipuProvider.id)}
-                className="h-4 w-4"
-                style={{ marginLeft: 5 }}
-              />
+              {(() => {
+                const Icon = resolveProviderIcon(zhipuProvider.id)
+                return Icon ? <Icon.Avatar size={16} className="ml-[5px]" /> : null
+              })()}
             </div>
           </ProviderTitleContainer>
           <ProviderSelect provider={zhipuProvider} options={Options} onChange={handleProviderChange} className="mb-4" />
@@ -538,10 +530,6 @@ const ProviderTitleContainer = styled.div`
   justify-content: space-between;
   align-items: center;
   margin-bottom: 10px;
-`
-
-const ProviderLogo = styled(Avatar)`
-  border-radius: 4px;
 `
 
 export default ZhipuPage

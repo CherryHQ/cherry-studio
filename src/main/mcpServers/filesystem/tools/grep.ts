@@ -3,7 +3,7 @@ import path from 'path'
 import * as z from 'zod'
 
 import type { GrepMatch } from '../types'
-import { isBinaryFile, MAX_GREP_MATCHES, MAX_LINE_LENGTH, runRipgrep, validatePath } from '../types'
+import { isBinaryFile, logger, MAX_GREP_MATCHES, MAX_LINE_LENGTH, runRipgrep, validatePath } from '../types'
 
 // Schema definition
 export const GrepToolSchema = z.object({
@@ -27,7 +27,7 @@ export const grepToolDefinition = {
 - Results are limited to 100 matches
 - Binary files are automatically skipped
 - Common directories (node_modules, .git, dist) are excluded
-- The path parameter must be an absolute path if specified
+- The path parameter must resolve within the configured workspace root if specified
 - If path is not specified, defaults to the base directory`,
   inputSchema: z.toJSONSchema(GrepToolSchema)
 }
@@ -151,6 +151,14 @@ export async function handleGrepTool(args: unknown, baseDir: string) {
           continue
         }
 
+        // Validate path to prevent symlink escapes
+        try {
+          await validatePath(fullPath, baseDir)
+        } catch {
+          logger.debug('Skipping path outside workspace root', { path: fullPath })
+          continue
+        }
+
         if (entry.isFile()) {
           // Check if file matches include pattern
           if (data.include) {
@@ -203,6 +211,15 @@ export async function handleGrepTool(args: unknown, baseDir: string) {
         if (!Number.isFinite(lineNum)) continue
 
         const absoluteFilePath = path.isAbsolute(filePart) ? filePart : path.resolve(baseDir, filePart)
+
+        // Re-validate each result to filter out symlink escapes
+        try {
+          await validatePath(absoluteFilePath, baseDir)
+        } catch {
+          logger.debug('Skipping grep match outside workspace root', { file: absoluteFilePath })
+          continue
+        }
+
         const truncatedLine =
           contentPart.length > MAX_LINE_LENGTH ? contentPart.substring(0, MAX_LINE_LENGTH) + '...' : contentPart
 

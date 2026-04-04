@@ -102,6 +102,18 @@ export interface MigrationStatusValue {
   error?: string | null
 }
 
+// localStorage record type (shared between main LocalStorageReader and renderer LocalStorageExporter)
+export interface LocalStorageRecord {
+  key: string
+  value: unknown
+}
+
+export interface StartMigrationPayload {
+  reduxData: Record<string, unknown>
+  dexieExportPath: string
+  localStorageExportPath?: string
+}
+
 // IPC channels for migration communication
 export const MigrationIpcChannels = {
   // Status queries
@@ -120,9 +132,7 @@ export const MigrationIpcChannels = {
   Cancel: 'migration:cancel',
   Restart: 'migration:restart',
 
-  // Data transfer (Renderer -> Main)
-  SendReduxData: 'migration:send-redux-data',
-  DexieExportCompleted: 'migration:dexie-export-completed',
+  // File transfer (Renderer -> Main)
   WriteExportFile: 'migration:write-export-file',
 
   // Progress broadcast (Main -> Renderer)

@@ -1,5 +1,5 @@
 import { loggerService } from '@logger'
-import { AgentModelValidationError, sessionMessageService, sessionService } from '@main/services/agents'
+import { AgentModelValidationError, sessionService } from '@main/services/agents'
 import type { ListAgentSessionsResponse, ReplaceSessionRequest, UpdateSessionResponse } from '@types'
 import type { Request, Response } from 'express'
 
@@ -114,19 +114,7 @@ export const getSession = async (req: Request, res: Response): Promise<Response>
     //     }
     //   })
     // }
-
-    // Fetch session messages
-    logger.debug('Fetching session messages', { sessionId })
-    const { messages } = await sessionMessageService.listSessionMessages(sessionId)
-
-    // Add messages to session
-    const sessionWithMessages = {
-      ...session,
-      messages: messages
-    }
-
-    logger.info('Session retrieved', { agentId, sessionId, messageCount: messages.length })
-    return res.json(sessionWithMessages)
+    return res.json(session)
   } catch (error: any) {
     logger.error('Error getting session', { error, agentId: req.params.agentId, sessionId: req.params.sessionId })
     return res.status(500).json({
@@ -325,6 +313,42 @@ export const deleteSession = async (req: Request, res: Response): Promise<Respon
         message: 'Failed to delete session',
         type: 'internal_error',
         code: 'session_delete_failed'
+      }
+    })
+  }
+}
+
+export const reorderSessions = async (req: Request, res: Response): Promise<Response> => {
+  const { agentId } = req.params
+  try {
+    const { ordered_ids } = req.body
+
+    if (
+      !Array.isArray(ordered_ids) ||
+      ordered_ids.length === 0 ||
+      !ordered_ids.every((id: unknown) => typeof id === 'string' && id.length > 0)
+    ) {
+      return res.status(400).json({
+        error: {
+          message: 'ordered_ids must be a non-empty array of session IDs',
+          type: 'invalid_request_error',
+          code: 'invalid_ordered_ids'
+        }
+      })
+    }
+
+    logger.debug('Reordering sessions', { agentId, count: ordered_ids.length })
+    await sessionService.reorderSessions(agentId, ordered_ids)
+
+    logger.info('Sessions reordered', { agentId, count: ordered_ids.length })
+    return res.json({ success: true })
+  } catch (error: any) {
+    logger.error('Error reordering sessions', { error, agentId })
+    return res.status(500).json({
+      error: {
+        message: 'Failed to reorder sessions',
+        type: 'internal_error',
+        code: 'session_reorder_failed'
       }
     })
   }

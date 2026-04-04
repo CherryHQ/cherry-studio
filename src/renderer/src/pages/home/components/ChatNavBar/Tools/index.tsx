@@ -25,7 +25,7 @@ const Tools = ({ assistant }: ToolsProps) => {
 
   const handleNarrowModeToggle = async () => {
     await modelGenerating()
-    setNarrowMode(!narrowMode)
+    void setNarrowMode(!narrowMode)
   }
 
   return (

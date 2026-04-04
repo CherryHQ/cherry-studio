@@ -10,9 +10,10 @@ import {
   PushpinOutlined,
   ReloadOutlined
 } from '@ant-design/icons'
-import { Avatar, Button, Tooltip } from '@cherrystudio/ui'
+import { Button, Tooltip } from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
+import { LogoAvatar } from '@renderer/components/Icons'
 import WindowControls from '@renderer/components/WindowControls'
 import { isDev, isLinux, isMac, isWin } from '@renderer/config/constant'
 import { allMinApps } from '@renderer/config/minapps'
@@ -220,7 +221,7 @@ const MinappPopupContainer: React.FC = () => {
         try {
           const webviewId = webviewElement.getWebContentsId()
           if (webviewId) {
-            window.api.webview.setOpenLinkExternal(webviewId, minappsOpenLinkExternal)
+            void window.api.webview.setOpenLinkExternal(webviewId, minappsOpenLinkExternal)
           }
         } catch (error) {
           // WebView not ready yet, will be set when it's loaded
@@ -294,7 +295,7 @@ const MinappPopupContainer: React.FC = () => {
       try {
         const webviewId = webviewElement.getWebContentsId()
         if (webviewId) {
-          window.api.webview.setOpenLinkExternal(webviewId, minappsOpenLinkExternal)
+          void window.api.webview.setOpenLinkExternal(webviewId, minappsOpenLinkExternal)
         }
       } catch (error) {
         logger.debug(`WebView ${appid} not ready for getWebContentsId() in handleWebviewLoaded`)
@@ -335,7 +336,7 @@ const MinappPopupContainer: React.FC = () => {
 
   /** open the giving url in browser */
   const handleOpenLink = (url: string) => {
-    window.api.openWebsite(url)
+    void window.api.openWebsite(url)
   }
 
   /** toggle the pin status of the minapp */
@@ -349,7 +350,7 @@ const MinappPopupContainer: React.FC = () => {
 
   /** set the open external status */
   const handleToggleOpenExternal = () => {
-    setMinappsOpenLinkExternal(!minappsOpenLinkExternal)
+    void setMinappsOpenLinkExternal(!minappsOpenLinkExternal)
   }
 
   /** navigate back in webview history */
@@ -543,11 +544,7 @@ const MinappPopupContainer: React.FC = () => {
       <GoogleLoginTip isReady={isReady} currentUrl={currentUrl} currentAppId={currentMinappId} />
       {!isReady && (
         <EmptyView style={{ backgroundColor: 'var(--color-background-soft)' }}>
-          <Avatar
-            src={currentAppInfo?.logo}
-            className="h-20 w-20"
-            style={{ border: '1px solid var(--color-border)', marginTop: -150 }}
-          />
+          <LogoAvatar logo={currentAppInfo?.logo} size={80} />
           <BeatLoader color="var(--color-text-2)" size={10} style={{ marginTop: 15 }} />
         </EmptyView>
       )}
@@ -568,7 +565,7 @@ const TitleContainer = styled.div`
   bottom: 0;
   background-color: transparent;
   [navbar-position='left'] & {
-    padding-left: ${isMac ? '20px' : '10px'};
+    padding-left: ${isMac ? '40px' : '10px'};
   }
   [navbar-position='top'] & {
     padding-left: ${isMac ? '80px' : '10px'};

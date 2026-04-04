@@ -34,6 +34,13 @@
       "description": "Window height (from complex mapping) - Example, not active"
     },
     {
+      "targetKey": "feature.file_processing.overrides",
+      "type": "PreferenceTypes.FileProcessorOverrides",
+      "defaultValue": "VALUE: {} as PreferenceTypes.FileProcessorOverrides",
+      "status": "classified",
+      "description": "Complex migration: merge redux/preprocess.providers and redux/ocr.providers into file processing overrides"
+    },
+    {
       "targetKey": "chat.web_search.compression.cutoff_limit",
       "type": "number",
       "defaultValue": null,
@@ -83,6 +90,13 @@
       "description": "Web search RAG rerank model reference id (provider::modelId, from complex migration)"
     },
     {
+      "targetKey": "feature.code_cli.overrides",
+      "type": "PreferenceTypes.CodeCliOverrides",
+      "defaultValue": "VALUE: {} as PreferenceTypes.CodeCliOverrides",
+      "status": "classified",
+      "description": "Complex migration: merge redux/codeTools (selectedCliTool, selectedModels, environmentVariables, directories, currentDirectory, selectedTerminal) into code CLI overrides"
+    },
+    {
       "targetKey": "chat.web_search.exclude_domains",
       "type": "string[]",
       "defaultValue": [],
@@ -102,13 +116,6 @@
       "defaultValue": {},
       "status": "classified",
       "description": "Web search provider overrides (from complex migration)"
-    },
-    {
-      "targetKey": "chat.web_search.search_with_time",
-      "type": "boolean",
-      "defaultValue": true,
-      "status": "classified",
-      "description": "Web search include time filter (from complex migration)"
     }
   ]
 }

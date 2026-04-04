@@ -77,7 +77,7 @@ const DisplaySettings: FC = () => {
 
   const handleWindowStyleChange = useCallback(
     (checked: boolean) => {
-      setWindowStyle(checked ? 'transparent' : 'opaque')
+      void setWindowStyle(checked ? 'transparent' : 'opaque')
     },
     [setWindowStyle]
   )
@@ -90,11 +90,11 @@ const DisplaySettings: FC = () => {
       cancelText: t('common.cancel'),
       centered: true,
       onOk() {
-        setUseSystemTitleBar(checked)
+        void setUseSystemTitleBar(checked)
         setTimeoutTimer(
           'handleUseSystemTitleBarChange',
           () => {
-            window.api.relaunchApp()
+            void window.api.application.relaunch()
           },
           500
         )
@@ -113,8 +113,8 @@ const DisplaySettings: FC = () => {
   )
 
   const handleReset = useCallback(() => {
-    setVisibleIcons(DefaultPreferences.default['ui.sidebar.icons.visible'])
-    setInvisibleIcons(DefaultPreferences.default['ui.sidebar.icons.invisible'])
+    void setVisibleIcons(DefaultPreferences.default['ui.sidebar.icons.visible'])
+    void setInvisibleIcons(DefaultPreferences.default['ui.sidebar.icons.invisible'])
   }, [setVisibleIcons, setInvisibleIcons])
 
   const themeOptions = useMemo(
@@ -152,17 +152,17 @@ const DisplaySettings: FC = () => {
 
   useEffect(() => {
     // 初始化获取所有系统字体
-    window.api.getSystemFonts().then((fonts: string[]) => {
+    void window.api.getSystemFonts().then((fonts: string[]) => {
       setFontList(fonts)
     })
 
     // 初始化获取当前缩放值
-    window.api.handleZoomFactor(0).then((factor) => {
+    void window.api.handleZoomFactor(0).then((factor) => {
       setCurrentZoom(factor)
     })
 
     const handleResize = () => {
-      window.api.handleZoomFactor(0).then((factor) => {
+      void window.api.handleZoomFactor(0).then((factor) => {
         setCurrentZoom(factor)
       })
     }

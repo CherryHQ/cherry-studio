@@ -7,10 +7,10 @@
  * - Active node switching
  */
 
-import { dbService } from '@data/db/DbService'
 import { messageTable } from '@data/db/schemas/message'
 import { topicTable } from '@data/db/schemas/topic'
 import { loggerService } from '@logger'
+import { application } from '@main/core/application'
 import { DataApiErrorFactory } from '@shared/data/api'
 import type { CreateTopicDto, UpdateTopicDto } from '@shared/data/api/schemas/topics'
 import type { Topic } from '@shared/data/types/topic'
@@ -42,22 +42,11 @@ function rowToTopic(row: typeof topicTable.$inferSelect): Topic {
 }
 
 export class TopicService {
-  private static instance: TopicService
-
-  private constructor() {}
-
-  public static getInstance(): TopicService {
-    if (!TopicService.instance) {
-      TopicService.instance = new TopicService()
-    }
-    return TopicService.instance
-  }
-
   /**
    * Get a topic by ID
    */
   async getById(id: string): Promise<Topic> {
-    const db = dbService.getDb()
+    const db = application.get('DbService').getDb()
 
     const [row] = await db.select().from(topicTable).where(eq(topicTable.id, id)).limit(1)
 
@@ -72,7 +61,7 @@ export class TopicService {
    * Create a new topic
    */
   async create(dto: CreateTopicDto): Promise<Topic> {
-    const db = dbService.getDb()
+    const db = application.get('DbService').getDb()
 
     // If forking from existing node, copy the path
     if (dto.sourceNodeId) {
@@ -162,7 +151,7 @@ export class TopicService {
    * Update a topic
    */
   async update(id: string, dto: UpdateTopicDto): Promise<Topic> {
-    const db = dbService.getDb()
+    const db = application.get('DbService').getDb()
 
     // Verify topic exists
     await this.getById(id)
@@ -191,7 +180,7 @@ export class TopicService {
    * Delete a topic and all its messages (hard delete)
    */
   async delete(id: string): Promise<void> {
-    const db = dbService.getDb()
+    const db = application.get('DbService').getDb()
 
     // Verify topic exists
     await this.getById(id)
@@ -209,7 +198,7 @@ export class TopicService {
    * Set the active node for a topic
    */
   async setActiveNode(topicId: string, nodeId: string): Promise<{ activeNodeId: string }> {
-    const db = dbService.getDb()
+    const db = application.get('DbService').getDb()
 
     // Verify topic exists
     await this.getById(topicId)
@@ -230,4 +219,4 @@ export class TopicService {
   }
 }
 
-export const topicService = TopicService.getInstance()
+export const topicService = new TopicService()

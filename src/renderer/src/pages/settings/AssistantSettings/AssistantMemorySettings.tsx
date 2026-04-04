@@ -2,7 +2,7 @@ import { Box, Button, InfoTooltip, Switch, Tooltip } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
 import { usePreference } from '@renderer/data/hooks/usePreference'
 import MemoriesSettingsModal from '@renderer/pages/settings/MemorySettings/MemorySettingsModal'
-import MemoryService from '@renderer/services/MemoryService'
+import { memoryService } from '@renderer/services/MemoryService'
 import { selectMemoryConfig } from '@renderer/store/memory'
 import type { Assistant, AssistantSettings } from '@renderer/types'
 import { Alert, Card, Space, Typography } from 'antd'
@@ -33,7 +33,7 @@ const AssistantMemorySettings: React.FC<Props> = ({ assistant, updateAssistant, 
     loading: true
   })
   const [settingsModalVisible, setSettingsModalVisible] = useState(false)
-  const memoryService = MemoryService.getInstance()
+  // memoryService is imported as a module-level singleton
   const form = useForm()
 
   // Load memory statistics for this assistant
@@ -49,10 +49,10 @@ const AssistantMemorySettings: React.FC<Props> = ({ assistant, updateAssistant, 
       logger.error('Failed to load memory stats:', error as Error)
       setMemoryStats({ count: 0, loading: false })
     }
-  }, [assistant.id, memoryService])
+  }, [assistant.id])
 
   useEffect(() => {
-    loadMemoryStats()
+    void loadMemoryStats()
   }, [loadMemoryStats])
 
   const handleMemoryToggle = (enabled: boolean) => {

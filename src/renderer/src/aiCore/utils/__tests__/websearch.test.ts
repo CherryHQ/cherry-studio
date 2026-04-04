@@ -68,6 +68,22 @@ describe('websearch utils', () => {
       })
     })
 
+    it('should return extra_body with web_search for poe provider', () => {
+      const model: Model = {
+        id: 'Gemini-3-Flash',
+        name: 'Gemini 3 Flash',
+        provider: 'poe'
+      } as Model
+
+      const result = getWebSearchParams(model)
+
+      expect(result).toEqual({
+        extra_body: {
+          web_search: true
+        }
+      })
+    })
+
     it('should return empty object for other providers', () => {
       const model: Model = {
         id: 'gpt-4',
@@ -254,12 +270,14 @@ describe('websearch utils', () => {
     })
 
     describe('xai provider', () => {
-      it('should return xai search options with enableImageUnderstanding when no excludeDomains', () => {
+      it('should return xai-responses search options with enableImageUnderstanding when no excludeDomains', () => {
         const result = buildProviderBuiltinWebSearchConfig('xai', defaultWebSearchConfig)
 
         expect(result).toEqual({
-          xai: { enableImageUnderstanding: true },
-          'xai-xsearch': { enableImageUnderstanding: true }
+          'xai-responses': {
+            webSearch: { enableImageUnderstanding: true },
+            xSearch: { enableImageUnderstanding: true }
+          }
         })
       })
 
@@ -273,11 +291,13 @@ describe('websearch utils', () => {
         const result = buildProviderBuiltinWebSearchConfig('xai', config)
 
         expect(result).toEqual({
-          xai: {
-            enableImageUnderstanding: true,
-            excludedDomains: ['site1.com', 'site2.com']
-          },
-          'xai-xsearch': { enableImageUnderstanding: true }
+          'xai-responses': {
+            webSearch: {
+              enableImageUnderstanding: true,
+              excludedDomains: ['site1.com', 'site2.com']
+            },
+            xSearch: { enableImageUnderstanding: true }
+          }
         })
       })
 
@@ -290,7 +310,7 @@ describe('websearch utils', () => {
 
         const result = buildProviderBuiltinWebSearchConfig('xai', config)
 
-        expect(result?.xai?.excludedDomains).toHaveLength(5)
+        expect(result?.['xai-responses']?.webSearch?.excludedDomains).toHaveLength(5)
       })
     })
 

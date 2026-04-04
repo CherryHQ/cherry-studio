@@ -1,5 +1,5 @@
-import { cacheService } from '@data/CacheService'
 import { loggerService } from '@logger'
+import { application } from '@main/core/application'
 import { Server } from '@modelcontextprotocol/sdk/server/index.js'
 import { CallToolRequestSchema, ErrorCode, ListToolsRequestSchema, McpError } from '@modelcontextprotocol/sdk/types.js'
 import type { MCPTool } from '@types'
@@ -153,6 +153,7 @@ export class HubServer {
   }
 
   private async fetchTools(): Promise<HubTool[]> {
+    const cacheService = application.get('CacheService')
     const cached = cacheService.get<HubTool[]>(TOOLS_CACHE_KEY)
     if (cached) {
       logger.debug('Returning cached tools')
@@ -196,7 +197,7 @@ export class HubServer {
   }
 
   invalidateCache(): void {
-    cacheService.delete(TOOLS_CACHE_KEY)
+    application.get('CacheService').delete(TOOLS_CACHE_KEY)
     clearToolMap()
     logger.debug('Tools cache invalidated')
   }

@@ -13,7 +13,7 @@ import type { MemoryConfig, MemoryItem } from '@types'
 import jaison from 'jaison/lib/index.js'
 
 import { fetchGenerate } from './ApiService'
-import MemoryService from './MemoryService'
+import { memoryService } from './MemoryService'
 
 const logger = loggerService.withContext('MemoryProcessor')
 
@@ -25,10 +25,10 @@ export interface MemoryProcessorConfig {
 }
 
 export class MemoryProcessor {
-  private memoryService: MemoryService
+  private memoryService = memoryService
 
   constructor() {
-    this.memoryService = MemoryService.getInstance()
+    // memoryService is a module-level singleton
   }
 
   /**

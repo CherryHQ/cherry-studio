@@ -1,6 +1,7 @@
 import { CloseOutlined } from '@ant-design/icons'
 import type { DraggableProvided, DroppableProvided, DropResult } from '@hello-pangea/dnd'
 import { DragDropContext, Draggable, Droppable } from '@hello-pangea/dnd'
+import { LogoAvatar } from '@renderer/components/Icons'
 import { allMinApps } from '@renderer/config/minapps'
 import { useMinapps } from '@renderer/hooks/useMinapps'
 import { getMiniappsStatusLabel } from '@renderer/i18n/label'
@@ -34,7 +35,8 @@ const MiniAppIconsManager: FC<MiniAppManagerProps> = ({
       setDisabledMiniApps(newDisabled)
       updateMinapps(newVisible)
       updateDisabledMinapps(newDisabled)
-      updatePinnedMinapps(pinned.filter((p) => !newDisabled.some((d) => d.id === p.id)))
+      const disabledIds = new Set(newDisabled.map((d) => d.id))
+      updatePinnedMinapps(pinned.filter((p) => !disabledIds.has(p.id)))
     },
     [pinned, setDisabledMiniApps, setVisibleMiniApps, updateDisabledMinapps, updateMinapps, updatePinnedMinapps]
   )
@@ -98,7 +100,7 @@ const MiniAppIconsManager: FC<MiniAppManagerProps> = ({
     return (
       <ProgramItem ref={provided.innerRef} {...provided.draggableProps} {...provided.dragHandleProps}>
         <ProgramContent>
-          <AppLogo src={logo} alt={name} />
+          <LogoAvatar logo={logo} size={16} />
           <span>{name}</span>
         </ProgramContent>
         <CloseButton onClick={() => onMoveMiniApp(program, listType)}>
@@ -135,13 +137,6 @@ const MiniAppIconsManager: FC<MiniAppManagerProps> = ({
     </DragDropContext>
   )
 }
-
-const AppLogo = styled.img`
-  width: 16px;
-  height: 16px;
-  border-radius: 4px;
-  object-fit: contain;
-`
 
 const ProgramSection = styled.div`
   display: flex;

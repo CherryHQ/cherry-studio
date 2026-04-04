@@ -23,7 +23,8 @@ const mockUseAppSelector = vi.fn()
 const mockUseTranslation = vi.fn()
 
 vi.mock('@renderer/store', () => ({
-  useAppSelector: (selector: any) => mockUseAppSelector(selector)
+  useAppSelector: (selector: any) => mockUseAppSelector(selector),
+  useAppDispatch: () => vi.fn()
 }))
 
 vi.mock('@renderer/store/toolPermissions', () => ({
@@ -113,6 +114,11 @@ vi.mock('lucide-react', async (importOriginal) => {
     ImageIcon: () => <span data-testid="image-icon" />
   }
 })
+
+// Mock CodeViewer (used by ReadTool/WriteTool, depends on useSettings and useCodeStyle)
+vi.mock('@renderer/components/CodeViewer', () => ({
+  default: ({ value }: any) => <pre data-testid="code-viewer">{value}</pre>
+}))
 
 // Mock LoadingIcon
 vi.mock('@renderer/components/Icons', () => ({
@@ -357,8 +363,9 @@ describe('MessageAgentTools', () => {
 
       // Should render the DEDICATED BashTool component
       expect(screen.getByText('Bash')).toBeInTheDocument()
-      // Command should be visible in the dedicated renderer
-      expect(screen.getByText(/npm install/)).toBeInTheDocument()
+      // Command should be visible in the dedicated renderer (ANSI colorizer splits tokens across spans)
+      const container = screen.getByTestId('collapse-content-Bash')
+      expect(container.textContent).toContain('npm install')
     })
   })
 })

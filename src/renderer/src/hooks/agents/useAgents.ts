@@ -1,6 +1,6 @@
 import { cacheService } from '@renderer/data/CacheService'
 import { useCache } from '@renderer/data/hooks/useCache'
-import type { AddAgentForm, CreateAgentResponse } from '@renderer/types'
+import type { AddAgentForm, CreateAgentResponse, GetAgentResponse } from '@renderer/types'
 import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
 import { useCallback } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -36,7 +36,7 @@ export const useAgents = () => {
     if (!apiServerRunning) {
       throw new Error(t('agent.server.error.not_running'))
     }
-    const result = await client.listAgents({ sortBy: 'created_at', orderBy: 'desc' })
+    const result = await client.listAgents({ sortBy: 'sort_order', orderBy: 'asc' })
     // NOTE: We only use the array for now. useUpdateAgent depends on this behavior.
     return result.data
   }, [apiServerConfig.enabled, apiServerRunning, client, t])
@@ -48,7 +48,7 @@ export const useAgents = () => {
     async (form: AddAgentForm): Promise<Result<CreateAgentResponse>> => {
       try {
         const result = await client.createAgent(form)
-        mutate((prev) => [...(prev ?? []), result])
+        void mutate((prev) => [result, ...(prev ?? [])])
         window.toast.success(t('common.add_success'))
         return { success: true, data: result }
       } catch (error) {
@@ -74,7 +74,7 @@ export const useAgents = () => {
           const newId = data?.filter((a) => a.id !== id).find(() => true)?.id
           cacheService.set('agent.active_id', newId ?? null)
         }
-        mutate((prev) => prev?.filter((a) => a.id !== id) ?? [])
+        void mutate((prev) => prev?.filter((a) => a.id !== id) ?? [])
         window.toast.success(t('common.delete_success'))
       } catch (error) {
         window.toast.error(formatErrorMessageWithPrefix(error, t('agent.delete.error.failed')))
@@ -86,17 +86,33 @@ export const useAgents = () => {
   const getAgent = useCallback(
     async (id: string) => {
       const result = await client.getAgent(id)
-      mutate((prev) => prev?.map((a) => (a.id === result.id ? result : a)) ?? [])
+      void mutate((prev) => prev?.map((a) => (a.id === result.id ? result : a)) ?? [])
     },
     [client, mutate]
   )
 
+  const reorderAgents = useCallback(
+    async (reorderedList: GetAgentResponse[]) => {
+      const orderedIds = reorderedList.map((a) => a.id)
+      // Optimistic update
+      void mutate(reorderedList, false)
+      try {
+        await client.reorderAgents(orderedIds)
+      } catch (error) {
+        void mutate()
+        window.toast.error(formatErrorMessageWithPrefix(error, t('agent.reorder.error.failed')))
+      }
+    },
+    [client, mutate, t]
+  )
+
   return {
-    agents: data ?? [],
+    agents: data,
     error,
     isLoading,
     addAgent,
     deleteAgent,
-    getAgent
+    getAgent,
+    reorderAgents
   }
 }

@@ -5,7 +5,7 @@ import { fileStorage } from '@main/services/FileStorage'
 import type { Mistral } from '@mistralai/mistralai'
 import type { FileListResponse, FileMetadata, FileUploadResponse, Provider } from '@types'
 
-import { MistralClientManager } from '../MistralClientManager'
+import { mistralClientManager } from '../MistralClientManager'
 import { BaseFileService } from './BaseFileService'
 
 const logger = loggerService.withContext('MistralService')
@@ -15,7 +15,7 @@ export class MistralService extends BaseFileService {
 
   constructor(provider: Provider) {
     super(provider)
-    const clientManager = MistralClientManager.getInstance()
+    const clientManager = mistralClientManager
     clientManager.initializeClient(provider)
     this.client = clientManager.getClient()
   }

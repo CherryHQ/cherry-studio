@@ -45,10 +45,20 @@ const router = express.Router()
 router.get('/', async (req: Request, res: Response) => {
   try {
     logger.debug('Listing MCP servers')
-    const servers = await mcpApiService.getAllServers(req)
+    const servers = await mcpApiService.getAllActiveServers()
+    const result: Record<string, { id: string; name: string; type: string; description?: string; url: string }> = {}
+    for (const server of servers) {
+      result[server.id] = {
+        id: server.id,
+        name: server.name,
+        type: 'streamableHttp',
+        description: server.description,
+        url: `${req.protocol}://${req.host}/v1/mcps/${server.id}/mcp`
+      }
+    }
     return res.json({
       success: true,
-      data: servers
+      data: { servers: result }
     })
   } catch (error: any) {
     logger.error('Error fetching MCP servers', { error })

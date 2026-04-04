@@ -38,11 +38,11 @@ const TopicMessages: FC<Props> = ({ topic: _topic, ...props }) => {
   useEffect(() => {
     if (!_topic) return
 
-    runAsyncFunction(async () => {
+    void runAsyncFunction(async () => {
       const topic = await getTopicById(_topic.id)
       setTopic(topic)
     })
-  }, [_topic, topic])
+  }, [_topic])
 
   const isEmpty = (topic?.messages || []).length === 0
 
@@ -54,7 +54,7 @@ const TopicMessages: FC<Props> = ({ topic: _topic, ...props }) => {
     await modelGenerating()
     SearchPopup.hide()
     const assistant = getAssistantById(topic.assistantId)
-    navigate({ to: '/app/chat', search: { assistantId: assistant?.id, topicId: topic.id } })
+    void navigate({ to: '/app/chat', search: { assistantId: assistant?.id, topicId: topic.id } })
     setTimeoutTimer('onContinueChat', () => EventEmitter.emit(EVENT_NAMES.SHOW_TOPIC_SIDEBAR), 100)
   }
 

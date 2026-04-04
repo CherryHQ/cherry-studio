@@ -3,16 +3,12 @@
  * 构建AI SDK的流式和非流式参数
  */
 
-import { anthropic } from '@ai-sdk/anthropic'
-import { azure } from '@ai-sdk/azure'
-import { google } from '@ai-sdk/google'
-import { vertexAnthropic } from '@ai-sdk/google-vertex/anthropic/edge'
-import { vertex } from '@ai-sdk/google-vertex/edge'
 import { combineHeaders } from '@ai-sdk/provider-utils'
-import type { AnthropicSearchConfig, WebSearchPluginConfig } from '@cherrystudio/ai-core/built-in/plugins'
-import { isBaseProvider } from '@cherrystudio/ai-core/core/providers/schemas'
-import type { BaseProviderId } from '@cherrystudio/ai-core/provider'
+import type { WebSearchPluginConfig } from '@cherrystudio/ai-core/built-in/plugins'
+import { extensionRegistry } from '@cherrystudio/ai-core/provider'
 import { loggerService } from '@logger'
+import type { AppProviderId } from '@renderer/aiCore/types'
+import { MAX_TOOL_CALLS, MIN_TOOL_CALLS } from '@renderer/config/constant'
 import {
   isAnthropicModel,
   isFixedReasoningModel,
@@ -27,19 +23,21 @@ import {
   isWebSearchModel
 } from '@renderer/config/models'
 import { getHubModeSystemPrompt } from '@renderer/config/prompts-code-mode'
-import { getDefaultModel } from '@renderer/services/AssistantService'
+import { DEFAULT_ASSISTANT_SETTINGS, getDefaultModel } from '@renderer/services/AssistantService'
 import store from '@renderer/store'
 import type { CherryWebSearchConfig } from '@renderer/store/websearch'
 import type { Model } from '@renderer/types'
 import { type Assistant, getEffectiveMcpMode, type MCPTool, type Provider, SystemProviderIds } from '@renderer/types'
 import type { StreamTextParams } from '@renderer/types/aiCoreTypes'
-import { mapRegexToPatterns } from '@renderer/utils/blacklistMatchPattern'
+import { IdleTimeoutController, type IdleTimeoutHandle } from '@renderer/utils/IdleTimeoutController'
 import { replacePromptVariables } from '@renderer/utils/prompt'
 import { isAIGatewayProvider, isAwsBedrockProvider, isSupportUrlContextProvider } from '@renderer/utils/provider'
-import type { ModelMessage, Tool } from 'ai'
+import { DEFAULT_TIMEOUT } from '@shared/config/constant'
+import type { ModelMessage } from 'ai'
 import { stepCountIs } from 'ai'
 
 import { getAiSdkProviderId } from '../provider/factory'
+import type { ProviderCapabilities } from '../types'
 import { setupToolsConfig } from '../utils/mcp'
 import { buildProviderOptions } from '../utils/options'
 import { buildProviderBuiltinWebSearchConfig } from '../utils/websearch'
@@ -48,9 +46,20 @@ import { getMaxTokens, getTemperature, getTopP } from './modelParameters'
 
 const logger = loggerService.withContext('parameterBuilder')
 
-type ProviderDefinedTool = Extract<Tool<any, any>, { type: 'provider' }>
+/**
+ * Validates and clamps maxToolCalls to valid range
+ * Falls back to DEFAULT_ASSISTANT_SETTINGS.maxToolCalls if invalid
+ * @param value - The maxToolCalls value from settings
+ * @returns Validated maxToolCalls value
+ */
+function validateMaxToolCalls(value: number | undefined): number {
+  if (value === undefined || value < MIN_TOOL_CALLS || value > MAX_TOOL_CALLS) {
+    return DEFAULT_ASSISTANT_SETTINGS.maxToolCalls
+  }
+  return value
+}
 
-function mapVertexAIGatewayModelToProviderId(model: Model): BaseProviderId | undefined {
+function mapVertexAIGatewayModelToProviderId(model: Model): AppProviderId | undefined {
   if (isAnthropicModel(model)) {
     return 'anthropic'
   }
@@ -83,21 +92,28 @@ export async function buildStreamTextParams(
     requestOptions?: {
       signal?: AbortSignal
       timeout?: number
-      headers?: Record<string, string>
+      headers?: Record<string, string | undefined>
     }
   }
 ): Promise<{
   params: StreamTextParams
   modelId: string
-  capabilities: {
-    enableReasoning: boolean
-    enableWebSearch: boolean
-    enableGenerateImage: boolean
-    enableUrlContext: boolean
-  }
+  capabilities: ProviderCapabilities
   webSearchPluginConfig?: WebSearchPluginConfig
+  idleTimeout: IdleTimeoutHandle
 }> {
-  const { mcpTools } = options
+  const { mcpTools, requestOptions = {} } = options
+  // No caller currently provides a custom timeout; defaultTimeout (10 min) is the fallback.
+  const { signal: externalSignal, timeout = DEFAULT_TIMEOUT, headers: inputHeaders = {} } = requestOptions
+
+  // Use an idle timeout that resets every time a stream chunk is received,
+  // instead of a fixed total timeout that starts from the initial request.
+  const idleTimeout = new IdleTimeoutController(timeout)
+  const signals = [idleTimeout.signal]
+  if (externalSignal) {
+    signals.push(externalSignal)
+  }
+  const finalSignal = AbortSignal.any(signals)
 
   const model = assistant.model || getDefaultModel()
   const aiSdkProviderId = getAiSdkProviderId(provider)
@@ -129,7 +145,7 @@ export async function buildStreamTextParams(
 
   const enableGenerateImage = !!(isGenerateImageModel(model) && assistant.enableGenerateImage)
 
-  let tools = setupToolsConfig(mcpTools, options.allowedTools)
+  const tools = setupToolsConfig(mcpTools, options.allowedTools)
 
   // 构建真正的 providerOptions
   const webSearchConfig: CherryWebSearchConfig = {
@@ -144,68 +160,23 @@ export async function buildStreamTextParams(
     enableGenerateImage
   })
 
+  // Web search + URL context 的工具注入由 plugin 系统处理：
+  // - webSearchPlugin: 根据 provider 的 toolFactories.webSearch 自动注入
+  // - urlContextPlugin: 根据 provider 的 toolFactories.urlContext 自动注入
+  // parameterBuilder 只构建 config，传给 plugin
   let webSearchPluginConfig: WebSearchPluginConfig | undefined = undefined
   if (enableWebSearch) {
-    if (isBaseProvider(aiSdkProviderId)) {
+    if (extensionRegistry.has(aiSdkProviderId)) {
       webSearchPluginConfig = buildProviderBuiltinWebSearchConfig(aiSdkProviderId, webSearchConfig, model)
     } else if (isAIGatewayProvider(provider) || SystemProviderIds.gateway === provider.id) {
-      const aiSdkProviderId = mapVertexAIGatewayModelToProviderId(model)
-      if (aiSdkProviderId) {
-        webSearchPluginConfig = buildProviderBuiltinWebSearchConfig(aiSdkProviderId, webSearchConfig, model)
+      const gatewayProviderId = mapVertexAIGatewayModelToProviderId(model)
+      if (gatewayProviderId) {
+        webSearchPluginConfig = buildProviderBuiltinWebSearchConfig(gatewayProviderId, webSearchConfig, model)
       }
-    }
-    if (!tools) {
-      tools = {}
-    }
-    if (aiSdkProviderId === 'google-vertex') {
-      tools.google_search = vertex.tools.googleSearch({}) as ProviderDefinedTool
-    } else if (aiSdkProviderId === 'google-vertex-anthropic') {
-      const blockedDomains = mapRegexToPatterns(webSearchConfig.excludeDomains)
-      tools.web_search = vertexAnthropic.tools.webSearch_20250305({
-        maxUses: webSearchConfig.maxResults,
-        blockedDomains: blockedDomains.length > 0 ? blockedDomains : undefined
-      }) as ProviderDefinedTool
-    } else if (aiSdkProviderId === 'azure-responses') {
-      tools.web_search_preview = azure.tools.webSearchPreview({
-        searchContextSize: webSearchPluginConfig?.openai!.searchContextSize
-      }) as ProviderDefinedTool
-    } else if (aiSdkProviderId === 'azure-anthropic') {
-      const blockedDomains = mapRegexToPatterns(webSearchConfig.excludeDomains)
-      const anthropicSearchOptions: AnthropicSearchConfig = {
-        maxUses: webSearchConfig.maxResults,
-        blockedDomains: blockedDomains.length > 0 ? blockedDomains : undefined
-      }
-      tools.web_search = anthropic.tools.webSearch_20250305(anthropicSearchOptions) as ProviderDefinedTool
     }
   }
 
-  if (enableUrlContext) {
-    if (!tools) {
-      tools = {}
-    }
-    const blockedDomains = mapRegexToPatterns(webSearchConfig.excludeDomains)
-
-    switch (aiSdkProviderId) {
-      case 'google-vertex':
-        tools.url_context = vertex.tools.urlContext({}) as ProviderDefinedTool
-        break
-      case 'google':
-        tools.url_context = google.tools.urlContext({}) as ProviderDefinedTool
-        break
-      case 'anthropic':
-      case 'azure-anthropic':
-      case 'google-vertex-anthropic':
-        if (['anthropic', 'azure-anthropic'].includes(aiSdkProviderId)) {
-          tools.web_fetch = anthropic.tools.webFetch_20250910({
-            maxUses: webSearchConfig.maxResults,
-            blockedDomains: blockedDomains.length > 0 ? blockedDomains : undefined
-          }) as ProviderDefinedTool
-        }
-        break
-    }
-  }
-
-  let headers: Record<string, string | undefined> = options.requestOptions?.headers ?? {}
+  let headers = inputHeaders
 
   if (isAnthropicModel(model) && !isAwsBedrockProvider(provider)) {
     const betaHeaders = addAnthropicHeaders(assistant, model)
@@ -220,6 +191,12 @@ export async function buildStreamTextParams(
   // Note: standardParams (topK, frequencyPenalty, presencePenalty, stopSequences, seed)
   // are extracted from custom parameters and passed directly to streamText()
   // instead of being placed in providerOptions
+
+  // Get max tool calls from assistant settings
+  // When enabled, validate and use user-defined value (1-100)
+  // When disabled, don't pass stopWhen - let AI SDK use its own default
+  const enableMaxToolCalls = assistant.settings?.enableMaxToolCalls ?? DEFAULT_ASSISTANT_SETTINGS.enableMaxToolCalls
+
   const params: StreamTextParams = {
     messages: sdkMessages,
     maxOutputTokens: getMaxTokens(assistant, model),
@@ -227,12 +204,18 @@ export async function buildStreamTextParams(
     topP: getTopP(assistant, model),
     // Include AI SDK standard params extracted from custom parameters
     ...standardParams,
-    abortSignal: options.requestOptions?.signal,
+    abortSignal: finalSignal,
     headers,
     providerOptions,
-    stopWhen: stepCountIs(20),
     maxRetries: 0
   }
+
+  // Only add stopWhen when explicitly enabled and validated
+  if (enableMaxToolCalls) {
+    const maxToolCalls = validateMaxToolCalls(assistant.settings?.maxToolCalls)
+    params.stopWhen = stepCountIs(maxToolCalls)
+  }
+  // When disabled, don't pass stopWhen - let AI SDK use its own default
 
   if (tools) {
     params.tools = tools
@@ -257,7 +240,8 @@ export async function buildStreamTextParams(
     params,
     modelId: model.id,
     capabilities: { enableReasoning, enableWebSearch, enableGenerateImage, enableUrlContext },
-    webSearchPluginConfig
+    webSearchPluginConfig,
+    idleTimeout
   }
 }
 

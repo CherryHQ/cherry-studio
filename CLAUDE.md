@@ -36,9 +36,13 @@ Only investigate CI failures by reading the logs, not by re-running checks local
 When creating an Issue, you MUST use the `gh-create-issue` skill.
 If the skill is unavailable, directly read `.agents/skills/gh-create-issue/SKILL.md` and follow it manually.
 
-### Current Contribution Restrictions
+### Branch Strategy (Effective April 3, 2026)
 
-> **IMPORTANT**: Feature PRs that change Redux data models or IndexedDB schemas are **temporarily blocked** until v2.0.0 releases. Only bug fixes, performance improvements, docs, and non-data-model features are accepted. Track progress at [#10162](https://github.com/CherryHQ/cherry-studio/pull/10162).
+> **IMPORTANT**: The `main` branch is now under **code freeze**. Only critical bug fixes submitted via `hotfix/*` branches are accepted. Fix PRs must be minimal in scope and must not include any refactoring code.
+>
+> All new features, refactoring, and optimizations should be developed on the **`v2` branch**. We welcome every developer to actively participate in v2 development!
+>
+> The `v2` branch will only accept new feature submissions after all current features have been fully refactored.
 
 ## Development Commands
 
@@ -83,11 +87,12 @@ If the skill is unavailable, directly read `.agents/skills/gh-create-issue/SKILL
 
 **MUST READ**: [docs/en/references/data/README.md](docs/en/references/data/README.md) for system selection, architecture, and patterns.
 
-| System     | Use Case                     | APIs                                            |
-| ---------- | ---------------------------- | ----------------------------------------------- |
-| Cache      | Temp data (can lose)         | `useCache`, `useSharedCache`, `usePersistCache` |
-| Preference | User settings                | `usePreference`                                 |
-| DataApi    | Business data (**critical**) | `useQuery`, `useMutation`                       |
+| System     | Use Case                        | APIs                                            |
+| ---------- | ------------------------------- | ----------------------------------------------- |
+| BootConfig | Early boot settings (pre-lifecycle) | `bootConfigService.get()`, `usePreference('BootConfig.*')` |
+| Cache      | Temp data (can lose)            | `useCache`, `useSharedCache`, `usePersistCache` |
+| Preference | User settings                   | `usePreference`                                 |
+| DataApi    | Business data (**critical**)    | `useQuery`, `useMutation`                       |
 
 Database: SQLite + Drizzle ORM, schemas in `src/main/data/db/schemas/`, migrations via `yarn db:migrations:generate`
 
@@ -105,6 +110,27 @@ Database: SQLite + Drizzle ORM, schemas in `src/main/data/db/schemas/`, migratio
 - **Playwright**: End-to-end testing
 - **Component Testing**: React Testing Library
 - **Coverage**: Available via `yarn test:coverage`
+
+#### Main Process Services (Lifecycle)
+
+**MUST READ**: [docs/en/references/lifecycle/README.md](docs/en/references/lifecycle/README.md) — architecture, decision guides, usage patterns, and migration steps.
+
+All main-process services that own long-lived resources or register persistent side effects **must** use the lifecycle system:
+
+- **Extend `BaseService`**, apply `@Injectable`, `@ServicePhase`, `@DependsOn` decorators
+- **Register in `serviceRegistry.ts`** (`src/main/core/application/serviceRegistry.ts`) — one line per service
+- **Access via `application.get('Name')`** (or `getOptional()` for `@Conditional` services)
+- **Use `this.ipcHandle()` / `this.ipcOn()`** for IPC — auto-cleaned on stop/destroy, returns `Disposable`
+- **Use `this.registerDisposable()`** for cleanup tracking — accepts `Disposable` objects or `() => void` cleanup functions
+- **Use `Emitter<T>` / `Event<T>`** for inter-service events, **`Signal<T>`** for one-shot completion
+- **Implement `Activatable`** for services with heavy on-demand resources (IPC stays registered, resources load/release via `onActivate()`/`onDeactivate()`)
+- **Do NOT** use `new` or manual singleton patterns — the container manages instantiation, ordering, and shutdown
+
+For detailed code examples, see [Usage Guide](docs/en/references/lifecycle/lifecycle-usage.md). For migrating legacy services, see [Migration Guide](docs/en/references/lifecycle/lifecycle-migration-guide.md).
+
+#### Non-Lifecycle Services (Direct-Import Singleton)
+
+Services without long-lived resources or persistent side effects: use **named export singleton** (`export const x = new X()`). No `getInstance()` patterns. See [Decision Guide](docs/en/references/lifecycle/lifecycle-decision-guide.md) for criteria.
 
 ### Key Patterns
 
@@ -128,6 +154,22 @@ The v2 branch is undergoing a major refactoring effort:
 - **Removing**: antd, HeroUI, styled-components
 - **Adopting**: `@cherrystudio/ui` (located in `packages/ui`, Tailwind CSS + Shadcn UI)
 - **Prohibited**: antd, HeroUI, styled-components
+
+### Data Classification Toolchain
+
+The `v2-refactor-temp/tools/data-classify/` directory contains the code generation pipeline for the v2 data layer. `classification.json` is the single source of truth.
+
+**Rule**: After modifying `classification.json` or `target-key-definitions.json`, you **MUST** run:
+
+```bash
+cd v2-refactor-temp/tools/data-classify && npm run generate
+```
+
+This regenerates the following TypeScript files:
+- `packages/shared/data/preference/preferenceSchemas.ts`
+- `packages/shared/data/bootConfig/bootConfigSchemas.ts`
+- `src/main/data/migration/v2/migrators/mappings/PreferencesMappings.ts`
+- `src/main/data/migration/v2/migrators/mappings/BootConfigMappings.ts`
 
 ### File Naming Convention
 
@@ -224,10 +266,16 @@ Several dependencies have patches in `patches/` — be careful when upgrading:
 - All tests run without CI dependency (fully local)
 - Coverage via v8 provider (`pnpm test:coverage`)
 - **Features without tests are not considered complete**
+- **Test Mocking**: Use the unified mock system — do NOT create ad-hoc mocks for `application`, services, or data layers. See [tests/__mocks__/README.md](tests/__mocks__/README.md) for available mocks, usage patterns, and best practices.
 
 ## Important Notes
 
 ### V2 Refactoring in Progress
+
+The `main` branch is under code freeze. All development has moved to the `v2` branch.
+
+- **`main` branch**: Only accepts critical bug fixes via `hotfix/*` branches. Minimal changes, no refactoring.
+- **`v2` branch**: All new features, refactoring, and optimizations go here.
 
 Files marked with the following header are **blocked for feature changes**:
 

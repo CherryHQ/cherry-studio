@@ -1,0 +1,277 @@
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+import { ReduxStateReader } from '../../utils/ReduxStateReader'
+import { McpServerMigrator } from '../McpServerMigrator'
+
+function createMockContext(reduxData: Record<string, unknown> = {}) {
+  const reduxState = new ReduxStateReader(reduxData)
+
+  return {
+    sources: {
+      electronStore: { get: vi.fn() },
+      reduxState,
+      dexieExport: { readTable: vi.fn(), createStreamReader: vi.fn(), tableExists: vi.fn() },
+      dexieSettings: { keys: vi.fn().mockReturnValue([]), get: vi.fn() }
+    },
+    db: {
+      transaction: vi.fn(async (fn: (tx: any) => Promise<void>) => {
+        const tx = {
+          insert: vi.fn().mockReturnValue({
+            values: vi.fn().mockResolvedValue(undefined)
+          })
+        }
+        await fn(tx)
+        return tx
+      }),
+      select: vi.fn().mockReturnValue({
+        from: vi.fn().mockReturnValue({
+          get: vi.fn().mockResolvedValue({ count: 0 })
+        })
+      })
+    },
+    sharedData: new Map(),
+    logger: {
+      info: vi.fn(),
+      warn: vi.fn(),
+      error: vi.fn(),
+      debug: vi.fn()
+    }
+  }
+}
+
+const SAMPLE_SERVERS = [
+  {
+    id: 'srv-1',
+    name: '@cherry/fetch',
+    type: 'inMemory',
+    isActive: true,
+    provider: 'CherryAI',
+    installSource: 'builtin',
+    isTrusted: true
+  },
+  {
+    id: 'srv-2',
+    name: 'custom-server',
+    type: 'stdio',
+    command: 'npx',
+    args: ['-y', 'my-mcp-server'],
+    env: { API_KEY: 'test' },
+    isActive: false,
+    installSource: 'manual'
+  },
+  {
+    id: 'srv-3',
+    name: 'sse-server',
+    type: 'sse',
+    baseUrl: 'http://localhost:8080',
+    isActive: true,
+    installSource: 'protocol'
+  }
+]
+
+describe('McpServerMigrator', () => {
+  let migrator: McpServerMigrator
+
+  beforeEach(() => {
+    migrator = new McpServerMigrator()
+    migrator.setProgressCallback(vi.fn())
+  })
+
+  it('should have correct metadata', () => {
+    expect(migrator.id).toBe('mcp_server')
+    expect(migrator.name).toBe('MCP Server')
+    expect(migrator.order).toBe(1.5)
+  })
+
+  describe('prepare', () => {
+    it('should count source servers', async () => {
+      const ctx = createMockContext({ mcp: { servers: SAMPLE_SERVERS } })
+      const result = await migrator.prepare(ctx as any)
+      expect(result).toStrictEqual({ success: true, itemCount: 3, warnings: undefined })
+    })
+
+    it('should handle empty servers array', async () => {
+      const ctx = createMockContext({ mcp: { servers: [] } })
+      const result = await migrator.prepare(ctx as any)
+      expect(result).toStrictEqual({ success: true, itemCount: 0, warnings: undefined })
+    })
+
+    it('should handle missing mcp category', async () => {
+      const ctx = createMockContext({})
+      const result = await migrator.prepare(ctx as any)
+      expect(result).toStrictEqual({ success: true, itemCount: 0, warnings: undefined })
+    })
+
+    it('should handle missing servers key', async () => {
+      const ctx = createMockContext({ mcp: {} })
+      const result = await migrator.prepare(ctx as any)
+      expect(result).toStrictEqual({ success: true, itemCount: 0, warnings: undefined })
+    })
+
+    it('should handle non-array servers value', async () => {
+      const ctx = createMockContext({ mcp: { servers: 'not-an-array' } })
+      const result = await migrator.prepare(ctx as any)
+      expect(result).toStrictEqual({
+        success: true,
+        itemCount: 0,
+        warnings: ['mcp.servers is not an array']
+      })
+    })
+
+    it('should fail when all servers are skipped', async () => {
+      const servers = [
+        { name: 'no-id-1', isActive: true },
+        { name: 'no-id-2', isActive: false }
+      ]
+      const ctx = createMockContext({ mcp: { servers } })
+      const result = await migrator.prepare(ctx as any)
+      expect(result.success).toBe(false)
+      expect(result.itemCount).toBe(0)
+    })
+
+    it('should filter out servers without id', async () => {
+      const servers = [
+        { id: 'srv-1', name: 'valid', isActive: true },
+        { name: 'no-id', isActive: false },
+        { id: '', name: 'empty-id', isActive: false }
+      ]
+      const ctx = createMockContext({ mcp: { servers } })
+      const result = await migrator.prepare(ctx as any)
+      expect(result).toStrictEqual({
+        success: true,
+        itemCount: 1,
+        warnings: ['Skipped server without valid id: no-id', 'Skipped server without valid id: empty-id']
+      })
+    })
+
+    it('should deduplicate servers by id', async () => {
+      const servers = [
+        { id: 'dup-1', name: 'first', isActive: true },
+        { id: 'dup-1', name: 'duplicate', isActive: false },
+        { id: 'srv-2', name: 'unique', isActive: true }
+      ]
+      const ctx = createMockContext({ mcp: { servers } })
+      const result = await migrator.prepare(ctx as any)
+      expect(result).toStrictEqual({
+        success: true,
+        itemCount: 2,
+        warnings: ['Skipped duplicate server id: dup-1']
+      })
+    })
+  })
+
+  describe('execute', () => {
+    it('should insert servers into database', async () => {
+      const ctx = createMockContext({ mcp: { servers: SAMPLE_SERVERS } })
+      await migrator.prepare(ctx as any)
+      const result = await migrator.execute(ctx as any)
+      expect(result).toStrictEqual({ success: true, processedCount: 3 })
+      expect(ctx.db.transaction).toHaveBeenCalled()
+    })
+
+    it('should handle empty servers gracefully', async () => {
+      const ctx = createMockContext({ mcp: { servers: [] } })
+      await migrator.prepare(ctx as any)
+      const result = await migrator.execute(ctx as any)
+      expect(result).toStrictEqual({ success: true, processedCount: 0 })
+    })
+
+    it('should return failure when transaction throws', async () => {
+      const ctx = createMockContext({ mcp: { servers: SAMPLE_SERVERS } })
+      ctx.db.transaction = vi.fn().mockRejectedValue(new Error('SQLITE_CONSTRAINT'))
+      await migrator.prepare(ctx as any)
+      const result = await migrator.execute(ctx as any)
+      expect(result.success).toBe(false)
+      expect(result.error).toContain('SQLITE_CONSTRAINT')
+      expect(result.processedCount).toBe(0)
+    })
+  })
+
+  describe('validate', () => {
+    function mockValidateDb(ctx: ReturnType<typeof createMockContext>, count: number, sample: any[] = []) {
+      ctx.db.select = vi.fn().mockImplementation((arg) => {
+        if (arg) {
+          // count query: select({ count: ... }).from().get()
+          return {
+            from: vi.fn().mockReturnValue({
+              get: vi.fn().mockResolvedValue({ count })
+            })
+          }
+        }
+        // sample query: select().from().limit().all()
+        return {
+          from: vi.fn().mockReturnValue({
+            limit: vi.fn().mockReturnValue({
+              all: vi.fn().mockResolvedValue(sample)
+            })
+          })
+        }
+      })
+    }
+
+    it('should pass when counts match and sample is valid', async () => {
+      const ctx = createMockContext({ mcp: { servers: SAMPLE_SERVERS } })
+      const sampleRows = SAMPLE_SERVERS.map((s) => ({ id: s.id, name: s.name }))
+      mockValidateDb(ctx, 3, sampleRows)
+
+      await migrator.prepare(ctx as any)
+      const result = await migrator.validate(ctx as any)
+      expect(result).toStrictEqual({
+        success: true,
+        errors: [],
+        stats: { sourceCount: 3, targetCount: 3, skippedCount: 0 }
+      })
+    })
+
+    it('should fail when sample has missing required fields', async () => {
+      const ctx = createMockContext({ mcp: { servers: SAMPLE_SERVERS } })
+      mockValidateDb(ctx, 3, [
+        { id: '', name: 'test' },
+        { id: 'srv-2', name: '' }
+      ])
+
+      await migrator.prepare(ctx as any)
+      const result = await migrator.validate(ctx as any)
+      expect(result.success).toBe(false)
+      expect(result.errors).toHaveLength(2)
+    })
+
+    it('should pass with zero items', async () => {
+      const ctx = createMockContext({})
+      mockValidateDb(ctx, 0, [])
+
+      await migrator.prepare(ctx as any)
+      const result = await migrator.validate(ctx as any)
+      expect(result).toStrictEqual({
+        success: true,
+        errors: [],
+        stats: { sourceCount: 0, targetCount: 0, skippedCount: 0 }
+      })
+    })
+
+    it('should fail on count mismatch', async () => {
+      const ctx = createMockContext({ mcp: { servers: SAMPLE_SERVERS } })
+      mockValidateDb(ctx, 2, [
+        { id: 'srv-1', name: 'test1' },
+        { id: 'srv-2', name: 'test2' }
+      ])
+
+      await migrator.prepare(ctx as any)
+      const result = await migrator.validate(ctx as any)
+      expect(result.success).toBe(false)
+      expect(result.errors).toContainEqual(expect.objectContaining({ key: 'count_mismatch' }))
+    })
+
+    it('should return failure when db throws', async () => {
+      const ctx = createMockContext({ mcp: { servers: SAMPLE_SERVERS } })
+      ctx.db.select = vi.fn().mockImplementation(() => {
+        throw new Error('DB_CORRUPT')
+      })
+
+      await migrator.prepare(ctx as any)
+      const result = await migrator.validate(ctx as any)
+      expect(result.success).toBe(false)
+      expect(result.errors[0].message).toContain('DB_CORRUPT')
+    })
+  })
+})

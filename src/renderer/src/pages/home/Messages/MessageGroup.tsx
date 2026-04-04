@@ -65,9 +65,9 @@ const MessageGroup = ({ messages, topic, registerMessageElement }: Props) => {
   const setSelectedMessage = useCallback(
     (message: Message) => {
       // 前一个
-      editMessage(selectedMessageId, { foldSelected: false })
+      void editMessage(selectedMessageId, { foldSelected: false })
       // 当前选中的消息
-      editMessage(message.id, { foldSelected: true })
+      void editMessage(message.id, { foldSelected: true })
 
       setTimeoutTimer(
         'setSelectedMessage',
@@ -167,16 +167,16 @@ const MessageGroup = ({ messages, topic, registerMessageElement }: Props) => {
         return
       }
       if (message.useful) {
-        editMessage(msgId, { useful: undefined })
+        void editMessage(msgId, { useful: undefined })
         return
       } else {
         const toResetUsefulMsgs = messages.filter((msg) => msg.id !== msgId && msg.useful)
         toResetUsefulMsgs.forEach(async (msg) => {
-          editMessage(msg.id, {
+          void editMessage(msg.id, {
             useful: undefined
           })
         })
-        editMessage(msgId, { useful: true })
+        void editMessage(msgId, { useful: true })
       }
     },
     [editMessage, messages]
@@ -283,7 +283,7 @@ const MessageGroup = ({ messages, topic, registerMessageElement }: Props) => {
             setMultiModelMessageStyle={(style) => {
               setMultiModelMessageStyle(style)
               messages.forEach((message) => {
-                editMessage(message.id, { multiModelMessageStyle: style })
+                void editMessage(message.id, { multiModelMessageStyle: style })
               })
             }}
             messages={messages}

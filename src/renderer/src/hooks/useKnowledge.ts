@@ -1,5 +1,5 @@
 import { db } from '@renderer/databases'
-import KnowledgeQueue from '@renderer/queue/KnowledgeQueue'
+import { knowledgeQueue } from '@renderer/queue/KnowledgeQueue'
 import { getKnowledgeBaseParams } from '@renderer/services/KnowledgeService'
 import type { RootState } from '@renderer/store'
 import { useAppDispatch } from '@renderer/store'
@@ -48,7 +48,7 @@ export const useKnowledge = (baseId: string) => {
   const checkAllBases = () => {
     // 这个也许也会多任务？
     const id = uuid()
-    setTimeoutTimer(id, () => KnowledgeQueue.checkAllBases(), 0)
+    setTimeoutTimer(id, () => knowledgeQueue.checkAllBases(), 0)
   }
 
   // 批量添加文件
@@ -61,7 +61,7 @@ export const useKnowledge = (baseId: string) => {
   const addNote = async (content: string) => {
     await dispatch(addNoteThunk(baseId, content))
     // 确保数据库写入完成后再触发队列检查
-    setTimeout(() => KnowledgeQueue.checkAllBases(), 100)
+    setTimeout(() => knowledgeQueue.checkAllBases(), 100)
   }
 
   // 添加URL
@@ -101,7 +101,7 @@ export const useKnowledge = (baseId: string) => {
       dispatch(updateNotes({ baseId, item: updatedNote }))
     }
     const noteItem = base?.items.find((item) => item.id === noteId)
-    noteItem && refreshItem(noteItem)
+    void (noteItem && refreshItem(noteItem))
   }
 
   // 获取笔记内容
@@ -186,7 +186,7 @@ export const useKnowledge = (baseId: string) => {
       retryCount: 0,
       updated_at: Date.now()
     })
-    setTimeout(() => KnowledgeQueue.checkAllBases(), 0)
+    setTimeout(() => knowledgeQueue.checkAllBases(), 0)
   }
 
   // 更新处理状态
@@ -297,7 +297,7 @@ export const useKnowledge = (baseId: string) => {
 
   useEffect(() => {
     const notes = base?.items.filter(isKnowledgeNoteItem) ?? []
-    runAsyncFunction(async () => {
+    void runAsyncFunction(async () => {
       const newNoteItems = await Promise.all(
         notes.map(async (item) => {
           const note = await db.knowledge_notes.get(item.id)

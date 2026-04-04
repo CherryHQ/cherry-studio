@@ -8,7 +8,6 @@ import { getToastUtilities } from '@renderer/components/TopView/toast'
 import AntdProvider from '@renderer/context/AntdProvider'
 import { CodeStyleProvider } from '@renderer/context/CodeStyleProvider'
 import { ThemeProvider } from '@renderer/context/ThemeProvider'
-import storeSyncService from '@renderer/services/StoreSyncService'
 import store, { persistor } from '@renderer/store'
 import type { FC } from 'react'
 import { useEffect } from 'react'
@@ -29,9 +28,6 @@ await preferenceService.preload([
   'feature.selection.auto_pin',
   'feature.selection.action_window_opacity'
 ])
-
-//subscribe to store sync
-storeSyncService.subscribe()
 
 const App: FC = () => {
   //actionWindow should register its own message component
