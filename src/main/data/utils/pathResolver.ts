@@ -60,8 +60,10 @@ export function resolvePhysicalPath(node: PathResolvableNode, mount: MountInfo, 
     }
 
     case 'local_external': {
-      const segments = ancestorNames ?? []
-      const resolved = path.resolve(config.basePath, ...segments, `${node.name}${getExtSuffix(node.ext)}`)
+      if (ancestorNames === undefined) {
+        throw new Error('ancestorNames is required for local_external provider')
+      }
+      const resolved = path.resolve(config.basePath, ...ancestorNames, `${node.name}${getExtSuffix(node.ext)}`)
       assertPathContained(resolved, config.basePath)
       return resolved
     }

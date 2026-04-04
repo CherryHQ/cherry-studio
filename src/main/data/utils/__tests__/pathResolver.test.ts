@@ -44,14 +44,14 @@ describe('resolvePhysicalPath', () => {
       expect(resolvePhysicalPath(node, mount, ancestors)).toBe(path.join('/data/notes', 'project', 'docs', 'readme.md'))
     })
 
-    it('returns {basePath}/{name}.{ext} with no ancestors', () => {
+    it('returns {basePath}/{name}.{ext} with empty ancestors', () => {
       const node: PathResolvableNode = { id: 'n2', name: 'notes', ext: 'md', mountId: 'mount_notes' }
-      expect(resolvePhysicalPath(node, mount)).toBe(path.join('/data/notes', 'notes.md'))
+      expect(resolvePhysicalPath(node, mount, [])).toBe(path.join('/data/notes', 'notes.md'))
     })
 
     it('returns path without ext when ext is null', () => {
       const node: PathResolvableNode = { id: 'n3', name: 'subfolder', ext: null, mountId: 'mount_notes' }
-      expect(resolvePhysicalPath(node, mount)).toBe(path.join('/data/notes', 'subfolder'))
+      expect(resolvePhysicalPath(node, mount, [])).toBe(path.join('/data/notes', 'subfolder'))
     })
   })
 
@@ -101,7 +101,7 @@ describe('resolvePhysicalPath', () => {
 
     it('rejects path traversal via node.name containing ../', () => {
       const node: PathResolvableNode = { id: 'n1', name: '../../etc/passwd', ext: null, mountId: 'mount_notes' }
-      expect(() => resolvePhysicalPath(node, externalMount)).toThrow('Path traversal detected')
+      expect(() => resolvePhysicalPath(node, externalMount, [])).toThrow('Path traversal detected')
     })
 
     it('rejects path traversal via ancestorNames containing ..', () => {
@@ -111,12 +111,12 @@ describe('resolvePhysicalPath', () => {
 
     it('rejects null bytes in node.name', () => {
       const node: PathResolvableNode = { id: 'n1', name: 'file\0.evil', ext: 'txt', mountId: 'mount_notes' }
-      expect(() => resolvePhysicalPath(node, externalMount)).toThrow('null bytes')
+      expect(() => resolvePhysicalPath(node, externalMount, [])).toThrow('null bytes')
     })
 
     it('rejects null bytes in node.ext', () => {
       const node: PathResolvableNode = { id: 'n1', name: 'file', ext: 'txt\0evil', mountId: 'mount_notes' }
-      expect(() => resolvePhysicalPath(node, externalMount)).toThrow('null bytes')
+      expect(() => resolvePhysicalPath(node, externalMount, [])).toThrow('null bytes')
     })
 
     it('rejects null bytes in ancestorNames', () => {
@@ -126,7 +126,7 @@ describe('resolvePhysicalPath', () => {
 
     it('rejects path traversal via node.name that is just ..', () => {
       const node: PathResolvableNode = { id: 'n1', name: '..', ext: null, mountId: 'mount_notes' }
-      expect(() => resolvePhysicalPath(node, externalMount)).toThrow('Path traversal detected')
+      expect(() => resolvePhysicalPath(node, externalMount, [])).toThrow('Path traversal detected')
     })
 
     it('containment check also applies to local_managed', () => {
@@ -143,12 +143,12 @@ describe('resolvePhysicalPath', () => {
 
     it('rejects absolute path in node.name', () => {
       const node: PathResolvableNode = { id: 'n1', name: '/etc/passwd', ext: null, mountId: 'mount_notes' }
-      expect(() => resolvePhysicalPath(node, externalMount)).toThrow('Path traversal detected')
+      expect(() => resolvePhysicalPath(node, externalMount, [])).toThrow('Path traversal detected')
     })
 
     it('rejects traversal via ext containing path separator', () => {
       const node: PathResolvableNode = { id: 'n1', name: 'file', ext: '../../../etc/passwd', mountId: 'mount_notes' }
-      expect(() => resolvePhysicalPath(node, externalMount)).toThrow('Path traversal detected')
+      expect(() => resolvePhysicalPath(node, externalMount, [])).toThrow('Path traversal detected')
     })
 
     it('allows empty string segments in ancestorNames (ignored by path.resolve)', () => {
@@ -167,7 +167,7 @@ describe('resolvePhysicalPath', () => {
     it('allows triple-dot filename (valid, not a traversal)', () => {
       const node: PathResolvableNode = { id: 'n1', name: '...', ext: null, mountId: 'mount_notes' }
       // '...' is a valid filename, should resolve within base — no throw expected
-      expect(resolvePhysicalPath(node, externalMount)).toBe(path.resolve('/data/notes', '...'))
+      expect(resolvePhysicalPath(node, externalMount, [])).toBe(path.resolve('/data/notes', '...'))
     })
 
     it('allows traversal that resolves back within basePath', () => {
@@ -176,6 +176,11 @@ describe('resolvePhysicalPath', () => {
       // This actually resolves back into /data/notes/evil, so it should pass
       const result = resolvePhysicalPath(node, externalMount, ['..', 'notes'])
       expect(result).toBe(path.resolve('/data/notes', '..', 'notes', 'evil'))
+    })
+
+    it('throws when ancestorNames omitted for local_external', () => {
+      const node: PathResolvableNode = { id: 'n1', name: 'file', ext: 'txt', mountId: 'mount_notes' }
+      expect(() => resolvePhysicalPath(node, externalMount)).toThrow('ancestorNames is required')
     })
 
     it('rejects traversal in local_managed via id with path separator', () => {
