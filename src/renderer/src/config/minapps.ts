@@ -35,7 +35,7 @@ import {
   Lingxi,
   Longcat,
   Metaso,
-  Minimax,
+  MinimaxAgent,
   MinTop3,
   Mistral,
   Monica,
@@ -163,7 +163,7 @@ export function getMiniAppsLogo(LogoId: string | undefined): CompoundIcon | unde
     case 'bytedance':
       return Bytedance
     case 'minimax':
-      return Minimax
+      return MinimaxAgent
     case 'groq':
       return Groq
     case 'anthropic':
