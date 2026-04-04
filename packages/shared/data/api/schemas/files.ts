@@ -19,7 +19,7 @@ import type { CreateFileRefDto, CreateNodeDto, FileNode, FileRef, UpdateNodeDto 
  * - /files/nodes/:id/* - Tree operations (children, move, trash, restore)
  * - /files/nodes/:id/refs - File references per node
  * - /files/refs/by-source - File references by business source
- * - /files/nodes/batch/* - Batch operations
+ * - /files/batch/nodes/* - Batch operations
  * - /files/mounts - Mount point listing
  */
 export interface FileSchemas {
@@ -170,9 +170,11 @@ export interface FileSchemas {
   }
 
   // ─── Batch Operations ───
+  // Routes use /files/batch/nodes/* prefix to avoid type-level ambiguity
+  // with the parameterized /files/nodes/:id/* routes.
 
   /** Batch trash nodes */
-  '/files/nodes/batch/trash': {
+  '/files/batch/nodes/trash': {
     PUT: {
       body: { ids: string[] }
       response: void
@@ -180,7 +182,7 @@ export interface FileSchemas {
   }
 
   /** Batch move nodes to target directory */
-  '/files/nodes/batch/move': {
+  '/files/batch/nodes/move': {
     PUT: {
       body: { ids: string[]; targetParentId: string }
       response: void
@@ -188,7 +190,7 @@ export interface FileSchemas {
   }
 
   /** Batch permanently delete nodes (uses POST to avoid DELETE-with-body compatibility issues) */
-  '/files/nodes/batch/delete': {
+  '/files/batch/nodes/delete': {
     POST: {
       body: { ids: string[] }
       response: void
