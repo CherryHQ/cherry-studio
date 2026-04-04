@@ -1,7 +1,7 @@
 import { Button, Popover, PopoverContent, PopoverTrigger } from '@cherrystudio/ui'
 import { cn } from '@cherrystudio/ui/lib/utils'
 import { TriangleAlertIcon } from 'lucide-react'
-import type { PropsWithChildren, ReactNode } from 'react'
+import type { ComponentProps, PropsWithChildren, ReactNode } from 'react'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -18,6 +18,10 @@ type PopoverConfirmProps = {
     confirm?: string
     cancel?: string
   }
+  buttonProps?: {
+    confirm?: Omit<ComponentProps<typeof Button>, 'className' | 'disabled' | 'onClick'>
+    cancel?: Omit<ComponentProps<typeof Button>, 'className' | 'onClick'>
+  }
 }
 
 const PopoverConfirm = ({
@@ -26,7 +30,8 @@ const PopoverConfirm = ({
   description,
   onConfirm,
   onCancel,
-  classNames = {}
+  classNames = {},
+  buttonProps = {}
 }: PropsWithChildren<PopoverConfirmProps>) => {
   const { t } = useTranslation()
   const [open, setOpen] = useState(false)
@@ -50,7 +55,8 @@ const PopoverConfirm = ({
               setOpen(false)
               onCancel?.()
             }}
-            className={cn(classNames.cancel)}>
+            className={cn(classNames.cancel)}
+            {...buttonProps.cancel}>
             {t('common.cancel')}
           </Button>
           <Button
@@ -65,7 +71,8 @@ const PopoverConfirm = ({
               }
             }}
             disabled={isLoading}
-            className={cn(classNames.confirm)}>
+            className={cn(classNames.confirm)}
+            {...buttonProps.confirm}>
             {isLoading ? <LoadingIcon /> : t('common.confirm')}
           </Button>
         </div>
