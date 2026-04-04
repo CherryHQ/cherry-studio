@@ -6,6 +6,7 @@
     "incremental": true,
     "moduleResolution": "bundler",
     "paths": {
+      "@cherrystudio/provider-catalog": ["./packages/provider-catalog/src/index.ts"],
       "@data/*": ["./src/main/data/*"],
       "@logger": ["./src/main/services/LoggerService"],
       "@main/*": ["./src/main/*"],
@@ -29,6 +30,7 @@
     "src/renderer/src/services/traceApi.ts",
     "src/renderer/src/types/*",
     "packages/mcp-trace/**/*",
+    "packages/provider-catalog/**/*",
     "packages/shared/**/*",
     "tests/__mocks__/**/*"
   ]
