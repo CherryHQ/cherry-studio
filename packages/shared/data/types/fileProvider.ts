@@ -21,43 +21,39 @@ export const RemoteApiTypeSchema = z.enum([
 export type RemoteApiType = z.infer<typeof RemoteApiTypeSchema>
 
 // ─── Provider Config Schemas ───
-// These configs use snake_case intentionally: they are self-contained JSON blobs
-// stored in the DB providerConfig column, not transmitted as top-level API fields.
-// The snake_case aligns with the discriminated union discriminator (provider_type)
-// and keeps the config format consistent across all provider types.
 
 /** Managed files: app-internal storage, UUID-based naming */
 export const LocalManagedConfigSchema = z.object({
-  provider_type: z.literal('local_managed'),
-  base_path: z.string().min(1)
+  providerType: z.literal('local_managed'),
+  basePath: z.string().min(1)
 })
 
 /** External files: filesystem as source of truth, human-readable naming */
 export const LocalExternalConfigSchema = z.object({
-  provider_type: z.literal('local_external'),
-  base_path: z.string().min(1),
+  providerType: z.literal('local_external'),
+  basePath: z.string().min(1),
   watch: z.boolean().default(true),
-  watch_extensions: z.array(z.string()).optional()
+  watchExtensions: z.array(z.string()).optional()
 })
 
 /** Remote files: accessed via API */
 export const RemoteConfigSchema = z.object({
-  provider_type: z.literal('remote'),
-  api_type: RemoteApiTypeSchema,
-  provider_id: z.string().min(1),
-  cache_path: z.string().optional(),
-  auto_sync: z.boolean().default(false),
+  providerType: z.literal('remote'),
+  apiType: RemoteApiTypeSchema,
+  providerId: z.string().min(1),
+  cachePath: z.string().optional(),
+  autoSync: z.boolean().default(false),
   options: z.record(z.string(), z.unknown()).default({})
 })
 
 /** System mount: no physical storage, used for structural nodes like Trash */
 export const SystemConfigSchema = z.object({
-  provider_type: z.literal('system')
+  providerType: z.literal('system')
 })
 
 // ─── Discriminated Union ───
 
-export const MountProviderConfigSchema = z.discriminatedUnion('provider_type', [
+export const MountProviderConfigSchema = z.discriminatedUnion('providerType', [
   LocalManagedConfigSchema,
   LocalExternalConfigSchema,
   RemoteConfigSchema,

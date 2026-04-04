@@ -29,10 +29,10 @@ export function getExtSuffix(ext: string | null): string {
 /**
  * Resolve the physical filesystem path for a node.
  *
- * - `local_managed`: `{base_path}/{id}{.ext}` — flat UUID-based storage
- * - `local_external`: `{base_path}/{...ancestorNames}/{name}{.ext}` — mirrors OS directory structure
+ * - `local_managed`: `{basePath}/{id}{.ext}` — flat UUID-based storage
+ * - `local_external`: `{basePath}/{...ancestorNames}/{name}{.ext}` — mirrors OS directory structure
  * - `system`: throws — system mounts have no physical storage
- * - `remote`: `{cache_path}/{remoteId}` — local cache path (future)
+ * - `remote`: `{cachePath}/{remoteId}` — local cache path (future)
  *
  * @param node - The node to resolve
  * @param mount - The mount this node belongs to
@@ -52,17 +52,17 @@ export function resolvePhysicalPath(node: PathResolvableNode, mount: MountInfo, 
     throw new Error('Ancestor names contain null bytes')
   }
 
-  switch (config.provider_type) {
+  switch (config.providerType) {
     case 'local_managed': {
-      const resolved = path.resolve(config.base_path, `${node.id}${getExtSuffix(node.ext)}`)
-      assertPathContained(resolved, config.base_path)
+      const resolved = path.resolve(config.basePath, `${node.id}${getExtSuffix(node.ext)}`)
+      assertPathContained(resolved, config.basePath)
       return resolved
     }
 
     case 'local_external': {
       const segments = ancestorNames ?? []
-      const resolved = path.resolve(config.base_path, ...segments, `${node.name}${getExtSuffix(node.ext)}`)
-      assertPathContained(resolved, config.base_path)
+      const resolved = path.resolve(config.basePath, ...segments, `${node.name}${getExtSuffix(node.ext)}`)
+      assertPathContained(resolved, config.basePath)
       return resolved
     }
 
@@ -81,6 +81,6 @@ export function resolvePhysicalPath(node: PathResolvableNode, mount: MountInfo, 
 function assertPathContained(resolved: string, basePath: string): void {
   const base = path.resolve(basePath)
   if (!resolved.startsWith(base + path.sep) && resolved !== base) {
-    throw new Error('Path traversal detected: resolved path escapes base_path')
+    throw new Error('Path traversal detected: resolved path escapes basePath')
   }
 }

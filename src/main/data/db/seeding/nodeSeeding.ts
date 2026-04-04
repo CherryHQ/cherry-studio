@@ -23,8 +23,8 @@ function getSystemNodes(): SystemNode[] {
       mountId: 'mount_files',
       parentId: null,
       providerConfig: {
-        provider_type: 'local_managed',
-        base_path: getFilesDir()
+        providerType: 'local_managed',
+        basePath: getFilesDir()
       }
     },
     {
@@ -34,8 +34,8 @@ function getSystemNodes(): SystemNode[] {
       mountId: 'mount_notes',
       parentId: null,
       providerConfig: {
-        provider_type: 'local_external',
-        base_path: getNotesDir(),
+        providerType: 'local_external',
+        basePath: getNotesDir(),
         watch: true
       }
     },
@@ -46,7 +46,7 @@ function getSystemNodes(): SystemNode[] {
       mountId: 'system_trash',
       parentId: null,
       providerConfig: {
-        provider_type: 'system'
+        providerType: 'system'
       }
     }
   ]

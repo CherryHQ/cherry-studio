@@ -9,7 +9,7 @@ import { createUpdateTimestamps, uuidPrimaryKey, uuidPrimaryKeyOrdered } from '.
  *
  * Uses adjacency list pattern (parentId) for tree navigation.
  * Mount nodes (type='mount') serve as root nodes with provider configuration.
- * Trash is a system mount node (provider_type='system') for OS-style soft deletion.
+ * Trash is a system mount node (providerType='system') for OS-style soft deletion.
  */
 export const nodeTable = sqliteTable(
   'node',

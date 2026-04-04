@@ -19,15 +19,15 @@ describe('getExtSuffix', () => {
 describe('resolvePhysicalPath', () => {
   describe('local_managed', () => {
     const mount: MountInfo = {
-      providerConfig: { provider_type: 'local_managed', base_path: '/data/files' }
+      providerConfig: { providerType: 'local_managed', basePath: '/data/files' }
     }
 
-    it('returns {base_path}/{id}.{ext}', () => {
+    it('returns {basePath}/{id}.{ext}', () => {
       const node: PathResolvableNode = { id: 'abc-123', name: 'document', ext: 'pdf', mountId: 'mount_files' }
       expect(resolvePhysicalPath(node, mount)).toBe(path.join('/data/files', 'abc-123.pdf'))
     })
 
-    it('returns {base_path}/{id} with null ext', () => {
+    it('returns {basePath}/{id} with null ext', () => {
       const node: PathResolvableNode = { id: 'abc-123', name: 'folder', ext: null, mountId: 'mount_files' }
       expect(resolvePhysicalPath(node, mount)).toBe(path.join('/data/files', 'abc-123'))
     })
@@ -35,16 +35,16 @@ describe('resolvePhysicalPath', () => {
 
   describe('local_external', () => {
     const mount: MountInfo = {
-      providerConfig: { provider_type: 'local_external', base_path: '/data/notes', watch: true }
+      providerConfig: { providerType: 'local_external', basePath: '/data/notes', watch: true }
     }
 
-    it('returns {base_path}/{ancestors}/{name}.{ext}', () => {
+    it('returns {basePath}/{ancestors}/{name}.{ext}', () => {
       const node: PathResolvableNode = { id: 'n1', name: 'readme', ext: 'md', mountId: 'mount_notes' }
       const ancestors = ['project', 'docs']
       expect(resolvePhysicalPath(node, mount, ancestors)).toBe(path.join('/data/notes', 'project', 'docs', 'readme.md'))
     })
 
-    it('returns {base_path}/{name}.{ext} with no ancestors', () => {
+    it('returns {basePath}/{name}.{ext} with no ancestors', () => {
       const node: PathResolvableNode = { id: 'n2', name: 'notes', ext: 'md', mountId: 'mount_notes' }
       expect(resolvePhysicalPath(node, mount)).toBe(path.join('/data/notes', 'notes.md'))
     })
@@ -57,7 +57,7 @@ describe('resolvePhysicalPath', () => {
 
   describe('system', () => {
     const mount: MountInfo = {
-      providerConfig: { provider_type: 'system' }
+      providerConfig: { providerType: 'system' }
     }
 
     it('throws error for system mount', () => {
@@ -69,10 +69,10 @@ describe('resolvePhysicalPath', () => {
   describe('remote', () => {
     const mount: MountInfo = {
       providerConfig: {
-        provider_type: 'remote',
-        api_type: 'openai_files',
-        provider_id: 'p1',
-        auto_sync: false,
+        providerType: 'remote',
+        apiType: 'openai_files',
+        providerId: 'p1',
+        autoSync: false,
         options: {}
       }
     }
@@ -93,10 +93,10 @@ describe('resolvePhysicalPath', () => {
 
   describe('security', () => {
     const externalMount: MountInfo = {
-      providerConfig: { provider_type: 'local_external', base_path: '/data/notes', watch: true }
+      providerConfig: { providerType: 'local_external', basePath: '/data/notes', watch: true }
     }
     const managedMount: MountInfo = {
-      providerConfig: { provider_type: 'local_managed', base_path: '/data/files' }
+      providerConfig: { providerType: 'local_managed', basePath: '/data/files' }
     }
 
     it('rejects path traversal via node.name containing ../', () => {
@@ -158,7 +158,7 @@ describe('resolvePhysicalPath', () => {
       expect(result).toBe(path.resolve('/data/notes', '', 'subdir', 'file.txt'))
     })
 
-    it('allows legitimate nested paths within base_path', () => {
+    it('allows legitimate nested paths within basePath', () => {
       const node: PathResolvableNode = { id: 'n1', name: 'readme', ext: 'md', mountId: 'mount_notes' }
       const result = resolvePhysicalPath(node, externalMount, ['project', 'docs'])
       expect(result).toBe(path.resolve('/data/notes', 'project', 'docs', 'readme.md'))
