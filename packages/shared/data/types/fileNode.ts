@@ -73,7 +73,13 @@ export const SYSTEM_NODE_IDS = [SYSTEM_MOUNT_FILES, SYSTEM_MOUNT_NOTES, SYSTEM_T
 export const SystemNodeIdSchema = z.enum(SYSTEM_NODE_IDS)
 export type SystemNodeId = z.infer<typeof SystemNodeIdSchema>
 
-/** Accepts UUID v7 or a known system node ID */
+/**
+ * Accepts UUID v7 or a known system node ID.
+ *
+ * Note: `NodeId` is inferred as `string` at the type level — it does NOT carry
+ * runtime validation. API handlers MUST validate incoming IDs with `NodeIdSchema.parse()`
+ * to enforce the UUID v7 / system node ID constraint.
+ */
 export const NodeIdSchema = z.union([z.uuidv7(), SystemNodeIdSchema])
 export type NodeId = z.infer<typeof NodeIdSchema>
 

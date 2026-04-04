@@ -52,8 +52,8 @@ export interface FileSchemas {
     /** List nodes with filters and pagination */
     GET: {
       query: {
-        mountId?: string
-        parentId?: string
+        mountId?: NodeId
+        parentId?: NodeId
         type?: 'file' | 'dir'
         inTrash?: boolean
         page?: number
@@ -77,18 +77,18 @@ export interface FileSchemas {
   '/files/nodes/:id': {
     /** Get a node by ID */
     GET: {
-      params: { id: string }
+      params: { id: NodeId }
       response: FileNode
     }
     /** Update node metadata (rename, etc.) */
     PATCH: {
-      params: { id: string }
+      params: { id: NodeId }
       body: UpdateNodeDto
       response: FileNode
     }
     /** Permanently delete a node */
     DELETE: {
-      params: { id: string }
+      params: { id: NodeId }
       response: void
     }
   }
@@ -102,7 +102,7 @@ export interface FileSchemas {
   '/files/nodes/:id/children': {
     /** Get child nodes with sorting and pagination */
     GET: {
-      params: { id: string }
+      params: { id: NodeId }
       query: {
         recursive?: boolean
         /** Max tree depth when recursive=true. Clamped to server maximum (default: 20) */
@@ -122,8 +122,8 @@ export interface FileSchemas {
    */
   '/files/nodes/:id/move': {
     PUT: {
-      params: { id: string }
-      body: { targetParentId: string }
+      params: { id: NodeId }
+      body: { targetParentId: NodeId }
       response: FileNode
     }
   }
@@ -134,7 +134,7 @@ export interface FileSchemas {
    */
   '/files/nodes/:id/trash': {
     PUT: {
-      params: { id: string }
+      params: { id: NodeId }
       response: void
     }
   }
@@ -145,7 +145,7 @@ export interface FileSchemas {
    */
   '/files/nodes/:id/restore': {
     PUT: {
-      params: { id: string }
+      params: { id: NodeId }
       response: FileNode
     }
   }
@@ -160,12 +160,12 @@ export interface FileSchemas {
   '/files/nodes/:id/refs': {
     /** Get all references for a file node */
     GET: {
-      params: { id: string }
+      params: { id: NodeId }
       response: FileRef[]
     }
     /** Create a reference to a file node */
     POST: {
-      params: { id: string }
+      params: { id: NodeId }
       body: CreateFileRefDto
       response: FileRef
     }
@@ -196,7 +196,7 @@ export interface FileSchemas {
   /** Batch trash nodes */
   '/files/batch/nodes/trash': {
     PUT: {
-      body: { ids: string[] }
+      body: { ids: NodeId[] }
       response: BatchOperationResult
     }
   }
@@ -204,7 +204,7 @@ export interface FileSchemas {
   /** Batch move nodes to target directory */
   '/files/batch/nodes/move': {
     PUT: {
-      body: { ids: string[]; targetParentId: string }
+      body: { ids: NodeId[]; targetParentId: NodeId }
       response: BatchOperationResult
     }
   }
@@ -212,7 +212,7 @@ export interface FileSchemas {
   /** Batch permanently delete nodes (uses POST to avoid DELETE-with-body compatibility issues) */
   '/files/batch/nodes/delete': {
     POST: {
-      body: { ids: string[] }
+      body: { ids: NodeId[] }
       response: BatchOperationResult
     }
   }
