@@ -9,6 +9,16 @@ import type { OffsetPaginationResponse } from '@shared/data/api/apiTypes'
 import type { CreateFileRefDto, CreateNodeDto, FileNode, FileRef, UpdateNodeDto } from '@shared/data/types/fileNode'
 
 // ============================================================================
+// Shared Types
+// ============================================================================
+
+/** Result for batch operations, allowing callers to detect partial failures */
+export interface BatchOperationResult {
+  succeeded: string[]
+  failed: Array<{ id: string; error: string }>
+}
+
+// ============================================================================
 // API Schema Definitions
 // ============================================================================
 
@@ -180,7 +190,7 @@ export interface FileSchemas {
   '/files/batch/nodes/trash': {
     PUT: {
       body: { ids: string[] }
-      response: void
+      response: BatchOperationResult
     }
   }
 
@@ -188,7 +198,7 @@ export interface FileSchemas {
   '/files/batch/nodes/move': {
     PUT: {
       body: { ids: string[]; targetParentId: string }
-      response: void
+      response: BatchOperationResult
     }
   }
 
@@ -196,7 +206,7 @@ export interface FileSchemas {
   '/files/batch/nodes/delete': {
     POST: {
       body: { ids: string[] }
-      response: void
+      response: BatchOperationResult
     }
   }
 
