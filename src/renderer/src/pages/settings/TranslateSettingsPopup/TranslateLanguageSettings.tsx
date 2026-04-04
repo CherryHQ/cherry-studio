@@ -122,7 +122,7 @@ const TranslateLanguageSettings = () => {
           />
         </TableContainer>
       </CustomLanguageSettingsContainer>
-      <TranslateLanguagesModal isOpen={isModalOpen} editingCustomLanguage={editingLanguage} onCancel={onCancel} />
+      <TranslateLanguagesModal isOpen={isModalOpen} editingLanguage={editingLanguage} onCancel={onCancel} />
     </>
   )
 }
