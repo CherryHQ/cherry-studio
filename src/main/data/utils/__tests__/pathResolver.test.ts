@@ -90,4 +90,48 @@ describe('resolvePhysicalPath', () => {
       expect(() => resolvePhysicalPath(node, mount)).toThrow('has no provider config')
     })
   })
+
+  describe('security', () => {
+    const externalMount: MountInfo = {
+      providerConfig: { provider_type: 'local_external', base_path: '/data/notes', watch: true }
+    }
+    const managedMount: MountInfo = {
+      providerConfig: { provider_type: 'local_managed', base_path: '/data/files' }
+    }
+
+    it('rejects path traversal via node.name containing ../', () => {
+      const node: PathResolvableNode = { id: 'n1', name: '../../etc/passwd', ext: null, mountId: 'mount_notes' }
+      expect(() => resolvePhysicalPath(node, externalMount)).toThrow('Path traversal detected')
+    })
+
+    it('rejects path traversal via ancestorNames containing ..', () => {
+      const node: PathResolvableNode = { id: 'n1', name: 'file', ext: 'txt', mountId: 'mount_notes' }
+      expect(() => resolvePhysicalPath(node, externalMount, ['..', '..', 'etc'])).toThrow('Path traversal detected')
+    })
+
+    it('rejects null bytes in node.name', () => {
+      const node: PathResolvableNode = { id: 'n1', name: 'file\0.evil', ext: 'txt', mountId: 'mount_notes' }
+      expect(() => resolvePhysicalPath(node, externalMount)).toThrow('null bytes')
+    })
+
+    it('rejects null bytes in node.ext', () => {
+      const node: PathResolvableNode = { id: 'n1', name: 'file', ext: 'txt\0evil', mountId: 'mount_notes' }
+      expect(() => resolvePhysicalPath(node, externalMount)).toThrow('null bytes')
+    })
+
+    it('rejects null bytes in ancestorNames', () => {
+      const node: PathResolvableNode = { id: 'n1', name: 'file', ext: 'txt', mountId: 'mount_notes' }
+      expect(() => resolvePhysicalPath(node, externalMount, ['dir\0evil'])).toThrow('null bytes')
+    })
+
+    it('rejects path traversal via node.name that is just ..', () => {
+      const node: PathResolvableNode = { id: 'n1', name: '..', ext: null, mountId: 'mount_notes' }
+      expect(() => resolvePhysicalPath(node, externalMount)).toThrow('Path traversal detected')
+    })
+
+    it('containment check also applies to local_managed', () => {
+      const node: PathResolvableNode = { id: '../../etc/passwd', name: 'evil', ext: null, mountId: 'mount_files' }
+      expect(() => resolvePhysicalPath(node, managedMount)).toThrow('Path traversal detected')
+    })
+  })
 })
