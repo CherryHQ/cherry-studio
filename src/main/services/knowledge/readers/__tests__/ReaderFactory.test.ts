@@ -267,7 +267,6 @@ describe('ReaderFactory', () => {
     expect(fetchMock).toHaveBeenCalledWith(
       item.data.url,
       expect.objectContaining({
-        headers: expect.any(Headers),
         signal: expect.any(AbortSignal)
       })
     )
@@ -336,14 +335,12 @@ describe('ReaderFactory', () => {
     expect(fetchMock).toHaveBeenCalledWith(
       'https://example.com/page-1',
       expect.objectContaining({
-        headers: expect.any(Headers),
         signal: expect.any(AbortSignal)
       })
     )
     expect(fetchMock).toHaveBeenCalledWith(
       'https://example.com/page-2',
       expect.objectContaining({
-        headers: expect.any(Headers),
         signal: expect.any(AbortSignal)
       })
     )

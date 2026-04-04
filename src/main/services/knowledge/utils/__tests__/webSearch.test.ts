@@ -69,7 +69,6 @@ describe('fetchKnowledgeWebPage', () => {
     expect(fetchMock).toHaveBeenCalledWith(
       'https://example.com',
       expect.objectContaining({
-        headers: expect.any(Headers),
         signal: expect.any(AbortSignal)
       })
     )

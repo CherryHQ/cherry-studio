@@ -11,13 +11,17 @@ const vectorStoreMocks = vi.hoisted(() => ({
 
 vi.mock('node:fs', async () => {
   const actual = await vi.importActual<typeof fs>('node:fs')
-
-  return {
+  const mockedFs = {
     ...actual,
     promises: {
       ...actual.promises,
       rm: vectorStoreMocks.rm
     }
+  }
+
+  return {
+    ...mockedFs,
+    default: mockedFs
   }
 })
 
