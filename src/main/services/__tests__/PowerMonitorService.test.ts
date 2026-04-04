@@ -33,11 +33,13 @@ vi.mock('electron', () => ({
     on: mockPowerMonitorOn,
     removeListener: mockPowerMonitorRemoveListener
   },
-  BrowserWindow: vi.fn().mockImplementation(() => ({
-    destroy: mockWindowDestroy,
-    isDestroyed: mockWindowIsDestroyed,
-    getNativeWindowHandle: mockGetNativeWindowHandle
-  }))
+  BrowserWindow: vi.fn().mockImplementation(function () {
+    return {
+      destroy: mockWindowDestroy,
+      isDestroyed: mockWindowIsDestroyed,
+      getNativeWindowHandle: mockGetNativeWindowHandle
+    }
+  })
 }))
 
 vi.mock('@paymoapp/electron-shutdown-handler', () => ({
