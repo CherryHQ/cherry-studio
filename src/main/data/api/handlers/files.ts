@@ -48,13 +48,13 @@ export const fileHandlers: {
     GET: notImplemented,
     DELETE: notImplemented
   },
-  '/files/nodes/batch/trash': {
+  '/files/batch/nodes/trash': {
     PUT: notImplemented
   },
-  '/files/nodes/batch/move': {
+  '/files/batch/nodes/move': {
     PUT: notImplemented
   },
-  '/files/nodes/batch/delete': {
+  '/files/batch/nodes/delete': {
     POST: notImplemented
   },
   '/files/mounts': {
