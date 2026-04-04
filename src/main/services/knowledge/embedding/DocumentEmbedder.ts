@@ -1,5 +1,5 @@
 import type { EmbeddingModelV3 } from '@ai-sdk/provider'
-import { type Document as VectorStoreDocument, TextNode } from '@vectorstores/core'
+import { type Document as VectorStoreDocument, NodeRelationship, TextNode } from '@vectorstores/core'
 import { embedMany } from 'ai'
 
 export class DocumentEmbedder {
@@ -19,7 +19,13 @@ export class DocumentEmbedder {
         new TextNode({
           text: document.text,
           embedding: result.embeddings[index],
-          metadata: document.metadata
+          metadata: document.metadata,
+          relationships: {
+            [NodeRelationship.SOURCE]: {
+              nodeId: String(document.metadata.itemId),
+              metadata: document.metadata
+            }
+          }
         })
     )
   }

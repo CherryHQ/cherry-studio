@@ -5,12 +5,13 @@ import {
   FilterOperator,
   type Metadata,
   MetadataMode,
+  NodeRelationship,
   TextNode,
   VectorStoreQueryMode
 } from '@vectorstores/core'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { LibSQLVectorStore } from '../src/index.js'
+import { LibSQLVectorStore } from '../src/LibSQLVectorStore.js'
 
 describe('LibSQLVectorStore', () => {
   let store: LibSQLVectorStore
@@ -92,6 +93,49 @@ describe('LibSQLVectorStore', () => {
       expect(ids[1]).toBeDefined()
     })
 
+    it('should persist external_id from sourceNode.nodeId', async () => {
+      const node = new TextNode({
+        id_: 'chunk-1',
+        text: 'Document chunk',
+        embedding: [0.1, 0.2],
+        metadata: { category: 'test' },
+        relationships: {
+          [NodeRelationship.SOURCE]: {
+            nodeId: 'item-1',
+            metadata: {}
+          }
+        }
+      })
+
+      await store.add([node])
+
+      const rows = await client.execute('SELECT id, external_id, collection FROM test_embeddings')
+      expect(rows.rows).toHaveLength(1)
+      expect(rows.rows[0]).toMatchObject({
+        id: 'chunk-1',
+        external_id: 'item-1',
+        collection: 'default'
+      })
+    })
+
+    it('should fall back to node.id_ when sourceNode.nodeId is missing', async () => {
+      const node = new TextNode({
+        id_: 'chunk-2',
+        text: 'Document chunk without source node',
+        embedding: [0.3, 0.4],
+        metadata: { category: 'fallback' }
+      })
+
+      await store.add([node])
+
+      const rows = await client.execute("SELECT id, external_id FROM test_embeddings WHERE id = 'chunk-2'")
+      expect(rows.rows).toHaveLength(1)
+      expect(rows.rows[0]).toMatchObject({
+        id: 'chunk-2',
+        external_id: 'chunk-2'
+      })
+    })
+
     it('should query vectors by similarity', async () => {
       // Add test data
       const nodes: BaseNode<Metadata>[] = [
@@ -131,37 +175,102 @@ describe('LibSQLVectorStore', () => {
       expect(ids).toEqual([])
     })
 
-    it('should delete nodes by ID', async () => {
-      const nodes: BaseNode<Metadata>[] = [
-        new TextNode({
-          id_: 'test-id-1',
-          embedding: [0.1, 0.2],
-          metadata: { category: 'test' }
-        })
-      ]
+    it('should delete all nodes by external_id', async () => {
+      const nodeA = new TextNode({
+        id_: 'chunk-1',
+        text: 'Document chunk A',
+        embedding: [0.1, 0.2],
+        metadata: { category: 'test' },
+        relationships: {
+          [NodeRelationship.SOURCE]: {
+            nodeId: 'item-1',
+            metadata: {}
+          }
+        }
+      })
 
-      await store.add(nodes)
+      const nodeB = new TextNode({
+        id_: 'chunk-2',
+        text: 'Document chunk B',
+        embedding: [0.1, 0.2],
+        metadata: { category: 'test' },
+        relationships: {
+          [NodeRelationship.SOURCE]: {
+            nodeId: 'item-1',
+            metadata: {}
+          }
+        }
+      })
 
-      // Verify node exists by querying
+      await store.add([nodeA, nodeB])
+
       const queryBefore: VectorStoreQuery = {
         queryEmbedding: [0.1, 0.2],
-        similarityTopK: 1,
+        similarityTopK: 2,
         mode: VectorStoreQueryMode.DEFAULT
       }
       const resultBefore = await store.query(queryBefore)
-      expect(resultBefore.nodes).toHaveLength(1)
+      expect(resultBefore.nodes).toHaveLength(2)
 
-      // Delete the node
-      await store.delete('test-id-1')
+      await store.delete('item-1')
 
-      // Verify node is deleted
       const queryAfter: VectorStoreQuery = {
         queryEmbedding: [0.1, 0.2],
-        similarityTopK: 1,
+        similarityTopK: 2,
         mode: VectorStoreQueryMode.DEFAULT
       }
       const resultAfter = await store.query(queryAfter)
       expect(resultAfter.nodes).toHaveLength(0)
+    })
+
+    it('should scope delete by collection', async () => {
+      const otherCollectionStore = new LibSQLVectorStore({
+        client,
+        tableName: 'test_embeddings',
+        dimensions: 2,
+        collection: 'other'
+      })
+
+      const nodeDefault = new TextNode({
+        id_: 'chunk-default',
+        text: 'Default collection chunk',
+        embedding: [0.2, 0.3],
+        metadata: { category: 'scope' },
+        relationships: {
+          [NodeRelationship.SOURCE]: {
+            nodeId: 'item-shared',
+            metadata: {}
+          }
+        }
+      })
+
+      const nodeOther = new TextNode({
+        id_: 'chunk-other',
+        text: 'Other collection chunk',
+        embedding: [0.2, 0.3],
+        metadata: { category: 'scope' },
+        relationships: {
+          [NodeRelationship.SOURCE]: {
+            nodeId: 'item-shared',
+            metadata: {}
+          }
+        }
+      })
+
+      await store.add([nodeDefault])
+      await otherCollectionStore.add([nodeOther])
+
+      await store.delete('item-shared')
+
+      const rows = await client.execute(
+        "SELECT id, external_id, collection FROM test_embeddings WHERE external_id = 'item-shared' ORDER BY id"
+      )
+      expect(rows.rows).toHaveLength(1)
+      expect(rows.rows[0]).toMatchObject({
+        id: 'chunk-other',
+        external_id: 'item-shared',
+        collection: 'other'
+      })
     })
   })
 

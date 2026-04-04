@@ -197,6 +197,7 @@ export class LibSQLVectorStore extends BaseVectorStore {
   private getDataToInsert(embeddingResults: BaseNode<Metadata>[]) {
     return embeddingResults.map((node) => {
       const id = node.id_.length ? node.id_ : null
+      const externalId = node.sourceNode?.nodeId || node.id_
       const meta = node.metadata || {}
       if (!meta.create_date) {
         meta.create_date = new Date()
@@ -213,7 +214,7 @@ export class LibSQLVectorStore extends BaseVectorStore {
       // Convert embedding to JSON string for vector() function
       const embeddingJson = `[${Array.from(embedding).join(',')}]`
 
-      return [id!, '', this.collection, node.getContent(MetadataMode.NONE), JSON.stringify(meta), embeddingJson]
+      return [id!, externalId, this.collection, node.getContent(MetadataMode.NONE), JSON.stringify(meta), embeddingJson]
     })
   }
 
@@ -257,7 +258,7 @@ export class LibSQLVectorStore extends BaseVectorStore {
     await this.ensureInitialized()
 
     const collectionCriteria = this.collection.length ? 'AND collection = ?' : ''
-    const sql = `DELETE FROM ${this.tableName} WHERE id = ? ${collectionCriteria}`
+    const sql = `DELETE FROM ${this.tableName} WHERE external_id = ? ${collectionCriteria}`
 
     const args = this.collection.length ? [refDocId, this.collection] : [refDocId]
     const validParams = toInArgs(args)
