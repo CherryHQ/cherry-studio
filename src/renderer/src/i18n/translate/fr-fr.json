@@ -1124,6 +1124,18 @@
         },
         "title": "Ressources"
       },
+      "screenshot": {
+        "cancel": "[to be translated]:Cancel",
+        "capture_failed": "[to be translated]:Failed to capture screenshot",
+        "full_screen": "[to be translated]:Full Screen",
+        "open_settings": "[to be translated]:Open Settings",
+        "permission_denied": "[to be translated]:Screen recording permission required",
+        "permission_dialog_content": "[to be translated]:Screenshot feature requires screen recording permission. Would you like to open system settings to grant permission?",
+        "permission_dialog_title": "[to be translated]:Screen Recording Permission Required",
+        "permission_granted_restart": "[to be translated]:Permission has been granted. Please restart the application for the changes to take effect.",
+        "select_region": "[to be translated]:Select Region",
+        "tooltip": "[to be translated]:Take screenshot"
+      },
       "send": "Envoyer",
       "settings": "Paramètres",
       "slash_commands": {
