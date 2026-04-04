@@ -1,6 +1,6 @@
 import { configureStore } from '@reduxjs/toolkit'
 import minAppsReducer, { setPinnedMinApps } from '@renderer/store/minapps'
-import type { MinAppRegion, MinAppType } from '@renderer/types'
+import type { MinAppRegion, MinAppType } from '@shared/data/types/miniapp'
 import { describe, expect, it } from 'vitest'
 
 // Test fixture factory

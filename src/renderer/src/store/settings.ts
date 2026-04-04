@@ -21,7 +21,6 @@ import type {
   ApiServerConfig,
   CodeStyleVarious,
   MathEngine,
-  MinAppRegionFilter,
   OpenAIServiceTier,
   PaintingProvider,
   S3Config,
@@ -44,6 +43,7 @@ import type {
   SidebarIcon
 } from '@shared/data/preference/preferenceTypes'
 import { ThemeMode, UpgradeChannel } from '@shared/data/preference/preferenceTypes'
+import type { MinAppRegionFilter } from '@shared/data/types/miniapp'
 import { v4 as uuid } from 'uuid'
 
 import type { RemoteSyncState } from './backup'

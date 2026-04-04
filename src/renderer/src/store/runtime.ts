@@ -16,7 +16,7 @@
  */
 import type { PayloadAction } from '@reduxjs/toolkit'
 import { createSlice } from '@reduxjs/toolkit'
-import type { MinAppRegion } from '@renderer/types'
+import type { MinAppRegion } from '@shared/data/types/miniapp'
 
 // export interface ChatState {
 //   isMultiSelectMode: boolean

@@ -8,7 +8,7 @@ import { SettingDescription, SettingDivider, SettingRowTitle, SettingTitle } fro
 import type { RootState } from '@renderer/store'
 import { useAppDispatch, useAppSelector } from '@renderer/store'
 import { setMinAppRegion } from '@renderer/store/settings'
-import type { MinAppRegionFilter } from '@renderer/types'
+import type { MinAppRegionFilter } from '@shared/data/types/miniapp'
 import { Flex, Slider } from 'antd'
 import type { FC } from 'react'
 import { useCallback, useEffect, useRef, useState } from 'react'
