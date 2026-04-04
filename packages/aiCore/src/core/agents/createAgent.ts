@@ -6,7 +6,6 @@ import type { ToolLoopAgentSettings, ToolSet } from 'ai'
 import { ToolLoopAgent } from 'ai'
 
 import type { AiPlugin } from '../plugins'
-import { definePlugin } from '../plugins'
 import type { CoreProviderSettingsMap, StringKeys } from '../providers/types'
 import { createExecutor } from '../runtime'
 
@@ -32,15 +31,8 @@ export async function createAgent<
   // 1. Create executor (extensionRegistry resolves provider + modelResolver)
   const executor = await createExecutor<TSettingsMap, T>(providerId, providerSettings, plugins)
 
-  // 2. Mount resolveModel plugin (inject executor's model resolution into pluginEngine)
-  executor.pluginEngine.use(
-    definePlugin({
-      name: '_agent_resolveModel',
-      enforce: 'post',
-
-      resolveModel: async (id: string) => executor.resolveModel(id)
-    })
-  )
+  // 2. Register internal plugins (same as streamText/generateText)
+  executor.pluginEngine.usePlugins([executor.createResolveModelPlugin(), executor.createConfigureContextPlugin()])
 
   // 3. Resolve model + apply middleware via pluginEngine
   const resolvedModel = await executor.pluginEngine.resolveModel(modelId)

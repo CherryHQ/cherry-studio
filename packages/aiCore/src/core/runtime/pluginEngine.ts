@@ -84,6 +84,10 @@ export class PluginEngine<T extends string = RegisteredProviderId> {
   /**
    * Resolve modelId through the plugin pipeline (configureContext → resolveModel → wrapLanguageModel).
    * Returns a middleware-wrapped LanguageModel ready for external consumers like ToolLoopAgent.
+   *
+   * Note: This is a model-resolution-only path, not a full request lifecycle.
+   * - `originalParams` in context will be `{}` since no request params exist at resolution time.
+   * - `onError` hooks are NOT invoked on failure — callers should handle errors directly.
    */
   async resolveModel(modelId: string): Promise<LanguageModel> {
     const context = createContext(this.providerId, modelId, {})

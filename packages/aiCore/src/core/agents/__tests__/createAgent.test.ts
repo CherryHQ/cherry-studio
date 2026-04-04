@@ -100,4 +100,40 @@ describe('createAgent', () => {
       })
     )
   })
+
+  it('should throw when provider is not registered', async () => {
+    const { extensionRegistry } = await import('../../providers')
+    vi.mocked(extensionRegistry.has).mockReturnValue(false)
+
+    await expect(
+      createAgent({
+        providerId: 'unknown-provider' as any,
+        providerSettings: {},
+        modelId: 'some-model',
+        agentSettings: { tools: {} }
+      })
+    ).rejects.toThrow('not registered')
+  })
+
+  it('should throw ModelResolutionError when model cannot be resolved', async () => {
+    // Provider that returns undefined for languageModel
+    const brokenProvider = createMockProviderV3({
+      provider: 'openai',
+      languageModel: vi.fn(() => {
+        throw new Error('Model not found')
+      })
+    })
+
+    const { extensionRegistry } = await import('../../providers')
+    vi.mocked(extensionRegistry.createProvider).mockResolvedValue(brokenProvider)
+
+    await expect(
+      createAgent({
+        providerId: 'openai',
+        providerSettings: mockProviderConfigs.openai,
+        modelId: 'nonexistent-model',
+        agentSettings: { tools: {} }
+      })
+    ).rejects.toThrow()
+  })
 })

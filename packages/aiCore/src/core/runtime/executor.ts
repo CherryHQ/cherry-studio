@@ -52,7 +52,7 @@ export class RuntimeExecutor<
     })
   }
 
-  private createResolveModelPlugin() {
+  createResolveModelPlugin() {
     return definePlugin({
       name: '_internal_resolveModel',
       enforce: 'post',
@@ -75,7 +75,7 @@ export class RuntimeExecutor<
     })
   }
 
-  private createConfigureContextPlugin() {
+  createConfigureContextPlugin() {
     return definePlugin({
       name: '_internal_configureContext',
       configureContext: async () => {
@@ -196,7 +196,7 @@ export class RuntimeExecutor<
    * 使用 resolver 函数解析模型，而不是通过 registry.languageModel()。
    * resolver 在 extension 声明处类型安全地捕获了具体 provider 方法。
    */
-  async resolveModel(modelOrId: LanguageModel): Promise<LanguageModelV3> {
+  private async resolveModel(modelOrId: LanguageModel): Promise<LanguageModelV3> {
     if (typeof modelOrId === 'string') {
       if (this.config.modelResolver) {
         return this.config.modelResolver(modelOrId)
