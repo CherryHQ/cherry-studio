@@ -11,50 +11,33 @@
 |   UI (Data API / main call)        Tool / CLI / API Gateway                      |
 +------------------------------------------+---------------------------------------+
                                            |
-                                           v
-+----------------------------------------------------------------------------------+
-|                      KnowledgeApplicationService                                  |
-|                                                                                  |
-|  Public API:                                                                     |
-|  - createBase                                                                    |
-|  - deleteBase                                                                    |
-|  - addItem                                                                       |
-|  - deleteItem                                                                    |
-|  - search                                                                        |
-+-----------------------------+-----------------------------+----------------------+
-                              |                             |
-                              | data CRUD                   | async addItem
-                              v                             v
-                 +---------------------------+   +---------------------------+
-                 |   KnowledgeBaseService    |   |   KnowledgeTaskService    |
-                 |   base data logic         |   |   queue / concurrency     |
-                 +-------------+-------------+   +-------------+-------------+
-                               |                               |
-                               |                               v
-                               |                 +---------------------------+
-                               |                 | KnowledgeExecutionService |
-                               |                 | local execute pipeline    |
-                               |                 | future: process-backed    |
-                               |                 +-------------+-------------+
-                               |                               |
-                               v                               v
-                 +---------------------------+   +---------------------------+
-                 |   KnowledgeItemService    |   |  LibSQL / VectorStores    |
-                 |   item data + status      |   +---------------------------+
-                 +-------------+-------------+
-                               |
-                               v
-                     +----------------------+
-                     |   SQLite / Drizzle   |
-                     +----------------------+
+                    +--------------------------+     +-----------------------------+
+                    |       Data API           |     |    KnowledgeVectorService   |
+                    |  knowledge handlers      |     |   vector/runtime service    |
+                    +-------------+------------+     +---------------+-------------+
+                                  |                                  |
+                                  v                                  v
+                    +--------------------------+          +---------------------------+
+                    |   KnowledgeBaseService   |          |   KnowledgeTaskService    |
+                    |   base data logic        |          |   queue / concurrency     |
+                    +-------------+------------+          +-------------+-------------+
+                                  |                                  |
+                                  v                                  v
+                    +--------------------------+          +---------------------------+
+                    |   KnowledgeItemService   |          | KnowledgeExecutionService |
+                    |   item data + status     |          | local execute pipeline    |
+                    +-------------+------------+          | future: process-backed    |
+                                  |                       +-------------+-------------+
+                                  v                                     |
+                        +----------------------+                         v
+                        |   SQLite / Drizzle   |              +------------------------+
+                        +----------------------+              |  LibSQL / VectorStores |
+                                                              +------------------------+
 
-addItem flow:
+当前 UI 双轨调用：
 
-  addItem
-    -> KnowledgeApplicationService
-    -> KnowledgeItemService.create(status=pending)
-    -> KnowledgeTaskService.enqueueMany(...)
-    -> KnowledgeExecutionService.execute(task)
+  1. UI -> Data API -> KnowledgeBaseService / KnowledgeItemService
+  2. UI -> main-side call -> KnowledgeVectorService
 ```
 
 ## 1. Data service 的定位
@@ -100,15 +83,22 @@ UI -> Data API -> knowledge handler -> data service
 
 它们不需要先经过 Data API。
 
-## 4. KnowledgeApplicationService 的定位
+## 4. KnowledgeVectorService 的定位
 
-`KnowledgeApplicationService` 用于承接知识库中需要编排的能力，例如：
+`KnowledgeVectorService` 只负责知识库的 vector/runtime 侧能力。
 
-1. `addItem`
-2. `search`
-3. `deleteItem`
+当前包括：
 
-它同样属于主进程中的可直接复用能力。
+1. vectorstores 相关初始化
+2. 任务调度入口
+3. 运行时向量写入/删除/检索相关能力
+
+它不负责 SQLite / Drizzle 侧的数据创建与更新。
+
+因此：
+
+1. `KnowledgeBaseService` / `KnowledgeItemService` 负责 data 面
+2. `KnowledgeVectorService` 负责 vector/runtime 面
 
 它属于 main services，不属于 data services。
 
@@ -438,7 +428,7 @@ UI
  |
  +--> Data API -> knowledge handler -> KnowledgeBaseService / KnowledgeItemService
  |
- \--> main-side invocation -> KnowledgeApplicationService
+ \--> main-side invocation -> KnowledgeVectorService
 ```
 
 ### Tool / CLI / API Gateway
@@ -448,7 +438,7 @@ Tool / CLI / API Gateway
  |
  +--> KnowledgeBaseService / KnowledgeItemService
  |
- \--> KnowledgeApplicationService
+ \--> KnowledgeVectorService
 ```
 
 ## 8. 当前不写入本文档的内容
