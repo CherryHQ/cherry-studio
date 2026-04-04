@@ -11,13 +11,13 @@ import { useTranslation } from 'react-i18next'
 
 type Props = {
   isOpen: boolean
-  editingCustomLanguage?: TranslateLanguageVo
+  editingLanguage?: TranslateLanguageVo
   onCancel: () => void
 }
 
 const logger = loggerService.withContext('CustomLanguageModal')
 
-const TranslateLanguagesModal = ({ isOpen, editingCustomLanguage, onCancel }: Props) => {
+const TranslateLanguagesModal = ({ isOpen, editingLanguage: editingCustomLanguage, onCancel }: Props) => {
   const { t } = useTranslation()
   const [form] = Form.useForm()
   // antd表单的getFieldValue方法在首次渲染时无法获取到值，但emoji需要获取表单值来显示，所以单独管理状态
