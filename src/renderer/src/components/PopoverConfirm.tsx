@@ -15,6 +15,7 @@ type PopoverConfirmProps = {
   classNames?: {
     title?: string
     description?: string
+    icon?: string
     confirm?: string
     cancel?: string
   }
@@ -43,7 +44,7 @@ const PopoverConfirm = ({
       <PopoverContent className="p-4 pl-6">
         <div className="mb-2">
           <div className="flex items-center gap-2">
-            <TriangleAlertIcon size={16} className="text-sm text-warning-base" />
+            <TriangleAlertIcon className={cn('size-6 text-warning-base', classNames.icon)} />
             <h3 className={cn('font-bold text-lg', classNames.title)}>{title}</h3>
           </div>
           {description && <p className={cn(classNames.description)}>{description}</p>}
