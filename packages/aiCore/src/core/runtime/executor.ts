@@ -9,11 +9,13 @@ import {
   embedMany as _embedMany,
   generateImage as _generateImage,
   generateText as _generateText,
-  streamText as _streamText
+  streamText as _streamText,
+  wrapLanguageModel
 } from 'ai'
 
+import { ModelResolutionError } from '../errors'
 import { isV3Model } from '../models/utils'
-import { type AiPlugin, definePlugin } from '../plugins'
+import { type AiPlugin, createContext, definePlugin, PluginManager } from '../plugins'
 import type { CoreProviderSettingsMap, StringKeys } from '../providers/types'
 import { ImageGenerationError, ImageModelResolutionError } from './errors'
 import { PluginEngine } from './pluginEngine'
@@ -185,6 +187,38 @@ export class RuntimeExecutor<
       model: embeddingModel,
       ...options
     })
+  }
+
+  // === Public 模型解析 ===
+
+  /**
+   * 解析 modelId 并应用插件管道（configureContext → resolveModel → wrapLanguageModel）
+   * 返回经过 middleware 包装的 LanguageModel，可直接用于 ToolLoopAgent 等外部消费者
+   */
+  async resolveModelWithPlugins(modelId: string): Promise<LanguageModel> {
+    this.pluginEngine.usePlugins([this.createResolveModelPlugin(), this.createConfigureContextPlugin()])
+
+    const context = createContext(this.config.providerId, modelId, {})
+    const manager = new PluginManager(this.pluginEngine.getPlugins())
+
+    // 1. configureContext — 收集 middlewares
+    await manager.executeConfigureContext(context)
+
+    // 2. resolveModel — string → LanguageModel
+    const resolved = await manager.executeFirst<LanguageModel>('resolveModel', modelId, context)
+    if (!resolved) {
+      throw new ModelResolutionError(modelId, this.config.providerId)
+    }
+
+    // 3. 应用 middlewares
+    if (context.middlewares && context.middlewares.length > 0) {
+      return wrapLanguageModel({
+        model: resolved as LanguageModelV3,
+        middleware: context.middlewares
+      })
+    }
+
+    return resolved
   }
 
   // === 辅助方法 ===
