@@ -1,6 +1,7 @@
 import { loggerService } from '@logger'
 import { application } from '@main/core/application'
 import { BaseService, DependsOn, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
+import { knowledgeBaseService } from '@main/data/services/KnowledgeBaseService'
 import type { KnowledgeBase, KnowledgeItem, KnowledgeSearchResult } from '@shared/data/types/knowledge'
 import { IpcChannel } from '@shared/IpcChannel'
 
@@ -73,13 +74,34 @@ export class KnowledgeVectorService extends BaseService {
   }
 
   public async deleteItems(baseId: string, itemIds: string[]): Promise<void> {
-    if (itemIds.length === 0) {
+    const validItemIds = [
+      ...new Set(
+        itemIds.flatMap((itemId) => {
+          if (typeof itemId !== 'string') {
+            return []
+          }
+
+          const normalizedItemId = itemId.trim()
+          return normalizedItemId.length > 0 ? [normalizedItemId] : []
+        })
+      )
+    ]
+
+    if (validItemIds.length === 0) {
       return
     }
 
-    logger.warn('Knowledge item vector deletion is not implemented yet', {
-      baseId,
-      itemIds
+    const base = await knowledgeBaseService.getById(baseId)
+    const store = await VectorStoreFactory.createBase(base)
+
+    for (const itemId of validItemIds) {
+      await store.delete(itemId)
+    }
+
+    logger.info('Deleted knowledge item vectors', {
+      baseId: base.id,
+      itemIds: validItemIds,
+      count: validItemIds.length
     })
   }
 
