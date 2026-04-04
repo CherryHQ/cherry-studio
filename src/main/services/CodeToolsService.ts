@@ -6,7 +6,8 @@ import { loggerService } from '@logger'
 import { isMac, isWin } from '@main/constant'
 import { removeEnvProxy } from '@main/utils'
 import { isUserInChina } from '@main/utils/ipService'
-import { getBinaryName } from '@main/utils/process'
+import { findCommandInShellEnv, getBinaryName, getBinaryPath, isBinaryExists } from '@main/utils/process'
+import getShellEnv from '@main/utils/shell-env'
 import type { TerminalConfig, TerminalConfigWithCommand } from '@shared/config/constant'
 import {
   codeTools,
@@ -17,6 +18,7 @@ import {
   WINDOWS_TERMINALS,
   WINDOWS_TERMINALS_WITH_COMMANDS
 } from '@shared/config/constant'
+import type { CodeToolsRunResult } from '@shared/config/types'
 import { getFunctionalKeys, parseJSONC, sanitizeEnvForLogging } from '@shared/utils'
 import { spawn } from 'child_process'
 import semver from 'semver'
@@ -57,7 +59,7 @@ class CodeToolsService {
     this.run = this.run.bind(this)
 
     if (isMac || isWin) {
-      this.preloadTerminals()
+      void this.preloadTerminals()
     }
   }
 
@@ -221,7 +223,7 @@ class CodeToolsService {
     this.openCodeConfigBackups.set(configPath, backupContent)
 
     // config with env variable Build CherryStudio provider reference for security
-    const envVarKey = `OPENCODE_API_KEY_${providerName.toUpperCase().replace(/-/g, '_')}`
+    const envVarKey = `OPENCODE_API_KEY_${providerName.toUpperCase().replace(/[-.]/g, '_')}`
     const cherryProviderConfig = {
       npm: npmPackage,
       name: dynamicProviderName,
@@ -766,11 +768,16 @@ class CodeToolsService {
       const bunInstallPath = path.join(os.homedir(), HOME_CHERRY_DIR)
       const registryUrl = await this.getNpmRegistryUrl()
 
+      // Get logs directory for update output redirection
+      const logsDir = loggerService.getLogsDir()
+      const updateLogPath = path.join(logsDir, 'cli-tools-update.log').replace(/\\/g, '/')
+
       const installEnvPrefix = isWin
         ? `set "BUN_INSTALL=${bunInstallPath}" && set "NPM_CONFIG_REGISTRY=${registryUrl}" &&`
         : `export BUN_INSTALL="${bunInstallPath}" && export NPM_CONFIG_REGISTRY="${registryUrl}" &&`
 
-      const updateCommand = `${installEnvPrefix} "${bunPath}" install -g ${packageName}`
+      // Use > to truncate log file on each update
+      const updateCommand = `${installEnvPrefix} "${bunPath}" install -g ${packageName} > "${updateLogPath}" 2>&1`
       logger.info(`Executing update command: ${updateCommand}`)
 
       await execAsync(updateCommand, { timeout: 60000 })
@@ -805,7 +812,7 @@ class CodeToolsService {
     directory: string,
     env: Record<string, string>,
     options: { autoUpdateToLatest?: boolean; terminal?: string } = {}
-  ) {
+  ): Promise<CodeToolsRunResult> {
     logger.info(`Starting CLI tool launch: ${cliTool} in directory: ${directory}`)
     logger.debug(`Environment variables:`, Object.keys(env))
     logger.debug(`Options:`, options)
@@ -851,18 +858,15 @@ class CodeToolsService {
           if (versionInfo.needsUpdate) {
             logger.info(`Update available for ${cliTool}: ${versionInfo.installed} -> ${versionInfo.latest}`)
             logger.info(`Auto-updating ${cliTool} to latest version`)
-            updateMessage = ` && echo "Updating ${cliTool} from ${versionInfo.installed} to ${versionInfo.latest}..."`
+            updateMessage = ` && echo "Updating ${escapeBatchText(cliTool)} from ${escapeBatchText(versionInfo.installed || '')} to ${escapeBatchText(versionInfo.latest || '')}..."`
             const updateResult = await this.updatePackage(cliTool)
             if (updateResult.success) {
               logger.info(`Update completed successfully for ${cliTool}`)
               updateMessage += ` && echo "Update completed successfully"`
             } else {
               logger.error(`Update failed for ${cliTool}: ${updateResult.message}`)
-              updateMessage += ` && echo "Update failed: ${updateResult.message}"`
+              updateMessage += ` && echo "Update failed: ${escapeBatchText(updateResult.message)}"`
             }
-          } else if (versionInfo.installed && versionInfo.latest) {
-            logger.info(`${cliTool} is already up to date (${versionInfo.installed})`)
-            updateMessage = ` && echo "${cliTool} is up to date (${versionInfo.installed})"`
           }
         }
       } catch (error) {
@@ -887,8 +891,9 @@ class CodeToolsService {
 
       if (isWindows) {
         // Windows uses set command
+        // Escape all cmd.exe metacharacters in env values to prevent command injection
         return Object.entries(env)
-          .map(([key, value]) => `set "${key}=${value.replace(/"/g, '\\"')}"`)
+          .map(([key, value]) => `set "${key}=${escapeBatchText(value)}"`)
           .join(' && ')
       } else {
         // Unix-like systems use export command
@@ -918,7 +923,24 @@ class CodeToolsService {
 
     // Special handling for kimi-cli: use uvx instead of bun
     if (cliTool === codeTools.kimiCli) {
-      const uvPath = path.join(os.homedir(), HOME_CHERRY_DIR, 'bin', await getBinaryName('uv'))
+      const shellEnv = await getShellEnv()
+      let uvPath = await findCommandInShellEnv('uv', shellEnv)
+
+      if (!uvPath) {
+        if (await isBinaryExists('uv')) {
+          uvPath = await getBinaryPath('uv')
+          logger.info('Using bundled uv as fallback (not found in PATH)', { command: uvPath })
+        } else {
+          throw new Error(
+            'uv not found in PATH and bundled version is not available.\n' +
+              'Please either:\n' +
+              '1. Install uv from https://github.com/astral-sh/uv\n' +
+              '2. Run the MCP dependencies installer from Settings\n' +
+              '3. Restart the application if you recently installed uv'
+          )
+        }
+      }
+
       baseCommand = `${uvPath} tool run ${packageName}`
     }
 
@@ -989,6 +1011,7 @@ class CodeToolsService {
     } else if (isInstalled) {
       // If already installed, run executable directly (with optional update message)
       if (updateMessage) {
+        // updateMessage already has escaped dynamic content, && connectors are intentional
         baseCommand = `echo "Checking ${cliTool} version..."${updateMessage} && ${baseCommand}`
       }
     } else {
@@ -1058,16 +1081,6 @@ class CodeToolsService {
         // Escape special characters in paths for Windows batch scripting
         // Using double quotes for compatibility with CMD
 
-        /**
-         * Escape text for display in batch echo statements
-         * Used for: echo statements, command display, logging
-         * Note: Don't wrap in quotes - echo will display them literally
-         */
-        const escapeBatchText = (text: string) => {
-          // Just escape % characters, no quotes needed for display
-          return text.replace(/%/g, '%%')
-        }
-
         // Build bat file content, including debug information
         // Use labels and goto to handle errors properly (fixes CMD control-flow issue)
         const batContent = [
@@ -1076,8 +1089,8 @@ class CodeToolsService {
           `title ${cliTool} - Cherry Studio`,
           'echo ================================================',
           'echo Cherry Studio CLI Tool Launcher',
-          `echo Tool: ${escapeBatchText(cliTool)}`,
-          `echo Directory: ${escapeBatchText(directory)}`,
+          `echo Tool: ${CodeToolsService.escapeBatchTextForEcho(cliTool)}`,
+          `echo Directory: ${CodeToolsService.escapeBatchTextForEcho(directory)}`,
           `echo Time: ${new Date().toLocaleString()}`,
           'echo ================================================',
           '',
@@ -1099,7 +1112,7 @@ class CodeToolsService {
           ':: Error handlers (using labels to ensure entire branch is conditional)',
           ':dir_missing',
           'echo ERROR: Directory does not exist',
-          `echo Target: ${escapeBatchText(directory)}`,
+          `echo Target: ${CodeToolsService.escapeBatchTextForEcho(directory)}`,
           'pause',
           'exit /b 1',
           '',
@@ -1264,6 +1277,42 @@ class CodeToolsService {
       }
     }
   }
+
+  /**
+   * Escape text for safe use in batch echo statements
+   * Only handles critical issues: newlines and % characters
+   * Preserves command syntax (e.g., &&) - use for constructed command strings
+   * @param text - Raw text from command output or user input
+   * @returns Escaped text safe for batch echo statements
+   */
+  private static escapeBatchTextForEcho(text: string): string {
+    if (!text) return ''
+    return text
+      .replace(/%/g, '%%') // Escape % to avoid variable expansion
+      .replace(/\r\n/g, ' ') // Windows newline to space
+      .replace(/\n/g, ' ') // Unix newline to space
+  }
+}
+
+/**
+ * Escape text for safe use in Windows batch files
+ * Handles ALL cmd.exe metacharacters to prevent command injection
+ * Use this for arbitrary untrusted input that may contain any characters
+ * @param text - Raw text that may contain user input or error messages
+ * @returns Fully escaped text safe for batch files
+ */
+export function escapeBatchText(text: string): string {
+  if (!text) return ''
+  return text
+    .replace(/\^/g, '^^') // Escape caret first (before other escapes)
+    .replace(/%/g, '%%') // Escape % to avoid variable expansion
+    .replace(/&/g, '^&') // Escape & command separator
+    .replace(/\|/g, '^|') // Escape | pipe
+    .replace(/>/g, '^>') // Escape > output redirect
+    .replace(/</g, '^<') // Escape < input redirect
+    .replace(/"/g, '""') // Escape double quotes to prevent echo injection
+    .replace(/\r\n/g, ' ') // Windows newline to space
+    .replace(/\n/g, ' ') // Unix newline to space
 }
 
 export const codeToolsService = new CodeToolsService()

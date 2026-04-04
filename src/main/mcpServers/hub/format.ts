@@ -34,7 +34,7 @@ function schemaToParamType(prop: PropertySchema): string {
     return enumValues.map((v) => JSON.stringify(v)).join('|')
   }
 
-  const typeValue = prop.type as unknown
+  const typeValue = prop.type
 
   if (Array.isArray(typeValue)) {
     return typeValue.map((t) => jsonSchemaTypeToJs(t)).join('|')

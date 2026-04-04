@@ -413,7 +413,7 @@ export const useRichEditor = (options: UseRichEditorOptions = {}): UseRichEditor
           const file = imageItem.getAsFile()
           if (file) {
             // Handle image paste by saving to local storage
-            handleImagePaste(file)
+            void handleImagePaste(file)
             return true
           }
         }
@@ -446,7 +446,11 @@ export const useRichEditor = (options: UseRichEditorOptions = {}): UseRichEditor
         spellcheck: enableSpellCheck ? 'true' : 'false'
       }
     },
-    onUpdate: ({ editor }) => {
+    onUpdate: ({ editor, transaction }) => {
+      // Ignore non-user updates (initialization/mode toggles/programmatic transactions)
+      // to avoid re-serializing markdown while switching view modes.
+      if (!editable || !transaction.docChanged || !editor.isFocused) return
+
       const content = editor.getText()
       const htmlContent = editor.getHTML()
       try {
@@ -659,7 +663,7 @@ export const useRichEditor = (options: UseRichEditorOptions = {}): UseRichEditor
         finalPosition = { x: rect.left + rect.width / 2, y: rect.top + rect.height / 2 }
       }
 
-      onShowTableActionMenu?.({ type, index, position: finalPosition!, actions })
+      onShowTableActionMenu?.({ type, index, position: finalPosition, actions })
     },
     [editor, onShowTableActionMenu]
   )

@@ -23,10 +23,10 @@ import Sessions from './components/Sessions'
 
 const AgentChat = () => {
   const { t } = useTranslation()
-  const { messageNavigation, topicPosition } = useSettings()
+  const { messageNavigation, messageStyle, topicPosition } = useSettings()
   const { showTopics } = useShowTopics()
   const { chat } = useRuntime()
-  const { activeAgentId, activeSessionIdMap } = chat
+  const { activeAgentId, activeSessionIdMap, isMultiSelectMode } = chat
   const activeSessionId = activeAgentId ? activeSessionIdMap[activeAgentId] : null
   // undefined = session not yet initialized, null = initialized but no sessions
   const isSessionInitialized = !activeAgentId || activeAgentId in activeSessionIdMap
@@ -83,7 +83,10 @@ const AgentChat = () => {
   }
 
   return (
-    <Container>
+    <Container
+      // AgentChat doesn't support multi-select
+      // But we want to apply the message style for consistency
+      className={cn(messageStyle, { 'multi-select-mode': isMultiSelectMode })}>
       <QuickPanelProvider>
         {/* Main Chat */}
         <div className="flex min-w-0 flex-1 flex-col">
@@ -118,7 +121,7 @@ const AgentChat = () => {
             transition={{ duration: 0.3, ease: 'easeInOut' }}
             className="overflow-hidden">
             <div className="flex h-full w-(--assistants-width) flex-col overflow-hidden">
-              <Sessions agentId={activeAgentId!} />
+              <Sessions agentId={activeAgentId} />
             </div>
           </motion.div>
         )}

@@ -147,7 +147,7 @@ describe('Integrated Provider Registry', () => {
     it('should maintain compatibility with existing providers', () => {
       const grokProvider = createTestProvider('grok', 'grok')
       const result = getAiSdkProviderId(grokProvider)
-      expect(result).toBe('xai')
+      expect(result).toBe('xai-responses')
     })
   })
 })

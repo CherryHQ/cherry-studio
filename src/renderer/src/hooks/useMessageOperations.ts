@@ -56,7 +56,7 @@ export function useMessageOperations(topic: Topic) {
   const deleteMessage = useCallback(
     async (id: string, traceId?: string, modelName?: string) => {
       await dispatch(deleteSingleMessageThunk(topic.id, id))
-      window.api.trace.cleanHistory(topic.id, traceId || '', modelName)
+      void window.api.trace.cleanHistory(topic.id, traceId || '', modelName)
     },
     [dispatch, topic.id]
   )
@@ -125,7 +125,7 @@ export function useMessageOperations(topic: Topic) {
    * 发出事件以表示创建新上下文（清空消息 UI）。 / Emits an event to signal creating a new context (clearing messages UI).
    */
   const createNewContext = useCallback(async () => {
-    EventEmitter.emit(EVENT_NAMES.NEW_CONTEXT)
+    void EventEmitter.emit(EVENT_NAMES.NEW_CONTEXT)
   }, [])
 
   const displayCount = useAppSelector(selectNewDisplayCount)
@@ -144,7 +144,7 @@ export function useMessageOperations(topic: Topic) {
     for (const askId of askIds) {
       abortCompletion(askId)
     }
-    pauseTrace(topic.id)
+    void pauseTrace(topic.id)
     dispatch(newMessagesActions.setTopicLoading({ topicId: topic.id, loading: false }))
   }, [topic.id, dispatch])
 
@@ -264,7 +264,7 @@ export function useMessageOperations(topic: Topic) {
 
       return throttle(
         (accumulatedText: string, isComplete: boolean = false) => {
-          dispatch(updateTranslationBlockThunk(blockId!, accumulatedText, isComplete))
+          void dispatch(updateTranslationBlockThunk(blockId, accumulatedText, isComplete))
         },
         200,
         { leading: true, trailing: true }
@@ -313,9 +313,9 @@ export function useMessageOperations(topic: Topic) {
 
         // 2. Get all original blocks
         const originalBlocks = message.blocks
-          ? (message.blocks
+          ? message.blocks
               .map((blockId) => state.messageBlocks.entities[blockId])
-              .filter((block) => block !== undefined) as MessageBlock[])
+              .filter((block) => block !== undefined)
           : []
 
         // 3. Create sets for efficient comparison
@@ -406,9 +406,7 @@ export function useMessageOperations(topic: Topic) {
         usage
       }
 
-      await dispatch(
-        newMessagesActions.updateMessage({ topicId: topic.id, messageId: message.id, updates: messageUpdates })
-      )
+      dispatch(newMessagesActions.updateMessage({ topicId: topic.id, messageId: message.id, updates: messageUpdates }))
       // 对于message的修改会在下面的thunk中保存
       await dispatch(resendUserMessageWithEditThunk(topic.id, message, assistant))
     },

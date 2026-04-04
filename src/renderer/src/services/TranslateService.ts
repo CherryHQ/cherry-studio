@@ -9,7 +9,7 @@ import type {
   TranslateLanguage,
   TranslateLanguageCode
 } from '@renderer/types'
-import type { BlockCompleteChunk, Chunk } from '@renderer/types/chunk'
+import type { Chunk } from '@renderer/types/chunk'
 import { ChunkType } from '@renderer/types/chunk'
 import { uuid } from '@renderer/utils'
 import { readyToAbort } from '@renderer/utils/abortController'
@@ -60,7 +60,7 @@ export const translateText = async (
     } else if (chunk.type === ChunkType.TEXT_COMPLETE) {
       completed = true
     } else if (chunk.type === ChunkType.BLOCK_COMPLETE) {
-      const usage = (chunk as BlockCompleteChunk).response?.usage
+      const usage = chunk.response?.usage
       trackTokenUsage({ usage, model })
     } else if (chunk.type === ChunkType.ERROR) {
       error = chunk.error
@@ -243,7 +243,7 @@ export const updateTranslateHistory = async (id: string, update: Omit<Partial<Tr
  */
 export const deleteHistory = async (id: string) => {
   try {
-    db.translate_history.delete(id)
+    void db.translate_history.delete(id)
   } catch (e) {
     logger.error('Failed to delete translate history', e as Error)
     throw e
@@ -255,5 +255,5 @@ export const deleteHistory = async (id: string) => {
  * @returns Promise<void>
  */
 export const clearHistory = async () => {
-  db.translate_history.clear()
+  void db.translate_history.clear()
 }

@@ -8,6 +8,12 @@ import { SettingTitle } from '..'
 
 const mcpMarkets = [
   {
+    name: 'MCP World',
+    url: 'https://www.mcpworld.com',
+    logo: 'https://mcpworld.bdstatic.com/store/v2/865ad5d/mcp-server-store/ec04344/favicon.ico',
+    descriptionKey: 'settings.mcp.more.mcpworld'
+  },
+  {
     name: 'BigModel MCP Market',
     url: 'https://bigmodel.cn/marketplace/index/mcp',
     logo: ZhipuLogo,
@@ -63,7 +69,7 @@ const mcpMarkets = [
   },
   {
     name: 'Awesome MCP Servers',
-    url: 'https://github.com/punkpeye/awesome-mcp-servers',
+    url: 'https://github.com/wong2/awesome-mcp-servers',
     logo: 'https://github.githubassets.com/assets/github-logo-55c5b9a1fe52.png',
     descriptionKey: 'settings.mcp.more.awesome'
   }

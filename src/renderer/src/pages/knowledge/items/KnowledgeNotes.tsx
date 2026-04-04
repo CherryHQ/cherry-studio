@@ -86,7 +86,7 @@ const KnowledgeNotes: FC<KnowledgeContentProps> = ({ selectedBase }) => {
           icon={<PlusIcon size={16} />}
           onClick={(e) => {
             e.stopPropagation()
-            handleAddNote()
+            void handleAddNote()
           }}
           disabled={disabled}>
           {t('knowledge.add_note')}

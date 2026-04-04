@@ -29,7 +29,7 @@ jobs:
 
       - name: Detect code changes
         id: filter
-        uses: dorny/paths-filter@v3
+        uses: dorny/paths-filter@v4
         with:
           filters: |
             main:
@@ -49,6 +49,44 @@ jobs:
               - 'vitest.config.ts'
               - 'patches/**'
 
+  changeset-check:
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request' && github.event.pull_request.draft == false && github.head_ref != 'changeset-release/main'
+    steps:
+      - name: Check out Git repository
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Install Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version-file: ".node-version"
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v5
+
+      - name: Get pnpm store directory
+        id: pnpm-cache
+        shell: bash
+        run: echo "STORE_PATH=$(pnpm store path --silent)" >> $GITHUB_OUTPUT
+
+      - name: Cache pnpm dependencies
+        uses: actions/cache@v5
+        with:
+          path: ${{ steps.pnpm-cache.outputs.STORE_PATH }}
+          key: ${{ runner.os }}-pnpm-${{ hashFiles('**/pnpm-lock.yaml') }}
+          restore-keys: |
+            ${{ runner.os }}-pnpm-
+
+      - name: Install Dependencies
+        run: pnpm install
+
+      - name: Check changesets
+        env:
+          BASE_REF: ${{ github.event.pull_request.base.ref }}
+        run: pnpm changeset status --since="origin/$BASE_REF"
+
   basic-checks:
     runs-on: ubuntu-latest
     env:
@@ -65,7 +103,7 @@ jobs:
           node-version-file: ".node-version"
 
       - name: Install pnpm
-        uses: pnpm/action-setup@v4
+        uses: pnpm/action-setup@v5
 
       - name: Get pnpm store directory
         id: pnpm-cache
@@ -125,7 +163,7 @@ jobs:
           node-version-file: ".node-version"
 
       - name: Install pnpm
-        uses: pnpm/action-setup@v4
+        uses: pnpm/action-setup@v5
 
       - name: Get pnpm store directory
         id: pnpm-cache
@@ -176,7 +214,7 @@ jobs:
           node-version-file: ".node-version"
 
       - name: Install pnpm
-        uses: pnpm/action-setup@v4
+        uses: pnpm/action-setup@v5
 
       - name: Get pnpm store directory
         id: pnpm-cache
@@ -211,7 +249,7 @@ jobs:
           node-version-file: ".node-version"
 
       - name: Install pnpm
-        uses: pnpm/action-setup@v4
+        uses: pnpm/action-setup@v5
 
       - name: Get pnpm store directory
         id: pnpm-cache

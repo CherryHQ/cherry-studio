@@ -19,6 +19,13 @@ import type {
   UpdateSessionForm,
   UpdateSessionRequest
 } from '@types'
+import type {
+  CreateTaskRequest,
+  ListTaskLogsResponse,
+  ListTasksResponse,
+  ScheduledTaskEntity,
+  UpdateTaskRequest
+} from '@types'
 import {
   AgentServerErrorSchema,
   ApiModelsResponseSchema,
@@ -29,8 +36,11 @@ import {
   ListAgentSessionsResponseSchema,
   type ListAgentsResponse,
   ListAgentsResponseSchema,
+  ListTaskLogsResponseSchema,
+  ListTasksResponseSchema,
   objectEntries,
   objectKeys,
+  ScheduledTaskEntitySchema,
   UpdateAgentResponseSchema
 } from '@types'
 import type { Axios, AxiosRequestConfig } from 'axios'
@@ -87,6 +97,18 @@ export class AgentApiClient {
     base: `/${this.apiVersion}/agents/${agentId}/sessions/${sessionId}/messages`,
     withId: (id: number) => `/${this.apiVersion}/agents/${agentId}/sessions/${sessionId}/messages/${id}`
   })
+
+  public channelPaths = {
+    base: `/${this.apiVersion}/channels`,
+    withId: (id: string) => `/${this.apiVersion}/channels/${id}`
+  }
+
+  public taskPaths = {
+    base: `/${this.apiVersion}/tasks`,
+    withId: (taskId: string) => `/${this.apiVersion}/tasks/${taskId}`,
+    run: (taskId: string) => `/${this.apiVersion}/tasks/${taskId}/run`,
+    logs: (taskId: string) => `/${this.apiVersion}/tasks/${taskId}/logs`
+  }
 
   public getModelsPath = (props?: ApiModelsFilter) => {
     const base = `/${this.apiVersion}/models`
@@ -275,6 +297,128 @@ export class AgentApiClient {
       return data
     } catch (error) {
       throw processError(error, 'Failed to get models.')
+    }
+  }
+
+  // --- Task CRUD ---
+
+  public async listTasks(options?: ListOptions): Promise<ListTasksResponse> {
+    const url = this.taskPaths.base
+    try {
+      const response = await this.axios.get(url, { params: options })
+      const result = ListTasksResponseSchema.safeParse(response.data)
+      if (!result.success) {
+        throw new Error('Not a valid Tasks response.')
+      }
+      return result.data
+    } catch (error) {
+      throw processError(error, 'Failed to list tasks.')
+    }
+  }
+
+  public async createTask(agentId: string, task: CreateTaskRequest): Promise<ScheduledTaskEntity> {
+    const url = this.taskPaths.base
+    try {
+      const response = await this.axios.post(url, { agent_id: agentId, ...task })
+      const data = ScheduledTaskEntitySchema.parse(response.data)
+      return data
+    } catch (error) {
+      throw processError(error, 'Failed to create task.')
+    }
+  }
+
+  public async getTask(taskId: string): Promise<ScheduledTaskEntity> {
+    const url = this.taskPaths.withId(taskId)
+    try {
+      const response = await this.axios.get(url)
+      const data = ScheduledTaskEntitySchema.parse(response.data)
+      return data
+    } catch (error) {
+      throw processError(error, 'Failed to get task.')
+    }
+  }
+
+  public async updateTask(taskId: string, updates: UpdateTaskRequest): Promise<ScheduledTaskEntity> {
+    const url = this.taskPaths.withId(taskId)
+    try {
+      const response = await this.axios.patch(url, updates)
+      const data = ScheduledTaskEntitySchema.parse(response.data)
+      return data
+    } catch (error) {
+      throw processError(error, 'Failed to update task.')
+    }
+  }
+
+  public async deleteTask(taskId: string): Promise<void> {
+    const url = this.taskPaths.withId(taskId)
+    try {
+      await this.axios.delete(url)
+    } catch (error) {
+      throw processError(error, 'Failed to delete task.')
+    }
+  }
+
+  public async runTask(taskId: string): Promise<void> {
+    const url = this.taskPaths.run(taskId)
+    try {
+      await this.axios.post(url)
+    } catch (error) {
+      throw processError(error, 'Failed to run task.')
+    }
+  }
+
+  // --- Channel CRUD ---
+
+  public async listChannels(filters?: { agent_id?: string; type?: string }): Promise<{ data: any[]; total: number }> {
+    const url = this.channelPaths.base
+    try {
+      const response = await this.axios.get(url, { params: filters })
+      return response.data
+    } catch (error) {
+      throw processError(error, 'Failed to list channels.')
+    }
+  }
+
+  public async createChannel(data: Record<string, unknown>): Promise<any> {
+    const url = this.channelPaths.base
+    try {
+      const response = await this.axios.post(url, data)
+      return response.data
+    } catch (error) {
+      throw processError(error, 'Failed to create channel.')
+    }
+  }
+
+  public async updateChannel(id: string, data: Record<string, unknown>): Promise<any> {
+    const url = this.channelPaths.withId(id)
+    try {
+      const response = await this.axios.patch(url, data)
+      return response.data
+    } catch (error) {
+      throw processError(error, 'Failed to update channel.')
+    }
+  }
+
+  public async deleteChannel(id: string): Promise<void> {
+    const url = this.channelPaths.withId(id)
+    try {
+      await this.axios.delete(url)
+    } catch (error) {
+      throw processError(error, 'Failed to delete channel.')
+    }
+  }
+
+  public async getTaskLogs(taskId: string, options?: ListOptions): Promise<ListTaskLogsResponse> {
+    const url = this.taskPaths.logs(taskId)
+    try {
+      const response = await this.axios.get(url, { params: options })
+      const result = ListTaskLogsResponseSchema.safeParse(response.data)
+      if (!result.success) {
+        throw new Error('Not a valid TaskLogs response.')
+      }
+      return result.data
+    } catch (error) {
+      throw processError(error, 'Failed to get task logs.')
     }
   }
 }

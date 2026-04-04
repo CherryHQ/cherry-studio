@@ -9,11 +9,14 @@
 export { AgentService } from './AgentService'
 export { SessionMessageService } from './SessionMessageService'
 export { SessionService } from './SessionService'
+export { TaskService } from './TaskService'
 
 // Service instances (singletons)
 export { agentService } from './AgentService'
+export { schedulerService } from './SchedulerService'
 export { sessionMessageService } from './SessionMessageService'
 export { sessionService } from './SessionService'
+export { taskService } from './TaskService'
 
 // Type definitions for service requests and responses
 export type { AgentEntity, AgentSessionEntity, CreateAgentRequest, UpdateAgentRequest } from '@types'

@@ -199,7 +199,7 @@ const AssistantSettingsTab = (props: Props) => {
             <SettingRowTitleSmall>{t('message.message.style.label')}</SettingRowTitleSmall>
             <Selector
               value={messageStyle}
-              onChange={(value) => dispatch(setMessageStyle(value as 'plain' | 'bubble'))}
+              onChange={(value) => dispatch(setMessageStyle(value))}
               options={[
                 { value: 'plain', label: t('message.message.style.plain') },
                 { value: 'bubble', label: t('message.message.style.bubble') }
@@ -226,7 +226,7 @@ const AssistantSettingsTab = (props: Props) => {
             <SettingRowTitleSmall>{t('settings.messages.navigation.label')}</SettingRowTitleSmall>
             <Selector
               value={messageNavigation}
-              onChange={(value) => dispatch(setMessageNavigation(value as 'none' | 'buttons' | 'anchor'))}
+              onChange={(value) => dispatch(setMessageNavigation(value))}
               options={[
                 { value: 'none', label: t('settings.messages.navigation.none') },
                 { value: 'buttons', label: t('settings.messages.navigation.buttons') },
@@ -293,7 +293,7 @@ const AssistantSettingsTab = (props: Props) => {
             <SettingRowTitleSmall>{t('message.message.code_style')}</SettingRowTitleSmall>
             <Selector
               value={codeStyle}
-              onChange={(value) => onCodeStyleChange(value as CodeStyleVarious)}
+              onChange={(value) => onCodeStyleChange(value)}
               options={themeNames.map((theme) => ({
                 value: theme,
                 label: theme
