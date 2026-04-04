@@ -59,7 +59,7 @@ export function trackTokenUsage({ usage, model }: TokenUsageParams): void {
     : [usage.prompt_tokens ?? 0, usage.completion_tokens ?? 0]
 
   if (inputTokens > 0 || outputTokens > 0) {
-    window.api.analytics.trackTokenUsage({
+    void window.api.analytics.trackTokenUsage({
       provider: getProviderTrackId(model.provider),
       model: model.id,
       input_tokens: inputTokens,

@@ -1,8 +1,8 @@
 import CodeViewer from '@renderer/components/CodeViewer'
 import { getLanguageByFilePath } from '@renderer/utils/code-language'
 import type { CollapseProps } from 'antd'
-import { useMemo } from 'react'
 
+import { ClickableFilePath } from './ClickableFilePath'
 import { SkeletonValue, ToolHeader } from './GenericTools'
 import { AgentToolsType, type WriteToolInput, type WriteToolOutput } from './types'
 
@@ -12,14 +12,20 @@ export function WriteTool({
   input?: WriteToolInput
   output?: WriteToolOutput
 }): NonNullable<CollapseProps['items']>[number] {
-  const language = useMemo(() => getLanguageByFilePath(input?.file_path ?? ''), [input?.file_path])
+  const filename = input?.file_path?.split('/').pop()
+  const language = getLanguageByFilePath(input?.file_path ?? '')
 
   return {
     key: AgentToolsType.Write,
     label: (
       <ToolHeader
         toolName={AgentToolsType.Write}
-        params={<SkeletonValue value={input?.file_path} width="200px" />}
+        params={
+          <SkeletonValue
+            value={input?.file_path ? <ClickableFilePath path={input.file_path} displayName={filename} /> : undefined}
+            width="200px"
+          />
+        }
         variant="collapse-label"
         showStatus={false}
       />
@@ -28,8 +34,9 @@ export function WriteTool({
       <CodeViewer
         value={input.content ?? ''}
         language={language}
-        maxHeight={240}
         expanded={false}
+        wrapped={false}
+        maxHeight={240}
         options={{ lineNumbers: true }}
       />
     ) : (

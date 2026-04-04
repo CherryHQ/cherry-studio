@@ -68,6 +68,9 @@ type CallToolArgs = { server: MCPServer; name: string; args: any; callId?: strin
 
 const logger = loggerService.withContext('MCPService')
 
+/** Timeout for MCP server connection (transport init + client connect), in milliseconds. */
+const MCP_CONNECTION_TIMEOUT_MS = 60_000
+
 // Redact potentially sensitive fields in objects (headers, tokens, api keys)
 function redactSensitive(input: any): any {
   const SENSITIVE_KEYS = ['authorization', 'Authorization', 'apiKey', 'api_key', 'apikey', 'token', 'access_token']
@@ -312,9 +315,16 @@ class McpService {
         > => {
           // Create appropriate transport based on configuration
 
-          // Special case for nowledgeMem - uses HTTP transport instead of in-memory
-          if (isBuiltinMCPServer(server) && server.name === BuiltinMCPServerNames.nowledgeMem) {
-            const nowledgeMemUrl = 'http://127.0.0.1:14242/mcp'
+          // Special case for nowledgeMem and flomo - uses HTTP transport instead of in-memory
+          if (
+            isBuiltinMCPServer(server) &&
+            (server.name === BuiltinMCPServerNames.nowledgeMem || server.name === BuiltinMCPServerNames.flomo)
+          ) {
+            const httpUrlMap: Record<string, string> = {
+              [BuiltinMCPServerNames.nowledgeMem]: 'http://127.0.0.1:14242/mcp',
+              [BuiltinMCPServerNames.flomo]: 'https://flomoapp.com/mcp'
+            }
+            const httpUrl = httpUrlMap[server.name]
             const options: StreamableHTTPClientTransportOptions = {
               fetch: async (url, init) => {
                 return net.fetch(typeof url === 'string' ? url : url.toString(), init)
@@ -328,7 +338,7 @@ class McpService {
               authProvider
             }
             getServerLogger(server).debug(`Using StreamableHTTPClientTransport for ${server.name}`)
-            return new StreamableHTTPClientTransport(new URL(nowledgeMemUrl), options)
+            return new StreamableHTTPClientTransport(new URL(httpUrl), options)
           }
 
           if (isBuiltinMCPServer(server) && server.name !== BuiltinMCPServerNames.mcpAutoInstall) {
@@ -360,7 +370,7 @@ class McpService {
               getServerLogger(server).debug(`StreamableHTTPClientTransport options`, {
                 options: redactSensitive(options)
               })
-              return new StreamableHTTPClientTransport(new URL(server.baseUrl!), options)
+              return new StreamableHTTPClientTransport(new URL(server.baseUrl), options)
             } else if (server.type === 'sse') {
               const options: SSEClientTransportOptions = {
                 eventSourceInit: {
@@ -373,7 +383,7 @@ class McpService {
                 },
                 authProvider
               }
-              return new SSEClientTransport(new URL(server.baseUrl!), options)
+              return new SSEClientTransport(new URL(server.baseUrl), options)
             } else {
               throw new Error('Invalid server type')
             }
@@ -555,7 +565,7 @@ class McpService {
           // Set a timeout to close the callback server
           const timeoutId = setTimeout(() => {
             getServerLogger(server).warn(`OAuth flow timed out`)
-            callbackServer.close()
+            void callbackServer.close()
           }, 300000) // 5 minutes timeout
 
           try {
@@ -581,25 +591,37 @@ class McpService {
           } finally {
             // Clear the timeout and close the callback server
             clearTimeout(timeoutId)
-            callbackServer.close()
+            void callbackServer.close()
           }
         }
 
         try {
-          const transport = await initTransport()
-          try {
-            await client.connect(transport)
-          } catch (error: any) {
-            if (
-              error instanceof Error &&
-              (error.name === 'UnauthorizedError' || error.message.includes('Unauthorized'))
-            ) {
-              logger.debug(`Authentication required for server: ${server.name}`)
-              await handleAuth(client, transport as SSEClientTransport | StreamableHTTPClientTransport)
-            } else {
-              throw error
+          const connectWithTimeout = async () => {
+            const transport = await initTransport()
+            try {
+              await client.connect(transport)
+            } catch (error: any) {
+              if (
+                error instanceof Error &&
+                (error.name === 'UnauthorizedError' || error.message.includes('Unauthorized'))
+              ) {
+                logger.debug(`Authentication required for server: ${server.name}`)
+                await handleAuth(client, transport as SSEClientTransport | StreamableHTTPClientTransport)
+              } else {
+                throw error
+              }
             }
           }
+
+          await Promise.race([
+            connectWithTimeout(),
+            new Promise<never>((_, reject) =>
+              setTimeout(
+                () => reject(new Error(`Connection timed out after ${MCP_CONNECTION_TIMEOUT_MS / 1000}s`)),
+                MCP_CONNECTION_TIMEOUT_MS
+              )
+            )
+          ])
 
           this.emitServerLog(server, {
             timestamp: Date.now(),
