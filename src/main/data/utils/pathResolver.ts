@@ -44,13 +44,26 @@ export function resolvePhysicalPath(node: PathResolvableNode, mount: MountInfo, 
     throw new Error(`Mount for node ${node.id} has no provider config`)
   }
 
+  // Reject null bytes in any user-controlled path segments
+  if (node.name.includes('\0') || (node.ext && node.ext.includes('\0'))) {
+    throw new Error('Node name or extension contains null bytes')
+  }
+  if (ancestorNames?.some((n) => n.includes('\0'))) {
+    throw new Error('Ancestor names contain null bytes')
+  }
+
   switch (config.provider_type) {
-    case 'local_managed':
-      return path.join(config.base_path, `${node.id}${getExtSuffix(node.ext)}`)
+    case 'local_managed': {
+      const resolved = path.resolve(config.base_path, `${node.id}${getExtSuffix(node.ext)}`)
+      assertPathContained(resolved, config.base_path)
+      return resolved
+    }
 
     case 'local_external': {
       const segments = ancestorNames ?? []
-      return path.join(config.base_path, ...segments, `${node.name}${getExtSuffix(node.ext)}`)
+      const resolved = path.resolve(config.base_path, ...segments, `${node.name}${getExtSuffix(node.ext)}`)
+      assertPathContained(resolved, config.base_path)
+      return resolved
     }
 
     case 'system':
@@ -58,5 +71,16 @@ export function resolvePhysicalPath(node: PathResolvableNode, mount: MountInfo, 
 
     case 'remote':
       throw new Error('Remote path resolution is not yet implemented')
+  }
+}
+
+/**
+ * Assert that a resolved path stays within the base directory.
+ * Prevents path traversal attacks via '..' segments or symlink tricks.
+ */
+function assertPathContained(resolved: string, basePath: string): void {
+  const base = path.resolve(basePath)
+  if (!resolved.startsWith(base + path.sep) && resolved !== base) {
+    throw new Error('Path traversal detected: resolved path escapes base_path')
   }
 }
