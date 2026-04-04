@@ -197,8 +197,8 @@ export type FileNode = z.infer<typeof FileNodeSchema>
 export const FileRefSchema = z.object({
   /** Reference ID (UUID v4) */
   id: z.uuidv4(),
-  /** Referenced file node ID */
-  nodeId: z.uuidv7(),
+  /** Referenced file node ID (UUID v7 or system node ID) */
+  nodeId: NodeIdSchema,
   /** Business source type (e.g. 'chat_message', 'knowledge_item', 'painting') */
   sourceType: z.string().min(1),
   /** Business object ID (polymorphic, no FK constraint) */
