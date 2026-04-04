@@ -114,5 +114,5 @@ export async function createOpenAICompatibleExecutor(
   return RuntimeExecutor.createOpenAICompatible(provider, options, plugins)
 }
 
-// === Agent 功能 ===
+// === Agent ===
 export { createAgent, type CreateAgentOptions } from '../agents'
