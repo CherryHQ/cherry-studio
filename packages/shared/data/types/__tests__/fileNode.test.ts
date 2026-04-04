@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import { CreateNodeDtoSchema, FileNodeSchema, UpdateNodeDtoSchema } from '../fileNode'
+import { CreateNodeDtoSchema, FileNodeSchema, NodeIdSchema, UpdateNodeDtoSchema } from '../fileNode'
 
 /**
  * Helper to build a minimal valid file node for testing name validation.
@@ -160,5 +160,213 @@ describe('SafeNameSchema validation', () => {
       const result = UpdateNodeDtoSchema.safeParse({ name: '..' })
       expect(result.success).toBe(false)
     })
+  })
+})
+
+// ─── Helpers for type invariant / trash tests ───
+
+const VALID_UUID_V7 = '019606a0-0000-7000-8000-000000000001'
+const VALID_UUID_V7_2 = '019606a0-0000-7000-8000-000000000002'
+const VALID_UUID_V7_3 = '019606a0-0000-7000-8000-000000000003'
+const TS = 1700000000000
+
+function makeMount(overrides: Record<string, unknown> = {}) {
+  return {
+    id: 'mount_files',
+    type: 'mount',
+    name: 'Files',
+    ext: null,
+    parentId: null,
+    mountId: 'mount_files',
+    size: null,
+    providerConfig: { providerType: 'local_managed', basePath: '/data/files' },
+    isReadonly: false,
+    remoteId: null,
+    cachedAt: null,
+    previousParentId: null,
+    createdAt: TS,
+    updatedAt: TS,
+    ...overrides
+  }
+}
+
+function makeDir(overrides: Record<string, unknown> = {}) {
+  return {
+    id: VALID_UUID_V7,
+    type: 'dir',
+    name: 'docs',
+    ext: null,
+    parentId: VALID_UUID_V7_2,
+    mountId: VALID_UUID_V7_3,
+    size: null,
+    providerConfig: null,
+    isReadonly: false,
+    remoteId: null,
+    cachedAt: null,
+    previousParentId: null,
+    createdAt: TS,
+    updatedAt: TS,
+    ...overrides
+  }
+}
+
+function makeFile(overrides: Record<string, unknown> = {}) {
+  return {
+    id: VALID_UUID_V7,
+    type: 'file',
+    name: 'readme',
+    ext: 'md',
+    parentId: VALID_UUID_V7_2,
+    mountId: VALID_UUID_V7_3,
+    size: 1024,
+    providerConfig: null,
+    isReadonly: false,
+    remoteId: null,
+    cachedAt: null,
+    previousParentId: null,
+    createdAt: TS,
+    updatedAt: TS,
+    ...overrides
+  }
+}
+
+describe('FileNodeSchema type invariants', () => {
+  describe('mount', () => {
+    it('accepts a valid mount node', () => {
+      expect(FileNodeSchema.safeParse(makeMount()).success).toBe(true)
+    })
+
+    it('rejects mount with non-null parentId', () => {
+      const result = FileNodeSchema.safeParse(makeMount({ parentId: VALID_UUID_V7 }))
+      expect(result.success).toBe(false)
+      expect(result.error?.issues.some((i) => i.path.includes('parentId'))).toBe(true)
+    })
+
+    it('rejects mount with mountId ≠ own id', () => {
+      const result = FileNodeSchema.safeParse(makeMount({ mountId: VALID_UUID_V7 }))
+      expect(result.success).toBe(false)
+      expect(result.error?.issues.some((i) => i.path.includes('mountId'))).toBe(true)
+    })
+
+    it('rejects mount with null providerConfig', () => {
+      const result = FileNodeSchema.safeParse(makeMount({ providerConfig: null }))
+      expect(result.success).toBe(false)
+      expect(result.error?.issues.some((i) => i.path.includes('providerConfig'))).toBe(true)
+    })
+
+    it('rejects mount with non-null ext', () => {
+      const result = FileNodeSchema.safeParse(makeMount({ ext: 'txt' }))
+      expect(result.success).toBe(false)
+      expect(result.error?.issues.some((i) => i.path.includes('ext'))).toBe(true)
+    })
+
+    it('rejects mount with non-null remoteId', () => {
+      const result = FileNodeSchema.safeParse(makeMount({ remoteId: 'file-123' }))
+      expect(result.success).toBe(false)
+      expect(result.error?.issues.some((i) => i.path.includes('remoteId'))).toBe(true)
+    })
+
+    it('rejects mount with non-null cachedAt', () => {
+      const result = FileNodeSchema.safeParse(makeMount({ cachedAt: TS }))
+      expect(result.success).toBe(false)
+      expect(result.error?.issues.some((i) => i.path.includes('cachedAt'))).toBe(true)
+    })
+  })
+
+  describe('dir', () => {
+    it('accepts a valid dir node', () => {
+      expect(FileNodeSchema.safeParse(makeDir()).success).toBe(true)
+    })
+
+    it('rejects dir with null parentId', () => {
+      const result = FileNodeSchema.safeParse(makeDir({ parentId: null }))
+      expect(result.success).toBe(false)
+      expect(result.error?.issues.some((i) => i.path.includes('parentId'))).toBe(true)
+    })
+
+    it('rejects dir with non-null providerConfig', () => {
+      const result = FileNodeSchema.safeParse(
+        makeDir({ providerConfig: { providerType: 'local_managed', basePath: '/x' } })
+      )
+      expect(result.success).toBe(false)
+      expect(result.error?.issues.some((i) => i.path.includes('providerConfig'))).toBe(true)
+    })
+
+    it('rejects dir with non-null remoteId', () => {
+      const result = FileNodeSchema.safeParse(makeDir({ remoteId: 'file-123' }))
+      expect(result.success).toBe(false)
+      expect(result.error?.issues.some((i) => i.path.includes('remoteId'))).toBe(true)
+    })
+
+    it('rejects dir with non-null cachedAt', () => {
+      const result = FileNodeSchema.safeParse(makeDir({ cachedAt: TS }))
+      expect(result.success).toBe(false)
+      expect(result.error?.issues.some((i) => i.path.includes('cachedAt'))).toBe(true)
+    })
+  })
+
+  describe('file', () => {
+    it('accepts a valid file node', () => {
+      expect(FileNodeSchema.safeParse(makeFile()).success).toBe(true)
+    })
+
+    it('rejects file with null parentId', () => {
+      const result = FileNodeSchema.safeParse(makeFile({ parentId: null }))
+      expect(result.success).toBe(false)
+      expect(result.error?.issues.some((i) => i.path.includes('parentId'))).toBe(true)
+    })
+
+    it('rejects file with non-null providerConfig', () => {
+      const result = FileNodeSchema.safeParse(
+        makeFile({ providerConfig: { providerType: 'local_managed', basePath: '/x' } })
+      )
+      expect(result.success).toBe(false)
+      expect(result.error?.issues.some((i) => i.path.includes('providerConfig'))).toBe(true)
+    })
+  })
+})
+
+describe('FileNodeSchema trash invariants', () => {
+  it('accepts valid trashed node (parentId=system_trash + previousParentId set)', () => {
+    const result = FileNodeSchema.safeParse(makeFile({ parentId: 'system_trash', previousParentId: VALID_UUID_V7_2 }))
+    expect(result.success).toBe(true)
+  })
+
+  it('accepts valid active node (no previousParentId)', () => {
+    const result = FileNodeSchema.safeParse(makeFile({ previousParentId: null }))
+    expect(result.success).toBe(true)
+  })
+
+  it('rejects trashed node without previousParentId', () => {
+    const result = FileNodeSchema.safeParse(makeFile({ parentId: 'system_trash', previousParentId: null }))
+    expect(result.success).toBe(false)
+    expect(result.error?.issues.some((i) => i.path.includes('previousParentId'))).toBe(true)
+  })
+
+  it('rejects previousParentId set on non-trashed node', () => {
+    const result = FileNodeSchema.safeParse(makeFile({ previousParentId: VALID_UUID_V7_2 }))
+    expect(result.success).toBe(false)
+    expect(result.error?.issues.some((i) => i.path.includes('previousParentId'))).toBe(true)
+  })
+})
+
+describe('NodeIdSchema', () => {
+  it('accepts UUID v7', () => {
+    expect(NodeIdSchema.safeParse('019606a0-0000-7000-8000-000000000001').success).toBe(true)
+  })
+
+  it('accepts system node IDs', () => {
+    expect(NodeIdSchema.safeParse('mount_files').success).toBe(true)
+    expect(NodeIdSchema.safeParse('mount_notes').success).toBe(true)
+    expect(NodeIdSchema.safeParse('system_trash').success).toBe(true)
+  })
+
+  it('rejects UUID v4', () => {
+    expect(NodeIdSchema.safeParse('550e8400-e29b-41d4-a716-446655440000').success).toBe(false)
+  })
+
+  it('rejects random strings', () => {
+    expect(NodeIdSchema.safeParse('not-a-valid-id').success).toBe(false)
+    expect(NodeIdSchema.safeParse('').success).toBe(false)
   })
 })
