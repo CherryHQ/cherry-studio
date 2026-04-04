@@ -30,7 +30,7 @@ const LanguageSelect = (props: Props) => {
           <span role="img" aria-label={lang.emoji} style={{ marginRight: 8 }}>
             {lang.emoji}
           </span>
-          {getLabel(lang)}
+          {getLabel(lang, false)}
         </Space.Compact>
       )
     },
