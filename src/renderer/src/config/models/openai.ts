@@ -1,10 +1,10 @@
 import type { Model } from '@renderer/types'
-import { getLowerBaseModelName } from '@renderer/utils'
+import { getLowerBaseModelName } from '@renderer/utils/naming'
 
 export const OPENAI_NO_SUPPORT_DEV_ROLE_MODELS = ['o1-preview', 'o1-mini']
 
 // Excludes known image models from isOpenAIModel.
-export function isOpenAILLMModel(model: Model): boolean {
+export function isOpenAILLMModel(model?: Model): boolean {
   if (!model) {
     return false
   }
@@ -117,7 +117,7 @@ export function isSupportNoneReasoningEffortModel(model: Model): boolean {
   )
 }
 
-export function isOpenAIChatCompletionOnlyModel(model: Model): boolean {
+export function isOpenAIChatCompletionOnlyModel(model?: Model): boolean {
   if (!model) {
     return false
   }

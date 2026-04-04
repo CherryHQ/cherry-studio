@@ -9,3 +9,4 @@ vercel-react-best-practices
 v2-migrator
 v2-data-api
 v2-renderer
+cherry-pr-test

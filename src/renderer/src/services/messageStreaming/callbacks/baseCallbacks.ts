@@ -21,7 +21,8 @@ import i18n from '@renderer/i18n'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import { notificationService } from '@renderer/services/NotificationService'
 import { estimateMessagesUsage } from '@renderer/services/TokenService'
-import store from '@renderer/store'
+import store from '@renderer/store/'
+import { isTodoWriteBlock } from '@renderer/store/messageBlock'
 import { toolPermissionsActions } from '@renderer/store/toolPermissions'
 import type { Assistant } from '@renderer/types'
 import { ERROR_I18N_KEY_REQUEST_TIMEOUT, ERROR_I18N_KEY_STREAM_PAUSED } from '@renderer/types/error'
@@ -83,6 +84,44 @@ export const createBaseCallbacks = (deps: BaseCallbacksDependencies) => {
 
     // Priority 3: Initial placeholder block
     return blockManager.initialPlaceholderBlockId
+  }
+
+  /**
+   * Mark in_progress todos as completed when stream ends,
+   * since the model will no longer update them.
+   */
+  const cleanupInProgressTodos = (): string[] => {
+    const currentMessage = streamingService.getMessage(assistantMsgId)
+    if (!currentMessage) return []
+
+    const allBlockRefs = findAllBlocks(currentMessage)
+    const cleanedBlockIds: string[] = []
+
+    for (const blockRef of allBlockRefs) {
+      const block = streamingService.getBlock(blockRef.id) ?? undefined
+      if (!isTodoWriteBlock(block)) continue
+
+      const toolResponse = block.metadata.rawMcpToolResponse
+      const todos = toolResponse.arguments.todos
+      if (!todos.some((todo) => todo.status === 'in_progress')) continue
+
+      const updatedTodos = todos.map((todo) =>
+        todo.status === 'in_progress' ? { ...todo, status: 'completed' as const } : todo
+      )
+
+      streamingService.updateBlock(block.id, {
+        metadata: {
+          ...block.metadata,
+          rawMcpToolResponse: {
+            ...toolResponse,
+            arguments: { todos: updatedTodos }
+          }
+        }
+      })
+      cleanedBlockIds.push(block.id)
+    }
+
+    return cleanedBlockIds
   }
 
   return {
@@ -215,8 +254,13 @@ export const createBaseCallbacks = (deps: BaseCallbacksDependencies) => {
       // Preserve 'invoking' entries as they may belong to concurrent streams.
       store.dispatch(toolPermissionsActions.clearPending())
 
+      // Mark in_progress todos as completed since stream ended
+      cleanupInProgressTodos()
+
       // Create error block
-      const errorBlock = createErrorBlock(assistantMsgId, serializableError, { status: MessageBlockStatus.SUCCESS })
+      const errorBlock = createErrorBlock(assistantMsgId, serializableError, {
+        status: MessageBlockStatus.SUCCESS
+      })
       await blockManager.handleBlockTransition(errorBlock, MessageBlockType.ERROR)
       const messageErrorUpdate = {
         status: isErrorTypeAbort ? AssistantMessageStatus.SUCCESS : AssistantMessageStatus.ERROR
@@ -291,7 +335,10 @@ export const createBaseCallbacks = (deps: BaseCallbacksDependencies) => {
           if (task?.contextMessages && task.contextMessages.length > 0) {
             // Include the final assistant message in context for accurate estimation
             const finalContextWithAssistant = [...task.contextMessages, finalAssistantMsg]
-            const usage = await estimateMessagesUsage({ assistant, messages: finalContextWithAssistant })
+            const usage = await estimateMessagesUsage({
+              assistant,
+              messages: finalContextWithAssistant
+            })
             response.usage = usage
           } else {
             logger.debug('Skipping usage estimation - contextMessages not available in task')
@@ -312,6 +359,9 @@ export const createBaseCallbacks = (deps: BaseCallbacksDependencies) => {
         }
       }
 
+      // Mark in_progress todos as completed since stream ended
+      cleanupInProgressTodos()
+
       // Update message with final stats before finalize
       if (response) {
         streamingService.updateMessage(assistantMsgId, {
@@ -328,7 +378,11 @@ export const createBaseCallbacks = (deps: BaseCallbacksDependencies) => {
         trackTokenUsage({ usage: response?.usage, model: assistant?.model })
       }
 
-      void EventEmitter.emit(EVENT_NAMES.MESSAGE_COMPLETE, { id: assistantMsgId, topicId, status })
+      void EventEmitter.emit(EVENT_NAMES.MESSAGE_COMPLETE, {
+        id: assistantMsgId,
+        topicId,
+        status
+      })
       logger.debug('onComplete finished')
     }
   }

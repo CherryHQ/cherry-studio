@@ -24,8 +24,8 @@ import type {
   TranslateAssistant,
   TranslateLanguageVo
 } from '@renderer/types'
-import { uuid } from '@renderer/utils'
 import type { CreateTopicDto } from '@shared/data/api/schemas/topics'
+import { v4 as uuid } from 'uuid'
 
 const logger = loggerService.withContext('AssistantService')
 

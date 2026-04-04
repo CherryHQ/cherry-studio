@@ -458,6 +458,7 @@ export class CdpBrowserController {
         sandbox: true,
         nodeIntegration: false,
         devTools: true,
+        backgroundThrottling: false,
         partition
       }
     })
@@ -793,7 +794,8 @@ export class CdpBrowserController {
     timeout = 10000,
     privateMode = false,
     newTab = false,
-    showWindow = false
+    showWindow = false,
+    selector?: string
   ): Promise<{ tabId: string; content: string | object }> {
     const { tabId } = await this.open(url, timeout, privateMode, newTab, showWindow)
 
@@ -804,10 +806,16 @@ export class CdpBrowserController {
     await this.ensureDebuggerAttached(dbg, windowKey)
 
     let expression: string
+    const root = selector
+      ? `(document.querySelector(${JSON.stringify(selector)}) || document.body)`
+      : format === 'json' || format === 'txt'
+        ? 'document.body'
+        : 'document.documentElement'
+
     if (format === 'json' || format === 'txt') {
-      expression = 'document.body.innerText'
+      expression = `${root}.innerText`
     } else {
-      expression = 'document.documentElement.outerHTML'
+      expression = `${root}.outerHTML`
     }
 
     let timeoutHandle: ReturnType<typeof setTimeout> | undefined
@@ -846,6 +854,38 @@ export class CdpBrowserController {
     } finally {
       if (timeoutHandle) clearTimeout(timeoutHandle)
     }
+  }
+
+  /**
+   * Takes a screenshot of the current page using CDP Page.captureScreenshot.
+   * @param options - Screenshot options
+   * @param privateMode - If true, targets private window (default: false)
+   * @param tabId - Optional specific tab ID to target
+   * @returns Base64-encoded image data
+   */
+  public async screenshot(
+    options: { fullPage?: boolean; format?: 'png' | 'jpeg'; quality?: number } = {},
+    privateMode = false,
+    tabId?: string
+  ): Promise<string> {
+    const { tabId: actualTabId, tab } = await this.getTab(privateMode, tabId)
+    const windowKey = this.getWindowKey(privateMode)
+    this.touchTab(windowKey, actualTabId)
+    const dbg = tab.view.webContents.debugger
+
+    await this.ensureDebuggerAttached(dbg, windowKey)
+
+    const format = options.format ?? 'png'
+    const params: Record<string, unknown> = {
+      format,
+      captureBeyondViewport: options.fullPage ?? false
+    }
+    if (format === 'jpeg' && options.quality !== undefined) {
+      params.quality = options.quality
+    }
+
+    const result = (await dbg.sendCommand('Page.captureScreenshot', params)) as { data: string }
+    return result.data
   }
 
   /**

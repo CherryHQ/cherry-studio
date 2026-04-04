@@ -28,6 +28,249 @@
       "submit": "Submit",
       "title": "Questions from Agent"
     },
+    "cherryClaw": {
+      "channels": {
+        "add": "Add",
+        "bindAgent": "Bind Agent",
+        "chatIdsAutoTrackHint": "When left empty, the system will auto-track: you need to send a message to the Bot on the platform first, then the system will record the Chat ID for future notifications.",
+        "comingSoon": "Coming soon",
+        "connected": "Connected",
+        "connecting": "Connecting",
+        "deleteConfirm": "Delete channel \"{{name}}\"?",
+        "description": "Connect your agent to messaging platforms.",
+        "disconnected": "Disconnected",
+        "discord": {
+          "botToken": "Bot Token",
+          "botTokenPlaceholder": "Enter your Discord bot token",
+          "channelIds": "Allowed Channel IDs",
+          "channelIdsHint": "Format: channel:id or dm:id. Leave empty to allow all.",
+          "channelIdsPlaceholder": "channel:123456789, dm:987654321",
+          "description": "Receive and respond to messages via a Discord bot using WebSocket gateway.",
+          "title": "Discord",
+          "whoamiTip": "💡 Tip: Send /whoami to the bot to get your channel ID in the correct format."
+        },
+        "error": "Error",
+        "feishu": {
+          "appId": "App ID",
+          "appIdPlaceholder": "Enter your Feishu app ID",
+          "appSecret": "App Secret",
+          "appSecretPlaceholder": "Enter your Feishu app secret",
+          "chatIds": "Allowed Chat IDs",
+          "chatIdsHint": "Comma-separated chat IDs. Leave empty to allow all chats.",
+          "chatIdsPlaceholder": "oc_xxxxx, oc_yyyyy",
+          "connected": "Connected",
+          "description": "Receive and respond to messages via a Feishu/Lark bot using WebSocket.",
+          "domain": "Domain",
+          "domainFeishu": "Feishu (China)",
+          "domainLark": "Lark (International)",
+          "encryptKey": "Encrypt Key",
+          "encryptKeyPlaceholder": "Enter the Encrypt Key from your Feishu app",
+          "loginHint": "No credentials configured. Enable the channel to start QR code registration, or enter App ID and App Secret manually.",
+          "qrExpired": "QR code expired. Please retry by toggling the channel.",
+          "qrHint": "Waiting for QR code scan...",
+          "qrScanHint": "Open Feishu on your phone and scan the QR code to create a bot app.",
+          "qrTitle": "Feishu QR Registration",
+          "title": "Feishu",
+          "verificationToken": "Verification Token",
+          "verificationTokenPlaceholder": "Enter the Verification Token from your Feishu app"
+        },
+        "logs": "Logs",
+        "noInstances": "No {{type}} channels configured. Click \"+ Add\" to create one.",
+        "noLogs": "No logs yet",
+        "notifyReceiver": "Receive task notifications",
+        "notifyReceiverHint": "Send scheduler task results to this channel.",
+        "qq": {
+          "appId": "App ID",
+          "appIdPlaceholder": "Enter your QQ Bot App ID",
+          "chatIds": "Allowed Chat IDs",
+          "chatIdsHint": "Format: c2c:openid, group:groupid, channel:channelid. Leave empty to allow all.",
+          "chatIdsPlaceholder": "c2c:abc123, group:xyz789",
+          "clientSecret": "Client Secret",
+          "clientSecretPlaceholder": "Enter your QQ Bot client secret",
+          "description": "Receive and respond to messages via QQ Bot official API.",
+          "title": "QQ",
+          "whoamiTip": "💡 Tip: Send /whoami to the bot to get your chat ID in the correct format."
+        },
+        "security": {
+          "inheritFromAgent": "Inherit from agent",
+          "permissionMode": "Channel Permission Mode",
+          "permissionModeHint": "Override the agent's permission mode for messages from this channel. \"Inherit\" uses the agent's default."
+        },
+        "selectAgent": "Select an agent to bind",
+        "slack": {
+          "appToken": "App-Level Token",
+          "appTokenPlaceholder": "xapp-...",
+          "botToken": "Bot Token",
+          "botTokenPlaceholder": "xoxb-...",
+          "channelIds": "Allowed Channel IDs",
+          "channelIdsHint": "Slack channel IDs. Leave empty to allow all.",
+          "channelIdsPlaceholder": "C01234567, D89012345",
+          "description": "Receive and respond to messages via a Slack bot using Socket Mode.",
+          "title": "Slack",
+          "whoamiTip": "💡 Tip: Send /whoami to the bot to get the channel ID."
+        },
+        "soulModeRequired": "This agent does not have Autonomous Mode enabled. Channel features will not work. Please enable it in agent settings.",
+        "tab": "Channels",
+        "telegram": {
+          "botToken": "Bot Token",
+          "botTokenPlaceholder": "Enter your Telegram bot token",
+          "chatIds": "Allowed Chat IDs",
+          "chatIdsHint": "Comma-separated. Leave empty to allow all chats.",
+          "chatIdsPlaceholder": "123456789, 987654321",
+          "description": "Receive and respond to messages via a Telegram bot using long polling.",
+          "title": "Telegram"
+        },
+        "title": "Channels",
+        "wechat": {
+          "addAccount": "Add WeChat Account",
+          "chatIds": "Allowed User IDs",
+          "chatIdsHint": "Comma-separated. Leave empty to allow all users.",
+          "chatIdsPlaceholder": "wxid_abc123, wxid_def456",
+          "connected": "Logged in",
+          "description": "Receive and respond to messages via WeChat using the iLink Bot API.",
+          "disconnected": "Not logged in",
+          "loginHint": "First login requires scanning a QR code. A QR code will appear automatically when the channel connects.",
+          "qrHint": "Open WeChat on your phone, scan the QR code to log in.",
+          "qrTitle": "WeChat QR Login",
+          "title": "WeChat",
+          "whoamiTip": "Tip: Send /whoami in WeChat to get a user's ID."
+        }
+      },
+      "heartbeat": {
+        "enabled": "Enable Heartbeat",
+        "enabledHelper": "When enabled and heartbeat.md exists in the workspace, the scheduler reads its content and sends it to the main session at the configured interval.",
+        "interval": "Interval (minutes)",
+        "intervalHelper": "How often the heartbeat runs, in minutes."
+      },
+      "sandbox": {
+        "description": "Restricts the agent's filesystem and network access to the workspace directory using OS-level sandboxing.",
+        "helper": "Restrict filesystem and command access to the workspace path.",
+        "label": "Sandbox Mode"
+      },
+      "scheduler": {
+        "cron": {
+          "helper": "Standard cron expression (e.g., '*/30 * * * *' for every 30 minutes).",
+          "label": "Cron Expression",
+          "placeholder": "*/30 * * * *"
+        },
+        "description": "The scheduler triggers the agent autonomously on a schedule.",
+        "enabled": "Enable Scheduler",
+        "enabledHelper": "When enabled, the agent will run automatically based on the configured schedule.",
+        "errors": {
+          "invalidCron": "Invalid cron expression",
+          "invalidDelay": "Delay must be a positive number",
+          "invalidInterval": "Interval must be a positive number"
+        },
+        "interval": {
+          "helper": "How often the agent should run, in seconds.",
+          "label": "Interval (seconds)"
+        },
+        "lastRun": "Last Run",
+        "never": "Never",
+        "nextRun": "Next Run",
+        "oneTime": {
+          "helper": "One-time delay in seconds before the agent runs.",
+          "label": "Delay (seconds)"
+        },
+        "status": {
+          "running": "Running",
+          "stopped": "Stopped",
+          "tickInProgress": "Tick in progress"
+        },
+        "tab": "Scheduler",
+        "title": "Scheduler Configuration",
+        "type": {
+          "cron": "Cron Expression",
+          "interval": "Fixed Interval",
+          "label": "Schedule Type",
+          "one-time": "One-Time Delay"
+        }
+      },
+      "soul": {
+        "description": "The soul defines the agent's personality and base behavior. It is read from soul.md in the workspace root.",
+        "empty": "No soul.md found in the workspace root. Create one to define the agent's personality.",
+        "enabled": "Enable Soul",
+        "enabledHelper": "When enabled, the agent reads soul.md from the workspace root and prepends it to the system prompt.",
+        "fileLabel": "soul.md",
+        "preview": "Soul Preview",
+        "tab": "Soul",
+        "title": "Soul Configuration"
+      },
+      "tasks": {
+        "add": "Add Task",
+        "cancel": "Cancel",
+        "channels": {
+          "label": "Send to Channels",
+          "noActiveChatIds": "The selected channels have no available recipients (Chat ID). Task results may not be delivered. Please send a message to the Bot on the platform first.",
+          "placeholder": "Select channels to receive results"
+        },
+        "cronPlaceholder": "e.g. 0 9 * * * (every day at 9 AM)",
+        "delete": {
+          "confirm": "Are you sure you want to delete this task?",
+          "label": "Delete"
+        },
+        "edit": "Edit",
+        "empty": "No scheduled tasks. Add one to get started.",
+        "intervalPlaceholder": "Interval in minutes",
+        "intervalUnit": "minutes",
+        "lastRun": "Last Run",
+        "logs": {
+          "duration": "Duration",
+          "empty": "No run history yet.",
+          "error": "Error",
+          "justNow": "just now",
+          "label": "Run History",
+          "result": "Result",
+          "runAt": "Run At",
+          "running": "Running...",
+          "search": "Search logs...",
+          "status": "Status",
+          "success": "Success",
+          "viewSession": "View session"
+        },
+        "name": {
+          "label": "Name",
+          "placeholder": "e.g. Daily code review"
+        },
+        "nextRun": "Next Run",
+        "oncePlaceholder": "Select date and time",
+        "pause": "Pause",
+        "prompt": {
+          "expand": "Expand editor",
+          "label": "Prompt",
+          "placeholder": "What should the agent do when this task runs?"
+        },
+        "resume": "Resume",
+        "run": "Run",
+        "runTriggered": "Task triggered",
+        "save": "Save",
+        "scheduleType": {
+          "cron": "Cron",
+          "interval": "Interval",
+          "label": "Schedule Type",
+          "once": "Once"
+        },
+        "scheduleValue": "Schedule Value",
+        "status": {
+          "active": "Active",
+          "completed": "Completed",
+          "paused": "Paused"
+        },
+        "tab": "Tasks",
+        "time": {
+          "hoursAgo": "{{count}}h ago",
+          "minutesAgo": "{{count}}m ago"
+        },
+        "timeout": {
+          "label": "Timeout",
+          "placeholder": "No limit"
+        },
+        "title": "Scheduled Tasks"
+      },
+      "warning": {
+        "bypassPermissions": "CherryClaw agents run with Full Auto Mode by default. All tools execute without asking for approval."
+      }
+    },
     "delete": {
       "content": "Deleting the agent will forcibly stop and delete all sessions associated with the agent. Are you sure?",
       "error": {
@@ -76,7 +319,8 @@
       "tooltip": "Git Bash is required to run agents on Windows. Install from git-scm.com if not available."
     },
     "input": {
-      "placeholder": "Enter your message here, send with {{key}} - @ select path, / select command"
+      "placeholder": "Enter your message here, send with {{key}} - @ select path, / select command",
+      "soul_placeholder": "Help me connect to Telegram"
     },
     "list": {
       "error": {
@@ -203,15 +447,15 @@
           "title": "Install Plugins"
         },
         "installed": {
-          "empty": "No plugins installed yet. Browse available plugins to get started.",
-          "title": "Installed Plugins"
+          "empty": "No skills installed yet. Browse available skills to get started.",
+          "title": "Installed Skills"
         },
         "installing": "Installing...",
         "plugin_upload": {
           "all_failed": "All {{failed}} components failed to install",
           "error": "Installation failed",
-          "format_hint": "Supports plugin packages (.claude-plugin/plugin.json)",
-          "hint": "Drag and drop plugin ZIP here, or click to select",
+          "format_hint": "Supports skill packages (.claude-plugin/plugin.json)",
+          "hint": "Drag and drop skill ZIP here, or click to select",
           "invalid_format": "Please upload a ZIP file",
           "partial_success": "Installed {{installed}} components, {{failed}} failed",
           "select_folder": "Select Folder",
@@ -245,6 +489,20 @@
         "uninstalling": "Uninstalling..."
       },
       "prompt": "Prompt Settings",
+      "skills": {
+        "builtin": "Built-in",
+        "noFilterResults": "No matching skills",
+        "noSkills": "No skills installed. Install skills from Settings > Skills.",
+        "searchPlaceholder": "Search skills...",
+        "tab": "Skills",
+        "title": "Installed Skills"
+      },
+      "soulMode": {
+        "description": "When enabled, the agent uses a custom system prompt from workspace soul files, injects autonomous task management tools, and disables interactive tools not suited for autonomous operation.",
+        "disabledBadge": "Disabled by Autonomous Mode",
+        "disabledTooltip": "This tool is automatically disabled when Autonomous Mode is active",
+        "title": "Autonomous Mode"
+      },
       "tooling": {
         "mcp": {
           "description": "Connect MCP servers to unlock additional tools you can approve above.",
@@ -301,6 +559,7 @@
       },
       "toolsMcp": {
         "mcp": {
+          "tab": "MCP",
           "title": "MCP Servers"
         },
         "tab": "Tools",
@@ -1500,6 +1759,31 @@
     "data": "Data",
     "detail": "Error Details",
     "details": "Details",
+    "diagnosis": {
+      "ai_button": "AI Diagnosis",
+      "ai_done": "Diagnosed",
+      "ai_loading": "Diagnosing",
+      "ai_result": "AI Diagnosis Result",
+      "auth": "API Key is invalid, please check and reconfigure",
+      "content": "Content blocked by safety system, please modify and retry",
+      "context_length": "Conversation too long, please clear history or start a new chat",
+      "deprecated": "This model has been retired, please switch to another model",
+      "go_to_settings": "Go to Settings",
+      "knowledge": "Knowledge base vectorization failed",
+      "mcp": "MCP server connection failed, check if service is running",
+      "model": "Model not found or you don't have access",
+      "model_conflict": "Diagnosis model is the same as the failing model",
+      "network": "Cannot connect to server, check network or proxy settings",
+      "ocr": "OCR engine not initialized, check OCR settings",
+      "parse": "AI returned an invalid response, please retry or switch model",
+      "payload": "Request content too large, please reduce file or text size",
+      "proxy": "Proxy or SSL certificate error, check proxy and network settings",
+      "quota": "Account quota exhausted, please recharge or switch provider",
+      "server": "Server error, please retry later",
+      "stream": "Response interrupted, check network stability or retry",
+      "unknown": "An error occurred",
+      "view_details": "View Details"
+    },
     "errors": "Errors",
     "finishReason": "Finish Reason",
     "functionality": "Functionality",
@@ -3049,11 +3333,11 @@
       "tools": "Tools"
     },
     "install": "Install",
-    "install_plugins_from_browser": "Browse available plugins to get started",
+    "install_plugins_from_browser": "Browse available skills to get started",
     "installing": "Installing...",
     "name": "Name",
     "no_description": "No description available",
-    "no_installed_plugins": "No plugins installed yet",
+    "no_installed_plugins": "No skills installed yet",
     "no_results": "No plugins found",
     "no_results_skills": "No skills found",
     "search_placeholder": "Search plugins...",
@@ -3672,6 +3956,10 @@
       "label": "Default Assistant",
       "model_params": "Model Parameters",
       "title": "Default Assistant"
+    },
+    "channels": {
+      "description": "Connect agents to messaging platforms like Telegram, Feishu, Discord, and more.",
+      "title": "Channels"
     },
     "data": {
       "app_data": {
@@ -4554,6 +4842,7 @@
         "glama": "Glama MCP Server Directory",
         "higress": "Higress MCP Server",
         "mcpso": "MCP Server Discovery Platform",
+        "mcpworld": "Baidu MCP Aggregation Platform",
         "modelscope": "ModelScope Community MCP Server",
         "official": "Official MCP Server Collection",
         "pulsemcp": "Pulse MCP Server",
@@ -5253,6 +5542,14 @@
       "titleLabel": "Title",
       "titlePlaceholder": "Please enter phrase title"
     },
+    "scheduledTasks": {
+      "description": "Manage scheduled tasks across all agents. Tasks run automatically on the configured schedule.",
+      "noAgents": "Scheduled tasks require agents with Soul Mode or Bypass Permissions enabled. Update an agent's settings to get started.",
+      "noAgentsTip": "Tip: You can also ask your agent to create scheduled tasks via chat.",
+      "noTasks": "No scheduled tasks. Click \"+ Add\" to create one for an agent.",
+      "selectTask": "Select a task to view details",
+      "title": "Scheduled Tasks"
+    },
     "shortcuts": {
       "action": "Action",
       "actions": "operation",
@@ -5284,6 +5581,41 @@
       "zoom_in": "Zoom In",
       "zoom_out": "Zoom Out",
       "zoom_reset": "Reset Zoom"
+    },
+    "skills": {
+      "author": "Author",
+      "batchUninstallSuccess": "{{count}} skills uninstalled",
+      "builtin": "Built-in",
+      "confirmBatchUninstall": "Are you sure you want to uninstall {{count}} selected skills?",
+      "confirmUninstall": "Are you sure you want to uninstall this skill?",
+      "directory": "Directory",
+      "dropHint": "Or drag & drop a ZIP file or folder here",
+      "emptyDesc": "Install skills from ZIP, directory, or search online registries to extend agent capabilities.",
+      "emptyTip": "Tip: You can also ask an agent to install skills for you.",
+      "emptyTitle": "No skill selected",
+      "filterPlaceholder": "Filter skills...",
+      "install": "Install",
+      "installFailed": "Failed to install skill: {{name}}",
+      "installFromDirectory": "Install from directory",
+      "installFromZip": "Install from ZIP file",
+      "installSuccess": "Skill installed: {{name}}",
+      "installed": "Installed",
+      "invalidFormat": "Only ZIP files and directories are supported",
+      "localInstall": "Local Install",
+      "multiSelect": "Multi-select",
+      "noFilterResults": "No matching skills",
+      "noInstalled": "No skills installed",
+      "noResults": "No skills found",
+      "noSkillFile": "No SKILL.md found",
+      "searchPlaceholder": "Search skills across registries...",
+      "searchRegistryTitle": "Search skill registries online",
+      "searchTitle": "Search Skills",
+      "selectFile": "Select a file to view",
+      "title": "Skills",
+      "uninstall": "Uninstall",
+      "uninstallSuccess": "Skill uninstalled: {{name}}",
+      "viewSource": "View Source",
+      "zip": "ZIP"
     },
     "theme": {
       "color_primary": "Primary Color",
