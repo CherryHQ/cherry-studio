@@ -62,7 +62,11 @@ export const nodeTable = sqliteTable(
     ...createUpdateTimestamps
   },
   (t) => [
-    // Self-referencing FK: cascade delete children when parent is deleted (Trash cleanup)
+    // Self-referencing FK: cascade delete children when parent is deleted (Trash cleanup).
+    // ⚠️ CASCADE risk: deleting a mount node (e.g. mount_files) would cascade through
+    // the entire subtree + all file_ref rows, bypassing the service layer. Phase 2 must
+    // add hard-coded deletion protection for SYSTEM_NODE_IDS in the service layer to
+    // prevent any accidental or buggy delete from triggering this cascade.
     foreignKey({ columns: [t.parentId], foreignColumns: [t.id] }).onDelete('cascade'),
     // Indexes
     index('node_parent_id_idx').on(t.parentId),
