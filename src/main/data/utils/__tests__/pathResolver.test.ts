@@ -151,7 +151,7 @@ describe('resolvePhysicalPath', () => {
       expect(() => resolvePhysicalPath(node, externalMount)).toThrow('Path traversal detected')
     })
 
-    it('rejects empty string in ancestorNames that could affect resolution', () => {
+    it('allows empty string segments in ancestorNames (ignored by path.resolve)', () => {
       // Empty segments in path.resolve are ignored, so this should still resolve within base
       const node: PathResolvableNode = { id: 'n1', name: 'file', ext: 'txt', mountId: 'mount_notes' }
       const result = resolvePhysicalPath(node, externalMount, ['', 'subdir'])
@@ -164,13 +164,13 @@ describe('resolvePhysicalPath', () => {
       expect(result).toBe(path.resolve('/data/notes', 'project', 'docs', 'readme.md'))
     })
 
-    it('rejects node.name with only dots (traversal variant)', () => {
+    it('allows triple-dot filename (valid, not a traversal)', () => {
       const node: PathResolvableNode = { id: 'n1', name: '...', ext: null, mountId: 'mount_notes' }
       // '...' is a valid filename, should resolve within base — no throw expected
       expect(resolvePhysicalPath(node, externalMount)).toBe(path.resolve('/data/notes', '...'))
     })
 
-    it('rejects deeply nested traversal that tries to return to base', () => {
+    it('allows traversal that resolves back within basePath', () => {
       // e.g., ../../data/notes/evil — resolves to base but goes through ..
       const node: PathResolvableNode = { id: 'n1', name: 'evil', ext: null, mountId: 'mount_notes' }
       // This actually resolves back into /data/notes/evil, so it should pass
