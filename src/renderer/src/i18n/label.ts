@@ -347,6 +347,7 @@ export const getFileFieldLabel = (key: string): string => {
 }
 
 const builtInMcpDescriptionKeyMap: Record<BuiltinMCPServerName, string> = {
+  [BuiltinMCPServerNames.flomo]: 'settings.mcp.builtinServersDescriptions.flomo',
   [BuiltinMCPServerNames.mcpAutoInstall]: 'settings.mcp.builtinServersDescriptions.mcp_auto_install',
   [BuiltinMCPServerNames.memory]: 'settings.mcp.builtinServersDescriptions.memory',
   [BuiltinMCPServerNames.sequentialThinking]: 'settings.mcp.builtinServersDescriptions.sequentialthinking',
@@ -379,11 +380,7 @@ export const getBuiltinOcrProviderLabel = (key: BuiltinOcrProviderId) => {
   else return getLabel(builtinOcrProviderKeyMap, key)
 }
 
-export const getAgentTypeLabel = (key: AgentType) => {
-  switch (key) {
-    case 'claude-code':
-      return 'Claude Code'
-    default:
-      return 'Unknown Type'
-  }
+// oxlint-disable-next-line no-unused-vars -- placeholder for future agent type labels
+export const getAgentTypeLabel = (_key: AgentType) => {
+  return 'Agent'
 }

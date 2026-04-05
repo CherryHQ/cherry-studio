@@ -1,22 +1,13 @@
 import { preferenceService } from '@data/PreferenceService'
 import type { Notification } from '@renderer/types/notification'
 
-import { NotificationQueue } from '../queue/NotificationQueue'
+import { notificationQueue } from '../queue/NotificationQueue'
 
 export class NotificationService {
-  private static instance: NotificationService
-  private queue: NotificationQueue
+  private queue = notificationQueue
 
-  private constructor() {
-    this.queue = NotificationQueue.getInstance()
+  constructor() {
     this.setupNotificationClickHandler()
-  }
-
-  public static getInstance(): NotificationService {
-    if (!NotificationService.instance) {
-      NotificationService.instance = new NotificationService()
-    }
-    return NotificationService.instance
   }
 
   /**
@@ -62,3 +53,5 @@ export class NotificationService {
     return this.queue.pending
   }
 }
+
+export const notificationService = new NotificationService()

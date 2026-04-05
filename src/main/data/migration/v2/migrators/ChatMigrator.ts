@@ -126,6 +126,19 @@ export class ChatMigrator extends BaseMigrator {
   // Block statistics for diagnostics
   private blockStats = { requested: 0, resolved: 0, messagesWithMissingBlocks: 0, messagesWithEmptyBlocks: 0 }
 
+  override reset(): void {
+    this.topicCount = 0
+    this.messageCount = 0
+    this.blockLookup = new Map()
+    this.assistantLookup = new Map()
+    this.topicMetaLookup = new Map()
+    this.topicAssistantLookup = new Map()
+    this.skippedTopics = 0
+    this.skippedMessages = 0
+    this.seenMessageIds = new Set()
+    this.blockStats = { requested: 0, resolved: 0, messagesWithMissingBlocks: 0, messagesWithEmptyBlocks: 0 }
+  }
+
   /**
    * Prepare phase - validate source data and count items
    *
@@ -316,6 +329,13 @@ export class ChatMigrator extends BaseMigrator {
             }
           }
 
+          // @libsql/client creates new DB connections after each transaction()
+          // (this.#db = null). libsql is compiled with SQLITE_DEFAULT_FOREIGN_KEYS=1
+          // (see libsql-ffi/build.rs), so new connections have foreign_keys = ON.
+          // Must disable FK before each batch to prevent
+          // SQLITE_CONSTRAINT_FOREIGNKEY on message.parentId self-references.
+          await db.run(sql`PRAGMA foreign_keys = OFF`)
+
           // Execute transaction
           await db.transaction(async (tx) => {
             // Insert topics
@@ -447,6 +467,22 @@ export class ChatMigrator extends BaseMigrator {
         errors.push({
           key: 'orphan_messages',
           message: `Found ${orphanCheck.count} orphan messages without valid topics`
+        })
+      }
+
+      // Check for dangling parentId references (parentId points to non-existent message)
+      const danglingParentCheck = await db
+        .select({ count: sql<number>`count(*)` })
+        .from(messageTable)
+        .where(
+          sql`${messageTable.parentId} IS NOT NULL AND ${messageTable.parentId} NOT IN (SELECT id FROM ${messageTable})`
+        )
+        .get()
+
+      if (danglingParentCheck && danglingParentCheck.count > 0) {
+        errors.push({
+          key: 'dangling_parent_ids',
+          message: `Found ${danglingParentCheck.count} messages with dangling parentId`
         })
       }
 
@@ -627,6 +663,31 @@ export class ChatMigrator extends BaseMigrator {
       } catch (error) {
         logger.warn(`Failed to transform message ${oldMsg.id}`, { error })
         this.skippedMessages++
+      }
+    }
+
+    // Fix dangling parentIds from second-pass skips (transform failure).
+    // resolveParentId only handles first-pass skips; if a message passed the first
+    // pass (had blocks) but failed transform, its children still reference it.
+    // Walk the ancestor chain to find the nearest migrated parent.
+    const migratedMessageIds = new Set(newMessages.map((m) => m.id))
+    for (const msg of newMessages) {
+      if (msg.parentId && !migratedMessageIds.has(msg.parentId)) {
+        let ancestor = messageParentMap.get(msg.parentId) ?? null
+        const visited = new Set<string>([msg.parentId])
+        while (ancestor && !migratedMessageIds.has(ancestor)) {
+          if (visited.has(ancestor)) break
+          visited.add(ancestor)
+          ancestor = messageParentMap.get(ancestor) ?? null
+        }
+        if (ancestor) {
+          logger.warn(`Resolved dangling parentId for message ${msg.id}: ${msg.parentId} → ${ancestor}`)
+        } else {
+          logger.warn(
+            `No migrated ancestor found for message ${msg.id} (original parentId: ${msg.parentId}), setting as root`
+          )
+        }
+        msg.parentId = ancestor
       }
     }
 

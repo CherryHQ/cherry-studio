@@ -4,8 +4,10 @@
  */
 
 import { appStateTable } from '@data/db/schemas/appState'
+import { knowledgeBaseTable, knowledgeItemTable } from '@data/db/schemas/knowledge'
 import { mcpServerTable } from '@data/db/schemas/mcpServer'
 import { messageTable } from '@data/db/schemas/message'
+import { miniappTable } from '@data/db/schemas/miniapp'
 import { preferenceTable } from '@data/db/schemas/preference'
 import { topicTable } from '@data/db/schemas/topic'
 import { translateHistoryTable } from '@data/db/schemas/translateHistory'
@@ -33,7 +35,6 @@ import { MigrationDbService } from './MigrationDbService'
 // TODO: Import these tables when they are created in user data schema
 // import { assistantTable } from '../../db/schemas/assistant'
 // import { fileTable } from '../../db/schemas/file'
-// import { knowledgeBaseTable } from '../../db/schemas/knowledgeBase'
 
 const logger = loggerService.withContext('MigrationEngine')
 
@@ -152,6 +153,10 @@ export class MigrationEngine {
     const results: MigratorResult[] = []
 
     try {
+      for (const migrator of this.migrators) {
+        migrator.reset()
+      }
+
       // Safety check: verify new tables status before clearing
       await this.verifyAndClearNewTables()
 
@@ -211,6 +216,9 @@ export class MigrationEngine {
         this.updateProgress('migration', this.calculateProgress(i + 1, 0), migrator)
       }
 
+      // Verify FK integrity after all inserts (FK was off during bulk inserts)
+      await this.verifyForeignKeys()
+
       // Mark migration completed
       await this.markCompleted()
 
@@ -261,13 +269,15 @@ export class MigrationEngine {
       { table: messageTable, name: 'message' }, // Must clear before topic (FK reference)
       { table: topicTable, name: 'topic' },
       { table: mcpServerTable, name: 'mcp_server' },
+      { table: miniappTable, name: 'miniapp' },
       { table: preferenceTable, name: 'preference' },
       { table: translateHistoryTable, name: 'translate_history' },
-      { table: translateLanguageTable, name: 'translate_language' }
+      { table: translateLanguageTable, name: 'translate_language' },
+      { table: knowledgeItemTable, name: 'knowledge_item' }, // Must clear before knowledge_base (FK reference)
+      { table: knowledgeBaseTable, name: 'knowledge_base' }
       // TODO: Add these when tables are created
       // { table: assistantTable, name: 'assistant' },
-      // { table: fileTable, name: 'file' },
-      // { table: knowledgeBaseTable, name: 'knowledge_base' }
+      // { table: fileTable, name: 'file' }
     ]
 
     // Check if tables have data (safety check)
@@ -284,15 +294,43 @@ export class MigrationEngine {
     await db.delete(messageTable)
     await db.delete(topicTable)
     await db.delete(mcpServerTable)
+    await db.delete(miniappTable)
     await db.delete(preferenceTable)
     await db.delete(translateHistoryTable)
     await db.delete(translateLanguageTable)
+    await db.delete(knowledgeItemTable)
+    // Knowledge items reference knowledge bases
+    await db.delete(knowledgeBaseTable)
     // TODO: Add these when tables are created (in correct order)
     // await db.delete(fileTable)
-    // await db.delete(knowledgeBaseTable)
     // await db.delete(assistantTable)
 
     logger.info('All new architecture tables cleared successfully')
+  }
+
+  /**
+   * Verify foreign key integrity after all data has been inserted.
+   * FK constraints were disabled during bulk inserts for performance;
+   * this post-insert check ensures referential integrity is correct.
+   */
+  private async verifyForeignKeys(): Promise<void> {
+    const db = this.getDb()
+
+    // PRAGMA foreign_key_check scans ALL tables for FK violations.
+    // Returns rows: { table, rowid, parent, fkid } for each violation.
+    const violations = await db.all<{ table: string; rowid: number; parent: string; fkid: number }>(
+      sql`PRAGMA foreign_key_check`
+    )
+
+    if (violations.length > 0) {
+      const sample = violations
+        .slice(0, 5)
+        .map((v) => `${v.table}(rowid=${v.rowid})→${v.parent}`)
+        .join('; ')
+      throw new Error(`Foreign key check failed: ${violations.length} violation(s). Sample: ${sample}`)
+    }
+
+    logger.info('Foreign key integrity verified')
   }
 
   /**

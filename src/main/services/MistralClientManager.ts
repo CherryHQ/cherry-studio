@@ -2,18 +2,7 @@ import { Mistral } from '@mistralai/mistralai'
 import type { Provider } from '@types'
 
 export class MistralClientManager {
-  private static instance: MistralClientManager
   private client: Mistral | null = null
-
-  // oxlint-disable-next-line @typescript-eslint/no-empty-function
-  private constructor() {}
-
-  public static getInstance(): MistralClientManager {
-    if (!MistralClientManager.instance) {
-      MistralClientManager.instance = new MistralClientManager()
-    }
-    return MistralClientManager.instance
-  }
 
   public initializeClient(provider: Provider): void {
     if (!this.client) {
@@ -31,3 +20,5 @@ export class MistralClientManager {
     return this.client
   }
 }
+
+export const mistralClientManager = new MistralClientManager()

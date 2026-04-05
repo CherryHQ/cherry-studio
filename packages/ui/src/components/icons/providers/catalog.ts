@@ -17,6 +17,7 @@ import { AiStudioIcon } from './aiStudio'
 import { AlayanewIcon } from './alayanew'
 import { AllenaiIcon } from './allenai'
 import { AnthropicIcon } from './anthropic'
+import { ApplicationIcon } from './application'
 import { ArceeAiIcon } from './arceeAi'
 import { AwsBedrockIcon } from './awsBedrock'
 import { AzureaiIcon } from './azureai'
@@ -71,6 +72,7 @@ import { HigressIcon } from './higress'
 import { HuggingfaceIcon } from './huggingface'
 import { HyperbolicIcon } from './hyperbolic'
 import { IdeogramIcon } from './ideogram'
+import { ImaIcon } from './ima'
 import { InceptionlabsIcon } from './inceptionlabs'
 import { InfiniIcon } from './infini'
 import { InflectionIcon } from './inflection'
@@ -95,6 +97,7 @@ import { MetaIcon } from './meta'
 import { MetasoIcon } from './metaso'
 import { MineruIcon } from './mineru'
 import { MinimaxIcon } from './minimax'
+import { MinimaxAgentIcon } from './minimaxAgent'
 import { MistralIcon } from './mistral'
 import { MixedbreadIcon } from './mixedbread'
 import { ModelscopeIcon } from './modelscope'
@@ -112,6 +115,7 @@ import { O3Icon } from './o3'
 import { OcoolaiIcon } from './ocoolai'
 import { OllamaIcon } from './ollama'
 import { OpenaiIcon } from './openai'
+import { OpenclawIcon } from './openclaw'
 import { OpenrouterIcon } from './openrouter'
 import { PaddleocrIcon } from './paddleocr'
 import { PerplexityIcon } from './perplexity'
@@ -120,6 +124,7 @@ import { PoeIcon } from './poe'
 import { PpioIcon } from './ppio'
 import { PulseIcon } from './pulse'
 import { QiniuIcon } from './qiniu'
+import { QueritIcon } from './querit'
 import { QwenIcon } from './qwen'
 import { RecraftIcon } from './recraft'
 import { RelaceIcon } from './relace'
@@ -173,6 +178,7 @@ export const PROVIDER_ICON_CATALOG = {
   alayanew: AlayanewIcon,
   allenai: AllenaiIcon,
   anthropic: AnthropicIcon,
+  application: ApplicationIcon,
   arceeAi: ArceeAiIcon,
   awsBedrock: AwsBedrockIcon,
   azureai: AzureaiIcon,
@@ -250,7 +256,9 @@ export const PROVIDER_ICON_CATALOG = {
   meta: MetaIcon,
   metaso: MetasoIcon,
   mineru: MineruIcon,
+  ima: ImaIcon,
   minimax: MinimaxIcon,
+  minimaxAgent: MinimaxAgentIcon,
   mistral: MistralIcon,
   mixedbread: MixedbreadIcon,
   modelscope: ModelscopeIcon,
@@ -267,6 +275,7 @@ export const PROVIDER_ICON_CATALOG = {
   o3: O3Icon,
   ocoolai: OcoolaiIcon,
   ollama: OllamaIcon,
+  openclaw: OpenclawIcon,
   openai: OpenaiIcon,
   openrouter: OpenrouterIcon,
   paddleocr: PaddleocrIcon,
@@ -276,6 +285,7 @@ export const PROVIDER_ICON_CATALOG = {
   ppio: PpioIcon,
   pulse: PulseIcon,
   qiniu: QiniuIcon,
+  querit: QueritIcon,
   qwen: QwenIcon,
   recraft: RecraftIcon,
   relace: RelaceIcon,

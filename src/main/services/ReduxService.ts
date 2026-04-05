@@ -15,10 +15,9 @@
  * --------------------------------------------------------------------------
  */
 import { loggerService } from '@logger'
+import { application } from '@main/core/application'
 import { IpcChannel } from '@shared/IpcChannel'
 import { ipcMain } from 'electron'
-
-import { windowService } from './WindowService'
 
 type StoreValue = any
 
@@ -51,7 +50,7 @@ export class ReduxService {
   private async getWebContents(): Promise<Electron.WebContents> {
     await this.waitForStoreReady()
 
-    const mainWindow = windowService.getMainWindow()
+    const mainWindow = application.get('WindowService').getMainWindow()
 
     if (!mainWindow) {
       throw new Error('Main window is not available')

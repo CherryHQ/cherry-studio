@@ -1,14 +1,22 @@
 import { loggerService } from '@logger'
 import { isDev, isLinux, isMac, isPortable, isWin } from '@main/constant'
 import { bootConfigService } from '@main/data/bootConfig'
-import { app, dialog } from 'electron'
+import { IpcChannel } from '@shared/IpcChannel'
+import { app, dialog, ipcMain } from 'electron'
+import { v4 as uuidv4 } from 'uuid'
 
+import type { Disposable } from '../lifecycle/event'
 import { LifecycleManager } from '../lifecycle/LifecycleManager'
 import { ServiceContainer } from '../lifecycle/ServiceContainer'
-import { LifecycleEvents, Phase, type ServiceConstructor, ServiceInitError } from '../lifecycle/types'
+import { Phase, type ServiceConstructor, ServiceInitError } from '../lifecycle/types'
 import type { ServiceRegistry } from './serviceRegistry'
 
-const logger = loggerService.withContext('Application')
+const logger = loggerService.withContext('Lifecycle')
+
+/** Hold with opaque ID for cross-process identification */
+interface QuitPreventionHold extends Disposable {
+  readonly id: string
+}
 
 /**
  * Application
@@ -16,11 +24,16 @@ const logger = loggerService.withContext('Application')
  * Manages services, windows, and Electron app events
  */
 export class Application {
+  private static readonly SHUTDOWN_TIMEOUT_MS = 5000
+
   private static instance: Application | null = null
   private container: ServiceContainer
   private lifecycleManager: LifecycleManager
   private isBootstrapped = false
   private isShuttingDown = false
+  private _isQuitting = false
+  private quitPreventionHolds = new Map<string, string>()
+  private ipcQuitHolds = new Map<string, QuitPreventionHold>()
 
   private constructor() {
     this.container = ServiceContainer.getInstance()
@@ -85,11 +98,16 @@ export class Application {
       return
     }
 
-    // Register signal handlers FIRST, before anything else,
-    // so Ctrl+C is handled even during early bootstrap stages
+    // Register signal and quit handlers FIRST, before anything else,
+    // so Ctrl+C and app quit are handled even during early bootstrap stages
     this.setupSignalHandlers()
+    this.setupQuitHandlers()
 
     logger.info('Bootstrapping...')
+
+    // Log registration summary
+    const regSummary = this.container.getRegistrationSummary()
+    logger.info(`Registered ${regSummary.total} services (${regSummary.excluded} excluded)`)
 
     // Check for boot config corruption BEFORE starting any services
     if (bootConfigService.hasLoadError()) {
@@ -97,8 +115,7 @@ export class Application {
       // If we reach here, user chose "Continue with Defaults"
     }
 
-    // Validate and adjust phases before starting
-    this.lifecycleManager.validateAndAdjustPhases()
+    const bootstrapStart = performance.now()
 
     try {
       // 1. Background phase - fire-and-forget, does not block BeforeReady/WhenReady
@@ -128,12 +145,15 @@ export class Application {
       throw error
     }
 
-    logger.info('Bootstrap complete')
+    const totalDuration = performance.now() - bootstrapStart
+    logger.info(`Bootstrap complete (${totalDuration.toFixed(3)}ms)`)
+    logger.debug(`\n${this.lifecycleManager.getBootstrapSummary(totalDuration, regSummary.excluded)}`)
   }
 
   /**
-   * Shutdown the application
-   * Stops and destroys all services gracefully
+   * Shutdown the application.
+   * Stops and destroys all lifecycle-managed services gracefully.
+   * Also handles legacy service cleanup (bootConfig, logger).
    */
   public async shutdown(): Promise<void> {
     if (this.isShuttingDown) {
@@ -142,15 +162,28 @@ export class Application {
     }
 
     this.isShuttingDown = true
+    this._isQuitting = true
     logger.info('Shutting down...')
 
-    // Stop all services
+    const start = performance.now()
+
+    // Flush boot config first (save pending debounced writes)
+    try {
+      bootConfigService.flush()
+    } catch (e) {
+      logger.warn('bootConfig flush error:', e as Error)
+    }
+
+    // Stop all lifecycle-managed services (reverse init order)
     await this.lifecycleManager.stopAll()
 
-    // Destroy all services
+    // Destroy all lifecycle-managed services
     await this.lifecycleManager.destroyAll()
 
-    logger.info('Shutdown complete')
+    logger.info(`Shutdown complete (${(performance.now() - start).toFixed(3)}ms)`)
+
+    // Close logger LAST — after this point, no more logging
+    loggerService.finish()
   }
 
   /**
@@ -176,7 +209,7 @@ export class Application {
 
     if (result.response === 0) {
       logger.info(`User chose to exit due to ${error.serviceName} initialization failure`)
-      app.exit(1)
+      this.forceExit(1)
       return
     }
 
@@ -220,7 +253,7 @@ export class Application {
 
     if (result.response === 2) {
       logger.info('User chose to exit after boot config error')
-      app.exit(1)
+      this.forceExit(1)
       return
     }
 
@@ -275,7 +308,7 @@ export class Application {
     }
 
     process.on('SIGINT', async () => {
-      const timer = setTimeout(forceExit, 5000)
+      const timer = setTimeout(forceExit, Application.SHUTDOWN_TIMEOUT_MS)
       try {
         await this.shutdown()
       } catch (error) {
@@ -287,7 +320,7 @@ export class Application {
     })
 
     process.on('SIGTERM', async () => {
-      const timer = setTimeout(forceExit, 5000)
+      const timer = setTimeout(forceExit, Application.SHUTDOWN_TIMEOUT_MS)
       try {
         await this.shutdown()
       } catch (error) {
@@ -300,34 +333,87 @@ export class Application {
   }
 
   /**
-   * Setup Electron app event handlers
+   * Setup quit event handlers (before-quit + will-quit).
+   * Called at the start of bootstrap(), alongside setupSignalHandlers(),
+   * so quit is handled correctly even during early bootstrap stages.
    */
-  private setupElectronHandlers(): void {
-    // macOS: re-create window when dock icon is clicked
-    app.on('activate', () => {
-      this.lifecycleManager.emit(LifecycleEvents.APP_ACTIVATE)
+  private setupQuitHandlers(): void {
+    // before-quit: gate check + mark quitting. Does NOT preventDefault unless blocking.
+    app.on('before-quit', (event) => {
+      if (!this.canQuit()) {
+        event.preventDefault()
+        this._isQuitting = false // Reset — quit was blocked, not actually quitting
+        const reasons = [...this.quitPreventionHolds.values()].join(', ')
+        logger.info(`Quit prevented: ${reasons}`)
+        return
+      }
+      this._isQuitting = true
     })
 
-    // All windows closed
+    // will-quit: all windows closed, perform actual cleanup
+    app.on('will-quit', (event) => {
+      if (this.isShuttingDown) return // Already shutting down (SIGINT/SIGTERM path), let it exit
+
+      event.preventDefault()
+
+      const timer = setTimeout(() => {
+        logger.warn('Forced exit after shutdown timeout (will-quit)')
+        process.exit(1)
+      }, Application.SHUTDOWN_TIMEOUT_MS)
+
+      this.shutdown()
+        .catch((err) => logger.error('Error during shutdown:', err as Error))
+        .finally(() => {
+          clearTimeout(timer)
+          app.exit(0)
+        })
+    })
+  }
+
+  /**
+   * Setup Electron app event handlers that require app.whenReady().
+   */
+  private setupElectronHandlers(): void {
+    // Non-macOS: quit through standard before-quit → will-quit flow when all windows close
     app.on('window-all-closed', () => {
       if (!isMac) {
-        void this.shutdown().then(() => app.quit())
+        this.quit()
       }
     })
 
-    // Before quit - use app.exit() to force quit and avoid re-triggering before-quit event
-    app.on('before-quit', (event) => {
-      if (!this.isShuttingDown) {
-        event.preventDefault()
-        this.shutdown()
-          .catch((error) => logger.error('Error during shutdown:', error as Error))
-          .finally(() => app.exit(0))
+    // Register Application-scoped IPC handlers (quit, relaunch, preventQuit)
+    this.registerApplicationIpc()
+  }
+
+  /**
+   * Register IPC handlers for the Application_* scope.
+   * All application lifecycle operations exposed to renderer live here.
+   */
+  private registerApplicationIpc(): void {
+    ipcMain.handle(IpcChannel.Application_Quit, () => this.quit())
+
+    ipcMain.handle(IpcChannel.Application_Relaunch, (_, options?: Electron.RelaunchOptions) => {
+      this.relaunch(options)
+    })
+
+    ipcMain.handle(IpcChannel.Application_PreventQuit, (_, reason: string): string => {
+      const hold = this.preventQuit(reason)
+      this.ipcQuitHolds.set(hold.id, hold)
+      return hold.id
+    })
+
+    ipcMain.handle(IpcChannel.Application_AllowQuit, (_, holdId: string) => {
+      const hold = this.ipcQuitHolds.get(holdId)
+      if (hold) {
+        hold.dispose()
+        this.ipcQuitHolds.delete(holdId)
       }
     })
   }
 
   /**
-   * Get a service instance by registry key (type-safe)
+   * Get a service instance by registry key (type-safe).
+   * Throws if the service is conditional — use getOptional() for conditional services.
    * @param name - Service name from ServiceRegistry
    */
   public get<K extends keyof ServiceRegistry>(name: K): ServiceRegistry[K] {
@@ -335,10 +421,81 @@ export class Application {
   }
 
   /**
+   * Get an optional (conditional) service instance by registry key.
+   * Returns undefined if the service was excluded by @Conditional conditions.
+   * Throws if the service is NOT conditional — use get() for unconditional services.
+   * @param name - Service name from ServiceRegistry
+   */
+  public getOptional<K extends keyof ServiceRegistry>(name: K): ServiceRegistry[K] | undefined {
+    return this.container.getOptional(name)
+  }
+
+  /**
    * Check if application is bootstrapped
    */
   public isReady(): boolean {
     return this.isBootstrapped
+  }
+
+  /**
+   * Whether the app is in the process of quitting
+   */
+  public get isQuitting(): boolean {
+    return this._isQuitting
+  }
+
+  /**
+   * Mark the app as quitting without triggering the quit sequence.
+   * Used by autoUpdater.quitAndInstall() which has its own quit flow.
+   */
+  public markQuitting(): void {
+    this._isQuitting = true
+  }
+
+  /**
+   * Register a quit prevention hold. Returns a hold with opaque UUID id and dispose().
+   * While any hold is active, app.quit() will be blocked in before-quit.
+   * Used for critical operations (e.g. data migration) where quitting would cause corruption.
+   */
+  public preventQuit(reason: string): QuitPreventionHold {
+    const id = uuidv4()
+    this.quitPreventionHolds.set(id, reason)
+    logger.info(`Quit prevention hold added: "${reason}" (id: ${id})`)
+    return {
+      id,
+      dispose: () => {
+        this.quitPreventionHolds.delete(id)
+        logger.info(`Quit prevention hold removed (id: ${id})`)
+      }
+    }
+  }
+
+  private canQuit(): boolean {
+    return this.quitPreventionHolds.size === 0
+  }
+
+  /**
+   * Graceful quit: set flag then trigger the Electron quit event chain.
+   * before-quit checks preventQuit holds, then will-quit runs shutdown().
+   */
+  public quit(): void {
+    if (this._isQuitting) {
+      logger.warn('Already quitting')
+      return
+    }
+    logger.info('Quitting application...')
+    this._isQuitting = true
+    app.quit()
+  }
+
+  /**
+   * Force exit: skip the Electron event chain entirely.
+   * For fatal/unrecoverable errors (service init failure, repeated renderer crash).
+   */
+  public forceExit(code: number): void {
+    this._isQuitting = true
+    logger.warn(`Force exiting application with code ${code}`)
+    app.exit(code)
   }
 
   // ============================================================================
@@ -388,6 +545,26 @@ export class Application {
    */
   public async restart<K extends keyof ServiceRegistry>(name: K): Promise<void> {
     return this.lifecycleManager.restart(name)
+  }
+
+  /**
+   * Activate a service's heavy resources.
+   * The service must implement Activatable (onActivate/onDeactivate).
+   * No cascade — activation is service-specific.
+   * @param name - Service name from ServiceRegistry
+   */
+  public async activate<K extends keyof ServiceRegistry>(name: K): Promise<void> {
+    return this.lifecycleManager.activate(name)
+  }
+
+  /**
+   * Deactivate a service, releasing heavy resources.
+   * The service must implement Activatable.
+   * No cascade — deactivation is service-specific.
+   * @param name - Service name from ServiceRegistry
+   */
+  public async deactivate<K extends keyof ServiceRegistry>(name: K): Promise<void> {
+    return this.lifecycleManager.deactivate(name)
   }
 }
 

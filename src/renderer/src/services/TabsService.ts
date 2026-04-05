@@ -9,7 +9,7 @@ import NavigationService from './NavigationService'
 
 const logger = loggerService.withContext('TabsService')
 
-class TabsService {
+export class TabsService {
   private minAppsCache: LRUCache<string, MinAppType> | null = null
 
   /**
@@ -140,4 +140,4 @@ class TabsService {
   }
 }
 
-export default new TabsService()
+export const tabsService = new TabsService()

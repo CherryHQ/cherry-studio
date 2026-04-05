@@ -1,3 +1,19 @@
+/**
+ * TODO(v2): Performance — run() blocks up to ~100s before opening terminal
+ *
+ * Problem:
+ * - isUserInChina() makes HTTP request (5s timeout) with no caching, called 2-3x per run()
+ * - getVersionInfo() blocks on npm registry fetch (15s) + local --version (10s)
+ * - updatePackage() blocks on bun install (60s) when autoUpdateToLatest is enabled
+ * - All above run serially BEFORE spawn(terminal)
+ *
+ * Fix:
+ * 1. Cache isUserInChina() promise at module level in ipService.ts (process-lifetime)
+ * 2. Extract local-only getInstalledVersion() for qwen-code --auth-type check
+ * 3. Move getVersionInfo() + updatePackage() to fire-and-forget background task
+ * 4. Cache getNpmRegistryUrl() at instance level
+ * 5. Track background update promise in lifecycle (registerDisposable / onStop)
+ */
 import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
@@ -7,7 +23,8 @@ import { isMac, isWin } from '@main/constant'
 import { BaseService, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import { removeEnvProxy } from '@main/utils'
 import { isUserInChina } from '@main/utils/ipService'
-import { getBinaryName } from '@main/utils/process'
+import { findCommandInShellEnv, getBinaryName, getBinaryPath, isBinaryExists } from '@main/utils/process'
+import getShellEnv from '@main/utils/shell-env'
 import type { TerminalConfig, TerminalConfigWithCommand } from '@shared/config/constant'
 import {
   codeCLI,
@@ -18,6 +35,8 @@ import {
   WINDOWS_TERMINALS,
   WINDOWS_TERMINALS_WITH_COMMANDS
 } from '@shared/config/constant'
+import type { CodeToolsRunResult } from '@shared/config/types'
+import { IpcChannel } from '@shared/IpcChannel'
 import { getFunctionalKeys, parseJSONC, sanitizeEnvForLogging } from '@shared/utils'
 import { spawn } from 'child_process'
 import semver from 'semver'
@@ -51,9 +70,34 @@ export class CodeCliService extends BaseService {
   private openCodeConfigBackups: Map<string, string | null> = new Map() // Store raw backup content of opencode.json
 
   protected async onInit(): Promise<void> {
+    this.registerIpcHandlers()
     if (isMac || isWin) {
       void this.preloadTerminals()
     }
+  }
+
+  private registerIpcHandlers(): void {
+    this.ipcHandle(
+      IpcChannel.CodeCli_Run,
+      (
+        event,
+        cliTool: string,
+        model: string,
+        directory: string,
+        env: Record<string, string>,
+        options?: { autoUpdateToLatest?: boolean; terminal?: string }
+      ) => this.run(event, cliTool, model, directory, env, options)
+    )
+    this.ipcHandle(IpcChannel.CodeCli_GetAvailableTerminals, () => this.getAvailableTerminalsForPlatform())
+    this.ipcHandle(IpcChannel.CodeCli_SetCustomTerminalPath, (_, terminalId: string, path: string) =>
+      this.setCustomTerminalPath(terminalId, path)
+    )
+    this.ipcHandle(IpcChannel.CodeCli_GetCustomTerminalPath, (_, terminalId: string) =>
+      this.getCustomTerminalPath(terminalId)
+    )
+    this.ipcHandle(IpcChannel.CodeCli_RemoveCustomTerminalPath, (_, terminalId: string) =>
+      this.removeCustomTerminalPath(terminalId)
+    )
   }
 
   protected async onStop(): Promise<void> {
@@ -228,7 +272,7 @@ export class CodeCliService extends BaseService {
     this.openCodeConfigBackups.set(configPath, backupContent)
 
     // config with env variable Build CherryStudio provider reference for security
-    const envVarKey = `OPENCODE_API_KEY_${providerName.toUpperCase().replace(/-/g, '_')}`
+    const envVarKey = `OPENCODE_API_KEY_${providerName.toUpperCase().replace(/[-.]/g, '_')}`
     const cherryProviderConfig = {
       npm: npmPackage,
       name: dynamicProviderName,
@@ -817,7 +861,7 @@ export class CodeCliService extends BaseService {
     directory: string,
     env: Record<string, string>,
     options: { autoUpdateToLatest?: boolean; terminal?: string } = {}
-  ) {
+  ): Promise<CodeToolsRunResult> {
     logger.info(`Starting CLI tool launch: ${cliTool} in directory: ${directory}`)
     logger.debug(`Environment variables:`, Object.keys(env))
     logger.debug(`Options:`, options)
@@ -928,7 +972,24 @@ export class CodeCliService extends BaseService {
 
     // Special handling for kimi-cli: use uvx instead of bun
     if (cliTool === codeCLI.kimiCli) {
-      const uvPath = path.join(os.homedir(), HOME_CHERRY_DIR, 'bin', await getBinaryName('uv'))
+      const shellEnv = await getShellEnv()
+      let uvPath = await findCommandInShellEnv('uv', shellEnv)
+
+      if (!uvPath) {
+        if (await isBinaryExists('uv')) {
+          uvPath = await getBinaryPath('uv')
+          logger.info('Using bundled uv as fallback (not found in PATH)', { command: uvPath })
+        } else {
+          throw new Error(
+            'uv not found in PATH and bundled version is not available.\n' +
+              'Please either:\n' +
+              '1. Install uv from https://github.com/astral-sh/uv\n' +
+              '2. Run the MCP dependencies installer from Settings\n' +
+              '3. Restart the application if you recently installed uv'
+          )
+        }
+      }
+
       baseCommand = `${uvPath} tool run ${packageName}`
     }
 

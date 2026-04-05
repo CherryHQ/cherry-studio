@@ -31,7 +31,6 @@ import { getDataPath } from '../utils'
 import { resolveAndValidatePath } from '../utils/file'
 import S3Storage from './S3Storage'
 import WebDav from './WebDav'
-import { windowService } from './WindowService'
 
 const logger = loggerService.withContext('BackupManager')
 
@@ -212,7 +211,7 @@ class BackupManager {
       const backupedFilePath = path.join(destinationPath, fileName)
       const output = fs.createWriteStream(backupedFilePath)
       const archive = archiver('zip', {
-        zlib: { level: 0 }, // No compression - data is already compressed by LevelDB
+        zlib: { level: 1 }, // Use lowest compression level for speed (same as legacy backup)
         zip64: true
       })
 
@@ -800,7 +799,7 @@ class BackupManager {
    */
   private onProgress = (channel: IpcChannel, shouldLog: boolean) => {
     return (processData: { stage: string; progress: number; total: number }) => {
-      const mainWindow = windowService.getMainWindow()
+      const mainWindow = application.get('WindowService').getMainWindow()
       mainWindow?.webContents.send(channel, processData)
       // Never log copying_files as it generates too many log entries
       if (shouldLog && processData.stage !== 'copying_files') {

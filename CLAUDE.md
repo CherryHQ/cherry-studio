@@ -36,9 +36,13 @@ Only investigate CI failures by reading the logs, not by re-running checks local
 When creating an Issue, you MUST use the `gh-create-issue` skill.
 If the skill is unavailable, directly read `.agents/skills/gh-create-issue/SKILL.md` and follow it manually.
 
-### Current Contribution Restrictions
+### Branch Strategy (Effective April 3, 2026)
 
-> **IMPORTANT**: Feature PRs that change Redux data models or IndexedDB schemas are **temporarily blocked** until v2.0.0 releases. Only bug fixes, performance improvements, docs, and non-data-model features are accepted. Track progress at [#10162](https://github.com/CherryHQ/cherry-studio/pull/10162).
+> **IMPORTANT**: The `main` branch is now under **code freeze**. Only critical bug fixes submitted via `hotfix/*` branches are accepted. Fix PRs must be minimal in scope and must not include any refactoring code.
+>
+> All new features, refactoring, and optimizations should be developed on the **`v2` branch**. We welcome every developer to actively participate in v2 development!
+>
+> The `v2` branch will only accept new feature submissions after all current features have been fully refactored.
 
 ## Development Commands
 
@@ -109,60 +113,24 @@ Database: SQLite + Drizzle ORM, schemas in `src/main/data/db/schemas/`, migratio
 
 #### Main Process Services (Lifecycle)
 
-**MUST READ**: [docs/en/references/lifecycle/README.md](docs/en/references/lifecycle/README.md) for architecture, decision guides, and usage patterns.
+**MUST READ**: [docs/en/references/lifecycle/README.md](docs/en/references/lifecycle/README.md) — architecture, decision guides, usage patterns, and migration steps.
 
-All main-process services must use the lifecycle system. When creating or migrating a service:
+All main-process services that own long-lived resources or register persistent side effects **must** use the lifecycle system:
 
-1. **Extend `BaseService`** and apply decorators:
+- **Extend `BaseService`**, apply `@Injectable`, `@ServicePhase`, `@DependsOn` decorators
+- **Register in `serviceRegistry.ts`** (`src/main/core/application/serviceRegistry.ts`) — one line per service
+- **Access via `application.get('Name')`** (or `getOptional()` for `@Conditional` services)
+- **Use `this.ipcHandle()` / `this.ipcOn()`** for IPC — auto-cleaned on stop/destroy, returns `Disposable`
+- **Use `this.registerDisposable()`** for cleanup tracking — accepts `Disposable` objects or `() => void` cleanup functions
+- **Use `Emitter<T>` / `Event<T>`** for inter-service events, **`Signal<T>`** for one-shot completion
+- **Implement `Activatable`** for services with heavy on-demand resources (IPC stays registered, resources load/release via `onActivate()`/`onDeactivate()`)
+- **Do NOT** use `new` or manual singleton patterns — the container manages instantiation, ordering, and shutdown
 
-```typescript
-import { BaseService, Injectable, DependsOn, ServicePhase, Phase } from '@main/core/lifecycle'
-
-@Injectable('MyService')
-@ServicePhase(Phase.WhenReady)        // when to initialize (default: WhenReady)
-@DependsOn(['DbService'])             // what must be ready first
-export class MyService extends BaseService {
-  protected async onInit() { /* setup */ }
-  protected async onStop() { /* cleanup */ }
-}
-```
-
-2. **Register in `serviceRegistry.ts`** (`src/main/core/application/serviceRegistry.ts`):
-
-```typescript
-export const services = {
-  // ...existing
-  MyService,  // ← one line, types auto-derived
-} as const
-```
-
-3. **Access at runtime** via the type-safe `application.get()`:
-
-```typescript
-import { application } from '@main/core/application'
-const myService = application.get('MyService')
-```
-
-**Do NOT** instantiate services with `new` or use manual singleton patterns for new services — the lifecycle container manages instantiation, ordering, and shutdown automatically.
-
-> **Migrating old services?** See the step-by-step [Lifecycle Migration Guide](docs/en/references/lifecycle/lifecycle-migration-guide.md).
+For detailed code examples, see [Usage Guide](docs/en/references/lifecycle/lifecycle-usage.md). For migrating legacy services, see [Migration Guide](docs/en/references/lifecycle/lifecycle-migration-guide.md).
 
 #### Non-Lifecycle Services (Direct-Import Singleton)
 
-Services that do **not** own long-lived resources or register persistent side effects (both main and renderer process) should **not** use the lifecycle system. Use a named export singleton instead:
-
-```typescript
-export class ExportService {
-  async exportToDocx(messages: Message[]) { /* ... */ }
-}
-export const exportService = new ExportService()
-```
-
-Rules:
-- **Always use named export** (`export const x = new X()`), never `export default new X()` or `export default X.getInstance()`
-- Export both the class (for type references) and the instance (for runtime use)
-- Do not use manual singleton patterns (`private static instance` + `getInstance()`) — a module-level `const` is already a singleton
-- See [Lifecycle Decision Guide](docs/en/references/lifecycle/lifecycle-decision-guide.md) for the decision criteria (main process only)
+Services without long-lived resources or persistent side effects: use **named export singleton** (`export const x = new X()`). No `getInstance()` patterns. See [Decision Guide](docs/en/references/lifecycle/lifecycle-decision-guide.md) for criteria.
 
 ### Key Patterns
 
@@ -303,6 +271,11 @@ Several dependencies have patches in `patches/` — be careful when upgrading:
 ## Important Notes
 
 ### V2 Refactoring in Progress
+
+The `main` branch is under code freeze. All development has moved to the `v2` branch.
+
+- **`main` branch**: Only accepts critical bug fixes via `hotfix/*` branches. Minimal changes, no refactoring.
+- **`v2` branch**: All new features, refactoring, and optimizations go here.
 
 Files marked with the following header are **blocked for feature changes**:
 

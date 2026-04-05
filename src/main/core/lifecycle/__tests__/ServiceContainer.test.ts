@@ -1,9 +1,11 @@
-import { afterEach, beforeEach, describe, expect, it } from 'vitest'
+import { beforeEach, describe, expect, it } from 'vitest'
 
 import { BaseService } from '../BaseService'
-import { DependsOn, ErrorHandling, ExcludePlatforms, Injectable, Priority, ServicePhase } from '../decorators'
+import { onPlatform, when } from '../conditions'
+import { Conditional, DependsOn, ErrorHandling, Injectable, Priority, ServicePhase } from '../decorators'
 import { ServiceContainer } from '../ServiceContainer'
-import { matchesPlatformTarget, Phase } from '../types'
+import type { ConditionContext } from '../types'
+import { Phase } from '../types'
 
 // ── Test service classes ──
 
@@ -185,159 +187,228 @@ describe('ServiceContainer', () => {
     })
   })
 
-  describe('platform exclusion', () => {
-    const originalPlatform = process.platform
-    const originalArch = process.arch
+  describe('conditional activation', () => {
+    const mockContext: ConditionContext = {
+      platform: 'linux',
+      arch: 'x64',
+      cpuModel: '12th Gen Intel(R) Core(TM) i7-12700H',
+      env: {}
+    }
 
-    afterEach(() => {
-      Object.defineProperty(process, 'platform', { value: originalPlatform })
-      Object.defineProperty(process, 'arch', { value: originalArch })
-    })
+    // ── Test service classes for conditional activation ──
 
-    // ── Test service classes for platform exclusion ──
+    @Injectable('DarwinOnlyService')
+    @Conditional(onPlatform('darwin'))
+    class DarwinOnlyService extends BaseService {}
 
-    @Injectable('LinuxExcludedService')
-    @ExcludePlatforms(['linux'])
-    class LinuxExcludedService extends BaseService {}
+    @Injectable('LinuxOnlyService')
+    @Conditional(onPlatform('linux'))
+    class LinuxOnlyService extends BaseService {}
 
-    @Injectable('LinuxArm64ExcludedService')
-    @ExcludePlatforms(['linux-arm64'])
-    class LinuxArm64ExcludedService extends BaseService {}
+    @Injectable('MultiConditionService')
+    @Conditional(
+      onPlatform('win32'),
+      when(() => true, 'always true')
+    )
+    class MultiConditionService extends BaseService {}
 
-    @Injectable('DependsOnLinuxExcluded')
-    @DependsOn(['LinuxExcludedService'])
-    class DependsOnLinuxExcluded extends BaseService {}
+    @Injectable('DependsOnDarwin')
+    @DependsOn(['DarwinOnlyService'])
+    class DependsOnDarwin extends BaseService {}
 
     @Injectable('TransitiveDependentService')
-    @DependsOn(['DependsOnLinuxExcluded'])
+    @DependsOn(['DependsOnDarwin'])
     class TransitiveDependentService extends BaseService {}
 
-    it('should register a service without @ExcludePlatforms on any platform', () => {
-      Object.defineProperty(process, 'platform', { value: 'linux' })
+    @Injectable('ThrowingConditionService')
+    @Conditional(
+      when(() => {
+        throw new Error('condition error')
+      }, 'throws')
+    )
+    class ThrowingConditionService extends BaseService {}
+
+    @Injectable('CustomConditionService')
+    @Conditional(when((ctx) => ctx.cpuModel.includes('Intel'), 'Intel CPU'))
+    class CustomConditionService extends BaseService {}
+
+    it('should register a service without @Conditional on any platform', () => {
       const container = ServiceContainer.getInstance()
+      container.setConditionContext(mockContext)
       container.register(SimpleService)
       expect(container.has('SimpleService')).toBe(true)
     })
 
-    it('should register when current platform is not in the exclusion list', () => {
-      Object.defineProperty(process, 'platform', { value: 'darwin' })
+    it('should register when condition is met', () => {
       const container = ServiceContainer.getInstance()
-      container.register(LinuxExcludedService)
-      expect(container.has('LinuxExcludedService')).toBe(true)
-      expect(container.isPlatformExcluded('LinuxExcludedService')).toBe(false)
+      container.setConditionContext(mockContext) // linux
+      container.register(LinuxOnlyService)
+      expect(container.has('LinuxOnlyService')).toBe(true)
+      expect(container.isExcluded('LinuxOnlyService')).toBe(false)
     })
 
-    it('should skip registration when current platform is in the exclusion list', () => {
-      Object.defineProperty(process, 'platform', { value: 'linux' })
+    it('should skip registration when condition is not met', () => {
       const container = ServiceContainer.getInstance()
-      container.register(LinuxExcludedService)
-      expect(container.has('LinuxExcludedService')).toBe(false)
-      expect(container.isPlatformExcluded('LinuxExcludedService')).toBe(true)
+      container.setConditionContext(mockContext) // linux, not darwin
+      container.register(DarwinOnlyService)
+      expect(container.has('DarwinOnlyService')).toBe(false)
+      expect(container.isExcluded('DarwinOnlyService')).toBe(true)
     })
 
-    it('should skip registration when platform-arch target matches', () => {
-      Object.defineProperty(process, 'platform', { value: 'linux' })
-      Object.defineProperty(process, 'arch', { value: 'arm64' })
+    it('should evaluate multiple conditions with AND logic', () => {
       const container = ServiceContainer.getInstance()
-      container.register(LinuxArm64ExcludedService)
-      expect(container.has('LinuxArm64ExcludedService')).toBe(false)
-      expect(container.isPlatformExcluded('LinuxArm64ExcludedService')).toBe(true)
+      container.setConditionContext(mockContext) // linux, not win32
+      container.register(MultiConditionService)
+      // First condition (win32) fails, so service is excluded
+      expect(container.has('MultiConditionService')).toBe(false)
+      expect(container.isExcluded('MultiConditionService')).toBe(true)
     })
 
-    it('should register when platform matches but arch does not', () => {
-      Object.defineProperty(process, 'platform', { value: 'linux' })
-      Object.defineProperty(process, 'arch', { value: 'x64' })
+    it('should store conditions in metadata', () => {
       const container = ServiceContainer.getInstance()
-      container.register(LinuxArm64ExcludedService)
-      expect(container.has('LinuxArm64ExcludedService')).toBe(true)
-      expect(container.isPlatformExcluded('LinuxArm64ExcludedService')).toBe(false)
-    })
-
-    it('should store excludePlatforms in metadata', () => {
-      Object.defineProperty(process, 'platform', { value: 'darwin' })
-      const container = ServiceContainer.getInstance()
-      container.register(LinuxExcludedService)
-      const metadata = container.getMetadata('LinuxExcludedService')
-      expect(metadata?.excludePlatforms).toEqual(['linux'])
+      container.setConditionContext(mockContext)
+      container.register(LinuxOnlyService)
+      const metadata = container.getMetadata('LinuxOnlyService')
+      expect(metadata?.conditions).toBeDefined()
+      expect(metadata!.conditions!.length).toBe(1)
     })
 
     it('should transitively exclude services that depend on an excluded service', () => {
-      Object.defineProperty(process, 'platform', { value: 'linux' })
       const container = ServiceContainer.getInstance()
-      container.register(LinuxExcludedService)
-      container.register(DependsOnLinuxExcluded)
+      container.setConditionContext(mockContext) // linux, not darwin
+      container.register(DarwinOnlyService)
+      container.register(DependsOnDarwin)
       container.excludeDependentsOfExcluded()
 
-      expect(container.has('LinuxExcludedService')).toBe(false)
-      expect(container.has('DependsOnLinuxExcluded')).toBe(false)
-      expect(container.isPlatformExcluded('DependsOnLinuxExcluded')).toBe(true)
+      expect(container.has('DarwinOnlyService')).toBe(false)
+      expect(container.has('DependsOnDarwin')).toBe(false)
+      expect(container.isExcluded('DependsOnDarwin')).toBe(true)
     })
 
     it('should handle multi-layer transitive exclusion chains', () => {
-      Object.defineProperty(process, 'platform', { value: 'linux' })
       const container = ServiceContainer.getInstance()
-      container.register(LinuxExcludedService)
-      container.register(DependsOnLinuxExcluded)
+      container.setConditionContext(mockContext)
+      container.register(DarwinOnlyService)
+      container.register(DependsOnDarwin)
       container.register(TransitiveDependentService)
       container.excludeDependentsOfExcluded()
 
-      expect(container.isPlatformExcluded('LinuxExcludedService')).toBe(true)
-      expect(container.isPlatformExcluded('DependsOnLinuxExcluded')).toBe(true)
-      expect(container.isPlatformExcluded('TransitiveDependentService')).toBe(true)
+      expect(container.isExcluded('DarwinOnlyService')).toBe(true)
+      expect(container.isExcluded('DependsOnDarwin')).toBe(true)
+      expect(container.isExcluded('TransitiveDependentService')).toBe(true)
       expect(container.getServiceNames()).not.toContain('TransitiveDependentService')
     })
 
     it('should not affect unrelated services during transitive exclusion', () => {
-      Object.defineProperty(process, 'platform', { value: 'linux' })
       const container = ServiceContainer.getInstance()
-      container.register(LinuxExcludedService)
-      container.register(DependsOnLinuxExcluded)
+      container.setConditionContext(mockContext)
+      container.register(DarwinOnlyService)
+      container.register(DependsOnDarwin)
       container.register(SimpleService)
       container.excludeDependentsOfExcluded()
 
       expect(container.has('SimpleService')).toBe(true)
-      expect(container.isPlatformExcluded('SimpleService')).toBe(false)
+      expect(container.isExcluded('SimpleService')).toBe(false)
+    })
+
+    it('should exclude service when condition throws', () => {
+      const container = ServiceContainer.getInstance()
+      container.setConditionContext(mockContext)
+      container.register(ThrowingConditionService)
+      expect(container.has('ThrowingConditionService')).toBe(false)
+      expect(container.isExcluded('ThrowingConditionService')).toBe(true)
+    })
+
+    it('should support custom when() conditions with context', () => {
+      const container = ServiceContainer.getInstance()
+      container.setConditionContext(mockContext) // Intel CPU
+      container.register(CustomConditionService)
+      expect(container.has('CustomConditionService')).toBe(true)
+    })
+
+    it('should treat zero conditions as unconditional', () => {
+      // A service with @Conditional() (no args) should still register
+      @Injectable('EmptyConditionalService')
+      @Conditional()
+      class EmptyConditionalService extends BaseService {}
+
+      const container = ServiceContainer.getInstance()
+      container.register(EmptyConditionalService)
+      expect(container.has('EmptyConditionalService')).toBe(true)
     })
   })
-})
 
-describe('matchesPlatformTarget', () => {
-  const originalPlatform = process.platform
-  const originalArch = process.arch
+  describe('get/getOptional mutual exclusion', () => {
+    const mockContext: ConditionContext = {
+      platform: 'darwin',
+      arch: 'arm64',
+      cpuModel: 'Apple M2 Max',
+      env: {}
+    }
 
-  afterEach(() => {
-    Object.defineProperty(process, 'platform', { value: originalPlatform })
-    Object.defineProperty(process, 'arch', { value: originalArch })
-  })
+    @Injectable('ConditionalActiveService')
+    @Conditional(onPlatform('darwin'))
+    class ConditionalActiveService extends BaseService {}
 
-  it('should match platform-only target', () => {
-    Object.defineProperty(process, 'platform', { value: 'linux' })
-    expect(matchesPlatformTarget(['linux'])).toBe(true)
-  })
+    @Injectable('ConditionalExcludedService')
+    @Conditional(onPlatform('win32'))
+    class ConditionalExcludedService extends BaseService {}
 
-  it('should not match different platform-only target', () => {
-    Object.defineProperty(process, 'platform', { value: 'darwin' })
-    expect(matchesPlatformTarget(['linux'])).toBe(false)
-  })
+    it('should throw when get() is called on an active conditional service', () => {
+      const container = ServiceContainer.getInstance()
+      container.setConditionContext(mockContext) // darwin
+      container.register(ConditionalActiveService)
 
-  it('should match platform-arch target', () => {
-    Object.defineProperty(process, 'platform', { value: 'linux' })
-    Object.defineProperty(process, 'arch', { value: 'arm64' })
-    expect(matchesPlatformTarget(['linux-arm64'])).toBe(true)
-  })
+      expect(() => container.get('ConditionalActiveService')).toThrow(
+        "Service 'ConditionalActiveService' is conditional — use getOptional('ConditionalActiveService')."
+      )
+    })
 
-  it('should not match when platform matches but arch differs', () => {
-    Object.defineProperty(process, 'platform', { value: 'linux' })
-    Object.defineProperty(process, 'arch', { value: 'x64' })
-    expect(matchesPlatformTarget(['linux-arm64'])).toBe(false)
-  })
+    it('should throw when get() is called on an excluded conditional service', () => {
+      const container = ServiceContainer.getInstance()
+      container.setConditionContext(mockContext) // darwin, not win32
+      container.register(ConditionalExcludedService)
 
-  it('should match if any target in the array matches', () => {
-    Object.defineProperty(process, 'platform', { value: 'win32' })
-    expect(matchesPlatformTarget(['linux', 'win32'])).toBe(true)
-  })
+      expect(() => container.get('ConditionalExcludedService')).toThrow(
+        "Service 'ConditionalExcludedService' was conditionally excluded — use getOptional('ConditionalExcludedService')."
+      )
+    })
 
-  it('should return false for empty array', () => {
-    expect(matchesPlatformTarget([])).toBe(false)
+    it('should return instance when getOptional() is called on an active conditional service', () => {
+      const container = ServiceContainer.getInstance()
+      container.setConditionContext(mockContext)
+      container.register(ConditionalActiveService)
+
+      const instance = container.getOptional('ConditionalActiveService')
+      expect(instance).toBeInstanceOf(ConditionalActiveService)
+    })
+
+    it('should return undefined when getOptional() is called on an excluded conditional service', () => {
+      const container = ServiceContainer.getInstance()
+      container.setConditionContext(mockContext)
+      container.register(ConditionalExcludedService)
+
+      const instance = container.getOptional('ConditionalExcludedService')
+      expect(instance).toBeUndefined()
+    })
+
+    it('should throw when getOptional() is called on a non-conditional service', () => {
+      const container = ServiceContainer.getInstance()
+      container.register(SimpleService)
+
+      expect(() => container.getOptional('SimpleService')).toThrow(
+        "Service 'SimpleService' is not conditional — use get('SimpleService')."
+      )
+    })
+
+    it('should return same singleton from getOptional()', () => {
+      const container = ServiceContainer.getInstance()
+      container.setConditionContext(mockContext)
+      container.register(ConditionalActiveService)
+
+      const a = container.getOptional('ConditionalActiveService')
+      const b = container.getOptional('ConditionalActiveService')
+      expect(a).toBe(b)
+    })
   })
 })

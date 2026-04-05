@@ -2,10 +2,11 @@ import { loggerService } from '@logger'
 import { SELECTION_FINETUNED_LIST, SELECTION_PREDEFINED_BLACKLIST } from '@main/configs/SelectionConfig'
 import { isDev, isLinux, isMac, isWin } from '@main/constant'
 import { application } from '@main/core/application'
+import { type Activatable, BaseService, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import type { SelectionActionItem } from '@shared/data/preference/preferenceTypes'
 import { SelectionTriggerMode } from '@shared/data/preference/preferenceTypes'
 import { IpcChannel } from '@shared/IpcChannel'
-import { app, BrowserWindow, clipboard, ipcMain, screen, systemPreferences } from 'electron'
+import { app, BrowserWindow, clipboard, screen, systemPreferences } from 'electron'
 import { join } from 'path'
 import type {
   KeyboardEventData,
@@ -18,13 +19,6 @@ import type {
 const logger = loggerService.withContext('SelectionService')
 
 let SelectionHook: SelectionHookConstructor | null = null
-try {
-  //since selection-hook v1.0.0, it supports macOS
-  //since selection-hook v2.0.0, it supports Linux
-  SelectionHook = require('selection-hook')
-} catch (error) {
-  logger.error('Failed to load selection-hook:', error as Error)
-}
 
 // Type definitions
 type Point = { x: number; y: number }
@@ -39,7 +33,7 @@ type RelativeOrientation =
   | 'middleRight'
   | 'center'
 
-/** SelectionService is a singleton class that manages the selection hook and the toolbar window
+/** SelectionService manages the selection hook and the toolbar window
  *
  * Features:
  * - Text selection detection and processing
@@ -49,17 +43,14 @@ type RelativeOrientation =
  * - Screen boundary-aware positioning
  *
  * Usage:
- *   import selectionService from '/src/main/services/SelectionService'
- *   selectionService?.start()
+ *   const selectionService = application.get('SelectionService')
  */
-export class SelectionService {
-  private static instance: SelectionService | null = null
+@Injectable('SelectionService')
+@ServicePhase(Phase.WhenReady)
+export class SelectionService extends BaseService implements Activatable {
   private selectionHook: SelectionHookInstance | null = null
 
-  private static isIpcHandlerRegistered = false
-
   private initStatus: boolean = false
-  private started: boolean = false
 
   private triggerMode = SelectionTriggerMode.Selected
   private isFollowToolbar = true
@@ -107,59 +98,144 @@ export class SelectionService {
     height: this.ACTION_WINDOW_HEIGHT
   }
 
-  private constructor() {
+  private loadModuleAndCreateInstance(): boolean {
     try {
       if (!SelectionHook) {
-        throw new Error('module selection-hook not exists')
+        SelectionHook = require('selection-hook')
+      }
+
+      if (!SelectionHook) {
+        this.logError('Failed to load selection-hook module')
+        return false
       }
 
       this.selectionHook = new SelectionHook()
-      if (this.selectionHook) {
-        this.initZoomFactor()
+      if (!this.selectionHook) {
+        this.logError('Failed to create SelectionHook instance')
+        return false
+      }
 
-        // Detect Wayland display protocol for platform-specific behavior.
-        // On Wayland, Electron runs via XWayland, causing coordinate space mismatches
-        // between selection-hook (Wayland compositor coords) and Electron (XWayland coords).
-        // Several workarounds are applied when isWaylandDisplay is true.
-        if (isLinux) {
-          const envInfo = this.selectionHook.linuxGetEnvInfo()
-          this.isLinuxWaylandDisplay = envInfo?.displayProtocol === SelectionHook.DisplayProtocol.WAYLAND
-          this.hasLinuxInputDeviceAccess = envInfo?.hasInputDeviceAccess ?? false
+      // Detect Wayland display protocol for platform-specific behavior.
+      // On Wayland, Electron runs via XWayland, causing coordinate space mismatches
+      // between selection-hook (Wayland compositor coords) and Electron (XWayland coords).
+      // Several workarounds are applied when isWaylandDisplay is true.
+      if (isLinux) {
+        const envInfo = this.selectionHook.linuxGetEnvInfo()
+        this.isLinuxWaylandDisplay = envInfo?.displayProtocol === SelectionHook.DisplayProtocol.WAYLAND
+        this.hasLinuxInputDeviceAccess = envInfo?.hasInputDeviceAccess ?? false
 
-          // X11: all compositors are compatible (no data-control protocol needed).
-          // Wayland: Mutter (GNOME) does not implement data-control protocols; Unknown is uncertain.
-          if (this.isLinuxWaylandDisplay) {
-            this.isLinuxCompositorCompatible =
-              envInfo?.compositorType !== SelectionHook.CompositorType.MUTTER &&
-              envInfo?.compositorType !== SelectionHook.CompositorType.UNKNOWN
-          } else {
-            this.isLinuxCompositorCompatible = true
-          }
-
-          // Detect if Electron is running under XWayland (not native Wayland).
-          // Since Electron 38+, native Wayland is the default when XDG_SESSION_TYPE=wayland.
-          // When --ozone-platform=x11 is set, Electron runs via XWayland instead.
-          if (this.isLinuxWaylandDisplay) {
-            this.isLinuxXWaylandMode = app.commandLine.getSwitchValue('ozone-platform').toLowerCase() === 'x11'
-          }
+        // X11: all compositors are compatible (no data-control protocol needed).
+        // Wayland: Mutter (GNOME) does not implement data-control protocols; Unknown is uncertain.
+        if (this.isLinuxWaylandDisplay) {
+          this.isLinuxCompositorCompatible =
+            envInfo?.compositorType !== SelectionHook.CompositorType.MUTTER &&
+            envInfo?.compositorType !== SelectionHook.CompositorType.UNKNOWN
+        } else {
+          this.isLinuxCompositorCompatible = true
         }
 
-        this.initStatus = true
+        // Detect if Electron is running under XWayland (not native Wayland).
+        // Since Electron 38+, native Wayland is the default when XDG_SESSION_TYPE=wayland.
+        // When --ozone-platform=x11 is set, Electron runs via XWayland instead.
+        if (this.isLinuxWaylandDisplay) {
+          this.isLinuxXWaylandMode = app.commandLine.getSwitchValue('ozone-platform').toLowerCase() === 'x11'
+        }
       }
+
+      this.initStatus = true
+      this.logInfo('selection-hook module loaded and instance created successfully')
+      return true
     } catch (error) {
-      this.logError('Failed to initialize SelectionService:', error as Error)
+      this.logError('Failed to load selection-hook:', error as Error)
+      return false
     }
   }
 
-  public static getInstance(): SelectionService | null {
-    if (!SelectionService.instance) {
-      SelectionService.instance = new SelectionService()
+  onActivate(): void {
+    // Load native module if not yet loaded (lazy loading preserved across activation cycles)
+    if (!this.initStatus) {
+      if (!this.loadModuleAndCreateInstance()) {
+        // Setting preference to false triggers the subscription which calls deactivate(),
+        // but _activating guard in BaseService ensures the deactivate() is a safe no-op.
+        const preferenceService = application.get('PreferenceService')
+        void preferenceService.set('feature.selection.enabled', false)
+        throw new Error('Failed to load selection-hook module')
+      }
     }
 
-    if (SelectionService.instance.initStatus) {
-      return SelectionService.instance
+    if (isMac) {
+      if (!systemPreferences.isTrustedAccessibilityClient(false)) {
+        this.logError('process is not trusted on macOS, please turn on the Accessibility permission')
+        throw new Error('macOS accessibility permission not granted')
+      }
     }
-    return null
+
+    try {
+      this.createToolbarWindow()
+      void this.initPreloadedActionWindows()
+
+      this.selectionHook!.on('error', (error: { message: string }) => {
+        this.logError('Error in SelectionHook:', error as Error)
+      })
+      this.selectionHook!.on('text-selection', this.processTextSelection)
+
+      if (!this.selectionHook!.start({ debug: isDev })) {
+        throw new Error('Failed to start text selection hook')
+      }
+
+      this.initConfig()
+      this.processTriggerMode()
+      this.logInfo('SelectionService activated', true)
+    } catch (error) {
+      // Clean up partial state before throwing (Activatable failure contract)
+      this.releaseActivationResources()
+      throw error
+    }
+  }
+
+  onDeactivate(): void {
+    this.releaseActivationResources()
+    this.logInfo('SelectionService deactivated', true)
+  }
+
+  protected async onInit(): Promise<void> {
+    this.initZoomFactor()
+    this.registerIpcHandlers()
+
+    const preferenceService = application.get('PreferenceService')
+    this.registerDisposable({
+      dispose: preferenceService.subscribeChange('feature.selection.enabled', (enabled: boolean) => {
+        if (enabled) void this.activate()
+        else void this.deactivate()
+      })
+    })
+  }
+
+  protected async onReady(): Promise<void> {
+    const preferenceService = application.get('PreferenceService')
+    if (preferenceService.get('feature.selection.enabled')) {
+      this.logInfo('Selection feature enabled, loading selection-hook module')
+      await this.activate()
+    } else {
+      this.logInfo('Selection feature disabled, skipping selection-hook module loading')
+    }
+  }
+
+  protected async onStop(): Promise<void> {
+    // _doStop() auto-deactivates before onStop() — releaseActivationResources() already called
+    // Disposables (preference subscriptions) are cleaned up after onStop() by the framework
+
+    // Final cleanup: release the native module entirely
+    if (this.selectionHook) {
+      this.selectionHook.cleanup()
+    }
+    this.selectionHook = null
+    this.initStatus = false
+    this.logInfo('SelectionService stopped via lifecycle', true)
+  }
+
+  public isInitialized(): boolean {
+    return this.initStatus
   }
 
   public getSelectionHook(): SelectionHookInstance | null {
@@ -180,12 +256,7 @@ export class SelectionService {
     }
   }
 
-  /**
-   * Initialize zoom factor from config and subscribe to changes
-   * Ensures UI elements scale properly with system DPI settings
-   */
-  // TODO: Migrate to lifecycle system, then this can be private again (called from onInit)
-  public initZoomFactor(): void {
+  private initZoomFactor(): void {
     const preferenceService = application.get('PreferenceService')
     const zoomFactor = preferenceService.get('app.zoom_factor')
 
@@ -193,8 +264,10 @@ export class SelectionService {
       this.setZoomFactor(zoomFactor)
     }
 
-    preferenceService.subscribeChange('app.zoom_factor', (zoomFactor: number) => {
-      this.setZoomFactor(zoomFactor)
+    this.registerDisposable({
+      dispose: preferenceService.subscribeChange('app.zoom_factor', (zoomFactor: number) => {
+        this.setZoomFactor(zoomFactor)
+      })
     })
   }
 
@@ -322,117 +395,10 @@ export class SelectionService {
   }
 
   /**
-   * Start the selection service and initialize required windows
-   * @returns {boolean} Success status of service start
-   */
-  public start(): boolean {
-    if (!this.selectionHook) {
-      this.logError('SelectionService start(): instance is null')
-      return false
-    }
-
-    if (this.started) {
-      this.logError('SelectionService start(): already started')
-      return false
-    }
-
-    //On macOS, we need to check if the process is trusted
-    if (isMac) {
-      if (!systemPreferences.isTrustedAccessibilityClient(false)) {
-        this.logError(
-          'SelectionSerice not started: process is not trusted on macOS, please turn on the Accessibility permission'
-        )
-        return false
-      }
-    }
-
-    try {
-      //make sure the toolbar window is ready
-      this.createToolbarWindow()
-      // Initialize preloaded windows
-      void this.initPreloadedActionWindows()
-      // Handle errors
-      this.selectionHook.on('error', (error: { message: string }) => {
-        this.logError('Error in SelectionHook:', error as Error)
-      })
-      // Handle text selection events
-      this.selectionHook.on('text-selection', this.processTextSelection)
-
-      // Start the hook
-      if (this.selectionHook.start({ debug: isDev })) {
-        //init basic configs
-        this.initConfig()
-
-        //init trigger mode configs
-        this.processTriggerMode()
-
-        this.started = true
-        this.logInfo('SelectionService Started', true)
-        return true
-      }
-
-      this.logError('Failed to start text selection hook.')
-      return false
-    } catch (error) {
-      this.logError('Failed to set up text selection hook:', error as Error)
-      return false
-    }
-  }
-
-  /**
-   * Stop the selection service and cleanup resources
-   * Called when user disables selection assistant
-   * @returns {boolean} Success status of service stop
-   */
-  public stop(): boolean {
-    if (!this.selectionHook) return false
-
-    this.selectionHook.stop()
-    this.selectionHook.cleanup() //already remove all listeners
-
-    for (const unsubscriber of this.unsubscriberForChangeListeners) {
-      unsubscriber()
-    }
-    this.unsubscriberForChangeListeners = []
-
-    //reset the listener states
-    this.isCtrlkeyListenerActive = false
-    this.isHideByMouseKeyListenerActive = false
-
-    if (this.toolbarWindow && !this.toolbarWindow.isDestroyed()) {
-      this.toolbarWindow.close()
-    }
-    this.toolbarWindow = null
-
-    this.closePreloadedActionWindows()
-
-    this.started = false
-    this.logInfo('SelectionService Stopped', true)
-    return true
-  }
-
-  /**
-   * Completely quit the selection service
-   * Called when the app is closing
-   */
-  public quit(): void {
-    if (!this.selectionHook) return
-
-    this.stop()
-
-    this.selectionHook = null
-    this.initStatus = false
-    SelectionService.instance = null
-    this.logInfo('SelectionService Quitted', true)
-  }
-
-  /**
    * Toggle the enabled state of the selection service
    * Will sync the new enabled store to all renderer windows
    */
   public toggleEnabled(enabled: boolean | undefined = undefined): void {
-    if (!this.selectionHook) return
-
     const preferenceService = application.get('PreferenceService')
     const newEnabled = enabled === undefined ? !preferenceService.get('feature.selection.enabled') : enabled
 
@@ -796,7 +762,7 @@ export class SelectionService {
    * it's a public method used by shortcut service
    */
   public processSelectTextByShortcut(): void {
-    if (!this.selectionHook || !this.started || this.triggerMode !== SelectionTriggerMode.Shortcut) return
+    if (!this.selectionHook || !this.isActivated || this.triggerMode !== SelectionTriggerMode.Shortcut) return
 
     const selectionData = this.selectionHook.getCurrentSelection()
 
@@ -1257,6 +1223,37 @@ export class SelectionService {
   }
 
   /**
+   * Release all activation-scoped resources.
+   * Uses stop() + removeAllListeners() instead of cleanup() to preserve the native instance
+   * for efficient reactivation. Safe to call even if onActivate() never ran or partially ran.
+   */
+  private releaseActivationResources(): void {
+    if (this.selectionHook) {
+      try {
+        this.selectionHook.stop()
+        this.selectionHook.removeAllListeners()
+      } catch (error) {
+        this.logError('Failed to stop selection hook:', error as Error)
+      }
+    }
+
+    for (const unsub of this.unsubscriberForChangeListeners) {
+      unsub()
+    }
+    this.unsubscriberForChangeListeners = []
+
+    this.isCtrlkeyListenerActive = false
+    this.isHideByMouseKeyListenerActive = false
+
+    if (this.toolbarWindow && !this.toolbarWindow.isDestroyed()) {
+      this.toolbarWindow.close()
+    }
+    this.toolbarWindow = null
+
+    this.closePreloadedActionWindows()
+  }
+
+  /**
    * Preload a new action window asynchronously
    * This method is called after popping a window to ensure we always have windows ready
    */
@@ -1593,84 +1590,69 @@ export class SelectionService {
         return false
       }
     }
-    if (!this.selectionHook || !this.started) return false
+    if (!this.selectionHook || !this.isActivated) return false
     return this.selectionHook.writeToClipboard(text)
   }
 
-  /**
-   * Register IPC handlers for communication with renderer process
-   * Handles toolbar, action window, and selection-related commands
-   */
-  public static registerIpcHandler(): void {
-    if (this.isIpcHandlerRegistered) return
-
-    ipcMain.handle(IpcChannel.Selection_ToolbarHide, () => {
-      selectionService?.hideToolbar()
+  private registerIpcHandlers(): void {
+    this.ipcHandle(IpcChannel.Selection_ToolbarHide, () => {
+      this.hideToolbar()
     })
 
-    ipcMain.handle(IpcChannel.Selection_WriteToClipboard, (_, text: string): boolean => {
-      return selectionService?.writeToClipboard(text) ?? false
+    this.ipcHandle(IpcChannel.Selection_WriteToClipboard, (_, text: string): boolean => {
+      return this.writeToClipboard(text) ?? false
     })
 
-    ipcMain.handle(IpcChannel.Selection_ToolbarDetermineSize, (_, width: number, height: number) => {
-      selectionService?.determineToolbarSize(width, height)
+    this.ipcHandle(IpcChannel.Selection_ToolbarDetermineSize, (_, width: number, height: number) => {
+      this.determineToolbarSize(width, height)
     })
 
     // [macOS] only macOS has the available isFullscreen mode
-    ipcMain.handle(
+    this.ipcHandle(
       IpcChannel.Selection_ProcessAction,
       (_, actionItem: SelectionActionItem, isFullScreen: boolean = false) => {
-        selectionService?.processAction(actionItem, isFullScreen)
+        this.processAction(actionItem, isFullScreen)
       }
     )
 
-    ipcMain.handle(IpcChannel.Selection_ActionWindowClose, (event) => {
+    this.ipcHandle(IpcChannel.Selection_ActionWindowClose, (event) => {
       const actionWindow = BrowserWindow.fromWebContents(event.sender)
       if (actionWindow && !actionWindow.isDestroyed()) {
-        selectionService?.closeActionWindow(actionWindow)
+        this.closeActionWindow(actionWindow)
       }
     })
 
-    ipcMain.handle(IpcChannel.Selection_ActionWindowMinimize, (event) => {
+    this.ipcHandle(IpcChannel.Selection_ActionWindowMinimize, (event) => {
       const actionWindow = BrowserWindow.fromWebContents(event.sender)
       if (actionWindow && !actionWindow.isDestroyed()) {
-        selectionService?.minimizeActionWindow(actionWindow)
+        this.minimizeActionWindow(actionWindow)
       }
     })
 
-    ipcMain.handle(IpcChannel.Selection_ActionWindowPin, (event, isPinned: boolean) => {
+    this.ipcHandle(IpcChannel.Selection_ActionWindowPin, (event, isPinned: boolean) => {
       const actionWindow = BrowserWindow.fromWebContents(event.sender)
       if (actionWindow && !actionWindow.isDestroyed()) {
-        selectionService?.pinActionWindow(actionWindow, isPinned)
+        this.pinActionWindow(actionWindow, isPinned)
       }
     })
 
     // [Windows only] Electron bug workaround - can be removed once fixed
     // See: https://github.com/electron/electron/issues/48554
-    ipcMain.handle(
+    this.ipcHandle(
       IpcChannel.Selection_ActionWindowResize,
       (event, deltaX: number, deltaY: number, direction: string) => {
         const actionWindow = BrowserWindow.fromWebContents(event.sender)
         if (actionWindow && !actionWindow.isDestroyed()) {
-          selectionService?.resizeActionWindow(actionWindow, deltaX, deltaY, direction)
+          this.resizeActionWindow(actionWindow, deltaX, deltaY, direction)
         }
       }
     )
 
     if (isLinux) {
-      ipcMain.handle(IpcChannel.Selection_GetLinuxEnvInfo, () => {
-        return (
-          selectionService?.getLinuxEnvInfo() ?? {
-            isLinuxWaylandDisplay: false,
-            isLinuxXWaylandMode: false,
-            hasLinuxInputDeviceAccess: false,
-            isLinuxCompositorCompatible: false
-          }
-        )
+      this.ipcHandle(IpcChannel.Selection_GetLinuxEnvInfo, () => {
+        return this.getLinuxEnvInfo()
       })
     }
-
-    this.isIpcHandlerRegistered = true
   }
 
   private logInfo(message: string, forceShow: boolean = false): void {
@@ -1683,49 +1665,3 @@ export class SelectionService {
     logger.error(message, error)
   }
 }
-
-/**
- * Initialize selection service when app starts
- * Sets up config subscription and starts service if enabled
- * @returns {boolean} Success status of initialization
- */
-export function initSelectionService(): boolean {
-  // Initialize zoom factor here (after bootstrap) instead of in constructor
-  // because application.get() requires services to be registered first
-  const selectionInstance = SelectionService.getInstance()
-  if (selectionInstance) {
-    selectionInstance.initZoomFactor()
-  }
-
-  const preferenceService = application.get('PreferenceService')
-  const enabled = preferenceService.get('feature.selection.enabled')
-
-  preferenceService.subscribeChange('feature.selection.enabled', (enabled: boolean): void => {
-    //avoid closure
-    const ss = SelectionService.getInstance()
-    if (!ss) {
-      logger.error('SelectionService not initialized: instance is null')
-      return
-    }
-
-    if (enabled) {
-      ss.start()
-    } else {
-      ss.stop()
-    }
-  })
-
-  if (!enabled) return false
-
-  const ss = SelectionService.getInstance()
-  if (!ss) {
-    logger.error('SelectionService not initialized: instance is null')
-    return false
-  }
-
-  return ss.start()
-}
-
-const selectionService = SelectionService.getInstance()
-
-export default selectionService
