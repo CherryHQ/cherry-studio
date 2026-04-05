@@ -1,3 +1,4 @@
+export * from './essential'
 export * from './file'
 export * from './ipc'
 export * from './node'

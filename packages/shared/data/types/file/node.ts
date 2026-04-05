@@ -52,7 +52,6 @@ import * as z from 'zod'
 
 import { SafeNameSchema, TimestampSchema } from './essential'
 import { MountProviderConfigSchema } from './provider'
-import { tempSessionRefFields } from './ref'
 
 // ─── System Node IDs ───
 
@@ -195,53 +194,3 @@ export function isDirNode(node: FileTreeNode): node is DirNode {
 export function isFileNode(node: FileTreeNode): node is FileNode {
   return node.type === 'file'
 }
-
-// ─── DTOs ───
-
-/**
- * DTO for creating a new file or directory node.
- *
- * Internal to service layer — not exposed via DataApi.
- * FileManager IPC handlers use this when calling data/service after completing FS operations.
- *
- * - `name` — for files: full filename with extension (e.g. `report.pdf`),
- *            for dirs: directory name.
- *            Service layer splits file names into entity `name` + `ext`.
- *
- * Fields derived by the service layer (not in DTO):
- * - `mountId` — inherited from parent node
- * - `ext` — extracted from `name` for files
- * - `size` — read from actual file data
- */
-export const CreateNodeDtoSchema = z.object({
-  /** Node type (file or dir, not mount) */
-  type: z.enum(['file', 'dir']),
-  /** Full name: for files includes extension (e.g. `report.pdf`), for dirs the directory name */
-  name: SafeNameSchema,
-  /** Parent node ID (mountId is derived from this) */
-  parentId: NodeIdSchema
-})
-export type CreateNodeDto = z.infer<typeof CreateNodeDtoSchema>
-
-/**
- * DTO for updating a node's metadata.
- *
- * Internal to service layer — not exposed via DataApi.
- * `name` is the full name (with extension for files); service splits into `name` + `ext`.
- */
-export const UpdateNodeDtoSchema = z.object({
-  /** Updated full name (with extension for files) */
-  name: SafeNameSchema.optional()
-})
-export type UpdateNodeDto = z.infer<typeof UpdateNodeDtoSchema>
-
-/**
- * DTO for creating a file reference.
- *
- * Discriminated union on `sourceType` — each variant narrows `role` to valid
- * values for that source type, using the business fields from each ref variant.
- *
- * When adding a new FileRef variant, add its `*RefFields` here as well.
- */
-export const CreateFileRefDtoSchema = z.discriminatedUnion('sourceType', [z.object(tempSessionRefFields)])
-export type CreateFileRefDto = z.infer<typeof CreateFileRefDtoSchema>

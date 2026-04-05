@@ -1,15 +1,14 @@
 import { describe, expect, it } from 'vitest'
 
+import { CreateNodeDtoSchema, UpdateNodeDtoSchema } from '../../api/schemas/files'
 import {
-  CreateNodeDtoSchema,
   FileTreeNodeSchema,
   LocalExternalConfigSchema,
   LocalManagedConfigSchema,
   MountProviderConfigSchema,
   NodeIdSchema,
   RemoteConfigSchema,
-  SystemConfigSchema,
-  UpdateNodeDtoSchema
+  SystemConfigSchema
 } from '../file'
 
 /**
