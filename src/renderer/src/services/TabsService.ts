@@ -1,7 +1,6 @@
 import { loggerService } from '@logger'
 import store from '@renderer/store'
 import { removeTab, setActiveTab } from '@renderer/store/tabs'
-import { clearWebviewState } from '@renderer/utils/webviewStateManager'
 import type { MiniApp } from '@shared/data/types/miniapp'
 import type { LRUCache } from 'lru-cache'
 
@@ -92,10 +91,8 @@ export class TabsService {
         logger.debug(`Cleaning up mini-app cache for app: ${appId}`)
 
         // Remove from LRU cache - this will trigger disposeAfter callback
+        // which already clears WebView state and updates openedKeepAliveMinapps
         this.minAppsCache.delete(appId)
-
-        // Clear WebView state
-        clearWebviewState(appId)
 
         logger.info(`Mini-app ${appId} removed from cache due to tab closure`)
       }

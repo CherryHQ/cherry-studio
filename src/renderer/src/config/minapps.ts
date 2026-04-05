@@ -87,17 +87,21 @@ const loadCustomMiniApp = async (): Promise<MinAppType[]> => {
       }
     }
 
-    const customApps = JSON.parse(content)
+    const customApps: unknown = JSON.parse(content)
     const now = new Date().toISOString()
 
-    return customApps.map((app: any) => ({
-      ...app,
-      type: 'Custom',
-      // Custom apps can use image URLs directly or icon keys
-      logo: app.logo && app.logo !== '' ? app.logo : 'application',
-      addTime: app.addTime || now,
-      supportedRegions: ['CN', 'Global']
-    }))
+    if (!Array.isArray(customApps)) return []
+
+    return (customApps as Partial<MinAppType>[])
+      .filter((app): app is MinAppType => typeof app.id === 'string')
+      .map((app) => ({
+        ...app,
+        type: 'Custom' as const,
+        // Custom apps can use image URLs directly or icon keys
+        logo: app.logo && app.logo !== '' ? app.logo : 'application',
+        addTime: app.addTime || now,
+        supportedRegions: ['CN', 'Global'] as const
+      }))
   } catch (error) {
     logger.error('Failed to load custom mini apps:', error as Error)
     return []

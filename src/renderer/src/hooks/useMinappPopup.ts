@@ -4,6 +4,10 @@ import NavigationService from '@renderer/services/NavigationService'
 import { tabsService } from '@renderer/services/TabsService'
 import { clearWebviewState } from '@renderer/utils/webviewStateManager'
 import type { MiniApp } from '@shared/data/types/miniapp'
+import { LRUCache } from 'lru-cache'
+import { useCallback } from 'react'
+
+import { useNavbarPosition } from './useNavbar'
 
 type MiniAppInput = Pick<MiniApp, 'appId' | 'name' | 'url' | 'logo'> &
   Partial<Omit<MiniApp, 'appId' | 'name' | 'url' | 'logo' | 'type' | 'status' | 'sortOrder'>>
@@ -16,10 +20,6 @@ function toMiniApp(input: MiniAppInput): MiniApp {
     sortOrder: 0
   } as MiniApp
 }
-import { LRUCache } from 'lru-cache'
-import { useCallback } from 'react'
-
-import { useNavbarPosition } from './useNavbar'
 
 let minAppsCache: LRUCache<string, MiniApp>
 
