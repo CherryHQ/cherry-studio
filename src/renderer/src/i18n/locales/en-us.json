@@ -6139,6 +6139,7 @@
       "empty": "No translation history",
       "error": {
         "delete": "Deletion failed",
+        "load": "Failed to load translation history",
         "save": "Failed to save translation history"
       },
       "search": {

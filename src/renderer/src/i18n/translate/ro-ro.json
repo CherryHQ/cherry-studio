@@ -5934,6 +5934,7 @@
     "new": "Filă nouă",
     "pin": "Fixează fila",
     "unpin": "Anulați fixarea filei"
+
   },
   "title": {
     "apps": "Aplicații",
@@ -6044,6 +6045,7 @@
       "empty": "Niciun istoric de traducere",
       "error": {
         "delete": "Ștergerea a eșuat",
+        "load": "Nu s-a putut încărca istoricul traducerilor",
         "save": "Salvarea istoricului traducerilor a eșuat"
       },
       "search": {

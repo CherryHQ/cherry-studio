@@ -44,7 +44,7 @@ const TranslateHistoryList: FC<TranslateHistoryProps> = ({ isOpen, onHistoryItem
 
   const clearHistory = useClearHistory()
 
-  const { data: translateHistory } = useQuery('/translate/histories', {
+  const { data: translateHistory, error: queryError } = useQuery('/translate/histories', {
     query: {
       page: TRANSLATE_HISTORY_DEFAULT_PAGE,
       limit: TRANSLATE_HISTORY_DEFAULT_LIMIT,
@@ -127,7 +127,7 @@ const TranslateHistoryList: FC<TranslateHistoryProps> = ({ isOpen, onHistoryItem
             </HistoryList>
           ) : (
             <Flex className="items-center justify-center" style={{ flex: 1 }}>
-              <Empty description={t('translate.history.empty')} />
+              <Empty description={queryError ? t('translate.history.error.load') : t('translate.history.empty')} />
             </Flex>
           )}
         </HistoryContainer>
