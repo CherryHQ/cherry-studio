@@ -1,6 +1,16 @@
 import { describe, expect, it } from 'vitest'
 
-import { CreateNodeDtoSchema, FileTreeNodeSchema, NodeIdSchema, UpdateNodeDtoSchema } from '../file'
+import {
+  CreateNodeDtoSchema,
+  FileTreeNodeSchema,
+  LocalExternalConfigSchema,
+  LocalManagedConfigSchema,
+  MountProviderConfigSchema,
+  NodeIdSchema,
+  RemoteConfigSchema,
+  SystemConfigSchema,
+  UpdateNodeDtoSchema
+} from '../file'
 
 /**
  * Helper to build a minimal valid file node for testing name validation.
@@ -103,6 +113,11 @@ describe('SafeNameSchema validation', () => {
     it('rejects traversal sequence ../../etc/passwd', () => {
       const result = FileTreeNodeSchema.safeParse(makeFileNode('../../etc/passwd'))
       expect(result.success).toBe(false)
+    })
+
+    it('rejects whitespace-only name', () => {
+      expect(FileTreeNodeSchema.safeParse(makeFileNode('   ')).success).toBe(false)
+      expect(FileTreeNodeSchema.safeParse(makeFileNode('\t')).success).toBe(false)
     })
   })
 
@@ -366,5 +381,126 @@ describe('NodeIdSchema', () => {
   it('rejects random strings', () => {
     expect(NodeIdSchema.safeParse('not-a-valid-id').success).toBe(false)
     expect(NodeIdSchema.safeParse('').success).toBe(false)
+  })
+
+  it('accepts system_temp', () => {
+    expect(NodeIdSchema.safeParse('system_temp').success).toBe(true)
+  })
+})
+
+describe('MountProviderConfigSchema', () => {
+  describe('local_managed', () => {
+    it('accepts valid config', () => {
+      expect(
+        LocalManagedConfigSchema.safeParse({ providerType: 'local_managed', basePath: '/data/files' }).success
+      ).toBe(true)
+    })
+
+    it('rejects relative basePath', () => {
+      expect(
+        LocalManagedConfigSchema.safeParse({ providerType: 'local_managed', basePath: 'relative/path' }).success
+      ).toBe(false)
+    })
+
+    it('rejects empty basePath', () => {
+      expect(LocalManagedConfigSchema.safeParse({ providerType: 'local_managed', basePath: '' }).success).toBe(false)
+    })
+  })
+
+  describe('local_external', () => {
+    it('accepts valid config', () => {
+      const result = LocalExternalConfigSchema.safeParse({
+        providerType: 'local_external',
+        basePath: '/home/user/notes',
+        watch: true
+      })
+      expect(result.success).toBe(true)
+    })
+
+    it('accepts Windows path', () => {
+      expect(
+        LocalExternalConfigSchema.safeParse({
+          providerType: 'local_external',
+          basePath: 'C:\\Users\\notes',
+          watch: false
+        }).success
+      ).toBe(true)
+    })
+
+    it('defaults watchExtensions to empty array', () => {
+      const result = LocalExternalConfigSchema.safeParse({
+        providerType: 'local_external',
+        basePath: '/notes'
+      })
+      expect(result.success).toBe(true)
+      if (result.success) {
+        expect(result.data.watchExtensions).toEqual([])
+      }
+    })
+
+    it('rejects relative basePath', () => {
+      expect(
+        LocalExternalConfigSchema.safeParse({
+          providerType: 'local_external',
+          basePath: 'notes'
+        }).success
+      ).toBe(false)
+    })
+  })
+
+  describe('remote', () => {
+    it('accepts valid config', () => {
+      expect(
+        RemoteConfigSchema.safeParse({
+          providerType: 'remote',
+          apiType: 'openai_files',
+          providerId: 'provider-1',
+          autoSync: false,
+          options: {}
+        }).success
+      ).toBe(true)
+    })
+
+    it('rejects invalid apiType', () => {
+      expect(
+        RemoteConfigSchema.safeParse({
+          providerType: 'remote',
+          apiType: 'invalid_type',
+          providerId: 'p1'
+        }).success
+      ).toBe(false)
+    })
+  })
+
+  describe('system', () => {
+    it('accepts valid config', () => {
+      expect(SystemConfigSchema.safeParse({ providerType: 'system' }).success).toBe(true)
+    })
+  })
+
+  describe('discriminated union', () => {
+    it('discriminates by providerType', () => {
+      expect(MountProviderConfigSchema.safeParse({ providerType: 'local_managed', basePath: '/x' }).success).toBe(true)
+      expect(MountProviderConfigSchema.safeParse({ providerType: 'system' }).success).toBe(true)
+    })
+
+    it('rejects unknown providerType', () => {
+      expect(MountProviderConfigSchema.safeParse({ providerType: 'unknown' }).success).toBe(false)
+    })
+
+    it('rejects config missing required fields', () => {
+      expect(MountProviderConfigSchema.safeParse({ providerType: 'local_managed' }).success).toBe(false)
+    })
+  })
+})
+
+describe('CreateNodeDtoSchema', () => {
+  it('rejects type=mount', () => {
+    const result = CreateNodeDtoSchema.safeParse({
+      type: 'mount',
+      name: 'evil-mount',
+      parentId: '019606a0-0000-7000-8000-000000000001'
+    })
+    expect(result.success).toBe(false)
   })
 })
