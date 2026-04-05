@@ -258,10 +258,19 @@ describe('MiniAppService', () => {
       mockInsert.mockReturnValue({ values })
 
       // Mock the duplicate check
-      mockSelect.mockReturnValue({
+      mockSelect.mockReturnValueOnce({
         from: vi.fn().mockReturnValue({
           where: vi.fn().mockReturnValue({
             limit: vi.fn().mockResolvedValue([])
+          })
+        })
+      })
+
+      // Mock the max sortOrder query
+      mockSelect.mockReturnValueOnce({
+        from: vi.fn().mockReturnValue({
+          orderBy: vi.fn().mockReturnValue({
+            limit: vi.fn().mockResolvedValue([{ maxSortOrder: 100 }])
           })
         })
       })
@@ -285,7 +294,7 @@ describe('MiniAppService', () => {
           logo: 'custom-logo',
           type: 'custom',
           status: 'enabled',
-          sortOrder: 0
+          sortOrder: 101
         })
       )
       expect(result.appId).toBe('custom-app')
