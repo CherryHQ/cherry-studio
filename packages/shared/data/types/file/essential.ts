@@ -11,3 +11,4 @@ export const SafeNameSchema = z
   .refine((s) => !s.includes('\0'), 'Name must not contain null bytes')
   .refine((s) => !/[/\\]/.test(s), 'Name must not contain path separators')
   .refine((s) => !/^\.\.?$/.test(s), 'Name must not be . or ..')
+  .refine((s) => s.trim().length > 0, 'Name must not be all whitespace')
