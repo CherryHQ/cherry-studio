@@ -5846,7 +5846,7 @@
     }
   },
   "tab": {
-    "new": "[to be translated]:New Tab"
+    "new": "Nouvel onglet"
   },
   "title": {
     "apps": "Mini-programmes",
@@ -5958,6 +5958,7 @@
       "empty": "Aucun historique de traduction pour le moment",
       "error": {
         "delete": "Échec de la suppression",
+        "load": "Échec du chargement de l'historique des traductions",
         "save": "Échec de la sauvegarde de l'historique des traductions"
       },
       "search": {

@@ -5846,7 +5846,7 @@
     }
   },
   "tab": {
-    "new": "[to be translated]:New Tab"
+    "new": "Neuer Tab"
   },
   "title": {
     "apps": "Mini-Apps",
@@ -5958,6 +5958,7 @@
       "empty": "Keine Übersetzungshistorie",
       "error": {
         "delete": "Löschen fehlgeschlagen",
+        "load": "Übersetzungsverlauf konnte nicht geladen werden",
         "save": "Speichern der Übersetzungshistorie fehlgeschlagen"
       },
       "search": {

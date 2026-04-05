@@ -5846,7 +5846,7 @@
     }
   },
   "tab": {
-    "new": "[to be translated]:New Tab"
+    "new": "Nueva pestaña"
   },
   "title": {
     "apps": "Aplicaciones",
@@ -5958,6 +5958,7 @@
       "empty": "Sin historial de traducciones por el momento",
       "error": {
         "delete": "Eliminación fallida",
+        "load": "No se pudo cargar el historial de traducciones",
         "save": "Error al guardar el historial de traducciones"
       },
       "search": {

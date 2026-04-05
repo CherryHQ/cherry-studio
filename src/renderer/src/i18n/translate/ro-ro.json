@@ -5845,6 +5845,9 @@
       "title": "Zoom pagină"
     }
   },
+  "tab": {
+    "new": "Filă nouă"
+  },
   "title": {
     "apps": "Aplicații",
     "code": "Cod",
@@ -5955,6 +5958,7 @@
       "empty": "Niciun istoric de traducere",
       "error": {
         "delete": "Ștergerea a eșuat",
+        "load": "Nu s-a putut încărca istoricul traducerilor",
         "save": "Salvarea istoricului traducerilor a eșuat"
       },
       "search": {
