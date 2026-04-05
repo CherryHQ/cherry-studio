@@ -14,7 +14,8 @@ import type { FileTreeNode, NodeId } from './node'
 
 // ─── Content Source Types ───
 
-export type FilePath = `/${string}` | `${string}:${string}` | `file://${string}`
+/** Local filesystem path. Runtime validation required — pattern is intentionally broad for type-level hints only. */
+export type FilePath = `/${string}` | `${string}:\\${string}` | `file://${string}`
 export type Base64String = `data:${string};base64,${string}`
 export type URLString = `http://${string}` | `https://${string}`
 export type FileContent = FilePath | Base64String | URLString | Uint8Array
