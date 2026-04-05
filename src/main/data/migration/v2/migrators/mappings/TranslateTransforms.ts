@@ -1,4 +1,8 @@
+import { loggerService } from '@logger'
+
 import type { TransformResult } from './ComplexPreferenceMappings'
+
+const logger = loggerService.withContext('Migration:TranslateTransforms')
 
 /**
  * Split the legacy `translate:bidirectional:pair` tuple into separate
@@ -12,12 +16,16 @@ export function splitBidirectionalPairForAction(sources: { bidirectionalPair?: u
   const pair = sources.bidirectionalPair
 
   if (!Array.isArray(pair) || pair.length < 2) {
+    logger.warn('Invalid bidirectional pair: expected array with >= 2 elements, falling back to defaults', {
+      value: pair
+    })
     return {}
   }
 
   const [preferred, alter] = pair
 
   if (typeof preferred !== 'string' || typeof alter !== 'string') {
+    logger.warn('Invalid bidirectional pair: expected string elements, falling back to defaults', { preferred, alter })
     return {}
   }
 
@@ -38,6 +46,7 @@ export function copyTargetLanguageForMiniWindow(sources: { targetLanguage?: unkn
   const lang = sources.targetLanguage
 
   if (typeof lang !== 'string' || lang.length === 0) {
+    logger.warn('Invalid target language: expected non-empty string, falling back to defaults', { value: lang })
     return {}
   }
 
