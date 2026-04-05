@@ -57,9 +57,9 @@ const getTabIcon = (
   allApps: MiniApp[],
   minAppsCache?: LRUCache<string, MiniApp>
 ): React.ReactNode | undefined => {
-  // Check if it's a minapp tab (format: apps:appId)
-  if (tabId.startsWith('apps:')) {
-    const appId = tabId.replace('apps:', '')
+  // Check if it's a minapp tab (format: minapp:appId)
+  if (tabId.startsWith('minapp:')) {
+    const appId = tabId.replace('minapp:', '')
     let app = allApps.find((a) => a.appId === appId)
 
     // If not found in permanent apps, search in temporary apps cache
