@@ -729,7 +729,7 @@ async function permanentDelete(nodeId: string): Promise<void> {
 ### 7.4 内容编辑
 
 - 直接修改节点对应的真实文件。
-- 更新节点 `updated_at` 与元信息。
+- 更新节点 `updatedAt` 与元信息。
 
 ### 7.5 元信息编辑
 
