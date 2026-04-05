@@ -1,5 +1,5 @@
 import { nodeTable } from '@data/db/schemas/node'
-import { getFilesDir, getNotesDir } from '@main/utils/file'
+import { getFilesDir, getNotesDir, getTempFilesDir } from '@main/utils/file'
 import type { MountProviderConfig } from '@shared/data/types/file'
 import { sql } from 'drizzle-orm'
 
@@ -17,6 +17,7 @@ interface SystemNode {
 function getSystemNodes(): SystemNode[] {
   let filesDir: string
   let notesDir: string
+  let tempDir: string
   try {
     filesDir = getFilesDir()
   } catch (err) {
@@ -26,6 +27,11 @@ function getSystemNodes(): SystemNode[] {
     notesDir = getNotesDir()
   } catch (err) {
     throw new Error(`Failed to resolve base path for mount_notes: ${(err as Error).message}`)
+  }
+  try {
+    tempDir = getTempFilesDir()
+  } catch (err) {
+    throw new Error(`Failed to resolve base path for mount_temp: ${(err as Error).message}`)
   }
 
   return [
@@ -60,7 +66,8 @@ function getSystemNodes(): SystemNode[] {
       mountId: 'mount_temp',
       parentId: null,
       providerConfig: {
-        providerType: 'system'
+        providerType: 'local_managed',
+        basePath: tempDir
       }
     },
     {

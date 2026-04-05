@@ -157,20 +157,18 @@ export interface FileSchemas {
   }
 
   /**
-   * File references by business source
+   * File references by business source (read-only)
+   *
+   * Ref write operations (create / cleanup) are NOT exposed via DataApi.
+   * Business services call fileRefService directly; Renderer does not manage refs.
+   *
    * @example GET /files/refs/by-source?sourceType=chat_message&sourceId=msg1
-   * @example DELETE /files/refs/by-source?sourceType=chat_message&sourceId=msg1
    */
   '/files/refs/by-source': {
     /** Get all file references for a business object */
     GET: {
       query: { sourceType: string; sourceId: string }
       response: FileRef[]
-    }
-    /** Clean up all references for a business object (pure DB operation, no FS side effects) */
-    DELETE: {
-      query: { sourceType: string; sourceId: string }
-      response: void
     }
   }
 

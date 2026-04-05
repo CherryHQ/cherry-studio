@@ -5,8 +5,10 @@
  * All endpoints throw NOT_IMPLEMENTED to satisfy ApiSchemas type requirements.
  *
  * Note: Only read endpoints are exposed via DataApi. Write operations (create,
- * rename, move, trash, delete, upload) are handled by FileManager IPC, which
- * internally calls data/service for DB synchronization.
+ * rename, move, trash, delete, upload) are handled by FileIpcService -> FileService,
+ * which internally calls FileTreeService for DB synchronization.
+ * Ref write operations (create/cleanup) are called directly by business services
+ * via fileRefService, not exposed via DataApi.
  */
 
 import type { ApiHandler, ApiMethods } from '@shared/data/api/apiTypes'
@@ -38,8 +40,7 @@ export const fileHandlers: {
     GET: notImplemented('GET /files/nodes/:id/refs')
   },
   '/files/refs/by-source': {
-    GET: notImplemented('GET /files/refs/by-source'),
-    DELETE: notImplemented('DELETE /files/refs/by-source')
+    GET: notImplemented('GET /files/refs/by-source')
   },
   '/files/mounts': {
     GET: notImplemented('GET /files/mounts')
