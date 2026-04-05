@@ -1,16 +1,8 @@
 import { DeleteOutlined, StarFilled, StarOutlined } from '@ant-design/icons'
-import {
-  Drawer,
-  DrawerContent,
-  DrawerHeader,
-  Flex,
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-  RowFlex
-} from '@cherrystudio/ui'
+import { Drawer, DrawerContent, DrawerHeader, Flex, RowFlex } from '@cherrystudio/ui'
 import { Button } from '@cherrystudio/ui'
 import { useQuery } from '@data/hooks/useDataApi'
+import PopoverConfirm from '@renderer/components/PopoverConfirm'
 import { DynamicVirtualList } from '@renderer/components/VirtualList'
 import { useClearHistory } from '@renderer/hooks/translate'
 import { TRANSLATE_HISTORY_DEFAULT_LIMIT, TRANSLATE_HISTORY_DEFAULT_PAGE } from '@shared/data/api/schemas/translate'
@@ -77,22 +69,15 @@ const TranslateHistoryList: FC<TranslateHistoryProps> = ({ isOpen, onHistoryItem
             </Button>
           </div>
           {(translateHistory?.items?.length ?? 0) > 0 && (
-            <Popover>
-              <PopoverTrigger asChild>
-                <Button variant="ghost" size="sm">
-                  <DeleteOutlined />
-                  {t('translate.history.clear')}
-                </Button>
-              </PopoverTrigger>
-              <PopoverContent>
-                <div>{t('translate.history.clear')}</div>
-                <p>{t('translate.history.clear_description')}</p>
-                <div>
-                  <Button onClick={clearHistory}>{t('translate.history.clear')}</Button>
-                  <Button onClick={() => {}}>{t('common.cancel')}</Button>
-                </div>
-              </PopoverContent>
-            </Popover>
+            <PopoverConfirm
+              title={t('translate.history.clear')}
+              description={t('translate.history.clear_description')}
+              onConfirm={clearHistory}>
+              <Button variant="ghost" size="sm">
+                <DeleteOutlined />
+                {t('translate.history.clear')}
+              </Button>
+            </PopoverConfirm>
           )}
         </DrawerHeader>
         <HistoryContainer>
