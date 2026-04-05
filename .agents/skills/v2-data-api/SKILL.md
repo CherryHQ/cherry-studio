@@ -28,6 +28,16 @@ Before building a service, determine the right system:
 2. Is it a user setting with a fixed key? -> PreferenceService (schema-based)
 3. Is it user-created data that grows unbounded? -> DataApiService (full service stack)
 
+### Boundary Check (MUST verify before proceeding)
+
+Before adding any DataApi endpoint, confirm ALL of these:
+- [ ] The operation reads or writes data in a SQLite table
+- [ ] The data is user-created, irreplaceable business data
+- [ ] A database schema exists (or will be created) for this data
+- [ ] The operation is NOT purely side-effectful (no window/process/notification control)
+
+If ANY check fails → this operation does NOT belong in DataApi. Use IPC handlers instead. See `docs/en/references/data/api-design-guidelines.md` § "DataApi Scope & Boundaries" for anti-patterns and rationale.
+
 ## Architecture
 
 ```
