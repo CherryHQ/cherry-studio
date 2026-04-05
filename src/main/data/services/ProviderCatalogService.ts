@@ -21,12 +21,14 @@ import {
 import type { NewUserModel } from '@data/db/schemas/userModel'
 import { userModelTable } from '@data/db/schemas/userModel'
 import type { NewUserProvider } from '@data/db/schemas/userProvider'
+import { userProviderTable } from '@data/db/schemas/userProvider'
 import { loggerService } from '@logger'
 import { isDev } from '@main/constant'
 import { application } from '@main/core/application'
 import type { Model } from '@shared/data/types/model'
+import type { ReasoningFormatType } from '@shared/data/types/provider'
 import { mergeModelConfig } from '@shared/data/utils/modelMerger'
-import { isNotNull } from 'drizzle-orm'
+import { eq, isNotNull } from 'drizzle-orm'
 
 import { modelService } from './ModelService'
 import { providerService } from './ProviderService'
@@ -34,7 +36,7 @@ import { providerService } from './ProviderService'
 const logger = loggerService.withContext('DataApi:CatalogService')
 
 /** Map proto ProviderReasoningFormat oneof case to runtime type string */
-const CASE_TO_TYPE: Record<string, string> = {
+const CASE_TO_TYPE: Record<string, ReasoningFormatType> = {
   openaiChat: 'openai-chat',
   openaiResponses: 'openai-responses',
   anthropic: 'anthropic',
@@ -44,6 +46,29 @@ const CASE_TO_TYPE: Record<string, string> = {
   thinkingType: 'thinking-type',
   dashscope: 'dashscope',
   selfHosted: 'self-hosted'
+}
+
+function buildReasoningFormatTypes(
+  defaultChatEndpoint: EndpointType | undefined,
+  reasoningFormatType: ReasoningFormatType | undefined
+): Partial<Record<EndpointType, ReasoningFormatType>> | undefined {
+  if (defaultChatEndpoint === undefined || !reasoningFormatType) {
+    return undefined
+  }
+
+  return {
+    [defaultChatEndpoint]: reasoningFormatType
+  }
+}
+
+function getSingleReasoningFormatType(
+  reasoningFormatTypes: Partial<Record<EndpointType, ReasoningFormatType>> | undefined
+): ReasoningFormatType | undefined {
+  if (!reasoningFormatTypes) {
+    return undefined
+  }
+
+  return Object.values(reasoningFormatTypes)[0]
 }
 
 export class CatalogService {
@@ -129,15 +154,54 @@ export class CatalogService {
   }
 
   /**
-   * Get the reasoning format type string for a provider from catalog data.
-   * Returns the proto oneof case mapped to a runtime type string.
+   * Get provider reasoning config from catalog data.
    */
-  private getReasoningFormatType(providerId: string): string | undefined {
+  private getCatalogReasoningConfig(providerId: string): {
+    defaultChatEndpoint?: EndpointType
+    reasoningFormatTypes?: Partial<Record<EndpointType, ReasoningFormatType>>
+  } {
     const providers = this.loadCatalogProviders()
     const provider = providers.find((p) => p.id === providerId)
     const formatCase = provider?.reasoningFormat?.format.case
-    if (!formatCase) return undefined
-    return CASE_TO_TYPE[formatCase]
+    const reasoningFormatType = formatCase ? CASE_TO_TYPE[formatCase] : undefined
+
+    return {
+      defaultChatEndpoint: provider?.defaultChatEndpoint,
+      reasoningFormatTypes: buildReasoningFormatTypes(provider?.defaultChatEndpoint, reasoningFormatType)
+    }
+  }
+
+  /**
+   * Get provider reasoning config, preferring persisted provider data when available.
+   */
+  private async getEffectiveReasoningConfig(providerId: string): Promise<{
+    defaultChatEndpoint?: EndpointType
+    reasoningFormatTypes?: Partial<Record<EndpointType, ReasoningFormatType>>
+  }> {
+    const db = application.get('DbService').getDb()
+    const catalogConfig = this.getCatalogReasoningConfig(providerId)
+    const [provider] = await db
+      .select({
+        defaultChatEndpoint: userProviderTable.defaultChatEndpoint,
+        reasoningFormatTypes: userProviderTable.reasoningFormatTypes
+      })
+      .from(userProviderTable)
+      .where(eq(userProviderTable.providerId, providerId))
+      .limit(1)
+
+    if (provider) {
+      const defaultChatEndpoint = provider.defaultChatEndpoint ?? catalogConfig.defaultChatEndpoint
+      const reasoningFormatTypes =
+        provider.reasoningFormatTypes ??
+        buildReasoningFormatTypes(defaultChatEndpoint, getSingleReasoningFormatType(catalogConfig.reasoningFormatTypes))
+
+      return {
+        defaultChatEndpoint,
+        reasoningFormatTypes
+      }
+    }
+
+    return catalogConfig
   }
 
   /**
@@ -150,7 +214,7 @@ export class CatalogService {
   async initializeProvider(providerId: string): Promise<Model[]> {
     const catalogModels = this.loadCatalogModels()
     const providerModels = this.loadProviderModels()
-    const reasoningFormatType = this.getReasoningFormatType(providerId)
+    const { defaultChatEndpoint, reasoningFormatTypes } = await this.getEffectiveReasoningConfig(providerId)
 
     // Find all overrides for this provider
     const overrides = providerModels.filter((pm) => pm.providerId === providerId)
@@ -182,7 +246,7 @@ export class CatalogService {
       }
 
       // Merge: no user override (null), catalog override, preset model
-      const merged = mergeModelConfig(null, override, baseModel, providerId, reasoningFormatType)
+      const merged = mergeModelConfig(null, override, baseModel, providerId, reasoningFormatTypes, defaultChatEndpoint)
       mergedModels.push(merged)
 
       // Convert to DB row format — capabilities/modalities are now numeric arrays
@@ -224,7 +288,7 @@ export class CatalogService {
   getCatalogModelsByProvider(providerId: string): Model[] {
     const catalogModels = this.loadCatalogModels()
     const providerModels = this.loadProviderModels()
-    const reasoningFormatType = this.getReasoningFormatType(providerId)
+    const { defaultChatEndpoint, reasoningFormatTypes } = this.getCatalogReasoningConfig(providerId)
 
     const overrides = providerModels.filter((pm) => pm.providerId === providerId)
     if (overrides.length === 0) {
@@ -242,7 +306,9 @@ export class CatalogService {
       if (!baseModel) {
         continue
       }
-      mergedModels.push(mergeModelConfig(null, override, baseModel, providerId, reasoningFormatType))
+      mergedModels.push(
+        mergeModelConfig(null, override, baseModel, providerId, reasoningFormatTypes, defaultChatEndpoint)
+      )
     }
 
     return mergedModels
@@ -310,7 +376,8 @@ export class CatalogService {
 
       // Extract reasoning format type from proto oneof
       const formatCase = p.reasoningFormat?.format.case
-      const reasoningFormatType = formatCase ? (CASE_TO_TYPE[formatCase] ?? null) : null
+      const reasoningFormatType = formatCase ? CASE_TO_TYPE[formatCase] : undefined
+      const reasoningFormatTypes = buildReasoningFormatTypes(p.defaultChatEndpoint, reasoningFormatType)
 
       return {
         providerId: p.id,
@@ -319,8 +386,8 @@ export class CatalogService {
         baseUrls: Object.keys(baseUrls).length > 0 ? baseUrls : null,
         modelsApiUrls: Object.keys(modelsApiUrls ?? {}).length > 0 ? modelsApiUrls : null,
         defaultChatEndpoint: p.defaultChatEndpoint ?? null,
+        reasoningFormatTypes: reasoningFormatTypes ?? null,
         apiFeatures,
-        reasoningFormatType,
         websites
       }
     })
@@ -401,6 +468,14 @@ export class CatalogService {
 
     const updateRows: NewUserModel[] = []
     let skippedCount = 0
+    const providerRows = await db
+      .select({
+        providerId: userProviderTable.providerId,
+        defaultChatEndpoint: userProviderTable.defaultChatEndpoint,
+        reasoningFormatTypes: userProviderTable.reasoningFormatTypes
+      })
+      .from(userProviderTable)
+    const providerConfigMap = new Map(providerRows.map((row) => [row.providerId, row]))
 
     for (const row of userModels) {
       const presetModelId = row.presetModelId!
@@ -413,7 +488,10 @@ export class CatalogService {
 
       const providerOverrides = overridesByProvider.get(row.providerId)
       const catalogOverride = providerOverrides?.get(presetModelId) ?? null
-      const reasoningFormatType = this.getReasoningFormatType(row.providerId)
+      const providerConfig = providerConfigMap.get(row.providerId)
+      const catalogReasoningConfig = this.getCatalogReasoningConfig(row.providerId)
+      const defaultChatEndpoint = providerConfig?.defaultChatEndpoint ?? catalogReasoningConfig.defaultChatEndpoint
+      const reasoningFormatTypes = providerConfig?.reasoningFormatTypes ?? catalogReasoningConfig.reasoningFormatTypes
 
       // Merge catalog data with user data
       const merged = mergeModelConfig(
@@ -438,7 +516,8 @@ export class CatalogService {
         catalogOverride,
         presetModel,
         row.providerId,
-        reasoningFormatType
+        reasoningFormatTypes,
+        defaultChatEndpoint
       )
 
       updateRows.push({
@@ -480,22 +559,23 @@ export class CatalogService {
    * Returns the preset base model and provider-level override (if any).
    * Used by ModelService.create to auto-enrich models at save time.
    */
-  lookupModel(
+  async lookupModel(
     providerId: string,
     modelId: string
-  ): {
+  ): Promise<{
     presetModel: ProtoModelConfig | null
     catalogOverride: ProtoProviderModelOverride | null
-    reasoningFormatType: string | undefined
-  } {
+    defaultChatEndpoint?: EndpointType
+    reasoningFormatTypes?: Partial<Record<EndpointType, ReasoningFormatType>>
+  }> {
     const catalogModels = this.loadCatalogModels()
     const providerModels = this.loadProviderModels()
 
     const presetModel = catalogModels.find((m) => m.id === modelId) ?? null
     const catalogOverride = providerModels.find((pm) => pm.providerId === providerId && pm.modelId === modelId) ?? null
-    const reasoningFormatType = this.getReasoningFormatType(providerId)
+    const reasoningConfig = await this.getEffectiveReasoningConfig(providerId)
 
-    return { presetModel, catalogOverride, reasoningFormatType }
+    return { presetModel, catalogOverride, ...reasoningConfig }
   }
 
   /**
@@ -508,7 +588,7 @@ export class CatalogService {
    * Used by the renderer to display enriched models in ManageModelsPopup
    * before the user adds them.
    */
-  resolveModels(
+  async resolveModels(
     providerId: string,
     rawModels: Array<{
       modelId: string
@@ -517,10 +597,10 @@ export class CatalogService {
       description?: string
       endpointTypes?: number[]
     }>
-  ): Model[] {
+  ): Promise<Model[]> {
     const catalogModels = this.loadCatalogModels()
     const providerModels = this.loadProviderModels()
-    const reasoningFormatType = this.getReasoningFormatType(providerId)
+    const { defaultChatEndpoint, reasoningFormatTypes } = await this.getEffectiveReasoningConfig(providerId)
 
     // Build lookup maps
     const modelMap = new Map<string, ProtoModelConfig>()
@@ -558,7 +638,16 @@ export class CatalogService {
       try {
         if (presetModel) {
           // Catalog match found — merge with preset data
-          results.push(mergeModelConfig(userRow, catalogOverride, presetModel, providerId, reasoningFormatType))
+          results.push(
+            mergeModelConfig(
+              userRow,
+              catalogOverride,
+              presetModel,
+              providerId,
+              reasoningFormatTypes,
+              defaultChatEndpoint
+            )
+          )
         } else {
           // No catalog match — return as custom model (no presetModelId)
           results.push(mergeModelConfig({ ...userRow, presetModelId: null }, null, null, providerId))

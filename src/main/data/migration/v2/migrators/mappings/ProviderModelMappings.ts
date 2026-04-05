@@ -12,7 +12,13 @@ import {
 import type { NewUserModel } from '@data/db/schemas/userModel'
 import type { NewUserProvider } from '@data/db/schemas/userProvider'
 import type { RuntimeModelPricing } from '@shared/data/types/model'
-import type { ApiFeatures, ApiKeyEntry, AuthConfig, ProviderSettings } from '@shared/data/types/provider'
+import type {
+  ApiFeatures,
+  ApiKeyEntry,
+  AuthConfig,
+  ProviderSettings,
+  ReasoningFormatType
+} from '@shared/data/types/provider'
 import type { Model as LegacyModel, ModelType, Provider as LegacyProvider } from '@types'
 import { v4 as uuidv4 } from 'uuid'
 
@@ -65,7 +71,7 @@ const ENDPOINT_MAP: Partial<Record<string, EndpointType>> = {
   ollama: ENDPOINT_TYPE.OLLAMA_CHAT
 }
 
-const REASONING_FORMAT_MAP: Partial<Record<LegacyProvider['type'], string>> = {
+const REASONING_FORMAT_MAP: Partial<Record<LegacyProvider['type'], ReasoningFormatType>> = {
   openai: 'openai-chat',
   'openai-response': 'openai-responses',
   anthropic: 'anthropic',
@@ -155,11 +161,11 @@ export function transformProvider(
     name: legacy.name,
     baseUrls: buildBaseUrls(legacy, endpointType),
     defaultChatEndpoint: endpointType ?? null,
+    reasoningFormatTypes: buildReasoningFormatTypes(endpointType, REASONING_FORMAT_MAP[legacy.type]),
     apiKeys: buildApiKeys(legacy.apiKey),
     authConfig: buildAuthConfig(legacy, settings),
     apiFeatures: buildApiFeatures(legacy),
     providerSettings: buildProviderSettings(legacy, settings),
-    reasoningFormatType: REASONING_FORMAT_MAP[legacy.type] ?? null,
     isEnabled: legacy.enabled ?? true,
     sortOrder
   }
@@ -177,6 +183,19 @@ function buildBaseUrls(legacy: LegacyProvider, endpointType: EndpointType | unde
   }
 
   return Object.keys(urls).length > 0 ? urls : null
+}
+
+function buildReasoningFormatTypes(
+  defaultChatEndpoint: EndpointType | undefined,
+  reasoningFormatType: ReasoningFormatType | undefined
+): NewUserProvider['reasoningFormatTypes'] {
+  if (defaultChatEndpoint === undefined || !reasoningFormatType) {
+    return null
+  }
+
+  return {
+    [defaultChatEndpoint]: reasoningFormatType
+  }
 }
 
 function buildApiKeys(apiKey: string): ApiKeyEntry[] {

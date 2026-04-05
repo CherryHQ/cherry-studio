@@ -31,8 +31,7 @@ CREATE INDEX `user_model_preset_idx` ON `user_model` (`preset_model_id`);--> sta
 CREATE INDEX `user_model_provider_enabled_idx` ON `user_model` (`provider_id`,`is_enabled`);--> statement-breakpoint
 CREATE INDEX `user_model_provider_sort_idx` ON `user_model` (`provider_id`,`sort_order`);--> statement-breakpoint
 CREATE TABLE `user_provider` (
-	`id` text PRIMARY KEY NOT NULL,
-	`provider_id` text NOT NULL,
+	`provider_id` text PRIMARY KEY NOT NULL,
 	`preset_provider_id` text,
 	`name` text NOT NULL,
 	`base_urls` text,
@@ -42,7 +41,7 @@ CREATE TABLE `user_provider` (
 	`auth_config` text,
 	`api_features` text,
 	`provider_settings` text,
-	`reasoning_format_type` text,
+	`reasoning_format_types` text,
 	`websites` text,
 	`is_enabled` integer DEFAULT true,
 	`sort_order` integer DEFAULT 0,
@@ -50,6 +49,5 @@ CREATE TABLE `user_provider` (
 	`updated_at` integer
 );
 --> statement-breakpoint
-CREATE UNIQUE INDEX `user_provider_providerId_unique` ON `user_provider` (`provider_id`);--> statement-breakpoint
 CREATE INDEX `user_provider_preset_idx` ON `user_provider` (`preset_provider_id`);--> statement-breakpoint
 CREATE INDEX `user_provider_enabled_sort_idx` ON `user_provider` (`is_enabled`,`sort_order`);
