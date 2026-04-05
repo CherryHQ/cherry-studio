@@ -1,9 +1,14 @@
 import { configureStore } from '@reduxjs/toolkit'
 import minAppsReducer, { setPinnedMinApps } from '@renderer/store/minapps'
-import type { MinAppRegion, MinAppType } from '@shared/data/types/miniapp'
+import type { MinAppRegion } from '@shared/data/types/miniapp'
+import type { MinAppType } from '@shared/data/types/miniapp'
 import { describe, expect, it } from 'vitest'
 
-// Test fixture factory
+// This test uses the legacy MinAppType (Redux model) so it cannot use the
+// shared createMiniApp fixture (which targets the v2 MiniApp interface).
+// The legacy factory is intentionally kept minimal since this file tests
+// the old Redux slice which is scheduled for removal in v2.
+
 const createApp = (id: string, overrides?: Partial<MinAppType>): MinAppType => ({
   id,
   name: id,
@@ -17,8 +22,6 @@ const createGlobalApp = (id: string): MinAppType => createApp(id, { supportedReg
 const createCnOnlyApp = (id: string): MinAppType => createApp(id, { supportedRegions: ['CN'] as MinAppRegion[] })
 
 describe('setPinnedMinApps — no preservedHidden re-append', () => {
-  // Core fix: setPinnedMinApps replaces the list directly,
-  // so removing a CN-only app from the pinned list stays removed.
   it('should remove CN-only pinned app without re-append', () => {
     const globalApp = createGlobalApp('openai')
     const cnOnlyApp = createCnOnlyApp('yi')
@@ -26,13 +29,9 @@ describe('setPinnedMinApps — no preservedHidden re-append', () => {
       reducer: { minApps: minAppsReducer }
     })
 
-    // Pre-populate with both apps pinned
     store.dispatch(setPinnedMinApps([globalApp, cnOnlyApp]))
-
-    // Simulate user removing the CN-only app (filter it out and set directly)
     store.dispatch(setPinnedMinApps([globalApp]))
 
-    // Assert: CN-only app is gone, NOT re-appended
     const state = store.getState().minApps
     expect(state.pinned.map((a) => a.id)).toEqual(['openai'])
   })
@@ -51,7 +50,6 @@ describe('setPinnedMinApps — no preservedHidden re-append', () => {
     expect(state.pinned).toEqual([])
   })
 
-  // Regression: setPinnedMinApps strips logo field
   it('should strip logo field from pinned apps', () => {
     const app = createApp('a', { logo: 'logo-a' })
     const store = configureStore({
