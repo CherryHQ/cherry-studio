@@ -3,7 +3,7 @@ import * as z from 'zod'
 import { TimestampSchema } from '../essential'
 import { NodeIdSchema } from '../node'
 
-export const refCommonFields = {
+export const refCommonFields = Object.freeze({
   /** Reference ID (UUID v4) */
   id: z.uuidv4(),
   /** Referenced file node ID (UUID v7 or system node ID) */
@@ -12,7 +12,7 @@ export const refCommonFields = {
   createdAt: TimestampSchema,
   /** Last update timestamp (ms epoch) */
   updatedAt: TimestampSchema
-}
+})
 
 /** Shape constraint for business-specific ref fields passed to `createRefSchema`. */
 type BusinessRefShape = {
