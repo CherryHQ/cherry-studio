@@ -388,15 +388,18 @@ export const MockUseCacheUtils = {
     value: RendererPersistCacheSchema[K],
     setValue?: (value: RendererPersistCacheSchema[K]) => void
   ) => {
-    mockUsePersistCache.mockImplementation((cacheKey, initValue) => {
+    mockUsePersistCache.mockImplementation(((
+      cacheKey: RendererPersistCacheKey,
+      initValue?: RendererPersistCacheSchema[typeof cacheKey]
+    ) => {
       if (cacheKey === key) {
-        return [value, setValue || vi.fn()]
+        return [value, setValue || vi.fn()] as const
       }
 
       // Default behavior for other keys
       const defaultValue = mockPersistCache.get(cacheKey) ?? initValue ?? DefaultRendererPersistCache[cacheKey]
-      return [defaultValue, vi.fn()]
-    })
+      return [defaultValue, vi.fn()] as const
+    }) as typeof mockUsePersistCache)
   },
 
   /**
