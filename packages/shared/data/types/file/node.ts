@@ -198,21 +198,33 @@ export function isFileNode(node: FileTreeNode): node is FileNode {
 
 // ─── DTOs ───
 
-/** DTO for creating a new file or directory node */
-export const CreateNodeDtoSchema = z.object({
-  /** Node type (file or dir, not mount) */
-  type: z.enum(['file', 'dir']),
+const createNodeCommonFields = {
   /** User-visible name */
   name: SafeNameSchema,
-  /** File extension without leading dot */
-  ext: z.string().min(1).optional(),
   /** Parent node ID */
   parentId: NodeIdSchema,
   /** Mount ID */
-  mountId: NodeIdSchema,
+  mountId: NodeIdSchema
+}
+
+/** DTO for creating a new file node */
+export const CreateFileDtoSchema = z.object({
+  type: z.literal('file'),
+  ...createNodeCommonFields,
+  /** File extension without leading dot */
+  ext: z.string().min(1).optional(),
   /** File size in bytes */
   size: z.int().nonnegative().optional()
 })
+
+/** DTO for creating a new directory node */
+export const CreateDirDtoSchema = z.object({
+  type: z.literal('dir'),
+  ...createNodeCommonFields
+})
+
+/** DTO for creating a new file or directory node */
+export const CreateNodeDtoSchema = z.discriminatedUnion('type', [CreateFileDtoSchema, CreateDirDtoSchema])
 export type CreateNodeDto = z.infer<typeof CreateNodeDtoSchema>
 
 /** DTO for updating a node's metadata */
