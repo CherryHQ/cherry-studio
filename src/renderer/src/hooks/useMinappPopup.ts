@@ -5,7 +5,7 @@ import { tabsService } from '@renderer/services/TabsService'
 import { clearWebviewState } from '@renderer/utils/webviewStateManager'
 import type { MiniApp } from '@shared/data/types/miniapp'
 import { LRUCache } from 'lru-cache'
-import { useCallback } from 'react'
+import { useCallback, useEffect, useRef } from 'react'
 
 import { useNavbarPosition } from './useNavbar'
 
@@ -76,24 +76,38 @@ export const useMinappPopup = () => {
     })
   }, [maxKeepAliveMinapps, setOpenedKeepAliveMinapps])
 
-  // 缓存不存在
-  if (!minAppsCache) {
-    minAppsCache = createLRUCache()
-  }
+  // Track previous maxKeepAliveMinapps to detect changes
+  const prevMaxKeepAlive = useRef(maxKeepAliveMinapps)
 
-  // 缓存数量大小发生了改变
-  if (minAppsCache.max !== maxKeepAliveMinapps) {
-    // 1. 当前小程序数量小于等于设置的缓存数量，直接重新建立缓存
-    if (minAppsCache.size <= maxKeepAliveMinapps) {
-      // LRU cache 机制，后 set 的会被放到前面，所以需要反转一下
+  // Initialize cache and handle resize when maxKeepAliveMinapps changes
+  useEffect(() => {
+    const prev = prevMaxKeepAlive.current
+    const current = maxKeepAliveMinapps
+    const effectiveMax = current ?? 10
+
+    // Initialize cache on first render
+    if (!minAppsCache) {
+      minAppsCache = createLRUCache()
+      prevMaxKeepAlive.current = current
+      return
+    }
+
+    // Handle cache resize when maxKeepAliveMinapps changes
+    if (prev === current) return
+    prevMaxKeepAlive.current = current
+
+    // Only migrate if current size is within the new limit
+    if (minAppsCache.size <= effectiveMax) {
+      // LRU cache mechanism: entries set later are placed first, so reverse
       const oldEntries = Array.from(minAppsCache.entries()).reverse()
       minAppsCache = createLRUCache()
       oldEntries.forEach(([key, value]) => {
         minAppsCache.set(key, value)
       })
     }
-    // 2. 大于设置的缓存的话，就直到数量减少到设置的缓存数量
-  }
+    // If size exceeds the new limit, entries will be evicted naturally
+    // as they're accessed and the cache shrinks on its own
+  }, [maxKeepAliveMinapps, createLRUCache])
 
   /** Open a minapp (popup shows and minapp loaded) */
   const openMinapp = useCallback(
