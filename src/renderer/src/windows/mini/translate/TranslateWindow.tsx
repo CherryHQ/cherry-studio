@@ -39,6 +39,7 @@ const Translate: FC<Props> = ({ text }) => {
       translatingRef.current = false
     } catch (error) {
       logger.error('Error fetching result:', error as Error)
+      window.toast.error(t('translate.error.failed'))
     } finally {
       translatingRef.current = false
     }
