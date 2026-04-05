@@ -55,11 +55,7 @@ import { MountProviderConfigSchema } from './provider'
 
 // ─── System Node IDs ───
 
-/**
- * Well-known system mount node IDs.
- * mount_files, mount_notes, system_trash are seeded at app initialization.
- * system_temp is reserved for Phase 2 temp file lifecycle management (not yet seeded).
- */
+/** Well-known system mount node IDs, seeded at app initialization. */
 export const SYSTEM_MOUNT_FILES = 'mount_files' as const
 export const SYSTEM_MOUNT_NOTES = 'mount_notes' as const
 export const SYSTEM_TEMP = 'system_temp' as const
@@ -92,7 +88,7 @@ const nodeCommonFields = {
   name: SafeNameSchema,
   /**
    * Mount ID this node belongs to. For mount nodes, equals own id.
-   * Known system mounts: `mount_files`, `mount_notes`, `system_trash`, `system_temp` (Phase 2).
+   * Known system mounts: `mount_files`, `mount_notes`, `system_temp`, `system_trash`.
    */
   mountId: NodeIdSchema,
   /** Original parent ID before moving to Trash (only for Trash direct children) */

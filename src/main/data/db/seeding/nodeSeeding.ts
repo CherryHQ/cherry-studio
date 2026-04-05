@@ -52,8 +52,16 @@ function getSystemNodes(): SystemNode[] {
         watch: true
       }
     },
-    // system_temp is declared in SYSTEM_NODE_IDS but not seeded here — it will be
-    // added in Phase 2 when temp file lifecycle management is implemented.
+    {
+      id: 'system_temp',
+      type: 'mount',
+      name: 'Temp',
+      mountId: 'system_temp',
+      parentId: null,
+      providerConfig: {
+        providerType: 'system'
+      }
+    },
     {
       id: 'system_trash',
       type: 'mount',
