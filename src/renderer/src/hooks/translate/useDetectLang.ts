@@ -163,6 +163,11 @@ export const useDetectLang = () => {
       const text = inputText.trim()
       if (!text) return UNKNOWN.langCode
 
+      if (langCodes.length === 0) {
+        logger.warn('Language list not available yet, skipping detection')
+        return UNKNOWN.langCode
+      }
+
       logger.info(`Auto detection method: ${method}`)
       const result = await detectWithMethod(text, method, langCodes)
       logger.info(`Detected language: ${result}`)
