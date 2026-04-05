@@ -1160,10 +1160,30 @@ const { data: messageFiles } = useQuery('/files/refs/by-source', {
 
 所有涉及 FS 的写操作通过 FileManager 的 IPC 通道处理，不走 DataApi。Electron 场景下所有文件源（对话框选择、拖拽、剪贴板粘贴）最终都归结为本地路径（剪贴板图片通过 `createTempFile()` 先落盘）。
 
-**文件上传流程**（以 `local_managed` 为例）：
+类型契约定义于 `packages/shared/data/types/file/ipc.ts`，main 和 preload 共同引用。
+
+#### IPC 类型契约
+
+| 方法 | 入参 | 返回 | 说明 |
+|------|------|------|------|
+| `upload` | `{ filePath, parentId, fileName? }` | `FileTreeNode` | 上传文件（复制到存储 + 创建节点） |
+| `createDir` | `{ name, parentId }` | `FileTreeNode` | 创建目录 |
+| `rename` | `{ id, newName }` | `FileTreeNode` | 重命名（newName 含扩展名，service 拆分） |
+| `move` | `{ id, targetParentId }` | `FileTreeNode` | 移动（同 mount 内） |
+| `trash` | `{ id }` | `void` | 移入 Trash |
+| `restore` | `{ id }` | `FileTreeNode` | 从 Trash 恢复 |
+| `delete` | `{ id }` | `void` | 永久删除 |
+| `batchTrash` | `{ ids }` | `BatchOperationResult` | 批量 Trash |
+| `batchMove` | `{ ids, targetParentId }` | `BatchOperationResult` | 批量移动 |
+| `batchDelete` | `{ ids }` | `BatchOperationResult` | 批量永久删除 |
+| `batchRestore` | `{ ids }` | `BatchOperationResult` | 批量恢复 |
+
+`FileManagerApi` 类型聚合了所有方法签名，可用于类型约束 preload 暴露的 API 对象。
+
+#### 文件上传流程（以 `local_managed` 为例）
 
 ```
-1. Renderer: window.api.file.upload({ filePath, parentId })  ← FileManager IPC
+1. Renderer: window.api.fileManager.upload({ filePath, parentId })
 2. Main: FileManager 复制文件到 managed 存储 ({basePath}/{id}.{ext})
 3. Main: FileManager 调用 data/service 创建节点记录（内部使用 CreateNodeDto）
 4. Main: 返回 FileTreeNode
@@ -1171,7 +1191,7 @@ const { data: messageFiles } = useQuery('/files/refs/by-source', {
 
 上传是原子操作：物理文件写入 + 节点创建在同一个 main 进程事务中完成。
 
-**其他写操作**（rename/move/trash/restore/delete/batch）同理，由 FileManager IPC 协调 FS 操作和 DB 同步。具体 IPC 协议定义在 Phase 2 实现时确定。
+其他写操作（rename/move/trash/restore/delete/batch）同理，由 FileManager IPC 协调 FS 操作和 DB 同步。
 
 ---
 
