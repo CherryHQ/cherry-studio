@@ -7,7 +7,7 @@
 
 import * as z from 'zod'
 
-import { tempSessionFileRefSchema, tempSessionRoles, tempSessionSourceType } from './tempSession'
+import { tempSessionFileRefSchema, tempSessionRefFields, tempSessionRoles, tempSessionSourceType } from './tempSession'
 
 // ─── Aggregate Source Types ───
 
@@ -28,4 +28,4 @@ export type FileRef = z.infer<typeof FileRefSchema>
 
 // ─── Re-exports ───
 
-export { tempSessionFileRefSchema, tempSessionRoles, tempSessionSourceType }
+export { tempSessionFileRefSchema, tempSessionRefFields, tempSessionRoles, tempSessionSourceType }

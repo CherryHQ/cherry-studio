@@ -14,8 +14,11 @@ export const tempSessionSourceType = 'temp_session' as const
 
 export const tempSessionRoles = ['pending'] as const
 
-export const tempSessionFileRefSchema = createRefSchema({
+/** Business fields only (no common fields like id/nodeId/timestamps) */
+export const tempSessionRefFields = {
   sourceType: z.literal(tempSessionSourceType),
   sourceId: z.string().min(1),
   role: z.enum(tempSessionRoles)
-})
+}
+
+export const tempSessionFileRefSchema = createRefSchema(tempSessionRefFields)

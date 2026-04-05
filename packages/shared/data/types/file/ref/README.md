@@ -36,17 +36,20 @@ export const chatMessageSourceType = 'chat_message' as const
 
 export const chatMessageRoles = ['attachment', 'inline_image'] as const
 
-export const chatMessageFileRefSchema = createRefSchema({
+/** Business fields only — used by both FileRefSchema and CreateFileRefDtoSchema */
+export const chatMessageRefFields = {
   sourceType: z.literal(chatMessageSourceType),
-  sourceId: z.uuidv4(),
+  sourceId: z.uuidv7(),
   role: z.enum(chatMessageRoles)
-})
+}
+
+export const chatMessageFileRefSchema = createRefSchema(chatMessageRefFields)
 ```
 
 ### 2. Register in `index.ts`
 
 ```diff
-+ import { chatMessageFileRefSchema, chatMessageRoles, chatMessageSourceType } from './chatMessage'
++ import { chatMessageFileRefSchema, chatMessageRefFields, chatMessageRoles, chatMessageSourceType } from './chatMessage'
 
 - const allSourceTypes = [tempSessionSourceType] as const
 + const allSourceTypes = [tempSessionSourceType, chatMessageSourceType] as const
@@ -60,15 +63,25 @@ export const chatMessageFileRefSchema = createRefSchema({
   ])
 ```
 
-Three things to update:
+### 3. Register in `CreateFileRefDtoSchema` (`node.ts`)
 
-1. **`allSourceTypes`** — spread the new `sourceType` constant
-2. **`allRoles`** — spread the new roles array
-3. **`FileRefSchema`** — add the new schema to the discriminated union array
+```diff
+  export const CreateFileRefDtoSchema = z.discriminatedUnion('sourceType', [
+    z.object(tempSessionRefFields),
++   z.object(chatMessageRefFields),
+  ])
+```
 
-### 3. Done
+Four things to update:
 
-The new variant is now part of `FileRefSchema`. Consumers parsing `FileRef` will automatically dispatch to the correct variant based on `sourceType`.
+1. **`index.ts` — `allSourceTypes`** — spread the new `sourceType` constant
+2. **`index.ts` — `allRoles`** — spread the new roles array
+3. **`index.ts` — `FileRefSchema`** — add the new schema to the discriminated union
+4. **`node.ts` — `CreateFileRefDtoSchema`** — add `z.object(*RefFields)` to the discriminated union
+
+### 4. Done
+
+The new variant is now part of `FileRefSchema` and `CreateFileRefDtoSchema`. Consumers parsing `FileRef` will automatically dispatch to the correct variant based on `sourceType`, and the create DTO will narrow `role` per source type.
 
 ## Naming Conventions
 
@@ -76,6 +89,7 @@ The new variant is now part of `FileRefSchema`. Consumers parsing `FileRef` will
 |--------|---------|---------|
 | Source type constant | `{domain}SourceType` | `chatMessageSourceType` |
 | Roles array | `{domain}Roles` | `chatMessageRoles` |
+| Business fields | `{domain}RefFields` | `chatMessageRefFields` |
 | Schema | `{domain}FileRefSchema` | `chatMessageFileRefSchema` |
 | File name | `{domain}.ts` (camelCase) | `chatMessage.ts` |
 
@@ -85,3 +99,4 @@ The new variant is now part of `FileRefSchema`. Consumers parsing `FileRef` will
 - **`role` is scoped per sourceType** — different domains define different valid roles. The standalone `FileRefRoleSchema` is the flat union of all roles across all domains; prefer validating through `FileRefSchema` when possible.
 - **`sourceId` format is domain-dependent** — each variant decides its own schema (e.g. `z.uuidv7()`, `z.uuidv4()`, `z.string().min(1)`) based on the business entity's ID format.
 - **Common fields are frozen** — `refCommonFields` is `Object.freeze()`-d to prevent accidental mutation.
+- **`*RefFields` serves dual purpose** — used by both `createRefSchema()` (full schema with common fields) and `CreateFileRefDtoSchema` (business fields only via `z.object()`).

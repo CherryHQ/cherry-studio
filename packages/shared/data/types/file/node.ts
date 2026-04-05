@@ -52,6 +52,7 @@ import * as z from 'zod'
 
 import { SafeNameSchema, TimestampSchema } from './essential'
 import { MountProviderConfigSchema } from './provider'
+import { tempSessionRefFields } from './ref'
 
 // ─── System Node IDs ───
 
@@ -237,17 +238,10 @@ export type UpdateNodeDto = z.infer<typeof UpdateNodeDtoSchema>
 /**
  * DTO for creating a file reference.
  *
- * Uses loose `z.string().min(1)` for sourceType/role intentionally — the typed
- * FileRef schemas (in `./ref/`) currently only have `temp_session`.
- * TODO(phase-2): Tighten to use FileRefSourceTypeSchema/FileRefRoleSchema once
- * all business variants (chat_message, knowledge_item, etc.) are defined.
+ * Discriminated union on `sourceType` — each variant narrows `role` to valid
+ * values for that source type, using the business fields from each ref variant.
+ *
+ * When adding a new FileRef variant, add its `*RefFields` here as well.
  */
-export const CreateFileRefDtoSchema = z.object({
-  /** Business source type (e.g. 'chat_message', 'knowledge_item') */
-  sourceType: z.string().min(1),
-  /** Business object ID */
-  sourceId: z.string().min(1),
-  /** Reference role (e.g. 'attachment', 'source', 'asset') */
-  role: z.string().min(1)
-})
+export const CreateFileRefDtoSchema = z.discriminatedUnion('sourceType', [z.object(tempSessionRefFields)])
 export type CreateFileRefDto = z.infer<typeof CreateFileRefDtoSchema>
