@@ -14,7 +14,7 @@ const logger = loggerService.withContext('translate/useLanguages')
 /**
  * Fetches translate languages from the data API and converts DTOs to view objects.
  *
- * @returns An array of {@link TranslateLanguage} view objects, or `undefined` while loading.
+ * @returns An array of {@link TranslateLanguageVo} view objects, or `undefined` while loading.
  */
 export const useLanguages = () => {
   const { data, error } = useQuery('/translate/languages')

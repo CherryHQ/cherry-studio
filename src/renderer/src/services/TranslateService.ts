@@ -32,7 +32,7 @@ type TranslateOptions = {
 /**
  * Translate text into the target language via streaming chat completion.
  * @param text - The source text to translate
- * @param targetLanguage - Target language code
+ * @param targetLanguage - Target language, either as a {@link TranslateLangCode} string or a {@link TranslateLanguageVo} object
  * @param onResponse - Streaming callback invoked on every chunk with the accumulated text and a completion flag
  * @param abortKey - Optional key used to abort the request via {@link readyToAbort}
  * @param options - Optional settings (e.g. reasoning effort)
