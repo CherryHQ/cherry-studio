@@ -63,7 +63,7 @@ export const chatMessageFileRefSchema = createRefSchema(chatMessageRefFields)
   ])
 ```
 
-### 3. Register in `CreateFileRefDtoSchema` (`node.ts`)
+### 3. Register in `CreateFileRefDtoSchema` (`api/schemas/files.ts`)
 
 ```diff
   export const CreateFileRefDtoSchema = z.discriminatedUnion('sourceType', [
