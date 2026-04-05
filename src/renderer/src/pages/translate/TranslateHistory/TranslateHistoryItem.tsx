@@ -1,4 +1,4 @@
-import { Button, Skeleton } from '@cherrystudio/ui'
+import { Button } from '@cherrystudio/ui'
 import { cn } from '@cherrystudio/ui/lib/utils'
 import PopoverConfirm from '@renderer/components/PopoverConfirm'
 import { useDeleteHistory, useLanguages, useUpdateHistory } from '@renderer/hooks/translate'
@@ -35,28 +35,14 @@ export const TranslateHistoryItem = ({ data, onClick }: TranslateHistoryItemProp
   const handleStar = useCallback(
     async (e: React.MouseEvent) => {
       e.stopPropagation()
-      if (!preparedData) {
-        return
-      }
       return updateHistory({ star: !preparedData.star })
     },
     [preparedData, updateHistory]
   )
 
   const handleDelete = useCallback(async () => {
-    if (!preparedData) {
-      return
-    }
     return await deleteHistory()
-  }, [preparedData, deleteHistory])
-
-  if (!preparedData) {
-    return (
-      <Container>
-        <Skeleton className="flex-1" />
-      </Container>
-    )
-  }
+  }, [deleteHistory])
 
   return (
     <Container onClick={onClick}>
