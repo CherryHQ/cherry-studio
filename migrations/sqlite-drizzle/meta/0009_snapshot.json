@@ -1,7 +1,7 @@
 {
   "version": "6",
   "dialect": "sqlite",
-  "id": "d3590858-a5fc-4dec-a3ff-7c40933de4e8",
+  "id": "8efd8f04-0815-498b-a340-1c1fedfc7554",
   "prevId": "4105c4f2-d9df-4048-acab-0049e5a95941",
   "tables": {
     "app_state": {
@@ -1062,14 +1062,6 @@
           "notNull": false,
           "autoincrement": false
         },
-        "is_readonly": {
-          "name": "is_readonly",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false,
-          "default": false
-        },
         "remote_id": {
           "name": "remote_id",
           "type": "text",
@@ -1150,6 +1142,26 @@
         "node_type_check": {
           "name": "node_type_check",
           "value": "\"node\".\"type\" IN ('file', 'dir', 'mount')"
+        },
+        "node_mount_parent_null": {
+          "name": "node_mount_parent_null",
+          "value": "\"node\".\"type\" != 'mount' OR \"node\".\"parent_id\" IS NULL"
+        },
+        "node_mount_self_ref": {
+          "name": "node_mount_self_ref",
+          "value": "\"node\".\"type\" != 'mount' OR \"node\".\"mount_id\" = \"node\".\"id\""
+        },
+        "node_mount_has_config": {
+          "name": "node_mount_has_config",
+          "value": "\"node\".\"type\" != 'mount' OR \"node\".\"provider_config\" IS NOT NULL"
+        },
+        "node_nonmount_has_parent": {
+          "name": "node_nonmount_has_parent",
+          "value": "\"node\".\"type\" = 'mount' OR \"node\".\"parent_id\" IS NOT NULL"
+        },
+        "node_trash_state": {
+          "name": "node_trash_state",
+          "value": "(\"node\".\"previous_parent_id\" IS NULL) != (\"node\".\"parent_id\" = 'system_trash')"
         }
       }
     },
