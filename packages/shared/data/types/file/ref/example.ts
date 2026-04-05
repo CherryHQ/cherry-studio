@@ -1,3 +1,8 @@
+/**
+ * Placeholder FileRef variant for development/testing.
+ * Replace with real business integrations (e.g. chat_message, knowledge_item)
+ * in Phase 2. Also serves as a template for adding new sourceType variants.
+ */
 import * as z from 'zod'
 
 import { createRefSchema } from './essential'
