@@ -210,18 +210,37 @@ export function isFileNode(node: FileTreeNode): node is FileNode {
   return node.type === 'file'
 }
 
+/**
+ * Business source type that references files.
+ * Examples: `chat_message`, `knowledge_item`, `painting`, `note`
+ *
+ * TODO: Add concrete enum values when Phase 2 business integrations are implemented
+ */
+export const FileRefSourceTypeSchema = z.enum([])
+export type FileRefSourceType = z.infer<typeof FileRefSourceTypeSchema>
+
+/**
+ * File reference role — uses `domain:role` namespace convention.
+ * Format: `{business_domain}:{role_within_domain}`
+ * Examples: `chat:attachment`, `knowledge:source`, `painting:asset`, `note:embed`
+ *
+ * TODO: Add concrete enum values when Phase 2 business integrations are implemented
+ */
+export const FileRefRoleSchema = z.enum([])
+export type FileRefRole = z.infer<typeof FileRefRoleSchema>
+
 /** File reference entity — tracks business entity to file node relationships */
 export const FileRefSchema = z.object({
   /** Reference ID (UUID v4) */
   id: z.uuidv4(),
   /** Referenced file node ID (UUID v7 or system node ID) */
   nodeId: NodeIdSchema,
-  /** Business source type (e.g. 'chat_message', 'knowledge_item', 'painting') */
-  sourceType: z.string().min(1),
+  /** Business source type (see FileRefSourceTypeSchema for valid values) */
+  sourceType: FileRefSourceTypeSchema,
   /** Business object ID (polymorphic, no FK constraint) */
   sourceId: z.string().min(1),
-  /** Reference role (e.g. 'attachment', 'source', 'asset') */
-  role: z.string().min(1),
+  /** Reference role using `domain:role` namespace (see FileRefRoleSchema for valid values) */
+  role: FileRefRoleSchema,
   /** Creation timestamp (ms epoch) */
   createdAt: TimestampSchema,
   /** Last update timestamp (ms epoch) */
