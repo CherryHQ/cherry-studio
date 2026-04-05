@@ -15,6 +15,19 @@ interface SystemNode {
 }
 
 function getSystemNodes(): SystemNode[] {
+  let filesDir: string
+  let notesDir: string
+  try {
+    filesDir = getFilesDir()
+  } catch (err) {
+    throw new Error(`Failed to resolve base path for mount_files: ${(err as Error).message}`)
+  }
+  try {
+    notesDir = getNotesDir()
+  } catch (err) {
+    throw new Error(`Failed to resolve base path for mount_notes: ${(err as Error).message}`)
+  }
+
   return [
     {
       id: 'mount_files',
@@ -24,7 +37,7 @@ function getSystemNodes(): SystemNode[] {
       parentId: null,
       providerConfig: {
         providerType: 'local_managed',
-        basePath: getFilesDir()
+        basePath: filesDir
       }
     },
     {
@@ -35,10 +48,12 @@ function getSystemNodes(): SystemNode[] {
       parentId: null,
       providerConfig: {
         providerType: 'local_external',
-        basePath: getNotesDir(),
+        basePath: notesDir,
         watch: true
       }
     },
+    // system_temp is declared in SYSTEM_NODE_IDS but not seeded here — it will be
+    // added in Phase 2 when temp file lifecycle management is implemented.
     {
       id: 'system_trash',
       type: 'mount',
