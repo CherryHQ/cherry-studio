@@ -52,20 +52,20 @@
 
 引入**挂载点（Mount）**概念，每个挂载点定义一种存储模式：
 
-| 挂载点 | provider_type | 物理文件名 | Source of Truth | 同步方向 |
+| 挂载点 | providerType | 物理文件名 | Source of Truth | 同步方向 |
 |--------|-------------|-----------|----------------|---------|
 | Files | `local_managed` | `{id}.{ext}` | DB | App → 文件系统 |
 | Notes | `local_external` | `{name}.{ext}` | 文件系统 | 文件系统 ↔ DB |
 | Trash | `system` | 无自有存储 | DB | — |
-| *(未来)* | `remote` | `{cache_path}/{remote_id}` | 远程 API | 远程 ↔ 本地缓存 ↔ DB |
+| *(未来)* | `remote` | `{cachePath}/{remoteId}` | 远程 API | 远程 ↔ 本地缓存 ↔ DB |
 
 ### 4.3 路径计算规则
 
-节点的物理路径由挂载点的 `provider_type` 决定：
+节点的物理路径由挂载点的 `providerType` 决定：
 
-- **`local_managed`**：`{mount.base_path}/{node.id}.{node.ext}`（平坦存储，目录仅逻辑）
-- **`local_external`**：`{mount.base_path}/{...ancestor_names}/{node.name}.{node.ext}`（映射 OS 目录树）
-- **`remote`**：`{mount.cache_path}/{node.remoteId}`（本地缓存），实际文件通过 API 访问，按需下载/同步
+- **`local_managed`**：`{mount.basePath}/{node.id}.{node.ext}`（平坦存储，目录仅逻辑）
+- **`local_external`**：`{mount.basePath}/{...ancestorNames}/{node.name}.{node.ext}`（映射 OS 目录树）
+- **`remote`**：`{mount.cachePath}/{node.remoteId}`（本地缓存），实际文件通过 API 访问，按需下载/同步
 
 `path` 不作为持久化字段，运行时由树关系与挂载点配置构建。建议维护内存级路径缓存 `Map<nodeId, absolutePath>`，树变更时重建。
 
@@ -86,23 +86,23 @@ function resolvePhysicalPath(node: FileTreeNode, mount?: FileTreeNode): string {
   const resolvedMount = mount ?? getMountNode(node.mountId)  // 内存缓存查询
   const extSuffix = node.ext ? `.${node.ext}` : ''
 
-  switch (resolvedMount.providerConfig?.provider_type) {
+  switch (resolvedMount.providerConfig?.providerType) {
     case 'local_managed':
-      return path.join(resolvedMount.providerConfig.base_path, `${node.id}${extSuffix}`)
+      return path.join(resolvedMount.providerConfig.basePath, `${node.id}${extSuffix}`)
     case 'local_external':
       const ancestors = getAncestorNames(node, resolvedMount) // 不含 mount 自身
-      return path.join(resolvedMount.providerConfig.base_path, ...ancestors, `${node.name}${extSuffix}`)
+      return path.join(resolvedMount.providerConfig.basePath, ...ancestors, `${node.name}${extSuffix}`)
     case 'system':
       // system mount（如 Trash）无自有物理存储
       // Trash 中的文件路径由其原始 mountId 对应的 mount 决定
       throw new Error('System mount has no physical storage. Use original mount to resolve path.')
     default:
-      throw new Error(`Unknown provider type: ${resolvedMount.providerConfig?.provider_type}`)
+      throw new Error(`Unknown provider type: ${resolvedMount.providerConfig?.providerType}`)
   }
 }
 ```
 
-> **Trash 中文件的路径解析**：Trash 中的节点保持原 `mountId` 不变，因此解析路径时应使用原 `mountId` 对应的 mount，而非 `system_trash`。对于 `local_managed` 模式，物理文件位置不变（UUID 命名）；对于 `local_external` 模式，物理文件已移至 `{原mount.base_path}/.trash/{nodeId}/`。
+> **Trash 中文件的路径解析**：Trash 中的节点保持原 `mountId` 不变，因此解析路径时应使用原 `mountId` 对应的 mount，而非 `system_trash`。对于 `local_managed` 模式，物理文件位置不变（UUID 命名）；对于 `local_external` 模式，物理文件已移至 `{原mount.basePath}/.trash/{nodeId}/`。
 
 ### 4.4 各模式同步策略
 
@@ -169,7 +169,7 @@ function resolvePhysicalPath(node: FileTreeNode, mount?: FileTreeNode): string {
                              ▼
                     ┌──────────────────┐
                     │   本地缓存        │
-                    │  {cache_path}    │
+                    │  {cachePath}    │
                     └────────┬─────────┘
                              │
                              ▼
@@ -247,35 +247,35 @@ export type RemoteApiType = z.infer<typeof RemoteApiTypeSchema>
 
 /** 托管文件：应用内部管理，UUID 命名 */
 export const LocalManagedConfigSchema = z.object({
-  provider_type: z.literal('local_managed'),
-  base_path: z.string().min(1),
+  providerType: z.literal('local_managed'),
+  basePath: z.string().min(1),
 })
 
 /** 外部文件：文件系统为主，人类可读命名 */
 export const LocalExternalConfigSchema = z.object({
-  provider_type: z.literal('local_external'),
-  base_path: z.string().min(1),
+  providerType: z.literal('local_external'),
+  basePath: z.string().min(1),
   watch: z.boolean().default(true),
-  watch_extensions: z.array(z.string()).optional(),
+  watchExtensions: z.array(z.string()).optional(),
 })
 
 /** 远程文件：通过 API 访问 */
 export const RemoteConfigSchema = z.object({
-  provider_type: z.literal('remote'),
-  api_type: RemoteApiTypeSchema,
-  provider_id: z.string().min(1),       // 关联 AI provider 配置（不存敏感信息）
-  cache_path: z.string().optional(),
-  auto_sync: z.boolean().default(false),
+  providerType: z.literal('remote'),
+  apiType: RemoteApiTypeSchema,
+  providerId: z.string().min(1),       // 关联 AI provider 配置（不存敏感信息）
+  cachePath: z.string().optional(),
+  autoSync: z.boolean().default(false),
   options: z.record(z.string(), z.unknown()).default({}),  // 各 API 专属配置
 })
 
 /** 系统内部挂载点：无物理存储，仅用于组织结构（如 Trash） */
 export const SystemConfigSchema = z.object({
-  provider_type: z.literal('system'),
+  providerType: z.literal('system'),
 })
 
 // ─── 判别联合 ───
-export const MountProviderConfigSchema = z.discriminatedUnion('provider_type', [
+export const MountProviderConfigSchema = z.discriminatedUnion('providerType', [
   LocalManagedConfigSchema,
   LocalExternalConfigSchema,
   RemoteConfigSchema,
@@ -316,7 +316,7 @@ class OpenAIFilesProvider implements RemoteProvider {
 | managed 模式目录 | **平坦存储** | 物理无子目录，目录仅逻辑存在于 DB |
 | 主键策略 | **UUID v7**（时间有序） | 大数据量表，顺序插入性能更优 |
 | 删除策略 | **OS 风格 Trash** | 移动到 Trash mount 下，记录 previousParentId |
-| Trash 节点类型 | **mount（`provider_type: 'system'`）** | 与其他顶层节点模式统一，`type='mount'` + `mountId=self` + `parentId=null`。`getMounts()` 通过 `includeSystem` 参数区分 |
+| Trash 节点类型 | **mount（`providerType: 'system'`）** | 与其他顶层节点模式统一，`type='mount'` + `mountId=self` + `parentId=null`。`getMounts()` 通过 `includeSystem` 参数区分 |
 | `mountId` 冗余字段 | **保留** | 避免递归 CTE 查挂载点，查询性能关键 |
 | `parentId` 级联删除 | **CASCADE** | Trash 清空时物理级联删除子节点 |
 | `sourceType`/`role` 枚举约束 | **应用层 Zod 验证** | 避免新增来源需要 migration |
@@ -325,7 +325,7 @@ class OpenAIFilesProvider implements RemoteProvider {
 ### 6.2 nodeTable
 
 ```typescript
-import type { MountProviderConfig } from '@shared/data/types/fileNode'
+import type { MountProviderConfig } from '@shared/data/types/file'
 import { sql } from 'drizzle-orm'
 import { check, foreignKey, index, integer, sqliteTable, text, uniqueIndex } from 'drizzle-orm/sqlite-core'
 
@@ -336,7 +336,7 @@ import { createUpdateTimestamps, uuidPrimaryKeyOrdered } from './_columnHelpers'
  *
  * Uses adjacency list pattern (parentId) for tree navigation.
  * Mount nodes (type='mount') serve as root nodes with provider configuration.
- * Trash is a system mount node (provider_type='system') for OS-style soft deletion.
+ * Trash is a system mount node (providerType='system') for OS-style soft deletion.
  */
 export const nodeTable = sqliteTable(
   'node',
@@ -425,7 +425,7 @@ export const fileRefTable = sqliteTable(
     sourceType: text().notNull(),
     // 业务对象 ID（多态，无 FK 约束）
     sourceId: text().notNull(),
-    // 引用角色（如 'attachment', 'source', 'asset'）
+    // 引用角色，按 sourceType 作用域内定义（如 'attachment', 'source', 'asset'）
     role: text().notNull(),
 
     ...createUpdateTimestamps
@@ -453,8 +453,8 @@ const SYSTEM_NODES = [
     name: 'Files',
     mountId: 'mount_files',      // 自引用
     providerConfig: {
-      provider_type: 'local_managed',
-      base_path: getFilesDir(),  // {userData}/Data/Files
+      providerType: 'local_managed',
+      basePath: getFilesDir(),  // {userData}/Data/Files
     },
   },
   {
@@ -463,8 +463,8 @@ const SYSTEM_NODES = [
     name: 'Notes',
     mountId: 'mount_notes',
     providerConfig: {
-      provider_type: 'local_external',
-      base_path: getNotesDir(),  // 用户配置 或 {userData}/Data/Notes
+      providerType: 'local_external',
+      basePath: getNotesDir(),  // 用户配置 或 {userData}/Data/Notes
       watch: true,
     },
   },
@@ -475,7 +475,7 @@ const SYSTEM_NODES = [
     mountId: 'system_trash',     // 自引用，与其他 mount 一致
     parentId: null,
     providerConfig: {
-      provider_type: 'system',   // 系统挂载点，无物理存储
+      providerType: 'system',   // 系统挂载点，无物理存储
     },
   },
 ]
@@ -483,61 +483,41 @@ const SYSTEM_NODES = [
 
 ### 6.5 DTO 类型定义
 
-位于 `packages/shared/data/types/fileNode.ts`。
+位于 `packages/shared/data/types/file/` 目录下，按职责拆分为多个模块：
+
+| 文件 | 内容 |
+|------|------|
+| `essential.ts` | `TimestampSchema`、`SafeNameSchema` 等共享基础 schema |
+| `node.ts` | `FileTreeNodeSchema`（discriminatedUnion）、`CreateNodeDtoSchema`、`UpdateNodeDtoSchema`、`NodeIdSchema` |
+| `provider.ts` | `MountProviderConfigSchema`（discriminatedUnion on `providerType`） |
+| `ref/` | `FileRefSchema`（discriminatedUnion on `sourceType`）、`createRefSchema` 工厂函数 |
+| `index.ts` | Barrel re-export，外部统一从 `@shared/data/types/file` 导入 |
+
+所有类型均由 Zod schema 定义，TypeScript 类型通过 `z.infer<>` 导出。
+
+`FileTreeNodeSchema` 使用 `z.discriminatedUnion('type', [MountNodeSchema, DirNodeSchema, FileNodeSchema])` 按节点类型区分结构约束（详见 `node.ts` 中的 invariant 表注释）。
+
+`FileRefSchema` 使用 `z.discriminatedUnion('sourceType', [...])` 按业务来源区分，每种 `sourceType` 通过 `createRefSchema()` 工厂函数创建，自动继承公共字段（`id`、`nodeId`、`createdAt`、`updatedAt`）。新增业务集成时只需添加一个新的 ref schema 文件。
 
 ```typescript
-/** 节点实体 */
-interface FileTreeNode {
-  id: string
-  type: 'file' | 'dir' | 'mount'
-  name: string
-  ext: string | null
-  parentId: string | null
-  mountId: string
-  size: number | null
-  providerConfig: MountProviderConfig | null
-  isReadonly: boolean
-  remoteId: string | null
-  cachedAt: number | null
-  previousParentId: string | null
-  createdAt: number
-  updatedAt: number
-}
-
-/** 创建节点 */
-interface CreateNodeDto {
-  type: 'file' | 'dir'
-  name: string
-  ext?: string
-  parentId: string
-  mountId: string
-  size?: number
-}
-
-/** 更新节点 */
-interface UpdateNodeDto {
-  name?: string
-  ext?: string
-}
-
-/** 文件引用实体 */
-interface FileRef {
-  id: string
-  nodeId: string
-  sourceType: string
-  sourceId: string
-  role: string
-  createdAt: number
-  updatedAt: number
-}
-
-/** 创建引用 */
-interface CreateFileRefDto {
-  sourceType: string
-  sourceId: string
-  role: string
-}
+// 推断出的 TypeScript 类型（等价于旧 interface 定义）
+type FileTreeNode = z.infer<typeof FileTreeNodeSchema>  // 节点实体（discriminatedUnion）
+type MountNode = z.infer<typeof MountNodeSchema>        // 挂载点节点
+type DirNode = z.infer<typeof DirNodeSchema>            // 目录节点
+type FileNode = z.infer<typeof FileNodeSchema>          // 文件节点
+type CreateNodeDto = z.infer<typeof CreateNodeDtoSchema>
+type UpdateNodeDto = z.infer<typeof UpdateNodeDtoSchema>
+type FileRef = z.infer<typeof FileRefSchema>            // 文件引用（discriminatedUnion on sourceType）
+type CreateFileRefDto = z.infer<typeof CreateFileRefDtoSchema>
+type NodeId = z.infer<typeof NodeIdSchema>              // UUID v7 | SystemNodeId（推断为 string）
 ```
+
+**关键 schema**：
+
+- `SafeNameSchema`：名称安全校验（max 255, 禁止 null 字节/路径分隔符/`.`/`..`）
+- `TimestampSchema`：`z.int().nonnegative()` 毫秒时间戳
+- `NodeIdSchema`：`z.union([z.uuidv7(), SystemNodeIdSchema])`
+- `FileRefRoleSchema`：按 `sourceType` 作用域内定义（如 `attachment`、`source`），通过 `z.enum` 约束
 
 ---
 
@@ -581,7 +561,7 @@ interface CreateFileRefDto {
 
 | 操作 | `local_managed` | `local_external` |
 |------|-----------------|-------------------|
-| **Trash（软删）** | 仅 DB 操作（物理文件名为 UUID，用户不可见） | **物理移动**到 `{mount.base_path}/.trash/{nodeId}/` |
+| **Trash（软删）** | 仅 DB 操作（物理文件名为 UUID，用户不可见） | **物理移动**到 `{mount.basePath}/.trash/{nodeId}/` |
 | **Restore（恢复）** | 仅 DB 操作 | **物理移回**原路径 |
 | **永久删除** | 删物理文件 + 删 DB | 删 `.trash` 中的物理文件 + 删 DB |
 
@@ -589,8 +569,8 @@ interface CreateFileRefDto {
 
 **`.trash` 目录规范**：
 
-- 位置：`{mount.base_path}/.trash/`（以 `.` 开头，在 macOS/Linux 下默认隐藏）
-- 内部结构：`{mount.base_path}/.trash/{nodeId}/{原始相对路径}`（用 nodeId 做隔离，避免不同删除批次的同名文件冲突）
+- 位置：`{mount.basePath}/.trash/`（以 `.` 开头，在 macOS/Linux 下默认隐藏）
+- 内部结构：`{mount.basePath}/.trash/{nodeId}/{原始相对路径}`（用 nodeId 做隔离，避免不同删除批次的同名文件冲突）
 - chokidar 监听必须排除 `.trash` 目录（`ignored: ['**/.trash/**']`）
 - 首次 Trash 操作时自动创建 `.trash` 目录
 
@@ -615,13 +595,13 @@ async function trashNode(nodeId: string): Promise<void> {
   const mount = await getNode(node.mountId)
 
   // local_external 模式：先移动物理文件到 .trash
-  if (mount.providerConfig?.provider_type === 'local_external') {
+  if (mount.providerConfig?.providerType === 'local_external') {
     const physicalPath = resolvePhysicalPath(node)
     const trashPath = path.join(
-      mount.providerConfig.base_path,
+      mount.providerConfig.basePath,
       '.trash',
       nodeId,
-      path.relative(mount.providerConfig.base_path, physicalPath),
+      path.relative(mount.providerConfig.basePath, physicalPath),
     )
     await fs.ensureDir(path.dirname(trashPath))
     await fs.rename(physicalPath, trashPath)
@@ -655,14 +635,14 @@ async function restoreNode(nodeId: string): Promise<void> {
   const mount = await getNode(node.mountId)
 
   // local_external 模式：将物理文件从 .trash 移回原位
-  if (mount.providerConfig?.provider_type === 'local_external') {
+  if (mount.providerConfig?.providerType === 'local_external') {
     // 计算恢复后的物理路径（基于 previousParentId 的祖先链）
     const restoredPath = resolvePhysicalPath({ ...node, parentId: node.previousParentId })
     const trashPath = path.join(
-      mount.providerConfig.base_path,
+      mount.providerConfig.basePath,
       '.trash',
       nodeId,
-      path.relative(mount.providerConfig.base_path, restoredPath),
+      path.relative(mount.providerConfig.basePath, restoredPath),
     )
 
     // 检查目标路径冲突
@@ -674,7 +654,7 @@ async function restoreNode(nodeId: string): Promise<void> {
     await fs.rename(trashPath, restoredPath)
 
     // 清理空的 .trash/{nodeId} 目录
-    await fs.remove(path.join(mount.providerConfig.base_path, '.trash', nodeId))
+    await fs.remove(path.join(mount.providerConfig.basePath, '.trash', nodeId))
   }
 
   await db.update(nodeTable)
@@ -701,9 +681,9 @@ async function permanentDelete(nodeId: string): Promise<void> {
 
   const mount = await getNode(node.mountId)
 
-  if (mount.providerConfig?.provider_type === 'local_external') {
+  if (mount.providerConfig?.providerType === 'local_external') {
     // external 模式：物理文件已在 .trash/{nodeId}/ 中，直接删除整个目录
-    const trashDir = path.join(mount.providerConfig.base_path, '.trash', nodeId)
+    const trashDir = path.join(mount.providerConfig.basePath, '.trash', nodeId)
     await fs.remove(trashDir).catch(() => {})
   } else {
     // managed 模式：收集所有后代的物理文件路径
@@ -993,20 +973,30 @@ orphanScanner.register({
 
 位于 `packages/shared/data/api/schemas/files.ts`，与 `TopicSchemas`、`MessageSchemas` 同级。
 
+所有节点 ID 字段使用 `NodeId` 类型（推断为 `string`，运行时需 `NodeIdSchema.parse()` 验证）。列表接口返回 `OffsetPaginationResponse<T>`，批量操作返回 `BatchOperationResult`（含 `succeeded` / `failed` 数组以支持部分失败）。
+
 ```typescript
-export type FileSchemas = {
+/** 批量操作结果，允许调用方检测部分失败 */
+interface BatchOperationResult {
+  succeeded: NodeId[]
+  failed: Array<{ id: NodeId; error: string }>
+}
+
+export interface FileSchemas {
   // ─── 节点 CRUD ───
 
   '/files/nodes': {
-    /** 查询节点列表（支持按 mountId/parentId/inTrash 过滤） */
+    /** 查询节点列表（支持按 mountId/parentId/inTrash 过滤，分页返回） */
     GET: {
       query: {
-        mountId?: string
-        parentId?: string
+        mountId?: NodeId
+        parentId?: NodeId
         type?: 'file' | 'dir'
         inTrash?: boolean
+        page?: number
+        limit?: number
       }
-      response: FileTreeNode[]
+      response: OffsetPaginationResponse<FileTreeNode>
     }
     /** 创建节点（上传文件 / 创建目录） */
     POST: {
@@ -1016,11 +1006,11 @@ export type FileSchemas = {
   }
 
   '/files/nodes/:id': {
-    GET: { params: { id: string }; response: FileTreeNode }
+    GET: { params: { id: NodeId }; response: FileTreeNode }
     /** 更新节点元信息（重命名等） */
-    PATCH: { params: { id: string }; body: UpdateNodeDto; response: FileTreeNode }
+    PATCH: { params: { id: NodeId }; body: UpdateNodeDto; response: FileTreeNode }
     /** 永久删除节点 */
-    DELETE: { params: { id: string }; response: void }
+    DELETE: { params: { id: NodeId }; response: void }
   }
 
   // ─── 树操作 ───
@@ -1028,40 +1018,42 @@ export type FileSchemas = {
   '/files/nodes/:id/children': {
     /** 获取子节点（文件树懒加载，支持排序和分页） */
     GET: {
-      params: { id: string }
+      params: { id: NodeId }
       query: {
         recursive?: boolean
+        /** recursive=true 时的最大树深度，服务端限制上限（默认 20） */
+        maxDepth?: number
         sortBy?: 'name' | 'updatedAt' | 'size' | 'type'
         sortOrder?: 'asc' | 'desc'
         limit?: number
         offset?: number
       }
-      response: FileTreeNode[]
+      response: OffsetPaginationResponse<FileTreeNode>
     }
   }
 
   '/files/nodes/:id/move': {
     /** 移动节点到新父节点 */
-    PUT: { params: { id: string }; body: { targetParentId: string }; response: FileTreeNode }
+    PUT: { params: { id: NodeId }; body: { targetParentId: NodeId }; response: FileTreeNode }
   }
 
   '/files/nodes/:id/trash': {
     /** 移入 Trash（软删除） */
-    PUT: { params: { id: string }; response: void }
+    PUT: { params: { id: NodeId }; response: void }
   }
 
   '/files/nodes/:id/restore': {
     /** 从 Trash 恢复 */
-    PUT: { params: { id: string }; response: FileTreeNode }
+    PUT: { params: { id: NodeId }; response: FileTreeNode }
   }
 
   // ─── 文件引用 ───
 
   '/files/nodes/:id/refs': {
     /** 查询文件的所有引用方 */
-    GET: { params: { id: string }; response: FileRef[] }
+    GET: { params: { id: NodeId }; response: FileRef[] }
     /** 创建引用 */
-    POST: { params: { id: string }; body: CreateFileRefDto; response: FileRef }
+    POST: { params: { id: NodeId }; body: CreateFileRefDto; response: FileRef }
   }
 
   '/files/refs/by-source': {
@@ -1072,20 +1064,21 @@ export type FileSchemas = {
   }
 
   // ─── 批量操作 ───
+  // 路由使用 /files/batch/nodes/* 前缀，避免与参数化的 /files/nodes/:id/* 路由产生类型歧义
 
-  '/files/nodes/batch/trash': {
+  '/files/batch/nodes/trash': {
     /** 批量移入 Trash */
-    PUT: { body: { ids: string[] }; response: void }
+    PUT: { body: { ids: NodeId[] }; response: BatchOperationResult }
   }
 
-  '/files/nodes/batch/move': {
+  '/files/batch/nodes/move': {
     /** 批量移动到目标目录 */
-    PUT: { body: { ids: string[]; targetParentId: string }; response: void }
+    PUT: { body: { ids: NodeId[]; targetParentId: NodeId }; response: BatchOperationResult }
   }
 
-  '/files/nodes/batch/delete': {
-    /** 批量永久删除 */
-    DELETE: { body: { ids: string[] }; response: void }
+  '/files/batch/nodes/delete': {
+    /** 批量永久删除（使用 POST 避免 DELETE-with-body 兼容性问题） */
+    POST: { body: { ids: NodeId[] }; response: BatchOperationResult }
   }
 
   // ─── 挂载点 ───
@@ -1183,14 +1176,14 @@ export const fileHandlers = {
     GET: async ({ query }) => fileRefService.getBySource(query.sourceType, query.sourceId),
     DELETE: async ({ query }) => { await fileRefService.cleanupBySource(query.sourceType, query.sourceId) },
   },
-  '/files/nodes/batch/trash': {
-    PUT: async ({ body }) => { await nodeService.trashBatch(body.ids) },
+  '/files/batch/nodes/trash': {
+    PUT: async ({ body }) => nodeService.trashBatch(body.ids),
   },
-  '/files/nodes/batch/move': {
-    PUT: async ({ body }) => { await nodeService.moveBatch(body.ids, body.targetParentId) },
+  '/files/batch/nodes/move': {
+    PUT: async ({ body }) => nodeService.moveBatch(body.ids, body.targetParentId),
   },
-  '/files/nodes/batch/delete': {
-    DELETE: async ({ body }) => { await nodeService.permanentDeleteBatch(body.ids) },
+  '/files/batch/nodes/delete': {
+    POST: async ({ body }) => nodeService.permanentDeleteBatch(body.ids),
   },
   '/files/mounts': {
     GET: async ({ query }) => nodeService.getMounts(query?.includeSystem),
@@ -1381,7 +1374,7 @@ function parseTimestamp(iso?: string): number {
 
 - **ID 保持不变**：旧 `FileMetadata.id` 直接作为新 `nodeTable.id`，这样所有引用该 ID 的地方（message blocks 的 `fileId`、knowledge items 的文件引用）无需修改
 - **全部归入 Files 根目录**：旧系统无目录概念，迁移后全部作为 `mount_files` 的直接子节点。用户可以后续手动整理
-- **物理文件无需移动**：旧存储路径 `{userData}/Data/Files/{id}{ext}` 与新 managed 模式路径 `{mount.base_path}/{id}.{ext}` 一致（仅 ext 前可能差一个点，需在路径解析器中兼容）
+- **物理文件无需移动**：旧存储路径 `{userData}/Data/Files/{id}{ext}` 与新 managed 模式路径 `{mount.basePath}/{id}.{ext}` 一致（仅 ext 前可能差一个点，需在路径解析器中兼容）
 
 **Validate 阶段**：
 
@@ -1510,17 +1503,19 @@ Foundation       + API              + 迁移整合         Migration         Int
 | 文件路径 | 内容 |
 |---------|------|
 | `src/main/data/db/schemas/node.ts` | `nodeTable` + `fileRefTable` Drizzle Schema（第六章） |
-| `packages/shared/data/types/fileNode.ts` | `FileTreeNode`、`FileRef`、DTO 类型定义（第六章） |
-| `packages/shared/data/types/fileProvider.ts` | Provider Config Zod Schema（第五章） |
+| `packages/shared/data/types/file/` | 文件类型定义模块（第六章），按职责拆分为 `essential.ts`、`node.ts`、`provider.ts`、`ref/` |
 | `packages/shared/data/api/schemas/files.ts` | `FileSchemas` API 类型声明（第九章） |
+| `src/main/data/utils/pathResolver.ts` | 路径解析器 `resolvePhysicalPath()` + `assertPathContained()` |
+| `src/main/data/db/seeding/nodeSeeding.ts` | 系统节点初始化（upsert 幂等，支持跨平台数据恢复） |
+| `src/main/data/api/handlers/files.ts` | API handler 占位（Phase 2 实现） |
 
 **关键任务**：
 
 1. 创建 Drizzle Schema 并生成 migration SQL（`pnpm db:migrations:generate`）
-2. 实现系统节点初始化逻辑——首次启动时创建 `mount_files`、`mount_notes`、`system_trash`
-3. 实现路径解析器 `resolvePhysicalPath(node)`：根据 `providerConfig.provider_type` 计算物理路径
-   - `local_managed`：`{mount.base_path}/{node.id}.{node.ext}`
-   - `local_external`：`{mount.base_path}/{...ancestors}/{node.name}.{node.ext}`
+2. 实现系统节点初始化逻辑——首次启动时 upsert `mount_files`、`mount_notes`、`system_trash`
+3. 实现路径解析器 `resolvePhysicalPath(node)`：根据 `providerConfig.providerType` 计算物理路径
+   - `local_managed`：`{mount.basePath}/{node.id}.{node.ext}`
+   - `local_external`：`{mount.basePath}/{...ancestors}/{node.name}.{node.ext}`（含 symlink 解析保护）
 
 **依赖**：无
 

@@ -1,4 +1,4 @@
-import type { MountProviderConfig } from '@shared/data/types/fileProvider'
+import type { MountProviderConfig } from '@shared/data/types/file'
 import { sql } from 'drizzle-orm'
 import { check, foreignKey, index, integer, sqliteTable, text, uniqueIndex } from 'drizzle-orm/sqlite-core'
 

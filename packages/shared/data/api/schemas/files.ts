@@ -13,7 +13,7 @@ import type {
   FileTreeNode,
   NodeId,
   UpdateNodeDto
-} from '@shared/data/types/fileNode'
+} from '@shared/data/types/file'
 
 // ============================================================================
 // Shared Types

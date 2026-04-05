@@ -1,7 +1,7 @@
 import fs from 'node:fs'
 import path from 'node:path'
 
-import type { MountProviderConfig } from '@shared/data/types/fileProvider'
+import type { MountProviderConfig } from '@shared/data/types/file'
 
 /**
  * Minimal node shape needed for path resolution

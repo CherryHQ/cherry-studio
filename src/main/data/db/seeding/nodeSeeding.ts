@@ -1,6 +1,6 @@
 import { nodeTable } from '@data/db/schemas/node'
 import { getFilesDir, getNotesDir } from '@main/utils/file'
-import type { MountProviderConfig } from '@shared/data/types/fileProvider'
+import type { MountProviderConfig } from '@shared/data/types/file'
 import { sql } from 'drizzle-orm'
 
 import type { DbType, ISeed } from '../types'

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import { CreateNodeDtoSchema, FileTreeNodeSchema, NodeIdSchema, UpdateNodeDtoSchema } from '../fileNode'
+import { CreateNodeDtoSchema, FileTreeNodeSchema, NodeIdSchema, UpdateNodeDtoSchema } from '../file'
 
 /**
  * Helper to build a minimal valid file node for testing name validation.
