@@ -187,6 +187,21 @@ export const ProviderSettingsSchema = z.object({
 
 export type ProviderSettings = z.infer<typeof ProviderSettingsSchema>
 
+export const REASONING_FORMAT_TYPES = [
+  'openai-chat',
+  'openai-responses',
+  'anthropic',
+  'gemini',
+  'openrouter',
+  'enable-thinking',
+  'thinking-type',
+  'dashscope',
+  'self-hosted'
+] as const
+
+export const ReasoningFormatTypeSchema = z.enum(REASONING_FORMAT_TYPES)
+export type ReasoningFormatType = z.infer<typeof ReasoningFormatTypeSchema>
+
 export const ProviderSchema = z.object({
   /** Provider ID */
   id: z.string(),
@@ -219,8 +234,10 @@ export const ProviderSchema = z.object({
   settings: ProviderSettingsSchema,
   /** Website links (official, apiKey, docs, models) */
   websites: ProviderWebsitesSchema.optional(),
-  /** How this provider's API expects reasoning parameters (e.g. 'openai-chat', 'anthropic', 'enable-thinking') */
-  reasoningFormatType: z.string().optional(),
+  /** How this provider's API expects reasoning parameters per endpoint type */
+  reasoningFormatTypes: z.record(EndpointTypeSchema, ReasoningFormatTypeSchema).optional() as z.ZodOptional<
+    z.ZodType<Partial<Record<EndpointType, ReasoningFormatType>>>
+  >,
   /** Whether this provider is enabled */
   isEnabled: z.boolean()
 })

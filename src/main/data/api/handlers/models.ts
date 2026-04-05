@@ -36,7 +36,7 @@ export const modelHandlers: {
 
   '/models/resolve': {
     POST: async ({ body }) => {
-      return catalogService.resolveModels(body.providerId, body.models)
+      return await catalogService.resolveModels(body.providerId, body.models)
     }
   },
 

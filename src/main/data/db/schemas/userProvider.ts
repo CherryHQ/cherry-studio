@@ -20,7 +20,9 @@ import {
   type ProviderSettings,
   ProviderSettingsSchema,
   type ProviderWebsites,
-  ProviderWebsitesSchema
+  ProviderWebsitesSchema,
+  type ReasoningFormatType,
+  ReasoningFormatTypeSchema
 } from '@shared/data/types/provider'
 import { index, integer, sqliteTable, text } from 'drizzle-orm/sqlite-core'
 import { createSchemaFactory } from 'drizzle-zod'
@@ -30,14 +32,12 @@ const { createInsertSchema, createSelectSchema } = createSchemaFactory({ zodInst
 
 import type { EndpointType } from '@shared/data/types/model'
 
-import { createUpdateTimestamps, uuidPrimaryKey } from './_columnHelpers'
+import { createUpdateTimestamps } from './_columnHelpers'
 
 export const userProviderTable = sqliteTable(
   'user_provider',
   {
-    id: uuidPrimaryKey(),
-
-    providerId: text().notNull().unique(),
+    providerId: text().primaryKey(),
 
     /** Associated preset provider ID (optional)
      * Links to catalog provider for inherited API format and defaults
@@ -66,8 +66,10 @@ export const userProviderTable = sqliteTable(
     /** Provider-specific settings as JSON */
     providerSettings: text({ mode: 'json' }).$type<ProviderSettings>(),
 
-    /** How this provider's API expects reasoning parameters (e.g. 'openai-chat', 'anthropic', 'enable-thinking') */
-    reasoningFormatType: text(),
+    /** How this provider's API expects reasoning parameters for each endpoint type */
+    reasoningFormatTypes: text('reasoning_format_types', { mode: 'json' }).$type<
+      Partial<Record<EndpointType, ReasoningFormatType>>
+    >(),
 
     /** Website links (official, apiKey, docs, models) */
     websites: text({ mode: 'json' }).$type<ProviderWebsites>(),
@@ -93,6 +95,7 @@ export type NewUserProvider = typeof userProviderTable.$inferInsert
 const jsonColumnOverrides = {
   baseUrls: () => z.record(z.string(), z.string()).nullable(),
   modelsApiUrls: () => z.record(z.string(), z.string()).nullable(),
+  reasoningFormatTypes: () => z.record(z.string(), ReasoningFormatTypeSchema).nullable(),
   apiKeys: () => z.array(ApiKeyEntrySchema).nullable(),
   authConfig: () => AuthConfigSchema.nullable(),
   apiFeatures: () => ApiFeaturesSchema.nullable(),

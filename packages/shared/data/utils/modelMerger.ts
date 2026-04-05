@@ -18,13 +18,14 @@ import * as z from 'zod'
 
 import type { Model, RuntimeModelPricing, RuntimeReasoning } from '../types/model'
 import { createUniqueModelId } from '../types/model'
-import type { Provider, ProviderSettings, RuntimeApiFeatures } from '../types/provider'
+import type { Provider, ProviderSettings, ReasoningFormatType, RuntimeApiFeatures } from '../types/provider'
 import {
   ApiFeaturesSchema,
   ApiKeyEntrySchema,
   DEFAULT_API_FEATURES,
   DEFAULT_PROVIDER_SETTINGS,
-  ProviderSettingsSchema
+  ProviderSettingsSchema,
+  ReasoningFormatTypeSchema
 } from '../types/provider'
 
 export type { ProtoModelConfig as CatalogModel, ProtoProviderModelOverride as CatalogProviderModelOverride }
@@ -73,6 +74,7 @@ const UserProviderRowSchema = z.object({
   name: z.string(),
   baseUrls: z.record(z.string(), z.string()).nullish(),
   defaultChatEndpoint: z.nativeEnum(EndpointType).nullish(),
+  reasoningFormatTypes: z.record(z.string(), ReasoningFormatTypeSchema).nullish(),
   apiKeys: z.array(ApiKeyEntrySchema.pick({ id: true, key: true, label: true, isEnabled: true })).nullish(),
   authConfig: z.object({ type: z.string() }).catchall(z.unknown()).nullish(),
   apiFeatures: ApiFeaturesSchema.nullish(),
@@ -124,7 +126,8 @@ export function mergeModelConfig(
   catalogOverride: ProtoProviderModelOverride | null,
   presetModel: ProtoModelConfig | null,
   providerId: string,
-  reasoningFormatType?: string
+  reasoningFormatTypes?: Partial<Record<EndpointType, ReasoningFormatType>> | null,
+  defaultChatEndpoint?: EndpointType
 ): Model {
   // Case 1: Fully custom user model (no preset association)
   if (userModel && !userModel.presetModelId) {
@@ -172,11 +175,6 @@ export function mergeModelConfig(
   let pricing: RuntimeModelPricing | undefined
   let replaceWith: string | undefined
 
-  // Extract reasoning config from proto ReasoningSupport + provider's reasoning format type
-  if (presetModel.reasoning) {
-    reasoning = extractRuntimeReasoning(presetModel.reasoning, reasoningFormatType)
-  }
-
   // Extract pricing
   if (presetModel.pricing) {
     pricing = {
@@ -216,14 +214,6 @@ export function mergeModelConfig(
     }
     if (catalogOverride.limits?.maxInputTokens != null) {
       maxInputTokens = catalogOverride.limits.maxInputTokens
-    }
-    if (catalogOverride.reasoning) {
-      const overrideReasoning = extractRuntimeReasoning(catalogOverride.reasoning, reasoningFormatType)
-      reasoning = {
-        ...overrideReasoning,
-        thinkingTokenLimits: overrideReasoning.thinkingTokenLimits ?? reasoning?.thinkingTokenLimits,
-        interleaved: overrideReasoning.interleaved ?? reasoning?.interleaved
-      }
     }
     if (catalogOverride.endpointTypes.length) {
       endpointTypes = [...catalogOverride.endpointTypes]
@@ -265,6 +255,25 @@ export function mergeModelConfig(
     if (userModel.maxOutputTokens != null) {
       maxOutputTokens = userModel.maxOutputTokens
     }
+  }
+
+  const reasoningFormatType = resolveReasoningFormatType(endpointTypes, defaultChatEndpoint, reasoningFormatTypes)
+
+  // Extract reasoning config from proto ReasoningSupport + provider's reasoning format type
+  if (presetModel.reasoning) {
+    reasoning = extractRuntimeReasoning(presetModel.reasoning, reasoningFormatType)
+  }
+
+  if (catalogOverride?.reasoning) {
+    const overrideReasoning = extractRuntimeReasoning(catalogOverride.reasoning, reasoningFormatType)
+    reasoning = {
+      ...overrideReasoning,
+      thinkingTokenLimits: overrideReasoning.thinkingTokenLimits ?? reasoning?.thinkingTokenLimits,
+      interleaved: overrideReasoning.interleaved ?? reasoning?.interleaved
+    }
+  }
+
+  if (userModel) {
     if (userModel.reasoning) {
       reasoning = userModel.reasoning as RuntimeReasoning
     }
@@ -331,6 +340,16 @@ export function mergeProviderConfig(
     ...userProvider?.baseUrls
   }
 
+  const presetReasoningFormat = extractReasoningFormatType(presetProvider?.reasoningFormat)
+  const presetReasoningFormatTypes = buildReasoningFormatTypes(
+    presetProvider?.defaultChatEndpoint,
+    presetReasoningFormat
+  )
+  const reasoningFormatTypes = {
+    ...presetReasoningFormatTypes,
+    ...userProvider?.reasoningFormatTypes
+  }
+
   // Merge API features (catalog now uses the same field names)
   const apiFeatures: RuntimeApiFeatures = {
     ...DEFAULT_API_FEATURES,
@@ -369,7 +388,7 @@ export function mergeProviderConfig(
     authType,
     apiFeatures,
     settings,
-    reasoningFormatType: extractReasoningFormatType(presetProvider?.reasoningFormat),
+    reasoningFormatTypes: Object.keys(reasoningFormatTypes).length > 0 ? reasoningFormatTypes : undefined,
     isEnabled: userProvider?.isEnabled ?? true
   }
 }
@@ -379,7 +398,7 @@ export function mergeProviderConfig(
 // ═══════════════════════════════════════════════════════════════════════════════
 
 /** Map proto ProviderReasoningFormat.format.case to runtime reasoning type string */
-const REASONING_FORMAT_CASE_TO_TYPE: Record<string, string> = {
+const REASONING_FORMAT_CASE_TO_TYPE: Record<string, ReasoningFormatType> = {
   openaiChat: 'openai-chat',
   openaiResponses: 'openai-responses',
   anthropic: 'anthropic',
@@ -391,8 +410,18 @@ const REASONING_FORMAT_CASE_TO_TYPE: Record<string, string> = {
   selfHosted: 'self-hosted'
 }
 
+const CHAT_REASONING_ENDPOINT_PRIORITY: EndpointType[] = [
+  EndpointType.OPENAI_RESPONSES,
+  EndpointType.OPENAI_CHAT_COMPLETIONS,
+  EndpointType.ANTHROPIC_MESSAGES,
+  EndpointType.GOOGLE_GENERATE_CONTENT,
+  EndpointType.OLLAMA_CHAT,
+  EndpointType.OLLAMA_GENERATE,
+  EndpointType.OPENAI_TEXT_COMPLETIONS
+]
+
 /** Default effort levels per reasoning format type (when not specified in catalog) */
-const DEFAULT_EFFORTS: Record<string, ReasoningEffortType[]> = {
+const DEFAULT_EFFORTS: Partial<Record<ReasoningFormatType, ReasoningEffortType[]>> = {
   'openai-chat': [
     ReasoningEffort.NONE,
     ReasoningEffort.MINIMAL,
@@ -413,10 +442,65 @@ const DEFAULT_EFFORTS: Record<string, ReasoningEffortType[]> = {
   'thinking-type': [ReasoningEffort.NONE, ReasoningEffort.AUTO]
 }
 
+function isChatReasoningEndpointType(endpointType: EndpointType): boolean {
+  return CHAT_REASONING_ENDPOINT_PRIORITY.includes(endpointType)
+}
+
+function buildReasoningFormatTypes(
+  defaultChatEndpoint: EndpointType | undefined,
+  reasoningFormatType: ReasoningFormatType | undefined
+): Partial<Record<EndpointType, ReasoningFormatType>> {
+  if (defaultChatEndpoint === undefined || !reasoningFormatType) {
+    return {}
+  }
+
+  return {
+    [defaultChatEndpoint]: reasoningFormatType
+  }
+}
+
+function resolveReasoningEndpointType(
+  endpointTypes: EndpointType[] | undefined,
+  defaultChatEndpoint: EndpointType | undefined
+): EndpointType | undefined {
+  const candidates = (endpointTypes ?? []).filter(isChatReasoningEndpointType)
+
+  if (candidates.length === 1) {
+    return candidates[0]
+  }
+
+  if (defaultChatEndpoint !== undefined && isChatReasoningEndpointType(defaultChatEndpoint)) {
+    if (candidates.length === 0 || candidates.includes(defaultChatEndpoint)) {
+      return defaultChatEndpoint
+    }
+  }
+
+  for (const endpointType of CHAT_REASONING_ENDPOINT_PRIORITY) {
+    if (candidates.includes(endpointType)) {
+      return endpointType
+    }
+  }
+
+  return undefined
+}
+
+function resolveReasoningFormatType(
+  endpointTypes: EndpointType[] | undefined,
+  defaultChatEndpoint: EndpointType | undefined,
+  reasoningFormatTypes: Partial<Record<EndpointType, ReasoningFormatType>> | null | undefined
+): ReasoningFormatType | undefined {
+  const endpointType = resolveReasoningEndpointType(endpointTypes, defaultChatEndpoint)
+  if (endpointType === undefined || !reasoningFormatTypes) {
+    return undefined
+  }
+
+  return reasoningFormatTypes[endpointType]
+}
+
 /**
  * Extract runtime reasoning type string from proto ProviderReasoningFormat
  */
-function extractReasoningFormatType(format: ProtoProviderReasoningFormat | undefined): string | undefined {
+function extractReasoningFormatType(format: ProtoProviderReasoningFormat | undefined): ReasoningFormatType | undefined {
   if (!format?.format.case) return undefined
   return REASONING_FORMAT_CASE_TO_TYPE[format.format.case]
 }
@@ -427,7 +511,7 @@ function extractReasoningFormatType(format: ProtoProviderReasoningFormat | undef
  */
 function extractRuntimeReasoning(
   reasoning: ProtoReasoningSupport,
-  reasoningFormatType: string | undefined
+  reasoningFormatType: ReasoningFormatType | undefined
 ): RuntimeReasoning {
   const type = reasoningFormatType ?? ''
 

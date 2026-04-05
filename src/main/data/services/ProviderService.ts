@@ -63,7 +63,7 @@ function rowToRuntimeProvider(row: UserProvider): Provider {
     apiFeatures,
     settings,
     websites: row.websites ?? undefined,
-    reasoningFormatType: row.reasoningFormatType ?? undefined,
+    reasoningFormatTypes: row.reasoningFormatTypes ?? undefined,
     isEnabled: row.isEnabled ?? true
   }
 }
@@ -129,6 +129,7 @@ export class ProviderService {
       baseUrls: dto.baseUrls ?? null,
       modelsApiUrls: dto.modelsApiUrls ?? null,
       defaultChatEndpoint: dto.defaultChatEndpoint ?? null,
+      reasoningFormatTypes: dto.reasoningFormatTypes ?? null,
       apiKeys: dto.apiKeys ?? [],
       authConfig: dto.authConfig ?? null,
       apiFeatures: dto.apiFeatures ?? null,
@@ -158,6 +159,7 @@ export class ProviderService {
     if (dto.baseUrls !== undefined) updates.baseUrls = dto.baseUrls
     if (dto.modelsApiUrls !== undefined) updates.modelsApiUrls = dto.modelsApiUrls
     if (dto.defaultChatEndpoint !== undefined) updates.defaultChatEndpoint = dto.defaultChatEndpoint
+    if (dto.reasoningFormatTypes !== undefined) updates.reasoningFormatTypes = dto.reasoningFormatTypes
     if (dto.apiKeys !== undefined) updates.apiKeys = dto.apiKeys
     if (dto.authConfig !== undefined) updates.authConfig = dto.authConfig
     if (dto.apiFeatures !== undefined) updates.apiFeatures = dto.apiFeatures
@@ -198,9 +200,9 @@ export class ProviderService {
             baseUrls: provider.baseUrls,
             modelsApiUrls: provider.modelsApiUrls,
             defaultChatEndpoint: provider.defaultChatEndpoint,
+            reasoningFormatTypes: provider.reasoningFormatTypes,
             apiFeatures: provider.apiFeatures,
             providerSettings: provider.providerSettings,
-            reasoningFormatType: provider.reasoningFormatType,
             websites: provider.websites
           }
         })

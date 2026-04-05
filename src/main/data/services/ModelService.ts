@@ -125,10 +125,8 @@ export class ModelService {
     const db = application.get('DbService').getDb()
 
     // Look up catalog data for auto-enrichment
-    const { presetModel, catalogOverride, reasoningFormatType } = catalogService.lookupModel(
-      dto.providerId,
-      dto.modelId
-    )
+    const { presetModel, catalogOverride, reasoningFormatTypes, defaultChatEndpoint } =
+      await catalogService.lookupModel(dto.providerId, dto.modelId)
 
     let values: NewUserModel
 
@@ -151,7 +149,14 @@ export class ModelService {
         reasoning: dto.reasoning ?? null
       }
 
-      const merged = mergeModelConfig(userRow, catalogOverride, presetModel, dto.providerId, reasoningFormatType)
+      const merged = mergeModelConfig(
+        userRow,
+        catalogOverride,
+        presetModel,
+        dto.providerId,
+        reasoningFormatTypes,
+        defaultChatEndpoint
+      )
 
       values = {
         providerId: dto.providerId,
