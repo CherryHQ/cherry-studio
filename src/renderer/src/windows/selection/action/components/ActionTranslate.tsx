@@ -33,7 +33,6 @@ const logger = loggerService.withContext('ActionTranslate')
 const ActionTranslate: FC<Props> = ({ action, scrollToBottom }) => {
   const { t } = useTranslation()
 
-  // const { getLanguage, isLoaded: isLanguagesLoaded } = useTranslate()
   const detectLanguage = useDetectLang()
   const { getLanguage, languages, getLabel } = useLanguages()
   const isLanguagesLoaded = languages !== undefined

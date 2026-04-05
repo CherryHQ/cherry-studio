@@ -22,9 +22,6 @@ type TranslateHistoryProps = {
   onClose: () => void
 }
 
-// const logger = loggerService.withContext('TranslateHistory')
-
-// px
 const ITEM_HEIGHT = 160
 
 const TranslateHistoryList: FC<TranslateHistoryProps> = ({ isOpen, onHistoryItemClick, onClose }) => {
