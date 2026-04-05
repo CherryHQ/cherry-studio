@@ -1,10 +1,12 @@
 import { loggerService } from '@logger'
 import ContextMenu from '@renderer/components/ContextMenu'
+import { LoadingIcon } from '@renderer/components/Icons'
 import { useAgent } from '@renderer/hooks/agents/useAgent'
 import { useSession } from '@renderer/hooks/agents/useSession'
 import { useTopicMessages } from '@renderer/hooks/useMessageOperations'
 import useScrollPosition from '@renderer/hooks/useScrollPosition'
 import { useSettings } from '@renderer/hooks/useSettings'
+import { useTimer } from '@renderer/hooks/useTimer'
 import MessageAnchorLine from '@renderer/pages/home/Messages/MessageAnchorLine'
 import MessageGroup from '@renderer/pages/home/Messages/MessageGroup'
 import NarrowLayout from '@renderer/pages/home/Messages/NarrowLayout'
@@ -19,12 +21,18 @@ import {
   setupChannelStream
 } from '@renderer/store/thunk/messageThunk'
 import { type Topic, TopicType } from '@renderer/types'
+import type { Message } from '@renderer/types/newMessage'
 import { addAbortController } from '@renderer/utils/abortController'
 import { buildAgentSessionTopicId } from '@renderer/utils/agentSession'
 import { Spin } from 'antd'
-import { memo, useCallback, useEffect, useMemo, useRef } from 'react'
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import InfiniteScroll from 'react-infinite-scroll-component'
+import styled from 'styled-components'
 
 const logger = loggerService.withContext('AgentSessionMessages')
+
+// Agent messages are typically long, so load in smaller batches
+const AGENT_PAGE_SIZE = 5
 
 type Props = {
   agentId: string
@@ -139,15 +147,56 @@ const AgentSessionMessages = ({ agentId, sessionId }: Props) => {
     `agent-session-${sessionId}`
   )
 
-  const displayMessages = useMemo(() => {
-    if (!messages || messages.length === 0) return []
-    return [...messages].reverse()
+  const { setTimeoutTimer } = useTimer()
+
+  const [displayMessages, setDisplayMessages] = useState<Message[]>([])
+  const [hasMore, setHasMore] = useState(false)
+  const [isLoadingMore, setIsLoadingMore] = useState(false)
+
+  // Guard: suppress InfiniteScroll triggers during scroll position restoration
+  const isRestoringScrollRef = useRef(true)
+
+  useEffect(() => {
+    isRestoringScrollRef.current = true
+    const timer = setTimeout(() => {
+      isRestoringScrollRef.current = false
+    }, 150)
+    return () => clearTimeout(timer)
+  }, [sessionId])
+
+  useEffect(() => {
+    const newDisplayMessages = computeDisplayMessages(messages, 0, AGENT_PAGE_SIZE)
+    setDisplayMessages(newDisplayMessages)
+    setHasMore(messages.length > AGENT_PAGE_SIZE)
   }, [messages])
 
+  // NOTE: displayMessages is reversed, so each group is also reversed — need to reverse back
   const groupedMessages = useMemo(() => {
-    if (!displayMessages || displayMessages.length === 0) return []
-    return Object.entries(getGroupedMessages(displayMessages))
+    const grouped = Object.entries(getGroupedMessages(displayMessages))
+    const newGrouped: { [key: string]: (Message & { index: number })[] } = {}
+    grouped.forEach(([key, group]) => {
+      newGrouped[key] = group.toReversed()
+    })
+    return Object.entries(newGrouped)
   }, [displayMessages])
+
+  const loadMoreMessages = useCallback(() => {
+    if (!hasMore || isLoadingMore || isRestoringScrollRef.current) return
+
+    setIsLoadingMore(true)
+    setTimeoutTimer(
+      'loadMoreMessages',
+      () => {
+        const currentLength = displayMessages.length
+        const newMessages = computeDisplayMessages(messages, currentLength, AGENT_PAGE_SIZE)
+
+        setDisplayMessages((prev) => [...prev, ...newMessages])
+        setHasMore(currentLength + AGENT_PAGE_SIZE < messages.length)
+        setIsLoadingMore(false)
+      },
+      300
+    )
+  }, [displayMessages.length, hasMore, isLoadingMore, messages, setTimeoutTimer])
 
   const sessionAssistantId = session?.agent_id ?? agentId
   const sessionName = session?.name ?? sessionId
@@ -196,19 +245,33 @@ const AgentSessionMessages = ({ agentId, sessionId }: Props) => {
       ref={scrollContainerRef}
       onScroll={handleScrollPosition}>
       <NarrowLayout style={{ display: 'flex', flexDirection: 'column-reverse' }}>
-        <ContextMenu>
-          <ScrollContainer>
-            {groupedMessages.length > 0 ? (
-              groupedMessages.map(([key, groupMessages]) => (
-                <MessageGroup key={key} messages={groupMessages} topic={derivedTopic} />
-              ))
-            ) : !session ? (
-              <div className="flex items-center justify-center py-5">
-                <Spin size="small" />
-              </div>
-            ) : null}
-          </ScrollContainer>
-        </ContextMenu>
+        <InfiniteScroll
+          dataLength={displayMessages.length}
+          next={loadMoreMessages}
+          hasMore={hasMore}
+          loader={null}
+          scrollableTarget="messages"
+          inverse
+          style={{ overflow: 'visible' }}>
+          <ContextMenu>
+            <ScrollContainer>
+              {groupedMessages.length > 0 ? (
+                groupedMessages.map(([key, groupMessages]) => (
+                  <MessageGroup key={key} messages={groupMessages} topic={derivedTopic} />
+                ))
+              ) : !session ? (
+                <div className="flex items-center justify-center py-5">
+                  <Spin size="small" />
+                </div>
+              ) : null}
+              {isLoadingMore && (
+                <LoaderContainer>
+                  <LoadingIcon color="var(--color-text-2)" />
+                </LoaderContainer>
+              )}
+            </ScrollContainer>
+          </ContextMenu>
+        </InfiniteScroll>
       </NarrowLayout>
       {messageNavigation === 'anchor' && <MessageAnchorLine messages={displayMessages} />}
     </MessagesContainer>
@@ -216,5 +279,45 @@ const AgentSessionMessages = ({ agentId, sessionId }: Props) => {
 }
 
 const FALLBACK_TIMESTAMP = '1970-01-01T00:00:00.000Z'
+
+const computeDisplayMessages = (messages: Message[], startIndex: number, displayCount: number) => {
+  if (messages.length - startIndex <= displayCount) {
+    const result: Message[] = []
+    for (let i = messages.length - 1 - startIndex; i >= 0; i--) {
+      result.push(messages[i])
+    }
+    return result
+  }
+  const userIdSet = new Set<string>()
+  const assistantIdSet = new Set<string>()
+  const displayMessages: Message[] = []
+
+  const processMessage = (message: Message) => {
+    if (!message) return
+    const idSet = message.role === 'user' ? userIdSet : assistantIdSet
+    const messageId = message.role === 'user' ? message.id : (message.askId ?? message.id)
+    if (!idSet.has(messageId)) {
+      idSet.add(messageId)
+      displayMessages.push(message)
+      return
+    }
+    displayMessages.push(message)
+  }
+
+  for (let i = messages.length - 1 - startIndex; i >= 0 && userIdSet.size + assistantIdSet.size < displayCount; i--) {
+    processMessage(messages[i])
+  }
+
+  return displayMessages
+}
+
+const LoaderContainer = styled.div`
+  display: flex;
+  justify-content: center;
+  padding: 10px;
+  width: 100%;
+  background: var(--color-background);
+  pointer-events: none;
+`
 
 export default memo(AgentSessionMessages)
