@@ -55,6 +55,9 @@ import { MountProviderConfigSchema } from './fileProvider'
 
 // ─── Shared Validation ───
 
+/** Millisecond epoch timestamp (non-negative integer) */
+const TimestampSchema = z.int().nonnegative()
+
 /** Name schema with security validations: rejects null bytes, path separators, and traversal sequences */
 const SafeNameSchema = z
   .string()
@@ -106,9 +109,9 @@ const nodeCommonFields = {
   /** Original parent ID before moving to Trash (only for Trash direct children) */
   previousParentId: NodeIdSchema.nullable(),
   /** Creation timestamp (ms epoch) */
-  createdAt: z.int(),
+  createdAt: TimestampSchema,
   /** Last update timestamp (ms epoch) */
-  updatedAt: z.int()
+  updatedAt: TimestampSchema
 }
 
 // ─── Per-Type Schemas ───
@@ -144,7 +147,7 @@ export const DirNodeSchema = z.object({
   /** Remote directory ID (e.g. S3 folder key, Google Drive folder ID). Null for local mounts */
   remoteId: z.string().nullable(),
   /** When the local cache was last synced (ms epoch). Null for local mounts or if not cached */
-  cachedAt: z.int().nullable()
+  cachedAt: TimestampSchema.nullable()
 })
 
 /** File node */
@@ -160,7 +163,7 @@ export const FileNodeSchema = z.object({
   /** Remote file ID (e.g. OpenAI file-abc123). Convention: validated at service layer (requires mount context) */
   remoteId: z.string().nullable(),
   /** When the local cache was last downloaded (ms epoch). Convention: validated at service layer */
-  cachedAt: z.int().nullable()
+  cachedAt: TimestampSchema.nullable()
 })
 
 // ─── Discriminated Union ───
@@ -220,9 +223,9 @@ export const FileRefSchema = z.object({
   /** Reference role (e.g. 'attachment', 'source', 'asset') */
   role: z.string().min(1),
   /** Creation timestamp (ms epoch) */
-  createdAt: z.int(),
+  createdAt: TimestampSchema,
   /** Last update timestamp (ms epoch) */
-  updatedAt: z.int()
+  updatedAt: TimestampSchema
 })
 export type FileRef = z.infer<typeof FileRefSchema>
 
