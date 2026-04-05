@@ -143,7 +143,7 @@ export const DirNodeSchema = z.object({
 })
 
 /** File node */
-export const FileNodeFileSchema = z.object({
+export const FileNodeSchema = z.object({
   ...nodeCommonFields,
   type: z.literal('file'),
   parentId: NodeIdSchema,
@@ -161,8 +161,8 @@ export const FileNodeFileSchema = z.object({
 // ─── Discriminated Union ───
 
 /** Complete file node entity as stored in database, discriminated by `type` */
-export const FileNodeSchema = z
-  .discriminatedUnion('type', [MountNodeSchema, DirNodeSchema, FileNodeFileSchema])
+export const FileTreeNodeSchema = z
+  .discriminatedUnion('type', [MountNodeSchema, DirNodeSchema, FileNodeSchema])
   .superRefine((node, ctx) => {
     // ─── Trash state invariants (apply to all types) ───
     if (node.previousParentId !== null && node.parentId !== SYSTEM_TRASH) {
@@ -180,25 +180,25 @@ export const FileNodeSchema = z
       })
     }
   })
-export type FileNode = z.infer<typeof FileNodeSchema>
+export type FileTreeNode = z.infer<typeof FileTreeNodeSchema>
 
 // ─── Per-Type Inferred Types ───
 
 export type MountNode = z.infer<typeof MountNodeSchema>
 export type DirNode = z.infer<typeof DirNodeSchema>
-export type FileNodeFile = z.infer<typeof FileNodeFileSchema>
+export type FileNode = z.infer<typeof FileNodeSchema>
 
 // ─── Type Guards ───
 
-export function isMountNode(node: FileNode): node is MountNode {
+export function isMountNode(node: FileTreeNode): node is MountNode {
   return node.type === 'mount'
 }
 
-export function isDirNode(node: FileNode): node is DirNode {
+export function isDirNode(node: FileTreeNode): node is DirNode {
   return node.type === 'dir'
 }
 
-export function isFileNode(node: FileNode): node is FileNodeFile {
+export function isFileNode(node: FileTreeNode): node is FileNode {
   return node.type === 'file'
 }
 

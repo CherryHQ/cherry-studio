@@ -9,8 +9,8 @@ import type { OffsetPaginationResponse } from '@shared/data/api/apiTypes'
 import type {
   CreateFileRefDto,
   CreateNodeDto,
-  FileNode,
   FileRef,
+  FileTreeNode,
   NodeId,
   UpdateNodeDto
 } from '@shared/data/types/fileNode'
@@ -59,12 +59,12 @@ export interface FileSchemas {
         page?: number
         limit?: number
       }
-      response: OffsetPaginationResponse<FileNode>
+      response: OffsetPaginationResponse<FileTreeNode>
     }
     /** Create a node (upload file / create directory) */
     POST: {
       body: CreateNodeDto
-      response: FileNode
+      response: FileTreeNode
     }
   }
 
@@ -78,13 +78,13 @@ export interface FileSchemas {
     /** Get a node by ID */
     GET: {
       params: { id: NodeId }
-      response: FileNode
+      response: FileTreeNode
     }
     /** Update node metadata (rename, etc.) */
     PATCH: {
       params: { id: NodeId }
       body: UpdateNodeDto
-      response: FileNode
+      response: FileTreeNode
     }
     /** Permanently delete a node */
     DELETE: {
@@ -112,7 +112,7 @@ export interface FileSchemas {
         limit?: number
         offset?: number
       }
-      response: OffsetPaginationResponse<FileNode>
+      response: OffsetPaginationResponse<FileTreeNode>
     }
   }
 
@@ -124,7 +124,7 @@ export interface FileSchemas {
     PUT: {
       params: { id: NodeId }
       body: { targetParentId: NodeId }
-      response: FileNode
+      response: FileTreeNode
     }
   }
 
@@ -146,7 +146,7 @@ export interface FileSchemas {
   '/files/nodes/:id/restore': {
     PUT: {
       params: { id: NodeId }
-      response: FileNode
+      response: FileTreeNode
     }
   }
 
@@ -227,7 +227,7 @@ export interface FileSchemas {
     /** Get mount point list (excludes system mounts like Trash by default) */
     GET: {
       query: { includeSystem?: boolean }
-      response: FileNode[]
+      response: FileTreeNode[]
     }
   }
 }
