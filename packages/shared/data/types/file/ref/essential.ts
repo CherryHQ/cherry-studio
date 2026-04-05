@@ -15,7 +15,7 @@ export const refCommonFields = Object.freeze({
 })
 
 /** Shape constraint for business-specific ref fields passed to `createRefSchema`. */
-type BusinessRefShape = {
+export type BusinessRefShape = {
   /** Which business domain owns this reference (e.g. 'chat', 'knowledge', 'painting') */
   sourceType: z.ZodLiteral<string>
   /** The owning business entity's ID (e.g. a message ID, a knowledge item ID) */

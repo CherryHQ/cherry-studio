@@ -1,32 +1,31 @@
+/**
+ * FileRef aggregated schema
+ *
+ * Combines all business-domain ref variants into a single discriminated union.
+ * To add a new variant, see README.md in this directory.
+ */
+
 import * as z from 'zod'
 
-import { exampleFileRefSchema, exampleRoles, exampleSourceType } from './example'
+import { tempSessionFileRefSchema, tempSessionRoles, tempSessionSourceType } from './tempSession'
 
-const allSourceTypes = [exampleSourceType] as const
+// ─── Aggregate Source Types ───
 
-const allRoles = [...exampleRoles] as const
-
-/**
- * Business source type that references files.
- * Currently only contains placeholder `example`.
- * Planned Phase 2 values: `chat_message`, `knowledge_item`, `painting`, `note`
- *
- * TODO(phase-2): Replace 'example' with real source types as each business module integrates with file refs
- */
+const allSourceTypes = [tempSessionSourceType] as const
 export const FileRefSourceTypeSchema = z.enum(allSourceTypes)
 export type FileRefSourceType = z.infer<typeof FileRefSourceTypeSchema>
 
-/**
- * File reference role — scoped per sourceType.
- * Currently only contains placeholder `role`.
- * Planned Phase 2 values: `attachment`, `source`, `asset`, `embed` (varying by sourceType)
- *
- * TODO(phase-2): Each sourceType defines its own role set. When adding a real sourceType,
- * define its roles in a dedicated ref file (see ref/example.ts as template) and spread them here
- */
+// ─── Aggregate Roles ───
+
+const allRoles = [...tempSessionRoles] as const
 export const FileRefRoleSchema = z.enum(allRoles)
 export type FileRefRole = z.infer<typeof FileRefRoleSchema>
 
-/** File reference entity — tracks business entity to file node relationships */
-export const FileRefSchema = z.discriminatedUnion('sourceType', [exampleFileRefSchema])
+// ─── Discriminated Union ───
+
+export const FileRefSchema = z.discriminatedUnion('sourceType', [tempSessionFileRefSchema])
 export type FileRef = z.infer<typeof FileRefSchema>
+
+// ─── Re-exports ───
+
+export { tempSessionFileRefSchema, tempSessionRoles, tempSessionSourceType }

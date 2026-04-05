@@ -6,9 +6,9 @@ Each business domain that references files (e.g. chat messages, knowledge items,
 
 ```
 ref/
-├── essential.ts   # Common fields (id, nodeId, timestamps) + createRefSchema factory
-├── example.ts     # Placeholder variant (template for copy-pasting)
-├── index.ts       # Aggregates all variants into FileRefSchema (discriminatedUnion)
+├── essential.ts     # Common fields (id, nodeId, timestamps) + createRefSchema factory
+├── tempSession.ts   # Temp session variant (tracks temp files in use)
+├── index.ts         # Aggregates all variants into FileRefSchema (discriminatedUnion)
 └── README.md
 ```
 
@@ -22,7 +22,7 @@ Common fields (`id`, `nodeId`, `createdAt`, `updatedAt`) are auto-inherited via 
 
 ## Step-by-Step: Adding a New Variant
 
-Use `example.ts` as your template. Suppose you're adding `chat_message`:
+Use `tempSession.ts` as your template. Suppose you're adding `chat_message`:
 
 ### 1. Create the variant file
 
@@ -48,14 +48,14 @@ export const chatMessageFileRefSchema = createRefSchema({
 ```diff
 + import { chatMessageFileRefSchema, chatMessageRoles, chatMessageSourceType } from './chatMessage'
 
-- const allSourceTypes = [exampleSourceType] as const
-+ const allSourceTypes = [exampleSourceType, chatMessageSourceType] as const
+- const allSourceTypes = [tempSessionSourceType] as const
++ const allSourceTypes = [tempSessionSourceType, chatMessageSourceType] as const
 
-- const allRoles = [...exampleRoles] as const
-+ const allRoles = [...exampleRoles, ...chatMessageRoles] as const
+- const allRoles = [...tempSessionRoles] as const
++ const allRoles = [...tempSessionRoles, ...chatMessageRoles] as const
 
   export const FileRefSchema = z.discriminatedUnion('sourceType', [
-    exampleFileRefSchema,
+    tempSessionFileRefSchema,
 +   chatMessageFileRefSchema,
   ])
 ```
@@ -83,5 +83,5 @@ The new variant is now part of `FileRefSchema`. Consumers parsing `FileRef` will
 
 - **`sourceType` must be a string literal** (`z.literal(...)`) — required for the discriminated union to dispatch correctly.
 - **`role` is scoped per sourceType** — different domains define different valid roles. The standalone `FileRefRoleSchema` is the flat union of all roles across all domains; prefer validating through `FileRefSchema` when possible.
-- **`sourceId` format is domain-dependent** — use `z.uuidv4()` for internal entities, `z.string().min(1)` for external IDs.
+- **`sourceId` format is domain-dependent** — each variant decides its own schema (e.g. `z.uuidv7()`, `z.uuidv4()`, `z.string().min(1)`) based on the business entity's ID format.
 - **Common fields are frozen** — `refCommonFields` is `Object.freeze()`-d to prevent accidental mutation.
