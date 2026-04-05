@@ -33,13 +33,8 @@ type TextFileMetadata = FileMetadataCommon & { type: 'text'; encoding: string }
 type GenericFileMetadata = FileMetadataCommon & { type: 'other' }
 
 type FileKindMetadata = ImageFileMetadata | PdfFileMetadata | TextFileMetadata | GenericFileMetadata
-/**
- * Physical file metadata (size, timestamps, and type-specific info).
- *
- * Exported as `NodePhysicalMetadata` to avoid naming conflict with v1 `FileMetadata`.
- * Discriminate on `kind` (file vs directory), then on `type` for file-specific info.
- */
-export type NodePhysicalMetadata = DirectoryMetadata | FileKindMetadata
+/** Physical file metadata (size, timestamps, and type-specific info). Discriminate on `kind`, then `type`. */
+export type PhysicalFileMetadata = DirectoryMetadata | FileKindMetadata
 
 // ─── CreateNode Params ───
 
@@ -99,7 +94,7 @@ export interface FileManagerApi {
   /** Read file content as binary */
   read(target: NodeId | FilePath, options: { encoding: 'binary' }): Promise<{ data: Uint8Array; mime: string }>
   /** Get physical file metadata (size, timestamps, and type-specific info like dimensions/pageCount) */
-  getMetadata(target: NodeId | FilePath): Promise<NodePhysicalMetadata>
+  getMetadata(target: NodeId | FilePath): Promise<PhysicalFileMetadata>
 
   // ─── D. Node Deletion ───
 
