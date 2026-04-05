@@ -22,18 +22,24 @@ export type RemoteApiType = z.infer<typeof RemoteApiTypeSchema>
 
 // ─── Provider Config Schemas ───
 
+/** Validate that a string is an absolute filesystem path (Unix or Windows) */
+const AbsolutePathSchema = z
+  .string()
+  .min(1)
+  .refine((s) => /^\//.test(s) || /^[A-Za-z]:\\/.test(s), 'basePath must be an absolute path')
+
 /** Managed files: app-internal storage, UUID-based naming */
 export const LocalManagedConfigSchema = z.object({
   providerType: z.literal('local_managed'),
-  basePath: z.string().min(1)
+  basePath: AbsolutePathSchema
 })
 
 /** External files: filesystem as source of truth, human-readable naming */
 export const LocalExternalConfigSchema = z.object({
   providerType: z.literal('local_external'),
-  basePath: z.string().min(1),
+  basePath: AbsolutePathSchema,
   watch: z.boolean().default(true),
-  watchExtensions: z.array(z.string()).optional()
+  watchExtensions: z.array(z.string()).default([])
 })
 
 /** Remote files: accessed via API */
