@@ -76,8 +76,15 @@ export const nodeTable = sqliteTable(
     index('node_mount_type_idx').on(t.mountId, t.type),
     index('node_name_idx').on(t.name),
     index('node_updated_at_idx').on(t.updatedAt),
-    // Type constraint
-    check('node_type_check', sql`${t.type} IN ('file', 'dir', 'mount')`)
+    // ─── Type constraint ───
+    check('node_type_check', sql`${t.type} IN ('file', 'dir', 'mount')`),
+    // ─── Type invariant constraints (defense-in-depth, mirrors Zod superRefine) ───
+    check('node_mount_parent_null', sql`${t.type} != 'mount' OR ${t.parentId} IS NULL`),
+    check('node_mount_self_ref', sql`${t.type} != 'mount' OR ${t.mountId} = ${t.id}`),
+    check('node_mount_has_config', sql`${t.type} != 'mount' OR ${t.providerConfig} IS NOT NULL`),
+    check('node_nonmount_has_parent', sql`${t.type} = 'mount' OR ${t.parentId} IS NOT NULL`),
+    // Trash state biconditional: previousParentId is set IFF parentId = 'system_trash'
+    check('node_trash_state', sql`(${t.previousParentId} IS NULL) != (${t.parentId} = 'system_trash')`)
   ]
 )
 
