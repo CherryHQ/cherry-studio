@@ -240,13 +240,20 @@ export const UpdateNodeDtoSchema = z.object({
 })
 export type UpdateNodeDto = z.infer<typeof UpdateNodeDtoSchema>
 
-/** DTO for creating a file reference */
+/**
+ * DTO for creating a file reference.
+ *
+ * Uses loose `z.string().min(1)` for sourceType/role intentionally — the typed
+ * FileRef schemas (in `./ref/`) are Phase 2 placeholders with only example variants.
+ * TODO(phase-2): Tighten to use FileRefSourceTypeSchema/FileRefRoleSchema once
+ * real business variants (chat_message, knowledge_item, etc.) are defined.
+ */
 export const CreateFileRefDtoSchema = z.object({
-  /** Business source type */
+  /** Business source type (e.g. 'chat_message', 'knowledge_item') */
   sourceType: z.string().min(1),
   /** Business object ID */
   sourceId: z.string().min(1),
-  /** Reference role */
+  /** Reference role (e.g. 'attachment', 'source', 'asset') */
   role: z.string().min(1)
 })
 export type CreateFileRefDto = z.infer<typeof CreateFileRefDtoSchema>
