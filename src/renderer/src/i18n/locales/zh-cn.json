@@ -3690,6 +3690,20 @@
       "undo": "撤销"
     }
   },
+  "screenshot": {
+    "cancelled": "已取消截图",
+    "capture": "截取屏幕",
+    "empty_text": "未识别到文字",
+    "failed": "截图失败",
+    "ocr_placeholder": "识别的文字将显示于此...",
+    "ocr_text": "识别文字",
+    "process": "处理",
+    "process_failed": "处理截图失败",
+    "result_placeholder": "处理结果将显示于此...",
+    "start_hint": "请在系统截图工具打开后框选要截取的区域",
+    "title": "截图",
+    "unsupported": "截图功能目前仅支持 Windows"
+  },
   "selection": {
     "action": {
       "builtin": {
@@ -4630,6 +4644,9 @@
         },
         "painting": {
           "icon": "显示绘画图标"
+        },
+        "screenshot": {
+          "icon": "显示截图图标"
         },
         "title": "侧边栏设置",
         "translate": {
@@ -5860,6 +5877,7 @@
     "notes": "笔记",
     "openclaw": "OpenClaw",
     "paintings": "绘画",
+    "screenshot": "截图",
     "settings": "设置",
     "store": "助手库",
     "translate": "翻译"

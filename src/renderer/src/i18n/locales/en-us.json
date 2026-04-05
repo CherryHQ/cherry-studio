@@ -3690,6 +3690,20 @@
       "undo": "Undo"
     }
   },
+  "screenshot": {
+    "cancelled": "Screenshot capture cancelled",
+    "capture": "Capture Screenshot",
+    "empty_text": "No text was recognized in the screenshot",
+    "failed": "Screenshot capture failed",
+    "ocr_placeholder": "Captured text will appear here...",
+    "ocr_text": "Recognized Text",
+    "process": "Process",
+    "process_failed": "Failed to process screenshot",
+    "result_placeholder": "Processed result will appear here...",
+    "start_hint": "Select a screen area after Snipping Tool opens",
+    "title": "Screenshot",
+    "unsupported": "Screenshot capture is currently supported on Windows only"
+  },
   "selection": {
     "action": {
       "builtin": {
@@ -4630,6 +4644,9 @@
         },
         "painting": {
           "icon": "Show Painting icon"
+        },
+        "screenshot": {
+          "icon": "Show Screenshot icon"
         },
         "title": "Sidebar Settings",
         "translate": {
@@ -5860,6 +5877,7 @@
     "notes": "Notes",
     "openclaw": "OpenClaw",
     "paintings": "Paintings",
+    "screenshot": "Screenshot",
     "settings": "Settings",
     "store": "Assistant Library",
     "translate": "Translate"

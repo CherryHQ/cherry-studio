@@ -6,7 +6,8 @@ import { type Activatable, BaseService, Injectable, Phase, ServicePhase } from '
 import type { SelectionActionItem } from '@shared/data/preference/preferenceTypes'
 import { SelectionTriggerMode } from '@shared/data/preference/preferenceTypes'
 import { IpcChannel } from '@shared/IpcChannel'
-import { app, BrowserWindow, clipboard, screen, systemPreferences } from 'electron'
+import type { FileMetadata } from '@types'
+import { app, BrowserWindow, clipboard, ipcMain, screen, systemPreferences } from 'electron'
 import { join } from 'path'
 import type {
   KeyboardEventData,
@@ -15,6 +16,8 @@ import type {
   SelectionHookInstance,
   TextSelectionData
 } from 'selection-hook'
+
+import { screenshotService } from './ScreenshotService'
 
 const logger = loggerService.withContext('SelectionService')
 
@@ -1652,6 +1655,53 @@ export class SelectionService extends BaseService implements Activatable {
       this.ipcHandle(IpcChannel.Selection_GetLinuxEnvInfo, () => {
         return this.getLinuxEnvInfo()
       })
+    }
+
+    this.ipcHandle(IpcChannel.Selection_CaptureScreenshot, async () => {
+      return this.captureScreenshot()
+    })
+
+    ipcMain.handle(IpcChannel.Screenshot_CheckPermission, async () => {
+      if (!isMac) {
+        return { status: 'granted' as const }
+      }
+      const status = systemPreferences.getMediaAccessStatus('screen')
+      return {
+        status: status === 'granted' ? ('granted' as const) : ('denied' as const)
+      }
+    })
+
+    ipcMain.handle(IpcChannel.Screenshot_Capture, async (_event, fileName: string) => {
+      return await screenshotService.capture(fileName)
+    })
+
+    ipcMain.handle(IpcChannel.Screenshot_CaptureWithSelection, async (_event, fileName: string) => {
+      return await screenshotService.captureWithSelection(fileName)
+    })
+
+    ipcMain.handle(
+      IpcChannel.Screenshot_SelectionConfirm,
+      async (_event, selection: { x: number; y: number; width: number; height: number }) => {
+        await screenshotService.confirmSelection(selection)
+      }
+    )
+
+    ipcMain.handle(IpcChannel.Screenshot_SelectionCancel, async () => {
+      await screenshotService.cancelSelection()
+    })
+  }
+
+  public async captureScreenshot(): Promise<FileMetadata | null> {
+    try {
+      const result = await screenshotService.capture(`screenshot_${Date.now()}.png`)
+      if (result.success) {
+        return result.file
+      }
+      logger.error('Screenshot capture failed:', new Error(result.message))
+      return null
+    } catch (error) {
+      logger.error('Failed to capture screenshot:', error as Error)
+      throw error
     }
   }
 
