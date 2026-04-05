@@ -65,10 +65,10 @@ export const nodeTable = sqliteTable(
   },
   (t) => [
     // Self-referencing FK: cascade delete children when parent is deleted (Trash cleanup).
-    // ⚠️ CASCADE risk: deleting a mount node (e.g. mount_files) would cascade through
-    // the entire subtree + all file_ref rows, bypassing the service layer. Phase 2 must
-    // add hard-coded deletion protection for SYSTEM_NODE_IDS in the service layer to
-    // prevent any accidental or buggy delete from triggering this cascade.
+    // TODO(phase-2): Add hard-coded deletion protection for SYSTEM_NODE_IDS in the service
+    // layer. Deleting a mount node (e.g. mount_files) would cascade through the entire
+    // subtree + all file_ref rows, bypassing the service layer. Service-layer delete handlers
+    // must reject delete requests for SYSTEM_NODE_IDS to prevent accidental cascades.
     foreignKey({ columns: [t.parentId], foreignColumns: [t.id] }).onDelete('cascade'),
     // Indexes
     index('node_parent_id_idx').on(t.parentId),
