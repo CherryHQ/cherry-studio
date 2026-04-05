@@ -292,16 +292,14 @@ describe('FileTreeNodeSchema type invariants', () => {
       expect(result.error?.issues.some((i) => i.path.includes('providerConfig'))).toBe(true)
     })
 
-    it('rejects dir with non-null remoteId', () => {
-      const result = FileTreeNodeSchema.safeParse(makeDir({ remoteId: 'file-123' }))
-      expect(result.success).toBe(false)
-      expect(result.error?.issues.some((i) => i.path.includes('remoteId'))).toBe(true)
+    it('accepts dir with remoteId (remote directories have IDs)', () => {
+      const result = FileTreeNodeSchema.safeParse(makeDir({ remoteId: 'folder-123' }))
+      expect(result.success).toBe(true)
     })
 
-    it('rejects dir with non-null cachedAt', () => {
+    it('accepts dir with cachedAt (remote directories have cache state)', () => {
       const result = FileTreeNodeSchema.safeParse(makeDir({ cachedAt: TS }))
-      expect(result.success).toBe(false)
-      expect(result.error?.issues.some((i) => i.path.includes('cachedAt'))).toBe(true)
+      expect(result.success).toBe(true)
     })
   })
 

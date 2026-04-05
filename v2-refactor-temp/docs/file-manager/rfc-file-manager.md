@@ -82,7 +82,7 @@
  * 外部调用时仅传 node，mount 由内部通过 node.mountId 查询。
  * 内部实现接受可选的 mount 参数以避免重复查询。
  */
-function resolvePhysicalPath(node: FileNode, mount?: FileNode): string {
+function resolvePhysicalPath(node: FileTreeNode, mount?: FileTreeNode): string {
   const resolvedMount = mount ?? getMountNode(node.mountId)  // 内存缓存查询
   const extSuffix = node.ext ? `.${node.ext}` : ''
 
@@ -135,7 +135,7 @@ function resolvePhysicalPath(node: FileNode, mount?: FileNode): string {
 
 ```
 ┌──────────────┐        ┌──────────────┐        ┌──────────────┐
-│ FileNodeSvc  │        │OperationLock │        │  SyncEngine  │
+│ FileTreeSvc  │        │OperationLock │        │  SyncEngine  │
 │ trashNode()  │        │ Set<path>    │        │ (chokidar)   │
 └──────┬───────┘        └──────┬───────┘        └──────┬───────┘
        │ 1. lock(oldPath)      │                       │
@@ -487,7 +487,7 @@ const SYSTEM_NODES = [
 
 ```typescript
 /** 节点实体 */
-interface FileNode {
+interface FileTreeNode {
   id: string
   type: 'file' | 'dir' | 'mount'
   name: string
@@ -555,8 +555,8 @@ interface CreateFileRefDto {
 ```
 1. Renderer: window.api.file.upload(file)     ← 复用现有 IPC（物理文件传输）
 2. Main: FileStorage 写入物理文件              ← 复用现有逻辑
-3. Main: FileNodeService.create(nodeDto)       ← 新增：写入节点表
-4. Main: 返回 FileNode                        ← 替代原有 FileMetadata
+3. Main: FileTreeService.create(nodeDto)       ← 新增：写入节点表
+4. Main: 返回 FileTreeNode                        ← 替代原有 FileMetadata
 ```
 
 上传是原子操作：物理文件写入 + 节点创建在同一个 main 进程事务中完成。
@@ -764,7 +764,7 @@ async function permanentDelete(nodeId: string): Promise<void> {
 - **跨 mount 移动**：**禁止**。不同 mount 的存储模式（managed vs external vs remote）不兼容，跨 mount 移动需要物理文件格式转换和全子树 `mountId` 递归更新，复杂度高且易出错。用户如需跨 mount，应使用"复制到目标 mount → 删除源文件"的显式流程。
 
 ```typescript
-async function moveNode(nodeId: string, targetParentId: string): Promise<FileNode> {
+async function moveNode(nodeId: string, targetParentId: string): Promise<FileTreeNode> {
   const node = await getNode(nodeId)
   const targetParent = await getNode(targetParentId)
 
@@ -1006,19 +1006,19 @@ export type FileSchemas = {
         type?: 'file' | 'dir'
         inTrash?: boolean
       }
-      response: FileNode[]
+      response: FileTreeNode[]
     }
     /** 创建节点（上传文件 / 创建目录） */
     POST: {
       body: CreateNodeDto
-      response: FileNode
+      response: FileTreeNode
     }
   }
 
   '/files/nodes/:id': {
-    GET: { params: { id: string }; response: FileNode }
+    GET: { params: { id: string }; response: FileTreeNode }
     /** 更新节点元信息（重命名等） */
-    PATCH: { params: { id: string }; body: UpdateNodeDto; response: FileNode }
+    PATCH: { params: { id: string }; body: UpdateNodeDto; response: FileTreeNode }
     /** 永久删除节点 */
     DELETE: { params: { id: string }; response: void }
   }
@@ -1036,13 +1036,13 @@ export type FileSchemas = {
         limit?: number
         offset?: number
       }
-      response: FileNode[]
+      response: FileTreeNode[]
     }
   }
 
   '/files/nodes/:id/move': {
     /** 移动节点到新父节点 */
-    PUT: { params: { id: string }; body: { targetParentId: string }; response: FileNode }
+    PUT: { params: { id: string }; body: { targetParentId: string }; response: FileTreeNode }
   }
 
   '/files/nodes/:id/trash': {
@@ -1052,7 +1052,7 @@ export type FileSchemas = {
 
   '/files/nodes/:id/restore': {
     /** 从 Trash 恢复 */
-    PUT: { params: { id: string }; response: FileNode }
+    PUT: { params: { id: string }; response: FileTreeNode }
   }
 
   // ─── 文件引用 ───
@@ -1094,7 +1094,7 @@ export type FileSchemas = {
     /** 获取挂载点列表 */
     GET: {
       query: { includeSystem?: boolean }  // 默认 false，不返回 Trash 等系统挂载点
-      response: FileNode[]
+      response: FileTreeNode[]
     }
   }
 }
@@ -1105,27 +1105,27 @@ export type FileSchemas = {
 位于 `src/main/data/services/`，遵循现有 `TopicService`、`MessageService` 模式。
 
 ```typescript
-// FileNodeService - 节点业务逻辑
-class FileNodeService {
-  async create(dto: CreateNodeDto): Promise<FileNode>
-  async getById(id: string): Promise<FileNode>
-  async update(id: string, dto: UpdateNodeDto): Promise<FileNode>
+// FileTreeService - 节点业务逻辑
+class FileTreeService {
+  async create(dto: CreateNodeDto): Promise<FileTreeNode>
+  async getById(id: string): Promise<FileTreeNode>
+  async update(id: string, dto: UpdateNodeDto): Promise<FileTreeNode>
   async permanentDelete(id: string): Promise<void>  // 硬删 + 物理文件清理
-  async list(filters: NodeListFilters): Promise<FileNode[]>
+  async list(filters: NodeListFilters): Promise<FileTreeNode[]>
   async getChildren(parentId: string, options?: {
     recursive?: boolean
     sortBy?: 'name' | 'updatedAt' | 'size' | 'type'
     sortOrder?: 'asc' | 'desc'
     limit?: number
     offset?: number
-  }): Promise<FileNode[]>
+  }): Promise<FileTreeNode[]>
   /** 获取挂载点列表。includeSystem=false 时排除系统挂载点（如 Trash） */
-  async getMounts(includeSystem?: boolean): Promise<FileNode[]>
-  async move(id: string, targetParentId: string): Promise<FileNode>
+  async getMounts(includeSystem?: boolean): Promise<FileTreeNode[]>
+  async move(id: string, targetParentId: string): Promise<FileTreeNode>
   async moveBatch(ids: string[], targetParentId: string): Promise<void>
   async trash(id: string): Promise<void>
   async trashBatch(ids: string[]): Promise<void>
-  async restore(id: string): Promise<FileNode>
+  async restore(id: string): Promise<FileTreeNode>
   async permanentDeleteBatch(ids: string[]): Promise<void>
   async resolvePhysicalPath(id: string): Promise<string>
 }
@@ -1143,6 +1143,8 @@ class FileRefService {
 ### 9.3 Handler 注册
 
 位于 `src/main/data/api/handlers/files.ts`，合并到 `apiHandlers`。
+
+> **重要**：所有 API handler 必须在入口处使用 Zod schema 验证输入。`NodeIdSchema.parse()` 验证路径参数中的节点 ID，`CreateNodeDtoSchema.parse()` / `UpdateNodeDtoSchema.parse()` 验证请求体。`NodeId` 类型在 TypeScript 层面推断为 `string`，不携带运行时约束，因此 handler 层的 schema 验证是唯一的运行时防线。
 
 ```typescript
 export const fileHandlers = {
@@ -1251,8 +1253,8 @@ const { data: messageFiles } = useQuery('/files/refs/by-source', {
 ```
 1. Renderer: window.api.file.upload(file)     ← 复用现有 IPC（物理文件传输）
 2. Main: FileStorage 写入物理文件              ← 复用现有逻辑
-3. Main: FileNodeService.create(nodeDto)       ← 新增：写入节点表
-4. Main: 返回 FileNode                        ← 替代原有 FileMetadata
+3. Main: FileTreeService.create(nodeDto)       ← 新增：写入节点表
+4. Main: 返回 FileTreeNode                        ← 替代原有 FileMetadata
 ```
 
 上传是原子操作：物理文件写入 + 节点创建在同一个 main 进程事务中完成，解决了 P1/P2 问题。
@@ -1508,7 +1510,7 @@ Foundation       + API              + 迁移整合         Migration         Int
 | 文件路径 | 内容 |
 |---------|------|
 | `src/main/data/db/schemas/node.ts` | `nodeTable` + `fileRefTable` Drizzle Schema（第六章） |
-| `packages/shared/data/types/fileNode.ts` | `FileNode`、`FileRef`、DTO 类型定义（第六章） |
+| `packages/shared/data/types/fileNode.ts` | `FileTreeNode`、`FileRef`、DTO 类型定义（第六章） |
 | `packages/shared/data/types/fileProvider.ts` | Provider Config Zod Schema（第五章） |
 | `packages/shared/data/api/schemas/files.ts` | `FileSchemas` API 类型声明（第九章） |
 
@@ -1530,14 +1532,14 @@ Foundation       + API              + 迁移整合         Migration         Int
 
 | 文件路径 | 内容 |
 |---------|------|
-| `src/main/data/services/FileNodeService.ts` | 节点 CRUD、树操作、Trash、路径解析 |
+| `src/main/data/services/FileTreeService.ts` | 节点 CRUD、树操作、Trash、路径解析 |
 | `src/main/data/services/FileRefService.ts` | 引用 CRUD、按来源清理、批量清理 |
 | `src/main/data/api/handlers/files.ts` | DataApi handlers（第九章） |
 | `src/renderer/src/hooks/useFileNodes.ts` | SWR hooks（`useQuery`/`useMutation` 封装） |
 
 **关键任务**：
 
-1. `FileNodeService`：
+1. `FileTreeService`：
    - `create()` 原子性保障——物理文件写入 + 节点记录在同一事务
    - `trash()` / `restore()` 实现 OS 风格 Trash 逻辑（第七章）
    - `permanentDelete()` 级联删除 + 物理文件清理
@@ -1564,7 +1566,7 @@ Foundation       + API              + 迁移整合         Migration         Int
 
 ### 11.5 Phase 4: Consumer Migration（消费方迁移）
 
-**目标**：将 64+ 个引用 `FileMetadata` 的文件逐步迁移到使用 `FileNode` + DataApi。
+**目标**：将 64+ 个引用 `FileMetadata` 的文件逐步迁移到使用 `FileTreeNode` + DataApi。
 
 分 4 批进行，按依赖关系和影响范围排序：
 
@@ -1573,14 +1575,14 @@ Foundation       + API              + 迁移整合         Migration         Int
 | 文件 | 变更 |
 |------|------|
 | `src/renderer/src/services/FileManager.ts` | 重写为 thin wrapper，调用 DataApi hooks 而非直接操作 Dexie |
-| `src/main/services/FileStorage.ts` | 文件 I/O 保留，元数据管理迁移到 `FileNodeService` |
-| `src/renderer/src/types/file.ts` | `FileMetadata` 标记 `@deprecated`，新增 re-export from `FileNode` |
+| `src/main/services/FileStorage.ts` | 文件 I/O 保留，元数据管理迁移到 `FileTreeService` |
+| `src/renderer/src/types/file.ts` | `FileMetadata` 标记 `@deprecated`，新增 re-export from `FileTreeNode` |
 
-**兼容策略**：提供 `toFileMetadata(node: FileNode): FileMetadata` 适配函数，让尚未迁移的消费方继续工作：
+**兼容策略**：提供 `toFileMetadata(node: FileTreeNode): FileMetadata` 适配函数，让尚未迁移的消费方继续工作：
 
 ```typescript
 /** @deprecated 仅用于过渡期 */
-function toFileMetadata(node: FileNode): FileMetadata {
+function toFileMetadata(node: FileTreeNode): FileMetadata {
   return {
     id: node.id,
     name: node.id + (node.ext ? '.' + node.ext : ''),
@@ -1599,8 +1601,8 @@ function toFileMetadata(node: FileNode): FileMetadata {
 
 | 文件 | 变更 |
 |------|------|
-| `fileProcessor.ts` | 入参从 `FileMetadata` 改为 `FileNode`，路径通过 `resolvePhysicalPath` 获取 |
-| `messageConverter.ts` | 从 file blocks 中读取 `fileId` → 查询 `FileNode` → 获取路径/元数据 |
+| `fileProcessor.ts` | 入参从 `FileMetadata` 改为 `FileTreeNode`，路径通过 `resolvePhysicalPath` 获取 |
+| `messageConverter.ts` | 从 file blocks 中读取 `fileId` → 查询 `FileTreeNode` → 获取路径/元数据 |
 | 各 API 客户端 | 文件上传参数适配 |
 
 #### Batch 4.3: Knowledge + Paintings
@@ -1608,7 +1610,7 @@ function toFileMetadata(node: FileNode): FileMetadata {
 | 文件 | 变更 |
 |------|------|
 | `KnowledgeService.ts` | 文件引用从嵌入 `FileMetadata` 改为 `nodeId` 引用 |
-| 6+ 预处理 providers | 入参改为 `FileNode` 或 `{ path, ext, name }` |
+| 6+ 预处理 providers | 入参改为 `FileTreeNode` 或 `{ path, ext, name }` |
 | Painting 相关 | `files: FileMetadata[]` → `fileIds: string[]` |
 
 #### Batch 4.4: UI + State Management
@@ -1656,7 +1658,7 @@ function toFileMetadata(node: FileNode): FileMetadata {
 1. 移除 Dexie `files` 表定义和相关迁移代码
 2. 移除 `FileMetadata` 类型和 `toFileMetadata` 适配函数
 3. 移除 `FileManager.ts`（renderer 侧旧文件管理）
-4. 清理 `FileStorage.ts` 中已迁移到 `FileNodeService` 的逻辑
+4. 清理 `FileStorage.ts` 中已迁移到 `FileTreeService` 的逻辑
 5. 移除 `findDuplicateFile()` 等去重相关代码
 6. 最终集成测试
 

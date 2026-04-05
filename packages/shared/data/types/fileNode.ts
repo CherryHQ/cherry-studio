@@ -15,8 +15,9 @@
  * | providerConfig   | non-null                | null         | null                   |
  * | ext              | null                    | null         | string or null (null for extensionless files) |
  * | size             | null                    | null         | number or null         |
- * | remoteId         | null (enforced)         | null (enforced) | set under remote mount (convention, validated at service layer) |
- * | cachedAt         | null (enforced)         | null (enforced) | ms epoch or null under remote mount (convention, validated at service layer) |
+ * | remoteId         | null                    | nullable (remote dirs have IDs) | nullable (validated at service layer) |
+ * | cachedAt         | null                    | nullable (remote dirs have cache state) | nullable (validated at service layer) |
+ * | previousParentId | null (mount can't be trashed) | nullable (trash state) | nullable (trash state) |
  *
  * ## Node lifecycle state machine
  *
@@ -118,6 +119,8 @@ export const MountNodeSchema = z
     ...nodeCommonFields,
     type: z.literal('mount'),
     parentId: z.null(),
+    // Mount nodes cannot be trashed — override to structurally forbid
+    previousParentId: z.null(),
     ext: z.null(),
     size: z.null(),
     providerConfig: MountProviderConfigSchema,
@@ -138,8 +141,10 @@ export const DirNodeSchema = z.object({
   ext: z.null(),
   size: z.null(),
   providerConfig: z.null(),
-  remoteId: z.null(),
-  cachedAt: z.null()
+  /** Remote directory ID (e.g. S3 folder key, Google Drive folder ID). Null for local mounts */
+  remoteId: z.string().nullable(),
+  /** When the local cache was last synced (ms epoch). Null for local mounts or if not cached */
+  cachedAt: z.int().nullable()
 })
 
 /** File node */
