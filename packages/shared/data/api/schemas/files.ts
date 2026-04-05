@@ -1,8 +1,9 @@
 /**
  * File schemas: service-layer DTOs + read-only DataApi definitions
  *
- * DTOs are internal to the service layer (used by FileManager IPC handlers when
- * calling data/service). DataApi is a pure data interface — read-only, no FS side effects.
+ * DTOs are internal to the service layer (used by FileService when calling
+ * FileTreeService for DB operations). DataApi is a pure data interface —
+ * read-only, no FS side effects.
  */
 
 import type { OffsetPaginationResponse } from '@shared/data/api/apiTypes'
@@ -24,7 +25,7 @@ import * as z from 'zod'
  * DTO for creating a new file or directory node.
  *
  * Internal to service layer — not exposed via DataApi.
- * FileManager IPC handlers use this when calling data/service after completing FS operations.
+ * FileService uses this when calling FileTreeService after completing FS operations.
  *
  * - `name` — for files: full filename with extension (e.g. `report.pdf`),
  *            for dirs: directory name.

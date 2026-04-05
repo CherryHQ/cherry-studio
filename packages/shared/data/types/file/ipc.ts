@@ -1,10 +1,10 @@
 /**
- * FileManager IPC type contracts
+ * File IPC type contracts
  *
- * Defines the parameter and return types for FileManager IPC operations.
+ * Defines the parameter and return types for File IPC operations.
  * All file tree write operations that may affect the filesystem go through
- * FileManager IPC (not DataApi). The FileManager handles FS operations
- * internally and calls data/service to synchronize the DB.
+ * FileIpcService (not DataApi). FileIpcService delegates to FileService
+ * (sole FS owner), which coordinates FS ops and calls FileTreeService for DB sync.
  *
  * These types are shared between main (handler implementation) and
  * preload (method signatures exposed to renderer).
@@ -49,16 +49,16 @@ export interface BatchOperationResult {
   failed: Array<{ id: NodeId; error: string }>
 }
 
-// ─── FileManager API ───
+// ─── File IPC API ───
 
 /**
- * FileManager IPC interface — the complete contract between renderer and main process
+ * File IPC interface — the complete contract between renderer and main process
  * for all file operations that may affect the filesystem.
  *
  * DataApi handles read-only node queries; all writes go through this interface.
- * FileManager service internally coordinates FS operations and DB synchronization.
+ * FileIpcService delegates to FileService (sole FS owner) for all operations.
  */
-export interface FileManagerApi {
+export interface FileIpcApi {
   // ─── A. File Selection / Dialogs ───
 
   /** Open file picker dialog (single file) */
