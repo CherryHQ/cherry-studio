@@ -66,10 +66,17 @@ export function resolvePhysicalPath(node: PathResolvableNode, mount: MountInfo, 
       }
       const resolved = path.resolve(config.basePath, ...ancestorNames, `${node.name}${getExtSuffix(node.ext)}`)
       // Resolve symlinks for local_external — user-chosen directories may contain symlinks
-      const realResolved = fs.realpathSync(resolved)
-      const realBase = fs.realpathSync(config.basePath)
-      assertPathContained(realResolved, realBase)
-      return realResolved
+      try {
+        const realResolved = fs.realpathSync(resolved)
+        const realBase = fs.realpathSync(config.basePath)
+        assertPathContained(realResolved, realBase)
+        return realResolved
+      } catch (err) {
+        throw new Error(
+          `Failed to resolve path for node ${node.id} (name="${node.name}") ` +
+            `under basePath="${config.basePath}": ${(err as Error).message}`
+        )
+      }
     }
 
     case 'system':
