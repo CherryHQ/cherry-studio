@@ -3,6 +3,10 @@
  *
  * Stub handlers for Phase 1 — will be implemented in Phase 2.
  * All endpoints throw NOT_IMPLEMENTED to satisfy ApiSchemas type requirements.
+ *
+ * Note: Only read endpoints are exposed via DataApi. Write operations (create,
+ * rename, move, trash, delete, upload) are handled by FileManager IPC, which
+ * internally calls data/service for DB synchronization.
  */
 
 import type { ApiHandler, ApiMethods } from '@shared/data/api/apiTypes'
@@ -22,42 +26,20 @@ export const fileHandlers: {
   }
 } = {
   '/files/nodes': {
-    GET: notImplemented('GET /files/nodes'),
-    POST: notImplemented('POST /files/nodes')
+    GET: notImplemented('GET /files/nodes')
   },
   '/files/nodes/:id': {
-    GET: notImplemented('GET /files/nodes/:id'),
-    PATCH: notImplemented('PATCH /files/nodes/:id'),
-    DELETE: notImplemented('DELETE /files/nodes/:id')
+    GET: notImplemented('GET /files/nodes/:id')
   },
   '/files/nodes/:id/children': {
     GET: notImplemented('GET /files/nodes/:id/children')
   },
-  '/files/nodes/:id/move': {
-    PUT: notImplemented('PUT /files/nodes/:id/move')
-  },
-  '/files/nodes/:id/trash': {
-    PUT: notImplemented('PUT /files/nodes/:id/trash')
-  },
-  '/files/nodes/:id/restore': {
-    PUT: notImplemented('PUT /files/nodes/:id/restore')
-  },
   '/files/nodes/:id/refs': {
-    GET: notImplemented('GET /files/nodes/:id/refs'),
-    POST: notImplemented('POST /files/nodes/:id/refs')
+    GET: notImplemented('GET /files/nodes/:id/refs')
   },
   '/files/refs/by-source': {
     GET: notImplemented('GET /files/refs/by-source'),
     DELETE: notImplemented('DELETE /files/refs/by-source')
-  },
-  '/files/batch/nodes/trash': {
-    PUT: notImplemented('PUT /files/batch/nodes/trash')
-  },
-  '/files/batch/nodes/move': {
-    PUT: notImplemented('PUT /files/batch/nodes/move')
-  },
-  '/files/batch/nodes/delete': {
-    POST: notImplemented('POST /files/batch/nodes/delete')
   },
   '/files/mounts': {
     GET: notImplemented('GET /files/mounts')

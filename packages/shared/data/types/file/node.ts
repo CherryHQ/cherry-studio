@@ -198,41 +198,40 @@ export function isFileNode(node: FileTreeNode): node is FileNode {
 
 // ─── DTOs ───
 
-const createNodeCommonFields = {
-  /** User-visible name */
+/**
+ * DTO for creating a new file or directory node.
+ *
+ * Internal to service layer — not exposed via DataApi.
+ * FileManager IPC handlers use this when calling data/service after completing FS operations.
+ *
+ * - `name` — for files: full filename with extension (e.g. `report.pdf`),
+ *            for dirs: directory name.
+ *            Service layer splits file names into entity `name` + `ext`.
+ *
+ * Fields derived by the service layer (not in DTO):
+ * - `mountId` — inherited from parent node
+ * - `ext` — extracted from `name` for files
+ * - `size` — read from actual file data
+ */
+export const CreateNodeDtoSchema = z.object({
+  /** Node type (file or dir, not mount) */
+  type: z.enum(['file', 'dir']),
+  /** Full name: for files includes extension (e.g. `report.pdf`), for dirs the directory name */
   name: SafeNameSchema,
-  /** Parent node ID */
-  parentId: NodeIdSchema,
-  /** Mount ID */
-  mountId: NodeIdSchema
-}
-
-/** DTO for creating a new file node */
-export const CreateFileDtoSchema = z.object({
-  type: z.literal('file'),
-  ...createNodeCommonFields,
-  /** File extension without leading dot */
-  ext: z.string().min(1).optional(),
-  /** File size in bytes */
-  size: z.int().nonnegative().optional()
+  /** Parent node ID (mountId is derived from this) */
+  parentId: NodeIdSchema
 })
-
-/** DTO for creating a new directory node */
-export const CreateDirDtoSchema = z.object({
-  type: z.literal('dir'),
-  ...createNodeCommonFields
-})
-
-/** DTO for creating a new file or directory node */
-export const CreateNodeDtoSchema = z.discriminatedUnion('type', [CreateFileDtoSchema, CreateDirDtoSchema])
 export type CreateNodeDto = z.infer<typeof CreateNodeDtoSchema>
 
-/** DTO for updating a node's metadata */
+/**
+ * DTO for updating a node's metadata.
+ *
+ * Internal to service layer — not exposed via DataApi.
+ * `name` is the full name (with extension for files); service splits into `name` + `ext`.
+ */
 export const UpdateNodeDtoSchema = z.object({
-  /** Updated name */
-  name: SafeNameSchema.optional(),
-  /** Updated extension */
-  ext: z.string().min(1).optional()
+  /** Updated full name (with extension for files) */
+  name: SafeNameSchema.optional()
 })
 export type UpdateNodeDto = z.infer<typeof UpdateNodeDtoSchema>
 

@@ -29,9 +29,7 @@ function makeCreateDto(name: string) {
   return {
     type: 'file' as const,
     name,
-    ext: 'txt',
-    parentId: '019606a0-0000-7000-8000-000000000002',
-    mountId: '019606a0-0000-7000-8000-000000000003'
+    parentId: '019606a0-0000-7000-8000-000000000002'
   }
 }
 

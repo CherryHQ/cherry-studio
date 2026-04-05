@@ -1,29 +1,18 @@
 /**
- * File API Schema definitions
+ * File DataApi Schema definitions (read-only)
  *
- * Contains all file-related endpoints for node CRUD, tree operations,
- * file references, and mount management.
+ * DataApi is a pure data interface — it manages DB reads with no FS side effects.
+ * All write operations that may affect the filesystem (create, rename, move, trash,
+ * delete, upload) are handled by FileManager IPC, which internally calls data/service
+ * for DB synchronization.
+ *
+ * FileRef creation is not exposed here — refs are created internally by business
+ * services (MessageService, KnowledgeService, etc.) as side effects of their own
+ * operations. Only ref queries and cleanup are provided.
  */
 
 import type { OffsetPaginationResponse } from '@shared/data/api/apiTypes'
-import type {
-  CreateFileRefDto,
-  CreateNodeDto,
-  FileRef,
-  FileTreeNode,
-  NodeId,
-  UpdateNodeDto
-} from '@shared/data/types/file'
-
-// ============================================================================
-// Shared Types
-// ============================================================================
-
-/** Result for batch operations, allowing callers to detect partial failures */
-export interface BatchOperationResult {
-  succeeded: NodeId[]
-  failed: Array<{ id: NodeId; error: string }>
-}
+import type { FileRef, FileTreeNode, NodeId } from '@shared/data/types/file'
 
 // ============================================================================
 // API Schema Definitions
@@ -32,21 +21,19 @@ export interface BatchOperationResult {
 /**
  * File API Schema definitions
  *
- * Organized by domain responsibility:
- * - /files/nodes - Node CRUD and listing
- * - /files/nodes/:id/* - Tree operations (children, move, trash, restore)
- * - /files/nodes/:id/refs - File references per node
- * - /files/refs/by-source - File references by business source
- * - /files/batch/nodes/* - Batch operations
- * - /files/mounts - Mount point listing
+ * Read-only endpoints organized by domain:
+ * - /files/nodes — Node listing and detail
+ * - /files/nodes/:id/children — Tree lazy-loading
+ * - /files/nodes/:id/refs — File references per node
+ * - /files/refs/by-source — File references by business source
+ * - /files/mounts — Mount point listing
  */
 export interface FileSchemas {
-  // ─── Node CRUD ───
+  // ─── Node Queries ───
 
   /**
-   * Nodes collection endpoint
+   * Nodes collection query
    * @example GET /files/nodes?mountId=mount_files&type=file
-   * @example POST /files/nodes { "type": "file", "name": "doc", "parentId": "..." }
    */
   '/files/nodes': {
     /** List nodes with filters and pagination */
@@ -61,18 +48,11 @@ export interface FileSchemas {
       }
       response: OffsetPaginationResponse<FileTreeNode>
     }
-    /** Create a node (upload file / create directory) */
-    POST: {
-      body: CreateNodeDto
-      response: FileTreeNode
-    }
   }
 
   /**
-   * Individual node endpoint
+   * Individual node query
    * @example GET /files/nodes/abc123
-   * @example PATCH /files/nodes/abc123 { "name": "renamed" }
-   * @example DELETE /files/nodes/abc123
    */
   '/files/nodes/:id': {
     /** Get a node by ID */
@@ -80,20 +60,9 @@ export interface FileSchemas {
       params: { id: NodeId }
       response: FileTreeNode
     }
-    /** Update node metadata (rename, etc.) */
-    PATCH: {
-      params: { id: NodeId }
-      body: UpdateNodeDto
-      response: FileTreeNode
-    }
-    /** Permanently delete a node */
-    DELETE: {
-      params: { id: NodeId }
-      response: void
-    }
   }
 
-  // ─── Tree Operations ───
+  // ─── Tree Queries ───
 
   /**
    * Children endpoint for lazy-loading file tree
@@ -116,58 +85,17 @@ export interface FileSchemas {
     }
   }
 
-  /**
-   * Move node to a new parent
-   * @example PUT /files/nodes/abc123/move { "targetParentId": "dir456" }
-   */
-  '/files/nodes/:id/move': {
-    PUT: {
-      params: { id: NodeId }
-      body: { targetParentId: NodeId }
-      response: FileTreeNode
-    }
-  }
-
-  /**
-   * Trash a node (soft delete)
-   * @example PUT /files/nodes/abc123/trash
-   */
-  '/files/nodes/:id/trash': {
-    PUT: {
-      params: { id: NodeId }
-      response: void
-    }
-  }
-
-  /**
-   * Restore a node from Trash
-   * @example PUT /files/nodes/abc123/restore
-   */
-  '/files/nodes/:id/restore': {
-    PUT: {
-      params: { id: NodeId }
-      response: FileTreeNode
-    }
-  }
-
-  // ─── File References ───
+  // ─── File Reference Queries ───
 
   /**
    * File references for a specific node
    * @example GET /files/nodes/abc123/refs
-   * @example POST /files/nodes/abc123/refs { "sourceType": "chat_message", "sourceId": "msg1", "role": "attachment" }
    */
   '/files/nodes/:id/refs': {
     /** Get all references for a file node */
     GET: {
       params: { id: NodeId }
       response: FileRef[]
-    }
-    /** Create a reference to a file node */
-    POST: {
-      params: { id: NodeId }
-      body: CreateFileRefDto
-      response: FileRef
     }
   }
 
@@ -182,38 +110,10 @@ export interface FileSchemas {
       query: { sourceType: string; sourceId: string }
       response: FileRef[]
     }
-    /** Clean up all references for a business object */
+    /** Clean up all references for a business object (pure DB operation, no FS side effects) */
     DELETE: {
       query: { sourceType: string; sourceId: string }
       response: void
-    }
-  }
-
-  // ─── Batch Operations ───
-  // Routes use /files/batch/nodes/* prefix to avoid type-level ambiguity
-  // with the parameterized /files/nodes/:id/* routes.
-
-  /** Batch trash nodes */
-  '/files/batch/nodes/trash': {
-    PUT: {
-      body: { ids: NodeId[] }
-      response: BatchOperationResult
-    }
-  }
-
-  /** Batch move nodes to target directory */
-  '/files/batch/nodes/move': {
-    PUT: {
-      body: { ids: NodeId[]; targetParentId: NodeId }
-      response: BatchOperationResult
-    }
-  }
-
-  /** Batch permanently delete nodes (uses POST to avoid DELETE-with-body compatibility issues) */
-  '/files/batch/nodes/delete': {
-    POST: {
-      body: { ids: NodeId[] }
-      response: BatchOperationResult
     }
   }
 
