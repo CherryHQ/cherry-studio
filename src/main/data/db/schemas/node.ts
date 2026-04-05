@@ -58,7 +58,7 @@ export const nodeTable = sqliteTable(
     // ─── Timestamps ───
     // Uses createUpdateTimestamps (no deletedAt) intentionally.
     // Trash is modeled as a tree move to system_trash, not a soft-delete flag.
-    // See: packages/shared/data/types/fileNode.ts for the lifecycle state machine.
+    // See: packages/shared/data/types/file/node.ts for the lifecycle state machine.
     ...createUpdateTimestamps
   },
   (t) => [
