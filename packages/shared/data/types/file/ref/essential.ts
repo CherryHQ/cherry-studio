@@ -14,9 +14,10 @@ export const refCommonFields = {
   updatedAt: TimestampSchema
 }
 
+/** Shape constraint for business-specific ref fields passed to `createRefSchema`. */
 type BusinessRefShape = {
   /** Which business domain owns this reference (e.g. 'chat', 'knowledge', 'painting') */
-  sourceType: z.ZodLiteral
+  sourceType: z.ZodLiteral<string>
   /** The owning business entity's ID (e.g. a message ID, a knowledge item ID) */
   sourceId: z.ZodUUID | z.ZodString
   /** How the file is used within that domain (e.g. 'attachment', 'source', 'asset') */
