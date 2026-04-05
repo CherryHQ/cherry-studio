@@ -6,7 +6,7 @@ import { languageDtoToVo } from '@renderer/utils/translate'
 import type { TranslateLangCode } from '@shared/data/preference/preferenceTypes'
 import { isTranslateLangCode } from '@shared/data/preference/preferenceTypes'
 import { langCodeToI18nKey } from '@shared/data/presets/translate-languages'
-import { useCallback, useMemo } from 'react'
+import { useCallback, useEffect, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 
 const logger = loggerService.withContext('translate/useLanguages')
@@ -20,9 +20,11 @@ export const useLanguages = () => {
   const { data, error } = useQuery('/translate/languages')
   const { t } = useTranslation()
 
-  if (error) {
-    logger.error('Failed to load translate languages', error)
-  }
+  useEffect(() => {
+    if (error) {
+      logger.error('Failed to load translate languages', error)
+    }
+  }, [error])
 
   const languages = useMemo(() => {
     if (data !== undefined) {
@@ -61,5 +63,5 @@ export const useLanguages = () => {
     [languages]
   )
 
-  return { languages, getLabel, getLanguage }
+  return { languages, getLabel, getLanguage, error }
 }
