@@ -52,7 +52,7 @@ const TranslateHistoryList: FC<TranslateHistoryProps> = ({ isOpen, onHistoryItem
   return (
     <Drawer open={isOpen} onClose={onClose} direction="left">
       <DrawerContent>
-        <DrawerHeader className="flex flex-row justify-between items-center mt-4">
+        <DrawerHeader className="mt-4 flex flex-row items-center justify-between">
           <div className="flex items-center">
             <span className="text-foreground">{t('translate.history.title')}</span>
             <Button
