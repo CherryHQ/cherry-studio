@@ -26,7 +26,7 @@ export type RemoteApiType = z.infer<typeof RemoteApiTypeSchema>
 const AbsolutePathSchema = z
   .string()
   .min(1)
-  .refine((s) => /^\//.test(s) || /^[A-Za-z]:\\/.test(s), 'basePath must be an absolute path')
+  .refine((s) => s.startsWith('/') || /^[A-Za-z]:\\/.test(s), 'basePath must be an absolute path')
 
 /** Managed files: app-internal storage, UUID-based naming */
 export const LocalManagedConfigSchema = z.object({
