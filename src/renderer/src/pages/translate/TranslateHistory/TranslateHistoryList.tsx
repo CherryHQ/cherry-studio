@@ -1,12 +1,21 @@
 import { DeleteOutlined, StarFilled, StarOutlined } from '@ant-design/icons'
-import { Flex, RowFlex } from '@cherrystudio/ui'
+import {
+  Drawer,
+  DrawerContent,
+  DrawerHeader,
+  Flex,
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+  RowFlex
+} from '@cherrystudio/ui'
 import { Button } from '@cherrystudio/ui'
 import { useQuery } from '@data/hooks/useDataApi'
 import { DynamicVirtualList } from '@renderer/components/VirtualList'
 import { useClearHistory } from '@renderer/hooks/translate'
 import { TRANSLATE_HISTORY_DEFAULT_LIMIT, TRANSLATE_HISTORY_DEFAULT_PAGE } from '@shared/data/api/schemas/translate'
 import type { TranslateHistory } from '@shared/data/types/translate'
-import { Drawer, Empty, Input, Popconfirm } from 'antd'
+import { Empty, Input } from 'antd'
 import { SearchIcon } from 'lucide-react'
 import type { FC } from 'react'
 import { useDeferredValue, useMemo, useState } from 'react'
@@ -49,91 +58,80 @@ const TranslateHistoryList: FC<TranslateHistoryProps> = ({ isOpen, onHistoryItem
     return items.filter((item) => item.star)
   }, [translateHistory, showStared])
 
-  const Title = () => {
-    return (
-      <Flex className="items-center">
-        {t('translate.history.title')}
-        <Button
-          size="icon"
-          className="text-yellow-300"
-          variant="ghost"
-          onClick={() => {
-            setShowStared(!showStared)
-          }}>
-          {showStared ? <StarFilled /> : <StarOutlined />}
-        </Button>
-      </Flex>
-    )
-  }
-
   const deferredHistory = useDeferredValue(displayedHistory)
 
   return (
-    <Drawer
-      title={<Title />}
-      closeIcon={null}
-      open={isOpen}
-      maskClosable
-      onClose={onClose}
-      placement="left"
-      extra={
-        (translateHistory?.items?.length ?? 0) > 0 && (
-          <Popconfirm
-            title={t('translate.history.clear')}
-            description={t('translate.history.clear_description')}
-            onConfirm={clearHistory}>
-            <Button variant="ghost" size="sm">
-              <DeleteOutlined />
-              {t('translate.history.clear')}
+    <Drawer open={isOpen} onClose={onClose} direction="left">
+      <DrawerContent>
+        <DrawerHeader className="flex flex-row justify-between items-center mt-4">
+          <div className="flex items-center">
+            <span className="text-foreground">{t('translate.history.title')}</span>
+            <Button
+              size="icon"
+              className="text-yellow-300"
+              variant="ghost"
+              onClick={() => {
+                setShowStared(!showStared)
+              }}>
+              {showStared ? <StarFilled /> : <StarOutlined />}
             </Button>
-          </Popconfirm>
-        )
-      }
-      styles={{
-        body: {
-          padding: 0,
-          overflow: 'hidden'
-        },
-        header: {
-          paddingTop: 'var(--navbar-height)'
-        }
-      }}>
-      <HistoryContainer>
-        {/* Search Bar */}
-        <RowFlex className="px-3" style={{ borderBottom: '1px solid var(--ant-color-split)' }}>
-          <Input
-            prefix={
-              <IconWrapper>
-                <SearchIcon size={18} />
-              </IconWrapper>
-            }
-            placeholder={t('translate.history.search.placeholder')}
-            value={search}
-            onChange={(e) => {
-              setSearch(e.target.value)
-            }}
-            allowClear
-            autoFocus
-            spellCheck={false}
-            style={{ paddingLeft: 0, height: '3em' }}
-            variant="borderless"
-            size="middle"
-          />
-        </RowFlex>
+          </div>
+          {(translateHistory?.items?.length ?? 0) > 0 && (
+            <Popover>
+              <PopoverTrigger asChild>
+                <Button variant="ghost" size="sm">
+                  <DeleteOutlined />
+                  {t('translate.history.clear')}
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent>
+                <div>{t('translate.history.clear')}</div>
+                <p>{t('translate.history.clear_description')}</p>
+                <div>
+                  <Button onClick={clearHistory}>{t('translate.history.clear')}</Button>
+                  <Button onClick={() => {}}>{t('common.cancel')}</Button>
+                </div>
+              </PopoverContent>
+            </Popover>
+          )}
+        </DrawerHeader>
+        <HistoryContainer>
+          {/* Search Bar */}
+          <RowFlex className="px-3" style={{ borderBottom: '1px solid var(--ant-color-split)' }}>
+            <Input
+              prefix={
+                <IconWrapper>
+                  <SearchIcon size={18} />
+                </IconWrapper>
+              }
+              placeholder={t('translate.history.search.placeholder')}
+              value={search}
+              onChange={(e) => {
+                setSearch(e.target.value)
+              }}
+              allowClear
+              autoFocus
+              spellCheck={false}
+              style={{ paddingLeft: 0, height: '3em' }}
+              variant="borderless"
+              size="middle"
+            />
+          </RowFlex>
 
-        {/* Virtual List */}
-        {deferredHistory.length > 0 ? (
-          <HistoryList>
-            <DynamicVirtualList list={deferredHistory} estimateSize={() => ITEM_HEIGHT}>
-              {(item) => <TranslateHistoryItem data={item} onClick={() => onHistoryItemClick(item)} />}
-            </DynamicVirtualList>
-          </HistoryList>
-        ) : (
-          <Flex className="items-center justify-center" style={{ flex: 1 }}>
-            <Empty description={t('translate.history.empty')} />
-          </Flex>
-        )}
-      </HistoryContainer>
+          {/* Virtual List */}
+          {deferredHistory.length > 0 ? (
+            <HistoryList>
+              <DynamicVirtualList list={deferredHistory} estimateSize={() => ITEM_HEIGHT}>
+                {(item) => <TranslateHistoryItem data={item} onClick={() => onHistoryItemClick(item)} />}
+              </DynamicVirtualList>
+            </HistoryList>
+          ) : (
+            <Flex className="items-center justify-center" style={{ flex: 1 }}>
+              <Empty description={t('translate.history.empty')} />
+            </Flex>
+          )}
+        </HistoryContainer>
+      </DrawerContent>
     </Drawer>
   )
 }

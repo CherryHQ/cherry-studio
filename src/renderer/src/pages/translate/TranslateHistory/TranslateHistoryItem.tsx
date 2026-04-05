@@ -1,5 +1,6 @@
-import { Button, Popover, PopoverContent, PopoverTrigger, Skeleton } from '@cherrystudio/ui'
+import { Button, Skeleton } from '@cherrystudio/ui'
 import { cn } from '@cherrystudio/ui/lib/utils'
+import PopoverConfirm from '@renderer/components/PopoverConfirm'
 import { useDeleteHistory, useLanguages, useUpdateHistory } from '@renderer/hooks/translate'
 import type { TranslateHistory } from '@shared/data/types/translate'
 import dayjs from 'dayjs'
@@ -42,16 +43,12 @@ export const TranslateHistoryItem = ({ data, onClick }: TranslateHistoryItemProp
     [preparedData, updateHistory]
   )
 
-  const handleDelete = useCallback(
-    async (e: React.MouseEvent) => {
-      e.stopPropagation()
-      if (!preparedData) {
-        return
-      }
-      return await deleteHistory()
-    },
-    [preparedData, deleteHistory]
-  )
+  const handleDelete = useCallback(async () => {
+    if (!preparedData) {
+      return
+    }
+    return await deleteHistory()
+  }, [preparedData, deleteHistory])
 
   if (!preparedData) {
     return (
@@ -78,24 +75,18 @@ export const TranslateHistoryItem = ({ data, onClick }: TranslateHistoryItemProp
               <StarIcon className="hover:primary" />
             )}
           </Button>
-          <Popover>
-            <PopoverTrigger asChild onClick={(e) => e.stopPropagation()}>
-              <Button variant="destructive">
-                <TrashIcon className="text-destructive" />
-              </Button>
-            </PopoverTrigger>
-            <PopoverContent>
-              <div>{t('translate.history.delete')}</div>
-              <footer className="flex flex-end p-2">
-                <Button onClick={handleDelete}>{t('common.confirm')}</Button>
-              </footer>
-            </PopoverContent>
-          </Popover>
+          <PopoverConfirm title={t('translate.history.delete')} onConfirm={handleDelete}>
+            <Button variant="ghost" className="hover:text-error-text-hover" onClick={(e) => e.stopPropagation()}>
+              <TrashIcon className="text-destructive hover:text-transparent" />
+            </Button>
+          </PopoverConfirm>
         </div>
       </div>
       {/* Text */}
       <div className="flex flex-1 flex-col">
-        <div className="line-clamp-2 flex-1 overflow-hidden truncate text-sm">{preparedData.sourceText}</div>
+        <div className="line-clamp-2 flex-1 overflow-hidden truncate text-foreground text-sm">
+          {preparedData.sourceText}
+        </div>
         <div className="line-clamp-2 flex-1 overflow-hidden truncate text-foreground-secondary text-sm">
           {preparedData.targetText}
         </div>
