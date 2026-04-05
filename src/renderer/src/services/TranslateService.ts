@@ -23,8 +23,6 @@ import { t } from 'i18next'
 import { fetchChatCompletion } from './ApiService'
 import { getDefaultTranslateAssistant } from './AssistantService'
 
-// const logger = loggerService.withContext('TranslateService')
-
 type TranslateOptions = {
   reasoningEffort: ReasoningEffortOption
 }
