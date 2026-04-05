@@ -21,7 +21,7 @@ import type { OffsetPaginationResponse } from '@shared/data/api/apiTypes'
 import type { CreateMiniappDto, UpdateMiniappDto } from '@shared/data/api/schemas/miniapps'
 import { type BuiltinMiniAppDefinition, ORIGIN_DEFAULT_MIN_APPS } from '@shared/data/presets/miniapps'
 import type { MiniApp } from '@shared/data/types/miniapp'
-import { and, asc, eq, inArray, type SQL } from 'drizzle-orm'
+import { and, asc, desc, eq, inArray, type SQL } from 'drizzle-orm'
 
 const logger = loggerService.withContext('DataApi:MiniAppService')
 
@@ -205,6 +205,17 @@ export class MiniAppService {
       throw DataApiErrorFactory.conflict(`MiniApp with appId "${dto.appId}" already exists`)
     }
 
+    // Calculate next sortOrder: max of builtin apps count and existing DB apps max sortOrder
+    const builtinCount = builtinMiniAppMap.size
+    const maxSortOrderResult = await this.db
+      .select({ maxSortOrder: miniappTable.sortOrder })
+      .from(miniappTable)
+      .orderBy(desc(miniappTable.sortOrder))
+      .limit(1)
+
+    const maxDbSortOrder = maxSortOrderResult[0]?.maxSortOrder ?? 0
+    const nextSortOrder = Math.max(builtinCount, maxDbSortOrder + 1)
+
     const [row] = await this.db
       .insert(miniappTable)
       .values({
@@ -214,7 +225,7 @@ export class MiniAppService {
         logo: dto.logo,
         type: 'custom',
         status: 'enabled',
-        sortOrder: 0,
+        sortOrder: nextSortOrder,
         bordered: dto.bordered,
         background: dto.background,
         supportedRegions: dto.supportedRegions,
@@ -226,7 +237,7 @@ export class MiniAppService {
       throw DataApiErrorFactory.internal(new Error('Insert returned no rows'), 'MiniApp.create')
     }
 
-    logger.info('Created miniapp', { appId: row.appId, name: row.name })
+    logger.info('Created miniapp', { appId: row.appId, name: row.name, sortOrder: nextSortOrder })
 
     return rowToMiniApp(row)
   }

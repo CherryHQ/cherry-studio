@@ -122,11 +122,11 @@ export const useMinapps = () => {
 
   // === Region-filtered views ===
   // Include pinned apps so they remain visible in the grid when pinned to launchpad/sidebar
+  // Sort by sortOrder to maintain consistent positions regardless of status
   const minapps = useMemo(() => {
-    const regionFiltered = filterByRegion(enabled, effectiveRegion)
-    const regionFilteredIds = new Set(regionFiltered.map((a) => a.appId))
-    const pinnedToAdd = pinned.filter((p) => !regionFilteredIds.has(p.appId))
-    return [...regionFiltered, ...pinnedToAdd]
+    const visibleApps = [...enabled, ...pinned]
+    const regionFiltered = filterByRegion(visibleApps, effectiveRegion)
+    return regionFiltered.sort((a, b) => a.sortOrder - b.sortOrder)
   }, [enabled, effectiveRegion, pinned])
   const disabledApps = useMemo(() => filterByRegion(disabled, effectiveRegion), [disabled, effectiveRegion])
   // Pinned apps are always visible regardless of region

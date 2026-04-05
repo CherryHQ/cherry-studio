@@ -122,7 +122,7 @@ export const SidebarPinnedApps: FC = () => {
             key: 'togglePin',
             label: isTopNavbar ? t('minapp.remove_from_launchpad') : t('minapp.remove_from_sidebar'),
             onClick: () => {
-              updatePinnedMinapps(pinned.filter((item) => item.appId !== app.appId))
+              void updatePinnedMinapps(pinned.filter((item) => item.appId !== app.appId))
             }
           }
         ]
