@@ -1,10 +1,9 @@
 /**
- * File node and file reference entity types
+ * File tree node entity types
  *
- * Zod schemas for runtime validation of file nodes and references.
- * FileNode represents a unified file/directory/mount node in the file tree.
- * FileRef tracks which business entities reference which file nodes.
+ * Zod schemas for runtime validation of file nodes (file/dir/mount) in the unified tree.
  * Timestamps are numbers (ms epoch) matching DB integer storage.
+ * For file reference types, see `./ref/`.
  *
  * ## Node type invariants
  *
