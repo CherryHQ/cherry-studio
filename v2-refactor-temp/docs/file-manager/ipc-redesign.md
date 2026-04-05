@@ -127,12 +127,23 @@ pdfInfo(fileId: string): Promise<number>
 
 ```typescript
 // ─── read: 统一文件内容读取 ───
+
+// 图片变换参数（可选，非图片文件传入时静默忽略）
+// 调用方有责任确认目标文件类型，service 层不做额外校验
+// 动机：#14062 — 发送图片到 LLM API 前自动压缩，避免超大 base64 payload
+// 具体字段待调研 sharp API 后确定
+type ImageTransform = {
+  maxDimension?: number
+  quality?: number
+  format?: string
+}
+
 // text（默认）
 read(target: NodeId | FilePath, options?: { encoding?: 'text'; detectEncoding?: boolean }): Promise<string>
-// base64
-read(target: NodeId | FilePath, options: { encoding: 'base64' }): Promise<{ data: string; mime: string }>
-// binary
-read(target: NodeId | FilePath, options: { encoding: 'binary' }): Promise<{ data: Uint8Array; mime: string }>
+// base64（支持图片压缩）
+read(target: NodeId | FilePath, options: { encoding: 'base64'; imageTransform?: ImageTransform }): Promise<{ data: string; mime: string }>
+// binary（支持图片压缩）
+read(target: NodeId | FilePath, options: { encoding: 'binary'; imageTransform?: ImageTransform }): Promise<{ data: Uint8Array; mime: string }>
 
 // ─── getMetadata: 文件元信息（按类型返回不同字段） ───
 type MetadataBase = { size: number; createdAt: number; modifiedAt: number }
@@ -160,6 +171,8 @@ getMetadata(target: NodeId | FilePath): Promise<FileMetadata>
 > - `readExternal`：全部传绝对路径（笔记文件、外部文件），v2 `FilePath` 覆盖。
 > - `get`：返回 `FileMetadata` 用于 UI 预览（PasteService、拖拽、TranslatePage）。v2 `getMetadata` 返回结构不同但信息更全面，调用方需适配。
 > - `base64Image` / `binaryImage` / `base64File`：全部传 `file.id + file.ext`，v2 改传 `NodeId`。
+>   新增 `imageTransform` 可选参数（#14062），AI 调用层可统一传参压缩大图，
+>   `sharp` 已是项目依赖，service 层直接调用。非图片文件传入 `imageTransform` 时静默忽略。
 > - `pdfInfo`：renderer 中**零调用**，可安全移除。`getMetadata` 的 `PdfMetadata.pageCount` 作为备用保留。
 
 ### D. 文件删除
@@ -433,6 +446,9 @@ type FileKindMetadata = ImageFileMetadata | PdfFileMetadata | TextFileMetadata |
 type FileMetadata = DirectoryMetadata | FileKindMetadata
 
 type BatchOperationResult = { succeeded: NodeId[]; failed: Array<{ id: NodeId; error: string }> }
+
+// 图片读取时可选变换（#14062），非图片文件传入时静默忽略，具体字段待调研 sharp API
+type ImageTransform = { maxDimension?: number; quality?: number; format?: string }
 ```
 
 ### 方法签名
@@ -450,8 +466,8 @@ batchCreateNodes(params: { parentId: NodeId; items: Array<{ name: string; conten
 
 // ─── C. 文件读取 / 元信息 ───
 read(target: NodeId | FilePath, options?: { encoding?: 'text'; detectEncoding?: boolean }): Promise<string>
-read(target: NodeId | FilePath, options: { encoding: 'base64' }): Promise<{ data: string; mime: string }>
-read(target: NodeId | FilePath, options: { encoding: 'binary' }): Promise<{ data: Uint8Array; mime: string }>
+read(target: NodeId | FilePath, options: { encoding: 'base64'; imageTransform?: ImageTransform }): Promise<{ data: string; mime: string }>
+read(target: NodeId | FilePath, options: { encoding: 'binary'; imageTransform?: ImageTransform }): Promise<{ data: Uint8Array; mime: string }>
 getMetadata(target: NodeId | FilePath): Promise<FileMetadata>
 
 // ─── D. 节点删除 ───
