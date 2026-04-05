@@ -1,6 +1,7 @@
 import { IpcChannel } from '@shared/IpcChannel'
 import type { Notification } from '@types'
-import { BrowserWindow, ipcMain } from 'electron'
+import type { BrowserWindow } from 'electron'
+import { ipcMain } from 'electron'
 
 import NotificationService from '../services/NotificationService'
 
