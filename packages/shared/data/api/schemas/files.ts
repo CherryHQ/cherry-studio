@@ -49,11 +49,14 @@ export type CreateNodeDto = z.infer<typeof CreateNodeDtoSchema>
  * DTO for updating a node's metadata.
  *
  * Internal to service layer — not exposed via DataApi.
+ * Supports rename (name), move (parentId), or both (Unix mv semantics).
  * `name` is the full name (with extension for files); service splits into `name` + `ext`.
  */
 export const UpdateNodeDtoSchema = z.object({
   /** Updated full name (with extension for files) */
-  name: SafeNameSchema.optional()
+  name: SafeNameSchema.optional(),
+  /** New parent node ID (for move operations) */
+  parentId: NodeIdSchema.optional()
 })
 export type UpdateNodeDto = z.infer<typeof UpdateNodeDtoSchema>
 
