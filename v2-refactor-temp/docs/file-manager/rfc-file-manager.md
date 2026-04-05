@@ -372,8 +372,6 @@ export const nodeTable = sqliteTable(
     // ─── 挂载点专属（仅 type='mount'）───
     // Provider 配置 JSON，经 MountProviderConfigSchema 验证
     providerConfig: text({ mode: 'json' }).$type<MountProviderConfig>(),
-    // 是否只读（远程源可能只读）
-    isReadonly: integer({ mode: 'boolean' }).default(false),
 
     // ─── 远程文件预留（仅远程挂载点下的文件）───
     // 远程端文件 ID（如 OpenAI file-abc123）

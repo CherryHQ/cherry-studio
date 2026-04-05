@@ -42,10 +42,6 @@ export const nodeTable = sqliteTable(
     // Provider configuration JSON, validated by MountProviderConfigSchema
     providerConfig: text({ mode: 'json' }).$type<MountProviderConfig>(),
 
-    // ─── Flags ───
-    // Whether the node is read-only. Applies to all node types (inherited from mount or set per-node).
-    isReadonly: integer({ mode: 'boolean' }).notNull().default(false),
-
     // ─── Remote file fields (files under remote mounts) ───
     // Remote file ID (e.g. OpenAI file-abc123)
     remoteId: text(),

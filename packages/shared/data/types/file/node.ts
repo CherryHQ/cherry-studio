@@ -95,8 +95,6 @@ const nodeCommonFields = {
    * Known system mounts: `mount_files`, `mount_notes`, `system_trash`, `system_temp` (Phase 2).
    */
   mountId: NodeIdSchema,
-  /** Whether the node is read-only */
-  isReadonly: z.boolean(),
   /** Original parent ID before moving to Trash (only for Trash direct children) */
   previousParentId: NodeIdSchema.nullable(),
   /** Creation timestamp (ms epoch) */
