@@ -24,6 +24,13 @@ type BusinessRefShape = {
   role: z.ZodEnum
 }
 
+/**
+ * Factory: creates a typed FileRef schema by merging common fields
+ * (`id`, `nodeId`, `createdAt`, `updatedAt`) with business-specific fields
+ * (`sourceType`, `sourceId`, `role`).
+ *
+ * Each sourceType variant should call this once. See `ref/example.ts` for usage.
+ */
 export const createRefSchema = <T extends BusinessRefShape>(shape: T): z.ZodObject<typeof refCommonFields & T> =>
   z.object({
     ...refCommonFields,
