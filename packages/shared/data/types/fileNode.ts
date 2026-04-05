@@ -88,101 +88,83 @@ export type NodeId = z.infer<typeof NodeIdSchema>
 export const FileNodeTypeSchema = z.enum(['file', 'dir', 'mount'])
 export type FileNodeType = z.infer<typeof FileNodeTypeSchema>
 
-// ─── Entity Types ───
+// ─── Common Fields ───
 
-/** Complete file node entity as stored in database */
-export const FileNodeSchema = z
+const nodeCommonFields = {
+  /** Node ID (UUID v7, or a system node ID for mount nodes) */
+  id: NodeIdSchema,
+  /** User-visible name (without extension) */
+  name: SafeNameSchema,
+  /**
+   * Mount ID this node belongs to. For mount nodes, equals own id.
+   * Known system mounts: `mount_files`, `mount_notes`, `system_trash`.
+   */
+  mountId: NodeIdSchema,
+  /** Whether the node is read-only */
+  isReadonly: z.boolean(),
+  /** Original parent ID before moving to Trash (only for Trash direct children) */
+  previousParentId: NodeIdSchema.nullable(),
+  /** Creation timestamp (ms epoch) */
+  createdAt: z.int(),
+  /** Last update timestamp (ms epoch) */
+  updatedAt: z.int()
+}
+
+// ─── Per-Type Schemas ───
+
+/** Mount node: top-level root with provider configuration */
+export const MountNodeSchema = z
   .object({
-    /** Node ID (UUID v7, or a system node ID for mount nodes) */
-    id: NodeIdSchema,
-    /** Node type */
-    type: FileNodeTypeSchema,
-    /** User-visible name (without extension) */
-    name: SafeNameSchema,
-    /** File extension without leading dot (e.g. 'pdf', 'md'). Null for dirs/mounts or extensionless files (e.g. Dockerfile) */
-    ext: z.string().min(1).nullable(),
-    /** Parent node ID. Null for mount nodes (top-level) */
-    parentId: NodeIdSchema.nullable(),
-    /**
-     * Mount ID this node belongs to. For mount nodes, equals own id.
-     * Known system mounts: `mount_files`, `mount_notes`, `system_trash`.
-     * Can also be a dynamic ID for user-added remote mounts.
-     */
-    mountId: NodeIdSchema,
-    /** File size in bytes. Null for dirs/mounts */
-    size: z.int().nonnegative().nullable(),
-    /** Provider config JSON (only for mount nodes) */
-    providerConfig: MountProviderConfigSchema.nullable(),
-    /** Whether the node is read-only */
-    isReadonly: z.boolean(),
-    /** Remote file ID (e.g. OpenAI file-abc123) */
-    remoteId: z.string().nullable(),
-    /** When the local cache was last downloaded (ms epoch). Null if not cached. Compare with remote updatedAt to detect staleness */
-    cachedAt: z.int().nullable(),
-    /** Original parent ID before moving to Trash (only for Trash direct children) */
-    previousParentId: NodeIdSchema.nullable(),
-    /** Creation timestamp (ms epoch) */
-    createdAt: z.int(),
-    /** Last update timestamp (ms epoch) */
-    updatedAt: z.int()
+    ...nodeCommonFields,
+    type: z.literal('mount'),
+    parentId: z.null(),
+    ext: z.null(),
+    size: z.null(),
+    providerConfig: MountProviderConfigSchema,
+    remoteId: z.null(),
+    cachedAt: z.null()
   })
   .superRefine((node, ctx) => {
-    // ─── Type invariants ───
-    switch (node.type) {
-      case 'mount':
-        if (node.parentId !== null) {
-          ctx.addIssue({ code: 'custom', path: ['parentId'], message: 'Mount nodes must have parentId = null' })
-        }
-        if (node.mountId !== node.id) {
-          ctx.addIssue({ code: 'custom', path: ['mountId'], message: 'Mount nodes must have mountId = own id' })
-        }
-        if (node.providerConfig === null) {
-          ctx.addIssue({ code: 'custom', path: ['providerConfig'], message: 'Mount nodes must have providerConfig' })
-        }
-        if (node.ext !== null) {
-          ctx.addIssue({ code: 'custom', path: ['ext'], message: 'Mount nodes must not have ext' })
-        }
-        if (node.size !== null) {
-          ctx.addIssue({ code: 'custom', path: ['size'], message: 'Mount nodes must not have size' })
-        }
-        if (node.remoteId !== null) {
-          ctx.addIssue({ code: 'custom', path: ['remoteId'], message: 'Mount nodes must not have remoteId' })
-        }
-        if (node.cachedAt !== null) {
-          ctx.addIssue({ code: 'custom', path: ['cachedAt'], message: 'Mount nodes must have cachedAt = null' })
-        }
-        break
-      case 'dir':
-        if (node.parentId === null) {
-          ctx.addIssue({ code: 'custom', path: ['parentId'], message: 'Dir nodes must have a parentId' })
-        }
-        if (node.providerConfig !== null) {
-          ctx.addIssue({ code: 'custom', path: ['providerConfig'], message: 'Dir nodes must not have providerConfig' })
-        }
-        if (node.ext !== null) {
-          ctx.addIssue({ code: 'custom', path: ['ext'], message: 'Dir nodes must not have ext' })
-        }
-        if (node.size !== null) {
-          ctx.addIssue({ code: 'custom', path: ['size'], message: 'Dir nodes must not have size' })
-        }
-        if (node.remoteId !== null) {
-          ctx.addIssue({ code: 'custom', path: ['remoteId'], message: 'Dir nodes must not have remoteId' })
-        }
-        if (node.cachedAt !== null) {
-          ctx.addIssue({ code: 'custom', path: ['cachedAt'], message: 'Dir nodes must have cachedAt = null' })
-        }
-        break
-      case 'file':
-        if (node.parentId === null) {
-          ctx.addIssue({ code: 'custom', path: ['parentId'], message: 'File nodes must have a parentId' })
-        }
-        if (node.providerConfig !== null) {
-          ctx.addIssue({ code: 'custom', path: ['providerConfig'], message: 'File nodes must not have providerConfig' })
-        }
-        break
+    if (node.mountId !== node.id) {
+      ctx.addIssue({ code: 'custom', path: ['mountId'], message: 'Mount nodes must have mountId = own id' })
     }
+  })
 
-    // ─── Trash state invariants ───
+/** Directory node */
+export const DirNodeSchema = z.object({
+  ...nodeCommonFields,
+  type: z.literal('dir'),
+  parentId: NodeIdSchema,
+  ext: z.null(),
+  size: z.null(),
+  providerConfig: z.null(),
+  remoteId: z.null(),
+  cachedAt: z.null()
+})
+
+/** File node */
+export const FileNodeFileSchema = z.object({
+  ...nodeCommonFields,
+  type: z.literal('file'),
+  parentId: NodeIdSchema,
+  /** File extension without leading dot (e.g. 'pdf', 'md'). Null for extensionless files (e.g. Dockerfile) */
+  ext: z.string().min(1).nullable(),
+  /** File size in bytes */
+  size: z.int().nonnegative().nullable(),
+  providerConfig: z.null(),
+  /** Remote file ID (e.g. OpenAI file-abc123). Convention: validated at service layer (requires mount context) */
+  remoteId: z.string().nullable(),
+  /** When the local cache was last downloaded (ms epoch). Convention: validated at service layer */
+  cachedAt: z.int().nullable()
+})
+
+// ─── Discriminated Union ───
+
+/** Complete file node entity as stored in database, discriminated by `type` */
+export const FileNodeSchema = z
+  .discriminatedUnion('type', [MountNodeSchema, DirNodeSchema, FileNodeFileSchema])
+  .superRefine((node, ctx) => {
+    // ─── Trash state invariants (apply to all types) ───
     if (node.previousParentId !== null && node.parentId !== SYSTEM_TRASH) {
       ctx.addIssue({
         code: 'custom',
@@ -199,6 +181,26 @@ export const FileNodeSchema = z
     }
   })
 export type FileNode = z.infer<typeof FileNodeSchema>
+
+// ─── Per-Type Inferred Types ───
+
+export type MountNode = z.infer<typeof MountNodeSchema>
+export type DirNode = z.infer<typeof DirNodeSchema>
+export type FileNodeFile = z.infer<typeof FileNodeFileSchema>
+
+// ─── Type Guards ───
+
+export function isMountNode(node: FileNode): node is MountNode {
+  return node.type === 'mount'
+}
+
+export function isDirNode(node: FileNode): node is DirNode {
+  return node.type === 'dir'
+}
+
+export function isFileNode(node: FileNode): node is FileNodeFile {
+  return node.type === 'file'
+}
 
 /** File reference entity — tracks business entity to file node relationships */
 export const FileRefSchema = z.object({
