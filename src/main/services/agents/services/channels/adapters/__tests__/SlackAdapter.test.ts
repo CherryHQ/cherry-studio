@@ -33,7 +33,7 @@ class MockWebSocket extends EventEmitter {
 let mockWsInstance: MockWebSocket | null = null
 
 vi.mock('ws', () => {
-  const Ctor = vi.fn().mockImplementation(() => {
+  const Ctor = vi.fn().mockImplementation(function () {
     mockWsInstance = new MockWebSocket()
     return mockWsInstance
   })

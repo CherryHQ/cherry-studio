@@ -26,7 +26,9 @@ const mockBot = {
 }
 
 vi.mock('grammy', () => ({
-  Bot: vi.fn().mockImplementation(() => mockBot)
+  Bot: vi.fn().mockImplementation(function () {
+    return mockBot
+  })
 }))
 
 // Import the module to trigger self-registration side effect

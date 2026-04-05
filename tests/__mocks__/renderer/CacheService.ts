@@ -503,7 +503,7 @@ export const MockCacheService = {
 
     // ============ Persist Cache ============
     getPersist<K extends RendererPersistCacheKey>(key: K): RendererPersistCacheSchema[K] {
-      return mockCacheService.getPersist(key)
+      return mockCacheService.getPersist(key) as RendererPersistCacheSchema[K]
     }
 
     setPersist<K extends RendererPersistCacheKey>(key: K, value: RendererPersistCacheSchema[K]): void {

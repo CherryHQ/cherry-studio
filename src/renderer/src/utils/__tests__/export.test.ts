@@ -72,6 +72,11 @@ vi.mock('@renderer/hooks/useTopic', () => ({
 }))
 
 // PreferenceService is now mocked globally in tests/renderer.setup.ts
+vi.mock('i18next', () => ({
+  default: {
+    t: vi.fn((key) => key)
+  }
+}))
 
 vi.mock('@renderer/utils/markdown', async (importOriginal) => {
   const actual = await importOriginal()
@@ -192,13 +197,6 @@ beforeEach(() => {
   // Reset mocks and modules before each test suite (describe block)
   vi.resetModules()
   vi.clearAllMocks()
-
-  // Mock i18next translation function
-  vi.mock('i18next', () => ({
-    default: {
-      t: vi.fn((key) => key)
-    }
-  }))
 
   // Mock store - primarily for settings
   vi.doMock('@renderer/store', () => ({
@@ -719,13 +717,6 @@ describe('export', () => {
           info: vi.fn()
         }
       })
-
-      // Mock i18next translation function
-      vi.mock('i18next', () => ({
-        default: {
-          t: vi.fn((key) => key)
-        }
-      }))
 
       writeTextMock.mockReset()
       // Ensure markdownToPlainText mock is set

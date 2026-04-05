@@ -40,11 +40,11 @@ export default defineConfig({
       }
     },
     build: {
-      rollupOptions: {
+      rolldownOptions: {
         external: ['bufferutil', 'utf-8-validate', 'electron', ...Object.keys(pkg.dependencies)],
         output: {
-          manualChunks: undefined, // 彻底禁用代码分割 - 返回 null 强制单文件打包
-          inlineDynamicImports: true // 内联所有动态导入，这是关键配置
+          codeSplitting: false,
+          legalComments: isProd ? 'none' : undefined
         },
         onwarn(warning, warn) {
           if (warning.code === 'COMMONJS_VARIABLE_IN_ESM') return
@@ -53,7 +53,6 @@ export default defineConfig({
       },
       sourcemap: isDev
     },
-    esbuild: isProd ? { legalComments: 'none' } : {},
     optimizeDeps: {
       noDiscovery: isDev
     }
@@ -122,17 +121,14 @@ export default defineConfig({
       }
     },
     optimizeDeps: {
-      exclude: ['pyodide'],
-      esbuildOptions: {
-        target: 'esnext' // for dev
-      }
+      exclude: ['pyodide']
     },
     worker: {
       format: 'es'
     },
     build: {
-      target: 'esnext', // for build
-      rollupOptions: {
+      target: 'esnext',
+      rolldownOptions: {
         input: {
           index: resolve(__dirname, 'src/renderer/index.html'),
           miniWindow: resolve(__dirname, 'src/renderer/miniWindow.html'),
@@ -141,12 +137,14 @@ export default defineConfig({
           traceWindow: resolve(__dirname, 'src/renderer/traceWindow.html'),
           migrationV2: resolve(__dirname, 'src/renderer/migrationV2.html')
         },
+        output: {
+          legalComments: isProd ? 'none' : undefined
+        },
         onwarn(warning, warn) {
           if (warning.code === 'COMMONJS_VARIABLE_IN_ESM') return
           warn(warning)
         }
       }
-    },
-    esbuild: isProd ? { legalComments: 'none' } : {}
+    }
   }
 })
