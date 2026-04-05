@@ -50,7 +50,7 @@ export interface BatchOperationResult {
 
 // ─── FileManager API ───
 
-export type FileManagerApi = {
+export interface FileManagerApi {
   // A. 文件选择 / 对话框
   select(options: {
     directory?: never
