@@ -20,6 +20,7 @@ export * from './note'
 
 import type { TranslateLangCode } from '@shared/data/preference/preferenceTypes'
 import type { MCPServer } from '@shared/data/types/mcpServer'
+import type { TranslateLanguage } from '@shared/data/types/translate'
 import * as z from 'zod'
 
 import type { StreamTextParams } from './aiCoreTypes'
@@ -645,11 +646,7 @@ export type GenerateImageResponse = {
   images: string[]
 }
 
-export type TranslateLanguageVo = {
-  value: string
-  langCode: TranslateLangCode
-  emoji: string
-}
+export type TranslateLanguageVo = Pick<TranslateLanguage, 'value' | 'langCode' | 'emoji'>
 
 /** @deprecated dexie still using */
 export interface TranslateHistory {
