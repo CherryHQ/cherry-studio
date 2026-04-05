@@ -217,7 +217,7 @@ const MinimalToolbar: FC<Props> = ({ app, webviewRef, currentUrl, onReload, onOp
 
   const handleTogglePin = useCallback(() => {
     const newPinned = isPinned ? pinned.filter((item) => item.appId !== app.appId) : [...pinned, app]
-    updatePinnedMinapps(newPinned)
+    void updatePinnedMinapps(newPinned)
   }, [app, isPinned, pinned, updatePinnedMinapps])
 
   const handleToggleOpenExternal = useCallback(() => {

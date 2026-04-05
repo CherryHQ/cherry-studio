@@ -179,10 +179,13 @@ export const useMinapps = () => {
       const toEnable = visibleApps.filter((a) => a.status !== 'enabled' && !currentVisibleIds.has(a.appId))
       const toDisable = enabled.filter((a) => currentVisibleIds.has(a.appId) && !newVisibleIds.has(a.appId))
 
-      Promise.all([
+      return Promise.all([
         ...toEnable.map((a) => patchApp(a.appId, { status: 'enabled' })),
         ...toDisable.map((a) => patchApp(a.appId, { status: 'disabled' }))
-      ]).catch((err) => logger.warn('Failed to update minapps', err as Error))
+      ]).catch((err) => {
+        logger.warn('Failed to update minapps', err as Error)
+        return []
+      })
     },
     [enabled, effectiveRegion, patchApp, logger]
   )
@@ -198,10 +201,13 @@ export const useMinapps = () => {
       const toDisable = visibleApps.filter((a) => a.status !== 'disabled' && !currentVisibleIds.has(a.appId))
       const toEnable = disabled.filter((a) => currentVisibleIds.has(a.appId) && !newVisibleIds.has(a.appId))
 
-      Promise.all([
+      return Promise.all([
         ...toDisable.map((a) => patchApp(a.appId, { status: 'disabled' })),
         ...toEnable.map((a) => patchApp(a.appId, { status: 'enabled' }))
-      ]).catch((err) => logger.warn('Failed to update disabled minapps', err as Error))
+      ]).catch((err) => {
+        logger.warn('Failed to update disabled minapps', err as Error)
+        return []
+      })
     },
     [disabled, effectiveRegion, patchApp, logger]
   )
@@ -215,10 +221,13 @@ export const useMinapps = () => {
       const toPin = apps.filter((a) => !currentPinnedIds.has(a.appId))
       const toUnpin = pinned.filter((a) => !newPinnedIds.has(a.appId))
 
-      Promise.all([
+      return Promise.all([
         ...toPin.map((a) => patchApp(a.appId, { status: 'pinned' })),
         ...toUnpin.map((a) => patchApp(a.appId, { status: 'enabled' }))
-      ]).catch((err) => logger.warn('Failed to update pinned minapps', err as Error))
+      ]).catch((err) => {
+        logger.warn('Failed to update pinned minapps', err as Error)
+        return []
+      })
     },
     [pinned, patchApp, logger]
   )

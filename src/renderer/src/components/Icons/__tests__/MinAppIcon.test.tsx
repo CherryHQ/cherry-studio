@@ -33,6 +33,9 @@ describe('MinAppIcon', () => {
     sortOrder: 0,
     name: 'Test App',
     url: 'https://test.com',
+    logo: '/test-logo-1.png',
+    bordered: true,
+    background: '#f0f0f0',
     style: {
       opacity: 0.8,
       transform: 'scale(1.1)'

@@ -351,7 +351,7 @@ const MinappPopupContainer: React.FC = () => {
     if (!app) return
 
     const newPinned = appsExtraInfo[appid].isPinned ? pinned.filter((item) => item.appId !== appid) : [...pinned, app]
-    updatePinnedMinapps(newPinned)
+    void updatePinnedMinapps(newPinned)
   }
 
   /** set the open external status */

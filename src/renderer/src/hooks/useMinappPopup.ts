@@ -95,13 +95,13 @@ export const useMinappPopup = () => {
         }
 
         // Update cache state using ref (always has latest setter)
-        if (cacheCallbacksRef) {
+        if (cacheCallbacksRef && minAppsCache) {
           cacheCallbacksRef.setOpenedKeepAliveMinapps(Array.from(minAppsCache.values()))
         }
       },
       onInsert: () => {
         // Update cache state using ref (always has latest setter)
-        if (cacheCallbacksRef) {
+        if (cacheCallbacksRef && minAppsCache) {
           cacheCallbacksRef.setOpenedKeepAliveMinapps(Array.from(minAppsCache.values()))
         }
       },
@@ -115,7 +115,14 @@ export const useMinappPopup = () => {
   // Track cache version to detect external resets
   const prevCacheVersion = useRef(cacheVersion)
 
-  // Initialize cache and handle resize when maxKeepAliveMinapps changes
+  // Initialize cache synchronously if not already initialized
+  if (!minAppsCache) {
+    minAppsCache = createLRUCache()
+    prevMaxKeepAlive.current = maxKeepAliveMinapps
+    prevCacheVersion.current = cacheVersion
+  }
+
+  // Handle cache resize when maxKeepAliveMinapps changes or external reset
   useEffect(() => {
     const prev = prevMaxKeepAlive.current
     const current = maxKeepAliveMinapps
@@ -123,8 +130,8 @@ export const useMinappPopup = () => {
     // Check if cache was reset externally (version changed)
     const wasReset = prevCacheVersion.current !== cacheVersion
 
-    // Initialize cache on first render or after external reset
-    if (!minAppsCache || wasReset) {
+    // Handle external reset
+    if (wasReset) {
       minAppsCache = createLRUCache()
       prevMaxKeepAlive.current = current
       prevCacheVersion.current = cacheVersion
@@ -148,7 +155,7 @@ export const useMinappPopup = () => {
   /** Open a minapp (popup shows and minapp loaded) */
   const openMinapp = useCallback(
     (app: MiniApp, keepAlive: boolean = false) => {
-      if (keepAlive) {
+      if (keepAlive && minAppsCache) {
         // 通过 get 和 set 去更新缓存，避免重复添加
         const cacheApp = minAppsCache.get(app.appId)
         if (!cacheApp) minAppsCache.set(app.appId, app)
@@ -196,7 +203,7 @@ export const useMinappPopup = () => {
   /** Close a minapp immediately (popup hides and minapp unloaded) */
   const closeMinapp = useCallback(
     (appid: string) => {
-      if (openedKeepAliveMinapps.some((item) => item.appId === appid)) {
+      if (openedKeepAliveMinapps.some((item) => item.appId === appid) && minAppsCache) {
         minAppsCache.delete(appid)
       } else if (openedOneOffMinapp?.appId === appid) {
         setOpenedOneOffMinapp(null)
@@ -235,7 +242,7 @@ export const useMinappPopup = () => {
   const openSmartMinapp = useCallback(
     (config: MiniAppInput, keepAlive: boolean = false) => {
       const app = toMiniApp(config)
-      if (isTopNavbar) {
+      if (isTopNavbar && minAppsCache) {
         // For top navbar mode, need to add to cache first for temporary apps
         const cacheApp = minAppsCache.get(app.appId)
         if (!cacheApp) {

@@ -32,10 +32,10 @@ const MiniAppIconsManager: FC<MiniAppManagerProps> = ({
     (newVisible: MiniApp[], newDisabled: MiniApp[]) => {
       setVisibleMiniApps(newVisible)
       setDisabledMiniApps(newDisabled)
-      updateMinapps(newVisible)
-      updateDisabledMinapps(newDisabled)
+      void updateMinapps(newVisible)
+      void updateDisabledMinapps(newDisabled)
       const disabledIds = new Set(newDisabled.map((d) => d.appId))
-      updatePinnedMinapps(pinned.filter((p) => !disabledIds.has(p.appId)))
+      void updatePinnedMinapps(pinned.filter((p) => !disabledIds.has(p.appId)))
     },
     [pinned, setDisabledMiniApps, setVisibleMiniApps, updateDisabledMinapps, updateMinapps, updatePinnedMinapps]
   )

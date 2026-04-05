@@ -48,7 +48,8 @@ describe('useMinapps', () => {
       const apps = [mixedStatus.enabled1, mixedStatus.enabled2, mixedStatus.disabled1, mixedStatus.pinned1]
       MockUseDataApiUtils.mockQueryData('/miniapps', paginated(apps))
       const { result } = renderHook(() => useMinapps())
-      expect(result.current.minapps).toHaveLength(2)
+      // minapps includes enabled + pinned apps (pinned apps remain visible in the grid)
+      expect(result.current.minapps).toHaveLength(3)
       expect(result.current.disabled).toHaveLength(1)
       expect(result.current.pinned).toHaveLength(1)
     })

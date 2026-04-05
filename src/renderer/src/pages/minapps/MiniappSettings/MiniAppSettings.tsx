@@ -59,8 +59,8 @@ const MiniAppSettings: FC = () => {
     // 仅重置为当前地区可见的应用，以避免混淆
     setVisibleMiniApps(minapps)
     setDisabledMiniApps([])
-    updateMinapps(minapps)
-    updateDisabledMinapps([])
+    void updateMinapps(minapps)
+    void updateDisabledMinapps([])
   }, [minapps, updateDisabledMinapps, updateMinapps])
 
   const handleSwapMinApps = useCallback(() => {

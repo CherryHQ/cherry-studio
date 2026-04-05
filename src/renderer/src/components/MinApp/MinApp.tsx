@@ -73,23 +73,26 @@ const MinApp: FC<Props> = ({ app, onClick, size = 60, isLast }) => {
           : t('minapp.add_to_sidebar'),
       onClick: () => {
         const newPinned = isPinned ? pinned.filter((item) => item.appId !== app.appId) : [...pinned, app]
-        updatePinnedMinapps(newPinned)
+        void updatePinnedMinapps(newPinned)
       }
     },
-    {
-      key: 'hide',
-      label: t('minapp.sidebar.hide.title'),
-      onClick: () => {
-        const newMinapps = minapps.filter((item) => item.appId !== app.appId)
-        updateMinapps(newMinapps)
-        const newDisabled = [...(disabled || []), app]
-        updateDisabledMinapps(newDisabled)
-        updatePinnedMinapps(pinned.filter((item) => item.appId !== app.appId))
-        // 更新 openedKeepAliveMinapps
-        const newOpenedKeepAliveMinapps = openedKeepAliveMinapps.filter((item) => item.appId !== app.appId)
-        setOpenedKeepAliveMinapps(newOpenedKeepAliveMinapps)
-      }
-    },
+    ...(!isPinned
+      ? [
+          {
+            key: 'hide',
+            label: t('minapp.sidebar.hide.title'),
+            onClick: () => {
+              const newMinapps = minapps.filter((item) => item.appId !== app.appId)
+              void updateMinapps(newMinapps)
+              const newDisabled = [...(disabled || []), app]
+              void updateDisabledMinapps(newDisabled)
+              // 更新 openedKeepAliveMinapps
+              const newOpenedKeepAliveMinapps = openedKeepAliveMinapps.filter((item) => item.appId !== app.appId)
+              setOpenedKeepAliveMinapps(newOpenedKeepAliveMinapps)
+            }
+          }
+        ]
+      : []),
     ...(app.type === 'custom'
       ? [
           {
