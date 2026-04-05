@@ -24,6 +24,30 @@ function toMiniApp(input: MiniAppInput): MiniApp {
 let minAppsCache: LRUCache<string, MiniApp>
 
 /**
+ * Refs to hold callback functions that need to be updated on each render.
+ * This allows the LRU cache callbacks to always use the latest setters.
+ */
+let cacheCallbacksRef: {
+  setOpenedKeepAliveMinapps: (apps: MiniApp[]) => void
+} | null = null
+
+/**
+ * Cache version counter for tracking cache resets.
+ * Used to force re-initialization when the cache is reset externally.
+ */
+let cacheVersion = 0
+
+/**
+ * Reset the module-level cache. For testing purposes only.
+ * @internal
+ */
+export const _resetMinAppsCache = () => {
+  minAppsCache = undefined as unknown as LRUCache<string, MiniApp>
+  cacheCallbacksRef = null
+  cacheVersion++
+}
+
+/**
  * Usage:
  *
  *   To control the minapp popup, you can use the following hooks:
@@ -51,6 +75,11 @@ export const useMinappPopup = () => {
   const [maxKeepAliveMinapps] = usePreference('feature.minapp.max_keep_alive')
   const { isTopNavbar } = useNavbarPosition()
 
+  // Update the ref on every render so callbacks always have latest setters
+  cacheCallbacksRef = {
+    setOpenedKeepAliveMinapps
+  }
+
   const createLRUCache = useCallback(() => {
     return new LRUCache<string, MiniApp>({
       max: maxKeepAliveMinapps ?? 10,
@@ -65,30 +94,40 @@ export const useMinappPopup = () => {
           tabsService.closeTab(tabToClose.id)
         }
 
-        // Update cache state
-        setOpenedKeepAliveMinapps(Array.from(minAppsCache.values()))
+        // Update cache state using ref (always has latest setter)
+        if (cacheCallbacksRef) {
+          cacheCallbacksRef.setOpenedKeepAliveMinapps(Array.from(minAppsCache.values()))
+        }
       },
       onInsert: () => {
-        setOpenedKeepAliveMinapps(Array.from(minAppsCache.values()))
+        // Update cache state using ref (always has latest setter)
+        if (cacheCallbacksRef) {
+          cacheCallbacksRef.setOpenedKeepAliveMinapps(Array.from(minAppsCache.values()))
+        }
       },
       updateAgeOnGet: true,
       updateAgeOnHas: true
     })
-  }, [maxKeepAliveMinapps, setOpenedKeepAliveMinapps])
+  }, [maxKeepAliveMinapps])
 
   // Track previous maxKeepAliveMinapps to detect changes
   const prevMaxKeepAlive = useRef(maxKeepAliveMinapps)
+  // Track cache version to detect external resets
+  const prevCacheVersion = useRef(cacheVersion)
 
   // Initialize cache and handle resize when maxKeepAliveMinapps changes
   useEffect(() => {
     const prev = prevMaxKeepAlive.current
     const current = maxKeepAliveMinapps
-    const effectiveMax = current ?? 10
 
-    // Initialize cache on first render
-    if (!minAppsCache) {
+    // Check if cache was reset externally (version changed)
+    const wasReset = prevCacheVersion.current !== cacheVersion
+
+    // Initialize cache on first render or after external reset
+    if (!minAppsCache || wasReset) {
       minAppsCache = createLRUCache()
       prevMaxKeepAlive.current = current
+      prevCacheVersion.current = cacheVersion
       return
     }
 
@@ -96,17 +135,14 @@ export const useMinappPopup = () => {
     if (prev === current) return
     prevMaxKeepAlive.current = current
 
-    // Only migrate if current size is within the new limit
-    if (minAppsCache.size <= effectiveMax) {
-      // LRU cache mechanism: entries set later are placed first, so reverse
-      const oldEntries = Array.from(minAppsCache.entries()).reverse()
-      minAppsCache = createLRUCache()
-      oldEntries.forEach(([key, value]) => {
-        minAppsCache.set(key, value)
-      })
-    }
-    // If size exceeds the new limit, entries will be evicted naturally
-    // as they're accessed and the cache shrinks on its own
+    // Always rebuild cache when max changes
+    // LRU cache mechanism: entries set later are placed first, so reverse
+    const oldEntries = Array.from(minAppsCache.entries()).reverse()
+    minAppsCache = createLRUCache()
+    // Add entries up to the new max (LRU cache will evict excess automatically)
+    oldEntries.forEach(([key, value]) => {
+      minAppsCache.set(key, value)
+    })
   }, [maxKeepAliveMinapps, createLRUCache])
 
   /** Open a minapp (popup shows and minapp loaded) */

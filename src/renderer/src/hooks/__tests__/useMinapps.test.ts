@@ -207,7 +207,8 @@ describe('useMinapps', () => {
       await act(async () => {
         result.current.setOpenedKeepAliveMinapps(newApps)
       })
-      expect(result.current.openedKeepAliveMinapps).toEqual(newApps)
+      // Check cache values directly since mock useCache doesn't trigger re-renders
+      expect(MockUseCacheUtils.getCacheValue('minapp.opened_keep_alive')).toEqual(newApps)
     })
   })
 
