@@ -1,0 +1,319 @@
+{
+  "generated_at": "2026-04-05T17:51:22.553856+00:00",
+  "date": "2026-04-05",
+  "total_open_issues": 321,
+  "health_summary": {
+    "Active": 181,
+    "Aging": 140,
+    "Stale": 0,
+    "Zombie": 0
+  },
+  "health_pct": {
+    "Active": 56.4,
+    "Aging": 43.6,
+    "Stale": 0.0,
+    "Zombie": 0.0
+  },
+  "zombie_issues": [],
+  "stale_issues": [],
+  "aging_issues": [
+    {
+      "number": 13032,
+      "title": "[Feature]: 第三方连接什么时候支持接入飞书和微信公众号的数据呢",
+      "labels": [
+        "feature",
+        "Data"
+      ],
+      "created_at": "2026-02-25T03:37:17Z",
+      "updated_at": "2026-02-25T06:19:23Z",
+      "comments": 1,
+      "url": "https://github.com/CherryHQ/cherry-studio/issues/13032",
+      "author": "boqian001",
+      "update_age_days": 39
+    },
+    {
+      "number": 13193,
+      "title": "[Bug]: [AI_APICallError: Resource not found, default use responses API] Could not call Azure openai in the latest macos app",
+      "labels": [
+        "P1",
+        "Models"
+      ],
+      "created_at": "2026-03-04T05:07:40Z",
+      "updated_at": "2026-03-05T08:47:59Z",
+      "comments": 1,
+      "url": "https://github.com/CherryHQ/cherry-studio/issues/13193",
+      "author": "simplezhao",
+      "update_age_days": 31
+    },
+    {
+      "number": 13179,
+      "title": "[Bug]: chain of thought position error",
+      "labels": [
+        "P2",
+        "UI/UX",
+        "Models",
+        "Blocked: v2"
+      ],
+      "created_at": "2026-03-03T12:04:01Z",
+      "updated_at": "2026-03-05T10:19:27Z",
+      "comments": 1,
+      "url": "https://github.com/CherryHQ/cherry-studio/issues/13179",
+      "author": "AXuanCreator",
+      "update_age_days": 31
+    },
+    {
+      "number": 13164,
+      "title": "[Bug]: When invoking multiple models to generate responses, uneven blank spaces appear at the bottom of each column.",
+      "labels": [
+        "P2",
+        "UI/UX",
+        "Blocked: v2"
+      ],
+      "created_at": "2026-03-03T05:59:37Z",
+      "updated_at": "2026-03-05T10:53:56Z",
+      "comments": 1,
+      "url": "https://github.com/CherryHQ/cherry-studio/issues/13164",
+      "author": "mokieli",
+      "update_age_days": 31
+    },
+    {
+      "number": 13129,
+      "title": "[Bug]: Cannot directly delete all topics",
+      "labels": [
+        "P2",
+        "UI/UX",
+        "Blocked: v2"
+      ],
+      "created_at": "2026-03-01T14:31:12Z",
+      "updated_at": "2026-03-05T11:19:23Z",
+      "comments": 1,
+      "url": "https://github.com/CherryHQ/cherry-studio/issues/13129",
+      "author": "JohnXu22786",
+      "update_age_days": 31
+    },
+    {
+      "number": 13043,
+      "title": "[Bug] Cannot find Doubao and Qianwen in mini-programs after upgrading to 1.7.20",
+      "labels": [
+        "P2",
+        "Models"
+      ],
+      "created_at": "2026-02-25T08:15:24Z",
+      "updated_at": "2026-03-06T03:01:16Z",
+      "comments": 1,
+      "url": "https://github.com/CherryHQ/cherry-studio/issues/13043",
+      "author": "weihule",
+      "update_age_days": 30
+    },
+    {
+      "number": 13028,
+      "title": "[Bug]: Images-PPIO provider still contains images during minimal backup",
+      "labels": [
+        "P2",
+        "Data"
+      ],
+      "created_at": "2026-02-25T01:28:56Z",
+      "updated_at": "2026-03-06T03:03:04Z",
+      "comments": 1,
+      "url": "https://github.com/CherryHQ/cherry-studio/issues/13028",
+      "author": "Saigut",
+      "update_age_days": 30
+    },
+    {
+      "number": 13060,
+      "title": "[Bug]: Response content loss",
+      "labels": [
+        "P2",
+        "Models"
+      ],
+      "created_at": "2026-02-26T01:34:17Z",
+      "updated_at": "2026-03-06T06:59:17Z",
+      "comments": 2,
+      "url": "https://github.com/CherryHQ/cherry-studio/issues/13060",
+      "author": "wang-zhix",
+      "update_age_days": 30
+    },
+    {
+      "number": 13155,
+      "title": "[Feature]:  Request for a \"meeting\" function",
+      "labels": [
+        "P3",
+        "Models",
+        "Blocked: v2"
+      ],
+      "created_at": "2026-03-03T00:28:23Z",
+      "updated_at": "2026-03-06T08:38:16Z",
+      "comments": 0,
+      "url": "https://github.com/CherryHQ/cherry-studio/issues/13155",
+      "author": "3190103125",
+      "update_age_days": 30
+    },
+    {
+      "number": 13151,
+      "title": "[Feature]: View call chains in Agent conversations",
+      "labels": [
+        "P3",
+        "Agent",
+        "Blocked: v2"
+      ],
+      "created_at": "2026-03-02T19:05:33Z",
+      "updated_at": "2026-03-06T08:39:13Z",
+      "comments": 0,
+      "url": "https://github.com/CherryHQ/cherry-studio/issues/13151",
+      "author": "ksze",
+      "update_age_days": 30
+    },
+    {
+      "number": 13146,
+      "title": "Assistant names are truncated when too long, hoping for resizable interface and adjustable assistant panel width",
+      "labels": [
+        "P3",
+        "UI/UX",
+        "Blocked: v2"
+      ],
+      "created_at": "2026-03-02T13:21:38Z",
+      "updated_at": "2026-03-06T08:43:08Z",
+      "comments": 1,
+      "url": "https://github.com/CherryHQ/cherry-studio/issues/13146",
+      "author": "shichen626336-web",
+      "update_age_days": 30
+    },
+    {
+      "number": 13097,
+      "title": "[Feature]: Model provider grouping, automatic deletion of models with health check timeout/failure",
+      "labels": [
+        "P3",
+        "UI/UX",
+        "Models",
+        "Blocked: v2"
+      ],
+      "created_at": "2026-02-27T08:28:15Z",
+      "updated_at": "2026-03-06T11:50:57Z",
+      "comments": 1,
+      "url": "https://github.com/CherryHQ/cherry-studio/issues/13097",
+      "author": "wbxyue",
+      "update_age_days": 30
+    },
+    {
+      "number": 13107,
+      "title": "[Bug]:  After being launched through Cherry Studio, openclaw cannot be closed through Cherry Studio",
+      "labels": [
+        "P2",
+        "macOS",
+        "OpenClaw"
+      ],
+      "created_at": "2026-02-28T02:23:59Z",
+      "updated_at": "2026-03-10T08:53:58Z",
+      "comments": 0,
+      "url": "https://github.com/CherryHQ/cherry-studio/issues/13107",
+      "author": "zjl578254155",
+      "update_age_days": 26
+    },
+    {
+      "number": 13205,
+      "title": "[Discussion]: Error prompted when enabling openclaw",
+      "labels": [
+        "P2",
+        "needs-more-info",
+        "help wanted",
+        "Windows",
+        "discussion",
+        "OpenClaw"
+      ],
+      "created_at": "2026-03-04T09:48:26Z",
+      "updated_at": "2026-03-10T08:54:00Z",
+      "comments": 2,
+      "url": "https://github.com/CherryHQ/cherry-studio/issues/13205",
+      "author": "watler-peng",
+      "update_age_days": 26
+    },
+    {
+      "number": 13070,
+      "title": "[Feature]: Claude-compatible models do not support image upload via messages",
+      "labels": [
+        "P3",
+        "Models"
+      ],
+      "created_at": "2026-02-26T07:20:11Z",
+      "updated_at": "2026-03-10T08:54:44Z",
+      "comments": 2,
+      "url": "https://github.com/CherryHQ/cherry-studio/issues/13070",
+      "author": "fanybook",
+      "update_age_days": 26
+    },
+    {
+      "number": 13057,
+      "title": "[Feature]: Support for importing chat history from OpenRouter",
+      "labels": [
+        "P3",
+        "Data"
+      ],
+      "created_at": "2026-02-25T22:43:10Z",
+      "updated_at": "2026-03-10T08:54:45Z",
+      "comments": 1,
+      "url": "https://github.com/CherryHQ/cherry-studio/issues/13057",
+      "author": "SionGiH",
+      "update_age_days": 26
+    },
+    {
+      "number": 13040,
+      "title": "[Discussion]: Is it possible to disable or remove the default models that come with the software?",
+      "labels": [
+        "P3",
+        "Models"
+      ],
+      "created_at": "2026-02-25T07:11:26Z",
+      "updated_at": "2026-03-10T08:54:46Z",
+      "comments": 1,
+      "url": "https://github.com/CherryHQ/cherry-studio/issues/13040",
+      "author": "myxiaolizi",
+      "update_age_days": 26
+    },
+    {
+      "number": 13358,
+      "title": "[Bug]: OpenClaw install fails due to git dependency (libsignal-node) — shallow git check misses Xcode CLT / SSH issues",
+      "labels": [
+        "Connectivity",
+        "OpenClaw"
+      ],
+      "created_at": "2026-03-10T08:40:51Z",
+      "updated_at": "2026-03-10T09:52:17Z",
+      "comments": 2,
+      "url": "https://github.com/CherryHQ/cherry-studio/issues/13358",
+      "author": "SiinXu",
+      "update_age_days": 26
+    },
+    {
+      "number": 13391,
+      "title": "[Feature]: Plugin system settings planning",
+      "labels": [
+        "feature",
+        "Agent"
+      ],
+      "created_at": "2026-03-11T10:06:27Z",
+      "updated_at": "2026-03-11T12:16:59Z",
+      "comments": 0,
+      "url": "https://github.com/CherryHQ/cherry-studio/issues/13391",
+      "author": "SiinXu",
+      "update_age_days": 25
+    },
+    {
+      "number": 13316,
+      "title": "[Bug]: Model custom request headers not working in OpenClaw",
+      "labels": [
+        "BUG",
+        "Models",
+        "OpenClaw"
+      ],
+      "created_at": "2026-03-09T03:56:38Z",
+      "updated_at": "2026-03-11T12:17:10Z",
+      "comments": 0,
+      "url": "https://github.com/CherryHQ/cherry-studio/issues/13316",
+      "author": "wkABXY",
+      "update_age_days": 25
+    }
+  ],
+  "health_score": 78.2,
+  "data_coverage_note": "Analysis based on 321 most-recently-updated open issues (GitHub API rate limit). Repo has 880 total open issues+PRs. Stale/Zombie numbers likely undercount actual state.",
+  "estimated_total_open_issues": 880
+}

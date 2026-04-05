@@ -1,0 +1,113 @@
+{
+  "generated_at": "2026-04-05T17:51:22.483186+00:00",
+  "date": "2026-04-05",
+  "open_issues": {
+    "total": 321,
+    "p1_critical": 4,
+    "bugs": 20,
+    "unlabeled": 46,
+    "unlabeled_pct": 14.3,
+    "new_7d": 75,
+    "aged_30_90d": 57,
+    "stale_90d_plus": 0,
+    "label_distribution": {
+      "Models": 77,
+      "UI/UX": 76,
+      "MCP": 31,
+      "feature": 30,
+      "Assistant": 27,
+      "discussion": 26,
+      "P2": 26,
+      "needs-repro": 25,
+      "Data": 22,
+      "help wanted": 22,
+      "P3": 22,
+      "BUG": 20,
+      "Blocked: v2": 20,
+      "Connectivity": 18,
+      "needs-more-info": 12,
+      "OpenClaw": 12,
+      "RAG": 10,
+      "Performance": 10,
+      "Agent": 9,
+      "Planned": 8
+    },
+    "top_reporters": {
+      "EurFelux": 19,
+      "SiinXu": 13,
+      "id7869": 7,
+      "JohnXu22786": 5,
+      "Huaweidev": 5,
+      "DeJeune": 4,
+      "wanghongqu": 4,
+      "bigben446": 3,
+      "ksze": 3,
+      "playgithub": 3
+    },
+    "total_in_repo": 880,
+    "fetched_count": 321,
+    "coverage_note": "Fetched 321 most-recently-updated issues (API rate limit). Repo has 880 total open issues+PRs."
+  },
+  "closed_issues_30d": {
+    "total": 55
+  },
+  "open_prs": {
+    "total": 200,
+    "to_main": 154,
+    "to_v2": 44
+  },
+  "v2_branch": {
+    "open_prs": 45,
+    "merged_prs_total": 87,
+    "merged_prs_30d": 42
+  },
+  "p1_issues_list": [
+    {
+      "number": 13608,
+      "title": "[Bug]: xiaomi mimo response only displays the last line",
+      "labels": [
+        "P1",
+        "Models"
+      ],
+      "age_days": 18,
+      "url": "https://github.com/CherryHQ/cherry-studio/issues/13608"
+    },
+    {
+      "number": 13193,
+      "title": "[Bug]: [AI_APICallError: Resource not found, default use responses API] Could not call Azure openai in the latest macos app",
+      "labels": [
+        "P1",
+        "Models"
+      ],
+      "age_days": 32,
+      "url": "https://github.com/CherryHQ/cherry-studio/issues/13193"
+    },
+    {
+      "number": 13105,
+      "title": "[Bug]: In version 1.7.19, when sending PDF files directly in the chat box, almost all models cannot read PDF files",
+      "labels": [
+        "P1",
+        "Models"
+      ],
+      "age_days": 36,
+      "url": "https://github.com/CherryHQ/cherry-studio/issues/13105"
+    },
+    {
+      "number": 13061,
+      "title": "[Bug]: Data is cleared after in-app upgrade when syncing data via OneDrive",
+      "labels": [
+        "P1",
+        "Data",
+        "inactive"
+      ],
+      "age_days": 38,
+      "url": "https://github.com/CherryHQ/cherry-studio/issues/13061"
+    }
+  ],
+  "repo_metadata": {
+    "stars": 42965,
+    "forks": 4025,
+    "subscribers": 188,
+    "open_issues_count_github": 880
+  }
+}
