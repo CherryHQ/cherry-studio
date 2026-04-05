@@ -1,3 +1,5 @@
+import type { MinAppRegion } from '@shared/data/types/miniapp'
+
 import type * as CacheValueTypes from './cacheValueTypes'
 
 /**
@@ -126,7 +128,7 @@ export type UseCacheSchema = {
   'minapp.current_id': string
   'minapp.show': boolean
   'minapp.opened_oneoff': CacheValueTypes.CacheMinAppType | null
-  'minapp.detected_region': string | null
+  'minapp.detected_region': MinAppRegion | null
 
   // Topic management
   'topic.active': CacheValueTypes.CacheTopic | null

@@ -97,7 +97,7 @@ const MiniAppIconsManager: FC<MiniAppManagerProps> = ({
     return (
       <ProgramItem ref={provided.innerRef} {...provided.draggableProps} {...provided.dragHandleProps}>
         <ProgramContent>
-          <LogoAvatar logo={logo} size={16} />
+          <LogoAvatar logo={program.logo} size={16} />
           <span>{name}</span>
         </ProgramContent>
         <CloseButton onClick={() => onMoveMiniApp(program, listType)}>

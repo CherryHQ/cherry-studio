@@ -61,7 +61,7 @@ const MinAppPage: FC = () => {
     if (!found) return null
 
     return found
-  }, [appId, minapps, minAppsCache])
+  }, [appId, allApps, minAppsCache])
 
   useEffect(() => {
     // If app not found, redirect to apps list

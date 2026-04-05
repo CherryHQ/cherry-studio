@@ -81,12 +81,12 @@ export class TabsService {
    * @param tabId The tab ID to clean up
    */
   private cleanupMinAppCache(tabId: string) {
-    // Check if this is a mini-app tab (format: /apps/{appId})
+    // Check if this is a mini-app tab (format: /app/minapp/{appId})
     const tabs = store.getState().tabs.tabs
     const tab = tabs.find((t) => t.id === tabId)
 
-    if (tab && tab.path.startsWith('/apps/')) {
-      const appId = tab.path.replace('/apps/', '')
+    if (tab && tab.path.startsWith('/app/minapp/')) {
+      const appId = tab.path.replace('/app/minapp/', '')
 
       if (this.minAppsCache && this.minAppsCache.has(appId)) {
         logger.debug(`Cleaning up mini-app cache for app: ${appId}`)

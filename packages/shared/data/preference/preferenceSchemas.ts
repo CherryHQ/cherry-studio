@@ -28,6 +28,7 @@
 
 import { MEMORY_FACT_EXTRACTION_PROMPT, MEMORY_UPDATE_SYSTEM_PROMPT, TRANSLATE_PROMPT } from '@shared/config/prompts'
 import * as PreferenceTypes from '@shared/data/preference/preferenceTypes'
+import type { MinAppRegionFilter } from '@shared/data/types/miniapp'
 
 /* eslint @typescript-eslint/member-ordering: ["error", {
   "interfaces": { "order": "alphabetically" },
@@ -355,7 +356,7 @@ export interface PreferenceSchemas {
     // redux/settings/minappsOpenLinkExternal
     'feature.minapp.open_link_external': boolean
     // redux/settings/minAppRegion
-    'feature.minapp.region': string
+    'feature.minapp.region': MinAppRegionFilter
     // redux/settings/showOpenedMinappsInSidebar
     'feature.minapp.show_opened_in_sidebar': boolean
     // redux/note/settings.defaultEditMode

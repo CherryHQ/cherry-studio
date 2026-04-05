@@ -34,8 +34,8 @@ let minAppsCache: LRUCache<string, MiniApp>
  *             closeMinapp, hideMinappPopup, closeAllMinapps } = useMinappPopup()
  *
  *   To use some key states of the minapp popup:
- *     import { useRuntime } from '@renderer/hooks/useRuntime'
- *     const { openedKeepAliveMinapps, openedOneOffMinapp, minappShow } = useRuntime()
+ *     import { useMinapps } from '@renderer/hooks/useMinapps'
+ *     const { openedKeepAliveMinapps, openedOneOffMinapp, minappShow } = useMinapps()
  */
 export const useMinappPopup = () => {
   const {
@@ -60,12 +60,12 @@ export const useMinappPopup = () => {
 
         // Close corresponding tab if it exists
         const tabs = tabsService.getTabs()
-        const tabToClose = tabs.find((tab) => tab.path === `/apps/${key}`)
+        const tabToClose = tabs.find((tab) => tab.path === `/app/minapp/${key}`)
         if (tabToClose) {
           tabsService.closeTab(tabToClose.id)
         }
 
-        // Update Redux state
+        // Update cache state
         setOpenedKeepAliveMinapps(Array.from(minAppsCache.values()))
       },
       onInsert: () => {
@@ -199,7 +199,7 @@ export const useMinappPopup = () => {
 
         // Then navigate to the app tab using NavigationService
         if (NavigationService.navigate) {
-          void NavigationService.navigate({ to: `/apps/${app.appId}` })
+          void NavigationService.navigate({ to: `/app/minapp/${app.appId}` })
         }
       } else {
         // For side navbar, use the traditional popup system

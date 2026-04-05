@@ -136,17 +136,17 @@ const TabsContainer: React.FC<TabsContainerProps> = ({ children }) => {
   const getTabId = (path: string): string => {
     if (path === '/') return 'home'
     const segments = path.split('/')
-    // Handle minapp paths: /apps/appId -> apps:appId
-    if (segments[1] === 'apps' && segments[2]) {
-      return `apps:${segments[2]}`
+    // Handle minapp paths: /app/minapp/appId -> minapp:appId
+    if (segments[1] === 'app' && segments[2] === 'minapp' && segments[3]) {
+      return `minapp:${segments[3]}`
     }
     return segments[1] // 获取第一个路径段作为 id
   }
 
   const getTabTitle = (tabId: string): string => {
     // Check if it's a minapp tab
-    if (tabId.startsWith('apps:')) {
-      const appId = tabId.replace('apps:', '')
+    if (tabId.startsWith('minapp:')) {
+      const appId = tabId.replace('minapp:', '')
       let app = allApps.find((a) => a.appId === appId)
 
       // If not found in permanent apps, search in temporary apps cache

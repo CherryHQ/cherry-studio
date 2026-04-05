@@ -4,9 +4,6 @@ import { usePreference } from '@data/hooks/usePreference'
 import Selector from '@renderer/components/Selector'
 import { useMinapps } from '@renderer/hooks/useMinapps'
 import { SettingDescription, SettingDivider, SettingRowTitle, SettingTitle } from '@renderer/pages/settings'
-import type { RootState } from '@renderer/store'
-import { useAppDispatch, useAppSelector } from '@renderer/store'
-import { setMinAppRegion } from '@renderer/store/settings'
 import type { MinAppRegionFilter } from '@shared/data/types/miniapp'
 import { Flex, Slider } from 'antd'
 import type { FC } from 'react'
@@ -22,11 +19,10 @@ const DEFAULT_MAX_KEEPALIVE = 3
 // Region selector component with defensive default value
 const RegionSelector: FC = () => {
   const { t } = useTranslation()
-  const dispatch = useAppDispatch()
-  const minAppRegion = useAppSelector((state: RootState) => state.settings.minAppRegion) ?? 'auto'
+  const [minAppRegion = 'auto', setMinAppRegion] = usePreference('feature.minapp.region')
 
   const onMinAppRegionChange = (value: MinAppRegionFilter) => {
-    dispatch(setMinAppRegion(value))
+    void setMinAppRegion(value)
   }
 
   const minAppRegionOptions: { value: MinAppRegionFilter; label: string }[] = [

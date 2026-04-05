@@ -107,9 +107,9 @@ export const useMinapps = () => {
 
   const effectiveRegion: MinAppRegion =
     minAppRegionSetting === 'auto'
-      ? ((detectedRegion as MinAppRegion | null) ?? 'CN')
+      ? (detectedRegion ?? 'CN')
       : minAppRegionSetting === 'CN' || minAppRegionSetting === 'Global'
-        ? (minAppRegionSetting as MinAppRegion)
+        ? minAppRegionSetting
         : 'CN'
 
   // Auto-detect region once per session
