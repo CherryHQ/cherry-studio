@@ -5,6 +5,7 @@
 !README*.md
 !cherry-pr-test
 !create-skill
+!gh-cherry-usage
 !gh-create-issue
 !gh-create-pr
 !gh-pr-review
