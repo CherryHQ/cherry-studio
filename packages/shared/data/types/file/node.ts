@@ -58,8 +58,9 @@ import { MountProviderConfigSchema } from './provider'
 /** Well-known system mount node IDs, created at app initialization */
 export const SYSTEM_MOUNT_FILES = 'mount_files' as const
 export const SYSTEM_MOUNT_NOTES = 'mount_notes' as const
+export const SYSTEM_TEMP = 'system_temp' as const
 export const SYSTEM_TRASH = 'system_trash' as const
-export const SYSTEM_NODE_IDS = [SYSTEM_MOUNT_FILES, SYSTEM_MOUNT_NOTES, SYSTEM_TRASH] as const
+export const SYSTEM_NODE_IDS = [SYSTEM_MOUNT_FILES, SYSTEM_MOUNT_NOTES, SYSTEM_TEMP, SYSTEM_TRASH] as const
 export const SystemNodeIdSchema = z.enum(SYSTEM_NODE_IDS)
 export type SystemNodeId = z.infer<typeof SystemNodeIdSchema>
 
