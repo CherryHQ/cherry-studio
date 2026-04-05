@@ -43,7 +43,7 @@ const Translate: FC<Props> = ({ text }) => {
     } finally {
       translatingRef.current = false
     }
-  }, [text, targetLanguage, translateModel])
+  }, [text, targetLanguage, translateModel, t])
 
   useEffect(() => {
     void translate()
