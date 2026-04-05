@@ -1,4 +1,4 @@
-import { nodeTable } from '@data/db/schemas/node'
+import { nodeTable } from '@data/db/schemas/file'
 import { getFilesDir, getNotesDir, getTempFilesDir } from '@main/utils/file'
 import type { MountProviderConfig } from '@shared/data/types/file'
 import { sql } from 'drizzle-orm'

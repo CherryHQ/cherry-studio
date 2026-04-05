@@ -1480,7 +1480,7 @@ Foundation       + API              + 迁移整合         Migration         Int
 
 | 文件路径 | 内容 |
 |---------|------|
-| `src/main/data/db/schemas/node.ts` | `nodeTable` + `fileRefTable` Drizzle Schema（第六章） |
+| `src/main/data/db/schemas/file.ts` | `nodeTable` + `fileRefTable` Drizzle Schema（第六章） |
 | `packages/shared/data/types/file/` | 文件类型定义模块（第六章），按职责拆分为 `essential.ts`、`node.ts`、`provider.ts`、`ref/` |
 | `packages/shared/data/api/schemas/files.ts` | `FileSchemas` API 类型声明（第九章） |
 | `src/main/data/utils/pathResolver.ts` | 路径解析工具函数（`assertPathContained()` 等安全检查）。注：`resolvePhysicalPath()` 属于 FileService（Phase 2） |
