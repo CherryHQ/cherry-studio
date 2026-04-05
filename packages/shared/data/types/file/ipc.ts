@@ -50,56 +50,97 @@ export interface BatchOperationResult {
 
 // ─── FileManager API ───
 
+/**
+ * FileManager IPC interface — the complete contract between renderer and main process
+ * for all file operations that may affect the filesystem.
+ *
+ * DataApi handles read-only node queries; all writes go through this interface.
+ * FileManager service internally coordinates FS operations and DB synchronization.
+ */
 export interface FileManagerApi {
-  // A. 文件选择 / 对话框
+  // ─── A. File Selection / Dialogs ───
+
+  /** Open file picker dialog (single file) */
   select(options: {
     directory?: never
     multiple?: false
     filters?: FileFilter[]
     title?: string
   }): Promise<string | null>
+  /** Open file picker dialog (multiple files) */
   select(options: { directory?: never; multiple: true; filters?: FileFilter[]; title?: string }): Promise<string[]>
+  /** Open folder picker dialog (single folder only) */
   select(options: { directory: true; title?: string }): Promise<string | null>
+  /** Open save dialog and write content to the selected path */
   save(options: { content: string | Uint8Array; defaultPath?: string; filters?: FileFilter[] }): Promise<string | null>
 
-  // B. 节点创建
+  // ─── B. Node Creation ───
+
+  /** Create a file or directory node. For files, content is processed by source type (path/base64/URL/buffer). */
   createNode(params: CreateNodeParams): Promise<FileTreeNode>
+  /** Batch create file nodes (files only, no directories) */
   batchCreateNodes(params: {
     parentId: NodeId
     items: Array<{ name: string; content: FileContent }>
   }): Promise<BatchOperationResult>
 
-  // C. 文件读取 / 元信息
+  // ─── C. File Reading / Metadata ───
+
+  /** Read file content as text */
   read(target: NodeId | FilePath, options?: { encoding?: 'text'; detectEncoding?: boolean }): Promise<string>
+  /** Read file content as base64 */
   read(target: NodeId | FilePath, options: { encoding: 'base64' }): Promise<{ data: string; mime: string }>
+  /** Read file content as binary */
   read(target: NodeId | FilePath, options: { encoding: 'binary' }): Promise<{ data: Uint8Array; mime: string }>
+  /** Get physical file metadata (size, timestamps, and type-specific info like dimensions/pageCount) */
   getMetadata(target: NodeId | FilePath): Promise<PhysicalFileMetadata>
 
-  // D. 节点删除
+  // ─── D. Node Deletion ───
+
+  /** Move node to Trash (soft delete) */
   trash(params: { id: NodeId }): Promise<void>
+  /** Restore node from Trash */
   restore(params: { id: NodeId }): Promise<FileTreeNode>
+  /** Permanently delete node and its physical file */
   permanentDelete(params: { id: NodeId }): Promise<void>
+  /** Batch move nodes to Trash */
   batchTrash(params: { ids: NodeId[] }): Promise<BatchOperationResult>
+  /** Batch restore nodes from Trash */
   batchRestore(params: { ids: NodeId[] }): Promise<BatchOperationResult>
+  /** Batch permanently delete nodes */
   batchPermanentDelete(params: { ids: NodeId[] }): Promise<BatchOperationResult>
 
-  // E. 节点移动（含重命名）
+  // ─── E. Node Move (includes rename) ───
+
+  /** Move node to new parent and/or rename (Unix mv semantics) */
   move(params: { id: NodeId; targetParentId: NodeId; newName?: string }): Promise<FileTreeNode>
+  /** Batch move nodes to target parent */
   batchMove(params: { ids: NodeId[]; targetParentId: NodeId }): Promise<BatchOperationResult>
 
-  // F. 文件写入 / 复制
+  // ─── F. File Write / Copy ───
+
+  /** Write content to an existing node or external path (does not create a new node) */
   write(target: NodeId | FilePath, data: string | Uint8Array): Promise<void>
+  /** Copy node within the file tree (creates a new node with physical copy) */
   copy(params: { id: NodeId; targetParentId: NodeId; newName?: string }): Promise<FileTreeNode>
+  /** Export node's physical file to an external path (no new node created) */
   copy(params: { id: NodeId; destPath: FilePath }): Promise<void>
 
-  // G. 校验
+  // ─── G. Validation ───
+
+  /** Validate a directory path for use as the Notes mount basePath */
   validateNotesPath(dirPath: FilePath): Promise<boolean>
 
-  // H. 系统操作
+  // ─── H. System Operations ───
+
+  /** Open file/directory with the system default application */
   open(target: NodeId | FilePath): Promise<void>
+  /** Reveal file/directory in the system file manager */
   showInFolder(target: NodeId | FilePath): Promise<void>
 
-  // I. 目录扫描
+  // ─── I. Directory Listing ───
+
+  /** List contents of an external directory (not managed by the node system) */
   listDirectory(dirPath: FilePath, options?: DirectoryListOptions): Promise<string[]>
 }
 
