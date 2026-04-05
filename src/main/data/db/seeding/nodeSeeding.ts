@@ -49,7 +49,8 @@ function getSystemNodes(): SystemNode[] {
       providerConfig: {
         providerType: 'local_external',
         basePath: notesDir,
-        watch: true
+        watch: true,
+        watchExtensions: []
       }
     },
     {

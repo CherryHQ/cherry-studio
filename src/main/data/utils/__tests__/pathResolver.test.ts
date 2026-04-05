@@ -40,7 +40,7 @@ describe('resolvePhysicalPath', () => {
     fs.writeFileSync(path.join(tmpBase, '...'), '')
 
     externalMount = {
-      providerConfig: { providerType: 'local_external', basePath: tmpBase, watch: true }
+      providerConfig: { providerType: 'local_external', basePath: tmpBase, watch: true, watchExtensions: [] }
     }
   })
 
