@@ -1,5 +1,4 @@
 import { usePreference } from '@data/hooks/usePreference'
-import { allMinApps } from '@renderer/config/minapps'
 import { useMinapps } from '@renderer/hooks/useMinapps'
 import NavigationService from '@renderer/services/NavigationService'
 import { tabsService } from '@renderer/services/TabsService'
@@ -40,6 +39,7 @@ let minAppsCache: LRUCache<string, MiniApp>
  */
 export const useMinappPopup = () => {
   const {
+    allApps,
     openedKeepAliveMinapps,
     openedOneOffMinapp,
     minappShow,
@@ -132,15 +132,15 @@ export const useMinappPopup = () => {
     [openMinapp]
   )
 
-  /** Open a minapp by id (look up the minapp in allMinApps) */
+  /** Open a minapp by id (look up the minapp in allApps from DataApi) */
   const openMinappById = useCallback(
     (id: string, keepAlive: boolean = false) => {
-      const appDef = allMinApps.find((app) => app?.id === id)
+      const appDef = allApps.find((app) => app.appId === id)
       if (appDef) {
-        openMinapp(appDef as unknown as MiniApp, keepAlive)
+        openMinapp(appDef, keepAlive)
       }
     },
-    [openMinapp]
+    [allApps, openMinapp]
   )
 
   /** Close a minapp immediately (popup hides and minapp unloaded) */

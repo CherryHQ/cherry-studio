@@ -12,7 +12,6 @@ import { Tooltip } from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
 import { isDev } from '@renderer/config/constant'
-import { allMinApps } from '@renderer/config/minapps'
 import { useMinapps } from '@renderer/hooks/useMinapps'
 import type { MiniApp } from '@shared/data/types/miniapp'
 import { useNavigate } from '@tanstack/react-router'
@@ -42,12 +41,12 @@ interface Props {
 
 const MinimalToolbar: FC<Props> = ({ app, webviewRef, currentUrl, onReload, onOpenDevTools }) => {
   const { t } = useTranslation()
-  const { pinned, updatePinnedMinapps } = useMinapps()
+  const { pinned, updatePinnedMinapps, allApps } = useMinapps()
   const [minappsOpenLinkExternal, setMinappsOpenLinkExternal] = usePreference('feature.minapp.open_link_external')
   const navigate = useNavigate()
   const [canGoBack, setCanGoBack] = useState(false)
   const [canGoForward, setCanGoForward] = useState(false)
-  const canPinned = allMinApps.some((item) => item.id === app.appId)
+  const canPinned = allApps.some((item) => item.appId === app.appId)
   const isPinned = pinned.some((item) => item.appId === app.appId)
   const canOpenExternalLink = app.url.startsWith('http://') || app.url.startsWith('https://')
 

@@ -5,7 +5,6 @@ import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
 import HorizontalScrollContainer from '@renderer/components/HorizontalScrollContainer'
 import { isLinux, isMac } from '@renderer/config/constant'
-import { allMinApps } from '@renderer/config/minapps'
 import { useTheme } from '@renderer/context/ThemeProvider'
 import { useFullscreen } from '@renderer/hooks/useFullscreen'
 import { useMinappPopup } from '@renderer/hooks/useMinappPopup'
@@ -55,13 +54,13 @@ const logger = loggerService.withContext('TabContainer')
 
 const getTabIcon = (
   tabId: string,
-  minapps: MiniApp[],
+  allApps: MiniApp[],
   minAppsCache?: LRUCache<string, MiniApp>
 ): React.ReactNode | undefined => {
   // Check if it's a minapp tab (format: apps:appId)
   if (tabId.startsWith('apps:')) {
     const appId = tabId.replace('apps:', '')
-    let app = [...allMinApps, ...minapps].find((a) => ('id' in a ? a.id : a.appId) === appId)
+    let app = allApps.find((a) => a.appId === appId)
 
     // If not found in permanent apps, search in temporary apps cache
     // The cache stores apps opened via openSmartMinapp() for top navbar mode
@@ -80,9 +79,7 @@ const getTabIcon = (
     }
 
     if (app) {
-      // Normalize: MinAppType uses .id, MiniApp uses .appId
-      const miniApp = 'appId' in app ? app : ({ ...app, appId: app.id } as unknown as MiniApp)
-      return <MinAppIcon size={14} app={miniApp} />
+      return <MinAppIcon size={14} app={app} />
     }
 
     // Fallback: If no app found (cache evicted), show default icon
@@ -132,7 +129,7 @@ const TabsContainer: React.FC<TabsContainerProps> = ({ children }) => {
   const isFullscreen = useFullscreen()
   const { settedTheme, toggleTheme } = useTheme()
   const { hideMinappPopup, minAppsCache } = useMinappPopup()
-  const { minapps } = useMinapps()
+  const { allApps } = useMinapps()
   // const { useSystemTitleBar } = useSettings()
   const [useSystemTitleBar] = usePreference('app.use_system_title_bar')
   const { t } = useTranslation()
@@ -150,7 +147,7 @@ const TabsContainer: React.FC<TabsContainerProps> = ({ children }) => {
     // Check if it's a minapp tab
     if (tabId.startsWith('apps:')) {
       const appId = tabId.replace('apps:', '')
-      let app = [...allMinApps, ...minapps].find((a) => ('id' in a ? a.id : a.appId) === appId)
+      let app = allApps.find((a) => a.appId === appId)
 
       // If not found in permanent apps, search in temporary apps cache
       // This ensures temporary MinApps display proper titles while being used
@@ -261,7 +258,7 @@ const TabsContainer: React.FC<TabsContainerProps> = ({ children }) => {
                     }
                   }}>
                   <TabHeader>
-                    {tab.id && <TabIcon>{getTabIcon(tab.id, minapps, minAppsCache)}</TabIcon>}
+                    {tab.id && <TabIcon>{getTabIcon(tab.id, allApps, minAppsCache)}</TabIcon>}
                     <TabTitle>{getTabTitle(tab.id)}</TabTitle>
                   </TabHeader>
                   {isClosable && (

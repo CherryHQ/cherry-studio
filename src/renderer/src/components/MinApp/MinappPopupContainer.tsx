@@ -16,7 +16,6 @@ import { loggerService } from '@logger'
 import { LogoAvatar } from '@renderer/components/Icons'
 import WindowControls from '@renderer/components/WindowControls'
 import { isDev, isLinux, isMac, isWin } from '@renderer/config/constant'
-import { allMinApps } from '@renderer/config/minapps'
 import { useBridge } from '@renderer/hooks/useBridge'
 import { useMinappPopup } from '@renderer/hooks/useMinappPopup'
 import { useMinapps } from '@renderer/hooks/useMinapps'
@@ -144,8 +143,15 @@ const GoogleLoginTip = ({
 const MinappPopupContainer: React.FC = () => {
   const [minappsOpenLinkExternal, setMinappsOpenLinkExternal] = usePreference('feature.minapp.open_link_external')
   const { closeMinapp, hideMinappPopup } = useMinappPopup()
-  const { pinned, updatePinnedMinapps, openedKeepAliveMinapps, openedOneOffMinapp, currentMinappId, minappShow } =
-    useMinapps()
+  const {
+    pinned,
+    updatePinnedMinapps,
+    allApps,
+    openedKeepAliveMinapps,
+    openedOneOffMinapp,
+    currentMinappId,
+    minappShow
+  } = useMinapps()
   const { t } = useTranslation()
   const backgroundColor = useNavBackgroundColor()
   const { isTopNavbar } = useNavbarPosition()
@@ -245,7 +251,7 @@ const MinappPopupContainer: React.FC = () => {
       (acc, app) => ({
         ...acc,
         [app.appId]: {
-          canPinned: allMinApps.some((item) => item.id === app.appId),
+          canPinned: allApps.some((item) => item.appId === app.appId),
           isPinned: pinned.some((item) => item.appId === app.appId),
           canOpenExternalLink: app.url.startsWith('http://') || app.url.startsWith('https://')
         }

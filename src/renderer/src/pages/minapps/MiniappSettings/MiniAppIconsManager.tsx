@@ -2,7 +2,6 @@ import { CloseOutlined } from '@ant-design/icons'
 import type { DraggableProvided, DroppableProvided, DropResult } from '@hello-pangea/dnd'
 import { DragDropContext, Draggable, Droppable } from '@hello-pangea/dnd'
 import { LogoAvatar } from '@renderer/components/Icons'
-import { allMinApps } from '@renderer/config/minapps'
 import { useMinapps } from '@renderer/hooks/useMinapps'
 import { getMiniappsStatusLabel } from '@renderer/i18n/label'
 import type { MiniApp } from '@shared/data/types/miniapp'
@@ -93,9 +92,7 @@ const MiniAppIconsManager: FC<MiniAppManagerProps> = ({
   )
 
   const renderProgramItem = (program: MiniApp, provided: DraggableProvided, listType: ListType) => {
-    const appData = allMinApps.find((app) => app.id === program.appId)
-    const name = appData?.nameKey ? t(appData.nameKey) : appData?.name || program.name
-    const logo = appData?.logo || ''
+    const name = program.nameKey ? t(program.nameKey) : program.name
 
     return (
       <ProgramItem ref={provided.innerRef} {...provided.draggableProps} {...provided.dragHandleProps}>

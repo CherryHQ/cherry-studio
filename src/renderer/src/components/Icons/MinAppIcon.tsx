@@ -1,4 +1,3 @@
-import { allMinApps } from '@renderer/config/minapps'
 import { getMiniAppsLogo } from '@renderer/config/minapps'
 import type { MiniApp } from '@shared/data/types/miniapp'
 import type { FC } from 'react'
@@ -11,12 +10,9 @@ interface Props {
 }
 
 const MinAppIcon: FC<Props> = ({ app, size = 48, style, sidebar = false }) => {
-  // First try to find in allMinApps for predefined styling
-  const _app = allMinApps.find((item) => item.id === app.appId)
-
-  // If found in allMinApps, use predefined styling
-  if (_app) {
-    const logo = getMiniAppsLogo(_app.logo)
+  // app prop already has merged preset fields (logo, bordered, background, style) via mergeWithPreset
+  if (app.logo) {
+    const logo = getMiniAppsLogo(app.logo)
 
     // CompoundIcon: render its Avatar sub-component
     if (logo && typeof logo !== 'string') {
@@ -26,34 +22,13 @@ const MinAppIcon: FC<Props> = ({ app, size = 48, style, sidebar = false }) => {
 
     return (
       <img
-        src={logo}
+        src={typeof logo === 'string' ? logo : app.logo}
         className="select-none rounded-2xl"
         style={{
-          border: _app.bordered ? '0.5px solid var(--color-border)' : 'none',
+          border: app.bordered ? '0.5px solid var(--color-border)' : 'none',
           width: `${size}px`,
           height: `${size}px`,
-          backgroundColor: _app.background,
-          userSelect: 'none',
-          ...(sidebar ? {} : app.style),
-          ...style
-        }}
-        draggable={false}
-        alt={app.name || 'MinApp Icon'}
-      />
-    )
-  }
-
-  // If not found in allMinApps but app has logo, use it (for temporary apps)
-  if (app.logo) {
-    return (
-      <img
-        src={app.logo}
-        className="select-none rounded-2xl"
-        style={{
-          border: 'none',
-          width: `${size}px`,
-          height: `${size}px`,
-          backgroundColor: 'transparent',
+          backgroundColor: app.background,
           userSelect: 'none',
           ...(sidebar ? {} : app.style),
           ...style

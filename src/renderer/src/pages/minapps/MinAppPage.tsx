@@ -1,6 +1,5 @@
 import { loggerService } from '@logger'
 import { LogoAvatar } from '@renderer/components/Icons'
-import { allMinApps } from '@renderer/config/minapps'
 import { useMinappPopup } from '@renderer/hooks/useMinappPopup'
 import { useMinapps } from '@renderer/hooks/useMinapps'
 import { useNavbarPosition } from '@renderer/hooks/useNavbar'
@@ -24,7 +23,7 @@ const MinAppPage: FC = () => {
   const { appId } = useParams({ strict: false })
   const { isTopNavbar } = useNavbarPosition()
   const { openMinappKeepAlive, minAppsCache } = useMinappPopup()
-  const { minapps } = useMinapps()
+  const { allApps } = useMinapps()
   // openedKeepAliveMinapps 不再需要作为依赖参与 webview 选择，已通过 MutationObserver 动态发现
   // const { openedKeepAliveMinapps } = useRuntime()
   const navigate = useNavigate()
@@ -51,8 +50,8 @@ const MinAppPage: FC = () => {
   const app = useMemo((): MiniApp | null => {
     if (!appId) return null
 
-    // First try to find in default and custom mini-apps
-    const found = [...allMinApps, ...minapps].find((a) => ('id' in a ? a.id : a.appId) === appId)
+    // First try to find in all apps from DataApi
+    const found = allApps.find((a) => a.appId === appId)
 
     // If not found and we have cache, try to find in cache (for temporary apps)
     if (!found && minAppsCache) {
@@ -61,23 +60,7 @@ const MinAppPage: FC = () => {
 
     if (!found) return null
 
-    // Normalize to MiniApp
-    if ('appId' in found) return found
-    const mt = found
-    return {
-      appId: mt.id,
-      type: 'default',
-      status: 'enabled',
-      sortOrder: 0,
-      name: mt.name,
-      url: mt.url,
-      logo: mt.logo,
-      bordered: mt.bordered,
-      background: mt.background,
-      nameKey: mt.nameKey,
-      supportedRegions: mt.supportedRegions,
-      style: mt.style
-    }
+    return found
   }, [appId, minapps, minAppsCache])
 
   useEffect(() => {

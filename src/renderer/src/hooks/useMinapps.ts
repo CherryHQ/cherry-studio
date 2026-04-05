@@ -247,6 +247,7 @@ export const useMinapps = () => {
   )
 
   return {
+    allApps,
     minapps,
     disabled: disabledApps,
     pinned: pinnedApps,
