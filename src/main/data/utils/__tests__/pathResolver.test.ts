@@ -126,6 +126,11 @@ describe('resolvePhysicalPath', () => {
 
     // ─── Null byte rejection (checked before realpathSync) ───
 
+    it('rejects null bytes in node.id', () => {
+      const node: PathResolvableNode = { id: 'abc\0evil', name: 'file', ext: 'txt', mountId: 'mount_files' }
+      expect(() => resolvePhysicalPath(node, managedMount)).toThrow('null bytes')
+    })
+
     it('rejects null bytes in node.name', () => {
       const node: PathResolvableNode = { id: 'n1', name: 'file\0.evil', ext: 'txt', mountId: 'mount_notes' }
       expect(() => resolvePhysicalPath(node, externalMount, [])).toThrow('null bytes')

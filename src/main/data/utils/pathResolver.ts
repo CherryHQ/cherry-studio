@@ -46,8 +46,8 @@ export function resolvePhysicalPath(node: PathResolvableNode, mount: MountInfo, 
   }
 
   // Reject null bytes in any user-controlled path segments
-  if (node.name.includes('\0') || (node.ext && node.ext.includes('\0'))) {
-    throw new Error('Node name or extension contains null bytes')
+  if (node.id.includes('\0') || node.name.includes('\0') || (node.ext && node.ext.includes('\0'))) {
+    throw new Error('Node id, name, or extension contains null bytes')
   }
   if (ancestorNames?.some((n) => n.includes('\0'))) {
     throw new Error('Ancestor names contain null bytes')
