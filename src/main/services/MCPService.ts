@@ -8,6 +8,7 @@ import { application } from '@main/core/application'
 import { BaseService, DependsOn, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import { createInMemoryMCPServer } from '@main/mcpServers/factory'
 import { makeSureDirExists, removeEnvProxy } from '@main/utils'
+import { getConfigDir } from '@main/utils/file'
 import { findCommandInShellEnv, getBinaryName, getBinaryPath, isBinaryExists } from '@main/utils/process'
 import getLoginShellEnvironment from '@main/utils/shell-env'
 import { TraceMethod, withSpanFunc } from '@mcp-trace/trace-core'
@@ -59,6 +60,7 @@ import { v4 as uuidv4 } from 'uuid'
 import DxtService from './DxtService'
 import { CallBackServer } from './mcp/oauth/callback'
 import { McpOAuthClientProvider } from './mcp/oauth/provider'
+import { JsonFileStorage } from './mcp/oauth/storage'
 import { ServerLogBuffer } from './mcp/ServerLogBuffer'
 
 // Generic type for caching wrapped functions
@@ -798,6 +800,18 @@ export class MCPService extends BaseService {
     const existingClient = this.clients.get(serverKey)
     if (existingClient) {
       await this.closeClient(serverKey)
+    }
+
+    // Clear OAuth token for this server
+    if (server.baseUrl) {
+      const serverUrlHash = crypto.createHash('md5').update(server.baseUrl).digest('hex')
+      const oauthStorage = new JsonFileStorage(serverUrlHash, path.join(getConfigDir(), 'mcp', 'oauth'))
+      try {
+        await oauthStorage.clear()
+        getServerLogger(server).debug(`Cleared OAuth token for server`)
+      } catch (error) {
+        getServerLogger(server).error(`Failed to clear OAuth token`, error as Error)
+      }
     }
 
     // If this is a DXT server, cleanup its directory
