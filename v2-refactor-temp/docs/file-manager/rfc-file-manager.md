@@ -321,6 +321,9 @@ class OpenAIFilesProvider implements RemoteProvider {
 | `parentId` 级联删除 | **CASCADE** | Trash 清空时物理级联删除子节点 |
 | `sourceType`/`role` 枚举约束 | **应用层 Zod 验证** | 避免新增来源需要 migration |
 | `file_ref` 防重复 | **UNIQUE 约束** | 同一业务对象以同一角色引用同一文件至多一条记录，防止应用层 bug 导致重复引用。业务语义：一条消息不会以 `attachment` 角色引用同一个文件两次——如需附加同一文件多次，应创建文件副本（独立 nodeId） |
+| DataApi 职责 | **只读端点** | DataApi 是纯数据接口，只管 DB 不管 FS。文件树写操作（create/rename/move/trash/delete/upload）走 FileManager IPC，FileManager 内部调用 data/service 同步 DB |
+| FileRef POST API | **不暴露给 renderer** | FileRef 的创建始终是业务操作的副作用（发消息→附件 ref、添加知识库→来源 ref），不存在 renderer 直接创建 ref 的场景。各业务 service 内部调用 FileRefService |
+| DTO 收窄 | **CreateNodeDto = { type, name, parentId }** | 元数据生成收口到 service 单一入口（问题 13）：mountId 从 parent 推导，ext 从 name 拆分，size 从文件读取。DTO 是 service 内部类型，不暴露给 renderer |
 
 ### 6.2 nodeTable
 
@@ -787,8 +790,15 @@ async function moveNode(nodeId: string, targetParentId: string): Promise<FileTre
 
 ### 7.7 元数据统一入口（问题 13）
 
-- `FileMetadata` 等元数据生成收口到统一工厂入口。
-- 保证 `ext`/`type` 生成策略一致，避免多入口规则漂移。
+元数据生成收口到 service 层单一入口，renderer 不参与元数据推导：
+
+- **`CreateNodeDto`** 只包含 `{ type, name, parentId }`，是 service 内部类型（不暴露给 renderer）
+- **`mountId`**：由 service 从 `parentId` 的祖先链推导
+- **`ext`**：由 service 从 `name` 拆分（如 `"report.pdf"` → `name="report"`, `ext="pdf"`）
+- **`size`**：由 service 从实际文件读取（`fs.stat`）
+- **`UpdateNodeDto`** 只包含 `{ name }`，service 同样负责 name/ext 拆分
+
+Renderer 只提供用户可见的信息（完整文件名、目标目录），保证 ext/type 生成策略一致。
 
 ---
 
@@ -967,23 +977,23 @@ orphanScanner.register({
 
 ## 九、API 层设计
 
-遵循项目现有的 DataApi 架构模式：Schema（shared）→ Service（main）→ Handler（main）→ Hooks（renderer）。
+文件数据的读取遵循项目现有的 DataApi 架构模式：Schema（shared）→ Service（main）→ Handler（main）→ Hooks（renderer）。
 
-### 9.1 API Schema 定义
+文件树的写操作（create/rename/move/trash/delete/upload）走 FileManager IPC，不走 DataApi。FileManager 内部操作文件系统，并通过 data/service 同步 DB。
+
+### 9.1 DataApi Schema 定义（只读）
 
 位于 `packages/shared/data/api/schemas/files.ts`，与 `TopicSchemas`、`MessageSchemas` 同级。
 
-所有节点 ID 字段使用 `NodeId` 类型（推断为 `string`，运行时需 `NodeIdSchema.parse()` 验证）。列表接口返回 `OffsetPaginationResponse<T>`，批量操作返回 `BatchOperationResult`（含 `succeeded` / `failed` 数组以支持部分失败）。
+DataApi 是纯数据接口，只管 DB 读取，不涉及 FS 副作用。所有节点 ID 字段使用 `NodeId` 类型。列表接口返回 `OffsetPaginationResponse<T>`。
+
+> **设计决策**：FileRef 不提供 POST API。FileRef 的创建始终是某个业务操作的副作用（发消息→附件 ref、添加知识库→来源 ref），不存在 renderer 直接创建 ref 的场景。各业务 service 在自己的操作中内部调用 FileRefService 创建 ref。
+
+> **设计决策**：CreateNodeDto / UpdateNodeDto / CreateFileRefDto 不暴露给 renderer。这些是 service 层内部类型（FileManager 调 data/service 时使用）。元数据生成（mountId 推导、name/ext 拆分、size 读取）统一收口到 service 单一入口，解决问题 13。
 
 ```typescript
-/** 批量操作结果，允许调用方检测部分失败 */
-interface BatchOperationResult {
-  succeeded: NodeId[]
-  failed: Array<{ id: NodeId; error: string }>
-}
-
 export interface FileSchemas {
-  // ─── 节点 CRUD ───
+  // ─── 节点查询 ───
 
   '/files/nodes': {
     /** 查询节点列表（支持按 mountId/parentId/inTrash 过滤，分页返回） */
@@ -998,22 +1008,13 @@ export interface FileSchemas {
       }
       response: OffsetPaginationResponse<FileTreeNode>
     }
-    /** 创建节点（上传文件 / 创建目录） */
-    POST: {
-      body: CreateNodeDto
-      response: FileTreeNode
-    }
   }
 
   '/files/nodes/:id': {
     GET: { params: { id: NodeId }; response: FileTreeNode }
-    /** 更新节点元信息（重命名等） */
-    PATCH: { params: { id: NodeId }; body: UpdateNodeDto; response: FileTreeNode }
-    /** 永久删除节点 */
-    DELETE: { params: { id: NodeId }; response: void }
   }
 
-  // ─── 树操作 ───
+  // ─── 树查询 ───
 
   '/files/nodes/:id/children': {
     /** 获取子节点（文件树懒加载，支持排序和分页） */
@@ -1021,7 +1022,6 @@ export interface FileSchemas {
       params: { id: NodeId }
       query: {
         recursive?: boolean
-        /** recursive=true 时的最大树深度，服务端限制上限（默认 20） */
         maxDepth?: number
         sortBy?: 'name' | 'updatedAt' | 'size' | 'type'
         sortOrder?: 'asc' | 'desc'
@@ -1032,53 +1032,18 @@ export interface FileSchemas {
     }
   }
 
-  '/files/nodes/:id/move': {
-    /** 移动节点到新父节点 */
-    PUT: { params: { id: NodeId }; body: { targetParentId: NodeId }; response: FileTreeNode }
-  }
-
-  '/files/nodes/:id/trash': {
-    /** 移入 Trash（软删除） */
-    PUT: { params: { id: NodeId }; response: void }
-  }
-
-  '/files/nodes/:id/restore': {
-    /** 从 Trash 恢复 */
-    PUT: { params: { id: NodeId }; response: FileTreeNode }
-  }
-
-  // ─── 文件引用 ───
+  // ─── 引用查询 ───
 
   '/files/nodes/:id/refs': {
     /** 查询文件的所有引用方 */
     GET: { params: { id: NodeId }; response: FileRef[] }
-    /** 创建引用 */
-    POST: { params: { id: NodeId }; body: CreateFileRefDto; response: FileRef }
   }
 
   '/files/refs/by-source': {
     /** 查询某个业务对象引用的所有文件 */
     GET: { query: { sourceType: string; sourceId: string }; response: FileRef[] }
-    /** 清理某个业务对象的所有引用 */
+    /** 清理某个业务对象的所有引用（纯 DB 操作，无 FS 副作用） */
     DELETE: { query: { sourceType: string; sourceId: string }; response: void }
-  }
-
-  // ─── 批量操作 ───
-  // 路由使用 /files/batch/nodes/* 前缀，避免与参数化的 /files/nodes/:id/* 路由产生类型歧义
-
-  '/files/batch/nodes/trash': {
-    /** 批量移入 Trash */
-    PUT: { body: { ids: NodeId[] }; response: BatchOperationResult }
-  }
-
-  '/files/batch/nodes/move': {
-    /** 批量移动到目标目录 */
-    PUT: { body: { ids: NodeId[]; targetParentId: NodeId }; response: BatchOperationResult }
-  }
-
-  '/files/batch/nodes/delete': {
-    /** 批量永久删除（使用 POST 避免 DELETE-with-body 兼容性问题） */
-    POST: { body: { ids: NodeId[] }; response: BatchOperationResult }
   }
 
   // ─── 挂载点 ───
@@ -1086,12 +1051,14 @@ export interface FileSchemas {
   '/files/mounts': {
     /** 获取挂载点列表 */
     GET: {
-      query: { includeSystem?: boolean }  // 默认 false，不返回 Trash 等系统挂载点
+      query: { includeSystem?: boolean }
       response: FileTreeNode[]
     }
   }
 }
 ```
+
+> **写操作（FileManager IPC）**：创建节点、重命名、移动、Trash/Restore、永久删除、批量操作、文件上传等均通过 FileManager 的 IPC 通道处理。FileManager 内部完成 FS 操作后调用 data/service 同步 DB。具体 IPC 协议定义参见 FileManager 实现（Phase 2）。
 
 ### 9.2 Service 层
 
@@ -1133,74 +1100,41 @@ class FileRefService {
 }
 ```
 
-### 9.3 Handler 注册
+### 9.3 Handler 注册（只读）
 
-位于 `src/main/data/api/handlers/files.ts`，合并到 `apiHandlers`。
+位于 `src/main/data/api/handlers/files.ts`，合并到 `apiHandlers`。只包含读取端点。
 
-> **重要**：所有 API handler 必须在入口处使用 Zod schema 验证输入。`NodeIdSchema.parse()` 验证路径参数中的节点 ID，`CreateNodeDtoSchema.parse()` / `UpdateNodeDtoSchema.parse()` 验证请求体。`NodeId` 类型在 TypeScript 层面推断为 `string`，不携带运行时约束，因此 handler 层的 schema 验证是唯一的运行时防线。
+> **重要**：所有 API handler 必须在入口处使用 Zod schema 验证输入。`NodeIdSchema.parse()` 验证路径参数中的节点 ID。`NodeId` 类型在 TypeScript 层面推断为 `string`，不携带运行时约束，因此 handler 层的 schema 验证是唯一的运行时防线。
 
 ```typescript
 export const fileHandlers = {
   '/files/nodes': {
     GET: async ({ query }) => nodeService.list(query),
-    POST: async ({ body }) => nodeService.create(body),
   },
   '/files/nodes/:id': {
     GET: async ({ params }) => nodeService.getById(params.id),
-    PATCH: async ({ params, body }) => nodeService.update(params.id, body),
-    DELETE: async ({ params }) => { await nodeService.permanentDelete(params.id) },
   },
   '/files/nodes/:id/children': {
-    GET: async ({ params, query }) => nodeService.getChildren(params.id, {
-      recursive: query?.recursive,
-      sortBy: query?.sortBy,
-      sortOrder: query?.sortOrder,
-      limit: query?.limit,
-      offset: query?.offset,
-    }),
-  },
-  '/files/nodes/:id/move': {
-    PUT: async ({ params, body }) => nodeService.move(params.id, body.targetParentId),
-  },
-  '/files/nodes/:id/trash': {
-    PUT: async ({ params }) => { await nodeService.trash(params.id) },
-  },
-  '/files/nodes/:id/restore': {
-    PUT: async ({ params }) => nodeService.restore(params.id),
+    GET: async ({ params, query }) => nodeService.getChildren(params.id, query),
   },
   '/files/nodes/:id/refs': {
     GET: async ({ params }) => fileRefService.getByNode(params.id),
-    POST: async ({ params, body }) => fileRefService.create(params.id, body),
   },
   '/files/refs/by-source': {
     GET: async ({ query }) => fileRefService.getBySource(query.sourceType, query.sourceId),
     DELETE: async ({ query }) => { await fileRefService.cleanupBySource(query.sourceType, query.sourceId) },
   },
-  '/files/batch/nodes/trash': {
-    PUT: async ({ body }) => nodeService.trashBatch(body.ids),
-  },
-  '/files/batch/nodes/move': {
-    PUT: async ({ body }) => nodeService.moveBatch(body.ids, body.targetParentId),
-  },
-  '/files/batch/nodes/delete': {
-    POST: async ({ body }) => nodeService.permanentDeleteBatch(body.ids),
-  },
   '/files/mounts': {
     GET: async ({ query }) => nodeService.getMounts(query?.includeSystem),
   },
-}
-
-// handlers/index.ts 中合并
-export const apiHandlers: ApiImplementation = {
-  ...topicHandlers,
-  ...messageHandlers,
-  ...fileHandlers,   // ← 新增
 }
 ```
 
 ### 9.4 Renderer 使用示例
 
 ```typescript
+// ─── DataApi（读取）───
+
 // 获取某目录下的子节点（文件树懒加载）
 const { data: children } = useQuery('/files/nodes/:id/children', {
   params: { id: folderId },
@@ -1209,23 +1143,6 @@ const { data: children } = useQuery('/files/nodes/:id/children', {
 // 获取 Trash 内容
 const { data: trashItems } = useQuery('/files/nodes', {
   query: { inTrash: true },
-})
-
-// 创建文件节点
-const { trigger: createNode } = useMutation('POST', '/files/nodes', {
-  refresh: ['/files/nodes'],
-})
-await createNode({ body: { type: 'file', name: 'report', ext: 'pdf', parentId, mountId } })
-
-// 移入 Trash
-const { trigger: trashNode } = useMutation('PUT', '/files/nodes/:id/trash', {
-  refresh: ['/files/nodes'],
-})
-await trashNode({ params: { id: nodeId } })
-
-// 恢复
-const { trigger: restore } = useMutation('PUT', '/files/nodes/:id/restore', {
-  refresh: ['/files/nodes'],
 })
 
 // 查询文件被谁引用
@@ -1239,18 +1156,22 @@ const { data: messageFiles } = useQuery('/files/refs/by-source', {
 })
 ```
 
-### 9.5 文件上传流程（特殊处理）
+### 9.5 文件写操作（FileManager IPC）
 
-文件上传不同于普通 CRUD，需要先传输物理文件再创建节点。保留现有的 IPC 通道用于文件传输：
+所有涉及 FS 的写操作通过 FileManager 的 IPC 通道处理，不走 DataApi。Electron 场景下所有文件源（对话框选择、拖拽、剪贴板粘贴）最终都归结为本地路径（剪贴板图片通过 `createTempFile()` 先落盘）。
+
+**文件上传流程**（以 `local_managed` 为例）：
 
 ```
-1. Renderer: window.api.file.upload(file)     ← 复用现有 IPC（物理文件传输）
-2. Main: FileStorage 写入物理文件              ← 复用现有逻辑
-3. Main: FileTreeService.create(nodeDto)       ← 新增：写入节点表
-4. Main: 返回 FileTreeNode                        ← 替代原有 FileMetadata
+1. Renderer: window.api.file.upload({ filePath, parentId })  ← FileManager IPC
+2. Main: FileManager 复制文件到 managed 存储 ({basePath}/{id}.{ext})
+3. Main: FileManager 调用 data/service 创建节点记录（内部使用 CreateNodeDto）
+4. Main: 返回 FileTreeNode
 ```
 
-上传是原子操作：物理文件写入 + 节点创建在同一个 main 进程事务中完成，解决了 P1/P2 问题。
+上传是原子操作：物理文件写入 + 节点创建在同一个 main 进程事务中完成。
+
+**其他写操作**（rename/move/trash/restore/delete/batch）同理，由 FileManager IPC 协调 FS 操作和 DB 同步。具体 IPC 协议定义在 Phase 2 实现时确定。
 
 ---
 
