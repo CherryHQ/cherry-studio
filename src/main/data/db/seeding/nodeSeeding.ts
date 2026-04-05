@@ -54,10 +54,10 @@ function getSystemNodes(): SystemNode[] {
       }
     },
     {
-      id: 'system_temp',
+      id: 'mount_temp',
       type: 'mount',
       name: 'Temp',
-      mountId: 'system_temp',
+      mountId: 'mount_temp',
       parentId: null,
       providerConfig: {
         providerType: 'system'

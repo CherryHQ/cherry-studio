@@ -91,7 +91,7 @@ batchCreateNodes(params: { parentId: NodeId; items: Array<{ name: string; conten
 > **v1 兼容性审查**：`upload` 实际调用方全部传的是路径（`select` 返回或 `getPathForFile`）。
 > `saveBase64Image` 用于 AI 生图（base64）。`savePastedImage` 用于富文本编辑器粘贴（Uint8Array）。
 > `download` 用于 AI 生图（URL）。`savePastedImage` 用于富文本编辑器粘贴（Uint8Array），
-> v2 用 `createNode({ parentId: 'system_temp', content: uint8Array })` 替代，临时文件纳入节点系统。
+> v2 用 `createNode({ parentId: 'mount_temp', content: uint8Array })` 替代，临时文件纳入节点系统。
 > `batchUploadMarkdown` 唯一调用方为 `NotesService.ts`，
 > 传入本地路径数组 + 目标目录，返回值中 `NotesPage` 只用 `fileCount === 0` 判断是否成功，
 > 可用 `BatchOperationResult.succeeded.length === 0` 替代。`folderCount`（自动创建的目录数）
@@ -268,9 +268,9 @@ copy(params: { id: NodeId; destPath: FilePath }): Promise<void>
 > - `writeWithId`：仅 minapps 配置文件读写（`custom-minapps.json`）。v2 用 `write(NodeId | FilePath, ...)`。
 > - `mkdir`：仅 NotesService 创建笔记子目录。v2 走 `createNode({ type: 'dir' })`。
 > - `copy`：renderer 零调用，安全移除。
-> - `createTempFile`：粘贴场景被 `createNode({ parentId: 'system_temp', content })` 替代。
+> - `createTempFile`：粘贴场景被 `createNode({ parentId: 'mount_temp', content })` 替代。
 >   临时文件纳入节点系统，粘贴时创建临时 FileRef（`sourceType: 'temp_session'`），
->   `system_temp` 兼作临时文件和缓存。ref 由调用方显式管理（发送时删临时 ref + 创建正式 ref + move，
+>   `mount_temp` 兼作临时文件和缓存。ref 由调用方显式管理（发送时删临时 ref + 创建正式 ref + move，
 >   取消时删 ref）。清理器只自动删除无 ref 的节点（启动时 + 定期），绝不删 ref。
 >   用户通过删 ref 主动释放不需要的缓存。
 >   HTML 预览可用 `write` 写 temp 路径。（？）

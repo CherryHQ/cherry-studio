@@ -1,8 +1,8 @@
 /**
  * Temp session file reference variant
  *
- * Tracks temporary files in the system_temp mount that are in use by a session.
- * Files in system_temp without any ref are eligible for automatic cleanup.
+ * Tracks temporary files in the mount_temp mount that are in use by a session.
+ * Files in mount_temp without any ref are eligible for automatic cleanup.
  * Temp refs must be explicitly created and removed by the session owner.
  */
 

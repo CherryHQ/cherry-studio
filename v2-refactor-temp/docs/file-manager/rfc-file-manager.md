@@ -325,9 +325,9 @@ class OpenAIFilesProvider implements RemoteProvider {
 | FileRef POST API | **不暴露给 renderer** | FileRef 的创建始终是业务操作的副作用（发消息→附件 ref、添加知识库→来源 ref），不存在 renderer 直接创建 ref 的场景。各业务 service 内部调用 FileRefService |
 | DTO 收窄 | **CreateNodeDto = { type, name, parentId }** | 元数据生成收口到 service 单一入口（问题 13）：mountId 从 parent 推导，ext 从 name 拆分，size 从文件读取。DTO 是 service 内部类型，不暴露给 renderer |
 | `ext`/`size` 存放 | **保留在 nodeTable** | 文件树列表高频按 ext 过滤、按 size 排序，需要索引支持。`FileTreeNode`（树结构+最小显示信息）和 `FileMetadata`（物理文件详细信息）概念上分离，字段有冗余重叠，以查询性能换取职责纯粹 |
-| mount 目录结构 | **统一在 `{userData}/Data/files/` 下** | `managed/`（mount_files）、`notes/`（mount_notes 默认路径，用户可改）、`temp/`（system_temp）、`{remote_name}/`（未来 remote 缓存）。mount 间物理隔离，不互相嵌套 |
-| 临时文件存储 | **`system_temp` mount（`local_managed`）** | basePath = `{userData}/Data/files/temp/`。粘贴、临时预览等场景的文件放入此 mount。业务 service 可将有用文件 `move` 到 `mount_files` |
-| 临时文件清理 | **无 ref = 自动清理，有 ref = 用户主动删除** | `system_temp` 兼作临时文件和缓存。ref 由调用方显式管理：粘贴时创建 ref，发送后删临时 ref + 创建正式 ref + move，取消时删 ref。清理器只自动删除无任何 ref 的节点（启动时 + 定期），绝不自动删除 ref。用户通过删 ref 来主动释放不需要的缓存 |
+| mount 目录结构 | **统一在 `{userData}/Data/files/` 下** | `managed/`（mount_files）、`notes/`（mount_notes 默认路径，用户可改）、`temp/`（mount_temp）、`{remote_name}/`（未来 remote 缓存）。mount 间物理隔离，不互相嵌套 |
+| 临时文件存储 | **`mount_temp` mount（`local_managed`）** | basePath = `{userData}/Data/files/temp/`。粘贴、临时预览等场景的文件放入此 mount。业务 service 可将有用文件 `move` 到 `mount_files` |
+| 临时文件清理 | **无 ref = 自动清理，有 ref = 用户主动删除** | `mount_temp` 兼作临时文件和缓存。ref 由调用方显式管理：粘贴时创建 ref，发送后删临时 ref + 创建正式 ref + move，取消时删 ref。清理器只自动删除无任何 ref 的节点（启动时 + 定期），绝不自动删除 ref。用户通过删 ref 来主动释放不需要的缓存 |
 
 ### 6.2 nodeTable
 

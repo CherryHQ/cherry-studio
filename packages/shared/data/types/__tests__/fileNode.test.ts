@@ -378,8 +378,8 @@ describe('NodeIdSchema', () => {
     expect(NodeIdSchema.safeParse('').success).toBe(false)
   })
 
-  it('accepts system_temp', () => {
-    expect(NodeIdSchema.safeParse('system_temp').success).toBe(true)
+  it('accepts mount_temp', () => {
+    expect(NodeIdSchema.safeParse('mount_temp').success).toBe(true)
   })
 })
 
