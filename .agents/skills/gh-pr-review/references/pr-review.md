@@ -119,10 +119,9 @@ If no issues → ask whether to submit an approval review AND merge the PR:
 
 1. Submit Approval:
    ```bash
-   gh pr-review review start --repo {OWNER_REPO} --pr {number}
+   gh cherry review start {number} -R {OWNER_REPO}
    # Save the returned review-id
-   gh pr-review review submit --repo {OWNER_REPO} --pr {number} \
-     --review-id "<review-id>" --event "APPROVE" --body "LGTM"
+   gh cherry review submit <review-id> -e APPROVE -b "LGTM"
    ```
 
 2. Merge (squash):
@@ -146,53 +145,51 @@ Unchecked issues are skipped.
 
 ### Prerequisites
 
-The `gh-pr-review` extension must be installed. If not present, install it:
+The `gh cherry` extension must be installed. If not present, install it:
 ```bash
-gh extension install EurFelux/gh-pr-review
+gh extension install EurFelux/gh-cherry
 ```
 
-### Submit review via gh-pr-review
+### Submit review via gh cherry
 
-Use the `gh-pr-review` extension for structured pending reviews with inline
+Use the `gh cherry` extension for structured pending reviews with inline
 comments. Do not use `gh pr comment` or raw `gh api` for review submission.
 
 1. Start a pending review:
    ```bash
-   gh pr-review review start --repo {OWNER_REPO} --pr {number}
+   gh cherry review start {number} -R {OWNER_REPO}
    ```
    Save the returned `id` as `REVIEW_ID`.
 
 2. Add inline comments for each selected issue:
    ```bash
-   gh pr-review review add-comment --repo {OWNER_REPO} --pr {number} \
-     --review-id "{REVIEW_ID}" \
+   gh cherry review thread add {REVIEW_ID} \
      --path "{file_path}" \
      --line {line_number} \
-     --body "**[{priority}]** {description and suggested fix}"
+     -b "**[{priority}]** {description and suggested fix}" \
+     -R {OWNER_REPO}
    ```
    For multi-line ranges:
    ```bash
-   gh pr-review review add-comment --repo {OWNER_REPO} --pr {number} \
-     --review-id "{REVIEW_ID}" \
+   gh cherry review thread add {REVIEW_ID} \
      --path "{file_path}" \
      --line {end_line} --start-line {start_line} \
-     --body "**[{priority}]** {description and suggested fix}"
+     -b "**[{priority}]** {description and suggested fix}" \
+     -R {OWNER_REPO}
    ```
 
 3. Preview before submitting:
    ```bash
-   gh pr-review review preview --repo {OWNER_REPO} --pr {number} \
-     --review-id "{REVIEW_ID}"
+   gh cherry review preview {REVIEW_ID}
    ```
    Show preview to user and ask for confirmation. Skip if user explicitly
    waives preview.
 
 4. Submit the review:
    ```bash
-   gh pr-review review submit --repo {OWNER_REPO} --pr {number} \
-     --review-id "{REVIEW_ID}" \
-     --event "<COMMENT|REQUEST_CHANGES>" \
-     --body "{review summary}"
+   gh cherry review submit {REVIEW_ID} \
+     -e <COMMENT|REQUEST_CHANGES> \
+     -b "{review summary}"
    ```
    Choose event based on severity:
    - `COMMENT` — observations and suggestions, nothing blocking
