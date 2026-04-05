@@ -35,14 +35,22 @@ export const TranslateHistoryItem = ({ data, onClick }: TranslateHistoryItemProp
   const handleStar = useCallback(
     async (e: React.MouseEvent) => {
       e.stopPropagation()
-      return updateHistory({ star: !preparedData.star })
+      try {
+        await updateHistory({ star: !preparedData.star })
+      } catch {
+        window.toast.error(t('translate.history.error.save'))
+      }
     },
-    [preparedData, updateHistory]
+    [preparedData, updateHistory, t]
   )
 
   const handleDelete = useCallback(async () => {
-    return await deleteHistory()
-  }, [deleteHistory])
+    try {
+      await deleteHistory()
+    } catch {
+      window.toast.error(t('translate.history.error.delete'))
+    }
+  }, [deleteHistory, t])
 
   return (
     <Container onClick={onClick}>
