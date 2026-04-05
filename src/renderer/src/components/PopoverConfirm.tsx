@@ -41,7 +41,7 @@ const PopoverConfirm = ({
   return (
     <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger asChild>{children}</PopoverTrigger>
-      <PopoverContent className="p-4 pl-6">
+      <PopoverContent className="p-4 pl-6" onClick={(e) => e.stopPropagation()}>
         <div className="mb-2">
           <div className="flex items-center gap-2">
             <TriangleAlertIcon className={cn('size-6 text-warning-base', classNames.icon)} />
