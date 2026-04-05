@@ -22,7 +22,9 @@ Analyze the user's request to determine the issue type:
 
 ### Step 2: Read the Selected Template
 
-1. Read the corresponding template file from `.github/ISSUE_TEMPLATE/` directory.
+1. Read the corresponding template file:
+   - For Bug Report, Feature Request, Questions & Discussion, and Others: read from `.github/ISSUE_TEMPLATE/` directory.
+   - For Task: read from `.github/TASK_TEMPLATE.yml` (not in `ISSUE_TEMPLATE/` — this template is only used by this skill, not shown to external users).
 2. Identify required fields (`validations.required: true`), title prefix (`title`), and labels (`labels`, if present).
 3. Check if the template has a `type` field (e.g., `type: Bug`, `type: Feature`, `type: Task`). This will be used in Step 5 to set the issue type.
 
@@ -111,7 +113,7 @@ rm -f "$issue_body_file"
 
 ## Notes
 
-- Must read template files under `.github/ISSUE_TEMPLATE/` to ensure following the correct format.
+- Must read template files under `.github/ISSUE_TEMPLATE/` (or `.github/TASK_TEMPLATE.yml` for Task) to ensure following the correct format.
 - Treat template files as the only source of truth. Do not hardcode title prefixes or labels in this skill.
 - Title must be clear and concise, avoid vague terms like "a suggestion" or "stuck".
 - Provide as much detail as possible to help developers understand and resolve the issue.
