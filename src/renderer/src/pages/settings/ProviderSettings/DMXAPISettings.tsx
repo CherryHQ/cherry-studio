@@ -1,5 +1,6 @@
 import { Dmxapi } from '@cherrystudio/ui/icons'
-import { useProvider } from '@renderer/hooks/useProvider'
+import { useProvider } from '@renderer/data/hooks/useProviders'
+import { replaceBaseUrlDomain } from '@renderer/utils/provider.v2'
 import type { RadioChangeEvent } from 'antd'
 import { Radio, Space } from 'antd'
 import type { FC } from 'react'
@@ -13,58 +14,55 @@ interface DMXAPISettingsProps {
   providerId: string
 }
 
-// DMXAPI平台选项
-enum PlatformType {
-  OFFICIAL = 'https://www.DMXAPI.cn',
-  INTERNATIONAL = 'https://www.DMXAPI.com',
-  OVERSEA = 'https://ssvip.DMXAPI.com'
+// DMXAPI platform domain options
+enum PlatformDomain {
+  OFFICIAL = 'www.DMXAPI.cn',
+  INTERNATIONAL = 'www.DMXAPI.com',
+  OVERSEA = 'ssvip.DMXAPI.com'
 }
 
 const DMXAPISettings: FC<DMXAPISettingsProps> = ({ providerId }) => {
   const { provider, updateProvider } = useProvider(providerId)
-
   const { t } = useTranslation()
 
   const PlatformOptions = [
     {
       label: t('settings.provider.dmxapi.platform_official'),
-      value: PlatformType.OFFICIAL,
+      value: PlatformDomain.OFFICIAL,
       apiKeyWebsite: 'https://www.dmxapi.cn/register?aff=bwwY'
     },
     {
       label: t('settings.provider.dmxapi.platform_international'),
-      value: PlatformType.INTERNATIONAL,
+      value: PlatformDomain.INTERNATIONAL,
       apiKeyWebsite: 'https://www.dmxapi.com/register'
     },
     {
       label: t('settings.provider.dmxapi.platform_enterprise'),
-      value: PlatformType.OVERSEA,
+      value: PlatformDomain.OVERSEA,
       apiKeyWebsite: 'https://ssvip.dmxapi.com/register'
     }
   ]
 
-  // 获取当前选中的平台，如果没有设置则默认为官方平台
-  const getCurrentPlatform = (): PlatformType => {
-    if (!provider.apiHost) return PlatformType.OFFICIAL
-
-    if (provider.apiHost.includes('DMXAPI.com')) {
-      return provider.apiHost.includes('ssvip') ? PlatformType.OVERSEA : PlatformType.INTERNATIONAL
+  const getCurrentPlatform = (): PlatformDomain => {
+    if (!provider?.baseUrls) return PlatformDomain.OFFICIAL
+    const firstUrl = Object.values(provider.baseUrls)[0]
+    if (!firstUrl) return PlatformDomain.OFFICIAL
+    if (firstUrl.includes('DMXAPI.com') || firstUrl.includes('dmxapi.com')) {
+      return firstUrl.includes('ssvip') ? PlatformDomain.OVERSEA : PlatformDomain.INTERNATIONAL
     }
-
-    return PlatformType.OFFICIAL
+    return PlatformDomain.OFFICIAL
   }
 
-  // 状态管理
-  const [selectedPlatform, setSelectedPlatform] = useState<PlatformType>(getCurrentPlatform())
+  const [selectedPlatform, setSelectedPlatform] = useState<PlatformDomain>(getCurrentPlatform())
 
-  // 处理平台选择变更
   const handlePlatformChange = useCallback(
-    (e: RadioChangeEvent) => {
-      const platform = e.target.value as PlatformType
-      setSelectedPlatform(platform)
-      updateProvider({ ...provider, apiHost: platform })
+    async (e: RadioChangeEvent) => {
+      const domain = e.target.value as PlatformDomain
+      setSelectedPlatform(domain)
+      const newBaseUrls = replaceBaseUrlDomain(provider?.baseUrls, domain)
+      await updateProvider({ baseUrls: newBaseUrls })
     },
-    [provider, updateProvider]
+    [provider?.baseUrls, updateProvider]
   )
 
   return (
@@ -99,7 +97,6 @@ const DMXAPISettings: FC<DMXAPISettingsProps> = ({ providerId }) => {
   )
 }
 
-// 样式组件
 const Container = styled.div`
   margin-top: 16px;
   margin-bottom: 30px;
