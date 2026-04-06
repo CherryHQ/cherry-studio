@@ -10,7 +10,7 @@ export const getModelUniqId = (m?: Model) => {
 
 export const hasModel = (m?: Model) => {
   const allModels = getStoreProviders()
-    .filter((p) => p.enabled)
+    .filter((p) => p.enabled || p.id === 'cherryai')
     .map((p) => p.models)
     .flat()
 
@@ -31,7 +31,7 @@ export function getModelName(model?: Model) {
 
 export function getModelById(modelId: string) {
   const allModels = getStoreProviders()
-    .filter((p) => p.enabled)
+    .filter((p) => p.enabled || p.id === 'cherryai')
     .map((p) => p.models)
     .flat()
   return allModels.find((m) => m.id === modelId)
