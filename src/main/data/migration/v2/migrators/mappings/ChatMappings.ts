@@ -207,7 +207,7 @@ export interface OldMessageBlock {
   status: string // Dropped in new schema
   model?: OldModel // Dropped in new schema
   metadata?: Record<string, unknown>
-  error?: unknown
+  error?: { name?: string; message?: string; stack?: string; code?: string }
 }
 
 /**
@@ -823,7 +823,7 @@ function buildCherryMetadata(oldBlock: OldMessageBlock): ProviderMetadata {
     cherry.metadata = oldBlock.metadata as JSONObject
   }
   if (oldBlock.error) {
-    cherry.error = oldBlock.error as JSONObject
+    cherry.error = oldBlock.error
   }
   return { cherry }
 }
@@ -910,12 +910,11 @@ function transformSingleBlockToPart(oldBlock: OldBlock): {
     }
 
     case 'error': {
-      const errorData = oldBlock.error as Record<string, unknown> | undefined
       const part: DataUIPart<CherryDataPartTypes> = {
         type: 'data-error',
         data: {
-          name: (errorData?.name as string) ?? null,
-          message: (errorData?.message as string) ?? null,
+          name: oldBlock.error?.name ?? null,
+          message: oldBlock.error?.message ?? null,
           createdAt: parseTimestamp(oldBlock.createdAt)
         }
       }
