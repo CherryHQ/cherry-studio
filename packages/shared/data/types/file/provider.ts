@@ -1,16 +1,16 @@
 /**
- * Mount provider configuration types
+ * Mount configuration types
  *
- * Zod schemas for runtime validation of provider config JSON stored in DB.
- * Each mount node has a providerConfig field describing its storage mode.
+ * Zod schemas for runtime validation of mount config JSON stored in DB.
+ * Each mount entry has a mountConfig field describing its storage mode.
  */
 
 import * as z from 'zod'
 
-// ─── Provider Type Enum ───
+// ─── Mount Type Enum ───
 
-export const MountProviderTypeSchema = z.enum(['local_managed', 'local_external', 'remote', 'system'])
-export type MountProviderType = z.infer<typeof MountProviderTypeSchema>
+export const MountTypeSchema = z.enum(['local_managed', 'local_external', 'remote', 'system'])
+export type MountType = z.infer<typeof MountTypeSchema>
 
 // ─── Remote API Type Enum ───
 
@@ -20,7 +20,7 @@ export const RemoteApiTypeSchema = z.enum([
 ])
 export type RemoteApiType = z.infer<typeof RemoteApiTypeSchema>
 
-// ─── Provider Config Schemas ───
+// ─── Mount Config Schemas ───
 
 /** Validate that a string is an absolute filesystem path (Unix or Windows) */
 const AbsolutePathSchema = z
@@ -30,13 +30,13 @@ const AbsolutePathSchema = z
 
 /** Managed files: app-internal storage, UUID-based naming */
 export const LocalManagedConfigSchema = z.object({
-  providerType: z.literal('local_managed'),
+  mountType: z.literal('local_managed'),
   basePath: AbsolutePathSchema
 })
 
 /** External files: filesystem as source of truth, human-readable naming */
 export const LocalExternalConfigSchema = z.object({
-  providerType: z.literal('local_external'),
+  mountType: z.literal('local_external'),
   basePath: AbsolutePathSchema,
   watch: z.boolean().default(true),
   watchExtensions: z.array(z.string()).default([])
@@ -44,7 +44,7 @@ export const LocalExternalConfigSchema = z.object({
 
 /** Remote files: accessed via API */
 export const RemoteConfigSchema = z.object({
-  providerType: z.literal('remote'),
+  mountType: z.literal('remote'),
   apiType: RemoteApiTypeSchema,
   providerId: z.string().min(1),
   cachePath: z.string().optional(),
@@ -54,18 +54,18 @@ export const RemoteConfigSchema = z.object({
 
 /** System mount: no physical storage, used for structural nodes like Trash */
 export const SystemConfigSchema = z.object({
-  providerType: z.literal('system')
+  mountType: z.literal('system')
 })
 
 // ─── Discriminated Union ───
 
-export const MountProviderConfigSchema = z.discriminatedUnion('providerType', [
+export const MountConfigSchema = z.discriminatedUnion('mountType', [
   LocalManagedConfigSchema,
   LocalExternalConfigSchema,
   RemoteConfigSchema,
   SystemConfigSchema
 ])
-export type MountProviderConfig = z.infer<typeof MountProviderConfigSchema>
+export type MountConfig = z.infer<typeof MountConfigSchema>
 
 // ─── Individual config types ───
 

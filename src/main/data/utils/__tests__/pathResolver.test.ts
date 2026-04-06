@@ -40,7 +40,7 @@ describe('resolvePhysicalPath', () => {
     fs.writeFileSync(path.join(tmpBase, '...'), '')
 
     externalMount = {
-      providerConfig: { providerType: 'local_external', basePath: tmpBase, watch: true, watchExtensions: [] }
+      mountConfig: { mountType: 'local_external', basePath: tmpBase, watch: true, watchExtensions: [] }
     }
   })
 
@@ -50,7 +50,7 @@ describe('resolvePhysicalPath', () => {
 
   describe('local_managed', () => {
     const mount: MountInfo = {
-      providerConfig: { providerType: 'local_managed', basePath: '/data/files' }
+      mountConfig: { mountType: 'local_managed', basePath: '/data/files' }
     }
 
     it('returns {basePath}/{id}.{ext}', () => {
@@ -85,7 +85,7 @@ describe('resolvePhysicalPath', () => {
 
   describe('system', () => {
     const mount: MountInfo = {
-      providerConfig: { providerType: 'system' }
+      mountConfig: { mountType: 'system' }
     }
 
     it('throws error for system mount', () => {
@@ -96,8 +96,8 @@ describe('resolvePhysicalPath', () => {
 
   describe('remote', () => {
     const mount: MountInfo = {
-      providerConfig: {
-        providerType: 'remote',
+      mountConfig: {
+        mountType: 'remote',
         apiType: 'openai_files',
         providerId: 'p1',
         autoSync: false,
@@ -112,16 +112,16 @@ describe('resolvePhysicalPath', () => {
   })
 
   describe('edge cases', () => {
-    it('throws when mount has no provider config', () => {
-      const mount: MountInfo = { providerConfig: null }
+    it('throws when mount has no mount config', () => {
+      const mount: MountInfo = { mountConfig: null }
       const entry: PathResolvableEntry = { id: 'x', name: 'test', ext: 'txt', mountId: 'unknown' }
-      expect(() => resolvePhysicalPath(entry, mount)).toThrow('has no provider config')
+      expect(() => resolvePhysicalPath(entry, mount)).toThrow('has no mount config')
     })
   })
 
   describe('security', () => {
     const managedMount: MountInfo = {
-      providerConfig: { providerType: 'local_managed', basePath: '/data/files' }
+      mountConfig: { mountType: 'local_managed', basePath: '/data/files' }
     }
 
     // ─── Null byte rejection (checked before realpathSync) ───

@@ -11,7 +11,7 @@
  * |------------------|-------------------------|--------------|------------------------|
  * | parentId         | null                    | non-null     | non-null               |
  * | mountId          | equals own `id`         | inherited    | inherited              |
- * | providerConfig   | non-null                | null         | null                   |
+ * | mountConfig   | non-null                | null         | null                   |
  * | ext              | null                    | null         | string or null (null for extensionless files) |
  * | size             | null                    | null         | number or null         |
  * | remoteId         | null                    | nullable (remote dirs have IDs) | nullable (validated at service layer) |
@@ -51,7 +51,7 @@
 import * as z from 'zod'
 
 import { SafeNameSchema, TimestampSchema } from './essential'
-import { MountProviderConfigSchema } from './provider'
+import { MountConfigSchema } from './provider'
 
 // ─── System Entry IDs ───
 
@@ -111,7 +111,7 @@ export const MountEntrySchema = z
     previousParentId: z.null(),
     ext: z.null(),
     size: z.null(),
-    providerConfig: MountProviderConfigSchema,
+    mountConfig: MountConfigSchema,
     remoteId: z.null(),
     cachedAt: z.null()
   })
@@ -128,7 +128,7 @@ export const DirEntrySchema = z.object({
   parentId: FileEntryIdSchema,
   ext: z.null(),
   size: z.null(),
-  providerConfig: z.null(),
+  mountConfig: z.null(),
   /** Remote directory ID (e.g. S3 folder key, Google Drive folder ID). Null for local mounts */
   remoteId: z.string().nullable(),
   /** When the local cache was last synced (ms epoch). Null for local mounts or if not cached */
@@ -144,7 +144,7 @@ export const RegularFileEntrySchema = z.object({
   ext: z.string().min(1).nullable(),
   /** File size in bytes */
   size: z.int().nonnegative().nullable(),
-  providerConfig: z.null(),
+  mountConfig: z.null(),
   /** Remote file ID (e.g. OpenAI file-abc123). Convention: validated at service layer (requires mount context) */
   remoteId: z.string().nullable(),
   /** When the local cache was last downloaded (ms epoch). Convention: validated at service layer */

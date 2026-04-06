@@ -1,6 +1,6 @@
 import { fileEntryTable } from '@data/db/schemas/file'
 import { getFilesDir, getNotesDir, getTempFilesDir } from '@main/utils/file'
-import type { MountProviderConfig } from '@shared/data/types/file'
+import type { MountConfig } from '@shared/data/types/file'
 import { sql } from 'drizzle-orm'
 
 import type { DbType, ISeed } from '../types'
@@ -11,7 +11,7 @@ interface SystemEntry {
   name: string
   mountId: string
   parentId: null
-  providerConfig: MountProviderConfig
+  mountConfig: MountConfig
 }
 
 function getSystemEntries(): SystemEntry[] {
@@ -41,8 +41,8 @@ function getSystemEntries(): SystemEntry[] {
       name: 'Files',
       mountId: 'mount_files',
       parentId: null,
-      providerConfig: {
-        providerType: 'local_managed',
+      mountConfig: {
+        mountType: 'local_managed',
         basePath: filesDir
       }
     },
@@ -52,8 +52,8 @@ function getSystemEntries(): SystemEntry[] {
       name: 'Notes',
       mountId: 'mount_notes',
       parentId: null,
-      providerConfig: {
-        providerType: 'local_external',
+      mountConfig: {
+        mountType: 'local_external',
         basePath: notesDir,
         watch: true,
         watchExtensions: []
@@ -65,8 +65,8 @@ function getSystemEntries(): SystemEntry[] {
       name: 'Temp',
       mountId: 'mount_temp',
       parentId: null,
-      providerConfig: {
-        providerType: 'local_managed',
+      mountConfig: {
+        mountType: 'local_managed',
         basePath: tempDir
       }
     },
@@ -76,8 +76,8 @@ function getSystemEntries(): SystemEntry[] {
       name: 'Trash',
       mountId: 'system_trash',
       parentId: null,
-      providerConfig: {
-        providerType: 'system'
+      mountConfig: {
+        mountType: 'system'
       }
     }
   ]
@@ -86,7 +86,7 @@ function getSystemEntries(): SystemEntry[] {
 class FileEntrySeed implements ISeed {
   async migrate(db: DbType): Promise<void> {
     const systemEntries = getSystemEntries()
-    // Upsert: insert new system entries or update providerConfig if paths changed (e.g. after app upgrade)
+    // Upsert: insert new system entries or update mountConfig if paths changed (e.g. after app upgrade)
     await db
       .insert(fileEntryTable)
       .values(systemEntries)
@@ -94,7 +94,7 @@ class FileEntrySeed implements ISeed {
         target: fileEntryTable.id,
         set: {
           name: sql`excluded.name`,
-          providerConfig: sql`excluded.provider_config`
+          mountConfig: sql`excluded.mount_config`
         }
       })
   }

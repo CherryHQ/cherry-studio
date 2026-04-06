@@ -5,7 +5,7 @@ import {
   FileEntrySchema,
   LocalExternalConfigSchema,
   LocalManagedConfigSchema,
-  MountProviderConfigSchema,
+  MountConfigSchema,
   RemoteConfigSchema,
   SafeNameSchema,
   SystemConfigSchema
@@ -24,7 +24,7 @@ function makeFileEntry(name: string) {
     parentId: '019606a0-0000-7000-8000-000000000002',
     mountId: '019606a0-0000-7000-8000-000000000003',
     size: 100,
-    providerConfig: null,
+    mountConfig: null,
     remoteId: null,
     cachedAt: null,
     previousParentId: null,
@@ -154,7 +154,7 @@ function makeMount(overrides: Record<string, unknown> = {}) {
     parentId: null,
     mountId: 'mount_files',
     size: null,
-    providerConfig: { providerType: 'local_managed', basePath: '/data/files' },
+    mountConfig: { mountType: 'local_managed', basePath: '/data/files' },
     remoteId: null,
     cachedAt: null,
     previousParentId: null,
@@ -173,7 +173,7 @@ function makeDir(overrides: Record<string, unknown> = {}) {
     parentId: VALID_UUID_V7_2,
     mountId: VALID_UUID_V7_3,
     size: null,
-    providerConfig: null,
+    mountConfig: null,
     remoteId: null,
     cachedAt: null,
     previousParentId: null,
@@ -192,7 +192,7 @@ function makeFile(overrides: Record<string, unknown> = {}) {
     parentId: VALID_UUID_V7_2,
     mountId: VALID_UUID_V7_3,
     size: 1024,
-    providerConfig: null,
+    mountConfig: null,
     remoteId: null,
     cachedAt: null,
     previousParentId: null,
@@ -220,10 +220,10 @@ describe('FileEntrySchema type invariants', () => {
       expect(result.error?.issues.some((i) => i.path.includes('mountId'))).toBe(true)
     })
 
-    it('rejects mount with null providerConfig', () => {
-      const result = FileEntrySchema.safeParse(makeMount({ providerConfig: null }))
+    it('rejects mount with null mountConfig', () => {
+      const result = FileEntrySchema.safeParse(makeMount({ mountConfig: null }))
       expect(result.success).toBe(false)
-      expect(result.error?.issues.some((i) => i.path.includes('providerConfig'))).toBe(true)
+      expect(result.error?.issues.some((i) => i.path.includes('mountConfig'))).toBe(true)
     })
 
     it('rejects mount with non-null ext', () => {
@@ -256,12 +256,10 @@ describe('FileEntrySchema type invariants', () => {
       expect(result.error?.issues.some((i) => i.path.includes('parentId'))).toBe(true)
     })
 
-    it('rejects dir with non-null providerConfig', () => {
-      const result = FileEntrySchema.safeParse(
-        makeDir({ providerConfig: { providerType: 'local_managed', basePath: '/x' } })
-      )
+    it('rejects dir with non-null mountConfig', () => {
+      const result = FileEntrySchema.safeParse(makeDir({ mountConfig: { mountType: 'local_managed', basePath: '/x' } }))
       expect(result.success).toBe(false)
-      expect(result.error?.issues.some((i) => i.path.includes('providerConfig'))).toBe(true)
+      expect(result.error?.issues.some((i) => i.path.includes('mountConfig'))).toBe(true)
     })
 
     it('accepts dir with remoteId (remote directories have IDs)', () => {
@@ -286,12 +284,12 @@ describe('FileEntrySchema type invariants', () => {
       expect(result.error?.issues.some((i) => i.path.includes('parentId'))).toBe(true)
     })
 
-    it('rejects file with non-null providerConfig', () => {
+    it('rejects file with non-null mountConfig', () => {
       const result = FileEntrySchema.safeParse(
-        makeFile({ providerConfig: { providerType: 'local_managed', basePath: '/x' } })
+        makeFile({ mountConfig: { mountType: 'local_managed', basePath: '/x' } })
       )
       expect(result.success).toBe(false)
-      expect(result.error?.issues.some((i) => i.path.includes('providerConfig'))).toBe(true)
+      expect(result.error?.issues.some((i) => i.path.includes('mountConfig'))).toBe(true)
     })
   })
 })
@@ -345,29 +343,29 @@ describe('FileEntryIdSchema', () => {
   })
 })
 
-describe('MountProviderConfigSchema', () => {
+describe('MountConfigSchema', () => {
   describe('local_managed', () => {
     it('accepts valid config', () => {
-      expect(
-        LocalManagedConfigSchema.safeParse({ providerType: 'local_managed', basePath: '/data/files' }).success
-      ).toBe(true)
+      expect(LocalManagedConfigSchema.safeParse({ mountType: 'local_managed', basePath: '/data/files' }).success).toBe(
+        true
+      )
     })
 
     it('rejects relative basePath', () => {
       expect(
-        LocalManagedConfigSchema.safeParse({ providerType: 'local_managed', basePath: 'relative/path' }).success
+        LocalManagedConfigSchema.safeParse({ mountType: 'local_managed', basePath: 'relative/path' }).success
       ).toBe(false)
     })
 
     it('rejects empty basePath', () => {
-      expect(LocalManagedConfigSchema.safeParse({ providerType: 'local_managed', basePath: '' }).success).toBe(false)
+      expect(LocalManagedConfigSchema.safeParse({ mountType: 'local_managed', basePath: '' }).success).toBe(false)
     })
   })
 
   describe('local_external', () => {
     it('accepts valid config', () => {
       const result = LocalExternalConfigSchema.safeParse({
-        providerType: 'local_external',
+        mountType: 'local_external',
         basePath: '/home/user/notes',
         watch: true
       })
@@ -377,7 +375,7 @@ describe('MountProviderConfigSchema', () => {
     it('accepts Windows path', () => {
       expect(
         LocalExternalConfigSchema.safeParse({
-          providerType: 'local_external',
+          mountType: 'local_external',
           basePath: 'C:\\Users\\notes',
           watch: false
         }).success
@@ -386,7 +384,7 @@ describe('MountProviderConfigSchema', () => {
 
     it('defaults watchExtensions to empty array', () => {
       const result = LocalExternalConfigSchema.safeParse({
-        providerType: 'local_external',
+        mountType: 'local_external',
         basePath: '/notes'
       })
       expect(result.success).toBe(true)
@@ -398,7 +396,7 @@ describe('MountProviderConfigSchema', () => {
     it('rejects relative basePath', () => {
       expect(
         LocalExternalConfigSchema.safeParse({
-          providerType: 'local_external',
+          mountType: 'local_external',
           basePath: 'notes'
         }).success
       ).toBe(false)
@@ -409,7 +407,7 @@ describe('MountProviderConfigSchema', () => {
     it('accepts valid config', () => {
       expect(
         RemoteConfigSchema.safeParse({
-          providerType: 'remote',
+          mountType: 'remote',
           apiType: 'openai_files',
           providerId: 'provider-1',
           autoSync: false,
@@ -421,7 +419,7 @@ describe('MountProviderConfigSchema', () => {
     it('rejects invalid apiType', () => {
       expect(
         RemoteConfigSchema.safeParse({
-          providerType: 'remote',
+          mountType: 'remote',
           apiType: 'invalid_type',
           providerId: 'p1'
         }).success
@@ -431,22 +429,22 @@ describe('MountProviderConfigSchema', () => {
 
   describe('system', () => {
     it('accepts valid config', () => {
-      expect(SystemConfigSchema.safeParse({ providerType: 'system' }).success).toBe(true)
+      expect(SystemConfigSchema.safeParse({ mountType: 'system' }).success).toBe(true)
     })
   })
 
   describe('discriminated union', () => {
-    it('discriminates by providerType', () => {
-      expect(MountProviderConfigSchema.safeParse({ providerType: 'local_managed', basePath: '/x' }).success).toBe(true)
-      expect(MountProviderConfigSchema.safeParse({ providerType: 'system' }).success).toBe(true)
+    it('discriminates by mountType', () => {
+      expect(MountConfigSchema.safeParse({ mountType: 'local_managed', basePath: '/x' }).success).toBe(true)
+      expect(MountConfigSchema.safeParse({ mountType: 'system' }).success).toBe(true)
     })
 
-    it('rejects unknown providerType', () => {
-      expect(MountProviderConfigSchema.safeParse({ providerType: 'unknown' }).success).toBe(false)
+    it('rejects unknown mountType', () => {
+      expect(MountConfigSchema.safeParse({ mountType: 'unknown' }).success).toBe(false)
     })
 
     it('rejects config missing required fields', () => {
-      expect(MountProviderConfigSchema.safeParse({ providerType: 'local_managed' }).success).toBe(false)
+      expect(MountConfigSchema.safeParse({ mountType: 'local_managed' }).success).toBe(false)
     })
   })
 })

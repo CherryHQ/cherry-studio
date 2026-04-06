@@ -1,7 +1,7 @@
 import fs from 'node:fs'
 import path from 'node:path'
 
-import type { MountProviderConfig } from '@shared/data/types/file'
+import type { MountConfig } from '@shared/data/types/file'
 
 /**
  * Minimal entry shape needed for path resolution
@@ -17,7 +17,7 @@ export interface PathResolvableEntry {
  * Mount info needed for path resolution
  */
 export interface MountInfo {
-  providerConfig: MountProviderConfig | null
+  mountConfig: MountConfig | null
 }
 
 /**
@@ -40,9 +40,9 @@ export function getExtSuffix(ext: string | null): string {
  * @param ancestorNames - Ordered list of ancestor directory names from mount root to parent (only needed for local_external)
  */
 export function resolvePhysicalPath(entry: PathResolvableEntry, mount: MountInfo, ancestorNames?: string[]): string {
-  const config = mount.providerConfig
+  const config = mount.mountConfig
   if (!config) {
-    throw new Error(`Mount for entry ${entry.id} has no provider config`)
+    throw new Error(`Mount for entry ${entry.id} has no mount config`)
   }
 
   // Reject null bytes in any user-controlled path segments
@@ -53,7 +53,7 @@ export function resolvePhysicalPath(entry: PathResolvableEntry, mount: MountInfo
     throw new Error('Ancestor names contain null bytes')
   }
 
-  switch (config.providerType) {
+  switch (config.mountType) {
     case 'local_managed': {
       const resolved = path.resolve(config.basePath, `${entry.id}${getExtSuffix(entry.ext)}`)
       assertPathContained(resolved, config.basePath)
@@ -62,7 +62,7 @@ export function resolvePhysicalPath(entry: PathResolvableEntry, mount: MountInfo
 
     case 'local_external': {
       if (ancestorNames === undefined) {
-        throw new Error('ancestorNames is required for local_external provider')
+        throw new Error('ancestorNames is required for local_external mount')
       }
       const resolved = path.resolve(config.basePath, ...ancestorNames, `${entry.name}${getExtSuffix(entry.ext)}`)
       // Resolve symlinks for local_external — user-chosen directories may contain symlinks
@@ -86,9 +86,7 @@ export function resolvePhysicalPath(entry: PathResolvableEntry, mount: MountInfo
       throw new Error('Remote path resolution is not yet implemented')
 
     default:
-      throw new Error(
-        `Unknown provider type: ${(config as Record<string, unknown>).providerType} for entry ${entry.id}`
-      )
+      throw new Error(`Unknown mount type: ${(config as Record<string, unknown>).mountType} for entry ${entry.id}`)
   }
 }
 

@@ -1,4 +1,4 @@
-import type { MountProviderConfig } from '@shared/data/types/file'
+import type { MountConfig } from '@shared/data/types/file'
 import { sql } from 'drizzle-orm'
 import { check, foreignKey, index, integer, sqliteTable, text, uniqueIndex } from 'drizzle-orm/sqlite-core'
 
@@ -39,8 +39,8 @@ export const fileEntryTable = sqliteTable(
     size: integer(),
 
     // ─── Mount-only fields (type='mount') ───
-    // Provider configuration JSON, validated by MountProviderConfigSchema
-    providerConfig: text({ mode: 'json' }).$type<MountProviderConfig>(),
+    // Provider configuration JSON, validated by MountConfigSchema
+    mountConfig: text({ mode: 'json' }).$type<MountConfig>(),
 
     // ─── Remote file fields (files under remote mounts) ───
     // Remote file ID (e.g. OpenAI file-abc123)
@@ -77,7 +77,7 @@ export const fileEntryTable = sqliteTable(
     // ─── Type invariant constraints (defense-in-depth, mirrors Zod superRefine) ───
     check('fe_mount_parent_null', sql`${t.type} != 'mount' OR ${t.parentId} IS NULL`),
     check('fe_mount_self_ref', sql`${t.type} != 'mount' OR ${t.mountId} = ${t.id}`),
-    check('fe_mount_has_config', sql`${t.type} != 'mount' OR ${t.providerConfig} IS NOT NULL`),
+    check('fe_mount_has_config', sql`${t.type} != 'mount' OR ${t.mountConfig} IS NOT NULL`), // column: mount_config
     check('fe_nonmount_has_parent', sql`${t.type} = 'mount' OR ${t.parentId} IS NOT NULL`),
     // Trash state biconditional: previousParentId is set IFF parentId = 'system_trash'
     check('fe_trash_state', sql`(${t.previousParentId} IS NULL) != (${t.parentId} = 'system_trash')`)
