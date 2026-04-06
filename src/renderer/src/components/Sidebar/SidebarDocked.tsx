@@ -47,7 +47,7 @@ function IconDockedTabs({
                   onStartSidebarDrag?.(event, dockedTab.id)
                 }}
                 className={`relative flex h-7 w-7 cursor-grab items-center justify-center rounded-md transition-all duration-150 active:cursor-grabbing ${
-                  isActive ? 'bg-cherry-active-bg' : 'hover:bg-accent/50'
+                  isActive ? 'bg-sidebar-active-bg' : 'hover:bg-accent/50'
                 }`}>
                 {isActive && <ActiveIndicator className="rounded-md" />}
                 <SidebarTabIcon tab={dockedTab} size={14} strokeWidth={1.6} miniAppSize="md" />
@@ -92,7 +92,7 @@ function VerticalCardDockedTabs({
                 onStartSidebarDrag?.(event, dockedTab.id)
               }}
               className={`relative flex w-full cursor-grab flex-col items-center gap-0.5 rounded-md py-1.5 transition-all duration-150 active:cursor-grabbing ${
-                isActive ? 'bg-cherry-active-bg' : 'hover:bg-accent/40'
+                isActive ? 'bg-sidebar-active-bg' : 'hover:bg-accent/40'
               }`}>
               {isActive && <ActiveIndicator className="rounded-md" />}
               <SidebarTabIcon tab={dockedTab} size={18} strokeWidth={1.6} miniAppSize="md" />
@@ -134,7 +134,7 @@ function FullDockedTabs({
             key={dockedTab.id}
             className={`group/dock relative flex cursor-grab items-center gap-2.5 rounded-xl px-2.5 py-[6px] text-[12px] transition-all duration-150 active:cursor-grabbing ${
               isActive
-                ? 'bg-cherry-active-bg text-foreground'
+                ? 'bg-sidebar-active-bg text-foreground'
                 : 'text-muted-foreground hover:bg-accent/40 hover:text-foreground'
             }`}
             onClick={() => onMiniAppTabClick?.(dockedTab.id)}

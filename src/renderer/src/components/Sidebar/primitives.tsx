@@ -6,11 +6,11 @@ import type { SidebarMiniAppTab, SidebarTab, SidebarUser } from './types'
 export function ActiveIndicator({ className, glow = false }: { className?: string; glow?: boolean }) {
   return (
     <>
-      <div className={`pointer-events-none absolute inset-0 border border-cherry-active-border ${className ?? ''}`} />
+      <div className={`pointer-events-none absolute inset-0 border border-sidebar-active-border ${className ?? ''}`} />
       {glow && (
         <div className="-translate-y-1/2 pointer-events-none absolute top-1/2 right-0 flex items-center">
-          <div className="h-[24px] w-[10px] rounded-tl-[8px] rounded-bl-[8px] bg-cherry-glow-bg blur-[6px]" />
-          <div className="absolute right-0 h-[10px] w-[3px] rounded-[100px] bg-cherry-glow-line blur-[2px]" />
+          <div className="h-[24px] w-[10px] rounded-tl-[8px] rounded-bl-[8px] bg-sidebar-glow-bg blur-[6px]" />
+          <div className="absolute right-0 h-[10px] w-[3px] rounded-[100px] bg-sidebar-glow-line blur-[2px]" />
         </div>
       )}
     </>

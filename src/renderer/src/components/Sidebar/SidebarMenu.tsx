@@ -35,7 +35,7 @@ function IconMenuItems({ items, activeItem, activeTabId, onItemClick, onMiniAppT
                 onClick={() => onItemClick(item.id)}
                 className={`relative flex h-9 w-9 items-center justify-center rounded-md transition-all duration-150 ${
                   isActive
-                    ? 'bg-cherry-active-bg text-foreground'
+                    ? 'bg-sidebar-active-bg text-foreground'
                     : 'text-muted-foreground hover:bg-accent/60 hover:text-foreground'
                 }`}>
                 {isActive && <ActiveIndicator className="rounded-md" />}
@@ -49,7 +49,7 @@ function IconMenuItems({ items, activeItem, activeTabId, onItemClick, onMiniAppT
                   type="button"
                   onClick={() => onMiniAppTabClick?.(miniTab.id)}
                   className={`relative flex h-7 w-7 items-center justify-center rounded-md transition-all duration-150 ${
-                    activeTabId === miniTab.id ? 'bg-cherry-active-bg' : 'hover:bg-accent/50'
+                    activeTabId === miniTab.id ? 'bg-sidebar-active-bg' : 'hover:bg-accent/50'
                   }`}>
                   {activeTabId === miniTab.id && <ActiveIndicator className="rounded-md" />}
                   <MiniAppIcon tab={miniTab} size="md" />
@@ -78,7 +78,7 @@ function VerticalCardMenuItems({ items, activeItem, activeTabId, onItemClick, on
               onClick={() => onItemClick(item.id)}
               className={`relative flex w-full flex-col items-center gap-0.5 rounded-md py-2 transition-all duration-150 ${
                 isActive
-                  ? 'bg-cherry-active-bg text-foreground'
+                  ? 'bg-sidebar-active-bg text-foreground'
                   : 'text-muted-foreground hover:bg-accent/50 hover:text-foreground'
               }`}>
               {isActive && <ActiveIndicator className="rounded-md" />}
@@ -92,7 +92,7 @@ function VerticalCardMenuItems({ items, activeItem, activeTabId, onItemClick, on
                 key={miniTab.id}
                 onClick={() => onMiniAppTabClick?.(miniTab.id)}
                 className={`relative flex w-full flex-col items-center gap-0.5 rounded-md py-1.5 transition-all duration-150 ${
-                  activeTabId === miniTab.id ? 'bg-cherry-active-bg' : 'hover:bg-accent/40'
+                  activeTabId === miniTab.id ? 'bg-sidebar-active-bg' : 'hover:bg-accent/40'
                 }`}>
                 {activeTabId === miniTab.id && <ActiveIndicator className="rounded-md" />}
                 <MiniAppIcon tab={miniTab} size="md" />
@@ -123,7 +123,7 @@ function FullMenuItems({ items, activeItem, activeTabId, onItemClick, onMiniAppT
               onClick={() => onItemClick(item.id)}
               className={`relative flex w-full items-center gap-2.5 rounded-xl px-2.5 py-[7px] text-[13px] transition-all duration-150 ${
                 isActive
-                  ? 'bg-cherry-active-bg text-foreground'
+                  ? 'bg-sidebar-active-bg text-foreground'
                   : 'text-muted-foreground hover:bg-accent/60 hover:text-foreground'
               }`}>
               {isActive && <ActiveIndicator className="rounded-xl" glow />}
@@ -138,7 +138,7 @@ function FullMenuItems({ items, activeItem, activeTabId, onItemClick, onMiniAppT
                 onClick={() => onMiniAppTabClick?.(miniTab.id)}
                 className={`relative flex w-full items-center gap-2 rounded-xl py-[5px] pr-2.5 pl-7 text-[12px] transition-all duration-150 ${
                   activeTabId === miniTab.id
-                    ? 'bg-cherry-active-bg text-foreground'
+                    ? 'bg-sidebar-active-bg text-foreground'
                     : 'text-muted-foreground hover:bg-accent/40 hover:text-foreground'
                 }`}>
                 {activeTabId === miniTab.id && <ActiveIndicator className="rounded-xl" glow />}
