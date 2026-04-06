@@ -6,14 +6,15 @@ import { DynamicVirtualList } from '@renderer/components/VirtualList'
 import { getModelLogo } from '@renderer/config/models'
 import FileItem from '@renderer/pages/files/FileItem'
 import NewApiBatchAddModelPopup from '@renderer/pages/settings/ProviderSettings/ModelList/NewApiBatchAddModelPopup'
-import type { Model, Provider } from '@renderer/types'
-import { isNewApiProvider } from '@renderer/utils/provider'
+import type { Model } from '@renderer/types'
+import { isNewApiProvider } from '@renderer/utils/provider.v2'
+import type { Provider } from '@shared/data/types/provider'
 import { ChevronRight, Minus, Plus } from 'lucide-react'
 import React, { memo, useCallback, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
-import { isModelInProvider, isValidNewApiModel } from './utils'
+import { isValidNewApiModel } from './utils'
 
 // 列表项类型定义
 interface GroupRowData {
@@ -32,16 +33,16 @@ type RowData = GroupRowData | ModelRowData
 
 interface ManageModelsListProps {
   modelGroups: Record<string, Model[]>
-  duplicateModelNames: Set<string>
   provider: Provider
+  existingModelIds: Set<string>
   onAddModel: (model: Model) => void
   onRemoveModel: (model: Model) => void
 }
 
 const ManageModelsList: React.FC<ManageModelsListProps> = ({
   modelGroups,
-  duplicateModelNames,
   provider,
+  existingModelIds,
   onAddModel,
   onRemoveModel
 }) => {
@@ -88,21 +89,21 @@ const ManageModelsList: React.FC<ManageModelsListProps> = ({
 
   const renderGroupTools = useCallback(
     (models: Model[]) => {
-      const isAllInProvider = models.every((model) => isModelInProvider(provider, model.id))
+      const isAllInProvider = models.every((model) => existingModelIds.has(model.id))
 
       const handleGroupAction = () => {
         if (isAllInProvider) {
           // 移除整组
-          models.filter((model) => isModelInProvider(provider, model.id)).forEach(onRemoveModel)
+          models.filter((model) => existingModelIds.has(model.id)).forEach(onRemoveModel)
         } else {
           // 添加整组
-          const wouldAddModels = models.filter((model) => !isModelInProvider(provider, model.id))
+          const wouldAddModels = models.filter((model) => !existingModelIds.has(model.id))
 
           if (isNewApiProvider(provider)) {
             if (wouldAddModels.every(isValidNewApiModel)) {
               wouldAddModels.forEach(onAddModel)
             } else {
-              void NewApiBatchAddModelPopup.show({
+              NewApiBatchAddModelPopup.show({
                 title: t('settings.models.add.batch_add_models'),
                 batchModels: wouldAddModels,
                 provider
@@ -133,7 +134,7 @@ const ManageModelsList: React.FC<ManageModelsListProps> = ({
         </Tooltip>
       )
     },
-    [provider, onRemoveModel, onAddModel, t]
+    [provider, existingModelIds, onRemoveModel, onAddModel, t]
   )
 
   return (
@@ -174,8 +175,7 @@ const ManageModelsList: React.FC<ManageModelsListProps> = ({
           <ModelListItem
             last={row.last}
             model={row.model}
-            showIdentifier={duplicateModelNames.has(row.model.name)}
-            provider={provider}
+            existingModelIds={existingModelIds}
             onAddModel={onAddModel}
             onRemoveModel={onRemoveModel}
           />
@@ -188,16 +188,15 @@ const ManageModelsList: React.FC<ManageModelsListProps> = ({
 // 模型列表项组件
 interface ModelListItemProps {
   model: Model
-  showIdentifier: boolean
-  provider: Provider
+  existingModelIds: Set<string>
   onAddModel: (model: Model) => void
   onRemoveModel: (model: Model) => void
   last?: boolean
 }
 
 const ModelListItem: React.FC<ModelListItemProps> = memo(
-  ({ model, showIdentifier, provider, onAddModel, onRemoveModel, last }) => {
-    const isAdded = useMemo(() => isModelInProvider(provider, model.id), [provider, model.id])
+  ({ model, existingModelIds, onAddModel, onRemoveModel, last }) => {
+    const isAdded = useMemo(() => existingModelIds.has(model.id), [existingModelIds, model.id])
     return (
       <ModelListItemContainer last={last}>
         <FileItem
@@ -217,7 +216,7 @@ const ModelListItem: React.FC<ModelListItemProps> = memo(
                 </Avatar>
               )
             })(),
-            name: <ModelIdWithTags model={model} showIdentifier={showIdentifier} />,
+            name: <ModelIdWithTags model={model} />,
             extra: model.description && <ExpandableText text={model.description} />,
             ext: '.model',
             actions: isAdded ? (
