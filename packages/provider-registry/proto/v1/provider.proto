@@ -210,10 +210,6 @@ message ProviderConfig {
   optional ApiFeatures api_features = 6;
 
   optional ProviderMetadata metadata = 8;
-
-  // Reserved field numbers from removed fields
-  reserved 4, 7, 9;
-  reserved "base_urls", "models_api_urls", "reasoning_format";
 }
 
 // Top-level container
