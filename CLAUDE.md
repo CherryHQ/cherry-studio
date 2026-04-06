@@ -96,6 +96,8 @@ If the skill is unavailable, directly read `.agents/skills/gh-create-issue/SKILL
 
 Database: SQLite + Drizzle ORM, schemas in `src/main/data/db/schemas/`, migrations via `yarn db:migrations:generate`
 
+**DataApi boundary rule**: DataApi is for SQLite-backed business data only. No database table → no DataApi endpoint; use IPC instead. See [Scope & Boundaries](docs/en/references/data/api-design-guidelines.md#dataapi-scope--boundaries).
+
 ### Build System
 
 - **Electron-Vite**: Development and build tooling (v4.0.0)
