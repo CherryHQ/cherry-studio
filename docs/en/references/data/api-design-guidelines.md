@@ -330,3 +330,38 @@ if (error instanceof DataApiError && error.isRetryable) {
 | Query params | camelCase | `orderBy`, `pageSize` |
 | Body fields | camelCase | `createdAt`, `userName` |
 | Error codes | SCREAMING_SNAKE | `NOT_FOUND`, `VALIDATION_ERROR` |
+
+## DataApi Scope & Boundaries
+
+DataApi is exclusively for **persistent business data** backed by SQLite. Operations that do not meet this criteria must use traditional IPC handlers.
+
+### Eligibility Criteria
+
+All three conditions must be met before adding a DataApi endpoint:
+
+1. The operation **reads or writes persistent business data** in a SQLite table
+2. The data is **user-created, irreplaceable** (loss would be severe)
+3. A **database table schema** exists (or will be created) for this data
+
+If any condition is not met, use an IPC handler in `src/main/ipc.ts` or a lifecycle service instead.
+
+### Anti-patterns: What Does NOT Belong in DataApi
+
+| Anti-pattern | Why It's Wrong | Correct Approach |
+|---|---|---|
+| `POST /windows/open` | No database operation, pure side effect | IPC: `IpcChannel.Window_Open` |
+| `POST /services/restart` | Process control is not a data operation | IPC: `IpcChannel.Service_Restart` |
+| `GET /system/info` | Stateless system query, no persistence | IPC: `IpcChannel.App_Info` |
+| `POST /notifications/send` | Triggers external side effect | IPC: `IpcChannel.Notification_Send` |
+| `POST /backup/start` | Complex workflow orchestration, not CRUD | IPC: `IpcChannel.Backup_Backup` |
+| `POST /auth/login` | OAuth flow, external service integration | IPC: dedicated auth handler |
+| `GET /mcp/tools` | Runtime service query, not persisted data | IPC: `IpcChannel.Mcp_ListTools` |
+
+### Why Misuse is Harmful
+
+Routing non-data operations through DataApi causes concrete problems:
+
+- **Automatic retry is dangerous for side effects**: DataApi retries failed requests with exponential backoff. Retrying a "send notification" or "restart service" operation means it executes multiple times.
+- **SWR caching is meaningless for commands**: `useQuery` caches and deduplicates responses. Caching the result of "open window" or "start backup" has no value and can mask failures.
+- **Four-layer architecture becomes hollow**: Handler → Service → Repository → SQLite is designed for data flow. Without a database layer, the Repository layer is absent and the Service layer becomes a pass-through wrapper with no purpose.
+- **Test patterns don't match**: DataApi tests mock database operations (Drizzle queries, transactions). Side-effectful operations need entirely different test strategies (mocking external services, verifying calls).
