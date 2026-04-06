@@ -173,7 +173,7 @@ export class ProviderService {
   }
 
   /**
-   * Batch upsert providers (used by CatalogService for preset providers)
+   * Batch upsert providers (used by RegistryService for preset providers)
    * Inserts new providers, updates only preset fields on existing ones.
    * Does NOT overwrite user-customized fields (apiKeys, isEnabled, sortOrder, authConfig).
    */

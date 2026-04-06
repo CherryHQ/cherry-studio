@@ -1,7 +1,7 @@
 {
-  "name": "@cherrystudio/provider-catalog",
+  "name": "@cherrystudio/provider-registry",
   "version": "0.0.1-alpha.1",
-  "description": "Provider and Model Catalog",
+  "description": "Provider and Model Registry",
   "main": "dist/index.js",
   "module": "dist/index.mjs",
   "types": "dist/index.d.ts",
@@ -9,7 +9,7 @@
   "scripts": {
     "proto:generate": "cd proto && buf generate .",
     "proto:lint": "cd proto && buf lint .",
-    "proto:breaking": "cd proto && buf breaking . --against '../../../.git#subdir=packages/provider-catalog/proto,branch=main'",
+    "proto:breaking": "cd proto && buf breaking . --against '../../../.git#subdir=packages/provider-registry/proto,branch=main'",
     "build": "pnpm proto:generate && tsdown",
     "dev": "pnpm proto:generate && tsc -w",
     "clean": "rm -rf dist",

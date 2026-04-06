@@ -4,11 +4,11 @@
  * Provides business logic for:
  * - Model CRUD operations
  * - Row to Model conversion
- * - Catalog import support
+ * - Registry import support
  */
 
 import type { NewUserModel, UserModel } from '@data/db/schemas/userModel'
-import { isCatalogEnrichableField, userModelTable } from '@data/db/schemas/userModel'
+import { isRegistryEnrichableField, userModelTable } from '@data/db/schemas/userModel'
 import { loggerService } from '@logger'
 import { application } from '@main/core/application'
 import { DataApiErrorFactory } from '@shared/data/api'
@@ -18,7 +18,7 @@ import { createUniqueModelId } from '@shared/data/types/model'
 import { mergeModelConfig } from '@shared/data/utils/modelMerger'
 import { and, eq, inArray, type SQL } from 'drizzle-orm'
 
-import { catalogService } from './ProviderCatalogService'
+import { registryService } from './ProviderRegistryService'
 
 const logger = loggerService.withContext('DataApi:ModelService')
 
@@ -118,20 +118,20 @@ export class ModelService {
   /**
    * Create a new model
    *
-   * Automatically enriches from catalog preset data when a match is found.
-   * DTO values take priority over catalog (user > catalogOverride > preset).
+   * Automatically enriches from registry preset data when a match is found.
+   * DTO values take priority over registry (user > registryOverride > preset).
    */
   async create(dto: CreateModelDto): Promise<Model> {
     const db = application.get('DbService').getDb()
 
-    // Look up catalog data for auto-enrichment
-    const { presetModel, catalogOverride, reasoningFormatTypes, defaultChatEndpoint } =
-      await catalogService.lookupModel(dto.providerId, dto.modelId)
+    // Look up registry data for auto-enrichment
+    const { presetModel, registryOverride, reasoningFormatTypes, defaultChatEndpoint } =
+      await registryService.lookupModel(dto.providerId, dto.modelId)
 
     let values: NewUserModel
 
     if (presetModel) {
-      // Catalog match found — merge DTO with preset data
+      // Registry match found — merge DTO with preset data
       const userRow = {
         providerId: dto.providerId,
         modelId: dto.modelId,
@@ -151,7 +151,7 @@ export class ModelService {
 
       const merged = mergeModelConfig(
         userRow,
-        catalogOverride,
+        registryOverride,
         presetModel,
         dto.providerId,
         reasoningFormatTypes,
@@ -177,13 +177,13 @@ export class ModelService {
         pricing: merged.pricing ?? null
       }
 
-      logger.info('Created model with catalog enrichment', {
+      logger.info('Created model with registry enrichment', {
         providerId: dto.providerId,
         modelId: dto.modelId,
         presetModelId: presetModel.id
       })
     } else {
-      // No catalog match — store as custom model
+      // No registry match — store as custom model
       values = {
         providerId: dto.providerId,
         modelId: dto.modelId,
@@ -203,7 +203,7 @@ export class ModelService {
         pricing: dto.pricing ?? null
       }
 
-      logger.info('Created custom model (no catalog match)', {
+      logger.info('Created custom model (no registry match)', {
         providerId: dto.providerId,
         modelId: dto.modelId
       })
@@ -249,8 +249,8 @@ export class ModelService {
     if (dto.sortOrder !== undefined) updates.sortOrder = dto.sortOrder
     if (dto.notes !== undefined) updates.notes = dto.notes
 
-    // Track which catalog-enrichable fields the user explicitly changed
-    const changedEnrichableFields = Object.keys(dto).filter(isCatalogEnrichableField)
+    // Track which registry-enrichable fields the user explicitly changed
+    const changedEnrichableFields = Object.keys(dto).filter(isRegistryEnrichableField)
     if (changedEnrichableFields.length > 0) {
       const existingOverrides = existing.userOverrides ?? []
       updates.userOverrides = [...new Set([...existingOverrides, ...changedEnrichableFields])]
@@ -284,7 +284,7 @@ export class ModelService {
   }
 
   /**
-   * Batch upsert models for a provider (used by CatalogService).
+   * Batch upsert models for a provider (used by RegistryService).
    * Inserts new models, updates existing ones.
    * Respects `userOverrides`: fields the user has explicitly modified are not overwritten.
    */

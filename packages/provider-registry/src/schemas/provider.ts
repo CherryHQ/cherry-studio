@@ -177,8 +177,8 @@ export const ProviderWebsiteSchema = z.object({
   })
 })
 
-/** Per-endpoint-type configuration in catalog */
-export const CatalogEndpointConfigSchema = z.object({
+/** Per-endpoint-type configuration in registry */
+export const RegistryEndpointConfigSchema = z.object({
   /** Base URL for this endpoint type's API */
   baseUrl: z.url().optional(),
   /** URLs for fetching available models via this endpoint type */
@@ -205,7 +205,7 @@ export const ProviderConfigSchema = z
     /** Provider description */
     description: z.string().optional(),
     /** Per-endpoint-type configuration */
-    endpointConfigs: z.record(EndpointTypeSchema, CatalogEndpointConfigSchema).optional(),
+    endpointConfigs: z.record(EndpointTypeSchema, RegistryEndpointConfigSchema).optional(),
     /** Default endpoint type for chat requests (must exist in endpointConfigs) */
     defaultChatEndpoint: EndpointTypeSchema.optional(),
     /** API feature flags controlling request construction */
@@ -233,6 +233,6 @@ export const ProviderListSchema = z.object({
 export { ENDPOINT_TYPE } from './enums'
 export type ApiFeatures = z.infer<typeof ApiFeaturesSchema>
 export type ProviderReasoningFormat = z.infer<typeof ProviderReasoningFormatSchema>
-export type CatalogEndpointConfig = z.infer<typeof CatalogEndpointConfigSchema>
+export type RegistryEndpointConfig = z.infer<typeof RegistryEndpointConfigSchema>
 export type ProviderConfig = z.infer<typeof ProviderConfigSchema>
 export type ProviderList = z.infer<typeof ProviderListSchema>

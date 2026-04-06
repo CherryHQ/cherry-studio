@@ -7,7 +7,7 @@
  */
 
 import { modelService } from '@data/services/ModelService'
-import { catalogService } from '@data/services/ProviderCatalogService'
+import { registryService } from '@data/services/ProviderRegistryService'
 import type { ApiHandler, ApiMethods } from '@shared/data/api/apiTypes'
 import type { ModelSchemas } from '@shared/data/api/schemas/models'
 
@@ -36,7 +36,7 @@ export const modelHandlers: {
 
   '/models/resolve': {
     POST: async ({ body }) => {
-      return await catalogService.resolveModels(body.providerId, body.models)
+      return await registryService.resolveModels(body.providerId, body.models)
     }
   },
 

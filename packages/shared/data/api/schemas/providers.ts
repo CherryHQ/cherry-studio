@@ -134,10 +134,10 @@ export interface ProviderSchemas {
   }
 
   /**
-   * Get all catalog preset models for a provider (read-only, no DB writes)
-   * @example GET /providers/openai/catalog-models
+   * Get all registry preset models for a provider (read-only, no DB writes)
+   * @example GET /providers/openai/registry-models
    */
-  '/providers/:providerId/catalog-models': {
+  '/providers/:providerId/registry-models': {
     GET: {
       params: { providerId: string }
       response: Model[]

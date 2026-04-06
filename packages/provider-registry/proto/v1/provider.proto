@@ -1,5 +1,5 @@
 syntax = "proto3";
-package catalog.v1;
+package registry.v1;
 
 import "v1/common.proto";
 
@@ -217,7 +217,7 @@ message ProviderConfig {
 }
 
 // Top-level container
-message ProviderCatalog {
+message ProviderRegistry {
   string version = 1;
   repeated ProviderConfig providers = 2;
 }

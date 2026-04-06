@@ -162,7 +162,7 @@
     "@cherrystudio/embedjs-utils": "0.1.31",
     "@cherrystudio/extension-table-plus": "workspace:^",
     "@cherrystudio/openai": "6.15.0",
-    "@cherrystudio/provider-catalog": "workspace:*",
+    "@cherrystudio/provider-registry": "workspace:*",
     "@cherrystudio/ui": "workspace:*",
     "@codemirror/lang-json": "6.0.2",
     "@codemirror/lint": "6.9.5",

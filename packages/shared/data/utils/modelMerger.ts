@@ -11,9 +11,9 @@ import type {
   ProtoProviderModelOverride,
   ProtoProviderReasoningFormat,
   ProtoReasoningSupport
-} from '@cherrystudio/provider-catalog'
-import type { Modality, ModelCapability, ReasoningEffort as ReasoningEffortType } from '@cherrystudio/provider-catalog'
-import { EndpointType, ReasoningEffort } from '@cherrystudio/provider-catalog'
+} from '@cherrystudio/provider-registry'
+import type { Modality, ModelCapability, ReasoningEffort as ReasoningEffortType } from '@cherrystudio/provider-registry'
+import { EndpointType, ReasoningEffort } from '@cherrystudio/provider-registry'
 import * as z from 'zod'
 
 import type { Model, RuntimeModelPricing, RuntimeReasoning } from '../types/model'

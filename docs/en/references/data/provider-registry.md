@@ -1,12 +1,12 @@
-# Provider Catalog Reference
+# Provider Registry Reference
 
-This document describes the Provider/Model catalog system architecture, schemas, and data flows.
+This document describes the Provider/Model registry system architecture, schemas, and data flows.
 
 ## Overview
 
-The catalog system manages AI model and provider configurations with a three-layer merge architecture:
+The registry system manages AI model and provider configurations with a three-layer merge architecture:
 
-1. **Preset Layer** (read-only, bundled in app) - Catalog definitions
+1. **Preset Layer** (read-only, bundled in app) - Registry definitions
 2. **Override Layer** (read-only) - Provider-specific model overrides
 3. **User Layer** (SQLite, writable) - User customizations
 
@@ -48,7 +48,7 @@ When resolving a model or provider configuration:
 
 ## Preset Schemas
 
-Location: `packages/provider-catalog/src/schemas/`
+Location: `packages/provider-registry/src/schemas/`
 
 ### Provider Schema (`provider.ts`)
 
@@ -240,7 +240,7 @@ Uses `::` separator to avoid conflicts with model IDs containing `:` (e.g., `ope
 The merged "final state" model configuration for consumers.
 
 ```typescript
-// Type-safe union types (mirroring catalog Zod enums)
+// Type-safe union types (mirroring registry Zod enums)
 type Modality = 'TEXT' | 'VISION' | 'AUDIO' | 'VIDEO' | 'VECTOR'
 type EndpointType =
   | 'CHAT_COMPLETIONS' | 'TEXT_COMPLETIONS' | 'MESSAGES'
@@ -332,7 +332,7 @@ Stores user's provider configurations.
 |--------|------|-------------|
 | id | UUID | Primary key |
 | providerId | TEXT | User-defined unique ID |
-| presetProviderId | TEXT | Links to catalog preset |
+| presetProviderId | TEXT | Links to registry preset |
 | name | TEXT | Display name |
 | endpoints | JSON | Endpoint URL overrides |
 | defaultChatEndpoint | TEXT | Default text generation endpoint |
@@ -347,7 +347,7 @@ Stores user's provider configurations.
 
 ### user_model Table
 
-Stores all user models with fully resolved configurations. Capabilities are resolved once at add-time from catalog, so no runtime merge is needed.
+Stores all user models with fully resolved configurations. Capabilities are resolved once at add-time from registry, so no runtime merge is needed.
 
 | Column | Type | Description |
 |--------|------|-------------|
@@ -386,12 +386,12 @@ Merges model configurations with proper priority.
 ```typescript
 function mergeModelConfig(
   userModel: UserModel | null,
-  catalogOverride: CatalogProviderModelOverride | null,
-  presetModel: CatalogModel | null,
+  registryOverride: RegistryProviderModelOverride | null,
+  presetModel: RegistryModel | null,
   providerId: string
 ): RuntimeModel
 
-// Priority: userModel > catalogOverride > presetModel
+// Priority: userModel > registryOverride > presetModel
 ```
 
 ### mergeProviderConfig
@@ -401,7 +401,7 @@ Merges provider configurations.
 ```typescript
 function mergeProviderConfig(
   userProvider: UserProvider | null,
-  presetProvider: CatalogProvider | null
+  presetProvider: RegistryProvider | null
 ): RuntimeProvider
 
 // Priority: userProvider > presetProvider
@@ -409,7 +409,7 @@ function mergeProviderConfig(
 
 ### applyCapabilityOverride
 
-Applies catalog provider-model capability modifications (not user-level).
+Applies registry provider-model capability modifications (not user-level).
 
 ```typescript
 function applyCapabilityOverride(
@@ -447,12 +447,12 @@ function applyCapabilityOverride(
 
 | File | Description |
 |------|-------------|
-| `packages/provider-catalog/data/providers.json` | Provider configurations |
-| `packages/provider-catalog/data/models.json` | Base model definitions |
-| `packages/provider-catalog/data/provider-models.json` | Provider-model overrides |
-| `packages/provider-catalog/data/openrouter-models.json` | OpenRouter import data |
-| `packages/provider-catalog/data/aihubmix-models.json` | AIHubMix import data |
-| `packages/provider-catalog/data/modelsdev-models.json` | models.dev import data |
+| `packages/provider-registry/data/providers.json` | Provider configurations |
+| `packages/provider-registry/data/models.json` | Base model definitions |
+| `packages/provider-registry/data/provider-models.json` | Provider-model overrides |
+| `packages/provider-registry/data/openrouter-models.json` | OpenRouter import data |
+| `packages/provider-registry/data/aihubmix-models.json` | AIHubMix import data |
+| `packages/provider-registry/data/modelsdev-models.json` | models.dev import data |
 
 ---
 
@@ -471,4 +471,4 @@ function applyCapabilityOverride(
 ## See Also
 
 - [Data Management Overview](./README.md) - System selection and patterns
-- [Catalog Web UI](../../packages/provider-catalog/web/) - Review and edit interface
+- [Registry Web UI](../../packages/provider-registry/web/) - Review and edit interface

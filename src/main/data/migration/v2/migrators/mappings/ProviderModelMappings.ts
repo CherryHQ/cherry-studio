@@ -8,7 +8,7 @@ import {
   MODEL_CAPABILITY,
   type ModelCapability,
   normalizeModelId
-} from '@cherrystudio/provider-catalog'
+} from '@cherrystudio/provider-registry'
 import type { NewUserModel } from '@data/db/schemas/userModel'
 import type { NewUserProvider } from '@data/db/schemas/userProvider'
 import type { RuntimeModelPricing } from '@shared/data/types/model'

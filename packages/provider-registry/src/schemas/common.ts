@@ -1,5 +1,5 @@
 /**
- * Common type definitions for the catalog system
+ * Common type definitions for the registry system
  * Shared across model, provider, and override schemas
  */
 
