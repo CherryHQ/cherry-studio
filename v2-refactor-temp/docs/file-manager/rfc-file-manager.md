@@ -886,23 +886,32 @@ class FileRefService {
 ```typescript
 /** 存在性检查接口 */
 interface SourceTypeChecker {
-  sourceType: string
+  sourceType: FileRefSourceType
   /** 给一批 sourceId，返回其中仍然存在的 ID 集合 */
   checkExists: (sourceIds: string[]) => Promise<Set<string>>
 }
 
+/**
+ * 编译期强制覆盖：注册表类型要求每个 FileRefSourceType 都有对应的 checker。
+ * 新增 sourceType 后若未在此处补上 checker，TypeScript 直接报错。
+ *
+ * 这与 FileRefSchema 的 discriminated union 形成双重约束：
+ * 1. 新增 sourceType → 必须注册到 FileRefSchema（已有约束）
+ * 2. FileRefSourceType 扩展 → 必须在此补上 checker（本约束）
+ */
+type OrphanCheckerRegistry = Record<FileRefSourceType, SourceTypeChecker>
+
 class OrphanRefScanner {
-  private checkers: Map<string, SourceTypeChecker> = new Map()
+  private checkers: OrphanCheckerRegistry
   private BATCH_SIZE = 200
 
-  register(checker: SourceTypeChecker): void {
-    this.checkers.set(checker.sourceType, checker)
+  constructor(checkers: OrphanCheckerRegistry) {
+    this.checkers = checkers
   }
 
   /** 扫描一种 sourceType 的孤儿引用，分批处理（cursor-based 分页） */
-  async scanOneType(sourceType: string): Promise<number> {
-    const checker = this.checkers.get(sourceType)
-    if (!checker) return 0
+  async scanOneType(sourceType: FileRefSourceType): Promise<number> {
+    const checker = this.checkers[sourceType]
 
     let cleaned = 0
     let lastSeenId = ''
@@ -938,10 +947,10 @@ class OrphanRefScanner {
   }
 
   /** 扫描所有已注册的 sourceType */
-  async scanAll(): Promise<{ total: number; byType: Record<string, number> }> {
-    const byType: Record<string, number> = {}
+  async scanAll(): Promise<{ total: number; byType: Partial<Record<FileRefSourceType, number>> }> {
+    const byType: Partial<Record<FileRefSourceType, number>> = {}
     let total = 0
-    for (const [sourceType] of this.checkers) {
+    for (const sourceType of Object.keys(this.checkers) as FileRefSourceType[]) {
       const cleaned = await this.scanOneType(sourceType)
       byType[sourceType] = cleaned
       total += cleaned
@@ -951,17 +960,25 @@ class OrphanRefScanner {
 }
 ```
 
-各模块注册示例：
+实例化示例（编译期强制覆盖所有 sourceType）：
 
 ```typescript
-orphanScanner.register({
-  sourceType: 'chat_message',
-  checkExists: async (ids) => {
-    const rows = await db.select({ id: messageTable.id })
-      .from(messageTable)
-      .where(inArray(messageTable.id, ids))
-    return new Set(rows.map(r => r.id))
-  }
+// 缺少任何 sourceType 的 checker → TypeScript 编译报错
+const orphanScanner = new OrphanRefScanner({
+  temp_session: {
+    sourceType: 'temp_session',
+    checkExists: async () => new Set() // temp 文件无 ref 即可清理
+  },
+  chat_message: {
+    sourceType: 'chat_message',
+    checkExists: async (ids) => {
+      const rows = await db.select({ id: messageTable.id })
+        .from(messageTable)
+        .where(inArray(messageTable.id, ids))
+      return new Set(rows.map(r => r.id))
+    }
+  },
+  // ... 每个 FileRefSourceType 都必须有对应条目
 })
 ```
 

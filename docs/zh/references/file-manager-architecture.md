@@ -193,8 +193,11 @@ FileService --lock--> OperationLock <--check-- SyncEngine (chokidar)
 | Layer 3: registered orphan scanner                    |
 | background scan for file_ref with missing sourceId    |
 | (each module registers a checker, scanner runs them)  |
+| compile-time enforced: Record<FileRefSourceType, ...> |
 +-------------------------------------------------------+
 ```
+
+Layer 3 的注册表通过 `Record<FileRefSourceType, OrphanChecker>` 类型约束，确保每个 sourceType 都有对应的 checker。新增 sourceType 后若未注册 checker，编译直接报错。具体实现方案见 RFC。
 
 **无引用文件策略**：文件保留，不自动删除。UI 可显示"未引用"标记，由用户手动清理。
 
@@ -428,9 +431,8 @@ Main 进程的其他服务通过以下方式与文件管理系统交互：
 |                                                                   |
 |  +---------------------------------------------------------+     |
 |  | OrphanRefScanner (Background phase)                     |     |
-|  |  <- MessageService.checkExists()                        |     |
-|  |  <- KnowledgeService.checkExists()                      |     |
-|  |  <- PaintingService.checkExists()                       |     |
+|  |  checkers: Record<FileRefSourceType, SourceTypeChecker> |     |
+|  |  (compile-time enforced, covers all sourceTypes)        |     |
 |  +---------------------------------------------------------+     |
 +===================================================================+
 ```
@@ -477,16 +479,16 @@ Main 进程的其他服务通过以下方式与文件管理系统交互：
 | 删除知识库 | `fileRefService.cleanupBySourceBatch('knowledge_item', itemIds)` |
 | 删除知识库条目 | `fileRefService.cleanupBySource('knowledge_item', itemId)` |
 
-#### (3) 启动时 —— 注册孤儿检查器
+#### (3) 孤儿检查器覆盖
 
-每个业务模块向 `OrphanRefScanner` 注册一个存在性检查函数，用于兜底清理遗漏的 ref：
+`OrphanRefScanner` 通过 `Record<FileRefSourceType, SourceTypeChecker>` 类型的注册表集中声明所有 checker。每个 `FileRefSourceType` 必须有对应的 checker，否则编译报错（详见 RFC §8）。
 
 ```
-OrphanRefScanner
-+-- 'chat_message'    -> MessageService.checkExists(ids)
-+-- 'knowledge_item'  -> KnowledgeService.checkExists(ids)
-+-- 'painting'        -> PaintingService.checkExists(ids)
-+-- 'temp_session'    -> (mount_temp entries with no ref: auto-cleanup)
+OrphanRefScanner.checkers: Record<FileRefSourceType, SourceTypeChecker>
+  'chat_message'    -> checkExists: query messageTable
+  'knowledge_item'  -> checkExists: query knowledgeItemTable
+  'painting'        -> checkExists: query paintingTable
+  'temp_session'    -> checkExists: no-ref entries auto-cleanup
 ```
 
 ### 7.3 业务服务访问文件的方式
@@ -688,11 +690,13 @@ MessageService
   +-- queries entries via fileTreeReader (pure DB, read-only)
   +-- creates/cleans refs via fileRefService (pure DB)
   +-- reads file content via FileService (FS)
-  +-- registers checker with OrphanRefScanner on init
 
 KnowledgeService
   @DependsOn(FileService)
   +-- same pattern as above
+
+Note: 孤儿 ref 清理的 checker 集中定义在 OrphanRefScanner 的注册表中（编译期强制覆盖所有 sourceType），
+业务 Service 不需要主动注册。
 ```
 
 业务服务不需要依赖 `FileIpcService`（IPC 层，仅供 Renderer），也不需要依赖 `ExternalSyncEngine`（Notes 专属）。
