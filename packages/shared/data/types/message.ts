@@ -1,4 +1,17 @@
 import type { CursorPaginationResponse } from '@shared/data/api/apiTypes'
+import type {
+  DataUIPart,
+  DynamicToolUIPart,
+  FileUIPart,
+  ReasoningUIPart,
+  TextUIPart,
+  UIDataTypes,
+  UIMessagePart,
+  UITools
+} from 'ai'
+
+import type { CherryDataPartTypes } from './uiParts'
+
 /**
  * Message Statistics - combines token usage and performance metrics
  * Replaces the separate `usage` and `metrics` fields
@@ -23,12 +36,34 @@ export interface MessageStats {
 // Message Data
 // ============================================================================
 
+/** Cherry-specific UIMessagePart with our custom DataUIPart types baked in. */
+export type CherryMessagePart = UIMessagePart<CherryDataPartTypes, UITools>
+
 /**
  * Message data field structure
- * This is the type for the `data` column in the message table
+ * This is the type for the `data` column in the message table.
+ *
+ * After v2 migration, messages are stored in `parts` format (AI SDK UIMessage.parts).
+ * The `blocks` field is retained for type compatibility during migration but
+ * should not be used for new messages.
  */
 export interface MessageData {
-  blocks: MessageDataBlock[]
+  /** @deprecated Use `parts` for new messages. Retained for v1→v2 migration compatibility. */
+  blocks?: MessageDataBlock[]
+  /** AI SDK UIMessage.parts format — the canonical storage format after v2 migration. */
+  parts?: CherryMessagePart[]
+}
+
+// Re-export AI SDK part types for convenience
+export type {
+  DataUIPart,
+  DynamicToolUIPart,
+  FileUIPart,
+  ReasoningUIPart,
+  TextUIPart,
+  UIDataTypes,
+  UIMessagePart,
+  UITools
 }
 
 //FIXME [v2] 注意，以下类型只是占位，接口未稳定，随时会变
