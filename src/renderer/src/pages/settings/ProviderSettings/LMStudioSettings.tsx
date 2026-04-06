@@ -1,4 +1,4 @@
-import { useLMStudioSettings } from '@renderer/hooks/useLMStudio'
+import { useProvider } from '@renderer/data/hooks/useProviders'
 import { InputNumber } from 'antd'
 import type { FC } from 'react'
 import { useState } from 'react'
@@ -7,10 +7,21 @@ import styled from 'styled-components'
 
 import { SettingHelpText, SettingHelpTextRow, SettingSubtitle } from '..'
 
-const LMStudioSettings: FC = () => {
-  const { keepAliveTime, setKeepAliveTime } = useLMStudioSettings()
-  const [keepAliveMinutes, setKeepAliveMinutes] = useState(keepAliveTime)
+interface Props {
+  providerId: string
+}
+
+const LMStudioSettings: FC<Props> = ({ providerId }) => {
+  const { provider, updateProvider } = useProvider(providerId)
   const { t } = useTranslation()
+
+  const keepAliveTime = provider?.settings?.keepAliveTime ?? 0
+  const [keepAliveMinutes, setKeepAliveMinutes] = useState(keepAliveTime)
+
+  const handleBlur = async () => {
+    if (keepAliveMinutes === keepAliveTime) return
+    await updateProvider({ providerSettings: { ...provider?.settings, keepAliveTime: keepAliveMinutes } })
+  }
 
   return (
     <Container>
@@ -20,7 +31,7 @@ const LMStudioSettings: FC = () => {
         value={keepAliveMinutes}
         min={0}
         onChange={(e) => setKeepAliveMinutes(Math.floor(Number(e)))}
-        onBlur={() => setKeepAliveTime(keepAliveMinutes)}
+        onBlur={handleBlur}
         suffix={t('lmstudio.keep_alive_time.placeholder')}
         step={5}
       />

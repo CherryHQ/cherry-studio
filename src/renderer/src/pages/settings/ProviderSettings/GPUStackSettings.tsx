@@ -1,4 +1,4 @@
-import { useGPUStackSettings } from '@renderer/hooks/useGPUStack'
+import { useProvider } from '@renderer/data/hooks/useProviders'
 import { InputNumber } from 'antd'
 import type { FC } from 'react'
 import { useState } from 'react'
@@ -7,10 +7,21 @@ import styled from 'styled-components'
 
 import { SettingHelpText, SettingHelpTextRow, SettingSubtitle } from '..'
 
-const GPUStackSettings: FC = () => {
-  const { keepAliveTime, setKeepAliveTime } = useGPUStackSettings()
-  const [keepAliveMinutes, setKeepAliveMinutes] = useState(keepAliveTime)
+interface Props {
+  providerId: string
+}
+
+const GPUStackSettings: FC<Props> = ({ providerId }) => {
+  const { provider, updateProvider } = useProvider(providerId)
   const { t } = useTranslation()
+
+  const keepAliveTime = provider?.settings?.keepAliveTime ?? 0
+  const [keepAliveMinutes, setKeepAliveMinutes] = useState(keepAliveTime)
+
+  const handleBlur = async () => {
+    if (keepAliveMinutes === keepAliveTime) return
+    await updateProvider({ providerSettings: { ...provider?.settings, keepAliveTime: keepAliveMinutes } })
+  }
 
   return (
     <Container>
@@ -19,7 +30,7 @@ const GPUStackSettings: FC = () => {
         style={{ width: '100%' }}
         value={keepAliveMinutes}
         onChange={(e) => setKeepAliveMinutes(Number(e))}
-        onBlur={() => setKeepAliveTime(keepAliveMinutes)}
+        onBlur={handleBlur}
         suffix={t('gpustack.keep_alive_time.placeholder')}
         step={5}
       />
