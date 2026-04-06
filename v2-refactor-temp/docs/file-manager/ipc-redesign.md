@@ -1,12 +1,36 @@
-# FileManager IPC Redesign
+# File Module IPC Redesign
 
-v1 有 44 个细粒度文件 IPC 方法，v2 需要重新设计为统一的 FileManager lifecycle service。
+v1 有 52 个文件相关 IPC（44 File + 2 Fs + 1 Open_Path + 5 App 路径工具），v2 由 FileManager 统一管理。
+
+## 架构
+
+### 设计动机
+
+Renderer 需要统一的文件操作入口（一个 `read` 既能读 entry 也能读外部路径），但 main process 内部 entry 管理（DB + FS 协调）和纯路径操作（直接 FS）是两种完全不同的职责。既要统一调用又要关注点分离，直接实现是矛盾的。
+
+解法：**统一调用入口 + handler 层分派**。FileManager 作为唯一 lifecycle service 统管所有 IPC handler 注册，handler 内部按 target 类型分派到不同实现：
+
+- `FileEntryId` → FileManager 自身方法（entry 协调: resolve → DB + FS）
+- `FilePath` → ops.ts 纯函数（直接 FS/路径操作）
+
+**Tradeoff**：纯路径操作（`canWrite`、`resolvePath` 等）也交由 entry + FS 协调层管理，FileManager 承担了超出 entry 管理的 IPC 注册职责。但 handler 层只是 thin routing，其 public 方法签名仍然只认 FileEntryId，纯 path 操作不污染 public API。相比引入第二个 lifecycle service，这个代价更小。
+
+```
+Renderer
+  → FileManager.registerIpcHandlers() (统一入口, handler 层分派)
+    ├── target: FileEntryId → this.read / this.write / ... (entry 方法)
+    └── target: FilePath    → ops.read / ops.write / ... (直接委托)
+```
+
+**Main process 内部**：其他 service 可根据实际需求直接调用 ops.ts 或 FileManager，不需要经过 IPC。
 
 ## 设计原则
 
-- 操作对象是 **entry ID**，不是路径（FileManager 内部根据 mount type 处理 FS）
-- Renderer 只传必要信息，service 层推导元数据
-- 不按 file/dir 拆分方法（v1 的 `move` / `moveDir` 等冗余）
+- **迁移保持语义不变**：v1 → v2 迁移过程中保持已有行为不变，不改变调用方语义。例如 v1 的 `deleteFile` 是永久删除，v2 仍映射到 `permanentDelete`，不主动改为 `trash`。行为改进（如引入 trash）由后续需求驱动，不在迁移中混入
+- **统一入口，handler 分派**：Renderer 只有一个 File IPC 入口，handler 按 `FileEntryId` / `FilePath` 分派到 FileManager 或 ops.ts
+- **不按 file/dir 拆分方法**：v1 的 `move` / `moveDir` 等冗余合并
+- **Renderer 只传必要信息**：service 层推导元数据，不要求 renderer 预先获取
+- **FileManager public API 只认 FileEntryId**：纯路径操作在 handler 层直接委托 ops.ts，不经过 FileManager 方法
 
 ## v1 清单与 v2 方案
 
@@ -487,8 +511,12 @@ write(target: FileEntryId | FilePath, data: string | Uint8Array): Promise<void>
 copy(params: { id: FileEntryId; targetParentId: FileEntryId; newName?: string }): Promise<FileEntry>
 copy(params: { id: FileEntryId; destPath: FilePath }): Promise<void>
 
-// ─── G. 校验 ───
+// ─── G. 校验 / 路径工具 ───
 validateNotesPath(dirPath: FilePath): Promise<boolean>
+canWrite(dirPath: FilePath): Promise<boolean>
+resolvePath(filePath: string): Promise<string>
+isPathInside(childPath: string, parentPath: string): Promise<boolean>
+isNotEmptyDir(dirPath: FilePath): Promise<boolean>
 
 // ─── H. 系统操作 ───
 open(target: FileEntryId | FilePath): Promise<void>
@@ -503,3 +531,47 @@ listDirectory(dirPath: FilePath, options?: DirectoryListOptions): Promise<string
 > - File Watcher（start/stop/pause/resume/onFileChange）— v2 由 FileManager service 内部管理，不暴露 IPC
 > - `getDirectoryStructure` — v2 用 DataApi `GET /files/entries/:id/children` 替代
 > - `checkFileName` — sanitize 提取为 shared 纯函数，冲突检测由 service 内部处理
+
+### 非 File_ 前缀的文件相关 IPC
+
+v1 还有一些散落在其他命名空间下的文件相关 IPC，需要统一分析归属。
+
+#### 已合并到 File Module IPC
+
+| v1 IPC | v1 实现 | v2 方案 | 说明 |
+|---|---|---|---|
+| `Fs_Read` | `FileService.readFile` | 🔀 `read(FilePath)` | → ops.read（双态方法的 FilePath 路径） |
+| `Fs_ReadText` | `FileService.readTextFileWithAutoEncoding` | 🔀 `read(FilePath, { encoding: 'text' })` | 同上 |
+| `Open_Path` | `shell.openPath(path)` | 🔀 `open(FilePath)` | 与 `File_OpenPath` 完全重复，→ ops.open |
+| `App_HasWritePermission` | `hasWritePermission(filePath)` | 🔀 `canWrite(FilePath)` | → ops.canWrite |
+| `App_ResolvePath` | `path.resolve(untildify(filePath))` | 🔀 `resolvePath(FilePath)` | → ops.resolvePath |
+| `App_IsPathInside` | `isPathInside(childPath, parentPath)` | 🔀 `isPathInside(child, parent)` | → ops.isPathInside |
+| `App_IsNotEmptyDir` | `fs.readdirSync(path).length > 0` | 🔀 `isNotEmptyDir(FilePath)` | → ops.isNotEmptyDir |
+
+> **v1 兼容性审查**：
+>
+> - `Fs_Read`：aiCore 和 renderer 中用于读取外部文件（URL 或本地路径），v2 `read(FilePath)` 覆盖。
+> - `Fs_ReadText`：renderer 中用于读取文本文件并自动检测编码，v2 `read(FilePath, { encoding: 'text', detectEncoding: true })` 覆盖。
+> - `Open_Path`：多处使用（知识库、导出结果等），与 `File_OpenPath` 实现完全相同（均调用 `shell.openPath`），v2 统一为 `open(FilePath)`。
+> - `App_HasWritePermission`：数据迁移选择目录时校验权限。通用能力，`validateNotesPath` 内部也需要。
+> - `App_ResolvePath` / `App_IsPathInside`：纯路径计算，无 FS I/O。renderer 无 `node:path`，仍需 IPC。
+> - `App_IsNotEmptyDir`：数据迁移校验目录。通用能力，归入 ops。
+
+#### 保持独立（不属于 File Module）
+
+| v1 IPC | v1 实现 | v2 方案 | 说明 |
+|---|---|---|---|
+| `Pdf_ExtractText` | `extractPdfText(data: Uint8Array \| ArrayBuffer \| string)` | ✅ 保持独立 | 纯内容处理（传 buffer），不依赖文件系统或 entry 系统 |
+| `App_Copy` | `fs.promises.cp` 递归复制 | ✅ 数据迁移模块 | userData 递归复制 + occupiedDirs 排除，专用场景 |
+
+#### 不属于 FileManager（各自业务模块）
+
+| v1 IPC | 说明 | v2 归属 |
+|---|---|---|
+| `Open_Website` | `shell.openExternal(url)` — URL 不是文件操作 | App 层 |
+| `FileService_Upload/List/Delete/Retrieve` | AI Provider 远程文件 API（Gemini 等） | Provider 模块 |
+| `Gemini_UploadFile/Base64File/RetrieveFile/ListFiles/DeleteFile` | Gemini 专用文件操作 | Provider 模块 |
+| `Export_Word` | Word 导出 | Export 模块 |
+| `Zip_Compress/Decompress` | 压缩解压 | Backup 模块 |
+| `Webview_PrintToPDF/SaveAsHTML` | Webview 输出 | Webview 模块 |
+| `Skill_ReadFile/ListFiles` | Skill 文件读取 | Skill 模块 |
