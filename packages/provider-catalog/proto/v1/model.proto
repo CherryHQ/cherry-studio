@@ -1,0 +1,110 @@
+syntax = "proto3";
+package catalog.v1;
+
+import "v1/common.proto";
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// Reasoning Support (model-level capabilities only)
+//
+// Describes WHAT reasoning capabilities a model supports.
+// HOW to invoke reasoning is defined by the provider's reasoning_format
+// (see provider.proto ProviderReasoningFormat).
+// ═══════════════════════════════════════════════════════════════════════════════
+
+message ThinkingTokenLimits {
+  optional uint32 min = 1;
+  optional uint32 max = 2;
+  optional uint32 default = 3;
+}
+
+// Model-level reasoning capabilities
+message ReasoningSupport {
+  optional ThinkingTokenLimits thinking_token_limits = 1;
+  repeated ReasoningEffort supported_efforts = 2;
+  optional bool interleaved = 3;
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// Parameter Support
+// ═══════════════════════════════════════════════════════════════════════════════
+
+message RangedParameterSupport {
+  bool supported = 1;
+  optional NumericRange range = 2;
+}
+
+message ParameterSupport {
+  optional RangedParameterSupport temperature = 1;
+  optional RangedParameterSupport top_p = 2;
+  optional RangedParameterSupport top_k = 3;
+  optional bool frequency_penalty = 4;
+  optional bool presence_penalty = 5;
+  optional bool max_tokens = 6;
+  optional bool stop_sequences = 7;
+  optional bool system_message = 8;
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// Pricing
+// ═══════════════════════════════════════════════════════════════════════════════
+
+enum ImagePriceUnit {
+  IMAGE_PRICE_UNIT_UNSPECIFIED = 0;
+  IMAGE_PRICE_UNIT_IMAGE = 1;
+  IMAGE_PRICE_UNIT_PIXEL = 2;
+}
+
+message ImagePrice {
+  double price = 1;
+  Currency currency = 2;
+  ImagePriceUnit unit = 3;
+}
+
+message MinutePrice {
+  double price = 1;
+  Currency currency = 2;
+}
+
+message ModelPricing {
+  PricePerToken input = 1;
+  PricePerToken output = 2;
+  optional PricePerToken cache_read = 3;
+  optional PricePerToken cache_write = 4;
+  optional ImagePrice per_image = 5;
+  optional MinutePrice per_minute = 6;
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// Model Config
+// ═══════════════════════════════════════════════════════════════════════════════
+
+message ModelConfig {
+  string id = 1;
+  optional string name = 2;
+  optional string description = 3;
+
+  repeated ModelCapability capabilities = 4;
+  repeated Modality input_modalities = 5;
+  repeated Modality output_modalities = 6;
+
+  optional uint32 context_window = 7;
+  optional uint32 max_output_tokens = 8;
+  optional uint32 max_input_tokens = 9;
+
+  optional ModelPricing pricing = 10;
+  optional ReasoningSupport reasoning = 11;
+  optional ParameterSupport parameter_support = 12;
+
+  optional string family = 13;
+  optional string owned_by = 14;
+  optional bool open_weights = 15;
+
+  repeated string alias = 16;
+  optional Metadata metadata = 17;
+}
+
+// Top-level container
+message ModelCatalog {
+  string version = 1;
+  repeated ModelConfig models = 2;
+}

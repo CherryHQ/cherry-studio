@@ -11,9 +11,9 @@ import type {
   ApiFeatures,
   ApiKeyEntry,
   AuthConfig,
+  EndpointConfig,
   Provider,
-  ProviderSettings,
-  ReasoningFormatType
+  ProviderSettings
 } from '../../types/provider'
 
 export interface ListProvidersQuery {
@@ -25,14 +25,10 @@ export interface ListProvidersQuery {
 interface ProviderMutableFields {
   /** Display name */
   name?: string
-  /** Base URL mapping (EndpointType → baseURL) */
-  baseUrls?: Partial<Record<EndpointType, string>>
-  /** Model list API URLs */
-  modelsApiUrls?: Record<string, string>
+  /** Per-endpoint-type configuration (baseUrl, reasoningFormatType, modelsApiUrls) */
+  endpointConfigs?: Partial<Record<EndpointType, EndpointConfig>>
   /** Default text generation endpoint (numeric EndpointType enum value) */
   defaultChatEndpoint?: EndpointType
-  /** Reasoning format mapping by endpoint type */
-  reasoningFormatTypes?: Partial<Record<EndpointType, ReasoningFormatType>>
   /** API keys */
   apiKeys?: ApiKeyEntry[]
   /** Authentication configuration */

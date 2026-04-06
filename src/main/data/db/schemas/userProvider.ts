@@ -17,12 +17,12 @@ import {
   ApiKeyEntrySchema,
   type AuthConfig,
   AuthConfigSchema,
+  type EndpointConfig,
+  EndpointConfigSchema,
   type ProviderSettings,
   ProviderSettingsSchema,
   type ProviderWebsites,
-  ProviderWebsitesSchema,
-  type ReasoningFormatType,
-  ReasoningFormatTypeSchema
+  ProviderWebsitesSchema
 } from '@shared/data/types/provider'
 import { index, integer, sqliteTable, text } from 'drizzle-orm/sqlite-core'
 import { createSchemaFactory } from 'drizzle-zod'
@@ -47,9 +47,8 @@ export const userProviderTable = sqliteTable(
 
     name: text().notNull(),
 
-    baseUrls: text('base_urls', { mode: 'json' }).$type<Partial<Record<EndpointType, string>>>(),
-
-    modelsApiUrls: text('models_api_urls', { mode: 'json' }).$type<Record<string, string>>(),
+    /** Per-endpoint-type configuration (baseUrl, reasoningFormatType, modelsApiUrls) */
+    endpointConfigs: text('endpoint_configs', { mode: 'json' }).$type<Partial<Record<EndpointType, EndpointConfig>>>(),
 
     /** Default text generation endpoint (when supporting multiple) */
     defaultChatEndpoint: text().$type<EndpointType>(),
@@ -65,11 +64,6 @@ export const userProviderTable = sqliteTable(
 
     /** Provider-specific settings as JSON */
     providerSettings: text({ mode: 'json' }).$type<ProviderSettings>(),
-
-    /** How this provider's API expects reasoning parameters for each endpoint type */
-    reasoningFormatTypes: text('reasoning_format_types', { mode: 'json' }).$type<
-      Partial<Record<EndpointType, ReasoningFormatType>>
-    >(),
 
     /** Website links (official, apiKey, docs, models) */
     websites: text({ mode: 'json' }).$type<ProviderWebsites>(),
@@ -93,9 +87,7 @@ export type UserProvider = typeof userProviderTable.$inferSelect
 export type NewUserProvider = typeof userProviderTable.$inferInsert
 
 const jsonColumnOverrides = {
-  baseUrls: () => z.record(z.string(), z.string()).nullable(),
-  modelsApiUrls: () => z.record(z.string(), z.string()).nullable(),
-  reasoningFormatTypes: () => z.record(z.string(), ReasoningFormatTypeSchema).nullable(),
+  endpointConfigs: () => z.record(z.string(), EndpointConfigSchema).nullable(),
   apiKeys: () => z.array(ApiKeyEntrySchema).nullable(),
   authConfig: () => AuthConfigSchema.nullable(),
   apiFeatures: () => ApiFeaturesSchema.nullable(),

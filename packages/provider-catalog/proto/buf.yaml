@@ -1,0 +1,12 @@
+version: v2
+modules:
+  - path: .
+    name: buf.build/cherrystudio/catalog
+lint:
+  use:
+    - STANDARD
+  except:
+    - PACKAGE_DIRECTORY_MATCH
+breaking:
+  use:
+    - FILE

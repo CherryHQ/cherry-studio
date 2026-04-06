@@ -16,6 +16,7 @@ import type {
   ApiFeatures,
   ApiKeyEntry,
   AuthConfig,
+  EndpointConfig,
   ProviderSettings,
   ReasoningFormatType
 } from '@shared/data/types/provider'
@@ -159,9 +160,8 @@ export function transformProvider(
     providerId: legacy.id,
     presetProviderId: SYSTEM_PROVIDER_IDS.has(legacy.id) ? legacy.id : null,
     name: legacy.name,
-    baseUrls: buildBaseUrls(legacy, endpointType),
+    endpointConfigs: buildEndpointConfigs(legacy, endpointType),
     defaultChatEndpoint: endpointType ?? null,
-    reasoningFormatTypes: buildReasoningFormatTypes(endpointType, REASONING_FORMAT_MAP[legacy.type]),
     apiKeys: buildApiKeys(legacy.apiKey),
     authConfig: buildAuthConfig(legacy, settings),
     apiFeatures: buildApiFeatures(legacy),
@@ -171,31 +171,28 @@ export function transformProvider(
   }
 }
 
-function buildBaseUrls(legacy: LegacyProvider, endpointType: EndpointType | undefined): NewUserProvider['baseUrls'] {
-  const urls: Partial<Record<EndpointType, string>> = {}
+function buildEndpointConfigs(
+  legacy: LegacyProvider,
+  endpointType: EndpointType | undefined
+): NewUserProvider['endpointConfigs'] {
+  const configs: Partial<Record<EndpointType, EndpointConfig>> = {}
 
   if (legacy.apiHost && endpointType !== undefined) {
-    urls[endpointType] = legacy.apiHost
+    configs[endpointType] = { ...configs[endpointType], baseUrl: legacy.apiHost }
   }
 
   if (legacy.anthropicApiHost) {
-    urls[ENDPOINT_TYPE.ANTHROPIC_MESSAGES] = legacy.anthropicApiHost
+    const ep = ENDPOINT_TYPE.ANTHROPIC_MESSAGES
+    configs[ep] = { ...configs[ep], baseUrl: legacy.anthropicApiHost }
   }
 
-  return Object.keys(urls).length > 0 ? urls : null
-}
-
-function buildReasoningFormatTypes(
-  defaultChatEndpoint: EndpointType | undefined,
-  reasoningFormatType: ReasoningFormatType | undefined
-): NewUserProvider['reasoningFormatTypes'] {
-  if (defaultChatEndpoint === undefined || !reasoningFormatType) {
-    return null
+  // Assign reasoning format type to the default endpoint
+  const reasoningFormatType = REASONING_FORMAT_MAP[legacy.type]
+  if (endpointType !== undefined && reasoningFormatType) {
+    configs[endpointType] = { ...configs[endpointType], reasoningFormatType }
   }
 
-  return {
-    [defaultChatEndpoint]: reasoningFormatType
-  }
+  return Object.keys(configs).length > 0 ? configs : null
 }
 
 function buildApiKeys(apiKey: string): ApiKeyEntry[] {
@@ -210,8 +207,7 @@ function buildApiKeys(apiKey: string): ApiKeyEntry[] {
     .map((key) => ({
       id: uuidv4(),
       key,
-      isEnabled: true,
-      createdAt: Date.now()
+      isEnabled: true
     }))
 }
 

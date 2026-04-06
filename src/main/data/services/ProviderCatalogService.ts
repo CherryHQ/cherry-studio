@@ -26,8 +26,8 @@ import { loggerService } from '@logger'
 import { isDev } from '@main/constant'
 import { application } from '@main/core/application'
 import type { Model } from '@shared/data/types/model'
-import type { ReasoningFormatType } from '@shared/data/types/provider'
-import { mergeModelConfig } from '@shared/data/utils/modelMerger'
+import type { EndpointConfig, ReasoningFormatType } from '@shared/data/types/provider'
+import { extractReasoningFormatTypes, mergeModelConfig } from '@shared/data/utils/modelMerger'
 import { eq, isNotNull } from 'drizzle-orm'
 
 import { modelService } from './ModelService'
@@ -48,27 +48,45 @@ const CASE_TO_TYPE: Record<string, ReasoningFormatType> = {
   selfHosted: 'self-hosted'
 }
 
-function buildReasoningFormatTypes(
-  defaultChatEndpoint: EndpointType | undefined,
-  reasoningFormatType: ReasoningFormatType | undefined
-): Partial<Record<EndpointType, ReasoningFormatType>> | undefined {
-  if (defaultChatEndpoint === undefined || !reasoningFormatType) {
-    return undefined
+/**
+ * Build runtime endpointConfigs from proto provider data.
+ * Converts proto EndpointConfig messages to plain runtime objects.
+ */
+function buildEndpointConfigsFromProto(p: ProtoProviderConfig): Partial<Record<EndpointType, EndpointConfig>> | null {
+  const configs: Partial<Record<EndpointType, EndpointConfig>> = {}
+
+  for (const [k, protoConfig] of Object.entries(p.endpointConfigs)) {
+    const ep = Number(k) as EndpointType
+    const config: EndpointConfig = {}
+
+    if (protoConfig.baseUrl) {
+      config.baseUrl = protoConfig.baseUrl
+    }
+
+    // Convert proto ModelsApiUrls message to plain object
+    if (protoConfig.modelsApiUrls) {
+      const modelsApiUrls: Record<string, string> = {}
+      if (protoConfig.modelsApiUrls.default) modelsApiUrls.default = protoConfig.modelsApiUrls.default
+      if (protoConfig.modelsApiUrls.embedding) modelsApiUrls.embedding = protoConfig.modelsApiUrls.embedding
+      if (protoConfig.modelsApiUrls.reranker) modelsApiUrls.reranker = protoConfig.modelsApiUrls.reranker
+      if (Object.keys(modelsApiUrls).length > 0) {
+        config.modelsApiUrls = modelsApiUrls
+      }
+    }
+
+    // Convert proto ProviderReasoningFormat to runtime type string
+    const formatCase = protoConfig.reasoningFormat?.format.case
+    const reasoningFormatType = formatCase ? CASE_TO_TYPE[formatCase] : undefined
+    if (reasoningFormatType) {
+      config.reasoningFormatType = reasoningFormatType
+    }
+
+    if (Object.keys(config).length > 0) {
+      configs[ep] = config
+    }
   }
 
-  return {
-    [defaultChatEndpoint]: reasoningFormatType
-  }
-}
-
-function getSingleReasoningFormatType(
-  reasoningFormatTypes: Partial<Record<EndpointType, ReasoningFormatType>> | undefined
-): ReasoningFormatType | undefined {
-  if (!reasoningFormatTypes) {
-    return undefined
-  }
-
-  return Object.values(reasoningFormatTypes)[0]
+  return Object.keys(configs).length > 0 ? configs : null
 }
 
 export class CatalogService {
@@ -162,12 +180,11 @@ export class CatalogService {
   } {
     const providers = this.loadCatalogProviders()
     const provider = providers.find((p) => p.id === providerId)
-    const formatCase = provider?.reasoningFormat?.format.case
-    const reasoningFormatType = formatCase ? CASE_TO_TYPE[formatCase] : undefined
+    const endpointConfigs = provider ? buildEndpointConfigsFromProto(provider) : null
 
     return {
       defaultChatEndpoint: provider?.defaultChatEndpoint,
-      reasoningFormatTypes: buildReasoningFormatTypes(provider?.defaultChatEndpoint, reasoningFormatType)
+      reasoningFormatTypes: extractReasoningFormatTypes(endpointConfigs)
     }
   }
 
@@ -183,7 +200,7 @@ export class CatalogService {
     const [provider] = await db
       .select({
         defaultChatEndpoint: userProviderTable.defaultChatEndpoint,
-        reasoningFormatTypes: userProviderTable.reasoningFormatTypes
+        endpointConfigs: userProviderTable.endpointConfigs
       })
       .from(userProviderTable)
       .where(eq(userProviderTable.providerId, providerId))
@@ -192,8 +209,7 @@ export class CatalogService {
     if (provider) {
       const defaultChatEndpoint = provider.defaultChatEndpoint ?? catalogConfig.defaultChatEndpoint
       const reasoningFormatTypes =
-        provider.reasoningFormatTypes ??
-        buildReasoningFormatTypes(defaultChatEndpoint, getSingleReasoningFormatType(catalogConfig.reasoningFormatTypes))
+        extractReasoningFormatTypes(provider.endpointConfigs) ?? catalogConfig.reasoningFormatTypes
 
       return {
         defaultChatEndpoint,
@@ -346,23 +362,6 @@ export class CatalogService {
             }
           : null
 
-      // Proto baseUrls uses map<int32, string> — convert to Record<string, string>
-      const baseUrls: Record<string, string> = {}
-      if (p.baseUrls) {
-        for (const [k, v] of Object.entries(p.baseUrls)) {
-          baseUrls[String(k)] = v
-        }
-      }
-
-      // Convert proto message types to plain objects for DB storage
-      const modelsApiUrls: Record<string, string> | null = p.modelsApiUrls
-        ? {
-            ...(p.modelsApiUrls.default ? { default: p.modelsApiUrls.default } : {}),
-            ...(p.modelsApiUrls.embedding ? { embedding: p.modelsApiUrls.embedding } : {}),
-            ...(p.modelsApiUrls.reranker ? { reranker: p.modelsApiUrls.reranker } : {})
-          }
-        : null
-
       const apiFeatures = p.apiFeatures
         ? {
             arrayContent: p.apiFeatures.arrayContent,
@@ -374,19 +373,15 @@ export class CatalogService {
           }
         : null
 
-      // Extract reasoning format type from proto oneof
-      const formatCase = p.reasoningFormat?.format.case
-      const reasoningFormatType = formatCase ? CASE_TO_TYPE[formatCase] : undefined
-      const reasoningFormatTypes = buildReasoningFormatTypes(p.defaultChatEndpoint, reasoningFormatType)
+      // Build unified endpointConfigs from proto baseUrls + modelsApiUrls + reasoningFormat
+      const endpointConfigs = buildEndpointConfigsFromProto(p)
 
       return {
         providerId: p.id,
         presetProviderId: p.id,
         name: p.name,
-        baseUrls: Object.keys(baseUrls).length > 0 ? baseUrls : null,
-        modelsApiUrls: Object.keys(modelsApiUrls ?? {}).length > 0 ? modelsApiUrls : null,
+        endpointConfigs,
         defaultChatEndpoint: p.defaultChatEndpoint ?? null,
-        reasoningFormatTypes: reasoningFormatTypes ?? null,
         apiFeatures,
         websites
       }
@@ -395,8 +390,10 @@ export class CatalogService {
     dbRows.push({
       providerId: 'cherryai',
       name: 'CherryAI',
-      baseUrls: {
-        [EndpointType.OPENAI_CHAT_COMPLETIONS]: 'https://api.cherry-ai.com'
+      endpointConfigs: {
+        [EndpointType.OPENAI_CHAT_COMPLETIONS]: {
+          baseUrl: 'https://api.cherry-ai.com'
+        }
       },
       defaultChatEndpoint: EndpointType.OPENAI_CHAT_COMPLETIONS
     })
@@ -472,7 +469,7 @@ export class CatalogService {
       .select({
         providerId: userProviderTable.providerId,
         defaultChatEndpoint: userProviderTable.defaultChatEndpoint,
-        reasoningFormatTypes: userProviderTable.reasoningFormatTypes
+        endpointConfigs: userProviderTable.endpointConfigs
       })
       .from(userProviderTable)
     const providerConfigMap = new Map(providerRows.map((row) => [row.providerId, row]))
@@ -491,7 +488,8 @@ export class CatalogService {
       const providerConfig = providerConfigMap.get(row.providerId)
       const catalogReasoningConfig = this.getCatalogReasoningConfig(row.providerId)
       const defaultChatEndpoint = providerConfig?.defaultChatEndpoint ?? catalogReasoningConfig.defaultChatEndpoint
-      const reasoningFormatTypes = providerConfig?.reasoningFormatTypes ?? catalogReasoningConfig.reasoningFormatTypes
+      const reasoningFormatTypes =
+        extractReasoningFormatTypes(providerConfig?.endpointConfigs) ?? catalogReasoningConfig.reasoningFormatTypes
 
       // Merge catalog data with user data
       const merged = mergeModelConfig(

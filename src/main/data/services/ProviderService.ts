@@ -55,15 +55,13 @@ function rowToRuntimeProvider(row: UserProvider): Provider {
     id: row.providerId,
     presetProviderId: row.presetProviderId ?? undefined,
     name: row.name,
-    baseUrls: row.baseUrls ?? undefined,
-    modelsApiUrls: row.modelsApiUrls ?? undefined,
+    endpointConfigs: row.endpointConfigs ?? undefined,
     defaultChatEndpoint: row.defaultChatEndpoint ?? undefined,
     apiKeys,
     authType,
     apiFeatures,
     settings,
     websites: row.websites ?? undefined,
-    reasoningFormatTypes: row.reasoningFormatTypes ?? undefined,
     isEnabled: row.isEnabled ?? true
   }
 }
@@ -126,10 +124,8 @@ export class ProviderService {
       providerId: dto.providerId,
       presetProviderId: dto.presetProviderId ?? null,
       name: dto.name,
-      baseUrls: dto.baseUrls ?? null,
-      modelsApiUrls: dto.modelsApiUrls ?? null,
+      endpointConfigs: dto.endpointConfigs ?? null,
       defaultChatEndpoint: dto.defaultChatEndpoint ?? null,
-      reasoningFormatTypes: dto.reasoningFormatTypes ?? null,
       apiKeys: dto.apiKeys ?? [],
       authConfig: dto.authConfig ?? null,
       apiFeatures: dto.apiFeatures ?? null,
@@ -156,10 +152,8 @@ export class ProviderService {
     const updates: Partial<NewUserProvider> = {}
 
     if (dto.name !== undefined) updates.name = dto.name
-    if (dto.baseUrls !== undefined) updates.baseUrls = dto.baseUrls
-    if (dto.modelsApiUrls !== undefined) updates.modelsApiUrls = dto.modelsApiUrls
+    if (dto.endpointConfigs !== undefined) updates.endpointConfigs = dto.endpointConfigs
     if (dto.defaultChatEndpoint !== undefined) updates.defaultChatEndpoint = dto.defaultChatEndpoint
-    if (dto.reasoningFormatTypes !== undefined) updates.reasoningFormatTypes = dto.reasoningFormatTypes
     if (dto.apiKeys !== undefined) updates.apiKeys = dto.apiKeys
     if (dto.authConfig !== undefined) updates.authConfig = dto.authConfig
     if (dto.apiFeatures !== undefined) updates.apiFeatures = dto.apiFeatures
@@ -197,10 +191,8 @@ export class ProviderService {
           set: {
             presetProviderId: provider.presetProviderId,
             name: provider.name,
-            baseUrls: provider.baseUrls,
-            modelsApiUrls: provider.modelsApiUrls,
+            endpointConfigs: provider.endpointConfigs,
             defaultChatEndpoint: provider.defaultChatEndpoint,
-            reasoningFormatTypes: provider.reasoningFormatTypes,
             apiFeatures: provider.apiFeatures,
             providerSettings: provider.providerSettings,
             websites: provider.websites
@@ -307,8 +299,7 @@ export class ProviderService {
       id: crypto.randomUUID(),
       key,
       label,
-      isEnabled: true,
-      createdAt: Date.now()
+      isEnabled: true
     }
 
     const updatedKeys = [...existingKeys, newEntry]
