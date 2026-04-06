@@ -15,6 +15,7 @@ import type {
   Provider,
   ProviderSettings
 } from '../../types/provider'
+import type { EnrichModelsDto } from './models'
 
 export interface ListProvidersQuery {
   /** Filter by enabled status */
@@ -134,12 +135,21 @@ export interface ProviderSchemas {
   }
 
   /**
-   * Get all registry preset models for a provider (read-only, no DB writes)
+   * Registry models for a provider
+   * GET: Get all registry preset models (read-only, no DB writes)
+   * POST: Enrich raw SDK model entries against registry presets
    * @example GET /providers/openai/registry-models
+   * @example POST /providers/openai/registry-models { "models": [{ "modelId": "gpt-4o" }] }
    */
   '/providers/:providerId/registry-models': {
     GET: {
       params: { providerId: string }
+      response: Model[]
+    }
+    /** Enrich raw model entries with registry capabilities, pricing, etc. */
+    POST: {
+      params: { providerId: string }
+      body: EnrichModelsDto
       response: Model[]
     }
   }
