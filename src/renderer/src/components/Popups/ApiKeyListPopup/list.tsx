@@ -1,19 +1,21 @@
 import { Button, Flex, Tooltip } from '@cherrystudio/ui'
+import { useModels } from '@data/hooks/useModels'
+import { useProvider, useProviderApiKeys, useProviderMutations } from '@data/hooks/useProviders'
 import { DeleteIcon } from '@renderer/components/Icons'
 import { StreamlineGoodHealthAndWellBeing } from '@renderer/components/Icons/SVGIcon'
 import Scrollbar from '@renderer/components/Scrollbar'
 import { usePreprocessProvider } from '@renderer/hooks/usePreprocess'
-import { useProvider } from '@renderer/hooks/useProvider'
 import { useWebSearchProvider } from '@renderer/hooks/useWebSearchProviders'
 import { SettingHelpText } from '@renderer/pages/settings'
 import { isProviderSupportAuth } from '@renderer/services/ProviderService'
 import type { PreprocessProviderId, WebSearchProviderId } from '@renderer/types'
 import type { ApiKeyWithStatus } from '@renderer/types/healthCheck'
 import { HealthStatus } from '@renderer/types/healthCheck'
+import { toV1ProviderShim } from '@renderer/utils/v1ProviderShim'
 import { Card, List, Popconfirm, Space, Typography } from 'antd'
 import { Plus } from 'lucide-react'
 import type { FC } from 'react'
-import { useState } from 'react'
+import { useCallback, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
@@ -191,9 +193,37 @@ type DocPreprocessApiKeyListProps = SpecificApiKeyListProps & {
 }
 
 export const LlmApiKeyList: FC<SpecificApiKeyListProps> = ({ providerId, showHealthCheck = true }) => {
-  const { provider, updateProvider } = useProvider(providerId)
+  // TODO(v2-cleanup): Remove v1 shim after useApiKeys/checkApi migrate to v2
+  const { provider } = useProvider(providerId)
+  const { data: apiKeysData } = useProviderApiKeys(providerId)
+  const { models } = useModels({ providerId })
+  const { updateApiKeys } = useProviderMutations(providerId)
 
-  return <ApiKeyList provider={provider} updateProvider={updateProvider} showHealthCheck={showHealthCheck} />
+  const joinedApiKey = useMemo(() => apiKeysData?.keys?.map((k) => k.key).join(',') ?? '', [apiKeysData])
+
+  const v1Provider = useMemo(() => {
+    if (!provider) return null
+    return toV1ProviderShim(provider, { models, apiKey: joinedApiKey })
+  }, [provider, models, joinedApiKey])
+
+  const shimUpdateProvider = useCallback(
+    (updates: Partial<{ apiKey: string }>) => {
+      if (updates.apiKey === undefined) return
+      const keys = updates.apiKey
+        .split(',')
+        .map((k) => k.trim())
+        .filter(Boolean)
+      const apiKeys = keys.map((key) => ({ id: crypto.randomUUID(), key, isEnabled: true }))
+      void updateApiKeys(apiKeys)
+    },
+    [updateApiKeys]
+  )
+
+  if (!v1Provider) return null
+
+  return (
+    <ApiKeyList provider={v1Provider} updateProvider={shimUpdateProvider as any} showHealthCheck={showHealthCheck} />
+  )
 }
 
 export const WebSearchApiKeyList: FC<WebSearchApiKeyList> = ({ providerId, showHealthCheck = true }) => {
