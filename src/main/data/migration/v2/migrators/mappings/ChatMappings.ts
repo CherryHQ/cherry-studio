@@ -61,6 +61,7 @@ import type {
   MessageStats,
   ReasoningUIPart,
   ReferenceCategory,
+  SerializedErrorData,
   TextUIPart,
   ThinkingBlock,
   ToolBlock,
@@ -207,7 +208,7 @@ export interface OldMessageBlock {
   status: string // Dropped in new schema
   model?: OldModel // Dropped in new schema
   metadata?: Record<string, unknown>
-  error?: { name?: string; message?: string; stack?: string; code?: string }
+  error?: SerializedErrorData
 }
 
 /**
@@ -823,7 +824,8 @@ function buildCherryMetadata(oldBlock: OldMessageBlock): ProviderMetadata {
     cherry.metadata = oldBlock.metadata as JSONObject
   }
   if (oldBlock.error) {
-    cherry.error = oldBlock.error
+    const { cause: _, ...errorWithoutCause } = oldBlock.error
+    cherry.error = errorWithoutCause
   }
   return { cherry }
 }
