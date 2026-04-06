@@ -1,11 +1,11 @@
 {
-  "generated_at": "2026-04-05T17:51:22.667806+00:00",
-  "date": "2026-04-05",
+  "generated_at": "2026-04-06T17:57:53.793571+00:00",
+  "date": "2026-04-06",
   "v2_branch_summary": {
     "total_merged_prs": 68,
     "merged_last_30d": 42,
-    "merged_last_7d": 14,
-    "open_prs": 45
+    "merged_last_7d": 13,
+    "open_prs": 49
   },
   "area_breakdown_all_time": {
     "bugfix": 23,
@@ -25,10 +25,10 @@
     "other": 1
   },
   "weekly_merge_velocity": {
-    "This week": 14,
-    "W-1": 16,
-    "W-2": 5,
-    "W-3": 5,
+    "This week": 13,
+    "W-1": 13,
+    "W-2": 8,
+    "W-3": 6,
     "W-4": 2
   },
   "open_prs": [
@@ -40,7 +40,7 @@
       "area": "docs",
       "created_at": "2025-06-12T06:27:35Z",
       "url": "https://github.com/CherryHQ/cherry-studio/pull/7104",
-      "age_days": 297
+      "age_days": 298
     },
     {
       "number": 10090,
@@ -50,7 +50,7 @@
       "area": "feature",
       "created_at": "2025-09-10T14:38:38Z",
       "url": "https://github.com/CherryHQ/cherry-studio/pull/10090",
-      "age_days": 207
+      "age_days": 208
     },
     {
       "number": 10699,
@@ -62,7 +62,7 @@
       "area": "feature",
       "created_at": "2025-10-13T15:53:40Z",
       "url": "https://github.com/CherryHQ/cherry-studio/pull/10699",
-      "age_days": 174
+      "age_days": 175
     },
     {
       "number": 10874,
@@ -74,7 +74,7 @@
       "area": "feature",
       "created_at": "2025-10-21T23:31:22Z",
       "url": "https://github.com/CherryHQ/cherry-studio/pull/10874",
-      "age_days": 165
+      "age_days": 166
     },
     {
       "number": 10929,
@@ -86,7 +86,7 @@
       "area": "refactor",
       "created_at": "2025-10-23T17:34:27Z",
       "url": "https://github.com/CherryHQ/cherry-studio/pull/10929",
-      "age_days": 164
+      "age_days": 165
     },
     {
       "number": 10912,
@@ -98,7 +98,7 @@
       "area": "refactor",
       "created_at": "2025-10-23T09:24:37Z",
       "url": "https://github.com/CherryHQ/cherry-studio/pull/10912",
-      "age_days": 164
+      "age_days": 165
     },
     {
       "number": 10933,
@@ -110,7 +110,7 @@
       "area": "feature",
       "created_at": "2025-10-23T20:11:13Z",
       "url": "https://github.com/CherryHQ/cherry-studio/pull/10933",
-      "age_days": 163
+      "age_days": 164
     },
     {
       "number": 11054,
@@ -122,7 +122,7 @@
       "area": "feature",
       "created_at": "2025-10-30T09:18:43Z",
       "url": "https://github.com/CherryHQ/cherry-studio/pull/11054",
-      "age_days": 157
+      "age_days": 158
     },
     {
       "number": 11050,
@@ -134,7 +134,7 @@
       "area": "refactor",
       "created_at": "2025-10-30T03:30:56Z",
       "url": "https://github.com/CherryHQ/cherry-studio/pull/11050",
-      "age_days": 157
+      "age_days": 158
     },
     {
       "number": 11420,
@@ -146,7 +146,7 @@
       "area": "feature",
       "created_at": "2025-11-23T17:41:13Z",
       "url": "https://github.com/CherryHQ/cherry-studio/pull/11420",
-      "age_days": 133
+      "age_days": 134
     },
     {
       "number": 11878,
@@ -158,7 +158,7 @@
       "area": "feature",
       "created_at": "2025-12-12T11:19:16Z",
       "url": "https://github.com/CherryHQ/cherry-studio/pull/11878",
-      "age_days": 114
+      "age_days": 115
     },
     {
       "number": 12060,
@@ -170,7 +170,7 @@
       "area": "feature",
       "created_at": "2025-12-21T11:04:10Z",
       "url": "https://github.com/CherryHQ/cherry-studio/pull/12060",
-      "age_days": 105
+      "age_days": 106
     },
     {
       "number": 12150,
@@ -182,7 +182,7 @@
       "area": "refactor",
       "created_at": "2025-12-26T12:02:11Z",
       "url": "https://github.com/CherryHQ/cherry-studio/pull/12150",
-      "age_days": 100
+      "age_days": 101
     },
     {
       "number": 12340,
@@ -194,7 +194,7 @@
       "area": "refactor",
       "created_at": "2026-01-07T08:08:13Z",
       "url": "https://github.com/CherryHQ/cherry-studio/pull/12340",
-      "age_days": 88
+      "age_days": 89
     },
     {
       "number": 12474,
@@ -206,7 +206,7 @@
       "area": "feature",
       "created_at": "2026-01-15T02:58:46Z",
       "url": "https://github.com/CherryHQ/cherry-studio/pull/12474",
-      "age_days": 80
+      "age_days": 81
     },
     {
       "number": 12519,
@@ -218,7 +218,7 @@
       "area": "refactor",
       "created_at": "2026-01-19T10:03:45Z",
       "url": "https://github.com/CherryHQ/cherry-studio/pull/12519",
-      "age_days": 76
+      "age_days": 77
     },
     {
       "number": 12659,
@@ -230,7 +230,7 @@
       "area": "feature",
       "created_at": "2026-01-30T16:31:10Z",
       "url": "https://github.com/CherryHQ/cherry-studio/pull/12659",
-      "age_days": 65
+      "age_days": 66
     },
     {
       "number": 13173,
@@ -243,7 +243,7 @@
       "area": "refactor",
       "created_at": "2026-03-03T09:52:50Z",
       "url": "https://github.com/CherryHQ/cherry-studio/pull/13173",
-      "age_days": 33
+      "age_days": 34
     },
     {
       "number": 13238,
@@ -255,7 +255,7 @@
       "area": "feature",
       "created_at": "2026-03-05T09:00:33Z",
       "url": "https://github.com/CherryHQ/cherry-studio/pull/13238",
-      "age_days": 31
+      "age_days": 32
     },
     {
       "number": 13312,
@@ -267,7 +267,7 @@
       "area": "feature",
       "created_at": "2026-03-09T02:10:59Z",
       "url": "https://github.com/CherryHQ/cherry-studio/pull/13312",
-      "age_days": 27
+      "age_days": 28
     },
     {
       "number": 13443,
@@ -279,7 +279,7 @@
       "area": "ui/ux",
       "created_at": "2026-03-13T12:28:30Z",
       "url": "https://github.com/CherryHQ/cherry-studio/pull/13443",
-      "age_days": 23
+      "age_days": 24
     },
     {
       "number": 13430,
@@ -291,11 +291,11 @@
       "area": "refactor",
       "created_at": "2026-03-13T02:48:31Z",
       "url": "https://github.com/CherryHQ/cherry-studio/pull/13430",
-      "age_days": 23
+      "age_days": 24
     },
     {
       "number": 13451,
-      "title": "feat(file-manager): add schema and foundation for file management system",
+      "title": "feat(file): Add schema and foundation for new file module",
       "author": "EurFelux",
       "labels": [
         "v2"
@@ -303,7 +303,7 @@
       "area": "feature",
       "created_at": "2026-03-14T06:13:45Z",
       "url": "https://github.com/CherryHQ/cherry-studio/pull/13451",
-      "age_days": 22
+      "age_days": 23
     },
     {
       "number": 13517,
@@ -315,7 +315,7 @@
       "area": "feature",
       "created_at": "2026-03-16T14:33:54Z",
       "url": "https://github.com/CherryHQ/cherry-studio/pull/13517",
-      "age_days": 20
+      "age_days": 21
     },
     {
       "number": 13563,
@@ -327,7 +327,7 @@
       "area": "refactor",
       "created_at": "2026-03-17T15:13:12Z",
       "url": "https://github.com/CherryHQ/cherry-studio/pull/13563",
-      "age_days": 19
+      "age_days": 20
     },
     {
       "number": 13561,
@@ -339,7 +339,7 @@
       "area": "refactor",
       "created_at": "2026-03-17T14:38:24Z",
       "url": "https://github.com/CherryHQ/cherry-studio/pull/13561",
-      "age_days": 19
+      "age_days": 20
     },
     {
       "number": 13547,
@@ -351,7 +351,7 @@
       "area": "refactor",
       "created_at": "2026-03-17T09:28:59Z",
       "url": "https://github.com/CherryHQ/cherry-studio/pull/13547",
-      "age_days": 19
+      "age_days": 20
     },
     {
       "number": 13589,
@@ -363,7 +363,7 @@
       "area": "feature",
       "created_at": "2026-03-18T06:19:59Z",
       "url": "https://github.com/CherryHQ/cherry-studio/pull/13589",
-      "age_days": 18
+      "age_days": 19
     },
     {
       "number": 13687,
@@ -375,7 +375,7 @@
       "area": "chore",
       "created_at": "2026-03-21T17:13:39Z",
       "url": "https://github.com/CherryHQ/cherry-studio/pull/13687",
-      "age_days": 15
+      "age_days": 16
     },
     {
       "number": 13781,
@@ -385,7 +385,7 @@
       "area": "refactor",
       "created_at": "2026-03-25T06:42:27Z",
       "url": "https://github.com/CherryHQ/cherry-studio/pull/13781",
-      "age_days": 11
+      "age_days": 12
     },
     {
       "number": 13808,
@@ -397,7 +397,7 @@
       "area": "feature",
       "created_at": "2026-03-26T05:46:22Z",
       "url": "https://github.com/CherryHQ/cherry-studio/pull/13808",
-      "age_days": 10
+      "age_days": 11
     },
     {
       "number": 13856,
@@ -409,7 +409,7 @@
       "area": "feature",
       "created_at": "2026-03-27T09:32:27Z",
       "url": "https://github.com/CherryHQ/cherry-studio/pull/13856",
-      "age_days": 9
+      "age_days": 10
     },
     {
       "number": 13851,
@@ -421,7 +421,7 @@
       "area": "feature",
       "created_at": "2026-03-27T07:24:37Z",
       "url": "https://github.com/CherryHQ/cherry-studio/pull/13851",
-      "age_days": 9
+      "age_days": 10
     },
     {
       "number": 13870,
@@ -434,7 +434,7 @@
       "area": "refactor",
       "created_at": "2026-03-28T13:12:38Z",
       "url": "https://github.com/CherryHQ/cherry-studio/pull/13870",
-      "age_days": 8
+      "age_days": 9
     },
     {
       "number": 13871,
@@ -446,7 +446,7 @@
       "area": "refactor",
       "created_at": "2026-03-28T18:29:38Z",
       "url": "https://github.com/CherryHQ/cherry-studio/pull/13871",
-      "age_days": 7
+      "age_days": 8
     },
     {
       "number": 13909,
@@ -458,7 +458,7 @@
       "area": "feature",
       "created_at": "2026-03-30T19:15:18Z",
       "url": "https://github.com/CherryHQ/cherry-studio/pull/13909",
-      "age_days": 5
+      "age_days": 6
     },
     {
       "number": 13954,
@@ -470,7 +470,7 @@
       "area": "feature",
       "created_at": "2026-04-01T06:23:54Z",
       "url": "https://github.com/CherryHQ/cherry-studio/pull/13954",
-      "age_days": 4
+      "age_days": 5
     },
     {
       "number": 13968,
@@ -482,7 +482,7 @@
       "area": "feature",
       "created_at": "2026-04-02T04:58:38Z",
       "url": "https://github.com/CherryHQ/cherry-studio/pull/13968",
-      "age_days": 3
+      "age_days": 4
     },
     {
       "number": 13992,
@@ -492,7 +492,7 @@
       "area": "bugfix",
       "created_at": "2026-04-03T03:11:47Z",
       "url": "https://github.com/CherryHQ/cherry-studio/pull/13992",
-      "age_days": 2
+      "age_days": 3
     },
     {
       "number": 13990,
@@ -504,7 +504,7 @@
       "area": "feature",
       "created_at": "2026-04-03T01:42:36Z",
       "url": "https://github.com/CherryHQ/cherry-studio/pull/13990",
-      "age_days": 2
+      "age_days": 3
     },
     {
       "number": 13989,
@@ -514,7 +514,7 @@
       "area": "other",
       "created_at": "2026-04-03T01:26:31Z",
       "url": "https://github.com/CherryHQ/cherry-studio/pull/13989",
-      "age_days": 2
+      "age_days": 3
     },
     {
       "number": 14034,
@@ -526,7 +526,7 @@
       "area": "feature",
       "created_at": "2026-04-04T10:24:22Z",
       "url": "https://github.com/CherryHQ/cherry-studio/pull/14034",
-      "age_days": 1
+      "age_days": 2
     },
     {
       "number": 14033,
@@ -538,17 +538,19 @@
       "area": "feature",
       "created_at": "2026-04-04T09:17:54Z",
       "url": "https://github.com/CherryHQ/cherry-studio/pull/14033",
-      "age_days": 1
+      "age_days": 2
     },
     {
       "number": 14058,
       "title": "feat(ui): add Skeleton component",
       "author": "EurFelux",
-      "labels": [],
+      "labels": [
+        "v2"
+      ],
       "area": "feature",
       "created_at": "2026-04-05T16:54:33Z",
       "url": "https://github.com/CherryHQ/cherry-studio/pull/14058",
-      "age_days": 0
+      "age_days": 1
     },
     {
       "number": 14049,
@@ -560,6 +562,50 @@
       "area": "refactor",
       "created_at": "2026-04-05T06:17:24Z",
       "url": "https://github.com/CherryHQ/cherry-studio/pull/14049",
+      "age_days": 1
+    },
+    {
+      "number": 14072,
+      "title": "fix: include cherryai provider in model validation",
+      "author": "404-Page-Found",
+      "labels": [],
+      "area": "bugfix",
+      "created_at": "2026-04-06T08:11:59Z",
+      "url": "https://github.com/CherryHQ/cherry-studio/pull/14072",
+      "age_days": 0
+    },
+    {
+      "number": 14071,
+      "title": "feat(ai): add V2 AI streaming pipeline and blocks-to-parts migration",
+      "author": "DeJeune",
+      "labels": [
+        "v2"
+      ],
+      "area": "feature",
+      "created_at": "2026-04-06T07:51:50Z",
+      "url": "https://github.com/CherryHQ/cherry-studio/pull/14071",
+      "age_days": 0
+    },
+    {
+      "number": 14065,
+      "title": "fix(mcp): clear OAuth token when deleting MCP server",
+      "author": "404-Page-Found",
+      "labels": [],
+      "area": "bugfix",
+      "created_at": "2026-04-05T20:49:17Z",
+      "url": "https://github.com/CherryHQ/cherry-studio/pull/14065",
+      "age_days": 0
+    },
+    {
+      "number": 14064,
+      "title": "feat: add Task template, gh-cherry-usage skill, and migrate PR review to gh cherry",
+      "author": "EurFelux",
+      "labels": [
+        "v2"
+      ],
+      "area": "feature",
+      "created_at": "2026-04-05T20:03:06Z",
+      "url": "https://github.com/CherryHQ/cherry-studio/pull/14064",
       "age_days": 0
     }
   ],

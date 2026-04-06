@@ -1,64 +1,61 @@
 {
-  "generated_at": "2026-04-05T17:51:22.483186+00:00",
-  "date": "2026-04-05",
+  "generated_at": "2026-04-06T17:57:53.446158+00:00",
+  "date": "2026-04-06",
   "open_issues": {
-    "total": 321,
-    "p1_critical": 4,
-    "bugs": 20,
-    "unlabeled": 46,
-    "unlabeled_pct": 14.3,
-    "new_7d": 75,
-    "aged_30_90d": 57,
-    "stale_90d_plus": 0,
+    "total": 666,
+    "p1_critical": 5,
+    "bugs": 169,
+    "unlabeled": 47,
+    "unlabeled_pct": 7.1,
+    "new_7d": 78,
+    "aged_30_90d": 226,
+    "stale_90d_plus": 172,
     "label_distribution": {
-      "Models": 77,
-      "UI/UX": 76,
-      "MCP": 31,
-      "feature": 30,
-      "Assistant": 27,
-      "discussion": 26,
-      "P2": 26,
-      "needs-repro": 25,
-      "Data": 22,
-      "help wanted": 22,
-      "P3": 22,
-      "BUG": 20,
-      "Blocked: v2": 20,
-      "Connectivity": 18,
-      "needs-more-info": 12,
-      "OpenClaw": 12,
-      "RAG": 10,
-      "Performance": 10,
-      "Agent": 9,
-      "Planned": 8
+      "Models": 170,
+      "BUG": 169,
+      "UI/UX": 156,
+      "feature": 149,
+      "MCP": 63,
+      "Blocked: v2": 61,
+      "Assistant": 58,
+      "Data": 55,
+      "discussion": 46,
+      "help wanted": 43,
+      "needs-repro": 40,
+      "P2": 30,
+      "inactive": 30,
+      "P3": 29,
+      "RAG": 28,
+      "Connectivity": 27,
+      "Planned": 23,
+      "v2": 18,
+      "Performance": 15,
+      "Agent": 15
     },
     "top_reporters": {
-      "EurFelux": 19,
+      "EurFelux": 33,
+      "JohnXu22786": 17,
+      "DeJeune": 15,
       "SiinXu": 13,
-      "id7869": 7,
-      "JohnXu22786": 5,
-      "Huaweidev": 5,
-      "DeJeune": 4,
+      "id7869": 12,
+      "Huaweidev": 10,
+      "NianBroken": 8,
+      "Sha1rholder": 6,
       "wanghongqu": 4,
-      "bigben446": 3,
-      "ksze": 3,
-      "playgithub": 3
-    },
-    "total_in_repo": 880,
-    "fetched_count": 321,
-    "coverage_note": "Fetched 321 most-recently-updated issues (API rate limit). Repo has 880 total open issues+PRs."
+      "Saigut": 4
+    }
   },
   "closed_issues_30d": {
-    "total": 55
+    "total": 194
   },
   "open_prs": {
-    "total": 200,
-    "to_main": 154,
-    "to_v2": 44
+    "total": 225,
+    "to_main": 173,
+    "to_v2": 49
   },
   "v2_branch": {
-    "open_prs": 45,
-    "merged_prs_total": 87,
+    "open_prs": 49,
+    "merged_prs_total": 68,
     "merged_prs_30d": 42
   },
   "p1_issues_list": [
@@ -69,7 +66,7 @@
         "P1",
         "Models"
       ],
-      "age_days": 18,
+      "age_days": 19,
       "url": "https://github.com/CherryHQ/cherry-studio/issues/13608"
     },
     {
@@ -79,7 +76,7 @@
         "P1",
         "Models"
       ],
-      "age_days": 32,
+      "age_days": 33,
       "url": "https://github.com/CherryHQ/cherry-studio/issues/13193"
     },
     {
@@ -89,7 +86,7 @@
         "P1",
         "Models"
       ],
-      "age_days": 36,
+      "age_days": 37,
       "url": "https://github.com/CherryHQ/cherry-studio/issues/13105"
     },
     {
@@ -100,14 +97,18 @@
         "Data",
         "inactive"
       ],
-      "age_days": 38,
+      "age_days": 39,
       "url": "https://github.com/CherryHQ/cherry-studio/issues/13061"
+    },
+    {
+      "number": 12966,
+      "title": "[URGENT] Unanswered Critical Security Advisory (GHSA-qmgw-45x4-3626) - Pending Triage for 8 Days",
+      "labels": [
+        "BUG",
+        "P1"
+      ],
+      "age_days": 46,
+      "url": "https://github.com/CherryHQ/cherry-studio/issues/12966"
     }
-  ],
-  "repo_metadata": {
-    "stars": 42965,
-    "forks": 4025,
-    "subscribers": 188,
-    "open_issues_count_github": 880
-  }
+  ]
 }
