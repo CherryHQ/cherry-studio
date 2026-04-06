@@ -1,6 +1,5 @@
 import { describe, expect, it } from 'vitest'
 
-import { CreateEntryDtoSchema, UpdateEntryDtoSchema } from '../../api/schemas/files'
 import {
   FileEntryIdSchema,
   FileEntrySchema,
@@ -8,6 +7,7 @@ import {
   LocalManagedConfigSchema,
   MountProviderConfigSchema,
   RemoteConfigSchema,
+  SafeNameSchema,
   SystemConfigSchema
 } from '../file'
 
@@ -30,14 +30,6 @@ function makeFileEntry(name: string) {
     previousParentId: null,
     createdAt: 1700000000000,
     updatedAt: 1700000000000
-  }
-}
-
-function makeCreateDto(name: string) {
-  return {
-    type: 'file' as const,
-    name,
-    parentId: '019606a0-0000-7000-8000-000000000002'
   }
 }
 
@@ -119,57 +111,29 @@ describe('SafeNameSchema validation', () => {
     })
   })
 
-  describe('CreateEntryDtoSchema.name', () => {
+  describe('SafeNameSchema (standalone)', () => {
     it('accepts a normal name', () => {
-      const result = CreateEntryDtoSchema.safeParse(makeCreateDto('document'))
-      expect(result.success).toBe(true)
+      expect(SafeNameSchema.safeParse('document').success).toBe(true)
     })
 
     it('rejects null byte in name', () => {
-      const result = CreateEntryDtoSchema.safeParse(makeCreateDto('file\0evil'))
-      expect(result.success).toBe(false)
+      expect(SafeNameSchema.safeParse('file\0evil').success).toBe(false)
     })
 
     it('rejects path separator in name', () => {
-      const result = CreateEntryDtoSchema.safeParse(makeCreateDto('a/b'))
-      expect(result.success).toBe(false)
+      expect(SafeNameSchema.safeParse('a/b').success).toBe(false)
+    })
+
+    it('rejects backslash in name', () => {
+      expect(SafeNameSchema.safeParse('a\\b').success).toBe(false)
     })
 
     it('rejects dot-dot name', () => {
-      const result = CreateEntryDtoSchema.safeParse(makeCreateDto('..'))
-      expect(result.success).toBe(false)
+      expect(SafeNameSchema.safeParse('..').success).toBe(false)
     })
 
     it('rejects name over 255 chars', () => {
-      const result = CreateEntryDtoSchema.safeParse(makeCreateDto('x'.repeat(256)))
-      expect(result.success).toBe(false)
-    })
-  })
-
-  describe('UpdateEntryDtoSchema.name', () => {
-    it('accepts a normal name', () => {
-      const result = UpdateEntryDtoSchema.safeParse({ name: 'renamed' })
-      expect(result.success).toBe(true)
-    })
-
-    it('accepts omitted name (optional)', () => {
-      const result = UpdateEntryDtoSchema.safeParse({ ext: 'md' })
-      expect(result.success).toBe(true)
-    })
-
-    it('rejects null byte in name', () => {
-      const result = UpdateEntryDtoSchema.safeParse({ name: 'file\0evil' })
-      expect(result.success).toBe(false)
-    })
-
-    it('rejects path separator in name', () => {
-      const result = UpdateEntryDtoSchema.safeParse({ name: 'a\\b' })
-      expect(result.success).toBe(false)
-    })
-
-    it('rejects dot-dot name', () => {
-      const result = UpdateEntryDtoSchema.safeParse({ name: '..' })
-      expect(result.success).toBe(false)
+      expect(SafeNameSchema.safeParse('x'.repeat(256)).success).toBe(false)
     })
   })
 })
@@ -484,16 +448,5 @@ describe('MountProviderConfigSchema', () => {
     it('rejects config missing required fields', () => {
       expect(MountProviderConfigSchema.safeParse({ providerType: 'local_managed' }).success).toBe(false)
     })
-  })
-})
-
-describe('CreateEntryDtoSchema', () => {
-  it('rejects type=mount', () => {
-    const result = CreateEntryDtoSchema.safeParse({
-      type: 'mount',
-      name: 'evil-mount',
-      parentId: '019606a0-0000-7000-8000-000000000001'
-    })
-    expect(result.success).toBe(false)
   })
 })

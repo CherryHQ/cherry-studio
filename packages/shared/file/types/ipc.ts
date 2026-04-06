@@ -12,37 +12,17 @@
 
 import type { FileEntry, FileEntryId } from '@shared/data/types/file'
 
-// ─── Content Source Types ───
+import type { DirectoryListOptions, FileContent, FilePath, PhysicalFileMetadata } from './common'
 
-/** Local filesystem path. Runtime validation required — pattern is intentionally broad for type-level hints only. */
-export type FilePath = `/${string}` | `${string}:\\${string}` | `file://${string}`
-export type Base64String = `data:${string};base64,${string}`
-export type URLString = `http://${string}` | `https://${string}`
-export type FileContent = FilePath | Base64String | URLString | Uint8Array
+export type { DirectoryListOptions, FilePath } from './common'
 
-// ─── File Metadata (physical file info, separate from FileEntry) ───
+// ─── IPC Params ───
 
-type MetadataBase = { size: number; createdAt: number; modifiedAt: number }
-
-type DirectoryMetadata = MetadataBase & { kind: 'directory' }
-
-type FileMetadataCommon = MetadataBase & { kind: 'file'; mime: string }
-type ImageFileMetadata = FileMetadataCommon & { type: 'image'; width: number; height: number }
-type PdfFileMetadata = FileMetadataCommon & { type: 'pdf'; pageCount: number }
-type TextFileMetadata = FileMetadataCommon & { type: 'text'; encoding: string }
-type GenericFileMetadata = FileMetadataCommon & { type: 'other' }
-
-type FileKindMetadata = ImageFileMetadata | PdfFileMetadata | TextFileMetadata | GenericFileMetadata
-/** Physical file metadata (size, timestamps, and type-specific info like dimensions/pageCount). Discriminate on `kind`, then `type`. */
-export type PhysicalFileMetadata = DirectoryMetadata | FileKindMetadata
-
-// ─── CreateEntry Params ───
-
-export type CreateEntryParams =
+export type CreateEntryIpcParams =
   | { type: 'file'; parentId: FileEntryId; name: string; content: FileContent }
   | { type: 'dir'; parentId: FileEntryId; name: string }
 
-// ─── Batch Result ───
+// ─── IPC Result ───
 
 export interface BatchOperationResult {
   succeeded: FileEntryId[]
@@ -78,7 +58,7 @@ export interface FileIpcApi {
   // ─── B. Entry Creation ───
 
   /** Create a file or directory entry. For files, content is processed by source type (path/base64/URL/buffer). */
-  createEntry(params: CreateEntryParams): Promise<FileEntry>
+  createEntry(params: CreateEntryIpcParams): Promise<FileEntry>
   /** Batch create file entries (files only, no directories) */
   batchCreateEntries(params: {
     parentId: FileEntryId
@@ -145,19 +125,9 @@ export interface FileIpcApi {
   listDirectory(dirPath: FilePath, options?: DirectoryListOptions): Promise<string[]>
 }
 
-// ─── External Types (re-used from Electron) ───
+// ─── Electron Types ───
 
 export interface FileFilter {
   name: string
   extensions: string[]
-}
-
-export interface DirectoryListOptions {
-  recursive?: boolean
-  maxDepth?: number
-  includeHidden?: boolean
-  includeFiles?: boolean
-  includeDirectories?: boolean
-  maxEntries?: number
-  searchPattern?: string
 }
