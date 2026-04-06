@@ -22,7 +22,6 @@ message ModelLimits {
   optional uint32 context_window = 1;
   optional uint32 max_output_tokens = 2;
   optional uint32 max_input_tokens = 3;
-  optional uint32 rate_limit = 4;
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════

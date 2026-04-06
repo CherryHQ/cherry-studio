@@ -191,8 +191,7 @@ const ProviderModelOverrideSchema = z.object({
   limits: z.object({
     context_window: z.number().optional(),
     max_output_tokens: z.number().optional(),
-    max_input_tokens: z.number().optional(),
-    rate_limit: z.number().optional()          // Requests per minute
+    max_input_tokens: z.number().optional()
   }).optional(),
 
   pricing: ModelPricingSchema.partial().optional(),
