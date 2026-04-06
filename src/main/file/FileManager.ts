@@ -78,7 +78,15 @@ export interface IFileManager {
 
   // ─── Path Resolution ───
 
-  /** Resolve entry ID to absolute physical path. */
+  /**
+   * Resolve entry ID to absolute physical path.
+   *
+   * OPEN QUESTION: whether to expose this publicly or keep it internal.
+   * Exposing path enables callers to bypass FileManager and operate on FS directly,
+   * breaking cache consistency and sync engine invariants. But not exposing it
+   * forces FileManager to grow API surface for every new consumption pattern
+   * (Buffer, ReadStream, etc.). Decision deferred to implementation phase.
+   */
   resolvePhysicalPath(id: FileEntryId): Promise<string>
 
   // ─── System ───
