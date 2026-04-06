@@ -824,7 +824,8 @@ function buildCherryMetadata(oldBlock: OldMessageBlock): ProviderMetadata {
     cherry.metadata = oldBlock.metadata as JSONObject
   }
   if (oldBlock.error) {
-    const { cause: _, ...errorWithoutCause } = oldBlock.error
+    const { cause, ...errorWithoutCause } = oldBlock.error
+    void cause // intentionally unused — cause: unknown is not JSON-serializable
     cherry.error = errorWithoutCause
   }
   return { cherry }
@@ -1002,7 +1003,7 @@ function transformSingleBlock(oldBlock: OldBlock): {
     createdAt: parseTimestamp(oldBlock.createdAt),
     updatedAt: oldBlock.updatedAt ? parseTimestamp(oldBlock.updatedAt) : undefined,
     metadata: oldBlock.metadata,
-    error: oldBlock.error as MessageDataBlock['error']
+    error: oldBlock.error
   }
 
   switch (oldBlock.type) {
