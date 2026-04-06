@@ -161,8 +161,13 @@ FileService --lock--> OperationLock <--check-- SyncEngine (chokidar)
 - 子条目的 `parentId` 不变，整棵子树随父条目进入/离开 Trash
 - 回收站只展示直接子条目（`parentId = system_trash`）
 - 永久删除顺序：先删物理文件 → 再删 DB（保证可重试）
-
 - chokidar 排除 `.trash` 目录
+
+**Edge Case 处理**（参考 macOS / Windows）：
+
+- **恢复时原父目录已删**：自动重建原路径的目录结构，而非 fallback 到根目录
+- **磁盘空间管理**：UI 显示回收站占用空间，支持用户手动清空。未来可增加磁盘空间不足时自动清理最旧条目
+- **自动过期**：默认 30 天自动清理，可由用户在 Preference 中配置天数或关闭
 
 ### 4.2 临时文件生命周期（mount_temp）
 

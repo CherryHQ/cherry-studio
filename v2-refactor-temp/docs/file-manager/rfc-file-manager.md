@@ -562,8 +562,9 @@ type FileEntryId = z.infer<typeof FileEntryIdSchema>              // UUID v7 | S
 参照 Windows/macOS 回收站行为：
 
 - **删除 = 移动到 Trash 目录下**（不是原地标记）
-- **恢复 = 移回 `previousParentId`**
+- **恢复 = 移回 `previousParentId`**（若原父目录已删则自动重建目录结构）
 - **永久删除 = 从 Trash 中硬删**（CASCADE 级联子条目 + 物理文件清理）
+- **自动过期**：默认 30 天自动清理，可由用户在 Preference 中配置天数或关闭
 
 #### Provider 模式对物理文件的影响
 
@@ -638,11 +639,8 @@ async function trashEntry(entryId: string): Promise<void> {
 async function restoreEntry(entryId: string): Promise<void> {
   const entry = await fileTreeService.getById(entryId)
 
-  // 检查原始父条目是否存在且可达
-  const originalParent = await fileTreeService.getById(entry.previousParentId)
-  if (!originalParent || isInTrash(originalParent)) {
-    throw new Error('Original parent is in Trash. Restore parent first.')
-  }
+  // 确保原始父目录链可达（参考 macOS/Windows：自动重建已删除的父目录）
+  await fileTreeService.ensureAncestors(entry.previousParentId)
 
   const mount = await fileTreeService.getById(entry.mountId)
 
