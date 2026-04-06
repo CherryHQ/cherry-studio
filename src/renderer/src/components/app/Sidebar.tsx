@@ -7,7 +7,7 @@ import { useMinappPopup } from '@renderer/hooks/useMinappPopup'
 import { useMinapps } from '@renderer/hooks/useMinapps'
 import { modelGenerating } from '@renderer/hooks/useModel'
 import { useSettings } from '@renderer/hooks/useSettings'
-import { getSidebarIconLabel } from '@renderer/i18n/label'
+import { getSidebarIconLabel, getThemeModeLabel } from '@renderer/i18n/label'
 import { ThemeMode } from '@renderer/types'
 import { getDefaultRouteTitle } from '@renderer/utils/routeTitle'
 import type { SidebarIcon as SidebarIconType } from '@shared/data/preference/preferenceTypes'
@@ -28,6 +28,7 @@ import {
   Sun
 } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useTranslation } from 'react-i18next'
 
 import { useTabs } from '../../hooks/useTabs'
 import { OpenClawSidebarIcon } from '../Icons/SVGIcon'
@@ -80,6 +81,7 @@ function resolveActiveItem(pathname: string): SidebarIconType | '' {
 }
 
 const Sidebar = () => {
+  const { t } = useTranslation()
   const [visibleSidebarIcons] = usePreference('ui.sidebar.icons.visible')
   const [showOpenedInSidebar] = usePreference('feature.minapp.show_opened_in_sidebar')
   const { activeTab, activeTabId, updateTab } = useTabs()
@@ -100,7 +102,7 @@ const Sidebar = () => {
   const avatar = useAvatar()
   const sidebarUser = useMemo<SidebarUser>(
     () => ({
-      name: 'User',
+      name: t('chat.user'),
       avatar: avatar || undefined,
       onClick: () => UserPopup.show()
     }),
@@ -213,8 +215,7 @@ const Sidebar = () => {
         </div>
       ) : (
         <>
-          <SidebarTooltip
-            content={settedTheme === ThemeMode.dark ? 'Dark' : settedTheme === ThemeMode.light ? 'Light' : 'System'}>
+          <SidebarTooltip content={getThemeModeLabel(settedTheme)}>
             <button
               type="button"
               onClick={toggleTheme}
@@ -222,7 +223,7 @@ const Sidebar = () => {
               <ThemeIcon size={18} strokeWidth={1.6} />
             </button>
           </SidebarTooltip>
-          <SidebarTooltip content="Settings">
+          <SidebarTooltip content={t('settings.title')}>
             <button
               type="button"
               onClick={handleSettingsClick}

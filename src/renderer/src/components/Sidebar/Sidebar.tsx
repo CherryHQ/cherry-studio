@@ -92,7 +92,7 @@ export function Sidebar({
           onMouseEnter={() => {
             if (hoverTimeout.current) clearTimeout(hoverTimeout.current)
           }}>
-          <div className="flex h-14 flex-shrink-0 items-center gap-2.5 px-4">
+          <div className="flex h-14 flex-shrink-0 items-center gap-2.5 px-4 [-webkit-app-region:drag]">
             {logoNode}
             <span className="truncate text-sidebar-foreground text-sm">{title}</span>
           </div>
@@ -163,7 +163,7 @@ export function Sidebar({
       className="group/sidebar relative z-20 flex h-full flex-shrink-0 select-none flex-col bg-sidebar">
       {/* Header */}
       <div
-        className={`flex flex-shrink-0 items-center ${layout === 'full' ? 'h-14 gap-2.5 px-4' : 'h-14 justify-center'}`}>
+        className={`flex flex-shrink-0 items-center [-webkit-app-region:drag] ${layout === 'full' ? 'h-14 gap-2.5 px-4' : 'h-14 justify-center'}`}>
         {logoNode}
         {layout === 'full' && <span className="truncate text-sidebar-foreground text-sm">{title}</span>}
       </div>
