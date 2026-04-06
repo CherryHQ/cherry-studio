@@ -1,4 +1,5 @@
 import { Button } from '@cherrystudio/ui'
+import { useProviderActions, useProviders } from '@data/hooks/useProviders'
 import type { DropResult } from '@hello-pangea/dnd'
 import { loggerService } from '@logger'
 import {
@@ -8,13 +9,17 @@ import {
 } from '@renderer/components/DraggableList'
 import { DeleteIcon, EditIcon } from '@renderer/components/Icons'
 import { ProviderAvatar } from '@renderer/components/ProviderAvatar'
-import { useAllProviders, useProviders } from '@renderer/hooks/useProvider'
 import { useTimer } from '@renderer/hooks/useTimer'
 import ImageStorage from '@renderer/services/ImageStorage'
-import type { Provider, ProviderType } from '@renderer/types'
-import { isSystemProvider } from '@renderer/types'
-import { getFancyProviderName, matchKeywordsInModel, matchKeywordsInProvider, uuid } from '@renderer/utils'
-import { isAnthropicSupportedProvider } from '@renderer/utils/provider'
+import { uuid } from '@renderer/utils'
+import {
+  getFancyProviderName,
+  isAnthropicSupportedProvider,
+  isSystemProvider,
+  matchKeywordsInProvider
+} from '@renderer/utils/provider.v2'
+import { toV1ProviderShim } from '@renderer/utils/v1ProviderShim'
+import type { Provider } from '@shared/data/types/provider'
 import { useNavigate, useSearch } from '@tanstack/react-router'
 import type { MenuProps } from 'antd'
 import { Dropdown, Input, Tag } from 'antd'
@@ -44,18 +49,13 @@ const getIsOvmsSupported = async (): Promise<boolean> => {
   }
 }
 
-interface ProviderListProps {
-  /** Whether in onboarding mode for new users */
-  isOnboarding?: boolean
-}
-
-const ProviderList: FC<ProviderListProps> = ({ isOnboarding = false }) => {
+const ProviderList: FC = () => {
   // TODO: Define validateSearch in routes/settings/provider.tsx and replace with Route.useSearch()
   // for type-safe search params. Currently using untyped useSearch as a stopgap after removing react-router-dom.
-  const search = useSearch({ strict: false })
+  const search = useSearch({ strict: false }) as Record<string, string | undefined>
   const navigate = useNavigate()
-  const providers = useAllProviders()
-  const { updateProviders, addProvider, removeProvider, updateProvider } = useProviders()
+  const { providers, addProvider, reorderProviders } = useProviders()
+  const { patchProviderById, deleteProviderById } = useProviderActions()
   const { setTimeoutTimer } = useTimer()
   const [selectedProvider, _setSelectedProvider] = useState<Provider>(providers[0])
   const { t } = useTranslation()
@@ -89,7 +89,7 @@ const ProviderList: FC<ProviderListProps> = ({ isOnboarding = false }) => {
       setProviderLogos(logos)
     }
 
-    void loadAllLogos()
+    loadAllLogos()
   }, [providers])
 
   useEffect(() => {
@@ -124,7 +124,7 @@ const ProviderList: FC<ProviderListProps> = ({ isOnboarding = false }) => {
       // Ideal: define validateSearch on the route so navigate({ search }) is fully typed,
       // and consumed params can be cleared without manual filtering or type casts.
       const restSearch = Object.fromEntries(Object.entries(search).filter(([key]) => key !== 'filter' && key !== 'id'))
-      void navigate({ to: '/settings/provider', search: restSearch as Record<string, string>, replace: true })
+      navigate({ to: '/settings/provider', search: restSearch as Record<string, string>, replace: true })
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [providers, search.filter, search.id, navigate, setSelectedProvider, setTimeoutTimer])
@@ -135,25 +135,27 @@ const ProviderList: FC<ProviderListProps> = ({ isOnboarding = false }) => {
       id: string
       apiKey: string
       baseUrl: string
-      type?: ProviderType
+      type?: string
       name?: string
     }) => {
       const { id } = data
 
-      const { updatedProvider, isNew, displayName } = await UrlSchemaInfoPopup.show(data)
-      void navigate({ to: '/settings/provider', search: { id } })
+      const { updatedProvider, isNew, displayName } = await UrlSchemaInfoPopup.show(data as any)
+      navigate({ to: '/settings/provider', search: { id } })
 
       if (!updatedProvider) {
         return
       }
 
+      // TODO: UrlSchemaInfoPopup still returns v1 Provider — adapt to v2 API
       if (isNew) {
-        addProvider(updatedProvider)
+        await addProvider({ providerId: updatedProvider.id, name: updatedProvider.name || id })
       } else {
-        updateProvider(updatedProvider)
+        await patchProviderById(updatedProvider.id, { name: updatedProvider.name })
       }
 
-      setSelectedProvider(updatedProvider)
+      const created = providers.find((p) => p.id === id) ?? (updatedProvider as unknown as Provider)
+      setSelectedProvider(created)
       window.toast.success(t('settings.models.provider_key_added', { provider: displayName }))
     }
 
@@ -167,53 +169,39 @@ const ProviderList: FC<ProviderListProps> = ({ isOnboarding = false }) => {
       const { id, apiKey: newApiKey, baseUrl, type, name } = JSON.parse(addProviderData)
       if (!id || !newApiKey || !baseUrl) {
         window.toast.error(t('settings.models.provider_key_add_failed_by_invalid_data'))
-        void navigate({ to: '/settings/provider' })
+        navigate({ to: '/settings/provider' })
         return
       }
 
-      void handleProviderAddKey({ id, apiKey: newApiKey, baseUrl, type, name })
+      handleProviderAddKey({ id, apiKey: newApiKey, baseUrl, type, name })
     } catch (error) {
       window.toast.error(t('settings.models.provider_key_add_failed_by_invalid_data'))
-      void navigate({ to: '/settings/provider' })
+      navigate({ to: '/settings/provider' })
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [search.addProviderData])
 
   const onAddProvider = async () => {
-    const { name: providerName, type, logo } = await AddProviderPopup.show()
+    const { name: providerName, logo } = await AddProviderPopup.show()
 
     if (!providerName.trim()) {
       return
     }
 
-    const provider = {
-      id: uuid(),
-      name: providerName.trim(),
-      type,
-      apiKey: '',
-      apiHost: '',
-      models: [],
-      enabled: true,
-      isSystem: false
-    } as Provider
+    const providerId = uuid()
 
-    let updatedLogos = { ...providerLogos }
     if (logo) {
       try {
-        await ImageStorage.set(`provider-${provider.id}`, logo)
-        updatedLogos = {
-          ...updatedLogos,
-          [provider.id]: logo
-        }
-        setProviderLogos(updatedLogos)
+        await ImageStorage.set(`provider-${providerId}`, logo)
+        setProviderLogos((prev) => ({ ...prev, [providerId]: logo }))
       } catch (error) {
         logger.error('Failed to save logo', error as Error)
         window.toast.error(t('message.error.save_provider_logo'))
       }
     }
 
-    addProvider(provider)
-    setSelectedProvider(provider)
+    const newProvider = (await addProvider({ providerId, name: providerName.trim() })) as Provider
+    setSelectedProvider(newProvider)
   }
 
   const getDropdownMenus = (provider: Provider): MenuProps['items'] => {
@@ -221,7 +209,7 @@ const ProviderList: FC<ProviderListProps> = ({ isOnboarding = false }) => {
       label: t('settings.provider.notes.title'),
       key: 'notes',
       icon: <UserPen size={14} />,
-      onClick: () => ModelNotesPopup.show({ provider })
+      onClick: () => ModelNotesPopup.show({ providerId: provider.id })
     }
 
     const editMenu = {
@@ -229,10 +217,11 @@ const ProviderList: FC<ProviderListProps> = ({ isOnboarding = false }) => {
       key: 'edit',
       icon: <EditIcon size={14} />,
       async onClick() {
-        const { name, type, logoFile, logo } = await AddProviderPopup.show(provider)
+        // TODO(v2-cleanup): Remove v1 shim after AddProviderPopup migrates to v2
+        const { name, logoFile, logo } = await AddProviderPopup.show(toV1ProviderShim(provider))
 
         if (name) {
-          updateProvider({ ...provider, name, type })
+          await patchProviderById(provider.id, { name })
           if (provider.id) {
             if (logo) {
               try {
@@ -290,7 +279,7 @@ const ProviderList: FC<ProviderListProps> = ({ isOnboarding = false }) => {
             }
 
             setSelectedProvider(providers.filter((p) => isSystemProvider(p))[0])
-            removeProvider(provider)
+            await deleteProviderById(provider.id)
           }
         })
       }
@@ -304,10 +293,6 @@ const ProviderList: FC<ProviderListProps> = ({ isOnboarding = false }) => {
 
     if (isSystemProvider(provider)) {
       return [noteMenu]
-    } else if (provider.isSystem) {
-      // 这里是处理数据中存在新版本删掉的系统提供商的情况
-      // 未来期望能重构一下，不要依赖isSystem字段
-      return [noteMenu, deleteMenu]
     } else {
       return menus
     }
@@ -325,15 +310,13 @@ const ProviderList: FC<ProviderListProps> = ({ isOnboarding = false }) => {
     }
 
     const keywords = searchText.toLowerCase().split(/\s+/).filter(Boolean)
-    const isProviderMatch = matchKeywordsInProvider(keywords, provider)
-    const isModelMatch = provider.models.some((model) => matchKeywordsInModel(keywords, model))
-    return isProviderMatch || isModelMatch
+    return matchKeywordsInProvider(keywords, provider)
   })
 
   const { onDragEnd: handleReorder, itemKey } = useDraggableReorder({
     originalList: providers,
     filteredList: filteredProviders,
-    onUpdate: updateProviders,
+    onUpdate: reorderProviders,
     itemKey: 'id'
   })
 
@@ -427,11 +410,11 @@ const ProviderList: FC<ProviderListProps> = ({ isOnboarding = false }) => {
                     width: 24,
                     height: 24
                   }}
-                  provider={provider}
+                  provider={provider as any}
                   customLogos={providerLogos}
                 />
                 <ProviderItemName className="text-nowrap">{getFancyProviderName(provider)}</ProviderItemName>
-                {provider.enabled && (
+                {provider.isEnabled && (
                   <Tag color="green" style={{ marginLeft: 'auto', marginRight: 0, borderRadius: 16 }}>
                     ON
                   </Tag>
@@ -451,7 +434,7 @@ const ProviderList: FC<ProviderListProps> = ({ isOnboarding = false }) => {
           </Button>
         </AddButtonWrapper>
       </ProviderListContainer>
-      <ProviderSetting providerId={selectedProvider.id} key={selectedProvider.id} isOnboarding={isOnboarding} />
+      {selectedProvider && <ProviderSetting providerId={selectedProvider.id} key={selectedProvider.id} />}
     </Container>
   )
 }
@@ -467,6 +450,7 @@ const ProviderListContainer = styled.div`
   display: flex;
   flex-direction: column;
   min-width: calc(var(--settings-width) + 10px);
+  height: calc(100vh - var(--navbar-height));
   padding-bottom: 5px;
   border-right: 0.5px solid var(--color-border);
 `
