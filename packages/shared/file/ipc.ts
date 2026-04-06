@@ -3,14 +3,14 @@
  *
  * Defines the parameter and return types for File IPC operations.
  * All file entry write operations that may affect the filesystem go through
- * FileIpcService (not DataApi). FileIpcService delegates to FileService
- * (sole FS owner), which coordinates FS ops and calls FileTreeService for DB sync.
+ * File IPC (not DataApi). The handler delegates to FileManager (sole FS owner),
+ * which coordinates FS ops and calls FileTreeService for DB sync.
  *
  * These types are shared between main (handler implementation) and
  * preload (method signatures exposed to renderer).
  */
 
-import type { FileEntry, FileEntryId } from './fileEntry'
+import type { FileEntry, FileEntryId } from '@shared/data/types/file'
 
 // ─── Content Source Types ───
 
@@ -56,7 +56,7 @@ export interface BatchOperationResult {
  * for all file operations that may affect the filesystem.
  *
  * DataApi handles read-only entry queries; all writes go through this interface.
- * FileIpcService delegates to FileService (sole FS owner) for all operations.
+ * Handler dispatches by target type: FileEntryId → FileManager, FilePath → ops.
  */
 export interface FileIpcApi {
   // ─── A. File Selection / Dialogs ───

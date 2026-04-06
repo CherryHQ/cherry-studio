@@ -149,7 +149,7 @@ DataApi 端点：
 | ----------------------------- | ----- | -------------------------------------------------- |
 | `/files/entries`              | GET   | 条目列表（支持 mountId / parentId / inTrash 过滤） |
 | `/files/entries/:id`          | GET   | 单条目查询                                         |
-| `/files/entries/:id`          | PATCH | 纯元数据更新（sortOrder 等无 FS 副作用字段）       |
+| `/files/entries/:id`          | PATCH | 纯元数据更新（仅限所有 provider 下均无 FS 副作用的字段，如 sortOrder。`name`/`ext` 在 `local_external` 下触发 `fs.rename`，必须走 File IPC） |
 | `/files/entries/:id/children` | GET   | 子条目（文件树懒加载，支持排序分页）               |
 | `/files/entries/:id/refs`     | GET   | 文件的所有引用方                                   |
 | `/files/refs/by-source`       | GET   | 业务对象引用的所有文件                             |

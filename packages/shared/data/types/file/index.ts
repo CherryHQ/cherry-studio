@@ -1,6 +1,5 @@
 export * from './essential'
 export * from './file'
 export * from './fileEntry'
-export * from './ipc'
 export * from './provider'
 export * from './ref'
