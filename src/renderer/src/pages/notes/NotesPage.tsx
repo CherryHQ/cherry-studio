@@ -220,7 +220,7 @@ const NotesPage: FC = () => {
       }
     }
 
-    loadGitStatus()
+    void loadGitStatus()
     return () => {
       cancelled = true
     }

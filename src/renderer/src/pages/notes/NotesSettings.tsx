@@ -58,7 +58,7 @@ const NotesSettings: FC = () => {
       }
     }
 
-    loadGitStatus()
+    void loadGitStatus()
     return () => {
       cancelled = true
     }

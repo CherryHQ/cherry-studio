@@ -22,8 +22,8 @@ const baseline = (messages: Message[], startIndex: number, displayCount: number)
     const idSet = message.role === 'user' ? userIdSet : assistantIdSet
     const messageId = message.role === 'user' ? message.id : message.askId
 
-    if (!idSet.has(messageId!)) {
-      idSet.add(messageId!)
+    if (!idSet.has(messageId)) {
+      idSet.add(messageId)
       displayMessages.push(message)
       return
     }
@@ -56,8 +56,8 @@ const byBackwardIndex = (messages: Message[], startIndex: number, displayCount: 
     const idSet = message.role === 'user' ? userIdSet : assistantIdSet
     const messageId = message.role === 'user' ? message.id : message.askId
 
-    if (!idSet.has(messageId!)) {
-      idSet.add(messageId!)
+    if (!idSet.has(messageId)) {
+      idSet.add(messageId)
       displayMessages.push(message)
       return
     }

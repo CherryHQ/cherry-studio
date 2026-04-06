@@ -163,7 +163,7 @@ const NotesDiffDrawer: FC<NotesDiffDrawerProps> = ({ open, onClose, notesPath, f
       }
     }
 
-    loadHistory()
+    void loadHistory()
     return () => {
       cancelled = true
     }
@@ -203,7 +203,7 @@ const NotesDiffDrawer: FC<NotesDiffDrawerProps> = ({ open, onClose, notesPath, f
       }
     }
 
-    loadDiff()
+    void loadDiff()
     return () => {
       cancelled = true
     }

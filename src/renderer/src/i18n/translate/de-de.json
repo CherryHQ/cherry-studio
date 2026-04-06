@@ -1127,6 +1127,10 @@
       "send": "Senden",
       "settings": "Einstellungen",
       "skills": {
+        "attach": {
+          "description": "[to be translated]:{{count}} skills attached (auto-injected to system context on send)",
+          "title": "[to be translated]:Attach Skills"
+        },
         "enabled": {
           "description": "[to be translated]:Pin/highlight selected skills",
           "title": "[to be translated]:Enable Skills"
@@ -1145,9 +1149,6 @@
         },
         "library": {
           "not_set": "[to be translated]:Not set",
-          "open_path": "[to be translated]:Open skills library",
-          "path_saved": "[to be translated]:Skills library path saved",
-          "set_path": "[to be translated]:Set skills library path",
           "title": "[to be translated]:Import/Update from Library"
         },
         "title": "[to be translated]:Skills"
@@ -5724,6 +5725,15 @@
       "installSuccess": "Fähigkeit installiert: {{name}}",
       "installed": "Installierte Fähigkeiten",
       "invalidFormat": "Nur ZIP-Dateien und Verzeichnisse werden unterstützt",
+      "library_path": {
+        "help": "[to be translated]:Used for importing/updating skills. Each skill is a folder containing SKILL.md.",
+        "open": "[to be translated]:Open",
+        "open_failed": "[to be translated]:Failed to open skills library directory",
+        "placeholder": "[to be translated]:Default: ~/skills",
+        "saved": "[to be translated]:Skills library path saved",
+        "select": "[to be translated]:Select",
+        "title": "[to be translated]:Skills library directory"
+      },
       "localInstall": "Lokale Installation",
       "multiSelect": "Mehrfachauswahl",
       "noFilterResults": "Keine übereinstimmenden Fähigkeiten",

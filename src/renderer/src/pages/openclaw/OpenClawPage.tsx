@@ -100,8 +100,8 @@ const OpenClawPage: FC = () => {
   const [isOpenClawUpdating, setIsOpenClawUpdating] = useState(false)
   const [npmMissing, setNpmMissing] = useState(false)
   const [gitMissing, setGitMissing] = useState(false)
-  const [nodeDownloadUrl, setNodeDownloadUrl] = useState<string>('https://nodejs.org/')
-  const [gitDownloadUrl, setGitDownloadUrl] = useState<string>('https://git-scm.com/downloads')
+  const [, setNodeDownloadUrl] = useState<string>('https://nodejs.org/')
+  const [, setGitDownloadUrl] = useState<string>('https://git-scm.com/downloads')
   const [dashboardAuthToken, setDashboardAuthToken] = useState('')
 
   // Fetch Node.js download URL and poll npm availability when npmMissing is shown
@@ -114,11 +114,11 @@ const OpenClawPage: FC = () => {
       .then(setNodeDownloadUrl)
       .catch(() => {})
 
-    // Poll npm availability
+    // Poll Node.js availability
     const pollInterval = setInterval(async () => {
       try {
-        const npmCheck = await window.api.openclaw.checkNpmAvailable()
-        if (npmCheck.available) {
+        const nodeCheck = await window.api.openclaw.checkNodeVersion()
+        if (nodeCheck.status === 'ok') {
           setNpmMissing(false)
         }
       } catch {

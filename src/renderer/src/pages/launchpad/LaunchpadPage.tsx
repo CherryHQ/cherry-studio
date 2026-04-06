@@ -1,5 +1,5 @@
-import { OpenClawIcon } from '@renderer/components/Icons/SVGIcon'
 import AssistantAvatar from '@renderer/components/Avatar/AssistantAvatar'
+import { OpenClawIcon } from '@renderer/components/Icons/SVGIcon'
 import App from '@renderer/components/MinApp/MinApp'
 import { useAssistants } from '@renderer/hooks/useAssistant'
 import { useMinapps } from '@renderer/hooks/useMinapps'
@@ -171,7 +171,7 @@ const LaunchpadPage: FC = () => {
       dispatch(setLaunchpadAssistantId(assistantId))
       dispatch(setLaunchpadTopicId(nextTopicId))
       if (clickAssistantToShowTopic && topicPosition === 'left') {
-        EventEmitter.emit(EVENT_NAMES.SWITCH_TOPIC_SIDEBAR)
+        void EventEmitter.emit(EVENT_NAMES.SWITCH_TOPIC_SIDEBAR)
       }
       assistantIdRef.current = assistantId
       topicIdRef.current = nextTopicId
@@ -190,7 +190,7 @@ const LaunchpadPage: FC = () => {
       dispatch(setLaunchpadAssistantId(selectedAssistant.id))
       dispatch(setLaunchpadTopicId(topicId))
       if (clickAssistantToShowTopic && topicPosition === 'left') {
-        EventEmitter.emit(EVENT_NAMES.SWITCH_TOPIC_SIDEBAR)
+        void EventEmitter.emit(EVENT_NAMES.SWITCH_TOPIC_SIDEBAR)
       }
       assistantIdRef.current = selectedAssistant.id
       topicIdRef.current = topicId
@@ -266,7 +266,7 @@ const LaunchpadPage: FC = () => {
               menuItems={assistantMenuItems}
               onClick={() => {
                 if (clickAssistantToShowTopic && topicPosition === 'left') {
-                  EventEmitter.emit(EVENT_NAMES.SWITCH_TOPIC_SIDEBAR)
+                  void EventEmitter.emit(EVENT_NAMES.SWITCH_TOPIC_SIDEBAR)
                 }
                 const targetAssistantId = assistantIdRef.current || selectedAssistant?.id
                 if (targetAssistantId) {
@@ -288,7 +288,7 @@ const LaunchpadPage: FC = () => {
               menuItems={topicMenuItems}
               onClick={() => {
                 if (clickAssistantToShowTopic && topicPosition === 'left') {
-                  EventEmitter.emit(EVENT_NAMES.SWITCH_TOPIC_SIDEBAR)
+                  void EventEmitter.emit(EVENT_NAMES.SWITCH_TOPIC_SIDEBAR)
                 }
                 const targetTopicId = topicIdRef.current || selectedTopic?.id
                 if (targetTopicId) {

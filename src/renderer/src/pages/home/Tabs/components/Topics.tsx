@@ -78,6 +78,7 @@ export const Topics: React.FC<Props> = ({ assistant: _assistant, activeTopic, se
   const { assistants } = useAssistants()
   const { assistant, addTopic, removeTopic, moveTopic, updateTopic, updateTopics } = useAssistant(_assistant.id)
   const { showTopicTime, setTopicPosition, topicPosition } = useSettings()
+  const pinTopicsToTop = false
   const { setCandidate, clearCandidate, openCandidateIfOverTabBar } = useTabDrag()
 
   const renamingTopics = useSelector((state: RootState) => state.runtime.chat.renamingTopics)

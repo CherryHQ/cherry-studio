@@ -805,15 +805,15 @@ const api = {
       ipcRenderer.invoke(IpcChannel.Skill_ListLocal, workdir)
   },
   skills: {
-    listInstalled: (): Promise<PluginResult<InstalledSkillEntry[]>> =>
+    listInstalled: (): Promise<SkillResult<InstalledSkillEntry[]>> =>
       ipcRenderer.invoke(IpcChannel.Skills_ListInstalled),
-    listLibrary: (params: { libraryPath: string; maxDepth?: number }): Promise<PluginResult<LibrarySkillEntry[]>> =>
+    listLibrary: (params: { libraryPath: string; maxDepth?: number }): Promise<SkillResult<LibrarySkillEntry[]>> =>
       ipcRenderer.invoke(IpcChannel.Skills_ListLibrary, params),
     importFromLibrary: (params: {
       libraryPath: string
       skillFolderPath: string
-    }): Promise<PluginResult<InstalledSkillEntry>> => ipcRenderer.invoke(IpcChannel.Skills_ImportFromLibrary, params),
-    readBody: (params: { folderName: string }): Promise<PluginResult<string>> =>
+    }): Promise<SkillResult<InstalledSkillEntry>> => ipcRenderer.invoke(IpcChannel.Skills_ImportFromLibrary, params),
+    readBody: (params: { folderName: string }): Promise<SkillResult<string>> =>
       ipcRenderer.invoke(IpcChannel.Skills_ReadBody, params)
   },
   localTransfer: {

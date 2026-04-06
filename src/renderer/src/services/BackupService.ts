@@ -12,6 +12,70 @@ import { NotificationService } from './NotificationService'
 
 const logger = loggerService.withContext('BackupService')
 
+type BackupManifest = {
+  backupType: 'incremental'
+  createdAt: number
+  version: number
+}
+
+const toTimestampMs = (value?: string) => {
+  if (!value) return 0
+  const timestamp = new Date(value).getTime()
+  return Number.isFinite(timestamp) ? timestamp : 0
+}
+
+const getMessageTimestamp = (message: { updatedAt?: string; createdAt?: string }) =>
+  toTimestampMs(message.updatedAt) || toTimestampMs(message.createdAt)
+
+const getMessageCreatedTimestamp = (message: { updatedAt?: string; createdAt?: string }) =>
+  toTimestampMs(message.createdAt) || toTimestampMs(message.updatedAt)
+
+export async function resolveBackupPayload(): Promise<{ data: string; manifest: BackupManifest }> {
+  return {
+    data: await getBackupData(),
+    manifest: {
+      backupType: 'incremental',
+      createdAt: Date.now(),
+      version: 5
+    }
+  }
+}
+
+/**
+ * 兼容增量备份提交中新增的统一成功回调。
+ * 当前各备份通道仍会在各自流程里更新 slice 状态，这里只保留兼容入口。
+ */
+export function recordBackupSuccess(manifest?: BackupManifest) {
+  void manifest
+}
+
+export const mergeMessagesByUpdatedAt = <T extends { id: string; createdAt?: string; updatedAt?: string }>(
+  currentMessages: T[],
+  incomingMessages: T[]
+): T[] => {
+  if (!incomingMessages.length) {
+    return currentMessages
+  }
+
+  const merged = [...currentMessages]
+  const indexById = new Map(currentMessages.map((message, index) => [message.id, index]))
+
+  for (const incoming of incomingMessages) {
+    const existingIndex = indexById.get(incoming.id)
+    if (existingIndex === undefined) {
+      merged.push(incoming)
+      continue
+    }
+
+    const existing = merged[existingIndex]
+    if (getMessageTimestamp(incoming) >= getMessageTimestamp(existing)) {
+      merged[existingIndex] = incoming
+    }
+  }
+
+  return merged.sort((a, b) => getMessageCreatedTimestamp(a) - getMessageCreatedTimestamp(b))
+}
+
 // 重试删除S3文件的辅助函数
 async function deleteS3FileWithRetry(fileName: string, s3Config: S3Config, maxRetries = 3) {
   let lastError: Error | null = null

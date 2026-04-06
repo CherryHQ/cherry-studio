@@ -44,7 +44,7 @@ class MinAppExportService {
     const script = this.getScript(appId)
     const rawResult = await api.executeScript(webviewId, script)
     if (rawResult && typeof rawResult === 'object' && 'error' in rawResult && rawResult.error) {
-      throw new Error(String((rawResult as any).error))
+      throw new Error(String(rawResult.error))
     }
     const conversations = this.normalizeConversations(rawResult)
 

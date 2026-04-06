@@ -107,9 +107,9 @@ describe('MainTextBlock', () => {
     // Get the mocked functions
     const { getModelUniqId } = await import('@renderer/services/ModelService')
     const { withCitationTags, determineCitationSource } = await import('@renderer/utils/citation')
-    mockGetModelUniqId = getModelUniqId as any
-    mockWithCitationTags = withCitationTags as any
-    mockDetermineCitationSource = determineCitationSource as any
+    mockGetModelUniqId = getModelUniqId
+    mockWithCitationTags = withCitationTags
+    mockDetermineCitationSource = determineCitationSource
 
     // Default mock implementations
     mockUseSettings.mockReturnValue({ renderInputMessageAsMarkdown: false })

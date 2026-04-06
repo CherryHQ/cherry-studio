@@ -8,7 +8,7 @@ import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import NavigationService from '@renderer/services/NavigationService'
 import { useAppSelector } from '@renderer/store'
 import { newMessagesActions } from '@renderer/store/newMessage'
-import { setActiveAgentId, setActiveTopicOrSessionAction } from '@renderer/store/runtime'
+import { setActiveAgentId } from '@renderer/store/runtime'
 import { updateTab } from '@renderer/store/tabs'
 import type { Assistant, Topic } from '@renderer/types'
 import { MIN_WINDOW_HEIGHT, MIN_WINDOW_WIDTH, SECOND_MIN_WINDOW_WIDTH } from '@shared/config/constant'
@@ -157,8 +157,7 @@ const HomePage: FC = () => {
 
       // 设置项：自动切换到话题（左侧话题布局下生效）
       if (forceTopicTabOnAssistantSwitch) {
-        dispatch(setActiveTopicOrSessionAction('topic'))
-        EventEmitter.emit(EVENT_NAMES.SWITCH_TOPIC_SIDEBAR)
+        void EventEmitter.emit(EVENT_NAMES.SWITCH_TOPIC_SIDEBAR)
       }
 
       startTransition(() => {
@@ -195,7 +194,6 @@ const HomePage: FC = () => {
       startTransition(() => {
         _setActiveTopic((prev) => (newTopic?.id === prev.id ? prev : newTopic))
         dispatch(newMessagesActions.setTopicFulfilled({ topicId: newTopic.id, fulfilled: false }))
-        dispatch(setActiveTopicOrSessionAction('topic'))
         persistTabChatState(newTopic.assistantId, newTopic.id)
       })
     },

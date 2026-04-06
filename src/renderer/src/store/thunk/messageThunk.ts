@@ -29,14 +29,7 @@ import { endSpan } from '@renderer/services/SpanManagerService'
 import { createStreamProcessor, type StreamProcessorCallbacks } from '@renderer/services/StreamProcessingService'
 import store from '@renderer/store'
 import { updateTopicUpdatedAt } from '@renderer/store/assistants'
-import type {
-  type ApiServerConfig,
-  type Assistant,
-  type AttachedSkill,
-  type FileMetadata,
-  type Model,
-  type Topic
-} from '@renderer/types'
+import type { ApiServerConfig, Assistant, AttachedSkill, FileMetadata, Model, Topic } from '@renderer/types'
 import type {
   AgentEffort,
   AgentSessionEntity,

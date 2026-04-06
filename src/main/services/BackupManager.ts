@@ -157,7 +157,8 @@ class BackupManager {
     }
 
     const destinationPath = dataOrDestinationPath || this.backupDir
-    const skipBackupFile = typeof destinationPathOrSkipBackupFile === 'boolean' ? destinationPathOrSkipBackupFile : false
+    const skipBackupFile =
+      typeof destinationPathOrSkipBackupFile === 'boolean' ? destinationPathOrSkipBackupFile : false
     const onProgress = this.onProgress(IpcChannel.BackupProgress, true)
 
     try {
@@ -1138,11 +1139,7 @@ class BackupManager {
    * @param data - JSON string data to backup
    * @param destinationPath - Path to save the backup
    */
-  async createLanTransferBackup(
-    _: Electron.IpcMainInvokeEvent,
-    data: string,
-    manifest?: string
-  ): Promise<string> {
+  async createLanTransferBackup(_: Electron.IpcMainInvokeEvent, data: string, manifest?: string): Promise<string> {
     const timestamp = new Date()
       .toISOString()
       .replace(/[-:T.Z]/g, '')

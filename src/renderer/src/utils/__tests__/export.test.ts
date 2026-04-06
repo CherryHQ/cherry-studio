@@ -272,7 +272,7 @@ describe('export', () => {
     it('should format user message using main text block', () => {
       const msg = mockedMessages.find((m) => m.id === 'u1')
       expect(msg).toBeDefined()
-      const markdown = messageToMarkdown(msg!)
+      const markdown = messageToMarkdown(msg)
       expect(markdown).toContain('## 🧑‍💻 User')
       expect(markdown).toContain('hello user')
 
@@ -285,7 +285,7 @@ describe('export', () => {
     it('should format assistant message using main text block', () => {
       const msg = mockedMessages.find((m) => m.id === 'a1')
       expect(msg).toBeDefined()
-      const markdown = messageToMarkdown(msg!)
+      const markdown = messageToMarkdown(msg)
       expect(markdown).toContain('## 🤖 Assistant')
       expect(markdown).toContain('hi assistant')
 
@@ -341,7 +341,7 @@ describe('export', () => {
     it('should include reasoning content from thinking block in details section', () => {
       const msg = mockedMessages.find((m) => m.id === 'a2')
       expect(msg).toBeDefined()
-      const markdown = messageToMarkdownWithReasoning(msg!)
+      const markdown = messageToMarkdownWithReasoning(msg)
       expect(markdown).toContain('## 🤖 Assistant')
       expect(markdown).toContain('Main Answer')
       expect(markdown).toContain('<details')
@@ -356,7 +356,7 @@ describe('export', () => {
     it('should handle <think> tag and replace newlines with <br> in reasoning', () => {
       const msg = mockedMessages.find((m) => m.id === 'a3')
       expect(msg).toBeDefined()
-      const markdown = messageToMarkdownWithReasoning(msg!)
+      const markdown = messageToMarkdownWithReasoning(msg)
       expect(markdown).toContain('Answer B')
       expect(markdown).toContain('<details')
       expect(markdown).toContain('Line1<br>Line2')
@@ -366,7 +366,7 @@ describe('export', () => {
     it('should not include details section if no thinking block exists', () => {
       const msg = mockedMessages.find((m) => m.id === 'a4')
       expect(msg).toBeDefined()
-      const markdown = messageToMarkdownWithReasoning(msg!)
+      const markdown = messageToMarkdownWithReasoning(msg)
       expect(markdown).toContain('## 🤖 Assistant')
       expect(markdown).toContain('Simple Answer')
       expect(markdown).not.toContain('<details')
@@ -375,7 +375,7 @@ describe('export', () => {
     it('should include both reasoning and citation content', () => {
       const msg = mockedMessages.find((m) => m.id === 'a5')
       expect(msg).toBeDefined()
-      const markdown = messageToMarkdownWithReasoning(msg!)
+      const markdown = messageToMarkdownWithReasoning(msg)
       expect(markdown).toContain('## 🤖 Assistant')
       expect(markdown).toContain('Answer with citation')
       expect(markdown).toContain('<details')
@@ -458,7 +458,7 @@ describe('export', () => {
       }
       // Mock TopicManager.getTopicMessages to return the expected messages
       const { TopicManager } = await import('@renderer/hooks/useTopic')
-      ;(TopicManager.getTopicMessages as any).mockResolvedValue([userMsg, assistantMsg])
+      TopicManager.getTopicMessages.mockResolvedValue([userMsg, assistantMsg])
       // Specific mock for this test to check formatting
       ;(markdownToPlainText as any).mockImplementation((str: string) => str.replace(/[#*]/g, ''))
 
@@ -559,7 +559,7 @@ describe('export', () => {
       }
       // Mock TopicManager.getTopicMessages to return the expected messages
       const { TopicManager } = await import('@renderer/hooks/useTopic')
-      ;(TopicManager.getTopicMessages as any).mockResolvedValue([msg1, msg2])
+      TopicManager.getTopicMessages.mockResolvedValue([msg1, msg2])
       ;(markdownToPlainText as any).mockImplementation((str: string) => str) // Pass-through
 
       const plainText = await topicToPlainText(testTopic)
@@ -595,7 +595,7 @@ describe('export', () => {
       }
       // Mock TopicManager.getTopicMessages to return the expected messages
       const { TopicManager } = await import('@renderer/hooks/useTopic')
-      ;(TopicManager.getTopicMessages as any).mockResolvedValue([msgWithEmpty])
+      TopicManager.getTopicMessages.mockResolvedValue([msgWithEmpty])
       ;(markdownToPlainText as any).mockImplementation((str: string) => str)
 
       const result = await topicToPlainText(testTopic)
@@ -617,7 +617,7 @@ describe('export', () => {
       }
       // Mock TopicManager.getTopicMessages to return the expected messages
       const { TopicManager } = await import('@renderer/hooks/useTopic')
-      ;(TopicManager.getTopicMessages as any).mockResolvedValue([msgWithSpecial])
+      TopicManager.getTopicMessages.mockResolvedValue([msgWithSpecial])
       ;(markdownToPlainText as any).mockImplementation((str: string) => str)
 
       const result = await topicToPlainText(testTopic)
@@ -644,7 +644,7 @@ describe('export', () => {
       }
       // Mock TopicManager.getTopicMessages to return the expected messages
       const { TopicManager } = await import('@renderer/hooks/useTopic')
-      ;(TopicManager.getTopicMessages as any).mockResolvedValue([msg1, msg2])
+      TopicManager.getTopicMessages.mockResolvedValue([msg1, msg2])
       ;(markdownToPlainText as any).mockImplementation((str: string) => str.replace(/[#*_]/g, ''))
 
       const result = await topicToPlainText(testTopic)
@@ -666,7 +666,7 @@ describe('export', () => {
       }
       // Mock TopicManager.getTopicMessages to return empty array
       const { TopicManager } = await import('@renderer/hooks/useTopic')
-      ;(TopicManager.getTopicMessages as any).mockResolvedValue([])
+      TopicManager.getTopicMessages.mockResolvedValue([])
       ;(markdownToPlainText as any).mockImplementation((str: string) => str.replace(/[#*_]/g, ''))
 
       const result = await topicToPlainText(testTopic)
@@ -686,7 +686,7 @@ describe('export', () => {
       }
       // Mock TopicManager.getTopicMessages to return empty array for null case
       const { TopicManager } = await import('@renderer/hooks/useTopic')
-      ;(TopicManager.getTopicMessages as any).mockResolvedValue([])
+      TopicManager.getTopicMessages.mockResolvedValue([])
 
       const result = await topicToPlainText(testTopic)
       expect(result).toBe('Null Messages Topic')

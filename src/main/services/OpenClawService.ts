@@ -1024,12 +1024,7 @@ class OpenClawService {
   /**
    * Check for OpenClaw updates by comparing the installed version with the latest GitHub release.
    */
-  public async checkUpdate(): Promise<{
-    hasUpdate: boolean
-    currentVersion: string | null
-    latestVersion: string | null
-    message?: string
-  }> {
+  public async checkUpdate(): Promise<OpenClawUpdateInfo> {
     try {
       const openclawPath = await this.findOpenClawBinary()
       if (!openclawPath) {

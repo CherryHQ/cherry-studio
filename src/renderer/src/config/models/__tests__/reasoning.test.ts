@@ -526,10 +526,10 @@ describe('GPT-5.2 Series Models', () => {
       expect(getThinkModelType(createModel({ id: 'gpt-5.2-mini' }))).toBe('gpt5_2')
     })
 
-    it('should return gpt5_codex for GPT-5.2 codex models', () => {
-      expect(getThinkModelType(createModel({ id: 'gpt-5.2-codex' }))).toBe('gpt5_codex')
-      expect(getThinkModelType(createModel({ id: 'gpt-5.2-codex-mini' }))).toBe('gpt5_codex')
-      expect(getThinkModelType(createModel({ id: 'gpt-5.2-codex-preview' }))).toBe('gpt5_codex')
+    it('should return gpt5_2_codex for GPT-5.2 codex models', () => {
+      expect(getThinkModelType(createModel({ id: 'gpt-5.2-codex' }))).toBe('gpt5_2_codex')
+      expect(getThinkModelType(createModel({ id: 'gpt-5.2-codex-mini' }))).toBe('gpt5_2_codex')
+      expect(getThinkModelType(createModel({ id: 'gpt-5.2-codex-preview' }))).toBe('gpt5_2_codex')
     })
   })
 })

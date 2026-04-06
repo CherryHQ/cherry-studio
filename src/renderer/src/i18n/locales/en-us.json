@@ -5725,6 +5725,15 @@
       "installSuccess": "Skill installed: {{name}}",
       "installed": "Installed",
       "invalidFormat": "Only ZIP files and directories are supported",
+      "library_path": {
+        "help": "Used for importing/updating skills. Each skill is a folder containing SKILL.md.",
+        "open": "Open",
+        "open_failed": "Failed to open skills library directory",
+        "placeholder": "Default: ~/skills",
+        "saved": "Skills library path saved",
+        "select": "Select",
+        "title": "Skills library directory"
+      },
       "localInstall": "Local Install",
       "multiSelect": "Multi-select",
       "noFilterResults": "No matching skills",
@@ -5735,20 +5744,11 @@
       "searchRegistryTitle": "Search skill registries online",
       "searchTitle": "Search Skills",
       "selectFile": "Select a file to view",
+      "title": "Skills",
       "uninstall": "Uninstall",
       "uninstallSuccess": "Skill uninstalled: {{name}}",
       "viewSource": "View Source",
-      "zip": "ZIP",
-      "library_path": {
-        "help": "Used for importing/updating skills. Each skill is a folder containing SKILL.md.",
-        "open": "Open",
-        "open_failed": "Failed to open skills library directory",
-        "placeholder": "Default: ~/skills",
-        "saved": "Skills library path saved",
-        "select": "Select",
-        "title": "Skills library directory"
-      },
-      "title": "Skills"
+      "zip": "ZIP"
     },
     "theme": {
       "color_primary": "Primary Color",

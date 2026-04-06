@@ -326,7 +326,7 @@ describe('processMessages', () => {
 
       const thinkingCompleteUpdate = vi
         .mocked(updateOneBlock)
-        .mock.calls.find(([payload]) => (payload as any)?.changes?.thinking_millsec !== undefined)
+        .mock.calls.find(([payload]) => payload?.changes?.thinking_millsec !== undefined)
       expect((thinkingCompleteUpdate?.[0] as any)?.changes?.thinking_millsec).toBe(1000)
 
       performanceSpy.mockRestore()

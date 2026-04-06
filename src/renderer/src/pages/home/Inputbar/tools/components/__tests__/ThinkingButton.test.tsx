@@ -103,6 +103,14 @@ vi.mock('@renderer/components/Icons/SVGIcon', () => ({
   )
 }))
 
+vi.mock('lucide-react', () => ({
+  Brain: ({ className }: any) => (
+    <div data-testid="lucide-brain" className={className}>
+      Brain
+    </div>
+  )
+}))
+
 // Mock ActionIconButton component
 vi.mock('@renderer/components/Buttons', () => ({
   ActionIconButton: ({
@@ -348,7 +356,7 @@ describe('ThinkingButton', () => {
         { option: 'low', expectedTestId: 'mdi-lightbulb-on50' },
         { option: 'medium', expectedTestId: 'mdi-lightbulb-on80' },
         { option: 'high', expectedTestId: 'mdi-lightbulb-on90' },
-        { option: 'xhigh', expectedTestId: 'mdi-lightbulb-on' },
+        { option: 'xhigh', expectedTestId: 'lucide-brain' },
         { option: 'auto', expectedTestId: 'mdi-lightbulb-auto-outline' },
         { option: 'none', expectedTestId: 'mdi-lightbulb-off-outline' },
         { option: 'default', expectedTestId: 'mdi-lightbulb-question' }
@@ -616,7 +624,7 @@ describe('ThinkingButton', () => {
         { option: 'low', expectedTestId: 'mdi-lightbulb-on50' },
         { option: 'medium', expectedTestId: 'mdi-lightbulb-on80' },
         { option: 'high', expectedTestId: 'mdi-lightbulb-on90' },
-        { option: 'xhigh', expectedTestId: 'mdi-lightbulb-on' },
+        { option: 'xhigh', expectedTestId: 'lucide-brain' },
         { option: 'auto', expectedTestId: 'mdi-lightbulb-auto-outline' },
         { option: 'none', expectedTestId: 'mdi-lightbulb-off-outline' },
         { option: 'default', expectedTestId: 'mdi-lightbulb-question' }

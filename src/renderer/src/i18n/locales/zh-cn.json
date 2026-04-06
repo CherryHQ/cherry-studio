@@ -5725,6 +5725,15 @@
       "installSuccess": "技能已安装：{{name}}",
       "installed": "已安装",
       "invalidFormat": "仅支持 ZIP 文件和文件夹",
+      "library_path": {
+        "help": "用于从技能库导入/更新技能。每个技能应为一个包含 SKILL.md 的文件夹。",
+        "open": "打开目录",
+        "open_failed": "打开技能库目录失败",
+        "placeholder": "默认：~/skills",
+        "saved": "技能库目录已保存",
+        "select": "选择目录",
+        "title": "技能库目录"
+      },
       "localInstall": "本地安装",
       "multiSelect": "多选",
       "noFilterResults": "没有匹配的技能",
@@ -5735,20 +5744,11 @@
       "searchRegistryTitle": "在线搜索技能注册表",
       "searchTitle": "搜索技能",
       "selectFile": "选择一个文件查看",
+      "title": "技能",
       "uninstall": "卸载",
       "uninstallSuccess": "技能已卸载：{{name}}",
       "viewSource": "查看源码",
-      "zip": "ZIP",
-      "library_path": {
-        "help": "用于从技能库导入/更新技能。每个技能应为一个包含 SKILL.md 的文件夹。",
-        "open": "打开目录",
-        "open_failed": "打开技能库目录失败",
-        "placeholder": "默认：~/skills",
-        "saved": "技能库目录已保存",
-        "select": "选择目录",
-        "title": "技能库目录"
-      },
-      "title": "技能"
+      "zip": "ZIP"
     },
     "theme": {
       "color_primary": "主题颜色",

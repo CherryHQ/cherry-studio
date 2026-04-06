@@ -752,12 +752,8 @@ function mapToGeminiThinkingLevel(reasoningEffort: ReasoningEffortOption): Googl
       return 'medium'
     case 'high':
     case 'xhigh':
-      return 'high'
-    case 'xhigh':
       // Gemini 不支持 xhigh，向上取整到 high
       return 'high'
-    case 'auto':
-      return undefined
     default:
       // Enforce all possible values are handled
       reasoningEffort satisfies never

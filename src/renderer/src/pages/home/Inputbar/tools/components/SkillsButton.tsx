@@ -6,7 +6,6 @@ import { useInstalledSkills } from '@renderer/hooks/useSkills'
 import { useTimer } from '@renderer/hooks/useTimer'
 import type { ToolQuickPanelApi } from '@renderer/pages/home/Inputbar/types'
 import type { AttachedSkill, LibrarySkillEntry } from '@renderer/types'
-import { getPluginErrorMessage } from '@renderer/utils/pluginErrors'
 import type { InstalledSkill } from '@types'
 import { Tooltip } from 'antd'
 import { BookDown, Pin, Sparkles, Zap } from 'lucide-react'
@@ -44,6 +43,15 @@ const getSkillLabel = (entry: InstalledSkill | LibrarySkillEntry) => {
     return entry.metadata.name || entry.folderName
   }
   return entry.name || entry.folderName
+}
+
+const getPluginErrorMessage = (error: unknown, fallback: string) => {
+  if (!error || typeof error !== 'object' || !('message' in error)) {
+    return fallback
+  }
+
+  const message = error.message
+  return typeof message === 'string' && message.trim() ? message : fallback
 }
 
 const SkillsButton = ({
@@ -89,12 +97,12 @@ const SkillsButton = ({
   }, [])
 
   useEffect(() => {
-    ensureLibraryPath()
+    void ensureLibraryPath()
   }, [ensureLibraryPath])
 
   const updateEnabledSkills = useCallback(
     async (nextEnabled: string[]) => {
-      await updateAssistant({
+      updateAssistant({
         ...assistant,
         enabledSkills: nextEnabled
       })

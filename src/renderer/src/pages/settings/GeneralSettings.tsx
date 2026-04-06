@@ -133,7 +133,7 @@ const GeneralSettings: FC = () => {
   }, [])
 
   useEffect(() => {
-    ensureSkillsLibraryPath()
+    void ensureSkillsLibraryPath()
   }, [ensureSkillsLibraryPath])
 
   const onSelectLanguage = (value: LanguageVarious) => {
