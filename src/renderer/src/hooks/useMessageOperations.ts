@@ -25,7 +25,26 @@ import type { Message, MessageBlock } from '@renderer/types/newMessage'
 import { MessageBlockStatus, MessageBlockType } from '@renderer/types/newMessage'
 import { abortCompletion } from '@renderer/utils/abortController'
 import { difference, throttle } from 'lodash'
-import { useCallback } from 'react'
+import { createContext, use, useCallback } from 'react'
+
+/**
+ * V2 chat overrides injected via React Context.
+ * When present, regenerate/resend operations delegate to useAiChat
+ * instead of Redux thunks.
+ */
+export interface V2ChatOverrides {
+  regenerate: (messageId?: string) => Promise<void>
+  resend: (messageId?: string) => Promise<void>
+}
+
+const V2ChatOverridesContext = createContext<V2ChatOverrides | null>(null)
+
+/**
+ * Provider that injects V2 chat operation overrides into the component tree.
+ * Wrap V2ChatContent's children with this so that useMessageOperations
+ * can detect V2 mode and delegate accordingly.
+ */
+export const V2ChatOverridesProvider = V2ChatOverridesContext.Provider
 
 const logger = loggerService.withContext('UseMessageOperations')
 
@@ -48,6 +67,7 @@ export const selectNewDisplayCount = createSelector(
  */
 export function useMessageOperations(topic: Topic) {
   const dispatch = useAppDispatch()
+  const v2 = use(V2ChatOverridesContext)
 
   /**
    * 删除单个消息。 / Deletes a single message.
@@ -103,10 +123,15 @@ export function useMessageOperations(topic: Topic) {
    */
   const resendMessage = useCallback(
     async (message: Message, assistant: Assistant) => {
+      if (v2) {
+        logger.info('[resendMessage] V2 path — delegating to useAiChat.resend')
+        await v2.resend(message.id)
+        return
+      }
       await restartTrace(message)
       await dispatch(resendMessageThunk(topic.id, message, assistant))
     },
-    [dispatch, topic.id]
+    [dispatch, topic.id, v2]
   )
 
   /**
@@ -164,6 +189,11 @@ export function useMessageOperations(topic: Topic) {
    */
   const regenerateAssistantMessage = useCallback(
     async (message: Message, assistant: Assistant) => {
+      if (v2) {
+        logger.info('[regenerateAssistantMessage] V2 path — delegating to useAiChat.regenerate')
+        await v2.regenerate(message.id)
+        return
+      }
       await restartTrace(message)
       if (message.role !== 'assistant') {
         logger.warn('regenerateAssistantMessage should only be called for assistant messages.')
@@ -171,7 +201,7 @@ export function useMessageOperations(topic: Topic) {
       }
       await dispatch(regenerateAssistantResponseThunk(topic.id, message, assistant))
     },
-    [dispatch, topic.id]
+    [dispatch, topic.id, v2]
   )
 
   /**
@@ -383,6 +413,14 @@ export function useMessageOperations(topic: Topic) {
    */
   const resendUserMessageWithEdit = useCallback(
     async (message: Message, editedBlocks: MessageBlock[], assistant: Assistant) => {
+      if (v2) {
+        // V2: persist block edits, then delegate resend to AI SDK
+        logger.info('[resendUserMessageWithEdit] V2 path — delegating to useAiChat.resend')
+        await editMessageBlocks(message.id, editedBlocks)
+        await v2.resend(message.id)
+        return
+      }
+
       await editMessageBlocks(message.id, editedBlocks)
 
       const mainTextBlock = editedBlocks.find((block) => block.type === MessageBlockType.MAIN_TEXT)
@@ -410,7 +448,7 @@ export function useMessageOperations(topic: Topic) {
       // 对于message的修改会在下面的thunk中保存
       await dispatch(resendUserMessageWithEditThunk(topic.id, message, assistant))
     },
-    [dispatch, editMessageBlocks, topic.id]
+    [dispatch, editMessageBlocks, topic.id, v2]
   )
 
   /**

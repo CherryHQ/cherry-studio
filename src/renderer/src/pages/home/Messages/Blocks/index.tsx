@@ -6,7 +6,7 @@ import type { ImageMessageBlock, Message, MessageBlock } from '@renderer/types/n
 import { MessageBlockStatus, MessageBlockType } from '@renderer/types/newMessage'
 import { isMainTextBlock, isMessageProcessing, isToolBlock, isVideoBlock } from '@renderer/utils/messageUtils/is'
 import { AnimatePresence, motion, type Variants } from 'motion/react'
-import React, { useMemo } from 'react'
+import React, { createContext, use, useMemo } from 'react'
 import { useSelector } from 'react-redux'
 import styled from 'styled-components'
 
@@ -25,6 +25,21 @@ import TranslationBlock from './TranslationBlock'
 import VideoBlock from './VideoBlock'
 
 const logger = loggerService.withContext('MessageBlockRenderer')
+
+/**
+ * V2 block context — provides pre-resolved MessageBlock objects keyed by block ID.
+ * When present, MessageBlockRenderer reads blocks from this context instead of Redux.
+ * V1 mode: context is null, blocks resolved from Redux store as before.
+ */
+const V2BlockContext = createContext<Record<string, MessageBlock> | null>(null)
+
+/** Wrap V2 subtree with this provider to bypass Redux block lookups. */
+export const V2BlockProvider = V2BlockContext.Provider
+
+/** Read the V2 block map from context (null in V1 mode). */
+export function useV2BlockMap() {
+  return use(V2BlockContext)
+}
 
 interface AnimatedBlockWrapperProps {
   children: React.ReactNode
@@ -61,7 +76,7 @@ const AnimatedBlockWrapper: React.FC<AnimatedBlockWrapperProps> = ({ children, e
 }
 
 interface Props {
-  blocks: string[] // 可以接收块ID数组或MessageBlock数组
+  blocks: string[]
   messageStatus?: Message['status']
   message: Message
 }
@@ -113,10 +128,12 @@ const groupSimilarBlocks = (blocks: MessageBlock[]): (MessageBlock[] | MessageBl
 }
 
 const MessageBlockRenderer: React.FC<Props> = ({ blocks, message }) => {
-  // 始终调用useSelector，避免条件调用Hook
-  const blockEntities = useSelector((state: RootState) => messageBlocksSelectors.selectEntities(state))
-  // 根据blocks类型处理渲染数据
-  const renderedBlocks = blocks.map((blockId) => blockEntities[blockId]).filter(Boolean)
+  const v2Blocks = use(V2BlockContext)
+  // Always call useSelector to satisfy hooks-rules (no conditional hooks)
+  const reduxBlockEntities = useSelector((state: RootState) => messageBlocksSelectors.selectEntities(state))
+  // V2 mode: resolve from context; V1 mode: resolve IDs from Redux store
+  const blockEntities = v2Blocks ?? reduxBlockEntities
+  const renderedBlocks = blocks.map((blockId) => blockEntities[blockId]).filter((b): b is MessageBlock => b != null)
   const groupedBlocks = useMemo(() => groupSimilarBlocks(renderedBlocks), [renderedBlocks])
 
   // Check if message is still processing

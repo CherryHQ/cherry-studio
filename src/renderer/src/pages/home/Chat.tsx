@@ -7,6 +7,7 @@ import MultiSelectActionPopup from '@renderer/components/Popups/MultiSelectionPo
 import PromptPopup from '@renderer/components/Popups/PromptPopup'
 import { SelectChatModelPopup } from '@renderer/components/Popups/SelectModelPopup'
 import { QuickPanelProvider } from '@renderer/components/QuickPanel'
+import { isDev } from '@renderer/config/constant'
 import { isEmbeddingModel, isRerankModel, isWebSearchModel } from '@renderer/config/models'
 import { useAssistant } from '@renderer/hooks/useAssistant'
 import { useChatContext } from '@renderer/hooks/useChatContext'
@@ -30,6 +31,10 @@ import Inputbar from './Inputbar/Inputbar'
 import ChatNavigation from './Messages/ChatNavigation'
 import Messages from './Messages/Messages'
 import Tabs from './Tabs'
+import V2ChatContent from './V2ChatContent'
+
+// DEV-ONLY: flip to `true` to test new AI IPC pipeline within existing Chat page
+const USE_V2_CHAT = isDev && true
 
 const logger = loggerService.withContext('Chat')
 
@@ -174,28 +179,37 @@ const Chat: FC<Props> = (props) => {
                 setActiveAssistant={props.setActiveAssistant}
                 position="left"
               />
-              <div
-                className="flex flex-1 flex-col justify-between"
-                style={{ height: `calc(${mainHeight} - var(--navbar-height))` }}>
-                <Messages
-                  key={props.activeTopic.id}
+              {USE_V2_CHAT ? (
+                <V2ChatContent
                   assistant={assistant}
                   topic={props.activeTopic}
                   setActiveTopic={props.setActiveTopic}
-                  onComponentUpdate={messagesComponentUpdateHandler}
-                  onFirstUpdate={messagesComponentFirstUpdateHandler}
+                  mainHeight={mainHeight}
                 />
-                <ContentSearch
-                  ref={contentSearchRef}
-                  searchTarget={mainRef as React.RefObject<HTMLElement>}
-                  filter={contentSearchFilter}
-                  includeUser={filterIncludeUser}
-                  onIncludeUserChange={userOutlinedItemClickHandler}
-                />
-                {messageNavigation === 'buttons' && <ChatNavigation containerId="messages" />}
-                <Inputbar assistant={assistant} setActiveTopic={props.setActiveTopic} topic={props.activeTopic} />
-                {isMultiSelectMode && <MultiSelectActionPopup topic={props.activeTopic} />}
-              </div>
+              ) : (
+                <div
+                  className="flex flex-1 flex-col justify-between"
+                  style={{ height: `calc(${mainHeight} - var(--navbar-height))` }}>
+                  <Messages
+                    key={props.activeTopic.id}
+                    assistant={assistant}
+                    topic={props.activeTopic}
+                    setActiveTopic={props.setActiveTopic}
+                    onComponentUpdate={messagesComponentUpdateHandler}
+                    onFirstUpdate={messagesComponentFirstUpdateHandler}
+                  />
+                  <ContentSearch
+                    ref={contentSearchRef}
+                    searchTarget={mainRef as React.RefObject<HTMLElement>}
+                    filter={contentSearchFilter}
+                    includeUser={filterIncludeUser}
+                    onIncludeUserChange={userOutlinedItemClickHandler}
+                  />
+                  {messageNavigation === 'buttons' && <ChatNavigation containerId="messages" />}
+                  <Inputbar assistant={assistant} setActiveTopic={props.setActiveTopic} topic={props.activeTopic} />
+                  {isMultiSelectMode && <MultiSelectActionPopup topic={props.activeTopic} />}
+                </div>
+              )}
             </QuickPanelProvider>
           </Main>
         </motion.div>

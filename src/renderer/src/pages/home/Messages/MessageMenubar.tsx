@@ -73,6 +73,7 @@ import { useTranslation } from 'react-i18next'
 import { useSelector } from 'react-redux'
 import styled from 'styled-components'
 
+import { useV2BlockMap } from './Blocks'
 import MessageTokens from './MessageTokens'
 
 const createTranslationAbortKey = (messageId: string) => `translation-abort-key:${messageId}`
@@ -246,7 +247,10 @@ const MessageMenubar: FC<Props> = (props) => {
     startEditing(message.id)
   }, [message.id, startEditing])
 
-  const blockEntities = useSelector(messageBlocksSelectors.selectEntities)
+  const v2Blocks = useV2BlockMap()
+  const reduxBlockEntities = useSelector(messageBlocksSelectors.selectEntities)
+  // V2 mode: read from context; V1 mode: read from Redux
+  const blockEntities = v2Blocks ?? reduxBlockEntities
 
   const isTranslating = useMemo(() => {
     const translationBlock = message.blocks
@@ -529,9 +533,7 @@ const MessageMenubar: FC<Props> = (props) => {
       return defaultFilter
     }
 
-    const relatedUserMessageBlocks = relatedUserMessage.blocks.map((msgBlockId) =>
-      messageBlocksSelectors.selectById(store.getState(), msgBlockId)
-    )
+    const relatedUserMessageBlocks = relatedUserMessage.blocks.map((msgBlockId) => blockEntities[msgBlockId])
 
     if (!relatedUserMessageBlocks) {
       return defaultFilter

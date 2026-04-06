@@ -13,6 +13,7 @@ import { unified } from 'unified'
 import { visit } from 'unist-util-visit'
 
 import { createSlugger, extractTextFromNode } from '../Markdown/plugins/rehypeHeadingIds'
+import { useV2BlockMap } from './Blocks'
 
 interface MessageOutlineProps {
   message: Message
@@ -25,7 +26,9 @@ interface HeadingItem {
 }
 
 const MessageOutline: FC<MessageOutlineProps> = ({ message }) => {
-  const blockEntities = useSelector((state: RootState) => messageBlocksSelectors.selectEntities(state))
+  const v2Blocks = useV2BlockMap()
+  const reduxBlockEntities = useSelector((state: RootState) => messageBlocksSelectors.selectEntities(state))
+  const blockEntities = v2Blocks ?? reduxBlockEntities
 
   const headings: HeadingItem[] = useMemo(() => {
     const mainTextBlocks = message.blocks
