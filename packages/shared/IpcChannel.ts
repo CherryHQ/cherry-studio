@@ -8,9 +8,8 @@ export enum IpcChannel {
   App_CheckForUpdate = 'app:check-for-update',
   App_QuitAndInstall = 'app:quit-and-install',
   App_Reload = 'app:reload',
-  App_Quit = 'app:quit',
+  Application_Quit = 'application:quit',
   App_Info = 'app:info',
-  App_Proxy = 'app:proxy',
   App_SetLaunchToTray = 'app:set-launch-to-tray',
   App_SetTray = 'app:set-tray',
   App_SetTrayOnClose = 'app:set-tray-on-close',
@@ -24,12 +23,13 @@ export enum IpcChannel {
   App_ResolvePath = 'app:resolve-path',
   App_IsPathInside = 'app:is-path-inside',
   App_Copy = 'app:copy',
-  App_SetStopQuitApp = 'app:set-stop-quit-app',
+  Application_PreventQuit = 'application:prevent-quit',
+  Application_AllowQuit = 'application:allow-quit',
   App_SetAppDataPath = 'app:set-app-data-path',
   App_GetDataPathFromArgs = 'app:get-data-path-from-args',
   App_FlushAppData = 'app:flush-app-data',
   App_IsNotEmptyDir = 'app:is-not-empty-dir',
-  App_RelaunchApp = 'app:relaunch-app',
+  Application_Relaunch = 'application:relaunch',
   App_ResetData = 'app:reset-data',
   App_IsBinaryExist = 'app:is-binary-exist',
   App_GetBinaryPath = 'app:get-binary-path',
@@ -37,7 +37,8 @@ export enum IpcChannel {
   App_InstallBunBinary = 'app:install-bun-binary',
   App_InstallOvmsBinary = 'app:install-ovms-binary',
   App_LogToMain = 'app:log-to-main',
-  App_SaveData = 'app:save-data',
+  // [v2] Removed: Redux persistor flush is no longer needed after v2 data refactoring
+  // App_SaveData = 'app:save-data',
   App_GetDiskInfo = 'app:get-disk-info',
   App_SetFullScreen = 'app:set-full-screen',
   App_IsFullScreen = 'app:is-full-screen',
@@ -108,6 +109,26 @@ export enum IpcChannel {
   AgentToolPermission_Request = 'agent-tool-permission:request',
   AgentToolPermission_Response = 'agent-tool-permission:response',
   AgentToolPermission_Result = 'agent-tool-permission:result',
+
+  // Agent session stream (IM channel -> renderer real-time)
+  AgentSessionStream_Subscribe = 'agent-session-stream:subscribe',
+  AgentSessionStream_Unsubscribe = 'agent-session-stream:unsubscribe',
+  AgentSessionStream_Abort = 'agent-session-stream:abort',
+  AgentSessionStream_Chunk = 'agent-session-stream:chunk',
+  AgentSession_Changed = 'agent-session:changed',
+
+  // WeChat channel
+  WeChat_QrLogin = 'wechat:qr-login',
+  WeChat_HasCredentials = 'wechat:has-credentials',
+
+  // Feishu channel
+  Feishu_QrLogin = 'feishu:qr-login',
+
+  // Channel status & logs
+  Channel_StatusChange = 'channel:status-change',
+  Channel_Log = 'channel:log',
+  Channel_GetLogs = 'channel:get-logs',
+  Channel_GetStatuses = 'channel:get-statuses',
 
   //copilot
   Copilot_GetAuthMessage = 'copilot:get-auth-message',
@@ -264,8 +285,6 @@ export enum IpcChannel {
   DataMigrate_RetryMigration = 'data-migrate:retry-migration',
   DataMigrate_RestartApp = 'data-migrate:restart-app',
   DataMigrate_CloseWindow = 'data-migrate:close-window',
-  DataMigrate_SendReduxData = 'data-migrate:send-redux-data',
-  DataMigrate_GetReduxData = 'data-migrate:get-redux-data',
 
   // zip
   Zip_Compress = 'zip:compress',
@@ -308,12 +327,6 @@ export enum IpcChannel {
   SearchWindow_Open = 'search-window:open',
   SearchWindow_Close = 'search-window:close',
   SearchWindow_OpenUrl = 'search-window:open-url',
-
-  //Store Sync
-  StoreSync_Subscribe = 'store-sync:subscribe',
-  StoreSync_Unsubscribe = 'store-sync:unsubscribe',
-  StoreSync_OnUpdate = 'store-sync:on-update',
-  StoreSync_BroadcastSync = 'store-sync:broadcast-sync',
 
   // Provider
   Provider_AddKey = 'provider:add-key',
@@ -425,25 +438,27 @@ export enum IpcChannel {
   // CherryAI
   Cherryai_GetSignature = 'cherryai:get-signature',
 
-  // Claude Code Plugins
-  ClaudeCodePlugin_Install = 'claudeCodePlugin:install',
-  ClaudeCodePlugin_Uninstall = 'claudeCodePlugin:uninstall',
-  ClaudeCodePlugin_UninstallPackage = 'claudeCodePlugin:uninstall-package',
-  ClaudeCodePlugin_ListInstalled = 'claudeCodePlugin:list-installed',
-  ClaudeCodePlugin_WriteContent = 'claudeCodePlugin:write-content',
-  ClaudeCodePlugin_InstallFromZip = 'claudeCodePlugin:install-from-zip',
-  ClaudeCodePlugin_InstallFromDirectory = 'claudeCodePlugin:install-from-directory',
+  // Global Skills
+  Skill_List = 'skill:list',
+  Skill_Install = 'skill:install',
+  Skill_Uninstall = 'skill:uninstall',
+  Skill_Toggle = 'skill:toggle',
+  Skill_InstallFromZip = 'skill:install-from-zip',
+  Skill_InstallFromDirectory = 'skill:install-from-directory',
+  Skill_ReadFile = 'skill:read-file',
+  Skill_ListFiles = 'skill:list-files',
+  Skill_ListLocal = 'skill:list-local',
 
-  // Local Transfer
-  LocalTransfer_ListServices = 'local-transfer:list',
-  LocalTransfer_StartScan = 'local-transfer:start-scan',
-  LocalTransfer_StopScan = 'local-transfer:stop-scan',
-  LocalTransfer_ServicesUpdated = 'local-transfer:services-updated',
-  LocalTransfer_Connect = 'local-transfer:connect',
-  LocalTransfer_Disconnect = 'local-transfer:disconnect',
-  LocalTransfer_ClientEvent = 'local-transfer:client-event',
-  LocalTransfer_SendFile = 'local-transfer:send-file',
-  LocalTransfer_CancelTransfer = 'local-transfer:cancel-transfer',
+  // LAN Transfer
+  LanTransfer_ListServices = 'lan-transfer:list',
+  LanTransfer_StartScan = 'lan-transfer:start-scan',
+  LanTransfer_StopScan = 'lan-transfer:stop-scan',
+  LanTransfer_ServicesUpdated = 'lan-transfer:services-updated',
+  LanTransfer_Connect = 'lan-transfer:connect',
+  LanTransfer_Disconnect = 'lan-transfer:disconnect',
+  LanTransfer_ClientEvent = 'lan-transfer:client-event',
+  LanTransfer_SendFile = 'lan-transfer:send-file',
+  LanTransfer_CancelTransfer = 'lan-transfer:cancel-transfer',
 
   // OpenClaw
   OpenClaw_CheckInstalled = 'openclaw:check-installed',

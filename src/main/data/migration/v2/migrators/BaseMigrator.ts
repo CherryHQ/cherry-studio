@@ -30,6 +30,13 @@ export abstract class BaseMigrator {
   }
 
   /**
+   * Reset instance state accumulated from a previous run.
+   * MigrationEngine reuses migrator instances and calls this before each run()
+   * so retries start with clean counters, caches, and prepared data.
+   */
+  abstract reset(): void
+
+  /**
    * Report progress to UI
    * @param progress - Progress percentage (0-100)
    * @param message - Progress message (fallback text)

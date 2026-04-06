@@ -1,0 +1,333 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`listModels > AIHubMix > should convert real AIHubMix response with model_id and model_name 1`] = `
+[
+  {
+    "description": "Qwen 3.6, the native vision-language Plus series model.",
+    "group": "aihubmix",
+    "id": "qwen3.6-plus",
+    "name": "Qwen3.6 Plus",
+    "provider": "aihubmix",
+  },
+  {
+    "description": "Claude Sonnet 4.6 delivers frontier intelligence at scale.",
+    "group": "aihubmix",
+    "id": "claude-sonnet-4-6",
+    "name": "Claude Sonnet 4.6",
+    "provider": "aihubmix",
+  },
+  {
+    "description": "GPT-5.4 is our frontier model for complex professional work.",
+    "group": "aihubmix",
+    "id": "gpt-5.4",
+    "name": "GPT 5.4",
+    "provider": "aihubmix",
+  },
+  {
+    "description": "A new-generation professional-grade multimodal video-creation model.",
+    "group": "aihubmix",
+    "id": "doubao-seedance-2-0-260128",
+    "name": "Doubao Seedance 2.0 260128",
+    "provider": "aihubmix",
+  },
+]
+`;
+
+exports[`listModels > Gemini > should strip models/ prefix and use displayName from real response 1`] = `
+[
+  {
+    "description": "Stable version of Gemini 2.5 Flash, our mid-size multimodal model that supports up to 1 million tokens, released in June of 2025.",
+    "group": "gemini",
+    "id": "gemini-2.5-flash",
+    "name": "Gemini 2.5 Flash",
+    "provider": "gemini",
+  },
+  {
+    "description": "Stable release (June 17th, 2025) of Gemini 2.5 Pro",
+    "group": "gemini",
+    "id": "gemini-2.5-pro",
+    "name": "Gemini 2.5 Pro",
+    "provider": "gemini",
+  },
+  {
+    "description": "Gemini 2.0 Flash",
+    "group": "gemini",
+    "id": "gemini-2.0-flash",
+    "name": "Gemini 2.0 Flash",
+    "provider": "gemini",
+  },
+  {
+    "description": "Stable version of Gemini 2.0 Flash, our fast and versatile multimodal model for scaling across diverse tasks, released in January of 2025.",
+    "group": "gemini",
+    "id": "gemini-2.0-flash-001",
+    "name": "Gemini 2.0 Flash 001",
+    "provider": "gemini",
+  },
+  {
+    "description": "Stable version of Gemini 2.0 Flash-Lite",
+    "group": "gemini",
+    "id": "gemini-2.0-flash-lite-001",
+    "name": "Gemini 2.0 Flash-Lite 001",
+    "provider": "gemini",
+  },
+  {
+    "description": "Gemini 2.0 Flash-Lite",
+    "group": "gemini",
+    "id": "gemini-2.0-flash-lite",
+    "name": "Gemini 2.0 Flash-Lite",
+    "provider": "gemini",
+  },
+]
+`;
+
+exports[`listModels > OpenAI-compatible (DeepSeek) > should convert real DeepSeek response 1`] = `
+[
+  {
+    "group": "deepseek",
+    "id": "deepseek-chat",
+    "name": "deepseek-chat",
+    "owned_by": "deepseek",
+    "provider": "deepseek",
+  },
+  {
+    "group": "deepseek",
+    "id": "deepseek-reasoner",
+    "name": "deepseek-reasoner",
+    "owned_by": "deepseek",
+    "provider": "deepseek",
+  },
+]
+`;
+
+exports[`listModels > OpenAI-compatible (Groq) > should convert real Groq response with owned_by 1`] = `
+[
+  {
+    "group": "qwen",
+    "id": "qwen/qwen3-32b",
+    "name": "qwen/qwen3-32b",
+    "owned_by": "Alibaba Cloud",
+    "provider": "groq",
+  },
+  {
+    "group": "groq",
+    "id": "groq/compound-mini",
+    "name": "groq/compound-mini",
+    "owned_by": "Groq",
+    "provider": "groq",
+  },
+]
+`;
+
+exports[`listModels > OpenAI-compatible (SiliconFlow) > should handle nested slash IDs for group extraction 1`] = `
+[
+  {
+    "group": "Pro",
+    "id": "Pro/MiniMaxAI/MiniMax-M2.5",
+    "name": "Pro/MiniMaxAI/MiniMax-M2.5",
+    "owned_by": "",
+    "provider": "silicon",
+  },
+  {
+    "group": "Pro",
+    "id": "Pro/zai-org/GLM-5",
+    "name": "Pro/zai-org/GLM-5",
+    "owned_by": "",
+    "provider": "silicon",
+  },
+  {
+    "group": "Pro",
+    "id": "Pro/moonshotai/Kimi-K2.5",
+    "name": "Pro/moonshotai/Kimi-K2.5",
+    "owned_by": "",
+    "provider": "silicon",
+  },
+  {
+    "group": "Pro",
+    "id": "Pro/zai-org/GLM-4.7",
+    "name": "Pro/zai-org/GLM-4.7",
+    "owned_by": "",
+    "provider": "silicon",
+  },
+  {
+    "group": "deepseek-ai",
+    "id": "deepseek-ai/DeepSeek-V3.2",
+    "name": "deepseek-ai/DeepSeek-V3.2",
+    "owned_by": "",
+    "provider": "silicon",
+  },
+  {
+    "group": "Pro",
+    "id": "Pro/deepseek-ai/DeepSeek-V3.2",
+    "name": "Pro/deepseek-ai/DeepSeek-V3.2",
+    "owned_by": "",
+    "provider": "silicon",
+  },
+]
+`;
+
+exports[`listModels > OpenRouter > should merge chat and embedding endpoints from real response 1`] = `
+[
+  {
+    "group": "xiaomi",
+    "id": "xiaomi/mimo-v2-omni",
+    "name": "xiaomi/mimo-v2-omni",
+    "owned_by": null,
+    "provider": "openrouter",
+  },
+  {
+    "group": "xiaomi",
+    "id": "xiaomi/mimo-v2-pro",
+    "name": "xiaomi/mimo-v2-pro",
+    "owned_by": null,
+    "provider": "openrouter",
+  },
+  {
+    "group": "minimax",
+    "id": "minimax/minimax-m2.7",
+    "name": "minimax/minimax-m2.7",
+    "owned_by": null,
+    "provider": "openrouter",
+  },
+  {
+    "group": "openai",
+    "id": "openai/gpt-5.4-nano",
+    "name": "openai/gpt-5.4-nano",
+    "owned_by": null,
+    "provider": "openrouter",
+  },
+  {
+    "group": "openai",
+    "id": "openai/gpt-5.4-mini",
+    "name": "openai/gpt-5.4-mini",
+    "owned_by": null,
+    "provider": "openrouter",
+  },
+  {
+    "group": "mistralai",
+    "id": "mistralai/mistral-small-2603",
+    "name": "mistralai/mistral-small-2603",
+    "owned_by": null,
+    "provider": "openrouter",
+  },
+  {
+    "group": "z-ai",
+    "id": "z-ai/glm-5-turbo",
+    "name": "z-ai/glm-5-turbo",
+    "owned_by": null,
+    "provider": "openrouter",
+  },
+  {
+    "group": "x-ai",
+    "id": "x-ai/grok-4.20-multi-agent-beta",
+    "name": "x-ai/grok-4.20-multi-agent-beta",
+    "owned_by": null,
+    "provider": "openrouter",
+  },
+  {
+    "group": "openai",
+    "id": "openai/text-embedding-3-large",
+    "name": "openai/text-embedding-3-large",
+    "owned_by": undefined,
+    "provider": "openrouter",
+  },
+]
+`;
+
+exports[`listModels > PPIO > should merge all three endpoints from real response 1`] = `
+[
+  {
+    "group": "minimax",
+    "id": "minimax/minimax-m2.7",
+    "name": "minimax/minimax-m2.7",
+    "owned_by": "unknown",
+    "provider": "ppio",
+  },
+  {
+    "group": "minimax",
+    "id": "minimax/minimax-m2.5-highspeed",
+    "name": "minimax/minimax-m2.5-highspeed",
+    "owned_by": "unknown",
+    "provider": "ppio",
+  },
+  {
+    "group": "qwen",
+    "id": "qwen/qwen3.5-27b",
+    "name": "qwen/qwen3.5-27b",
+    "owned_by": "unknown",
+    "provider": "ppio",
+  },
+  {
+    "group": "qwen",
+    "id": "qwen/qwen3.5-122b-a10b",
+    "name": "qwen/qwen3.5-122b-a10b",
+    "owned_by": "unknown",
+    "provider": "ppio",
+  },
+  {
+    "group": "qwen",
+    "id": "qwen/qwen3.5-35b-a3b",
+    "name": "qwen/qwen3.5-35b-a3b",
+    "owned_by": "unknown",
+    "provider": "ppio",
+  },
+  {
+    "group": "BAAI",
+    "id": "BAAI/bge-m3",
+    "name": "BAAI/bge-m3",
+    "owned_by": "BAAI",
+    "provider": "ppio",
+  },
+  {
+    "group": "BAAI",
+    "id": "BAAI/bge-reranker-v2-m3",
+    "name": "BAAI/bge-reranker-v2-m3",
+    "owned_by": "BAAI",
+    "provider": "ppio",
+  },
+]
+`;
+
+exports[`listModels > Together > should use display_name and organization from real response 1`] = `
+[
+  {
+    "description": null,
+    "group": "hexgrad",
+    "id": "hexgrad/Kokoro-82M",
+    "name": "Kokoro 82M",
+    "owned_by": "Hexgrad",
+    "provider": "together",
+  },
+  {
+    "description": null,
+    "group": "cartesia",
+    "id": "cartesia/sonic",
+    "name": "Cartesia Sonic",
+    "owned_by": "Cartesia",
+    "provider": "together",
+  },
+  {
+    "description": null,
+    "group": "black-forest-labs",
+    "id": "black-forest-labs/FLUX.1-krea-dev",
+    "name": "FLUX.1 Krea [dev]",
+    "owned_by": "Black Forest Labs",
+    "provider": "together",
+  },
+  {
+    "description": null,
+    "group": "google",
+    "id": "google/imagen-4.0-preview",
+    "name": "Google Imagen 4.0 Preview",
+    "owned_by": "Google",
+    "provider": "together",
+  },
+  {
+    "description": null,
+    "group": "cartesia",
+    "id": "cartesia/sonic-2",
+    "name": "Cartesia Sonic 2",
+    "owned_by": "Cartesia",
+    "provider": "together",
+  },
+]
+`;

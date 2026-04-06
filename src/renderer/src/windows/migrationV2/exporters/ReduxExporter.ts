@@ -12,8 +12,11 @@ const SLICES_TO_EXPORT = [
   'knowledge', // Knowledge base metadata
   'llm', // LLM provider and model configurations
   'mcp', // MCP server configurations
+  'minapps', // Mini app configurations (enabled/disabled/pinned)
   'note', // Note-related settings
   'selectionStore', // Selection assistant settings
+  'preprocess', // File preprocess provider configurations
+  'ocr', // OCR provider configurations
   'websearch', // Web search configurations
   'codeTools' // Code tools settings (CLI tool, models, terminal)
 ]

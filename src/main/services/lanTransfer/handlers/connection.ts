@@ -2,7 +2,7 @@ import { isIP, type Socket } from 'node:net'
 import { platform } from 'node:os'
 
 import { loggerService } from '@logger'
-import type { LanHandshakeRequestMessage, LocalTransferPeer } from '@shared/config/types'
+import type { LanHandshakeRequestMessage, LanTransferPeer } from '@shared/config/types'
 import { app } from 'electron'
 
 import type { ConnectionContext } from '../types'
@@ -31,7 +31,7 @@ export function buildHandshakeMessage(): LanHandshakeRequestMessage {
  * Pick the best host address from a peer's available addresses.
  * Prefers IPv4 addresses over IPv6.
  */
-export function pickHost(peer: LocalTransferPeer): string | undefined {
+export function pickHost(peer: LanTransferPeer): string | undefined {
   const preferred = peer.addresses?.find((addr) => isIP(addr) === 4) || peer.addresses?.[0]
   return preferred || peer.host
 }

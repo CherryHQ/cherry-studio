@@ -144,9 +144,9 @@
   border-radius: var(--ant-border-radius-lg);
 }
 
-/* Enable scrolling for Move To submenu - Issue #13350 */
+/* Enable scrolling for Move To submenu - Issue #13350, #13948 */
 .ant-dropdown-menu-submenu .ant-dropdown-menu {
-  max-height: 60vh;
+  max-height: 40vh;
   overflow-y: auto;
   overflow-x: hidden;
 }

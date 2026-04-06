@@ -4,7 +4,7 @@ import { loggerService } from '@renderer/services/LoggerService'
 import { MigrationIpcChannels } from '@shared/data/migration/v2/types'
 import { Progress, Space, Steps } from 'antd'
 import { AlertTriangle, CheckCircle, CheckCircle2, Database, Loader2, Rocket } from 'lucide-react'
-import React, { useMemo, useState } from 'react'
+import React, { useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
@@ -19,12 +19,18 @@ const MigrationApp: React.FC = () => {
   const { progress, lastError, confirmComplete } = useMigrationProgress()
   const actions = useMigrationActions()
   const [isLoading, setIsLoading] = useState(false)
+  const startGuardRef = useRef(false)
 
   const handleLanguageChange = (lang: string) => {
     void i18n.changeLanguage(lang)
   }
 
   const handleStartMigration = async () => {
+    if (startGuardRef.current || progress.stage !== 'backup_confirmed') {
+      return
+    }
+
+    startGuardRef.current = true
     setIsLoading(true)
     try {
       logger.info('Starting migration process...')
@@ -39,17 +45,18 @@ const MigrationApp: React.FC = () => {
 
       // Export Dexie data
       const userDataPath = await window.electron.ipcRenderer.invoke(MigrationIpcChannels.GetUserDataPath)
-      const exportPath = `${userDataPath}/migration_temp/dexie_export`
-      const dexieExporter = new DexieExporter(exportPath)
+      const exportBasePath = `${userDataPath}/migration_temp`
+      const dexieExportPath = `${exportBasePath}/dexie_export`
+      const dexieExporter = new DexieExporter(dexieExportPath)
 
       await dexieExporter.exportAll((p) => {
         logger.info('Dexie export progress', p)
       })
 
-      logger.info('Dexie data exported', { exportPath })
+      logger.info('Dexie data exported', { exportPath: dexieExportPath })
 
       // Export localStorage data
-      const localStorageExportPath = `${userDataPath}/migration_temp/localstorage_export`
+      const localStorageExportPath = `${exportBasePath}/localstorage_export`
       const localStorageExporter = new LocalStorageExporter(localStorageExportPath)
       const localStorageFilePath = await localStorageExporter.export()
       logger.info('localStorage data exported', {
@@ -58,10 +65,15 @@ const MigrationApp: React.FC = () => {
       })
 
       // Start migration with exported data
-      await actions.startMigration(reduxResult.data, exportPath, localStorageFilePath)
+      await actions.startMigration({
+        reduxData: reduxResult.data,
+        dexieExportPath,
+        localStorageExportPath: localStorageFilePath
+      })
     } catch (error) {
       logger.error('Failed to start migration', error as Error)
     } finally {
+      startGuardRef.current = false
       setIsLoading(false)
     }
   }

@@ -21,7 +21,7 @@ import {
 } from '@shared/data/preference/preferenceUtils'
 import { IpcChannel } from '@shared/IpcChannel'
 import { and, eq } from 'drizzle-orm'
-import { BrowserWindow, ipcMain } from 'electron'
+import { BrowserWindow } from 'electron'
 
 import { preferenceTable } from './db/schemas/preference'
 import type { DbType } from './db/types'
@@ -94,17 +94,12 @@ class PreferenceNotifier {
     const keySubscriptions = this.subscriptions.get(key)!
     keySubscriptions.add(callback)
 
-    logger.debug(`Added subscription for ${key}, total for this key: ${keySubscriptions.size}`)
-
     return () => {
       const currentKeySubscriptions = this.subscriptions.get(key)
       if (currentKeySubscriptions) {
         currentKeySubscriptions.delete(callback)
         if (currentKeySubscriptions.size === 0) {
           this.subscriptions.delete(key)
-          logger.debug(`Removed last subscription for ${key}, cleaned up key`)
-        } else {
-          logger.debug(`Removed subscription for ${key}, remaining: ${currentKeySubscriptions.size}`)
         }
       }
     }
@@ -120,7 +115,6 @@ class PreferenceNotifier {
   notify = (key: string, newValue: any, oldValue?: any): void => {
     const keySubscriptions = this.subscriptions.get(key)
     if (keySubscriptions && keySubscriptions.size > 0) {
-      logger.debug(`Notifying ${keySubscriptions.size} subscribers for preference ${key}`)
       keySubscriptions.forEach((callback) => {
         try {
           callback(key, newValue, oldValue)
@@ -239,7 +233,7 @@ export class PreferenceService extends BaseService {
    * Lifecycle: Register IPC handlers after initialization is complete
    */
   protected onReady(): void {
-    this.registerIpcHandler()
+    this.registerIpcHandlers()
   }
 
   /**
@@ -253,7 +247,6 @@ export class PreferenceService extends BaseService {
 
     this.notifier.removeAllSubscriptions()
     this.windowSubscriptions.clear()
-    this.unregisterIpcHandler()
 
     logger.debug('PreferenceService cleanup completed')
   }
@@ -262,31 +255,31 @@ export class PreferenceService extends BaseService {
    * Register IPC handlers for preference operations
    * Provides communication interface between main and renderer processes
    */
-  private registerIpcHandler(): void {
-    ipcMain.handle(IpcChannel.Preference_Get, (_, key: UnifiedPreferenceKeyType) => {
+  private registerIpcHandlers(): void {
+    this.ipcHandle(IpcChannel.Preference_Get, (_, key: UnifiedPreferenceKeyType) => {
       return this.get(key)
     })
 
-    ipcMain.handle(
+    this.ipcHandle(
       IpcChannel.Preference_Set,
       async (_, key: UnifiedPreferenceKeyType, value: UnifiedPreferenceType[UnifiedPreferenceKeyType]) => {
         await this.set(key, value)
       }
     )
 
-    ipcMain.handle(IpcChannel.Preference_GetMultipleRaw, (_, keys: UnifiedPreferenceKeyType[]) => {
+    this.ipcHandle(IpcChannel.Preference_GetMultipleRaw, (_, keys: UnifiedPreferenceKeyType[]) => {
       return this.getMultipleRaw(keys)
     })
 
-    ipcMain.handle(IpcChannel.Preference_SetMultiple, async (_, updates: Partial<UnifiedPreferenceType>) => {
+    this.ipcHandle(IpcChannel.Preference_SetMultiple, async (_, updates: Partial<UnifiedPreferenceType>) => {
       await this.setMultiple(updates)
     })
 
-    ipcMain.handle(IpcChannel.Preference_GetAll, () => {
+    this.ipcHandle(IpcChannel.Preference_GetAll, () => {
       return this.getAll()
     })
 
-    ipcMain.handle(IpcChannel.Preference_Subscribe, async (event, keys: string[]) => {
+    this.ipcHandle(IpcChannel.Preference_Subscribe, async (event, keys: string[]) => {
       const windowId = BrowserWindow.fromWebContents(event.sender)?.id
       if (windowId) {
         this.subscribeForWindow(windowId, keys)
@@ -294,20 +287,6 @@ export class PreferenceService extends BaseService {
     })
 
     logger.info('PreferenceService IPC handlers registered')
-  }
-
-  /**
-   * Unregister IPC handlers registered in registerIpcHandler
-   */
-  private unregisterIpcHandler(): void {
-    ipcMain.removeHandler(IpcChannel.Preference_Get)
-    ipcMain.removeHandler(IpcChannel.Preference_Set)
-    ipcMain.removeHandler(IpcChannel.Preference_GetMultipleRaw)
-    ipcMain.removeHandler(IpcChannel.Preference_SetMultiple)
-    ipcMain.removeHandler(IpcChannel.Preference_GetAll)
-    ipcMain.removeHandler(IpcChannel.Preference_Subscribe)
-
-    logger.debug('PreferenceService IPC handlers unregistered')
   }
 
   /**
@@ -342,7 +321,6 @@ export class PreferenceService extends BaseService {
       const configKey = toBootConfigKey(key)
       const oldValue = bootConfigService.get(configKey) as UnifiedPreferenceType[K]
       if (this.isEqual(oldValue, value)) {
-        logger.debug(`BootConfig ${configKey} value unchanged, skipping write and notification`)
         return
       }
       // TS cannot correlate UnifiedPreferenceType[K] with BootConfigSchema via prefix stripping
@@ -360,7 +338,6 @@ export class PreferenceService extends BaseService {
 
       // Performance optimization: skip update if value hasn't changed
       if (this.isEqual(oldValue, value)) {
-        logger.debug(`Preference ${key} value unchanged, skipping database write and notification`)
         return
       }
 
@@ -376,8 +353,6 @@ export class PreferenceService extends BaseService {
 
       // Unified notification to both main and renderer processes
       await this.notifyChange(key, value, oldValue)
-
-      logger.debug(`Preference ${key} updated successfully`)
     } catch (error) {
       logger.error(`Failed to set preference ${key}:`, error as Error)
       throw error
@@ -539,8 +514,6 @@ export class PreferenceService extends BaseService {
 
     const windowKeys = this.windowSubscriptions.get(windowId)!
     keys.forEach((key) => windowKeys.add(key))
-
-    logger.verbose(`Window ${windowId} subscribed to ${keys.length} preference keys: ${keys.join(', ')}`)
   }
 
   /**
@@ -549,9 +522,6 @@ export class PreferenceService extends BaseService {
    */
   public unsubscribeForWindow(windowId: number): void {
     this.windowSubscriptions.delete(windowId)
-    logger.verbose(
-      `Window ${windowId} unsubscribed from preference changes: ${Array.from(this.windowSubscriptions.keys()).join(', ')}`
-    )
   }
 
   /**
@@ -753,7 +723,6 @@ export class PreferenceService extends BaseService {
     }
 
     if (affectedWindows.length === 0) {
-      logger.debug(`Preference ${key} changed, notified main listeners only`)
       return
     }
 
@@ -772,7 +741,7 @@ export class PreferenceService extends BaseService {
       }
     }
 
-    logger.debug(`Preference ${key} changed, notified main listeners and ${affectedWindows.length} renderer windows`)
+    logger.debug(`Preference ${key} changed, notified ${affectedWindows.length} renderer windows`)
   }
 
   /**

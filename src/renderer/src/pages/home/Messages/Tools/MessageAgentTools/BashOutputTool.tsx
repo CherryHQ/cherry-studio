@@ -5,6 +5,7 @@ import { useTranslation } from 'react-i18next'
 
 import { truncateOutput } from '../shared/truncateOutput'
 import { ToolHeader, TruncatedIndicator } from './GenericTools'
+import { TerminalOutput } from './TerminalOutput'
 import type { BashOutputToolInput, BashOutputToolOutput } from './types'
 import { AgentToolsType } from './types'
 
@@ -119,9 +120,7 @@ export function BashOutputTool({
       {truncatedStdout.data && (
         <div>
           <div className="mb-2 font-medium text-default-600 text-xs">{t('message.tools.sections.stdout')}:</div>
-          <pre className="whitespace-pre-wrap font-mono text-default-700 text-xs dark:text-default-300">
-            {truncatedStdout.data}
-          </pre>
+          <TerminalOutput content={truncatedStdout.data} />
           {truncatedStdout.isTruncated && <TruncatedIndicator originalLength={truncatedStdout.originalLength} />}
         </div>
       )}
@@ -130,9 +129,7 @@ export function BashOutputTool({
       {truncatedStderr.data && (
         <div className="border border-danger-200">
           <div className="mb-2 font-medium text-danger-600 text-xs">{t('message.tools.sections.stderr')}:</div>
-          <pre className="whitespace-pre-wrap font-mono text-danger-600 text-xs dark:text-danger-400">
-            {truncatedStderr.data}
-          </pre>
+          <TerminalOutput content={truncatedStderr.data} />
           {truncatedStderr.isTruncated && <TruncatedIndicator originalLength={truncatedStderr.originalLength} />}
         </div>
       )}
@@ -144,9 +141,7 @@ export function BashOutputTool({
             <XCircle className="h-4 w-4 text-danger" />
             <span className="font-medium text-danger-600 text-xs">{t('message.tools.status.error')}:</span>
           </div>
-          <pre className="whitespace-pre-wrap font-mono text-danger-600 text-xs dark:text-danger-400">
-            {truncatedError.data}
-          </pre>
+          <TerminalOutput content={truncatedError.data} />
           {truncatedError.isTruncated && <TruncatedIndicator originalLength={truncatedError.originalLength} />}
         </div>
       )}
@@ -155,9 +150,7 @@ export function BashOutputTool({
     // 原始输出（如果解析失败或非 XML 格式）
     truncatedRawOutput.data && (
       <div>
-        <pre className="whitespace-pre-wrap font-mono text-default-700 text-xs dark:text-default-300">
-          {truncatedRawOutput.data}
-        </pre>
+        <TerminalOutput content={truncatedRawOutput.data} />
         {truncatedRawOutput.isTruncated && <TruncatedIndicator originalLength={truncatedRawOutput.originalLength} />}
       </div>
     )

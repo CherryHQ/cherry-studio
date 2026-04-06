@@ -8,14 +8,34 @@ vi.mock('@data/services/McpServerService', () => ({
   }
 }))
 
-vi.mock('@main/services/WindowService', () => ({
-  windowService: {
-    getMainWindow: vi.fn(() => null)
+vi.mock('@main/core/application', () => ({
+  application: {
+    get: vi.fn((name: string) => {
+      if (name === 'WindowService') {
+        return { getMainWindow: vi.fn(() => null) }
+      }
+      if (name === 'CacheService') {
+        return { has: vi.fn(() => false), get: vi.fn(), set: vi.fn(), delete: vi.fn() }
+      }
+      throw new Error(`[MockApplication] Unknown service: ${name}`)
+    })
   }
 }))
 
+vi.mock('@main/core/lifecycle', () => {
+  class MockBaseService {}
+
+  return {
+    BaseService: MockBaseService,
+    Injectable: () => (target: unknown) => target,
+    ServicePhase: () => (target: unknown) => target,
+    DependsOn: () => (target: unknown) => target,
+    Phase: { Background: 'background', WhenReady: 'whenReady', BeforeReady: 'beforeReady' }
+  }
+})
+
 import { mcpServerService } from '@data/services/McpServerService'
-import { mcpService } from '@main/services/MCPService'
+import { MCPService } from '@main/services/MCPService'
 
 const baseInputSchema: { type: 'object'; properties: Record<string, unknown>; required: string[] } = {
   type: 'object',
@@ -35,8 +55,11 @@ const createTool = (overrides: Partial<MCPTool>): MCPTool => ({
 })
 
 describe('MCPService.listAllActiveServerTools', () => {
+  let mcpService: MCPService
+
   beforeEach(() => {
     vi.clearAllMocks()
+    mcpService = new MCPService()
   })
 
   afterEach(() => {

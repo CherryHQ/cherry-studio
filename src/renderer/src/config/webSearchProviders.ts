@@ -1,5 +1,5 @@
 import type { CompoundIcon } from '@cherrystudio/ui'
-import { Baidu, Bing, Bocha, Exa, Google, Searxng, Tavily, Zhipu } from '@cherrystudio/ui/icons'
+import { Baidu, Bing, Bocha, Exa, Google, Querit, Searxng, Tavily, Zhipu } from '@cherrystudio/ui/icons'
 import type { WebSearchProvider, WebSearchProviderId } from '@renderer/types'
 
 type WebSearchProviderConfig = {
@@ -150,9 +150,8 @@ export function getWebSearchProviderLogo(providerId: WebSearchProviderId): Compo
       return Bing
     case 'local-baidu':
       return Baidu
-    // TODO: [v2] Add Querit CompoundIcon to @cherrystudio/ui/icons, then return it here
     case 'querit':
-      return undefined
+      return Querit
     default:
       return undefined
   }

@@ -1,6 +1,16 @@
 import type { ProcessingStatus } from '@types'
 
 // =============================================================================
+// Code Tools Types
+// =============================================================================
+
+export interface CodeToolsRunResult {
+  success: boolean
+  message: string
+  command: string
+}
+
+// =============================================================================
 // OpenClaw IPC Types
 // =============================================================================
 
@@ -37,6 +47,22 @@ export type MCPServerLogEntry = {
   source?: string
 }
 
+// Channel log & status types
+export type ChannelLogLevel = 'debug' | 'info' | 'warn' | 'error'
+
+export type ChannelLogEntry = {
+  timestamp: number
+  level: ChannelLogLevel
+  message: string
+  channelId: string
+}
+
+export type ChannelStatusEvent = {
+  channelId: string
+  connected: boolean
+  error?: string
+}
+
 export type WebviewKeyEvent = {
   webviewId: number
   key: string
@@ -59,7 +85,7 @@ export interface WebSocketCandidatesResponse {
   priority: number
 }
 
-export type LocalTransferPeer = {
+export type LanTransferPeer = {
   id: string
   name: string
   host?: string
@@ -72,8 +98,8 @@ export type LocalTransferPeer = {
   updatedAt: number
 }
 
-export type LocalTransferState = {
-  services: LocalTransferPeer[]
+export type LanTransferState = {
+  services: LanTransferPeer[]
   isScanning: boolean
   lastScanStartedAt?: number
   lastUpdatedAt: number
@@ -94,7 +120,7 @@ export type LanHandshakeAckMessage = {
   message?: string
 }
 
-export type LocalTransferConnectPayload = {
+export type LanTransferConnectPayload = {
   peerId: string
   metadata?: Record<string, string>
   timeoutMs?: number

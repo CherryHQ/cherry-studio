@@ -91,7 +91,7 @@
 
 ```typescript
 // 发现的服务信息结构
-type LocalTransferPeer = {
+type LanTransferPeer = {
   id: string; // 唯一标识符
   name: string; // 设备名称
   host?: string; // 主机名

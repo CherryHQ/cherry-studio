@@ -1,17 +1,11 @@
 import { BaiduOutlined, GoogleOutlined } from '@ant-design/icons'
+import { Querit } from '@cherrystudio/ui/icons'
 import { loggerService } from '@logger'
-import {
-  BingLogo,
-  BochaLogo,
-  ExaLogo,
-  QueritLogo,
-  SearXNGLogo,
-  TavilyLogo,
-  ZhipuLogo
-} from '@renderer/components/Icons'
+import { BingLogo, BochaLogo, ExaLogo, SearXNGLogo, TavilyLogo, ZhipuLogo } from '@renderer/components/Icons'
 import type { QuickPanelListItem } from '@renderer/components/QuickPanel'
 import { QuickPanelReservedSymbol } from '@renderer/components/QuickPanel'
 import {
+  isGemini3Model,
   isGeminiModel,
   isGPT5SeriesReasoningModel,
   isOpenAIWebSearchModel,
@@ -54,7 +48,7 @@ export const WebSearchProviderIcon = ({
     case 'searxng':
       return <SearXNGLogo className="icon" width={size} height={size} color={color} />
     case 'querit':
-      return <QueritLogo className="icon" width={size} height={size} color={color} />
+      return <Querit.Mono className="icon" width={size} height={size} color={color} />
     case 'local-baidu':
       return <BaiduOutlined size={size} style={{ color, fontSize: size }} />
     case 'local-bing':
@@ -111,9 +105,11 @@ export const useWebSearchPanelController = (assistantId: string, quickPanelContr
       window.toast.error(t('error.model.not_exists'))
       return
     }
+    // Gemini 3+ supports combining built-in tools with function calling
     if (
       isGeminiWebSearchProvider(provider) &&
       isGeminiModel(model) &&
+      !isGemini3Model(model) &&
       isToolUseModeFunction(assistant) &&
       update.enableWebSearch &&
       getEffectiveMcpMode(assistant) !== 'disabled'

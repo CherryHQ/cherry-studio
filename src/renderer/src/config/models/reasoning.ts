@@ -451,8 +451,8 @@ export function isSupportedThinkingTokenQwenModel(model?: Model): boolean {
     return false
   }
 
-  // qwen 3.5 series models, all support
-  if (modelId.startsWith('qwen3.5')) {
+  // qwen 3.5~3.9 series models, all support
+  if (/^qwen3\.[5-9]/.test(modelId)) {
     return true
   }
 
@@ -464,9 +464,9 @@ export function isSupportedThinkingTokenQwenModel(model?: Model): boolean {
   //    In the global deployment environment, qwen-max still points to the non-reasoning snapshot from 2025-09-23,
   //    whereas in mainland China, qwen-max has been updated to the latest 2026-01-23 snapshot, which supports reasoning control. - 2026-03-05
   const MAX_REGEX = /^(?:qwen3-max(?!-2025-09-23)|qwen-max-latest)(?:-|$)/i
-  const PLUS_REGEX = /^qwen(?:3\.5)?-plus(?:-|$)/i
-  const FLASH_REGEX = /^qwen(?:3\.5)?-flash(?:-|$)/i
-  const TURBO_REGEX = /^qwen(?:3\.5)?-turbo(?:-|$)/i
+  const PLUS_REGEX = /^qwen(?:3\.[5-9])?-plus(?:-|$)/i
+  const FLASH_REGEX = /^qwen(?:3\.[5-9])?-flash(?:-|$)/i
+  const TURBO_REGEX = /^qwen(?:3\.[5-9])?-turbo(?:-|$)/i
   // open-weight qwen3 models with numeric size (e.g. qwen3-8b, qwen3-72b)
   const QWEN3_OPEN_REGEX = /^qwen3-\d/i
 
@@ -592,9 +592,19 @@ export const isSupportedReasoningEffortPerplexityModel = (model: Model): boolean
   return modelId.includes('sonar-deep-research')
 }
 
+/**
+ * Checks whether a Zhipu model supports thinking token control.
+ *
+ * Matches model IDs containing:
+ * - `glm5` or `glm-5` (GLM-5 series)
+ * - `glm-4.5`, `glm-4.6`, `glm-4.7` (GLM-4.x advanced series)
+ *
+ * Note: GLM-Z1 reasoning models are NOT included here — they are covered
+ * by {@link isZhipuReasoningModel} instead.
+ */
 export const isSupportedThinkingTokenZhipuModel = (model: Model): boolean => {
   const modelId = getLowerBaseModelName(model.id, '/')
-  return ['glm-5', 'glm-4.5', 'glm-4.6', 'glm-4.7'].some((id) => modelId.includes(id))
+  return /glm-?5|glm-4\.[567]/.test(modelId)
 }
 
 export const isSupportedThinkingTokenMiMoModel = (model: Model): boolean => {
@@ -752,7 +762,8 @@ export function isReasoningModel(model?: Model): boolean {
     modelId.includes('magistral') ||
     modelId.includes('pangu-pro-moe') ||
     modelId.includes('seed-oss') ||
-    modelId.includes('deepseek-v3.2-speciale')
+    modelId.includes('deepseek-v3.2-speciale') ||
+    modelId.includes('gemma-4')
   ) {
     return true
   }
@@ -781,8 +792,8 @@ const THINKING_TOKEN_MAP: Record<string, { min: number; max: number }> = {
   'qwen-flash.*$': { min: 0, max: 81_920 },
   // qwen3-max series (reasoning models, equivalent to qwen-plus for thinking budget)
   'qwen3-max(-.*)?$': { min: 0, max: 81_920 },
-  // Qwen3.5 series (max thinking budget: 81920)
-  '^qwen3\\.5': { min: 0, max: 81_920 },
+  // Qwen3.5+ series (max thinking budget: 81920)
+  '^qwen3\\.[5-9]': { min: 0, max: 81_920 },
   'qwen3-(?!max).*$': { min: 1024, max: 38_912 },
 
   // Claude models (supports AWS Bedrock 'anthropic.' prefix, GCP Vertex AI '@' separator, and '-v1:0' suffix)

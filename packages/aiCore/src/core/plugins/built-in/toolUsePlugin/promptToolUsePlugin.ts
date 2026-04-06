@@ -348,7 +348,7 @@ export const createPromptToolUsePlugin = (
         return new TransformStream()
       }
 
-      // 从 context 中获取或初始化 usage 累加器
+      // 初始化 usage 累加器和工具执行状态
       if (!context.accumulatedUsage) {
         context.accumulatedUsage = {
           inputTokens: 0,
@@ -358,16 +358,14 @@ export const createPromptToolUsePlugin = (
           cachedInputTokens: 0
         }
       }
+      if (context.hasExecutedToolsInCurrentStep === undefined) {
+        context.hasExecutedToolsInCurrentStep = false
+      }
 
       // 创建工具执行器、流事件管理器和标签提取器
       const toolExecutor = new ToolExecutor()
       const streamEventManager = new StreamEventManager()
       const tagExtractor = new TagExtractor(TOOL_USE_TAG_CONFIG)
-
-      // 在context中初始化工具执行状态，避免递归调用时状态丢失
-      if (!context.hasExecutedToolsInCurrentStep) {
-        context.hasExecutedToolsInCurrentStep = false
-      }
 
       // 用于hold text-start事件，直到确认有非工具标签内容
       let pendingTextStart: TextStreamPart<TOOLS> | null = null

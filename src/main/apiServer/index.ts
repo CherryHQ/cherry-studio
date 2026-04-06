@@ -1,1 +1,1 @@
-export { apiServer } from './server'
+export { ApiServer } from './server'

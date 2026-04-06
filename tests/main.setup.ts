@@ -72,6 +72,7 @@ vi.mock('electron', () => {
       on: vi.fn(),
       once: vi.fn(),
       removeHandler: vi.fn(),
+      removeListener: vi.fn(),
       removeAllListeners: vi.fn()
     },
     BrowserWindow: vi.fn(),
@@ -108,7 +109,10 @@ vi.mock('electron', () => {
       getPrimaryDisplay: vi.fn(),
       getAllDisplays: vi.fn()
     },
-    Notification: vi.fn()
+    Notification: vi.fn(),
+    net: {
+      fetch: vi.fn()
+    }
   }
 
   return { __esModule: true, ...mock, default: mock }

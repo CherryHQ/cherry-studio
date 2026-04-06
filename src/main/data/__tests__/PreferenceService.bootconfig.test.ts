@@ -26,6 +26,7 @@ vi.mock('@main/data/bootConfig', () => ({
 // Mock lifecycle decorators to no-ops so PreferenceService can be instantiated
 vi.mock('@main/core/lifecycle', () => ({
   BaseService: class {
+    ipcHandle = vi.fn()
     get isReady() {
       return true
     }
