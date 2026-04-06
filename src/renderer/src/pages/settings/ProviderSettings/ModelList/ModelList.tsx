@@ -14,6 +14,7 @@ import ManageModelsPopup from '@renderer/pages/settings/ProviderSettings/ModelLi
 import NewApiAddModelPopup from '@renderer/pages/settings/ProviderSettings/ModelList/NewApiAddModelPopup'
 import type { Model as V1Model, Provider as V1Provider } from '@renderer/types'
 import { filterModelsByKeywords } from '@renderer/utils'
+import { getDuplicateModelNames } from '@renderer/utils/model'
 import { isNewApiProvider } from '@renderer/utils/provider.v2'
 import { toV1ProviderShim } from '@renderer/utils/v1ProviderShim'
 import type { Model } from '@shared/data/types/model'
@@ -56,6 +57,7 @@ const ModelList: React.FC<ModelListProps> = ({ providerId }) => {
   const { data: apiKeysData } = useProviderApiKeys(providerId)
   const joinedApiKey = apiKeysData?.keys?.map((k) => k.key).join(',') ?? ''
   const { deleteModel } = useModelMutations()
+  const duplicateModelNames = useMemo(() => getDuplicateModelNames(models as any), [models])
 
   const removeModel = useCallback(
     async (model: Model) => {
@@ -183,6 +185,7 @@ const ModelList: React.FC<ModelListProps> = ({ providerId }) => {
                 groupName={group}
                 models={displayedModelGroups[group] as any}
                 modelStatusMap={modelStatusMap as any}
+                duplicateModelNames={duplicateModelNames}
                 defaultOpen={i <= 5}
                 onEditModel={handleEditModel as any}
                 onRemoveModel={removeModel as any}

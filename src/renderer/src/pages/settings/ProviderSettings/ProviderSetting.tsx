@@ -4,7 +4,7 @@ import { useModels } from '@data/hooks/useModels'
 import { useProvider, useProviderApiKeys, useProviderMutations } from '@data/hooks/useProviders'
 import { adaptProvider } from '@renderer/aiCore/provider/providerConfig'
 import OpenAIAlert from '@renderer/components/Alert/OpenAIAlert'
-import { ErrorDetailModal } from '@renderer/components/ErrorDetailModal'
+import { showErrorDetailPopup } from '@renderer/components/ErrorDetailModal'
 import { LoadingIcon } from '@renderer/components/Icons'
 import { ApiKeyListPopup } from '@renderer/components/Popups/ApiKeyListPopup'
 import Selector from '@renderer/components/Selector'
@@ -45,7 +45,7 @@ import Link from 'antd/es/typography/Link'
 import { debounce, isEmpty } from 'lodash'
 import { Bolt, Check, Settings2, SquareArrowOutUpRight } from 'lucide-react'
 import type { FC } from 'react'
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
@@ -73,6 +73,7 @@ import VertexAISettings from './VertexAISettings'
 
 interface Props {
   providerId: string
+  isOnboarding?: boolean
 }
 
 const ANTHROPIC_COMPATIBLE_PROVIDER_IDS = [
@@ -102,18 +103,19 @@ const isAnthropicCompatibleProviderId = (id: string): id is AnthropicCompatibleP
 
 type HostField = 'apiHost' | 'anthropicApiHost'
 
-const ProviderSetting: FC<Props> = ({ providerId }) => {
+const ProviderSetting: FC<Props> = ({ providerId, isOnboarding = false }) => {
   const { provider } = useProvider(providerId)
   if (!provider) return null
-  return <ProviderSettingContent provider={provider} providerId={providerId} />
+  return <ProviderSettingContent provider={provider} providerId={providerId} isOnboarding={isOnboarding} />
 }
 
 interface ContentProps {
   provider: Provider
   providerId: string
+  isOnboarding?: boolean
 }
 
-const ProviderSettingContent: FC<ContentProps> = ({ provider, providerId }) => {
+const ProviderSettingContent: FC<ContentProps> = ({ provider, providerId, isOnboarding = false }) => {
   const { updateProvider, updateApiKeys } = useProviderMutations(providerId)
   const { models } = useModels({ providerId })
   const { data: apiKeysData } = useProviderApiKeys(providerId)
@@ -162,7 +164,6 @@ const ProviderSettingContent: FC<ContentProps> = ({ provider, providerId }) => {
     status: HealthStatus.NOT_CHECKED,
     checking: false
   })
-  const [showErrorModal, setShowErrorModal] = useState(false)
 
   const updateWebSearchProviderKey = useCallback(
     ({ apiKey }: { apiKey: string }) => {
@@ -171,16 +172,31 @@ const ProviderSettingContent: FC<ContentProps> = ({ provider, providerId }) => {
     [dispatch, provider.id]
   )
 
+  const callbacks = { updateApiKeys, updateWebSearchProviderKey, isOnboarding, providerEnabled: provider.isEnabled }
+  const callbacksRef = useRef(callbacks)
+  callbacksRef.current = callbacks
+
   const debouncedUpdateApiKey = useMemo(
     () =>
       debounce(async (value: string) => {
+        const {
+          updateApiKeys: _updateApiKeys,
+          updateWebSearchProviderKey: _updateWS,
+          isOnboarding: _onb,
+          providerEnabled
+        } = callbacksRef.current
         const formatted = formatApiKeys(value)
         const keys = formatted.split(',').filter(Boolean)
         const apiKeys = keys.map((key) => ({ id: crypto.randomUUID(), key, isEnabled: true }))
-        await updateApiKeys(apiKeys)
-        updateWebSearchProviderKey({ apiKey: formatted })
+        await _updateApiKeys(apiKeys)
+        _updateWS({ apiKey: formatted })
+        // Auto-enable provider when apiKey is updated in onboarding mode
+        if (_onb && formatted && !providerEnabled) {
+          await patchProvider({ isEnabled: true })
+        }
       }, 150),
-    [updateApiKeys, updateWebSearchProviderKey]
+
+    [patchProvider]
   )
 
   // 同步 provider apiKey 到 localApiKey
@@ -379,12 +395,7 @@ const ProviderSettingContent: FC<ContentProps> = ({ provider, providerId }) => {
             <ErrorOverlay>{apiKeyConnectivity.error?.message || t('settings.models.check.failed')}</ErrorOverlay>
           }
           iconProps={{ size: 16, color: 'var(--color-status-warning)' }}
-          onClick={() => setShowErrorModal(true)}
-        />
-        <ErrorDetailModal
-          open={showErrorModal}
-          onClose={() => setShowErrorModal(false)}
-          error={apiKeyConnectivity.error}
+          onClick={() => showErrorDetailPopup({ error: apiKeyConnectivity.error })}
         />
       </>
     )
