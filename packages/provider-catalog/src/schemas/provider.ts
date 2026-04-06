@@ -177,6 +177,25 @@ export const ProviderWebsiteSchema = z.object({
   })
 })
 
+/** Per-endpoint-type configuration in catalog */
+export const CatalogEndpointConfigSchema = z.object({
+  /** Base URL for this endpoint type's API */
+  baseUrl: z.url().optional(),
+  /** URLs for fetching available models via this endpoint type */
+  modelsApiUrls: z
+    .object({
+      /** Default models listing endpoint */
+      default: z.url().optional(),
+      /** Embedding models listing endpoint (if separate from default) */
+      embedding: z.url().optional(),
+      /** Reranker models listing endpoint (if separate from default) */
+      reranker: z.url().optional()
+    })
+    .optional(),
+  /** How this endpoint type expects reasoning parameters to be formatted */
+  reasoningFormat: ProviderReasoningFormatSchema.optional()
+})
+
 export const ProviderConfigSchema = z
   .object({
     /** Unique provider identifier */
@@ -185,37 +204,24 @@ export const ProviderConfigSchema = z
     name: z.string(),
     /** Provider description */
     description: z.string().optional(),
-    /** Base URLs keyed by endpoint type */
-    baseUrls: z.record(EndpointTypeSchema, z.url()).optional(),
-    /** Default endpoint type for chat requests (must exist in baseUrls) */
+    /** Per-endpoint-type configuration */
+    endpointConfigs: z.record(EndpointTypeSchema, CatalogEndpointConfigSchema).optional(),
+    /** Default endpoint type for chat requests (must exist in endpointConfigs) */
     defaultChatEndpoint: EndpointTypeSchema.optional(),
     /** API feature flags controlling request construction */
     apiFeatures: ApiFeaturesSchema.optional(),
-    /** URLs for fetching available models, separated by model category */
-    modelsApiUrls: z
-      .object({
-        /** Default models listing endpoint */
-        default: z.url().optional(),
-        /** Embedding models listing endpoint (if separate from default) */
-        embedding: z.url().optional(),
-        /** Reranker models listing endpoint (if separate from default) */
-        reranker: z.url().optional()
-      })
-      .optional(),
     /** Additional metadata including website URLs */
-    metadata: MetadataSchema.and(ProviderWebsiteSchema),
-    /** How this provider's API expects reasoning parameters to be formatted */
-    reasoningFormat: ProviderReasoningFormatSchema.optional()
+    metadata: MetadataSchema.and(ProviderWebsiteSchema)
   })
   .refine(
     (data) => {
-      if (data.defaultChatEndpoint && data.baseUrls) {
-        return data.defaultChatEndpoint in data.baseUrls
+      if (data.defaultChatEndpoint && data.endpointConfigs) {
+        return data.defaultChatEndpoint in data.endpointConfigs
       }
       return true
     },
     {
-      message: 'defaultChatEndpoint must exist as a key in baseUrls'
+      message: 'defaultChatEndpoint must exist as a key in endpointConfigs'
     }
   )
 
@@ -227,5 +233,6 @@ export const ProviderListSchema = z.object({
 export { ENDPOINT_TYPE } from './enums'
 export type ApiFeatures = z.infer<typeof ApiFeaturesSchema>
 export type ProviderReasoningFormat = z.infer<typeof ProviderReasoningFormatSchema>
+export type CatalogEndpointConfig = z.infer<typeof CatalogEndpointConfigSchema>
 export type ProviderConfig = z.infer<typeof ProviderConfigSchema>
 export type ProviderList = z.infer<typeof ProviderListSchema>

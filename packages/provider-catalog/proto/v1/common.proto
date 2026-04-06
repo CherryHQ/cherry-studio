@@ -1,0 +1,111 @@
+syntax = "proto3";
+package catalog.v1;
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// Enums
+// ═══════════════════════════════════════════════════════════════════════════════
+
+enum EndpointType {
+  ENDPOINT_TYPE_UNSPECIFIED = 0;
+  ENDPOINT_TYPE_OPENAI_CHAT_COMPLETIONS = 1;
+  ENDPOINT_TYPE_OPENAI_TEXT_COMPLETIONS = 2;
+  ENDPOINT_TYPE_ANTHROPIC_MESSAGES = 3;
+  ENDPOINT_TYPE_OPENAI_RESPONSES = 4;
+  ENDPOINT_TYPE_GOOGLE_GENERATE_CONTENT = 5;
+  ENDPOINT_TYPE_OLLAMA_CHAT = 6;
+  ENDPOINT_TYPE_OLLAMA_GENERATE = 7;
+  ENDPOINT_TYPE_OPENAI_EMBEDDINGS = 8;
+  ENDPOINT_TYPE_JINA_RERANK = 9;
+  ENDPOINT_TYPE_OPENAI_IMAGE_GENERATION = 10;
+  ENDPOINT_TYPE_OPENAI_IMAGE_EDIT = 11;
+  ENDPOINT_TYPE_OPENAI_AUDIO_TRANSCRIPTION = 12;
+  ENDPOINT_TYPE_OPENAI_AUDIO_TRANSLATION = 13;
+  ENDPOINT_TYPE_OPENAI_TEXT_TO_SPEECH = 14;
+  ENDPOINT_TYPE_OPENAI_VIDEO_GENERATION = 15;
+}
+
+enum ModelCapability {
+  MODEL_CAPABILITY_UNSPECIFIED = 0;
+  MODEL_CAPABILITY_FUNCTION_CALL = 1;
+  MODEL_CAPABILITY_REASONING = 2;
+  MODEL_CAPABILITY_IMAGE_RECOGNITION = 3;
+  MODEL_CAPABILITY_IMAGE_GENERATION = 4;
+  MODEL_CAPABILITY_AUDIO_RECOGNITION = 5;
+  MODEL_CAPABILITY_AUDIO_GENERATION = 6;
+  MODEL_CAPABILITY_EMBEDDING = 7;
+  MODEL_CAPABILITY_RERANK = 8;
+  MODEL_CAPABILITY_AUDIO_TRANSCRIPT = 9;
+  MODEL_CAPABILITY_VIDEO_RECOGNITION = 10;
+  MODEL_CAPABILITY_VIDEO_GENERATION = 11;
+  MODEL_CAPABILITY_STRUCTURED_OUTPUT = 12;
+  MODEL_CAPABILITY_FILE_INPUT = 13;
+  MODEL_CAPABILITY_WEB_SEARCH = 14;
+  MODEL_CAPABILITY_CODE_EXECUTION = 15;
+  MODEL_CAPABILITY_FILE_SEARCH = 16;
+  MODEL_CAPABILITY_COMPUTER_USE = 17;
+}
+
+enum Modality {
+  MODALITY_UNSPECIFIED = 0;
+  MODALITY_TEXT = 1;
+  MODALITY_IMAGE = 2;
+  MODALITY_AUDIO = 3;
+  MODALITY_VIDEO = 4;
+  MODALITY_VECTOR = 5;
+}
+
+enum Currency {
+  CURRENCY_UNSPECIFIED = 0; // defaults to USD
+  CURRENCY_USD = 1;
+  CURRENCY_CNY = 2;
+}
+
+// Shared reasoning effort levels — superset of all providers' actual API values.
+// Used in ReasoningCommon.supported_efforts to describe catalog-level capabilities.
+// Per-provider params use their own specific effort enums below.
+enum ReasoningEffort {
+  REASONING_EFFORT_UNSPECIFIED = 0;
+  REASONING_EFFORT_NONE = 1;
+  REASONING_EFFORT_MINIMAL = 2;
+  REASONING_EFFORT_LOW = 3;
+  REASONING_EFFORT_MEDIUM = 4;
+  REASONING_EFFORT_HIGH = 5;
+  REASONING_EFFORT_MAX = 6;
+  REASONING_EFFORT_AUTO = 7;
+}
+
+// Per-provider reasoning effort enums — match actual API values
+
+enum OpenAIReasoningEffort {
+  OPENAI_REASONING_EFFORT_UNSPECIFIED = 0;
+  OPENAI_REASONING_EFFORT_LOW = 1;
+  OPENAI_REASONING_EFFORT_MEDIUM = 2;
+  OPENAI_REASONING_EFFORT_HIGH = 3;
+}
+
+enum AnthropicReasoningEffort {
+  ANTHROPIC_REASONING_EFFORT_UNSPECIFIED = 0;
+  ANTHROPIC_REASONING_EFFORT_LOW = 1;
+  ANTHROPIC_REASONING_EFFORT_MEDIUM = 2;
+  ANTHROPIC_REASONING_EFFORT_HIGH = 3;
+  ANTHROPIC_REASONING_EFFORT_MAX = 4;
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// Shared Messages
+// ═══════════════════════════════════════════════════════════════════════════════
+
+message NumericRange {
+  double min = 1;
+  double max = 2;
+}
+
+message PricePerToken {
+  optional double per_million_tokens = 1; // nullable — absent means unknown
+  Currency currency = 2;
+}
+
+// Generic key-value metadata (replaces Record<string, unknown>)
+message Metadata {
+  map<string, string> entries = 1;
+}

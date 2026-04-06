@@ -1,0 +1,63 @@
+syntax = "proto3";
+package catalog.v1;
+
+import "v1/common.proto";
+import "v1/model.proto";
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// Capability Override
+// ═══════════════════════════════════════════════════════════════════════════════
+
+message CapabilityOverride {
+  repeated ModelCapability add = 1;
+  repeated ModelCapability remove = 2;
+  repeated ModelCapability force = 3;
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// Model Limits Override
+// ═══════════════════════════════════════════════════════════════════════════════
+
+message ModelLimits {
+  optional uint32 context_window = 1;
+  optional uint32 max_output_tokens = 2;
+  optional uint32 max_input_tokens = 3;
+  optional uint32 rate_limit = 4;
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// Provider Model Override
+// ═══════════════════════════════════════════════════════════════════════════════
+
+message ProviderModelOverride {
+  // Identification
+  string provider_id = 1;
+  string model_id = 2;
+  optional string api_model_id = 3;
+  optional string model_variant = 4;
+
+  // Overrides
+  optional CapabilityOverride capabilities = 5;
+  optional ModelLimits limits = 6;
+  optional ModelPricing pricing = 7;
+  optional ReasoningSupport reasoning = 8;
+  optional ParameterSupport parameter_support = 9;
+
+  repeated EndpointType endpoint_types = 10;
+  repeated Modality input_modalities = 11;
+  repeated Modality output_modalities = 12;
+
+  // Status
+  optional bool disabled = 13;
+  optional string replace_with = 14;
+
+  // Metadata
+  optional string reason = 15;
+  uint32 priority = 16; // 0 = auto, 100+ = manual
+}
+
+// Top-level container
+message ProviderModelCatalog {
+  string version = 1;
+  repeated ProviderModelOverride overrides = 2;
+}
