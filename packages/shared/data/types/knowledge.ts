@@ -112,12 +112,20 @@ export const KnowledgeItemDataSchema = z.union([
 export type KnowledgeItemData = z.infer<typeof KnowledgeItemDataSchema>
 
 /**
+ * Knowledge base vector store types
+ */
+export const KNOWLEDGE_BASE_STORE_TYPES = ['libsql'] as const
+export const KnowledgeBaseStoretypeSchema = z.enum(KNOWLEDGE_BASE_STORE_TYPES)
+export type KnowledgeBaseStoreType = z.infer<typeof KnowledgeBaseStoretypeSchema>
+
+/**
  * Knowledge base metadata stored in SQLite.
  */
 export const KnowledgeBaseSchema = z.object({
   id: z.string(),
   name: z.string().min(1),
   description: z.string().optional(),
+  type: KnowledgeBaseStoretypeSchema.default('libsql'),
   dimensions: z.number().int().positive(),
   embeddingModelId: z.string().min(1),
   rerankModelId: z.string().optional(),
