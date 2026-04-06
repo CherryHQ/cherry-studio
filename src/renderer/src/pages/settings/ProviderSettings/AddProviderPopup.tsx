@@ -1,9 +1,9 @@
 import { Center, ColFlex } from '@cherrystudio/ui'
+import { resolveProviderIcon } from '@cherrystudio/ui/icons'
 import { loggerService } from '@logger'
 import { ProviderAvatarPrimitive } from '@renderer/components/ProviderAvatar'
 import ProviderLogoPicker from '@renderer/components/ProviderLogoPicker'
 import { TopView } from '@renderer/components/TopView'
-import { getProviderLogo } from '@renderer/config/providers'
 import ImageStorage from '@renderer/services/ImageStorage'
 import type { Provider, ProviderType } from '@renderer/types'
 import { compressImage, generateColorFromChar, getForegroundColor } from '@renderer/utils'
@@ -73,7 +73,7 @@ const PopupContainer: React.FC<Props> = ({ provider, resolve }) => {
   // 处理内置头像的点击事件
   const handleProviderLogoClick = async (providerId: string) => {
     try {
-      const icon = getProviderLogo(providerId)
+      const icon = resolveProviderIcon(providerId)
       if (!icon) return
 
       // Store the provider icon ID as a reference (prefixed with 'icon:')
