@@ -6,7 +6,7 @@
  * - Merging configurations using mergeModelConfig/mergeProviderConfig
  * - Writing resolved data to user_model / user_provider tables
  *
- * Called during app initialization or when a user adds a preset provider.
+ * Managed by the lifecycle system. Seeds preset data during onInit.
  */
 
 import { join } from 'node:path'
@@ -25,6 +25,8 @@ import { userProviderTable } from '@data/db/schemas/userProvider'
 import { loggerService } from '@logger'
 import { isDev } from '@main/constant'
 import { application } from '@main/core/application'
+import { BaseService, DependsOn, Injectable, ServicePhase } from '@main/core/lifecycle'
+import { Phase } from '@main/core/lifecycle'
 import type { Model } from '@shared/data/types/model'
 import type { EndpointConfig, ReasoningFormatType } from '@shared/data/types/provider'
 import { extractReasoningFormatTypes, mergeModelConfig } from '@shared/data/utils/modelMerger'
@@ -33,7 +35,7 @@ import { eq, isNotNull } from 'drizzle-orm'
 import { modelService } from './ModelService'
 import { providerService } from './ProviderService'
 
-const logger = loggerService.withContext('DataApi:RegistryService')
+const logger = loggerService.withContext('DataApi:ProviderRegistryService')
 
 /** Map proto ProviderReasoningFormat oneof case to runtime type string */
 const CASE_TO_TYPE: Record<string, ReasoningFormatType> = {
@@ -89,20 +91,23 @@ function buildEndpointConfigsFromProto(p: ProtoProviderConfig): Partial<Record<E
   return Object.keys(configs).length > 0 ? configs : null
 }
 
-export class RegistryService {
-  private static instance: RegistryService
-
+@Injectable('ProviderRegistryService')
+@ServicePhase(Phase.BeforeReady)
+@DependsOn(['DbService'])
+export class ProviderRegistryService extends BaseService {
   private registryModels: ProtoModelConfig[] | null = null
   private registryProviderModels: ProtoProviderModelOverride[] | null = null
   private registryProviders: ProtoProviderConfig[] | null = null
 
-  private constructor() {}
+  protected async onInit(): Promise<void> {
+    // Sync preset registry data on every startup so that provider websites/baseUrls
+    // and model capabilities/modalities/contextWindow/pricing stay up-to-date
+    // when the registry protobuf files are updated between app versions.
+    await this.initializeAllPresetProviders()
+  }
 
-  public static getInstance(): RegistryService {
-    if (!RegistryService.instance) {
-      RegistryService.instance = new RegistryService()
-    }
-    return RegistryService.instance
+  protected onDestroy(): void {
+    this.clearCache()
   }
 
   /**
@@ -406,10 +411,9 @@ export class RegistryService {
   /**
    * Initialize all preset providers from registry
    *
-   * Called during app startup and after migration to seed the database with registry data.
    * Seeds provider configurations and enriches existing user models with registry data.
    */
-  async initializeAllPresetProviders(): Promise<void> {
+  private async initializeAllPresetProviders(): Promise<void> {
     await this.initializePresetProviders()
     await this.enrichExistingModels()
 
@@ -667,5 +671,3 @@ export class RegistryService {
     this.registryProviders = null
   }
 }
-
-export const registryService = RegistryService.getInstance()

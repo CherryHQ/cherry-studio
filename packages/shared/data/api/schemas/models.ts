@@ -77,10 +77,8 @@ const UpdateModelDtoSchema = CreateModelDtoSchema.omit({
   })
 export type UpdateModelDto = z.infer<typeof UpdateModelDtoSchema>
 
-/** DTO for resolving raw model entries against catalog presets */
-const ResolveModelsDtoSchema = z.object({
-  /** Provider ID */
-  providerId: z.string(),
+/** DTO for enriching raw model entries against registry presets */
+const EnrichModelsDtoSchema = z.object({
   /** Raw model entries from SDK */
   models: z.array(
     z.object({
@@ -92,7 +90,7 @@ const ResolveModelsDtoSchema = z.object({
     })
   )
 })
-export type ResolveModelsDto = z.infer<typeof ResolveModelsDtoSchema>
+export type EnrichModelsDto = z.infer<typeof EnrichModelsDtoSchema>
 
 /**
  * Model API Schema definitions
@@ -113,18 +111,6 @@ export interface ModelSchemas {
     POST: {
       body: CreateModelDto
       response: Model
-    }
-  }
-
-  /**
-   * Resolve raw SDK model entries against catalog presets
-   * Returns enriched Model[] with capabilities, pricing, etc. from catalog
-   * @example POST /models/resolve { "providerId": "openai", "models": [{ "modelId": "gpt-4o" }] }
-   */
-  '/models/resolve': {
-    POST: {
-      body: ResolveModelsDto
-      response: Model[]
     }
   }
 

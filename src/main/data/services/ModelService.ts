@@ -18,8 +18,6 @@ import { createUniqueModelId } from '@shared/data/types/model'
 import { mergeModelConfig } from '@shared/data/utils/modelMerger'
 import { and, eq, inArray, type SQL } from 'drizzle-orm'
 
-import { registryService } from './ProviderRegistryService'
-
 const logger = loggerService.withContext('DataApi:ModelService')
 
 /**
@@ -125,8 +123,9 @@ export class ModelService {
     const db = application.get('DbService').getDb()
 
     // Look up registry data for auto-enrichment
-    const { presetModel, registryOverride, reasoningFormatTypes, defaultChatEndpoint } =
-      await registryService.lookupModel(dto.providerId, dto.modelId)
+    const { presetModel, registryOverride, reasoningFormatTypes, defaultChatEndpoint } = await application
+      .get('ProviderRegistryService')
+      .lookupModel(dto.providerId, dto.modelId)
 
     let values: NewUserModel
 

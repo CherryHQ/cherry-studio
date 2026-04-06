@@ -2,6 +2,7 @@ import { CacheService } from '@data/CacheService'
 import { DataApiService } from '@data/DataApiService'
 import { DbService } from '@data/db/DbService'
 import { PreferenceService } from '@data/PreferenceService'
+import { ProviderRegistryService } from '@data/services/ProviderRegistryService'
 import { AgentBootstrapService } from '@main/services/AgentBootstrapService'
 import { AnalyticsService } from '@main/services/AnalyticsService'
 import { ApiServerService } from '@main/services/ApiServerService'
@@ -76,6 +77,7 @@ export const services = {
   MCPService,
   OpenClawService,
   SearchService,
+  ProviderRegistryService,
   AgentBootstrapService,
   ApiServerService,
   AppUpdaterService
