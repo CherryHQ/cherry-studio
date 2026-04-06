@@ -1,5 +1,5 @@
 syntax = "proto3";
-package catalog.v1;
+package registry.v1;
 
 import "v1/common.proto";
 
@@ -104,7 +104,7 @@ message ModelConfig {
 }
 
 // Top-level container
-message ModelCatalog {
+message ModelRegistry {
   string version = 1;
   repeated ModelConfig models = 2;
 }

@@ -17,7 +17,7 @@
     "paths": {
       "@renderer/*": ["src/renderer/src/*"],
       "@shared/*": ["packages/shared/*"],
-      "@cherrystudio/provider-catalog": ["packages/provider-catalog/src/index.ts"]
+      "@cherrystudio/provider-registry": ["packages/provider-registry/src/index.ts"]
     }
   }
 }

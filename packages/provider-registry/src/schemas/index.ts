@@ -1,5 +1,5 @@
 /**
- * Unified export of all catalog schemas and types
+ * Unified export of all registry schemas and types
  * This file provides a single entry point for all schema definitions
  */
 

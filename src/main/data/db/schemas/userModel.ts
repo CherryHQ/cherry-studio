@@ -2,7 +2,7 @@
  * User Model table schema
  *
  * Stores all user models with fully resolved configurations.
- * Capabilities and settings are resolved once at add-time (from catalog),
+ * Capabilities and settings are resolved once at add-time (from registry),
  * so no runtime merge is needed.
  *
  * - presetModelId: traceability marker (which preset this came from, if any)
@@ -28,17 +28,17 @@ const { createInsertSchema, createSelectSchema } = createSchemaFactory({ zodInst
 import { createUpdateTimestamps } from './_columnHelpers'
 
 // ═══════════════════════════════════════════════════════════════════════════════
-// Catalog Enrichable Fields
+// Registry Enrichable Fields
 // ═══════════════════════════════════════════════════════════════════════════════
 
 /**
- * Fields that can be auto-populated by catalog enrichment.
+ * Fields that can be auto-populated by registry enrichment.
  * Used by `userOverrides` to track which fields the user has explicitly modified,
- * so that catalog updates don't overwrite user customizations.
+ * so that registry updates don't overwrite user customizations.
  *
- * The `isCatalogEnrichableField` guard ensures runtime safety.
+ * The `isRegistryEnrichableField` guard ensures runtime safety.
  */
-export const CATALOG_ENRICHABLE_FIELDS = [
+export const REGISTRY_ENRICHABLE_FIELDS = [
   'name',
   'description',
   'capabilities',
@@ -53,13 +53,13 @@ export const CATALOG_ENRICHABLE_FIELDS = [
   'pricing'
 ] as const
 
-export type CatalogEnrichableField = (typeof CATALOG_ENRICHABLE_FIELDS)[number]
+export type RegistryEnrichableField = (typeof REGISTRY_ENRICHABLE_FIELDS)[number]
 
-const CATALOG_ENRICHABLE_SET: ReadonlySet<string> = new Set(CATALOG_ENRICHABLE_FIELDS)
+const REGISTRY_ENRICHABLE_SET: ReadonlySet<string> = new Set(REGISTRY_ENRICHABLE_FIELDS)
 
-/** Check if a field name is a catalog-enrichable field */
-export function isCatalogEnrichableField(field: string): field is CatalogEnrichableField {
-  return CATALOG_ENRICHABLE_SET.has(field)
+/** Check if a field name is a registry-enrichable field */
+export function isRegistryEnrichableField(field: string): field is RegistryEnrichableField {
+  return REGISTRY_ENRICHABLE_SET.has(field)
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -137,9 +137,9 @@ export const userModelTable = sqliteTable(
 
     /**
      * List of field names the user has explicitly modified.
-     * Catalog enrichment skips these fields to preserve user customizations.
+     * Registry enrichment skips these fields to preserve user customizations.
      */
-    userOverrides: text({ mode: 'json' }).$type<CatalogEnrichableField[]>(),
+    userOverrides: text({ mode: 'json' }).$type<RegistryEnrichableField[]>(),
 
     ...createUpdateTimestamps
   },

@@ -255,11 +255,11 @@ const startApp = async () => {
   // (DbService, PreferenceService, CacheService, DataApiService are now ready)
   await bootstrapPromise
 
-  // Sync preset catalog data on every startup so that provider websites/baseUrls
+  // Sync preset registry data on every startup so that provider websites/baseUrls
   // and model capabilities/modalities/contextWindow/pricing stay up-to-date
-  // when the catalog protobuf files are updated between app versions.
-  const { catalogService } = await import('@data/services/ProviderCatalogService')
-  await catalogService.initializeAllPresetProviders()
+  // when the registry protobuf files are updated between app versions.
+  const { registryService } = await import('@data/services/ProviderRegistryService')
+  await registryService.initializeAllPresetProviders()
 
   // Record current version for tracking
   // A preparation for v2 data refactoring
