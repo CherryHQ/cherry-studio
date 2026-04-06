@@ -1,7 +1,7 @@
 import { useChat, type UseChatHelpers } from '@ai-sdk/react'
 import { loggerService } from '@logger'
 import { IpcChatTransport } from '@renderer/transport/IpcChatTransport'
-import type { CherryDataUIParts } from '@shared/ai-transport'
+import type { CherryDataPartTypes } from '@shared/data/types/uiParts'
 import type { ChatRequestOptions, UIMessage } from 'ai'
 import { useCallback } from 'react'
 
@@ -13,7 +13,7 @@ const logger = loggerService.withContext('useAiChat')
  * - METADATA: token usage metadata
  * - DATA_PARTS: Cherry Studio custom block types (citation, translation, error, video, compact, code)
  */
-export type CherryUIMessage = UIMessage<{ totalTokens?: number }, CherryDataUIParts>
+export type CherryUIMessage = UIMessage<{ totalTokens?: number }, CherryDataPartTypes>
 
 /** Singleton transport — stateless, safe to share across hook instances. */
 const transport = new IpcChatTransport()

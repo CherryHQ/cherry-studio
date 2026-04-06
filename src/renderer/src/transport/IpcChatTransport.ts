@@ -1,5 +1,5 @@
 import { loggerService } from '@logger'
-import type { AiChatRequestBody } from '@shared/ai-transport'
+import type { AiChatRequestBody } from '@shared/aiCore/transport'
 import type { ChatRequestOptions, ChatTransport, UIMessage, UIMessageChunk } from 'ai'
 
 const logger = loggerService.withContext('IpcChatTransport')

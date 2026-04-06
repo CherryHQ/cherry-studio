@@ -1,6 +1,3 @@
-export * from './dataUIParts'
-export * from './schemas'
-
 /** Context payload sent with each AI chat request via body. */
 export interface AiChatRequestBody {
   /** Topic ID for message routing and persistence. */

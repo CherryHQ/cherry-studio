@@ -17,7 +17,7 @@ import {
   UserMessageStatus,
   type VideoMessageBlock
 } from '@renderer/types/newMessage'
-import type { CherryDataUIParts } from '@shared/ai-transport'
+import type { CherryDataPartTypes } from '@shared/data/types/uiParts'
 import type { ChatStatus, DataUIPart, FileUIPart, ReasoningUIPart, TextUIPart } from 'ai'
 import { useRef } from 'react'
 import { useMemo } from 'react'
@@ -138,16 +138,16 @@ function adaptSingleMessage(
               : MessageBlockStatus.STREAMING
       } as ToolMessageBlock)
     } else if (partType === 'data-error') {
-      const dataPart = part as DataUIPart<CherryDataUIParts>
-      const data = dataPart.data as CherryDataUIParts['error']
+      const dataPart = part as DataUIPart<CherryDataPartTypes>
+      const data = dataPart.data as CherryDataPartTypes['error']
       blocks.push({
         ...base,
         type: MessageBlockType.ERROR,
-        error: { name: data.name ?? 'Error', message: data.message, stack: '' }
+        error: { name: data.name ?? 'Error', message: data.message ?? '', stack: '' }
       } as ErrorMessageBlock)
     } else if (partType === 'data-translation') {
-      const dataPart = part as DataUIPart<CherryDataUIParts>
-      const data = dataPart.data as CherryDataUIParts['translation']
+      const dataPart = part as DataUIPart<CherryDataPartTypes>
+      const data = dataPart.data as CherryDataPartTypes['translation']
       blocks.push({
         ...base,
         type: MessageBlockType.TRANSLATION,
@@ -161,25 +161,25 @@ function adaptSingleMessage(
         type: MessageBlockType.CITATION
       } as CitationMessageBlock)
     } else if (partType === 'data-video') {
-      const dataPart = part as DataUIPart<CherryDataUIParts>
-      const data = dataPart.data as CherryDataUIParts['video']
+      const dataPart = part as DataUIPart<CherryDataPartTypes>
+      const data = dataPart.data as CherryDataPartTypes['video']
       blocks.push({ ...base, type: MessageBlockType.VIDEO, url: data.url } as VideoMessageBlock)
     } else if (partType === 'data-compact') {
-      const dataPart = part as DataUIPart<CherryDataUIParts>
-      const data = dataPart.data as CherryDataUIParts['compact']
+      const dataPart = part as DataUIPart<CherryDataPartTypes>
+      const data = dataPart.data as CherryDataPartTypes['compact']
       blocks.push({
         ...base,
         type: MessageBlockType.COMPACT,
-        content: data.summary,
-        compactedContent: ''
+        content: data.content,
+        compactedContent: data.compactedContent
       } as CompactMessageBlock)
     } else if (partType === 'data-code') {
-      const dataPart = part as DataUIPart<CherryDataUIParts>
-      const data = dataPart.data as CherryDataUIParts['code']
+      const dataPart = part as DataUIPart<CherryDataPartTypes>
+      const data = dataPart.data as CherryDataPartTypes['code']
       blocks.push({
         ...base,
         type: MessageBlockType.CODE,
-        content: data.code,
+        content: data.content,
         language: data.language
       } as CodeMessageBlock)
     }
@@ -197,7 +197,7 @@ function adaptSingleMessage(
 
   const message: Message = {
     id: uiMessage.id,
-    role: uiMessage.role as Message['role'],
+    role: uiMessage.role,
     assistantId,
     topicId,
     createdAt: cachedTimestamp,
