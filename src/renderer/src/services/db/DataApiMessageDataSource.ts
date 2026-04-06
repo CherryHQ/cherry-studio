@@ -10,6 +10,7 @@
  */
 import { dataApiService } from '@data/DataApiService'
 import { loggerService } from '@logger'
+import type { WebSearchSource } from '@renderer/types/index'
 import type {
   CodeMessageBlock,
   CompactMessageBlock,
@@ -27,7 +28,14 @@ import type {
 import { MessageBlockStatus, MessageBlockType } from '@renderer/types/newMessage'
 import type { ToolType } from '@renderer/types/tool'
 import { ErrorCode } from '@shared/data/api/apiErrors'
-import type { BranchMessagesResponse, CherryMessagePart, Message as SharedMessage } from '@shared/data/types/message'
+import type {
+  BranchMessagesResponse,
+  CherryMessagePart,
+  CitationReference,
+  ContentReference,
+  Message as SharedMessage
+} from '@shared/data/types/message'
+import { isWebCitation, ReferenceCategory } from '@shared/data/types/message'
 import type { CherryProviderMetadata } from '@shared/data/types/uiParts'
 
 const logger = loggerService.withContext('DataApiMessageDataSource')
@@ -197,9 +205,19 @@ function convertPartToBlock(
         content: part.text || ''
       }
       if (cherryMeta?.references) {
-        block.citationReferences = cherryMeta.references as MainTextMessageBlock['citationReferences']
+        block.citationReferences = convertReferencesToLegacyCitations(
+          cherryMeta.references as ContentReference[],
+          blockId
+        )
       }
       return block
+    }
+
+    case 'source-url': {
+      // source-url parts represent web search citations; they are metadata
+      // already captured in the text part's citationReferences during reverse
+      // conversion, so we skip creating a standalone block.
+      return null
     }
 
     case 'reasoning': {
@@ -377,6 +395,23 @@ function convertDataPartToBlock(
       logger.warn('Unknown data part type during parts→blocks conversion', { type: part.type })
       return null
   }
+}
+
+/**
+ * Convert ContentReference[] (new format) to legacy citationReferences shape.
+ * The renderer expects `{ citationBlockId?, citationBlockSource? }[]`.
+ */
+function convertReferencesToLegacyCitations(
+  references: ContentReference[],
+  blockId: string
+): MainTextMessageBlock['citationReferences'] {
+  const citations = references.filter((ref): ref is CitationReference => ref.category === ReferenceCategory.CITATION)
+  if (citations.length === 0) return undefined
+
+  return citations.filter(isWebCitation).map((ref) => ({
+    citationBlockId: blockId,
+    citationBlockSource: (ref.content?.source ?? undefined) as WebSearchSource | undefined
+  }))
 }
 
 function mapBlockStatus(messageStatus: string): MessageBlockStatus {

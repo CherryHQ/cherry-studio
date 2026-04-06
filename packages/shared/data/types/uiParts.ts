@@ -69,7 +69,6 @@ export type CherryDataPartTypes = {
   video: VideoPartData
   compact: CompactPartData
   code: CodePartData
-  [key: string]: unknown
 }
 
 // ============================================================================

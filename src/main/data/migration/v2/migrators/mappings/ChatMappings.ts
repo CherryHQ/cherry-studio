@@ -557,11 +557,16 @@ export function transformMessage(
   // Merge citations and mentions into the first TextUIPart's providerMetadata.cherry.references
   const allReferences = [...citationReferences, ...mentionReferences]
   if (allReferences.length > 0) {
-    const textPart = parts.find((p): p is TextUIPart => p.type === 'text')
-    if (textPart) {
-      const cherryMeta = textPart.providerMetadata?.cherry as CherryProviderMetadata | undefined
-      if (cherryMeta) {
-        cherryMeta.references = allReferences
+    const textPartIndex = parts.findIndex((p): p is TextUIPart => p.type === 'text')
+    if (textPartIndex >= 0) {
+      const textPart = parts[textPartIndex] as TextUIPart
+      const existingCherry = (textPart.providerMetadata?.cherry ?? {}) as CherryProviderMetadata
+      parts[textPartIndex] = {
+        ...textPart,
+        providerMetadata: {
+          ...textPart.providerMetadata,
+          cherry: { ...existingCherry, references: allReferences } as unknown as JSONObject
+        }
       }
     }
   }
@@ -917,8 +922,7 @@ function transformSingleBlockToPart(oldBlock: OldBlock): {
         type: 'data-error',
         data: {
           name: oldBlock.error?.name ?? null,
-          message: oldBlock.error?.message ?? null,
-          createdAt: parseTimestamp(oldBlock.createdAt)
+          message: oldBlock.error?.message ?? null
         }
       }
       return { part, extraParts: null, citations: null, searchableText: null }
