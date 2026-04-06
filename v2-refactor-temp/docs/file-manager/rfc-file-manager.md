@@ -82,10 +82,10 @@
 
 ```typescript
 /**
- * FileService.resolvePhysicalPath()
- * 解析条目的物理文件路径。此方法属于 FileService（协调层），
+ * FileManager.resolvePhysicalPath()
+ * 解析条目的物理文件路径。此方法属于 FileManager（唯一生命周期服务），
  * 内部通过 FileTreeService 查询 mount 条目信息。
- * 实际的 FS 操作（读写/stat/移动等）由 FsService（唯一 FS owner）执行。
+ * 实际的 FS 操作（读写/stat/移动等）由 ops.ts 纯函数（唯一 FS owner）执行。
  */
 function resolvePhysicalPath(entry: FileEntry, mount?: FileEntry): string {
   const resolvedMount = mount ?? fileTreeService.getById(entry.mountId)  // 内存缓存查询
@@ -136,26 +136,28 @@ function resolvePhysicalPath(entry: FileEntry, mount?: FileEntry): string {
 - **运行时**：chokidar 监听 → 防抖 → 增量更新条目表
   - chokidar 必须排除 `.trash` 目录：`ignored: ['**/.trash/**']`
 - **冲突处理**：文件系统 wins
-- **操作锁**：应用内发起的文件系统变更（trash / restore / move / rename）必须在操作期间挂起 chokidar 事件处理，避免同步引擎将应用自身的操作误判为外部变更。实现方式：FsService 维护 `Set<string>` 记录"正在操作中的路径"，同步引擎在处理事件前检查该集合，命中则跳过。操作完成后移除路径。
+- **操作锁**：应用内发起的文件系统变更（trash / restore / move / rename）必须在操作期间挂起 chokidar 事件处理，避免同步引擎将应用自身的操作误判为外部变更。实现方式：FileManager 维护 `OperationLock`（`Set<string>`）记录"正在操作中的路径"，内部 chokidar 监听逻辑在处理事件前检查该集合，命中则跳过。操作完成后移除路径。
 
 ```
-┌──────────────┐        ┌──────────────┐        ┌──────────────┐
-│ FileService  │        │  FsService   │        │  SyncEngine  │
-│ trashNode()  │        │OperationLock │        │ (chokidar)   │
-└──────┬───────┘        └──────┬───────┘        └──────┬───────┘
-       │ 1. lock(oldPath)      │                       │
-       │──────────────────────→│                       │
-       │ 2. fsService.move()   │                       │
-       │──────────────────────→│ fs.rename()           │
-       │                       │──────────────────────→│ unlink(oldPath)
-       │                       │  3. check lock        │
-       │                       │←──────────────────────│
-       │                       │  4. "locked, skip"    │
-       │                       │──────────────────────→│ (ignored)
-       │ 5. FileTreeService    │                       │
-       │    .update() (DB)     │                       │
-       │ 6. unlock(oldPath)    │                       │
-       │──────────────────────→│                       │
+┌──────────────────────────────────────────────────┐     ┌──────────────┐
+│                  FileManager                      │     │  chokidar    │
+│  ┌─────────────┐  ┌──────────────┐                │     │  (内部监听)   │
+│  │ trashNode() │  │OperationLock │                │     │              │
+│  └──────┬──────┘  └──────┬───────┘                │     └──────┬───────┘
+│         │ 1. lock(oldPath)│                        │            │
+│         │────────────────→│                        │            │
+│         │ 2. ops.move()     │                        │            │
+│         │─────────────────│── fs.rename() ─────────│───────────→│ unlink(oldPath)
+│         │                 │  3. check lock         │            │
+│         │                 │←───────────────────────│────────────│
+│         │                 │  4. "locked, skip"     │            │
+│         │                 │────────────────────────│───────────→│ (ignored)
+│         │ 5. FileTreeService                       │            │
+│         │    .update() (DB)                        │            │
+│         │ 6. unlock(oldPath)                       │            │
+│         │────────────────→│                        │            │
+│  └─────────────────────────┘                       │            │
+└────────────────────────────────────────────────────┘            │
 ```
 
 #### remote 模式（远程文件 API）
@@ -328,9 +330,9 @@ class OpenAIFilesProvider implements RemoteProvider {
 | `parentId` 级联删除 | **CASCADE** | Trash 清空时物理级联删除子条目 |
 | `sourceType`/`role` 枚举约束 | **应用层 Zod 验证** | 避免新增来源需要 migration |
 | `file_ref` 防重复 | **UNIQUE 约束** | 同一业务对象以同一角色引用同一文件至多一条记录，防止应用层 bug 导致重复引用。业务语义：一条消息不会以 `attachment` 角色引用同一个文件两次——如需附加同一文件多次，应创建文件副本（独立 fileEntryId） |
-| DataApi 职责 | **只读端点** | DataApi 是纯数据接口，只管 DB 不管 FS。文件树写操作（create/rename/move/trash/delete/upload）走 FileManager IPC，FileManager 内部调用 data/service 同步 DB |
+| DataApi 职责 | **只读端点** | DataApi 是纯数据接口，只管 DB 不管 FS。文件树写操作（create/rename/move/trash/delete/upload）走 FileManager IPC，FileManager 内部调用 ops.ts 纯函数 + FileTreeService（data repository）同步 DB |
 | FileRef POST API | **不暴露给 renderer** | FileRef 的创建始终是业务操作的副作用（发消息→附件 ref、添加知识库→来源 ref），不存在 renderer 直接创建 ref 的场景。各业务 service 内部调用 FileRefService |
-| DTO 收窄 | **CreateEntryDto = { type, name, parentId }** | 元数据生成收口到 service 单一入口（问题 13）：mountId 从 parent 推导，ext 从 name 拆分，size 从文件读取。DTO 是 service 内部类型，不暴露给 renderer |
+| DTO 收窄 | **CreateEntryDto = { type, name, parentId }** | 元数据生成收口到 FileManager 单一入口（问题 13）：mountId 从 parent 推导，ext 从 name 拆分，size 从文件读取。DTO 是 FileManager 内部类型，不暴露给 renderer |
 | `ext`/`size` 存放 | **保留在 fileEntryTable** | 文件树列表高频按 ext 过滤、按 size 排序，需要索引支持。`FileEntry`（树结构+最小显示信息）和 `FileMetadata`（物理文件详细信息）概念上分离，字段有冗余重叠，以查询性能换取职责纯粹 |
 | mount 目录结构 | **统一在 `{userData}/Data/files/` 下** | `managed/`（mount_files）、`notes/`（mount_notes 默认路径，用户可改）、`temp/`（mount_temp）、`{remote_name}/`（未来 remote 缓存）。mount 间物理隔离，不互相嵌套 |
 | 临时文件存储 | **`mount_temp` mount（`local_managed`）** | basePath = `{userData}/Data/files/temp/`。粘贴、临时预览等场景的文件放入此 mount。业务 service 可将有用文件 `move` 到 `mount_files` |
@@ -538,17 +540,17 @@ type FileEntryId = z.infer<typeof FileEntryIdSchema>              // UUID v7 | S
 ### 7.1 统一入口与一致性要求（问题 1/2/3/11）
 
 - 通过统一入口由 main 管理所有落地写入，renderer 仅通过 DataApi（只读）和 File IPC（读写）交互。
-- FileService 负责协调"物理写入 + 条目登记"的原子性保障：解析 entryId → filePath，通过 FileTreeService 操作 DB，通过 FsService 操作文件系统。FileService 自身不 import `fs`。
-- FsService 是唯一的 FS owner，只接受 filePath，不感知条目概念。FileTreeService 是纯 DB 层，不碰 FS。
+- FileManager 负责协调"物理写入 + 条目登记"的原子性保障：解析 entryId → filePath，通过 FileTreeService（data repository）操作 DB，通过 `ops.ts` 纯函数操作文件系统。FileManager 自身不 import `fs`，而是调用 `ops.ts` 导出的纯函数（如 `ops.read()`、`ops.write()`）。
+- `ops.ts` 纯函数是唯一的 FS owner，只接受 filePath，不感知条目概念。FileTreeService 是纯 DB 层（data repository），不碰 FS。
 - 任何失败都必须回滚物理文件或条目记录，避免半成状态。
 - renderer 不得绕过 main 直接写入条目表。
 
 ### 7.2 上传
 
 ```
-1. Renderer: window.api.file.upload(file)     ← IPC → FileIpcService
-2. Main: FileService 委托 FsService 写入物理文件  ← FsService 为唯一 FS owner
-3. Main: FileService 调用 FileTreeService.create(entryDto) ← 写入条目表（纯 DB）
+1. Renderer: window.api.file.upload(file)     ← IPC → FileManager
+2. Main: FileManager 调用 ops.ts 纯函数写入物理文件  ← ops.ts 为唯一 FS owner
+3. Main: FileManager 调用 FileTreeService.create(entryDto) ← 写入条目表（纯 DB）
 4. Main: 返回 FileEntry                        ← 替代原有 FileMetadata
 ```
 
@@ -590,10 +592,10 @@ type FileEntryId = z.infer<typeof FileEntryIdSchema>              // UUID v7 | S
 
 #### 删除条目
 
-> **层级说明**：以下伪代码中，FS 操作由 FileService 委托 FsService（唯一 FS owner）执行，DB 操作委托给 FileTreeService（纯 DB data service）。FileService 自身不 import `fs`，仅做 entryId → filePath 解析与流程协调。
+> **层级说明**：以下伪代码中，FS 操作由 FileManager 调用 `ops.ts` 纯函数（唯一 FS owner）执行，DB 操作委托给 FileTreeService（纯 DB data repository）。FileManager 自身不 import `fs`，仅做 entryId → filePath 解析与流程协调。
 
 ```typescript
-// FileService.trashEntry()
+// FileManager.trashEntry()
 const SYSTEM_ENTRY_IDS = new Set(['mount_files', 'mount_notes', 'mount_temp', 'system_trash'])
 
 async function trashEntry(entryId: string): Promise<void> {
@@ -611,7 +613,7 @@ async function trashEntry(entryId: string): Promise<void> {
 
   const mount = await fileTreeService.getById(entry.mountId)
 
-  // local_external 模式：先移动物理文件到 .trash（委托 FsService 执行 FS 操作）
+  // local_external 模式：先移动物理文件到 .trash（调用 ops.ts 纯函数执行 FS 操作）
   if (mount.providerConfig?.providerType === 'local_external') {
     const physicalPath = this.resolvePhysicalPath(entry)
     const trashPath = path.join(
@@ -620,8 +622,8 @@ async function trashEntry(entryId: string): Promise<void> {
       entryId,
       path.relative(mount.providerConfig.basePath, physicalPath),
     )
-    await fsService.ensureDir(path.dirname(trashPath))
-    await fsService.move(physicalPath, trashPath)
+    await ops.ensureDir(path.dirname(trashPath))
+    await ops.move(physicalPath, trashPath)
     // 如果是目录，整个子树的物理文件都随 move 一起移走了
   }
 
@@ -638,7 +640,7 @@ async function trashEntry(entryId: string): Promise<void> {
 #### 恢复条目
 
 ```typescript
-// FileService.restoreEntry()
+// FileManager.restoreEntry()
 async function restoreEntry(entryId: string): Promise<void> {
   const entry = await fileTreeService.getById(entryId)
 
@@ -647,7 +649,7 @@ async function restoreEntry(entryId: string): Promise<void> {
 
   const mount = await fileTreeService.getById(entry.mountId)
 
-  // local_external 模式：将物理文件从 .trash 移回原位（委托 FsService 执行 FS 操作）
+  // local_external 模式：将物理文件从 .trash 移回原位（调用 ops.ts 纯函数执行 FS 操作）
   if (mount.providerConfig?.providerType === 'local_external') {
     const restoredPath = this.resolvePhysicalPath({ ...entry, parentId: entry.previousParentId })
     const trashPath = path.join(
@@ -658,16 +660,16 @@ async function restoreEntry(entryId: string): Promise<void> {
     )
 
     // 检查目标路径冲突
-    const stat = await fsService.stat(restoredPath).catch(() => null)
+    const stat = await ops.stat(restoredPath).catch(() => null)
     if (stat) {
       throw new Error(`Cannot restore: path already exists at ${restoredPath}`)
     }
 
-    await fsService.ensureDir(path.dirname(restoredPath))
-    await fsService.move(trashPath, restoredPath)
+    await ops.ensureDir(path.dirname(restoredPath))
+    await ops.move(trashPath, restoredPath)
 
     // 清理空的 .trash/{entryId} 目录
-    await fsService.delete(path.join(mount.providerConfig.basePath, '.trash', entryId))
+    await ops.remove(path.join(mount.providerConfig.basePath, '.trash', entryId))
   }
 
   // 更新 DB（委托 FileTreeService）
@@ -681,7 +683,7 @@ async function restoreEntry(entryId: string): Promise<void> {
 #### 永久删除（清空回收站）
 
 ```typescript
-// FileService.permanentDelete()
+// FileManager.permanentDelete()
 async function permanentDelete(entryId: string): Promise<void> {
   // 系统条目 / 挂载点不可永久删除
   if (SYSTEM_ENTRY_IDS.has(entryId)) {
@@ -694,11 +696,11 @@ async function permanentDelete(entryId: string): Promise<void> {
 
   const mount = await fileTreeService.getById(entry.mountId)
 
-  // FS 清理（委托 FsService 执行）
+  // FS 清理（调用 ops.ts 纯函数执行）
   if (mount.providerConfig?.providerType === 'local_external') {
     // external 模式：物理文件已在 .trash/{entryId}/ 中，直接删除整个目录
     const trashDir = path.join(mount.providerConfig.basePath, '.trash', entryId)
-    await fsService.delete(trashDir).catch(() => {})
+    await ops.remove(trashDir).catch(() => {})
   } else {
     // managed 模式：收集所有后代的物理文件路径
     const descendants = await fileTreeService.getDescendants(entryId) // 递归 CTE（纯 DB）
@@ -708,7 +710,7 @@ async function permanentDelete(entryId: string): Promise<void> {
 
     // 先删物理文件（失败时 DB 记录仍在，可重试）
     const deleteResults = await Promise.allSettled(
-      filesToDelete.map(p => fsService.delete(p))
+      filesToDelete.map(p => ops.remove(p))
     )
     const failed = deleteResults.filter(r => r.status === 'rejected' && r.reason?.code !== 'ENOENT')
     if (failed.length > 0) {
@@ -742,15 +744,15 @@ async function permanentDelete(entryId: string): Promise<void> {
 
 ### 7.4 内容编辑
 
-- FileService 委托 FsService 修改条目对应的真实文件（FsService 为唯一 FS owner）。
-- FileService 调用 FileTreeService 更新条目 `updatedAt` 与元信息（纯 DB）。
+- FileManager 调用 `ops.ts` 纯函数修改条目对应的真实文件（`ops.ts` 为唯一 FS owner）。
+- FileManager 调用 FileTreeService 更新条目 `updatedAt` 与元信息（纯 DB）。
 
 ### 7.5 元信息编辑
 
-- FileService 调用 FileTreeService 更新条目字段（如 `name`、`ext`）。
-- `local_external` 模式：FileService 委托 FsService 同步更新真实文件名（文件系统 rename）。
+- FileManager 调用 FileTreeService 更新条目字段（如 `name`、`ext`）。
+- `local_external` 模式：FileManager 调用 `ops.move()` 同步更新真实文件名（文件系统 rename）。
   - 重命名前必须检查目标路径是否已存在同名文件/目录，若冲突则拒绝并返回错误。
-- `local_managed` 模式：FileService 仅调用 FileTreeService 更新 DB（物理文件名为 UUID，不受影响）。
+- `local_managed` 模式：FileManager 仅调用 FileTreeService 更新 DB（物理文件名为 UUID，不受影响）。
 
 ### 7.6 移动条目
 
@@ -758,7 +760,7 @@ async function permanentDelete(entryId: string): Promise<void> {
 - **跨 mount 移动**：**禁止**。不同 mount 的存储模式（managed vs external vs remote）不兼容，跨 mount 移动需要物理文件格式转换和全子树 `mountId` 递归更新，复杂度高且易出错。用户如需跨 mount，应使用"复制到目标 mount → 删除源文件"的显式流程。
 
 ```typescript
-// FileService.moveEntry()
+// FileManager.moveEntry()
 async function moveEntry(entryId: string, targetParentId: string): Promise<FileEntry> {
   const entry = await fileTreeService.getById(entryId)
   const targetParent = await fileTreeService.getById(targetParentId)
@@ -781,15 +783,15 @@ async function moveEntry(entryId: string, targetParentId: string): Promise<FileE
     }
   }
 
-  // local_external 模式：同步物理文件移动（委托 FsService 执行 FS 操作）
+  // local_external 模式：同步物理文件移动（调用 ops.ts 纯函数执行 FS 操作）
   if (getProviderType(entry.mountId) === 'local_external') {
     const oldPath = this.resolvePhysicalPath(entry)
     const newPath = this.resolvePhysicalPath({ ...entry, parentId: targetParentId })
-    const stat = await fsService.stat(newPath).catch(() => null)
+    const stat = await ops.stat(newPath).catch(() => null)
     if (stat) {
       throw new Error(`Target path already exists: ${newPath}`)
     }
-    await fsService.move(oldPath, newPath)
+    await ops.move(oldPath, newPath)
   }
 
   // 更新 DB（委托 FileTreeService）
@@ -801,13 +803,13 @@ async function moveEntry(entryId: string, targetParentId: string): Promise<FileE
 
 ### 7.7 元数据统一入口（问题 13）
 
-元数据生成收口到 FileService 单一入口，renderer 不参与元数据推导：
+元数据生成收口到 FileManager 单一入口，renderer 不参与元数据推导：
 
-- **`CreateEntryDto`** 只包含 `{ type, name, parentId }`，是 FileService 内部类型（不暴露给 renderer）
-- **`mountId`**：由 service 从 `parentId` 的祖先链推导
-- **`ext`**：由 service 从 `name` 拆分（如 `"report.pdf"` → `name="report"`, `ext="pdf"`）
-- **`size`**：由 service 从实际文件读取（`fsService.stat`）
-- **`UpdateEntryDto`** 只包含 `{ name }`，service 同样负责 name/ext 拆分
+- **`CreateEntryDto`** 只包含 `{ type, name, parentId }`，是 FileManager 内部类型（不暴露给 renderer）
+- **`mountId`**：由 FileManager 从 `parentId` 的祖先链推导
+- **`ext`**：由 FileManager 从 `name` 拆分（如 `"report.pdf"` → `name="report"`, `ext="pdf"`）
+- **`size`**：由 FileManager 从实际文件读取（`ops.stat()`）
+- **`UpdateEntryDto`** 只包含 `{ name }`，FileManager 同样负责 name/ext 拆分
 
 Renderer 只提供用户可见的信息（完整文件名、目标目录），保证 ext/type 生成策略一致。
 
@@ -1007,7 +1009,7 @@ const orphanScanner = new OrphanRefScanner({
 
 文件数据的读取遵循项目现有的 DataApi 架构模式：Schema（shared）→ Service（main）→ Handler（main）→ Hooks（renderer）。
 
-文件树的写操作（create/rename/move/trash/delete/upload）走 File IPC（FileIpcService → FileService），不走 DataApi。FileService 作为协调层，解析 entryId → filePath 后委托 FsService（唯一 FS owner）操作文件系统，并通过 FileTreeService（data service）同步 DB。
+文件树的写操作（create/rename/move/trash/delete/upload）走 FileManager 的 IPC 通道，不走 DataApi。FileManager 作为唯一生命周期服务，解析 entryId → filePath 后调用 `ops.ts` 纯函数（唯一 FS owner）操作文件系统，并通过 FileTreeService（data repository）同步 DB。
 
 ### 9.1 DataApi Schema 定义（只读）
 
@@ -1015,9 +1017,9 @@ const orphanScanner = new OrphanRefScanner({
 
 DataApi 是纯数据接口，只管 DB 读取，不涉及 FS 副作用。所有条目 ID 字段使用 `FileEntryId` 类型。列表接口返回 `OffsetPaginationResponse<T>`。
 
-> **设计决策**：DataApi 端点全部只读（GET）。FileRef 的写操作（create / cleanup）由业务 service 直接调用 FileRefService（data service），不暴露 DataApi 端点。Renderer 不直接操作 ref。
+> **设计决策**：DataApi 端点全部只读（GET）。FileRef 的写操作（create / cleanup）由业务 service 直接调用 FileRefService（data repository），不暴露 DataApi 端点。Renderer 不直接操作 ref。
 
-> **设计决策**：CreateEntryDto / UpdateEntryDto / CreateFileRefDto 不暴露给 renderer。这些是 FileService 内部类型（FileService 调 FileTreeService 时使用）。元数据生成（mountId 推导、name/ext 拆分、size 读取）统一收口到 FileService 单一入口，解决问题 13。
+> **设计决策**：CreateEntryDto / UpdateEntryDto / CreateFileRefDto 不暴露给 renderer。这些是 FileManager 内部类型（FileManager 调 FileTreeService 时使用）。元数据生成（mountId 推导、name/ext 拆分、size 读取）统一收口到 FileManager 单一入口，解决问题 13。
 
 ```typescript
 export interface FileSchemas {
@@ -1085,18 +1087,18 @@ export interface FileSchemas {
 }
 ```
 
-> **写操作（FileManager IPC）**：创建条目、重命名、移动、Trash/Restore、永久删除、批量操作、文件上传等均通过 FileManager 的 IPC 通道处理。FileManager 内部由 FileService 协调，委托 FsService 完成 FS 操作，并调用 FileTreeService 同步 DB。具体 IPC 协议定义参见 FileManager 实现（Phase 2）。
+> **写操作（FileManager IPC）**：创建条目、重命名、移动、Trash/Restore、永久删除、批量操作、文件上传等均通过 FileManager 的 IPC 通道处理。FileManager 内部调用 `ops.ts` 纯函数完成 FS 操作，并调用 FileTreeService（data repository）同步 DB。具体 IPC 协议定义参见 FileManager 实现（Phase 2）。
 
 ### 9.2 Service 层
 
-位于 `src/main/data/services/`，遵循现有 `TopicService`、`MessageService` 模式。
+位于 `src/main/data/services/`（data repositories）和 `src/main/services/`（lifecycle service + ops.ts 纯函数），遵循现有模式。
 
 ```typescript
-// ─── Data Services (src/main/data/services/) ───
+// ─── Data Repositories (src/main/data/services/) ───
 // 纯 DB ���作，不碰 FS。通过 DataApiService 桥接暴露给 Renderer（只读端点）。
 
-// FileTreeService - 条目 CRUD（纯 DB）
-// 对外导出 fileTreeReader（Pick 类型，只读）和 fileTreeService（完整实例，仅 FileService 使用）
+// FileTreeService - 条目 CRUD（纯 DB，data repository）
+// 对外导出 fileTreeReader（Pick 类型，只读）和 fileTreeService（完整实例，仅 FileManager 使用）
 class FileTreeService {
   // ─── 读方法（通过 fileTreeReader 导出给外部） ───
   async getById(id: string): Promise<FileEntry>
@@ -1112,13 +1114,13 @@ class FileTreeService {
   async getDescendants(entryId: string): Promise<FileEntry[]>
   async getAncestors(entryId: string): Promise<FileEntry[]>
 
-  // ��── 写方法（仅 FileService 通过 fileTreeService 调用） ───
+  // ��── 写方法（仅 FileManager 通过 fileTreeService 调用） ───
   async create(dto: CreateEntryDto): Promise<FileEntry>
   async update(id: string, dto: UpdateEntryDto): Promise<FileEntry>
   async delete(id: string): Promise<void>  // CASCADE 删子条目 + file_ref
 }
 
-// FileRefService - 引用关系管理（纯 DB）
+// FileRefService - 引用关系管理（纯 DB，data repository）
 // 业务 service 可直接 import 调用读写方法
 class FileRefService {
   async create(fileEntryId: string, dto: CreateFileRefDto): Promise<FileRef>
@@ -1128,34 +1130,39 @@ class FileRefService {
   async cleanupBySourceBatch(sourceType: string, sourceIds: string[]): Promise<void>
 }
 
+// ─── ops.ts 纯函数 (src/main/services/ops.ts) ───
+// 唯一 FS owner（只知道 filePath，不知道条目）。
+// 无状态导出函数，所有 FS 操作的唯一入口。
+
+export async function read(filePath: string, opts?): Promise<string | Uint8Array>
+export async function write(filePath: string, data: string | Uint8Array): Promise<void>
+export async function stat(filePath: string): Promise<StatResult>
+export async function copy(src: string, dest: string): Promise<void>
+export async function move(src: string, dest: string): Promise<void>
+export async function remove(filePath: string): Promise<void>
+export async function list(dirPath: string): Promise<string[]>
+export async function ensureDir(dirPath: string): Promise<void>
+export async function open(filePath: string): Promise<void>
+export async function showInFolder(filePath: string): Promise<void>
+
 // ─── Lifecycle Service (src/main/services/) ───
 
-// FsService - 唯一 FS owner（只知道 filePath，不知道条目）
-// 提供底层文件系统原语，所有 FS 操作的唯一入口。
-class FsService extends BaseService {
-  async read(filePath: string, opts?): Promise<string | Uint8Array>
-  async write(filePath: string, data: string | Uint8Array): Promise<void>
-  async stat(filePath: string): Promise<FsStatResult>
-  async copy(src: string, dest: string): Promise<void>
-  async move(src: string, dest: string): Promise<void>
-  async delete(filePath: string): Promise<void>
-  async list(dirPath: string): Promise<string[]>
-  async ensureDir(dirPath: string): Promise<void>
-  async open(filePath: string): Promise<void>
-  async showInFolder(filePath: string): Promise<void>
-}
+// FileManager - 唯一生命周期服务
+// 合并了原 FileService（协调层）+ FileIpcService（IPC 注册）+ ExternalSyncEngine（chokidar 监听）。
+// 调用 ops.ts 纯函数执行 FS 操作，通过 FileTreeService（data repository）同步 DB。
+// 维护 OperationLock 协调内部 chokidar 监听与条目操作。
+class FileManager extends BaseService {
+  // ─── IPC 注册（onInit 中通过 this.ipcHandle() 注册所有 handler） ───
+  // 条目操作、原始路径操作（stat/open/showInFolder）、Electron dialog
 
-// FileService - 协调层（entryId → filePath 解析 + DB 协调 + 委托 FsService）
-// 不 import `fs`，所有 FS 操作委托给 FsService。
-class FileService extends BaseService {
-  // 条目操作（FsService + DB 原子）
+  // ─── 条目操作（ops.ts 纯函数 + DB 原子） ───
   async createEntry(dto: CreateEntryParams): Promise<FileEntry>
   async trash(id: string): Promise<void>
   async restore(id: string): Promise<FileEntry>
   async permanentDelete(id: string): Promise<void>
   async move(id: string, targetParentId: string): Promise<FileEntry>
   async copy(id: string, targetParentId: string): Promise<FileEntry>
-  // 文件内容读写（委托 FsService）
+  // 文件内容读写（调用 ops.ts 纯函数）
   async readFile(entryId: string, opts?): Promise<string | Uint8Array>
   async writeFile(entryId: string, data: string | Uint8Array): Promise<void>
   // 路径解析
@@ -1164,6 +1171,14 @@ class FileService extends BaseService {
   async trashBatch(ids: string[]): Promise<BatchOperationResult>
   async moveBatch(ids: string[], targetParentId: string): Promise<BatchOperationResult>
   async permanentDeleteBatch(ids: string[]): Promise<BatchOperationResult>
+
+  // ─── OperationLock（协调 chokidar 与条目操作） ───
+  private operationLock: Set<string>  // 正在操作中的路径
+
+  // ─── chokidar 监听（内部逻辑，原 ExternalSyncEngine） ───
+  // local_external 模式的文件系统 ↔ DB 同步
+  private startWatching(mount: MountEntry): void
+  private handleFsEvent(event: FsEvent): void
 }
 ```
 
@@ -1225,7 +1240,7 @@ const { data: messageFiles } = useQuery('/files/refs/by-source', {
 
 ### 9.5 文件写操作（File IPC）
 
-所有涉及 FS 的写操作通过 FileIpcService 的 IPC 通道处理，不走 DataApi。FileIpcService 对涉及条目的操作委托 FileService（协调层）执行；对不涉及条目的原始路径操作（如 `stat`、`open`、`showInFolder`、`listDirectory`）可直接委托 FsService（唯一 FS owner），无需经过 FileService。Electron 场景下所有文件源（对话框选择、拖拽、剪贴板粘贴）最终都归结为本地路径（剪贴板图片通过 `createEntry({ parentId: 'mount_temp', content })` 先落盘）。
+所有涉及 FS 的写操作通过 FileManager 的 IPC 通道处理，不走 DataApi。FileManager 对涉及条目的操作在内部执行协调逻辑；对不涉及条目的原始路径操作（如 `stat`、`open`、`showInFolder`、`listDirectory`）可直接调用 `ops.ts` 纯函数（唯一 FS owner）。Electron 场景下所有文件源（对话框选择、拖拽、剪贴板粘贴）最终都归结为本地路径（剪贴板图片通过 `createEntry({ parentId: 'mount_temp', content })` 先落盘）。
 
 类型契约定义于 `packages/shared/data/types/file/ipc.ts`，main 和 preload 共同引用。
 
@@ -1245,21 +1260,21 @@ const { data: messageFiles } = useQuery('/files/refs/by-source', {
 | `batchDelete` | `{ ids }` | `BatchOperationResult` | 批量永久删除 |
 | `batchRestore` | `{ ids }` | `BatchOperationResult` | 批量恢复 |
 
-`FileIpcApi` 类型聚合了所有方法签名，可用于类型约束 preload 暴露的 API 对象。
+`FileManagerIpcApi` 类型聚合了所有方法签名，可用于类型约束 preload 暴露的 API 对象。
 
 #### 文件上传流程（以 `local_managed` 为例）
 
 ```
 1. Renderer: window.api.file.upload({ filePath, parentId })  -- IPC
-2. Main: FileIpcService 委托 FileService.createEntry()
-3. Main: FileService 委托 FsService 复制文件到 managed 存储 ({basePath}/{id}.{ext})  -- FsService 为唯一 FS owner
-4. Main: FileService 调用 FileTreeService.create(nodeDto)  -- 纯 DB
+2. Main: FileManager 处理 IPC，调用内部 createEntry()
+3. Main: FileManager 调用 ops.copy() 复制文件到 managed 存储 ({basePath}/{id}.{ext})  -- ops.ts 为唯一 FS owner
+4. Main: FileManager 调用 FileTreeService.create(nodeDto)  -- 纯 DB
 5. Main: 返回 FileEntry
 ```
 
 上传是原子操作：物理文件写入 + 条目创建在同一个 main 进程事务中完成。
 
-其他写操作（rename/move/trash/restore/delete/batch）同理，由 FileIpcService → FileService 协调，FileService 委托 FsService 执行 FS 操作，并通过 FileTreeService 同步 DB。
+其他写操作（rename/move/trash/restore/delete/batch）同理，由 FileManager 统一处理 IPC 并在内部协调，调用 `ops.ts` 纯函数执行 FS 操作，并通过 FileTreeService（data repository）同步 DB。
 
 ---
 
@@ -1514,7 +1529,7 @@ Foundation       + API              + 迁移整合         Migration         Int
 | `src/main/data/db/schemas/file.ts` | `fileEntryTable` + `fileRefTable` Drizzle Schema（第六章） |
 | `packages/shared/data/types/file/` | 文件类型定义模块（第六章），按职责拆分为 `essential.ts`、`fileEntry.ts`、`provider.ts`、`ref/` |
 | `packages/shared/data/api/schemas/files.ts` | `FileSchemas` API 类型声明（第九章） |
-| `src/main/data/utils/pathResolver.ts` | 路径解析工具函数（`assertPathContained()` 等安全检查）。注：`resolvePhysicalPath()` 属于 FileService（Phase 2） |
+| `src/main/data/utils/pathResolver.ts` | 路径解析工具函数（`assertPathContained()` 等安全检查）。注：`resolvePhysicalPath()` 属于 FileManager（Phase 2） |
 | `src/main/data/db/seeding/fileEntrySeeding.ts` | 系统条目初始化（upsert 幂等，支持跨平台数据恢复） |
 | `src/main/data/api/handlers/files.ts` | API handler 占位（Phase 2 实现） |
 
@@ -1536,48 +1551,47 @@ Foundation       + API              + 迁移整合         Migration         Int
 
 | 文件路径 | 内容 |
 |---------|------|
-| `src/main/data/services/FileTreeService.ts` | 条目 CRUD（纯 DB），导出 `fileTreeReader` + `fileTreeService` |
-| `src/main/data/services/FileRefService.ts` | 引用 CRUD、按来源清理、批量清理（纯 DB） |
-| `src/main/services/FsService.ts` | **唯一 FS owner**：底层文件系统原语（read/write/stat/copy/move/delete/list/open/showInFolder），只接受 filePath，不感知条目。维护 OperationLock 与 ExternalSyncEngine 协调 |
-| `src/main/services/FileService.ts` | **协调层**：entryId → filePath 解析，委托 FsService 执行 FS 操作 + FileTreeService 同步 DB，路径缓存。不 import `fs` |
-| `src/main/services/FileIpcService.ts` | IPC 入口，条目操作委托 FileService，原始路径操作可直接委托 FsService + Electron dialog |
+| `src/main/data/services/FileTreeService.ts` | 条目 CRUD（纯 DB，data repository），导出 `fileTreeReader` + `fileTreeService` |
+| `src/main/data/services/FileRefService.ts` | 引用 CRUD、按来源清理、批量清理（纯 DB，data repository） |
+| `src/main/services/ops.ts` | **唯一 FS owner**：无状态纯函数（`read`/`write`/`stat`/`copy`/`move`/`remove`/`list`/`ensureDir`/`open`/`showInFolder`），只接受 filePath，不感知条目 |
+| `src/main/services/FileManager.ts` | **唯一生命周期服务**：IPC 注册 + entryId → filePath 解析 + 调用 ops.ts 纯函数执行 FS 操作 + FileTreeService 同步 DB + OperationLock + chokidar 监听（原 ExternalSyncEngine），路径缓存，Electron dialog |
 | `src/main/data/api/handlers/files.ts` | DataApi handlers（只读端点，第九章） |
 | `src/renderer/src/hooks/useFileNodes.ts` | SWR hooks（`useQuery` 封装） |
 
 **关键任务**：
 
-1. `FileTreeService`（data service，纯 DB）：
+1. `FileTreeService`（data repository，纯 DB）：
    - 条目 CRUD：`create()` / `update()` / `delete()`（CASCADE）
    - 树查询：`getById()` / `getChildren()` / `getDescendants()` / `getAncestors()`
    - 导出 `fileTreeReader`（Pick 类型，只读）供业务 Service 使用
-   - 导出 `fileTreeService`（完整实例）仅供 FileService 使用（ESLint `no-restricted-imports` 保护）
+   - 导出 `fileTreeService`（完整实例）仅供 FileManager 使用（ESLint `no-restricted-imports` 保护）
 
-2. `FileRefService`（data service��纯 DB）：
+2. `FileRefService`（data repository��纯 DB）：
    - CRUD + 按 source 查询/清理
    - `OrphanRefScanner` 注册式扫描器（第八章）
 
-3. `FsService`（lifecycle service，唯一 FS owner）：
-   - 底层文件系统原语：`read()` / `write()` / `stat()` / `copy()` / `move()` / `delete()` / `list()` / `ensureDir()` / `open()` / `showInFolder()`
+3. `ops.ts`（纯函数，唯一 FS owner）：
+   - 无状态导出函数：`ops.read()` / `ops.write()` / `ops.stat()` / `ops.copy()` / `ops.move()` / `ops.remove()` / `ops.list()` / `ops.ensureDir()` / `ops.open()` / `ops.showInFolder()`
    - 只接受 filePath 参数，不感知条目（entryId）概念
-   - 维护 `OperationLock`（`Set<path>`）与 ExternalSyncEngine 协调
+   - 不是 class，不是 lifecycle service——纯函数导出
 
-4. `FileService`（lifecycle service，协调层）：
-   - 不 import `fs`，所有 FS 操作委托 FsService
-   - `createEntry()` 原子性保障——FsService 写入物理文件 + FileTreeService.create() 在同一事务
-   - `trash()` / `restore()` 实现 OS 风格 Trash 逻辑（第七章），委托 FsService 操作 + FileTreeService 更新 DB
-   - `permanentDelete()` 委托 FsService 清理物理文件 + FileTreeService.delete()（CASCADE）
-   - `move()` 委托 FsService 移动物理文件（external 模式）或纯 DB 更新（managed 模式）
-   - `readFile()` / `writeFile()` 解析 entryId → filePath 后委托 FsService
+4. `FileManager`（唯一 lifecycle service，合并协调层 + IPC 注册 + chokidar 监听）：
+   - 调用 `ops.ts` 纯函数执行所有 FS 操作（不直接 import `fs`）
+   - `createEntry()` 原子性保障——`ops.copy()` 写入物理文件 + FileTreeService.create() 在同一事务
+   - `trash()` / `restore()` 实现 OS 风格 Trash 逻辑（第七章），调用 ops.ts 纯函数 + FileTreeService 更新 DB
+   - `permanentDelete()` 调用 `ops.remove()` 清理物理文件 + FileTreeService.delete()（CASCADE）
+   - `move()` 调用 `ops.move()` 移动物理文件（external 模式）或纯 DB 更新（managed 模式）
+   - `readFile()` / `writeFile()` 解析 entryId → filePath 后调用 ops.ts 纯函数
    - `resolvePhysicalPath()` 路径解析 + 内存缓存 `Map<entryId, absolutePath>`
+   - 通过 `this.ipcHandle()` 注册所有 IPC handler（原 FileIpcService 职责）
+   - 原始路径操作（stat/open/showInFolder/listDirectory）直接调用 ops.ts 纯函数
+   - `select` (Electron dialog) 自行处理
+   - 维护 `OperationLock`（`Set<path>`）协调内部 chokidar 监听与条目操作
+   - chokidar 监听（原 ExternalSyncEngine）：local_external 模式的文件系统 ↔ DB 同步
 
-5. `FileIpcService`（lifecycle service）：
-   - 通过 `this.ipcHandle()` 注册所有 IPC handler
-   - 条目操作委托 FileService，原始路径操作（stat/open/showInFolder/listDirectory）直接委托 FsService
-   - `select` (dialog) 自行处理
+5. Handler 注册到 `apiHandlers`，URL 前缀 `/files/`（只读）
 
-6. Handler 注册到 `apiHandlers`，URL 前缀 `/files/`（只读）
-
-7. Renderer hooks 封装，支持文件树懒加载
+6. Renderer hooks 封装，支持文件树懒加载
 
 **依赖**：Phase 1
 
@@ -1660,8 +1674,7 @@ function toFileMetadata(entry: FileEntry): FileMetadata {
 
 | 文件路径 | 内容 |
 |---------|------|
-| `src/main/services/ExternalSyncEngine.ts` | 文件系统 ↔ DB 同步引擎（通过 FsService 读取文件系统） |
-| `src/main/services/FileWatcherService.ts` | 基于 chokidar 的文件监听（复用现有逻辑） |
+| *(无新增文件)* | chokidar 监听和文件系统 ↔ DB 同步引擎已内置于 FileManager（Phase 2），Phase 5 仅扩展其 local_external 同步逻辑 |
 
 **关键任务**：
 
