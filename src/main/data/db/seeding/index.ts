@@ -1,10 +1,10 @@
-import NodeSeeding from './nodeSeeding'
+import FileEntrySeeding from './fileEntrySeeding'
 import PreferenceSeeding from './preferenceSeeding'
 import TranslateLanguageSeeding from './translateLanguageSeeding'
 
 const seedingList = {
   preference: PreferenceSeeding,
-  node: NodeSeeding,
+  fileEntry: FileEntrySeeding,
   translateLanguage: TranslateLanguageSeeding
 }
 

@@ -6,7 +6,7 @@ Each business domain that references files (e.g. chat messages, knowledge items,
 
 ```
 ref/
-├── essential.ts     # Common fields (id, nodeId, timestamps) + createRefSchema factory
+├── essential.ts     # Common fields (id, fileEntryId, timestamps) + createRefSchema factory
 ├── tempSession.ts   # Temp session variant (tracks temp files in use)
 ├── index.ts         # Aggregates all variants into FileRefSchema (discriminatedUnion)
 └── README.md
@@ -18,7 +18,7 @@ ref/
 - `sourceId` — the owning business entity's ID
 - `role` — a per-domain enum of how the file is used (e.g. `attachment`, `source`)
 
-Common fields (`id`, `nodeId`, `createdAt`, `updatedAt`) are auto-inherited via `createRefSchema()`.
+Common fields (`id`, `fileEntryId`, `createdAt`, `updatedAt`) are auto-inherited via `createRefSchema()`.
 
 ## Step-by-Step: Adding a New Variant
 
@@ -77,7 +77,7 @@ Four things to update:
 1. **`index.ts` — `allSourceTypes`** — spread the new `sourceType` constant
 2. **`index.ts` — `allRoles`** — spread the new roles array
 3. **`index.ts` — `FileRefSchema`** — add the new schema to the discriminated union
-4. **`node.ts` — `CreateFileRefDtoSchema`** — add `z.object(*RefFields)` to the discriminated union
+4. **`files.ts` — `CreateFileRefDtoSchema`** — add `z.object(*RefFields)` to the discriminated union
 
 ### 4. Done
 

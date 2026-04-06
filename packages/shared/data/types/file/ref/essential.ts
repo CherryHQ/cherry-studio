@@ -1,13 +1,13 @@
 import * as z from 'zod'
 
 import { TimestampSchema } from '../essential'
-import { NodeIdSchema } from '../node'
+import { FileEntryIdSchema } from '../fileEntry'
 
 export const refCommonFields = Object.freeze({
   /** Reference ID (UUID v4) */
   id: z.uuidv4(),
-  /** Referenced file node ID (UUID v7 or system node ID) */
-  nodeId: NodeIdSchema,
+  /** Referenced file entry ID (UUID v7 or system entry ID) */
+  fileEntryId: FileEntryIdSchema,
   /** Creation timestamp (ms epoch) */
   createdAt: TimestampSchema,
   /** Last update timestamp (ms epoch) */

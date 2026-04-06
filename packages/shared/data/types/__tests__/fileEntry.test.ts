@@ -1,21 +1,21 @@
 import { describe, expect, it } from 'vitest'
 
-import { CreateNodeDtoSchema, UpdateNodeDtoSchema } from '../../api/schemas/files'
+import { CreateEntryDtoSchema, UpdateEntryDtoSchema } from '../../api/schemas/files'
 import {
-  FileTreeNodeSchema,
+  FileEntryIdSchema,
+  FileEntrySchema,
   LocalExternalConfigSchema,
   LocalManagedConfigSchema,
   MountProviderConfigSchema,
-  NodeIdSchema,
   RemoteConfigSchema,
   SystemConfigSchema
 } from '../file'
 
 /**
- * Helper to build a minimal valid file node for testing name validation.
+ * Helper to build a minimal valid file entry for testing name validation.
  * Only the `name` field varies; all other fields are valid constants.
  */
-function makeFileNode(name: string) {
+function makeFileEntry(name: string) {
   return {
     id: '019606a0-0000-7000-8000-000000000001',
     type: 'file' as const,
@@ -42,133 +42,133 @@ function makeCreateDto(name: string) {
 }
 
 describe('SafeNameSchema validation', () => {
-  describe('FileTreeNodeSchema.name', () => {
+  describe('FileEntrySchema.name', () => {
     it('accepts a normal filename', () => {
-      const result = FileTreeNodeSchema.safeParse(makeFileNode('my-document'))
+      const result = FileEntrySchema.safeParse(makeFileEntry('my-document'))
       expect(result.success).toBe(true)
     })
 
     it('accepts filenames with spaces and unicode', () => {
-      const result = FileTreeNodeSchema.safeParse(makeFileNode('我的文档 (copy)'))
+      const result = FileEntrySchema.safeParse(makeFileEntry('我的文档 (copy)'))
       expect(result.success).toBe(true)
     })
 
     it('accepts filenames with dots (not traversal)', () => {
-      const result = FileTreeNodeSchema.safeParse(makeFileNode('file.backup.old'))
+      const result = FileEntrySchema.safeParse(makeFileEntry('file.backup.old'))
       expect(result.success).toBe(true)
     })
 
     it('accepts triple-dot filename', () => {
-      const result = FileTreeNodeSchema.safeParse(makeFileNode('...'))
+      const result = FileEntrySchema.safeParse(makeFileEntry('...'))
       expect(result.success).toBe(true)
     })
 
     it('rejects empty name', () => {
-      const result = FileTreeNodeSchema.safeParse(makeFileNode(''))
+      const result = FileEntrySchema.safeParse(makeFileEntry(''))
       expect(result.success).toBe(false)
     })
 
     it('rejects name exceeding 255 characters', () => {
-      const result = FileTreeNodeSchema.safeParse(makeFileNode('a'.repeat(256)))
+      const result = FileEntrySchema.safeParse(makeFileEntry('a'.repeat(256)))
       expect(result.success).toBe(false)
     })
 
     it('accepts name at exactly 255 characters', () => {
-      const result = FileTreeNodeSchema.safeParse(makeFileNode('a'.repeat(255)))
+      const result = FileEntrySchema.safeParse(makeFileEntry('a'.repeat(255)))
       expect(result.success).toBe(true)
     })
 
     it('rejects name containing null byte', () => {
-      const result = FileTreeNodeSchema.safeParse(makeFileNode('file\0evil'))
+      const result = FileEntrySchema.safeParse(makeFileEntry('file\0evil'))
       expect(result.success).toBe(false)
       expect(result.error?.issues.some((i) => i.message.includes('null bytes'))).toBe(true)
     })
 
     it('rejects name containing forward slash', () => {
-      const result = FileTreeNodeSchema.safeParse(makeFileNode('path/to/file'))
+      const result = FileEntrySchema.safeParse(makeFileEntry('path/to/file'))
       expect(result.success).toBe(false)
       expect(result.error?.issues.some((i) => i.message.includes('path separators'))).toBe(true)
     })
 
     it('rejects name containing backslash', () => {
-      const result = FileTreeNodeSchema.safeParse(makeFileNode('path\\to\\file'))
+      const result = FileEntrySchema.safeParse(makeFileEntry('path\\to\\file'))
       expect(result.success).toBe(false)
       expect(result.error?.issues.some((i) => i.message.includes('path separators'))).toBe(true)
     })
 
     it('rejects name that is single dot', () => {
-      const result = FileTreeNodeSchema.safeParse(makeFileNode('.'))
+      const result = FileEntrySchema.safeParse(makeFileEntry('.'))
       expect(result.success).toBe(false)
       expect(result.error?.issues.some((i) => i.message.includes('. or ..'))).toBe(true)
     })
 
     it('rejects name that is double dot', () => {
-      const result = FileTreeNodeSchema.safeParse(makeFileNode('..'))
+      const result = FileEntrySchema.safeParse(makeFileEntry('..'))
       expect(result.success).toBe(false)
       expect(result.error?.issues.some((i) => i.message.includes('. or ..'))).toBe(true)
     })
 
     it('rejects traversal sequence ../../etc/passwd', () => {
-      const result = FileTreeNodeSchema.safeParse(makeFileNode('../../etc/passwd'))
+      const result = FileEntrySchema.safeParse(makeFileEntry('../../etc/passwd'))
       expect(result.success).toBe(false)
     })
 
     it('rejects whitespace-only name', () => {
-      expect(FileTreeNodeSchema.safeParse(makeFileNode('   ')).success).toBe(false)
-      expect(FileTreeNodeSchema.safeParse(makeFileNode('\t')).success).toBe(false)
+      expect(FileEntrySchema.safeParse(makeFileEntry('   ')).success).toBe(false)
+      expect(FileEntrySchema.safeParse(makeFileEntry('\t')).success).toBe(false)
     })
   })
 
-  describe('CreateNodeDtoSchema.name', () => {
+  describe('CreateEntryDtoSchema.name', () => {
     it('accepts a normal name', () => {
-      const result = CreateNodeDtoSchema.safeParse(makeCreateDto('document'))
+      const result = CreateEntryDtoSchema.safeParse(makeCreateDto('document'))
       expect(result.success).toBe(true)
     })
 
     it('rejects null byte in name', () => {
-      const result = CreateNodeDtoSchema.safeParse(makeCreateDto('file\0evil'))
+      const result = CreateEntryDtoSchema.safeParse(makeCreateDto('file\0evil'))
       expect(result.success).toBe(false)
     })
 
     it('rejects path separator in name', () => {
-      const result = CreateNodeDtoSchema.safeParse(makeCreateDto('a/b'))
+      const result = CreateEntryDtoSchema.safeParse(makeCreateDto('a/b'))
       expect(result.success).toBe(false)
     })
 
     it('rejects dot-dot name', () => {
-      const result = CreateNodeDtoSchema.safeParse(makeCreateDto('..'))
+      const result = CreateEntryDtoSchema.safeParse(makeCreateDto('..'))
       expect(result.success).toBe(false)
     })
 
     it('rejects name over 255 chars', () => {
-      const result = CreateNodeDtoSchema.safeParse(makeCreateDto('x'.repeat(256)))
+      const result = CreateEntryDtoSchema.safeParse(makeCreateDto('x'.repeat(256)))
       expect(result.success).toBe(false)
     })
   })
 
-  describe('UpdateNodeDtoSchema.name', () => {
+  describe('UpdateEntryDtoSchema.name', () => {
     it('accepts a normal name', () => {
-      const result = UpdateNodeDtoSchema.safeParse({ name: 'renamed' })
+      const result = UpdateEntryDtoSchema.safeParse({ name: 'renamed' })
       expect(result.success).toBe(true)
     })
 
     it('accepts omitted name (optional)', () => {
-      const result = UpdateNodeDtoSchema.safeParse({ ext: 'md' })
+      const result = UpdateEntryDtoSchema.safeParse({ ext: 'md' })
       expect(result.success).toBe(true)
     })
 
     it('rejects null byte in name', () => {
-      const result = UpdateNodeDtoSchema.safeParse({ name: 'file\0evil' })
+      const result = UpdateEntryDtoSchema.safeParse({ name: 'file\0evil' })
       expect(result.success).toBe(false)
     })
 
     it('rejects path separator in name', () => {
-      const result = UpdateNodeDtoSchema.safeParse({ name: 'a\\b' })
+      const result = UpdateEntryDtoSchema.safeParse({ name: 'a\\b' })
       expect(result.success).toBe(false)
     })
 
     it('rejects dot-dot name', () => {
-      const result = UpdateNodeDtoSchema.safeParse({ name: '..' })
+      const result = UpdateEntryDtoSchema.safeParse({ name: '..' })
       expect(result.success).toBe(false)
     })
   })
@@ -238,62 +238,62 @@ function makeFile(overrides: Record<string, unknown> = {}) {
   }
 }
 
-describe('FileTreeNodeSchema type invariants', () => {
+describe('FileEntrySchema type invariants', () => {
   describe('mount', () => {
-    it('accepts a valid mount node', () => {
-      expect(FileTreeNodeSchema.safeParse(makeMount()).success).toBe(true)
+    it('accepts a valid mount entry', () => {
+      expect(FileEntrySchema.safeParse(makeMount()).success).toBe(true)
     })
 
     it('rejects mount with non-null parentId', () => {
-      const result = FileTreeNodeSchema.safeParse(makeMount({ parentId: VALID_UUID_V7 }))
+      const result = FileEntrySchema.safeParse(makeMount({ parentId: VALID_UUID_V7 }))
       expect(result.success).toBe(false)
       expect(result.error?.issues.some((i) => i.path.includes('parentId'))).toBe(true)
     })
 
     it('rejects mount with mountId ≠ own id', () => {
-      const result = FileTreeNodeSchema.safeParse(makeMount({ mountId: VALID_UUID_V7 }))
+      const result = FileEntrySchema.safeParse(makeMount({ mountId: VALID_UUID_V7 }))
       expect(result.success).toBe(false)
       expect(result.error?.issues.some((i) => i.path.includes('mountId'))).toBe(true)
     })
 
     it('rejects mount with null providerConfig', () => {
-      const result = FileTreeNodeSchema.safeParse(makeMount({ providerConfig: null }))
+      const result = FileEntrySchema.safeParse(makeMount({ providerConfig: null }))
       expect(result.success).toBe(false)
       expect(result.error?.issues.some((i) => i.path.includes('providerConfig'))).toBe(true)
     })
 
     it('rejects mount with non-null ext', () => {
-      const result = FileTreeNodeSchema.safeParse(makeMount({ ext: 'txt' }))
+      const result = FileEntrySchema.safeParse(makeMount({ ext: 'txt' }))
       expect(result.success).toBe(false)
       expect(result.error?.issues.some((i) => i.path.includes('ext'))).toBe(true)
     })
 
     it('rejects mount with non-null remoteId', () => {
-      const result = FileTreeNodeSchema.safeParse(makeMount({ remoteId: 'file-123' }))
+      const result = FileEntrySchema.safeParse(makeMount({ remoteId: 'file-123' }))
       expect(result.success).toBe(false)
       expect(result.error?.issues.some((i) => i.path.includes('remoteId'))).toBe(true)
     })
 
     it('rejects mount with non-null cachedAt', () => {
-      const result = FileTreeNodeSchema.safeParse(makeMount({ cachedAt: TS }))
+      const result = FileEntrySchema.safeParse(makeMount({ cachedAt: TS }))
       expect(result.success).toBe(false)
       expect(result.error?.issues.some((i) => i.path.includes('cachedAt'))).toBe(true)
     })
   })
 
   describe('dir', () => {
-    it('accepts a valid dir node', () => {
-      expect(FileTreeNodeSchema.safeParse(makeDir()).success).toBe(true)
+    it('accepts a valid dir entry', () => {
+      expect(FileEntrySchema.safeParse(makeDir()).success).toBe(true)
     })
 
     it('rejects dir with null parentId', () => {
-      const result = FileTreeNodeSchema.safeParse(makeDir({ parentId: null }))
+      const result = FileEntrySchema.safeParse(makeDir({ parentId: null }))
       expect(result.success).toBe(false)
       expect(result.error?.issues.some((i) => i.path.includes('parentId'))).toBe(true)
     })
 
     it('rejects dir with non-null providerConfig', () => {
-      const result = FileTreeNodeSchema.safeParse(
+      const result = FileEntrySchema.safeParse(
         makeDir({ providerConfig: { providerType: 'local_managed', basePath: '/x' } })
       )
       expect(result.success).toBe(false)
@@ -301,29 +301,29 @@ describe('FileTreeNodeSchema type invariants', () => {
     })
 
     it('accepts dir with remoteId (remote directories have IDs)', () => {
-      const result = FileTreeNodeSchema.safeParse(makeDir({ remoteId: 'folder-123' }))
+      const result = FileEntrySchema.safeParse(makeDir({ remoteId: 'folder-123' }))
       expect(result.success).toBe(true)
     })
 
     it('accepts dir with cachedAt (remote directories have cache state)', () => {
-      const result = FileTreeNodeSchema.safeParse(makeDir({ cachedAt: TS }))
+      const result = FileEntrySchema.safeParse(makeDir({ cachedAt: TS }))
       expect(result.success).toBe(true)
     })
   })
 
   describe('file', () => {
-    it('accepts a valid file node', () => {
-      expect(FileTreeNodeSchema.safeParse(makeFile()).success).toBe(true)
+    it('accepts a valid file entry', () => {
+      expect(FileEntrySchema.safeParse(makeFile()).success).toBe(true)
     })
 
     it('rejects file with null parentId', () => {
-      const result = FileTreeNodeSchema.safeParse(makeFile({ parentId: null }))
+      const result = FileEntrySchema.safeParse(makeFile({ parentId: null }))
       expect(result.success).toBe(false)
       expect(result.error?.issues.some((i) => i.path.includes('parentId'))).toBe(true)
     })
 
     it('rejects file with non-null providerConfig', () => {
-      const result = FileTreeNodeSchema.safeParse(
+      const result = FileEntrySchema.safeParse(
         makeFile({ providerConfig: { providerType: 'local_managed', basePath: '/x' } })
       )
       expect(result.success).toBe(false)
@@ -332,54 +332,52 @@ describe('FileTreeNodeSchema type invariants', () => {
   })
 })
 
-describe('FileTreeNodeSchema trash invariants', () => {
-  it('accepts valid trashed node (parentId=system_trash + previousParentId set)', () => {
-    const result = FileTreeNodeSchema.safeParse(
-      makeFile({ parentId: 'system_trash', previousParentId: VALID_UUID_V7_2 })
-    )
+describe('FileEntrySchema trash invariants', () => {
+  it('accepts valid trashed entry (parentId=system_trash + previousParentId set)', () => {
+    const result = FileEntrySchema.safeParse(makeFile({ parentId: 'system_trash', previousParentId: VALID_UUID_V7_2 }))
     expect(result.success).toBe(true)
   })
 
-  it('accepts valid active node (no previousParentId)', () => {
-    const result = FileTreeNodeSchema.safeParse(makeFile({ previousParentId: null }))
+  it('accepts valid active entry (no previousParentId)', () => {
+    const result = FileEntrySchema.safeParse(makeFile({ previousParentId: null }))
     expect(result.success).toBe(true)
   })
 
-  it('rejects trashed node without previousParentId', () => {
-    const result = FileTreeNodeSchema.safeParse(makeFile({ parentId: 'system_trash', previousParentId: null }))
+  it('rejects trashed entry without previousParentId', () => {
+    const result = FileEntrySchema.safeParse(makeFile({ parentId: 'system_trash', previousParentId: null }))
     expect(result.success).toBe(false)
     expect(result.error?.issues.some((i) => i.path.includes('previousParentId'))).toBe(true)
   })
 
-  it('rejects previousParentId set on non-trashed node', () => {
-    const result = FileTreeNodeSchema.safeParse(makeFile({ previousParentId: VALID_UUID_V7_2 }))
+  it('rejects previousParentId set on non-trashed entry', () => {
+    const result = FileEntrySchema.safeParse(makeFile({ previousParentId: VALID_UUID_V7_2 }))
     expect(result.success).toBe(false)
     expect(result.error?.issues.some((i) => i.path.includes('previousParentId'))).toBe(true)
   })
 })
 
-describe('NodeIdSchema', () => {
+describe('FileEntryIdSchema', () => {
   it('accepts UUID v7', () => {
-    expect(NodeIdSchema.safeParse('019606a0-0000-7000-8000-000000000001').success).toBe(true)
+    expect(FileEntryIdSchema.safeParse('019606a0-0000-7000-8000-000000000001').success).toBe(true)
   })
 
-  it('accepts system node IDs', () => {
-    expect(NodeIdSchema.safeParse('mount_files').success).toBe(true)
-    expect(NodeIdSchema.safeParse('mount_notes').success).toBe(true)
-    expect(NodeIdSchema.safeParse('system_trash').success).toBe(true)
+  it('accepts system entry IDs', () => {
+    expect(FileEntryIdSchema.safeParse('mount_files').success).toBe(true)
+    expect(FileEntryIdSchema.safeParse('mount_notes').success).toBe(true)
+    expect(FileEntryIdSchema.safeParse('system_trash').success).toBe(true)
   })
 
   it('rejects UUID v4', () => {
-    expect(NodeIdSchema.safeParse('550e8400-e29b-41d4-a716-446655440000').success).toBe(false)
+    expect(FileEntryIdSchema.safeParse('550e8400-e29b-41d4-a716-446655440000').success).toBe(false)
   })
 
   it('rejects random strings', () => {
-    expect(NodeIdSchema.safeParse('not-a-valid-id').success).toBe(false)
-    expect(NodeIdSchema.safeParse('').success).toBe(false)
+    expect(FileEntryIdSchema.safeParse('not-a-valid-id').success).toBe(false)
+    expect(FileEntryIdSchema.safeParse('').success).toBe(false)
   })
 
   it('accepts mount_temp', () => {
-    expect(NodeIdSchema.safeParse('mount_temp').success).toBe(true)
+    expect(FileEntryIdSchema.safeParse('mount_temp').success).toBe(true)
   })
 })
 
@@ -489,9 +487,9 @@ describe('MountProviderConfigSchema', () => {
   })
 })
 
-describe('CreateNodeDtoSchema', () => {
+describe('CreateEntryDtoSchema', () => {
   it('rejects type=mount', () => {
-    const result = CreateNodeDtoSchema.safeParse({
+    const result = CreateEntryDtoSchema.safeParse({
       type: 'mount',
       name: 'evil-mount',
       parentId: '019606a0-0000-7000-8000-000000000001'

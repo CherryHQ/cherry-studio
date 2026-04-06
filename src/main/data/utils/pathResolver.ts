@@ -4,9 +4,9 @@ import path from 'node:path'
 import type { MountProviderConfig } from '@shared/data/types/file'
 
 /**
- * Minimal node shape needed for path resolution
+ * Minimal entry shape needed for path resolution
  */
-export interface PathResolvableNode {
+export interface PathResolvableEntry {
   id: string
   name: string
   ext: string | null
@@ -28,26 +28,26 @@ export function getExtSuffix(ext: string | null): string {
 }
 
 /**
- * Resolve the physical filesystem path for a node.
+ * Resolve the physical filesystem path for a file entry.
  *
  * - `local_managed`: `{basePath}/{id}{.ext}` — flat UUID-based storage
  * - `local_external`: `{basePath}/{...ancestorNames}/{name}{.ext}` — mirrors OS directory structure
  * - `system`: throws — system mounts have no physical storage
  * - `remote`: `{cachePath}/{remoteId}` — local cache path (future)
  *
- * @param node - The node to resolve
- * @param mount - The mount this node belongs to
+ * @param entry - The file entry to resolve
+ * @param mount - The mount this entry belongs to
  * @param ancestorNames - Ordered list of ancestor directory names from mount root to parent (only needed for local_external)
  */
-export function resolvePhysicalPath(node: PathResolvableNode, mount: MountInfo, ancestorNames?: string[]): string {
+export function resolvePhysicalPath(entry: PathResolvableEntry, mount: MountInfo, ancestorNames?: string[]): string {
   const config = mount.providerConfig
   if (!config) {
-    throw new Error(`Mount for node ${node.id} has no provider config`)
+    throw new Error(`Mount for entry ${entry.id} has no provider config`)
   }
 
   // Reject null bytes in any user-controlled path segments
-  if (node.id.includes('\0') || node.name.includes('\0') || (node.ext && node.ext.includes('\0'))) {
-    throw new Error('Node id, name, or extension contains null bytes')
+  if (entry.id.includes('\0') || entry.name.includes('\0') || (entry.ext && entry.ext.includes('\0'))) {
+    throw new Error('Entry id, name, or extension contains null bytes')
   }
   if (ancestorNames?.some((n) => n.includes('\0'))) {
     throw new Error('Ancestor names contain null bytes')
@@ -55,7 +55,7 @@ export function resolvePhysicalPath(node: PathResolvableNode, mount: MountInfo, 
 
   switch (config.providerType) {
     case 'local_managed': {
-      const resolved = path.resolve(config.basePath, `${node.id}${getExtSuffix(node.ext)}`)
+      const resolved = path.resolve(config.basePath, `${entry.id}${getExtSuffix(entry.ext)}`)
       assertPathContained(resolved, config.basePath)
       return resolved
     }
@@ -64,7 +64,7 @@ export function resolvePhysicalPath(node: PathResolvableNode, mount: MountInfo, 
       if (ancestorNames === undefined) {
         throw new Error('ancestorNames is required for local_external provider')
       }
-      const resolved = path.resolve(config.basePath, ...ancestorNames, `${node.name}${getExtSuffix(node.ext)}`)
+      const resolved = path.resolve(config.basePath, ...ancestorNames, `${entry.name}${getExtSuffix(entry.ext)}`)
       // Resolve symlinks for local_external — user-chosen directories may contain symlinks
       try {
         const realResolved = fs.realpathSync(resolved)
@@ -73,20 +73,22 @@ export function resolvePhysicalPath(node: PathResolvableNode, mount: MountInfo, 
         return realResolved
       } catch (err) {
         throw new Error(
-          `Failed to resolve path for node ${node.id} (name="${node.name}") ` +
+          `Failed to resolve path for entry ${entry.id} (name="${entry.name}") ` +
             `under basePath="${config.basePath}": ${(err as Error).message}`
         )
       }
     }
 
     case 'system':
-      throw new Error('System mount nodes have no physical storage path')
+      throw new Error('System mount entries have no physical storage path')
 
     case 'remote':
       throw new Error('Remote path resolution is not yet implemented')
 
     default:
-      throw new Error(`Unknown provider type: ${(config as Record<string, unknown>).providerType} for node ${node.id}`)
+      throw new Error(
+        `Unknown provider type: ${(config as Record<string, unknown>).providerType} for entry ${entry.id}`
+      )
   }
 }
 

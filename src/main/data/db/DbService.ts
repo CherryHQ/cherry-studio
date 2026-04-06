@@ -66,7 +66,7 @@ export class DbService extends BaseService {
     await this.migrateDb()
     await this.migrateSeed('preference')
     await this.migrateSeed('translateLanguage')
-    await this.migrateSeed('node')
+    await this.migrateSeed('fileEntry')
   }
 
   /**

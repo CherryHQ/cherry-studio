@@ -8,10 +8,10 @@
 
 import type { OffsetPaginationResponse } from '@shared/data/api/apiTypes'
 import {
+  type FileEntry,
+  type FileEntryId,
+  FileEntryIdSchema,
   type FileRef,
-  type FileTreeNode,
-  type NodeId,
-  NodeIdSchema,
   SafeNameSchema,
   tempSessionRefFields
 } from '@shared/data/types/file'
@@ -22,7 +22,7 @@ import * as z from 'zod'
 // ============================================================================
 
 /**
- * DTO for creating a new file or directory node.
+ * DTO for creating a new file or directory entry.
  *
  * Internal to service layer — not exposed via DataApi.
  * FileService uses this when calling FileTreeService after completing FS operations.
@@ -32,34 +32,34 @@ import * as z from 'zod'
  *            Service layer splits file names into entity `name` + `ext`.
  *
  * Fields derived by the service layer (not in DTO):
- * - `mountId` — inherited from parent node
+ * - `mountId` — inherited from parent entry
  * - `ext` — extracted from `name` for files
  * - `size` — read from actual file data
  */
-export const CreateNodeDtoSchema = z.object({
-  /** Node type (file or dir, not mount) */
+export const CreateEntryDtoSchema = z.object({
+  /** Entry type (file or dir, not mount) */
   type: z.enum(['file', 'dir']),
   /** Full name: for files includes extension (e.g. `report.pdf`), for dirs the directory name */
   name: SafeNameSchema,
-  /** Parent node ID (mountId is derived from this) */
-  parentId: NodeIdSchema
+  /** Parent entry ID (mountId is derived from this) */
+  parentId: FileEntryIdSchema
 })
-export type CreateNodeDto = z.infer<typeof CreateNodeDtoSchema>
+export type CreateEntryDto = z.infer<typeof CreateEntryDtoSchema>
 
 /**
- * DTO for updating a node's metadata.
+ * DTO for updating an entry's metadata.
  *
  * Internal to service layer — not exposed via DataApi.
  * Supports rename (name), move (parentId), or both (Unix mv semantics).
  * `name` is the full name (with extension for files); service splits into `name` + `ext`.
  */
-export const UpdateNodeDtoSchema = z.object({
+export const UpdateEntryDtoSchema = z.object({
   /** Updated full name (with extension for files) */
   name: SafeNameSchema.optional(),
-  /** New parent node ID (for move operations) */
-  parentId: NodeIdSchema.optional()
+  /** New parent entry ID (for move operations) */
+  parentId: FileEntryIdSchema.optional()
 })
-export type UpdateNodeDto = z.infer<typeof UpdateNodeDtoSchema>
+export type UpdateEntryDto = z.infer<typeof UpdateEntryDtoSchema>
 
 /**
  * DTO for creating a file reference.
@@ -80,43 +80,43 @@ export type CreateFileRefDto = z.infer<typeof CreateFileRefDtoSchema>
  * File API Schema definitions
  *
  * Read-only endpoints organized by domain:
- * - /files/nodes — Node listing and detail
- * - /files/nodes/:id/children — Tree lazy-loading
- * - /files/nodes/:id/refs — File references per node
+ * - /files/entries — Entry listing and detail
+ * - /files/entries/:id/children — Tree lazy-loading
+ * - /files/entries/:id/refs — File references per entry
  * - /files/refs/by-source — File references by business source
  * - /files/mounts — Mount point listing
  */
 export interface FileSchemas {
-  // ─── Node Queries ───
+  // ─── Entry Queries ───
 
   /**
-   * Nodes collection query
-   * @example GET /files/nodes?mountId=mount_files&type=file
+   * Entries collection query
+   * @example GET /files/entries?mountId=mount_files&type=file
    */
-  '/files/nodes': {
-    /** List nodes with filters and pagination */
+  '/files/entries': {
+    /** List entries with filters and pagination */
     GET: {
       query: {
-        mountId?: NodeId
-        parentId?: NodeId
+        mountId?: FileEntryId
+        parentId?: FileEntryId
         type?: 'file' | 'dir'
         inTrash?: boolean
         page?: number
         limit?: number
       }
-      response: OffsetPaginationResponse<FileTreeNode>
+      response: OffsetPaginationResponse<FileEntry>
     }
   }
 
   /**
-   * Individual node query
-   * @example GET /files/nodes/abc123
+   * Individual entry query
+   * @example GET /files/entries/abc123
    */
-  '/files/nodes/:id': {
-    /** Get a node by ID */
+  '/files/entries/:id': {
+    /** Get an entry by ID */
     GET: {
-      params: { id: NodeId }
-      response: FileTreeNode
+      params: { id: FileEntryId }
+      response: FileEntry
     }
   }
 
@@ -124,12 +124,12 @@ export interface FileSchemas {
 
   /**
    * Children endpoint for lazy-loading file tree
-   * @example GET /files/nodes/abc123/children?sortBy=name&sortOrder=asc
+   * @example GET /files/entries/abc123/children?sortBy=name&sortOrder=asc
    */
-  '/files/nodes/:id/children': {
-    /** Get child nodes with sorting and pagination */
+  '/files/entries/:id/children': {
+    /** Get child entries with sorting and pagination */
     GET: {
-      params: { id: NodeId }
+      params: { id: FileEntryId }
       query: {
         recursive?: boolean
         /** Max tree depth when recursive=true. Clamped to server maximum (default: 20) */
@@ -139,20 +139,20 @@ export interface FileSchemas {
         limit?: number
         offset?: number
       }
-      response: OffsetPaginationResponse<FileTreeNode>
+      response: OffsetPaginationResponse<FileEntry>
     }
   }
 
   // ─── File Reference Queries ───
 
   /**
-   * File references for a specific node
-   * @example GET /files/nodes/abc123/refs
+   * File references for a specific entry
+   * @example GET /files/entries/abc123/refs
    */
-  '/files/nodes/:id/refs': {
-    /** Get all references for a file node */
+  '/files/entries/:id/refs': {
+    /** Get all references for a file entry */
     GET: {
-      params: { id: NodeId }
+      params: { id: FileEntryId }
       response: FileRef[]
     }
   }
@@ -183,7 +183,7 @@ export interface FileSchemas {
     /** Get mount point list (excludes system mounts like Trash by default) */
     GET: {
       query: { includeSystem?: boolean }
-      response: FileTreeNode[]
+      response: FileEntry[]
     }
   }
 }

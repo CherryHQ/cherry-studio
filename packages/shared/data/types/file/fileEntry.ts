@@ -1,11 +1,11 @@
 /**
- * File tree node entity types
+ * File entry entity types
  *
- * Zod schemas for runtime validation of file nodes (file/dir/mount) in the unified tree.
+ * Zod schemas for runtime validation of file entries (file/dir/mount) in the unified tree.
  * Timestamps are numbers (ms epoch) matching DB integer storage.
  * For file reference types, see `./ref/`.
  *
- * ## Node type invariants
+ * ## Entry type invariants
  *
  * | Field            | type=mount              | type=dir     | type=file              |
  * |------------------|-------------------------|--------------|------------------------|
@@ -18,7 +18,7 @@
  * | cachedAt         | null                    | nullable (remote dirs have cache state) | nullable (validated at service layer) |
  * | previousParentId | null (mount can't be trashed) | nullable (trash state) | nullable (trash state) |
  *
- * ## Node lifecycle state machine
+ * ## Entry lifecycle state machine
  *
  * ```
  *                  ┌──────────┐
@@ -40,12 +40,12 @@
  *
  * | Field           | Active                  | Trashed (direct child of Trash)  |
  * |-----------------|-------------------------|----------------------------------|
- * | parentId        | points to parent node   | `system_trash`                   |
+ * | parentId        | points to parent entry  | `system_trash`                   |
  * | previousParentId| null                    | original parentId before trash   |
  * | mountId         | unchanged               | unchanged (keeps original mount) |
  *
- * Note: Nested children of a trashed node remain in "Active" shape — only the
- * top-level trashed node gets `parentId=system_trash` and `previousParentId` set.
+ * Note: Nested children of a trashed entry remain in "Active" shape — only the
+ * top-level trashed entry gets `parentId=system_trash` and `previousParentId` set.
  */
 
 import * as z from 'zod'
@@ -53,46 +53,46 @@ import * as z from 'zod'
 import { SafeNameSchema, TimestampSchema } from './essential'
 import { MountProviderConfigSchema } from './provider'
 
-// ─── System Node IDs ───
+// ─── System Entry IDs ───
 
-/** Well-known system mount node IDs, seeded at app initialization. */
+/** Well-known system mount entry IDs, seeded at app initialization. */
 export const SYSTEM_MOUNT_FILES = 'mount_files' as const
 export const SYSTEM_MOUNT_NOTES = 'mount_notes' as const
 export const SYSTEM_MOUNT_TEMP = 'mount_temp' as const
 export const SYSTEM_TRASH = 'system_trash' as const
-export const SYSTEM_NODE_IDS = [SYSTEM_MOUNT_FILES, SYSTEM_MOUNT_NOTES, SYSTEM_MOUNT_TEMP, SYSTEM_TRASH] as const
-export const SystemNodeIdSchema = z.enum(SYSTEM_NODE_IDS)
-export type SystemNodeId = z.infer<typeof SystemNodeIdSchema>
+export const SYSTEM_ENTRY_IDS = [SYSTEM_MOUNT_FILES, SYSTEM_MOUNT_NOTES, SYSTEM_MOUNT_TEMP, SYSTEM_TRASH] as const
+export const SystemEntryIdSchema = z.enum(SYSTEM_ENTRY_IDS)
+export type SystemEntryId = z.infer<typeof SystemEntryIdSchema>
 
 /**
- * Accepts UUID v7 or a known system node ID.
+ * Accepts UUID v7 or a known system entry ID.
  *
- * Note: `NodeId` is inferred as `string` at the type level — it does NOT carry
- * runtime validation. API handlers MUST validate incoming IDs with `NodeIdSchema.parse()`
- * to enforce the UUID v7 / system node ID constraint.
+ * Note: `FileEntryId` is inferred as `string` at the type level — it does NOT carry
+ * runtime validation. API handlers MUST validate incoming IDs with `FileEntryIdSchema.parse()`
+ * to enforce the UUID v7 / system entry ID constraint.
  */
-export const NodeIdSchema = z.union([z.uuidv7(), SystemNodeIdSchema])
-export type NodeId = z.infer<typeof NodeIdSchema>
+export const FileEntryIdSchema = z.union([z.uuidv7(), SystemEntryIdSchema])
+export type FileEntryId = z.infer<typeof FileEntryIdSchema>
 
-// ─── Node Type ───
+// ─── Entry Type ───
 
-export const FileNodeTypeSchema = z.enum(['file', 'dir', 'mount'])
-export type FileNodeType = z.infer<typeof FileNodeTypeSchema>
+export const FileEntryTypeSchema = z.enum(['file', 'dir', 'mount'])
+export type FileEntryType = z.infer<typeof FileEntryTypeSchema>
 
 // ─── Common Fields ───
 
-const nodeCommonFields = {
-  /** Node ID (UUID v7, or a system node ID for mount nodes) */
-  id: NodeIdSchema,
+const entryCommonFields = {
+  /** Entry ID (UUID v7, or a system entry ID for mount entries) */
+  id: FileEntryIdSchema,
   /** User-visible name (without extension) */
   name: SafeNameSchema,
   /**
-   * Mount ID this node belongs to. For mount nodes, equals own id.
+   * Mount ID this entry belongs to. For mount entries, equals own id.
    * Known system mounts: `mount_files`, `mount_notes`, `mount_temp`, `system_trash`.
    */
-  mountId: NodeIdSchema,
+  mountId: FileEntryIdSchema,
   /** Original parent ID before moving to Trash (only for Trash direct children) */
-  previousParentId: NodeIdSchema.nullable(),
+  previousParentId: FileEntryIdSchema.nullable(),
   /** Creation timestamp (ms epoch) */
   createdAt: TimestampSchema,
   /** Last update timestamp (ms epoch) */
@@ -101,13 +101,13 @@ const nodeCommonFields = {
 
 // ─── Per-Type Schemas ───
 
-/** Mount node: top-level root with provider configuration */
-export const MountNodeSchema = z
+/** Mount entry: top-level root with provider configuration */
+export const MountEntrySchema = z
   .object({
-    ...nodeCommonFields,
+    ...entryCommonFields,
     type: z.literal('mount'),
     parentId: z.null(),
-    // Mount nodes cannot be trashed — override to structurally forbid
+    // Mount entries cannot be trashed — override to structurally forbid
     previousParentId: z.null(),
     ext: z.null(),
     size: z.null(),
@@ -115,17 +115,17 @@ export const MountNodeSchema = z
     remoteId: z.null(),
     cachedAt: z.null()
   })
-  .superRefine((node, ctx) => {
-    if (node.mountId !== node.id) {
-      ctx.addIssue({ code: 'custom', path: ['mountId'], message: 'Mount nodes must have mountId = own id' })
+  .superRefine((entry, ctx) => {
+    if (entry.mountId !== entry.id) {
+      ctx.addIssue({ code: 'custom', path: ['mountId'], message: 'Mount entries must have mountId = own id' })
     }
   })
 
-/** Directory node */
-export const DirNodeSchema = z.object({
-  ...nodeCommonFields,
+/** Directory entry */
+export const DirEntrySchema = z.object({
+  ...entryCommonFields,
   type: z.literal('dir'),
-  parentId: NodeIdSchema,
+  parentId: FileEntryIdSchema,
   ext: z.null(),
   size: z.null(),
   providerConfig: z.null(),
@@ -135,11 +135,11 @@ export const DirNodeSchema = z.object({
   cachedAt: TimestampSchema.nullable()
 })
 
-/** File node */
-export const FileNodeSchema = z.object({
-  ...nodeCommonFields,
+/** Regular file entry (type='file') */
+export const RegularFileEntrySchema = z.object({
+  ...entryCommonFields,
   type: z.literal('file'),
-  parentId: NodeIdSchema,
+  parentId: FileEntryIdSchema,
   /** File extension without leading dot (e.g. 'pdf', 'md'). Null for extensionless files (e.g. Dockerfile) */
   ext: z.string().min(1).nullable(),
   /** File size in bytes */
@@ -153,44 +153,44 @@ export const FileNodeSchema = z.object({
 
 // ─── Discriminated Union ───
 
-/** Complete file node entity as stored in database, discriminated by `type` */
-export const FileTreeNodeSchema = z
-  .discriminatedUnion('type', [MountNodeSchema, DirNodeSchema, FileNodeSchema])
-  .superRefine((node, ctx) => {
+/** Complete file entry entity as stored in database, discriminated by `type` */
+export const FileEntrySchema = z
+  .discriminatedUnion('type', [MountEntrySchema, DirEntrySchema, RegularFileEntrySchema])
+  .superRefine((entry, ctx) => {
     // ─── Trash state invariants (apply to all types) ───
-    if (node.previousParentId !== null && node.parentId !== SYSTEM_TRASH) {
+    if (entry.previousParentId !== null && entry.parentId !== SYSTEM_TRASH) {
       ctx.addIssue({
         code: 'custom',
         path: ['previousParentId'],
         message: 'previousParentId must only be set when parentId = system_trash'
       })
     }
-    if (node.parentId === SYSTEM_TRASH && node.previousParentId === null) {
+    if (entry.parentId === SYSTEM_TRASH && entry.previousParentId === null) {
       ctx.addIssue({
         code: 'custom',
         path: ['previousParentId'],
-        message: 'Trashed nodes must have previousParentId set for restore'
+        message: 'Trashed entries must have previousParentId set for restore'
       })
     }
   })
-export type FileTreeNode = z.infer<typeof FileTreeNodeSchema>
+export type FileEntry = z.infer<typeof FileEntrySchema>
 
 // ─── Per-Type Inferred Types ───
 
-export type MountNode = z.infer<typeof MountNodeSchema>
-export type DirNode = z.infer<typeof DirNodeSchema>
-export type FileNode = z.infer<typeof FileNodeSchema>
+export type MountEntry = z.infer<typeof MountEntrySchema>
+export type DirEntry = z.infer<typeof DirEntrySchema>
+export type RegularFileEntry = z.infer<typeof RegularFileEntrySchema>
 
 // ─── Type Guards ───
 
-export function isMountNode(node: FileTreeNode): node is MountNode {
-  return node.type === 'mount'
+export function isMountEntry(entry: FileEntry): entry is MountEntry {
+  return entry.type === 'mount'
 }
 
-export function isDirNode(node: FileTreeNode): node is DirNode {
-  return node.type === 'dir'
+export function isDirEntry(entry: FileEntry): entry is DirEntry {
+  return entry.type === 'dir'
 }
 
-export function isFileNode(node: FileTreeNode): node is FileNode {
-  return node.type === 'file'
+export function isRegularFileEntry(entry: FileEntry): entry is RegularFileEntry {
+  return entry.type === 'file'
 }

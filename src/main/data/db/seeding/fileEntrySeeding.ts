@@ -1,11 +1,11 @@
-import { nodeTable } from '@data/db/schemas/file'
+import { fileEntryTable } from '@data/db/schemas/file'
 import { getFilesDir, getNotesDir, getTempFilesDir } from '@main/utils/file'
 import type { MountProviderConfig } from '@shared/data/types/file'
 import { sql } from 'drizzle-orm'
 
 import type { DbType, ISeed } from '../types'
 
-interface SystemNode {
+interface SystemEntry {
   id: string
   type: 'mount'
   name: string
@@ -14,7 +14,7 @@ interface SystemNode {
   providerConfig: MountProviderConfig
 }
 
-function getSystemNodes(): SystemNode[] {
+function getSystemEntries(): SystemEntry[] {
   let filesDir: string
   let notesDir: string
   let tempDir: string
@@ -83,15 +83,15 @@ function getSystemNodes(): SystemNode[] {
   ]
 }
 
-class NodeSeed implements ISeed {
+class FileEntrySeed implements ISeed {
   async migrate(db: DbType): Promise<void> {
-    const systemNodes = getSystemNodes()
-    // Upsert: insert new system nodes or update providerConfig if paths changed (e.g. after app upgrade)
+    const systemEntries = getSystemEntries()
+    // Upsert: insert new system entries or update providerConfig if paths changed (e.g. after app upgrade)
     await db
-      .insert(nodeTable)
-      .values(systemNodes)
+      .insert(fileEntryTable)
+      .values(systemEntries)
       .onConflictDoUpdate({
-        target: nodeTable.id,
+        target: fileEntryTable.id,
         set: {
           name: sql`excluded.name`,
           providerConfig: sql`excluded.provider_config`
@@ -100,4 +100,4 @@ class NodeSeed implements ISeed {
   }
 }
 
-export default NodeSeed
+export default FileEntrySeed

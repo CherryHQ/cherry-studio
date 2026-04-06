@@ -27,17 +27,17 @@ export const fileHandlers: {
     [Method in keyof FileSchemas[Path]]: FileHandler<Path, Method & ApiMethods<Path>>
   }
 } = {
-  '/files/nodes': {
-    GET: notImplemented('GET /files/nodes')
+  '/files/entries': {
+    GET: notImplemented('GET /files/entries')
   },
-  '/files/nodes/:id': {
-    GET: notImplemented('GET /files/nodes/:id')
+  '/files/entries/:id': {
+    GET: notImplemented('GET /files/entries/:id')
   },
-  '/files/nodes/:id/children': {
-    GET: notImplemented('GET /files/nodes/:id/children')
+  '/files/entries/:id/children': {
+    GET: notImplemented('GET /files/entries/:id/children')
   },
-  '/files/nodes/:id/refs': {
-    GET: notImplemented('GET /files/nodes/:id/refs')
+  '/files/entries/:id/refs': {
+    GET: notImplemented('GET /files/entries/:id/refs')
   },
   '/files/refs/by-source': {
     GET: notImplemented('GET /files/refs/by-source')
