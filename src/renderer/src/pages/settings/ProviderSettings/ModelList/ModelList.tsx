@@ -1,9 +1,10 @@
 import { Button, ColFlex, Flex, RowFlex, Tooltip } from '@cherrystudio/ui'
+import { useModelMutations, useModels } from '@data/hooks/useModels'
+import { useProvider, useProviderApiKeys } from '@data/hooks/useProviders'
 import CollapsibleSearchBar from '@renderer/components/CollapsibleSearchBar'
 import { LoadingIcon, StreamlineGoodHealthAndWellBeing } from '@renderer/components/Icons'
 import CustomTag from '@renderer/components/Tags/CustomTag'
 import { PROVIDER_URLS } from '@renderer/config/providers'
-import { useProvider } from '@renderer/hooks/useProvider'
 import { getProviderLabel } from '@renderer/i18n/label'
 import { SettingHelpLink, SettingHelpText, SettingHelpTextRow, SettingSubtitle } from '@renderer/pages/settings'
 import EditModelPopup from '@renderer/pages/settings/ProviderSettings/EditModelPopup/EditModelPopup'
@@ -11,13 +12,15 @@ import AddModelPopup from '@renderer/pages/settings/ProviderSettings/ModelList/A
 import DownloadOVMSModelPopup from '@renderer/pages/settings/ProviderSettings/ModelList/DownloadOVMSModelPopup'
 import ManageModelsPopup from '@renderer/pages/settings/ProviderSettings/ModelList/ManageModelsPopup'
 import NewApiAddModelPopup from '@renderer/pages/settings/ProviderSettings/ModelList/NewApiAddModelPopup'
-import type { Model } from '@renderer/types'
+import type { Model as V1Model, Provider as V1Provider } from '@renderer/types'
 import { filterModelsByKeywords } from '@renderer/utils'
-import { getDuplicateModelNames } from '@renderer/utils/model'
-import { isNewApiProvider } from '@renderer/utils/provider'
-import { Space, Spin } from 'antd'
+import { isNewApiProvider } from '@renderer/utils/provider.v2'
+import { toV1ProviderShim } from '@renderer/utils/v1ProviderShim'
+import type { Model } from '@shared/data/types/model'
+import { parseUniqueModelId } from '@shared/data/types/model'
+import { Spin } from 'antd'
 import { groupBy, isEmpty, sortBy, toPairs } from 'lodash'
-import { Plus, RefreshCw } from 'lucide-react'
+import { ListCheck, Plus } from 'lucide-react'
 import React, { memo, startTransition, useCallback, useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -35,7 +38,7 @@ const MODEL_COUNT_THRESHOLD = 10
  * 根据搜索文本筛选模型、分组并排序
  */
 const calculateModelGroups = (models: Model[], searchText: string): ModelGroups => {
-  const filteredModels = searchText ? filterModelsByKeywords(searchText, models) : models
+  const filteredModels = searchText ? filterModelsByKeywords(searchText, models as any) : models
   const grouped = groupBy(filteredModels, 'group')
   return sortBy(toPairs(grouped), [0]).reduce((acc, [key, value]) => {
     acc[key] = value
@@ -48,14 +51,29 @@ const calculateModelGroups = (models: Model[], searchText: string): ModelGroups 
  */
 const ModelList: React.FC<ModelListProps> = ({ providerId }) => {
   const { t } = useTranslation()
-  const { provider, models, removeModel } = useProvider(providerId)
+  const { provider } = useProvider(providerId)
+  const { models } = useModels({ providerId })
+  const { data: apiKeysData } = useProviderApiKeys(providerId)
+  const joinedApiKey = apiKeysData?.keys?.map((k) => k.key).join(',') ?? ''
+  const { deleteModel } = useModelMutations()
+
+  const removeModel = useCallback(
+    async (model: Model) => {
+      const { modelId } = parseUniqueModelId(model.id)
+      await deleteModel(model.providerId, modelId)
+    },
+    [deleteModel]
+  )
 
   // 稳定的编辑模型回调，避免内联函数导致子组件 memo 失效
-  const handleEditModel = useCallback((model: Model) => EditModelPopup.show({ provider, model }), [provider])
+  const handleEditModel = useCallback(
+    (model: Model) => provider && EditModelPopup.show({ provider: provider as any, model: model as any }),
+    [provider]
+  )
 
-  const providerConfig = PROVIDER_URLS[provider.id]
-  const docsWebsite = providerConfig?.websites?.docs
-  const modelsWebsite = providerConfig?.websites?.models
+  const providerConfig = provider ? PROVIDER_URLS[provider.id as keyof typeof PROVIDER_URLS] : undefined
+  const docsWebsite = provider?.websites?.docs ?? providerConfig?.websites?.docs
+  const modelsWebsite = provider?.websites?.models ?? providerConfig?.websites?.models
 
   const [searchText, _setSearchText] = useState('')
   const [displayedModelGroups, setDisplayedModelGroups] = useState<ModelGroups | null>(() => {
@@ -65,8 +83,25 @@ const ModelList: React.FC<ModelListProps> = ({ providerId }) => {
     return calculateModelGroups(models, '')
   })
 
-  const { isChecking: isHealthChecking, modelStatuses, runHealthCheck } = useHealthCheck(provider, models)
-  const duplicateModelNames = useMemo(() => getDuplicateModelNames(models), [models])
+  const v1ProviderForHealth = useMemo((): V1Provider => {
+    if (provider) {
+      return toV1ProviderShim(provider, { models, apiKey: joinedApiKey })
+    }
+    return {
+      id: '',
+      name: '',
+      type: 'openai',
+      apiKey: '',
+      apiHost: '',
+      models: []
+    } as V1Provider
+  }, [provider, models, joinedApiKey])
+  // TODO(v2-cleanup): Remove v1 shim after useHealthCheck migrates to v2
+  const {
+    isChecking: isHealthChecking,
+    modelStatuses,
+    runHealthCheck
+  } = useHealthCheck(v1ProviderForHealth, models as unknown as V1Model[])
 
   // 将 modelStatuses 数组转换为 Map，实现 O(1) 查找
   const modelStatusMap = useMemo(() => {
@@ -94,75 +129,51 @@ const ModelList: React.FC<ModelListProps> = ({ providerId }) => {
   }, [displayedModelGroups])
 
   const onManageModel = useCallback(() => {
-    void ManageModelsPopup.show({ providerId: provider.id })
-  }, [provider.id])
+    if (provider) ManageModelsPopup.show({ providerId: provider.id })
+  }, [provider])
 
   const onAddModel = useCallback(() => {
+    if (!provider) return
     if (isNewApiProvider(provider)) {
-      void NewApiAddModelPopup.show({ title: t('settings.models.add.add_model'), provider })
+      NewApiAddModelPopup.show({ title: t('settings.models.add.add_model'), provider: provider as any })
     } else {
-      void AddModelPopup.show({ title: t('settings.models.add.add_model'), provider })
+      AddModelPopup.show({ title: t('settings.models.add.add_model'), provider: provider as any })
     }
   }, [provider, t])
 
   const onDownloadModel = useCallback(
-    () => DownloadOVMSModelPopup.show({ title: t('ovms.download.title'), provider }),
+    () => provider && DownloadOVMSModelPopup.show({ title: t('ovms.download.title'), provider: provider as any }),
     [provider, t]
   )
 
   const isLoading = useMemo(() => displayedModelGroups === null, [displayedModelGroups])
-  const hasNoModels = useMemo(() => models.length === 0, [models.length])
-
-  const actionButtons = (
-    <Space.Compact>
-      <Button onClick={onManageModel} size="icon" disabled={isHealthChecking}>
-        <RefreshCw size={16} />
-        {t('settings.models.manage.fetch_list')}
-      </Button>
-      {provider.id !== 'ovms' ? (
-        <Tooltip title={t('button.add')}>
-          <Button onClick={onAddModel} size="icon" disabled={isHealthChecking}>
-            <Plus size={16} />
-          </Button>
-        </Tooltip>
-      ) : (
-        <Tooltip title={t('button.download')}>
-          <Button onClick={onDownloadModel} size="icon">
-            <Plus size={16} />
-          </Button>
-        </Tooltip>
-      )}
-    </Space.Compact>
-  )
 
   return (
     <>
-      <SettingSubtitle style={{ marginBottom: 12 }}>
-        <RowFlex className="items-center justify-between" style={{ width: '100%' }}>
-          <RowFlex className="items-center gap-2.5">
-            <SettingSubtitle style={{ marginTop: 0 }}>{t('common.models')}</SettingSubtitle>
-            <CustomTag color="#8c8c8c" size={10}>
-              {modelCount}
-            </CustomTag>
-            {!hasNoModels && (
-              <>
-                <Tooltip title={t('settings.models.check.button_caption')}>
-                  <Button size="icon" onClick={runHealthCheck}>
-                    <StreamlineGoodHealthAndWellBeing size={16} isActive={isHealthChecking} color="var(--color-icon)" />
-                  </Button>
-                </Tooltip>
-                <CollapsibleSearchBar
-                  onSearch={setSearchText}
-                  placeholder={t('models.search.placeholder')}
-                  tooltip={t('models.search.tooltip')}
-                />
-              </>
+      <SettingSubtitle className="mb-[5px]">
+        <RowFlex className="w-full items-center justify-between">
+          <RowFlex className="items-center gap-2">
+            <SettingSubtitle className="mt-0">{t('common.models')}</SettingSubtitle>
+            {modelCount > 0 && (
+              <CustomTag color="#8c8c8c" size={10}>
+                {modelCount}
+              </CustomTag>
             )}
+            <CollapsibleSearchBar
+              onSearch={setSearchText}
+              placeholder={t('models.search.placeholder')}
+              tooltip={t('models.search.tooltip')}
+            />
           </RowFlex>
-          {!hasNoModels && actionButtons}
+          <RowFlex>
+            <Tooltip content={t('settings.models.check.button_caption')} closeDelay={0}>
+              <Button variant="ghost" onClick={runHealthCheck}>
+                <StreamlineGoodHealthAndWellBeing size={16} isActive={isHealthChecking} />
+              </Button>
+            </Tooltip>
+          </RowFlex>
         </RowFlex>
       </SettingSubtitle>
-      {hasNoModels && <div style={{ marginBottom: 12 }}>{actionButtons}</div>}
       <Spin spinning={isLoading} indicator={<LoadingIcon color="var(--color-text-2)" />}>
         {displayedModelGroups && !isEmpty(displayedModelGroups) && (
           <ColFlex className="gap-3">
@@ -170,12 +181,11 @@ const ModelList: React.FC<ModelListProps> = ({ providerId }) => {
               <ModelListGroup
                 key={group}
                 groupName={group}
-                models={displayedModelGroups[group]}
-                duplicateModelNames={duplicateModelNames}
-                modelStatusMap={modelStatusMap}
+                models={displayedModelGroups[group] as any}
+                modelStatusMap={modelStatusMap as any}
                 defaultOpen={i <= 5}
-                onEditModel={handleEditModel}
-                onRemoveModel={removeModel}
+                onEditModel={handleEditModel as any}
+                onRemoveModel={removeModel as any}
                 onRemoveGroup={() => displayedModelGroups[group].forEach((model) => removeModel(model))}
               />
             ))}
@@ -188,7 +198,7 @@ const ModelList: React.FC<ModelListProps> = ({ providerId }) => {
             <SettingHelpText>{t('settings.provider.docs_check')} </SettingHelpText>
             {docsWebsite && (
               <SettingHelpLink target="_blank" href={docsWebsite}>
-                {getProviderLabel(provider.id) + ' '}
+                {getProviderLabel(provider?.id ?? '') + ' '}
                 {t('common.docs')}
               </SettingHelpLink>
             )}
@@ -202,6 +212,23 @@ const ModelList: React.FC<ModelListProps> = ({ providerId }) => {
           </SettingHelpTextRow>
         ) : (
           <div className="h-[5px]" />
+        )}
+      </Flex>
+      <Flex className="mt-3 gap-2.5">
+        <Button onClick={onManageModel} disabled={isHealthChecking}>
+          <ListCheck fill="currentColor" size={16} />
+          {t('button.manage')}
+        </Button>
+        {provider?.id !== 'ovms' ? (
+          <Button variant="default" onClick={onAddModel} disabled={isHealthChecking}>
+            <Plus size={16} />
+            {t('button.add')}
+          </Button>
+        ) : (
+          <Button onClick={onDownloadModel} disabled={isHealthChecking}>
+            <Plus size={16} />
+            {t('button.download')}
+          </Button>
         )}
       </Flex>
     </>
