@@ -6,7 +6,7 @@ vi.unmock('node:path')
 vi.unmock('node:os')
 
 // Type-only imports (erased at runtime, unaffected by mocks)
-import type { MountInfo, PathResolvableEntry } from '../pathResolver'
+import type { PathResolvableEntry, PathResolvableMount } from '../pathResolver'
 
 // Dynamic imports after unmock to get real modules
 const fs = await import('node:fs')
@@ -28,7 +28,7 @@ describe('getExtSuffix', () => {
 describe('resolvePhysicalPath', () => {
   // ─── Temp directory for local_external tests (realpathSync requires real paths) ───
   let tmpBase: string
-  let externalMount: MountInfo
+  let externalMount: PathResolvableMount
 
   beforeAll(() => {
     tmpBase = fs.mkdtempSync(path.join(os.tmpdir(), 'pathResolver-test-'))
@@ -40,7 +40,8 @@ describe('resolvePhysicalPath', () => {
     fs.writeFileSync(path.join(tmpBase, '...'), '')
 
     externalMount = {
-      mountConfig: { mountType: 'local_external', basePath: tmpBase, watch: true, watchExtensions: [] }
+      mountType: 'local_external',
+      basePath: tmpBase
     }
   })
 
@@ -49,8 +50,9 @@ describe('resolvePhysicalPath', () => {
   })
 
   describe('local_managed', () => {
-    const mount: MountInfo = {
-      mountConfig: { mountType: 'local_managed', basePath: '/data/files' }
+    const mount: PathResolvableMount = {
+      mountType: 'local_managed',
+      basePath: '/data/files'
     }
 
     it('returns {basePath}/{id}.{ext}', () => {
@@ -84,25 +86,21 @@ describe('resolvePhysicalPath', () => {
   })
 
   describe('system', () => {
-    const mount: MountInfo = {
-      mountConfig: { mountType: 'system' }
+    const mount: PathResolvableMount = {
+      mountType: 'system',
+      basePath: null
     }
 
     it('throws error for system mount', () => {
-      const entry: PathResolvableEntry = { id: 'trash-1', name: 'Trash', ext: null, mountId: 'system_trash' }
+      const entry: PathResolvableEntry = { id: 'trash-1', name: 'Trash', ext: null, mountId: 'mount_trash' }
       expect(() => resolvePhysicalPath(entry, mount)).toThrow('System mount entries have no physical storage path')
     })
   })
 
   describe('remote', () => {
-    const mount: MountInfo = {
-      mountConfig: {
-        mountType: 'remote',
-        apiType: 'openai_files',
-        providerId: 'p1',
-        autoSync: false,
-        options: {}
-      }
+    const mount: PathResolvableMount = {
+      mountType: 'remote',
+      basePath: null
     }
 
     it('throws error for remote mount (not yet implemented)', () => {
@@ -112,16 +110,17 @@ describe('resolvePhysicalPath', () => {
   })
 
   describe('edge cases', () => {
-    it('throws when mount has no mount config', () => {
-      const mount: MountInfo = { mountConfig: null }
+    it('throws when local mount has no basePath', () => {
+      const mount: PathResolvableMount = { mountType: 'local_managed', basePath: null }
       const entry: PathResolvableEntry = { id: 'x', name: 'test', ext: 'txt', mountId: 'unknown' }
-      expect(() => resolvePhysicalPath(entry, mount)).toThrow('has no mount config')
+      expect(() => resolvePhysicalPath(entry, mount)).toThrow('has no basePath')
     })
   })
 
   describe('security', () => {
-    const managedMount: MountInfo = {
-      mountConfig: { mountType: 'local_managed', basePath: '/data/files' }
+    const managedMount: PathResolvableMount = {
+      mountType: 'local_managed',
+      basePath: '/data/files'
     }
 
     // ─── Null byte rejection (checked before realpathSync) ───

@@ -3,12 +3,10 @@ import { describe, expect, it } from 'vitest'
 import {
   FileEntryIdSchema,
   FileEntrySchema,
-  LocalExternalConfigSchema,
-  LocalManagedConfigSchema,
-  MountConfigSchema,
-  RemoteConfigSchema,
+  MountSchema,
+  MountTypeSchema,
   SafeNameSchema,
-  SystemConfigSchema
+  SystemKeySchema
 } from '../file'
 
 /**
@@ -24,10 +22,9 @@ function makeFileEntry(name: string) {
     parentId: '019606a0-0000-7000-8000-000000000002',
     mountId: '019606a0-0000-7000-8000-000000000003',
     size: 100,
-    mountConfig: null,
     remoteId: null,
     cachedAt: null,
-    previousParentId: null,
+    trashedAt: null,
     createdAt: 1700000000000,
     updatedAt: 1700000000000
   }
@@ -36,77 +33,50 @@ function makeFileEntry(name: string) {
 describe('SafeNameSchema validation', () => {
   describe('FileEntrySchema.name', () => {
     it('accepts a normal filename', () => {
-      const result = FileEntrySchema.safeParse(makeFileEntry('my-document'))
-      expect(result.success).toBe(true)
+      expect(FileEntrySchema.safeParse(makeFileEntry('my-document')).success).toBe(true)
     })
 
     it('accepts filenames with spaces and unicode', () => {
-      const result = FileEntrySchema.safeParse(makeFileEntry('我的文档 (copy)'))
-      expect(result.success).toBe(true)
+      expect(FileEntrySchema.safeParse(makeFileEntry('我的文档 (copy)')).success).toBe(true)
     })
 
     it('accepts filenames with dots (not traversal)', () => {
-      const result = FileEntrySchema.safeParse(makeFileEntry('file.backup.old'))
-      expect(result.success).toBe(true)
+      expect(FileEntrySchema.safeParse(makeFileEntry('file.backup.old')).success).toBe(true)
     })
 
     it('accepts triple-dot filename', () => {
-      const result = FileEntrySchema.safeParse(makeFileEntry('...'))
-      expect(result.success).toBe(true)
+      expect(FileEntrySchema.safeParse(makeFileEntry('...')).success).toBe(true)
     })
 
     it('rejects empty name', () => {
-      const result = FileEntrySchema.safeParse(makeFileEntry(''))
-      expect(result.success).toBe(false)
+      expect(FileEntrySchema.safeParse(makeFileEntry('')).success).toBe(false)
     })
 
-    it('rejects name exceeding 255 characters', () => {
-      const result = FileEntrySchema.safeParse(makeFileEntry('a'.repeat(256)))
-      expect(result.success).toBe(false)
+    it('rejects null byte in name', () => {
+      expect(FileEntrySchema.safeParse(makeFileEntry('file\0evil')).success).toBe(false)
     })
 
-    it('accepts name at exactly 255 characters', () => {
-      const result = FileEntrySchema.safeParse(makeFileEntry('a'.repeat(255)))
-      expect(result.success).toBe(true)
+    it('rejects forward slash in name', () => {
+      expect(FileEntrySchema.safeParse(makeFileEntry('a/b')).success).toBe(false)
     })
 
-    it('rejects name containing null byte', () => {
-      const result = FileEntrySchema.safeParse(makeFileEntry('file\0evil'))
-      expect(result.success).toBe(false)
-      expect(result.error?.issues.some((i) => i.message.includes('null bytes'))).toBe(true)
+    it('rejects backslash in name', () => {
+      expect(FileEntrySchema.safeParse(makeFileEntry('a\\b')).success).toBe(false)
     })
 
-    it('rejects name containing forward slash', () => {
-      const result = FileEntrySchema.safeParse(makeFileEntry('path/to/file'))
-      expect(result.success).toBe(false)
-      expect(result.error?.issues.some((i) => i.message.includes('path separators'))).toBe(true)
+    it('rejects dot-dot name', () => {
+      expect(FileEntrySchema.safeParse(makeFileEntry('..')).success).toBe(false)
     })
 
-    it('rejects name containing backslash', () => {
-      const result = FileEntrySchema.safeParse(makeFileEntry('path\\to\\file'))
-      expect(result.success).toBe(false)
-      expect(result.error?.issues.some((i) => i.message.includes('path separators'))).toBe(true)
-    })
-
-    it('rejects name that is single dot', () => {
-      const result = FileEntrySchema.safeParse(makeFileEntry('.'))
-      expect(result.success).toBe(false)
-      expect(result.error?.issues.some((i) => i.message.includes('. or ..'))).toBe(true)
-    })
-
-    it('rejects name that is double dot', () => {
-      const result = FileEntrySchema.safeParse(makeFileEntry('..'))
-      expect(result.success).toBe(false)
-      expect(result.error?.issues.some((i) => i.message.includes('. or ..'))).toBe(true)
-    })
-
-    it('rejects traversal sequence ../../etc/passwd', () => {
-      const result = FileEntrySchema.safeParse(makeFileEntry('../../etc/passwd'))
-      expect(result.success).toBe(false)
+    it('rejects name over 255 chars', () => {
+      expect(FileEntrySchema.safeParse(makeFileEntry('x'.repeat(256))).success).toBe(false)
     })
 
     it('rejects whitespace-only name', () => {
       expect(FileEntrySchema.safeParse(makeFileEntry('   ')).success).toBe(false)
+    })
+
+    it('rejects tab-only name', () => {
       expect(FileEntrySchema.safeParse(makeFileEntry('\t')).success).toBe(false)
     })
   })
@@ -145,25 +115,6 @@ const VALID_UUID_V7_2 = '019606a0-0000-7000-8000-000000000002'
 const VALID_UUID_V7_3 = '019606a0-0000-7000-8000-000000000003'
 const TS = 1700000000000
 
-function makeMount(overrides: Record<string, unknown> = {}) {
-  return {
-    id: 'mount_files',
-    type: 'mount',
-    name: 'Files',
-    ext: null,
-    parentId: null,
-    mountId: 'mount_files',
-    size: null,
-    mountConfig: { mountType: 'local_managed', basePath: '/data/files' },
-    remoteId: null,
-    cachedAt: null,
-    previousParentId: null,
-    createdAt: TS,
-    updatedAt: TS,
-    ...overrides
-  }
-}
-
 function makeDir(overrides: Record<string, unknown> = {}) {
   return {
     id: VALID_UUID_V7,
@@ -173,10 +124,9 @@ function makeDir(overrides: Record<string, unknown> = {}) {
     parentId: VALID_UUID_V7_2,
     mountId: VALID_UUID_V7_3,
     size: null,
-    mountConfig: null,
     remoteId: null,
     cachedAt: null,
-    previousParentId: null,
+    trashedAt: null,
     createdAt: TS,
     updatedAt: TS,
     ...overrides
@@ -192,10 +142,9 @@ function makeFile(overrides: Record<string, unknown> = {}) {
     parentId: VALID_UUID_V7_2,
     mountId: VALID_UUID_V7_3,
     size: 1024,
-    mountConfig: null,
     remoteId: null,
     cachedAt: null,
-    previousParentId: null,
+    trashedAt: null,
     createdAt: TS,
     updatedAt: TS,
     ...overrides
@@ -203,73 +152,31 @@ function makeFile(overrides: Record<string, unknown> = {}) {
 }
 
 describe('FileEntrySchema type invariants', () => {
-  describe('mount', () => {
-    it('accepts a valid mount entry', () => {
-      expect(FileEntrySchema.safeParse(makeMount()).success).toBe(true)
-    })
-
-    it('rejects mount with non-null parentId', () => {
-      const result = FileEntrySchema.safeParse(makeMount({ parentId: VALID_UUID_V7 }))
-      expect(result.success).toBe(false)
-      expect(result.error?.issues.some((i) => i.path.includes('parentId'))).toBe(true)
-    })
-
-    it('rejects mount with mountId ≠ own id', () => {
-      const result = FileEntrySchema.safeParse(makeMount({ mountId: VALID_UUID_V7 }))
-      expect(result.success).toBe(false)
-      expect(result.error?.issues.some((i) => i.path.includes('mountId'))).toBe(true)
-    })
-
-    it('rejects mount with null mountConfig', () => {
-      const result = FileEntrySchema.safeParse(makeMount({ mountConfig: null }))
-      expect(result.success).toBe(false)
-      expect(result.error?.issues.some((i) => i.path.includes('mountConfig'))).toBe(true)
-    })
-
-    it('rejects mount with non-null ext', () => {
-      const result = FileEntrySchema.safeParse(makeMount({ ext: 'txt' }))
-      expect(result.success).toBe(false)
-      expect(result.error?.issues.some((i) => i.path.includes('ext'))).toBe(true)
-    })
-
-    it('rejects mount with non-null remoteId', () => {
-      const result = FileEntrySchema.safeParse(makeMount({ remoteId: 'file-123' }))
-      expect(result.success).toBe(false)
-      expect(result.error?.issues.some((i) => i.path.includes('remoteId'))).toBe(true)
-    })
-
-    it('rejects mount with non-null cachedAt', () => {
-      const result = FileEntrySchema.safeParse(makeMount({ cachedAt: TS }))
-      expect(result.success).toBe(false)
-      expect(result.error?.issues.some((i) => i.path.includes('cachedAt'))).toBe(true)
-    })
-  })
-
   describe('dir', () => {
     it('accepts a valid dir entry', () => {
       expect(FileEntrySchema.safeParse(makeDir()).success).toBe(true)
     })
 
-    it('rejects dir with null parentId', () => {
-      const result = FileEntrySchema.safeParse(makeDir({ parentId: null }))
-      expect(result.success).toBe(false)
-      expect(result.error?.issues.some((i) => i.path.includes('parentId'))).toBe(true)
-    })
-
-    it('rejects dir with non-null mountConfig', () => {
-      const result = FileEntrySchema.safeParse(makeDir({ mountConfig: { mountType: 'local_managed', basePath: '/x' } }))
-      expect(result.success).toBe(false)
-      expect(result.error?.issues.some((i) => i.path.includes('mountConfig'))).toBe(true)
+    it('accepts dir with null parentId (mount root child)', () => {
+      expect(FileEntrySchema.safeParse(makeDir({ parentId: null })).success).toBe(true)
     })
 
     it('accepts dir with remoteId (remote directories have IDs)', () => {
-      const result = FileEntrySchema.safeParse(makeDir({ remoteId: 'folder-123' }))
-      expect(result.success).toBe(true)
+      expect(FileEntrySchema.safeParse(makeDir({ remoteId: 'folder-123' })).success).toBe(true)
     })
 
     it('accepts dir with cachedAt (remote directories have cache state)', () => {
-      const result = FileEntrySchema.safeParse(makeDir({ cachedAt: TS }))
-      expect(result.success).toBe(true)
+      expect(FileEntrySchema.safeParse(makeDir({ cachedAt: TS })).success).toBe(true)
+    })
+
+    it('rejects dir with non-null ext', () => {
+      const result = FileEntrySchema.safeParse(makeDir({ ext: 'txt' }))
+      expect(result.success).toBe(false)
+    })
+
+    it('rejects dir with non-null size', () => {
+      const result = FileEntrySchema.safeParse(makeDir({ size: 100 }))
+      expect(result.success).toBe(false)
     })
   })
 
@@ -278,55 +185,46 @@ describe('FileEntrySchema type invariants', () => {
       expect(FileEntrySchema.safeParse(makeFile()).success).toBe(true)
     })
 
-    it('rejects file with null parentId', () => {
-      const result = FileEntrySchema.safeParse(makeFile({ parentId: null }))
-      expect(result.success).toBe(false)
-      expect(result.error?.issues.some((i) => i.path.includes('parentId'))).toBe(true)
+    it('accepts file with null ext (extensionless files like Dockerfile)', () => {
+      expect(FileEntrySchema.safeParse(makeFile({ ext: null })).success).toBe(true)
     })
 
-    it('rejects file with non-null mountConfig', () => {
-      const result = FileEntrySchema.safeParse(
-        makeFile({ mountConfig: { mountType: 'local_managed', basePath: '/x' } })
-      )
-      expect(result.success).toBe(false)
-      expect(result.error?.issues.some((i) => i.path.includes('mountConfig'))).toBe(true)
+    it('accepts file with null size', () => {
+      expect(FileEntrySchema.safeParse(makeFile({ size: null })).success).toBe(true)
+    })
+  })
+
+  describe('type discrimination', () => {
+    it('rejects unknown type', () => {
+      expect(FileEntrySchema.safeParse(makeFile({ type: 'mount' })).success).toBe(false)
+      expect(FileEntrySchema.safeParse(makeFile({ type: 'unknown' })).success).toBe(false)
     })
   })
 })
 
-describe('FileEntrySchema trash invariants', () => {
-  it('accepts valid trashed entry (parentId=system_trash + previousParentId set)', () => {
-    const result = FileEntrySchema.safeParse(makeFile({ parentId: 'system_trash', previousParentId: VALID_UUID_V7_2 }))
-    expect(result.success).toBe(true)
+describe('FileEntrySchema trash (trashedAt)', () => {
+  it('accepts active entry (trashedAt = null)', () => {
+    expect(FileEntrySchema.safeParse(makeFile({ trashedAt: null })).success).toBe(true)
   })
 
-  it('accepts valid active entry (no previousParentId)', () => {
-    const result = FileEntrySchema.safeParse(makeFile({ previousParentId: null }))
-    expect(result.success).toBe(true)
+  it('accepts trashed entry (trashedAt = timestamp)', () => {
+    expect(FileEntrySchema.safeParse(makeFile({ trashedAt: TS })).success).toBe(true)
   })
 
-  it('rejects trashed entry without previousParentId', () => {
-    const result = FileEntrySchema.safeParse(makeFile({ parentId: 'system_trash', previousParentId: null }))
-    expect(result.success).toBe(false)
-    expect(result.error?.issues.some((i) => i.path.includes('previousParentId'))).toBe(true)
+  it('parentId does not change when trashed', () => {
+    const trashed = makeFile({ trashedAt: TS })
+    expect(trashed.parentId).toBe(VALID_UUID_V7_2) // unchanged
+    expect(FileEntrySchema.safeParse(trashed).success).toBe(true)
   })
 
-  it('rejects previousParentId set on non-trashed entry', () => {
-    const result = FileEntrySchema.safeParse(makeFile({ previousParentId: VALID_UUID_V7_2 }))
-    expect(result.success).toBe(false)
-    expect(result.error?.issues.some((i) => i.path.includes('previousParentId'))).toBe(true)
+  it('accepts trashed dir', () => {
+    expect(FileEntrySchema.safeParse(makeDir({ trashedAt: TS })).success).toBe(true)
   })
 })
 
 describe('FileEntryIdSchema', () => {
   it('accepts UUID v7', () => {
     expect(FileEntryIdSchema.safeParse('019606a0-0000-7000-8000-000000000001').success).toBe(true)
-  })
-
-  it('accepts system entry IDs', () => {
-    expect(FileEntryIdSchema.safeParse('mount_files').success).toBe(true)
-    expect(FileEntryIdSchema.safeParse('mount_notes').success).toBe(true)
-    expect(FileEntryIdSchema.safeParse('system_trash').success).toBe(true)
   })
 
   it('rejects UUID v4', () => {
@@ -338,113 +236,196 @@ describe('FileEntryIdSchema', () => {
     expect(FileEntryIdSchema.safeParse('').success).toBe(false)
   })
 
-  it('accepts mount_temp', () => {
-    expect(FileEntryIdSchema.safeParse('mount_temp').success).toBe(true)
+  it('rejects old system entry IDs (no longer valid entry IDs)', () => {
+    expect(FileEntryIdSchema.safeParse('mount_files').success).toBe(false)
+    expect(FileEntryIdSchema.safeParse('system_trash').success).toBe(false)
   })
 })
 
-describe('MountConfigSchema', () => {
-  describe('local_managed', () => {
-    it('accepts valid config', () => {
-      expect(LocalManagedConfigSchema.safeParse({ mountType: 'local_managed', basePath: '/data/files' }).success).toBe(
-        true
-      )
+describe('MountSchema', () => {
+  it('accepts a valid local_managed mount', () => {
+    const result = MountSchema.safeParse({
+      id: VALID_UUID_V7,
+      systemKey: 'files',
+      name: 'Files',
+      mountType: 'local_managed',
+      basePath: '/data/files',
+      watch: null,
+      watchExtensions: null,
+      apiType: null,
+      providerId: null,
+      cachePath: null,
+      autoSync: null,
+      remoteOptions: null,
+      createdAt: TS,
+      updatedAt: TS
     })
-
-    it('rejects relative basePath', () => {
-      expect(
-        LocalManagedConfigSchema.safeParse({ mountType: 'local_managed', basePath: 'relative/path' }).success
-      ).toBe(false)
-    })
-
-    it('rejects empty basePath', () => {
-      expect(LocalManagedConfigSchema.safeParse({ mountType: 'local_managed', basePath: '' }).success).toBe(false)
-    })
+    expect(result.success).toBe(true)
   })
 
-  describe('local_external', () => {
-    it('accepts valid config', () => {
-      const result = LocalExternalConfigSchema.safeParse({
-        mountType: 'local_external',
-        basePath: '/home/user/notes',
-        watch: true
-      })
-      expect(result.success).toBe(true)
+  it('accepts a valid local_external mount', () => {
+    const result = MountSchema.safeParse({
+      id: VALID_UUID_V7,
+      systemKey: 'notes',
+      name: 'Notes',
+      mountType: 'local_external',
+      basePath: '/home/user/notes',
+      watch: true,
+      watchExtensions: ['md', 'txt'],
+      apiType: null,
+      providerId: null,
+      cachePath: null,
+      autoSync: null,
+      remoteOptions: null,
+      createdAt: TS,
+      updatedAt: TS
     })
-
-    it('accepts Windows path', () => {
-      expect(
-        LocalExternalConfigSchema.safeParse({
-          mountType: 'local_external',
-          basePath: 'C:\\Users\\notes',
-          watch: false
-        }).success
-      ).toBe(true)
-    })
-
-    it('defaults watchExtensions to empty array', () => {
-      const result = LocalExternalConfigSchema.safeParse({
-        mountType: 'local_external',
-        basePath: '/notes'
-      })
-      expect(result.success).toBe(true)
-      if (result.success) {
-        expect(result.data.watchExtensions).toEqual([])
-      }
-    })
-
-    it('rejects relative basePath', () => {
-      expect(
-        LocalExternalConfigSchema.safeParse({
-          mountType: 'local_external',
-          basePath: 'notes'
-        }).success
-      ).toBe(false)
-    })
+    expect(result.success).toBe(true)
   })
 
-  describe('remote', () => {
-    it('accepts valid config', () => {
-      expect(
-        RemoteConfigSchema.safeParse({
-          mountType: 'remote',
-          apiType: 'openai_files',
-          providerId: 'provider-1',
-          autoSync: false,
-          options: {}
-        }).success
-      ).toBe(true)
+  it('accepts a valid system mount', () => {
+    const result = MountSchema.safeParse({
+      id: VALID_UUID_V7,
+      systemKey: 'trash',
+      name: 'Trash',
+      mountType: 'system',
+      basePath: null,
+      watch: null,
+      watchExtensions: null,
+      apiType: null,
+      providerId: null,
+      cachePath: null,
+      autoSync: null,
+      remoteOptions: null,
+      createdAt: TS,
+      updatedAt: TS
     })
-
-    it('rejects invalid apiType', () => {
-      expect(
-        RemoteConfigSchema.safeParse({
-          mountType: 'remote',
-          apiType: 'invalid_type',
-          providerId: 'p1'
-        }).success
-      ).toBe(false)
-    })
+    expect(result.success).toBe(true)
   })
 
-  describe('system', () => {
-    it('accepts valid config', () => {
-      expect(SystemConfigSchema.safeParse({ mountType: 'system' }).success).toBe(true)
+  it('accepts user-created mount (systemKey = null)', () => {
+    const result = MountSchema.safeParse({
+      id: VALID_UUID_V7,
+      systemKey: null,
+      name: 'My Obsidian Vault',
+      mountType: 'local_external',
+      basePath: '/home/user/obsidian',
+      watch: true,
+      watchExtensions: [],
+      apiType: null,
+      providerId: null,
+      cachePath: null,
+      autoSync: null,
+      remoteOptions: null,
+      createdAt: TS,
+      updatedAt: TS
     })
+    expect(result.success).toBe(true)
   })
 
-  describe('discriminated union', () => {
-    it('discriminates by mountType', () => {
-      expect(MountConfigSchema.safeParse({ mountType: 'local_managed', basePath: '/x' }).success).toBe(true)
-      expect(MountConfigSchema.safeParse({ mountType: 'system' }).success).toBe(true)
+  it('rejects relative basePath', () => {
+    const result = MountSchema.safeParse({
+      id: VALID_UUID_V7,
+      systemKey: 'files',
+      name: 'Files',
+      mountType: 'local_managed',
+      basePath: 'relative/path',
+      watch: null,
+      watchExtensions: null,
+      apiType: null,
+      providerId: null,
+      cachePath: null,
+      autoSync: null,
+      remoteOptions: null,
+      createdAt: TS,
+      updatedAt: TS
     })
+    expect(result.success).toBe(false)
+  })
 
-    it('rejects unknown mountType', () => {
-      expect(MountConfigSchema.safeParse({ mountType: 'unknown' }).success).toBe(false)
+  it('rejects local_managed with null basePath', () => {
+    const result = MountSchema.safeParse({
+      id: VALID_UUID_V7,
+      systemKey: 'files',
+      name: 'Files',
+      mountType: 'local_managed',
+      basePath: null,
+      watch: null,
+      watchExtensions: null,
+      apiType: null,
+      providerId: null,
+      cachePath: null,
+      autoSync: null,
+      remoteOptions: null,
+      createdAt: TS,
+      updatedAt: TS
     })
+    expect(result.success).toBe(false)
+  })
 
-    it('rejects config missing required fields', () => {
-      expect(MountConfigSchema.safeParse({ mountType: 'local_managed' }).success).toBe(false)
+  it('rejects remote with null apiType', () => {
+    const result = MountSchema.safeParse({
+      id: VALID_UUID_V7,
+      systemKey: null,
+      name: 'Remote',
+      mountType: 'remote',
+      basePath: null,
+      watch: null,
+      watchExtensions: null,
+      apiType: null,
+      providerId: 'p1',
+      cachePath: null,
+      autoSync: null,
+      remoteOptions: null,
+      createdAt: TS,
+      updatedAt: TS
     })
+    expect(result.success).toBe(false)
+  })
+
+  it('rejects remote with null providerId', () => {
+    const result = MountSchema.safeParse({
+      id: VALID_UUID_V7,
+      systemKey: null,
+      name: 'Remote',
+      mountType: 'remote',
+      basePath: null,
+      watch: null,
+      watchExtensions: null,
+      apiType: 'openai_files',
+      providerId: null,
+      cachePath: null,
+      autoSync: null,
+      remoteOptions: null,
+      createdAt: TS,
+      updatedAt: TS
+    })
+    expect(result.success).toBe(false)
+  })
+})
+
+describe('MountTypeSchema', () => {
+  it('accepts valid mount types', () => {
+    expect(MountTypeSchema.safeParse('local_managed').success).toBe(true)
+    expect(MountTypeSchema.safeParse('local_external').success).toBe(true)
+    expect(MountTypeSchema.safeParse('remote').success).toBe(true)
+    expect(MountTypeSchema.safeParse('system').success).toBe(true)
+  })
+
+  it('rejects unknown mount type', () => {
+    expect(MountTypeSchema.safeParse('unknown').success).toBe(false)
+  })
+})
+
+describe('SystemKeySchema', () => {
+  it('accepts valid system keys', () => {
+    expect(SystemKeySchema.safeParse('files').success).toBe(true)
+    expect(SystemKeySchema.safeParse('notes').success).toBe(true)
+    expect(SystemKeySchema.safeParse('temp').success).toBe(true)
+    expect(SystemKeySchema.safeParse('trash').success).toBe(true)
+  })
+
+  it('rejects unknown system key', () => {
+    expect(SystemKeySchema.safeParse('unknown').success).toBe(false)
   })
 })

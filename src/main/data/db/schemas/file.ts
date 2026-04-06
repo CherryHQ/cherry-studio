@@ -1,15 +1,57 @@
-import type { MountConfig } from '@shared/data/types/file'
 import { sql } from 'drizzle-orm'
 import { check, foreignKey, index, integer, sqliteTable, text, uniqueIndex } from 'drizzle-orm/sqlite-core'
 
 import { createUpdateTimestamps, uuidPrimaryKey, uuidPrimaryKeyOrdered } from './_columnHelpers'
 
 /**
- * File entry table - unified file/directory/mount entry entity
+ * Mount table — storage configuration for file tree roots.
+ *
+ * Each mount defines a storage mode (local_managed, local_external, remote, system).
+ * System mounts use well-known `systemKey` values; user-created mounts have systemKey = null.
+ * Config fields are stored as independent columns (not JSON) since mount count is tiny (< 10).
+ */
+export const mountTable = sqliteTable(
+  'mount',
+  {
+    id: uuidPrimaryKeyOrdered(),
+
+    // System mount identifier: 'files' | 'notes' | 'temp' | 'trash' | null (user-created)
+    systemKey: text(),
+    // User-visible name
+    name: text().notNull(),
+    // Storage mode discriminator
+    mountType: text().notNull(),
+
+    // ─── local_managed / local_external fields ───
+    basePath: text(),
+
+    // ─── local_external fields ───
+    watch: integer({ mode: 'boolean' }),
+    watchExtensions: text({ mode: 'json' }).$type<string[]>(),
+
+    // ─── remote fields ───
+    apiType: text(),
+    providerId: text(),
+    cachePath: text(),
+    autoSync: integer({ mode: 'boolean' }),
+    remoteOptions: text({ mode: 'json' }).$type<Record<string, unknown>>(),
+
+    // ─── Timestamps ───
+    ...createUpdateTimestamps
+  },
+  (t) => [
+    // System mount lookup
+    uniqueIndex('mount_system_key_idx').on(t.systemKey),
+    // Mount type constraint
+    check('mount_type_check', sql`${t.mountType} IN ('local_managed', 'local_external', 'remote', 'system')`)
+  ]
+)
+
+/**
+ * File entry table — file and directory entries in the managed file tree.
  *
  * Uses adjacency list pattern (parentId) for tree navigation.
- * Mount entries (type='mount') serve as root entries with provider configuration.
- * Trash is a system mount entry (providerType='system') for OS-style soft deletion.
+ * Trash is modeled via `trashedAt` timestamp — parentId never changes.
  */
 export const fileEntryTable = sqliteTable(
   'file_entry',
@@ -17,54 +59,40 @@ export const fileEntryTable = sqliteTable(
     id: uuidPrimaryKeyOrdered(),
 
     // ─── Core fields ───
-    // Entry type: file | dir | mount
+    // Entry type: file | dir
     type: text().notNull(),
     // User-visible name (without extension)
     name: text().notNull(),
-    // Extension without leading dot (e.g. 'pdf', 'md'). Null for dirs/mounts
+    // Extension without leading dot (e.g. 'pdf', 'md'). Null for dirs
     ext: text(),
 
     // ─── Tree structure ───
-    // Parent entry ID. Null for mount entries (top-level)
+    // Parent entry ID. Null for mount root children (direct children of a mount)
     parentId: text(),
-    // Mount ID this entry belongs to (redundant for query performance). Mount entries: mountId = id
-    // Entries in Trash keep their original mountId (pointing to the mount they belonged to before deletion)
-    // Soft reference by design: no FK constraint because mount entries use well-known string IDs
-    // (e.g. 'mount_files') that don't fit a standard FK pattern. Integrity is enforced at the
-    // service layer. If a mount is ever removed, orphaned children must be cleaned up explicitly.
-    mountId: text().notNull(),
+    // Mount this entry belongs to (FK → mount table, redundant for query performance)
+    // Trashed entries keep their original mountId
+    mountId: text()
+      .notNull()
+      .references(() => mountTable.id),
 
     // ─── File attributes ───
-    // File size in bytes. Null for dirs/mounts
+    // File size in bytes. Null for dirs
     size: integer(),
 
-    // ─── Mount-only fields (type='mount') ───
-    // Provider configuration JSON, validated by MountConfigSchema
-    mountConfig: text({ mode: 'json' }).$type<MountConfig>(),
-
     // ─── Remote file fields (files under remote mounts) ───
-    // Remote file ID (e.g. OpenAI file-abc123)
     remoteId: text(),
-    // When the local cache was last downloaded (ms epoch). Null if not cached.
-    // Compare with remote updatedAt to detect staleness.
     cachedAt: integer(),
 
-    // ─── Trash fields ───
-    // Original parent ID before moving to Trash (only set on Trash direct children)
-    previousParentId: text(),
+    // ─── Trash ───
+    // Non-null = trashed (ms epoch). Only set on the top-level trashed entry.
+    // Child entries are implicitly trashed via tree traversal.
+    trashedAt: integer(),
 
     // ─── Timestamps ───
-    // Uses createUpdateTimestamps (no deletedAt) intentionally.
-    // Trash is modeled as a tree move to system_trash, not a soft-delete flag.
-    // See: packages/shared/data/types/file/fileEntry.ts for the lifecycle state machine.
     ...createUpdateTimestamps
   },
   (t) => [
-    // Self-referencing FK: cascade delete children when parent is deleted (Trash cleanup).
-    // TODO(phase-2): Add hard-coded deletion protection for SYSTEM_ENTRY_IDS in the service
-    // layer. Deleting a mount entry (e.g. mount_files) would cascade through the entire
-    // subtree + all file_ref rows, bypassing the service layer. Service-layer delete handlers
-    // must reject delete requests for SYSTEM_ENTRY_IDS to prevent accidental cascades.
+    // Self-referencing FK: cascade delete children when parent is deleted
     foreignKey({ columns: [t.parentId], foreignColumns: [t.id] }).onDelete('cascade'),
     // Indexes
     index('fe_parent_id_idx').on(t.parentId),
@@ -72,15 +100,9 @@ export const fileEntryTable = sqliteTable(
     index('fe_mount_type_idx').on(t.mountId, t.type),
     index('fe_name_idx').on(t.name),
     index('fe_updated_at_idx').on(t.updatedAt),
+    index('fe_trashed_at_idx').on(t.trashedAt),
     // ─── Type constraint ───
-    check('fe_type_check', sql`${t.type} IN ('file', 'dir', 'mount')`),
-    // ─── Type invariant constraints (defense-in-depth, mirrors Zod superRefine) ───
-    check('fe_mount_parent_null', sql`${t.type} != 'mount' OR ${t.parentId} IS NULL`),
-    check('fe_mount_self_ref', sql`${t.type} != 'mount' OR ${t.mountId} = ${t.id}`),
-    check('fe_mount_has_config', sql`${t.type} != 'mount' OR ${t.mountConfig} IS NOT NULL`), // column: mount_config
-    check('fe_nonmount_has_parent', sql`${t.type} = 'mount' OR ${t.parentId} IS NOT NULL`),
-    // Trash state biconditional: previousParentId is set IFF parentId = 'system_trash'
-    check('fe_trash_state', sql`(${t.previousParentId} IS NULL) != (${t.parentId} = 'system_trash')`)
+    check('fe_type_check', sql`${t.type} IN ('file', 'dir')`)
   ]
 )
 
@@ -104,8 +126,6 @@ export const fileRefTable = sqliteTable(
       .references(() => fileEntryTable.id, { onDelete: 'cascade' }),
 
     // Business source type (e.g. 'chat_message', 'knowledge_item', 'painting', 'note')
-    // Free-form string validated by z.string().min(1). Semantic validation
-    // (e.g. constraining to known source types) deferred to Phase 2 service layer.
     sourceType: text().notNull(),
     // Business object ID (polymorphic, no FK constraint)
     sourceId: text().notNull(),
@@ -116,11 +136,8 @@ export const fileRefTable = sqliteTable(
     ...createUpdateTimestamps
   },
   (t) => [
-    // Look up references by file entry
     index('file_ref_entry_id_idx').on(t.fileEntryId),
-    // Look up referenced files by business object
     index('file_ref_source_idx').on(t.sourceType, t.sourceId),
-    // Prevent duplicate references (same file cannot be referenced by same business object with same role twice)
     uniqueIndex('file_ref_unique_idx').on(t.fileEntryId, t.sourceType, t.sourceId, t.role)
   ]
 )

@@ -1,7 +1,7 @@
 import fs from 'node:fs'
 import path from 'node:path'
 
-import type { MountConfig } from '@shared/data/types/file'
+import type { MountType } from '@shared/data/types/file'
 
 /**
  * Minimal entry shape needed for path resolution
@@ -14,10 +14,11 @@ export interface PathResolvableEntry {
 }
 
 /**
- * Mount info needed for path resolution
+ * Minimal mount shape needed for path resolution
  */
-export interface MountInfo {
-  mountConfig: MountConfig | null
+export interface PathResolvableMount {
+  mountType: MountType
+  basePath: string | null
 }
 
 /**
@@ -33,16 +34,19 @@ export function getExtSuffix(ext: string | null): string {
  * - `local_managed`: `{basePath}/{id}{.ext}` — flat UUID-based storage
  * - `local_external`: `{basePath}/{...ancestorNames}/{name}{.ext}` — mirrors OS directory structure
  * - `system`: throws — system mounts have no physical storage
- * - `remote`: `{cachePath}/{remoteId}` — local cache path (future)
+ * - `remote`: throws — not yet implemented
  *
  * @param entry - The file entry to resolve
  * @param mount - The mount this entry belongs to
  * @param ancestorNames - Ordered list of ancestor directory names from mount root to parent (only needed for local_external)
  */
-export function resolvePhysicalPath(entry: PathResolvableEntry, mount: MountInfo, ancestorNames?: string[]): string {
-  const config = mount.mountConfig
-  if (!config) {
-    throw new Error(`Mount for entry ${entry.id} has no mount config`)
+export function resolvePhysicalPath(
+  entry: PathResolvableEntry,
+  mount: PathResolvableMount,
+  ancestorNames?: string[]
+): string {
+  if (!mount.basePath && (mount.mountType === 'local_managed' || mount.mountType === 'local_external')) {
+    throw new Error(`Mount for entry ${entry.id} has no basePath`)
   }
 
   // Reject null bytes in any user-controlled path segments
@@ -53,10 +57,10 @@ export function resolvePhysicalPath(entry: PathResolvableEntry, mount: MountInfo
     throw new Error('Ancestor names contain null bytes')
   }
 
-  switch (config.mountType) {
+  switch (mount.mountType) {
     case 'local_managed': {
-      const resolved = path.resolve(config.basePath, `${entry.id}${getExtSuffix(entry.ext)}`)
-      assertPathContained(resolved, config.basePath)
+      const resolved = path.resolve(mount.basePath!, `${entry.id}${getExtSuffix(entry.ext)}`)
+      assertPathContained(resolved, mount.basePath!)
       return resolved
     }
 
@@ -64,17 +68,17 @@ export function resolvePhysicalPath(entry: PathResolvableEntry, mount: MountInfo
       if (ancestorNames === undefined) {
         throw new Error('ancestorNames is required for local_external mount')
       }
-      const resolved = path.resolve(config.basePath, ...ancestorNames, `${entry.name}${getExtSuffix(entry.ext)}`)
+      const resolved = path.resolve(mount.basePath!, ...ancestorNames, `${entry.name}${getExtSuffix(entry.ext)}`)
       // Resolve symlinks for local_external — user-chosen directories may contain symlinks
       try {
         const realResolved = fs.realpathSync(resolved)
-        const realBase = fs.realpathSync(config.basePath)
+        const realBase = fs.realpathSync(mount.basePath!)
         assertPathContained(realResolved, realBase)
         return realResolved
       } catch (err) {
         throw new Error(
           `Failed to resolve path for entry ${entry.id} (name="${entry.name}") ` +
-            `under basePath="${config.basePath}": ${(err as Error).message}`
+            `under basePath="${mount.basePath}": ${(err as Error).message}`
         )
       }
     }
@@ -86,7 +90,9 @@ export function resolvePhysicalPath(entry: PathResolvableEntry, mount: MountInfo
       throw new Error('Remote path resolution is not yet implemented')
 
     default:
-      throw new Error(`Unknown mount type: ${(config as Record<string, unknown>).mountType} for entry ${entry.id}`)
+      throw new Error(
+        `Unknown mount type: ${(mount as unknown as Record<string, unknown>).mountType} for entry ${entry.id}`
+      )
   }
 }
 

@@ -1,102 +1,94 @@
-import { fileEntryTable } from '@data/db/schemas/file'
+import { mountTable } from '@data/db/schemas/file'
 import { getFilesDir, getNotesDir, getTempFilesDir } from '@main/utils/file'
-import type { MountConfig } from '@shared/data/types/file'
+import type { MountType, SystemKey } from '@shared/data/types/file'
 import { sql } from 'drizzle-orm'
 
 import type { DbType, ISeed } from '../types'
 
-interface SystemEntry {
-  id: string
-  type: 'mount'
+interface SystemMount {
+  systemKey: SystemKey
   name: string
-  mountId: string
-  parentId: null
-  mountConfig: MountConfig
+  mountType: MountType
+  basePath: string | null
+  watch: boolean | null
+  watchExtensions: string[] | null
 }
 
-function getSystemEntries(): SystemEntry[] {
+function getSystemMounts(): SystemMount[] {
   let filesDir: string
   let notesDir: string
   let tempDir: string
   try {
     filesDir = getFilesDir()
   } catch (err) {
-    throw new Error(`Failed to resolve base path for mount_files: ${(err as Error).message}`)
+    throw new Error(`Failed to resolve base path for mount files: ${(err as Error).message}`)
   }
   try {
     notesDir = getNotesDir()
   } catch (err) {
-    throw new Error(`Failed to resolve base path for mount_notes: ${(err as Error).message}`)
+    throw new Error(`Failed to resolve base path for mount notes: ${(err as Error).message}`)
   }
   try {
     tempDir = getTempFilesDir()
   } catch (err) {
-    throw new Error(`Failed to resolve base path for mount_temp: ${(err as Error).message}`)
+    throw new Error(`Failed to resolve base path for mount temp: ${(err as Error).message}`)
   }
 
   return [
     {
-      id: 'mount_files',
-      type: 'mount',
+      systemKey: 'files',
       name: 'Files',
-      mountId: 'mount_files',
-      parentId: null,
-      mountConfig: {
-        mountType: 'local_managed',
-        basePath: filesDir
-      }
+      mountType: 'local_managed',
+      basePath: filesDir,
+      watch: null,
+      watchExtensions: null
     },
     {
-      id: 'mount_notes',
-      type: 'mount',
+      systemKey: 'notes',
       name: 'Notes',
-      mountId: 'mount_notes',
-      parentId: null,
-      mountConfig: {
-        mountType: 'local_external',
-        basePath: notesDir,
-        watch: true,
-        watchExtensions: []
-      }
+      mountType: 'local_external',
+      basePath: notesDir,
+      watch: true,
+      watchExtensions: []
     },
     {
-      id: 'mount_temp',
-      type: 'mount',
+      systemKey: 'temp',
       name: 'Temp',
-      mountId: 'mount_temp',
-      parentId: null,
-      mountConfig: {
-        mountType: 'local_managed',
-        basePath: tempDir
-      }
+      mountType: 'local_managed',
+      basePath: tempDir,
+      watch: null,
+      watchExtensions: null
     },
     {
-      id: 'system_trash',
-      type: 'mount',
+      systemKey: 'trash',
       name: 'Trash',
-      mountId: 'system_trash',
-      parentId: null,
-      mountConfig: {
-        mountType: 'system'
-      }
+      mountType: 'system',
+      basePath: null,
+      watch: null,
+      watchExtensions: null
     }
   ]
 }
 
 class FileEntrySeed implements ISeed {
   async migrate(db: DbType): Promise<void> {
-    const systemEntries = getSystemEntries()
-    // Upsert: insert new system entries or update mountConfig if paths changed (e.g. after app upgrade)
-    await db
-      .insert(fileEntryTable)
-      .values(systemEntries)
-      .onConflictDoUpdate({
-        target: fileEntryTable.id,
-        set: {
-          name: sql`excluded.name`,
-          mountConfig: sql`excluded.mount_config`
-        }
-      })
+    const systemMounts = getSystemMounts()
+    // Upsert by systemKey: insert new system mounts or update config if paths changed
+    for (const mount of systemMounts) {
+      await db
+        .insert(mountTable)
+        .values(mount)
+        .onConflictDoUpdate({
+          target: mountTable.systemKey,
+          set: {
+            name: sql`excluded.name`,
+            mountType: sql`excluded.mount_type`,
+            basePath: sql`excluded.base_path`,
+            watch: sql`excluded.watch`,
+            watchExtensions: sql`excluded.watch_extensions`
+          }
+        })
+    }
   }
 }
 

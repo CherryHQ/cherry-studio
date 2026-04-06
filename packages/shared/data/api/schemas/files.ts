@@ -13,7 +13,7 @@
  */
 
 import type { OffsetPaginationResponse } from '@shared/data/api/apiTypes'
-import type { FileEntry, FileEntryId, FileRef } from '@shared/data/types/file'
+import type { FileEntry, FileEntryId, FileRef, Mount } from '@shared/data/types/file'
 export interface FileSchemas {
   // ─── Entry Queries ───
 
@@ -111,7 +111,7 @@ export interface FileSchemas {
     /** Get mount point list (excludes system mounts like Trash by default) */
     GET: {
       query: { includeSystem?: boolean }
-      response: FileEntry[]
+      response: Mount[]
     }
   }
 }
