@@ -398,20 +398,44 @@ describe('transformBlocksToParts', () => {
     expect(part.data.language).toBe('javascript')
   })
 
-  it('extracts citation blocks as references, not parts', () => {
+  it('extracts web citation results as SourceUrlUIPart', () => {
     const citationBlock: OldCitationBlock = {
       ...block('citation'),
       type: 'citation',
-      response: { results: ['r1'], source: 'google' },
+      response: {
+        results: [
+          { title: 'Result 1', url: 'https://example.com/1', content: 'content 1' },
+          { title: 'Result 2', url: 'https://example.com/2', content: 'content 2' }
+        ],
+        source: 'websearch'
+      },
       knowledge: [{ id: 1, content: 'fact', sourceUrl: 'https://kb.com', type: 'text' }]
     }
 
     const { parts, citationReferences } = transformBlocksToParts([citationBlock])
 
-    // Citation should not produce a part
-    expect(parts).toHaveLength(0)
-    // But should produce references
+    // Web results → SourceUrlUIPart
+    expect(parts).toHaveLength(2)
+    expect(parts[0].type).toBe('source-url')
+    expect((parts[0] as any).url).toBe('https://example.com/1')
+    expect((parts[0] as any).title).toBe('Result 1')
+    expect(parts[1].type).toBe('source-url')
+
+    // Knowledge/memory → still in citationReferences for providerMetadata
     expect(citationReferences).toHaveLength(2) // web + knowledge
+  })
+
+  it('skips citation results without URL', () => {
+    const citationBlock: OldCitationBlock = {
+      ...block('citation'),
+      type: 'citation',
+      response: { results: ['r1', 'r2'], source: 'google' }
+    }
+
+    const { parts } = transformBlocksToParts([citationBlock])
+
+    // String results have no url → no source parts
+    expect(parts).toHaveLength(0)
   })
 
   it('skips unknown blocks', () => {

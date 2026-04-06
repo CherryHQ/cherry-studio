@@ -70,7 +70,7 @@ import type {
 import type { AssistantMeta, ModelMeta } from '@shared/data/types/meta'
 import type { CherryDataPartTypes, CherryProviderMetadata } from '@shared/data/types/uiParts'
 import type { FileMetadata } from '@types'
-import type { ProviderMetadata } from 'ai'
+import type { ProviderMetadata, SourceUrlUIPart } from 'ai'
 
 // ============================================================================
 // Old Type Definitions (Source Data Structures)
@@ -769,7 +769,8 @@ export function transformBlocks(oldBlocks: OldBlock[]): {
  * | video          | DataUIPart<CherryDataPartTypes>         | data-video                                |
  * | compact        | DataUIPart<CherryDataPartTypes>         | data-compact                              |
  * | code           | DataUIPart<CherryDataPartTypes>         | data-code                                 |
- * | citation       | (merged into TextPart)  | Extracted as references in metadata       |
+ * | citation (web) | SourceUrlUIPart         | Each web result → source-url part          |
+ * | citation (kb)  | (merged into TextPart)  | Knowledge/memory → providerMetadata refs  |
  * | unknown        | (skipped)               | Placeholder blocks are dropped            |
  */
 export function transformBlocksToParts(oldBlocks: OldBlock[]): {
@@ -786,6 +787,10 @@ export function transformBlocksToParts(oldBlocks: OldBlock[]): {
 
     if (result.part) {
       parts.push(result.part)
+    }
+
+    if (result.extraParts) {
+      parts.push(...result.extraParts)
     }
 
     if (result.citations) {
@@ -824,10 +829,13 @@ function buildCherryMetadata(oldBlock: OldMessageBlock): ProviderMetadata {
 }
 
 /**
- * Transform a single old block to a UIMessage part.
+ * Transform a single old block to UIMessage part(s).
+ * Most blocks produce a single part, but citation blocks may produce multiple
+ * (SourceUrlUIPart for web results + DataUIPart for knowledge/memory).
  */
 function transformSingleBlockToPart(oldBlock: OldBlock): {
   part: CherryMessagePart | null
+  extraParts: CherryMessagePart[] | null
   citations: ContentReference[] | null
   searchableText: string | null
 } {
@@ -840,7 +848,7 @@ function transformSingleBlockToPart(oldBlock: OldBlock): {
         state: 'done',
         providerMetadata: buildCherryMetadata(oldBlock)
       }
-      return { part, citations: null, searchableText: block.content }
+      return { part, extraParts: null, citations: null, searchableText: block.content }
     }
 
     case 'thinking': {
@@ -853,7 +861,7 @@ function transformSingleBlockToPart(oldBlock: OldBlock): {
         state: 'done',
         providerMetadata: metadata
       }
-      return { part, citations: null, searchableText: block.content }
+      return { part, extraParts: null, citations: null, searchableText: block.content }
     }
 
     case 'tool': {
@@ -874,7 +882,7 @@ function transformSingleBlockToPart(oldBlock: OldBlock): {
         ? { ...base, state: 'output-error', errorText: typeof output === 'string' ? output : JSON.stringify(output) }
         : { ...base, state: 'output-available', output }
 
-      return { part, citations: null, searchableText: null }
+      return { part, extraParts: null, citations: null, searchableText: null }
     }
 
     case 'image': {
@@ -886,7 +894,7 @@ function transformSingleBlockToPart(oldBlock: OldBlock): {
         ...(block.file?.origin_name ? { filename: block.file.origin_name } : {}),
         providerMetadata: buildCherryMetadata(oldBlock)
       }
-      return { part, citations: null, searchableText: null }
+      return { part, extraParts: null, citations: null, searchableText: null }
     }
 
     case 'file': {
@@ -898,7 +906,7 @@ function transformSingleBlockToPart(oldBlock: OldBlock): {
         ...(block.file.origin_name ? { filename: block.file.origin_name } : {}),
         providerMetadata: buildCherryMetadata(oldBlock)
       }
-      return { part, citations: null, searchableText: null }
+      return { part, extraParts: null, citations: null, searchableText: null }
     }
 
     case 'error': {
@@ -911,7 +919,7 @@ function transformSingleBlockToPart(oldBlock: OldBlock): {
           createdAt: parseTimestamp(oldBlock.createdAt)
         }
       }
-      return { part, citations: null, searchableText: null }
+      return { part, extraParts: null, citations: null, searchableText: null }
     }
 
     case 'translation': {
@@ -925,7 +933,7 @@ function transformSingleBlockToPart(oldBlock: OldBlock): {
           ...(block.sourceBlockId ? { sourceBlockId: block.sourceBlockId } : {})
         }
       }
-      return { part, citations: null, searchableText: block.content }
+      return { part, extraParts: null, citations: null, searchableText: block.content }
     }
 
     case 'video': {
@@ -937,7 +945,7 @@ function transformSingleBlockToPart(oldBlock: OldBlock): {
           ...(block.filePath ? { filePath: block.filePath } : {})
         }
       }
-      return { part, citations: null, searchableText: null }
+      return { part, extraParts: null, citations: null, searchableText: null }
     }
 
     case 'compact': {
@@ -949,7 +957,7 @@ function transformSingleBlockToPart(oldBlock: OldBlock): {
           compactedContent: block.compactedContent
         }
       }
-      return { part, citations: null, searchableText: block.content }
+      return { part, extraParts: null, citations: null, searchableText: block.content }
     }
 
     case 'code': {
@@ -961,18 +969,20 @@ function transformSingleBlockToPart(oldBlock: OldBlock): {
           language: block.language
         }
       }
-      return { part, citations: null, searchableText: block.content }
+      return { part, extraParts: null, citations: null, searchableText: block.content }
     }
 
     case 'citation': {
       const block = oldBlock as OldCitationBlock
       const citations = extractCitationReferences(block)
-      return { part: null, citations, searchableText: null }
+      const sourceParts = extractSourceUrlParts(block)
+
+      return { part: null, extraParts: sourceParts.length > 0 ? sourceParts : null, citations, searchableText: null }
     }
 
     case 'unknown':
     default:
-      return { part: null, citations: null, searchableText: null }
+      return { part: null, extraParts: null, citations: null, searchableText: null }
   }
 }
 
@@ -1157,6 +1167,39 @@ function transformSingleBlock(oldBlock: OldBlock): {
         searchableText: null
       }
   }
+}
+
+/**
+ * Extract SourceUrlUIPart[] from web search results in a CitationBlock.
+ *
+ * Web search results that have a URL are converted to AI SDK's native
+ * SourceUrlUIPart, which useChat can render directly.
+ */
+function extractSourceUrlParts(citationBlock: OldCitationBlock): CherryMessagePart[] {
+  const parts: CherryMessagePart[] = []
+
+  if (!citationBlock.response?.results) return parts
+
+  const results = citationBlock.response.results
+  if (!Array.isArray(results)) return parts
+
+  for (let i = 0; i < results.length; i++) {
+    const result = results[i]
+    if (typeof result !== 'object' || result === null) continue
+    const entry = result as Record<string, unknown>
+    const url = typeof entry.url === 'string' ? entry.url : undefined
+    if (!url) continue
+
+    const sourcePart: SourceUrlUIPart = {
+      type: 'source-url',
+      sourceId: `citation-${i}`,
+      url,
+      title: typeof entry.title === 'string' ? entry.title : undefined
+    }
+    parts.push(sourcePart)
+  }
+
+  return parts
 }
 
 /**
