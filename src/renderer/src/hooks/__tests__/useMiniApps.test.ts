@@ -1,4 +1,5 @@
 import type { MiniApp } from '@shared/data/types/miniapp'
+import { MockDataApiUtils } from '@test-mocks/renderer/DataApiService'
 import { MockUseCacheUtils } from '@test-mocks/renderer/useCache'
 import { MockUseDataApiUtils } from '@test-mocks/renderer/useDataApi'
 import { MockUsePreferenceUtils } from '@test-mocks/renderer/usePreference'
@@ -245,7 +246,8 @@ describe('useMiniApps', () => {
         await result.current.updateMiniApps(visibleApps)
       })
 
-      expect(result.current.updateMiniApps).toBeDefined()
+      const patchCalls = MockDataApiUtils.getCalls('patch')
+      expect(patchCalls).toContainEqual(['/miniapps/app2', { body: { status: 'disabled' } }])
     })
 
     it('should call patchApp for apps being enabled', async () => {
@@ -258,7 +260,8 @@ describe('useMiniApps', () => {
         await result.current.updateMiniApps(visibleApps)
       })
 
-      expect(result.current.updateMiniApps).toBeDefined()
+      const patchCalls = MockDataApiUtils.getCalls('patch')
+      expect(patchCalls).toContainEqual(['/miniapps/app2', { body: { status: 'enabled' } }])
     })
 
     it('should be a no-op when the visible list is unchanged', async () => {
@@ -291,7 +294,10 @@ describe('useMiniApps', () => {
         await result.current.updatePinnedMiniApps(newPinned)
       })
 
-      expect(result.current.updatePinnedMiniApps).toBeDefined()
+      const patchCalls = MockDataApiUtils.getCalls('patch')
+      // app2 should be unpinned (→ enabled), app3 should be pinned
+      expect(patchCalls).toContainEqual(['/miniapps/app2', { body: { status: 'enabled' } }])
+      expect(patchCalls).toContainEqual(['/miniapps/app3', { body: { status: 'pinned' } }])
     })
   })
 
@@ -307,7 +313,8 @@ describe('useMiniApps', () => {
         await result.current.updateAppStatus('app1', 'disabled')
       })
 
-      expect(result.current.updateAppStatus).toBeDefined()
+      const patchCalls = MockDataApiUtils.getCalls('patch')
+      expect(patchCalls).toContainEqual(['/miniapps/app1', { body: { status: 'disabled' } }])
     })
   })
 
@@ -333,7 +340,9 @@ describe('useMiniApps', () => {
         await result.current.reorderMiniApps(reorderItems)
       })
 
-      expect(result.current.reorderMiniApps).toBeDefined()
+      // useMutation triggers are tracked differently; verify the function is callable
+      // and doesn't throw (the actual API call goes through useMutation mock)
+      expect(result.current.reorderMiniApps).toBeTypeOf('function')
     })
   })
 

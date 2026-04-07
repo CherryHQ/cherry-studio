@@ -13,7 +13,7 @@
  */
 
 import { type MiniAppInsert, type MiniAppSelect } from '@data/db/schemas/miniapp'
-import { type MiniAppStatus, miniAppTable, type MiniAppType } from '@data/db/schemas/miniapp'
+import { type MiniAppKind, type MiniAppStatus, miniAppTable } from '@data/db/schemas/miniapp'
 import { loggerService } from '@logger'
 import { application } from '@main/core/application'
 import { DataApiErrorFactory } from '@shared/data/api'
@@ -115,7 +115,7 @@ export class MiniAppService {
    * Merges builtin apps (from hardcoded definitions + DB prefs) with custom apps (from DB).
    * Returns OffsetPaginationResponse for consistency with other list endpoints.
    */
-  async list(query: { status?: MiniAppStatus; type?: MiniAppType }): Promise<OffsetPaginationResponse<MiniApp>> {
+  async list(query: { status?: MiniAppStatus; type?: MiniAppKind }): Promise<OffsetPaginationResponse<MiniApp>> {
     // Load all custom apps from DB (always from DB)
     const customConditions: SQL[] = [eq(miniAppTable.type, 'custom')]
     if (query.status !== undefined) {
@@ -244,8 +244,9 @@ export class MiniAppService {
 
   /**
    * Update an existing miniapp.
-   * For builtin (default) apps, only preference fields (status, sortOrder) are updatable.
-   * Preset fields (name, url, logo) are immutable — they come from code definitions.
+   * For builtin (default) apps, only `status` is updatable via this method.
+   * Use `reorder()` to change `sortOrder`. Preset fields (name, url, logo)
+   * are immutable — they come from code definitions.
    */
   async update(appId: string, dto: UpdateMiniAppDto): Promise<MiniApp> {
     const existing = await this.getByAppId(appId)

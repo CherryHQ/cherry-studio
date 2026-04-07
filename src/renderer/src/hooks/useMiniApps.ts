@@ -77,8 +77,10 @@ const detectUserRegion = async (): Promise<MiniAppRegion> => {
     try {
       const country = await window.api.getIpCountry()
       return country.toUpperCase() === 'CN' ? 'CN' : 'Global'
-    } catch {
-      // If detection fails, assume CN to show all apps (conservative approach)
+    } catch (err) {
+      // Default to CN so mainland China users — the primary audience — never
+      // silently lose access to region-restricted apps they expect.
+      loggerService.withContext('detectUserRegion').warn('Region detection failed, falling back to CN', err as Error)
       return 'CN'
     }
   })()
@@ -132,7 +134,8 @@ export const useMiniApps = () => {
       .then((region) => {
         if (!cancelled) setDetectedRegion(region)
       })
-      .catch(() => {
+      .catch((err) => {
+        logger.warn('Region detection failed in effect, falling back to CN', err as Error)
         if (!cancelled) setDetectedRegion('CN')
       })
     return () => {
@@ -199,12 +202,16 @@ export const useMiniApps = () => {
       const toEnable = visibleApps.filter((a) => a.status !== 'enabled' && !currentVisibleIds.has(a.appId))
       const toDisable = enabled.filter((a) => currentVisibleIds.has(a.appId) && !newVisibleIds.has(a.appId))
 
-      return Promise.all([
+      return Promise.allSettled([
         ...toEnable.map((a) => patchApp(a.appId, { status: 'enabled' })),
         ...toDisable.map((a) => patchApp(a.appId, { status: 'disabled' }))
-      ]).catch((err) => {
-        logger.warn('Failed to update miniapps', err as Error)
-        return []
+      ]).then((results) => {
+        const failed = results.filter((r): r is PromiseRejectedResult => r.status === 'rejected')
+        if (failed.length > 0) {
+          logger.error('Failed to update miniapps', { failures: failed.map((f) => f.reason) })
+          window.toast?.error('Failed to update miniapps')
+        }
+        return results.filter((r): r is PromiseFulfilledResult<MiniApp> => r.status === 'fulfilled').map((r) => r.value)
       })
     },
     [enabled, effectiveRegion, patchApp]
@@ -221,12 +228,16 @@ export const useMiniApps = () => {
       const toDisable = visibleApps.filter((a) => a.status !== 'disabled' && !currentVisibleIds.has(a.appId))
       const toEnable = disabled.filter((a) => currentVisibleIds.has(a.appId) && !newVisibleIds.has(a.appId))
 
-      return Promise.all([
+      return Promise.allSettled([
         ...toDisable.map((a) => patchApp(a.appId, { status: 'disabled' })),
         ...toEnable.map((a) => patchApp(a.appId, { status: 'enabled' }))
-      ]).catch((err) => {
-        logger.warn('Failed to update disabled miniapps', err as Error)
-        return []
+      ]).then((results) => {
+        const failed = results.filter((r): r is PromiseRejectedResult => r.status === 'rejected')
+        if (failed.length > 0) {
+          logger.error('Failed to update disabled miniapps', { failures: failed.map((f) => f.reason) })
+          window.toast?.error('Failed to update miniapps')
+        }
+        return results.filter((r): r is PromiseFulfilledResult<MiniApp> => r.status === 'fulfilled').map((r) => r.value)
       })
     },
     [disabled, effectiveRegion, patchApp]
@@ -241,12 +252,16 @@ export const useMiniApps = () => {
       const toPin = apps.filter((a) => !currentPinnedIds.has(a.appId))
       const toUnpin = pinned.filter((a) => !newPinnedIds.has(a.appId))
 
-      return Promise.all([
+      return Promise.allSettled([
         ...toPin.map((a) => patchApp(a.appId, { status: 'pinned' })),
         ...toUnpin.map((a) => patchApp(a.appId, { status: 'enabled' }))
-      ]).catch((err) => {
-        logger.warn('Failed to update pinned miniapps', err as Error)
-        return []
+      ]).then((results) => {
+        const failed = results.filter((r): r is PromiseRejectedResult => r.status === 'rejected')
+        if (failed.length > 0) {
+          logger.error('Failed to update pinned miniapps', { failures: failed.map((f) => f.reason) })
+          window.toast?.error('Failed to update miniapps')
+        }
+        return results.filter((r): r is PromiseFulfilledResult<MiniApp> => r.status === 'fulfilled').map((r) => r.value)
       })
     },
     [pinned, patchApp]

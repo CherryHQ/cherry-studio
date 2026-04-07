@@ -75,6 +75,13 @@ export class MiniAppMigrator extends BaseMigrator {
           try {
             const row = transformMiniApp(app, status, i)
 
+            // Skip rows with empty required fields (ghost apps)
+            if (!row.name || !row.url) {
+              this.skippedCount++
+              warnings.push(`Skipped ${status} app ${app.id}: missing name or url`)
+              continue
+            }
+
             // If already seen with same or higher priority, keep existing
             // If seen with lower priority, replace (e.g. enabled -> pinned)
             const existing = seenIds.get(app.id)
@@ -182,15 +189,18 @@ export class MiniAppMigrator extends BaseMigrator {
         })
       }
 
-      // Sample validation: check required fields
-      const sample = await ctx.db.select().from(miniAppTable).limit(5).all()
-      for (const app of sample) {
-        if (!app.appId || !app.name || !app.url) {
-          errors.push({
-            key: app.appId ?? 'unknown',
-            message: 'Missing required field (appId, name, or url)'
-          })
-        }
+      // Full validation: check for rows with empty required fields
+      const badRows = await ctx.db
+        .select({ count: sql<number>`count(*)` })
+        .from(miniAppTable)
+        .where(sql`${miniAppTable.appId} = '' OR ${miniAppTable.name} = '' OR ${miniAppTable.url} = ''`)
+        .get()
+      const badCount = badRows?.count ?? 0
+      if (badCount > 0) {
+        errors.push({
+          key: 'empty_fields',
+          message: `Found ${badCount} rows with empty appId, name, or url`
+        })
       }
 
       return {

@@ -12,7 +12,7 @@ import { createUpdateTimestamps } from './_columnHelpers'
 
 export type MiniAppStatus = 'enabled' | 'disabled' | 'pinned'
 
-export type MiniAppType = 'default' | 'custom'
+export type MiniAppKind = 'default' | 'custom'
 
 export type MiniAppRegion = 'CN' | 'Global'
 
@@ -29,7 +29,7 @@ export const miniAppTable = sqliteTable(
     logo: text(),
 
     // App type: default (system) or custom (user-added)
-    type: text().$type<MiniAppType>().notNull().default('custom'),
+    type: text().$type<MiniAppKind>().notNull().default('custom'),
 
     // User status for this app
     status: text().$type<MiniAppStatus>().notNull().default('enabled'),

@@ -362,14 +362,8 @@ export const REDUX_STORE_MAPPINGS = {
       originalKey: 'confirmRegenerateMessage',
       targetKey: 'chat.message.confirm_regenerate'
     },
-    {
-      originalKey: 'sidebarIcons.visible',
-      targetKey: 'ui.sidebar.icons.visible'
-    },
-    {
-      originalKey: 'sidebarIcons.disabled',
-      targetKey: 'ui.sidebar.icons.invisible'
-    },
+    // sidebarIcons.visible and sidebarIcons.disabled moved to ComplexPreferenceMappings
+    // (need value transform: 'minapp' → 'miniapp')
     {
       originalKey: 'narrowMode',
       targetKey: 'chat.narrow_mode'
@@ -485,6 +479,10 @@ export const REDUX_STORE_MAPPINGS = {
     {
       originalKey: 'minappsOpenLinkExternal',
       targetKey: 'feature.miniapp.open_link_external'
+    },
+    {
+      originalKey: 'minAppRegion',
+      targetKey: 'feature.miniapp.region'
     },
     {
       originalKey: 'enableSpellCheck',
