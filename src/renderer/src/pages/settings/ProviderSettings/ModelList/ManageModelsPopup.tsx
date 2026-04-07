@@ -116,19 +116,18 @@ const PopupContainer: React.FC<Props> = ({ providerId, resolve }) => {
     [filterSearchText, actualFilterType, allModels]
   )
 
-  const modelGroups = useMemo(
-    () =>
-      provider?.id === 'dashscope'
-        ? {
-            ...groupBy(
-              list.filter((model) => !model.id.startsWith('qwen')),
-              'group'
-            ),
-            ...groupQwenModels(list.filter((model) => model.id.startsWith('qwen')))
-          }
-        : groupBy(list, 'group'),
-    [list, provider?.id]
-  )
+  const modelGroups = useMemo(() => {
+    const groupFn = (m: Model) => m.group || provider?.id || ''
+    return provider?.id === 'dashscope'
+      ? {
+          ...groupBy(
+            list.filter((model) => !model.id.startsWith('qwen')),
+            groupFn
+          ),
+          ...groupQwenModels(list.filter((model) => model.id.startsWith('qwen')))
+        }
+      : groupBy(list, groupFn)
+  }, [list, provider?.id])
 
   const onOk = useCallback(() => setOpen(false), [])
 
