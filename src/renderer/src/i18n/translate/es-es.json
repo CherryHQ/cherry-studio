@@ -5555,6 +5555,7 @@
       "actions": "operación",
       "clear_shortcut": "Borrar atajo",
       "clear_topic": "Vaciar mensaje",
+      "conflict_with": "Ya usado por \"{{name}}\"",
       "copy_last_message": "Copiar el último mensaje",
       "edit_last_user_message": "Editar último mensaje de usuario",
       "enabled": "habilitar",
@@ -5569,6 +5570,7 @@
       "reset_to_default": "Restablecer a predeterminado",
       "search_message": "Buscar mensaje",
       "search_message_in_chat": "Buscar mensajes en la conversación actual",
+      "search_placeholder": "Buscar accesos directos...",
       "select_model": "Select Model",
       "selection_assistant_select_text": "Asistente de selección de texto: obtener palabras",
       "selection_assistant_toggle": "Activar/desactivar el asistente de selección de texto",
@@ -5846,7 +5848,7 @@
     }
   },
   "tab": {
-    "new": "[to be translated]:New Tab"
+    "new": "Nueva pestaña"
   },
   "title": {
     "apps": "Aplicaciones",

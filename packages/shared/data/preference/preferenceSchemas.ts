@@ -424,38 +424,26 @@ export interface PreferenceSchemas {
     'feature.translate.page.source_language': PreferenceTypes.TranslateSourceLanguage
     // dexieSettings/settings/translate:target:language
     'feature.translate.page.target_language': PreferenceTypes.TranslateLanguageCode
-    // redux/shortcuts/shortcuts.exit_fullscreen
-    'shortcut.app.exit_fullscreen': Record<string, unknown>
-    // redux/shortcuts/shortcuts.search_message
-    'shortcut.app.search_message': Record<string, unknown>
-    // redux/shortcuts/shortcuts.show_app
-    'shortcut.app.show_main_window': Record<string, unknown>
-    // redux/shortcuts/shortcuts.mini_window
-    'shortcut.app.show_mini_window': Record<string, unknown>
-    // redux/shortcuts/shortcuts.show_settings
-    'shortcut.app.show_settings': Record<string, unknown>
-    // redux/shortcuts/shortcuts.toggle_show_assistants
-    'shortcut.app.toggle_show_assistants': Record<string, unknown>
-    // redux/shortcuts/shortcuts.zoom_in
-    'shortcut.app.zoom_in': Record<string, unknown>
-    // redux/shortcuts/shortcuts.zoom_out
-    'shortcut.app.zoom_out': Record<string, unknown>
-    // redux/shortcuts/shortcuts.zoom_reset
-    'shortcut.app.zoom_reset': Record<string, unknown>
-    // redux/shortcuts/shortcuts.clear_topic
-    'shortcut.chat.clear': Record<string, unknown>
-    // redux/shortcuts/shortcuts.copy_last_message
-    'shortcut.chat.copy_last_message': Record<string, unknown>
-    // redux/shortcuts/shortcuts.search_message_in_chat
-    'shortcut.chat.search_message': Record<string, unknown>
-    // redux/shortcuts/shortcuts.toggle_new_context
-    'shortcut.chat.toggle_new_context': Record<string, unknown>
-    // redux/shortcuts/shortcuts.selection_assistant_select_text
-    'shortcut.selection.get_text': Record<string, unknown>
-    // redux/shortcuts/shortcuts.selection_assistant_toggle
-    'shortcut.selection.toggle_enabled': Record<string, unknown>
-    // redux/shortcuts/shortcuts.new_topic
-    'shortcut.topic.new': Record<string, unknown>
+    'shortcut.app.exit_fullscreen': PreferenceTypes.PreferenceShortcutType
+    'shortcut.app.search_message': PreferenceTypes.PreferenceShortcutType
+    'shortcut.app.show_main_window': PreferenceTypes.PreferenceShortcutType
+    'shortcut.app.show_mini_window': PreferenceTypes.PreferenceShortcutType
+    'shortcut.app.show_settings': PreferenceTypes.PreferenceShortcutType
+    'shortcut.app.toggle_show_assistants': PreferenceTypes.PreferenceShortcutType
+    'shortcut.app.zoom_in': PreferenceTypes.PreferenceShortcutType
+    'shortcut.app.zoom_out': PreferenceTypes.PreferenceShortcutType
+    'shortcut.app.zoom_reset': PreferenceTypes.PreferenceShortcutType
+    'shortcut.chat.clear': PreferenceTypes.PreferenceShortcutType
+    'shortcut.chat.copy_last_message': PreferenceTypes.PreferenceShortcutType
+    'shortcut.chat.edit_last_user_message': PreferenceTypes.PreferenceShortcutType
+    'shortcut.chat.search_message': PreferenceTypes.PreferenceShortcutType
+    'shortcut.chat.select_model': PreferenceTypes.PreferenceShortcutType
+    'shortcut.chat.toggle_new_context': PreferenceTypes.PreferenceShortcutType
+    'shortcut.selection.get_text': PreferenceTypes.PreferenceShortcutType
+    'shortcut.selection.toggle_enabled': PreferenceTypes.PreferenceShortcutType
+    'shortcut.topic.new': PreferenceTypes.PreferenceShortcutType
+    'shortcut.topic.rename': PreferenceTypes.PreferenceShortcutType
+    'shortcut.topic.toggle_show_topics': PreferenceTypes.PreferenceShortcutType
     // redux/settings/enableTopicNaming
     'topic.naming.enabled': boolean
     // redux/settings/topicNamingPrompt
@@ -713,42 +701,26 @@ export const DefaultPreferences: PreferenceSchemas = {
     'feature.translate.page.scroll_sync': false,
     'feature.translate.page.source_language': 'auto',
     'feature.translate.page.target_language': 'zh-cn',
-    'shortcut.app.exit_fullscreen': { editable: false, enabled: true, key: ['Escape'], system: true },
-    'shortcut.app.search_message': {
-      editable: true,
-      enabled: true,
-      key: ['CommandOrControl', 'Shift', 'F'],
-      system: false
-    },
-    'shortcut.app.show_main_window': { editable: true, enabled: true, key: [], system: true },
-    'shortcut.app.show_mini_window': { editable: true, enabled: false, key: ['CommandOrControl', 'E'], system: true },
-    'shortcut.app.show_settings': { editable: false, enabled: true, key: ['CommandOrControl', ','], system: true },
-    'shortcut.app.toggle_show_assistants': {
-      editable: true,
-      enabled: true,
-      key: ['CommandOrControl', '['],
-      system: false
-    },
-    'shortcut.app.zoom_in': { editable: false, enabled: true, key: ['CommandOrControl', '='], system: true },
-    'shortcut.app.zoom_out': { editable: false, enabled: true, key: ['CommandOrControl', '-'], system: true },
-    'shortcut.app.zoom_reset': { editable: false, enabled: true, key: ['CommandOrControl', '0'], system: true },
-    'shortcut.chat.clear': { editable: true, enabled: true, key: ['CommandOrControl', 'L'], system: false },
-    'shortcut.chat.copy_last_message': {
-      editable: true,
-      enabled: false,
-      key: ['CommandOrControl', 'Shift', 'C'],
-      system: false
-    },
-    'shortcut.chat.search_message': { editable: true, enabled: true, key: ['CommandOrControl', 'F'], system: false },
-    'shortcut.chat.toggle_new_context': {
-      editable: true,
-      enabled: true,
-      key: ['CommandOrControl', 'K'],
-      system: false
-    },
-    'shortcut.selection.get_text': { editable: true, enabled: false, key: [], system: true },
-    'shortcut.selection.toggle_enabled': { editable: true, enabled: false, key: [], system: true },
-    'shortcut.topic.new': { editable: true, enabled: true, key: ['CommandOrControl', 'N'], system: false },
+    'shortcut.app.exit_fullscreen': { enabled: true, key: ['Escape'] },
+    'shortcut.app.search_message': { enabled: true, key: ['CommandOrControl', 'Shift', 'F'] },
+    'shortcut.app.show_main_window': { enabled: true, key: [] },
+    'shortcut.app.show_mini_window': { enabled: false, key: ['CommandOrControl', 'E'] },
+    'shortcut.app.show_settings': { enabled: true, key: ['CommandOrControl', ','] },
+    'shortcut.app.toggle_show_assistants': { enabled: true, key: ['CommandOrControl', '['] },
+    'shortcut.app.zoom_in': { enabled: true, key: ['CommandOrControl', '='] },
+    'shortcut.app.zoom_out': { enabled: true, key: ['CommandOrControl', '-'] },
+    'shortcut.app.zoom_reset': { enabled: true, key: ['CommandOrControl', '0'] },
+    'shortcut.chat.clear': { enabled: true, key: ['CommandOrControl', 'L'] },
+    'shortcut.chat.copy_last_message': { enabled: false, key: ['CommandOrControl', 'Shift', 'C'] },
+    'shortcut.chat.edit_last_user_message': { enabled: false, key: ['CommandOrControl', 'Shift', 'E'] },
+    'shortcut.chat.search_message': { enabled: true, key: ['CommandOrControl', 'F'] },
+    'shortcut.chat.select_model': { enabled: true, key: ['CommandOrControl', 'Shift', 'M'] },
+    'shortcut.chat.toggle_new_context': { enabled: true, key: ['CommandOrControl', 'K'] },
+    'shortcut.selection.get_text': { enabled: false, key: [] },
+    'shortcut.selection.toggle_enabled': { enabled: false, key: [] },
+    'shortcut.topic.new': { enabled: true, key: ['CommandOrControl', 'N'] },
+    'shortcut.topic.rename': { enabled: true, key: ['CommandOrControl', 'T'] },
+    'shortcut.topic.toggle_show_topics': { enabled: true, key: ['CommandOrControl', ']'] },
     'topic.naming.enabled': true,
     'topic.naming_prompt': '',
     'topic.position': 'left',

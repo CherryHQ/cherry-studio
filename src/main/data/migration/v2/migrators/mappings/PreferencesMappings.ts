@@ -785,12 +785,24 @@ export const REDUX_STORE_MAPPINGS = {
       targetKey: 'shortcut.topic.new'
     },
     {
+      originalKey: 'shortcuts.rename_topic',
+      targetKey: 'shortcut.topic.rename'
+    },
+    {
       originalKey: 'shortcuts.toggle_show_assistants',
       targetKey: 'shortcut.app.toggle_show_assistants'
     },
     {
+      originalKey: 'shortcuts.toggle_show_topics',
+      targetKey: 'shortcut.topic.toggle_show_topics'
+    },
+    {
       originalKey: 'shortcuts.copy_last_message',
       targetKey: 'shortcut.chat.copy_last_message'
+    },
+    {
+      originalKey: 'shortcuts.edit_last_user_message',
+      targetKey: 'shortcut.chat.edit_last_user_message'
     },
     {
       originalKey: 'shortcuts.search_message_in_chat',
@@ -807,6 +819,10 @@ export const REDUX_STORE_MAPPINGS = {
     {
       originalKey: 'shortcuts.toggle_new_context',
       targetKey: 'shortcut.chat.toggle_new_context'
+    },
+    {
+      originalKey: 'shortcuts.select_model',
+      targetKey: 'shortcut.chat.select_model'
     },
     {
       originalKey: 'shortcuts.exit_fullscreen',
@@ -937,11 +953,11 @@ export const LOCALSTORAGE_MAPPINGS: ReadonlyArray<{ originalKey: string; targetK
 /**
  * 映射统计:
  * - ElectronStore项: 1
- * - Redux Store项: 208
+ * - Redux Store项: 212
  * - Redux分类: settings, selectionStore, memory, nutstore, preprocess, shortcuts, translate, websearch, ocr, note
  * - DexieSettings项: 7
  * - localStorage项: 0
- * - 总配置项: 216
+ * - 总配置项: 220
  *
  * 使用说明:
  * 1. ElectronStore读取: configManager.get(mapping.originalKey)

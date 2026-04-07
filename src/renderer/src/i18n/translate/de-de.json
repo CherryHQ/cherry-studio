@@ -5555,6 +5555,7 @@
       "actions": "Aktionen",
       "clear_shortcut": "Shortcut löschen",
       "clear_topic": "Nachricht leeren",
+      "conflict_with": "Bereits von „{{name}}“ verwendet",
       "copy_last_message": "Letzte Nachricht kopieren",
       "edit_last_user_message": "Letzte Benutzernachricht bearbeiten",
       "enabled": "Aktivieren",
@@ -5569,6 +5570,7 @@
       "reset_to_default": "Auf Standard zurücksetzen",
       "search_message": "Nachricht suchen",
       "search_message_in_chat": "In aktuellem Chat suchen",
+      "search_placeholder": "Suchverknüpfungen durchsuchen...",
       "select_model": "Select Model",
       "selection_assistant_select_text": "Textauswahl-Assistent: Text erfassen",
       "selection_assistant_toggle": "Textauswahl-Assistent umschalten",
@@ -5846,7 +5848,7 @@
     }
   },
   "tab": {
-    "new": "[to be translated]:New Tab"
+    "new": "Neuer Tab"
   },
   "title": {
     "apps": "Mini-Apps",

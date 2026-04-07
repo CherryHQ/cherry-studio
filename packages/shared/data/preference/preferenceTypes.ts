@@ -23,9 +23,7 @@ export type PreferenceUpdateOptions = {
 
 export type PreferenceShortcutType = {
   key: string[]
-  editable: boolean
   enabled: boolean
-  system: boolean
 }
 
 export enum SelectionTriggerMode {

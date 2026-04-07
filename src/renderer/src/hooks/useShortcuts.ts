@@ -1,23 +1,20 @@
-/**
- * @deprecated Scheduled for removal in v2.0.0
- * --------------------------------------------------------------------------
- * ⚠️ NOTICE: V2 DATA&UI REFACTORING (by 0xfullex)
- * --------------------------------------------------------------------------
- * STOP: Feature PRs affecting this file are currently BLOCKED.
- * Only critical bug fixes are accepted during this migration phase.
- *
- * This file is being refactored to v2 standards.
- * Any non-critical changes will conflict with the ongoing work.
- *
- * 🔗 Context & Status:
- * - Contribution Hold: https://github.com/CherryHQ/cherry-studio/issues/10954
- * - v2 Refactor PR   : https://github.com/CherryHQ/cherry-studio/pull/10162
- * --------------------------------------------------------------------------
- */
-import { isMac, isWin } from '@renderer/config/constant'
-import { useAppSelector } from '@renderer/store'
-import { orderBy } from 'lodash'
-import { useCallback } from 'react'
+import { useMultiplePreferences, usePreference } from '@data/hooks/usePreference'
+import { isMac } from '@renderer/config/constant'
+import type { PreferenceShortcutType } from '@shared/data/preference/preferenceTypes'
+import { findShortcutDefinition, SHORTCUT_DEFINITIONS } from '@shared/shortcuts/definitions'
+import type {
+  ShortcutDefinition,
+  ShortcutKey,
+  ShortcutPreferenceKey,
+  ShortcutPreferenceValue
+} from '@shared/shortcuts/types'
+import {
+  coerceShortcutPreference,
+  convertAcceleratorToHotkey,
+  formatShortcutDisplay,
+  getDefaultShortcutPreference
+} from '@shared/shortcuts/utils'
+import { useCallback, useMemo } from 'react'
 import { useHotkeys } from 'react-hotkeys-hook'
 
 interface UseShortcutOptions {
@@ -25,85 +22,164 @@ interface UseShortcutOptions {
   enableOnFormTags?: boolean
   enabled?: boolean
   description?: string
+  enableOnContentEditable?: boolean
 }
 
 const defaultOptions: UseShortcutOptions = {
   preventDefault: true,
   enableOnFormTags: true,
-  enabled: true
+  enabled: true,
+  enableOnContentEditable: false
+}
+
+const toFullKey = (key: ShortcutKey | ShortcutPreferenceKey): ShortcutPreferenceKey =>
+  (key.startsWith('shortcut.') ? key : `shortcut.${key}`) as ShortcutPreferenceKey
+
+const resolvePreferenceValue = (
+  definition: ShortcutDefinition | undefined,
+  preference: PreferenceShortcutType | Record<string, unknown> | undefined
+): ShortcutPreferenceValue | null => {
+  if (!definition) {
+    return null
+  }
+  return coerceShortcutPreference(definition, preference as PreferenceShortcutType | undefined)
 }
 
 export const useShortcut = (
-  shortcutKey: string,
-  callback: (e: KeyboardEvent) => void,
+  shortcutKey: ShortcutKey | ShortcutPreferenceKey,
+  callback: (event: KeyboardEvent) => void,
   options: UseShortcutOptions = defaultOptions
 ) => {
-  const shortcuts = useAppSelector((state) => state.shortcuts.shortcuts)
+  const fullKey = toFullKey(shortcutKey)
+  const definition = useMemo(() => findShortcutDefinition(fullKey), [fullKey])
+  const [preference] = usePreference(fullKey)
+  const preferenceState = useMemo(() => resolvePreferenceValue(definition, preference), [definition, preference])
 
-  const formatShortcut = useCallback((shortcut: string[]) => {
-    return shortcut
-      .map((key) => {
-        switch (key.toLowerCase()) {
-          case 'command':
-            return 'meta'
-          case 'commandorcontrol':
-            return isMac ? 'meta' : 'ctrl'
-          default:
-            return key.toLowerCase()
-        }
-      })
-      .join('+')
-  }, [])
+  const hotkey = useMemo(() => {
+    if (!definition || !preferenceState) {
+      return 'none'
+    }
 
-  const shortcutConfig = shortcuts.find((s) => s.key === shortcutKey)
+    if (definition.scope === 'main') {
+      return 'none'
+    }
+
+    if (!preferenceState.enabled) {
+      return 'none'
+    }
+
+    if (!preferenceState.binding.length) {
+      return 'none'
+    }
+
+    return convertAcceleratorToHotkey(preferenceState.binding)
+  }, [definition, preferenceState])
 
   useHotkeys(
-    shortcutConfig?.enabled ? formatShortcut(shortcutConfig.shortcut) : 'none',
-    (e) => {
+    hotkey,
+    (event) => {
       if (options.preventDefault) {
-        e.preventDefault()
+        event.preventDefault()
       }
       if (options.enabled !== false) {
-        callback(e)
+        callback(event)
       }
     },
     {
       enableOnFormTags: options.enableOnFormTags,
-      description: options.description || shortcutConfig?.key,
-      enabled: !!shortcutConfig?.enabled
-    }
+      description: options.description ?? fullKey,
+      enabled: hotkey !== 'none',
+      enableOnContentEditable: options.enableOnContentEditable
+    },
+    [hotkey, callback, options]
   )
 }
 
-export function useShortcuts() {
-  const shortcuts = useAppSelector((state) => state.shortcuts.shortcuts)
-  return { shortcuts: orderBy(shortcuts, 'system', 'desc') }
+export const useShortcutDisplay = (shortcutKey: ShortcutKey | ShortcutPreferenceKey): string => {
+  const fullKey = toFullKey(shortcutKey)
+  const definition = useMemo(() => findShortcutDefinition(fullKey), [fullKey])
+  const [preference] = usePreference(fullKey)
+  const preferenceState = useMemo(() => resolvePreferenceValue(definition, preference), [definition, preference])
+
+  return useMemo(() => {
+    if (!definition || !preferenceState || !preferenceState.enabled) {
+      return ''
+    }
+
+    const displayBinding = preferenceState.binding.length > 0 ? preferenceState.binding : definition.defaultKey
+
+    if (!displayBinding.length) {
+      return ''
+    }
+
+    return formatShortcutDisplay(displayBinding, isMac)
+  }, [definition, preferenceState])
 }
 
-export function useShortcutDisplay(key: string) {
-  const formatShortcut = useCallback((shortcut: string[]) => {
-    return shortcut
-      .map((key) => {
-        switch (key.toLowerCase()) {
-          case 'control':
-            return isMac ? '⌃' : 'Ctrl'
-          case 'ctrl':
-            return isMac ? '⌃' : 'Ctrl'
-          case 'command':
-            return isMac ? '⌘' : isWin ? 'Win' : 'Super'
-          case 'alt':
-            return isMac ? '⌥' : 'Alt'
-          case 'shift':
-            return isMac ? '⇧' : 'Shift'
-          case 'commandorcontrol':
-            return isMac ? '⌘' : 'Ctrl'
-          default:
-            return key.charAt(0).toUpperCase() + key.slice(1).toLowerCase()
+export interface ShortcutListItem {
+  definition: ShortcutDefinition
+  preference: ShortcutPreferenceValue
+  defaultPreference: ShortcutPreferenceValue
+  updatePreference: (patch: Partial<PreferenceShortcutType>) => Promise<void>
+}
+
+export const useAllShortcuts = (): ShortcutListItem[] => {
+  const keyMap = useMemo(
+    () =>
+      SHORTCUT_DEFINITIONS.reduce<Record<string, ShortcutPreferenceKey>>((acc, definition) => {
+        acc[definition.key] = definition.key
+        return acc
+      }, {}),
+    []
+  )
+
+  const [values, setValues] = useMultiplePreferences(keyMap)
+
+  const buildNextPreference = useCallback(
+    (
+      state: ShortcutPreferenceValue,
+      currentValue: PreferenceShortcutType | undefined,
+      patch: Partial<PreferenceShortcutType>
+    ): PreferenceShortcutType => {
+      const current = (currentValue ?? {}) as PreferenceShortcutType
+
+      const nextKey = Array.isArray(patch.key) ? patch.key : Array.isArray(current.key) ? current.key : state.rawBinding
+
+      const nextEnabled =
+        typeof patch.enabled === 'boolean'
+          ? patch.enabled
+          : typeof current.enabled === 'boolean'
+            ? current.enabled
+            : state.enabled
+
+      return {
+        key: nextKey,
+        enabled: nextEnabled
+      }
+    },
+    []
+  )
+
+  return useMemo(
+    () =>
+      SHORTCUT_DEFINITIONS.map((definition) => {
+        const rawValue = values[definition.key] as PreferenceShortcutType | undefined
+        const preference = coerceShortcutPreference(definition, rawValue)
+        const defaultPreference = getDefaultShortcutPreference(definition)
+
+        const updatePreference = async (patch: Partial<PreferenceShortcutType>) => {
+          const currentValue = values[definition.key] as PreferenceShortcutType | undefined
+          const nextValue = buildNextPreference(preference, currentValue, patch)
+          await setValues({ [definition.key]: nextValue } as Partial<Record<string, PreferenceShortcutType>>)
         }
-      })
-      .join('+')
-  }, [])
-  const shortcuts = useAppSelector((state) => state.shortcuts.shortcuts)
-  const shortcutConfig = shortcuts.find((s) => s.key === key)
-  return shortcutConfig?.enabled ? formatShortcut(shortcutConfig.shortcut) : ''
+
+        return {
+          definition,
+          preference,
+          defaultPreference,
+          updatePreference
+        }
+      }),
+    [buildNextPreference, setValues, values]
+  )
 }

@@ -32,7 +32,7 @@ const AgentPage = () => {
   const { apiServerConfig, apiServerRunning, apiServerLoading } = useApiServer()
   const { t } = useTranslation()
 
-  useShortcut('toggle_show_assistants', () => {
+  useShortcut('app.toggle_show_assistants', () => {
     if (topicPosition === 'left') {
       void toggleShowAssistants()
       return
@@ -41,7 +41,7 @@ const AgentPage = () => {
     void EventEmitter.emit(EVENT_NAMES.SHOW_ASSISTANTS)
   })
 
-  useShortcut('toggle_show_topics', () => {
+  useShortcut('topic.toggle_show_topics', () => {
     if (topicPosition === 'right') {
       void toggleShowTopics()
     } else {

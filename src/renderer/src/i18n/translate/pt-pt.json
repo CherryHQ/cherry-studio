@@ -5555,6 +5555,7 @@
       "actions": "operação",
       "clear_shortcut": "Limpar atalho",
       "clear_topic": "Limpar mensagem",
+      "conflict_with": "Já utilizado por \"{{name}}\"",
       "copy_last_message": "Copiar a última mensagem",
       "edit_last_user_message": "Editar última mensagem do usuário",
       "enabled": "ativar",
@@ -5569,6 +5570,7 @@
       "reset_to_default": "Redefinir para padrão",
       "search_message": "Pesquisar mensagem",
       "search_message_in_chat": "Pesquisar mensagens nesta conversa",
+      "search_placeholder": "Atalhos de pesquisa...",
       "select_model": "Select Model",
       "selection_assistant_select_text": "Assistente de seleção de texto: selecionar texto",
       "selection_assistant_toggle": "Ativar/desativar assistente de seleção de texto",
@@ -5846,7 +5848,7 @@
     }
   },
   "tab": {
-    "new": "[to be translated]:New Tab"
+    "new": "Nova Aba"
   },
   "title": {
     "apps": "Miniaplicativos",

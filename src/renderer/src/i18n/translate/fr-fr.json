@@ -5555,6 +5555,7 @@
       "actions": "操作",
       "clear_shortcut": "Effacer raccourci clavier",
       "clear_topic": "Vider les messages",
+      "conflict_with": "Déjà utilisé par \"{{name}}\"",
       "copy_last_message": "Copier le dernier message",
       "edit_last_user_message": "Éditer le dernier message utilisateur",
       "enabled": "activer",
@@ -5569,6 +5570,7 @@
       "reset_to_default": "Réinitialiser aux valeurs par défaut",
       "search_message": "Rechercher un message",
       "search_message_in_chat": "Rechercher un message dans la conversation actuelle",
+      "search_placeholder": "Raccourcis de recherche...",
       "select_model": "Select Model",
       "selection_assistant_select_text": "Assistant de sélection de texte : extraire le texte",
       "selection_assistant_toggle": "Activer/désactiver l'assistant de sélection de texte",
@@ -5846,7 +5848,7 @@
     }
   },
   "tab": {
-    "new": "[to be translated]:New Tab"
+    "new": "Nouvel onglet"
   },
   "title": {
     "apps": "Mini-programmes",

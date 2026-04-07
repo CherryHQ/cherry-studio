@@ -249,8 +249,6 @@ export enum IpcChannel {
 
   Export_Word = 'export:word',
 
-  Shortcuts_Update = 'shortcuts:update',
-
   // backup
   Backup_Backup = 'backup:backup',
   Backup_Restore = 'backup:restore',

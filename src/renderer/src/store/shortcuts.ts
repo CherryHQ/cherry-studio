@@ -151,31 +151,21 @@ const initialState: ShortcutsState = {
   ]
 }
 
-const getSerializableShortcuts = (shortcuts: Shortcut[]) => {
-  return shortcuts.map((shortcut) => ({
-    key: shortcut.key,
-    shortcut: [...shortcut.shortcut],
-    enabled: shortcut.enabled,
-    system: shortcut.system,
-    editable: shortcut.editable
-  }))
-}
-
 const shortcutsSlice = createSlice({
   name: 'shortcuts',
   initialState,
   reducers: {
     updateShortcut: (state, action: PayloadAction<Shortcut>) => {
       state.shortcuts = state.shortcuts.map((s) => (s.key === action.payload.key ? action.payload : s))
-      void window.api.shortcuts.update(getSerializableShortcuts(state.shortcuts))
+      // Shortcuts are now managed via PreferenceService — this slice is kept only for migration
     },
     toggleShortcut: (state, action: PayloadAction<string>) => {
       state.shortcuts = state.shortcuts.map((s) => (s.key === action.payload ? { ...s, enabled: !s.enabled } : s))
-      void window.api.shortcuts.update(getSerializableShortcuts(state.shortcuts))
+      // Shortcuts are now managed via PreferenceService — this slice is kept only for migration
     },
     resetShortcuts: (state) => {
       state.shortcuts = initialState.shortcuts
-      void window.api.shortcuts.update(getSerializableShortcuts(state.shortcuts))
+      // Shortcuts are now managed via PreferenceService — this slice is kept only for migration
     }
   }
 })

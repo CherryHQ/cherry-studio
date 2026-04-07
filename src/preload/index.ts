@@ -48,7 +48,6 @@ import type {
   Provider,
   RestartApiServerStatusResult,
   S3Config,
-  Shortcut,
   StartApiServerStatusResult,
   StopApiServerStatusResult,
   SupportedOcrFile,
@@ -299,9 +298,6 @@ const api = {
     getFiles: (vaultName: string) => ipcRenderer.invoke(IpcChannel.Obsidian_GetFiles, vaultName)
   },
   openPath: (path: string) => ipcRenderer.invoke(IpcChannel.Open_Path, path),
-  shortcuts: {
-    update: (shortcuts: Shortcut[]) => ipcRenderer.invoke(IpcChannel.Shortcuts_Update, shortcuts)
-  },
   knowledgeBase: {
     create: (base: KnowledgeBaseParams, context?: SpanContext) =>
       tracedInvoke(IpcChannel.KnowledgeBase_Create, context, base),

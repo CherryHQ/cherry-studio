@@ -5555,6 +5555,7 @@
       "actions": "操作",
       "clear_shortcut": "Очистить сочетание клавиш",
       "clear_topic": "Очистить все сообщения",
+      "conflict_with": "Уже используется \"{{name}}\"",
       "copy_last_message": "Копировать последнее сообщение",
       "edit_last_user_message": "Редактировать последнее сообщение пользователя",
       "enabled": "Включить",
@@ -5569,6 +5570,7 @@
       "reset_to_default": "Сбросить настройки по умолчанию",
       "search_message": "Поиск сообщения",
       "search_message_in_chat": "Поиск сообщения в текущем диалоге",
+      "search_placeholder": "Поиск ярлыков...",
       "select_model": "Select Model",
       "selection_assistant_select_text": "Помощник выделения: выделить текст",
       "selection_assistant_toggle": "Переключить помощник выделения",
@@ -5846,7 +5848,7 @@
     }
   },
   "tab": {
-    "new": "[to be translated]:New Tab"
+    "new": "Новая вкладка"
   },
   "title": {
     "apps": "Приложения",
