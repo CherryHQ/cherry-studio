@@ -1,5 +1,5 @@
 import { useProvider } from '@renderer/data/hooks/useProviders'
-import { replaceBaseUrlDomain } from '@renderer/utils/provider.v2'
+import { replaceEndpointConfigDomain } from '@renderer/utils/provider.v2'
 import { Select } from 'antd'
 import type { FC } from 'react'
 import { useCallback, useMemo } from 'react'
@@ -32,15 +32,16 @@ const CherryINSettings: FC<CherryINSettingsProps> = ({ providerId }) => {
   const { t } = useTranslation()
 
   const currentDomain = useMemo(() => {
-    if (!provider?.baseUrls) return API_HOST_OPTIONS[0].value
-    const firstUrl = Object.values(provider.baseUrls)[0]
+    if (!provider?.endpointConfigs) return API_HOST_OPTIONS[0].value
+    const firstConfig = Object.values(provider.endpointConfigs)[0]
+    const firstUrl = firstConfig?.baseUrl
     if (!firstUrl) return API_HOST_OPTIONS[0].value
     try {
       return new URL(firstUrl).hostname
     } catch {
       return API_HOST_OPTIONS[0].value
     }
-  }, [provider?.baseUrls])
+  }, [provider?.endpointConfigs])
 
   const getCurrentHost = useMemo(() => {
     const matched = API_HOST_OPTIONS.find((option) => currentDomain.includes(option.value))
@@ -49,10 +50,10 @@ const CherryINSettings: FC<CherryINSettingsProps> = ({ providerId }) => {
 
   const handleHostChange = useCallback(
     async (value: string) => {
-      const newBaseUrls = replaceBaseUrlDomain(provider?.baseUrls, value)
-      await updateProvider({ baseUrls: newBaseUrls })
+      const newEndpointConfigs = replaceEndpointConfigDomain(provider?.endpointConfigs, value)
+      await updateProvider({ endpointConfigs: newEndpointConfigs })
     },
-    [provider?.baseUrls, updateProvider]
+    [provider?.endpointConfigs, updateProvider]
   )
 
   const options = useMemo(

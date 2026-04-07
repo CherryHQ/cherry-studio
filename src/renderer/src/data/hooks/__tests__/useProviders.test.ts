@@ -7,8 +7,8 @@ import {
   useProvider,
   useProviderApiKeys,
   useProviderAuthConfig,
-  useProviderCatalogModels,
   useProviderMutations,
+  useProviderRegistryModels,
   useProviders
 } from '../useProviders'
 
@@ -363,15 +363,15 @@ describe('useProviderApiKeys', () => {
   })
 })
 
-describe('useProviderCatalogModels', () => {
+describe('useProviderRegistryModels', () => {
   beforeEach(() => {
     vi.clearAllMocks()
   })
 
-  it('should query catalog models for a provider', () => {
+  it('should query registry models for a provider', () => {
     const mockModels = [{ id: 'gpt-4o', name: 'GPT-4o', providerId: 'openai' }]
     mockUseQuery.mockImplementation((path: string) => ({
-      data: path.includes('catalog-models') ? mockModels : undefined,
+      data: path.includes('registry-models') ? mockModels : undefined,
       isLoading: false,
       isRefreshing: false,
       error: undefined,
@@ -379,10 +379,10 @@ describe('useProviderCatalogModels', () => {
       mutate: vi.fn()
     }))
 
-    const { result } = renderHook(() => useProviderCatalogModels('openai'))
+    const { result } = renderHook(() => useProviderRegistryModels('openai'))
 
     expect(result.current.data).toEqual(mockModels)
     expect(result.current.isLoading).toBe(false)
-    expect(mockUseQuery).toHaveBeenCalledWith('/providers/openai/catalog-models')
+    expect(mockUseQuery).toHaveBeenCalledWith('/providers/openai/registry-models')
   })
 })

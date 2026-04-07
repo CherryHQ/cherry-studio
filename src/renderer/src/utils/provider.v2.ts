@@ -1,6 +1,6 @@
 import { getProviderLabel } from '@renderer/i18n/label'
 import { EndpointType } from '@shared/data/types/model'
-import type { Provider } from '@shared/data/types/provider'
+import type { EndpointConfig, Provider } from '@shared/data/types/provider'
 
 // ─── Protocol-level: check defaultChatEndpoint ───────────────────────────────
 
@@ -70,7 +70,7 @@ export function isOpenAICompatibleProvider(provider: Provider): boolean {
 export function isAnthropicSupportedProvider(provider: Provider): boolean {
   return (
     provider.defaultChatEndpoint === EndpointType.ANTHROPIC_MESSAGES ||
-    provider.baseUrls?.[EndpointType.ANTHROPIC_MESSAGES] != null
+    provider.endpointConfigs?.[EndpointType.ANTHROPIC_MESSAGES]?.baseUrl != null
   )
 }
 
@@ -129,23 +129,29 @@ export function hasApiKeys(provider: Provider): boolean {
 // ─── Base URL helpers ───────────────────────────────────────────────────────
 
 /**
- * Replace the domain (host) in all baseUrls while preserving URL paths.
+ * Replace the domain (host) in all endpointConfigs baseUrls while preserving URL paths
+ * and other EndpointConfig fields (reasoningFormatType, modelsApiUrls).
  * Used by CherryIN/DMXAPI domain switching.
  */
-export function replaceBaseUrlDomain(
-  baseUrls: Partial<Record<number, string>> | undefined,
+export function replaceEndpointConfigDomain(
+  endpointConfigs: Partial<Record<number, EndpointConfig>> | undefined,
   newDomain: string
-): Partial<Record<number, string>> {
-  if (!baseUrls) return {}
-  const result: Partial<Record<number, string>> = {}
-  for (const [key, url] of Object.entries(baseUrls)) {
-    if (!url) continue
+): Partial<Record<number, EndpointConfig>> {
+  if (!endpointConfigs) return {}
+  const result: Partial<Record<number, EndpointConfig>> = {}
+  for (const [key, config] of Object.entries(endpointConfigs)) {
+    if (!config) continue
+    const baseUrl = config.baseUrl
+    if (!baseUrl) {
+      result[Number(key)] = config
+      continue
+    }
     try {
-      const parsed = new URL(url)
+      const parsed = new URL(baseUrl)
       parsed.hostname = newDomain
-      result[Number(key)] = parsed.toString().replace(/\/$/, '')
+      result[Number(key)] = { ...config, baseUrl: parsed.toString().replace(/\/$/, '') }
     } catch {
-      result[Number(key)] = url
+      result[Number(key)] = config
     }
   }
   return result
