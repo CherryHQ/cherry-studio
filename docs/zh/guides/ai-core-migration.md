@@ -144,9 +144,7 @@ src/
 - **通过 ToolLoopAgent 内置钩子实现内层控制**：`prepareStep`（动态调整 tools/model/messages、消费 steering 消息）、`onStepFinish`（进度推送）、`onFinish`（token 汇总）、`stopWhen`（停止条件）。
 - **ToolRegistry + AI SDK 原生 `needsApproval` 实现工具权限**：不自建权限审批逻辑。所有 tools（MCP + 内置）通过 `ToolRegistry` 注册，每个 tool 声明 `needsApproval`（boolean 或 async function）。AI SDK 自动管理 `approval-requested` → `approval-responded` → `output-available` / `output-denied` 全流程，Renderer 通过 `useChat` 的 `addToolApprovalResponse()` 处理审批 UI。
 - **ToolRegistry 是纯容器，不主动发现 tool**：谁创建 tool，谁负责注册。内置 tools 由 `AiService.onStart()` 注册，MCP tools 由 `MCPService` 在 server 连接/断开时 register/unregister。`AiCompletionService` 通过构造函数注入 registry，只调用 `resolve()`。
-- **ToolRegistry 借鉴 Hermes Agent 两个模式**：
-  - **`checkAvailable` 动态可用性过滤**：每个 tool 可选声明 `checkAvailable(): boolean`（API key 缺失？服务未启动？）。`resolve()` 时自动过滤不可用的 tool，LLM 根本看不到——无需错误处理。
-  - **Toolset 组合**：tools 按 named toolset 分组（`research` = web_search + knowledge，`coding` = mcp-filesystem + mcp-git），用户配置 toolset 而非逐个 tool ID。toolset 可递归组合（`agent-default` = research + coding + memory）。
+- **ToolRegistry 借鉴 Hermes `check_fn` 模式**：每个 tool 可选声明 `checkAvailable(): boolean`（API key 缺失？服务未启动？）。`resolve()` 时自动过滤不可用的 tool，LLM 根本看不到——无需错误处理。
 - **无损上下文管理（检索 + 分层缓存）**：context window 不是 memory，是 viewport。所有消息持久化到 SQLite（single source of truth），context window 从 DB 编译而非内存中累积。Messages 数组分三层：① System prompt（session 级不变）② Retrieved context（外层循环边界更新，内层多步间稳定 → prompt cache hit）③ Working memory（当前轮次 raw messages，每步追加增长）。无 summary、无截断——用语义检索替代有损压缩，从全量历史中按 `relevance × recency` 加权检索最相关的消息填充 budget。内层 `prepareStep` 只管尾部（steering + `pruneMessages()` 裁剪旧 tool calls），不动前缀 → 保护 prompt cache。
 - **完成边界持久化，非流式写 DB**：v2 架构下 stream 是 IPC 传输通道（Renderer 实时渲染），不是存储。不逐 chunk 写 DB——在完成边界一次性持久化完整消息：`onFinish`（内层结束）写 assistant message + usage，外层边界写 steering messages。持久化后 Main 发送 `Ai_MessagesPersisted` IPC 事件，Renderer 通过已有的 `useInvalidateCache()` (SWR) 刷新 `/messages` 缓存。消除了 partial message、chunk 拼接、恢复逻辑。
 - **Pending Messages (Steering) 双层保障**：Renderer 通过 IPC 写入 `PendingMessageQueue`。**内层**：`prepareStep` 每步执行前 drain 队列并追加到 messages。**外层**：内层 ToolLoopAgent 退出后，`runAgentLoop` 再次 drain——如果有消息，将 assistant 响应 + pending messages 追加到 context，重启内层循环。两层保证 steering 消息不丢失。
@@ -966,8 +964,12 @@ export class AiCompletionService {
     const model = preferenceService.getModel(request.modelId)
 
     // 2. 从 ToolRegistry resolve tools（registry 已由外部填充，这里只读）
-    const enabledToolsets = request.toolsets ?? ['agent-default']
-    const tools = this.toolRegistry.resolve(enabledToolsets, request.mcpToolIds)
+    // 合并内置 tool IDs + MCP tool IDs，传给 resolve 过滤 checkAvailable
+    const toolIds = [
+      ...getBuiltinToolIds(request),  // 根据 request 的 feature toggles 决定启用哪些内置 tools
+      ...(request.mcpToolIds ?? []),
+    ]
+    const tools = this.toolRegistry.resolve(toolIds)
 
     // 3. 构建参数 + plugins
     const providerSettings = providerToAiSdkConfig(provider, model)
@@ -1037,76 +1039,31 @@ export class AiCompletionService {
  */
 interface RegisteredTool {
   name: string
-  toolset: string                 // 所属 toolset（'research' | 'coding' | 'mcp-{server}' | ...）
   tool: ReturnType<typeof tool>   // AI SDK tool()，已包含 needsApproval
   source: 'builtin' | 'mcp'
   /** 动态可用性检查（借鉴 Hermes check_fn）。返回 false 时 resolve() 自动跳过该 tool */
   checkAvailable?: () => boolean
 }
 
-/** Toolset 定义：named group of tools，支持递归组合 */
-const TOOLSETS: Record<string, string[]> = {
-  research:        ['webSearch', 'knowledge'],
-  memory:          ['memorySearch'],
-  'agent-default': ['@research', '@memory'],  // '@' 前缀 = 引用其他 toolset
-  // MCP toolsets 动态注册: 'mcp-filesystem', 'mcp-git', ...
-}
-
 class ToolRegistry {
   private tools = new Map<string, RegisteredTool>()
-  private toolsets = new Map<string, string[]>(Object.entries(TOOLSETS))
 
   /** 注册 tool（由各 service 在自身生命周期中调用，ToolRegistry 不主动发现 tool） */
   register(entry: RegisteredTool) {
     this.tools.set(entry.name, entry)
   }
 
-  /** 注册动态 toolset（MCP server 连接时调用） */
-  registerToolset(name: string, toolNames: string[]) {
-    this.toolsets.set(name, toolNames)
-  }
-
   /**
-   * 根据请求解析出 AI SDK ToolSet。
-   * 1. 展开 toolset 引用（递归）
-   * 2. 过滤 checkAvailable() === false 的 tool
-   * 3. 返回可用的 ToolSet
+   * 根据 tool IDs 解析出 AI SDK ToolSet。
+   * 过滤 checkAvailable() === false 的 tool，LLM 看不到不可用的 tool。
    */
-  resolve(enabledToolsets: string[], mcpToolIds?: string[]): ToolSet {
-    const resolvedNames = this.resolveToolsets(enabledToolsets, new Set())
-
-    // 追加 MCP tools（按 ID 指定）
-    if (mcpToolIds) {
-      for (const id of mcpToolIds) resolvedNames.add(id)
-    }
-
+  resolve(toolIds: string[]): ToolSet {
     const result: ToolSet = {}
-    for (const name of resolvedNames) {
-      const entry = this.tools.get(name)
+    for (const id of toolIds) {
+      const entry = this.tools.get(id)
       if (!entry) continue
-      // 动态可用性检查 — 不可用的 tool 直接跳过，LLM 看不到
       if (entry.checkAvailable && !entry.checkAvailable()) continue
-      result[name] = entry.tool
-    }
-    return result
-  }
-
-  /** 递归展开 toolset 引用 */
-  private resolveToolsets(names: string[], visited: Set<string>): Set<string> {
-    const result = new Set<string>()
-    for (const name of names) {
-      if (visited.has(name)) continue
-      visited.add(name)
-      const members = this.toolsets.get(name)
-      if (!members) { result.add(name); continue }  // 不是 toolset，当作 tool name
-      for (const member of members) {
-        if (member.startsWith('@')) {
-          // 递归展开子 toolset
-          for (const t of this.resolveToolsets([member.slice(1)], visited)) result.add(t)
-        } else {
-          result.add(member)
-        }
-      }
+      result[id] = entry.tool
     }
     return result
   }
@@ -1128,7 +1085,6 @@ class ToolRegistry {
 export function createWebSearchTool(): RegisteredTool {
   return {
     name: 'webSearch',
-    toolset: 'research',
     source: 'builtin',
     tool: tool({
       description: 'Search the web for information',
@@ -1152,21 +1108,14 @@ class MCPService extends BaseService {
   private toolRegistry: ToolRegistry  // 通过 DI 注入
 
   onServerConnected(server: MCPServer) {
-    const tools = server.listTools()
-    for (const mcpTool of tools) {
+    for (const mcpTool of server.listTools()) {
       this.toolRegistry.register(createMcpTool(mcpTool))
     }
-    // 按 server 注册 toolset
-    this.toolRegistry.registerToolset(
-      `mcp-${server.id}`,
-      tools.map((t) => t.name),
-    )
   }
 
   onServerDisconnected(server: MCPServer) {
-    // server 断开 → unregister 所有 tool
-    for (const toolName of this.toolRegistry.getToolsByToolset(`mcp-${server.id}`)) {
-      this.toolRegistry.unregister(toolName)
+    for (const mcpTool of server.listTools()) {
+      this.toolRegistry.unregister(mcpTool.name)
     }
   }
 }
@@ -1174,7 +1123,6 @@ class MCPService extends BaseService {
 function createMcpTool(mcpTool: MCPToolDefinition): RegisteredTool {
   return {
     name: mcpTool.name,
-    toolset: `mcp-${mcpTool.serverId}`,
     source: 'mcp',
     tool: tool({
       description: mcpTool.description,
@@ -1432,7 +1380,6 @@ class PendingMessageQueue {
 | Agent loop | **双循环** (`runAgentLoop` + ToolLoopAgent) | 内层 = AI SDK ToolLoopAgent（tool loop）；外层 = `runAgentLoop()` while(true)（兜住内层退出后的 pending messages）。纯函数，借鉴 Hermes / pi-mono |
 | Tools 管理 | **ToolRegistry** | 替代命令式 `buildTools()`。所有 tools 注册到 registry，按请求 resolve 出 ToolSet |
 | Tool 可用性 | **`checkAvailable()`** | 借鉴 Hermes `check_fn`。每个 tool 可选声明可用性检查，resolve() 时自动过滤。API key 缺失、MCP 断连 → tool 从 LLM 视野消失 |
-| Toolset 组合 | **Named toolsets** | 借鉴 Hermes toolset 递归组合。用户配置 toolset（`research`、`coding`）而非逐个 tool ID |
 | Tool 权限 | **AI SDK 原生 `needsApproval`** | 替代自建 `experimental_onToolCallStart` + IPC round-trip。AI SDK 自动管理 approval-requested → approval-responded → output-available/denied |
 | Tool call hooks | **AI SDK 原生** | `experimental_onToolCallStart` / `experimental_onToolCallFinish`，不在 ToolRegistry 自建 |
 | Pending Messages | `PendingMessageQueue` + 双层 drain | 内层 `prepareStep` 步间消费 + 外层循环退出后消费。两层保证 steering 不丢失 |
@@ -1604,17 +1551,14 @@ src/renderer/src/aiCore/types/middlewareConfig.ts → src/main/ai/types/middlewa
 
 **新建文件**: `src/main/ai/tools/ToolRegistry.ts`、`src/main/ai/tools/webSearchTool.ts`、`src/main/ai/tools/knowledgeTool.ts`、`src/main/ai/tools/memoryTool.ts`、`src/main/ai/tools/mcpTool.ts`
 
-借鉴 Hermes Agent 的两个核心模式：`check_fn` 动态可用性、toolset 递归组合。
+借鉴 Hermes Agent 的 `check_fn` 动态可用性模式。
 
 **核心原则**: ToolRegistry 是纯容器（存储 + resolve），不主动发现或创建 tool。谁创建 tool，谁注册。
 
 **操作**:
 1. 实现 `ToolRegistry` 类（纯容器）：
    - `register(entry)` / `unregister(name)` — 注册/注销 tool
-   - `registerToolset(name, toolNames)` — 注册 toolset（MCP server 连接时）
-   - `resolve(enabledToolsets, mcpToolIds?)` — 递归展开 toolsets → 过滤 `checkAvailable()` → 返回 ToolSet
-   - `getToolsByToolset(name)` — 查询某 toolset 的 tool names（用于 unregister）
-2. 定义默认 toolsets（`research`、`memory`、`agent-default`）
+   - `resolve(toolIds)` — 按 ID 查找 → 过滤 `checkAvailable()` → 返回 ToolSet
 3. 实现各 tool factory（每个文件 export `createXxxTool(): RegisteredTool`）：
    - `createWebSearchTool()` — `checkAvailable: () => searchService.isConfigured()`
    - `createKnowledgeTool()` — `checkAvailable` 动态检查
@@ -1698,11 +1642,9 @@ export const aiStreamRequestSchema = z.object({
   assistantConfig: assistantConfigSchema.optional(),
   /** Web search 配置 */
   websearchConfig: z.any().optional(),
-  /** 启用的 toolsets（'research', 'coding', 'mcp-filesystem', ...），默认 ['agent-default'] */
-  toolsets: z.array(z.string()).optional(),
-  /** 启用的 MCP tool IDs（向后兼容，也可通过 toolsets 指定 'mcp-{serverId}'） */
+  /** 启用的 MCP tool IDs */
   mcpToolIds: z.array(z.string()).optional(),
-  /** 知识库 IDs (RAG)，presence 自动启用 knowledge tool 的 checkAvailable */
+  /** 知识库 IDs (RAG) */
   knowledgeBaseIds: z.array(z.string()).optional(),
 
   // ── 统一 agent 配置（chat 和 agent 都走 createAgent，以下字段控制行为差异）──
@@ -2372,7 +2314,7 @@ Phase 1 剩余 (Main AI 服务):
      (替换 window.api → Node.js fs / 直接 import service, 移除 @ts-nocheck)
      parameterBuilder/buildPlugins 改为接收具体参数（不使用 BuildContext）
   ③ 复制缺失的耦合 plugin (searchOrchestration, telemetry, pdf, anthropicCache)
-  ④ 实现 ToolRegistry + 内置 tools (WebSearch, Knowledge, Memory) + MCP tool 动态注册 + toolset 组合 + checkAvailable
+  ④ 实现 ToolRegistry + 内置 tools (WebSearch, Knowledge, Memory) + MCP tool 动态注册 + checkAvailable
   ⑤ 重写 PluginBuilder (纯函数，接收具体参数)
   ⑥ 实现 runAgentLoop 纯函数 (双循环: 外层 while(true) + 内层 ToolLoopAgent) + PendingMessageQueue
   ⑦ 重写 AiCompletionService (编排层: 准备参数 → 调用 runAgentLoop())
