@@ -114,7 +114,7 @@ describe('LibSQLVectorStore', () => {
       expect(rows.rows[0]).toMatchObject({
         id: 'chunk-1',
         external_id: 'item-1',
-        collection: 'default'
+        collection: store.getCollection()
       })
     })
 
@@ -586,17 +586,15 @@ describe('LibSQLVectorStore', () => {
       }
 
       const result = await store.query(query)
+      const nodes = result.nodes ?? []
 
-      expect(result.nodes).toBeDefined()
-      expect(result.similarities).toBeDefined()
-      expect(result.ids).toBeDefined()
-      // Should find documents containing "artificial intelligence"
-      if (result.nodes && result.nodes.length > 0) {
-        result.nodes.forEach((node) => {
-          const text = node.getContent(MetadataMode.NONE).toLowerCase()
-          expect(text.includes('artificial') || text.includes('intelligence')).toBe(true)
-        })
-      }
+      expect(nodes).toHaveLength(2)
+      expect(result.similarities).toHaveLength(2)
+      expect(result.ids).toHaveLength(2)
+      nodes.forEach((node) => {
+        const text = node.getContent(MetadataMode.NONE).toLowerCase()
+        expect(text.includes('artificial') || text.includes('intelligence')).toBe(true)
+      })
     })
 
     it('should throw error for bm25 mode without queryStr', async () => {
@@ -619,10 +617,15 @@ describe('LibSQLVectorStore', () => {
       }
 
       const result = await store.query(query)
+      const nodes = result.nodes ?? []
 
-      expect(result.nodes).toBeDefined()
-      expect(result.similarities).toBeDefined()
-      expect(result.ids).toBeDefined()
+      expect(nodes).toHaveLength(2)
+      expect(result.similarities).toHaveLength(2)
+      expect(result.ids).toHaveLength(2)
+      nodes.forEach((node) => {
+        const text = node.getContent(MetadataMode.NONE).toLowerCase()
+        expect(text.includes('artificial') || text.includes('intelligence') || text.includes('learning')).toBe(true)
+      })
     })
 
     it('should throw error for hybrid mode without queryEmbedding', async () => {
@@ -658,6 +661,80 @@ describe('LibSQLVectorStore', () => {
       expect(result.nodes).toBeDefined()
       expect(result.similarities).toBeDefined()
       expect(result.ids).toBeDefined()
+    })
+
+    it('should update bm25 index after upsert', async () => {
+      const node = new TextNode({
+        id_: 'upsert-doc',
+        text: 'legacy keyword content',
+        embedding: [0.6, 0.4],
+        metadata: { category: 'technology' }
+      })
+
+      await store.add([node])
+
+      let result = await store.query({
+        queryStr: 'legacy',
+        similarityTopK: 5,
+        mode: 'bm25' as VectorStoreQueryMode
+      })
+      expect(result.ids).toContain('upsert-doc')
+
+      await store.add([
+        new TextNode({
+          id_: 'upsert-doc',
+          text: 'fresh keyword content',
+          embedding: [0.6, 0.4],
+          metadata: { category: 'technology' }
+        })
+      ])
+
+      result = await store.query({
+        queryStr: 'legacy',
+        similarityTopK: 5,
+        mode: 'bm25' as VectorStoreQueryMode
+      })
+      expect(result.ids).not.toContain('upsert-doc')
+
+      result = await store.query({
+        queryStr: 'fresh',
+        similarityTopK: 5,
+        mode: 'bm25' as VectorStoreQueryMode
+      })
+      expect(result.ids).toContain('upsert-doc')
+    })
+
+    it('should remove deleted documents from bm25 index', async () => {
+      const node = new TextNode({
+        id_: 'delete-doc',
+        text: 'remove me from bm25',
+        embedding: [0.4, 0.6],
+        metadata: { category: 'technology' },
+        relationships: {
+          [NodeRelationship.SOURCE]: {
+            nodeId: 'item-delete',
+            metadata: {}
+          }
+        }
+      })
+
+      await store.add([node])
+
+      let result = await store.query({
+        queryStr: 'remove',
+        similarityTopK: 5,
+        mode: 'bm25' as VectorStoreQueryMode
+      })
+      expect(result.ids).toContain('delete-doc')
+
+      await store.delete('item-delete')
+
+      result = await store.query({
+        queryStr: 'remove',
+        similarityTopK: 5,
+        mode: 'bm25' as VectorStoreQueryMode
+      })
+      expect(result.ids).not.toContain('delete-doc')
     })
   })
 

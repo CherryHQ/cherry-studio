@@ -96,8 +96,8 @@ importers:
         specifier: ^1.59.0
         version: 1.60.0
       '@libsql/client':
-        specifier: 0.14.0
-        version: 0.14.0
+        specifier: ^0.15.15
+        version: 0.15.15
       '@napi-rs/canvas':
         specifier: 0.1.97
         version: 0.1.97

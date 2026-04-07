@@ -173,14 +173,61 @@ export class LibSQLVectorStore extends BaseVectorStore {
 
     // Create FTS5 virtual table for full-text search (bm25/hybrid modes)
     try {
+      const ftsTableName = `${this.tableName}_fts`
       const ftsStatement: InStatement = {
         sql: `
-          CREATE VIRTUAL TABLE IF NOT EXISTS ${this.tableName}_fts
-          USING fts5(id, document, content='${this.tableName}', content_rowid='rowid')
+          CREATE VIRTUAL TABLE IF NOT EXISTS ${ftsTableName}
+          USING fts5(document, content='${this.tableName}', content_rowid='rowid')
         `,
         args: []
       }
       await client.execute(ftsStatement)
+
+      await client.execute({
+        sql: `
+          CREATE TRIGGER IF NOT EXISTS ${this.tableName}_ai
+          AFTER INSERT ON ${this.tableName}
+          BEGIN
+            INSERT INTO ${ftsTableName}(rowid, document)
+            VALUES (NEW.rowid, NEW.document);
+          END
+        `,
+        args: []
+      })
+
+      await client.execute({
+        sql: `
+          CREATE TRIGGER IF NOT EXISTS ${this.tableName}_au
+          AFTER UPDATE OF document ON ${this.tableName}
+          BEGIN
+            INSERT INTO ${ftsTableName}(${ftsTableName}, rowid, document)
+            VALUES ('delete', OLD.rowid, OLD.document);
+            INSERT INTO ${ftsTableName}(rowid, document)
+            VALUES (NEW.rowid, NEW.document);
+          END
+        `,
+        args: []
+      })
+
+      await client.execute({
+        sql: `
+          CREATE TRIGGER IF NOT EXISTS ${this.tableName}_ad
+          AFTER DELETE ON ${this.tableName}
+          BEGIN
+            INSERT INTO ${ftsTableName}(${ftsTableName}, rowid, document)
+            VALUES ('delete', OLD.rowid, OLD.document);
+          END
+        `,
+        args: []
+      })
+
+      await client.execute({
+        sql: `
+          INSERT INTO ${ftsTableName}(${ftsTableName})
+          VALUES ('rebuild')
+        `,
+        args: []
+      })
     } catch (e) {
       console.warn('Failed to create FTS5 table:', e)
     }
