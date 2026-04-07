@@ -43,7 +43,7 @@ const PopupContainer: React.FC<Props> = ({ providerId, resolve }) => {
         updateDefaultHeaders(parsedHeaders)
       }
 
-      updateProvider({ providerSettings: { ...provider?.settings, extraHeaders: parsedHeaders } })
+      void updateProvider({ providerSettings: { ...provider?.settings, extraHeaders: parsedHeaders } })
 
       window.toast.success(t('message.save.success.title'))
     } catch (error) {

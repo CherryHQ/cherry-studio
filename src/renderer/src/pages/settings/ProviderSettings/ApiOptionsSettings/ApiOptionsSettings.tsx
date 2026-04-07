@@ -25,7 +25,7 @@ const ApiOptionsSettings = ({ providerId }: Props) => {
   const patchProvider = useCallback(
     (updates: Record<string, unknown>) => {
       startTransition(() => {
-        updateProvider(updates)
+        void updateProvider(updates)
       })
     },
     [updateProvider]

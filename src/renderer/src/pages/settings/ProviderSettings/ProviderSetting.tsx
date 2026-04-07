@@ -209,7 +209,7 @@ const ProviderSettingContent: FC<ContentProps> = ({ provider, providerId, isOnbo
   // 同步 localApiKey 到 provider（防抖）
   useEffect(() => {
     if (localApiKey !== providerApiKey) {
-      debouncedUpdateApiKey(localApiKey)
+      void debouncedUpdateApiKey(localApiKey)
     }
 
     // 卸载时取消任何待执行的更新
@@ -231,7 +231,7 @@ const ProviderSettingContent: FC<ContentProps> = ({ provider, providerId, isOnbo
       return
     }
     if (isVertexProvider(provider) || apiHost.trim()) {
-      patchProvider({
+      void patchProvider({
         endpointConfigs: {
           ...provider.endpointConfigs,
           [primaryEndpoint]: { ...provider.endpointConfigs?.[primaryEndpoint], baseUrl: apiHost }
@@ -246,7 +246,7 @@ const ProviderSettingContent: FC<ContentProps> = ({ provider, providerId, isOnbo
     const trimmedHost = anthropicApiHost?.trim()
 
     if (trimmedHost) {
-      patchProvider({
+      void patchProvider({
         endpointConfigs: {
           ...provider.endpointConfigs,
           [EndpointType.ANTHROPIC_MESSAGES]: {
@@ -257,8 +257,9 @@ const ProviderSettingContent: FC<ContentProps> = ({ provider, providerId, isOnbo
       })
       setAnthropicHost(trimmedHost)
     } else {
-      const { [EndpointType.ANTHROPIC_MESSAGES]: _, ...restConfigs } = provider.endpointConfigs ?? {}
-      patchProvider({ endpointConfigs: restConfigs })
+      const restConfigs = { ...provider.endpointConfigs }
+      delete restConfigs[EndpointType.ANTHROPIC_MESSAGES]
+      void patchProvider({ endpointConfigs: restConfigs })
       setAnthropicHost(undefined)
     }
   }
@@ -349,7 +350,7 @@ const ProviderSettingContent: FC<ContentProps> = ({ provider, providerId, isOnbo
 
   const onReset = useCallback(() => {
     setApiHost(configuredApiHost)
-    patchProvider({
+    void patchProvider({
       endpointConfigs: {
         ...provider?.endpointConfigs,
         [primaryEndpoint]: { ...provider?.endpointConfigs?.[primaryEndpoint], baseUrl: configuredApiHost }
@@ -499,7 +500,7 @@ const ProviderSettingContent: FC<ContentProps> = ({ provider, providerId, isOnbo
           checked={provider.isEnabled}
           key={provider.id}
           onCheckedChange={(enabled) => {
-            patchProvider({
+            void patchProvider({
               isEnabled: enabled,
               endpointConfigs: {
                 ...provider.endpointConfigs,
@@ -507,7 +508,7 @@ const ProviderSettingContent: FC<ContentProps> = ({ provider, providerId, isOnbo
               }
             })
             if (enabled) {
-              moveProviderToTop()
+              void moveProviderToTop()
             }
           }}
         />

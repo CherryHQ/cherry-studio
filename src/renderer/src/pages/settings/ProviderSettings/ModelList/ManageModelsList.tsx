@@ -103,7 +103,7 @@ const ManageModelsList: React.FC<ManageModelsListProps> = ({
             if (wouldAddModels.every(isValidNewApiModel)) {
               wouldAddModels.forEach(onAddModel)
             } else {
-              NewApiBatchAddModelPopup.show({
+              void NewApiBatchAddModelPopup.show({
                 title: t('settings.models.add.batch_add_models'),
                 batchModels: wouldAddModels,
                 provider
