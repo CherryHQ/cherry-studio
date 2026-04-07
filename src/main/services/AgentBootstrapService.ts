@@ -17,10 +17,12 @@ const logger = loggerService.withContext('AgentBootstrapService')
 @Injectable('AgentBootstrapService')
 @ServicePhase(Phase.Background)
 export class AgentBootstrapService extends BaseService {
-  protected async onReady(): Promise<void> {
+  protected onInit(): void {
     registerSessionStreamIpc()
     logger.info('Session stream IPC registered')
+  }
 
+  protected async onReady(): Promise<void> {
     await Promise.all([
       bootstrapBuiltinAgents().then(() => logger.info('Built-in agents bootstrapped')),
       schedulerService.restoreSchedulers().then(() => logger.info('Schedulers restored')),
