@@ -155,7 +155,7 @@ const AttachmentButton: FC<Props> = ({ quickPanel, couldAddImageFile, extensions
   const ariaLabel = couldAddImageFile ? t('chat.input.upload.image_or_document') : t('chat.input.upload.document')
 
   return (
-    <Tooltip placement="top" content={ariaLabel} closeDelay={0}>
+    <Tooltip placement="top" content={ariaLabel}>
       <ActionIconButton
         onClick={openFileSelectDialog}
         active={files.length > 0}

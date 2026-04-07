@@ -121,8 +121,8 @@ vi.mock('@renderer/components/Buttons', () => ({
 
 // Mock @cherrystudio/ui Tooltip
 vi.mock('@cherrystudio/ui', () => ({
-  Tooltip: ({ content, children, placement, closeDelay }: any) => (
-    <div data-testid="tooltip" data-title={content} data-placement={placement} data-close-delay={closeDelay}>
+  Tooltip: ({ content, children, placement }: any) => (
+    <div data-testid="tooltip" data-title={content} data-placement={placement}>
       {children}
     </div>
   )
