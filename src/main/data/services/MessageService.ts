@@ -78,13 +78,14 @@ function rowToMessage(row: typeof messageTable.$inferSelect): Message {
 }
 
 /**
- * Extract preview text from message data
+ * Extract preview text from message data.
+ * Reads from data.parts (AI SDK UIMessage.parts format — canonical after v2 migration).
  */
 function extractPreview(message: Message): string {
-  const blocks = message.data?.blocks || []
-  for (const block of blocks) {
-    if ('content' in block && typeof block.content === 'string') {
-      const text = block.content.trim()
+  const parts = message.data?.parts || []
+  for (const part of parts) {
+    if (part.type === 'text' && 'text' in part) {
+      const text = part.text.trim()
       if (text.length > 0) {
         return text.length > PREVIEW_LENGTH ? text.substring(0, PREVIEW_LENGTH) + '...' : text
       }
