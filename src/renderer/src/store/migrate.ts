@@ -69,16 +69,16 @@ const logger = loggerService.withContext('Migrate')
 
 // remove logo base64 data to reduce the size of the state
 function removeMiniAppIconsFromState(state: RootState) {
-  if (state.miniapps) {
-    state.miniapps.enabled = state.miniapps.enabled.map((app) => ({
+  if (state.minapps) {
+    state.minapps.enabled = state.minapps.enabled.map((app) => ({
       ...app,
       logo: undefined
     }))
-    state.miniapps.disabled = state.miniapps.disabled.map((app) => ({
+    state.minapps.disabled = state.minapps.disabled.map((app) => ({
       ...app,
       logo: undefined
     }))
-    state.miniapps.pinned = state.miniapps.pinned.map((app) => ({
+    state.minapps.pinned = state.minapps.pinned.map((app) => ({
       ...app,
       logo: undefined
     }))
@@ -86,19 +86,19 @@ function removeMiniAppIconsFromState(state: RootState) {
 }
 
 function removeMiniAppFromState(state: RootState, id: string) {
-  if (state.miniapps) {
-    state.miniapps.pinned = state.miniapps.pinned.filter((app) => app.id !== id)
-    state.miniapps.enabled = state.miniapps.enabled.filter((app) => app.id !== id)
-    state.miniapps.disabled = state.miniapps.disabled.filter((app) => app.id !== id)
+  if (state.minapps) {
+    state.minapps.pinned = state.minapps.pinned.filter((app) => app.id !== id)
+    state.minapps.enabled = state.minapps.enabled.filter((app) => app.id !== id)
+    state.minapps.disabled = state.minapps.disabled.filter((app) => app.id !== id)
   }
 }
 
 function addMiniApp(state: RootState, id: string) {
-  if (state.miniapps) {
+  if (state.minapps) {
     const app = allMiniApps.find((app) => app.id === id)
     if (app) {
-      if (!state.miniapps.enabled.find((app) => app.id === id)) {
-        state.miniapps.enabled.push(app)
+      if (!state.minapps.enabled.find((app) => app.id === id)) {
+        state.minapps.enabled.push(app)
       }
     }
   }
@@ -1071,16 +1071,16 @@ const migrateConfig = {
     try {
       const appIds = ['dify', 'wpslingxi', 'lechat', 'abacus', 'lambdachat', 'baidu-ai-search']
 
-      if (state.miniapps) {
+      if (state.minapps) {
         appIds.forEach((id) => {
           const app = allMiniApps.find((app) => app.id === id)
           if (app) {
-            state.miniapps.enabled.push(app)
+            state.minapps.enabled.push(app)
           }
         })
         // remove zhihu-zhiada
-        state.miniapps.enabled = state.miniapps.enabled.filter((app) => app.id !== 'zhihu-zhiada')
-        state.miniapps.disabled = state.miniapps.disabled.filter((app) => app.id !== 'zhihu-zhiada')
+        state.minapps.enabled = state.minapps.enabled.filter((app) => app.id !== 'zhihu-zhiada')
+        state.minapps.disabled = state.minapps.disabled.filter((app) => app.id !== 'zhihu-zhiada')
       }
 
       state.settings.thoughtAutoCollapse = true
@@ -1295,8 +1295,8 @@ const migrateConfig = {
   },
   '87': (state: RootState) => {
     try {
-      state.settings.maxKeepAliveMiniApps = 3
-      state.settings.showOpenedMiniAppsInSidebar = true
+      state.settings.maxKeepAliveMinapps = 3
+      state.settings.showOpenedMinappsInSidebar = true
       return state
     } catch (error) {
       return state
@@ -3182,7 +3182,7 @@ const migrateConfig = {
         }
       })
       // Initialize mini app region filter setting
-      state.settings.miniAppRegion ??= 'auto'
+      state.settings.minAppRegion ??= 'auto'
       return state
     } catch (error) {
       logger.error('migrate 194 error', error as Error)
@@ -3263,10 +3263,10 @@ const migrateConfig = {
       })
 
       // Migrate minimax app id to hailuo
-      if (state.miniapps) {
+      if (state.minapps) {
         const lists: Array<'enabled' | 'disabled' | 'pinned'> = ['enabled', 'disabled', 'pinned']
         lists.forEach((list) => {
-          state.miniapps[list] = state.miniapps[list].map((app) =>
+          state.minapps[list] = state.minapps[list].map((app) =>
             app.id === 'minimax' ? { ...app, id: 'hailuo' } : app
           )
         })

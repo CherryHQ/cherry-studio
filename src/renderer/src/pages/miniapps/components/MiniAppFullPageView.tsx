@@ -22,7 +22,7 @@ const MiniAppFullPageView: FC<Props> = ({ app }) => {
   const webviewRef = useRef<WebviewTag | null>(null)
   const [isReady, setIsReady] = useState(false)
   const [currentUrl, setCurrentUrl] = useState<string | null>(null)
-  const { miniappsOpenLinkExternal } = useSettings()
+  const { minappsOpenLinkExternal } = useSettings()
 
   // Debug: log isReady state changes
   useEffect(() => {
@@ -59,7 +59,7 @@ const MiniAppFullPageView: FC<Props> = ({ app }) => {
       logger.debug(`WebView loaded for app: ${appId}`)
       const webviewId = webviewRef.current?.getWebContentsId()
       if (webviewId) {
-        void window.api.webview.setOpenLinkExternal(webviewId, miniappsOpenLinkExternal)
+        void window.api.webview.setOpenLinkExternal(webviewId, minappsOpenLinkExternal)
       }
 
       // Mark this WebView as loaded for future use in global state
@@ -73,7 +73,7 @@ const MiniAppFullPageView: FC<Props> = ({ app }) => {
         }, 100)
       }
     },
-    [miniappsOpenLinkExternal, app.appId]
+    [minappsOpenLinkExternal, app.appId]
   )
 
   const handleWebviewNavigate = useCallback((_appId: string, url: string) => {

@@ -38,7 +38,7 @@ export class MiniAppMigrator extends BaseMigrator {
         enabled?: Record<string, unknown>[]
         disabled?: Record<string, unknown>[]
         pinned?: Record<string, unknown>[]
-      }>('miniapps')
+      }>('minapps')
 
       if (!state) {
         logger.info('No miniapps state found, skipping migration')

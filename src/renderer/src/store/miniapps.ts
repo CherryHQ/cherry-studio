@@ -32,7 +32,7 @@ const initialState: MiniAppsState = {
 }
 
 const miniAppsSlice = createSlice({
-  name: 'miniApps',
+  name: 'minapps',
   initialState,
   reducers: {
     setMiniApps: (state, action: PayloadAction<MiniAppType[]>) => {

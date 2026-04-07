@@ -443,7 +443,7 @@
       ],
       "messageBlock": [],
       "migrate": [],
-      "miniapps": [
+      "minapps": [
         {
           "originalKey": "enabled",
           "type": "string",
@@ -1853,7 +1853,7 @@
           "targetKey": null
         },
         {
-          "originalKey": "maxKeepAliveMiniApps",
+          "originalKey": "maxKeepAliveMinapps",
           "type": "number",
           "defaultValue": 3,
           "status": "classified",
@@ -1861,7 +1861,7 @@
           "targetKey": "feature.miniapp.max_keep_alive"
         },
         {
-          "originalKey": "showOpenedMiniAppsInSidebar",
+          "originalKey": "showOpenedMinappsInSidebar",
           "type": "boolean",
           "defaultValue": true,
           "status": "classified",
@@ -1869,7 +1869,7 @@
           "targetKey": "feature.miniapp.show_opened_in_sidebar"
         },
         {
-          "originalKey": "miniappsOpenLinkExternal",
+          "originalKey": "minappsOpenLinkExternal",
           "type": "boolean",
           "defaultValue": false,
           "status": "classified",
@@ -1877,7 +1877,7 @@
           "targetKey": "feature.miniapp.open_link_external"
         },
         {
-          "originalKey": "miniAppRegion",
+          "originalKey": "minAppRegion",
           "type": "PreferenceTypes.MiniAppRegionFilter",
           "defaultValue": "auto",
           "status": "classified",

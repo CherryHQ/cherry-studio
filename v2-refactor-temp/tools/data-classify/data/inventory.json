@@ -200,15 +200,15 @@
         "interface": "MigrateState"
       }
     },
-    "miniapps": {
+    "minapps": {
       "_meta": {
         "file": "src/renderer/src/store/miniapps.ts",
-        "interface": "MiniAppsState"
+        "interface": "MinappsState"
       },
       "enabled": {
         "file": "src/renderer/src/store/miniapps.ts",
         "type": "string",
-        "defaultValue": "allMiniApps"
+        "defaultValue": "allMinapps"
       },
       "disabled": {
         "file": "src/renderer/src/store/miniapps.ts",
@@ -977,22 +977,22 @@
         "type": "string",
         "defaultValue": ""
       },
-      "maxKeepAliveMiniApps": {
+      "maxKeepAliveMinapps": {
         "file": "src/renderer/src/store/settings.ts",
         "type": "number",
         "defaultValue": 3
       },
-      "showOpenedMiniAppsInSidebar": {
+      "showOpenedMinappsInSidebar": {
         "file": "src/renderer/src/store/settings.ts",
         "type": "boolean",
         "defaultValue": true
       },
-      "miniappsOpenLinkExternal": {
+      "minappsOpenLinkExternal": {
         "file": "src/renderer/src/store/settings.ts",
         "type": "boolean",
         "defaultValue": false
       },
-      "miniAppRegion": {
+      "minAppRegion": {
         "file": "src/renderer/src/store/settings.ts",
         "type": "unknown",
         "defaultValue": "auto"

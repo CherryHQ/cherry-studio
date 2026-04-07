@@ -194,11 +194,11 @@ export interface SettingsState {
   // 订阅的助手地址
   agentssubscribeUrl: string | null
   // MiniApps
-  maxKeepAliveMiniApps: number
-  showOpenedMiniAppsInSidebar: boolean
-  miniappsOpenLinkExternal: boolean
+  maxKeepAliveMinapps: number
+  showOpenedMinappsInSidebar: boolean
+  minappsOpenLinkExternal: boolean
   /** Mini app region filter: 'auto' (detect from IP), 'CN', or 'Global' */
-  miniAppRegion: MiniAppRegionFilter
+  minAppRegion: MiniAppRegionFilter
   // 隐私设置
   enableDataCollection: boolean
   enableSpellCheck: boolean
@@ -381,10 +381,10 @@ export const initialState: SettingsState = {
   siyuanRootPath: null,
   agentssubscribeUrl: '',
   // MiniApps
-  maxKeepAliveMiniApps: 3,
-  showOpenedMiniAppsInSidebar: true,
-  miniappsOpenLinkExternal: false,
-  miniAppRegion: 'auto',
+  maxKeepAliveMinapps: 3,
+  showOpenedMinappsInSidebar: true,
+  minappsOpenLinkExternal: false,
+  minAppRegion: 'auto',
   enableDataCollection: false,
   enableSpellCheck: false,
   spellCheckLanguages: [],
@@ -799,16 +799,16 @@ const settingsSlice = createSlice({
       state.agentssubscribeUrl = action.payload
     },
     // setMaxKeepAliveMiniApps: (state, action: PayloadAction<number>) => {
-    //   state.maxKeepAliveMiniApps = action.payload
+    //   state.maxKeepAliveMinapps = action.payload
     // },
     // setShowOpenedMiniAppsInSidebar: (state, action: PayloadAction<boolean>) => {
-    //   state.showOpenedMiniAppsInSidebar = action.payload
+    //   state.showOpenedMinappsInSidebar = action.payload
     // },
     // setMiniAppsOpenLinkExternal: (state, action: PayloadAction<boolean>) => {
-    //   state.miniappsOpenLinkExternal = action.payload
+    //   state.minappsOpenLinkExternal = action.payload
     // },
     setMiniAppRegion: (state, action: PayloadAction<MiniAppRegionFilter>) => {
-      state.miniAppRegion = action.payload
+      state.minAppRegion = action.payload
     },
     // setEnableDataCollection: (state, action: PayloadAction<boolean>) => {
     //   state.enableDataCollection = action.payload
