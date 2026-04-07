@@ -144,13 +144,13 @@ const ShortcutSettings: FC = () => {
   const findDuplicateLabel = (keys: string[], currentKey: ShortcutPreferenceKey): string | null => {
     const normalized = keys.map((key) => key.toLowerCase()).join('+')
 
-    for (const record of displayedShortcuts) {
-      if (record.key === currentKey) continue
-      if (!record.enabled) continue
-      const binding = record.displayKeys
+    for (const shortcut of shortcuts) {
+      if (shortcut.definition.key === currentKey) continue
+      if (!shortcut.preference.enabled) continue
+      const binding = shortcut.preference.binding
       if (!binding.length) continue
       if (binding.map((key) => key.toLowerCase()).join('+') === normalized) {
-        return record.label
+        return getShortcutLabel(shortcut.definition.labelKey)
       }
     }
     return null
@@ -268,6 +268,13 @@ const ShortcutSettings: FC = () => {
 
   const handleKeyDown = (event: ReactKeyboardEvent, record: ShortcutRecord) => {
     event.preventDefault()
+
+    if (event.code === 'Escape') {
+      setEditingKey(null)
+      setPendingKeys([])
+      setConflictLabel(null)
+      return
+    }
 
     const keys: string[] = []
 
@@ -387,7 +394,7 @@ const ShortcutSettings: FC = () => {
       key: 'actions',
       align: 'right',
       width: 70,
-      render: (record) => (
+      render: (_value, record) => (
         <RowFlex className="items-center justify-end gap-2">
           <Tooltip content={t('settings.shortcuts.reset_to_default')}>
             <Button size="icon-sm" onClick={() => handleResetShortcut(record)} disabled={!isShortcutModified(record)}>
@@ -409,7 +416,7 @@ const ShortcutSettings: FC = () => {
       key: 'enabled',
       align: 'right',
       width: 50,
-      render: (record) => (
+      render: (_value, record) => (
         <Switch
           size="sm"
           checked={record.enabled}

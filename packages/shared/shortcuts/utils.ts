@@ -84,6 +84,10 @@ export const isValidShortcut = (keys: string[]): boolean => {
     return false
   }
 
+  if (new Set(keys).size !== keys.length) {
+    return false
+  }
+
   const hasModifier = keys.some((key) => modifierKeys.includes(key))
   const hasNonModifier = keys.some((key) => !modifierKeys.includes(key))
   const isSpecialKey = keys.length === 1 && specialSingleKeys.includes(keys[0])

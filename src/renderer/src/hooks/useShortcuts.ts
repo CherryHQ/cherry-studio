@@ -14,7 +14,7 @@ import {
   formatShortcutDisplay,
   getDefaultShortcutPreference
 } from '@shared/shortcuts/utils'
-import { useCallback, useMemo } from 'react'
+import { useCallback, useMemo, useRef } from 'react'
 import { useHotkeys } from 'react-hotkeys-hook'
 
 interface UseShortcutOptions {
@@ -55,6 +55,12 @@ export const useShortcut = (
   const [preference] = usePreference(fullKey)
   const preferenceState = useMemo(() => resolvePreferenceValue(definition, preference), [definition, preference])
 
+  const callbackRef = useRef(callback)
+  callbackRef.current = callback
+
+  const optionsRef = useRef(options)
+  optionsRef.current = options
+
   const hotkey = useMemo(() => {
     if (!definition || !preferenceState) {
       return 'none'
@@ -78,11 +84,11 @@ export const useShortcut = (
   useHotkeys(
     hotkey,
     (event) => {
-      if (options.preventDefault) {
+      if (optionsRef.current.preventDefault) {
         event.preventDefault()
       }
-      if (options.enabled !== false) {
-        callback(event)
+      if (optionsRef.current.enabled !== false) {
+        callbackRef.current(event)
       }
     },
     {
@@ -91,7 +97,7 @@ export const useShortcut = (
       enabled: hotkey !== 'none',
       enableOnContentEditable: options.enableOnContentEditable
     },
-    [hotkey, callback, options]
+    [hotkey]
   )
 }
 

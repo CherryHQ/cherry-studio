@@ -28,7 +28,6 @@ export class ShortcutService extends BaseService {
   private handlers = new Map<ShortcutPreferenceKey, ShortcutHandler>()
   private windowOnHandlers = new Map<BrowserWindow, { onFocus: () => void; onBlur: () => void }>()
   private isRegisterOnBoot = true
-  private preferenceUnsubscribers: Array<() => void> = []
   private registeredAccelerators = new Map<string, ShortcutHandler>()
 
   protected async onInit() {
@@ -46,8 +45,6 @@ export class ShortcutService extends BaseService {
 
   protected async onStop() {
     this.unregisterAll()
-    this.preferenceUnsubscribers.forEach((unsub) => unsub())
-    this.preferenceUnsubscribers = []
     this.mainWindow = null
   }
 
@@ -103,12 +100,13 @@ export class ShortcutService extends BaseService {
 
   private subscribeToPreferenceChanges(): void {
     const preferenceService = application.get('PreferenceService')
-    this.preferenceUnsubscribers = relevantDefinitions.map((definition) =>
-      preferenceService.subscribeChange(definition.key, () => {
+    for (const definition of relevantDefinitions) {
+      const unsub = preferenceService.subscribeChange(definition.key, () => {
         logger.debug(`Shortcut preference changed: ${definition.key}`)
         this.reregisterShortcuts()
       })
-    )
+      this.registerDisposable({ dispose: unsub })
+    }
   }
 
   private registerForWindow(window: BrowserWindow): void {
@@ -116,6 +114,7 @@ export class ShortcutService extends BaseService {
 
     if (this.isRegisterOnBoot) {
       window.once('ready-to-show', () => {
+        if (!this.mainWindow || this.mainWindow.isDestroyed()) return
         if (application.get('PreferenceService').get('app.tray.on_launch')) {
           this.registerShortcuts(window, true)
         }
