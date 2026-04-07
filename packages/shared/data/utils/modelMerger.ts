@@ -11,21 +11,27 @@ import type {
   ProtoProviderModelOverride,
   ProtoProviderReasoningFormat,
   ProtoReasoningSupport
-} from '@cherrystudio/provider-catalog'
-import type { Modality, ModelCapability, ReasoningEffort as ReasoningEffortType } from '@cherrystudio/provider-catalog'
-import { EndpointType, ReasoningEffort } from '@cherrystudio/provider-catalog'
+} from '@cherrystudio/provider-registry'
+import type { Modality, ModelCapability, ReasoningEffort as ReasoningEffortType } from '@cherrystudio/provider-registry'
+import { EndpointType, ReasoningEffort } from '@cherrystudio/provider-registry'
 import * as z from 'zod'
 
 import type { Model, RuntimeModelPricing, RuntimeReasoning } from '../types/model'
 import { createUniqueModelId } from '../types/model'
-import type { Provider, ProviderSettings, ReasoningFormatType, RuntimeApiFeatures } from '../types/provider'
+import type {
+  EndpointConfig,
+  Provider,
+  ProviderSettings,
+  ReasoningFormatType,
+  RuntimeApiFeatures
+} from '../types/provider'
 import {
   ApiFeaturesSchema,
   ApiKeyEntrySchema,
   DEFAULT_API_FEATURES,
   DEFAULT_PROVIDER_SETTINGS,
-  ProviderSettingsSchema,
-  ReasoningFormatTypeSchema
+  EndpointConfigSchema,
+  ProviderSettingsSchema
 } from '../types/provider'
 
 export type { ProtoModelConfig as CatalogModel, ProtoProviderModelOverride as CatalogProviderModelOverride }
@@ -72,9 +78,8 @@ const UserProviderRowSchema = z.object({
   providerId: z.string(),
   presetProviderId: z.string().nullish(),
   name: z.string(),
-  baseUrls: z.record(z.string(), z.string()).nullish(),
+  endpointConfigs: z.record(z.string(), EndpointConfigSchema).nullish(),
   defaultChatEndpoint: z.nativeEnum(EndpointType).nullish(),
-  reasoningFormatTypes: z.record(z.string(), ReasoningFormatTypeSchema).nullish(),
   apiKeys: z.array(ApiKeyEntrySchema.pick({ id: true, key: true, label: true, isEnabled: true })).nullish(),
   authConfig: z.object({ type: z.string() }).catchall(z.unknown()).nullish(),
   apiFeatures: ApiFeaturesSchema.nullish(),
@@ -328,27 +333,9 @@ export function mergeProviderConfig(
 
   const providerId = userProvider?.providerId ?? presetProvider!.id
 
-  // Merge baseUrls — proto uses map<int32, string>, convert to Record<string, string>
-  const presetBaseUrls: Record<string, string> = {}
-  if (presetProvider?.baseUrls) {
-    for (const [k, v] of Object.entries(presetProvider.baseUrls)) {
-      presetBaseUrls[k] = v
-    }
-  }
-  const baseUrls: Record<string, string> = {
-    ...presetBaseUrls,
-    ...userProvider?.baseUrls
-  }
-
-  const presetReasoningFormat = extractReasoningFormatType(presetProvider?.reasoningFormat)
-  const presetReasoningFormatTypes = buildReasoningFormatTypes(
-    presetProvider?.defaultChatEndpoint,
-    presetReasoningFormat
-  )
-  const reasoningFormatTypes = {
-    ...presetReasoningFormatTypes,
-    ...userProvider?.reasoningFormatTypes
-  }
+  // Merge endpointConfigs — build from preset then overlay user config
+  const presetEndpointConfigs = buildPresetEndpointConfigs(presetProvider)
+  const endpointConfigs = mergeEndpointConfigs(presetEndpointConfigs, userProvider?.endpointConfigs)
 
   // Merge API features (catalog now uses the same field names)
   const apiFeatures: RuntimeApiFeatures = {
@@ -382,13 +369,12 @@ export function mergeProviderConfig(
     presetProviderId: userProvider?.presetProviderId ?? undefined,
     name: userProvider?.name ?? presetProvider?.name ?? providerId,
     description: presetProvider?.description,
-    baseUrls,
+    endpointConfigs: Object.keys(endpointConfigs).length > 0 ? endpointConfigs : undefined,
     defaultChatEndpoint: userProvider?.defaultChatEndpoint ?? presetProvider?.defaultChatEndpoint,
     apiKeys,
     authType,
     apiFeatures,
     settings,
-    reasoningFormatTypes: Object.keys(reasoningFormatTypes).length > 0 ? reasoningFormatTypes : undefined,
     isEnabled: userProvider?.isEnabled ?? true
   }
 }
@@ -446,17 +432,88 @@ function isChatReasoningEndpointType(endpointType: EndpointType): boolean {
   return CHAT_REASONING_ENDPOINT_PRIORITY.includes(endpointType)
 }
 
-function buildReasoningFormatTypes(
-  defaultChatEndpoint: EndpointType | undefined,
-  reasoningFormatType: ReasoningFormatType | undefined
-): Partial<Record<EndpointType, ReasoningFormatType>> {
-  if (defaultChatEndpoint === undefined || !reasoningFormatType) {
-    return {}
+/**
+ * Build endpointConfigs from preset provider's proto data.
+ * Converts proto endpointConfigs (with proto message types) into runtime EndpointConfig.
+ */
+function buildPresetEndpointConfigs(
+  presetProvider: ProtoProviderConfig | null
+): Partial<Record<EndpointType, EndpointConfig>> {
+  if (!presetProvider) return {}
+
+  const configs: Partial<Record<EndpointType, EndpointConfig>> = {}
+
+  for (const [k, protoConfig] of Object.entries(presetProvider.endpointConfigs)) {
+    const ep = Number(k) as EndpointType
+    const config: EndpointConfig = {}
+
+    if (protoConfig.baseUrl) {
+      config.baseUrl = protoConfig.baseUrl
+    }
+
+    // Convert proto ModelsApiUrls message to plain object
+    if (protoConfig.modelsApiUrls) {
+      const modelsApiUrls: Record<string, string> = {}
+      if (protoConfig.modelsApiUrls.default) modelsApiUrls.default = protoConfig.modelsApiUrls.default
+      if (protoConfig.modelsApiUrls.embedding) modelsApiUrls.embedding = protoConfig.modelsApiUrls.embedding
+      if (protoConfig.modelsApiUrls.reranker) modelsApiUrls.reranker = protoConfig.modelsApiUrls.reranker
+      if (Object.keys(modelsApiUrls).length > 0) {
+        config.modelsApiUrls = modelsApiUrls
+      }
+    }
+
+    // Convert proto ProviderReasoningFormat to runtime type string
+    const reasoningFormatType = extractReasoningFormatType(protoConfig.reasoningFormat)
+    if (reasoningFormatType) {
+      config.reasoningFormatType = reasoningFormatType
+    }
+
+    if (Object.keys(config).length > 0) {
+      configs[ep] = config
+    }
   }
 
-  return {
-    [defaultChatEndpoint]: reasoningFormatType
+  return configs
+}
+
+/**
+ * Deep-merge two endpointConfigs. User config takes priority per field within each endpoint.
+ */
+function mergeEndpointConfigs(
+  preset: Partial<Record<EndpointType, EndpointConfig>> | null | undefined,
+  user: Partial<Record<EndpointType, EndpointConfig>> | null | undefined
+): Partial<Record<EndpointType, EndpointConfig>> {
+  const result: Partial<Record<EndpointType, EndpointConfig>> = {}
+
+  const allKeys = new Set([...Object.keys(preset ?? {}), ...Object.keys(user ?? {})])
+
+  for (const k of allKeys) {
+    const endpointType = Number(k) as EndpointType
+    const presetConfig = preset?.[endpointType]
+    const userConfig = user?.[endpointType]
+    result[endpointType] = {
+      ...presetConfig,
+      ...userConfig
+    }
   }
+
+  return result
+}
+
+/**
+ * Extract reasoningFormatTypes map from endpointConfigs (for backward-compatible access)
+ */
+export function extractReasoningFormatTypes(
+  endpointConfigs: Partial<Record<EndpointType, EndpointConfig>> | null | undefined
+): Partial<Record<EndpointType, ReasoningFormatType>> | undefined {
+  if (!endpointConfigs) return undefined
+  const result: Partial<Record<EndpointType, ReasoningFormatType>> = {}
+  for (const [k, v] of Object.entries(endpointConfigs)) {
+    if (v?.reasoningFormatType) {
+      result[Number(k) as EndpointType] = v.reasoningFormatType
+    }
+  }
+  return Object.keys(result).length > 0 ? result : undefined
 }
 
 function resolveReasoningEndpointType(

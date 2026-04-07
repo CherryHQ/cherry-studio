@@ -11,10 +11,10 @@
  * Zod schemas are the single source of truth — all types derived via z.infer<>
  */
 
-import { EndpointType } from '@cherrystudio/provider-catalog'
+import { EndpointType } from '@cherrystudio/provider-registry'
 import * as z from 'zod'
 
-// ─── Schemas formerly from provider-catalog/schemas ─────────────────────────
+// ─── Schemas formerly from provider-registry/schemas ─────────────────────────
 
 const EndpointTypeSchema = z.enum(EndpointType)
 
@@ -75,9 +75,7 @@ export const ApiKeyEntrySchema = z.object({
   /** User-friendly label */
   label: z.string().optional(),
   /** Whether this key is enabled */
-  isEnabled: z.boolean(),
-  /** Creation timestamp */
-  createdAt: z.number().optional()
+  isEnabled: z.boolean()
 })
 
 export type ApiKeyEntry = z.infer<typeof ApiKeyEntrySchema>
@@ -202,6 +200,27 @@ export const REASONING_FORMAT_TYPES = [
 export const ReasoningFormatTypeSchema = z.enum(REASONING_FORMAT_TYPES)
 export type ReasoningFormatType = z.infer<typeof ReasoningFormatTypeSchema>
 
+/** URLs for fetching available models, separated by model category */
+export const ModelsApiUrlsSchema = z.object({
+  default: z.string().optional(),
+  embedding: z.string().optional(),
+  reranker: z.string().optional()
+})
+
+export type ModelsApiUrls = z.infer<typeof ModelsApiUrlsSchema>
+
+/** Per-endpoint-type configuration */
+export const EndpointConfigSchema = z.object({
+  /** Base URL for this endpoint type's API */
+  baseUrl: z.string().optional(),
+  /** How this endpoint type expects reasoning parameters */
+  reasoningFormatType: ReasoningFormatTypeSchema.optional(),
+  /** URLs for fetching available models via this endpoint type */
+  modelsApiUrls: ModelsApiUrlsSchema.optional()
+})
+
+export type EndpointConfig = z.infer<typeof EndpointConfigSchema>
+
 export const ProviderSchema = z.object({
   /** Provider ID */
   id: z.string(),
@@ -211,17 +230,10 @@ export const ProviderSchema = z.object({
   name: z.string(),
   /** Description */
   description: z.string().optional(),
-  /** Base URL mapping (endpoint type → baseURL), sparse — only populated endpoints have entries */
-  baseUrls: z.record(EndpointTypeSchema, z.url()).optional() as z.ZodOptional<
-    z.ZodType<Partial<Record<EndpointType, string>>>
+  /** Per-endpoint-type configuration (baseUrl, reasoningFormatType, modelsApiUrls) */
+  endpointConfigs: z.record(EndpointTypeSchema, EndpointConfigSchema).optional() as z.ZodOptional<
+    z.ZodType<Partial<Record<EndpointType, EndpointConfig>>>
   >,
-  modelsApiUrls: z
-    .object({
-      default: z.url().optional(),
-      embedding: z.url().optional(),
-      reranker: z.url().optional()
-    })
-    .optional(),
   /** Default text generation endpoint type */
   defaultChatEndpoint: EndpointTypeSchema.optional(),
   /** API Keys (without actual key values) */
@@ -234,10 +246,6 @@ export const ProviderSchema = z.object({
   settings: ProviderSettingsSchema,
   /** Website links (official, apiKey, docs, models) */
   websites: ProviderWebsitesSchema.optional(),
-  /** How this provider's API expects reasoning parameters per endpoint type */
-  reasoningFormatTypes: z.record(EndpointTypeSchema, ReasoningFormatTypeSchema).optional() as z.ZodOptional<
-    z.ZodType<Partial<Record<EndpointType, ReasoningFormatType>>>
-  >,
   /** Whether this provider is enabled */
   isEnabled: z.boolean()
 })

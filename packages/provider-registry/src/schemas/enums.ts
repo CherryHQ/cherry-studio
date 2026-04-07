@@ -1,10 +1,10 @@
 /**
- * Canonical enum definitions for the catalog system.
+ * Canonical enum definitions for the registry system.
  *
  * Re-exports proto-generated enums as the SINGLE SOURCE OF TRUTH.
  * Proto numeric enums are used everywhere — no string conversion.
  *
- * - catalog/schemas/ uses these via z.nativeEnum()
+ * - registry/schemas/ uses these via z.nativeEnum()
  * - shared/data/types/ re-exports these directly
  */
 

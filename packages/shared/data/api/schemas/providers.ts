@@ -11,10 +11,11 @@ import type {
   ApiFeatures,
   ApiKeyEntry,
   AuthConfig,
+  EndpointConfig,
   Provider,
-  ProviderSettings,
-  ReasoningFormatType
+  ProviderSettings
 } from '../../types/provider'
+import type { EnrichModelsDto } from './models'
 
 export interface ListProvidersQuery {
   /** Filter by enabled status */
@@ -25,14 +26,10 @@ export interface ListProvidersQuery {
 interface ProviderMutableFields {
   /** Display name */
   name?: string
-  /** Base URL mapping (EndpointType → baseURL) */
-  baseUrls?: Partial<Record<EndpointType, string>>
-  /** Model list API URLs */
-  modelsApiUrls?: Record<string, string>
+  /** Per-endpoint-type configuration (baseUrl, reasoningFormatType, modelsApiUrls) */
+  endpointConfigs?: Partial<Record<EndpointType, EndpointConfig>>
   /** Default text generation endpoint (numeric EndpointType enum value) */
   defaultChatEndpoint?: EndpointType
-  /** Reasoning format mapping by endpoint type */
-  reasoningFormatTypes?: Partial<Record<EndpointType, ReasoningFormatType>>
   /** API keys */
   apiKeys?: ApiKeyEntry[]
   /** Authentication configuration */
@@ -138,12 +135,21 @@ export interface ProviderSchemas {
   }
 
   /**
-   * Get all catalog preset models for a provider (read-only, no DB writes)
-   * @example GET /providers/openai/catalog-models
+   * Registry models for a provider
+   * GET: Get all registry preset models (read-only, no DB writes)
+   * POST: Enrich raw SDK model entries against registry presets
+   * @example GET /providers/openai/registry-models
+   * @example POST /providers/openai/registry-models { "models": [{ "modelId": "gpt-4o" }] }
    */
-  '/providers/:providerId/catalog-models': {
+  '/providers/:providerId/registry-models': {
     GET: {
       params: { providerId: string }
+      response: Model[]
+    }
+    /** Enrich raw model entries with registry capabilities, pricing, etc. */
+    POST: {
+      params: { providerId: string }
+      body: EnrichModelsDto
       response: Model[]
     }
   }

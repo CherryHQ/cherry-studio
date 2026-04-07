@@ -1,23 +1,23 @@
 /**
- * Catalog Service - imports catalog data into SQLite
+ * Registry Service - imports registry data into SQLite
  *
  * Responsible for:
- * - Reading catalog protobuf files (models.pb, provider-models.pb, providers.pb)
+ * - Reading registry protobuf files (models.pb, provider-models.pb, providers.pb)
  * - Merging configurations using mergeModelConfig/mergeProviderConfig
  * - Writing resolved data to user_model / user_provider tables
  *
- * Called during app initialization or when a user adds a preset provider.
+ * Managed by the lifecycle system. Seeds preset data during onInit.
  */
 
 import { join } from 'node:path'
 
-import type { ProtoModelConfig, ProtoProviderConfig, ProtoProviderModelOverride } from '@cherrystudio/provider-catalog'
+import type { ProtoModelConfig, ProtoProviderConfig, ProtoProviderModelOverride } from '@cherrystudio/provider-registry'
 import {
   EndpointType,
-  readModelCatalog,
-  readProviderCatalog,
-  readProviderModelCatalog
-} from '@cherrystudio/provider-catalog'
+  readModelRegistry,
+  readProviderModelRegistry,
+  readProviderRegistry
+} from '@cherrystudio/provider-registry'
 import type { NewUserModel } from '@data/db/schemas/userModel'
 import { userModelTable } from '@data/db/schemas/userModel'
 import type { NewUserProvider } from '@data/db/schemas/userProvider'
@@ -25,15 +25,17 @@ import { userProviderTable } from '@data/db/schemas/userProvider'
 import { loggerService } from '@logger'
 import { isDev } from '@main/constant'
 import { application } from '@main/core/application'
+import { BaseService, DependsOn, Injectable, ServicePhase } from '@main/core/lifecycle'
+import { Phase } from '@main/core/lifecycle'
 import type { Model } from '@shared/data/types/model'
-import type { ReasoningFormatType } from '@shared/data/types/provider'
-import { mergeModelConfig } from '@shared/data/utils/modelMerger'
+import type { EndpointConfig, ReasoningFormatType } from '@shared/data/types/provider'
+import { extractReasoningFormatTypes, mergeModelConfig } from '@shared/data/utils/modelMerger'
 import { eq, isNotNull } from 'drizzle-orm'
 
 import { modelService } from './ModelService'
 import { providerService } from './ProviderService'
 
-const logger = loggerService.withContext('DataApi:CatalogService')
+const logger = loggerService.withContext('DataApi:ProviderRegistryService')
 
 /** Map proto ProviderReasoningFormat oneof case to runtime type string */
 const CASE_TO_TYPE: Record<string, ReasoningFormatType> = {
@@ -48,70 +50,91 @@ const CASE_TO_TYPE: Record<string, ReasoningFormatType> = {
   selfHosted: 'self-hosted'
 }
 
-function buildReasoningFormatTypes(
-  defaultChatEndpoint: EndpointType | undefined,
-  reasoningFormatType: ReasoningFormatType | undefined
-): Partial<Record<EndpointType, ReasoningFormatType>> | undefined {
-  if (defaultChatEndpoint === undefined || !reasoningFormatType) {
-    return undefined
-  }
+/**
+ * Build runtime endpointConfigs from proto provider data.
+ * Converts proto EndpointConfig messages to plain runtime objects.
+ */
+function buildEndpointConfigsFromProto(p: ProtoProviderConfig): Partial<Record<EndpointType, EndpointConfig>> | null {
+  const configs: Partial<Record<EndpointType, EndpointConfig>> = {}
 
-  return {
-    [defaultChatEndpoint]: reasoningFormatType
-  }
-}
+  for (const [k, protoConfig] of Object.entries(p.endpointConfigs)) {
+    const ep = Number(k) as EndpointType
+    const config: EndpointConfig = {}
 
-function getSingleReasoningFormatType(
-  reasoningFormatTypes: Partial<Record<EndpointType, ReasoningFormatType>> | undefined
-): ReasoningFormatType | undefined {
-  if (!reasoningFormatTypes) {
-    return undefined
-  }
-
-  return Object.values(reasoningFormatTypes)[0]
-}
-
-export class CatalogService {
-  private static instance: CatalogService
-
-  private catalogModels: ProtoModelConfig[] | null = null
-  private catalogProviderModels: ProtoProviderModelOverride[] | null = null
-  private catalogProviders: ProtoProviderConfig[] | null = null
-
-  private constructor() {}
-
-  public static getInstance(): CatalogService {
-    if (!CatalogService.instance) {
-      CatalogService.instance = new CatalogService()
+    if (protoConfig.baseUrl) {
+      config.baseUrl = protoConfig.baseUrl
     }
-    return CatalogService.instance
+
+    // Convert proto ModelsApiUrls message to plain object
+    if (protoConfig.modelsApiUrls) {
+      const modelsApiUrls: Record<string, string> = {}
+      if (protoConfig.modelsApiUrls.default) modelsApiUrls.default = protoConfig.modelsApiUrls.default
+      if (protoConfig.modelsApiUrls.embedding) modelsApiUrls.embedding = protoConfig.modelsApiUrls.embedding
+      if (protoConfig.modelsApiUrls.reranker) modelsApiUrls.reranker = protoConfig.modelsApiUrls.reranker
+      if (Object.keys(modelsApiUrls).length > 0) {
+        config.modelsApiUrls = modelsApiUrls
+      }
+    }
+
+    // Convert proto ProviderReasoningFormat to runtime type string
+    const formatCase = protoConfig.reasoningFormat?.format.case
+    const reasoningFormatType = formatCase ? CASE_TO_TYPE[formatCase] : undefined
+    if (reasoningFormatType) {
+      config.reasoningFormatType = reasoningFormatType
+    }
+
+    if (Object.keys(config).length > 0) {
+      configs[ep] = config
+    }
+  }
+
+  return Object.keys(configs).length > 0 ? configs : null
+}
+
+@Injectable('ProviderRegistryService')
+@ServicePhase(Phase.BeforeReady)
+@DependsOn(['DbService'])
+export class ProviderRegistryService extends BaseService {
+  private registryModels: ProtoModelConfig[] | null = null
+  private registryProviderModels: ProtoProviderModelOverride[] | null = null
+  private registryProviders: ProtoProviderConfig[] | null = null
+
+  protected async onInit(): Promise<void> {
+    // Sync preset registry data on every startup so that provider websites/baseUrls
+    // and model capabilities/modalities/contextWindow/pricing stay up-to-date
+    // when the registry protobuf files are updated between app versions.
+    await this.initializeAllPresetProviders()
+  }
+
+  protected onDestroy(): void {
+    this.clearCache()
   }
 
   /**
-   * Get the path to catalog data directory
+   * Get the path to registry data directory
    */
-  private getCatalogDataPath(): string {
+  private getRegistryDataPath(): string {
     if (isDev) {
-      return join(__dirname, '..', '..', 'packages', 'provider-catalog', 'data')
+      return join(__dirname, '..', '..', 'packages', 'provider-registry', 'data')
     }
-    return join(process.resourcesPath, 'packages', 'provider-catalog', 'data')
+    return join(process.resourcesPath, 'packages', 'provider-registry', 'data')
   }
 
   /**
-   * Load and cache catalog models from models.pb
+   * Load and cache registry models from models.pb
    */
-  private loadCatalogModels(): ProtoModelConfig[] {
-    if (this.catalogModels) return this.catalogModels
+  private loadRegistryModels(): ProtoModelConfig[] {
+    if (this.registryModels) return this.registryModels
 
     try {
-      const dataPath = this.getCatalogDataPath()
-      const data = readModelCatalog(join(dataPath, 'models.pb'))
+      const dataPath = this.getRegistryDataPath()
+      const data = readModelRegistry(join(dataPath, 'models.pb'))
       const models = data.models ?? []
-      this.catalogModels = models
-      logger.info('Loaded catalog models', { count: models.length })
+      this.registryModels = models
+      logger.info('Loaded registry models', { count: models.length })
       return models
     } catch (error) {
-      logger.warn('Failed to load catalog models.pb', { error })
+      logger.warn('Failed to load registry models.pb', { error })
       return []
     }
   }
@@ -120,54 +143,53 @@ export class CatalogService {
    * Load and cache provider-model overrides from provider-models.pb
    */
   private loadProviderModels(): ProtoProviderModelOverride[] {
-    if (this.catalogProviderModels) return this.catalogProviderModels
+    if (this.registryProviderModels) return this.registryProviderModels
 
     try {
-      const dataPath = this.getCatalogDataPath()
-      const data = readProviderModelCatalog(join(dataPath, 'provider-models.pb'))
+      const dataPath = this.getRegistryDataPath()
+      const data = readProviderModelRegistry(join(dataPath, 'provider-models.pb'))
       const overrides = data.overrides ?? []
-      this.catalogProviderModels = overrides
-      logger.info('Loaded catalog provider-models', { count: overrides.length })
+      this.registryProviderModels = overrides
+      logger.info('Loaded registry provider-models', { count: overrides.length })
       return overrides
     } catch (error) {
-      logger.warn('Failed to load catalog provider-models.pb', { error })
+      logger.warn('Failed to load registry provider-models.pb', { error })
       return []
     }
   }
 
   /**
-   * Load and cache catalog providers from providers.pb
+   * Load and cache registry providers from providers.pb
    */
-  private loadCatalogProviders(): ProtoProviderConfig[] {
-    if (this.catalogProviders) return this.catalogProviders
+  private loadRegistryProviders(): ProtoProviderConfig[] {
+    if (this.registryProviders) return this.registryProviders
 
     try {
-      const dataPath = this.getCatalogDataPath()
-      const data = readProviderCatalog(join(dataPath, 'providers.pb'))
+      const dataPath = this.getRegistryDataPath()
+      const data = readProviderRegistry(join(dataPath, 'providers.pb'))
       const providers = data.providers ?? []
-      this.catalogProviders = providers
+      this.registryProviders = providers
       return providers
     } catch (error) {
-      logger.warn('Failed to load catalog providers.pb', { error })
+      logger.warn('Failed to load registry providers.pb', { error })
       return []
     }
   }
 
   /**
-   * Get provider reasoning config from catalog data.
+   * Get provider reasoning config from registry data.
    */
-  private getCatalogReasoningConfig(providerId: string): {
+  private getRegistryReasoningConfig(providerId: string): {
     defaultChatEndpoint?: EndpointType
     reasoningFormatTypes?: Partial<Record<EndpointType, ReasoningFormatType>>
   } {
-    const providers = this.loadCatalogProviders()
+    const providers = this.loadRegistryProviders()
     const provider = providers.find((p) => p.id === providerId)
-    const formatCase = provider?.reasoningFormat?.format.case
-    const reasoningFormatType = formatCase ? CASE_TO_TYPE[formatCase] : undefined
+    const endpointConfigs = provider ? buildEndpointConfigsFromProto(provider) : null
 
     return {
       defaultChatEndpoint: provider?.defaultChatEndpoint,
-      reasoningFormatTypes: buildReasoningFormatTypes(provider?.defaultChatEndpoint, reasoningFormatType)
+      reasoningFormatTypes: extractReasoningFormatTypes(endpointConfigs)
     }
   }
 
@@ -179,21 +201,20 @@ export class CatalogService {
     reasoningFormatTypes?: Partial<Record<EndpointType, ReasoningFormatType>>
   }> {
     const db = application.get('DbService').getDb()
-    const catalogConfig = this.getCatalogReasoningConfig(providerId)
+    const registryConfig = this.getRegistryReasoningConfig(providerId)
     const [provider] = await db
       .select({
         defaultChatEndpoint: userProviderTable.defaultChatEndpoint,
-        reasoningFormatTypes: userProviderTable.reasoningFormatTypes
+        endpointConfigs: userProviderTable.endpointConfigs
       })
       .from(userProviderTable)
       .where(eq(userProviderTable.providerId, providerId))
       .limit(1)
 
     if (provider) {
-      const defaultChatEndpoint = provider.defaultChatEndpoint ?? catalogConfig.defaultChatEndpoint
+      const defaultChatEndpoint = provider.defaultChatEndpoint ?? registryConfig.defaultChatEndpoint
       const reasoningFormatTypes =
-        provider.reasoningFormatTypes ??
-        buildReasoningFormatTypes(defaultChatEndpoint, getSingleReasoningFormatType(catalogConfig.reasoningFormatTypes))
+        extractReasoningFormatTypes(provider.endpointConfigs) ?? registryConfig.reasoningFormatTypes
 
       return {
         defaultChatEndpoint,
@@ -201,18 +222,18 @@ export class CatalogService {
       }
     }
 
-    return catalogConfig
+    return registryConfig
   }
 
   /**
    * Initialize models for a specific provider
    *
-   * Reads catalog data, merges configurations, and writes to SQLite.
+   * Reads registry data, merges configurations, and writes to SQLite.
    *
    * @param providerId - The provider ID to initialize models for
    */
   async initializeProvider(providerId: string): Promise<Model[]> {
-    const catalogModels = this.loadCatalogModels()
+    const registryModels = this.loadRegistryModels()
     const providerModels = this.loadProviderModels()
     const { defaultChatEndpoint, reasoningFormatTypes } = await this.getEffectiveReasoningConfig(providerId)
 
@@ -220,13 +241,13 @@ export class CatalogService {
     const overrides = providerModels.filter((pm) => pm.providerId === providerId)
 
     if (overrides.length === 0) {
-      logger.info('No catalog overrides found for provider', { providerId })
+      logger.info('No registry overrides found for provider', { providerId })
       return []
     }
 
-    // Build a map of catalog models by ID for fast lookup
+    // Build a map of registry models by ID for fast lookup
     const modelMap = new Map<string, ProtoModelConfig>()
-    for (const model of catalogModels) {
+    for (const model of registryModels) {
       modelMap.set(model.id, model)
     }
 
@@ -245,7 +266,7 @@ export class CatalogService {
         continue
       }
 
-      // Merge: no user override (null), catalog override, preset model
+      // Merge: no user override (null), registry override, preset model
       const merged = mergeModelConfig(null, override, baseModel, providerId, reasoningFormatTypes, defaultChatEndpoint)
       mergedModels.push(merged)
 
@@ -274,7 +295,7 @@ export class CatalogService {
     // Batch upsert to database
     await modelService.batchUpsert(dbRows)
 
-    logger.info('Initialized provider models from catalog', {
+    logger.info('Initialized provider models from registry', {
       providerId,
       count: mergedModels.length
     })
@@ -283,12 +304,12 @@ export class CatalogService {
   }
 
   /**
-   * Get catalog preset models for a provider (read-only, no DB writes).
+   * Get registry preset models for a provider (read-only, no DB writes).
    */
-  getCatalogModelsByProvider(providerId: string): Model[] {
-    const catalogModels = this.loadCatalogModels()
+  getRegistryModelsByProvider(providerId: string): Model[] {
+    const registryModels = this.loadRegistryModels()
     const providerModels = this.loadProviderModels()
-    const { defaultChatEndpoint, reasoningFormatTypes } = this.getCatalogReasoningConfig(providerId)
+    const { defaultChatEndpoint, reasoningFormatTypes } = this.getRegistryReasoningConfig(providerId)
 
     const overrides = providerModels.filter((pm) => pm.providerId === providerId)
     if (overrides.length === 0) {
@@ -296,7 +317,7 @@ export class CatalogService {
     }
 
     const modelMap = new Map<string, ProtoModelConfig>()
-    for (const model of catalogModels) {
+    for (const model of registryModels) {
       modelMap.set(model.id, model)
     }
 
@@ -315,17 +336,17 @@ export class CatalogService {
   }
 
   /**
-   * Initialize preset providers from catalog into SQLite.
+   * Initialize preset providers from registry into SQLite.
    *
    * Reads providers.pb, maps fields to NewUserProvider, and batch upserts.
    * Also seeds the cherryai provider which is not in providers.pb.
    */
   async initializePresetProviders(): Promise<void> {
-    const dataPath = this.getCatalogDataPath()
-    let rawProviders: ReturnType<typeof readProviderCatalog>['providers'] = []
+    const dataPath = this.getRegistryDataPath()
+    let rawProviders: ReturnType<typeof readProviderRegistry>['providers'] = []
 
     try {
-      const data = readProviderCatalog(join(dataPath, 'providers.pb'))
+      const data = readProviderRegistry(join(dataPath, 'providers.pb'))
       rawProviders = data.providers
     } catch (error) {
       logger.warn('Failed to load providers.pb for provider import', { error })
@@ -333,35 +354,18 @@ export class CatalogService {
     }
 
     const dbRows: NewUserProvider[] = rawProviders.map((p) => {
-      // Map catalog metadata.website to runtime websites field
-      const catalogWebsite = p.metadata?.website
+      // Map registry metadata.website to runtime websites field
+      const registryWebsite = p.metadata?.website
       const websites =
-        catalogWebsite &&
-        (catalogWebsite.official || catalogWebsite.docs || catalogWebsite.apiKey || catalogWebsite.models)
+        registryWebsite &&
+        (registryWebsite.official || registryWebsite.docs || registryWebsite.apiKey || registryWebsite.models)
           ? {
-              official: catalogWebsite.official || undefined,
-              docs: catalogWebsite.docs || undefined,
-              apiKey: catalogWebsite.apiKey || undefined,
-              models: catalogWebsite.models || undefined
+              official: registryWebsite.official || undefined,
+              docs: registryWebsite.docs || undefined,
+              apiKey: registryWebsite.apiKey || undefined,
+              models: registryWebsite.models || undefined
             }
           : null
-
-      // Proto baseUrls uses map<int32, string> — convert to Record<string, string>
-      const baseUrls: Record<string, string> = {}
-      if (p.baseUrls) {
-        for (const [k, v] of Object.entries(p.baseUrls)) {
-          baseUrls[String(k)] = v
-        }
-      }
-
-      // Convert proto message types to plain objects for DB storage
-      const modelsApiUrls: Record<string, string> | null = p.modelsApiUrls
-        ? {
-            ...(p.modelsApiUrls.default ? { default: p.modelsApiUrls.default } : {}),
-            ...(p.modelsApiUrls.embedding ? { embedding: p.modelsApiUrls.embedding } : {}),
-            ...(p.modelsApiUrls.reranker ? { reranker: p.modelsApiUrls.reranker } : {})
-          }
-        : null
 
       const apiFeatures = p.apiFeatures
         ? {
@@ -374,19 +378,15 @@ export class CatalogService {
           }
         : null
 
-      // Extract reasoning format type from proto oneof
-      const formatCase = p.reasoningFormat?.format.case
-      const reasoningFormatType = formatCase ? CASE_TO_TYPE[formatCase] : undefined
-      const reasoningFormatTypes = buildReasoningFormatTypes(p.defaultChatEndpoint, reasoningFormatType)
+      // Build unified endpointConfigs from proto baseUrls + modelsApiUrls + reasoningFormat
+      const endpointConfigs = buildEndpointConfigsFromProto(p)
 
       return {
         providerId: p.id,
         presetProviderId: p.id,
         name: p.name,
-        baseUrls: Object.keys(baseUrls).length > 0 ? baseUrls : null,
-        modelsApiUrls: Object.keys(modelsApiUrls ?? {}).length > 0 ? modelsApiUrls : null,
+        endpointConfigs,
         defaultChatEndpoint: p.defaultChatEndpoint ?? null,
-        reasoningFormatTypes: reasoningFormatTypes ?? null,
         apiFeatures,
         websites
       }
@@ -395,24 +395,25 @@ export class CatalogService {
     dbRows.push({
       providerId: 'cherryai',
       name: 'CherryAI',
-      baseUrls: {
-        [EndpointType.OPENAI_CHAT_COMPLETIONS]: 'https://api.cherry-ai.com'
+      endpointConfigs: {
+        [EndpointType.OPENAI_CHAT_COMPLETIONS]: {
+          baseUrl: 'https://api.cherry-ai.com'
+        }
       },
       defaultChatEndpoint: EndpointType.OPENAI_CHAT_COMPLETIONS
     })
 
     await providerService.batchUpsert(dbRows)
 
-    logger.info('Initialized preset providers from catalog', { count: dbRows.length })
+    logger.info('Initialized preset providers from registry', { count: dbRows.length })
   }
 
   /**
-   * Initialize all preset providers from catalog
+   * Initialize all preset providers from registry
    *
-   * Called during app startup and after migration to seed the database with catalog data.
-   * Seeds provider configurations and enriches existing user models with catalog data.
+   * Seeds provider configurations and enriches existing user models with registry data.
    */
-  async initializeAllPresetProviders(): Promise<void> {
+  private async initializeAllPresetProviders(): Promise<void> {
     await this.initializePresetProviders()
     await this.enrichExistingModels()
 
@@ -420,30 +421,30 @@ export class CatalogService {
   }
 
   /**
-   * Enrich existing user models with catalog data
+   * Enrich existing user models with registry data
    *
-   * For each user model that has a presetModelId, looks up the catalog model
+   * For each user model that has a presetModelId, looks up the registry model
    * and updates capabilities, modalities, contextWindow, maxOutputTokens,
    * reasoning, pricing, etc.
    *
    * This bridges the gap between:
-   * - Migration: inserts user models with null catalog fields
-   * - Catalog: has rich model metadata (capabilities, limits, pricing)
+   * - Migration: inserts user models with null registry fields
+   * - Registry: has rich model metadata (capabilities, limits, pricing)
    *
-   * Uses presetModelId to match user models to catalog models.
+   * Uses presetModelId to match user models to registry models.
    */
   async enrichExistingModels(): Promise<void> {
-    const catalogModels = this.loadCatalogModels()
+    const registryModels = this.loadRegistryModels()
     const providerModels = this.loadProviderModels()
 
-    if (catalogModels.length === 0) {
-      logger.warn('No catalog models loaded, skipping model enrichment')
+    if (registryModels.length === 0) {
+      logger.warn('No registry models loaded, skipping model enrichment')
       return
     }
 
     // Build lookup maps
     const modelMap = new Map<string, ProtoModelConfig>()
-    for (const m of catalogModels) {
+    for (const m of registryModels) {
       modelMap.set(m.id, m)
     }
 
@@ -472,7 +473,7 @@ export class CatalogService {
       .select({
         providerId: userProviderTable.providerId,
         defaultChatEndpoint: userProviderTable.defaultChatEndpoint,
-        reasoningFormatTypes: userProviderTable.reasoningFormatTypes
+        endpointConfigs: userProviderTable.endpointConfigs
       })
       .from(userProviderTable)
     const providerConfigMap = new Map(providerRows.map((row) => [row.providerId, row]))
@@ -487,13 +488,14 @@ export class CatalogService {
       }
 
       const providerOverrides = overridesByProvider.get(row.providerId)
-      const catalogOverride = providerOverrides?.get(presetModelId) ?? null
+      const registryOverride = providerOverrides?.get(presetModelId) ?? null
       const providerConfig = providerConfigMap.get(row.providerId)
-      const catalogReasoningConfig = this.getCatalogReasoningConfig(row.providerId)
-      const defaultChatEndpoint = providerConfig?.defaultChatEndpoint ?? catalogReasoningConfig.defaultChatEndpoint
-      const reasoningFormatTypes = providerConfig?.reasoningFormatTypes ?? catalogReasoningConfig.reasoningFormatTypes
+      const registryReasoningConfig = this.getRegistryReasoningConfig(row.providerId)
+      const defaultChatEndpoint = providerConfig?.defaultChatEndpoint ?? registryReasoningConfig.defaultChatEndpoint
+      const reasoningFormatTypes =
+        extractReasoningFormatTypes(providerConfig?.endpointConfigs) ?? registryReasoningConfig.reasoningFormatTypes
 
-      // Merge catalog data with user data
+      // Merge registry data with user data
       const merged = mergeModelConfig(
         {
           providerId: row.providerId,
@@ -513,7 +515,7 @@ export class CatalogService {
           isEnabled: row.isEnabled,
           isHidden: row.isHidden
         },
-        catalogOverride,
+        registryOverride,
         presetModel,
         row.providerId,
         reasoningFormatTypes,
@@ -549,12 +551,12 @@ export class CatalogService {
       total: userModels.length,
       enriched: updateRows.length,
       skipped: skippedCount,
-      catalogSize: catalogModels.length
+      registrySize: registryModels.length
     })
   }
 
   /**
-   * Look up catalog data for a single model
+   * Look up registry data for a single model
    *
    * Returns the preset base model and provider-level override (if any).
    * Used by ModelService.create to auto-enrich models at save time.
@@ -564,26 +566,26 @@ export class CatalogService {
     modelId: string
   ): Promise<{
     presetModel: ProtoModelConfig | null
-    catalogOverride: ProtoProviderModelOverride | null
+    registryOverride: ProtoProviderModelOverride | null
     defaultChatEndpoint?: EndpointType
     reasoningFormatTypes?: Partial<Record<EndpointType, ReasoningFormatType>>
   }> {
-    const catalogModels = this.loadCatalogModels()
+    const registryModels = this.loadRegistryModels()
     const providerModels = this.loadProviderModels()
 
-    const presetModel = catalogModels.find((m) => m.id === modelId) ?? null
-    const catalogOverride = providerModels.find((pm) => pm.providerId === providerId && pm.modelId === modelId) ?? null
+    const presetModel = registryModels.find((m) => m.id === modelId) ?? null
+    const registryOverride = providerModels.find((pm) => pm.providerId === providerId && pm.modelId === modelId) ?? null
     const reasoningConfig = await this.getEffectiveReasoningConfig(providerId)
 
-    return { presetModel, catalogOverride, ...reasoningConfig }
+    return { presetModel, registryOverride, ...reasoningConfig }
   }
 
   /**
-   * Resolve raw model entries against catalog data
+   * Resolve raw model entries against registry data
    *
-   * For each raw entry, looks up catalog preset + provider override
+   * For each raw entry, looks up registry preset + provider override
    * and produces an enriched Model via mergeModelConfig.
-   * Models not found in catalog are returned with minimal data.
+   * Models not found in registry are returned with minimal data.
    *
    * Used by the renderer to display enriched models in ManageModelsPopup
    * before the user adds them.
@@ -598,13 +600,13 @@ export class CatalogService {
       endpointTypes?: number[]
     }>
   ): Promise<Model[]> {
-    const catalogModels = this.loadCatalogModels()
+    const registryModels = this.loadRegistryModels()
     const providerModels = this.loadProviderModels()
     const { defaultChatEndpoint, reasoningFormatTypes } = await this.getEffectiveReasoningConfig(providerId)
 
     // Build lookup maps
     const modelMap = new Map<string, ProtoModelConfig>()
-    for (const m of catalogModels) {
+    for (const m of registryModels) {
       modelMap.set(m.id, m)
     }
     const overrideMap = new Map<string, ProtoProviderModelOverride>()
@@ -622,7 +624,7 @@ export class CatalogService {
       seen.add(raw.modelId)
 
       const presetModel = modelMap.get(raw.modelId) ?? null
-      const catalogOverride = overrideMap.get(raw.modelId) ?? null
+      const registryOverride = overrideMap.get(raw.modelId) ?? null
 
       // Build a minimal user row from the raw entry
       const userRow = {
@@ -637,11 +639,11 @@ export class CatalogService {
 
       try {
         if (presetModel) {
-          // Catalog match found — merge with preset data
+          // Registry match found — merge with preset data
           results.push(
             mergeModelConfig(
               userRow,
-              catalogOverride,
+              registryOverride,
               presetModel,
               providerId,
               reasoningFormatTypes,
@@ -649,7 +651,7 @@ export class CatalogService {
             )
           )
         } else {
-          // No catalog match — return as custom model (no presetModelId)
+          // No registry match — return as custom model (no presetModelId)
           results.push(mergeModelConfig({ ...userRow, presetModelId: null }, null, null, providerId))
         }
       } catch (error) {
@@ -661,13 +663,11 @@ export class CatalogService {
   }
 
   /**
-   * Clear cached catalog data
+   * Clear cached registry data
    */
   clearCache(): void {
-    this.catalogModels = null
-    this.catalogProviderModels = null
-    this.catalogProviders = null
+    this.registryModels = null
+    this.registryProviderModels = null
+    this.registryProviders = null
   }
 }
-
-export const catalogService = CatalogService.getInstance()

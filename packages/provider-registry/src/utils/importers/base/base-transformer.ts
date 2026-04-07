@@ -734,7 +734,7 @@ export class OpenAICompatibleTransformer implements ITransformer {
 }
 
 /**
- * Abstract base class for catalog transformers
+ * Abstract base class for registry transformers
  * Provides common functionality for normalizing model IDs, inferring publishers, etc.
  */
 export abstract class BaseCatalogTransformer<TInput = any> implements ITransformer<TInput> {

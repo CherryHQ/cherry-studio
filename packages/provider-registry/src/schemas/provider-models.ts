@@ -52,8 +52,7 @@ export const ProviderModelOverrideSchema = z.object({
     .object({
       contextWindow: z.number().optional(),
       maxOutputTokens: z.number().optional(),
-      maxInputTokens: z.number().optional(),
-      rateLimit: z.number().optional() // requests per minute
+      maxInputTokens: z.number().optional()
     })
     .optional(),
   pricing: ModelPricingSchema.partial().optional(),

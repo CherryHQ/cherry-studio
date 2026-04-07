@@ -19,14 +19,14 @@ import {
   MODEL_CAPABILITY,
   ModelCapability,
   ReasoningEffort
-} from '@cherrystudio/provider-catalog'
+} from '@cherrystudio/provider-registry'
 import * as z from 'zod'
 
 // Re-export const objects and types for consumers
 export { Currency, ENDPOINT_TYPE, EndpointType, MODALITY, Modality, MODEL_CAPABILITY, ModelCapability, ReasoningEffort }
 
 // ═══════════════════════════════════════════════════════════════════════════════
-// Zod schemas (formerly in provider-catalog/schemas, now owned by shared)
+// Zod schemas (formerly in provider-registry/schemas, now owned by shared)
 // ═══════════════════════════════════════════════════════════════════════════════
 
 /** Price per token schema */
