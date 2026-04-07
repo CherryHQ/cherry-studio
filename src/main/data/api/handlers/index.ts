@@ -17,6 +17,7 @@ import { fileProcessingHandlers } from './fileProcessing'
 import { knowledgeHandlers } from './knowledges'
 import { mcpServerHandlers } from './mcpServers'
 import { messageHandlers } from './messages'
+import { miniappHandlers } from './miniapps'
 import { promptHandlers } from './prompts'
 import { testHandlers } from './test'
 import { topicHandlers } from './topics'
@@ -37,5 +38,6 @@ export const apiHandlers: ApiImplementation = {
   ...promptHandlers,
   ...knowledgeHandlers,
   ...translateHandlers,
-  ...mcpServerHandlers
+  ...mcpServerHandlers,
+  ...miniappHandlers
 }
