@@ -56,14 +56,14 @@ export interface RuntimeState {
   // generating: boolean
   // translating: boolean
   // translateAbortKey?: string
-  // /** whether the miniapp popup is shown */
-  // miniAppShow: boolean
-  // /** the miniapps that are opened and should be keep alive */
-  // openedKeepAliveMiniApps: MiniAppType[]
-  // /** the miniapp that is opened for one time */
-  // openedOneOffMiniApp: MiniAppType | null
-  // /** the current miniapp id */
-  // currentMiniAppId: string
+  // /** whether the minapp popup is shown */
+  // minappShow: boolean
+  // /** the minapps that are opened and should be keep alive */
+  // openedKeepAliveMinapps: MinAppType[]
+  // /** the minapp that is opened for one time */
+  // openedOneOffMinapp: MinAppType | null
+  // /** the current minapp id */
+  // currentMinappId: string
   // searching: boolean
   // filesPath: string
   // resourcesPath: string
@@ -89,10 +89,10 @@ const initialState: RuntimeState = {
   // avatar: UserAvatar,
   // generating: false,
   // translating: false,
-  // miniAppShow: false,
-  // openedKeepAliveMiniApps: [],
-  // openedOneOffMiniApp: null,
-  // currentMiniAppId: '',
+  // minappShow: false,
+  // openedKeepAliveMinapps: [],
+  // openedOneOffMinapp: null,
+  // currentMinappId: '',
   // searching: false,
   // filesPath: '',
   // resourcesPath: '',
@@ -146,17 +146,17 @@ const runtimeSlice = createSlice({
     // setTranslateAbortKey: (state, action: PayloadAction<string>) => {
     //   state.translateAbortKey = action.payload
     // },
-    // setMiniAppShow: (state, action: PayloadAction<boolean>) => {
-    //   state.miniAppShow = action.payload
+    // setMinappShow: (state, action: PayloadAction<boolean>) => {
+    //   state.minappShow = action.payload
     // },
-    // setOpenedKeepAliveMiniApps: (state, action: PayloadAction<MiniAppType[]>) => {
-    //   state.openedKeepAliveMiniApps = action.payload
+    // setOpenedKeepAliveMinapps: (state, action: PayloadAction<MinAppType[]>) => {
+    //   state.openedKeepAliveMinapps = action.payload
     // },
-    // setOpenedOneOffMiniApp: (state, action: PayloadAction<MiniAppType | null>) => {
-    //   state.openedOneOffMiniApp = action.payload
+    // setOpenedOneOffMinapp: (state, action: PayloadAction<MinAppType | null>) => {
+    //   state.openedOneOffMinapp = action.payload
     // },
-    // setCurrentMiniAppId: (state, action: PayloadAction<string>) => {
-    //   state.currentMiniAppId = action.payload
+    // setCurrentMinappId: (state, action: PayloadAction<string>) => {
+    //   state.currentMinappId = action.payload
     // },
     // setSearching: (state, action: PayloadAction<boolean>) => {
     //   state.searching = action.payload
@@ -239,10 +239,10 @@ export const {
   // setGenerating,
   // setTranslating,
   // setTranslateAbortKey,
-  // setMiniAppShow,
-  // setOpenedKeepAliveMiniApps,
-  // setOpenedOneOffMiniApp,
-  // setCurrentMiniAppId,
+  // setMinappShow,
+  // setOpenedKeepAliveMinapps,
+  // setOpenedOneOffMinapp,
+  // setCurrentMinappId,
   // setSearching,
   // setFilesPath,
   // setResourcesPath,

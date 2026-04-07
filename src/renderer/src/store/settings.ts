@@ -193,7 +193,7 @@ export interface SettingsState {
   siyuanRootPath: string | null
   // 订阅的助手地址
   agentssubscribeUrl: string | null
-  // MiniApps
+  // MinApps
   maxKeepAliveMinapps: number
   showOpenedMinappsInSidebar: boolean
   minappsOpenLinkExternal: boolean
@@ -380,7 +380,7 @@ export const initialState: SettingsState = {
   siyuanBoxId: null,
   siyuanRootPath: null,
   agentssubscribeUrl: '',
-  // MiniApps
+  // MinApps
   maxKeepAliveMinapps: 3,
   showOpenedMinappsInSidebar: true,
   minappsOpenLinkExternal: false,
@@ -798,16 +798,16 @@ const settingsSlice = createSlice({
     setAgentssubscribeUrl: (state, action: PayloadAction<string>) => {
       state.agentssubscribeUrl = action.payload
     },
-    // setMaxKeepAliveMiniApps: (state, action: PayloadAction<number>) => {
+    // setMaxKeepAliveMinapps: (state, action: PayloadAction<number>) => {
     //   state.maxKeepAliveMinapps = action.payload
     // },
-    // setShowOpenedMiniAppsInSidebar: (state, action: PayloadAction<boolean>) => {
+    // setShowOpenedMinappsInSidebar: (state, action: PayloadAction<boolean>) => {
     //   state.showOpenedMinappsInSidebar = action.payload
     // },
-    // setMiniAppsOpenLinkExternal: (state, action: PayloadAction<boolean>) => {
+    // setMinappsOpenLinkExternal: (state, action: PayloadAction<boolean>) => {
     //   state.minappsOpenLinkExternal = action.payload
     // },
-    setMiniAppRegion: (state, action: PayloadAction<MiniAppRegionFilter>) => {
+    setMinAppRegion: (state, action: PayloadAction<MiniAppRegionFilter>) => {
       state.minAppRegion = action.payload
     },
     // setEnableDataCollection: (state, action: PayloadAction<boolean>) => {
@@ -1006,10 +1006,10 @@ export const {
   // setSiyuanBoxId,
   setAgentssubscribeUrl,
   // setSiyuanRootPath,
-  // setMaxKeepAliveMiniApps,
-  // setShowOpenedMiniAppsInSidebar,
-  // setMiniAppsOpenLinkExternal,
-  setMiniAppRegion,
+  // setMaxKeepAliveMinapps,
+  // setShowOpenedMinappsInSidebar,
+  // setMinappsOpenLinkExternal,
+  setMinAppRegion,
   // setEnableDataCollection,
   // setEnableSpellCheck,
   // setSpellCheckLanguages,

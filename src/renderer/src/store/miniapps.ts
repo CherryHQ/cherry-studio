@@ -19,37 +19,37 @@ import { createSlice } from '@reduxjs/toolkit'
 import { allMiniApps } from '@renderer/config/miniapps'
 import type { MiniAppType } from '@shared/data/types/miniapp'
 
-export interface MiniAppsState {
+export interface MinAppsState {
   enabled: MiniAppType[]
   disabled: MiniAppType[]
   pinned: MiniAppType[]
 }
 
-const initialState: MiniAppsState = {
+const initialState: MinAppsState = {
   enabled: allMiniApps,
   disabled: [],
   pinned: []
 }
 
-const miniAppsSlice = createSlice({
-  name: 'minapps',
+const minAppsSlice = createSlice({
+  name: 'minApps',
   initialState,
   reducers: {
-    setMiniApps: (state, action: PayloadAction<MiniAppType[]>) => {
+    setMinApps: (state, action: PayloadAction<MiniAppType[]>) => {
       state.enabled = action.payload.map((app) => ({ ...app, logo: undefined }))
     },
-    addMiniApp: (state, action: PayloadAction<MiniAppType>) => {
+    addMinApp: (state, action: PayloadAction<MiniAppType>) => {
       state.enabled.push(action.payload)
     },
-    setDisabledMiniApps: (state, action: PayloadAction<MiniAppType[]>) => {
+    setDisabledMinApps: (state, action: PayloadAction<MiniAppType[]>) => {
       state.disabled = action.payload.map((app) => ({ ...app, logo: undefined }))
     },
-    setPinnedMiniApps: (state, action: PayloadAction<MiniAppType[]>) => {
+    setPinnedMinApps: (state, action: PayloadAction<MiniAppType[]>) => {
       state.pinned = action.payload.map((app) => ({ ...app, logo: undefined }))
     }
   }
 })
 
-export const { setMiniApps, addMiniApp, setDisabledMiniApps, setPinnedMiniApps } = miniAppsSlice.actions
+export const { setMinApps, addMinApp, setDisabledMinApps, setPinnedMinApps } = minAppsSlice.actions
 
-export default miniAppsSlice.reducer
+export default minAppsSlice.reducer

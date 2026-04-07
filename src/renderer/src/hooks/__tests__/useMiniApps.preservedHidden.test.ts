@@ -1,5 +1,5 @@
 import { configureStore } from '@reduxjs/toolkit'
-import miniAppsReducer, { setPinnedMiniApps } from '@renderer/store/miniapps'
+import miniAppsReducer, { setPinnedMinApps } from '@renderer/store/miniapps'
 import type { MiniAppRegion } from '@shared/data/types/miniapp'
 import type { MiniAppType } from '@shared/data/types/miniapp'
 import { describe, expect, it } from 'vitest'
@@ -21,7 +21,7 @@ const createGlobalApp = (id: string): MiniAppType => createApp(id, { supportedRe
 
 const createCnOnlyApp = (id: string): MiniAppType => createApp(id, { supportedRegions: ['CN'] as MiniAppRegion[] })
 
-describe('setPinnedMiniApps — no preservedHidden re-append', () => {
+describe('setPinnedMinApps — no preservedHidden re-append', () => {
   it('should remove CN-only pinned app without re-append', () => {
     const globalApp = createGlobalApp('openai')
     const cnOnlyApp = createCnOnlyApp('yi')
@@ -29,8 +29,8 @@ describe('setPinnedMiniApps — no preservedHidden re-append', () => {
       reducer: { miniApps: miniAppsReducer }
     })
 
-    store.dispatch(setPinnedMiniApps([globalApp, cnOnlyApp]))
-    store.dispatch(setPinnedMiniApps([globalApp]))
+    store.dispatch(setPinnedMinApps([globalApp, cnOnlyApp]))
+    store.dispatch(setPinnedMinApps([globalApp]))
 
     const state = store.getState().miniApps
     expect(state.pinned.map((a) => a.id)).toEqual(['openai'])
@@ -43,8 +43,8 @@ describe('setPinnedMiniApps — no preservedHidden re-append', () => {
       reducer: { miniApps: miniAppsReducer }
     })
 
-    store.dispatch(setPinnedMiniApps([globalApp, cnOnlyApp]))
-    store.dispatch(setPinnedMiniApps([]))
+    store.dispatch(setPinnedMinApps([globalApp, cnOnlyApp]))
+    store.dispatch(setPinnedMinApps([]))
 
     const state = store.getState().miniApps
     expect(state.pinned).toEqual([])
@@ -56,7 +56,7 @@ describe('setPinnedMiniApps — no preservedHidden re-append', () => {
       reducer: { miniApps: miniAppsReducer }
     })
 
-    store.dispatch(setPinnedMiniApps([app]))
+    store.dispatch(setPinnedMinApps([app]))
 
     const state = store.getState().miniApps
     expect(state.pinned[0].logo).toBeUndefined()

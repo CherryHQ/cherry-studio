@@ -1,4 +1,4 @@
-import miniAppsReducer, { type MiniAppsState, setPinnedMiniApps } from '@renderer/store/miniapps'
+import miniAppsReducer, { type MinAppsState, setPinnedMinApps } from '@renderer/store/miniapps'
 import type { MiniAppType } from '@shared/data/types/miniapp'
 import { describe, expect, it } from 'vitest'
 
@@ -10,13 +10,13 @@ const createApp = (id: string, name?: string): MiniAppType => ({
   logo: `logo-${id}`
 })
 
-describe('miniApps slice — setPinnedMiniApps', () => {
-  const buildState = (pinned: MiniAppType[]): MiniAppsState =>
+describe('miniApps slice — setPinnedMinApps', () => {
+  const buildState = (pinned: MiniAppType[]): MinAppsState =>
     ({
       enabled: [],
       disabled: [],
       pinned
-    }) as MiniAppsState
+    }) as MinAppsState
 
   it('replaces pinned list with new list', () => {
     const A = createApp('a')
@@ -24,7 +24,7 @@ describe('miniApps slice — setPinnedMiniApps', () => {
     const C = createApp('c')
     const state = buildState([A, B, C])
 
-    const next = miniAppsReducer(state, setPinnedMiniApps([A, C]))
+    const next = miniAppsReducer(state, setPinnedMinApps([A, C]))
 
     expect(next.pinned.map((a) => a.id)).toEqual(['a', 'c'])
   })
@@ -33,7 +33,7 @@ describe('miniApps slice — setPinnedMiniApps', () => {
     const A = createApp('a')
     const state = buildState([A])
 
-    const next = miniAppsReducer(state, setPinnedMiniApps([]))
+    const next = miniAppsReducer(state, setPinnedMinApps([]))
 
     expect(next.pinned).toEqual([])
   })
@@ -42,7 +42,7 @@ describe('miniApps slice — setPinnedMiniApps', () => {
     const app = createApp('a')
     const state = buildState([])
 
-    const next = miniAppsReducer(state, setPinnedMiniApps([app]))
+    const next = miniAppsReducer(state, setPinnedMinApps([app]))
 
     expect(next.pinned[0].logo).toBeUndefined()
     expect(next.pinned[0].id).toBe('a')
