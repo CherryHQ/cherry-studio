@@ -41,9 +41,7 @@ class ChannelManager {
       const channels = await channelService.listChannels()
       const activeChannels = channels.filter((ch) => ch.isActive && ch.agentId)
 
-      for (const channel of activeChannels) {
-        await this.connectChannelFromRow(channel)
-      }
+      await Promise.all(activeChannels.map((channel) => this.connectChannelFromRow(channel)))
 
       logger.info('Channel manager started', { adapterCount: this.adapters.size })
     } catch (error) {
