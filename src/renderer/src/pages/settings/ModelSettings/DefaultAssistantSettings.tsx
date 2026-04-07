@@ -153,7 +153,7 @@ const AssistantSettings: FC = () => {
           marginTop: 0
         }}>
         {t('settings.assistant.model_params')}
-        <Tooltip content={t('common.reset')} closeDelay={0}>
+        <Tooltip content={t('common.reset')}>
           <Button variant="ghost" onClick={onReset} size="icon">
             <ResetIcon size={16} />
           </Button>
