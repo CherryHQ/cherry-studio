@@ -10,7 +10,7 @@ import {
   PushpinOutlined,
   ReloadOutlined
 } from '@ant-design/icons'
-import { Button, Tooltip } from '@cherrystudio/ui'
+import { Button, Drawer, DrawerContentMinimal, Tooltip } from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
 import { LogoAvatar } from '@renderer/components/Icons'
@@ -25,7 +25,7 @@ import { useTimer } from '@renderer/hooks/useTimer'
 import { delay } from '@renderer/utils'
 import { clearWebviewState, getWebviewLoaded, setWebviewLoaded } from '@renderer/utils/webviewStateManager'
 import type { MiniApp } from '@shared/data/types/miniapp'
-import { Alert, Drawer } from 'antd'
+import { Alert } from 'antd'
 import type { WebviewTag } from 'electron'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -589,58 +589,63 @@ const MinappPopupContainer: React.FC = () => {
 
   return (
     <Drawer
-      title={
-        isTopNavbar ? null : (
-          <TitleBar
-            appInfo={currentAppInfo}
-            url={currentUrl}
-            backgroundColor={backgroundColor}
-            isTopNavbar={isTopNavbar}
-            canMinimize={canMinimize}
-            minappsOpenLinkExternal={minappsOpenLinkExternal}
-            onGoBack={handleGoBack}
-            onGoForward={handleGoForward}
-            onReload={handleReload}
-            onTogglePin={handleTogglePin}
-            onToggleOpenExternal={handleToggleOpenExternal}
-            onOpenDevTools={handleOpenDevTools}
-            onMinimize={handlePopupMinimize}
-            onClose={handlePopupClose}
-            onOpenLink={handleOpenLink}
-          />
-        )
-      }
-      placement="bottom"
-      onClose={handlePopupMinimize}
+      direction="bottom"
       open={isPopupShow}
-      mask={false}
-      rootClassName="minapp-drawer"
-      maskClassName="minapp-mask"
-      height={isTopNavbar ? 'calc(100% - var(--navbar-height))' : '100%'}
-      maskClosable={false}
-      closeIcon={null}
-      styles={{
-        wrapper: {
-          position: 'fixed',
+      onOpenChange={(open) => {
+        if (!open) void handlePopupMinimize()
+      }}
+      modal={false}
+      dismissible={false}>
+      <DrawerContentMinimal
+        className="minapp-drawer inset-x-0 bottom-0"
+        style={{
+          height: isTopNavbar ? 'calc(100% - var(--navbar-height))' : '100%',
           marginLeft: isLeftNavbar ? 'var(--sidebar-width)' : 0,
-          marginTop: isTopNavbar ? 'var(--navbar-height)' : 0
-        },
-        content: {
+          marginTop: isTopNavbar ? 'var(--navbar-height)' : 0,
           backgroundColor: window.root.style.background
-        },
-        body: {
-          borderTopLeftRadius: '10px'
-        }
-      }}>
-      {/* 在所有小程序中显示GoogleLoginTip */}
-      <GoogleLoginTip isReady={isReady} currentUrl={currentUrl} currentAppId={currentMinappId} />
-      {!isReady && (
-        <EmptyView style={{ backgroundColor: 'var(--color-background-soft)' }}>
-          <LogoAvatar logo={currentAppInfo?.logo} size={80} />
-          <BeatLoader color="var(--color-text-2)" size={10} style={{ marginTop: 15 }} />
-        </EmptyView>
-      )}
-      {WebviewContainerGroup}
+        }}>
+        {!isTopNavbar && (
+          <div
+            className="relative shrink-0"
+            style={{
+              minHeight: 'calc(var(--navbar-height) + 0.5px)',
+              marginTop: '-0.5px',
+              // @ts-expect-error -- Electron-specific CSS property for window dragging
+              WebkitAppRegion: 'drag'
+            }}>
+            <TitleBar
+              appInfo={currentAppInfo}
+              url={currentUrl}
+              backgroundColor={backgroundColor}
+              isTopNavbar={isTopNavbar}
+              canMinimize={canMinimize}
+              minappsOpenLinkExternal={minappsOpenLinkExternal}
+              onGoBack={handleGoBack}
+              onGoForward={handleGoForward}
+              onReload={handleReload}
+              onTogglePin={handleTogglePin}
+              onToggleOpenExternal={handleToggleOpenExternal}
+              onOpenDevTools={handleOpenDevTools}
+              onMinimize={handlePopupMinimize}
+              onClose={handlePopupClose}
+              onOpenLink={handleOpenLink}
+            />
+          </div>
+        )}
+        <div
+          className="flex-1 overflow-hidden rounded-tl-[10px]"
+          style={{ backgroundColor: 'var(--color-background)' }}>
+          {/* 在所有小程序中显示GoogleLoginTip */}
+          <GoogleLoginTip isReady={isReady} currentUrl={currentUrl} currentAppId={currentMinappId} />
+          {!isReady && (
+            <EmptyView style={{ backgroundColor: 'var(--color-background-soft)' }}>
+              <LogoAvatar logo={currentAppInfo?.logo} size={80} />
+              <BeatLoader color="var(--color-text-2)" size={10} style={{ marginTop: 15 }} />
+            </EmptyView>
+          )}
+          {WebviewContainerGroup}
+        </div>
+      </DrawerContentMinimal>
     </Drawer>
   )
 }

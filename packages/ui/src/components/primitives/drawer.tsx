@@ -90,10 +90,28 @@ function DrawerDescription({ className, ...props }: React.ComponentProps<typeof 
   )
 }
 
+/**
+ * Minimal DrawerContent without overlay and drag handle.
+ * Use when you need full control over the drawer layout (e.g. full-screen panels).
+ */
+function DrawerContentMinimal({ className, children, ...props }: React.ComponentProps<typeof DrawerPrimitive.Content>) {
+  return (
+    <DrawerPortal>
+      <DrawerPrimitive.Content
+        data-slot="drawer-content"
+        className={cn('fixed z-50 flex flex-col bg-background outline-none', className)}
+        {...props}>
+        {children}
+      </DrawerPrimitive.Content>
+    </DrawerPortal>
+  )
+}
+
 export {
   Drawer,
   DrawerClose,
   DrawerContent,
+  DrawerContentMinimal,
   DrawerDescription,
   DrawerFooter,
   DrawerHeader,
