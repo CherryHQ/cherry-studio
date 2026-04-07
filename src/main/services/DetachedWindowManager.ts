@@ -202,9 +202,7 @@ export class DetachedWindowManager extends BaseService {
     }
 
     win.on('ready-to-show', () => {
-      if (!hasPosition) {
-        win.show()
-      }
+      win.show()
     })
 
     win.webContents.setWindowOpenHandler((details) => {

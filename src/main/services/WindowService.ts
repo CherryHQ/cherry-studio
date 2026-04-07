@@ -81,6 +81,15 @@ export class WindowService extends BaseService {
   }
 
   private registerIpcHandlers() {
+    const resolveTargetWindow = (sender: Electron.WebContents) => {
+      const senderWindow = BrowserWindow.fromWebContents(sender)
+      if (senderWindow && !senderWindow.isDestroyed()) {
+        return senderWindow
+      }
+      this.checkMainWindow()
+      return this.mainWindow!
+    }
+
     this.ipcHandle(IpcChannel.Windows_SetMinimumSize, (_, width: number, height: number) => {
       this.checkMainWindow()
       this.mainWindow!.setMinimumSize(width, height)
@@ -101,29 +110,24 @@ export class WindowService extends BaseService {
       return [width, height]
     })
 
-    this.ipcHandle(IpcChannel.Windows_Minimize, () => {
-      this.checkMainWindow()
-      this.mainWindow!.minimize()
+    this.ipcHandle(IpcChannel.Windows_Minimize, (event) => {
+      resolveTargetWindow(event.sender).minimize()
     })
 
-    this.ipcHandle(IpcChannel.Windows_Maximize, () => {
-      this.checkMainWindow()
-      this.mainWindow!.maximize()
+    this.ipcHandle(IpcChannel.Windows_Maximize, (event) => {
+      resolveTargetWindow(event.sender).maximize()
     })
 
-    this.ipcHandle(IpcChannel.Windows_Unmaximize, () => {
-      this.checkMainWindow()
-      this.mainWindow!.unmaximize()
+    this.ipcHandle(IpcChannel.Windows_Unmaximize, (event) => {
+      resolveTargetWindow(event.sender).unmaximize()
     })
 
-    this.ipcHandle(IpcChannel.Windows_Close, () => {
-      this.checkMainWindow()
-      this.mainWindow!.close()
+    this.ipcHandle(IpcChannel.Windows_Close, (event) => {
+      resolveTargetWindow(event.sender).close()
     })
 
-    this.ipcHandle(IpcChannel.Windows_IsMaximized, () => {
-      this.checkMainWindow()
-      return this.mainWindow!.isMaximized()
+    this.ipcHandle(IpcChannel.Windows_IsMaximized, (event) => {
+      return resolveTargetWindow(event.sender).isMaximized()
     })
 
     this.ipcHandle(IpcChannel.MiniWindow_Show, () => this.showMiniWindow())
