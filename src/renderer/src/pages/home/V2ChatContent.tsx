@@ -23,11 +23,11 @@ interface Props {
 /**
  * V2 chat content area — replaces Messages + Inputbar when USE_V2_CHAT is enabled.
  *
- * Architecture (fixes for initialMessages race and metadata loss):
+ * Architecture:
  *
  * Outer shell (V2ChatContent):
  *   - Loads history from DataApi via useTopicMessagesV2
- *   - Renders a loading skeleton until history is ready
+ *   - Renders a loading state until history is ready
  *   - Only mounts V2ChatContentInner AFTER history is loaded, so useAiChat
  *     receives complete initialMessages on its first (and only) read
  *
@@ -164,7 +164,7 @@ const V2ChatContentInner: FC<InnerProps> = ({
 
   const handleSendV2 = useCallback(
     (text: string, options?: { files?: FileMetadata[]; mentionedModels?: Model[] }) => {
-      sendMessage(
+      void sendMessage(
         { text },
         {
           body: {

@@ -131,6 +131,8 @@ type MessageMenubarButtonContext = {
   setShowDeleteTooltip: Dispatch<SetStateAction<boolean>>
   showDeleteTooltip: boolean
   softHoverBg: boolean
+  supportsAppendResponse: boolean
+  supportsWrites: boolean
   t: TFunction
   translateLanguages: TranslateLanguage[]
 }
@@ -199,6 +201,7 @@ const MessageMenubar: FC<Props> = (props) => {
   // V2 mode: read from context; V1 mode: read from Redux
   const blockEntities = v2Blocks ?? reduxBlockEntities
   const messageParts = partsMap?.[message.id]
+  const isV2Chat = v2Blocks !== null
 
   const mainTextContent = useMemo(() => {
     if (messageParts) {
@@ -230,7 +233,7 @@ const MessageMenubar: FC<Props> = (props) => {
       window.toast.success(t('message.copied'))
       setCopied(true)
     },
-    [message, blockEntities, setCopied, t]
+    [messageParts, message, blockEntities, setCopied, t]
   )
 
   const onNewBranch = useCallback(async () => {
@@ -290,6 +293,7 @@ const MessageMenubar: FC<Props> = (props) => {
       isTranslating,
       message.topicId,
       message.id,
+      blockEntities,
       getTranslationUpdater,
       mainTextContent,
       translationAbortKey,
@@ -319,7 +323,7 @@ const MessageMenubar: FC<Props> = (props) => {
 
   const dropdownItems = useMemo(() => {
     const items: MenuProps['items'] = [
-      ...(isEditable
+      ...(!isV2Chat && isEditable
         ? [
             {
               label: t('common.edit'),
@@ -329,12 +333,16 @@ const MessageMenubar: FC<Props> = (props) => {
             }
           ]
         : []),
-      {
-        label: t('chat.message.new.branch.label'),
-        key: 'new-branch',
-        icon: <Split size={15} />,
-        onClick: onNewBranch
-      },
+      ...(!isV2Chat
+        ? [
+            {
+              label: t('chat.message.new.branch.label'),
+              key: 'new-branch',
+              icon: <Split size={15} />,
+              onClick: onNewBranch
+            }
+          ]
+        : []),
       {
         label: t('chat.multiple.select.label'),
         key: 'multi-select',
@@ -499,6 +507,7 @@ const MessageMenubar: FC<Props> = (props) => {
     messageContainerRef,
     onEdit,
     onNewBranch,
+    isV2Chat,
     t,
     toggleMultiSelectMode,
     topic.name
@@ -544,7 +553,7 @@ const MessageMenubar: FC<Props> = (props) => {
     } else {
       return defaultFilter
     }
-  }, [isAssistantMessage, message.askId, topic.id])
+  }, [blockEntities, isAssistantMessage, message.askId, topic.id])
 
   const onMentionModel = useCallback(
     async (e: React.MouseEvent) => {
@@ -603,6 +612,8 @@ const MessageMenubar: FC<Props> = (props) => {
     setShowDeleteTooltip,
     showDeleteTooltip,
     softHoverBg,
+    supportsAppendResponse: !isV2Chat,
+    supportsWrites: !isV2Chat,
     t,
     translateLanguages
   }
@@ -714,8 +725,8 @@ const buttonRenderers: Record<MessageMenubarButtonId, MessageMenubarButtonRender
       </Tooltip>
     )
   },
-  'user-edit': ({ message, onEdit, softHoverBg, t }) => {
-    if (message.role !== 'user') {
+  'user-edit': ({ message, onEdit, softHoverBg, supportsWrites, t }) => {
+    if (message.role !== 'user' || !supportsWrites) {
       return null
     }
 
@@ -774,8 +785,8 @@ const buttonRenderers: Record<MessageMenubarButtonId, MessageMenubarButtonRender
       </Tooltip>
     )
   },
-  'assistant-mention-model': ({ isAssistantMessage, onMentionModel, softHoverBg, t }) => {
-    if (!isAssistantMessage) {
+  'assistant-mention-model': ({ isAssistantMessage, onMentionModel, softHoverBg, supportsAppendResponse, t }) => {
+    if (!isAssistantMessage || !supportsAppendResponse) {
       return null
     }
 
@@ -797,9 +808,10 @@ const buttonRenderers: Record<MessageMenubarButtonId, MessageMenubarButtonRender
     blockEntities,
     removeMessageBlock,
     softHoverBg,
+    supportsWrites,
     t
   }) => {
-    if (isUserMessage) {
+    if (isUserMessage || !supportsWrites) {
       return null
     }
 
@@ -944,8 +956,13 @@ const buttonRenderers: Record<MessageMenubarButtonId, MessageMenubarButtonRender
     setShowDeleteTooltip,
     showDeleteTooltip,
     softHoverBg,
+    supportsWrites,
     t
   }) => {
+    if (!supportsWrites) {
+      return null
+    }
+
     const deleteTooltip = (
       <Tooltip content={t('common.delete')} delay={1000} isOpen={showDeleteTooltip} onOpenChange={setShowDeleteTooltip}>
         <DeleteIcon size={15} />

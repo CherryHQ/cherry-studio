@@ -29,7 +29,7 @@ import { createContext, use, useCallback } from 'react'
 
 /**
  * V2 chat overrides injected via React Context.
- * When present, regenerate/resend operations delegate to useAiChat
+ * When present, operations delegate to DataApi + useAiChat
  * instead of Redux thunks.
  */
 export interface V2ChatOverrides {
@@ -71,25 +71,39 @@ export function useMessageOperations(topic: Topic) {
 
   /**
    * 删除单个消息。 / Deletes a single message.
-   * Dispatches deleteSingleMessageThunk.
+   * V2: DataApi DELETE; V1: Redux thunk.
    */
   const deleteMessage = useCallback(
     async (id: string, traceId?: string, modelName?: string) => {
-      await dispatch(deleteSingleMessageThunk(topic.id, id))
+      if (v2) {
+        logger.warn('[deleteMessage] V2 write operations are disabled until DataApi semantics are finalized.', {
+          topicId: topic.id,
+          messageId: id
+        })
+      } else {
+        await dispatch(deleteSingleMessageThunk(topic.id, id))
+      }
       void window.api.trace.cleanHistory(topic.id, traceId || '', modelName)
     },
-    [dispatch, topic.id]
+    [dispatch, topic.id, v2]
   )
 
   /**
    * 删除一组消息（基于 askId）。 / Deletes a group of messages (based on askId).
-   * Dispatches deleteMessageGroupThunk.
+   * V2: DataApi DELETE; V1: Redux thunk.
    */
   const deleteGroupMessages = useCallback(
     async (askId: string) => {
-      await dispatch(deleteMessageGroupThunk(topic.id, askId))
+      if (v2) {
+        logger.warn('[deleteGroupMessages] V2 write operations are disabled until DataApi semantics are finalized.', {
+          topicId: topic.id,
+          askId
+        })
+      } else {
+        await dispatch(deleteMessageGroupThunk(topic.id, askId))
+      }
     },
-    [dispatch, topic.id]
+    [dispatch, topic.id, v2]
   )
 
   /**
@@ -141,9 +155,15 @@ export function useMessageOperations(topic: Topic) {
   const clearTopicMessages = useCallback(
     async (_topicId?: string) => {
       const topicIdToClear = _topicId || topic.id
+      if (v2) {
+        logger.warn('[clearTopicMessages] V2 write operations are disabled until DataApi semantics are finalized.', {
+          topicId: topicIdToClear
+        })
+        return
+      }
       await dispatch(clearTopicMessagesThunk(topicIdToClear))
     },
-    [dispatch, topic.id]
+    [dispatch, topic.id, v2]
   )
 
   /**
@@ -159,6 +179,13 @@ export function useMessageOperations(topic: Topic) {
    * 暂停当前主题正在进行的消息生成。 / Pauses ongoing message generation for the current topic.
    */
   const pauseMessages = useCallback(async () => {
+    if (v2) {
+      logger.warn('[pauseMessages] V2 pause is not wired yet. Falling back is disabled to avoid state divergence.', {
+        topicId: topic.id
+      })
+      return
+    }
+
     const state = store.getState()
     const topicMessages = selectMessagesForTopic(state, topic.id)
     if (!topicMessages) return
@@ -171,7 +198,7 @@ export function useMessageOperations(topic: Topic) {
     }
     void pauseTrace(topic.id)
     dispatch(newMessagesActions.setTopicLoading({ topicId: topic.id, loading: false }))
-  }, [topic.id, dispatch])
+  }, [topic.id, dispatch, v2])
 
   /**
    * 恢复/重发用户消息（目前复用 resendMessage 逻辑）。 / Resumes/Resends a user message (currently reuses resendMessage logic).
@@ -210,6 +237,17 @@ export function useMessageOperations(topic: Topic) {
    */
   const appendAssistantResponse = useCallback(
     async (existingAssistantMessage: Message, newModel: Model, assistant: Assistant) => {
+      if (v2) {
+        logger.warn(
+          '[appendAssistantResponse] V2 append-response flow is not supported until DataApi semantics are finalized.',
+          {
+            topicId: topic.id,
+            messageId: existingAssistantMessage.id,
+            modelId: newModel.id
+          }
+        )
+        return
+      }
       await appendMessageTrace(existingAssistantMessage, newModel)
       if (existingAssistantMessage.role !== 'assistant') {
         logger.error('appendAssistantResponse should only be called for an existing assistant message.')
@@ -229,7 +267,7 @@ export function useMessageOperations(topic: Topic) {
         )
       )
     },
-    [dispatch, topic.id]
+    [dispatch, topic.id, v2]
   )
 
   /**
@@ -248,6 +286,18 @@ export function useMessageOperations(topic: Topic) {
       sourceLanguage?: TranslateLanguageCode
     ): Promise<((accumulatedText: string, isComplete?: boolean) => void) | null> => {
       if (!topic.id) return null
+
+      if (v2) {
+        logger.warn(
+          '[getTranslationUpdater] V2 translation writes are disabled until DataApi semantics are finalized.',
+          {
+            topicId: topic.id,
+            messageId,
+            targetLanguage
+          }
+        )
+        return null
+      }
 
       const state = store.getState()
       const message = state.messages.entities[messageId]
@@ -300,7 +350,7 @@ export function useMessageOperations(topic: Topic) {
         { leading: true, trailing: true }
       )
     },
-    [dispatch, topic.id]
+    [dispatch, topic.id, v2]
   )
 
   /**
@@ -329,6 +379,15 @@ export function useMessageOperations(topic: Topic) {
     async (messageId: string, editedBlocks: MessageBlock[]) => {
       if (!topic?.id) {
         logger.error('[editMessageBlocks] Topic prop is not valid.')
+        return
+      }
+
+      if (v2) {
+        logger.warn('[editMessageBlocks] V2 edit writes are disabled until DataApi semantics are finalized.', {
+          topicId: topic.id,
+          messageId,
+          blockCount: editedBlocks.length
+        })
         return
       }
 
@@ -379,13 +438,6 @@ export function useMessageOperations(topic: Topic) {
           blocks: updatedBlockIds
         }
 
-        // 6. Log operations for debugging
-        // console.log('[editMessageBlocks] Operations:', {
-        //   blocksToRemove: blockIdsToRemove.length,
-        //   blocksToUpdate: blocksToUpdate.length,
-        //   blocksToAdd: blocksToAdd.length
-        // })
-
         // 7. Update Redux state and database
         // First update message and add/update blocks
         if (blocksToAdd.length > 0) {
@@ -404,7 +456,7 @@ export function useMessageOperations(topic: Topic) {
         logger.error('[editMessageBlocks] Failed to update message blocks:', error as Error)
       }
     },
-    [dispatch, topic?.id]
+    [dispatch, topic?.id, v2]
   )
 
   /**
@@ -414,10 +466,11 @@ export function useMessageOperations(topic: Topic) {
   const resendUserMessageWithEdit = useCallback(
     async (message: Message, editedBlocks: MessageBlock[], assistant: Assistant) => {
       if (v2) {
-        // V2: persist block edits, then delegate resend to AI SDK
-        logger.info('[resendUserMessageWithEdit] V2 path — delegating to useAiChat.resend')
-        await editMessageBlocks(message.id, editedBlocks)
-        await v2.resend(message.id)
+        logger.warn('[resendUserMessageWithEdit] V2 edit+resend is disabled until DataApi semantics are finalized.', {
+          topicId: topic.id,
+          messageId: message.id,
+          blockCount: editedBlocks.length
+        })
         return
       }
 

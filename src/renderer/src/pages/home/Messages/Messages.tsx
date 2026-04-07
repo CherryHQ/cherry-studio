@@ -78,6 +78,7 @@ const Messages: React.FC<MessagesProps> = ({
   const { t } = useTranslation()
   const dispatch = useAppDispatch()
   const v2BlockEntities = useV2BlockMap()
+  const isV2Chat = v2BlockEntities !== null
   const reduxMessages = useTopicMessages(topic.id)
   // V2 mode: use externally provided messages; V1 mode: read from Redux
   const messages = messagesProp ?? reduxMessages
@@ -120,6 +121,13 @@ const Messages: React.FC<MessagesProps> = ({
 
   const clearTopic = useCallback(
     async (data: Topic) => {
+      if (isV2Chat) {
+        logger.warn('[clearTopic] V2 clear/new-context flow is disabled until DataApi semantics are finalized.', {
+          topicId: data?.id || topic.id
+        })
+        return
+      }
+
       if (data && data.id !== topic.id) {
         await clearTopicMessages(data.id)
         return
@@ -128,7 +136,7 @@ const Messages: React.FC<MessagesProps> = ({
       await clearTopicMessages()
       setDisplayMessages([])
     },
-    [clearTopicMessages, topic.id]
+    [clearTopicMessages, isV2Chat, topic.id]
   )
 
   useEffect(() => {
@@ -156,6 +164,13 @@ const Messages: React.FC<MessagesProps> = ({
         }
       }),
       EventEmitter.on(EVENT_NAMES.NEW_CONTEXT, async () => {
+        if (isV2Chat) {
+          logger.warn('[NEW_CONTEXT] V2 clear/new-context flow is disabled until DataApi semantics are finalized.', {
+            topicId: topic.id
+          })
+          return
+        }
+
         if (isProcessingContext) return
         setIsProcessingContext(true)
 
@@ -184,6 +199,14 @@ const Messages: React.FC<MessagesProps> = ({
         }
       }),
       EventEmitter.on(EVENT_NAMES.NEW_BRANCH, async (index: number) => {
+        if (isV2Chat) {
+          logger.warn('[NEW_BRANCH] V2 branching flow is disabled until DataApi semantics are finalized.', {
+            topicId: topic.id,
+            index
+          })
+          return
+        }
+
         const newTopic = getDefaultTopic(assistant.id)
         newTopic.name = topic.name
         const currentMessages = messagesRef.current
@@ -290,6 +313,13 @@ const Messages: React.FC<MessagesProps> = ({
   })
 
   useShortcut('edit_last_user_message', () => {
+    if (isV2Chat) {
+      logger.warn('[edit_last_user_message] V2 edit flow is disabled until DataApi semantics are finalized.', {
+        topicId: topic.id
+      })
+      return
+    }
+
     const lastUserMessage = messagesRef.current.findLast((m) => m.role === 'user' && m.type !== 'clear')
     if (lastUserMessage) {
       void EventEmitter.emit(EVENT_NAMES.EDIT_MESSAGE, lastUserMessage.id)

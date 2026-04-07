@@ -18,7 +18,7 @@ import type {
   CherryMessagePart,
   Message as SharedMessage
 } from '@shared/data/types/message'
-import { useMemo } from 'react'
+import { useCallback, useMemo } from 'react'
 import useSWR from 'swr'
 
 const FETCH_LIMIT = 999
@@ -36,6 +36,8 @@ interface UseTopicMessagesV2Result {
   isLoading: boolean
   /** Error if fetch failed */
   error?: Error
+  /** SWR mutate — call to revalidate after write operations */
+  refresh: () => Promise<void>
 }
 
 /**
@@ -134,10 +136,14 @@ export function useTopicMessagesV2(topicId: string, enabled = true): UseTopicMes
     }
   }
 
-  const { data, isLoading, error } = useSWR(enabled ? ['v2-topic-messages', topicId] : null, fetcher, {
+  const { data, isLoading, error, mutate } = useSWR(enabled ? ['v2-topic-messages', topicId] : null, fetcher, {
     revalidateOnFocus: false,
     dedupingInterval: 10000
   })
+
+  const refresh = useCallback(async () => {
+    await mutate()
+  }, [mutate])
 
   return useMemo(() => {
     if (!data) {
@@ -147,7 +153,8 @@ export function useTopicMessagesV2(topicId: string, enabled = true): UseTopicMes
         blockMap: {},
         partsMap: {},
         isLoading,
-        error
+        error,
+        refresh
       }
     }
 
@@ -175,6 +182,6 @@ export function useTopicMessagesV2(topicId: string, enabled = true): UseTopicMes
       }
     }
 
-    return { uiMessages, adaptedMessages, blockMap, partsMap, isLoading, error }
-  }, [data, isLoading, error])
+    return { uiMessages, adaptedMessages, blockMap, partsMap, isLoading, error, refresh }
+  }, [data, isLoading, error, refresh])
 }
