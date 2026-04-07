@@ -1,5 +1,12 @@
 import { loggerService } from '@logger'
+import { reduxService } from '@main/services/ReduxService'
+import type { Model, Provider } from '@types'
 import type { ChatTransport, UIMessage, UIMessageChunk } from 'ai'
+
+import { runAgentLoop } from './agentLoop'
+import { buildPlugins } from './plugins/PluginBuilder'
+import { adaptProvider, providerToAiSdkConfig } from './provider/providerConfig'
+import type { ToolRegistry } from './tools/ToolRegistry'
 
 const logger = loggerService.withContext('AiCompletionService')
 
@@ -59,55 +66,87 @@ export interface AiStreamRequest {
 export class AiCompletionService {
   private activeRequests = new Map<string, AbortController>()
 
-  /**
-   * Execute an AI completion and return the result as a ReadableStream.
-   *
-   * Step 2 will replace the mock with:
-   * `executor.streamText(params).toUIMessageStream()`
-   *
-   * @param request - The stream request containing messages, model config, etc.
-   * @param signal - AbortSignal to cancel the stream mid-flight.
-   * @returns ReadableStream of UIMessageChunk for consumption by AiService.
-   */
+  constructor(private toolRegistry: ToolRegistry) {}
+
   streamText(request: AiStreamRequest, signal: AbortSignal): ReadableStream<UIMessageChunk> {
     logger.info('streamText started', { requestId: request.requestId, chatId: request.chatId })
 
-    // Step 1: mock ReadableStream
-    const id = 'mock-part-0'
-    const words = ['Hello', ' from', ' AiCompletionService', '!', ' Stream', ' is', ' working', '.']
+    const { readable, writable } = new TransformStream<UIMessageChunk>()
+    const writer = writable.getWriter()
 
-    return new ReadableStream<UIMessageChunk>({
-      async start(controller) {
-        controller.enqueue({ type: 'text-start', id } as UIMessageChunk)
-
-        for (const word of words) {
-          if (signal.aborted) {
-            logger.info('streamText aborted', { requestId: request.requestId })
-            controller.close()
-            return
-          }
-          controller.enqueue({ type: 'text-delta', delta: word, id } as UIMessageChunk)
-          await new Promise((resolve) => setTimeout(resolve, 80))
-        }
-
-        controller.enqueue({ type: 'text-end', id } as UIMessageChunk)
-        controller.close()
-        logger.info('streamText completed', { requestId: request.requestId })
-      }
+    this.resolveAndStream(request, signal, writer).catch(async (error) => {
+      logger.error('streamText failed', { requestId: request.requestId, error })
+      await writer.abort(error).catch(() => {})
     })
+
+    return readable
   }
 
-  /** Track an active request for abort support. */
+  private async resolveAndStream(
+    request: AiStreamRequest,
+    signal: AbortSignal,
+    writer: WritableStreamDefaultWriter<UIMessageChunk>
+  ): Promise<void> {
+    // 1. Resolve provider from Redux (transition: provider data still in Redux, not yet a dedicated service)
+    const providers = await reduxService.select<Provider[]>('state.llm.providers')
+    const provider = providers.find((p: Provider) => p.id === request.providerId)
+    if (!provider) throw new Error(`Provider not found: ${request.providerId}`)
+
+    // 2. Find model
+    const modelId = request.modelId
+    if (!modelId) throw new Error('modelId is required')
+    const model = provider.models?.find((m: Model) => m.id === modelId)
+    if (!model) throw new Error(`Model not found: ${modelId} in provider ${request.providerId}`)
+
+    // 3. Build SDK config (providerId + providerSettings)
+    const adapted = adaptProvider({ provider })
+    const sdkConfig = await providerToAiSdkConfig(adapted, model)
+
+    // 4. Resolve tools (Phase 1: likely empty)
+    const tools = this.toolRegistry.resolve(request.mcpToolIds)
+
+    // 5. Build plugins (Phase 1: empty array)
+    const plugins = buildPlugins()
+
+    // 6. System prompt
+    const system = (request.assistantConfig?.prompt as string) || undefined
+
+    // 7. Run agent loop
+    const stream = runAgentLoop(
+      {
+        providerId: sdkConfig.providerId as string,
+        providerSettings: sdkConfig.providerSettings as unknown,
+        modelId: model.id,
+        plugins,
+        tools,
+        system
+      },
+      request.messages,
+      signal
+    )
+
+    // 8. Pipe to writer
+    const reader = stream.getReader()
+    try {
+      while (true) {
+        const { done, value } = await reader.read()
+        if (done || signal.aborted) break
+        await writer.write(value)
+      }
+      await writer.close()
+    } finally {
+      reader.releaseLock()
+    }
+  }
+
   registerRequest(requestId: string, controller: AbortController): void {
     this.activeRequests.set(requestId, controller)
   }
 
-  /** Remove a completed/aborted request from tracking. */
   removeRequest(requestId: string): void {
     this.activeRequests.delete(requestId)
   }
 
-  /** Abort an in-flight request by its requestId. No-op if not found. */
   abort(requestId: string): void {
     const controller = this.activeRequests.get(requestId)
     if (controller) {

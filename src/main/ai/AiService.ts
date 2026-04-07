@@ -5,6 +5,7 @@ import { type SerializedError, serializeError } from '@shared/types/error'
 import type { UIMessageChunk } from 'ai'
 
 import { AiCompletionService, type AiStreamRequest } from './AiCompletionService'
+import { ToolRegistry } from './tools/ToolRegistry'
 
 const logger = loggerService.withContext('AiService')
 
@@ -46,7 +47,8 @@ export interface AiStreamErrorPayload {
 // KnowledgeService is a non-lifecycle singleton (direct import, no @DependsOn needed).
 @DependsOn(['PreferenceService', 'MCPService'])
 export class AiService extends BaseService {
-  private completionService = new AiCompletionService()
+  private toolRegistry = new ToolRegistry()
+  private completionService = new AiCompletionService(this.toolRegistry)
 
   protected async onInit(): Promise<void> {
     this.registerIpcHandlers()
