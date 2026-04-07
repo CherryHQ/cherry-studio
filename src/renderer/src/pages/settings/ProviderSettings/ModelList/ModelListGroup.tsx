@@ -58,7 +58,7 @@ const ModelListGroup: React.FC<ModelListGroupProps> = ({
           </Flex>
         }
         extra={
-          <Tooltip content={t('settings.models.manage.remove_whole_group')} closeDelay={0}>
+          <Tooltip content={t('settings.models.manage.remove_whole_group')}>
             <Button
               variant="ghost"
               className="toolbar-item"

@@ -120,8 +120,7 @@ const ManageModelsList: React.FC<ManageModelsListProps> = ({
             isAllInProvider
               ? t('settings.models.manage.remove_whole_group')
               : t('settings.models.manage.add_whole_group')
-          }
-          closeDelay={0}>
+          }>
           <Button
             variant="ghost"
             size="icon"

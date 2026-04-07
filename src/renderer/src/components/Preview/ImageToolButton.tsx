@@ -9,7 +9,7 @@ interface ImageToolButtonProps {
 
 const ImageToolButton = ({ tooltip, icon, onClick }: ImageToolButtonProps) => {
   return (
-    <Tooltip content={tooltip} delay={500} closeDelay={0}>
+    <Tooltip content={tooltip} delay={500}>
       <Button className="rounded-full" onClick={onClick} size="icon" aria-label={tooltip}>
         {icon}
       </Button>
