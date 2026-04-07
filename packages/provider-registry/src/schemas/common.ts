@@ -11,9 +11,9 @@ import { Currency, objectValues } from './enums'
 export const ModelIdSchema = z.string()
 export const ProviderIdSchema = z.string()
 
-/** Version in YYYY-MM-DD format */
-export const VersionSchema = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, {
-  message: 'Version must be in YYYY-MM-DD format'
+/** Version string (e.g., "2026-03-09" or "2026.03.09") */
+export const VersionSchema = z.string().regex(/^\d{4}[-./]\d{2}[-./]\d{2}$/, {
+  message: 'Version must be a date-like string (e.g., YYYY-MM-DD or YYYY.MM.DD)'
 })
 
 /** ISO 8601 datetime timestamp */
