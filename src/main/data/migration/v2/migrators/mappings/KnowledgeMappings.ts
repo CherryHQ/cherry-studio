@@ -1,3 +1,5 @@
+import path from 'node:path'
+
 import type { knowledgeBaseTable, knowledgeItemTable } from '@data/db/schemas/knowledge'
 import { normalizeKnowledgeBaseConfig } from '@data/services/knowledgeBaseConfig'
 import type { FileMetadata } from '@shared/data/types/file'
@@ -255,8 +257,8 @@ export const transformKnowledgeItem = (
 
     type = 'directory'
     data = {
-      path: item.content,
-      recursive: true
+      name: path.basename(item.content),
+      path: item.content
     }
   } else if (item.type === 'note') {
     const note = deps.noteById.get(item.id)

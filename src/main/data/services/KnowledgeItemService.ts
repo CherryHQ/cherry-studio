@@ -14,6 +14,7 @@ import type {
   KnowledgeItemsQuery,
   UpdateKnowledgeItemDto
 } from '@shared/data/api/schemas/knowledges'
+import { getCreateKnowledgeItemsReferenceErrors } from '@shared/data/api/schemas/knowledges'
 import {
   DirectoryItemDataSchema,
   FileItemDataSchema,
@@ -23,6 +24,7 @@ import {
   UrlItemDataSchema
 } from '@shared/data/types/knowledge'
 import { and, desc, eq, inArray, sql } from 'drizzle-orm'
+import { v7 as uuidv7 } from 'uuid'
 
 import { knowledgeBaseService } from './KnowledgeBaseService'
 
@@ -35,6 +37,17 @@ const KNOWLEDGE_ITEM_DATA_SCHEMAS = {
   sitemap: SitemapItemDataSchema,
   directory: DirectoryItemDataSchema
 } as const
+
+function resolveCreateGroupId(
+  item: CreateKnowledgeItemsDto['items'][number] & { id: string },
+  batchRefToId: Map<string, string>
+): string | null {
+  if (item.groupRef) {
+    return batchRefToId.get(item.groupRef) ?? null
+  }
+
+  return item.groupId ?? null
+}
 
 function rowToKnowledgeItem(row: typeof knowledgeItemTable.$inferSelect): KnowledgeItem {
   const parseJson = <T>(value: T | string | null | undefined, context?: string): T | null => {
@@ -109,7 +122,27 @@ export class KnowledgeItemService {
   async createMany(baseId: string, dto: CreateKnowledgeItemsDto): Promise<{ items: KnowledgeItem[] }> {
     const db = application.get('DbService').getDb()
     await knowledgeBaseService.getById(baseId)
-    const values: Array<typeof knowledgeItemTable.$inferInsert> = dto.items.map((item, index) => {
+
+    const referenceErrors = getCreateKnowledgeItemsReferenceErrors(dto.items)
+    if (Object.keys(referenceErrors).length > 0) {
+      throw DataApiErrorFactory.validation(referenceErrors)
+    }
+
+    const batchRefToId = new Map<string, string>()
+    const plannedItems = dto.items.map((item) => {
+      const id = uuidv7()
+
+      if (item.ref) {
+        batchRefToId.set(item.ref, id)
+      }
+
+      return {
+        ...item,
+        id
+      }
+    })
+
+    const values: Array<typeof knowledgeItemTable.$inferInsert> = plannedItems.map((item, index) => {
       const parsed = KNOWLEDGE_ITEM_DATA_SCHEMAS[item.type].safeParse(item.data)
       if (!parsed.success) {
         throw DataApiErrorFactory.validation({
@@ -118,15 +151,18 @@ export class KnowledgeItemService {
       }
 
       return {
+        id: item.id,
         baseId,
-        groupId: item.groupId ?? null,
+        groupId: resolveCreateGroupId(item, batchRefToId),
         type: item.type,
         data: parsed.data,
         status: 'idle',
         error: null
       }
     })
-    const requestedGroupIds = [...new Set(dto.items.map((item) => item.groupId).filter((groupId) => groupId != null))]
+    const requestedGroupIds = [
+      ...new Set(plannedItems.map((item) => item.groupId).filter((groupId) => groupId != null))
+    ]
 
     if (requestedGroupIds.length > 0) {
       const existingGroupRows = await db

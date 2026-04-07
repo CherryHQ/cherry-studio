@@ -86,8 +86,8 @@ export type SitemapItemData = z.infer<typeof SitemapItemDataSchema>
  * Directory item data.
  */
 export const DirectoryItemDataSchema = z.object({
-  path: z.string().trim().min(1),
-  recursive: z.boolean()
+  name: z.string().trim().min(1),
+  path: z.string().trim().min(1)
 })
 export type DirectoryItemData = z.infer<typeof DirectoryItemDataSchema>
 

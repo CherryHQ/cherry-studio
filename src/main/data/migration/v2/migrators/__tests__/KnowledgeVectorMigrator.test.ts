@@ -244,7 +244,7 @@ describe('KnowledgeVectorMigrator', () => {
       id: 'item-directory',
       baseId: 'kb-1',
       type: 'directory',
-      data: { path: '/tmp/dir', recursive: true },
+      data: { name: 'dir', path: '/tmp/dir' },
       status: 'completed'
     })
 

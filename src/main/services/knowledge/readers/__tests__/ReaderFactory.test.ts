@@ -165,8 +165,8 @@ function createDirectoryItem(): KnowledgeItemOf<'directory'> {
     createdAt: '2026-04-03T00:00:00.000Z',
     updatedAt: '2026-04-03T00:00:00.000Z',
     data: {
-      path: '/tmp/example-directory',
-      recursive: true
+      name: 'example-directory',
+      path: '/tmp/example-directory'
     }
   }
 }

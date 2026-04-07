@@ -151,7 +151,7 @@ describe('KnowledgeItemService', () => {
           createMockRow({
             id: 'item-1',
             type: 'directory',
-            data: { path: '/tmp/files', recursive: true }
+            data: { name: 'files', path: '/tmp/files' }
           }),
           createMockRow({
             id: 'item-2',
@@ -166,7 +166,7 @@ describe('KnowledgeItemService', () => {
         items: [
           {
             type: 'directory',
-            data: { path: '/tmp/files', recursive: true }
+            data: { name: 'files', path: '/tmp/files' }
           },
           {
             type: 'note',
@@ -179,14 +179,16 @@ describe('KnowledgeItemService', () => {
 
       expect(values).toHaveBeenCalledWith([
         {
+          id: expect.any(String),
           baseId: 'kb-1',
           groupId: null,
           type: 'directory',
-          data: { path: '/tmp/files', recursive: true },
+          data: { name: 'files', path: '/tmp/files' },
           status: 'idle',
           error: null
         },
         {
+          id: expect.any(String),
           baseId: 'kb-1',
           groupId: null,
           type: 'note',
@@ -250,6 +252,65 @@ describe('KnowledgeItemService', () => {
       })
 
       expect(mockInsert).not.toHaveBeenCalled()
+    })
+
+    it('should create grouped items that reference a batch-local parent by groupRef', async () => {
+      const values = vi.fn().mockReturnValue({
+        returning: vi.fn().mockResolvedValue([
+          createMockRow({
+            id: 'generated-dir',
+            groupId: null,
+            type: 'directory',
+            data: { name: 'files', path: '/tmp/files' }
+          }),
+          createMockRow({
+            id: 'generated-note',
+            groupId: 'generated-dir',
+            type: 'note',
+            data: { content: 'child note' }
+          })
+        ])
+      })
+      mockInsert.mockReturnValue({ values })
+
+      const result = await service.createMany('kb-1', {
+        items: [
+          {
+            ref: 'root',
+            type: 'directory',
+            data: { name: 'files', path: '/tmp/files' }
+          },
+          {
+            groupRef: 'root',
+            type: 'note',
+            data: { content: 'child note' }
+          }
+        ]
+      })
+
+      expect(values).toHaveBeenCalledWith([
+        {
+          id: expect.any(String),
+          baseId: 'kb-1',
+          groupId: null,
+          type: 'directory',
+          data: { name: 'files', path: '/tmp/files' },
+          status: 'idle',
+          error: null
+        },
+        {
+          id: expect.any(String),
+          baseId: 'kb-1',
+          groupId: expect.any(String),
+          type: 'note',
+          data: { content: 'child note' },
+          status: 'idle',
+          error: null
+        }
+      ])
+      const insertedValues = values.mock.calls[0][0]
+      expect(insertedValues[1].groupId).toBe(insertedValues[0].id)
+      expect(result.items).toHaveLength(2)
     })
   })
 
@@ -320,7 +381,7 @@ describe('KnowledgeItemService', () => {
           baseId: 'kb-1',
           groupId: null,
           type: 'directory',
-          data: { path: '/a', recursive: true },
+          data: { name: 'a', path: '/a' },
           status: 'idle',
           error: null,
           createdAt: 100
@@ -330,7 +391,7 @@ describe('KnowledgeItemService', () => {
           baseId: 'kb-1',
           groupId: null,
           type: 'directory',
-          data: { path: '/b', recursive: true },
+          data: { name: 'b', path: '/b' },
           status: 'idle',
           error: null,
           createdAt: 90
@@ -471,6 +532,79 @@ describe('KnowledgeItemService', () => {
         data: { content: 'new grouped note' }
       })
     })
+
+    it('createMany accepts multi-level groupRef trees in one batch', async () => {
+      const result = await service.createMany('kb-1', {
+        items: [
+          {
+            ref: 'dir-a',
+            type: 'directory',
+            data: { name: 'a', path: '/a' }
+          },
+          {
+            ref: 'dir-b',
+            groupRef: 'dir-a',
+            type: 'directory',
+            data: { name: 'b', path: '/a/b' }
+          },
+          {
+            groupRef: 'dir-b',
+            type: 'note',
+            data: { content: 'nested note' }
+          }
+        ]
+      })
+
+      expect(result.items).toHaveLength(3)
+
+      const dirA = result.items.find((item) => item.type === 'directory' && item.data.path === '/a')
+      const dirB = result.items.find((item) => item.type === 'directory' && item.data.path === '/a/b')
+      const note = result.items.find((item) => item.type === 'note')
+
+      expect(dirA?.groupId).toBeNull()
+      expect(dirB?.groupId).toBe(dirA?.id)
+      expect(note?.groupId).toBe(dirB?.id)
+    })
+
+    it('createMany accepts sitemap owner items with grouped url children in one batch', async () => {
+      const result = await service.createMany('kb-1', {
+        items: [
+          {
+            ref: 'sitemap-root',
+            type: 'sitemap',
+            data: {
+              url: 'https://example.com/sitemap.xml',
+              name: 'Example Sitemap'
+            }
+          },
+          {
+            groupRef: 'sitemap-root',
+            type: 'url',
+            data: {
+              url: 'https://example.com/page-a',
+              name: 'Page A'
+            }
+          },
+          {
+            groupRef: 'sitemap-root',
+            type: 'url',
+            data: {
+              url: 'https://example.com/page-b',
+              name: 'Page B'
+            }
+          }
+        ]
+      })
+
+      expect(result.items).toHaveLength(3)
+
+      const sitemap = result.items.find((item) => item.type === 'sitemap')
+      const urlItems = result.items.filter((item) => item.type === 'url')
+
+      expect(sitemap?.groupId).toBeNull()
+      expect(urlItems).toHaveLength(2)
+      expect(urlItems.every((item) => item.groupId === sitemap?.id)).toBe(true)
+    })
   })
 
   describe('getById', () => {
@@ -568,7 +702,7 @@ describe('KnowledgeItemService', () => {
 
       await expect(
         service.update('item-1', {
-          data: { path: '/tmp/files', recursive: true }
+          data: { name: 'files', path: '/tmp/files' }
         })
       ).rejects.toMatchObject({
         code: ErrorCode.VALIDATION_ERROR,
@@ -709,7 +843,7 @@ describe('KnowledgeItemService', () => {
           baseId: 'kb-delete',
           groupId: null,
           type: 'directory',
-          data: { path: '/docs', recursive: true },
+          data: { name: 'docs', path: '/docs' },
           status: 'idle',
           error: null,
           createdAt: 100
