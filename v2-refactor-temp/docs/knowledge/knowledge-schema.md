@@ -139,15 +139,38 @@ This document records the current V2 knowledge target schema, migration constrai
   - no separate task table
   - no persisted queue record
   - no scheduler-specific stage column
-- Runtime may use an in-memory `p-queue` based pipeline, but that does not weaken status semantics.
-- The stable contract is still:
-  - item enters indexing -> status moves into a non-terminal state such as `pending` / `file_processing` / `read` / `embed`
-  - item finishes successfully -> `completed`
-  - item fails or is interrupted -> `failed` with `error`
+- Runtime currently uses an in-memory `p-queue` based pipeline in `KnowledgeRuntimeService`.
+- The schema-level status set is still:
+  - `idle`
+  - `pending`
+  - `file_processing`
+  - `read`
+  - `embed`
+  - `completed`
+  - `failed`
+- But the current runtime implementation only persists:
+  - `pending` before enqueue
+  - `completed` after successful vector write
+  - `failed` on any exception or shutdown interruption
+- `file_processing`, `read`, and `embed` remain reserved intermediate statuses in the schema and shared types, but are not written by the current runtime yet.
 - In other words:
   - queue structure is implementation detail
   - item status is business state
-  - these two must not be conflated
+  - some business states are currently reserved for future runtime expansion
+  - these concerns must not be conflated
+
+## Current Runtime Consumption Notes
+
+- Runtime entrypoint:
+  - `src/main/services/knowledge/KnowledgeRuntimeService.ts`
+- Reader dispatch is driven by stored `knowledge_item.type`:
+  - `file` -> file reader by extension
+  - `url` -> fetch markdown through Jina Reader
+  - `note` -> inline note content
+  - `sitemap` -> expand sitemap URLs, then reuse URL reader
+  - `directory` -> currently treated as a container placeholder and returns no documents
+- This means `directory` remains a valid persisted `knowledge_item.type`, but the current runtime does not index it directly. Upstream callers must flatten a directory into concrete child items before indexing.
+- Runtime embedding model resolution currently expects `knowledge_base.embeddingModelId` in `providerId::modelId` format and only supports `ollama` as the active provider.
 
 ## Implementation Status
 
@@ -157,3 +180,5 @@ This document records the current V2 knowledge target schema, migration constrai
 - Group ownership is represented implicitly by `groupId = ownerItem.id`; there is no standalone group table in the current phase.
 - `dimensions` resolution failure skips the entire base and all nested items, with warnings recorded in migration output.
 - Knowledge item status migration uses `uniqueId` instead of `processingStatus`.
+- The current runtime service is `KnowledgeRuntimeService`, not the old `KnowledgeService` name used in earlier notes.
+- Current runtime queue behavior is a single in-memory `PQueue({ concurrency: 5 })` shared across knowledge bases; there is no per-base serial queue yet.
