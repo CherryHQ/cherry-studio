@@ -1,10 +1,10 @@
 import { isDev } from '@renderer/config/constant'
-import { useAiChat } from '@renderer/hooks/useAiChat'
+import { type CherryUIMessage, useAiChat } from '@renderer/hooks/useAiChat'
 import { type V2ChatOverrides, V2ChatOverridesProvider } from '@renderer/hooks/useMessageOperations'
 import { useTopicMessagesV2 } from '@renderer/hooks/useTopicMessagesV2'
 import { useV2MessageAdapter } from '@renderer/hooks/useV2MessageAdapter'
 import type { Assistant, FileMetadata, Model, Topic } from '@renderer/types'
-import type { MessageBlock } from '@renderer/types/newMessage'
+import type { Message, MessageBlock } from '@renderer/types/newMessage'
 import type { CherryMessagePart } from '@shared/data/types/message'
 import type { FC } from 'react'
 import { useCallback, useMemo } from 'react'
@@ -23,16 +23,23 @@ interface Props {
 /**
  * V2 chat content area — replaces Messages + Inputbar when USE_V2_CHAT is enabled.
  *
- * Data flow:
- * 1. useTopicMessagesV2 loads persisted messages from DataApi (parts format)
- * 2. useAiChat receives initialMessages for history context + handles live streaming
- * 3. useV2MessageAdapter converts streaming UIMessages to legacy format
- * 4. PartsContext provides raw parts (history + streaming merged)
- * 5. V2BlockContext provides legacy blocks (history + streaming merged)
- * 6. Messages/Blocks components read from these contexts
+ * Architecture (fixes for initialMessages race and metadata loss):
+ *
+ * Outer shell (V2ChatContent):
+ *   - Loads history from DataApi via useTopicMessagesV2
+ *   - Renders a loading skeleton until history is ready
+ *   - Only mounts V2ChatContentInner AFTER history is loaded, so useAiChat
+ *     receives complete initialMessages on its first (and only) read
+ *
+ * Inner component (V2ChatContentInner):
+ *   - Owns useAiChat (streaming) + useV2MessageAdapter
+ *   - Merge strategy: history adaptedMessages are the AUTHORITY for persisted
+ *     messages (they carry askId, parentId, modelId, traceId, real timestamps).
+ *     useV2MessageAdapter is only used for NEW messages (IDs not in history).
+ *   - PartsContext: history parts + live streaming parts overlay
+ *   - V2BlockContext: history blocks + live streaming blocks overlay
  */
 const V2ChatContent: FC<Props> = ({ assistant, topic, setActiveTopic, mainHeight }) => {
-  // Step 1: Load persisted history from DataApi
   const {
     uiMessages: historyUIMessages,
     adaptedMessages: historyMessages,
@@ -41,7 +48,61 @@ const V2ChatContent: FC<Props> = ({ assistant, topic, setActiveTopic, mainHeight
     isLoading: isHistoryLoading
   } = useTopicMessagesV2(topic.id)
 
-  // Step 2: AI chat with history as initial messages
+  // Don't mount the chat instance until history is loaded.
+  // useChat only reads initialMessages once on creation — if we mount it
+  // while history is still loading, the chat instance starts with zero context
+  // and will never pick up the history retroactively.
+  if (isHistoryLoading) {
+    return (
+      <div
+        className="flex flex-1 flex-col items-center justify-center"
+        style={{ height: `calc(${mainHeight} - var(--navbar-height))` }}>
+        <div className="text-sm" style={{ color: 'var(--color-text-3)' }}>
+          Loading conversation...
+        </div>
+      </div>
+    )
+  }
+
+  return (
+    <V2ChatContentInner
+      assistant={assistant}
+      topic={topic}
+      setActiveTopic={setActiveTopic}
+      mainHeight={mainHeight}
+      historyUIMessages={historyUIMessages}
+      historyMessages={historyMessages}
+      historyBlockMap={historyBlockMap}
+      historyPartsMap={historyPartsMap}
+    />
+  )
+}
+
+// ============================================================================
+// Inner component — only mounted after history is ready
+// ============================================================================
+
+interface InnerProps extends Props {
+  historyUIMessages: CherryUIMessage[]
+  historyMessages: Message[]
+  historyBlockMap: Record<string, MessageBlock>
+  historyPartsMap: Record<string, CherryMessagePart[]>
+}
+
+const V2ChatContentInner: FC<InnerProps> = ({
+  assistant,
+  topic,
+  setActiveTopic,
+  mainHeight,
+  historyUIMessages,
+  historyMessages,
+  historyBlockMap,
+  historyPartsMap
+}) => {
+  // Set of persisted message IDs — used to distinguish history vs. live messages
+  const historyIds = useMemo(() => new Set(historyUIMessages.map((m) => m.id)), [historyUIMessages])
+
+  // useAiChat now receives complete history as initialMessages (guaranteed non-loading)
   const {
     messages: streamingUIMessages,
     status,
@@ -67,37 +128,39 @@ const V2ChatContent: FC<Props> = ({ assistant, topic, setActiveTopic, mainHeight
     [regenerate]
   )
 
-  // Step 3: Adapt streaming messages to legacy format
-  const { messages: streamingAdapted, blockMap: streamingBlockMap } = useV2MessageAdapter(
-    streamingUIMessages,
+  // Only adapt NEW messages (those not in persisted history) via useV2MessageAdapter.
+  // History messages keep their full metadata from DataApi.
+  const liveUIMessages = useMemo(
+    () => streamingUIMessages.filter((m) => !historyIds.has(m.id)),
+    [streamingUIMessages, historyIds]
+  )
+
+  const { messages: liveAdapted, blockMap: liveBlockMap } = useV2MessageAdapter(
+    liveUIMessages,
     status,
     topic.id,
     assistant.id
   )
 
-  // Step 4: Merge history + streaming data
-  // When streaming is active, useAiChat manages the full message list (including history).
-  // So streamingUIMessages already contains history + new messages.
-  // We use streaming adapted messages when available, history otherwise.
-  const hasStreamingData = streamingUIMessages.length > 0
-  const adaptedMessages = hasStreamingData ? streamingAdapted : historyMessages
+  // Merge: history (authority) + live streaming (appended)
+  const adaptedMessages = useMemo<Message[]>(() => {
+    if (liveAdapted.length === 0) return historyMessages
+    return [...historyMessages, ...liveAdapted]
+  }, [historyMessages, liveAdapted])
 
   const blockMap = useMemo<Record<string, MessageBlock>>(() => {
-    if (hasStreamingData) {
-      // Streaming active: streaming blocks are authoritative (includes history via useAiChat)
-      return { ...historyBlockMap, ...streamingBlockMap }
-    }
-    return historyBlockMap
-  }, [hasStreamingData, historyBlockMap, streamingBlockMap])
+    if (liveAdapted.length === 0) return historyBlockMap
+    return { ...historyBlockMap, ...liveBlockMap }
+  }, [historyBlockMap, liveBlockMap, liveAdapted.length])
 
   const partsMap = useMemo<Record<string, CherryMessagePart[]>>(() => {
+    if (liveUIMessages.length === 0) return historyPartsMap
     const map: Record<string, CherryMessagePart[]> = { ...historyPartsMap }
-    // Overlay streaming parts (newer data takes precedence)
-    for (const uiMsg of streamingUIMessages) {
+    for (const uiMsg of liveUIMessages) {
       map[uiMsg.id] = uiMsg.parts as CherryMessagePart[]
     }
     return map
-  }, [historyPartsMap, streamingUIMessages])
+  }, [historyPartsMap, liveUIMessages])
 
   const handleSendV2 = useCallback(
     (text: string, options?: { files?: FileMetadata[]; mentionedModels?: Model[] }) => {
@@ -124,12 +187,12 @@ const V2ChatContent: FC<Props> = ({ assistant, topic, setActiveTopic, mainHeight
             {/* V2 status indicator — dev only */}
             {isDev && (
               <div className="shrink-0 border-b px-4 py-1 text-xs" style={{ color: 'var(--color-text-3)' }}>
-                [V2] {status} | {isHistoryLoading ? 'loading history...' : `${adaptedMessages.length} msgs`}
+                [V2] {status} | {adaptedMessages.length} msgs ({historyMessages.length} history + {liveAdapted.length}{' '}
+                live)
                 {error && <span className="ml-2 text-red-500">{error.message}</span>}
               </div>
             )}
 
-            {/* Messages receive adapted data directly — no Redux sync needed */}
             <Messages
               key={topic.id}
               assistant={assistant}
