@@ -45,7 +45,7 @@ const AgentChat = () => {
   const showRightSessions = topicPosition === 'right' && showTopics && !!activeAgentId
 
   useShortcut(
-    'topic.new',
+    'app.topic.new',
     () => {
       void createDefaultSession()
     },

@@ -45,7 +45,7 @@ const HomePage: FC = () => {
 
   _activeAssistant = activeAssistant
 
-  useShortcut('app.toggle_show_assistants', () => {
+  useShortcut('app.general.toggle_show_assistants', () => {
     if (topicPosition === 'right') {
       void toggleShowAssistants()
       return
@@ -62,7 +62,7 @@ const HomePage: FC = () => {
     void EventEmitter.emit(EVENT_NAMES.SHOW_ASSISTANTS)
   })
 
-  useShortcut('topic.toggle_show_topics', () => {
+  useShortcut('app.topic.toggle_show_topics', () => {
     if (topicPosition === 'right') {
       void toggleShowTopics()
       return

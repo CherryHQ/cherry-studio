@@ -110,10 +110,10 @@ v1 快捷键系统存在以下架构缺陷：
 
 ```typescript
 {
-  key: 'shortcut.app.show_mini_window',  // Preference key
+  key: 'shortcut.app.general.show_mini_window',  // Preference key
   defaultKey: ['CommandOrControl', 'E'], // Electron accelerator 格式
   scope: 'main',                         // main | renderer | both
-  category: 'selection',                 // app | chat | topic | selection
+  category: 'feature.selection',             // 点分命名空间 UI 分组：app.general、app.chat、plugin.xxx 等
   labelKey: 'mini_window',              // i18n label key
   system: true,                          // 系统级（不可删除绑定）
   editable: true,                        // 用户可修改绑定（默认 true）
@@ -127,10 +127,10 @@ v1 快捷键系统存在以下架构缺陷：
 
 | 字段 | 用途 |
 |------|------|
-| `key` | Preference key，必须是 `shortcut.{category}.{name}` 格式 |
+| `key` | Preference key，内置快捷键用 `shortcut.app.{category}.{name}` 格式，插件用 `shortcut.plugin.{pluginId}.{name}` |
 | `defaultKey` | Electron accelerator 格式的默认绑定，空数组表示无默认绑定 |
 | `scope` | 决定快捷键注册在哪个进程：`main`（globalShortcut）、`renderer`（react-hotkeys-hook）、`both`（两者都注册） |
-| `category` | 逻辑分类，用于设置页 UI 分组 |
+| `category` | 点分命名空间 UI 分组（如 `app.general`、`app.chat`、`app.topic`、`plugin.translator`），类型为 `string` 以支持插件扩展 |
 | `labelKey` | i18n label key，由 `getShortcutLabel()` 消费 |
 | `editable` | 设为 `false` 表示用户不可修改绑定（如 Escape 退出全屏），默认 `true` |
 | `system` | 系统级标记，`true` 时不可删除绑定 |
@@ -161,8 +161,8 @@ interface ShortcutPreferenceValue {
 
 ```typescript
 // 两种写法等价，均有类型补全
-useShortcut('chat.clear', callback)
-useShortcut('shortcut.chat.clear', callback)
+useShortcut('app.chat.clear', callback)
+useShortcut('shortcut.app.chat.clear', callback)
 ```
 
 #### `utils.ts` — 纯函数工具集
@@ -204,8 +204,8 @@ type PreferenceShortcutType = {
 `preferenceSchemas.ts` 中为每个快捷键声明默认值：
 
 ```typescript
-'shortcut.chat.clear': { enabled: true, key: ['CommandOrControl', 'L'] },
-'shortcut.chat.copy_last_message': { enabled: false, key: ['CommandOrControl', 'Shift', 'C'] },
+'shortcut.app.chat.clear': { enabled: true, key: ['CommandOrControl', 'L'] },
+'shortcut.app.chat.copy_last_message': { enabled: false, key: ['CommandOrControl', 'Shift', 'C'] },
 ```
 
 ### 3. 主进程服务层 (`ShortcutService`)
@@ -227,7 +227,7 @@ export class ShortcutService extends BaseService { ... }
 private handlers = new Map<ShortcutPreferenceKey, ShortcutHandler>()
 
 // 注册示例
-this.handlers.set('shortcut.app.zoom_in', (window) => {
+this.handlers.set('shortcut.app.general.zoom_in', (window) => {
   if (window) handleZoomFactor([window], 0.1)
 })
 ```
@@ -278,8 +278,8 @@ for (const definition of relevantDefinitions) {
 
 ```typescript
 // 调用侧简洁用法
-useShortcut('chat.clear', () => clearChat())
-useShortcut('topic.new', () => createTopic(), { enableOnFormTags: false })
+useShortcut('app.chat.clear', () => clearChat())
+useShortcut('app.topic.new', () => createTopic(), { enableOnFormTags: false })
 ```
 
 **Options：**
@@ -334,22 +334,22 @@ preferenceSchemas.ts 中声明 key
     ↓ 代码生成
 PreferenceKeyType（所有偏好 key 的联合类型）
     ↓ Extract<..., `shortcut.${string}`>
-ShortcutPreferenceKey（如 'shortcut.chat.clear'）
+ShortcutPreferenceKey（如 'shortcut.app.chat.clear'）
     ↓ Template literal infer
-ShortcutKey（如 'chat.clear'）
+ShortcutKey（如 'app.chat.clear'）
 ```
 
 ### 调用侧类型安全
 
 ```typescript
-// ✅ 编译通过 — 'chat.clear' 是合法的 ShortcutKey
-useShortcut('chat.clear', callback)
+// ✅ 编译通过 — 'app.chat.clear' 是合法的 ShortcutKey
+useShortcut('app.chat.clear', callback)
 
 // ✅ 编译通过 — 完整 key 也被接受
-useShortcut('shortcut.chat.clear', callback)
+useShortcut('shortcut.app.chat.clear', callback)
 
-// ❌ 编译报错 — 'chat.invalid' 不在 ShortcutKey 联合类型中
-useShortcut('chat.invalid', callback)
+// ❌ 编译报错 — 'app.chat.invalid' 不在 ShortcutKey 联合类型中
+useShortcut('app.chat.invalid', callback)
 ```
 
 ---
@@ -378,7 +378,7 @@ convertKeyToAccelerator() + isValidShortcut() + isDuplicateShortcut()
     ↓ 通过校验
 updatePreference({ key: newKeys })
     ↓ useMultiplePreferences.setValues()
-preferenceService.set('shortcut.chat.clear', { key: [...], enabled: true })
+preferenceService.set('shortcut.app.chat.clear', { key: [...], enabled: true })
     ├── SQLite 持久化
     ├── IPC 广播 → 所有渲染窗口自动更新
     └── subscribeChange 回调 → ShortcutService.reregisterShortcuts()
@@ -401,7 +401,7 @@ callback(event)  // 如 clearChat()
 ```
 用户按下 Cmd+E（窗口失焦状态）
     ↓ Electron globalShortcut
-handlers.get('shortcut.app.show_mini_window')
+handlers.get('shortcut.app.general.show_mini_window')
     ↓
 toggleMiniWindow()
 ```
@@ -414,41 +414,41 @@ toggleMiniWindow()
 
 | Preference Key | 默认绑定 | 作用域 | 备注 |
 |---|---|---|---|
-| `shortcut.app.show_main_window` | *(无)* | main | 失焦持久，系统级 |
-| `shortcut.app.show_mini_window` | `Cmd/Ctrl+E` | main | 关联 quick_assistant 开关 |
-| `shortcut.app.show_settings` | `Cmd/Ctrl+,` | both | 不可编辑 |
-| `shortcut.app.toggle_show_assistants` | `Cmd/Ctrl+[` | renderer | |
-| `shortcut.app.exit_fullscreen` | `Escape` | renderer | 不可编辑，系统级 |
-| `shortcut.app.zoom_in` | `Cmd/Ctrl+=` | main | 含小键盘变体 |
-| `shortcut.app.zoom_out` | `Cmd/Ctrl+-` | main | 含小键盘变体 |
-| `shortcut.app.zoom_reset` | `Cmd/Ctrl+0` | main | |
-| `shortcut.app.search_message` | `Cmd/Ctrl+Shift+F` | renderer | |
+| `shortcut.app.general.show_main_window` | *(无)* | main | 失焦持久，系统级 |
+| `shortcut.app.general.show_mini_window` | `Cmd/Ctrl+E` | main | 关联 quick_assistant 开关 |
+| `shortcut.app.general.show_settings` | `Cmd/Ctrl+,` | both | 不可编辑 |
+| `shortcut.app.general.toggle_show_assistants` | `Cmd/Ctrl+[` | renderer | |
+| `shortcut.app.general.exit_fullscreen` | `Escape` | renderer | 不可编辑，系统级 |
+| `shortcut.app.general.zoom_in` | `Cmd/Ctrl+=` | main | 含小键盘变体 |
+| `shortcut.app.general.zoom_out` | `Cmd/Ctrl+-` | main | 含小键盘变体 |
+| `shortcut.app.general.zoom_reset` | `Cmd/Ctrl+0` | main | |
+| `shortcut.app.general.search` | `Cmd/Ctrl+Shift+F` | renderer | |
 
 ### 聊天 (`chat`)
 
 | Preference Key | 默认绑定 | 默认启用 | 备注 |
 |---|---|---|---|
-| `shortcut.chat.clear` | `Cmd/Ctrl+L` | 是 | |
-| `shortcut.chat.search_message` | `Cmd/Ctrl+F` | 是 | |
-| `shortcut.chat.toggle_new_context` | `Cmd/Ctrl+K` | 是 | |
-| `shortcut.chat.copy_last_message` | `Cmd/Ctrl+Shift+C` | 否 | |
-| `shortcut.chat.edit_last_user_message` | `Cmd/Ctrl+Shift+E` | 否 | |
-| `shortcut.chat.select_model` | `Cmd/Ctrl+Shift+M` | 是 | |
+| `shortcut.app.chat.clear` | `Cmd/Ctrl+L` | 是 | |
+| `shortcut.app.chat.search_message` | `Cmd/Ctrl+F` | 是 | |
+| `shortcut.app.chat.toggle_new_context` | `Cmd/Ctrl+K` | 是 | |
+| `shortcut.app.chat.copy_last_message` | `Cmd/Ctrl+Shift+C` | 否 | |
+| `shortcut.app.chat.edit_last_user_message` | `Cmd/Ctrl+Shift+E` | 否 | |
+| `shortcut.app.chat.select_model` | `Cmd/Ctrl+Shift+M` | 是 | |
 
 ### 话题 (`topic`)
 
 | Preference Key | 默认绑定 |
 |---|---|
-| `shortcut.topic.new` | `Cmd/Ctrl+N` |
-| `shortcut.topic.rename` | `Cmd/Ctrl+T` |
-| `shortcut.topic.toggle_show_topics` | `Cmd/Ctrl+]` |
+| `shortcut.app.topic.new` | `Cmd/Ctrl+N` |
+| `shortcut.app.topic.rename` | `Cmd/Ctrl+T` |
+| `shortcut.app.topic.toggle_show_topics` | `Cmd/Ctrl+]` |
 
 ### 划词助手 (`selection`)
 
 | Preference Key | 默认绑定 | 支持平台 |
 |---|---|---|
-| `shortcut.selection.toggle_enabled` | *(无)* | macOS, Windows |
-| `shortcut.selection.get_text` | *(无)* | macOS, Windows |
+| `shortcut.feature.selection.toggle_enabled` | *(无)* | macOS, Windows |
+| `shortcut.feature.selection.get_text` | *(无)* | macOS, Windows |
 
 ---
 
@@ -460,7 +460,7 @@ toggleMiniWindow()
 
 ```typescript
 // packages/shared/data/preference/preferenceSchemas.ts
-'shortcut.chat.regenerate': { enabled: true, key: ['CommandOrControl', 'Shift', 'R'] },
+'shortcut.app.chat.regenerate': { enabled: true, key: ['CommandOrControl', 'Shift', 'R'] },
 ```
 
 > 注意：类型声明区也需要添加对应的类型声明行。
@@ -470,10 +470,10 @@ toggleMiniWindow()
 ```typescript
 // packages/shared/shortcuts/definitions.ts
 {
-  key: 'shortcut.chat.regenerate',
+  key: 'shortcut.app.chat.regenerate',
   defaultKey: ['CommandOrControl', 'Shift', 'R'],
   scope: 'renderer',
-  category: 'chat'
+  category: 'app.chat'
 }
 ```
 
@@ -481,10 +481,10 @@ toggleMiniWindow()
 
 ```typescript
 // 渲染进程
-useShortcut('chat.regenerate', () => regenerateLastMessage())
+useShortcut('app.chat.regenerate', () => regenerateLastMessage())
 
 // 或主进程（在 ShortcutService.registerBuiltInHandlers 中）
-this.handlers.set('shortcut.chat.regenerate', () => { ... })
+this.handlers.set('shortcut.app.chat.regenerate', () => { ... })
 ```
 
 ### 条件启用
@@ -493,7 +493,7 @@ this.handlers.set('shortcut.chat.regenerate', () => { ... })
 
 ```typescript
 {
-  key: 'shortcut.app.show_mini_window',
+  key: 'shortcut.app.general.show_mini_window',
   enabledWhen: (get) => !!get('feature.quick_assistant.enabled'),
   // 当 quick_assistant 关闭时，此快捷键不会被注册
 }
@@ -503,7 +503,7 @@ this.handlers.set('shortcut.chat.regenerate', () => { ... })
 
 ```typescript
 {
-  key: 'shortcut.selection.toggle_enabled',
+  key: 'shortcut.feature.selection.toggle_enabled',
   supportedPlatforms: ['darwin', 'win32'],
   // Linux 上不会注册，设置页也不会显示
 }

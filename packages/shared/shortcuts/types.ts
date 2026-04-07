@@ -2,7 +2,15 @@ import type { PreferenceDefaultScopeType, PreferenceKeyType } from '@shared/data
 
 export type ShortcutScope = 'main' | 'renderer' | 'both'
 
-export type ShortcutCategory = 'app' | 'chat' | 'topic' | 'selection'
+/** Built-in shortcut categories for UI grouping. */
+export type BuiltinShortcutCategory = 'app.general' | 'app.chat' | 'app.topic' | 'feature.selection'
+
+/**
+ * Dot-separated namespace for UI grouping in the settings page.
+ * Built-in: `app.general`, `app.chat`, `app.topic`, `feature.selection`.
+ * Plugins: `plugin.{pluginId}` (e.g. `plugin.translator`).
+ */
+export type ShortcutCategory = BuiltinShortcutCategory | `plugin.${string}`
 
 /** Desktop platforms actually supported by Cherry Studio */
 export type SupportedPlatform = Extract<NodeJS.Platform, 'darwin' | 'win32' | 'linux'>
@@ -17,13 +25,13 @@ export type ShortcutEnabledPredicate = (getPreference: GetPreferenceFn) => boole
 
 /** Static metadata for a single shortcut — the single source of truth for the shortcut system. */
 export interface ShortcutDefinition {
-  /** Preference key in `shortcut.{category}.{name}` format (e.g. `shortcut.chat.clear`). */
+  /** Preference key in `shortcut.app.{category}.{name}` format for built-in shortcuts. Plugins use `shortcut.plugin.{pluginId}.{name}`. */
   key: ShortcutPreferenceKey
   /** Default key binding in Electron accelerator format (e.g. `['CommandOrControl', 'L']`). Empty array means no default binding. */
   defaultKey: string[]
   /** Where the shortcut is registered: `main` (globalShortcut), `renderer` (react-hotkeys-hook), or `both`. */
   scope: ShortcutScope
-  /** Logical category for UI grouping in the settings page. */
+  /** Dot-separated category for UI grouping (e.g. `app.general`, `app.chat`, `app.topic`, `plugin.translator`). */
   category: ShortcutCategory
   /** i18n label key used by `getShortcutLabel()` for display. */
   labelKey: string

@@ -37,7 +37,7 @@ const TopViewContainer: React.FC<Props> = ({ children }) => {
 
   const [modal, modalContextHolder] = Modal.useModal()
   const [messageApi, messageContextHolder] = message.useMessage()
-  const [exitFullscreenPref] = usePreference('shortcut.app.exit_fullscreen')
+  const [exitFullscreenPref] = usePreference('shortcut.app.general.exit_fullscreen')
   const enableQuitFullScreen = exitFullscreenPref?.enabled !== false
 
   useAppInit()

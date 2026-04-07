@@ -13,7 +13,7 @@ const clearTopicTool = defineTool({
   },
   render: function ClearTopicRender(context) {
     const { actions, t } = context
-    const clearTopicShortcut = useShortcutDisplay('chat.clear')
+    const clearTopicShortcut = useShortcutDisplay('app.chat.clear')
 
     return (
       <Tooltip

@@ -17,7 +17,7 @@ const createSessionTool = defineTool({
 
   render: function CreateSessionRender(context) {
     const { t, assistant, session } = context
-    const newTopicShortcut = useShortcutDisplay('topic.new')
+    const newTopicShortcut = useShortcutDisplay('app.topic.new')
     const { apiServer } = useSettings()
     const sessionAgentId = session?.agentId
 

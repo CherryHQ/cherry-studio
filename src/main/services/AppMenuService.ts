@@ -11,9 +11,9 @@ import type { MenuItemConstructorOptions } from 'electron'
 import { app, Menu, shell } from 'electron'
 
 const zoomShortcutKeys: ShortcutPreferenceKey[] = [
-  'shortcut.app.zoom_in',
-  'shortcut.app.zoom_out',
-  'shortcut.app.zoom_reset'
+  'shortcut.app.general.zoom_in',
+  'shortcut.app.general.zoom_out',
+  'shortcut.app.general.zoom_reset'
 ]
 
 const isShortcutEnabled = (key: ShortcutPreferenceKey): boolean => {
@@ -45,9 +45,9 @@ export class AppMenuService extends BaseService {
     const locale = locales[getAppLanguage()]
     const { appMenu } = locale.translation
 
-    const zoomInEnabled = isShortcutEnabled('shortcut.app.zoom_in')
-    const zoomOutEnabled = isShortcutEnabled('shortcut.app.zoom_out')
-    const zoomResetEnabled = isShortcutEnabled('shortcut.app.zoom_reset')
+    const zoomInEnabled = isShortcutEnabled('shortcut.app.general.zoom_in')
+    const zoomOutEnabled = isShortcutEnabled('shortcut.app.general.zoom_out')
+    const zoomResetEnabled = isShortcutEnabled('shortcut.app.general.zoom_reset')
 
     const template: MenuItemConstructorOptions[] = [
       {

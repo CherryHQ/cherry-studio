@@ -60,7 +60,7 @@ const Chat: FC<Props> = (props) => {
     contentSearchRef.current?.disable()
   })
 
-  useShortcut('chat.search_message', () => {
+  useShortcut('app.chat.search_message', () => {
     try {
       const selectedText = window.getSelection()?.toString().trim()
       contentSearchRef.current?.enable(selectedText)
@@ -69,7 +69,7 @@ const Chat: FC<Props> = (props) => {
     }
   })
 
-  useShortcut('topic.rename', async () => {
+  useShortcut('app.topic.rename', async () => {
     const topic = props.activeTopic
     if (!topic) return
 
@@ -87,7 +87,7 @@ const Chat: FC<Props> = (props) => {
     }
   })
 
-  useShortcut('chat.select_model', async () => {
+  useShortcut('app.chat.select_model', async () => {
     const modelFilter = (m: Model) => !isEmbeddingModel(m) && !isRerankModel(m)
     const selectedModel = await SelectChatModelPopup.show({ model: assistant?.model, filter: modelFilter })
     if (selectedModel) {
