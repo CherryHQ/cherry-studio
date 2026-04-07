@@ -230,7 +230,7 @@ export function generateCitationTag(citation: Citation): string {
   const isLink = citation.url && citation.url.startsWith('http')
 
   // Escape | in URL to avoid breaking GFM table cell parsing
-  const safeUrl = isLink ? citation.url!.replace(/\|/g, '%7C') : ''
+  const safeUrl = isLink ? citation.url.replace(/\|/g, '%7C') : ''
 
   // 生成链接格式: [<sup data-citation='...'>N</sup>](url)
   // 或者生成空括号格式: [<sup data-citation='...'>N</sup>]()
