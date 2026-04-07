@@ -13,12 +13,12 @@ import {
   VersionSchema,
   ZodCurrencySchema
 } from './common'
-import { Modality, ModelCapability, ReasoningEffort } from './enums'
+import { Modality, ModelCapability, objectValues, ReasoningEffort } from './enums'
 
-export const ModalitySchema = z.enum(Modality)
+export const ModalitySchema = z.enum(objectValues(Modality))
 export type ModalityType = z.infer<typeof ModalitySchema>
 
-export const ModelCapabilityTypeSchema = z.enum(ModelCapability)
+export const ModelCapabilityTypeSchema = z.enum(objectValues(ModelCapability))
 export type ModelCapabilityType = z.infer<typeof ModelCapabilityTypeSchema>
 
 // Thinking token limits schema (shared across reasoning types)
@@ -29,7 +29,7 @@ export const ThinkingTokenLimitsSchema = z.object({
 })
 
 /** Reasoning effort levels shared across providers */
-export const ReasoningEffortSchema = z.enum(ReasoningEffort)
+export const ReasoningEffortSchema = z.enum(objectValues(ReasoningEffort))
 
 // Common reasoning fields shared across all reasoning type variants
 // Exported for shared/runtime types to reuse

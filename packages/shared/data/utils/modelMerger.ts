@@ -9,11 +9,10 @@ import type {
   ProtoModelConfig,
   ProtoProviderConfig,
   ProtoProviderModelOverride,
-  ProtoProviderReasoningFormat,
   ProtoReasoningSupport
 } from '@cherrystudio/provider-registry'
 import type { Modality, ModelCapability, ReasoningEffort as ReasoningEffortType } from '@cherrystudio/provider-registry'
-import { EndpointType, ReasoningEffort } from '@cherrystudio/provider-registry'
+import { EndpointType, objectValues, ReasoningEffort } from '@cherrystudio/provider-registry'
 import * as z from 'zod'
 
 import type { Model, RuntimeModelPricing, RuntimeReasoning } from '../types/model'
@@ -47,7 +46,7 @@ export { DEFAULT_API_FEATURES, DEFAULT_PROVIDER_SETTINGS }
  */
 export function applyCapabilityOverride(
   base: ModelCapability[],
-  override: { add: ModelCapability[]; remove: ModelCapability[]; force: ModelCapability[] } | null | undefined
+  override: { add?: ModelCapability[]; remove?: ModelCapability[]; force?: ModelCapability[] } | null | undefined
 ): ModelCapability[] {
   if (!override) {
     return [...base]
@@ -61,12 +60,12 @@ export function applyCapabilityOverride(
   let result = [...base]
 
   // Add new capabilities
-  if (override.add.length) {
+  if (override.add?.length) {
     result = Array.from(new Set([...result, ...override.add]))
   }
 
   // Remove capabilities
-  if (override.remove.length) {
+  if (override.remove?.length) {
     const removeSet = new Set(override.remove)
     result = result.filter((c) => !removeSet.has(c))
   }
@@ -79,7 +78,7 @@ const UserProviderRowSchema = z.object({
   presetProviderId: z.string().nullish(),
   name: z.string(),
   endpointConfigs: z.record(z.string(), EndpointConfigSchema).nullish(),
-  defaultChatEndpoint: z.nativeEnum(EndpointType).nullish(),
+  defaultChatEndpoint: z.enum(objectValues(EndpointType)).nullish(),
   apiKeys: z.array(ApiKeyEntrySchema.pick({ id: true, key: true, label: true, isEnabled: true })).nullish(),
   authConfig: z.object({ type: z.string() }).catchall(z.unknown()).nullish(),
   apiFeatures: ApiFeaturesSchema.nullish(),
@@ -97,10 +96,10 @@ const UserModelRowSchema = z.object({
   name: z.string().nullish(),
   description: z.string().nullish(),
   group: z.string().nullish(),
-  capabilities: z.array(z.number()).nullish(),
-  inputModalities: z.array(z.number()).nullish(),
-  outputModalities: z.array(z.number()).nullish(),
-  endpointTypes: z.array(z.number()).nullish(),
+  capabilities: z.array(z.string()).nullish(),
+  inputModalities: z.array(z.string()).nullish(),
+  outputModalities: z.array(z.string()).nullish(),
+  endpointTypes: z.array(z.string()).nullish(),
   customEndpointUrl: z.string().nullish(),
   contextWindow: z.number().nullish(),
   maxOutputTokens: z.number().nullish(),
@@ -163,11 +162,11 @@ export function mergeModelConfig(
   const modelId = presetModel.id
 
   // Start from preset
-  let capabilities: ModelCapability[] = [...presetModel.capabilities]
-  let inputModalities: Modality[] | undefined = presetModel.inputModalities.length
+  let capabilities: ModelCapability[] = [...(presetModel.capabilities ?? [])]
+  let inputModalities: Modality[] | undefined = presetModel.inputModalities?.length
     ? [...presetModel.inputModalities]
     : undefined
-  let outputModalities: Modality[] | undefined = presetModel.outputModalities.length
+  let outputModalities: Modality[] | undefined = presetModel.outputModalities?.length
     ? [...presetModel.outputModalities]
     : undefined
   let endpointTypes: EndpointType[] | undefined = undefined
@@ -220,13 +219,13 @@ export function mergeModelConfig(
     if (catalogOverride.limits?.maxInputTokens != null) {
       maxInputTokens = catalogOverride.limits.maxInputTokens
     }
-    if (catalogOverride.endpointTypes.length) {
+    if (catalogOverride.endpointTypes?.length) {
       endpointTypes = [...catalogOverride.endpointTypes]
     }
-    if (catalogOverride.inputModalities.length) {
+    if (catalogOverride.inputModalities?.length) {
       inputModalities = [...catalogOverride.inputModalities]
     }
-    if (catalogOverride.outputModalities.length) {
+    if (catalogOverride.outputModalities?.length) {
       outputModalities = [...catalogOverride.outputModalities]
     }
     if (catalogOverride.replaceWith) {
@@ -383,19 +382,6 @@ export function mergeProviderConfig(
 // Helper Functions
 // ═══════════════════════════════════════════════════════════════════════════════
 
-/** Map proto ProviderReasoningFormat.format.case to runtime reasoning type string */
-const REASONING_FORMAT_CASE_TO_TYPE: Record<string, ReasoningFormatType> = {
-  openaiChat: 'openai-chat',
-  openaiResponses: 'openai-responses',
-  anthropic: 'anthropic',
-  gemini: 'gemini',
-  openrouter: 'openrouter',
-  enableThinking: 'enable-thinking',
-  thinkingType: 'thinking-type',
-  dashscope: 'dashscope',
-  selfHosted: 'self-hosted'
-}
-
 const CHAT_REASONING_ENDPOINT_PRIORITY: EndpointType[] = [
   EndpointType.OPENAI_RESPONSES,
   EndpointType.OPENAI_CHAT_COMPLETIONS,
@@ -433,40 +419,24 @@ function isChatReasoningEndpointType(endpointType: EndpointType): boolean {
 }
 
 /**
- * Build endpointConfigs from preset provider's proto data.
- * Converts proto endpointConfigs (with proto message types) into runtime EndpointConfig.
+ * Build runtime endpointConfigs from preset provider's registry data.
+ * Maps registry reasoningFormat (discriminated union) to runtime reasoningFormatType string.
  */
 function buildPresetEndpointConfigs(
   presetProvider: ProtoProviderConfig | null
 ): Partial<Record<EndpointType, EndpointConfig>> {
-  if (!presetProvider) return {}
+  if (!presetProvider?.endpointConfigs) return {}
 
   const configs: Partial<Record<EndpointType, EndpointConfig>> = {}
 
-  for (const [k, protoConfig] of Object.entries(presetProvider.endpointConfigs)) {
-    const ep = Number(k) as EndpointType
+  for (const [k, regConfig] of Object.entries(presetProvider.endpointConfigs)) {
+    const ep = k as EndpointType
     const config: EndpointConfig = {}
 
-    if (protoConfig.baseUrl) {
-      config.baseUrl = protoConfig.baseUrl
-    }
-
-    // Convert proto ModelsApiUrls message to plain object
-    if (protoConfig.modelsApiUrls) {
-      const modelsApiUrls: Record<string, string> = {}
-      if (protoConfig.modelsApiUrls.default) modelsApiUrls.default = protoConfig.modelsApiUrls.default
-      if (protoConfig.modelsApiUrls.embedding) modelsApiUrls.embedding = protoConfig.modelsApiUrls.embedding
-      if (protoConfig.modelsApiUrls.reranker) modelsApiUrls.reranker = protoConfig.modelsApiUrls.reranker
-      if (Object.keys(modelsApiUrls).length > 0) {
-        config.modelsApiUrls = modelsApiUrls
-      }
-    }
-
-    // Convert proto ProviderReasoningFormat to runtime type string
-    const reasoningFormatType = extractReasoningFormatType(protoConfig.reasoningFormat)
-    if (reasoningFormatType) {
-      config.reasoningFormatType = reasoningFormatType
-    }
+    if (regConfig.baseUrl) config.baseUrl = regConfig.baseUrl
+    if (regConfig.modelsApiUrls) config.modelsApiUrls = regConfig.modelsApiUrls
+    if (regConfig.reasoningFormat?.type)
+      config.reasoningFormatType = regConfig.reasoningFormat.type as ReasoningFormatType
 
     if (Object.keys(config).length > 0) {
       configs[ep] = config
@@ -488,7 +458,7 @@ function mergeEndpointConfigs(
   const allKeys = new Set([...Object.keys(preset ?? {}), ...Object.keys(user ?? {})])
 
   for (const k of allKeys) {
-    const endpointType = Number(k) as EndpointType
+    const endpointType = k as EndpointType
     const presetConfig = preset?.[endpointType]
     const userConfig = user?.[endpointType]
     result[endpointType] = {
@@ -510,7 +480,7 @@ export function extractReasoningFormatTypes(
   const result: Partial<Record<EndpointType, ReasoningFormatType>> = {}
   for (const [k, v] of Object.entries(endpointConfigs)) {
     if (v?.reasoningFormatType) {
-      result[Number(k) as EndpointType] = v.reasoningFormatType
+      result[k as EndpointType] = v.reasoningFormatType
     }
   }
   return Object.keys(result).length > 0 ? result : undefined
@@ -552,14 +522,6 @@ function resolveReasoningFormatType(
   }
 
   return reasoningFormatTypes[endpointType]
-}
-
-/**
- * Extract runtime reasoning type string from proto ProviderReasoningFormat
- */
-function extractReasoningFormatType(format: ProtoProviderReasoningFormat | undefined): ReasoningFormatType | undefined {
-  if (!format?.format.case) return undefined
-  return REASONING_FORMAT_CASE_TO_TYPE[format.format.case]
 }
 
 /**

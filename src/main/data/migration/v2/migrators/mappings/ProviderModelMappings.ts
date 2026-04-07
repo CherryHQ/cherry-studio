@@ -59,7 +59,7 @@ const CAPABILITY_MAP: Partial<Record<ModelType, ModelCapability | undefined>> = 
   rerank: MODEL_CAPABILITY.RERANK
 }
 
-/** Legacy string endpoint/provider-type keys → catalog numeric EndpointType */
+/** Legacy string endpoint/provider-type keys → EndpointType */
 const ENDPOINT_MAP: Partial<Record<string, EndpointType>> = {
   openai: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
   'openai-response': ENDPOINT_TYPE.OPENAI_RESPONSES,

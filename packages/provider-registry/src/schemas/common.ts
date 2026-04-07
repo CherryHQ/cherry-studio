@@ -5,6 +5,8 @@
 
 import * as z from 'zod'
 
+import { Currency, objectValues } from './enums'
+
 // Common string types for reuse
 export const ModelIdSchema = z.string()
 export const ProviderIdSchema = z.string()
@@ -33,7 +35,7 @@ export const StringRangeSchema = z.object({
 })
 
 // Supported currencies for pricing
-export const ZodCurrencySchema = z.enum(['USD', 'CNY']).default('USD').optional()
+export const ZodCurrencySchema = z.enum(objectValues(Currency)).optional()
 
 // Price per token schema
 // Default currency is USD if not specified

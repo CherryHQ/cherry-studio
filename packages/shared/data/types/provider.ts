@@ -11,12 +11,12 @@
  * Zod schemas are the single source of truth — all types derived via z.infer<>
  */
 
-import { EndpointType } from '@cherrystudio/provider-registry'
+import { EndpointType, objectValues } from '@cherrystudio/provider-registry'
 import * as z from 'zod'
 
 // ─── Schemas formerly from provider-registry/schemas ─────────────────────────
 
-const EndpointTypeSchema = z.enum(EndpointType)
+const EndpointTypeSchema = z.enum(objectValues(EndpointType))
 
 /** API feature flags controlling request construction at the SDK level */
 const CatalogApiFeaturesSchema = z.object({

@@ -18,8 +18,8 @@ import {
 const ListModelsQuerySchema = z.object({
   /** Filter by provider ID */
   providerId: z.string().optional(),
-  /** Filter by capability (numeric ModelCapability enum value) */
-  capability: z.number().optional(),
+  /** Filter by capability (ModelCapability string value) */
+  capability: z.string().optional(),
   /** Filter by enabled status */
   enabled: z.boolean().optional()
 })
@@ -40,13 +40,13 @@ const CreateModelDtoSchema = z.object({
   /** UI grouping */
   group: z.string().optional(),
   /** Capabilities (numeric ModelCapability enum values) */
-  capabilities: z.array(z.number()).optional(),
+  capabilities: z.array(z.string()).optional(),
   /** Input modalities (numeric Modality enum values) */
-  inputModalities: z.array(z.number()).optional(),
+  inputModalities: z.array(z.string()).optional(),
   /** Output modalities (numeric Modality enum values) */
-  outputModalities: z.array(z.number()).optional(),
+  outputModalities: z.array(z.string()).optional(),
   /** Endpoint types */
-  endpointTypes: z.array(z.number()).optional(),
+  endpointTypes: z.array(z.string()).optional(),
   /** Context window size */
   contextWindow: z.number().optional(),
   /** Maximum output tokens */
@@ -86,7 +86,7 @@ const EnrichModelsDtoSchema = z.object({
       name: z.string().optional(),
       group: z.string().optional(),
       description: z.string().optional(),
-      endpointTypes: z.array(z.number()).optional()
+      endpointTypes: z.array(z.string()).optional()
     })
   )
 })
