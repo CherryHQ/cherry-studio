@@ -388,6 +388,9 @@ class ImportServiceClass {
         const emptyErrors = errors.filter((e) => e.startsWith('EMPTY'))
         const parseErrors = errors.filter((e) => e.startsWith('PARSE ERROR'))
 
+        if (errors.length < totalErrorCount) {
+          logger.warn(`(showing ${errors.length} of ${totalErrorCount} errors — breakdown is approximate)`)
+        }
         if (readErrors.length > 0) {
           logger.warn(`Read failures (${readErrors.length}):`, readErrors)
         }

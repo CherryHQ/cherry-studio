@@ -9,7 +9,6 @@ import {
   MessageBlockStatus,
   MessageBlockType,
   type ThinkingMessageBlock,
-  type ToolMessageBlock,
   UserMessageStatus
 } from '@renderer/types/newMessage'
 import { uuid } from '@renderer/utils'
@@ -395,19 +394,14 @@ export class ClaudeImporter implements ConversationImporter {
         } else if (block.name) {
           // Flush any pending text BEFORE the tool block
           flushText()
-          // MCP/Tool use without artifact - create ToolMessageBlock
-          const toolBlock: ToolMessageBlock = {
-            id: uuid(),
-            messageId,
-            type: MessageBlockType.TOOL,
-            toolId: block.name,
-            toolName: block.name,
-            arguments: block.input,
-            createdAt,
-            updatedAt: createdAt,
-            status: MessageBlockStatus.SUCCESS
-          }
-          blocks.push(toolBlock)
+          // Render tool calls as markdown text — the ToolMessageBlock renderer
+          // expects rawMcpToolResponse metadata that imported blocks don't have,
+          // so we use MainTextMessageBlock to guarantee visibility
+          const argsStr = block.input ? JSON.stringify(block.input, null, 2) : ''
+          const toolMarkdown = argsStr
+            ? `**Tool: ${block.name}**\n\`\`\`json\n${argsStr}\n\`\`\``
+            : `**Tool: ${block.name}**`
+          pendingTextParts.push(toolMarkdown)
         }
       }
       // Skip 'tool_result' blocks (handled as part of tool flow)
@@ -488,7 +482,7 @@ export class ClaudeImporter implements ConversationImporter {
     ordering?: 'version-first' | 'family-first'
   } {
     const normalized = modelId.toLowerCase().trim()
-    const withoutPrefix = normalized.replace(/^anthropic[/.]/, '')
+    const withoutPrefix = normalized.replace(/^anthropic[/.:]/, '')
     // Strip trailing date suffix (8-digit date like 20250514) before parsing
     // This handles new model IDs like "claude-sonnet-4-20250514" → extracts just "4"
     const base = withoutPrefix
@@ -712,10 +706,15 @@ export class ClaudeImporter implements ConversationImporter {
       return this.traceToRoot(messageMap, currentLeafUuid)
     }
 
-    // Fallback: find the first leaf node (message with no children)
+    // Fallback: find the latest leaf node by timestamp (most likely the active branch)
     const leafNodes = this.findAllLeafNodes(messages)
     if (leafNodes.length > 0) {
-      return this.traceToRoot(messageMap, leafNodes[0].uuid)
+      const latestLeaf = leafNodes.reduce((latest, leaf) => {
+        const latestTime = latest.created_at ? new Date(latest.created_at).getTime() : 0
+        const leafTime = leaf.created_at ? new Date(leaf.created_at).getTime() : 0
+        return leafTime > latestTime ? leaf : latest
+      })
+      return this.traceToRoot(messageMap, latestLeaf.uuid)
     }
 
     // Last resort: return all messages in order (linear conversation)
