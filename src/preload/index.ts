@@ -335,21 +335,21 @@ const api = {
       context?: SpanContext
     ) => tracedInvoke(IpcChannel.KnowledgeBase_Rerank, context, { search, base, results })
   },
-  knowledgeVector: {
+  knowledgeRuntime: {
     createBase: (base: KnowledgeVectorBase): Promise<void> =>
-      ipcRenderer.invoke(IpcChannel.KnowledgeVector_CreateBase, base),
+      ipcRenderer.invoke(IpcChannel.KnowledgeRuntime_CreateBase, base),
     deleteBase: (base: KnowledgeVectorBase): Promise<void> =>
-      ipcRenderer.invoke(IpcChannel.KnowledgeVector_DeleteBase, base),
+      ipcRenderer.invoke(IpcChannel.KnowledgeRuntime_DeleteBase, base),
     addItems: (base: KnowledgeVectorBase, items: KnowledgeVectorItem[]): Promise<void> =>
-      ipcRenderer.invoke(IpcChannel.KnowledgeVector_AddItems, { base, items }),
+      ipcRenderer.invoke(IpcChannel.KnowledgeRuntime_AddItems, { base, items }),
     deleteItems: (baseId: string, itemIds: string[]): Promise<void> =>
-      ipcRenderer.invoke(IpcChannel.KnowledgeVector_DeleteItems, { baseId, itemIds }),
+      ipcRenderer.invoke(IpcChannel.KnowledgeRuntime_DeleteItems, { baseId, itemIds }),
     search: (
       base: KnowledgeVectorBase,
       query: string,
       options?: Record<string, unknown>
     ): Promise<KnowledgeVectorSearchResult[]> =>
-      ipcRenderer.invoke(IpcChannel.KnowledgeVector_Search, { base, query, options })
+      ipcRenderer.invoke(IpcChannel.KnowledgeRuntime_Search, { base, query, options })
   },
   memory: {
     add: (messages: string | AssistantMessage[], options?: AddMemoryOptions) =>

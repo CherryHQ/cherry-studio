@@ -169,11 +169,11 @@ export enum IpcChannel {
   KnowledgeBase_Remove = 'knowledge-base:remove',
   KnowledgeBase_Search = 'knowledge-base:search',
   KnowledgeBase_Rerank = 'knowledge-base:rerank',
-  KnowledgeVector_CreateBase = 'knowledge-vector:create-base',
-  KnowledgeVector_DeleteBase = 'knowledge-vector:delete-base',
-  KnowledgeVector_AddItems = 'knowledge-vector:add-items',
-  KnowledgeVector_DeleteItems = 'knowledge-vector:delete-items',
-  KnowledgeVector_Search = 'knowledge-vector:search',
+  KnowledgeRuntime_CreateBase = 'knowledge-runtime:create-base',
+  KnowledgeRuntime_DeleteBase = 'knowledge-runtime:delete-base',
+  KnowledgeRuntime_AddItems = 'knowledge-runtime:add-items',
+  KnowledgeRuntime_DeleteItems = 'knowledge-runtime:delete-items',
+  KnowledgeRuntime_Search = 'knowledge-runtime:search',
 
   //file
   File_Open = 'file:open',

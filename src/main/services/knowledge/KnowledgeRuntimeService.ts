@@ -1,7 +1,9 @@
+import { knowledgeBaseService } from '@data/services/KnowledgeBaseService'
 import { knowledgeItemService } from '@data/services/KnowledgeItemService'
 import { loggerService } from '@logger'
 import { BaseService, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import type { KnowledgeBase, KnowledgeItem, KnowledgeSearchResult } from '@shared/data/types/knowledge'
+import { IpcChannel } from '@shared/IpcChannel'
 import { MetadataMode } from '@vectorstores/core'
 import { embedMany } from 'ai'
 import PQueue from 'p-queue'
@@ -12,12 +14,12 @@ import { chunkDocuments } from './utils/chunk'
 import { embedDocuments } from './utils/embed'
 import { vectorStoreManager } from './vectorstore/VectorStoreManager'
 
-const logger = loggerService.withContext('KnowledgeService')
+const logger = loggerService.withContext('KnowledgeRuntimeService')
 const SHUTDOWN_INTERRUPTED_REASON = 'Knowledge task interrupted by service shutdown'
 
-@Injectable('KnowledgeService')
+@Injectable('KnowledgeRuntimeService')
 @ServicePhase(Phase.Background)
-export class KnowledgeService extends BaseService {
+export class KnowledgeRuntimeService extends BaseService {
   private queue: PQueue
   private isStopping = false
   private queuedItemIds = new Set<string>()
@@ -30,6 +32,7 @@ export class KnowledgeService extends BaseService {
 
   protected onInit(): void {
     this.isStopping = false
+    this.registerIpcHandlers()
   }
 
   protected async onStop(): Promise<void> {
@@ -54,6 +57,15 @@ export class KnowledgeService extends BaseService {
   }
 
   async addItems(base: KnowledgeBase, items: KnowledgeItem[]) {
+    await Promise.all(
+      items.map((item) =>
+        knowledgeItemService.update(item.id, {
+          status: 'pending',
+          error: null
+        })
+      )
+    )
+
     return await Promise.all(items.map((item) => this.enqueueTask(item.id, () => this._addItem(base, item))))
   }
 
@@ -150,6 +162,28 @@ export class KnowledgeService extends BaseService {
     if (this.isStopping) {
       throw new Error(SHUTDOWN_INTERRUPTED_REASON)
     }
+  }
+
+  private registerIpcHandlers(): void {
+    this.ipcHandle(IpcChannel.KnowledgeRuntime_CreateBase, async (_, base: KnowledgeBase) => this.createBase(base))
+    this.ipcHandle(IpcChannel.KnowledgeRuntime_DeleteBase, async (_, base: KnowledgeBase) => this.deleteBase(base))
+    this.ipcHandle(
+      IpcChannel.KnowledgeRuntime_AddItems,
+      async (_, payload: { base: KnowledgeBase; items: KnowledgeItem[] }) => this.addItems(payload.base, payload.items)
+    )
+    this.ipcHandle(IpcChannel.KnowledgeRuntime_DeleteItems, async (_, payload: { baseId: string; itemIds: string[] }) =>
+      this.deleteItems(
+        await knowledgeBaseService.getById(payload.baseId),
+        await Promise.all(payload.itemIds.map((itemId) => knowledgeItemService.getById(itemId)))
+      )
+    )
+    this.ipcHandle(
+      IpcChannel.KnowledgeRuntime_Search,
+      async (_, payload: { base: KnowledgeBase; query: string; options?: Record<string, unknown> }) => {
+        void payload.options
+        return await this.search(payload.base, payload.query)
+      }
+    )
   }
 
   private async failItems(itemIds: string[], reason: string): Promise<void> {
