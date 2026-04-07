@@ -37,12 +37,12 @@ const toFullKey = (key: ShortcutKey | ShortcutPreferenceKey): ShortcutPreference
 
 const resolvePreferenceValue = (
   definition: ShortcutDefinition | undefined,
-  preference: PreferenceShortcutType | Record<string, unknown> | undefined
+  preference: PreferenceShortcutType | undefined
 ): ShortcutPreferenceValue | null => {
   if (!definition) {
     return null
   }
-  return coerceShortcutPreference(definition, preference as PreferenceShortcutType | undefined)
+  return coerceShortcutPreference(definition, preference)
 }
 
 export const useShortcut = (

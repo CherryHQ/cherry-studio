@@ -3,7 +3,6 @@ import { Box } from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
 import TopViewMinappContainer from '@renderer/components/MinApp/TopViewMinappContainer'
 import { useAppInit } from '@renderer/hooks/useAppInit'
-import type { PreferenceShortcutType } from '@shared/data/preference/preferenceTypes'
 import { message, Modal } from 'antd'
 import type { PropsWithChildren } from 'react'
 import React, { useCallback, useEffect, useRef, useState } from 'react'
@@ -39,7 +38,7 @@ const TopViewContainer: React.FC<Props> = ({ children }) => {
   const [modal, modalContextHolder] = Modal.useModal()
   const [messageApi, messageContextHolder] = message.useMessage()
   const [exitFullscreenPref] = usePreference('shortcut.app.exit_fullscreen')
-  const enableQuitFullScreen = (exitFullscreenPref as PreferenceShortcutType | undefined)?.enabled !== false
+  const enableQuitFullScreen = exitFullscreenPref?.enabled !== false
 
   useAppInit()
 

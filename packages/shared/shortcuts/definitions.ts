@@ -150,6 +150,10 @@ export const SHORTCUT_DEFINITIONS: readonly ShortcutDefinition[] = [
   }
 ] as const
 
+const definitionMap = new Map<string, ShortcutDefinition>(
+  SHORTCUT_DEFINITIONS.map((definition) => [definition.key, definition])
+)
+
 export const findShortcutDefinition = (key: string): ShortcutDefinition | undefined => {
-  return SHORTCUT_DEFINITIONS.find((definition) => definition.key === key)
+  return definitionMap.get(key)
 }

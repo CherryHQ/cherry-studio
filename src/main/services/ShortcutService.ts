@@ -125,7 +125,7 @@ export class ShortcutService extends BaseService {
       this.isRegisterOnBoot = false
     }
 
-    if (undefined === this.windowOnHandlers.get(window)) {
+    if (!this.windowOnHandlers.has(window)) {
       const onFocus = () => this.registerShortcuts(window, false)
       const onBlur = () => this.registerShortcuts(window, true)
       window.on('focus', onFocus)
