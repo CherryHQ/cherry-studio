@@ -19,29 +19,6 @@ import styled from 'styled-components'
 
 import { SettingContainer, SettingDivider, SettingGroup, SettingTitle } from '.'
 
-const labelKeyMap: Record<string, string> = {
-  'shortcut.app.show_main_window': 'show_app',
-  'shortcut.app.show_mini_window': 'mini_window',
-  'shortcut.app.show_settings': 'show_settings',
-  'shortcut.app.toggle_show_assistants': 'toggle_show_assistants',
-  'shortcut.app.exit_fullscreen': 'exit_fullscreen',
-  'shortcut.app.zoom_in': 'zoom_in',
-  'shortcut.app.zoom_out': 'zoom_out',
-  'shortcut.app.zoom_reset': 'zoom_reset',
-  'shortcut.app.search_message': 'search_message',
-  'shortcut.chat.clear': 'clear_topic',
-  'shortcut.chat.search_message': 'search_message_in_chat',
-  'shortcut.chat.toggle_new_context': 'toggle_new_context',
-  'shortcut.chat.copy_last_message': 'copy_last_message',
-  'shortcut.chat.edit_last_user_message': 'edit_last_user_message',
-  'shortcut.chat.select_model': 'select_model',
-  'shortcut.topic.new': 'new_topic',
-  'shortcut.topic.rename': 'rename_topic',
-  'shortcut.topic.toggle_show_topics': 'toggle_show_topics',
-  'shortcut.selection.toggle_enabled': 'selection_assistant_toggle',
-  'shortcut.selection.get_text': 'selection_assistant_select_text'
-}
-
 type ShortcutRecord = {
   id: string
   label: string
@@ -80,8 +57,7 @@ const ShortcutSettings: FC = () => {
     })
 
     return filtered.map((item) => {
-      const labelKey = labelKeyMap[item.definition.key] ?? item.definition.key
-      const label = getShortcutLabel(labelKey)
+      const label = getShortcutLabel(item.definition.labelKey)
 
       const displayKeys = item.preference.hasCustomBinding
         ? item.preference.rawBinding

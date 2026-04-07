@@ -17,6 +17,7 @@ export interface ShortcutDefinition {
   defaultKey: string[]
   scope: ShortcutScope
   category: ShortcutCategory
+  labelKey: string
   editable?: boolean
   system?: boolean
   persistOnBlur?: boolean

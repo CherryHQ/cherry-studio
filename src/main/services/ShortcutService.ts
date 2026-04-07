@@ -79,6 +79,7 @@ export class ShortcutService extends BaseService {
     })
 
     this.handlers.set('shortcut.app.show_mini_window', () => {
+      if (!application.get('PreferenceService').get('feature.quick_assistant.enabled')) return
       application.get('WindowService').toggleMiniWindow()
     })
 

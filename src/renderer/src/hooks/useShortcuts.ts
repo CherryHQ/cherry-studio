@@ -106,7 +106,11 @@ export const useShortcutDisplay = (shortcutKey: ShortcutKey | ShortcutPreference
       return ''
     }
 
-    const displayBinding = preferenceState.binding.length > 0 ? preferenceState.binding : definition.defaultKey
+    const displayBinding = preferenceState.hasCustomBinding
+      ? preferenceState.rawBinding
+      : preferenceState.binding.length > 0
+        ? preferenceState.binding
+        : definition.defaultKey
 
     if (!displayBinding.length) {
       return ''

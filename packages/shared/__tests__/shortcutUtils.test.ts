@@ -15,6 +15,7 @@ const makeDefinition = (overrides: Partial<ShortcutDefinition> = {}): ShortcutDe
   defaultKey: ['CommandOrControl', 'L'],
   scope: 'renderer',
   category: 'chat',
+  labelKey: 'clear_topic',
   ...overrides
 })
 
