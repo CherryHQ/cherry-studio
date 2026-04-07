@@ -599,7 +599,7 @@ const MinappPopupContainer: React.FC = () => {
       <DrawerContent
         overlay={false}
         showHandle={false}
-        className="minapp-drawer inset-x-0 bottom-0"
+        className="minapp-drawer inset-x-0 bottom-0 !mt-0 !max-h-full !rounded-none !border-0"
         style={{
           height: isTopNavbar ? 'calc(100% - var(--navbar-height))' : '100%',
           marginLeft: isLeftNavbar ? 'var(--sidebar-width)' : 0,
