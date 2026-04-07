@@ -128,8 +128,8 @@ const ProviderSettingContent: FC<ContentProps> = ({ provider, providerId, isOnbo
 
   // Derive v1-like fields from v2 Provider
   const primaryEndpoint = provider.defaultChatEndpoint ?? EndpointType.OPENAI_CHAT_COMPLETIONS
-  const providerApiHost = provider.baseUrls?.[primaryEndpoint] ?? ''
-  const providerAnthropicHost = provider.baseUrls?.[EndpointType.ANTHROPIC_MESSAGES]
+  const providerApiHost = provider.endpointConfigs?.[primaryEndpoint]?.baseUrl ?? ''
+  const providerAnthropicHost = provider.endpointConfigs?.[EndpointType.ANTHROPIC_MESSAGES]?.baseUrl
   const providerApiVersion = provider.settings?.apiVersion ?? ''
   const providerApiKey = apiKeysData?.keys?.map((k) => k.key).join(',') ?? ''
 
@@ -231,7 +231,12 @@ const ProviderSettingContent: FC<ContentProps> = ({ provider, providerId, isOnbo
       return
     }
     if (isVertexProvider(provider) || apiHost.trim()) {
-      patchProvider({ baseUrls: { ...provider.baseUrls, [primaryEndpoint]: apiHost } })
+      patchProvider({
+        endpointConfigs: {
+          ...provider.endpointConfigs,
+          [primaryEndpoint]: { ...provider.endpointConfigs?.[primaryEndpoint], baseUrl: apiHost }
+        }
+      })
     } else {
       setApiHost(providerApiHost)
     }
@@ -242,12 +247,18 @@ const ProviderSettingContent: FC<ContentProps> = ({ provider, providerId, isOnbo
 
     if (trimmedHost) {
       patchProvider({
-        baseUrls: { ...provider.baseUrls, [EndpointType.ANTHROPIC_MESSAGES]: trimmedHost }
+        endpointConfigs: {
+          ...provider.endpointConfigs,
+          [EndpointType.ANTHROPIC_MESSAGES]: {
+            ...provider.endpointConfigs?.[EndpointType.ANTHROPIC_MESSAGES],
+            baseUrl: trimmedHost
+          }
+        }
       })
       setAnthropicHost(trimmedHost)
     } else {
-      const { [EndpointType.ANTHROPIC_MESSAGES]: _, ...restUrls } = provider.baseUrls ?? {}
-      patchProvider({ baseUrls: restUrls })
+      const { [EndpointType.ANTHROPIC_MESSAGES]: _, ...restConfigs } = provider.endpointConfigs ?? {}
+      patchProvider({ endpointConfigs: restConfigs })
       setAnthropicHost(undefined)
     }
   }
@@ -338,8 +349,13 @@ const ProviderSettingContent: FC<ContentProps> = ({ provider, providerId, isOnbo
 
   const onReset = useCallback(() => {
     setApiHost(configuredApiHost)
-    patchProvider({ baseUrls: { ...provider?.baseUrls, [primaryEndpoint]: configuredApiHost } })
-  }, [configuredApiHost, patchProvider, provider?.baseUrls, primaryEndpoint])
+    patchProvider({
+      endpointConfigs: {
+        ...provider?.endpointConfigs,
+        [primaryEndpoint]: { ...provider?.endpointConfigs?.[primaryEndpoint], baseUrl: configuredApiHost }
+      }
+    })
+  }, [configuredApiHost, patchProvider, provider?.endpointConfigs, primaryEndpoint])
 
   const isApiHostResettable = useMemo(() => {
     return !isEmpty(configuredApiHost) && apiHost !== configuredApiHost
@@ -483,7 +499,13 @@ const ProviderSettingContent: FC<ContentProps> = ({ provider, providerId, isOnbo
           checked={provider.isEnabled}
           key={provider.id}
           onCheckedChange={(enabled) => {
-            patchProvider({ isEnabled: enabled, baseUrls: { ...provider.baseUrls, [primaryEndpoint]: apiHost } })
+            patchProvider({
+              isEnabled: enabled,
+              endpointConfigs: {
+                ...provider.endpointConfigs,
+                [primaryEndpoint]: { ...provider.endpointConfigs?.[primaryEndpoint], baseUrl: apiHost }
+              }
+            })
             if (enabled) {
               moveProviderToTop()
             }

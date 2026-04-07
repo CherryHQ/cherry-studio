@@ -129,8 +129,8 @@ export function useProviderApiKeys(providerId: string) {
   }
 }
 
-export function useProviderCatalogModels(providerId: string) {
-  return useQuery(`/providers/${providerId}/catalog-models` as const) as {
+export function useProviderRegistryModels(providerId: string) {
+  return useQuery(`/providers/${providerId}/registry-models` as const) as {
     data: Model[] | undefined
     isLoading: boolean
     [k: string]: any

@@ -16,7 +16,7 @@ export interface V1ShimOptions {
 
 function defaultChatBaseUrl(v2: V2Provider): string {
   const ep = v2.defaultChatEndpoint ?? EndpointType.OPENAI_CHAT_COMPLETIONS
-  return v2.baseUrls?.[ep] ?? ''
+  return v2.endpointConfigs?.[ep]?.baseUrl ?? ''
 }
 
 function v1ProviderTypeFromV2(v2: V2Provider): ProviderType {
@@ -93,7 +93,7 @@ export function toV1ProviderShim(v2Provider: V2Provider, options: V1ShimOptions 
     type: v1ProviderTypeFromV2(v2Provider),
     apiKey: options.apiKey ?? '',
     apiHost: options.apiHost ?? defaultChatBaseUrl(v2Provider),
-    anthropicApiHost: v2Provider.baseUrls?.[EndpointType.ANTHROPIC_MESSAGES],
+    anthropicApiHost: v2Provider.endpointConfigs?.[EndpointType.ANTHROPIC_MESSAGES]?.baseUrl,
     models: (options.models ?? []) as unknown as V1Model[],
     enabled: v2Provider.isEnabled,
     isSystem: v2Provider.presetProviderId != null,

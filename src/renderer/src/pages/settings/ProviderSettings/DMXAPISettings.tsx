@@ -1,6 +1,6 @@
 import { Dmxapi } from '@cherrystudio/ui/icons'
 import { useProvider } from '@renderer/data/hooks/useProviders'
-import { replaceBaseUrlDomain } from '@renderer/utils/provider.v2'
+import { replaceEndpointConfigDomain } from '@renderer/utils/provider.v2'
 import type { RadioChangeEvent } from 'antd'
 import { Radio, Space } from 'antd'
 import type { FC } from 'react'
@@ -44,8 +44,9 @@ const DMXAPISettings: FC<DMXAPISettingsProps> = ({ providerId }) => {
   ]
 
   const getCurrentPlatform = (): PlatformDomain => {
-    if (!provider?.baseUrls) return PlatformDomain.OFFICIAL
-    const firstUrl = Object.values(provider.baseUrls)[0]
+    if (!provider?.endpointConfigs) return PlatformDomain.OFFICIAL
+    const firstConfig = Object.values(provider.endpointConfigs)[0]
+    const firstUrl = firstConfig?.baseUrl
     if (!firstUrl) return PlatformDomain.OFFICIAL
     if (firstUrl.includes('DMXAPI.com') || firstUrl.includes('dmxapi.com')) {
       return firstUrl.includes('ssvip') ? PlatformDomain.OVERSEA : PlatformDomain.INTERNATIONAL
@@ -59,10 +60,10 @@ const DMXAPISettings: FC<DMXAPISettingsProps> = ({ providerId }) => {
     async (e: RadioChangeEvent) => {
       const domain = e.target.value as PlatformDomain
       setSelectedPlatform(domain)
-      const newBaseUrls = replaceBaseUrlDomain(provider?.baseUrls, domain)
-      await updateProvider({ baseUrls: newBaseUrls })
+      const newEndpointConfigs = replaceEndpointConfigDomain(provider?.endpointConfigs, domain)
+      await updateProvider({ endpointConfigs: newEndpointConfigs })
     },
-    [provider?.baseUrls, updateProvider]
+    [provider?.endpointConfigs, updateProvider]
   )
 
   return (
