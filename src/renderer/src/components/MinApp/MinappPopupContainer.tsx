@@ -258,7 +258,7 @@ const MinappPopupContainer: React.FC = () => {
       }),
       {} as Record<string, AppExtraInfo>
     )
-  }, [combinedApps, pinned])
+  }, [combinedApps, pinned, allApps])
 
   /** get the current app info with extra info */
   let currentAppInfo: AppInfo | null = null
@@ -307,7 +307,7 @@ const MinappPopupContainer: React.FC = () => {
         logger.debug(`WebView ${appid} not ready for getWebContentsId() in handleWebviewLoaded`)
       }
     }
-    if (appid == currentMinappId) {
+    if (appid === currentMinappId) {
       setTimeoutTimer('handleWebviewLoaded', () => setIsReady(true), 200)
     }
   }

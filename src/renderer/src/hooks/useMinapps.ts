@@ -115,9 +115,17 @@ export const useMinapps = () => {
   // Auto-detect region once per session
   useEffect(() => {
     if (minAppRegionSetting !== 'auto' || detectedRegion) return
+    let cancelled = false
     detectUserRegion()
-      .then(setDetectedRegion)
-      .catch(() => setDetectedRegion('CN'))
+      .then((region) => {
+        if (!cancelled) setDetectedRegion(region)
+      })
+      .catch(() => {
+        if (!cancelled) setDetectedRegion('CN')
+      })
+    return () => {
+      cancelled = true
+    }
   }, [minAppRegionSetting, detectedRegion, setDetectedRegion])
 
   // === Region-filtered views ===
