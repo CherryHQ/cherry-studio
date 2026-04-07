@@ -17,6 +17,7 @@ interface Props {
 
 const PopupContainer: React.FC<Props> = ({ resolve }) => {
   const [enableTopicNaming, setEnableTopicNaming] = usePreference('topic.naming.enabled')
+  const [enableTopicHeadingNaming, setEnableTopicHeadingNaming] = usePreference('topic.naming.use_heading')
   const [topicNamingPrompt, setTopicNamingPrompt] = usePreference('topic.naming_prompt')
 
   const [open, setOpen] = useState(true)
@@ -60,6 +61,10 @@ const PopupContainer: React.FC<Props> = ({ resolve }) => {
         <RowFlex className="items-center gap-4">
           <div>{t('settings.models.topic_naming.auto')}</div>
           <Switch checked={enableTopicNaming} onCheckedChange={setEnableTopicNaming} />
+        </RowFlex>
+        <RowFlex className="items-center gap-4">
+          <div>{t('settings.models.topic_naming.use_heading')}</div>
+          <Switch checked={enableTopicHeadingNaming} onCheckedChange={setEnableTopicHeadingNaming} />
         </RowFlex>
         <Divider style={{ margin: 0 }} />
         <div>

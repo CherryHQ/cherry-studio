@@ -5180,7 +5180,8 @@
       "topic_naming": {
         "auto": "トピックの自動命名",
         "label": "トピック名",
-        "prompt": "トピック命名プロンプト"
+        "prompt": "トピック命名プロンプト",
+        "use_heading": "アシスタントH1見出しを使用"
       },
       "translate_model": "翻訳モデル",
       "translate_model_description": "翻訳サービスに使用されるモデル",

@@ -347,6 +347,10 @@ export const REDUX_STORE_MAPPINGS = {
       targetKey: 'topic.naming.enabled'
     },
     {
+      originalKey: 'enableTopicHeadingNaming',
+      targetKey: 'topic.naming.use_heading'
+    },
+    {
       originalKey: 'customCss',
       targetKey: 'ui.custom_css'
     },

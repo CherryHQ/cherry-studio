@@ -13,7 +13,7 @@ import type { Assistant, FileMetadata, Topic } from '@renderer/types'
 import type { FileMessageBlock, ImageMessageBlock } from '@renderer/types/newMessage'
 import { MessageBlockType } from '@renderer/types/newMessage'
 import { findMainTextBlocks } from '@renderer/utils/messageUtils/find'
-import { truncateText } from '@renderer/utils/naming'
+import { extractMarkdownTopicHeading, truncateText } from '@renderer/utils/naming'
 import { find, isEmpty } from 'lodash'
 import { type Dispatch, type SetStateAction, useEffect, useState } from 'react'
 
@@ -159,6 +159,21 @@ export const autoRenameTopic = async (assistant: Assistant, topicId: string) => 
       return truncateText(text)
     }
 
+    const getAssistantHeadingName = () => {
+      const assistantMessage = topic.messages.find((message) => message.role === 'assistant')
+      if (!assistantMessage) {
+        return null
+      }
+
+      const blocks = findMainTextBlocks(assistantMessage)
+      const text = blocks
+        .map((block) => block.content)
+        .join('\n\n')
+        .trim()
+      const heading = extractMarkdownTopicHeading(text)
+      return heading ? truncateText(heading) : null
+    }
+
     if (!enableTopicNaming) {
       const topicName = getFirstMessageName()
       if (topicName) {
@@ -175,6 +190,15 @@ export const autoRenameTopic = async (assistant: Assistant, topicId: string) => 
     if (topic && topic.name === i18n.t('chat.default.topic.name') && topic.messages.length >= 2) {
       startTopicRenaming(topicId)
       try {
+        const enableTopicHeadingNaming = await preferenceService.get('topic.naming.use_heading')
+        if (enableTopicHeadingNaming) {
+          const headingName = getAssistantHeadingName()
+          if (headingName) {
+            applyTopicName(headingName)
+            return
+          }
+        }
+
         const { text: summaryText, error } = await fetchMessagesSummary({ messages: topic.messages })
         if (summaryText) {
           applyTopicName(summaryText)

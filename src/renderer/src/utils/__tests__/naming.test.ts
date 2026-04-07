@@ -14,6 +14,7 @@ vi.mock('@renderer/i18n/label', () => ({
 }))
 
 import {
+  extractMarkdownTopicHeading,
   firstLetter,
   getBaseModelName,
   getBriefInfo,
@@ -412,6 +413,28 @@ describe('naming', () => {
       const result = truncateText(longText)
       expect(result.length).toBeLessThanOrEqual(50)
       expect(result.length).toBeGreaterThanOrEqual(15)
+    })
+  })
+
+  describe('extractMarkdownTopicHeading', () => {
+    it('should extract first level-1 heading', () => {
+      const text = '# Topic Title\n\nSome content here'
+      expect(extractMarkdownTopicHeading(text)).toBe('Topic Title')
+    })
+
+    it('should ignore non-h1 headings', () => {
+      const text = '## Subtitle\n\n### Another title'
+      expect(extractMarkdownTopicHeading(text)).toBeNull()
+    })
+
+    it('should ignore headings inside fenced code blocks', () => {
+      const text = '```markdown\n# Fake title\n```\n\n# Real title'
+      expect(extractMarkdownTopicHeading(text)).toBe('Real title')
+    })
+
+    it('should sanitize extracted heading', () => {
+      const text = '# "Quoted" title\n\ncontent'
+      expect(extractMarkdownTopicHeading(text)).toBe('Quoted title')
     })
   })
 })

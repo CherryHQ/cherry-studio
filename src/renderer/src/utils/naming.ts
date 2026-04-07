@@ -162,7 +162,40 @@ export function isEmoji(str: string): boolean {
  * @returns {string} 处理后的字符串
  */
 export function removeSpecialCharactersForTopicName(str: string): string {
-  return str.replace(/["'\r\n]+/g, ' ').trim()
+  return str
+    .replace(/["'\r\n]+/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+}
+
+export function extractMarkdownTopicHeading(text: string): string | null {
+  if (!text) {
+    return null
+  }
+
+  const lines = text.split(/\r?\n/)
+  let inFence = false
+
+  for (const line of lines) {
+    const trimmed = line.trim()
+    if (trimmed.startsWith('```') || trimmed.startsWith('~~~')) {
+      inFence = !inFence
+      continue
+    }
+    if (inFence) {
+      continue
+    }
+
+    const match = line.match(/^\s{0,3}#\s+(.+?)\s*#*\s*$/)
+    if (!match?.[1]) {
+      continue
+    }
+
+    const heading = removeSpecialCharactersForTopicName(match[1])
+    return heading || null
+  }
+
+  return null
 }
 
 /**

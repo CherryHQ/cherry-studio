@@ -1519,6 +1519,14 @@
           "targetKey": "topic.naming.enabled"
         },
         {
+          "originalKey": "enableTopicHeadingNaming",
+          "type": "boolean",
+          "defaultValue": true,
+          "status": "classified",
+          "category": "preferences",
+          "targetKey": "topic.naming.use_heading"
+        },
+        {
           "originalKey": "customCss",
           "type": "string",
           "defaultValue": "",
