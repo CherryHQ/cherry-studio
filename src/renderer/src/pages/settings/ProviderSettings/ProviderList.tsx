@@ -205,7 +205,7 @@ const ProviderList: FC<ProviderListProps> = ({ isOnboarding = false }) => {
       }
     }
 
-    const newProvider = (await addProvider({ providerId, name: providerName.trim() })) as Provider
+    const newProvider = await addProvider({ providerId, name: providerName.trim() })
     setSelectedProvider(newProvider)
   }
 

@@ -59,8 +59,7 @@ function buildRuntimeEndpointConfigs(
 
     if (regConfig.baseUrl) config.baseUrl = regConfig.baseUrl
     if (regConfig.modelsApiUrls) config.modelsApiUrls = regConfig.modelsApiUrls
-    if (regConfig.reasoningFormat?.type)
-      config.reasoningFormatType = regConfig.reasoningFormat.type as ReasoningFormatType
+    if (regConfig.reasoningFormat?.type) config.reasoningFormatType = regConfig.reasoningFormat.type
 
     if (Object.keys(config).length > 0) configs[ep] = config
   }
