@@ -13,7 +13,7 @@ import { unified } from 'unified'
 import { visit } from 'unist-util-visit'
 
 import { createSlugger, extractTextFromNode } from '../Markdown/plugins/rehypeHeadingIds'
-import { useV2BlockMap } from './Blocks'
+import { usePartsMap, useV2BlockMap } from './Blocks'
 
 interface MessageOutlineProps {
   message: Message
@@ -26,20 +26,42 @@ interface HeadingItem {
 }
 
 const MessageOutline: FC<MessageOutlineProps> = ({ message }) => {
+  const partsMap = usePartsMap()
   const v2Blocks = useV2BlockMap()
   const reduxBlockEntities = useSelector((state: RootState) => messageBlocksSelectors.selectEntities(state))
   const blockEntities = v2Blocks ?? reduxBlockEntities
 
   const headings: HeadingItem[] = useMemo(() => {
-    const mainTextBlocks = message.blocks
-      .map((blockId) => blockEntities[blockId])
-      .filter((b) => b?.type === MessageBlockType.MAIN_TEXT)
+    // Collect text contents: from parts (priority) or blocks (fallback)
+    const textEntries: { id: string; content: string }[] = []
+    const messageParts = partsMap?.[message.id]
+    if (messageParts) {
+      let idx = 0
+      for (const part of messageParts) {
+        if (part.type === 'text' && 'text' in part) {
+          const text = part.text.trim()
+          if (text.length > 0) {
+            textEntries.push({ id: `${message.id}-block-${idx}`, content: text })
+          }
+        }
+        idx++
+      }
+    } else {
+      const mainTextBlocks = message.blocks
+        .map((blockId) => blockEntities[blockId])
+        .filter((b) => b?.type === MessageBlockType.MAIN_TEXT)
+      for (const block of mainTextBlocks) {
+        if (block?.content) {
+          textEntries.push({ id: block.id, content: block.content })
+        }
+      }
+    }
 
-    if (!mainTextBlocks?.length) return []
+    if (!textEntries.length) return []
 
     const result: HeadingItem[] = []
-    mainTextBlocks.forEach((mainTextBlock) => {
-      const tree = unified().use(remarkParse).parse(mainTextBlock?.content)
+    for (const entry of textEntries) {
+      const tree = unified().use(remarkParse).parse(entry.content)
       const slugger = createSlugger()
       visit(tree, ['heading', 'html'], (node) => {
         if (node.type === 'heading') {
@@ -47,25 +69,24 @@ const MessageOutline: FC<MessageOutlineProps> = ({ message }) => {
           if (!level || level < 1 || level > 6) return
           const text = extractTextFromNode(node)
           if (!text) return
-          const id = `heading-${mainTextBlock.id}--` + slugger.slug(text || '')
-          result.push({ id, level, text: text })
+          const id = `heading-${entry.id}--` + slugger.slug(text || '')
+          result.push({ id, level, text })
         } else if (node.type === 'html') {
-          // 匹配 <h1>...</h1> 到 <h6>...</h6>
           const match = node.value.match(/<h([1-6])[^>]*>(.*?)<\/h\1>/i)
           if (match) {
             const level = parseInt(match[1], 10)
-            const text = match[2].replace(/<[^>]*>/g, '').trim() // 移除内部的HTML标签
+            const text = match[2].replace(/<[^>]*>/g, '').trim()
             if (text) {
-              const id = `heading-${mainTextBlock.id}--${slugger.slug(text || '')}`
+              const id = `heading-${entry.id}--${slugger.slug(text || '')}`
               result.push({ id, level, text })
             }
           }
         }
       })
-    })
+    }
 
     return result
-  }, [message.blocks, blockEntities])
+  }, [partsMap, message.id, message.blocks, blockEntities])
 
   const miniLevel = useMemo(() => {
     return headings.length ? Math.min(...headings.map((heading) => heading.level)) : 1

@@ -48,6 +48,7 @@ import {
   findTranslationBlocksById,
   getMainTextContent
 } from '@renderer/utils/messageUtils/find'
+import { getTextFromParts, hasTextParts, hasTranslationParts } from '@renderer/utils/messageUtils/partsHelpers'
 import type { MenuProps } from 'antd'
 import { Dropdown, Popconfirm } from 'antd'
 import dayjs from 'dayjs'
@@ -73,7 +74,7 @@ import { useTranslation } from 'react-i18next'
 import { useSelector } from 'react-redux'
 import styled from 'styled-components'
 
-import { useV2BlockMap } from './Blocks'
+import { usePartsMap, useV2BlockMap } from './Blocks'
 import MessageTokens from './MessageTokens'
 
 const createTranslationAbortKey = (messageId: string) => `translation-abort-key:${messageId}`
@@ -192,33 +193,36 @@ const MessageMenubar: FC<Props> = (props) => {
   })
 
   const dispatch = useAppDispatch()
-  // const processedMessage = useMemo(() => {
-  //   if (message.role === 'assistant' && message.model && isReasoningModel(message.model)) {
-  //     return withMessageThought(message)
-  //   }
-  //   return message
-  // }, [message])
+  const partsMap = usePartsMap()
+  const v2Blocks = useV2BlockMap()
+  const reduxBlockEntities = useSelector(messageBlocksSelectors.selectEntities)
+  // V2 mode: read from context; V1 mode: read from Redux
+  const blockEntities = v2Blocks ?? reduxBlockEntities
+  const messageParts = partsMap?.[message.id]
 
   const mainTextContent = useMemo(() => {
-    // 只处理助手消息和来自推理模型的消息
-    // if (message.role === 'assistant' && message.model && isReasoningModel(message.model)) {
-    // return getMainTextContent(withMessageThought(message))
-    // }
-    return getMainTextContent(message)
-  }, [message])
+    if (messageParts) {
+      return getTextFromParts(messageParts)
+    }
+    return getMainTextContent(message, blockEntities)
+  }, [messageParts, message, blockEntities])
 
   const onCopy = useCallback(
     (e: React.MouseEvent) => {
       e.stopPropagation()
 
-      const currentMessageId = message.id // from props
-      const latestMessageEntity = store.getState().messages.entities[currentMessageId]
-
       let contentToCopy = ''
-      if (latestMessageEntity) {
-        contentToCopy = getMainTextContent(latestMessageEntity)
+      if (messageParts) {
+        // Parts-driven: read directly from parts
+        contentToCopy = getTextFromParts(messageParts)
       } else {
-        contentToCopy = getMainTextContent(message)
+        const currentMessageId = message.id
+        const latestMessageEntity = store.getState().messages.entities[currentMessageId]
+        if (latestMessageEntity) {
+          contentToCopy = getMainTextContent(latestMessageEntity)
+        } else {
+          contentToCopy = getMainTextContent(message, blockEntities)
+        }
       }
 
       void navigator.clipboard.writeText(removeTrailingDoubleSpaces(contentToCopy.trimStart()))
@@ -226,7 +230,7 @@ const MessageMenubar: FC<Props> = (props) => {
       window.toast.success(t('message.copied'))
       setCopied(true)
     },
-    [message, setCopied, t] // message is needed for message.id and as a fallback. t is for translation.
+    [message, blockEntities, setCopied, t]
   )
 
   const onNewBranch = useCallback(async () => {
@@ -246,11 +250,6 @@ const MessageMenubar: FC<Props> = (props) => {
   const onEdit = useCallback(async () => {
     startEditing(message.id)
   }, [message.id, startEditing])
-
-  const v2Blocks = useV2BlockMap()
-  const reduxBlockEntities = useSelector(messageBlocksSelectors.selectEntities)
-  // V2 mode: read from context; V1 mode: read from Redux
-  const blockEntities = v2Blocks ?? reduxBlockEntities
 
   const isTranslating = useMemo(() => {
     const translationBlock = message.blocks
@@ -276,7 +275,7 @@ const MessageMenubar: FC<Props> = (props) => {
         if (!isAbortError(error)) {
           window.toast.error(t('translate.error.failed'))
         }
-        const translationBlocks = findTranslationBlocksById(message.id)
+        const translationBlocks = findTranslationBlocksById(message.id, blockEntities)
         logger.silly(`there are ${translationBlocks.length} translation blocks`)
         if (translationBlocks.length > 0) {
           const block = translationBlocks[0]
@@ -314,8 +313,9 @@ const MessageMenubar: FC<Props> = (props) => {
   const { buttonIds, dropdownRootAllowKeys } = getMessageMenubarConfig(menubarScope)
 
   const isEditable = useMemo(() => {
-    return findMainTextBlocks(message).length > 0 // 使用 MCP Server 后会有大于一段 MatinTextBlock
-  }, [message])
+    if (messageParts) return hasTextParts(messageParts)
+    return findMainTextBlocks(message, blockEntities).length > 0
+  }, [messageParts, message, blockEntities])
 
   const dropdownItems = useMemo(() => {
     const items: MenuProps['items'] = [
@@ -565,9 +565,9 @@ const MessageMenubar: FC<Props> = (props) => {
   )
 
   const hasTranslationBlocks = useMemo(() => {
-    const translationBlocks = findTranslationBlocks(message)
-    return translationBlocks.length > 0
-  }, [message])
+    if (messageParts) return hasTranslationParts(messageParts)
+    return findTranslationBlocks(message, blockEntities).length > 0
+  }, [messageParts, message, blockEntities])
 
   const softHoverBg = isBubbleStyle && !isLastMessage
   const showMessageTokens = !isBubbleStyle

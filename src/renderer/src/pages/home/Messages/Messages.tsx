@@ -37,6 +37,7 @@ import { useTranslation } from 'react-i18next'
 import InfiniteScroll from 'react-infinite-scroll-component'
 import styled from 'styled-components'
 
+import { useV2BlockMap } from './Blocks'
 import MessageAnchorLine from './MessageAnchorLine'
 import MessageGroup from './MessageGroup'
 import NarrowLayout from './NarrowLayout'
@@ -76,6 +77,7 @@ const Messages: React.FC<MessagesProps> = ({
   const [messageNavigation] = usePreference('chat.message.navigation_mode')
   const { t } = useTranslation()
   const dispatch = useAppDispatch()
+  const v2BlockEntities = useV2BlockMap()
   const reduxMessages = useTopicMessages(topic.id)
   // V2 mode: use externally provided messages; V1 mode: read from Redux
   const messages = messagesProp ?? reduxMessages
@@ -282,7 +284,7 @@ const Messages: React.FC<MessagesProps> = ({
   useShortcut('copy_last_message', () => {
     const lastMessage = last(messages)
     if (lastMessage) {
-      void navigator.clipboard.writeText(getMainTextContent(lastMessage))
+      void navigator.clipboard.writeText(getMainTextContent(lastMessage, v2BlockEntities ?? undefined))
       window.toast.success(t('message.copy.success'))
     }
   })

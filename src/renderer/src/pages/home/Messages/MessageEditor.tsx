@@ -32,6 +32,7 @@ import styled from 'styled-components'
 
 import { FileNameRender, getFileIcon } from '../Inputbar/AttachmentPreview'
 import AttachmentButton from '../Inputbar/tools/components/AttachmentButton'
+import { useV2BlockMap } from './Blocks'
 
 interface Props {
   message: Message
@@ -44,7 +45,8 @@ interface Props {
 const logger = loggerService.withContext('MessageBlockEditor')
 
 const MessageBlockEditor: FC<Props> = ({ message, topicId, onSave, onResend, onCancel }) => {
-  const allBlocks = findAllBlocks(message)
+  const v2BlockEntities = useV2BlockMap()
+  const allBlocks = findAllBlocks(message, v2BlockEntities ?? undefined)
   const [editedBlocks, setEditedBlocks] = useState<MessageBlock[]>(allBlocks)
   const [files, setFiles] = useState<FileMetadata[]>([])
   const [isProcessing, setIsProcessing] = useState(false)

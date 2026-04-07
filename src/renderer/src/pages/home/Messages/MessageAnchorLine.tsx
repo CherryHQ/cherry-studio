@@ -19,6 +19,8 @@ import { type FC, useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
+import { useV2BlockMap } from './Blocks'
+
 interface MessageLineProps {
   messages: Message[]
 }
@@ -30,6 +32,7 @@ const getModelIcon = (isLocalAi: boolean, modelId: string | undefined) => {
 
 const MessageAnchorLine: FC<MessageLineProps> = ({ messages }) => {
   const { t } = useTranslation()
+  const v2BlockEntities = useV2BlockMap()
   const avatar = useAvatar()
   const { theme } = useTheme()
   const dispatch = useAppDispatch()
@@ -204,7 +207,7 @@ const MessageAnchorLine: FC<MessageLineProps> = ({ messages }) => {
           const size = 10 + calculateValueByDistance(message.id, 20)
           const ModelIcon = getModelIcon(isLocalAi, getMessageModelId(message))
           const username = removeLeadingEmoji(getUserName(message))
-          const content = getMainTextContent(message)
+          const content = getMainTextContent(message, v2BlockEntities ?? undefined)
 
           if (message.type === 'clear') return null
 

@@ -20,6 +20,7 @@ import { memo } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
+import { useV2BlockMap } from './Blocks'
 import MessageGroupModelList from './MessageGroupModelList'
 import MessageGroupSettings from './MessageGroupSettings'
 
@@ -41,6 +42,7 @@ const MessageGroupMenuBar: FC<Props> = ({
   topic
 }) => {
   const { t } = useTranslation()
+  const v2BlockEntities = useV2BlockMap()
   const { deleteGroupMessages, regenerateAssistantMessage } = useMessageOperations(topic)
   const { assistant } = useAssistant(messages[0]?.assistantId)
 
@@ -63,7 +65,7 @@ const MessageGroupMenuBar: FC<Props> = ({
   const isFailedMessage = (m: Message) => {
     if (m.role !== 'assistant') return false
     const isError = (m.status || '').toLowerCase() === 'error'
-    const content = getMainTextContent(m)
+    const content = getMainTextContent(m, v2BlockEntities ?? undefined)
     const noContent = !content || content.trim().length === 0
     const noBlocks = !m.blocks || m.blocks.length === 0
     return isError || noContent || noBlocks
