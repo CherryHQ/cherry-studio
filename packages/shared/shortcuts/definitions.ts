@@ -9,7 +9,7 @@ export const SHORTCUT_DEFINITIONS: readonly ShortcutDefinition[] = [
     category: 'app',
     labelKey: 'show_app',
     system: true,
-    persistOnBlur: true
+    global: true
   },
   {
     key: 'shortcut.app.show_mini_window',
@@ -18,7 +18,7 @@ export const SHORTCUT_DEFINITIONS: readonly ShortcutDefinition[] = [
     category: 'selection',
     labelKey: 'mini_window',
     system: true,
-    persistOnBlur: true,
+    global: true,
     enabledWhen: (getPreference) => !!getPreference('feature.quick_assistant.enabled')
   },
   {
@@ -155,7 +155,7 @@ export const SHORTCUT_DEFINITIONS: readonly ShortcutDefinition[] = [
     category: 'selection',
     labelKey: 'selection_assistant_toggle',
     system: true,
-    persistOnBlur: true,
+    global: true,
     supportedPlatforms: ['darwin', 'win32']
   },
   {
@@ -165,7 +165,7 @@ export const SHORTCUT_DEFINITIONS: readonly ShortcutDefinition[] = [
     category: 'selection',
     labelKey: 'selection_assistant_select_text',
     system: true,
-    persistOnBlur: true,
+    global: true,
     supportedPlatforms: ['darwin', 'win32']
   }
 ] as const

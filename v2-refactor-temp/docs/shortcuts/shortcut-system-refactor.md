@@ -117,7 +117,7 @@ v1 快捷键系统存在以下架构缺陷：
   labelKey: 'mini_window',              // i18n label key
   system: true,                          // 系统级（不可删除绑定）
   editable: true,                        // 用户可修改绑定（默认 true）
-  persistOnBlur: true,                   // 窗口失焦后仍然生效
+  global: true,                          // 全局快捷键（窗口失焦后仍然生效）
   enabledWhen: (get) => !!get('feature.quick_assistant.enabled'),
   supportedPlatforms: ['darwin', 'win32']
 }
@@ -134,7 +134,7 @@ v1 快捷键系统存在以下架构缺陷：
 | `labelKey` | i18n label key，由 `getShortcutLabel()` 消费 |
 | `editable` | 设为 `false` 表示用户不可修改绑定（如 Escape 退出全屏），默认 `true` |
 | `system` | 系统级标记，`true` 时不可删除绑定 |
-| `persistOnBlur` | 窗口失焦时是否保留注册（如 `show_main_window` 需要在任何时候响应） |
+| `global` | 全局快捷键，窗口失焦时是否保留注册（如 `show_main_window` 需要在任何时候响应） |
 | `variants` | 同一快捷键的多组绑定（如 zoom_in 同时绑定 `=` 和小键盘 `+`） |
 | `enabledWhen` | 动态启用条件，接收 `getPreference` 函数，在注册时求值 |
 | `supportedPlatforms` | 限制快捷键仅在指定操作系统上注册和显示，类型为 `SupportedPlatform[]`（`'darwin' | 'win32' | 'linux'`） |
@@ -236,9 +236,9 @@ this.handlers.set('shortcut.app.zoom_in', (window) => {
 
 ```
 窗口创建 → registerForWindow(window)
-    ├── 首次创建 + tray_on_launch → ready-to-show 时仅注册 persistOnBlur 快捷键
+    ├── 首次创建 + tray_on_launch → ready-to-show 时仅注册 global 快捷键
     ├── focus 事件 → registerShortcuts(window, false)  注册全部
-    └── blur 事件  → registerShortcuts(window, true)   仅保留 persistOnBlur
+    └── blur 事件  → registerShortcuts(window, true)   仅保留 global
 ```
 
 `registerShortcuts` 的核心流程：

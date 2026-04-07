@@ -31,8 +31,8 @@ export interface ShortcutDefinition {
   editable?: boolean
   /** System-level shortcut — when `true` the binding cannot be deleted. */
   system?: boolean
-  /** Whether the shortcut stays registered when the window loses focus (i.e. a global shortcut). */
-  persistOnBlur?: boolean
+  /** Global shortcut — stays registered when the window loses focus. Aligns with Electron `globalShortcut`. */
+  global?: boolean
   /** Additional equivalent bindings for the same action (e.g. numpad variants for zoom). */
   variants?: string[][]
   /** Dynamic enable condition evaluated at registration time. Return `false` to skip registration. */

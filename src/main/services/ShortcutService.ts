@@ -147,7 +147,7 @@ export class ShortcutService extends BaseService {
     const desired = new Map<string, { handler: ShortcutHandler; window: BrowserWindow }>()
 
     for (const definition of relevantDefinitions) {
-      if (onlyPersistent && !definition.persistOnBlur) continue
+      if (onlyPersistent && !definition.global) continue
 
       const rawPref = preferenceService.get(definition.key) as PreferenceShortcutType | undefined
       const pref = coerceShortcutPreference(definition, rawPref)
