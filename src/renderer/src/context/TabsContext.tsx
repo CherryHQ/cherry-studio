@@ -107,28 +107,6 @@ export function TabsProvider({ children }: { children: ReactNode }) {
   }, [pinnedTabs, normalTabs])
 
   /**
-   * Internal method: perform hibernation check and hibernate excess tabs
-   * TODO: Temporarily commented out, waiting for LRU strategy to be finalized (targeting normalTabs only or all tabs)
-   */
-  // const performHibernationCheck = useCallback((currentTabs: Tab[], newActiveTabId: string) => {
-  //   const toHibernate = lruManagerRef.current?.checkAndGetDormantCandidates(currentTabs, newActiveTabId) || []
-
-  //   if (toHibernate.length === 0) {
-  //     return currentTabs
-  //   }
-
-  //   // Batch hibernate
-  //   return currentTabs.map((tab) => {
-  //     if (toHibernate.includes(tab.id)) {
-  //       logger.info('Tab hibernated', { tabId: tab.id, route: tab.url })
-  //       const savedState: TabSavedState = { scrollPosition: 0 }
-  //       return { ...tab, isDormant: true, savedState }
-  //     }
-  //     return tab
-  //   })
-  // }, [])
-
-  /**
    * Hibernate tab (manual)
    */
   const hibernateTab = useCallback(
@@ -376,32 +354,10 @@ export function TabsProvider({ children }: { children: ReactNode }) {
       // Send IPC message to create new window
       window.electron.ipcRenderer.send(IpcChannel.Tab_Detach, tab)
 
-      // Close tab in current window
-      // If it's a pinned tab, we unpin it first to remove it from the list
-      if (tab.isPinned) {
-        setPinnedTabs((prev) => prev.filter((t) => t.id !== tabId))
-      }
-      setNormalTabs((prev) => prev.filter((t) => t.id !== tabId))
-
-      // If it was the active tab, closeTab logic will handle switching to another tab
-      // But since we manually removed it from lists above, we need to handle active tab switch manually if needed
-      // Actually, standard closeTab handles both removal and active switch.
-      // Let's just use closeTab?
-      // closeTab handles pinned/normal distinction.
-      // But for pinned tabs, closeTab only removes it if we unpin it first (or if we modify closeTab).
-      // Wait, normal closeTab logic:
-      /*
-      if (tab.isPinned) {
-        setPinnedTabs((prev) => prev.filter((t) => t.id !== id))
-      } else {
-        setNormalTabs((prev) => prev.filter((t) => t.id !== id))
-      }
-      */
-      // So closeTab is sufficient for removal.
-
+      // Remove tab from current window — closeTab handles both pinned and normal tabs
       closeTab(tabId)
     },
-    [tabs, closeTab, setPinnedTabs] // setPinnedTabs added to deps
+    [tabs, closeTab]
   )
 
   /**

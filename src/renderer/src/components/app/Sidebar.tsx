@@ -168,8 +168,7 @@ const MainMenus: FC = () => {
 
   // 在当前 Tab 内跳转
   const to = async (path: string) => {
-    // await modelGenerating()
-    console.log('activeTabId', activeTab)
+    await modelGenerating()
     if (activeTab?.id) {
       updateTab(activeTab.id, { url: path, title: getDefaultRouteTitle(path) })
     }

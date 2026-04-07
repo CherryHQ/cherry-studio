@@ -1,67 +1,107 @@
 import { is } from '@electron-toolkit/utils'
 import { titleBarOverlayDark, titleBarOverlayLight } from '@main/config'
 import { isMac } from '@main/constant'
+import { application } from '@main/core/application'
+import { BaseService, DependsOn, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import { IpcChannel } from '@shared/IpcChannel'
-import { BrowserWindow, ipcMain, nativeTheme, shell } from 'electron'
+import { BrowserWindow, nativeTheme, shell } from 'electron'
 import { join } from 'path'
 
 import icon from '../../../build/icon.png?asset'
 import { loggerService } from './LoggerService'
-import { windowService } from './WindowService'
 
 const logger = loggerService.withContext('DetachedWindowManager')
+
+/** Height of the tab bar area used for drag-to-attach detection (must match CSS h-10) */
 const TAB_BAR_HEIGHT = 40
 
-export class DetachedWindowManager {
+@Injectable('DetachedWindowManager')
+@ServicePhase(Phase.WhenReady)
+@DependsOn(['WindowService'])
+export class DetachedWindowManager extends BaseService {
   private windows: Map<string, BrowserWindow> = new Map()
 
-  constructor() {
-    this.registerIpc()
+  protected async onInit() {
+    this.registerIpcHandlers()
   }
 
-  private registerIpc() {
-    ipcMain.on(IpcChannel.Tab_Detach, (_, payload) => {
+  private getWindowService() {
+    return application.get('WindowService')
+  }
+
+  private registerIpcHandlers() {
+    this.ipcOn(IpcChannel.Tab_Detach, (_, payload) => {
       this.createWindow(payload)
     })
 
-    ipcMain.handle(IpcChannel.Tab_Attach, (_, payload) => {
-      const mainWindow = windowService.getMainWindow()
-      if (mainWindow && !mainWindow.isDestroyed()) {
-        mainWindow.webContents.send(IpcChannel.Tab_Attach, payload)
+    this.ipcHandle(IpcChannel.Tab_Attach, (event, payload) => {
+      const mainWindow = this.getWindowService().getMainWindow()
+      if (!mainWindow || mainWindow.isDestroyed()) {
+        logger.warn('Tab_Attach failed: main window not available')
+        return false
       }
+
+      try {
+        mainWindow.webContents.send(IpcChannel.Tab_Attach, payload)
+      } catch (err: any) {
+        logger.error('Tab_Attach failed: could not send to main window', err as Error)
+        return false
+      }
+
+      // Only close sender after successful send
+      const senderWindow = BrowserWindow.fromWebContents(event.sender)
+      if (senderWindow && senderWindow !== mainWindow && !senderWindow.isDestroyed()) {
+        try {
+          senderWindow.close()
+        } catch (err: any) {
+          logger.error('Failed to close detached window after tab attach', err as Error)
+        }
+      }
+      return true
     })
 
-    ipcMain.on(IpcChannel.Tab_MoveWindow, (event, payload: { tabId: string; x: number; y: number }) => {
-      const win = BrowserWindow.fromWebContents(event.sender) ?? this.windows.get(payload.tabId)
+    this.ipcOn(IpcChannel.Tab_MoveWindow, (event, payload: { tabId: string; x: number; y: number }) => {
+      // Prefer tabId lookup: when the main window sends this IPC, event.sender is the main window,
+      // but we want to move the detached window identified by tabId.
+      const win = this.windows.get(payload.tabId) ?? BrowserWindow.fromWebContents(event.sender)
       if (win && !win.isDestroyed()) {
         win.setPosition(Math.round(payload.x), Math.round(payload.y))
         if (!win.isVisible()) {
           win.show()
         }
-        if (win.getOpacity() !== 0.5) {
-          win.setOpacity(0.5)
+        // Only apply opacity when the detached window is dragging its own tab (preparing to reattach).
+        // When the main window sends Tab_MoveWindow, event.sender differs from the detached window.
+        const senderWindow = BrowserWindow.fromWebContents(event.sender)
+        if (senderWindow === win && win.getOpacity() !== 0.85) {
+          win.setOpacity(0.85)
         }
       }
     })
 
-    // Detached window drag back to main window: check if mouse is within the main window tab bar area
-    ipcMain.handle(
+    this.ipcHandle(
       IpcChannel.Tab_TryAttach,
       (_, payload: { tab: { id: string }; screenX: number; screenY: number }) => {
-        const mainWindow = windowService.getMainWindow()
-        if (!mainWindow || mainWindow.isDestroyed()) return false
+        const mainWindow = this.getWindowService().getMainWindow()
+        if (!mainWindow || mainWindow.isDestroyed()) {
+          logger.warn('Tab_TryAttach failed: main window not available')
+          return false
+        }
 
         const bounds = mainWindow.getBounds()
-        const tabBarHeight = TAB_BAR_HEIGHT
 
         const isOverTabBar =
           payload.screenX >= bounds.x &&
           payload.screenX <= bounds.x + bounds.width &&
           payload.screenY >= bounds.y &&
-          payload.screenY <= bounds.y + tabBarHeight
+          payload.screenY <= bounds.y + TAB_BAR_HEIGHT
 
         if (isOverTabBar) {
-          mainWindow.webContents.send(IpcChannel.Tab_Attach, payload.tab)
+          try {
+            mainWindow.webContents.send(IpcChannel.Tab_Attach, payload.tab)
+          } catch (err: any) {
+            logger.error('Tab_TryAttach failed: could not send to main window', err as Error)
+            return false
+          }
 
           const detachedWin = this.windows.get(payload.tab.id)
           if (detachedWin && !detachedWin.isDestroyed()) {
@@ -70,7 +110,7 @@ export class DetachedWindowManager {
           return true
         }
 
-        // Not merged, restore opacity
+        // Not over tab bar — restore opacity
         const detachedWin = this.windows.get(payload.tab.id)
         if (detachedWin && !detachedWin.isDestroyed()) {
           detachedWin.setOpacity(1)
@@ -80,8 +120,12 @@ export class DetachedWindowManager {
       }
     )
 
-    ipcMain.on(IpcChannel.Tab_DragEnd, () => {
-      logger.info('Tab drag end')
+    this.ipcOn(IpcChannel.Tab_DragEnd, (event) => {
+      // Restore opacity for the sender window after drag ends
+      const senderWindow = BrowserWindow.fromWebContents(event.sender)
+      if (senderWindow && !senderWindow.isDestroyed() && senderWindow.getOpacity() < 1) {
+        senderWindow.setOpacity(1)
+      }
     })
   }
 
@@ -140,11 +184,21 @@ export class DetachedWindowManager {
     })
 
     if (is.dev && process.env['ELECTRON_RENDERER_URL']) {
-      void win.loadURL(`${process.env['ELECTRON_RENDERER_URL']}/detachedWindow.html?${params.toString()}`)
-    } else {
-      void win.loadFile(join(__dirname, '../renderer/detachedWindow.html'), {
-        search: params.toString()
+      win.loadURL(`${process.env['ELECTRON_RENDERER_URL']}/detachedWindow.html?${params.toString()}`).catch((err) => {
+        logger.error(`Failed to load detached window URL for tab ${tabId}`, err)
+        this.windows.delete(tabId)
+        if (!win.isDestroyed()) win.close()
       })
+    } else {
+      win
+        .loadFile(join(__dirname, '../renderer/detachedWindow.html'), {
+          search: params.toString()
+        })
+        .catch((err) => {
+          logger.error(`Failed to load detached window file for tab ${tabId}`, err)
+          this.windows.delete(tabId)
+          if (!win.isDestroyed()) win.close()
+        })
     }
 
     win.on('ready-to-show', () => {
@@ -168,5 +222,3 @@ export class DetachedWindowManager {
     return win
   }
 }
-
-export const detachedWindowManager = new DetachedWindowManager()

@@ -1,3 +1,4 @@
+import { loggerService } from '@logger'
 import { isLinux, isMac, isWin } from '@renderer/config/constant'
 import { cn, uuid } from '@renderer/utils'
 import { getDefaultRouteTitle } from '@renderer/utils/routeTitle'
@@ -6,6 +7,8 @@ import { Home, Plus, X } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 
 import type { Tab } from '../../hooks/useTabs'
+
+const logger = loggerService.withContext('AppShellTabBar')
 
 const HOME_TAB_ID = 'home'
 const DRAG_THRESHOLD = 5
@@ -21,8 +24,6 @@ type AppShellTabBarProps = {
   closeTab: (id: string) => void
   addTab: (tab: Tab) => void
   reorderTabs: (type: 'pinned' | 'normal', oldIndex: number, newIndex: number) => void
-  detachTab?: (tabId: string) => void
-  attachTab?: (tab: Tab) => void
   isDetached?: boolean
 }
 
@@ -498,8 +499,11 @@ export const AppShellTabBar = ({
               screenX: e.screenX,
               screenY: e.screenY
             })
-            .catch(() => {
-              // Main window not available, window stays detached
+            .catch((err: unknown) => {
+              logger.debug(
+                'Tab_TryAttach failed, window stays detached',
+                err instanceof Error ? err : new Error(String(err))
+              )
             })
         }
         setDragState(null)

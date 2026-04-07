@@ -8,6 +8,7 @@ import { ApiServerService } from '@main/services/ApiServerService'
 import { AppMenuService } from '@main/services/AppMenuService'
 import { AppUpdaterService } from '@main/services/AppUpdaterService'
 import { CodeCliService } from '@main/services/CodeCliService'
+import { DetachedWindowManager } from '@main/services/DetachedWindowManager'
 import { LanTransferService } from '@main/services/lanTransfer'
 import { MCPService } from '@main/services/MCPService'
 import { NodeTraceService } from '@main/services/NodeTraceService'
@@ -55,6 +56,7 @@ export const services = {
   DbService,
   CacheService,
   DataApiService,
+  DetachedWindowManager,
   PreferenceService,
   AnalyticsService,
   AppMenuService,
