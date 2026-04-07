@@ -11,10 +11,12 @@ import { getSidebarIconLabel, getThemeModeLabel } from '@renderer/i18n/label'
 import { ThemeMode } from '@renderer/types'
 import { getDefaultRouteTitle } from '@renderer/utils/routeTitle'
 import type { SidebarIcon as SidebarIconType } from '@shared/data/preference/preferenceTypes'
+import type { LucideIcon } from 'lucide-react'
 import {
   Code,
   FileSearch,
   Folder,
+  Globe,
   Languages,
   LayoutGrid,
   MessageSquare,
@@ -31,13 +33,14 @@ import type { Ref } from 'react'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
+import type { Tab } from '../../hooks/useTabs'
 import { useTabs } from '../../hooks/useTabs'
 import { OpenClawSidebarIcon } from '../Icons/SVGIcon'
 import UserPopup from '../Popups/UserPopup'
 import { Sidebar as UISidebar } from '../Sidebar'
 import { getSidebarLayout } from '../Sidebar/constants'
 import { SidebarTooltip } from '../Sidebar/Tooltip'
-import type { SidebarMenuItem, SidebarMiniApp, SidebarMiniAppTab, SidebarUser } from '../Sidebar/types'
+import type { SidebarMenuItem, SidebarMiniApp, SidebarMiniAppTab, SidebarTab, SidebarUser } from '../Sidebar/types'
 
 const routePrefixMap: Record<SidebarIconType, string> = {
   assistants: '/app/chat',
@@ -81,6 +84,14 @@ function resolveActiveItem(pathname: string): SidebarIconType | '' {
   return match?.[0] || ''
 }
 
+function resolveIconForDockedTab(pathname: string, tabType: Tab['type']): LucideIcon {
+  if (tabType === 'webview') return Globe
+  const item = resolveActiveItem(pathname)
+  const Icon = item ? iconMap[item] : undefined
+  if (Icon) return Icon
+  return MessageSquare
+}
+
 export default function Sidebar({
   ref,
   isDockDropTarget = false
@@ -91,7 +102,7 @@ export default function Sidebar({
   const { t } = useTranslation()
   const [visibleSidebarIcons] = usePreference('ui.sidebar.icons.visible')
   const [showOpenedInSidebar] = usePreference('feature.minapp.show_opened_in_sidebar')
-  const { activeTab, activeTabId, updateTab } = useTabs()
+  const { activeTab, activeTabId, updateTab, dockedTabs, setActiveTab, closeTab } = useTabs()
   const { defaultPaintingProvider } = useSettings()
   const { settedTheme, toggleTheme } = useTheme()
 
@@ -143,6 +154,35 @@ export default function Sidebar({
       }
     },
     [openedKeepAliveMinapps, openMinappKeepAlive]
+  )
+
+  const sidebarDockedTabs = useMemo<SidebarTab[]>(
+    () =>
+      dockedTabs.map((tab) => ({
+        id: tab.id,
+        title: tab.title,
+        type: 'route' as const,
+        icon: resolveIconForDockedTab(tab.url, tab.type)
+      })),
+    [dockedTabs]
+  )
+
+  const handleDockedOrMiniAppTabClick = useCallback(
+    (tabId: string) => {
+      if (dockedTabs.some((t) => t.id === tabId)) {
+        setActiveTab(tabId)
+        return
+      }
+      handleMiniAppTabClick(tabId)
+    },
+    [dockedTabs, setActiveTab, handleMiniAppTabClick]
+  )
+
+  const handleCloseDockedTab = useCallback(
+    (tabId: string) => {
+      closeTab(tabId)
+    },
+    [closeTab]
   )
 
   // Floating sidebar (hover reveal when hidden)
@@ -251,10 +291,16 @@ export default function Sidebar({
     logo: <img src={AppLogo} alt="Cherry Studio" className="h-9 w-9 rounded-lg" draggable={false} />,
     user: sidebarUser,
     actions: bottomActions,
-    activeTabId: minappShow ? currentMinappId : undefined,
+    activeTabId: minappShow
+      ? currentMinappId
+      : dockedTabs.some((tab) => tab.id === activeTabId)
+        ? activeTabId
+        : undefined,
+    dockedTabs: sidebarDockedTabs,
     isDockDropTarget,
     onItemClick: handleNavigate,
-    onMiniAppTabClick: handleMiniAppTabClick
+    onMiniAppTabClick: handleDockedOrMiniAppTabClick,
+    onCloseDockedTab: handleCloseDockedTab
   }
 
   return (

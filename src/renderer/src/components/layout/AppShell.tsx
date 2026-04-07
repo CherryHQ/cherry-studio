@@ -1,7 +1,7 @@
 import '@renderer/databases'
 
 import { getDefaultRouteTitle } from '@renderer/utils/routeTitle'
-import { Activity, useRef, useState } from 'react'
+import { Activity, useMemo, useRef, useState } from 'react'
 
 import { useTabs } from '../../hooks/useTabs'
 import Sidebar from '../app/Sidebar'
@@ -19,9 +19,14 @@ const WebviewContainer = ({ url, isActive }: { url: string; isActive: boolean })
 )
 
 export const AppShell = () => {
-  const { tabs, activeTabId, setActiveTab, closeTab, updateTab, addTab, reorderTabs, dockTab } = useTabs()
+  const { tabs, dockedTabs, activeTabId, setActiveTab, closeTab, updateTab, addTab, reorderTabs, dockTab } =
+    useTabs()
   const sidebarRef = useRef<HTMLDivElement>(null)
   const [isSidebarDockHover, setIsSidebarDockHover] = useState(false)
+  const contentTabs = useMemo(
+    () => [...tabs, ...dockedTabs.filter((dockedTab) => !tabs.some((tab) => tab.id === dockedTab.id))],
+    [tabs, dockedTabs]
+  )
 
   // Sync internal navigation back to tab state with default title
   const handleUrlChange = (tabId: string, url: string) => {
@@ -51,7 +56,7 @@ export const AppShell = () => {
         {/* Zone 2b: Content Area - Multi MemoryRouter Architecture */}
         <main className="relative flex-1 overflow-hidden bg-background">
           {/* Route Tabs: Only render non-dormant tabs */}
-          {tabs
+          {contentTabs
             .filter((t) => t.type === 'route' && !t.isDormant)
             .map((tab) => (
               <TabRouter
@@ -63,7 +68,7 @@ export const AppShell = () => {
             ))}
 
           {/* Webview Tabs: Only render non-dormant tabs */}
-          {tabs
+          {contentTabs
             .filter((t) => t.type === 'webview' && !t.isDormant)
             .map((tab) => (
               <WebviewContainer key={tab.id} url={tab.url} isActive={tab.id === activeTabId} />

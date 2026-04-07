@@ -59,6 +59,11 @@ export interface TabsContextValue {
   // Drag and drop
   reorderTabs: (type: 'pinned' | 'normal', oldIndex: number, newIndex: number) => void
 
+  // Sidebar docked tabs
+  dockedTabs: Tab[]
+  dockTab: (tabId: string) => void
+  undockTab: (tabId: string) => void
+
   // Detach
   detachTab: (tabId: string) => void
 
@@ -92,6 +97,26 @@ export function TabsProvider({ children }: { children: ReactNode }) {
   // Normal tabs - in-memory storage (cleared on restart), excludes home tab
   const [normalTabs, setNormalTabs] = useState<Tab[]>([])
 
+  const normalTabsRef = useRef(normalTabs)
+  normalTabsRef.current = normalTabs
+
+  // Docked tabs (sidebar) — persistent
+  const [dockedTabs, setDockedTabsRaw] = usePersistCache('ui.sidebar.docked_tabs')
+  const dockedTabsRef = useRef(dockedTabs)
+  dockedTabsRef.current = dockedTabs
+
+  const setDockedTabs = useCallback(
+    (updater: Tab[] | ((prev: Tab[]) => Tab[])) => {
+      if (typeof updater === 'function') {
+        const newValue = updater(dockedTabsRef.current || [])
+        setDockedTabsRaw(newValue)
+      } else {
+        setDockedTabsRaw(updater)
+      }
+    },
+    [setDockedTabsRaw]
+  )
+
   // Active tab ID - in-memory storage
   const [activeTabId, setActiveTabIdState] = useState<string>(DEFAULT_TAB.id)
 
@@ -106,12 +131,16 @@ export function TabsProvider({ children }: { children: ReactNode }) {
     return [DEFAULT_TAB, ...(pinnedTabs || []), ...normalTabs]
   }, [pinnedTabs, normalTabs])
 
+  const allTabs = useMemo(() => {
+    return [...tabs, ...(dockedTabs || [])]
+  }, [tabs, dockedTabs])
+
   /**
    * Hibernate tab (manual)
    */
   const hibernateTab = useCallback(
     (tabId: string) => {
-      const tab = tabs.find((t) => t.id === tabId)
+      const tab = allTabs.find((t) => t.id === tabId)
       if (!tab || tab.isDormant) return
 
       const savedState: TabSavedState = { scrollPosition: 0 }
@@ -119,11 +148,13 @@ export function TabsProvider({ children }: { children: ReactNode }) {
 
       if (tab.isPinned) {
         setPinnedTabs((prev) => prev.map((t) => (t.id === tabId ? { ...t, isDormant: true, savedState } : t)))
+      } else if ((dockedTabsRef.current || []).some((t) => t.id === tabId)) {
+        setDockedTabs((prev) => prev.map((t) => (t.id === tabId ? { ...t, isDormant: true, savedState } : t)))
       } else {
         setNormalTabs((prev) => prev.map((t) => (t.id === tabId ? { ...t, isDormant: true, savedState } : t)))
       }
     },
-    [tabs, setPinnedTabs]
+    [allTabs, setPinnedTabs, setDockedTabs]
   )
 
   /**
@@ -131,7 +162,7 @@ export function TabsProvider({ children }: { children: ReactNode }) {
    */
   const wakeTab = useCallback(
     (tabId: string) => {
-      const tab = tabs.find((t) => t.id === tabId)
+      const tab = allTabs.find((t) => t.id === tabId)
       if (!tab || !tab.isDormant) return
 
       logger.info('Tab awakened', { tabId, route: tab.url })
@@ -140,34 +171,40 @@ export function TabsProvider({ children }: { children: ReactNode }) {
         setPinnedTabs((prev) =>
           prev.map((t) => (t.id === tabId ? { ...t, isDormant: false, lastAccessTime: Date.now() } : t))
         )
+      } else if ((dockedTabsRef.current || []).some((t) => t.id === tabId)) {
+        setDockedTabs((prev) =>
+          prev.map((t) => (t.id === tabId ? { ...t, isDormant: false, lastAccessTime: Date.now() } : t))
+        )
       } else {
         setNormalTabs((prev) =>
           prev.map((t) => (t.id === tabId ? { ...t, isDormant: false, lastAccessTime: Date.now() } : t))
         )
       }
     },
-    [tabs, setPinnedTabs]
+    [allTabs, setPinnedTabs, setDockedTabs]
   )
 
   const updateTab = useCallback(
     (id: string, updates: Partial<Tab>) => {
-      const tab = tabs.find((t) => t.id === id)
+      const tab = allTabs.find((t) => t.id === id)
       if (!tab) return
 
       if (tab.isPinned) {
         setPinnedTabs((prev) => prev.map((t) => (t.id === id ? { ...t, ...updates } : t)))
+      } else if ((dockedTabsRef.current || []).some((t) => t.id === id)) {
+        setDockedTabs((prev) => prev.map((t) => (t.id === id ? { ...t, ...updates } : t)))
       } else {
         setNormalTabs((prev) => prev.map((t) => (t.id === id ? { ...t, ...updates } : t)))
       }
     },
-    [tabs, setPinnedTabs]
+    [allTabs, setPinnedTabs, setDockedTabs]
   )
 
   const setActiveTab = useCallback(
     (id: string) => {
       if (id === activeTabId) return
 
-      const targetTab = tabs.find((t) => t.id === id)
+      const targetTab = allTabs.find((t) => t.id === id)
       if (!targetTab) return
 
       // If a dormant tab was awakened, log it
@@ -180,6 +217,10 @@ export function TabsProvider({ children }: { children: ReactNode }) {
         setPinnedTabs((prev) =>
           prev.map((t) => (t.id === id ? { ...t, lastAccessTime: Date.now(), isDormant: false } : t))
         )
+      } else if ((dockedTabsRef.current || []).some((t) => t.id === id)) {
+        setDockedTabs((prev) =>
+          prev.map((t) => (t.id === id ? { ...t, lastAccessTime: Date.now(), isDormant: false } : t))
+        )
       } else {
         setNormalTabs((prev) =>
           prev.map((t) => (t.id === id ? { ...t, lastAccessTime: Date.now(), isDormant: false } : t))
@@ -188,12 +229,12 @@ export function TabsProvider({ children }: { children: ReactNode }) {
 
       setActiveTabIdState(id)
     },
-    [activeTabId, tabs, setPinnedTabs]
+    [activeTabId, allTabs, setPinnedTabs, setDockedTabs]
   )
 
   const addTab = useCallback(
     (tab: Tab) => {
-      const exists = tabs.find((t) => t.id === tab.id)
+      const exists = allTabs.find((t) => t.id === tab.id)
       if (exists) {
         setActiveTab(tab.id)
         return
@@ -213,19 +254,32 @@ export function TabsProvider({ children }: { children: ReactNode }) {
 
       setActiveTabIdState(tab.id)
     },
-    [tabs, setActiveTab, setPinnedTabs]
+    [allTabs, setActiveTab, setPinnedTabs]
   )
 
   const closeTab = useCallback(
     (id: string) => {
-      const tab = tabs.find((t) => t.id === id)
+      if ((dockedTabsRef.current || []).some((t) => t.id === id)) {
+        let newActiveId = activeTabId
+        if (activeTabId === id) {
+          const index = allTabs.findIndex((t) => t.id === id)
+          const remainingTabs = allTabs.filter((t) => t.id !== id)
+          const nextTab = remainingTabs[index - 1] || remainingTabs[index] || remainingTabs[0]
+          newActiveId = nextTab ? nextTab.id : ''
+        }
+        setDockedTabs((prev) => prev.filter((t) => t.id !== id))
+        setActiveTabIdState(newActiveId)
+        return
+      }
+
+      const tab = allTabs.find((t) => t.id === id)
       if (!tab) return
 
       // Calculate new activeTabId
       let newActiveId = activeTabId
       if (activeTabId === id) {
-        const index = tabs.findIndex((t) => t.id === id)
-        const remainingTabs = tabs.filter((t) => t.id !== id)
+        const index = allTabs.findIndex((t) => t.id === id)
+        const remainingTabs = allTabs.filter((t) => t.id !== id)
         const nextTab = remainingTabs[index - 1] || remainingTabs[index] || remainingTabs[0]
         newActiveId = nextTab ? nextTab.id : ''
       }
@@ -238,7 +292,7 @@ export function TabsProvider({ children }: { children: ReactNode }) {
 
       setActiveTabIdState(newActiveId)
     },
-    [tabs, activeTabId, setPinnedTabs]
+    [allTabs, activeTabId, setPinnedTabs, setDockedTabs]
   )
 
   const setTabs = useCallback(
@@ -250,6 +304,45 @@ export function TabsProvider({ children }: { children: ReactNode }) {
       setNormalTabs(normal)
     },
     [tabs, setPinnedTabs]
+  )
+
+  const undockTab = useCallback(
+    (tabId: string) => {
+      const docked = (dockedTabsRef.current || []).find((t) => t.id === tabId)
+      if (!docked) return
+
+      setDockedTabs((prev) => prev.filter((t) => t.id !== tabId))
+      setNormalTabs((prev) => {
+        if (prev.some((t) => t.id === tabId)) return prev
+        return [...prev, { ...docked, isPinned: false, lastAccessTime: Date.now() }]
+      })
+      setActiveTabIdState(tabId)
+    },
+    [setDockedTabs]
+  )
+
+  const dockTab = useCallback(
+    (tabId: string) => {
+      if (tabId === DEFAULT_TAB.id) return
+
+      const dockableTabs = [DEFAULT_TAB, ...(pinnedTabsRef.current || []), ...normalTabsRef.current]
+      const tab = dockableTabs.find((t) => t.id === tabId)
+      if (!tab) return
+
+      if (tab.isPinned) {
+        setPinnedTabs((prev) => prev.filter((t) => t.id !== tabId))
+      } else {
+        setNormalTabs((prev) => prev.filter((t) => t.id !== tabId))
+      }
+
+      setDockedTabs((prev) => {
+        if (prev.some((t) => t.id === tabId)) return prev
+        return [...prev, { ...tab, isPinned: false }]
+      })
+
+      logger.info('Tab docked to sidebar', { tabId, url: tab.url })
+    },
+    [setPinnedTabs, setDockedTabs]
   )
 
   /**
@@ -264,6 +357,11 @@ export function TabsProvider({ children }: { children: ReactNode }) {
         if (existingTab) {
           setActiveTab(existingTab.id)
           return existingTab.id
+        }
+        const dockedMatch = (dockedTabsRef.current || []).find((t) => t.type === type && t.url === url)
+        if (dockedMatch) {
+          setActiveTab(dockedMatch.id)
+          return dockedMatch.id
         }
       }
 
@@ -348,7 +446,7 @@ export function TabsProvider({ children }: { children: ReactNode }) {
    */
   const detachTab = useCallback(
     (tabId: string) => {
-      const tab = tabs.find((t) => t.id === tabId)
+      const tab = allTabs.find((t) => t.id === tabId)
       if (!tab) return
 
       // Send IPC message to create new window
@@ -357,7 +455,7 @@ export function TabsProvider({ children }: { children: ReactNode }) {
       // Remove tab from current window — closeTab handles both pinned and normal tabs
       closeTab(tabId)
     },
-    [tabs, closeTab]
+    [allTabs, closeTab]
   )
 
   /**
@@ -366,11 +464,15 @@ export function TabsProvider({ children }: { children: ReactNode }) {
   const attachTab = useCallback(
     (tabData: Tab) => {
       // Check if tab already exists
-      const exists = tabs.find((t) => t.id === tabData.id)
+      const exists = allTabs.find((t) => t.id === tabData.id)
       if (exists) {
         setActiveTab(tabData.id)
         logger.info('Tab already exists, activating', { tabId: tabData.id })
         return
+      }
+
+      if ((dockedTabsRef.current || []).some((t) => t.id === tabData.id)) {
+        setDockedTabs((prev) => prev.filter((t) => t.id !== tabData.id))
       }
 
       // Restore tab with updated timestamp
@@ -390,7 +492,7 @@ export function TabsProvider({ children }: { children: ReactNode }) {
       setActiveTabIdState(restoredTab.id)
       logger.info('Tab attached from detached window', { tabId: tabData.id, url: tabData.url })
     },
-    [tabs, setActiveTab, setPinnedTabs]
+    [allTabs, setActiveTab, setPinnedTabs, setDockedTabs]
   )
 
   // Listen for tab attach requests (from Main Process)
@@ -407,7 +509,7 @@ export function TabsProvider({ children }: { children: ReactNode }) {
   /**
    * Get the currently active tab
    */
-  const activeTab = useMemo(() => tabs.find((t) => t.id === activeTabId), [tabs, activeTabId])
+  const activeTab = useMemo(() => allTabs.find((t) => t.id === activeTabId), [allTabs, activeTabId])
 
   const value: TabsContextValue = {
     // State
@@ -439,7 +541,12 @@ export function TabsProvider({ children }: { children: ReactNode }) {
     attachTab,
 
     // Drag and drop
-    reorderTabs
+    reorderTabs,
+
+    // Sidebar docked tabs
+    dockedTabs: dockedTabs || [],
+    dockTab,
+    undockTab
   }
 
   return <TabsContext value={value}>{children}</TabsContext>
