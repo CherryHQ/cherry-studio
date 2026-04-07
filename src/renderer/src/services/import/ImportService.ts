@@ -202,8 +202,10 @@ class ImportServiceClass {
       let totalTopics = 0
       let totalMessages = 0
       const errors: string[] = []
+      let totalErrorCount = 0
       const MAX_ERRORS = 100
       const pushError = (msg: string) => {
+        totalErrorCount++
         if (errors.length < MAX_ERRORS) errors.push(msg)
       }
 
@@ -340,7 +342,7 @@ class ImportServiceClass {
           success: false,
           topicsCount: 0,
           messagesCount: 0,
-          error: errors.length > 0 ? errors.slice(0, 3).join('; ') : 'No valid conversations found'
+          error: totalErrorCount > 0 ? errors.slice(0, 3).join('; ') : 'No valid conversations found'
         }
       }
 
@@ -379,8 +381,8 @@ class ImportServiceClass {
       )
 
       // Log detailed error summary
-      if (errors.length > 0) {
-        logger.warn(`=== IMPORT ERRORS SUMMARY (${errors.length} files) ===`)
+      if (totalErrorCount > 0) {
+        logger.warn(`=== IMPORT ERRORS SUMMARY (${totalErrorCount} files) ===`)
         const readErrors = errors.filter((e) => e.startsWith('READ FAILED'))
         const formatErrors = errors.filter((e) => e.startsWith('INVALID FORMAT'))
         const emptyErrors = errors.filter((e) => e.startsWith('EMPTY'))
@@ -406,7 +408,7 @@ class ImportServiceClass {
         assistant: assistants[0],
         topicsCount: totalTopics,
         messagesCount: totalMessages,
-        error: errors.length > 0 ? `${errors.length} files had errors` : undefined
+        error: totalErrorCount > 0 ? `${totalErrorCount} files had errors` : undefined
       }
     } catch (error) {
       logger.error('Streaming import failed:', error as Error)

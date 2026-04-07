@@ -65,16 +65,28 @@ const PopupContainer: React.FC<Props> = ({ resolve, initialSource }) => {
 
     // List all files in the folder recursively
     // listDirectory returns an array of file path strings
+    const MAX_ENTRIES = 2000
     const filePaths: string[] = await window.api.file.listDirectory(folderPath, {
       recursive: true,
       maxDepth: 3,
       includeFiles: true,
       includeDirectories: false,
-      maxEntries: 2000,
+      maxEntries: MAX_ENTRIES,
       searchPattern: '.json'
     })
 
     logger.info('Found files', { count: filePaths?.length, sample: filePaths?.slice(0, 5) })
+
+    // Warn if listing was likely truncated — real conversation files may have been dropped
+    if (filePaths?.length === MAX_ENTRIES) {
+      logger.warn('listDirectory returned exactly maxEntries — results may be truncated')
+      window.toast.warning(
+        t('import.claude.error.too_many_files', {
+          defaultValue:
+            'The selected folder contains too many files. Some conversations may not be imported. Try selecting a more specific subfolder.'
+        })
+      )
+    }
 
     // Helper: check for absolute path on both Unix and Windows
     const isAbsolutePath = (p: string) => p.startsWith('/') || /^[A-Za-z]:/.test(p)
