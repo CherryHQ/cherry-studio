@@ -72,16 +72,16 @@ const MinAppTabsPool: React.FC = () => {
 
   /** 当某个已在 Map 里但不再属于 openedKeepAlive 时，移除引用（React 自身会卸载元素） */
   useEffect(() => {
-    const existing = Array.from(webviewRefs.current.keys())
-    existing.forEach((id) => {
-      if (!apps.find((a) => a.appId === id)) {
+    // Build Set for O(1) lookups (js-set-map-lookups)
+    const activeIds = new Set(apps.map((a) => a.appId))
+    for (const id of webviewRefs.current.keys()) {
+      if (!activeIds.has(id)) {
         webviewRefs.current.delete(id)
-        // loaded 状态也清理（LRU 已在其它地方清除，双保险）
         if (getWebviewLoaded(id)) {
           setWebviewLoaded(id, false)
         }
       }
-    })
+    }
   }, [apps])
 
   // 不显示时直接 hidden，避免闪烁；仍然保留 DOM 做保活

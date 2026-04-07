@@ -44,6 +44,17 @@ interface AppExtraInfo {
 
 type AppInfo = MiniApp & AppExtraInfo
 
+// Hoist static patterns to module level (js-hoist-regexp)
+const GOOGLE_LOGIN_PATTERNS = [
+  'accounts.google.com',
+  'signin/oauth',
+  'auth/google',
+  'login/google',
+  'sign-in/google',
+  'google.com/signin',
+  'gsi/client'
+]
+
 /** Google login tip component */
 const GoogleLoginTip = ({
   isReady,
@@ -66,17 +77,8 @@ const GoogleLoginTip = ({
 
     if (!currentUrl) return false
 
-    const googleLoginPatterns = [
-      'accounts.google.com',
-      'signin/oauth',
-      'auth/google',
-      'login/google',
-      'sign-in/google',
-      'google.com/signin',
-      'gsi/client'
-    ]
-
-    return googleLoginPatterns.some((pattern) => currentUrl.toLowerCase().includes(pattern.toLowerCase()))
+    const lowerUrl = currentUrl.toLowerCase()
+    return GOOGLE_LOGIN_PATTERNS.some((pattern) => lowerUrl.includes(pattern))
   }, [currentUrl, currentAppId])
 
   // 在URL更新时检查是否需要显示提示
@@ -139,6 +141,154 @@ const GoogleLoginTip = ({
   )
 }
 
+/** Title bar of the popup — extracted to module level (rerender-no-inline-components) */
+const TitleBar = ({
+  appInfo,
+  url,
+  backgroundColor,
+  isTopNavbar,
+  canMinimize,
+  minappsOpenLinkExternal,
+  onGoBack,
+  onGoForward,
+  onReload,
+  onTogglePin,
+  onToggleOpenExternal,
+  onOpenDevTools,
+  onMinimize,
+  onClose,
+  onOpenLink
+}: {
+  appInfo: AppInfo | null
+  url: string | null
+  backgroundColor: string
+  isTopNavbar: boolean
+  canMinimize: boolean
+  minappsOpenLinkExternal: boolean
+  onGoBack: (appId: string) => void
+  onGoForward: (appId: string) => void
+  onReload: (appId: string) => void
+  onTogglePin: (appId: string) => void
+  onToggleOpenExternal: () => void
+  onOpenDevTools: (appId: string) => void
+  onMinimize: () => void
+  onClose: (appId: string) => void
+  onOpenLink: (url: string) => void
+}) => {
+  const { t } = useTranslation()
+
+  if (!appInfo) return null
+
+  const handleCopyUrl = (event: React.MouseEvent, copyUrl: string) => {
+    event.preventDefault()
+    navigator.clipboard
+      .writeText(copyUrl)
+      .then(() => {
+        window.toast.success('URL ' + t('message.copy.success'))
+      })
+      .catch(() => {
+        window.toast.error('URL ' + t('message.copy.failed'))
+      })
+  }
+
+  return (
+    <TitleContainer style={{ backgroundColor }}>
+      <Tooltip
+        placement="right-end"
+        className="max-w-100"
+        content={
+          <TitleTextTooltip>
+            {url ?? appInfo.url} <br />
+            <CopyOutlined className="icon-copy" />
+            {t('minapp.popup.rightclick_copyurl')}
+          </TitleTextTooltip>
+        }>
+        <TitleText onContextMenu={(e) => handleCopyUrl(e, url ?? appInfo.url)}>{appInfo.name}</TitleText>
+      </Tooltip>
+      {appInfo.canOpenExternalLink && (
+        <Tooltip placement="bottom" content={t('minapp.popup.openExternal')} delay={800}>
+          <TitleButton onClick={() => onOpenLink(url ?? appInfo.url)}>
+            <ExportOutlined />
+          </TitleButton>
+        </Tooltip>
+      )}
+      <Spacer />
+      <ButtonsGroup
+        className={isWin || isLinux ? 'windows' : ''}
+        style={{ marginRight: isWin || isLinux ? '140px' : 0 }}
+        isTopNavbar={isTopNavbar}>
+        <Tooltip placement="bottom" content={t('minapp.popup.goBack')} delay={800}>
+          <TitleButton onClick={() => onGoBack(appInfo.appId)}>
+            <ArrowLeftOutlined />
+          </TitleButton>
+        </Tooltip>
+        <Tooltip placement="bottom" content={t('minapp.popup.goForward')} delay={800}>
+          <TitleButton onClick={() => onGoForward(appInfo.appId)}>
+            <ArrowRightOutlined />
+          </TitleButton>
+        </Tooltip>
+        <Tooltip placement="bottom" content={t('minapp.popup.refresh')} delay={800}>
+          <TitleButton onClick={() => onReload(appInfo.appId)}>
+            <ReloadOutlined />
+          </TitleButton>
+        </Tooltip>
+        {appInfo.canPinned && (
+          <Tooltip
+            content={
+              appInfo.isPinned
+                ? isTopNavbar
+                  ? t('minapp.remove_from_launchpad')
+                  : t('minapp.remove_from_sidebar')
+                : isTopNavbar
+                  ? t('minapp.add_to_launchpad')
+                  : t('minapp.add_to_sidebar')
+            }
+            placement="bottom"
+            delay={800}>
+            <TitleButton onClick={() => onTogglePin(appInfo.appId)} className={appInfo.isPinned ? 'pinned' : ''}>
+              <PushpinOutlined style={{ fontSize: 16 }} />
+            </TitleButton>
+          </Tooltip>
+        )}
+        <Tooltip
+          content={
+            minappsOpenLinkExternal ? t('minapp.popup.open_link_external_on') : t('minapp.popup.open_link_external_off')
+          }
+          placement="bottom"
+          delay={800}>
+          <TitleButton onClick={onToggleOpenExternal} className={minappsOpenLinkExternal ? 'open-external' : ''}>
+            <LinkOutlined />
+          </TitleButton>
+        </Tooltip>
+        {isDev && (
+          <Tooltip placement="bottom" content={t('minapp.popup.devtools')} delay={800}>
+            <TitleButton onClick={() => onOpenDevTools(appInfo.appId)}>
+              <CodeOutlined />
+            </TitleButton>
+          </Tooltip>
+        )}
+        {canMinimize && (
+          <Tooltip placement="bottom" content={t('minapp.popup.minimize')} delay={800}>
+            <TitleButton onClick={onMinimize}>
+              <MinusOutlined />
+            </TitleButton>
+          </Tooltip>
+        )}
+        <Tooltip placement="bottom" content={t('minapp.popup.close')} delay={800}>
+          <TitleButton onClick={() => onClose(appInfo.appId)}>
+            <CloseOutlined />
+          </TitleButton>
+        </Tooltip>
+      </ButtonsGroup>
+      {(isWin || isLinux) && (
+        <div style={{ position: 'absolute', right: 0, top: 0, height: '100%' }}>
+          <WindowControls />
+        </div>
+      )}
+    </TitleContainer>
+  )
+}
+
 /** The main container for MinApp popup */
 const MinappPopupContainer: React.FC = () => {
   const [minappsOpenLinkExternal, setMinappsOpenLinkExternal] = usePreference('feature.minapp.open_link_external')
@@ -152,7 +302,6 @@ const MinappPopupContainer: React.FC = () => {
     currentMinappId,
     minappShow
   } = useMinapps()
-  const { t } = useTranslation()
   const backgroundColor = useNavBackgroundColor()
   const { isTopNavbar } = useNavbarPosition()
 
@@ -247,17 +396,18 @@ const MinappPopupContainer: React.FC = () => {
 
   /** get the extra info of the apps */
   const appsExtraInfo = useMemo(() => {
-    return combinedApps.reduce(
-      (acc, app) => ({
-        ...acc,
-        [app.appId]: {
-          canPinned: allApps.some((item) => item.appId === app.appId),
-          isPinned: pinned.some((item) => item.appId === app.appId),
-          canOpenExternalLink: app.url.startsWith('http://') || app.url.startsWith('https://')
-        }
-      }),
-      {} as Record<string, AppExtraInfo>
-    )
+    // Build Sets for O(1) lookups instead of O(n) .some() per app (js-set-map-lookups)
+    const allAppIds = new Set(allApps.map((a) => a.appId))
+    const pinnedIds = new Set(pinned.map((a) => a.appId))
+    const result: Record<string, AppExtraInfo> = {}
+    for (const app of combinedApps) {
+      result[app.appId] = {
+        canPinned: allAppIds.has(app.appId),
+        isPinned: pinnedIds.has(app.appId),
+        canOpenExternalLink: app.url.startsWith('http://') || app.url.startsWith('https://')
+      }
+    }
+    return result
   }, [combinedApps, pinned, allApps])
 
   /** get the current app info with extra info */
@@ -387,122 +537,7 @@ const MinappPopupContainer: React.FC = () => {
     }
   }
 
-  /** Title bar of the popup */
-  const Title = ({ appInfo, url }: { appInfo: AppInfo | null; url: string | null }) => {
-    if (!appInfo) return null
-
-    const handleCopyUrl = (event: any, url: string) => {
-      //don't show app-wide context menu
-      event.preventDefault()
-      navigator.clipboard
-        .writeText(url)
-        .then(() => {
-          window.toast.success('URL ' + t('message.copy.success'))
-        })
-        .catch(() => {
-          window.toast.error('URL ' + t('message.copy.failed'))
-        })
-    }
-
-    return (
-      <TitleContainer style={{ backgroundColor: backgroundColor }}>
-        <Tooltip
-          placement="right-end"
-          className="max-w-100"
-          content={
-            <TitleTextTooltip>
-              {url ?? appInfo.url} <br />
-              <CopyOutlined className="icon-copy" />
-              {t('minapp.popup.rightclick_copyurl')}
-            </TitleTextTooltip>
-          }>
-          <TitleText onContextMenu={(e) => handleCopyUrl(e, url ?? appInfo.url)}>{appInfo.name}</TitleText>
-        </Tooltip>
-        {appInfo.canOpenExternalLink && (
-          <Tooltip placement="bottom" content={t('minapp.popup.openExternal')} delay={800}>
-            <TitleButton onClick={() => handleOpenLink(url ?? appInfo.url)}>
-              <ExportOutlined />
-            </TitleButton>
-          </Tooltip>
-        )}
-        <Spacer />
-        <ButtonsGroup
-          className={isWin || isLinux ? 'windows' : ''}
-          style={{ marginRight: isWin || isLinux ? '140px' : 0 }}
-          isTopNavbar={isTopNavbar}>
-          <Tooltip placement="bottom" content={t('minapp.popup.goBack')} delay={800}>
-            <TitleButton onClick={() => handleGoBack(appInfo.appId)}>
-              <ArrowLeftOutlined />
-            </TitleButton>
-          </Tooltip>
-          <Tooltip placement="bottom" content={t('minapp.popup.goForward')} delay={800}>
-            <TitleButton onClick={() => handleGoForward(appInfo.appId)}>
-              <ArrowRightOutlined />
-            </TitleButton>
-          </Tooltip>
-          <Tooltip placement="bottom" content={t('minapp.popup.refresh')} delay={800}>
-            <TitleButton onClick={() => handleReload(appInfo.appId)}>
-              <ReloadOutlined />
-            </TitleButton>
-          </Tooltip>
-          {appInfo.canPinned && (
-            <Tooltip
-              content={
-                appInfo.isPinned
-                  ? isTopNavbar
-                    ? t('minapp.remove_from_launchpad')
-                    : t('minapp.remove_from_sidebar')
-                  : isTopNavbar
-                    ? t('minapp.add_to_launchpad')
-                    : t('minapp.add_to_sidebar')
-              }
-              placement="bottom"
-              delay={800}>
-              <TitleButton onClick={() => handleTogglePin(appInfo.appId)} className={appInfo.isPinned ? 'pinned' : ''}>
-                <PushpinOutlined style={{ fontSize: 16 }} />
-              </TitleButton>
-            </Tooltip>
-          )}
-          <Tooltip
-            content={
-              minappsOpenLinkExternal
-                ? t('minapp.popup.open_link_external_on')
-                : t('minapp.popup.open_link_external_off')
-            }
-            placement="bottom"
-            delay={800}>
-            <TitleButton onClick={handleToggleOpenExternal} className={minappsOpenLinkExternal ? 'open-external' : ''}>
-              <LinkOutlined />
-            </TitleButton>
-          </Tooltip>
-          {isDev && (
-            <Tooltip placement="bottom" content={t('minapp.popup.devtools')} delay={800}>
-              <TitleButton onClick={() => handleOpenDevTools(appInfo.appId)}>
-                <CodeOutlined />
-              </TitleButton>
-            </Tooltip>
-          )}
-          {canMinimize && (
-            <Tooltip placement="bottom" content={t('minapp.popup.minimize')} delay={800}>
-              <TitleButton onClick={() => handlePopupMinimize()}>
-                <MinusOutlined />
-              </TitleButton>
-            </Tooltip>
-          )}
-          <Tooltip placement="bottom" content={t('minapp.popup.close')} delay={800}>
-            <TitleButton onClick={() => handlePopupClose(appInfo.appId)}>
-              <CloseOutlined />
-            </TitleButton>
-          </Tooltip>
-        </ButtonsGroup>
-        {(isWin || isLinux) && (
-          <div style={{ position: 'absolute', right: 0, top: 0, height: '100%' }}>
-            <WindowControls />
-          </div>
-        )}
-      </TitleContainer>
-    )
-  }
+  /** Title bar - rendered via module-level TitleBar component to avoid remount (rerender-no-inline-components) */
 
   /** group the webview containers with Memo, one of the key to make them keepalive */
   const WebviewContainerGroup = useMemo(() => {
@@ -523,7 +558,27 @@ const MinappPopupContainer: React.FC = () => {
 
   return (
     <Drawer
-      title={isTopNavbar ? null : <Title appInfo={currentAppInfo} url={currentUrl} />}
+      title={
+        isTopNavbar ? null : (
+          <TitleBar
+            appInfo={currentAppInfo}
+            url={currentUrl}
+            backgroundColor={backgroundColor}
+            isTopNavbar={isTopNavbar}
+            canMinimize={canMinimize}
+            minappsOpenLinkExternal={minappsOpenLinkExternal}
+            onGoBack={handleGoBack}
+            onGoForward={handleGoForward}
+            onReload={handleReload}
+            onTogglePin={handleTogglePin}
+            onToggleOpenExternal={handleToggleOpenExternal}
+            onOpenDevTools={handleOpenDevTools}
+            onMinimize={handlePopupMinimize}
+            onClose={handlePopupClose}
+            onOpenLink={handleOpenLink}
+          />
+        )
+      }
       placement="bottom"
       onClose={handlePopupMinimize}
       open={isPopupShow}

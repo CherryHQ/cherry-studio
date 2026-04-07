@@ -45,9 +45,12 @@ const filterByRegion = (apps: MiniApp[], region: MinAppRegion): MiniApp[] => {
   return apps.filter((app) => isVisibleForRegion(app, region))
 }
 
+// Build preset index map once for O(1) lookups (js-index-maps)
+const presetById = new Map(ORIGIN_DEFAULT_MIN_APPS.map((p) => [p.id, p]))
+
 // Merge DB data with preset display fields (logo, background, bordered, nameKey)
 const mergeWithPreset = (app: MiniApp): MiniApp => {
-  const preset = ORIGIN_DEFAULT_MIN_APPS.find((p) => p.id === app.appId)
+  const preset = presetById.get(app.appId)
   if (!preset) return app
   return {
     ...app,
@@ -86,20 +89,29 @@ const detectUserRegion = async (): Promise<MinAppRegion> => {
 /**
  * V2 useMinapps hook — DataApi + Preference + Cache
  */
-export const useMinapps = () => {
-  const logger = loggerService.withContext('useMinapps')
+// Module-level logger to avoid recreating on every render (rerender-defer-reads)
+const logger = loggerService.withContext('useMinapps')
 
+export const useMinapps = () => {
   // === Data (DataApi) ===
   const { data, isLoading, mutate: refetch } = useQuery('/miniapps')
   const rawApps: MiniApp[] = useMemo(() => data?.items ?? [], [data])
 
-  // Merge with preset for display fields
-  const allApps = useMemo(() => rawApps.map(mergeWithPreset), [rawApps])
-
-  // Split by status
-  const enabled = useMemo(() => allApps.filter((a) => a.status === 'enabled'), [allApps])
-  const disabled = useMemo(() => allApps.filter((a) => a.status === 'disabled'), [allApps])
-  const pinned = useMemo(() => allApps.filter((a) => a.status === 'pinned'), [allApps])
+  // Merge with preset and partition by status in single pass (js-combine-iterations)
+  const { allApps, enabled, disabled, pinned } = useMemo(() => {
+    const all: MiniApp[] = []
+    const ena: MiniApp[] = []
+    const dis: MiniApp[] = []
+    const pin: MiniApp[] = []
+    for (const raw of rawApps) {
+      const app = mergeWithPreset(raw)
+      all.push(app)
+      if (app.status === 'enabled') ena.push(app)
+      else if (app.status === 'disabled') dis.push(app)
+      else if (app.status === 'pinned') pin.push(app)
+    }
+    return { allApps: all, enabled: ena, disabled: dis, pinned: pin }
+  }, [rawApps])
 
   // === Region (Preference + Cache) ===
   const [minAppRegionSetting] = usePreference('feature.minapp.region')
@@ -195,7 +207,7 @@ export const useMinapps = () => {
         return []
       })
     },
-    [enabled, effectiveRegion, patchApp, logger]
+    [enabled, effectiveRegion, patchApp]
   )
 
   // Write: Update disabled apps (backward-compat) ===
@@ -217,7 +229,7 @@ export const useMinapps = () => {
         return []
       })
     },
-    [disabled, effectiveRegion, patchApp, logger]
+    [disabled, effectiveRegion, patchApp]
   )
 
   // Write: Update pinned apps (backward-compat) ===
@@ -237,7 +249,7 @@ export const useMinapps = () => {
         return []
       })
     },
-    [pinned, patchApp, logger]
+    [pinned, patchApp]
   )
 
   // === V2-style mutations ===
