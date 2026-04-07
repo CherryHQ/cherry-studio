@@ -829,6 +829,83 @@
             "description": "Warning messages for partial search failures"
           }
         }
+      },
+      "KnowledgeItemEntity": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "baseId": {
+            "type": "string"
+          },
+          "groupId": {
+            "type": "string",
+            "nullable": true
+          },
+          "type": {
+            "type": "string",
+            "enum": ["file", "url", "note", "sitemap", "directory"]
+          },
+          "data": {
+            "type": "object",
+            "description": "Type-specific item payload. Successful ingests include `ingestion.loaderId` and `ingestion.loaderIds`."
+          },
+          "status": {
+            "type": "string",
+            "enum": ["idle", "pending", "ocr", "read", "embed", "completed", "failed"]
+          },
+          "error": {
+            "type": "string",
+            "nullable": true
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "CreateKnowledgeItemsRequest": {
+        "type": "object",
+        "required": ["items"],
+        "properties": {
+          "items": {
+            "type": "array",
+            "minItems": 1,
+            "items": {
+              "type": "object",
+              "required": ["type", "data"],
+              "properties": {
+                "groupId": {
+                  "type": "string",
+                  "nullable": true
+                },
+                "type": {
+                  "type": "string",
+                  "enum": ["file", "url", "note", "sitemap", "directory"]
+                },
+                "data": {
+                  "type": "object"
+                }
+              }
+            }
+          }
+        }
+      },
+      "CreateKnowledgeItemsResponse": {
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/KnowledgeItemEntity"
+            }
+          }
+        }
       }
     }
   },
@@ -2348,16 +2425,6 @@
                 }
               }
             }
-          },
-          "503": {
-            "description": "Service unavailable (Redux store not accessible)",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            }
           }
         }
       }
@@ -2407,9 +2474,86 @@
                 }
               }
             }
+          }
+        }
+      }
+    },
+    "/v1/knowledge-bases/{id}/items": {
+      "post": {
+        "summary": "Create and ingest knowledge items",
+        "description": "Create knowledge items for a knowledge base and ingest them into the vector store.\n\nSupported item types:\n- `file`\n- `url`\n- `note`\n- `sitemap`\n- `directory`\n\nEach returned item includes the persisted processing status.\nSuccessful ingests persist loader metadata inside `data.ingestion`.\n",
+        "tags": ["Knowledge"],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Knowledge base ID"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateKnowledgeItemsRequest"
+              },
+              "example": {
+                "items": [
+                  {
+                    "type": "note",
+                    "data": {
+                      "content": "Cherry Studio knowledge ingestion"
+                    }
+                  },
+                  {
+                    "type": "url",
+                    "data": {
+                      "url": "https://docs.cherry-ai.com",
+                      "name": "Cherry Studio Docs"
+                    }
+                  }
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Knowledge items created and ingested",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CreateKnowledgeItemsResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Knowledge base not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
           },
           "503": {
-            "description": "Service unavailable (Redux store not accessible)",
+            "description": "Provider configuration is unavailable",
             "content": {
               "application/json": {
                 "schema": {
@@ -2495,7 +2639,7 @@
             }
           },
           "503": {
-            "description": "Service unavailable (Redux store not accessible)",
+            "description": "Provider configuration is unavailable",
             "content": {
               "application/json": {
                 "schema": {

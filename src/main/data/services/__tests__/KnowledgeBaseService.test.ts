@@ -86,6 +86,44 @@ describe('KnowledgeBaseService', () => {
       })
       expect(result.items[0].description).toBeUndefined()
     })
+
+    it('should support offset-based listing for external API consumers', async () => {
+      const rows = [createMockRow({ id: 'kb-3', name: 'Offset Base' })]
+      const offsetFn = vi.fn().mockResolvedValue(rows)
+      const limitFn = vi.fn().mockReturnValue({ offset: offsetFn })
+      const orderBy = vi.fn().mockReturnValue({ limit: limitFn })
+      const from = vi.fn().mockReturnValue({ orderBy })
+      const countFrom = vi.fn().mockResolvedValue([{ count: 5 }])
+
+      mockSelect.mockReturnValueOnce({
+        from
+      })
+      mockSelect.mockReturnValueOnce({
+        from: countFrom
+      })
+
+      const result = await service.listWithOffset({ limit: 2, offset: 3 })
+
+      expect(limitFn).toHaveBeenCalledWith(2)
+      expect(offsetFn).toHaveBeenCalledWith(3)
+      expect(result).toMatchObject({
+        total: 5,
+        items: [{ id: 'kb-3', name: 'Offset Base' }]
+      })
+    })
+
+    it('should list all knowledge bases in descending created order', async () => {
+      const rows = [createMockRow({ id: 'kb-4' }), createMockRow({ id: 'kb-5' })]
+      const orderBy = vi.fn().mockResolvedValue(rows)
+      const from = vi.fn().mockReturnValue({ orderBy })
+      mockSelect.mockReturnValueOnce({ from })
+
+      const result = await service.listAll()
+
+      expect(result).toHaveLength(2)
+      expect(result[0]).toMatchObject({ id: 'kb-4' })
+      expect(result[1]).toMatchObject({ id: 'kb-5' })
+    })
   })
 
   describe('getById', () => {

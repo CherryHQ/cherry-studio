@@ -42,10 +42,9 @@ function rowToKnowledgeBase(row: typeof knowledgeBaseTable.$inferSelect): Knowle
 }
 
 export class KnowledgeBaseService {
-  async list(query: KnowledgeBaseListQuery): Promise<OffsetPaginationResponse<KnowledgeBase>> {
+  async listWithOffset(query: { limit: number; offset: number }): Promise<{ items: KnowledgeBase[]; total: number }> {
     const db = application.get('DbService').getDb()
-    const { page, limit } = query
-    const offset = (page - 1) * limit
+    const { limit, offset } = query
 
     const [rows, [{ count }]] = await Promise.all([
       db
@@ -59,7 +58,28 @@ export class KnowledgeBaseService {
 
     return {
       items: rows.map((row) => rowToKnowledgeBase(row)),
-      total: count,
+      total: count
+    }
+  }
+
+  async listAll(): Promise<KnowledgeBase[]> {
+    const db = application.get('DbService').getDb()
+    const rows = await db
+      .select()
+      .from(knowledgeBaseTable)
+      .orderBy(desc(knowledgeBaseTable.createdAt), desc(knowledgeBaseTable.id))
+
+    return rows.map((row) => rowToKnowledgeBase(row))
+  }
+
+  async list(query: KnowledgeBaseListQuery): Promise<OffsetPaginationResponse<KnowledgeBase>> {
+    const { page, limit } = query
+    const offset = (page - 1) * limit
+    const result = await this.listWithOffset({ limit, offset })
+
+    return {
+      items: result.items,
+      total: result.total,
       page
     }
   }

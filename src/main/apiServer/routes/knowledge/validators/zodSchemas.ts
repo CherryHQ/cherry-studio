@@ -1,3 +1,4 @@
+import { CreateKnowledgeItemsSchema } from '@shared/data/api/schemas/knowledges'
 import * as z from 'zod'
 
 /**
@@ -28,3 +29,8 @@ export const PaginationQuerySchema = z.object({
 export const KnowledgeBaseIdParamSchema = z.object({
   id: KnowledgeBaseIdSchema
 })
+
+/**
+ * Zod schema for creating knowledge items
+ */
+export const CreateKnowledgeItemsRequestSchema = CreateKnowledgeItemsSchema

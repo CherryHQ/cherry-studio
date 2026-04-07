@@ -1,5 +1,10 @@
 import { createZodValidator } from '../../agents/validators/zodValidator'
-import { KnowledgeBaseIdParamSchema, KnowledgeSearchSchema, PaginationQuerySchema } from './zodSchemas'
+import {
+  CreateKnowledgeItemsRequestSchema,
+  KnowledgeBaseIdParamSchema,
+  KnowledgeSearchSchema,
+  PaginationQuerySchema
+} from './zodSchemas'
 
 /**
  * Validation middleware for knowledge base search
@@ -20,4 +25,12 @@ export const validateKnowledgeBaseId = createZodValidator({
  */
 export const validatePagination = createZodValidator({
   query: PaginationQuerySchema
+})
+
+/**
+ * Validation middleware for knowledge item create requests
+ */
+export const validateCreateKnowledgeItems = createZodValidator({
+  params: KnowledgeBaseIdParamSchema,
+  body: CreateKnowledgeItemsRequestSchema
 })

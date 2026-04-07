@@ -21,6 +21,14 @@ export const KNOWLEDGE_SEARCH_MODES = ['default', 'bm25', 'hybrid'] as const
 export const KnowledgeSearchModeSchema = z.enum(KNOWLEDGE_SEARCH_MODES)
 export type KnowledgeSearchMode = z.infer<typeof KnowledgeSearchModeSchema>
 
+export const KnowledgeItemIngestionSchema = z
+  .object({
+    loaderId: z.string().trim().min(1),
+    loaderIds: z.array(z.string().trim().min(1)).min(1)
+  })
+  .strict()
+export type KnowledgeItemIngestion = z.infer<typeof KnowledgeItemIngestionSchema>
+
 /**
  * Temporary schema mirroring the current FileMetadata shape.
  * TODO: Move to `types/file.ts` once the dedicated file domain schema is ready.
@@ -43,7 +51,8 @@ export const FileMetadataSchema: z.ZodType<FileMetadata> = z.object({
  * File item data.
  */
 export const FileItemDataSchema = z.object({
-  file: FileMetadataSchema
+  file: FileMetadataSchema,
+  ingestion: KnowledgeItemIngestionSchema.optional()
 })
 export type FileItemData = z.infer<typeof FileItemDataSchema>
 
@@ -52,7 +61,8 @@ export type FileItemData = z.infer<typeof FileItemDataSchema>
  */
 export const UrlItemDataSchema = z.object({
   url: z.string().trim().min(1),
-  name: z.string().trim().min(1)
+  name: z.string().trim().min(1),
+  ingestion: KnowledgeItemIngestionSchema.optional()
 })
 export type UrlItemData = z.infer<typeof UrlItemDataSchema>
 
@@ -61,7 +71,8 @@ export type UrlItemData = z.infer<typeof UrlItemDataSchema>
  */
 export const NoteItemDataSchema = z.object({
   content: z.string(),
-  sourceUrl: z.string().optional()
+  sourceUrl: z.string().optional(),
+  ingestion: KnowledgeItemIngestionSchema.optional()
 })
 export type NoteItemData = z.infer<typeof NoteItemDataSchema>
 
@@ -70,7 +81,8 @@ export type NoteItemData = z.infer<typeof NoteItemDataSchema>
  */
 export const SitemapItemDataSchema = z.object({
   url: z.string().trim().min(1),
-  name: z.string().trim().min(1)
+  name: z.string().trim().min(1),
+  ingestion: KnowledgeItemIngestionSchema.optional()
 })
 export type SitemapItemData = z.infer<typeof SitemapItemDataSchema>
 
@@ -79,7 +91,8 @@ export type SitemapItemData = z.infer<typeof SitemapItemDataSchema>
  */
 export const DirectoryItemDataSchema = z.object({
   path: z.string().trim().min(1),
-  recursive: z.boolean()
+  recursive: z.boolean(),
+  ingestion: KnowledgeItemIngestionSchema.optional()
 })
 export type DirectoryItemData = z.infer<typeof DirectoryItemDataSchema>
 
