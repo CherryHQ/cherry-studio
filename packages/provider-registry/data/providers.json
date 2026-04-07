@@ -1,0 +1,391 @@
+{
+  "version": "2026.03.09",
+  "providers": [
+    {
+      "id": "cherryin",
+      "name": "CherryIN",
+      "description": "CherryIN - AI model provider",
+      "defaultChatEndpoint": "openai-chat-completions"
+    },
+    {
+      "id": "silicon",
+      "name": "Silicon",
+      "description": "Silicon - AI model provider",
+      "defaultChatEndpoint": "openai-chat-completions"
+    },
+    {
+      "id": "aihubmix",
+      "name": "AiHubMix",
+      "description": "AiHubMix - AI model provider",
+      "defaultChatEndpoint": "openai-chat-completions"
+    },
+    {
+      "id": "ovms",
+      "name": "OpenVINO Model Server",
+      "description": "OpenVINO Model Server - AI model provider"
+    },
+    {
+      "id": "ocoolai",
+      "name": "ocoolAI",
+      "description": "ocoolAI - AI model provider",
+      "defaultChatEndpoint": "openai-chat-completions"
+    },
+    {
+      "id": "zhipu",
+      "name": "ZhiPu",
+      "description": "ZhiPu - AI model provider",
+      "defaultChatEndpoint": "openai-chat-completions"
+    },
+    {
+      "id": "deepseek",
+      "name": "deepseek",
+      "description": "deepseek - AI model provider",
+      "defaultChatEndpoint": "openai-chat-completions",
+      "apiFeatures": {
+        "arrayContent": false
+      }
+    },
+    {
+      "id": "alayanew",
+      "name": "AlayaNew",
+      "description": "AlayaNew - AI model provider",
+      "defaultChatEndpoint": "openai-chat-completions"
+    },
+    {
+      "id": "dmxapi",
+      "name": "DMXAPI",
+      "description": "DMXAPI - AI model provider",
+      "defaultChatEndpoint": "openai-chat-completions"
+    },
+    {
+      "id": "aionly",
+      "name": "AIOnly",
+      "description": "AIOnly - AI model provider",
+      "defaultChatEndpoint": "openai-chat-completions"
+    },
+    {
+      "id": "burncloud",
+      "name": "BurnCloud",
+      "description": "BurnCloud - AI model provider",
+      "defaultChatEndpoint": "openai-chat-completions"
+    },
+    {
+      "id": "tokenflux",
+      "name": "TokenFlux",
+      "description": "TokenFlux - AI model provider",
+      "defaultChatEndpoint": "openai-chat-completions"
+    },
+    {
+      "id": "302ai",
+      "name": "302.AI",
+      "description": "302.AI - AI model provider",
+      "defaultChatEndpoint": "openai-chat-completions"
+    },
+    {
+      "id": "cephalon",
+      "name": "Cephalon",
+      "description": "Cephalon - AI model provider",
+      "defaultChatEndpoint": "openai-chat-completions",
+      "apiFeatures": {
+        "arrayContent": false
+      }
+    },
+    {
+      "id": "lanyun",
+      "name": "LANYUN",
+      "description": "LANYUN - AI model provider",
+      "defaultChatEndpoint": "openai-chat-completions"
+    },
+    {
+      "id": "ph8",
+      "name": "PH8",
+      "description": "PH8 - AI model provider",
+      "defaultChatEndpoint": "openai-chat-completions"
+    },
+    {
+      "id": "sophnet",
+      "name": "SophNet",
+      "description": "SophNet - AI model provider",
+      "defaultChatEndpoint": "openai-chat-completions"
+    },
+    {
+      "id": "ppio",
+      "name": "PPIO",
+      "description": "PPIO - AI model provider",
+      "defaultChatEndpoint": "openai-chat-completions"
+    },
+    {
+      "id": "qiniu",
+      "name": "Qiniu",
+      "description": "Qiniu - AI model provider",
+      "defaultChatEndpoint": "openai-chat-completions",
+      "apiFeatures": {
+        "developerRole": false
+      }
+    },
+    {
+      "id": "openrouter",
+      "name": "OpenRouter",
+      "description": "OpenRouter - AI model provider",
+      "defaultChatEndpoint": "openai-chat-completions"
+    },
+    {
+      "id": "ollama",
+      "name": "Ollama",
+      "description": "Ollama - AI model provider"
+    },
+    {
+      "id": "new-api",
+      "name": "New API",
+      "description": "New API - AI model provider"
+    },
+    {
+      "id": "lmstudio",
+      "name": "LM Studio",
+      "description": "LM Studio - AI model provider"
+    },
+    {
+      "id": "anthropic",
+      "name": "Anthropic",
+      "description": "Anthropic - AI model provider",
+      "defaultChatEndpoint": "anthropic-messages"
+    },
+    {
+      "id": "openai",
+      "name": "OpenAI",
+      "description": "OpenAI - AI model provider",
+      "defaultChatEndpoint": "openai-responses",
+      "apiFeatures": {
+        "serviceTier": true
+      }
+    },
+    {
+      "id": "azure-openai",
+      "name": "Azure OpenAI",
+      "description": "Azure OpenAI - AI model provider"
+    },
+    {
+      "id": "gemini",
+      "name": "Gemini",
+      "description": "Gemini - AI model provider",
+      "defaultChatEndpoint": "google-generate-content"
+    },
+    {
+      "id": "vertexai",
+      "name": "VertexAI",
+      "description": "VertexAI - AI model provider"
+    },
+    {
+      "id": "github",
+      "name": "Github Models",
+      "description": "Github Models - AI model provider",
+      "defaultChatEndpoint": "openai-chat-completions"
+    },
+    {
+      "id": "copilot",
+      "name": "Github Copilot",
+      "description": "Github Copilot - AI model provider",
+      "defaultChatEndpoint": "openai-chat-completions"
+    },
+    {
+      "id": "yi",
+      "name": "Yi",
+      "description": "Yi - AI model provider",
+      "defaultChatEndpoint": "openai-chat-completions"
+    },
+    {
+      "id": "moonshot",
+      "name": "Moonshot AI",
+      "description": "Moonshot AI - AI model provider",
+      "defaultChatEndpoint": "openai-chat-completions"
+    },
+    {
+      "id": "baichuan",
+      "name": "BAICHUAN AI",
+      "description": "BAICHUAN AI - AI model provider",
+      "defaultChatEndpoint": "openai-chat-completions",
+      "apiFeatures": {
+        "arrayContent": false
+      }
+    },
+    {
+      "id": "dashscope",
+      "name": "Bailian",
+      "description": "Bailian - AI model provider",
+      "defaultChatEndpoint": "openai-chat-completions"
+    },
+    {
+      "id": "stepfun",
+      "name": "StepFun",
+      "description": "StepFun - AI model provider",
+      "defaultChatEndpoint": "openai-chat-completions"
+    },
+    {
+      "id": "doubao",
+      "name": "doubao",
+      "description": "doubao - AI model provider",
+      "defaultChatEndpoint": "openai-chat-completions"
+    },
+    {
+      "id": "infini",
+      "name": "Infini",
+      "description": "Infini - AI model provider",
+      "defaultChatEndpoint": "openai-chat-completions"
+    },
+    {
+      "id": "minimax",
+      "name": "MiniMax",
+      "description": "MiniMax - AI model provider",
+      "defaultChatEndpoint": "openai-chat-completions",
+      "apiFeatures": {
+        "arrayContent": false
+      }
+    },
+    {
+      "id": "groq",
+      "name": "Groq",
+      "description": "Groq - AI model provider",
+      "defaultChatEndpoint": "openai-chat-completions"
+    },
+    {
+      "id": "together",
+      "name": "Together",
+      "description": "Together - AI model provider",
+      "defaultChatEndpoint": "openai-chat-completions"
+    },
+    {
+      "id": "fireworks",
+      "name": "Fireworks",
+      "description": "Fireworks - AI model provider",
+      "defaultChatEndpoint": "openai-chat-completions"
+    },
+    {
+      "id": "nvidia",
+      "name": "nvidia",
+      "description": "nvidia - AI model provider",
+      "defaultChatEndpoint": "openai-chat-completions"
+    },
+    {
+      "id": "grok",
+      "name": "Grok",
+      "description": "Grok - AI model provider",
+      "defaultChatEndpoint": "openai-chat-completions"
+    },
+    {
+      "id": "hyperbolic",
+      "name": "Hyperbolic",
+      "description": "Hyperbolic - AI model provider",
+      "defaultChatEndpoint": "openai-chat-completions"
+    },
+    {
+      "id": "mistral",
+      "name": "Mistral",
+      "description": "Mistral - AI model provider",
+      "defaultChatEndpoint": "openai-chat-completions",
+      "apiFeatures": {
+        "streamOptions": false
+      }
+    },
+    {
+      "id": "jina",
+      "name": "Jina",
+      "description": "Jina - AI model provider",
+      "defaultChatEndpoint": "openai-chat-completions"
+    },
+    {
+      "id": "perplexity",
+      "name": "Perplexity",
+      "description": "Perplexity - AI model provider",
+      "defaultChatEndpoint": "openai-chat-completions"
+    },
+    {
+      "id": "modelscope",
+      "name": "ModelScope",
+      "description": "ModelScope - AI model provider",
+      "defaultChatEndpoint": "openai-chat-completions"
+    },
+    {
+      "id": "xirang",
+      "name": "Xirang",
+      "description": "Xirang - AI model provider",
+      "defaultChatEndpoint": "openai-chat-completions",
+      "apiFeatures": {
+        "arrayContent": false
+      }
+    },
+    {
+      "id": "hunyuan",
+      "name": "hunyuan",
+      "description": "hunyuan - AI model provider",
+      "defaultChatEndpoint": "openai-chat-completions"
+    },
+    {
+      "id": "tencent-cloud-ti",
+      "name": "Tencent Cloud TI",
+      "description": "Tencent Cloud TI - AI model provider",
+      "defaultChatEndpoint": "openai-chat-completions"
+    },
+    {
+      "id": "baidu-cloud",
+      "name": "Baidu Cloud",
+      "description": "Baidu Cloud - AI model provider",
+      "defaultChatEndpoint": "openai-chat-completions"
+    },
+    {
+      "id": "gpustack",
+      "name": "GPUStack",
+      "description": "GPUStack - AI model provider"
+    },
+    {
+      "id": "voyageai",
+      "name": "VoyageAI",
+      "description": "VoyageAI - AI model provider",
+      "defaultChatEndpoint": "openai-chat-completions"
+    },
+    {
+      "id": "aws-bedrock",
+      "name": "AWS Bedrock",
+      "description": "AWS Bedrock - AI model provider"
+    },
+    {
+      "id": "poe",
+      "name": "Poe",
+      "description": "Poe - AI model provider",
+      "defaultChatEndpoint": "openai-chat-completions",
+      "apiFeatures": {
+        "arrayContent": false,
+        "developerRole": false
+      }
+    },
+    {
+      "id": "longcat",
+      "name": "LongCat",
+      "description": "LongCat - AI model provider",
+      "defaultChatEndpoint": "openai-chat-completions"
+    },
+    {
+      "id": "huggingface",
+      "name": "Hugging Face",
+      "description": "Hugging Face - AI model provider",
+      "defaultChatEndpoint": "openai-responses"
+    },
+    {
+      "id": "gateway",
+      "name": "Vercel AI Gateway",
+      "description": "Vercel AI Gateway - AI model provider",
+      "defaultChatEndpoint": "openai-chat-completions"
+    },
+    {
+      "id": "cerebras",
+      "name": "Cerebras AI",
+      "description": "Cerebras AI - AI model provider",
+      "defaultChatEndpoint": "openai-chat-completions"
+    },
+    {
+      "id": "mimo",
+      "name": "Xiaomi MiMo",
+      "description": "Xiaomi MiMo - AI model provider",
+      "defaultChatEndpoint": "openai-chat-completions"
+    }
+  ]
+}

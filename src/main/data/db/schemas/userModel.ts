@@ -156,10 +156,10 @@ export type UserModel = typeof userModelTable.$inferSelect
 export type NewUserModel = typeof userModelTable.$inferInsert
 
 const jsonColumnOverrides = {
-  capabilities: () => z.array(z.number()).nullable(),
-  inputModalities: () => z.array(z.number()).nullable(),
-  outputModalities: () => z.array(z.number()).nullable(),
-  endpointTypes: () => z.array(z.number()).nullable(),
+  capabilities: () => z.array(z.string()).nullable() as z.ZodNullable<z.ZodArray<z.ZodType<ModelCapability>>>,
+  inputModalities: () => z.array(z.string()).nullable() as z.ZodNullable<z.ZodArray<z.ZodType<Modality>>>,
+  outputModalities: () => z.array(z.string()).nullable() as z.ZodNullable<z.ZodArray<z.ZodType<Modality>>>,
+  endpointTypes: () => z.array(z.string()).nullable() as z.ZodNullable<z.ZodArray<z.ZodType<EndpointType>>>,
   reasoning: () => ReasoningConfigSchema.nullable(),
   parameters: () => ParameterSupportDbSchema.nullable(),
   pricing: () => RuntimeModelPricingSchema.nullable(),

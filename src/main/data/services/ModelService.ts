@@ -13,7 +13,14 @@ import { loggerService } from '@logger'
 import { application } from '@main/core/application'
 import { DataApiErrorFactory } from '@shared/data/api'
 import type { CreateModelDto, ListModelsQuery, UpdateModelDto } from '@shared/data/api/schemas/models'
-import type { Model, RuntimeParameterSupport, RuntimeReasoning } from '@shared/data/types/model'
+import type {
+  EndpointType,
+  Modality,
+  Model,
+  ModelCapability,
+  RuntimeParameterSupport,
+  RuntimeReasoning
+} from '@shared/data/types/model'
 import { createUniqueModelId } from '@shared/data/types/model'
 import { mergeModelConfig } from '@shared/data/utils/modelMerger'
 import { and, eq, inArray, type SQL } from 'drizzle-orm'
@@ -87,7 +94,7 @@ export class ModelService {
 
     // Post-filter by capability (JSON array column, can't filter in SQL easily)
     if (query.capability !== undefined) {
-      const cap = query.capability
+      const cap = query.capability as ModelCapability
       models = models.filter((m) => m.capabilities.includes(cap))
     }
 
@@ -138,10 +145,10 @@ export class ModelService {
         name: dto.name ?? null,
         description: dto.description ?? null,
         group: dto.group ?? null,
-        capabilities: dto.capabilities ?? null,
-        inputModalities: dto.inputModalities ?? null,
-        outputModalities: dto.outputModalities ?? null,
-        endpointTypes: dto.endpointTypes ?? null,
+        capabilities: (dto.capabilities as ModelCapability[]) ?? null,
+        inputModalities: (dto.inputModalities as Modality[]) ?? null,
+        outputModalities: (dto.outputModalities as Modality[]) ?? null,
+        endpointTypes: (dto.endpointTypes as EndpointType[]) ?? null,
         contextWindow: dto.contextWindow ?? null,
         maxOutputTokens: dto.maxOutputTokens ?? null,
         supportsStreaming: dto.supportsStreaming ?? null,
@@ -190,10 +197,10 @@ export class ModelService {
         name: dto.name ?? null,
         description: dto.description ?? null,
         group: dto.group ?? null,
-        capabilities: dto.capabilities ?? null,
-        inputModalities: dto.inputModalities ?? null,
-        outputModalities: dto.outputModalities ?? null,
-        endpointTypes: dto.endpointTypes ?? null,
+        capabilities: (dto.capabilities as ModelCapability[]) ?? null,
+        inputModalities: (dto.inputModalities as Modality[]) ?? null,
+        outputModalities: (dto.outputModalities as Modality[]) ?? null,
+        endpointTypes: (dto.endpointTypes as EndpointType[]) ?? null,
         contextWindow: dto.contextWindow ?? null,
         maxOutputTokens: dto.maxOutputTokens ?? null,
         supportsStreaming: dto.supportsStreaming ?? null,
@@ -236,8 +243,8 @@ export class ModelService {
     if (dto.name !== undefined) updates.name = dto.name
     if (dto.description !== undefined) updates.description = dto.description
     if (dto.group !== undefined) updates.group = dto.group
-    if (dto.capabilities !== undefined) updates.capabilities = dto.capabilities
-    if (dto.endpointTypes !== undefined) updates.endpointTypes = dto.endpointTypes
+    if (dto.capabilities !== undefined) updates.capabilities = dto.capabilities as ModelCapability[]
+    if (dto.endpointTypes !== undefined) updates.endpointTypes = dto.endpointTypes as EndpointType[]
     if (dto.supportsStreaming !== undefined) updates.supportsStreaming = dto.supportsStreaming
     if (dto.contextWindow !== undefined) updates.contextWindow = dto.contextWindow
     if (dto.maxOutputTokens !== undefined) updates.maxOutputTokens = dto.maxOutputTokens

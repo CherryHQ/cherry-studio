@@ -6,10 +6,10 @@
 import * as z from 'zod'
 
 import { MetadataSchema, ProviderIdSchema, VersionSchema } from './common'
-import { EndpointType, ReasoningEffort } from './enums'
+import { EndpointType, objectValues, ReasoningEffort } from './enums'
 import { CommonReasoningFieldsSchema } from './model'
 
-export const EndpointTypeSchema = z.enum(EndpointType)
+export const EndpointTypeSchema = z.enum(objectValues(EndpointType))
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // API Features
@@ -44,7 +44,7 @@ export const ApiFeaturesSchema = z.object({
 // (effort levels, token limits) are in model.ts ReasoningSupportSchema.
 // ═══════════════════════════════════════════════════════════════════════════════
 
-const ReasoningEffortSchema = z.enum(ReasoningEffort)
+const ReasoningEffortSchema = z.enum(objectValues(ReasoningEffort))
 
 /** Provider reasoning format — discriminated union by format type */
 export const ProviderReasoningFormatSchema = z.discriminatedUnion('type', [

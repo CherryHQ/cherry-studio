@@ -3,7 +3,7 @@
  * Main entry point for the model and provider registry system
  */
 
-// Proto enums (re-exported from schemas/enums.ts which re-exports from gen/)
+// Enums (canonical source of truth)
 export {
   AnthropicReasoningEffort,
   Currency,
@@ -13,32 +13,33 @@ export {
   Modality,
   MODEL_CAPABILITY,
   ModelCapability,
+  objectValues,
   OpenAIReasoningEffort,
   ReasoningEffort
 } from './schemas/enums'
 
-// Proto types (source of truth)
-export type { ModelConfig, ModelRegistry, ModelConfig as ProtoModelConfig } from './gen/v1/model_pb'
+// Schema-inferred types (replaces proto types)
 export type {
+  ModelConfig,
   ModelPricing,
+  ModelConfig as ProtoModelConfig,
   ModelPricing as ProtoModelPricing,
   ReasoningSupport as ProtoReasoningSupport,
   ReasoningSupport
-} from './gen/v1/model_pb'
-export type {
-  ProviderModelOverride as ProtoProviderModelOverride,
-  ProviderModelOverride,
-  ProviderModelRegistry
-} from './gen/v1/provider_models_pb'
+} from './schemas/model'
 export type {
   ProviderConfig as ProtoProviderConfig,
   ProviderReasoningFormat as ProtoProviderReasoningFormat,
   ProviderConfig,
   ProviderReasoningFormat,
-  ProviderRegistry
-} from './gen/v1/provider_pb'
+  RegistryEndpointConfig
+} from './schemas/provider'
+export type {
+  ProviderModelOverride as ProtoProviderModelOverride,
+  ProviderModelOverride
+} from './schemas/provider-models'
 
-// Registry reader (read .pb files and return proto Message types)
+// Registry reader (read .json files and return validated types)
 export { readModelRegistry, readProviderModelRegistry, readProviderRegistry } from './registry-reader'
 
 // Model ID normalization utilities

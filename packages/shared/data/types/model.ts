@@ -18,6 +18,7 @@ import {
   Modality,
   MODEL_CAPABILITY,
   ModelCapability,
+  objectValues,
   ReasoningEffort
 } from '@cherrystudio/provider-registry'
 import * as z from 'zod'
@@ -32,7 +33,7 @@ export { Currency, ENDPOINT_TYPE, EndpointType, MODALITY, Modality, MODEL_CAPABI
 /** Price per token schema */
 export const PricePerTokenSchema = z.object({
   perMillionTokens: z.number().nonnegative().nullable(),
-  currency: z.nativeEnum(Currency).default(Currency.USD).optional()
+  currency: z.enum(objectValues(Currency)).default(Currency.USD).optional()
 })
 
 /** Thinking token limits */
@@ -43,7 +44,7 @@ export const ThinkingTokenLimitsSchema = z.object({
 })
 
 /** Reasoning effort levels */
-const ReasoningEffortSchema = z.enum(ReasoningEffort)
+const ReasoningEffortSchema = z.enum(objectValues(ReasoningEffort))
 
 /** Common reasoning fields shared across all reasoning type variants */
 const CommonReasoningFieldsSchema = {
@@ -153,7 +154,7 @@ export type ReasoningConfig = z.infer<typeof ReasoningConfigSchema>
 /** Runtime form: extends DB form — supportedEfforts required, adds defaultEffort */
 export const RuntimeReasoningSchema = ReasoningConfigSchema.required({ supportedEfforts: true }).extend({
   /** Default effort level */
-  defaultEffort: z.enum(ReasoningEffort).optional()
+  defaultEffort: z.enum(objectValues(ReasoningEffort)).optional()
 })
 
 export type RuntimeReasoning = z.infer<typeof RuntimeReasoningSchema>
@@ -238,11 +239,11 @@ export const ModelSchema = z.object({
 
   // Capabilities
   /** Final capability list after all merges */
-  capabilities: z.array(z.enum(ModelCapability)),
+  capabilities: z.array(z.enum(objectValues(ModelCapability))),
   /** Supported input modalities */
-  inputModalities: z.array(z.enum(Modality)).optional(),
+  inputModalities: z.array(z.enum(objectValues(Modality))).optional(),
   /** Supported output modalities */
-  outputModalities: z.array(z.enum(Modality)).optional(),
+  outputModalities: z.array(z.enum(objectValues(Modality))).optional(),
 
   // Configuration
   /** Context window size */
@@ -252,7 +253,7 @@ export const ModelSchema = z.object({
   /** Maximum input tokens */
   maxInputTokens: z.number().optional(),
   /** Supported endpoint types */
-  endpointTypes: z.array(z.enum(EndpointType)).optional(),
+  endpointTypes: z.array(z.enum(objectValues(EndpointType))).optional(),
   /** Whether streaming is supported */
   supportsStreaming: z.boolean(),
   /** Reasoning configuration */

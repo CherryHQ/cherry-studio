@@ -7,11 +7,8 @@
   "types": "dist/index.d.ts",
   "packageManager": "pnpm@10.27.0",
   "scripts": {
-    "proto:generate": "cd proto && buf generate .",
-    "proto:lint": "cd proto && buf lint .",
-    "proto:breaking": "cd proto && buf breaking . --against '../../../.git#subdir=packages/provider-registry/proto,branch=main'",
-    "build": "pnpm proto:generate && tsdown",
-    "dev": "pnpm proto:generate && tsc -w",
+    "build": "tsdown",
+    "dev": "tsc -w",
     "clean": "rm -rf dist",
     "test": "vitest run",
     "test:watch": "vitest",
@@ -22,7 +19,6 @@
     "sync:all": "tsx scripts/generate-providers.ts",
     "generate:provider-models": "tsx scripts/generate-provider-models.ts",
     "populate:reasoning": "tsx scripts/populate-reasoning-data.ts",
-    "migrate:json-to-pb": "tsx scripts/migrate-json-to-pb.ts",
     "pipeline": "pnpm import:all && pnpm sync:all && pnpm generate:provider-models && pnpm populate:reasoning"
   },
   "author": "Cherry Studio",
@@ -48,8 +44,6 @@
     }
   },
   "devDependencies": {
-    "@bufbuild/buf": "^1.66.0",
-    "@bufbuild/protoc-gen-es": "^2.11.0",
     "@types/json-schema": "^7.0.15",
     "@types/node": "^24.10.2",
     "dotenv": "^17.2.3",
@@ -60,7 +54,6 @@
   },
   "peerDependencies": {},
   "dependencies": {
-    "@bufbuild/protobuf": "^2.11.0",
     "class-variance-authority": "^0.7.1",
     "json-schema": "^0.4.0",
     "lucide-react": "^0.563.0"
