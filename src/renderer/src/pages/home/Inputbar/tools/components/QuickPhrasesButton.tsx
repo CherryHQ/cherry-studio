@@ -1,5 +1,8 @@
 import { Tooltip } from '@cherrystudio/ui'
+import { useMutation, useQuery } from '@data/hooks/useDataApi'
+import { loggerService } from '@logger'
 import { ActionIconButton } from '@renderer/components/Buttons'
+import PromptEditModal from '@renderer/components/PromptEditModal'
 import {
   type QuickPanelListItem,
   type QuickPanelOpenOptions,
@@ -7,55 +10,58 @@ import {
   type QuickPanelTriggerInfo
 } from '@renderer/components/QuickPanel'
 import { useQuickPanel } from '@renderer/components/QuickPanel'
-import { useAssistant } from '@renderer/hooks/useAssistant'
 import { useTimer } from '@renderer/hooks/useTimer'
+import { useInputbarToolsDispatch } from '@renderer/pages/home/Inputbar/context/InputbarToolsProvider'
 import type { ToolQuickPanelApi } from '@renderer/pages/home/Inputbar/types'
-import QuickPhraseService from '@renderer/services/QuickPhraseService'
-import type { QuickPhrase } from '@renderer/types'
-import { Input, Modal, Radio, Space } from 'antd'
-import { BotMessageSquare, Plus, Zap } from 'lucide-react'
+import { getPromptVersionRollbackMarker } from '@renderer/utils/promptVersion'
+import type { Prompt, PromptVariable, PromptVersion } from '@shared/data/types/prompt'
+import { Plus, Zap } from 'lucide-react'
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import styled from 'styled-components'
 
 interface Props {
   quickPanel: ToolQuickPanelApi
   setInputValue: React.Dispatch<React.SetStateAction<string>>
   resizeTextArea: () => void
-  assistantId: string
 }
 
-const QuickPhrasesButton = ({ quickPanel, setInputValue, resizeTextArea, assistantId }: Props) => {
-  const [quickPhrasesList, setQuickPhrasesList] = useState<QuickPhrase[]>([])
-  const [isModalOpen, setIsModalOpen] = useState(false)
-  const [formData, setFormData] = useState({ title: '', content: '', location: 'global' })
+const logger = loggerService.withContext('QuickPhrasesButton')
+
+const QuickPhrasesButton = ({ quickPanel, setInputValue, resizeTextArea }: Props) => {
+  const [isAddModalOpen, setIsAddModalOpen] = useState(false)
+  const [versionMenuPrompt, setVersionMenuPrompt] = useState<Prompt | null>(null)
+  const { setVariablePrompt } = useInputbarToolsDispatch()
   const { t } = useTranslation()
   const quickPanelHook = useQuickPanel()
-  const { assistant, updateAssistant } = useAssistant(assistantId)
   const { setTimeoutTimer } = useTimer()
   const triggerInfoRef = useRef<
     (QuickPanelTriggerInfo & { symbol?: QuickPanelReservedSymbol; searchText?: string }) | undefined
   >(undefined)
 
-  const loadQuickListPhrases = useCallback(
-    async (regularPhrases: QuickPhrase[] = []) => {
-      const phrases = await QuickPhraseService.getAll()
-      if (regularPhrases.length) {
-        setQuickPhrasesList([...regularPhrases, ...phrases])
-        return
-      }
-      const assistantPrompts = assistant.regularPhrases || []
-      setQuickPhrasesList([...assistantPrompts, ...phrases])
-    },
-    [assistant.regularPhrases]
-  )
+  const { data: promptsRaw, isLoading: isPromptsLoading, error: promptsError } = useQuery('/prompts')
 
-  useEffect(() => {
-    void loadQuickListPhrases()
-  }, [loadQuickListPhrases])
+  const versionMenuPath: `/prompts/${string}/versions` = `/prompts/${versionMenuPrompt?.id ?? '__pending__'}/versions`
+  const {
+    data: versionMenuVersionsRaw,
+    isLoading: isVersionMenuLoading,
+    error: versionMenuError
+  } = useQuery(versionMenuPath, {
+    enabled: !!versionMenuPrompt
+  })
+  const versionMenuVersions = useMemo(() => (versionMenuVersionsRaw || []) as PromptVersion[], [versionMenuVersionsRaw])
 
-  const handlePhraseSelect = useCallback(
-    (phrase: QuickPhrase) => {
+  const { trigger: createPrompt, isLoading: isCreatingPrompt } = useMutation('POST', '/prompts', {
+    refresh: ['/prompts'],
+    onError: (error) => {
+      logger.error('Failed to create prompt', error)
+      window.toast.error(t('message.error.unknown'))
+    }
+  })
+
+  const promptItems = useMemo(() => promptsRaw || [], [promptsRaw])
+
+  const insertText = useCallback(
+    (text: string) => {
       setTimeoutTimer(
         'handlePhraseSelect_1',
         () => {
@@ -69,7 +75,7 @@ const QuickPhrasesButton = ({ quickPanel, setInputValue, resizeTextArea, assista
                 () => {
                   if (textArea) {
                     textArea.focus()
-                    textArea.setSelectionRange(start, start + phrase.content.length)
+                    textArea.setSelectionRange(start, start + text.length)
                   }
                   resizeTextArea()
                 },
@@ -99,7 +105,7 @@ const QuickPhrasesButton = ({ quickPanel, setInputValue, resizeTextArea, assista
                 }
               }
 
-              const newText = prev.slice(0, startIndex) + phrase.content + prev.slice(endIndex)
+              const newText = prev.slice(0, startIndex) + text + prev.slice(endIndex)
               triggerInfoRef.current = undefined
               focusAndSelect(startIndex)
               return newText
@@ -107,11 +113,11 @@ const QuickPhrasesButton = ({ quickPanel, setInputValue, resizeTextArea, assista
 
             if (!textArea) {
               triggerInfoRef.current = undefined
-              return prev + phrase.content
+              return prev + text
             }
 
             const cursorPosition = textArea.selectionStart ?? prev.length
-            const newText = prev.slice(0, cursorPosition) + phrase.content + prev.slice(cursorPosition)
+            const newText = prev.slice(0, cursorPosition) + text + prev.slice(cursorPosition)
             triggerInfoRef.current = undefined
             focusAndSelect(cursorPosition)
             return newText
@@ -123,56 +129,138 @@ const QuickPhrasesButton = ({ quickPanel, setInputValue, resizeTextArea, assista
     [setTimeoutTimer, setInputValue, resizeTextArea]
   )
 
-  const handleModalOk = async () => {
-    if (!formData.title.trim() || !formData.content.trim()) {
-      return
-    }
-
-    const updatedPrompts = [
-      ...(assistant.regularPhrases || []),
-      {
-        id: crypto.randomUUID(),
-        title: formData.title,
-        content: formData.content,
-        createdAt: Date.now(),
-        updatedAt: Date.now()
+  const handleItemSelect = useCallback(
+    (item: Prompt) => {
+      if (item.variables && item.variables.length > 0) {
+        setVariablePrompt({ content: item.content, variables: item.variables })
+      } else {
+        insertText(item.content)
       }
-    ]
-    if (formData.location === 'assistant') {
-      // 添加到助手的 regularPhrases
-      updateAssistant({ ...assistant, regularPhrases: updatedPrompts })
-    } else {
-      // 添加到全局 Quick Phrases
-      await QuickPhraseService.add(formData)
-    }
-    setIsModalOpen(false)
-    setFormData({ title: '', content: '', location: 'global' })
-    if (formData.location === 'assistant') {
-      await loadQuickListPhrases(updatedPrompts)
+    },
+    [insertText, setVariablePrompt]
+  )
+
+  const openVersionSubMenu = useCallback(
+    (item: Prompt) => {
+      quickPanelHook.open({
+        title: item.title,
+        list: [
+          {
+            label: t('common.loading'),
+            description: item.content,
+            icon: <Zap />,
+            disabled: true
+          }
+        ],
+        symbol: QuickPanelReservedSymbol.QuickPhrases
+      })
+      setVersionMenuPrompt(item)
+    },
+    [quickPanelHook, t]
+  )
+
+  useEffect(() => {
+    if (!versionMenuPrompt || isVersionMenuLoading) {
       return
     }
-    await loadQuickListPhrases()
-  }
 
-  const phraseItems = useMemo(() => {
-    const newList: QuickPanelListItem[] = quickPhrasesList.map((phrase, index) => ({
-      label: phrase.title,
-      description: phrase.content,
-      icon: index < (assistant.regularPhrases?.length || 0) ? <BotMessageSquare /> : <Zap />,
-      action: () => handlePhraseSelect(phrase)
+    if (versionMenuError) {
+      logger.error('Failed to fetch prompt versions', versionMenuError)
+      window.toast.error(t('message.error.unknown'))
+      insertText(versionMenuPrompt.content)
+      setVersionMenuPrompt(null)
+      return
+    }
+
+    if (versionMenuVersions.length === 0) {
+      window.toast.error(t('message.error.unknown'))
+      insertText(versionMenuPrompt.content)
+      setVersionMenuPrompt(null)
+      return
+    }
+
+    const versionItems: QuickPanelListItem[] = versionMenuVersions.map((version) => ({
+      label:
+        getPromptVersionRollbackMarker(
+          version.rollbackFrom,
+          (rollbackFrom) =>
+            `v${version.version} (${t('settings.prompts.restoredFromVersion', { version: rollbackFrom })})`
+        ) ?? `v${version.version}`,
+      description: version.content,
+      icon: <Zap />,
+      isSelected: version.version === versionMenuPrompt.currentVersion,
+      action: () => {
+        if (version.variables && version.variables.length > 0) {
+          setVariablePrompt({ content: version.content, variables: version.variables })
+        } else {
+          insertText(version.content)
+        }
+      }
     }))
 
-    newList.push({
-      label: t('settings.quickPhrase.add') + '...',
-      icon: <Plus />,
-      action: () => setIsModalOpen(true)
+    quickPanelHook.open({
+      title: versionMenuPrompt.title,
+      list: versionItems,
+      symbol: QuickPanelReservedSymbol.QuickPhrases
     })
+    setVersionMenuPrompt(null)
+  }, [insertText, isVersionMenuLoading, quickPanelHook, t, versionMenuError, versionMenuPrompt, versionMenuVersions])
+
+  const handleAddModalSave = useCallback(
+    async (data: { title: string; content: string; variables: PromptVariable[] | null }) => {
+      try {
+        await createPrompt({ body: data })
+        setIsAddModalOpen(false)
+      } catch {
+        // handled by useMutation onError
+      }
+    },
+    [createPrompt]
+  )
+
+  const phraseItems = useMemo(() => {
+    const newList: QuickPanelListItem[] = []
+
+    if (isPromptsLoading && promptItems.length === 0) {
+      newList.push({
+        label: t('common.loading'),
+        icon: <Zap />,
+        disabled: true
+      })
+    } else if (promptsError && promptItems.length === 0) {
+      newList.push({
+        label: t('message.error.unknown'),
+        icon: <Zap />,
+        disabled: true
+      })
+    } else {
+      newList.push(
+        ...promptItems.map((item) => {
+          const hasMultipleVersions = item.currentVersion > 1
+
+          return {
+            label: item.title,
+            description: item.content,
+            icon: <Zap />,
+            isMenu: hasMultipleVersions,
+            action: hasMultipleVersions ? () => openVersionSubMenu(item) : () => handleItemSelect(item)
+          }
+        })
+      )
+    }
+
+    newList.push({
+      label: t('settings.prompts.add') + '...',
+      icon: <Plus />,
+      action: () => setIsAddModalOpen(true)
+    })
+
     return newList
-  }, [quickPhrasesList, t, handlePhraseSelect, assistant])
+  }, [handleItemSelect, isPromptsLoading, openVersionSubMenu, promptItems, promptsError, t])
 
   const quickPanelOpenOptions = useMemo<QuickPanelOpenOptions>(
     () => ({
-      title: t('settings.quickPhrase.title'),
+      title: t('settings.prompts.title'),
       list: phraseItems,
       symbol: QuickPanelReservedSymbol.QuickPhrases
     }),
@@ -215,7 +303,7 @@ const QuickPhrasesButton = ({ quickPanel, setInputValue, resizeTextArea, assista
   useEffect(() => {
     const disposeRootMenu = quickPanel.registerRootMenu([
       {
-        label: t('settings.quickPhrase.title'),
+        label: t('settings.prompts.title'),
         description: '',
         icon: <Zap />,
         isMenu: true,
@@ -250,73 +338,22 @@ const QuickPhrasesButton = ({ quickPanel, setInputValue, resizeTextArea, assista
 
   return (
     <>
-      <Tooltip content={t('settings.quickPhrase.title')} closeDelay={0}>
+      <Tooltip content={t('settings.prompts.title')} closeDelay={0}>
         <ActionIconButton
           onClick={handleOpenQuickPanel}
-          aria-label={t('settings.quickPhrase.title')}
+          aria-label={t('settings.prompts.title')}
           icon={<Zap size={18} />}
         />
       </Tooltip>
 
-      <Modal
-        title={t('settings.quickPhrase.add')}
-        open={isModalOpen}
-        onOk={handleModalOk}
-        maskClosable={false}
-        onCancel={() => {
-          setIsModalOpen(false)
-          setFormData({ title: '', content: '', location: 'global' })
-        }}
-        width={520}
-        transitionName="animation-move-down"
-        centered>
-        <Space direction="vertical" style={{ width: '100%' }} size="middle">
-          <div>
-            <Label>{t('settings.quickPhrase.titleLabel')}</Label>
-            <Input
-              placeholder={t('settings.quickPhrase.titlePlaceholder')}
-              value={formData.title}
-              onChange={(e) => setFormData({ ...formData, title: e.target.value })}
-            />
-          </div>
-          <div>
-            <Label>{t('settings.quickPhrase.contentLabel')}</Label>
-            <Input.TextArea
-              placeholder={t('settings.quickPhrase.contentPlaceholder')}
-              value={formData.content}
-              onChange={(e) => setFormData({ ...formData, content: e.target.value })}
-              rows={6}
-              style={{ resize: 'none' }}
-            />
-          </div>
-          <div>
-            <Label>{t('settings.quickPhrase.locationLabel', '添加位置')}</Label>
-            <Radio.Group
-              value={formData.location}
-              onChange={(e) => setFormData({ ...formData, location: e.target.value })}>
-              <Radio value="global">
-                <Zap size={20} style={{ paddingRight: '4px', verticalAlign: 'middle', paddingBottom: '3px' }} />
-                {t('settings.quickPhrase.global', '全局快速短语')}
-              </Radio>
-              <Radio value="assistant">
-                <BotMessageSquare
-                  size={20}
-                  style={{ paddingRight: '4px', verticalAlign: 'middle', paddingBottom: '3px' }}
-                />
-                {t('settings.quickPhrase.assistant', '助手提示词')}
-              </Radio>
-            </Radio.Group>
-          </div>
-        </Space>
-      </Modal>
+      <PromptEditModal
+        open={isAddModalOpen}
+        saving={isCreatingPrompt}
+        onSave={handleAddModalSave}
+        onCancel={() => setIsAddModalOpen(false)}
+      />
     </>
   )
 }
-
-const Label = styled.div`
-  font-size: 14px;
-  color: var(--color-text);
-  margin-bottom: 8px;
-`
 
 export default memo(QuickPhrasesButton)

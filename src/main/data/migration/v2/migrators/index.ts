@@ -12,6 +12,7 @@ import { KnowledgeMigrator } from './KnowledgeMigrator'
 import { McpServerMigrator } from './McpServerMigrator'
 import { MiniAppMigrator } from './MiniAppMigrator'
 import { PreferencesMigrator } from './PreferencesMigrator'
+import { PromptMigrator } from './PromptMigrator'
 import { TranslateMigrator } from './TranslateMigrator'
 
 // Export migrator classes
@@ -23,6 +24,7 @@ export {
   McpServerMigrator,
   MiniAppMigrator,
   PreferencesMigrator,
+  PromptMigrator,
   TranslateMigrator
 }
 
@@ -38,6 +40,7 @@ export function getAllMigrators() {
     new AssistantMigrator(),
     new KnowledgeMigrator(),
     new ChatMigrator(),
-    new TranslateMigrator()
+    new TranslateMigrator(),
+    new PromptMigrator()
   ]
 }
