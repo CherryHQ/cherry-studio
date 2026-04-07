@@ -41,6 +41,12 @@
       "import": "./dist/index.mjs",
       "require": "./dist/index.js",
       "default": "./dist/index.js"
+    },
+    "./node": {
+      "types": "./src/registry-reader.ts",
+      "import": "./dist/registry-reader.mjs",
+      "require": "./dist/registry-reader.js",
+      "default": "./dist/registry-reader.js"
     }
   },
   "devDependencies": {

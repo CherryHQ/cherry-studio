@@ -39,8 +39,5 @@ export type {
   ProviderModelOverride
 } from './schemas/provider-models'
 
-// Registry reader (read .json files and return validated types)
-export { readModelRegistry, readProviderModelRegistry, readProviderRegistry } from './registry-reader'
-
 // Model ID normalization utilities
 export { normalizeModelId } from './utils/importers/base/base-transformer'

@@ -7,6 +7,7 @@
     "moduleResolution": "bundler",
     "paths": {
       "@cherrystudio/provider-registry": ["./packages/provider-registry/src/index.ts"],
+      "@cherrystudio/provider-registry/node": ["./packages/provider-registry/src/registry-reader.ts"],
       "@data/*": ["./src/main/data/*"],
       "@logger": ["./src/main/services/LoggerService"],
       "@main/*": ["./src/main/*"],
