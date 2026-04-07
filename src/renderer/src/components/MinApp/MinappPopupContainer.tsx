@@ -10,7 +10,7 @@ import {
   PushpinOutlined,
   ReloadOutlined
 } from '@ant-design/icons'
-import { Button, Drawer, DrawerContentPrimitive, DrawerPortal, Tooltip } from '@cherrystudio/ui'
+import { Button, Drawer, DrawerPortal, Tooltip } from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
 import { LogoAvatar } from '@renderer/components/Icons'
@@ -31,6 +31,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import BeatLoader from 'react-spinners/BeatLoader'
 import styled from 'styled-components'
+import { Drawer as VaulDrawer } from 'vaul'
 
 import WebviewContainer from './WebviewContainer'
 
@@ -597,7 +598,7 @@ const MinappPopupContainer: React.FC = () => {
       modal={false}
       dismissible={false}>
       <DrawerPortal>
-        <DrawerContentPrimitive
+        <VaulDrawer.Content
           className="minapp-drawer fixed inset-x-0 bottom-0 z-50 flex flex-col outline-none"
           style={{
             height: isTopNavbar ? 'calc(100% - var(--navbar-height))' : '100%',
@@ -646,7 +647,7 @@ const MinappPopupContainer: React.FC = () => {
             )}
             {WebviewContainerGroup}
           </div>
-        </DrawerContentPrimitive>
+        </VaulDrawer.Content>
       </DrawerPortal>
     </Drawer>
   )

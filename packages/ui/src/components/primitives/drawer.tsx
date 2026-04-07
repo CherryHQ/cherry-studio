@@ -90,14 +90,10 @@ function DrawerDescription({ className, ...props }: React.ComponentProps<typeof 
   )
 }
 
-/** Raw vaul Content primitive for custom layouts without default overlay/handle */
-const DrawerContentPrimitive = DrawerPrimitive.Content
-
 export {
   Drawer,
   DrawerClose,
   DrawerContent,
-  DrawerContentPrimitive,
   DrawerDescription,
   DrawerFooter,
   DrawerHeader,
