@@ -27,6 +27,7 @@ import {
   Sparkle,
   Sun
 } from 'lucide-react'
+import type { Ref } from 'react'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -80,7 +81,13 @@ function resolveActiveItem(pathname: string): SidebarIconType | '' {
   return match?.[0] || ''
 }
 
-const Sidebar = () => {
+export default function Sidebar({
+  ref,
+  isDockDropTarget = false
+}: {
+  ref?: Ref<HTMLDivElement | null>
+  isDockDropTarget?: boolean
+}) {
   const { t } = useTranslation()
   const [visibleSidebarIcons] = usePreference('ui.sidebar.icons.visible')
   const [showOpenedInSidebar] = usePreference('feature.minapp.show_opened_in_sidebar')
@@ -245,12 +252,13 @@ const Sidebar = () => {
     user: sidebarUser,
     actions: bottomActions,
     activeTabId: minappShow ? currentMinappId : undefined,
+    isDockDropTarget,
     onItemClick: handleNavigate,
     onMiniAppTabClick: handleMiniAppTabClick
   }
 
   return (
-    <div id="app-sidebar" className="h-full [-webkit-app-region:no-drag]">
+    <div ref={ref} id="app-sidebar" className="h-full [-webkit-app-region:no-drag]">
       <UISidebar width={sidebarWidth} setWidth={setSidebarWidth} onHoverChange={setHoverVisible} {...sidebarProps} />
       {hoverVisible && layout === 'hidden' && (
         <UISidebar
@@ -264,5 +272,3 @@ const Sidebar = () => {
     </div>
   )
 }
-
-export default Sidebar

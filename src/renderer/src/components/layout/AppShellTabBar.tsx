@@ -4,6 +4,7 @@ import { cn, uuid } from '@renderer/utils'
 import { getDefaultRouteTitle } from '@renderer/utils/routeTitle'
 import { IpcChannel } from '@shared/IpcChannel'
 import { Home, Plus, X } from 'lucide-react'
+import type { PointerEvent as ReactPointerEvent, RefObject } from 'react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 
 import type { Tab } from '../../hooks/useTabs'
@@ -15,7 +16,13 @@ const DRAG_THRESHOLD = 5
 const DETACH_THRESHOLD = 30
 const TAB_GAP = 12
 
-type DragMode = 'pending' | 'reorder' | 'detach'
+type DragMode = 'pending' | 'reorder' | 'detach' | 'dock'
+
+type DragPreviewState = {
+  x: number
+  y: number
+  visible: boolean
+}
 
 type AppShellTabBarProps = {
   tabs: Tab[]
@@ -24,6 +31,9 @@ type AppShellTabBarProps = {
   closeTab: (id: string) => void
   addTab: (tab: Tab) => void
   reorderTabs: (type: 'pinned' | 'normal', oldIndex: number, newIndex: number) => void
+  sidebarRef?: RefObject<HTMLDivElement | null>
+  dockTab?: (tabId: string) => void
+  onSidebarDockHoverChange?: (isHovering: boolean) => void
   isDetached?: boolean
 }
 
@@ -135,7 +145,7 @@ const TabItem = ({
   isGhost: boolean
   noTransition: boolean
   translateX: number
-  onPointerDown: (e: React.PointerEvent) => void
+  onPointerDown: (e: ReactPointerEvent<HTMLButtonElement>) => void
   tabRef: (el: HTMLButtonElement | null) => void
 }) => {
   return (
@@ -180,7 +190,7 @@ const PinnedTab = ({
   isGhost: boolean
   noTransition: boolean
   translateX: number
-  onPointerDown: (e: React.PointerEvent) => void
+  onPointerDown: (e: ReactPointerEvent<HTMLButtonElement>) => void
 }) => {
   const fallback = tab.title.slice(0, 1).toUpperCase()
 
@@ -207,6 +217,21 @@ const PinnedTab = ({
   )
 }
 
+const DragPreview = ({ tab, x, y }: { tab: Tab; x: number; y: number }) => (
+  <div
+    aria-hidden
+    className="pointer-events-none fixed z-[200] flex items-center gap-2 rounded-xl border border-border/70 bg-background/95 px-2.5 py-2 text-foreground shadow-lg backdrop-blur-sm"
+    style={{
+      left: x + 14,
+      top: y + 14
+    }}>
+    <span className="flex size-5 shrink-0 items-center justify-center text-foreground/80">
+      {tab.icon || <Home className="size-5" />}
+    </span>
+    <span className="max-w-[140px] truncate font-medium text-xs leading-none">{tab.title}</span>
+  </div>
+)
+
 export const AppShellTabBar = ({
   tabs,
   activeTabId,
@@ -214,6 +239,9 @@ export const AppShellTabBar = ({
   closeTab,
   addTab,
   reorderTabs,
+  sidebarRef,
+  dockTab,
+  onSidebarDockHoverChange,
   isDetached = false
 }: AppShellTabBarProps) => {
   const { homeTab, pinnedTabs, normalTabs } = useMemo(() => {
@@ -237,6 +265,11 @@ export const AppShellTabBar = ({
     mode: DragMode
     insertIndex: number
   } | null>(null)
+  const [dragPreview, setDragPreview] = useState<DragPreviewState>({
+    x: 0,
+    y: 0,
+    visible: false
+  })
 
   // Prevent animation flicker after reorder (disable transition for one frame)
   const [settling, setSettling] = useState(false)
@@ -248,8 +281,6 @@ export const AppShellTabBar = ({
     startY: 0,
     currentX: 0,
     tabType: 'normal' as 'pinned' | 'normal',
-    detachedCreated: false,
-    tabClosed: false,
     originalRects: new Map<string, { left: number; width: number }>(),
     grabOffsetX: 0,
     grabOffsetY: 0
@@ -261,6 +292,32 @@ export const AppShellTabBar = ({
   const tabBarRef = useRef<HTMLDivElement>(null)
   const tabRefs = useRef<Map<string, HTMLButtonElement>>(new Map())
   const rafId = useRef<number | null>(null)
+  const previewRafId = useRef<number | null>(null)
+  const isOverSidebarRef = useRef(false)
+
+  const updateSidebarDockHover = useCallback(
+    (isHovering: boolean) => {
+      if (isOverSidebarRef.current === isHovering) return
+      isOverSidebarRef.current = isHovering
+      onSidebarDockHoverChange?.(isHovering)
+    },
+    [onSidebarDockHoverChange]
+  )
+
+  const updateDragPreview = useCallback((x: number, y: number, visible: boolean) => {
+    if (previewRafId.current !== null) {
+      cancelAnimationFrame(previewRafId.current)
+    }
+    previewRafId.current = requestAnimationFrame(() => {
+      setDragPreview((prev) => {
+        if (prev.x === x && prev.y === y && prev.visible === visible) {
+          return prev
+        }
+        return { x, y, visible }
+      })
+      previewRafId.current = null
+    })
+  }, [])
 
   // settling recovery
   useEffect(() => {
@@ -323,9 +380,14 @@ export const AppShellTabBar = ({
     [dragState, pinnedTabs, normalTabs]
   )
 
+  const dragPreviewTab = useMemo(() => {
+    if (!dragState) return null
+    return [...pinnedTabs, ...normalTabs].find((tab) => tab.id === dragState.tabId) ?? null
+  }, [dragState, pinnedTabs, normalTabs])
+
   // pointerdown
   const handlePointerDown = useCallback(
-    (e: React.PointerEvent, tab: Tab, tabType: 'pinned' | 'normal') => {
+    (e: ReactPointerEvent<HTMLButtonElement>, tab: Tab, tabType: 'pinned' | 'normal') => {
       if (e.button !== 0) return
       if ((e.target as HTMLElement).closest('[role="button"]')) return
 
@@ -351,8 +413,6 @@ export const AppShellTabBar = ({
         startY: e.clientY,
         currentX: e.clientX,
         tabType,
-        detachedCreated: false,
-        tabClosed: false,
         originalRects,
         grabOffsetX: e.screenX - window.screenX,
         grabOffsetY: e.screenY - window.screenY
@@ -394,6 +454,8 @@ export const AppShellTabBar = ({
 
       // Detached window: dragging tab = dragging the entire window
       if (isDetached) {
+        updateSidebarDockHover(false)
+        updateDragPreview(e.clientX, e.clientY, false)
         const pastThreshold = Math.abs(deltaX) > DRAG_THRESHOLD || Math.abs(deltaY) > DRAG_THRESHOLD
         if (dragState.mode === 'pending' && pastThreshold) {
           setDragState((prev) => (prev ? { ...prev, mode: 'detach' } : null))
@@ -418,17 +480,30 @@ export const AppShellTabBar = ({
       const tabBarRect = tabBarRef.current?.getBoundingClientRect()
       if (!tabBarRect) return
 
+      const sidebarRect = sidebarRef?.current?.getBoundingClientRect()
+      const isOverSidebar =
+        !!sidebarRect &&
+        e.clientX >= sidebarRect.left &&
+        e.clientX <= sidebarRect.right &&
+        e.clientY >= sidebarRect.top &&
+        e.clientY <= sidebarRect.bottom
+      updateSidebarDockHover(isOverSidebar)
+
       const isOutsideTabBar =
         e.clientY < tabBarRect.top - DETACH_THRESHOLD || e.clientY > tabBarRect.bottom + DETACH_THRESHOLD
 
       if (dragState.mode === 'pending') {
-        if (isOutsideTabBar && Math.abs(deltaY) > DETACH_THRESHOLD) {
+        if (isOverSidebar) {
+          setDragState((prev) => (prev ? { ...prev, mode: 'dock' } : null))
+        } else if (isOutsideTabBar && Math.abs(deltaY) > DETACH_THRESHOLD) {
           setDragState((prev) => (prev ? { ...prev, mode: 'detach' } : null))
         } else if (Math.abs(deltaX) > DRAG_THRESHOLD) {
           setDragState((prev) => (prev ? { ...prev, mode: 'reorder' } : null))
         }
       } else if (dragState.mode === 'reorder') {
-        if (isOutsideTabBar) {
+        if (isOverSidebar) {
+          setDragState((prev) => (prev ? { ...prev, mode: 'dock' } : null))
+        } else if (isOutsideTabBar) {
           setDragState((prev) => (prev ? { ...prev, mode: 'detach' } : null))
         } else {
           if (rafId.current === null) {
@@ -441,42 +516,26 @@ export const AppShellTabBar = ({
         }
       }
 
-      // Detach mode: create/move window
-      if (dragState.mode === 'detach' || (isOutsideTabBar && Math.abs(deltaY) > DETACH_THRESHOLD)) {
-        if (!dragRef.current.detachedCreated) {
-          const allTabs = [...pinnedTabs, ...normalTabs]
-          const tab = allTabs.find((t) => t.id === dragState.tabId)
-          if (tab) {
-            window.electron.ipcRenderer.send(IpcChannel.Tab_Detach, {
-              ...tab,
-              x: e.screenX - 400,
-              y: e.screenY - 20
-            })
-            dragRef.current.detachedCreated = true
-            closeTab(dragState.tabId)
-            dragRef.current.tabClosed = true
-            didDragRef.current = true
-          }
-        } else if (!dragRef.current.tabClosed) {
-          // Tab has been unmounted by closeTab, only update reorder state when not closed
-        } else {
-          // Tab has been closed, only need to move the new window
-          if (rafId.current === null) {
-            rafId.current = requestAnimationFrame(() => {
-              window.electron.ipcRenderer.send(IpcChannel.Tab_MoveWindow, {
-                tabId: dragState.tabId,
-                x: e.screenX - 400,
-                y: e.screenY - 20
-              })
-              rafId.current = null
-            })
-          }
-        }
-      }
+      const nextMode = isOverSidebar
+        ? 'dock'
+        : isOutsideTabBar && Math.abs(deltaY) > DETACH_THRESHOLD
+          ? 'detach'
+          : dragState.mode
+      updateDragPreview(e.clientX, e.clientY, nextMode === 'dock' || nextMode === 'detach')
     }
 
     const onUp = (e: PointerEvent) => {
       if (e.pointerId !== dragRef.current.pointerId) return
+      updateSidebarDockHover(false)
+      updateDragPreview(e.clientX, e.clientY, false)
+
+      const sidebarRect = sidebarRef?.current?.getBoundingClientRect()
+      const isOverSidebarOnRelease =
+        !!sidebarRect &&
+        e.clientX >= sidebarRect.left &&
+        e.clientX <= sidebarRect.right &&
+        e.clientY >= sidebarRect.top &&
+        e.clientY <= sidebarRect.bottom
 
       const el = tabRefs.current.get(dragState.tabId)
       if (el) {
@@ -514,7 +573,10 @@ export const AppShellTabBar = ({
         return
       }
 
-      if (dragState.mode === 'reorder') {
+      if (isOverSidebarOnRelease) {
+        dockTab?.(dragState.tabId)
+        didDragRef.current = true
+      } else if (dragState.mode === 'reorder') {
         didDragRef.current = true
         const list = dragRef.current.tabType === 'pinned' ? pinnedTabs : normalTabs
         const oldIndex = list.findIndex((t) => t.id === dragState.tabId)
@@ -525,11 +587,21 @@ export const AppShellTabBar = ({
             reorderTabs(dragRef.current.tabType, oldIndex, adjustedIndex)
           }
         }
+      } else if (dragState.mode === 'dock') {
+        dockTab?.(dragState.tabId)
+        didDragRef.current = true
       } else if (dragState.mode === 'detach') {
-        if (!dragRef.current.tabClosed && dragRef.current.tabType === 'normal') {
+        const allTabs = [...pinnedTabs, ...normalTabs]
+        const tab = allTabs.find((t) => t.id === dragState.tabId)
+        if (tab) {
+          window.electron.ipcRenderer.send(IpcChannel.Tab_Detach, {
+            ...tab,
+            x: e.screenX - 400,
+            y: e.screenY - 20
+          })
           closeTab(dragState.tabId)
+          didDragRef.current = true
         }
-        window.electron.ipcRenderer.send(IpcChannel.Tab_DragEnd)
       }
 
       if (rafId.current !== null) {
@@ -543,10 +615,32 @@ export const AppShellTabBar = ({
     document.addEventListener('pointerup', onUp)
 
     return () => {
+      updateSidebarDockHover(false)
+      updateDragPreview(0, 0, false)
       document.removeEventListener('pointermove', onMove)
       document.removeEventListener('pointerup', onUp)
     }
-  }, [dragState, pinnedTabs, normalTabs, calculateInsertIndex, reorderTabs, closeTab, isDetached])
+  }, [
+    dragState,
+    pinnedTabs,
+    normalTabs,
+    calculateInsertIndex,
+    reorderTabs,
+    closeTab,
+    isDetached,
+    sidebarRef,
+    dockTab,
+    updateSidebarDockHover,
+    updateDragPreview
+  ])
+
+  useEffect(() => {
+    return () => {
+      if (previewRafId.current !== null) {
+        cancelAnimationFrame(previewRafId.current)
+      }
+    }
+  }, [])
 
   const handleHomeClick = () => {
     if (homeTab) {
@@ -574,67 +668,72 @@ export const AppShellTabBar = ({
   const noTransition = settling
 
   return (
-    <header
-      ref={tabBarRef}
-      className={cn(
-        'relative flex h-10 w-full items-center gap-[4px] bg-neutral-100 [-webkit-app-region:drag] dark:bg-neutral-900',
-        isWin || isLinux ? 'pr-36' : 'pr-4',
-        isMac ? 'pl-[env(titlebar-area-x)]' : 'pl-4'
-      )}>
-      {!isDetached && <HomeTab isActive={activeTabId === HOME_TAB_ID} onClick={handleHomeClick} />}
+    <>
+      <header
+        ref={tabBarRef}
+        className={cn(
+          'relative flex h-10 w-full items-center gap-[4px] bg-neutral-100 [-webkit-app-region:drag] dark:bg-neutral-900',
+          isWin || isLinux ? 'pr-36' : 'pr-4',
+          isMac ? 'pl-[env(titlebar-area-x)]' : 'pl-4'
+        )}>
+        {!isDetached && <HomeTab isActive={activeTabId === HOME_TAB_ID} onClick={handleHomeClick} />}
 
-      {pinnedTabs.length > 0 && (
-        <div className="flex shrink-0 items-center gap-[2px] rounded-[12px] border border-border px-[12px] py-[4px] [-webkit-app-region:no-drag]">
-          {pinnedTabs.map((tab) => (
-            <PinnedTab
+        {pinnedTabs.length > 0 && (
+          <div className="flex shrink-0 items-center gap-[2px] rounded-[12px] border border-border px-[12px] py-[4px] [-webkit-app-region:no-drag]">
+            {pinnedTabs.map((tab) => (
+              <PinnedTab
+                key={tab.id}
+                tab={tab}
+                isActive={tab.id === activeTabId}
+                onSelect={() => handleTabClick(tab.id)}
+                isDragging={dragState?.tabId === tab.id && dragState?.mode === 'reorder'}
+                isGhost={dragState?.tabId === tab.id && (dragState?.mode === 'detach' || dragState?.mode === 'dock')}
+                noTransition={noTransition}
+                translateX={getTranslateX(tab.id, 'pinned')}
+                onPointerDown={(e) => handlePointerDown(e, tab, 'pinned')}
+              />
+            ))}
+          </div>
+        )}
+
+        <div className="relative flex h-full flex-1 flex-nowrap items-center gap-3 overflow-hidden">
+          {normalTabs.map((tab) => (
+            <TabItem
               key={tab.id}
               tab={tab}
               isActive={tab.id === activeTabId}
               onSelect={() => handleTabClick(tab.id)}
+              onClose={() => closeTab(tab.id)}
+              showClose={!isDetached}
               isDragging={dragState?.tabId === tab.id && dragState?.mode === 'reorder'}
-              isGhost={dragState?.tabId === tab.id && dragState?.mode === 'detach'}
+              isGhost={dragState?.tabId === tab.id && (dragState?.mode === 'detach' || dragState?.mode === 'dock')}
               noTransition={noTransition}
-              translateX={getTranslateX(tab.id, 'pinned')}
-              onPointerDown={(e) => handlePointerDown(e, tab, 'pinned')}
+              translateX={getTranslateX(tab.id, 'normal')}
+              onPointerDown={(e) => handlePointerDown(e, tab, 'normal')}
+              tabRef={(el) => {
+                if (el) {
+                  tabRefs.current.set(tab.id, el)
+                } else {
+                  tabRefs.current.delete(tab.id)
+                }
+              }}
             />
           ))}
+
+          {!isDetached && (
+            <button
+              type="button"
+              onClick={handleAddTab}
+              className="flex shrink-0 items-center justify-center p-[8px] [-webkit-app-region:no-drag] hover:bg-[rgba(107,114,128,0.1)]"
+              title="New Tab">
+              <Plus className="size-5" />
+            </button>
+          )}
         </div>
+      </header>
+      {!isDetached && dragPreview.visible && dragPreviewTab && (
+        <DragPreview tab={dragPreviewTab} x={dragPreview.x} y={dragPreview.y} />
       )}
-
-      <div className="relative flex h-full flex-1 flex-nowrap items-center gap-3 overflow-hidden">
-        {normalTabs.map((tab) => (
-          <TabItem
-            key={tab.id}
-            tab={tab}
-            isActive={tab.id === activeTabId}
-            onSelect={() => handleTabClick(tab.id)}
-            onClose={() => closeTab(tab.id)}
-            showClose={!isDetached}
-            isDragging={dragState?.tabId === tab.id && dragState?.mode === 'reorder'}
-            isGhost={dragState?.tabId === tab.id && dragState?.mode === 'detach'}
-            noTransition={noTransition}
-            translateX={getTranslateX(tab.id, 'normal')}
-            onPointerDown={(e) => handlePointerDown(e, tab, 'normal')}
-            tabRef={(el) => {
-              if (el) {
-                tabRefs.current.set(tab.id, el)
-              } else {
-                tabRefs.current.delete(tab.id)
-              }
-            }}
-          />
-        ))}
-
-        {!isDetached && (
-          <button
-            type="button"
-            onClick={handleAddTab}
-            className="flex shrink-0 items-center justify-center p-[8px] [-webkit-app-region:no-drag] hover:bg-[rgba(107,114,128,0.1)]"
-            title="New Tab">
-            <Plus className="size-5" />
-          </button>
-        )}
-      </div>
-    </header>
+    </>
   )
 }

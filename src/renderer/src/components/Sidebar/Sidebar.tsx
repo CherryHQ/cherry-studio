@@ -10,6 +10,15 @@ import { SidebarTooltip } from './Tooltip'
 import type { SidebarMenuItem, SidebarTab, SidebarUser } from './types'
 import { useSidebarResize } from './useSidebarResize'
 
+function DockDropHighlight({ className }: { className: string }) {
+  return (
+    <div
+      aria-hidden
+      className={`pointer-events-none absolute inset-0 border border-primary/60 bg-primary/8 shadow-[inset_0_0_0_1px_rgba(59,130,246,0.18)] transition-opacity duration-150 ${className}`}
+    />
+  )
+}
+
 export interface SidebarProps {
   width: number
   setWidth: (width: number) => void
@@ -21,6 +30,7 @@ export interface SidebarProps {
   dockedTabs?: SidebarTab[]
   user?: SidebarUser
   isFloating?: boolean
+  isDockDropTarget?: boolean
   searchLabel?: string
   extensionsLabel?: string
   actions?: React.ReactNode
@@ -45,6 +55,7 @@ export function Sidebar({
   dockedTabs = [],
   user,
   isFloating = false,
+  isDockDropTarget = false,
   searchLabel = '',
   extensionsLabel = '',
   actions,
@@ -92,6 +103,7 @@ export function Sidebar({
           onMouseEnter={() => {
             if (hoverTimeout.current) clearTimeout(hoverTimeout.current)
           }}>
+          {isDockDropTarget && <DockDropHighlight className="rounded-r-[1px]" />}
           <div className="flex h-14 flex-shrink-0 items-center gap-2.5 px-4 [-webkit-app-region:drag]">
             {logoNode}
             <span className="truncate text-sidebar-foreground text-sm">{title}</span>
@@ -130,6 +142,7 @@ export function Sidebar({
   if (layout === 'hidden') {
     return (
       <div ref={sidebarRef} className="relative h-full w-0 flex-shrink-0">
+        {isDockDropTarget && <DockDropHighlight className="left-0 w-[16px] rounded-r-md border-l-0" />}
         <div
           className="absolute top-0 bottom-0 left-0 z-50 w-[16px]"
           onMouseEnter={() => {
@@ -161,6 +174,7 @@ export function Sidebar({
       ref={sidebarRef}
       style={{ width: actualWidth }}
       className="group/sidebar relative z-20 flex h-full flex-shrink-0 select-none flex-col bg-sidebar">
+      {isDockDropTarget && <DockDropHighlight className="rounded-r-2xl" />}
       {/* Header */}
       <div
         className={`flex flex-shrink-0 items-center [-webkit-app-region:drag] ${layout === 'full' ? 'h-14 gap-2.5 px-4' : 'h-14 justify-center'}`}>

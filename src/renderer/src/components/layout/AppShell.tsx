@@ -1,7 +1,7 @@
 import '@renderer/databases'
 
 import { getDefaultRouteTitle } from '@renderer/utils/routeTitle'
-import { Activity } from 'react'
+import { Activity, useRef, useState } from 'react'
 
 import { useTabs } from '../../hooks/useTabs'
 import Sidebar from '../app/Sidebar'
@@ -19,7 +19,9 @@ const WebviewContainer = ({ url, isActive }: { url: string; isActive: boolean })
 )
 
 export const AppShell = () => {
-  const { tabs, activeTabId, setActiveTab, closeTab, updateTab, addTab, reorderTabs } = useTabs()
+  const { tabs, activeTabId, setActiveTab, closeTab, updateTab, addTab, reorderTabs, dockTab } = useTabs()
+  const sidebarRef = useRef<HTMLDivElement>(null)
+  const [isSidebarDockHover, setIsSidebarDockHover] = useState(false)
 
   // Sync internal navigation back to tab state with default title
   const handleUrlChange = (tabId: string, url: string) => {
@@ -36,12 +38,15 @@ export const AppShell = () => {
         closeTab={closeTab}
         addTab={addTab}
         reorderTabs={reorderTabs}
+        sidebarRef={sidebarRef}
+        dockTab={dockTab}
+        onSidebarDockHoverChange={setIsSidebarDockHover}
       />
 
       {/* Zone 2: Main Area (Sidebar + Content) */}
       <div className="flex h-full w-full flex-1 flex-row overflow-hidden">
         {/* Zone 2a: Sidebar */}
-        <Sidebar />
+        <Sidebar ref={sidebarRef} isDockDropTarget={isSidebarDockHover} />
 
         {/* Zone 2b: Content Area - Multi MemoryRouter Architecture */}
         <main className="relative flex-1 overflow-hidden bg-background">
