@@ -9,6 +9,9 @@ import { MarkdownReader } from '@vectorstores/readers/markdown'
 import { PDFReader } from '@vectorstores/readers/pdf'
 import { TextFileReader } from '@vectorstores/readers/text'
 
+import { DraftsExportReader } from './files/DraftsExportReader'
+import { EpubReader } from './files/EpubReader'
+
 export function createSupportedFileReader(file: FileMetadata): VectorStoreFileReader<Document> {
   const extension = getFileExt(file.path).toLowerCase()
 
@@ -19,10 +22,14 @@ export function createSupportedFileReader(file: FileMetadata): VectorStoreFileRe
       return new CSVReader()
     case '.docx':
       return new DocxReader()
+    case '.epub':
+      return new EpubReader()
     case '.json':
       return new JSONReader()
     case '.md':
       return new MarkdownReader()
+    case '.draftsexport':
+      return new DraftsExportReader()
     default:
       return new TextFileReader()
   }

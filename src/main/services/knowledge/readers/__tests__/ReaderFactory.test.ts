@@ -2,6 +2,10 @@ import type { KnowledgeItemOf } from '@shared/data/types/knowledge'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const fetchMock = vi.hoisted(() => vi.fn())
+const customReaderSpies = vi.hoisted(() => ({
+  drafts: vi.fn(async (item: KnowledgeItemOf<'file'>) => [{ metadata: { reader: 'drafts', itemId: item.id } }]),
+  epub: vi.fn(async (item: KnowledgeItemOf<'file'>) => [{ metadata: { reader: 'epub', itemId: item.id } }])
+}))
 const readerSpies = vi.hoisted(() => ({
   csv: vi.fn(async (filePath: string) => [{ metadata: { reader: 'csv', filePath } }]),
   docx: vi.fn(async (filePath: string) => [{ metadata: { reader: 'docx', filePath } }]),
@@ -61,6 +65,64 @@ vi.mock('@vectorstores/readers/pdf', () => ({
 vi.mock('@vectorstores/readers/text', () => ({
   TextFileReader: class {
     loadData = readerSpies.text
+  }
+}))
+
+vi.mock('../files/DraftsExportReader', () => ({
+  DraftsExportReader: class {
+    loadData = (filePath: string) =>
+      customReaderSpies.drafts({
+        id: 'item-1',
+        baseId: 'base-1',
+        groupId: null,
+        type: 'file',
+        status: 'idle',
+        error: null,
+        createdAt: '2026-04-03T00:00:00.000Z',
+        updatedAt: '2026-04-03T00:00:00.000Z',
+        data: {
+          file: {
+            id: 'file-1',
+            name: filePath.split('/').pop() || filePath,
+            origin_name: filePath.split('/').pop() || filePath,
+            path: filePath,
+            size: 1,
+            ext: '.draftsexport',
+            type: 'document',
+            created_at: '2026-04-03T00:00:00.000Z',
+            count: 1
+          }
+        }
+      } as KnowledgeItemOf<'file'>)
+  }
+}))
+
+vi.mock('../files/EpubReader', () => ({
+  EpubReader: class {
+    loadData = (filePath: string) =>
+      customReaderSpies.epub({
+        id: 'item-1',
+        baseId: 'base-1',
+        groupId: null,
+        type: 'file',
+        status: 'idle',
+        error: null,
+        createdAt: '2026-04-03T00:00:00.000Z',
+        updatedAt: '2026-04-03T00:00:00.000Z',
+        data: {
+          file: {
+            id: 'file-1',
+            name: filePath.split('/').pop() || filePath,
+            origin_name: filePath.split('/').pop() || filePath,
+            path: filePath,
+            size: 1,
+            ext: '.epub',
+            type: 'document',
+            created_at: '2026-04-03T00:00:00.000Z',
+            count: 1
+          }
+        }
+      } as KnowledgeItemOf<'file'>)
   }
 }))
 
@@ -191,6 +253,34 @@ describe('loadKnowledgeItemDocuments', () => {
       metadata: {
         reader: 'text',
         filePath: '/tmp/sample.log'
+      }
+    })
+  })
+
+  it('uses the drafts export reader for .draftsexport files', async () => {
+    const item = createFileItem('.draftsexport')
+
+    const docs = await loadKnowledgeItemDocuments(item)
+
+    expect(customReaderSpies.drafts).toHaveBeenCalled()
+    expect(docs[0]).toMatchObject({
+      metadata: {
+        reader: 'drafts',
+        itemId: 'item-1'
+      }
+    })
+  })
+
+  it('uses the epub reader for .epub files', async () => {
+    const item = createFileItem('.epub')
+
+    const docs = await loadKnowledgeItemDocuments(item)
+
+    expect(customReaderSpies.epub).toHaveBeenCalled()
+    expect(docs[0]).toMatchObject({
+      metadata: {
+        reader: 'epub',
+        itemId: 'item-1'
       }
     })
   })

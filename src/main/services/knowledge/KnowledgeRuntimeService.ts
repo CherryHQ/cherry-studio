@@ -8,10 +8,11 @@ import { MetadataMode } from '@vectorstores/core'
 import { embedMany } from 'ai'
 import PQueue from 'p-queue'
 
-import { EmbeddingModelFactory } from './embedding/EmbeddingModelFactory'
 import { loadKnowledgeItemDocuments } from './readers/KnowledgeReader'
+import { rerankKnowledgeSearchResults } from './rerank/rerank'
 import { chunkDocuments } from './utils/chunk'
 import { embedDocuments } from './utils/embed'
+import { getEmbedModel } from './utils/model'
 import { vectorStoreManager } from './vectorstore/VectorStoreManager'
 
 const logger = loggerService.withContext('KnowledgeRuntimeService')
@@ -74,7 +75,7 @@ export class KnowledgeRuntimeService extends BaseService {
   }
 
   async search(base: KnowledgeBase, query: string): Promise<KnowledgeSearchResult[]> {
-    const model = EmbeddingModelFactory.create(base)
+    const model = getEmbedModel(base)
     const embedResult = await embedMany({ model, values: [query] })
     const vectorStore = await vectorStoreManager.createStore(base)
     const results = await vectorStore.query({
@@ -98,8 +99,7 @@ export class KnowledgeRuntimeService extends BaseService {
       resultCount: searchResults.length
     })
 
-    // todo: rerank
-    return searchResults
+    return await rerankKnowledgeSearchResults(base, query, searchResults)
   }
 
   private async _addItem(base: KnowledgeBase, item: KnowledgeItem) {
@@ -107,7 +107,7 @@ export class KnowledgeRuntimeService extends BaseService {
       // todo file processing
       const documents = await loadKnowledgeItemDocuments(item)
       const chunks = chunkDocuments(base, item, documents)
-      const embeddingModel = EmbeddingModelFactory.create(base)
+      const embeddingModel = getEmbedModel(base)
       const nodes = await embedDocuments(embeddingModel, chunks)
       const vectorStore = await vectorStoreManager.createStore(base)
       await vectorStore.add(nodes)
