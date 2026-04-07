@@ -957,11 +957,12 @@ export class AiCompletionService {
   constructor(private toolRegistry: ToolRegistry) {}
 
   async streamText(request: AiStreamRequest, signal: AbortSignal): Promise<ReadableStream<UIMessageChunk>> {
-    const preferenceService = application.get('PreferenceService')
-
-    // 1. 从 service 获取具体数据
-    const provider = preferenceService.getProvider(request.providerId)
-    const model = preferenceService.getModel(request.modelId)
+    // 1. 从 ReduxService 读 provider 数据（过渡期：provider 尚在 Redux，未迁移到独立 service）
+    // 未来 ProviderService 就绪后，替换为 providerService.getProvider()
+    const reduxService = application.get('ReduxService')
+    const providers: Provider[] = await reduxService.select('state.llm.providers')
+    const provider = providers.find(p => p.id === request.providerId)
+    const model = provider?.models.find(m => m.id === request.modelId)
 
     // 2. 从 ToolRegistry resolve tools（registry 已由外部填充，这里只读）
     // 合并内置 tool IDs + MCP tool IDs，传给 resolve 过滤 checkAvailable
