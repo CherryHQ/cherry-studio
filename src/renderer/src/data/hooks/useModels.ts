@@ -2,7 +2,7 @@ import { dataApiService } from '@data/DataApiService'
 import type { ConcreteApiPaths } from '@shared/data/api/apiTypes'
 import type { CreateModelDto, UpdateModelDto } from '@shared/data/api/schemas/models'
 import type { Model } from '@shared/data/types/model'
-import { useCallback } from 'react'
+import { useCallback, useMemo } from 'react'
 
 import { useInvalidateCache, useMutation, useQuery } from './useDataApi'
 
@@ -12,6 +12,7 @@ function modelPath(providerId: string, modelId: string): ConcreteApiPaths {
 }
 
 const REFRESH_MODELS = ['/models'] as const
+const EMPTY_MODELS: Model[] = []
 
 // ─── Layer 1: List ────────────────────────────────────────────────────
 export function useModels(query?: { providerId?: string; enabled?: boolean }) {
@@ -24,7 +25,9 @@ export function useModels(query?: { providerId?: string; enabled?: boolean }) {
     ...(enabled !== undefined ? { enabled } : {})
   }) as { data: Model[] | undefined; isLoading: boolean; mutate: any }
 
-  return { models: data ?? [], isLoading, refetch: mutate }
+  const models = useMemo(() => data ?? EMPTY_MODELS, [data])
+
+  return { models, isLoading, refetch: mutate }
 }
 
 // ─── Layer 2: Mutations ───────────────────────────────────────────────
