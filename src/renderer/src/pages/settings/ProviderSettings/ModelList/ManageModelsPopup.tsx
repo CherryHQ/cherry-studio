@@ -160,7 +160,7 @@ const PopupContainer: React.FC<Props> = ({ providerId, resolve }) => {
       centered: true,
       onOk: () => {
         if (isNewApiProvider(provider)) {
-          if (models.every(isValidNewApiModel)) {
+          if (wouldAddModel.every(isValidNewApiModel)) {
             wouldAddModel.forEach(onAddModel)
           } else {
             void NewApiBatchAddModelPopup.show({
@@ -174,7 +174,7 @@ const PopupContainer: React.FC<Props> = ({ providerId, resolve }) => {
         }
       }
     })
-  }, [list, models, onAddModel, provider, t])
+  }, [list, onAddModel, provider, t])
 
   const loadModels = useCallback(async (provider: Provider) => {
     setLoadingModels(true)

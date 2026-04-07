@@ -28,6 +28,249 @@
       "submit": "Enviar",
       "title": "Preguntas del Agente"
     },
+    "cherryClaw": {
+      "channels": {
+        "add": "Agregar",
+        "bindAgent": "Agente vinculante",
+        "chatIdsAutoTrackHint": "Cuando se deja vacío, el sistema lo rastreará automáticamente: primero debes enviar un mensaje al Bot en la plataforma, luego el sistema registrará el ID del chat para futuras notificaciones.",
+        "comingSoon": "Próximamente",
+        "connected": "Conectado",
+        "connecting": "Conectando",
+        "deleteConfirm": "¿Eliminar canal \"{{name}}\"?",
+        "description": "Conecte su agente a plataformas de mensajería.",
+        "disconnected": "Desconectado",
+        "discord": {
+          "botToken": "Token del Bot",
+          "botTokenPlaceholder": "Introduce tu token de bot de Discord",
+          "channelIds": "IDs de canales permitidos",
+          "channelIdsHint": "Formato: canal:id o mp:id. Dejar vacío para permitir todos.",
+          "channelIdsPlaceholder": "canal:123456789, md:987654321",
+          "description": "Recibir y responder mensajes a través de un bot de Discord usando la pasarela WebSocket.",
+          "title": "Discord",
+          "whoamiTip": "💡 Consejo: Envía /whoami al bot para obtener tu ID de canal en el formato correcto."
+        },
+        "error": "Error",
+        "feishu": {
+          "appId": "App ID",
+          "appIdPlaceholder": "Introduzca el App ID de su aplicación Feishu",
+          "appSecret": "App Secret",
+          "appSecretPlaceholder": "Introduzca el App Secret de su aplicación Feishu",
+          "chatIds": "IDs de chat permitidos",
+          "chatIdsHint": "IDs de chat separados por comas. Deje vacío para permitir todos los chats.",
+          "chatIdsPlaceholder": "oc_xxxxx, oc_yyyyy",
+          "connected": "Conectado",
+          "description": "Recibir y responder mensajes a través de un bot de Feishu/Lark usando WebSocket.",
+          "domain": "Dominio",
+          "domainFeishu": "Feishu (China)",
+          "domainLark": "Lark (Internacional)",
+          "encryptKey": "Clave de cifrado",
+          "encryptKeyPlaceholder": "Introduzca la clave de cifrado de su aplicación Feishu",
+          "loginHint": "No se han configurado credenciales. Activa el canal para iniciar el registro con código QR o introduce manualmente el ID de la aplicación y el secreto de la aplicación.",
+          "qrExpired": "Código QR expirado. Por favor, inténtalo de nuevo cambiando el canal.",
+          "qrHint": "Esperando el escaneo del código QR...",
+          "qrScanHint": "Abre Feishu en tu teléfono y escanea el código QR para crear una aplicación de bot.",
+          "qrTitle": "Registro con código QR de Feishu",
+          "title": "Feishu",
+          "verificationToken": "Token de verificación",
+          "verificationTokenPlaceholder": "Introduzca el token de verificación de su aplicación Feishu"
+        },
+        "logs": "Registros",
+        "noInstances": "No hay canales de {{type}} configurados. Haz clic en \"+ Añadir\" para crear uno.",
+        "noLogs": "Aún no hay registros",
+        "notifyReceiver": "Recibir notificaciones de tareas",
+        "notifyReceiverHint": "Enviar resultados de tareas programadas a este canal.",
+        "qq": {
+          "appId": "App ID",
+          "appIdPlaceholder": "Ingrese su App ID de QQ Bot",
+          "chatIds": "IDs de chat permitidos",
+          "chatIdsHint": "Formato: c2c:openid, group:groupid, channel:channelid. Dejar vacío para permitir todos.",
+          "chatIdsPlaceholder": "c2c:abc123, group:xyz789",
+          "clientSecret": "Client Secret",
+          "clientSecretPlaceholder": "Ingrese su Client Secret de QQ Bot",
+          "description": "Recibir y responder mensajes a través de la API oficial de QQ Bot.",
+          "title": "QQ",
+          "whoamiTip": "💡 Consejo: Envíe /whoami al bot para obtener su ID de chat en el formato correcto."
+        },
+        "security": {
+          "inheritFromAgent": "Heredar del agente",
+          "permissionMode": "Modo de Permisos del Canal",
+          "permissionModeHint": "Anular el modo de permisos del agente para los mensajes de este canal. \"Heredar\" utiliza la configuración predeterminada del agente."
+        },
+        "selectAgent": "Selecciona un agente para vincular",
+        "slack": {
+          "appToken": "Token a nivel de aplicación",
+          "appTokenPlaceholder": "xapp-...",
+          "botToken": "Token del Bot",
+          "botTokenPlaceholder": "xoxb-...",
+          "channelIds": "IDs de Canales Permitidos",
+          "channelIdsHint": "IDs de canales de Slack. Dejar vacío para permitir todos.",
+          "channelIdsPlaceholder": "C01234567, D89012345",
+          "description": "Recibe y responde a mensajes mediante un bot de Slack usando el modo Socket.",
+          "title": "Slack",
+          "whoamiTip": "💡 Consejo: Envía /whoami al bot para obtener el ID del canal."
+        },
+        "soulModeRequired": "Este agente no tiene el Modo Autónomo habilitado. Las funciones del canal no funcionarán. Por favor, habilítalo en la configuración del agente.",
+        "tab": "Canales",
+        "telegram": {
+          "botToken": "Token del bot",
+          "botTokenPlaceholder": "Ingrese su token de bot de Telegram",
+          "chatIds": "IDs de chat permitidos",
+          "chatIdsHint": "Separados por comas. Dejar vacío para permitir todos los chats.",
+          "chatIdsPlaceholder": "123456789, 987654321",
+          "description": "Recibir y responder mensajes a través de un bot de Telegram usando long polling.",
+          "title": "Telegram"
+        },
+        "title": "Canales",
+        "wechat": {
+          "addAccount": "Agregar cuenta de WeChat",
+          "chatIds": "IDs de Usuario Permitidos",
+          "chatIdsHint": "Separados por comas. Dejar vacío para permitir todos los usuarios.",
+          "chatIdsPlaceholder": "wxid_abc123, wxid_def456",
+          "connected": "Conectado",
+          "description": "Recibe y responde a mensajes a través de WeChat utilizando la API de iLink Bot.",
+          "disconnected": "Desconectado",
+          "loginHint": "El primer inicio de sesión requiere escanear un código QR. Verifica los registros de la aplicación para obtener la URL de inicio de sesión.",
+          "qrHint": "Abre WeChat en tu teléfono, escanea el código QR para iniciar sesión.",
+          "qrTitle": "Inicio de sesión con código QR de WeChat",
+          "title": "WeChat",
+          "whoamiTip": "Consejo: Envía /whoami en WeChat para obtener el ID de un usuario."
+        }
+      },
+      "heartbeat": {
+        "enabled": "Habilitar Heartbeat",
+        "enabledHelper": "Cuando está habilitado y heartbeat.md existe en el espacio de trabajo, el programador lee su contenido y lo envía a la sesión principal en el intervalo configurado.",
+        "interval": "Intervalo (minutos)",
+        "intervalHelper": "Con qué frecuencia se ejecuta el heartbeat, en minutos."
+      },
+      "sandbox": {
+        "description": "Restringe el acceso al sistema de archivos y red del agente al directorio del espacio de trabajo usando sandboxing a nivel de sistema operativo.",
+        "helper": "Restringir el acceso al sistema de archivos y comandos a la ruta del espacio de trabajo.",
+        "label": "Modo Sandbox"
+      },
+      "scheduler": {
+        "cron": {
+          "helper": "Expresión cron estándar (ej: '*/30 * * * *' para cada 30 minutos).",
+          "label": "Expresión Cron",
+          "placeholder": "*/30 * * * *"
+        },
+        "description": "El programador activa el agente automáticamente según un horario.",
+        "enabled": "Habilitar programador",
+        "enabledHelper": "Cuando está habilitado, el agente se ejecutará automáticamente según el horario configurado.",
+        "errors": {
+          "invalidCron": "Expresión cron inválida",
+          "invalidDelay": "El retraso debe ser un número positivo",
+          "invalidInterval": "El intervalo debe ser un número positivo"
+        },
+        "interval": {
+          "helper": "Con qué frecuencia debe ejecutarse el agente, en segundos.",
+          "label": "Intervalo (segundos)"
+        },
+        "lastRun": "Última ejecución",
+        "never": "Nunca",
+        "nextRun": "Próxima ejecución",
+        "oneTime": {
+          "helper": "Retraso único en segundos antes de que el agente se ejecute.",
+          "label": "Retraso (segundos)"
+        },
+        "status": {
+          "running": "Ejecutando",
+          "stopped": "Detenido",
+          "tickInProgress": "Tick en progreso"
+        },
+        "tab": "Programador",
+        "title": "Configuración del programador",
+        "type": {
+          "cron": "Expresión Cron",
+          "interval": "Intervalo fijo",
+          "label": "Tipo de programación",
+          "one-time": "Retraso único"
+        }
+      },
+      "soul": {
+        "description": "El alma define la personalidad y el comportamiento base del agente. Se lee desde soul.md en la raíz del espacio de trabajo.",
+        "empty": "No se encontró soul.md en la raíz del espacio de trabajo. Cree uno para definir la personalidad del agente.",
+        "enabled": "Habilitar alma",
+        "enabledHelper": "Cuando está habilitado, el agente lee soul.md desde la raíz del espacio de trabajo y lo antepone al prompt del sistema.",
+        "fileLabel": "soul.md",
+        "preview": "Vista previa del alma",
+        "tab": "Alma",
+        "title": "Configuración del alma"
+      },
+      "tasks": {
+        "add": "Agregar tarea",
+        "cancel": "Cancelar",
+        "channels": {
+          "label": "Enviar a Canales",
+          "noActiveChatIds": "Los canales seleccionados no tienen destinatarios disponibles (ID de chat). Es posible que los resultados de la tarea no se entreguen. Primero, envíe un mensaje al Bot en la plataforma.",
+          "placeholder": "Seleccionar canales para recibir resultados"
+        },
+        "cronPlaceholder": "ej: 0 9 * * * (todos los días a las 9 AM)",
+        "delete": {
+          "confirm": "¿Está seguro de que desea eliminar esta tarea?",
+          "label": "Eliminar"
+        },
+        "edit": "Editar",
+        "empty": "No hay tareas programadas. Agregue una para comenzar.",
+        "intervalPlaceholder": "Intervalo en minutos",
+        "intervalUnit": "minutos",
+        "lastRun": "Última ejecución",
+        "logs": {
+          "duration": "Duración",
+          "empty": "Aún no hay historial de ejecución.",
+          "error": "Error",
+          "justNow": "ahora mismo",
+          "label": "Historial de ejecución",
+          "result": "Resultado",
+          "runAt": "Ejecutado en",
+          "running": "Corriendo...",
+          "search": "Buscar registros...",
+          "status": "Estado",
+          "success": "Éxito",
+          "viewSession": "Ver sesión"
+        },
+        "name": {
+          "label": "Nombre",
+          "placeholder": "ej: Revisión de código diaria"
+        },
+        "nextRun": "Próxima ejecución",
+        "oncePlaceholder": "Seleccionar fecha y hora",
+        "pause": "Pausar",
+        "prompt": {
+          "expand": "Expandir editor",
+          "label": "Prompt",
+          "placeholder": "¿Qué debe hacer el agente cuando se ejecute esta tarea?"
+        },
+        "resume": "Reanudar",
+        "run": "Ejecutar",
+        "runTriggered": "Tarea activada",
+        "save": "Guardar",
+        "scheduleType": {
+          "cron": "Cron",
+          "interval": "Intervalo",
+          "label": "Tipo de programación",
+          "once": "Una vez"
+        },
+        "scheduleValue": "Valor de programación",
+        "status": {
+          "active": "Activo",
+          "completed": "Completado",
+          "paused": "Pausado"
+        },
+        "tab": "Tareas",
+        "time": {
+          "hoursAgo": "hace {{count}}h",
+          "minutesAgo": "{{count}}m hace"
+        },
+        "timeout": {
+          "label": "Tiempo de espera agotado",
+          "placeholder": "Sin límite"
+        },
+        "title": "Tareas programadas"
+      },
+      "warning": {
+        "bypassPermissions": "Los agentes CherryClaw se ejecutan en modo automático completo por defecto. Todas las herramientas se ejecutan sin pedir aprobación."
+      }
+    },
     "delete": {
       "content": "Eliminar este Agente forzará la terminación y eliminación de todas las sesiones bajo este Agente. ¿Está seguro?",
       "error": {
@@ -76,7 +319,8 @@
       "tooltip": "Se requiere Git Bash para ejecutar agentes en Windows. Instálalo desde git-scm.com si no está disponible."
     },
     "input": {
-      "placeholder": "Introduce tu mensaje aquí, envía con {{key}} - @ seleccionar ruta, / seleccionar comando"
+      "placeholder": "Introduce tu mensaje aquí, envía con {{key}} - @ seleccionar ruta, / seleccionar comando",
+      "soul_placeholder": "Ayúdame a conectarme a Telegram"
     },
     "list": {
       "error": {
@@ -245,6 +489,20 @@
         "uninstalling": "Desinstalando..."
       },
       "prompt": "Configuración de indicaciones",
+      "skills": {
+        "builtin": "Incorporado",
+        "noFilterResults": "Sin habilidades coincidentes",
+        "noSkills": "No hay habilidades instaladas. Instala habilidades desde Ajustes > Habilidades.",
+        "searchPlaceholder": "Habilidades de búsqueda...",
+        "tab": "Habilidades",
+        "title": "Habilidades Instaladas"
+      },
+      "soulMode": {
+        "description": "Cuando está habilitado, el agente utiliza un mensaje del sistema personalizado desde archivos soul del espacio de trabajo, inyecta herramientas de gestión de tareas autónomas y desactiva las herramientas interactivas no adecuadas para el funcionamiento autónomo.",
+        "disabledBadge": "Desactivado por el Modo Autónomo",
+        "disabledTooltip": "Esta herramienta se desactiva automáticamente cuando el Modo Autónomo está activo.",
+        "title": "Modo Autónomo"
+      },
       "tooling": {
         "mcp": {
           "description": "Conecta servidores MCP para desbloquear herramientas adicionales que puedes aprobar arriba.",
@@ -301,6 +559,7 @@
       },
       "toolsMcp": {
         "mcp": {
+          "tab": "MCP",
           "title": "Servidores MCP"
         },
         "tab": "Herramientas",
@@ -1500,6 +1759,31 @@
     "data": "datos",
     "detail": "Detalles del error",
     "details": "Detalles",
+    "diagnosis": {
+      "ai_button": "Diagnóstico IA",
+      "ai_done": "Diagnosticado",
+      "ai_loading": "Diagnosticando",
+      "ai_result": "Resultado del diagnóstico IA",
+      "auth": "Clave API no válida, por favor verifica y reconfigura",
+      "content": "Contenido bloqueado por el sistema de seguridad, modifica e intenta de nuevo",
+      "context_length": "Conversación demasiado larga, por favor borra el historial o inicia un nuevo chat",
+      "deprecated": "Este modelo ha sido retirado, por favor cambia a otro modelo",
+      "go_to_settings": "Ir a configuración",
+      "knowledge": "Error en la vectorización de la base de conocimiento",
+      "mcp": "Error de conexión al servidor MCP, verifica si el servicio está en ejecución",
+      "model": "Modelo no encontrado o sin acceso",
+      "model_conflict": "El modelo de diagnóstico es el mismo que el modelo con error",
+      "network": "No se puede conectar al servidor, verifica la configuración de red o proxy",
+      "ocr": "Motor OCR no inicializado, verifica la configuración de OCR",
+      "parse": "La IA devolvió una respuesta inválida; por favor, reintenta o cambia de modelo.",
+      "payload": "Contenido de la solicitud demasiado grande, por favor reduce el tamaño del archivo o del texto",
+      "proxy": "Error de proxy o de certificado SSL, verifique la configuración del proxy y de la red",
+      "quota": "Cuota de la cuenta agotada, recarga o cambia de proveedor",
+      "server": "Error del servidor, intenta de nuevo más tarde",
+      "stream": "Respuesta interrumpida, verifica la estabilidad de la red o intenta nuevamente",
+      "unknown": "Se ha producido un error",
+      "view_details": "Ver detalles"
+    },
     "errors": "error",
     "finishReason": "Razón de finalización",
     "functionality": "función",
@@ -3673,6 +3957,10 @@
       "model_params": "Parámetros del modelo",
       "title": "Asistente predeterminado"
     },
+    "channels": {
+      "description": "Conecta agentes a plataformas de mensajería como Telegram, Feishu, Discord y más.",
+      "title": "Canales"
+    },
     "data": {
       "app_data": {
         "copy_data_option": "Copiar datos: se reiniciará automáticamente y se copiarán los datos del directorio original al nuevo directorio",
@@ -4554,6 +4842,7 @@
         "glama": "Directorio de servidores MCP Glama",
         "higress": "Servidor MCP Higress",
         "mcpso": "Plataforma de descubrimiento de servidores MCP",
+        "mcpworld": "Plataforma de agregación MCP de Baidu",
         "modelscope": "Servidor MCP de la comunidad ModelScope",
         "official": "Colección oficial de servidores MCP",
         "pulsemcp": "Servidor MCP Pulse",
@@ -5253,6 +5542,14 @@
       "titleLabel": "Título",
       "titlePlaceholder": "Ingrese el título de la frase"
     },
+    "scheduledTasks": {
+      "description": "Administrar tareas programadas en todos los agentes. Las tareas se ejecutan automáticamente según el horario configurado.",
+      "noAgents": "No se encontraron agentes. Crea primero un agente para añadir tareas programadas.",
+      "noAgentsTip": "Consejo: También puedes pedirle a tu agente que cree tareas programadas mediante el chat.",
+      "noTasks": "No hay tareas programadas. Haz clic en \"+ Agregar\" para crear una para un agente.",
+      "selectTask": "Selecciona una tarea para ver los detalles",
+      "title": "Tareas programadas"
+    },
     "shortcuts": {
       "action": "Acción",
       "actions": "operación",
@@ -5284,6 +5581,41 @@
       "zoom_in": "Ampliar interfaz",
       "zoom_out": "Reducir interfaz",
       "zoom_reset": "Restablecer zoom"
+    },
+    "skills": {
+      "author": "Autor",
+      "batchUninstallSuccess": "{{count}} habilidades desinstaladas",
+      "builtin": "Integrado",
+      "confirmBatchUninstall": "¿Estás seguro de que quieres desinstalar las {{count}} habilidades seleccionadas?",
+      "confirmUninstall": "¿Estás seguro de que quieres desinstalar esta habilidad?",
+      "directory": "Directorio",
+      "dropHint": "O arrastra y suelta aquí un archivo ZIP o una carpeta",
+      "emptyDesc": "Instala habilidades desde ZIP, directorio o busca en registros en línea para ampliar las capacidades del agente.",
+      "emptyTip": "Consejo: También puedes pedirle a un agente que te instale habilidades.",
+      "emptyTitle": "Sin habilidad seleccionada",
+      "filterPlaceholder": "Filtrar habilidades...",
+      "install": "Instalar",
+      "installFailed": "Error al instalar la habilidad: {{name}}",
+      "installFromDirectory": "Instalar desde directorio",
+      "installFromZip": "Instalar desde archivo ZIP",
+      "installSuccess": "Habilidad instalada: {{name}}",
+      "installed": "Habilidades Instaladas",
+      "invalidFormat": "Solo se admiten archivos ZIP y directorios",
+      "localInstall": "Instalación local",
+      "multiSelect": "Selección múltiple",
+      "noFilterResults": "Sin habilidades coincidentes",
+      "noInstalled": "Sin habilidades instaladas",
+      "noResults": "Sin habilidades encontradas",
+      "noSkillFile": "No se encontró SKILL.md",
+      "searchPlaceholder": "Buscar habilidades en los registros...",
+      "searchRegistryTitle": "Buscar registros de habilidades en línea",
+      "searchTitle": "Habilidades de búsqueda",
+      "selectFile": "Selecciona un archivo para ver",
+      "title": "Habilidades",
+      "uninstall": "Desinstalar",
+      "uninstallSuccess": "Habilidad desinstalada: {{name}}",
+      "viewSource": "Ver fuente",
+      "zip": "CÓDIGO POSTAL"
     },
     "theme": {
       "color_primary": "Color del tema",

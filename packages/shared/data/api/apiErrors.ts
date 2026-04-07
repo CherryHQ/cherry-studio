@@ -842,6 +842,17 @@ export function toDataApiError(error: unknown, context?: string): DataApiError {
     return DataApiError.fromJSON(error)
   }
 
+  // Convert ZodError to 422 VALIDATION_ERROR
+  if (isZodError(error)) {
+    const fieldErrors: Record<string, string[]> = {}
+    for (const issue of error.issues) {
+      const path = issue.path.length > 0 ? issue.path.join('.') : '_root'
+      if (!fieldErrors[path]) fieldErrors[path] = []
+      fieldErrors[path].push(issue.message)
+    }
+    return DataApiErrorFactory.validation(fieldErrors, `Validation failed${context ? ` in ${context}` : ''}`)
+  }
+
   if (error instanceof Error) {
     return DataApiErrorFactory.internal(error, context)
   }
@@ -850,5 +861,17 @@ export function toDataApiError(error: unknown, context?: string): DataApiError {
     ErrorCode.INTERNAL_SERVER_ERROR,
     `Unknown error${context ? ` in ${context}` : ''}: ${String(error)}`,
     { originalError: String(error), context } as DetailsForCode<ErrorCode.INTERNAL_SERVER_ERROR>
+  )
+}
+
+/**
+ * Duck-type check for ZodError without importing zod as a dependency.
+ * ZodError has a `.issues` array and `.name === 'ZodError'`.
+ */
+function isZodError(error: unknown): error is { issues: Array<{ path: (string | number)[]; message: string }> } {
+  return (
+    error instanceof Error &&
+    error.name === 'ZodError' &&
+    Array.isArray((error as unknown as Record<string, unknown>).issues)
   )
 }

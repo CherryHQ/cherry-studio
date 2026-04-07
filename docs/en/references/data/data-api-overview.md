@@ -11,6 +11,17 @@ DataApiService handles data that:
 - Would be **severe and irreplaceable** if lost
 - Can grow to **large volumes** (potentially GBs)
 
+## What DataApi is NOT For
+
+DataApi must not be used as a general-purpose RPC layer. The following categories of operations belong in traditional IPC handlers (`src/main/ipc.ts`) or lifecycle services:
+
+- **System control**: Window management, process control, app configuration changes
+- **External service integration**: OAuth flows, WebDAV/S3 operations, backup/restore workflows
+- **Imperative commands**: Sending notifications, opening URLs, launching external processes
+- **Stateless queries without database backing**: System info, font lists, disk space checks
+
+**Why?** DataApi's built-in retry, caching, and four-layer architecture (Handler → Service → Repository → SQLite) are designed for data persistence. These features become harmful or meaningless when applied to side-effectful operations. See [API Design Guidelines — Scope & Boundaries](./api-design-guidelines.md#dataapi-scope--boundaries) for detailed anti-patterns.
+
 ## Key Characteristics
 
 ### Type-Safe Communication

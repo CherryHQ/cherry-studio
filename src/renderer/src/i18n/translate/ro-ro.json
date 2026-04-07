@@ -7,9 +7,9 @@
         "invalid_agent": "Agent invalid"
       },
       "model": {
-        "supported_providers": "Furnizori Acceptați",
+        "supported_providers": "Furnizori acceptați",
         "tooltip": "Momentan, doar modelele care acceptă endpoint-uri Anthropic sunt disponibile pentru funcția Agent.",
-        "view_providers": "Vezi furnizorii acceptați"
+        "view_providers": "Vizualizați furnizorii acceptați"
       },
       "title": "Adaugă agent",
       "type": {
@@ -28,6 +28,249 @@
       "submit": "Trimite",
       "title": "Întrebări de la Agent"
     },
+    "cherryClaw": {
+      "channels": {
+        "add": "Adaugă",
+        "bindAgent": "Agent de legătură",
+        "chatIdsAutoTrackHint": "Când este lăsat gol, sistemul va urmări automat: trebuie să trimiți mai întâi un mesaj Bot-ului pe platformă, apoi sistemul va înregistra ID-ul conversației pentru notificările viitoare.",
+        "comingSoon": "În curând",
+        "connected": "Conectat",
+        "connecting": "Conectare",
+        "deleteConfirm": "Șterge canalul „{{name}}”?",
+        "description": "Conectați agentul la platforme de mesagerie.",
+        "disconnected": "Deconectat",
+        "discord": {
+          "botToken": "Token Bot",
+          "botTokenPlaceholder": "Introdu token-ul botului tău Discord",
+          "channelIds": "ID-uri de canale permise",
+          "channelIdsHint": "Format: canal:id sau dm:id. Lasă gol pentru a permite tot.",
+          "channelIdsPlaceholder": "canal:123456789, dm:987654321",
+          "description": "Primește și răspunde la mesaje printr-un bot Discord folosind gateway WebSocket.",
+          "title": "Discord",
+          "whoamiTip": "💡 Sfaturi: Trimite /whoami către bot pentru a obține ID-ul canalului tău în formatul corect."
+        },
+        "error": "Eroare",
+        "feishu": {
+          "appId": "App ID",
+          "appIdPlaceholder": "Introduceți App ID-ul aplicației Feishu",
+          "appSecret": "App Secret",
+          "appSecretPlaceholder": "Introduceți App Secret-ul aplicației Feishu",
+          "chatIds": "ID-uri de chat permise",
+          "chatIdsHint": "ID-uri de chat separate prin virgulă. Lăsați gol pentru a permite toate chat-urile.",
+          "chatIdsPlaceholder": "oc_xxxxx, oc_yyyyy",
+          "connected": "Conectat",
+          "description": "Primiți și răspundeți la mesaje printr-un bot Feishu/Lark folosind WebSocket.",
+          "domain": "Domeniu",
+          "domainFeishu": "Feishu (China)",
+          "domainLark": "Lark (Internațional)",
+          "encryptKey": "Cheie de criptare",
+          "encryptKeyPlaceholder": "Introduceți cheia de criptare a aplicației Feishu",
+          "loginHint": "Nu sunt configurate credențiale. Activează canalul pentru a începe înregistrarea prin cod QR sau introdu manual ID-ul aplicației și secretul aplicației.",
+          "qrExpired": "Codul QR a expirat. Vă rugăm să reîncercați comutând canalul.",
+          "qrHint": "Se așteaptă scanarea codului QR...",
+          "qrScanHint": "Deschide Feishu pe telefonul tău și scanează codul QR pentru a crea o aplicație bot.",
+          "qrTitle": "Înregistrare prin cod QR Feishu",
+          "title": "Feishu",
+          "verificationToken": "Token de verificare",
+          "verificationTokenPlaceholder": "Introduceți tokenul de verificare al aplicației Feishu"
+        },
+        "logs": "Jurnale",
+        "noInstances": "Niciun canal {{type}} configurat. Faceți clic pe „+ Adăugare” pentru a crea unul.",
+        "noLogs": "Niciun jurnal încă",
+        "notifyReceiver": "Primește notificări de sarcini",
+        "notifyReceiverHint": "Trimite rezultatele sarcinilor programate pe acest canal.",
+        "qq": {
+          "appId": "App ID",
+          "appIdPlaceholder": "Introduceți App ID-ul QQ Bot",
+          "chatIds": "ID-uri de chat permise",
+          "chatIdsHint": "Format: c2c:openid, group:groupid, channel:channelid. Lăsați gol pentru a permite toate.",
+          "chatIdsPlaceholder": "c2c:abc123, group:xyz789",
+          "clientSecret": "Client Secret",
+          "clientSecretPlaceholder": "Introduceți Client Secret-ul QQ Bot",
+          "description": "Primește și răspunde la mesaje prin API-ul oficial QQ Bot.",
+          "title": "QQ",
+          "whoamiTip": "💡 Sfat: Trimiteți /whoami la bot pentru a obține ID-ul de chat în formatul corect."
+        },
+        "security": {
+          "inheritFromAgent": "Moștenește de la agent",
+          "permissionMode": "Modul de permisiune al canalului",
+          "permissionModeHint": "Suprascrie modul de permisiune al agentului pentru mesajele de pe acest canal. „Moștenire” utilizează setarea implicită a agentului."
+        },
+        "selectAgent": "Selectați un agent pentru a-l lega",
+        "slack": {
+          "appToken": "Token la nivel de aplicație",
+          "appTokenPlaceholder": "xapp-...",
+          "botToken": "Token bot",
+          "botTokenPlaceholder": "xoxb-...",
+          "channelIds": "ID-uri canale permise",
+          "channelIdsHint": "ID-urile canalelor Slack. Lăsați gol pentru a permite toate.",
+          "channelIdsPlaceholder": "C01234567, D89012345",
+          "description": "Primește și răspunde la mesaje printr-un bot Slack folosind Socket Mode.",
+          "title": "Slack",
+          "whoamiTip": "💡 Sfat: Trimite /whoami către bot pentru a obține ID-ul canalului."
+        },
+        "soulModeRequired": "Acest agent nu are Activat Modul Autonom. Funcționalitățile canalului nu vor funcționa. Vă rugăm să-l activați în setările agentului.",
+        "tab": "Canale",
+        "telegram": {
+          "botToken": "Token Bot",
+          "botTokenPlaceholder": "Introduceți token-ul bot-ului Telegram",
+          "chatIds": "ID-uri de chat permise",
+          "chatIdsHint": "Separate prin virgulă. Lăsați gol pentru a permite toate chat-urile.",
+          "chatIdsPlaceholder": "123456789, 987654321",
+          "description": "Primește și răspunde la mesaje prin bot Telegram folosind long polling.",
+          "title": "Telegram"
+        },
+        "title": "Canale",
+        "wechat": {
+          "addAccount": "Adaugă cont WeChat",
+          "chatIds": "ID-uri de utilizator permise",
+          "chatIdsHint": "Separat prin virgulă. Lăsați gol pentru a permite tuturor utilizatorilor.",
+          "chatIdsPlaceholder": "wxid_abc123, wxid_def456",
+          "connected": "Conectat",
+          "description": "Primește și răspunde la mesaje prin WeChat folosind API-ul iLink Bot.",
+          "disconnected": "Deconectat",
+          "loginHint": "Prima autentificare necesită scanarea unui cod QR. Verifică jurnalele aplicației pentru adresa URL de autentificare.",
+          "qrHint": "Deschideți WeChat pe telefon, scanați codul QR pentru a vă conecta.",
+          "qrTitle": "Autentificare WeChat cu cod QR",
+          "title": "WeChat",
+          "whoamiTip": "Sfat: Trimiteți /whoami în WeChat pentru a obține ID-ul unui utilizator."
+        }
+      },
+      "heartbeat": {
+        "enabled": "Activează Heartbeat",
+        "enabledHelper": "Când este activat și heartbeat.md există în spațiul de lucru, planificatorul citește conținutul și îl trimite la sesiunea principală la intervalul configurat.",
+        "interval": "Interval (minute)",
+        "intervalHelper": "Cât de des rulează heartbeat-ul, în minute."
+      },
+      "sandbox": {
+        "description": "Restricționează accesul agentului la sistemul de fișiere și rețea doar la directorul spațiului de lucru folosind sandboxing la nivel de sistem de operare.",
+        "helper": "Restricționează accesul la sistemul de fișiere și comenzi la calea spațiului de lucru.",
+        "label": "Mod Sandbox"
+      },
+      "scheduler": {
+        "cron": {
+          "helper": "Expresie cron standard (ex: '*/30 * * * *' pentru fiecare 30 de minute).",
+          "label": "Expresie Cron",
+          "placeholder": "*/30 * * * *"
+        },
+        "description": "Planificatorul declanșează agentul automat conform unui program.",
+        "enabled": "Activează planificatorul",
+        "enabledHelper": "Când este activat, agentul va rula automat pe baza programului configurat.",
+        "errors": {
+          "invalidCron": "Expresie cron invalidă",
+          "invalidDelay": "Întârzierea trebuie să fie un număr pozitiv",
+          "invalidInterval": "Intervalul trebuie să fie un număr pozitiv"
+        },
+        "interval": {
+          "helper": "Cât de des ar trebui să ruleze agentul, în secunde.",
+          "label": "Interval (secunde)"
+        },
+        "lastRun": "Ultima rulare",
+        "never": "Niciodată",
+        "nextRun": "Următoarea rulare",
+        "oneTime": {
+          "helper": "Întârziere unică în secunde înainte de rularea agentului.",
+          "label": "Întârziere (secunde)"
+        },
+        "status": {
+          "running": "Rulează",
+          "stopped": "Oprit",
+          "tickInProgress": "Tick în progres"
+        },
+        "tab": "Planificator",
+        "title": "Configurare planificator",
+        "type": {
+          "cron": "Expresie Cron",
+          "interval": "Interval fix",
+          "label": "Tip program",
+          "one-time": "Întârziere unică"
+        }
+      },
+      "soul": {
+        "description": "Sufletul definește personalitatea și comportamentul de bază al agentului. Este citit din soul.md în rădăcina spațiului de lucru.",
+        "empty": "Nu s-a găsit soul.md în rădăcina spațiului de lucru. Creați unul pentru a defini personalitatea agentului.",
+        "enabled": "Activează sufletul",
+        "enabledHelper": "Când este activat, agentul citește soul.md din rădăcina spațiului de lucru și îl adaugă la începutul promptului de sistem.",
+        "fileLabel": "soul.md",
+        "preview": "Previzualizare suflet",
+        "tab": "Suflet",
+        "title": "Configurare suflet"
+      },
+      "tasks": {
+        "add": "Adaugă sarcină",
+        "cancel": "Anulează",
+        "channels": {
+          "label": "Trimite către canale",
+          "noActiveChatIds": "Canalele selectate nu au destinatari disponibili (ID de chat). Este posibil ca rezultatele sarcinii să nu fie livrate. Vă rugăm să trimiteți mai întâi un mesaj botului pe platformă.",
+          "placeholder": "Selectați canalele pentru a primi rezultatele"
+        },
+        "cronPlaceholder": "ex: 0 9 * * * (în fiecare zi la ora 9)",
+        "delete": {
+          "confirm": "Sunteți sigur că doriți să ștergeți această sarcină?",
+          "label": "Șterge"
+        },
+        "edit": "Editează",
+        "empty": "Nu există sarcini programate. Adăugați una pentru a începe.",
+        "intervalPlaceholder": "Interval în minute",
+        "intervalUnit": "minute",
+        "lastRun": "Ultima rulare",
+        "logs": {
+          "duration": "Durată",
+          "empty": "Nu există încă istoric de rulare.",
+          "error": "Eroare",
+          "justNow": "chiar acum",
+          "label": "Istoric rulări",
+          "result": "Rezultat",
+          "runAt": "Rulat la",
+          "running": "Alergând...",
+          "search": "Caută jurnalele...",
+          "status": "Stare",
+          "success": "Succes",
+          "viewSession": "Vizualizare sesiune"
+        },
+        "name": {
+          "label": "Nume",
+          "placeholder": "ex: Revizuire cod zilnică"
+        },
+        "nextRun": "Următoarea rulare",
+        "oncePlaceholder": "Selectați data și ora",
+        "pause": "Pauză",
+        "prompt": {
+          "expand": "Extinde editorul",
+          "label": "Prompt",
+          "placeholder": "Ce ar trebui să facă agentul când rulează această sarcină?"
+        },
+        "resume": "Reia",
+        "run": "Rulează",
+        "runTriggered": "Sarcină declanșată",
+        "save": "Salvează",
+        "scheduleType": {
+          "cron": "Cron",
+          "interval": "Interval",
+          "label": "Tip program",
+          "once": "O singură dată"
+        },
+        "scheduleValue": "Valoare program",
+        "status": {
+          "active": "Activă",
+          "completed": "Finalizată",
+          "paused": "În pauză"
+        },
+        "tab": "Sarcini",
+        "time": {
+          "hoursAgo": "acum {{count}}h",
+          "minutesAgo": "acum {{count}}m"
+        },
+        "timeout": {
+          "label": "Timeout",
+          "placeholder": "Fără limită"
+        },
+        "title": "Sarcini programate"
+      },
+      "warning": {
+        "bypassPermissions": "Agenții CherryClaw rulează în mod automat complet în mod implicit. Toate instrumentele se execută fără a solicita aprobare."
+      }
+    },
     "delete": {
       "content": "Ștergerea agentului va opri forțat și va șterge toate sesiunile asociate cu agentul. Ești sigur?",
       "error": {
@@ -39,7 +282,7 @@
       "title": "Editează agentul"
     },
     "empty": {
-      "description": "Creează un agent pentru a gestiona sarcini complexe cu instrumente bazate pe IA",
+      "description": "Creează un agent pentru a gestiona sarcini complexe cu instrumente alimentate de inteligență artificială",
       "title": "Niciun agent încă"
     },
     "get": {
@@ -76,7 +319,8 @@
       "tooltip": "Git Bash este necesar pentru a rula agenți pe Windows. Instalează-l de pe git-scm.com dacă nu este disponibil."
     },
     "input": {
-      "placeholder": "Introdu mesajul aici, trimite cu {{key}} - @ selectează calea, / selectează comanda"
+      "placeholder": "Introdu mesajul aici, trimite cu {{key}} - @ selectează calea, / selectează comanda",
+      "soul_placeholder": "Ajută-mă să mă conectez la Telegram"
     },
     "list": {
       "error": {
@@ -140,7 +384,7 @@
       "label_other": "Sesiuni",
       "reorder": {
         "error": {
-          "failed": "Nu s-au putut reordona sesiunile"
+          "failed": "Nu s-a putut reordona sesiunile"
         }
       },
       "update": {
@@ -245,6 +489,20 @@
         "uninstalling": "Se dezinstalează..."
       },
       "prompt": "Setări prompt",
+      "skills": {
+        "builtin": "Încorporat",
+        "noFilterResults": "Nicio abilitate potrivită",
+        "noSkills": "Nicio abilitate instalată. Instalează abilități din Setări > Abilități.",
+        "searchPlaceholder": "Abilități de căutare...",
+        "tab": "Abilități",
+        "title": "Abilități instalate"
+      },
+      "soulMode": {
+        "description": "Când este activată, agentul folosește o comandă de sistem personalizată din fișierele soul ale spațiului de lucru, injectează instrumente autonome de gestionare a sarcinilor și dezactivează instrumentele interactive care nu sunt potrivite pentru funcționarea autonomă.",
+        "disabledBadge": "Dezactivat de Modul Autonom",
+        "disabledTooltip": "Acest instrument este dezactivat automat când Modul Autonom este activ",
+        "title": "Mod Autonom"
+      },
       "tooling": {
         "mcp": {
           "description": "Conectează servere MCP pentru a debloca instrumente suplimentare pe care le poți aproba mai sus.",
@@ -301,6 +559,7 @@
       },
       "toolsMcp": {
         "mcp": {
+          "tab": "MCP",
           "title": "Servere MCP"
         },
         "tab": "Unelte",
@@ -415,9 +674,9 @@
     "warning": {
       "enable_and_start": "Activează și pornește",
       "enable_server": "Activează serverul API pentru a folosi agenți.",
-      "enable_server_description": "Serverul API trebuie să fie activat pentru ca agenții să funcționeze. Îl puteți activa direct sau îl puteți configura în setări.",
+      "enable_server_description": "Serverul API trebuie activat pentru ca agenții să funcționeze. Îl poți activa direct sau îl poți configura în setări.",
       "server_not_running": "Serverul API este activat, dar nu rulează. Vă rugăm să verificați configurația serverului.",
-      "server_not_running_description": "Serverul API trebuie să ruleze pentru ca agenții să funcționeze. Îl puteți porni direct sau puteți verifica setările."
+      "server_not_running_description": "Serverul API trebuie să fie pornit pentru ca agenții să funcționeze. Îl poți porni direct sau verifica setările."
     }
   },
   "apiServer": {
@@ -644,8 +903,8 @@
         }
       },
       "max_tool_calls": {
-        "label": "Apeluri Maxime de Instrumente",
-        "tip": "Numărul maxim de apeluri de instrumente permise într-o singură conversație. Valori mai mari permit operații mai complexe, în mai multe etape, dar pot crește consumul de tokeni și timpul de răspuns."
+        "label": "Apeluri maxime de instrumente",
+        "tip": "Numărul maxim de apeluri de instrumente permise într-o singură conversație. Valorile mai mari permit operațiuni multi-etapă mai complexe, dar pot crește utilizarea tokenilor și timpul de răspuns."
       },
       "mcp": {
         "description": "Servere MCP activate implicit",
@@ -738,7 +997,7 @@
     "progress": {
       "completed": "Backup finalizat",
       "compressing": "Se comprimă fișierele...",
-      "copying_database": "Se copiază baza de date...",
+      "copying_database": "Copiere bază de date...",
       "copying_files": "Se copiază fișierele... {{progress}}%",
       "preparing": "Se pregătește backup-ul...",
       "preparing_compression": "Se pregătește compresia...",
@@ -1500,6 +1759,31 @@
     "data": "Date",
     "detail": "Detalii eroare",
     "details": "Detalii",
+    "diagnosis": {
+      "ai_button": "Diagnostic IA",
+      "ai_done": "Diagnosticat",
+      "ai_loading": "Se diagnostichează",
+      "ai_result": "Rezultatul diagnosticului IA",
+      "auth": "Cheie API invalidă, verificați și reconfigurați",
+      "content": "Conținut blocat de sistemul de securitate, modificați și reîncercați",
+      "context_length": "Conversația este prea lungă, te rugăm să ștergi istoricul sau să începi o conversație nouă",
+      "deprecated": "Acest model a fost retras, te rugăm să treci la alt model",
+      "go_to_settings": "Mergi la setări",
+      "knowledge": "Vectorizarea bazei de cunoștințe a eșuat",
+      "mcp": "Conexiunea la serverul MCP a eșuat, verificați dacă serviciul rulează",
+      "model": "Model negăsit sau fără acces",
+      "model_conflict": "Modelul de diagnostic este identic cu modelul cu eroare",
+      "network": "Nu se poate conecta la server, verificați setările de rețea sau proxy",
+      "ocr": "Motorul OCR nu este inițializat, verificați setările OCR",
+      "parse": "IA a returnat un răspuns invalid, vă rugăm să reîncercați sau să schimbați modelul",
+      "payload": "Conținutul cererii este prea mare, reduceți dimensiunea fișierului sau a textului.",
+      "proxy": "Eroare de proxy sau certificat SSL, verificați setările de proxy și de rețea",
+      "quota": "Cota contului epuizată, reîncărcați sau schimbați furnizorul",
+      "server": "Eroare de server, reîncercați mai târziu",
+      "stream": "Răspuns întrerupt, verificați stabilitatea rețelei sau reîncercați",
+      "unknown": "A apărut o eroare",
+      "view_details": "Vezi detalii"
+    },
     "errors": "Erori",
     "finishReason": "Motiv finalizare",
     "functionality": "Funcționalitate",
@@ -1543,7 +1827,7 @@
     "requestBody": "Corp cerere",
     "requestBodyValues": "Valori corp cerere",
     "requestUrl": "URL cerere",
-    "request_timeout": "Cerere expirată",
+    "request_timeout": "Cererea a expirat",
     "response": "Răspuns",
     "responseBody": "Corp răspuns",
     "responseHeaders": "Header răspuns",
@@ -1553,7 +1837,7 @@
     "status": "Cod stare",
     "statusCode": "Cod stare",
     "statusText": "Text stare",
-    "stream_paused": "În pauză",
+    "stream_paused": "Întrerupt",
     "text": "Text",
     "toolInput": "Intrare instrument",
     "toolName": "Nume instrument",
@@ -2034,7 +2318,7 @@
       "fetchTopicName": "Nu s-a putut numi subiectul",
       "file": {
         "process_failed": "Fișierul {{name}} nu a putut fi procesat",
-        "text_extraction_failed": "Nu s-a putut extrage textul din {{name}}"
+        "text_extraction_failed": "Nu s-a reușit extragerea textului din {{name}}"
       },
       "get_embedding_dimensions": "Nu s-au putut obține dimensiunile embedding",
       "invalid": {
@@ -2282,7 +2566,7 @@
       "file": {
         "pdf_exceeds_limit": "Fișierul PDF {{name}} depășește limita de dimensiune ({{limit}}), se revine la extragerea textului",
         "pdf_text_extraction_failed": "Nu s-a putut extrage textul din PDF {{name}}",
-        "pdf_upload_failed": "Încărcarea PDF-ului {{name}} a eșuat, se revine la extragerea textului"
+        "pdf_upload_failed": "Nu s-a putut încărca PDF-ul {{name}}, se revine la extragerea textului"
       },
       "rate": {
         "limit": "Prea multe cereri. Te rugăm să aștepți {{seconds}} secunde înainte de a încerca din nou."
@@ -2336,11 +2620,11 @@
     "chatglm": "ChatGLM",
     "dangbei": "Dangbei",
     "doubao": "Doubao",
-    "hailuo": "Hailuo",
-    "ima": "ima",
+    "hailuo": "MINIMAX",
+    "ima": "acum",
     "metaso": "Metaso",
-    "minimax-agent": "MiniMax Agent CN",
-    "minimax-global": "MiniMax Agent",
+    "minimax-agent": "Agent Minimax CN",
+    "minimax-global": "Agent Minimax",
     "nami-ai": "Nami AI",
     "nami-ai-search": "Nami AI Search",
     "qwen": "Qwen",
@@ -2662,9 +2946,9 @@
     "install_progress": "Progresul instalării",
     "installed_at": "OpenClaw instalat la",
     "migration": {
-      "description": "A fost detectată o versiune învechită a OpenClaw instalată prin npm. Te rugăm să reinstalezi pentru a obține cea mai recentă versiune oficială.",
+      "description": "A fost detectată o versiune învechită a OpenClaw instalată prin npm. Reinstalați pentru a obține cea mai recentă versiune oficială.",
       "install_button": "Reinstalați OpenClaw",
-      "title": "OpenClaw Necesită Actualizare"
+      "title": "OpenClaw necesită actualizare"
     },
     "model_config": {
       "auth_token": "Token de autentificare",
@@ -2701,7 +2985,7 @@
       "windows_title": "Windows"
     },
     "quick_actions": {
-      "check_update": "Verifică actualizările",
+      "check_update": "Verifică pentru actualizări",
       "open_dashboard": "Deschide Tabloul de Bord",
       "title": "Acțiuni rapide",
       "uninstall": "Dezinstalare",
@@ -2730,14 +3014,14 @@
       "title": "Dezinstalarea OpenClaw"
     },
     "update": {
-      "available": "Versiune nouă disponibilă: v{{latest}} (versiunea curentă: v{{current}})",
+      "available": "Versiune nouă disponibilă: v{{latest}} (curentă: v{{current}})",
       "checking": "Se verifică actualizările...",
       "confirm_button": "Actualizează acum",
       "failed": "Nu s-a reușit verificarea actualizărilor",
       "modal_title": "Actualizare OpenClaw",
       "success": "Actualizare finalizată cu succes!",
       "up_to_date": "Deja actualizat (v{{current}})",
-      "updating": "Se actualizează..."
+      "updating": "Actualizare..."
     }
   },
   "ovms": {
@@ -3138,7 +3422,7 @@
     "lmstudio": "LM Studio",
     "longcat": "LongCat AI",
     "mimo": "Xiaomi MiMo",
-    "minimax": "MiniMax CN",
+    "minimax": "MiniMax",
     "minimax-global": "MiniMax",
     "mistral": "Mistral",
     "modelscope": "ModelScope",
@@ -3673,6 +3957,10 @@
       "model_params": "Parametri model",
       "title": "Asistent implicit"
     },
+    "channels": {
+      "description": "Conectați agenți la platforme de mesagerie precum Telegram, Feishu, Discord și altele.",
+      "title": "Canale"
+    },
     "data": {
       "app_data": {
         "copy_data_option": "Copiază datele, va reporni automat după copierea datelor din directorul original în noul director",
@@ -3762,7 +4050,7 @@
           "title": "Exportă ca fișier"
         },
         "lan": {
-          "button": "Începe transferul",
+          "button": "Începe Transferul",
           "connected": "Conectat",
           "connection_failed": "Conexiune eșuată",
           "content": "Te rugăm să te asiguri că computerul și telefonul sunt în aceeași rețea pentru transferul LAN.",
@@ -4554,6 +4842,7 @@
         "glama": "Director servere MCP Glama",
         "higress": "Server MCP Higress",
         "mcpso": "Platformă descoperire servere MCP",
+        "mcpworld": "Platforma de agregare MCP Baidu",
         "modelscope": "Server MCP comunitate ModelScope",
         "official": "Colecție oficială servere MCP",
         "pulsemcp": "Server MCP Pulse",
@@ -5144,7 +5433,7 @@
         "agent": "Asistat de agent",
         "all": "Toți furnizorii"
       },
-      "filter_agent": "Furnizori acceptați de Agentul de filtrare",
+      "filter_agent": "Furnizori acceptați de agentul de filtrare",
       "get_api_key": "Obține cheie API",
       "misc": "Altele",
       "no_models_for_check": "Nu există modele disponibile pentru verificare (de ex. modele chat)",
@@ -5253,6 +5542,14 @@
       "titleLabel": "Titlu",
       "titlePlaceholder": "Te rugăm să introduci titlul expresiei"
     },
+    "scheduledTasks": {
+      "description": "Gestionați sarcinile programate pentru toți agenții. Sarcinile rulează automat conform programului configurat.",
+      "noAgents": "Niciun agent găsit. Creează mai întâi un agent pentru a adăuga sarcini programate.",
+      "noAgentsTip": "Sfat: Îți poți ruga, de asemenea, agentul să creeze sarcini programate prin chat.",
+      "noTasks": "Nu există sarcini programate. Faceți clic pe „+ Adăugați” pentru a crea una pentru un agent.",
+      "selectTask": "Selectați o sarcină pentru a vizualiza detaliile",
+      "title": "Sarcini programate"
+    },
     "shortcuts": {
       "action": "Acțiune",
       "actions": "Comandă",
@@ -5284,6 +5581,41 @@
       "zoom_in": "Mărește",
       "zoom_out": "Micșorează",
       "zoom_reset": "Resetează zoom-ul"
+    },
+    "skills": {
+      "author": "Autor",
+      "batchUninstallSuccess": "{{count}} competențe dezinstalate",
+      "builtin": "Încorporat",
+      "confirmBatchUninstall": "Sigur dorești să dezinstalezi {{count}} competențe selectate?",
+      "confirmUninstall": "Ești sigur că vrei să dezinstalezi această abilitate?",
+      "directory": "Director",
+      "dropHint": "Sau trageți și plasați aici un fișier ZIP sau un folder",
+      "emptyDesc": "Instalează abilități din ZIP, director sau caută în registre online pentru a extinde capabilitățile agentului.",
+      "emptyTip": "Sfat: Poți, de asemenea, să ceri unui agent să instaleze abilități pentru tine.",
+      "emptyTitle": "Nicio competență selectată",
+      "filterPlaceholder": "Filtrează abilitățile...",
+      "install": "Instalare",
+      "installFailed": "Nu s-a putut instala abilitatea: {{name}}",
+      "installFromDirectory": "Instalează din director",
+      "installFromZip": "Instalează din fișier ZIP",
+      "installSuccess": "Abilitate instalată: {{name}}",
+      "installed": "Abilități Instalate",
+      "invalidFormat": "Sunt acceptate doar fișiere ZIP și directoare.",
+      "localInstall": "Instalare locală",
+      "multiSelect": "Selecție multiplă",
+      "noFilterResults": "Niciun abilitate potrivită",
+      "noInstalled": "Nicio competență instalată",
+      "noResults": "Nicio competență găsită",
+      "noSkillFile": "Nu s-a găsit SKILL.md",
+      "searchPlaceholder": "Caută competențe în registre...",
+      "searchRegistryTitle": "Caută registre de competențe online",
+      "searchTitle": "Abilități de căutare",
+      "selectFile": "Selectați un fișier pentru vizualizare",
+      "title": "Abilități",
+      "uninstall": "Dezinstalare",
+      "uninstallSuccess": "Abilitate dezinstalată: {{name}}",
+      "viewSource": "Vezi sursa",
+      "zip": "ZIP"
     },
     "theme": {
       "color_primary": "Culoare primară",

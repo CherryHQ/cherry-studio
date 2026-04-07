@@ -1,4 +1,3 @@
-import { useInstalledPlugins } from '@renderer/hooks/usePlugins'
 import type { ToolActionKey, ToolRenderContext, ToolStateKey } from '@renderer/pages/home/Inputbar/types'
 import type React from 'react'
 
@@ -16,12 +15,8 @@ const ResourceQuickPanelManager = ({ context }: ManagerProps) => {
     session
   } = context
 
-  // Get accessible paths and agentId from session data
+  // Get accessible paths from session data
   const accessiblePaths = session?.accessiblePaths ?? []
-  const agentId = session?.agentId
-
-  // Fetch installed plugins (agents and skills) from .claude directory
-  const { plugins, loading: pluginsLoading } = useInstalledPlugins(agentId)
 
   // Always call hooks unconditionally (React rules)
   useResourcePanel(
@@ -29,8 +24,6 @@ const ResourceQuickPanelManager = ({ context }: ManagerProps) => {
       quickPanel,
       quickPanelController,
       accessiblePaths,
-      plugins,
-      pluginsLoading,
       setText: onTextChange as React.Dispatch<React.SetStateAction<string>>
     },
     'manager'

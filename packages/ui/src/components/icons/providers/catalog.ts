@@ -17,6 +17,7 @@ import { AiStudioIcon } from './aiStudio'
 import { AlayanewIcon } from './alayanew'
 import { AllenaiIcon } from './allenai'
 import { AnthropicIcon } from './anthropic'
+import { ApplicationIcon } from './application'
 import { ArceeAiIcon } from './arceeAi'
 import { AwsBedrockIcon } from './awsBedrock'
 import { AzureaiIcon } from './azureai'
@@ -177,6 +178,7 @@ export const PROVIDER_ICON_CATALOG = {
   alayanew: AlayanewIcon,
   allenai: AllenaiIcon,
   anthropic: AnthropicIcon,
+  application: ApplicationIcon,
   arceeAi: ArceeAiIcon,
   awsBedrock: AwsBedrockIcon,
   azureai: AzureaiIcon,

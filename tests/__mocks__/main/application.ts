@@ -26,6 +26,12 @@ import { MockMainTesseractRuntimeServiceExport } from './TesseractRuntimeService
  *   })
  */
 
+/** Minimal WindowService mock for tests that access application.get('WindowService') */
+const mockWindowService = {
+  getMainWindow: vi.fn(() => null),
+  showMainWindow: vi.fn()
+}
+
 /** Default service instances from existing mock files */
 export const defaultServiceInstances = {
   PreferenceService: MockMainPreferenceServiceExport.preferenceService,
@@ -34,7 +40,8 @@ export const defaultServiceInstances = {
   DbService: MockMainDbServiceExport.dbService,
   FileProcessingRuntimeService: MockMainFileProcessingRuntimeServiceExport.fileProcessingRuntimeService,
   TesseractRuntimeService: MockMainTesseractRuntimeServiceExport.tesseractRuntimeService,
-  OpenMineruRuntimeService: MockMainOpenMineruRuntimeServiceExport.openMineruRuntimeService
+  OpenMineruRuntimeService: MockMainOpenMineruRuntimeServiceExport.openMineruRuntimeService,
+  WindowService: mockWindowService
 } as const
 
 /** Type for per-service overrides */

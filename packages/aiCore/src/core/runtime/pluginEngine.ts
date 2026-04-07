@@ -14,13 +14,13 @@ import {
   type StreamTextParams,
   type StreamTextResult
 } from '../plugins'
-import { type ProviderId } from '../providers/types'
+import type { RegisteredProviderId } from '../providers'
 
 /**
  * 插件增强的 AI 客户端
  * 专注于插件处理，不暴露用户API
  */
-export class PluginEngine<T extends ProviderId = ProviderId> {
+export class PluginEngine<T extends string = RegisteredProviderId> {
   /**
    * Plugin storage with explicit any/any generics
    *
@@ -36,7 +36,6 @@ export class PluginEngine<T extends ProviderId = ProviderId> {
 
   constructor(
     private readonly providerId: T,
-    // private readonly options: ProviderSettingsMap[T],
     plugins: AiPlugin[] = []
   ) {
     this.basePlugins = plugins
@@ -80,6 +79,38 @@ export class PluginEngine<T extends ProviderId = ProviderId> {
    */
   getPlugins() {
     return [...this.basePlugins]
+  }
+
+  /**
+   * Resolve modelId through the plugin pipeline (configureContext → resolveModel → wrapLanguageModel).
+   * Returns a middleware-wrapped LanguageModel ready for external consumers like ToolLoopAgent.
+   *
+   * Note: This is a model-resolution-only path, not a full request lifecycle.
+   * - `originalParams` in context will be `{}` since no request params exist at resolution time.
+   * - `onError` hooks are NOT invoked on failure — callers should handle errors directly.
+   */
+  async resolveModel(modelId: string): Promise<LanguageModel> {
+    const context = createContext(this.providerId, modelId, {})
+    const manager = new PluginManager(this.basePlugins)
+
+    // 1. configureContext — collect middlewares
+    await manager.executeConfigureContext(context)
+
+    // 2. resolveModel — string → LanguageModel
+    const resolved = await manager.executeFirst<LanguageModel>('resolveModel', modelId, context)
+    if (!resolved) {
+      throw new ModelResolutionError(modelId, this.providerId)
+    }
+
+    // 3. Apply middlewares
+    if (context.middlewares && context.middlewares.length > 0) {
+      return wrapLanguageModel({
+        model: resolved as LanguageModelV3,
+        middleware: context.middlewares
+      })
+    }
+
+    return resolved
   }
 
   /**
@@ -352,6 +383,9 @@ export class PluginEngine<T extends ProviderId = ProviderId> {
           throw new ModelResolutionError(modelId, this.providerId)
         }
         resolvedModel = resolved
+        // 更新 context.model 为已解析的 LanguageModel 实例
+        // 后续 plugin（如 providerToolPlugin）需要 model.provider 来识别聚合供应商的协议
+        context.model = resolvedModel
       }
 
       if (!resolvedModel) {
@@ -359,7 +393,10 @@ export class PluginEngine<T extends ProviderId = ProviderId> {
       }
 
       // 2.5 应用 context.middlewares 到模型
-      if (typeof model !== 'string' && context.middlewares && context.middlewares.length > 0) {
+      if (context.middlewares && context.middlewares.length > 0) {
+        if (typeof resolvedModel === 'string') {
+          throw new Error(`Model must be resolved before applying middlewares, got string: ${resolvedModel}`)
+        }
         resolvedModel = wrapLanguageModel({
           model: resolvedModel as LanguageModelV3,
           middleware: context.middlewares

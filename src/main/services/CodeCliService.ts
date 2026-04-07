@@ -35,6 +35,7 @@ import {
   WINDOWS_TERMINALS,
   WINDOWS_TERMINALS_WITH_COMMANDS
 } from '@shared/config/constant'
+import type { CodeToolsRunResult } from '@shared/config/types'
 import { IpcChannel } from '@shared/IpcChannel'
 import { getFunctionalKeys, parseJSONC, sanitizeEnvForLogging } from '@shared/utils'
 import { spawn } from 'child_process'
@@ -860,7 +861,7 @@ export class CodeCliService extends BaseService {
     directory: string,
     env: Record<string, string>,
     options: { autoUpdateToLatest?: boolean; terminal?: string } = {}
-  ) {
+  ): Promise<CodeToolsRunResult> {
     logger.info(`Starting CLI tool launch: ${cliTool} in directory: ${directory}`)
     logger.debug(`Environment variables:`, Object.keys(env))
     logger.debug(`Options:`, options)
