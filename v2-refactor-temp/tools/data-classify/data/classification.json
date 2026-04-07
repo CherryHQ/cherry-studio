@@ -2,9 +2,9 @@
   "metadata": {
     "version": "2.0.0",
     "lastUpdated": "2026-03-23T08:30:00.000Z",
-    "totalItems": 406,
-    "classified": 278,
-    "pending": 122,
+    "totalItems": 408,
+    "classified": 282,
+    "pending": 120,
     "deleted": 0
   },
   "classifications": {
@@ -2467,236 +2467,222 @@
             {
               "category": "preferences",
               "defaultValue": {
-                "editable": false,
                 "enabled": true,
-                "key": ["CommandOrControl", "="],
-                "system": true
+                "key": ["CommandOrControl", "="]
               },
               "originalKey": "zoom_in",
               "status": "classified",
               "targetKey": "shortcut.app.zoom_in",
-              "type": "object"
+              "type": "PreferenceTypes.PreferenceShortcutType"
             },
             {
               "category": "preferences",
               "defaultValue": {
-                "editable": false,
                 "enabled": true,
-                "key": ["CommandOrControl", "-"],
-                "system": true
+                "key": ["CommandOrControl", "-"]
               },
               "originalKey": "zoom_out",
               "status": "classified",
               "targetKey": "shortcut.app.zoom_out",
-              "type": "object"
+              "type": "PreferenceTypes.PreferenceShortcutType"
             },
             {
               "category": "preferences",
               "defaultValue": {
-                "editable": false,
                 "enabled": true,
-                "key": ["CommandOrControl", "0"],
-                "system": true
+                "key": ["CommandOrControl", "0"]
               },
               "originalKey": "zoom_reset",
               "status": "classified",
               "targetKey": "shortcut.app.zoom_reset",
-              "type": "object"
+              "type": "PreferenceTypes.PreferenceShortcutType"
             },
             {
               "category": "preferences",
               "defaultValue": {
-                "editable": false,
                 "enabled": true,
-                "key": ["CommandOrControl", ","],
-                "system": true
+                "key": ["CommandOrControl", ","]
               },
               "originalKey": "show_settings",
               "status": "classified",
               "targetKey": "shortcut.app.show_settings",
-              "type": "object"
+              "type": "PreferenceTypes.PreferenceShortcutType"
             },
             {
               "category": "preferences",
               "defaultValue": {
-                "editable": true,
                 "enabled": true,
-                "key": [],
-                "system": true
+                "key": []
               },
               "originalKey": "show_app",
               "status": "classified",
               "targetKey": "shortcut.app.show_main_window",
-              "type": "object"
+              "type": "PreferenceTypes.PreferenceShortcutType"
             },
             {
               "category": "preferences",
               "defaultValue": {
-                "editable": true,
                 "enabled": false,
-                "key": ["CommandOrControl", "E"],
-                "system": true
+                "key": ["CommandOrControl", "E"]
               },
               "originalKey": "mini_window",
               "status": "classified",
               "targetKey": "shortcut.app.show_mini_window",
-              "type": "object"
+              "type": "PreferenceTypes.PreferenceShortcutType"
             },
             {
               "category": "preferences",
               "defaultValue": {
-                "editable": true,
                 "enabled": false,
-                "key": [],
-                "system": true
+                "key": []
               },
               "originalKey": "selection_assistant_toggle",
               "status": "classified",
               "targetKey": "shortcut.selection.toggle_enabled",
-              "type": "object"
+              "type": "PreferenceTypes.PreferenceShortcutType"
             },
             {
               "category": "preferences",
               "defaultValue": {
-                "editable": true,
                 "enabled": false,
-                "key": [],
-                "system": true
+                "key": []
               },
               "originalKey": "selection_assistant_select_text",
               "status": "classified",
               "targetKey": "shortcut.selection.get_text",
-              "type": "object"
+              "type": "PreferenceTypes.PreferenceShortcutType"
             },
             {
               "category": "preferences",
               "defaultValue": {
-                "editable": true,
                 "enabled": true,
-                "key": ["CommandOrControl", "N"],
-                "system": false
+                "key": ["CommandOrControl", "N"]
               },
               "originalKey": "new_topic",
               "status": "classified",
               "targetKey": "shortcut.topic.new",
-              "type": "object"
-            },
-            {
-              "category": null,
-              "defaultValue": {
-                "editable": true,
-                "enabled": false,
-                "key": ["CommandOrControl", "T"],
-                "system": false
-              },
-              "originalKey": "rename_topic",
-              "status": "pending",
-              "targetKey": null,
-              "type": "object"
+              "type": "PreferenceTypes.PreferenceShortcutType"
             },
             {
               "category": "preferences",
               "defaultValue": {
-                "editable": true,
                 "enabled": true,
-                "key": ["CommandOrControl", "["],
-                "system": false
+                "key": ["CommandOrControl", "T"]
+              },
+              "originalKey": "rename_topic",
+              "status": "classified",
+              "targetKey": "shortcut.topic.rename",
+              "type": "PreferenceTypes.PreferenceShortcutType"
+            },
+            {
+              "category": "preferences",
+              "defaultValue": {
+                "enabled": true,
+                "key": ["CommandOrControl", "]"]
+              },
+              "originalKey": "toggle_show_topics",
+              "status": "classified",
+              "targetKey": "shortcut.topic.toggle_show_topics",
+              "type": "PreferenceTypes.PreferenceShortcutType"
+            },
+            {
+              "category": "preferences",
+              "defaultValue": {
+                "enabled": true,
+                "key": ["CommandOrControl", "["]
               },
               "originalKey": "toggle_show_assistants",
               "status": "classified",
               "targetKey": "shortcut.app.toggle_show_assistants",
-              "type": "object"
+              "type": "PreferenceTypes.PreferenceShortcutType"
             },
             {
               "category": "preferences",
               "defaultValue": {
-                "editable": true,
                 "enabled": false,
-                "key": ["CommandOrControl", "Shift", "C"],
-                "system": false
+                "key": ["CommandOrControl", "Shift", "C"]
               },
               "originalKey": "copy_last_message",
               "status": "classified",
               "targetKey": "shortcut.chat.copy_last_message",
-              "type": "object"
-            },
-            {
-              "category": null,
-              "defaultValue": {
-                "editable": true,
-                "enabled": false,
-                "key": ["CommandOrControl", "Shift", "E"],
-                "system": false
-              },
-              "originalKey": "edit_last_user_message",
-              "status": "pending",
-              "targetKey": null,
-              "type": "object"
+              "type": "PreferenceTypes.PreferenceShortcutType"
             },
             {
               "category": "preferences",
               "defaultValue": {
-                "editable": true,
+                "enabled": false,
+                "key": ["CommandOrControl", "Shift", "E"]
+              },
+              "originalKey": "edit_last_user_message",
+              "status": "classified",
+              "targetKey": "shortcut.chat.edit_last_user_message",
+              "type": "PreferenceTypes.PreferenceShortcutType"
+            },
+            {
+              "category": "preferences",
+              "defaultValue": {
                 "enabled": true,
-                "key": ["CommandOrControl", "F"],
-                "system": false
+                "key": ["CommandOrControl", "F"]
               },
               "originalKey": "search_message_in_chat",
               "status": "classified",
               "targetKey": "shortcut.chat.search_message",
-              "type": "object"
+              "type": "PreferenceTypes.PreferenceShortcutType"
             },
             {
               "category": "preferences",
               "defaultValue": {
-                "editable": true,
                 "enabled": true,
-                "key": ["CommandOrControl", "Shift", "F"],
-                "system": false
+                "key": ["CommandOrControl", "Shift", "F"]
               },
               "originalKey": "search_message",
               "status": "classified",
               "targetKey": "shortcut.app.search_message",
-              "type": "object"
+              "type": "PreferenceTypes.PreferenceShortcutType"
             },
             {
               "category": "preferences",
               "defaultValue": {
-                "editable": true,
                 "enabled": true,
-                "key": ["CommandOrControl", "L"],
-                "system": false
+                "key": ["CommandOrControl", "L"]
               },
               "originalKey": "clear_topic",
               "status": "classified",
               "targetKey": "shortcut.chat.clear",
-              "type": "object"
+              "type": "PreferenceTypes.PreferenceShortcutType"
             },
             {
               "category": "preferences",
               "defaultValue": {
-                "editable": true,
                 "enabled": true,
-                "key": ["CommandOrControl", "K"],
-                "system": false
+                "key": ["CommandOrControl", "K"]
               },
               "originalKey": "toggle_new_context",
               "status": "classified",
               "targetKey": "shortcut.chat.toggle_new_context",
-              "type": "object"
+              "type": "PreferenceTypes.PreferenceShortcutType"
             },
             {
               "category": "preferences",
               "defaultValue": {
-                "editable": false,
                 "enabled": true,
-                "key": ["Escape"],
-                "system": true
+                "key": ["CommandOrControl", "Shift", "M"]
+              },
+              "originalKey": "select_model",
+              "status": "classified",
+              "targetKey": "shortcut.chat.select_model",
+              "type": "PreferenceTypes.PreferenceShortcutType"
+            },
+            {
+              "category": "preferences",
+              "defaultValue": {
+                "enabled": true,
+                "key": ["Escape"]
               },
               "originalKey": "exit_fullscreen",
               "status": "classified",
               "targetKey": "shortcut.app.exit_fullscreen",
-              "type": "object"
+              "type": "PreferenceTypes.PreferenceShortcutType"
             }
           ]
         }

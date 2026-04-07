@@ -1,6 +1,6 @@
 /**
  * Auto-generated preference mappings from classification.json
- * Generated at: 2026-03-25T15:56:52.716Z
+ * Generated at: 2026-04-07T06:27:46.146Z
  *
  * This file contains pure mapping relationships without default values.
  * Default values are managed in packages/shared/data/preferences.ts
@@ -789,12 +789,12 @@ export const REDUX_STORE_MAPPINGS = {
       targetKey: 'shortcut.topic.rename'
     },
     {
-      originalKey: 'shortcuts.toggle_show_assistants',
-      targetKey: 'shortcut.app.toggle_show_assistants'
-    },
-    {
       originalKey: 'shortcuts.toggle_show_topics',
       targetKey: 'shortcut.topic.toggle_show_topics'
+    },
+    {
+      originalKey: 'shortcuts.toggle_show_assistants',
+      targetKey: 'shortcut.app.toggle_show_assistants'
     },
     {
       originalKey: 'shortcuts.copy_last_message',
@@ -953,11 +953,11 @@ export const LOCALSTORAGE_MAPPINGS: ReadonlyArray<{ originalKey: string; targetK
 /**
  * 映射统计:
  * - ElectronStore项: 1
- * - Redux Store项: 212
+ * - Redux Store项: 211
  * - Redux分类: settings, selectionStore, memory, nutstore, preprocess, shortcuts, translate, websearch, ocr, note
  * - DexieSettings项: 7
  * - localStorage项: 0
- * - 总配置项: 220
+ * - 总配置项: 219
  *
  * 使用说明:
  * 1. ElectronStore读取: configManager.get(mapping.originalKey)
