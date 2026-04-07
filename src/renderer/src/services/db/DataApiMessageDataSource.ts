@@ -1,42 +1,17 @@
 /**
- * TODO: Temporary compatibility layer — remove after message type migration.
+ * Temporary compatibility layer — remove after renderer adopts UIMessage.parts rendering.
  *
- * This module bridges the Data API (shared types) and the renderer (legacy types)
- * by converting SharedMessage → renderer Message + MessageBlock[].
+ * Converts Data API SharedMessage (with data.parts in AI SDK UIMessage format)
+ * into renderer legacy Message + MessageBlock[] for existing rendering components.
  *
- * Once the renderer adopts shared types directly (Message from @shared/data/types/message),
- * this conversion layer and the separate MessageBlock store become unnecessary.
- * The renderer should consume Data API responses as-is without re-shaping.
+ * Once the renderer reads UIMessage.parts directly, this module becomes unnecessary.
  */
 import { dataApiService } from '@data/DataApiService'
 import { loggerService } from '@logger'
-import type { WebSearchSource } from '@renderer/types/index'
-import type {
-  CodeMessageBlock,
-  CompactMessageBlock,
-  ErrorMessageBlock,
-  FileMessageBlock,
-  ImageMessageBlock,
-  MainTextMessageBlock,
-  Message,
-  MessageBlock,
-  ThinkingMessageBlock,
-  ToolMessageBlock,
-  TranslationMessageBlock,
-  VideoMessageBlock
-} from '@renderer/types/newMessage'
-import { MessageBlockStatus, MessageBlockType } from '@renderer/types/newMessage'
-import type { ToolType } from '@renderer/types/tool'
+import type { Message, MessageBlock } from '@renderer/types/newMessage'
+import { mapMessageStatusToBlockStatus, partToBlock } from '@renderer/utils/partsToBlocks'
 import { ErrorCode } from '@shared/data/api/apiErrors'
-import type {
-  BranchMessagesResponse,
-  CherryMessagePart,
-  CitationReference,
-  ContentReference,
-  Message as SharedMessage
-} from '@shared/data/types/message'
-import { isWebCitation, ReferenceCategory } from '@shared/data/types/message'
-import type { CherryProviderMetadata } from '@shared/data/types/uiParts'
+import type { BranchMessagesResponse, Message as SharedMessage } from '@shared/data/types/message'
 
 const logger = loggerService.withContext('DataApiMessageDataSource')
 
@@ -78,8 +53,8 @@ export async function fetchMessagesFromDataApi(topicId: string): Promise<{
     })
 
     return { messages, blocks }
-  } catch (error: any) {
-    if (error?.code === ErrorCode.NOT_FOUND) {
+  } catch (error: unknown) {
+    if (error instanceof Object && 'code' in error && error.code === ErrorCode.NOT_FOUND) {
       logger.debug(`Topic ${topicId} not found in Data API, returning empty`)
       return { messages: [], blocks: [] }
     }
@@ -91,8 +66,9 @@ export async function fetchMessagesFromDataApi(topicId: string): Promise<{
 /**
  * Convert a shared Message (Data API) to renderer Message + MessageBlock[].
  *
- * Block data was written from renderer format (minus id/status/messageId),
- * so we restore those fields with deterministic IDs based on messageId + index.
+ * Messages are stored in data.parts (AI SDK UIMessage.parts format).
+ * Parts are converted back to renderer MessageBlock[] with deterministic IDs
+ * based on messageId + index.
  */
 function convertSharedMessage(shared: SharedMessage): {
   message: Message
@@ -101,38 +77,19 @@ function convertSharedMessage(shared: SharedMessage): {
   const rendererBlocks: MessageBlock[] = []
   const blockIds: string[] = []
 
-  // Support both old format (data.blocks) and new format (data.parts from AI SDK UIMessage)
-  const dataBlocks = shared.data?.blocks || []
+  // data.parts is the canonical storage format after v2 migration.
+  // TODO: Remove this compatibility layer when renderer adopts UIMessage.parts rendering
   const dataParts = shared.data?.parts || []
+  const status = mapMessageStatusToBlockStatus(shared.status)
 
-  if (dataBlocks.length > 0) {
-    // Old format: data.blocks (MessageDataBlock[])
-    for (let i = 0; i < dataBlocks.length; i++) {
-      const { type, createdAt, ...rest } = dataBlocks[i] as Record<string, any>
-      const blockId = `${shared.id}-block-${i}`
+  for (let i = 0; i < dataParts.length; i++) {
+    const part = dataParts[i]
+    const blockId = `${shared.id}-block-${i}`
+
+    const block = partToBlock(part, blockId, shared.id, shared.createdAt, status)
+    if (block) {
       blockIds.push(blockId)
-
-      rendererBlocks.push({
-        ...rest,
-        id: blockId,
-        messageId: shared.id,
-        type,
-        status: mapBlockStatus(shared.status),
-        createdAt: typeof createdAt === 'number' ? new Date(createdAt).toISOString() : createdAt || shared.createdAt
-      } as MessageBlock)
-    }
-  } else if (dataParts.length > 0) {
-    // New format: data.parts (UIMessagePart[]) — convert back to renderer blocks temporarily
-    // TODO: Remove this compatibility layer when renderer adopts UIMessage.parts rendering
-    for (let i = 0; i < dataParts.length; i++) {
-      const part = dataParts[i]
-      const blockId = `${shared.id}-block-${i}`
-      blockIds.push(blockId)
-
-      const block = convertPartToBlock(part, blockId, shared.id, shared.createdAt, shared.status)
-      if (block) {
-        rendererBlocks.push(block)
-      }
+      rendererBlocks.push(block)
     }
   }
 
@@ -164,267 +121,4 @@ function convertSharedMessage(shared: SharedMessage): {
   }
 
   return { message, blocks: rendererBlocks }
-}
-
-/**
- * Part as stored in DB — same as CherryMessagePart.
- */
-type StoredPart = CherryMessagePart
-
-/**
- * Convert a UIMessage part back to a renderer MessageBlock.
- * Temporary compatibility layer until renderer adopts parts-based rendering.
- */
-function convertPartToBlock(
-  part: StoredPart,
-  blockId: string,
-  messageId: string,
-  fallbackCreatedAt: string,
-  messageStatus: string
-): MessageBlock | null {
-  const status = mapBlockStatus(messageStatus)
-
-  function getCherryMeta(): CherryProviderMetadata | undefined {
-    if ('providerMetadata' in part && part.providerMetadata) {
-      return part.providerMetadata.cherry as CherryProviderMetadata | undefined
-    }
-    return undefined
-  }
-
-  const cherryMeta = getCherryMeta()
-  const createdAt = cherryMeta?.createdAt ? new Date(cherryMeta.createdAt).toISOString() : fallbackCreatedAt
-
-  switch (part.type) {
-    case 'text': {
-      const block: MainTextMessageBlock = {
-        id: blockId,
-        messageId,
-        status,
-        createdAt,
-        type: MessageBlockType.MAIN_TEXT,
-        content: part.text || ''
-      }
-      if (cherryMeta?.references) {
-        block.citationReferences = convertReferencesToLegacyCitations(
-          cherryMeta.references as ContentReference[],
-          blockId
-        )
-      }
-      return block
-    }
-
-    case 'source-url': {
-      // source-url parts represent web search citations; they are metadata
-      // already captured in the text part's citationReferences during reverse
-      // conversion, so we skip creating a standalone block.
-      return null
-    }
-
-    case 'reasoning': {
-      const block: ThinkingMessageBlock = {
-        id: blockId,
-        messageId,
-        status,
-        createdAt,
-        type: MessageBlockType.THINKING,
-        content: part.text || '',
-        thinking_millsec: (cherryMeta?.thinkingMs as number) ?? 0
-      }
-      return block
-    }
-
-    case 'dynamic-tool': {
-      const toolCallId = part.toolCallId || blockId
-      const toolName = part.toolName || 'unknown'
-      const isError = part.state === 'output-error'
-      const content: string | object | undefined = isError
-        ? {
-            isError: true,
-            content: [{ type: 'text', text: ('errorText' in part ? part.errorText : undefined) || 'Error' }]
-          }
-        : 'output' in part
-          ? (part.output as object | undefined)
-          : undefined
-
-      const block: ToolMessageBlock = {
-        id: blockId,
-        messageId,
-        status,
-        createdAt,
-        type: MessageBlockType.TOOL,
-        toolId: toolCallId,
-        toolName,
-        arguments: part.input as Record<string, unknown>,
-        content,
-        metadata: {
-          rawMcpToolResponse: {
-            id: toolCallId,
-            tool: { id: toolCallId, name: toolName, type: 'mcp' as ToolType },
-            arguments: part.input as Record<string, unknown>,
-            status: isError ? 'error' : 'done',
-            response: content,
-            toolCallId
-          }
-        }
-      }
-      return block
-    }
-
-    case 'file': {
-      if (part.mediaType?.startsWith('image/')) {
-        const block: ImageMessageBlock = {
-          id: blockId,
-          messageId,
-          status,
-          createdAt,
-          type: MessageBlockType.IMAGE,
-          url: part.url
-        }
-        return block
-      }
-      const block: FileMessageBlock = {
-        id: blockId,
-        messageId,
-        status,
-        createdAt,
-        type: MessageBlockType.FILE,
-        file: {
-          id: blockId,
-          name: part.filename || '',
-          origin_name: part.filename || '',
-          path: part.url?.replace('file://', '') || '',
-          size: 0,
-          ext: '',
-          type: 'other',
-          created_at: createdAt,
-          count: 0
-        }
-      }
-      return block
-    }
-
-    default: {
-      // Handle data-* parts
-      if (part.type.startsWith('data-')) {
-        return convertDataPartToBlock(part, blockId, messageId, status, createdAt)
-      }
-      logger.warn('Unknown part type during parts→blocks conversion', { type: part.type })
-      return null
-    }
-  }
-}
-
-/**
- * Convert data-* parts (error, translation, video, compact, code) to renderer blocks.
- */
-function convertDataPartToBlock(
-  part: StoredPart,
-  blockId: string,
-  messageId: string,
-  status: MessageBlockStatus,
-  createdAt: string
-): MessageBlock | null {
-  const data = 'data' in part ? (part.data as Record<string, unknown>) : {}
-
-  switch (part.type) {
-    case 'data-error': {
-      const block: ErrorMessageBlock = {
-        id: blockId,
-        messageId,
-        status,
-        createdAt,
-        type: MessageBlockType.ERROR,
-        error: { name: (data.name as string) ?? null, message: (data.message as string) ?? null, stack: null }
-      }
-      return block
-    }
-
-    case 'data-translation': {
-      const block: TranslationMessageBlock = {
-        id: blockId,
-        messageId,
-        status,
-        createdAt,
-        type: MessageBlockType.TRANSLATION,
-        content: (data.content as string) || '',
-        targetLanguage: (data.targetLanguage as string) || ''
-      }
-      return block
-    }
-
-    case 'data-video': {
-      const block: VideoMessageBlock = {
-        id: blockId,
-        messageId,
-        status,
-        createdAt,
-        type: MessageBlockType.VIDEO,
-        url: data.url as string | undefined,
-        filePath: data.filePath as string | undefined
-      }
-      return block
-    }
-
-    case 'data-compact': {
-      const block: CompactMessageBlock = {
-        id: blockId,
-        messageId,
-        status,
-        createdAt,
-        type: MessageBlockType.COMPACT,
-        content: (data.content as string) || '',
-        compactedContent: (data.compactedContent as string) || ''
-      }
-      return block
-    }
-
-    case 'data-code': {
-      const block: CodeMessageBlock = {
-        id: blockId,
-        messageId,
-        status,
-        createdAt,
-        type: MessageBlockType.CODE,
-        content: (data.content as string) || '',
-        language: (data.language as string) || ''
-      }
-      return block
-    }
-
-    default:
-      logger.warn('Unknown data part type during parts→blocks conversion', { type: part.type })
-      return null
-  }
-}
-
-/**
- * Convert ContentReference[] (new format) to legacy citationReferences shape.
- * The renderer expects `{ citationBlockId?, citationBlockSource? }[]`.
- */
-function convertReferencesToLegacyCitations(
-  references: ContentReference[],
-  blockId: string
-): MainTextMessageBlock['citationReferences'] {
-  const citations = references.filter((ref): ref is CitationReference => ref.category === ReferenceCategory.CITATION)
-  if (citations.length === 0) return undefined
-
-  return citations.filter(isWebCitation).map((ref) => ({
-    citationBlockId: blockId,
-    citationBlockSource: (ref.content?.source ?? undefined) as WebSearchSource | undefined
-  }))
-}
-
-function mapBlockStatus(messageStatus: string): MessageBlockStatus {
-  switch (messageStatus) {
-    case 'success':
-      return MessageBlockStatus.SUCCESS
-    case 'error':
-      return MessageBlockStatus.ERROR
-    case 'paused':
-      return MessageBlockStatus.PAUSED
-    case 'pending':
-      return MessageBlockStatus.PENDING
-    default:
-      return MessageBlockStatus.SUCCESS
-  }
 }
