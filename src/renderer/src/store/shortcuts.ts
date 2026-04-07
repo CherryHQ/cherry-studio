@@ -78,7 +78,7 @@ const initialState: ShortcutsState = {
       system: false
     },
     {
-      key: 'toggle_show_assistants',
+      key: 'toggle_sidebar',
       shortcut: ['CommandOrControl', '['],
       editable: true,
       enabled: true,

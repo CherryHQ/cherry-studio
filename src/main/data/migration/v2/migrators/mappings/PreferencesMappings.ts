@@ -1,6 +1,6 @@
 /**
  * Auto-generated preference mappings from classification.json
- * Generated at: 2026-04-07T12:06:27.872Z
+ * Generated at: 2026-04-07T12:13:54.406Z
  *
  * This file contains pure mapping relationships without default values.
  * Default values are managed in packages/shared/data/preferences.ts
@@ -794,7 +794,7 @@ export const REDUX_STORE_MAPPINGS = {
     },
     {
       originalKey: 'shortcuts.toggle_show_assistants',
-      targetKey: 'shortcut.app.general.toggle_show_assistants'
+      targetKey: 'shortcut.app.general.toggle_sidebar'
     },
     {
       originalKey: 'shortcuts.copy_last_message',

@@ -2628,7 +2628,7 @@
               },
               "originalKey": "toggle_show_assistants",
               "status": "classified",
-              "targetKey": "shortcut.app.general.toggle_show_assistants",
+              "targetKey": "shortcut.app.general.toggle_sidebar",
               "type": "PreferenceTypes.PreferenceShortcutType"
             },
             {

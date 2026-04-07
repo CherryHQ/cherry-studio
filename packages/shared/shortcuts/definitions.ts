@@ -31,11 +31,11 @@ export const SHORTCUT_DEFINITIONS: readonly ShortcutDefinition[] = [
     system: true
   },
   {
-    key: 'shortcut.app.general.toggle_show_assistants',
+    key: 'shortcut.app.general.toggle_sidebar',
     defaultKey: ['CommandOrControl', '['],
     scope: 'renderer',
     category: 'app.general',
-    labelKey: 'toggle_show_assistants'
+    labelKey: 'toggle_sidebar'
   },
   {
     key: 'shortcut.app.general.exit_fullscreen',

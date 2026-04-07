@@ -5578,8 +5578,8 @@
       "show_settings": "Ouvrir les paramètres",
       "title": "Raccourcis",
       "toggle_new_context": "Effacer le contexte",
-      "toggle_show_assistants": "Basculer l'affichage des assistants",
       "toggle_show_topics": "Basculer l'affichage des sujets",
+      "toggle_sidebar": "Basculer l'affichage des assistants",
       "zoom_in": "Agrandir l'interface",
       "zoom_out": "Réduire l'interface",
       "zoom_reset": "Réinitialiser le zoom"

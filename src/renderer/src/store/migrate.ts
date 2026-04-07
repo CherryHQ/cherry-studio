@@ -804,7 +804,7 @@ const migrateConfig = {
           shortcut.system = shortcut.key !== 'new_topic'
         })
         state.shortcuts.shortcuts.push({
-          key: 'toggle_show_assistants',
+          key: 'toggle_sidebar',
           shortcut: [isMac ? 'Command' : 'Ctrl', '['],
           editable: true,
           enabled: true,

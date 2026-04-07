@@ -417,7 +417,7 @@ toggleMiniWindow()
 | `shortcut.app.general.show_main_window` | *(无)* | main | 失焦持久，系统级 |
 | `shortcut.app.general.show_mini_window` | `Cmd/Ctrl+E` | main | 关联 quick_assistant 开关 |
 | `shortcut.app.general.show_settings` | `Cmd/Ctrl+,` | both | 不可编辑 |
-| `shortcut.app.general.toggle_show_assistants` | `Cmd/Ctrl+[` | renderer | |
+| `shortcut.app.general.toggle_sidebar` | `Cmd/Ctrl+[` | renderer | |
 | `shortcut.app.general.exit_fullscreen` | `Escape` | renderer | 不可编辑，系统级 |
 | `shortcut.app.general.zoom_in` | `Cmd/Ctrl+=` | main | 含小键盘变体 |
 | `shortcut.app.general.zoom_out` | `Cmd/Ctrl+-` | main | 含小键盘变体 |

@@ -228,7 +228,7 @@ const shortcutKeyMap = {
   show_settings: 'settings.shortcuts.show_settings',
   title: 'settings.shortcuts.title',
   toggle_new_context: 'settings.shortcuts.toggle_new_context',
-  toggle_show_assistants: 'settings.shortcuts.toggle_show_assistants',
+  toggle_sidebar: 'settings.shortcuts.toggle_sidebar',
   toggle_show_topics: 'settings.shortcuts.toggle_show_topics',
   zoom_in: 'settings.shortcuts.zoom_in',
   zoom_out: 'settings.shortcuts.zoom_out',

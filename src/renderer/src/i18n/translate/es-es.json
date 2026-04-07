@@ -5578,8 +5578,8 @@
       "show_settings": "Abrir configuración",
       "title": "Atajos",
       "toggle_new_context": "Limpiar contexto",
-      "toggle_show_assistants": "Alternar visibilidad de asistentes",
       "toggle_show_topics": "Alternar visibilidad de temas",
+      "toggle_sidebar": "Alternar visibilidad de asistentes",
       "zoom_in": "Ampliar interfaz",
       "zoom_out": "Reducir interfaz",
       "zoom_reset": "Restablecer zoom"

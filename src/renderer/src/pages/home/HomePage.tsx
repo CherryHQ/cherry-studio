@@ -45,7 +45,8 @@ const HomePage: FC = () => {
 
   _activeAssistant = activeAssistant
 
-  useShortcut('app.general.toggle_show_assistants', () => {
+  // TODO: Replace with sidebar toggle logic once the new sidebar UI is implemented
+  useShortcut('app.general.toggle_sidebar', () => {
     if (topicPosition === 'right') {
       void toggleShowAssistants()
       return

@@ -5578,8 +5578,8 @@
       "show_settings": "Einstellungen öffnen",
       "title": "Shortcut",
       "toggle_new_context": "Kontext löschen",
-      "toggle_show_assistants": "Assistentenanzeige umschalten",
       "toggle_show_topics": "Themenanzeige umschalten",
+      "toggle_sidebar": "Assistentenanzeige umschalten",
       "zoom_in": "Oberfläche vergrößern",
       "zoom_out": "Oberfläche verkleinern",
       "zoom_reset": "Zoom zurücksetzen"
