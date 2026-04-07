@@ -67,10 +67,10 @@ const PopupContainer: React.FC<Props> = ({ resolve, initialSource }) => {
     // listDirectory returns an array of file path strings
     const filePaths: string[] = await window.api.file.listDirectory(folderPath, {
       recursive: true,
-      maxDepth: 10, // Claude exports can have deeply nested folder structures
+      maxDepth: 3,
       includeFiles: true,
       includeDirectories: false,
-      maxEntries: 10000, // Override default limit of 20 to handle large exports
+      maxEntries: 2000,
       searchPattern: '.json'
     })
 

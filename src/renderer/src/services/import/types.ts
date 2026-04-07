@@ -33,6 +33,15 @@ export interface ImportOptions {
 }
 
 /**
+ * Model bucket used during streaming/batch imports to group conversations by model
+ */
+export interface ModelBucket {
+  assistantId: string
+  modelLabel: string
+  topicRefs: Topic[]
+}
+
+/**
  * Base interface for conversation importers
  * Each chat application (ChatGPT, Claude, Gemini, etc.) should implement this interface
  */

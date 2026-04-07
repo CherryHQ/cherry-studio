@@ -8,7 +8,7 @@ import { uuid } from '@renderer/utils'
 
 import { DEFAULT_ASSISTANT_SETTINGS } from '../AssistantService'
 import { availableImporters } from './importers'
-import type { ConversationImporter, ImportOptions, ImportResponse } from './types'
+import type { ConversationImporter, ImportOptions, ImportResponse, ModelBucket } from './types'
 import { saveImportToDatabase } from './utils/database'
 
 const logger = loggerService.withContext('ImportService')
@@ -178,12 +178,6 @@ class ImportServiceClass {
     onProgress?: (current: number, total: number) => void,
     options?: ImportOptions
   ): Promise<ImportResponse> {
-    interface StreamingModelBucket {
-      assistantId: string
-      modelLabel: string
-      topicRefs: Topic[]
-    }
-
     try {
       const totalFiles = filePaths.length
       const totalChunks = Math.ceil(totalFiles / chunkSize)
@@ -204,10 +198,14 @@ class ImportServiceClass {
       const unknownBucketKey = '__unknown__'
       const unknownModelLabel = i18n.t('import.model.unknown', { defaultValue: 'Unknown Model' })
 
-      const modelBuckets = new Map<string, StreamingModelBucket>()
+      const modelBuckets = new Map<string, ModelBucket>()
       let totalTopics = 0
       let totalMessages = 0
       const errors: string[] = []
+      const MAX_ERRORS = 100
+      const pushError = (msg: string) => {
+        if (errors.length < MAX_ERRORS) errors.push(msg)
+      }
 
       // Process chunks one at a time - TRUE STREAMING
       for (let chunkIndex = 0; chunkIndex < totalChunks; chunkIndex++) {
@@ -230,7 +228,7 @@ class ImportServiceClass {
           } catch (error) {
             const errMsg = `READ FAILED: ${fileName}`
             logger.warn(errMsg, { filePath, error })
-            errors.push(errMsg)
+            pushError(errMsg)
           }
         }
 
@@ -248,7 +246,7 @@ class ImportServiceClass {
             if (!importer.validate(fileContent)) {
               const errMsg = `INVALID FORMAT: ${fileName}`
               logger.warn(errMsg, { filePath })
-              errors.push(errMsg)
+              pushError(errMsg)
               continue
             }
 
@@ -283,7 +281,7 @@ class ImportServiceClass {
             if (result.topics.length === 0) {
               const errMsg = `EMPTY (no messages): ${fileName}`
               logger.warn(errMsg, { filePath })
-              errors.push(errMsg)
+              pushError(errMsg)
               continue
             }
 
@@ -297,7 +295,7 @@ class ImportServiceClass {
           } catch (error) {
             const errMsg = `PARSE ERROR: ${fileName} - ${error instanceof Error ? error.message : 'Unknown error'}`
             logger.warn(errMsg, { filePath, error })
-            errors.push(errMsg)
+            pushError(errMsg)
           }
         }
 
