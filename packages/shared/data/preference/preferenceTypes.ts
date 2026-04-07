@@ -271,3 +271,6 @@ export type FileProcessorOverride = {
 }
 
 export type FileProcessorOverrides = Partial<Record<FileProcessorId, FileProcessorOverride>>
+
+// Re-export miniapp types used by preference schemas
+export type { MinAppRegionFilter } from '@shared/data/types/miniapp'

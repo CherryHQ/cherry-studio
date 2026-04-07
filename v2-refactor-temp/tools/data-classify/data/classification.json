@@ -1878,11 +1878,11 @@
         },
         {
           "originalKey": "minAppRegion",
-          "type": "unknown",
+          "type": "PreferenceTypes.MinAppRegionFilter",
           "defaultValue": "auto",
-          "status": "pending",
-          "category": null,
-          "targetKey": null
+          "status": "classified",
+          "category": "preferences",
+          "targetKey": "feature.minapp.region"
         },
         {
           "originalKey": "enableDataCollection",
