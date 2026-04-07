@@ -134,24 +134,25 @@ export function hasApiKeys(provider: Provider): boolean {
  * Used by CherryIN/DMXAPI domain switching.
  */
 export function replaceEndpointConfigDomain(
-  endpointConfigs: Partial<Record<number, EndpointConfig>> | undefined,
+  endpointConfigs: Partial<Record<EndpointType, EndpointConfig>> | undefined,
   newDomain: string
-): Partial<Record<number, EndpointConfig>> {
+): Partial<Record<EndpointType, EndpointConfig>> {
   if (!endpointConfigs) return {}
-  const result: Partial<Record<number, EndpointConfig>> = {}
+  const result: Partial<Record<EndpointType, EndpointConfig>> = {}
   for (const [key, config] of Object.entries(endpointConfigs)) {
     if (!config) continue
+    const ep = key as EndpointType
     const baseUrl = config.baseUrl
     if (!baseUrl) {
-      result[Number(key)] = config
+      result[ep] = config
       continue
     }
     try {
       const parsed = new URL(baseUrl)
       parsed.hostname = newDomain
-      result[Number(key)] = { ...config, baseUrl: parsed.toString().replace(/\/$/, '') }
+      result[ep] = { ...config, baseUrl: parsed.toString().replace(/\/$/, '') }
     } catch {
-      result[Number(key)] = config
+      result[ep] = config
     }
   }
   return result

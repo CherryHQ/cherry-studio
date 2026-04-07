@@ -21,7 +21,7 @@ import { filterModelsByKeywords } from '@renderer/utils'
 import { isFreeModel } from '@renderer/utils/model'
 import { getFancyProviderName, isNewApiProvider } from '@renderer/utils/provider.v2'
 import type { Model } from '@shared/data/types/model'
-import { parseUniqueModelId } from '@shared/data/types/model'
+import { EndpointType, parseUniqueModelId } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
 import { Empty, Modal, Spin, Tabs } from 'antd'
 import Input from 'antd/es/input/Input'
@@ -200,7 +200,7 @@ const PopupContainer: React.FC<Props> = ({ providerId, resolve }) => {
       setLoadingModels(true)
       try {
         // Bridge v2 Provider → v1 shape for fetchModels (reads apiHost/apiKey)
-        const endpointKey = Math.floor(Number(prov.defaultChatEndpoint ?? 1))
+        const endpointKey = prov.defaultChatEndpoint ?? EndpointType.OPENAI_CHAT_COMPLETIONS
         const apiHost = prov.endpointConfigs?.[endpointKey]?.baseUrl ?? ''
         // Fetch key imperatively — useQuery may not have resolved yet at mount time
         let apiKey = ''
