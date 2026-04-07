@@ -42,7 +42,7 @@ interface Props {
 const MinimalToolbar: FC<Props> = ({ app, webviewRef, currentUrl, onReload, onOpenDevTools }) => {
   const { t } = useTranslation()
   const { pinned, updatePinnedMiniApps, allApps } = useMiniApps()
-  const [miniappsOpenLinkExternal, setMiniAppsOpenLinkExternal] = usePreference('feature.miniapp.open_link_external')
+  const [miniAppsOpenLinkExternal, setMiniAppsOpenLinkExternal] = usePreference('feature.miniapp.open_link_external')
   const navigate = useNavigate()
   const [canGoBack, setCanGoBack] = useState(false)
   const [canGoForward, setCanGoForward] = useState(false)
@@ -221,8 +221,8 @@ const MinimalToolbar: FC<Props> = ({ app, webviewRef, currentUrl, onReload, onOp
   }, [app, isPinned, pinned, updatePinnedMiniApps])
 
   const handleToggleOpenExternal = useCallback(() => {
-    void setMiniAppsOpenLinkExternal(!miniappsOpenLinkExternal)
-  }, [setMiniAppsOpenLinkExternal, miniappsOpenLinkExternal])
+    void setMiniAppsOpenLinkExternal(!miniAppsOpenLinkExternal)
+  }, [setMiniAppsOpenLinkExternal, miniAppsOpenLinkExternal])
 
   const handleOpenLink = useCallback(() => {
     const urlToOpen = currentUrl || app.url
@@ -287,20 +287,20 @@ const MinimalToolbar: FC<Props> = ({ app, webviewRef, currentUrl, onReload, onOp
 
           <Tooltip
             content={
-              miniappsOpenLinkExternal
+              miniAppsOpenLinkExternal
                 ? t('miniapp.popup.open_link_external_on')
                 : t('miniapp.popup.open_link_external_off')
             }
             placement="bottom">
             <ToolbarButton
               onClick={handleToggleOpenExternal}
-              $active={miniappsOpenLinkExternal}
+              $active={miniAppsOpenLinkExternal}
               aria-label={
-                miniappsOpenLinkExternal
+                miniAppsOpenLinkExternal
                   ? t('miniapp.popup.open_link_external_on')
                   : t('miniapp.popup.open_link_external_off')
               }
-              aria-pressed={miniappsOpenLinkExternal}>
+              aria-pressed={miniAppsOpenLinkExternal}>
               <LinkOutlined />
             </ToolbarButton>
           </Tooltip>

@@ -41,7 +41,7 @@ const MiniAppSettings: FC = () => {
   const [showOpenedMiniAppsInSidebar, setShowOpenedMiniAppsInSidebar] = usePreference(
     'feature.miniapp.show_opened_in_sidebar'
   )
-  const [miniappsOpenLinkExternal, setMiniAppsOpenLinkExternal] = usePreference('feature.miniapp.open_link_external')
+  const [miniAppsOpenLinkExternal, setMiniAppsOpenLinkExternal] = usePreference('feature.miniapp.open_link_external')
 
   const { miniapps, disabled, updateMiniApps, updateDisabledMiniApps } = useMiniApps()
 
@@ -134,7 +134,7 @@ const MiniAppSettings: FC = () => {
           <SettingRowTitle>{t('settings.miniapps.open_link_external.title')}</SettingRowTitle>
         </SettingLabelGroup>
         <Switch
-          checked={miniappsOpenLinkExternal}
+          checked={miniAppsOpenLinkExternal}
           onCheckedChange={(checked) => setMiniAppsOpenLinkExternal(checked)}
         />
       </SettingRow>

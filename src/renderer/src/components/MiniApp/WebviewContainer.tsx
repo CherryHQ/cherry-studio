@@ -26,7 +26,7 @@ const WebviewContainer = memo(
   }) => {
     const webviewRef = useRef<WebviewTag | null>(null)
     const [enableSpellCheck] = usePreference('app.spell_check.enabled')
-    const [miniappsOpenLinkExternal] = usePreference('feature.miniapp.open_link_external')
+    const [miniAppsOpenLinkExternal] = usePreference('feature.miniapp.open_link_external')
 
     const setRef = (appid: string) => {
       onSetRefCallback(appid, null)
@@ -78,7 +78,7 @@ const WebviewContainer = memo(
         if (webviewId) {
           void window.api?.webview?.setSpellCheckEnabled?.(webviewId, enableSpellCheck)
           // Set link opening behavior for this webview
-          void window.api?.webview?.setOpenLinkExternal?.(webviewId, miniappsOpenLinkExternal)
+          void window.api?.webview?.setOpenLinkExternal?.(webviewId, miniAppsOpenLinkExternal)
         }
       }
 
@@ -160,13 +160,13 @@ const WebviewContainer = memo(
         const webviewId = webviewRef.current.getWebContentsId()
         if (webviewId) {
           void window.api?.webview?.setSpellCheckEnabled?.(webviewId, enableSpellCheck)
-          void window.api?.webview?.setOpenLinkExternal?.(webviewId, miniappsOpenLinkExternal)
+          void window.api?.webview?.setOpenLinkExternal?.(webviewId, miniAppsOpenLinkExternal)
         }
       } catch (error) {
         // WebView may not be ready yet, settings will be applied in dom-ready event
         logger.debug(`WebView ${appid} not ready for settings update`)
       }
-    }, [appid, miniappsOpenLinkExternal, enableSpellCheck])
+    }, [appid, miniAppsOpenLinkExternal, enableSpellCheck])
 
     const WebviewStyle: React.CSSProperties = {
       width: '100%',
