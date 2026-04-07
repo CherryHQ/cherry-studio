@@ -19,8 +19,7 @@ const WebviewContainer = ({ url, isActive }: { url: string; isActive: boolean })
 )
 
 export const AppShell = () => {
-  const { tabs, dockedTabs, activeTabId, setActiveTab, closeTab, updateTab, addTab, reorderTabs, dockTab } =
-    useTabs()
+  const { tabs, dockedTabs, activeTabId, setActiveTab, closeTab, updateTab, addTab, reorderTabs, dockTab } = useTabs()
   const sidebarRef = useRef<HTMLDivElement>(null)
   const [isSidebarDockHover, setIsSidebarDockHover] = useState(false)
   const contentTabs = useMemo(

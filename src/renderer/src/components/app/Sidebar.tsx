@@ -102,7 +102,7 @@ export default function Sidebar({
   const { t } = useTranslation()
   const [visibleSidebarIcons] = usePreference('ui.sidebar.icons.visible')
   const [showOpenedInSidebar] = usePreference('feature.minapp.show_opened_in_sidebar')
-  const { activeTab, activeTabId, updateTab, dockedTabs, setActiveTab, closeTab } = useTabs()
+  const { tabs, activeTab, activeTabId, updateTab, openTab, dockedTabs, setActiveTab, closeTab } = useTabs()
   const { defaultPaintingProvider } = useSettings()
   const { settedTheme, toggleTheme } = useTheme()
 
@@ -120,11 +120,11 @@ export default function Sidebar({
   const avatar = useAvatar()
   const sidebarUser = useMemo<SidebarUser>(
     () => ({
-      name: t('chat.user'),
+      name: t('chat.user', { defaultValue: t('export.user', { defaultValue: 'User' }) }),
       avatar: avatar || undefined,
       onClick: () => UserPopup.show()
     }),
-    [avatar]
+    [avatar, t]
   )
 
   // MiniApp tabs — bridge v1 popup system data to v2 sidebar UI
@@ -223,6 +223,15 @@ export default function Sidebar({
     } catch {
       return
     }
+
+    const hasUserTabsInTabBar = tabs.some((tab) => tab.id !== 'home')
+    if (!hasUserTabsInTabBar) {
+      openTab(path, {
+        forceNew: true,
+        title: getDefaultRouteTitle(path)
+      })
+      return
+    }
     if (activeTabId) {
       updateTab(activeTabId, { url: path, title: getDefaultRouteTitle(path) })
     }
@@ -234,8 +243,18 @@ export default function Sidebar({
     } catch {
       return
     }
+
+    const settingsPath = '/settings/provider'
+    const hasUserTabsInTabBar = tabs.some((tab) => tab.id !== 'home')
+    if (!hasUserTabsInTabBar) {
+      openTab(settingsPath, {
+        forceNew: true,
+        title: getDefaultRouteTitle(settingsPath)
+      })
+      return
+    }
     if (activeTabId) {
-      updateTab(activeTabId, { url: '/settings/provider', title: getDefaultRouteTitle('/settings/provider') })
+      updateTab(activeTabId, { url: settingsPath, title: getDefaultRouteTitle(settingsPath) })
     }
   }
 
