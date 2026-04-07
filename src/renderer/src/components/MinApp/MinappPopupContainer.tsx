@@ -238,7 +238,7 @@ const MinappPopupContainer: React.FC = () => {
   }, [currentMinappId, minappsOpenLinkExternal])
 
   /** only the keepalive minapp can be minimized */
-  const canMinimize = !(openedOneOffMinapp && openedOneOffMinapp.appId == currentMinappId)
+  const canMinimize = !(openedOneOffMinapp && openedOneOffMinapp.appId === currentMinappId)
 
   /** combine the openedKeepAliveMinapps and openedOneOffMinapp */
   const combinedApps = useMemo(() => {
