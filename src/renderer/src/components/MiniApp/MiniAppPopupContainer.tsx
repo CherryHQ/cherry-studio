@@ -149,7 +149,7 @@ const TitleBar = ({
   backgroundColor,
   isTopNavbar,
   canMinimize,
-  miniAppsOpenLinkExternal,
+  openLinkExternal,
   onGoBack,
   onGoForward,
   onReload,
@@ -165,7 +165,7 @@ const TitleBar = ({
   backgroundColor: string
   isTopNavbar: boolean
   canMinimize: boolean
-  miniAppsOpenLinkExternal: boolean
+  openLinkExternal: boolean
   onGoBack: (appId: string) => void
   onGoForward: (appId: string) => void
   onReload: (appId: string) => void
@@ -253,13 +253,11 @@ const TitleBar = ({
         )}
         <Tooltip
           content={
-            miniAppsOpenLinkExternal
-              ? t('miniapp.popup.open_link_external_on')
-              : t('miniapp.popup.open_link_external_off')
+            openLinkExternal ? t('miniapp.popup.open_link_external_on') : t('miniapp.popup.open_link_external_off')
           }
           placement="bottom"
           delay={800}>
-          <TitleButton onClick={onToggleOpenExternal} className={miniAppsOpenLinkExternal ? 'open-external' : ''}>
+          <TitleButton onClick={onToggleOpenExternal} className={openLinkExternal ? 'open-external' : ''}>
             <LinkOutlined />
           </TitleButton>
         </Tooltip>
@@ -294,7 +292,7 @@ const TitleBar = ({
 
 /** The main container for MiniApp popup */
 const MiniAppPopupContainer: React.FC = () => {
-  const [miniAppsOpenLinkExternal, setMiniAppsOpenLinkExternal] = usePreference('feature.miniapp.open_link_external')
+  const [openLinkExternal, setOpenLinkExternal] = usePreference('feature.miniapp.open_link_external')
   const { closeMiniApp, hideMiniAppPopup } = useMiniAppPopup()
   const {
     pinned,
@@ -379,7 +377,7 @@ const MiniAppPopupContainer: React.FC = () => {
         try {
           const webviewId = webviewElement.getWebContentsId()
           if (webviewId) {
-            void window.api.webview.setOpenLinkExternal(webviewId, miniAppsOpenLinkExternal)
+            void window.api.webview.setOpenLinkExternal(webviewId, openLinkExternal)
           }
         } catch (error) {
           // WebView not ready yet, will be set when it's loaded
@@ -387,7 +385,7 @@ const MiniAppPopupContainer: React.FC = () => {
         }
       }
     }
-  }, [currentMiniAppId, miniAppsOpenLinkExternal])
+  }, [currentMiniAppId, openLinkExternal])
 
   /** only the keepalive miniapp can be minimized */
   const canMinimize = !(openedOneOffMiniApp && openedOneOffMiniApp.appId === currentMiniAppId)
@@ -454,7 +452,7 @@ const MiniAppPopupContainer: React.FC = () => {
       try {
         const webviewId = webviewElement.getWebContentsId()
         if (webviewId) {
-          void window.api.webview.setOpenLinkExternal(webviewId, miniAppsOpenLinkExternal)
+          void window.api.webview.setOpenLinkExternal(webviewId, openLinkExternal)
         }
       } catch (error) {
         logger.debug(`WebView ${appid} not ready for getWebContentsId() in handleWebviewLoaded`)
@@ -509,7 +507,7 @@ const MiniAppPopupContainer: React.FC = () => {
 
   /** set the open external status */
   const handleToggleOpenExternal = () => {
-    void setMiniAppsOpenLinkExternal(!miniAppsOpenLinkExternal)
+    void setOpenLinkExternal(!openLinkExternal)
   }
 
   /** navigate back in webview history */
@@ -592,7 +590,7 @@ const MiniAppPopupContainer: React.FC = () => {
                 backgroundColor={backgroundColor}
                 isTopNavbar={isTopNavbar}
                 canMinimize={canMinimize}
-                miniAppsOpenLinkExternal={miniAppsOpenLinkExternal}
+                openLinkExternal={openLinkExternal}
                 onGoBack={handleGoBack}
                 onGoForward={handleGoForward}
                 onReload={handleReload}
