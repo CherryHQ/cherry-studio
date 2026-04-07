@@ -1,9 +1,30 @@
 import { application } from '@main/core/application'
 import { BaseService, Conditional, Injectable, onPlatform, Phase, ServicePhase } from '@main/core/lifecycle'
 import { getAppLanguage, locales } from '@main/utils/language'
+import { handleZoomFactor } from '@main/utils/zoom'
+import type { PreferenceShortcutType } from '@shared/data/preference/preferenceTypes'
 import { IpcChannel } from '@shared/IpcChannel'
+import { findShortcutDefinition } from '@shared/shortcuts/definitions'
+import type { ShortcutPreferenceKey } from '@shared/shortcuts/types'
+import { coerceShortcutPreference } from '@shared/shortcuts/utils'
 import type { MenuItemConstructorOptions } from 'electron'
 import { app, Menu, shell } from 'electron'
+
+const zoomShortcutKeys: ShortcutPreferenceKey[] = [
+  'shortcut.app.zoom_in',
+  'shortcut.app.zoom_out',
+  'shortcut.app.zoom_reset'
+]
+
+const isShortcutEnabled = (key: ShortcutPreferenceKey): boolean => {
+  const definition = findShortcutDefinition(key)
+  if (!definition) return true
+  const rawPref = application.get('PreferenceService').get(key) as PreferenceShortcutType | undefined
+  return coerceShortcutPreference(definition, rawPref).enabled
+}
+
+const getMainWindows = (): Electron.BrowserWindow[] =>
+  [application.get('WindowService').getMainWindow()].filter(Boolean) as Electron.BrowserWindow[]
 
 @Injectable('AppMenuService')
 @ServicePhase(Phase.WhenReady)
@@ -12,12 +33,21 @@ export class AppMenuService extends BaseService {
   protected async onInit() {
     const preferenceService = application.get('PreferenceService')
     this.registerDisposable(preferenceService.subscribeChange('app.language', () => this.setupApplicationMenu()))
+
+    for (const key of zoomShortcutKeys) {
+      this.registerDisposable(preferenceService.subscribeChange(key, () => this.setupApplicationMenu()))
+    }
+
     this.setupApplicationMenu()
   }
 
   private setupApplicationMenu(): void {
     const locale = locales[getAppLanguage()]
     const { appMenu } = locale.translation
+
+    const zoomInEnabled = isShortcutEnabled('shortcut.app.zoom_in')
+    const zoomOutEnabled = isShortcutEnabled('shortcut.app.zoom_out')
+    const zoomResetEnabled = isShortcutEnabled('shortcut.app.zoom_reset')
 
     const template: MenuItemConstructorOptions[] = [
       {
@@ -67,9 +97,24 @@ export class AppMenuService extends BaseService {
           { role: 'forceReload', label: appMenu.forceReload },
           { role: 'toggleDevTools', label: appMenu.toggleDevTools },
           { type: 'separator' },
-          { role: 'resetZoom', label: appMenu.resetZoom },
-          { role: 'zoomIn', label: appMenu.zoomIn },
-          { role: 'zoomOut', label: appMenu.zoomOut },
+          {
+            label: appMenu.resetZoom,
+            accelerator: zoomResetEnabled ? 'CommandOrControl+0' : undefined,
+            enabled: zoomResetEnabled,
+            click: () => handleZoomFactor(getMainWindows(), 0, true)
+          },
+          {
+            label: appMenu.zoomIn,
+            accelerator: zoomInEnabled ? 'CommandOrControl+=' : undefined,
+            enabled: zoomInEnabled,
+            click: () => handleZoomFactor(getMainWindows(), 0.1)
+          },
+          {
+            label: appMenu.zoomOut,
+            accelerator: zoomOutEnabled ? 'CommandOrControl+-' : undefined,
+            enabled: zoomOutEnabled,
+            click: () => handleZoomFactor(getMainWindows(), -0.1)
+          },
           { type: 'separator' },
           { role: 'togglefullscreen', label: appMenu.toggleFullscreen }
         ]

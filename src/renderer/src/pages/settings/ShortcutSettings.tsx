@@ -13,7 +13,7 @@ import type { InputRef } from 'antd'
 import { Input, Table as AntTable } from 'antd'
 import type { ColumnsType } from 'antd/es/table'
 import type { FC, KeyboardEvent as ReactKeyboardEvent } from 'react'
-import { useCallback, useMemo, useRef, useState } from 'react'
+import { useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
@@ -165,23 +165,20 @@ const ShortcutSettings: FC = () => {
     setConflictLabel(null)
   }
 
-  const findDuplicateLabel = useCallback(
-    (keys: string[], currentKey: ShortcutPreferenceKey): string | null => {
-      const normalized = keys.map((key) => key.toLowerCase()).join('+')
+  const findDuplicateLabel = (keys: string[], currentKey: ShortcutPreferenceKey): string | null => {
+    const normalized = keys.map((key) => key.toLowerCase()).join('+')
 
-      for (const record of displayedShortcuts) {
-        if (record.key === currentKey) continue
-        if (!record.enabled) continue
-        const binding = record.displayKeys
-        if (!binding.length) continue
-        if (binding.map((key) => key.toLowerCase()).join('+') === normalized) {
-          return record.label
-        }
+    for (const record of displayedShortcuts) {
+      if (record.key === currentKey) continue
+      if (!record.enabled) continue
+      const binding = record.displayKeys
+      if (!binding.length) continue
+      if (binding.map((key) => key.toLowerCase()).join('+') === normalized) {
+        return record.label
       }
-      return null
-    },
-    [displayedShortcuts]
-  )
+    }
+    return null
+  }
 
   const usableEndKeys = (event: ReactKeyboardEvent): string | null => {
     const { code } = event
@@ -383,6 +380,7 @@ const ShortcutSettings: FC = () => {
                   onBlur={(event) => {
                     const isUndoClick = event.relatedTarget?.closest('.shortcut-undo-icon')
                     if (!isUndoClick) {
+                      clearTimeoutTimer('conflict-clear')
                       setEditingKey(null)
                       setPendingKeys([])
                       setConflictLabel(null)

@@ -28,7 +28,7 @@ export class ShortcutService extends BaseService {
   private windowOnHandlers = new Map<BrowserWindow, { onFocus: () => void; onBlur: () => void }>()
   private isRegisterOnBoot = true
   private preferenceUnsubscribers: Array<() => void> = []
-  private registeredAccelerators = new Set<string>()
+  private registeredAccelerators = new Map<string, ShortcutHandler>()
 
   protected async onInit() {
     this.registerBuiltInHandlers()
@@ -173,9 +173,10 @@ export class ShortcutService extends BaseService {
       }
     }
 
-    // Unregister shortcuts that are no longer needed
-    for (const accelerator of this.registeredAccelerators) {
-      if (!desired.has(accelerator)) {
+    // Unregister shortcuts that are no longer needed or have a different handler
+    for (const [accelerator, prevHandler] of this.registeredAccelerators) {
+      const entry = desired.get(accelerator)
+      if (!entry || entry.handler !== prevHandler) {
         try {
           globalShortcut.unregister(accelerator)
         } catch {
@@ -185,7 +186,7 @@ export class ShortcutService extends BaseService {
       }
     }
 
-    // Register new shortcuts or re-register changed ones
+    // Register new or changed shortcuts
     for (const [accelerator, { handler, window: win }] of desired) {
       if (!this.registeredAccelerators.has(accelerator)) {
         try {
@@ -193,7 +194,7 @@ export class ShortcutService extends BaseService {
             const targetWindow = win?.isDestroyed?.() ? undefined : win
             handler(targetWindow)
           })
-          this.registeredAccelerators.add(accelerator)
+          this.registeredAccelerators.set(accelerator, handler)
         } catch (error) {
           logger.warn(`Failed to register shortcut ${accelerator}`)
         }
@@ -218,7 +219,7 @@ export class ShortcutService extends BaseService {
         window.off('blur', handlers.onBlur)
       })
       this.windowOnHandlers.clear()
-      for (const accelerator of this.registeredAccelerators) {
+      for (const accelerator of this.registeredAccelerators.keys()) {
         try {
           globalShortcut.unregister(accelerator)
         } catch {
