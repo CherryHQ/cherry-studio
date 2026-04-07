@@ -41,7 +41,7 @@ const CodePanel = memo<CodePanelProps>(({ codeEditorRef, html, onSave, saved, on
         }}
       />
       <ToolbarWrapper>
-        <Tooltip content={saveLabel} closeDelay={0}>
+        <Tooltip content={saveLabel}>
           <ToolbarButton size="icon" onClick={onClickSave}>
             {saved ? (
               <Check size={16} color="var(--color-status-success)" />
@@ -206,7 +206,7 @@ const HtmlArtifactsPopup: React.FC<HtmlArtifactsPopupProps> = ({ open, title, ht
               }
             ]
           }}>
-          <Tooltip content={t('html_artifacts.capture.label')} closeDelay={0}>
+          <Tooltip content={t('html_artifacts.capture.label')}>
             <Button variant="ghost" size="icon" className="nodrag">
               <Camera size={16} />
             </Button>

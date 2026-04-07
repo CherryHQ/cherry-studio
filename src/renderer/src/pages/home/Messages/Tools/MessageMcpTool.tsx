@@ -138,7 +138,7 @@ const MessageMcpTool: FC<Props> = ({ block }) => {
             <ToolName className="items-center gap-1">
               {tool.serverName} : {tool.name}
               {isToolAutoApproved(tool) && (
-                <Tooltip content={t('message.tools.autoApproveEnabled')} closeDelay={0}>
+                <Tooltip content={t('message.tools.autoApproveEnabled')}>
                   <ShieldCheck size={14} color="var(--status-color-success)" />
                 </Tooltip>
               )}

@@ -98,12 +98,12 @@ const ModelListItem: React.FC<ModelListItemProps> = ({
             onErrorClick={handleErrorClick}
           />
           <RowFlex className="items-center">
-            <Tooltip content={t('models.edit')} closeDelay={0}>
+            <Tooltip content={t('models.edit')}>
               <Button variant="ghost" onClick={handleEdit} disabled={disabled} size="icon">
                 <Bolt size={14} />
               </Button>
             </Tooltip>
-            <Tooltip content={t('settings.models.manage.remove_model')} closeDelay={0}>
+            <Tooltip content={t('settings.models.manage.remove_model')}>
               <Button variant="ghost" onClick={handleRemove} disabled={disabled} size="icon">
                 <Minus size={14} />
               </Button>
