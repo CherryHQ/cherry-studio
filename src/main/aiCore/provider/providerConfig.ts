@@ -1,5 +1,4 @@
 import {
-  formatAzureOpenAIApiHost,
   formatOllamaApiHost,
   isAnthropicProvider,
   isAzureOpenAIProvider,
@@ -54,7 +53,7 @@ export async function formatProviderApiHost(provider: Provider): Promise<Provide
     { match: isPerplexityProvider, format: (p) => formatApiHost(p.apiHost, false) },
     { match: isOllamaProvider, format: (p) => formatOllamaApiHost(p.apiHost) },
     { match: isGeminiProvider, format: (p, av) => formatApiHost(p.apiHost, av, 'v1beta') },
-    { match: isAzureOpenAIProvider, format: (p) => formatAzureOpenAIApiHost(p.apiHost) },
+    { match: isAzureOpenAIProvider, format: (p) => formatApiHost(p.apiHost, false) },
     { match: isVertexProvider, format: (p) => formatVertexApiHost(p.apiHost) }
   ]
 

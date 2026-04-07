@@ -1,8 +1,8 @@
 {
   "version": "6",
   "dialect": "sqlite",
-  "id": "unknown",
-  "prevId": "c736c8d5-58fa-4c17-9d28-c6dde07d439c",
+  "id": "a5b7c9d1-2e4f-6a8b-0c2d-4e6f8a0b2c4d",
+  "prevId": "2eac4614-db61-4509-ab3a-962b57396871",
   "tables": {
     "app_state": {
       "name": "app_state",

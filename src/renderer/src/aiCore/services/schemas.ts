@@ -1,6 +1,9 @@
 /**
  * API Response Schemas for model listing
  * Used exclusively by listModels.ts
+ *
+ * All object schemas use z.looseObject() to tolerate unknown fields
+ * from providers — prevents parse failures when APIs add new fields.
  */
 import * as z from 'zod'
 
@@ -8,28 +11,28 @@ import * as z from 'zod'
 
 export const OpenAIModelsResponseSchema = z.object({
   data: z.array(
-    z.object({
+    z.looseObject({
       id: z.string(),
-      object: z.literal('model').optional().default('model'),
+      object: z.string().optional().default('model'),
       created: z.number().optional(),
       owned_by: z.string().optional()
     })
   ),
-  object: z.literal('list').optional()
+  object: z.string().optional()
 })
 
 // === Ollama ===
 
 export const OllamaTagsResponseSchema = z.object({
   models: z.array(
-    z.object({
+    z.looseObject({
       name: z.string(),
       model: z.string().optional(),
       modified_at: z.string().optional(),
       size: z.number().optional(),
       digest: z.string().optional(),
       details: z
-        .object({
+        .looseObject({
           parent_model: z.string().optional(),
           format: z.string().optional(),
           family: z.string().optional(),
@@ -46,7 +49,7 @@ export const OllamaTagsResponseSchema = z.object({
 
 export const GeminiModelsResponseSchema = z.object({
   models: z.array(
-    z.object({
+    z.looseObject({
       name: z.string(),
       displayName: z.string().optional(),
       description: z.string().optional(),
@@ -63,7 +66,7 @@ export const GeminiModelsResponseSchema = z.object({
 // === GitHub Models ===
 
 export const GitHubModelsResponseSchema = z.array(
-  z.object({
+  z.looseObject({
     id: z.string(),
     summary: z.string().optional(),
     publisher: z.string().optional(),
@@ -76,14 +79,14 @@ export const GitHubModelsResponseSchema = z.array(
 // === Together ===
 
 export const TogetherModelsResponseSchema = z.array(
-  z.object({
+  z.looseObject({
     id: z.string(),
     display_name: z.string().optional(),
     organization: z.string().optional(),
     description: z.string().optional(),
     context_length: z.number().optional(),
     pricing: z
-      .object({
+      .looseObject({
         input: z.number().optional(),
         output: z.number().optional()
       })
@@ -95,17 +98,19 @@ export const TogetherModelsResponseSchema = z.array(
 
 export const NewApiModelsResponseSchema = z.object({
   data: z.array(
-    z.object({
+    z.looseObject({
       id: z.string(),
-      object: z.literal('model').optional().default('model'),
+      object: z.string().optional().default('model'),
       created: z.number().optional(),
       owned_by: z.string().optional(),
       supported_endpoint_types: z
-        .array(z.enum(['openai', 'anthropic', 'gemini', 'openai-response', 'image-generation']))
+        .array(z.string())
+        .nullable()
         .optional()
+        .transform((v) => v ?? undefined)
     })
   ),
-  object: z.literal('list').optional()
+  object: z.string().optional()
 })
 
 // === OVMS (OpenVINO Model Server) ===
@@ -115,10 +120,10 @@ export const OVMSConfigResponseSchema = z.record(
   z.object({
     model_version_status: z
       .array(
-        z.object({
+        z.looseObject({
           state: z.string(),
           status: z
-            .object({
+            .looseObject({
               error_code: z.string().optional(),
               error_message: z.string().optional()
             })
@@ -128,3 +133,32 @@ export const OVMSConfigResponseSchema = z.record(
       .optional()
   })
 )
+
+// === AIHubMix ===
+
+export const AIHubMixModelsResponseSchema = z.object({
+  data: z.array(
+    z.looseObject({
+      model_id: z.string(),
+      model_name: z.string().optional(),
+      developer_id: z.number().optional(),
+      desc: z.string().optional(),
+      pricing: z
+        .looseObject({
+          cache_read: z.number().optional(),
+          cache_write: z.number().optional(),
+          input: z.number().optional(),
+          output: z.number().optional()
+        })
+        .optional(),
+      types: z.string().optional(),
+      features: z.string().optional(),
+      input_modalities: z.string().optional(),
+      endpoints: z.string().optional(),
+      max_output: z.number().optional(),
+      context_length: z.number().optional()
+    })
+  ),
+  message: z.string().optional(),
+  success: z.boolean().optional()
+})

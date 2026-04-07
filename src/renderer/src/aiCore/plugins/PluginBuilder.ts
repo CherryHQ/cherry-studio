@@ -2,7 +2,7 @@ import type { AiPlugin } from '@cherrystudio/ai-core'
 import { createPromptToolUsePlugin, providerToolPlugin } from '@cherrystudio/ai-core/built-in/plugins'
 import { preferenceService } from '@data/PreferenceService'
 import { loggerService } from '@logger'
-import { isGemini3Model, isQwen35Model, isSupportedThinkingTokenQwenModel } from '@renderer/config/models'
+import { isGemini3Model, isQwen35to39Model, isSupportedThinkingTokenQwenModel } from '@renderer/config/models'
 import type { Assistant, Model, Provider } from '@renderer/types'
 import { SystemProviderIds } from '@renderer/types'
 import { isOllamaProvider, isSupportEnableThinkingProvider } from '@renderer/utils/provider'
@@ -93,7 +93,7 @@ export async function buildPlugins({ provider, model, config }: BuildPluginsCont
   if (
     !isOllamaProvider(provider) &&
     isSupportedThinkingTokenQwenModel(model) &&
-    !isQwen35Model(model) &&
+    !isQwen35to39Model(model) &&
     !isSupportEnableThinkingProvider(provider)
   ) {
     const enableThinking = config.assistant?.settings?.reasoning_effort !== undefined

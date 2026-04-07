@@ -51,7 +51,7 @@ jobs:
 
   changeset-check:
     runs-on: ubuntu-latest
-    if: github.event_name == 'pull_request' && github.event.pull_request.draft == false
+    if: github.event_name == 'pull_request' && github.event.pull_request.draft == false && github.head_ref != 'changeset-release/main'
     steps:
       - name: Check out Git repository
         uses: actions/checkout@v6

@@ -1,11 +1,16 @@
 // [v2] TODO: The legacy app/model/provider PNG/WebP logos were removed by the icon-system
-// overhaul (#12858). The imports below are a stop-gap to keep tests green — each mini-app
+// overhaul (#12858). The imports below are a stop-gap to keep tests green - each mini-app
 // now receives a CompoundIcon from @cherrystudio/ui/icons instead of a deleted image URL.
 // A proper design should decouple mini-app icon resolution (e.g. a dedicated registry or
 // a `resolveMinAppIcon` helper) rather than hard-coding CompoundIcon references here.
+
+import type { CompoundIcon } from '@cherrystudio/ui'
+import { ModelIcons } from '@cherrystudio/ui/icons'
 import {
   Abacus,
   AiStudio,
+  Anthropic,
+  Application,
   Baichuan,
   Baidu,
   BoltNew,
@@ -33,12 +38,13 @@ import {
   MinimaxAgent,
   MinTop3,
   Mistral,
-  ModelIcons,
   Monica,
+  Moonshot,
   N8n,
   NamiAi,
   Notebooklm,
   Openai,
+  Openclaw,
   Perplexity,
   Poe,
   Qwen,
@@ -59,21 +65,26 @@ import {
   Zhipu
 } from '@cherrystudio/ui/icons'
 import { loggerService } from '@logger'
-import ApplicationLogo from '@renderer/assets/images/apps/application.png?url'
 import type { MinAppType } from '@renderer/types'
+import { ORIGIN_DEFAULT_MIN_APPS as SHARED_PRESETS } from '@shared/data/presets/miniapps'
 
 const logger = loggerService.withContext('Config:minapps')
 
-// 加载自定义小应用
+// 加载自定义小程序
 const loadCustomMiniApp = async (): Promise<MinAppType[]> => {
   try {
     let content: string
     try {
       content = await window.api.file.read('custom-minapps.json')
-    } catch (error) {
-      // 如果文件不存在，创建一个空的 JSON 数组
-      content = '[]'
-      await window.api.file.writeWithId('custom-minapps.json', content)
+    } catch (error: any) {
+      // I6: Only create empty file on ENOENT; for other errors, log and return empty
+      if (error?.code === 'ENOENT' || error?.message?.includes('no such file')) {
+        content = '[]'
+        await window.api.file.writeWithId('custom-minapps.json', content)
+      } else {
+        logger.error('Failed to read custom mini apps file:', error as Error)
+        return []
+      }
     }
 
     const customApps = JSON.parse(content)
@@ -82,9 +93,10 @@ const loadCustomMiniApp = async (): Promise<MinAppType[]> => {
     return customApps.map((app: any) => ({
       ...app,
       type: 'Custom',
-      logo: app.logo && app.logo !== '' ? app.logo : ApplicationLogo,
+      // Custom apps can use image URLs directly or icon keys
+      logo: app.logo && app.logo !== '' ? app.logo : 'application',
       addTime: app.addTime || now,
-      supportedRegions: ['CN', 'Global'] // Custom mini apps should always be visible for all regions
+      supportedRegions: ['CN', 'Global']
     }))
   } catch (error) {
     logger.error('Failed to load custom mini apps:', error as Error)
@@ -92,502 +104,18 @@ const loadCustomMiniApp = async (): Promise<MinAppType[]> => {
   }
 }
 
-// 初始化默认小应用
-const ORIGIN_DEFAULT_MIN_APPS: MinAppType[] = [
-  {
-    id: 'openai',
-    name: 'ChatGPT',
-    url: 'https://chatgpt.com/',
-    logo: Openai,
-    bodered: true,
-    supportedRegions: ['CN', 'Global']
-  },
-  {
-    id: 'gemini',
-    name: 'Gemini',
-    url: 'https://gemini.google.com/',
-    logo: ModelIcons.Gemini,
-    bodered: true,
-    supportedRegions: ['CN', 'Global']
-  },
-  {
-    id: 'silicon',
-    name: 'SiliconFlow',
-    url: 'https://cloud.siliconflow.cn/playground/chat',
-    logo: Silicon,
-    supportedRegions: ['CN', 'Global']
-  },
-  {
-    id: 'deepseek',
-    name: 'DeepSeek',
-    url: 'https://chat.deepseek.com/',
-    logo: Deepseek,
-    supportedRegions: ['CN', 'Global']
-  },
-  {
-    id: 'yi',
-    name: 'Wanzhi',
-    nameKey: 'minapps.wanzhi',
-    url: 'https://www.wanzhi.com/',
-    logo: ZeroOne,
-    bodered: true,
-    supportedRegions: ['CN']
-  },
-  {
-    id: 'zhipu',
-    name: 'ChatGLM',
-    nameKey: 'minapps.chatglm',
-    url: 'https://chatglm.cn/main/alltoolsdetail',
-    logo: Zhipu,
-    bodered: true,
-    supportedRegions: ['CN']
-  },
-  {
-    id: 'moonshot',
-    name: 'Kimi',
-    url: 'https://kimi.moonshot.cn/',
-    logo: ModelIcons.Kimi,
-    supportedRegions: ['CN', 'Global']
-  },
-  {
-    id: 'baichuan',
-    name: 'Baichuan',
-    nameKey: 'minapps.baichuan',
-    url: 'https://ying.baichuan-ai.com/chat',
-    logo: Baichuan,
-    supportedRegions: ['CN']
-  },
-  {
-    id: 'dashscope',
-    name: 'Qwen',
-    nameKey: 'minapps.qwen',
-    url: 'https://www.qianwen.com',
-    logo: ModelIcons.Qwen,
-    supportedRegions: ['CN']
-  },
-  {
-    id: 'stepfun',
-    name: 'Stepfun',
-    nameKey: 'minapps.stepfun',
-    url: 'https://stepfun.com',
-    logo: Step,
-    bodered: true,
-    supportedRegions: ['CN']
-  },
-  {
-    id: 'doubao',
-    name: 'Doubao',
-    nameKey: 'minapps.doubao',
-    url: 'https://www.doubao.com/chat/',
-    logo: Doubao,
-    supportedRegions: ['CN']
-  },
-  {
-    id: 'cici',
-    name: 'Cici',
-    url: 'https://www.cici.com/chat/',
-    logo: Bytedance,
-    supportedRegions: ['CN', 'Global']
-  },
-  {
-    id: 'hailuo',
-    name: 'Hailuo',
-    nameKey: 'minapps.hailuo',
-    url: 'https://hailuoai.com/',
-    logo: ModelIcons.Hailuo,
-    bodered: true,
-    supportedRegions: ['CN']
-  },
-  {
-    id: 'minimax-agent',
-    name: 'Minimax Agent',
-    nameKey: 'minapps.minimax-agent',
-    url: 'https://agent.minimaxi.com/',
-    logo: MinimaxAgent,
-    bodered: true,
-    supportedRegions: ['CN']
-  },
-  {
-    id: 'minimax-agent-global',
-    name: 'Minimax Agent',
-    nameKey: 'minapps.minimax-global',
-    url: 'https://agent.minimax.io/',
-    logo: MinimaxAgent,
-    bodered: true,
-    supportedRegions: ['CN', 'Global']
-  },
-  {
-    id: 'ima',
-    name: 'ima',
-    nameKey: 'minapps.ima',
-    url: 'https://ima.qq.com/',
-    logo: Ima,
-    bodered: true,
-    supportedRegions: ['CN']
-  },
-  {
-    id: 'groq',
-    name: 'Groq',
-    url: 'https://chat.groq.com/',
-    logo: Groq,
-    supportedRegions: ['CN', 'Global']
-  },
-  {
-    id: 'anthropic',
-    name: 'Claude',
-    url: 'https://claude.ai/',
-    logo: ModelIcons.Claude,
-    supportedRegions: ['CN', 'Global']
-  },
-  {
-    id: 'google',
-    name: 'Google',
-    url: 'https://google.com/',
-    logo: Google,
-    bodered: true,
-    style: {
-      padding: 5
-    },
-    supportedRegions: ['CN', 'Global']
-  },
-  {
-    id: 'baidu-ai-chat',
-    name: 'Wenxin',
-    nameKey: 'minapps.wenxin',
-    logo: Wenxin,
-    url: 'https://yiyan.baidu.com/',
-    supportedRegions: ['CN', 'Global']
-  },
-  {
-    id: 'baidu-ai-search',
-    name: 'Baidu AI Search',
-    nameKey: 'minapps.baidu-ai-search',
-    logo: Baidu,
-    url: 'https://chat.baidu.com/',
-    bodered: true,
-    style: {
-      padding: 5
-    },
-    supportedRegions: ['CN']
-  },
-  {
-    id: 'tencent-yuanbao',
-    name: 'Tencent Yuanbao',
-    nameKey: 'minapps.tencent-yuanbao',
-    logo: Yuanbao,
-    url: 'https://yuanbao.tencent.com/chat',
-    bodered: true,
-    supportedRegions: ['CN', 'Global']
-  },
-  {
-    id: 'sensetime-chat',
-    name: 'Sensechat',
-    nameKey: 'minapps.sensechat',
-    logo: Sensetime,
-    url: 'https://chat.sensetime.com/wb/chat',
-    bodered: true,
-    supportedRegions: ['CN']
-  },
-  {
-    id: 'spark-desk',
-    name: 'SparkDesk',
-    logo: Xinghuo,
-    url: 'https://xinghuo.xfyun.cn/desk',
-    supportedRegions: ['CN']
-  },
-  {
-    id: 'metaso',
-    name: 'Metaso',
-    nameKey: 'minapps.metaso',
-    logo: Metaso,
-    url: 'https://metaso.cn/',
-    supportedRegions: ['CN', 'Global']
-  },
-  {
-    id: 'poe',
-    name: 'Poe',
-    logo: Poe,
-    url: 'https://poe.com',
-    supportedRegions: ['CN', 'Global']
-  },
-  {
-    id: 'perplexity',
-    name: 'Perplexity',
-    logo: Perplexity,
-    url: 'https://www.perplexity.ai/',
-    supportedRegions: ['CN', 'Global']
-  },
-  {
-    id: 'devv',
-    name: 'DEVV_',
-    logo: Devv,
-    url: 'https://devv.ai/',
-    supportedRegions: ['CN', 'Global']
-  },
-  {
-    id: 'tiangong-ai',
-    name: 'Tiangong AI',
-    nameKey: 'minapps.tiangong-ai',
-    logo: Tng,
-    url: 'https://www.tiangong.cn/',
-    bodered: true,
-    supportedRegions: ['CN']
-  },
-  {
-    id: 'Felo',
-    name: 'Felo',
-    logo: Felo,
-    url: 'https://felo.ai/',
-    bodered: true,
-    supportedRegions: ['CN', 'Global']
-  },
-  {
-    id: 'duckduckgo',
-    name: 'DuckDuckGo',
-    logo: Duck,
-    url: 'https://duck.ai',
-    supportedRegions: ['CN', 'Global']
-  },
-  {
-    id: 'bolt',
-    name: 'bolt',
-    logo: BoltNew,
-    url: 'https://bolt.new/',
-    bodered: true,
-    supportedRegions: ['CN', 'Global']
-  },
-  {
-    id: 'nm',
-    name: 'Nami AI',
-    nameKey: 'minapps.nami-ai',
-    logo: NamiAi,
-    url: 'https://bot.n.cn/',
-    bodered: true,
-    supportedRegions: ['CN']
-  },
-  {
-    id: 'thinkany',
-    name: 'ThinkAny',
-    logo: ThinkAny,
-    url: 'https://thinkany.ai/',
-    bodered: true,
-    style: {
-      padding: 5
-    },
-    supportedRegions: ['CN', 'Global']
-  },
-  {
-    id: 'github-copilot',
-    name: 'GitHub Copilot',
-    logo: GithubCopilot,
-    url: 'https://github.com/copilot',
-    supportedRegions: ['CN', 'Global']
-  },
-  {
-    id: 'genspark',
-    name: 'Genspark',
-    logo: Genspark,
-    url: 'https://www.genspark.ai/',
-    supportedRegions: ['CN', 'Global']
-  },
-  {
-    id: 'grok',
-    name: 'Grok',
-    logo: Grok,
-    url: 'https://grok.com',
-    bodered: true,
-    supportedRegions: ['CN', 'Global']
-  },
-  {
-    id: 'grok-x',
-    name: 'Grok / X',
-    logo: Twitter,
-    url: 'https://x.com/i/grok',
-    bodered: true,
-    supportedRegions: ['CN', 'Global']
-  },
-  {
-    id: 'qwenlm',
-    name: 'QwenChat',
-    logo: Qwen,
-    url: 'https://chat.qwen.ai',
-    supportedRegions: ['CN', 'Global']
-  },
-  {
-    id: 'flowith',
-    name: 'Flowith',
-    logo: Flowith,
-    url: 'https://www.flowith.io/',
-    bodered: true,
-    supportedRegions: ['CN', 'Global']
-  },
-  {
-    id: '3mintop',
-    name: '3MinTop',
-    logo: MinTop3,
-    url: 'https://3min.top',
-    bodered: false,
-    supportedRegions: ['CN', 'Global']
-  },
-  {
-    id: 'aistudio',
-    name: 'AI Studio',
-    logo: AiStudio,
-    url: 'https://aistudio.google.com/',
-    supportedRegions: ['CN', 'Global']
-  },
-  {
-    id: 'xiaoyi',
-    name: 'Xiaoyi',
-    nameKey: 'minapps.xiaoyi',
-    logo: Xiaoyi,
-    url: 'https://xiaoyi.huawei.com/chat/',
-    bodered: true,
-    supportedRegions: ['CN']
-  },
-  {
-    id: 'notebooklm',
-    name: 'NotebookLM',
-    logo: Notebooklm,
-    url: 'https://notebooklm.google.com/',
-    supportedRegions: ['CN', 'Global']
-  },
-  {
-    id: 'coze',
-    name: 'Coze',
-    logo: Coze,
-    url: 'https://www.coze.com/space',
-    bodered: true,
-    supportedRegions: ['CN', 'Global']
-  },
-  {
-    id: 'dify',
-    name: 'Dify',
-    logo: Dify,
-    url: 'https://cloud.dify.ai/apps',
-    bodered: true,
-    style: {
-      padding: 5
-    },
-    supportedRegions: ['CN', 'Global']
-  },
-  {
-    id: 'wpslingxi',
-    name: 'WPS AI',
-    nameKey: 'minapps.wps-copilot',
-    logo: Lingxi,
-    url: 'https://copilot.wps.cn/',
-    bodered: true,
-    supportedRegions: ['CN']
-  },
-  {
-    id: 'lechat',
-    name: 'LeChat',
-    logo: Mistral,
-    url: 'https://chat.mistral.ai/chat',
-    bodered: true,
-    supportedRegions: ['CN', 'Global']
-  },
-  {
-    id: 'abacus',
-    name: 'Abacus',
-    logo: Abacus,
-    url: 'https://apps.abacus.ai/chatllm',
-    bodered: true,
-    supportedRegions: ['CN', 'Global']
-  },
-  {
-    id: 'lambdachat',
-    name: 'Lambda Chat',
-    logo: Lambda,
-    url: 'https://lambda.chat/',
-    bodered: true,
-    supportedRegions: ['CN', 'Global']
-  },
-  {
-    id: 'monica',
-    name: 'Monica',
-    logo: Monica,
-    url: 'https://monica.im/home/',
-    bodered: true,
-    supportedRegions: ['CN', 'Global']
-  },
-  {
-    id: 'you',
-    name: 'You',
-    logo: You,
-    url: 'https://you.com/',
-    supportedRegions: ['CN', 'Global']
-  },
-  {
-    id: 'zhihu',
-    name: 'Zhihu Zhida',
-    nameKey: 'minapps.zhihu',
-    logo: Zhida,
-    url: 'https://zhida.zhihu.com/',
-    bodered: true,
-    supportedRegions: ['CN']
-  },
-  {
-    id: 'dangbei',
-    name: 'Dangbei AI',
-    nameKey: 'minapps.dangbei',
-    logo: Dangbei,
-    url: 'https://ai.dangbei.com/',
-    bodered: true,
-    supportedRegions: ['CN', 'Global']
-  },
-  {
-    id: `zai`,
-    name: `Z.ai`,
-    logo: ZAi,
-    url: `https://chat.z.ai/`,
-    bodered: true,
-    supportedRegions: ['CN', 'Global']
-  },
-  {
-    id: 'n8n',
-    name: 'n8n',
-    logo: N8n,
-    url: 'https://app.n8n.cloud/',
-    bodered: true,
-    style: {
-      padding: 5
-    },
-    supportedRegions: ['CN', 'Global']
-  },
-  {
-    id: 'longcat',
-    name: 'LongCat',
-    logo: Longcat,
-    url: 'https://longcat.chat/',
-    bodered: true,
-    supportedRegions: ['CN', 'Global']
-  },
-  {
-    id: 'ling',
-    name: 'Ant Ling',
-    nameKey: 'minapps.ant-ling',
-    url: 'https://ling.tbox.cn/chat',
-    logo: ModelIcons.Ling,
-    bodered: true,
-    style: {
-      padding: 6
-    },
-    supportedRegions: ['CN', 'Global']
-  },
-  {
-    id: 'huggingchat',
-    name: 'HuggingChat',
-    url: 'https://huggingface.co/chat/',
-    logo: Huggingface,
-    bodered: true,
-    style: {
-      padding: 6
-    },
-    supportedRegions: ['CN', 'Global']
-  }
-]
+// I13: Derive renderer preset list from the shared single source of truth
+const ORIGIN_DEFAULT_MIN_APPS: MinAppType[] = SHARED_PRESETS.map((app) => ({
+  id: app.id,
+  name: app.name,
+  nameKey: app.nameKey,
+  url: app.url,
+  logo: app.logo,
+  bordered: app.bordered,
+  background: app.background,
+  supportedRegions: app.supportedRegions,
+  style: app.style
+}))
 
 // All mini apps: built-in defaults + custom apps loaded from user config
 let allMinApps = [...ORIGIN_DEFAULT_MIN_APPS, ...(await loadCustomMiniApp())]
@@ -597,3 +125,134 @@ function updateAllMinApps(apps: MinAppType[]) {
 }
 
 export { allMinApps, loadCustomMiniApp, ORIGIN_DEFAULT_MIN_APPS, updateAllMinApps }
+
+export function getMiniAppsLogo(LogoId: string | undefined): CompoundIcon | undefined {
+  if (!LogoId) {
+    return
+  }
+  switch (LogoId.toLowerCase()) {
+    case 'application':
+      return Application
+    case 'openclaw':
+      return Openclaw
+    case 'openai':
+      return Openai
+    case 'gemini':
+    case 'google':
+      return Google
+    case 'silicon':
+      return Silicon
+    case 'deepseek':
+      return Deepseek
+    case 'zeroone':
+      return ZeroOne
+    case 'zhipu':
+      return Zhipu
+    case 'moonshot':
+      return Moonshot
+    case 'baichuan':
+      return Baichuan
+    case 'qwen':
+    case 'dashscope':
+      return Qwen
+    case 'step':
+    case 'stepfun':
+      return Step
+    case 'doubao':
+      return Doubao
+    case 'bytedance':
+      return Bytedance
+    case 'minimax':
+      return MinimaxAgent
+    case 'groq':
+      return Groq
+    case 'anthropic':
+    case 'claude':
+      return Anthropic
+    case 'wenxin':
+      return Wenxin
+    case 'baidu':
+      return Baidu
+    case 'yuanbao':
+      return Yuanbao
+    case 'sensetime':
+      return Sensetime
+    case 'xinghuo':
+      return Xinghuo
+    case 'metaso':
+      return Metaso
+    case 'poe':
+      return Poe
+    case 'perplexity':
+      return Perplexity
+    case 'devv':
+      return Devv
+    case 'tng':
+      return Tng
+    case 'felo':
+      return Felo
+    case 'duck':
+      return Duck
+    case 'namiai':
+      return NamiAi
+    case 'thinkany':
+      return ThinkAny
+    case 'githubcopilot':
+      return GithubCopilot
+    case 'genspark':
+      return Genspark
+    case 'grok':
+      return Grok
+    case 'twitter':
+      return Twitter
+    case 'flowith':
+      return Flowith
+    case 'mintop3':
+    case '3mintop':
+      return MinTop3
+    case 'aistudio':
+      return AiStudio
+    case 'xiaoyi':
+      return Xiaoyi
+    case 'notebooklm':
+      return Notebooklm
+    case 'coze':
+      return Coze
+    case 'dify':
+      return Dify
+    case 'lingxi':
+      return Lingxi
+    case 'mistral':
+      return Mistral
+    case 'abacus':
+      return Abacus
+    case 'lambda':
+      return Lambda
+    case 'monica':
+      return Monica
+    case 'zhida':
+      return Zhida
+    case 'zai':
+      return ZAi
+    case 'n8n':
+      return N8n
+    case 'you':
+      return You
+    case 'longcat':
+      return Longcat
+    case 'bolt':
+      return BoltNew
+    case 'huggingface':
+      return Huggingface
+    case 'ima':
+      return Ima
+    case 'dangbei':
+      return Dangbei
+    case 'hailuo':
+      return ModelIcons.Hailuo
+    case 'ling':
+      return ModelIcons.Ling
+    default:
+      return undefined
+  }
+}

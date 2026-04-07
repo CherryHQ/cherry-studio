@@ -263,7 +263,7 @@ const OpenClawPage: FC = () => {
         id: 'openclaw-dashboard',
         name: 'OpenClaw',
         url: dashboardUrl,
-        logo: Openclaw
+        logo: 'openclaw'
       })
 
       // Delay 500ms before updating UI state (wait for minapp animation)
@@ -299,7 +299,7 @@ const OpenClawPage: FC = () => {
       id: 'openclaw-dashboard',
       name: 'OpenClaw',
       url: dashboardUrl,
-      logo: Openclaw
+      logo: 'openclaw'
     })
   }
 
