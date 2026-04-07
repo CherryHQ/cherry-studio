@@ -32,7 +32,7 @@ import mcp from './mcp'
 import memory from './memory'
 import messageBlocksReducer from './messageBlock'
 import migrate from './migrate'
-import minapps from './minapps'
+import miniapps from './miniapps'
 import newMessagesReducer from './newMessage'
 import { setNotesPath } from './note'
 import note from './note'
@@ -63,7 +63,7 @@ const rootReducer = combineReducers({
   runtime,
   shortcuts,
   knowledge,
-  minapps,
+  miniapps,
   websearch,
   mcp,
   memory,

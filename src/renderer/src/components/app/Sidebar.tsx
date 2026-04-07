@@ -5,8 +5,8 @@ import { UserAvatar } from '@renderer/config/env'
 import { useTheme } from '@renderer/context/ThemeProvider'
 import useAvatar from '@renderer/hooks/useAvatar'
 import { useFullscreen } from '@renderer/hooks/useFullscreen'
-import { useMinappPopup } from '@renderer/hooks/useMinappPopup'
-import { useMinapps } from '@renderer/hooks/useMinapps'
+import { useMiniAppPopup } from '@renderer/hooks/useMiniAppPopup'
+import { useMiniApps } from '@renderer/hooks/useMiniApps'
 import { modelGenerating } from '@renderer/hooks/useModel'
 import useNavBackgroundColor from '@renderer/hooks/useNavBackgroundColor'
 import { useSettings } from '@renderer/hooks/useSettings'
@@ -37,11 +37,11 @@ import styled from 'styled-components'
 import { useTabs } from '../../hooks/useTabs'
 import { OpenClawSidebarIcon } from '../Icons/SVGIcon'
 import UserPopup from '../Popups/UserPopup'
-import { SidebarOpenedMinappTabs, SidebarPinnedApps } from './PinnedMinapps'
+import { SidebarOpenedMiniAppTabs, SidebarPinnedApps } from './PinnedMiniApps'
 
 const Sidebar: FC = () => {
-  const { hideMinappPopup } = useMinappPopup()
-  const { pinned, minappShow } = useMinapps()
+  const { hideMiniAppPopup } = useMiniAppPopup()
+  const { pinned, miniAppShow } = useMiniApps()
   const [visibleSidebarIcons] = usePreference('ui.sidebar.icons.visible')
   const { tabs, activeTabId, updateTab } = useTabs()
 
@@ -57,7 +57,7 @@ const Sidebar: FC = () => {
 
   const backgroundColor = useNavBackgroundColor()
 
-  const showPinnedApps = pinned.length > 0 && visibleSidebarIcons.includes('minapp')
+  const showPinnedApps = pinned.length > 0 && visibleSidebarIcons.includes('miniapp')
 
   // 在当前 Tab 内跳转
   const to = async (path: string) => {
@@ -73,7 +73,7 @@ const Sidebar: FC = () => {
     <Container
       $isFullscreen={isFullscreen}
       id="app-sidebar"
-      style={{ backgroundColor, zIndex: minappShow ? 10000 : 'initial' }}>
+      style={{ backgroundColor, zIndex: miniAppShow ? 10000 : 'initial' }}>
       {isEmoji(avatar) ? (
         <EmojiAvatar onClick={onEditUser} className="sidebar-avatar" size={31} fontSize={18}>
           {avatar}
@@ -84,10 +84,10 @@ const Sidebar: FC = () => {
         </AvatarImg>
       )}
       <MainMenusContainer>
-        <Menus onClick={hideMinappPopup}>
+        <Menus onClick={hideMiniAppPopup}>
           <MainMenus />
         </Menus>
-        <SidebarOpenedMinappTabs />
+        <SidebarOpenedMiniAppTabs />
         {showPinnedApps && (
           <AppsContainer>
             <Divider />
@@ -112,10 +112,10 @@ const Sidebar: FC = () => {
         <Tooltip placement="right" content={t('settings.title')} delay={800}>
           <StyledLink
             onClick={async () => {
-              hideMinappPopup()
+              hideMiniAppPopup()
               await to('/settings/provider')
             }}>
-            <Icon theme={theme} className={pathname.startsWith('/settings') && !minappShow ? 'active' : ''}>
+            <Icon theme={theme} className={pathname.startsWith('/settings') && !miniAppShow ? 'active' : ''}>
               <Settings size={20} className="icon" />
             </Icon>
           </StyledLink>
@@ -126,8 +126,8 @@ const Sidebar: FC = () => {
 }
 
 const MainMenus: FC = () => {
-  const { hideMinappPopup } = useMinappPopup()
-  const { minappShow } = useMinapps()
+  const { hideMiniAppPopup } = useMiniAppPopup()
+  const { miniAppShow } = useMiniApps()
   const { tabs, activeTabId, updateTab } = useTabs()
 
   // 获取当前 Tab 的 URL 作为 pathname
@@ -138,7 +138,7 @@ const MainMenus: FC = () => {
   const { defaultPaintingProvider } = useSettings()
   const { theme } = useTheme()
 
-  const isRoutes = (path: string): string => (pathname.startsWith(path) && path !== '/' && !minappShow ? 'active' : '')
+  const isRoutes = (path: string): string => (pathname.startsWith(path) && path !== '/' && !miniAppShow ? 'active' : '')
 
   const iconMap = {
     assistants: <MessageSquare size={18} className="icon" />,
@@ -146,7 +146,7 @@ const MainMenus: FC = () => {
     store: <Sparkle size={18} className="icon" />,
     paintings: <Palette size={18} className="icon" />,
     translate: <Languages size={18} className="icon" />,
-    minapp: <LayoutGrid size={18} className="icon" />,
+    miniapp: <LayoutGrid size={18} className="icon" />,
     knowledge: <FileSearch size={18} className="icon" />,
     files: <Folder size={18} className="icon" />,
     notes: <NotepadText size={18} className="icon" />,
@@ -160,7 +160,7 @@ const MainMenus: FC = () => {
     store: '/app/assistant',
     paintings: `/app/paintings/${defaultPaintingProvider}`,
     translate: '/app/translate',
-    minapp: '/app/minapp',
+    miniapp: '/app/miniapp',
     knowledge: '/app/knowledge',
     files: '/app/files',
     code_tools: '/app/code',
@@ -184,7 +184,7 @@ const MainMenus: FC = () => {
       <Tooltip key={icon} placement="right" content={getSidebarIconLabel(icon)} delay={800}>
         <StyledLink
           onClick={async () => {
-            hideMinappPopup()
+            hideMiniAppPopup()
             await to(path)
           }}>
           <Icon theme={theme} className={isActive}>
@@ -280,10 +280,10 @@ const Icon = styled.div<{ theme: string }>`
     }
   }
 
-  &.opened-minapp {
+  &.opened-miniapp {
     position: relative;
   }
-  &.opened-minapp::after {
+  &.opened-miniapp::after {
     content: '';
     position: absolute;
     width: 100%;

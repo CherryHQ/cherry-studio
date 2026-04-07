@@ -443,7 +443,7 @@
       ],
       "messageBlock": [],
       "migrate": [],
-      "minapps": [
+      "miniapps": [
         {
           "originalKey": "enabled",
           "type": "string",
@@ -1565,7 +1565,7 @@
                 "store",
                 "paintings",
                 "translate",
-                "minapp",
+                "miniapp",
                 "knowledge",
                 "files",
                 "code_tools",
@@ -1594,7 +1594,7 @@
             "store",
             "paintings",
             "translate",
-            "minapp",
+            "miniapp",
             "knowledge",
             "files",
             "code_tools",
@@ -1853,36 +1853,36 @@
           "targetKey": null
         },
         {
-          "originalKey": "maxKeepAliveMinapps",
+          "originalKey": "maxKeepAliveMiniApps",
           "type": "number",
           "defaultValue": 3,
           "status": "classified",
           "category": "preferences",
-          "targetKey": "feature.minapp.max_keep_alive"
+          "targetKey": "feature.miniapp.max_keep_alive"
         },
         {
-          "originalKey": "showOpenedMinappsInSidebar",
+          "originalKey": "showOpenedMiniAppsInSidebar",
           "type": "boolean",
           "defaultValue": true,
           "status": "classified",
           "category": "preferences",
-          "targetKey": "feature.minapp.show_opened_in_sidebar"
+          "targetKey": "feature.miniapp.show_opened_in_sidebar"
         },
         {
-          "originalKey": "minappsOpenLinkExternal",
+          "originalKey": "miniappsOpenLinkExternal",
           "type": "boolean",
           "defaultValue": false,
           "status": "classified",
           "category": "preferences",
-          "targetKey": "feature.minapp.open_link_external"
+          "targetKey": "feature.miniapp.open_link_external"
         },
         {
-          "originalKey": "minAppRegion",
-          "type": "PreferenceTypes.MinAppRegionFilter",
+          "originalKey": "miniAppRegion",
+          "type": "PreferenceTypes.MiniAppRegionFilter",
           "defaultValue": "auto",
           "status": "classified",
           "category": "preferences",
-          "targetKey": "feature.minapp.region"
+          "targetKey": "feature.miniapp.region"
         },
         {
           "originalKey": "enableDataCollection",

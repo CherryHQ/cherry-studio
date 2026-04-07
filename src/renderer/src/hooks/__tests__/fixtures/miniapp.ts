@@ -1,10 +1,10 @@
-import type { MinAppRegion, MiniApp } from '@shared/data/types/miniapp'
+import type { MiniApp, MiniAppRegion } from '@shared/data/types/miniapp'
 
 /**
  * Shared test fixtures for MiniApp-related hooks.
  *
  * Provides factory functions to create MiniApp objects with sensible defaults,
- * eliminating duplication across useMinapps and useMinappPopup test files.
+ * eliminating duplication across useMiniApps and useMiniAppPopup test files.
  */
 
 /**
@@ -26,11 +26,11 @@ export const createMiniApp = (appId: string, overrides?: Partial<MiniApp>): Mini
 
 /** Shorthand: create a Global-supporting app */
 export const createGlobalApp = (appId: string, overrides?: Partial<MiniApp>): MiniApp =>
-  createMiniApp(appId, { supportedRegions: ['Global'] as MinAppRegion[], ...overrides })
+  createMiniApp(appId, { supportedRegions: ['Global'] as MiniAppRegion[], ...overrides })
 
 /** Shorthand: create a CN-only app */
 export const createCnOnlyApp = (appId: string, overrides?: Partial<MiniApp>): MiniApp =>
-  createMiniApp(appId, { supportedRegions: ['CN'] as MinAppRegion[], ...overrides })
+  createMiniApp(appId, { supportedRegions: ['CN'] as MiniAppRegion[], ...overrides })
 
 /**
  * Pre-built app sets for common test scenarios.

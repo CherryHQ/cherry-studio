@@ -7,8 +7,8 @@ import HorizontalScrollContainer from '@renderer/components/HorizontalScrollCont
 import { isLinux, isMac } from '@renderer/config/constant'
 import { useTheme } from '@renderer/context/ThemeProvider'
 import { useFullscreen } from '@renderer/hooks/useFullscreen'
-import { useMinappPopup } from '@renderer/hooks/useMinappPopup'
-import { useMinapps } from '@renderer/hooks/useMinapps'
+import { useMiniAppPopup } from '@renderer/hooks/useMiniAppPopup'
+import { useMiniApps } from '@renderer/hooks/useMiniApps'
 import { getThemeModeLabel, getTitleLabel } from '@renderer/i18n/label'
 import UpdateAppButton from '@renderer/pages/home/components/UpdateAppButton'
 import { tabsService } from '@renderer/services/TabsService'
@@ -41,9 +41,9 @@ import { useCallback, useEffect, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
-import MinAppIcon from '../Icons/MinAppIcon'
+import MiniAppIcon from '../Icons/MiniAppIcon'
 import { OpenClawIcon } from '../Icons/SVGIcon'
-import MinAppTabsPool from '../MinApp/MinAppTabsPool'
+import MiniAppTabsPool from '../MiniApp/MiniAppTabsPool'
 import WindowControls from '../WindowControls'
 
 interface TabsContainerProps {
@@ -55,31 +55,31 @@ const logger = loggerService.withContext('TabContainer')
 const getTabIcon = (
   tabId: string,
   allApps: MiniApp[],
-  minAppsCache?: LRUCache<string, MiniApp>
+  miniAppsCache?: LRUCache<string, MiniApp>
 ): React.ReactNode | undefined => {
-  // Check if it's a minapp tab (format: minapp:appId)
-  if (tabId.startsWith('minapp:')) {
-    const appId = tabId.replace('minapp:', '')
+  // Check if it's a miniapp tab (format: miniapp:appId)
+  if (tabId.startsWith('miniapp:')) {
+    const appId = tabId.replace('miniapp:', '')
     let app = allApps.find((a) => a.appId === appId)
 
     // If not found in permanent apps, search in temporary apps cache
-    // The cache stores apps opened via openSmartMinapp() for top navbar mode
-    // These are temporary MinApps that were opened but not yet saved to user's config
+    // The cache stores apps opened via openSmartMiniApp() for top navbar mode
+    // These are temporary MiniApps that were opened but not yet saved to user's config
     // The cache is LRU (Least Recently Used) with max size from settings
     // Cache validity: Apps in cache are currently active/recently used, not outdated
-    if (!app && minAppsCache) {
-      app = minAppsCache.get(appId)
+    if (!app && miniAppsCache) {
+      app = miniAppsCache.get(appId)
 
       // Defensive programming: If app not found in cache but tab exists,
       // the cache entry may have been evicted due to LRU policy
       // Log warning for debugging potential sync issues
       if (!app) {
-        logger.warn(`MinApp ${appId} not found in cache, using fallback icon`)
+        logger.warn(`MiniApp ${appId} not found in cache, using fallback icon`)
       }
     }
 
     if (app) {
-      return <MinAppIcon size={14} app={app} />
+      return <MiniAppIcon size={14} app={app} />
     }
 
     // Fallback: If no app found (cache evicted), show default icon
@@ -128,42 +128,42 @@ const TabsContainer: React.FC<TabsContainerProps> = ({ children }) => {
   const activeTabId = useAppSelector((state) => state.tabs.activeTabId)
   const isFullscreen = useFullscreen()
   const { settedTheme, toggleTheme } = useTheme()
-  const { hideMinappPopup, minAppsCache } = useMinappPopup()
-  const { allApps } = useMinapps()
+  const { hideMiniAppPopup, miniAppsCache } = useMiniAppPopup()
+  const { allApps } = useMiniApps()
   // const { useSystemTitleBar } = useSettings()
   const [useSystemTitleBar] = usePreference('app.use_system_title_bar')
   const { t } = useTranslation()
   const getTabId = (path: string): string => {
     if (path === '/') return 'home'
     const segments = path.split('/')
-    // Handle minapp paths: /app/minapp/appId -> minapp:appId
-    if (segments[1] === 'app' && segments[2] === 'minapp' && segments[3]) {
-      return `minapp:${segments[3]}`
+    // Handle miniapp paths: /app/miniapp/appId -> miniapp:appId
+    if (segments[1] === 'app' && segments[2] === 'miniapp' && segments[3]) {
+      return `miniapp:${segments[3]}`
     }
     return segments[1] // 获取第一个路径段作为 id
   }
 
   const getTabTitle = (tabId: string): string => {
-    // Check if it's a minapp tab
-    if (tabId.startsWith('minapp:')) {
-      const appId = tabId.replace('minapp:', '')
+    // Check if it's a miniapp tab
+    if (tabId.startsWith('miniapp:')) {
+      const appId = tabId.replace('miniapp:', '')
       let app = allApps.find((a) => a.appId === appId)
 
       // If not found in permanent apps, search in temporary apps cache
-      // This ensures temporary MinApps display proper titles while being used
+      // This ensures temporary MiniApps display proper titles while being used
       // The LRU cache automatically manages app lifecycle and prevents memory leaks
-      if (!app && minAppsCache) {
-        app = minAppsCache.get(appId)
+      if (!app && miniAppsCache) {
+        app = miniAppsCache.get(appId)
 
         // Defensive programming: If app not found in cache but tab exists,
         // the cache entry may have been evicted due to LRU policy
         if (!app) {
-          logger.warn(`MinApp ${appId} not found in cache, using fallback title`)
+          logger.warn(`MiniApp ${appId} not found in cache, using fallback title`)
         }
       }
 
       // Return app name if found, otherwise use fallback with appId
-      return app ? app.name : `MinApp-${appId}`
+      return app ? app.name : `MiniApp-${appId}`
     }
     return getTitleLabel(tabId)
   }
@@ -208,17 +208,17 @@ const TabsContainer: React.FC<TabsContainerProps> = ({ children }) => {
   }
 
   const handleAddTab = () => {
-    hideMinappPopup()
+    hideMiniAppPopup()
     void navigate({ to: '/launchpad' })
   }
 
   const handleSettingsClick = () => {
-    hideMinappPopup()
+    hideMiniAppPopup()
     void navigate({ to: lastSettingsPath })
   }
 
   const handleTabClick = (tab: Tab) => {
-    hideMinappPopup()
+    hideMiniAppPopup()
     void navigate({ to: tab.path })
   }
 
@@ -258,7 +258,7 @@ const TabsContainer: React.FC<TabsContainerProps> = ({ children }) => {
                     }
                   }}>
                   <TabHeader>
-                    {tab.id && <TabIcon>{getTabIcon(tab.id, allApps, minAppsCache)}</TabIcon>}
+                    {tab.id && <TabIcon>{getTabIcon(tab.id, allApps, miniAppsCache)}</TabIcon>}
                     <TabTitle>{getTabTitle(tab.id)}</TabTitle>
                   </TabHeader>
                   {isClosable && (
@@ -304,7 +304,7 @@ const TabsContainer: React.FC<TabsContainerProps> = ({ children }) => {
       </TabsBar>
       <TabContent>
         {/* MiniApp WebView 池（Tab 模式保活） */}
-        <MinAppTabsPool />
+        <MiniAppTabsPool />
         {children}
       </TabContent>
     </Container>
@@ -471,7 +471,7 @@ const TabContent = styled.div`
   margin-top: 0;
   border-radius: 8px;
   overflow: hidden;
-  position: relative; /* 约束 MinAppTabsPool 绝对定位范围 */
+  position: relative; /* 约束 MiniAppTabsPool 绝对定位范围 */
 `
 
 export default TabsContainer

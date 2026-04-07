@@ -16,7 +16,7 @@
  */
 import type { PayloadAction } from '@reduxjs/toolkit'
 import { createSlice } from '@reduxjs/toolkit'
-import type { MinAppRegion } from '@shared/data/types/miniapp'
+import type { MiniAppRegion } from '@shared/data/types/miniapp'
 
 // export interface ChatState {
 //   isMultiSelectMode: boolean
@@ -56,14 +56,14 @@ export interface RuntimeState {
   // generating: boolean
   // translating: boolean
   // translateAbortKey?: string
-  // /** whether the minapp popup is shown */
-  // minappShow: boolean
-  // /** the minapps that are opened and should be keep alive */
-  // openedKeepAliveMinapps: MinAppType[]
-  // /** the minapp that is opened for one time */
-  // openedOneOffMinapp: MinAppType | null
-  // /** the current minapp id */
-  // currentMinappId: string
+  // /** whether the miniapp popup is shown */
+  // miniAppShow: boolean
+  // /** the miniapps that are opened and should be keep alive */
+  // openedKeepAliveMiniApps: MiniAppType[]
+  // /** the miniapp that is opened for one time */
+  // openedOneOffMiniApp: MiniAppType | null
+  // /** the current miniapp id */
+  // currentMiniAppId: string
   // searching: boolean
   // filesPath: string
   // resourcesPath: string
@@ -72,7 +72,7 @@ export interface RuntimeState {
   // chat: ChatState
   // websearch: WebSearchState
   /** Detected region from IP lookup (not persisted, re-detected on each app start) */
-  detectedRegion: MinAppRegion | null
+  detectedRegion: MiniAppRegion | null
   /** Query whether a task is processing or not. undefined and false share same semantics.  */
   loadingMap: Record<string, boolean>
   // Migrated from useApiServer, it's global state now
@@ -89,10 +89,10 @@ const initialState: RuntimeState = {
   // avatar: UserAvatar,
   // generating: false,
   // translating: false,
-  // minappShow: false,
-  // openedKeepAliveMinapps: [],
-  // openedOneOffMinapp: null,
-  // currentMinappId: '',
+  // miniAppShow: false,
+  // openedKeepAliveMiniApps: [],
+  // openedOneOffMiniApp: null,
+  // currentMiniAppId: '',
   // searching: false,
   // filesPath: '',
   // resourcesPath: '',
@@ -146,17 +146,17 @@ const runtimeSlice = createSlice({
     // setTranslateAbortKey: (state, action: PayloadAction<string>) => {
     //   state.translateAbortKey = action.payload
     // },
-    // setMinappShow: (state, action: PayloadAction<boolean>) => {
-    //   state.minappShow = action.payload
+    // setMiniAppShow: (state, action: PayloadAction<boolean>) => {
+    //   state.miniAppShow = action.payload
     // },
-    // setOpenedKeepAliveMinapps: (state, action: PayloadAction<MinAppType[]>) => {
-    //   state.openedKeepAliveMinapps = action.payload
+    // setOpenedKeepAliveMiniApps: (state, action: PayloadAction<MiniAppType[]>) => {
+    //   state.openedKeepAliveMiniApps = action.payload
     // },
-    // setOpenedOneOffMinapp: (state, action: PayloadAction<MinAppType | null>) => {
-    //   state.openedOneOffMinapp = action.payload
+    // setOpenedOneOffMiniApp: (state, action: PayloadAction<MiniAppType | null>) => {
+    //   state.openedOneOffMiniApp = action.payload
     // },
-    // setCurrentMinappId: (state, action: PayloadAction<string>) => {
-    //   state.currentMinappId = action.payload
+    // setCurrentMiniAppId: (state, action: PayloadAction<string>) => {
+    //   state.currentMiniAppId = action.payload
     // },
     // setSearching: (state, action: PayloadAction<boolean>) => {
     //   state.searching = action.payload
@@ -222,7 +222,7 @@ const runtimeSlice = createSlice({
       const { id } = action.payload
       delete state.loadingMap[id]
     },
-    setDetectedRegion: (state, action: PayloadAction<MinAppRegion | null>) => {
+    setDetectedRegion: (state, action: PayloadAction<MiniAppRegion | null>) => {
       state.detectedRegion = action.payload
     },
     setApiServerRunningAction: (state, action: PayloadAction<boolean>) => {
@@ -239,10 +239,10 @@ export const {
   // setGenerating,
   // setTranslating,
   // setTranslateAbortKey,
-  // setMinappShow,
-  // setOpenedKeepAliveMinapps,
-  // setOpenedOneOffMinapp,
-  // setCurrentMinappId,
+  // setMiniAppShow,
+  // setOpenedKeepAliveMiniApps,
+  // setOpenedOneOffMiniApp,
+  // setCurrentMiniAppId,
   // setSearching,
   // setFilesPath,
   // setResourcesPath,

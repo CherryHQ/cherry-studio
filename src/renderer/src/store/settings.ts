@@ -43,7 +43,7 @@ import type {
   SidebarIcon
 } from '@shared/data/preference/preferenceTypes'
 import { ThemeMode, UpgradeChannel } from '@shared/data/preference/preferenceTypes'
-import type { MinAppRegionFilter } from '@shared/data/types/miniapp'
+import type { MiniAppRegionFilter } from '@shared/data/types/miniapp'
 import { v4 as uuid } from 'uuid'
 
 import type { RemoteSyncState } from './backup'
@@ -193,12 +193,12 @@ export interface SettingsState {
   siyuanRootPath: string | null
   // 订阅的助手地址
   agentssubscribeUrl: string | null
-  // MinApps
-  maxKeepAliveMinapps: number
-  showOpenedMinappsInSidebar: boolean
-  minappsOpenLinkExternal: boolean
+  // MiniApps
+  maxKeepAliveMiniApps: number
+  showOpenedMiniAppsInSidebar: boolean
+  miniappsOpenLinkExternal: boolean
   /** Mini app region filter: 'auto' (detect from IP), 'CN', or 'Global' */
-  minAppRegion: MinAppRegionFilter
+  miniAppRegion: MiniAppRegionFilter
   // 隐私设置
   enableDataCollection: boolean
   enableSpellCheck: boolean
@@ -380,11 +380,11 @@ export const initialState: SettingsState = {
   siyuanBoxId: null,
   siyuanRootPath: null,
   agentssubscribeUrl: '',
-  // MinApps
-  maxKeepAliveMinapps: 3,
-  showOpenedMinappsInSidebar: true,
-  minappsOpenLinkExternal: false,
-  minAppRegion: 'auto',
+  // MiniApps
+  maxKeepAliveMiniApps: 3,
+  showOpenedMiniAppsInSidebar: true,
+  miniappsOpenLinkExternal: false,
+  miniAppRegion: 'auto',
   enableDataCollection: false,
   enableSpellCheck: false,
   spellCheckLanguages: [],
@@ -798,17 +798,17 @@ const settingsSlice = createSlice({
     setAgentssubscribeUrl: (state, action: PayloadAction<string>) => {
       state.agentssubscribeUrl = action.payload
     },
-    // setMaxKeepAliveMinapps: (state, action: PayloadAction<number>) => {
-    //   state.maxKeepAliveMinapps = action.payload
+    // setMaxKeepAliveMiniApps: (state, action: PayloadAction<number>) => {
+    //   state.maxKeepAliveMiniApps = action.payload
     // },
-    // setShowOpenedMinappsInSidebar: (state, action: PayloadAction<boolean>) => {
-    //   state.showOpenedMinappsInSidebar = action.payload
+    // setShowOpenedMiniAppsInSidebar: (state, action: PayloadAction<boolean>) => {
+    //   state.showOpenedMiniAppsInSidebar = action.payload
     // },
-    // setMinappsOpenLinkExternal: (state, action: PayloadAction<boolean>) => {
-    //   state.minappsOpenLinkExternal = action.payload
+    // setMiniAppsOpenLinkExternal: (state, action: PayloadAction<boolean>) => {
+    //   state.miniappsOpenLinkExternal = action.payload
     // },
-    setMinAppRegion: (state, action: PayloadAction<MinAppRegionFilter>) => {
-      state.minAppRegion = action.payload
+    setMiniAppRegion: (state, action: PayloadAction<MiniAppRegionFilter>) => {
+      state.miniAppRegion = action.payload
     },
     // setEnableDataCollection: (state, action: PayloadAction<boolean>) => {
     //   state.enableDataCollection = action.payload
@@ -1006,10 +1006,10 @@ export const {
   // setSiyuanBoxId,
   setAgentssubscribeUrl,
   // setSiyuanRootPath,
-  // setMaxKeepAliveMinapps,
-  // setShowOpenedMinappsInSidebar,
-  // setMinappsOpenLinkExternal,
-  setMinAppRegion,
+  // setMaxKeepAliveMiniApps,
+  // setShowOpenedMiniAppsInSidebar,
+  // setMiniAppsOpenLinkExternal,
+  setMiniAppRegion,
   // setEnableDataCollection,
   // setEnableSpellCheck,
   // setSpellCheckLanguages,

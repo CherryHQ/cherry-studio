@@ -20,7 +20,7 @@ export type CacheActiveSearches = Record<string, WebSearchStatus>
 
 // For cache schema, we use any for complex types to avoid circular dependencies
 // The actual type checking will be done at runtime by the cache system
-export type CacheMinAppType = MiniApp
+export type CacheMiniAppType = MiniApp
 export type CacheTopic = Topic
 
 /**

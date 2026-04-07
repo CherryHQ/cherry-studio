@@ -43,7 +43,7 @@ import { Route as AppAssistantRouteImport } from './routes/app/assistant'
 import { Route as SettingsWebsearchIndexRouteImport } from './routes/settings/websearch/index'
 import { Route as SettingsMcpIndexRouteImport } from './routes/settings/mcp/index'
 import { Route as AppPaintingsIndexRouteImport } from './routes/app/paintings/index'
-import { Route as AppMinappIndexRouteImport } from './routes/app/minapp/index'
+import { Route as AppMiniappIndexRouteImport } from './routes/app/miniapp/index'
 import { Route as SettingsWebsearchGeneralRouteImport } from './routes/settings/websearch/general'
 import { Route as SettingsMcpServersRouteImport } from './routes/settings/mcp/servers'
 import { Route as SettingsMcpNpxSearchRouteImport } from './routes/settings/mcp/npx-search'
@@ -52,7 +52,7 @@ import { Route as SettingsMcpMarketplacesRouteImport } from './routes/settings/m
 import { Route as SettingsMcpBuiltinRouteImport } from './routes/settings/mcp/builtin'
 import { Route as SettingsMcpSplatRouteImport } from './routes/settings/mcp/$'
 import { Route as AppPaintingsSplatRouteImport } from './routes/app/paintings/$'
-import { Route as AppMinappAppIdRouteImport } from './routes/app/minapp/$appId'
+import { Route as AppMiniappAppIdRouteImport } from './routes/app/miniapp/$appId'
 import { Route as SettingsWebsearchProviderProviderIdRouteImport } from './routes/settings/websearch/provider.$providerId'
 import { Route as SettingsMcpSettingsServerIdRouteImport } from './routes/settings/mcp/settings.$serverId'
 
@@ -227,9 +227,9 @@ const AppPaintingsIndexRoute = AppPaintingsIndexRouteImport.update({
   path: '/paintings/',
   getParentRoute: () => AppRoute,
 } as any)
-const AppMinappIndexRoute = AppMinappIndexRouteImport.update({
-  id: '/minapp/',
-  path: '/minapp/',
+const AppMiniappIndexRoute = AppMiniappIndexRouteImport.update({
+  id: '/miniapp/',
+  path: '/miniapp/',
   getParentRoute: () => AppRoute,
 } as any)
 const SettingsWebsearchGeneralRoute =
@@ -273,9 +273,9 @@ const AppPaintingsSplatRoute = AppPaintingsSplatRouteImport.update({
   path: '/paintings/$',
   getParentRoute: () => AppRoute,
 } as any)
-const AppMinappAppIdRoute = AppMinappAppIdRouteImport.update({
-  id: '/minapp/$appId',
-  path: '/minapp/$appId',
+const AppMiniappAppIdRoute = AppMiniappAppIdRouteImport.update({
+  id: '/miniapp/$appId',
+  path: '/miniapp/$appId',
   getParentRoute: () => AppRoute,
 } as any)
 const SettingsWebsearchProviderProviderIdRoute =
@@ -323,7 +323,7 @@ export interface FileRoutesByFullPath {
   '/settings/skills': typeof SettingsSkillsRoute
   '/settings/websearch': typeof SettingsWebsearchRouteWithChildren
   '/settings/': typeof SettingsIndexRoute
-  '/app/minapp/$appId': typeof AppMinappAppIdRoute
+  '/app/miniapp/$appId': typeof AppMiniappAppIdRoute
   '/app/paintings/$': typeof AppPaintingsSplatRoute
   '/settings/mcp/$': typeof SettingsMcpSplatRoute
   '/settings/mcp/builtin': typeof SettingsMcpBuiltinRoute
@@ -332,7 +332,7 @@ export interface FileRoutesByFullPath {
   '/settings/mcp/npx-search': typeof SettingsMcpNpxSearchRoute
   '/settings/mcp/servers': typeof SettingsMcpServersRoute
   '/settings/websearch/general': typeof SettingsWebsearchGeneralRoute
-  '/app/minapp/': typeof AppMinappIndexRoute
+  '/app/miniapp/': typeof AppMiniappIndexRoute
   '/app/paintings/': typeof AppPaintingsIndexRoute
   '/settings/mcp/': typeof SettingsMcpIndexRoute
   '/settings/websearch/': typeof SettingsWebsearchIndexRoute
@@ -368,7 +368,7 @@ export interface FileRoutesByTo {
   '/settings/shortcut': typeof SettingsShortcutRoute
   '/settings/skills': typeof SettingsSkillsRoute
   '/settings': typeof SettingsIndexRoute
-  '/app/minapp/$appId': typeof AppMinappAppIdRoute
+  '/app/miniapp/$appId': typeof AppMiniappAppIdRoute
   '/app/paintings/$': typeof AppPaintingsSplatRoute
   '/settings/mcp/$': typeof SettingsMcpSplatRoute
   '/settings/mcp/builtin': typeof SettingsMcpBuiltinRoute
@@ -377,7 +377,7 @@ export interface FileRoutesByTo {
   '/settings/mcp/npx-search': typeof SettingsMcpNpxSearchRoute
   '/settings/mcp/servers': typeof SettingsMcpServersRoute
   '/settings/websearch/general': typeof SettingsWebsearchGeneralRoute
-  '/app/minapp': typeof AppMinappIndexRoute
+  '/app/miniapp': typeof AppMiniappIndexRoute
   '/app/paintings': typeof AppPaintingsIndexRoute
   '/settings/mcp': typeof SettingsMcpIndexRoute
   '/settings/websearch': typeof SettingsWebsearchIndexRoute
@@ -417,7 +417,7 @@ export interface FileRoutesById {
   '/settings/skills': typeof SettingsSkillsRoute
   '/settings/websearch': typeof SettingsWebsearchRouteWithChildren
   '/settings/': typeof SettingsIndexRoute
-  '/app/minapp/$appId': typeof AppMinappAppIdRoute
+  '/app/miniapp/$appId': typeof AppMiniappAppIdRoute
   '/app/paintings/$': typeof AppPaintingsSplatRoute
   '/settings/mcp/$': typeof SettingsMcpSplatRoute
   '/settings/mcp/builtin': typeof SettingsMcpBuiltinRoute
@@ -426,7 +426,7 @@ export interface FileRoutesById {
   '/settings/mcp/npx-search': typeof SettingsMcpNpxSearchRoute
   '/settings/mcp/servers': typeof SettingsMcpServersRoute
   '/settings/websearch/general': typeof SettingsWebsearchGeneralRoute
-  '/app/minapp/': typeof AppMinappIndexRoute
+  '/app/miniapp/': typeof AppMiniappIndexRoute
   '/app/paintings/': typeof AppPaintingsIndexRoute
   '/settings/mcp/': typeof SettingsMcpIndexRoute
   '/settings/websearch/': typeof SettingsWebsearchIndexRoute
@@ -467,7 +467,7 @@ export interface FileRouteTypes {
     | '/settings/skills'
     | '/settings/websearch'
     | '/settings/'
-    | '/app/minapp/$appId'
+    | '/app/miniapp/$appId'
     | '/app/paintings/$'
     | '/settings/mcp/$'
     | '/settings/mcp/builtin'
@@ -476,7 +476,7 @@ export interface FileRouteTypes {
     | '/settings/mcp/npx-search'
     | '/settings/mcp/servers'
     | '/settings/websearch/general'
-    | '/app/minapp/'
+    | '/app/miniapp/'
     | '/app/paintings/'
     | '/settings/mcp/'
     | '/settings/websearch/'
@@ -512,7 +512,7 @@ export interface FileRouteTypes {
     | '/settings/shortcut'
     | '/settings/skills'
     | '/settings'
-    | '/app/minapp/$appId'
+    | '/app/miniapp/$appId'
     | '/app/paintings/$'
     | '/settings/mcp/$'
     | '/settings/mcp/builtin'
@@ -521,7 +521,7 @@ export interface FileRouteTypes {
     | '/settings/mcp/npx-search'
     | '/settings/mcp/servers'
     | '/settings/websearch/general'
-    | '/app/minapp'
+    | '/app/miniapp'
     | '/app/paintings'
     | '/settings/mcp'
     | '/settings/websearch'
@@ -560,7 +560,7 @@ export interface FileRouteTypes {
     | '/settings/skills'
     | '/settings/websearch'
     | '/settings/'
-    | '/app/minapp/$appId'
+    | '/app/miniapp/$appId'
     | '/app/paintings/$'
     | '/settings/mcp/$'
     | '/settings/mcp/builtin'
@@ -569,7 +569,7 @@ export interface FileRouteTypes {
     | '/settings/mcp/npx-search'
     | '/settings/mcp/servers'
     | '/settings/websearch/general'
-    | '/app/minapp/'
+    | '/app/miniapp/'
     | '/app/paintings/'
     | '/settings/mcp/'
     | '/settings/websearch/'
@@ -824,11 +824,11 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppPaintingsIndexRouteImport
       parentRoute: typeof AppRoute
     }
-    '/app/minapp/': {
-      id: '/app/minapp/'
-      path: '/minapp'
-      fullPath: '/app/minapp/'
-      preLoaderRoute: typeof AppMinappIndexRouteImport
+    '/app/miniapp/': {
+      id: '/app/miniapp/'
+      path: '/miniapp'
+      fullPath: '/app/miniapp/'
+      preLoaderRoute: typeof AppMiniappIndexRouteImport
       parentRoute: typeof AppRoute
     }
     '/settings/websearch/general': {
@@ -887,11 +887,11 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppPaintingsSplatRouteImport
       parentRoute: typeof AppRoute
     }
-    '/app/minapp/$appId': {
-      id: '/app/minapp/$appId'
-      path: '/minapp/$appId'
-      fullPath: '/app/minapp/$appId'
-      preLoaderRoute: typeof AppMinappAppIdRouteImport
+    '/app/miniapp/$appId': {
+      id: '/app/miniapp/$appId'
+      path: '/miniapp/$appId'
+      fullPath: '/app/miniapp/$appId'
+      preLoaderRoute: typeof AppMiniappAppIdRouteImport
       parentRoute: typeof AppRoute
     }
     '/settings/websearch/provider/$providerId': {
@@ -919,9 +919,9 @@ interface AppRouteChildren {
   AppKnowledgeRoute: typeof AppKnowledgeRoute
   AppNotesRoute: typeof AppNotesRoute
   AppTranslateRoute: typeof AppTranslateRoute
-  AppMinappAppIdRoute: typeof AppMinappAppIdRoute
+  AppMiniappAppIdRoute: typeof AppMiniappAppIdRoute
   AppPaintingsSplatRoute: typeof AppPaintingsSplatRoute
-  AppMinappIndexRoute: typeof AppMinappIndexRoute
+  AppMiniappIndexRoute: typeof AppMiniappIndexRoute
   AppPaintingsIndexRoute: typeof AppPaintingsIndexRoute
 }
 
@@ -933,9 +933,9 @@ const AppRouteChildren: AppRouteChildren = {
   AppKnowledgeRoute: AppKnowledgeRoute,
   AppNotesRoute: AppNotesRoute,
   AppTranslateRoute: AppTranslateRoute,
-  AppMinappAppIdRoute: AppMinappAppIdRoute,
+  AppMiniappAppIdRoute: AppMiniappAppIdRoute,
   AppPaintingsSplatRoute: AppPaintingsSplatRoute,
-  AppMinappIndexRoute: AppMinappIndexRoute,
+  AppMiniappIndexRoute: AppMiniappIndexRoute,
   AppPaintingsIndexRoute: AppPaintingsIndexRoute,
 }
 

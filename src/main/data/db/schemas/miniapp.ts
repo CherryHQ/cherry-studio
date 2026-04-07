@@ -16,7 +16,7 @@ export type MiniAppType = 'default' | 'custom'
 
 export type MiniAppRegion = 'CN' | 'Global'
 
-export const miniappTable = sqliteTable(
+export const miniAppTable = sqliteTable(
   'miniapp',
   {
     appId: text('app_id').primaryKey(),
@@ -64,5 +64,5 @@ export const miniappTable = sqliteTable(
   ]
 )
 
-export type MiniAppSelect = typeof miniappTable.$inferSelect
-export type MiniAppInsert = typeof miniappTable.$inferInsert
+export type MiniAppSelect = typeof miniAppTable.$inferSelect
+export type MiniAppInsert = typeof miniAppTable.$inferInsert

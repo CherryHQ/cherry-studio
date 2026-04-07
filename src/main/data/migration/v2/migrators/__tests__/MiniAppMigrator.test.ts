@@ -39,7 +39,7 @@ describe('MiniAppMigrator', () => {
   })
 
   describe('prepare', () => {
-    it('should return success with 0 items when no minapps state', async () => {
+    it('should return success with 0 items when no miniapps state', async () => {
       const ctx = createMockContext({}) as any
       const result = await migrator.prepare(ctx)
 
@@ -47,8 +47,8 @@ describe('MiniAppMigrator', () => {
       expect(result.itemCount).toBe(0)
     })
 
-    it('should return success with 0 items when minapps is null', async () => {
-      const ctx = createMockContext({ minapps: null }) as any
+    it('should return success with 0 items when miniapps is null', async () => {
+      const ctx = createMockContext({ miniapps: null }) as any
       const result = await migrator.prepare(ctx)
 
       expect(result.success).toBe(true)
@@ -57,7 +57,7 @@ describe('MiniAppMigrator', () => {
 
     it('should prepare apps from all status groups', async () => {
       const ctx = createMockContext({
-        minapps: {
+        miniapps: {
           enabled: [
             { id: 'app1', name: 'App 1', url: 'https://1.com' },
             { id: 'app2', name: 'App 2', url: 'https://2.com' }
@@ -75,7 +75,7 @@ describe('MiniAppMigrator', () => {
 
     it('should deduplicate apps with same id (pinned takes priority)', async () => {
       const ctx = createMockContext({
-        minapps: {
+        miniapps: {
           enabled: [{ id: 'app1', name: 'Enabled App', url: 'https://1.com', type: 'Default' }],
           pinned: [{ id: 'app1', name: 'Pinned App', url: 'https://1.com', type: 'Default' }]
         }
@@ -93,7 +93,7 @@ describe('MiniAppMigrator', () => {
 
     it('should skip apps without valid id', async () => {
       const ctx = createMockContext({
-        minapps: {
+        miniapps: {
           enabled: [
             { id: 'valid', name: 'Valid App', url: 'https://v.com' },
             { name: 'No ID App', url: 'https://x.com' },
@@ -114,7 +114,7 @@ describe('MiniAppMigrator', () => {
 
     it('should handle empty arrays in status groups', async () => {
       const ctx = createMockContext({
-        minapps: {
+        miniapps: {
           enabled: [],
           disabled: [],
           pinned: []
@@ -129,7 +129,7 @@ describe('MiniAppMigrator', () => {
 
     it('should handle partial status groups', async () => {
       const ctx = createMockContext({
-        minapps: {
+        miniapps: {
           enabled: [{ id: 'app1', name: 'App 1', url: 'https://1.com' }]
           // disabled and pinned are missing
         }
@@ -143,7 +143,7 @@ describe('MiniAppMigrator', () => {
 
     it('should re-index sortOrder within each status group after dedup', async () => {
       const ctx = createMockContext({
-        minapps: {
+        miniapps: {
           enabled: [
             { id: 'app1', name: 'App 1', url: 'https://1.com' },
             { id: 'app2', name: 'App 2', url: 'https://2.com' },
@@ -189,7 +189,7 @@ describe('MiniAppMigrator', () => {
       circularObj.self = circularObj // circular reference
 
       const ctx = createMockContext({
-        minapps: {
+        miniapps: {
           enabled: [
             { id: 'valid', name: 'Valid', url: 'https://v.com' },
             {
@@ -224,7 +224,7 @@ describe('MiniAppMigrator', () => {
     it('should batch insert rows', async () => {
       // First prepare some data
       const ctx = createMockContext({
-        minapps: {
+        miniapps: {
           enabled: Array.from({ length: 150 }, (_, i) => ({
             id: `app${i}`,
             name: `App ${i}`,
@@ -264,7 +264,7 @@ describe('MiniAppMigrator', () => {
 
     it('should handle execute errors', async () => {
       const ctx = createMockContext({
-        minapps: {
+        miniapps: {
           enabled: [{ id: 'app1', name: 'App 1', url: 'https://1.com' }]
         }
       }) as any
@@ -289,7 +289,7 @@ describe('MiniAppMigrator', () => {
   describe('validate', () => {
     it('should validate successfully when counts match', async () => {
       const ctx = createMockContext({
-        minapps: {
+        miniapps: {
           enabled: [
             { id: 'app1', name: 'App 1', url: 'https://1.com' },
             { id: 'app2', name: 'App 2', url: 'https://2.com' }
@@ -327,7 +327,7 @@ describe('MiniAppMigrator', () => {
 
     it('should report errors when counts mismatch', async () => {
       const ctx = createMockContext({
-        minapps: {
+        miniapps: {
           enabled: [{ id: 'app1', name: 'App 1', url: 'https://1.com' }]
         }
       }) as any
@@ -354,7 +354,7 @@ describe('MiniAppMigrator', () => {
 
     it('should detect missing required fields in sample', async () => {
       const ctx = createMockContext({
-        minapps: {
+        miniapps: {
           enabled: [{ id: 'app1', name: 'App 1', url: 'https://1.com' }]
         }
       }) as any
@@ -384,7 +384,7 @@ describe('MiniAppMigrator', () => {
 
     it('should handle validation db errors', async () => {
       const ctx = createMockContext({
-        minapps: {
+        miniapps: {
           enabled: [{ id: 'app1', name: 'App 1', url: 'https://1.com' }]
         }
       }) as any
@@ -408,7 +408,7 @@ describe('MiniAppMigrator', () => {
 
     it('should include skipped count in stats', async () => {
       const ctx = createMockContext({
-        minapps: {
+        miniapps: {
           enabled: [
             { id: 'app1', name: 'App 1', url: 'https://1.com' },
             { name: 'No ID', url: 'https://x.com' } // will be skipped

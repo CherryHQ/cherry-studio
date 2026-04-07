@@ -3,7 +3,7 @@
  */
 
 import type { MiniAppInsert, MiniAppStatus } from '@data/db/schemas/miniapp'
-import { miniappTable } from '@data/db/schemas/miniapp'
+import { miniAppTable } from '@data/db/schemas/miniapp'
 import { loggerService } from '@logger'
 import type { ExecuteResult, PrepareResult, ValidateResult } from '@shared/data/migration/v2/types'
 import { sql } from 'drizzle-orm'
@@ -38,10 +38,10 @@ export class MiniAppMigrator extends BaseMigrator {
         enabled?: Record<string, unknown>[]
         disabled?: Record<string, unknown>[]
         pinned?: Record<string, unknown>[]
-      }>('minapps')
+      }>('miniapps')
 
       if (!state) {
-        logger.info('No minapps state found, skipping migration')
+        logger.info('No miniapps state found, skipping migration')
         return { success: true, itemCount: 0 }
       }
 
@@ -146,7 +146,7 @@ export class MiniAppMigrator extends BaseMigrator {
       await ctx.db.transaction(async (tx) => {
         for (let i = 0; i < this.preparedRows.length; i += BATCH_SIZE) {
           const batch = this.preparedRows.slice(i, i + BATCH_SIZE)
-          await tx.insert(miniappTable).values(batch)
+          await tx.insert(miniAppTable).values(batch)
           processed += batch.length
         }
       })
@@ -171,7 +171,7 @@ export class MiniAppMigrator extends BaseMigrator {
 
   async validate(ctx: MigrationContext): Promise<ValidateResult> {
     try {
-      const result = await ctx.db.select({ count: sql<number>`count(*)` }).from(miniappTable).get()
+      const result = await ctx.db.select({ count: sql<number>`count(*)` }).from(miniAppTable).get()
       const appCount = result?.count ?? 0
       const errors: { key: string; message: string }[] = []
 
@@ -183,7 +183,7 @@ export class MiniAppMigrator extends BaseMigrator {
       }
 
       // Sample validation: check required fields
-      const sample = await ctx.db.select().from(miniappTable).limit(5).all()
+      const sample = await ctx.db.select().from(miniAppTable).limit(5).all()
       for (const app of sample) {
         if (!app.appId || !app.name || !app.url) {
           errors.push({

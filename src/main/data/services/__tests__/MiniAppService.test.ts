@@ -1,5 +1,5 @@
 import { ErrorCode } from '@shared/data/api'
-import type { CreateMiniappDto, UpdateMiniappDto } from '@shared/data/api/schemas/miniapps'
+import type { CreateMiniAppDto, UpdateMiniAppDto } from '@shared/data/api/schemas/miniapps'
 import { ORIGIN_DEFAULT_MIN_APPS } from '@shared/data/presets/miniapps'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -275,7 +275,7 @@ describe('MiniAppService', () => {
         })
       })
 
-      const dto: CreateMiniappDto = {
+      const dto: CreateMiniAppDto = {
         appId: 'new-app',
         name: 'New App',
         url: 'https://new.app',
@@ -376,7 +376,7 @@ describe('MiniAppService', () => {
       })
       mockUpdate.mockReturnValue({ set })
 
-      const dto: UpdateMiniappDto = {
+      const dto: UpdateMiniAppDto = {
         name: 'Updated App',
         url: 'https://updated.app',
         status: 'disabled'

@@ -38,14 +38,14 @@ const BUILTIN_APP_LOGO_MAP: Record<string, string> = Object.fromEntries(
 const DEFAULT_LOGO_KEY = 'application'
 
 /**
- * Transform a single Redux MinApp object into a SQLite miniapp row.
+ * Transform a single Redux MiniApp object into a SQLite miniapp row.
  *
  * [v2] Logo handling:
  * - Custom apps: preserve URL strings (base64 or http/https URLs)
  * - Built-in apps: map app ID to logo key for icon resolution system
  * - Invalid/empty: fallback to 'application' default key
  *
- * @param source - Raw MinAppType from Redux
+ * @param source - Raw MiniAppType from Redux
  * @param status - The status this app should have ('enabled' | 'disabled' | 'pinned')
  * @param sortOrder - Position within the status group (array index)
  */
