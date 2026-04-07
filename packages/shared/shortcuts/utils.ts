@@ -54,29 +54,29 @@ export const convertAcceleratorToHotkey = (accelerator: string[]): string => {
     .join('+')
 }
 
+export const formatKeyDisplay = (key: string, isMac: boolean): string => {
+  switch (key.toLowerCase()) {
+    case 'ctrl':
+    case 'control':
+      return isMac ? '⌃' : 'Ctrl'
+    case 'command':
+    case 'cmd':
+      return isMac ? '⌘' : 'Win'
+    case 'commandorcontrol':
+      return isMac ? '⌘' : 'Ctrl'
+    case 'alt':
+      return isMac ? '⌥' : 'Alt'
+    case 'shift':
+      return isMac ? '⇧' : 'Shift'
+    case 'meta':
+      return isMac ? '⌘' : 'Win'
+    default:
+      return key.charAt(0).toUpperCase() + key.slice(1).toLowerCase()
+  }
+}
+
 export const formatShortcutDisplay = (keys: string[], isMac: boolean): string => {
-  return keys
-    .map((key) => {
-      switch (key.toLowerCase()) {
-        case 'ctrl':
-        case 'control':
-          return isMac ? '⌃' : 'Ctrl'
-        case 'command':
-        case 'cmd':
-          return isMac ? '⌘' : 'Win'
-        case 'commandorcontrol':
-          return isMac ? '⌘' : 'Ctrl'
-        case 'alt':
-          return isMac ? '⌥' : 'Alt'
-        case 'shift':
-          return isMac ? '⇧' : 'Shift'
-        case 'meta':
-          return isMac ? '⌘' : 'Win'
-        default:
-          return key.charAt(0).toUpperCase() + key.slice(1).toLowerCase()
-      }
-    })
-    .join(isMac ? '' : '+')
+  return keys.map((key) => formatKeyDisplay(key, isMac)).join(isMac ? '' : '+')
 }
 
 export const isValidShortcut = (keys: string[]): boolean => {
@@ -112,8 +112,6 @@ export const getDefaultShortcutPreference = (definition: ShortcutDefinition): Sh
 
   return {
     binding,
-    rawBinding: binding,
-    hasCustomBinding: false,
     enabled: ensureBoolean(fallback?.enabled, true),
     editable: definition.editable !== false,
     system: definition.system === true
@@ -125,15 +123,10 @@ export const coerceShortcutPreference = (
   value?: PreferenceShortcutType | null
 ): ShortcutPreferenceValue => {
   const fallback = getDefaultShortcutPreference(definition)
-  const hasCustomBinding = Array.isArray((value as PreferenceShortcutType | undefined)?.key)
-  const rawBinding = hasCustomBinding ? ensureArray((value as PreferenceShortcutType).key) : fallback.binding
-  // When user explicitly cleared the binding (hasCustomBinding + empty array), respect it — don't fallback
-  const binding = hasCustomBinding ? rawBinding : rawBinding.length > 0 ? rawBinding : fallback.binding
+  const binding = value?.key?.length ? ensureArray(value.key) : fallback.binding
 
   return {
     binding,
-    rawBinding,
-    hasCustomBinding,
     enabled: ensureBoolean(value?.enabled, fallback.enabled),
     editable: definition.editable !== false,
     system: definition.system === true

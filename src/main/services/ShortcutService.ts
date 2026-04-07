@@ -5,7 +5,7 @@ import { handleZoomFactor } from '@main/utils/zoom'
 import type { PreferenceShortcutType } from '@shared/data/preference/preferenceTypes'
 import { IpcChannel } from '@shared/IpcChannel'
 import { SHORTCUT_DEFINITIONS } from '@shared/shortcuts/definitions'
-import type { ShortcutPreferenceKey } from '@shared/shortcuts/types'
+import type { ShortcutPreferenceKey, SupportedPlatform } from '@shared/shortcuts/types'
 import { coerceShortcutPreference } from '@shared/shortcuts/utils'
 import type { BrowserWindow } from 'electron'
 import { globalShortcut } from 'electron'
@@ -17,7 +17,9 @@ type ShortcutHandler = (window?: BrowserWindow) => void
 const toAccelerator = (keys: string[]): string => keys.join('+')
 
 const relevantDefinitions = SHORTCUT_DEFINITIONS.filter(
-  (d) => d.scope !== 'renderer' && (!d.supportedPlatforms || d.supportedPlatforms.includes(process.platform))
+  (d) =>
+    d.scope !== 'renderer' &&
+    (!d.supportedPlatforms || d.supportedPlatforms.includes(process.platform as SupportedPlatform))
 )
 
 @Injectable('ShortcutService')

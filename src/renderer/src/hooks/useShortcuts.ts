@@ -112,11 +112,7 @@ export const useShortcutDisplay = (shortcutKey: ShortcutKey | ShortcutPreference
       return ''
     }
 
-    const displayBinding = preferenceState.hasCustomBinding
-      ? preferenceState.rawBinding
-      : preferenceState.binding.length > 0
-        ? preferenceState.binding
-        : definition.defaultKey
+    const displayBinding = preferenceState.binding.length > 0 ? preferenceState.binding : definition.defaultKey
 
     if (!displayBinding.length) {
       return ''
@@ -153,7 +149,7 @@ export const useAllShortcuts = (): ShortcutListItem[] => {
     ): PreferenceShortcutType => {
       const current = (currentValue ?? {}) as PreferenceShortcutType
 
-      const nextKey = Array.isArray(patch.key) ? patch.key : Array.isArray(current.key) ? current.key : state.rawBinding
+      const nextKey = Array.isArray(patch.key) ? patch.key : Array.isArray(current.key) ? current.key : state.binding
 
       const nextEnabled =
         typeof patch.enabled === 'boolean'

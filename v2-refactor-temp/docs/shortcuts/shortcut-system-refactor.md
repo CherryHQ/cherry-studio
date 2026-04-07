@@ -113,8 +113,10 @@ v1 快捷键系统存在以下架构缺陷：
   key: 'shortcut.app.show_mini_window',  // Preference key
   defaultKey: ['CommandOrControl', 'E'], // Electron accelerator 格式
   scope: 'main',                         // main | renderer | both
-  category: 'app',                       // app | chat | topic | selection
+  category: 'selection',                 // app | chat | topic | selection
+  labelKey: 'mini_window',              // i18n label key
   system: true,                          // 系统级（不可删除绑定）
+  editable: true,                        // 用户可修改绑定（默认 true）
   persistOnBlur: true,                   // 窗口失焦后仍然生效
   enabledWhen: (get) => !!get('feature.quick_assistant.enabled'),
   supportedPlatforms: ['darwin', 'win32']
@@ -125,12 +127,17 @@ v1 快捷键系统存在以下架构缺陷：
 
 | 字段 | 用途 |
 |------|------|
+| `key` | Preference key，必须是 `shortcut.{category}.{name}` 格式 |
+| `defaultKey` | Electron accelerator 格式的默认绑定，空数组表示无默认绑定 |
 | `scope` | 决定快捷键注册在哪个进程：`main`（globalShortcut）、`renderer`（react-hotkeys-hook）、`both`（两者都注册） |
+| `category` | 逻辑分类，用于设置页 UI 分组 |
+| `labelKey` | i18n label key，由 `getShortcutLabel()` 消费 |
+| `editable` | 设为 `false` 表示用户不可修改绑定（如 Escape 退出全屏），默认 `true` |
+| `system` | 系统级标记，`true` 时不可删除绑定 |
 | `persistOnBlur` | 窗口失焦时是否保留注册（如 `show_main_window` 需要在任何时候响应） |
-| `enabledWhen` | 动态启用条件，接收 `getPreference` 函数，在注册时求值 |
-| `supportedPlatforms` | 限制快捷键仅在指定操作系统上注册和显示 |
-| `editable` | 设为 `false` 表示用户不可修改绑定（如 Escape 退出全屏） |
 | `variants` | 同一快捷键的多组绑定（如 zoom_in 同时绑定 `=` 和小键盘 `+`） |
+| `enabledWhen` | 动态启用条件，接收 `getPreference` 函数，在注册时求值 |
+| `supportedPlatforms` | 限制快捷键仅在指定操作系统上注册和显示，类型为 `SupportedPlatform[]`（`'darwin' | 'win32' | 'linux'`） |
 
 #### `types.ts` — 类型体系
 
@@ -143,12 +150,10 @@ type ShortcutKey = ShortcutPreferenceKey extends `shortcut.${infer Rest}` ? Rest
 
 // 运行时归一化后的完整状态
 interface ShortcutPreferenceValue {
-  binding: string[]          // 生效的绑定（有值则用，否则 fallback 到 defaultKey）
-  rawBinding: string[]       // 用户原始设置值（可能为空数组）
-  hasCustomBinding: boolean  // 是否有用户自定义绑定
-  enabled: boolean
-  editable: boolean          // 来自 definition.editable
-  system: boolean            // 来自 definition.system
+  binding: string[]   // 生效的绑定（用户自定义或 fallback 到 defaultKey，始终有效）
+  enabled: boolean    // 是否启用
+  editable: boolean   // 来自 definition.editable，不存储在偏好中
+  system: boolean     // 来自 definition.system，不存储在偏好中
 }
 ```
 
@@ -175,10 +180,12 @@ useShortcut('shortcut.chat.clear', callback)
 
 ```
 输入值为 null/undefined → 使用 schema 默认值
-输入的 key 为空数组    → binding 回退到 defaultKey，rawBinding 保留空数组
+输入的 key 为空数组    → binding 回退到 defaultKey
 输入的 enabled 非布尔  → 使用默认 enabled
 editable/system        → 始终从 definition 读取（不存储在偏好中）
 ```
+
+**设计决策**：禁用快捷键统一使用 `enabled: false`，`binding` 始终包含有效绑定（用户自定义或默认值）。不存在"清空绑定"的独立语义——想禁用就关 `enabled`，想换键就录制覆盖，想重置就写回 `defaultKey`。
 
 ### 2. 偏好层 (`preferenceSchemas.ts` + `preferenceTypes.ts`)
 
@@ -244,11 +251,12 @@ this.handlers.set('shortcut.app.zoom_in', (window) => {
 #### 偏好变更订阅
 
 ```typescript
-this.preferenceUnsubscribers = relevantDefinitions.map((definition) =>
-  preferenceService.subscribeChange(definition.key, () => {
+for (const definition of relevantDefinitions) {
+  const unsub = preferenceService.subscribeChange(definition.key, () => {
     this.reregisterShortcuts()  // 整体重注册
   })
-)
+  this.registerDisposable({ dispose: unsub })  // 生命周期自动清理
+}
 ```
 
 ### 4. 渲染进程 Hook 层 (`useShortcuts.ts`)

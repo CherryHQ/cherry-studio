@@ -106,7 +106,6 @@ describe('getDefaultShortcutPreference', () => {
     const result = getDefaultShortcutPreference(def)
 
     expect(result.binding).toEqual(['CommandOrControl', 'L'])
-    expect(result.hasCustomBinding).toBe(false)
     expect(result.enabled).toBe(true)
     expect(result.editable).toBe(true)
     expect(result.system).toBe(false)
@@ -129,7 +128,6 @@ describe('coerceShortcutPreference', () => {
     const result = coerceShortcutPreference(def, undefined)
 
     expect(result.binding).toEqual(['CommandOrControl', 'L'])
-    expect(result.hasCustomBinding).toBe(false)
     expect(result.enabled).toBe(true)
   })
 
@@ -138,7 +136,6 @@ describe('coerceShortcutPreference', () => {
     const result = coerceShortcutPreference(def, null)
 
     expect(result.binding).toEqual(['CommandOrControl', 'L'])
-    expect(result.hasCustomBinding).toBe(false)
   })
 
   it('uses custom key when provided', () => {
@@ -149,20 +146,16 @@ describe('coerceShortcutPreference', () => {
     })
 
     expect(result.binding).toEqual(['Alt', 'L'])
-    expect(result.rawBinding).toEqual(['Alt', 'L'])
-    expect(result.hasCustomBinding).toBe(true)
   })
 
-  it('respects user-cleared binding (empty array)', () => {
+  it('falls back to default when key is empty array', () => {
     const def = makeDefinition()
     const result = coerceShortcutPreference(def, {
       key: [],
       enabled: true
     })
 
-    expect(result.binding).toEqual([])
-    expect(result.rawBinding).toEqual([])
-    expect(result.hasCustomBinding).toBe(true)
+    expect(result.binding).toEqual(['CommandOrControl', 'L'])
   })
 
   it('respects enabled: false from preference', () => {

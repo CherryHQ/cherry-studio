@@ -1,5 +1,5 @@
-import { ClearOutlined, UndoOutlined } from '@ant-design/icons'
-import { Button, RowFlex, Switch, Tooltip } from '@cherrystudio/ui'
+import { UndoOutlined } from '@ant-design/icons'
+import { Button, Input, RowFlex, Switch, Tooltip } from '@cherrystudio/ui'
 import { preferenceService } from '@data/PreferenceService'
 import { isMac, platform } from '@renderer/config/constant'
 import { useTheme } from '@renderer/context/ThemeProvider'
@@ -7,15 +7,16 @@ import { useAllShortcuts } from '@renderer/hooks/useShortcuts'
 import { useTimer } from '@renderer/hooks/useTimer'
 import { getShortcutLabel } from '@renderer/i18n/label'
 import type { PreferenceShortcutType } from '@shared/data/preference/preferenceTypes'
-import type { ShortcutPreferenceKey } from '@shared/shortcuts/types'
-import { convertKeyToAccelerator, formatShortcutDisplay, isValidShortcut } from '@shared/shortcuts/utils'
-import type { InputRef } from 'antd'
-import { Input, Table as AntTable } from 'antd'
-import type { ColumnsType } from 'antd/es/table'
+import type { ShortcutPreferenceKey, SupportedPlatform } from '@shared/shortcuts/types'
+import {
+  convertKeyToAccelerator,
+  formatKeyDisplay,
+  formatShortcutDisplay,
+  isValidShortcut
+} from '@shared/shortcuts/utils'
 import type { FC, KeyboardEvent as ReactKeyboardEvent } from 'react'
 import { useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import styled from 'styled-components'
 
 import { SettingContainer, SettingDivider, SettingGroup, SettingTitle } from '.'
 
@@ -26,8 +27,6 @@ type ShortcutRecord = {
   enabled: boolean
   editable: boolean
   displayKeys: string[]
-  rawKeys: string[]
-  hasCustomBinding: boolean
   system: boolean
   updatePreference: (patch: Partial<PreferenceShortcutType>) => Promise<void>
   defaultPreference: {
@@ -36,11 +35,35 @@ type ShortcutRecord = {
   }
 }
 
+const isBindingEqual = (a: string[], b: string[]): boolean =>
+  a.length === b.length && a.every((key, index) => key === b[index])
+
+const keyCodeToAccelerator: Record<string, string> = {
+  Backquote: '`',
+  Period: '.',
+  NumpadEnter: 'Enter',
+  Space: 'Space',
+  Enter: 'Enter',
+  Backspace: 'Backspace',
+  Tab: 'Tab',
+  Delete: 'Delete'
+}
+
+const passthrough =
+  /^(Page(Up|Down)|Insert|Home|End|Arrow(Up|Down|Left|Right)|F([1-9]|1[0-9])|Slash|Semicolon|Bracket(Left|Right)|Backslash|Quote|Comma|Minus|Equal)$/
+
+const usableEndKeys = (code: string): string | null => {
+  if (/^Key[A-Z]$/.test(code) || /^(Digit|Numpad)\d$/.test(code)) return code.slice(-1)
+  if (keyCodeToAccelerator[code]) return keyCodeToAccelerator[code]
+  if (passthrough.test(code)) return code
+  return null
+}
+
 const ShortcutSettings: FC = () => {
   const { t } = useTranslation()
   const { theme } = useTheme()
   const shortcuts = useAllShortcuts()
-  const inputRefs = useRef<Record<string, InputRef>>({})
+  const inputRefs = useRef<Record<string, HTMLInputElement>>({})
   const [editingKey, setEditingKey] = useState<string | null>(null)
   const [pendingKeys, setPendingKeys] = useState<string[]>([])
   const [conflictLabel, setConflictLabel] = useState<string | null>(null)
@@ -50,7 +73,7 @@ const ShortcutSettings: FC = () => {
   const displayedShortcuts = useMemo<ShortcutRecord[]>(() => {
     const filtered = shortcuts.filter((item) => {
       const supported = item.definition.supportedPlatforms
-      if (supported && platform && !supported.includes(platform as NodeJS.Platform)) {
+      if (supported && platform && !supported.includes(platform as SupportedPlatform)) {
         return false
       }
       return true
@@ -59,11 +82,7 @@ const ShortcutSettings: FC = () => {
     return filtered.map((item) => {
       const label = getShortcutLabel(item.definition.labelKey)
 
-      const displayKeys = item.preference.hasCustomBinding
-        ? item.preference.rawBinding
-        : item.preference.binding.length > 0
-          ? item.preference.binding
-          : item.definition.defaultKey
+      const displayKeys = item.preference.binding.length > 0 ? item.preference.binding : item.definition.defaultKey
 
       return {
         id: item.definition.key,
@@ -72,8 +91,6 @@ const ShortcutSettings: FC = () => {
         enabled: item.preference.enabled,
         editable: item.preference.editable,
         displayKeys,
-        rawKeys: item.preference.rawBinding,
-        hasCustomBinding: item.preference.hasCustomBinding,
         system: item.preference.system,
         updatePreference: item.updatePreference,
         defaultPreference: {
@@ -103,10 +120,6 @@ const ShortcutSettings: FC = () => {
     })
   }, [displayedShortcuts, searchQuery])
 
-  const handleClear = (record: ShortcutRecord) => {
-    void record.updatePreference({ key: [] })
-  }
-
   const handleAddShortcut = (record: ShortcutRecord) => {
     setEditingKey(record.id)
     setPendingKeys([])
@@ -120,22 +133,12 @@ const ShortcutSettings: FC = () => {
     )
   }
 
-  const isShortcutModified = (record: ShortcutRecord) => {
-    const bindingChanged = record.hasCustomBinding
-      ? record.rawKeys.length !== record.defaultPreference.binding.length ||
-        record.rawKeys.some((key, index) => key !== record.defaultPreference.binding[index])
-      : false
-
-    const enabledChanged = record.enabled !== record.defaultPreference.enabled
-
-    return bindingChanged || enabledChanged
+  const isBindingModified = (record: ShortcutRecord) => {
+    return !isBindingEqual(record.displayKeys, record.defaultPreference.binding)
   }
 
   const handleResetShortcut = (record: ShortcutRecord) => {
-    void record.updatePreference({
-      key: record.defaultPreference.binding,
-      enabled: record.defaultPreference.enabled
-    })
+    void record.updatePreference({ key: record.defaultPreference.binding })
     setEditingKey(null)
     setPendingKeys([])
     setConflictLabel(null)
@@ -156,116 +159,6 @@ const ShortcutSettings: FC = () => {
     return null
   }
 
-  const usableEndKeys = (event: ReactKeyboardEvent): string | null => {
-    const { code } = event
-    switch (code) {
-      case 'KeyA':
-      case 'KeyB':
-      case 'KeyC':
-      case 'KeyD':
-      case 'KeyE':
-      case 'KeyF':
-      case 'KeyG':
-      case 'KeyH':
-      case 'KeyI':
-      case 'KeyJ':
-      case 'KeyK':
-      case 'KeyL':
-      case 'KeyM':
-      case 'KeyN':
-      case 'KeyO':
-      case 'KeyP':
-      case 'KeyQ':
-      case 'KeyR':
-      case 'KeyS':
-      case 'KeyT':
-      case 'KeyU':
-      case 'KeyV':
-      case 'KeyW':
-      case 'KeyX':
-      case 'KeyY':
-      case 'KeyZ':
-      case 'Digit0':
-      case 'Digit1':
-      case 'Digit2':
-      case 'Digit3':
-      case 'Digit4':
-      case 'Digit5':
-      case 'Digit6':
-      case 'Digit7':
-      case 'Digit8':
-      case 'Digit9':
-      case 'Numpad0':
-      case 'Numpad1':
-      case 'Numpad2':
-      case 'Numpad3':
-      case 'Numpad4':
-      case 'Numpad5':
-      case 'Numpad6':
-      case 'Numpad7':
-      case 'Numpad8':
-      case 'Numpad9':
-        return code.slice(-1)
-      case 'Space':
-        return 'Space'
-      case 'Enter':
-        return 'Enter'
-      case 'Backspace':
-        return 'Backspace'
-      case 'Tab':
-        return 'Tab'
-      case 'Delete':
-        return 'Delete'
-      case 'PageUp':
-      case 'PageDown':
-      case 'Insert':
-      case 'Home':
-      case 'End':
-      case 'ArrowUp':
-      case 'ArrowDown':
-      case 'ArrowLeft':
-      case 'ArrowRight':
-      case 'F1':
-      case 'F2':
-      case 'F3':
-      case 'F4':
-      case 'F5':
-      case 'F6':
-      case 'F7':
-      case 'F8':
-      case 'F9':
-      case 'F10':
-      case 'F11':
-      case 'F12':
-      case 'F13':
-      case 'F14':
-      case 'F15':
-      case 'F16':
-      case 'F17':
-      case 'F18':
-      case 'F19':
-        return code
-      case 'Backquote':
-        return '`'
-      case 'Period':
-        return '.'
-      case 'NumpadEnter':
-        return 'Enter'
-      case 'Slash':
-      case 'Semicolon':
-      case 'BracketLeft':
-      case 'BracketRight':
-      case 'Backslash':
-      case 'Quote':
-      case 'Comma':
-      case 'Minus':
-      case 'Equal':
-        return code
-      default:
-        return null
-    }
-  }
-
   const handleKeyDown = (event: ReactKeyboardEvent, record: ShortcutRecord) => {
     event.preventDefault()
 
@@ -283,7 +176,7 @@ const ShortcutSettings: FC = () => {
     if (event.metaKey) keys.push(isMac ? 'CommandOrControl' : 'Meta')
     if (event.shiftKey) keys.push('Shift')
 
-    const endKey = usableEndKeys(event)
+    const endKey = usableEndKeys(event.code)
     if (endKey) {
       keys.push(convertKeyToAccelerator(endKey))
     }
@@ -331,122 +224,110 @@ const ShortcutSettings: FC = () => {
     })
   }
 
-  const columns: ColumnsType<ShortcutRecord> = [
-    {
-      dataIndex: 'label',
-      key: 'label'
-    },
-    {
-      dataIndex: 'displayKeys',
-      key: 'shortcut',
-      align: 'right',
-      render: (_value, record) => {
-        const isEditing = editingKey === record.id
-        const displayShortcut = record.displayKeys.length > 0 ? formatShortcutDisplay(record.displayKeys, isMac) : ''
+  const renderShortcutCell = (record: ShortcutRecord) => {
+    const isEditing = editingKey === record.id
+    const displayShortcut = record.displayKeys.length > 0 ? formatShortcutDisplay(record.displayKeys, isMac) : ''
 
-        if (isEditing) {
-          const pendingDisplay = pendingKeys.length > 0 ? formatShortcutDisplay(pendingKeys, isMac) : ''
-          const hasConflict = conflictLabel !== null
+    if (isEditing) {
+      const pendingDisplay = pendingKeys.length > 0 ? formatShortcutDisplay(pendingKeys, isMac) : ''
+      const hasConflict = conflictLabel !== null
 
-          return (
-            <RowFlex className="items-center justify-end gap-2">
-              <div className="relative flex flex-col items-end">
-                <ShortcutInput
-                  ref={(element) => {
-                    if (element) {
-                      inputRefs.current[record.id] = element
-                    }
-                  }}
-                  value={pendingDisplay}
-                  placeholder={t('settings.shortcuts.press_shortcut')}
-                  onKeyDown={(event) => handleKeyDown(event, record)}
-                  onBlur={(event) => {
-                    const isUndoClick = event.relatedTarget?.closest('.shortcut-undo-icon')
-                    if (!isUndoClick) {
-                      clearTimeoutTimer('conflict-clear')
-                      setEditingKey(null)
-                      setPendingKeys([])
-                      setConflictLabel(null)
-                    }
-                  }}
-                  status={hasConflict ? 'error' : undefined}
-                />
-                {hasConflict && (
-                  <ConflictHint>{t('settings.shortcuts.conflict_with', { name: conflictLabel })}</ConflictHint>
-                )}
-              </div>
-            </RowFlex>
-          )
-        }
-
-        return (
-          <RowFlex className="items-center justify-end gap-2">
-            <RowFlex className="relative items-center">
-              <ShortcutText isEditable={record.editable} onClick={() => record.editable && handleAddShortcut(record)}>
-                {displayShortcut || t('settings.shortcuts.press_shortcut')}
-              </ShortcutText>
-            </RowFlex>
-          </RowFlex>
-        )
-      }
-    },
-    {
-      key: 'actions',
-      align: 'right',
-      width: 70,
-      render: (_value, record) => (
-        <RowFlex className="items-center justify-end gap-2">
-          <Tooltip content={t('settings.shortcuts.reset_to_default')}>
-            <Button size="icon-sm" onClick={() => handleResetShortcut(record)} disabled={!isShortcutModified(record)}>
-              <UndoOutlined />
-            </Button>
-          </Tooltip>
-          <Tooltip content={t('settings.shortcuts.clear_shortcut')}>
-            <Button
-              size="icon-sm"
-              onClick={() => handleClear(record)}
-              disabled={record.rawKeys.length === 0 || !record.editable}>
-              <ClearOutlined />
-            </Button>
-          </Tooltip>
-        </RowFlex>
-      )
-    },
-    {
-      key: 'enabled',
-      align: 'right',
-      width: 50,
-      render: (_value, record) => (
-        <Switch
-          size="sm"
-          checked={record.enabled}
-          onCheckedChange={() => void record.updatePreference({ enabled: !record.enabled })}
-        />
+      return (
+        <div className="relative flex flex-col items-end">
+          <Input
+            ref={(el) => {
+              if (el) inputRefs.current[record.id] = el
+            }}
+            className={`h-7 w-36 text-center text-xs ${hasConflict ? 'border-red-500 focus-visible:ring-red-500/50' : ''}`}
+            value={pendingDisplay}
+            placeholder={t('settings.shortcuts.press_shortcut')}
+            onKeyDown={(event) => handleKeyDown(event, record)}
+            onBlur={(event) => {
+              const isUndoClick = (event.relatedTarget as HTMLElement)?.closest('.shortcut-undo-icon')
+              if (!isUndoClick) {
+                clearTimeoutTimer('conflict-clear')
+                setEditingKey(null)
+                setPendingKeys([])
+                setConflictLabel(null)
+              }
+            }}
+          />
+          {hasConflict && (
+            <span className="absolute top-full right-0 mt-0.5 whitespace-nowrap text-red-500 text-xs">
+              {t('settings.shortcuts.conflict_with', { name: conflictLabel })}
+            </span>
+          )}
+        </div>
       )
     }
-  ]
+
+    if (displayShortcut) {
+      return (
+        <RowFlex className="items-center justify-end gap-1.5">
+          {isBindingModified(record) && (
+            <Tooltip content={t('settings.shortcuts.reset_to_default')}>
+              <UndoOutlined
+                className="mr-1 cursor-pointer opacity-50 hover:opacity-100"
+                onClick={() => handleResetShortcut(record)}
+              />
+            </Tooltip>
+          )}
+          <RowFlex
+            className={`items-center gap-1 rounded-lg bg-white/5 px-2 py-1 ${record.editable ? 'cursor-pointer' : 'cursor-not-allowed opacity-50'}`}
+            onClick={() => record.editable && handleAddShortcut(record)}>
+            {record.displayKeys.map((key) => (
+              <kbd
+                key={key}
+                className="flex min-w-6 items-center justify-center rounded-md bg-white/10 px-1.5 py-0.5 text-xs">
+                {formatKeyDisplay(key, isMac)}
+              </kbd>
+            ))}
+          </RowFlex>
+        </RowFlex>
+      )
+    }
+
+    return (
+      <span
+        className={`rounded-lg bg-white/5 px-3 py-1 text-sm text-white/30 ${record.editable ? 'cursor-pointer' : 'cursor-not-allowed opacity-50'}`}
+        onClick={() => record.editable && handleAddShortcut(record)}>
+        {t('settings.shortcuts.press_shortcut')}
+      </span>
+    )
+  }
 
   return (
     <SettingContainer theme={theme}>
       <SettingGroup theme={theme} style={{ paddingBottom: 0 }}>
         <SettingTitle>{t('settings.shortcuts.title')}</SettingTitle>
         <SettingDivider style={{ marginBottom: 0 }} />
-        <div className="px-0 py-2">
-          <SearchInput
+        <div className="py-2">
+          <Input
+            className="max-w-65"
             placeholder={t('settings.shortcuts.search_placeholder')}
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            allowClear
           />
         </div>
-        <Table
-          columns={columns as ColumnsType<unknown>}
-          dataSource={filteredShortcuts}
-          pagination={false}
-          size="middle"
-          showHeader={false}
-          rowKey="id"
-        />
+        <div className="flex flex-col">
+          {filteredShortcuts.map((record, index) => (
+            <div
+              key={record.id}
+              className={`flex items-center justify-between py-3.5 ${index < filteredShortcuts.length - 1 ? 'border-white/10 border-b' : ''}`}>
+              <span className="text-sm">{record.label}</span>
+              <RowFlex className="items-center gap-3">
+                {renderShortcutCell(record)}
+                {record.displayKeys.length > 0 && (
+                  <Switch
+                    size="sm"
+                    checked={record.enabled}
+                    onCheckedChange={() => void record.updatePreference({ enabled: !record.enabled })}
+                  />
+                )}
+              </RowFlex>
+            </div>
+          ))}
+        </div>
         <SettingDivider style={{ marginBottom: 0 }} />
         <RowFlex className="justify-end p-4">
           <Button onClick={handleResetAllShortcuts}>{t('settings.shortcuts.reset_defaults')}</Button>
@@ -455,45 +336,5 @@ const ShortcutSettings: FC = () => {
     </SettingContainer>
   )
 }
-
-const Table = styled(AntTable)`
-  .ant-table {
-    background: transparent;
-  }
-
-  .ant-table-cell {
-    padding: 14px 0 !important;
-    background: transparent !important;
-  }
-
-  .ant-table-tbody > tr:last-child > td {
-    border-bottom: none;
-  }
-`
-
-const ShortcutInput = styled(Input)`
-  width: 140px;
-  text-align: center;
-`
-
-const SearchInput = styled(Input)`
-  max-width: 260px;
-`
-
-const ShortcutText = styled.span<{ isEditable: boolean }>`
-  cursor: ${({ isEditable }) => (isEditable ? 'pointer' : 'not-allowed')};
-  padding: 4px 11px;
-  opacity: ${({ isEditable }) => (isEditable ? 1 : 0.5)};
-`
-
-const ConflictHint = styled.span`
-  position: absolute;
-  top: 100%;
-  right: 0;
-  margin-top: 2px;
-  font-size: 12px;
-  color: var(--color-error, #ff4d4f);
-  white-space: nowrap;
-`
 
 export default ShortcutSettings
