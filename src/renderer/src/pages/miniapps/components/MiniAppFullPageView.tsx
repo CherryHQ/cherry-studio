@@ -1,7 +1,7 @@
+import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
 import { LogoAvatar } from '@renderer/components/Icons'
 import WebviewContainer from '@renderer/components/MiniApp/WebviewContainer'
-import { useSettings } from '@renderer/hooks/useSettings'
 import { getWebviewLoaded, setWebviewLoaded } from '@renderer/utils/webviewStateManager'
 import type { MiniApp } from '@shared/data/types/miniapp'
 import type { WebviewTag } from 'electron'
@@ -22,7 +22,7 @@ const MiniAppFullPageView: FC<Props> = ({ app }) => {
   const webviewRef = useRef<WebviewTag | null>(null)
   const [isReady, setIsReady] = useState(false)
   const [currentUrl, setCurrentUrl] = useState<string | null>(null)
-  const { minappsOpenLinkExternal } = useSettings()
+  const [minappsOpenLinkExternal] = usePreference('feature.miniapp.open_link_external')
 
   // Debug: log isReady state changes
   useEffect(() => {
