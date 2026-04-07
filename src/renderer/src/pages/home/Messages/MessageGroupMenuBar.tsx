@@ -43,6 +43,7 @@ const MessageGroupMenuBar: FC<Props> = ({
 }) => {
   const { t } = useTranslation()
   const v2BlockEntities = useV2BlockMap()
+  const isV2Chat = v2BlockEntities !== null
   const { deleteGroupMessages, regenerateAssistantMessage } = useMessageOperations(topic)
   const { assistant } = useAssistant(messages[0]?.assistantId)
 
@@ -145,9 +146,11 @@ const MessageGroupMenuBar: FC<Props> = ({
           </Button>
         </Tooltip>
       )}
-      <Button variant="ghost" size="sm" onClick={handleDeleteGroup}>
-        <DeleteOutlined style={{ color: 'var(--color-error)' }} />
-      </Button>
+      {!isV2Chat && (
+        <Button variant="ghost" size="sm" onClick={handleDeleteGroup}>
+          <DeleteOutlined style={{ color: 'var(--color-error)' }} />
+        </Button>
+      )}
     </GroupMenuBar>
   )
 }

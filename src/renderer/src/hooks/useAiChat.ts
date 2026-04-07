@@ -27,6 +27,8 @@ export interface UseAiChatOptions {
   assistantId?: string
   /** Pre-existing messages to populate the chat. */
   initialMessages?: CherryUIMessage[]
+  /** Called when an assistant message finishes streaming. */
+  onFinish?: (message: CherryUIMessage, isAbort: boolean, isError: boolean) => void
 }
 
 export type UseAiChatReturn = Omit<UseChatHelpers<CherryUIMessage>, 'regenerate' | 'sendMessage'> & {
@@ -49,17 +51,15 @@ export type UseAiChatReturn = Omit<UseChatHelpers<CherryUIMessage>, 'regenerate'
  * Per-call body (e.g. `files`, `mentionedModels`) is shallow-merged on top.
  */
 export function useAiChat(options: UseAiChatOptions): UseAiChatReturn {
-  const { chatId, topicId, assistantId, initialMessages } = options
+  const { chatId, topicId, assistantId, initialMessages, onFinish: onFinishCallback } = options
 
   const chat = useChat<CherryUIMessage>({
     id: chatId,
     transport,
     messages: initialMessages,
     experimental_throttle: 50,
-    onFinish: ({ message: _message, isAbort, isError }) => {
-      if (!isAbort && !isError) {
-        // TODO (P3.1b): persist message via dataApi
-      }
+    onFinish: ({ message, isAbort, isError }) => {
+      onFinishCallback?.(message, isAbort, isError)
     },
     onError: (error) => {
       logger.error('AI stream error', error)
