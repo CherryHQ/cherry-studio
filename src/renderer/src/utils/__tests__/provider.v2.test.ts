@@ -267,11 +267,14 @@ describe('provider.v2 - API Key helpers', () => {
 describe('provider.v2 - Endpoint config helpers', () => {
   it('replaceEndpointConfigDomain: replaces domain in all baseUrls while preserving paths', () => {
     const result = replaceEndpointConfigDomain(
-      { 1: { baseUrl: 'https://old.com/v1' }, 3: { baseUrl: 'https://old.com/anthropic' } },
+      {
+        [EndpointType.OPENAI_CHAT_COMPLETIONS]: { baseUrl: 'https://old.com/v1' },
+        [EndpointType.ANTHROPIC_MESSAGES]: { baseUrl: 'https://old.com/anthropic' }
+      },
       'new.com'
     )
-    expect(result[1]?.baseUrl).toBe('https://new.com/v1')
-    expect(result[3]?.baseUrl).toBe('https://new.com/anthropic')
+    expect(result[EndpointType.OPENAI_CHAT_COMPLETIONS]?.baseUrl).toBe('https://new.com/v1')
+    expect(result[EndpointType.ANTHROPIC_MESSAGES]?.baseUrl).toBe('https://new.com/anthropic')
   })
 
   it('replaceEndpointConfigDomain: returns empty object for undefined input', () => {
@@ -279,22 +282,28 @@ describe('provider.v2 - Endpoint config helpers', () => {
   })
 
   it('replaceEndpointConfigDomain: preserves invalid URLs unchanged', () => {
-    const result = replaceEndpointConfigDomain({ 1: { baseUrl: 'not-a-url' } }, 'new.com')
-    expect(result[1]?.baseUrl).toBe('not-a-url')
+    const result = replaceEndpointConfigDomain(
+      { [EndpointType.OPENAI_CHAT_COMPLETIONS]: { baseUrl: 'not-a-url' } },
+      'new.com'
+    )
+    expect(result[EndpointType.OPENAI_CHAT_COMPLETIONS]?.baseUrl).toBe('not-a-url')
   })
 
   it('replaceEndpointConfigDomain: handles URLs with ports and paths', () => {
-    const result = replaceEndpointConfigDomain({ 6: { baseUrl: 'http://localhost:11434/api' } }, '192.168.1.100')
-    expect(result[6]?.baseUrl).toBe('http://192.168.1.100:11434/api')
+    const result = replaceEndpointConfigDomain(
+      { [EndpointType.OLLAMA_CHAT]: { baseUrl: 'http://localhost:11434/api' } },
+      '192.168.1.100'
+    )
+    expect(result[EndpointType.OLLAMA_CHAT]?.baseUrl).toBe('http://192.168.1.100:11434/api')
   })
 
   it('replaceEndpointConfigDomain: preserves other EndpointConfig fields', () => {
     const result = replaceEndpointConfigDomain(
-      { 1: { baseUrl: 'https://old.com/v1', reasoningFormatType: 'openai-chat' } },
+      { [EndpointType.OPENAI_CHAT_COMPLETIONS]: { baseUrl: 'https://old.com/v1', reasoningFormatType: 'openai-chat' } },
       'new.com'
     )
-    expect(result[1]?.baseUrl).toBe('https://new.com/v1')
-    expect(result[1]?.reasoningFormatType).toBe('openai-chat')
+    expect(result[EndpointType.OPENAI_CHAT_COMPLETIONS]?.baseUrl).toBe('https://new.com/v1')
+    expect(result[EndpointType.OPENAI_CHAT_COMPLETIONS]?.reasoningFormatType).toBe('openai-chat')
   })
 })
 
