@@ -386,7 +386,7 @@ describe('KnowledgeVectorMigrator', () => {
     expect(String(row.id)).toMatch(/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i)
     expect(String(row.id)).not.toBe('legacy-file-0')
     expect(row.external_id).toBe('item-file')
-    expect(row.collection).toBe('')
+    expect(row.collection).toBe('kb-1')
     expect(row.document).toBe('file chunk')
     expect(JSON.parse(String(row.metadata))).toEqual({ source: '/tmp/file-1.md' })
     expect(Number(row.bytes)).toBeGreaterThan(0)

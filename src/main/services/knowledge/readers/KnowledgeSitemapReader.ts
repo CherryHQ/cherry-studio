@@ -11,7 +11,7 @@ const logger = loggerService.withContext('KnowledgeSitemapReader')
 export async function loadSitemapDocuments(item: KnowledgeItemOf<'sitemap'>): Promise<Document[]> {
   const sitemapReadQueue = new PQueue({
     concurrency: 3,
-    intervalCap: 20,
+    intervalCap: 10,
     interval: 60_000
   })
   const urls = await fetchKnowledgeSitemapUrls(item.data.url)

@@ -54,7 +54,7 @@ export class KnowledgeRuntimeService extends BaseService {
   }
 
   async deleteBase(base: KnowledgeBase) {
-    await vectorStoreManager.deleStore(base)
+    await vectorStoreManager.deleteStore(base)
   }
 
   async addItems(base: KnowledgeBase, items: KnowledgeItem[]) {
@@ -124,6 +124,9 @@ export class KnowledgeRuntimeService extends BaseService {
         itemId: item.id,
         itemType: item.type
       })
+
+      const vectorStore = await vectorStoreManager.createStore(base)
+      await vectorStore.delete(item.id)
 
       await knowledgeItemService.update(item.id, {
         status: 'failed',

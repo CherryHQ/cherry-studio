@@ -19,7 +19,7 @@ class VectorStoreManager {
     return store
   }
 
-  async deleStore(base: KnowledgeBase): Promise<void> {
+  async deleteStore(base: KnowledgeBase): Promise<void> {
     await this.closeStore(base.id)
     await libSqlVectorStoreProvider.delete(base)
     this.instanceCache.delete(base.id)

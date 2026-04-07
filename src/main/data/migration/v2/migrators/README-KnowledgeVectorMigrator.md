@@ -22,6 +22,8 @@
    - `uniqueLoaderId` is not kept as a persisted field.
    - It is resolved back to `knowledge_item.id` and written into `external_id`.
    - `uniqueIds[]` takes precedence over legacy `uniqueId`.
+   - A legacy vector row is considered valid only if it can be mapped to an existing V2 `knowledge_item.id`.
+   - Unmapped legacy rows are treated as invalid index residue, not as business data that must be preserved.
 
 2. Chunk payload migration
    - `pageContent` -> `document`
@@ -38,6 +40,7 @@
 
 5. Schema bootstrap
    - Creates `external_id`, `collection`, vector index, and FTS schema needed by `@vectorstores/libsql`.
+   - Migrated rows use `collection = base.id` so runtime reads and deletes match the same per-base store contract.
 
 ## File-Safety Contract
 
@@ -59,3 +62,5 @@
 - Bases whose legacy DB file is missing, resolves to a directory, or does not contain a `vectors` table
 - Vector rows whose `uniqueLoaderId` cannot be mapped to a migrated `knowledge_item.id`
 - Vector rows with missing or empty `vector` payloads
+
+If every legacy vector row under one base is skipped, the rebuilt V2 vector store for that base is expected to be empty. This is intentional: only vectors that can be proven to belong to migrated `knowledge_item` rows remain valid in V2.

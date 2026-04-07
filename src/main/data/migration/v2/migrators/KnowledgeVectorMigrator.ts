@@ -242,7 +242,11 @@ export class KnowledgeVectorMigrator extends BaseMigrator {
     }
   }
 
-  private async insertVectorRows(client: Client, rows: Array<PreparedVectorRow & { id: string }>): Promise<void> {
+  private async insertVectorRows(
+    client: Client,
+    rows: Array<PreparedVectorRow & { id: string }>,
+    collection: string
+  ): Promise<void> {
     if (rows.length === 0) {
       return
     }
@@ -257,7 +261,7 @@ export class KnowledgeVectorMigrator extends BaseMigrator {
     const args = rows.flatMap((row) => [
       row.id,
       row.externalId,
-      '',
+      collection,
       row.document,
       JSON.stringify({ source: row.source }),
       `[${row.embedding.join(',')}]`
@@ -382,6 +386,9 @@ export class KnowledgeVectorMigrator extends BaseMigrator {
           const rows: PreparedVectorRow[] = []
 
           for (const row of vectorRows) {
+            // V2 only keeps vectors that can be proven to belong to an existing
+            // migrated knowledge_item row. Unmapped legacy vectors are treated
+            // as invalid index residue and are intentionally dropped.
             const externalId = loaderKeyMap.get(row.uniqueLoaderId)
             if (!externalId) {
               this.skippedCount += 1
@@ -407,6 +414,9 @@ export class KnowledgeVectorMigrator extends BaseMigrator {
             })
           }
 
+          // A base is still planned even when rows.length === 0. In that case the
+          // rebuilt V2 vector store is intentionally empty because none of the
+          // legacy vectors can be associated with valid migrated knowledge_item rows.
           this.preparedBasePlans.push({
             baseId: base.id,
             dbPath,
@@ -464,7 +474,7 @@ export class KnowledgeVectorMigrator extends BaseMigrator {
           await this.ensureVectorStoreSchema(targetClient, plan.dimensions)
 
           for (let i = 0; i < rebuiltRows.length; i += INSERT_BATCH_SIZE) {
-            await this.insertVectorRows(targetClient, rebuiltRows.slice(i, i + INSERT_BATCH_SIZE))
+            await this.insertVectorRows(targetClient, rebuiltRows.slice(i, i + INSERT_BATCH_SIZE), plan.baseId)
           }
         } finally {
           targetClient.close()
