@@ -3,6 +3,7 @@ import { application } from '@main/core/application'
 import { BaseService, DependsOn, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import { handleZoomFactor } from '@main/utils/zoom'
 import type { PreferenceShortcutType } from '@shared/data/preference/preferenceTypes'
+import { IpcChannel } from '@shared/IpcChannel'
 import { SHORTCUT_DEFINITIONS } from '@shared/shortcuts/definitions'
 import type { ShortcutPreferenceKey } from '@shared/shortcuts/types'
 import { coerceShortcutPreference } from '@shared/shortcuts/utils'
@@ -71,11 +72,7 @@ export class ShortcutService extends BaseService {
 
       if (!targetWindow || targetWindow.isDestroyed()) return
 
-      void targetWindow.webContents
-        .executeJavaScript(`typeof window.navigate === 'function' && window.navigate('/settings/provider')`, true)
-        .catch((error) => {
-          logger.warn('Failed to navigate to settings from shortcut:', error as Error)
-        })
+      targetWindow.webContents.send(IpcChannel.Windows_NavigateToSettings)
     })
 
     this.handlers.set('shortcut.app.show_mini_window', () => {
