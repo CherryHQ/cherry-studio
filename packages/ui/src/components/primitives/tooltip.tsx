@@ -81,7 +81,6 @@ export interface TooltipProps {
   title?: React.ReactNode
   placement?: string
   delay?: number
-  closeDelay?: number
   showArrow?: boolean
   classNames?: {
     content?: string

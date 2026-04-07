@@ -169,16 +169,4 @@ describe('Tooltip', () => {
       expect(screen.queryByRole('tooltip')).not.toBeInTheDocument()
     })
   })
-
-  describe('closeDelay (ignored, kept for API compat)', () => {
-    it('accepts closeDelay prop without errors', () => {
-      const { container } = render(
-        <Tooltip content="tip" closeDelay={0}>
-          <button type="button">Trigger</button>
-        </Tooltip>
-      )
-      const trigger = container.querySelector('[data-state]')
-      expect(trigger).toBeInTheDocument()
-    })
-  })
 })
