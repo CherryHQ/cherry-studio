@@ -74,7 +74,7 @@ const CherryINOAuth: FC<CherryINOAuthProps> = ({ providerId }) => {
   useEffect(() => {
     // Only fetch balance if logged in via OAuth
     if (isOAuthLoggedIn) {
-      fetchData()
+      void fetchData()
     } else {
       setBalanceInfo(null)
     }

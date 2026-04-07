@@ -131,15 +131,15 @@ const ModelList: React.FC<ModelListProps> = ({ providerId }) => {
   }, [displayedModelGroups])
 
   const onManageModel = useCallback(() => {
-    if (provider) ManageModelsPopup.show({ providerId: provider.id })
+    if (provider) void ManageModelsPopup.show({ providerId: provider.id })
   }, [provider])
 
   const onAddModel = useCallback(() => {
     if (!provider) return
     if (isNewApiProvider(provider)) {
-      NewApiAddModelPopup.show({ title: t('settings.models.add.add_model'), provider: provider as any })
+      void NewApiAddModelPopup.show({ title: t('settings.models.add.add_model'), provider: provider as any })
     } else {
-      AddModelPopup.show({ title: t('settings.models.add.add_model'), provider: provider as any })
+      void AddModelPopup.show({ title: t('settings.models.add.add_model'), provider: provider as any })
     }
   }, [provider, t])
 
@@ -168,7 +168,7 @@ const ModelList: React.FC<ModelListProps> = ({ providerId }) => {
             />
           </RowFlex>
           <RowFlex>
-            <Tooltip content={t('settings.models.check.button_caption')} closeDelay={0}>
+            <Tooltip content={t('settings.models.check.button_caption')}>
               <Button variant="ghost" onClick={runHealthCheck}>
                 <StreamlineGoodHealthAndWellBeing size={16} isActive={isHealthChecking} />
               </Button>

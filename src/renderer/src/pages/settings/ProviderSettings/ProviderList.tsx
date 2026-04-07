@@ -94,7 +94,7 @@ const ProviderList: FC<ProviderListProps> = ({ isOnboarding = false }) => {
       setProviderLogos(logos)
     }
 
-    loadAllLogos()
+    void loadAllLogos()
   }, [providers])
 
   useEffect(() => {
@@ -129,7 +129,7 @@ const ProviderList: FC<ProviderListProps> = ({ isOnboarding = false }) => {
       // Ideal: define validateSearch on the route so navigate({ search }) is fully typed,
       // and consumed params can be cleared without manual filtering or type casts.
       const restSearch = Object.fromEntries(Object.entries(search).filter(([key]) => key !== 'filter' && key !== 'id'))
-      navigate({ to: '/settings/provider', search: restSearch as Record<string, string>, replace: true })
+      void navigate({ to: '/settings/provider', search: restSearch as Record<string, string>, replace: true })
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [providers, search.filter, search.id, navigate, setSelectedProvider, setTimeoutTimer])
@@ -146,7 +146,7 @@ const ProviderList: FC<ProviderListProps> = ({ isOnboarding = false }) => {
       const { id } = data
 
       const { updatedProvider, isNew, displayName } = await UrlSchemaInfoPopup.show(data as any)
-      navigate({ to: '/settings/provider', search: { id } })
+      void navigate({ to: '/settings/provider', search: { id } })
 
       if (!updatedProvider) {
         return
@@ -174,14 +174,14 @@ const ProviderList: FC<ProviderListProps> = ({ isOnboarding = false }) => {
       const { id, apiKey: newApiKey, baseUrl, type, name } = JSON.parse(addProviderData)
       if (!id || !newApiKey || !baseUrl) {
         window.toast.error(t('settings.models.provider_key_add_failed_by_invalid_data'))
-        navigate({ to: '/settings/provider' })
+        void navigate({ to: '/settings/provider' })
         return
       }
 
-      handleProviderAddKey({ id, apiKey: newApiKey, baseUrl, type, name })
+      void handleProviderAddKey({ id, apiKey: newApiKey, baseUrl, type, name })
     } catch (error) {
       window.toast.error(t('settings.models.provider_key_add_failed_by_invalid_data'))
-      navigate({ to: '/settings/provider' })
+      void navigate({ to: '/settings/provider' })
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [search.addProviderData])

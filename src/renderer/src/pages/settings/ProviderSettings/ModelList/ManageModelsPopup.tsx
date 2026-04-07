@@ -145,7 +145,7 @@ const PopupContainer: React.FC<Props> = ({ providerId, resolve }) => {
           if (endpointTypes && endpointTypes.length > 0) {
             await createModel({ providerId, modelId, name: model.name, group: model.group, endpointTypes })
           } else {
-            NewApiAddModelPopup.show({
+            void NewApiAddModelPopup.show({
               title: t('settings.models.add.add_model'),
               provider: provider as any,
               model: model as any
@@ -182,7 +182,7 @@ const PopupContainer: React.FC<Props> = ({ providerId, resolve }) => {
           if (existingModels.every((m: any) => isValidNewApiModel(m))) {
             wouldAddModel.forEach((m) => onAddModel(m))
           } else {
-            NewApiBatchAddModelPopup.show({
+            void NewApiBatchAddModelPopup.show({
               title: t('settings.models.add.batch_add_models'),
               batchModels: wouldAddModel as any,
               provider: provider as any
@@ -244,7 +244,7 @@ const PopupContainer: React.FC<Props> = ({ providerId, resolve }) => {
   )
 
   useEffect(() => {
-    if (provider) loadModels(provider)
+    if (provider) void loadModels(provider)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [provider?.id])
 
