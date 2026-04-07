@@ -5,6 +5,7 @@ import { createOllama, type OllamaProvider } from 'ollama-ai-provider-v2'
 import { type CompositeModelRef, parseCompositeModelId } from '../utils/config'
 
 /**
+ * will be refactor until ai-core migrate to main
  * Knowledge embedding model factory.
  *
  * Minimal knowledge-domain embedding factory.

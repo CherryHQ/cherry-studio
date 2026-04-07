@@ -132,6 +132,23 @@ This document records the current V2 knowledge target schema, migration constrai
   - otherwise -> `idle`
 - Temporary legacy states such as in-progress or failed processing are not preserved as V2 status during migration.
 
+## Runtime Status Boundary
+
+- `knowledge_item.status` and `knowledge_item.error` remain part of the official V2 business schema.
+- The runtime queue implementation is not part of the schema contract:
+  - no separate task table
+  - no persisted queue record
+  - no scheduler-specific stage column
+- Runtime may use an in-memory `p-queue` based pipeline, but that does not weaken status semantics.
+- The stable contract is still:
+  - item enters indexing -> status moves into a non-terminal state such as `pending` / `file_processing` / `read` / `embed`
+  - item finishes successfully -> `completed`
+  - item fails or is interrupted -> `failed` with `error`
+- In other words:
+  - queue structure is implementation detail
+  - item status is business state
+  - these two must not be conflated
+
 ## Implementation Status
 
 - `video` and `memory` items are skipped during migration.

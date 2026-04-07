@@ -2,8 +2,6 @@ import type { KnowledgeItemOf } from '@shared/data/types/knowledge'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const fetchMock = vi.hoisted(() => vi.fn())
-const readabilityParseMock = vi.hoisted(() => vi.fn())
-const turndownMock = vi.hoisted(() => vi.fn())
 const readerSpies = vi.hoisted(() => ({
   csv: vi.fn(async (filePath: string) => [{ metadata: { reader: 'csv', filePath } }]),
   docx: vi.fn(async (filePath: string) => [{ metadata: { reader: 'docx', filePath } }]),
@@ -27,18 +25,6 @@ vi.mock('@logger', () => ({
 vi.mock('electron', () => ({
   net: {
     fetch: fetchMock
-  }
-}))
-
-vi.mock('@mozilla/readability', () => ({
-  Readability: class {
-    parse = readabilityParseMock
-  }
-}))
-
-vi.mock('turndown', () => ({
-  default: class {
-    turndown = turndownMock
   }
 }))
 
@@ -78,7 +64,7 @@ vi.mock('@vectorstores/readers/text', () => ({
   }
 }))
 
-const { ReaderFactory } = await import('../ReaderFactory')
+const { loadKnowledgeItemDocuments } = await import('../KnowledgeReader')
 
 function createFileItem(ext: string, filePath?: string): KnowledgeItemOf<'file'> {
   return {
@@ -174,11 +160,9 @@ function createSitemapItem(): KnowledgeItemOf<'sitemap'> {
   }
 }
 
-describe('ReaderFactory', () => {
+describe('loadKnowledgeItemDocuments', () => {
   beforeEach(() => {
     fetchMock.mockReset()
-    readabilityParseMock.mockReset()
-    turndownMock.mockReset()
   })
 
   it.each([
@@ -189,8 +173,7 @@ describe('ReaderFactory', () => {
     ['.md', 'markdown']
   ])('maps %s files to the %s reader', async (ext, expectedReader) => {
     const item = createFileItem(ext)
-    const reader = ReaderFactory.create(item)
-    const docs = await reader.load(item)
+    const docs = await loadKnowledgeItemDocuments(item)
 
     expect(docs[0]).toMatchObject({
       metadata: {
@@ -202,8 +185,7 @@ describe('ReaderFactory', () => {
 
   it('falls back to TextFileReader for unmatched file extensions', async () => {
     const item = createFileItem('.log')
-    const reader = ReaderFactory.create(item)
-    const docs = await reader.load(item)
+    const docs = await loadKnowledgeItemDocuments(item)
 
     expect(docs[0]).toMatchObject({
       metadata: {
@@ -215,15 +197,13 @@ describe('ReaderFactory', () => {
 
   it('throws when a file item is missing file.path at load time', async () => {
     const item = createFileItem('.txt', '')
-    const reader = ReaderFactory.create(item)
 
-    await expect(reader.load(item)).rejects.toThrow('Knowledge file file-1 is missing file.path')
+    await expect(loadKnowledgeItemDocuments(item)).rejects.toThrow('Knowledge file file-1 is missing file.path')
   })
 
   it('creates a note reader that returns a single Document', async () => {
     const item = createNoteItem('hello world', 'https://example.com/note')
-    const reader = ReaderFactory.create(item)
-    const docs = await reader.load(item)
+    const docs = await loadKnowledgeItemDocuments(item)
 
     expect(docs).toHaveLength(1)
     expect(docs[0]).toMatchObject({
@@ -236,38 +216,26 @@ describe('ReaderFactory', () => {
     })
   })
 
-  it('throws for directory items because they must be expanded before reading', () => {
+  it('returns empty documents for directory items', async () => {
     const item = createDirectoryItem()
 
-    expect(() => ReaderFactory.create(item)).toThrow('Directory items must be expanded before reading')
+    await expect(loadKnowledgeItemDocuments(item)).resolves.toEqual([])
   })
 
   it('fetches markdown from the local knowledge web provider and splits it into documents', async () => {
-    fetchMock.mockResolvedValue(
-      new Response(
-        '<html><head><title>Example Page</title></head><body><article>Hello knowledge</article></body></html>',
-        {
-          status: 200,
-          headers: {
-            'content-type': 'text/html'
-          }
-        }
-      )
-    )
-    readabilityParseMock.mockReturnValue({
-      title: 'Example Page',
-      content: '<article><h1>Example Page</h1><p>Hello knowledge</p></article>'
-    })
-    turndownMock.mockReturnValue('# Example Page\n\nHello knowledge')
+    fetchMock.mockResolvedValue(new Response('# Example Page\n\nHello knowledge', { status: 200 }))
 
     const item = createUrlItem()
-    const reader = ReaderFactory.create(item)
-    const docs = await reader.load(item)
+    const docs = await loadKnowledgeItemDocuments(item)
 
     expect(fetchMock).toHaveBeenCalledWith(
-      item.data.url,
+      'https://r.jina.ai/https://example.com',
       expect.objectContaining({
-        signal: expect.any(AbortSignal)
+        signal: expect.any(AbortSignal),
+        headers: {
+          'X-Retain-Images': 'none',
+          'X-Return-Format': 'markdown'
+        }
       })
     )
     expect(docs).toHaveLength(1)
@@ -287,38 +255,21 @@ describe('ReaderFactory', () => {
       if (url === 'https://example.com/sitemap.xml') {
         return new Response(
           [
-            '<sitemapindex>',
-            '  <sitemap><loc>https://example.com/sitemap-pages.xml</loc></sitemap>',
-            '  <sitemap><loc>https://example.com/sitemap-pages.xml</loc></sitemap>',
-            '</sitemapindex>'
-          ].join(''),
-          { status: 200 }
-        )
-      }
-
-      if (url === 'https://example.com/sitemap-pages.xml') {
-        return new Response(
-          [
             '<urlset>',
             '  <url><loc>https://example.com/page-1</loc></url>',
             '  <url><loc>https://example.com/page-2</loc></url>',
+            '  <url><loc>https://example.com/page-1</loc></url>',
             '</urlset>'
           ].join(''),
           { status: 200 }
         )
       }
 
-      return new Response('<html><body><article>markdown body</article></body></html>', { status: 200 })
+      return new Response('markdown body', { status: 200 })
     })
-    readabilityParseMock.mockReturnValue({
-      title: 'Example Page',
-      content: '<article><p>markdown body</p></article>'
-    })
-    turndownMock.mockReturnValue('markdown body')
 
     const item = createSitemapItem()
-    const reader = ReaderFactory.create(item)
-    const docs = await reader.load(item)
+    const docs = await loadKnowledgeItemDocuments(item)
 
     expect(fetchMock).toHaveBeenCalledWith(
       'https://example.com/sitemap.xml',
@@ -327,21 +278,23 @@ describe('ReaderFactory', () => {
       })
     )
     expect(fetchMock).toHaveBeenCalledWith(
-      'https://example.com/sitemap-pages.xml',
+      'https://r.jina.ai/https://example.com/page-1',
       expect.objectContaining({
-        signal: expect.any(AbortSignal)
+        signal: expect.any(AbortSignal),
+        headers: {
+          'X-Retain-Images': 'none',
+          'X-Return-Format': 'markdown'
+        }
       })
     )
     expect(fetchMock).toHaveBeenCalledWith(
-      'https://example.com/page-1',
+      'https://r.jina.ai/https://example.com/page-2',
       expect.objectContaining({
-        signal: expect.any(AbortSignal)
-      })
-    )
-    expect(fetchMock).toHaveBeenCalledWith(
-      'https://example.com/page-2',
-      expect.objectContaining({
-        signal: expect.any(AbortSignal)
+        signal: expect.any(AbortSignal),
+        headers: {
+          'X-Retain-Images': 'none',
+          'X-Return-Format': 'markdown'
+        }
       })
     )
     expect(docs).toHaveLength(2)

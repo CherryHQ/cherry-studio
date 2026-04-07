@@ -6,10 +6,6 @@ const readerFactoryMock = vi.hoisted(() => ({
   create: vi.fn()
 }))
 
-const documentChunkerMock = vi.hoisted(() => ({
-  chunk: vi.fn()
-}))
-
 const documentEmbedderMock = vi.hoisted(() => ({
   embed: vi.fn()
 }))
@@ -41,10 +37,6 @@ vi.mock('@main/data/services/KnowledgeItemService', () => ({
 
 vi.mock('../readers/ReaderFactory', () => ({
   ReaderFactory: readerFactoryMock
-}))
-
-vi.mock('../chunking/DocumentChunker', () => ({
-  DocumentChunker: documentChunkerMock
 }))
 
 vi.mock('../embedding/EmbeddingModelFactory', () => ({
@@ -196,7 +188,6 @@ describe('KnowledgeExecutionService', () => {
     knowledgeItemServiceMock.update.mockResolvedValue(item)
     const load = vi.fn(async () => sourceDocuments)
     readerFactoryMock.create.mockReturnValue({ load })
-    documentChunkerMock.chunk.mockReturnValue(chunks)
     const embeddingModel = { modelId: 'nomic-embed-text' }
     embeddingModelFactoryMock.create.mockReturnValue(embeddingModel)
     documentEmbedderMock.embed.mockResolvedValue(nodes)
@@ -221,7 +212,6 @@ describe('KnowledgeExecutionService', () => {
     })
     expect(readerFactoryMock.create).toHaveBeenCalledWith(item)
     expect(load).toHaveBeenCalledWith(item)
-    expect(documentChunkerMock.chunk).toHaveBeenCalledWith(base, item, sourceDocuments)
     expect(embeddingModelFactoryMock.create).toHaveBeenCalledWith(base)
     expect(documentEmbedderMock.embed).toHaveBeenCalledWith(embeddingModel, chunks)
     expect(vectorStoreFactoryMock.createBase).toHaveBeenCalledWith(base)

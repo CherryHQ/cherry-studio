@@ -1,6 +1,15 @@
 # 知识库后端已确认决策
 
-本文档只记录当前已经确认的后端分层和调用边界，不记录未定方案。
+本文档只记录当前已经确认的后端分层、调用边界和 runtime 编排约束，不记录未定方案。
+
+本轮调整的核心方向是：
+
+1. 保留 `KnowledgeBaseService` / `KnowledgeItemService` 作为 data 面能力
+2. 将知识库 runtime/vector 侧能力收口到一个更薄的 `KnowledgeService`
+3. 使用 `p-queue` 作为并发控制原语
+4. 不再维护一套自定义的 `TaskService + ExecutionService + round-robin scheduler`
+
+这里的重点不是“代码更少”，而是“让 runtime 编排更简单，同时保留必要的状态语义和失败补偿”。
 
 ## 0. 当前架构图
 
@@ -12,33 +21,32 @@
 +------------------------------------------+---------------------------------------+
                                            |
                     +--------------------------+     +-----------------------------+
-                    |       Data API           |     |    KnowledgeVectorService   |
-                    |  knowledge handlers      |     |   vector/runtime service    |
+                    |       Data API           |     |      KnowledgeService       |
+                    |  knowledge handlers      |     |   runtime / vector facade   |
                     +-------------+------------+     +---------------+-------------+
                                   |                                  |
                                   v                                  v
                     +--------------------------+          +---------------------------+
-                    |   KnowledgeBaseService   |          |   KnowledgeTaskService    |
-                    |   base data logic        |          |   queue / concurrency     |
+                    |   KnowledgeBaseService   |          | reader / chunk / embed / |
+                    |   base data logic        |          | vectorstore helper chain  |
                     +-------------+------------+          +-------------+-------------+
                                   |                                  |
                                   v                                  v
                     +--------------------------+          +---------------------------+
-                    |   KnowledgeItemService   |          | KnowledgeExecutionService |
-                    |   item data + status     |          | local execute pipeline    |
-                    +-------------+------------+          | future: process-backed    |
-                                  |                       +-------------+-------------+
-                                  v                                     |
-                        +----------------------+                         v
-                        |   SQLite / Drizzle   |              +------------------------+
-                        +----------------------+              |  LibSQL / VectorStores |
-                                                              +------------------------+
+                    |   KnowledgeItemService   |          |   p-queue based runtime   |
+                    |   item data + status     |          |   queue + status updates  |
+                    +-------------+------------+          +-------------+-------------+
+                                  |                                  |
+                                  v                                  v
+                        +----------------------+              +------------------------+
+                        |   SQLite / Drizzle   |              |  LibSQL / VectorStores |
+                        +----------------------+              +------------------------+
+```
 
 当前 UI 双轨调用：
 
-  1. UI -> Data API -> KnowledgeBaseService / KnowledgeItemService
-  2. UI -> main-side call -> KnowledgeVectorService
-```
+1. UI -> Data API -> `KnowledgeBaseService` / `KnowledgeItemService`
+2. UI -> main-side call -> `KnowledgeService`
 
 ## 1. Data service 的定位
 
@@ -59,7 +67,7 @@
 
 ## 2. Data API 的定位
 
-Data API 是一层接口适配层。
+Data API 是接口适配层。
 
 它可以调用 data service，但不是数据能力的唯一入口。
 
@@ -83,343 +91,238 @@ UI -> Data API -> knowledge handler -> data service
 
 它们不需要先经过 Data API。
 
-## 4. KnowledgeVectorService 的定位
+## 4. `KnowledgeService` 的定位
 
-`KnowledgeVectorService` 只负责知识库的 vector/runtime 侧能力。
+`KnowledgeService` 是知识库 runtime/vector 侧的单一 facade。
 
-当前包括：
+它负责：
 
-1. vectorstores 相关初始化
-2. 任务调度入口
-3. 运行时向量写入/删除/检索相关能力
+1. runtime 侧入口方法
+2. item 级索引任务编排
+3. `knowledge_item.status` 的推进与错误写回
+4. reader / chunk / embedding / vectorstore helper 的调用串联
+5. 检索入口
 
-它不负责 SQLite / Drizzle 侧的数据创建与更新。
+它不负责：
+
+1. `knowledge_base` / `knowledge_item` 的业务主数据 CRUD
+2. 引入独立的持久化任务表
+3. 暴露调度器内部概念给调用方
 
 因此：
 
 1. `KnowledgeBaseService` / `KnowledgeItemService` 负责 data 面
-2. `KnowledgeVectorService` 负责 vector/runtime 面
+2. `KnowledgeService` 负责 runtime/vector 面
 
-它属于 main services，不属于 data services。
+它属于 main service，不属于 data service。
 
-## 5. KnowledgeTaskService 与 KnowledgeExecutionService
+## 5. 为什么不用 `KnowledgeTaskService + KnowledgeExecutionService`
 
-当前阶段：
+本轮明确不再把 runtime 编排拆成：
 
-1. `KnowledgeTaskService` 负责任务队列、并发控制和调度
-2. `KnowledgeExecutionService` 负责单个 item 的实际执行流程
-3. 当前执行器先采用本地执行
+1. 一个 lifecycle task scheduler
+2. 一个 stage executor
+3. 一套自定义 round-robin / waiting timer / next-task 协议
 
-未来：
+原因不是这些能力永远不需要，而是当前知识库索引链路还不值得为它们维护一整套专有调度框架。
 
-1. `KnowledgeExecutionService` 可以替换为基于进程管理的执行器
-2. `KnowledgeTaskService` 继续保留为统一调度层
+当前更合适的收敛方式是：
 
-## 5.1 KnowledgeExecutionService 设计
+1. 用一个更薄的 `KnowledgeService` 承接 runtime 入口
+2. 用若干 helper 模块承接 reader / chunk / embed / vectorstore 细节
+3. 用 `p-queue` 解决大部分并发约束
 
-### 定位
+这里的决策是：
 
-`KnowledgeExecutionService` 是单个 task 的阶段执行器。
+1. `p-queue` 是并发控制原语，不是新的业务边界
+2. helper 可以继续拆，但调度层先不拆成多个 service
+3. 如果未来真的出现独立进程执行、远程 file processing 编排、恢复策略显著变复杂，再评估是否重新抽象更重的执行层
 
-它负责：
+## 6. `p-queue` 编排模型
 
-1. 执行单个 task 的一个阶段
-2. 推进 `knowledge_item.status`
-3. 返回下一步执行结果
+### 6.1 总原则
 
-它不负责：
+我们接受 runtime 编排简化，但不接受因为“实现简单”而丢掉以下语义：
 
-1. 排队
-2. 并发控制
-3. round-robin 调度
-4. 生命周期清理
+1. item 状态可观测
+2. 失败可落库
+3. 中断有补偿
+4. 单库处理顺序可控
+5. 内部 fan-out 不得绕过并发控制
 
-### 输入
+### 6.2 队列归属
 
-`KnowledgeExecutionService` 接收完整 task 作为输入。
+`KnowledgeService` 持有知识库 runtime queue。
 
-task 至少包含：
+当前确认的实现约束：
 
-1. `itemId`
-2. `baseId`
-3. `stage`
-4. `readyAt`
+1. queue 为 in-memory best-effort queue
+2. queue 不单独持久化到数据库
+3. queue 的存在是 runtime 实现细节，不进入对外数据模型
 
-### 输出
+### 6.3 并发模型
 
-执行结果固定为三类：
+并发模型不再使用自定义 round-robin scheduler。
 
-1. `completed`
-2. `failed`
-3. `next`
+当前推荐模型：
 
-其中 `next` 需要返回：
-
-1. 下一阶段 `stage`
-2. 下一次可执行时间 `readyAt`
-
-### 当前执行阶段
-
-当前只确认 3 个执行阶段：
-
-1. `file_processing_submit`
-2. `file_processing_poll`
-3. `embed`
-
-### 各阶段职责
-
-#### `file_processing_submit`
-
-负责：
-
-1. 提交远程 file processing
-2. 保存远程 taskId 或必要元数据
-
-成功后进入：
-
-- `file_processing_poll`
-
-#### `file_processing_poll`
-
-负责：
-
-1. 查询远程 file processing 结果
-
-如果远程任务完成：
-
-- 进入 `embed`
-
-如果远程任务未完成：
-
-- 继续进入 `file_processing_poll`
-- 并设置新的 `readyAt`
-
-如果远程任务失败：
-
-- 返回 `failed`
-
-#### `embed`
-
-负责完整本地执行链：
-
-1. 读取原始文件或 file-processing 结果
-2. reader/loadData
-3. chunk
-4. embedding
-5. 写入 `LibSQL / VectorStores`
-
-成功后：
-
-- 返回 `completed`
-
-失败后：
-
-- 返回 `failed`
-
-### 状态更新责任
-
-`KnowledgeExecutionService` 负责更新 `knowledge_item.status`。
+1. 每个 knowledge base 一条串行 queue
+2. 单库默认 `concurrency = 1`
+3. 如果需要额外限制跨库总吞吐，可在外层再叠加一个小的全局 limiter
 
 也就是说：
 
-1. 进入哪个阶段，就写哪个阶段状态
-2. 成功完成后写 `completed`
-3. 失败时写 `failed`
+1. “单库串行”是知识库 runtime 的核心约束
+2. “跨库可并行”是可选能力
+3. 不推荐只保留一个全局大 queue 然后把所有 item 混在一起跑
 
-## 6. KnowledgeTaskService 设计
+原因：
 
-### 6.1 定位
+1. 单库串行可以避免同库 item 互相抢占写入时序
+2. 不同库之间是否并行，应由一个简单的全局上限控制
+3. 这样比自定义 round-robin 简单，但仍保留关键隔离性
 
-`KnowledgeTaskService` 是 lifecycle service，属于 main services。
+### 6.4 任务粒度
 
-它负责：
+队列粒度为 item 级。
 
-1. item 级任务入队
-2. 任务调度
-3. 并发控制
-4. 启停时的状态清理
+一个 `knowledge_item` 的一次索引流程是一个 queue task。
 
-它不负责具体索引执行，执行流程由 `KnowledgeExecutionService` 负责。
+当前明确不做：
 
-### 6.2 任务粒度
+1. chunk 级任务
+2. 单独的调度记录对象暴露给外部
+3. `completed / failed / next` 这类内部任务协议作为稳定公共抽象
 
-任务粒度为 item 级。
+### 6.5 执行链路
 
-一个 `knowledge_item` 对应一个任务上下文。
-
-但调度不是让一个 item 从头到尾一直占用执行槽，而是按阶段推进。
-
-### 6.3 状态与阶段
-
-状态存放在 `knowledge_item.status` 中。
-
-当前确认的阶段模型如下。
-
-普通文件：
+当前 item 级执行链路为：
 
 ```text
-pending
+enqueue item
+ -> load source documents
+ -> optional file-processing handling
+ -> chunk
  -> embed
- -> completed
+ -> vector add
+ -> persist completed / failed
 ```
 
-PDF：
+这条链路放在 `KnowledgeService` 内部编排。
 
-```text
-pending
- -> file_processing_submit
- -> file_processing_waiting
- -> file_processing_poll
- -> embed
- -> completed
-```
+reader / chunk / embed / vectorstore 只是 helper，不是调度边界。
 
-失败：
+### 6.6 状态推进责任
 
-```text
-任意执行阶段 -> failed
-```
+虽然 runtime 编排收口到一个 service，但 `knowledge_item.status` 仍然是正式业务状态，不是可省略细节。
 
-当前文档中涉及的状态语义：
+当前确认：
 
-1. `pending`
-2. `file_processing_submit`
-3. `file_processing_waiting`
-4. `file_processing_poll`
-5. `embed`
-6. `completed`
-7. `failed`
+1. 入队前或入队时写 `pending`
+2. 进入 file processing 阶段时写 `file_processing`
+3. 进入读取或切块阶段时可写 `read`
+4. 进入 embedding / vector write 阶段时写 `embed`
+5. 成功结束写 `completed`
+6. 任意异常统一写 `failed`
+7. `error` 字段记录最终失败原因
 
-其中：
+结论：
 
-1. `file_processing_waiting` 不占执行槽
-2. 其他执行阶段占执行槽
+1. queue 可以简化
+2. 状态语义不能被 queue 简化掉
 
-### 6.4 入队接口
+### 6.7 中断与恢复策略
 
-`KnowledgeTaskService` 只保留批量入队接口：
+当前确认的策略是：
 
-- `enqueueMany`
+1. queue 为内存态
+2. 不做持久化任务恢复
+3. 但必须做中断补偿
 
-不单独保留 `enqueue`。
+因此：
 
-规则：
-
-1. 同一个 item 如果已经处于 pending / running 中，重复入队直接忽略
-2. `enqueueMany` 完成后只触发一次调度
-
-### 6.5 内部任务结构
-
-内部任务至少包含以下字段：
-
-1. `itemId`
-2. `baseId`
-3. `stage`
-4. `readyAt`
-5. `createdAt`
-
-其中：
-
-1. `stage` 表示当前要执行的阶段
-2. `readyAt` 表示任务最早可再次执行的时间
-
-`readyAt` 用于避免 `file_processing_poll` 阶段空转。
-
-### 6.6 并发模型
-
-`KnowledgeTaskService` 使用一个共享实例，不按 knowledge base 创建多个实例。
-
-当前并发控制分为两层：
-
-1. 全局并发上限 `maxConcurrentItems`
-2. 单库并发上限 `maxConcurrentPerBase`
-
-建议默认值：
-
-1. `maxConcurrentItems = 3`
-2. `maxConcurrentPerBase = 1`
-
-### 6.7 队列与运行态
-
-`KnowledgeTaskService` 内部维护：
-
-1. 按 `baseId` 分组的 pending queue
-2. `runningItemIds`
-3. `runningCountByBase`
-4. `runningGlobalCount`
-5. round-robin 调度顺序
-
-### 6.8 调度策略
-
-调度按 `baseId` 分队列管理。
-
-在调度时：
-
-1. 只有全局并发未满时才继续派发
-2. 只有当前 base 并发未满时才允许派发该 base 的任务
-3. 不同 base 之间采用 round-robin 调度
-4. 只有 `readyAt <= now` 的任务才允许执行
-
-`file_processing_poll` 每次只查询一次：
-
-1. 如果远程 file processing 已完成，进入下一阶段
-2. 如果未完成，重新放回队尾，并设置新的 `readyAt`
-
-当前不额外引入 waiting 扫描器。
-
-### 6.9 与 KnowledgeExecutionService 的边界
-
-`KnowledgeTaskService` 只负责调度。
-
-`KnowledgeExecutionService` 负责单个 task 的实际执行，包括：
-
-1. `file_processing_submit`
-2. `file_processing_poll`
-3. `embed`
-
-以及：
-
-1. 推进 `knowledge_item.status`
-2. 写入错误信息
-3. 返回下一阶段或结束结果
-
-### 6.10 生命周期行为
-
-#### onInit
-
-由于当前不支持任务恢复，启动时需要扫描残留中间状态并统一清理为 `failed`。
-
-包括但不限于：
-
-1. `pending`
-2. `file_processing_submit`
-3. `file_processing_waiting`
-4. `file_processing_poll`
-5. `read_chunk`
-6. `embed`
-
-#### onStop
-
-关闭时：
-
-1. 队列中未执行的任务标记为 `failed`
-2. 正在执行的任务标记为 `failed`
-3. 写入明确的中断原因
-
-### 6.11 当前明确不做的内容
+1. 启动时扫描中间状态并标记为 `failed`
+2. 停止时将未完成任务标记为 `failed`
+3. 写入明确中断原因
 
 当前不做：
 
-1. 任务恢复
-2. 自动重试
-3. chunk 级任务
-4. 优先级队列
-5. 持久化任务队列
-6. 暂停 / 恢复
-7. 每个 knowledge base 一个 task service
-8. 单独的 waiting 扫描器
+1. 任务续跑
+2. 持久化任务队列
+3. 自动重试
 
-## 7. 当前确认的调用边界
+### 6.8 fan-out 与内部并发
+
+`p-queue` 只在外层控制 item 并发还不够。
+
+对以下场景必须继续限制内部 fan-out：
+
+1. sitemap 展开后抓取多个 URL
+2. directory 展开后读取多个文件
+3. file processor 的轮询或批量远程请求
+
+明确要求：
+
+1. 内部不得无边界 `Promise.all`
+2. 内部 fan-out 需要复用同一个 limiter，或使用独立但有上限的小 queue
+3. 不允许出现“外层 queue 很保守，内层 reader 一次打爆网络/CPU”的实现
+
+### 6.9 生命周期边界
+
+`KnowledgeService` 不一定必须成为复杂 lifecycle scheduler，但需要具备最小可管理性：
+
+1. 初始化时完成中断状态清理
+2. 停止时尽量停止新任务进入
+3. 停止时对未完成 item 写失败状态
+
+如果后续它正式接入 lifecycle system，应把这些行为挂到明确的 `onInit` / `onStop` 钩子中。
+
+## 7. Helper 边界
+
+为了保持 `KnowledgeService` 简单，helper 继续保留，但它们的边界要更明确。
+
+### 7.1 Reader
+
+reader 负责 source -> `Document[]` 的适配。
+
+reader 不负责：
+
+1. 调度
+2. item 状态推进
+3. 任务恢复
+
+### 7.2 Chunk / Embed
+
+`chunkDocuments` / `embedDocuments` 是纯执行 helper。
+
+它们负责：
+
+1. 文档切块
+2. embedding 计算
+3. node 构造
+
+它们不负责：
+
+1. queue
+2. status
+3. storage lifecycle
+
+### 7.3 VectorStoreManager
+
+`VectorStoreManager` 负责 runtime vector store 的最小缓存与复用。
+
+它负责：
+
+1. 按 base 获取 store
+2. 释放或删除 store
+
+它不负责：
+
+1. item 调度
+2. 状态推进
+3. 索引任务重试
+
+## 8. 当前确认的调用边界
 
 ### UI
 
@@ -428,7 +331,7 @@ UI
  |
  +--> Data API -> knowledge handler -> KnowledgeBaseService / KnowledgeItemService
  |
- \--> main-side invocation -> KnowledgeVectorService
+ \--> main-side invocation -> KnowledgeService
 ```
 
 ### Tool / CLI / API Gateway
@@ -438,16 +341,31 @@ Tool / CLI / API Gateway
  |
  +--> KnowledgeBaseService / KnowledgeItemService
  |
- \--> KnowledgeVectorService
+ \--> KnowledgeService
 ```
 
-## 8. 当前不写入本文档的内容
+## 9. 当前明确不做的内容
+
+当前不做：
+
+1. 自定义 round-robin scheduler
+2. 独立的 `KnowledgeTaskService`
+3. 独立的 `KnowledgeExecutionService`
+4. 持久化任务队列
+5. 自动恢复执行中的任务
+6. chunk 级 queue
+7. 优先级队列
+8. 暂停 / 恢复
+9. 为每个 knowledge base 创建一个独立 service 实例
+
+## 10. 当前不写入本文档的内容
 
 以下内容当前未在本文档中展开：
 
-1. 最终的最小 facade 公共方法集合
+1. 最终 facade 的完整公共方法集合
 2. UI 是否长期保留两条调用分支
-3. 哪些具体 handler 未来一定改为调用 facade
-4. 最终的完整知识库总体架构图
+3. 哪些具体 handler 最终会走 Data API，哪些会直调 main service
+4. 最终 retrieval / rerank API 细节
+5. 是否引入远程 file processing provider 的正式 provider 抽象
 
 这些内容待进一步收敛后再单独记录。

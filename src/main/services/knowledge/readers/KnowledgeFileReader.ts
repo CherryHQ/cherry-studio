@@ -9,11 +9,7 @@ import { MarkdownReader } from '@vectorstores/readers/markdown'
 import { PDFReader } from '@vectorstores/readers/pdf'
 import { TextFileReader } from '@vectorstores/readers/text'
 
-import type { KnowledgeReader } from './KnowledgeReader'
-
-type SupportedFileReader = VectorStoreFileReader<Document>
-
-export function createSupportedFileReader(file: FileMetadata): SupportedFileReader {
+export function createSupportedFileReader(file: FileMetadata): VectorStoreFileReader<Document> {
   const extension = getFileExt(file.path).toLowerCase()
 
   switch (extension) {
@@ -32,14 +28,12 @@ export function createSupportedFileReader(file: FileMetadata): SupportedFileRead
   }
 }
 
-export class KnowledgeFileReader implements KnowledgeReader<KnowledgeItemOf<'file'>> {
-  async load(item: KnowledgeItemOf<'file'>): Promise<Document[]> {
-    const file = item.data.file
-    if (!file.path) {
-      throw new Error(`Knowledge file ${file.id} is missing file.path`)
-    }
-
-    const reader = createSupportedFileReader(file)
-    return await reader.loadData(file.path)
+export async function loadFileDocuments(item: KnowledgeItemOf<'file'>): Promise<Document[]> {
+  const file = item.data.file
+  if (!file.path) {
+    throw new Error(`Knowledge file ${file.id} is missing file.path`)
   }
+
+  const reader = createSupportedFileReader(file)
+  return await reader.loadData(file.path)
 }
