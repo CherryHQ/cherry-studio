@@ -196,6 +196,7 @@ const TitleBar = ({
       <Tooltip
         placement="right-end"
         className="max-w-100"
+        classNames={{ placeholder: 'contents' }}
         content={
           <TitleTextTooltip>
             {url ?? appInfo.url} <br />
@@ -206,7 +207,11 @@ const TitleBar = ({
         <TitleText onContextMenu={(e) => handleCopyUrl(e, url ?? appInfo.url)}>{appInfo.name}</TitleText>
       </Tooltip>
       {appInfo.canOpenExternalLink && (
-        <Tooltip placement="bottom" content={t('minapp.popup.openExternal')} delay={800}>
+        <Tooltip
+          placement="bottom"
+          classNames={{ placeholder: 'contents' }}
+          content={t('minapp.popup.openExternal')}
+          delay={800}>
           <TitleButton onClick={() => onOpenLink(url ?? appInfo.url)}>
             <ExportOutlined />
           </TitleButton>
@@ -217,23 +222,36 @@ const TitleBar = ({
         className={isWin || isLinux ? 'windows' : ''}
         style={{ marginRight: isWin || isLinux ? '140px' : 0 }}
         isTopNavbar={isTopNavbar}>
-        <Tooltip placement="bottom" content={t('minapp.popup.goBack')} delay={800}>
+        <Tooltip
+          placement="bottom"
+          classNames={{ placeholder: 'contents' }}
+          content={t('minapp.popup.goBack')}
+          delay={800}>
           <TitleButton onClick={() => onGoBack(appInfo.appId)}>
             <ArrowLeftOutlined />
           </TitleButton>
         </Tooltip>
-        <Tooltip placement="bottom" content={t('minapp.popup.goForward')} delay={800}>
+        <Tooltip
+          placement="bottom"
+          classNames={{ placeholder: 'contents' }}
+          content={t('minapp.popup.goForward')}
+          delay={800}>
           <TitleButton onClick={() => onGoForward(appInfo.appId)}>
             <ArrowRightOutlined />
           </TitleButton>
         </Tooltip>
-        <Tooltip placement="bottom" content={t('minapp.popup.refresh')} delay={800}>
+        <Tooltip
+          placement="bottom"
+          classNames={{ placeholder: 'contents' }}
+          content={t('minapp.popup.refresh')}
+          delay={800}>
           <TitleButton onClick={() => onReload(appInfo.appId)}>
             <ReloadOutlined />
           </TitleButton>
         </Tooltip>
         {appInfo.canPinned && (
           <Tooltip
+            classNames={{ placeholder: 'contents' }}
             content={
               appInfo.isPinned
                 ? isTopNavbar
@@ -251,6 +269,7 @@ const TitleBar = ({
           </Tooltip>
         )}
         <Tooltip
+          classNames={{ placeholder: 'contents' }}
           content={
             minappsOpenLinkExternal ? t('minapp.popup.open_link_external_on') : t('minapp.popup.open_link_external_off')
           }
@@ -261,20 +280,32 @@ const TitleBar = ({
           </TitleButton>
         </Tooltip>
         {isDev && (
-          <Tooltip placement="bottom" content={t('minapp.popup.devtools')} delay={800}>
+          <Tooltip
+            placement="bottom"
+            classNames={{ placeholder: 'contents' }}
+            content={t('minapp.popup.devtools')}
+            delay={800}>
             <TitleButton onClick={() => onOpenDevTools(appInfo.appId)}>
               <CodeOutlined />
             </TitleButton>
           </Tooltip>
         )}
         {canMinimize && (
-          <Tooltip placement="bottom" content={t('minapp.popup.minimize')} delay={800}>
+          <Tooltip
+            placement="bottom"
+            classNames={{ placeholder: 'contents' }}
+            content={t('minapp.popup.minimize')}
+            delay={800}>
             <TitleButton onClick={onMinimize}>
               <MinusOutlined />
             </TitleButton>
           </Tooltip>
         )}
-        <Tooltip placement="bottom" content={t('minapp.popup.close')} delay={800}>
+        <Tooltip
+          placement="bottom"
+          classNames={{ placeholder: 'contents' }}
+          content={t('minapp.popup.close')}
+          delay={800}>
           <TitleButton onClick={() => onClose(appInfo.appId)}>
             <CloseOutlined />
           </TitleButton>

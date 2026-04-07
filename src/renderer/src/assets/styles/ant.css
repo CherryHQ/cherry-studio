@@ -58,6 +58,9 @@
 
 .minapp-drawer .ant-drawer-header {
   position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
   -webkit-app-region: drag;
   min-height: calc(var(--navbar-height) + 0.5px);
   margin-top: -0.5px;
