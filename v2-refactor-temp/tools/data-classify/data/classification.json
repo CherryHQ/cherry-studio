@@ -1572,7 +1572,7 @@
                 "notes"
               ],
               "originalKey": "visible",
-              "status": "classified",
+              "status": "pending",
               "targetKey": "ui.sidebar.icons.visible",
               "type": "PreferenceTypes.SidebarIcon[]"
             },
@@ -1580,7 +1580,7 @@
               "category": "preferences",
               "defaultValue": [],
               "originalKey": "disabled",
-              "status": "classified",
+              "status": "pending",
               "targetKey": "ui.sidebar.icons.invisible",
               "type": "PreferenceTypes.SidebarIcon[]"
             }
@@ -1600,7 +1600,7 @@
             "code_tools",
             "notes"
           ],
-          "status": "classified",
+          "status": "pending",
           "category": "preferences",
           "targetKey": "ui.sidebar.icons.visible"
         },
@@ -1608,7 +1608,7 @@
           "originalKey": "disabled",
           "type": "PreferenceTypes.SidebarIcon[]",
           "defaultValue": [],
-          "status": "classified",
+          "status": "pending",
           "category": "preferences",
           "targetKey": "ui.sidebar.icons.invisible"
         },
