@@ -10,7 +10,7 @@ import {
   PushpinOutlined,
   ReloadOutlined
 } from '@ant-design/icons'
-import { Button, Drawer, DrawerContentMinimal, Tooltip } from '@cherrystudio/ui'
+import { Button, Drawer, DrawerContent, Tooltip } from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
 import { LogoAvatar } from '@renderer/components/Icons'
@@ -596,7 +596,9 @@ const MinappPopupContainer: React.FC = () => {
       }}
       modal={false}
       dismissible={false}>
-      <DrawerContentMinimal
+      <DrawerContent
+        overlay={false}
+        showHandle={false}
         className="minapp-drawer inset-x-0 bottom-0"
         style={{
           height: isTopNavbar ? 'calc(100% - var(--navbar-height))' : '100%',
@@ -645,7 +647,7 @@ const MinappPopupContainer: React.FC = () => {
           )}
           {WebviewContainerGroup}
         </div>
-      </DrawerContentMinimal>
+      </DrawerContent>
     </Drawer>
   )
 }

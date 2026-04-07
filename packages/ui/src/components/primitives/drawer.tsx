@@ -31,10 +31,15 @@ function DrawerOverlay({ className, ...props }: React.ComponentProps<typeof Draw
   )
 }
 
-function DrawerContent({ className, children, ...props }: React.ComponentProps<typeof DrawerPrimitive.Content>) {
+interface DrawerContentProps extends React.ComponentProps<typeof DrawerPrimitive.Content> {
+  overlay?: boolean
+  showHandle?: boolean
+}
+
+function DrawerContent({ className, children, overlay = true, showHandle = true, ...props }: DrawerContentProps) {
   return (
     <DrawerPortal data-slot="drawer-portal">
-      <DrawerOverlay />
+      {overlay && <DrawerOverlay />}
       <DrawerPrimitive.Content
         data-slot="drawer-content"
         className={cn(
@@ -46,7 +51,9 @@ function DrawerContent({ className, children, ...props }: React.ComponentProps<t
           className
         )}
         {...props}>
-        <div className="mx-auto mt-4 hidden h-2 w-25 shrink-0 rounded-full bg-muted group-data-[vaul-drawer-direction=bottom]/drawer-content:block" />
+        {showHandle && (
+          <div className="mx-auto mt-4 hidden h-2 w-25 shrink-0 rounded-full bg-muted group-data-[vaul-drawer-direction=bottom]/drawer-content:block" />
+        )}
         {children}
       </DrawerPrimitive.Content>
     </DrawerPortal>
@@ -90,28 +97,10 @@ function DrawerDescription({ className, ...props }: React.ComponentProps<typeof 
   )
 }
 
-/**
- * Minimal DrawerContent without overlay and drag handle.
- * Use when you need full control over the drawer layout (e.g. full-screen panels).
- */
-function DrawerContentMinimal({ className, children, ...props }: React.ComponentProps<typeof DrawerPrimitive.Content>) {
-  return (
-    <DrawerPortal>
-      <DrawerPrimitive.Content
-        data-slot="drawer-content"
-        className={cn('fixed z-50 flex flex-col bg-background outline-none', className)}
-        {...props}>
-        {children}
-      </DrawerPrimitive.Content>
-    </DrawerPortal>
-  )
-}
-
 export {
   Drawer,
   DrawerClose,
   DrawerContent,
-  DrawerContentMinimal,
   DrawerDescription,
   DrawerFooter,
   DrawerHeader,
@@ -120,3 +109,5 @@ export {
   DrawerTitle,
   DrawerTrigger
 }
+
+export type { DrawerContentProps }
