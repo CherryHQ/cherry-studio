@@ -31,8 +31,8 @@ export class DetachedWindowManager {
       }
     })
 
-    ipcMain.on(IpcChannel.Tab_MoveWindow, (event, payload: { tabId: string; x: number; y: number }) => {
-      const win = BrowserWindow.fromWebContents(event.sender) ?? this.windows.get(payload.tabId)
+    ipcMain.on(IpcChannel.Tab_MoveWindow, (_, payload: { tabId: string; x: number; y: number }) => {
+      const win = this.windows.get(payload.tabId)
       if (win && !win.isDestroyed()) {
         win.setPosition(Math.round(payload.x), Math.round(payload.y))
         if (!win.isVisible()) {
@@ -80,8 +80,14 @@ export class DetachedWindowManager {
       }
     )
 
-    ipcMain.on(IpcChannel.Tab_DragEnd, () => {
-      logger.info('Tab drag end')
+    ipcMain.on(IpcChannel.Tab_DragEnd, (_, payload?: { tabId?: string }) => {
+      if (payload?.tabId) {
+        const win = this.windows.get(payload.tabId)
+        if (win && !win.isDestroyed()) {
+          win.setOpacity(1)
+        }
+      }
+      logger.info('Tab drag end', payload)
     })
   }
 

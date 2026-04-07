@@ -525,7 +525,7 @@ export const AppShellTabBar = ({
         if (!dragRef.current.tabClosed && dragRef.current.tabType === 'normal') {
           closeTab(dragState.tabId)
         }
-        window.electron.ipcRenderer.send(IpcChannel.Tab_DragEnd)
+        window.electron.ipcRenderer.send(IpcChannel.Tab_DragEnd, { tabId: dragState.tabId })
       }
 
       if (rafId.current !== null) {
