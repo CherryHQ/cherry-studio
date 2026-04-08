@@ -1,3 +1,4 @@
+import type { ProviderOptions } from '@ai-sdk/provider-utils'
 import type { AiPlugin } from '@cherrystudio/ai-core'
 import { createAgent } from '@cherrystudio/ai-core'
 import type { StringKeys } from '@cherrystudio/ai-core/provider'
@@ -9,6 +10,7 @@ import type {
   StepResult,
   StopCondition,
   TelemetrySettings,
+  ToolChoice,
   ToolSet,
   UIMessage,
   UIMessageChunk
@@ -92,6 +94,39 @@ export interface AgentLoopHooks {
   onError?: (ctx: ErrorContext) => Promise<'retry' | 'abort'> | 'retry' | 'abort'
 }
 
+// ── Agent options: AI SDK settings forwarded to ToolLoopAgent ──
+
+export interface AgentOptions {
+  // CallSettings (model parameters)
+  maxOutputTokens?: number
+  temperature?: number
+  topP?: number
+  topK?: number
+  presencePenalty?: number
+  frequencyPenalty?: number
+  stopSequences?: string[]
+  seed?: number
+  maxRetries?: number
+  timeout?: number | { totalMs?: number; stepMs?: number; chunkMs?: number }
+  headers?: Record<string, string | undefined>
+
+  // Agent-specific
+  /** Tool selection strategy: 'auto' | 'required' | 'none' | { type: 'tool', toolName } */
+  toolChoice?: ToolChoice<ToolSet>
+  /** Limit which tools are available without changing the type. Dynamic subset of tools. */
+  activeTools?: string[]
+  /** Provider-specific options (reasoning effort, web search config, etc.) */
+  providerOptions?: ProviderOptions
+  /** Custom context shared across steps, passed to tool execute functions */
+  context?: unknown
+
+  // Loop control
+  /** Inner loop stop condition. Default: AI SDK default (stepCountIs(20)) */
+  stopWhen?: StopCondition<ToolSet> | Array<StopCondition<ToolSet>>
+  /** AI SDK telemetry — auto-generates otel spans for LLM calls */
+  telemetry?: TelemetrySettings
+}
+
 // ── Params ──
 
 export interface AgentLoopParams<T extends AppProviderKey = AppProviderKey> {
@@ -101,10 +136,8 @@ export interface AgentLoopParams<T extends AppProviderKey = AppProviderKey> {
   plugins?: AiPlugin[]
   tools?: ToolSet
   system?: string
-  /** AI SDK inner loop stop condition. Default: stepCountIs(20) (AI SDK default) */
-  stopWhen?: StopCondition<ToolSet> | Array<StopCondition<ToolSet>>
-  /** AI SDK telemetry — auto-generates otel spans for LLM calls */
-  telemetry?: TelemetrySettings
+  /** AI SDK agent settings (model params, tool choice, provider options, etc.) */
+  options?: AgentOptions
   hooks?: AgentLoopHooks
 }
 
@@ -136,6 +169,7 @@ export function runAgentLoop<T extends AppProviderKey>(
   const { readable, writable } = new TransformStream<UIMessageChunk>()
   const writer = writable.getWriter()
   const hooks = params.hooks ?? {}
+  const opts = params.options ?? {}
 
   ;(async () => {
     // ★ onStart
@@ -155,7 +189,7 @@ export function runAgentLoop<T extends AppProviderKey>(
       if (beforeResult?.messages) messages = beforeResult.messages
       const system = beforeResult?.system ?? params.system
 
-      // ◆ AI SDK: create agent, forward hooks to agentSettings
+      // ◆ AI SDK: create agent, forward all settings
       const modelMessages = await convertToModelMessages(messages)
       const agent = await createAgent<AppProviderSettingsMap, T, ToolSet>({
         providerId: params.providerId,
@@ -163,10 +197,32 @@ export function runAgentLoop<T extends AppProviderKey>(
         modelId: params.modelId,
         plugins: params.plugins,
         agentSettings: {
+          // Tools
           tools: params.tools as ToolSet,
+          toolChoice: opts.toolChoice,
+          activeTools: opts.activeTools as Array<keyof ToolSet>,
+          // System
           instructions: system,
-          stopWhen: params.stopWhen,
-          experimental_telemetry: params.telemetry,
+          // CallSettings (model parameters)
+          maxOutputTokens: opts.maxOutputTokens,
+          temperature: opts.temperature,
+          topP: opts.topP,
+          topK: opts.topK,
+          presencePenalty: opts.presencePenalty,
+          frequencyPenalty: opts.frequencyPenalty,
+          stopSequences: opts.stopSequences,
+          seed: opts.seed,
+          maxRetries: opts.maxRetries,
+          timeout: opts.timeout,
+          headers: opts.headers,
+          // Provider-specific
+          providerOptions: opts.providerOptions,
+          // Loop control
+          stopWhen: opts.stopWhen,
+          // Experimental
+          experimental_telemetry: opts.telemetry,
+          experimental_context: opts.context,
+          // Hooks (forwarded from AgentLoopHooks)
           prepareStep: hooks.prepareStep,
           onStepFinish: hooks.onStepFinish
         }

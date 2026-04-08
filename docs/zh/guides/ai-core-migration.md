@@ -1571,16 +1571,47 @@ interface ErrorContext {
   isRetryable: boolean
 }
 
+// ── AI SDK 透传选项 ──
+// CallSettings + Agent 特有设置，直接转发到 ToolLoopAgent agentSettings
+
+interface AgentOptions {
+  // CallSettings（模型参数）
+  maxOutputTokens?: number       // 最大输出 token
+  temperature?: number           // 温度
+  topP?: number                  // 核采样
+  topK?: number                  // Top-K 采样
+  presencePenalty?: number       // 重复惩罚
+  frequencyPenalty?: number      // 频率惩罚
+  stopSequences?: string[]       // 停止序列
+  seed?: number                  // 确定性采样
+  maxRetries?: number            // 重试次数，默认 2
+  timeout?: number | { totalMs?; stepMs?; chunkMs? }  // 超时
+  headers?: Record<string, string | undefined>        // 额外 HTTP 头
+
+  // Agent 特有
+  toolChoice?: ToolChoice        // 'auto' | 'required' | 'none' | { type: 'tool', toolName }
+  activeTools?: string[]         // 限制可用 tools 子集（不改类型）
+  providerOptions?: ProviderOptions  // provider 特有（reasoning effort, web search 等）
+  context?: unknown              // 跨步骤共享状态，传入 tool execute
+
+  // 循环控制
+  stopWhen?: StopCondition       // 内层终止条件，默认 stepCountIs(20)
+  telemetry?: TelemetrySettings  // AI SDK 原生 otel
+}
+
 // ── AgentLoopParams ──
 
 interface AgentLoopParams {
-  // Agent 配置
+  // Provider 配置（由 AiCompletionService.buildAgentParams 解析）
   providerId: string
   providerSettings: ProviderSettings
   modelId: string
-  plugins: AiPlugin[]
-  tools: ToolSet
+  plugins?: AiPlugin[]
+  tools?: ToolSet
   system?: string
+
+  // AI SDK 透传选项
+  options?: AgentOptions
 
   // 生命周期钩子
   hooks?: AgentLoopHooks
@@ -1772,9 +1803,10 @@ class PendingMessageQueue {
 | Tools 管理 | **ToolRegistry** | 替代命令式 `buildTools()`。所有 tools 注册到 registry，按请求 resolve 出 ToolSet |
 | Tool 可用性 | **`checkAvailable()`** | 借鉴 Hermes `check_fn`。每个 tool 可选声明可用性检查，resolve() 时自动过滤。API key 缺失、MCP 断连 → tool 从 LLM 视野消失 |
 | Tool 权限 | **AI SDK 原生 `needsApproval`** | 替代自建 `experimental_onToolCallStart` + IPC round-trip。AI SDK 自动管理 approval-requested → approval-responded → output-available/denied |
-| 内层钩子 | **AI SDK 原生** | `prepareStep`、`onStepFinish`、`onFinish`、`stopWhen`、`experimental_telemetry` — ToolLoopAgent 提供 |
+| 内层钩子 | **AI SDK 原生** | `prepareStep`、`onStepFinish`、`stopWhen`、`experimental_telemetry` — ToolLoopAgent 提供 |
 | 外层钩子 | **自建 AgentLoopHooks** | `onStart`、`beforeIteration`、`afterIteration`、`onFinish`、`onError` — AI SDK 不管外层循环 |
-| 钩子转发 | agentLoop 负责 | `hooks.prepareStep` / `hooks.onStepFinish` 转发到 AI SDK `agentSettings`，不重复实现 |
+| 钩子转发 | agentLoop 负责 | `hooks.prepareStep` / `hooks.onStepFinish` 转发到 AI SDK `agentSettings` |
+| AI SDK 透传 | **AgentOptions** | CallSettings（temperature 等 11 个）+ toolChoice + activeTools + providerOptions + context + stopWhen + telemetry，全部转发到 agentSettings |
 | Pending Messages | `PendingMessageQueue` + 双层 drain | 内层 `prepareStep` 步间消费 + 外层循环退出后消费。两层保证 steering 不丢失 |
 | 上下文管理 | **无损：检索 + 分层缓存** | DB 是 memory，context window 是 viewport。三层结构（system / retrieved context / working memory）。外层更新检索，内层只追加尾部 → prompt cache friendly |
 | 消息持久化 | **完成边界，非流式** | stream 是传输通道，不是存储。`onFinish` 持久化完整消息 → `Ai_MessagesPersisted` IPC → Renderer `useInvalidateCache('/messages')` (SWR) |
