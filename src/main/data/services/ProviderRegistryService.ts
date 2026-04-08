@@ -73,7 +73,12 @@ class ProviderRegistryService {
    * Call once after DbService is ready.
    */
   async initialize(): Promise<void> {
-    await this.initializePresetProviders()
+    // Isolate failures — provider init should not block model enrichment
+    try {
+      await this.initializePresetProviders()
+    } catch (error) {
+      logger.error('Failed to initialize preset providers, continuing with model enrichment', error as Error)
+    }
     await this.enrichExistingModels()
     logger.info('Initialized all preset providers and enriched existing models')
   }

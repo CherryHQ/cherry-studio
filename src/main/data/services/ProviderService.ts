@@ -184,15 +184,7 @@ export class ProviderService {
 
     await db.transaction(async (tx) => {
       for (const provider of providers) {
-        await tx
-          .insert(userProviderTable)
-          .values(provider)
-          .onConflictDoUpdate({
-            target: [userProviderTable.providerId],
-            set: {
-              presetProviderId: provider.presetProviderId
-            }
-          })
+        await tx.insert(userProviderTable).values(provider).onConflictDoNothing()
       }
     })
 

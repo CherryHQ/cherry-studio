@@ -6,10 +6,11 @@
 import * as z from 'zod'
 
 import { MetadataSchema, ProviderIdSchema, VersionSchema } from './common'
-import { ENDPOINT_TYPE, GEMINI_THINKING_LEVEL, objectValues, REASONING_EFFORT } from './enums'
+import { ENDPOINT_TYPE, type EndpointType, GEMINI_THINKING_LEVEL, objectValues, REASONING_EFFORT } from './enums'
 import { CommonReasoningFieldsSchema } from './model'
 
 export const EndpointTypeSchema = z.enum(objectValues(ENDPOINT_TYPE))
+const endpointTypeValues: readonly string[] = objectValues(ENDPOINT_TYPE)
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // API Features
@@ -208,7 +209,14 @@ export const ProviderConfigSchema = z
     /** Provider description */
     description: z.string().optional(),
     /** Per-endpoint-type configuration (partial record — not all endpoint types need to be present) */
-    endpointConfigs: z.record(z.string(), RegistryEndpointConfigSchema).optional(),
+    endpointConfigs: z
+      .record(
+        z.string().refine((k): k is EndpointType => endpointTypeValues.includes(k), {
+          message: `Invalid endpoint type key, must be one of: ${objectValues(ENDPOINT_TYPE).join(', ')}`
+        }),
+        RegistryEndpointConfigSchema
+      )
+      .optional(),
     /** Default endpoint type for chat requests (must exist in endpointConfigs when both are present) */
     defaultChatEndpoint: EndpointTypeSchema.optional(),
     /** API feature flags controlling request construction */
