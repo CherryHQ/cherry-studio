@@ -48,7 +48,7 @@ export const AssistantSettingsSchema = z.object({
   /** @default true — streaming provides better UX */
   streamOutput: z.boolean().default(true),
   /** @default 'default' — let model decide */
-  reasoning_effort: z.enum(['default', 'low', 'medium', 'high', 'none']).default('default'),
+  reasoning_effort: z.string().default('default'),
   /** @default false — Qwen-specific thinking mode */
   qwenThinkMode: z.boolean().default(false),
 
