@@ -6,7 +6,7 @@
  * - Merging configurations using mergeModelConfig/mergeProviderConfig
  * - Writing resolved data to user_model / user_provider tables
  *
- * Managed by the lifecycle system. Seeds preset data during onInit.
+ * Direct-import singleton. Seeds preset data via initialize().
  */
 
 import { join } from 'node:path'
@@ -30,8 +30,6 @@ import { userProviderTable } from '@data/db/schemas/userProvider'
 import { loggerService } from '@logger'
 import { isDev } from '@main/constant'
 import { application } from '@main/core/application'
-import { BaseService, DependsOn, Injectable, ServicePhase } from '@main/core/lifecycle'
-import { Phase } from '@main/core/lifecycle'
 import type { Model } from '@shared/data/types/model'
 import type { EndpointConfig, ReasoningFormatType } from '@shared/data/types/provider'
 import { extractReasoningFormatTypes, mergeModelConfig } from '@shared/data/utils/modelMerger'
@@ -67,20 +65,19 @@ function buildRuntimeEndpointConfigs(
   return Object.keys(configs).length > 0 ? configs : null
 }
 
-@Injectable('ProviderRegistryService')
-@ServicePhase(Phase.BeforeReady)
-@DependsOn(['DbService'])
-export class ProviderRegistryService extends BaseService {
+class ProviderRegistryService {
   private registryModels: ProtoModelConfig[] | null = null
   private registryProviderModels: ProtoProviderModelOverride[] | null = null
   private registryProviders: ProtoProviderConfig[] | null = null
 
-  protected async onInit(): Promise<void> {
-    await this.initializeAllPresetProviders()
-  }
-
-  protected onDestroy(): void {
-    this.clearCache()
+  /**
+   * Seeds all preset providers and enriches existing models.
+   * Call once after DbService is ready.
+   */
+  async initialize(): Promise<void> {
+    await this.initializePresetProviders()
+    await this.enrichExistingModels()
+    logger.info('Initialized all preset providers and enriched existing models')
   }
 
   private getRegistryDataPath(): string {
@@ -313,13 +310,6 @@ export class ProviderRegistryService extends BaseService {
     logger.info('Initialized preset providers from registry', { count: dbRows.length })
   }
 
-  private async initializeAllPresetProviders(): Promise<void> {
-    await this.initializePresetProviders()
-    await this.enrichExistingModels()
-
-    logger.info('Initialized all preset providers and enriched existing models')
-  }
-
   async enrichExistingModels(): Promise<void> {
     const registryModels = this.loadRegistryModels()
     const providerModels = this.loadProviderModels()
@@ -525,10 +515,6 @@ export class ProviderRegistryService extends BaseService {
 
     return results
   }
-
-  clearCache(): void {
-    this.registryModels = null
-    this.registryProviderModels = null
-    this.registryProviders = null
-  }
 }
+
+export const providerRegistryService = new ProviderRegistryService()
