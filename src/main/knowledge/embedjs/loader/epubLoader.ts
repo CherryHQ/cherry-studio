@@ -2,7 +2,7 @@ import { BaseLoader } from '@cherrystudio/embedjs-interfaces'
 import { cleanString } from '@cherrystudio/embedjs-utils'
 import { RecursiveCharacterTextSplitter } from '@langchain/textsplitters'
 import { loggerService } from '@logger'
-import { getTempDir } from '@main/utils/file'
+import { application } from '@main/core/application'
 import EPub from 'epub'
 import * as fs from 'fs'
 import path from 'path'
@@ -143,7 +143,7 @@ export class EpubLoader extends BaseLoader<Record<string, string | number | bool
       }
 
       // 使用临时文件而不是内存数组
-      const tempFilePath = path.join(getTempDir(), `epub-${Date.now()}.txt`)
+      const tempFilePath = application.getPath('app.temp', `epub-${Date.now()}.txt`)
       const writeStream = fs.createWriteStream(tempFilePath)
 
       // 遍历所有章节

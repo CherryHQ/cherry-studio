@@ -220,11 +220,11 @@ const { data: files } = useQuery('/files')
               └──────────┬───────────┘
                          │
          ┌───────────────▼─────────────┐
-         │ BootConfigService           │
-         │ (sync load, boot-config.json│
-         │  also used directly in      │
-         │  early boot before lifecycle│
-         └─────────────────────────────┘
+         │ BootConfigService                       │
+         │ (sync load, ~/.cherrystudio/            │
+         │  boot-config.json — also used directly  │
+         │  in early boot before lifecycle)        │
+         └─────────────────────────────────────────┘
 ```
 
 ## Related Source Code
