@@ -8,8 +8,6 @@ import { InputNumber, Space } from 'antd'
 import { memo, useCallback, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { AiProvider } from '../aiCore'
-
 const logger = loggerService.withContext('DimensionsInput')
 
 interface InputEmbeddingDimensionProps {
@@ -49,8 +47,12 @@ const InputEmbeddingDimension = ({
 
     setLoading(true)
     try {
-      const aiProvider = new AiProvider(provider)
-      const dimension = await aiProvider.getEmbeddingDimensions(model)
+      const { embeddings } = await window.api.ai.embedMany({
+        providerId: provider.id,
+        modelId: model.id,
+        values: ['test']
+      })
+      const dimension = embeddings[0].length
       // for controlled input
       if (ref?.current) {
         ref.current.value = dimension.toString()

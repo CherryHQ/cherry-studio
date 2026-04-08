@@ -1,8 +1,15 @@
-import { createAgent } from '@cherrystudio/ai-core'
+import { createAgent, embedMany as aiCoreEmbedMany } from '@cherrystudio/ai-core'
 import { loggerService } from '@logger'
 import { reduxService } from '@main/services/ReduxService'
 import type { Assistant, Model, Provider } from '@types'
-import type { ChatTransport, LanguageModelUsage, ModelMessage, UIMessage, UIMessageChunk } from 'ai'
+import type {
+  ChatTransport,
+  EmbeddingModelUsage,
+  LanguageModelUsage,
+  ModelMessage,
+  UIMessage,
+  UIMessageChunk
+} from 'ai'
 
 import { runAgentLoop } from './agentLoop'
 import { buildPlugins } from './plugins/PluginBuilder'
@@ -47,6 +54,17 @@ export interface AiGenerateRequest extends AiBaseRequest {
 export interface AiGenerateResult {
   text: string
   usage?: LanguageModelUsage
+}
+
+/** Embedding request. */
+export interface AiEmbedRequest extends AiBaseRequest {
+  values: string[]
+}
+
+/** Embedding result. */
+export interface AiEmbedResult {
+  embeddings: number[][]
+  usage?: EmbeddingModelUsage
 }
 
 // ── Service ──
@@ -129,6 +147,26 @@ export class AiCompletionService {
       : await agent.generate({ messages: request.messages ?? [] })
 
     return { text: result.text, usage: result.usage }
+  }
+
+  // ── Embedding ──
+
+  async embedMany(request: AiEmbedRequest): Promise<AiEmbedResult> {
+    logger.info('embedMany started', { assistantId: request.assistantId, count: request.values.length })
+
+    const { sdkConfig } = await this.buildAgentParams(request)
+
+    const result = await aiCoreEmbedMany<AppProviderSettingsMap>(sdkConfig.providerId, sdkConfig.providerSettings, {
+      model: sdkConfig.modelId,
+      values: request.values
+    })
+
+    return { embeddings: result.embeddings, usage: result.usage }
+  }
+
+  async getEmbeddingDimensions(request: AiBaseRequest): Promise<number> {
+    const { embeddings } = await this.embedMany({ ...request, values: ['test'] })
+    return embeddings[0].length
   }
 
   // ── API validation ──

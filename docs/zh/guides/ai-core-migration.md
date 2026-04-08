@@ -139,7 +139,7 @@ src/
 
 - **不引入 AiRuntime 中间层**：AiCompletionService 直接调用 `packages/aiCore` 的 `createAgent()`。aiCore 已经封装了 provider 解析 + plugin pipeline + model resolution，再包一层只是透传没有价值。
 - **不使用 BuildContext**：AiCompletionService 直接从各 service 获取数据，传具体参数给具体函数。不引入中间"context bag"对象——每个函数只接收它需要的参数。
-- **AiCompletionService 是所有 AI 调用的唯一入口**：不仅 chat streaming（`streamText`），还包括 topic 命名、笔记摘要、通用文本生成（`generateText`）、图片生成（`generateImage`）、模型列表（`listModels`）、API 验证（`checkModel`）。所有方法共享 provider 解析（`resolveFromRedux`）+ plugin pipeline。Renderer ApiService 中的 AI 调用逐步迁移为 `window.api.ai.*` IPC 调用。
+- **AiCompletionService 是所有 AI 调用的唯一入口**：不仅 chat streaming（`streamText`），还包括 topic 命名、笔记摘要、通用文本生成（`generateText`）、embedding 维度检测（`getEmbeddingDimensions`）、图片生成（`generateImage`）、模型列表（`listModels`）、API 验证（`checkModel`）。所有方法共享 provider 解析（`resolveFromRedux` → `buildAgentParams`）+ plugin pipeline。Renderer ApiService 中的 AI 调用逐步迁移为 `window.api.ai.*` IPC 调用。
 - **统一使用 ToolLoopAgent，不区分 chat/agent 模式**：Chat 和 Agent 的唯一区别是 tools 的配置方式——Chat 由用户手动配置 tools（MCP tools、web search 等），Agent 自主决策 tools。统一走 `createAgent()` → `agent.stream()`，一条代码路径，无分支。
 - **双循环架构（借鉴 Hermes / pi-mono）**：内层 = AI SDK ToolLoopAgent（LLM → tool call → execute → repeat）；外层 = `runAgentLoop()` 的 `while(true)`。内层退出条件是"LLM 不再调用 tool"，外层退出条件是"没有更多工作"（pending messages 为空、无 follow-up）。`prepareStep` 处理内层步间的 steering，外层兜住内层结束后到达的 steering。
 - **通过 ToolLoopAgent 内置钩子实现内层控制**：`prepareStep`（动态调整 tools/model/messages、消费 steering 消息）、`onStepFinish`（进度推送）、`onFinish`（token 汇总）、`stopWhen`（停止条件）。
@@ -1057,7 +1057,9 @@ generateText()  → createAgent() → agent.generate()  → { text, usage }
 | `fetchGenerate` | 通用文本生成 | `agent.generate()` | `generateText()` |
 | `fetchImageGeneration` | 图片生成 | — (非 LLM) | `generateImage()` |
 | `fetchModels` | 模型列表 | — (HTTP) | `listModels()` |
-| `checkApi` / `checkModel` | API 验证 | `agent.generate()` | `checkModel()` |
+| `checkApi` (非 embedding) | API 验证 | `agent.generate()` | `checkModel()` ✅ 已实现 |
+| `checkApi` (embedding) | Embedding 验证 | `executor.embedMany()` | `getEmbeddingDimensions()` |
+| `InputEmbeddingDimension` | 知识库维度检测 | `executor.embedMany()` | `getEmbeddingDimensions()` |
 | `fetchMcpTools` | MCP 工具发现 | — | 不需要（MCPService 已在 Main） |
 
 ```typescript
@@ -1125,10 +1127,30 @@ export class AiCompletionService {
   }
 
   // ── API 验证 ──
-  async checkModel(request: AiBaseRequest): Promise<{ latency: number }> {
+  async checkModel(request: AiBaseRequest & { timeout?: number }): Promise<{ latency: number }> {
     const start = performance.now()
-    await this.generateText({ ...request, system: 'test', prompt: 'hi' })
+    const timeout = request.timeout ?? 15000
+    const timeoutPromise = new Promise<never>((_, reject) =>
+      setTimeout(() => reject(new Error('Check model timeout')), timeout)
+    )
+    await Promise.race([this.generateText({ ...request, system: 'test', prompt: 'hi' }), timeoutPromise])
     return { latency: performance.now() - start }
+  }
+
+  // ── Embedding（底层原语）──
+  // embedMany 是原语，getEmbeddingDimensions 是业务封装
+  async embedMany(request: AiEmbedRequest): Promise<{ embeddings: number[][]; usage?: EmbeddingTokenUsage }> {
+    const { sdkConfig } = await this.buildAgentParams(request)
+    const executor = await createExecutor<AppProviderSettingsMap>(
+      sdkConfig.providerId, sdkConfig.providerSettings, []
+    )
+    return executor.embedMany({ model: sdkConfig.modelId, values: request.values })
+  }
+
+  /** 业务封装: 发送 ['test'] 获取 embedding 维度 */
+  async getEmbeddingDimensions(request: AiBaseRequest): Promise<number> {
+    const { embeddings } = await this.embedMany({ ...request, values: ['test'] })
+    return embeddings[0].length
   }
 
   // ... resolveFromRedux, registerRequest, abort 等已有方法
@@ -1142,6 +1164,8 @@ export class AiCompletionService {
 | `streamText()` | `runAgentLoop()` → `agent.stream()` | ✅ tools + steering | ✅ |
 | `generateText()` | 直接 `createAgent()` → `agent.generate()` | ✅ tools | ❌ |
 | `generateImage()` | `aiCoreGenerateImage()` | ❌ | ❌ |
+| `embedMany()` | `executor.embedMany()` | ❌ | ❌ |
+| `getEmbeddingDimensions()` | `embedMany()` 业务封装 | ❌ | ❌ |
 | `listModels()` | Provider HTTP | ❌ | ❌ |
 
 `streamText` 走 `runAgentLoop`（因为需要双循环 + steering + 流式拼接）。
@@ -1160,7 +1184,8 @@ export class AiCompletionService {
 | `Ai_GenerateText` | Renderer → Main | 非流式文本生成（新增） |
 | `Ai_GenerateImage` | Renderer → Main | 图片生成（新增） |
 | `Ai_ListModels` | Renderer → Main | 模型列表（新增） |
-| `Ai_CheckModel` | Renderer → Main | API 验证（新增） |
+| `Ai_CheckModel` | Renderer → Main | API 验证 ✅ 已实现 |
+| `Ai_EmbedMany` | Renderer → Main | Embedding 原语（新增） |
 
 **Preload API 扩展**:
 
@@ -1178,6 +1203,7 @@ ai: {
   generateImage: (request) => ipcRenderer.invoke(Ai_GenerateImage, request),
   listModels: (request) => ipcRenderer.invoke(Ai_ListModels, request),
   checkModel: (request) => ipcRenderer.invoke(Ai_CheckModel, request),
+  embedMany: (request) => ipcRenderer.invoke(Ai_EmbedMany, request),
 }
 ```
 
@@ -1206,12 +1232,13 @@ export async function fetchMessagesSummary({ messages }) {
 
 **迁移顺序** (从低风险到高风险):
 
-1. `checkModel` — 最简单，最小请求
-2. `fetchModels` — 无 AI 调用，只是 HTTP
-3. `fetchMessagesSummary` / `fetchNoteSummary` — `generateText`，非流式
-4. `fetchGenerate` — 同上
-5. `fetchImageGeneration` — `generateImage`，独立路径
-6. `fetchChatCompletion` — 已被 V2 路径 (`streamText`) 替代，最后删除
+1. ✅ `checkModel` (非 embedding) — 最简单，最小请求
+2. ✅ `fetchMessagesSummary` / `fetchNoteSummary` — `generateText`，非流式
+3. ✅ `fetchGenerate` — 同上
+4. `getEmbeddingDimensions` — `executor.embedMany()`，影响 checkApi(embedding) + InputEmbeddingDimension 组件 + 知识库/记忆设置
+5. `fetchModels` — 200+ 行 provider-specific HTTP 逻辑，独立任务
+6. `fetchImageGeneration` — `generateImage`，独立路径
+7. `fetchChatCompletion` — 已被 V2 路径 (`streamText`) 替代，最后删除
 
 **请求类型**:
 
@@ -1237,6 +1264,11 @@ interface AiImageRequest extends AiBaseRequest {
   inputImages?: string[]
   n?: number
   size?: string
+}
+
+// Embedding
+interface AiEmbedRequest extends AiBaseRequest {
+  values: string[]
 }
 ```
 
@@ -2542,12 +2574,19 @@ Phase 2 (IPC 通道):
   ⑩ 联调 — Renderer 发请求 → Main 流式回传
 
 Phase 2.5 (ApiService 迁移):
-  ⑪ checkModel → window.api.ai.checkModel (最简单，最小请求)
-  ⑫ fetchModels → window.api.ai.listModels (无 AI 调用)
-  ⑬ fetchMessagesSummary / fetchNoteSummary → window.api.ai.generateText
-  ⑭ fetchGenerate → window.api.ai.generateText
-  ⑮ fetchImageGeneration → window.api.ai.generateImage
-  ⑯ 删除 renderer ApiService 中的 AI 调用代码 + AiProvider 类
+  ⑪ checkModel → window.api.ai.checkModel ✅ 已实现（非 embedding）
+  ⑫ fetchMessagesSummary / fetchNoteSummary → window.api.ai.generateText ✅ 已实现
+  ⑬ fetchGenerate → window.api.ai.generateText ✅ 已实现
+  ⑭ embedMany + getEmbeddingDimensions (embedding 验证 + 知识库维度检测)
+     需要: 新增 Ai_EmbedMany IPC channel
+     AiCompletionService: embedMany() 原语 + getEmbeddingDimensions() 业务封装
+     Renderer 调用方迁移为 window.api.ai.embedMany():
+       - checkApi (embedding models) → embedMany({ values: ['test'] })
+       - InputEmbeddingDimension 组件
+       - KnowledgeSettings, MemorySettings, RagSettings
+  ⑮ fetchModels → window.api.ai.listModels (200+ 行 provider-specific HTTP 逻辑，独立任务)
+  ⑯ fetchImageGeneration → window.api.ai.generateImage
+  ⑰ 删除 renderer ApiService 中的 AI 调用代码 + AiProvider 类
 
 Phase 3 (useChat 接入):
   ⑰ @ai-sdk/react + DataUIPart schema + useAiChat hook

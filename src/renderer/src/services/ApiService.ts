@@ -637,11 +637,11 @@ export async function checkApi(provider: Provider, model: Model, timeout = 15000
   checkApiProvider(provider)
 
   if (isEmbeddingModel(model)) {
-    // TODO: migrate embedding check to Main
-    const ai = new AiProvider(model, provider)
-    logger.info('checkApi: embedding model detected, calling getEmbeddingDimensions', { modelId: model.id })
     const timerPromise = new Promise<never>((_, reject) => setTimeout(() => reject(new Error('Timeout')), timeout))
-    await Promise.race([ai.getEmbeddingDimensions(model), timerPromise])
+    await Promise.race([
+      window.api.ai.embedMany({ providerId: provider.id, modelId: model.id, values: ['test'] }),
+      timerPromise
+    ])
   } else {
     await window.api.ai.checkModel({ providerId: provider.id, modelId: model.id, timeout })
   }

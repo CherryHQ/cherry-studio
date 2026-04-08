@@ -4,7 +4,13 @@ import { IpcChannel } from '@shared/IpcChannel'
 import { type SerializedError, serializeError } from '@shared/types/error'
 import type { UIMessageChunk } from 'ai'
 
-import { AiCompletionService, type AiGenerateRequest, type AiStreamRequest } from './AiCompletionService'
+import {
+  type AiBaseRequest,
+  AiCompletionService,
+  type AiEmbedRequest,
+  type AiGenerateRequest,
+  type AiStreamRequest
+} from './AiCompletionService'
 import { ToolRegistry } from './tools/ToolRegistry'
 
 const logger = loggerService.withContext('AiService')
@@ -72,12 +78,14 @@ export class AiService extends BaseService {
     })
 
     // API validation (minimal request to check provider/model works)
-    this.ipcHandle(
-      IpcChannel.Ai_CheckModel,
-      async (_, request: { providerId?: string; modelId?: string; timeout?: number }) => {
-        return this.completionService.checkModel(request)
-      }
-    )
+    this.ipcHandle(IpcChannel.Ai_CheckModel, async (_, request: AiBaseRequest & { timeout?: number }) => {
+      return this.completionService.checkModel(request)
+    })
+
+    // Embedding
+    this.ipcHandle(IpcChannel.Ai_EmbedMany, async (_, request: AiEmbedRequest) => {
+      return this.completionService.embedMany(request)
+    })
   }
 
   /**

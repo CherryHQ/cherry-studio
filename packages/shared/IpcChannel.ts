@@ -485,5 +485,6 @@ export enum IpcChannel {
   Ai_StreamError = 'ai:stream-error',
   Ai_Abort = 'ai:abort',
   Ai_GenerateText = 'ai:generate-text',
-  Ai_CheckModel = 'ai:check-model'
+  Ai_CheckModel = 'ai:check-model',
+  Ai_EmbedMany = 'ai:embed-many'
 }
