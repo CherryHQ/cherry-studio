@@ -892,7 +892,9 @@ const api = {
       prompt?: string
       messages?: unknown[]
       mcpToolIds?: string[]
-    }): Promise<{ text: string; usage?: unknown }> => ipcRenderer.invoke(IpcChannel.Ai_GenerateText, request)
+    }): Promise<{ text: string; usage?: unknown }> => ipcRenderer.invoke(IpcChannel.Ai_GenerateText, request),
+    checkModel: (request: { providerId?: string; modelId?: string; timeout?: number }): Promise<{ latency: number }> =>
+      ipcRenderer.invoke(IpcChannel.Ai_CheckModel, request)
   },
   apiServer: {
     getStatus: (): Promise<GetApiServerStatusResult> => ipcRenderer.invoke(IpcChannel.ApiServer_GetStatus),

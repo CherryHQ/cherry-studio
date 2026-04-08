@@ -131,6 +131,20 @@ export class AiCompletionService {
     return { text: result.text, usage: result.usage }
   }
 
+  // ── API validation ──
+
+  async checkModel(request: AiBaseRequest & { timeout?: number }): Promise<{ latency: number }> {
+    const start = performance.now()
+    const timeout = request.timeout ?? 15000
+    const timeoutPromise = new Promise<never>((_, reject) =>
+      setTimeout(() => reject(new Error('Check model timeout')), timeout)
+    )
+
+    await Promise.race([this.generateText({ ...request, system: 'test', prompt: 'hi' }), timeoutPromise])
+
+    return { latency: performance.now() - start }
+  }
+
   // ── Shared agent parameter resolution ──
 
   private async buildAgentParams(request: AiBaseRequest) {

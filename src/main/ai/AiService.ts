@@ -70,6 +70,14 @@ export class AiService extends BaseService {
     this.ipcHandle(IpcChannel.Ai_GenerateText, async (_, request: AiGenerateRequest) => {
       return this.completionService.generateText(request)
     })
+
+    // API validation (minimal request to check provider/model works)
+    this.ipcHandle(
+      IpcChannel.Ai_CheckModel,
+      async (_, request: { providerId?: string; modelId?: string; timeout?: number }) => {
+        return this.completionService.checkModel(request)
+      }
+    )
   }
 
   /**

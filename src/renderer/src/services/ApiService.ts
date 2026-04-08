@@ -12,21 +12,18 @@ import i18n from '@renderer/i18n'
 import { hubMCPServer } from '@renderer/store/mcp'
 import type { Assistant, MCPServer, MCPTool, Model, Provider } from '@renderer/types'
 import { type FetchChatCompletionParams, getEffectiveMcpMode, isSystemProvider } from '@renderer/types'
-import type { StreamTextParams } from '@renderer/types/aiCoreTypes'
 import { type Chunk, ChunkType } from '@renderer/types/chunk'
-import type { Message, ResponseError } from '@renderer/types/newMessage'
-import { removeSpecialCharactersForTopicName, uuid } from '@renderer/utils'
-import { abortCompletion, readyToAbort } from '@renderer/utils/abortController'
+import type { Message } from '@renderer/types/newMessage'
+import { removeSpecialCharactersForTopicName } from '@renderer/utils'
 import { isToolUseModeFunction } from '@renderer/utils/assistant'
 import { isPromptToolUse, isSupportedToolUse } from '@renderer/utils/assistant'
-import { getErrorMessage, isAbortError } from '@renderer/utils/error'
+import { getErrorMessage } from '@renderer/utils/error'
 import { purifyMarkdownImages } from '@renderer/utils/markdown'
 import { findFileBlocks, findImageBlocks, getMainTextContent } from '@renderer/utils/messageUtils/find'
 import { containsSupportedVariables, replacePromptVariables } from '@renderer/utils/prompt'
 import { NOT_SUPPORT_API_KEY_PROVIDER_TYPES, NOT_SUPPORT_API_KEY_PROVIDERS } from '@renderer/utils/provider'
 import { isEmpty, takeRight } from 'lodash'
 
-import type { AiProviderConfig } from '../aiCore'
 import { AiProvider } from '../aiCore'
 import {
   // getAssistantProvider,
@@ -633,59 +630,20 @@ export function checkApiProvider(provider: Provider): void {
 
 /**
  * Validates that a provider/model pair is working by sending a minimal request.
- * @param provider - The provider configuration to test.
- * @param model - The model to use for the validation request (chat or embeddings).
- * @param timeout - Maximum time (ms) to wait for the request to complete. Defaults to 15000 ms.
- * @throws {Error} If the request fails or times out, indicating the API is not usable.
+ * Non-embedding models: via Main IPC (window.api.ai.checkModel)
+ * Embedding models: still uses renderer-side AiProvider (TODO: migrate to Main)
  */
 export async function checkApi(provider: Provider, model: Model, timeout = 15000): Promise<void> {
   checkApiProvider(provider)
 
-  const ai = new AiProvider(model, provider)
-
-  const assistant = getDefaultAssistant()
-  assistant.model = model
-  assistant.prompt = 'test' // 避免部分 provider 空系统提示词会报错
-
   if (isEmbeddingModel(model)) {
+    // TODO: migrate embedding check to Main
+    const ai = new AiProvider(model, provider)
     logger.info('checkApi: embedding model detected, calling getEmbeddingDimensions', { modelId: model.id })
     const timerPromise = new Promise<never>((_, reject) => setTimeout(() => reject(new Error('Timeout')), timeout))
     await Promise.race([ai.getEmbeddingDimensions(model), timerPromise])
   } else {
-    const abortId = uuid()
-    const signal = readyToAbort(abortId)
-    let streamError: ResponseError | undefined
-    const params: StreamTextParams = {
-      system: assistant.prompt,
-      prompt: 'hi',
-      abortSignal: signal
-    }
-    const config: AiProviderConfig = {
-      streamOutput: true,
-      enableReasoning: false,
-      isSupportedToolUse: false,
-      enableWebSearch: false,
-      enableGenerateImage: false,
-      isPromptToolUse: false,
-      enableUrlContext: false,
-      assistant,
-      callType: 'check',
-      onChunk: (chunk: Chunk) => {
-        if (chunk.type === ChunkType.ERROR) {
-          streamError = chunk.error
-        } else {
-          abortCompletion(abortId)
-        }
-      }
-    }
-
-    try {
-      await ai.completions(model.id, params, config)
-    } catch (e) {
-      if (!isAbortError(e) && !isAbortError(streamError)) {
-        throw streamError ?? e
-      }
-    }
+    await window.api.ai.checkModel({ providerId: provider.id, modelId: model.id, timeout })
   }
 }
 
