@@ -3,7 +3,8 @@
  */
 
 /** Branded type for composite model IDs in `provider::modelId` format */
-export type CompositeModelId = string & { readonly __brand: 'CompositeModelId' }
+declare const CompositeModelIdBrand: unique symbol
+export type CompositeModelId = string & { readonly [CompositeModelIdBrand]: true }
 
 /**
  * Build a composite model ID in `providerId::modelId` format.
