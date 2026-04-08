@@ -27,10 +27,6 @@ vi.mock('electron', () => ({
   }
 }))
 
-vi.mock('../utils', () => ({
-  getDataPath: vi.fn((subPath?: string) => (subPath ? path.join('/userData/Data', subPath) : '/userData/Data'))
-}))
-
 const mockRepo = {
   getByFolderName: vi.fn(),
   delete: vi.fn(),
@@ -58,7 +54,8 @@ vi.mock('../utils/markdownParser', () => ({
 }))
 
 const resourceSkillsPath = '/app/resources/skills'
-const globalSkillsPath = '/userData/Data/Skills'
+// Matches the stub in tests/main.setup.ts → mockApplicationFactory().getPath
+const globalSkillsPath = '/mock/feature.agents.skills'
 
 beforeEach(() => {
   vi.clearAllMocks()

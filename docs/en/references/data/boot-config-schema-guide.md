@@ -34,7 +34,7 @@ Boot config keys follow the same naming convention as preferences.
 | Valid | Invalid | Reason |
 |-------|---------|--------|
 | `app.disable_hardware_acceleration` | `disableHardwareAcceleration` | Missing dot separator |
-| `app.custom_data_dir` | `App.customDataDir` | Uppercase, camelCase |
+| `app.user_data_path` | `App.userDataPath` | Uppercase, camelCase |
 | `chromium.gpu_compositing` | `gpu` | Single segment |
 
 ## Adding a New Boot Config Key
@@ -43,17 +43,17 @@ Boot config keys follow the same naming convention as preferences.
 
 **File:** `packages/shared/data/bootConfig/bootConfigSchemas.ts`
 
-Add your key to the `BootConfigSchema` interface and `DefaultBootConfig`:
+The schema interface and defaults live side by side. The current shape looks like this — follow the same pattern for any new key (matching naming convention, matching entry in `DefaultBootConfig`):
 
 ```typescript
 export interface BootConfigSchema {
   'app.disable_hardware_acceleration': boolean
-  'app.custom_data_dir': string  // ← new key
+  'app.user_data_path': Record<string, string>
 }
 
 export const DefaultBootConfig: BootConfigSchema = {
   'app.disable_hardware_acceleration': false,
-  'app.custom_data_dir': ''  // ← sensible default
+  'app.user_data_path': {}
 }
 ```
 
@@ -85,12 +85,6 @@ import { bootConfigService } from '@main/data/bootConfig'
 if (bootConfigService.get('app.disable_hardware_acceleration')) {
   app.disableHardwareAcceleration()
 }
-
-// New: apply custom data dir
-const customDir = bootConfigService.get('app.custom_data_dir')
-if (customDir) {
-  app.setPath('userData', customDir)
-}
 ```
 
 ### Step 4: Access from Renderer / Lifecycle Services
@@ -99,10 +93,12 @@ No additional wiring needed. The `BootConfigPreferenceKeys` mapped type automati
 
 ```typescript
 // Renderer — works immediately after adding to schema
-const [customDir, setCustomDir] = usePreference('BootConfig.app.custom_data_dir')
+const [disableHardwareAcceleration, setDisableHardwareAcceleration] = usePreference(
+  'BootConfig.app.disable_hardware_acceleration'
+)
 
 // Main process lifecycle service
-const customDir = preferenceService.get('BootConfig.app.custom_data_dir')
+const disableHardwareAcceleration = preferenceService.get('BootConfig.app.disable_hardware_acceleration')
 ```
 
 For detailed usage of `usePreference`, see [Preference Usage Guide](./preference-usage.md).

@@ -3,7 +3,6 @@ import { loggerService } from '@logger'
 import { isDev, isLinux, isMac, isWin } from '@main/constant'
 import { application } from '@main/core/application'
 import { BaseService, Emitter, type Event, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
-import { getFilesDir } from '@main/utils/file'
 import { getWindowsBackgroundMaterial, replaceDevtoolsFont } from '@main/utils/windowUtil'
 import { MIN_WINDOW_HEIGHT, MIN_WINDOW_WIDTH } from '@shared/config/constant'
 import { IpcChannel } from '@shared/IpcChannel'
@@ -415,7 +414,7 @@ export class WindowService extends BaseService {
           logger.warn('Blocked empty file name in http://file/ URL')
           return { action: 'deny' }
         }
-        const storageDir = getFilesDir()
+        const storageDir = application.getPath('feature.files.data')
         const filePath = path.resolve(storageDir, fileName)
         // Prevent path traversal: ensure resolved path is within storageDir
         if (!filePath.startsWith(path.resolve(storageDir) + path.sep)) {

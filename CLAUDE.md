@@ -9,6 +9,7 @@ This file provides guidance to AI coding assistants when working with code in th
 - **Search smart**: Prefer `ast-grep` for semantic queries; fall back to `rg`/`grep` when needed.
 - **Build with Tailwind CSS & Shadcn UI**: Use components from `@packages/ui` (Shadcn UI + Tailwind CSS) for every new UI component; never add `antd` or `styled-components`.
 - **Log centrally**: Route all logging through `loggerService` with the right context—no `console.log`.
+- **Access paths centrally**: Use `application.getPath('namespace.key', filename?)` for all main-process filesystem paths—never call `app.getPath()`, `os.homedir()`, or construct paths ad-hoc.
 - **Research via subagent**: Lean on `subagent` for external docs, APIs, news, and references.
 - **Always propose before executing**: Before making any changes, clearly explain your planned approach and wait for explicit user approval to ensure alignment and prevent unwanted modifications.
 - **Lint, test, and format before completion**: Coding tasks are only complete after running `pnpm lint`, `pnpm test`, and `pnpm format` successfully.
@@ -195,7 +196,7 @@ logger.error("message", error);
 ```
 
 - Backend: Winston with daily log rotation
-- Log files in `userData/logs/`
+- Log files at the platform-standard location via `app.getPath('logs')` (e.g., `~/Library/Logs/<App>/` on macOS)
 - Never use `console.log` — always use `loggerService`
 
 ### Tracing (OpenTelemetry)
@@ -204,6 +205,12 @@ logger.error("message", error);
 - `NodeTraceService` exports spans via OTLP HTTP
 - `SpanCacheService` caches span entities for the trace viewer window
 - IPC calls can carry span context via `tracedInvoke()`
+
+## Path Management
+
+`application.getPath('namespace.key', filename?)` is the sole entry point for all main-process filesystem paths. Never call `app.getPath()`, `os.homedir()`, or construct paths ad-hoc.
+
+**MUST READ**: [src/main/core/paths/README.md](src/main/core/paths/README.md) — namespaces, naming, adding new keys, testing patterns.
 
 ## Tech Stack
 
