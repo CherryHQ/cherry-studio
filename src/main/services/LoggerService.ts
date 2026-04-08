@@ -66,7 +66,7 @@ export class LoggerService {
     }
 
     // Create logs directory path
-    this.logsDir = path.join(app.getPath('userData'), 'logs')
+    this.logsDir = app.getPath('logs')
 
     // env variables, only used in dev mode
     // only affect console output, not affect file output

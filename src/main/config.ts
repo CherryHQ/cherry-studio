@@ -1,3 +1,15 @@
+/**
+ * @deprecated Scheduled for removal in v2.0.0
+ * ⚠️ NOTICE: V2 DATA&UI REFACTORING
+ * STOP: Feature PRs affecting this file are currently BLOCKED.
+ *
+ * This file is a v1 leftover. Its responsibilities (the dev-mode `userData + 'Dev'`
+ * suffix and legacy DATA_PATH / titleBarOverlay / global secret exports) will be
+ * absorbed by BootConfigService and the lifecycle system in v2. Do not extend
+ * this file. Do not treat its patterns as a baseline for new design — route new
+ * boot-time logic through BootConfigService and the lifecycle phases instead.
+ */
+
 import { isDev, isWin } from '@main/constant'
 import { app } from 'electron'
 

@@ -16,9 +16,20 @@
 // eslint-disable-next-line
 import '@main/data/bootConfig'
 
-// [v2] the following code is to be refactored
-// don't reorder this file, it's used to initialize the app data dir and
-// other which should be run before the main process is ready
+// [v2] DEPRECATED LEGACY IMPORTS — DO NOT EXTEND, DO NOT BASE NEW DESIGN ON THESE
+//
+// The two imports below are v1 leftovers scheduled for removal once the v2
+// refactor completes. They currently still run for backward compatibility:
+//   - `./bootstrap`  → calls initAppDataDir() (v1 ~/.cherrystudio/config/config.json)
+//   - `@main/config` → sets `userData + 'Dev'` suffix in dev mode and exports legacy
+//                      DATA_PATH / titleBarOverlay constants
+//
+// Both responsibilities will be absorbed by BootConfigService and the lifecycle
+// system. When adding new boot-time logic, route it through BootConfigService
+// and the lifecycle phases — never add to bootstrap.ts or config.ts.
+//
+// Don't reorder this block until these files are removed: their import-time
+// side effects must run before the main process is ready.
 
 import './bootstrap'
 

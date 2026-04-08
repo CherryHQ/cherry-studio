@@ -7,13 +7,14 @@
  */
 
 import fs from 'node:fs'
+import os from 'node:os'
 import path from 'node:path'
 
 import { loggerService } from '@logger'
+import { HOME_CHERRY_DIR } from '@shared/config/constant'
 import type { BootConfigSchema } from '@shared/data/bootConfig/bootConfigSchemas'
 import { DefaultBootConfig } from '@shared/data/bootConfig/bootConfigSchemas'
 import type { BootConfigKey } from '@shared/data/bootConfig/bootConfigTypes'
-import { app } from 'electron'
 
 import type { BootConfigLoadError } from './types'
 
@@ -44,7 +45,10 @@ export class BootConfigService {
   private loadError: BootConfigLoadError | null = null
 
   constructor() {
-    this.filePath = path.join(app.getPath('userData'), 'boot-config.json')
+    // Stored under ~/.cherrystudio/ rather than userData so that:
+    // 1. It survives a custom appDataPath setting (boot config decides where userData is, not the other way around).
+    // 2. It can be read before initAppDataDir() rewrites the userData path.
+    this.filePath = path.join(os.homedir(), HOME_CHERRY_DIR, 'boot-config.json')
     this.config = this.loadSync()
   }
 

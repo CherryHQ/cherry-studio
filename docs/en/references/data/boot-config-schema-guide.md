@@ -121,7 +121,7 @@ The `v2-refactor-temp/tools/data-classify/` directory contains the code generati
 2. The generator reads these classifications and produces:
    - `packages/shared/data/bootConfig/bootConfigSchemas.ts` — schema interface and defaults
    - `src/main/data/migration/v2/migrators/mappings/BootConfigMappings.ts` — legacy-to-new key mappings
-3. At migration time, `BootConfigMigrator` reads values from legacy sources (Redux, ElectronStore, Dexie settings, localStorage) and writes them to `bootConfigService`
+3. At migration time, `BootConfigMigrator` reads values from legacy sources (Redux, ElectronStore, Dexie settings, localStorage, and the legacy home config file) and writes them to `bootConfigService`
 
 ### Migration Sources
 
@@ -131,6 +131,14 @@ The `v2-refactor-temp/tools/data-classify/` directory contains the code generati
 | ElectronStore | `ConfigManager.get(key)` | Direct key lookup |
 | Dexie settings | Key-value table | Direct key lookup |
 | localStorage | `localStorage.getItem(key)` | Direct key lookup |
+| Legacy home config file | `LegacyHomeConfigReader` | `~/.cherrystudio/config/config.json` (`appDataPath` field only) |
+
+> **Config-file source mappings are manually maintained.** The `data-classify` toolchain's `classification.json` doesn't model config-file sources yet. In two places, a small hand-maintained list complements the classification-driven pipeline:
+>
+> - **Schema keys**: `MANUAL_BOOT_CONFIG_ITEMS` at the top of `v2-refactor-temp/tools/data-classify/scripts/generate-boot-config.js` — these items are merged with the classification-derived items and emitted into `bootConfigSchemas.ts` as part of the normal auto-generated output. The resulting schema file is fully auto-generated (no manual sections).
+> - **Mappings**: inline `configFileMappings` inside `BootConfigMigrator.loadMigrationItems()` — a small `ReadonlyArray<{ originalKey: string; targetKey: BootConfigKey }>` whose `BootConfigKey` annotation is the regen safety net: if the schema loses `app.user_data_path`, this array fails to compile at its declaration site.
+>
+> To add a new config-file-sourced key in the future: add an entry to `MANUAL_BOOT_CONFIG_ITEMS` in the generator, add the matching entry to `BootConfigMigrator.loadMigrationItems()`'s `configFileMappings`, and run `npm run generate`.
 
 ### Adding a Migration Mapping
 
@@ -164,6 +172,16 @@ cd v2-refactor-temp/tools/data-classify && npm run generate
 | Legacy Source | Legacy Key | Target Key |
 |---------------|-----------|------------|
 | Redux (`settings`) | `disableHardwareAcceleration` | `app.disable_hardware_acceleration` |
+| Config file (`~/.cherrystudio/config/config.json`) | `appDataPath` | `app.user_data_path` |
+
+#### Known Limitation: AppImage / Windows Portable Executable Path
+
+The v1 `~/.cherrystudio/config/config.json` stores `appDataPath` as an array of `{ executablePath, dataPath }` entries keyed by executable path. On AppImage Linux builds and Windows portable builds, `src/main/utils/init.ts:51-60` writes a **special** `executablePath` that differs from `app.getPath('exe')`:
+
+- AppImage: `path.dirname(process.env.APPIMAGE) + '/cherry-studio.appimage'`
+- Windows portable: `process.env.PORTABLE_EXECUTABLE_DIR + '/cherry-studio-portable.exe'`
+
+`LegacyHomeConfigReader` does NOT reproduce this normalization — array entries are migrated verbatim with their original `executablePath` key, and the legacy-string fallback uses the raw `app.getPath('exe')`. This is harmless in the current PR because nothing yet reads `app.user_data_path`. **But the follow-up PR that rewires `initAppDataDir()` to consume it MUST normalize the exe path using the same logic in `src/main/utils/init.ts:51-60`, otherwise migrated records under AppImage/portable will never match the lookup key.**
 
 ## File Structure
 

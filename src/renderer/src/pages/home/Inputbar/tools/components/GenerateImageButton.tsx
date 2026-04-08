@@ -20,7 +20,7 @@ const GenerateImageButton: FC<Props> = ({ model, assistant, onEnableGenerateImag
     : t('chat.input.generate_image_not_supported')
 
   return (
-    <Tooltip placement="top" content={ariaLabel} closeDelay={0}>
+    <Tooltip placement="top" content={ariaLabel}>
       <ActionIconButton
         onClick={onEnableGenerateImage}
         active={assistant.enableGenerateImage}
