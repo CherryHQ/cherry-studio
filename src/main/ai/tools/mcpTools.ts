@@ -26,12 +26,13 @@ function createMcpTool(mcpTool: MCPTool): RegisteredTool {
     type: 'function',
     description: mcpTool.description || mcpTool.name,
     inputSchema: jsonSchema(mcpTool.inputSchema as JSONSchema7),
-    execute: async (args: Record<string, unknown>) => {
+    execute: async (args: Record<string, unknown>, { toolCallId }) => {
       const mcpService = application.get('MCPService')
       const result: MCPCallToolResponse = await mcpService.callTool({
         server: { id: mcpTool.serverId } as MCPServer,
         name: mcpTool.name,
-        args
+        args,
+        callId: toolCallId
       })
 
       if (result.isError) {
