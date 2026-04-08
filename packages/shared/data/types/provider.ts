@@ -244,8 +244,6 @@ export const ProviderSchema = z.object({
   apiFeatures: RuntimeApiFeaturesSchema,
   /** Provider settings */
   settings: ProviderSettingsSchema,
-  /** Website links (official, apiKey, docs, models) */
-  websites: ProviderWebsitesSchema.optional(),
   /** Whether this provider is enabled */
   isEnabled: z.boolean()
 })
