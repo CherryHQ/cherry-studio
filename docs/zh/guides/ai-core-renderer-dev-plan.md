@@ -133,6 +133,7 @@ Inputbar.sendMessage()
 > | b4 | 操作全链路 | `useMessageOperations.ts`, `V2ChatContent.tsx`, `blocksToparts.ts` | pause→stop、clear→cascade delete root、edit→blocksToParts+PATCH、resendWithEdit→edit+resend、onError→toast | ✅ |
 > | b5 | 单元测试 | `blocksToparts.test.ts`, `useAiChat.test.ts` | blocksToparts 19 tests（全 11 种 block 类型含 TOOL/CITATION）+ useAiChat 回调 5 tests | ✅ |
 > | b6 | 端到端持久化验证 | — | V2 发送 → 回复 → SQLite → 重载 → 编辑 → 删除 → 清空（手动 dev 验证） | ⬜ |
+> | b7 | Request status 透传 + 操作健壮性 | `useMessageOperations.ts`, `V2ChatContent.tsx`, `Inputbar.tsx`, `InputbarCore.tsx`, `MessageMenubar.tsx`, `MessageEditor.tsx` | `V2ChatOverrides.isLoading` → `requestStatus: RequestStatus`；`useTopicLoading` / `useRequestStatus` 从 context 派生；Inputbar send/pause 互斥渲染；开放 V2 编辑/删除/重新生成按钮（supportsWrites）；持久化后 setMessages 同步真实 ID（修复操作 404）；regenerate/resend 前清除旧 assistant 消息；`handleFinish` 跳过 abort 空消息持久化；根消息删除 fallback cascade；CodeBlock/Table/Messages 接入 V2BlockContext | ✅ |
 
 > **P3.2 组件直读 parts，删除适配层**
 >
@@ -210,6 +211,8 @@ Inputbar.sendMessage()
 | `src/renderer/src/utils/blocksToparts.ts` | blocks→parts 反向转换（编辑用） | P3.1b |
 | `src/renderer/src/utils/__tests__/blocksToparts.test.ts` | blocksToparts 单元测试（19 tests） | P3.1b |
 | `src/renderer/src/pages/home/Messages/Blocks/V2Contexts.ts` | V2Block/Parts Context 定义（消除循环依赖） | P3.2 |
+| `src/renderer/src/pages/home/v2ChatMessageUtils.ts` | V2 消息合并/查找工具函数 | P3.1b |
+| `src/renderer/src/pages/home/__tests__/v2ChatMessageUtils.test.ts` | v2ChatMessageUtils 单元测试（12 tests） | P3.1b |
 
 ### 修改文件清单
 
@@ -219,10 +222,10 @@ Inputbar.sendMessage()
 | `src/renderer/src/pages/home/Messages/Messages.tsx` | 新增可选 `messages` prop，V2 模式下 props 直传绕过 Redux |
 | `src/renderer/src/pages/home/Messages/Blocks/index.tsx` | 新增 V2BlockContext，双轨 block 解析 + PartsProvider |
 | `src/renderer/src/pages/home/Messages/MessageOutline.tsx` | 接入 useV2BlockMap fallback |
-| `src/renderer/src/pages/home/Messages/MessageMenubar.tsx` | 接入 useV2BlockMap fallback |
-| `src/renderer/src/pages/home/Inputbar/Inputbar.tsx` | 新增 onSendV2 prop，V2 双轨发送 + Topic 双写 |
+| `src/renderer/src/pages/home/Messages/MessageMenubar.tsx` | 接入 useV2BlockMap fallback；开放 V2 编辑/删除/重新生成按钮 |
+| `src/renderer/src/pages/home/Inputbar/Inputbar.tsx` | 新增 onSendV2 prop，V2 双轨发送 + Topic 双写；useRequestStatus 驱动 primaryActionMode |
 | `src/renderer/src/pages/home/Tabs/components/Topics.tsx` | Topic update/delete 双写到 SQLite（isPinned 映射） |
-| `src/renderer/src/hooks/useMessageOperations.ts` | V2ChatOverridesProvider + pause/clearTopicMessages/editMessage/regenerate/resend/delete V2 全链路 |
+| `src/renderer/src/hooks/useMessageOperations.ts` | V2ChatOverridesProvider + pause/clearTopicMessages/editMessage/regenerate/resend/delete V2 全链路；`RequestStatus` type + `useTopicLoading` / `useRequestStatus` hooks |
 | `src/renderer/src/hooks/useAiChat.ts` | 新增 onError 回调选项 |
 | `src/renderer/src/hooks/useTopicMessagesV2.ts` | 新增 refresh 返回值供持久化后刷新 |
 | `src/renderer/src/pages/home/Messages/Blocks/CitationBlock.tsx` | V2 模式下从 block prop 读 citation，不走 Redux |
@@ -233,6 +236,11 @@ Inputbar.sendMessage()
 | `packages/shared/data/api/schemas/topics.ts` | CreateTopicDto 支持可选 id 字段 |
 | `src/main/data/services/TopicService.ts` | create 时优先使用客户端传入 id |
 | `src/renderer/src/routeTree.gen.ts` | 自动生成（新增 test-chat 路由） |
+| `src/renderer/src/pages/home/Inputbar/components/InputbarCore.tsx` | 新增 primaryActionMode prop，send/pause 按钮互斥渲染 |
+| `src/renderer/src/pages/home/Messages/MessageEditor.tsx` | V2 模式跳过 Redux 消息查询 |
+| `src/renderer/src/pages/home/Markdown/CodeBlock.tsx` | V2 模式从 useV2BlockMap context 读 block |
+| `src/renderer/src/pages/home/Markdown/Table.tsx` | V2 模式从 useV2BlockMap context 读 block |
+| `src/renderer/src/pages/home/Messages/Messages.tsx` | 代码块编辑事件处理支持 V2BlockContext ref |
 
 ---
 
