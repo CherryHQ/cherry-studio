@@ -274,18 +274,6 @@ export class ProviderRegistryService extends BaseService {
     }
 
     const dbRows: NewUserProvider[] = rawProviders.map((p) => {
-      const registryWebsite = p.metadata?.website
-      const websites =
-        registryWebsite &&
-        (registryWebsite.official || registryWebsite.docs || registryWebsite.apiKey || registryWebsite.models)
-          ? {
-              official: registryWebsite.official || undefined,
-              docs: registryWebsite.docs || undefined,
-              apiKey: registryWebsite.apiKey || undefined,
-              models: registryWebsite.models || undefined
-            }
-          : null
-
       const apiFeatures = p.apiFeatures
         ? {
             arrayContent: p.apiFeatures.arrayContent,
@@ -305,8 +293,7 @@ export class ProviderRegistryService extends BaseService {
         name: p.name,
         endpointConfigs,
         defaultChatEndpoint: p.defaultChatEndpoint ?? null,
-        apiFeatures,
-        websites
+        apiFeatures
       }
     })
 

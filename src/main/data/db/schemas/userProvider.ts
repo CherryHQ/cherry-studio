@@ -20,9 +20,7 @@ import {
   type EndpointConfig,
   EndpointConfigSchema,
   type ProviderSettings,
-  ProviderSettingsSchema,
-  type ProviderWebsites,
-  ProviderWebsitesSchema
+  ProviderSettingsSchema
 } from '@shared/data/types/provider'
 import { index, integer, sqliteTable, text } from 'drizzle-orm/sqlite-core'
 import { createSchemaFactory } from 'drizzle-zod'
@@ -65,9 +63,6 @@ export const userProviderTable = sqliteTable(
     /** Provider-specific settings as JSON */
     providerSettings: text({ mode: 'json' }).$type<ProviderSettings>(),
 
-    /** Website links (official, apiKey, docs, models) */
-    websites: text({ mode: 'json' }).$type<ProviderWebsites>(),
-
     /** Whether this provider is enabled */
     isEnabled: integer({ mode: 'boolean' }).default(true),
 
@@ -91,8 +86,7 @@ const jsonColumnOverrides = {
   apiKeys: () => z.array(ApiKeyEntrySchema).nullable(),
   authConfig: () => AuthConfigSchema.nullable(),
   apiFeatures: () => ApiFeaturesSchema.nullable(),
-  providerSettings: () => ProviderSettingsSchema.nullable(),
-  websites: () => ProviderWebsitesSchema.nullable()
+  providerSettings: () => ProviderSettingsSchema.nullable()
 }
 
 export const userProviderInsertSchema = createInsertSchema(userProviderTable, jsonColumnOverrides)

@@ -40,7 +40,6 @@ CREATE TABLE `user_provider` (
 	`auth_config` text,
 	`api_features` text,
 	`provider_settings` text,
-	`websites` text,
 	`is_enabled` integer DEFAULT true,
 	`sort_order` integer DEFAULT 0,
 	`created_at` integer,

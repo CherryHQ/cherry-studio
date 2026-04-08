@@ -70,9 +70,6 @@ import type { Topic, CreateTopicDto, UpdateTopicDto } from '@shared/data/api/sch
 
 // Message domain
 import type { Message, CreateMessageDto } from '@shared/data/api/schemas/message'
-
-// Test domain (development)
-import type { TestItem, CreateTestItemDto } from '@shared/data/api/schemas/test'
 ```
 
 ## Pagination Types
@@ -213,7 +210,7 @@ export interface TopicSchemas {
 import type { TopicSchemas } from './topic'
 
 // AssertValidSchemas provides fallback validation even if ValidateSchema is forgotten
-export type ApiSchemas = AssertValidSchemas<TestSchemas & TopicSchemas>
+export type ApiSchemas = AssertValidSchemas<TopicSchemas & MessageSchemas>
 ```
 
 3. Implement handlers in `src/main/data/api/handlers/`

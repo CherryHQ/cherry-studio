@@ -1653,13 +1653,6 @@
           "notNull": false,
           "autoincrement": false
         },
-        "websites": {
-          "name": "websites",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
-        },
         "is_enabled": {
           "name": "is_enabled",
           "type": "integer",

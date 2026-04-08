@@ -1,3 +1,24 @@
+/**
+ * @deprecated Superseded by `src/main/core/preboot/userDataLocation.ts`
+ * and `BootConfigService`.
+ *
+ * ⚠️ V2 STATUS:
+ *   - `initAppDataDir()` is no longer called — `core/preboot/`
+ *     `resolveUserDataLocation()` takes over.
+ *   - `getAppDataPathFromConfig()` is dead code (only called by
+ *     initAppDataDir).
+ *   - `updateAppDataConfig()` is still called by `src/main/ipc.ts:300`
+ *     (App_SetAppDataPath handler). That handler will be rewritten in a
+ *     follow-up cleanup PR to write `app.user_data_path` to BootConfig
+ *     and to use the new v2 relaunch protocol; after that, this file
+ *     becomes safe to delete entirely.
+ *   - `hasWritePermission` and `getConfigDir` defined here are local
+ *     copies of `src/main/utils/file.ts:60, 181`.
+ *
+ * STOP: Do not extend this file. New userData logic goes into
+ * `src/main/core/preboot/userDataLocation.ts`.
+ */
+
 import * as fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'

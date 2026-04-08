@@ -61,7 +61,6 @@ function rowToRuntimeProvider(row: UserProvider): Provider {
     authType,
     apiFeatures,
     settings,
-    websites: row.websites ?? undefined,
     isEnabled: row.isEnabled ?? true
   }
 }
@@ -194,8 +193,7 @@ export class ProviderService {
             endpointConfigs: provider.endpointConfigs,
             defaultChatEndpoint: provider.defaultChatEndpoint,
             apiFeatures: provider.apiFeatures,
-            providerSettings: provider.providerSettings,
-            websites: provider.websites
+            providerSettings: provider.providerSettings
           }
         })
     }

@@ -5,7 +5,6 @@
  * TypeScript will error if any endpoint from ApiSchemas is missing.
  *
  * Handler files are organized by domain:
- * - test.ts - Test API handlers
  * - topics.ts - Topic API handlers
  * - messages.ts - Message API handlers
  * - models.ts - Model API handlers
@@ -22,7 +21,6 @@ import { messageHandlers } from './messages'
 import { miniappHandlers } from './miniapps'
 import { modelHandlers } from './models'
 import { providerHandlers } from './providers'
-import { testHandlers } from './test'
 import { topicHandlers } from './topics'
 import { translateHandlers } from './translate'
 
@@ -35,7 +33,6 @@ import { translateHandlers } from './translate'
  */
 export const apiHandlers: ApiImplementation = {
   ...fileProcessingHandlers,
-  ...testHandlers,
   ...topicHandlers,
   ...messageHandlers,
   ...modelHandlers,

@@ -297,6 +297,15 @@ export async function registerIpc(mainWindow: BrowserWindow, app: Electron.App) 
   })
 
   // Set app data path
+  //
+  // TODO(v2): This handler is incompatible with the frozen path registry
+  // established by Application.bootstrap(). Calling app.setPath('userData')
+  // here mutates Electron's path while application.getPath('app.userdata')
+  // keeps returning the boot-time value until the renderer triggers a
+  // relaunch (which it currently always does — see BasicDataSettings.tsx
+  // L186/203/322). When the v1 path-change flow is migrated to
+  // BootConfigService, redesign this handler so the app data path can only
+  // be changed via boot-config + restart, eliminating the divergence window.
   ipcMain.handle(IpcChannel.App_SetAppDataPath, async (_, filePath: string) => {
     updateAppDataConfig(filePath)
     app.setPath('userData', filePath)
