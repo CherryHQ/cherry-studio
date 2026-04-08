@@ -164,6 +164,73 @@ describe('mergeModelConfig', () => {
     expect(model.name).toBe('My GPT-4o')
     expect(model.contextWindow).toBe(64_000)
   })
+
+  it('three-layer conflict: user > catalogOverride > preset', () => {
+    const override = {
+      providerId: 'openai',
+      modelId: 'gpt-4o',
+      capabilities: { add: [CAPABILITY.REASONING] },
+      limits: { contextWindow: 200_000, maxOutputTokens: 16_384 }
+    } as any
+    const userRow = {
+      providerId: 'openai',
+      modelId: 'gpt-4o',
+      presetModelId: 'gpt-4o',
+      name: 'User Override',
+      contextWindow: 50_000,
+      // user does NOT override maxOutputTokens — catalogOverride should win
+      capabilities: [CAPABILITY.EMBEDDING] // user replaces all capabilities
+    }
+    const model = mergeModelConfig(userRow, override, presetModel, 'openai')
+
+    // user wins
+    expect(model.name).toBe('User Override')
+    expect(model.contextWindow).toBe(50_000)
+    expect(model.capabilities).toEqual([CAPABILITY.EMBEDDING])
+    // catalogOverride wins over preset (user didn't set maxOutputTokens)
+    expect(model.maxOutputTokens).toBe(16_384)
+  })
+
+  it('catalogOverride disabled=true sets isEnabled=false when no user model', () => {
+    const override = {
+      providerId: 'openai',
+      modelId: 'gpt-4o',
+      disabled: true
+    } as any
+    const model = mergeModelConfig(null, override, presetModel, 'openai')
+    expect(model.isEnabled).toBe(false)
+  })
+
+  it('user isEnabled overrides catalogOverride disabled', () => {
+    const override = {
+      providerId: 'openai',
+      modelId: 'gpt-4o',
+      disabled: true
+    } as any
+    const userRow = {
+      providerId: 'openai',
+      modelId: 'gpt-4o',
+      presetModelId: 'gpt-4o',
+      isEnabled: true
+    }
+    const model = mergeModelConfig(userRow, override, presetModel, 'openai')
+    expect(model.isEnabled).toBe(true)
+  })
+
+  it('preset fields carry through when user provides null', () => {
+    const userRow = {
+      providerId: 'openai',
+      modelId: 'gpt-4o',
+      presetModelId: 'gpt-4o',
+      name: null, // null should fall through to preset
+      contextWindow: null,
+      capabilities: null
+    }
+    const model = mergeModelConfig(userRow, null, presetModel, 'openai')
+    expect(model.name).toBe('GPT-4o') // from preset
+    expect(model.contextWindow).toBe(128_000) // from preset
+    expect(model.capabilities).toContain(CAPABILITY.IMAGE_RECOGNITION) // from preset
+  })
 })
 
 // ---------- mergeProviderConfig ----------
@@ -194,5 +261,76 @@ describe('mergeProviderConfig', () => {
     }
     const provider = mergeProviderConfig(userRow, presetProvider as any)
     expect(provider.name).toBe('My OpenAI')
+  })
+
+  it('merges from preset only (no user row)', () => {
+    const presetProvider = {
+      id: 'openai',
+      name: 'OpenAI',
+      defaultChatEndpoint: ENDPOINT.OPENAI_CHAT,
+      apiFeatures: { arrayContent: false }
+    }
+    const provider = mergeProviderConfig(null, presetProvider as any)
+    expect(provider.id).toBe('openai')
+    expect(provider.name).toBe('OpenAI')
+    expect(provider.defaultChatEndpoint).toBe(ENDPOINT.OPENAI_CHAT)
+    expect(provider.apiFeatures.arrayContent).toBe(false)
+  })
+
+  it('user apiFeatures override preset apiFeatures per field', () => {
+    const userRow = {
+      providerId: 'openai',
+      name: 'OpenAI',
+      apiFeatures: { arrayContent: false }
+    }
+    const presetProvider = {
+      id: 'openai',
+      name: 'OpenAI',
+      apiFeatures: { arrayContent: true, developerRole: true }
+    }
+    const provider = mergeProviderConfig(userRow, presetProvider as any)
+    // user overrides arrayContent
+    expect(provider.apiFeatures.arrayContent).toBe(false)
+    // preset value preserved where user didn't override
+    expect(provider.apiFeatures.developerRole).toBe(true)
+  })
+
+  it('user defaultChatEndpoint overrides preset', () => {
+    const userRow = {
+      providerId: 'openai',
+      name: 'OpenAI',
+      defaultChatEndpoint: ENDPOINT.ANTHROPIC
+    }
+    const presetProvider = {
+      id: 'openai',
+      name: 'OpenAI',
+      defaultChatEndpoint: ENDPOINT.OPENAI_CHAT
+    }
+    const provider = mergeProviderConfig(userRow, presetProvider as any)
+    expect(provider.defaultChatEndpoint).toBe(ENDPOINT.ANTHROPIC)
+  })
+
+  it('deep-merges endpointConfigs: user field wins per-endpoint', () => {
+    const userRow = {
+      providerId: 'openai',
+      name: 'OpenAI',
+      endpointConfigs: {
+        [ENDPOINT.OPENAI_CHAT]: { baseUrl: 'https://my-proxy.com/v1' }
+      }
+    }
+    const presetProvider = {
+      id: 'openai',
+      name: 'OpenAI',
+      endpointConfigs: {
+        [ENDPOINT.OPENAI_CHAT]: {
+          baseUrl: 'https://api.openai.com/v1',
+          reasoningFormat: { type: 'openai-chat' }
+        }
+      }
+    }
+    const provider = mergeProviderConfig(userRow, presetProvider as any)
+    const chatConfig = provider.endpointConfigs?.[ENDPOINT.OPENAI_CHAT as keyof typeof provider.endpointConfigs]
+    // user baseUrl wins
+    expect(chatConfig?.baseUrl).toBe('https://my-proxy.com/v1')
   })
 })
