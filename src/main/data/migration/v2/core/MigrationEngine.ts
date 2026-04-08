@@ -5,11 +5,7 @@
 
 import { appStateTable } from '@data/db/schemas/appState'
 import { assistantTable } from '@data/db/schemas/assistant'
-import {
-  assistantKnowledgeBaseTable,
-  assistantMcpServerTable,
-  assistantModelTable
-} from '@data/db/schemas/assistantRelations'
+import { assistantKnowledgeBaseTable, assistantMcpServerTable } from '@data/db/schemas/assistantRelations'
 import { knowledgeBaseTable, knowledgeItemTable } from '@data/db/schemas/knowledge'
 import { mcpServerTable } from '@data/db/schemas/mcpServer'
 import { messageTable } from '@data/db/schemas/message'
@@ -274,7 +270,6 @@ export class MigrationEngine {
     const tables = [
       { table: messageTable, name: 'message' }, // Must clear before topic (FK reference)
       { table: topicTable, name: 'topic' }, // Must clear before assistant (FK reference)
-      { table: assistantModelTable, name: 'assistant_model' }, // Junction: clear before assistant
       { table: assistantMcpServerTable, name: 'assistant_mcp_server' }, // Junction: clear before assistant
       { table: assistantKnowledgeBaseTable, name: 'assistant_knowledge_base' }, // Junction: clear before assistant
       { table: assistantTable, name: 'assistant' },
@@ -300,7 +295,6 @@ export class MigrationEngine {
     // Clear tables in dependency order (children before parents)
     await db.delete(messageTable) // FK → topic
     await db.delete(topicTable) // FK → assistant
-    await db.delete(assistantModelTable) // FK → assistant
     await db.delete(assistantMcpServerTable) // FK → assistant, mcp_server
     await db.delete(assistantKnowledgeBaseTable) // FK → assistant
     await db.delete(assistantTable)

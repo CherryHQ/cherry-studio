@@ -19,11 +19,7 @@
  */
 
 import type { AssistantInsert } from '@data/db/schemas/assistant'
-import type {
-  assistantKnowledgeBaseTable,
-  assistantMcpServerTable,
-  assistantModelTable
-} from '@data/db/schemas/assistantRelations'
+import type { assistantKnowledgeBaseTable, assistantMcpServerTable } from '@data/db/schemas/assistantRelations'
 
 import { buildCompositeModelId } from '../../utils/modelIdUtils'
 
@@ -121,7 +117,6 @@ export interface OldAssistant {
 
 export interface AssistantTransformResult {
   assistant: AssistantInsert
-  models: (typeof assistantModelTable.$inferInsert)[]
   mcpServers: (typeof assistantMcpServerTable.$inferInsert)[]
   knowledgeBases: (typeof assistantKnowledgeBaseTable.$inferInsert)[]
 }
@@ -131,25 +126,23 @@ export interface AssistantTransformResult {
 // ============================================================================
 
 /**
- * Extract composite model IDs from legacy model and defaultModel fields.
+ * Extract the primary/default model ID from legacy model or defaultModel fields.
  * Legacy Redux stores full Model objects: { id, provider, name, ... }
  * v2 uses composite IDs in `providerId::modelId` format.
- * Deduplicates and filters out empty/null values.
+ * Prefers `model` over `defaultModel` (defaultModel is the settings-level fallback).
  */
-function extractModelIds(source: OldAssistant): string[] {
-  const ids: string[] = []
-
+function extractPrimaryModelId(source: OldAssistant): string | null {
   if (source.model) {
     const compositeId = buildCompositeModelId(source.model)
-    if (compositeId) ids.push(compositeId)
+    if (compositeId) return compositeId
   }
 
   if (source.defaultModel) {
     const compositeId = buildCompositeModelId(source.defaultModel)
-    if (compositeId && !ids.includes(compositeId)) ids.push(compositeId)
+    if (compositeId) return compositeId
   }
 
-  return ids
+  return null
 }
 
 function extractMcpServerIds(source: OldAssistant): string[] {
@@ -176,7 +169,7 @@ function extractKnowledgeBaseIds(source: OldAssistant): string[] {
 export function transformAssistant(source: OldAssistant): AssistantTransformResult {
   const assistantId = source.id
 
-  const modelIds = extractModelIds(source)
+  const primaryModelId = extractPrimaryModelId(source)
   const mcpServerIds = extractMcpServerIds(source)
   const knowledgeBaseIds = extractKnowledgeBaseIds(source)
 
@@ -194,9 +187,9 @@ export function transformAssistant(source: OldAssistant): AssistantTransformResu
       prompt: source.prompt ?? null,
       emoji: source.emoji ?? null,
       description: source.description ?? null,
+      modelId: primaryModelId,
       settings: Object.keys(legacySettings).length > 0 ? (legacySettings as AssistantInsert['settings']) : null
     },
-    models: modelIds.map((modelId) => ({ assistantId, modelId })),
     mcpServers: mcpServerIds.map((mcpServerId) => ({ assistantId, mcpServerId })),
     knowledgeBases: knowledgeBaseIds.map((knowledgeBaseId) => ({ assistantId, knowledgeBaseId }))
   }

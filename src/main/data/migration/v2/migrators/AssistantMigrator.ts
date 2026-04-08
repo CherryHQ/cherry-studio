@@ -11,11 +11,7 @@
  */
 
 import { assistantTable } from '@data/db/schemas/assistant'
-import {
-  assistantKnowledgeBaseTable,
-  assistantMcpServerTable,
-  assistantModelTable
-} from '@data/db/schemas/assistantRelations'
+import { assistantKnowledgeBaseTable, assistantMcpServerTable } from '@data/db/schemas/assistantRelations'
 import { loggerService } from '@logger'
 import type { ExecuteResult, PrepareResult, ValidateResult } from '@shared/data/migration/v2/types'
 import { sql } from 'drizzle-orm'
@@ -134,12 +130,6 @@ export class AssistantMigrator extends BaseMigrator {
           const batch = assistantRows.slice(i, i + BATCH_SIZE)
           await tx.insert(assistantTable).values(batch)
           processed += batch.length
-        }
-
-        // Insert junction table rows
-        const modelRows = this.preparedResults.flatMap((r) => r.models)
-        for (let i = 0; i < modelRows.length; i += BATCH_SIZE) {
-          await tx.insert(assistantModelTable).values(modelRows.slice(i, i + BATCH_SIZE))
         }
 
         // Remap mcpServer junction rows using oldId → newId mapping from McpServerMigrator.

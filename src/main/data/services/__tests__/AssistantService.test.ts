@@ -14,6 +14,7 @@ function createMockRow(overrides: Record<string, unknown> = {}) {
     prompt: 'You are helpful',
     emoji: null,
     description: null,
+    modelId: null,
     settings: null,
     createdAt: 1700000000000,
     updatedAt: 1700000000000,
@@ -47,12 +48,9 @@ function mockChain(resolvedValue: unknown) {
   return chain
 }
 
-function mockAssistantRelations(
-  overrides: { modelIds?: string[]; mcpServerIds?: string[]; knowledgeBaseIds?: string[] } = {}
-) {
-  const { modelIds = [], mcpServerIds = [], knowledgeBaseIds = [] } = overrides
+function mockAssistantRelations(overrides: { mcpServerIds?: string[]; knowledgeBaseIds?: string[] } = {}) {
+  const { mcpServerIds = [], knowledgeBaseIds = [] } = overrides
   return {
-    modelRows: modelIds.map((modelId) => ({ assistantId: 'ast-1', modelId })),
     mcpServerRows: mcpServerIds.map((mcpServerId) => ({ assistantId: 'ast-1', mcpServerId })),
     knowledgeBaseRows: knowledgeBaseIds.map((knowledgeBaseId) => ({ assistantId: 'ast-1', knowledgeBaseId }))
   }
@@ -61,7 +59,6 @@ function mockAssistantRelations(
 function queueAssistantReads(
   rowOrRows: Record<string, unknown> | Record<string, unknown>[],
   options: {
-    modelIds?: string[]
     mcpServerIds?: string[]
     knowledgeBaseIds?: string[]
   } = {}
@@ -72,7 +69,6 @@ function queueAssistantReads(
   mockDb.select.mockReset()
   mockDb.select.mockReturnValueOnce(mockChain(rows))
   mockDb.select
-    .mockReturnValueOnce(mockChain(relations.modelRows))
     .mockReturnValueOnce(mockChain(relations.mcpServerRows))
     .mockReturnValueOnce(mockChain(relations.knowledgeBaseRows))
 }
@@ -121,9 +117,8 @@ describe('AssistantDataService', () => {
   // --------------------------------------------------------------------------
   describe('getById', () => {
     it('should return an assistant with relation ids when found', async () => {
-      const row = createMockRow()
+      const row = createMockRow({ modelId: 'openai::gpt-4' })
       queueAssistantReads(row, {
-        modelIds: ['model-1', 'model-2'],
         mcpServerIds: ['srv-1'],
         knowledgeBaseIds: ['kb-1']
       })
@@ -131,10 +126,16 @@ describe('AssistantDataService', () => {
       const result = await assistantDataService.getById('ast-1')
       expect(result.id).toBe('ast-1')
       expect(result.name).toBe('test-assistant')
-      expect(result.modelIds).toEqual(['model-1', 'model-2'])
+      expect(result.modelId).toBe('openai::gpt-4')
       expect(result.mcpServerIds).toEqual(['srv-1'])
       expect(result.knowledgeBaseIds).toEqual(['kb-1'])
       expect(typeof result.createdAt).toBe('string')
+    })
+
+    it('should return null modelId when not set', async () => {
+      queueAssistantReads(createMockRow())
+      const result = await assistantDataService.getById('ast-1')
+      expect(result.modelId).toBeNull()
     })
 
     it('should throw NOT_FOUND when assistant does not exist', async () => {
@@ -152,28 +153,26 @@ describe('AssistantDataService', () => {
   // --------------------------------------------------------------------------
   describe('list', () => {
     it('should return all assistants with relation ids when no filters', async () => {
-      const rows = [createMockRow(), createMockRow({ id: 'ast-2', name: 'second' })]
+      const rows = [
+        createMockRow({ modelId: 'openai::gpt-4' }),
+        createMockRow({ id: 'ast-2', name: 'second', modelId: 'anthropic::claude-3' })
+      ]
       const relationRows = {
-        modelRows: [
-          { assistantId: 'ast-1', modelId: 'model-1' },
-          { assistantId: 'ast-2', modelId: 'model-2' }
-        ],
         mcpServerRows: [{ assistantId: 'ast-2', mcpServerId: 'srv-2' }],
         knowledgeBaseRows: [{ assistantId: 'ast-1', knowledgeBaseId: 'kb-1' }]
       }
 
       mockDb.select
         .mockReturnValueOnce(mockChain(rows))
-        .mockReturnValueOnce(mockChain(relationRows.modelRows))
         .mockReturnValueOnce(mockChain(relationRows.mcpServerRows))
         .mockReturnValueOnce(mockChain(relationRows.knowledgeBaseRows))
 
       const result = await assistantDataService.list({})
       expect(result.items).toHaveLength(2)
       expect(result.total).toBe(2)
-      expect(result.items[0].modelIds).toEqual(['model-1'])
+      expect(result.items[0].modelId).toBe('openai::gpt-4')
       expect(result.items[0].knowledgeBaseIds).toEqual(['kb-1'])
-      expect(result.items[1].modelIds).toEqual(['model-2'])
+      expect(result.items[1].modelId).toBe('anthropic::claude-3')
       expect(result.items[1].mcpServerIds).toEqual(['srv-2'])
     })
 
@@ -200,12 +199,12 @@ describe('AssistantDataService', () => {
       const result = await assistantDataService.create({ name: 'test-assistant' })
       expect(result.id).toBe('ast-1')
       expect(result.name).toBe('test-assistant')
-      expect(result.modelIds).toEqual([])
+      expect(result.modelId).toBeNull()
       expect(mockDb.transaction).toHaveBeenCalledOnce()
     })
 
     it('should sync relation junction rows when provided', async () => {
-      const row = createMockRow()
+      const row = createMockRow({ modelId: 'openai::gpt-4' })
       const txInsert = vi.fn().mockReturnValue(mockChain([row]))
       const txDelete = vi.fn().mockReturnValue(mockChain(undefined))
       const mockTx = { insert: txInsert, delete: txDelete }
@@ -214,13 +213,14 @@ describe('AssistantDataService', () => {
 
       const result = await assistantDataService.create({
         name: 'test-assistant',
-        modelIds: ['model-1'],
+        modelId: 'openai::gpt-4',
         mcpServerIds: ['srv-1'],
         knowledgeBaseIds: ['kb-1']
       })
 
-      expect(txInsert).toHaveBeenCalledTimes(4)
-      expect(result.modelIds).toEqual(['model-1'])
+      // 1 assistant insert + 2 junction inserts (mcp + kb)
+      expect(txInsert).toHaveBeenCalledTimes(3)
+      expect(result.modelId).toBe('openai::gpt-4')
       expect(result.mcpServerIds).toEqual(['srv-1'])
       expect(result.knowledgeBaseIds).toEqual(['kb-1'])
     })
@@ -242,9 +242,9 @@ describe('AssistantDataService', () => {
   // --------------------------------------------------------------------------
   describe('update', () => {
     it('should update and return assistant within a transaction', async () => {
-      const existing = createMockRow()
-      const updated = createMockRow({ name: 'updated-name' })
-      queueAssistantReads(existing, { modelIds: ['model-1'] })
+      const existing = createMockRow({ modelId: 'openai::gpt-4' })
+      const updated = createMockRow({ name: 'updated-name', modelId: 'openai::gpt-4' })
+      queueAssistantReads(existing, { mcpServerIds: ['srv-1'] })
 
       const txUpdate = vi.fn().mockReturnValue(mockChain([updated]))
       const txDelete = vi.fn().mockReturnValue(mockChain(undefined))
@@ -255,7 +255,7 @@ describe('AssistantDataService', () => {
 
       const result = await assistantDataService.update('ast-1', { name: 'updated-name' })
       expect(result.name).toBe('updated-name')
-      expect(result.modelIds).toEqual(['model-1'])
+      expect(result.mcpServerIds).toEqual(['srv-1'])
       expect(mockDb.transaction).toHaveBeenCalledOnce()
     })
 
@@ -308,21 +308,19 @@ describe('AssistantDataService', () => {
 
       await assistantDataService.update('ast-1', {
         name: 'updated',
-        modelIds: ['model-1'],
         mcpServerIds: ['srv-1'],
         knowledgeBaseIds: ['kb-1']
       })
 
       expect(capturedSetArg).toBeDefined()
-      expect(capturedSetArg).not.toHaveProperty('modelIds')
       expect(capturedSetArg).not.toHaveProperty('mcpServerIds')
       expect(capturedSetArg).not.toHaveProperty('knowledgeBaseIds')
       expect(capturedSetArg).toHaveProperty('name', 'updated')
     })
 
     it('should sync relation-only updates without issuing an empty SQL UPDATE', async () => {
-      const existing = createMockRow()
-      queueAssistantReads(existing, { modelIds: ['model-1'] })
+      const existing = createMockRow({ modelId: 'openai::gpt-4' })
+      queueAssistantReads(existing)
 
       const txUpdate = vi.fn()
       const txDelete = vi.fn().mockReturnValue(mockChain(undefined))
@@ -339,7 +337,6 @@ describe('AssistantDataService', () => {
       expect(txUpdate).not.toHaveBeenCalled()
       expect(txDelete).toHaveBeenCalledTimes(2)
       expect(txInsert).toHaveBeenCalledTimes(2)
-      expect(result.modelIds).toEqual(['model-1'])
       expect(result.mcpServerIds).toEqual(['srv-1'])
       expect(result.knowledgeBaseIds).toEqual(['kb-1'])
     })

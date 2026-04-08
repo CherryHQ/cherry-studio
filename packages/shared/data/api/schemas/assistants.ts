@@ -20,7 +20,7 @@ const AutoFields = { id: true, createdAt: true, updatedAt: true } as const
 /**
  * DTO for creating a new assistant.
  * - `name` is required (non-empty)
- * - Relation arrays (modelIds, mcpServerIds, knowledgeBaseIds) are synced to junction tables
+ * - `mcpServerIds` / `knowledgeBaseIds` are synced to junction tables
  */
 export const CreateAssistantSchema = AssistantSchema.omit(AutoFields).partial().required({ name: true })
 export type CreateAssistantDto = z.infer<typeof CreateAssistantSchema>
@@ -28,7 +28,7 @@ export type CreateAssistantDto = z.infer<typeof CreateAssistantSchema>
 /**
  * DTO for updating an existing assistant.
  * All fields optional, `id` excluded (comes from URL path).
- * Relation arrays, if provided, replace existing junction table rows.
+ * Relation arrays (mcpServerIds, knowledgeBaseIds), if provided, replace existing junction table rows.
  */
 export const UpdateAssistantSchema = AssistantSchema.omit(AutoFields).partial()
 export type UpdateAssistantDto = z.infer<typeof UpdateAssistantSchema>

@@ -111,8 +111,8 @@ export const AssistantSchema = z.object({
   description: z.string().default(''),
   /** Inference settings — model params + context toggles */
   settings: AssistantSettingsSchema,
-  /** Ordered model IDs linked through assistant_model */
-  modelIds: z.array(z.string()),
+  /** Default/primary model ID (composite format: "provider::modelId") */
+  modelId: z.string().nullable(),
   /** Ordered MCP server IDs linked through assistant_mcp_server */
   mcpServerIds: z.array(z.string()),
   /** Ordered knowledge base IDs linked through assistant_knowledge_base */

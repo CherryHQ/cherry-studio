@@ -29,12 +29,9 @@ describe('AssistantMappings', () => {
         prompt: 'You are helpful',
         emoji: '🤖',
         description: 'A test assistant',
+        modelId: 'openai::gpt-4',
         settings: { temperature: 0.7, mcpMode: 'prompt', enableWebSearch: true, enableMemory: true }
       })
-      expect(result.models).toStrictEqual([
-        { assistantId: 'ast-1', modelId: 'openai::gpt-4' },
-        { assistantId: 'ast-1', modelId: 'openai::gpt-3.5' }
-      ])
       expect(result.mcpServers).toStrictEqual([
         { assistantId: 'ast-1', mcpServerId: 'srv-1' },
         { assistantId: 'ast-1', mcpServerId: 'srv-2' }
@@ -51,9 +48,9 @@ describe('AssistantMappings', () => {
         prompt: null,
         emoji: null,
         description: null,
+        modelId: null,
         settings: null
       })
-      expect(result.models).toStrictEqual([])
       expect(result.mcpServers).toStrictEqual([])
       expect(result.knowledgeBases).toStrictEqual([])
     })
@@ -68,20 +65,30 @@ describe('AssistantMappings', () => {
       expect(result.assistant.name).toBe('Unnamed Assistant')
     })
 
-    it('should deduplicate model IDs when model and defaultModel are the same', () => {
-      const model = { id: 'gpt-4', provider: 'openai' }
-      const result = transformAssistant({ id: 'ast-4', model, defaultModel: model })
-      expect(result.models).toHaveLength(1)
-      expect(result.models[0].modelId).toBe('openai::gpt-4')
+    it('should prefer model over defaultModel for primary modelId', () => {
+      const result = transformAssistant({
+        id: 'ast-4',
+        model: { id: 'gpt-4', provider: 'openai' },
+        defaultModel: { id: 'gpt-3.5', provider: 'openai' }
+      })
+      expect(result.assistant.modelId).toBe('openai::gpt-4')
     })
 
-    it('should skip models with missing provider or id', () => {
+    it('should fall back to defaultModel when model is missing', () => {
+      const result = transformAssistant({
+        id: 'ast-4b',
+        defaultModel: { id: 'gpt-3.5', provider: 'openai' }
+      })
+      expect(result.assistant.modelId).toBe('openai::gpt-3.5')
+    })
+
+    it('should set modelId to null when model has missing provider or id', () => {
       const result = transformAssistant({
         id: 'ast-5',
         model: { id: 'gpt-4' }, // no provider
         defaultModel: { provider: 'openai' } // no id
       })
-      expect(result.models).toStrictEqual([])
+      expect(result.assistant.modelId).toBeNull()
     })
 
     it('should filter out mcpServers without id', () => {

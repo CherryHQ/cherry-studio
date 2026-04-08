@@ -250,12 +250,16 @@ export type RendererPersistCacheSchema = {
   'ui.tab.state': CacheValueTypes.TabsState
   'feature.mcp.is_uv_installed': boolean
   'feature.mcp.is_bun_installed': boolean
+  // Multi-model list for @mention parallel answering, keyed by assistantId
+  // This is UI-level state, not core assistant config (default model is assistant.modelId)
+  'assistant.multi_model_ids': Record<string, string[]>
 }
 
 export const DefaultRendererPersistCache: RendererPersistCacheSchema = {
   'ui.tab.state': { tabs: [], activeTabId: '' },
   'feature.mcp.is_uv_installed': false,
-  'feature.mcp.is_bun_installed': false
+  'feature.mcp.is_bun_installed': false,
+  'assistant.multi_model_ids': {}
 }
 
 // ============================================================================

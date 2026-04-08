@@ -1,8 +1,8 @@
 {
   "version": "6",
   "dialect": "sqlite",
-  "id": "e0e695a4-e511-4e26-b0b7-185a8f2cf6df",
-  "prevId": "4105c4f2-d9df-4048-acab-0049e5a95941",
+  "id": "d251716b-2a56-4ded-8f37-0b904a1413ad",
+  "prevId": "e0e695a4-e511-4e26-b0b7-185a8f2cf6df",
   "tables": {
     "app_state": {
       "name": "app_state",
@@ -88,6 +88,13 @@
           "notNull": false,
           "autoincrement": false,
           "default": "''"
+        },
+        "model_id": {
+          "name": "model_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
         },
         "settings": {
           "name": "settings",
@@ -234,59 +241,6 @@
         "assistant_mcp_server_assistant_id_mcp_server_id_pk": {
           "columns": ["assistant_id", "mcp_server_id"],
           "name": "assistant_mcp_server_assistant_id_mcp_server_id_pk"
-        }
-      },
-      "uniqueConstraints": {},
-      "checkConstraints": {}
-    },
-    "assistant_model": {
-      "name": "assistant_model",
-      "columns": {
-        "assistant_id": {
-          "name": "assistant_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "model_id": {
-          "name": "model_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "created_at": {
-          "name": "created_at",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
-        },
-        "updated_at": {
-          "name": "updated_at",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
-        }
-      },
-      "indexes": {},
-      "foreignKeys": {
-        "assistant_model_assistant_id_assistant_id_fk": {
-          "name": "assistant_model_assistant_id_assistant_id_fk",
-          "tableFrom": "assistant_model",
-          "tableTo": "assistant",
-          "columnsFrom": ["assistant_id"],
-          "columnsTo": ["id"],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
-        }
-      },
-      "compositePrimaryKeys": {
-        "assistant_model_assistant_id_model_id_pk": {
-          "columns": ["assistant_id", "model_id"],
-          "name": "assistant_model_assistant_id_model_id_pk"
         }
       },
       "uniqueConstraints": {},
@@ -910,20 +864,6 @@
           "autoincrement": false,
           "default": 0
         },
-        "assistant_id": {
-          "name": "assistant_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
-        },
-        "assistant_snapshot": {
-          "name": "assistant_snapshot",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
-        },
         "model_id": {
           "name": "model_id",
           "type": "text",
@@ -999,15 +939,6 @@
           "columnsFrom": ["topic_id"],
           "columnsTo": ["id"],
           "onDelete": "cascade",
-          "onUpdate": "no action"
-        },
-        "message_assistant_id_assistant_id_fk": {
-          "name": "message_assistant_id_assistant_id_fk",
-          "tableFrom": "message",
-          "tableTo": "assistant",
-          "columnsFrom": ["assistant_id"],
-          "columnsTo": ["id"],
-          "onDelete": "set null",
           "onUpdate": "no action"
         },
         "message_parent_id_message_id_fk": {

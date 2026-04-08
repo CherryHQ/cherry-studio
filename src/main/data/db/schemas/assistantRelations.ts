@@ -4,24 +4,8 @@ import { createUpdateTimestamps } from './_columnHelpers'
 import { assistantTable } from './assistant'
 import { mcpServerTable } from './mcpServer'
 
-/**
- * Assistant-Model junction table
- *
- * Associates assistants with models for multi-model parallel answering.
- * No FK on modelId yet - model table not merged.
- */
-export const assistantModelTable = sqliteTable(
-  'assistant_model',
-  {
-    assistantId: text()
-      .notNull()
-      .references(() => assistantTable.id, { onDelete: 'cascade' }),
-    // TODO: Add FK to model table once merged — .references(() => modelTable.id, { onDelete: 'cascade' })
-    modelId: text().notNull(),
-    ...createUpdateTimestamps
-  },
-  (t) => [primaryKey({ columns: [t.assistantId, t.modelId] })]
-)
+// NOTE: assistant-model relationship is 1:1 (default model) stored as assistant.modelId.
+// Multi-model (@mention) list is ephemeral UI state stored in persist-cache.
 
 /**
  * Assistant-McpServer junction table

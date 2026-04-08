@@ -7,11 +7,7 @@
  */
 
 import { assistantTable } from '@data/db/schemas/assistant'
-import {
-  assistantKnowledgeBaseTable,
-  assistantMcpServerTable,
-  assistantModelTable
-} from '@data/db/schemas/assistantRelations'
+import { assistantKnowledgeBaseTable, assistantMcpServerTable } from '@data/db/schemas/assistantRelations'
 import type { DbType } from '@data/db/types'
 import { loggerService } from '@logger'
 import { application } from '@main/core/application'
@@ -26,11 +22,10 @@ const logger = loggerService.withContext('DataApi:AssistantService')
 
 type AssistantRow = typeof assistantTable.$inferSelect
 
-type AssistantRelationIds = Pick<Assistant, 'modelIds' | 'mcpServerIds' | 'knowledgeBaseIds'>
+type AssistantRelationIds = Pick<Assistant, 'mcpServerIds' | 'knowledgeBaseIds'>
 
 function createEmptyRelations(): AssistantRelationIds {
   return {
-    modelIds: [],
     mcpServerIds: [],
     knowledgeBaseIds: []
   }
@@ -44,7 +39,7 @@ function rowToAssistant(row: AssistantRow, relations: AssistantRelationIds = cre
   return {
     ...clean,
     settings: clean.settings ?? ({} as Assistant['settings']),
-    modelIds: relations.modelIds,
+    modelId: row.modelId ?? null,
     mcpServerIds: relations.mcpServerIds,
     knowledgeBaseIds: relations.knowledgeBaseIds,
     createdAt: row.createdAt ? new Date(row.createdAt).toISOString() : new Date().toISOString(),
@@ -82,12 +77,7 @@ export class AssistantDataService {
       relationMap.set(assistantId, createEmptyRelations())
     }
 
-    const [modelRows, mcpServerRows, knowledgeBaseRows] = await Promise.all([
-      this.db
-        .select({ assistantId: assistantModelTable.assistantId, modelId: assistantModelTable.modelId })
-        .from(assistantModelTable)
-        .where(inArray(assistantModelTable.assistantId, assistantIds))
-        .orderBy(asc(assistantModelTable.assistantId), asc(assistantModelTable.createdAt)),
+    const [mcpServerRows, knowledgeBaseRows] = await Promise.all([
       this.db
         .select({ assistantId: assistantMcpServerTable.assistantId, mcpServerId: assistantMcpServerTable.mcpServerId })
         .from(assistantMcpServerTable)
@@ -103,9 +93,6 @@ export class AssistantDataService {
         .orderBy(asc(assistantKnowledgeBaseTable.assistantId), asc(assistantKnowledgeBaseTable.createdAt))
     ])
 
-    for (const row of modelRows) {
-      relationMap.get(row.assistantId)?.modelIds.push(row.modelId)
-    }
     for (const row of mcpServerRows) {
       relationMap.get(row.assistantId)?.mcpServerIds.push(row.mcpServerId)
     }
@@ -163,6 +150,7 @@ export class AssistantDataService {
           prompt: dto.prompt,
           emoji: dto.emoji,
           description: dto.description,
+          modelId: dto.modelId,
           settings: dto.settings
         })
         .returning()
@@ -176,7 +164,6 @@ export class AssistantDataService {
     logger.info('Created assistant', { id: row.id, name: row.name })
 
     return rowToAssistant(row, {
-      modelIds: dto.modelIds ?? [],
       mcpServerIds: dto.mcpServerIds ?? [],
       knowledgeBaseIds: dto.knowledgeBaseIds ?? []
     })
@@ -193,19 +180,18 @@ export class AssistantDataService {
     }
 
     // Strip relation fields — these are synced to junction tables, not assistant columns
-    const { modelIds, mcpServerIds, knowledgeBaseIds, ...columnFields } = dto
+    const { mcpServerIds, knowledgeBaseIds, ...columnFields } = dto
     const updates = Object.fromEntries(Object.entries(columnFields).filter(([, v]) => v !== undefined)) as Partial<
       typeof assistantTable.$inferInsert
     >
     const hasColumnUpdates = Object.keys(updates).length > 0
-    const hasRelationUpdates = modelIds !== undefined || mcpServerIds !== undefined || knowledgeBaseIds !== undefined
+    const hasRelationUpdates = mcpServerIds !== undefined || knowledgeBaseIds !== undefined
 
     if (!hasColumnUpdates && !hasRelationUpdates) {
       return current
     }
 
     const nextRelations: AssistantRelationIds = {
-      modelIds: modelIds ?? current.modelIds,
       mcpServerIds: mcpServerIds ?? current.mcpServerIds,
       knowledgeBaseIds: knowledgeBaseIds ?? current.knowledgeBaseIds
     }
@@ -217,7 +203,7 @@ export class AssistantDataService {
       }
 
       // Sync junction table rows if relation fields are provided
-      await this.syncRelations(tx, id, { modelIds, mcpServerIds, knowledgeBaseIds })
+      await this.syncRelations(tx, id, { mcpServerIds, knowledgeBaseIds })
 
       return updated
     })
@@ -230,7 +216,7 @@ export class AssistantDataService {
   /**
    * Soft-delete an assistant (sets deletedAt timestamp).
    * The row is preserved so topic.assistantId FK remains valid
-   * and junction table data (models, mcpServers, knowledgeBases) is retained.
+   * and junction table data (mcpServers, knowledgeBases) is retained.
    */
   async delete(id: string): Promise<void> {
     await this.getActiveRowById(id)
@@ -249,15 +235,8 @@ export class AssistantDataService {
   private async syncRelations(
     tx: Pick<DbType, 'delete' | 'insert'>,
     assistantId: string,
-    dto: { modelIds?: string[]; mcpServerIds?: string[]; knowledgeBaseIds?: string[] }
+    dto: { mcpServerIds?: string[]; knowledgeBaseIds?: string[] }
   ): Promise<void> {
-    if (dto.modelIds !== undefined) {
-      await tx.delete(assistantModelTable).where(eq(assistantModelTable.assistantId, assistantId))
-      if (dto.modelIds.length > 0) {
-        await tx.insert(assistantModelTable).values(dto.modelIds.map((modelId) => ({ assistantId, modelId })))
-      }
-    }
-
     if (dto.mcpServerIds !== undefined) {
       await tx.delete(assistantMcpServerTable).where(eq(assistantMcpServerTable.assistantId, assistantId))
       if (dto.mcpServerIds.length > 0) {
