@@ -92,10 +92,10 @@ export const useShortcut = (
       }
     },
     {
-      enableOnFormTags: options.enableOnFormTags,
-      description: options.description ?? fullKey,
+      enableOnFormTags: optionsRef.current.enableOnFormTags,
+      description: optionsRef.current.description ?? fullKey,
       enabled: hotkey !== 'none',
-      enableOnContentEditable: options.enableOnContentEditable
+      enableOnContentEditable: optionsRef.current.enableOnContentEditable
     },
     [hotkey]
   )

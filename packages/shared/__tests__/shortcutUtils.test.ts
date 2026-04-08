@@ -148,14 +148,14 @@ describe('coerceShortcutPreference', () => {
     expect(result.binding).toEqual(['Alt', 'L'])
   })
 
-  it('falls back to default when key is empty array', () => {
+  it('returns empty binding when key is explicitly cleared (empty array)', () => {
     const def = makeDefinition()
     const result = coerceShortcutPreference(def, {
       key: [],
       enabled: true
     })
 
-    expect(result.binding).toEqual(['CommandOrControl', 'L'])
+    expect(result.binding).toEqual([])
   })
 
   it('respects enabled: false from preference', () => {

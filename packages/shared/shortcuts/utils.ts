@@ -123,7 +123,7 @@ export const coerceShortcutPreference = (
   value?: PreferenceShortcutType | null
 ): ShortcutPreferenceValue => {
   const fallback = getDefaultShortcutPreference(definition)
-  const binding = value?.key?.length ? ensureArray(value.key) : fallback.binding
+  const binding = value != null ? (value.key?.length ? ensureArray(value.key) : []) : fallback.binding
 
   return {
     binding,
