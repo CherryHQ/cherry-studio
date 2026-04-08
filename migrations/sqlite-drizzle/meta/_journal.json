@@ -56,6 +56,13 @@
       "when": 1774697808332,
       "tag": "0006_silly_screwball",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "6",
+      "when": 1774865237350,
+      "tag": "0007_old_cloak",
+      "breakpoints": true
     }
   ],
   "version": "7"
