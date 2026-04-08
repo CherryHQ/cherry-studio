@@ -8,6 +8,7 @@ import { useV2MessageAdapter } from '@renderer/hooks/useV2MessageAdapter'
 import { mapLegacyTopicToDto } from '@renderer/services/AssistantService'
 import type { Assistant, FileMetadata, Model, Topic } from '@renderer/types'
 import type { Message, MessageBlock } from '@renderer/types/newMessage'
+import { blocksToParts } from '@renderer/utils/blocksToparts'
 import type { CherryMessagePart } from '@shared/data/types/message'
 import type { FC } from 'react'
 import { useCallback, useEffect, useMemo, useRef } from 'react'
@@ -204,6 +205,7 @@ const V2ChatContentInner: FC<InnerProps> = ({
   const {
     messages: streamingUIMessages,
     setMessages,
+    stop,
     status,
     error,
     sendMessage,
@@ -213,7 +215,10 @@ const V2ChatContentInner: FC<InnerProps> = ({
     topicId: topic.id,
     assistantId: assistant.id,
     initialMessages: historyUIMessages.length > 0 ? historyUIMessages : undefined,
-    onFinish: handleFinish
+    onFinish: handleFinish,
+    onError: (error) => {
+      window.toast.error(error.message || 'AI stream error')
+    }
   })
 
   // Keep ref in sync with latest messages after every render
@@ -244,6 +249,36 @@ const V2ChatContentInner: FC<InnerProps> = ({
     [refresh, setMessages]
   )
 
+  /** Clear all messages for the current topic from DataApi and UI. */
+  const handleClearTopicMessages = useCallback(async () => {
+    // Find the root message (no parentId / askId) and cascade-delete it
+    const rootMsg = historyMessages.find((m) => !m.askId)
+    if (rootMsg) {
+      await dataApiService.delete(`/messages/${rootMsg.id}`, { query: { cascade: true } })
+      logger.info('Cleared all messages via root cascade delete', { topicId: topicRef.current.id, rootId: rootMsg.id })
+    }
+    setMessages([])
+    await refresh()
+  }, [historyMessages, refresh, setMessages])
+
+  /** Edit a message's blocks: convert to parts, persist to DataApi, and refresh history. */
+  const handleEditMessage = useCallback(
+    async (messageId: string, editedBlocks: MessageBlock[]) => {
+      const parts = blocksToParts(editedBlocks)
+
+      // Persist to DataApi first
+      await dataApiService.patch(`/messages/${messageId}`, { body: { data: { parts } } })
+      logger.info('Edited message', { messageId, partCount: parts.length })
+
+      // Refresh history — the edited message is in historyIds so its rendered
+      // data comes from historyMessages/historyBlockMap/historyPartsMap, not
+      // from useChat's streamingUIMessages. Calling refresh() re-fetches from
+      // DataApi and updates all three history sources in one shot.
+      await refresh()
+    },
+    [refresh]
+  )
+
   const v2ChatOverrides = useMemo<V2ChatOverrides>(
     () => ({
       regenerate: async (messageId?: string) => {
@@ -254,9 +289,20 @@ const V2ChatContentInner: FC<InnerProps> = ({
       },
       deleteMessage: handleDeleteMessage,
       deleteMessageGroup: handleDeleteMessageGroup,
+      pause: stop,
+      clearTopicMessages: handleClearTopicMessages,
+      editMessage: handleEditMessage,
       refresh
     }),
-    [regenerate, handleDeleteMessage, handleDeleteMessageGroup, refresh]
+    [
+      regenerate,
+      handleDeleteMessage,
+      handleDeleteMessageGroup,
+      stop,
+      handleClearTopicMessages,
+      handleEditMessage,
+      refresh
+    ]
   )
 
   // Only adapt NEW messages (those not in persisted history) via useV2MessageAdapter.

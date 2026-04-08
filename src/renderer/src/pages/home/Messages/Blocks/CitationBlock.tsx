@@ -2,7 +2,7 @@ import { useSharedCache } from '@data/hooks/useCache'
 import type { GroundingMetadata } from '@google/genai'
 import Spinner from '@renderer/components/Spinner'
 import type { RootState } from '@renderer/store'
-import { selectFormattedCitationsByBlockId } from '@renderer/store/messageBlock'
+import { formatCitationsFromBlock, selectFormattedCitationsByBlockId } from '@renderer/store/messageBlock'
 import { WEB_SEARCH_SOURCE } from '@renderer/types'
 import { type CitationMessageBlock, MessageBlockStatus } from '@renderer/types/newMessage'
 import React, { useMemo } from 'react'
@@ -11,13 +11,25 @@ import { useSelector } from 'react-redux'
 import styled from 'styled-components'
 
 import CitationsList from '../CitationsList'
+import { useV2BlockMap } from './V2Contexts'
 
 function CitationBlock({ block }: { block: CitationMessageBlock }) {
   const { t } = useTranslation()
-  const formattedCitations = useSelector((state: RootState) => selectFormattedCitationsByBlockId(state, block.id))
-  // const { websearch } = useSelector((state: RootState) => state.runtime)
-  const message = useSelector((state: RootState) => state.messages.entities[block.messageId])
-  const userMessageId = message?.askId || block.messageId // 如果没有 askId 则回退到 messageId
+  const v2Blocks = useV2BlockMap()
+
+  // V2: block prop already has full data — format directly without Redux lookup
+  // V1: read from Redux via selector
+  const reduxCitations = useSelector((state: RootState) =>
+    v2Blocks ? [] : selectFormattedCitationsByBlockId(state, block.id)
+  )
+  const formattedCitations = v2Blocks ? formatCitationsFromBlock(block) : reduxCitations
+
+  // V2: no Redux message entity — use block.messageId directly
+  // V1: read from Redux to get askId
+  const reduxMessage = useSelector((state: RootState) =>
+    v2Blocks ? undefined : state.messages.entities[block.messageId]
+  )
+  const userMessageId = reduxMessage?.askId || block.messageId
   const [activeSearches] = useSharedCache('chat.web_search.active_searches')
 
   const hasGeminiBlock = block.response?.source === WEB_SEARCH_SOURCE.GEMINI

@@ -29,6 +29,8 @@ export interface UseAiChatOptions {
   initialMessages?: CherryUIMessage[]
   /** Called when an assistant message finishes streaming. */
   onFinish?: (message: CherryUIMessage, isAbort: boolean, isError: boolean) => void
+  /** Called when an error occurs during streaming. */
+  onError?: (error: Error) => void
 }
 
 export type UseAiChatReturn = Omit<UseChatHelpers<CherryUIMessage>, 'regenerate' | 'sendMessage'> & {
@@ -51,7 +53,14 @@ export type UseAiChatReturn = Omit<UseChatHelpers<CherryUIMessage>, 'regenerate'
  * Per-call body (e.g. `files`, `mentionedModels`) is shallow-merged on top.
  */
 export function useAiChat(options: UseAiChatOptions): UseAiChatReturn {
-  const { chatId, topicId, assistantId, initialMessages, onFinish: onFinishCallback } = options
+  const {
+    chatId,
+    topicId,
+    assistantId,
+    initialMessages,
+    onFinish: onFinishCallback,
+    onError: onErrorCallback
+  } = options
 
   const chat = useChat<CherryUIMessage>({
     id: chatId,
@@ -63,7 +72,7 @@ export function useAiChat(options: UseAiChatOptions): UseAiChatReturn {
     },
     onError: (error) => {
       logger.error('AI stream error', error)
-      // TODO (P3.1b): surface error via unified notification system
+      onErrorCallback?.(error)
     }
   })
 

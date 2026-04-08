@@ -121,13 +121,6 @@ const Messages: React.FC<MessagesProps> = ({
 
   const clearTopic = useCallback(
     async (data: Topic) => {
-      if (isV2Chat) {
-        logger.warn('[clearTopic] V2 clear/new-context flow is disabled until DataApi semantics are finalized.', {
-          topicId: data?.id || topic.id
-        })
-        return
-      }
-
       if (data && data.id !== topic.id) {
         await clearTopicMessages(data.id)
         return
@@ -136,7 +129,7 @@ const Messages: React.FC<MessagesProps> = ({
       await clearTopicMessages()
       setDisplayMessages([])
     },
-    [clearTopicMessages, isV2Chat, topic.id]
+    [clearTopicMessages, topic.id]
   )
 
   useEffect(() => {

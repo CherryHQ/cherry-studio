@@ -39,6 +39,12 @@ export interface V2ChatOverrides {
   deleteMessage: (id: string) => Promise<void>
   /** Delete a message and all its descendants (cascade). */
   deleteMessageGroup: (id: string) => Promise<void>
+  /** Stop the current streaming response. */
+  pause: () => void
+  /** Clear all messages for the current topic. */
+  clearTopicMessages: () => Promise<void>
+  /** Edit a message's content (update parts via DataApi). */
+  editMessage: (messageId: string, editedBlocks: MessageBlock[]) => Promise<void>
   refresh: () => Promise<void>
 }
 
@@ -155,13 +161,11 @@ export function useMessageOperations(topic: Topic) {
    */
   const clearTopicMessages = useCallback(
     async (_topicId?: string) => {
-      const topicIdToClear = _topicId || topic.id
       if (v2) {
-        logger.warn('[clearTopicMessages] V2 write operations are disabled until DataApi semantics are finalized.', {
-          topicId: topicIdToClear
-        })
+        await v2.clearTopicMessages()
         return
       }
+      const topicIdToClear = _topicId || topic.id
       await dispatch(clearTopicMessagesThunk(topicIdToClear))
     },
     [dispatch, topic.id, v2]
@@ -181,9 +185,7 @@ export function useMessageOperations(topic: Topic) {
    */
   const pauseMessages = useCallback(async () => {
     if (v2) {
-      logger.warn('[pauseMessages] V2 pause is not wired yet. Falling back is disabled to avoid state divergence.', {
-        topicId: topic.id
-      })
+      v2.pause()
       return
     }
 
@@ -384,11 +386,7 @@ export function useMessageOperations(topic: Topic) {
       }
 
       if (v2) {
-        logger.warn('[editMessageBlocks] V2 edit writes are disabled until DataApi semantics are finalized.', {
-          topicId: topic.id,
-          messageId,
-          blockCount: editedBlocks.length
-        })
+        await v2.editMessage(messageId, editedBlocks)
         return
       }
 
@@ -467,11 +465,8 @@ export function useMessageOperations(topic: Topic) {
   const resendUserMessageWithEdit = useCallback(
     async (message: Message, editedBlocks: MessageBlock[], assistant: Assistant) => {
       if (v2) {
-        logger.warn('[resendUserMessageWithEdit] V2 edit+resend is disabled until DataApi semantics are finalized.', {
-          topicId: topic.id,
-          messageId: message.id,
-          blockCount: editedBlocks.length
-        })
+        await v2.editMessage(message.id, editedBlocks)
+        await v2.resend(message.id)
         return
       }
 

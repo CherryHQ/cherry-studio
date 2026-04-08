@@ -134,4 +134,56 @@ describe('useAiChat', () => {
 
     expect(typeof result.current.regenerate).toBe('function')
   })
+
+  describe('onError callback', () => {
+    it('should forward onError to useChat config', () => {
+      const onError = vi.fn()
+      renderHook(() => useAiChat({ chatId: 'chat-1', topicId: 'topic-1', onError }))
+
+      const config = mockUseChat.mock.calls[0][0] as Record<string, unknown>
+      expect(typeof config.onError).toBe('function')
+    })
+
+    it('should invoke onError callback when useChat triggers onError', () => {
+      const onError = vi.fn()
+      renderHook(() => useAiChat({ chatId: 'chat-1', topicId: 'topic-1', onError }))
+
+      // Simulate useChat calling onError
+      const config = mockUseChat.mock.calls[0][0] as { onError: (err: Error) => void }
+      const testError = new Error('stream failed')
+      config.onError(testError)
+
+      expect(onError).toHaveBeenCalledWith(testError)
+    })
+
+    it('should not throw when onError is not provided', () => {
+      renderHook(() => useAiChat({ chatId: 'chat-1', topicId: 'topic-1' }))
+
+      const config = mockUseChat.mock.calls[0][0] as { onError: (err: Error) => void }
+      expect(() => config.onError(new Error('no handler'))).not.toThrow()
+    })
+  })
+
+  describe('onFinish callback', () => {
+    it('should forward onFinish to useChat config', () => {
+      const onFinish = vi.fn()
+      renderHook(() => useAiChat({ chatId: 'chat-1', topicId: 'topic-1', onFinish }))
+
+      const config = mockUseChat.mock.calls[0][0] as { onFinish: (args: any) => void }
+      const mockMessage = { id: 'msg-1', parts: [] }
+      config.onFinish({ message: mockMessage, isAbort: false, isError: false })
+
+      expect(onFinish).toHaveBeenCalledWith(mockMessage, false, false)
+    })
+
+    it('should pass isAbort=true when stream is aborted', () => {
+      const onFinish = vi.fn()
+      renderHook(() => useAiChat({ chatId: 'chat-1', topicId: 'topic-1', onFinish }))
+
+      const config = mockUseChat.mock.calls[0][0] as { onFinish: (args: any) => void }
+      config.onFinish({ message: { id: 'msg-1', parts: [] }, isAbort: true, isError: false })
+
+      expect(onFinish).toHaveBeenCalledWith(expect.anything(), true, false)
+    })
+  })
 })
