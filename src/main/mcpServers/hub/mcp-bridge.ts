@@ -134,10 +134,20 @@ function extractToolResult(result: MCPCallToolResponse): unknown {
       item.type === 'text' && typeof item.text === 'string'
   )
 
-  // Image/audio-only response: hand the raw array back so downstream code can
-  // route those parts to the appropriate channel (see issue #13209).
-  if (textBlocks.length === 0) {
-    return result.content
+  // Non-text-only (image/audio/resource) or mixed (text + non-text): return
+  // the first text block when present, otherwise the raw array. Proper
+  // multimodal content handling (base64 placeholders, etc.) is tracked in
+  // #13209; expanding that here would risk base64 payloads being serialized
+  // into LLM messages (see #12735).
+  if (textBlocks.length !== result.content.length) {
+    if (textBlocks.length === 0) {
+      return result.content
+    }
+    try {
+      return JSON.parse(textBlocks[0].text)
+    } catch {
+      return textBlocks[0].text
+    }
   }
 
   // Single text block keeps the historical behavior so `exec` user code that

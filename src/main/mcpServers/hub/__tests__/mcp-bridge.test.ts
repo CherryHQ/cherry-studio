@@ -268,6 +268,17 @@ describe('callMcpTool result extraction', () => {
     expect(result).toEqual(imageContent.content)
   })
 
+  it('parses the first text block when content mixes text and non-text blocks', async () => {
+    const result = await callWithMockedResponse({
+      content: [
+        { type: 'text', text: '{"valid":true}' },
+        { type: 'image', data: 'base64data', mimeType: 'image/png' }
+      ]
+    })
+
+    expect(result).toEqual({ valid: true })
+  })
+
   it('throws with the single error message when isError has one text block', async () => {
     await expect(
       callWithMockedResponse({
