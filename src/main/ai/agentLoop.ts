@@ -8,6 +8,7 @@ import type {
   PrepareStepFunction,
   StepResult,
   StopCondition,
+  TelemetrySettings,
   ToolSet,
   UIMessage,
   UIMessageChunk
@@ -102,6 +103,8 @@ export interface AgentLoopParams<T extends AppProviderKey = AppProviderKey> {
   system?: string
   /** AI SDK inner loop stop condition. Default: stepCountIs(20) (AI SDK default) */
   stopWhen?: StopCondition<ToolSet> | Array<StopCondition<ToolSet>>
+  /** AI SDK telemetry — auto-generates otel spans for LLM calls */
+  telemetry?: TelemetrySettings
   hooks?: AgentLoopHooks
 }
 
@@ -163,6 +166,7 @@ export function runAgentLoop<T extends AppProviderKey>(
           tools: params.tools as ToolSet,
           instructions: system,
           stopWhen: params.stopWhen,
+          experimental_telemetry: params.telemetry,
           prepareStep: hooks.prepareStep,
           onStepFinish: hooks.onStepFinish
         }
