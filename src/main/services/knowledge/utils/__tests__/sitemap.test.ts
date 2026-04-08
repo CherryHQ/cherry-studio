@@ -19,10 +19,10 @@ vi.mock('electron', () => ({
   }
 }))
 
-const { expandSitemapToCreateItems } = await import('../sitemap')
+const { expandSitemapOwnerToCreateItems } = await import('../sitemap')
 
-describe('expandSitemapToCreateItems', () => {
-  it('creates a sitemap owner and deduplicated url child items', async () => {
+describe('expandSitemapOwnerToCreateItems', () => {
+  it('creates deduplicated url child items for a sitemap owner', async () => {
     fetchMock.mockResolvedValue(
       new Response(
         [
@@ -36,19 +36,24 @@ describe('expandSitemapToCreateItems', () => {
       )
     )
 
-    const items = await expandSitemapToCreateItems('https://example.com/sitemap.xml')
-
-    expect(items[0]).toMatchObject({
-      ref: 'root',
+    const items = await expandSitemapOwnerToCreateItems({
+      id: 'sitemap-owner-1',
+      baseId: 'kb-1',
+      groupId: null,
       type: 'sitemap',
       data: {
         url: 'https://example.com/sitemap.xml',
         name: 'https://example.com/sitemap.xml'
-      }
+      },
+      status: 'idle',
+      error: null,
+      createdAt: '2026-04-08T00:00:00.000Z',
+      updatedAt: '2026-04-08T00:00:00.000Z'
     })
-    expect(items.slice(1)).toEqual([
+
+    expect(items).toEqual([
       {
-        groupRef: 'root',
+        groupId: 'sitemap-owner-1',
         type: 'url',
         data: {
           url: 'https://example.com/page-1',
@@ -56,7 +61,7 @@ describe('expandSitemapToCreateItems', () => {
         }
       },
       {
-        groupRef: 'root',
+        groupId: 'sitemap-owner-1',
         type: 'url',
         data: {
           url: 'https://example.com/page-2',

@@ -4,7 +4,7 @@ import path from 'node:path'
 
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
-const { expandDirectoryToCreateItems } = await import('../directory')
+const { expandDirectoryOwnerToCreateItems } = await import('../directory')
 const realFs = await vi.importActual<typeof NodeFs>('node:fs')
 const realOs = await vi.importActual<typeof NodeOs>('node:os')
 
@@ -12,7 +12,7 @@ function createTempRoot() {
   return realFs.mkdtempSync(path.join(realOs.tmpdir(), 'knowledge-directory-expand-'))
 }
 
-describe('expandDirectoryToCreateItems', () => {
+describe('expandDirectoryOwnerToCreateItems', () => {
   let tempRoot: string | undefined
 
   afterEach(() => {
@@ -22,7 +22,7 @@ describe('expandDirectoryToCreateItems', () => {
     }
   })
 
-  it('expands nested directories into createMany dto items with preserved hierarchy', async () => {
+  it('expands a directory owner into child createMany dto items with preserved hierarchy', async () => {
     tempRoot = createTempRoot()
     const rootDir = path.join(tempRoot, 'anna')
     const nestedDir = path.join(rootDir, 'agents', 'skills')
@@ -30,15 +30,19 @@ describe('expandDirectoryToCreateItems', () => {
     realFs.writeFileSync(path.join(rootDir, '.dockerignore'), 'node_modules')
     realFs.writeFileSync(path.join(nestedDir, 'skill.md'), '# skill')
 
-    const items = await expandDirectoryToCreateItems(rootDir)
-
-    expect(items[0]).toMatchObject({
-      ref: 'root',
+    const items = await expandDirectoryOwnerToCreateItems({
+      id: 'dir-owner-1',
+      baseId: 'kb-1',
+      groupId: null,
       type: 'directory',
       data: {
         name: 'anna',
         path: rootDir
-      }
+      },
+      status: 'idle',
+      error: null,
+      createdAt: '2026-04-08T00:00:00.000Z',
+      updatedAt: '2026-04-08T00:00:00.000Z'
     })
 
     const agentsDir = items.find((item) => item.type === 'directory' && item.data.path === path.join(rootDir, 'agents'))
@@ -54,7 +58,7 @@ describe('expandDirectoryToCreateItems', () => {
 
     expect(agentsDir).toMatchObject({
       ref: 'dir:/agents',
-      groupRef: 'root'
+      groupId: 'dir-owner-1'
     })
     expect(skillsDir).toMatchObject({
       ref: 'dir:/agents/skills',

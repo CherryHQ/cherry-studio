@@ -3,7 +3,7 @@ import { knowledgeItemService } from '@data/services/KnowledgeItemService'
 import { loggerService } from '@logger'
 import { application } from '@main/core/application'
 import { BaseService, DependsOn, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
-import type { KnowledgeBase, KnowledgeItem, KnowledgeSearchResult } from '@shared/data/types/knowledge'
+import type { KnowledgeBase, KnowledgeItem, KnowledgeItemOf, KnowledgeSearchResult } from '@shared/data/types/knowledge'
 import { IpcChannel } from '@shared/IpcChannel'
 import type { BaseVectorStore } from '@vectorstores/core'
 import { MetadataMode } from '@vectorstores/core'
@@ -13,10 +13,10 @@ import PQueue from 'p-queue'
 import { loadKnowledgeItemDocuments } from './readers/KnowledgeReader'
 import { rerankKnowledgeSearchResults } from './rerank/rerank'
 import { chunkDocuments } from './utils/chunk'
-import { expandDirectoryToCreateItems } from './utils/directory'
+import { expandDirectoryOwnerToCreateItems } from './utils/directory'
 import { embedDocuments } from './utils/embed'
 import { getEmbedModel } from './utils/model'
-import { expandSitemapToCreateItems } from './utils/sitemap'
+import { expandSitemapOwnerToCreateItems } from './utils/sitemap'
 import { runAbortable, type RuntimeTaskContext, SHUTDOWN_INTERRUPTED_REASON } from './utils/taskRuntime'
 
 const logger = loggerService.withContext('KnowledgeRuntimeService')
@@ -243,16 +243,26 @@ export class KnowledgeRuntimeService extends BaseService {
     this.ipcHandle(IpcChannel.KnowledgeRuntime_DeleteBase, async (_, payload: { baseId: string }) => {
       return await this.deleteBase(payload.baseId)
     })
-    this.ipcHandle(IpcChannel.KnowledgeRuntime_ExpandDirectory, async (_, payload: { path: string }) => {
-      return {
-        items: await expandDirectoryToCreateItems(payload.path)
+    this.ipcHandle(
+      IpcChannel.KnowledgeRuntime_ExpandDirectoryItem,
+      async (_, payload: { baseId: string; itemId: string }) => {
+        await this.loadBase(payload.baseId)
+        const item = await this.loadItemOfType(payload.itemId, 'directory')
+        return {
+          items: await expandDirectoryOwnerToCreateItems(item)
+        }
       }
-    })
-    this.ipcHandle(IpcChannel.KnowledgeRuntime_ExpandSitemap, async (_, payload: { url: string }) => {
-      return {
-        items: await expandSitemapToCreateItems(payload.url)
+    )
+    this.ipcHandle(
+      IpcChannel.KnowledgeRuntime_ExpandSitemapItem,
+      async (_, payload: { baseId: string; itemId: string }) => {
+        await this.loadBase(payload.baseId)
+        const item = await this.loadItemOfType(payload.itemId, 'sitemap')
+        return {
+          items: await expandSitemapOwnerToCreateItems(item)
+        }
       }
-    })
+    )
     this.ipcHandle(IpcChannel.KnowledgeRuntime_AddItems, async (_, payload: { baseId: string; itemIds: string[] }) => {
       const { base, items } = await this.loadBaseAndItems(payload.baseId, payload.itemIds)
       return await this.addItems(base, items)
@@ -276,6 +286,16 @@ export class KnowledgeRuntimeService extends BaseService {
 
   private async loadItems(itemIds: string[]): Promise<KnowledgeItem[]> {
     return await Promise.all(itemIds.map((itemId) => knowledgeItemService.getById(itemId)))
+  }
+
+  private async loadItemOfType<T extends KnowledgeItem['type']>(itemId: string, type: T): Promise<KnowledgeItemOf<T>> {
+    const item = await knowledgeItemService.getById(itemId)
+
+    if (item.type !== type) {
+      throw new Error(`Knowledge item '${itemId}' must be type '${type}', received '${item.type}'`)
+    }
+
+    return item as KnowledgeItemOf<T>
   }
 
   private async loadBaseAndItems(

@@ -9,8 +9,8 @@ const {
   createVectorStoreMock,
   deleteVectorStoreMock,
   embedManyMock,
-  expandDirectoryToCreateItemsMock,
-  expandSitemapToCreateItemsMock,
+  expandDirectoryOwnerToCreateItemsMock,
+  expandSitemapOwnerToCreateItemsMock,
   getEmbedModelMock,
   knowledgeBaseGetByIdMock,
   knowledgeItemGetByIdMock,
@@ -26,8 +26,8 @@ const {
   createVectorStoreMock: vi.fn(),
   deleteVectorStoreMock: vi.fn(),
   embedManyMock: vi.fn(),
-  expandDirectoryToCreateItemsMock: vi.fn(),
-  expandSitemapToCreateItemsMock: vi.fn(),
+  expandDirectoryOwnerToCreateItemsMock: vi.fn(),
+  expandSitemapOwnerToCreateItemsMock: vi.fn(),
   getEmbedModelMock: vi.fn(),
   knowledgeBaseGetByIdMock: vi.fn(),
   knowledgeItemGetByIdMock: vi.fn(),
@@ -108,11 +108,11 @@ vi.mock('../utils/model', () => ({
 }))
 
 vi.mock('../utils/directory', () => ({
-  expandDirectoryToCreateItems: expandDirectoryToCreateItemsMock
+  expandDirectoryOwnerToCreateItems: expandDirectoryOwnerToCreateItemsMock
 }))
 
 vi.mock('../utils/sitemap', () => ({
-  expandSitemapToCreateItems: expandSitemapToCreateItemsMock
+  expandSitemapOwnerToCreateItems: expandSitemapOwnerToCreateItemsMock
 }))
 
 const { KnowledgeRuntimeService } = await import('../KnowledgeRuntimeService')
@@ -209,14 +209,30 @@ describe('KnowledgeRuntimeService', () => {
     knowledgeItemUpdateMock.mockImplementation(async (_id, dto) => dto)
     getEmbedModelMock.mockReturnValue({ provider: 'mock' })
     embedManyMock.mockResolvedValue({ embeddings: [[0.1, 0.2]] })
-    expandDirectoryToCreateItemsMock.mockResolvedValue([
-      { ref: 'root', type: 'directory', data: { name: 'docs', path: '/docs' } }
-    ])
-    expandSitemapToCreateItemsMock.mockResolvedValue([
+    expandDirectoryOwnerToCreateItemsMock.mockResolvedValue([
       {
-        ref: 'root',
-        type: 'sitemap',
-        data: { url: 'https://example.com/sitemap.xml', name: 'https://example.com/sitemap.xml' }
+        groupId: 'dir-1',
+        type: 'file',
+        data: {
+          file: {
+            id: 'file-1',
+            name: 'a.md',
+            origin_name: 'a.md',
+            path: '/docs/a.md',
+            created_at: '2026-04-08T00:00:00.000Z',
+            size: 10,
+            ext: '.md',
+            type: 'text',
+            count: 1
+          }
+        }
+      }
+    ])
+    expandSitemapOwnerToCreateItemsMock.mockResolvedValue([
+      {
+        groupId: 'sitemap-1',
+        type: 'url',
+        data: { url: 'https://example.com/page-1', name: 'https://example.com/page-1' }
       }
     ])
     rerankKnowledgeSearchResultsMock.mockImplementation(async (_base, _query, results) => results)
@@ -286,8 +302,12 @@ describe('KnowledgeRuntimeService', () => {
     const handlerCalls = ((service as any).ipcHandle as ReturnType<typeof vi.fn>).mock.calls
     const addItemsHandler = handlerCalls.find((call) => call[0] === 'knowledge-runtime:add-items')?.[1]
     const searchHandler = handlerCalls.find((call) => call[0] === 'knowledge-runtime:search')?.[1]
-    const expandDirectoryHandler = handlerCalls.find((call) => call[0] === 'knowledge-runtime:expand-directory')?.[1]
-    const expandSitemapHandler = handlerCalls.find((call) => call[0] === 'knowledge-runtime:expand-sitemap')?.[1]
+    const expandDirectoryItemHandler = handlerCalls.find(
+      (call) => call[0] === 'knowledge-runtime:expand-directory-item'
+    )?.[1]
+    const expandSitemapItemHandler = handlerCalls.find(
+      (call) => call[0] === 'knowledge-runtime:expand-sitemap-item'
+    )?.[1]
 
     const base = createBase()
     const item = createDirectoryItem()
@@ -312,21 +332,46 @@ describe('KnowledgeRuntimeService', () => {
     expect(knowledgeBaseGetByIdMock).toHaveBeenCalledWith(base.id)
     expect(mockQuery).toHaveBeenCalled()
 
-    await expect(expandDirectoryHandler({}, { path: '/docs' })).resolves.toEqual({
-      items: [{ ref: 'root', type: 'directory', data: { name: 'docs', path: '/docs' } }]
-    })
-    expect(expandDirectoryToCreateItemsMock).toHaveBeenCalledWith('/docs')
-
-    await expect(expandSitemapHandler({}, { url: 'https://example.com/sitemap.xml' })).resolves.toEqual({
+    await expect(expandDirectoryItemHandler({}, { baseId: base.id, itemId: item.id })).resolves.toEqual({
       items: [
         {
-          ref: 'root',
-          type: 'sitemap',
-          data: { url: 'https://example.com/sitemap.xml', name: 'https://example.com/sitemap.xml' }
+          groupId: 'dir-1',
+          type: 'file',
+          data: {
+            file: {
+              id: 'file-1',
+              name: 'a.md',
+              origin_name: 'a.md',
+              path: '/docs/a.md',
+              created_at: '2026-04-08T00:00:00.000Z',
+              size: 10,
+              ext: '.md',
+              type: 'text',
+              count: 1
+            }
+          }
         }
       ]
     })
-    expect(expandSitemapToCreateItemsMock).toHaveBeenCalledWith('https://example.com/sitemap.xml')
+    expect(knowledgeBaseGetByIdMock).toHaveBeenCalledWith(base.id)
+    expect(knowledgeItemGetByIdMock).toHaveBeenCalledWith(item.id)
+    expect(expandDirectoryOwnerToCreateItemsMock).toHaveBeenCalledWith(item)
+
+    const sitemapItem = createSitemapItem()
+    knowledgeItemGetByIdMock.mockResolvedValueOnce(sitemapItem)
+
+    await expect(expandSitemapItemHandler({}, { baseId: base.id, itemId: sitemapItem.id })).resolves.toEqual({
+      items: [
+        {
+          groupId: 'sitemap-1',
+          type: 'url',
+          data: { url: 'https://example.com/page-1', name: 'https://example.com/page-1' }
+        }
+      ]
+    })
+    expect(knowledgeBaseGetByIdMock).toHaveBeenCalledWith(base.id)
+    expect(knowledgeItemGetByIdMock).toHaveBeenCalledWith(sitemapItem.id)
+    expect(expandSitemapOwnerToCreateItemsMock).toHaveBeenCalledWith(sitemapItem)
   })
 
   it('persists failed status even when vector cleanup throws', async () => {

@@ -4,6 +4,7 @@ import path from 'node:path'
 import { getFileType } from '@main/utils/file'
 import type { CreateKnowledgeItemsDto } from '@shared/data/api/schemas/knowledges'
 import type { FileMetadata } from '@shared/data/types/file'
+import type { KnowledgeItemOf } from '@shared/data/types/knowledge'
 import type { NotesTreeNode } from '@types'
 import { v4 as uuidv4 } from 'uuid'
 
@@ -71,11 +72,13 @@ async function createExternalFileMetadata(filePath: string): Promise<FileMetadat
   }
 }
 
-async function flattenDirectoryNode(node: NotesTreeNode, parentRef: string): Promise<CreateKnowledgeItemInput[]> {
+type GroupingTarget = { groupId: string } | { groupRef: string }
+
+async function flattenDirectoryNode(node: NotesTreeNode, parent: GroupingTarget): Promise<CreateKnowledgeItemInput[]> {
   if (node.type === 'file') {
     return [
       {
-        groupRef: parentRef,
+        ...parent,
         type: 'file',
         data: {
           file: await createExternalFileMetadata(node.externalPath)
@@ -92,7 +95,7 @@ async function flattenDirectoryNode(node: NotesTreeNode, parentRef: string): Pro
   const items: CreateKnowledgeItemInput[] = [
     {
       ref,
-      groupRef: parentRef,
+      ...parent,
       type: 'directory',
       data: {
         name: node.name,
@@ -102,30 +105,21 @@ async function flattenDirectoryNode(node: NotesTreeNode, parentRef: string): Pro
   ]
 
   for (const child of node.children ?? []) {
-    items.push(...(await flattenDirectoryNode(child, ref)))
+    items.push(...(await flattenDirectoryNode(child, { groupRef: ref })))
   }
 
   return items
 }
 
-export async function expandDirectoryToCreateItems(directoryPath: string): Promise<CreateKnowledgeItemsDto['items']> {
-  const resolvedPath = path.resolve(directoryPath)
-  const rootName = path.basename(resolvedPath) || resolvedPath
+export async function expandDirectoryOwnerToCreateItems(
+  owner: KnowledgeItemOf<'directory'>
+): Promise<CreateKnowledgeItemsDto['items']> {
+  const resolvedPath = path.resolve(owner.data.path)
   const children = await readDirectoryTree(resolvedPath)
-
-  const items: CreateKnowledgeItemsDto['items'] = [
-    {
-      ref: 'root',
-      type: 'directory',
-      data: {
-        name: rootName,
-        path: resolvedPath
-      }
-    }
-  ]
+  const items: CreateKnowledgeItemsDto['items'] = []
 
   for (const child of children) {
-    items.push(...(await flattenDirectoryNode(child, 'root')))
+    items.push(...(await flattenDirectoryNode(child, { groupId: owner.id })))
   }
 
   return items

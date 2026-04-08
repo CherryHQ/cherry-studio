@@ -1,5 +1,6 @@
 import { loggerService } from '@logger'
 import type { CreateKnowledgeItemsDto } from '@shared/data/api/schemas/knowledges'
+import type { KnowledgeItemOf } from '@shared/data/types/knowledge'
 import { isValidUrl } from '@shared/utils'
 import { net } from 'electron'
 import { XMLParser } from 'fast-xml-parser'
@@ -21,7 +22,11 @@ function normalizeLocs(value: Array<{ loc?: string }> | { loc?: string } | undef
   return entries.map((entry) => entry.loc?.trim()).filter((loc): loc is string => Boolean(loc))
 }
 
-export async function expandSitemapToCreateItems(sitemapUrl: string): Promise<CreateKnowledgeItemsDto['items']> {
+export async function expandSitemapOwnerToCreateItems(
+  owner: KnowledgeItemOf<'sitemap'>
+): Promise<CreateKnowledgeItemsDto['items']> {
+  const sitemapUrl = owner.data.url
+
   try {
     if (!isValidUrl(sitemapUrl)) {
       throw new Error(`Invalid knowledge sitemap url: ${sitemapUrl}`)
@@ -39,24 +44,14 @@ export async function expandSitemapToCreateItems(sitemapUrl: string): Promise<Cr
     const parsed = sitemapParser.parse(xml) as ParsedSitemapDocument
     const pageUrls = [...new Set(normalizeLocs(parsed.urlset?.url))]
 
-    return [
-      {
-        ref: 'root',
-        type: 'sitemap',
-        data: {
-          url: sitemapUrl,
-          name: sitemapUrl
-        }
-      },
-      ...pageUrls.map((url) => ({
-        groupRef: 'root',
-        type: 'url' as const,
-        data: {
-          url,
-          name: url
-        }
-      }))
-    ]
+    return pageUrls.map((url) => ({
+      groupId: owner.id,
+      type: 'url' as const,
+      data: {
+        url,
+        name: url
+      }
+    }))
   } catch (error) {
     const normalizedError = error instanceof Error ? error : new Error(String(error))
     logger.error(`Failed to expand sitemap: ${sitemapUrl}`, normalizedError)
