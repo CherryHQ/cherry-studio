@@ -1449,51 +1449,141 @@ class AiService extends BaseService {
 }
 
 /**
- * agentLoop: 双循环纯函数（借鉴 Hermes / pi-mono）。
+ * agentLoop 生命周期钩子设计
  *
- * 内层: AI SDK ToolLoopAgent — LLM → tool call → execute → repeat → 文本响应 → 退出
- * 外层: while(true) — 检查 pending messages → 有则编译新 context 重启内层 → 无则结束
+ * 双循环: 外层 while(true) + 内层 AI SDK ToolLoopAgent
+ * 钩子分两层: AI SDK 提供的（内层） vs 我们自建的（外层 + 跨层）
  *
- * 持久化策略（完成边界，非流式）:
- * - v2 架构下 stream 是传输通道（IPC → Renderer 实时渲染），不是存储
- * - 不逐 chunk 写 DB。在完成边界一次性持久化完整消息：
- *   - onFinish: 内层结束 → 持久化完整 assistant message + usage stats
- *   - 外层边界: 持久化 pending messages
- * - Renderer: useChat 管理内存 UI 状态（实时渲染），完成后 useInvalidateCache('/messages') 刷新 SWR 缓存
+ * ┌─ runAgentLoop ──────────────────────────────────────────────────────────┐
+ * │                                                                         │
+ * │  ★ hooks.onStart()               ← 自建: otel root span, 加载 memory  │
+ * │                                                                         │
+ * │  ┌─ outer loop ──────────────────────────────────────────────────────┐  │
+ * │  │                                                                   │  │
+ * │  │  ★ hooks.beforeIteration()    ← 自建: compileContext, otel span  │  │
+ * │  │                                                                   │  │
+ * │  │  ┌─ inner (ToolLoopAgent) ─────────────────────────────────────┐  │  │
+ * │  │  │                                                             │  │  │
+ * │  │  │  ◆ agentSettings.prepareStep()   ← AI SDK: 每步 LLM 调前   │  │  │
+ * │  │  │    → hooks.prepareStep() 转发     (steering + 尾部裁剪)     │  │  │
+ * │  │  │                                                             │  │  │
+ * │  │  │  ◆ agentSettings.onStepFinish()  ← AI SDK: 每步完成        │  │  │
+ * │  │  │    → hooks.onStepFinish() 转发    (进度推送 + otel span)    │  │  │
+ * │  │  │                                                             │  │  │
+ * │  │  │  ◆ agentSettings.onFinish()      ← AI SDK: 内层全部完成    │  │  │
+ * │  │  │    (不直接暴露，由外层 afterIteration 统一处理)              │  │  │
+ * │  │  │                                                             │  │  │
+ * │  │  │  ◆ result.totalUsage             ← AI SDK: Promise, 流结束  │  │  │
+ * │  │  │                                   后 resolve                │  │  │
+ * │  │  └─────────────────────────────────────────────────────────────┘  │  │
+ * │  │                                                                   │  │
+ * │  │  ★ hooks.afterIteration()     ← 自建: persist, memory 更新       │  │
+ * │  │                                 检查 pending → continue/break    │  │
+ * │  └───────────────────────────────────────────────────────────────────┘  │
+ * │                                                                         │
+ * │  ★ hooks.onFinish()              ← 自建: analytics, otel root span 结束│
+ * │  ★ hooks.onError()               ← 自建: otel record, retry/abort 决策 │
+ * └─────────────────────────────────────────────────────────────────────────┘
  *
- * 无损上下文管理:
- * - Context window 不是 memory，是 viewport。DB 是 memory。
- * - Messages 数组分三层，前两层是 prompt cache 友好的稳定前缀：
+ * 图例: ◆ = AI SDK 原生钩子   ★ = 我们自建钩子
  *
- *   ┌─────────────────────────────┐
- *   │ System prompt                │ ← session 级不变
- *   ├─────────────────────────────┤
- *   │ Retrieved context            │ ← 外层循环边界更新（语义检索）
- *   │ (历史消息原文，非 summary)    │   内层多步间不变 → PROMPT CACHE HIT
- *   ├─ ─ ─ ─ CACHE BOUNDARY ─ ─ ─┤
- *   │ Working memory               │ ← 每步追加增长（tool calls, results, steering）
- *   │ (当前轮次 raw messages)      │   pruneMessages() 裁剪尾部旧 tool calls
- *   └─────────────────────────────┘
- *
- * - 外层循环边界: onFinish 持久化 → 检索 → 编译 context（允许 cache miss）
- * - 内层步间: 只追加尾部 + pruneMessages()（不动前缀 → cache hit）
- *
- * 纯函数: 无 class、无 this、无内部状态。所有依赖通过参数传入。
+ * 关键原则:
+ * - AI SDK 钩子只在内层（ToolLoopAgent）生效，由 agentSettings 传入
+ * - 自建钩子覆盖外层循环的生命周期（AI SDK 不管外层）
+ * - prepareStep / onStepFinish 由自建 hooks 定义，agentLoop 转发到 agentSettings
+ * - onFinish 不直接用 AI SDK 的（它只管内层一次），由外层 afterIteration + 最终 onFinish 统一处理
  */
+
+// ── AI SDK 提供的钩子（内层 ToolLoopAgent）──
+// 以下由 AI SDK ToolLoopAgentSettings 定义，agentLoop 转发 hooks 到 agentSettings:
+//
+// prepareStep({ stepNumber, steps, messages, model })
+//   → 每步 LLM 调用前。可替换 messages / tools / model / system
+//   → 用于: steering drain, 尾部 pruneMessages, 动态 activeTools
+//
+// onStepFinish({ stepNumber, text, toolCalls, toolResults, usage, finishReason })
+//   → 每步完成后。观察者，不能修改流程
+//   → 用于: 进度推送, otel step span
+//
+// onFinish({ steps, totalUsage })
+//   → 内层全部完成。agentLoop 内部用于获取 totalUsage
+//   → 不直接暴露给外部——由 afterIteration 统一处理
+//
+// stopWhen(stepCountIs(N))
+//   → 停止条件。AI SDK 内置
+//
+// experimental_telemetry
+//   → AI SDK 原生 otel 集成（自动生成 span）
+//
+// experimental_context
+//   → 跨步骤持久化自定义状态，传入 tool execute 和 prepareStep
+
+// ── 我们自建的钩子（外层 + 跨层）──
+
+interface AgentLoopHooks {
+  /** Loop 启动前。用于: otel root span, 加载 memory */
+  onStart?: () => Promise<void>
+
+  /** 每轮外层循环开始前。用于: compileContext, otel iteration span */
+  beforeIteration?: (ctx: IterationContext) => Promise<BeforeIterationResult | void>
+
+  /** 转发到 AI SDK prepareStep。用于: steering drain, 尾部 pruneMessages */
+  prepareStep?: PrepareStepFunction
+
+  /** 转发到 AI SDK onStepFinish。用于: 进度推送, otel step span */
+  onStepFinish?: (step: StepResult) => void
+
+  /** 每轮外层循环结束后。用于: persist, memory 更新, SWR invalidate */
+  afterIteration?: (ctx: IterationContext, result: IterationResult) => Promise<void>
+
+  /** 整个 loop 完成（所有迭代结束）。用于: analytics trackUsage, otel root span end */
+  onFinish?: (result: LoopFinishResult) => void
+
+  /** 错误处理。返回 'retry' 重试当前迭代，'abort' 终止 */
+  onError?: (error: Error, ctx: ErrorContext) => Promise<'retry' | 'abort'>
+}
+
+interface IterationContext {
+  iterationNumber: number
+  messages: UIMessage[]
+  totalSteps: number
+}
+
+interface BeforeIterationResult {
+  messages?: UIMessage[]  // 替换 messages（compileContext 输出）
+  system?: string         // 替换 system prompt（memory 注入）
+}
+
+interface IterationResult {
+  messages: ModelMessage[]
+  usage: LanguageModelUsage
+}
+
+interface LoopFinishResult {
+  totalUsage: LanguageModelUsage
+  totalIterations: number
+  totalSteps: number
+}
+
+interface ErrorContext {
+  iterationNumber: number
+  stepNumber?: number
+  isRetryable: boolean
+}
+
+// ── AgentLoopParams ──
+
 interface AgentLoopParams {
+  // Agent 配置
   providerId: string
   providerSettings: ProviderSettings
   modelId: string
   plugins: AiPlugin[]
   tools: ToolSet
-  params: StreamTextParams
-  pendingMessages: PendingMessageQueue
-  maxSteps: number
-  isAgentMode: boolean
-  requestId: string
-  chatId: string
-  modelContextWindow: number
-  onStepProgress?: (progress: StepProgress) => void
+  system?: string
+
+  // 生命周期钩子
+  hooks?: AgentLoopHooks
 }
 
 function runAgentLoop(
@@ -1503,101 +1593,111 @@ function runAgentLoop(
 ): ReadableStream<UIMessageChunk> {
   const { readable, writable } = new TransformStream<UIMessageChunk>()
   const writer = writable.getWriter()
+  const hooks = params.hooks ?? {}
 
   ;(async () => {
-    // ── 首次编译 context ──
-    let { contextPrefix, workingMemory } = await compileContext({
-      chatId: params.chatId,
-      currentTurnMessages: initialMessages,
-      modelContextWindow: params.modelContextWindow,
-    })
+    await hooks.onStart?.()
+
+    let messages = initialMessages
+    let iterationNumber = 0
+    let totalSteps = 0
+    let totalUsage: LanguageModelUsage = { inputTokens: 0, outputTokens: 0, totalTokens: 0 }
 
     while (!signal.aborted) {
-      // ── 内层: ToolLoopAgent ──
-      // contextPrefix 在整个内层循环中不变 → prompt cache hit
+      iterationNumber++
+
+      // ★ 自建: 外层循环开始前（compileContext, memory, otel span）
+      const beforeResult = await hooks.beforeIteration?.({ iterationNumber, messages, totalSteps })
+      if (beforeResult?.messages) messages = beforeResult.messages
+      const system = beforeResult?.system ?? params.system
+
+      // ◆ AI SDK: 创建 agent，转发 hooks 到 agentSettings
       const agent = await createAgent({
         providerId: params.providerId,
         providerSettings: params.providerSettings,
         modelId: params.modelId,
         plugins: params.plugins,
         agentSettings: {
-          ...params.params,
           tools: params.tools,
-          stopWhen: stepCountIs(params.maxSteps),
-
-          prepareStep: ({ messages: stepMessages }) => {
-            // ❌ 不重新检索、不重排前缀
-            // ✅ 只管尾部: steering + pruneMessages
-            let result: PrepareStepResult = {}
-
-            // 1. 尾部裁剪: 去旧 tool calls/reasoning（不动前缀）
-            const pruned = pruneMessages({
-              messages: stepMessages,
-              reasoning: 'before-last-message',
-              toolCalls: 'before-last-5-messages',
-              emptyMessages: 'remove',
-            })
-            if (pruned !== stepMessages) result.messages = pruned
-
-            // 2. 追加 steering messages 到尾部
-            const drained = params.pendingMessages.drain()
-            if (drained.length > 0) {
-              const base = result.messages ?? stepMessages
-              result.messages = [...base, ...drained]
-            }
-
-            return result
-          },
-
-          onStepFinish: ({ stepNumber, toolCalls }) => {
-            if (params.isAgentMode && params.onStepProgress) {
-              params.onStepProgress({ stepNumber, toolCalls: toolCalls.length })
-            }
-          },
-
-          // 完成边界持久化: 内层结束时一次性写 DB
-          onFinish: async ({ messages: finalMessages, totalUsage }) => {
-            await persistMessages(params.chatId, finalMessages)
-            // 通知 Renderer 刷新 SWR 缓存
-            // Renderer 侧: useInvalidateCache() → invalidate('/messages')
-            ipcMain.emit('Ai_MessagesPersisted', { chatId: params.chatId })
-          },
+          instructions: system,
+          prepareStep: hooks.prepareStep,           // ◆ 转发到 AI SDK
+          onStepFinish: hooks.onStepFinish,         // ◆ 转发到 AI SDK
         },
       })
 
-      const result = await agent.stream({
-        messages: [...contextPrefix, ...workingMemory],
-        abortSignal: signal,
-      })
+      const result = await agent.stream({ messages, abortSignal: signal })
 
-      // stream 是传输通道 → Renderer 实时渲染。不写 DB。
+      // stream → writer（传输通道）
       for await (const chunk of result.toUIMessageStream()) {
         await writer.write(chunk)
       }
 
-      // ── 外层: 检查是否需要继续 ──
-      // 此时 onFinish 已将本轮 messages 持久化到 DB
-      const pending = params.pendingMessages.drain()
-      if (pending.length === 0) break
+      // ◆ AI SDK: totalUsage 在 stream 结束后可用
+      const iterationUsage = await result.totalUsage
+      totalUsage = mergeUsage(totalUsage, iterationUsage)
+      totalSteps += (await result.steps).length
 
-      // 只需持久化 steering messages（本轮 assistant messages 已由 onFinish 写入）
-      await persistMessages(params.chatId, pending)
+      // ★ 自建: 外层循环结束后（persist, memory, otel）
+      await hooks.afterIteration?.(
+        { iterationNumber, messages, totalSteps },
+        { messages: (await result.response).messages, usage: iterationUsage }
+      )
 
-      // ── 重新编译 context（允许 cache miss，频率低）──
-      const compiled = await compileContext({
-        chatId: params.chatId,
-        currentTurnMessages: pending,  // pending 是新一轮的 working memory
-        modelContextWindow: params.modelContextWindow,
-      })
-      contextPrefix = compiled.contextPrefix
-      workingMemory = compiled.workingMemory
+      // 检查 pending（afterIteration 中可能已 drain）
+      // 如果 afterIteration 没有设置新 messages，说明没有 pending → break
+      // 具体的 pending 检查逻辑由 afterIteration 通过修改 messages 实现
+      break // Phase 1: 单次执行。Phase 2: afterIteration 决定是否 continue
     }
+
+    // ★ 自建: 全部完成
+    hooks.onFinish?.({ totalUsage, totalIterations: iterationNumber, totalSteps })
   })()
     .then(() => writer.close())
-    .catch((err) => writer.abort(err))
+    .catch(async (err) => {
+      if (!signal.aborted && hooks.onError) {
+        const action = await hooks.onError(err, {
+          iterationNumber: 0, isRetryable: false
+        })
+        if (action === 'retry') {
+          // TODO Phase 2: retry logic
+        }
+      }
+      writer.abort(err).catch(() => {})
+    })
 
   return readable
 }
+
+/**
+ * AiCompletionService 组装示例:
+ *
+ * hooks: {
+ *   onStart: async () => { span = tracer.startSpan('ai.stream') },
+ *   beforeIteration: async (ctx) => {
+ *     const compiled = await compileContext(chatId, ctx.messages)
+ *     const memories = await memoryService.recall(ctx.messages)
+ *     return { messages: compiled.messages, system: `${system}\n${memories}` }
+ *   },
+ *   prepareStep: ({ messages }) => {
+ *     const drained = pendingMessages.drain()
+ *     return drained.length > 0 ? { messages: [...messages, ...drained] } : {}
+ *   },
+ *   onStepFinish: (step) => emitStepProgress(requestId, step),
+ *   afterIteration: async (ctx, result) => {
+ *     await persistMessages(chatId, result.messages)
+ *     ipcMain.emit('Ai_MessagesPersisted', { chatId })
+ *     await memoryService.ingest(result.messages)
+ *   },
+ *   onFinish: (result) => {
+ *     trackUsage(model, result.totalUsage)
+ *     span?.end()
+ *   },
+ *   onError: async (err, ctx) => {
+ *     span?.recordException(err)
+ *     return ctx.isRetryable ? 'retry' : 'abort'
+ *   },
+ * }
+ */
 
 /**
  * compileContext: 上下文编译器。
@@ -1672,7 +1772,9 @@ class PendingMessageQueue {
 | Tools 管理 | **ToolRegistry** | 替代命令式 `buildTools()`。所有 tools 注册到 registry，按请求 resolve 出 ToolSet |
 | Tool 可用性 | **`checkAvailable()`** | 借鉴 Hermes `check_fn`。每个 tool 可选声明可用性检查，resolve() 时自动过滤。API key 缺失、MCP 断连 → tool 从 LLM 视野消失 |
 | Tool 权限 | **AI SDK 原生 `needsApproval`** | 替代自建 `experimental_onToolCallStart` + IPC round-trip。AI SDK 自动管理 approval-requested → approval-responded → output-available/denied |
-| Tool call hooks | **AI SDK 原生** | `experimental_onToolCallStart` / `experimental_onToolCallFinish`，不在 ToolRegistry 自建 |
+| 内层钩子 | **AI SDK 原生** | `prepareStep`、`onStepFinish`、`onFinish`、`stopWhen`、`experimental_telemetry` — ToolLoopAgent 提供 |
+| 外层钩子 | **自建 AgentLoopHooks** | `onStart`、`beforeIteration`、`afterIteration`、`onFinish`、`onError` — AI SDK 不管外层循环 |
+| 钩子转发 | agentLoop 负责 | `hooks.prepareStep` / `hooks.onStepFinish` 转发到 AI SDK `agentSettings`，不重复实现 |
 | Pending Messages | `PendingMessageQueue` + 双层 drain | 内层 `prepareStep` 步间消费 + 外层循环退出后消费。两层保证 steering 不丢失 |
 | 上下文管理 | **无损：检索 + 分层缓存** | DB 是 memory，context window 是 viewport。三层结构（system / retrieved context / working memory）。外层更新检索，内层只追加尾部 → prompt cache friendly |
 | 消息持久化 | **完成边界，非流式** | stream 是传输通道，不是存储。`onFinish` 持久化完整消息 → `Ai_MessagesPersisted` IPC → Renderer `useInvalidateCache('/messages')` (SWR) |
