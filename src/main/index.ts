@@ -30,11 +30,13 @@ resolveUserDataLocation()
 
 // [v2] DEPRECATED LEGACY IMPORT — to be removed in cleanup PR
 //
-// `@main/config` still adds the dev-mode `userData + 'Dev'` suffix and
-// exports legacy DATA_PATH / titleBarOverlay constants. It will be migrated
-// to `core/preboot/` (for the dev suffix) and dedicated module(s) (for the
-// other constants) in a follow-up PR. Don't extend this file in the
-// meantime.
+// `@main/config` only contains the legacy titleBarOverlay constants and
+// the `global.CHERRYAI_CLIENT_SECRET` write at this point — the bare
+// import here keeps the global secret assignment running at startup,
+// before any consumer might read it. Both responsibilities will move to
+// dedicated v2 modules in a follow-up PR. Don't extend this file in the
+// meantime. (The dev-mode `userData + 'Dev'` suffix that used to live
+// here has been migrated to `core/preboot/userDataLocation.ts`.)
 import '@main/config'
 
 import process from 'node:process'
@@ -208,13 +210,6 @@ const startApp = async () => {
 
   // ── Normal path: no migration needed ──
   migrationEngine.close()
-
-  // Check for backup restore marker and complete restoration BEFORE bootstrap.
-  // BackupManager physically removes/replaces IndexedDB and Local Storage directories.
-  // Must run before bootstrap creates the main window (which starts the renderer),
-  // otherwise Chromium holds file handles causing EBUSY on Windows or data corruption on macOS/Linux.
-  const { BackupManager } = await import('./services/BackupManager')
-  await BackupManager.handleStartupRestore()
 
   // Extract bundled rtk binary to ~/.cherrystudio/bin/ on first run
   // TODO: v2 refactor to use lifecycle

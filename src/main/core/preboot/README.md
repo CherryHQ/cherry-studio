@@ -92,8 +92,9 @@ for the deprecated v1 constant.
 ```
 preboot/
 ├── index.ts             named exports only — no top-level side effects
-├── userDataLocation.ts  decides where userData lives, performs relaunch copy
-└── (future)             devMode suffix, command-line flags, etc.
+├── userDataLocation.ts  decides where userData lives (dev suffix or
+│                        BootConfig-driven), performs relaunch copy
+└── (future)             command-line flags, etc.
 ```
 
 The directory is intentionally flat. New domains add a sibling file rather

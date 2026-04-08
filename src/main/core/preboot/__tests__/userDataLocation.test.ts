@@ -210,14 +210,18 @@ describe('getNormalizedExecutablePath', () => {
 
 describe('resolveUserDataLocation', () => {
   describe('normal resolution (no pending relocation)', () => {
-    it('app.isPackaged=false: no-op (does not call setPath)', async () => {
+    it('app.isPackaged=false: appends Dev suffix and ignores BootConfig', async () => {
       stubConstants({ isLinux: false, isWin: false, isPortable: false })
-      stubElectron({ isPackaged: false })
+      stubElectron({ isPackaged: false, userData: '/mock/userData' })
+      // BootConfig is populated but should be ignored — the dev branch runs
+      // before any BootConfig lookup, isolating dev data from production
+      // config that might have been migrated by a packaged build of the app.
       stubBootConfig({ 'app.user_data_path': { '/mock/exe': '/custom/data' } })
       stubFs()
       const { resolveUserDataLocation } = await loadModule()
       resolveUserDataLocation()
-      expect(setPathMock).not.toHaveBeenCalled()
+      expect(setPathMock).toHaveBeenCalledWith('userData', '/mock/userDataDev')
+      expect(setPathMock).toHaveBeenCalledTimes(1)
     })
 
     it('BootConfig has matching exe with valid path: setPath called with that path', async () => {
@@ -576,9 +580,9 @@ describe('resolveUserDataLocation', () => {
       expect(setPathMock).toHaveBeenCalledWith('userData', '/old/data')
     })
 
-    it('app.isPackaged=false: pending relocation is ignored (preboot inactive in dev)', async () => {
+    it('app.isPackaged=false: pending relocation is bypassed, dev suffix still applied', async () => {
       stubConstants({ isLinux: false, isWin: false, isPortable: false })
-      stubElectron({ isPackaged: false })
+      stubElectron({ isPackaged: false, userData: '/mock/userData' })
       stubBootConfig({
         'app.user_data_path': {},
         'temp.user_data_relocation': { status: 'pending', from: '/old/data', to: '/new/data' }
@@ -588,9 +592,14 @@ describe('resolveUserDataLocation', () => {
       const { resolveUserDataLocation } = await loadModule()
       resolveUserDataLocation()
 
-      // Dev mode: early return, no relocation, no setPath.
+      // Regression guard: the dev branch must run BEFORE the relocation
+      // logic, otherwise a stale pending relocation in BootConfig would
+      // mutate the dev userData. cpSync should never run in dev mode.
       expect(cpSyncMock).not.toHaveBeenCalled()
-      expect(setPathMock).not.toHaveBeenCalled()
+      // setPath is still called — but with the Dev suffix, not the
+      // relocation target.
+      expect(setPathMock).toHaveBeenCalledWith('userData', '/mock/userDataDev')
+      expect(setPathMock).toHaveBeenCalledTimes(1)
     })
   })
 })
