@@ -4,6 +4,7 @@ import { createAgent } from '@cherrystudio/ai-core'
 import type { StringKeys } from '@cherrystudio/ai-core/provider'
 import { loggerService } from '@logger'
 import type {
+  Experimental_DownloadFunction as DownloadFunction,
   LanguageModelUsage,
   ModelMessage,
   PrepareStepFunction,
@@ -122,6 +123,8 @@ export interface AgentOptions {
   context?: unknown
   /** Attempt to repair tool calls that fail to parse (wrong args, unknown tool name) */
   repairToolCall?: ToolCallRepairFunction<ToolSet>
+  /** Custom download function for URLs when model doesn't support the media type directly */
+  download?: DownloadFunction
 
   // Loop control
   /** Inner loop stop condition. Default: AI SDK default (stepCountIs(20)) */
@@ -226,6 +229,7 @@ export function runAgentLoop<T extends AppProviderKey>(
           experimental_telemetry: opts.telemetry,
           experimental_context: opts.context,
           experimental_repairToolCall: opts.repairToolCall,
+          experimental_download: opts.download,
           // Hooks (forwarded from AgentLoopHooks)
           prepareStep: hooks.prepareStep,
           onStepFinish: hooks.onStepFinish
