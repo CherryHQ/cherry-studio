@@ -64,7 +64,7 @@ CREATE TABLE `__new_message` (
 	CONSTRAINT "message_status_check" CHECK("__new_message"."status" IN ('pending', 'success', 'error', 'paused'))
 );
 --> statement-breakpoint
-INSERT INTO `__new_message`("id", "parent_id", "topic_id", "role", "data", "searchable_text", "status", "siblings_group_id", "assistant_id", "assistant_snapshot", "model_id", "model_snapshot", "trace_id", "stats", "created_at", "updated_at", "deleted_at") SELECT "id", "parent_id", "topic_id", "role", "data", "searchable_text", "status", "siblings_group_id", "assistant_id", "assistant_snapshot", "model_id", "model_snapshot", "trace_id", "stats", "created_at", "updated_at", "deleted_at" FROM `message`;--> statement-breakpoint
+INSERT INTO `__new_message`("id", "parent_id", "topic_id", "role", "data", "searchable_text", "status", "siblings_group_id", "assistant_id", "assistant_snapshot", "model_id", "model_snapshot", "trace_id", "stats", "created_at", "updated_at", "deleted_at") SELECT "id", "parent_id", "topic_id", "role", "data", "searchable_text", "status", "siblings_group_id", "assistant_id", NULL, "model_id", NULL, "trace_id", "stats", "created_at", "updated_at", "deleted_at" FROM `message`;--> statement-breakpoint
 DROP TABLE `message`;--> statement-breakpoint
 ALTER TABLE `__new_message` RENAME TO `message`;--> statement-breakpoint
 PRAGMA foreign_keys=ON;--> statement-breakpoint
