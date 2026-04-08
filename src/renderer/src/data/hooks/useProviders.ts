@@ -34,7 +34,7 @@ export function useProviders(query?: { enabled?: boolean }) {
     [mutate]
   )
 
-  const providers = useMemo(() => (data as Provider[] | undefined) ?? EMPTY_PROVIDERS, [data])
+  const providers = useMemo(() => data ?? EMPTY_PROVIDERS, [data])
 
   return {
     providers,
