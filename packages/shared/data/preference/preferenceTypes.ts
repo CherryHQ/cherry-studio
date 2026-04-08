@@ -124,7 +124,7 @@ export type AutoDetectionMethod = 'franc' | 'llm' | 'auto'
  * - 2–3 lowercase letters, optionally followed by `-` and 2–4 lowercase letters
  * - e.g. "en-us", "zh-cn", "ja", "ja-jp"
  */
-export const TranslateLangCodeSchema = z.string().regex(/^[a-z]{2,3}(-[a-z]{2,4})?$/)
+export const TranslateLangCodeSchema = z.union([z.literal('unknown'), z.string().regex(/^[a-z]{2,3}(-[a-z]{2,4})?$/)])
 export type TranslateLangCode = z.infer<typeof TranslateLangCodeSchema>
 export const isTranslateLangCode = (value: unknown): value is TranslateLangCode =>
   TranslateLangCodeSchema.safeParse(value).success
