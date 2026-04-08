@@ -207,8 +207,8 @@ export const ProviderConfigSchema = z
     name: z.string(),
     /** Provider description */
     description: z.string().optional(),
-    /** Per-endpoint-type configuration */
-    endpointConfigs: z.record(EndpointTypeSchema, RegistryEndpointConfigSchema).optional(),
+    /** Per-endpoint-type configuration (partial record — not all endpoint types need to be present) */
+    endpointConfigs: z.record(z.string(), RegistryEndpointConfigSchema).optional(),
     /** Default endpoint type for chat requests (must exist in endpointConfigs when both are present) */
     defaultChatEndpoint: EndpointTypeSchema.optional(),
     /** API feature flags controlling request construction */

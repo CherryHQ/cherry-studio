@@ -104,7 +104,8 @@ function setupRegistryData() {
             baseUrl: 'https://api.openai.com/v1'
           }
         },
-        defaultChatEndpoint: 'openai-chat-completions'
+        defaultChatEndpoint: 'openai-chat-completions',
+        metadata: { website: { official: 'https://openai.com' } }
       }
     ]
   } as ReturnType<typeof readProviderRegistry>)
