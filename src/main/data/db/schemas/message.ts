@@ -24,7 +24,7 @@ export const messageTable = sqliteTable(
       .references(() => topicTable.id, { onDelete: 'cascade' }),
     // Message role: user, assistant, system
     role: text().notNull(),
-    // Main content - contains blocks[], mentions, etc.
+    // Main content - contains blocks[] (inline JSON)
     data: text({ mode: 'json' }).$type<MessageData>().notNull(),
     // Searchable text extracted from data.blocks (populated by trigger, used for FTS5)
     searchableText: text(),

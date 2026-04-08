@@ -394,7 +394,7 @@ export interface NewMessage {
  * Transform old Topic to new Topic format
  *
  * @param oldTopic - Source topic from Redux/Dexie
- * @param _assistant - Assistant entity (unused, kept for caller compatibility)
+
  * @param activeNodeId - Last message ID to set as active node
  * @returns New topic ready for SQLite insertion
  *
@@ -454,7 +454,7 @@ export function transformTopic(
  * @param parentId - Computed parent message ID (from tree building)
  * @param siblingsGroupId - Computed siblings group ID (from multi-model detection)
  * @param blocks - Resolved block data from message_blocks table
- * @param _assistant - Assistant entity (unused, kept for caller compatibility)
+
  * @param correctTopicId - The correct topic ID (from parent topic, not from message)
  * @returns New message ready for SQLite insertion
  *
@@ -469,7 +469,7 @@ export function transformTopic(
  * | (extracted) | searchableText | Extracted from text blocks |
  * | status | status | Normalized to success/error/paused |
  * | (computed) | siblingsGroupId | From multi-model detection |
- * | modelId | modelId | Direct copy |
+ * | model/modelId | modelId | Composite (provider::modelId) or raw fallback |
  * | traceId | traceId | Direct copy |
  * | usage + metrics | stats | Merged into single stats object |
  * | createdAt | createdAt | ISO string → timestamp |

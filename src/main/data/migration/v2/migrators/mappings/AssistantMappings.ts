@@ -166,7 +166,7 @@ function extractKnowledgeBaseIds(source: OldAssistant): string[] {
 /**
  * Transform a legacy Redux Assistant to v2 assistant table row + junction rows.
  *
- * @param source - Legacy assistant object (typed as OldAssistant but accepts any superset via index access)
+ * @param source - Legacy assistant object (may have additional fields from different Redux versions)
  */
 export function transformAssistant(source: OldAssistant): AssistantTransformResult {
   const assistantId = source.id

@@ -5,9 +5,13 @@
  * - Redux assistants slice (state.assistants.assistants) -> assistant table
  * - Redux assistants slice (state.assistants.presets) -> assistant table (merged)
  *
- * Dropped fields: type, model, defaultModel, messages, topics, tags,
- *   content, targetLanguage, enableGenerateImage, enableUrlContext,
- *   knowledgeRecognition, webSearchProviderId, regularPhrases
+ * Dropped fields: type, messages, topics, content, targetLanguage,
+ *   enableGenerateImage, enableUrlContext, knowledgeRecognition,
+ *   webSearchProviderId, regularPhrases
+ *
+ * Transformed fields:
+ * - model/defaultModel -> assistant.modelId (composite format)
+ * - tags[] -> tag + entity_tag tables
  */
 
 import { assistantTable } from '@data/db/schemas/assistant'
@@ -213,7 +217,9 @@ export class AssistantMigrator extends BaseMigrator {
         }
       })
 
-      // Track valid IDs for FK validation by downstream migrators
+      // Track valid IDs for FK validation by downstream migrators.
+      // Precondition: transaction above has committed, so these IDs are in the DB.
+      // ChatMigrator.execute() reads this set to validate topic.assistantId references.
       this.validAssistantIds = new Set(this.preparedResults.map((r) => r.assistant.id as string))
       ctx.sharedData.set('assistantIds', this.validAssistantIds)
 

@@ -392,7 +392,7 @@ export interface Message {
   parentId: string | null
   /** Message role */
   role: MessageRole
-  /** Message content (blocks, mentions, etc.) */
+  /** Message content (blocks with inline references) */
   data: MessageData
   /** Searchable text extracted from data.blocks */
   searchableText?: string | null

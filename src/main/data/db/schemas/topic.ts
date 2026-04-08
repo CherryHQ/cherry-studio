@@ -7,8 +7,8 @@ import { groupTable } from './group'
 /**
  * Topic table - stores conversation topics/threads
  *
- * Topics are containers for messages and belong to assistants.
- * They can be organized into groups and have tags for categorization.
+ * Topics are containers for messages and reference assistants via FK.
+ * They can be organized into groups.
  */
 export const topicTable = sqliteTable(
   'topic',

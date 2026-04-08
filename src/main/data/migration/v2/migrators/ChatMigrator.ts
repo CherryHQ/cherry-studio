@@ -205,7 +205,7 @@ export class ChatMigrator extends BaseMigrator {
           `Loaded ${this.assistantLookup.size} assistants and ${this.topicMetaLookup.size} topic metadata entries`
         )
       } else {
-        warnings.push('No assistant data found - topics will have null assistantMeta and missing names')
+        warnings.push('No assistant data found - topics will have null assistantId and missing names')
       }
 
       // Step 4: Count topics and estimate messages
@@ -496,6 +496,20 @@ export class ChatMigrator extends BaseMigrator {
         })
       }
 
+      // Check for multi-root topics (topics with more than one root message)
+      const multiRootCheck = await db
+        .select({ count: sql<number>`count(*)` })
+        .from(sql`(SELECT topic_id FROM ${messageTable} WHERE parent_id IS NULL GROUP BY topic_id HAVING count(*) > 1)`)
+        .get()
+
+      if (multiRootCheck && multiRootCheck.count > 0) {
+        logger.warn(`Found ${multiRootCheck.count} topics with multiple root messages (multi-root forest)`)
+        errors.push({
+          key: 'multi_root_topics',
+          message: `Found ${multiRootCheck.count} topics with multiple root messages`
+        })
+      }
+
       return {
         success: errors.length === 0,
         errors,
@@ -586,7 +600,7 @@ export class ChatMigrator extends BaseMigrator {
       this.orphanedAssistantTopics++
     }
 
-    // Get assistant for meta generation
+    // Lookup assistant by ID (used for topic transform context)
     const assistant = this.assistantLookup.get(assistantId) || null
 
     // Get messages array (may be empty or undefined)
