@@ -59,7 +59,6 @@ const SessionItem = ({ session, agentId, channelType, onDelete, onPress }: Sessi
       <Tooltip
         placement="bottom"
         delay={700}
-        closeDelay={0}
         content={
           <div style={{ fontSize: '12px', opacity: 0.8, fontStyle: 'italic' }}>
             {t('chat.topics.delete.shortcut', { key: isMac ? '⌘' : 'Ctrl' })}

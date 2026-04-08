@@ -13,15 +13,30 @@
  */
 
 // Boot config must be the first to load
-// eslint-disable-next-line
+
 import '@main/data/bootConfig'
 
-// [v2] the following code is to be refactored
-// don't reorder this file, it's used to initialize the app data dir and
-// other which should be run before the main process is ready
+// Preboot phase: synchronous setup that must complete BEFORE
+// application.bootstrap() is called. See core/preboot/README.md for the
+// membership criteria and the preboot/bootstrap/running vocabulary.
+//
+// resolveUserDataLocation() is intentionally the ONLY preboot call here:
+// it internally handles both "normal startup" (read BootConfig → setPath)
+// and "execute a pending userData relocation" (copy the whole directory
+// tree, then setPath). There is no separate relaunch-time helper.
+import { resolveUserDataLocation } from '@main/core/preboot'
 
-import './bootstrap'
+resolveUserDataLocation()
 
+// [v2] DEPRECATED LEGACY IMPORT — to be removed in cleanup PR
+//
+// `@main/config` only contains the legacy titleBarOverlay constants and
+// the `global.CHERRYAI_CLIENT_SECRET` write at this point — the bare
+// import here keeps the global secret assignment running at startup,
+// before any consumer might read it. Both responsibilities will move to
+// dedicated v2 modules in a follow-up PR. Don't extend this file in the
+// meantime. (The dev-mode `userData + 'Dev'` suffix that used to live
+// here has been migrated to `core/preboot/userDataLocation.ts`.)
 import '@main/config'
 
 import process from 'node:process'
@@ -195,13 +210,6 @@ const startApp = async () => {
 
   // ── Normal path: no migration needed ──
   migrationEngine.close()
-
-  // Check for backup restore marker and complete restoration BEFORE bootstrap.
-  // BackupManager physically removes/replaces IndexedDB and Local Storage directories.
-  // Must run before bootstrap creates the main window (which starts the renderer),
-  // otherwise Chromium holds file handles causing EBUSY on Windows or data corruption on macOS/Linux.
-  const { BackupManager } = await import('./services/BackupManager')
-  await BackupManager.handleStartupRestore()
 
   // Extract bundled rtk binary to ~/.cherrystudio/bin/ on first run
   // TODO: v2 refactor to use lifecycle

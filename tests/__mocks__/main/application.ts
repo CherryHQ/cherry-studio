@@ -61,6 +61,12 @@ export function createMockApplication(overrides: ServiceOverrides = {}) {
       }
       throw new Error(`[MockApplication] Unknown service: ${name}`)
     }),
+    // Deterministic stub for path lookups — returns "/mock/<key>" (or
+    // "/mock/<key>/<filename>") so tests that instantiate services with
+    // class field initializers like `application.getPath('feature.xxx')`
+    // don't blow up. Override per-test with vi.spyOn if you need a
+    // specific value.
+    getPath: vi.fn((key: string, filename?: string) => (filename ? `/mock/${key}/${filename}` : `/mock/${key}`)),
     registerAll: vi.fn(),
     bootstrap: vi.fn().mockResolvedValue(undefined),
     isReady: vi.fn(() => true)

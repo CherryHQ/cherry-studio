@@ -18,7 +18,8 @@ vi.mock('@main/core/application', () => ({
         return { has: vi.fn(() => false), get: vi.fn(), set: vi.fn(), delete: vi.fn() }
       }
       throw new Error(`[MockApplication] Unknown service: ${name}`)
-    })
+    }),
+    getPath: vi.fn((key: string, filename?: string) => (filename ? `/mock/${key}/${filename}` : `/mock/${key}`))
   }
 }))
 

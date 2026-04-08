@@ -13,7 +13,7 @@ src/main/data/migration/v2/
 ├── core/              # MigrationEngine, MigrationContext
 ├── migrators/         # Domain-specific migrators
 │   └── mappings/      # Mapping definitions
-├── utils/             # ReduxStateReader, DexieFileReader, JSONStreamReader
+├── utils/             # ReduxStateReader, DexieFileReader, JSONStreamReader, LegacyHomeConfigReader
 ├── window/            # IPC handlers, window manager
 └── index.ts           # Public exports
 ```
