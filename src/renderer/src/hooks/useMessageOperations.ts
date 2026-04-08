@@ -35,6 +35,11 @@ import { createContext, use, useCallback } from 'react'
 export interface V2ChatOverrides {
   regenerate: (messageId?: string) => Promise<void>
   resend: (messageId?: string) => Promise<void>
+  /** Delete a single message. cascade=false reparents children to grandparent. */
+  deleteMessage: (id: string) => Promise<void>
+  /** Delete a message and all its descendants (cascade). */
+  deleteMessageGroup: (id: string) => Promise<void>
+  refresh: () => Promise<void>
 }
 
 const V2ChatOverridesContext = createContext<V2ChatOverrides | null>(null)
@@ -76,10 +81,7 @@ export function useMessageOperations(topic: Topic) {
   const deleteMessage = useCallback(
     async (id: string, traceId?: string, modelName?: string) => {
       if (v2) {
-        logger.warn('[deleteMessage] V2 write operations are disabled until DataApi semantics are finalized.', {
-          topicId: topic.id,
-          messageId: id
-        })
+        await v2.deleteMessage(id)
       } else {
         await dispatch(deleteSingleMessageThunk(topic.id, id))
       }
@@ -95,10 +97,9 @@ export function useMessageOperations(topic: Topic) {
   const deleteGroupMessages = useCallback(
     async (askId: string) => {
       if (v2) {
-        logger.warn('[deleteGroupMessages] V2 write operations are disabled until DataApi semantics are finalized.', {
-          topicId: topic.id,
-          askId
-        })
+        // In V2, askId is the user message ID (parentId of assistant messages).
+        // Cascade-deleting the user message removes the entire exchange.
+        await v2.deleteMessageGroup(askId)
       } else {
         await dispatch(deleteMessageGroupThunk(topic.id, askId))
       }

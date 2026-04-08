@@ -115,15 +115,17 @@ const V2ChatContentInner: FC<InnerProps> = ({
   const streamingUIMessagesRef = useRef<CherryUIMessage[]>([])
   const topicRef = useRef(topic)
   topicRef.current = topic
+  const historyIdsRef = useRef(historyIds)
+  historyIdsRef.current = historyIds
 
   /**
    * Persist a completed exchange (user + assistant) to DataApi.
    *
    * Both messages are written only after the assistant finishes streaming.
    * - If the stream errors (isError=true), nothing is persisted — DB stays clean.
-   * - User message is created first; parentId is auto-resolved by the server from
-   *   the topic's current activeNodeId.
-   * - Assistant message is created second with parentId = saved user message id.
+   * - For new conversations: user message is created first, then assistant.
+   * - For regenerate/resend: user message already exists in history, only
+   *   the new assistant message is persisted (parentId = existing user id).
    * - On abort (isAbort=true), assistant is persisted with status 'paused'.
    */
   const handleFinish = useCallback(
@@ -155,22 +157,33 @@ const V2ChatContentInner: FC<InnerProps> = ({
           logger.info('Lazy-created topic in SQLite', { topicId: currentTopic.id })
         }
 
-        // 1. Persist user message (server auto-resolves parentId from topic's activeNodeId)
-        const savedUser = await dataApiService.post(`/topics/${topic.id}/messages`, {
-          body: {
-            role: 'user',
-            data: { parts: userMessage.parts as CherryMessagePart[] },
-            status: 'success'
-          }
-        })
+        // 1. Determine parentId for assistant message
+        const isUserPersisted = historyIdsRef.current.has(userMessage.id)
+        let userParentId: string
 
-        // 2. Persist assistant message linked to the saved user message
+        if (isUserPersisted) {
+          // Regenerate/resend: user message already in DB, skip creation
+          userParentId = userMessage.id
+          logger.info('User message already persisted, skipping creation', { userMsgId: userParentId })
+        } else {
+          // New conversation: persist user message first
+          const savedUser = await dataApiService.post(`/topics/${currentTopic.id}/messages`, {
+            body: {
+              role: 'user',
+              data: { parts: userMessage.parts as CherryMessagePart[] },
+              status: 'success'
+            }
+          })
+          userParentId = savedUser.id
+        }
+
+        // 2. Persist assistant message linked to the user message
         const assistantStatus = isAbort ? 'paused' : 'success'
         const totalTokens = assistantMessage.metadata?.totalTokens
-        await dataApiService.post(`/topics/${topic.id}/messages`, {
+        await dataApiService.post(`/topics/${currentTopic.id}/messages`, {
           body: {
             role: 'assistant',
-            parentId: savedUser.id,
+            parentId: userParentId,
             assistantId: assistant.id,
             data: { parts: assistantMessage.parts as CherryMessagePart[] },
             status: assistantStatus,
@@ -178,7 +191,7 @@ const V2ChatContentInner: FC<InnerProps> = ({
           }
         })
 
-        logger.info('Persisted exchange', { userMsgId: savedUser.id, assistantMsgId: assistantMessage.id })
+        logger.info('Persisted exchange', { userMsgId: userParentId, assistantMsgId: assistantMessage.id })
         await refresh()
       } catch (err) {
         logger.error('Failed to persist exchange', { assistantMsgId: assistantMessage.id, err })
@@ -190,6 +203,7 @@ const V2ChatContentInner: FC<InnerProps> = ({
   // useAiChat now receives complete history as initialMessages (guaranteed non-loading)
   const {
     messages: streamingUIMessages,
+    setMessages,
     status,
     error,
     sendMessage,
@@ -207,6 +221,29 @@ const V2ChatContentInner: FC<InnerProps> = ({
     streamingUIMessagesRef.current = streamingUIMessages
   })
 
+  /** Delete a single message (reparent children to grandparent) and sync UI. */
+  const handleDeleteMessage = useCallback(
+    async (id: string) => {
+      await dataApiService.delete(`/messages/${id}`, { query: { cascade: false } })
+      setMessages((msgs) => msgs.filter((m) => m.id !== id))
+      logger.info('Deleted message (single)', { id })
+      await refresh()
+    },
+    [refresh, setMessages]
+  )
+
+  /** Delete a message and all descendants (cascade) and sync UI. */
+  const handleDeleteMessageGroup = useCallback(
+    async (id: string) => {
+      const result = await dataApiService.delete(`/messages/${id}`, { query: { cascade: true } })
+      const deletedSet = new Set(result.deletedIds)
+      setMessages((msgs) => msgs.filter((m) => !deletedSet.has(m.id)))
+      logger.info('Deleted message group', { id, count: result.deletedIds.length })
+      await refresh()
+    },
+    [refresh, setMessages]
+  )
+
   const v2ChatOverrides = useMemo<V2ChatOverrides>(
     () => ({
       regenerate: async (messageId?: string) => {
@@ -214,9 +251,12 @@ const V2ChatContentInner: FC<InnerProps> = ({
       },
       resend: async (messageId?: string) => {
         await regenerate(messageId)
-      }
+      },
+      deleteMessage: handleDeleteMessage,
+      deleteMessageGroup: handleDeleteMessageGroup,
+      refresh
     }),
-    [regenerate]
+    [regenerate, handleDeleteMessage, handleDeleteMessageGroup, refresh]
   )
 
   // Only adapt NEW messages (those not in persisted history) via useV2MessageAdapter.

@@ -125,6 +125,10 @@ export function partToBlock(
       // source-url parts are metadata already captured in text part's citationReferences
       return null
 
+    case 'step-start':
+      // AI SDK step boundary marker — no visual representation needed
+      return null
+
     case 'reasoning': {
       const reasoningPart = part as ReasoningUIPart
       const block: ThinkingMessageBlock = {

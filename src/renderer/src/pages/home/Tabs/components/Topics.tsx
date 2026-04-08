@@ -76,7 +76,42 @@ export const Topics: React.FC<Props> = ({ assistant: _assistant, activeTopic, se
   const { t } = useTranslation()
   const { notesPath } = useNotesSettings()
   const { assistants } = useAssistants()
-  const { assistant, addTopic, removeTopic, moveTopic, updateTopic, updateTopics } = useAssistant(_assistant.id)
+  const {
+    assistant,
+    addTopic,
+    removeTopic: reduxRemoveTopic,
+    moveTopic,
+    updateTopic: reduxUpdateTopic,
+    updateTopics
+  } = useAssistant(_assistant.id)
+
+  // Wrap Redux actions with DataApi dual-write for V2 migration
+  const updateTopic = useCallback(
+    (topic: Topic) => {
+      reduxUpdateTopic(topic)
+      void dataApiService
+        .patch(`/topics/${topic.id}`, {
+          body: {
+            name: topic.name,
+            isNameManuallyEdited: topic.isNameManuallyEdited,
+            prompt: topic.prompt,
+            isPinned: topic.pinned
+          }
+        })
+        .catch((err) => logger.warn('Failed to sync topic update to SQLite', { topicId: topic.id, err }))
+    },
+    [reduxUpdateTopic]
+  )
+
+  const removeTopic = useCallback(
+    (topic: Topic) => {
+      reduxRemoveTopic(topic)
+      void dataApiService
+        .delete(`/topics/${topic.id}`)
+        .catch((err) => logger.warn('Failed to sync topic delete to SQLite', { topicId: topic.id, err }))
+    },
+    [reduxRemoveTopic]
+  )
 
   const [showTopicTime] = usePreference('topic.tab.show_time')
   const [pinTopicsToTop] = usePreference('topic.tab.pin_to_top')
