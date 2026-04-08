@@ -77,6 +77,35 @@ The boundary between `feature.*` and `external.*` is **ownership**:
 - `external.*` — A third party owns the directory; Cherry only reads/writes.
   Cherry MUST NOT delete `external.*` directories on uninstall or reset.
 
+### Default to `feature.*`
+
+`feature.*` is the **open** scope — every new application-level key should
+live here. The other four scopes describe **platform primitives** (OS
+directories, Electron app structure, Cherry top-level infrastructure,
+third-party tool paths) and are effectively **closed**; they rarely grow:
+
+- `cherry.*` — generic infrastructure directly under `~/.cherrystudio`
+- `sys.*` — directories the operating system owns
+- `app.*` — fundamental Electron application paths (install, userData, logs,
+  database, temp root)
+- `external.*` — third-party tools Cherry integrates with
+
+> ⚠ **Before adding a key under `cherry.*`, `sys.*`, or `app.*`, stop and
+> double-check you're not mis-scoping.** Application functionality almost
+> always belongs under `feature.*`.
+
+Legitimate reasons to touch the closed scopes are rare. Examples:
+
+- Exposing a new `app.getPath('xxx')` entry that a newer Electron version
+  introduces
+- Recording an OS-managed directory Electron doesn't abstract (e.g. the
+  Linux `autostart` dir)
+- Adding a brand-new top-level subdirectory under `~/.cherrystudio/` shared
+  across many features (very rare)
+
+If your reason isn't one of these, pick or invent a `feature.<name>`
+grouping instead — that's almost certainly the right scope.
+
 ## Key Naming Convention
 
 Path keys follow the same convention as preference keys, enforced at lint time
@@ -162,7 +191,8 @@ opt out of auto-ensure. Entries come in two forms:
   (third-party tools Cherry doesn't own).
 - **Exact `PathKey`**: matches a single key. Currently used for build
   artifacts whose parent dirs are read-only in production
-  (`app.exe_file`, `app.resources`, `app.database.migrations`, …).
+  (`app.exe_file`, `app.extra_resources`, `app.root.resources`,
+  `app.database.migrations`, …).
 
 **When to add a new entry:**
 
@@ -216,7 +246,7 @@ always — corresponds to filesystem nesting.
 | **Aligned** | `feature.ovms.ovms` → `~/.cherrystudio/ovms/ovms` |
 | **Not aligned** | `feature.mcp.oauth` → `~/.cherrystudio/config/mcp/oauth` (semantically grouped under `feature.mcp.*` but lives under `config/`) |
 | **Not aligned** | `feature.mcp.workspace` → `{userData}/Data/Workspace` (same `feature.mcp.*` namespace as `~/.cherrystudio/mcp` but completely different physical tree) |
-| **Not aligned** | `feature.agents.skills.temp` → `{app.temp}/skill-install` (sibling `feature.agents.skills` lives in `~/.cherrystudio/skills`) |
+| **Not aligned** | `feature.agents.skills.temp` → `{app.temp}/skill-install` (sibling `feature.agents.skills` lives at `{userData}/Data/Skills`) |
 | **Not aligned** | `app.exe_file` → the .exe lives in `app.install`, not in any `app/exe/` dir |
 | **Not aligned** | `app.logs` → `app.getPath('logs')` returns a platform-specific location (e.g. `~/Library/Logs/<App>/` on macOS) |
 
