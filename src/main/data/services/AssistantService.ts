@@ -18,7 +18,7 @@ import { application } from '@main/core/application'
 import { DataApiErrorFactory } from '@shared/data/api'
 import type { CreateAssistantDto, ListAssistantsQuery, UpdateAssistantDto } from '@shared/data/api/schemas/assistants'
 import type { Assistant } from '@shared/data/types/assistant'
-import { and, asc, eq, inArray, isNull, type SQL, sql } from 'drizzle-orm'
+import { and, asc, eq, inArray, isNull, type SQL } from 'drizzle-orm'
 
 import { stripNulls } from './utils'
 
@@ -136,15 +136,15 @@ export class AssistantDataService {
 
     const whereClause = and(...conditions)
 
-    const [rows, [{ count }]] = await Promise.all([
-      this.db.select().from(assistantTable).where(whereClause).orderBy(asc(assistantTable.createdAt)),
-      this.db.select({ count: sql<number>`count(*)` }).from(assistantTable).where(whereClause)
-    ])
+    // No LIMIT/OFFSET — assistant count is small enough to return all at once.
+    // total is derived from result length; page is always 1.
+    const rows = await this.db.select().from(assistantTable).where(whereClause).orderBy(asc(assistantTable.createdAt))
     const relations = await this.getRelationIdsByAssistantIds(rows.map((row) => row.id))
+    const items = rows.map((row) => rowToAssistant(row, relations.get(row.id)))
 
     return {
-      items: rows.map((row) => rowToAssistant(row, relations.get(row.id))),
-      total: Number(count),
+      items,
+      total: items.length,
       page: 1
     }
   }

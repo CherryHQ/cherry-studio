@@ -1,5 +1,4 @@
 import type { CursorPaginationResponse } from '@shared/data/api/apiTypes'
-import type { Assistant } from '@shared/data/types/assistant'
 /**
  * Message Statistics - combines token usage and performance metrics
  * Replaces the separate `usage` and `metrics` fields
@@ -351,15 +350,6 @@ export type MessageDataBlock =
 // ============================================================================
 
 /**
- * Assistant snapshot captured at message creation time.
- * Preserves the full configuration used to generate this message,
- * enabling audit, replay, and display even if the assistant is later modified or deleted.
- *
- * Equivalent to Assistant minus timestamps and relation IDs (those are captured by value).
- */
-export type AssistantSnapshot = Omit<Assistant, 'createdAt' | 'updatedAt'>
-
-/**
  * Model snapshot captured at message creation time.
  * Preserves model identity and metadata even if the model is later removed from provider.
  *
@@ -410,10 +400,7 @@ export interface Message {
   status: MessageStatus
   /** Siblings group ID (0 = normal branch, >0 = multi-model response group) */
   siblingsGroupId: number
-  /** Assistant identifier */
-  assistantId?: string | null
-  /** Snapshot of assistant at message creation time */
-  assistantSnapshot?: AssistantSnapshot | null
+  // Assistant info is derived via topic → assistant FK chain; not stored on message.
   /** Model identifier */
   modelId?: string | null
   /** Snapshot of model at message creation time */

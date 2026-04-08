@@ -355,7 +355,6 @@ export interface NewTopic {
   name: string | null
   isNameManuallyEdited: boolean
   assistantId: string | null
-  prompt: string | null
   activeNodeId: string | null
   groupId: string | null
   sortOrder: number
@@ -404,7 +403,6 @@ export interface NewMessage {
  * | name | name | Direct copy |
  * | isNameManuallyEdited | isNameManuallyEdited | Direct copy |
  * | assistantId | assistantId | FK to assistant table (validated) |
- * | prompt | prompt | Direct copy |
  * | (computed) | activeNodeId | Last message ID |
  * | (none) | groupId | null (new field) |
  * | (none) | sortOrder | 0 (new field) |
@@ -415,6 +413,7 @@ export interface NewMessage {
  *
  * ## Dropped Fields:
  * - type ('chat' | 'session'): No longer needed in new schema
+ * - prompt: Topic-level prompt removed from schema; assistant prompt is authoritative
  */
 export function transformTopic(
   oldTopic: OldTopic,
@@ -426,7 +425,6 @@ export function transformTopic(
     name: oldTopic.name || null,
     isNameManuallyEdited: oldTopic.isNameManuallyEdited ?? false,
     assistantId: oldTopic.assistantId || null,
-    prompt: oldTopic.prompt || null,
     activeNodeId,
     groupId: null, // New field, no migration source
     sortOrder: 0, // New field, default value

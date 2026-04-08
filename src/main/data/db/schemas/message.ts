@@ -1,9 +1,8 @@
-import type { AssistantSnapshot, MessageData, MessageStats, ModelSnapshot } from '@shared/data/types/message'
+import type { MessageData, MessageStats, ModelSnapshot } from '@shared/data/types/message'
 import { sql } from 'drizzle-orm'
 import { check, foreignKey, index, integer, sqliteTable, text } from 'drizzle-orm/sqlite-core'
 
 import { createUpdateDeleteTimestamps, uuidPrimaryKeyOrdered } from './_columnHelpers'
-import { assistantTable } from './assistant'
 import { topicTable } from './topic'
 
 /**
@@ -33,10 +32,7 @@ export const messageTable = sqliteTable(
     status: text().notNull(),
     // Group ID for siblings (0 = normal branch)
     siblingsGroupId: integer().default(0),
-    // FK to assistant — SET NULL: keep message when assistant is deleted
-    assistantId: text().references(() => assistantTable.id, { onDelete: 'set null' }),
-    // Snapshot of assistant at message creation time
-    assistantSnapshot: text({ mode: 'json' }).$type<AssistantSnapshot>(),
+    // Assistant info is derived via topic → assistant FK chain; not stored on message.
     // Model identifier — TODO: add FK to model table when it exists (ON DELETE SET NULL)
     modelId: text(),
     // Snapshot of model at message creation time

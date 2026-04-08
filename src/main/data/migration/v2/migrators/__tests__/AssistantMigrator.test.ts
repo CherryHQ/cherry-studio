@@ -184,6 +184,31 @@ describe('AssistantMigrator', () => {
       // Verify transaction was called (the actual row data is validated in mapping tests)
       expect(ctx.db.transaction).toHaveBeenCalled()
     })
+
+    it('should drop all MCP associations when mcpServerIdMapping is missing from sharedData', async () => {
+      const assistantsWithMcp = [{ id: 'ast-1', name: 'Has MCP', mcpServers: [{ id: 'srv-1' }, { id: 'srv-2' }] }]
+      const ctx = createMockContext({ assistants: { assistants: assistantsWithMcp, presets: [] } })
+      // Do NOT set mcpServerIdMapping in sharedData
+      await migrator.prepare(ctx as any)
+      const result = await migrator.execute(ctx as any)
+
+      expect(result.success).toBe(true)
+      // Transaction should still succeed — MCP rows are silently dropped
+      expect(ctx.db.transaction).toHaveBeenCalled()
+    })
+
+    it('should drop dangling mcpServer refs not present in mapping', async () => {
+      const assistantsWithMcp = [
+        { id: 'ast-1', name: 'Mixed MCP', mcpServers: [{ id: 'known-srv' }, { id: 'unknown-srv' }] }
+      ]
+      const ctx = createMockContext({ assistants: { assistants: assistantsWithMcp, presets: [] } })
+      ctx.sharedData.set('mcpServerIdMapping', new Map([['known-srv', 'new-uuid']]))
+      await migrator.prepare(ctx as any)
+      const result = await migrator.execute(ctx as any)
+
+      expect(result.success).toBe(true)
+      expect(ctx.db.transaction).toHaveBeenCalled()
+    })
   })
 
   describe('validate', () => {

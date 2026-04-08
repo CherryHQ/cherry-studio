@@ -61,7 +61,6 @@ function mockAssistantRelations(
 function queueAssistantReads(
   rowOrRows: Record<string, unknown> | Record<string, unknown>[],
   options: {
-    count?: number
     modelIds?: string[]
     mcpServerIds?: string[]
     knowledgeBaseIds?: string[]
@@ -72,9 +71,6 @@ function queueAssistantReads(
 
   mockDb.select.mockReset()
   mockDb.select.mockReturnValueOnce(mockChain(rows))
-  if (options.count !== undefined) {
-    mockDb.select.mockReturnValueOnce(mockChain([{ count: options.count }]))
-  }
   mockDb.select
     .mockReturnValueOnce(mockChain(relations.modelRows))
     .mockReturnValueOnce(mockChain(relations.mcpServerRows))
@@ -168,7 +164,6 @@ describe('AssistantDataService', () => {
 
       mockDb.select
         .mockReturnValueOnce(mockChain(rows))
-        .mockReturnValueOnce(mockChain([{ count: 2 }]))
         .mockReturnValueOnce(mockChain(relationRows.modelRows))
         .mockReturnValueOnce(mockChain(relationRows.mcpServerRows))
         .mockReturnValueOnce(mockChain(relationRows.knowledgeBaseRows))
@@ -183,7 +178,7 @@ describe('AssistantDataService', () => {
     })
 
     it('should filter by id', async () => {
-      queueAssistantReads(createMockRow(), { count: 1 })
+      queueAssistantReads(createMockRow())
 
       const result = await assistantDataService.list({ id: 'ast-1' })
       expect(result.items).toHaveLength(1)
