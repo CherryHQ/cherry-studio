@@ -16,6 +16,7 @@ import { runAgentLoop } from './agentLoop'
 import { buildPlugins } from './plugins/PluginBuilder'
 import { adaptProvider, providerToAiSdkConfig } from './provider/providerConfig'
 import { listModels as listModelsFromProvider } from './services/listModels'
+import { registerMcpTools } from './tools/mcpTools'
 import type { ToolRegistry } from './tools/ToolRegistry'
 import type { AppProviderSettingsMap } from './types'
 
@@ -251,7 +252,12 @@ export class AiCompletionService {
       modelId: model.id
     }
 
+    // Register MCP tools on-demand, then resolve
+    if (request.mcpToolIds?.length) {
+      await registerMcpTools(this.toolRegistry, request.mcpToolIds)
+    }
     const tools = this.toolRegistry.resolve(request.mcpToolIds)
+
     const plugins = buildPlugins()
     const system = assistant?.prompt || undefined
 
