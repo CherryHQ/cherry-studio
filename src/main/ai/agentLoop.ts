@@ -10,6 +10,7 @@ import type {
   StepResult,
   StopCondition,
   TelemetrySettings,
+  ToolCallRepairFunction,
   ToolChoice,
   ToolSet,
   UIMessage,
@@ -119,6 +120,8 @@ export interface AgentOptions {
   providerOptions?: ProviderOptions
   /** Custom context shared across steps, passed to tool execute functions */
   context?: unknown
+  /** Attempt to repair tool calls that fail to parse (wrong args, unknown tool name) */
+  repairToolCall?: ToolCallRepairFunction<ToolSet>
 
   // Loop control
   /** Inner loop stop condition. Default: AI SDK default (stepCountIs(20)) */
@@ -222,6 +225,7 @@ export function runAgentLoop<T extends AppProviderKey>(
           // Experimental
           experimental_telemetry: opts.telemetry,
           experimental_context: opts.context,
+          experimental_repairToolCall: opts.repairToolCall,
           // Hooks (forwarded from AgentLoopHooks)
           prepareStep: hooks.prepareStep,
           onStepFinish: hooks.onStepFinish
