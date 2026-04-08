@@ -1,10 +1,12 @@
 import type OpenAI from '@cherrystudio/openai'
 import { isEmbeddingModel, isRerankModel } from '@renderer/config/models/embedding'
 import type { Assistant } from '@renderer/types'
-import { type Model, SystemProviderIds } from '@renderer/types'
+import { SystemProviderIds } from '@renderer/types'
 import type { OpenAIVerbosity, ValidOpenAIVerbosity } from '@renderer/types/aiCoreTypes'
 import { getLowerBaseModelName } from '@renderer/utils'
 
+import type { ClassifiableModel } from './classifiable'
+import { getModelProviderId } from './classifiable'
 import {
   isGPT5FamilyModel,
   isGPT5SeriesModel,
@@ -21,7 +23,10 @@ import { isGenerateImageModel, isTextToImageModel, isVisionModel } from './visio
 export const NOT_SUPPORTED_REGEX = /(?:^tts|whisper|speech)/i
 export const GEMINI_FLASH_MODEL_REGEX = new RegExp('gemini.*-flash.*$', 'i')
 
-export const withModelIdAndNameAsId = <T>(model: Model, fn: (model: Model) => T): { idResult: T; nameResult: T } => {
+export const withModelIdAndNameAsId = <T>(
+  model: ClassifiableModel,
+  fn: (model: ClassifiableModel) => T
+): { idResult: T; nameResult: T } => {
   const modelWithNameAsId = { ...model, id: model.name }
   return {
     idResult: fn(model),
@@ -29,7 +34,7 @@ export const withModelIdAndNameAsId = <T>(model: Model, fn: (model: Model) => T)
   }
 }
 
-export function isSupportFlexServiceTierModel(model: Model): boolean {
+export function isSupportFlexServiceTierModel(model: ClassifiableModel): boolean {
   if (!model) {
     return false
   }
@@ -39,7 +44,7 @@ export function isSupportFlexServiceTierModel(model: Model): boolean {
   )
 }
 
-export function isSupportedFlexServiceTier(model: Model): boolean {
+export function isSupportedFlexServiceTier(model: ClassifiableModel): boolean {
   return isSupportFlexServiceTierModel(model)
 }
 
@@ -58,7 +63,7 @@ export function isSupportedModel(model: OpenAI.Models.Model): boolean {
  * @param model - The model to check
  * @returns true if the model supports temperature parameter
  */
-export function isSupportTemperatureModel(model: Model | undefined | null, assistant?: Assistant): boolean {
+export function isSupportTemperatureModel(model: ClassifiableModel | undefined | null, assistant?: Assistant): boolean {
   if (!model) {
     return false
   }
@@ -94,7 +99,7 @@ export function isSupportTemperatureModel(model: Model | undefined | null, assis
  * @param model - The model to check
  * @returns true if the model supports top_p parameter
  */
-export function isSupportTopPModel(model: Model | undefined | null, assistant?: Assistant): boolean {
+export function isSupportTopPModel(model: ClassifiableModel | undefined | null, assistant?: Assistant): boolean {
   if (!model) {
     return false
   }
@@ -131,12 +136,12 @@ export function isSupportTopPModel(model: Model | undefined | null, assistant?: 
  * @param model - The model to check
  * @returns true if temperature and top_p are mutually exclusive for this model
  */
-export function isTemperatureTopPMutuallyExclusiveModel(model: Model | undefined | null): boolean {
+export function isTemperatureTopPMutuallyExclusiveModel(model: ClassifiableModel | undefined | null): boolean {
   if (!model) return false
   return isClaude45ReasoningModel(model)
 }
 
-export function isGemmaModel(model?: Model): boolean {
+export function isGemmaModel(model?: ClassifiableModel): boolean {
   if (!model) {
     return false
   }
@@ -145,17 +150,17 @@ export function isGemmaModel(model?: Model): boolean {
   return modelId.includes('gemma-') || model.group === 'Gemma'
 }
 
-export function isZhipuModel(model: Model): boolean {
+export function isZhipuModel(model: ClassifiableModel): boolean {
   const modelId = getLowerBaseModelName(model.id)
-  return modelId.includes('glm') || model.provider === SystemProviderIds.zhipu
+  return modelId.includes('glm') || getModelProviderId(model) === SystemProviderIds.zhipu
 }
 
-export function isMoonshotModel(model: Model): boolean {
+export function isMoonshotModel(model: ClassifiableModel): boolean {
   const modelId = getLowerBaseModelName(model.id)
   return ['moonshot', 'kimi'].some((m) => modelId.includes(m))
 }
 
-export function isKimi25Model(model: Model | undefined | null): boolean {
+export function isKimi25Model(model: ClassifiableModel | undefined | null): boolean {
   if (!model) {
     return false
   }
@@ -168,7 +173,7 @@ export function isKimi25Model(model: Model | undefined | null): boolean {
  * @param models 模型列表
  * @returns 分组后的模型
  */
-export function groupQwenModels(models: Model[]): Record<string, Model[]> {
+export function groupQwenModels(models: ClassifiableModel[]): Record<string, ClassifiableModel[]> {
   return models.reduce(
     (groups, model) => {
       const modelId = getLowerBaseModelName(model.id)
@@ -184,20 +189,20 @@ export function groupQwenModels(models: Model[]): Record<string, Model[]> {
 
       return groups
     },
-    {} as Record<string, Model[]>
+    {} as Record<string, ClassifiableModel[]>
   )
 }
 
 // 模型集合功能测试
-export const isVisionModels = (models: Model[]) => {
+export const isVisionModels = (models: ClassifiableModel[]) => {
   return models.every((model) => isVisionModel(model))
 }
 
-export const isGenerateImageModels = (models: Model[]) => {
+export const isGenerateImageModels = (models: ClassifiableModel[]) => {
   return models.every((model) => isGenerateImageModel(model))
 }
 
-export const isAnthropicModel = (model?: Model): boolean => {
+export const isAnthropicModel = (model?: ClassifiableModel): boolean => {
   if (!model) {
     return false
   }
@@ -208,28 +213,28 @@ export const isAnthropicModel = (model?: Model): boolean => {
 
 const NOT_SUPPORT_TEXT_DELTA_MODEL_REGEX = new RegExp('qwen-mt-(?:turbo|plus)')
 
-export const isNotSupportTextDeltaModel = (model: Model): boolean => {
+export const isNotSupportTextDeltaModel = (model: ClassifiableModel): boolean => {
   const modelId = getLowerBaseModelName(model.id)
   return NOT_SUPPORT_TEXT_DELTA_MODEL_REGEX.test(modelId)
 }
 
-export const isNotSupportSystemMessageModel = (model: Model): boolean => {
+export const isNotSupportSystemMessageModel = (model: ClassifiableModel): boolean => {
   return isQwenMTModel(model) || isGemmaModel(model)
 }
 
 // Verbosity settings is only supported by GPT-5 and newer models
 const MODEL_SUPPORTED_VERBOSITY: readonly {
-  readonly validator: (model: Model) => boolean
+  readonly validator: (model: ClassifiableModel) => boolean
   readonly values: readonly ValidOpenAIVerbosity[]
 }[] = [
   // Filter out models that do not support verbosity
   {
-    validator: (model: Model) => !isSupportVerbosityModel(model),
+    validator: (model: ClassifiableModel) => !isSupportVerbosityModel(model),
     values: []
   },
   // Either only one value is supported(medium), or [low, medium, high]
   {
-    validator: (model: Model) => {
+    validator: (model: ClassifiableModel) => {
       const modelId = getLowerBaseModelName(model.id)
       // chat variant: only medium is supported
       if (modelId.includes('chat')) {
@@ -268,7 +273,7 @@ const MODEL_SUPPORTED_VERBOSITY: readonly {
  * @param model - The model to check
  * @returns An array of supported verbosity levels, always including `undefined` as the first element and `null` when applicable
  */
-export const getModelSupportedVerbosity = (model: Model | undefined | null): OpenAIVerbosity[] => {
+export const getModelSupportedVerbosity = (model: ClassifiableModel | undefined | null): OpenAIVerbosity[] => {
   if (!model || !isSupportVerbosityModel(model)) {
     return [undefined]
   }
@@ -285,12 +290,12 @@ export const getModelSupportedVerbosity = (model: Model | undefined | null): Ope
   return [undefined, ...supportedValues]
 }
 
-export const isGeminiModel = (model: Model) => {
+export const isGeminiModel = (model: ClassifiableModel) => {
   const modelId = getLowerBaseModelName(model.id)
   return modelId.includes('gemini')
 }
 
-export const isGrokModel = (model: Model) => {
+export const isGrokModel = (model: ClassifiableModel) => {
   const modelId = getLowerBaseModelName(model.id)
   return modelId.includes('grok')
 }
@@ -298,11 +303,11 @@ export const isGrokModel = (model: Model) => {
 // zhipu 视觉推理模型用这组 special token 标记推理结果
 export const ZHIPU_RESULT_TOKENS = ['<|begin_of_box|>', '<|end_of_box|>'] as const
 
-export const agentModelFilter = (model: Model): boolean => {
+export const agentModelFilter = (model: ClassifiableModel): boolean => {
   return !isEmbeddingModel(model) && !isRerankModel(model) && !isTextToImageModel(model)
 }
 
-export const isMaxTemperatureOneModel = (model: Model): boolean => {
+export const isMaxTemperatureOneModel = (model: ClassifiableModel): boolean => {
   if (isZhipuModel(model) || isAnthropicModel(model) || isMoonshotModel(model)) {
     return true
   }
@@ -310,13 +315,13 @@ export const isMaxTemperatureOneModel = (model: Model): boolean => {
 }
 
 // major version, including 3.x
-export const isGemini3Model = (model: Model) => {
+export const isGemini3Model = (model: ClassifiableModel) => {
   const modelId = getLowerBaseModelName(model.id)
   return modelId.includes('gemini-3')
 }
 
 // major version, including 3.x
-export const isGemini3ThinkingTokenModel = (model: Model) => {
+export const isGemini3ThinkingTokenModel = (model: ClassifiableModel) => {
   const modelId = getLowerBaseModelName(model.id)
   return isGemini3Model(model) && !modelId.includes('image')
 }
@@ -328,7 +333,7 @@ export const isGemini3ThinkingTokenModel = (model: Model) => {
  * @param model - The model to check
  * @returns true if the model is a Gemini 3 Flash model
  */
-export const isGemini3FlashModel = (model: Model | undefined | null): boolean => {
+export const isGemini3FlashModel = (model: ClassifiableModel | undefined | null): boolean => {
   if (!model) {
     return false
   }
@@ -347,7 +352,7 @@ export const isGemini3FlashModel = (model: Model | undefined | null): boolean =>
  * @param model - The model to check
  * @returns true if the model is a Gemini 3.1 Flash Lite model
  */
-export const isGemini31FlashLiteModel = (model: Model | undefined | null): boolean => {
+export const isGemini31FlashLiteModel = (model: ClassifiableModel | undefined | null): boolean => {
   if (!model) {
     return false
   }
@@ -362,7 +367,7 @@ export const isGemini31FlashLiteModel = (model: Model | undefined | null): boole
  * @param model - The model to check
  * @returns true if the model is a Gemini 3 Pro model
  */
-export const isGemini3ProModel = (model: Model | undefined | null): boolean => {
+export const isGemini3ProModel = (model: ClassifiableModel | undefined | null): boolean => {
   if (!model) {
     return false
   }
@@ -379,7 +384,7 @@ export const isGemini3ProModel = (model: Model | undefined | null): boolean => {
  * @param model - The model to check
  * @returns
  */
-export const isGemini31ProModel = (model: Model | undefined | null): boolean => {
+export const isGemini31ProModel = (model: ClassifiableModel | undefined | null): boolean => {
   if (!model) {
     return false
   }
@@ -401,7 +406,7 @@ export const isGemini31ProModel = (model: Model | undefined | null): boolean => 
  * @param model - The model to check
  * @returns true if the model is Claude 4.6 series model
  */
-export function isClaude46SeriesModel(model: Model | undefined | null): boolean {
+export function isClaude46SeriesModel(model: ClassifiableModel | undefined | null): boolean {
   if (!model) {
     return false
   }

@@ -1,5 +1,5 @@
 import { getProviderLabel } from '@renderer/i18n/label'
-import type { Model, Provider } from '@renderer/types'
+import type { Provider } from '@renderer/types'
 import { isSystemProvider } from '@renderer/types'
 
 /**
@@ -50,11 +50,15 @@ export function matchKeywordsInProvider(keywords: string | string[], provider: P
 /**
  * 检查 Model 是否匹配所有关键词
  * @param keywords 关键词字符串（空格分隔）或关键词数组
- * @param model 被搜索的 Model 对象
+ * @param model 被搜索的 Model 对象（只需 name + id）
  * @param provider 可选的 Provider 对象，用于生成完整模型名称
  * @returns 匹配所有关键词则返回 true
  */
-export function matchKeywordsInModel(keywords: string | string[], model: Model, provider?: Provider): boolean {
+export function matchKeywordsInModel(
+  keywords: string | string[],
+  model: { name: string; id: string },
+  provider?: Provider
+): boolean {
   const fullName = `${model.name} ${model.id} ${provider ? getProviderSearchString(provider) : ''}`
   return includeKeywords(fullName, keywords)
 }
@@ -77,7 +81,11 @@ function getProviderSearchString(provider: Provider) {
  * @param provider 可选的 Provider 对象，用于生成完整模型名称
  * @returns 过滤后的模型数组
  */
-export function filterModelsByKeywords<T extends Model>(keywords: string, models: T[], provider?: Provider): T[] {
+export function filterModelsByKeywords<T extends { name: string; id: string }>(
+  keywords: string,
+  models: T[],
+  provider?: Provider
+): T[] {
   const keywordsArray = keywords.toLowerCase().split(/\s+/).filter(Boolean)
   return models.filter((model) => matchKeywordsInModel(keywordsArray, model, provider))
 }

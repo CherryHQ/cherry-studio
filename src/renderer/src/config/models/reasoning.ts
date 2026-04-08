@@ -1,5 +1,4 @@
 import type {
-  Model,
   ReasoningEffortConfig,
   ReasoningEffortOption,
   ThinkingModelType,
@@ -7,6 +6,8 @@ import type {
 } from '@renderer/types'
 import { getLowerBaseModelName, isUserSelectedModelType } from '@renderer/utils'
 
+import type { ClassifiableModel } from './classifiable'
+import { getModelProviderId } from './classifiable'
 import { isEmbeddingModel, isRerankModel } from './embedding'
 import {
   isGPT5FamilyModel,
@@ -124,7 +125,7 @@ export const MODEL_SUPPORTED_OPTIONS: ThinkingOptionConfig = {
 } as const
 
 // TODO: add ut
-const _getThinkModelType = (model: Model): ThinkingModelType => {
+const _getThinkModelType = (model: ClassifiableModel): ThinkingModelType => {
   let thinkingModelType: ThinkingModelType = 'default'
   const modelId = getLowerBaseModelName(model.id)
   if (isClaudeReasoningModel(model)) {
@@ -212,7 +213,7 @@ const _getThinkModelType = (model: Model): ThinkingModelType => {
   return thinkingModelType
 }
 
-export const getThinkModelType = (model: Model): ThinkingModelType => {
+export const getThinkModelType = (model: ClassifiableModel): ThinkingModelType => {
   const { idResult, nameResult } = withModelIdAndNameAsId(model, _getThinkModelType)
   if (idResult !== 'default') {
     return idResult
@@ -221,7 +222,7 @@ export const getThinkModelType = (model: Model): ThinkingModelType => {
   }
 }
 
-const _getModelSupportedReasoningEffortOptions = (model: Model): ReasoningEffortOption[] | undefined => {
+const _getModelSupportedReasoningEffortOptions = (model: ClassifiableModel): ReasoningEffortOption[] | undefined => {
   if (!isSupportedReasoningEffortModel(model) && !isSupportedThinkingTokenModel(model)) {
     return undefined
   }
@@ -279,7 +280,7 @@ const _getModelSupportedReasoningEffortOptions = (model: Model): ReasoningEffort
  * // Returns: ['default', 'none', 'low', 'medium', 'high']
  */
 export const getModelSupportedReasoningEffortOptions = (
-  model: Model | undefined | null
+  model: ClassifiableModel | undefined | null
 ): ReasoningEffortOption[] | undefined => {
   if (!model) return undefined
 
@@ -287,7 +288,7 @@ export const getModelSupportedReasoningEffortOptions = (
   return idResult ?? nameResult
 }
 
-function _isSupportedThinkingTokenModel(model: Model): boolean {
+function _isSupportedThinkingTokenModel(model: ClassifiableModel): boolean {
   return (
     isSupportedThinkingTokenGeminiModel(model) ||
     isSupportedThinkingTokenQwenModel(model) ||
@@ -303,14 +304,14 @@ function _isSupportedThinkingTokenModel(model: Model): boolean {
 
 /** 用于判断是否支持控制思考，但不一定以reasoning_effort的方式 */
 // TODO: rename it
-export function isSupportedThinkingTokenModel(model?: Model): boolean {
+export function isSupportedThinkingTokenModel(model?: ClassifiableModel): boolean {
   if (!model) return false
   const { idResult, nameResult } = withModelIdAndNameAsId(model, _isSupportedThinkingTokenModel)
   return idResult || nameResult
 }
 
 // TODO: it should be merged in isSupportedThinkingTokenModel
-export function isSupportedReasoningEffortModel(model?: Model): boolean {
+export function isSupportedReasoningEffortModel(model?: ClassifiableModel): boolean {
   if (!model) {
     return false
   }
@@ -322,13 +323,13 @@ export function isSupportedReasoningEffortModel(model?: Model): boolean {
   )
 }
 
-export function isSupportedReasoningEffortGrokModel(model?: Model): boolean {
+export function isSupportedReasoningEffortGrokModel(model?: ClassifiableModel): boolean {
   if (!model) {
     return false
   }
 
   const modelId = getLowerBaseModelName(model.id)
-  const providerId = model?.provider?.toLowerCase()
+  const providerId = getModelProviderId(model)?.toLowerCase()
   if (modelId.includes('grok-3-mini')) {
     return true
   }
@@ -350,7 +351,7 @@ export function isSupportedReasoningEffortGrokModel(model?: Model): boolean {
  * @param model - The model to check
  * @returns true if the model is a reasoning-enabled Grok 4 Fast model
  */
-export function isGrok4FastReasoningModel(model?: Model): boolean {
+export function isGrok4FastReasoningModel(model?: ClassifiableModel): boolean {
   if (!model) {
     return false
   }
@@ -359,7 +360,7 @@ export function isGrok4FastReasoningModel(model?: Model): boolean {
   return modelId.includes('grok-4-fast') && !modelId.includes('non-reasoning')
 }
 
-export function isGrokReasoningModel(model?: Model): boolean {
+export function isGrokReasoningModel(model?: ClassifiableModel): boolean {
   if (!model) {
     return false
   }
@@ -374,7 +375,7 @@ export function isGrokReasoningModel(model?: Model): boolean {
   return false
 }
 
-export function isGeminiReasoningModel(model?: Model): boolean {
+export function isGeminiReasoningModel(model?: ClassifiableModel): boolean {
   if (!model) {
     return false
   }
@@ -395,7 +396,7 @@ export function isGeminiReasoningModel(model?: Model): boolean {
 export const GEMINI_THINKING_MODEL_REGEX =
   /gemini-(?:2\.5.*(?:-latest)?|3(?:\.\d+)?-(?:flash|pro)(?:-preview)?|flash-latest|pro-latest|flash-lite-latest)(?:-[\w-]+)*$/i
 
-export const isSupportedThinkingTokenGeminiModel = (model: Model): boolean => {
+export const isSupportedThinkingTokenGeminiModel = (model: ClassifiableModel): boolean => {
   const modelId = getLowerBaseModelName(model.id, '/')
   if (GEMINI_THINKING_MODEL_REGEX.test(modelId)) {
     // ref: https://docs.cloud.google.com/vertex-ai/generative-ai/docs/models/gemini/3-pro-image
@@ -412,7 +413,7 @@ export const isSupportedThinkingTokenGeminiModel = (model: Model): boolean => {
 }
 
 /** 是否为Qwen推理模型 */
-export function isQwenReasoningModel(model?: Model): boolean {
+export function isQwenReasoningModel(model?: ClassifiableModel): boolean {
   if (!model) {
     return false
   }
@@ -437,7 +438,7 @@ export function isQwenReasoningModel(model?: Model): boolean {
 }
 
 /** Whether it is a Qwen3 or Qwen3.5 reasoning model that supports thinking control */
-export function isSupportedThinkingTokenQwenModel(model?: Model): boolean {
+export function isSupportedThinkingTokenQwenModel(model?: ClassifiableModel): boolean {
   if (!model) {
     return false
   }
@@ -480,7 +481,7 @@ export function isSupportedThinkingTokenQwenModel(model?: Model): boolean {
 }
 
 /** 是否为不支持思考控制的Qwen推理模型 */
-export function isQwenAlwaysThinkModel(model?: Model): boolean {
+export function isQwenAlwaysThinkModel(model?: ClassifiableModel): boolean {
   if (!model) {
     return false
   }
@@ -501,22 +502,22 @@ export const DOUBAO_THINKING_MODEL_REGEX =
 export const DOUBAO_THINKING_AUTO_MODEL_REGEX =
   /doubao-(1-5-thinking-pro-m|seed-1[.-]6)(?!-(?:flash|thinking)(?:-|$))(?:-lite)?(?!-251015)(?:-\d+)?$/i
 
-export function isDoubaoThinkingAutoModel(model: Model): boolean {
+export function isDoubaoThinkingAutoModel(model: ClassifiableModel): boolean {
   const modelId = getLowerBaseModelName(model.id)
   return DOUBAO_THINKING_AUTO_MODEL_REGEX.test(modelId) || DOUBAO_THINKING_AUTO_MODEL_REGEX.test(model.name)
 }
 
-export function isDoubaoSeedAfter251015(model: Model): boolean {
+export function isDoubaoSeedAfter251015(model: ClassifiableModel): boolean {
   const pattern = /doubao-seed-1-6-(?:lite-)?251015|doubao-seed-2[.-]0/i
   return pattern.test(model.id) || pattern.test(model.name)
 }
 
-export function isDoubaoSeed18Model(model: Model): boolean {
+export function isDoubaoSeed18Model(model: ClassifiableModel): boolean {
   const pattern = /doubao-seed-1[.-]8(?:-[\w-]+)?/i
   return pattern.test(model.id) || pattern.test(model.name)
 }
 
-export function isSupportedThinkingTokenDoubaoModel(model?: Model): boolean {
+export function isSupportedThinkingTokenDoubaoModel(model?: ClassifiableModel): boolean {
   if (!model) {
     return false
   }
@@ -526,13 +527,13 @@ export function isSupportedThinkingTokenDoubaoModel(model?: Model): boolean {
   return DOUBAO_THINKING_MODEL_REGEX.test(modelId) || DOUBAO_THINKING_MODEL_REGEX.test(model.name)
 }
 
-export function isClaude45ReasoningModel(model: Model): boolean {
+export function isClaude45ReasoningModel(model: ClassifiableModel): boolean {
   const modelId = getLowerBaseModelName(model.id, '/')
   const regex = /claude-(sonnet|opus|haiku)-4(-|.)5(?:-[\w-]+)?$/i
   return regex.test(modelId)
 }
 
-export function isClaude4SeriesModel(model: Model): boolean {
+export function isClaude4SeriesModel(model: ClassifiableModel): boolean {
   const modelId = getLowerBaseModelName(model.id, '/')
   // Supports various formats including:
   // - Direct API: claude-sonnet-4, claude-opus-4-20250514
@@ -542,7 +543,7 @@ export function isClaude4SeriesModel(model: Model): boolean {
   return regex.test(modelId)
 }
 
-export function isClaudeReasoningModel(model?: Model): boolean {
+export function isClaudeReasoningModel(model?: ClassifiableModel): boolean {
   if (!model) {
     return false
   }
@@ -558,7 +559,7 @@ export function isClaudeReasoningModel(model?: Model): boolean {
 
 export const isSupportedThinkingTokenClaudeModel = isClaudeReasoningModel
 
-export const isSupportedThinkingTokenHunyuanModel = (model?: Model): boolean => {
+export const isSupportedThinkingTokenHunyuanModel = (model?: ClassifiableModel): boolean => {
   if (!model) {
     return false
   }
@@ -566,7 +567,7 @@ export const isSupportedThinkingTokenHunyuanModel = (model?: Model): boolean => 
   return modelId.includes('hunyuan-a13b')
 }
 
-export const isHunyuanReasoningModel = (model?: Model): boolean => {
+export const isHunyuanReasoningModel = (model?: ClassifiableModel): boolean => {
   if (!model) {
     return false
   }
@@ -575,7 +576,7 @@ export const isHunyuanReasoningModel = (model?: Model): boolean => {
   return isSupportedThinkingTokenHunyuanModel(model) || modelId.includes('hunyuan-t1')
 }
 
-export const isPerplexityReasoningModel = (model?: Model): boolean => {
+export const isPerplexityReasoningModel = (model?: ClassifiableModel): boolean => {
   if (!model) {
     return false
   }
@@ -587,7 +588,7 @@ export const isPerplexityReasoningModel = (model?: Model): boolean => {
   )
 }
 
-export const isSupportedReasoningEffortPerplexityModel = (model: Model): boolean => {
+export const isSupportedReasoningEffortPerplexityModel = (model: ClassifiableModel): boolean => {
   const modelId = getLowerBaseModelName(model.id, '/')
   return modelId.includes('sonar-deep-research')
 }
@@ -602,12 +603,12 @@ export const isSupportedReasoningEffortPerplexityModel = (model: Model): boolean
  * Note: GLM-Z1 reasoning models are NOT included here — they are covered
  * by {@link isZhipuReasoningModel} instead.
  */
-export const isSupportedThinkingTokenZhipuModel = (model: Model): boolean => {
+export const isSupportedThinkingTokenZhipuModel = (model: ClassifiableModel): boolean => {
   const modelId = getLowerBaseModelName(model.id, '/')
   return /glm-?5|glm-4\.[567]/.test(modelId)
 }
 
-export const isSupportedThinkingTokenMiMoModel = (model: Model): boolean => {
+export const isSupportedThinkingTokenMiMoModel = (model: ClassifiableModel): boolean => {
   const modelId = getLowerBaseModelName(model.id, '/')
   return ['mimo-v2-flash', 'mimo-v2-pro', 'mimo-v2-omni'].some((id) => modelId.includes(id))
 }
@@ -621,16 +622,16 @@ export const isSupportedThinkingTokenMiMoModel = (model: Model): boolean => {
  * @param model - The model object to check
  * @returns true if the model supports thinking control, false otherwise
  */
-const _isSupportedThinkingTokenKimiModel = (model: Model): boolean => {
+const _isSupportedThinkingTokenKimiModel = (model: ClassifiableModel): boolean => {
   return isKimi25Model(model)
 }
 
-export const isSupportedThinkingTokenKimiModel = (model: Model): boolean => {
+export const isSupportedThinkingTokenKimiModel = (model: ClassifiableModel): boolean => {
   const { idResult, nameResult } = withModelIdAndNameAsId(model, _isSupportedThinkingTokenKimiModel)
   return idResult || nameResult
 }
 
-export const isDeepSeekHybridInferenceModel = (model: Model) => {
+export const isDeepSeekHybridInferenceModel = (model: ClassifiableModel) => {
   const { idResult, nameResult } = withModelIdAndNameAsId(model, (model) => {
     const modelId = getLowerBaseModelName(model.id)
     // openrouter: deepseek/deepseek-chat-v3.1 不知道会不会有其他provider仿照ds官方分出一个同id的作为非思考模式的模型，这里有风险
@@ -650,7 +651,7 @@ export const isDeepSeekHybridInferenceModel = (model: Model) => {
   return idResult || nameResult
 }
 
-export const isLingReasoningModel = (model?: Model): boolean => {
+export const isLingReasoningModel = (model?: ClassifiableModel): boolean => {
   if (!model) {
     return false
   }
@@ -660,7 +661,7 @@ export const isLingReasoningModel = (model?: Model): boolean => {
 
 export const isSupportedThinkingTokenDeepSeekModel = isDeepSeekHybridInferenceModel
 
-export const isZhipuReasoningModel = (model?: Model): boolean => {
+export const isZhipuReasoningModel = (model?: ClassifiableModel): boolean => {
   if (!model) {
     return false
   }
@@ -670,7 +671,7 @@ export const isZhipuReasoningModel = (model?: Model): boolean => {
 
 export const isMiMoReasoningModel = isSupportedThinkingTokenMiMoModel
 
-export const isStepReasoningModel = (model?: Model): boolean => {
+export const isStepReasoningModel = (model?: ClassifiableModel): boolean => {
   if (!model) {
     return false
   }
@@ -678,7 +679,7 @@ export const isStepReasoningModel = (model?: Model): boolean => {
   return modelId.includes('step-3') || modelId.includes('step-r1-v-mini')
 }
 
-export const isMiniMaxReasoningModel = (model?: Model): boolean => {
+export const isMiniMaxReasoningModel = (model?: ClassifiableModel): boolean => {
   if (!model) {
     return false
   }
@@ -686,7 +687,7 @@ export const isMiniMaxReasoningModel = (model?: Model): boolean => {
   return (['minimax-m1', 'minimax-m2', 'minimax-m2.1'] as const).some((id) => modelId.includes(id))
 }
 
-export const isBaichuanReasoningModel = (model?: Model): boolean => {
+export const isBaichuanReasoningModel = (model?: ClassifiableModel): boolean => {
   if (!model) {
     return false
   }
@@ -707,14 +708,14 @@ export const isBaichuanReasoningModel = (model?: Model): boolean => {
  * @param model - The model object to check, can be undefined
  * @returns true if it's a Kimi reasoning model, false otherwise
  */
-const _isKimiReasoningModel = (model: Model): boolean => {
+const _isKimiReasoningModel = (model: ClassifiableModel): boolean => {
   const modelId = getLowerBaseModelName(model.id, '/')
   // Match kimi-k2-thinking, kimi-k2-thinking-turbo, or kimi-k2.5
   // The regex ensures no extra suffixes after these patterns
   return /^kimi-k2-thinking(?:-turbo)?$|^kimi-k2\.5(?:-\w)*$/.test(modelId)
 }
 
-export function isKimiReasoningModel(model?: Model): boolean {
+export function isKimiReasoningModel(model?: ClassifiableModel): boolean {
   if (!model) {
     return false
   }
@@ -722,7 +723,7 @@ export function isKimiReasoningModel(model?: Model): boolean {
   return idResult || nameResult
 }
 
-export function isReasoningModel(model?: Model): boolean {
+export function isReasoningModel(model?: ClassifiableModel): boolean {
   if (!model || isEmbeddingModel(model) || isRerankModel(model) || isTextToImageModel(model)) {
     return false
   }
@@ -733,7 +734,7 @@ export function isReasoningModel(model?: Model): boolean {
 
   const modelId = getLowerBaseModelName(model.id)
 
-  if (model.provider === 'doubao' || modelId.includes('doubao')) {
+  if (getModelProviderId(model) === 'doubao' || modelId.includes('doubao')) {
     return (
       REASONING_REGEX.test(modelId) ||
       REASONING_REGEX.test(model.name) ||
@@ -842,7 +843,7 @@ export const findTokenLimit = (modelId: string): { min: number; max: number } | 
  * @param model - The model to check
  * @returns `true` if the model is a fixed reasoning model, `false` otherwise
  */
-export const isFixedReasoningModel = (model: Model) =>
+export const isFixedReasoningModel = (model: ClassifiableModel) =>
   isReasoningModel(model) && !isSupportedThinkingTokenModel(model) && !isSupportedReasoningEffortModel(model)
 
 // https://platform.minimaxi.com/docs/guides/text-m2-function-call#openai-sdk
@@ -859,7 +860,7 @@ const INTERLEAVED_THINKING_MODEL_REGEX =
  * @param model - The model object to check.
  * @returns `true` if the model's ID matches the interleaved thinking model pattern; otherwise, `false`.
  */
-export const isInterleavedThinkingModel = (model: Model) => {
+export const isInterleavedThinkingModel = (model: ClassifiableModel) => {
   const modelId = getLowerBaseModelName(model.id)
   return INTERLEAVED_THINKING_MODEL_REGEX.test(modelId)
 }

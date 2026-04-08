@@ -1,15 +1,7 @@
-import { getProviderByModel } from '@renderer/services/AssistantService'
-import type { Model } from '@renderer/types'
-import { SystemProviderIds } from '@renderer/types'
 import { getLowerBaseModelName, isUserSelectedModelType } from '@renderer/utils'
-import {
-  isAzureOpenAIProvider,
-  isGeminiProvider,
-  isNewApiProvider,
-  isOpenAICompatibleProvider,
-  isOpenAIProvider,
-  isVertexProvider
-} from '@renderer/utils/provider'
+
+import type { ClassifiableModel } from './classifiable'
+import { getModelProviderId, modelHasEndpointType } from './classifiable'
 
 export { GEMINI_FLASH_MODEL_REGEX } from './utils'
 
@@ -36,7 +28,9 @@ export const PERPLEXITY_SEARCH_MODELS = [
   'sonar-deep-research'
 ]
 
-export function isWebSearchModel(model: Model): boolean {
+const NEW_API_PROVIDER_IDS = ['new-api', 'cherryin', 'aionly']
+
+export function isWebSearchModel(model: ClassifiableModel): boolean {
   if (!model || isEmbeddingModel(model) || isRerankModel(model) || isTextToImageModel(model)) {
     return false
   }
@@ -45,113 +39,97 @@ export function isWebSearchModel(model: Model): boolean {
     return isUserSelectedModelType(model, 'web_search')!
   }
 
-  const provider = getProviderByModel(model)
-
-  if (!provider) {
-    return false
-  }
+  const pid = getModelProviderId(model)
+  if (!pid) return false
 
   const modelId = getLowerBaseModelName(model.id, '/')
 
-  // bedrock不支持, azure支持
-  if (isAnthropicModel(model) && !(provider.id === SystemProviderIds['aws-bedrock'])) {
-    if (isVertexProvider(provider)) {
+  // Anthropic models: bedrock 不支持, vertex 只支持 claude-4 系列, 其他走 regex
+  if (isAnthropicModel(model) && pid !== 'aws-bedrock') {
+    if (pid === 'vertexai') {
       return isClaude4SeriesModel(model)
     }
     return CLAUDE_SUPPORTED_WEBSEARCH_REGEX.test(modelId)
   }
 
-  // TODO: 当其他供应商采用Response端点时，这个地方逻辑需要改进
-  // azure现在也支持了websearch
-  if (isOpenAIProvider(provider) || isAzureOpenAIProvider(provider)) {
+  // OpenAI Responses / Azure: 支持 OpenAI web search 模型 + grok
+  if (modelHasEndpointType(model, 'openai-responses') || pid === 'azure-openai') {
     if (isOpenAIWebSearchModel(model)) {
       return true
     }
-
-    // v2
-    if (provider.id === SystemProviderIds.grok) {
+    if (pid === 'grok') {
       return true
     }
-
     return false
   }
 
-  if (provider.id === SystemProviderIds.perplexity) {
+  if (pid === 'perplexity') {
     return PERPLEXITY_SEARCH_MODELS.includes(modelId)
   }
 
-  if (provider.id === SystemProviderIds.aihubmix) {
-    // modelId 不以-search结尾
+  if (pid === 'aihubmix') {
     if (!modelId.endsWith('-search') && GEMINI_SEARCH_REGEX.test(modelId)) {
       return true
     }
-
     if (isOpenAIWebSearchModel(model)) {
       return true
     }
-
     return false
   }
 
-  if (isOpenAICompatibleProvider(provider) || isNewApiProvider(provider)) {
+  // OpenAI-compatible / new-api providers
+  if (modelHasEndpointType(model, 'openai-chat-completions') || NEW_API_PROVIDER_IDS.includes(pid)) {
     if (GEMINI_SEARCH_REGEX.test(modelId) || isOpenAIWebSearchModel(model)) {
       return true
     }
   }
 
-  if (isGeminiProvider(provider) || isVertexProvider(provider)) {
+  // Gemini / Vertex
+  if (modelHasEndpointType(model, 'google-generate-content')) {
     return GEMINI_SEARCH_REGEX.test(modelId)
   }
 
-  if (provider.id === 'hunyuan') {
+  if (pid === 'hunyuan') {
     return modelId !== 'hunyuan-lite'
   }
 
-  if (provider.id === 'zhipu') {
+  if (pid === 'zhipu') {
     return false
   }
 
-  if (provider.id === 'dashscope') {
+  if (pid === 'dashscope') {
     const models = ['qwen-turbo', 'qwen-max', 'qwen-plus', 'qwq', 'qwen-flash', 'qwen3-max']
-    // matches id like qwen-max-0919, qwen-max-latest
     return models.some((i) => modelId.startsWith(i))
   }
 
-  if (provider.id === 'openrouter') {
+  if (pid === 'openrouter') {
     return true
   }
 
   return false
 }
 
-export function isMandatoryWebSearchModel(model: Model): boolean {
+export function isMandatoryWebSearchModel(model: ClassifiableModel): boolean {
   if (!model) {
     return false
   }
 
-  const provider = getProviderByModel(model)
-
-  if (!provider) {
-    return false
-  }
-
+  const pid = getModelProviderId(model)
   const modelId = getLowerBaseModelName(model.id)
 
-  if (provider.id === 'perplexity' || provider.id === 'openrouter') {
+  if (pid === 'perplexity' || pid === 'openrouter') {
     return PERPLEXITY_SEARCH_MODELS.includes(modelId)
   }
 
   return false
 }
 
-export function isOpenRouterBuiltInWebSearchModel(model: Model): boolean {
+export function isOpenRouterBuiltInWebSearchModel(model: ClassifiableModel): boolean {
   if (!model) {
     return false
   }
 
-  const provider = getProviderByModel(model)
-
-  if (provider.id !== 'openrouter') {
+  if (getModelProviderId(model) !== 'openrouter') {
     return false
   }
 
@@ -160,12 +138,12 @@ export function isOpenRouterBuiltInWebSearchModel(model: Model): boolean {
   return isOpenAIWebSearchChatCompletionOnlyModel(model) || modelId.includes('sonar')
 }
 
-export function isOpenAIWebSearchChatCompletionOnlyModel(model: Model): boolean {
+export function isOpenAIWebSearchChatCompletionOnlyModel(model: ClassifiableModel): boolean {
   const modelId = getLowerBaseModelName(model.id)
   return modelId.includes('gpt-4o-search-preview') || modelId.includes('gpt-4o-mini-search-preview')
 }
 
-export function isOpenAIWebSearchModel(model: Model): boolean {
+export function isOpenAIWebSearchModel(model: ClassifiableModel): boolean {
   const modelId = getLowerBaseModelName(model.id)
 
   return (
@@ -179,14 +157,14 @@ export function isOpenAIWebSearchModel(model: Model): boolean {
   )
 }
 
-export function isHunyuanSearchModel(model?: Model): boolean {
+export function isHunyuanSearchModel(model?: ClassifiableModel): boolean {
   if (!model) {
     return false
   }
 
   const modelId = getLowerBaseModelName(model.id)
 
-  if (model.provider === 'hunyuan') {
+  if (getModelProviderId(model) === 'hunyuan') {
     return modelId !== 'hunyuan-lite'
   }
 

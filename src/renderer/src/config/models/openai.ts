@@ -1,10 +1,12 @@
-import type { Model } from '@renderer/types'
 import { getLowerBaseModelName } from '@renderer/utils/naming'
+
+import type { ClassifiableModel } from './classifiable'
+import { getModelProviderId } from './classifiable'
 
 export const OPENAI_NO_SUPPORT_DEV_ROLE_MODELS = ['o1-preview', 'o1-mini']
 
 // Excludes known image models from isOpenAIModel.
-export function isOpenAILLMModel(model?: Model): boolean {
+export function isOpenAILLMModel(model?: ClassifiableModel): boolean {
   if (!model) {
     return false
   }
@@ -18,7 +20,7 @@ export function isOpenAILLMModel(model?: Model): boolean {
 
 // TODO: only covers GPT and reasoning (o-series) models.
 // Non-chat models (dall-e, whisper, tts, text-embedding-*) are not detected.
-export function isOpenAIModel(model: Model): boolean {
+export function isOpenAIModel(model: ClassifiableModel): boolean {
   if (!model) {
     return false
   }
@@ -27,22 +29,22 @@ export function isOpenAIModel(model: Model): boolean {
   return /\bgpt\b/.test(modelId) || isOpenAIReasoningModel(model)
 }
 
-export const isGPT5ProModel = (model: Model) => {
+export const isGPT5ProModel = (model: ClassifiableModel) => {
   const modelId = getLowerBaseModelName(model.id)
   return modelId.includes('gpt-5-pro')
 }
 
-export const isGPT52ProModel = (model: Model) => {
+export const isGPT52ProModel = (model: ClassifiableModel) => {
   const modelId = getLowerBaseModelName(model.id)
   return modelId.includes('gpt-5.2-pro')
 }
 
-export const isGPT51CodexMaxModel = (model: Model) => {
+export const isGPT51CodexMaxModel = (model: ClassifiableModel) => {
   const modelId = getLowerBaseModelName(model.id)
   return modelId.includes('gpt-5.1-codex-max')
 }
 
-export const isOpenAIOpenWeightModel = (model: Model) => {
+export const isOpenAIOpenWeightModel = (model: ClassifiableModel) => {
   const modelId = getLowerBaseModelName(model.id)
   return modelId.includes('gpt-oss')
 }
@@ -51,12 +53,12 @@ export const isOpenAIOpenWeightModel = (model: Model) => {
  * Checks if a model belongs to the GPT-5 base series (e.g. gpt-5, gpt-5-pro).
  * Uses negative lookahead to exclude sub-versions like gpt-5.1, gpt-5.2, etc.
  */
-export const isGPT5SeriesModel = (model: Model) => {
+export const isGPT5SeriesModel = (model: ClassifiableModel) => {
   const modelId = getLowerBaseModelName(model.id)
   return /gpt-5(?!\.\d)/.test(modelId)
 }
 
-export const isGPT5SeriesReasoningModel = (model: Model) => {
+export const isGPT5SeriesReasoningModel = (model: ClassifiableModel) => {
   const modelId = getLowerBaseModelName(model.id)
   return isGPT5SeriesModel(model) && !modelId.includes('chat')
 }
@@ -64,17 +66,17 @@ export const isGPT5SeriesReasoningModel = (model: Model) => {
 /**
  * Checks if a model belongs to the GPT-5 family (gpt-5, gpt-5.1, gpt-5.2, etc.).
  */
-export const isGPT5FamilyModel = (model: Model) => {
+export const isGPT5FamilyModel = (model: ClassifiableModel) => {
   const modelId = getLowerBaseModelName(model.id)
   return modelId.includes('gpt-5')
 }
 
-export const isGPT51SeriesModel = (model: Model) => {
+export const isGPT51SeriesModel = (model: ClassifiableModel) => {
   const modelId = getLowerBaseModelName(model.id)
   return modelId.includes('gpt-5.1')
 }
 
-export const isGPT52SeriesModel = (model: Model) => {
+export const isGPT52SeriesModel = (model: ClassifiableModel) => {
   const modelId = getLowerBaseModelName(model.id)
   return modelId.includes('gpt-5.2')
 }
@@ -104,7 +106,7 @@ export const isSupportVerbosityModel = isGPT5FamilyModel
  * isSupportNoneReasoningEffortModel({ id: 'gpt-5-pro', provider: 'openai' })
  * ```
  */
-export function isSupportNoneReasoningEffortModel(model: Model): boolean {
+export function isSupportNoneReasoningEffortModel(model: ClassifiableModel): boolean {
   const modelId = getLowerBaseModelName(model.id)
   const isCodex = modelId.includes('codex')
   const isOldCodex = isCodex && (isGPT51SeriesModel(model) || isGPT52SeriesModel(model))
@@ -117,7 +119,7 @@ export function isSupportNoneReasoningEffortModel(model: Model): boolean {
   )
 }
 
-export function isOpenAIChatCompletionOnlyModel(model?: Model): boolean {
+export function isOpenAIChatCompletionOnlyModel(model?: ClassifiableModel): boolean {
   if (!model) {
     return false
   }
@@ -131,12 +133,12 @@ export function isOpenAIChatCompletionOnlyModel(model?: Model): boolean {
   )
 }
 
-export function isOpenAIReasoningModel(model: Model): boolean {
+export function isOpenAIReasoningModel(model: ClassifiableModel): boolean {
   const modelId = getLowerBaseModelName(model.id, '/')
   return isSupportedReasoningEffortOpenAIModel(model) || modelId.includes('o1')
 }
 
-export function isSupportedReasoningEffortOpenAIModel(model: Model): boolean {
+export function isSupportedReasoningEffortOpenAIModel(model: ClassifiableModel): boolean {
   const modelId = getLowerBaseModelName(model.id)
   return (
     (modelId.includes('o1') && !(modelId.includes('o1-preview') || modelId.includes('o1-mini'))) ||
@@ -149,12 +151,12 @@ export function isSupportedReasoningEffortOpenAIModel(model: Model): boolean {
 
 const OPENAI_DEEP_RESEARCH_MODEL_REGEX = /deep[-_]?research/
 
-export function isOpenAIDeepResearchModel(model?: Model): boolean {
+export function isOpenAIDeepResearchModel(model?: ClassifiableModel): boolean {
   if (!model) {
     return false
   }
 
-  const providerId = model.provider
+  const providerId = getModelProviderId(model)
   if (providerId !== 'openai' && providerId !== 'openai-chat') {
     return false
   }

@@ -6,8 +6,8 @@ import {
   isVisionModel,
   isWebSearchModel
 } from '@renderer/config/models'
+import type { ClassifiableModel } from '@renderer/config/models/classifiable'
 import i18n from '@renderer/i18n'
-import type { Model } from '@renderer/types'
 import { isFreeModel } from '@renderer/utils/model'
 import type { FC } from 'react'
 import { memo, useLayoutEffect, useMemo, useRef, useState } from 'react'
@@ -24,7 +24,7 @@ import {
 } from './Tags/Model'
 
 interface ModelTagsProps {
-  model: Model
+  model: ClassifiableModel
   showFree?: boolean
   showReasoning?: boolean
   showToolsCalling?: boolean

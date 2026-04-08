@@ -1,10 +1,10 @@
-import type { Model } from '@renderer/types'
+import type { ClassifiableModel } from '@renderer/config/models/classifiable'
 import { memo } from 'react'
 
 import ModelTagsWithLabel from './ModelTagsWithLabel'
 
 interface ModelIdWithTagsProps {
-  model: Model
+  model: ClassifiableModel
   fontSize?: number
   showIdentifier?: boolean
   style?: React.CSSProperties

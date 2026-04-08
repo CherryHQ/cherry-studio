@@ -1,7 +1,8 @@
-import type { Model } from '@renderer/types'
 import { isSystemProviderId } from '@renderer/types'
 import { getLowerBaseModelName, isUserSelectedModelType } from '@renderer/utils'
 
+import type { ClassifiableModel } from './classifiable'
+import { getModelProviderId } from './classifiable'
 import { isEmbeddingModel, isRerankModel } from './embedding'
 import { isDeepSeekHybridInferenceModel } from './reasoning'
 import { isTextToImageModel } from './vision'
@@ -63,7 +64,7 @@ export const FUNCTION_CALLING_REGEX = new RegExp(
   'i'
 )
 
-export function isFunctionCallingModel(model?: Model): boolean {
+export function isFunctionCallingModel(model?: ClassifiableModel): boolean {
   if (!model || isEmbeddingModel(model) || isRerankModel(model) || isTextToImageModel(model)) {
     return false
   }
@@ -74,15 +75,15 @@ export function isFunctionCallingModel(model?: Model): boolean {
     return isUserSelectedModelType(model, 'function_calling')!
   }
 
-  if (model.provider === 'doubao' || modelId.includes('doubao')) {
+  if (getModelProviderId(model) === 'doubao' || modelId.includes('doubao')) {
     return FUNCTION_CALLING_REGEX.test(modelId) || FUNCTION_CALLING_REGEX.test(model.name)
   }
 
   // 2025/08/26 百炼与火山引擎均不支持 v3.1 函数调用
   // 先默认支持
   if (isDeepSeekHybridInferenceModel(model)) {
-    if (isSystemProviderId(model.provider)) {
-      switch (model.provider) {
+    if (isSystemProviderId(getModelProviderId(model) ?? '')) {
+      switch (getModelProviderId(model)) {
         case 'dashscope':
         case 'doubao':
           // case 'nvidia': // nvidia api 太烂了 测不了能不能用 先假设能用
