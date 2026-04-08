@@ -1,4 +1,5 @@
 /* eslint-disable no-restricted-syntax */
+import { LOGS_DIR } from '@main/core/paths/constants'
 import type { LogContextData, LogLevel, LogSourceWithContext } from '@shared/config/logger'
 import { LEVEL, LEVEL_MAP } from '@shared/config/logger'
 import { IpcChannel } from '@shared/IpcChannel'
@@ -65,8 +66,10 @@ export class LoggerService {
       throw new Error('[LoggerService] NOT support worker thread yet, can only be instantiated in main process.')
     }
 
-    // Create logs directory path
-    this.logsDir = app.getPath('logs')
+    // Logs directory comes from the central early-constants module so that
+    // LoggerService, BootConfigService, and pathRegistry all share a single
+    // source of truth (see src/main/core/paths/constants.ts).
+    this.logsDir = LOGS_DIR
 
     // env variables, only used in dev mode
     // only affect console output, not affect file output

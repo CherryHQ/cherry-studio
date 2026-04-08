@@ -13,26 +13,28 @@
  */
 
 // Boot config must be the first to load
-// eslint-disable-next-line
+
 import '@main/data/bootConfig'
 
-// [v2] DEPRECATED LEGACY IMPORTS — DO NOT EXTEND, DO NOT BASE NEW DESIGN ON THESE
+// Preboot phase: synchronous setup that must complete BEFORE
+// application.bootstrap() is called. See core/preboot/README.md for the
+// membership criteria and the preboot/bootstrap/running vocabulary.
 //
-// The two imports below are v1 leftovers scheduled for removal once the v2
-// refactor completes. They currently still run for backward compatibility:
-//   - `./bootstrap`  → calls initAppDataDir() (v1 ~/.cherrystudio/config/config.json)
-//   - `@main/config` → sets `userData + 'Dev'` suffix in dev mode and exports legacy
-//                      DATA_PATH / titleBarOverlay constants
-//
-// Both responsibilities will be absorbed by BootConfigService and the lifecycle
-// system. When adding new boot-time logic, route it through BootConfigService
-// and the lifecycle phases — never add to bootstrap.ts or config.ts.
-//
-// Don't reorder this block until these files are removed: their import-time
-// side effects must run before the main process is ready.
+// resolveUserDataLocation() is intentionally the ONLY preboot call here:
+// it internally handles both "normal startup" (read BootConfig → setPath)
+// and "execute a pending userData relocation" (copy the whole directory
+// tree, then setPath). There is no separate relaunch-time helper.
+import { resolveUserDataLocation } from '@main/core/preboot'
 
-import './bootstrap'
+resolveUserDataLocation()
 
+// [v2] DEPRECATED LEGACY IMPORT — to be removed in cleanup PR
+//
+// `@main/config` still adds the dev-mode `userData + 'Dev'` suffix and
+// exports legacy DATA_PATH / titleBarOverlay constants. It will be migrated
+// to `core/preboot/` (for the dev suffix) and dedicated module(s) (for the
+// other constants) in a follow-up PR. Don't extend this file in the
+// meantime.
 import '@main/config'
 
 import process from 'node:process'
