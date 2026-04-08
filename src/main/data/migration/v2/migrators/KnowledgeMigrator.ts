@@ -18,11 +18,11 @@ import { pathToFileURL } from 'node:url'
 import { knowledgeBaseTable, knowledgeItemTable } from '@data/db/schemas/knowledge'
 import { createClient, type Value as LibsqlValue } from '@libsql/client'
 import { loggerService } from '@logger'
-import { getDataPath } from '@main/utils'
 import { sanitizeFilename } from '@main/utils/file'
 import type { ExecuteResult, PrepareResult, ValidateResult, ValidationError } from '@shared/data/migration/v2/types'
 import type { FileMetadata } from '@shared/data/types/file'
 import { sql } from 'drizzle-orm'
+import { app } from 'electron'
 
 import type { MigrationContext } from '../core/MigrationContext'
 import { BaseMigrator } from './BaseMigrator'
@@ -132,7 +132,15 @@ export class KnowledgeMigrator extends BaseMigrator {
   }
 
   private getLegacyKnowledgeDbPath(baseId: string): string | null {
-    const rootPath = path.resolve(getDataPath(), 'KnowledgeBase')
+    // KnowledgeMigrator is a v2 migration pipeline (`src/main/data/migration/v2/`)
+    // and runs before the v2 path registry is available. Application.ts:132-137
+    // explicitly carves out this exception: "one-shot startup pipelines
+    // (migration, legacy backup restore) carry their own ad-hoc path logic and
+    // do not consume the registry". So we hand-roll {userData}/Data/KnowledgeBase
+    // here instead of routing through application.getPath('feature.knowledgebase.data')
+    // — calling the registry pre-bootstrap would throw. This must also stay in
+    // sync with KnowledgeService.storageDir which uses the same v1 path layout.
+    const rootPath = path.join(app.getPath('userData'), 'Data', 'KnowledgeBase')
     const sanitizedBaseId = sanitizeFilename(baseId, '_')
     const resolvedDbPath = path.resolve(rootPath, sanitizedBaseId)
     const relativePath = path.relative(rootPath, resolvedDbPath)

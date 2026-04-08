@@ -10,7 +10,7 @@ const mockFs = vi.mocked(fs)
 ;(mockFs as Record<string, unknown>).renameSync = vi.fn()
 const mockRenameSync = (mockFs as unknown as { renameSync: ReturnType<typeof vi.fn> }).renameSync
 
-const CONFIG_PATH = '/mock/userData/boot-config.json'
+const CONFIG_PATH = '/mock/home/.cherrystudio/boot-config.json'
 const TEMP_PATH = `${CONFIG_PATH}.tmp`
 
 async function createService() {
