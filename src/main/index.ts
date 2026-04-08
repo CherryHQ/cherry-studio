@@ -13,27 +13,45 @@
  */
 
 // Boot config must be the first to load
-import { bootConfigService } from '@main/data/bootConfig'
-
-if (bootConfigService.get('app.disable_hardware_acceleration')) {
-  app.disableHardwareAcceleration()
-}
-
-// don't reorder this file, it's used to initialize the app data dir and
-// other which should be run before the main process is ready
 // eslint-disable-next-line
+import '@main/data/bootConfig'
+
+// [v2] DEPRECATED LEGACY IMPORTS — DO NOT EXTEND, DO NOT BASE NEW DESIGN ON THESE
+//
+// The two imports below are v1 leftovers scheduled for removal once the v2
+// refactor completes. They currently still run for backward compatibility:
+//   - `./bootstrap`  → calls initAppDataDir() (v1 ~/.cherrystudio/config/config.json)
+//   - `@main/config` → sets `userData + 'Dev'` suffix in dev mode and exports legacy
+//                      DATA_PATH / titleBarOverlay constants
+//
+// Both responsibilities will be absorbed by BootConfigService and the lifecycle
+// system. When adding new boot-time logic, route it through BootConfigService
+// and the lifecycle phases — never add to bootstrap.ts or config.ts.
+//
+// Don't reorder this block until these files are removed: their import-time
+// side effects must run before the main process is ready.
+
 import './bootstrap'
 
 import '@main/config'
 
-import { loggerService } from '@logger'
-import { electronApp, optimizer } from '@electron-toolkit/utils'
-import { app, dialog, crashReporter } from 'electron'
-import installExtension, { REACT_DEVELOPER_TOOLS, REDUX_DEVTOOLS } from 'electron-devtools-installer'
-import { isDev, isLinux, isWin } from './constant'
-
 import process from 'node:process'
 
+import {
+  getAllMigrators,
+  migrationEngine,
+  migrationWindowManager,
+  registerMigrationIpcHandlers,
+  unregisterMigrationIpcHandlers
+} from '@data/migration/v2'
+import { electronApp, optimizer } from '@electron-toolkit/utils'
+import { loggerService } from '@logger'
+import { bootConfigService } from '@main/data/bootConfig'
+import { app, crashReporter, dialog } from 'electron'
+import installExtension, { REACT_DEVELOPER_TOOLS, REDUX_DEVTOOLS } from 'electron-devtools-installer'
+
+import { isDev, isLinux, isWin } from './constant'
+import { application, serviceList } from './core/application'
 import { registerIpc } from './ipc'
 import {
   CHERRY_STUDIO_PROTOCOL,
@@ -42,17 +60,16 @@ import {
   setupAppImageDeepLink
 } from './services/ProtocolClient'
 import { versionService } from './services/VersionService'
-import {
-  getAllMigrators,
-  migrationEngine,
-  migrationWindowManager,
-  registerMigrationIpcHandlers,
-  unregisterMigrationIpcHandlers
-} from '@data/migration/v2'
-import { application, serviceList } from './core/application'
 import { extractRtkBinaries } from './utils/rtk'
 
 const logger = loggerService.withContext('MainEntry')
+
+// [v2] Should handle earlier
+// Check for single instance lock
+if (!app.requestSingleInstanceLock()) {
+  application.quit()
+  process.exit(0)
+}
 
 // enable local crash reports
 crashReporter.start({
@@ -65,12 +82,9 @@ crashReporter.start({
 /**
  * Disable hardware acceleration if setting is enabled
  */
-//FIXME should not use preferenceService before initialization
-//TODO 我们需要调整配置管理的加载位置，以保证其在 preferenceService 初始化之前被调用
-// const disableHardwareAcceleration = preferenceService.get('app.disable_hardware_acceleration')
-// if (disableHardwareAcceleration) {
-//   app.disableHardwareAcceleration()
-// }
+if (bootConfigService.get('app.disable_hardware_acceleration')) {
+  app.disableHardwareAcceleration()
+}
 
 /**
  * Disable chromium's window animations
@@ -138,148 +152,140 @@ if (!isDev) {
   })
 }
 
-// Check for single instance lock
-if (!app.requestSingleInstanceLock()) {
-  application.quit()
-  process.exit(0)
-} else {
-  // ============================================================================
-  // V2 Migration Gate
-  // Migration check runs BEFORE app.whenReady() so it doesn't block lifecycle's
-  // parallel startup. Only a bare DB connection is used — no lifecycle services.
-  // If migration is needed, the app shows a migration window and restarts after.
-  // If not, the lifecycle starts normally with BeforeReady parallel to whenReady.
-  // ============================================================================
-  const startApp = async () => {
-    // ── Migration check (BEFORE whenReady — no Electron API needed) ──
-    let needsMigration = false
+// ============================================================================
+// V2 Migration Gate
+// Migration check runs BEFORE app.whenReady() so it doesn't block lifecycle's
+// parallel startup. Only a bare DB connection is used — no lifecycle services.
+// If migration is needed, the app shows a migration window and restarts after.
+// If not, the lifecycle starts normally with BeforeReady parallel to whenReady.
+// ============================================================================
+const startApp = async () => {
+  // ── Migration check (BEFORE whenReady — no Electron API needed) ──
+  let needsMigration = false
 
-    try {
-      logger.info('Checking if data migration v2 is needed')
-      await migrationEngine.initialize()
-      migrationEngine.registerMigrators(getAllMigrators())
-      needsMigration = await migrationEngine.needsMigration()
-      logger.info('Migration status check result', { needsMigration })
-    } catch (error) {
-      logger.error('Migration status check failed', error as Error)
-      await app.whenReady()
-      dialog.showErrorBox(
-        'Migration Status Check Failed - Application Cannot Start',
-        `Could not determine if data migration is completed.\n\nThis may indicate a database connectivity issue: ${(error as Error).message}\n\nThe application will now exit. Please check your installation and try again.`
-      )
-      logger.error('Exiting application due to migration status check failure')
-      application.quit()
-      return
-    }
-
-    // ── Migration path: lifecycle never starts ──
-    if (needsMigration) {
-      logger.info('Data Migration v2 needed, starting migration process')
-      registerMigrationIpcHandlers()
-
-      try {
-        await app.whenReady()
-        migrationWindowManager.create()
-        await migrationWindowManager.waitForReady()
-        logger.info('Migration window created successfully')
-      } catch (migrationError) {
-        logger.error('Failed to start migration process', migrationError as Error)
-        unregisterMigrationIpcHandlers()
-        dialog.showErrorBox(
-          'Migration Required - Application Cannot Start',
-          `This version of Cherry Studio requires data migration to function properly.\n\nMigration window failed to start: ${(migrationError as Error).message}\n\nThe application will now exit. Please try starting again or contact support if the problem persists.`
-        )
-        logger.error('Exiting application due to failed migration startup')
-        application.quit()
-      }
-      return
-    }
-
-    // ── Normal path: no migration needed ──
-    migrationEngine.close()
-
-    // Check for backup restore marker and complete restoration BEFORE bootstrap.
-    // BackupManager physically removes/replaces IndexedDB and Local Storage directories.
-    // Must run before bootstrap creates the main window (which starts the renderer),
-    // otherwise Chromium holds file handles causing EBUSY on Windows or data corruption on macOS/Linux.
-    const { BackupManager } = await import('./services/BackupManager')
-    await BackupManager.handleStartupRestore()
-
-    // Extract bundled rtk binary to ~/.cherrystudio/bin/ on first run
-    // TODO: v2 refactor to use lifecycle
-    extractRtkBinaries().catch((error) => {
-      logger.warn('Failed to extract rtk binaries (non-fatal)', {
-        error: error instanceof Error ? error.message : String(error)
-      })
-    })
-
-    // Start lifecycle (BeforeReady runs parallel with app.whenReady)
-    application.registerAll(serviceList)
-    const bootstrapPromise = application.bootstrap().catch((error) => {
-      logger.error('Application lifecycle bootstrap failed:', error)
-    })
-
-    // Register protocol/event handlers while bootstrap runs in parallel (same as old code)
-    registerProtocolClient(app)
-
-    // macOS specific: handle protocol when app is already running
-    app.on('open-url', (event, url) => {
-      event.preventDefault()
-      handleProtocolUrl(url)
-    })
-
-    const handleOpenUrl = (args: string[]) => {
-      const url = args.find((arg) => arg.startsWith(CHERRY_STUDIO_PROTOCOL + '://'))
-      if (url) handleProtocolUrl(url)
-    }
-
-    // for windows to start with url
-    handleOpenUrl(process.argv)
-
-    // Listen for second instance
-    app.on('second-instance', (_event, argv) => {
-      application.get('WindowService').showMainWindow()
-
-      // Protocol handler for Windows/Linux
-      // The commandLine is an array of strings where the last item might be the URL
-      handleOpenUrl(argv)
-    })
-
-    app.on('browser-window-created', (_, window) => {
-      optimizer.watchWindowShortcuts(window)
-    })
-
-    // This method will be called when Electron has finished
-    // initialization and is ready to create browser windows.
-    // Some APIs can only be used after this event occurs.
+  try {
+    logger.info('Checking if data migration v2 is needed')
+    await migrationEngine.initialize()
+    migrationEngine.registerMigrators(getAllMigrators())
+    needsMigration = await migrationEngine.needsMigration()
+    logger.info('Migration status check result', { needsMigration })
+  } catch (error) {
+    logger.error('Migration status check failed', error as Error)
     await app.whenReady()
-    // Wait for lifecycle bootstrap to complete
-    // (DbService, PreferenceService, CacheService, DataApiService are now ready)
-    await bootstrapPromise
-
-    // Record current version for tracking
-    // A preparation for v2 data refactoring
-    versionService.recordCurrentVersion()
-
-    // Set app user model id for windows
-    electronApp.setAppUserModelId(import.meta.env.VITE_MAIN_BUNDLE_ID || 'com.kangfenmao.CherryStudio')
-
-    // Main window was created by WindowService.onReady() during bootstrap.
-    // registerIpc still needs the window reference for legacy IPC handlers.
-    const mainWindow = application.get('WindowService').getMainWindow()!
-    await registerIpc(mainWindow, app)
-
-    // Setup deep link for AppImage on Linux
-    await setupAppImageDeepLink()
-
-    if (isDev) {
-      installExtension([REDUX_DEVTOOLS, REACT_DEVELOPER_TOOLS])
-        .then((name) => logger.info(`Added Extension:  ${name}`))
-        .catch((err) => logger.error('An error occurred: ', err))
-    }
+    dialog.showErrorBox(
+      'Migration Status Check Failed - Application Cannot Start',
+      `Could not determine if data migration is completed.\n\nThis may indicate a database connectivity issue: ${(error as Error).message}\n\nThe application will now exit. Please check your installation and try again.`
+    )
+    logger.error('Exiting application due to migration status check failure')
+    application.quit()
+    return
   }
 
-  // In this file you can include the rest of your app"s specific main process
-  // code. You can also put them in separate files and require them here.
-  void startApp()
+  // ── Migration path: lifecycle never starts ──
+  if (needsMigration) {
+    logger.info('Data Migration v2 needed, starting migration process')
+    registerMigrationIpcHandlers()
+
+    try {
+      await app.whenReady()
+      migrationWindowManager.create()
+      await migrationWindowManager.waitForReady()
+      logger.info('Migration window created successfully')
+    } catch (migrationError) {
+      logger.error('Failed to start migration process', migrationError as Error)
+      unregisterMigrationIpcHandlers()
+      dialog.showErrorBox(
+        'Migration Required - Application Cannot Start',
+        `This version of Cherry Studio requires data migration to function properly.\n\nMigration window failed to start: ${(migrationError as Error).message}\n\nThe application will now exit. Please try starting again or contact support if the problem persists.`
+      )
+      logger.error('Exiting application due to failed migration startup')
+      application.quit()
+    }
+    return
+  }
+
+  // ── Normal path: no migration needed ──
+  migrationEngine.close()
+
+  // Check for backup restore marker and complete restoration BEFORE bootstrap.
+  // BackupManager physically removes/replaces IndexedDB and Local Storage directories.
+  // Must run before bootstrap creates the main window (which starts the renderer),
+  // otherwise Chromium holds file handles causing EBUSY on Windows or data corruption on macOS/Linux.
+  const { BackupManager } = await import('./services/BackupManager')
+  await BackupManager.handleStartupRestore()
+
+  // Extract bundled rtk binary to ~/.cherrystudio/bin/ on first run
+  // TODO: v2 refactor to use lifecycle
+  extractRtkBinaries().catch((error) => {
+    logger.warn('Failed to extract rtk binaries (non-fatal)', {
+      error: error instanceof Error ? error.message : String(error)
+    })
+  })
+
+  // Start lifecycle (BeforeReady runs parallel with app.whenReady)
+  application.registerAll(serviceList)
+  const bootstrapPromise = application.bootstrap().catch((error) => {
+    logger.error('Application lifecycle bootstrap failed:', error)
+  })
+
+  // Register protocol/event handlers while bootstrap runs in parallel (same as old code)
+  registerProtocolClient(app)
+
+  // macOS specific: handle protocol when app is already running
+  app.on('open-url', (event, url) => {
+    event.preventDefault()
+    handleProtocolUrl(url)
+  })
+
+  const handleOpenUrl = (args: string[]) => {
+    const url = args.find((arg) => arg.startsWith(CHERRY_STUDIO_PROTOCOL + '://'))
+    if (url) handleProtocolUrl(url)
+  }
+
+  // for windows to start with url
+  handleOpenUrl(process.argv)
+
+  // Listen for second instance
+  app.on('second-instance', (_event, argv) => {
+    application.get('WindowService').showMainWindow()
+
+    // Protocol handler for Windows/Linux
+    // The commandLine is an array of strings where the last item might be the URL
+    handleOpenUrl(argv)
+  })
+
+  app.on('browser-window-created', (_, window) => {
+    optimizer.watchWindowShortcuts(window)
+  })
+
+  // This method will be called when Electron has finished
+  // initialization and is ready to create browser windows.
+  // Some APIs can only be used after this event occurs.
+  await app.whenReady()
+  // Wait for lifecycle bootstrap to complete
+  // (DbService, PreferenceService, CacheService, DataApiService are now ready)
+  await bootstrapPromise
+
+  // Record current version for tracking
+  // A preparation for v2 data refactoring
+  versionService.recordCurrentVersion()
+
+  // Set app user model id for windows
+  electronApp.setAppUserModelId(import.meta.env.VITE_MAIN_BUNDLE_ID || 'com.kangfenmao.CherryStudio')
+
+  // Main window was created by WindowService.onReady() during bootstrap.
+  // registerIpc still needs the window reference for legacy IPC handlers.
+  const mainWindow = application.get('WindowService').getMainWindow()!
+  await registerIpc(mainWindow, app)
+
+  // Setup deep link for AppImage on Linux
+  await setupAppImageDeepLink()
+
+  if (isDev) {
+    installExtension([REDUX_DEVTOOLS, REACT_DEVELOPER_TOOLS])
+      .then((name) => logger.info(`Added Extension:  ${name}`))
+      .catch((err) => logger.error('An error occurred: ', err))
+  }
 }
+
+void startApp()

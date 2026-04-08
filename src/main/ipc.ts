@@ -19,21 +19,13 @@ import {
 import { handleZoomFactor } from '@main/utils/zoom'
 import { IpcChannel } from '@shared/IpcChannel'
 import { extractPdfText } from '@shared/utils/pdf'
-import type {
-  AgentPersistedMessage,
-  FileMetadata,
-  Notification,
-  OcrProvider,
-  PluginError,
-  Provider,
-  SupportedOcrFile
-} from '@types'
+import type { AgentPersistedMessage, FileMetadata, Notification, Provider } from '@types'
 import checkDiskSpace from 'check-disk-space'
 import { BrowserWindow, dialog, ipcMain, session, shell, systemPreferences, webContents } from 'electron'
 import fontList from 'font-list'
 
 import { agentMessageRepository } from './services/agents/database'
-import { pluginService } from './services/agents/plugins/PluginService'
+import { skillService } from './services/agents/skills/SkillService'
 import { appService } from './services/AppService'
 import BackupManager from './services/BackupManager'
 import { cherryINOAuthService } from './services/CherryINOAuthService'
@@ -49,12 +41,10 @@ import { memoryService } from './services/memory/MemoryService'
 import NotificationService from './services/NotificationService'
 import * as NutstoreService from './services/NutstoreService'
 import ObsidianVaultService from './services/ObsidianVaultService'
-import { ocrService } from './services/ocr/OcrService'
-import { pythonService } from './services/PythonService'
 import { fileServiceManager } from './services/remotefile/FileServiceManager'
-import { searchService } from './services/SearchService'
+import { isSafeExternalUrl } from './services/security'
 import { vertexAIService } from './services/VertexAIService'
-import { calculateDirectorySize, getResourcePath } from './utils'
+import { calculateDirectorySize, getDataPath, getResourcePath } from './utils'
 import { decrypt, encrypt } from './utils/aes'
 import {
   getCacheDir,
@@ -76,18 +66,6 @@ const exportService = new ExportService()
 const obsidianVaultService = new ObsidianVaultService()
 // vertexAIService and memoryService are now imported as named exports
 const dxtService = new DxtService()
-// pluginService is now imported as a named export
-
-function normalizeError(error: unknown): Error {
-  return error instanceof Error ? error : new Error(String(error))
-}
-
-function extractPluginError(error: unknown): PluginError | null {
-  if (error && typeof error === 'object' && 'type' in error && typeof (error as { type: unknown }).type === 'string') {
-    return error as PluginError
-  }
-  return null
-}
 
 export async function registerIpc(mainWindow: BrowserWindow, app: Electron.App) {
   const notificationService = new NotificationService()
@@ -118,7 +96,13 @@ export async function registerIpc(mainWindow: BrowserWindow, app: Electron.App) 
 
   ipcMain.handle(IpcChannel.App_Reload, () => mainWindow.reload())
   // Application_Quit is registered by Application.registerApplicationIpc()
-  ipcMain.handle(IpcChannel.Open_Website, (_, url: string) => shell.openExternal(url))
+  ipcMain.handle(IpcChannel.Open_Website, (_, url: string) => {
+    if (!isSafeExternalUrl(url)) {
+      logger.warn(`Blocked shell.openExternal for untrusted URL scheme: ${url}`)
+      return
+    }
+    return shell.openExternal(url)
+  })
 
   // language
   // ipcMain.handle(IpcChannel.App_SetLanguage, (_, language) => {
@@ -593,6 +577,17 @@ export async function registerIpc(mainWindow: BrowserWindow, app: Electron.App) 
     decrypt(encryptedData, iv, secretKey)
   )
 
+  // Channel logs & status
+  ipcMain.handle(IpcChannel.Channel_GetLogs, async (_event, channelId: string) => {
+    const { channelManager } = await import('@main/services/agents/services/channels/ChannelManager')
+    return channelManager.getChannelLogs(channelId)
+  })
+
+  ipcMain.handle(IpcChannel.Channel_GetStatuses, async () => {
+    const { channelManager } = await import('@main/services/agents/services/channels/ChannelManager')
+    return channelManager.getAllStatuses()
+  })
+
   // DXT upload handler
   ipcMain.handle(IpcChannel.Mcp_UploadDxt, async (event, fileBuffer: ArrayBuffer, fileName: string) => {
     try {
@@ -610,14 +605,6 @@ export async function registerIpc(mainWindow: BrowserWindow, app: Electron.App) 
       }
     }
   })
-
-  // Register Python execution handler
-  ipcMain.handle(
-    IpcChannel.Python_Execute,
-    async (_, script: string, context?: Record<string, any>, timeout?: number) => {
-      return await pythonService.executeScript(script, context, timeout)
-    }
-  )
 
   ipcMain.handle(IpcChannel.App_IsBinaryExist, (_, name: string) => isBinaryExists(name))
   ipcMain.handle(IpcChannel.App_GetBinaryPath, (_, name: string) => getBinaryPath(name))
@@ -657,17 +644,6 @@ export async function registerIpc(mainWindow: BrowserWindow, app: Electron.App) 
     NutstoreService.getDirectoryContents(token, path)
   )
 
-  // search window
-  ipcMain.handle(IpcChannel.SearchWindow_Open, async (_, uid: string, show?: boolean) => {
-    await searchService.openSearchWindow(uid, show)
-  })
-  ipcMain.handle(IpcChannel.SearchWindow_Close, async (_, uid: string) => {
-    await searchService.closeSearchWindow(uid)
-  })
-  ipcMain.handle(IpcChannel.SearchWindow_OpenUrl, async (_, uid: string, url: string) => {
-    return await searchService.openUrlInSearchWindow(uid, url)
-  })
-
   // ipcMain.handle(IpcChannel.App_SetDisableHardwareAcceleration, (_, isDisable: boolean) => {
   //   configManager.setDisableHardwareAcceleration(isDisable)
   // })
@@ -701,12 +677,6 @@ export async function registerIpc(mainWindow: BrowserWindow, app: Electron.App) 
   // ExternalApps
   ipcMain.handle(IpcChannel.ExternalApps_DetectInstalled, () => externalAppsService.detectInstalledApps())
 
-  // OCR
-  ipcMain.handle(IpcChannel.OCR_ocr, (_, file: SupportedOcrFile, provider: OcrProvider) =>
-    ocrService.ocr(file, provider)
-  )
-  ipcMain.handle(IpcChannel.OCR_ListProviders, () => ocrService.listProviderIds())
-
   // OVMS — operation handlers registered by OvmsManager.onInit() (activated only on Win+Intel)
   // Condition logic must stay in sync with OvmsManager's @Conditional(onPlatform('win32'), onCpuVendor('intel'))
   ipcMain.handle(IpcChannel.Ovms_IsSupported, () => isWin && getCpuName().toLowerCase().includes('intel'))
@@ -714,93 +684,93 @@ export async function registerIpc(mainWindow: BrowserWindow, app: Electron.App) 
   // CherryAI
   ipcMain.handle(IpcChannel.Cherryai_GetSignature, (_, params) => generateSignature(params))
 
-  // Claude Code Plugins
-  ipcMain.handle(IpcChannel.ClaudeCodePlugin_Install, async (_, options) => {
+  // Global Skills
+  ipcMain.handle(IpcChannel.Skill_List, async () => {
     try {
-      const data = await pluginService.install(options)
+      const data = await skillService.list()
       return { success: true, data }
     } catch (error) {
-      logger.error('Failed to install plugin', { options, error })
+      logger.error('Failed to list skills', { error })
       return { success: false, error }
     }
   })
 
-  ipcMain.handle(IpcChannel.ClaudeCodePlugin_Uninstall, async (_, options) => {
+  ipcMain.handle(IpcChannel.Skill_Install, async (_, options) => {
     try {
-      await pluginService.uninstall(options)
+      const data = await skillService.install(options)
+      return { success: true, data }
+    } catch (error) {
+      logger.error('Failed to install skill', { options, error })
+      return { success: false, error }
+    }
+  })
+
+  ipcMain.handle(IpcChannel.Skill_Uninstall, async (_, skillId: string) => {
+    try {
+      await skillService.uninstall(skillId)
       return { success: true, data: undefined }
     } catch (error) {
-      logger.error('Failed to uninstall plugin', { options, error })
+      logger.error('Failed to uninstall skill', { skillId, error })
       return { success: false, error }
     }
   })
 
-  ipcMain.handle(IpcChannel.ClaudeCodePlugin_UninstallPackage, async (_, options) => {
+  ipcMain.handle(IpcChannel.Skill_Toggle, async (_, options) => {
     try {
-      const data = await pluginService.uninstallPluginPackage(options)
+      const data = await skillService.toggle(options)
       return { success: true, data }
     } catch (error) {
-      logger.error('Failed to uninstall plugin package', { options, error })
+      logger.error('Failed to toggle skill', { options, error })
       return { success: false, error }
     }
   })
 
-  ipcMain.handle(IpcChannel.ClaudeCodePlugin_ListInstalled, async (_, agentId: string) => {
+  ipcMain.handle(IpcChannel.Skill_InstallFromZip, async (_, options) => {
     try {
-      const data = await pluginService.listInstalled(agentId)
+      const data = await skillService.installFromZip(options)
       return { success: true, data }
     } catch (error) {
-      const pluginError = extractPluginError(error)
-      if (pluginError) {
-        logger.error('Failed to list installed plugins', {
-          agentId,
-          error: pluginError
-        })
-        return { success: false, error: pluginError }
-      }
-
-      const err = normalizeError(error)
-      logger.error('Failed to list installed plugins', {
-        agentId,
-        error: err
-      })
-      return {
-        success: false,
-        error: {
-          type: 'TRANSACTION_FAILED',
-          operation: 'list-installed',
-          reason: err.message
-        }
-      }
-    }
-  })
-
-  ipcMain.handle(IpcChannel.ClaudeCodePlugin_WriteContent, async (_, options) => {
-    try {
-      await pluginService.writeContent(options.agentId, options.filename, options.type, options.content)
-      return { success: true, data: undefined }
-    } catch (error) {
-      logger.error('Failed to write plugin content', { options, error })
+      logger.error('Failed to install skill from ZIP', { options, error })
       return { success: false, error }
     }
   })
 
-  ipcMain.handle(IpcChannel.ClaudeCodePlugin_InstallFromZip, async (_, options) => {
+  ipcMain.handle(IpcChannel.Skill_InstallFromDirectory, async (_, options) => {
     try {
-      const data = await pluginService.installFromZip(options)
+      const data = await skillService.installFromDirectory(options)
       return { success: true, data }
     } catch (error) {
-      logger.error('Failed to install plugin from ZIP', { options, error })
+      logger.error('Failed to install skill from directory', { options, error })
       return { success: false, error }
     }
   })
 
-  ipcMain.handle(IpcChannel.ClaudeCodePlugin_InstallFromDirectory, async (_, options) => {
+  ipcMain.handle(IpcChannel.Skill_ReadFile, async (_, skillId: string, filename: string) => {
     try {
-      const data = await pluginService.installFromDirectory(options)
+      const data = await skillService.readFile(skillId, filename)
       return { success: true, data }
     } catch (error) {
-      logger.error('Failed to install plugin from directory', { options, error })
+      logger.error('Failed to read skill file', { skillId, filename, error })
+      return { success: false, error }
+    }
+  })
+
+  ipcMain.handle(IpcChannel.Skill_ListFiles, async (_, skillId: string) => {
+    try {
+      const data = await skillService.listFiles(skillId)
+      return { success: true, data }
+    } catch (error) {
+      logger.error('Failed to list skill files', { skillId, error })
+      return { success: false, error }
+    }
+  })
+
+  ipcMain.handle(IpcChannel.Skill_ListLocal, async (_, workdir: string) => {
+    try {
+      const data = await skillService.listLocal(workdir)
+      return { success: true, data }
+    } catch (error) {
+      logger.error('Failed to list local plugins', { workdir, error })
       return { success: false, error }
     }
   })
@@ -809,8 +779,15 @@ export async function registerIpc(mainWindow: BrowserWindow, app: Electron.App) 
     mainWindow.webContents.forcefullyCrashRenderer()
   })
 
-  // Preference handlers
-  // PreferenceService IPC handlers are now registered via lifecycle onReady()
-
-  // OpenClaw IPC handlers are registered by OpenClawService lifecycle (onInit)
+  // WeChat
+  ipcMain.handle(IpcChannel.WeChat_HasCredentials, async (_, channelId: string) => {
+    const tokenPath = path.join(getDataPath('Channels'), `weixin_bot_${channelId}.json`)
+    try {
+      const raw = await fs.promises.readFile(tokenPath, 'utf8')
+      const parsed = JSON.parse(raw)
+      return { exists: true, userId: parsed.userId as string | undefined }
+    } catch {
+      return { exists: false }
+    }
+  })
 }

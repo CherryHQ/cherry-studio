@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next'
 
 import { truncateOutput } from '../shared/truncateOutput'
 import { SkeletonValue, ToolHeader, TruncatedIndicator } from './GenericTools'
+import { TerminalOutput } from './TerminalOutput'
 import {
   AgentToolsType,
   type BashToolInput as BashToolInputType,
@@ -36,9 +37,7 @@ export function BashTool({
         {command && (
           <div>
             <div className="mb-1 font-medium text-muted-foreground text-xs">{t('message.tools.sections.command')}</div>
-            <div className="max-h-40 overflow-y-auto rounded-md bg-muted/50 p-2">
-              <code className="whitespace-pre-wrap break-all font-mono text-xs">{command}</code>
-            </div>
+            <TerminalOutput content={command} commandMode maxHeight="10rem" />
           </div>
         )}
 
@@ -46,9 +45,7 @@ export function BashTool({
         {truncatedOutput ? (
           <div>
             <div className="mb-1 font-medium text-muted-foreground text-xs">{t('message.tools.sections.output')}</div>
-            <div className="max-h-60 overflow-y-auto rounded-md bg-muted/30 p-2">
-              <pre className="whitespace-pre-wrap font-mono text-xs">{truncatedOutput}</pre>
-            </div>
+            <TerminalOutput content={truncatedOutput} maxHeight="15rem" />
             {isTruncated && <TruncatedIndicator originalLength={originalLength} />}
           </div>
         ) : (

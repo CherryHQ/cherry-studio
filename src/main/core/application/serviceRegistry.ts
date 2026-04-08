@@ -2,6 +2,7 @@ import { CacheService } from '@data/CacheService'
 import { DataApiService } from '@data/DataApiService'
 import { DbService } from '@data/db/DbService'
 import { PreferenceService } from '@data/PreferenceService'
+import { AgentBootstrapService } from '@main/services/AgentBootstrapService'
 import { AnalyticsService } from '@main/services/AnalyticsService'
 import { ApiServerService } from '@main/services/ApiServerService'
 import { AppMenuService } from '@main/services/AppMenuService'
@@ -10,10 +11,13 @@ import { CodeCliService } from '@main/services/CodeCliService'
 import { LanTransferService } from '@main/services/lanTransfer'
 import { MCPService } from '@main/services/MCPService'
 import { NodeTraceService } from '@main/services/NodeTraceService'
+import { OcrService } from '@main/services/ocr/OcrService'
 import { OpenClawService } from '@main/services/OpenClawService'
 import { OvmsManager } from '@main/services/OvmsManager'
 import { PowerMonitorService } from '@main/services/PowerMonitorService'
 import { ProxyManager } from '@main/services/ProxyManager'
+import { PythonService } from '@main/services/PythonService'
+import { SearchService } from '@main/services/SearchService'
 import { SelectionService } from '@main/services/SelectionService'
 import { ShortcutService } from '@main/services/ShortcutService'
 import { SpanCacheService } from '@main/services/SpanCacheService'
@@ -62,13 +66,17 @@ export const services = {
   ThemeService,
   SpanCacheService,
   NodeTraceService,
+  OcrService,
   OvmsManager,
   ProxyManager,
+  PythonService,
   TrayService,
   WebviewService,
   WindowService,
   MCPService,
   OpenClawService,
+  SearchService,
+  AgentBootstrapService,
   ApiServerService,
   AppUpdaterService
 } as const

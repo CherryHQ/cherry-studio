@@ -52,7 +52,7 @@ const ProviderLogoPicker: FC<Props> = ({ onProviderClick }) => {
       </SearchContainer>
       <LogoGrid>
         {filteredProviders.map(({ id, name, icon }) => (
-          <Tooltip key={id} content={name} closeDelay={0}>
+          <Tooltip key={id} content={name}>
             <LogoItem onClick={(e) => handleProviderClick(e, id)}>
               <ProviderAvatarPrimitive
                 providerId={id}

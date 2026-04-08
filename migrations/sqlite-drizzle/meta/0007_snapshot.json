@@ -1,7 +1,7 @@
 {
   "version": "6",
   "dialect": "sqlite",
-  "id": "a5c16f86-c4ff-4ffb-8c0c-c271cd714b74",
+  "id": "0f66b276-e091-4ebe-b309-9da1dbaae6e6",
   "prevId": "d13e0f64-c3f9-4e7a-b455-a1031c197f0c",
   "tables": {
     "app_state": {
@@ -46,249 +46,6 @@
       "indexes": {},
       "foreignKeys": {},
       "compositePrimaryKeys": {},
-      "uniqueConstraints": {},
-      "checkConstraints": {}
-    },
-    "assistant": {
-      "name": "assistant",
-      "columns": {
-        "id": {
-          "name": "id",
-          "type": "text",
-          "primaryKey": true,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "name": {
-          "name": "name",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "prompt": {
-          "name": "prompt",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false,
-          "default": "''"
-        },
-        "emoji": {
-          "name": "emoji",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
-        },
-        "description": {
-          "name": "description",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false,
-          "default": "''"
-        },
-        "settings": {
-          "name": "settings",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
-        },
-        "created_at": {
-          "name": "created_at",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
-        },
-        "updated_at": {
-          "name": "updated_at",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
-        },
-        "deleted_at": {
-          "name": "deleted_at",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
-        }
-      },
-      "indexes": {},
-      "foreignKeys": {},
-      "compositePrimaryKeys": {},
-      "uniqueConstraints": {},
-      "checkConstraints": {}
-    },
-    "assistant_knowledge_base": {
-      "name": "assistant_knowledge_base",
-      "columns": {
-        "assistant_id": {
-          "name": "assistant_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "knowledge_base_id": {
-          "name": "knowledge_base_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "created_at": {
-          "name": "created_at",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
-        },
-        "updated_at": {
-          "name": "updated_at",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
-        }
-      },
-      "indexes": {},
-      "foreignKeys": {
-        "assistant_knowledge_base_assistant_id_assistant_id_fk": {
-          "name": "assistant_knowledge_base_assistant_id_assistant_id_fk",
-          "tableFrom": "assistant_knowledge_base",
-          "tableTo": "assistant",
-          "columnsFrom": ["assistant_id"],
-          "columnsTo": ["id"],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
-        }
-      },
-      "compositePrimaryKeys": {
-        "assistant_knowledge_base_assistant_id_knowledge_base_id_pk": {
-          "columns": ["assistant_id", "knowledge_base_id"],
-          "name": "assistant_knowledge_base_assistant_id_knowledge_base_id_pk"
-        }
-      },
-      "uniqueConstraints": {},
-      "checkConstraints": {}
-    },
-    "assistant_mcp_server": {
-      "name": "assistant_mcp_server",
-      "columns": {
-        "assistant_id": {
-          "name": "assistant_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "mcp_server_id": {
-          "name": "mcp_server_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "created_at": {
-          "name": "created_at",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
-        },
-        "updated_at": {
-          "name": "updated_at",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
-        }
-      },
-      "indexes": {},
-      "foreignKeys": {
-        "assistant_mcp_server_assistant_id_assistant_id_fk": {
-          "name": "assistant_mcp_server_assistant_id_assistant_id_fk",
-          "tableFrom": "assistant_mcp_server",
-          "tableTo": "assistant",
-          "columnsFrom": ["assistant_id"],
-          "columnsTo": ["id"],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
-        },
-        "assistant_mcp_server_mcp_server_id_mcp_server_id_fk": {
-          "name": "assistant_mcp_server_mcp_server_id_mcp_server_id_fk",
-          "tableFrom": "assistant_mcp_server",
-          "tableTo": "mcp_server",
-          "columnsFrom": ["mcp_server_id"],
-          "columnsTo": ["id"],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
-        }
-      },
-      "compositePrimaryKeys": {
-        "assistant_mcp_server_assistant_id_mcp_server_id_pk": {
-          "columns": ["assistant_id", "mcp_server_id"],
-          "name": "assistant_mcp_server_assistant_id_mcp_server_id_pk"
-        }
-      },
-      "uniqueConstraints": {},
-      "checkConstraints": {}
-    },
-    "assistant_model": {
-      "name": "assistant_model",
-      "columns": {
-        "assistant_id": {
-          "name": "assistant_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "model_id": {
-          "name": "model_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "created_at": {
-          "name": "created_at",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
-        },
-        "updated_at": {
-          "name": "updated_at",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
-        }
-      },
-      "indexes": {},
-      "foreignKeys": {
-        "assistant_model_assistant_id_assistant_id_fk": {
-          "name": "assistant_model_assistant_id_assistant_id_fk",
-          "tableFrom": "assistant_model",
-          "tableTo": "assistant",
-          "columnsFrom": ["assistant_id"],
-          "columnsTo": ["id"],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
-        }
-      },
-      "compositePrimaryKeys": {
-        "assistant_model_assistant_id_model_id_pk": {
-          "columns": ["assistant_id", "model_id"],
-          "name": "assistant_model_assistant_id_model_id_pk"
-        }
-      },
       "uniqueConstraints": {},
       "checkConstraints": {}
     },
@@ -917,8 +674,8 @@
           "notNull": false,
           "autoincrement": false
         },
-        "assistant_snapshot": {
-          "name": "assistant_snapshot",
+        "assistant_meta": {
+          "name": "assistant_meta",
           "type": "text",
           "primaryKey": false,
           "notNull": false,
@@ -931,8 +688,8 @@
           "notNull": false,
           "autoincrement": false
         },
-        "model_snapshot": {
-          "name": "model_snapshot",
+        "model_meta": {
+          "name": "model_meta",
           "type": "text",
           "primaryKey": false,
           "notNull": false,
@@ -999,15 +756,6 @@
           "columnsFrom": ["topic_id"],
           "columnsTo": ["id"],
           "onDelete": "cascade",
-          "onUpdate": "no action"
-        },
-        "message_assistant_id_assistant_id_fk": {
-          "name": "message_assistant_id_assistant_id_fk",
-          "tableFrom": "message",
-          "tableTo": "assistant",
-          "columnsFrom": ["assistant_id"],
-          "columnsTo": ["id"],
-          "onDelete": "set null",
           "onUpdate": "no action"
         },
         "message_parent_id_message_id_fk": {
@@ -1233,6 +981,20 @@
           "notNull": false,
           "autoincrement": false
         },
+        "assistant_meta": {
+          "name": "assistant_meta",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "prompt": {
+          "name": "prompt",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
         "active_node_id": {
           "name": "active_node_id",
           "type": "text",
@@ -1321,15 +1083,6 @@
         }
       },
       "foreignKeys": {
-        "topic_assistant_id_assistant_id_fk": {
-          "name": "topic_assistant_id_assistant_id_fk",
-          "tableFrom": "topic",
-          "tableTo": "assistant",
-          "columnsFrom": ["assistant_id"],
-          "columnsTo": ["id"],
-          "onDelete": "set null",
-          "onUpdate": "no action"
-        },
         "topic_group_id_group_id_fk": {
           "name": "topic_group_id_group_id_fk",
           "tableFrom": "topic",
@@ -1481,6 +1234,134 @@
         }
       },
       "indexes": {},
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "checkConstraints": {}
+    },
+    "miniapp": {
+      "name": "miniapp",
+      "columns": {
+        "app_id": {
+          "name": "app_id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "name": {
+          "name": "name",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "url": {
+          "name": "url",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "logo": {
+          "name": "logo",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "type": {
+          "name": "type",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "'custom'"
+        },
+        "status": {
+          "name": "status",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "'enabled'"
+        },
+        "sort_order": {
+          "name": "sort_order",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false,
+          "default": 0
+        },
+        "bordered": {
+          "name": "bordered",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false,
+          "default": true
+        },
+        "background": {
+          "name": "background",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "supported_regions": {
+          "name": "supported_regions",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "configuration": {
+          "name": "configuration",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "name_key": {
+          "name": "name_key",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        }
+      },
+      "indexes": {
+        "miniapp_status_sort_idx": {
+          "name": "miniapp_status_sort_idx",
+          "columns": ["status", "sort_order"],
+          "isUnique": false
+        },
+        "miniapp_type_idx": {
+          "name": "miniapp_type_idx",
+          "columns": ["type"],
+          "isUnique": false
+        },
+        "miniapp_status_type_idx": {
+          "name": "miniapp_status_type_idx",
+          "columns": ["status", "type"],
+          "isUnique": false
+        }
+      },
       "foreignKeys": {},
       "compositePrimaryKeys": {},
       "uniqueConstraints": {},

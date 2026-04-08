@@ -220,7 +220,7 @@ const ThinkingButton: FC<Props> = ({
       : t('common.close')
 
   return (
-    <Tooltip placement="top" content={ariaLabel} closeDelay={0}>
+    <Tooltip placement="top" content={ariaLabel}>
       <ActionIconButton
         onClick={handleOpenQuickPanel}
         active={isFixedReasoning || currentReasoningEffort !== 'none'}

@@ -42,6 +42,12 @@ export class AssistantMigrator extends BaseMigrator {
   private skippedCount = 0
   private validAssistantIds = new Set<string>()
 
+  override reset(): void {
+    this.preparedResults = []
+    this.skippedCount = 0
+    this.validAssistantIds.clear()
+  }
+
   async prepare(ctx: MigrationContext): Promise<PrepareResult> {
     this.preparedResults = []
     this.skippedCount = 0

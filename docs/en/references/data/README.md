@@ -180,6 +180,9 @@ const { data: files } = useQuery('/files')
 | Storing window positions in Preferences           | Can be lost without impact                       | **CacheService** (persist tier) |
 | Storing hardware acceleration flag in Preferences | Too late — must load before lifecycle takes over | **BootConfigService**           |
 | Storing user theme in BootConfig                  | Doesn't need early boot loading                  | **PreferenceService**           |
+| Using DataApi for window/process control          | No database backing, pure side effects, retry is harmful | **IPC handler**          |
+| Using DataApi for external service calls          | Side effects, no CRUD semantics, timeout mismatch | **IPC handler**                |
+| Using DataApi to wrap existing IPC calls          | Adds indirection without value, confuses layering | **Keep as IPC**                |
 
 ## Edge Cases
 
@@ -217,11 +220,11 @@ const { data: files } = useQuery('/files')
               └──────────┬───────────┘
                          │
          ┌───────────────▼─────────────┐
-         │ BootConfigService           │
-         │ (sync load, boot-config.json│
-         │  also used directly in      │
-         │  early boot before lifecycle│
-         └─────────────────────────────┘
+         │ BootConfigService                       │
+         │ (sync load, ~/.cherrystudio/            │
+         │  boot-config.json — also used directly  │
+         │  in early boot before lifecycle)        │
+         └─────────────────────────────────────────┘
 ```
 
 ## Related Source Code

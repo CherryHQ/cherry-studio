@@ -23,7 +23,6 @@ export interface AiRequestMetadata {
   enableGenerateImage?: boolean
   isPromptToolUse?: boolean
   isSupportedToolUse?: boolean
-  isImageGenerationEndpoint?: boolean
   // 自定义元数据，使用 JSONValue 确保类型安全
   custom?: JSONObject
 }
@@ -32,7 +31,7 @@ export interface AiRequestMetadata {
  * 递归调用函数类型
  * 泛型化以保持类型推导
  */
-export type RecursiveCallFn<TParams = unknown, TResult = unknown> = (newParams: Partial<TParams>) => Promise<TResult>
+type RecursiveCallFn<TParams = unknown, TResult = unknown> = (newParams: Partial<TParams>) => Promise<TResult>
 
 /**
  * AI 请求上下文
@@ -106,21 +105,4 @@ export interface AiPlugin<TParams = unknown, TResult = unknown> {
     tools: TOOLS
     stopStream: () => void
   }) => TransformStream<TextStreamPart<TOOLS>, TextStreamPart<TOOLS>>
-}
-
-/**
- * 插件管理器配置
- */
-export interface PluginManagerConfig<TParams = unknown, TResult = unknown> {
-  plugins: AiPlugin<TParams, TResult>[]
-  context: Partial<AiRequestContext<TParams, TResult>>
-}
-
-/**
- * 钩子执行结果
- * 泛型参数指定返回值类型
- */
-export interface HookResult<T = unknown> {
-  value: T
-  stop?: boolean
 }

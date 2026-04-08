@@ -1,7 +1,8 @@
 import { usePreference } from '@data/hooks/usePreference'
 import { DeleteIcon, EditIcon } from '@renderer/components/Icons'
+import MarqueeText from '@renderer/components/MarqueeText'
 import AgentSettingsPopup from '@renderer/pages/settings/AgentSettings/AgentSettingsPopup'
-import { AgentLabel } from '@renderer/pages/settings/AgentSettings/shared'
+import { AgentLabel, isSoulModeEnabled } from '@renderer/pages/settings/AgentSettings/shared'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import type { AgentEntity } from '@renderer/types'
 import { cn } from '@renderer/utils'
@@ -79,9 +80,10 @@ const AgentItem = ({ agent, isActive, onDelete, onPress }: AgentItemProps) => {
         onMouseEnter={() => setIsHovered(true)}
         onMouseLeave={() => setIsHovered(false)}>
         <AssistantNameRow className="name" title={agent.name ?? agent.id}>
-          <AgentNameWrapper>
+          <MarqueeText className="flex min-w-0 flex-1">
             <AgentLabel agent={agent} hideIcon={assistantIconType === 'none'} />
-          </AgentNameWrapper>
+          </MarqueeText>
+          {isSoulModeEnabled(agent.configuration) && <SoulTag>SOUL</SoulTag>}
           {(isActive || isHovered) && (
             <Dropdown
               menu={{ items: menuItems }}
@@ -122,10 +124,6 @@ export const AssistantNameRow: React.FC<React.HTMLAttributes<HTMLDivElement>> = 
   />
 )
 
-export const AgentNameWrapper: React.FC<React.HTMLAttributes<HTMLDivElement>> = ({ className, ...props }) => (
-  <div className={cn('min-w-0 flex-1 overflow-hidden text-ellipsis whitespace-nowrap', className)} {...props} />
-)
-
 export const MenuButton: React.FC<React.HTMLAttributes<HTMLDivElement>> = ({ className, ...props }) => (
   <div
     className={cn(
@@ -146,6 +144,16 @@ export const BotIcon: React.FC<React.HTMLAttributes<HTMLDivElement>> = ({ ...pro
     </Tooltip>
   )
 }
+
+export const SoulTag: React.FC<React.HTMLAttributes<HTMLSpanElement>> = ({ className, ...props }) => (
+  <span
+    className={cn(
+      'shrink-0 rounded-md bg-purple-500/15 px-1.5 py-0.5 font-medium text-[10px] text-purple-600 leading-none dark:text-purple-400',
+      className
+    )}
+    {...props}
+  />
+)
 
 export const SessionCount: React.FC<React.HTMLAttributes<HTMLDivElement>> = ({ className, ...props }) => (
   <div

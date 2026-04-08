@@ -17,7 +17,7 @@ src/main/data/migration/v2/
 
 - `core/MigrationEngine.ts` coordinates all migrators in order, surfaces progress to the UI, and marks status in `app_state.key = 'migration_v2_status'`. It will clear new-schema tables before running and abort on any validation failure.
 - `core/MigrationContext.ts` builds the shared context passed to every migrator:
-  - `sources`: `ConfigManager` (ElectronStore), `ReduxStateReader` (parsed Redux Persist data), `DexieFileReader` (JSON exports)
+  - `sources`: `ConfigManager` (ElectronStore), `ReduxStateReader` (parsed Redux Persist data), `DexieFileReader` (JSON exports), `LegacyHomeConfigReader` (v1 `~/.cherrystudio/config/config.json` for the config-file migration path used by `BootConfigMigrator`)
   - `db`: current SQLite connection
   - `sharedData`: `Map` for passing cross-cutting info between migrators
   - `logger`: `loggerService` scoped to migration
@@ -34,6 +34,7 @@ src/main/data/migration/v2/
 - Current migrators (see `migrators/README-<name>.md` for detailed documentation):
   - `PreferencesMigrator` (implemented): maps ElectronStore + Redux settings to the `preference` table using `mappings/PreferencesMappings.ts`.
   - `ChatMigrator` (implemented): migrates topics and messages from Dexie to SQLite. See [`README-ChatMigrator.md`](../../../src/main/data/migration/v2/migrators/README-ChatMigrator.md).
+  - `BootConfigMigrator` (implemented, file-target): migrates early-boot settings into the file-based `bootConfigService` (`~/.cherrystudio/boot-config.json`) rather than a SQLite table. Reads from Redux (`disableHardwareAcceleration`) and from the v1 home config file (`~/.cherrystudio/config/config.json`'s `appDataPath` → `app.user_data_path`) via a `'configfile'` source kind. See [`README-BootConfigMigrator.md`](../../../src/main/data/migration/v2/migrators/README-BootConfigMigrator.md).
   - `AssistantMigrator`, `KnowledgeMigrator` (placeholders): scaffolding and TODO notes for future tables.
 - Conventions:
   - All logging goes through `loggerService` with a migrator-specific context.
@@ -49,6 +50,7 @@ src/main/data/migration/v2/
 - `utils/ReduxStateReader.ts`: safe accessor for categorized Redux Persist data with dot-path lookup.
 - `utils/DexieFileReader.ts`: reads exported Dexie JSON tables; can stream large tables.
 - `utils/JSONStreamReader.ts`: streaming reader with batching, counting, and sampling helpers for very large arrays.
+- `utils/LegacyHomeConfigReader.ts`: synchronously reads the v1 `~/.cherrystudio/config/config.json` file and normalizes its `appDataPath` field (both the legacy string shape and the current `{ executablePath, dataPath }[]` shape) into a `Record<executablePath, dataPath> | null`. Used exclusively by `BootConfigMigrator`'s `'configfile'` source.
 
 ## Window & IPC Integration
 

@@ -47,6 +47,7 @@ const LEGACY_VECTOR_TABLE_NAME = 'vectors'
 type DimensionResolutionReason =
   | 'ok'
   | 'vector_db_missing'
+  | 'legacy_vector_store_directory'
   | 'vector_db_empty'
   | 'invalid_vector_dimensions'
   | 'vector_db_invalid_path'
@@ -120,6 +121,16 @@ export class KnowledgeMigrator extends BaseMigrator {
   private seenBaseIds = new Set<string>()
   private seenItemIds = new Set<string>()
 
+  override reset(): void {
+    this.sourceCount = 0
+    this.skippedCount = 0
+    this.preparedBases = []
+    this.preparedItems = []
+    this.warnings = []
+    this.seenBaseIds = new Set<string>()
+    this.seenItemIds = new Set<string>()
+  }
+
   private getLegacyKnowledgeDbPath(baseId: string): string | null {
     const rootPath = path.resolve(getDataPath(), 'KnowledgeBase')
     const sanitizedBaseId = sanitizeFilename(baseId, '_')
@@ -179,9 +190,16 @@ export class KnowledgeMigrator extends BaseMigrator {
       return { dimensions: null, reason: 'vector_db_missing' }
     }
 
-    const client = createClient({ url: pathToFileURL(dbPath).toString() })
+    let client: ReturnType<typeof createClient> | null = null
 
     try {
+      const dbStat = fs.statSync(dbPath)
+      if (dbStat.isDirectory()) {
+        return { dimensions: null, reason: 'legacy_vector_store_directory' }
+      }
+
+      client = createClient({ url: pathToFileURL(dbPath).toString() })
+
       const countResult = await client.execute(
         `SELECT count(*) AS total, sum(CASE WHEN vector IS NOT NULL THEN 1 ELSE 0 END) AS with_vector FROM ${LEGACY_VECTOR_TABLE_NAME}`
       )
@@ -209,14 +227,16 @@ export class KnowledgeMigrator extends BaseMigrator {
       this.warnings.push(warningMessage)
       return { dimensions: null, reason: 'vector_db_error' }
     } finally {
-      try {
-        client.close()
-      } catch (error) {
-        const warningMessage = `Failed to close legacy vector DB client for knowledge base ${base.id}: ${
-          error instanceof Error ? error.message : String(error)
-        }`
-        logger.warn(warningMessage)
-        this.warnings.push(warningMessage)
+      if (client) {
+        try {
+          client.close()
+        } catch (error) {
+          const warningMessage = `Failed to close legacy vector DB client for knowledge base ${base.id}: ${
+            error instanceof Error ? error.message : String(error)
+          }`
+          logger.warn(warningMessage)
+          this.warnings.push(warningMessage)
+        }
       }
     }
   }
@@ -339,14 +359,6 @@ export class KnowledgeMigrator extends BaseMigrator {
   }
 
   async prepare(ctx: MigrationContext): Promise<PrepareResult> {
-    this.sourceCount = 0
-    this.skippedCount = 0
-    this.preparedBases = []
-    this.preparedItems = []
-    this.warnings = []
-    this.seenBaseIds = new Set<string>()
-    this.seenItemIds = new Set<string>()
-
     try {
       const knowledgeState = ctx.sources.reduxState.getCategory<LegacyKnowledgeState>('knowledge')
 

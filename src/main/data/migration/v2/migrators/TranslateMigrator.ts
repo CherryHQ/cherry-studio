@@ -15,6 +15,7 @@
 
 import { translateHistoryTable } from '@data/db/schemas/translateHistory'
 import { translateLanguageTable } from '@data/db/schemas/translateLanguage'
+import TranslateLanguageSeed from '@data/db/seeding/translateLanguageSeeding'
 import { loggerService } from '@logger'
 import type { ExecuteResult, PrepareResult, ValidateResult, ValidationError } from '@shared/data/migration/v2/types'
 import { sql } from 'drizzle-orm'
@@ -116,6 +117,15 @@ export class TranslateMigrator extends BaseMigrator {
   private languageSkippedCount = 0
   private cachedLanguageRecords: OldCustomTranslateLanguage[] = []
 
+  override reset(): void {
+    this.historySourceCount = 0
+    this.historySkippedCount = 0
+    this.cachedHistoryRecords = []
+    this.languageSourceCount = 0
+    this.languageSkippedCount = 0
+    this.cachedLanguageRecords = []
+  }
+
   async prepare(ctx: MigrationContext): Promise<PrepareResult> {
     const warnings: string[] = []
 
@@ -199,6 +209,9 @@ export class TranslateMigrator extends BaseMigrator {
           skipped: this.languageSkippedCount
         })
       }
+
+      // ── Seed builtin languages (history FK requires them to exist) ──
+      await new TranslateLanguageSeed().migrate(db)
 
       // ── Migrate translate history (batched) ──
       if (this.historySourceCount > 0) {

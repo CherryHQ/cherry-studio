@@ -108,6 +108,12 @@ export interface LocalStorageRecord {
   value: unknown
 }
 
+export interface StartMigrationPayload {
+  reduxData: Record<string, unknown>
+  dexieExportPath: string
+  localStorageExportPath?: string
+}
+
 // IPC channels for migration communication
 export const MigrationIpcChannels = {
   // Status queries
@@ -126,10 +132,7 @@ export const MigrationIpcChannels = {
   Cancel: 'migration:cancel',
   Restart: 'migration:restart',
 
-  // Data transfer (Renderer -> Main)
-  SendReduxData: 'migration:send-redux-data',
-  DexieExportCompleted: 'migration:dexie-export-completed',
-  LocalStorageExportCompleted: 'migration:localstorage-export-completed',
+  // File transfer (Renderer -> Main)
   WriteExportFile: 'migration:write-export-file',
 
   // Progress broadcast (Main -> Renderer)

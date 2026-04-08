@@ -31,10 +31,12 @@ export class McpServerMigrator extends BaseMigrator {
   private preparedResults: McpServerTransformResult[] = []
   private skippedCount = 0
 
-  async prepare(ctx: MigrationContext): Promise<PrepareResult> {
+  override reset(): void {
     this.preparedResults = []
     this.skippedCount = 0
+  }
 
+  async prepare(ctx: MigrationContext): Promise<PrepareResult> {
     try {
       const warnings: string[] = []
       const servers = ctx.sources.reduxState.get<unknown[]>('mcp', 'servers') ?? []
