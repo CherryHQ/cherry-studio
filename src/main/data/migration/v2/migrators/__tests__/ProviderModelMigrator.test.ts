@@ -105,7 +105,7 @@ describe('ProviderModelMigrator', () => {
       expect(result.processedCount).toBe(0)
     })
 
-    it('processes providers and models', async () => {
+    it('inserts provider row and model rows', async () => {
       const ctx = createMockContext({
         llm: {
           providers: [makeProvider('openai', [{ id: 'gpt-4o' }, { id: 'gpt-4' }])]
@@ -117,6 +117,13 @@ describe('ProviderModelMigrator', () => {
 
       expect(result.success).toBe(true)
       expect(result.processedCount).toBe(1)
+
+      // First insert: 1 provider, second insert: 2 models (batch)
+      const inserted = (ctx as unknown as { _insertValues: unknown[][] })._insertValues
+      expect(inserted).toHaveLength(2)
+      expect(inserted[0]).toHaveLength(1) // 1 provider row
+      expect(inserted[1]).toHaveLength(2) // 2 model rows
+      expect((inserted[0][0] as Record<string, unknown>).providerId).toBe('openai')
     })
 
     it('deduplicates models within a provider', async () => {
@@ -130,6 +137,11 @@ describe('ProviderModelMigrator', () => {
       const result = await migrator.execute(ctx)
 
       expect(result.success).toBe(true)
+
+      // Should insert only 1 unique model, not 2
+      const inserted = (ctx as unknown as { _insertValues: unknown[][] })._insertValues
+      const modelInsert = inserted[1] // second insert is the model batch
+      expect(modelInsert).toHaveLength(1)
     })
   })
 

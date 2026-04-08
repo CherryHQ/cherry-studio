@@ -124,13 +124,21 @@ describe('ProviderRegistryService', () => {
   })
 
   describe('initialize', () => {
-    it('should seed preset providers and enrich existing models', async () => {
+    it('should seed preset providers with correct structure', async () => {
       setupRegistryData()
 
       await providerRegistryService.initialize()
 
       expect(mockReadProviders).toHaveBeenCalled()
-      expect(vi.mocked(providerService.batchUpsert)).toHaveBeenCalled()
+      const batchUpsertMock = vi.mocked(providerService.batchUpsert)
+      expect(batchUpsertMock).toHaveBeenCalledTimes(1)
+
+      const upsertedProviders = batchUpsertMock.mock.calls[0][0]
+      const openaiProvider = upsertedProviders.find((p) => p.providerId === 'openai')
+      expect(openaiProvider).toBeDefined()
+      expect(openaiProvider!.name).toBe('OpenAI')
+      expect(openaiProvider!.presetProviderId).toBe('openai')
+      expect(openaiProvider!.defaultChatEndpoint).toBe('openai-chat-completions')
     })
   })
 
@@ -184,13 +192,17 @@ describe('ProviderRegistryService', () => {
   })
 
   describe('resolveModels', () => {
-    it('should merge raw models with registry data', async () => {
+    it('should merge raw models with registry data including capabilities and limits', async () => {
       setupRegistryData()
 
       const models = await providerRegistryService.resolveModels('openai', [{ modelId: 'gpt-4o' }])
 
       expect(models).toHaveLength(1)
       expect(models[0].name).toBe('GPT-4o')
+      expect(models[0].capabilities).toContain('image-recognition')
+      expect(models[0].capabilities).toContain('function-call')
+      expect(models[0].contextWindow).toBe(128_000)
+      expect(models[0].maxOutputTokens).toBe(4096)
     })
 
     it('should handle models not in registry', async () => {
