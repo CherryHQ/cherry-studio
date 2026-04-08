@@ -35,14 +35,30 @@ export interface BeforeIterationResult {
 }
 
 export interface IterationResult {
+  /** Assistant response messages for persistence */
   messages: ModelMessage[]
+  /** Token usage for this iteration */
   usage: LanguageModelUsage
+  /** Why the last step ended: 'stop' | 'tool-calls' | 'length' | 'error' | ... */
+  finishReason: string
+  /** All steps in this iteration (tool calls, results, per-step usage) */
+  steps: StepResult<ToolSet>[]
+  /** Provider response metadata */
+  response: {
+    id: string
+    modelId: string
+    timestamp: Date
+  }
+  /** Web search sources referenced */
+  sources: unknown[]
 }
 
 export interface LoopFinishResult {
   totalUsage: LanguageModelUsage
   totalIterations: number
   totalSteps: number
+  /** Finish reason from the last iteration */
+  finishReason: string
 }
 
 export interface ErrorContext {
@@ -123,6 +139,7 @@ export function runAgentLoop<T extends AppProviderKey>(
     let iterationNumber = 0
     let totalSteps = 0
     let totalUsage = ZERO_USAGE
+    let lastFinishReason = 'unknown'
 
     while (!signal.aborted) {
       iterationNumber++
@@ -166,23 +183,36 @@ export function runAgentLoop<T extends AppProviderKey>(
         reader.releaseLock()
       }
 
-      // ◆ AI SDK: totalUsage resolves after stream ends
-      const iterationUsage = await result.totalUsage
+      // ◆ AI SDK: resolve all promised fields after stream ends
+      const [iterationUsage, steps, finishReason, response, sources] = await Promise.all([
+        result.totalUsage,
+        result.steps,
+        result.finishReason,
+        result.response,
+        result.sources
+      ])
       totalUsage = mergeUsage(totalUsage, iterationUsage)
-      const steps = await result.steps
       totalSteps += steps.length
+      lastFinishReason = finishReason
 
       // ★ afterIteration (persist, memory, SWR invalidate)
       const shouldContinue = await hooks.afterIteration?.(
         { iterationNumber, messages, totalSteps },
-        { messages: (await result.response).messages, usage: iterationUsage }
+        {
+          messages: response.messages,
+          usage: iterationUsage,
+          finishReason,
+          steps,
+          response: { id: response.id, modelId: response.modelId, timestamp: response.timestamp },
+          sources
+        }
       )
 
       if (!shouldContinue) break
     }
 
     // ★ onFinish (analytics, otel root span)
-    hooks.onFinish?.({ totalUsage, totalIterations: iterationNumber, totalSteps })
+    hooks.onFinish?.({ totalUsage, totalIterations: iterationNumber, totalSteps, finishReason: lastFinishReason })
   })()
     .then(() => writer.close())
     .catch(async (err) => {
