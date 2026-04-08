@@ -158,8 +158,8 @@ export function useAiChat(options: UseAiChatOptions): UseAiChatReturn
 | 自定义类型 | `CherryUIMessage = UIMessage<{ totalTokens?: number }, CherryDataUIParts>` |
 | 节流 | `experimental_throttle: 50` (ms)，平衡 streaming 流畅度与 React 渲染压力 |
 | Body 注入 | `sendMessage` / `regenerate` 包装函数自动注入 `topicId` + `assistantId` |
-| 持久化 | `onFinish` 回调 (TODO P3.1b，等 Data API 接口确定) |
-| 错误处理 | `onError` 记录日志 (TODO P3.1b，接入统一通知) |
+| 持久化 | `onFinish` 回调 → V2ChatContent.handleFinish 持久化到 DataApi ✅ |
+| 错误处理 | `onError` 回调 → V2ChatContent 通过 `window.toast.error()` 通知用户 ✅ |
 
 **Body 合并策略**（低 → 高优先级）:
 
