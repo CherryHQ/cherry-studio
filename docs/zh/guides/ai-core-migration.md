@@ -1055,7 +1055,7 @@ generateText()  → createAgent() → agent.generate()  → { text, usage }
 | `fetchMessagesSummary` | Topic 命名 | `agent.generate()` | `generateText()` |
 | `fetchNoteSummary` | 笔记摘要 | `agent.generate()` | `generateText()` |
 | `fetchGenerate` | 通用文本生成 | `agent.generate()` | `generateText()` |
-| `fetchImageGeneration` | 图片生成 | — (非 LLM) | `generateImage()` |
+| `fetchImageGeneration` | 图片生成 + 编辑 | `aiCoreGenerateImage()` | `generateImage()` |
 | `fetchModels` | 模型列表 | — (HTTP) | `listModels()` |
 | `checkApi` (非 embedding) | API 验证 | `agent.generate()` | `checkModel()` ✅ 已实现 |
 | `checkApi` (embedding) | Embedding 验证 | `executor.embedMany()` | `getEmbeddingDimensions()` |
@@ -1102,22 +1102,32 @@ export class AiCompletionService {
     return { text: result.text, usage: result.usage }
   }
 
-  // ── 图片生成（非 agent 路径）──
-  async generateImage(request: AiImageRequest): Promise<{ images: string[] }> {
-    const { provider, model } = await this.resolveFromRedux(request)
-    const adapted = adaptProvider({ provider })
-    const sdkConfig = await providerToAiSdkConfig(adapted, model)
+  // ── 图片生成（非 agent 路径，支持 generate + edit）──
+  async generateImage(request: AiImageRequest): Promise<AiImageResult> {
+    const { sdkConfig } = await this.buildAgentParams(request)
+
+    // edit mode: prompt 带 images/mask；generate mode: prompt 是纯字符串
+    const promptParam = request.inputImages
+      ? { text: request.prompt, images: request.inputImages, ...(request.mask && { mask: request.mask }) }
+      : request.prompt
 
     const result = await aiCoreGenerateImage({
       providerId: sdkConfig.providerId,
       providerSettings: sdkConfig.providerSettings,
-      modelId: model.id,
-      prompt: request.prompt,
+      model: sdkConfig.modelId,
+      prompt: promptParam,
       n: request.n ?? 1,
-      size: request.size,
+      size: (request.size ?? '1024x1024'),
     })
 
-    return { images: result.images.map(img => img.base64 ?? img.url).filter(Boolean) as string[] }
+    // 转换为 data URL 格式
+    const images: string[] = []
+    for (const image of result.images ?? []) {
+      if (image.base64) {
+        images.push(`data:${image.mediaType || 'image/png'};base64,${image.base64}`)
+      }
+    }
+    return { images }
   }
 
   // ── 模型列表（非 agent 路径）──
@@ -1163,7 +1173,7 @@ export class AiCompletionService {
 |---|---|---|---|
 | `streamText()` | `runAgentLoop()` → `agent.stream()` | ✅ tools + steering | ✅ |
 | `generateText()` | 直接 `createAgent()` → `agent.generate()` | ✅ tools | ❌ |
-| `generateImage()` | `aiCoreGenerateImage()` | ❌ | ❌ |
+| `generateImage()` | `aiCoreGenerateImage()` (generate + edit) | ❌ | ❌ |
 | `embedMany()` | `executor.embedMany()` | ❌ | ❌ |
 | `getEmbeddingDimensions()` | `embedMany()` 业务封装 | ❌ | ❌ |
 | `listModels()` | Provider HTTP | ❌ | ❌ |
@@ -1181,11 +1191,11 @@ export class AiCompletionService {
 | `Ai_StreamRequest` | Renderer → Main | 流式聊天（已有） |
 | `Ai_StreamChunk/Done/Error` | Main → Renderer | 流式响应（已有） |
 | `Ai_Abort` | Renderer → Main | 取消请求（已有） |
-| `Ai_GenerateText` | Renderer → Main | 非流式文本生成（新增） |
-| `Ai_GenerateImage` | Renderer → Main | 图片生成（新增） |
+| `Ai_GenerateText` | Renderer → Main | 非流式文本生成 ✅ 已实现 |
+| `Ai_GenerateImage` | Renderer → Main | 图片生成 + 编辑 ✅ 已实现 |
 | `Ai_ListModels` | Renderer → Main | 模型列表（新增） |
 | `Ai_CheckModel` | Renderer → Main | API 验证 ✅ 已实现 |
-| `Ai_EmbedMany` | Renderer → Main | Embedding 原语（新增） |
+| `Ai_EmbedMany` | Renderer → Main | Embedding 原语 ✅ 已实现 |
 
 **Preload API 扩展**:
 
@@ -1235,10 +1245,38 @@ export async function fetchMessagesSummary({ messages }) {
 1. ✅ `checkModel` (非 embedding) — 最简单，最小请求
 2. ✅ `fetchMessagesSummary` / `fetchNoteSummary` — `generateText`，非流式
 3. ✅ `fetchGenerate` — 同上
-4. `getEmbeddingDimensions` — `executor.embedMany()`，影响 checkApi(embedding) + InputEmbeddingDimension 组件 + 知识库/记忆设置
-5. `fetchModels` — 200+ 行 provider-specific HTTP 逻辑，独立任务
-6. `fetchImageGeneration` — `generateImage`，独立路径
+4. ✅ `embedMany` + `getEmbeddingDimensions` — embedding 验证 + 知识库维度检测
+5. ✅ `generateImage` — Main IPC 已就绪（generate + edit），renderer 侧迁移涉及消息图片提取 + ChunkType 回调重构
+6. `fetchModels` — 200+ 行 provider-specific HTTP 逻辑，独立任务
 7. `fetchChatCompletion` — 已被 V2 路径 (`streamText`) 替代，最后删除
+
+**Token Usage 追踪迁移**:
+
+AI 调用迁移到 Main 后，`trackTokenUsage` 不再需要绕回 Renderer：
+
+```
+Before (Renderer):
+  AI.completions() → usage → trackTokenUsage() → window.api.analytics.trackTokenUsage() → IPC → Main AnalyticsService
+
+After (Main):
+  AiCompletionService.generateText() → usage → AnalyticsService.trackTokenUsage() (直接调用，无 IPC)
+```
+
+实现方式：在 `AiCompletionService` 的每个方法（`generateText`、`streamText`、`generateImage`、`embedMany`）中，
+拿到 `result.usage` 后直接调用 `AnalyticsService.trackTokenUsage()`：
+
+```typescript
+// AiCompletionService 内部（每个方法的 return 前）
+const analyticsService = application.get('AnalyticsService')
+analyticsService.trackTokenUsage({
+  provider: model.provider,
+  model: model.id,
+  input_tokens: result.usage?.inputTokens ?? 0,
+  output_tokens: result.usage?.outputTokens ?? 0,
+})
+```
+
+Renderer 侧的 `trackTokenUsage()` 工具函数和 `window.api.analytics.trackTokenUsage()` IPC 调用在 ApiService 完全迁移后可以删除。
 
 **请求类型**:
 
@@ -1258,12 +1296,17 @@ interface AiGenerateRequest extends AiBaseRequest {
   providerOptions?: Record<string, unknown>
 }
 
-// 图片生成
+// 图片生成 + 编辑
 interface AiImageRequest extends AiBaseRequest {
   prompt: string
-  inputImages?: string[]
+  inputImages?: string[]  // 有则走 edit mode，无则走 generate mode
+  mask?: string           // inpainting mask（仅 edit mode）
   n?: number
   size?: string
+}
+
+interface AiImageResult {
+  images: string[]  // data URL 格式 (data:image/png;base64,...)
 }
 
 // Embedding
@@ -2585,7 +2628,11 @@ Phase 2.5 (ApiService 迁移):
        - InputEmbeddingDimension 组件
        - KnowledgeSettings, MemorySettings, RagSettings
   ⑮ fetchModels → window.api.ai.listModels (200+ 行 provider-specific HTTP 逻辑，独立任务)
-  ⑯ fetchImageGeneration → window.api.ai.generateImage
+  ⑯ fetchImageGeneration → window.api.ai.generateImage (Main IPC ✅ 已实现，renderer 迁移待做)
+     Renderer 迁移细节:
+     - collectImagesFromMessages() 提取图片 → 传入 request.inputImages
+     - ChunkType.IMAGE_CREATED / IMAGE_COMPLETE 回调 → 改为 await IPC 返回值
+     - getMainTextContent() 提取 prompt → 传入 request.prompt
   ⑰ 删除 renderer ApiService 中的 AI 调用代码 + AiProvider 类
 
 Phase 3 (useChat 接入):

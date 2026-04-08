@@ -899,7 +899,16 @@ const api = {
       providerId?: string
       modelId?: string
       values: string[]
-    }): Promise<{ embeddings: number[][]; usage?: unknown }> => ipcRenderer.invoke(IpcChannel.Ai_EmbedMany, request)
+    }): Promise<{ embeddings: number[][]; usage?: unknown }> => ipcRenderer.invoke(IpcChannel.Ai_EmbedMany, request),
+    generateImage: (request: {
+      providerId?: string
+      modelId?: string
+      prompt: string
+      inputImages?: string[]
+      mask?: string
+      n?: number
+      size?: string
+    }): Promise<{ images: string[] }> => ipcRenderer.invoke(IpcChannel.Ai_GenerateImage, request)
   },
   apiServer: {
     getStatus: (): Promise<GetApiServerStatusResult> => ipcRenderer.invoke(IpcChannel.ApiServer_GetStatus),

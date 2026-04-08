@@ -9,6 +9,7 @@ import {
   AiCompletionService,
   type AiEmbedRequest,
   type AiGenerateRequest,
+  type AiImageRequest,
   type AiStreamRequest
 } from './AiCompletionService'
 import { ToolRegistry } from './tools/ToolRegistry'
@@ -85,6 +86,11 @@ export class AiService extends BaseService {
     // Embedding
     this.ipcHandle(IpcChannel.Ai_EmbedMany, async (_, request: AiEmbedRequest) => {
       return this.completionService.embedMany(request)
+    })
+
+    // Image generation
+    this.ipcHandle(IpcChannel.Ai_GenerateImage, async (_, request: AiImageRequest) => {
+      return this.completionService.generateImage(request)
     })
   }
 

@@ -486,5 +486,6 @@ export enum IpcChannel {
   Ai_Abort = 'ai:abort',
   Ai_GenerateText = 'ai:generate-text',
   Ai_CheckModel = 'ai:check-model',
-  Ai_EmbedMany = 'ai:embed-many'
+  Ai_EmbedMany = 'ai:embed-many',
+  Ai_GenerateImage = 'ai:generate-image'
 }

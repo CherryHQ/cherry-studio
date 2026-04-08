@@ -1,4 +1,4 @@
-import { createAgent, embedMany as aiCoreEmbedMany } from '@cherrystudio/ai-core'
+import { createAgent, embedMany as aiCoreEmbedMany, generateImage as aiCoreGenerateImage } from '@cherrystudio/ai-core'
 import { loggerService } from '@logger'
 import { reduxService } from '@main/services/ReduxService'
 import type { Assistant, Model, Provider } from '@types'
@@ -54,6 +54,22 @@ export interface AiGenerateRequest extends AiBaseRequest {
 export interface AiGenerateResult {
   text: string
   usage?: LanguageModelUsage
+}
+
+/** Image generation request. */
+export interface AiImageRequest extends AiBaseRequest {
+  prompt: string
+  /** Input images for editing (base64 data URLs or URLs). If provided, uses edit mode. */
+  inputImages?: string[]
+  /** Mask for inpainting (only with inputImages). */
+  mask?: string
+  n?: number
+  size?: string
+}
+
+/** Image generation result. */
+export interface AiImageResult {
+  images: string[]
 }
 
 /** Embedding request. */
@@ -147,6 +163,33 @@ export class AiCompletionService {
       : await agent.generate({ messages: request.messages ?? [] })
 
     return { text: result.text, usage: result.usage }
+  }
+
+  // ── Image generation ──
+
+  async generateImage(request: AiImageRequest): Promise<AiImageResult> {
+    logger.info('generateImage started', { assistantId: request.assistantId })
+
+    const { sdkConfig } = await this.buildAgentParams(request)
+
+    const promptParam = request.inputImages
+      ? { text: request.prompt, images: request.inputImages, ...(request.mask && { mask: request.mask }) }
+      : request.prompt
+
+    const result = await aiCoreGenerateImage<AppProviderSettingsMap>(sdkConfig.providerId, sdkConfig.providerSettings, {
+      model: sdkConfig.modelId,
+      prompt: promptParam,
+      n: request.n ?? 1,
+      size: (request.size ?? '1024x1024') as `${number}x${number}`
+    })
+
+    const images: string[] = []
+    for (const image of result.images ?? []) {
+      if (image.base64) {
+        images.push(`data:${image.mediaType || 'image/png'};base64,${image.base64}`)
+      }
+    }
+    return { images }
   }
 
   // ── Embedding ──
