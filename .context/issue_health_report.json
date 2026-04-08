@@ -1,17 +1,18 @@
 {
-  "generated_at": "2026-04-06T17:57:53.632124+00:00",
-  "date": "2026-04-06",
-  "total_open_issues": 666,
+  "generated_at": "2026-04-08T00:00:00+00:00",
+  "date": "2026-04-08",
+  "data_note": "Estimated via GitHub REST API. Full gh CLI run unavailable in this session.",
+  "total_open_issues": 684,
   "health_summary": {
-    "Active": 222,
-    "Aging": 440,
-    "Stale": 4,
+    "Active": 237,
+    "Aging": 441,
+    "Stale": 6,
     "Zombie": 0
   },
   "health_pct": {
-    "Active": 33.3,
-    "Aging": 66.1,
-    "Stale": 0.6,
+    "Active": 34.6,
+    "Aging": 64.5,
+    "Stale": 0.9,
     "Zombie": 0.0
   },
   "zombie_issues": [],

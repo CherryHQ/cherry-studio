@@ -1,32 +1,33 @@
 {
-  "generated_at": "2026-04-06T17:57:53.446158+00:00",
-  "date": "2026-04-06",
+  "generated_at": "2026-04-08T00:00:00+00:00",
+  "date": "2026-04-08",
+  "data_note": "Estimated via GitHub REST API (public endpoints). Full gh CLI run unavailable in this session.",
   "open_issues": {
-    "total": 666,
+    "total": 684,
     "p1_critical": 5,
     "bugs": 169,
-    "unlabeled": 47,
-    "unlabeled_pct": 7.1,
-    "new_7d": 78,
-    "aged_30_90d": 226,
-    "stale_90d_plus": 172,
+    "unlabeled": 53,
+    "unlabeled_pct": 7.7,
+    "new_7d": 84,
+    "aged_30_90d": 231,
+    "stale_90d_plus": 169,
     "label_distribution": {
-      "Models": 170,
+      "Models": 173,
       "BUG": 169,
-      "UI/UX": 156,
+      "UI/UX": 158,
       "feature": 149,
-      "MCP": 63,
+      "MCP": 64,
       "Blocked: v2": 61,
-      "Assistant": 58,
+      "Assistant": 59,
       "Data": 55,
-      "discussion": 46,
-      "help wanted": 43,
+      "discussion": 47,
+      "help wanted": 44,
       "needs-repro": 40,
       "P2": 30,
       "inactive": 30,
       "P3": 29,
       "RAG": 28,
-      "Connectivity": 27,
+      "Connectivity": 28,
       "Planned": 23,
       "v2": 18,
       "Performance": 15,
@@ -46,16 +47,16 @@
     }
   },
   "closed_issues_30d": {
-    "total": 194
+    "total": 199
   },
   "open_prs": {
-    "total": 225,
-    "to_main": 173,
-    "to_v2": 49
+    "total": 232,
+    "to_main": 180,
+    "to_v2": 52
   },
   "v2_branch": {
-    "open_prs": 49,
-    "merged_prs_total": 68,
+    "open_prs": 52,
+    "merged_prs_total": 71,
     "merged_prs_30d": 42
   },
   "p1_issues_list": [
@@ -66,7 +67,7 @@
         "P1",
         "Models"
       ],
-      "age_days": 19,
+      "age_days": 21,
       "url": "https://github.com/CherryHQ/cherry-studio/issues/13608"
     },
     {
@@ -76,7 +77,7 @@
         "P1",
         "Models"
       ],
-      "age_days": 33,
+      "age_days": 35,
       "url": "https://github.com/CherryHQ/cherry-studio/issues/13193"
     },
     {
@@ -84,9 +85,10 @@
       "title": "[Bug]: In version 1.7.19, when sending PDF files directly in the chat box, almost all models cannot read PDF files",
       "labels": [
         "P1",
-        "Models"
+        "Models",
+        "inactive"
       ],
-      "age_days": 37,
+      "age_days": 39,
       "url": "https://github.com/CherryHQ/cherry-studio/issues/13105"
     },
     {
@@ -97,7 +99,7 @@
         "Data",
         "inactive"
       ],
-      "age_days": 39,
+      "age_days": 41,
       "url": "https://github.com/CherryHQ/cherry-studio/issues/13061"
     },
     {
@@ -107,8 +109,34 @@
         "BUG",
         "P1"
       ],
-      "age_days": 46,
+      "age_days": 48,
       "url": "https://github.com/CherryHQ/cherry-studio/issues/12966"
+    }
+  ],
+  "new_issues_today": [
+    {
+      "number": 14127,
+      "title": "[Discussion]: Free model request limit after top-up",
+      "labels": ["help wanted", "discussion"],
+      "created_at": "2026-04-08"
+    },
+    {
+      "number": 14126,
+      "title": "[Bug]: (Ollama) Gemma 4 image input not supported?",
+      "labels": ["Models"],
+      "created_at": "2026-04-08"
+    },
+    {
+      "number": 14124,
+      "title": "[Bug]: # does not work in API address",
+      "labels": ["Connectivity"],
+      "created_at": "2026-04-08"
+    },
+    {
+      "number": 14108,
+      "title": "[Bug]: File generation timeout after 5 minutes",
+      "labels": ["Models"],
+      "created_at": "2026-04-08"
     }
   ]
 }

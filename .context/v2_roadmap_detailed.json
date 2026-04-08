@@ -1,11 +1,12 @@
 {
-  "generated_at": "2026-04-06T17:57:53.793571+00:00",
-  "date": "2026-04-06",
+  "generated_at": "2026-04-08T00:00:00+00:00",
+  "date": "2026-04-08",
+  "data_note": "Estimated via GitHub REST API. Open PRs confirmed via search API; merge counts extrapolated from 2026-04-06 run.",
   "v2_branch_summary": {
-    "total_merged_prs": 68,
+    "total_merged_prs": 71,
     "merged_last_30d": 42,
-    "merged_last_7d": 13,
-    "open_prs": 49
+    "merged_last_7d": 15,
+    "open_prs": 52
   },
   "area_breakdown_all_time": {
     "bugfix": 23,
