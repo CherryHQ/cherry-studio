@@ -151,6 +151,8 @@ export const ProviderReasoningFormatSchema = z.discriminatedUnion('type', [
       })
       .optional()
   }),
+  // TODO: API layer must convert camelCase → snake_case (chat_template_kwargs, enable_thinking, thinking_budget)
+  // when building the actual request payload for vLLM/SGLang/nvidia endpoints
   z.object({
     type: z.literal('self-hosted'),
     params: z
