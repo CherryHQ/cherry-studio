@@ -151,7 +151,7 @@ export function runAgentLoop<T extends AppProviderKey>(
 
       // ◆ AI SDK: create agent, forward hooks to agentSettings
       const modelMessages = await convertToModelMessages(messages)
-      const agent = await createAgent<AppProviderSettingsMap, T>({
+      const agent = await createAgent<AppProviderSettingsMap, T, ToolSet>({
         providerId: params.providerId,
         providerSettings: params.providerSettings,
         modelId: params.modelId,
@@ -159,9 +159,8 @@ export function runAgentLoop<T extends AppProviderKey>(
         agentSettings: {
           tools: params.tools as ToolSet,
           instructions: system,
-
-          prepareStep: hooks.prepareStep as any,
-          onStepFinish: hooks.onStepFinish as any
+          prepareStep: hooks.prepareStep,
+          onStepFinish: hooks.onStepFinish
         }
       })
 
