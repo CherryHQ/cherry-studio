@@ -2,7 +2,7 @@ import type { AiPlugin } from '@cherrystudio/ai-core'
 import { createAgent } from '@cherrystudio/ai-core'
 import type { StringKeys } from '@cherrystudio/ai-core/provider'
 import { loggerService } from '@logger'
-import type { ToolSet, UIMessage, UIMessageChunk } from 'ai'
+import type { LanguageModelUsage, ToolSet, UIMessage, UIMessageChunk } from 'ai'
 import { convertToModelMessages } from 'ai'
 
 import type { AppProviderSettingsMap } from './types'
@@ -19,6 +19,8 @@ export interface AgentLoopParams<T extends AppProviderKey = AppProviderKey> {
   plugins?: AiPlugin[]
   tools?: ToolSet
   system?: string
+  /** Called after stream completes with total token usage. */
+  onFinish?: (usage: LanguageModelUsage) => void
 }
 
 /**
@@ -68,6 +70,12 @@ export function runAgentLoop<T extends AppProviderKey>(
       }
     } finally {
       reader.releaseLock()
+    }
+
+    // Report usage after stream completes
+    if (params.onFinish) {
+      const totalUsage = await result.totalUsage
+      params.onFinish(totalUsage)
     }
   })()
     .then(() => writer.close())

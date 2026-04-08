@@ -1,5 +1,6 @@
 import { createAgent, embedMany as aiCoreEmbedMany, generateImage as aiCoreGenerateImage } from '@cherrystudio/ai-core'
 import { loggerService } from '@logger'
+import { application } from '@main/core/application'
 import { reduxService } from '@main/services/ReduxService'
 import type { Assistant, Model, Provider } from '@types'
 import type {
@@ -111,7 +112,7 @@ export class AiCompletionService {
     signal: AbortSignal,
     writer: WritableStreamDefaultWriter<UIMessageChunk>
   ): Promise<void> {
-    const { sdkConfig, tools, plugins, system } = await this.buildAgentParams(request)
+    const { sdkConfig, tools, plugins, system, model } = await this.buildAgentParams(request)
 
     const stream = runAgentLoop(
       {
@@ -120,7 +121,8 @@ export class AiCompletionService {
         modelId: sdkConfig.modelId,
         plugins,
         tools,
-        system
+        system,
+        onFinish: (usage) => this.trackUsage(model, usage)
       },
       request.messages,
       signal
@@ -144,7 +146,7 @@ export class AiCompletionService {
   async generateText(request: AiGenerateRequest): Promise<AiGenerateResult> {
     logger.info('generateText started', { assistantId: request.assistantId })
 
-    const { sdkConfig, tools, plugins, system } = await this.buildAgentParams(request)
+    const { sdkConfig, tools, plugins, system, model } = await this.buildAgentParams(request)
 
     const agent = await createAgent<AppProviderSettingsMap>({
       providerId: sdkConfig.providerId,
@@ -162,6 +164,7 @@ export class AiCompletionService {
       ? await agent.generate({ prompt: request.prompt })
       : await agent.generate({ messages: request.messages ?? [] })
 
+    this.trackUsage(model, result.usage)
     return { text: result.text, usage: result.usage }
   }
 
@@ -197,13 +200,14 @@ export class AiCompletionService {
   async embedMany(request: AiEmbedRequest): Promise<AiEmbedResult> {
     logger.info('embedMany started', { assistantId: request.assistantId, count: request.values.length })
 
-    const { sdkConfig } = await this.buildAgentParams(request)
+    const { sdkConfig, model } = await this.buildAgentParams(request)
 
     const result = await aiCoreEmbedMany<AppProviderSettingsMap>(sdkConfig.providerId, sdkConfig.providerSettings, {
       model: sdkConfig.modelId,
       values: request.values
     })
 
+    this.trackUsage(model, { inputTokens: result.usage?.tokens ?? 0, outputTokens: 0 })
     return { embeddings: result.embeddings, usage: result.usage }
   }
 
@@ -242,6 +246,27 @@ export class AiCompletionService {
     const system = assistant?.prompt || undefined
 
     return { sdkConfig, tools, plugins, system, provider, model, assistant }
+  }
+
+  // ── Token usage tracking ──
+
+  private trackUsage(model: Model, usage?: { inputTokens?: number; outputTokens?: number }): void {
+    if (!usage || !model.provider || !model.id) return
+    const inputTokens = usage.inputTokens ?? 0
+    const outputTokens = usage.outputTokens ?? 0
+    if (inputTokens === 0 && outputTokens === 0) return
+
+    try {
+      const analyticsService = application.get('AnalyticsService')
+      analyticsService.trackTokenUsage({
+        provider: model.provider,
+        model: model.id,
+        input_tokens: inputTokens,
+        output_tokens: outputTokens
+      })
+    } catch {
+      // AnalyticsService may not be activated (data collection disabled)
+    }
   }
 
   /** Resolve provider + model from Redux. Priority: explicit > assistant.model */
