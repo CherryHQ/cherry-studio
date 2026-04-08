@@ -318,43 +318,45 @@ export class ModelService {
       }
     }
 
-    for (const model of models) {
-      const userOverrides = overridesMap.get(`${model.providerId}:${model.modelId}`)
+    await db.transaction(async (tx) => {
+      for (const model of models) {
+        const userOverrides = overridesMap.get(`${model.providerId}:${model.modelId}`)
 
-      // Build the update set, skipping user-overridden fields
-      const set: Partial<NewUserModel> = {
-        presetModelId: model.presetModelId
-      }
-      const enrichableFields = {
-        name: model.name,
-        description: model.description,
-        group: model.group,
-        capabilities: model.capabilities,
-        inputModalities: model.inputModalities,
-        outputModalities: model.outputModalities,
-        endpointTypes: model.endpointTypes,
-        contextWindow: model.contextWindow,
-        maxOutputTokens: model.maxOutputTokens,
-        supportsStreaming: model.supportsStreaming,
-        reasoning: model.reasoning,
-        parameters: model.parameters,
-        pricing: model.pricing
-      }
-
-      for (const [field, value] of Object.entries(enrichableFields)) {
-        if (!userOverrides?.has(field)) {
-          ;(set as Record<string, unknown>)[field] = value
+        // Build the update set, skipping user-overridden fields
+        const set: Partial<NewUserModel> = {
+          presetModelId: model.presetModelId
         }
-      }
+        const enrichableFields = {
+          name: model.name,
+          description: model.description,
+          group: model.group,
+          capabilities: model.capabilities,
+          inputModalities: model.inputModalities,
+          outputModalities: model.outputModalities,
+          endpointTypes: model.endpointTypes,
+          contextWindow: model.contextWindow,
+          maxOutputTokens: model.maxOutputTokens,
+          supportsStreaming: model.supportsStreaming,
+          reasoning: model.reasoning,
+          parameters: model.parameters,
+          pricing: model.pricing
+        }
 
-      await db
-        .insert(userModelTable)
-        .values(model)
-        .onConflictDoUpdate({
-          target: [userModelTable.providerId, userModelTable.modelId],
-          set
-        })
-    }
+        for (const [field, value] of Object.entries(enrichableFields)) {
+          if (!userOverrides?.has(field)) {
+            ;(set as Record<string, unknown>)[field] = value
+          }
+        }
+
+        await tx
+          .insert(userModelTable)
+          .values(model)
+          .onConflictDoUpdate({
+            target: [userModelTable.providerId, userModelTable.modelId],
+            set
+          })
+      }
+    })
 
     logger.info('Batch upserted models', { count: models.length, providerId: models[0]?.providerId })
   }

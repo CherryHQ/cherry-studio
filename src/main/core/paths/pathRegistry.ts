@@ -182,6 +182,12 @@ export function buildPathRegistry() {
     'app.database.migrations': app.isPackaged
       ? path.join(appExtraResources, 'migrations/sqlite-drizzle')
       : path.join(__dirname, '../../migrations/sqlite-drizzle'),
+    // Provider registry JSON data (models.json, providers.json, etc.)
+    // shipped by @cherrystudio/provider-registry. In dev mode, read
+    // from the monorepo workspace; in packaged mode, from extraResources.
+    'app.provider_registry.data': app.isPackaged
+      ? path.join(appExtraResources, 'packages/provider-registry/data')
+      : path.join(__dirname, '../../packages/provider-registry/data'),
 
     // ============================================================
     // D. feature.* — Cherry-owned feature data / config / temp dirs
@@ -356,7 +362,8 @@ const NO_ENSURE = [
   'app.root.resources',
   'app.root.resources.scripts',
   'app.root.resources.binaries',
-  'app.database.migrations'
+  'app.database.migrations',
+  'app.provider_registry.data'
 ] as const satisfies readonly NoEnsureEntry[]
 
 /**

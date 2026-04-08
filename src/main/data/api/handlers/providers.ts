@@ -12,6 +12,7 @@
 import { userProviderInsertSchema } from '@data/db/schemas/userProvider'
 import { providerRegistryService } from '@data/services/ProviderRegistryService'
 import { providerService } from '@data/services/ProviderService'
+import { DataApiErrorFactory } from '@shared/data/api'
 import type { ApiHandler, ApiMethods } from '@shared/data/api/apiTypes'
 import type { CreateProviderDto, UpdateProviderDto } from '@shared/data/api/schemas/providers'
 import type { ProviderSchemas } from '@shared/data/api/schemas/providers'
@@ -37,7 +38,7 @@ export const providerHandlers: {
     POST: async ({ body }) => {
       const parsed = userProviderInsertSchema.safeParse(body)
       if (!parsed.success) {
-        throw new Error(`Invalid provider data: ${parsed.error.message}`)
+        throw DataApiErrorFactory.validation({ body: [parsed.error.message] })
       }
       return await providerService.create(parsed.data as CreateProviderDto)
     }
@@ -51,7 +52,7 @@ export const providerHandlers: {
     PATCH: async ({ params, body }) => {
       const parsed = userProviderInsertSchema.partial().safeParse(body)
       if (!parsed.success) {
-        throw new Error(`Invalid provider update data: ${parsed.error.message}`)
+        throw DataApiErrorFactory.validation({ body: [parsed.error.message] })
       }
       return await providerService.update(params.providerId, parsed.data as UpdateProviderDto)
     },
@@ -78,7 +79,7 @@ export const providerHandlers: {
     POST: async ({ params, body }) => {
       const { key, label } = body as { key: string; label?: string }
       if (!key || typeof key !== 'string') {
-        throw new Error('API key value is required')
+        throw DataApiErrorFactory.validation({ key: ['API key value is required'] })
       }
       return await providerService.addApiKey(params.providerId, key, label)
     }

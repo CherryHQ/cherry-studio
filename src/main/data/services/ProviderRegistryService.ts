@@ -9,8 +9,6 @@
  * Direct-import singleton. Seeds preset data via initialize().
  */
 
-import { join } from 'node:path'
-
 import type {
   ProtoModelConfig,
   ProtoProviderConfig,
@@ -28,7 +26,6 @@ import { userModelTable } from '@data/db/schemas/userModel'
 import type { NewUserProvider } from '@data/db/schemas/userProvider'
 import { userProviderTable } from '@data/db/schemas/userProvider'
 import { loggerService } from '@logger'
-import { isDev } from '@main/constant'
 import { application } from '@main/core/application'
 import type { Model } from '@shared/data/types/model'
 import type { EndpointConfig, ReasoningFormatType } from '@shared/data/types/provider'
@@ -80,57 +77,50 @@ class ProviderRegistryService {
     logger.info('Initialized all preset providers and enriched existing models')
   }
 
-  private getRegistryDataPath(): string {
-    if (isDev) {
-      return join(__dirname, '..', '..', 'packages', 'provider-registry', 'data')
-    }
-    return join(process.resourcesPath, 'packages', 'provider-registry', 'data')
-  }
-
   private loadRegistryModels(): ProtoModelConfig[] {
     if (this.registryModels) return this.registryModels
 
+    const filePath = application.getPath('app.provider_registry.data', 'models.json')
     try {
-      const dataPath = this.getRegistryDataPath()
-      const data = readModelRegistry(join(dataPath, 'models.json'))
+      const data = readModelRegistry(filePath)
       const models = data.models ?? []
       this.registryModels = models
       logger.info('Loaded registry models', { count: models.length })
       return models
     } catch (error) {
-      logger.warn('Failed to load registry models.json', { error })
-      return []
+      logger.error(`Failed to load registry file: ${filePath}`, error as Error)
+      throw error
     }
   }
 
   private loadProviderModels(): ProtoProviderModelOverride[] {
     if (this.registryProviderModels) return this.registryProviderModels
 
+    const filePath = application.getPath('app.provider_registry.data', 'provider-models.json')
     try {
-      const dataPath = this.getRegistryDataPath()
-      const data = readProviderModelRegistry(join(dataPath, 'provider-models.json'))
+      const data = readProviderModelRegistry(filePath)
       const overrides = data.overrides ?? []
       this.registryProviderModels = overrides
       logger.info('Loaded registry provider-models', { count: overrides.length })
       return overrides
     } catch (error) {
-      logger.warn('Failed to load registry provider-models.json', { error })
-      return []
+      logger.error(`Failed to load registry file: ${filePath}`, error as Error)
+      throw error
     }
   }
 
   private loadRegistryProviders(): ProtoProviderConfig[] {
     if (this.registryProviders) return this.registryProviders
 
+    const filePath = application.getPath('app.provider_registry.data', 'providers.json')
     try {
-      const dataPath = this.getRegistryDataPath()
-      const data = readProviderRegistry(join(dataPath, 'providers.json'))
+      const data = readProviderRegistry(filePath)
       const providers = data.providers ?? []
       this.registryProviders = providers
       return providers
     } catch (error) {
-      logger.warn('Failed to load registry providers.json', { error })
-      return []
+      logger.error(`Failed to load registry file: ${filePath}`, error as Error)
+      throw error
     }
   }
 
@@ -259,16 +249,9 @@ class ProviderRegistryService {
   }
 
   async initializePresetProviders(): Promise<void> {
-    const dataPath = this.getRegistryDataPath()
-    let rawProviders: ReturnType<typeof readProviderRegistry>['providers'] = []
-
-    try {
-      const data = readProviderRegistry(join(dataPath, 'providers.json'))
-      rawProviders = data.providers
-    } catch (error) {
-      logger.warn('Failed to load providers.json for provider import', { error })
-      return
-    }
+    // Reuse the cached providers from loadRegistryProviders()
+    const rawProviders = this.loadRegistryProviders()
+    if (rawProviders.length === 0) return
 
     const dbRows: NewUserProvider[] = rawProviders.map((p) => {
       const apiFeatures = p.apiFeatures
@@ -509,7 +492,11 @@ class ProviderRegistryService {
           results.push(mergeModelConfig({ ...userRow, presetModelId: null }, null, null, providerId))
         }
       } catch (error) {
-        logger.warn('Failed to resolve model', { providerId, modelId: raw.modelId, error })
+        logger.error('Failed to resolve model — model will be missing from results', {
+          providerId,
+          modelId: raw.modelId,
+          error
+        })
       }
     }
 

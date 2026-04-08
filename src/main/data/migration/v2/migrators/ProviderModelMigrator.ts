@@ -52,15 +52,34 @@ export class ProviderModelMigrator extends BaseMigrator {
         }
       }
 
-      this.providers = llmState.providers
+      // Deduplicate providers by ID (corrupted Redux state may contain duplicates)
+      const seenIds = new Set<string>()
+      const dedupedProviders: LegacyProvider[] = []
+      let skippedProviders = 0
+      for (const provider of llmState.providers) {
+        if (seenIds.has(provider.id)) {
+          skippedProviders++
+          logger.warn('Duplicate provider ID skipped', { providerId: provider.id })
+          continue
+        }
+        seenIds.add(provider.id)
+        dedupedProviders.push(provider)
+      }
+
+      this.providers = dedupedProviders
       this.settings = llmState.settings ?? {}
       this.totalModelCount = this.providers.reduce((count, provider) => {
         const uniqueModelIds = new Set((provider.models ?? []).map((model) => model.id))
         return count + uniqueModelIds.size
       }, 0)
 
+      if (skippedProviders > 0) {
+        warnings.push(`Skipped ${skippedProviders} duplicate provider(s)`)
+      }
+
       logger.info('Preparation completed', {
         providerCount: this.providers.length,
+        skippedProviders,
         modelCount: this.totalModelCount
       })
 

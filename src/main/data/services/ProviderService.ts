@@ -173,30 +173,28 @@ export class ProviderService {
 
   /**
    * Batch upsert providers (used by RegistryService for preset providers)
-   * Inserts new providers, updates only preset fields on existing ones.
-   * Does NOT overwrite user-customized fields (apiKeys, isEnabled, sortOrder, authConfig).
+   * Inserts new providers on first run. On conflict, only updates the
+   * preset linkage field — all user-customizable fields (name, endpointConfigs,
+   * apiKeys, authConfig, etc.) are preserved.
    */
   async batchUpsert(providers: NewUserProvider[]): Promise<void> {
     if (providers.length === 0) return
 
     const db = application.get('DbService').getDb()
 
-    for (const provider of providers) {
-      await db
-        .insert(userProviderTable)
-        .values(provider)
-        .onConflictDoUpdate({
-          target: [userProviderTable.providerId],
-          set: {
-            presetProviderId: provider.presetProviderId,
-            name: provider.name,
-            endpointConfigs: provider.endpointConfigs,
-            defaultChatEndpoint: provider.defaultChatEndpoint,
-            apiFeatures: provider.apiFeatures,
-            providerSettings: provider.providerSettings
-          }
-        })
-    }
+    await db.transaction(async (tx) => {
+      for (const provider of providers) {
+        await tx
+          .insert(userProviderTable)
+          .values(provider)
+          .onConflictDoUpdate({
+            target: [userProviderTable.providerId],
+            set: {
+              presetProviderId: provider.presetProviderId
+            }
+          })
+      }
+    })
 
     logger.info('Batch upserted providers', { count: providers.length })
   }
