@@ -10,8 +10,8 @@
  */
 
 import { userProviderInsertSchema } from '@data/db/schemas/userProvider'
+import { providerRegistryService } from '@data/services/ProviderRegistryService'
 import { providerService } from '@data/services/ProviderService'
-import { application } from '@main/core/application'
 import type { ApiHandler, ApiMethods } from '@shared/data/api/apiTypes'
 import type { CreateProviderDto, UpdateProviderDto } from '@shared/data/api/schemas/providers'
 import type { ProviderSchemas } from '@shared/data/api/schemas/providers'
@@ -86,11 +86,11 @@ export const providerHandlers: {
 
   '/providers/:providerId/registry-models': {
     GET: async ({ params }) => {
-      return application.get('ProviderRegistryService').getRegistryModelsByProvider(params.providerId)
+      return providerRegistryService.getRegistryModelsByProvider(params.providerId)
     },
 
     POST: async ({ params, body }) => {
-      return await application.get('ProviderRegistryService').resolveModels(params.providerId, body.models)
+      return await providerRegistryService.resolveModels(params.providerId, body.models)
     }
   },
 

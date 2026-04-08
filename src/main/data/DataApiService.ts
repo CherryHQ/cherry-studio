@@ -29,6 +29,7 @@ import { Phase } from '@main/core/lifecycle'
 
 import { ApiServer, IpcAdapter } from './api'
 import { apiHandlers } from './api/handlers'
+import { providerRegistryService } from './services/ProviderRegistryService'
 
 const logger = loggerService.withContext('DataApiService')
 
@@ -59,6 +60,9 @@ export class DataApiService extends BaseService {
 
       // Setup IPC handlers
       this.ipcAdapter.setupHandlers()
+
+      // Seed preset providers and enrich existing models
+      await providerRegistryService.initialize()
 
       logger.info('Data API system initialized successfully')
 
