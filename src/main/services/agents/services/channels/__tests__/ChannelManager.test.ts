@@ -148,6 +148,50 @@ describe('ChannelManager', () => {
     expect(createdAdapters).toHaveLength(1) // no new adapter
   })
 
+  it('syncChannel only disconnects the target channel, leaving others untouched', async () => {
+    vi.mocked(channelService.listChannels).mockResolvedValueOnce([
+      makeChannelRow({ id: 'ch-1', config: { bot_token: 'tok1' } }),
+      makeChannelRow({ id: 'ch-2', config: { bot_token: 'tok2' } })
+    ])
+
+    await channelManager.start()
+    expect(createdAdapters).toHaveLength(2)
+
+    // Toggle ch-1 inactive — syncChannel should only disconnect ch-1
+    vi.mocked(channelService.getChannel).mockResolvedValueOnce(makeChannelRow({ id: 'ch-1', isActive: false }))
+
+    await channelManager.syncChannel('ch-1')
+
+    // ch-1 disconnected, ch-2 untouched
+    expect(createdAdapters[0].disconnect).toHaveBeenCalledTimes(1)
+    expect(createdAdapters[1].disconnect).not.toHaveBeenCalled()
+    // No new adapter created since ch-1 is inactive
+    expect(createdAdapters).toHaveLength(2)
+  })
+
+  it('syncChannel reconnects the channel when toggled active', async () => {
+    vi.mocked(channelService.listChannels).mockResolvedValueOnce([
+      makeChannelRow({ id: 'ch-1', config: { bot_token: 'tok1' } }),
+      makeChannelRow({ id: 'ch-2', config: { bot_token: 'tok2' } })
+    ])
+
+    await channelManager.start()
+    expect(createdAdapters).toHaveLength(2)
+
+    // Toggle ch-1 with updated config — syncChannel reconnects only ch-1
+    vi.mocked(channelService.getChannel).mockResolvedValueOnce(
+      makeChannelRow({ id: 'ch-1', isActive: true, config: { bot_token: 'new-tok' } })
+    )
+
+    await channelManager.syncChannel('ch-1')
+
+    expect(createdAdapters[0].disconnect).toHaveBeenCalledTimes(1)
+    expect(createdAdapters[1].disconnect).not.toHaveBeenCalled()
+    // New adapter created for ch-1
+    expect(createdAdapters).toHaveLength(3)
+    expect(createdAdapters[2].connect).toHaveBeenCalledTimes(1)
+  })
+
   it('inactive channels are skipped', async () => {
     vi.mocked(channelService.listChannels).mockResolvedValueOnce([makeChannelRow({ isActive: false })])
 

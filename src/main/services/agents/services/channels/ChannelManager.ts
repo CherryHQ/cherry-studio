@@ -139,6 +139,32 @@ class ChannelManager {
     }
   }
 
+  /**
+   * Sync a single channel: disconnect its adapter (if any) and reconnect if active.
+   * Use this instead of syncAgent() when only one channel changed.
+   */
+  async syncChannel(channelId: string): Promise<void> {
+    // Disconnect existing adapter for this channel
+    for (const [key, adapter] of this.adapters) {
+      if (adapter.channelId === channelId) {
+        await adapter.disconnect().catch((err) => {
+          logger.warn('Error disconnecting adapter during channel sync', {
+            key,
+            error: err instanceof Error ? err.message : String(err)
+          })
+        })
+        this.adapters.delete(key)
+        break
+      }
+    }
+
+    // Re-read from DB and reconnect if active
+    const channel = await channelService.getChannel(channelId)
+    if (channel && channel.isActive && channel.agentId) {
+      await this.connectChannelFromRow(channel)
+    }
+  }
+
   async syncAgent(agentId: string): Promise<void> {
     // Disconnect existing adapters for this agent in parallel
     const toDisconnect = [...this.adapters.entries()].filter(([, a]) => a.agentId === agentId)

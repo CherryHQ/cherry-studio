@@ -95,9 +95,7 @@ export const updateChannel = async (req: Request, res: Response): Promise<Respon
       })
     }
 
-    if (channel.agentId) {
-      await channelManager.syncAgent(channel.agentId)
-    }
+    await channelManager.syncChannel(channelId)
 
     logger.info('Channel updated', { channelId })
     return res.json(channel)
