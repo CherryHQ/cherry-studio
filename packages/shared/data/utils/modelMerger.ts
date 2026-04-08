@@ -277,8 +277,7 @@ export function mergeModelConfig(
     const overrideReasoning = extractRuntimeReasoning(catalogOverride.reasoning, reasoningFormatType)
     reasoning = {
       ...overrideReasoning,
-      thinkingTokenLimits: overrideReasoning.thinkingTokenLimits ?? reasoning?.thinkingTokenLimits,
-      interleaved: overrideReasoning.interleaved ?? reasoning?.interleaved
+      thinkingTokenLimits: overrideReasoning.thinkingTokenLimits ?? reasoning?.thinkingTokenLimits
     }
   }
 
@@ -547,7 +546,6 @@ function extractRuntimeReasoning(
   return {
     type,
     supportedEfforts,
-    thinkingTokenLimits: reasoning.thinkingTokenLimits,
-    interleaved: reasoning.interleaved
+    thinkingTokenLimits: reasoning.thinkingTokenLimits
   }
 }

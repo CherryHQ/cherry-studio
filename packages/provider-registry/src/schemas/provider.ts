@@ -155,10 +155,10 @@ export const ProviderReasoningFormatSchema = z.discriminatedUnion('type', [
     type: z.literal('self-hosted'),
     params: z
       .object({
-        // snake_case to match actual API parameter names (e.g. vLLM, SGLang)
-        chat_template_kwargs: z.object({
-          enable_thinking: z.boolean().optional(),
-          thinking: z.boolean().optional()
+        chatTemplateKwargs: z.object({
+          enableThinking: z.boolean().optional(),
+          thinking: z.boolean().optional(),
+          thinkingBudget: z.number().optional()
         })
       })
       .optional()
@@ -207,8 +207,8 @@ export const ProviderConfigSchema = z
     description: z.string().optional(),
     /** Per-endpoint-type configuration */
     endpointConfigs: z.record(EndpointTypeSchema, RegistryEndpointConfigSchema).optional(),
-    /** Default endpoint type for chat requests (must exist in endpointConfigs) */
-    defaultChatEndpoint: EndpointTypeSchema,
+    /** Default endpoint type for chat requests (must exist in endpointConfigs when both are present) */
+    defaultChatEndpoint: EndpointTypeSchema.optional(),
     /** API feature flags controlling request construction */
     apiFeatures: ApiFeaturesSchema.optional(),
     /** Additional metadata including website URLs */
@@ -216,7 +216,7 @@ export const ProviderConfigSchema = z
   })
   .refine(
     (data) => {
-      if (data.endpointConfigs) {
+      if (data.endpointConfigs && data.defaultChatEndpoint) {
         return data.defaultChatEndpoint in data.endpointConfigs
       }
       return true

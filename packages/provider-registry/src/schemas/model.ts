@@ -43,8 +43,7 @@ export const ReasoningEffortSchema = z.enum(objectValues(REASONING_EFFORT))
 // Exported for shared/runtime types to reuse
 export const CommonReasoningFieldsSchema = {
   thinkingTokenLimits: ThinkingTokenLimitsSchema.optional(),
-  supportedEfforts: z.array(ReasoningEffortSchema).optional(),
-  interleaved: z.boolean().optional()
+  supportedEfforts: z.array(ReasoningEffortSchema).optional()
 }
 
 /**
@@ -59,33 +58,34 @@ export const ReasoningSupportSchema = z.object({
 })
 
 // Parameter support configuration
+// Defaults reflect the most common LLM provider capabilities
 export const ParameterSupportSchema = z.object({
   temperature: z
     .object({
       supported: z.boolean(),
       range: NumericRangeSchema.optional()
     })
-    .optional(),
+    .default({ supported: true }),
 
   topP: z
     .object({
       supported: z.boolean(),
       range: NumericRangeSchema.optional()
     })
-    .optional(),
+    .default({ supported: true }),
 
   topK: z
     .object({
       supported: z.boolean(),
       range: NumericRangeSchema.optional()
     })
-    .optional(),
+    .default({ supported: false }),
 
-  frequencyPenalty: z.boolean().optional(),
-  presencePenalty: z.boolean().optional(),
-  maxTokens: z.boolean().optional(),
-  stopSequences: z.boolean().optional(),
-  systemMessage: z.boolean().optional()
+  frequencyPenalty: z.boolean().default(true),
+  presencePenalty: z.boolean().default(true),
+  maxTokens: z.boolean().default(true),
+  stopSequences: z.boolean().default(true),
+  systemMessage: z.boolean().default(true)
 })
 
 /**
