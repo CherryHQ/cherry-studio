@@ -10,6 +10,7 @@ import fs from 'fs/promises'
 
 import { DexieFileReader } from '../utils/DexieFileReader'
 import { DexieSettingsReader, type DexieSettingsRecord } from '../utils/DexieSettingsReader'
+import { LegacyHomeConfigReader } from '../utils/LegacyHomeConfigReader'
 import { LocalStorageReader } from '../utils/LocalStorageReader'
 import { ReduxStateReader } from '../utils/ReduxStateReader'
 
@@ -30,6 +31,7 @@ export interface MigrationContext {
     dexieExport: DexieFileReader
     dexieSettings: DexieSettingsReader
     localStorage: LocalStorageReader
+    legacyHomeConfig: LegacyHomeConfigReader
   }
 
   // Target database
@@ -90,7 +92,8 @@ export async function createMigrationContext(
       reduxState: new ReduxStateReader(reduxData),
       dexieExport: dexieFileReader,
       dexieSettings: new DexieSettingsReader(dexieSettingsRecords),
-      localStorage: new LocalStorageReader(localStorageRecords)
+      localStorage: new LocalStorageReader(localStorageRecords),
+      legacyHomeConfig: new LegacyHomeConfigReader()
     },
     db,
     sharedData: new Map(),

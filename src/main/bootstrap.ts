@@ -1,3 +1,16 @@
+/**
+ * @deprecated Scheduled for removal in v2.0.0
+ * ⚠️ NOTICE: V2 DATA&UI REFACTORING
+ * STOP: Feature PRs affecting this file are currently BLOCKED.
+ *
+ * This file is a v1 leftover. Its responsibilities (initializing the app data
+ * directory via `~/.cherrystudio/config/config.json` and copying occupied dirs
+ * during a userData migration) will be absorbed by BootConfigService and the
+ * lifecycle system in v2. Do not extend this file. Do not treat its patterns
+ * as a baseline for new design — route new boot-time logic through
+ * BootConfigService and the lifecycle phases instead.
+ */
+
 import { occupiedDirs } from '@shared/config/constant'
 import { app } from 'electron'
 import fs from 'fs'
