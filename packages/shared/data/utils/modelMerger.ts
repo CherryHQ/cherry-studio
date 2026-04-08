@@ -11,8 +11,13 @@ import type {
   ProtoProviderModelOverride,
   ProtoReasoningSupport
 } from '@cherrystudio/provider-registry'
-import type { Modality, ModelCapability, ReasoningEffort as ReasoningEffortType } from '@cherrystudio/provider-registry'
-import { EndpointType, objectValues, ReasoningEffort } from '@cherrystudio/provider-registry'
+import type {
+  EndpointType,
+  Modality,
+  ModelCapability,
+  ReasoningEffort as ReasoningEffortType
+} from '@cherrystudio/provider-registry'
+import { ENDPOINT_TYPE, objectValues, REASONING_EFFORT } from '@cherrystudio/provider-registry'
 import * as z from 'zod'
 
 import type { Model, RuntimeModelPricing, RuntimeReasoning } from '../types/model'
@@ -78,7 +83,7 @@ const UserProviderRowSchema = z.object({
   presetProviderId: z.string().nullish(),
   name: z.string(),
   endpointConfigs: z.record(z.string(), EndpointConfigSchema).nullish(),
-  defaultChatEndpoint: z.enum(objectValues(EndpointType)).nullish(),
+  defaultChatEndpoint: z.enum(objectValues(ENDPOINT_TYPE)).nullish(),
   apiKeys: z.array(ApiKeyEntrySchema.pick({ id: true, key: true, label: true, isEnabled: true })).nullish(),
   authConfig: z.object({ type: z.string() }).catchall(z.unknown()).nullish(),
   apiFeatures: ApiFeaturesSchema.nullish(),
@@ -383,35 +388,35 @@ export function mergeProviderConfig(
 // ═══════════════════════════════════════════════════════════════════════════════
 
 const CHAT_REASONING_ENDPOINT_PRIORITY: EndpointType[] = [
-  EndpointType.OPENAI_RESPONSES,
-  EndpointType.OPENAI_CHAT_COMPLETIONS,
-  EndpointType.ANTHROPIC_MESSAGES,
-  EndpointType.GOOGLE_GENERATE_CONTENT,
-  EndpointType.OLLAMA_CHAT,
-  EndpointType.OLLAMA_GENERATE,
-  EndpointType.OPENAI_TEXT_COMPLETIONS
+  ENDPOINT_TYPE.OPENAI_RESPONSES,
+  ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
+  ENDPOINT_TYPE.ANTHROPIC_MESSAGES,
+  ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT,
+  ENDPOINT_TYPE.OLLAMA_CHAT,
+  ENDPOINT_TYPE.OLLAMA_GENERATE,
+  ENDPOINT_TYPE.OPENAI_TEXT_COMPLETIONS
 ]
 
 /** Default effort levels per reasoning format type (when not specified in catalog) */
 const DEFAULT_EFFORTS: Partial<Record<ReasoningFormatType, ReasoningEffortType[]>> = {
   'openai-chat': [
-    ReasoningEffort.NONE,
-    ReasoningEffort.MINIMAL,
-    ReasoningEffort.LOW,
-    ReasoningEffort.MEDIUM,
-    ReasoningEffort.HIGH
+    REASONING_EFFORT.NONE,
+    REASONING_EFFORT.MINIMAL,
+    REASONING_EFFORT.LOW,
+    REASONING_EFFORT.MEDIUM,
+    REASONING_EFFORT.HIGH
   ],
   'openai-responses': [
-    ReasoningEffort.NONE,
-    ReasoningEffort.MINIMAL,
-    ReasoningEffort.LOW,
-    ReasoningEffort.MEDIUM,
-    ReasoningEffort.HIGH
+    REASONING_EFFORT.NONE,
+    REASONING_EFFORT.MINIMAL,
+    REASONING_EFFORT.LOW,
+    REASONING_EFFORT.MEDIUM,
+    REASONING_EFFORT.HIGH
   ],
   anthropic: [],
-  gemini: [ReasoningEffort.LOW, ReasoningEffort.MEDIUM, ReasoningEffort.HIGH],
-  'enable-thinking': [ReasoningEffort.NONE, ReasoningEffort.LOW, ReasoningEffort.MEDIUM, ReasoningEffort.HIGH],
-  'thinking-type': [ReasoningEffort.NONE, ReasoningEffort.AUTO]
+  gemini: [REASONING_EFFORT.LOW, REASONING_EFFORT.MEDIUM, REASONING_EFFORT.HIGH],
+  'enable-thinking': [REASONING_EFFORT.NONE, REASONING_EFFORT.LOW, REASONING_EFFORT.MEDIUM, REASONING_EFFORT.HIGH],
+  'thinking-type': [REASONING_EFFORT.NONE, REASONING_EFFORT.AUTO]
 }
 
 function isChatReasoningEndpointType(endpointType: EndpointType): boolean {

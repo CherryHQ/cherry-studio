@@ -3,17 +3,27 @@
  * Main entry point for the model and provider registry system
  */
 
-// Enums (canonical source of truth)
+// Enums — const objects (SCREAMING_CASE)
 export {
+  ANTHROPIC_REASONING_EFFORT,
+  CURRENCY,
+  ENDPOINT_TYPE,
+  GEMINI_THINKING_LEVEL,
+  MODALITY,
+  MODEL_CAPABILITY,
+  objectValues,
+  OPENAI_REASONING_EFFORT,
+  REASONING_EFFORT
+} from './schemas/enums'
+
+// Enum types (PascalCase, derived from const objects)
+export type {
   AnthropicReasoningEffort,
   Currency,
-  ENDPOINT_TYPE,
   EndpointType,
-  MODALITY,
+  GeminiThinkingLevel,
   Modality,
-  MODEL_CAPABILITY,
   ModelCapability,
-  objectValues,
   OpenAIReasoningEffort,
   ReasoningEffort
 } from './schemas/enums'

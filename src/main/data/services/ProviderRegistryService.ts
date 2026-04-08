@@ -15,7 +15,8 @@ import type {
   ProtoProviderModelOverride,
   RegistryEndpointConfig
 } from '@cherrystudio/provider-registry'
-import { EndpointType } from '@cherrystudio/provider-registry'
+import type { EndpointType } from '@cherrystudio/provider-registry'
+import { ENDPOINT_TYPE } from '@cherrystudio/provider-registry'
 import {
   readModelRegistry,
   readProviderModelRegistry,
@@ -281,11 +282,11 @@ class ProviderRegistryService {
       providerId: 'cherryai',
       name: 'CherryAI',
       endpointConfigs: {
-        [EndpointType.OPENAI_CHAT_COMPLETIONS]: {
+        [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: {
           baseUrl: 'https://api.cherry-ai.com'
         }
       },
-      defaultChatEndpoint: EndpointType.OPENAI_CHAT_COMPLETIONS
+      defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS
     })
 
     await providerService.batchUpsert(dbRows)

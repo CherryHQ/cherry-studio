@@ -5,11 +5,10 @@
 
 import * as z from 'zod'
 
-import { Currency, objectValues } from './enums'
+import { CURRENCY, objectValues } from './enums'
 
-// Common string types for reuse
-export const ModelIdSchema = z.string()
-export const ProviderIdSchema = z.string()
+export const ModelIdSchema = z.string().min(1)
+export const ProviderIdSchema = z.string().min(1)
 
 /** Version string (e.g., "2026-03-09" or "2026.03.09") */
 export const VersionSchema = z.string().regex(/^\d{4}[-./]\d{2}[-./]\d{2}$/, {
@@ -35,7 +34,7 @@ export const StringRangeSchema = z.object({
 })
 
 // Supported currencies for pricing
-export const ZodCurrencySchema = z.enum(objectValues(Currency)).optional()
+export const ZodCurrencySchema = z.enum(objectValues(CURRENCY)).optional()
 
 // Price per token schema
 // Default currency is USD if not specified

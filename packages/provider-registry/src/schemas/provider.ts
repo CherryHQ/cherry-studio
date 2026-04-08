@@ -6,10 +6,10 @@
 import * as z from 'zod'
 
 import { MetadataSchema, ProviderIdSchema, VersionSchema } from './common'
-import { EndpointType, objectValues, ReasoningEffort } from './enums'
+import { ENDPOINT_TYPE, GEMINI_THINKING_LEVEL, objectValues, REASONING_EFFORT } from './enums'
 import { CommonReasoningFieldsSchema } from './model'
 
-export const EndpointTypeSchema = z.enum(objectValues(EndpointType))
+export const EndpointTypeSchema = z.enum(objectValues(ENDPOINT_TYPE))
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // API Features
@@ -20,20 +20,20 @@ export const ApiFeaturesSchema = z.object({
   // --- Request format flags ---
 
   /** Whether the provider supports array-formatted content in messages */
-  arrayContent: z.boolean().optional(),
+  arrayContent: z.boolean().default(true),
   /** Whether the provider supports stream_options for usage data */
-  streamOptions: z.boolean().optional(),
+  streamOptions: z.boolean().default(true),
 
   // --- Provider-specific parameter flags ---
 
   /** Whether the provider supports the 'developer' role (OpenAI-specific) */
-  developerRole: z.boolean().optional(),
+  developerRole: z.boolean().default(false),
   /** Whether the provider supports service tier selection (OpenAI/Groq-specific) */
-  serviceTier: z.boolean().optional(),
+  serviceTier: z.boolean().default(false),
   /** Whether the provider supports verbosity settings (Gemini-specific) */
-  verbosity: z.boolean().optional(),
+  verbosity: z.boolean().default(false),
   /** Whether the provider supports enable_thinking parameter */
-  enableThinking: z.boolean().optional()
+  enableThinking: z.boolean().default(true)
 })
 
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -44,7 +44,7 @@ export const ApiFeaturesSchema = z.object({
 // (effort levels, token limits) are in model.ts ReasoningSupportSchema.
 // ═══════════════════════════════════════════════════════════════════════════════
 
-const ReasoningEffortSchema = z.enum(objectValues(ReasoningEffort))
+const ReasoningEffortSchema = z.enum(objectValues(REASONING_EFFORT))
 
 /** Provider reasoning format — discriminated union by format type */
 export const ProviderReasoningFormatSchema = z.discriminatedUnion('type', [
@@ -91,7 +91,7 @@ export const ProviderReasoningFormatSchema = z.discriminatedUnion('type', [
           .optional(),
         z
           .object({
-            thinkingLevel: z.enum(['minimal', 'low', 'medium', 'high']).optional()
+            thinkingLevel: z.enum(objectValues(GEMINI_THINKING_LEVEL)).optional()
           })
           .optional()
       ])
@@ -155,8 +155,9 @@ export const ProviderReasoningFormatSchema = z.discriminatedUnion('type', [
     type: z.literal('self-hosted'),
     params: z
       .object({
-        chatTemplateKwargs: z.object({
-          enableThinking: z.boolean().optional(),
+        // snake_case to match actual API parameter names (e.g. vLLM, SGLang)
+        chat_template_kwargs: z.object({
+          enable_thinking: z.boolean().optional(),
           thinking: z.boolean().optional()
         })
       })
@@ -207,7 +208,7 @@ export const ProviderConfigSchema = z
     /** Per-endpoint-type configuration */
     endpointConfigs: z.record(EndpointTypeSchema, RegistryEndpointConfigSchema).optional(),
     /** Default endpoint type for chat requests (must exist in endpointConfigs) */
-    defaultChatEndpoint: EndpointTypeSchema.optional(),
+    defaultChatEndpoint: EndpointTypeSchema,
     /** API feature flags controlling request construction */
     apiFeatures: ApiFeaturesSchema.optional(),
     /** Additional metadata including website URLs */
@@ -215,7 +216,7 @@ export const ProviderConfigSchema = z
   })
   .refine(
     (data) => {
-      if (data.defaultChatEndpoint && data.endpointConfigs) {
+      if (data.endpointConfigs) {
         return data.defaultChatEndpoint in data.endpointConfigs
       }
       return true

@@ -8,10 +8,10 @@
 import * as z from 'zod'
 
 import {
-  EndpointType,
-  Modality,
+  ENDPOINT_TYPE,
+  MODALITY,
   type Model,
-  ModelCapability,
+  MODEL_CAPABILITY,
   objectValues,
   ParameterSupportDbSchema,
   RuntimeModelPricingSchema,
@@ -23,7 +23,7 @@ const ListModelsQuerySchema = z.object({
   /** Filter by provider ID */
   providerId: z.string().optional(),
   /** Filter by capability (ModelCapability string value) */
-  capability: z.enum(objectValues(ModelCapability)).optional(),
+  capability: z.enum(objectValues(MODEL_CAPABILITY)).optional(),
   /** Filter by enabled status */
   enabled: z.boolean().optional()
 })
@@ -44,13 +44,13 @@ const CreateModelDtoSchema = z.object({
   /** UI grouping */
   group: z.string().optional(),
   /** Capabilities */
-  capabilities: z.array(z.enum(objectValues(ModelCapability))).optional(),
+  capabilities: z.array(z.enum(objectValues(MODEL_CAPABILITY))).optional(),
   /** Input modalities */
-  inputModalities: z.array(z.enum(objectValues(Modality))).optional(),
+  inputModalities: z.array(z.enum(objectValues(MODALITY))).optional(),
   /** Output modalities */
-  outputModalities: z.array(z.enum(objectValues(Modality))).optional(),
+  outputModalities: z.array(z.enum(objectValues(MODALITY))).optional(),
   /** Endpoint types */
-  endpointTypes: z.array(z.enum(objectValues(EndpointType))).optional(),
+  endpointTypes: z.array(z.enum(objectValues(ENDPOINT_TYPE))).optional(),
   /** Context window size */
   contextWindow: z.number().optional(),
   /** Maximum output tokens */
@@ -90,7 +90,7 @@ const EnrichModelsDtoSchema = z.object({
       name: z.string().optional(),
       group: z.string().optional(),
       description: z.string().optional(),
-      endpointTypes: z.array(z.enum(objectValues(EndpointType))).optional()
+      endpointTypes: z.array(z.enum(objectValues(ENDPOINT_TYPE))).optional()
     })
   )
 })
