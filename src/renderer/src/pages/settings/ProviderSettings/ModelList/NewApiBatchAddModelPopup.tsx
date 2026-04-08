@@ -52,7 +52,7 @@ const PopupContainer: React.FC<Props> = ({ title, provider, resolve, batchModels
         modelId,
         name: model.name,
         group: model.group,
-        endpointTypes: values.endpointType ? [values.endpointType as number] : undefined
+        endpointTypes: values.endpointType ? [values.endpointType as string] : undefined
       })
     }
     return true

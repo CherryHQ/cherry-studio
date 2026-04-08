@@ -64,7 +64,7 @@ const PopupContainer: React.FC<Props> = ({ title, provider, resolve, model, endp
       modelId,
       name: values.name ? values.name : modelId.toUpperCase(),
       group: values.group ?? getDefaultGroupName(modelId),
-      endpointTypes: isNewApiProvider(provider) && values.endpointType ? [values.endpointType as number] : undefined
+      endpointTypes: isNewApiProvider(provider) && values.endpointType ? [values.endpointType as string] : undefined
     })
 
     return true
