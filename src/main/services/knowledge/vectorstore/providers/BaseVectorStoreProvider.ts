@@ -3,5 +3,5 @@ import type { BaseVectorStore } from '@vectorstores/core'
 
 export abstract class BaseVectorStoreProvider {
   abstract create(base: KnowledgeBase): Promise<BaseVectorStore>
-  abstract delete(base: KnowledgeBase): Promise<void>
+  abstract delete(baseId: string): Promise<void>
 }

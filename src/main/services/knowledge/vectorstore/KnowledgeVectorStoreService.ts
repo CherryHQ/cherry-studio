@@ -23,10 +23,10 @@ export class KnowledgeVectorStoreService extends BaseService {
     return store
   }
 
-  async deleteStore(base: KnowledgeBase): Promise<void> {
-    await this.closeStore(base.id)
-    await libSqlVectorStoreProvider.delete(base)
-    this.instanceCache.delete(base.id)
+  async deleteStore(baseId: string): Promise<void> {
+    await this.closeStore(baseId)
+    await libSqlVectorStoreProvider.delete(baseId)
+    this.instanceCache.delete(baseId)
   }
 
   protected async onStop(): Promise<void> {

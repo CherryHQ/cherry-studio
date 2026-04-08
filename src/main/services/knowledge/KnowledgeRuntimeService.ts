@@ -72,9 +72,9 @@ export class KnowledgeRuntimeService extends BaseService {
     await vectorStoreService.createStore(base)
   }
 
-  async deleteBase(base: KnowledgeBase) {
+  async deleteBase(baseId: string) {
     const vectorStoreService = application.get('KnowledgeVectorStoreService')
-    await vectorStoreService.deleteStore(base)
+    await vectorStoreService.deleteStore(baseId)
   }
 
   async addItems(base: KnowledgeBase, items: KnowledgeItem[]) {
@@ -241,14 +241,17 @@ export class KnowledgeRuntimeService extends BaseService {
       return await this.createBase(base)
     })
     this.ipcHandle(IpcChannel.KnowledgeRuntime_DeleteBase, async (_, payload: { baseId: string }) => {
-      const base = await this.loadBase(payload.baseId)
-      return await this.deleteBase(base)
+      return await this.deleteBase(payload.baseId)
     })
     this.ipcHandle(IpcChannel.KnowledgeRuntime_ExpandDirectory, async (_, payload: { path: string }) => {
-      return await expandDirectoryToCreateItems(payload.path)
+      return {
+        items: await expandDirectoryToCreateItems(payload.path)
+      }
     })
     this.ipcHandle(IpcChannel.KnowledgeRuntime_ExpandSitemap, async (_, payload: { url: string }) => {
-      return await expandSitemapToCreateItems(payload.url)
+      return {
+        items: await expandSitemapToCreateItems(payload.url)
+      }
     })
     this.ipcHandle(IpcChannel.KnowledgeRuntime_AddItems, async (_, payload: { baseId: string; itemIds: string[] }) => {
       const { base, items } = await this.loadBaseAndItems(payload.baseId, payload.itemIds)

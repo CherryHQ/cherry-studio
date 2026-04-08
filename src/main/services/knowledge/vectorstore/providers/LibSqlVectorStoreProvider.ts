@@ -15,7 +15,7 @@ const logger = loggerService.withContext('LibSqlVectorStoreProvider')
 
 export class LibSqlVectorStoreProvider implements BaseVectorStoreProvider {
   async create(base: KnowledgeBase): Promise<BaseVectorStore> {
-    const dbPath = await this.getKnowledgeBaseFilePath(base)
+    const dbPath = await this.getKnowledgeBaseFilePath(base.id)
 
     return new LibSQLVectorStore({
       collection: base.id,
@@ -26,14 +26,14 @@ export class LibSqlVectorStoreProvider implements BaseVectorStoreProvider {
     })
   }
 
-  async delete(base: KnowledgeBase): Promise<void> {
-    const dbPath = await this.getKnowledgeBaseFilePath(base)
+  async delete(baseId: string): Promise<void> {
+    const dbPath = await this.getKnowledgeBaseFilePath(baseId)
 
     try {
       await fs.promises.rm(dbPath, { force: true })
     } catch (error) {
       logger.error('Failed to delete knowledge base vector store file', error as Error, {
-        baseId: base.id,
+        baseId,
         dbPath
       })
       throw error
@@ -41,8 +41,8 @@ export class LibSqlVectorStoreProvider implements BaseVectorStoreProvider {
   }
 
   // todo: migrate to file manager
-  private async getKnowledgeBaseFilePath(base: KnowledgeBase): Promise<string> {
-    const dbPath = path.resolve(path.join(getDataPath(), 'KnowledgeBase'), sanitizeFilename(base.id, '_'))
+  private async getKnowledgeBaseFilePath(baseId: string): Promise<string> {
+    const dbPath = path.resolve(path.join(getDataPath(), 'KnowledgeBase'), sanitizeFilename(baseId, '_'))
     await fs.promises.mkdir(path.dirname(dbPath), { recursive: true })
     return dbPath
   }
