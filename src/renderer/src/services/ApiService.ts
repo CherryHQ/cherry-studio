@@ -563,18 +563,8 @@ function getRotatedApiKey(provider: Provider): string {
 }
 
 export async function fetchModels(provider: Provider): Promise<Model[]> {
-  // Apply API key rotation
-  // NOTE: Shallow copy is intentional. Provider objects are not mutated by downstream code.
-  // Nested properties (if any) are never modified after creation.
-  const providerWithRotatedKey = {
-    ...provider,
-    apiKey: getRotatedApiKey(provider)
-  }
-
-  const AI = new AiProvider(providerWithRotatedKey)
-
   try {
-    return await AI.models()
+    return await window.api.ai.listModels({ providerId: provider.id })
   } catch (error) {
     logger.error('Failed to fetch models from provider', {
       providerId: provider.id,

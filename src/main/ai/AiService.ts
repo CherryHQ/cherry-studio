@@ -92,6 +92,11 @@ export class AiService extends BaseService {
     this.ipcHandle(IpcChannel.Ai_GenerateImage, async (_, request: AiImageRequest) => {
       return this.completionService.generateImage(request)
     })
+
+    // Model listing
+    this.ipcHandle(IpcChannel.Ai_ListModels, async (_, request: AiBaseRequest) => {
+      return this.completionService.listModels(request)
+    })
   }
 
   /**

@@ -218,6 +218,14 @@ export class AiCompletionService {
     return embeddings[0].length
   }
 
+  // ── Model listing ──
+
+  async listModels(request: AiBaseRequest): Promise<Model[]> {
+    const { provider } = await this.resolveFromRedux(request)
+    const { listModels: listModelsFromProvider } = await import('./services/listModels')
+    return listModelsFromProvider(provider)
+  }
+
   // ── API validation ──
 
   async checkModel(request: AiBaseRequest & { timeout?: number }): Promise<{ latency: number }> {

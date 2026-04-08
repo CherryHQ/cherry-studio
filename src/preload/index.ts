@@ -908,7 +908,12 @@ const api = {
       mask?: string
       n?: number
       size?: string
-    }): Promise<{ images: string[] }> => ipcRenderer.invoke(IpcChannel.Ai_GenerateImage, request)
+    }): Promise<{ images: string[] }> => ipcRenderer.invoke(IpcChannel.Ai_GenerateImage, request),
+    listModels: (request: {
+      providerId?: string
+      assistantId?: string
+    }): Promise<Array<{ id: string; name: string; provider: string; group: string; [key: string]: unknown }>> =>
+      ipcRenderer.invoke(IpcChannel.Ai_ListModels, request)
   },
   apiServer: {
     getStatus: (): Promise<GetApiServerStatusResult> => ipcRenderer.invoke(IpcChannel.ApiServer_GetStatus),
