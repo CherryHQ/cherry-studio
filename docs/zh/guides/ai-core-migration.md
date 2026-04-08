@@ -1599,6 +1599,16 @@ interface AgentOptions {
   telemetry?: TelemetrySettings  // AI SDK 原生 otel
 }
 
+// TODO: 以下 AI SDK ToolLoopAgentSettings 字段暂未暴露，按需添加：
+// - id: agent ID，用于 telemetry functionId 分组
+// - output: 结构化输出 schema (Output.object / Output.array)，
+//   启用后 agent 返回类型化的 JSON 而非自由文本
+// - prepareCall: 每次 .stream()/.generate() 调用前触发，
+//   可根据输入动态切换 model/temperature/tools 等所有设置。
+//   当前被 beforeIteration hook 覆盖（外层循环每轮可改所有参数），
+//   但如果需要"同一 agent 实例根据不同输入切换 model"的场景，需要暴露此字段。
+// - callOptionsSchema: 与 prepareCall 配合，定义 CALL_OPTIONS 的 schema
+
 // ── AgentLoopParams ──
 
 interface AgentLoopParams {
