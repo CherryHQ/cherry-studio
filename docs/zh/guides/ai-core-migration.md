@@ -2524,10 +2524,43 @@ AI SDK 根据 approved 决定:
 ```
 
 **操作**:
-1. Renderer `useAiChat` 配置 `sendAutomaticallyWhen: lastAssistantMessageIsCompleteWithApprovalResponses`
-2. Message 渲染组件处理 ToolUIPart 的 `approval-requested` 状态 → 渲染审批按钮
-3. 审批按钮调用 `chat.addToolApprovalResponse({ id, approved, reason })`
-4. AI SDK 自动完成后续流程（执行或拒绝），**无需自建 IPC channel**
+
+Main 侧:
+1. `createMcpTool()` 已声明 `needsApproval` — 但当前硬编码无此字段
+   → 根据 MCPServer 配置决定: `needsApproval: !server.disabledAutoApproveTools?.includes(toolName)`
+   → 即 disabledAutoApproveTools 中的 tool 需要审批，其余自动批准
+2. 内置 tools (WebSearch, Knowledge, Memory) 设置 `needsApproval: false`
+3. Agent tools 可通过 `needsApproval: async ({ toolCall }) => shouldApprove(toolCall)` 做条件审批
+
+Renderer 侧:
+4. `useAiChat` 配置 `sendAutomaticallyWhen: lastAssistantMessageIsCompleteWithApprovalResponses`
+   → AI SDK 在所有 approval 响应后自动发送下一轮请求
+5. Message 渲染组件处理 ToolUIPart 的 `approval-requested` 状态 → 渲染审批按钮
+   → 替代当前 `useMcpToolApproval` hook + `ToolApprovalActions` 组件
+6. 审批按钮调用 `chat.addToolApprovalResponse({ id, approved, reason })`
+   → 替代当前 `confirmToolAction` / `cancelToolAction`
+7. AI SDK 自动完成后续流程（执行或拒绝），**无需自建 IPC channel**
+
+**需要删除的旧代码**（自建 approval 系统）:
+```
+src/renderer/src/utils/userConfirmation.ts           # requestToolConfirmation / confirmToolAction 等
+src/renderer/src/utils/mcp-tools.ts                  # isToolAutoApproved 等
+src/renderer/src/pages/home/Messages/Tools/hooks/
+  useMcpToolApproval.ts                              # 自建 approval 状态管理
+  useAgentToolApproval.ts                            # Agent 专用 approval
+  useToolApproval.ts                                 # 通用 approval 接口
+src/renderer/src/pages/home/Messages/Tools/
+  ToolApprovalActions.tsx                            # 审批按钮组件
+  ToolPermissionRequestCard.tsx                      # 权限请求卡片
+```
+
+**需要修改的文件**:
+```
+src/renderer/src/hooks/useAiChat.ts                  # 添加 sendAutomaticallyWhen
+src/renderer/src/pages/home/Messages/Tools/
+  MessageMcpTool.tsx                                 # 用 ToolUIPart states 替代自建 approval
+src/main/ai/tools/mcpTools.ts                        # createMcpTool 添加 needsApproval 逻辑
+```
 
 **与旧方案对比**:
 
