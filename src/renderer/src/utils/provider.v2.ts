@@ -51,7 +51,7 @@ export function isPerplexityProvider(provider: Provider): boolean {
 }
 
 export function isNewApiProvider(provider: Provider): boolean {
-  return ['new-api', 'cherryin'].includes(provider.id) || provider.presetProviderId === 'new-api'
+  return ['new-api', 'cherryin', 'aionly'].includes(provider.id) || provider.presetProviderId === 'new-api'
 }
 
 export function isSystemProvider(provider: Provider): boolean {

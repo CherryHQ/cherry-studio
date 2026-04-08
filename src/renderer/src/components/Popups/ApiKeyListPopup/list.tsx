@@ -11,7 +11,6 @@ import { isProviderSupportAuth } from '@renderer/services/ProviderService'
 import type { PreprocessProviderId, WebSearchProviderId } from '@renderer/types'
 import type { ApiKeyWithStatus } from '@renderer/types/healthCheck'
 import { HealthStatus } from '@renderer/types/healthCheck'
-import { toV1ProviderShim } from '@renderer/utils/v1ProviderShim'
 import { Card, List, Popconfirm, Space, Typography } from 'antd'
 import { Plus } from 'lucide-react'
 import type { FC } from 'react'
@@ -21,7 +20,7 @@ import styled from 'styled-components'
 
 import { isLlmProvider, useApiKeys } from './hook'
 import ApiKeyItem from './item'
-import type { ApiProvider, UpdateApiProviderFunc } from './types'
+import type { ApiProvider, LlmApiProvider, UpdateApiProviderFunc } from './types'
 
 interface ApiKeyListProps {
   provider: ApiProvider
@@ -78,7 +77,7 @@ export const ApiKeyList: FC<ApiKeyListProps> = ({ provider, updateProvider, show
 
   const shouldAutoFocus = () => {
     if (provider.apiKey) return false
-    return isLlmProvider(provider) && provider.enabled && !isProviderSupportAuth(provider)
+    return isLlmProvider(provider) && provider.enabled && !isProviderSupportAuth(provider.sourceProvider)
   }
 
   // 合并真实 keys 和临时新项
@@ -193,7 +192,6 @@ type DocPreprocessApiKeyListProps = SpecificApiKeyListProps & {
 }
 
 export const LlmApiKeyList: FC<SpecificApiKeyListProps> = ({ providerId, showHealthCheck = true }) => {
-  // TODO(v2-cleanup): Remove v1 shim after useApiKeys/checkApi migrate to v2
   const { provider } = useProvider(providerId)
   const { data: apiKeysData } = useProviderApiKeys(providerId)
   const { models } = useModels({ providerId })
@@ -201,13 +199,20 @@ export const LlmApiKeyList: FC<SpecificApiKeyListProps> = ({ providerId, showHea
 
   const joinedApiKey = useMemo(() => apiKeysData?.keys?.map((k) => k.key).join(',') ?? '', [apiKeysData])
 
-  const v1Provider = useMemo(() => {
+  const llmProvider = useMemo<LlmApiProvider | null>(() => {
     if (!provider) return null
-    return toV1ProviderShim(provider, { models, apiKey: joinedApiKey })
+    return {
+      kind: 'llm',
+      id: provider.id,
+      apiKey: joinedApiKey,
+      enabled: provider.isEnabled,
+      models,
+      sourceProvider: provider
+    }
   }, [provider, models, joinedApiKey])
 
   const shimUpdateProvider = useCallback(
-    (updates: Partial<{ apiKey: string }>) => {
+    (updates: { apiKey: string }) => {
       if (updates.apiKey === undefined) return
       const keys = updates.apiKey
         .split(',')
@@ -219,11 +224,9 @@ export const LlmApiKeyList: FC<SpecificApiKeyListProps> = ({ providerId, showHea
     [updateApiKeys]
   )
 
-  if (!v1Provider) return null
+  if (!llmProvider) return null
 
-  return (
-    <ApiKeyList provider={v1Provider} updateProvider={shimUpdateProvider as any} showHealthCheck={showHealthCheck} />
-  )
+  return <ApiKeyList provider={llmProvider} updateProvider={shimUpdateProvider} showHealthCheck={showHealthCheck} />
 }
 
 export const WebSearchApiKeyList: FC<WebSearchApiKeyList> = ({ providerId, showHealthCheck = true }) => {

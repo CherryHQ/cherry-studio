@@ -4,7 +4,9 @@ import { useModelMutations } from '@data/hooks/useModels'
 import { TopView } from '@renderer/components/TopView'
 import { endpointTypeOptions } from '@renderer/config/endpointTypes'
 import { useDynamicLabelWidth } from '@renderer/hooks/useDynamicLabelWidth'
+import type { Model } from '@shared/data/types/model'
 import { parseUniqueModelId } from '@shared/data/types/model'
+import type { Provider } from '@shared/data/types/provider'
 import type { FormProps } from 'antd'
 import { Form, Modal, Select } from 'antd'
 import { useState } from 'react'
@@ -12,8 +14,8 @@ import { useTranslation } from 'react-i18next'
 
 interface ShowParams {
   title: string
-  provider: any
-  batchModels: any[]
+  provider: Provider
+  batchModels: Model[]
 }
 
 interface Props extends ShowParams {

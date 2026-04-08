@@ -11,7 +11,7 @@ import { useTranslation } from 'react-i18next'
 
 interface ShowParams {
   title: string
-  provider: Provider | any
+  provider: Provider
 }
 
 interface Props extends ShowParams {

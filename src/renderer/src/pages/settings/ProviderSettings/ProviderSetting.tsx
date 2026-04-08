@@ -2,7 +2,6 @@ import { Button, Flex, RowFlex, Switch, Tooltip, WarnTooltip } from '@cherrystud
 import { HelpTooltip } from '@cherrystudio/ui'
 import { useModels } from '@data/hooks/useModels'
 import { useProvider, useProviderApiKeys, useProviderMutations } from '@data/hooks/useProviders'
-import { adaptProvider } from '@renderer/aiCore/provider/providerConfig'
 import OpenAIAlert from '@renderer/components/Alert/OpenAIAlert'
 import { showErrorDetailPopup } from '@renderer/components/ErrorDetailModal'
 import { LoadingIcon } from '@renderer/components/Icons'
@@ -23,17 +22,20 @@ import { isSystemProviderId, SystemProviderIds } from '@renderer/types'
 import type { ApiKeyConnectivity } from '@renderer/types/healthCheck'
 import { HealthStatus } from '@renderer/types/healthCheck'
 import { formatApiHost, formatApiKeys, validateApiHost } from '@renderer/utils'
+import { formatOllamaApiHost, formatVertexApiHost, isWithTrailingSharp } from '@renderer/utils/api'
 import { serializeHealthCheckError } from '@renderer/utils/error'
 import {
   getFancyProviderName,
   isAnthropicProvider,
   isAnthropicSupportedProvider,
   isAzureOpenAIProvider,
+  isCherryAIProvider,
   isGeminiProvider,
   isNewApiProvider,
   isOllamaProvider,
   isOpenAICompatibleProvider,
   isOpenAIResponsesProvider,
+  isPerplexityProvider,
   isSystemProvider,
   isVertexProvider
 } from '@renderer/utils/provider.v2'
@@ -92,7 +94,8 @@ const ANTHROPIC_COMPATIBLE_PROVIDER_IDS = [
   SystemProviderIds.dmxapi,
   SystemProviderIds.mimo,
   SystemProviderIds.openrouter,
-  SystemProviderIds.tokenflux
+  SystemProviderIds.tokenflux,
+  SystemProviderIds.ollama
 ] as const
 type AnthropicCompatibleProviderId = (typeof ANTHROPIC_COMPATIBLE_PROVIDER_IDS)[number]
 
@@ -151,10 +154,9 @@ const ProviderSettingContent: FC<ContentProps> = ({ provider, providerId, isOnbo
   const noAPIKeyInputProviders = ['copilot', 'vertexai'] as const satisfies SystemProviderId[]
   const hideApiKeyInput = noAPIKeyInputProviders.some((id) => id === provider.id)
 
-  // Use v2 provider.websites first, fallback to static config
   const providerConfig = PROVIDER_URLS[provider.id as keyof typeof PROVIDER_URLS]
-  const officialWebsite = provider.websites?.official ?? providerConfig?.websites?.official
-  const apiKeyWebsite = provider.websites?.apiKey ?? providerConfig?.websites?.apiKey
+  const officialWebsite = providerConfig?.websites?.official
+  const apiKeyWebsite = providerConfig?.websites?.apiKey
   const configuredApiHost = providerConfig?.api?.url
 
   const fancyProviderName = getFancyProviderName(provider)
@@ -302,7 +304,7 @@ const ProviderSettingContent: FC<ContentProps> = ({ provider, providerId, isOnbo
       return
     }
 
-    const modelsToCheck = models.filter((model) => !isRerankModel(model as any))
+    const modelsToCheck = models.filter((model) => !isRerankModel(model))
 
     if (isEmpty(modelsToCheck)) {
       window.toast.error({
@@ -312,13 +314,7 @@ const ProviderSettingContent: FC<ContentProps> = ({ provider, providerId, isOnbo
       return
     }
 
-    // TODO(v2-cleanup): Remove v1 shim after SelectProviderModelPopup migrates to v2
-    const v1ProviderForPopup = toV1ProviderShim(provider, {
-      models,
-      apiKey: formattedLocalKey,
-      apiHost
-    })
-    const model = await SelectProviderModelPopup.show({ provider: v1ProviderForPopup })
+    const model = await SelectProviderModelPopup.show({ models })
 
     if (!model) {
       window.toast.error(i18n.t('message.error.enter.model'))
@@ -333,7 +329,7 @@ const ProviderSettingContent: FC<ContentProps> = ({ provider, providerId, isOnbo
         apiKey: formattedLocalKey,
         apiHost
       })
-      await checkApi(v1ProviderForCheck, model as V1Model)
+      await checkApi(v1ProviderForCheck, model as unknown as V1Model)
 
       window.toast.success({
         timeout: 2000,
@@ -377,40 +373,46 @@ const ProviderSettingContent: FC<ContentProps> = ({ provider, providerId, isOnbo
   }, [configuredApiHost, apiHost])
 
   const hostPreview = () => {
-    // TODO(v2-cleanup): Remove v1 shim after adaptProvider migrates to v2
-    const v1ProviderForAdapt = toV1ProviderShim(provider, { apiHost })
-    const formattedApiHost = adaptProvider({ provider: v1ProviderForAdapt }).apiHost
+    const appendVersion = !isWithTrailingSharp(apiHost)
+    let formattedHost: string
 
-    if (isOllamaProvider(provider)) {
-      return formattedApiHost + '/chat'
+    if (isAnthropicProvider(provider)) {
+      const anthropicHost = provider.endpointConfigs?.[EndpointType.ANTHROPIC_MESSAGES]?.baseUrl
+      formattedHost = formatApiHost(anthropicHost || apiHost, appendVersion)
+    } else if (
+      provider.id === 'copilot' ||
+      provider.id === 'github' ||
+      isCherryAIProvider(provider) ||
+      isPerplexityProvider(provider) ||
+      isNewApiProvider(provider) ||
+      isAzureOpenAIProvider(provider)
+    ) {
+      formattedHost = formatApiHost(apiHost, false)
+    } else if (isOllamaProvider(provider)) {
+      formattedHost = formatOllamaApiHost(apiHost)
+    } else if (isGeminiProvider(provider)) {
+      formattedHost = formatApiHost(apiHost, appendVersion, 'v1beta')
+    } else if (isVertexProvider(provider)) {
+      formattedHost = formatVertexApiHost(apiHost)
+    } else {
+      formattedHost = formatApiHost(apiHost, appendVersion)
     }
 
-    if (isOpenAICompatibleProvider(provider)) {
-      return formattedApiHost + '/chat/completions'
-    }
-
+    if (isOllamaProvider(provider)) return formattedHost + '/chat'
+    if (provider.id === 'gateway') return formattedHost + '/language-model'
+    if (isOpenAICompatibleProvider(provider)) return formattedHost + '/chat/completions'
     if (isAzureOpenAIProvider(provider)) {
       const ver = provider.settings?.apiVersion || ''
       const path = !['preview', 'v1'].includes(ver)
-        ? `/v1/chat/completions?apiVersion=v1`
-        : `/v1/responses?apiVersion=v1`
-      return formattedApiHost + path
+        ? '/v1/chat/completions?apiVersion=v1'
+        : '/v1/responses?apiVersion=v1'
+      return formattedHost + path
     }
-
-    if (isAnthropicProvider(provider)) {
-      return formattedApiHost + '/messages'
-    }
-
-    if (isGeminiProvider(provider)) {
-      return formattedApiHost + '/models'
-    }
-    if (isOpenAIResponsesProvider(provider)) {
-      return formattedApiHost + '/responses'
-    }
-    if (isVertexProvider(provider)) {
-      return formattedApiHost + '/publishers/google'
-    }
-    return formattedApiHost
+    if (isAnthropicProvider(provider)) return formattedHost + '/messages'
+    if (isGeminiProvider(provider)) return formattedHost + '/models'
+    if (isOpenAIResponsesProvider(provider)) return formattedHost + '/responses'
+    if (isVertexProvider(provider)) return formattedHost + '/publishers/google'
+    return formattedHost
   }
 
   // API key 连通性检查状态指示器，目前仅在失败时显示
@@ -528,7 +530,7 @@ const ProviderSettingContent: FC<ContentProps> = ({ provider, providerId, isOnbo
         />
       </SettingTitle>
       <Divider style={{ width: '100%', margin: '10px 0' }} />
-      {isProviderSupportAuth(provider as any) && <ProviderOAuth providerId={provider.id} />}
+      {isProviderSupportAuth(provider) && <ProviderOAuth providerId={provider.id} />}
       {isCherryIN && <CherryINOAuth providerId={provider.id} />}
       {provider.id === 'openai' && <OpenAIAlert />}
       {provider.id === 'ovms' && <OVMSSettings />}
@@ -574,7 +576,7 @@ const ProviderSettingContent: FC<ContentProps> = ({ provider, providerId, isOnbo
                   placeholder={t('settings.provider.api_key.label')}
                   onChange={(e) => setLocalApiKey(e.target.value)}
                   spellCheck={false}
-                  autoFocus={provider.isEnabled && providerApiKey === '' && !isProviderSupportAuth(provider as any)}
+                  autoFocus={provider.isEnabled && providerApiKey === '' && !isProviderSupportAuth(provider)}
                   disabled={provider.id === 'copilot'}
                   suffix={renderStatusIndicator()}
                 />

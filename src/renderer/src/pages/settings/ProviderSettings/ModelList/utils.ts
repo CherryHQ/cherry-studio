@@ -1,5 +1,3 @@
-import type { Model } from '@renderer/types'
+import type { Model } from '@shared/data/types/model'
 
-export const isValidNewApiModel = (model: Model): boolean => {
-  return !!(model.supported_endpoint_types && model.supported_endpoint_types.length > 0)
-}
+export const isValidNewApiModel = (model: Model): boolean => !!(model.endpointTypes && model.endpointTypes.length > 0)

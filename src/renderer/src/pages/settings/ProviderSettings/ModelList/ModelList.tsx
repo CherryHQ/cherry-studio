@@ -12,11 +12,9 @@ import AddModelPopup from '@renderer/pages/settings/ProviderSettings/ModelList/A
 import DownloadOVMSModelPopup from '@renderer/pages/settings/ProviderSettings/ModelList/DownloadOVMSModelPopup'
 import ManageModelsPopup from '@renderer/pages/settings/ProviderSettings/ModelList/ManageModelsPopup'
 import NewApiAddModelPopup from '@renderer/pages/settings/ProviderSettings/ModelList/NewApiAddModelPopup'
-import type { Model as V1Model, Provider as V1Provider } from '@renderer/types'
 import { filterModelsByKeywords } from '@renderer/utils'
 import { getDuplicateModelNames } from '@renderer/utils/model'
 import { isNewApiProvider } from '@renderer/utils/provider.v2'
-import { toV1ProviderShim } from '@renderer/utils/v1ProviderShim'
 import type { Model } from '@shared/data/types/model'
 import { parseUniqueModelId } from '@shared/data/types/model'
 import { Space, Spin } from 'antd'
@@ -39,7 +37,7 @@ const MODEL_COUNT_THRESHOLD = 10
  * 根据搜索文本筛选模型、分组并排序
  */
 const calculateModelGroups = (models: Model[], searchText: string): ModelGroups => {
-  const filteredModels = searchText ? filterModelsByKeywords(searchText, models as any) : models
+  const filteredModels = searchText ? filterModelsByKeywords(searchText, models) : models
   const grouped = groupBy(filteredModels, 'group')
   return sortBy(toPairs(grouped), [0]).reduce((acc, [key, value]) => {
     acc[key] = value
@@ -57,7 +55,7 @@ const ModelList: React.FC<ModelListProps> = ({ providerId }) => {
   const { data: apiKeysData } = useProviderApiKeys(providerId)
   const joinedApiKey = apiKeysData?.keys?.map((k) => k.key).join(',') ?? ''
   const { deleteModel } = useModelMutations()
-  const duplicateModelNames = useMemo(() => getDuplicateModelNames(models as any), [models])
+  const duplicateModelNames = useMemo(() => getDuplicateModelNames(models), [models])
 
   const removeModel = useCallback(
     async (model: Model) => {
@@ -68,13 +66,13 @@ const ModelList: React.FC<ModelListProps> = ({ providerId }) => {
   )
 
   const handleEditModel = useCallback(
-    (model: Model) => provider && EditModelPopup.show({ provider: provider as any, model: model as any }),
+    (model: Model) => provider && EditModelPopup.show({ provider, model }),
     [provider]
   )
 
   const providerConfig = provider ? PROVIDER_URLS[provider.id as keyof typeof PROVIDER_URLS] : undefined
-  const docsWebsite = provider?.websites?.docs ?? providerConfig?.websites?.docs
-  const modelsWebsite = provider?.websites?.models ?? providerConfig?.websites?.models
+  const docsWebsite = providerConfig?.websites?.docs
+  const modelsWebsite = providerConfig?.websites?.models
 
   const [searchText, _setSearchText] = useState('')
   const [displayedModelGroups, setDisplayedModelGroups] = useState<ModelGroups | null>(() => {
@@ -84,25 +82,7 @@ const ModelList: React.FC<ModelListProps> = ({ providerId }) => {
     return calculateModelGroups(models, '')
   })
 
-  const v1ProviderForHealth = useMemo((): V1Provider => {
-    if (provider) {
-      return toV1ProviderShim(provider, { models, apiKey: joinedApiKey })
-    }
-    return {
-      id: '',
-      name: '',
-      type: 'openai',
-      apiKey: '',
-      apiHost: '',
-      models: []
-    } as V1Provider
-  }, [provider, models, joinedApiKey])
-
-  const {
-    isChecking: isHealthChecking,
-    modelStatuses,
-    runHealthCheck
-  } = useHealthCheck(v1ProviderForHealth, models as unknown as V1Model[])
+  const { isChecking: isHealthChecking, modelStatuses, runHealthCheck } = useHealthCheck(provider, joinedApiKey, models)
 
   // 将 modelStatuses 数组转换为 Map，实现 O(1) 查找
   const modelStatusMap = useMemo(() => {
@@ -136,14 +116,14 @@ const ModelList: React.FC<ModelListProps> = ({ providerId }) => {
   const onAddModel = useCallback(() => {
     if (!provider) return
     if (isNewApiProvider(provider)) {
-      void NewApiAddModelPopup.show({ title: t('settings.models.add.add_model'), provider: provider as any })
+      void NewApiAddModelPopup.show({ title: t('settings.models.add.add_model'), provider })
     } else {
-      void AddModelPopup.show({ title: t('settings.models.add.add_model'), provider: provider as any })
+      void AddModelPopup.show({ title: t('settings.models.add.add_model'), provider })
     }
   }, [provider, t])
 
   const onDownloadModel = useCallback(
-    () => provider && DownloadOVMSModelPopup.show({ title: t('ovms.download.title'), provider: provider as any }),
+    () => provider && DownloadOVMSModelPopup.show({ title: t('ovms.download.title'), provider }),
     [provider, t]
   )
 
@@ -207,12 +187,12 @@ const ModelList: React.FC<ModelListProps> = ({ providerId }) => {
               <ModelListGroup
                 key={group}
                 groupName={group}
-                models={displayedModelGroups[group] as any}
+                models={displayedModelGroups[group]}
                 duplicateModelNames={duplicateModelNames}
-                modelStatusMap={modelStatusMap as any}
+                modelStatusMap={modelStatusMap}
                 defaultOpen={i <= 5}
-                onEditModel={handleEditModel as any}
-                onRemoveModel={removeModel as any}
+                onEditModel={handleEditModel}
+                onRemoveModel={removeModel}
                 onRemoveGroup={() => displayedModelGroups[group].forEach((model) => removeModel(model))}
               />
             ))}

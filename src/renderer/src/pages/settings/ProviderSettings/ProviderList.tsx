@@ -18,7 +18,6 @@ import {
   isSystemProvider,
   matchKeywordsInProvider
 } from '@renderer/utils/provider.v2'
-import { toV1ProviderShim } from '@renderer/utils/v1ProviderShim'
 import type { Provider } from '@shared/data/types/provider'
 import { useNavigate, useSearch } from '@tanstack/react-router'
 import type { MenuProps } from 'antd'
@@ -187,7 +186,7 @@ const ProviderList: FC<ProviderListProps> = ({ isOnboarding = false }) => {
   }, [search.addProviderData])
 
   const onAddProvider = async () => {
-    const { name: providerName, logo } = await AddProviderPopup.show()
+    const { name: providerName, defaultChatEndpoint, logo } = await AddProviderPopup.show()
 
     if (!providerName.trim()) {
       return
@@ -205,7 +204,7 @@ const ProviderList: FC<ProviderListProps> = ({ isOnboarding = false }) => {
       }
     }
 
-    const newProvider = await addProvider({ providerId, name: providerName.trim() })
+    const newProvider = await addProvider({ providerId, name: providerName.trim(), defaultChatEndpoint })
     setSelectedProvider(newProvider)
   }
 
@@ -222,11 +221,10 @@ const ProviderList: FC<ProviderListProps> = ({ isOnboarding = false }) => {
       key: 'edit',
       icon: <EditIcon size={14} />,
       async onClick() {
-        // TODO(v2-cleanup): Remove v1 shim after AddProviderPopup migrates to v2
-        const { name, logoFile, logo } = await AddProviderPopup.show(toV1ProviderShim(provider))
+        const { name, defaultChatEndpoint, logoFile, logo } = await AddProviderPopup.show(provider)
 
         if (name) {
-          await patchProviderById(provider.id, { name })
+          await patchProviderById(provider.id, { name, defaultChatEndpoint })
           if (provider.id) {
             if (logo) {
               try {
@@ -415,7 +413,7 @@ const ProviderList: FC<ProviderListProps> = ({ isOnboarding = false }) => {
                     width: 24,
                     height: 24
                   }}
-                  provider={provider as any}
+                  provider={provider}
                   customLogos={providerLogos}
                 />
                 <ProviderItemName className="text-nowrap">{getFancyProviderName(provider)}</ProviderItemName>

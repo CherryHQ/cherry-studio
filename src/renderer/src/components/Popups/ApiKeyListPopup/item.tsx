@@ -87,7 +87,7 @@ const ApiKeyItem: FC<ApiKeyItemProps> = ({
       status: keyStatus.status,
       latency: keyStatus.latency,
       error: keyStatus.error,
-      label: keyStatus.model?.name
+      label: keyStatus.modelName
     }
   ]
 

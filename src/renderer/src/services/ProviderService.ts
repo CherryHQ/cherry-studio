@@ -42,7 +42,7 @@ export function getProviderByModel(model?: Model) {
   return provider
 }
 
-export function isProviderSupportAuth(provider: Provider) {
+export function isProviderSupportAuth(provider: { id: string }) {
   const supportProviders = ['302ai', 'silicon', 'aihubmix', 'ppio', 'tokenflux', 'aionly']
   return supportProviders.includes(provider.id)
 }

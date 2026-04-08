@@ -15,8 +15,8 @@ import { useTranslation } from 'react-i18next'
 
 interface ShowParams {
   title: string
-  provider: Provider | any
-  model?: Model | any
+  provider: Provider
+  model?: Model
   endpointType?: number | string
 }
 

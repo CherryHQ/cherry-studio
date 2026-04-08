@@ -20,8 +20,9 @@ import { fetchModels } from '@renderer/services/ApiService'
 import { filterModelsByKeywords } from '@renderer/utils'
 import { isFreeModel } from '@renderer/utils/model'
 import { getFancyProviderName, isNewApiProvider } from '@renderer/utils/provider.v2'
+import { toV1ProviderShim } from '@renderer/utils/v1ProviderShim'
 import type { Model } from '@shared/data/types/model'
-import { EndpointType, parseUniqueModelId } from '@shared/data/types/model'
+import { createUniqueModelId, parseUniqueModelId } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
 import { Empty, Modal, Spin, Tabs } from 'antd'
 import Input from 'antd/es/input/Input'
@@ -91,9 +92,9 @@ const PopupContainer: React.FC<Props> = ({ providerId, resolve }) => {
     [loadingModels, isFilterTypePending, isSearchPending]
   )
 
-  const list: any[] = useMemo(
+  const list = useMemo(
     () =>
-      filterModelsByKeywords(filterSearchText, allModels as any).filter((model: any) => {
+      filterModelsByKeywords(filterSearchText, allModels).filter((model) => {
         switch (actualFilterType) {
           case 'reasoning':
             return isReasoningModel(model)
@@ -116,17 +117,18 @@ const PopupContainer: React.FC<Props> = ({ providerId, resolve }) => {
     [filterSearchText, actualFilterType, allModels]
   )
 
-  const modelGroups = useMemo(() => {
+  const modelGroups: Record<string, Model[]> = useMemo(() => {
     const groupFn = (m: Model) => m.group || provider?.id || ''
-    return provider?.id === 'dashscope'
-      ? {
-          ...groupBy(
-            list.filter((model) => !model.id.startsWith('qwen')),
-            groupFn
-          ),
-          ...groupQwenModels(list.filter((model) => model.id.startsWith('qwen')))
-        }
-      : groupBy(list, groupFn)
+    if (provider?.id === 'dashscope') {
+      const isQwen = (m: Model) => parseUniqueModelId(m.id).modelId.startsWith('qwen')
+      const qwenModels = list.filter(isQwen)
+      const nonQwenModels = list.filter((m) => !isQwen(m))
+      return {
+        ...groupBy(nonQwenModels, groupFn),
+        ...(groupQwenModels(qwenModels) as Record<string, Model[]>)
+      }
+    }
+    return groupBy(list, groupFn)
   }, [list, provider?.id])
 
   const onOk = useCallback(() => setOpen(false), [])
@@ -146,8 +148,8 @@ const PopupContainer: React.FC<Props> = ({ providerId, resolve }) => {
           } else {
             void NewApiAddModelPopup.show({
               title: t('settings.models.add.add_model'),
-              provider: provider as any,
-              model: model as any
+              provider,
+              model
             })
           }
         } else {
@@ -178,13 +180,13 @@ const PopupContainer: React.FC<Props> = ({ providerId, resolve }) => {
       centered: true,
       onOk: () => {
         if (provider && isNewApiProvider(provider)) {
-          if (wouldAddModel.every((m: any) => isValidNewApiModel(m))) {
+          if (wouldAddModel.every(isValidNewApiModel)) {
             wouldAddModel.forEach((m) => onAddModel(m))
           } else {
             void NewApiBatchAddModelPopup.show({
               title: t('settings.models.add.batch_add_models'),
-              batchModels: wouldAddModel as any,
-              provider: provider as any
+              batchModels: wouldAddModel,
+              provider
             })
           }
         } else {
@@ -192,16 +194,12 @@ const PopupContainer: React.FC<Props> = ({ providerId, resolve }) => {
         }
       }
     })
-  }, [list, existingModels, existingModelIds, onAddModel, provider, t])
+  }, [list, existingModelIds, onAddModel, provider, t])
 
   const loadModels = useCallback(
     async (prov: Provider) => {
       setLoadingModels(true)
       try {
-        // Bridge v2 Provider → v1 shape for fetchModels (reads apiHost/apiKey)
-        const endpointKey = prov.defaultChatEndpoint ?? EndpointType.OPENAI_CHAT_COMPLETIONS
-        const apiHost = prov.endpointConfigs?.[endpointKey]?.baseUrl ?? ''
-        // Fetch key imperatively — useQuery may not have resolved yet at mount time
         let apiKey = ''
         try {
           const keyData = await dataApiService.get(`/providers/${providerId}/rotated-key` as const)
@@ -209,18 +207,13 @@ const PopupContainer: React.FC<Props> = ({ providerId, resolve }) => {
         } catch {
           // Provider may have no keys configured
         }
-        const v1Shim = {
-          ...prov,
-          apiHost,
-          apiKey
-        }
-        const fetched = await fetchModels(v1Shim as any)
-        const filteredModels = fetched.filter((model: any) => !isEmpty(model.name))
-        // Enrich fetched models against registry via POST /providers/:providerId/registry-models
+        const v1Provider = toV1ProviderShim(prov, { apiKey })
+        const fetched = await fetchModels(v1Provider)
+        const filteredModels = fetched.filter((model) => !isEmpty(model.name))
         try {
           const resolved = await dataApiService.post(`/providers/${providerId}/registry-models` as const, {
             body: {
-              models: filteredModels.map((m: any) => ({
+              models: filteredModels.map((m) => ({
                 modelId: m.id,
                 name: m.name,
                 group: m.group,
@@ -230,8 +223,16 @@ const PopupContainer: React.FC<Props> = ({ providerId, resolve }) => {
           })
           setListModels(resolved as Model[])
         } catch {
-          // Fallback: use raw fetched models (cast to v2 Model[])
-          setListModels(filteredModels as unknown as Model[])
+          setListModels(
+            filteredModels.map(
+              (m) =>
+                ({
+                  ...m,
+                  id: createUniqueModelId(providerId, m.id),
+                  providerId
+                }) as unknown as Model
+            )
+          )
         }
       } catch (error) {
         logger.error(`Failed to load models for provider ${getFancyProviderName(prov)}`, error as Error)
@@ -381,11 +382,11 @@ const PopupContainer: React.FC<Props> = ({ providerId, resolve }) => {
             />
           ) : (
             <ManageModelsList
-              modelGroups={modelGroups as any}
+              modelGroups={modelGroups}
               provider={provider!}
               existingModelIds={existingModelIds}
-              onAddModel={onAddModel as any}
-              onRemoveModel={onRemoveModel as any}
+              onAddModel={onAddModel}
+              onRemoveModel={onRemoveModel}
             />
           )}
         </ListContainer>
