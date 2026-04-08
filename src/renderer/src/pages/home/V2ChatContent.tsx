@@ -1,17 +1,22 @@
+import { dataApiService } from '@data/DataApiService'
+import { loggerService } from '@logger'
 import { isDev } from '@renderer/config/constant'
 import { type CherryUIMessage, useAiChat } from '@renderer/hooks/useAiChat'
 import { type V2ChatOverrides, V2ChatOverridesProvider } from '@renderer/hooks/useMessageOperations'
 import { useTopicMessagesV2 } from '@renderer/hooks/useTopicMessagesV2'
 import { useV2MessageAdapter } from '@renderer/hooks/useV2MessageAdapter'
+import { mapLegacyTopicToDto } from '@renderer/services/AssistantService'
 import type { Assistant, FileMetadata, Model, Topic } from '@renderer/types'
 import type { Message, MessageBlock } from '@renderer/types/newMessage'
 import type { CherryMessagePart } from '@shared/data/types/message'
 import type { FC } from 'react'
-import { useCallback, useMemo } from 'react'
+import { useCallback, useEffect, useMemo, useRef } from 'react'
 
 import Inputbar from './Inputbar/Inputbar'
 import { PartsProvider, V2BlockProvider } from './Messages/Blocks'
 import Messages from './Messages/Messages'
+
+const logger = loggerService.withContext('V2ChatContent')
 
 interface Props {
   assistant: Assistant
@@ -45,7 +50,8 @@ const V2ChatContent: FC<Props> = ({ assistant, topic, setActiveTopic, mainHeight
     adaptedMessages: historyMessages,
     blockMap: historyBlockMap,
     partsMap: historyPartsMap,
-    isLoading: isHistoryLoading
+    isLoading: isHistoryLoading,
+    refresh
   } = useTopicMessagesV2(topic.id)
 
   // Don't mount the chat instance until history is loaded.
@@ -74,6 +80,7 @@ const V2ChatContent: FC<Props> = ({ assistant, topic, setActiveTopic, mainHeight
       historyMessages={historyMessages}
       historyBlockMap={historyBlockMap}
       historyPartsMap={historyPartsMap}
+      refresh={refresh}
     />
   )
 }
@@ -87,6 +94,7 @@ interface InnerProps extends Props {
   historyMessages: Message[]
   historyBlockMap: Record<string, MessageBlock>
   historyPartsMap: Record<string, CherryMessagePart[]>
+  refresh: () => Promise<void>
 }
 
 const V2ChatContentInner: FC<InnerProps> = ({
@@ -97,10 +105,87 @@ const V2ChatContentInner: FC<InnerProps> = ({
   historyUIMessages,
   historyMessages,
   historyBlockMap,
-  historyPartsMap
+  historyPartsMap,
+  refresh
 }) => {
   // Set of persisted message IDs — used to distinguish history vs. live messages
   const historyIds = useMemo(() => new Set(historyUIMessages.map((m) => m.id)), [historyUIMessages])
+
+  // Stable refs so handleFinish can read the latest values without closing over stale state
+  const streamingUIMessagesRef = useRef<CherryUIMessage[]>([])
+  const topicRef = useRef(topic)
+  topicRef.current = topic
+
+  /**
+   * Persist a completed exchange (user + assistant) to DataApi.
+   *
+   * Both messages are written only after the assistant finishes streaming.
+   * - If the stream errors (isError=true), nothing is persisted — DB stays clean.
+   * - User message is created first; parentId is auto-resolved by the server from
+   *   the topic's current activeNodeId.
+   * - Assistant message is created second with parentId = saved user message id.
+   * - On abort (isAbort=true), assistant is persisted with status 'paused'.
+   */
+  const handleFinish = useCallback(
+    async (assistantMessage: CherryUIMessage, isAbort: boolean, isError: boolean) => {
+      if (isError) {
+        logger.warn('Stream ended with error — skipping persistence', { id: assistantMessage.id })
+        return
+      }
+
+      // Find the user message that immediately precedes this assistant response
+      const allMessages = streamingUIMessagesRef.current
+      const assistantIndex = allMessages.findIndex((m) => m.id === assistantMessage.id)
+      const userMessage = assistantIndex > 0 ? allMessages[assistantIndex - 1] : undefined
+
+      if (!userMessage || userMessage.role !== 'user') {
+        logger.error('Could not find preceding user message — skipping persistence', {
+          assistantId: assistantMessage.id
+        })
+        return
+      }
+
+      try {
+        // 0. Ensure topic exists in SQLite (lazy-create for topics originating from IndexedDB/Redux)
+        const currentTopic = topicRef.current
+        try {
+          await dataApiService.get(`/topics/${currentTopic.id}`)
+        } catch {
+          await dataApiService.post('/topics', { body: mapLegacyTopicToDto(currentTopic) })
+          logger.info('Lazy-created topic in SQLite', { topicId: currentTopic.id })
+        }
+
+        // 1. Persist user message (server auto-resolves parentId from topic's activeNodeId)
+        const savedUser = await dataApiService.post(`/topics/${topic.id}/messages`, {
+          body: {
+            role: 'user',
+            data: { parts: userMessage.parts as CherryMessagePart[] },
+            status: 'success'
+          }
+        })
+
+        // 2. Persist assistant message linked to the saved user message
+        const assistantStatus = isAbort ? 'paused' : 'success'
+        const totalTokens = assistantMessage.metadata?.totalTokens
+        await dataApiService.post(`/topics/${topic.id}/messages`, {
+          body: {
+            role: 'assistant',
+            parentId: savedUser.id,
+            assistantId: assistant.id,
+            data: { parts: assistantMessage.parts as CherryMessagePart[] },
+            status: assistantStatus,
+            ...(totalTokens !== undefined && { stats: { totalTokens } })
+          }
+        })
+
+        logger.info('Persisted exchange', { userMsgId: savedUser.id, assistantMsgId: assistantMessage.id })
+        await refresh()
+      } catch (err) {
+        logger.error('Failed to persist exchange', { assistantMsgId: assistantMessage.id, err })
+      }
+    },
+    [topic.id, assistant.id, refresh]
+  )
 
   // useAiChat now receives complete history as initialMessages (guaranteed non-loading)
   const {
@@ -113,7 +198,13 @@ const V2ChatContentInner: FC<InnerProps> = ({
     chatId: topic.id,
     topicId: topic.id,
     assistantId: assistant.id,
-    initialMessages: historyUIMessages.length > 0 ? historyUIMessages : undefined
+    initialMessages: historyUIMessages.length > 0 ? historyUIMessages : undefined,
+    onFinish: handleFinish
+  })
+
+  // Keep ref in sync with latest messages after every render
+  useEffect(() => {
+    streamingUIMessagesRef.current = streamingUIMessages
   })
 
   const v2ChatOverrides = useMemo<V2ChatOverrides>(

@@ -1,5 +1,7 @@
+import { dataApiService } from '@data/DataApiService'
 import { useCache } from '@data/hooks/useCache'
 import { useMultiplePreferences, usePreference } from '@data/hooks/usePreference'
+import { loggerService } from '@logger'
 import AddButton from '@renderer/components/AddButton'
 import AssistantAvatar from '@renderer/components/Avatar/AssistantAvatar'
 import type { DraggableVirtualListRef } from '@renderer/components/DraggableList'
@@ -16,7 +18,7 @@ import { modelGenerating } from '@renderer/hooks/useModel'
 import { useNotesSettings } from '@renderer/hooks/useNotesSettings'
 import { finishTopicRenaming, startTopicRenaming, TopicManager } from '@renderer/hooks/useTopic'
 import { fetchMessagesSummary } from '@renderer/services/ApiService'
-import { getDefaultTopic } from '@renderer/services/AssistantService'
+import { getDefaultTopic, mapLegacyTopicToDto } from '@renderer/services/AssistantService'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import type { RootState } from '@renderer/store'
 import { newMessagesActions } from '@renderer/store/newMessage'
@@ -60,6 +62,8 @@ import { useDispatch, useSelector } from 'react-redux'
 import styled from 'styled-components'
 
 import { TopicManagePanel, useTopicManageMode } from './TopicManageMode'
+
+const logger = loggerService.withContext('Topics')
 
 interface Props {
   assistant: Assistant
@@ -160,6 +164,9 @@ export const Topics: React.FC<Props> = ({ assistant: _assistant, activeTopic, se
       if (assistant.topics.length === 1) {
         const newTopic = getDefaultTopic(assistant.id)
         await db.topics.add({ id: newTopic.id, messages: [] })
+        await dataApiService
+          .post('/topics', { body: mapLegacyTopicToDto(newTopic) })
+          .catch((err) => logger.warn('Failed to dual-write topic to SQLite', { topicId: newTopic.id, err }))
         addTopic(newTopic)
         setActiveTopic(newTopic)
       } else {
