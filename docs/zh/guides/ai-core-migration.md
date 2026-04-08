@@ -1740,6 +1740,90 @@ function runAgentLoop(
  * }
  */
 
+### Retry 策略：两层互补
+
+Agent 执行期间不可避免会遇到 rate limit、timeout、context overflow 等错误。
+Retry 分两层，各管各的：
+
+```
+agentLoop hooks.onError              → 迭代级（context overflow → truncate → retry iteration）
+  └── ai-retry createRetryable(model) → API 调用级（rate limit 429 → delay → retry same call）
+      └── AI SDK maxRetries: 2        → 内置基础重试（网络抖动等）
+```
+
+**Layer 1: AI SDK 内置 `maxRetries`**（已通过 `AgentOptions.maxRetries` 暴露）
+
+最底层。对 transient errors（网络断开、5xx）自动重试，指数退避。默认 2 次。
+不感知 rate limit header，不做 provider fallback。
+
+**Layer 2: `ai-retry` — API 调用级 retry + provider fallback**
+
+包装 model 对象，在 AI SDK 调用前拦截错误。核心能力：
+
+| 内置策略 | 触发条件 | 行为 |
+|---|---|---|
+| `retryAfterDelay` | 429 rate limit | 尊重 `retry-after` header + 指数退避 |
+| `serviceOverloaded` | 529 | 延迟重试，可配 maxAttempts |
+| `serviceUnavailable` | 503 | 切 fallback model |
+| `requestTimeout` | 超时 | 切 fallback model |
+| `contentFilterTriggered` | 内容过滤 | 切 fallback model |
+
+集成方式 — model wrapper，在 aiCore plugin 层或 createAgent 前包装：
+
+```typescript
+import { createRetryable } from 'ai-retry'
+import { retryAfterDelay, serviceOverloaded } from 'ai-retry/retryables'
+
+// 在 buildAgentParams 中包装 model
+const retryableModel = createRetryable({
+  model: resolvedModel,
+  retries: [
+    retryAfterDelay({ delay: 1000, backoffFactor: 2, maxAttempts: 3 }),
+    serviceOverloaded(fallbackModel, { delay: 2000, maxAttempts: 2 }),
+  ],
+  onRetry: (ctx) => logger.warn('Retrying AI call', ctx),
+})
+```
+
+限制：
+- 流式：第一个 chunk 发出后不能 retry（mid-stream 错误传播到调用方）
+- Result-based retry（content filter）仅 generate，不支持 stream
+- 只管单次 API 调用，不管迭代/循环级别
+
+**Layer 3: `hooks.onError` — 迭代级 retry**
+
+最上层。在 agentLoop 外层循环 catch 中调用。感知迭代上下文，可以：
+
+| 错误类型 | onError 行为 |
+|---|---|
+| Context overflow | truncate messages → return 'retry'（重启迭代） |
+| 所有 retries 耗尽 | return 'abort'（终止循环） |
+| Tool 执行失败 | 记录错误 → return 'retry'（让 LLM 看到错误重新决策） |
+| 用户 abort | 不触发 onError（signal.aborted 检查在前） |
+
+```typescript
+hooks: {
+  onError: async ({ error, iterationNumber }) => {
+    if (isContextOverflow(error)) {
+      // truncate context → retry
+      return 'retry'
+    }
+    if (iterationNumber < 3 && isRetryableError(error)) {
+      return 'retry'
+    }
+    return 'abort'
+  }
+}
+```
+
+**三层分工总结**:
+
+| 层 | 管什么 | 谁提供 |
+|---|---|---|
+| `maxRetries` | transient 网络错误 | AI SDK 内置 |
+| `ai-retry` | rate limit + provider fallback + timeout | 第三方库 |
+| `hooks.onError` | context overflow + 迭代级决策 | 自建（agentLoop） |
+
 /**
  * compileContext: 上下文编译器。
  *
