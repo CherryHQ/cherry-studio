@@ -122,7 +122,9 @@ export class AiCompletionService {
         plugins,
         tools,
         system,
-        onFinish: (usage) => this.trackUsage(model, usage)
+        hooks: {
+          onFinish: (result) => this.trackUsage(model, result.totalUsage)
+        }
       },
       request.messages,
       signal
