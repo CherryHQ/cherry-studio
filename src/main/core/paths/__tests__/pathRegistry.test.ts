@@ -50,6 +50,20 @@ describe('pathRegistry.shouldAutoEnsure', () => {
     it('returns true for feature.mcp', () => {
       expect(shouldAutoEnsure('feature.mcp')).toBe(true)
     })
+
+    it('returns true for the new feature.agents.workspaces key', () => {
+      // Registered for BaseService's per-agent workspace parent dir
+      // (`userData/Data/Agents`). Cherry-owned, writable, not opted out.
+      expect(shouldAutoEnsure('feature.agents.workspaces')).toBe(true)
+    })
+
+    it('returns true for feature.agents.skills (now that its value is fixed)', () => {
+      // Value was corrected from CHERRY_HOME/skills (the old orphan value)
+      // to appUserDataData/Skills. The shouldAutoEnsure rule itself is
+      // unchanged — it's not in NO_ENSURE — but exercising it here makes
+      // the rename visible in the test suite.
+      expect(shouldAutoEnsure('feature.agents.skills')).toBe(true)
+    })
   })
 
   describe('cherry-owned files — should auto-ensure (Application.getPath ensures the dirname)', () => {
@@ -135,16 +149,20 @@ describe('pathRegistry.shouldAutoEnsure', () => {
       expect(shouldAutoEnsure('app.install')).toBe(false)
     })
 
-    it('returns false for app.resources', () => {
-      expect(shouldAutoEnsure('app.resources')).toBe(false)
+    it('returns false for app.extra_resources (electron-builder extraResources root)', () => {
+      expect(shouldAutoEnsure('app.extra_resources')).toBe(false)
     })
 
-    it('returns false for app.resources.scripts', () => {
-      expect(shouldAutoEnsure('app.resources.scripts')).toBe(false)
+    it('returns false for app.root.resources (bundled asar-internal resources root)', () => {
+      expect(shouldAutoEnsure('app.root.resources')).toBe(false)
     })
 
-    it('returns false for app.resources.binaries', () => {
-      expect(shouldAutoEnsure('app.resources.binaries')).toBe(false)
+    it('returns false for app.root.resources.scripts', () => {
+      expect(shouldAutoEnsure('app.root.resources.scripts')).toBe(false)
+    })
+
+    it('returns false for app.root.resources.binaries', () => {
+      expect(shouldAutoEnsure('app.root.resources.binaries')).toBe(false)
     })
 
     it('returns false for app.database.migrations (packaged read-only path)', () => {

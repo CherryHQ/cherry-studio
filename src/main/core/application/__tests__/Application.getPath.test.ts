@@ -39,7 +39,7 @@ vi.mock('@main/core/paths/pathRegistry', async () => {
         'feature.memory.db_file': '/mock/userData/Data/Memory/memories.db',
         // NO_ENSURE — exact key entries (build artifacts)
         'app.exe_file': '/mock/install/CherryStudio',
-        'app.resources': '/mock/resources',
+        'app.extra_resources': '/mock/resources',
         // NO_ENSURE — namespace prefixes
         'external.openclaw.config': '/mock/home/.openclaw',
         'sys.home': '/mock/home'
@@ -154,8 +154,8 @@ describe('Application.getPath', () => {
       expect(fs.mkdirSync).not.toHaveBeenCalled()
     })
 
-    it('does not mkdir for keys in the NO_ENSURE exact list (app.resources)', () => {
-      app.getPath('app.resources')
+    it('does not mkdir for keys in the NO_ENSURE exact list (app.extra_resources)', () => {
+      app.getPath('app.extra_resources')
       expect(fs.mkdirSync).not.toHaveBeenCalled()
     })
 

@@ -11,6 +11,15 @@
  *     last segment for files inside a namespace with siblings (e.g.
  *     `app.database.file` paired with `app.database.migrations`)
  *
+ * **Default to `feature.*` for new keys.** The other four scopes
+ * (`cherry.*` / `sys.*` / `app.*` ) describe platform
+ * primitives — OS dirs, Electron app structure, Cherry top-level
+ * infrastructure, third-party tool paths — and are effectively closed;
+ * they rarely grow. Before adding a key under `cherry.*` / `sys.*` /
+ * `app.*`, stop and double-check you're not mis-scoping. Application
+ * functionality almost always belongs under `feature.*`. See
+ * `./README.md` "Default to feature.*" for the full rationale.
+ *
  * **IMPORTANT — file-level constraint**: Do NOT define any object literals
  * other than the registry returned from `buildPathRegistry()` in this file.
  * The ESLint rule `data-schema-key/valid-key` validates EVERY property name
@@ -52,20 +61,27 @@ export function buildPathRegistry() {
   const appSession = app.getPath('sessionData')
   const sysTemp = app.getPath('temp')
   const appTemp = path.join(sysTemp, 'CherryStudio')
-  const appResources = process.resourcesPath ?? path.join(app.getAppPath(), 'resources')
-
-  // app.database.migrations: in dev, __dirname points to the bundled main's
-  // directory (e.g. <project>/out/main/); walking up two levels reaches
-  // project root. In packaged mode, migrations live under resources.
-  // This mirrors the existing DbService.ts resolution.
-  const migrationsDir = app.isPackaged
-    ? path.join(process.resourcesPath, 'migrations/sqlite-drizzle')
-    : path.join(__dirname, '../../migrations/sqlite-drizzle')
+  // appExtraResources: process.resourcesPath — the electron-builder
+  // `extraResources` output dir. Always defined in Electron runtime
+  // (typed as `string`, not `string | undefined`). Distinct from
+  // appRootResources below — NEVER fall back to it, they point at
+  // different physical locations and a silent fallback would write
+  // files to the wrong place. See JSDoc on 'app.extra_resources' key
+  // for the full distinction.
+  const appExtraResources = process.resourcesPath
+  // appRootResources: the `resources/` dir INSIDE app.getAppPath()
+  // (bundled asar contents, also unpacked via asarUnpack). Distinct
+  // from appExtraResources. See JSDoc on 'app.root.resources' key.
+  const appRootResources = path.join(app.getAppPath(), 'resources')
 
   return Object.freeze({
     // ============================================================
     // A. cherry.* — generic infrastructure under ~/.cherrystudio
     // ============================================================
+    // Cherry Studio's top-level config directory under the user's OS
+    // home (`~/.cherrystudio/`). Contains `config/`, `bin/`, `mcp/`,
+    // `trace/`, etc. NOT the same as `sys.home` — which is just the
+    // raw OS home directory.
     'cherry.home': CHERRY_HOME,
     'cherry.bin': path.join(CHERRY_HOME, 'bin'),
     'cherry.config': path.join(CHERRY_HOME, 'config'),
@@ -73,7 +89,14 @@ export function buildPathRegistry() {
     // ============================================================
     // B. sys.* — operating-system directories
     // ============================================================
+    // The user's OS home directory (`os.homedir()`). NOT the same as
+    // `cherry.home` — which is `~/.cherrystudio/` under the user home.
+    // Use `sys.home` when you need the raw home path; use `cherry.home`
+    // when you want the Cherry-owned config root.
     'sys.home': os.homedir(),
+    // OS-wide temporary directory (`app.getPath('temp')`). Shared
+    // across ALL applications on the system. Prefer `app.temp` for
+    // anything Cherry-specific so we can clean it up on our own.
     'sys.temp': sysTemp,
     'sys.downloads': app.getPath('downloads'),
     'sys.documents': app.getPath('documents'),
@@ -81,27 +104,84 @@ export function buildPathRegistry() {
     'sys.music': app.getPath('music'),
     'sys.pictures': app.getPath('pictures'),
     'sys.videos': app.getPath('videos'),
+    // ⚠ OS-managed per-user application data ROOT
+    // (`app.getPath('appData')`). On macOS this is
+    // `~/Library/Application Support/`; on Windows it's `%APPDATA%`.
+    // Shared across ALL apps — Cherry should NOT write directly here.
+    // Use `app.userdata` (Cherry's Electron-assigned subdirectory)
+    // for anything Cherry-owned.
     'sys.appdata': app.getPath('appData'),
     'sys.appdata.autostart': path.join(app.getPath('appData'), 'autostart'), // Linux only
 
     // ============================================================
     // C. app.* — the Electron application itself
     // ============================================================
+    // Path to the running application code (`app.getAppPath()`). In
+    // dev mode this is the project root; in packaged mode this is
+    // `<install>/Resources/app.asar` (a file, not a directory — read
+    // access goes through Electron's fs shim). NOT the same as
+    // `app.install` — which is the directory containing the executable.
     'app.root': app.getAppPath(),
+    // The `resources/` directory INSIDE the app root
+    // (`app.getAppPath() + '/resources/'`). In packaged mode this is
+    // inside `app.asar/`; because `resources/**` is listed in
+    // `asarUnpack` in electron-builder.yml, the same files also live
+    // at `app.asar.unpacked/resources/` for code paths that need a
+    // real filesystem (subprocess spawning, native binary execution).
+    //
+    // ⚠ NOT the same as `app.extra_resources` — which is
+    // `process.resourcesPath`, a DIFFERENT physical location that
+    // holds electron-builder `extraResources:` output. Rule of thumb:
+    //   - File shipped via `extraResources:` → use app.extra_resources
+    //   - File bundled via `files:` (inside asar) → use app.root.resources
+    'app.root.resources': appRootResources,
+    // Subdirectories of app.root.resources (asar-internal bundled assets).
+    'app.root.resources.scripts': path.join(appRootResources, 'scripts'),
+    'app.root.resources.binaries': path.join(appRootResources, 'binaries'),
     'app.exe_file': app.getPath('exe'),
+    // The directory containing the executable file
+    // (`path.dirname(app.getPath('exe'))`). In packaged mode this is
+    // the installation root (e.g. `/Applications/Cherry Studio.app/
+    // Contents/MacOS/` on macOS). NOT the same as `app.root` — which
+    // points at the app code (asar bundle in packaged mode).
     'app.install': path.dirname(app.getPath('exe')),
     'app.logs': LOGS_DIR,
     'app.crash_dumps': app.getPath('crashDumps'),
     'app.session': appSession,
-    'app.resources': appResources,
-    'app.resources.scripts': path.join(appResources, 'scripts'),
-    'app.resources.binaries': path.join(appResources, 'binaries'),
+    // ⚠ electron-builder `extraResources` output root
+    // (`process.resourcesPath`). On macOS this is
+    // `<app>/Contents/Resources/`. Contains files listed in the
+    // `extraResources:` section of `electron-builder.yml` — currently
+    // just `migrations/sqlite-drizzle/` (exposed as
+    // `app.database.migrations`).
+    //
+    // NOT the same as `app.root.resources` above — which is the
+    // `resources/` directory INSIDE the app root (asar bundle). See
+    // the rule-of-thumb comment on `app.root.resources`.
+    'app.extra_resources': appExtraResources,
+    // Cherry-specific subdirectory of sys.temp (`{sys.temp}/CherryStudio/`).
+    // Use this for all transient Cherry data — it isolates our files
+    // from other apps' temp files and lets us clean the whole tree on
+    // shutdown/upgrade.
     'app.temp': appTemp,
+    // Cherry Studio's Electron-managed per-user data directory
+    // (`app.getPath('userData')`). This is a subdirectory of sys.appdata
+    // named after this app (macOS: `~/Library/Application Support/
+    // CherryStudio/`). Owned by Cherry — safe to read/write/delete
+    // freely. NOT the same as `sys.appdata` — which is the OS-level
+    // root shared across apps.
     'app.userdata': appUserData,
     'app.userdata.data': appUserDataData,
     'app.userdata.cache': path.join(appUserData, 'Cache'),
     'app.database.file': path.join(appUserData, 'cherrystudio.sqlite'),
-    'app.database.migrations': migrationsDir,
+    // In dev, __dirname points to the bundled main's directory
+    // (e.g. <project>/out/main/); walking up two levels reaches the
+    // project root. In packaged mode, migrations are shipped via
+    // electron-builder.yml's `extraResources:` section and live under
+    // `appExtraResources`. Mirrors the resolution used by DbService.ts.
+    'app.database.migrations': app.isPackaged
+      ? path.join(appExtraResources, 'migrations/sqlite-drizzle')
+      : path.join(__dirname, '../../migrations/sqlite-drizzle'),
 
     // ============================================================
     // D. feature.* — Cherry-owned feature data / config / temp dirs
@@ -136,7 +216,13 @@ export function buildPathRegistry() {
     'feature.ovms.ovocr': path.join(CHERRY_HOME, 'ovms', 'ovocr'),
 
     // -- Agents feature --
-    'feature.agents.skills': path.join(CHERRY_HOME, 'skills'),
+    // Global read/write store for Cherry's built-in and user-installed
+    // skills. Physical location: `userData/Data/Skills/{folderName}/`.
+    // This is where builtinSkills.ts copies bundled skill templates to,
+    // and where SkillService.ts installs user-acquired skills. The
+    // symlinks under `feature.agents.claude.skills` point here so the
+    // Claude Code SDK can discover them.
+    'feature.agents.skills': path.join(appUserDataData, 'Skills'),
     'feature.agents.skills.temp': path.join(appTemp, 'skill-install'),
     // Claude Code config root directory (parent of feature.agents.claude.skills).
     // Using '.root' suffix (NOT '.home') to distinguish from the 'user root'
@@ -146,6 +232,10 @@ export function buildPathRegistry() {
     'feature.agents.claude.root': path.join(appUserData, '.claude'),
     'feature.agents.claude.skills': path.join(appUserData, '.claude', 'skills'),
     'feature.agents.channels': path.join(appUserDataData, 'Channels'),
+    // Per-agent workspace parent directory. BaseService uses
+    // `path.join(application.getPath('feature.agents.workspaces'), shortId)`
+    // to construct each agent's own workspace under this root.
+    'feature.agents.workspaces': path.join(appUserDataData, 'Agents'),
 
     // -- Files / Notes / Knowledgebase / Memory --
     'feature.files.data': path.join(appUserDataData, 'Files'),
@@ -262,9 +352,10 @@ const NO_ENSURE = [
   'app.root',
   'app.install',
   'app.exe_file',
-  'app.resources',
-  'app.resources.scripts',
-  'app.resources.binaries',
+  'app.extra_resources',
+  'app.root.resources',
+  'app.root.resources.scripts',
+  'app.root.resources.binaries',
   'app.database.migrations'
 ] as const satisfies readonly NoEnsureEntry[]
 
