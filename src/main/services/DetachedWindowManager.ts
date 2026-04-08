@@ -15,11 +15,24 @@ const logger = loggerService.withContext('DetachedWindowManager')
 /** Height of the tab bar area used for drag-to-attach detection (must match CSS h-10) */
 const TAB_BAR_HEIGHT = 40
 
+/** Must match createWindow BrowserWindow width/height */
+const DETACHED_DEFAULT_WIDTH = 800
+const DETACHED_DEFAULT_HEIGHT = 600
+
+/**
+ * Ignore tiny resize deltas when syncing stored size — Chromium may nudge bounds by 1px on move
+ * (see electron#18978), which would poison size if we treated every resize as user intent.
+ */
+const RESIZE_TRACK_THRESHOLD_PX = 3
+
 @Injectable('DetachedWindowManager')
 @ServicePhase(Phase.WhenReady)
 @DependsOn(['WindowService'])
 export class DetachedWindowManager extends BaseService {
   private windows: Map<string, BrowserWindow> = new Map()
+
+  /** Logical size for setBounds during drag; avoids setPosition + DPI drift (electron#9477). */
+  private windowSizes: Map<string, { width: number; height: number }> = new Map()
 
   protected async onInit() {
     this.registerIpcHandlers()
@@ -65,7 +78,14 @@ export class DetachedWindowManager extends BaseService {
       // but we want to move the detached window identified by tabId.
       const win = this.windows.get(payload.tabId) ?? BrowserWindow.fromWebContents(event.sender)
       if (win && !win.isDestroyed()) {
-        win.setPosition(Math.round(payload.x), Math.round(payload.y))
+        const x = Math.round(payload.x)
+        const y = Math.round(payload.y)
+        const size = this.windowSizes.get(payload.tabId) ?? {
+          width: DETACHED_DEFAULT_WIDTH,
+          height: DETACHED_DEFAULT_HEIGHT
+        }
+        // setBounds(x,y,fixedW,fixedH) avoids repeated setPosition growing the window on scaled displays
+        win.setBounds({ x, y, width: size.width, height: size.height })
         if (!win.isVisible()) {
           win.show()
         }
@@ -151,8 +171,8 @@ export class DetachedWindowManager extends BaseService {
     const hasPosition = x !== undefined && y !== undefined
 
     const win = new BrowserWindow({
-      width: 800,
-      height: 600,
+      width: DETACHED_DEFAULT_WIDTH,
+      height: DETACHED_DEFAULT_HEIGHT,
       minWidth: 400,
       minHeight: 300,
       ...(hasPosition ? { x, y } : {}),
@@ -212,8 +232,26 @@ export class DetachedWindowManager extends BaseService {
       return { action: 'deny' }
     })
 
+    this.windowSizes.set(tabId, { width: DETACHED_DEFAULT_WIDTH, height: DETACHED_DEFAULT_HEIGHT })
+
+    win.on('resize', () => {
+      if (win.isDestroyed()) return
+      const b = win.getBounds()
+      const prev = this.windowSizes.get(tabId)
+      if (!prev) {
+        this.windowSizes.set(tabId, { width: b.width, height: b.height })
+        return
+      }
+      const dw = Math.abs(b.width - prev.width)
+      const dh = Math.abs(b.height - prev.height)
+      if (dw >= RESIZE_TRACK_THRESHOLD_PX || dh >= RESIZE_TRACK_THRESHOLD_PX) {
+        this.windowSizes.set(tabId, { width: b.width, height: b.height })
+      }
+    })
+
     win.on('closed', () => {
       this.windows.delete(tabId)
+      this.windowSizes.delete(tabId)
     })
 
     this.windows.set(tabId, win)
