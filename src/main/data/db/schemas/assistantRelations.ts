@@ -39,7 +39,7 @@ export const assistantKnowledgeBaseTable = sqliteTable(
     assistantId: text()
       .notNull()
       .references(() => assistantTable.id, { onDelete: 'cascade' }),
-    // TODO: Add FK to knowledge_base table once created — .references(() => knowledgeBaseTable.id, { onDelete: 'cascade' })
+    // TODO(knowledge-base-table): Add FK — .references(() => knowledgeBaseTable.id, { onDelete: 'cascade' })
     knowledgeBaseId: text().notNull(),
     ...createUpdateTimestamps
   },

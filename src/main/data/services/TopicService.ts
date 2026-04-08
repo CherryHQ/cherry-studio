@@ -67,56 +67,54 @@ export class TopicService {
 
     // If forking from existing node, copy the path
     if (dto.sourceNodeId) {
-      // Verify source node exists
-      try {
-        await messageService.getById(dto.sourceNodeId)
-      } catch {
-        throw DataApiErrorFactory.notFound('Message', dto.sourceNodeId)
-      }
+      // Verify source node exists (let NOT_FOUND propagate naturally)
+      await messageService.getById(dto.sourceNodeId)
 
       // Get path from root to source node
       const path = await messageService.getPathToNode(dto.sourceNodeId)
 
-      // Create new topic first using returning() to get the id
-      const [topicRow] = await db
-        .insert(topicTable)
-        .values({
-          name: dto.name,
-          assistantId: dto.assistantId,
-          groupId: dto.groupId
-        })
-        .returning()
-
-      const topicId = topicRow.id
-
-      // Copy messages with new IDs using returning()
-      const idMapping = new Map<string, string>()
-      let activeNodeId: string | null = null
-
-      for (const message of path) {
-        const newParentId = message.parentId ? idMapping.get(message.parentId) || null : null
-
-        const [messageRow] = await db
-          .insert(messageTable)
+      // Wrap fork in transaction for atomicity
+      const topicId = await db.transaction(async (tx) => {
+        const [topicRow] = await tx
+          .insert(topicTable)
           .values({
-            topicId,
-            parentId: newParentId,
-            role: message.role,
-            data: message.data,
-            status: message.status,
-            siblingsGroupId: 0, // Simplify multi-model to normal node
-            modelId: message.modelId,
-            traceId: null,
-            stats: null
+            name: dto.name,
+            assistantId: dto.assistantId,
+            groupId: dto.groupId
           })
           .returning()
 
-        idMapping.set(message.id, messageRow.id)
-        activeNodeId = messageRow.id
-      }
+        const id = topicRow.id
 
-      // Update topic with active node
-      await db.update(topicTable).set({ activeNodeId }).where(eq(topicTable.id, topicId))
+        // Copy messages with new IDs
+        const idMapping = new Map<string, string>()
+        let activeNodeId: string | null = null
+
+        for (const message of path) {
+          const newParentId = message.parentId ? idMapping.get(message.parentId) || null : null
+
+          const [messageRow] = await tx
+            .insert(messageTable)
+            .values({
+              topicId: id,
+              parentId: newParentId,
+              role: message.role,
+              data: message.data,
+              status: message.status,
+              siblingsGroupId: 0,
+              modelId: message.modelId,
+              traceId: null,
+              stats: null
+            })
+            .returning()
+
+          idMapping.set(message.id, messageRow.id)
+          activeNodeId = messageRow.id
+        }
+
+        await tx.update(topicTable).set({ activeNodeId }).where(eq(topicTable.id, id))
+        return id
+      })
 
       logger.info('Created topic by forking', {
         id: topicId,

@@ -142,7 +142,9 @@ export function useAssistant(id: string) {
         }
       } else {
         // 切换到非思考模型时保留cache
-        cacheService.set(cacheKey, currentReasoningEffort)
+        if (currentReasoningEffort !== undefined) {
+          cacheService.set(cacheKey, currentReasoningEffort)
+        }
         updateAssistantSettings({
           reasoning_effort: undefined,
           qwenThinkMode: undefined

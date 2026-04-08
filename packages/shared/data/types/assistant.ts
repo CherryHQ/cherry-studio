@@ -30,25 +30,25 @@ export const AssistantSettingsSchema = z.object({
   // -- Inference parameters --
   // Defaults: AssistantService.ts L45–62, constants from config/constant.ts
   /** @default 1.0 — from DEFAULT_TEMPERATURE */
-  temperature: z.number().default(1.0),
+  temperature: z.number().min(0).max(2).default(1.0),
   /** @default false — disabled = use model's own default */
   enableTemperature: z.boolean().default(false),
   /** @default 1 */
-  topP: z.number().default(1),
+  topP: z.number().min(0).max(1).default(1),
   /** @default false */
   enableTopP: z.boolean().default(false),
   // TODO: use constant instead
   /** @default 4096 — from DEFAULT_MAX_TOKENS */
-  maxTokens: z.number().default(4096),
+  maxTokens: z.number().int().positive().default(4096),
   /** @default false — disabled = use model's own default */
   enableMaxTokens: z.boolean().default(false),
   // TODO: use constant instead
   /** @default 5 — from DEFAULT_CONTEXTCOUNT */
-  contextCount: z.number().default(5),
+  contextCount: z.number().int().positive().default(5),
   /** @default true — streaming provides better UX */
   streamOutput: z.boolean().default(true),
   /** @default 'default' — let model decide */
-  reasoning_effort: z.string().default('default'),
+  reasoning_effort: z.enum(['default', 'low', 'medium', 'high', 'none']).default('default'),
   /** @default false — Qwen-specific thinking mode */
   qwenThinkMode: z.boolean().default(false),
 
@@ -58,7 +58,7 @@ export const AssistantSettingsSchema = z.object({
   /** @default 'function' — gracefully falls back to prompt if not supported */
   toolUseMode: z.enum(['function', 'prompt']).default('function'),
   /** @default 20 */
-  maxToolCalls: z.number().default(20),
+  maxToolCalls: z.number().int().positive().default(20),
   /** @default true */
   enableMaxToolCalls: z.boolean().default(true),
 

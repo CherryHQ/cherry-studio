@@ -16,7 +16,7 @@ export const assistantTable = sqliteTable('assistant', {
   emoji: text(),
   description: text().default(''),
   // Default/primary model for this assistant (composite format: "provider::modelId")
-  // TODO: Add FK to model table once merged — .references(() => modelTable.id, { onDelete: 'set null' })
+  // TODO(model-table-merge): Add FK to model table — .references(() => modelTable.id, { onDelete: 'set null' })
   modelId: text(),
   /** JSON blob: inference params + context source toggles */
   settings: text({ mode: 'json' }).$type<AssistantSettings>(),

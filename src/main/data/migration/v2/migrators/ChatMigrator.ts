@@ -359,6 +359,9 @@ export class ChatMigrator extends BaseMigrator {
             }
           })
 
+          // Re-enable FK checks after batch insert completes
+          await db.run(sql`PRAGMA foreign_keys = ON`)
+
           // Update state ONLY after transaction succeeds (transaction safety)
           for (const id of batchMessageIds) {
             this.seenMessageIds.add(id)
@@ -518,7 +521,9 @@ export class ChatMigrator extends BaseMigrator {
           targetCount: targetTopicCount,
           skippedCount: this.skippedTopics,
           skippedMessages: this.skippedMessages,
-          orphanedAssistantTopics: this.orphanedAssistantTopics
+          orphanedAssistantTopics: this.orphanedAssistantTopics,
+          messagesWithMissingBlocks: this.blockStats.messagesWithMissingBlocks,
+          messagesWithEmptyBlocks: this.blockStats.messagesWithEmptyBlocks
         }
       }
     } catch (error) {
