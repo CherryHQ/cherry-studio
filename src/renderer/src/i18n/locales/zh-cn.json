@@ -5745,6 +5745,10 @@
         "search_provider": "搜索服务商",
         "search_provider_placeholder": "选择一个搜索服务商",
         "search_with_time": "搜索包含日期",
+        "prefill_keywords": {
+          "label": "预填充搜索关键词",
+          "tooltip": "开启后，预提取的关键词会包含在网络搜索工具描述中，模型可直接使用。关闭后，模型将自主决定搜索内容。"
+        },
         "set_as_default": "设为默认",
         "subscribe": "黑名单订阅",
         "subscribe_add": "添加订阅",

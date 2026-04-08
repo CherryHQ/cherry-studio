@@ -5745,6 +5745,10 @@
         "search_provider": "Search service provider",
         "search_provider_placeholder": "Choose a search service provider.",
         "search_with_time": "Search with dates included",
+        "prefill_keywords": {
+          "label": "Prefill search keywords",
+          "tooltip": "When enabled, pre-extracted keywords are included in the web search tool description so the model can use them directly. Disable to let the model independently decide what to search for."
+        },
         "set_as_default": "Set as Default",
         "subscribe": "Blacklist Subscription",
         "subscribe_add": "Add Subscription",

@@ -329,10 +329,12 @@ export const searchOrchestrationPlugin = (
           if (needsSearch) {
             // onChunk({ type: ChunkType.EXTERNEL_TOOL_IN_PROGRESS })
             // logger.info('🌐 Adding web search tool with pre-extracted keywords')
+            const prefillKeywords = await preferenceService.get('chat.web_search.prefill_keywords')
             params.tools['builtin_web_search'] = webSearchToolWithPreExtractedKeywords(
               assistant.webSearchProviderId,
               analysisResult.websearch,
-              context.requestId
+              context.requestId,
+              prefillKeywords
             )
           }
         }
