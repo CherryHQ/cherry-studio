@@ -178,7 +178,7 @@ const PopupContainer: React.FC<Props> = ({ providerId, resolve }) => {
       centered: true,
       onOk: () => {
         if (provider && isNewApiProvider(provider)) {
-          if (existingModels.every((m: any) => isValidNewApiModel(m))) {
+          if (wouldAddModel.every((m: any) => isValidNewApiModel(m))) {
             wouldAddModel.forEach((m) => onAddModel(m))
           } else {
             void NewApiBatchAddModelPopup.show({

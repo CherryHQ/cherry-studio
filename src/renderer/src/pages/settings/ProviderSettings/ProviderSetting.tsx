@@ -231,12 +231,26 @@ const ProviderSettingContent: FC<ContentProps> = ({ provider, providerId, isOnbo
       return
     }
     if (isVertexProvider(provider) || apiHost.trim()) {
-      void patchProvider({
-        endpointConfigs: {
-          ...provider.endpointConfigs,
-          [primaryEndpoint]: { ...provider.endpointConfigs?.[primaryEndpoint], baseUrl: apiHost }
-        }
-      })
+      if (isNewApiProvider(provider)) {
+        void patchProvider({
+          endpointConfigs: {
+            ...provider.endpointConfigs,
+            [primaryEndpoint]: { ...provider.endpointConfigs?.[primaryEndpoint], baseUrl: apiHost },
+            [EndpointType.ANTHROPIC_MESSAGES]: {
+              ...provider.endpointConfigs?.[EndpointType.ANTHROPIC_MESSAGES],
+              baseUrl: apiHost
+            }
+          }
+        })
+        setAnthropicHost(apiHost)
+      } else {
+        void patchProvider({
+          endpointConfigs: {
+            ...provider.endpointConfigs,
+            [primaryEndpoint]: { ...provider.endpointConfigs?.[primaryEndpoint], baseUrl: apiHost }
+          }
+        })
+      }
     } else {
       setApiHost(providerApiHost)
     }
