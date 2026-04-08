@@ -12,6 +12,7 @@
 
 import { assistantTable } from '@data/db/schemas/assistant'
 import { assistantKnowledgeBaseTable, assistantMcpServerTable } from '@data/db/schemas/assistantRelations'
+import { entityTagTable, tagTable } from '@data/db/schemas/tagging'
 import { loggerService } from '@logger'
 import type { ExecuteResult, PrepareResult, ValidateResult } from '@shared/data/migration/v2/types'
 import { sql } from 'drizzle-orm'
@@ -94,6 +95,12 @@ export class AssistantMigrator extends BaseMigrator {
         }
       }
 
+      // Fail if all items were skipped but source had data (indicates systemic issue)
+      if (this.skippedCount > 0 && this.preparedResults.length === 0 && allSources.length > 0) {
+        logger.error('All assistants were skipped during preparation', { skipped: this.skippedCount })
+        return { success: false, itemCount: 0, warnings }
+      }
+
       logger.info('Preparation completed', {
         assistantCount: this.preparedResults.length,
         skipped: this.skippedCount
@@ -138,7 +145,9 @@ export class AssistantMigrator extends BaseMigrator {
         const allMcpServerRows = this.preparedResults.flatMap((r) => r.mcpServers)
         const mcpServerIdMapping = ctx.sharedData.get('mcpServerIdMapping') as Map<string, string> | undefined
         if (!mcpServerIdMapping && allMcpServerRows.length > 0) {
-          logger.warn('mcpServerIdMapping not found in sharedData — all assistant_mcp_server rows will be dropped')
+          throw new Error(
+            `mcpServerIdMapping not found in sharedData but ${allMcpServerRows.length} assistant_mcp_server rows need remapping. McpServerMigrator must run before AssistantMigrator.`
+          )
         }
         const resolvedMapping = mcpServerIdMapping ?? new Map<string, string>()
         const mcpServerRows = allMcpServerRows
@@ -161,6 +170,46 @@ export class AssistantMigrator extends BaseMigrator {
         const knowledgeBaseRows = this.preparedResults.flatMap((r) => r.knowledgeBases)
         for (let i = 0; i < knowledgeBaseRows.length; i += BATCH_SIZE) {
           await tx.insert(assistantKnowledgeBaseTable).values(knowledgeBaseRows.slice(i, i + BATCH_SIZE))
+        }
+
+        // --- Tag migration: assistant.tags[] → tag + entity_tag tables ---
+        const uniqueTagNames = new Set<string>()
+        const assistantTagNames = new Map<string, string[]>()
+        for (const r of this.preparedResults) {
+          if (r.tags.length > 0) {
+            assistantTagNames.set(r.assistant.id as string, r.tags)
+            for (const t of r.tags) uniqueTagNames.add(t)
+          }
+        }
+
+        if (uniqueTagNames.size > 0) {
+          const tagRows = [...uniqueTagNames].map((name) => ({ name }))
+          for (let i = 0; i < tagRows.length; i += BATCH_SIZE) {
+            await tx
+              .insert(tagTable)
+              .values(tagRows.slice(i, i + BATCH_SIZE))
+              .onConflictDoNothing()
+          }
+
+          // Query back to get tag IDs (name → id mapping)
+          const insertedTags = await tx.select({ id: tagTable.id, name: tagTable.name }).from(tagTable)
+          const tagNameToId = new Map(insertedTags.map((t) => [t.name, t.id]))
+
+          const entityTagRows: (typeof entityTagTable.$inferInsert)[] = []
+          for (const [assistantId, tags] of assistantTagNames) {
+            for (const tagName of tags) {
+              const tagId = tagNameToId.get(tagName)
+              if (tagId) {
+                entityTagRows.push({ entityType: 'assistant', entityId: assistantId, tagId })
+              }
+            }
+          }
+
+          for (let i = 0; i < entityTagRows.length; i += BATCH_SIZE) {
+            await tx.insert(entityTagTable).values(entityTagRows.slice(i, i + BATCH_SIZE))
+          }
+
+          logger.info(`Migrated ${uniqueTagNames.size} unique tags and ${entityTagRows.length} tag associations`)
         }
       })
 

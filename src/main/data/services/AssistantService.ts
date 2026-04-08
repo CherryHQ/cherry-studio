@@ -13,8 +13,8 @@ import { loggerService } from '@logger'
 import { application } from '@main/core/application'
 import { DataApiErrorFactory } from '@shared/data/api'
 import type { CreateAssistantDto, ListAssistantsQuery, UpdateAssistantDto } from '@shared/data/api/schemas/assistants'
-import type { Assistant } from '@shared/data/types/assistant'
-import { and, asc, eq, inArray, isNull, type SQL } from 'drizzle-orm'
+import { type Assistant, DEFAULT_ASSISTANT_SETTINGS } from '@shared/data/types/assistant'
+import { and, asc, eq, inArray, isNull, type SQL, sql } from 'drizzle-orm'
 
 import { stripNulls } from './utils'
 
@@ -38,7 +38,7 @@ function rowToAssistant(row: AssistantRow, relations: AssistantRelationIds = cre
   const clean = stripNulls(row)
   return {
     ...clean,
-    settings: clean.settings ?? ({} as Assistant['settings']),
+    settings: clean.settings ?? DEFAULT_ASSISTANT_SETTINGS,
     modelId: row.modelId ?? null,
     mcpServerIds: relations.mcpServerIds,
     knowledgeBaseIds: relations.knowledgeBaseIds,
@@ -104,10 +104,22 @@ export class AssistantDataService {
   }
 
   /**
-   * Get an assistant by ID
+   * Get an assistant by ID.
+   * @param options.includeDeleted - If true, also returns soft-deleted assistants (for historical display)
    */
-  async getById(id: string): Promise<Assistant> {
-    const row = await this.getActiveRowById(id)
+  async getById(id: string, options?: { includeDeleted?: boolean }): Promise<Assistant> {
+    const conditions = [eq(assistantTable.id, id)]
+    if (!options?.includeDeleted) {
+      conditions.push(isNull(assistantTable.deletedAt))
+    }
+    const [row] = await this.db
+      .select()
+      .from(assistantTable)
+      .where(and(...conditions))
+      .limit(1)
+    if (!row) {
+      throw DataApiErrorFactory.notFound('Assistant', id)
+    }
     const relations = await this.getRelationIdsByAssistantIds([id])
     return rowToAssistant(row, relations.get(id))
   }
@@ -122,17 +134,28 @@ export class AssistantDataService {
     }
 
     const whereClause = and(...conditions)
+    const page = query.page ?? 1
+    const limit = Math.min(query.limit ?? 100, 500)
+    const offset = (page - 1) * limit
 
-    // No LIMIT/OFFSET — assistant count is small enough to return all at once.
-    // total is derived from result length; page is always 1.
-    const rows = await this.db.select().from(assistantTable).where(whereClause).orderBy(asc(assistantTable.createdAt))
+    const [rows, [{ count }]] = await Promise.all([
+      this.db
+        .select()
+        .from(assistantTable)
+        .where(whereClause)
+        .orderBy(asc(assistantTable.createdAt))
+        .limit(limit)
+        .offset(offset),
+      this.db.select({ count: sql<number>`count(*)` }).from(assistantTable).where(whereClause)
+    ])
+
     const relations = await this.getRelationIdsByAssistantIds(rows.map((row) => row.id))
     const items = rows.map((row) => rowToAssistant(row, relations.get(row.id)))
 
     return {
       items,
-      total: items.length,
-      page: 1
+      total: Number(count),
+      page
     }
   }
 

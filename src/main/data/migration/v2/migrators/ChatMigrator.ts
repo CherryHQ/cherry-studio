@@ -121,6 +121,7 @@ export class ChatMigrator extends BaseMigrator {
   private topicAssistantLookup: Map<string, string> = new Map()
   private skippedTopics = 0
   private skippedMessages = 0
+  private orphanedAssistantTopics = 0
   // Valid assistant IDs from AssistantMigrator (for FK validation)
   private validAssistantIds: Set<string> | null = null
   // Track seen message IDs to handle duplicates across topics
@@ -137,6 +138,7 @@ export class ChatMigrator extends BaseMigrator {
     this.topicAssistantLookup = new Map()
     this.skippedTopics = 0
     this.skippedMessages = 0
+    this.orphanedAssistantTopics = 0
     this.seenMessageIds = new Set()
     this.blockStats = { requested: 0, resolved: 0, messagesWithMissingBlocks: 0, messagesWithEmptyBlocks: 0 }
   }
@@ -280,8 +282,11 @@ export class ChatMigrator extends BaseMigrator {
       const db = ctx.db
       const topicReader = ctx.sources.dexieExport.createStreamReader('topics')
 
-      // Load valid assistant IDs for FK validation
+      // Load valid assistant IDs for FK validation (set by AssistantMigrator)
       this.validAssistantIds = (ctx.sharedData.get('assistantIds') as Set<string>) ?? null
+      if (!this.validAssistantIds) {
+        throw new Error('validAssistantIds not set in sharedData. AssistantMigrator must run before ChatMigrator.')
+      }
 
       // Process topics in batches
       await topicReader.readInBatches<OldTopic>(TOPIC_BATCH_SIZE, async (topics, batchIndex) => {
@@ -497,7 +502,9 @@ export class ChatMigrator extends BaseMigrator {
         stats: {
           sourceCount: this.topicCount,
           targetCount: targetTopicCount,
-          skippedCount: this.skippedTopics
+          skippedCount: this.skippedTopics,
+          skippedMessages: this.skippedMessages,
+          orphanedAssistantTopics: this.orphanedAssistantTopics
         }
       }
     } catch (error) {
@@ -574,8 +581,9 @@ export class ChatMigrator extends BaseMigrator {
 
     // Validate assistantId FK — clear if orphaned (transformTopic coerces '' to null via || null)
     if (assistantId && this.validAssistantIds && !this.validAssistantIds.has(assistantId)) {
-      logger.warn(`Topic ${oldTopic.id}: assistant ${assistantId} not found in assistant table, setting to null`)
+      logger.warn(`Topic ${oldTopic.id}: assistant ${assistantId} not found in assistant table, clearing`)
       oldTopic.assistantId = ''
+      this.orphanedAssistantTopics++
     }
 
     // Get assistant for meta generation

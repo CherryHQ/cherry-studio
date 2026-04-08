@@ -138,6 +138,13 @@ describe('AssistantDataService', () => {
       expect(result.modelId).toBeNull()
     })
 
+    it('should return soft-deleted assistant when includeDeleted is true', async () => {
+      const deletedRow = createMockRow({ deletedAt: 1700000000000 })
+      queueAssistantReads(deletedRow)
+      const result = await assistantDataService.getById('ast-1', { includeDeleted: true })
+      expect(result.id).toBe('ast-1')
+    })
+
     it('should throw NOT_FOUND when assistant does not exist', async () => {
       mockDb.select.mockReturnValue(mockChain([]))
 
@@ -164,12 +171,14 @@ describe('AssistantDataService', () => {
 
       mockDb.select
         .mockReturnValueOnce(mockChain(rows))
+        .mockReturnValueOnce(mockChain([{ count: 2 }]))
         .mockReturnValueOnce(mockChain(relationRows.mcpServerRows))
         .mockReturnValueOnce(mockChain(relationRows.knowledgeBaseRows))
 
       const result = await assistantDataService.list({})
       expect(result.items).toHaveLength(2)
       expect(result.total).toBe(2)
+      expect(result.page).toBe(1)
       expect(result.items[0].modelId).toBe('openai::gpt-4')
       expect(result.items[0].knowledgeBaseIds).toEqual(['kb-1'])
       expect(result.items[1].modelId).toBe('anthropic::claude-3')
@@ -177,10 +186,44 @@ describe('AssistantDataService', () => {
     })
 
     it('should filter by id', async () => {
-      queueAssistantReads(createMockRow())
+      const row = createMockRow()
+      mockDb.select.mockReset()
+      mockDb.select
+        .mockReturnValueOnce(mockChain([row]))
+        .mockReturnValueOnce(mockChain([{ count: 1 }]))
+        .mockReturnValueOnce(mockChain([]))
+        .mockReturnValueOnce(mockChain([]))
 
       const result = await assistantDataService.list({ id: 'ast-1' })
       expect(result.items).toHaveLength(1)
+      expect(result.total).toBe(1)
+    })
+
+    it('should respect page and limit parameters', async () => {
+      const row = createMockRow()
+      mockDb.select.mockReset()
+      mockDb.select
+        .mockReturnValueOnce(mockChain([row]))
+        .mockReturnValueOnce(mockChain([{ count: 50 }]))
+        .mockReturnValueOnce(mockChain([]))
+        .mockReturnValueOnce(mockChain([]))
+
+      const result = await assistantDataService.list({ page: 2, limit: 10 })
+      expect(result.page).toBe(2)
+      expect(result.total).toBe(50)
+    })
+
+    it('should cap limit at 500', async () => {
+      mockDb.select.mockReset()
+      mockDb.select
+        .mockReturnValueOnce(mockChain([]))
+        .mockReturnValueOnce(mockChain([{ count: 0 }]))
+        .mockReturnValueOnce(mockChain([]))
+        .mockReturnValueOnce(mockChain([]))
+
+      const result = await assistantDataService.list({ limit: 9999 })
+      expect(result.items).toHaveLength(0)
+      // The service should have capped limit to 500 internally
     })
   })
 
@@ -363,12 +406,24 @@ describe('AssistantDataService', () => {
   // delete
   // --------------------------------------------------------------------------
   describe('delete', () => {
-    it('should soft-delete an existing assistant', async () => {
+    it('should soft-delete by setting deletedAt timestamp', async () => {
       const existing = createMockRow()
       mockDb.select.mockReturnValue(mockChain([existing]))
-      mockDb.update.mockReturnValue(mockChain(undefined))
 
-      await expect(assistantDataService.delete('ast-1')).resolves.toBeUndefined()
+      let capturedSetArg: any
+      mockDb.update.mockReturnValue({
+        set: vi.fn().mockImplementation((arg: any) => {
+          capturedSetArg = arg
+          return { where: vi.fn().mockResolvedValue(undefined) }
+        })
+      })
+
+      await assistantDataService.delete('ast-1')
+
+      expect(mockDb.update).toHaveBeenCalled()
+      expect(capturedSetArg).toBeDefined()
+      expect(capturedSetArg).toHaveProperty('deletedAt')
+      expect(typeof capturedSetArg.deletedAt).toBe('number')
     })
 
     it('should throw NOT_FOUND when deleting non-existent assistant', async () => {

@@ -38,7 +38,11 @@ export type UpdateAssistantDto = z.infer<typeof UpdateAssistantSchema>
  */
 export const ListAssistantsQuerySchema = z.object({
   /** Filter by assistant ID */
-  id: z.string().optional()
+  id: z.string().optional(),
+  /** Page number (1-based, default: 1) */
+  page: z.number().int().positive().optional(),
+  /** Items per page (default: 100, max: 500) */
+  limit: z.number().int().positive().max(500).optional()
 })
 export type ListAssistantsQuery = z.infer<typeof ListAssistantsQuerySchema>
 

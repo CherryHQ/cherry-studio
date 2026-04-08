@@ -13,6 +13,7 @@ import type {
   MessageRole,
   MessageStats,
   MessageStatus,
+  ModelSnapshot,
   TreeResponse
 } from '@shared/data/types/message'
 
@@ -48,6 +49,8 @@ export interface CreateMessageDto {
   siblingsGroupId?: number
   /** Model identifier */
   modelId?: string
+  /** Model snapshot captured at message creation time */
+  modelSnapshot?: ModelSnapshot
   /** Trace ID */
   traceId?: string
   /** Statistics */

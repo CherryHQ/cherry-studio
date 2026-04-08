@@ -137,6 +137,34 @@ describe('AssistantMappings', () => {
       expect(result.assistant.description).toBeNull()
       // mcpMode/enableWebSearch/enableMemory are merged into settings
       expect(result.assistant.settings).toBeNull()
+      expect(result.tags).toStrictEqual([])
+    })
+
+    it('should extract valid tags and filter invalid entries', () => {
+      const result = transformAssistant({
+        id: 'ast-10',
+        tags: ['work', '', 'coding', null as any, 42 as any, 'personal']
+      })
+      expect(result.tags).toStrictEqual(['work', 'coding', 'personal'])
+    })
+
+    it('should return empty tags when tags is not an array', () => {
+      const result = transformAssistant({ id: 'ast-11', tags: 'not-an-array' as any })
+      expect(result.tags).toStrictEqual([])
+    })
+
+    it('should return empty tags when tags is null or undefined', () => {
+      expect(transformAssistant({ id: 'ast-12', tags: null }).tags).toStrictEqual([])
+      expect(transformAssistant({ id: 'ast-13' }).tags).toStrictEqual([])
+    })
+
+    it('should build settings from top-level fields when settings object is absent', () => {
+      const result = transformAssistant({
+        id: 'ast-14',
+        mcpMode: 'auto',
+        enableWebSearch: true
+      })
+      expect(result.assistant.settings).toStrictEqual({ mcpMode: 'auto', enableWebSearch: true })
     })
   })
 })

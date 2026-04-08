@@ -15,9 +15,20 @@ function createMockContext(reduxData: Record<string, unknown> = {}) {
     },
     db: {
       transaction: vi.fn(async (fn: (tx: any) => Promise<void>) => {
+        const valuesResult = { onConflictDoNothing: vi.fn().mockResolvedValue(undefined) }
+        // Make valuesResult also thenable so plain await works
+        Object.assign(valuesResult, {
+          then: (resolve: (v: unknown) => unknown) => Promise.resolve(undefined).then(resolve)
+        })
         const tx = {
           insert: vi.fn().mockReturnValue({
-            values: vi.fn().mockResolvedValue(undefined)
+            values: vi.fn().mockReturnValue(valuesResult)
+          }),
+          select: vi.fn().mockReturnValue({
+            from: vi.fn().mockReturnValue(
+              // Returns empty array for tag queries (tag IDs lookup)
+              Object.assign([], { then: (r: (v: unknown) => unknown) => Promise.resolve([]).then(r) })
+            )
           })
         }
         await fn(tx)
@@ -137,11 +148,21 @@ describe('AssistantMigrator', () => {
       const result = await migrator.prepare(ctx as any)
       expect(result).toStrictEqual({ success: true, itemCount: 0, warnings: undefined })
     })
+
+    it('should fail when all assistants are skipped but source had data', async () => {
+      // All assistants lack valid IDs — every one gets skipped
+      const assistants = [{ name: 'no-id-1' }, { name: 'no-id-2' }]
+      const ctx = createMockContext({ assistants: { assistants, presets: [] } })
+      const result = await migrator.prepare(ctx as any)
+      expect(result.success).toBe(false)
+      expect(result.itemCount).toBe(0)
+    })
   })
 
   describe('execute', () => {
     it('should insert assistants into database', async () => {
       const ctx = createMockContext({ assistants: { assistants: SAMPLE_ASSISTANTS, presets: [] } })
+      ctx.sharedData.set('mcpServerIdMapping', new Map([['srv-1', 'new-srv-uuid']]))
       await migrator.prepare(ctx as any)
       const result = await migrator.execute(ctx as any)
       expect(result).toStrictEqual({ success: true, processedCount: 2 })
@@ -150,6 +171,7 @@ describe('AssistantMigrator', () => {
 
     it('should store assistantIds in sharedData', async () => {
       const ctx = createMockContext({ assistants: { assistants: SAMPLE_ASSISTANTS, presets: [] } })
+      ctx.sharedData.set('mcpServerIdMapping', new Map([['srv-1', 'new-srv-uuid']]))
       await migrator.prepare(ctx as any)
       await migrator.execute(ctx as any)
       const ids = ctx.sharedData.get('assistantIds') as Set<string>
@@ -175,26 +197,76 @@ describe('AssistantMigrator', () => {
       expect(result.processedCount).toBe(0)
     })
 
-    it('should remap mcpServer IDs using sharedData mapping', async () => {
-      const ctx = createMockContext({ assistants: { assistants: SAMPLE_ASSISTANTS, presets: [] } })
-      ctx.sharedData.set('mcpServerIdMapping', new Map([['srv-1', 'new-srv-uuid']]))
-      await migrator.prepare(ctx as any)
-      await migrator.execute(ctx as any)
-
-      // Verify transaction was called (the actual row data is validated in mapping tests)
-      expect(ctx.db.transaction).toHaveBeenCalled()
-    })
-
-    it('should drop all MCP associations when mcpServerIdMapping is missing from sharedData', async () => {
+    it('should fail when mcpServerIdMapping is missing from sharedData and MCP rows exist', async () => {
       const assistantsWithMcp = [{ id: 'ast-1', name: 'Has MCP', mcpServers: [{ id: 'srv-1' }, { id: 'srv-2' }] }]
       const ctx = createMockContext({ assistants: { assistants: assistantsWithMcp, presets: [] } })
       // Do NOT set mcpServerIdMapping in sharedData
       await migrator.prepare(ctx as any)
       const result = await migrator.execute(ctx as any)
 
+      expect(result.success).toBe(false)
+      expect(result.error).toContain('mcpServerIdMapping not found')
+    })
+
+    it('should migrate tags to tag and entity_tag tables', async () => {
+      const assistantsWithTags = [
+        { id: 'ast-1', name: 'Tagged One', tags: ['work', 'coding'] },
+        { id: 'ast-2', name: 'Tagged Two', tags: ['work', 'personal'] },
+        { id: 'ast-3', name: 'No Tags' }
+      ]
+      const ctx = createMockContext({ assistants: { assistants: assistantsWithTags, presets: [] } })
+
+      // Override transaction to capture insert calls and return tag IDs from select
+      const allInsertedValues: unknown[][] = []
+      const mockTagRows = [
+        { id: 'tag-1', name: 'work' },
+        { id: 'tag-2', name: 'coding' },
+        { id: 'tag-3', name: 'personal' }
+      ]
+      ctx.db.transaction = vi.fn(async (fn: (tx: any) => Promise<void>) => {
+        const tx = {
+          insert: vi.fn().mockImplementation(() => ({
+            values: vi.fn().mockImplementation((vals: unknown[]) => {
+              allInsertedValues.push(vals)
+              return {
+                onConflictDoNothing: vi.fn().mockResolvedValue(undefined),
+                then: (r: (v: unknown) => unknown) => Promise.resolve(undefined).then(r)
+              }
+            })
+          })),
+          select: vi.fn().mockReturnValue({
+            from: vi.fn().mockResolvedValue(mockTagRows)
+          })
+        }
+        await fn(tx)
+      }) as any
+
+      await migrator.prepare(ctx as any)
+      const result = await migrator.execute(ctx as any)
+
       expect(result.success).toBe(true)
-      // Transaction should still succeed — MCP rows are silently dropped
-      expect(ctx.db.transaction).toHaveBeenCalled()
+
+      // Find tag name inserts — tag rows have { name } but NOT { prompt } (unlike assistant rows)
+      const tagNameInserts = allInsertedValues
+        .flat()
+        .filter((v: any) => v && typeof v === 'object' && 'name' in v && !('entityType' in v) && !('prompt' in v))
+      const tagNames = tagNameInserts.map((v: any) => v.name)
+      expect(new Set(tagNames)).toEqual(new Set(['work', 'coding', 'personal']))
+
+      // Find entity_tag inserts (objects with 'entityType' key)
+      const entityTagInserts = allInsertedValues
+        .flat()
+        .filter((v: any) => v && typeof v === 'object' && 'entityType' in v)
+      // ast-1 has 2 tags, ast-2 has 2 tags = 4 entity_tag rows
+      expect(entityTagInserts).toHaveLength(4)
+      expect(entityTagInserts).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({ entityType: 'assistant', entityId: 'ast-1', tagId: 'tag-1' }),
+          expect.objectContaining({ entityType: 'assistant', entityId: 'ast-1', tagId: 'tag-2' }),
+          expect.objectContaining({ entityType: 'assistant', entityId: 'ast-2', tagId: 'tag-1' }),
+          expect.objectContaining({ entityType: 'assistant', entityId: 'ast-2', tagId: 'tag-3' })
+        ])
+      )
     })
 
     it('should drop dangling mcpServer refs not present in mapping', async () => {

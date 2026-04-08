@@ -2,17 +2,18 @@
  * Assistant migration mappings and transform functions
  *
  * Transforms legacy Redux Assistant/AssistantPreset objects to:
- * - assistant table row
- * - junction table rows (assistant_model, assistant_mcp_server, assistant_knowledge_base)
+ * - assistant table row (with modelId from model/defaultModel)
+ * - junction table rows (assistant_mcp_server, assistant_knowledge_base)
+ * - tag/entity_tag rows (via tags[] field)
  *
  * Field mapping:
- * - model/defaultModel -> assistant_model junction rows
+ * - model/defaultModel -> assistant.modelId (primary model, composite format)
  * - mcpServers[] -> assistant_mcp_server junction rows
  * - knowledge_bases[] -> assistant_knowledge_base junction rows
+ * - tags[] -> tag + entity_tag tables
  * - type -> dropped (design flaw)
  * - messages -> dropped (feature removed)
  * - topics -> dropped (decoupled)
- * - tags -> dropped (use tagging table, handled separately)
  * - content/targetLanguage -> dropped (translation-specific)
  * - enableGenerateImage/enableUrlContext/knowledgeRecognition/webSearchProviderId -> dropped
  * - regularPhrases -> dropped (future: FK IDs)
@@ -119,6 +120,7 @@ export interface AssistantTransformResult {
   assistant: AssistantInsert
   mcpServers: (typeof assistantMcpServerTable.$inferInsert)[]
   knowledgeBases: (typeof assistantKnowledgeBaseTable.$inferInsert)[]
+  tags: string[]
 }
 
 // ============================================================================
@@ -191,6 +193,9 @@ export function transformAssistant(source: OldAssistant): AssistantTransformResu
       settings: Object.keys(legacySettings).length > 0 ? (legacySettings as AssistantInsert['settings']) : null
     },
     mcpServers: mcpServerIds.map((mcpServerId) => ({ assistantId, mcpServerId })),
-    knowledgeBases: knowledgeBaseIds.map((knowledgeBaseId) => ({ assistantId, knowledgeBaseId }))
+    knowledgeBases: knowledgeBaseIds.map((knowledgeBaseId) => ({ assistantId, knowledgeBaseId })),
+    tags: Array.isArray(source.tags)
+      ? source.tags.filter((t): t is string => typeof t === 'string' && t.length > 0)
+      : []
   }
 }

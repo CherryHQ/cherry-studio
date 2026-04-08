@@ -67,6 +67,7 @@ function rowToMessage(row: typeof messageTable.$inferSelect): Message {
     status: row.status as Message['status'],
     siblingsGroupId: row.siblingsGroupId ?? 0,
     modelId: row.modelId,
+    modelSnapshot: parseJson(row.modelSnapshot),
     traceId: row.traceId,
     stats: parseJson(row.stats),
     createdAt: row.createdAt ? new Date(row.createdAt).toISOString() : new Date().toISOString(),
@@ -137,7 +138,7 @@ export class MessageService {
       const [root] = await db
         .select({ id: messageTable.id })
         .from(messageTable)
-        .where(and(eq(messageTable.topicId, topicId), sql`${messageTable.parentId} IS NULL`))
+        .where(and(eq(messageTable.topicId, topicId), isNull(messageTable.parentId), isNull(messageTable.deletedAt)))
         .limit(1)
       rootId = root?.id
     }
@@ -151,10 +152,11 @@ export class MessageService {
     if (activeNodeId) {
       const pathRows = await db.all<{ id: string }>(sql`
         WITH RECURSIVE path AS (
-          SELECT id, parent_id FROM message WHERE id = ${activeNodeId}
+          SELECT id, parent_id FROM message WHERE id = ${activeNodeId} AND deleted_at IS NULL
           UNION ALL
           SELECT m.id, m.parent_id FROM message m
           INNER JOIN path p ON m.id = p.parent_id
+          WHERE m.deleted_at IS NULL
         )
         SELECT id FROM path
       `)
@@ -167,11 +169,11 @@ export class MessageService {
 
     const treeRows = await db.all<typeof messageTable.$inferSelect & { tree_depth: number }>(sql`
       WITH RECURSIVE tree AS (
-        SELECT *, 0 as tree_depth FROM message WHERE id = ${rootId}
+        SELECT *, 0 as tree_depth FROM message WHERE id = ${rootId} AND deleted_at IS NULL
         UNION ALL
         SELECT m.*, t.tree_depth + 1 FROM message m
         INNER JOIN tree t ON m.parent_id = t.id
-        WHERE t.tree_depth < ${maxDepth}
+        WHERE t.tree_depth < ${maxDepth} AND m.deleted_at IS NULL
       )
       SELECT * FROM tree
     `)
@@ -181,7 +183,10 @@ export class MessageService {
     const missingActivePathIds = [...activePath].filter((id) => !treeNodeIds.has(id))
 
     if (missingActivePathIds.length > 0) {
-      const additionalRows = await db.select().from(messageTable).where(inArray(messageTable.id, missingActivePathIds))
+      const additionalRows = await db
+        .select()
+        .from(messageTable)
+        .where(and(inArray(messageTable.id, missingActivePathIds), isNull(messageTable.deletedAt)))
       treeRows.push(...additionalRows.map((r) => ({ ...r, tree_depth: maxDepth + 1 })))
     }
 
@@ -210,7 +215,10 @@ export class MessageService {
       }
     } else if (activePathArray.length > 0) {
       // No tree nodes loaded yet, just get all children of active path
-      const childrenRows = await db.select().from(messageTable).where(inArray(messageTable.parentId, activePathArray))
+      const childrenRows = await db
+        .select()
+        .from(messageTable)
+        .where(and(inArray(messageTable.parentId, activePathArray), isNull(messageTable.deletedAt)))
 
       for (const row of childrenRows) {
         if (!treeNodeIds.has(row.id)) {
@@ -347,10 +355,11 @@ export class MessageService {
     // Use recursive CTE to get path from nodeId to root (single query)
     const pathMessages = await db.all<typeof messageTable.$inferSelect>(sql`
       WITH RECURSIVE path AS (
-        SELECT * FROM message WHERE id = ${nodeId}
+        SELECT * FROM message WHERE id = ${nodeId} AND deleted_at IS NULL
         UNION ALL
         SELECT m.* FROM message m
         INNER JOIN path p ON m.id = p.parent_id
+        WHERE m.deleted_at IS NULL
       )
       SELECT * FROM path
     `)
@@ -412,7 +421,7 @@ export class MessageService {
         const siblingsRows = await db
           .select()
           .from(messageTable)
-          .where(or(...orConditions))
+          .where(and(isNull(messageTable.deletedAt), or(...orConditions)))
 
         // Group results by parentId-siblingsGroupId
         for (const row of siblingsRows) {
@@ -457,7 +466,11 @@ export class MessageService {
   async getById(id: string): Promise<Message> {
     const db = application.get('DbService').getDb()
 
-    const [row] = await db.select().from(messageTable).where(eq(messageTable.id, id)).limit(1)
+    const [row] = await db
+      .select()
+      .from(messageTable)
+      .where(and(eq(messageTable.id, id), isNull(messageTable.deletedAt)))
+      .limit(1)
 
     if (!row) {
       throw DataApiErrorFactory.notFound('Message', id)
@@ -568,6 +581,7 @@ export class MessageService {
           status: dto.status ?? 'pending',
           siblingsGroupId: dto.siblingsGroupId ?? 0,
           modelId: dto.modelId,
+          modelSnapshot: dto.modelSnapshot,
           traceId: dto.traceId,
           stats: dto.stats
         })
@@ -766,10 +780,11 @@ export class MessageService {
     // Use recursive query to get all descendants
     const result = await db.all<{ id: string }>(sql`
       WITH RECURSIVE descendants AS (
-        SELECT id FROM message WHERE parent_id = ${id}
+        SELECT id FROM message WHERE parent_id = ${id} AND deleted_at IS NULL
         UNION ALL
         SELECT m.id FROM message m
         INNER JOIN descendants d ON m.parent_id = d.id
+        WHERE m.deleted_at IS NULL
       )
       SELECT id FROM descendants
     `)
@@ -789,10 +804,11 @@ export class MessageService {
     // Use recursive CTE to get all ancestors in one query
     const result = await db.all<typeof messageTable.$inferSelect>(sql`
       WITH RECURSIVE ancestors AS (
-        SELECT * FROM message WHERE id = ${nodeId}
+        SELECT * FROM message WHERE id = ${nodeId} AND deleted_at IS NULL
         UNION ALL
         SELECT m.* FROM message m
         INNER JOIN ancestors a ON m.id = a.parent_id
+        WHERE m.deleted_at IS NULL
       )
       SELECT * FROM ancestors
     `)

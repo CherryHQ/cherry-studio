@@ -14,7 +14,7 @@ import { application } from '@main/core/application'
 import { DataApiErrorFactory } from '@shared/data/api'
 import type { CreateTopicDto, UpdateTopicDto } from '@shared/data/api/schemas/topics'
 import type { Topic } from '@shared/data/types/topic'
-import { eq } from 'drizzle-orm'
+import { and, eq, isNull } from 'drizzle-orm'
 
 import { messageService } from './MessageService'
 
@@ -46,7 +46,11 @@ export class TopicService {
   async getById(id: string): Promise<Topic> {
     const db = application.get('DbService').getDb()
 
-    const [row] = await db.select().from(topicTable).where(eq(topicTable.id, id)).limit(1)
+    const [row] = await db
+      .select()
+      .from(topicTable)
+      .where(and(eq(topicTable.id, id), isNull(topicTable.deletedAt)))
+      .limit(1)
 
     if (!row) {
       throw DataApiErrorFactory.notFound('Topic', id)

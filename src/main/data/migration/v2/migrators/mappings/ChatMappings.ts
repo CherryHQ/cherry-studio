@@ -53,6 +53,7 @@ import type {
   MessageData,
   MessageDataBlock,
   MessageStats,
+  ModelSnapshot,
   ReferenceCategory,
   ThinkingBlock,
   ToolBlock,
@@ -378,6 +379,7 @@ export interface NewMessage {
   status: 'success' | 'error' | 'paused'
   siblingsGroupId: number
   modelId: string | null
+  modelSnapshot: ModelSnapshot | null
   traceId: string | null
   stats: MessageStats | null
   createdAt: number // timestamp
@@ -514,9 +516,18 @@ export function transformMessage(
     searchableText: searchableText || null,
     status: normalizeStatus(oldMessage.status),
     siblingsGroupId,
-    // Build composite modelId (provider::modelId) from full model object when available,
-    // falling back to raw modelId (which lacks provider prefix)
-    modelId: (oldMessage.model ? buildCompositeModelId(oldMessage.model) : null) || oldMessage.modelId || null,
+    // Build composite modelId (provider::modelId) from full model object when available.
+    // Falls back to raw modelId (lacks provider prefix) for incomplete legacy data.
+    modelId: (() => {
+      if (oldMessage.model) {
+        const compositeId = buildCompositeModelId(oldMessage.model)
+        if (compositeId) return compositeId
+      }
+      // Raw modelId fallback — no model object or buildCompositeModelId returned null
+      return oldMessage.modelId || null
+    })(),
+    // Snapshot of model at message creation time for historical display
+    modelSnapshot: buildModelSnapshot(oldMessage.model),
     traceId: oldMessage.traceId || null,
     stats: mergeStats(oldMessage.usage, oldMessage.metrics),
     createdAt: parseTimestamp(oldMessage.createdAt),
@@ -525,10 +536,26 @@ export function transformMessage(
 }
 
 /**
+ * Build a ModelSnapshot from a legacy model object.
+ * Returns null if model is missing required fields (id + provider).
+ */
+function buildModelSnapshot(model: OldMessage['model']): ModelSnapshot | null {
+  if (!model || typeof model.id !== 'string' || typeof model.provider !== 'string') return null
+  if (!model.id.trim() || !model.provider.trim()) return null
+  return {
+    id: model.id,
+    name: (typeof model.name === 'string' ? model.name : model.id) || model.id,
+    provider: model.provider,
+    group: typeof model.group === 'string' ? model.group : undefined
+  }
+}
+
+/**
  * Normalize old status values to new enum
  *
  * Old system has multiple transient states that don't apply to stored messages.
- * We normalize these to the three final states in the new schema.
+ * Transient states (sending/pending/searching/processing) indicate interrupted
+ * operations and are mapped to 'error' — the message was not completed.
  *
  * @param oldStatus - Status from old message
  * @returns Normalized status for new message
@@ -537,23 +564,22 @@ export function transformMessage(
  * - 'success' → 'success'
  * - 'error' → 'error'
  * - 'paused' → 'paused'
- * - 'sending', 'pending', 'searching', 'processing' → 'success' (completed states)
+ * - 'sending', 'pending', 'searching', 'processing' → 'error' (interrupted)
  */
 export function normalizeStatus(oldStatus: OldMessage['status']): 'success' | 'error' | 'paused' {
   switch (oldStatus) {
-    case 'error':
-      return 'error'
+    case 'success':
+      return 'success'
     case 'paused':
       return 'paused'
-    case 'success':
+    case 'error':
     case 'sending':
     case 'pending':
     case 'searching':
     case 'processing':
     default:
-      // All transient states are treated as success for stored messages
-      // If a message was in a transient state during export, it completed
-      return 'success'
+      // Transient states in persisted data indicate interrupted operations
+      return 'error'
   }
 }
 
@@ -1069,8 +1095,9 @@ export function findActiveNodeId(messages: OldMessage[]): string | null {
  * @param isoString - ISO 8601 timestamp string or undefined
  * @returns Unix timestamp in milliseconds
  */
-export function parseTimestamp(isoString: string | undefined): number {
-  if (!isoString) return Date.now()
+export function parseTimestamp(isoString: string | null | undefined): number {
+  if (isoString == null) return Date.now() // handles both null and undefined
+  if (!isoString) return Date.now() // handles empty string
 
   const parsed = new Date(isoString).getTime()
   return isNaN(parsed) ? Date.now() : parsed
