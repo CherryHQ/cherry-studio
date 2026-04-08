@@ -8,14 +8,16 @@ import type {
   EmbeddingModelUsage,
   LanguageModelUsage,
   ModelMessage,
+  ToolSet,
   UIMessage,
   UIMessageChunk
 } from 'ai'
 
-import { runAgentLoop } from './agentLoop'
+import { type AgentOptions, runAgentLoop } from './agentLoop'
 import { buildPlugins } from './plugins/PluginBuilder'
 import { adaptProvider, providerToAiSdkConfig } from './provider/providerConfig'
 import { listModels as listModelsFromProvider } from './services/listModels'
+import { registerMcpTools } from './tools/mcpTools'
 import type { ToolRegistry } from './tools/ToolRegistry'
 import type { AppProviderSettingsMap } from './types'
 
@@ -40,8 +42,6 @@ export interface AiStreamRequest extends AiBaseRequest {
   trigger: ChatTrigger
   messageId?: string
   messages: UIMessage[]
-  assistantConfig?: Record<string, unknown>
-  websearchConfig?: Record<string, unknown>
   knowledgeBaseIds?: string[]
 }
 
@@ -113,7 +113,7 @@ export class AiCompletionService {
     signal: AbortSignal,
     writer: WritableStreamDefaultWriter<UIMessageChunk>
   ): Promise<void> {
-    const { sdkConfig, tools, plugins, system, model } = await this.buildAgentParams(request)
+    const { sdkConfig, tools, plugins, system, options, model } = await this.buildAgentParams(request)
 
     const stream = runAgentLoop(
       {
@@ -123,6 +123,7 @@ export class AiCompletionService {
         plugins,
         tools,
         system,
+        options,
         hooks: {
           onFinish: (result) => this.trackUsage(model, result.totalUsage)
         }
@@ -149,16 +150,17 @@ export class AiCompletionService {
   async generateText(request: AiGenerateRequest): Promise<AiGenerateResult> {
     logger.info('generateText started', { assistantId: request.assistantId })
 
-    const { sdkConfig, tools, plugins, system, model } = await this.buildAgentParams(request)
+    const { sdkConfig, tools, plugins, system, options, model } = await this.buildAgentParams(request)
 
-    const agent = await createAgent<AppProviderSettingsMap>({
+    const agent = await createAgent<AppProviderSettingsMap, typeof sdkConfig.providerId, ToolSet>({
       providerId: sdkConfig.providerId,
       providerSettings: sdkConfig.providerSettings,
       modelId: sdkConfig.modelId,
       plugins,
       agentSettings: {
         tools,
-        instructions: request.system ?? system
+        instructions: request.system ?? system,
+        ...options
       }
     })
 
@@ -251,11 +253,25 @@ export class AiCompletionService {
       modelId: model.id
     }
 
+    // Register MCP tools on-demand, then resolve
+    if (request.mcpToolIds?.length) {
+      await registerMcpTools(this.toolRegistry, request.mcpToolIds)
+    }
     const tools = this.toolRegistry.resolve(request.mcpToolIds)
+
     const plugins = buildPlugins()
     const system = assistant?.prompt || undefined
 
-    return { sdkConfig, tools, plugins, system, provider, model, assistant }
+    // Extract model parameters from assistant settings
+    const settings = assistant?.settings
+    const options: AgentOptions = {
+      ...(settings?.enableTemperature !== false &&
+        settings?.temperature != null && { temperature: settings.temperature }),
+      ...(settings?.enableTopP !== false && settings?.topP != null && { topP: settings.topP }),
+      ...(settings?.enableMaxTokens && settings?.maxTokens != null && { maxOutputTokens: settings.maxTokens })
+    }
+
+    return { sdkConfig, tools, plugins, system, options, provider, model, assistant }
   }
 
   // ── Token usage tracking ──
