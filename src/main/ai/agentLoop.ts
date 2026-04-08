@@ -7,6 +7,7 @@ import type {
   ModelMessage,
   PrepareStepFunction,
   StepResult,
+  StopCondition,
   ToolSet,
   UIMessage,
   UIMessageChunk
@@ -99,6 +100,8 @@ export interface AgentLoopParams<T extends AppProviderKey = AppProviderKey> {
   plugins?: AiPlugin[]
   tools?: ToolSet
   system?: string
+  /** AI SDK inner loop stop condition. Default: stepCountIs(20) (AI SDK default) */
+  stopWhen?: StopCondition<ToolSet> | Array<StopCondition<ToolSet>>
   hooks?: AgentLoopHooks
 }
 
@@ -159,6 +162,7 @@ export function runAgentLoop<T extends AppProviderKey>(
         agentSettings: {
           tools: params.tools as ToolSet,
           instructions: system,
+          stopWhen: params.stopWhen,
           prepareStep: hooks.prepareStep,
           onStepFinish: hooks.onStepFinish
         }
