@@ -100,12 +100,21 @@ export function getNormalizedExecutablePath(): string {
  * migration handles its own userData detection inside the migration
  * system — do NOT add fallbacks to v1 config.json here.
  *
- * Only active in packaged builds — dev runs use Electron's default
- * userData (with the 'Dev' suffix appended later by @main/config, which
- * is itself v1 legacy slated for migration).
+ * Dev (unpackaged) runs take a separate, much simpler branch: append a
+ * 'Dev' suffix to Electron's default userData so the dev process can't
+ * pollute production data. BootConfig and pending relocations do not
+ * apply in dev — they're packaged-only concerns.
  */
 export function resolveUserDataLocation(): void {
-  if (!app.isPackaged) return
+  if (!app.isPackaged) {
+    // Dev mode: isolate dev data from production by appending 'Dev'.
+    // Capture into a local before setPath so we log the value we wrote
+    // (matches the local-variable pattern used by the portable branch).
+    const devPath = app.getPath('userData') + 'Dev'
+    app.setPath('userData', devPath)
+    logger.info('userData set with dev suffix', { devPath })
+    return
+  }
 
   // Step 1: process pending relocation, if any.
   //

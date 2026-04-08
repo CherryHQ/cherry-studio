@@ -3,7 +3,7 @@ import * as fs from 'node:fs'
 import * as path from 'node:path'
 
 import { loggerService } from '@logger'
-import { getDataPath } from '@main/utils'
+import { application } from '@main/core/application'
 import { directoryExists } from '@main/utils/file'
 import { deleteDirectoryRecursive } from '@main/utils/fileOperations'
 import { findAllSkillDirectories, findSkillMdPath, parseSkillMetadata } from '@main/utils/markdownParser'
@@ -555,7 +555,7 @@ export class SkillService {
 
   /** Full path to a skill in global storage */
   private getSkillStoragePath(folderName: string): string {
-    return path.join(getDataPath('Skills'), folderName)
+    return path.join(application.getPath('feature.agents.skills'), folderName)
   }
 
   /** Symlink location: {userData}/.claude/skills/{folderName} */

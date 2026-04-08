@@ -3,23 +3,18 @@
  * ⚠️ NOTICE: V2 DATA&UI REFACTORING
  * STOP: Feature PRs affecting this file are currently BLOCKED.
  *
- * This file is a v1 leftover. Its responsibilities (the dev-mode `userData + 'Dev'`
- * suffix and legacy DATA_PATH / titleBarOverlay / global secret exports) will be
- * absorbed by BootConfigService and the lifecycle system in v2. Do not extend
- * this file. Do not treat its patterns as a baseline for new design — route new
- * boot-time logic through BootConfigService and the lifecycle phases instead.
+ * This file is a v1 leftover. Its remaining responsibilities (legacy
+ * titleBarOverlay constants and the global client-secret export) will be
+ * absorbed by dedicated v2 modules. Do not extend this file. Do not treat
+ * its patterns as a baseline for new design — route new boot-time logic
+ * through BootConfigService, the preboot subsystem, and the lifecycle
+ * phases instead.
+ *
+ * The dev-mode `userData + 'Dev'` suffix that used to live here has been
+ * migrated to `core/preboot/userDataLocation.ts`.
  */
 
-import { isDev, isWin } from '@main/constant'
-import { app } from 'electron'
-
-import { getDataPath } from './utils'
-
-if (isDev) {
-  app.setPath('userData', app.getPath('userData') + 'Dev')
-}
-
-export const DATA_PATH = getDataPath()
+import { isWin } from '@main/constant'
 
 export const titleBarOverlayDark = {
   height: 42,

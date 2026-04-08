@@ -305,25 +305,80 @@ function. This forces every consumer through `Application.getPath`, which:
 - Lets tests mock `application.getPath` once instead of mocking a function
   imported from many places.
 
-## The `filename` Parameter: Single Segment
+## Composing Paths: When to Register, When to Join
 
-The optional second argument to `getPath` is a **single relative filename
-segment**:
+A path key encodes the **largest static prefix** of a path — the part that's
+the same for every call. How you compose anything beyond that depends on
+whether the extra segment is static or dynamic, and (for dynamic ones)
+whether it's a single filename or a deeper directory segment. Three cases,
+three rules:
+
+### 1. Static sub-paths → register a new key
+
+If the extra segment is fixed at design time (e.g. `KnowledgeBase`, `Skills`,
+`Channels`), **register it as its own key** in `pathRegistry.ts` rather than
+joining it ad-hoc on the fly:
 
 ```ts
-application.getPath('feature.files.data', 'avatar.png')   // ✅ recommended
-application.getPath('feature.files.data', '/abs/path')    // ⚠️ logs warning, still joins
-application.getPath('feature.files.data', '../escape')    // ⚠️ logs warning, still joins
-application.getPath('feature.files.data', 'sub/file')     // ⚠️ logs warning, still joins
+// ✅ pathRegistry.ts
+'feature.knowledgebase.data': path.join(appUserDataData, 'KnowledgeBase'),
+
+// ✅ caller
+const dir = application.getPath('feature.knowledgebase.data')
 ```
 
-If the filename is absolute, contains `..`, or contains a path separator,
-`Application.getPath` **logs a warning** via `loggerService` and joins the
-path anyway. The warning is a developer hint that you may want to register a
-new path key for the deeper path you're constructing.
+```ts
+// ❌ bypasses the registry, harder to grep, harder to test
+const dir = path.join(application.getPath('app.userdata.data'), 'KnowledgeBase')
+```
 
-For deeper sub-paths, register a new path key in `pathRegistry.ts` instead of
-constructing them ad-hoc on the fly.
+### 2. A single dynamic filename → use the `filename` argument
+
+For a runtime filename (avatar, token file, per-record JSON) sitting directly
+under a registered directory key, pass it as `getPath`'s **second argument**:
+
+```ts
+application.getPath('feature.files.data', 'avatar.png')                 // ✅
+application.getPath('feature.agents.channels', `weixin_bot_${id}.json`) // ✅
+```
+
+The second argument is validated as a **single relative filename segment**.
+If it's absolute, contains `..`, or contains a path separator,
+`Application.getPath` **logs a warning via `loggerService` and still joins
+the path** — the warning is a developer hint to either sanitize the input or
+register a new key for the deeper path you're constructing:
+
+```ts
+application.getPath('feature.files.data', '/abs/path')   // ⚠️ warns
+application.getPath('feature.files.data', '../escape')   // ⚠️ warns
+application.getPath('feature.files.data', 'sub/file')    // ⚠️ warns
+```
+
+### 3. Dynamic directory segments → `path.join` over a static parent key
+
+When the runtime segment is a **directory name** — per-agent, per-skill,
+per-knowledge-base subdirectories where you may want to nest more paths
+underneath, or where the segment isn't a plain leaf filename — registering a
+key per value is impossible. Instead:
+
+1. Register a key for the **largest static prefix**.
+2. Use `path.join` at the call site to append the runtime segment.
+
+```ts
+// pathRegistry.ts — the static parent
+'feature.agents.workspaces': path.join(appUserDataData, 'Agents'),
+
+// BaseService.ts — the dynamic per-agent workspace
+const workspaceDir = path.join(
+  application.getPath('feature.agents.workspaces'),
+  shortId
+)
+```
+
+This `path.join`-over-a-key pattern is reserved for the few features that
+genuinely need it (per-agent workspaces, per-skill storage folders). Most
+consumers should still reach for plain `application.getPath(key)` or the
+`(key, filename)` form first.
 
 ## Bootstrap Order
 
