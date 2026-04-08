@@ -6,7 +6,7 @@ import type { PreferenceShortcutType } from '@shared/data/preference/preferenceT
 import { IpcChannel } from '@shared/IpcChannel'
 import { SHORTCUT_DEFINITIONS } from '@shared/shortcuts/definitions'
 import type { ShortcutPreferenceKey, SupportedPlatform } from '@shared/shortcuts/types'
-import { coerceShortcutPreference } from '@shared/shortcuts/utils'
+import { resolveShortcutPreference } from '@shared/shortcuts/utils'
 import type { BrowserWindow } from 'electron'
 import { globalShortcut } from 'electron'
 
@@ -150,7 +150,7 @@ export class ShortcutService extends BaseService {
       if (onlyPersistent && !definition.global) continue
 
       const rawPref = preferenceService.get(definition.key) as PreferenceShortcutType | undefined
-      const pref = coerceShortcutPreference(definition, rawPref)
+      const pref = resolveShortcutPreference(definition, rawPref)
       if (!pref.enabled || !pref.binding.length) continue
       if (definition.enabledWhen && !definition.enabledWhen(getPreference as any)) continue
 

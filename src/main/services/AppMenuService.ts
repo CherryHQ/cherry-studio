@@ -6,7 +6,7 @@ import type { PreferenceShortcutType } from '@shared/data/preference/preferenceT
 import { IpcChannel } from '@shared/IpcChannel'
 import { findShortcutDefinition } from '@shared/shortcuts/definitions'
 import type { ShortcutPreferenceKey } from '@shared/shortcuts/types'
-import { coerceShortcutPreference } from '@shared/shortcuts/utils'
+import { resolveShortcutPreference } from '@shared/shortcuts/utils'
 import type { MenuItemConstructorOptions } from 'electron'
 import { app, Menu, shell } from 'electron'
 
@@ -20,7 +20,7 @@ const isShortcutEnabled = (key: ShortcutPreferenceKey): boolean => {
   const definition = findShortcutDefinition(key)
   if (!definition) return true
   const rawPref = application.get('PreferenceService').get(key) as PreferenceShortcutType | undefined
-  return coerceShortcutPreference(definition, rawPref).enabled
+  return resolveShortcutPreference(definition, rawPref).enabled
 }
 
 const getMainWindows = (): Electron.BrowserWindow[] =>

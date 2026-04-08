@@ -2,17 +2,12 @@ import { useMultiplePreferences, usePreference } from '@data/hooks/usePreference
 import { isMac } from '@renderer/config/constant'
 import type { PreferenceShortcutType } from '@shared/data/preference/preferenceTypes'
 import { findShortcutDefinition, SHORTCUT_DEFINITIONS } from '@shared/shortcuts/definitions'
-import type {
-  ShortcutDefinition,
-  ShortcutKey,
-  ShortcutPreferenceKey,
-  ShortcutPreferenceValue
-} from '@shared/shortcuts/types'
+import type { ResolvedShortcut, ShortcutDefinition, ShortcutKey, ShortcutPreferenceKey } from '@shared/shortcuts/types'
 import {
-  coerceShortcutPreference,
   convertAcceleratorToHotkey,
   formatShortcutDisplay,
-  getDefaultShortcutPreference
+  getDefaultShortcut,
+  resolveShortcutPreference
 } from '@shared/shortcuts/utils'
 import { useCallback, useMemo, useRef } from 'react'
 import { useHotkeys } from 'react-hotkeys-hook'
@@ -35,16 +30,6 @@ const defaultOptions: UseShortcutOptions = {
 const toFullKey = (key: ShortcutKey | ShortcutPreferenceKey): ShortcutPreferenceKey =>
   (key.startsWith('shortcut.') ? key : `shortcut.${key}`) as ShortcutPreferenceKey
 
-const resolvePreferenceValue = (
-  definition: ShortcutDefinition | undefined,
-  preference: PreferenceShortcutType | undefined
-): ShortcutPreferenceValue | null => {
-  if (!definition) {
-    return null
-  }
-  return coerceShortcutPreference(definition, preference)
-}
-
 export const useShortcut = (
   shortcutKey: ShortcutKey | ShortcutPreferenceKey,
   callback: (event: KeyboardEvent) => void,
@@ -53,7 +38,10 @@ export const useShortcut = (
   const fullKey = toFullKey(shortcutKey)
   const definition = useMemo(() => findShortcutDefinition(fullKey), [fullKey])
   const [preference] = usePreference(fullKey)
-  const preferenceState = useMemo(() => resolvePreferenceValue(definition, preference), [definition, preference])
+  const resolved = useMemo(
+    () => (definition ? resolveShortcutPreference(definition, preference) : null),
+    [definition, preference]
+  )
 
   const callbackRef = useRef(callback)
   callbackRef.current = callback
@@ -62,7 +50,7 @@ export const useShortcut = (
   optionsRef.current = options
 
   const hotkey = useMemo(() => {
-    if (!definition || !preferenceState) {
+    if (!definition || !resolved) {
       return 'none'
     }
 
@@ -70,16 +58,16 @@ export const useShortcut = (
       return 'none'
     }
 
-    if (!preferenceState.enabled) {
+    if (!resolved.enabled) {
       return 'none'
     }
 
-    if (!preferenceState.binding.length) {
+    if (!resolved.binding.length) {
       return 'none'
     }
 
-    return convertAcceleratorToHotkey(preferenceState.binding)
-  }, [definition, preferenceState])
+    return convertAcceleratorToHotkey(resolved.binding)
+  }, [definition, resolved])
 
   useHotkeys(
     hotkey,
@@ -105,27 +93,24 @@ export const useShortcutDisplay = (shortcutKey: ShortcutKey | ShortcutPreference
   const fullKey = toFullKey(shortcutKey)
   const definition = useMemo(() => findShortcutDefinition(fullKey), [fullKey])
   const [preference] = usePreference(fullKey)
-  const preferenceState = useMemo(() => resolvePreferenceValue(definition, preference), [definition, preference])
+  const resolved = useMemo(
+    () => (definition ? resolveShortcutPreference(definition, preference) : null),
+    [definition, preference]
+  )
 
   return useMemo(() => {
-    if (!definition || !preferenceState || !preferenceState.enabled) {
+    if (!definition || !resolved || !resolved.enabled || !resolved.binding.length) {
       return ''
     }
 
-    const displayBinding = preferenceState.binding.length > 0 ? preferenceState.binding : definition.defaultKey
-
-    if (!displayBinding.length) {
-      return ''
-    }
-
-    return formatShortcutDisplay(displayBinding, isMac)
-  }, [definition, preferenceState])
+    return formatShortcutDisplay(resolved.binding, isMac)
+  }, [definition, resolved])
 }
 
 export interface ShortcutListItem {
   definition: ShortcutDefinition
-  preference: ShortcutPreferenceValue
-  defaultPreference: ShortcutPreferenceValue
+  preference: ResolvedShortcut
+  defaultPreference: ResolvedShortcut
   updatePreference: (patch: Partial<PreferenceShortcutType>) => Promise<void>
 }
 
@@ -143,7 +128,7 @@ export const useAllShortcuts = (): ShortcutListItem[] => {
 
   const buildNextPreference = useCallback(
     (
-      state: ShortcutPreferenceValue,
+      state: ResolvedShortcut,
       currentValue: PreferenceShortcutType | undefined,
       patch: Partial<PreferenceShortcutType>
     ): PreferenceShortcutType => {
@@ -170,8 +155,8 @@ export const useAllShortcuts = (): ShortcutListItem[] => {
     () =>
       SHORTCUT_DEFINITIONS.map((definition) => {
         const rawValue = values[definition.key] as PreferenceShortcutType | undefined
-        const preference = coerceShortcutPreference(definition, rawValue)
-        const defaultPreference = getDefaultShortcutPreference(definition)
+        const preference = resolveShortcutPreference(definition, rawValue)
+        const defaultPreference = getDefaultShortcut(definition)
 
         const updatePreference = async (patch: Partial<PreferenceShortcutType>) => {
           const currentValue = values[definition.key] as PreferenceShortcutType | undefined

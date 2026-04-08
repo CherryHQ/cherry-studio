@@ -82,7 +82,7 @@ const ShortcutSettings: FC = () => {
     return filtered.map((item) => {
       const label = getShortcutLabel(item.definition.labelKey)
 
-      const displayKeys = item.preference.binding.length > 0 ? item.preference.binding : item.definition.defaultKey
+      const displayKeys = item.preference.binding
 
       return {
         id: item.definition.key,

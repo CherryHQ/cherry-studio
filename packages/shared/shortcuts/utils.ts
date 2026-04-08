@@ -1,7 +1,7 @@
 import { DefaultPreferences } from '@shared/data/preference/preferenceSchemas'
 import type { PreferenceShortcutType } from '@shared/data/preference/preferenceTypes'
 
-import type { ShortcutDefinition, ShortcutPreferenceValue } from './types'
+import type { ResolvedShortcut, ShortcutDefinition } from './types'
 
 const modifierKeys = ['CommandOrControl', 'Ctrl', 'Alt', 'Shift', 'Meta', 'Command']
 const specialSingleKeys = ['Escape', 'F1', 'F2', 'F3', 'F4', 'F5', 'F6', 'F7', 'F8', 'F9', 'F10', 'F11', 'F12']
@@ -104,11 +104,11 @@ const ensureArray = (value: unknown): string[] => {
 
 const ensureBoolean = (value: unknown, fallback: boolean): boolean => (typeof value === 'boolean' ? value : fallback)
 
-export const getDefaultShortcutPreference = (definition: ShortcutDefinition): ShortcutPreferenceValue => {
+export const getDefaultShortcut = (definition: ShortcutDefinition): ResolvedShortcut => {
   const fallback = DefaultPreferences.default[definition.key]
 
   const rawBinding = ensureArray(fallback?.key)
-  const binding = rawBinding.length ? rawBinding : definition.defaultKey
+  const binding = rawBinding.length ? rawBinding : definition.defaultBinding
 
   return {
     binding,
@@ -118,11 +118,11 @@ export const getDefaultShortcutPreference = (definition: ShortcutDefinition): Sh
   }
 }
 
-export const coerceShortcutPreference = (
+export const resolveShortcutPreference = (
   definition: ShortcutDefinition,
   value?: PreferenceShortcutType | null
-): ShortcutPreferenceValue => {
-  const fallback = getDefaultShortcutPreference(definition)
+): ResolvedShortcut => {
+  const fallback = getDefaultShortcut(definition)
   const binding = value != null ? (value.key?.length ? ensureArray(value.key) : []) : fallback.binding
 
   return {

@@ -2,17 +2,17 @@ import { describe, expect, it } from 'vitest'
 
 import type { ShortcutDefinition } from '../shortcuts/types'
 import {
-  coerceShortcutPreference,
   convertAcceleratorToHotkey,
   convertKeyToAccelerator,
   formatShortcutDisplay,
-  getDefaultShortcutPreference,
-  isValidShortcut
+  getDefaultShortcut,
+  isValidShortcut,
+  resolveShortcutPreference
 } from '../shortcuts/utils'
 
 const makeDefinition = (overrides: Partial<ShortcutDefinition> = {}): ShortcutDefinition => ({
   key: 'shortcut.app.chat.clear',
-  defaultKey: ['CommandOrControl', 'L'],
+  defaultBinding: ['CommandOrControl', 'L'],
   scope: 'renderer',
   category: 'app.chat',
   labelKey: 'clear_topic',
@@ -100,10 +100,10 @@ describe('isValidShortcut', () => {
   })
 })
 
-describe('getDefaultShortcutPreference', () => {
+describe('getDefaultShortcut', () => {
   it('returns default preference from schema defaults', () => {
     const def = makeDefinition()
-    const result = getDefaultShortcutPreference(def)
+    const result = getDefaultShortcut(def)
 
     expect(result.binding).toEqual(['CommandOrControl', 'L'])
     expect(result.enabled).toBe(true)
@@ -113,19 +113,19 @@ describe('getDefaultShortcutPreference', () => {
 
   it('respects editable: false', () => {
     const def = makeDefinition({ editable: false })
-    expect(getDefaultShortcutPreference(def).editable).toBe(false)
+    expect(getDefaultShortcut(def).editable).toBe(false)
   })
 
   it('respects system: true', () => {
     const def = makeDefinition({ system: true })
-    expect(getDefaultShortcutPreference(def).system).toBe(true)
+    expect(getDefaultShortcut(def).system).toBe(true)
   })
 })
 
-describe('coerceShortcutPreference', () => {
+describe('resolveShortcutPreference', () => {
   it('returns fallback when value is undefined', () => {
     const def = makeDefinition()
-    const result = coerceShortcutPreference(def, undefined)
+    const result = resolveShortcutPreference(def, undefined)
 
     expect(result.binding).toEqual(['CommandOrControl', 'L'])
     expect(result.enabled).toBe(true)
@@ -133,14 +133,14 @@ describe('coerceShortcutPreference', () => {
 
   it('returns fallback when value is null', () => {
     const def = makeDefinition()
-    const result = coerceShortcutPreference(def, null)
+    const result = resolveShortcutPreference(def, null)
 
     expect(result.binding).toEqual(['CommandOrControl', 'L'])
   })
 
   it('uses custom key when provided', () => {
     const def = makeDefinition()
-    const result = coerceShortcutPreference(def, {
+    const result = resolveShortcutPreference(def, {
       key: ['Alt', 'L'],
       enabled: true
     })
@@ -150,7 +150,7 @@ describe('coerceShortcutPreference', () => {
 
   it('returns empty binding when key is explicitly cleared (empty array)', () => {
     const def = makeDefinition()
-    const result = coerceShortcutPreference(def, {
+    const result = resolveShortcutPreference(def, {
       key: [],
       enabled: true
     })
@@ -160,7 +160,7 @@ describe('coerceShortcutPreference', () => {
 
   it('respects enabled: false from preference', () => {
     const def = makeDefinition()
-    const result = coerceShortcutPreference(def, {
+    const result = resolveShortcutPreference(def, {
       key: ['CommandOrControl', 'L'],
       enabled: false
     })

@@ -111,7 +111,7 @@ v1 快捷键系统存在以下架构缺陷：
 ```typescript
 {
   key: 'shortcut.app.general.show_mini_window',  // Preference key
-  defaultKey: ['CommandOrControl', 'E'], // Electron accelerator 格式
+  defaultBinding: ['CommandOrControl', 'E'], // Electron accelerator 格式
   scope: 'main',                         // main | renderer | both
   category: 'feature.selection',             // 点分命名空间 UI 分组：app.general、app.chat、plugin.xxx 等
   labelKey: 'mini_window',              // i18n label key
@@ -128,7 +128,7 @@ v1 快捷键系统存在以下架构缺陷：
 | 字段 | 用途 |
 |------|------|
 | `key` | Preference key，内置快捷键用 `shortcut.app.{category}.{name}` 格式，插件用 `shortcut.plugin.{pluginId}.{name}` |
-| `defaultKey` | Electron accelerator 格式的默认绑定，空数组表示无默认绑定 |
+| `defaultBinding` | Electron accelerator 格式的默认绑定，空数组表示无默认绑定 |
 | `scope` | 决定快捷键注册在哪个进程：`main`（globalShortcut）、`renderer`（react-hotkeys-hook）、`both`（两者都注册） |
 | `category` | 点分命名空间 UI 分组（如 `app.general`、`app.chat`、`app.topic`、`plugin.translator`），类型为 `string` 以支持插件扩展 |
 | `labelKey` | i18n label key，由 `getShortcutLabel()` 消费 |
@@ -149,8 +149,8 @@ type ShortcutPreferenceKey = Extract<PreferenceKeyType, `shortcut.${string}`>
 type ShortcutKey = ShortcutPreferenceKey extends `shortcut.${infer Rest}` ? Rest : never
 
 // 运行时归一化后的完整状态
-interface ShortcutPreferenceValue {
-  binding: string[]   // 生效的绑定（用户自定义或 fallback 到 defaultKey，始终有效）
+interface ResolvedShortcut {
+  binding: string[]   // 生效的绑定（用户自定义、默认值或空数组——显式清空）
   enabled: boolean    // 是否启用
   editable: boolean   // 来自 definition.editable，不存储在偏好中
   system: boolean     // 来自 definition.system，不存储在偏好中
@@ -173,19 +173,19 @@ useShortcut('shortcut.app.chat.clear', callback)
 | `convertAcceleratorToHotkey` | Electron accelerator → `react-hotkeys-hook` 字符串 |
 | `formatShortcutDisplay` | accelerator → 用户友好的显示字符串（Mac 用符号，其他用文字） |
 | `isValidShortcut` | 校验快捷键有效性（须含修饰键，或为特殊单键如 F1-F12、Escape） |
-| `getDefaultShortcutPreference` | 从 `DefaultPreferences` 读取 schema 默认值并归一化 |
-| `coerceShortcutPreference` | **核心归一化函数**：将任意偏好值 + 定义 → 完整的 `ShortcutPreferenceValue` |
+| `getDefaultShortcut` | 从 `DefaultPreferences` 读取 schema 默认值并归一化 |
+| `resolveShortcutPreference` | **核心归一化函数**：将任意偏好值 + 定义 → 完整的 `ResolvedShortcut` |
 
-`coerceShortcutPreference` 的防御逻辑：
+`resolveShortcutPreference` 的防御逻辑：
 
 ```
 输入值为 null/undefined → 使用 schema 默认值
-输入的 key 为空数组    → binding 回退到 defaultKey
+输入的 key 为空数组    → binding 为空（用户显式清空）
 输入的 enabled 非布尔  → 使用默认 enabled
 editable/system        → 始终从 definition 读取（不存储在偏好中）
 ```
 
-**设计决策**：禁用快捷键统一使用 `enabled: false`，`binding` 始终包含有效绑定（用户自定义或默认值）。不存在"清空绑定"的独立语义——想禁用就关 `enabled`，想换键就录制覆盖，想重置就写回 `defaultKey`。
+**设计决策**：禁用快捷键可以使用 `enabled: false`，也可以清空绑定（`key: []`）。想换键就录制覆盖，想重置就写回 `defaultBinding`。
 
 ### 2. 偏好层 (`preferenceSchemas.ts` + `preferenceTypes.ts`)
 
@@ -471,7 +471,7 @@ toggleMiniWindow()
 // packages/shared/shortcuts/definitions.ts
 {
   key: 'shortcut.app.chat.regenerate',
-  defaultKey: ['CommandOrControl', 'Shift', 'R'],
+  defaultBinding: ['CommandOrControl', 'Shift', 'R'],
   scope: 'renderer',
   category: 'app.chat'
 }

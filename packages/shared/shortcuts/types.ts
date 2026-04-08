@@ -28,7 +28,7 @@ export interface ShortcutDefinition {
   /** Preference key in `shortcut.app.{category}.{name}` format for built-in shortcuts. Plugins use `shortcut.plugin.{pluginId}.{name}`. */
   key: ShortcutPreferenceKey
   /** Default key binding in Electron accelerator format (e.g. `['CommandOrControl', 'L']`). Empty array means no default binding. */
-  defaultKey: string[]
+  defaultBinding: string[]
   /** Where the shortcut is registered: `main` (globalShortcut), `renderer` (react-hotkeys-hook), or `both`. */
   scope: ShortcutScope
   /** Dot-separated category for UI grouping (e.g. `app.general`, `app.chat`, `app.topic`, `plugin.translator`). */
@@ -50,8 +50,8 @@ export interface ShortcutDefinition {
 }
 
 /** Runtime-resolved shortcut state after merging user preferences with definition defaults. */
-export interface ShortcutPreferenceValue {
-  /** Effective key binding used at runtime. Always contains a valid binding (user-defined or default). */
+export interface ResolvedShortcut {
+  /** Effective key binding used at runtime. User-defined, default, or empty (explicitly cleared). */
   binding: string[]
   /** Whether this shortcut is currently enabled. */
   enabled: boolean

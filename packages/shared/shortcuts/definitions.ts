@@ -4,7 +4,7 @@ export const SHORTCUT_DEFINITIONS: readonly ShortcutDefinition[] = [
   // ==================== 应用级快捷键 ====================
   {
     key: 'shortcut.app.general.show_main_window',
-    defaultKey: [],
+    defaultBinding: [],
     scope: 'main',
     category: 'app.general',
     labelKey: 'show_app',
@@ -13,7 +13,7 @@ export const SHORTCUT_DEFINITIONS: readonly ShortcutDefinition[] = [
   },
   {
     key: 'shortcut.app.general.show_mini_window',
-    defaultKey: ['CommandOrControl', 'E'],
+    defaultBinding: ['CommandOrControl', 'E'],
     scope: 'main',
     category: 'app.general',
     labelKey: 'mini_window',
@@ -23,7 +23,7 @@ export const SHORTCUT_DEFINITIONS: readonly ShortcutDefinition[] = [
   },
   {
     key: 'shortcut.app.general.show_settings',
-    defaultKey: ['CommandOrControl', ','],
+    defaultBinding: ['CommandOrControl', ','],
     scope: 'both',
     category: 'app.general',
     labelKey: 'show_settings',
@@ -32,14 +32,14 @@ export const SHORTCUT_DEFINITIONS: readonly ShortcutDefinition[] = [
   },
   {
     key: 'shortcut.app.general.toggle_sidebar',
-    defaultKey: ['CommandOrControl', '['],
+    defaultBinding: ['CommandOrControl', '['],
     scope: 'renderer',
     category: 'app.general',
     labelKey: 'toggle_sidebar'
   },
   {
     key: 'shortcut.app.general.exit_fullscreen',
-    defaultKey: ['Escape'],
+    defaultBinding: ['Escape'],
     scope: 'renderer',
     category: 'app.general',
     labelKey: 'exit_fullscreen',
@@ -48,7 +48,7 @@ export const SHORTCUT_DEFINITIONS: readonly ShortcutDefinition[] = [
   },
   {
     key: 'shortcut.app.general.zoom_in',
-    defaultKey: ['CommandOrControl', '='],
+    defaultBinding: ['CommandOrControl', '='],
     scope: 'main',
     category: 'app.general',
     labelKey: 'zoom_in',
@@ -58,7 +58,7 @@ export const SHORTCUT_DEFINITIONS: readonly ShortcutDefinition[] = [
   },
   {
     key: 'shortcut.app.general.zoom_out',
-    defaultKey: ['CommandOrControl', '-'],
+    defaultBinding: ['CommandOrControl', '-'],
     scope: 'main',
     category: 'app.general',
     labelKey: 'zoom_out',
@@ -68,7 +68,7 @@ export const SHORTCUT_DEFINITIONS: readonly ShortcutDefinition[] = [
   },
   {
     key: 'shortcut.app.general.zoom_reset',
-    defaultKey: ['CommandOrControl', '0'],
+    defaultBinding: ['CommandOrControl', '0'],
     scope: 'main',
     category: 'app.general',
     labelKey: 'zoom_reset',
@@ -77,7 +77,7 @@ export const SHORTCUT_DEFINITIONS: readonly ShortcutDefinition[] = [
   },
   {
     key: 'shortcut.app.general.search',
-    defaultKey: ['CommandOrControl', 'Shift', 'F'],
+    defaultBinding: ['CommandOrControl', 'Shift', 'F'],
     scope: 'renderer',
     category: 'app.general',
     labelKey: 'search_message'
@@ -85,42 +85,42 @@ export const SHORTCUT_DEFINITIONS: readonly ShortcutDefinition[] = [
   // ==================== 聊天相关快捷键 ====================
   {
     key: 'shortcut.app.chat.clear',
-    defaultKey: ['CommandOrControl', 'L'],
+    defaultBinding: ['CommandOrControl', 'L'],
     scope: 'renderer',
     category: 'app.chat',
     labelKey: 'clear_topic'
   },
   {
     key: 'shortcut.app.chat.search_message',
-    defaultKey: ['CommandOrControl', 'F'],
+    defaultBinding: ['CommandOrControl', 'F'],
     scope: 'renderer',
     category: 'app.chat',
     labelKey: 'search_message_in_chat'
   },
   {
     key: 'shortcut.app.chat.toggle_new_context',
-    defaultKey: ['CommandOrControl', 'K'],
+    defaultBinding: ['CommandOrControl', 'K'],
     scope: 'renderer',
     category: 'app.chat',
     labelKey: 'toggle_new_context'
   },
   {
     key: 'shortcut.app.chat.copy_last_message',
-    defaultKey: ['CommandOrControl', 'Shift', 'C'],
+    defaultBinding: ['CommandOrControl', 'Shift', 'C'],
     scope: 'renderer',
     category: 'app.chat',
     labelKey: 'copy_last_message'
   },
   {
     key: 'shortcut.app.chat.edit_last_user_message',
-    defaultKey: ['CommandOrControl', 'Shift', 'E'],
+    defaultBinding: ['CommandOrControl', 'Shift', 'E'],
     scope: 'renderer',
     category: 'app.chat',
     labelKey: 'edit_last_user_message'
   },
   {
     key: 'shortcut.app.chat.select_model',
-    defaultKey: ['CommandOrControl', 'Shift', 'M'],
+    defaultBinding: ['CommandOrControl', 'Shift', 'M'],
     scope: 'renderer',
     category: 'app.chat',
     labelKey: 'select_model'
@@ -128,21 +128,21 @@ export const SHORTCUT_DEFINITIONS: readonly ShortcutDefinition[] = [
   // ==================== 话题管理快捷键 ====================
   {
     key: 'shortcut.app.topic.new',
-    defaultKey: ['CommandOrControl', 'N'],
+    defaultBinding: ['CommandOrControl', 'N'],
     scope: 'renderer',
     category: 'app.topic',
     labelKey: 'new_topic'
   },
   {
     key: 'shortcut.app.topic.rename',
-    defaultKey: ['CommandOrControl', 'T'],
+    defaultBinding: ['CommandOrControl', 'T'],
     scope: 'renderer',
     category: 'app.topic',
     labelKey: 'rename_topic'
   },
   {
     key: 'shortcut.app.topic.toggle_show_topics',
-    defaultKey: ['CommandOrControl', ']'],
+    defaultBinding: ['CommandOrControl', ']'],
     scope: 'renderer',
     category: 'app.topic',
     labelKey: 'toggle_show_topics'
@@ -150,7 +150,7 @@ export const SHORTCUT_DEFINITIONS: readonly ShortcutDefinition[] = [
   // ==================== 划词助手快捷键 ====================
   {
     key: 'shortcut.feature.selection.toggle_enabled',
-    defaultKey: [],
+    defaultBinding: [],
     scope: 'main',
     category: 'feature.selection',
     labelKey: 'selection_assistant_toggle',
@@ -160,7 +160,7 @@ export const SHORTCUT_DEFINITIONS: readonly ShortcutDefinition[] = [
   },
   {
     key: 'shortcut.feature.selection.get_text',
-    defaultKey: [],
+    defaultBinding: [],
     scope: 'main',
     category: 'feature.selection',
     labelKey: 'selection_assistant_select_text',
