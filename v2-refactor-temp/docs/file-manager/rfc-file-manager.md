@@ -1,0 +1,1761 @@
+# RFC: 文件管理（单一条目表 + 文件树）
+
+> **定位**：实现设计文档。包含数据模型、Drizzle Schema、API 细节、核心流程伪代码、迁移策略与分阶段计划。
+>
+> 架构决策（系统边界、组件职责、数据流）以 [`docs/zh/references/file-manager-architecture.md`](../../../../docs/zh/references/file-manager-architecture.md) 为准。本文档中与架构文档冲突的内容，以架构文档为 Source of Truth。
+
+## 一、背景
+
+现有问题参见 `./file-arch-problems.md`，核心矛盾包括：
+
+- 职责边界割裂与一致性风险（问题 1/2/3/11）。
+- 去重机制与用户可见性冲突（问题 4）。
+- 缺少结构化目录树与统一检索入口（问题 6/10）。
+- 业务来源不可区分、引用关系不显式（问题 5/7）。
+- 笔记体系与全局文件管理割裂（问题 9）。
+- 元数据生成多入口导致策略不一致（问题 13）。
+
+因此需要以"单一条目表 + 文件树 + 引用关系"作为新的文件管理基础，以解决上述结构性问题。
+
+---
+
+## 二、范畴说明
+
+- 本 RFC 覆盖条目模型、文件树结构、存储模式、数据 Schema、核心流程、API 设计、引用清理、迁移策略与分阶段实施计划。
+- 不涉及 UI 交互与具体页面改动。
+- 不讨论元信息编辑（如改名、标签）之外的业务流程变更。
+
+补充说明：
+
+- 对话内复用应用内部文件的交互不在本 RFC 范围内，但在实现文件树后应可通过业务流程接入。（问题 8）
+- 笔记体系需要迁移到本文件树架构之下，纳入统一条目表与引用关系。（问题 9/10）
+- `FileMetadata` 等元数据生成应收口到统一工厂入口，避免多入口策略不一致。（问题 13）
+- Painting 业务重构不在本次范围内，仅依赖 FileMigrator 提供的 fileId，随 Painting 重构独立推进。
+
+---
+
+## 三、设计目标
+
+- 统一主进程入口与一致性保障，消除职责边界割裂。（问题 1/2/3/11）
+- 放弃去重，让用户视角文件保持独立。（问题 4）
+  - 可保留重复文件检查，由用户决定具体行为。
+- 以单一条目表表达文件与目录，并形成可检索的目录树。（问题 6/10）
+- 用显式引用关系表达业务使用情况与来源。（问题 5/7）
+- 为笔记体系与对话复用提供结构基础。（问题 8/9）
+- 为迁移与扩展提供清晰的演进方向。（问题 12/13）
+
+---
+
+## 四、双模式存储设计
+
+### 4.1 问题
+
+"条目应当保证与 OS 文件系统的目录结构保持一致"与"底层存储文件名为 `id + ext`"不可兼得。笔记系统必须使用人类可读文件名以支持外部编辑器（VS Code、Obsidian）。
+
+### 4.2 方案：Provider 驱动的挂载点
+
+引入**挂载点（Mount）**概念，每个挂载点定义一种存储模式：
+
+| 挂载点 | providerType | 物理文件名 | Source of Truth | 同步方向 |
+|--------|-------------|-----------|----------------|---------|
+| Files | `local_managed` | `{id}.{ext}` | DB | App → 文件系统 |
+| Notes | `local_external` | `{name}.{ext}` | 文件系统 | 文件系统 ↔ DB |
+| Trash | `system` | 无自有存储 | DB | — |
+| *(未来)* | `remote` | `{cachePath}/{remoteId}` | 远程 API | 远程 ↔ 本地缓存 ↔ DB |
+
+### 4.3 路径计算规则
+
+条目的物理路径由挂载点的 `providerType` 决定：
+
+- **`local_managed`**：`{mount.basePath}/{entry.id}.{entry.ext}`（平坦存储，目录仅逻辑）
+- **`local_external`**：`{mount.basePath}/{...ancestorNames}/{entry.name}.{entry.ext}`（映射 OS 目录树）
+- **`remote`**：`{mount.cachePath}/{entry.remoteId}`（本地缓存），实际文件通过 API 访问，按需下载/同步
+
+`path` 不作为持久化字段，运行时由树关系与挂载点配置构建。建议维护内存级路径缓存 `Map<entryId, absolutePath>`，树变更时重建。
+
+#### `ext` 格式规范
+
+- 条目表中 `ext` 统一存储为**不含前导点**的格式（如 `'pdf'`、`'md'`、`'png'`）。
+- 迁移时对旧数据执行 `ext.replace(/^\./, '')` 做一次性 normalize。
+- `resolvePhysicalPath` 拼接时**始终加点**：`${id}.${ext}`。
+- 若 `ext` 为 `null`（目录/挂载点），路径无扩展名。
+
+```typescript
+/**
+ * FileManager.resolvePhysicalPath()
+ * 解析条目的物理文件路径。此方法属于 FileManager（唯一生命周期服务），
+ * 内部通过 FileTreeService 查询 mount 条目信息。
+ * 实际的 FS 操作（读写/stat/移动等）由 ops.ts 纯函数（唯一 FS owner）执行。
+ */
+function resolvePhysicalPath(entry: FileEntry, mount?: FileEntry): string {
+  const resolvedMount = mount ?? fileTreeService.getById(entry.mountId)  // 内存缓存查询
+  const extSuffix = entry.ext ? `.${entry.ext}` : ''
+
+  switch (resolvedMount.providerConfig?.providerType) {
+    case 'local_managed':
+      return path.join(resolvedMount.providerConfig.basePath, `${entry.id}${extSuffix}`)
+    case 'local_external':
+      const ancestors = getAncestorNames(entry, resolvedMount) // 不含 mount 自身
+      return path.join(resolvedMount.providerConfig.basePath, ...ancestors, `${entry.name}${extSuffix}`)
+    case 'system':
+      // system mount（如 Trash）无自有物理存储
+      // Trash 中的文件路径由其原始 mountId 对应的 mount 决定
+      throw new Error('System mount has no physical storage. Use original mount to resolve path.')
+    default:
+      throw new Error(`Unknown provider type: ${resolvedMount.providerConfig?.providerType}`)
+  }
+}
+```
+
+> **Trash 中文件的路径解析**：Trash 中的条目保持原 `mountId` 不变，因此解析路径时应使用原 `mountId` 对应的 mount，而非 `system_trash`。对于 `local_managed` 模式，物理文件位置不变（UUID 命名）；对于 `local_external` 模式，物理文件已移至 `{原mount.basePath}/.trash/{entryId}/`。
+
+### 4.4 各模式同步策略
+
+#### local_external 模式（Notes）
+
+文件系统为 Source of Truth，条目表作为索引层：
+
+```
+                    ┌──────────────────┐
+                    │   文件系统 (SoT)   │
+                    └────────┬─────────┘
+                             │
+              ┌──────────────┼──────────────┐
+              ▼              ▼              ▼
+         chokidar       启动时扫描      手动刷新
+         (增量事件)     (全量 reconcile) (用户触发)
+              │              │              │
+              └──────────────┼──────────────┘
+                             ▼
+                    ┌──────────────────┐
+                    │  条目表 (索引层)   │
+                    └──────────────────┘
+```
+
+- **启动时**：全量扫描文件系统 → diff 条目表 → 增删改对齐
+- **运行时**：chokidar 监听 → 防抖 → 增量更新条目表
+  - chokidar 必须排除 `.trash` 目录：`ignored: ['**/.trash/**']`
+- **冲突处理**：文件系统 wins
+- **操作锁**：应用内发起的文件系统变更（trash / restore / move / rename）必须在操作期间挂起 chokidar 事件处理，避免同步引擎将应用自身的操作误判为外部变更。实现方式：FileManager 维护 `OperationLock`（`Set<string>`）记录"正在操作中的路径"，内部 chokidar 监听逻辑在处理事件前检查该集合，命中则跳过。操作完成后移除路径。
+
+```
+┌──────────────────────────────────────────────────┐     ┌──────────────┐
+│                  FileManager                      │     │  chokidar    │
+│  ┌─────────────┐  ┌──────────────┐                │     │  (内部监听)   │
+│  │ trashNode() │  │OperationLock │                │     │              │
+│  └──────┬──────┘  └──────┬───────┘                │     └──────┬───────┘
+│         │ 1. lock(oldPath)│                        │            │
+│         │────────────────→│                        │            │
+│         │ 2. ops.move()     │                        │            │
+│         │─────────────────│── fs.rename() ─────────│───────────→│ unlink(oldPath)
+│         │                 │  3. check lock         │            │
+│         │                 │←───────────────────────│────────────│
+│         │                 │  4. "locked, skip"     │            │
+│         │                 │────────────────────────│───────────→│ (ignored)
+│         │ 5. FileTreeService                       │            │
+│         │    .update() (DB)                        │            │
+│         │ 6. unlock(oldPath)                       │            │
+│         │────────────────→│                        │            │
+│  └─────────────────────────┘                       │            │
+└────────────────────────────────────────────────────┘            │
+```
+
+#### remote 模式（远程文件 API）
+
+远程 API 为 Source of Truth，本地缓存 + 条目表作为镜像层：
+
+```
+                    ┌──────────────────┐
+                    │   远程 API (SoT)   │
+                    └────────┬─────────┘
+                             │
+              ┌──────────────┼──────────────┐
+              ▼              ▼              ▼
+         轮询/API推送    启动时全量同步   用户手动刷新
+         (增量事件)     (list + diff)   (触发同步)
+              │              │              │
+              └──────────────┼──────────────┘
+                             ▼
+                    ┌──────────────────┐
+                    │   本地缓存        │
+                    │  {cachePath}    │
+                    └────────┬─────────┘
+                             │
+                             ▼
+                    ┌──────────────────┐
+                    │  条目表 (镜像层)   │
+                    └──────────────────┘
+```
+
+- **启动时**：调用远程 API list files → diff 本地条目表 → 增删改对齐
+- **运行时**：轮询或 webhook 接收变更 → 下载/更新本地缓存 → 更新条目表
+- **本地访问**：优先读本地缓存，`cachedAt` 非 null 时直接返回缓存路径（可与远程 `updatedAt` 比较判断缓存是否过期）；未缓存时按需下载
+- **冲突处理**：远程 wins（本地修改后需显式上传）
+- **离线支持**：缓存文件可离线访问，联网后同步变更
+
+#### 跨 Provider 文件引用
+
+当需要在本地引用远程文件时（如用 Provider B 处理 Provider A 的文件），流程如下：
+
+```
+┌─────────────────┐         ┌─────────────────┐         ┌─────────────────┐
+│  Provider A     │         │   本地缓存       │         │  Provider B     │
+│  (remote mount) │ ──────→ │ (managed mount) │ ──────→ │ (remote mount)  │
+│                 │ 下载     │                 │ 上传     │                 │
+└─────────────────┘         └─────────────────┘         └─────────────────┘
+        ↑                                                    │
+        └──────────────── file_ref ──────────────────────────┘
+                    sourceType='chat_message'
+                    role='attachment'
+                    fileEntryId = 本地缓存条目ID
+```
+
+**处理流程**：
+
+1. **用户选择远程文件**：从 `mount_openai` 选择 `file-abc123`
+2. **创建本地副本**：下载到 `mount_files`（managed），生成新条目 `local-copy-xyz`
+3. **建立引用**：创建 `file_ref`（`fileEntryId=local-copy-xyz`, `sourceType='chat_message'`）
+4. **发送给 Provider B**：读取本地缓存路径 → 上传 → 获取 Provider B 的 `file_id`
+5. **清理**：消息发送完成后，根据策略保留或删除本地副本
+
+**设计要点**：
+
+- 本地副本作为"暂存区"，生命周期与业务对象绑定
+- 通过 `file_ref` 追踪"哪个消息引用了哪个本地副本"
+- 本地副本存储在 `mount_files`（managed），享受统一的 Trash/清理机制
+- 可选：标记 `isTemporary=true`，在引用清理时自动删除
+
+---
+
+## 五、Provider 配置类型定义
+
+### 5.1 Zod Schema
+
+采用 **Base + options 泛型字段** 模式：公共字段强类型，Provider 专属配置放在 `options` 中由具体实现二次验证。
+
+```typescript
+import * as z from 'zod'
+
+// ─── Provider Type 枚举 ───
+export const MountProviderTypeSchema = z.enum([
+  'local_managed',
+  'local_external',
+  'remote',
+  'system',         // 系统内部挂载点（如 Trash），无物理存储
+])
+export type MountProviderType = z.infer<typeof MountProviderTypeSchema>
+
+// ─── Remote API 类型枚举（可扩展）───
+export const RemoteApiTypeSchema = z.enum([
+  'openai_files',
+  // 未来: 's3', 'webdav', 'google_drive', ...
+])
+export type RemoteApiType = z.infer<typeof RemoteApiTypeSchema>
+
+// ─── 各 Provider 的 Config Schema ───
+
+/** 托管文件：应用内部管理，UUID 命名 */
+export const LocalManagedConfigSchema = z.object({
+  providerType: z.literal('local_managed'),
+  basePath: z.string().min(1),
+})
+
+/** 外部文件：文件系统为主，人类可读命名 */
+export const LocalExternalConfigSchema = z.object({
+  providerType: z.literal('local_external'),
+  basePath: z.string().min(1),
+  watch: z.boolean().default(true),
+  watchExtensions: z.array(z.string()).optional(),
+})
+
+/** 远程文件：通过 API 访问 */
+export const RemoteConfigSchema = z.object({
+  providerType: z.literal('remote'),
+  apiType: RemoteApiTypeSchema,
+  providerId: z.string().min(1),       // 关联 AI provider 配置（不存敏感信息）
+  cachePath: z.string().optional(),
+  autoSync: z.boolean().default(false),
+  options: z.record(z.string(), z.unknown()).default({}),  // 各 API 专属配置
+})
+
+/** 系统内部挂载点：无物理存储，仅用于组织结构（如 Trash） */
+export const SystemConfigSchema = z.object({
+  providerType: z.literal('system'),
+})
+
+// ─── 判别联合 ───
+export const MountProviderConfigSchema = z.discriminatedUnion('providerType', [
+  LocalManagedConfigSchema,
+  LocalExternalConfigSchema,
+  RemoteConfigSchema,
+  SystemConfigSchema,
+])
+export type MountProviderConfig = z.infer<typeof MountProviderConfigSchema>
+```
+
+### 5.2 远程 Provider 扩展模式
+
+`RemoteConfigSchema.options` 是泛型 Record，具体 Provider 实现时二次验证：
+
+```typescript
+// 示例：OpenAI Files Provider 实现中
+const OpenAIFilesOptionsSchema = z.object({
+  purpose_filter: z.array(z.string()).optional(),
+  org_id: z.string().optional(),
+})
+
+class OpenAIFilesProvider implements RemoteProvider {
+  constructor(config: RemoteConfig) {
+    this.options = OpenAIFilesOptionsSchema.parse(config.options)
+  }
+}
+```
+
+核心 Schema 不需要因新增 Provider 而变更。
+
+---
+
+## 六、数据模型（Drizzle Schema）
+
+### 6.1 设计决策汇总
+
+| 决策项 | 结论 | 理由 |
+|--------|------|------|
+| 挂载点与条目同表/分表 | **同表** | 挂载点极少（2-5 个），字段浪费可忽略 |
+| managed 模式目录 | **平坦存储** | 物理无子目录，目录仅逻辑存在于 DB |
+| 主键策略 | **UUID v7**（时间有序） | 大数据量表，顺序插入性能更优 |
+| 删除策略 | **OS 风格 Trash** | 移动到 Trash mount 下，记录 previousParentId |
+| Trash 条目类型 | **mount（`providerType: 'system'`）** | 与其他顶层条目模式统一，`type='mount'` + `mountId=self` + `parentId=null`。`getMounts()` 通过 `includeSystem` 参数区分 |
+| `mountId` 冗余字段 | **保留** | 避免递归 CTE 查挂载点，查询性能关键 |
+| `parentId` 级联删除 | **CASCADE** | Trash 清空时物理级联删除子条目 |
+| `sourceType`/`role` 枚举约束 | **应用层 Zod 验证** | 避免新增来源需要 migration |
+| `file_ref` 防重复 | **UNIQUE 约束** | 同一业务对象以同一角色引用同一文件至多一条记录，防止应用层 bug 导致重复引用。业务语义：一条消息不会以 `attachment` 角色引用同一个文件两次——如需附加同一文件多次，应创建文件副本（独立 fileEntryId） |
+| DataApi 职责 | **只读端点** | DataApi 是纯数据接口，只管 DB 不管 FS。文件树写操作（create/rename/move/trash/delete/upload）走 FileManager IPC，FileManager 内部调用 ops.ts 纯函数 + FileTreeService（data repository）同步 DB |
+| FileRef POST API | **不暴露给 renderer** | FileRef 的创建始终是业务操作的副作用（发消息→附件 ref、添加知识库→来源 ref），不存在 renderer 直接创建 ref 的场景。各业务 service 内部调用 FileRefService |
+| DTO 收窄 | **CreateEntryDto = { type, name, parentId }** | 元数据生成收口到 FileManager 单一入口（问题 13）：mountId 从 parent 推导，ext 从 name 拆分，size 从文件读取。DTO 是 FileManager 内部类型，不暴露给 renderer |
+| `ext`/`size` 存放 | **保留在 fileEntryTable** | 文件树列表高频按 ext 过滤、按 size 排序，需要索引支持。`FileEntry`（树结构+最小显示信息）和 `FileMetadata`（物理文件详细信息）概念上分离，字段有冗余重叠，以查询性能换取职责纯粹 |
+| mount 目录结构 | **统一在 `{userData}/Data/files/` 下** | `managed/`（mount_files）、`notes/`（mount_notes 默认路径，用户可改）、`temp/`（mount_temp）、`{remote_name}/`（未来 remote 缓存）。mount 间物理隔离，不互相嵌套 |
+| 临时文件存储 | **`mount_temp` mount（`local_managed`）** | basePath = `{userData}/Data/files/temp/`。粘贴、临时预览等场景的文件放入此 mount。业务 service 可将有用文件 `move` 到 `mount_files` |
+| 临时文件清理 | **无 ref = 自动清理，有 ref = 用户主动删除** | `mount_temp` 兼作临时文件和缓存。ref 由调用方显式管理：粘贴时创建 ref，发送后删临时 ref + 创建正式 ref + move，取消时删 ref。清理器只自动删除无任何 ref 的条目（启动时 + 定期），绝不自动删除 ref。用户通过删 ref 来主动释放不需要的缓存 |
+
+### 6.2 fileEntryTable
+
+```typescript
+import type { MountProviderConfig } from '@shared/data/types/file'
+import { sql } from 'drizzle-orm'
+import { check, foreignKey, index, integer, sqliteTable, text, uniqueIndex } from 'drizzle-orm/sqlite-core'
+
+import { createUpdateTimestamps, uuidPrimaryKeyOrdered } from './_columnHelpers'
+
+/**
+ * File entry table - unified file/directory/mount entry entity
+ *
+ * Uses adjacency list pattern (parentId) for tree navigation.
+ * Mount entries (type='mount') serve as root entries with provider configuration.
+ * Trash is a system mount entry (providerType='system') for OS-style soft deletion.
+ */
+export const fileEntryTable = sqliteTable(
+  'file_entry',
+  {
+    id: uuidPrimaryKeyOrdered(),
+
+    // ─── 核心字段 ───
+    // 条目类型：file | dir | mount
+    type: text().notNull(),
+    // 用户可见名称（不含扩展名）
+    name: text().notNull(),
+    // 扩展名，不含前导点（如 'pdf'、'md'）。目录/挂载点为 null
+    ext: text(),
+
+    // ─── 树结构 ───
+    // 父条目 ID。挂载点为 null（顶层）
+    parentId: text(),
+    // 所属挂载点 ID（冗余，便于查询）。挂载点自身 mountId = id
+    // Trash 中的条目保持原 mountId 不变（指向被删前所属的挂载点）
+    mountId: text().notNull(),
+
+    // ─── 文件属性 ───
+    // 文件大小（字节）。目录/挂载点为 null
+    size: integer(),
+
+    // ─── 挂载点专属（仅 type='mount'）───
+    // Provider 配置 JSON，经 MountProviderConfigSchema 验证
+    providerConfig: text({ mode: 'json' }).$type<MountProviderConfig>(),
+
+    // ─── 远程文件预留（仅远程挂载点下的文件）───
+    // 远程端文件 ID（如 OpenAI file-abc123）
+    remoteId: text(),
+    // 本地缓存最后下载时间（ms epoch）。null 表示未缓存。
+    // 与远程 updatedAt 比较可判断缓存是否过期。
+    cachedAt: integer(),
+
+    // ─── Trash 相关 ───
+    // 被移入 Trash 前的原始父条目 ID（仅 Trash 直接子条目有值）
+    previousParentId: text(),
+
+    // ─── 时间戳 ───
+    ...createUpdateTimestamps
+  },
+  (t) => [
+    // 自引用外键：删除父条目时级联删除子条目（Trash 清空时生效）
+    foreignKey({ columns: [t.parentId], foreignColumns: [t.id] })
+      .onDelete('cascade'),
+    // 索引
+    index('node_parent_id_idx').on(t.parentId),
+    index('node_mount_id_idx').on(t.mountId),
+    index('node_mount_type_idx').on(t.mountId, t.type),
+    index('node_name_idx').on(t.name),
+    index('node_updated_at_idx').on(t.updatedAt),
+    // 类型约束
+    check('node_type_check', sql`${t.type} IN ('file', 'dir', 'mount')`),
+  ]
+)
+```
+
+### 6.3 fileRefTable
+
+```typescript
+/**
+ * File reference table - tracks which business entities reference which files
+ *
+ * Polymorphic association: sourceType + sourceId identify the referencing entity.
+ * No FK constraint on sourceId (polymorphic). Application-layer cleanup required
+ * when source entities are deleted.
+ *
+ * fileEntryId has CASCADE delete: removing a file entry auto-removes its references.
+ */
+export const fileRefTable = sqliteTable(
+  'file_ref',
+  {
+    id: uuidPrimaryKey(),
+
+    // 引用的文件条目 ID
+    fileEntryId: text()
+      .notNull()
+      .references(() => fileEntryTable.id, { onDelete: 'cascade' }),
+
+    // 业务来源类型（如 'chat_message', 'knowledge_item', 'painting', 'note'）
+    // 枚举由应用层 Zod 验证，不设 CHECK 约束
+    sourceType: text().notNull(),
+    // 业务对象 ID（多态，无 FK 约束）
+    sourceId: text().notNull(),
+    // 引用角色，按 sourceType 作用域内定义（如 'attachment', 'source', 'asset'）
+    role: text().notNull(),
+
+    ...createUpdateTimestamps
+  },
+  (t) => [
+    // 从文件查引用方
+    index('file_ref_file_entry_id_idx').on(t.fileEntryId),
+    // 从业务对象查引用的文件
+    index('file_ref_source_idx').on(t.sourceType, t.sourceId),
+    // 防止重复引用（同一文件不能被同一业务对象以同一角色引用两次）
+    uniqueIndex('file_ref_unique_idx').on(t.fileEntryId, t.sourceType, t.sourceId, t.role),
+  ]
+)
+```
+
+### 6.4 系统初始化条目
+
+应用首次启动时创建以下系统条目：
+
+```typescript
+const SYSTEM_ENTRIES = [
+  {
+    id: 'mount_files',           // 固定 ID
+    type: 'mount',
+    name: 'Files',
+    mountId: 'mount_files',      // 自引用
+    providerConfig: {
+      providerType: 'local_managed',
+      basePath: getFilesDir(),  // {userData}/Data/Files
+    },
+  },
+  {
+    id: 'mount_notes',
+    type: 'mount',
+    name: 'Notes',
+    mountId: 'mount_notes',
+    providerConfig: {
+      providerType: 'local_external',
+      basePath: getNotesDir(),  // 用户配置 或 {userData}/Data/Notes
+      watch: true,
+    },
+  },
+  {
+    id: 'system_trash',
+    type: 'mount',
+    name: 'Trash',
+    mountId: 'system_trash',     // 自引用，与其他 mount 一致
+    parentId: null,
+    providerConfig: {
+      providerType: 'system',   // 系统挂载点，无物理存储
+    },
+  },
+]
+```
+
+### 6.5 DTO 类型定义
+
+位于 `packages/shared/data/types/file/` 目录下，按职责拆分为多个模块：
+
+| 文件 | 内容 |
+|------|------|
+| `essential.ts` | `TimestampSchema`、`SafeNameSchema` 等共享基础 schema |
+| `fileEntry.ts` | `FileEntrySchema`（discriminatedUnion）、`CreateEntryDtoSchema`、`UpdateEntryDtoSchema`、`FileEntryIdSchema` |
+| `provider.ts` | `MountProviderConfigSchema`（discriminatedUnion on `providerType`） |
+| `ref/` | `FileRefSchema`（discriminatedUnion on `sourceType`）、`createRefSchema` 工厂函数 |
+| `index.ts` | Barrel re-export，外部统一从 `@shared/data/types/file` 导入 |
+
+所有类型均由 Zod schema 定义，TypeScript 类型通过 `z.infer<>` 导出。
+
+`FileEntrySchema` 使用 `z.discriminatedUnion('type', [MountEntrySchema, DirEntrySchema, RegularFileEntrySchema])` 按条目类型区分结构约束（详见 `fileEntry.ts` 中的 invariant 表注释）。
+
+`FileRefSchema` 使用 `z.discriminatedUnion('sourceType', [...])` 按业务来源区分，每种 `sourceType` 通过 `createRefSchema()` 工厂函数创建，自动继承公共字段（`id`、`fileEntryId`、`createdAt`、`updatedAt`）。新增业务集成时只需添加一个新的 ref schema 文件。
+
+```typescript
+// 推断出的 TypeScript 类型（等价于旧 interface 定义）
+type FileEntry = z.infer<typeof FileEntrySchema>  // 条目实体（discriminatedUnion）
+type MountEntry = z.infer<typeof MountEntrySchema>        // 挂载点条目
+type DirEntry = z.infer<typeof DirEntrySchema>            // 目录条目
+type RegularFileEntry = z.infer<typeof RegularFileEntrySchema>          // 文件条目
+type CreateEntryDto = z.infer<typeof CreateEntryDtoSchema>
+type UpdateEntryDto = z.infer<typeof UpdateEntryDtoSchema>
+type FileRef = z.infer<typeof FileRefSchema>            // 文件引用（discriminatedUnion on sourceType）
+type CreateFileRefDto = z.infer<typeof CreateFileRefDtoSchema>
+type FileEntryId = z.infer<typeof FileEntryIdSchema>              // UUID v7 | SystemFileEntryId（推断为 string）
+```
+
+**关键 schema**：
+
+- `SafeNameSchema`：名称安全校验（max 255, 禁止 null 字节/路径分隔符/`.`/`..`）
+- `TimestampSchema`：`z.int().nonnegative()` 毫秒时间戳
+- `FileEntryIdSchema`：`z.union([z.uuidv7(), SystemFileEntryIdSchema])`
+- `FileRefRoleSchema`：按 `sourceType` 作用域内定义（如 `attachment`、`source`），通过 `z.enum` 约束
+
+---
+
+## 七、核心流程
+
+### 7.1 统一入口与一致性要求（问题 1/2/3/11）
+
+- 通过统一入口由 main 管理所有落地写入，renderer 仅通过 DataApi（只读）和 File IPC（读写）交互。
+- FileManager 负责协调"物理写入 + 条目登记"的原子性保障：解析 entryId → filePath，通过 FileTreeService（data repository）操作 DB，通过 `ops.ts` 纯函数操作文件系统。FileManager 自身不 import `fs`，而是调用 `ops.ts` 导出的纯函数（如 `ops.read()`、`ops.write()`）。
+- `ops.ts` 纯函数是唯一的 FS owner，只接受 filePath，不感知条目概念。FileTreeService 是纯 DB 层（data repository），不碰 FS。
+- 任何失败都必须回滚物理文件或条目记录，避免半成状态。
+- renderer 不得绕过 main 直接写入条目表。
+
+### 7.2 上传
+
+```
+1. Renderer: window.api.file.upload(file)     ← IPC → FileManager
+2. Main: FileManager 调用 ops.ts 纯函数写入物理文件  ← ops.ts 为唯一 FS owner
+3. Main: FileManager 调用 FileTreeService.create(entryDto) ← 写入条目表（纯 DB）
+4. Main: 返回 FileEntry                        ← 替代原有 FileMetadata
+```
+
+上传是原子操作：物理文件写入 + 条目创建在同一个 main 进程事务中完成。
+
+补充约束：
+
+- 放弃去重，不做内容去重。允许同名文件存在。
+- `local_managed` 模式：底层存储文件名为 `id + ext`，不与用户可见名称冲突。
+- `local_external` 模式：存储文件名为 `name + ext`，映射 OS 目录结构。
+
+### 7.3 删除与恢复（OS 风格 Trash）
+
+参照 Windows/macOS 回收站行为：
+
+- **删除 = 移动到 Trash 目录下**（不是原地标记）
+- **恢复 = 移回 `previousParentId`**（若原父目录已删则自动重建目录结构）
+- **永久删除 = 从 Trash 中硬删**（CASCADE 级联子条目 + 物理文件清理）
+- **自动过期**：默认 30 天自动清理，可由用户在 Preference 中配置天数或关闭
+
+#### Provider 模式对物理文件的影响
+
+不同存储模式下，Trash 操作对物理文件的处理不同：
+
+| 操作 | `local_managed` | `local_external` |
+|------|-----------------|-------------------|
+| **Trash（软删）** | 仅 DB 操作（物理文件名为 UUID，用户不可见） | **物理移动**到 `{mount.basePath}/.trash/{entryId}/` |
+| **Restore（恢复）** | 仅 DB 操作 | **物理移回**原路径 |
+| **永久删除** | 删物理文件 + 删 DB | 删 `.trash` 中的物理文件 + 删 DB |
+
+**为什么 `local_external` 必须移动物理文件**：external 模式的目录对用户可见（如 Notes 文件夹），如果 Trash 只做 DB 标记而不移动物理文件，用户在 Finder/文件管理器中仍能看到"已删除"的文件，造成应用状态与文件系统不一致的困惑。
+
+**`.trash` 目录规范**：
+
+- 位置：`{mount.basePath}/.trash/`（以 `.` 开头，在 macOS/Linux 下默认隐藏）
+- 内部结构：`{mount.basePath}/.trash/{entryId}/{原始相对路径}`（用 entryId 做隔离，避免不同删除批次的同名文件冲突）
+- chokidar 监听必须排除 `.trash` 目录（`ignored: ['**/.trash/**']`）
+- 首次 Trash 操作时自动创建 `.trash` 目录
+
+#### 删除条目
+
+> **层级说明**：以下伪代码中，FS 操作由 FileManager 调用 `ops.ts` 纯函数（唯一 FS owner）执行，DB 操作委托给 FileTreeService（纯 DB data repository）。FileManager 自身不 import `fs`，仅做 entryId → filePath 解析与流程协调。
+
+```typescript
+// FileManager.trashEntry()
+const SYSTEM_ENTRY_IDS = new Set(['mount_files', 'mount_notes', 'mount_temp', 'system_trash'])
+
+async function trashEntry(entryId: string): Promise<void> {
+  // 系统条目不可删除
+  if (SYSTEM_ENTRY_IDS.has(entryId)) {
+    throw new Error('System entries cannot be trashed.')
+  }
+
+  const entry = await fileTreeService.getById(entryId)
+
+  // 挂载点条目不可删除
+  if (entry.type === 'mount') {
+    throw new Error('Mount entries cannot be trashed.')
+  }
+
+  const mount = await fileTreeService.getById(entry.mountId)
+
+  // local_external 模式：先移动物理文件到 .trash（调用 ops.ts 纯函数执行 FS 操作）
+  if (mount.providerConfig?.providerType === 'local_external') {
+    const physicalPath = this.resolvePhysicalPath(entry)
+    const trashPath = path.join(
+      mount.providerConfig.basePath,
+      '.trash',
+      entryId,
+      path.relative(mount.providerConfig.basePath, physicalPath),
+    )
+    await ops.ensureDir(path.dirname(trashPath))
+    await ops.move(physicalPath, trashPath)
+    // 如果是目录，整个子树的物理文件都随 move 一起移走了
+  }
+
+  // 更新 DB（委托 FileTreeService）
+  await fileTreeService.update(entryId, {
+    parentId: SYSTEM_TRASH_ID,
+    previousParentId: entry.parentId,
+  })
+  // 子条目不需要移动 — 它们的 parentId 仍然指向被移动的条目
+  // 整棵子树自然跟随父条目进入 Trash
+}
+```
+
+#### 恢复条目
+
+```typescript
+// FileManager.restoreEntry()
+async function restoreEntry(entryId: string): Promise<void> {
+  const entry = await fileTreeService.getById(entryId)
+
+  // 确保原始父目录链可达（参考 macOS/Windows：自动重建已删除的父目录）
+  await fileTreeService.ensureAncestors(entry.previousParentId)
+
+  const mount = await fileTreeService.getById(entry.mountId)
+
+  // local_external 模式：将物理文件从 .trash 移回原位（调用 ops.ts 纯函数执行 FS 操作）
+  if (mount.providerConfig?.providerType === 'local_external') {
+    const restoredPath = this.resolvePhysicalPath({ ...entry, parentId: entry.previousParentId })
+    const trashPath = path.join(
+      mount.providerConfig.basePath,
+      '.trash',
+      entryId,
+      path.relative(mount.providerConfig.basePath, restoredPath),
+    )
+
+    // 检查目标路径冲突
+    const stat = await ops.stat(restoredPath).catch(() => null)
+    if (stat) {
+      throw new Error(`Cannot restore: path already exists at ${restoredPath}`)
+    }
+
+    await ops.ensureDir(path.dirname(restoredPath))
+    await ops.move(trashPath, restoredPath)
+
+    // 清理空的 .trash/{entryId} 目录
+    await ops.remove(path.join(mount.providerConfig.basePath, '.trash', entryId))
+  }
+
+  // 更新 DB（委托 FileTreeService）
+  await fileTreeService.update(entryId, {
+    parentId: entry.previousParentId,
+    previousParentId: null,
+  })
+}
+```
+
+#### 永久删除（清空回收站）
+
+```typescript
+// FileManager.permanentDelete()
+async function permanentDelete(entryId: string): Promise<void> {
+  // 系统条目 / 挂载点不可永久删除
+  if (SYSTEM_ENTRY_IDS.has(entryId)) {
+    throw new Error('System entries cannot be permanently deleted.')
+  }
+  const entry = await fileTreeService.getById(entryId)
+  if (entry.type === 'mount') {
+    throw new Error('Mount entries cannot be permanently deleted.')
+  }
+
+  const mount = await fileTreeService.getById(entry.mountId)
+
+  // FS 清理（调用 ops.ts 纯函数执行）
+  if (mount.providerConfig?.providerType === 'local_external') {
+    // external 模式：物理文件已在 .trash/{entryId}/ 中，直接删除整个目录
+    const trashDir = path.join(mount.providerConfig.basePath, '.trash', entryId)
+    await ops.remove(trashDir).catch(() => {})
+  } else {
+    // managed 模式：收集所有后代的物理文件路径
+    const descendants = await fileTreeService.getDescendants(entryId) // 递归 CTE（纯 DB）
+    const filesToDelete = descendants
+      .filter(n => n.type === 'file')
+      .map(n => this.resolvePhysicalPath(n))
+
+    // 先删物理文件（失败时 DB 记录仍在，可重试）
+    const deleteResults = await Promise.allSettled(
+      filesToDelete.map(p => ops.remove(p))
+    )
+    const failed = deleteResults.filter(r => r.status === 'rejected' && r.reason?.code !== 'ENOENT')
+    if (failed.length > 0) {
+      logger.warn(`${failed.length} files failed to delete, proceeding with DB cleanup`)
+    }
+  }
+
+  // 删条目（委托 FileTreeService，CASCADE 自动删除子条目 + file_ref）
+  await fileTreeService.delete(entryId)
+}
+```
+
+> **顺序说明**：先删物理文件、再删 DB 记录。如果物理文件删除部分失败，DB 记录仍在可重试；如果反过来先删 DB，则丢失了文件路径信息无法追溯。已不存在的文件（`ENOENT`）不视为错误。
+
+#### 回收站展示
+
+回收站只展示 Trash 的**直接子条目**（`parentId = SYSTEM_TRASH_ID`），每个条目是一个独立的删除操作单元。
+
+#### 边界情况
+
+| 场景 | 行为 |
+|------|------|
+| 删文件 A，再删其父目录 | Trash 中有两个独立条目：文件 A 和目录 |
+| 恢复文件 A，但父目录在 Trash 中 | 提示"原目录已删除，请先恢复目录"或恢复到根目录 |
+| 恢复目录 | 目录及其所有子条目恢复到原位（子条目 parentId 未变，自然跟随） |
+| Trash 中目录包含子文件 | 子文件跟随目录，不单独展示为 Trash 条目 |
+| 永久删除目录 | CASCADE 删除所有后代 + 清理物理文件 |
+| **external: 用户在外部删除 .trash 中文件** | 下次永久删除时 `ENOENT` 静默忽略，DB 正常清理 |
+| **external: 恢复时目标路径已被占用** | 拒绝恢复，提示用户先处理冲突（重命名或删除占位文件） |
+| **external: chokidar 检测到 .trash 变动** | chokidar 配置 `ignored: ['**/.trash/**']`，不触发同步 |
+
+### 7.4 内容编辑
+
+- FileManager 调用 `ops.ts` 纯函数修改条目对应的真实文件（`ops.ts` 为唯一 FS owner）。
+- FileManager 调用 FileTreeService 更新条目 `updatedAt` 与元信息（纯 DB）。
+
+### 7.5 元信息编辑
+
+- FileManager 调用 FileTreeService 更新条目字段（如 `name`、`ext`）。
+- `local_external` 模式：FileManager 调用 `ops.move()` 同步更新真实文件名（文件系统 rename）。
+  - 重命名前必须检查目标路径是否已存在同名文件/目录，若冲突则拒绝并返回错误。
+- `local_managed` 模式：FileManager 仅调用 FileTreeService 更新 DB（物理文件名为 UUID，不受影响）。
+
+### 7.6 移动条目
+
+- **同 mount 内移动**：更新 `parentId`。`local_external` 模式需同步物理文件 rename。
+- **跨 mount 移动**：**禁止**。不同 mount 的存储模式（managed vs external vs remote）不兼容，跨 mount 移动需要物理文件格式转换和全子树 `mountId` 递归更新，复杂度高且易出错。用户如需跨 mount，应使用"复制到目标 mount → 删除源文件"的显式流程。
+
+```typescript
+// FileManager.moveEntry()
+async function moveEntry(entryId: string, targetParentId: string): Promise<FileEntry> {
+  const entry = await fileTreeService.getById(entryId)
+  const targetParent = await fileTreeService.getById(targetParentId)
+
+  // 禁止移动到自身
+  if (entryId === targetParentId) {
+    throw new Error('Cannot move an entry into itself.')
+  }
+
+  // 禁止跨 mount 移动
+  if (entry.mountId !== targetParent.mountId) {
+    throw new Error('Cross-mount move is not supported. Use copy + delete instead.')
+  }
+
+  // 禁止移动到自身后代（防止形成环）
+  if (entry.type === 'dir') {
+    const ancestors = await fileTreeService.getAncestors(targetParentId) // 递归 CTE（纯 DB）
+    if (ancestors.some(a => a.id === entryId)) {
+      throw new Error('Cannot move a directory into its own descendant.')
+    }
+  }
+
+  // local_external 模式：同步物理文件移动（调用 ops.ts 纯函数执行 FS 操作）
+  if (getProviderType(entry.mountId) === 'local_external') {
+    const oldPath = this.resolvePhysicalPath(entry)
+    const newPath = this.resolvePhysicalPath({ ...entry, parentId: targetParentId })
+    const stat = await ops.stat(newPath).catch(() => null)
+    if (stat) {
+      throw new Error(`Target path already exists: ${newPath}`)
+    }
+    await ops.move(oldPath, newPath)
+  }
+
+  // 更新 DB（委托 FileTreeService）
+  await fileTreeService.update(entryId, { parentId: targetParentId })
+
+  return fileTreeService.getById(entryId)
+}
+```
+
+### 7.7 元数据统一入口（问题 13）
+
+元数据生成收口到 FileManager 单一入口，renderer 不参与元数据推导：
+
+- **`CreateEntryDto`** 只包含 `{ type, name, parentId }`，是 FileManager 内部类型（不暴露给 renderer）
+- **`mountId`**：由 FileManager 从 `parentId` 的祖先链推导
+- **`ext`**：由 FileManager 从 `name` 拆分（如 `"report.pdf"` → `name="report"`, `ext="pdf"`）
+- **`size`**：由 FileManager 从实际文件读取（`ops.stat()`）
+- **`UpdateEntryDto`** 只包含 `{ name }`，FileManager 同样负责 name/ext 拆分
+
+Renderer 只提供用户可见的信息（完整文件名、目标目录），保证 ext/type 生成策略一致。
+
+---
+
+## 八、引用清理机制
+
+### 8.1 问题
+
+`file_ref.sourceId` 是多态字段（可能是 message ID、knowledge item ID、painting ID 等），无法用数据库外键约束级联删除。当业务对象被删除时，对应的 `file_ref` 记录可能变成悬挂引用。
+
+### 8.2 三层防护
+
+```
+┌─────────────────────────────────────────────┐
+│ 第一层：fileEntryId CASCADE                   │
+│ 文件条目删除 → file_ref 自动级联删除          │
+│ （由 DB FK 约束保证，无需应用层代码）          │
+├─────────────────────────────────────────────┤
+│ 第二层：业务删除钩子                          │
+│ 业务对象删除时，主动清理对应 file_ref          │
+│ （应用层 Service 代码，各删除路径必须接入）     │
+├─────────────────────────────────────────────┤
+│ 第三层：定期孤儿扫描                          │
+│ 后台任务扫描 sourceId 不存在的 file_ref        │
+│ （兜底安全网，补偿遗漏的清理路径）              │
+└─────────────────────────────────────────────┘
+```
+
+### 8.3 第一层：fileEntryId CASCADE
+
+`fileRefTable.fileEntryId` 外键 `onDelete: 'cascade'` 已在 Schema 中定义。
+
+- 文件条目被永久删除（如清空回收站）→ 其所有 `file_ref` 自动删除
+- 无需任何应用层代码
+
+### 8.4 第二层：业务删除钩子
+
+统一入口 `FileRefService`：
+
+```typescript
+class FileRefService {
+  /** 清理某个业务对象的所有文件引用 */
+  async cleanupBySource(sourceType: string, sourceId: string): Promise<void> {
+    await db.delete(fileRefTable).where(
+      and(
+        eq(fileRefTable.sourceType, sourceType),
+        eq(fileRefTable.sourceId, sourceId),
+      )
+    )
+  }
+
+  /** 批量清理（如删除 topic 时一次性清理所有消息的引用） */
+  async cleanupBySourceBatch(sourceType: string, sourceIds: string[]): Promise<void> {
+    await db.delete(fileRefTable).where(
+      and(
+        eq(fileRefTable.sourceType, sourceType),
+        inArray(fileRefTable.sourceId, sourceIds),
+      )
+    )
+  }
+}
+```
+
+各业务删除路径的接入点：
+
+| 删除场景 | 触发位置 | 清理调用 |
+|---------|---------|---------|
+| 删除消息 | `MessageService.delete()` | `cleanupBySource('chat_message', messageId)` |
+| 删除 topic | `TopicService.delete()` | 先查出所有 messageIds → `cleanupBySourceBatch('chat_message', messageIds)` |
+| 删除知识库 | `KnowledgeService.delete()` | `cleanupBySourceBatch('knowledge_item', itemIds)` |
+| 删除知识库条目 | `KnowledgeService.remove()` | `cleanupBySource('knowledge_item', itemId)` |
+| 删除 painting | painting 删除逻辑 | `cleanupBySource('painting', paintingId)` |
+
+### 8.5 第三层：注册式孤儿扫描器
+
+为避免 hardcode 各业务表的 JOIN，采用**注册式 checker 模式**——各模块注册自己的存在性检查函数，扫描器泛型执行。
+
+```typescript
+/** 存在性检查接口 */
+interface SourceTypeChecker {
+  sourceType: FileRefSourceType
+  /** 给一批 sourceId，返回其中仍然存在的 ID 集合 */
+  checkExists: (sourceIds: string[]) => Promise<Set<string>>
+}
+
+/**
+ * 编译期强制覆盖：注册表类型要求每个 FileRefSourceType 都有对应的 checker。
+ * 新增 sourceType 后若未在此处补上 checker，TypeScript 直接报错。
+ *
+ * 这与 FileRefSchema 的 discriminated union 形成双重约束：
+ * 1. 新增 sourceType → 必须注册到 FileRefSchema（已有约束）
+ * 2. FileRefSourceType 扩展 → 必须在此补上 checker（本约束）
+ */
+type OrphanCheckerRegistry = Record<FileRefSourceType, SourceTypeChecker>
+
+class OrphanRefScanner {
+  private checkers: OrphanCheckerRegistry
+  private BATCH_SIZE = 200
+
+  constructor(checkers: OrphanCheckerRegistry) {
+    this.checkers = checkers
+  }
+
+  /** 扫描一种 sourceType 的孤儿引用，分批处理（cursor-based 分页） */
+  async scanOneType(sourceType: FileRefSourceType): Promise<number> {
+    const checker = this.checkers[sourceType]
+
+    let cleaned = 0
+    let lastSeenId = ''
+
+    while (true) {
+      // 使用 cursor-based 分页，避免删除记录后 offset 跳过数据
+      const refs = await db.select({ id: fileRefTable.id, sourceId: fileRefTable.sourceId })
+        .from(fileRefTable)
+        .where(and(
+          eq(fileRefTable.sourceType, sourceType),
+          gt(fileRefTable.id, lastSeenId),
+        ))
+        .orderBy(asc(fileRefTable.id))
+        .limit(this.BATCH_SIZE)
+
+      if (refs.length === 0) break
+
+      lastSeenId = refs[refs.length - 1].id
+
+      const sourceIds = refs.map(r => r.sourceId)
+      const existingIds = await checker.checkExists(sourceIds)
+      const orphanRefIds = refs
+        .filter(r => !existingIds.has(r.sourceId))
+        .map(r => r.id)
+
+      if (orphanRefIds.length > 0) {
+        await db.delete(fileRefTable)
+          .where(inArray(fileRefTable.id, orphanRefIds))
+        cleaned += orphanRefIds.length
+      }
+    }
+    return cleaned
+  }
+
+  /** 扫描所有已注册的 sourceType */
+  async scanAll(): Promise<{ total: number; byType: Partial<Record<FileRefSourceType, number>> }> {
+    const byType: Partial<Record<FileRefSourceType, number>> = {}
+    let total = 0
+    for (const sourceType of Object.keys(this.checkers) as FileRefSourceType[]) {
+      const cleaned = await this.scanOneType(sourceType)
+      byType[sourceType] = cleaned
+      total += cleaned
+    }
+    return { total, byType }
+  }
+}
+```
+
+实例化示例（编译期强制覆盖所有 sourceType）：
+
+```typescript
+// 缺少任何 sourceType 的 checker → TypeScript 编译报错
+const orphanScanner = new OrphanRefScanner({
+  temp_session: {
+    sourceType: 'temp_session',
+    checkExists: async () => new Set() // temp 文件无 ref 即可清理
+  },
+  chat_message: {
+    sourceType: 'chat_message',
+    checkExists: async (ids) => {
+      const rows = await db.select({ id: messageTable.id })
+        .from(messageTable)
+        .where(inArray(messageTable.id, ids))
+      return new Set(rows.map(r => r.id))
+    }
+  },
+  // ... 每个 FileRefSourceType 都必须有对应条目
+})
+```
+
+触发时机：
+
+- 应用启动后延迟 30 秒执行（低优先级后台任务）
+- 每次扫描一种 sourceType，间隔 5 秒（避免阻塞主进程）
+- 用户可在设置页面手动触发"清理无效引用"
+
+### 8.6 无引用文件的处理
+
+当一个文件的所有引用都被清理后，文件变成"无人引用"状态。
+
+策略：**文件保留，用户手动管理**。
+
+- 无引用不代表用户不需要该文件（可能备用或手动浏览）
+- 文件页面可以显示"未引用"标记，方便用户批量清理
+- 不自动移入 Trash，避免用户困惑
+
+---
+
+## 九、API 层设计
+
+文件数据的读取遵循项目现有的 DataApi 架构模式：Schema（shared）→ Service（main）→ Handler（main）→ Hooks（renderer）。
+
+文件树的写操作（create/rename/move/trash/delete/upload）走 FileManager 的 IPC 通道，不走 DataApi。FileManager 作为唯一生命周期服务，解析 entryId → filePath 后调用 `ops.ts` 纯函数（唯一 FS owner）操作文件系统，并通过 FileTreeService（data repository）同步 DB。
+
+### 9.1 DataApi Schema 定义（只读）
+
+位于 `packages/shared/data/api/schemas/files.ts`，与 `TopicSchemas`、`MessageSchemas` 同级。
+
+DataApi 是纯数据接口，只管 DB 读取，不涉及 FS 副作用。所有条目 ID 字段使用 `FileEntryId` 类型。列表接口返回 `OffsetPaginationResponse<T>`。
+
+> **设计决策**：DataApi 端点全部只读（GET）。FileRef 的写操作（create / cleanup）由业务 service 直接调用 FileRefService（data repository），不暴露 DataApi 端点。Renderer 不直接操作 ref。
+
+> **设计决策**：CreateEntryDto / UpdateEntryDto / CreateFileRefDto 不暴露给 renderer。这些是 FileManager 内部类型（FileManager 调 FileTreeService 时使用）。元数据生成（mountId 推导、name/ext 拆分、size 读取）统一收口到 FileManager 单一入口，解决问题 13。
+
+```typescript
+export interface FileSchemas {
+  // ─── 条目查询 ───
+
+  '/files/entries': {
+    /** 查询条目列表（支持按 mountId/parentId/inTrash 过滤，分页返回） */
+    GET: {
+      query: {
+        mountId?: FileEntryId
+        parentId?: FileEntryId
+        type?: 'file' | 'dir'
+        inTrash?: boolean
+        page?: number
+        limit?: number
+      }
+      response: OffsetPaginationResponse<FileEntry>
+    }
+  }
+
+  '/files/entries/:id': {
+    GET: { params: { id: FileEntryId }; response: FileEntry }
+  }
+
+  // ─── 树查询 ───
+
+  '/files/entries/:id/children': {
+    /** 获取子条目（文件树懒加载，支持排序和分页） */
+    GET: {
+      params: { id: FileEntryId }
+      query: {
+        recursive?: boolean
+        maxDepth?: number
+        sortBy?: 'name' | 'updatedAt' | 'size' | 'type'
+        sortOrder?: 'asc' | 'desc'
+        limit?: number
+        offset?: number
+      }
+      response: OffsetPaginationResponse<FileEntry>
+    }
+  }
+
+  // ─── 引用查询 ───
+
+  '/files/entries/:id/refs': {
+    /** 查询文件的所有引用方 */
+    GET: { params: { id: FileEntryId }; response: FileRef[] }
+  }
+
+  '/files/refs/by-source': {
+    /** 查询某个业务对象引用的所有文件 */
+    GET: { query: { sourceType: string; sourceId: string }; response: FileRef[] }
+    // DELETE 和 POST 不暴露 — ref 写操作由业务 service 直接调用 FileRefService
+  }
+
+  // ─── 挂载点 ───
+
+  '/files/mounts': {
+    /** 获取挂载点列表 */
+    GET: {
+      query: { includeSystem?: boolean }
+      response: FileEntry[]
+    }
+  }
+}
+```
+
+> **写操作（FileManager IPC）**：创建条目、重命名、移动、Trash/Restore、永久删除、批量操作、文件上传等均通过 FileManager 的 IPC 通道处理。FileManager 内部调用 `ops.ts` 纯函数完成 FS 操作，并调用 FileTreeService（data repository）同步 DB。具体 IPC 协议定义参见 FileManager 实现（Phase 2）。
+
+### 9.2 Service 层
+
+位于 `src/main/data/services/`（data repositories）和 `src/main/services/`（lifecycle service + ops.ts 纯函数），遵循现有模式。
+
+```typescript
+// ─── Data Repositories (src/main/data/services/) ───
+// 纯 DB ���作，不碰 FS。通过 DataApiService 桥接暴露给 Renderer（只读端点）。
+
+// FileTreeService - 条目 CRUD（纯 DB，data repository）
+// 对外导出 fileTreeReader（Pick 类型，只读）和 fileTreeService（完整实例，仅 FileManager 使用）
+class FileTreeService {
+  // ─── 读方法（通过 fileTreeReader 导出给外部） ───
+  async getById(id: string): Promise<FileEntry>
+  async list(filters: NodeListFilters): Promise<FileEntry[]>
+  async getChildren(parentId: string, options?: {
+    recursive?: boolean
+    sortBy?: 'name' | 'updatedAt' | 'size' | 'type'
+    sortOrder?: 'asc' | 'desc'
+    limit?: number
+    offset?: number
+  }): Promise<FileEntry[]>
+  async getMounts(includeSystem?: boolean): Promise<FileEntry[]>
+  async getDescendants(entryId: string): Promise<FileEntry[]>
+  async getAncestors(entryId: string): Promise<FileEntry[]>
+
+  // ��── 写方法（仅 FileManager 通过 fileTreeService 调用） ───
+  async create(dto: CreateEntryDto): Promise<FileEntry>
+  async update(id: string, dto: UpdateEntryDto): Promise<FileEntry>
+  async delete(id: string): Promise<void>  // CASCADE 删子条目 + file_ref
+}
+
+// FileRefService - 引用关系管理（纯 DB，data repository）
+// 业务 service 可直接 import 调用读写方法
+class FileRefService {
+  async create(fileEntryId: string, dto: CreateFileRefDto): Promise<FileRef>
+  async getByEntry(fileEntryId: string): Promise<FileRef[]>
+  async getBySource(sourceType: string, sourceId: string): Promise<FileRef[]>
+  async cleanupBySource(sourceType: string, sourceId: string): Promise<void>
+  async cleanupBySourceBatch(sourceType: string, sourceIds: string[]): Promise<void>
+}
+
+// ─── ops.ts 纯函数 (src/main/services/ops.ts) ───
+// 唯一 FS owner（只知道 filePath，不知道条目）。
+// 无状态导出函数，所有 FS 操作的唯一入口。
+
+export async function read(filePath: string, opts?): Promise<string | Uint8Array>
+export async function write(filePath: string, data: string | Uint8Array): Promise<void>
+export async function stat(filePath: string): Promise<StatResult>
+export async function copy(src: string, dest: string): Promise<void>
+export async function move(src: string, dest: string): Promise<void>
+export async function remove(filePath: string): Promise<void>
+export async function list(dirPath: string): Promise<string[]>
+export async function ensureDir(dirPath: string): Promise<void>
+export async function open(filePath: string): Promise<void>
+export async function showInFolder(filePath: string): Promise<void>
+
+// ─── Lifecycle Service (src/main/services/) ───
+
+// FileManager - 唯一生命周期服务
+// 合并了原 FileService（协调层）+ FileIpcService（IPC 注册）+ ExternalSyncEngine（chokidar 监听）。
+// 调用 ops.ts 纯函数执行 FS 操作，通过 FileTreeService（data repository）同步 DB。
+// 维护 OperationLock 协调内部 chokidar 监听与条目操作。
+class FileManager extends BaseService {
+  // ─── IPC 注册（onInit 中通过 this.ipcHandle() 注册所有 handler） ───
+  // 条目操作、原始路径操作（stat/open/showInFolder）、Electron dialog
+
+  // ─── 条目操作（ops.ts 纯函数 + DB 原子） ───
+  async createEntry(dto: CreateEntryParams): Promise<FileEntry>
+  async trash(id: string): Promise<void>
+  async restore(id: string): Promise<FileEntry>
+  async permanentDelete(id: string): Promise<void>
+  async move(id: string, targetParentId: string): Promise<FileEntry>
+  async copy(id: string, targetParentId: string): Promise<FileEntry>
+  // 文件内容读写（调用 ops.ts 纯函数）
+  async readFile(entryId: string, opts?): Promise<string | Uint8Array>
+  async writeFile(entryId: string, data: string | Uint8Array): Promise<void>
+  // 路径解析
+  resolvePhysicalPath(entryId: string): string
+  // 批量操作
+  async trashBatch(ids: string[]): Promise<BatchOperationResult>
+  async moveBatch(ids: string[], targetParentId: string): Promise<BatchOperationResult>
+  async permanentDeleteBatch(ids: string[]): Promise<BatchOperationResult>
+
+  // ─── OperationLock（协调 chokidar 与条目操作） ───
+  private operationLock: Set<string>  // 正在操作中的路径
+
+  // ─── chokidar 监听（内部逻辑，原 ExternalSyncEngine） ───
+  // local_external 模式的文件系统 ↔ DB 同步
+  private startWatching(mount: MountEntry): void
+  private handleFsEvent(event: FsEvent): void
+}
+```
+
+### 9.3 Handler 注册（只读）
+
+位于 `src/main/data/api/handlers/files.ts`，合并到 `apiHandlers`。只包含读取端点。
+
+> **重要**：所有 API handler 必须在入口处使用 Zod schema 验证输入。`FileEntryIdSchema.parse()` 验证路径参数中的条目 ID。`FileEntryId` 类型在 TypeScript 层面推断为 `string`，不携带运行时约束，因此 handler 层的 schema 验证是唯一的运行时防线。
+
+```typescript
+export const fileHandlers = {
+  '/files/entries': {
+    GET: async ({ query }) => entryService.list(query),
+  },
+  '/files/entries/:id': {
+    GET: async ({ params }) => entryService.getById(params.id),
+  },
+  '/files/entries/:id/children': {
+    GET: async ({ params, query }) => entryService.getChildren(params.id, query),
+  },
+  '/files/entries/:id/refs': {
+    GET: async ({ params }) => fileRefService.getByEntry(params.id),
+  },
+  '/files/refs/by-source': {
+    GET: async ({ query }) => fileRefService.getBySource(query.sourceType, query.sourceId),
+    // DELETE 不暴露 — ref 写操作由业务 service 直接调用 FileRefService
+  },
+  '/files/mounts': {
+    GET: async ({ query }) => entryService.getMounts(query?.includeSystem),
+  },
+}
+```
+
+### 9.4 Renderer 使用示例
+
+```typescript
+// ─── DataApi（读取）───
+
+// 获取某目录下的子条目（文件树懒加载）
+const { data: children } = useQuery('/files/entries/:id/children', {
+  params: { id: folderId },
+})
+
+// 获取 Trash 内容
+const { data: trashItems } = useQuery('/files/entries', {
+  query: { inTrash: true },
+})
+
+// 查询文件被谁引用
+const { data: refs } = useQuery('/files/entries/:id/refs', {
+  params: { id: fileEntryId },
+})
+
+// 查询某消息引用的所有文件
+const { data: messageFiles } = useQuery('/files/refs/by-source', {
+  query: { sourceType: 'chat_message', sourceId: messageId },
+})
+```
+
+### 9.5 文件写操作（File IPC）
+
+所有涉及 FS 的写操作通过 FileManager 的 IPC 通道处理，不走 DataApi。FileManager 对涉及条目的操作在内部执行协调逻辑；对不涉及条目的原始路径操作（如 `stat`、`open`、`showInFolder`、`listDirectory`）可直接调用 `ops.ts` 纯函数（唯一 FS owner）。Electron 场景下所有文件源（对话框选择、拖拽、剪贴板粘贴）最终都归结为本地路径（剪贴板图片通过 `createEntry({ parentId: 'mount_temp', content })` 先落盘）。
+
+类型契约定义于 `packages/shared/data/types/file/ipc.ts`，main 和 preload 共同引用。
+
+#### IPC 类型契约
+
+| 方法 | 入参 | 返回 | 说明 |
+|------|------|------|------|
+| `upload` | `{ filePath, parentId, fileName? }` | `FileEntry` | 上传文件（复制到存储 + 创建条目） |
+| `createDir` | `{ name, parentId }` | `FileEntry` | 创建目录 |
+| `rename` | `{ id, newName }` | `FileEntry` | 重命名（newName 含扩展名，service 拆分） |
+| `move` | `{ id, targetParentId }` | `FileEntry` | 移动（同 mount 内） |
+| `trash` | `{ id }` | `void` | 移入 Trash |
+| `restore` | `{ id }` | `FileEntry` | 从 Trash 恢复 |
+| `delete` | `{ id }` | `void` | 永久删除 |
+| `batchTrash` | `{ ids }` | `BatchOperationResult` | 批量 Trash |
+| `batchMove` | `{ ids, targetParentId }` | `BatchOperationResult` | 批量移动 |
+| `batchDelete` | `{ ids }` | `BatchOperationResult` | 批量永久删除 |
+| `batchRestore` | `{ ids }` | `BatchOperationResult` | 批量恢复 |
+
+`FileManagerIpcApi` 类型聚合了所有方法签名，可用于类型约束 preload 暴露的 API 对象。
+
+#### 文件上传流程（以 `local_managed` 为例）
+
+```
+1. Renderer: window.api.file.upload({ filePath, parentId })  -- IPC
+2. Main: FileManager 处理 IPC，调用内部 createEntry()
+3. Main: FileManager 调用 ops.copy() 复制文件到 managed 存储 ({basePath}/{id}.{ext})  -- ops.ts 为唯一 FS owner
+4. Main: FileManager 调用 FileTreeService.create(nodeDto)  -- 纯 DB
+5. Main: 返回 FileEntry
+```
+
+上传是原子操作：物理文件写入 + 条目创建在同一个 main 进程事务中完成。
+
+其他写操作（rename/move/trash/restore/delete/batch）同理，由 FileManager 统一处理 IPC 并在内部协调，调用 `ops.ts` 纯函数执行 FS 操作，并通过 FileTreeService（data repository）同步 DB。
+
+---
+
+## 十、迁移策略
+
+### 10.1 FileMigrator 设计
+
+```typescript
+class FileMigrator extends BaseMigrator {
+  readonly id = 'file'
+  readonly name = 'File Migration'
+  readonly description = 'Migrate files from Dexie to file_entry table'
+  readonly order = 2.5  // After Assistant(2), Before Knowledge(3)
+}
+```
+
+**执行顺序**：
+
+```
+Preferences(1) → Assistant(2) → File(2.5) → Knowledge(3) → Chat(4)
+                                  ↑ 新增
+```
+
+- FileMigrator 在 Knowledge 和 Chat 之前运行，确保文件条目已就绪
+- 后续迁移器（Knowledge、Chat）可以创建各自的 file_ref 记录
+- PaintingMigrator 不在本次范围内，随 Painting 业务重构独立推进
+
+### 10.2 三阶段迁移流程
+
+**Prepare 阶段**：
+
+```typescript
+async prepare(ctx: MigrationContext): Promise<PrepareResult> {
+  // 1. 检查 Dexie files 表是否存在
+  const hasFiles = await ctx.sources.dexieExport.tableExists('files')
+  if (!hasFiles) return { success: true, itemCount: 0 }
+
+  // 2. 读取并计数
+  const reader = ctx.sources.dexieExport.createStreamReader('files')
+  const count = await reader.count()
+
+  // 3. 样本验证（检查必须字段）
+  const sample = await reader.readSample(10)
+  const warnings: string[] = []
+  for (const file of sample) {
+    if (!file.id || !file.origin_name) {
+      warnings.push(`File ${file.id} missing required fields`)
+    }
+  }
+
+  return { success: true, itemCount: count, warnings }
+}
+```
+
+**Execute 阶段**：
+
+```typescript
+async execute(ctx: MigrationContext): Promise<ExecuteResult> {
+  const BATCH_SIZE = 100
+
+  // 1. 创建系统条目（幂等）
+  await this.ensureSystemNodes(ctx.db)
+
+  // 2. 流式读取旧文件数据
+  const reader = ctx.sources.dexieExport.createStreamReader('files')
+  const totalCount = await reader.count()
+  let processed = 0
+
+  // 3. 文件 ID 映射（供后续迁移器使用）
+  const fileIdMap = new Map<string, string>()  // oldId → newFileEntryId
+
+  await reader.readInBatches(BATCH_SIZE, async (batch) => {
+    const entries = batch.map(oldFile => this.transformFile(oldFile))
+
+    await ctx.db.insert(fileEntryTable).values(entries)
+
+    // 记录 ID 映射（旧系统和新系统使用相同 ID，因此映射是 1:1）
+    for (const entry of entries) {
+      fileIdMap.set(entry.id, entry.id)
+    }
+
+    processed += batch.length
+    this.reportProgress(
+      Math.round((processed / totalCount) * 100),
+      `Migrated ${processed}/${totalCount} files`,
+      { key: 'migration.progress.files', params: { current: processed, total: totalCount } }
+    )
+  })
+
+  // 4. 存储映射到 sharedData，供 Knowledge/Chat 迁移器使用
+  ctx.sharedData.set('fileIdMap', fileIdMap)
+  ctx.sharedData.set('fileMountId', 'mount_files')
+
+  return { success: true, processedCount: processed }
+}
+```
+
+**字段转换规则**：
+
+```typescript
+private transformFile(old: DexieFileMetadata): NewNodeInsert {
+  return {
+    id: old.id,                                    // 保持原 ID 不变
+    type: 'file',
+    name: old.origin_name || old.name,             // 优先 origin_name（用户可见名）
+    ext: old.ext?.replace(/^\./, '') || null,      // 去除前导点
+    parentId: 'mount_files',                       // 全部归入 Files 挂载点根目录
+    mountId: 'mount_files',
+    size: old.size || null,
+    createdAt: parseTimestamp(old.created_at),      // ISO 8601 → ms timestamp
+    updatedAt: parseTimestamp(old.created_at),
+  }
+}
+
+function parseTimestamp(iso?: string): number {
+  return iso ? new Date(iso).getTime() : Date.now()
+}
+```
+
+**设计说明**：
+
+- **ID 保持不变**：旧 `FileMetadata.id` 直接作为新 `fileEntryTable.id`，这样所有引用该 ID 的地方（message blocks 的 `fileId`、knowledge items 的文件引用）无需修改
+- **全部归入 Files 根目录**：旧系统无目录概念，迁移后全部作为 `mount_files` 的直接子条目。用户可以后续手动整理
+- **物理文件无需移动**：旧存储路径 `{userData}/Data/Files/{id}{ext}` 与新 managed 模式路径 `{mount.basePath}/{id}.{ext}` 一致（仅 ext 前可能差一个点，需在路径解析器中兼容）
+
+**Validate 阶段**：
+
+```typescript
+async validate(ctx: MigrationContext): Promise<ValidateResult> {
+  const reader = ctx.sources.dexieExport.createStreamReader('files')
+  const sourceCount = await reader.count()
+
+  const [{ count: targetCount }] = await ctx.db
+    .select({ count: sql<number>`count(*)` })
+    .from(fileEntryTable)
+    .where(and(
+      eq(fileEntryTable.type, 'file'),
+      eq(fileEntryTable.mountId, 'mount_files')
+    ))
+
+  const errors: ValidationError[] = []
+  if (sourceCount !== targetCount) {
+    errors.push({
+      key: 'file_count_mismatch',
+      expected: sourceCount,
+      actual: targetCount,
+      message: `Expected ${sourceCount} files, found ${targetCount}`,
+    })
+  }
+
+  return {
+    success: errors.length === 0,
+    errors,
+    stats: { sourceCount, targetCount, skippedCount: sourceCount - targetCount },
+  }
+}
+```
+
+### 10.3 其他迁移器的 file_ref 创建
+
+**KnowledgeMigrator（order=3）**：
+
+迁移知识库条目时，对于 `type: 'file'` 或 `type: 'video'` 的 knowledge item，从其 `content` 中提取 `FileMetadata.id`，创建 file_ref 记录：
+
+```typescript
+// KnowledgeMigrator.execute() 中
+const fileIdMap = ctx.sharedData.get('fileIdMap') as Map<string, string>
+
+if (item.type === 'file' && item.content?.id) {
+  if (fileIdMap.has(item.content.id)) {
+    await ctx.db.insert(fileRefTable).values({
+      id: generateUUID(),
+      fileEntryId: item.content.id,    // FileMetadata.id = fileEntryTable.id
+      sourceType: 'knowledge_item',
+      sourceId: newKnowledgeItemId,
+      role: 'source',
+    })
+  } else {
+    logger.warn(`Skipping file_ref: entry ${item.content.id} not found in fileEntryTable`)
+  }
+}
+```
+
+**ChatMigrator（order=4）**：
+
+迁移消息 blocks 时，对于含 `fileId` 的 block，创建 file_ref 记录。
+
+> **容错要求**：旧数据中可能存在文件已被删除但消息/知识库条目未清理的情况，此时 `block.fileId` 指向的条目不存在于 `fileEntryTable` 中。由于 `fileRefTable.fileEntryId` 有 FK 约束，直接插入会失败。因此必须**先验证条目存在性**，不存在的跳过并记录 warning。
+
+```typescript
+// ChatMigrator 的 block 转换中
+const fileIdMap = ctx.sharedData.get('fileIdMap') as Map<string, string>
+
+if ((block.type === 'file' || block.type === 'image') && block.fileId) {
+  // 验证文件条目存在（已迁移）后才创建引用
+  if (fileIdMap.has(block.fileId)) {
+    fileRefsToInsert.push({
+      id: generateUUID(),
+      fileEntryId: block.fileId,
+      sourceType: 'chat_message',
+      sourceId: messageId,
+      role: 'attachment',
+    })
+  } else {
+    logger.warn(`Skipping file_ref: entry ${block.fileId} not found in fileEntryTable`)
+  }
+}
+```
+
+### 10.4 Paintings 迁移（不在本次范围内）
+
+Paintings 数据存储在 Redux state 中（`PaintingParams.files: FileMetadata[]`）。
+
+**决策**：PaintingMigrator 不在本次文件管理重构范围内，随 Painting 业务重构独立推进。
+
+- 唯一依赖：FileMigrator 已将文件条目写入 fileEntryTable（保持原 ID），PaintingMigrator 可直接用 `FileMetadata.id` 作为 `fileEntryId` 创建 file_ref
+- 在 PaintingMigrator 实现之前，painting 引用的文件不会有 file_ref 记录，但文件条目本身已存在且可访问
+- `sourceType: 'painting'` 已纳入 OrphanRefScanner 的注册式设计，PaintingMigrator 上线后自动覆盖
+
+### 10.5 迁移回滚策略
+
+| 场景 | 回滚方案 |
+|------|---------|
+| FileMigrator 执行失败 | MigrationEngine 标记失败，用户可重试。fileEntryTable 清空重来（TRUNCATE + 重跑） |
+| 迁移完成后发现数据异常 | Dexie 导出文件（`files.json`）保留不删除，可重建 fileEntryTable |
+| 新旧系统并行期数据冲突 | `toFileMetadata` 适配层保证旧消费方仍可工作 |
+| 物理文件丢失 | 迁移不移动物理文件，路径不变，无文件丢失风险 |
+
+---
+
+## 十一、分阶段实施计划
+
+### 11.1 总览
+
+整个文件管理重构分为 **6 个阶段**，作为 v2 迁移的一部分推进。各阶段有明确的交付物和依赖关系。
+
+```
+Phase 1          Phase 2          Phase 3          Phase 4           Phase 5         Phase 6
+Schema &    ──→  Core Services  ──→  FileMigrator  ──→  Consumer     ──→  Notes       ──→  Cleanup
+Foundation       + API              + 迁移整合         Migration         Integration
+                                                       (分 4 批)
+```
+
+### 11.2 Phase 1: Schema & Foundation
+
+**目标**：建立所有类型定义和数据库 Schema，为后续阶段提供基础。
+
+**交付物**：
+
+| 文件路径 | 内容 |
+|---------|------|
+| `src/main/data/db/schemas/file.ts` | `fileEntryTable` + `fileRefTable` Drizzle Schema（第六章） |
+| `packages/shared/data/types/file/` | 文件类型定义模块（第六章），按职责拆分为 `essential.ts`、`fileEntry.ts`、`provider.ts`、`ref/` |
+| `packages/shared/data/api/schemas/files.ts` | `FileSchemas` API 类型声明（第九章） |
+| `src/main/data/utils/pathResolver.ts` | 路径解析工具函数（`assertPathContained()` 等安全检查）。注：`resolvePhysicalPath()` 属于 FileManager（Phase 2） |
+| `src/main/data/db/seeding/fileEntrySeeding.ts` | 系统条目初始化（upsert 幂等，支持跨平台数据恢复） |
+| `src/main/data/api/handlers/files.ts` | API handler 占位（Phase 2 实现） |
+
+**关键任务**：
+
+1. 创建 Drizzle Schema 并生成 migration SQL（`pnpm db:migrations:generate`）
+2. 实现系统条目初始化逻辑——首次启动时 upsert `mount_files`、`mount_notes`、`system_trash`
+3. 实现路径解析器 `resolvePhysicalPath(entry)`：根据 `providerConfig.providerType` 计算物理路径
+   - `local_managed`：`{mount.basePath}/{entry.id}.{entry.ext}`
+   - `local_external`：`{mount.basePath}/{...ancestors}/{entry.name}.{entry.ext}`（含 symlink 解析保护）
+
+**依赖**：无
+
+### 11.3 Phase 2: Core Services + API
+
+**目标**：实现完整的条目 CRUD 和引用管理能力，可以独立于旧系统运行。
+
+**交付物**：
+
+| 文件路径 | 内容 |
+|---------|------|
+| `src/main/data/services/FileTreeService.ts` | 条目 CRUD（纯 DB，data repository），导出 `fileTreeReader` + `fileTreeService` |
+| `src/main/data/services/FileRefService.ts` | 引用 CRUD、按来源清理、批量清理（纯 DB，data repository） |
+| `src/main/services/ops.ts` | **唯一 FS owner**：无状态纯函数（`read`/`write`/`stat`/`copy`/`move`/`remove`/`list`/`ensureDir`/`open`/`showInFolder`），只接受 filePath，不感知条目 |
+| `src/main/services/FileManager.ts` | **唯一生命周期服务**：IPC 注册 + entryId → filePath 解析 + 调用 ops.ts 纯函数执行 FS 操作 + FileTreeService 同步 DB + OperationLock + chokidar 监听（原 ExternalSyncEngine），路径缓存，Electron dialog |
+| `src/main/data/api/handlers/files.ts` | DataApi handlers（只读端点，第九章） |
+| `src/renderer/src/hooks/useFileNodes.ts` | SWR hooks（`useQuery` 封装） |
+
+**关键任务**：
+
+1. `FileTreeService`（data repository，纯 DB）：
+   - 条目 CRUD：`create()` / `update()` / `delete()`（CASCADE）
+   - 树查询：`getById()` / `getChildren()` / `getDescendants()` / `getAncestors()`
+   - 导出 `fileTreeReader`（Pick 类型，只读）供业务 Service 使用
+   - 导出 `fileTreeService`（完整实例）仅供 FileManager 使用（ESLint `no-restricted-imports` 保护）
+
+2. `FileRefService`（data repository��纯 DB）：
+   - CRUD + 按 source 查询/清理
+   - `OrphanRefScanner` 注册式扫描器（第八章）
+
+3. `ops.ts`（纯函数，唯一 FS owner）：
+   - 无状态导出函数：`ops.read()` / `ops.write()` / `ops.stat()` / `ops.copy()` / `ops.move()` / `ops.remove()` / `ops.list()` / `ops.ensureDir()` / `ops.open()` / `ops.showInFolder()`
+   - 只接受 filePath 参数，不感知条目（entryId）概念
+   - 不是 class，不是 lifecycle service——纯函数导出
+
+4. `FileManager`（唯一 lifecycle service，合并协调层 + IPC 注册 + chokidar 监听）：
+   - 调用 `ops.ts` 纯函数执行所有 FS 操作（不直接 import `fs`）
+   - `createEntry()` 原子性保障——`ops.copy()` 写入物理文件 + FileTreeService.create() 在同一事务
+   - `trash()` / `restore()` 实现 OS 风格 Trash 逻辑（第七章），调用 ops.ts 纯函数 + FileTreeService 更新 DB
+   - `permanentDelete()` 调用 `ops.remove()` 清理物理文件 + FileTreeService.delete()（CASCADE）
+   - `move()` 调用 `ops.move()` 移动物理文件（external 模式）或纯 DB 更新（managed 模式）
+   - `readFile()` / `writeFile()` 解析 entryId → filePath 后调用 ops.ts 纯函数
+   - `resolvePhysicalPath()` 路径解析 + 内存缓存 `Map<entryId, absolutePath>`
+   - 通过 `this.ipcHandle()` 注册所有 IPC handler（原 FileIpcService 职责）
+   - 原始路径操作（stat/open/showInFolder/listDirectory）直接调用 ops.ts 纯函数
+   - `select` (Electron dialog) 自行处理
+   - 维护 `OperationLock`（`Set<path>`）协调内部 chokidar 监听与条目操作
+   - chokidar 监听（原 ExternalSyncEngine）：local_external 模式的文件系统 ↔ DB 同步
+
+5. Handler 注册到 `apiHandlers`，URL 前缀 `/files/`（只读）
+
+6. Renderer hooks 封装，支持文件树懒加载
+
+**依赖**：Phase 1
+
+### 11.4 Phase 3: FileMigrator + 迁移整合
+
+**目标**：将旧 Dexie `db.files` 数据迁移到新 fileEntryTable，并协调其他迁移器创建 file_ref 记录。
+
+详见第十章。
+
+**依赖**：Phase 1, Phase 2
+
+### 11.5 Phase 4: Consumer Migration（消费方迁移）
+
+**目标**：将 64+ 个引用 `FileMetadata` 的文件逐步迁移到使用 `FileEntry` + DataApi。
+
+分 4 批进行，按依赖关系和影响范围排序：
+
+#### Batch 4.1: 数据层适配（影响最小，验证新系统可用性）
+
+| 文件 | 变更 |
+|------|------|
+| `src/renderer/src/services/FileManager.ts` | 重写为 thin wrapper，调用 DataApi hooks 而非直接操作 Dexie |
+| `src/main/services/FileStorage.ts` | 文件 I/O 保留，元数据管理迁移到 `FileTreeService` |
+| `src/renderer/src/types/file.ts` | `FileMetadata` 标记 `@deprecated`，新增 re-export from `FileEntry` |
+
+**兼容策略**：提供 `toFileMetadata(entry: FileEntry): FileMetadata` 适配函数，让尚未迁移的消费方继续工作：
+
+```typescript
+/** @deprecated 仅用于过渡期 */
+function toFileMetadata(entry: FileEntry): FileMetadata {
+  return {
+    id: entry.id,
+    name: entry.id + (entry.ext ? '.' + entry.ext : ''),
+    origin_name: entry.name + (entry.ext ? '.' + entry.ext : ''),
+    path: resolvePhysicalPath(entry),
+    size: entry.size ?? 0,
+    ext: entry.ext ? '.' + entry.ext : '',
+    type: inferFileType(entry.ext),
+    created_at: new Date(entry.createdAt).toISOString(),
+    count: 0,  // deprecated, 引用计数由 file_ref 聚合
+  }
+}
+```
+
+#### Batch 4.2: AI Core（影响核心功能，需充分测试）
+
+| 文件 | 变更 |
+|------|------|
+| `fileProcessor.ts` | 入参从 `FileMetadata` 改为 `FileEntry`，路径通过 `resolvePhysicalPath` 获取 |
+| `messageConverter.ts` | 从 file blocks 中读取 `fileId` → 查询 `FileEntry` → 获取路径/元数据 |
+| 各 API 客户端 | 文件上传参数适配 |
+
+#### Batch 4.3: Knowledge + Paintings
+
+| 文件 | 变更 |
+|------|------|
+| `KnowledgeService.ts` | 文件引用从嵌入 `FileMetadata` 改为 `fileEntryId` 引用 |
+| 6+ 预处理 providers | 入参改为 `FileEntry` 或 `{ path, ext, name }` |
+| Painting 相关 | `files: FileMetadata[]` → `fileIds: string[]` |
+
+#### Batch 4.4: UI + State Management
+
+| 文件 | 变更 |
+|------|------|
+| 文件页面组件 | 从 `db.files` 查询改为 `useQuery('/files/entries')` |
+| 消息 block 组件 | 文件展示从嵌入数据改为通过 `fileId` 查询 |
+| 绘图页面 | 适配 `fileIds` 引用模式 |
+| `messageThunk.ts` | 文件上传流程走新 API |
+| `knowledgeThunk.ts` | 文件引用走新 API |
+
+**每个 Batch 完成后**：运行 `pnpm build:check`（lint + test + typecheck），确保不引入回归。
+
+**依赖**：Phase 2, Phase 3
+
+### 11.6 Phase 5: Notes Integration
+
+**目标**：将笔记文件树纳入条目表管理，保持外部编辑器兼容。
+
+**交付物**：
+
+| 文件路径 | 内容 |
+|---------|------|
+| *(无新增文件)* | chokidar 监听和文件系统 ↔ DB 同步引擎已内置于 FileManager（Phase 2），Phase 5 仅扩展其 local_external 同步逻辑 |
+
+**关键任务**：
+
+1. **启动同步**：扫描 `notesPath` → diff 与 `mount_notes` 下的条目表 → 增删改对齐（排除 `.trash` 目录）
+2. **运行时同步**：chokidar 事件 → 防抖（200ms）→ 增量更新条目表（`ignored: ['**/.trash/**']`）
+3. **冲突策略**：文件系统 wins（见第四章 4.4 节）
+4. **迁移**：首次启动时执行全量 reconcile，将现有笔记文件扫描入库
+5. **页面重构**：`NotesPage.tsx` 从直接调用 `getDirectoryStructure` 改为查询 `fileEntryTable`
+6. **兼容保障**：外部编辑器创建/修改/删除文件时，应用内同步更新
+
+**依赖**：Phase 2（与 Phase 3/4 可并行）
+
+### 11.7 Phase 6: Cleanup
+
+**目标**：移除所有旧代码路径。
+
+**关键任务**：
+
+1. 移除 Dexie `files` 表定义和相关迁移代码
+2. 移除 `FileMetadata` 类型和 `toFileMetadata` 适配函数
+3. 移除 `FileManager.ts`（renderer 侧旧文件管理）
+4. 清理 `FileStorage.ts` 中已迁移到 `FileTreeService` 的逻辑
+5. 移除 `findDuplicateFile()` 等去重相关代码
+6. 最终集成测试
+
+**依赖**：Phase 4, Phase 5
+
+### 11.8 阶段依赖关系图
+
+```
+Phase 1 ──────────────┐
+(Schema)               │
+                       ▼
+Phase 2 ──────────────┐
+(Services + API)       │
+      │                ▼
+      │         Phase 3
+      │         (FileMigrator)
+      │                │
+      ├────────────────┤
+      │                ▼
+      │         Phase 4 (Batch 4.1 → 4.2 → 4.3 → 4.4)
+      │         (Consumer Migration)
+      │                │
+      ▼                │
+Phase 5                │
+(Notes Integration)    │
+      │                │
+      └────────┬───────┘
+               ▼
+         Phase 6
+         (Cleanup)
+```
+
+**注意**：Phase 2 和 Phase 5 之间没有强依赖——Notes Integration 只需要 Core Services，不需要等 Consumer Migration 完成。两条路线可以并行推进。
+
+---
+
+## 十二、取舍记录（Trade-off）
+
+放弃文件池/去重的主要原因与代价：
+
+- 优点：OS 目录结构与用户视角一致，导出/备份更直观。
+- 代价：磁盘占用增加，重复内容不再复用。
+- 影响：引用计数与 COW 的价值降低，逻辑显著简化。
+
+---
+
+## 十三、风险项
+
+| 风险 | 影响 | 缓解措施 |
+|------|------|---------|
+| `FileMetadata` 引用面太广（274 处） | Consumer Migration 工作量大 | `toFileMetadata` 适配函数 + 分批迁移 |
+| 旧文件 `ext` 含点/不含点不统一 | 路径解析错误 | 迁移时统一 normalize 为不含点格式（§4.3），`resolvePhysicalPath` 拼接时始终加点 |
+| KnowledgeMigrator 尚未实现 | File ref 创建时机不确定 | FileMigrator 不依赖 Knowledge，仅通过 `sharedData` 提供数据 |
+| Painting 的 file_ref 暂缺 | 文件页面无法追溯 painting 引用 | 文件条目已存在可访问，file_ref 随 Painting 重构补建 |
+| Notes 双向同步复杂度 | 冲突、数据不一致 | 文件系统 wins + 启动时全量 reconcile 兜底 |
+
+---
+
+## 十四、待补充内容
+
+- [ ] 笔记 external 模式的详细同步方案（Phase 5 细化设计）
+- [ ] PaintingMigrator（随 Painting 业务重构独立推进，仅依赖 FileMigrator 提供的 fileId）

@@ -169,6 +169,10 @@ export function getFilesDir() {
   return path.join(app.getPath('userData'), 'Data', 'Files')
 }
 
+export function getTempFilesDir() {
+  return path.join(app.getPath('userData'), 'Data', 'Files', 'temp')
+}
+
 export function getNotesDir() {
   const notesDir = path.join(app.getPath('userData'), 'Data', 'Notes')
   if (!fs.existsSync(notesDir)) {
