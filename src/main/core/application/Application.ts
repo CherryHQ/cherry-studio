@@ -1,5 +1,10 @@
+import fs from 'node:fs'
+import path from 'node:path'
+
 import { loggerService } from '@logger'
 import { isDev, isLinux, isMac, isPortable, isWin } from '@main/constant'
+import type { PathKey, PathMap } from '@main/core/paths'
+import { buildPathRegistry, shouldAutoEnsure } from '@main/core/paths/pathRegistry'
 import { bootConfigService } from '@main/data/bootConfig'
 import { IpcChannel } from '@shared/IpcChannel'
 import { app, dialog, ipcMain } from 'electron'
@@ -34,6 +39,26 @@ export class Application {
   private _isQuitting = false
   private quitPreventionHolds = new Map<string, string>()
   private ipcQuitHolds = new Map<string, QuitPreventionHold>()
+
+  /**
+   * Frozen path registry. `null` until `bootstrap()` is invoked, after
+   * which it persists for the entire process lifetime — `shutdown()` does
+   * NOT clear it, so `getPath()` remains callable from `onStop()` /
+   * `onDestroy()` cleanup paths and from logger/dialog code that runs
+   * during shutdown.
+   */
+  private pathMap: PathMap | null = null
+
+  /**
+   * Cache of PathKeys whose directory has already been auto-ensured.
+   * Each Cherry-owned key is `mkdirSync`'d at most once per process —
+   * subsequent `getPath()` calls hit this Set and return immediately.
+   *
+   * NOT cleared on shutdown (paths remain valid for cleanup code that
+   * runs after `stopAll()`). Cleared by `__setPathMapForTesting()` to
+   * allow test isolation.
+   */
+  private ensuredKeys = new Set<PathKey>()
 
   private constructor() {
     this.container = ServiceContainer.getInstance()
@@ -102,6 +127,16 @@ export class Application {
     // so Ctrl+C and app quit are handled even during early bootstrap stages
     this.setupSignalHandlers()
     this.setupQuitHandlers()
+
+    // Freeze the path registry. From this line onward, application.getPath()
+    // is callable; any earlier call would have thrown. The caller (index.ts)
+    // is responsible for completing all app.setPath() calls before invoking
+    // bootstrap(). LoggerService and BootConfigService bypass this registry
+    // and read paths directly via paths/constants.ts (LOGS_DIR, BOOT_CONFIG_PATH);
+    // one-shot startup pipelines (migration, legacy backup restore) carry
+    // their own ad-hoc path logic and do not consume the registry either.
+    this.pathMap = buildPathRegistry()
+    logger.debug(`Path registry frozen with ${Object.keys(this.pathMap).length} entries`)
 
     logger.info('Bootstrapping...')
 
@@ -565,6 +600,112 @@ export class Application {
    */
   public async deactivate<K extends keyof ServiceRegistry>(name: K): Promise<void> {
     return this.lifecycleManager.deactivate(name)
+  }
+
+  /**
+   * Get a registered application path.
+   *
+   * Sole entry point for all path lookups in the main process. Paths are
+   * registered in `src/main/core/paths/pathRegistry.ts`; see
+   * `src/main/core/paths/README.md` for naming conventions, namespace
+   * taxonomy, and usage guidelines.
+   *
+   * Callable only after `Application.bootstrap()` has begun. Earlier
+   * calls throw — the path registry is frozen as the first step inside
+   * `bootstrap()`, so any consumer that runs before then is a contract
+   * violation and must be either deferred (into a service `onStart()`)
+   * or migrated to a special-case path source (e.g. `paths/constants.ts`
+   * for code that must run before the registry exists).
+   *
+   * @param key      Dotted path key (e.g. 'feature.files.data', 'cherry.bin').
+   *                 Type-checked at compile time against the path registry.
+   * @param filename Optional filename to join under the registered root.
+   *                 Should be a single relative segment (no absolute path,
+   *                 no '..', no path separators). If the constraint is
+   *                 violated, a warning is logged via loggerService and the
+   *                 path is joined anyway — the warning is a developer hint
+   *                 that you may want to register a new path key for the
+   *                 deeper path you're constructing.
+   */
+  public getPath(key: PathKey, filename?: string): string {
+    if (this.pathMap === null) {
+      throw new Error(
+        `application.getPath('${key}') called before Application.bootstrap() ran. ` +
+          `Ensure all app.setPath() calls finish, then invoke application.bootstrap() ` +
+          `before any service uses the path registry.`
+      )
+    }
+
+    const base = this.pathMap[key]
+
+    // Lazy auto-ensure: on first access of an opt-in key, mkdir the
+    // relevant directory so callers can immediately read/write without
+    // an explicit `fs.mkdirSync` step.
+    //   - Directory keys: ensure `base` itself.
+    //   - File keys (key ends with 'file'): ensure `path.dirname(base)`
+    //     so the file's parent dir exists. The file itself is NOT
+    //     created — it remains the caller's responsibility.
+    // Opt-out lives in `pathRegistry.shouldAutoEnsure` (data-driven, see
+    // the NO_ENSURE list there). The result is cached in `ensuredKeys`
+    // so each key's directory is created at most once per process.
+    if (!this.ensuredKeys.has(key) && shouldAutoEnsure(key)) {
+      const dirToEnsure = key.endsWith('file') ? path.dirname(base) : base
+      try {
+        fs.mkdirSync(dirToEnsure, { recursive: true })
+      } catch (err) {
+        // Don't block path resolution if mkdir fails (read-only FS,
+        // missing permissions, etc.). Caller may still need the path
+        // for error reporting or read-only checks.
+        logger.warn(
+          `application.getPath: mkdir failed for key '${key}' at '${dirToEnsure}'. ` +
+            `Returning path anyway. Error: ${(err as Error).message}`
+        )
+      }
+      // Cache regardless of success — retrying on every call would be
+      // a perf trap. Failed-once is treated the same as succeeded-once.
+      this.ensuredKeys.add(key)
+    }
+
+    if (filename === undefined) return base
+
+    if (path.isAbsolute(filename) || filename.includes('..') || filename.includes(path.sep)) {
+      logger.warn(
+        `Application.getPath: filename "${filename}" should be a single relative segment ` +
+          `(no absolute paths, no '..', no separators). Consider registering a new key in ` +
+          `pathRegistry.ts if you need a deeper path.`
+      )
+    }
+
+    return path.join(base, filename)
+  }
+
+  /**
+   * @internal — Test-only hook for injecting a mock path registry without
+   * running the heavyweight `bootstrap()` flow. Production code MUST NOT
+   * call this. The double-underscore prefix and the NODE_ENV guard together
+   * prevent accidental misuse.
+   *
+   * Usage in a test:
+   * ```ts
+   * vi.mock('@main/core/paths/pathRegistry', () => ({
+   *   buildPathRegistry: () => Object.freeze({ 'feature.files.data': '/mock' })
+   * }))
+   * import { buildPathRegistry } from '@main/core/paths/pathRegistry'
+   * import { Application } from '@main/core/application/Application'
+   * const app = Application.getInstance()
+   * app.__setPathMapForTesting(buildPathRegistry())
+   * ```
+   */
+  public __setPathMapForTesting(map: PathMap | null): void {
+    if (process.env.NODE_ENV !== 'test') {
+      throw new Error('__setPathMapForTesting may only be called in tests')
+    }
+    this.pathMap = map
+    // Clear the auto-ensure cache so each test starts from a clean state.
+    // Without this, a key that was already mkdir'd in a previous test
+    // would silently skip mkdir in the next test, breaking call-count
+    // assertions and hiding regressions.
+    this.ensuredKeys.clear()
   }
 }
 
