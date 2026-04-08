@@ -17,12 +17,12 @@ import type {
   ProtoProviderModelOverride,
   RegistryEndpointConfig
 } from '@cherrystudio/provider-registry'
+import { EndpointType } from '@cherrystudio/provider-registry'
 import {
-  EndpointType,
   readModelRegistry,
   readProviderModelRegistry,
   readProviderRegistry
-} from '@cherrystudio/provider-registry'
+} from '@cherrystudio/provider-registry/node'
 import type { NewUserModel } from '@data/db/schemas/userModel'
 import { userModelTable } from '@data/db/schemas/userModel'
 import type { NewUserProvider } from '@data/db/schemas/userProvider'
