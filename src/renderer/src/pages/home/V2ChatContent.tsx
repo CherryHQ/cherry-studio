@@ -95,7 +95,7 @@ interface InnerProps extends Props {
   historyMessages: Message[]
   historyBlockMap: Record<string, MessageBlock>
   historyPartsMap: Record<string, CherryMessagePart[]>
-  refresh: () => Promise<void>
+  refresh: () => Promise<CherryUIMessage[]>
 }
 
 const V2ChatContentInner: FC<InnerProps> = ({
@@ -114,6 +114,7 @@ const V2ChatContentInner: FC<InnerProps> = ({
 
   // Stable refs so handleFinish can read the latest values without closing over stale state
   const streamingUIMessagesRef = useRef<CherryUIMessage[]>([])
+  const setMessagesRef = useRef<((messages: CherryUIMessage[]) => void) | null>(null)
   const topicRef = useRef(topic)
   topicRef.current = topic
   const historyIdsRef = useRef(historyIds)
@@ -133,6 +134,19 @@ const V2ChatContentInner: FC<InnerProps> = ({
     async (assistantMessage: CherryUIMessage, isAbort: boolean, isError: boolean) => {
       if (isError) {
         logger.warn('Stream ended with error — skipping persistence', { id: assistantMessage.id })
+        return
+      }
+
+      // Abort during 'submitted' state (before first token) yields an empty assistant message.
+      // Persisting it would leave a contentless 'paused' record in SQLite — skip instead.
+      // Only count parts with substantive content (text with non-empty body, reasoning, tool calls, files).
+      // Metadata-only parts like 'step-start' or 'source-url' don't count as content.
+      const contentPartTypes = new Set(['text', 'reasoning', 'tool-invocation', 'file'])
+      const hasContent = assistantMessage.parts.some(
+        (p) => contentPartTypes.has(p.type) && (p.type !== 'text' || p.text.length > 0)
+      )
+      if (isAbort && !hasContent) {
+        logger.info('Abort with empty assistant message — skipping persistence', { id: assistantMessage.id })
         return
       }
 
@@ -193,7 +207,14 @@ const V2ChatContentInner: FC<InnerProps> = ({
         })
 
         logger.info('Persisted exchange', { userMsgId: userParentId, assistantMsgId: assistantMessage.id })
-        await refresh()
+
+        // Refresh history from DataApi, then replace useChat's internal messages
+        // with the persisted versions so that temporary IDs are swapped for real
+        // server-assigned IDs. Without this, edit/delete/regenerate would 404.
+        const refreshedMessages = await refresh()
+        if (refreshedMessages.length > 0) {
+          setMessagesRef.current?.(refreshedMessages)
+        }
       } catch (err) {
         logger.error('Failed to persist exchange', { assistantMsgId: assistantMessage.id, err })
       }
@@ -221,17 +242,30 @@ const V2ChatContentInner: FC<InnerProps> = ({
     }
   })
 
-  // Keep ref in sync with latest messages after every render
+  // Keep refs in sync with latest values after every render
   useEffect(() => {
     streamingUIMessagesRef.current = streamingUIMessages
+    setMessagesRef.current = setMessages
   })
 
   /** Delete a single message (reparent children to grandparent) and sync UI. */
   const handleDeleteMessage = useCallback(
     async (id: string) => {
-      await dataApiService.delete(`/messages/${id}`, { query: { cascade: false } })
-      setMessages((msgs) => msgs.filter((m) => m.id !== id))
-      logger.info('Deleted message (single)', { id })
+      try {
+        await dataApiService.delete(`/messages/${id}`, { query: { cascade: false } })
+        setMessages((msgs) => msgs.filter((m) => m.id !== id))
+      } catch (err: unknown) {
+        // Root messages have no parent to reparent children to — fallback to cascade.
+        // Only retry on INVALID_OPERATION; rethrow anything else (network, auth, etc.).
+        if (err && typeof err === 'object' && 'code' in err && err.code === 'INVALID_OPERATION') {
+          const result = await dataApiService.delete(`/messages/${id}`, { query: { cascade: true } })
+          const deletedSet = new Set(result.deletedIds)
+          setMessages((msgs) => msgs.filter((m) => !deletedSet.has(m.id)))
+        } else {
+          throw err
+        }
+      }
+      logger.info('Deleted message', { id })
       await refresh()
     },
     [refresh, setMessages]
@@ -282,9 +316,36 @@ const V2ChatContentInner: FC<InnerProps> = ({
   const v2ChatOverrides = useMemo<V2ChatOverrides>(
     () => ({
       regenerate: async (messageId?: string) => {
+        // Delete the old assistant message from DB before regenerating
+        // so the UI immediately shows only the new streaming response.
+        if (messageId) {
+          try {
+            await dataApiService.delete(`/messages/${messageId}`, { query: { cascade: true } })
+            const refreshed = await refresh()
+            setMessages(refreshed)
+          } catch (err) {
+            logger.warn('Failed to clean up old message before regenerate', { messageId, err })
+          }
+        }
         await regenerate(messageId)
       },
       resend: async (messageId?: string) => {
+        // For resend (from user message), delete the assistant reply below it
+        // so the UI clears the old response before streaming the new one.
+        if (messageId) {
+          try {
+            const msgs = streamingUIMessagesRef.current
+            const idx = msgs.findIndex((m) => m.id === messageId)
+            const nextAssistant = idx >= 0 ? msgs[idx + 1] : undefined
+            if (nextAssistant?.role === 'assistant') {
+              await dataApiService.delete(`/messages/${nextAssistant.id}`, { query: { cascade: true } })
+              const refreshed = await refresh()
+              setMessages(refreshed)
+            }
+          } catch (err) {
+            logger.warn('Failed to clean up old reply before resend', { messageId, err })
+          }
+        }
         await regenerate(messageId)
       },
       deleteMessage: handleDeleteMessage,
@@ -292,16 +353,19 @@ const V2ChatContentInner: FC<InnerProps> = ({
       pause: stop,
       clearTopicMessages: handleClearTopicMessages,
       editMessage: handleEditMessage,
-      refresh
+      refresh,
+      requestStatus: status
     }),
     [
       regenerate,
+      setMessages,
       handleDeleteMessage,
       handleDeleteMessageGroup,
       stop,
       handleClearTopicMessages,
       handleEditMessage,
-      refresh
+      refresh,
+      status
     ]
   )
 

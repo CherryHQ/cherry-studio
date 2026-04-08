@@ -46,6 +46,7 @@ const logger = loggerService.withContext('MessageBlockEditor')
 
 const MessageBlockEditor: FC<Props> = ({ message, topicId, onSave, onResend, onCancel }) => {
   const v2BlockEntities = useV2BlockMap()
+  const isV2Chat = v2BlockEntities !== null
   const allBlocks = findAllBlocks(message, v2BlockEntities ?? undefined)
   const [editedBlocks, setEditedBlocks] = useState<MessageBlock[]>(allBlocks)
   const [files, setFiles] = useState<FileMetadata[]>([])
@@ -63,7 +64,8 @@ const MessageBlockEditor: FC<Props> = ({ message, topicId, onSave, onResend, onC
   const textareaRef = useRef<TextAreaRef>(null)
   const isUserMessage = message.role === 'user'
 
-  const topicMessages = useAppSelector((state) => selectMessagesForTopic(state, topicId))
+  // V2: Redux messages are empty; fall back to assistant model capabilities below
+  const topicMessages = useAppSelector((state) => (isV2Chat ? [] : selectMessagesForTopic(state, topicId)))
 
   const noopQuickPanel = useMemo<ToolQuickPanelApi>(
     () => ({

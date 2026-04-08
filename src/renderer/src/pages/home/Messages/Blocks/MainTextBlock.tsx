@@ -4,7 +4,7 @@ import { getModelUniqId } from '@renderer/services/ModelService'
 import type { RootState } from '@renderer/store'
 import { formatCitationsFromBlock, selectFormattedCitationsByBlockId } from '@renderer/store/messageBlock'
 import { type Model } from '@renderer/types'
-import type { CitationMessageBlock, MainTextMessageBlock, Message, MessageBlock } from '@renderer/types/newMessage'
+import type { MainTextMessageBlock, Message, MessageBlock } from '@renderer/types/newMessage'
 import { MessageBlockType } from '@renderer/types/newMessage'
 import { determineCitationSource, withCitationTags } from '@renderer/utils/citation'
 import React, { useCallback, useMemo } from 'react'
@@ -34,7 +34,7 @@ const MainTextBlock: React.FC<Props> = ({ block, citationBlockId, role, mentions
     if (!v2Blocks || !citationBlockId) return reduxCitations
     const citationBlock = v2Blocks[citationBlockId] as MessageBlock | undefined
     if (citationBlock?.type === MessageBlockType.CITATION) {
-      return formatCitationsFromBlock(citationBlock as CitationMessageBlock)
+      return formatCitationsFromBlock(citationBlock)
     }
     return []
   }, [v2Blocks, citationBlockId, reduxCitations])

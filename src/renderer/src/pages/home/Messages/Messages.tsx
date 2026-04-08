@@ -89,10 +89,15 @@ const Messages: React.FC<MessagesProps> = ({
 
   const messageElements = useRef<Map<string, HTMLElement>>(new Map())
   const messagesRef = useRef<Message[]>(messages)
+  const v2BlockEntitiesRef = useRef(v2BlockEntities)
 
   useEffect(() => {
     messagesRef.current = messages
   }, [messages])
+
+  useEffect(() => {
+    v2BlockEntitiesRef.current = v2BlockEntities
+  }, [v2BlockEntities])
 
   const registerMessageElement = useCallback((id: string, element: HTMLElement | null) => {
     if (element) {
@@ -233,7 +238,9 @@ const Messages: React.FC<MessagesProps> = ({
         async (data: { msgBlockId: string; codeBlockId: string; newContent: string }) => {
           const { msgBlockId, codeBlockId, newContent } = data
 
-          const msgBlock = messageBlocksSelectors.selectById(store.getState(), msgBlockId)
+          // V2: read from context ref; V1: read from Redux
+          const msgBlock =
+            v2BlockEntitiesRef.current?.[msgBlockId] ?? messageBlocksSelectors.selectById(store.getState(), msgBlockId)
 
           // FIXME: 目前 error block 没有 content
           if (msgBlock && isTextLikeBlock(msgBlock) && msgBlock.type !== MessageBlockType.ERROR) {

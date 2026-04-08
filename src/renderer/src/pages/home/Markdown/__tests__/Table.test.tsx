@@ -73,6 +73,11 @@ vi.mock('@cherrystudio/ui', () => ({
   )
 }))
 
+// Mock V2 block context — returns null (V1 mode) by default
+vi.mock('@renderer/pages/home/Messages/Blocks', () => ({
+  useV2BlockMap: vi.fn(() => null)
+}))
+
 Object.assign(window, {
   message: mocks.windowMessage,
   toast: mocks.windowToast

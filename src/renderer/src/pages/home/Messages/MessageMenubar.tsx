@@ -323,7 +323,7 @@ const MessageMenubar: FC<Props> = (props) => {
 
   const dropdownItems = useMemo(() => {
     const items: MenuProps['items'] = [
-      ...(!isV2Chat && isEditable
+      ...(isEditable
         ? [
             {
               label: t('common.edit'),
@@ -613,7 +613,7 @@ const MessageMenubar: FC<Props> = (props) => {
     showDeleteTooltip,
     softHoverBg,
     supportsAppendResponse: !isV2Chat,
-    supportsWrites: !isV2Chat,
+    supportsWrites: true,
     t,
     translateLanguages
   }

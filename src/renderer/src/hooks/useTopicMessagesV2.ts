@@ -36,8 +36,8 @@ interface UseTopicMessagesV2Result {
   isLoading: boolean
   /** Error if fetch failed */
   error?: Error
-  /** SWR mutate — call to revalidate after write operations */
-  refresh: () => Promise<void>
+  /** SWR mutate — call to revalidate after write operations. Returns refreshed UIMessages. */
+  refresh: () => Promise<CherryUIMessage[]>
 }
 
 /**
@@ -141,8 +141,10 @@ export function useTopicMessagesV2(topicId: string, enabled = true): UseTopicMes
     dedupingInterval: 10000
   })
 
-  const refresh = useCallback(async () => {
-    await mutate()
+  const refresh = useCallback(async (): Promise<CherryUIMessage[]> => {
+    const result = await mutate()
+    if (!result) return []
+    return flattenBranchMessages(result.items).map(toUIMessage)
   }, [mutate])
 
   return useMemo(() => {

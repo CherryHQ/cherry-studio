@@ -1,5 +1,6 @@
 import { CodeBlockView, HtmlArtifactsCard } from '@renderer/components/CodeBlockView'
 import { useSettings } from '@renderer/hooks/useSettings'
+import { useV2BlockMap } from '@renderer/pages/home/Messages/Blocks'
 import { ClickableFilePath } from '@renderer/pages/home/Messages/Tools/MessageAgentTools/ClickableFilePath'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import store from '@renderer/store'
@@ -33,8 +34,9 @@ const CodeBlock: React.FC<Props> = ({ children, className, node, blockId }) => {
   // 代码块 id
   const id = useMemo(() => getCodeBlockId(node?.position?.start), [node?.position?.start])
 
-  // 消息块
-  const msgBlock = messageBlocksSelectors.selectById(store.getState(), blockId)
+  // 消息块: V2 context first, then Redux fallback
+  const v2Blocks = useV2BlockMap()
+  const msgBlock = v2Blocks?.[blockId] ?? messageBlocksSelectors.selectById(store.getState(), blockId)
   const isStreaming = useMemo(() => msgBlock?.status === MessageBlockStatus.STREAMING, [msgBlock?.status])
 
   const handleSave = useCallback(

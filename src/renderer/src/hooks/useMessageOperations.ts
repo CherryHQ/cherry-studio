@@ -22,10 +22,13 @@ import {
 } from '@renderer/store/thunk/messageThunk'
 import { type Assistant, type Model, objectKeys, type Topic, type TranslateLanguageCode } from '@renderer/types'
 import type { Message, MessageBlock } from '@renderer/types/newMessage'
-import { MessageBlockStatus, MessageBlockType } from '@renderer/types/newMessage'
+import { AssistantMessageStatus, MessageBlockStatus, MessageBlockType } from '@renderer/types/newMessage'
 import { abortCompletion } from '@renderer/utils/abortController'
 import { difference, throttle } from 'lodash'
 import { createContext, use, useCallback } from 'react'
+
+/** AI SDK useChat status — V2 single source of truth for request state. */
+export type RequestStatus = 'submitted' | 'streaming' | 'ready' | 'error'
 
 /**
  * V2 chat overrides injected via React Context.
@@ -45,7 +48,9 @@ export interface V2ChatOverrides {
   clearTopicMessages: () => Promise<void>
   /** Edit a message's content (update parts via DataApi). */
   editMessage: (messageId: string, editedBlocks: MessageBlock[]) => Promise<void>
-  refresh: () => Promise<void>
+  /** Raw AI SDK chat status. Single source of truth for request state. */
+  requestStatus: RequestStatus
+  refresh: () => Promise<unknown>
 }
 
 const V2ChatOverridesContext = createContext<V2ChatOverrides | null>(null)
@@ -62,8 +67,19 @@ const logger = loggerService.withContext('UseMessageOperations')
 const selectMessagesState = (state: RootState) => state.messages
 
 export const selectNewTopicLoading = createSelector(
-  [selectMessagesState, (_, topicId: string) => topicId],
-  (messagesState, topicId) => messagesState.loadingByTopic[topicId] || false
+  [selectMessagesState, selectMessagesForTopic, (_, topicId: string) => topicId],
+  (messagesState, topicMessages, topicId) => {
+    const topicFlag = messagesState.loadingByTopic[topicId] || false
+    const hasActiveAssistantMessage = topicMessages.some(
+      (message) =>
+        message.role === 'assistant' &&
+        [AssistantMessageStatus.PENDING, AssistantMessageStatus.PROCESSING, AssistantMessageStatus.SEARCHING].includes(
+          message.status as AssistantMessageStatus
+        )
+    )
+
+    return topicFlag || hasActiveAssistantMessage
+  }
 )
 
 export const selectNewDisplayCount = createSelector(
@@ -554,6 +570,13 @@ export const useTopicMessages = (topicId: string) => {
   return useAppSelector((state) => selectMessagesForTopic(state, topicId))
 }
 
-export const useTopicLoading = (topic: Topic) => {
-  return useAppSelector((state) => selectNewTopicLoading(state, topic.id))
+export const useTopicLoading = (): boolean => {
+  const v2 = use(V2ChatOverridesContext)
+  if (!v2) return false
+  return v2.requestStatus === 'submitted' || v2.requestStatus === 'streaming'
+}
+
+export const useRequestStatus = (): RequestStatus | undefined => {
+  const v2 = use(V2ChatOverridesContext)
+  return v2?.requestStatus
 }

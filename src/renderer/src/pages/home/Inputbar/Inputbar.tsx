@@ -14,7 +14,7 @@ import {
 import { useCache } from '@renderer/data/hooks/useCache'
 import { useAssistant } from '@renderer/hooks/useAssistant'
 import { useInputText } from '@renderer/hooks/useInputText'
-import { useMessageOperations, useTopicLoading } from '@renderer/hooks/useMessageOperations'
+import { useMessageOperations, useRequestStatus, useTopicLoading } from '@renderer/hooks/useMessageOperations'
 import { useShortcut } from '@renderer/hooks/useShortcuts'
 import { useTextareaResize } from '@renderer/hooks/useTextareaResize'
 import { useTimer } from '@renderer/hooks/useTimer'
@@ -176,7 +176,8 @@ const InputbarInner: FC<InputbarInnerProps> = ({
 
   const { t } = useTranslation()
   const { pauseMessages } = useMessageOperations(topic)
-  const loading = useTopicLoading(topic)
+  const loading = useTopicLoading()
+  const requestStatus = useRequestStatus()
   const dispatch = useAppDispatch()
   const isVisionAssistant = useMemo(() => isVisionModel(model), [model])
   const isGenerateImageAssistant = useMemo(() => isGenerateImageModel(model), [model])
@@ -546,6 +547,7 @@ const InputbarInner: FC<InputbarInnerProps> = ({
       handleSendMessage={sendMessage}
       leftToolbar={leftToolbar}
       rightToolbar={rightToolbar}
+      primaryActionMode={requestStatus === 'submitted' || requestStatus === 'streaming' ? 'pause' : 'send'}
       topContent={topContent}
     />
   )
