@@ -4,11 +4,25 @@
  *
  * Migrated from src/renderer/src/aiCore/provider/providerConfig.ts
  *
- * Remaining TODO items:
- * - store.getState() → BuildContext injection
- * - useVertexAI hooks → Main-side Vertex config service
- * - @renderer/utils/api format functions → extract to @shared/utils
- * - Provider check functions → consolidate with @shared/config/providerChecks
+ * Current state (Phase 1):
+ * - formatApiHost / isWithTrailingSharp / formatOllamaApiHost: ✅ imported from @shared
+ * - routeToEndpoint: ✅ reimplemented with full endpoint parsing
+ * - Provider resolution: ✅ via ReduxService in AiCompletionService.resolveFromRedux()
+ * - getProviderByModel / getProviderById stubs: dead code (not called in Phase 1 path)
+ *
+ * TODO — migrate to real providerConfig (when ProviderService exists):
+ * 1. Replace getProviderById stub → ProviderService.getById() (currently dead code,
+ *    only called by buildCherryinConfig which needs cross-provider lookup)
+ * 2. Replace getProviderByModel stub → ProviderService.getByModel() (currently dead code,
+ *    only called by getActualProvider() which is bypassed)
+ * 3. formatVertexApiHost → needs vertexai settings (project, location) from ProviderService
+ *    instead of store.getState().llm.settings.vertexai
+ * 4. buildBedrockConfig → needs AWS credentials from ProviderService/SecretService
+ *    instead of getAwsBedrockAuthType/Region/ApiKey stubs
+ * 5. buildVertexConfig → needs VertexAI provider creation from ProviderService
+ *    instead of createVertexProvider stub
+ * 6. Remove @ts-nocheck once all stubs are replaced
+ * 7. Consolidate provider check functions (isAnthropicProvider, etc.) to @shared
  */
 
 import { formatPrivateKey, hasProviderConfig, type StringKeys } from '@cherrystudio/ai-core/provider'
@@ -35,21 +49,38 @@ function getProviderById(_id: string): Provider | undefined {
   throw new Error('getProviderById stub: use BuildContext')
 }
 
-// Format utils — TODO: extract to @shared/utils
-function formatApiHost(host: string, _appendApiVersion: boolean, _version?: string): string {
-  return host.replace(/\/+$/, '')
-}
-function formatOllamaApiHost(host: string): string {
-  return host.replace(/\/+$/, '')
-}
+// Format utils — imported from shared
+import { formatOllamaApiHost } from '@shared/aiCore/provider/utils'
+import { formatApiHost, isWithTrailingSharp } from '@shared/utils/api'
+
 function formatVertexApiHost(provider: any): string {
+  // TODO: needs Redux store access for vertexai settings (project, location)
   return provider.apiHost || ''
 }
-function isWithTrailingSharp(host: string): boolean {
-  return host.endsWith('#')
-}
-function routeToEndpoint(apiHost: string): { baseURL: string; endpoint?: string } {
-  return { baseURL: apiHost.replace(/\/+$/, '') }
+
+function routeToEndpoint(apiHost: string): { baseURL: string; endpoint: string } {
+  const trimmedHost = (apiHost || '').trim()
+  if (!trimmedHost.endsWith('#')) {
+    return { baseURL: trimmedHost.replace(/\/+$/, ''), endpoint: '' }
+  }
+  const host = trimmedHost.slice(0, -1)
+  const SUPPORTED_ENDPOINTS = [
+    'chat/completions',
+    'responses',
+    'messages',
+    'generateContent',
+    'streamGenerateContent',
+    'images/generations',
+    'images/edits',
+    'predict'
+  ]
+  const endpointMatch = SUPPORTED_ENDPOINTS.find((ep) => host.endsWith(ep))
+  if (!endpointMatch) {
+    return { baseURL: host.replace(/\/+$/, ''), endpoint: '' }
+  }
+  const baseSegment = host.slice(0, host.length - endpointMatch.length)
+  const baseURL = baseSegment.replace(/\/+$/, '').replace(/:$/, '')
+  return { baseURL, endpoint: endpointMatch }
 }
 
 // Provider checks — TODO: consolidate with @shared/config/providerChecks

@@ -1,6 +1,6 @@
 import { loggerService } from '@logger'
 import { reduxService } from '@main/services/ReduxService'
-import type { Model, Provider } from '@types'
+import type { Assistant, Model, Provider } from '@types'
 import type { ChatTransport, UIMessage, UIMessageChunk } from 'ai'
 
 import { runAgentLoop } from './agentLoop'
@@ -29,9 +29,11 @@ export interface AiStreamRequest {
   messageId?: string
   /** Conversation history in AI SDK UIMessage format. */
   messages: UIMessage[]
-  /** AI provider identifier (e.g. 'openai', 'anthropic'). */
+  /** Assistant ID — used to resolve provider/model from Redux if providerId/modelId not explicit. */
+  assistantId?: string
+  /** AI provider identifier (e.g. 'openai', 'anthropic'). Overrides assistant.model.provider if set. */
   providerId?: string
-  /** Model identifier (e.g. 'gpt-4o', 'claude-sonnet-4-20250514'). */
+  /** Model identifier (e.g. 'gpt-4o'). Overrides assistant.model.id if set. */
   modelId?: string
   /**
    * Assistant-level settings (temperature, topP, maxTokens, etc.).
@@ -87,31 +89,23 @@ export class AiCompletionService {
     signal: AbortSignal,
     writer: WritableStreamDefaultWriter<UIMessageChunk>
   ): Promise<void> {
-    // 1. Resolve provider from Redux (transition: provider data still in Redux, not yet a dedicated service)
-    const providers = await reduxService.select<Provider[]>('state.llm.providers')
-    const provider = providers.find((p: Provider) => p.id === request.providerId)
-    if (!provider) throw new Error(`Provider not found: ${request.providerId}`)
+    // 1. Resolve assistant → model → provider from Redux
+    const { provider, model, assistant } = await this.resolveFromRedux(request)
 
-    // 2. Find model
-    const modelId = request.modelId
-    if (!modelId) throw new Error('modelId is required')
-    const model = provider.models?.find((m: Model) => m.id === modelId)
-    if (!model) throw new Error(`Model not found: ${modelId} in provider ${request.providerId}`)
-
-    // 3. Build SDK config (providerId + providerSettings)
+    // 2. Build SDK config (providerId + providerSettings)
     const adapted = adaptProvider({ provider })
     const sdkConfig = await providerToAiSdkConfig(adapted, model)
 
-    // 4. Resolve tools (Phase 1: likely empty)
+    // 3. Resolve tools (Phase 1: likely empty)
     const tools = this.toolRegistry.resolve(request.mcpToolIds)
 
-    // 5. Build plugins (Phase 1: empty array)
+    // 4. Build plugins (Phase 1: empty array)
     const plugins = buildPlugins()
 
-    // 6. System prompt
-    const system = (request.assistantConfig?.prompt as string) || undefined
+    // 5. System prompt from assistant
+    const system = assistant?.prompt || undefined
 
-    // 7. Run agent loop
+    // 6. Run agent loop
     const stream = runAgentLoop(
       {
         providerId: sdkConfig.providerId as string,
@@ -125,7 +119,7 @@ export class AiCompletionService {
       signal
     )
 
-    // 8. Pipe to writer
+    // 7. Pipe to writer
     const reader = stream.getReader()
     try {
       while (true) {
@@ -137,6 +131,37 @@ export class AiCompletionService {
     } finally {
       reader.releaseLock()
     }
+  }
+
+  /**
+   * Resolve provider + model from Redux.
+   * Priority: request.providerId/modelId (explicit) > assistant.model (from assistantId)
+   */
+  private async resolveFromRedux(request: AiStreamRequest) {
+    const providers = await reduxService.select<Provider[]>('state.llm.providers')
+
+    // Try to find assistant for model/provider lookup
+    let assistant: Assistant | undefined
+    if (request.assistantId) {
+      const assistants = await reduxService.select<Assistant[]>('state.assistants.assistants')
+      assistant = assistants.find((a: Assistant) => a.id === request.assistantId)
+    }
+
+    // Resolve providerId: explicit > assistant.model.provider
+    const providerId = request.providerId ?? assistant?.model?.provider
+    if (!providerId) throw new Error('Cannot resolve providerId: not in request and assistant has no model')
+
+    const provider = providers.find((p: Provider) => p.id === providerId)
+    if (!provider) throw new Error(`Provider not found: ${providerId}`)
+
+    // Resolve modelId: explicit > assistant.model.id
+    const modelId = request.modelId ?? assistant?.model?.id
+    if (!modelId) throw new Error('Cannot resolve modelId: not in request and assistant has no model')
+
+    const model = provider.models?.find((m: Model) => m.id === modelId)
+    if (!model) throw new Error(`Model not found: ${modelId} in provider ${providerId}`)
+
+    return { provider, model, assistant }
   }
 
   registerRequest(requestId: string, controller: AbortController): void {
