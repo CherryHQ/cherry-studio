@@ -2,6 +2,7 @@ import { primaryKey, sqliteTable, text } from 'drizzle-orm/sqlite-core'
 
 import { createUpdateTimestamps } from './_columnHelpers'
 import { assistantTable } from './assistant'
+import { knowledgeBaseTable } from './knowledge'
 import { mcpServerTable } from './mcpServer'
 
 // NOTE: assistant-model relationship is 1:1 (default model) stored as assistant.modelId.
@@ -31,7 +32,7 @@ export const assistantMcpServerTable = sqliteTable(
  * Assistant-KnowledgeBase junction table
  *
  * Associates assistants with knowledge bases.
- * No FK on knowledgeBaseId yet - knowledge_base table not created.
+ * Both sides CASCADE: deleting either removes the association.
  */
 export const assistantKnowledgeBaseTable = sqliteTable(
   'assistant_knowledge_base',
@@ -39,8 +40,9 @@ export const assistantKnowledgeBaseTable = sqliteTable(
     assistantId: text()
       .notNull()
       .references(() => assistantTable.id, { onDelete: 'cascade' }),
-    // TODO(knowledge-base-table): Add FK — .references(() => knowledgeBaseTable.id, { onDelete: 'cascade' })
-    knowledgeBaseId: text().notNull(),
+    knowledgeBaseId: text()
+      .notNull()
+      .references(() => knowledgeBaseTable.id, { onDelete: 'cascade' }),
     ...createUpdateTimestamps
   },
   (t) => [primaryKey({ columns: [t.assistantId, t.knowledgeBaseId] })]

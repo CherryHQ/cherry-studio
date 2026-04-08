@@ -1,8 +1,8 @@
 {
   "version": "6",
   "dialect": "sqlite",
-  "id": "d251716b-2a56-4ded-8f37-0b904a1413ad",
-  "prevId": "e0e695a4-e511-4e26-b0b7-185a8f2cf6df",
+  "id": "0bc3ba88-0139-41d9-9964-7402f997dc8e",
+  "prevId": "4105c4f2-d9df-4048-acab-0049e5a95941",
   "tables": {
     "app_state": {
       "name": "app_state",
@@ -170,6 +170,15 @@
           "tableFrom": "assistant_knowledge_base",
           "tableTo": "assistant",
           "columnsFrom": ["assistant_id"],
+          "columnsTo": ["id"],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "assistant_knowledge_base_knowledge_base_id_knowledge_base_id_fk": {
+          "name": "assistant_knowledge_base_knowledge_base_id_knowledge_base_id_fk",
+          "tableFrom": "assistant_knowledge_base",
+          "tableTo": "knowledge_base",
+          "columnsFrom": ["knowledge_base_id"],
           "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
