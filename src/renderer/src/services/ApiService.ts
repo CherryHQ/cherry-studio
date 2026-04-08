@@ -7,7 +7,6 @@ import { preferenceService } from '@data/PreferenceService'
 import { loggerService } from '@logger'
 import { buildStreamTextParams } from '@renderer/aiCore/prepareParams'
 import type { AiSdkMiddlewareConfig } from '@renderer/aiCore/types/middlewareConfig'
-import { buildProviderOptions } from '@renderer/aiCore/utils/options'
 import { isDedicatedImageGenerationModel, isEmbeddingModel, isFunctionCallingModel } from '@renderer/config/models'
 import i18n from '@renderer/i18n'
 import { hubMCPServer } from '@renderer/store/mcp'
@@ -18,7 +17,6 @@ import { type Chunk, ChunkType } from '@renderer/types/chunk'
 import type { Message, ResponseError } from '@renderer/types/newMessage'
 import { removeSpecialCharactersForTopicName, uuid } from '@renderer/utils'
 import { abortCompletion, readyToAbort } from '@renderer/utils/abortController'
-import { trackTokenUsage } from '@renderer/utils/analytics'
 import { isToolUseModeFunction } from '@renderer/utils/assistant'
 import { isPromptToolUse, isSupportedToolUse } from '@renderer/utils/assistant'
 import { getErrorMessage, isAbortError } from '@renderer/utils/error'
@@ -427,103 +425,27 @@ export async function fetchMessagesSummary({
     prompt = await replacePromptVariables(prompt, model.name)
   }
 
-  // 总结上下文总是取最后5条消息
+  // 取最后5条消息，结构化为 JSON
   const contextMessages = takeRight(messages, 5)
-  const provider = getProviderByModel(model)
-
-  if (!hasApiKey(provider)) {
-    return { text: null, error: i18n.t('error.no_api_key') }
-  }
-
-  // Apply API key rotation
-  // NOTE: Shallow copy is intentional. Provider objects are not mutated by downstream code.
-  // Nested properties (if any) are never modified after creation.
-  const providerWithRotatedKey = {
-    ...provider,
-    apiKey: getRotatedApiKey(provider)
-  }
-
-  const AI = new AiProvider(model, providerWithRotatedKey)
-  const actualProvider = AI.getActualProvider()
-
-  const topicId = messages?.find((message) => message.topicId)?.topicId || ''
-
-  // LLM对多条消息的总结有问题，用单条结构化的消息表示会话内容会更好
-  const structredMessages = contextMessages.map((message) => {
-    const structredMessage = {
-      role: message.role,
-      mainText: purifyMarkdownImages(getMainTextContent(message))
-    }
-
-    // 让LLM知道消息中包含的文件，但只提供文件名
-    // 对助手消息而言，没有提供工具调用结果等更多信息，仅提供文本上下文。
+  const structuredMessages = contextMessages.map((message) => {
     const fileBlocks = findFileBlocks(message)
-    let fileList: Array<string> = []
-    if (fileBlocks.length && fileBlocks.length > 0) {
-      fileList = fileBlocks.map((fileBlock) => fileBlock.file.origin_name)
-    }
+    const fileList = fileBlocks.map((b) => b.file.origin_name).filter(Boolean)
     return {
-      ...structredMessage,
+      role: message.role,
+      mainText: purifyMarkdownImages(getMainTextContent(message)),
       files: fileList.length > 0 ? fileList : undefined
     }
   })
-  const conversation = JSON.stringify(structredMessages)
+  const conversation = JSON.stringify(structuredMessages)
 
-  const defaultAssistant = getDefaultAssistant()
-  const summaryAssistant = {
-    ...defaultAssistant,
-    settings: {
-      ...defaultAssistant.settings,
-      reasoning_effort: 'none',
-      qwenThinkMode: false
-    },
-    prompt,
-    model
-  } satisfies Assistant
-
-  const { providerOptions, standardParams } = buildProviderOptions(summaryAssistant, model, actualProvider, {
-    enableReasoning: false,
-    enableWebSearch: false,
-    enableGenerateImage: false
-  })
-
-  const llmMessages = {
-    system: prompt,
-    prompt: conversation,
-    providerOptions,
-    ...standardParams
-  }
-
-  const middlewareConfig: AiSdkMiddlewareConfig = {
-    streamOutput: false,
-    enableReasoning: false,
-    isPromptToolUse: false,
-    isSupportedToolUse: false,
-    enableWebSearch: false,
-    enableGenerateImage: false,
-    enableUrlContext: false,
-    mcpTools: []
-  }
   try {
-    // 从 messages 中找到有 traceId 的助手消息，用于绑定现有 trace
-    const messageWithTrace = messages.find((m) => m.role === 'assistant' && m.traceId)
-
-    if (messageWithTrace && messageWithTrace.traceId) {
-      // 导入并调用 appendTrace 来绑定现有 trace，传入summary使用的模型名
-      const { appendTrace } = await import('@renderer/services/SpanManagerService')
-      await appendTrace({ topicId, traceId: messageWithTrace.traceId, model })
-    }
-
-    const { getText, usage } = await AI.completions(model.id, llmMessages, {
-      ...middlewareConfig,
-      assistant: summaryAssistant,
-      topicId,
-      callType: 'summary'
+    const { text } = await window.api.ai.generateText({
+      providerId: model.provider,
+      modelId: model.id,
+      system: prompt,
+      prompt: conversation
     })
 
-    trackTokenUsage({ usage, model })
-
-    const text = getText()
     const result = removeSpecialCharactersForTopicName(text)
     return result ? { text: result } : { text: null, error: i18n.t('error.no_response') }
   } catch (error: unknown) {
@@ -540,63 +462,16 @@ export async function fetchNoteSummary({ content, assistant }: { content: string
     prompt = await replacePromptVariables(prompt, model.name)
   }
 
-  const provider = getProviderByModel(model)
-
-  if (!hasApiKey(provider)) {
-    return null
-  }
-
-  // Apply API key rotation
-  // NOTE: Shallow copy is intentional. Provider objects are not mutated by downstream code.
-  // Nested properties (if any) are never modified after creation.
-  const providerWithRotatedKey = {
-    ...provider,
-    apiKey: getRotatedApiKey(provider)
-  }
-
-  const AI = new AiProvider(model, providerWithRotatedKey)
-
-  // only 2000 char and no images
-  const truncatedContent = content.substring(0, 2000)
-  const purifiedContent = purifyMarkdownImages(truncatedContent)
-
-  const summaryAssistant = {
-    ...resolvedAssistant,
-    settings: {
-      ...resolvedAssistant.settings,
-      reasoning_effort: undefined,
-      qwenThinkMode: false
-    },
-    prompt,
-    model
-  }
-
-  const llmMessages = {
-    system: prompt,
-    prompt: purifiedContent
-  }
-
-  const middlewareConfig: AiSdkMiddlewareConfig = {
-    streamOutput: false,
-    enableReasoning: false,
-    isPromptToolUse: false,
-    isSupportedToolUse: false,
-    enableWebSearch: false,
-    enableGenerateImage: false,
-    enableUrlContext: false,
-    mcpTools: []
-  }
+  // only 2000 chars, no images
+  const purifiedContent = purifyMarkdownImages(content.substring(0, 2000))
 
   try {
-    const { getText, usage } = await AI.completions(model.id, llmMessages, {
-      ...middlewareConfig,
-      assistant: summaryAssistant,
-      callType: 'summary'
+    const { text } = await window.api.ai.generateText({
+      providerId: model.provider,
+      modelId: model.id,
+      system: prompt,
+      prompt: purifiedContent
     })
-
-    trackTokenUsage({ usage, model })
-
-    const text = getText()
     return removeSpecialCharactersForTopicName(text) || null
   } catch (error: any) {
     return null
@@ -635,64 +510,17 @@ export async function fetchGenerate({
   content: string
   model?: Model
 }): Promise<string> {
-  if (!model) {
-    model = getDefaultModel()
-  }
-  const provider = getProviderByModel(model)
-
-  if (!hasApiKey(provider)) {
-    return ''
-  }
-
-  // Apply API key rotation
-  // NOTE: Shallow copy is intentional. Provider objects are not mutated by downstream code.
-  // Nested properties (if any) are never modified after creation.
-  const providerWithRotatedKey = {
-    ...provider,
-    apiKey: getRotatedApiKey(provider)
-  }
-
-  const AI = new AiProvider(model, providerWithRotatedKey)
-
-  const assistant = getDefaultAssistant()
-  assistant.model = model
-  assistant.prompt = prompt
-
-  // const params: CompletionsParams = {
-  //   callType: 'generate',
-  //   messages: content,
-  //   assistant,
-  //   streamOutput: false
-  // }
-
-  const middlewareConfig: AiSdkMiddlewareConfig = {
-    streamOutput: assistant.settings?.streamOutput ?? false,
-    enableReasoning: false,
-    isPromptToolUse: false,
-    isSupportedToolUse: false,
-    enableWebSearch: false,
-    enableGenerateImage: false,
-    enableUrlContext: false
-  }
-
   try {
-    const result = await AI.completions(
-      model.id,
-      {
-        system: prompt,
-        prompt: content
-      },
-      {
-        ...middlewareConfig,
-        assistant,
-        callType: 'generate'
-      }
-    )
-
-    trackTokenUsage({ usage: result.usage, model })
-
-    return result.getText() || ''
+    const resolvedModel = model || getDefaultModel()
+    const { text } = await window.api.ai.generateText({
+      providerId: resolvedModel.provider,
+      modelId: resolvedModel.id,
+      system: prompt,
+      prompt: content
+    })
+    return text || ''
   } catch (error: any) {
+    logger.error('fetchGenerate failed', error)
     return ''
   }
 }
