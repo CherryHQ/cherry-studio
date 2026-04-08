@@ -19,7 +19,7 @@ vi.mock('electron', () => ({
   }
 }))
 
-const { fetchKnowledgeWebPage } = await import('../webSearch')
+const { fetchKnowledgeWebPage } = await import('../url')
 
 function createDeferred<T>() {
   let resolve!: (value: T | PromiseLike<T>) => void

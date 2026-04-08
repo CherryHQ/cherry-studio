@@ -13,8 +13,10 @@ import PQueue from 'p-queue'
 import { loadKnowledgeItemDocuments } from './readers/KnowledgeReader'
 import { rerankKnowledgeSearchResults } from './rerank/rerank'
 import { chunkDocuments } from './utils/chunk'
+import { expandDirectoryToCreateItems } from './utils/directory'
 import { embedDocuments } from './utils/embed'
 import { getEmbedModel } from './utils/model'
+import { expandSitemapToCreateItems } from './utils/sitemap'
 import { runAbortable, type RuntimeTaskContext, SHUTDOWN_INTERRUPTED_REASON } from './utils/taskRuntime'
 
 const logger = loggerService.withContext('KnowledgeRuntimeService')
@@ -241,6 +243,12 @@ export class KnowledgeRuntimeService extends BaseService {
     this.ipcHandle(IpcChannel.KnowledgeRuntime_DeleteBase, async (_, payload: { baseId: string }) => {
       const base = await this.loadBase(payload.baseId)
       return await this.deleteBase(base)
+    })
+    this.ipcHandle(IpcChannel.KnowledgeRuntime_ExpandDirectory, async (_, payload: { path: string }) => {
+      return await expandDirectoryToCreateItems(payload.path)
+    })
+    this.ipcHandle(IpcChannel.KnowledgeRuntime_ExpandSitemap, async (_, payload: { url: string }) => {
+      return await expandSitemapToCreateItems(payload.url)
     })
     this.ipcHandle(IpcChannel.KnowledgeRuntime_AddItems, async (_, payload: { baseId: string; itemIds: string[] }) => {
       const { base, items } = await this.loadBaseAndItems(payload.baseId, payload.itemIds)

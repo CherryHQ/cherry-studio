@@ -9,6 +9,8 @@ const {
   createVectorStoreMock,
   deleteVectorStoreMock,
   embedManyMock,
+  expandDirectoryToCreateItemsMock,
+  expandSitemapToCreateItemsMock,
   getEmbedModelMock,
   knowledgeBaseGetByIdMock,
   knowledgeItemGetByIdMock,
@@ -24,6 +26,8 @@ const {
   createVectorStoreMock: vi.fn(),
   deleteVectorStoreMock: vi.fn(),
   embedManyMock: vi.fn(),
+  expandDirectoryToCreateItemsMock: vi.fn(),
+  expandSitemapToCreateItemsMock: vi.fn(),
   getEmbedModelMock: vi.fn(),
   knowledgeBaseGetByIdMock: vi.fn(),
   knowledgeItemGetByIdMock: vi.fn(),
@@ -101,6 +105,14 @@ vi.mock('../utils/embed', () => ({
 
 vi.mock('../utils/model', () => ({
   getEmbedModel: getEmbedModelMock
+}))
+
+vi.mock('../utils/directory', () => ({
+  expandDirectoryToCreateItems: expandDirectoryToCreateItemsMock
+}))
+
+vi.mock('../utils/sitemap', () => ({
+  expandSitemapToCreateItems: expandSitemapToCreateItemsMock
 }))
 
 const { KnowledgeRuntimeService } = await import('../KnowledgeRuntimeService')
@@ -197,6 +209,16 @@ describe('KnowledgeRuntimeService', () => {
     knowledgeItemUpdateMock.mockImplementation(async (_id, dto) => dto)
     getEmbedModelMock.mockReturnValue({ provider: 'mock' })
     embedManyMock.mockResolvedValue({ embeddings: [[0.1, 0.2]] })
+    expandDirectoryToCreateItemsMock.mockResolvedValue([
+      { ref: 'root', type: 'directory', data: { name: 'docs', path: '/docs' } }
+    ])
+    expandSitemapToCreateItemsMock.mockResolvedValue([
+      {
+        ref: 'root',
+        type: 'sitemap',
+        data: { url: 'https://example.com/sitemap.xml', name: 'https://example.com/sitemap.xml' }
+      }
+    ])
     rerankKnowledgeSearchResultsMock.mockImplementation(async (_base, _query, results) => results)
   })
 
@@ -264,6 +286,8 @@ describe('KnowledgeRuntimeService', () => {
     const handlerCalls = ((service as any).ipcHandle as ReturnType<typeof vi.fn>).mock.calls
     const addItemsHandler = handlerCalls.find((call) => call[0] === 'knowledge-runtime:add-items')?.[1]
     const searchHandler = handlerCalls.find((call) => call[0] === 'knowledge-runtime:search')?.[1]
+    const expandDirectoryHandler = handlerCalls.find((call) => call[0] === 'knowledge-runtime:expand-directory')?.[1]
+    const expandSitemapHandler = handlerCalls.find((call) => call[0] === 'knowledge-runtime:expand-sitemap')?.[1]
 
     const base = createBase()
     const item = createDirectoryItem()
@@ -287,6 +311,22 @@ describe('KnowledgeRuntimeService', () => {
     await expect(searchHandler({}, { baseId: base.id, query: 'hello' })).resolves.toEqual([])
     expect(knowledgeBaseGetByIdMock).toHaveBeenCalledWith(base.id)
     expect(mockQuery).toHaveBeenCalled()
+
+    await expect(expandDirectoryHandler({}, { path: '/docs' })).resolves.toEqual({
+      items: [{ ref: 'root', type: 'directory', data: { name: 'docs', path: '/docs' } }]
+    })
+    expect(expandDirectoryToCreateItemsMock).toHaveBeenCalledWith('/docs')
+
+    await expect(expandSitemapHandler({}, { url: 'https://example.com/sitemap.xml' })).resolves.toEqual({
+      items: [
+        {
+          ref: 'root',
+          type: 'sitemap',
+          data: { url: 'https://example.com/sitemap.xml', name: 'https://example.com/sitemap.xml' }
+        }
+      ]
+    })
+    expect(expandSitemapToCreateItemsMock).toHaveBeenCalledWith('https://example.com/sitemap.xml')
   })
 
   it('persists failed status even when vector cleanup throws', async () => {

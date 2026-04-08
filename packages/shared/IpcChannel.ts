@@ -194,6 +194,8 @@ export enum IpcChannel {
   KnowledgeRuntime_AddItems = 'knowledge-runtime:add-items',
   KnowledgeRuntime_DeleteItems = 'knowledge-runtime:delete-items',
   KnowledgeRuntime_Search = 'knowledge-runtime:search',
+  KnowledgeRuntime_ExpandDirectory = 'knowledge-runtime:expand-directory',
+  KnowledgeRuntime_ExpandSitemap = 'knowledge-runtime:expand-sitemap',
 
   //file
   File_Open = 'file:open',
