@@ -1,5 +1,5 @@
 {
-  "version": "2026.03.09",
+  "version": "2026.04.09",
   "models": [
     {
       "id": "multilingual-e5-large-instruct",
@@ -607,8 +607,7 @@
         "thinkingTokenLimits": {
           "min": 0,
           "max": 24576
-        },
-        "interleaved": true
+        }
       },
       "family": "gemini-flash",
       "ownedBy": "google",
@@ -646,8 +645,7 @@
         "thinkingTokenLimits": {
           "min": 1024,
           "max": 64000
-        },
-        "interleaved": true
+        }
       },
       "family": "claude-haiku",
       "ownedBy": "anthropic",
@@ -685,8 +683,7 @@
         "thinkingTokenLimits": {
           "min": 1024,
           "max": 64000
-        },
-        "interleaved": true
+        }
       },
       "family": "claude-sonnet",
       "ownedBy": "anthropic",
@@ -724,8 +721,7 @@
         "thinkingTokenLimits": {
           "min": 1024,
           "max": 32000
-        },
-        "interleaved": true
+        }
       },
       "family": "claude-opus",
       "ownedBy": "anthropic",
@@ -763,8 +759,7 @@
         "thinkingTokenLimits": {
           "min": 1024,
           "max": 64000
-        },
-        "interleaved": true
+        }
       },
       "family": "claude-opus",
       "ownedBy": "anthropic",
@@ -807,8 +802,7 @@
         "thinkingTokenLimits": {
           "min": 128,
           "max": 32768
-        },
-        "interleaved": true
+        }
       },
       "family": "gemini-pro",
       "ownedBy": "google",
@@ -888,8 +882,7 @@
         "thinkingTokenLimits": {
           "min": 1024,
           "max": 64000
-        },
-        "interleaved": true
+        }
       },
       "family": "claude-sonnet",
       "ownedBy": "anthropic",
@@ -1259,8 +1252,7 @@
         }
       },
       "reasoning": {
-        "supportedEfforts": ["none"],
-        "interleaved": true
+        "supportedEfforts": ["none"]
       },
       "family": "glm",
       "ownedBy": "zhipu",
@@ -1396,8 +1388,7 @@
         }
       },
       "reasoning": {
-        "supportedEfforts": [],
-        "interleaved": true
+        "supportedEfforts": []
       },
       "family": "minimax",
       "ownedBy": "minimax",
@@ -1456,8 +1447,7 @@
         }
       },
       "reasoning": {
-        "supportedEfforts": ["none"],
-        "interleaved": true
+        "supportedEfforts": ["none"]
       },
       "family": "deepseek",
       "ownedBy": "deepseek",
@@ -1509,8 +1499,7 @@
         }
       },
       "reasoning": {
-        "supportedEfforts": ["none"],
-        "interleaved": true
+        "supportedEfforts": ["none"]
       },
       "family": "glm",
       "ownedBy": "zhipu",
@@ -2037,8 +2026,7 @@
         }
       },
       "reasoning": {
-        "supportedEfforts": ["none"],
-        "interleaved": true
+        "supportedEfforts": ["none"]
       },
       "family": "glm",
       "ownedBy": "zhipu",
@@ -2068,8 +2056,7 @@
         }
       },
       "reasoning": {
-        "supportedEfforts": ["none"],
-        "interleaved": true
+        "supportedEfforts": ["none"]
       },
       "family": "glm",
       "ownedBy": "zhipu",
@@ -2170,8 +2157,7 @@
         "thinkingTokenLimits": {
           "min": 1024,
           "max": 38912
-        },
-        "interleaved": true
+        }
       },
       "family": "qwen",
       "ownedBy": "alibaba",
@@ -2303,8 +2289,7 @@
         "thinkingTokenLimits": {
           "min": 1024,
           "max": 38912
-        },
-        "interleaved": true
+        }
       },
       "family": "qwen",
       "ownedBy": "alibaba",
@@ -2334,8 +2319,7 @@
         }
       },
       "reasoning": {
-        "supportedEfforts": [],
-        "interleaved": true
+        "supportedEfforts": []
       },
       "family": "minimax",
       "ownedBy": "minimax",
@@ -2510,8 +2494,7 @@
         }
       },
       "reasoning": {
-        "supportedEfforts": ["none"],
-        "interleaved": true
+        "supportedEfforts": ["none"]
       },
       "family": "glm",
       "ownedBy": "zhipu",
@@ -2627,8 +2610,7 @@
       "contextWindow": 131072,
       "maxOutputTokens": 98304,
       "reasoning": {
-        "supportedEfforts": ["none"],
-        "interleaved": true
+        "supportedEfforts": ["none"]
       },
       "family": "glm-flash",
       "ownedBy": "zhipu",
@@ -2658,8 +2640,7 @@
         }
       },
       "reasoning": {
-        "supportedEfforts": ["none"],
-        "interleaved": true
+        "supportedEfforts": ["none"]
       },
       "family": "glm-flash",
       "ownedBy": "zhipu",
@@ -2689,8 +2670,7 @@
         }
       },
       "reasoning": {
-        "supportedEfforts": ["none"],
-        "interleaved": true
+        "supportedEfforts": ["none"]
       },
       "family": "glm-air",
       "ownedBy": "zhipu",
@@ -2719,8 +2699,7 @@
         }
       },
       "reasoning": {
-        "supportedEfforts": ["none"],
-        "interleaved": true
+        "supportedEfforts": ["none"]
       },
       "family": "glm-flash",
       "ownedBy": "zhipu",
@@ -2876,8 +2855,7 @@
         "thinkingTokenLimits": {
           "min": 1024,
           "max": 38912
-        },
-        "interleaved": true
+        }
       },
       "family": "qwen",
       "ownedBy": "alibaba",
@@ -3060,8 +3038,7 @@
         }
       },
       "reasoning": {
-        "supportedEfforts": [],
-        "interleaved": true
+        "supportedEfforts": []
       },
       "family": "minimax",
       "ownedBy": "minimax",
@@ -3091,8 +3068,7 @@
         }
       },
       "reasoning": {
-        "supportedEfforts": ["none"],
-        "interleaved": true
+        "supportedEfforts": ["none"]
       },
       "family": "mimo",
       "ownedBy": "xiaomi",
@@ -3439,8 +3415,7 @@
         "thinkingTokenLimits": {
           "min": 1024,
           "max": 38912
-        },
-        "interleaved": true
+        }
       },
       "family": "qwen",
       "ownedBy": "alibaba",
@@ -3949,8 +3924,7 @@
         "thinkingTokenLimits": {
           "min": 1024,
           "max": 38912
-        },
-        "interleaved": true
+        }
       },
       "family": "qwen",
       "ownedBy": "alibaba",
@@ -5549,8 +5523,7 @@
         }
       },
       "reasoning": {
-        "supportedEfforts": ["none"],
-        "interleaved": true
+        "supportedEfforts": ["none"]
       },
       "family": "deepseek",
       "ownedBy": "deepseek",
@@ -5580,8 +5553,7 @@
         }
       },
       "reasoning": {
-        "supportedEfforts": ["none"],
-        "interleaved": true
+        "supportedEfforts": ["none"]
       },
       "family": "deepseek",
       "ownedBy": "deepseek",
@@ -6945,8 +6917,7 @@
         "thinkingTokenLimits": {
           "min": 1024,
           "max": 38912
-        },
-        "interleaved": true
+        }
       },
       "family": "qwen",
       "ownedBy": "alibaba",
@@ -8714,8 +8685,7 @@
         }
       },
       "reasoning": {
-        "supportedEfforts": [],
-        "interleaved": true
+        "supportedEfforts": []
       },
       "family": "minimax",
       "ownedBy": "minimax",
@@ -9728,8 +9698,7 @@
         }
       },
       "reasoning": {
-        "supportedEfforts": ["none"],
-        "interleaved": true
+        "supportedEfforts": ["none"]
       },
       "family": "glm",
       "ownedBy": "zhipu",
@@ -10479,8 +10448,7 @@
         "thinkingTokenLimits": {
           "min": 1024,
           "max": 38912
-        },
-        "interleaved": true
+        }
       },
       "family": "qwen",
       "ownedBy": "alibaba",
@@ -10612,8 +10580,7 @@
         }
       },
       "reasoning": {
-        "supportedEfforts": ["none"],
-        "interleaved": true
+        "supportedEfforts": ["none"]
       },
       "ownedBy": "zhipu",
       "openWeights": false
@@ -12018,8 +11985,7 @@
         }
       },
       "reasoning": {
-        "supportedEfforts": [],
-        "interleaved": true
+        "supportedEfforts": []
       },
       "family": "minimax",
       "ownedBy": "minimax",
@@ -12055,8 +12021,7 @@
         }
       },
       "reasoning": {
-        "supportedEfforts": ["none", "low", "medium", "high"],
-        "interleaved": true
+        "supportedEfforts": ["none", "low", "medium", "high"]
       },
       "family": "claude-sonnet",
       "ownedBy": "anthropic",
@@ -12152,8 +12117,7 @@
         }
       },
       "reasoning": {
-        "supportedEfforts": [],
-        "interleaved": true
+        "supportedEfforts": []
       },
       "family": "minimax",
       "ownedBy": "minimax",
@@ -12682,8 +12646,7 @@
         }
       },
       "reasoning": {
-        "supportedEfforts": [],
-        "interleaved": true
+        "supportedEfforts": []
       },
       "family": "kimi-thinking",
       "ownedBy": "moonshot",
@@ -13000,8 +12963,7 @@
         }
       },
       "reasoning": {
-        "supportedEfforts": ["none"],
-        "interleaved": true
+        "supportedEfforts": ["none"]
       },
       "ownedBy": "zhipu",
       "openWeights": true
@@ -13025,8 +12987,7 @@
         }
       },
       "reasoning": {
-        "supportedEfforts": ["none"],
-        "interleaved": true
+        "supportedEfforts": ["none"]
       },
       "family": "glm",
       "ownedBy": "zhipu",
@@ -13056,8 +13017,7 @@
         }
       },
       "reasoning": {
-        "supportedEfforts": ["none"],
-        "interleaved": true
+        "supportedEfforts": ["none"]
       },
       "family": "deepseek",
       "ownedBy": "deepseek",
@@ -14327,8 +14287,7 @@
         }
       },
       "reasoning": {
-        "supportedEfforts": [],
-        "interleaved": true
+        "supportedEfforts": []
       },
       "family": "minimax",
       "ownedBy": "minimax",
@@ -14802,8 +14761,7 @@
         }
       },
       "reasoning": {
-        "supportedEfforts": ["none"],
-        "interleaved": true
+        "supportedEfforts": ["none"]
       },
       "family": "glm",
       "ownedBy": "zhipu",
@@ -16399,8 +16357,7 @@
         }
       },
       "reasoning": {
-        "supportedEfforts": [],
-        "interleaved": true
+        "supportedEfforts": []
       },
       "ownedBy": "minimax",
       "openWeights": false
@@ -17005,8 +16962,7 @@
         }
       },
       "reasoning": {
-        "supportedEfforts": [],
-        "interleaved": true
+        "supportedEfforts": []
       },
       "family": "minimax",
       "ownedBy": "minimax",
@@ -21376,8 +21332,7 @@
       "contextWindow": 205000,
       "maxOutputTokens": 131072,
       "reasoning": {
-        "supportedEfforts": ["none"],
-        "interleaved": true
+        "supportedEfforts": ["none"]
       },
       "ownedBy": "zhipu",
       "openWeights": false
@@ -21515,7 +21470,8 @@
       "reasoning": {
         "supportedEfforts": ["minimal", "low", "medium", "high"]
       },
-      "ownedBy": "bytedance"
+      "ownedBy": "bytedance",
+      "name": "Doubao Seed 2 0 Code Preview"
     },
     {
       "id": "gpt-4-1-nano-free",
@@ -21535,7 +21491,8 @@
           "perMillionTokens": 0
         }
       },
-      "ownedBy": "openai"
+      "ownedBy": "openai",
+      "name": "GPT 4 1 Nano Free"
     },
     {
       "id": "qwen3-vl-flash",
@@ -21566,7 +21523,8 @@
           "max": 38912
         }
       },
-      "ownedBy": "alibaba"
+      "ownedBy": "alibaba",
+      "name": "Qwen3 VL Flash"
     },
     {
       "id": "qwen3-vl-flash-2026-01-22",
@@ -21597,7 +21555,8 @@
           "max": 38912
         }
       },
-      "ownedBy": "alibaba"
+      "ownedBy": "alibaba",
+      "name": "Qwen3 VL Flash 2026 01 22"
     },
     {
       "id": "doubao-seedream-4-5",
@@ -21615,7 +21574,8 @@
           "perMillionTokens": 0
         }
       },
-      "ownedBy": "bytedance"
+      "ownedBy": "bytedance",
+      "name": "Doubao Seedream 4 5"
     },
     {
       "id": "wan2-6-i2v",
@@ -21633,7 +21593,8 @@
           "perMillionTokens": 0
         }
       },
-      "ownedBy": "alibaba"
+      "ownedBy": "alibaba",
+      "name": "Wan2 6 I2v"
     },
     {
       "id": "wan2-6-t2v",
@@ -21651,7 +21612,8 @@
           "perMillionTokens": 0
         }
       },
-      "ownedBy": "alibaba"
+      "ownedBy": "alibaba",
+      "name": "Wan2 6 T2v"
     },
     {
       "id": "gpt-4o-audio-preview",
@@ -21696,7 +21658,8 @@
           "perMillionTokens": 0.6
         }
       },
-      "ownedBy": "openai"
+      "ownedBy": "openai",
+      "name": "GPT 4o Mini Audio Preview"
     },
     {
       "id": "flux-2-flex",
@@ -21714,7 +21677,8 @@
           "perMillionTokens": 0
         }
       },
-      "ownedBy": "bfl"
+      "ownedBy": "bfl",
+      "name": "Flux 2 Flex"
     },
     {
       "id": "flux-2-pro",
@@ -21732,7 +21696,8 @@
           "perMillionTokens": 0
         }
       },
-      "ownedBy": "bfl"
+      "ownedBy": "bfl",
+      "name": "Flux 2 Pro"
     },
     {
       "id": "jimeng-3-0-1080p",
@@ -21749,7 +21714,8 @@
           "currency": "USD",
           "perMillionTokens": 0
         }
-      }
+      },
+      "name": "Jimeng 3 0 1080p"
     },
     {
       "id": "jimeng-3-0-720p",
@@ -21766,7 +21732,8 @@
           "currency": "USD",
           "perMillionTokens": 0
         }
-      }
+      },
+      "name": "Jimeng 3 0 720p"
     },
     {
       "id": "jimeng-3-0-pro",
@@ -21783,7 +21750,8 @@
           "currency": "USD",
           "perMillionTokens": 0
         }
-      }
+      },
+      "name": "Jimeng 3 0 Pro"
     },
     {
       "id": "kimi-for-coding",
@@ -21807,7 +21775,8 @@
           "perMillionTokens": 0.02
         }
       },
-      "ownedBy": "moonshot"
+      "ownedBy": "moonshot",
+      "name": "Kimi For Coding"
     },
     {
       "id": "qianfan-ocr",
@@ -21826,7 +21795,8 @@
           "currency": "USD",
           "perMillionTokens": 0.248
         }
-      }
+      },
+      "name": "Qianfan Ocr"
     },
     {
       "id": "qianfan-ocr-fast",
@@ -21845,7 +21815,8 @@
           "currency": "USD",
           "perMillionTokens": 2.738336
         }
-      }
+      },
+      "name": "Qianfan Ocr Fast"
     },
     {
       "id": "wan2-2-i2v-plus",
@@ -21863,7 +21834,8 @@
           "perMillionTokens": 0
         }
       },
-      "ownedBy": "alibaba"
+      "ownedBy": "alibaba",
+      "name": "Wan2 2 I2v Plus"
     },
     {
       "id": "wan2-2-t2v-plus",
@@ -21881,7 +21853,8 @@
           "perMillionTokens": 0
         }
       },
-      "ownedBy": "alibaba"
+      "ownedBy": "alibaba",
+      "name": "Wan2 2 T2v Plus"
     },
     {
       "id": "wan2-5-i2v-preview",
@@ -21899,7 +21872,8 @@
           "perMillionTokens": 0
         }
       },
-      "ownedBy": "alibaba"
+      "ownedBy": "alibaba",
+      "name": "Wan2 5 I2v Preview"
     },
     {
       "id": "wan2-5-t2v-preview",
@@ -21917,7 +21891,8 @@
           "perMillionTokens": 0
         }
       },
-      "ownedBy": "alibaba"
+      "ownedBy": "alibaba",
+      "name": "Wan2 5 T2v Preview"
     },
     {
       "id": "deepseek-v3-1-fast",
@@ -21940,7 +21915,8 @@
       "reasoning": {
         "supportedEfforts": ["none"]
       },
-      "ownedBy": "deepseek"
+      "ownedBy": "deepseek",
+      "name": "Deepseek V3 1 Fast"
     },
     {
       "id": "deepseek-v3-fast",
@@ -21963,7 +21939,8 @@
       "reasoning": {
         "supportedEfforts": ["none"]
       },
-      "ownedBy": "deepseek"
+      "ownedBy": "deepseek",
+      "name": "Deepseek V3 Fast"
     },
     {
       "id": "veo-2-0-generate-001",
@@ -21981,7 +21958,8 @@
           "perMillionTokens": 2
         }
       },
-      "ownedBy": "google"
+      "ownedBy": "google",
+      "name": "Veo 2 0 Generate 001"
     },
     {
       "id": "veo3-1",
@@ -21999,7 +21977,8 @@
           "perMillionTokens": 200
         }
       },
-      "ownedBy": "google"
+      "ownedBy": "google",
+      "name": "Veo3 1"
     },
     {
       "id": "imagen-4-0",
@@ -22017,7 +21996,8 @@
           "perMillionTokens": 2
         }
       },
-      "ownedBy": "google"
+      "ownedBy": "google",
+      "name": "Imagen 4 0"
     },
     {
       "id": "imagen-4-0-fast-generate-preview-06-06",
@@ -22034,7 +22014,8 @@
           "perMillionTokens": 2
         }
       },
-      "ownedBy": "google"
+      "ownedBy": "google",
+      "name": "Imagen 4 0 Fast Generate Preview 06 06"
     },
     {
       "id": "imagen-4-0-ultra",
@@ -22051,7 +22032,8 @@
           "perMillionTokens": 2
         }
       },
-      "ownedBy": "google"
+      "ownedBy": "google",
+      "name": "Imagen 4 0 Ultra"
     },
     {
       "id": "pp-structurev3",
@@ -22067,7 +22049,8 @@
           "currency": "USD",
           "perMillionTokens": 0
         }
-      }
+      },
+      "name": "Pp Structurev3"
     },
     {
       "id": "veo-3-0-generate-preview",
@@ -22085,7 +22068,8 @@
           "perMillionTokens": 2
         }
       },
-      "ownedBy": "google"
+      "ownedBy": "google",
+      "name": "Veo 3 0 Generate Preview"
     },
     {
       "id": "veo-3-1-fast-generate-preview",
@@ -22103,7 +22087,8 @@
           "perMillionTokens": 0
         }
       },
-      "ownedBy": "google"
+      "ownedBy": "google",
+      "name": "Veo 3 1 Fast Generate Preview"
     },
     {
       "id": "veo-3-1-generate-preview",
@@ -22121,7 +22106,8 @@
           "perMillionTokens": 2
         }
       },
-      "ownedBy": "google"
+      "ownedBy": "google",
+      "name": "Veo 3 1 Generate Preview"
     },
     {
       "id": "ernie-5-0-thinking-exp",
@@ -22145,7 +22131,8 @@
           "perMillionTokens": 0.82192
         }
       },
-      "ownedBy": "baidu"
+      "ownedBy": "baidu",
+      "name": "Ernie 5 0 Thinking Exp"
     },
     {
       "id": "router",
@@ -22197,7 +22184,8 @@
           "max": 32768
         }
       },
-      "ownedBy": "google"
+      "ownedBy": "google",
+      "name": "Gemini 2 5 Pro Preview 03 25"
     },
     {
       "id": "qwen3-coder-plus-2025-07-22",
@@ -22221,7 +22209,8 @@
           "perMillionTokens": 0.54
         }
       },
-      "ownedBy": "alibaba"
+      "ownedBy": "alibaba",
+      "name": "Qwen3 Coder Plus 2025 07 22"
     },
     {
       "id": "imagen-4-0-ultra-generate-exp-05-20",
@@ -22239,7 +22228,8 @@
           "perMillionTokens": 2
         }
       },
-      "ownedBy": "google"
+      "ownedBy": "google",
+      "name": "Imagen 4 0 Ultra Generate Exp 05 20"
     },
     {
       "id": "jina-embeddings-v5-text-nano",
@@ -22257,7 +22247,8 @@
           "perMillionTokens": 0.05
         }
       },
-      "ownedBy": "jina"
+      "ownedBy": "jina",
+      "name": "Jina Embeddings V5 Text Nano"
     },
     {
       "id": "jina-embeddings-v5-text-small",
@@ -22275,7 +22266,8 @@
           "perMillionTokens": 0.05
         }
       },
-      "ownedBy": "jina"
+      "ownedBy": "jina",
+      "name": "Jina Embeddings V5 Text Small"
     },
     {
       "id": "doubao-seedream-4-0",
@@ -22293,7 +22285,8 @@
           "perMillionTokens": 0
         }
       },
-      "ownedBy": "bytedance"
+      "ownedBy": "bytedance",
+      "name": "Doubao Seedream 4 0"
     },
     {
       "id": "embedding-v1",
@@ -22310,7 +22303,8 @@
           "currency": "USD",
           "perMillionTokens": 0.068
         }
-      }
+      },
+      "name": "Embedding V1"
     },
     {
       "id": "ernie-4-5-turbo-latest",
@@ -22330,7 +22324,8 @@
           "perMillionTokens": 0.44
         }
       },
-      "ownedBy": "baidu"
+      "ownedBy": "baidu",
+      "name": "Ernie 4 5 Turbo Latest"
     },
     {
       "id": "ernie-irag-edit",
@@ -22348,7 +22343,8 @@
           "perMillionTokens": 0
         }
       },
-      "ownedBy": "baidu"
+      "ownedBy": "baidu",
+      "name": "Ernie Irag Edit"
     },
     {
       "id": "glm-4-5-x",
@@ -22371,10 +22367,10 @@
         }
       },
       "reasoning": {
-        "supportedEfforts": ["none"],
-        "interleaved": true
+        "supportedEfforts": ["none"]
       },
-      "ownedBy": "zhipu"
+      "ownedBy": "zhipu",
+      "name": "Glm 4 5 X"
     },
     {
       "id": "gme-qwen2-vl-instruct",
@@ -22391,7 +22387,8 @@
           "currency": "USD",
           "perMillionTokens": 0.138
         }
-      }
+      },
+      "name": "Gme Qwen2 VL Instruct"
     },
     {
       "id": "gte-rerank-v2",
@@ -22409,7 +22406,8 @@
           "perMillionTokens": 0.11
         }
       },
-      "ownedBy": "alibaba"
+      "ownedBy": "alibaba",
+      "name": "Gte Rerank V2"
     },
     {
       "id": "irag-1-0",
@@ -22426,7 +22424,8 @@
           "currency": "USD",
           "perMillionTokens": 0
         }
-      }
+      },
+      "name": "Irag 1 0"
     },
     {
       "id": "jina-deepsearch-v1",
@@ -22445,7 +22444,8 @@
           "perMillionTokens": 0.05
         }
       },
-      "ownedBy": "jina"
+      "ownedBy": "jina",
+      "name": "Jina Deepsearch V1"
     },
     {
       "id": "jina-embeddings-v4",
@@ -22463,7 +22463,8 @@
           "perMillionTokens": 0.05
         }
       },
-      "ownedBy": "jina"
+      "ownedBy": "jina",
+      "name": "Jina Embeddings V4"
     },
     {
       "id": "jina-reranker-v3",
@@ -22482,7 +22483,8 @@
           "perMillionTokens": 0.05
         }
       },
-      "ownedBy": "jina"
+      "ownedBy": "jina",
+      "name": "Jina Reranker V3"
     },
     {
       "id": "qwen-image",
@@ -22500,7 +22502,8 @@
           "perMillionTokens": 0
         }
       },
-      "ownedBy": "alibaba"
+      "ownedBy": "alibaba",
+      "name": "Qwen Image"
     },
     {
       "id": "qwen-image-edit",
@@ -22518,7 +22521,8 @@
           "perMillionTokens": 0
         }
       },
-      "ownedBy": "alibaba"
+      "ownedBy": "alibaba",
+      "name": "Qwen Image Edit"
     },
     {
       "id": "qwen-image-plus",
@@ -22536,7 +22540,8 @@
           "perMillionTokens": 0
         }
       },
-      "ownedBy": "alibaba"
+      "ownedBy": "alibaba",
+      "name": "Qwen Image Plus"
     },
     {
       "id": "qwen3-reranker",
@@ -22563,7 +22568,8 @@
           "max": 38912
         }
       },
-      "ownedBy": "alibaba"
+      "ownedBy": "alibaba",
+      "name": "Qwen3 Reranker"
     },
     {
       "id": "tao-8k",
@@ -22578,7 +22584,8 @@
           "currency": "USD",
           "perMillionTokens": 0.068
         }
-      }
+      },
+      "name": "Tao 8k"
     },
     {
       "id": "bce-reranker-base",
@@ -22595,7 +22602,8 @@
           "currency": "USD",
           "perMillionTokens": 0.068
         }
-      }
+      },
+      "name": "Bce Reranker Base"
     },
     {
       "id": "jina-clip-v2",
@@ -22612,7 +22620,8 @@
           "perMillionTokens": 0.05
         }
       },
-      "ownedBy": "jina"
+      "ownedBy": "jina",
+      "name": "Jina Clip V2"
     },
     {
       "id": "jina-reranker-m0",
@@ -22630,7 +22639,8 @@
           "perMillionTokens": 0.05
         }
       },
-      "ownedBy": "jina"
+      "ownedBy": "jina",
+      "name": "Jina Reranker M0"
     },
     {
       "id": "jina-colbert-v2",
@@ -22647,7 +22657,8 @@
           "perMillionTokens": 0.05
         }
       },
-      "ownedBy": "jina"
+      "ownedBy": "jina",
+      "name": "Jina Colbert V2"
     },
     {
       "id": "gpt-4o-search-preview",
@@ -22690,7 +22701,8 @@
           "perMillionTokens": 0.05
         }
       },
-      "ownedBy": "jina"
+      "ownedBy": "jina",
+      "name": "Jina Embeddings V3"
     },
     {
       "id": "ernie-4-5",
@@ -22710,7 +22722,8 @@
           "perMillionTokens": 0.272
         }
       },
-      "ownedBy": "baidu"
+      "ownedBy": "baidu",
+      "name": "Ernie 4 5"
     },
     {
       "id": "ernie-4-5-turbo-vl",
@@ -22730,7 +22743,8 @@
           "perMillionTokens": 1.2
         }
       },
-      "ownedBy": "baidu"
+      "ownedBy": "baidu",
+      "name": "Ernie 4 5 Turbo VL"
     },
     {
       "id": "gemini-2-0-flash-preview-image-generation",
@@ -22748,7 +22762,8 @@
           "perMillionTokens": 0.4
         }
       },
-      "ownedBy": "google"
+      "ownedBy": "google",
+      "name": "Gemini 2 0 Flash Preview Image Generation"
     },
     {
       "id": "flux.1-kontext-pro",
@@ -22766,7 +22781,8 @@
           "perMillionTokens": 40
         }
       },
-      "ownedBy": "bfl"
+      "ownedBy": "bfl",
+      "name": "Flux.1 Kontext Pro"
     },
     {
       "id": "flux-1-1-pro",
@@ -22784,7 +22800,8 @@
           "perMillionTokens": 40
         }
       },
-      "ownedBy": "bfl"
+      "ownedBy": "bfl",
+      "name": "Flux 1 1 Pro"
     },
     {
       "id": "doubao-seed-1-6-lite",
@@ -22808,7 +22825,8 @@
           "perMillionTokens": 0.0164
         }
       },
-      "ownedBy": "bytedance"
+      "ownedBy": "bytedance",
+      "name": "Doubao Seed 1 6 Lite"
     },
     {
       "id": "qwen-3-a22b-thinking-2507",
@@ -22826,7 +22844,8 @@
           "perMillionTokens": 2.8
         }
       },
-      "ownedBy": "alibaba"
+      "ownedBy": "alibaba",
+      "name": "Qwen 3 A22b Thinking 2507"
     },
     {
       "id": "qwen2-vl-instruct",
@@ -22844,7 +22863,8 @@
           "perMillionTokens": 6.54
         }
       },
-      "ownedBy": "alibaba"
+      "ownedBy": "alibaba",
+      "name": "Qwen2 VL Instruct"
     },
     {
       "id": "embedding-2",
@@ -22862,7 +22882,8 @@
           "currency": "USD",
           "perMillionTokens": 0.0686
         }
-      }
+      },
+      "name": "Embedding 2"
     },
     {
       "id": "embedding-3",
@@ -22880,7 +22901,8 @@
           "currency": "USD",
           "perMillionTokens": 0.0686
         }
-      }
+      },
+      "name": "Embedding 3"
     },
     {
       "id": "doubao-seed-1-6-250615",
@@ -22902,7 +22924,8 @@
           "perMillionTokens": 0.036
         }
       },
-      "ownedBy": "bytedance"
+      "ownedBy": "bytedance",
+      "name": "Doubao Seed 1 6 250615"
     },
     {
       "id": "doubao-seed-1-6-flash-250615",
@@ -22924,7 +22947,8 @@
           "perMillionTokens": 0.0088
         }
       },
-      "ownedBy": "bytedance"
+      "ownedBy": "bytedance",
+      "name": "Doubao Seed 1 6 Flash 250615"
     },
     {
       "id": "doubao-seed-1-6-thinking-250615",
@@ -22946,7 +22970,8 @@
           "perMillionTokens": 0.036
         }
       },
-      "ownedBy": "bytedance"
+      "ownedBy": "bytedance",
+      "name": "Doubao Seed 1 6 Thinking 250615"
     },
     {
       "id": "gpt-4o-image-vip",
@@ -22964,7 +22989,8 @@
           "perMillionTokens": 7
         }
       },
-      "ownedBy": "openai"
+      "ownedBy": "openai",
+      "name": "GPT 4o Image Vip"
     },
     {
       "id": "gpt-4o-image",
@@ -22982,7 +23008,8 @@
           "perMillionTokens": 3
         }
       },
-      "ownedBy": "openai"
+      "ownedBy": "openai",
+      "name": "GPT 4o Image"
     },
     {
       "id": "gpt-4o-mini-tts",
@@ -23004,7 +23031,8 @@
           "perMillionTokens": 0.6
         }
       },
-      "ownedBy": "openai"
+      "ownedBy": "openai",
+      "name": "GPT 4o Mini TTS"
     },
     {
       "id": "gemini-2-0-flash-thinking-exp-01-21",
@@ -23022,7 +23050,8 @@
           "perMillionTokens": 0.304
         }
       },
-      "ownedBy": "google"
+      "ownedBy": "google",
+      "name": "Gemini 2 0 Flash Thinking Exp 01 21"
     },
     {
       "id": "ernie-x1-1-preview",
@@ -23041,7 +23070,8 @@
           "perMillionTokens": 0.544
         }
       },
-      "ownedBy": "baidu"
+      "ownedBy": "baidu",
+      "name": "Ernie X1 1 Preview"
     },
     {
       "id": "bge-large-en",
@@ -23059,7 +23089,8 @@
           "perMillionTokens": 0.068
         }
       },
-      "ownedBy": "baai"
+      "ownedBy": "baai",
+      "name": "Bge Large En"
     },
     {
       "id": "bge-large-zh",
@@ -23077,7 +23108,8 @@
           "perMillionTokens": 0.068
         }
       },
-      "ownedBy": "baai"
+      "ownedBy": "baai",
+      "name": "Bge Large Zh"
     },
     {
       "id": "ernie-4-5-turbo-128k-preview",
@@ -23095,7 +23127,8 @@
           "perMillionTokens": 0.432
         }
       },
-      "ownedBy": "baidu"
+      "ownedBy": "baidu",
+      "name": "Ernie 4 5 Turbo 128k Preview"
     },
     {
       "id": "ernie-x1-turbo",
@@ -23115,7 +23148,8 @@
           "perMillionTokens": 0.544
         }
       },
-      "ownedBy": "baidu"
+      "ownedBy": "baidu",
+      "name": "Ernie X1 Turbo"
     },
     {
       "id": "moonlight-a3b-instruct",
@@ -23131,7 +23165,8 @@
           "currency": "USD",
           "perMillionTokens": 0.2
         }
-      }
+      },
+      "name": "Moonlight A3b Instruct"
     },
     {
       "id": "o1-global",
@@ -23156,7 +23191,8 @@
       "reasoning": {
         "supportedEfforts": ["low", "medium", "high"]
       },
-      "ownedBy": "openai"
+      "ownedBy": "openai",
+      "name": "O1 Global"
     },
     {
       "id": "qianfan-qi-vl",
@@ -23173,7 +23209,8 @@
           "currency": "USD",
           "perMillionTokens": 0.6
         }
-      }
+      },
+      "name": "Qianfan Qi VL"
     },
     {
       "id": "gemini-exp-1206",
@@ -23190,7 +23227,8 @@
           "perMillionTokens": 5
         }
       },
-      "ownedBy": "google"
+      "ownedBy": "google",
+      "name": "Gemini Exp 1206"
     },
     {
       "id": "gpt-4o-zh",
@@ -23207,7 +23245,8 @@
           "perMillionTokens": 10
         }
       },
-      "ownedBy": "openai"
+      "ownedBy": "openai",
+      "name": "GPT 4o Zh"
     },
     {
       "id": "qwen-max-0125",
@@ -23225,7 +23264,8 @@
           "perMillionTokens": 1.52
         }
       },
-      "ownedBy": "alibaba"
+      "ownedBy": "alibaba",
+      "name": "Qwen Max 0125"
     },
     {
       "id": "bge-large-zh-v1-5",
@@ -23243,7 +23283,8 @@
           "perMillionTokens": 0.034
         }
       },
-      "ownedBy": "baai"
+      "ownedBy": "baai",
+      "name": "Bge Large Zh V1 5"
     },
     {
       "id": "gemini-2-0-flash-lite-preview-02-05",
@@ -23265,7 +23306,8 @@
           "perMillionTokens": 0.075
         }
       },
-      "ownedBy": "google"
+      "ownedBy": "google",
+      "name": "Gemini 2 0 Flash Lite Preview 02 05"
     },
     {
       "id": "v3",
@@ -23282,7 +23324,8 @@
           "currency": "USD",
           "perMillionTokens": 2
         }
-      }
+      },
+      "name": "V3"
     },
     {
       "id": "v_2",
@@ -23299,7 +23342,8 @@
           "currency": "USD",
           "perMillionTokens": 2
         }
-      }
+      },
+      "name": "V_2"
     },
     {
       "id": "v_2_turbo",
@@ -23316,7 +23360,8 @@
           "currency": "USD",
           "perMillionTokens": 2
         }
-      }
+      },
+      "name": "V_2_turbo"
     },
     {
       "id": "v_2a",
@@ -23333,7 +23378,8 @@
           "currency": "USD",
           "perMillionTokens": 2
         }
-      }
+      },
+      "name": "V_2a"
     },
     {
       "id": "v_2a_turbo",
@@ -23350,7 +23396,8 @@
           "currency": "USD",
           "perMillionTokens": 2
         }
-      }
+      },
+      "name": "V_2a_turbo"
     },
     {
       "id": "v_1",
@@ -23367,7 +23414,8 @@
           "currency": "USD",
           "perMillionTokens": 2
         }
-      }
+      },
+      "name": "V_1"
     },
     {
       "id": "v_1_turbo",
@@ -23384,7 +23432,8 @@
           "currency": "USD",
           "perMillionTokens": 2
         }
-      }
+      },
+      "name": "V_1_turbo"
     },
     {
       "id": "doubao-embedding-large-text-240915",
@@ -23402,7 +23451,8 @@
           "perMillionTokens": 0.1
         }
       },
-      "ownedBy": "bytedance"
+      "ownedBy": "bytedance",
+      "name": "Doubao Embedding Large Text 240915"
     },
     {
       "id": "kimi-thinking-preview",
@@ -23420,7 +23470,8 @@
           "perMillionTokens": 30
         }
       },
-      "ownedBy": "moonshot"
+      "ownedBy": "moonshot",
+      "name": "Kimi Thinking Preview"
     },
     {
       "id": "qwen-plus-2025-07-28",
@@ -23481,7 +23532,8 @@
           "max": 81920
         }
       },
-      "ownedBy": "alibaba"
+      "ownedBy": "alibaba",
+      "name": "Qwen Plus Latest"
     },
     {
       "id": "step3",
@@ -23498,7 +23550,8 @@
           "perMillionTokens": 2.75
         }
       },
-      "ownedBy": "stepfun"
+      "ownedBy": "stepfun",
+      "name": "Step3"
     },
     {
       "id": "text-embedding-v4",
@@ -23516,7 +23569,8 @@
           "perMillionTokens": 0.08
         }
       },
-      "ownedBy": "alibaba"
+      "ownedBy": "alibaba",
+      "name": "Text Embedding V4"
     },
     {
       "id": "qwen-turbo-latest",
@@ -23541,7 +23595,8 @@
           "max": 38912
         }
       },
-      "ownedBy": "alibaba"
+      "ownedBy": "alibaba",
+      "name": "Qwen Turbo Latest"
     },
     {
       "id": "doubao-embedding-text-240715",
@@ -23559,7 +23614,8 @@
           "perMillionTokens": 0.7
         }
       },
-      "ownedBy": "bytedance"
+      "ownedBy": "bytedance",
+      "name": "Doubao Embedding Text 240715"
     },
     {
       "id": "deepseek-r1-zero",
@@ -23577,7 +23633,8 @@
           "perMillionTokens": 2.2
         }
       },
-      "ownedBy": "deepseek"
+      "ownedBy": "deepseek",
+      "name": "Deepseek R1 Zero"
     },
     {
       "id": "grok-3-fast-beta",
@@ -23594,7 +23651,8 @@
           "perMillionTokens": 27.5
         }
       },
-      "ownedBy": "xai"
+      "ownedBy": "xai",
+      "name": "Grok 3 Fast Beta"
     },
     {
       "id": "qwen-turbo-2025-04-28",
@@ -23619,7 +23677,8 @@
           "max": 38912
         }
       },
-      "ownedBy": "alibaba"
+      "ownedBy": "alibaba",
+      "name": "Qwen Turbo 2025 04 28"
     },
     {
       "id": "grok-3-mini-fast-beta",
@@ -23639,7 +23698,8 @@
       "reasoning": {
         "supportedEfforts": ["low", "high"]
       },
-      "ownedBy": "xai"
+      "ownedBy": "xai",
+      "name": "Grok 3 Mini Fast Beta"
     },
     {
       "id": "qwen-plus-2025-04-28",
@@ -23664,7 +23724,8 @@
           "max": 38912
         }
       },
-      "ownedBy": "alibaba"
+      "ownedBy": "alibaba",
+      "name": "Qwen Plus 2025 04 28"
     },
     {
       "id": "glm-4-1v",
@@ -23682,7 +23743,8 @@
           "perMillionTokens": 0.16
         }
       },
-      "ownedBy": "zhipu"
+      "ownedBy": "zhipu",
+      "name": "Glm 4 1v"
     },
     {
       "id": "text-embedding-004",
@@ -23699,7 +23761,8 @@
           "perMillionTokens": 0.02
         }
       },
-      "ownedBy": "google"
+      "ownedBy": "google",
+      "name": "Text Embedding 004"
     },
     {
       "id": "doubao-seed-code-preview-latest",
@@ -23720,7 +23783,8 @@
       "reasoning": {
         "supportedEfforts": ["none", "high"]
       },
-      "ownedBy": "bytedance"
+      "ownedBy": "bytedance",
+      "name": "Doubao Seed Code Preview Latest"
     },
     {
       "id": "glm-zero-preview",
@@ -23738,7 +23802,8 @@
           "perMillionTokens": 2
         }
       },
-      "ownedBy": "zhipu"
+      "ownedBy": "zhipu",
+      "name": "Glm Zero Preview"
     },
     {
       "id": "janus-pro",
@@ -23753,7 +23818,8 @@
           "currency": "USD",
           "perMillionTokens": 2
         }
-      }
+      },
+      "name": "Janus Pro"
     },
     {
       "id": "gemini-2-0-flash-thinking-exp-1219",
@@ -23771,7 +23837,8 @@
           "perMillionTokens": 0.304
         }
       },
-      "ownedBy": "google"
+      "ownedBy": "google",
+      "name": "Gemini 2 0 Flash Thinking Exp 1219"
     },
     {
       "id": "o1-preview-2024-09-12",
@@ -23795,7 +23862,8 @@
       "reasoning": {
         "supportedEfforts": ["low", "medium", "high"]
       },
-      "ownedBy": "openai"
+      "ownedBy": "openai",
+      "name": "O1 Preview 2024 09 12"
     },
     {
       "id": "qvq-preview",
@@ -23812,7 +23880,8 @@
           "perMillionTokens": 1.2
         }
       },
-      "ownedBy": "alibaba"
+      "ownedBy": "alibaba",
+      "name": "Qvq Preview"
     },
     {
       "id": "qwq-preview",
@@ -23829,7 +23898,8 @@
           "perMillionTokens": 0.16
         }
       },
-      "ownedBy": "alibaba"
+      "ownedBy": "alibaba",
+      "name": "Qwq Preview"
     },
     {
       "id": "llama-3-1-sonar-huge-128k",
@@ -23847,7 +23917,8 @@
           "perMillionTokens": 5.6
         }
       },
-      "ownedBy": "meta"
+      "ownedBy": "meta",
+      "name": "Llama 3 1 Sonar Huge 128k"
     },
     {
       "id": "llama-3-1-sonar-large-128k",
@@ -23865,7 +23936,8 @@
           "perMillionTokens": 1.2
         }
       },
-      "ownedBy": "meta"
+      "ownedBy": "meta",
+      "name": "Llama 3 1 Sonar Large 128k"
     },
     {
       "id": "mistral-large-2407",
@@ -23902,7 +23974,8 @@
           "perMillionTokens": 0.304
         }
       },
-      "ownedBy": "google"
+      "ownedBy": "google",
+      "name": "Gemini 2 0 Flash Thinking Exp"
     },
     {
       "id": "gpt-image-test",
@@ -23919,7 +23992,8 @@
           "perMillionTokens": 40
         }
       },
-      "ownedBy": "openai"
+      "ownedBy": "openai",
+      "name": "GPT Image Test"
     },
     {
       "id": "imagen-3-0-generate-002",
@@ -23937,7 +24011,8 @@
           "perMillionTokens": 2
         }
       },
-      "ownedBy": "google"
+      "ownedBy": "google",
+      "name": "Imagen 3 0 Generate 002"
     },
     {
       "id": "describe",
@@ -23954,7 +24029,8 @@
           "currency": "USD",
           "perMillionTokens": 2
         }
-      }
+      },
+      "name": "Describe"
     },
     {
       "id": "upscale",
@@ -23971,7 +24047,8 @@
           "currency": "USD",
           "perMillionTokens": 2
         }
-      }
+      },
+      "name": "Upscale"
     },
     {
       "id": "computer-use-preview",
@@ -23987,7 +24064,8 @@
           "currency": "USD",
           "perMillionTokens": 12
         }
-      }
+      },
+      "name": "Computer Use Preview"
     },
     {
       "id": "crush-glm-4-6",
@@ -24004,7 +24082,8 @@
           "currency": "USD",
           "perMillionTokens": 0
         }
-      }
+      },
+      "name": "Crush Glm 4 6"
     },
     {
       "id": "o1-2024-12-17",
@@ -24028,7 +24107,8 @@
       "reasoning": {
         "supportedEfforts": ["low", "medium", "high"]
       },
-      "ownedBy": "openai"
+      "ownedBy": "openai",
+      "name": "O1 2024 12 17"
     },
     {
       "id": "llama2-4096",
@@ -24044,7 +24124,8 @@
           "perMillionTokens": 0.5
         }
       },
-      "ownedBy": "meta"
+      "ownedBy": "meta",
+      "name": "Llama2 4096"
     },
     {
       "id": "llama2-40960",
@@ -24060,7 +24141,8 @@
           "perMillionTokens": 0.5
         }
       },
-      "ownedBy": "meta"
+      "ownedBy": "meta",
+      "name": "Llama2 40960"
     },
     {
       "id": "llama2-2048",
@@ -24076,7 +24158,8 @@
           "perMillionTokens": 0.1
         }
       },
-      "ownedBy": "meta"
+      "ownedBy": "meta",
+      "name": "Llama2 2048"
     },
     {
       "id": "llama3-8192(33)",
@@ -24092,7 +24175,8 @@
           "perMillionTokens": 2.65
         }
       },
-      "ownedBy": "meta"
+      "ownedBy": "meta",
+      "name": "Llama3 8192(33)"
     },
     {
       "id": "llama3-groq-8192-tool-use-preview",
@@ -24108,7 +24192,8 @@
           "perMillionTokens": 0.00089
         }
       },
-      "ownedBy": "meta"
+      "ownedBy": "meta",
+      "name": "Llama3 Groq 8192 Tool Use Preview"
     },
     {
       "id": "llama3-chat",
@@ -24124,7 +24209,8 @@
           "perMillionTokens": 0.3
         }
       },
-      "ownedBy": "meta"
+      "ownedBy": "meta",
+      "name": "Llama3 Chat"
     },
     {
       "id": "moonshot-kimi-k2-5",
@@ -24145,7 +24231,8 @@
           "perMillionTokens": 0.105
         }
       },
-      "ownedBy": "moonshot"
+      "ownedBy": "moonshot",
+      "name": "Moonshot Kimi K2 5"
     },
     {
       "id": "moonshot-v1-128k",
@@ -24161,7 +24248,8 @@
           "perMillionTokens": 10
         }
       },
-      "ownedBy": "moonshot"
+      "ownedBy": "moonshot",
+      "name": "Moonshot V1 128k"
     },
     {
       "id": "moonshot-v1-128k-vision-preview",
@@ -24178,7 +24266,8 @@
           "perMillionTokens": 10
         }
       },
-      "ownedBy": "moonshot"
+      "ownedBy": "moonshot",
+      "name": "Moonshot V1 128k Vision Preview"
     },
     {
       "id": "moonshot-v1-32k",
@@ -24194,7 +24283,8 @@
           "perMillionTokens": 4
         }
       },
-      "ownedBy": "moonshot"
+      "ownedBy": "moonshot",
+      "name": "Moonshot V1 32k"
     },
     {
       "id": "moonshot-v1-32k-vision-preview",
@@ -24211,7 +24301,8 @@
           "perMillionTokens": 4
         }
       },
-      "ownedBy": "moonshot"
+      "ownedBy": "moonshot",
+      "name": "Moonshot V1 32k Vision Preview"
     },
     {
       "id": "moonshot-v1-8k",
@@ -24227,7 +24318,8 @@
           "perMillionTokens": 2
         }
       },
-      "ownedBy": "moonshot"
+      "ownedBy": "moonshot",
+      "name": "Moonshot V1 8k"
     },
     {
       "id": "moonshot-v1-8k-vision-preview",
@@ -24244,7 +24336,8 @@
           "perMillionTokens": 2
         }
       },
-      "ownedBy": "moonshot"
+      "ownedBy": "moonshot",
+      "name": "Moonshot V1 8k Vision Preview"
     },
     {
       "id": "o1-mini-2024-09-12",
@@ -24268,7 +24361,8 @@
       "reasoning": {
         "supportedEfforts": ["low", "medium", "high"]
       },
-      "ownedBy": "openai"
+      "ownedBy": "openai",
+      "name": "O1 Mini 2024 09 12"
     },
     {
       "id": "omni-moderation-latest",
@@ -24283,7 +24377,8 @@
           "currency": "USD",
           "perMillionTokens": 0.02
         }
-      }
+      },
+      "name": "Omni Moderation Latest"
     },
     {
       "id": "qwen-flash-2025-07-28",
@@ -24312,7 +24407,8 @@
           "max": 81920
         }
       },
-      "ownedBy": "alibaba"
+      "ownedBy": "alibaba",
+      "name": "Qwen Flash 2025 07 28"
     },
     {
       "id": "qwen-max-longcontext",
@@ -24329,7 +24425,8 @@
           "perMillionTokens": 21
         }
       },
-      "ownedBy": "alibaba"
+      "ownedBy": "alibaba",
+      "name": "Qwen Max Longcontext"
     },
     {
       "id": "qwen-turbo-2024-11-01",
@@ -24353,7 +24450,8 @@
           "max": 38912
         }
       },
-      "ownedBy": "alibaba"
+      "ownedBy": "alibaba",
+      "name": "Qwen Turbo 2024 11 01"
     },
     {
       "id": "text-ada-001",
@@ -24368,7 +24466,8 @@
           "currency": "USD",
           "perMillionTokens": 0.4
         }
-      }
+      },
+      "name": "Text Ada 001"
     },
     {
       "id": "text-babbage-001",
@@ -24383,7 +24482,8 @@
           "currency": "USD",
           "perMillionTokens": 0.5
         }
-      }
+      },
+      "name": "Text Babbage 001"
     },
     {
       "id": "text-curie-001",
@@ -24398,7 +24498,8 @@
           "currency": "USD",
           "perMillionTokens": 2
         }
-      }
+      },
+      "name": "Text Curie 001"
     },
     {
       "id": "text-davinci-002",
@@ -24413,7 +24514,8 @@
           "currency": "USD",
           "perMillionTokens": 20
         }
-      }
+      },
+      "name": "Text Davinci 002"
     },
     {
       "id": "text-davinci-003",
@@ -24428,7 +24530,8 @@
           "currency": "USD",
           "perMillionTokens": 20
         }
-      }
+      },
+      "name": "Text Davinci 003"
     },
     {
       "id": "text-davinci-edit-001",
@@ -24443,7 +24546,8 @@
           "currency": "USD",
           "perMillionTokens": 20
         }
-      }
+      },
+      "name": "Text Davinci Edit 001"
     },
     {
       "id": "text-embedding-v1",
@@ -24460,7 +24564,8 @@
           "perMillionTokens": 0.1
         }
       },
-      "ownedBy": "alibaba"
+      "ownedBy": "alibaba",
+      "name": "Text Embedding V1"
     },
     {
       "id": "text-moderation-007",
@@ -24475,7 +24580,8 @@
           "currency": "USD",
           "perMillionTokens": 0.2
         }
-      }
+      },
+      "name": "Text Moderation 007"
     },
     {
       "id": "text-moderation-latest",
@@ -24490,7 +24596,8 @@
           "currency": "USD",
           "perMillionTokens": 0.2
         }
-      }
+      },
+      "name": "Text Moderation Latest"
     },
     {
       "id": "text-moderation-stable",
@@ -24505,7 +24612,8 @@
           "currency": "USD",
           "perMillionTokens": 0.2
         }
-      }
+      },
+      "name": "Text Moderation Stable"
     },
     {
       "id": "text-search-ada-doc-001",
@@ -24521,7 +24629,8 @@
           "currency": "USD",
           "perMillionTokens": 20
         }
-      }
+      },
+      "name": "Text Search Ada Doc 001"
     },
     {
       "id": "tts-1",
@@ -24538,7 +24647,8 @@
           "perMillionTokens": 15
         }
       },
-      "ownedBy": "openai"
+      "ownedBy": "openai",
+      "name": "TTS 1"
     },
     {
       "id": "tts-1-1106",
@@ -24555,7 +24665,8 @@
           "perMillionTokens": 15
         }
       },
-      "ownedBy": "openai"
+      "ownedBy": "openai",
+      "name": "TTS 1 1106"
     },
     {
       "id": "tts-1-hd",
@@ -24572,7 +24683,8 @@
           "perMillionTokens": 30
         }
       },
-      "ownedBy": "openai"
+      "ownedBy": "openai",
+      "name": "TTS 1 Hd"
     },
     {
       "id": "tts-1-hd-1106",
@@ -24589,7 +24701,8 @@
           "perMillionTokens": 30
         }
       },
-      "ownedBy": "openai"
+      "ownedBy": "openai",
+      "name": "TTS 1 Hd 1106"
     },
     {
       "id": "veo3",
@@ -24607,7 +24720,8 @@
           "perMillionTokens": 2
         }
       },
-      "ownedBy": "google"
+      "ownedBy": "google",
+      "name": "Veo3"
     },
     {
       "id": "whisper-1",
@@ -24625,7 +24739,8 @@
           "perMillionTokens": 100
         }
       },
-      "ownedBy": "openai"
+      "ownedBy": "openai",
+      "name": "Whisper 1"
     },
     {
       "id": "whisper-large-v3-turbo",
@@ -24642,7 +24757,8 @@
           "perMillionTokens": 5.556
         }
       },
-      "ownedBy": "openai"
+      "ownedBy": "openai",
+      "name": "Whisper Large V3 Turbo"
     },
     {
       "id": "yi-large",
@@ -24658,7 +24774,8 @@
           "perMillionTokens": 3
         }
       },
-      "ownedBy": "01ai"
+      "ownedBy": "01ai",
+      "name": "Yi Large"
     },
     {
       "id": "yi-large-rag",
@@ -24674,7 +24791,8 @@
           "perMillionTokens": 4
         }
       },
-      "ownedBy": "01ai"
+      "ownedBy": "01ai",
+      "name": "Yi Large Rag"
     },
     {
       "id": "yi-large-turbo",
@@ -24690,7 +24808,8 @@
           "perMillionTokens": 1.8
         }
       },
-      "ownedBy": "01ai"
+      "ownedBy": "01ai",
+      "name": "Yi Large Turbo"
     },
     {
       "id": "yi-lightning",
@@ -24706,7 +24825,8 @@
           "perMillionTokens": 0.2
         }
       },
-      "ownedBy": "01ai"
+      "ownedBy": "01ai",
+      "name": "Yi Lightning"
     },
     {
       "id": "yi",
@@ -24721,7 +24841,8 @@
           "currency": "USD",
           "perMillionTokens": 0.4
         }
-      }
+      },
+      "name": "Yi"
     },
     {
       "id": "yi-vl-plus",
@@ -24738,7 +24859,8 @@
           "perMillionTokens": 0.000852
         }
       },
-      "ownedBy": "01ai"
+      "ownedBy": "01ai",
+      "name": "Yi VL Plus"
     },
     {
       "id": "fx-flux-2-pro",
@@ -24754,7 +24876,8 @@
           "currency": "USD",
           "perMillionTokens": 0
         }
-      }
+      },
+      "name": "Fx Flux 2 Pro"
     },
     {
       "id": "gemini-2-0-flash-exp-image-generation",
@@ -24771,7 +24894,8 @@
           "perMillionTokens": 0.4
         }
       },
-      "ownedBy": "google"
+      "ownedBy": "google",
+      "name": "Gemini 2 0 Flash Exp Image Generation"
     },
     {
       "id": "gemini-2-5-pro-exp-03-25",
@@ -24800,7 +24924,8 @@
           "max": 32768
         }
       },
-      "ownedBy": "google"
+      "ownedBy": "google",
+      "name": "Gemini 2 5 Pro Exp 03 25"
     },
     {
       "id": "gemini-embedding-exp-03-07",
@@ -24817,7 +24942,8 @@
           "perMillionTokens": 0.02
         }
       },
-      "ownedBy": "google"
+      "ownedBy": "google",
+      "name": "Gemini Embedding Exp 03 07"
     },
     {
       "id": "gemini-exp-1114",
@@ -24833,7 +24959,8 @@
           "perMillionTokens": 5
         }
       },
-      "ownedBy": "google"
+      "ownedBy": "google",
+      "name": "Gemini Exp 1114"
     },
     {
       "id": "gemini-exp-1121",
@@ -24849,7 +24976,8 @@
           "perMillionTokens": 5
         }
       },
-      "ownedBy": "google"
+      "ownedBy": "google",
+      "name": "Gemini Exp 1121"
     },
     {
       "id": "gemini-pro",
@@ -24866,7 +24994,8 @@
           "perMillionTokens": 0.6
         }
       },
-      "ownedBy": "google"
+      "ownedBy": "google",
+      "name": "Gemini Pro"
     },
     {
       "id": "gemini-pro-vision",
@@ -24883,7 +25012,8 @@
           "perMillionTokens": 1
         }
       },
-      "ownedBy": "google"
+      "ownedBy": "google",
+      "name": "Gemini Pro Vision"
     },
     {
       "id": "gemma-it",
@@ -24899,7 +25029,8 @@
           "perMillionTokens": 0.1
         }
       },
-      "ownedBy": "google"
+      "ownedBy": "google",
+      "name": "Gemma It"
     },
     {
       "id": "glm-3-turbo",
@@ -24915,7 +25046,8 @@
           "perMillionTokens": 0.71
         }
       },
-      "ownedBy": "zhipu"
+      "ownedBy": "zhipu",
+      "name": "Glm 3 Turbo"
     },
     {
       "id": "glm-4",
@@ -24952,7 +25084,8 @@
           "perMillionTokens": 0.1
         }
       },
-      "ownedBy": "zhipu"
+      "ownedBy": "zhipu",
+      "name": "Glm 4 Flash"
     },
     {
       "id": "glm-4-plus",
@@ -24969,7 +25102,8 @@
           "perMillionTokens": 8
         }
       },
-      "ownedBy": "zhipu"
+      "ownedBy": "zhipu",
+      "name": "Glm 4 Plus"
     },
     {
       "id": "glm-4-5-airx",
@@ -24992,10 +25126,10 @@
         }
       },
       "reasoning": {
-        "supportedEfforts": ["none"],
-        "interleaved": true
+        "supportedEfforts": ["none"]
       },
-      "ownedBy": "zhipu"
+      "ownedBy": "zhipu",
+      "name": "Glm 4 5 Airx"
     },
     {
       "id": "glm-4v",
@@ -25012,7 +25146,8 @@
           "perMillionTokens": 14.2
         }
       },
-      "ownedBy": "zhipu"
+      "ownedBy": "zhipu",
+      "name": "Glm 4v"
     },
     {
       "id": "glm-4v-plus",
@@ -25029,7 +25164,8 @@
           "perMillionTokens": 2
         }
       },
-      "ownedBy": "zhipu"
+      "ownedBy": "zhipu",
+      "name": "Glm 4v Plus"
     },
     {
       "id": "gpt-3-5-turbo-16k",
@@ -25066,7 +25202,8 @@
           "perMillionTokens": 4
         }
       },
-      "ownedBy": "openai"
+      "ownedBy": "openai",
+      "name": "GPT 3 5 Turbo 16k 0613"
     },
     {
       "id": "gpt-4-0125-preview",
@@ -25083,7 +25220,8 @@
           "perMillionTokens": 30
         }
       },
-      "ownedBy": "openai"
+      "ownedBy": "openai",
+      "name": "GPT 4 0125 Preview"
     },
     {
       "id": "gpt-4-0314",
@@ -25121,7 +25259,8 @@
           "perMillionTokens": 60
         }
       },
-      "ownedBy": "openai"
+      "ownedBy": "openai",
+      "name": "GPT 4 0613"
     },
     {
       "id": "gpt-4-1106-preview",
@@ -25159,7 +25298,8 @@
           "perMillionTokens": 120
         }
       },
-      "ownedBy": "openai"
+      "ownedBy": "openai",
+      "name": "GPT 4 32k 0314"
     },
     {
       "id": "gpt-4-32k-0613",
@@ -25176,7 +25316,8 @@
           "perMillionTokens": 120
         }
       },
-      "ownedBy": "openai"
+      "ownedBy": "openai",
+      "name": "GPT 4 32k 0613"
     },
     {
       "id": "gpt-4-turbo-2024-04-09",
@@ -25193,7 +25334,8 @@
           "perMillionTokens": 30
         }
       },
-      "ownedBy": "openai"
+      "ownedBy": "openai",
+      "name": "GPT 4 Turbo 2024 04 09"
     },
     {
       "id": "gpt-4-turbo-preview",
@@ -25231,7 +25373,8 @@
           "perMillionTokens": 30
         }
       },
-      "ownedBy": "openai"
+      "ownedBy": "openai",
+      "name": "GPT 4 Vision Preview"
     },
     {
       "id": "gpt-4o-mini-2024-07-18",
@@ -25274,7 +25417,8 @@
           "perMillionTokens": 2
         }
       },
-      "ownedBy": "google"
+      "ownedBy": "google",
+      "name": "Imagen 4 0 Generate Preview 05 20"
     },
     {
       "id": "jina-embeddings-v2-base-code",
@@ -25292,7 +25436,8 @@
           "perMillionTokens": 0.05
         }
       },
-      "ownedBy": "jina"
+      "ownedBy": "jina",
+      "name": "Jina Embeddings V2 Base Code"
     },
     {
       "id": "learnlm-1-5-pro-experimental",
@@ -25308,7 +25453,8 @@
           "perMillionTokens": 5
         }
       },
-      "ownedBy": "google"
+      "ownedBy": "google",
+      "name": "Learnlm 1 5 Pro Experimental"
     },
     {
       "id": "llama-3-1-versatile",
@@ -25324,7 +25470,8 @@
           "perMillionTokens": 0.6
         }
       },
-      "ownedBy": "meta"
+      "ownedBy": "meta",
+      "name": "Llama 3 1 Versatile"
     },
     {
       "id": "llama-3-1-sonar-small-128k",
@@ -25342,7 +25489,8 @@
           "perMillionTokens": 0.3
         }
       },
-      "ownedBy": "meta"
+      "ownedBy": "meta",
+      "name": "Llama 3 1 Sonar Small 128k"
     },
     {
       "id": "llama-3-2-vision-preview",
@@ -25359,7 +25507,8 @@
           "perMillionTokens": 0.2
         }
       },
-      "ownedBy": "meta"
+      "ownedBy": "meta",
+      "name": "Llama 3 2 Vision Preview"
     },
     {
       "id": "llama-3-2-preview",
@@ -25375,7 +25524,8 @@
           "perMillionTokens": 0.2
         }
       },
-      "ownedBy": "meta"
+      "ownedBy": "meta",
+      "name": "Llama 3 2 Preview"
     },
     {
       "id": "baichuan3-turbo",
@@ -25391,7 +25541,8 @@
           "perMillionTokens": 1.9
         }
       },
-      "ownedBy": "baichuan"
+      "ownedBy": "baichuan",
+      "name": "Baichuan3 Turbo"
     },
     {
       "id": "baichuan3-turbo-128k",
@@ -25407,7 +25558,8 @@
           "perMillionTokens": 3.8
         }
       },
-      "ownedBy": "baichuan"
+      "ownedBy": "baichuan",
+      "name": "Baichuan3 Turbo 128k"
     },
     {
       "id": "baichuan4",
@@ -25423,7 +25575,8 @@
           "perMillionTokens": 16
         }
       },
-      "ownedBy": "baichuan"
+      "ownedBy": "baichuan",
+      "name": "Baichuan4"
     },
     {
       "id": "baichuan4-air",
@@ -25439,7 +25592,8 @@
           "perMillionTokens": 0.16
         }
       },
-      "ownedBy": "baichuan"
+      "ownedBy": "baichuan",
+      "name": "Baichuan4 Air"
     },
     {
       "id": "baichuan4-turbo",
@@ -25455,7 +25609,8 @@
           "perMillionTokens": 2.4
         }
       },
-      "ownedBy": "baichuan"
+      "ownedBy": "baichuan",
+      "name": "Baichuan4 Turbo"
     },
     {
       "id": "doubao-1-5-lite-32k",
@@ -25476,7 +25631,8 @@
           "perMillionTokens": 0.01
         }
       },
-      "ownedBy": "bytedance"
+      "ownedBy": "bytedance",
+      "name": "Doubao 1 5 Lite 32k"
     },
     {
       "id": "doubao-1-5-pro-256k",
@@ -25497,7 +25653,8 @@
           "perMillionTokens": 0.8
         }
       },
-      "ownedBy": "bytedance"
+      "ownedBy": "bytedance",
+      "name": "Doubao 1 5 Pro 256k"
     },
     {
       "id": "doubao-1-5-vision-pro-32k",
@@ -25515,7 +25672,8 @@
           "perMillionTokens": 1.38
         }
       },
-      "ownedBy": "bytedance"
+      "ownedBy": "bytedance",
+      "name": "Doubao 1 5 Vision Pro 32k"
     },
     {
       "id": "doubao-lite-128k",
@@ -25535,7 +25693,8 @@
           "perMillionTokens": 0.14
         }
       },
-      "ownedBy": "bytedance"
+      "ownedBy": "bytedance",
+      "name": "Doubao Lite 128k"
     },
     {
       "id": "doubao-lite-32k",
@@ -25555,7 +25714,8 @@
           "perMillionTokens": 0.012
         }
       },
-      "ownedBy": "bytedance"
+      "ownedBy": "bytedance",
+      "name": "Doubao Lite 32k"
     },
     {
       "id": "doubao-lite-4k",
@@ -25575,7 +25735,8 @@
           "perMillionTokens": 0.06
         }
       },
-      "ownedBy": "bytedance"
+      "ownedBy": "bytedance",
+      "name": "Doubao Lite 4k"
     },
     {
       "id": "doubao-pro-128k",
@@ -25591,7 +25752,8 @@
           "perMillionTokens": 1.44
         }
       },
-      "ownedBy": "bytedance"
+      "ownedBy": "bytedance",
+      "name": "Doubao Pro 128k"
     },
     {
       "id": "doubao-pro-256k",
@@ -25611,7 +25773,8 @@
           "perMillionTokens": 0.8
         }
       },
-      "ownedBy": "bytedance"
+      "ownedBy": "bytedance",
+      "name": "Doubao Pro 256k"
     },
     {
       "id": "doubao-pro-32k",
@@ -25631,7 +25794,8 @@
           "perMillionTokens": 0.028
         }
       },
-      "ownedBy": "bytedance"
+      "ownedBy": "bytedance",
+      "name": "Doubao Pro 32k"
     },
     {
       "id": "doubao-pro-4k",
@@ -25647,7 +25811,8 @@
           "perMillionTokens": 0.35
         }
       },
-      "ownedBy": "bytedance"
+      "ownedBy": "bytedance",
+      "name": "Doubao Pro 4k"
     },
     {
       "id": "minimax-text-01",
@@ -25663,7 +25828,8 @@
           "perMillionTokens": 1.12
         }
       },
-      "ownedBy": "minimax"
+      "ownedBy": "minimax",
+      "name": "Minimax Text 01"
     },
     {
       "id": "qwen2-instruct",
@@ -25680,7 +25846,8 @@
           "perMillionTokens": 0.2
         }
       },
-      "ownedBy": "alibaba"
+      "ownedBy": "alibaba",
+      "name": "Qwen2 Instruct"
     },
     {
       "id": "qwen2-a14b-instruct",
@@ -25697,7 +25864,8 @@
           "perMillionTokens": 0.24
         }
       },
-      "ownedBy": "alibaba"
+      "ownedBy": "alibaba",
+      "name": "Qwen2 A14b Instruct"
     },
     {
       "id": "stable-diffusion-3-5-large",
@@ -25715,7 +25883,8 @@
           "perMillionTokens": 4
         }
       },
-      "ownedBy": "stability"
+      "ownedBy": "stability",
+      "name": "Stable Diffusion 3 5 Large"
     },
     {
       "id": "wizardcoder-python-v1-0",
@@ -25730,7 +25899,8 @@
           "currency": "USD",
           "perMillionTokens": 0.9
         }
-      }
+      },
+      "name": "Wizardcoder Python V1 0"
     },
     {
       "id": "phi-3-medium-128k",
@@ -25746,7 +25916,8 @@
           "perMillionTokens": 18
         }
       },
-      "ownedBy": "microsoft"
+      "ownedBy": "microsoft",
+      "name": "Phi 3 Medium 128k"
     },
     {
       "id": "phi-3-medium-4k",
@@ -25762,7 +25933,8 @@
           "perMillionTokens": 3
         }
       },
-      "ownedBy": "microsoft"
+      "ownedBy": "microsoft",
+      "name": "Phi 3 Medium 4k"
     },
     {
       "id": "phi-3-small-128k",
@@ -25778,7 +25950,8 @@
           "perMillionTokens": 3
         }
       },
-      "ownedBy": "microsoft"
+      "ownedBy": "microsoft",
+      "name": "Phi 3 Small 128k"
     },
     {
       "id": "cohere-command-r",
@@ -25793,7 +25966,8 @@
           "currency": "USD",
           "perMillionTokens": 1.92
         }
-      }
+      },
+      "name": "Cohere Command R"
     },
     {
       "id": "llama-3-2-vision",
@@ -25810,7 +25984,8 @@
           "perMillionTokens": 0.4
         }
       },
-      "ownedBy": "meta"
+      "ownedBy": "meta",
+      "name": "Llama 3 2 Vision"
     },
     {
       "id": "cerebras-llama-3-3",
@@ -25825,7 +26000,8 @@
           "currency": "USD",
           "perMillionTokens": 0.6
         }
-      }
+      },
+      "name": "Cerebras Llama 3 3"
     },
     {
       "id": "chatglm_lite",
@@ -25840,7 +26016,8 @@
           "currency": "USD",
           "perMillionTokens": 0.2858
         }
-      }
+      },
+      "name": "Chatglm_lite"
     },
     {
       "id": "chatglm_pro",
@@ -25855,7 +26032,8 @@
           "currency": "USD",
           "perMillionTokens": 1.4286
         }
-      }
+      },
+      "name": "Chatglm_pro"
     },
     {
       "id": "chatglm_std",
@@ -25870,7 +26048,8 @@
           "currency": "USD",
           "perMillionTokens": 0.7144
         }
-      }
+      },
+      "name": "Chatglm_std"
     },
     {
       "id": "chatglm_turbo",
@@ -25885,7 +26064,8 @@
           "currency": "USD",
           "perMillionTokens": 0.7144
         }
-      }
+      },
+      "name": "Chatglm_turbo"
     },
     {
       "id": "claude-2",
@@ -25902,7 +26082,8 @@
           "perMillionTokens": 8.8
         }
       },
-      "ownedBy": "anthropic"
+      "ownedBy": "anthropic",
+      "name": "Claude 2"
     },
     {
       "id": "claude-2-0",
@@ -25919,7 +26100,8 @@
           "perMillionTokens": 39.6
         }
       },
-      "ownedBy": "anthropic"
+      "ownedBy": "anthropic",
+      "name": "Claude 2 0"
     },
     {
       "id": "claude-2-1",
@@ -25936,7 +26118,8 @@
           "perMillionTokens": 39.6
         }
       },
-      "ownedBy": "anthropic"
+      "ownedBy": "anthropic",
+      "name": "Claude 2 1"
     },
     {
       "id": "claude-3-5-sonnet@20240620",
@@ -25953,7 +26136,8 @@
           "perMillionTokens": 16.5
         }
       },
-      "ownedBy": "anthropic"
+      "ownedBy": "anthropic",
+      "name": "Claude 3 5 Sonnet@20240620"
     },
     {
       "id": "claude-3-haiku-20240229",
@@ -25970,7 +26154,8 @@
           "perMillionTokens": 0.275
         }
       },
-      "ownedBy": "anthropic"
+      "ownedBy": "anthropic",
+      "name": "Claude 3 Haiku 20240229"
     },
     {
       "id": "claude-3-haiku@20240307",
@@ -25987,7 +26172,8 @@
           "perMillionTokens": 1.375
         }
       },
-      "ownedBy": "anthropic"
+      "ownedBy": "anthropic",
+      "name": "Claude 3 Haiku@20240307"
     },
     {
       "id": "claude-3-opus@20240229",
@@ -26004,7 +26190,8 @@
           "perMillionTokens": 82.5
         }
       },
-      "ownedBy": "anthropic"
+      "ownedBy": "anthropic",
+      "name": "Claude 3 Opus@20240229"
     },
     {
       "id": "claude-instant-1",
@@ -26021,7 +26208,8 @@
           "perMillionTokens": 1.793
         }
       },
-      "ownedBy": "anthropic"
+      "ownedBy": "anthropic",
+      "name": "Claude Instant 1"
     },
     {
       "id": "claude-instant-1-2",
@@ -26038,7 +26226,8 @@
           "perMillionTokens": 3.96
         }
       },
-      "ownedBy": "anthropic"
+      "ownedBy": "anthropic",
+      "name": "Claude Instant 1 2"
     },
     {
       "id": "code-davinci-edit-001",
@@ -26053,7 +26242,8 @@
           "currency": "USD",
           "perMillionTokens": 20
         }
-      }
+      },
+      "name": "Code Davinci Edit 001"
     },
     {
       "id": "cogview-3",
@@ -26069,7 +26259,8 @@
           "perMillionTokens": 35.5
         }
       },
-      "ownedBy": "zhipu"
+      "ownedBy": "zhipu",
+      "name": "Cogview 3"
     },
     {
       "id": "cogview-3-plus",
@@ -26085,7 +26276,8 @@
           "perMillionTokens": 10
         }
       },
-      "ownedBy": "zhipu"
+      "ownedBy": "zhipu",
+      "name": "Cogview 3 Plus"
     },
     {
       "id": "command",
@@ -26101,7 +26293,8 @@
           "perMillionTokens": 2
         }
       },
-      "ownedBy": "cohere"
+      "ownedBy": "cohere",
+      "name": "Command"
     },
     {
       "id": "command-light",
@@ -26117,7 +26310,8 @@
           "perMillionTokens": 2
         }
       },
-      "ownedBy": "cohere"
+      "ownedBy": "cohere",
+      "name": "Command Light"
     },
     {
       "id": "command-light-nightly",
@@ -26133,7 +26327,8 @@
           "perMillionTokens": 2
         }
       },
-      "ownedBy": "cohere"
+      "ownedBy": "cohere",
+      "name": "Command Light Nightly"
     },
     {
       "id": "command-nightly",
@@ -26149,7 +26344,8 @@
           "perMillionTokens": 2
         }
       },
-      "ownedBy": "cohere"
+      "ownedBy": "cohere",
+      "name": "Command Nightly"
     },
     {
       "id": "dall-e-2",
@@ -26166,7 +26362,8 @@
           "perMillionTokens": 16
         }
       },
-      "ownedBy": "openai"
+      "ownedBy": "openai",
+      "name": "Dall E 2"
     },
     {
       "id": "daocloud-deepseek-v3-2",
@@ -26182,7 +26379,8 @@
           "currency": "USD",
           "perMillionTokens": 0.33
         }
-      }
+      },
+      "name": "Daocloud Deepseek V3 2"
     },
     {
       "id": "davinci",
@@ -26198,7 +26396,8 @@
           "perMillionTokens": 20
         }
       },
-      "ownedBy": "openai"
+      "ownedBy": "openai",
+      "name": "Davinci"
     },
     {
       "id": "davinci-002",
@@ -26214,7 +26413,8 @@
           "perMillionTokens": 2
         }
       },
-      "ownedBy": "openai"
+      "ownedBy": "openai",
+      "name": "Davinci 002"
     },
     {
       "id": "llama-3-3-instant-turbo",
@@ -26230,7 +26430,8 @@
           "perMillionTokens": 0.352
         }
       },
-      "ownedBy": "meta"
+      "ownedBy": "meta",
+      "name": "Llama 3 3 Instant Turbo"
     },
     {
       "id": "deepseek-coder-v2-instruct",
@@ -26247,7 +26448,8 @@
           "perMillionTokens": 0.32
         }
       },
-      "ownedBy": "deepseek"
+      "ownedBy": "deepseek",
+      "name": "Deepseek Coder V2 Instruct"
     },
     {
       "id": "deepseek-v2-chat",
@@ -26264,7 +26466,8 @@
           "perMillionTokens": 0.32
         }
       },
-      "ownedBy": "deepseek"
+      "ownedBy": "deepseek",
+      "name": "Deepseek V2 Chat"
     },
     {
       "id": "deepseek-v2-5",
@@ -26281,7 +26484,8 @@
           "perMillionTokens": 0.32
         }
       },
-      "ownedBy": "deepseek"
+      "ownedBy": "deepseek",
+      "name": "Deepseek V2 5"
     },
     {
       "id": "deepseek-llm-chat",
@@ -26298,7 +26502,8 @@
           "perMillionTokens": 0.16
         }
       },
-      "ownedBy": "deepseek"
+      "ownedBy": "deepseek",
+      "name": "Deepseek LLM Chat"
     },
     {
       "id": "distil-whisper-large-v3-en",
@@ -26314,7 +26519,8 @@
           "currency": "USD",
           "perMillionTokens": 5.556
         }
-      }
+      },
+      "name": "Distil Whisper Large V3 En"
     },
     {
       "id": "doubao-1-5-thinking-vision-pro-250428",
@@ -26339,7 +26545,8 @@
       "reasoning": {
         "supportedEfforts": ["none", "high"]
       },
-      "ownedBy": "bytedance"
+      "ownedBy": "bytedance",
+      "name": "Doubao 1 5 Thinking Vision Pro 250428"
     },
     {
       "id": "deepseek-r1-distill-qianfan-llama",
@@ -26356,7 +26563,8 @@
           "perMillionTokens": 0.548
         }
       },
-      "ownedBy": "deepseek"
+      "ownedBy": "deepseek",
+      "name": "Deepseek R1 Distill Qianfan Llama"
     },
     {
       "id": "doubao-1-5-pro-256k-250115",
@@ -26372,7 +26580,8 @@
           "perMillionTokens": 1.2312
         }
       },
-      "ownedBy": "bytedance"
+      "ownedBy": "bytedance",
+      "name": "Doubao 1 5 Pro 256k 250115"
     },
     {
       "id": "doubao-1-5-pro-32k-250115",
@@ -26388,7 +26597,8 @@
           "perMillionTokens": 0.27
         }
       },
-      "ownedBy": "bytedance"
+      "ownedBy": "bytedance",
+      "name": "Doubao 1 5 Pro 32k 250115"
     },
     {
       "id": "gpt-4o-2024-08-06-global",
@@ -26409,7 +26619,8 @@
           "perMillionTokens": 1.25
         }
       },
-      "ownedBy": "openai"
+      "ownedBy": "openai",
+      "name": "GPT 4o 2024 08 06 Global"
     },
     {
       "id": "gpt-4o-mini-global",
@@ -26430,7 +26641,8 @@
           "perMillionTokens": 0.075
         }
       },
-      "ownedBy": "openai"
+      "ownedBy": "openai",
+      "name": "GPT 4o Mini Global"
     },
     {
       "id": "llama-3",
@@ -26446,7 +26658,8 @@
           "perMillionTokens": 4.795
         }
       },
-      "ownedBy": "meta"
+      "ownedBy": "meta",
+      "name": "Llama 3"
     },
     {
       "id": "o3-global",
@@ -26467,7 +26680,8 @@
           "perMillionTokens": 0.5
         }
       },
-      "ownedBy": "openai"
+      "ownedBy": "openai",
+      "name": "O3 Global"
     },
     {
       "id": "o3-mini-global",
@@ -26491,7 +26705,8 @@
       "reasoning": {
         "supportedEfforts": ["low", "medium", "high"]
       },
-      "ownedBy": "openai"
+      "ownedBy": "openai",
+      "name": "O3 Mini Global"
     },
     {
       "id": "o3-pro-global",
@@ -26511,7 +26726,8 @@
       "reasoning": {
         "supportedEfforts": ["low", "medium", "high"]
       },
-      "ownedBy": "openai"
+      "ownedBy": "openai",
+      "name": "O3 Pro Global"
     },
     {
       "id": "qianfan-chinese-llama-2",
@@ -26526,7 +26742,8 @@
           "currency": "USD",
           "perMillionTokens": 0.822
         }
-      }
+      },
+      "name": "Qianfan Chinese Llama 2"
     },
     {
       "id": "qianfan-llama-vl",
@@ -26542,7 +26759,8 @@
           "currency": "USD",
           "perMillionTokens": 0.685
         }
-      }
+      },
+      "name": "Qianfan Llama VL"
     },
     {
       "id": "qwen3-max-thinking",
@@ -26611,8 +26829,7 @@
         }
       },
       "reasoning": {
-        "supportedEfforts": [],
-        "interleaved": true
+        "supportedEfforts": []
       },
       "ownedBy": "minimax"
     },
@@ -28114,8 +28331,7 @@
       "name": "minimax-m2-1--lightning",
       "capabilities": ["reasoning", "function-call"],
       "reasoning": {
-        "supportedEfforts": [],
-        "interleaved": true
+        "supportedEfforts": []
       },
       "ownedBy": "minimax"
     },
@@ -30827,8 +31043,7 @@
       "name": "minimax-m2-5-guan",
       "capabilities": ["reasoning", "function-call"],
       "reasoning": {
-        "supportedEfforts": [],
-        "interleaved": true
+        "supportedEfforts": []
       },
       "ownedBy": "minimax"
     },
@@ -33833,8 +34048,7 @@
         }
       },
       "reasoning": {
-        "supportedEfforts": ["none"],
-        "interleaved": true
+        "supportedEfforts": ["none"]
       },
       "ownedBy": "zhipu"
     },
@@ -33903,8 +34117,7 @@
         }
       },
       "reasoning": {
-        "supportedEfforts": ["none"],
-        "interleaved": true
+        "supportedEfforts": ["none"]
       },
       "ownedBy": "zhipu"
     },
@@ -33924,8 +34137,7 @@
         }
       },
       "reasoning": {
-        "supportedEfforts": ["none"],
-        "interleaved": true
+        "supportedEfforts": ["none"]
       },
       "ownedBy": "zhipu"
     },
@@ -33946,8 +34158,7 @@
         }
       },
       "reasoning": {
-        "supportedEfforts": [],
-        "interleaved": true
+        "supportedEfforts": []
       },
       "ownedBy": "minimax"
     },
@@ -36292,8 +36503,7 @@
       "name": "glm-4-5-air-fp8",
       "capabilities": ["function-call", "reasoning"],
       "reasoning": {
-        "supportedEfforts": ["none"],
-        "interleaved": true
+        "supportedEfforts": ["none"]
       },
       "ownedBy": "zhipu"
     },
@@ -36317,8 +36527,7 @@
       "name": "glm-4-5v-fp8",
       "capabilities": ["reasoning"],
       "reasoning": {
-        "supportedEfforts": ["none"],
-        "interleaved": true
+        "supportedEfforts": ["none"]
       },
       "ownedBy": "zhipu"
     },
@@ -36327,8 +36536,7 @@
       "name": "glm-4-6v-fp8",
       "capabilities": ["function-call", "reasoning"],
       "reasoning": {
-        "supportedEfforts": ["none"],
-        "interleaved": true
+        "supportedEfforts": ["none"]
       },
       "ownedBy": "zhipu"
     },
