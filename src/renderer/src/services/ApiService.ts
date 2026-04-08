@@ -329,6 +329,7 @@ async function collectImagesFromMessages(userMessage: Message, assistantMessage?
 /**
  * 独立的图像生成函数
  * 专用于 DALL-E、GPT-Image-1 等专用图像生成模型
+ * 通过 Main IPC (window.api.ai.generateImage) 执行
  */
 export async function fetchImageGeneration({
   messages,
@@ -339,13 +340,7 @@ export async function fetchImageGeneration({
   assistant: Assistant
   onChunkReceived: (chunk: Chunk) => void
 }) {
-  // 创建 AI provider
-  const baseProvider = getProviderByModel(assistant.model || getDefaultModel())
-  const providerWithRotatedKey = {
-    ...baseProvider,
-    apiKey: getRotatedApiKey(baseProvider)
-  }
-  const aiProvider = new AiProvider(assistant.model || getDefaultModel(), providerWithRotatedKey)
+  const model = assistant.model || getDefaultModel()
 
   onChunkReceived({ type: ChunkType.LLM_RESPONSE_CREATED })
   onChunkReceived({ type: ChunkType.IMAGE_CREATED })
@@ -353,7 +348,6 @@ export async function fetchImageGeneration({
   const startTime = Date.now()
 
   try {
-    // 提取 prompt 和图像
     const lastUserMessage = messages.findLast((m) => m.role === 'user')
     const lastAssistantMessage = messages.findLast((m) => m.role === 'assistant')
 
@@ -364,29 +358,15 @@ export async function fetchImageGeneration({
     const prompt = getMainTextContent(lastUserMessage)
     const inputImages = await collectImagesFromMessages(lastUserMessage, lastAssistantMessage)
 
-    // 调用 generateImage 或 editImage
-    // 使用默认图像生成配置
-    const imageSize = '1024x1024'
-    const batchSize = 1
+    const { images } = await window.api.ai.generateImage({
+      providerId: model.provider,
+      modelId: model.id,
+      prompt: prompt || '',
+      inputImages: inputImages.length > 0 ? inputImages : undefined,
+      n: 1,
+      size: '1024x1024'
+    })
 
-    let images: string[]
-    if (inputImages.length > 0) {
-      images = await aiProvider.editImage({
-        model: assistant.model!.id,
-        prompt: prompt || '',
-        inputImages,
-        imageSize
-      })
-    } else {
-      images = await aiProvider.generateImage({
-        model: assistant.model!.id,
-        prompt: prompt || '',
-        imageSize,
-        batchSize
-      })
-    }
-
-    // 发送结果 chunks
     const imageType = images[0]?.startsWith('data:') ? 'base64' : 'url'
     onChunkReceived({
       type: ChunkType.IMAGE_COMPLETE,
