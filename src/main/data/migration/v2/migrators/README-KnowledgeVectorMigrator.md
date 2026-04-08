@@ -27,7 +27,8 @@
 
 2. Chunk payload migration
    - `pageContent` -> `document`
-   - `metadata.source` -> `metadata.source`
+   - `knowledge_item.id` -> `metadata.itemId`
+   - `source` -> `metadata.source`
    - Other legacy metadata fields are dropped.
 
 3. Embedding reuse
@@ -47,13 +48,21 @@
 - The migrator writes each rebuilt vector store to a temporary sibling file first.
 - The original embedjs DB stays untouched until the temporary file has been written successfully.
 - Once the temp file is ready, the migrator replaces the original DB in place.
-- If the current base fails before the final replacement, the original DB remains unchanged.
 - The migration flow relies on the user-completed pre-migration v1 backup; it does not keep an additional in-place rollback copy.
+
+## IMPORTANT: Current Limitations
+
+- Base-level execution failures are treated as migration failures, not as skippable data warnings. If rebuilding or replacing one base fails, `execute()` returns `success: false`.
+- The current implementation does **not** preserve a retryable in-place copy of the original embedjs DB. It does not keep `.bak` files or other retry artifacts beside the knowledge DB path.
+- Because the replacement is in-place, a failure that happens after the original DB has been removed but before the new file is fully placed may leave the base without a usable legacy source file on disk.
+- Therefore, retry semantics currently depend on the user restoring the pre-migration v1 backup before running migration again. The migrator itself does not guarantee that a failed run leaves the knowledge vector source in a reusable retry state.
+- This limitation is intentional for the current implementation, but it is **important** and may need follow-up design discussion or future changes if the project later wants first-class retry support without requiring manual restore.
 
 ## Validation
 
 - Per-base row count must equal the prepared row count.
 - `external_id` must be non-empty for every migrated row.
+- `metadata.itemId` must be present and match `external_id` for every migrated row.
 - `metadata.source` must be present for every migrated row.
 
 ## Skipped Data

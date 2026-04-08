@@ -19,7 +19,18 @@ vi.mock('electron', () => ({
   }
 }))
 
-const { fetchKnowledgeSitemapUrls, fetchKnowledgeWebPage } = await import('../webSearch')
+const { fetchKnowledgeWebPage } = await import('../webSearch')
+
+function createDeferred<T>() {
+  let resolve!: (value: T | PromiseLike<T>) => void
+  let reject!: (reason?: unknown) => void
+  const promise = new Promise<T>((res, rej) => {
+    resolve = res
+    reject = rej
+  })
+
+  return { promise, resolve, reject }
+}
 
 describe('fetchKnowledgeWebPage', () => {
   beforeEach(() => {
@@ -51,46 +62,55 @@ describe('fetchKnowledgeWebPage', () => {
     )
   })
 
-  it('resolves page urls from a single-layer urlset sitemap', async () => {
-    fetchMock.mockResolvedValue(
-      new Response(
-        [
-          '<urlset>',
-          '  <url><loc>https://example.com/page-1</loc></url>',
-          '  <url><loc>https://example.com/page-2</loc></url>',
-          '</urlset>'
-        ].join(''),
-        { status: 200 }
-      )
-    )
+  it('limits concurrent upstream web fetches through a shared queue', async () => {
+    let activeFetches = 0
+    let maxActiveFetches = 0
+    const deferredResponses = Array.from({ length: 5 }, () => createDeferred<Response>())
+    let fetchCallIndex = 0
 
-    await expect(fetchKnowledgeSitemapUrls('https://example.com/sitemap.xml')).resolves.toEqual([
-      'https://example.com/page-1',
-      'https://example.com/page-2'
-    ])
+    fetchMock.mockImplementation(async () => {
+      const deferred = deferredResponses[fetchCallIndex]
+      fetchCallIndex += 1
+      if (!deferred) {
+        throw new Error('Unexpected fetch call')
+      }
 
-    expect(fetchMock).toHaveBeenCalledWith(
-      'https://example.com/sitemap.xml',
-      expect.objectContaining({
-        signal: expect.any(AbortSignal)
-      })
-    )
-  })
+      activeFetches += 1
+      maxActiveFetches = Math.max(maxActiveFetches, activeFetches)
 
-  it('returns empty array for sitemap indexes instead of recursing', async () => {
-    fetchMock.mockResolvedValue(
-      new Response(
-        [
-          '<sitemapindex>',
-          '  <sitemap><loc>https://example.com/sitemap-pages.xml</loc></sitemap>',
-          '</sitemapindex>'
-        ].join(''),
-        { status: 200 }
-      )
-    )
+      try {
+        return await deferred.promise
+      } finally {
+        activeFetches -= 1
+      }
+    })
 
-    await expect(fetchKnowledgeSitemapUrls('https://example.com/sitemap.xml')).resolves.toEqual([])
+    const requests = [
+      fetchKnowledgeWebPage('https://example.com/1'),
+      fetchKnowledgeWebPage('https://example.com/2'),
+      fetchKnowledgeWebPage('https://example.com/3'),
+      fetchKnowledgeWebPage('https://example.com/4'),
+      fetchKnowledgeWebPage('https://example.com/5')
+    ]
 
-    expect(fetchMock).toHaveBeenCalledTimes(1)
+    await vi.waitFor(() => {
+      expect(fetchMock).toHaveBeenCalledTimes(3)
+      expect(activeFetches).toBe(3)
+    })
+
+    deferredResponses[0].resolve(new Response('page 1', { status: 200 }))
+
+    await vi.waitFor(() => {
+      expect(fetchMock).toHaveBeenCalledTimes(4)
+      expect(maxActiveFetches).toBeLessThanOrEqual(3)
+    })
+
+    deferredResponses[1].resolve(new Response('page 2', { status: 200 }))
+    deferredResponses[2].resolve(new Response('page 3', { status: 200 }))
+    deferredResponses[3].resolve(new Response('page 4', { status: 200 }))
+    deferredResponses[4].resolve(new Response('page 5', { status: 200 }))
+
+    await expect(Promise.all(requests)).resolves.toEqual(['page 1', 'page 2', 'page 3', 'page 4', 'page 5'])
+    expect(maxActiveFetches).toBeLessThanOrEqual(3)
   })
 })

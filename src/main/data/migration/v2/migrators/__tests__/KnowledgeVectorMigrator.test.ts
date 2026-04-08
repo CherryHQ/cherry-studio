@@ -9,6 +9,7 @@ import { sql } from 'drizzle-orm'
 import { drizzle } from 'drizzle-orm/libsql'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
+import { KnowledgeVectorSourceReader } from '../../utils/KnowledgeVectorSourceReader'
 import { ReduxStateReader } from '../../utils/ReduxStateReader'
 
 const { loggerWarnMock, setDataPath, getDataPathMock } = vi.hoisted(() => {
@@ -182,7 +183,8 @@ function createMigrationCtx(db: DbType, reduxData: Record<string, unknown>) {
       reduxState: new ReduxStateReader(reduxData),
       dexieExport: {} as any,
       dexieSettings: {} as any,
-      localStorage: {} as any
+      localStorage: {} as any,
+      knowledgeVectorSource: new KnowledgeVectorSourceReader()
     },
     db,
     sharedData: new Map<string, unknown>(),
@@ -311,7 +313,33 @@ describe('KnowledgeVectorMigrator', () => {
     expect(result.warnings?.some((warning) => warning.includes('loader-missing'))).toBe(true)
   })
 
-  it('execute rebuilds vector rows with uuid v4 ids, externalId item ids, and metadata.source only', async () => {
+  it('hard fails when vector index schema creation fails', async () => {
+    const migrator = new KnowledgeVectorMigrator()
+    const client = {
+      execute: vi.fn(async ({ sql: statement }: { sql: string }) => {
+        if (statement.includes('libsql_vector_idx')) {
+          throw new Error('vector index failed')
+        }
+      })
+    }
+
+    await expect((migrator as any).ensureVectorStoreSchema(client, 2)).rejects.toThrow('vector index failed')
+  })
+
+  it('hard fails when FTS schema creation fails', async () => {
+    const migrator = new KnowledgeVectorMigrator()
+    const client = {
+      execute: vi.fn(async ({ sql: statement }: { sql: string }) => {
+        if (statement.includes('CREATE VIRTUAL TABLE IF NOT EXISTS libsql_vectorstores_embedding_fts')) {
+          throw new Error('fts creation failed')
+        }
+      })
+    }
+
+    await expect((migrator as any).ensureVectorStoreSchema(client, 2)).rejects.toThrow('fts creation failed')
+  })
+
+  it('execute rebuilds vector rows with uuid v4 ids, externalId item ids, and metadata.itemId/source', async () => {
     await insertKnowledgeBaseRow(db, {
       id: 'kb-1',
       name: 'Base 1',
@@ -388,7 +416,10 @@ describe('KnowledgeVectorMigrator', () => {
     expect(row.external_id).toBe('item-file')
     expect(row.collection).toBe('kb-1')
     expect(row.document).toBe('file chunk')
-    expect(JSON.parse(String(row.metadata))).toEqual({ source: '/tmp/file-1.md' })
+    expect(JSON.parse(String(row.metadata))).toEqual({
+      itemId: 'item-file',
+      source: '/tmp/file-1.md'
+    })
     expect(Number(row.bytes)).toBeGreaterThan(0)
 
     const validateResult = await migrator.validate(migrationCtx as any)
@@ -403,7 +434,7 @@ describe('KnowledgeVectorMigrator', () => {
     expect(fs.existsSync(`${dbPath}.vectorstore.tmp`)).toBe(false)
   })
 
-  it('execute skips failed bases and validate treats them as skipped', async () => {
+  it('execute fails when rebuilding a base fails and does not count it as skipped', async () => {
     await insertKnowledgeBaseRow(db, {
       id: 'kb-1',
       name: 'Base 1',
@@ -465,15 +496,86 @@ describe('KnowledgeVectorMigrator', () => {
     vi.spyOn(migrator, 'insertVectorRows').mockRejectedValueOnce(new Error('insert failed'))
 
     const executeResult = await migrator.execute(migrationCtx as any)
-    expect(executeResult.success).toBe(true)
+    expect(executeResult.success).toBe(false)
     expect(executeResult.processedCount).toBe(0)
+    expect(executeResult.error).toContain('kb-1')
+    expect(executeResult.error).toContain('insert failed')
+    expect(migrator.skippedCount).toBe(0)
+  })
+
+  it('validate fails when migrated metadata.itemId is missing or mismatched', async () => {
+    await insertKnowledgeBaseRow(db, {
+      id: 'kb-1',
+      name: 'Base 1',
+      dimensions: 2,
+      embeddingModelId: 'openai::text-embedding-3-small'
+    })
+    await insertKnowledgeItemRow(db, {
+      id: 'item-file',
+      baseId: 'kb-1',
+      type: 'file',
+      data: {
+        file: {
+          id: 'file-1',
+          name: 'file-1.md',
+          origin_name: 'file-1.md',
+          path: '/tmp/file-1.md',
+          size: 1,
+          ext: '.md',
+          type: 'text',
+          created_at: '2024-01-01T00:00:00.000Z',
+          count: 1
+        }
+      },
+      status: 'completed'
+    })
+
+    const dbPath = path.join(knowledgeBaseDir, 'kb-1')
+    await createLegacyVectorDb(dbPath, [
+      {
+        id: 'legacy-file-0',
+        pageContent: 'file chunk',
+        uniqueLoaderId: 'loader-file',
+        source: '/tmp/file-1.md',
+        vector: [1, 2]
+      }
+    ])
+
+    const migrationCtx = createMigrationCtx(db, {
+      knowledge: {
+        bases: [
+          {
+            id: 'kb-1',
+            name: 'Base 1',
+            items: [
+              {
+                id: 'item-file',
+                type: 'file',
+                uniqueId: 'loader-file'
+              }
+            ]
+          }
+        ]
+      }
+    })
+
+    const migrator = new KnowledgeVectorMigrator() as any
+    await expect(migrator.prepare(migrationCtx as any)).resolves.toMatchObject({ success: true })
+    await expect(migrator.execute(migrationCtx as any)).resolves.toMatchObject({ success: true, processedCount: 1 })
+
+    const targetClient = createClient({ url: pathToFileURL(dbPath).toString() })
+    await targetClient.execute({
+      sql: `UPDATE libsql_vectorstores_embedding SET metadata = ? WHERE external_id = ?`,
+      args: [JSON.stringify({ source: '/tmp/file-1.md' }), 'item-file']
+    })
+    targetClient.close()
 
     const validateResult = await migrator.validate(migrationCtx as any)
-    expect(validateResult.success).toBe(true)
-    expect(validateResult.stats).toMatchObject({
-      sourceCount: 1,
-      targetCount: 0,
-      skippedCount: 1
-    })
+    expect(validateResult.success).toBe(false)
+    expect(validateResult.errors).toContainEqual(
+      expect.objectContaining({
+        key: 'knowledge_vector_missing_item_id_kb-1'
+      })
+    )
   })
 })

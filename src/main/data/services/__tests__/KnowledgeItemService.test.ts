@@ -19,7 +19,8 @@ const mockDb = {
   select: mockSelect,
   insert: mockInsert,
   update: mockUpdate,
-  delete: mockDelete
+  delete: mockDelete,
+  transaction: vi.fn(async (callback: (tx: typeof mockDb) => Promise<unknown>) => await callback(mockDb))
 }
 
 let realDb: DbType | null = null
@@ -64,6 +65,7 @@ describe('KnowledgeItemService', () => {
     mockInsert.mockReset()
     mockUpdate.mockReset()
     mockDelete.mockReset()
+    mockDb.transaction.mockClear()
     getKnowledgeBaseByIdMock.mockReset()
     getKnowledgeBaseByIdMock.mockResolvedValue({ id: 'kb-1' })
     realDb = null
@@ -146,13 +148,17 @@ describe('KnowledgeItemService', () => {
 
   describe('createMany', () => {
     it('should create and return knowledge items', async () => {
-      const values = vi.fn().mockReturnValue({
+      const valuesFirst = vi.fn().mockReturnValue({
         returning: vi.fn().mockResolvedValue([
           createMockRow({
             id: 'item-1',
             type: 'directory',
             data: { name: 'files', path: '/tmp/files' }
-          }),
+          })
+        ])
+      })
+      const valuesSecond = vi.fn().mockReturnValue({
+        returning: vi.fn().mockResolvedValue([
           createMockRow({
             id: 'item-2',
             type: 'note',
@@ -160,7 +166,7 @@ describe('KnowledgeItemService', () => {
           })
         ])
       })
-      mockInsert.mockReturnValue({ values })
+      mockInsert.mockReturnValueOnce({ values: valuesFirst }).mockReturnValueOnce({ values: valuesSecond })
 
       const dto: CreateKnowledgeItemsDto = {
         items: [
@@ -177,30 +183,83 @@ describe('KnowledgeItemService', () => {
 
       const result = await service.createMany('kb-1', dto)
 
-      expect(values).toHaveBeenCalledWith([
-        {
-          id: expect.any(String),
-          baseId: 'kb-1',
-          groupId: null,
-          type: 'directory',
-          data: { name: 'files', path: '/tmp/files' },
-          status: 'idle',
-          error: null
-        },
-        {
-          id: expect.any(String),
-          baseId: 'kb-1',
-          groupId: null,
-          type: 'note',
-          data: { content: 'child note' },
-          status: 'idle',
-          error: null
-        }
-      ])
+      expect(valuesFirst).toHaveBeenCalledWith({
+        baseId: 'kb-1',
+        groupId: null,
+        type: 'directory',
+        data: { name: 'files', path: '/tmp/files' },
+        status: 'idle',
+        error: null
+      })
+      expect(valuesSecond).toHaveBeenCalledWith({
+        baseId: 'kb-1',
+        groupId: null,
+        type: 'note',
+        data: { content: 'child note' },
+        status: 'idle',
+        error: null
+      })
       expect(result.items).toHaveLength(2)
       expect(result.items[0]).toMatchObject({
         id: 'item-1'
       })
+    })
+
+    it('should create grouped items that reference a batch-local parent by groupRef', async () => {
+      const valuesFirst = vi.fn().mockReturnValue({
+        returning: vi.fn().mockResolvedValue([
+          createMockRow({
+            id: 'generated-dir',
+            groupId: null,
+            type: 'directory',
+            data: { name: 'files', path: '/tmp/files' }
+          })
+        ])
+      })
+      const valuesSecond = vi.fn().mockReturnValue({
+        returning: vi.fn().mockResolvedValue([
+          createMockRow({
+            id: 'generated-note',
+            groupId: 'generated-dir',
+            type: 'note',
+            data: { content: 'child note' }
+          })
+        ])
+      })
+      mockInsert.mockReturnValueOnce({ values: valuesFirst }).mockReturnValueOnce({ values: valuesSecond })
+
+      const result = await service.createMany('kb-1', {
+        items: [
+          {
+            ref: 'root',
+            type: 'directory',
+            data: { name: 'files', path: '/tmp/files' }
+          },
+          {
+            groupRef: 'root',
+            type: 'note',
+            data: { content: 'child note' }
+          }
+        ]
+      })
+
+      expect(valuesFirst).toHaveBeenCalledWith({
+        baseId: 'kb-1',
+        groupId: null,
+        type: 'directory',
+        data: { name: 'files', path: '/tmp/files' },
+        status: 'idle',
+        error: null
+      })
+      expect(valuesSecond).toHaveBeenCalledWith({
+        baseId: 'kb-1',
+        groupId: 'generated-dir',
+        type: 'note',
+        data: { content: 'child note' },
+        status: 'idle',
+        error: null
+      })
+      expect(result.items).toHaveLength(2)
     })
 
     it('should reject invalid item data with validation error before insert', async () => {
@@ -252,65 +311,6 @@ describe('KnowledgeItemService', () => {
       })
 
       expect(mockInsert).not.toHaveBeenCalled()
-    })
-
-    it('should create grouped items that reference a batch-local parent by groupRef', async () => {
-      const values = vi.fn().mockReturnValue({
-        returning: vi.fn().mockResolvedValue([
-          createMockRow({
-            id: 'generated-dir',
-            groupId: null,
-            type: 'directory',
-            data: { name: 'files', path: '/tmp/files' }
-          }),
-          createMockRow({
-            id: 'generated-note',
-            groupId: 'generated-dir',
-            type: 'note',
-            data: { content: 'child note' }
-          })
-        ])
-      })
-      mockInsert.mockReturnValue({ values })
-
-      const result = await service.createMany('kb-1', {
-        items: [
-          {
-            ref: 'root',
-            type: 'directory',
-            data: { name: 'files', path: '/tmp/files' }
-          },
-          {
-            groupRef: 'root',
-            type: 'note',
-            data: { content: 'child note' }
-          }
-        ]
-      })
-
-      expect(values).toHaveBeenCalledWith([
-        {
-          id: expect.any(String),
-          baseId: 'kb-1',
-          groupId: null,
-          type: 'directory',
-          data: { name: 'files', path: '/tmp/files' },
-          status: 'idle',
-          error: null
-        },
-        {
-          id: expect.any(String),
-          baseId: 'kb-1',
-          groupId: expect.any(String),
-          type: 'note',
-          data: { content: 'child note' },
-          status: 'idle',
-          error: null
-        }
-      ])
-      const insertedValues = values.mock.calls[0][0]
-      expect(insertedValues[1].groupId).toBe(insertedValues[0].id)
-      expect(result.items).toHaveLength(2)
     })
   })
 
@@ -604,6 +604,90 @@ describe('KnowledgeItemService', () => {
       expect(sitemap?.groupId).toBeNull()
       expect(urlItems).toHaveLength(2)
       expect(urlItems.every((item) => item.groupId === sitemap?.id)).toBe(true)
+    })
+
+    it('createMany rejects self-referencing groupRef items', async () => {
+      await expect(
+        service.createMany('kb-1', {
+          items: [
+            {
+              ref: 'self',
+              groupRef: 'self',
+              type: 'note',
+              data: { content: 'self ref' }
+            }
+          ]
+        })
+      ).rejects.toMatchObject({
+        code: ErrorCode.VALIDATION_ERROR,
+        details: {
+          fieldErrors: {
+            groupRef: ['Knowledge item cannot reference itself as group owner']
+          }
+        }
+      })
+    })
+
+    it('createMany rejects two-node groupRef cycles', async () => {
+      await expect(
+        service.createMany('kb-1', {
+          items: [
+            {
+              ref: 'a',
+              groupRef: 'b',
+              type: 'note',
+              data: { content: 'A' }
+            },
+            {
+              ref: 'b',
+              groupRef: 'a',
+              type: 'note',
+              data: { content: 'B' }
+            }
+          ]
+        })
+      ).rejects.toMatchObject({
+        code: ErrorCode.VALIDATION_ERROR,
+        details: {
+          fieldErrors: {
+            groupRef: ['Knowledge item grouping cannot contain cycles within one request batch']
+          }
+        }
+      })
+    })
+
+    it('createMany rejects longer groupRef cycles', async () => {
+      await expect(
+        service.createMany('kb-1', {
+          items: [
+            {
+              ref: 'a',
+              groupRef: 'c',
+              type: 'directory',
+              data: { name: 'a', path: '/a' }
+            },
+            {
+              ref: 'b',
+              groupRef: 'a',
+              type: 'directory',
+              data: { name: 'b', path: '/b' }
+            },
+            {
+              ref: 'c',
+              groupRef: 'b',
+              type: 'note',
+              data: { content: 'cycle' }
+            }
+          ]
+        })
+      ).rejects.toMatchObject({
+        code: ErrorCode.VALIDATION_ERROR,
+        details: {
+          fieldErrors: {
+            groupRef: ['Knowledge item grouping cannot contain cycles within one request batch']
+          }
+        }
+      })
     })
   })
 

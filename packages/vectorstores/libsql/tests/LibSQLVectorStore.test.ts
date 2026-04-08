@@ -170,9 +170,94 @@ describe('LibSQLVectorStore', () => {
       expect(result.similarities[0]).toBeGreaterThan(result.similarities[1])
     })
 
+    it('should expose itemId from external_id in query results', async () => {
+      const node = new TextNode({
+        id_: 'chunk-knowledge-1',
+        text: 'Knowledge document',
+        embedding: [1.0, 0.0],
+        metadata: { source: '/tmp/doc.md' },
+        relationships: {
+          [NodeRelationship.SOURCE]: {
+            nodeId: 'item-knowledge-1',
+            metadata: {}
+          }
+        }
+      })
+
+      await store.add([node])
+
+      const result = await store.query({
+        queryEmbedding: [1.0, 0.0],
+        similarityTopK: 1,
+        mode: VectorStoreQueryMode.DEFAULT
+      })
+
+      expect(result.nodes).toHaveLength(1)
+      expect(result.nodes?.[0]?.metadata).toMatchObject({
+        source: '/tmp/doc.md',
+        itemId: 'item-knowledge-1'
+      })
+    })
+
     it('should handle empty add request', async () => {
       const ids = await store.add([])
       expect(ids).toEqual([])
+    })
+
+    it('should throw when SQL arguments would contain invalid nullish values', async () => {
+      const invalidNode = {
+        id_: '',
+        metadata: { category: 'test' },
+        sourceNode: undefined,
+        getEmbedding: () => [0.1, 0.2],
+        getContent: () => 'Document chunk'
+      } as unknown as BaseNode<Metadata>
+
+      await expect(store.add([invalidNode])).rejects.toThrow('Invalid libSQL argument at index 0: null')
+    })
+
+    it('should fail initialization when vector index creation fails', async () => {
+      const originalExecute = client.execute.bind(client)
+      const executeSpy = vi.spyOn(client, 'execute').mockImplementation(async (statement: any) => {
+        const sql = typeof statement === 'string' ? statement : statement.sql
+        if (typeof sql === 'string' && sql.includes('libsql_vector_idx')) {
+          throw new Error('vector index failed')
+        }
+
+        return await originalExecute(statement)
+      })
+
+      const node = new TextNode({
+        id_: 'chunk-hard-fail',
+        text: 'Document chunk',
+        embedding: [0.1, 0.2],
+        metadata: { category: 'test' }
+      })
+
+      await expect(store.add([node])).rejects.toThrow('vector index failed')
+      executeSpy.mockRestore()
+    })
+
+    it('should fail initialization when FTS schema creation fails', async () => {
+      const originalExecute = client.execute.bind(client)
+      const executeSpy = vi.spyOn(client, 'execute').mockImplementation(async (statement: any) => {
+        const sql = typeof statement === 'string' ? statement : statement.sql
+        if (typeof sql === 'string' && sql.includes('CREATE VIRTUAL TABLE IF NOT EXISTS test_embeddings_fts')) {
+          throw new Error('fts creation failed')
+        }
+
+        return await originalExecute(statement)
+      })
+
+      const node = new TextNode({
+        id_: 'chunk-fts-fail',
+        text: 'Document chunk',
+        embedding: [0.1, 0.2],
+        metadata: { category: 'test' }
+      })
+
+      await expect(store.add([node])).rejects.toThrow('fts creation failed')
+      executeSpy.mockRestore()
     })
 
     it('should delete all nodes by external_id', async () => {
@@ -739,18 +824,24 @@ describe('LibSQLVectorStore', () => {
   })
 
   describe('exists', () => {
-    it('should return true for existing document', async () => {
+    it('should return true for existing external_id', async () => {
       const nodes: BaseNode<Metadata>[] = [
         new TextNode({
           id_: 'doc-123',
           embedding: [0.1, 0.2],
-          metadata: { ref_doc_id: 'ref-doc-1' }
+          metadata: { category: 'exists' },
+          relationships: {
+            [NodeRelationship.SOURCE]: {
+              nodeId: 'item-1',
+              metadata: {}
+            }
+          }
         })
       ]
 
       await store.add(nodes)
 
-      const exists = await store.exists('ref-doc-1')
+      const exists = await store.exists('item-1')
       expect(exists).toBe(true)
     })
 
@@ -765,18 +856,24 @@ describe('LibSQLVectorStore', () => {
       const nodes: BaseNode<Metadata>[] = [
         new TextNode({
           embedding: [0.1, 0.2],
-          metadata: { ref_doc_id: 'ref-doc-collection' }
+          metadata: { category: 'exists' },
+          relationships: {
+            [NodeRelationship.SOURCE]: {
+              nodeId: 'item-collection',
+              metadata: {}
+            }
+          }
         })
       ]
 
       await store.add(nodes)
 
       // Should find in same collection
-      expect(await store.exists('ref-doc-collection')).toBe(true)
+      expect(await store.exists('item-collection')).toBe(true)
 
       // Should not find in different collection
       store.setCollection('collection-b')
-      expect(await store.exists('ref-doc-collection')).toBe(false)
+      expect(await store.exists('item-collection')).toBe(false)
     })
   })
 })

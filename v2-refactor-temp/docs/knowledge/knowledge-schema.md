@@ -73,11 +73,24 @@ This document records the current V2 knowledge target schema, migration constrai
   - optional query filters: `type`, `groupId`
 - Current runtime create flow uses:
   - `POST /knowledge-bases/:id/items`
-  - request bodies may carry `groupId`
-  - `groupId` may only point to an already existing owner item in the same knowledge base
-  - creating a new owner item and its grouped members is therefore a two-step flow in the current contract:
-    - create the owner item first
-    - create grouped members afterwards with `groupId = ownerItem.id`
+  - request bodies may carry `groupId`, `ref`, and `groupRef`
+  - `groupId` may point to an already existing owner item in the same knowledge base
+  - `ref` is an optional request-local reference key for one newly created item in the current batch
+  - `groupRef` is an optional request-local owner reference that points to another item's `ref` in the same batch
+  - `ref` and `groupRef` are request-level helper fields only:
+    - they are not persisted to SQLite
+    - they are resolved by the DataApi/service layer before insert
+    - the persisted relationship is still `groupId = ownerItem.id`
+  - `groupId` and `groupRef` are mutually exclusive on one item
+  - `groupRef` must resolve to a `ref` present in the same request batch
+  - one request batch may therefore create:
+    - a new owner item and its grouped members together
+    - a multi-level same-base grouping tree
+  - the current create contract rejects invalid batch-local grouping:
+    - duplicate `ref` values in one request batch
+    - missing `groupRef` targets
+    - self-references
+    - cycles within one request batch
 - Current runtime update flow uses:
   - `PATCH /knowledge-items/:id`
   - mutable fields may include `data`, `status`, `error`
@@ -163,13 +176,13 @@ This document records the current V2 knowledge target schema, migration constrai
 
 - Runtime entrypoint:
   - `src/main/services/knowledge/KnowledgeRuntimeService.ts`
-- Reader dispatch is driven by stored `knowledge_item.type`:
+- Reader dispatch code still exists for stored `knowledge_item.type` values:
   - `file` -> file reader by extension
   - `url` -> fetch markdown through Jina Reader
   - `note` -> inline note content
-  - `sitemap` -> expand sitemap URLs, then reuse URL reader
+  - `sitemap` -> sitemap reader code path is present, but current runtime does not index `sitemap` items directly
   - `directory` -> currently treated as a container placeholder and returns no documents
-- This means `directory` remains a valid persisted `knowledge_item.type`, but the current runtime does not index it directly. Upstream callers must flatten a directory into concrete child items before indexing.
+- This means `directory` and `sitemap` remain valid persisted `knowledge_item.type` values, but the current runtime does not index them directly. Upstream callers must flatten them into concrete child items before indexing.
 - Runtime embedding model resolution currently expects `knowledge_base.embeddingModelId` in `providerId::modelId` format and only supports `ollama` as the active provider.
 
 ## Implementation Status

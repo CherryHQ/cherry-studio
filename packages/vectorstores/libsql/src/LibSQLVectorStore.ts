@@ -26,19 +26,27 @@ export const DEFAULT_DIMENSIONS = 1536
 
 type PositionalArgs = Extract<InArgs, readonly unknown[]>
 
+function isSupportedInArg(param: unknown): param is NonNullable<PositionalArgs[number]> {
+  return (
+    param != null &&
+    (typeof param === 'string' ||
+      typeof param === 'number' ||
+      typeof param === 'boolean' ||
+      param instanceof ArrayBuffer ||
+      ArrayBuffer.isView(param) ||
+      param instanceof Date)
+  )
+}
+
 // Helper function to safely convert unknown array to InArgs
 function toInArgs(params: unknown[]): InArgs {
-  // Filter and validate parameters to ensure they match InArgs requirements
-  return params.filter(
-    (param): param is NonNullable<PositionalArgs[number]> =>
-      param != null &&
-      (typeof param === 'string' ||
-        typeof param === 'number' ||
-        typeof param === 'boolean' ||
-        param instanceof ArrayBuffer ||
-        ArrayBuffer.isView(param) ||
-        param instanceof Date)
-  ) as PositionalArgs
+  for (const [index, param] of params.entries()) {
+    if (!isSupportedInArg(param)) {
+      throw new Error(`Invalid libSQL argument at index ${index}: ${String(param)}`)
+    }
+  }
+
+  return params as PositionalArgs
 }
 
 /**
@@ -133,104 +141,89 @@ export class LibSQLVectorStore extends BaseVectorStore {
     }
     await client.execute(createTableStatement)
 
-    try {
-      const indexStatement: InStatement = {
-        sql: `
-          CREATE INDEX IF NOT EXISTS idx_${this.tableName}_external_id
-          ON ${this.tableName} (external_id)
-        `,
-        args: []
-      }
-      await client.execute(indexStatement)
-    } catch {
-      // Index might already exist, ignore
+    const indexStatement: InStatement = {
+      sql: `
+        CREATE INDEX IF NOT EXISTS idx_${this.tableName}_external_id
+        ON ${this.tableName} (external_id)
+      `,
+      args: []
     }
+    await client.execute(indexStatement)
 
-    try {
-      const collectionIndexStatement: InStatement = {
-        sql: `
-          CREATE INDEX IF NOT EXISTS idx_${this.tableName}_collection
-          ON ${this.tableName} (collection)
+    const collectionIndexStatement: InStatement = {
+      sql: `
+        CREATE INDEX IF NOT EXISTS idx_${this.tableName}_collection
+        ON ${this.tableName} (collection)
+      `,
+      args: []
+    }
+    await client.execute(collectionIndexStatement)
+
+    const vectorIndexStatement: InStatement = {
+      sql: `
+          CREATE INDEX IF NOT EXISTS idx_${this.tableName}_vector
+          ON ${this.tableName} (libsql_vector_idx(embeddings, 'metric=cosine'))
         `,
-        args: []
-      }
-      await client.execute(collectionIndexStatement)
-    } catch {
-      // Index might already exist, ignore
+      args: []
     }
-    try {
-      const vectorIndexStatement: InStatement = {
-        sql: `
-            CREATE INDEX IF NOT EXISTS idx_${this.tableName}_vector
-            ON ${this.tableName} (libsql_vector_idx(embeddings, 'metric=cosine'))
-          `,
-        args: []
-      }
-      await client.execute(vectorIndexStatement)
-    } catch (e) {
-      console.warn('Failed to create vector index:', e)
-    }
+    await client.execute(vectorIndexStatement)
 
     // Create FTS5 virtual table for full-text search (bm25/hybrid modes)
-    try {
-      const ftsTableName = `${this.tableName}_fts`
-      const ftsStatement: InStatement = {
-        sql: `
-          CREATE VIRTUAL TABLE IF NOT EXISTS ${ftsTableName}
-          USING fts5(document, content='${this.tableName}', content_rowid='rowid')
-        `,
-        args: []
-      }
-      await client.execute(ftsStatement)
-
-      await client.execute({
-        sql: `
-          CREATE TRIGGER IF NOT EXISTS ${this.tableName}_ai
-          AFTER INSERT ON ${this.tableName}
-          BEGIN
-            INSERT INTO ${ftsTableName}(rowid, document)
-            VALUES (NEW.rowid, NEW.document);
-          END
-        `,
-        args: []
-      })
-
-      await client.execute({
-        sql: `
-          CREATE TRIGGER IF NOT EXISTS ${this.tableName}_au
-          AFTER UPDATE OF document ON ${this.tableName}
-          BEGIN
-            INSERT INTO ${ftsTableName}(${ftsTableName}, rowid, document)
-            VALUES ('delete', OLD.rowid, OLD.document);
-            INSERT INTO ${ftsTableName}(rowid, document)
-            VALUES (NEW.rowid, NEW.document);
-          END
-        `,
-        args: []
-      })
-
-      await client.execute({
-        sql: `
-          CREATE TRIGGER IF NOT EXISTS ${this.tableName}_ad
-          AFTER DELETE ON ${this.tableName}
-          BEGIN
-            INSERT INTO ${ftsTableName}(${ftsTableName}, rowid, document)
-            VALUES ('delete', OLD.rowid, OLD.document);
-          END
-        `,
-        args: []
-      })
-
-      await client.execute({
-        sql: `
-          INSERT INTO ${ftsTableName}(${ftsTableName})
-          VALUES ('rebuild')
-        `,
-        args: []
-      })
-    } catch (e) {
-      console.warn('Failed to create FTS5 table:', e)
+    const ftsTableName = `${this.tableName}_fts`
+    const ftsStatement: InStatement = {
+      sql: `
+        CREATE VIRTUAL TABLE IF NOT EXISTS ${ftsTableName}
+        USING fts5(document, content='${this.tableName}', content_rowid='rowid')
+      `,
+      args: []
     }
+    await client.execute(ftsStatement)
+
+    await client.execute({
+      sql: `
+        CREATE TRIGGER IF NOT EXISTS ${this.tableName}_ai
+        AFTER INSERT ON ${this.tableName}
+        BEGIN
+          INSERT INTO ${ftsTableName}(rowid, document)
+          VALUES (NEW.rowid, NEW.document);
+        END
+      `,
+      args: []
+    })
+
+    await client.execute({
+      sql: `
+        CREATE TRIGGER IF NOT EXISTS ${this.tableName}_au
+        AFTER UPDATE OF document ON ${this.tableName}
+        BEGIN
+          INSERT INTO ${ftsTableName}(${ftsTableName}, rowid, document)
+          VALUES ('delete', OLD.rowid, OLD.document);
+          INSERT INTO ${ftsTableName}(rowid, document)
+          VALUES (NEW.rowid, NEW.document);
+        END
+      `,
+      args: []
+    })
+
+    await client.execute({
+      sql: `
+        CREATE TRIGGER IF NOT EXISTS ${this.tableName}_ad
+        AFTER DELETE ON ${this.tableName}
+        BEGIN
+          INSERT INTO ${ftsTableName}(${ftsTableName}, rowid, document)
+          VALUES ('delete', OLD.rowid, OLD.document);
+        END
+      `,
+      args: []
+    })
+
+    await client.execute({
+      sql: `
+        INSERT INTO ${ftsTableName}(${ftsTableName})
+        VALUES ('rebuild')
+      `,
+      args: []
+    })
   }
 
   async clearCollection(): Promise<void> {
@@ -594,12 +587,18 @@ export class LibSQLVectorStore extends BaseVectorStore {
       const embedding = this.deserializeEmbedding(row.embeddings)
       const distance = Number(row.distance ?? 0)
       const similarity = 1 - distance
+      const metadata = typeof row.metadata === 'string' ? JSON.parse(row.metadata) : ((row.metadata ?? {}) as Metadata)
+      const externalId = typeof row.external_id === 'string' && row.external_id.length > 0 ? row.external_id : undefined
+
+      if (externalId && metadata.itemId === undefined) {
+        metadata.itemId = externalId
+      }
 
       return {
         node: new Document({
           id_: String(row.id),
           text: String(row.document || ''),
-          metadata: typeof row.metadata === 'string' ? JSON.parse(row.metadata) : (row.metadata as Metadata),
+          metadata,
           embedding
         }),
         similarity,
@@ -618,12 +617,18 @@ export class LibSQLVectorStore extends BaseVectorStore {
     const results = rows.slice(0, max).map((row) => {
       const embedding = this.deserializeEmbedding(row.embeddings)
       const score = Math.abs(Number(row.score ?? 0))
+      const metadata = typeof row.metadata === 'string' ? JSON.parse(row.metadata) : ((row.metadata ?? {}) as Metadata)
+      const externalId = typeof row.external_id === 'string' && row.external_id.length > 0 ? row.external_id : undefined
+
+      if (externalId && metadata.itemId === undefined) {
+        metadata.itemId = externalId
+      }
 
       return {
         node: new Document({
           id_: String(row.id),
           text: String(row.document || ''),
-          metadata: typeof row.metadata === 'string' ? JSON.parse(row.metadata) : (row.metadata as Metadata),
+          metadata,
           embedding
         }),
         similarity: score,
@@ -647,7 +652,7 @@ export class LibSQLVectorStore extends BaseVectorStore {
     await this.ensureInitialized()
     const collectionCriteria = this.collection.length ? 'AND collection = ?' : ''
     const sql = `SELECT 1 FROM ${this.tableName}
-                 WHERE json_extract(metadata, '$.ref_doc_id') = ? ${collectionCriteria} LIMIT 1`
+                 WHERE external_id = ? ${collectionCriteria} LIMIT 1`
     const params = this.collection.length ? [refDocId, this.collection] : [refDocId]
     const results = await this.clientInstance.execute({
       sql,

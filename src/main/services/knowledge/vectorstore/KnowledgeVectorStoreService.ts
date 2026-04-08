@@ -1,11 +1,15 @@
+import { BaseService, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import type { KnowledgeBase } from '@shared/data/types/knowledge'
 import type { BaseVectorStore } from '@vectorstores/core'
 import { LibSQLVectorStore } from '@vectorstores/libsql'
 
 import { libSqlVectorStoreProvider } from './providers/LibSqlVectorStoreProvider'
 
-class VectorStoreManager {
+@Injectable('KnowledgeVectorStoreService')
+@ServicePhase(Phase.WhenReady)
+export class KnowledgeVectorStoreService extends BaseService {
   private instanceCache = new Map<string, BaseVectorStore>()
+
   async createStore(base: KnowledgeBase): Promise<BaseVectorStore> {
     if (this.instanceCache.has(base.id)) {
       return this.instanceCache.get(base.id)!
@@ -25,7 +29,7 @@ class VectorStoreManager {
     this.instanceCache.delete(base.id)
   }
 
-  async clear(): Promise<void> {
+  protected async onStop(): Promise<void> {
     await Promise.all([...this.instanceCache.keys()].map((baseId) => this.closeStore(baseId)))
     this.instanceCache.clear()
   }
@@ -41,5 +45,3 @@ class VectorStoreManager {
     }
   }
 }
-
-export const vectorStoreManager = new VectorStoreManager()

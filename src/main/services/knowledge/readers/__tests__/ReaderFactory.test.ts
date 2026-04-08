@@ -340,53 +340,11 @@ describe('loadKnowledgeItemDocuments', () => {
     })
   })
 
-  it('uses the local knowledge web provider when loading sitemap urls', async () => {
-    fetchMock.mockImplementation(async (url: string) => {
-      if (url === 'https://example.com/sitemap.xml') {
-        return new Response(
-          [
-            '<urlset>',
-            '  <url><loc>https://example.com/page-1</loc></url>',
-            '  <url><loc>https://example.com/page-2</loc></url>',
-            '  <url><loc>https://example.com/page-1</loc></url>',
-            '</urlset>'
-          ].join(''),
-          { status: 200 }
-        )
-      }
-
-      return new Response('markdown body', { status: 200 })
-    })
-
+  it('skips sitemap items because they must be expanded into url items upstream', async () => {
     const item = createSitemapItem()
     const docs = await loadKnowledgeItemDocuments(item)
 
-    expect(fetchMock).toHaveBeenCalledWith(
-      'https://example.com/sitemap.xml',
-      expect.objectContaining({
-        signal: expect.any(AbortSignal)
-      })
-    )
-    expect(fetchMock).toHaveBeenCalledWith(
-      'https://r.jina.ai/https://example.com/page-1',
-      expect.objectContaining({
-        signal: expect.any(AbortSignal),
-        headers: {
-          'X-Retain-Images': 'none',
-          'X-Return-Format': 'markdown'
-        }
-      })
-    )
-    expect(fetchMock).toHaveBeenCalledWith(
-      'https://r.jina.ai/https://example.com/page-2',
-      expect.objectContaining({
-        signal: expect.any(AbortSignal),
-        headers: {
-          'X-Retain-Images': 'none',
-          'X-Return-Format': 'markdown'
-        }
-      })
-    )
-    expect(docs).toHaveLength(2)
+    expect(fetchMock).not.toHaveBeenCalled()
+    expect(docs).toEqual([])
   })
 })

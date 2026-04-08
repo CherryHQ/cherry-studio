@@ -24,7 +24,6 @@ import {
   UrlItemDataSchema
 } from '@shared/data/types/knowledge'
 import { and, desc, eq, inArray, sql } from 'drizzle-orm'
-import { v7 as uuidv7 } from 'uuid'
 
 import { knowledgeBaseService } from './KnowledgeBaseService'
 
@@ -38,15 +37,54 @@ const KNOWLEDGE_ITEM_DATA_SCHEMAS = {
   directory: DirectoryItemDataSchema
 } as const
 
-function resolveCreateGroupId(
-  item: CreateKnowledgeItemsDto['items'][number] & { id: string },
-  batchRefToId: Map<string, string>
-): string | null {
-  if (item.groupRef) {
-    return batchRefToId.get(item.groupRef) ?? null
+function getCreateKnowledgeItemGroupingErrors(
+  plannedItems: CreateKnowledgeItemsDto['items']
+): Record<string, string[]> {
+  const itemsByRef = new Map(
+    plannedItems
+      .filter((item): item is (typeof plannedItems)[number] & { ref: string } => typeof item.ref === 'string')
+      .map((item) => [item.ref, item] as const)
+  )
+
+  for (const item of plannedItems) {
+    if (item.ref && item.groupRef === item.ref) {
+      return {
+        groupRef: ['Knowledge item cannot reference itself as group owner']
+      }
+    }
   }
 
-  return item.groupId ?? null
+  const visitState = new Map<string, 'visiting' | 'visited'>()
+
+  const hasCycle = (ref: string): boolean => {
+    const state = visitState.get(ref)
+    if (state === 'visiting') {
+      return true
+    }
+    if (state === 'visited') {
+      return false
+    }
+
+    visitState.set(ref, 'visiting')
+
+    const targetRef = itemsByRef.get(ref)?.groupRef
+    if (targetRef && itemsByRef.has(targetRef) && hasCycle(targetRef)) {
+      return true
+    }
+
+    visitState.set(ref, 'visited')
+    return false
+  }
+
+  for (const ref of itemsByRef.keys()) {
+    if (hasCycle(ref)) {
+      return {
+        groupRef: ['Knowledge item grouping cannot contain cycles within one request batch']
+      }
+    }
+  }
+
+  return {}
 }
 
 function rowToKnowledgeItem(row: typeof knowledgeItemTable.$inferSelect): KnowledgeItem {
@@ -128,21 +166,12 @@ export class KnowledgeItemService {
       throw DataApiErrorFactory.validation(referenceErrors)
     }
 
-    const batchRefToId = new Map<string, string>()
-    const plannedItems = dto.items.map((item) => {
-      const id = uuidv7()
+    const groupingErrors = getCreateKnowledgeItemGroupingErrors(dto.items)
+    if (Object.keys(groupingErrors).length > 0) {
+      throw DataApiErrorFactory.validation(groupingErrors)
+    }
 
-      if (item.ref) {
-        batchRefToId.set(item.ref, id)
-      }
-
-      return {
-        ...item,
-        id
-      }
-    })
-
-    const values: Array<typeof knowledgeItemTable.$inferInsert> = plannedItems.map((item, index) => {
+    const plannedItems = dto.items.map((item, index) => {
       const parsed = KNOWLEDGE_ITEM_DATA_SCHEMAS[item.type].safeParse(item.data)
       if (!parsed.success) {
         throw DataApiErrorFactory.validation({
@@ -151,36 +180,87 @@ export class KnowledgeItemService {
       }
 
       return {
-        id: item.id,
-        baseId,
-        groupId: resolveCreateGroupId(item, batchRefToId),
-        type: item.type,
-        data: parsed.data,
-        status: 'idle',
-        error: null
+        ...item,
+        parsedData: parsed.data,
+        index
       }
     })
+
     const requestedGroupIds = [
       ...new Set(plannedItems.map((item) => item.groupId).filter((groupId) => groupId != null))
     ]
+    const itemsByRef = new Map<string, KnowledgeItem>()
+    const createdItems = new Map<number, KnowledgeItem>()
 
-    if (requestedGroupIds.length > 0) {
-      const existingGroupRows = await db
-        .select({ id: knowledgeItemTable.id })
-        .from(knowledgeItemTable)
-        .where(and(eq(knowledgeItemTable.baseId, baseId), inArray(knowledgeItemTable.id, requestedGroupIds)))
-      const existingGroupIds = new Set(existingGroupRows.map((row) => row.id))
-      const missingGroupIds = requestedGroupIds.filter((groupId) => !existingGroupIds.has(groupId))
+    await db.transaction(async (tx) => {
+      if (requestedGroupIds.length > 0) {
+        const existingGroupRows = await tx
+          .select({ id: knowledgeItemTable.id })
+          .from(knowledgeItemTable)
+          .where(and(eq(knowledgeItemTable.baseId, baseId), inArray(knowledgeItemTable.id, requestedGroupIds)))
+        const existingGroupIds = new Set(existingGroupRows.map((row) => row.id))
+        const missingGroupIds = requestedGroupIds.filter((groupId) => !existingGroupIds.has(groupId))
 
-      if (missingGroupIds.length > 0) {
-        throw DataApiErrorFactory.validation({
-          groupId: [`Knowledge item group owner not found in base '${baseId}': ${missingGroupIds.join(', ')}`]
-        })
+        if (missingGroupIds.length > 0) {
+          throw DataApiErrorFactory.validation({
+            groupId: [`Knowledge item group owner not found in base '${baseId}': ${missingGroupIds.join(', ')}`]
+          })
+        }
       }
-    }
 
-    const rows = await db.insert(knowledgeItemTable).values(values).returning()
-    const items = rows.map((row) => rowToKnowledgeItem(row))
+      const pendingItems = [...plannedItems]
+
+      while (pendingItems.length > 0) {
+        const readyItems = pendingItems.filter((item) => item.groupRef == null || itemsByRef.has(item.groupRef))
+
+        if (readyItems.length === 0) {
+          throw DataApiErrorFactory.validation({
+            groupRef: ['Knowledge item grouping cannot contain unresolved references within one request batch']
+          })
+        }
+
+        for (const item of readyItems) {
+          const groupId = item.groupRef ? (itemsByRef.get(item.groupRef)?.id ?? null) : (item.groupId ?? null)
+          const [row] = await tx
+            .insert(knowledgeItemTable)
+            .values({
+              baseId,
+              groupId,
+              type: item.type,
+              data: item.parsedData,
+              status: 'idle',
+              error: null
+            })
+            .returning()
+
+          const createdItem = rowToKnowledgeItem(row)
+          createdItems.set(item.index, createdItem)
+
+          if (item.ref) {
+            itemsByRef.set(item.ref, createdItem)
+          }
+        }
+
+        const readyIndices = new Set(readyItems.map((item) => item.index))
+        for (let index = pendingItems.length - 1; index >= 0; index -= 1) {
+          if (readyIndices.has(pendingItems[index].index)) {
+            pendingItems.splice(index, 1)
+          }
+        }
+      }
+    })
+
+    const items = plannedItems.map((item) => {
+      const createdItem = createdItems.get(item.index)
+      if (!createdItem) {
+        throw DataApiErrorFactory.dataInconsistent(
+          'KnowledgeItem',
+          `Knowledge item create result missing for index '${item.index}'`
+        )
+      }
+
+      return createdItem
+    })
 
     logger.info('Created knowledge items', { baseId, count: items.length })
     return { items }

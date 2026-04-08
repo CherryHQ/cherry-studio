@@ -76,7 +76,7 @@
 它是一个 lifecycle service：
 
 1. `@Injectable('KnowledgeRuntimeService')`
-2. `@ServicePhase(Phase.Background)`
+2. `@ServicePhase(Phase.WhenReady)`
 3. 已注册到应用 service registry
 
 它当前对外暴露的核心能力是：
@@ -290,9 +290,9 @@ reader 由 `loadKnowledgeItemDocuments(item)` 按 `item.type` 分派：
 3. `note`
    - 直接把 `content` 包成一个 `Document`
 4. `sitemap`
-   - 先抓 sitemap XML
-   - 展开唯一 URL 集合
-   - 再以内层 `PQueue({ concurrency: 3, intervalCap: 20, interval: 60000 })` 限流抓取网页
+   - 当前已保留 `KnowledgeSitemapReader` 代码路径
+   - 但 runtime 侧暂时不直接索引 `sitemap` item
+   - 调用方需要先把 sitemap 展开为具体 `url` item 再进入索引流程
 5. `directory`
    - 当前只作为 container placeholder
    - reader 会记录 warning 并返回空数组
@@ -353,9 +353,9 @@ embed query
 
 换句话说，rerank 是“代码壳已存在，但还未真正启用”。
 
-## 10. `VectorStoreManager` 的边界
+## 10. `KnowledgeVectorStoreService` 的边界
 
-`VectorStoreManager` 当前负责 runtime vector store 的最小缓存和生命周期管理。
+`KnowledgeVectorStoreService` 当前负责 runtime vector store 的最小缓存和生命周期管理。
 
 它负责：
 
@@ -387,7 +387,7 @@ embed query
 7. 自动重试
 8. chunk 级 queue
 9. item 去重入队
-10. `directory` item 的自动展开
+10. `directory` / `sitemap` item 的自动展开
 11. 真正可用的 rerank runtime 配置接入
 12. 非 `ollama` embedding provider 支持
 13. `fileProcessorId` 驱动的文件处理链路
@@ -400,6 +400,6 @@ embed query
 2. 中间状态 `file_processing` / `read` / `embed` 真的开始持久化写入
 3. rerank runtime 配置真正接通
 4. `fileProcessorId` 开始参与 runtime 执行链路
-5. `directory` item 从占位符变成可自动展开的索引入口
+5. `directory` / `sitemap` item 从占位符变成可自动展开的索引入口
 
 在这些行为落地之前，文档应继续以“当前已实现”为准，不提前写成目标设计。
