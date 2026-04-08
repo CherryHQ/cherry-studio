@@ -15,6 +15,7 @@ import type {
 import { runAgentLoop } from './agentLoop'
 import { buildPlugins } from './plugins/PluginBuilder'
 import { adaptProvider, providerToAiSdkConfig } from './provider/providerConfig'
+import { listModels as listModelsFromProvider } from './services/listModels'
 import type { ToolRegistry } from './tools/ToolRegistry'
 import type { AppProviderSettingsMap } from './types'
 
@@ -222,7 +223,6 @@ export class AiCompletionService {
 
   async listModels(request: AiBaseRequest): Promise<Model[]> {
     const { provider } = await this.resolveFromRedux(request)
-    const { listModels: listModelsFromProvider } = await import('./services/listModels')
     return listModelsFromProvider(provider)
   }
 
