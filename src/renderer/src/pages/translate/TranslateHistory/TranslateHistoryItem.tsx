@@ -78,10 +78,8 @@ export const TranslateHistoryItem = ({ data, onClick }: TranslateHistoryItemProp
       </div>
       {/* Text */}
       <div className="flex flex-1 flex-col">
-        <div className="line-clamp-2 flex-1 overflow-hidden truncate text-foreground text-sm">
-          {preparedData.sourceText}
-        </div>
-        <div className="line-clamp-2 flex-1 overflow-hidden truncate text-foreground-secondary text-sm">
+        <div className="line-clamp-2 flex-1 overflow-hidden text-foreground text-sm">{preparedData.sourceText}</div>
+        <div className="line-clamp-2 flex-1 overflow-hidden text-foreground-secondary text-sm">
           {preparedData.targetText}
         </div>
       </div>
