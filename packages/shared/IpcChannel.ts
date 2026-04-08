@@ -483,5 +483,6 @@ export enum IpcChannel {
   Ai_StreamChunk = 'ai:stream-chunk',
   Ai_StreamDone = 'ai:stream-done',
   Ai_StreamError = 'ai:stream-error',
-  Ai_Abort = 'ai:abort'
+  Ai_Abort = 'ai:abort',
+  Ai_GenerateText = 'ai:generate-text'
 }

@@ -1,16 +1,22 @@
-import type { CreateAgentOptions } from '@cherrystudio/ai-core'
+import type { AiPlugin } from '@cherrystudio/ai-core'
 import { createAgent } from '@cherrystudio/ai-core'
+import type { StringKeys } from '@cherrystudio/ai-core/provider'
 import { loggerService } from '@logger'
 import type { ToolSet, UIMessage, UIMessageChunk } from 'ai'
 import { convertToModelMessages } from 'ai'
 
+import type { AppProviderSettingsMap } from './types'
+
 const logger = loggerService.withContext('agentLoop')
 
-export interface AgentLoopParams {
-  providerId: string
-  providerSettings: unknown
+/** Strict provider ID — must be a known key of AppProviderSettingsMap */
+type AppProviderKey = StringKeys<AppProviderSettingsMap>
+
+export interface AgentLoopParams<T extends AppProviderKey = AppProviderKey> {
+  providerId: T
+  providerSettings: AppProviderSettingsMap[T]
   modelId: string
-  plugins: CreateAgentOptions['plugins']
+  plugins?: AiPlugin[]
   tools?: ToolSet
   system?: string
 }
@@ -24,8 +30,8 @@ export interface AgentLoopParams {
  * Phase 2 will add: outer while(true) for PendingMessageQueue steering,
  * context compilation from DB, prompt cache-friendly prefix stability.
  */
-export function runAgentLoop(
-  params: AgentLoopParams,
+export function runAgentLoop<T extends AppProviderKey>(
+  params: AgentLoopParams<T>,
   messages: UIMessage[],
   signal: AbortSignal
 ): ReadableStream<UIMessageChunk> {
@@ -35,9 +41,9 @@ export function runAgentLoop(
   ;(async () => {
     const modelMessages = await convertToModelMessages(messages)
 
-    const agent = await createAgent({
-      providerId: params.providerId as any,
-      providerSettings: params.providerSettings as any,
+    const agent = await createAgent<AppProviderSettingsMap, T>({
+      providerId: params.providerId,
+      providerSettings: params.providerSettings,
       modelId: params.modelId,
       plugins: params.plugins,
       agentSettings: {

@@ -883,7 +883,16 @@ const api = {
         callback(data)
       ipcRenderer.on(IpcChannel.Ai_StreamError, listener)
       return () => ipcRenderer.removeListener(IpcChannel.Ai_StreamError, listener)
-    }
+    },
+    generateText: (request: {
+      assistantId?: string
+      providerId?: string
+      modelId?: string
+      system?: string
+      prompt?: string
+      messages?: unknown[]
+      mcpToolIds?: string[]
+    }): Promise<{ text: string; usage?: unknown }> => ipcRenderer.invoke(IpcChannel.Ai_GenerateText, request)
   },
   apiServer: {
     getStatus: (): Promise<GetApiServerStatusResult> => ipcRenderer.invoke(IpcChannel.ApiServer_GetStatus),

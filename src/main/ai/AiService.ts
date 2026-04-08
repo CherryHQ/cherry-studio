@@ -4,7 +4,7 @@ import { IpcChannel } from '@shared/IpcChannel'
 import { type SerializedError, serializeError } from '@shared/types/error'
 import type { UIMessageChunk } from 'ai'
 
-import { AiCompletionService, type AiStreamRequest } from './AiCompletionService'
+import { AiCompletionService, type AiGenerateRequest, type AiStreamRequest } from './AiCompletionService'
 import { ToolRegistry } from './tools/ToolRegistry'
 
 const logger = loggerService.withContext('AiService')
@@ -64,6 +64,11 @@ export class AiService extends BaseService {
     // Renderer-initiated abort (fire-and-forget)
     this.ipcOn(IpcChannel.Ai_Abort, (_, requestId: string) => {
       this.completionService.abort(requestId)
+    })
+
+    // Non-streaming text generation (topic naming, summaries, etc.)
+    this.ipcHandle(IpcChannel.Ai_GenerateText, async (_, request: AiGenerateRequest) => {
+      return this.completionService.generateText(request)
     })
   }
 

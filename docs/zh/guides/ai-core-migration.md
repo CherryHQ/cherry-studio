@@ -139,6 +139,7 @@ src/
 
 - **不引入 AiRuntime 中间层**：AiCompletionService 直接调用 `packages/aiCore` 的 `createAgent()`。aiCore 已经封装了 provider 解析 + plugin pipeline + model resolution，再包一层只是透传没有价值。
 - **不使用 BuildContext**：AiCompletionService 直接从各 service 获取数据，传具体参数给具体函数。不引入中间"context bag"对象——每个函数只接收它需要的参数。
+- **AiCompletionService 是所有 AI 调用的唯一入口**：不仅 chat streaming（`streamText`），还包括 topic 命名、笔记摘要、通用文本生成（`generateText`）、图片生成（`generateImage`）、模型列表（`listModels`）、API 验证（`checkModel`）。所有方法共享 provider 解析（`resolveFromRedux`）+ plugin pipeline。Renderer ApiService 中的 AI 调用逐步迁移为 `window.api.ai.*` IPC 调用。
 - **统一使用 ToolLoopAgent，不区分 chat/agent 模式**：Chat 和 Agent 的唯一区别是 tools 的配置方式——Chat 由用户手动配置 tools（MCP tools、web search 等），Agent 自主决策 tools。统一走 `createAgent()` → `agent.stream()`，一条代码路径，无分支。
 - **双循环架构（借鉴 Hermes / pi-mono）**：内层 = AI SDK ToolLoopAgent（LLM → tool call → execute → repeat）；外层 = `runAgentLoop()` 的 `while(true)`。内层退出条件是"LLM 不再调用 tool"，外层退出条件是"没有更多工作"（pending messages 为空、无 follow-up）。`prepareStep` 处理内层步间的 steering，外层兜住内层结束后到达的 steering。
 - **通过 ToolLoopAgent 内置钩子实现内层控制**：`prepareStep`（动态调整 tools/model/messages、消费 steering 消息）、`onStepFinish`（进度推送）、`onFinish`（token 汇总）、`stopWhen`（停止条件）。
@@ -1025,6 +1026,220 @@ export class AiCompletionService {
   }
 }
 
+### AiCompletionService 统一 API 设计
+
+AiCompletionService 不只服务 chat streaming，还要替代 renderer ApiService 中所有的 AI 调用。
+所有调用共享同一个 provider 解析 + plugin pipeline + 错误处理逻辑。
+
+**核心设计：`streamText` 和 `generateText` 都走 `createAgent()`**。
+`ToolLoopAgent` 同时有 `.stream()` 和 `.generate()` 方法。没有 tools 时 `agent.generate()` 等价于直接 `generateText()`。
+一条 agent 创建路径，两种执行方式——不需要分支。
+
+```
+streamText()    → createAgent() → agent.stream()    → ReadableStream<UIMessageChunk>
+generateText()  → createAgent() → agent.generate()  → { text, usage }
+```
+
+**Agent 也能 generate 的场景**：
+- Topic 命名：无 tools，单步 generate
+- 带工具的一次性生成：有 tools，多步 generate（agent 自主调用 tools 后返回最终结果）
+- 摘要/翻译：无 tools，单步 generate
+
+调用方不需要关心是否走 agent——`generateText()` 内部统一通过 `createAgent()` → `agent.generate()`。
+
+**Renderer ApiService 现有入口 → Main AiCompletionService 对应方法**:
+
+| Renderer (ApiService) | 用途 | Agent 方法 | Main 方法 |
+|---|---|---|---|
+| `fetchChatCompletion` | 主聊天（流式） | `agent.stream()` | `streamText()` ✅ 已实现 |
+| `fetchMessagesSummary` | Topic 命名 | `agent.generate()` | `generateText()` |
+| `fetchNoteSummary` | 笔记摘要 | `agent.generate()` | `generateText()` |
+| `fetchGenerate` | 通用文本生成 | `agent.generate()` | `generateText()` |
+| `fetchImageGeneration` | 图片生成 | — (非 LLM) | `generateImage()` |
+| `fetchModels` | 模型列表 | — (HTTP) | `listModels()` |
+| `checkApi` / `checkModel` | API 验证 | `agent.generate()` | `checkModel()` |
+| `fetchMcpTools` | MCP 工具发现 | — | 不需要（MCPService 已在 Main） |
+
+```typescript
+export class AiCompletionService {
+  constructor(private toolRegistry: ToolRegistry) {}
+
+  // ── 流式对话（已实现）──
+  // createAgent() → agent.stream() → toUIMessageStream()
+  streamText(request: AiStreamRequest, signal: AbortSignal): ReadableStream<UIMessageChunk>
+
+  // ── 非流式文本生成 ──
+  // createAgent() → agent.generate()
+  // 用于: topic 命名、笔记摘要、通用文本生成、带工具的一次性生成
+  async generateText(request: AiGenerateRequest): Promise<{ text: string; usage?: LanguageModelUsage }> {
+    const { provider, model } = await this.resolveFromRedux(request)
+    const adapted = adaptProvider({ provider })
+    const sdkConfig = await providerToAiSdkConfig(adapted, model)
+    const plugins = buildPlugins()
+
+    // 和 streamText 共享同一个 agent 创建路径
+    const tools = this.toolRegistry.resolve(request.mcpToolIds)
+    const agent = await createAgent({
+      providerId: sdkConfig.providerId,
+      providerSettings: sdkConfig.providerSettings,
+      modelId: model.id,
+      plugins,
+      agentSettings: {
+        tools,
+        instructions: request.system,
+      },
+    })
+
+    // agent.generate() — 没有 tools 时就是单步 LLM 调用
+    // 有 tools 时 agent 自主决策多步调用后返回最终结果
+    const result = await agent.generate({
+      messages: request.messages ?? [],
+      prompt: request.prompt,
+    })
+
+    return { text: result.text, usage: result.usage }
+  }
+
+  // ── 图片生成（非 agent 路径）──
+  async generateImage(request: AiImageRequest): Promise<{ images: string[] }> {
+    const { provider, model } = await this.resolveFromRedux(request)
+    const adapted = adaptProvider({ provider })
+    const sdkConfig = await providerToAiSdkConfig(adapted, model)
+
+    const result = await aiCoreGenerateImage({
+      providerId: sdkConfig.providerId,
+      providerSettings: sdkConfig.providerSettings,
+      modelId: model.id,
+      prompt: request.prompt,
+      n: request.n ?? 1,
+      size: request.size,
+    })
+
+    return { images: result.images.map(img => img.base64 ?? img.url).filter(Boolean) as string[] }
+  }
+
+  // ── 模型列表（非 agent 路径）──
+  async listModels(request: { assistantId?: string; providerId?: string }): Promise<Model[]> {
+    const { provider } = await this.resolveFromRedux(request as AiStreamRequest)
+    return fetchModelsFromProvider(provider)
+  }
+
+  // ── API 验证 ──
+  async checkModel(request: AiBaseRequest): Promise<{ latency: number }> {
+    const start = performance.now()
+    await this.generateText({ ...request, system: 'test', prompt: 'hi' })
+    return { latency: performance.now() - start }
+  }
+
+  // ... resolveFromRedux, registerRequest, abort 等已有方法
+}
+```
+
+**和 agentLoop 的关系**:
+
+| 方法 | 路径 | 工具支持 | 流式 |
+|---|---|---|---|
+| `streamText()` | `runAgentLoop()` → `agent.stream()` | ✅ tools + steering | ✅ |
+| `generateText()` | 直接 `createAgent()` → `agent.generate()` | ✅ tools | ❌ |
+| `generateImage()` | `aiCoreGenerateImage()` | ❌ | ❌ |
+| `listModels()` | Provider HTTP | ❌ | ❌ |
+
+`streamText` 走 `runAgentLoop`（因为需要双循环 + steering + 流式拼接）。
+`generateText` 直接创建 agent 调 `.generate()`（不需要循环，一次调用返回结果）。
+两者共享 `createAgent()` 的 provider 解析 + plugin pipeline。
+
+**共享 provider 解析**: 所有方法复用 `resolveFromRedux()`，通过 assistantId 或 explicit providerId/modelId 解析。
+
+**IPC 通道**:
+
+| IPC Channel | 方向 | 用途 |
+|---|---|---|
+| `Ai_StreamRequest` | Renderer → Main | 流式聊天（已有） |
+| `Ai_StreamChunk/Done/Error` | Main → Renderer | 流式响应（已有） |
+| `Ai_Abort` | Renderer → Main | 取消请求（已有） |
+| `Ai_GenerateText` | Renderer → Main | 非流式文本生成（新增） |
+| `Ai_GenerateImage` | Renderer → Main | 图片生成（新增） |
+| `Ai_ListModels` | Renderer → Main | 模型列表（新增） |
+| `Ai_CheckModel` | Renderer → Main | API 验证（新增） |
+
+**Preload API 扩展**:
+
+```typescript
+ai: {
+  // 已有
+  streamText: (request) => ipcRenderer.invoke(Ai_StreamRequest, request),
+  abort: (requestId) => ipcRenderer.send(Ai_Abort, requestId),
+  onStreamChunk: (callback) => ...,
+  onStreamDone: (callback) => ...,
+  onStreamError: (callback) => ...,
+
+  // 新增
+  generateText: (request) => ipcRenderer.invoke(Ai_GenerateText, request),
+  generateImage: (request) => ipcRenderer.invoke(Ai_GenerateImage, request),
+  listModels: (request) => ipcRenderer.invoke(Ai_ListModels, request),
+  checkModel: (request) => ipcRenderer.invoke(Ai_CheckModel, request),
+}
+```
+
+**Renderer 侧迁移**: ApiService 中的函数逐个替换为 `window.api.ai.*` 调用：
+
+```typescript
+// Before (renderer 直接调 LLM):
+export async function fetchMessagesSummary({ messages }) {
+  const model = getQuickModel()
+  const provider = getProviderByModel(model)
+  const AI = new AiProvider(model, provider)
+  const { getText } = await AI.completions(model.id, params, config)
+  return getText()
+}
+
+// After (通过 IPC 走 Main):
+export async function fetchMessagesSummary({ messages }) {
+  const { text } = await window.api.ai.generateText({
+    assistantId: getDefaultAssistant().id,
+    system: namingPrompt,
+    prompt: conversationJson,
+  })
+  return text
+}
+```
+
+**迁移顺序** (从低风险到高风险):
+
+1. `checkModel` — 最简单，最小请求
+2. `fetchModels` — 无 AI 调用，只是 HTTP
+3. `fetchMessagesSummary` / `fetchNoteSummary` — `generateText`，非流式
+4. `fetchGenerate` — 同上
+5. `fetchImageGeneration` — `generateImage`，独立路径
+6. `fetchChatCompletion` — 已被 V2 路径 (`streamText`) 替代，最后删除
+
+**请求类型**:
+
+```typescript
+// 所有非流式请求的基础类型
+interface AiBaseRequest {
+  assistantId?: string
+  providerId?: string
+  modelId?: string
+}
+
+// 文本生成
+interface AiGenerateRequest extends AiBaseRequest {
+  system?: string
+  prompt?: string
+  messages?: ModelMessage[]
+  providerOptions?: Record<string, unknown>
+}
+
+// 图片生成
+interface AiImageRequest extends AiBaseRequest {
+  prompt: string
+  inputImages?: string[]
+  n?: number
+  size?: string
+}
+```
+
 /**
  * ToolRegistry: 统一管理所有 tools（MCP + 内置），每个 tool 自带 AI SDK needsApproval 声明。
  *
@@ -1386,6 +1601,7 @@ class PendingMessageQueue {
 | Pending Messages | `PendingMessageQueue` + 双层 drain | 内层 `prepareStep` 步间消费 + 外层循环退出后消费。两层保证 steering 不丢失 |
 | 上下文管理 | **无损：检索 + 分层缓存** | DB 是 memory，context window 是 viewport。三层结构（system / retrieved context / working memory）。外层更新检索，内层只追加尾部 → prompt cache friendly |
 | 消息持久化 | **完成边界，非流式** | stream 是传输通道，不是存储。`onFinish` 持久化完整消息 → `Ai_MessagesPersisted` IPC → Renderer `useInvalidateCache('/messages')` (SWR) |
+| AI 统一入口 | **AiCompletionService** | 所有 AI 调用（chat stream、generateText、generateImage、checkModel、listModels）走同一个 service，共享 provider 解析 + plugin pipeline |
 | BuildContext | **不使用** | 直接传具体参数给具体函数，避免 God Object |
 
 ### Step 1.5: 搬迁纯逻辑文件到 Main Process
@@ -2319,25 +2535,34 @@ Phase 1 剩余 (Main AI 服务):
   ⑤ 重写 PluginBuilder (纯函数，接收具体参数)
   ⑥ 实现 runAgentLoop 纯函数 (双循环: 外层 while(true) + 内层 ToolLoopAgent) + PendingMessageQueue
   ⑦ 重写 AiCompletionService (编排层: 准备参数 → 调用 runAgentLoop())
+  ⑧ AiCompletionService 扩展统一 API: generateText / generateImage / listModels / checkModel
 
 Phase 2 (IPC 通道):
-  ⑧ preload API 暴露
-  ⑨ 联调 — Renderer 发请求 → Main 流式回传
+  ⑨ preload API 暴露 (streamText + generateText + generateImage + listModels + checkModel)
+  ⑩ 联调 — Renderer 发请求 → Main 流式回传
+
+Phase 2.5 (ApiService 迁移):
+  ⑪ checkModel → window.api.ai.checkModel (最简单，最小请求)
+  ⑫ fetchModels → window.api.ai.listModels (无 AI 调用)
+  ⑬ fetchMessagesSummary / fetchNoteSummary → window.api.ai.generateText
+  ⑭ fetchGenerate → window.api.ai.generateText
+  ⑮ fetchImageGeneration → window.api.ai.generateImage
+  ⑯ 删除 renderer ApiService 中的 AI 调用代码 + AiProvider 类
 
 Phase 3 (useChat 接入):
-  ⑩ @ai-sdk/react + DataUIPart schema + useAiChat hook
-  ⑪ Message 渲染组件改造 (parts 替代 blocks)
-  ⑫ Chat.tsx 改造 + 删除旧 aiCore 代码
+  ⑰ @ai-sdk/react + DataUIPart schema + useAiChat hook
+  ⑱ Message 渲染组件改造 (parts 替代 blocks)
+  ⑲ Chat.tsx 改造 + 删除旧 aiCore 代码
 
 Phase 4 (Agent 统一):
-  ⑬ Agent 特有功能完善 (ToolRegistry needsApproval 配置 + 步骤进度)，权限审批走 AI SDK 原生（steering 已在 ⑥ runAgentLoop 实现）
-  ⑭ useAiChat Agent 支持
-  ⑮ 删除旧 Agent 代码 + E2E 测试
+  ⑳ Agent 特有功能完善 (ToolRegistry needsApproval 配置 + 步骤进度)，权限审批走 AI SDK 原生（steering 已在 ⑥ runAgentLoop 实现）
+  ㉑ useAiChat Agent 支持
+  ㉒ 删除旧 Agent 代码 + E2E 测试
 
 Phase 5 (架构优化，迁移完成后):
-  ⑯ 纯逻辑文件提取到 packages/aiCore (reasoning, options, modelParameters 等)
-  ⑰ parameterBuilder 拆分为 aiCore plugins (逐个拆，每拆一个写测试)
-  ⑱ 评估 Utility Process 迁移时机
+  ㉓ 纯逻辑文件提取到 packages/aiCore (reasoning, options, modelParameters 等)
+  ㉔ parameterBuilder 拆分为 aiCore plugins (逐个拆，每拆一个写测试)
+  ㉕ 评估 Utility Process 迁移时机
 
 Phase 6 (TODO: ClaudeCodeService → 统一 ToolLoopAgent):
   ⑲ 替代 ClaudeCodeService (Claude Agent SDK) 为统一的 ToolLoopAgent 实现
