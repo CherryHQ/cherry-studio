@@ -86,15 +86,18 @@
 3. `addItems(base, items)`
 4. `deleteItems(base, items)`
 5. `search(base, query)`
+6. `expandDirectoryItem(baseId, itemId)`
+7. `expandSitemapItem(baseId, itemId)`
 
 它负责：
 
 1. runtime 入口方法
-2. item 级索引任务入队与执行
-3. `knowledge_item.status` 的有限状态推进
-4. 失败与中断原因写回数据库
-5. 向量库实例的获取、删除和清理
-6. 检索后的 rerank 串联
+2. `directory` / `sitemap` owner item 的展开
+3. item 级索引任务入队与执行
+4. `knowledge_item.status` 的有限状态推进
+5. 失败与中断原因写回数据库
+6. 向量库实例的获取、删除和清理
+7. 检索后的 rerank 串联
 
 它不负责：
 
@@ -123,6 +126,31 @@ UI
 3. `knowledge-runtime:add-items`
 4. `knowledge-runtime:delete-items`
 5. `knowledge-runtime:search`
+6. `knowledge-runtime:expand-directory-item`
+7. `knowledge-runtime:expand-sitemap-item`
+
+### 4.1.1 Container item 的当前 UI 调用链
+
+`directory` / `sitemap` 当前已经不是“先展开再一次性 createMany root + children”的旧调用方式。
+
+当前 UI 侧已经落地为 root-first 两阶段流程：
+
+```text
+UI
+ -> Data API create owner item
+ -> preload IPC expand owner item
+ -> Data API create child items
+ -> preload IPC add-items(child ids)
+```
+
+也就是说：
+
+1. owner item 的主数据创建仍然走 Data API
+2. 展开逻辑走 runtime IPC
+3. child item 的主数据创建仍然走 Data API
+4. 只有真正可索引的 child item 才进入 runtime `addItems`
+
+这个调用链仍然符合“Data API 负责主数据，runtime 负责展开/索引”的分层，不属于边界漂移。
 
 ### 4.2 Main 进程内部调用
 
@@ -292,11 +320,11 @@ reader 由 `loadKnowledgeItemDocuments(item)` 按 `item.type` 分派：
 4. `sitemap`
    - 当前已保留 `KnowledgeSitemapReader` 代码路径
    - 但 runtime 侧暂时不直接索引 `sitemap` item
-   - 调用方需要先把 sitemap 展开为具体 `url` item 再进入索引流程
+   - 当前调用方会先创建 sitemap owner，再通过 runtime IPC 将其展开为具体 `url` item，再进入索引流程
 5. `directory`
    - 当前只作为 container placeholder
    - reader 会记录 warning 并返回空数组
-   - 也就是说它不会直接产出可索引文档，调用方需要先把目录展开为具体子 item
+   - 也就是说它不会直接产出可索引文档，调用方需要先创建 directory owner，再通过 runtime IPC 将其展开为具体子 item
 
 ### 9.2 Chunk
 
@@ -387,7 +415,7 @@ embed query
 7. 自动重试
 8. chunk 级 queue
 9. item 去重入队
-10. `directory` / `sitemap` item 的自动展开
+10. runtime 在 `addItems` 内对 `directory` / `sitemap` item 做隐式自动展开
 11. 真正可用的 rerank runtime 配置接入
 12. 非 `ollama` embedding provider 支持
 13. `fileProcessorId` 驱动的文件处理链路
@@ -400,6 +428,6 @@ embed query
 2. 中间状态 `file_processing` / `read` / `embed` 真的开始持久化写入
 3. rerank runtime 配置真正接通
 4. `fileProcessorId` 开始参与 runtime 执行链路
-5. `directory` / `sitemap` item 从占位符变成可自动展开的索引入口
+5. runtime 在 `addItems` 中原生接管 `directory` / `sitemap` item 的隐式展开与索引编排
 
 在这些行为落地之前，文档应继续以“当前已实现”为准，不提前写成目标设计。
