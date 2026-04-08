@@ -24,7 +24,17 @@ import {
 import * as z from 'zod'
 
 // Re-export const objects and types for consumers
-export { Currency, ENDPOINT_TYPE, EndpointType, MODALITY, Modality, MODEL_CAPABILITY, ModelCapability, ReasoningEffort }
+export {
+  Currency,
+  ENDPOINT_TYPE,
+  EndpointType,
+  MODALITY,
+  Modality,
+  MODEL_CAPABILITY,
+  ModelCapability,
+  objectValues,
+  ReasoningEffort
+}
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // Zod schemas (formerly in provider-registry/schemas, now owned by shared)
@@ -75,6 +85,11 @@ export const UNIQUE_MODEL_ID_SEPARATOR = '::'
 
 /** UniqueModelId type: "providerId::modelId" */
 export type UniqueModelId = `${string}${typeof UNIQUE_MODEL_ID_SEPARATOR}${string}`
+
+/** Zod schema for UniqueModelId with runtime validation */
+export const UniqueModelIdSchema = z.string().refine((v) => v.includes(UNIQUE_MODEL_ID_SEPARATOR), {
+  message: `Must be a valid UniqueModelId (providerId${UNIQUE_MODEL_ID_SEPARATOR}modelId)`
+}) as z.ZodType<UniqueModelId>
 
 /**
  * Create a UniqueModelId from provider and model IDs
@@ -219,7 +234,7 @@ export type RuntimeModelPricing = z.infer<typeof RuntimeModelPricingSchema>
 
 export const ModelSchema = z.object({
   /** Unique identifier: "providerId::modelId" */
-  id: z.string() as z.ZodType<UniqueModelId>,
+  id: UniqueModelIdSchema,
   /** Provider ID */
   providerId: z.string(),
   /** API Model ID - The actual ID used when calling the provider's API */
@@ -269,7 +284,7 @@ export const ModelSchema = z.object({
   /** Whether this model is hidden from lists */
   isHidden: z.boolean(),
   /** Replacement model if this one is deprecated */
-  replaceWith: (z.string() as z.ZodType<UniqueModelId>).optional()
+  replaceWith: UniqueModelIdSchema.optional()
 })
 
 export type Model = z.infer<typeof ModelSchema>
