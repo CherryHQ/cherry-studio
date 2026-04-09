@@ -2964,7 +2964,53 @@ AiCompletionService.streamText(request)
 | sed | 检测 `sed -i` 编辑命令 → 预览修改 → 模拟执行（不实际调 sed） |
 | 工作目录 | 子 agent 禁止 `cd` 改变父工作目录 |
 | 命令解析 | AST 解析 `&&` `||` `|` `;` 运算符和子命令 |
-| **needsApproval** | `true`（或条件审批：只读命令如 `ls`, `cat` 可自动批准） |
+| **needsApproval** | 命令级条件审批（见下方权限设计） |
+
+**Bash 权限设计 — 命令级 needsApproval**
+
+`needsApproval: true` 太粗暴（每个 `ls` 都弹窗），`false` 太危险（`rm -rf /` 直接执行）。
+需要按**具体命令 + 子参数**分类判断。
+
+SDK 用 AST 解析（`splitCommandWithOperators` + `parseForSecurity`），拆出管道、`&&`/`||`/`;` 子命令后逐个分类。我们用 `needsApproval: async function` 实现等价逻辑：
+
+```typescript
+needsApproval: async ({ toolCall }) => {
+  const command = toolCall.args.command as string
+  const parsed = parseCommand(command)  // AST 解析，不是正则
+  return !parsed.every(isSafeCommand)   // 所有子命令都安全才自动批准
+}
+```
+
+**命令分类**:
+
+| 分类 | 命令示例 | 自动批准 |
+|------|---------|---------|
+| **只读文件** | `ls`, `cat`, `head`, `tail`, `wc`, `file`, `stat` | ✅ |
+| **只读搜索** | `grep`, `find`, `which`, `whereis`, `type` | ✅ |
+| **只读 git** | `git status`, `git diff`, `git log`, `git branch` | ✅ |
+| **环境信息** | `echo`, `pwd`, `env`, `uname`, `whoami`, `date` | ✅ |
+| **写入文件** | `cp`, `mv`, `mkdir`, `touch` | ❌ 需审批 |
+| **删除** | `rm`, `rmdir`, `shred` | ❌ 需审批 |
+| **权限修改** | `chmod`, `chown`, `chgrp` | ❌ 需审批 |
+| **git 写操作** | `git commit`, `git push`, `git reset`, `git checkout` | ❌ 需审批 |
+| **包管理** | `npm install`, `pip install`, `brew install` | ❌ 需审批 |
+| **网络** | `curl`, `wget`, `ssh`, `scp` | ❌ 需审批 |
+| **执行任意代码** | `eval`, `exec`, `source`, `bash -c`, `sh -c` | ❌ 需审批 |
+| **管道到执行** | `curl ... | sh`, `wget ... | bash` | ❌ 需审批（组合判断） |
+
+**子参数影响分类**:
+
+同一命令的不同参数改变安全级别：
+- `git status` → 安全 vs `git push --force` → 危险
+- `rm file.txt` → 需审批 vs `rm -rf /` → 需审批 + 高亮警告
+- `curl https://api.com` → 需审批 vs `curl ... | sh` → 需审批 + 高亮警告
+
+**实现要点**:
+1. **AST 解析必须**: 正则不可靠（`echo "rm -rf /"` 不该被标记为危险）
+2. **管道链全链路检查**: `cat file | grep pattern` 安全，`curl url | bash` 危险
+3. **环境变量展开**: `$CMD` 无法静态分析 → 标记为需审批
+4. **accessiblePaths 校验**: 即使命令安全，路径超出 `session.accessible_paths` 也拒绝
+5. **用户可配置白名单**: per-agent `allowed_commands` 覆盖默认分类
 
 ##### 内置搜索/知识/记忆 Tools（Cherry Studio 自有服务）
 
