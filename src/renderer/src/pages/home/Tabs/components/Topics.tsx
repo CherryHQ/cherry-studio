@@ -19,6 +19,7 @@ import { useNotesSettings } from '@renderer/hooks/useNotesSettings'
 import { finishTopicRenaming, startTopicRenaming, TopicManager } from '@renderer/hooks/useTopic'
 import { fetchMessagesSummary } from '@renderer/services/ApiService'
 import { getDefaultTopic, mapLegacyTopicToDto } from '@renderer/services/AssistantService'
+import { chatSessionManager } from '@renderer/services/ChatSessionManager'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import type { RootState } from '@renderer/store'
 import { newMessagesActions } from '@renderer/store/newMessage'
@@ -56,7 +57,7 @@ import {
   UploadIcon,
   XIcon
 } from 'lucide-react'
-import { useCallback, useDeferredValue, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useDeferredValue, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useDispatch, useSelector } from 'react-redux'
 import styled from 'styled-components'
@@ -122,6 +123,7 @@ export const Topics: React.FC<Props> = ({ assistant: _assistant, activeTopic, se
   const [renamingTopics] = useCache('topic.renaming')
   const topicLoadingQuery = useSelector((state: RootState) => state.messages.loadingByTopic)
   const topicFulfilledQuery = useSelector((state: RootState) => state.messages.fulfilledByTopic)
+  const v2Snapshot = useSyncExternalStore(chatSessionManager.subscribe, chatSessionManager.getSnapshot)
   const [newlyRenamedTopics] = useCache('topic.newly_renamed')
 
   const borderRadius = showTopicTime ? 12 : 'var(--list-item-border-radius)'
@@ -150,8 +152,14 @@ export const Topics: React.FC<Props> = ({ assistant: _assistant, activeTopic, se
     }
   })
 
-  const isPending = useCallback((topicId: string) => topicLoadingQuery[topicId], [topicLoadingQuery])
-  const isFulfilled = useCallback((topicId: string) => topicFulfilledQuery[topicId], [topicFulfilledQuery])
+  const isPending = useCallback(
+    (topicId: string) => topicLoadingQuery[topicId] || v2Snapshot.streamingTopicIds.includes(topicId),
+    [topicLoadingQuery, v2Snapshot.streamingTopicIds]
+  )
+  const isFulfilled = useCallback(
+    (topicId: string) => topicFulfilledQuery[topicId] || v2Snapshot.fulfilledTopicIds.includes(topicId),
+    [topicFulfilledQuery, v2Snapshot.fulfilledTopicIds]
+  )
   const dispatch = useDispatch()
 
   useEffect(() => {

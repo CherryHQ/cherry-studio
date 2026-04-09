@@ -181,6 +181,7 @@ const Chat: FC<Props> = (props) => {
               />
               {USE_V2_CHAT ? (
                 <V2ChatContent
+                  key={props.activeTopic.id}
                   assistant={assistant}
                   topic={props.activeTopic}
                   setActiveTopic={props.setActiveTopic}

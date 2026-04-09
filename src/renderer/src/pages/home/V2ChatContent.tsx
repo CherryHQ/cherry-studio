@@ -1,20 +1,20 @@
 import { dataApiService } from '@data/DataApiService'
 import { loggerService } from '@logger'
 import { isDev } from '@renderer/config/constant'
-import { type CherryUIMessage, useAiChat } from '@renderer/hooks/useAiChat'
+import type { CherryUIMessage } from '@renderer/hooks/useAiChat'
+import { useChatSession } from '@renderer/hooks/useChatSession'
 import { type V2ChatOverrides, V2ChatOverridesProvider } from '@renderer/hooks/useMessageOperations'
 import { useTopicMessagesV2 } from '@renderer/hooks/useTopicMessagesV2'
-import { useV2MessageAdapter } from '@renderer/hooks/useV2MessageAdapter'
-import { mapLegacyTopicToDto } from '@renderer/services/AssistantService'
 import type { Assistant, FileMetadata, Model, Topic } from '@renderer/types'
 import type { Message, MessageBlock } from '@renderer/types/newMessage'
+import { AssistantMessageStatus, UserMessageStatus } from '@renderer/types/newMessage'
 import { blocksToParts } from '@renderer/utils/blocksToparts'
 import type { CherryMessagePart } from '@shared/data/types/message'
 import type { FC } from 'react'
-import { useCallback, useEffect, useMemo, useRef } from 'react'
+import { useCallback, useMemo, useRef } from 'react'
 
 import Inputbar from './Inputbar/Inputbar'
-import { PartsProvider, V2BlockProvider } from './Messages/Blocks'
+import { PartsProvider } from './Messages/Blocks'
 import Messages from './Messages/Messages'
 
 const logger = loggerService.withContext('V2ChatContent')
@@ -34,31 +34,27 @@ interface Props {
  * Outer shell (V2ChatContent):
  *   - Loads history from DataApi via useTopicMessagesV2
  *   - Renders a loading state until history is ready
- *   - Only mounts V2ChatContentInner AFTER history is loaded, so useAiChat
- *     receives complete initialMessages on its first (and only) read
+ *   - Only mounts V2ChatContentInner AFTER history is loaded, so the
+ *     ChatSession receives complete initialMessages on its first creation
  *
  * Inner component (V2ChatContentInner):
- *   - Owns useAiChat (streaming) + useV2MessageAdapter
- *   - Merge strategy: history adaptedMessages are the AUTHORITY for persisted
- *     messages (they carry askId, parentId, modelId, traceId, real timestamps).
- *     useV2MessageAdapter is only used for NEW messages (IDs not in history).
+ *   - Consumes ChatSession via useChatSession (service-layer managed)
+ *   - Stream lifecycle is decoupled from React — switching topics does NOT
+ *     kill the stream. ChatSessionManager keeps the session alive.
  *   - PartsContext: history parts + live streaming parts overlay
- *   - V2BlockContext: history blocks + live streaming blocks overlay
  */
 const V2ChatContent: FC<Props> = ({ assistant, topic, setActiveTopic, mainHeight }) => {
   const {
     uiMessages: historyUIMessages,
     adaptedMessages: historyMessages,
-    blockMap: historyBlockMap,
     partsMap: historyPartsMap,
     isLoading: isHistoryLoading,
     refresh
   } = useTopicMessagesV2(topic.id)
 
   // Don't mount the chat instance until history is loaded.
-  // useChat only reads initialMessages once on creation — if we mount it
-  // while history is still loading, the chat instance starts with zero context
-  // and will never pick up the history retroactively.
+  // ChatSession only reads initialMessages on creation — if we create it
+  // while history is still loading, the session starts with zero context.
   if (isHistoryLoading) {
     return (
       <div
@@ -79,7 +75,6 @@ const V2ChatContent: FC<Props> = ({ assistant, topic, setActiveTopic, mainHeight
       mainHeight={mainHeight}
       historyUIMessages={historyUIMessages}
       historyMessages={historyMessages}
-      historyBlockMap={historyBlockMap}
       historyPartsMap={historyPartsMap}
       refresh={refresh}
     />
@@ -93,7 +88,6 @@ const V2ChatContent: FC<Props> = ({ assistant, topic, setActiveTopic, mainHeight
 interface InnerProps extends Props {
   historyUIMessages: CherryUIMessage[]
   historyMessages: Message[]
-  historyBlockMap: Record<string, MessageBlock>
   historyPartsMap: Record<string, CherryMessagePart[]>
   refresh: () => Promise<CherryUIMessage[]>
 }
@@ -105,124 +99,14 @@ const V2ChatContentInner: FC<InnerProps> = ({
   mainHeight,
   historyUIMessages,
   historyMessages,
-  historyBlockMap,
   historyPartsMap,
   refresh
 }) => {
   // Set of persisted message IDs — used to distinguish history vs. live messages
   const historyIds = useMemo(() => new Set(historyUIMessages.map((m) => m.id)), [historyUIMessages])
 
-  // Stable refs so handleFinish can read the latest values without closing over stale state
-  const streamingUIMessagesRef = useRef<CherryUIMessage[]>([])
-  const setMessagesRef = useRef<((messages: CherryUIMessage[]) => void) | null>(null)
-  const topicRef = useRef(topic)
-  topicRef.current = topic
-  const historyIdsRef = useRef(historyIds)
-  historyIdsRef.current = historyIds
-
-  /**
-   * Persist a completed exchange (user + assistant) to DataApi.
-   *
-   * Both messages are written only after the assistant finishes streaming.
-   * - If the stream errors (isError=true), nothing is persisted — DB stays clean.
-   * - For new conversations: user message is created first, then assistant.
-   * - For regenerate/resend: user message already exists in history, only
-   *   the new assistant message is persisted (parentId = existing user id).
-   * - On abort (isAbort=true), assistant is persisted with status 'paused'.
-   */
-  const handleFinish = useCallback(
-    async (assistantMessage: CherryUIMessage, isAbort: boolean, isError: boolean) => {
-      if (isError) {
-        logger.warn('Stream ended with error — skipping persistence', { id: assistantMessage.id })
-        return
-      }
-
-      // Abort during 'submitted' state (before first token) yields an empty assistant message.
-      // Persisting it would leave a contentless 'paused' record in SQLite — skip instead.
-      // Only count parts with substantive content (text with non-empty body, reasoning, tool calls, files).
-      // Metadata-only parts like 'step-start' or 'source-url' don't count as content.
-      const contentPartTypes = new Set(['text', 'reasoning', 'tool-invocation', 'file'])
-      const hasContent = assistantMessage.parts.some(
-        (p) => contentPartTypes.has(p.type) && (p.type !== 'text' || p.text.length > 0)
-      )
-      if (isAbort && !hasContent) {
-        logger.info('Abort with empty assistant message — skipping persistence', { id: assistantMessage.id })
-        return
-      }
-
-      // Find the user message that immediately precedes this assistant response
-      const allMessages = streamingUIMessagesRef.current
-      const assistantIndex = allMessages.findIndex((m) => m.id === assistantMessage.id)
-      const userMessage = assistantIndex > 0 ? allMessages[assistantIndex - 1] : undefined
-
-      if (!userMessage || userMessage.role !== 'user') {
-        logger.error('Could not find preceding user message — skipping persistence', {
-          assistantId: assistantMessage.id
-        })
-        return
-      }
-
-      try {
-        // 0. Ensure topic exists in SQLite (lazy-create for topics originating from IndexedDB/Redux)
-        const currentTopic = topicRef.current
-        try {
-          await dataApiService.get(`/topics/${currentTopic.id}`)
-        } catch {
-          await dataApiService.post('/topics', { body: mapLegacyTopicToDto(currentTopic) })
-          logger.info('Lazy-created topic in SQLite', { topicId: currentTopic.id })
-        }
-
-        // 1. Determine parentId for assistant message
-        const isUserPersisted = historyIdsRef.current.has(userMessage.id)
-        let userParentId: string
-
-        if (isUserPersisted) {
-          // Regenerate/resend: user message already in DB, skip creation
-          userParentId = userMessage.id
-          logger.info('User message already persisted, skipping creation', { userMsgId: userParentId })
-        } else {
-          // New conversation: persist user message first
-          const savedUser = await dataApiService.post(`/topics/${currentTopic.id}/messages`, {
-            body: {
-              role: 'user',
-              data: { parts: userMessage.parts as CherryMessagePart[] },
-              status: 'success'
-            }
-          })
-          userParentId = savedUser.id
-        }
-
-        // 2. Persist assistant message linked to the user message
-        const assistantStatus = isAbort ? 'paused' : 'success'
-        const totalTokens = assistantMessage.metadata?.totalTokens
-        await dataApiService.post(`/topics/${currentTopic.id}/messages`, {
-          body: {
-            role: 'assistant',
-            parentId: userParentId,
-            assistantId: assistant.id,
-            data: { parts: assistantMessage.parts as CherryMessagePart[] },
-            status: assistantStatus,
-            ...(totalTokens !== undefined && { stats: { totalTokens } })
-          }
-        })
-
-        logger.info('Persisted exchange', { userMsgId: userParentId, assistantMsgId: assistantMessage.id })
-
-        // Refresh history from DataApi, then replace useChat's internal messages
-        // with the persisted versions so that temporary IDs are swapped for real
-        // server-assigned IDs. Without this, edit/delete/regenerate would 404.
-        const refreshedMessages = await refresh()
-        if (refreshedMessages.length > 0) {
-          setMessagesRef.current?.(refreshedMessages)
-        }
-      } catch (err) {
-        logger.error('Failed to persist exchange', { assistantMsgId: assistantMessage.id, err })
-      }
-    },
-    [topic.id, assistant.id, refresh]
-  )
-
-  // useAiChat now receives complete history as initialMessages (guaranteed non-loading)
+  // ChatSession — managed by ChatSessionManager, survives component unmount.
+  // useChatSession handles retain/release automatically.
   const {
     messages: streamingUIMessages,
     setMessages,
@@ -231,21 +115,14 @@ const V2ChatContentInner: FC<InnerProps> = ({
     error,
     sendMessage,
     regenerate
-  } = useAiChat({
-    chatId: topic.id,
+  } = useChatSession(topic.id, {
     topicId: topic.id,
     assistantId: assistant.id,
+    topic,
+    assistant,
     initialMessages: historyUIMessages.length > 0 ? historyUIMessages : undefined,
-    onFinish: handleFinish,
-    onError: (error) => {
-      window.toast.error(error.message || 'AI stream error')
-    }
-  })
-
-  // Keep refs in sync with latest values after every render
-  useEffect(() => {
-    streamingUIMessagesRef.current = streamingUIMessages
-    setMessagesRef.current = setMessages
+    historyIds,
+    refresh
   })
 
   /** Delete a single message (reparent children to grandparent) and sync UI. */
@@ -256,7 +133,6 @@ const V2ChatContentInner: FC<InnerProps> = ({
         setMessages((msgs) => msgs.filter((m) => m.id !== id))
       } catch (err: unknown) {
         // Root messages have no parent to reparent children to — fallback to cascade.
-        // Only retry on INVALID_OPERATION; rethrow anything else (network, auth, etc.).
         if (err && typeof err === 'object' && 'code' in err && err.code === 'INVALID_OPERATION') {
           const result = await dataApiService.delete(`/messages/${id}`, { query: { cascade: true } })
           const deletedSet = new Set(result.deletedIds)
@@ -285,29 +161,21 @@ const V2ChatContentInner: FC<InnerProps> = ({
 
   /** Clear all messages for the current topic from DataApi and UI. */
   const handleClearTopicMessages = useCallback(async () => {
-    // Find the root message (no parentId / askId) and cascade-delete it
     const rootMsg = historyMessages.find((m) => !m.askId)
     if (rootMsg) {
       await dataApiService.delete(`/messages/${rootMsg.id}`, { query: { cascade: true } })
-      logger.info('Cleared all messages via root cascade delete', { topicId: topicRef.current.id, rootId: rootMsg.id })
+      logger.info('Cleared all messages via root cascade delete', { topicId: topic.id, rootId: rootMsg.id })
     }
     setMessages([])
     await refresh()
-  }, [historyMessages, refresh, setMessages])
+  }, [historyMessages, refresh, setMessages, topic.id])
 
   /** Edit a message's blocks: convert to parts, persist to DataApi, and refresh history. */
   const handleEditMessage = useCallback(
     async (messageId: string, editedBlocks: MessageBlock[]) => {
       const parts = blocksToParts(editedBlocks)
-
-      // Persist to DataApi first
       await dataApiService.patch(`/messages/${messageId}`, { body: { data: { parts } } })
       logger.info('Edited message', { messageId, partCount: parts.length })
-
-      // Refresh history — the edited message is in historyIds so its rendered
-      // data comes from historyMessages/historyBlockMap/historyPartsMap, not
-      // from useChat's streamingUIMessages. Calling refresh() re-fetches from
-      // DataApi and updates all three history sources in one shot.
       await refresh()
     },
     [refresh]
@@ -316,8 +184,6 @@ const V2ChatContentInner: FC<InnerProps> = ({
   const v2ChatOverrides = useMemo<V2ChatOverrides>(
     () => ({
       regenerate: async (messageId?: string) => {
-        // Delete the old assistant message from DB before regenerating
-        // so the UI immediately shows only the new streaming response.
         if (messageId) {
           try {
             await dataApiService.delete(`/messages/${messageId}`, { query: { cascade: true } })
@@ -330,11 +196,9 @@ const V2ChatContentInner: FC<InnerProps> = ({
         await regenerate(messageId)
       },
       resend: async (messageId?: string) => {
-        // For resend (from user message), delete the assistant reply below it
-        // so the UI clears the old response before streaming the new one.
         if (messageId) {
           try {
-            const msgs = streamingUIMessagesRef.current
+            const msgs = streamingUIMessages
             const idx = msgs.findIndex((m) => m.id === messageId)
             const nextAssistant = idx >= 0 ? msgs[idx + 1] : undefined
             if (nextAssistant?.role === 'assistant') {
@@ -358,6 +222,7 @@ const V2ChatContentInner: FC<InnerProps> = ({
     }),
     [
       regenerate,
+      streamingUIMessages,
       setMessages,
       handleDeleteMessage,
       handleDeleteMessageGroup,
@@ -369,19 +234,49 @@ const V2ChatContentInner: FC<InnerProps> = ({
     ]
   )
 
-  // Only adapt NEW messages (those not in persisted history) via useV2MessageAdapter.
-  // History messages keep their full metadata from DataApi.
+  // Identify NEW messages from ChatSession that aren't yet in persisted history.
   const liveUIMessages = useMemo(
     () => streamingUIMessages.filter((m) => !historyIds.has(m.id)),
     [streamingUIMessages, historyIds]
   )
 
-  const { messages: liveAdapted, blockMap: liveBlockMap } = useV2MessageAdapter(
-    liveUIMessages,
-    status,
-    topic.id,
-    assistant.id
-  )
+  // Stable timestamp cache — preserves createdAt across re-renders for each message ID
+  const timestampCacheRef = useRef(new Map<string, string>())
+
+  // Adapt live UIMessages to legacy Message[] for MessageGroup/MessageItem.
+  const liveAdapted = useMemo<Message[]>(() => {
+    const cache = timestampCacheRef.current
+    const activeIds = new Set<string>()
+
+    const messages = liveUIMessages.map((uiMsg) => {
+      activeIds.add(uiMsg.id)
+      let ts = cache.get(uiMsg.id)
+      if (!ts) {
+        ts = new Date().toISOString()
+        cache.set(uiMsg.id, ts)
+      }
+      return {
+        id: uiMsg.id,
+        role: uiMsg.role,
+        assistantId: assistant.id,
+        topicId: topic.id,
+        createdAt: ts,
+        status:
+          uiMsg.role === 'user'
+            ? UserMessageStatus.SUCCESS
+            : status === 'streaming' || status === 'submitted'
+              ? AssistantMessageStatus.PROCESSING
+              : AssistantMessageStatus.SUCCESS,
+        blocks: []
+      }
+    })
+
+    for (const key of cache.keys()) {
+      if (!activeIds.has(key)) cache.delete(key)
+    }
+
+    return messages
+  }, [liveUIMessages, assistant.id, topic.id, status])
 
   // Merge: history (authority) + live streaming (appended)
   const adaptedMessages = useMemo<Message[]>(() => {
@@ -389,11 +284,7 @@ const V2ChatContentInner: FC<InnerProps> = ({
     return [...historyMessages, ...liveAdapted]
   }, [historyMessages, liveAdapted])
 
-  const blockMap = useMemo<Record<string, MessageBlock>>(() => {
-    if (liveAdapted.length === 0) return historyBlockMap
-    return { ...historyBlockMap, ...liveBlockMap }
-  }, [historyBlockMap, liveBlockMap, liveAdapted.length])
-
+  // PartsContext: history parts + live streaming parts overlay
   const partsMap = useMemo<Record<string, CherryMessagePart[]>>(() => {
     if (liveUIMessages.length === 0) return historyPartsMap
     const map: Record<string, CherryMessagePart[]> = { ...historyPartsMap }
@@ -421,30 +312,27 @@ const V2ChatContentInner: FC<InnerProps> = ({
   return (
     <V2ChatOverridesProvider value={v2ChatOverrides}>
       <PartsProvider value={partsMap}>
-        <V2BlockProvider value={blockMap}>
-          <div
-            className="flex flex-1 flex-col justify-between"
-            style={{ height: `calc(${mainHeight} - var(--navbar-height))` }}>
-            {/* V2 status indicator — dev only */}
-            {isDev && (
-              <div className="shrink-0 border-b px-4 py-1 text-xs" style={{ color: 'var(--color-text-3)' }}>
-                [V2] {status} | {adaptedMessages.length} msgs ({historyMessages.length} history + {liveAdapted.length}{' '}
-                live)
-                {error && <span className="ml-2 text-red-500">{error.message}</span>}
-              </div>
-            )}
+        <div
+          className="flex flex-1 flex-col justify-between"
+          style={{ height: `calc(${mainHeight} - var(--navbar-height))` }}>
+          {isDev && (
+            <div className="shrink-0 border-b px-4 py-1 text-xs" style={{ color: 'var(--color-text-3)' }}>
+              [V2] {status} | {adaptedMessages.length} msgs ({historyMessages.length} history + {liveAdapted.length}{' '}
+              live)
+              {error && <span className="ml-2 text-red-500">{error.message}</span>}
+            </div>
+          )}
 
-            <Messages
-              key={topic.id}
-              assistant={assistant}
-              topic={topic}
-              setActiveTopic={setActiveTopic}
-              messages={adaptedMessages}
-            />
+          <Messages
+            key={topic.id}
+            assistant={assistant}
+            topic={topic}
+            setActiveTopic={setActiveTopic}
+            messages={adaptedMessages}
+          />
 
-            <Inputbar assistant={assistant} topic={topic} setActiveTopic={setActiveTopic} onSendV2={handleSendV2} />
-          </div>
-        </V2BlockProvider>
+          <Inputbar assistant={assistant} topic={topic} setActiveTopic={setActiveTopic} onSendV2={handleSendV2} />
+        </div>
       </PartsProvider>
     </V2ChatOverridesProvider>
   )
