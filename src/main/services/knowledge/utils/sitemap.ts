@@ -1,6 +1,6 @@
 import { loggerService } from '@logger'
 import type { CreateKnowledgeItemsDto } from '@shared/data/api/schemas/knowledges'
-import type { KnowledgeItemOf } from '@shared/data/types/knowledge'
+import type { KnowledgeItem } from '@shared/data/types/knowledge'
 import { isValidUrl } from '@shared/utils'
 import { net } from 'electron'
 import { XMLParser } from 'fast-xml-parser'
@@ -13,6 +13,9 @@ type ParsedSitemapDocument = {
   urlset?: { url?: Array<{ loc?: string }> | { loc?: string } }
 }
 
+/**
+ * Normalizes sitemap url entries into a flat string list.
+ */
 function normalizeLocs(value: Array<{ loc?: string }> | { loc?: string } | undefined): string[] {
   if (!value) {
     return []
@@ -22,9 +25,15 @@ function normalizeLocs(value: Array<{ loc?: string }> | { loc?: string } | undef
   return entries.map((entry) => entry.loc?.trim()).filter((loc): loc is string => Boolean(loc))
 }
 
-export async function expandSitemapOwnerToCreateItems(
-  owner: KnowledgeItemOf<'sitemap'>
-): Promise<CreateKnowledgeItemsDto['items']> {
+/**
+ * Expands a sitemap owner item into child url items fetched from the remote
+ * sitemap document.
+ */
+export async function expandSitemapOwnerToCreateItems(owner: KnowledgeItem): Promise<CreateKnowledgeItemsDto['items']> {
+  if (owner.type !== 'sitemap') {
+    throw new Error(`Knowledge item '${owner.id}' must be type 'sitemap', received '${owner.type}'`)
+  }
+
   const sitemapUrl = owner.data.url
 
   try {

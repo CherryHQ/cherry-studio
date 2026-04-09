@@ -16,6 +16,10 @@ const knowledgeWebFetchQueue = new PQueue({
   interval: KNOWLEDGE_WEB_FETCH_INTERVAL_MS
 })
 
+/**
+ * Fetches a knowledge web page through the Jina reader endpoint and returns
+ * the normalized markdown payload.
+ */
 export async function fetchKnowledgeWebPage(url: string): Promise<string> {
   try {
     if (!isValidUrl(url)) {

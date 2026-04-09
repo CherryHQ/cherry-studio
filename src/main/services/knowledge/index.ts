@@ -1,0 +1,1 @@
+export { KnowledgeRuntimeService } from './runtime'

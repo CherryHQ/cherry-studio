@@ -1,8 +1,10 @@
 import type * as LifecycleModule from '@main/core/lifecycle'
 import { getDependencies, getPhase } from '@main/core/lifecycle/decorators'
 import { Phase } from '@main/core/lifecycle/types'
-import PQueue from 'p-queue'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+import { KnowledgeAddQueue } from '../addQueue'
+import { DELETE_INTERRUPTED_REASON, SHUTDOWN_INTERRUPTED_REASON } from '../utils/taskRuntime'
 
 const {
   appGetMock,
@@ -87,35 +89,35 @@ vi.mock('ai', () => ({
   embedMany: embedManyMock
 }))
 
-vi.mock('../readers/KnowledgeReader', () => ({
+vi.mock('../../readers/KnowledgeReader', () => ({
   loadKnowledgeItemDocuments: loadKnowledgeItemDocumentsMock
 }))
 
-vi.mock('../rerank/rerank', () => ({
+vi.mock('../../rerank/rerank', () => ({
   rerankKnowledgeSearchResults: rerankKnowledgeSearchResultsMock
 }))
 
-vi.mock('../utils/chunk', () => ({
+vi.mock('../../utils/chunk', () => ({
   chunkDocuments: vi.fn((_, __, documents) => documents)
 }))
 
-vi.mock('../utils/embed', () => ({
-  embedDocuments: vi.fn()
+vi.mock('../../utils/embed', () => ({
+  embedDocuments: vi.fn((_, chunks) => chunks)
 }))
 
-vi.mock('../utils/model', () => ({
+vi.mock('../../utils/model', () => ({
   getEmbedModel: getEmbedModelMock
 }))
 
-vi.mock('../utils/directory', () => ({
+vi.mock('../../utils/directory', () => ({
   expandDirectoryOwnerToCreateItems: expandDirectoryOwnerToCreateItemsMock
 }))
 
-vi.mock('../utils/sitemap', () => ({
+vi.mock('../../utils/sitemap', () => ({
   expandSitemapOwnerToCreateItems: expandSitemapOwnerToCreateItemsMock
 }))
 
-const { KnowledgeRuntimeService } = await import('../KnowledgeRuntimeService')
+const { KnowledgeRuntimeService } = await import('..')
 
 function createBase() {
   return {
@@ -156,13 +158,13 @@ function createSitemapItem() {
   }
 }
 
-function createNoteItem() {
+function createNoteItem(id = 'note-1') {
   return {
-    id: 'note-1',
+    id,
     baseId: 'kb-1',
     groupId: null,
     type: 'note' as const,
-    data: { content: 'hello world' },
+    data: { content: `hello ${id}` },
     status: 'idle' as const,
     error: null,
     createdAt: '2026-04-08T00:00:00.000Z',
@@ -179,6 +181,17 @@ function createDeferred<T>() {
   })
 
   return { promise, resolve, reject }
+}
+
+function createSingleConcurrencyQueue(service: InstanceType<typeof KnowledgeRuntimeService>) {
+  return new KnowledgeAddQueue(1, (entry) => {
+    if ((service as any).isStopping) {
+      entry.reject(new Error(SHUTDOWN_INTERRUPTED_REASON))
+      return Promise.resolve()
+    }
+
+    return (service as any).addRuntime.executeAdd(entry)
+  })
 }
 
 describe('KnowledgeRuntimeService', () => {
@@ -207,6 +220,9 @@ describe('KnowledgeRuntimeService', () => {
     knowledgeBaseGetByIdMock.mockResolvedValue(createBase())
     knowledgeItemGetByIdMock.mockResolvedValue(createDirectoryItem())
     knowledgeItemUpdateMock.mockImplementation(async (_id, dto) => dto)
+    loadKnowledgeItemDocumentsMock.mockImplementation(async (item) => [
+      { text: item.id, metadata: { itemId: item.id } }
+    ])
     getEmbedModelMock.mockReturnValue({ provider: 'mock' })
     embedManyMock.mockResolvedValue({ embeddings: [[0.1, 0.2]] })
     expandDirectoryOwnerToCreateItemsMock.mockResolvedValue([
@@ -374,22 +390,119 @@ describe('KnowledgeRuntimeService', () => {
     expect(expandSitemapOwnerToCreateItemsMock).toHaveBeenCalledWith(sitemapItem)
   })
 
+  it('deduplicates add work for the same item', async () => {
+    const service = new KnowledgeRuntimeService()
+    const base = createBase()
+    const item = createNoteItem('note-dup')
+    const loadDeferred = createDeferred<Array<{ text: string; metadata: { itemId: string } }>>()
+
+    loadKnowledgeItemDocumentsMock.mockImplementation(async (currentItem) => {
+      if (currentItem.id === item.id) {
+        return await loadDeferred.promise
+      }
+
+      return [{ text: currentItem.id, metadata: { itemId: currentItem.id } }]
+    })
+
+    const firstAddPromise = service.addItems(base, [item])
+    const secondAddPromise = service.addItems(base, [item])
+
+    await vi.waitFor(() => {
+      expect(loadKnowledgeItemDocumentsMock).toHaveBeenCalledTimes(1)
+    })
+
+    loadDeferred.resolve([{ text: item.id, metadata: { itemId: item.id } }])
+
+    await expect(Promise.all([firstAddPromise, secondAddPromise])).resolves.toEqual([[undefined], [undefined]])
+    expect(vectorStoreAddMock).toHaveBeenCalledTimes(1)
+    expect(knowledgeItemUpdateMock).toHaveBeenCalledWith(item.id, {
+      status: 'completed',
+      error: null
+    })
+  })
+
+  it('removes pending items from the add queue before they start', async () => {
+    const service = new KnowledgeRuntimeService()
+    ;(service as any).addQueue = createSingleConcurrencyQueue(service)
+
+    const base = createBase()
+    const runningItem = createNoteItem('note-running')
+    const pendingItem = createNoteItem('note-pending')
+    const loadDeferred = createDeferred<Array<{ text: string; metadata: { itemId: string } }>>()
+
+    loadKnowledgeItemDocumentsMock.mockImplementation(async (item) => {
+      if (item.id === runningItem.id) {
+        return await loadDeferred.promise
+      }
+
+      return [{ text: item.id, metadata: { itemId: item.id } }]
+    })
+
+    const addPromise = service.addItems(base, [runningItem, pendingItem])
+
+    await vi.waitFor(() => {
+      expect(loadKnowledgeItemDocumentsMock).toHaveBeenCalledWith(runningItem)
+    })
+
+    await expect(service.deleteItems(base, [pendingItem])).resolves.toBeUndefined()
+
+    loadDeferred.resolve([{ text: runningItem.id, metadata: { itemId: runningItem.id } }])
+
+    await expect(addPromise).rejects.toThrow(DELETE_INTERRUPTED_REASON)
+    expect(loadKnowledgeItemDocumentsMock).not.toHaveBeenCalledWith(pendingItem)
+    expect(vectorStoreDeleteMock).toHaveBeenCalledWith(pendingItem.id)
+  })
+
+  it('interrupts running add work before deleting vectors', async () => {
+    const service = new KnowledgeRuntimeService()
+    const base = createBase()
+    const item = createNoteItem('note-delete')
+    const loadDeferred = createDeferred<Array<{ text: string; metadata: { itemId: string } }>>()
+
+    loadKnowledgeItemDocumentsMock.mockImplementation(async (currentItem) => {
+      if (currentItem.id === item.id) {
+        return await loadDeferred.promise
+      }
+
+      return [{ text: currentItem.id, metadata: { itemId: currentItem.id } }]
+    })
+
+    const addPromise = service.addItems(base, [item])
+
+    await vi.waitFor(() => {
+      expect(loadKnowledgeItemDocumentsMock).toHaveBeenCalledWith(item)
+    })
+
+    let deleteResolved = false
+    const deletePromise = service.deleteItems(base, [item]).then(() => {
+      deleteResolved = true
+    })
+
+    expect(deleteResolved).toBe(false)
+
+    loadDeferred.resolve([{ text: item.id, metadata: { itemId: item.id } }])
+
+    await deletePromise
+
+    await expect(addPromise).rejects.toThrow(DELETE_INTERRUPTED_REASON)
+    expect(deleteResolved).toBe(true)
+    expect(vectorStoreAddMock).not.toHaveBeenCalled()
+    expect(vectorStoreDeleteMock).toHaveBeenCalledWith(item.id)
+    expect(knowledgeItemUpdateMock).not.toHaveBeenCalledWith(item.id, {
+      status: 'completed',
+      error: null
+    })
+    expect(knowledgeItemUpdateMock).not.toHaveBeenCalledWith(item.id, {
+      status: 'failed',
+      error: DELETE_INTERRUPTED_REASON
+    })
+  })
+
   it('persists failed status even when vector cleanup throws', async () => {
     const service = new KnowledgeRuntimeService()
     const base = createBase()
-    const item = {
-      id: 'item-1',
-      baseId: 'kb-1',
-      groupId: null,
-      type: 'note' as const,
-      data: { content: 'hello world' },
-      status: 'idle' as const,
-      error: null,
-      createdAt: '2026-04-08T00:00:00.000Z',
-      updatedAt: '2026-04-08T00:00:00.000Z'
-    }
+    const item = createNoteItem('item-1')
 
-    loadKnowledgeItemDocumentsMock.mockResolvedValue([{ text: 'doc', metadata: { itemId: item.id } }])
     vectorStoreDeleteMock.mockRejectedValue(new Error('cleanup failed'))
     const store = {
       add: vi.fn().mockRejectedValue(new Error('vector add failed')),
@@ -412,28 +525,27 @@ describe('KnowledgeRuntimeService', () => {
     expect(store.add).toHaveBeenCalled()
   })
 
-  it('waits for running tasks to settle on stop and prevents completed overwrite', async () => {
+  it('fails interrupted items on stop after deleting their vectors', async () => {
     const service = new KnowledgeRuntimeService()
-    ;(service as any).queue = new PQueue({ concurrency: 1 })
+    ;(service as any).addQueue = createSingleConcurrencyQueue(service)
 
     const base = createBase()
-    const item = createNoteItem()
+    const runningItem = createNoteItem('note-stop-running')
+    const pendingItem = createNoteItem('note-stop-pending')
     const loadDeferred = createDeferred<Array<{ text: string; metadata: { itemId: string } }>>()
-    const failedPersistDeferred = createDeferred<unknown>()
 
-    loadKnowledgeItemDocumentsMock.mockReturnValue(loadDeferred.promise)
-    knowledgeItemUpdateMock.mockImplementation(async (_id, dto) => {
-      if (dto.status === 'failed') {
-        return await failedPersistDeferred.promise
+    loadKnowledgeItemDocumentsMock.mockImplementation(async (item) => {
+      if (item.id === runningItem.id) {
+        return await loadDeferred.promise
       }
 
-      return dto
+      return [{ text: item.id, metadata: { itemId: item.id } }]
     })
 
-    const addPromise = service.addItems(base, [item])
+    const addPromise = service.addItems(base, [runningItem, pendingItem])
 
     await vi.waitFor(() => {
-      expect(loadKnowledgeItemDocumentsMock).toHaveBeenCalledWith(item)
+      expect(loadKnowledgeItemDocumentsMock).toHaveBeenCalledWith(runningItem)
     })
 
     let stopResolved = false
@@ -442,31 +554,27 @@ describe('KnowledgeRuntimeService', () => {
     })
 
     expect(stopResolved).toBe(false)
-    expect(knowledgeItemUpdateMock).toHaveBeenCalledTimes(1)
 
-    loadDeferred.resolve([{ text: 'doc', metadata: { itemId: item.id } }])
+    loadDeferred.resolve([{ text: runningItem.id, metadata: { itemId: runningItem.id } }])
 
-    await vi.waitFor(() => {
-      expect(knowledgeItemUpdateMock).toHaveBeenCalledWith(item.id, {
-        status: 'failed',
-        error: 'Knowledge task interrupted by service shutdown'
-      })
-    })
-    expect(knowledgeItemUpdateMock).not.toHaveBeenCalledWith(item.id, {
-      status: 'completed',
-      error: null
-    })
-    expect(stopResolved).toBe(false)
+    await stopPromise
 
-    failedPersistDeferred.resolve({ status: 'failed' })
-
-    await Promise.allSettled([addPromise, stopPromise])
-
+    await expect(addPromise).rejects.toThrow(SHUTDOWN_INTERRUPTED_REASON)
     expect(stopResolved).toBe(true)
     expect(vectorStoreAddMock).not.toHaveBeenCalled()
-    expect(knowledgeItemUpdateMock).toHaveBeenCalledWith(item.id, {
+    expect(vectorStoreDeleteMock).toHaveBeenCalledWith(runningItem.id)
+    expect(vectorStoreDeleteMock).toHaveBeenCalledWith(pendingItem.id)
+    expect(knowledgeItemUpdateMock).toHaveBeenCalledWith(runningItem.id, {
       status: 'failed',
-      error: 'Knowledge task interrupted by service shutdown'
+      error: SHUTDOWN_INTERRUPTED_REASON
+    })
+    expect(knowledgeItemUpdateMock).toHaveBeenCalledWith(pendingItem.id, {
+      status: 'failed',
+      error: SHUTDOWN_INTERRUPTED_REASON
+    })
+    expect(knowledgeItemUpdateMock).not.toHaveBeenCalledWith(runningItem.id, {
+      status: 'completed',
+      error: null
     })
   })
 })

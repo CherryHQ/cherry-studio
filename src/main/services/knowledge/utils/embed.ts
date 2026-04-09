@@ -2,6 +2,9 @@ import type { EmbeddingModelV3 } from '@ai-sdk/provider'
 import { type Document as VectorStoreDocument, NodeRelationship, TextNode } from '@vectorstores/core'
 import { embedMany } from 'ai'
 
+/**
+ * Embeds chunked documents and converts them into vector-store text nodes.
+ */
 export async function embedDocuments(model: EmbeddingModelV3, documents: VectorStoreDocument[]): Promise<TextNode[]> {
   if (documents.length === 0) {
     return []
