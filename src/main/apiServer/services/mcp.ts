@@ -132,4 +132,14 @@ class MCPApiService {
   }
 }
 
-export const mcpApiService = new MCPApiService()
+// TODO: The lazy getter below is a timing workaround — without it, the
+// module-level singleton would be constructed during ESM evaluation, before
+// preboot completes. The apiServer subsystem (MCPApiService, routes, app.ts,
+// ApiServer, ApiServerService) has tangled coupling that needs to be untangled
+// as a whole; this getter should be removed as part of that broader refactor.
+let _mcpApiService: MCPApiService | null = null
+
+export function getMcpApiService(): MCPApiService {
+  if (!_mcpApiService) _mcpApiService = new MCPApiService()
+  return _mcpApiService
+}

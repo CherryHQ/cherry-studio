@@ -763,7 +763,8 @@ export function isReasoningModel(model?: Model): boolean {
     modelId.includes('pangu-pro-moe') ||
     modelId.includes('seed-oss') ||
     modelId.includes('deepseek-v3.2-speciale') ||
-    modelId.includes('gemma-4')
+    modelId.includes('gemma-4') ||
+    modelId.includes('gemma4')
   ) {
     return true
   }
@@ -819,7 +820,12 @@ const THINKING_TOKEN_MAP: Record<string, { min: number; max: number }> = {
 
   // Baichuan models
   'baichuan-m2$': { min: 0, max: 30_000 },
-  'baichuan-m3$': { min: 0, max: 30_000 }
+  'baichuan-m3$': { min: 0, max: 30_000 },
+
+  // Gemma 4 models (GenAI: gemma-4-*, Ollama: gemma4:*)
+  'gemma-?4[:-]?e[24]b': { min: 1024, max: 8192 },
+  'gemma-?4[:-]?26b': { min: 1024, max: 30720 },
+  'gemma-?4[:-]?31b': { min: 1024, max: 30720 }
 }
 
 export const findTokenLimit = (modelId: string): { min: number; max: number } | undefined => {

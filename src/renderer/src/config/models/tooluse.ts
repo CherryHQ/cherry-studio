@@ -26,7 +26,7 @@ export const FUNCTION_CALLING_MODELS = [
   'glm-5(?:-[\\w-]+)?',
   'learnlm(?:-[\\w-]+)?',
   'gemini(?:-[\\w-]+)?', // 提前排除了gemini的嵌入模型
-  'gemma-4(?:-[\\w-]+)?',
+  'gemma-?4(?:[-.\\w]+)?',
   'grok-3(?:-[\\w-]+)?',
   'grok-4(?:-[\\w-]+)?',
   'doubao-seed-1[.-][68](?:-[\\w-]+)?',

@@ -36,7 +36,7 @@ Before adding any DataApi endpoint, confirm ALL of these:
 - [ ] A database schema exists (or will be created) for this data
 - [ ] The operation is NOT purely side-effectful (no window/process/notification control)
 
-If ANY check fails → this operation does NOT belong in DataApi. Use IPC handlers instead. See `docs/en/references/data/api-design-guidelines.md` § "DataApi Scope & Boundaries" for anti-patterns and rationale.
+If ANY check fails → this operation does NOT belong in DataApi. Use IPC handlers instead. See `docs/references/data/api-design-guidelines.md` § "DataApi Scope & Boundaries" for anti-patterns and rationale.
 
 ## Architecture
 
@@ -115,7 +115,7 @@ export const myDomainTable = sqliteTable('my_domain', {
 - Soft delete: add `deletedAt` column when needed
 - After changes: run `yarn db:migrations:generate`
 
-See `docs/en/references/data/database-patterns.md` for full conventions.
+See `docs/references/data/database-patterns.md` for full conventions.
 
 ### Step 2: Define API Schema (Shared Types)
 
@@ -151,7 +151,7 @@ export type ApiSchemas = AssertValidSchemas<TopicSchemas & MessageSchemas & MyDo
 - Non-CRUD actions: `POST /topics/:id/archive`
 - Query params for filtering/sorting: `?page=1&limit=20&sort=name&order=asc`
 
-See `docs/en/references/data/api-design-guidelines.md` for full rules.
+See `docs/references/data/api-design-guidelines.md` for full rules.
 
 ### Step 3: Write Service Tests (TDD Red Phase)
 
@@ -461,7 +461,7 @@ export enum MyFeatureMode { auto = 'auto', manual = 'manual', disabled = 'disabl
 - Keep values atomic (one preference = one logical setting)
 - Provide sensible defaults in `DefaultPreferences`
 
-See `docs/en/references/data/preference-schema-guide.md` for full guide.
+See `docs/references/data/preference-schema-guide.md` for full guide.
 
 ## Layered Preset Pattern (Predefined Config + User Overrides)
 
@@ -531,7 +531,7 @@ function getEffectiveConfig(presetId: string, overrides: MyFeatureOverrides): My
 }
 ```
 
-See `docs/en/references/data/best-practice-layered-preset-pattern.md` for full documentation and `packages/shared/data/presets/code-tools.ts` for a reference implementation.
+See `docs/references/data/best-practice-layered-preset-pattern.md` for full documentation and `packages/shared/data/presets/code-tools.ts` for a reference implementation.
 
 ## Cross-Domain References (Stale Object Bug)
 
@@ -639,12 +639,12 @@ throw DataApiErrorFactory.timeout('fetch topics', 3000)
 
 ## Documentation References
 
-- `docs/en/references/data/README.md` - System selection guide
-- `docs/en/references/data/data-api-overview.md` - DataApi architecture
-- `docs/en/references/data/data-api-in-main.md` - Main-process patterns
-- `docs/en/references/data/api-design-guidelines.md` - RESTful conventions
-- `docs/en/references/data/api-types.md` - Type system
-- `docs/en/references/data/database-patterns.md` - Schema conventions
-- `docs/en/references/data/preference-overview.md` - Preference architecture
-- `docs/en/references/data/preference-schema-guide.md` - Adding preference keys
-- `docs/en/references/data/best-practice-layered-preset-pattern.md` - Layered presets
+- `docs/references/data/README.md` - System selection guide
+- `docs/references/data/data-api-overview.md` - DataApi architecture
+- `docs/references/data/data-api-in-main.md` - Main-process patterns
+- `docs/references/data/api-design-guidelines.md` - RESTful conventions
+- `docs/references/data/api-types.md` - Type system
+- `docs/references/data/database-patterns.md` - Schema conventions
+- `docs/references/data/preference-overview.md` - Preference architecture
+- `docs/references/data/preference-schema-guide.md` - Adding preference keys
+- `docs/references/data/best-practice-layered-preset-pattern.md` - Layered presets

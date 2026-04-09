@@ -708,4 +708,35 @@ describe('model utils', () => {
       })
     })
   })
+
+  describe('Gemma 4 Model Detection', () => {
+    describe('isGemmaModel', () => {
+      it('detects Gemma 4 GenAI format', () => {
+        expect(isGemmaModel(createModel({ id: 'gemma-4-e2b' }))).toBe(true)
+        expect(isGemmaModel(createModel({ id: 'gemma-4-e4b' }))).toBe(true)
+        expect(isGemmaModel(createModel({ id: 'gemma-4-26b-moe' }))).toBe(true)
+        expect(isGemmaModel(createModel({ id: 'gemma-4-31b' }))).toBe(true)
+      })
+
+      it('detects Gemma 4 Ollama format', () => {
+        expect(isGemmaModel(createModel({ id: 'gemma4' }))).toBe(true)
+        expect(isGemmaModel(createModel({ id: 'gemma4:e2b' }))).toBe(true)
+        expect(isGemmaModel(createModel({ id: 'gemma4:e4b' }))).toBe(true)
+        expect(isGemmaModel(createModel({ id: 'gemma4:26b' }))).toBe(true)
+        expect(isGemmaModel(createModel({ id: 'gemma4:31b' }))).toBe(true)
+        expect(isGemmaModel(createModel({ id: 'gemma4:latest' }))).toBe(true)
+      })
+
+      it('detects Gemma 4 with provider prefix', () => {
+        expect(isGemmaModel(createModel({ id: 'google/gemma-4-31b' }))).toBe(true)
+        expect(isGemmaModel(createModel({ id: 'openrouter/gemma-4-31b' }))).toBe(true)
+      })
+
+      it('still detects earlier Gemma versions', () => {
+        expect(isGemmaModel(createModel({ id: 'gemma-2b' }))).toBe(true)
+        expect(isGemmaModel(createModel({ id: 'gemma-2-27b-it' }))).toBe(true)
+        expect(isGemmaModel(createModel({ id: 'gemma-3-27b' }))).toBe(true)
+      })
+    })
+  })
 })
