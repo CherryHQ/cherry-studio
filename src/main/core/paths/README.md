@@ -6,8 +6,11 @@ constructions scattered throughout the codebase.
 
 Every path the main process needs is registered once in `pathRegistry.ts`
 (inside the `buildPathRegistry()` function) and accessed exclusively through
-`application.getPath()`. The registry is **frozen at `Application.bootstrap()`
-time** — calling `application.getPath(...)` before bootstrap throws.
+`application.getPath()`. The registry is **initialized via
+`application.initPathRegistry()` from preboot** in `main/index.ts` (after
+the single-instance lock check, before `application.bootstrap()`); it is
+held as a frozen snapshot for the entire process lifetime. Calling
+`application.getPath(...)` before `initPathRegistry()` throws.
 
 ## Quick Start
 
@@ -40,8 +43,9 @@ src/main/core/paths/
 │                         LOGS_DIR). Consumed directly by LoggerService and
 │                         BootConfigService — both run before the registry exists.
 ├── pathRegistry.ts       The `buildPathRegistry()` function (called once from
-│                         Application.bootstrap()) plus the `PathKey` / `PathMap`
-│                         types. Constrained by ESLint data-schema-key/valid-key.
+│                         Application.initPathRegistry()) plus the `PathKey` /
+│                         `PathMap` types. Constrained by ESLint
+│                         data-schema-key/valid-key.
 ├── index.ts              Public entry point. Re-exports `PathKey` and `PathMap`
 │                         types only. `buildPathRegistry` is intentionally NOT
 │                         re-exported — Application.ts imports it via the deeper
@@ -384,19 +388,25 @@ consumers should still reach for plain `application.getPath(key)` or the
 
 `buildPathRegistry()` reads `app.getPath('userData')` and other Electron
 paths inside its function body. It is called exactly once, from
-`Application.bootstrap()` at its entry point (after signal/quit handlers
-are installed, before any lifecycle phase starts).
+`Application.initPathRegistry()`, which is invoked from preboot in
+`main/index.ts` (after the single-instance lock check, before
+`crashReporter.start()` and before `application.bootstrap()`).
+`bootstrap()` then asserts that the registry has been initialized — it
+does **not** initialize the registry itself, so a forgotten
+`initPathRegistry()` call fails fast at the bootstrap entry point with a
+clear error pointing back at `main/index.ts`.
 
 This means:
 
 - `pathRegistry.ts` module evaluation has **no side effects** — importing
   the file is safe at any time.
 - Any code that overrides Electron paths via `app.setPath(...)` MUST run
-  **before** `application.bootstrap()` is invoked. The natural place is
-  the top of `startApp()` in `src/main/index.ts`, eventually driven by
-  `BootConfigService`.
-- Calling `application.getPath(...)` before `bootstrap()` runs will throw
-  with a clear error message. There is no fallback or lazy initialization.
+  **before** `application.initPathRegistry()` is invoked. In the current
+  flow this is `resolveUserDataLocation()` in `src/main/core/preboot/`,
+  driven by `BootConfigService`.
+- Calling `application.getPath(...)` before `initPathRegistry()` runs will
+  throw with a clear error message. There is no fallback or lazy
+  initialization.
 - `LoggerService` and `BootConfigService` bypass this registry entirely:
   they need paths *before* the registry exists, so they read `LOGS_DIR`
   and `BOOT_CONFIG_PATH` directly from `paths/constants.ts`. This is by

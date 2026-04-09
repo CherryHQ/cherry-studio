@@ -39,8 +39,26 @@ import { CHERRY_HOME, LOGS_DIR } from './constants'
 
 /**
  * Build the frozen path registry. Called exactly once from
- * `Application.bootstrap()`. Must be invoked AFTER all `app.setPath()`
- * calls have completed and BEFORE any lifecycle service starts.
+ * `Application.initPathRegistry()`, which is itself invoked from the
+ * preboot phase in `main/index.ts` (after the single-instance lock check
+ * and before `application.bootstrap()`). Must run AFTER all
+ * `app.setPath('userData', ...)` calls have completed.
+ *
+ * **Constraint on new path keys**: every value computed inside this
+ * function must be resolvable in the **preboot phase** — i.e. before
+ * `app.whenReady()`, before `crashReporter.start()`, and before any
+ * lifecycle service has started. In practice this means each value may
+ * only depend on:
+ *   - Synchronous Electron app APIs that work pre-`whenReady`:
+ *     `app.getPath('userData' | 'sessionData' | 'temp' | 'downloads' |
+ *     'documents' | 'desktop' | 'music' | 'pictures' | 'videos' |
+ *     'appData' | 'exe' | 'logs' | 'crashDumps')`, `app.getAppPath()`,
+ *     `app.isPackaged`.
+ *   - Process-level globals: `process.resourcesPath`, `process.env`.
+ *   - Node built-ins: `os.homedir()`, `path.join`, etc.
+ * Do NOT introduce a key whose value depends on a service being started,
+ * a config file being loaded after preboot, or any `whenReady`-only
+ * Electron API — such a value cannot be safely captured here.
  *
  * Reading paths through `application.getPath(key, filename?)` is the
  * sole supported access pattern; do not import this function from
