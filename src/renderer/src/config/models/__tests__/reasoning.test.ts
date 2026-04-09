@@ -2771,3 +2771,70 @@ describe('Doubao Seed 2.0 Models', () => {
     expect(isDoubaoSeedAfter251015(model)).toBe(true)
   })
 })
+
+describe('Gemma 4 Models', () => {
+  describe('isReasoningModel', () => {
+    it('detects Gemma 4 GenAI format as reasoning', () => {
+      expect(isReasoningModel(createModel({ id: 'gemma-4-e2b' }))).toBe(true)
+      expect(isReasoningModel(createModel({ id: 'gemma-4-e4b' }))).toBe(true)
+      expect(isReasoningModel(createModel({ id: 'gemma-4-26b-moe' }))).toBe(true)
+      expect(isReasoningModel(createModel({ id: 'gemma-4-31b' }))).toBe(true)
+    })
+
+    it('detects Gemma 4 Ollama format as reasoning', () => {
+      expect(isReasoningModel(createModel({ id: 'gemma4' }))).toBe(true)
+      expect(isReasoningModel(createModel({ id: 'gemma4:e2b' }))).toBe(true)
+      expect(isReasoningModel(createModel({ id: 'gemma4:31b' }))).toBe(true)
+      expect(isReasoningModel(createModel({ id: 'gemma4:latest' }))).toBe(true)
+    })
+
+    it('does NOT detect Gemma 2 as reasoning (no regression)', () => {
+      expect(isReasoningModel(createModel({ id: 'gemma-2b' }))).toBe(false)
+      expect(isReasoningModel(createModel({ id: 'gemma-2-27b-it' }))).toBe(false)
+    })
+
+    it('does NOT detect Gemma 3 as reasoning (no regression)', () => {
+      expect(isReasoningModel(createModel({ id: 'gemma-3-27b' }))).toBe(false)
+      expect(isReasoningModel(createModel({ id: 'gemma-3n-e4b-it' }))).toBe(false)
+    })
+  })
+
+  describe('findTokenLimit', () => {
+    it('returns correct limits for Gemma 4 E2B/E4B (GenAI)', () => {
+      expect(findTokenLimit('gemma-4-e2b')).toEqual({ min: 1024, max: 8192 })
+      expect(findTokenLimit('gemma-4-e4b')).toEqual({ min: 1024, max: 8192 })
+    })
+
+    it('returns correct limits for Gemma 4 26B MoE (GenAI)', () => {
+      expect(findTokenLimit('gemma-4-26b-moe')).toEqual({ min: 1024, max: 30720 })
+    })
+
+    it('returns correct limits for Gemma 4 31B (GenAI)', () => {
+      expect(findTokenLimit('gemma-4-31b')).toEqual({ min: 1024, max: 30720 })
+    })
+
+    it('returns correct limits for Gemma 4 Ollama tags', () => {
+      expect(findTokenLimit('gemma4:e2b')).toEqual({ min: 1024, max: 8192 })
+      expect(findTokenLimit('gemma4:e4b')).toEqual({ min: 1024, max: 8192 })
+      expect(findTokenLimit('gemma4:26b')).toEqual({ min: 1024, max: 30720 })
+      expect(findTokenLimit('gemma4:31b')).toEqual({ min: 1024, max: 30720 })
+    })
+
+    it('returns correct limits for Gemma 4 with -it suffix', () => {
+      expect(findTokenLimit('gemma-4-e2b-it')).toEqual({ min: 1024, max: 8192 })
+      expect(findTokenLimit('gemma-4-e4b-it')).toEqual({ min: 1024, max: 8192 })
+      expect(findTokenLimit('gemma4:e2b-it')).toEqual({ min: 1024, max: 8192 })
+      expect(findTokenLimit('gemma-4-26b-it')).toEqual({ min: 1024, max: 30720 })
+      expect(findTokenLimit('gemma-4-31b-it')).toEqual({ min: 1024, max: 30720 })
+    })
+
+    it('returns undefined for bare gemma4 without variant tag', () => {
+      expect(findTokenLimit('gemma4')).toBeUndefined()
+      expect(findTokenLimit('gemma4:latest')).toBeUndefined()
+    })
+
+    it('still returns correct limits for earlier Gemma reasoning models', () => {
+      expect(findTokenLimit('gemma-3-27b')).toBeUndefined()
+    })
+  })
+})

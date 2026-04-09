@@ -870,8 +870,8 @@ class ClawServer {
 
     if (needsQr) {
       const qrPromise = channelManager.waitForQrUrl(this.agentId, newChannel.id, 30_000)
-      // Fire-and-forget: syncAgent will complete once the user scans
-      channelManager.syncAgent(this.agentId).catch((err) => {
+      // Fire-and-forget: syncChannel will complete once the user scans
+      channelManager.syncChannel(newChannel.id).catch((err) => {
         logger.error(`${type} sync failed`, {
           agentId: this.agentId,
           channelId: newChannel.id,
@@ -909,7 +909,7 @@ class ClawServer {
           ]
         }
       } catch (err) {
-        // QR timed out — remove the orphan channel so it doesn't block future syncAgent calls
+        // QR timed out — remove the orphan channel so it doesn't block future connections
         await this.removeOrphanChannel(newChannel.id)
 
         logger.warn(`Failed to get ${channelLabel} QR code, orphan channel removed`, {
@@ -929,7 +929,7 @@ class ClawServer {
       }
     }
 
-    await channelManager.syncAgent(this.agentId)
+    await channelManager.syncChannel(newChannel.id)
 
     logger.info('Channel added via config tool', { agentId: this.agentId, channelId: newChannel.id, type })
     return {
@@ -957,7 +957,7 @@ class ClawServer {
     }
 
     await channelService.updateChannel(channelId, updates)
-    await channelManager.syncAgent(this.agentId)
+    await channelManager.syncChannel(channelId)
 
     logger.info('Channel updated via config tool', { agentId: this.agentId, channelId })
     return {
@@ -973,7 +973,7 @@ class ClawServer {
     if (!channel) throw new McpError(ErrorCode.InvalidParams, `Channel "${channelId}" not found`)
 
     await channelService.deleteChannel(channelId)
-    await channelManager.syncAgent(this.agentId)
+    await channelManager.disconnectChannel(channelId)
 
     logger.info('Channel removed via config tool', { agentId: this.agentId, channelId, type: channel.type })
     return {
@@ -992,8 +992,7 @@ class ClawServer {
       channel.type === 'wechat' || (channel.type === 'feishu' && !(channel.config as Record<string, unknown>).app_id)
 
     if (!needsQr) {
-      // For non-QR channels, just re-sync
-      await channelManager.syncAgent(this.agentId)
+      await channelManager.syncChannel(channelId)
       return {
         content: [{ type: 'text' as const, text: `Channel "${channelId}" reconnected.` }]
       }
@@ -1001,7 +1000,7 @@ class ClawServer {
 
     // QR-based reconnect: sync in background, wait for QR URL
     const qrPromise = channelManager.waitForQrUrl(this.agentId, channelId, 30_000)
-    channelManager.syncAgent(this.agentId).catch((err) => {
+    channelManager.syncChannel(channelId).catch((err) => {
       logger.error('Reconnect sync failed', {
         agentId: this.agentId,
         channelId,
@@ -1091,12 +1090,12 @@ class ClawServer {
 
   /**
    * Remove a channel from config that failed to connect (e.g. QR timeout).
-   * Prevents orphaned channels from blocking future syncAgent calls.
+   * Prevents orphaned channels from blocking future connections.
    */
   private async removeOrphanChannel(channelId: string): Promise<void> {
     try {
       await channelService.deleteChannel(channelId)
-      await channelManager.syncAgent(this.agentId)
+      await channelManager.disconnectChannel(channelId)
     } catch (err) {
       logger.error('Failed to remove orphan channel', {
         agentId: this.agentId,
