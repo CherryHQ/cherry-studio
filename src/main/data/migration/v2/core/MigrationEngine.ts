@@ -46,7 +46,9 @@ import { MigrationDbService } from './MigrationDbService'
 const logger = loggerService.withContext('MigrationEngine')
 
 const MIGRATION_V2_STATUS = 'migration_v2_status'
-const MIGRATION_V2_TARGET_VERSION = '2.1.0'
+const MIGRATION_V2_AGENTS_STATUS = 'migration_v2_agents_status'
+const MIGRATION_V2_TARGET_VERSION = '2.0.0'
+const MIGRATION_V2_AGENTS_TARGET_VERSION = '2.1.0-agents'
 
 export class MigrationEngine {
   private migrators: BaseMigrator[] = []
@@ -98,37 +100,9 @@ export class MigrationEngine {
    */
   //TODO 不能仅仅判断数据库，如果是全新安装，而不是升级上来的用户，其实并不需要迁移，但是按现在的逻辑，还是会进行迁移，这不正确
   async needsMigration(): Promise<boolean> {
-    const db = this.getDb()
-    const status = await db.select().from(appStateTable).where(eq(appStateTable.key, MIGRATION_V2_STATUS)).get()
+    const plan = await this.getPendingMigrationPlan()
 
-    if (status?.value) {
-      const statusValue = status.value as MigrationStatusValue
-
-      if (statusValue.status !== 'completed') {
-        return true
-      }
-
-      if (statusValue.version === MIGRATION_V2_TARGET_VERSION) {
-        return false
-      }
-
-      if (!this.hasLegacyData()) {
-        logger.info('No remaining legacy data found for the current migration target, marking completed')
-        await this.markCompleted()
-        return false
-      }
-
-      logger.info('Legacy data still exists for a newer v2 migration target', {
-        currentVersion: statusValue.version,
-        targetVersion: MIGRATION_V2_TARGET_VERSION
-      })
-      return true
-    }
-
-    // No migration status record — check if this is a fresh install or an upgrade.
-    if (!this.hasLegacyData()) {
-      logger.info('Fresh install detected (no legacy data found), skipping migration')
-      await this.markCompleted()
+    if (!plan.fullMigrationNeeded && !plan.agentsMigrationNeeded) {
       return false
     }
 
@@ -136,35 +110,77 @@ export class MigrationEngine {
   }
 
   /**
-   * FIXME: 当前仅通过 electron-store 判断是否有旧数据，这是临时方案。
+   * FIXME: 当前仅通过 electron-store 判断 core v2 是否有旧数据，这是临时方案。
    * electron-store (config.json) 在 v2 中也可能被写入，导致误判。
    * localStorage 和 IndexedDB 的文件系统路径不可靠（UserData 路径问题待迁移后期统一处理），暂不检测。
    * 宁可误触发迁移（空数据迁移可安全完成），也不漏掉真正的升级用户。
    * 后续引入 version history 后可用精确的版本记录替代这些启发式检测。
    */
-  private hasLegacyData(): boolean {
+  private hasCoreLegacyData(): boolean {
     const legacyStore = new Store()
-    const hasElectronStore = legacyStore.size > 0
-    const hasLegacyAgentsDb = new LegacyAgentsDbReader().resolvePath() !== null
-    const hasData = hasElectronStore || hasLegacyAgentsDb
+    return legacyStore.size > 0
+  }
 
-    logger.info('Legacy data detection', { hasElectronStore, hasLegacyAgentsDb })
-    return hasData
+  private hasLegacyAgentsData(): boolean {
+    return new LegacyAgentsDbReader().resolvePath() !== null
+  }
+
+  private async getStatus(key: string): Promise<MigrationStatusValue | null> {
+    const db = this.getDb()
+    const record = await db.select().from(appStateTable).where(eq(appStateTable.key, key)).get()
+    return (record?.value as MigrationStatusValue | undefined) ?? null
+  }
+
+  private async getPendingMigrationPlan(): Promise<{
+    fullMigrationNeeded: boolean
+    agentsMigrationNeeded: boolean
+    migrators: BaseMigrator[]
+  }> {
+    const fullStatus = await this.getStatus(MIGRATION_V2_STATUS)
+    const agentsStatus = await this.getStatus(MIGRATION_V2_AGENTS_STATUS)
+    const hasCoreLegacyData = this.hasCoreLegacyData()
+    const hasLegacyAgentsData = this.hasLegacyAgentsData()
+
+    let fullMigrationNeeded = false
+    if (fullStatus) {
+      fullMigrationNeeded = fullStatus.status !== 'completed'
+    } else if (hasCoreLegacyData) {
+      fullMigrationNeeded = true
+    } else {
+      logger.info('Fresh install detected for core v2 migration, marking completed')
+      await this.markCompleted()
+    }
+
+    let agentsMigrationNeeded = false
+    if (hasLegacyAgentsData) {
+      agentsMigrationNeeded = agentsStatus?.status !== 'completed'
+    } else if (!agentsStatus || agentsStatus.status !== 'completed') {
+      await this.markAgentsCompleted()
+    }
+
+    const migrators = fullMigrationNeeded ? this.migrators : this.migrators.filter((m) => m.id === 'agents')
+
+    return {
+      fullMigrationNeeded,
+      agentsMigrationNeeded,
+      migrators: agentsMigrationNeeded || fullMigrationNeeded ? migrators : []
+    }
   }
 
   /**
    * Get last migration error (for UI display)
    */
   async getLastError(): Promise<string | null> {
-    const db = this.getDb()
-    const status = await db.select().from(appStateTable).where(eq(appStateTable.key, MIGRATION_V2_STATUS)).get()
-
-    if (status?.value) {
-      const statusValue = status.value as MigrationStatusValue
-      if (statusValue.status === 'failed') {
-        return statusValue.error || 'Unknown error'
-      }
+    const fullStatus = await this.getStatus(MIGRATION_V2_STATUS)
+    if (fullStatus?.status === 'failed') {
+      return fullStatus.error || 'Unknown error'
     }
+
+    const agentsStatus = await this.getStatus(MIGRATION_V2_AGENTS_STATUS)
+    if (agentsStatus?.status === 'failed') {
+      return agentsStatus.error || 'Unknown error'
+    }
+
     return null
   }
 
@@ -181,29 +197,47 @@ export class MigrationEngine {
     const startTime = Date.now()
     const results: MigratorResult[] = []
 
+    const plan = await this.getPendingMigrationPlan()
+    const activeMigrators = plan.migrators
+
     try {
-      for (const migrator of this.migrators) {
+      for (const migrator of activeMigrators) {
         migrator.reset()
       }
 
-      // Safety check: verify new tables status before clearing
-      await this.verifyAndClearNewTables()
+      if (plan.fullMigrationNeeded) {
+        await this.verifyAndClearNewTables()
+      } else if (plan.agentsMigrationNeeded) {
+        await this.verifyAndClearAgentsTables()
+      }
 
       // Create migration context
       const context = await createMigrationContext(this.getDb(), reduxData, dexieExportPath, localStorageExportPath)
 
-      for (let i = 0; i < this.migrators.length; i++) {
-        const migrator = this.migrators[i]
+      for (let i = 0; i < activeMigrators.length; i++) {
+        const migrator = activeMigrators[i]
         const migratorStartTime = Date.now()
 
         logger.info(`Starting migrator: ${migrator.name}`, { id: migrator.id })
 
         // Update progress: migrator starting
-        this.updateProgress('migration', this.calculateProgress(i, 0), migrator)
+        this.updateProgress(
+          'migration',
+          this.calculateProgress(i, 0, activeMigrators.length),
+          migrator,
+          undefined,
+          activeMigrators
+        )
 
         // Set up migrator progress callback
         migrator.setProgressCallback((progress, progressMessage) => {
-          this.updateProgress('migration', this.calculateProgress(i, progress), migrator, progressMessage)
+          this.updateProgress(
+            'migration',
+            this.calculateProgress(i, progress, activeMigrators.length),
+            migrator,
+            progressMessage,
+            activeMigrators
+          )
         })
 
         // Phase 1: Prepare (includes dry-run validation)
@@ -242,14 +276,30 @@ export class MigrationEngine {
         })
 
         // Update progress: migrator completed
-        this.updateProgress('migration', this.calculateProgress(i + 1, 0), migrator)
+        if (migrator.id === 'agents') {
+          await this.markAgentsCompleted()
+        }
+
+        this.updateProgress(
+          'migration',
+          this.calculateProgress(i + 1, 0, activeMigrators.length),
+          migrator,
+          undefined,
+          activeMigrators
+        )
       }
 
       // Verify FK integrity after all inserts (FK was off during bulk inserts)
       await this.verifyForeignKeys()
 
       // Mark migration completed
-      await this.markCompleted()
+      if (plan.fullMigrationNeeded) {
+        await this.markCompleted()
+      }
+
+      if (plan.agentsMigrationNeeded && !activeMigrators.some((m) => m.id === 'agents')) {
+        await this.markAgentsCompleted()
+      }
 
       // Cleanup temporary files
       await this.cleanupTempFiles(dexieExportPath)
@@ -274,7 +324,12 @@ export class MigrationEngine {
       logger.error('Migration failed', { error: errorMessage })
 
       // Mark migration as failed with error details
-      await this.markFailed(errorMessage)
+      if (plan.fullMigrationNeeded) {
+        await this.markFailed(errorMessage)
+      }
+      if (plan.agentsMigrationNeeded) {
+        await this.markAgentsFailed(errorMessage)
+      }
 
       return {
         success: false,
@@ -354,6 +409,44 @@ export class MigrationEngine {
   }
 
   /**
+   * Verify and clear only agents-import target tables.
+   * Used when the core v2 migration is already complete and only legacy agents.db
+   * still needs to be imported into the main database.
+   */
+  private async verifyAndClearAgentsTables(): Promise<void> {
+    const db = this.getDb()
+    const tables = [
+      { table: agentsSessionMessagesTable, name: 'agents_session_messages' },
+      { table: agentsChannelTaskSubscriptionsTable, name: 'agents_channel_task_subscriptions' },
+      { table: agentsTaskRunLogsTable, name: 'agents_task_run_logs' },
+      { table: agentsChannelsTable, name: 'agents_channels' },
+      { table: agentsTasksTable, name: 'agents_tasks' },
+      { table: agentsSessionsTable, name: 'agents_sessions' },
+      { table: agentsSkillsTable, name: 'agents_skills' },
+      { table: agentsAgentsTable, name: 'agents_agents' }
+    ]
+
+    for (const { table, name } of tables) {
+      const result = await db.select({ count: sql<number>`count(*)` }).from(table).get()
+      const count = result?.count ?? 0
+      if (count > 0) {
+        logger.warn(`Table '${name}' is not empty (${count} rows), clearing for agents-only migration`)
+      }
+    }
+
+    await db.delete(agentsSessionMessagesTable)
+    await db.delete(agentsChannelTaskSubscriptionsTable)
+    await db.delete(agentsTaskRunLogsTable)
+    await db.delete(agentsChannelsTable)
+    await db.delete(agentsTasksTable)
+    await db.delete(agentsSessionsTable)
+    await db.delete(agentsSkillsTable)
+    await db.delete(agentsAgentsTable)
+
+    logger.info('Agents import target tables cleared successfully')
+  }
+
+  /**
    * Verify foreign key integrity after all data has been inserted.
    * FK constraints were disabled during bulk inserts for performance;
    * this post-insert check ensures referential integrity is correct.
@@ -423,9 +516,13 @@ export class MigrationEngine {
   /**
    * Calculate overall progress based on completed migrators and current migrator progress
    */
-  private calculateProgress(completedMigrators: number, currentMigratorProgress: number): number {
-    if (this.migrators.length === 0) return 0
-    const migratorWeight = 100 / this.migrators.length
+  private calculateProgress(
+    completedMigrators: number,
+    currentMigratorProgress: number,
+    totalMigrators: number
+  ): number {
+    if (totalMigrators === 0) return 0
+    const migratorWeight = 100 / totalMigrators
     return Math.round(completedMigrators * migratorWeight + (currentMigratorProgress / 100) * migratorWeight)
   }
 
@@ -436,9 +533,10 @@ export class MigrationEngine {
     stage: MigrationStage,
     overallProgress: number,
     currentMigrator: BaseMigrator,
-    progressMessage?: ProgressMessage
+    progressMessage?: ProgressMessage,
+    migrators: BaseMigrator[] = this.migrators
   ): void {
-    const migratorsProgress = this.migrators.map((m) => ({
+    const migratorsProgress = migrators.map((m) => ({
       id: m.id,
       name: m.name,
       status: this.getMigratorStatus(m, currentMigrator)
@@ -508,6 +606,54 @@ export class MigrationEngine {
       .insert(appStateTable)
       .values({
         key: MIGRATION_V2_STATUS,
+        value: statusValue
+      })
+      .onConflictDoUpdate({
+        target: appStateTable.key,
+        set: {
+          value: statusValue,
+          updatedAt: Date.now()
+        }
+      })
+  }
+
+  private async markAgentsCompleted(): Promise<void> {
+    const db = this.getDb()
+    const statusValue: MigrationStatusValue = {
+      status: 'completed',
+      completedAt: Date.now(),
+      version: MIGRATION_V2_AGENTS_TARGET_VERSION,
+      error: null
+    }
+
+    await db
+      .insert(appStateTable)
+      .values({
+        key: MIGRATION_V2_AGENTS_STATUS,
+        value: statusValue
+      })
+      .onConflictDoUpdate({
+        target: appStateTable.key,
+        set: {
+          value: statusValue,
+          updatedAt: Date.now()
+        }
+      })
+  }
+
+  private async markAgentsFailed(error: string): Promise<void> {
+    const db = this.getDb()
+    const statusValue: MigrationStatusValue = {
+      status: 'failed',
+      failedAt: Date.now(),
+      version: MIGRATION_V2_AGENTS_TARGET_VERSION,
+      error
+    }
+
+    await db
+      .insert(appStateTable)
+      .values({
+        key: MIGRATION_V2_AGENTS_STATUS,
         value: statusValue
       })
       .onConflictDoUpdate({
