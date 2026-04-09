@@ -13,6 +13,7 @@ const mockNetFetch = vi.fn()
 const mockGetAgent = vi.fn()
 const mockUpdateAgent = vi.fn()
 const mockSyncChannel = vi.fn()
+const mockDisconnectChannel = vi.fn()
 const mockWaitForQrUrl = vi.fn()
 const mockQRCodeToDataURL = vi.fn()
 const mockMkdir = vi.fn()
@@ -59,6 +60,7 @@ vi.mock('@main/services/agents/services/channels/ChannelManager', () => ({
     getAgentAdapters: mockGetNotifyAdapters,
     getAdapterStatuses: vi.fn().mockReturnValue([]),
     syncChannel: mockSyncChannel,
+    disconnectChannel: mockDisconnectChannel,
     waitForQrUrl: mockWaitForQrUrl
   }
 }))
@@ -638,6 +640,7 @@ describe('ClawServer', () => {
 
     beforeEach(() => {
       mockSyncChannel.mockResolvedValue(undefined)
+      mockDisconnectChannel.mockResolvedValue(undefined)
       mockListChannels.mockResolvedValue([])
       mockGetChannel.mockResolvedValue(null)
       mockDeleteChannel.mockResolvedValue(undefined)
@@ -782,8 +785,9 @@ describe('ClawServer', () => {
         expect(result.content[0].text).toContain('not saved')
         // Should have deleted the orphan channel
         expect(mockDeleteChannel).toHaveBeenCalledWith('ch_wc2')
-        // Should have synced twice: once for add (fire-and-forget), once for orphan cleanup
-        expect(mockSyncChannel).toHaveBeenCalledTimes(2)
+        // syncChannel for the initial add (fire-and-forget), disconnectChannel for orphan cleanup
+        expect(mockSyncChannel).toHaveBeenCalledTimes(1)
+        expect(mockDisconnectChannel).toHaveBeenCalledWith('ch_wc2')
       })
 
       it('should error when required config field is missing', async () => {
@@ -844,7 +848,7 @@ describe('ClawServer', () => {
         expect(result.content[0].text).toContain('removed')
         expect(result.content[0].text).toContain('My Telegram')
         expect(mockDeleteChannel).toHaveBeenCalledWith('ch_1')
-        expect(mockSyncChannel).toHaveBeenCalledWith('ch_1')
+        expect(mockDisconnectChannel).toHaveBeenCalledWith('ch_1')
       })
 
       it('should error when channel_id is missing', async () => {

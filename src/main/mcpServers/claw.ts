@@ -973,7 +973,7 @@ class ClawServer {
     if (!channel) throw new McpError(ErrorCode.InvalidParams, `Channel "${channelId}" not found`)
 
     await channelService.deleteChannel(channelId)
-    await channelManager.syncChannel(channelId)
+    await channelManager.disconnectChannel(channelId)
 
     logger.info('Channel removed via config tool', { agentId: this.agentId, channelId, type: channel.type })
     return {
@@ -1095,7 +1095,7 @@ class ClawServer {
   private async removeOrphanChannel(channelId: string): Promise<void> {
     try {
       await channelService.deleteChannel(channelId)
-      await channelManager.syncChannel(channelId)
+      await channelManager.disconnectChannel(channelId)
     } catch (err) {
       logger.error('Failed to remove orphan channel', {
         agentId: this.agentId,

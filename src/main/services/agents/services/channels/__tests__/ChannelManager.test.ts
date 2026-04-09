@@ -145,6 +145,23 @@ describe('ChannelManager', () => {
     expect(createdAdapters[0].disconnect).not.toHaveBeenCalled()
   })
 
+  it('disconnectChannel only disconnects the target channel without reconnecting', async () => {
+    vi.mocked(channelService.listChannels).mockResolvedValueOnce([
+      makeChannelRow({ id: 'ch-1', config: { bot_token: 'tok1' } }),
+      makeChannelRow({ id: 'ch-2', config: { bot_token: 'tok2' } })
+    ])
+
+    await channelManager.start()
+    expect(createdAdapters).toHaveLength(2)
+
+    await channelManager.disconnectChannel('ch-1')
+
+    expect(createdAdapters[0].disconnect).toHaveBeenCalledTimes(1)
+    expect(createdAdapters[1].disconnect).not.toHaveBeenCalled()
+    // No new adapter created — disconnect only
+    expect(createdAdapters).toHaveLength(2)
+  })
+
   it('syncChannel only disconnects the target channel, leaving others untouched', async () => {
     vi.mocked(channelService.listChannels).mockResolvedValueOnce([
       makeChannelRow({ id: 'ch-1', config: { bot_token: 'tok1' } }),

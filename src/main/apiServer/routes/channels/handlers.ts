@@ -123,7 +123,7 @@ export const deleteChannel = async (req: Request, res: Response): Promise<Respon
 
     await channelService.deleteChannel(channelId)
 
-    await channelManager.syncChannel(channelId)
+    await channelManager.disconnectChannel(channelId)
 
     logger.info('Channel deleted', { channelId })
     return res.status(204).send()
