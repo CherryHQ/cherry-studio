@@ -139,15 +139,47 @@ class ChannelManager {
     }
   }
 
-  async syncAgent(agentId: string): Promise<void> {
-    // Disconnect existing adapters for this agent in parallel
+  /** Disconnect the adapter for a single channel without reconnecting. */
+  async disconnectChannel(channelId: string): Promise<void> {
+    for (const [key, adapter] of this.adapters) {
+      if (adapter.channelId === channelId) {
+        await adapter.disconnect().catch((err) => {
+          logger.warn('Error disconnecting adapter', {
+            key,
+            error: err instanceof Error ? err.message : String(err)
+          })
+        })
+        this.adapters.delete(key)
+      }
+    }
+  }
+
+  /**
+   * Sync a single channel: disconnect its adapter (if any) and reconnect if active.
+   * Use this instead of disconnectAgent() when only one channel changed.
+   */
+  async syncChannel(channelId: string): Promise<void> {
+    await this.disconnectChannel(channelId)
+
+    // Re-read from DB and reconnect if active
+    const channel = await channelService.getChannel(channelId)
+    if (channel && channel.isActive && channel.agentId) {
+      await this.connectChannelFromRow(channel)
+    }
+  }
+
+  /**
+   * Disconnect all adapters for an agent without reconnecting.
+   * Use when the agent is deleted or its channels should all be torn down.
+   */
+  async disconnectAgent(agentId: string): Promise<void> {
     const toDisconnect = [...this.adapters.entries()].filter(([, a]) => a.agentId === agentId)
     await Promise.all(
       toDisconnect.map(([key, adapter]) =>
         adapter
           .disconnect()
           .catch((err) => {
-            logger.warn('Error disconnecting adapter during sync', {
+            logger.warn('Error disconnecting adapter', {
               key,
               error: err instanceof Error ? err.message : String(err)
             })
@@ -159,14 +191,6 @@ class ChannelManager {
     )
 
     channelMessageHandler.clearSessionTracker(agentId)
-
-    // Re-create from current DB rows
-    const channels = await channelService.listChannels({ agentId })
-    const activeChannels = channels.filter((ch) => ch.isActive)
-
-    for (const channel of activeChannels) {
-      await this.connectChannelFromRow(channel)
-    }
   }
 
   /**
@@ -187,7 +211,7 @@ class ChannelManager {
     })
 
     logger.info('Saved QR registration credentials, reconnecting', { agentId, channelId })
-    await this.syncAgent(agentId)
+    await this.syncChannel(channelId)
   }
 
   private async connectChannelFromRow(row: ChannelRow): Promise<void> {
