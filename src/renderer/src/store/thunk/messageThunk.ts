@@ -15,6 +15,7 @@
  * --------------------------------------------------------------------------
  */
 import { cacheService } from '@data/CacheService'
+import { preferenceService } from '@data/PreferenceService'
 import { loggerService } from '@logger'
 import { AiSdkToChunkAdapter } from '@renderer/aiCore/chunk/AiSdkToChunkAdapter'
 import { AgentApiClient } from '@renderer/api/agent'
@@ -152,20 +153,49 @@ const buildAgentBaseURL = (apiServer: ApiServerConfig) => {
   return `${baseHost}${portSegment}`
 }
 
-export const renameAgentSessionIfNeeded = async (
-  agentSession: AgentSessionContext,
-  topicId: string,
-  getState: () => RootState
-): Promise<void> => {
+const getAgentApiServerConfig = async (): Promise<ApiServerConfig | null> => {
+  const { host, port, apiKey } = await preferenceService.getMultiple({
+    host: 'feature.csaas.host',
+    port: 'feature.csaas.port',
+    apiKey: 'feature.csaas.api_key'
+  })
+
+  if (!apiKey) {
+    return null
+  }
+
+  return {
+    enabled: true,
+    host,
+    port,
+    apiKey
+  }
+}
+
+const createAgentApiClient = async (): Promise<AgentApiClient | null> => {
+  const apiServer = await getAgentApiServerConfig()
+  if (!apiServer?.apiKey) {
+    return null
+  }
+
+  return new AgentApiClient({
+    baseURL: buildAgentBaseURL(apiServer),
+    headers: {
+      Authorization: `Bearer ${apiServer.apiKey}`,
+      'X-Api-Key': apiServer.apiKey
+    }
+  })
+}
+
+export const renameAgentSessionIfNeeded = async (agentSession: AgentSessionContext, topicId: string): Promise<void> => {
   const lockId = `${agentSession.agentId}:${agentSession.sessionId}`
   if (agentSessionRenameLocks.has(lockId)) {
     return
   }
 
   try {
-    const state = getState()
-    const apiServer = state.settings.apiServer
-    if (!apiServer?.apiKey) {
+    const client = await createAgentApiClient()
+    if (!client) {
       return
     }
 
@@ -179,14 +209,6 @@ export const renameAgentSessionIfNeeded = async (
     if (!summaryText) {
       return
     }
-
-    const baseURL = buildAgentBaseURL(apiServer)
-    const client = new AgentApiClient({
-      baseURL,
-      headers: {
-        Authorization: `Bearer ${apiServer.apiKey}`
-      }
-    })
 
     agentSessionRenameLocks.add(lockId)
 
@@ -743,15 +765,8 @@ const fetchAndProcessAgentResponseImpl = async (
 
         // Refresh session data to get updated slash_commands from backend
         // This happens after the SDK init message updates the session in the database
-        const apiServer = stateAfterUpdate.settings.apiServer
-        if (apiServer?.apiKey) {
-          const baseURL = buildAgentBaseURL(apiServer)
-          const client = new AgentApiClient({
-            baseURL,
-            headers: {
-              Authorization: `Bearer ${apiServer.apiKey}`
-            }
-          })
+        const client = await createAgentApiClient()
+        if (client) {
           const paths = client.getSessionPaths(agentSession.agentId)
           await mutate(paths.withId(agentSession.sessionId))
           logger.info('Refreshed session data after sessionId update', {
@@ -784,7 +799,7 @@ const fetchAndProcessAgentResponseImpl = async (
       await persistAgentSessionId(latestAgentSessionId)
     }
 
-    await renameAgentSessionIfNeeded(agentSession, topicId, getState)
+    await renameAgentSessionIfNeeded(agentSession, topicId)
   } catch (error: any) {
     logger.error('Error in fetchAndProcessAgentResponseImpl:', error)
     try {
@@ -953,18 +968,13 @@ const fetchAndProcessAssistantResponseImpl = async (
     // Fetch agent allowed_tools for MCP auto-approval
     let allowedTools: string[] | undefined
     const activeAgentId = cacheService.get('agent.active_id') as string | null
-    const apiServer = getState().settings.apiServer
-    if (activeAgentId && apiServer?.apiKey) {
+    if (activeAgentId) {
       try {
-        const baseURL = buildAgentBaseURL(apiServer)
-        const agentClient = new AgentApiClient({
-          baseURL,
-          headers: {
-            Authorization: `Bearer ${apiServer.apiKey}`
-          }
-        })
-        const agentData = await agentClient.getAgent(activeAgentId)
-        allowedTools = agentData?.allowed_tools
+        const agentClient = await createAgentApiClient()
+        if (agentClient) {
+          const agentData = await agentClient.getAgent(activeAgentId)
+          allowedTools = agentData?.allowed_tools
+        }
       } catch {
         // Agent fetch failed — proceed without allowedTools
       }

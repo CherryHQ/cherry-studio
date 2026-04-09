@@ -49,6 +49,10 @@ const Sessions = ({ agentId, onSelectItem }: SessionsProps) => {
   // Build sessionId → channelType map from channels table
   const [channelTypeMap, setChannelTypeMap] = useState<Record<string, string>>({})
   useEffect(() => {
+    if (!client) {
+      return
+    }
+
     client
       .listChannels({ agent_id: agentId })
       .then(({ data }) => {

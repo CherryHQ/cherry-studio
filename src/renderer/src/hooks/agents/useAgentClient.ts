@@ -1,19 +1,37 @@
+import { useMultiplePreferences } from '@data/hooks/usePreference'
 import { AgentApiClient } from '@renderer/api/agent'
 import { useMemo } from 'react'
 
-import { useSettings } from '../useSettings'
+const API_SERVER_PREFERENCE_KEYS = {
+  host: 'feature.csaas.host',
+  port: 'feature.csaas.port',
+  apiKey: 'feature.csaas.api_key'
+} as const
+
+export const AGENT_API_CLIENT_UNAVAILABLE_ERROR = 'Agent API client unavailable'
+
+export function requireAgentClient(client: AgentApiClient | null): AgentApiClient {
+  if (!client) {
+    throw new Error(AGENT_API_CLIENT_UNAVAILABLE_ERROR)
+  }
+
+  return client
+}
 
 export const useAgentClient = () => {
-  const { apiServer } = useSettings()
-  const { host, port, apiKey } = apiServer
-  return useMemo(
-    () =>
-      new AgentApiClient({
-        baseURL: `http://${host}:${port}`,
-        headers: {
-          Authorization: `Bearer ${apiKey}`
-        }
-      }),
-    [host, port, apiKey]
-  )
+  const { host, port, apiKey } = useMultiplePreferences(API_SERVER_PREFERENCE_KEYS)[0]
+
+  return useMemo(() => {
+    if (!apiKey) {
+      return null
+    }
+
+    return new AgentApiClient({
+      baseURL: `http://${host}:${port}`,
+      headers: {
+        Authorization: `Bearer ${apiKey}`,
+        'X-Api-Key': apiKey
+      }
+    })
+  }, [host, port, apiKey])
 }
