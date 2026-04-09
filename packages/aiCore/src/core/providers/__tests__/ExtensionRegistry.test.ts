@@ -1054,10 +1054,9 @@ describe('ExtensionRegistry', () => {
         }
       }
 
-      const urlContextFactory =
-        (provider: any) => (config: any) => ({
-          tools: { urlContext: provider.tools.webFetch_20260209(config) }
-        })
+      const urlContextFactory = (provider: any) => (config: any) => ({
+        tools: { urlContext: provider.tools.webFetch_20260209(config) }
+      })
 
       registry.register(
         new ProviderExtension({
