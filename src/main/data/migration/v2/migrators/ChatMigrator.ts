@@ -513,17 +513,20 @@ export class ChatMigrator extends BaseMigrator {
         })
       }
 
+      logger.info('Validation diagnostics', {
+        skippedMessages: this.skippedMessages,
+        orphanedAssistantTopics: this.orphanedAssistantTopics,
+        messagesWithMissingBlocks: this.blockStats.messagesWithMissingBlocks,
+        messagesWithEmptyBlocks: this.blockStats.messagesWithEmptyBlocks
+      })
+
       return {
         success: errors.length === 0,
         errors,
         stats: {
           sourceCount: this.topicCount,
           targetCount: targetTopicCount,
-          skippedCount: this.skippedTopics,
-          skippedMessages: this.skippedMessages,
-          orphanedAssistantTopics: this.orphanedAssistantTopics,
-          messagesWithMissingBlocks: this.blockStats.messagesWithMissingBlocks,
-          messagesWithEmptyBlocks: this.blockStats.messagesWithEmptyBlocks
+          skippedCount: this.skippedTopics
         }
       }
     } catch (error) {
