@@ -86,7 +86,7 @@ class ProviderRegistryService {
   private loadRegistryModels(): ProtoModelConfig[] {
     if (this.registryModels) return this.registryModels
 
-    const filePath = application.getPath('app.provider_registry.data', 'models.json')
+    const filePath = application.getPath('feature.provider_registry.data', 'models.json')
     try {
       const data = readModelRegistry(filePath)
       const models = data.models ?? []
@@ -102,7 +102,7 @@ class ProviderRegistryService {
   private loadProviderModels(): ProtoProviderModelOverride[] {
     if (this.registryProviderModels) return this.registryProviderModels
 
-    const filePath = application.getPath('app.provider_registry.data', 'provider-models.json')
+    const filePath = application.getPath('feature.provider_registry.data', 'provider-models.json')
     try {
       const data = readProviderModelRegistry(filePath)
       const overrides = data.overrides ?? []
@@ -118,7 +118,7 @@ class ProviderRegistryService {
   private loadRegistryProviders(): ProtoProviderConfig[] {
     if (this.registryProviders) return this.registryProviders
 
-    const filePath = application.getPath('app.provider_registry.data', 'providers.json')
+    const filePath = application.getPath('feature.provider_registry.data', 'providers.json')
     try {
       const data = readProviderRegistry(filePath)
       const providers = data.providers ?? []
