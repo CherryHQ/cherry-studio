@@ -228,4 +228,35 @@ describe('isFunctionCallingModel', () => {
       expect(isFunctionCallingModel(model)).toBe(true)
     })
   })
+
+  describe('Gemma 4 Models', () => {
+    it('detects Gemma 4 GenAI format as function calling', () => {
+      expect(isFunctionCallingModel(createModel({ id: 'gemma-4-e2b' }))).toBe(true)
+      expect(isFunctionCallingModel(createModel({ id: 'gemma-4-e4b' }))).toBe(true)
+      expect(isFunctionCallingModel(createModel({ id: 'gemma-4-26b-moe' }))).toBe(true)
+      expect(isFunctionCallingModel(createModel({ id: 'gemma-4-31b' }))).toBe(true)
+    })
+
+    it('detects Gemma 4 Ollama format as function calling', () => {
+      expect(isFunctionCallingModel(createModel({ id: 'gemma4' }))).toBe(true)
+      expect(isFunctionCallingModel(createModel({ id: 'gemma4:e2b' }))).toBe(true)
+      expect(isFunctionCallingModel(createModel({ id: 'gemma4:31b' }))).toBe(true)
+      expect(isFunctionCallingModel(createModel({ id: 'gemma4:latest' }))).toBe(true)
+    })
+
+    it('detects Gemma 4 with provider prefix', () => {
+      expect(isFunctionCallingModel(createModel({ id: 'google/gemma-4-31b' }))).toBe(true)
+      expect(isFunctionCallingModel(createModel({ id: 'openrouter/gemma-4-e2b' }))).toBe(true)
+    })
+
+    it('does NOT detect Gemma 2 as function calling (no regression)', () => {
+      expect(isFunctionCallingModel(createModel({ id: 'gemma-2b' }))).toBe(false)
+      expect(isFunctionCallingModel(createModel({ id: 'gemma-2-27b-it' }))).toBe(false)
+    })
+
+    it('does NOT detect Gemma 3 as function calling (no regression)', () => {
+      expect(isFunctionCallingModel(createModel({ id: 'gemma-3-27b' }))).toBe(false)
+      expect(isFunctionCallingModel(createModel({ id: 'gemma-3n-e4b-it' }))).toBe(false)
+    })
+  })
 })
