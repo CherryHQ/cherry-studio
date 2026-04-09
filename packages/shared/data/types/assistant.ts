@@ -47,7 +47,8 @@ export const AssistantSettingsSchema = z.object({
   contextCount: z.number().int().positive().default(5),
   /** @default true — streaming provides better UX */
   streamOutput: z.boolean().default(true),
-  /** @default 'default' — let model decide */
+  /** @default 'default' — let model decide.
+   *  String (not enum) because providers define custom values (e.g. 'xlow', 'high-reasoning'). */
   reasoning_effort: z.string().default('default'),
   /** @default false — Qwen-specific thinking mode */
   qwenThinkMode: z.boolean().default(false),
@@ -138,9 +139,11 @@ export const AssistantSchema = z.object({
   mcpServerIds: z.array(z.string()),
   /** Ordered knowledge base IDs linked through assistant_knowledge_base */
   knowledgeBaseIds: z.array(z.string()),
-  /** Creation timestamp (ISO string) */
+  /** Creation timestamp (ISO string).
+   *  DB column is nullable (SQLite integer), but rowToAssistant always provides a
+   *  fallback so the API-level type is non-optional. */
   createdAt: z.iso.datetime(),
-  /** Last update timestamp (ISO string) */
+  /** Last update timestamp (ISO string). Same nullable-at-DB / non-null-at-API pattern. */
   updatedAt: z.iso.datetime()
 })
 export type Assistant = z.infer<typeof AssistantSchema>

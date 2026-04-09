@@ -128,6 +128,8 @@ export class ChatMigrator extends BaseMigrator {
   private seenMessageIds = new Set<string>()
   // Block statistics for diagnostics
   private blockStats = { requested: 0, resolved: 0, messagesWithMissingBlocks: 0, messagesWithEmptyBlocks: 0 }
+  // Count of messages promoted to root because no migrated ancestor was found
+  private promotedToRootCount = 0
 
   override reset(): void {
     this.topicCount = 0
@@ -141,6 +143,7 @@ export class ChatMigrator extends BaseMigrator {
     this.orphanedAssistantTopics = 0
     this.seenMessageIds = new Set()
     this.blockStats = { requested: 0, resolved: 0, messagesWithMissingBlocks: 0, messagesWithEmptyBlocks: 0 }
+    this.promotedToRootCount = 0
   }
 
   /**
@@ -513,12 +516,14 @@ export class ChatMigrator extends BaseMigrator {
         })
       }
 
-      logger.info('Validation diagnostics', {
+      const diagnostics = {
         skippedMessages: this.skippedMessages,
         orphanedAssistantTopics: this.orphanedAssistantTopics,
         messagesWithMissingBlocks: this.blockStats.messagesWithMissingBlocks,
-        messagesWithEmptyBlocks: this.blockStats.messagesWithEmptyBlocks
-      })
+        messagesWithEmptyBlocks: this.blockStats.messagesWithEmptyBlocks,
+        promotedToRootCount: this.promotedToRootCount
+      }
+      logger.info('Validation diagnostics', diagnostics)
 
       return {
         success: errors.length === 0,
@@ -527,7 +532,8 @@ export class ChatMigrator extends BaseMigrator {
           sourceCount: this.topicCount,
           targetCount: targetTopicCount,
           skippedCount: this.skippedTopics
-        }
+        },
+        diagnostics
       }
     } catch (error) {
       logger.error('Validation failed', error as Error)
@@ -596,17 +602,17 @@ export class ChatMigrator extends BaseMigrator {
 
     // Get assistantId from Redux mapping (Dexie topics don't store assistantId)
     // Fall back to oldTopic.assistantId in case Dexie did store it (defensive)
-    const assistantId = this.topicAssistantLookup.get(oldTopic.id) || oldTopic.assistantId
-    if (assistantId && !oldTopic.assistantId) {
-      oldTopic.assistantId = assistantId
-    }
+    let resolvedAssistantId = this.topicAssistantLookup.get(oldTopic.id) || oldTopic.assistantId || ''
 
     // Validate assistantId FK — clear if orphaned (transformTopic coerces '' to null via || null)
-    if (assistantId && this.validAssistantIds && !this.validAssistantIds.has(assistantId)) {
-      logger.warn(`Topic ${oldTopic.id}: assistant ${assistantId} not found in assistant table, clearing`)
-      oldTopic.assistantId = ''
+    if (resolvedAssistantId && this.validAssistantIds && !this.validAssistantIds.has(resolvedAssistantId)) {
+      logger.warn(`Topic ${oldTopic.id}: assistant ${resolvedAssistantId} not found in assistant table, clearing`)
+      resolvedAssistantId = ''
       this.orphanedAssistantTopics++
     }
+
+    // Write resolved value back for transformTopic consumption (avoids mutating original beyond this point)
+    oldTopic.assistantId = resolvedAssistantId
 
     // Get messages array (may be empty or undefined)
     const oldMessages = oldTopic.messages || []
@@ -720,6 +726,7 @@ export class ChatMigrator extends BaseMigrator {
           logger.warn(
             `No migrated ancestor found for message ${msg.id} (original parentId: ${msg.parentId}), setting as root`
           )
+          this.promotedToRootCount++
         }
         msg.parentId = ancestor
       }

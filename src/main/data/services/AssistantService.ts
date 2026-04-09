@@ -257,25 +257,61 @@ export class AssistantDataService {
    * Runs within the caller's transaction for atomicity.
    */
   private async syncRelations(
-    tx: Pick<DbType, 'delete' | 'insert'>,
+    tx: Pick<DbType, 'delete' | 'insert' | 'select'>,
     assistantId: string,
     dto: { mcpServerIds?: string[]; knowledgeBaseIds?: string[] }
   ): Promise<void> {
     if (dto.mcpServerIds !== undefined) {
-      await tx.delete(assistantMcpServerTable).where(eq(assistantMcpServerTable.assistantId, assistantId))
-      if (dto.mcpServerIds.length > 0) {
+      const existing = await tx
+        .select({ mcpServerId: assistantMcpServerTable.mcpServerId })
+        .from(assistantMcpServerTable)
+        .where(eq(assistantMcpServerTable.assistantId, assistantId))
+      const existingIds = new Set(existing.map((r) => r.mcpServerId))
+      const desiredIds = new Set(dto.mcpServerIds)
+
+      const toRemove = existing.filter((r) => !desiredIds.has(r.mcpServerId))
+      const toAdd = dto.mcpServerIds.filter((id) => !existingIds.has(id))
+
+      for (const r of toRemove) {
         await tx
-          .insert(assistantMcpServerTable)
-          .values(dto.mcpServerIds.map((mcpServerId) => ({ assistantId, mcpServerId })))
+          .delete(assistantMcpServerTable)
+          .where(
+            and(
+              eq(assistantMcpServerTable.assistantId, assistantId),
+              eq(assistantMcpServerTable.mcpServerId, r.mcpServerId)
+            )
+          )
+      }
+      if (toAdd.length > 0) {
+        await tx.insert(assistantMcpServerTable).values(toAdd.map((mcpServerId) => ({ assistantId, mcpServerId })))
       }
     }
 
     if (dto.knowledgeBaseIds !== undefined) {
-      await tx.delete(assistantKnowledgeBaseTable).where(eq(assistantKnowledgeBaseTable.assistantId, assistantId))
-      if (dto.knowledgeBaseIds.length > 0) {
+      const existing = await tx
+        .select({ knowledgeBaseId: assistantKnowledgeBaseTable.knowledgeBaseId })
+        .from(assistantKnowledgeBaseTable)
+        .where(eq(assistantKnowledgeBaseTable.assistantId, assistantId))
+      const existingIds = new Set(existing.map((r) => r.knowledgeBaseId))
+      const desiredIds = new Set(dto.knowledgeBaseIds)
+
+      const toRemove = existing.filter((r) => !desiredIds.has(r.knowledgeBaseId))
+      const toAdd = dto.knowledgeBaseIds.filter((id) => !existingIds.has(id))
+
+      for (const r of toRemove) {
+        await tx
+          .delete(assistantKnowledgeBaseTable)
+          .where(
+            and(
+              eq(assistantKnowledgeBaseTable.assistantId, assistantId),
+              eq(assistantKnowledgeBaseTable.knowledgeBaseId, r.knowledgeBaseId)
+            )
+          )
+      }
+      if (toAdd.length > 0) {
         await tx
           .insert(assistantKnowledgeBaseTable)
-          .values(dto.knowledgeBaseIds.map((knowledgeBaseId) => ({ assistantId, knowledgeBaseId })))
+          .values(toAdd.map((knowledgeBaseId) => ({ assistantId, knowledgeBaseId })))
       }
     }
   }

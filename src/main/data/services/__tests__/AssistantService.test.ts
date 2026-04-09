@@ -427,6 +427,27 @@ describe('AssistantDataService', () => {
       expect(mcpRows[0].mcpServerId).toBe('srv-2')
     })
 
+    it('should preserve junction createdAt for unchanged relations on PATCH', async () => {
+      const db = realDb!
+      await db.insert(assistantTable).values({ id: 'ast-1', name: 'test' })
+      await db.run(sql.raw(`INSERT INTO mcp_server (id, name) VALUES ('srv-1', 'MCP1'), ('srv-2', 'MCP2')`))
+      // Insert with known createdAt
+      await db.run(
+        sql.raw(
+          `INSERT INTO assistant_mcp_server (assistant_id, mcp_server_id, created_at) VALUES ('ast-1', 'srv-1', 1000)`
+        )
+      )
+
+      // Update: keep srv-1, add srv-2
+      await assistantDataService.update('ast-1', { mcpServerIds: ['srv-1', 'srv-2'] })
+
+      const mcpRows = await db.select().from(assistantMcpServerTable)
+      expect(mcpRows).toHaveLength(2)
+      // srv-1's createdAt should be preserved (not reset)
+      const srv1Row = mcpRows.find((r) => r.mcpServerId === 'srv-1')
+      expect(srv1Row?.createdAt).toBe(1000)
+    })
+
     it('should throw NOT_FOUND when updating non-existent assistant', async () => {
       await expect(assistantDataService.update('non-existent', { name: 'x' })).rejects.toMatchObject({
         code: ErrorCode.NOT_FOUND

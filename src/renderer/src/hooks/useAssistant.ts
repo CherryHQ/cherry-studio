@@ -80,7 +80,7 @@ export function useAssistant(id: string) {
   const { defaultModel } = useDefaultModel()
 
   const model = useMemo(() => assistant?.model ?? assistant?.defaultModel ?? defaultModel, [assistant, defaultModel])
-  if (!model) {
+  if (assistant && !model) {
     throw new Error(`Assistant model is not set for assistant with name: ${assistant?.name ?? 'unknown'}`)
   }
 
@@ -151,7 +151,7 @@ export function useAssistant(id: string) {
         })
       }
     }
-  }, [model, assistant.id, updateAssistantSettings])
+  }, [model, assistant?.id, updateAssistantSettings])
 
   return {
     assistant: assistantWithModel,

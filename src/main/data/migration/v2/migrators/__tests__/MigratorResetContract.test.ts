@@ -32,6 +32,7 @@ describe('migrator reset contract', () => {
       messagesWithMissingBlocks: 1,
       messagesWithEmptyBlocks: 2
     }
+    state.promotedToRootCount = 3
 
     migrator.reset()
 
@@ -50,6 +51,7 @@ describe('migrator reset contract', () => {
       messagesWithMissingBlocks: 0,
       messagesWithEmptyBlocks: 0
     })
+    expect(state.promotedToRootCount).toBe(0)
   })
 
   it('clears cached source data and counters in TranslateMigrator', () => {
