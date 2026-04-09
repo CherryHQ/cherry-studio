@@ -1,7 +1,7 @@
 import type { KnowledgeBase, KnowledgeItem } from '@shared/data/types/knowledge'
 import { describe, expect, it, vi } from 'vitest'
 
-import { KnowledgeAddQueue } from '../addQueue'
+import { KnowledgeAddQueue } from '../KnowledgeAddQueue'
 
 function createBase(): KnowledgeBase {
   return {
@@ -42,9 +42,8 @@ function createDeferred<T>() {
 describe('KnowledgeAddQueue', () => {
   it('deduplicates queued work for the same item', async () => {
     const deferred = createDeferred<void>()
-    const executeAdd = vi.fn(async (entry) => {
+    const executeAdd = vi.fn(async () => {
       await deferred.promise
-      entry.resolve()
     })
     const queue = new KnowledgeAddQueue(1, executeAdd)
     const base = createBase()
@@ -70,11 +69,8 @@ describe('KnowledgeAddQueue', () => {
       }
 
       if (entry.interruptedBy) {
-        entry.reject(new Error('Knowledge task interrupted by item deletion'))
-        return
+        throw new Error('Knowledge task interrupted by item deletion')
       }
-
-      entry.resolve()
     })
     const queue = new KnowledgeAddQueue(1, executeAdd)
     const base = createBase()
@@ -103,5 +99,22 @@ describe('KnowledgeAddQueue', () => {
 
     await expect(runningPromise).rejects.toThrow('Knowledge task interrupted by item deletion')
     await expect(pendingPromise).rejects.toThrow('Knowledge task interrupted by item deletion')
+  })
+
+  it('rejects the public promise when executeAdd throws and continues with later work', async () => {
+    const queue = new KnowledgeAddQueue(1, async (entry) => {
+      if (entry.item.id === firstItem.id) {
+        throw new Error('execute failed')
+      }
+    })
+    const base = createBase()
+    const firstItem = createItem('item-failed')
+    const secondItem = createItem('item-next')
+
+    const firstPromise = queue.enqueue(base, firstItem)
+    const secondPromise = queue.enqueue(base, secondItem)
+
+    await expect(firstPromise).rejects.toThrow('execute failed')
+    await expect(secondPromise).resolves.toBeUndefined()
   })
 })

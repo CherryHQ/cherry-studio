@@ -8,7 +8,7 @@ import { loadKnowledgeItemDocuments } from '../readers/KnowledgeReader'
 import { chunkDocuments } from '../utils/chunk'
 import { embedDocuments } from '../utils/embed'
 import { getEmbedModel } from '../utils/model'
-import type { RunningAddEntry } from './addQueue'
+import type { AddTaskContext } from './KnowledgeAddQueue'
 import {
   DELETE_INTERRUPTED_REASON,
   runAbortable,
@@ -23,7 +23,7 @@ const CONTAINER_ITEM_INDEXING_UNSUPPORTED_REASON =
 export class KnowledgeAddRuntime {
   constructor(private readonly isStopping: () => boolean) {}
 
-  async executeAdd(entry: RunningAddEntry): Promise<void> {
+  async executeAdd(entry: AddTaskContext): Promise<void> {
     const { base, item, controller } = entry
     const ctx: RuntimeTaskContext = {
       itemId: item.id,
@@ -43,7 +43,6 @@ export class KnowledgeAddRuntime {
           error: null
         })
       )
-      entry.resolve()
     } catch (error) {
       const normalizedError = error instanceof Error ? error : new Error(String(error))
 
@@ -52,11 +51,10 @@ export class KnowledgeAddRuntime {
         normalizedError.message === DELETE_INTERRUPTED_REASON ||
         normalizedError.message === SHUTDOWN_INTERRUPTED_REASON
       ) {
-        entry.reject(normalizedError)
-        return
+        throw normalizedError
       }
 
-      entry.reject(await this.handleAddItemFailure(base, item, vectorStore, normalizedError))
+      throw await this.handleAddItemFailure(base, item, vectorStore, normalizedError)
     }
   }
 

@@ -19,11 +19,7 @@ vi.mock('@main/core/lifecycle', async (importOriginal) => {
 
 vi.mock('@vectorstores/libsql', () => {
   class MockLibSQLVectorStore {
-    private readonly closeMock: () => void
-
-    constructor(closeMock: () => void) {
-      this.closeMock = closeMock
-    }
+    closeMock = vi.fn()
 
     client() {
       return {
@@ -59,7 +55,9 @@ function createBase(id = 'kb-1') {
 }
 
 function createStore(closeMock = vi.fn()) {
-  return new LibSQLVectorStore(closeMock)
+  const store = new LibSQLVectorStore({})
+  ;(store as unknown as { closeMock: () => void }).closeMock = closeMock
+  return store
 }
 
 describe('KnowledgeVectorStoreService', () => {

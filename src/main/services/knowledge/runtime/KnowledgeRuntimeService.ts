@@ -11,8 +11,8 @@ import { rerankKnowledgeSearchResults } from '../rerank/rerank'
 import { expandDirectoryOwnerToCreateItems } from '../utils/directory'
 import { getEmbedModel } from '../utils/model'
 import { expandSitemapOwnerToCreateItems } from '../utils/sitemap'
-import { KnowledgeAddQueue } from './addQueue'
 import { KnowledgeAddRuntime } from './addRuntime'
+import { KnowledgeAddQueue } from './KnowledgeAddQueue'
 import { deleteItemVectors, deleteVectorsForEntries, failItems } from './utils/cleanup'
 import { DELETE_INTERRUPTED_REASON, SHUTDOWN_INTERRUPTED_REASON } from './utils/taskRuntime'
 
@@ -24,8 +24,7 @@ export class KnowledgeRuntimeService extends BaseService {
   private addRuntime = new KnowledgeAddRuntime(() => this.isStopping)
   private addQueue = new KnowledgeAddQueue(5, (entry) => {
     if (this.isStopping) {
-      entry.reject(new Error(SHUTDOWN_INTERRUPTED_REASON))
-      return Promise.resolve()
+      throw new Error(SHUTDOWN_INTERRUPTED_REASON)
     }
 
     return this.addRuntime.executeAdd(entry)

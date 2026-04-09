@@ -3,7 +3,7 @@ import { getDependencies, getPhase } from '@main/core/lifecycle/decorators'
 import { Phase } from '@main/core/lifecycle/types'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { KnowledgeAddQueue } from '../addQueue'
+import { KnowledgeAddQueue } from '../KnowledgeAddQueue'
 import { DELETE_INTERRUPTED_REASON, SHUTDOWN_INTERRUPTED_REASON } from '../utils/taskRuntime'
 
 const {
@@ -189,8 +189,7 @@ function createDeferred<T>() {
 function createSingleConcurrencyQueue(service: InstanceType<typeof KnowledgeRuntimeService>) {
   return new KnowledgeAddQueue(1, (entry) => {
     if ((service as any).isStopping) {
-      entry.reject(new Error(SHUTDOWN_INTERRUPTED_REASON))
-      return Promise.resolve()
+      throw new Error(SHUTDOWN_INTERRUPTED_REASON)
     }
 
     return (service as any).addRuntime.executeAdd(entry)
