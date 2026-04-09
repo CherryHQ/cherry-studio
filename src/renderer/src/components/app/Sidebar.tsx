@@ -76,6 +76,7 @@ function resolveActiveItem(pathname: string): SidebarIconType | '' {
 
 export default function Sidebar({ ref }: { ref?: Ref<HTMLDivElement | null> }) {
   const { t } = useTranslation()
+  const [userName] = usePreference('app.user.name')
   const [visibleSidebarIcons] = usePreference('ui.sidebar.icons.visible')
   const [showOpenedInSidebar] = usePreference('feature.minapp.show_opened_in_sidebar')
   const { tabs, activeTab, activeTabId, updateTab, openTab } = useTabs()
@@ -95,11 +96,11 @@ export default function Sidebar({ ref }: { ref?: Ref<HTMLDivElement | null> }) {
   const avatar = useAvatar()
   const sidebarUser = useMemo<SidebarUser>(
     () => ({
-      name: t('chat.user', { defaultValue: t('export.user', { defaultValue: 'User' }) }),
+      name: userName || t('chat.user', { defaultValue: t('export.user', { defaultValue: 'User' }) }),
       avatar: avatar || undefined,
       onClick: () => UserPopup.show()
     }),
-    [avatar, t]
+    [avatar, t, userName]
   )
 
   // MiniApp tabs — bridge v1 popup system data to v2 sidebar UI
