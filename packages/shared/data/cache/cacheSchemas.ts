@@ -252,7 +252,7 @@ export type RendererPersistCacheSchema = {
   'feature.mcp.is_bun_installed': boolean
   // Multi-model list for @mention parallel answering, keyed by assistantId
   // This is UI-level state, not core assistant config (default model is assistant.modelId)
-  'assistant.multi_model_ids': Record<string, string[]>
+  'ui.assistant.multi_model_ids': Record<string, string[]>
   // User-defined tag display order in assistant list sidebar
   'ui.assistant.tags_order': string[]
   // Collapsed state of tag groups in assistant list sidebar
@@ -263,7 +263,7 @@ export const DefaultRendererPersistCache: RendererPersistCacheSchema = {
   'ui.tab.state': { tabs: [], activeTabId: '' },
   'feature.mcp.is_uv_installed': false,
   'feature.mcp.is_bun_installed': false,
-  'assistant.multi_model_ids': {},
+  'ui.assistant.multi_model_ids': {},
   'ui.assistant.tags_order': [],
   'ui.assistant.collapsed_tags': {}
 }
