@@ -93,7 +93,10 @@ export const providerHandlers: {
     },
 
     POST: async ({ params, body }) => {
-      return await providerRegistryService.resolveModels(params.providerId, body.models)
+      return await providerRegistryService.resolveModels(
+        params.providerId,
+        body.models.map((m) => m.modelId)
+      )
     }
   },
 

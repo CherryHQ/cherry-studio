@@ -24,7 +24,7 @@ import type {
 } from '@shared/data/types/model'
 import { createUniqueModelId } from '@shared/data/types/model'
 import type { ReasoningFormatType } from '@shared/data/types/provider'
-import { mergeModelConfig } from '@shared/data/utils/modelMerger'
+import { mergeModelWithUser } from '@shared/data/utils/modelMerger'
 import { and, eq, inArray, type SQL } from 'drizzle-orm'
 
 const logger = loggerService.withContext('DataApi:ModelService')
@@ -165,7 +165,7 @@ export class ModelService {
         reasoning: dto.reasoning ?? null
       }
 
-      const merged = mergeModelConfig(
+      const merged = mergeModelWithUser(
         userRow,
         registryOverride,
         presetModel,

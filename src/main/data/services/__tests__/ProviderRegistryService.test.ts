@@ -215,7 +215,7 @@ describe('ProviderRegistryService', () => {
     it('should merge raw models with registry data including capabilities and limits', async () => {
       setupRegistryData()
 
-      const models = await providerRegistryService.resolveModels('openai', [{ modelId: 'gpt-4o' }])
+      const models = await providerRegistryService.resolveModels('openai', ['gpt-4o'])
 
       expect(models).toHaveLength(1)
       expect(models[0].name).toBe('GPT-4o')
@@ -228,21 +228,16 @@ describe('ProviderRegistryService', () => {
     it('should handle models not in registry', async () => {
       setupRegistryData()
 
-      const models = await providerRegistryService.resolveModels('openai', [
-        { modelId: 'custom-model', name: 'Custom' }
-      ])
+      const models = await providerRegistryService.resolveModels('openai', ['custom-model'])
 
       expect(models).toHaveLength(1)
-      expect(models[0].name).toBe('Custom')
+      expect(models[0].name).toBe('custom-model')
     })
 
     it('should deduplicate by modelId', async () => {
       setupRegistryData()
 
-      const models = await providerRegistryService.resolveModels('openai', [
-        { modelId: 'gpt-4o' },
-        { modelId: 'gpt-4o' }
-      ])
+      const models = await providerRegistryService.resolveModels('openai', ['gpt-4o', 'gpt-4o'])
 
       expect(models).toHaveLength(1)
     })

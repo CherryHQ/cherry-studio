@@ -81,16 +81,12 @@ const UpdateModelDtoSchema = CreateModelDtoSchema.omit({
   })
 export type UpdateModelDto = z.infer<typeof UpdateModelDtoSchema>
 
-/** DTO for enriching raw model entries against registry presets */
+/** DTO for resolving raw model IDs against registry presets */
 const EnrichModelsDtoSchema = z.object({
-  /** Raw model entries from SDK */
+  /** Raw model IDs from SDK listModels() */
   models: z.array(
     z.object({
-      modelId: z.string(),
-      name: z.string().optional(),
-      group: z.string().optional(),
-      description: z.string().optional(),
-      endpointTypes: z.array(z.enum(objectValues(ENDPOINT_TYPE))).optional()
+      modelId: z.string()
     })
   )
 })

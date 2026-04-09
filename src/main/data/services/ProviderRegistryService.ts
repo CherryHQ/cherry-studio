@@ -19,14 +19,30 @@ import { loggerService } from '@logger'
 import { application } from '@main/core/application'
 import type { Model } from '@shared/data/types/model'
 import type { EndpointConfig, ReasoningFormatType } from '@shared/data/types/provider'
-import { extractReasoningFormatTypes, mergeModelConfig } from '@shared/data/utils/modelMerger'
+import { createCustomModel, extractReasoningFormatTypes, mergePresetModel } from '@shared/data/utils/modelMerger'
 import { eq } from 'drizzle-orm'
 
 const logger = loggerService.withContext('DataApi:ProviderRegistryService')
 
+/**
+ * Bridges the read-only provider registry (JSON) with SQLite user data.
+ *
+ * This service handles operations that require merging preset model/provider
+ * data from the registry package with user-specific configuration stored in
+ * the database (e.g. reasoning format overrides from `user_provider`).
+ *
+ * It does **not** own any database table — all DB writes go through
+ * `ModelService` / `ProviderService`. It only reads `user_provider` for
+ * effective reasoning config resolution.
+ *
+ * @see {@link RegistryLoader} for JSON loading and caching
+ * @see {@link lookupRegistryModel} for pure model lookup (no DB)
+ * @see {@link mergeModelConfig} for the three-layer merge algorithm
+ */
 class ProviderRegistryService {
   private loader: RegistryLoader | null = null
 
+  /** Lazily create the shared RegistryLoader instance. */
   private getLoader(): RegistryLoader {
     if (!this.loader) {
       this.loader = new RegistryLoader({
@@ -38,6 +54,15 @@ class ProviderRegistryService {
     return this.loader
   }
 
+  /**
+   * Get reasoning config from registry providers.json only (no DB).
+   *
+   * Resolves `defaultChatEndpoint` and `reasoningFormatTypes` for a provider
+   * by looking up its `endpointConfigs` in the shipped registry data.
+   *
+   * @param providerId - The provider to look up
+   * @returns Registry-level reasoning config (may be overridden by user DB values)
+   */
   private getRegistryReasoningConfig(providerId: string): {
     defaultChatEndpoint?: EndpointType
     reasoningFormatTypes?: Partial<Record<EndpointType, ReasoningFormatType>>
@@ -55,6 +80,16 @@ class ProviderRegistryService {
     }
   }
 
+  /**
+   * Get effective reasoning config by merging registry defaults with user DB overrides.
+   *
+   * Priority: user_provider DB values > registry providers.json defaults.
+   * Queries `user_provider` for the given providerId to check if the user
+   * has customized `defaultChatEndpoint` or `endpointConfigs`.
+   *
+   * @param providerId - The provider to resolve config for
+   * @returns Merged reasoning config with user overrides applied
+   */
   private async getEffectiveReasoningConfig(providerId: string): Promise<{
     defaultChatEndpoint?: EndpointType
     reasoningFormatTypes?: Partial<Record<EndpointType, ReasoningFormatType>>
@@ -81,6 +116,18 @@ class ProviderRegistryService {
     return registryConfig
   }
 
+  /**
+   * Get all registry models for a provider as fully merged Model objects.
+   *
+   * Read-only — does not write to the database. Uses only registry data
+   * (models.json + provider-models.json + providers.json) without DB queries
+   * for user overrides.
+   *
+   * Used by: `GET /providers/:providerId/registry-models`
+   *
+   * @param providerId - The provider whose registry models to return
+   * @returns Array of merged Model objects with preset + override data applied
+   */
   getRegistryModelsByProvider(providerId: string): Model[] {
     const loader = this.getLoader()
     const registryModels = loader.loadModels()
@@ -99,14 +146,26 @@ class ProviderRegistryService {
     for (const override of overrides) {
       const baseModel = modelMap.get(override.modelId) ?? null
       if (!baseModel) continue
-      mergedModels.push(
-        mergeModelConfig(null, override, baseModel, providerId, reasoningFormatTypes, defaultChatEndpoint)
-      )
+      mergedModels.push(mergePresetModel(baseModel, override, providerId, reasoningFormatTypes, defaultChatEndpoint))
     }
 
     return mergedModels
   }
 
+  /**
+   * Look up a single model's registry data and effective reasoning config.
+   *
+   * Combines a pure registry lookup (exact match + normalized fallback via
+   * {@link lookupRegistryModel}) with DB-aware reasoning config resolution.
+   *
+   * Used by: `POST /models` handler — the handler calls this, then passes
+   * the result to `ModelService.create(dto, registryData)` to avoid a
+   * circular dependency between ModelService and this service.
+   *
+   * @param providerId - The provider context for override and reasoning lookup
+   * @param modelId - The model ID to look up (supports normalized fallback)
+   * @returns Preset model, provider override, and effective reasoning config
+   */
   async lookupModel(
     providerId: string,
     modelId: string
@@ -128,16 +187,22 @@ class ProviderRegistryService {
     return { presetModel, registryOverride, ...reasoningConfig }
   }
 
-  async resolveModels(
-    providerId: string,
-    rawModels: Array<{
-      modelId: string
-      name?: string
-      group?: string
-      description?: string
-      endpointTypes?: string[]
-    }>
-  ): Promise<Model[]> {
+  /**
+   * Resolve raw model IDs (e.g. from provider SDK listModels) against the registry.
+   *
+   * For each model ID, looks up its preset data and provider override from
+   * the registry, then merges (preset → override). All data comes from
+   * the registry — SDK only provides the model ID for matching.
+   * Models not found in the registry are returned as minimal custom models.
+   * Duplicates (by modelId) are deduplicated — first occurrence wins.
+   *
+   * Used by: `POST /providers/:providerId/registry-models` with body `{ models: [{ modelId }] }`
+   *
+   * @param providerId - The provider context
+   * @param modelIds - Model IDs from SDK listModels()
+   * @returns Array of fully resolved Model objects
+   */
+  async resolveModels(providerId: string, modelIds: string[]): Promise<Model[]> {
     const loader = this.getLoader()
     const registryModels = loader.loadModels()
     const providerModels = loader.loadProviderModels()
@@ -157,42 +222,25 @@ class ProviderRegistryService {
     const results: Model[] = []
     const seen = new Set<string>()
 
-    for (const raw of rawModels) {
-      if (!raw.modelId || seen.has(raw.modelId)) continue
-      seen.add(raw.modelId)
+    for (const modelId of modelIds) {
+      if (!modelId || seen.has(modelId)) continue
+      seen.add(modelId)
 
-      const presetModel = modelMap.get(raw.modelId) ?? null
-      const registryOverride = overrideMap.get(raw.modelId) ?? null
-
-      const userRow = {
-        providerId,
-        modelId: raw.modelId,
-        presetModelId: presetModel ? presetModel.id : null,
-        name: raw.name ?? null,
-        group: raw.group ?? null,
-        description: raw.description ?? null,
-        endpointTypes: raw.endpointTypes ?? null
-      }
+      const presetModel = modelMap.get(modelId) ?? null
+      const registryOverride = overrideMap.get(modelId) ?? null
 
       try {
         if (presetModel) {
           results.push(
-            mergeModelConfig(
-              userRow,
-              registryOverride,
-              presetModel,
-              providerId,
-              reasoningFormatTypes,
-              defaultChatEndpoint
-            )
+            mergePresetModel(presetModel, registryOverride, providerId, reasoningFormatTypes, defaultChatEndpoint)
           )
         } else {
-          results.push(mergeModelConfig({ ...userRow, presetModelId: null }, null, null, providerId))
+          results.push(createCustomModel(providerId, modelId))
         }
       } catch (error) {
         logger.error('Failed to resolve model — model will be missing from results', {
           providerId,
-          modelId: raw.modelId,
+          modelId,
           error
         })
       }

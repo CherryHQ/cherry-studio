@@ -146,7 +146,7 @@ export interface ProviderSchemas {
       params: { providerId: string }
       response: Model[]
     }
-    /** Enrich raw model entries with registry capabilities, pricing, etc. */
+    /** Resolve raw model IDs against registry presets */
     POST: {
       params: { providerId: string }
       body: EnrichModelsDto
