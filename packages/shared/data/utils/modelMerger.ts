@@ -298,37 +298,6 @@ export function mergeModelWithUser(
   }
 }
 
-/**
- * Legacy API — dispatches to createCustomModel, mergePresetModel, or mergeModelWithUser.
- * @deprecated Use the specific function directly instead.
- */
-export function mergeModelConfig(
-  userModel: UserModelRow | null,
-  catalogOverride: ProtoProviderModelOverride | null,
-  presetModel: ProtoModelConfig | null,
-  providerId: string,
-  reasoningFormatTypes?: Partial<Record<EndpointType, ReasoningFormatType>> | null,
-  defaultChatEndpoint?: EndpointType
-): Model {
-  if (userModel && !userModel.presetModelId) {
-    return createCustomModel(providerId, userModel.modelId)
-  }
-  if (!presetModel) {
-    throw new Error('Preset model not found for merge')
-  }
-  if (userModel) {
-    return mergeModelWithUser(
-      userModel,
-      catalogOverride,
-      presetModel,
-      providerId,
-      reasoningFormatTypes,
-      defaultChatEndpoint
-    )
-  }
-  return mergePresetModel(presetModel, catalogOverride, providerId, reasoningFormatTypes, defaultChatEndpoint)
-}
-
 // ─────────────────────────────────────────────────────────────────────────────
 // Internal helpers
 // ─────────────────────────────────────────────────────────────────────────────
