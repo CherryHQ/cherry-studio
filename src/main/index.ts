@@ -16,38 +16,30 @@
 
 import '@main/data/bootConfig'
 
-// Preboot phase: synchronous setup that must complete BEFORE
-// application.bootstrap() is called. See core/preboot/README.md for the
-// membership criteria and the preboot/bootstrap/running vocabulary.
-//
-// Each preboot module is imported from its concrete file (no barrel export)
-// so the timing contract of each call stays visible at this call site:
-//   - resolveUserDataLocation() must run before application.initPathRegistry()
-//     (handles both normal startup and pending userData relocation, then
-//     calls app.setPath('userData', ...))
-//   - configureChromiumFlags() must run before app.whenReady() (Chromium
-//     reads its command-line switches and GPU flags exactly once at startup)
+// Preboot (sync pre-bootstrap setup). Order matters — each module's JSDoc
+// documents its own timing contract. See core/preboot/README.md.
 import { configureChromiumFlags } from '@main/core/preboot/chromiumFlags'
+import { initCrashTelemetry } from '@main/core/preboot/crashTelemetry'
+import { requireSingleInstance } from '@main/core/preboot/singleInstance'
 import { resolveUserDataLocation } from '@main/core/preboot/userDataLocation'
+import { runV2MigrationGate } from '@main/core/preboot/v2MigrationGate'
 
+import { application, serviceList } from './core/application'
+
+requireSingleInstance()
 resolveUserDataLocation()
+configureChromiumFlags()
+initCrashTelemetry()
+// Freeze the path registry. From here application.getPath() is safe
+// everywhere; bootstrap() asserts this happened.
+application.initPathRegistry()
 
-import process from 'node:process'
-
-import {
-  getAllMigrators,
-  migrationEngine,
-  migrationWindowManager,
-  registerMigrationIpcHandlers,
-  unregisterMigrationIpcHandlers
-} from '@data/migration/v2'
 import { electronApp, optimizer } from '@electron-toolkit/utils'
 import { loggerService } from '@logger'
-import { app, crashReporter, dialog } from 'electron'
+import { app } from 'electron'
 import installExtension, { REACT_DEVELOPER_TOOLS, REDUX_DEVTOOLS } from 'electron-devtools-installer'
 
 import { isDev } from './constant'
-import { application, serviceList } from './core/application'
 import { registerIpc } from './ipc'
 import {
   CHERRY_STUDIO_PROTOCOL,
@@ -60,130 +52,14 @@ import { extractRtkBinaries } from './utils/rtk'
 
 const logger = loggerService.withContext('MainEntry')
 
-// [v2] Should handle earlier
-// Check for single instance lock
-if (!app.requestSingleInstanceLock()) {
-  application.quit()
-  process.exit(0)
-}
-
-// Configure Chromium startup flags. Must run before app.whenReady() fires.
-// See core/preboot/chromiumFlags.ts for the full list and rationale.
-configureChromiumFlags()
-
-// enable local crash reports
-crashReporter.start({
-  companyName: 'CherryHQ',
-  productName: 'CherryStudio',
-  submitURL: '',
-  uploadToServer: false
-})
-
-// Initialize the path registry now that:
-//   (1) resolveUserDataLocation() above has finished all app.setPath('userData', ...)
-//       calls — buildPathRegistry() reads app.getPath('userData') and other
-//       Electron paths, so userData must be settled first.
-//   (2) the single-instance lock check has confirmed we're the live process —
-//       second instances quit before reaching this line, so we don't waste
-//       initialization on a process that's about to exit.
-// From this point on, application.getPath() is safe to call from any
-// preboot, migration, or service-startup code. application.bootstrap()
-// asserts this initialization happened — see Application.initPathRegistry().
-application.initPathRegistry()
-
 // Set the Windows app user model id before app.whenReady() so Windows groups
 // our windows under the correct taskbar entry from the first frame.
 electronApp.setAppUserModelId(import.meta.env.VITE_MAIN_BUNDLE_ID || 'com.kangfenmao.CherryStudio')
 
-// Paired with the DocumentPolicyIncludeJSCallStacksInCrashReports feature
-// flag enabled in configureChromiumFlags(). The Document-Policy header below
-// opts every web contents into the JS-call-stack crash report policy so that
-// the 'unresponsive' listener can collect call stacks from stuck renderers.
-app.on('web-contents-created', (_, webContents) => {
-  webContents.session.webRequest.onHeadersReceived((details, callback) => {
-    callback({
-      responseHeaders: {
-        ...details.responseHeaders,
-        'Document-Policy': ['include-js-call-stacks-in-crash-reports']
-      }
-    })
-  })
-
-  webContents.on('unresponsive', async () => {
-    // Interrupt execution and collect call stack from unresponsive renderer
-    logger.error('Renderer unresponsive start')
-    const callStack = await webContents.mainFrame.collectJavaScriptCallStack()
-    logger.error(`Renderer unresponsive js call stack\n ${callStack}`)
-  })
-})
-
-// in production mode, handle uncaught exception and unhandled rejection globally
-if (!isDev) {
-  // handle uncaught exception
-  process.on('uncaughtException', (error) => {
-    logger.error('Uncaught Exception:', error)
-  })
-
-  // handle unhandled rejection
-  process.on('unhandledRejection', (reason, promise) => {
-    logger.error(`Unhandled Rejection at: ${promise} reason: ${reason}`)
-  })
-}
-
-// ============================================================================
-// V2 Migration Gate
-// Migration check runs BEFORE app.whenReady() so it doesn't block lifecycle's
-// parallel startup. Only a bare DB connection is used — no lifecycle services.
-// If migration is needed, the app shows a migration window and restarts after.
-// If not, the lifecycle starts normally with BeforeReady parallel to whenReady.
-// ============================================================================
 const startApp = async () => {
-  // ── Migration check (BEFORE whenReady — no Electron API needed) ──
-  let needsMigration = false
-
-  try {
-    logger.info('Checking if data migration v2 is needed')
-    await migrationEngine.initialize()
-    migrationEngine.registerMigrators(getAllMigrators())
-    needsMigration = await migrationEngine.needsMigration()
-    logger.info('Migration status check result', { needsMigration })
-  } catch (error) {
-    logger.error('Migration status check failed', error as Error)
-    await app.whenReady()
-    dialog.showErrorBox(
-      'Migration Status Check Failed - Application Cannot Start',
-      `Could not determine if data migration is completed.\n\nThis may indicate a database connectivity issue: ${(error as Error).message}\n\nThe application will now exit. Please check your installation and try again.`
-    )
-    logger.error('Exiting application due to migration status check failure')
-    application.quit()
-    return
-  }
-
-  // ── Migration path: lifecycle never starts ──
-  if (needsMigration) {
-    logger.info('Data Migration v2 needed, starting migration process')
-    registerMigrationIpcHandlers()
-
-    try {
-      await app.whenReady()
-      migrationWindowManager.create()
-      await migrationWindowManager.waitForReady()
-      logger.info('Migration window created successfully')
-    } catch (migrationError) {
-      logger.error('Failed to start migration process', migrationError as Error)
-      unregisterMigrationIpcHandlers()
-      dialog.showErrorBox(
-        'Migration Required - Application Cannot Start',
-        `This version of Cherry Studio requires data migration to function properly.\n\nMigration window failed to start: ${(migrationError as Error).message}\n\nThe application will now exit. Please try starting again or contact support if the problem persists.`
-      )
-      logger.error('Exiting application due to failed migration startup')
-      application.quit()
-    }
-    return
-  }
-
-  // ── Normal path: no migration needed ──
-  migrationEngine.close()
+  // 'handled' = migration window took over OR fatal error already quit the app.
+  const migrationResult = await runV2MigrationGate()
+  if (migrationResult === 'handled') return
 
   // Extract bundled rtk binary to ~/.cherrystudio/bin/ on first run
   // TODO: v2 refactor to use lifecycle
