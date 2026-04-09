@@ -272,6 +272,13 @@ export function buildPathRegistry() {
     // version-tracking feature, not part of the userData layout itself.
     'feature.version_log.file': path.join(appUserData, 'version.log'),
 
+    // -- Protocol deep-link feature --
+    // XDG Desktop Entry directory (~/.local/share/applications/).
+    // Linux desktop environments scan this directory for .desktop files
+    // to discover URL scheme handlers. Cherry writes a .desktop file here
+    // on Linux AppImage builds to register the cherrystudio:// protocol.
+    'feature.protocol.desktop_entries': path.join(os.homedir(), '.local', 'share', 'applications'),
+
     // -- Feature-owned temp dirs (physical root: app.temp) --
     'feature.backup.temp': path.join(appTemp, 'backup'),
     'feature.cli.temp': path.join(appTemp, 'cli'),

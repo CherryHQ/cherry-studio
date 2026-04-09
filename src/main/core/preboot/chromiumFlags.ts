@@ -51,7 +51,8 @@ export function configureChromiumFlags(): void {
   // Unconditional Chromium feature flags:
   // - DocumentPolicyIncludeJSCallStacksInCrashReports: capture JS call stacks
   //   when the renderer is unresponsive (paired with the web-contents-created
-  //   handler in main/index.ts that sets the Document-Policy response header).
+  //   handler in preboot/crashTelemetry.ts that sets the Document-Policy
+  //   response header).
   // - EarlyEstablishGpuChannel + EstablishGpuChannelAsync: open the GPU IPC
   //   channel early to speed up first-paint.
   // https://github.com/microsoft/vscode/pull/241640/files
