@@ -172,6 +172,11 @@ const getAgentApiServerConfig = async (): Promise<ApiServerConfig | null> => {
   }
 }
 
+const createAgentApiHeaders = (apiKey: string) => ({
+  Authorization: `Bearer ${apiKey}`,
+  'X-Api-Key': apiKey
+})
+
 const createAgentApiClient = async (): Promise<AgentApiClient | null> => {
   const apiServer = await getAgentApiServerConfig()
   if (!apiServer?.apiKey) {
@@ -180,11 +185,36 @@ const createAgentApiClient = async (): Promise<AgentApiClient | null> => {
 
   return new AgentApiClient({
     baseURL: buildAgentBaseURL(apiServer),
-    headers: {
-      Authorization: `Bearer ${apiServer.apiKey}`,
-      'X-Api-Key': apiServer.apiKey
-    }
+    headers: createAgentApiHeaders(apiServer.apiKey)
   })
+}
+
+const updateRenamedAgentSessionCache = async (
+  client: AgentApiClient,
+  agentId: string,
+  updatedSession: GetAgentSessionResponse
+): Promise<void> => {
+  const paths = client.getSessionPaths(agentId)
+
+  await mutate(paths.withId(updatedSession.id), updatedSession, {
+    revalidate: false
+  })
+
+  await mutate<AgentSessionEntity[]>(
+    paths.base,
+    (prev) =>
+      prev?.map((sessionItem) =>
+        sessionItem.id === updatedSession.id
+          ? ({
+              ...sessionItem,
+              name: updatedSession.name
+            } as AgentSessionEntity)
+          : sessionItem
+      ) ?? prev,
+    {
+      revalidate: false
+    }
+  )
 }
 
 export const renameAgentSessionIfNeeded = async (agentSession: AgentSessionContext, topicId: string): Promise<void> => {
@@ -236,28 +266,8 @@ export const renameAgentSessionIfNeeded = async (agentSession: AgentSessionConte
       return
     }
 
-    const paths = client.getSessionPaths(agentSession.agentId)
-
     try {
-      await mutate(paths.withId(agentSession.sessionId), updatedSession, {
-        revalidate: false
-      })
-
-      await mutate<AgentSessionEntity[]>(
-        paths.base,
-        (prev) =>
-          prev?.map((sessionItem) =>
-            sessionItem.id === updatedSession.id
-              ? ({
-                  ...sessionItem,
-                  name: updatedSession.name
-                } as AgentSessionEntity)
-              : sessionItem
-          ) ?? prev,
-        {
-          revalidate: false
-        }
-      )
+      await updateRenamedAgentSessionCache(client, agentSession.agentId, updatedSession)
     } catch (error) {
       logger.warn('Failed to update agent session cache after rename', error as Error)
     }
@@ -409,12 +419,12 @@ const withAbortStreamPart = (
 }
 
 const createAgentMessageStream = async (
-  apiServer: ApiServerConfig,
   agentSession: AgentSessionContext,
   content: string,
   signal: AbortSignal
 ): Promise<ReadableStream<TextStreamPart<Record<string, any>>>> => {
-  if (!apiServer.enabled) {
+  const apiServer = await getAgentApiServerConfig()
+  if (!apiServer) {
     throw new Error('Agent API server is disabled')
   }
 
@@ -424,7 +434,7 @@ const createAgentMessageStream = async (
   const response = await fetch(url, {
     method: 'POST',
     headers: {
-      Authorization: `Bearer ${apiServer.apiKey}`,
+      ...createAgentApiHeaders(apiServer.apiKey),
       'Content-Type': 'application/json',
       Accept: 'text/event-stream',
       'Cache-Control': 'no-cache'
@@ -702,12 +712,7 @@ const fetchAndProcessAgentResponseImpl = async (
     const abortController = new AbortController()
     addAbortController(userMessageId, () => abortController.abort())
 
-    const stream = await createAgentMessageStream(
-      state.settings.apiServer,
-      agentSession,
-      userContent,
-      abortController.signal
-    )
+    const stream = await createAgentMessageStream(agentSession, userContent, abortController.signal)
 
     // Store the previous session ID to detect /clear command
     let latestAgentSessionId = agentSession.agentSessionId || ''
