@@ -477,7 +477,7 @@ class ClaudeCodeService implements AgentServiceInterface {
         return child as unknown as SpawnedProcess
       },
       systemPrompt: assistantSystemPrompt
-        ? `${assistantSystemPrompt}\n\n${getLanguageInstruction()}`
+        ? assistantSystemPrompt
         : soulSystemPrompt
           ? `${soulSystemPrompt}${channelSecurityBlock}\n\n${getLanguageInstruction()}`
           : session.instructions
