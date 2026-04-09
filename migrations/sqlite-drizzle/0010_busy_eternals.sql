@@ -1,1 +1,0 @@
-CREATE INDEX `assistant_created_at_idx` ON `assistant` (`created_at`);

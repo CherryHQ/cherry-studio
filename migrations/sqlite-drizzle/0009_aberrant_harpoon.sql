@@ -11,6 +11,7 @@ CREATE TABLE `assistant` (
 	`deleted_at` integer
 );
 --> statement-breakpoint
+CREATE INDEX `assistant_created_at_idx` ON `assistant` (`created_at`);--> statement-breakpoint
 CREATE TABLE `assistant_knowledge_base` (
 	`assistant_id` text NOT NULL,
 	`knowledge_base_id` text NOT NULL,
