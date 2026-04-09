@@ -7,6 +7,7 @@ import { Home, Plus, X } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 
 import type { Tab } from '../../hooks/useTabs'
+import WindowControls from '../WindowControls'
 
 const logger = loggerService.withContext('AppShellTabBar')
 
@@ -638,6 +639,10 @@ export const AppShellTabBar = ({
             <Plus className="size-5" />
           </button>
         )}
+      </div>
+
+      <div className="absolute top-0 right-0 h-full">
+        <WindowControls />
       </div>
     </header>
   )
