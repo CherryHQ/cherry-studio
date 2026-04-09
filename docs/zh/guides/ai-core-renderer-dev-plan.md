@@ -115,7 +115,8 @@ Inputbar.sendMessage()
 | P2 | 端到端验证（真实模型回复） | 双方 | ✅ |
 | **P3.1b** | **消息持久化 + 操作全链路（pause/clear/edit/resend/onError）** | **Person B** | **✅** |
 | **P3.2** | **组件直读 + 去 Redux**（V2BlockContext + CitationBlock 去 Redux）— 7/7 完成 | **Person B** | **✅** |
-| **P3.2b** | **Parts 直渲染 — 收掉 useV2MessageAdapter + V2BlockContext 适配层** | **Person B** | **⬜ 下一步** |
+| **P3.2b** | **Parts 直渲染 — 收掉 useV2MessageAdapter + V2BlockContext 适配层** | **Person B** | **⬜** |
+| **P3.2c** | **ChatSessionManager — 流实例与 UI 解耦** | **Person B** | **✅** |
 | P3.3 | Agent 统一（useAiChat 加 Agent 模式） | Person B | ⬜ |
 | P3.4 | 旧代码清理（50+ aiCore 文件、BlockManager、StreamingService 等） | Person B | ⬜ |
 
@@ -193,6 +194,40 @@ Inputbar.sendMessage()
 > - CitationBlock / MainTextBlock 从 V2BlockContext 读 citation 数据，不走 Redux selector
 > - V2Contexts.ts 提取避免循环依赖
 
+> **P3.2c ChatSessionManager — 流实例与 UI 解耦 ✅**
+>
+> **问题**: V2 使用 `useChat` hook，Chat 实例存在 `useRef` 中，组件卸载（切换 topic）= 流销毁。
+> keep-alive 方案（`display: none` + 同步 ref + reap timer）引入竞态条件。
+> V1 无此问题——PQueue 和 Redux 均不绑定 React 组件生命周期。
+>
+> **根因**: 原设计文档对比 V1→V2 时只对比了功能列（流式/节流/abort），遗漏了生命周期列（流跨 topic 存活、后台完成通知）。
+> "useChat 单请求 + Main 侧管理" 一行隐含假设 useChat 等价 PQueue——实际不等价。
+>
+> **方案**: 将 Chat 实例从 React 提升到独立 Service 层。AI SDK `@ai-sdk/react` 的 `Chat` 类公开导出，
+> 可在组件外 `new Chat()`。`~registerMessagesCallback` 等方法兼容 `useSyncExternalStore`。
+>
+> **核心设计**:
+> - `ChatSession`: 封装 Chat 实例 + 持久化逻辑 + 引用计数 + 完成标记
+> - `ChatSessionManager`: 全局单例注册表（getOrCreate/retain/release），缓存 snapshot，LRU 驱逐
+> - `useChatSession`: React hook，`useSyncExternalStore` 订阅，`retain`/`release` 自动管理
+> - 侧边栏指示器直接订阅 `chatSessionManager.subscribe`，不再走 CacheService
+>
+> **useSyncExternalStore 陷阱**:
+> - `subscribe` / `getSnapshot` 必须是稳定引用（箭头函数属性），否则无限 re-render
+> - `getSnapshot` 必须返回缓存对象，在 `notify()` 时失效重建
+>
+> | # | Task | 涉及文件 | 状态 |
+> |---|------|----------|------|
+> | 1 | 创建 ChatSession + ChatSessionManager | `services/ChatSessionManager.ts` | ✅ |
+> | 2 | 创建 useChatSession hook | `hooks/useChatSession.ts` | ✅ |
+> | 3 | 持久化逻辑搬入 ChatSession | `ChatSessionManager.ts` (handleFinish) | ✅ |
+> | 4 | 简化 V2ChatContent + Chat.tsx，移除 keep-alive | `V2ChatContent.tsx`, `Chat.tsx` | ✅ |
+> | 5 | 侧边栏指示器对接 ChatSessionManager | `Topics.tsx` | ✅ |
+> | 6 | 清理废弃代码（cache keys、keep-alive 残留） | `cacheSchemas.ts`, `Chat.tsx` | ✅ |
+> | 7 | TypeScript 编译 + 测试验证 | — | ✅ (0 TS error, 294/295 tests pass) |
+>
+> **删除代码量**: Chat.tsx ~80 行 keep-alive 逻辑、V2ChatContent ~60 行 ref hack、cacheSchemas 2 个 v2 cache key
+
 ### 新增文件清单
 
 | 文件 | 说明 | 阶段 |
@@ -213,18 +248,20 @@ Inputbar.sendMessage()
 | `src/renderer/src/pages/home/Messages/Blocks/V2Contexts.ts` | V2Block/Parts Context 定义（消除循环依赖） | P3.2 |
 | `src/renderer/src/pages/home/v2ChatMessageUtils.ts` | V2 消息合并/查找工具函数 | P3.1b |
 | `src/renderer/src/pages/home/__tests__/v2ChatMessageUtils.test.ts` | v2ChatMessageUtils 单元测试（12 tests） | P3.1b |
+| `src/renderer/src/services/ChatSessionManager.ts` | ChatSession + ChatSessionManager 服务层 | P3.2c |
+| `src/renderer/src/hooks/useChatSession.ts` | ChatSession React 消费 hook (useSyncExternalStore) | P3.2c |
 
 ### 修改文件清单
 
 | 文件 | 改动 |
 |------|------|
-| `src/renderer/src/pages/home/Chat.tsx` | 新增 V2 双轨开关 + V2ChatContent 条件渲染 |
+| `src/renderer/src/pages/home/Chat.tsx` | V2 双轨开关 + V2ChatContent 渲染（P3.2c 移除 keep-alive，简化为单实例 `key={topicId}`） |
 | `src/renderer/src/pages/home/Messages/Messages.tsx` | 新增可选 `messages` prop，V2 模式下 props 直传绕过 Redux |
 | `src/renderer/src/pages/home/Messages/Blocks/index.tsx` | 新增 V2BlockContext，双轨 block 解析 + PartsProvider |
 | `src/renderer/src/pages/home/Messages/MessageOutline.tsx` | 接入 useV2BlockMap fallback |
 | `src/renderer/src/pages/home/Messages/MessageMenubar.tsx` | 接入 useV2BlockMap fallback；开放 V2 编辑/删除/重新生成按钮 |
 | `src/renderer/src/pages/home/Inputbar/Inputbar.tsx` | 新增 onSendV2 prop，V2 双轨发送 + Topic 双写；useRequestStatus 驱动 primaryActionMode |
-| `src/renderer/src/pages/home/Tabs/components/Topics.tsx` | Topic update/delete 双写到 SQLite（isPinned 映射） |
+| `src/renderer/src/pages/home/Tabs/components/Topics.tsx` | Topic 双写 + P3.2c 侧边栏指示器改用 `chatSessionManager.subscribe` + `useSyncExternalStore` |
 | `src/renderer/src/hooks/useMessageOperations.ts` | V2ChatOverridesProvider + pause/clearTopicMessages/editMessage/regenerate/resend/delete V2 全链路；`RequestStatus` type + `useTopicLoading` / `useRequestStatus` hooks |
 | `src/renderer/src/hooks/useAiChat.ts` | 新增 onError 回调选项 |
 | `src/renderer/src/hooks/useTopicMessagesV2.ts` | 新增 refresh 返回值供持久化后刷新 |
