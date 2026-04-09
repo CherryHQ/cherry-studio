@@ -217,8 +217,8 @@ export const ProviderConfigSchema = z
         RegistryEndpointConfigSchema
       )
       .optional(),
-    /** Default endpoint type for chat requests (must exist in endpointConfigs when both are present) */
-    defaultChatEndpoint: EndpointTypeSchema.optional(),
+    /** Default endpoint type for chat requests — null for providers not bound by this (e.g. AWS, Vertex) */
+    defaultChatEndpoint: EndpointTypeSchema.nullable().default(null),
     /** API feature flags controlling request construction */
     apiFeatures: ApiFeaturesSchema.optional(),
     /** Additional metadata including website URLs */
