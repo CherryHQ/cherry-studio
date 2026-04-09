@@ -1,6 +1,6 @@
 {
-  "generated_at": "2026-04-08T00:00:00+00:00",
-  "date": "2026-04-08",
+  "generated_at": "2026-04-09T17:56:17.014199+00:00",
+  "date": "2026-04-09",
   "total_discussions": 0,
   "data_available": false,
   "answered": 0,
@@ -9,5 +9,5 @@
   "recent_30d": 0,
   "category_breakdown": {},
   "top_unanswered": [],
-  "note": "GitHub API rate limit hit — data unavailable for this run"
+  "note": "GitHub API rate limited. Last available data from 2026-04-08 run."
 }
