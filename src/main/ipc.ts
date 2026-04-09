@@ -44,18 +44,9 @@ import ObsidianVaultService from './services/ObsidianVaultService'
 import { fileServiceManager } from './services/remotefile/FileServiceManager'
 import { isSafeExternalUrl } from './services/security'
 import { vertexAIService } from './services/VertexAIService'
-import { calculateDirectorySize, getDataPath, getResourcePath } from './utils'
+import { calculateDirectorySize, getResourcePath } from './utils'
 import { decrypt, encrypt } from './utils/aes'
-import {
-  getCacheDir,
-  getConfigDir,
-  getFilesDir,
-  getNotesDir,
-  hasWritePermission,
-  isPathInside,
-  untildify
-} from './utils/file'
-import { updateAppDataConfig } from './utils/init'
+import { hasWritePermission, isPathInside, untildify } from './utils/file'
 import { getCpuName, getDeviceType, getHostname } from './utils/system'
 import { compress, decompress } from './utils/zip'
 
@@ -83,9 +74,9 @@ export async function registerIpc(mainWindow: BrowserWindow, app: Electron.App) 
     version: app.getVersion(),
     isPackaged: app.isPackaged,
     appPath: app.getAppPath(),
-    filesPath: getFilesDir(),
-    notesPath: getNotesDir(),
-    configPath: getConfigDir(),
+    filesPath: application.getPath('feature.files.data'),
+    notesPath: application.getPath('feature.notes.data'),
+    configPath: application.getPath('cherry.config'),
     appDataPath: app.getPath('userData'),
     resourcesPath: getResourcePath(),
     logsPath: logger.getLogsDir(),
@@ -255,7 +246,7 @@ export async function registerIpc(mainWindow: BrowserWindow, app: Electron.App) 
 
   // get cache size
   ipcMain.handle(IpcChannel.App_GetCacheSize, async () => {
-    const cachePath = getCacheDir()
+    const cachePath = application.getPath('app.userdata.cache')
     logger.info(`Calculating cache size for path: ${cachePath}`)
 
     try {
@@ -297,9 +288,20 @@ export async function registerIpc(mainWindow: BrowserWindow, app: Electron.App) 
   })
 
   // Set app data path
+  //
+  // TODO(v2): This handler is incompatible with the frozen path registry
+  // established by Application.bootstrap(). Calling app.setPath('userData')
+  // here mutates Electron's path while application.getPath('app.userdata')
+  // keeps returning the boot-time value until the renderer triggers a
+  // relaunch (which it currently always does — see BasicDataSettings.tsx
+  // L186/203/322). When the v1 path-change flow is migrated to
+  // BootConfigService, redesign this handler so the app data path can only
+  // be changed via boot-config + restart, eliminating the divergence window.
   ipcMain.handle(IpcChannel.App_SetAppDataPath, async (_, filePath: string) => {
-    updateAppDataConfig(filePath)
-    app.setPath('userData', filePath)
+    // updateAppDataConfig(filePath)
+    // app.setPath('userData', filePath)
+    // TODO: will refactor in v2
+    return filePath
   })
 
   ipcMain.handle(IpcChannel.App_GetDataPathFromArgs, () => {
@@ -781,7 +783,7 @@ export async function registerIpc(mainWindow: BrowserWindow, app: Electron.App) 
 
   // WeChat
   ipcMain.handle(IpcChannel.WeChat_HasCredentials, async (_, channelId: string) => {
-    const tokenPath = path.join(getDataPath('Channels'), `weixin_bot_${channelId}.json`)
+    const tokenPath = application.getPath('feature.agents.channels', `weixin_bot_${channelId}.json`)
     try {
       const raw = await fs.promises.readFile(tokenPath, 'utf8')
       const parsed = JSON.parse(raw)

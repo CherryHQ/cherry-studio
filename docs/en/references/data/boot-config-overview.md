@@ -90,7 +90,7 @@ Keys follow the same naming convention as preferences: `namespace.key_name`
 │  │ BootConfigService                    │                       │
 │  │ - Sync load on import                │                       │
 │  │ - In-memory config map               │◄──── boot-config.json │
-│  │ - Debounced save                     │      ({userData}/)    │
+│  │ - Debounced save                     │      (~/.cherrystudio/)│
 │  └──────────────────────────────────────┘                       │
 └─────────────────────────────────────────────────────────────────┘
 
@@ -106,6 +106,8 @@ Keys follow the same naming convention as preferences: `namespace.key_name`
 │                                    └──────────────────────────┘ │
 └─────────────────────────────────────────────────────────────────┘
 ```
+
+BootConfig also carries data migrated from v1's `~/.cherrystudio/config/config.json` file (see `BootConfigMigrator`'s file source). The `app.user_data_path` key holds the custom user data directory mapping that the v1 file stored under `appDataPath`. Long-term, BootConfig will fully replace the legacy `config/config.json` — the follow-up PR will rewire `initAppDataDir()` to read `app.user_data_path` from BootConfig instead of parsing the legacy file directly.
 
 ## Access Convention
 
@@ -149,14 +151,21 @@ Utility functions in `packages/shared/data/preference/preferenceUtils.ts`:
 
 ## File Storage
 
-- **Path:** `{userData}/boot-config.json`
+- **Path:** `~/.cherrystudio/boot-config.json` (intentionally outside `userData`)
 - **Format:** Flat JSON object, pretty-printed (2-space indent)
+
+> **Why outside `userData`?** Boot config must be readable *before* the app data directory is determined. Storing it under `userData` would create a chicken-and-egg problem: the file that decides where data lives cannot itself live inside that data. Placing it under `~/.cherrystudio/` keeps it stable across changes to `appDataPath` and ensures it is always available at process start, before `initAppDataDir()` runs.
 
 ```json
 {
-  "app.disable_hardware_acceleration": false
+  "app.disable_hardware_acceleration": false,
+  "app.user_data_path": {
+    "/Applications/Cherry Studio.app/Contents/MacOS/Cherry Studio": "/Volumes/External/CherryData"
+  }
 }
 ```
+
+`app.user_data_path` is a `Record<executablePath, dataPath>` keyed by the executable path — same-machine multiple installations (stable / dev / portable) can each have their own user data directory, matching the semantic of v1's `appDataPath` array.
 
 ## Related Source Code
 
