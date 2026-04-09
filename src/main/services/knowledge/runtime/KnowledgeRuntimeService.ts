@@ -57,25 +57,31 @@ export class KnowledgeRuntimeService extends BaseService {
   }
 
   async deleteBase(baseId: string) {
+    const interruptedEntries = this.addQueue.interruptBase(baseId, 'delete', DELETE_INTERRUPTED_REASON)
+    const interruptedItemIds = interruptedEntries.map((entry) => entry.item.id)
+
+    await this.addQueue.waitForRunning(interruptedItemIds)
+
     const vectorStoreService = application.get('KnowledgeVectorStoreService')
     await vectorStoreService.deleteStore(baseId)
   }
 
   async addItems(base: KnowledgeBase, items: KnowledgeItem[]) {
-    await Promise.all(
-      items.map((item) =>
-        knowledgeItemService.update(item.id, {
+    return await Promise.all(
+      items.map(async (item) => {
+        await knowledgeItemService.update(item.id, {
           status: 'pending',
           error: null
         })
-      )
-    )
 
-    return await Promise.all(items.map((item) => this.addQueue.enqueue(base, item)))
+        return await this.addQueue.enqueue(base, item)
+      })
+    )
   }
 
   async deleteItems(base: KnowledgeBase, items: KnowledgeItem[]) {
-    const itemIds = [...new Set(items.map((item) => item.id))]
+    const rootIds = [...new Set(items.map((item) => item.id))]
+    const itemIds = await knowledgeItemService.getCascadeIdsInBase(base.id, rootIds)
 
     this.addQueue.interrupt(itemIds, 'delete', DELETE_INTERRUPTED_REASON)
     await this.addQueue.waitForRunning(itemIds)
@@ -125,7 +131,7 @@ export class KnowledgeRuntimeService extends BaseService {
       IpcChannel.KnowledgeRuntime_ExpandDirectoryItem,
       async (_, payload: { baseId: string; itemId: string }) => {
         await knowledgeBaseService.getById(payload.baseId)
-        const item = await knowledgeItemService.getById(payload.itemId)
+        const [item] = await knowledgeItemService.getByIdsInBase(payload.baseId, [payload.itemId])
         return {
           items: await expandDirectoryOwnerToCreateItems(item)
         }
@@ -135,7 +141,7 @@ export class KnowledgeRuntimeService extends BaseService {
       IpcChannel.KnowledgeRuntime_ExpandSitemapItem,
       async (_, payload: { baseId: string; itemId: string }) => {
         await knowledgeBaseService.getById(payload.baseId)
-        const item = await knowledgeItemService.getById(payload.itemId)
+        const [item] = await knowledgeItemService.getByIdsInBase(payload.baseId, [payload.itemId])
         return {
           items: await expandSitemapOwnerToCreateItems(item)
         }
@@ -164,7 +170,7 @@ export class KnowledgeRuntimeService extends BaseService {
   ): Promise<{ base: KnowledgeBase; items: KnowledgeItem[] }> {
     const [base, items] = await Promise.all([
       knowledgeBaseService.getById(baseId),
-      Promise.all(itemIds.map((itemId) => knowledgeItemService.getById(itemId)))
+      knowledgeItemService.getByIdsInBase(baseId, itemIds)
     ])
     return { base, items }
   }

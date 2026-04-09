@@ -90,6 +90,11 @@ export class KnowledgeAddQueue {
     return interruptedEntries
   }
 
+  interruptBase(baseId: string, interruptedBy: 'delete' | 'stop', reason: string): AddTaskEntry[] {
+    const itemIds = [...new Set(this.getEntriesForBase(baseId).map((entry) => entry.item.id))]
+    return this.interrupt(itemIds, interruptedBy, reason)
+  }
+
   interruptAll(interruptedBy: 'delete' | 'stop', reason: string): AddTaskEntry[] {
     const allItemIds = [...new Set([...this.pendingAddIds, ...this.runningAdds.keys()])]
     return this.interrupt(allItemIds, interruptedBy, reason)
@@ -120,6 +125,24 @@ export class KnowledgeAddQueue {
       const runningEntry = this.runningAdds.get(itemId)
       if (runningEntry) {
         entries.set(itemId, runningEntry)
+      }
+    }
+
+    return [...entries.values()]
+  }
+
+  private getEntriesForBase(baseId: string): AddTaskEntry[] {
+    const entries = new Map<string, AddTaskEntry>()
+
+    for (const entry of this.pendingAdds.values()) {
+      if (entry.base.id === baseId) {
+        entries.set(entry.item.id, entry)
+      }
+    }
+
+    for (const entry of this.runningAdds.values()) {
+      if (entry.base.id === baseId) {
+        entries.set(entry.item.id, entry)
       }
     }
 

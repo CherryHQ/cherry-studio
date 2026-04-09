@@ -6,19 +6,27 @@ import { pathToFileURL } from 'node:url'
 import { createClient } from '@libsql/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { setDataPath, getDataPathMock } = vi.hoisted(() => {
-  let currentDataPath = ''
+const { setKnowledgeBaseRoot, getPathMock } = vi.hoisted(() => {
+  let currentKnowledgeBaseRoot = ''
 
   return {
-    setDataPath: (nextPath: string) => {
-      currentDataPath = nextPath
+    setKnowledgeBaseRoot: (nextPath: string) => {
+      currentKnowledgeBaseRoot = nextPath
     },
-    getDataPathMock: vi.fn(() => currentDataPath)
+    getPathMock: vi.fn((key: string, filename?: string) => {
+      if (key !== 'feature.knowledgebase.data') {
+        throw new Error(`Unexpected path key: ${key}`)
+      }
+
+      return filename ? path.join(currentKnowledgeBaseRoot, filename) : currentKnowledgeBaseRoot
+    })
   }
 })
 
-vi.mock('@main/utils', () => ({
-  getDataPath: getDataPathMock
+vi.mock('@main/core/application', () => ({
+  application: {
+    getPath: getPathMock
+  }
 }))
 
 vi.mock('@main/utils/file', () => ({
@@ -77,7 +85,7 @@ describe('KnowledgeVectorSourceReader', () => {
   beforeEach(() => {
     tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'knowledge-vector-source-reader-'))
     fs.mkdirSync(path.join(tempRoot, 'KnowledgeBase'), { recursive: true })
-    setDataPath(tempRoot)
+    setKnowledgeBaseRoot(path.join(tempRoot, 'KnowledgeBase'))
   })
 
   afterEach(() => {

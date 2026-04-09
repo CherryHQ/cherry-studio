@@ -1,9 +1,8 @@
 import fs from 'node:fs'
-import path from 'node:path'
 import { pathToFileURL } from 'node:url'
 
 import { loggerService } from '@logger'
-import { getDataPath } from '@main/utils'
+import { application } from '@main/core/application'
 import { sanitizeFilename } from '@main/utils/file'
 import type { KnowledgeBase } from '@shared/data/types/knowledge'
 import type { BaseVectorStore } from '@vectorstores/core'
@@ -42,9 +41,7 @@ export class LibSqlVectorStoreProvider implements BaseVectorStoreProvider {
 
   // todo: migrate to file manager
   private async getKnowledgeBaseFilePath(baseId: string): Promise<string> {
-    const dbPath = path.resolve(path.join(getDataPath(), 'KnowledgeBase'), sanitizeFilename(baseId, '_'))
-    await fs.promises.mkdir(path.dirname(dbPath), { recursive: true })
-    return dbPath
+    return application.getPath('feature.knowledgebase.data', sanitizeFilename(baseId, '_'))
   }
 }
 

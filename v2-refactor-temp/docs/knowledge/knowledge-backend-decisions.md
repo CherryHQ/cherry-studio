@@ -147,8 +147,19 @@ UI
 
 1. owner item 的主数据创建仍然走 Data API
 2. 展开逻辑走 runtime IPC
-3. child item 的主数据创建仍然走 Data API
-4. 只有真正可索引的 child item 才进入 runtime `addItems`
+3. expand 返回的是“要写入 `knowledge_item` 的 child items 集合”，不是“可直接索引的 items 集合”
+4. 因此 child item 的主数据创建仍然走 Data API，而且允许同时创建 `directory` / `file` 这类 mixed batch
+5. `groupId` / `groupRef` 的职责是把这些 owner / child / nested child 的持久化关系写进 `knowledge_item`
+6. runtime `addItems` 的输入集合是另一层语义：只接受真正可索引的 leaf items
+7. 当前约束下，`directory` / `sitemap` 这类 container item 不应直接传给 runtime `addItems`
+8. 调用方必须在“创建 items”与“提交索引”之间完成一次过滤，只把 indexable child item ids 传给 runtime
+
+这个边界是当前实现的硬约束：
+
+1. expand 负责生成要创建的持久化 items
+2. Data API 负责把这些 items 写入 SQLite
+3. runtime 只负责编排可索引 items 的读取 / 切块 / embedding / vector write
+4. mixed batch 可用于持久化树结构，但不等于 mixed batch 可直接进入索引队列
 
 这个调用链仍然符合“Data API 负责主数据，runtime 负责展开/索引”的分层，不属于边界漂移。
 
@@ -162,12 +173,13 @@ UI
 
 ### 5.1 已落地行为
 
-当前实现使用一个进程内 `PQueue`：
+当前实现使用一个进程内自定义 add queue：
 
 1. queue 持有者是 `KnowledgeRuntimeService`
 2. queue 为单实例 in-memory queue
 3. 默认 `concurrency = 5`
-4. 所有 base 的 add/delete item 任务共用这一条 queue
+4. 所有 base 的 add item 任务共用这一条 queue
+5. delete 行为不会进入 queue，而是先中断相关 add 任务，再直接删除向量
 
 当前实现没有落地以下旧设计假设：
 
@@ -177,37 +189,49 @@ UI
 
 ### 5.2 当前可观测状态
 
-service 内部额外跟踪两组内存态集合：
+service 内部 queue 维护三组内存态：
 
-1. `queuedItemIds`
-2. `runningItemIds`
+1. `pendingAddIds`
+2. `pendingAdds`
+3. `runningAdds`
 
 它们的作用仅是：
 
-1. shutdown 时识别哪些 item 被中断
-2. 将这些 item 回写为 `failed`
+1. 跟踪哪些 add 任务仍在等待执行
+2. 跟踪哪些 add 任务正在运行
+3. 在 delete / shutdown 时中断对应任务
+4. 在 shutdown 时识别哪些 item 被中断并做失败补偿
 
-这些集合不是对外数据模型的一部分。
+这些状态都只是 runtime 内部实现细节，不是对外数据模型的一部分。
 
 ### 5.3 入队行为
 
 `addItems(base, items)` 当前行为：
 
-1. 先将所有 item 批量写成 `status = pending`
-2. 清空旧 `error`
-3. 再将每个 item 作为一个 queue task 入队
+1. 对传入的每个 item 分别先写 `status = pending`
+2. 同时清空该 item 的旧 `error`
+3. 每个 item 在自己的状态写入成功后，立即作为一个 add task 入队
+4. 如果同一个 item 已经在 pending 或 running 中，再次 enqueue 会直接复用已有 promise，不会重复入队
+5. 当前实现不是“整批状态先全部落库，再统一开始 enqueue”的原子批次启动模型
+6. 因此如果某个 item 在写 `pending` 或 enqueue 之前失败，其他已经成功启动的 item 仍可能继续执行
 
 `deleteItems(base, items)` 当前行为：
 
 1. 不更新 item 状态
-2. 将每个 item 的向量删除任务入队
+2. 先对同 id 的 pending / running add task 做 interrupt
+3. 等待相关 running add task settle
+4. 直接删除这些 item 对应的向量
+
+当前有：
+
+1. item 级 add 去重保护
+2. delete / stop 中断 add task 的机制
 
 当前没有：
 
-1. 去重入队保护
-2. 优先级队列
-3. 暂停 / 恢复 API
-4. 自动重试
+1. 优先级队列
+2. 暂停 / 恢复 API
+3. 自动重试
 
 ## 6. 当前索引执行链路
 
@@ -283,16 +307,17 @@ schema 和共享类型仍然保留完整状态集合：
 当前 stop 流程是：
 
 1. `isStopping = true`
-2. `queue.pause()`
-3. 收集 `queuedItemIds` 和 `runningItemIds`
-4. `queue.clear()`
-5. 将未完成 item 批量写为 `failed`
-6. 调用 `vectorStoreManager.clear()` 关闭并清空已缓存 store
+2. 调用 `addQueue.interruptAll('stop', SHUTDOWN_INTERRUPTED_REASON)`
+3. 收集中断的 entries 和 itemIds
+4. 等待相关 running add task settle
+5. best-effort 删除这些被中断 item 已写入的向量
+6. 将这些 item 批量写为 `failed`
 
 这意味着：
 
 1. 当前做了停止时的失败补偿
-2. 但没有做重启后的自动恢复
+2. 当前会在 stop 时清理被中断 item 的向量残留
+3. 但没有做重启后的自动恢复
 
 ## 9. Reader / Chunk / Embed / Search 的当前边界
 
@@ -399,7 +424,7 @@ embed query
 
 当前实际 provider 是 `LibSqlVectorStoreProvider`：
 
-1. 向量文件路径位于 `${getDataPath()}/KnowledgeBase/<sanitizedBaseId>`
+1. 向量文件路径位于 `application.getPath('feature.knowledgebase.data', <sanitizedBaseId>)`
 2. 删除 base 时会删除对应文件
 
 ## 11. 当前明确不做的内容
@@ -414,11 +439,10 @@ embed query
 6. 自动恢复索引继续执行
 7. 自动重试
 8. chunk 级 queue
-9. item 去重入队
-10. runtime 在 `addItems` 内对 `directory` / `sitemap` item 做隐式自动展开
-11. 真正可用的 rerank runtime 配置接入
-12. 非 `ollama` embedding provider 支持
-13. `fileProcessorId` 驱动的文件处理链路
+9. runtime 在 `addItems` 内对 `directory` / `sitemap` item 做隐式自动展开
+10. 真正可用的 rerank runtime 配置接入
+11. 非 `ollama` embedding provider 支持
+12. `fileProcessorId` 驱动的文件处理链路
 
 ## 12. 后续更新本文档时的原则
 

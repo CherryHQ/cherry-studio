@@ -1,9 +1,8 @@
 import fs from 'node:fs'
-import path from 'node:path'
 import { pathToFileURL } from 'node:url'
 
 import { type Client, createClient, type Value as LibsqlValue } from '@libsql/client'
-import { getDataPath } from '@main/utils'
+import { application } from '@main/core/application'
 import { sanitizeFilename } from '@main/utils/file'
 
 const LEGACY_VECTOR_TABLE_NAME = 'vectors'
@@ -21,16 +20,7 @@ export type LegacyKnowledgeVectorLoadResult =
 
 export class KnowledgeVectorSourceReader {
   getLegacyDbPath(baseId: string): string | null {
-    const rootPath = path.resolve(getDataPath(), 'KnowledgeBase')
-    const sanitizedBaseId = sanitizeFilename(baseId, '_')
-    const resolvedDbPath = path.resolve(rootPath, sanitizedBaseId)
-    const relativePath = path.relative(rootPath, resolvedDbPath)
-
-    if (relativePath === '' || relativePath.startsWith('..') || path.isAbsolute(relativePath)) {
-      return null
-    }
-
-    return resolvedDbPath
+    return application.getPath('feature.knowledgebase.data', sanitizeFilename(baseId, '_'))
   }
 
   async loadBase(baseId: string): Promise<LegacyKnowledgeVectorLoadResult> {

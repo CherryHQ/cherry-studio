@@ -20,6 +20,7 @@ const mockDb = {
   insert: mockInsert,
   update: mockUpdate,
   delete: mockDelete,
+  all: vi.fn(),
   transaction: vi.fn(async (callback: (tx: typeof mockDb) => Promise<unknown>) => await callback(mockDb))
 }
 
@@ -65,6 +66,7 @@ describe('KnowledgeItemService', () => {
     mockInsert.mockReset()
     mockUpdate.mockReset()
     mockDelete.mockReset()
+    mockDb.all.mockReset()
     mockDb.transaction.mockClear()
     getKnowledgeBaseByIdMock.mockReset()
     getKnowledgeBaseByIdMock.mockResolvedValue({ id: 'kb-1' })
@@ -461,6 +463,25 @@ describe('KnowledgeItemService', () => {
       expect(result.items.map((item) => item.id)).toEqual(['note-group-a'])
     })
 
+    it('getCascadeIdsInBase returns root ids with recursive descendants', async () => {
+      const db = realDb!
+
+      await db.insert(knowledgeItemTable).values({
+        id: 'note-grandchild',
+        baseId: 'kb-1',
+        groupId: 'note-group-a',
+        type: 'note',
+        data: { content: 'grandchild note' },
+        status: 'idle',
+        error: null,
+        createdAt: 50
+      })
+
+      const result = await service.getCascadeIdsInBase('kb-1', ['dir-a'])
+
+      expect(result).toEqual(['dir-a', 'note-group-a', 'note-grandchild'])
+    })
+
     it('db check constraints reject invalid knowledge enums', async () => {
       const db = realDb!
 
@@ -756,6 +777,79 @@ describe('KnowledgeItemService', () => {
         status: 409,
         message: expect.stringContaining("Knowledge item 'null-item' has missing or null data")
       })
+    })
+  })
+
+  describe('getByIdsInBase', () => {
+    it('should return knowledge items in input order for one base', async () => {
+      mockSelect.mockReturnValue({
+        from: vi.fn().mockReturnValue({
+          where: vi.fn().mockResolvedValue([
+            createMockRow({
+              id: 'item-2',
+              baseId: 'kb-1',
+              data: JSON.stringify({ content: 'second' })
+            }),
+            createMockRow({
+              id: 'item-1',
+              baseId: 'kb-1',
+              data: JSON.stringify({ content: 'first' })
+            })
+          ])
+        })
+      })
+
+      const result = await service.getByIdsInBase('kb-1', ['item-1', 'item-2'])
+
+      expect(result.map((item) => item.id)).toEqual(['item-1', 'item-2'])
+      expect(result.map((item) => item.data)).toEqual([{ content: 'first' }, { content: 'second' }])
+    })
+
+    it('should throw NotFound when any requested item is outside the base or missing', async () => {
+      mockSelect.mockReturnValue({
+        from: vi.fn().mockReturnValue({
+          where: vi.fn().mockResolvedValue([
+            createMockRow({
+              id: 'item-1',
+              baseId: 'kb-1'
+            })
+          ])
+        })
+      })
+
+      await expect(service.getByIdsInBase('kb-1', ['item-1', 'item-2'])).rejects.toMatchObject({
+        code: ErrorCode.NOT_FOUND,
+        status: 404
+      })
+    })
+  })
+
+  describe('getCascadeIdsInBase', () => {
+    it('should preserve root order and deduplicate repeated root ids', async () => {
+      mockSelect.mockReturnValue({
+        from: vi.fn().mockReturnValue({
+          where: vi.fn().mockResolvedValue([
+            createMockRow({
+              id: 'root-2',
+              baseId: 'kb-1',
+              type: 'directory',
+              data: { name: 'b', path: '/b' }
+            }),
+            createMockRow({
+              id: 'root-1',
+              baseId: 'kb-1',
+              type: 'directory',
+              data: { name: 'a', path: '/a' }
+            })
+          ])
+        })
+      })
+      mockDb.all.mockResolvedValue([{ id: 'child-1' }, { id: 'child-2' }])
+
+      const result = await service.getCascadeIdsInBase('kb-1', ['root-1', 'root-2', 'root-1'])
+
+      expect(result).toEqual(['root-1', 'root-2', 'child-1', 'child-2'])
+      expect(mockDb.all).toHaveBeenCalledTimes(1)
     })
   })
 

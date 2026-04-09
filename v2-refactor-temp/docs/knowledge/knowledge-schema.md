@@ -182,7 +182,15 @@ This document records the current V2 knowledge target schema, migration constrai
   - `note` -> inline note content
   - `sitemap` -> sitemap reader code path is present, but current runtime does not index `sitemap` items directly
   - `directory` -> currently treated as a container placeholder and returns no documents
-- This means `directory` and `sitemap` remain valid persisted `knowledge_item.type` values, but the current runtime does not index them directly. Upstream callers must flatten them into concrete child items before indexing.
+- This means `directory` and `sitemap` remain valid persisted `knowledge_item.type` values, but the current runtime does not index them directly.
+- For container expansion flows, upstream callers may still create mixed persisted child batches under one owner/group, for example `directory` + `file`.
+- That mixed batch is a persistence concern, not an indexing contract:
+  - container items may be stored in `knowledge_item`
+  - but only concrete indexable leaf items should be submitted to runtime `addItems`
+- In other words, callers must distinguish:
+  - create set: all items that should be persisted into `knowledge_item`
+  - index set: only items that runtime is allowed to index
+- Upstream callers must therefore flatten containers into concrete child items and filter out non-indexable container types before indexing.
 - Runtime embedding model resolution currently expects `knowledge_base.embeddingModelId` in `providerId::modelId` format and only supports `ollama` as the active provider.
 
 ## Implementation Status

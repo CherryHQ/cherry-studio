@@ -277,6 +277,64 @@ export class KnowledgeItemService {
     return rowToKnowledgeItem(row)
   }
 
+  async getByIdsInBase(baseId: string, itemIds: string[]): Promise<KnowledgeItem[]> {
+    const db = application.get('DbService').getDb()
+    const uniqueItemIds = [...new Set(itemIds)]
+
+    if (uniqueItemIds.length === 0) {
+      return []
+    }
+
+    const rows = await db
+      .select()
+      .from(knowledgeItemTable)
+      .where(and(eq(knowledgeItemTable.baseId, baseId), inArray(knowledgeItemTable.id, uniqueItemIds)))
+
+    const itemsById = new Map(rows.map((row) => [row.id, rowToKnowledgeItem(row)]))
+
+    for (const itemId of uniqueItemIds) {
+      if (!itemsById.has(itemId)) {
+        throw DataApiErrorFactory.notFound('KnowledgeItem', itemId)
+      }
+    }
+
+    return uniqueItemIds.map((itemId) => itemsById.get(itemId)!)
+  }
+
+  async getCascadeIdsInBase(baseId: string, rootIds: string[]): Promise<string[]> {
+    const db = application.get('DbService').getDb()
+    const uniqueRootIds = [...new Set(rootIds)]
+
+    if (uniqueRootIds.length === 0) {
+      return []
+    }
+
+    await this.getByIdsInBase(baseId, uniqueRootIds)
+
+    const descendantRows = await db.all<{ id: string }>(sql`
+      WITH RECURSIVE descendants AS (
+        SELECT id
+        FROM knowledge_item
+        WHERE base_id = ${baseId}
+          AND group_id IN (${sql.join(
+            uniqueRootIds.map((id) => sql`${id}`),
+            sql`, `
+          )})
+
+        UNION ALL
+
+        SELECT child.id
+        FROM knowledge_item child
+        INNER JOIN descendants parent ON child.group_id = parent.id
+        WHERE child.base_id = ${baseId}
+      )
+      SELECT DISTINCT id FROM descendants
+    `)
+
+    const rootIdSet = new Set(uniqueRootIds)
+    return [...uniqueRootIds, ...descendantRows.map((row) => row.id).filter((id) => !rootIdSet.has(id))]
+  }
+
   async update(id: string, dto: UpdateKnowledgeItemDto): Promise<KnowledgeItem> {
     const db = application.get('DbService').getDb()
     const existing = await this.getById(id)

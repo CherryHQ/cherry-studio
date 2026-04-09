@@ -9,7 +9,7 @@
 | Migrated knowledge base identities and dimensions | SQLite `knowledge_base` | `knowledge_base` table |
 | Migrated knowledge item identities | SQLite `knowledge_item` | `knowledge_item` table |
 | Legacy loader metadata | Redux `knowledge.bases[].items[]` | `ReduxStateReader.getCategory('knowledge')` |
-| Legacy chunk vectors | Per-base legacy vector DB | `${getDataPath()}/KnowledgeBase/<baseId>` |
+| Legacy chunk vectors | Per-base legacy vector DB | `application.getPath('feature.knowledgebase.data', <sanitizedBaseId>)` |
 
 ## Target Storage
 
@@ -28,7 +28,7 @@
 2. Chunk payload migration
    - `pageContent` -> `document`
    - `knowledge_item.id` -> `metadata.itemId`
-   - `source` -> `metadata.source`
+   - `source` -> optional `metadata.source`
    - Other legacy metadata fields are dropped.
 
 3. Embedding reuse
@@ -63,7 +63,7 @@
 - Per-base row count must equal the prepared row count.
 - `external_id` must be non-empty for every migrated row.
 - `metadata.itemId` must be present and match `external_id` for every migrated row.
-- `metadata.source` must be present for every migrated row.
+- `metadata.source` is optional and is only preserved when the legacy row has a non-empty `source`.
 
 ## Skipped Data
 

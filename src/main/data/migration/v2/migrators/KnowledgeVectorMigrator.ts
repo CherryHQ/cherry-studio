@@ -178,7 +178,7 @@ export class KnowledgeVectorMigrator extends BaseMigrator {
       row.document,
       JSON.stringify({
         itemId: row.externalId,
-        source: row.source
+        ...(row.source.trim() !== '' ? { source: row.source } : {})
       }),
       `[${row.embedding.join(',')}]`
     ])
@@ -494,20 +494,6 @@ export class KnowledgeVectorMigrator extends BaseMigrator {
               expected: 0,
               actual: missingOrMismatchedItemIdCount,
               message: `Found ${missingOrMismatchedItemIdCount} knowledge vector rows without matching metadata.itemId in base ${plan.baseId}`
-            })
-          }
-
-          const missingSourceResult = await client.execute({
-            sql: `SELECT count(*) AS count FROM ${VECTORSTORE_TABLE_NAME} WHERE json_extract(metadata, '$.source') IS NULL OR json_extract(metadata, '$.source') = ''`,
-            args: []
-          })
-          const missingSourceCount = Number(missingSourceResult.rows[0]?.count ?? 0)
-          if (missingSourceCount > 0) {
-            errors.push({
-              key: `knowledge_vector_missing_source_${plan.baseId}`,
-              expected: 0,
-              actual: missingSourceCount,
-              message: `Found ${missingSourceCount} knowledge vector rows without metadata.source in base ${plan.baseId}`
             })
           }
         } finally {

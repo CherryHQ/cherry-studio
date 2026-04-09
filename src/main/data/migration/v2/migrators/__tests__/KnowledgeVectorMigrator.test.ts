@@ -12,15 +12,21 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { KnowledgeVectorSourceReader } from '../../utils/KnowledgeVectorSourceReader'
 import { ReduxStateReader } from '../../utils/ReduxStateReader'
 
-const { loggerWarnMock, setDataPath, getDataPathMock } = vi.hoisted(() => {
-  let currentDataPath = ''
+const { loggerWarnMock, setKnowledgeBaseRoot, getPathMock } = vi.hoisted(() => {
+  let currentKnowledgeBaseRoot = ''
 
   return {
     loggerWarnMock: vi.fn(),
-    setDataPath: (nextPath: string) => {
-      currentDataPath = nextPath
+    setKnowledgeBaseRoot: (nextPath: string) => {
+      currentKnowledgeBaseRoot = nextPath
     },
-    getDataPathMock: vi.fn(() => currentDataPath)
+    getPathMock: vi.fn((key: string, filename?: string) => {
+      if (key !== 'feature.knowledgebase.data') {
+        throw new Error(`Unexpected path key: ${key}`)
+      }
+
+      return filename ? path.join(currentKnowledgeBaseRoot, filename) : currentKnowledgeBaseRoot
+    })
   }
 })
 
@@ -43,8 +49,10 @@ vi.mock('node:os', async (importOriginal) => {
   return (await importOriginal()) as any
 })
 
-vi.mock('@main/utils', () => ({
-  getDataPath: getDataPathMock
+vi.mock('@main/core/application', () => ({
+  application: {
+    getPath: getPathMock
+  }
 }))
 
 vi.mock('@main/utils/file', () => ({
@@ -203,7 +211,7 @@ describe('KnowledgeVectorMigrator', () => {
     tempRoot = createTempRoot()
     knowledgeBaseDir = path.join(tempRoot, 'KnowledgeBase')
     fs.mkdirSync(knowledgeBaseDir, { recursive: true })
-    setDataPath(tempRoot)
+    setKnowledgeBaseRoot(knowledgeBaseDir)
 
     const mainDb = await createMainDb()
     db = mainDb.db
@@ -432,6 +440,80 @@ describe('KnowledgeVectorMigrator', () => {
     })
 
     expect(fs.existsSync(`${dbPath}.vectorstore.tmp`)).toBe(false)
+  })
+
+  it('execute allows missing legacy source and omits metadata.source', async () => {
+    await insertKnowledgeBaseRow(db, {
+      id: 'kb-1',
+      name: 'Base 1',
+      dimensions: 2,
+      embeddingModelId: 'openai::text-embedding-3-small'
+    })
+    await insertKnowledgeItemRow(db, {
+      id: 'item-file',
+      baseId: 'kb-1',
+      type: 'file',
+      data: {
+        file: {
+          id: 'file-1',
+          name: 'file-1.md',
+          origin_name: 'file-1.md',
+          path: '/tmp/file-1.md',
+          size: 1,
+          ext: '.md',
+          type: 'text',
+          created_at: '2024-01-01T00:00:00.000Z',
+          count: 1
+        }
+      },
+      status: 'completed'
+    })
+
+    const dbPath = path.join(knowledgeBaseDir, 'kb-1')
+    await createLegacyVectorDb(dbPath, [
+      {
+        id: 'legacy-file-0',
+        pageContent: 'file chunk',
+        uniqueLoaderId: 'loader-file',
+        source: '',
+        vector: [1, 2]
+      }
+    ])
+
+    const migrationCtx = createMigrationCtx(db, {
+      knowledge: {
+        bases: [
+          {
+            id: 'kb-1',
+            name: 'Base 1',
+            items: [
+              {
+                id: 'item-file',
+                type: 'file',
+                uniqueId: 'loader-file'
+              }
+            ]
+          }
+        ]
+      }
+    })
+
+    const migrator = new KnowledgeVectorMigrator() as any
+    expect((await migrator.prepare(migrationCtx as any)).success).toBe(true)
+    expect((await migrator.execute(migrationCtx as any)).success).toBe(true)
+
+    const targetClient = createClient({ url: pathToFileURL(dbPath).toString() })
+    const rows = await targetClient.execute('SELECT metadata FROM libsql_vectorstores_embedding')
+    targetClient.close()
+
+    expect(rows.rows).toHaveLength(1)
+    expect(JSON.parse(String((rows.rows[0] as Record<string, unknown>).metadata))).toEqual({
+      itemId: 'item-file'
+    })
+
+    const validateResult = await migrator.validate(migrationCtx as any)
+    expect(validateResult.success).toBe(true)
+    expect(validateResult.errors).toStrictEqual([])
   })
 
   it('execute fails when rebuilding a base fails and does not count it as skipped', async () => {
