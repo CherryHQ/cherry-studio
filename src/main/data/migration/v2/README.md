@@ -4,7 +4,7 @@ This directory contains the v2 data migration implementation.
 
 ## Documentation
 
-- **Migration Guide**: [docs/en/references/data/v2-migration-guide.md](../../../../../docs/en/references/data/v2-migration-guide.md)
+- **Migration Guide**: [docs/references/data/v2-migration-guide.md](../../../../../docs/references/data/v2-migration-guide.md)
 
 ## Directory Structure
 
@@ -37,4 +37,4 @@ src/main/data/migration/v2/
 libsql defaults to `foreign_keys = ON` (compiled with `SQLITE_DEFAULT_FOREIGN_KEYS=1`).
 `@libsql/client` creates new connections after each `transaction()`, resetting PRAGMAs.
 For bulk inserts with self-referencing FKs, run `PRAGMA foreign_keys = OFF` before **each**
-`db.transaction()` call. See the [migration guide](../../../../../docs/en/references/data/v2-migration-guide.md) for details.
+`db.transaction()` call. See the [migration guide](../../../../../docs/references/data/v2-migration-guide.md) for details.

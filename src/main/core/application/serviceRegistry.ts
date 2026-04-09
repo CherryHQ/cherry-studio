@@ -16,6 +16,7 @@ import { OcrService } from '@main/services/ocr/OcrService'
 import { OpenClawService } from '@main/services/OpenClawService'
 import { OvmsManager } from '@main/services/OvmsManager'
 import { PowerMonitorService } from '@main/services/PowerMonitorService'
+import { ProtocolService } from '@main/services/ProtocolService'
 import { ProxyManager } from '@main/services/ProxyManager'
 import { PythonService } from '@main/services/PythonService'
 import { SearchService } from '@main/services/SearchService'
@@ -70,6 +71,7 @@ export const services = {
   NodeTraceService,
   OcrService,
   OvmsManager,
+  ProtocolService,
   ProxyManager,
   PythonService,
   TrayService,
