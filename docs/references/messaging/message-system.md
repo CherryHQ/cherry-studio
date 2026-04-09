@@ -4,7 +4,7 @@ This document describes the Cherry Studio message system architecture, including
 
 ## Message Lifecycle
 
-![Message Lifecycle](../assets/images/message-lifecycle.png)
+![Message Lifecycle](../../assets/images/message-lifecycle.png)
 
 ---
 

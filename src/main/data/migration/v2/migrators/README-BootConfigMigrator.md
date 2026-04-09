@@ -2,7 +2,7 @@
 
 The `BootConfigMigrator` migrates early-boot configuration from legacy storage into `bootConfigService` — the synchronous, file-based config used by code that runs before the lifecycle system takes over (e.g. Chromium flags, custom userData directory).
 
-Unlike other migrators, it writes to a **file-based store** (`~/.cherrystudio/boot-config.json`) rather than a SQLite table. See [Boot Config Overview](../../../../../docs/references/data/boot-config-overview.md) for why this system exists.
+Unlike other migrators, it writes to a **file-based store** (`~/.cherrystudio/boot-config.json`) rather than a SQLite table. See [Boot Config Overview](../../../../../../docs/references/data/boot-config-overview.md) for why this system exists.
 
 ## Data Sources
 

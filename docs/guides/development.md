@@ -5,7 +5,7 @@
 ### VSCode like
 
 - Editor: [Cursor](https://www.cursor.com/), etc. Any VS Code compatible editor.
-- Recommended extensions are listed in [`.vscode/extensions.json`](/.vscode/extensions.json).
+- Recommended extensions are listed in [`.vscode/extensions.json`](../../.vscode/extensions.json).
 
 ### Zed
 
