@@ -16,7 +16,7 @@ import type {
   SkillInstallOptions,
   SkillToggleOptions
 } from '@types'
-import { app, net } from 'electron'
+import { net } from 'electron'
 import StreamZip from 'node-stream-zip'
 
 import { SkillInstaller } from './SkillInstaller'
@@ -560,7 +560,7 @@ export class SkillService {
 
   /** Symlink location: {userData}/.claude/skills/{folderName} */
   private getSkillLinkPath(folderName: string): string {
-    return path.join(app.getPath('userData'), '.claude', 'skills', folderName)
+    return path.join(application.getPath('feature.agents.claude.skills'), folderName)
   }
 
   private sanitizeFolderName(folderName: string): string {
@@ -576,7 +576,7 @@ export class SkillService {
   }
 
   private async createTempDir(prefix: string): Promise<string> {
-    const tempDir = path.join(app.getPath('temp'), 'cherry-studio', 'skill-install', `${prefix}-${Date.now()}`)
+    const tempDir = path.join(application.getPath('feature.agents.skills.install.temp'), `${prefix}-${Date.now()}`)
     await fs.promises.mkdir(tempDir, { recursive: true })
     return tempDir
   }

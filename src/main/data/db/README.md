@@ -4,7 +4,7 @@ This directory contains database schemas and configuration.
 
 ## Documentation
 
-- **Database Patterns**: [docs/en/references/data/database-patterns.md](../../../../docs/en/references/data/database-patterns.md)
+- **Database Patterns**: [docs/references/data/database-patterns.md](../../../../docs/references/data/database-patterns.md)
 
 ## Directory Structure
 

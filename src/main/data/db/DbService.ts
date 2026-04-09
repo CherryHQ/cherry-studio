@@ -1,10 +1,10 @@
 import { loggerService } from '@logger'
+import { application } from '@main/core/application'
 import { BaseService, ErrorHandling, Injectable, Priority, ServicePhase } from '@main/core/lifecycle'
 import { Phase } from '@main/core/lifecycle'
 import { sql } from 'drizzle-orm'
 import { drizzle } from 'drizzle-orm/libsql'
 import { migrate } from 'drizzle-orm/libsql/migrator'
-import { app } from 'electron'
 import fs from 'fs'
 import path from 'path'
 import { pathToFileURL } from 'url'
@@ -14,9 +14,6 @@ import Seeding from './seeding'
 import type { DbType } from './types'
 
 const logger = loggerService.withContext('DbService')
-
-const DB_NAME = 'cherrystudio.sqlite'
-const MIGRATIONS_BASE_PATH = 'migrations/sqlite-drizzle'
 
 /**
  * Database service managing SQLite connection via Drizzle ORM
@@ -46,11 +43,11 @@ export class DbService extends BaseService {
     try {
       this.ensureDatabaseIntegrity()
       this.db = drizzle({
-        connection: { url: pathToFileURL(path.join(app.getPath('userData'), DB_NAME)).href },
+        connection: { url: pathToFileURL(application.getPath('app.database.file')).href },
         casing: 'snake_case'
       })
       logger.info('Database connection initialized', {
-        dbPath: path.join(app.getPath('userData'), DB_NAME)
+        dbPath: application.getPath('app.database.file')
       })
     } catch (error) {
       logger.error('Failed to initialize database connection', error as Error)
@@ -118,7 +115,7 @@ export class DbService extends BaseService {
    */
   private async migrateDb(): Promise<void> {
     try {
-      const migrationsFolder = this.getMigrationsFolder()
+      const migrationsFolder = application.getPath('app.database.migrations')
       await migrate(this.db, { migrationsFolder })
 
       // Run custom SQL that Drizzle cannot manage (triggers, virtual tables, etc.)
@@ -184,19 +181,6 @@ export class DbService extends BaseService {
   }
 
   /**
-   * Get the migrations folder based on the app's packaging status
-   */
-  private getMigrationsFolder(): string {
-    if (app.isPackaged) {
-      //see electron-builder.yml, extraResources from/to
-      return path.join(process.resourcesPath, MIGRATIONS_BASE_PATH)
-    } else {
-      // in dev/preview, __dirname maybe /out/main
-      return path.join(__dirname, '../../', MIGRATIONS_BASE_PATH)
-    }
-  }
-
-  /**
    * Ensure database file integrity before opening connection.
    * Handles two scenarios that cause SQLITE_IOERR_SHORT_READ:
    * 1. Main .db file is 0 bytes (corrupt) — remove so libsql recreates it
@@ -204,7 +188,7 @@ export class DbService extends BaseService {
    *    WAL recovery against an empty file and fails
    */
   private ensureDatabaseIntegrity(): void {
-    const dbPath = path.join(app.getPath('userData'), DB_NAME)
+    const dbPath = application.getPath('app.database.file')
 
     const dbExists = fs.existsSync(dbPath)
 
