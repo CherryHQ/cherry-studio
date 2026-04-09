@@ -87,13 +87,15 @@ const Chat: FC<Props> = (props) => {
 
   useShortcut('select_model', async () => {
     const modelFilter = (m: Model) => !isEmbeddingModel(m) && !isRerankModel(m)
-    const selectedModel = await SelectChatModelPopup.show({ model: assistant?.model, filter: modelFilter })
+    const selectedModel = await SelectChatModelPopup.show({
+      model: assistant?.model,
+      filter: modelFilter
+    })
     if (selectedModel) {
       const enabledWebSearch = isWebSearchModel(selectedModel)
       updateAssistant({
-        ...props.assistant,
         model: selectedModel,
-        enableWebSearch: enabledWebSearch && props.assistant.enableWebSearch
+        enableWebSearch: enabledWebSearch && assistant.enableWebSearch
       })
     }
   })
