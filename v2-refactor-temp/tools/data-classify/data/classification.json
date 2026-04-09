@@ -31,7 +31,7 @@
           "type": "string[]",
           "defaultValue": [],
           "status": "classified",
-          "category": "preferences",
+          "category": "persist_cache",
           "targetKey": "ui.assistant.tags_order"
         },
         {
