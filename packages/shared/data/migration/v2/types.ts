@@ -72,8 +72,6 @@ export interface ValidateResult {
     targetCount: number
     skippedCount: number
     mismatchReason?: string
-    /** Additional migrator-specific counters for diagnostics */
-    [key: string]: number | string | undefined
   }
 }
 
