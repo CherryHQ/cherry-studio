@@ -939,7 +939,7 @@ describe('ExtensionRegistry', () => {
             {
               suffix: 'anthropic',
               name: 'Azure Anthropic',
-              transform: (_provider: ProviderV3) => createMockProviderV3(),
+              transform: () => createMockProviderV3(),
               toolFactories: {
                 webSearch: variantFactory
               }
@@ -966,7 +966,7 @@ describe('ExtensionRegistry', () => {
             {
               suffix: 'responses',
               name: 'Azure Responses',
-              transform: (_provider: ProviderV3) => createMockProviderV3()
+              transform: () => createMockProviderV3()
             }
           ]
         })
