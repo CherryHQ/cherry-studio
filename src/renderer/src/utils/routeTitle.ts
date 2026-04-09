@@ -10,6 +10,8 @@ const routeTitleKeys: Record<string, string> = {
   '/': 'title.home',
   '/home': 'title.home',
   '/app/chat': 'common.chat',
+  '/agents': 'common.agent_one',
+  '/app/agents': 'common.agent_one',
   '/app/assistant': 'title.store',
   '/app/paintings': 'title.paintings',
   '/app/translate': 'title.translate',
