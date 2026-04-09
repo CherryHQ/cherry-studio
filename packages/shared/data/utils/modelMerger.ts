@@ -373,7 +373,7 @@ export function mergeProviderConfig(
     name: userProvider?.name ?? presetProvider?.name ?? providerId,
     description: presetProvider?.description,
     endpointConfigs: Object.keys(endpointConfigs).length > 0 ? endpointConfigs : undefined,
-    defaultChatEndpoint: userProvider?.defaultChatEndpoint ?? presetProvider?.defaultChatEndpoint,
+    defaultChatEndpoint: userProvider?.defaultChatEndpoint ?? presetProvider?.defaultChatEndpoint ?? undefined,
     apiKeys,
     authType,
     apiFeatures,

@@ -139,7 +139,7 @@ class ProviderRegistryService {
     const endpointConfigs = provider ? buildRuntimeEndpointConfigs(provider.endpointConfigs) : null
 
     return {
-      defaultChatEndpoint: provider?.defaultChatEndpoint,
+      defaultChatEndpoint: provider?.defaultChatEndpoint ?? undefined,
       reasoningFormatTypes: extractReasoningFormatTypes(endpointConfigs)
     }
   }
