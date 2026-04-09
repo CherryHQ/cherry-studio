@@ -45,7 +45,7 @@ const AnthropicExtension = ProviderExtension.create({
   create: createAnthropic,
   toolFactories: {
     webSearch:
-      (provider) => (config: NonNullable<Parameters<AnthropicProvider['tools']['webSearch_20250305']>[0]>) => ({
+      (provider) => (config: NonNullable<Parameters<AnthropicProvider['tools']['webSearch_20260209']>[0]>) => ({
         tools: { webSearch: provider.tools.webSearch_20260209(config) }
       }),
     urlContext:
@@ -83,6 +83,8 @@ const AzureExtension = ProviderExtension.create({
     {
       suffix: 'responses',
       name: 'Azure OpenAI Responses',
+      // AI SDK defaults to responses API, so createAzure(settings) without
+      // the chat override (used in base `create`) gives us Responses API behavior.
       transform: (_provider, settings) => createAzure(settings),
       toolFactories: {
         webSearch:
@@ -105,7 +107,7 @@ const AzureExtension = ProviderExtension.create({
         }),
       toolFactories: {
         webSearch:
-          (provider) => (config: NonNullable<Parameters<AnthropicProvider['tools']['webSearch_20250305']>[0]>) => ({
+          (provider) => (config: NonNullable<Parameters<AnthropicProvider['tools']['webSearch_20260209']>[0]>) => ({
             tools: { webSearch: provider.tools.webSearch_20260209(config) }
           }),
         urlContext:
