@@ -31,13 +31,14 @@ import {
 import { updateCodeBlock } from '@renderer/utils/markdown'
 import { getMainTextContent } from '@renderer/utils/messageUtils/find'
 import { isTextLikeBlock } from '@renderer/utils/messageUtils/is'
+import { getTextFromParts } from '@renderer/utils/messageUtils/partsHelpers'
 import { last } from 'lodash'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import InfiniteScroll from 'react-infinite-scroll-component'
 import styled from 'styled-components'
 
-import { useV2BlockMap } from './Blocks'
+import { resolveBlockFromParts, useIsV2Chat, usePartsMap } from './Blocks'
 import MessageAnchorLine from './MessageAnchorLine'
 import MessageGroup from './MessageGroup'
 import NarrowLayout from './NarrowLayout'
@@ -77,8 +78,8 @@ const Messages: React.FC<MessagesProps> = ({
   const [messageNavigation] = usePreference('chat.message.navigation_mode')
   const { t } = useTranslation()
   const dispatch = useAppDispatch()
-  const v2BlockEntities = useV2BlockMap()
-  const isV2Chat = v2BlockEntities !== null
+  const partsMap = usePartsMap()
+  const isV2Chat = useIsV2Chat()
   const reduxMessages = useTopicMessages(topic.id)
   // V2 mode: use externally provided messages; V1 mode: read from Redux
   const messages = messagesProp ?? reduxMessages
@@ -89,15 +90,15 @@ const Messages: React.FC<MessagesProps> = ({
 
   const messageElements = useRef<Map<string, HTMLElement>>(new Map())
   const messagesRef = useRef<Message[]>(messages)
-  const v2BlockEntitiesRef = useRef(v2BlockEntities)
+  const partsMapRef = useRef(partsMap)
 
   useEffect(() => {
     messagesRef.current = messages
   }, [messages])
 
   useEffect(() => {
-    v2BlockEntitiesRef.current = v2BlockEntities
-  }, [v2BlockEntities])
+    partsMapRef.current = partsMap
+  }, [partsMap])
 
   const registerMessageElement = useCallback((id: string, element: HTMLElement | null) => {
     if (element) {
@@ -238,9 +239,10 @@ const Messages: React.FC<MessagesProps> = ({
         async (data: { msgBlockId: string; codeBlockId: string; newContent: string }) => {
           const { msgBlockId, codeBlockId, newContent } = data
 
-          // V2: read from context ref; V1: read from Redux
+          // V2: resolve from partsMap ref; V1: read from Redux
           const msgBlock =
-            v2BlockEntitiesRef.current?.[msgBlockId] ?? messageBlocksSelectors.selectById(store.getState(), msgBlockId)
+            (partsMapRef.current && resolveBlockFromParts(partsMapRef.current, msgBlockId)) ??
+            messageBlocksSelectors.selectById(store.getState(), msgBlockId)
 
           // FIXME: 目前 error block 没有 content
           if (msgBlock && isTextLikeBlock(msgBlock) && msgBlock.type !== MessageBlockType.ERROR) {
@@ -307,7 +309,9 @@ const Messages: React.FC<MessagesProps> = ({
   useShortcut('copy_last_message', () => {
     const lastMessage = last(messages)
     if (lastMessage) {
-      void navigator.clipboard.writeText(getMainTextContent(lastMessage, v2BlockEntities ?? undefined))
+      const parts = partsMap?.[lastMessage.id]
+      const text = parts ? getTextFromParts(parts) : getMainTextContent(lastMessage)
+      void navigator.clipboard.writeText(text)
       window.toast.success(t('message.copy.success'))
     }
   })

@@ -14,12 +14,13 @@ import type { Message } from '@renderer/types/newMessage'
 import { isEmoji, removeLeadingEmoji } from '@renderer/utils'
 import { scrollIntoView } from '@renderer/utils/dom'
 import { getMainTextContent } from '@renderer/utils/messageUtils/find'
+import { getTextFromParts } from '@renderer/utils/messageUtils/partsHelpers'
 import { CircleChevronDown } from 'lucide-react'
 import { type FC, useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
-import { useV2BlockMap } from './Blocks'
+import { usePartsMap } from './Blocks'
 
 interface MessageLineProps {
   messages: Message[]
@@ -32,7 +33,7 @@ const getModelIcon = (isLocalAi: boolean, modelId: string | undefined) => {
 
 const MessageAnchorLine: FC<MessageLineProps> = ({ messages }) => {
   const { t } = useTranslation()
-  const v2BlockEntities = useV2BlockMap()
+  const partsMap = usePartsMap()
   const avatar = useAvatar()
   const { theme } = useTheme()
   const dispatch = useAppDispatch()
@@ -207,7 +208,8 @@ const MessageAnchorLine: FC<MessageLineProps> = ({ messages }) => {
           const size = 10 + calculateValueByDistance(message.id, 20)
           const ModelIcon = getModelIcon(isLocalAi, getMessageModelId(message))
           const username = removeLeadingEmoji(getUserName(message))
-          const content = getMainTextContent(message, v2BlockEntities ?? undefined)
+          const parts = partsMap?.[message.id]
+          const content = parts ? getTextFromParts(parts) : getMainTextContent(message)
 
           if (message.type === 'clear') return null
 

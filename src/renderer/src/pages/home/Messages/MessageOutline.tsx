@@ -13,7 +13,7 @@ import { unified } from 'unified'
 import { visit } from 'unist-util-visit'
 
 import { createSlugger, extractTextFromNode } from '../Markdown/plugins/rehypeHeadingIds'
-import { usePartsMap, useV2BlockMap } from './Blocks'
+import { usePartsMap } from './Blocks'
 
 interface MessageOutlineProps {
   message: Message
@@ -27,9 +27,7 @@ interface HeadingItem {
 
 const MessageOutline: FC<MessageOutlineProps> = ({ message }) => {
   const partsMap = usePartsMap()
-  const v2Blocks = useV2BlockMap()
   const reduxBlockEntities = useSelector((state: RootState) => messageBlocksSelectors.selectEntities(state))
-  const blockEntities = v2Blocks ?? reduxBlockEntities
 
   const headings: HeadingItem[] = useMemo(() => {
     // Collect text contents: from parts (priority) or blocks (fallback)
@@ -48,7 +46,7 @@ const MessageOutline: FC<MessageOutlineProps> = ({ message }) => {
       }
     } else {
       const mainTextBlocks = message.blocks
-        .map((blockId) => blockEntities[blockId])
+        .map((blockId) => reduxBlockEntities[blockId])
         .filter((b) => b?.type === MessageBlockType.MAIN_TEXT)
       for (const block of mainTextBlocks) {
         if (block?.content) {
@@ -86,7 +84,7 @@ const MessageOutline: FC<MessageOutlineProps> = ({ message }) => {
     }
 
     return result
-  }, [partsMap, message.id, message.blocks, blockEntities])
+  }, [partsMap, message.id, message.blocks, reduxBlockEntities])
 
   const miniLevel = useMemo(() => {
     return headings.length ? Math.min(...headings.map((heading) => heading.level)) : 1

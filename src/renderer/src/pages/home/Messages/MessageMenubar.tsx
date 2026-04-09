@@ -74,7 +74,7 @@ import { useTranslation } from 'react-i18next'
 import { useSelector } from 'react-redux'
 import styled from 'styled-components'
 
-import { usePartsMap, useV2BlockMap } from './Blocks'
+import { useIsV2Chat, usePartsMap } from './Blocks'
 import MessageTokens from './MessageTokens'
 
 const createTranslationAbortKey = (messageId: string) => `translation-abort-key:${messageId}`
@@ -196,12 +196,10 @@ const MessageMenubar: FC<Props> = (props) => {
 
   const dispatch = useAppDispatch()
   const partsMap = usePartsMap()
-  const v2Blocks = useV2BlockMap()
   const reduxBlockEntities = useSelector(messageBlocksSelectors.selectEntities)
-  // V2 mode: read from context; V1 mode: read from Redux
-  const blockEntities = v2Blocks ?? reduxBlockEntities
+  const blockEntities = reduxBlockEntities
   const messageParts = partsMap?.[message.id]
-  const isV2Chat = v2Blocks !== null
+  const isV2Chat = useIsV2Chat()
 
   const mainTextContent = useMemo(() => {
     if (messageParts) {

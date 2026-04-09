@@ -11,23 +11,23 @@ import { useSelector } from 'react-redux'
 import styled from 'styled-components'
 
 import CitationsList from '../CitationsList'
-import { useV2BlockMap } from './V2Contexts'
+import { useIsV2Chat } from './V2Contexts'
 
 function CitationBlock({ block }: { block: CitationMessageBlock }) {
   const { t } = useTranslation()
-  const v2Blocks = useV2BlockMap()
+  const isV2Chat = useIsV2Chat()
 
   // V2: block prop already has full data — format directly without Redux lookup
   // V1: read from Redux via selector
   const reduxCitations = useSelector((state: RootState) =>
-    v2Blocks ? [] : selectFormattedCitationsByBlockId(state, block.id)
+    isV2Chat ? [] : selectFormattedCitationsByBlockId(state, block.id)
   )
-  const formattedCitations = v2Blocks ? formatCitationsFromBlock(block) : reduxCitations
+  const formattedCitations = isV2Chat ? formatCitationsFromBlock(block) : reduxCitations
 
   // V2: no Redux message entity — use block.messageId directly
   // V1: read from Redux to get askId
   const reduxMessage = useSelector((state: RootState) =>
-    v2Blocks ? undefined : state.messages.entities[block.messageId]
+    isV2Chat ? undefined : state.messages.entities[block.messageId]
   )
   const userMessageId = reduxMessage?.askId || block.messageId
   const [activeSearches] = useSharedCache('chat.web_search.active_searches')

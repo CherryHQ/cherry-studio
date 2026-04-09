@@ -23,11 +23,18 @@ import ThinkingBlock from './ThinkingBlock'
 import ToolBlock from './ToolBlock'
 import ToolBlockGroup from './ToolBlockGroup'
 import TranslationBlock from './TranslationBlock'
-import { PartsContext, V2BlockContext } from './V2Contexts'
+import { PartsContext } from './V2Contexts'
 import VideoBlock from './VideoBlock'
 
 // Re-export context providers and hooks so existing imports keep working
-export { PartsProvider, usePartsMap, useV2BlockMap, V2BlockProvider } from './V2Contexts'
+export {
+  PartsProvider,
+  resolveBlockFromParts,
+  useIsV2Chat,
+  useMessageBlocks,
+  usePartsMap,
+  useResolveBlock
+} from './V2Contexts'
 
 const logger = loggerService.withContext('MessageBlockRenderer')
 
@@ -119,11 +126,10 @@ const groupSimilarBlocks = (blocks: MessageBlock[]): (MessageBlock[] | MessageBl
 
 const MessageBlockRenderer: React.FC<Props> = ({ blocks, message }) => {
   const partsMap = use(PartsContext)
-  const v2Blocks = use(V2BlockContext)
   // Always call useSelector to satisfy hooks-rules (no conditional hooks)
   const reduxBlockEntities = useSelector((state: RootState) => messageBlocksSelectors.selectEntities(state))
 
-  // Priority: PartsContext (convert parts→blocks internally) > V2BlockContext > Redux
+  // Priority: PartsContext (convert parts→blocks internally) > Redux fallback
   const renderedBlocks = useMemo(() => {
     const messageParts = partsMap?.[message.id]
     if (messageParts) {
@@ -137,10 +143,9 @@ const MessageBlockRenderer: React.FC<Props> = ({ blocks, message }) => {
       }
       return converted
     }
-    // Fallback: V2BlockContext or Redux block ID lookup
-    const blockEntities = v2Blocks ?? reduxBlockEntities
-    return blocks.map((blockId) => blockEntities[blockId]).filter((b): b is MessageBlock => b != null)
-  }, [partsMap, message.id, message.status, message.createdAt, v2Blocks, reduxBlockEntities, blocks])
+    // Redux fallback (V1 mode)
+    return blocks.map((blockId) => reduxBlockEntities[blockId]).filter((b): b is MessageBlock => b != null)
+  }, [partsMap, message.id, message.status, message.createdAt, reduxBlockEntities, blocks])
 
   const groupedBlocks = useMemo(() => groupSimilarBlocks(renderedBlocks), [renderedBlocks])
 

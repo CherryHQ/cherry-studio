@@ -4,7 +4,7 @@ import { getModelUniqId } from '@renderer/services/ModelService'
 import type { RootState } from '@renderer/store'
 import { formatCitationsFromBlock, selectFormattedCitationsByBlockId } from '@renderer/store/messageBlock'
 import { type Model } from '@renderer/types'
-import type { MainTextMessageBlock, Message, MessageBlock } from '@renderer/types/newMessage'
+import type { MainTextMessageBlock, Message } from '@renderer/types/newMessage'
 import { MessageBlockType } from '@renderer/types/newMessage'
 import { determineCitationSource, withCitationTags } from '@renderer/utils/citation'
 import React, { useCallback, useMemo } from 'react'
@@ -12,7 +12,7 @@ import { useSelector } from 'react-redux'
 import styled from 'styled-components'
 
 import Markdown from '../../Markdown/Markdown'
-import { useV2BlockMap } from './V2Contexts'
+import { useResolveBlock } from './V2Contexts'
 
 interface Props {
   block: MainTextMessageBlock
@@ -23,21 +23,20 @@ interface Props {
 
 const MainTextBlock: React.FC<Props> = ({ block, citationBlockId, role, mentions = [] }) => {
   const [renderInputMessageAsMarkdown] = usePreference('chat.message.render_as_markdown')
-  const v2Blocks = useV2BlockMap()
+  const v2CitationBlock = useResolveBlock(citationBlockId)
 
-  // V2: resolve citation block from V2BlockContext directly
+  // V2: resolve citation block from PartsContext directly
   // V1: read from Redux via selector
   const reduxCitations = useSelector((state: RootState) =>
-    v2Blocks ? [] : selectFormattedCitationsByBlockId(state, citationBlockId)
+    v2CitationBlock ? [] : selectFormattedCitationsByBlockId(state, citationBlockId)
   )
   const rawCitations = useMemo(() => {
-    if (!v2Blocks || !citationBlockId) return reduxCitations
-    const citationBlock = v2Blocks[citationBlockId] as MessageBlock | undefined
-    if (citationBlock?.type === MessageBlockType.CITATION) {
-      return formatCitationsFromBlock(citationBlock)
+    if (!v2CitationBlock) return reduxCitations
+    if (v2CitationBlock.type === MessageBlockType.CITATION) {
+      return formatCitationsFromBlock(v2CitationBlock)
     }
     return []
-  }, [v2Blocks, citationBlockId, reduxCitations])
+  }, [v2CitationBlock, reduxCitations])
 
   // 创建引用处理函数，传递给 Markdown 组件在流式渲染中使用
   const processContent = useCallback(

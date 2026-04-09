@@ -63,9 +63,9 @@ vi.mock('@renderer/components/CodeBlockView', () => ({
   HtmlArtifactsCard: mocks.HtmlArtifactsCard
 }))
 
-// Mock V2 block context — returns null (V1 mode) by default
+// Mock V2 contexts — returns null (V1 mode) by default
 vi.mock('@renderer/pages/home/Messages/Blocks', () => ({
-  useV2BlockMap: vi.fn(() => null)
+  useResolveBlock: vi.fn(() => null)
 }))
 
 // Mock ClickableFilePath

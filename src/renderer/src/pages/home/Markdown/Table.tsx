@@ -2,7 +2,7 @@ import { Tooltip } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
 import { CopyIcon } from '@renderer/components/Icons'
 import { useTemporaryValue } from '@renderer/hooks/useTemporaryValue'
-import { useV2BlockMap } from '@renderer/pages/home/Messages/Blocks'
+import { useResolveBlock } from '@renderer/pages/home/Messages/Blocks'
 import store from '@renderer/store'
 import { messageBlocksSelectors } from '@renderer/store/messageBlock'
 import type { MessageBlock } from '@renderer/types/newMessage'
@@ -28,10 +28,10 @@ interface Props {
 const Table: React.FC<Props> = ({ children, node, blockId }) => {
   const { t } = useTranslation()
   const [copied, setCopied] = useTemporaryValue(false, 2000)
-  const v2Blocks = useV2BlockMap()
+  const v2Block = useResolveBlock(blockId)
 
   const handleCopyTable = useCallback(async () => {
-    const tableMarkdown = extractTableMarkdown(blockId ?? '', node?.position, v2Blocks)
+    const tableMarkdown = extractTableMarkdown(blockId ?? '', node?.position, v2Block)
     if (!tableMarkdown) {
       window.toast?.error(t('message.error.table.invalid'))
       return
@@ -54,10 +54,10 @@ const Table: React.FC<Props> = ({ children, node, blockId }) => {
       logger.error('Failed to copy table to clipboard', { error })
       window.toast?.error(t('message.copy.failed'))
     }
-  }, [blockId, node?.position, setCopied, t, v2Blocks])
+  }, [blockId, node?.position, setCopied, t, v2Block])
 
   const handleExportExcel = useCallback(async () => {
-    const tableMarkdown = extractTableMarkdown(blockId ?? '', node?.position, v2Blocks)
+    const tableMarkdown = extractTableMarkdown(blockId ?? '', node?.position, v2Block)
     if (!tableMarkdown) {
       window.toast?.error(t('message.error.table.invalid'))
       return
@@ -72,7 +72,7 @@ const Table: React.FC<Props> = ({ children, node, blockId }) => {
       logger.error('Failed to export table to Excel', { error })
       window.toast?.error(t('message.error.excel.export'))
     }
-  }, [blockId, node?.position, t, v2Blocks])
+  }, [blockId, node?.position, t, v2Block])
 
   return (
     <TableWrapper className="table-wrapper">
@@ -99,14 +99,10 @@ const Table: React.FC<Props> = ({ children, node, blockId }) => {
  * @param position 表格节点的位置信息
  * @returns 源代码
  */
-export function extractTableMarkdown(
-  blockId: string,
-  position: any,
-  v2Blocks?: Record<string, MessageBlock> | null
-): string {
+export function extractTableMarkdown(blockId: string, position: any, v2Block?: MessageBlock | null): string {
   if (!position || !blockId) return ''
 
-  const block = v2Blocks?.[blockId] ?? messageBlocksSelectors.selectById(store.getState(), blockId)
+  const block = v2Block ?? messageBlocksSelectors.selectById(store.getState(), blockId)
   if (!block || !('content' in block) || typeof block.content !== 'string') return ''
 
   const { start, end } = position

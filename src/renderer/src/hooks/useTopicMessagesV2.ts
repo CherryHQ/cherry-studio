@@ -4,14 +4,13 @@
  * Replaces the V1 Redux thunk path (loadTopicMessagesThunk → DataApiMessageDataSource → Redux).
  * Returns messages in AI SDK UIMessage format for direct consumption by useAiChat and PartsContext.
  *
- * Also provides a legacy-adapted view (Message[] + blockMap) for components
- * that haven't migrated to read parts yet.
+ * Also provides a legacy-adapted view (Message[]) for components that still
+ * consume the renderer Message type (MessageGroup, MessageItem, etc.).
  */
 
 import { dataApiService } from '@data/DataApiService'
 import type { CherryUIMessage } from '@renderer/hooks/useAiChat'
-import { AssistantMessageStatus, type Message, type MessageBlock, UserMessageStatus } from '@renderer/types/newMessage'
-import { mapMessageStatusToBlockStatus, partToBlock } from '@renderer/utils/partsToBlocks'
+import { AssistantMessageStatus, type Message, UserMessageStatus } from '@renderer/types/newMessage'
 import type {
   BranchMessage,
   BranchMessagesResponse,
@@ -26,11 +25,9 @@ const FETCH_LIMIT = 999
 interface UseTopicMessagesV2Result {
   /** Messages in AI SDK UIMessage format — for useAiChat initialMessages */
   uiMessages: CherryUIMessage[]
-  /** Messages in legacy renderer format — for components still reading blocks */
+  /** Messages in legacy renderer format — for components still reading Message type */
   adaptedMessages: Message[]
-  /** Block map keyed by block ID — for V2BlockContext */
-  blockMap: Record<string, MessageBlock>
-  /** Parts map keyed by message ID — for PartsContext */
+  /** Parts map keyed by message ID — for PartsContext (primary rendering source) */
   partsMap: Record<string, CherryMessagePart[]>
   /** Loading state */
   isLoading: boolean
@@ -53,26 +50,11 @@ function toUIMessage(shared: SharedMessage): CherryUIMessage {
 }
 
 /**
- * Convert a DataApi SharedMessage to a legacy renderer Message + MessageBlock[].
- * Same logic as DataApiMessageDataSource.convertSharedMessage but without the module-level side effects.
+ * Convert a DataApi SharedMessage to a legacy renderer Message.
+ * Block rendering is handled by PartsContext — blocks array is empty.
  */
-function toAdaptedMessage(shared: SharedMessage): { message: Message; blocks: MessageBlock[] } {
-  const dataParts = shared.data?.parts ?? []
-  const status = mapMessageStatusToBlockStatus(shared.status)
-  const blocks: MessageBlock[] = []
-  const blockIds: string[] = []
-
-  for (let i = 0; i < dataParts.length; i++) {
-    const part = dataParts[i]
-    const blockId = `${shared.id}-block-${i}`
-    const block = partToBlock(part, blockId, shared.id, shared.createdAt, status)
-    if (block) {
-      blockIds.push(blockId)
-      blocks.push(block)
-    }
-  }
-
-  const message: Message = {
+function toAdaptedMessage(shared: SharedMessage): Message {
+  return {
     id: shared.id,
     topicId: shared.topicId,
     role: shared.role,
@@ -81,7 +63,7 @@ function toAdaptedMessage(shared: SharedMessage): { message: Message; blocks: Me
       shared.role === 'user'
         ? UserMessageStatus.SUCCESS
         : (shared.status as AssistantMessageStatus) || AssistantMessageStatus.SUCCESS,
-    blocks: blockIds,
+    blocks: [],
     createdAt: shared.createdAt,
     updatedAt: shared.updatedAt,
     askId: shared.parentId ?? undefined,
@@ -101,8 +83,6 @@ function toAdaptedMessage(shared: SharedMessage): { message: Message; blocks: Me
       }
     })
   }
-
-  return { message, blocks }
 }
 
 /**
@@ -152,7 +132,6 @@ export function useTopicMessagesV2(topicId: string, enabled = true): UseTopicMes
       return {
         uiMessages: [],
         adaptedMessages: [],
-        blockMap: {},
         partsMap: {},
         isLoading,
         error,
@@ -163,27 +142,19 @@ export function useTopicMessagesV2(topicId: string, enabled = true): UseTopicMes
     const sharedMessages = flattenBranchMessages(data.items)
     const uiMessages: CherryUIMessage[] = []
     const adaptedMessages: Message[] = []
-    const blockMap: Record<string, MessageBlock> = {}
     const partsMap: Record<string, CherryMessagePart[]> = {}
 
     for (const shared of sharedMessages) {
-      // UIMessage for useAiChat initialMessages
       uiMessages.push(toUIMessage(shared))
 
-      // Parts map for PartsContext
       const parts = shared.data?.parts ?? []
       if (parts.length > 0) {
         partsMap[shared.id] = parts
       }
 
-      // Legacy adapted message + blocks for V2BlockContext
-      const { message, blocks } = toAdaptedMessage(shared)
-      adaptedMessages.push(message)
-      for (const block of blocks) {
-        blockMap[block.id] = block
-      }
+      adaptedMessages.push(toAdaptedMessage(shared))
     }
 
-    return { uiMessages, adaptedMessages, blockMap, partsMap, isLoading, error, refresh }
+    return { uiMessages, adaptedMessages, partsMap, isLoading, error, refresh }
   }, [data, isLoading, error, refresh])
 }
