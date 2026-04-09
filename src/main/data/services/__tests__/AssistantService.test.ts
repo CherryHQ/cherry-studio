@@ -1,86 +1,26 @@
-import { DataApiError, ErrorCode } from '@shared/data/api'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
-
-import { AssistantDataService, assistantDataService } from '../AssistantService'
+import { assistantTable } from '@data/db/schemas/assistant'
+import { assistantKnowledgeBaseTable, assistantMcpServerTable } from '@data/db/schemas/assistantRelations'
+import type { DbType } from '@data/db/types'
+import { createClient } from '@libsql/client'
+import { ErrorCode } from '@shared/data/api'
+import { sql } from 'drizzle-orm'
+import { drizzle } from 'drizzle-orm/libsql'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 // ============================================================================
-// DB Mock Helpers
+// DB Setup
 // ============================================================================
 
-function createMockRow(overrides: Record<string, unknown> = {}) {
-  return {
-    id: 'ast-1',
-    name: 'test-assistant',
-    prompt: 'You are helpful',
-    emoji: null,
-    description: null,
-    modelId: null,
-    settings: null,
-    createdAt: 1700000000000,
-    updatedAt: 1700000000000,
-    deletedAt: null,
-    ...overrides
+let realDb: DbType | null = null
+let closeClient: (() => void) | undefined
+
+vi.mock('@main/core/application', () => ({
+  application: {
+    get: vi.fn(() => ({
+      getDb: vi.fn(() => realDb)
+    }))
   }
-}
-
-/**
- * Creates a chainable mock that resolves to the given value when awaited.
- * Every method call on the chain returns the same chain, so
- * db.select().from().where().limit() all work.
- */
-function mockChain(resolvedValue: unknown) {
-  const thenable = {
-    then: (resolve: (v: unknown) => unknown, reject?: (e: unknown) => unknown) => {
-      return Promise.resolve(resolvedValue).then(resolve, reject)
-    }
-  }
-
-  const chain: any = new Proxy(thenable, {
-    get(target, prop) {
-      if (prop === 'then') return target.then
-      if (prop === 'catch' || prop === 'finally') {
-        return (...args: unknown[]) => Promise.resolve(resolvedValue)[prop as 'catch'](...(args as [any]))
-      }
-      return () => chain
-    }
-  })
-
-  return chain
-}
-
-function mockAssistantRelations(overrides: { mcpServerIds?: string[]; knowledgeBaseIds?: string[] } = {}) {
-  const { mcpServerIds = [], knowledgeBaseIds = [] } = overrides
-  return {
-    mcpServerRows: mcpServerIds.map((mcpServerId) => ({ assistantId: 'ast-1', mcpServerId })),
-    knowledgeBaseRows: knowledgeBaseIds.map((knowledgeBaseId) => ({ assistantId: 'ast-1', knowledgeBaseId }))
-  }
-}
-
-function queueAssistantReads(
-  rowOrRows: Record<string, unknown> | Record<string, unknown>[],
-  options: {
-    mcpServerIds?: string[]
-    knowledgeBaseIds?: string[]
-  } = {}
-) {
-  const rows = Array.isArray(rowOrRows) ? rowOrRows : [rowOrRows]
-  const relations = mockAssistantRelations(options)
-
-  mockDb.select.mockReset()
-  mockDb.select.mockReturnValueOnce(mockChain(rows))
-  mockDb.select
-    .mockReturnValueOnce(mockChain(relations.mcpServerRows))
-    .mockReturnValueOnce(mockChain(relations.knowledgeBaseRows))
-}
-
-let mockDb: any
-
-vi.mock('@main/core/application', async () => {
-  const { mockApplicationFactory } = await import('@test-mocks/main/application')
-  return mockApplicationFactory({
-    DbService: { getDb: () => mockDb }
-  })
-})
+}))
 
 vi.mock('@logger', () => ({
   loggerService: {
@@ -93,19 +33,105 @@ vi.mock('@logger', () => ({
   }
 }))
 
+const { AssistantDataService, assistantDataService } = await import('../AssistantService')
+
+async function setupDb() {
+  const client = createClient({ url: 'file::memory:' })
+  closeClient = () => client.close()
+  realDb = drizzle({ client, casing: 'snake_case' })
+  const db = realDb
+
+  await db.run(sql`PRAGMA foreign_keys = ON`)
+
+  // libsql creates a separate connection for transactions on in-memory DBs,
+  // losing the schema. Bypass by executing the callback on the main connection.
+  ;(db as any).transaction = async (fn: (tx: any) => Promise<any>) => fn(db)
+
+  // Assistant table
+  await db.run(
+    sql.raw(`
+    CREATE TABLE assistant (
+      id TEXT PRIMARY KEY NOT NULL,
+      name TEXT NOT NULL,
+      prompt TEXT DEFAULT '',
+      emoji TEXT,
+      description TEXT DEFAULT '',
+      model_id TEXT,
+      settings TEXT,
+      created_at INTEGER,
+      updated_at INTEGER,
+      deleted_at INTEGER
+    )
+  `)
+  )
+
+  // MCP server stub (FK target for junction)
+  await db.run(
+    sql.raw(`
+    CREATE TABLE mcp_server (
+      id TEXT PRIMARY KEY NOT NULL,
+      name TEXT NOT NULL,
+      created_at INTEGER,
+      updated_at INTEGER
+    )
+  `)
+  )
+
+  // Knowledge base stub (FK target for junction)
+  await db.run(
+    sql.raw(`
+    CREATE TABLE knowledge_base (
+      id TEXT PRIMARY KEY NOT NULL,
+      name TEXT NOT NULL,
+      dimensions INTEGER NOT NULL,
+      embedding_model_id TEXT NOT NULL,
+      created_at INTEGER,
+      updated_at INTEGER
+    )
+  `)
+  )
+
+  // Junction tables
+  await db.run(
+    sql.raw(`
+    CREATE TABLE assistant_mcp_server (
+      assistant_id TEXT NOT NULL REFERENCES assistant(id) ON DELETE CASCADE,
+      mcp_server_id TEXT NOT NULL REFERENCES mcp_server(id) ON DELETE CASCADE,
+      created_at INTEGER,
+      updated_at INTEGER,
+      PRIMARY KEY (assistant_id, mcp_server_id)
+    )
+  `)
+  )
+
+  await db.run(
+    sql.raw(`
+    CREATE TABLE assistant_knowledge_base (
+      assistant_id TEXT NOT NULL REFERENCES assistant(id) ON DELETE CASCADE,
+      knowledge_base_id TEXT NOT NULL REFERENCES knowledge_base(id) ON DELETE CASCADE,
+      created_at INTEGER,
+      updated_at INTEGER,
+      PRIMARY KEY (assistant_id, knowledge_base_id)
+    )
+  `)
+  )
+
+  return db
+}
+
 // ============================================================================
 // Tests
 // ============================================================================
 
 describe('AssistantDataService', () => {
-  beforeEach(() => {
-    mockDb = {
-      select: vi.fn(),
-      insert: vi.fn(),
-      update: vi.fn(),
-      delete: vi.fn(),
-      transaction: vi.fn()
-    }
+  beforeEach(async () => {
+    await setupDb()
+  })
+
+  afterEach(() => {
+    closeClient?.()
+    closeClient = undefined
+    realDb = null
   })
 
   it('should export a module-level singleton', () => {
@@ -117,15 +143,21 @@ describe('AssistantDataService', () => {
   // --------------------------------------------------------------------------
   describe('getById', () => {
     it('should return an assistant with relation ids when found', async () => {
-      const row = createMockRow({ modelId: 'openai::gpt-4' })
-      queueAssistantReads(row, {
-        mcpServerIds: ['srv-1'],
-        knowledgeBaseIds: ['kb-1']
-      })
+      const db = realDb!
+      await db.insert(assistantTable).values({ id: 'ast-1', name: 'test', modelId: 'openai::gpt-4' })
+      await db.run(sql.raw(`INSERT INTO mcp_server (id, name) VALUES ('srv-1', 'MCP')`))
+      await db.run(
+        sql.raw(
+          `INSERT INTO knowledge_base (id, name, dimensions, embedding_model_id) VALUES ('kb-1', 'KB', 1024, 'openai::text-embedding-3-large')`
+        )
+      )
+      await db.insert(assistantMcpServerTable).values({ assistantId: 'ast-1', mcpServerId: 'srv-1' })
+      await db.insert(assistantKnowledgeBaseTable).values({ assistantId: 'ast-1', knowledgeBaseId: 'kb-1' })
 
       const result = await assistantDataService.getById('ast-1')
+
       expect(result.id).toBe('ast-1')
-      expect(result.name).toBe('test-assistant')
+      expect(result.name).toBe('test')
       expect(result.modelId).toBe('openai::gpt-4')
       expect(result.mcpServerIds).toEqual(['srv-1'])
       expect(result.knowledgeBaseIds).toEqual(['kb-1'])
@@ -133,22 +165,45 @@ describe('AssistantDataService', () => {
     })
 
     it('should return null modelId when not set', async () => {
-      queueAssistantReads(createMockRow())
+      const db = realDb!
+      await db.insert(assistantTable).values({ id: 'ast-1', name: 'test' })
+
       const result = await assistantDataService.getById('ast-1')
       expect(result.modelId).toBeNull()
     })
 
+    it('should apply default values for nullable fields', async () => {
+      const db = realDb!
+      await db.insert(assistantTable).values({ id: 'ast-1', name: 'test' })
+
+      const result = await assistantDataService.getById('ast-1')
+      expect(result.prompt).toBe('')
+      expect(result.emoji).toBe('🌟')
+      expect(result.description).toBe('')
+      expect(result.mcpServerIds).toEqual([])
+      expect(result.knowledgeBaseIds).toEqual([])
+    })
+
     it('should return soft-deleted assistant when includeDeleted is true', async () => {
-      const deletedRow = createMockRow({ deletedAt: 1700000000000 })
-      queueAssistantReads(deletedRow)
+      const db = realDb!
+      await db.insert(assistantTable).values({ id: 'ast-1', name: 'test' })
+      await db.update(assistantTable).set({ deletedAt: Date.now() })
+
       const result = await assistantDataService.getById('ast-1', { includeDeleted: true })
       expect(result.id).toBe('ast-1')
     })
 
-    it('should throw NOT_FOUND when assistant does not exist', async () => {
-      mockDb.select.mockReturnValue(mockChain([]))
+    it('should NOT return soft-deleted assistant by default', async () => {
+      const db = realDb!
+      await db.insert(assistantTable).values({ id: 'ast-1', name: 'test' })
+      await db.update(assistantTable).set({ deletedAt: Date.now() })
 
-      await expect(assistantDataService.getById('non-existent')).rejects.toThrow(DataApiError)
+      await expect(assistantDataService.getById('ast-1')).rejects.toMatchObject({
+        code: ErrorCode.NOT_FOUND
+      })
+    })
+
+    it('should throw NOT_FOUND when assistant does not exist', async () => {
       await expect(assistantDataService.getById('non-existent')).rejects.toMatchObject({
         code: ErrorCode.NOT_FOUND
       })
@@ -159,71 +214,76 @@ describe('AssistantDataService', () => {
   // list
   // --------------------------------------------------------------------------
   describe('list', () => {
-    it('should return all assistants with relation ids when no filters', async () => {
-      const rows = [
-        createMockRow({ modelId: 'openai::gpt-4' }),
-        createMockRow({ id: 'ast-2', name: 'second', modelId: 'anthropic::claude-3' })
-      ]
-      const relationRows = {
-        mcpServerRows: [{ assistantId: 'ast-2', mcpServerId: 'srv-2' }],
-        knowledgeBaseRows: [{ assistantId: 'ast-1', knowledgeBaseId: 'kb-1' }]
-      }
-
-      mockDb.select
-        .mockReturnValueOnce(mockChain(rows))
-        .mockReturnValueOnce(mockChain([{ count: 2 }]))
-        .mockReturnValueOnce(mockChain(relationRows.mcpServerRows))
-        .mockReturnValueOnce(mockChain(relationRows.knowledgeBaseRows))
+    it('should return all assistants with relation ids', async () => {
+      const db = realDb!
+      await db.insert(assistantTable).values([
+        { id: 'ast-1', name: 'first', modelId: 'openai::gpt-4', createdAt: 100 },
+        { id: 'ast-2', name: 'second', modelId: 'anthropic::claude-3', createdAt: 200 }
+      ])
+      await db.run(sql.raw(`INSERT INTO mcp_server (id, name) VALUES ('srv-1', 'MCP')`))
+      await db.insert(assistantMcpServerTable).values({ assistantId: 'ast-2', mcpServerId: 'srv-1' })
 
       const result = await assistantDataService.list({})
+
       expect(result.items).toHaveLength(2)
       expect(result.total).toBe(2)
       expect(result.page).toBe(1)
-      expect(result.items[0].modelId).toBe('openai::gpt-4')
-      expect(result.items[0].knowledgeBaseIds).toEqual(['kb-1'])
-      expect(result.items[1].modelId).toBe('anthropic::claude-3')
-      expect(result.items[1].mcpServerIds).toEqual(['srv-2'])
+      expect(result.items[0].id).toBe('ast-1')
+      expect(result.items[1].mcpServerIds).toEqual(['srv-1'])
     })
 
-    it('should filter by id', async () => {
-      const row = createMockRow()
-      mockDb.select.mockReset()
-      mockDb.select
-        .mockReturnValueOnce(mockChain([row]))
-        .mockReturnValueOnce(mockChain([{ count: 1 }]))
-        .mockReturnValueOnce(mockChain([]))
-        .mockReturnValueOnce(mockChain([]))
+    it('should exclude soft-deleted assistants', async () => {
+      const db = realDb!
+      await db.insert(assistantTable).values([
+        { id: 'ast-1', name: 'active' },
+        { id: 'ast-2', name: 'deleted', deletedAt: Date.now() }
+      ])
 
-      const result = await assistantDataService.list({ id: 'ast-1' })
+      const result = await assistantDataService.list({})
       expect(result.items).toHaveLength(1)
+      expect(result.items[0].id).toBe('ast-1')
       expect(result.total).toBe(1)
     })
 
-    it('should respect page and limit parameters', async () => {
-      const row = createMockRow()
-      mockDb.select.mockReset()
-      mockDb.select
-        .mockReturnValueOnce(mockChain([row]))
-        .mockReturnValueOnce(mockChain([{ count: 50 }]))
-        .mockReturnValueOnce(mockChain([]))
-        .mockReturnValueOnce(mockChain([]))
+    it('should filter by id', async () => {
+      const db = realDb!
+      await db.insert(assistantTable).values([
+        { id: 'ast-1', name: 'first' },
+        { id: 'ast-2', name: 'second' }
+      ])
 
-      const result = await assistantDataService.list({ page: 2, limit: 10 })
-      expect(result.page).toBe(2)
-      expect(result.total).toBe(50)
+      const result = await assistantDataService.list({ id: 'ast-2' })
+      expect(result.items).toHaveLength(1)
+      expect(result.items[0].id).toBe('ast-2')
     })
 
-    it('should cap limit at 500', async () => {
-      mockDb.select.mockReset()
-      mockDb.select
-        .mockReturnValueOnce(mockChain([]))
-        .mockReturnValueOnce(mockChain([{ count: 0 }]))
-        .mockReturnValueOnce(mockChain([]))
-        .mockReturnValueOnce(mockChain([]))
+    it('should respect page and limit parameters', async () => {
+      const db = realDb!
+      const values = Array.from({ length: 5 }, (_, i) => ({
+        id: `ast-${i}`,
+        name: `assistant-${i}`,
+        createdAt: i * 100
+      }))
+      await db.insert(assistantTable).values(values)
 
-      const result = await assistantDataService.list({ limit: 9999 })
-      expect(result.items).toHaveLength(0)
-      // The service should have capped limit to 500 internally
+      const result = await assistantDataService.list({ page: 2, limit: 2 })
+      expect(result.page).toBe(2)
+      expect(result.total).toBe(5)
+      expect(result.items).toHaveLength(2)
+      expect(result.items[0].id).toBe('ast-2')
+      expect(result.items[1].id).toBe('ast-3')
+    })
+
+    it('should order by createdAt ascending', async () => {
+      const db = realDb!
+      await db.insert(assistantTable).values([
+        { id: 'ast-new', name: 'new', createdAt: 300 },
+        { id: 'ast-old', name: 'old', createdAt: 100 },
+        { id: 'ast-mid', name: 'mid', createdAt: 200 }
+      ])
+
+      const result = await assistantDataService.list({})
+      expect(result.items.map((a) => a.id)).toEqual(['ast-old', 'ast-mid', 'ast-new'])
     })
   })
 
@@ -231,28 +291,32 @@ describe('AssistantDataService', () => {
   // create
   // --------------------------------------------------------------------------
   describe('create', () => {
-    it('should create and return assistant within a transaction', async () => {
-      const row = createMockRow()
-      const txInsert = vi.fn().mockReturnValue(mockChain([row]))
-      const txDelete = vi.fn().mockReturnValue(mockChain(undefined))
-      const mockTx = { insert: txInsert, delete: txDelete }
-
-      mockDb.transaction.mockImplementation(async (fn: (tx: any) => Promise<any>) => fn(mockTx))
-
+    it('should create and return assistant with generated id', async () => {
       const result = await assistantDataService.create({ name: 'test-assistant' })
-      expect(result.id).toBe('ast-1')
+
+      expect(result.id).toBeTruthy()
       expect(result.name).toBe('test-assistant')
       expect(result.modelId).toBeNull()
-      expect(mockDb.transaction).toHaveBeenCalledOnce()
+      expect(typeof result.createdAt).toBe('string')
     })
 
-    it('should sync relation junction rows when provided', async () => {
-      const row = createMockRow({ modelId: 'openai::gpt-4' })
-      const txInsert = vi.fn().mockReturnValue(mockChain([row]))
-      const txDelete = vi.fn().mockReturnValue(mockChain(undefined))
-      const mockTx = { insert: txInsert, delete: txDelete }
+    it('should persist assistant to database', async () => {
+      const db = realDb!
+      const created = await assistantDataService.create({ name: 'test-assistant' })
 
-      mockDb.transaction.mockImplementation(async (fn: (tx: any) => Promise<any>) => fn(mockTx))
+      const [row] = await db.select().from(assistantTable)
+      expect(row.id).toBe(created.id)
+      expect(row.name).toBe('test-assistant')
+    })
+
+    it('should sync junction rows when relation ids are provided', async () => {
+      const db = realDb!
+      await db.run(sql.raw(`INSERT INTO mcp_server (id, name) VALUES ('srv-1', 'MCP')`))
+      await db.run(
+        sql.raw(
+          `INSERT INTO knowledge_base (id, name, dimensions, embedding_model_id) VALUES ('kb-1', 'KB', 1024, 'model')`
+        )
+      )
 
       const result = await assistantDataService.create({
         name: 'test-assistant',
@@ -261,22 +325,27 @@ describe('AssistantDataService', () => {
         knowledgeBaseIds: ['kb-1']
       })
 
-      // 1 assistant insert + 2 junction inserts (mcp + kb)
-      expect(txInsert).toHaveBeenCalledTimes(3)
-      expect(result.modelId).toBe('openai::gpt-4')
       expect(result.mcpServerIds).toEqual(['srv-1'])
       expect(result.knowledgeBaseIds).toEqual(['kb-1'])
+
+      // Verify junction rows in DB
+      const mcpRows = await db.select().from(assistantMcpServerTable)
+      const kbRows = await db.select().from(assistantKnowledgeBaseTable)
+      expect(mcpRows).toHaveLength(1)
+      expect(kbRows).toHaveLength(1)
+      expect(mcpRows[0].assistantId).toBe(result.id)
     })
 
     it('should throw validation error when name is empty', async () => {
-      await expect(assistantDataService.create({ name: '' })).rejects.toThrow(DataApiError)
       await expect(assistantDataService.create({ name: '' })).rejects.toMatchObject({
         code: ErrorCode.VALIDATION_ERROR
       })
     })
 
     it('should throw validation error when name is whitespace only', async () => {
-      await expect(assistantDataService.create({ name: '   ' })).rejects.toThrow(DataApiError)
+      await expect(assistantDataService.create({ name: '   ' })).rejects.toMatchObject({
+        code: ErrorCode.VALIDATION_ERROR
+      })
     })
   })
 
@@ -284,117 +353,89 @@ describe('AssistantDataService', () => {
   // update
   // --------------------------------------------------------------------------
   describe('update', () => {
-    it('should update and return assistant within a transaction', async () => {
-      const existing = createMockRow({ modelId: 'openai::gpt-4' })
-      const updated = createMockRow({ name: 'updated-name', modelId: 'openai::gpt-4' })
-      queueAssistantReads(existing, { mcpServerIds: ['srv-1'] })
-
-      const txUpdate = vi.fn().mockReturnValue(mockChain([updated]))
-      const txDelete = vi.fn().mockReturnValue(mockChain(undefined))
-      const txInsert = vi.fn().mockReturnValue(mockChain(undefined))
-      const mockTx = { update: txUpdate, delete: txDelete, insert: txInsert }
-
-      mockDb.transaction.mockImplementation(async (fn: (tx: any) => Promise<any>) => fn(mockTx))
+    it('should update and return assistant', async () => {
+      const db = realDb!
+      await db.insert(assistantTable).values({ id: 'ast-1', name: 'original' })
 
       const result = await assistantDataService.update('ast-1', { name: 'updated-name' })
       expect(result.name).toBe('updated-name')
-      expect(result.mcpServerIds).toEqual(['srv-1'])
-      expect(mockDb.transaction).toHaveBeenCalledOnce()
     })
 
-    it('should NOT pass relation fields to the SQL UPDATE', async () => {
-      const existing = createMockRow()
-      queueAssistantReads(existing)
+    it('should persist update to database', async () => {
+      const db = realDb!
+      await db.insert(assistantTable).values({ id: 'ast-1', name: 'original' })
 
-      let capturedSetArg: any
-      const txUpdate = vi.fn().mockReturnValue(
-        new Proxy(
-          {
-            then: (resolve: (v: unknown) => unknown) => Promise.resolve([existing]).then(resolve)
-          },
-          {
-            get(target, prop) {
-              if (prop === 'then') return target.then
-              if (prop === 'set') {
-                return (arg: any) => {
-                  capturedSetArg = arg
-                  return new Proxy(target, {
-                    get(t, p) {
-                      if (p === 'then') return t.then
-                      return () =>
-                        new Proxy(t, {
-                          get(t2, p2) {
-                            if (p2 === 'then') return t2.then
-                            return () => t2
-                          }
-                        })
-                    }
-                  })
-                }
-              }
-              return () =>
-                new Proxy(target, {
-                  get(t, p) {
-                    if (p === 'then') return t.then
-                    return () => t
-                  }
-                })
-            }
-          }
-        )
-      )
-      const txDelete = vi.fn().mockReturnValue(mockChain(undefined))
-      const txInsert = vi.fn().mockReturnValue(mockChain(undefined))
-      const mockTx = { update: txUpdate, delete: txDelete, insert: txInsert }
+      await assistantDataService.update('ast-1', { name: 'updated-name' })
 
-      mockDb.transaction.mockImplementation(async (fn: (tx: any) => Promise<any>) => fn(mockTx))
+      const [row] = await db.select().from(assistantTable)
+      expect(row.name).toBe('updated-name')
+    })
 
-      await assistantDataService.update('ast-1', {
+    it('should not pass relation fields to the column update', async () => {
+      const db = realDb!
+      await db.insert(assistantTable).values({ id: 'ast-1', name: 'original' })
+      await db.run(sql.raw(`INSERT INTO mcp_server (id, name) VALUES ('srv-1', 'MCP')`))
+
+      const result = await assistantDataService.update('ast-1', {
         name: 'updated',
-        mcpServerIds: ['srv-1'],
-        knowledgeBaseIds: ['kb-1']
+        mcpServerIds: ['srv-1']
       })
 
-      expect(capturedSetArg).toBeDefined()
-      expect(capturedSetArg).not.toHaveProperty('mcpServerIds')
-      expect(capturedSetArg).not.toHaveProperty('knowledgeBaseIds')
-      expect(capturedSetArg).toHaveProperty('name', 'updated')
+      expect(result.name).toBe('updated')
+      expect(result.mcpServerIds).toEqual(['srv-1'])
+
+      // Verify junction row created
+      const mcpRows = await db.select().from(assistantMcpServerTable)
+      expect(mcpRows).toHaveLength(1)
     })
 
-    it('should sync relation-only updates without issuing an empty SQL UPDATE', async () => {
-      const existing = createMockRow({ modelId: 'openai::gpt-4' })
-      queueAssistantReads(existing)
-
-      const txUpdate = vi.fn()
-      const txDelete = vi.fn().mockReturnValue(mockChain(undefined))
-      const txInsert = vi.fn().mockReturnValue(mockChain(undefined))
-      const mockTx = { update: txUpdate, delete: txDelete, insert: txInsert }
-
-      mockDb.transaction.mockImplementation(async (fn: (tx: any) => Promise<any>) => fn(mockTx))
+    it('should handle relation-only updates without modifying assistant columns', async () => {
+      const db = realDb!
+      await db.insert(assistantTable).values({ id: 'ast-1', name: 'original', modelId: 'openai::gpt-4' })
+      await db.run(sql.raw(`INSERT INTO mcp_server (id, name) VALUES ('srv-1', 'MCP')`))
+      await db.run(
+        sql.raw(
+          `INSERT INTO knowledge_base (id, name, dimensions, embedding_model_id) VALUES ('kb-1', 'KB', 1024, 'model')`
+        )
+      )
 
       const result = await assistantDataService.update('ast-1', {
         mcpServerIds: ['srv-1'],
         knowledgeBaseIds: ['kb-1']
       })
 
-      expect(txUpdate).not.toHaveBeenCalled()
-      expect(txDelete).toHaveBeenCalledTimes(2)
-      expect(txInsert).toHaveBeenCalledTimes(2)
+      // Relations updated
       expect(result.mcpServerIds).toEqual(['srv-1'])
       expect(result.knowledgeBaseIds).toEqual(['kb-1'])
+
+      // Column data unchanged
+      const [row] = await db.select().from(assistantTable)
+      expect(row.name).toBe('original')
+      expect(row.modelId).toBe('openai::gpt-4')
+    })
+
+    it('should replace existing junction rows on relation update', async () => {
+      const db = realDb!
+      await db.insert(assistantTable).values({ id: 'ast-1', name: 'test' })
+      await db.run(sql.raw(`INSERT INTO mcp_server (id, name) VALUES ('srv-1', 'MCP1'), ('srv-2', 'MCP2')`))
+      await db.insert(assistantMcpServerTable).values({ assistantId: 'ast-1', mcpServerId: 'srv-1' })
+
+      await assistantDataService.update('ast-1', { mcpServerIds: ['srv-2'] })
+
+      const mcpRows = await db.select().from(assistantMcpServerTable)
+      expect(mcpRows).toHaveLength(1)
+      expect(mcpRows[0].mcpServerId).toBe('srv-2')
     })
 
     it('should throw NOT_FOUND when updating non-existent assistant', async () => {
-      mockDb.select.mockReturnValue(mockChain([]))
-
       await expect(assistantDataService.update('non-existent', { name: 'x' })).rejects.toMatchObject({
         code: ErrorCode.NOT_FOUND
       })
     })
 
     it('should throw validation error when name is set to empty', async () => {
-      const existing = createMockRow()
-      queueAssistantReads(existing)
+      const db = realDb!
+      await db.insert(assistantTable).values({ id: 'ast-1', name: 'original' })
 
       await expect(assistantDataService.update('ast-1', { name: '' })).rejects.toMatchObject({
         code: ErrorCode.VALIDATION_ERROR
@@ -407,31 +448,80 @@ describe('AssistantDataService', () => {
   // --------------------------------------------------------------------------
   describe('delete', () => {
     it('should soft-delete by setting deletedAt timestamp', async () => {
-      const existing = createMockRow()
-      mockDb.select.mockReturnValue(mockChain([existing]))
-
-      let capturedSetArg: any
-      mockDb.update.mockReturnValue({
-        set: vi.fn().mockImplementation((arg: any) => {
-          capturedSetArg = arg
-          return { where: vi.fn().mockResolvedValue(undefined) }
-        })
-      })
+      const db = realDb!
+      await db.insert(assistantTable).values({ id: 'ast-1', name: 'test' })
 
       await assistantDataService.delete('ast-1')
 
-      expect(mockDb.update).toHaveBeenCalled()
-      expect(capturedSetArg).toBeDefined()
-      expect(capturedSetArg).toHaveProperty('deletedAt')
-      expect(typeof capturedSetArg.deletedAt).toBe('number')
+      const [row] = await db.select().from(assistantTable)
+      expect(row.deletedAt).toBeTruthy()
+      expect(typeof row.deletedAt).toBe('number')
+    })
+
+    it('should not physically remove the row', async () => {
+      const db = realDb!
+      await db.insert(assistantTable).values({ id: 'ast-1', name: 'test' })
+
+      await assistantDataService.delete('ast-1')
+
+      const rows = await db.select().from(assistantTable)
+      expect(rows).toHaveLength(1)
     })
 
     it('should throw NOT_FOUND when deleting non-existent assistant', async () => {
-      mockDb.select.mockReturnValue(mockChain([]))
-
       await expect(assistantDataService.delete('non-existent')).rejects.toMatchObject({
         code: ErrorCode.NOT_FOUND
       })
+    })
+
+    it('should throw NOT_FOUND when deleting already-deleted assistant', async () => {
+      const db = realDb!
+      await db.insert(assistantTable).values({ id: 'ast-1', name: 'test', deletedAt: Date.now() })
+
+      await expect(assistantDataService.delete('ast-1')).rejects.toMatchObject({
+        code: ErrorCode.NOT_FOUND
+      })
+    })
+  })
+
+  // --------------------------------------------------------------------------
+  // DB constraints
+  // --------------------------------------------------------------------------
+  describe('db constraints', () => {
+    it('should cascade-delete junction rows when assistant is physically deleted', async () => {
+      const db = realDb!
+      await db.insert(assistantTable).values({ id: 'ast-1', name: 'test' })
+      await db.run(sql.raw(`INSERT INTO mcp_server (id, name) VALUES ('srv-1', 'MCP')`))
+      await db.insert(assistantMcpServerTable).values({ assistantId: 'ast-1', mcpServerId: 'srv-1' })
+
+      // Physical delete (not soft-delete)
+      await db.run(sql.raw(`DELETE FROM assistant WHERE id = 'ast-1'`))
+
+      const mcpRows = await db.select().from(assistantMcpServerTable)
+      expect(mcpRows).toHaveLength(0)
+    })
+
+    it('should cascade-delete junction rows when mcp_server is deleted', async () => {
+      const db = realDb!
+      await db.insert(assistantTable).values({ id: 'ast-1', name: 'test' })
+      await db.run(sql.raw(`INSERT INTO mcp_server (id, name) VALUES ('srv-1', 'MCP')`))
+      await db.insert(assistantMcpServerTable).values({ assistantId: 'ast-1', mcpServerId: 'srv-1' })
+
+      await db.run(sql.raw(`DELETE FROM mcp_server WHERE id = 'srv-1'`))
+
+      const mcpRows = await db.select().from(assistantMcpServerTable)
+      expect(mcpRows).toHaveLength(0)
+    })
+
+    it('should reject duplicate junction rows', async () => {
+      const db = realDb!
+      await db.insert(assistantTable).values({ id: 'ast-1', name: 'test' })
+      await db.run(sql.raw(`INSERT INTO mcp_server (id, name) VALUES ('srv-1', 'MCP')`))
+      await db.insert(assistantMcpServerTable).values({ assistantId: 'ast-1', mcpServerId: 'srv-1' })
+
+      await expect(
+        db.insert(assistantMcpServerTable).values({ assistantId: 'ast-1', mcpServerId: 'srv-1' })
+      ).rejects.toThrow()
     })
   })
 })
