@@ -16,8 +16,6 @@ import type { CreateAssistantDto, ListAssistantsQuery, UpdateAssistantDto } from
 import { type Assistant, DEFAULT_ASSISTANT_SETTINGS } from '@shared/data/types/assistant'
 import { and, asc, eq, inArray, isNull, type SQL, sql } from 'drizzle-orm'
 
-import { stripNulls } from './utils'
-
 const logger = loggerService.withContext('DataApi:AssistantService')
 
 type AssistantRow = typeof assistantTable.$inferSelect
@@ -35,10 +33,13 @@ function createEmptyRelations(): AssistantRelationIds {
  * Convert database row to Assistant entity
  */
 function rowToAssistant(row: AssistantRow, relations: AssistantRelationIds = createEmptyRelations()): Assistant {
-  const clean = stripNulls(row)
   return {
-    ...clean,
-    settings: clean.settings ?? DEFAULT_ASSISTANT_SETTINGS,
+    id: row.id,
+    name: row.name,
+    prompt: row.prompt ?? '',
+    emoji: row.emoji ?? '🌟',
+    description: row.description ?? '',
+    settings: row.settings ?? DEFAULT_ASSISTANT_SETTINGS,
     modelId: row.modelId ?? null,
     mcpServerIds: relations.mcpServerIds,
     knowledgeBaseIds: relations.knowledgeBaseIds,

@@ -8,14 +8,12 @@
 import * as z from 'zod'
 
 import { type Assistant, AssistantSchema } from '../../types/assistant'
+import { AutoFields } from '../../types/index'
 import type { OffsetPaginationResponse } from '../apiTypes'
 
 // ============================================================================
 // DTO Derivation
 // ============================================================================
-
-/** Fields auto-managed by the database layer, excluded from DTOs */
-const AutoFields = { id: true, createdAt: true, updatedAt: true } as const
 
 /**
  * DTO for creating a new assistant.
