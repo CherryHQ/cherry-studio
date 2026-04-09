@@ -33,14 +33,14 @@ vi.mock('@vectorstores/libsql', () => {
   }
 })
 
-vi.mock('./providers/LibSqlVectorStoreProvider', () => ({
+vi.mock('../providers/LibSqlVectorStoreProvider', () => ({
   libSqlVectorStoreProvider: {
     create: providerCreateMock,
     delete: providerDeleteMock
   }
 }))
 
-const { KnowledgeVectorStoreService } = await import('./KnowledgeVectorStoreService')
+const { KnowledgeVectorStoreService } = await import('../KnowledgeVectorStoreService')
 const { LibSQLVectorStore } = await import('@vectorstores/libsql')
 
 function createBase(id = 'kb-1') {

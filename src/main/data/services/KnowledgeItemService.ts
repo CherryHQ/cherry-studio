@@ -8,8 +8,8 @@ import type { knowledgeItemTable } from '@data/db/schemas/knowledge'
 import { knowledgeItemRepository } from '@data/repositories/KnowledgeItemRepository'
 import { loggerService } from '@logger'
 import { application } from '@main/core/application'
+import type { OffsetPaginationResponse } from '@shared/data/api'
 import { DataApiErrorFactory } from '@shared/data/api'
-import type { OffsetPaginationResponse } from '@shared/data/api/apiTypes'
 import type {
   CreateKnowledgeItemsDto,
   KnowledgeItemsQuery,

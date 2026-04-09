@@ -2,6 +2,7 @@
  * Knowledge API DTOs and schema contracts.
  */
 
+import type { OffsetPaginationResponse } from '@shared/data/api'
 import {
   DirectoryItemDataSchema,
   FileItemDataSchema,
@@ -16,8 +17,6 @@ import {
   UrlItemDataSchema
 } from '@shared/data/types/knowledge'
 import * as z from 'zod'
-
-import type { OffsetPaginationResponse } from '../apiTypes'
 
 export const CreateKnowledgeBaseSchema = z.object({
   name: z.string().trim().min(1),

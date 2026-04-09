@@ -39,7 +39,6 @@ export class LibSqlVectorStoreProvider implements BaseVectorStoreProvider {
     }
   }
 
-  // todo: migrate to file manager
   private async getKnowledgeBaseFilePath(baseId: string): Promise<string> {
     return application.getPath('feature.knowledgebase.data', sanitizeFilename(baseId, '_'))
   }
