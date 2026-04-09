@@ -3083,15 +3083,160 @@ options: {
 | **删除** | `src/main/services/agents/services/claudecode/tools.ts` |
 | **删除** | `src/main/services/agents/services/claudecode/commands.ts` |
 
+### SDK 核心能力深度分析（源码: claude-code/manila-v1）
+
+基于 SDK 源码分析，以下是**之前 Phase 6 文档未覆盖的关键能力**：
+
+#### A. Context Window 管理（五种策略）
+
+SDK 有完整的 context window 管理系统，**ToolLoopAgent 完全不具备**：
+
+| 策略 | 触发条件 | 行为 | 我们的替代 |
+|------|----------|------|-----------|
+| **Auto-Compaction** | token 超过阈值 | 用小模型（haiku/sonnet）总结旧 turns，保留最近 N 轮 | `hooks.beforeIteration` + LLM 摘要 |
+| **Snip Compaction** | 每轮结束 | 去除已完成的 tool_use-result 对（轻量） | `pruneMessages()` (AI SDK 原生) |
+| **Reactive Compaction** | 413 prompt-too-long | 紧急全量压缩 + strip 大媒体 → 重试 | `hooks.onError` → truncate → retry |
+| **Context Collapse** | 渐进式 | 将细粒度消息暂存，按需 drain 为摘要 | `compileContext` 从 DB 检索 |
+| **Microcompact** | prompt cache 优化 | 缓存 tool result 的压缩版本 | 不需要（prompt cache 通过三层 context 结构保护） |
+
+**关键差异**: SDK 在**内存中**管理 messages 数组 + JSONL 持久化。我们用 **SQLite + compileContext** — 设计上已是不同路径，不需要复制 SDK 的 5 种策略，但需要等价的能力。
+
+#### B. 流式并行 Tool 执行（StreamingToolExecutor）
+
+SDK 在 LLM **流式输出的同时**开始执行 tools（不等流结束）：
+
+```
+LLM streaming: [text...] [tool_use_1] [text...] [tool_use_2] [text...] [end]
+                              ↓                      ↓
+                     execute tool_1 (start)    execute tool_2 (start)
+                              ↓                      ↓
+                     tool_1 result (done)      tool_2 result (done)
+```
+
+AI SDK 的 ToolLoopAgent **等流结束后才执行 tools**（串行）。这是性能差异。
+
+**替代方案**: 暂时接受串行执行。未来可通过 `onStepFinish` 分析是否有可并行的 tool calls 并预执行。
+
+#### C. 52 个内置 Tools（不只 15 个）
+
+完整列表（按域分类）：
+
+| 域 | Tools | 数量 |
+|---|---|---|
+| 文件操作 | Read, Write, Edit, MultiEdit, Glob, Grep | 6 |
+| 执行 | Bash, PowerShell, REPL | 3 |
+| 工作区 | LSP, EnterWorktree, ExitWorktree, EnterPlanMode, ExitPlanMode | 5 |
+| 异步 Agent | Agent (spawn子agent), TeamCreate, SendMessage | 3 |
+| Web | WebSearch, WebFetch | 2 |
+| MCP | MCPTool, ListMcpResources, ReadMcpResource | 3 |
+| UI/交互 | AskUserQuestion, ReviewArtifact, TerminalCapture | 3 |
+| 任务管理 | TaskCreate, TaskGet, TaskUpdate, TodoWrite | 4 |
+| Notebook | NotebookEdit, NotebookRead | 2 |
+| 监控 | Monitor, Brief | 2 |
+| 其他 | ScheduleCron, DiscoverSkills, ... | ~19 |
+
+**实现优先级（Cherry Studio 需要的子集）**:
+
+P0（核心，必须实现）: Read, Write, Edit, Glob, Grep, Bash
+P1（重要）: Agent (子agent), WebSearch, WebFetch, MCP tools
+P2（增强）: LSP, TaskCreate/Get/Update, AskUserQuestion
+P3（可选）: Notebook, PowerShell, Monitor, REPL, Worktree
+
+#### D. Tool 权限系统（比 needsApproval 复杂得多）
+
+SDK 的权限系统有 4 层：
+
+```
+1. Permission Rules (config-based)
+   ├── alwaysAllowRules: ['Bash(git *)'] → 匹配则跳过
+   ├── alwaysDenyRules: ['Bash(rm -rf *)'] → 匹配则拒绝
+   └── alwaysAskRules: ['Write(*.ts)'] → 匹配则必须问
+
+2. Tool.checkPermissions(input, context)
+   → 每个 tool 自带权限检查逻辑（如 Bash 检查命令安全性）
+
+3. Bash Classifier (ML)
+   → 流式时预判 Bash 命令是否安全（不等流结束就开始分析）
+
+4. Interactive Approval
+   → IPC 到 renderer 显示审批 UI
+```
+
+AI SDK 的 `needsApproval` 只覆盖第 4 层。前 3 层需要我们在 tool execute 内部自建。
+
+**替代方案**:
+- Rule matching: 在 `needsApproval: async ({ toolCall }) => ...` 中实现
+- Tool.checkPermissions: 在 tool execute 开头检查
+- Bash classifier: 暂时不实现（用 `needsApproval: true` 全部要审批），后续按需
+
+#### E. Agent 嵌套（AgentTool + TeamCreateTool）
+
+SDK 支持 **spawn 子 agent**，子 agent 有独立的 query loop、独立的 tool 集、独立的 abort：
+
+```typescript
+// SDK 的 AgentTool
+execute: async ({ prompt, agentOptions }) => {
+  const subEngine = new QueryEngine({ ... })
+  for await (const msg of subEngine.submitMessage(prompt)) {
+    // 子 agent 的流式输出
+  }
+  return subEngine.getResult()
+}
+```
+
+**替代方案**: 在 tool execute 中递归调用 `AiCompletionService.generateText()`：
+
+```typescript
+// 我们的 AgentTool
+execute: async (args, { experimental_context }) => {
+  const completionService = application.get('AiCompletionService')  // 或从 context 传入
+  const { text } = await completionService.generateText({
+    assistantId: args.agentId,
+    system: args.prompt,
+    prompt: args.task,
+  })
+  return text
+}
+```
+
+#### F. 错误恢复策略
+
+SDK 有完善的错误恢复：
+
+| 错误 | SDK 行为 | 我们的替代 |
+|------|----------|-----------|
+| 413 prompt-too-long | drain context collapse → reactive compact → retry | `hooks.onError` → 'retry' + beforeIteration truncate |
+| 429 rate limit | 内置 retry with backoff | `ai-retry` library (Layer 2) |
+| max_output_tokens | 从 8k 升级到 64k → retry | `hooks.onError` → 增大 maxOutputTokens → retry |
+| 媒体过大 | strip images/PDFs → retry | `hooks.onError` → strip media → retry |
+| Model fallback | 高并发时自动切模型 | `ai-retry` provider fallback |
+
+### 修正后的迁移策略
+
+**不应该等 Phase 5 完成再做 Phase 6。** 基于以上分析，Phase 6 应拆为：
+
+| Sub-phase | 内容 | 前置 |
+|---|---|---|
+| **6a** | P0 内置 tools (Read/Write/Edit/Glob/Grep/Bash) | 无 |
+| **6b** | Tool 权限规则引擎（config rules + per-tool checkPermissions） | 6a |
+| **6c** | Agent 子 agent 嵌套（AgentTool 递归调用 generateText） | 无 |
+| **6d** | Context window 管理（auto-compact + reactive compact） | hooks.onError + beforeIteration |
+| **6e** | System prompt 构建（PromptBuilder + channel security） | 无 |
+| **6f** | Session resume from SQLite | 无 |
+| **6g** | AgentService 适配 + 删除 ClaudeCodeService | 6a-6f 全部完成 |
+
+6a/6c/6e/6f **可立即开始**（无阻塞）。6d 需要 agentLoop outer loop 完善。6b 需要 6a 的 tool 实现。
+
 ### 风险 & 缓解
 
-| 风险 | 缓解 |
-|------|------|
-| 内置 tools 行为不一致（SDK 的 Edit 有特殊的 diff 语义） | 参考 SDK 源码 + 写全面的 tool 测试 |
-| Soul Mode system prompt 迁移遗漏 | `PromptBuilder` 是纯字符串逻辑，直接搬 |
-| Bash tool 安全性 | 复用 SDK 的 sandbox 思路 + `needsApproval: true` + accessiblePaths 检查 |
-| Session resume 消息格式差异 | SQLite 中已是 `UIMessage` 格式，无需转换 |
-| 性能：tool call 延迟 | ToolLoopAgent 的 tool 执行是 Node.js 原生，不经过 SDK 子进程，理论更快 |
+| 风险 | 严重性 | 缓解 |
+|------|--------|------|
+| 52 个 tools 工作量大 | 高 | 只实现 P0-P1 子集（12 个），P2-P3 按需 |
+| Context management 缺失 | 高 | 短期：`pruneMessages()` + `hooks.onError` retry。中期：实现 auto-compact |
+| 串行 tool 执行（AI SDK 限制） | 中 | 暂时接受。多数场景单 tool call 性能足够 |
+| Edit tool diff 语义不一致 | 中 | 严格参考 SDK 源码 `FileEditTool` 实现 |
+| Bash 安全性 | 高 | `needsApproval: true` + accessiblePaths 检查 + 命令白名单 |
+| 子 agent abort 传播 | 中 | 通过 `experimental_context` 传递 AbortController |
 
 ---
 
