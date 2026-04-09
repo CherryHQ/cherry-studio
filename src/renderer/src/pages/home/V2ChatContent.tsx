@@ -278,13 +278,22 @@ const V2ChatContentInner: FC<InnerProps> = ({
     return messages
   }, [liveUIMessages, assistant.id, topic.id, status])
 
-  // Merge: history (authority) + live streaming (appended)
+  // Merge: history (authority) + live streaming (appended).
+  // Deduplicate by ID to handle the race where SWR updates historyIds (real IDs)
+  // before useSyncExternalStore propagates chat.messages update (may still hold temp IDs),
+  // or vice versa. Without dedup, a brief intermediate render can show duplicates.
   const adaptedMessages = useMemo<Message[]>(() => {
     if (liveAdapted.length === 0) return historyMessages
-    return [...historyMessages, ...liveAdapted]
+    const seen = new Set(historyMessages.map((m) => m.id))
+    const deduped = liveAdapted.filter((m) => !seen.has(m.id))
+    if (deduped.length === 0) return historyMessages
+    return [...historyMessages, ...deduped]
   }, [historyMessages, liveAdapted])
 
-  // PartsContext: history parts + live streaming parts overlay
+  // PartsContext: history parts + live streaming parts overlay.
+  // Live parts overlay on top — during active streaming they carry the latest content.
+  // Stale temp-ID entries may briefly exist in the race window but are harmless:
+  // adaptedMessages (which controls rendering) is already deduped by ID.
   const partsMap = useMemo<Record<string, CherryMessagePart[]>>(() => {
     if (liveUIMessages.length === 0) return historyPartsMap
     const map: Record<string, CherryMessagePart[]> = { ...historyPartsMap }
