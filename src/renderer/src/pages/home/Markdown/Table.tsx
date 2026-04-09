@@ -2,10 +2,8 @@ import { Tooltip } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
 import { CopyIcon } from '@renderer/components/Icons'
 import { useTemporaryValue } from '@renderer/hooks/useTemporaryValue'
-import { useResolveBlock } from '@renderer/pages/home/Messages/Blocks'
 import store from '@renderer/store'
 import { messageBlocksSelectors } from '@renderer/store/messageBlock'
-import type { MessageBlock } from '@renderer/types/newMessage'
 import { exportTableToExcel } from '@renderer/utils/exportExcel'
 import { Check, FileSpreadsheet } from 'lucide-react'
 import MarkdownIt from 'markdown-it'
@@ -13,6 +11,8 @@ import React, { memo, useCallback } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 import type { Node } from 'unist'
+
+import { useMarkdownBlockContext } from './Markdown'
 
 const logger = loggerService.withContext('Table')
 
@@ -28,10 +28,10 @@ interface Props {
 const Table: React.FC<Props> = ({ children, node, blockId }) => {
   const { t } = useTranslation()
   const [copied, setCopied] = useTemporaryValue(false, 2000)
-  const v2Block = useResolveBlock(blockId)
+  const mdCtx = useMarkdownBlockContext()
 
   const handleCopyTable = useCallback(async () => {
-    const tableMarkdown = extractTableMarkdown(blockId ?? '', node?.position, v2Block)
+    const tableMarkdown = extractTableMarkdown(blockId ?? '', node?.position, mdCtx?.content)
     if (!tableMarkdown) {
       window.toast?.error(t('message.error.table.invalid'))
       return
@@ -54,10 +54,10 @@ const Table: React.FC<Props> = ({ children, node, blockId }) => {
       logger.error('Failed to copy table to clipboard', { error })
       window.toast?.error(t('message.copy.failed'))
     }
-  }, [blockId, node?.position, setCopied, t, v2Block])
+  }, [blockId, node?.position, setCopied, t, mdCtx?.content])
 
   const handleExportExcel = useCallback(async () => {
-    const tableMarkdown = extractTableMarkdown(blockId ?? '', node?.position, v2Block)
+    const tableMarkdown = extractTableMarkdown(blockId ?? '', node?.position, mdCtx?.content)
     if (!tableMarkdown) {
       window.toast?.error(t('message.error.table.invalid'))
       return
@@ -72,7 +72,7 @@ const Table: React.FC<Props> = ({ children, node, blockId }) => {
       logger.error('Failed to export table to Excel', { error })
       window.toast?.error(t('message.error.excel.export'))
     }
-  }, [blockId, node?.position, t, v2Block])
+  }, [blockId, node?.position, t, mdCtx?.content])
 
   return (
     <TableWrapper className="table-wrapper">
@@ -97,16 +97,26 @@ const Table: React.FC<Props> = ({ children, node, blockId }) => {
  * 从原始 Markdown 内容中提取表格源代码
  * @param blockId 消息块 ID
  * @param position 表格节点的位置信息
+ * @param markdownContent 原始 markdown 内容（MarkdownBlockContext 优先，Redux fallback）
  * @returns 源代码
  */
-export function extractTableMarkdown(blockId: string, position: any, v2Block?: MessageBlock | null): string {
-  if (!position || !blockId) return ''
+export function extractTableMarkdown(blockId: string, position: any, markdownContent?: string): string {
+  if (!position) return ''
 
-  const block = v2Block ?? messageBlocksSelectors.selectById(store.getState(), blockId)
-  if (!block || !('content' in block) || typeof block.content !== 'string') return ''
+  // Prefer content passed from MarkdownBlockContext; fallback to Redux for V1
+  const content =
+    markdownContent ??
+    (() => {
+      if (!blockId) return undefined
+      const block = messageBlocksSelectors.selectById(store.getState(), blockId)
+      if (!block || !('content' in block) || typeof block.content !== 'string') return undefined
+      return block.content
+    })()
+
+  if (!content) return ''
 
   const { start, end } = position
-  const lines = block.content.split('\n')
+  const lines = content.split('\n')
 
   // 提取表格对应的行（行号从1开始，数组索引从0开始）
   const tableLines = lines.slice(start.line - 1, end.line)

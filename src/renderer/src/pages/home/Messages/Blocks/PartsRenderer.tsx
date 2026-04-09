@@ -16,8 +16,6 @@ import type {
   CitationMessageBlock,
   ErrorMessageBlock,
   FileMessageBlock,
-  ImageMessageBlock,
-  MainTextMessageBlock,
   Message,
   MessageBlock,
   ToolMessageBlock,
@@ -25,14 +23,21 @@ import type {
 } from '@renderer/types/newMessage'
 import { MessageBlockStatus, MessageBlockType } from '@renderer/types/newMessage'
 import { isMessageProcessing } from '@renderer/utils/messageUtils/is'
-import { mapMessageStatusToBlockStatus, partToBlock } from '@renderer/utils/partsToBlocks'
-import type { CherryMessagePart } from '@shared/data/types/message'
+import {
+  convertReferencesToCitations,
+  convertReferencesToLegacyCitations,
+  mapMessageStatusToBlockStatus,
+  partToBlock
+} from '@renderer/utils/partsToBlocks'
+import type { CherryMessagePart, ContentReference } from '@shared/data/types/message'
 import type { CherryProviderMetadata } from '@shared/data/types/uiParts'
 import { AnimatePresence, motion, type Variants } from 'motion/react'
 import React, { use, useMemo } from 'react'
 
 import BlockErrorFallback from './BlockErrorFallback'
 import CompactBlock from './CompactBlock'
+import ImageBlock from './ImageBlock'
+import MainTextBlock from './MainTextBlock'
 import PlaceholderBlock from './PlaceholderBlock'
 import ThinkingBlock from './ThinkingBlock'
 import TranslationBlock from './TranslationBlock'
@@ -105,6 +110,13 @@ function isToolPart(part: CherryMessagePart): boolean {
 /** Check if a part is a video data part. */
 function isVideoDataPart(part: CherryMessagePart): boolean {
   return (part.type as string) === 'data-video'
+}
+
+/** Extract image URL from a file part. */
+function extractImageUrl(part: CherryMessagePart): string | undefined {
+  if (part.type !== 'file' || !('url' in part)) return undefined
+  const filePart = part as { url?: string; mediaType?: string }
+  return filePart.url || undefined
 }
 
 /** Get video filePath from a data-video part. */
@@ -221,13 +233,45 @@ function renderPart(part: CherryMessagePart, partId: string, message: Message, i
       return <TranslationBlock key={partId} id={partId} content={translationData.content} isStreaming={isStreaming} />
     }
 
+    case 'text': {
+      const textPart = part as { text?: string }
+      const cherryMeta = getCherryMeta(part)
+      const citations = cherryMeta?.references
+        ? convertReferencesToCitations(cherryMeta.references as ContentReference[])
+        : []
+      const citationReferences = cherryMeta?.references
+        ? convertReferencesToLegacyCitations(cherryMeta.references as ContentReference[], partId)
+        : undefined
+      return (
+        <MainTextBlock
+          key={partId}
+          id={partId}
+          content={textPart.text || ''}
+          isStreaming={isStreaming}
+          citations={citations}
+          citationReferences={citationReferences}
+          role={message.role}
+        />
+      )
+    }
+
+    case 'data-code': {
+      // Independent code blocks (rare, mostly from legacy migration).
+      // Render as MainTextBlock — markdown will handle the code fence.
+      const codeData = (part as { data: { content: string; language?: string } }).data
+      const codeContent = `\`\`\`${codeData.language ?? ''}\n${codeData.content}\n\`\`\``
+      return (
+        <MainTextBlock key={partId} id={partId} content={codeContent} isStreaming={isStreaming} role={message.role} />
+      )
+    }
+
     case 'source-url':
     case 'step-start':
       return null
 
     default:
       // Unmigrated part types: fallback to partToBlock() → legacy Block rendering
-      // This will be progressively removed as Batch 2/3 migration completes.
+      // This will be progressively removed as Batch 3 migration completes.
       return renderViaLegacyBlock(part, partId, message, isStreaming)
   }
 }
@@ -259,30 +303,12 @@ function renderViaLegacyBlock(
 const CitationBlock = React.lazy(() => import('./CitationBlock'))
 const ErrorBlock = React.lazy(() => import('./ErrorBlock'))
 const FileBlock = React.lazy(() => import('./FileBlock'))
-const ImageBlock = React.lazy(() => import('./ImageBlock'))
-const MainTextBlock = React.lazy(() => import('./MainTextBlock'))
 const ToolBlock = React.lazy(() => import('./ToolBlock'))
 const ToolBlockGroup = React.lazy(() => import('./ToolBlockGroup'))
 const VideoBlock = React.lazy(() => import('./VideoBlock'))
 
 const LegacyBlockSwitch: React.FC<{ block: MessageBlock; message: Message }> = ({ block, message }) => {
   switch (block.type) {
-    case MessageBlockType.MAIN_TEXT:
-    case MessageBlockType.CODE: {
-      const mainTextBlock = block as MainTextMessageBlock
-      const citationBlockId = mainTextBlock.citationReferences?.[0]?.citationBlockId
-      return (
-        <React.Suspense fallback={null}>
-          <MainTextBlock block={mainTextBlock} citationBlockId={citationBlockId} role={message.role} />
-        </React.Suspense>
-      )
-    }
-    case MessageBlockType.IMAGE:
-      return (
-        <React.Suspense fallback={null}>
-          <ImageBlock block={block as ImageMessageBlock} />
-        </React.Suspense>
-      )
     case MessageBlockType.FILE:
       return (
         <React.Suspense fallback={null}>
@@ -350,30 +376,22 @@ const PartsRenderer: React.FC<Props> = ({ message }) => {
           const firstPart = entry[0].part
 
           if (isImageFilePart(firstPart)) {
-            // Image group — fallback to legacy for now
-            const blockStatus = mapMessageStatusToBlockStatus(message.status as string)
-            const blocks = entry
-              .map((e) =>
-                partToBlock(e.part, `${message.id}-part-${e.index}`, message.id, message.createdAt, blockStatus)
-              )
-              .filter(Boolean) as MessageBlock[]
+            // Extract image URLs directly from file parts
+            const images = entry.map((e) => extractImageUrl(e.part)).filter(Boolean) as string[]
+            if (images.length === 0) return null
 
-            if (blocks.length === 1) {
+            if (images.length === 1) {
               return (
                 <AnimatedBlockWrapper key={groupKey} enableAnimation={isStreaming}>
-                  <React.Suspense fallback={null}>
-                    <ImageBlock block={blocks[0] as ImageMessageBlock} isSingle={true} />
-                  </React.Suspense>
+                  <ImageBlock images={images} isSingle={true} />
                 </AnimatedBlockWrapper>
               )
             }
             return (
               <AnimatedBlockWrapper key={groupKey} enableAnimation={isStreaming}>
                 <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10, maxWidth: '100%' }}>
-                  {blocks.map((b) => (
-                    <React.Suspense key={b.id} fallback={null}>
-                      <ImageBlock block={b as ImageMessageBlock} isSingle={false} />
-                    </React.Suspense>
+                  {images.map((src, i) => (
+                    <ImageBlock key={`${groupKey}-img-${i}`} images={[src]} isSingle={false} />
                   ))}
                 </div>
               </AnimatedBlockWrapper>

@@ -1,10 +1,17 @@
 import { loggerService } from '@logger'
 import { ErrorBoundary } from '@renderer/components/ErrorBoundary'
+import FileManager from '@renderer/services/FileManager'
 import type { RootState } from '@renderer/store'
-import { messageBlocksSelectors } from '@renderer/store/messageBlock'
+import {
+  formatCitationsFromBlock,
+  messageBlocksSelectors,
+  selectFormattedCitationsByBlockId
+} from '@renderer/store/messageBlock'
 import type {
+  CitationMessageBlock,
   CompactMessageBlock,
   ImageMessageBlock,
+  MainTextMessageBlock,
   Message,
   MessageBlock,
   ThinkingMessageBlock,
@@ -30,7 +37,7 @@ import ThinkingBlock from './ThinkingBlock'
 import ToolBlock from './ToolBlock'
 import ToolBlockGroup from './ToolBlockGroup'
 import TranslationBlock from './TranslationBlock'
-import { PartsContext } from './V2Contexts'
+import { PartsContext, useResolveBlock } from './V2Contexts'
 import VideoBlock from './VideoBlock'
 
 // Re-export context providers and hooks so existing imports keep working
@@ -131,6 +138,54 @@ const groupSimilarBlocks = (blocks: MessageBlock[]): (MessageBlock[] | MessageBl
   }, [])
 }
 
+/**
+ * V1 wrapper: resolves citations from Redux/PartsContext and passes pure props to MainTextBlock.
+ */
+const MainTextBlockWithCitations: React.FC<{
+  block: MainTextMessageBlock
+  citationBlockId?: string
+  role: Message['role']
+  mentions?: import('@renderer/types').Model[]
+}> = ({ block, citationBlockId, role, mentions }) => {
+  const v2CitationBlock = useResolveBlock(citationBlockId)
+  const reduxCitations = useSelector((state: RootState) =>
+    v2CitationBlock ? [] : selectFormattedCitationsByBlockId(state, citationBlockId)
+  )
+  const citations = useMemo(() => {
+    if (!v2CitationBlock) return reduxCitations
+    if (v2CitationBlock.type === MessageBlockType.CITATION) {
+      return formatCitationsFromBlock(v2CitationBlock as CitationMessageBlock)
+    }
+    return []
+  }, [v2CitationBlock, reduxCitations])
+
+  return (
+    <MainTextBlock
+      id={block.id}
+      content={block.content}
+      isStreaming={block.status === MessageBlockStatus.STREAMING}
+      citations={citations}
+      citationReferences={block.citationReferences}
+      role={role}
+      mentions={mentions}
+    />
+  )
+}
+
+/** Extract image URLs from an ImageMessageBlock (V1 data). */
+function extractImagesFromBlock(block: ImageMessageBlock): string[] {
+  if (block.metadata?.generateImageResponse?.images?.length) {
+    return block.metadata.generateImageResponse.images
+  }
+  if (block.file) {
+    return [`file://${FileManager.getFilePath(block.file)}`]
+  }
+  if (block.url) {
+    return [block.url]
+  }
+  return []
+}
+
 const MessageBlockRenderer: React.FC<Props> = ({ blocks, message }) => {
   const partsMap = use(PartsContext)
   // Always call useSelector to satisfy hooks-rules (no conditional hooks)
@@ -167,9 +222,15 @@ const MessageBlockRenderer: React.FC<Props> = ({ blocks, message }) => {
 
           if (block[0].type === MessageBlockType.IMAGE) {
             if (block.length === 1) {
+              const images = extractImagesFromBlock(block[0] as ImageMessageBlock)
               return (
                 <AnimatedBlockWrapper key={groupKey} enableAnimation={message.status.includes('ing')}>
-                  <ImageBlock key={block[0].id} block={block[0]} isSingle={true} />
+                  <ImageBlock
+                    key={block[0].id}
+                    images={images}
+                    isPending={block[0].status === MessageBlockStatus.PENDING}
+                    isSingle={true}
+                  />
                 </AnimatedBlockWrapper>
               )
             }
@@ -177,9 +238,17 @@ const MessageBlockRenderer: React.FC<Props> = ({ blocks, message }) => {
             return (
               <AnimatedBlockWrapper key={groupKey} enableAnimation={message.status.includes('ing')}>
                 <ImageBlockGroup count={block.length}>
-                  {block.map((imageBlock) => (
-                    <ImageBlock key={imageBlock.id} block={imageBlock as ImageMessageBlock} isSingle={false} />
-                  ))}
+                  {block.map((imageBlock) => {
+                    const images = extractImagesFromBlock(imageBlock as ImageMessageBlock)
+                    return (
+                      <ImageBlock
+                        key={imageBlock.id}
+                        images={images}
+                        isPending={imageBlock.status === MessageBlockStatus.PENDING}
+                        isSingle={false}
+                      />
+                    )
+                  })}
                 </ImageBlockGroup>
               </AnimatedBlockWrapper>
             )
@@ -233,24 +302,25 @@ const MessageBlockRenderer: React.FC<Props> = ({ blocks, message }) => {
               logger.warn('Expected main text block but got different type', block)
               break
             }
-            const mainTextBlock = block
-            // Find the associated citation block ID from the references
+            const mainTextBlock = block as MainTextMessageBlock
             const citationBlockId = mainTextBlock.citationReferences?.[0]?.citationBlockId
-
             blockComponent = (
-              <MainTextBlock
+              <MainTextBlockWithCitations
                 key={block.id}
                 block={mainTextBlock}
-                // Pass only the ID string
                 citationBlockId={citationBlockId}
                 role={message.role}
               />
             )
             break
           }
-          case MessageBlockType.IMAGE:
-            blockComponent = <ImageBlock key={block.id} block={block} />
+          case MessageBlockType.IMAGE: {
+            const images = extractImagesFromBlock(block as ImageMessageBlock)
+            blockComponent = (
+              <ImageBlock key={block.id} images={images} isPending={block.status === MessageBlockStatus.PENDING} />
+            )
             break
+          }
           case MessageBlockType.FILE:
             blockComponent = <FileBlock key={block.id} block={block} />
             break

@@ -11,7 +11,7 @@ import type { MessageBlockStatus } from '@renderer/types/newMessage'
 import { removeSvgEmptyLines } from '@renderer/utils/formats'
 import { processLatexBrackets } from '@renderer/utils/markdown'
 import { isEmpty } from 'lodash'
-import { type FC, memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { createContext, type FC, memo, use, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import ReactMarkdown, { type Components, defaultUrlTransform } from 'react-markdown'
 import rehypeKatex from 'rehype-katex'
@@ -44,6 +44,21 @@ export interface MarkdownSource {
   id: string
   content: string
   status: MessageBlockStatus | string
+}
+
+/**
+ * Context providing raw markdown content and streaming state to sub-components
+ * (CodeBlock, Table) so they don't need useResolveBlock or Redux lookups.
+ */
+export interface MarkdownBlockContextValue {
+  content: string
+  isStreaming: boolean
+}
+
+export const MarkdownBlockContext = createContext<MarkdownBlockContextValue | null>(null)
+
+export function useMarkdownBlockContext(): MarkdownBlockContextValue | null {
+  return use(MarkdownBlockContext)
 }
 
 interface Props {
@@ -157,22 +172,29 @@ const Markdown: FC<Props> = ({ block, postProcess }) => {
     return defaultUrlTransform(value)
   }, [])
 
+  const markdownCtx = useMemo<MarkdownBlockContextValue>(
+    () => ({ content: block.content, isStreaming: block.status === 'streaming' }),
+    [block.content, block.status]
+  )
+
   return (
-    <div className="markdown">
-      <ReactMarkdown
-        rehypePlugins={rehypePlugins}
-        remarkPlugins={remarkPlugins}
-        components={components}
-        disallowedElements={DISALLOWED_ELEMENTS}
-        urlTransform={urlTransform}
-        remarkRehypeOptions={{
-          footnoteLabel: t('common.footnotes'),
-          footnoteLabelTagName: 'h4',
-          footnoteBackContent: ' '
-        }}>
-        {messageContent}
-      </ReactMarkdown>
-    </div>
+    <MarkdownBlockContext value={markdownCtx}>
+      <div className="markdown">
+        <ReactMarkdown
+          rehypePlugins={rehypePlugins}
+          remarkPlugins={remarkPlugins}
+          components={components}
+          disallowedElements={DISALLOWED_ELEMENTS}
+          urlTransform={urlTransform}
+          remarkRehypeOptions={{
+            footnoteLabel: t('common.footnotes'),
+            footnoteLabelTagName: 'h4',
+            footnoteBackContent: ' '
+          }}>
+          {messageContent}
+        </ReactMarkdown>
+      </div>
+    </MarkdownBlockContext>
   )
 }
 

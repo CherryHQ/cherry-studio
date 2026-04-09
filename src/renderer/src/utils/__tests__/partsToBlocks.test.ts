@@ -2,7 +2,7 @@ import { MessageBlockStatus, MessageBlockType } from '@renderer/types/newMessage
 import type { CherryMessagePart } from '@shared/data/types/message'
 import { describe, expect, it } from 'vitest'
 
-import { mapMessageStatusToBlockStatus, partToBlock } from '../partsToBlocks'
+import { convertReferencesToCitations, mapMessageStatusToBlockStatus, partToBlock } from '../partsToBlocks'
 
 const BASE_ARGS = {
   blockId: 'msg-1-block-0',
@@ -427,6 +427,50 @@ describe('partToBlock', () => {
       const part = { type: 'data-error' } as unknown as CherryMessagePart
       expect(callPartToBlock(part)).toBeNull()
     })
+  })
+})
+
+describe('convertReferencesToCitations', () => {
+  it('should build web citations and dedupe by url', () => {
+    const references = [
+      {
+        category: 'citation',
+        citationType: 'web',
+        content: {
+          source: 'websearch',
+          results: [
+            { url: 'https://a.com', title: 'A' },
+            { url: 'https://a.com', title: 'A-dup' },
+            { link: 'https://b.com', title: 'B' }
+          ]
+        }
+      }
+    ] as any
+
+    const citations = convertReferencesToCitations(references)
+    expect(citations).toHaveLength(2)
+    expect(citations[0]).toMatchObject({ number: 1, url: 'https://a.com', title: 'A' })
+    expect(citations[1]).toMatchObject({ number: 2, url: 'https://b.com', title: 'B' })
+  })
+
+  it('should include knowledge and memory citations', () => {
+    const references = [
+      {
+        category: 'citation',
+        citationType: 'knowledge',
+        content: [{ id: 1, content: 'kb text', sourceUrl: 'https://kb.com/doc', type: 'text' }]
+      },
+      {
+        category: 'citation',
+        citationType: 'memory',
+        content: [{ id: 'm1', memory: 'remember this', hash: '12345678abcdef' }]
+      }
+    ] as any
+
+    const citations = convertReferencesToCitations(references)
+    expect(citations).toHaveLength(2)
+    expect(citations[0]).toMatchObject({ number: 1, type: 'knowledge', url: 'https://kb.com/doc' })
+    expect(citations[1]).toMatchObject({ number: 2, type: 'memory', title: 'Memory 12345678' })
   })
 })
 
