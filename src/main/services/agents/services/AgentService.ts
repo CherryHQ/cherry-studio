@@ -164,7 +164,7 @@ export class AgentService extends BaseService {
     try {
       const database = await this.getDatabase()
       const existing = await database
-        .select({ id: agentsTable.id })
+        .select({ id: agentsTable.id, configuration: agentsTable.configuration })
         .from(agentsTable)
         .where(eq(agentsTable.id, id))
         .limit(1)
@@ -179,14 +179,15 @@ export class AgentService extends BaseService {
           if (agentConfig.description) updateData.description = agentConfig.description
           if (agentConfig.instructions) updateData.instructions = agentConfig.instructions
           if (agentConfig.configuration) {
-            // Merge new configuration fields (e.g., avatar) without overwriting user-modified settings
-            const existingRow = await database
-              .select({ configuration: agentsTable.configuration })
-              .from(agentsTable)
-              .where(eq(agentsTable.id, id))
-              .limit(1)
-            const existingConfig = existingRow[0]?.configuration ? JSON.parse(existingRow[0].configuration) : {}
-            // Template fills missing fields only — never overwrite user-modified settings
+            // Merge template config with existing stored config — existing stored values take precedence
+            let existingConfig: Record<string, unknown> = {}
+            if (existing[0]?.configuration) {
+              try {
+                existingConfig = JSON.parse(existing[0].configuration)
+              } catch {
+                logger.warn('Failed to parse existing agent configuration, using empty config', { agentId: id })
+              }
+            }
             const merged = { ...agentConfig.configuration, ...existingConfig }
             updateData.configuration = JSON.stringify(merged)
           }
