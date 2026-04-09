@@ -47,7 +47,6 @@ import { vertexAIService } from './services/VertexAIService'
 import { calculateDirectorySize, getResourcePath } from './utils'
 import { decrypt, encrypt } from './utils/aes'
 import { hasWritePermission, isPathInside, untildify } from './utils/file'
-import { updateAppDataConfig } from './utils/init'
 import { getCpuName, getDeviceType, getHostname } from './utils/system'
 import { compress, decompress } from './utils/zip'
 
@@ -299,8 +298,10 @@ export async function registerIpc(mainWindow: BrowserWindow, app: Electron.App) 
   // BootConfigService, redesign this handler so the app data path can only
   // be changed via boot-config + restart, eliminating the divergence window.
   ipcMain.handle(IpcChannel.App_SetAppDataPath, async (_, filePath: string) => {
-    updateAppDataConfig(filePath)
-    app.setPath('userData', filePath)
+    // updateAppDataConfig(filePath)
+    // app.setPath('userData', filePath)
+    // TODO: will refactor in v2
+    return filePath
   })
 
   ipcMain.handle(IpcChannel.App_GetDataPathFromArgs, () => {

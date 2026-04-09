@@ -12,10 +12,14 @@ that builds the IoC container and runs the lifecycle stages
 
 But some setup must happen even earlier — synchronously, with no lifecycle
 services available — because `application.bootstrap()` itself depends on it.
-Most importantly: `application.bootstrap()` calls `buildPathRegistry()` at
-its entry, which freezes the path registry by reading
-`app.getPath('userData')`. So all `app.setPath('userData', …)` must complete
-before `application.bootstrap()` is called.
+Most importantly: `application.initPathRegistry()` is called from preboot
+in `main/index.ts` (after the single-instance lock check, before
+`crashReporter.start()`). It calls `buildPathRegistry()` to build a frozen
+snapshot of the path registry by reading `app.getPath('userData')` and
+other Electron paths. So all `app.setPath('userData', …)` must complete
+**before** `application.initPathRegistry()` is called, and the registry
+must be initialized **before** `application.bootstrap()` (which asserts
+the registry exists and refuses to start otherwise).
 
 This directory holds that pre-bootstrap work.
 
@@ -45,11 +49,14 @@ without good reason.
   NestJS/Spring concept.
 - **bootstrap** — the `application.bootstrap()` orchestration function
   (defined at `src/main/core/application/Application.ts:108`). It builds
-  the IoC container, freezes the path registry, and runs the lifecycle
-  stages. NestJS/Spring-style terminology, applied consistently across
-  `core/application/`, `core/lifecycle/`, and decorators. **Do not confuse**
-  with the OS-level "bootstrap = early boot loader" — that meaning is
-  what `preboot` covers.
+  the IoC container and runs the lifecycle stages. NestJS/Spring-style
+  terminology, applied consistently across `core/application/`,
+  `core/lifecycle/`, and decorators. **Do not confuse** with the
+  OS-level "bootstrap = early boot loader" — that meaning is what
+  `preboot` covers. The path registry is initialized separately via
+  `application.initPathRegistry()` from preboot, **not** inside
+  `bootstrap()` — `bootstrap()` only asserts that the registry has
+  already been initialized.
 - **lifecycle stages** — the substages *inside* `application.bootstrap()`:
   `Background`, `BeforeReady`, `WhenReady` (defined in `core/lifecycle/`).
   These run after preboot and during bootstrap. They are not separate
@@ -91,12 +98,31 @@ for the deprecated v1 constant.
 
 ```
 preboot/
-├── index.ts             named exports only — no top-level side effects
 ├── userDataLocation.ts  decides where userData lives (dev suffix or
 │                        BootConfig-driven), performs relaunch copy
-└── (future)             command-line flags, etc.
+├── chromiumFlags.ts     Chromium startup flags (command-line switches and
+│                        hardware-acceleration toggles) that must run
+│                        before app.whenReady()
+└── __tests__/           unit tests for each sibling module
 ```
 
 The directory is intentionally flat. New domains add a sibling file rather
 than a subdirectory. Subdirectories are reserved for the case where one
 domain genuinely needs multiple files.
+
+### No barrel export
+
+`preboot/` intentionally has no `index.ts` re-export. Consumers must import
+each function from its concrete module file:
+
+```ts
+import { resolveUserDataLocation } from '@main/core/preboot/userDataLocation'
+import { configureChromiumFlags } from '@main/core/preboot/chromiumFlags'
+```
+
+Each preboot module has its own timing contract (`userDataLocation` must run
+before `initPathRegistry`; `chromiumFlags` must run before `app.whenReady`).
+A barrel export would fold away which function lives in which module — and
+therefore which timing rules apply — making the preboot sequence in
+`main/index.ts` harder to reason about. Importing from concrete paths keeps
+the timing story visible at every call site.
