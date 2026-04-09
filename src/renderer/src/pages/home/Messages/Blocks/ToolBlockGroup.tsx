@@ -1,7 +1,6 @@
 import { ErrorBoundary } from '@renderer/components/ErrorBoundary'
 import { useAppSelector } from '@renderer/store'
 import type { ToolPermissionEntry } from '@renderer/store/toolPermissions'
-import type { MCPToolResponseStatus } from '@renderer/types'
 import type { ToolMessageBlock } from '@renderer/types/newMessage'
 import { isToolPending } from '@renderer/utils/userConfirmation'
 import { Collapse, type CollapseProps } from 'antd'
@@ -16,6 +15,8 @@ import { getEffectiveStatus, type ToolStatus } from '../Tools/MessageAgentTools/
 import MessageTools from '../Tools/MessageTools'
 import ToolApprovalActionsComponent from '../Tools/ToolApprovalActions'
 import ToolHeader from '../Tools/ToolHeader'
+import type { ToolRenderItem, ToolResponseLike } from '../Tools/toolResponse'
+import { buildToolRenderItemFromBlock } from '../Tools/toolResponse'
 import BlockErrorFallback from './BlockErrorFallback'
 
 // ============ Styled Components ============
@@ -106,17 +107,24 @@ const HeaderWithActions = styled.div`
 // ============ Types & Helpers ============
 
 interface Props {
-  blocks: ToolMessageBlock[]
+  blocks?: ToolMessageBlock[]
+  items?: ToolRenderItem[]
 }
 
-function isCompletedStatus(status: MCPToolResponseStatus | undefined): boolean {
+function isCompletedStatus(status: ToolResponseLike['status'] | undefined): boolean {
   return status === 'done' || status === 'error' || status === 'cancelled'
 }
 
-// Calculate actual waiting state for a block (not depending on hooks)
-function getBlockIsWaiting(block: ToolMessageBlock, agentPermissions: Record<string, ToolPermissionEntry>): boolean {
-  const toolResponse = block.metadata?.rawMcpToolResponse
-  if (!toolResponse || toolResponse.status !== 'pending') return false
+function normalizeItems(props: Props): ToolRenderItem[] {
+  if (props.items?.length) return props.items
+  if (!props.blocks?.length) return []
+  return props.blocks.map(buildToolRenderItemFromBlock).filter((item): item is ToolRenderItem => item !== null)
+}
+
+// Calculate actual waiting state for a tool item (not depending on hooks)
+function getItemIsWaiting(item: ToolRenderItem, agentPermissions: Record<string, ToolPermissionEntry>): boolean {
+  const toolResponse = item.toolResponse
+  if (toolResponse.status !== 'pending') return false
 
   const tool = toolResponse.tool
   if (tool?.type === 'mcp') {
@@ -129,13 +137,13 @@ function getBlockIsWaiting(block: ToolMessageBlock, agentPermissions: Record<str
   }
 }
 
-// Get effective UI status for a block
-function getBlockEffectiveStatus(
-  block: ToolMessageBlock,
+// Get effective UI status for an item
+function getItemEffectiveStatus(
+  item: ToolRenderItem,
   agentPermissions: Record<string, ToolPermissionEntry>
 ): ToolStatus {
-  const toolResponse = block.metadata?.rawMcpToolResponse
-  const isWaiting = getBlockIsWaiting(block, agentPermissions)
+  const toolResponse = item.toolResponse
+  const isWaiting = getItemIsWaiting(item, agentPermissions)
   return getEffectiveStatus(toolResponse?.status, isWaiting)
 }
 
@@ -150,17 +158,17 @@ const headerVariants = {
 
 // Component for rendering a block with approval actions
 interface WaitingToolHeaderProps {
-  block: ToolMessageBlock
+  item: ToolRenderItem
 }
 
-const WaitingToolHeader = React.memo(({ block }: WaitingToolHeaderProps) => {
-  const approval = useToolApproval(block)
-  const toolResponse = block.metadata?.rawMcpToolResponse
+const WaitingToolHeader = React.memo(({ item }: WaitingToolHeaderProps) => {
+  const toolResponse = item.toolResponse
+  const approval = useToolApproval(toolResponse)
   const effectiveStatus = getEffectiveStatus(toolResponse?.status, approval.isWaiting)
 
   return (
     <HeaderWithActions>
-      <ToolHeader block={block} variant="collapse-label" status={effectiveStatus} />
+      <ToolHeader toolResponse={toolResponse} variant="collapse-label" status={effectiveStatus} />
       {(approval.isWaiting || approval.isExecuting) && <ToolApprovalActionsComponent {...approval} compact />}
     </HeaderWithActions>
   )
@@ -168,11 +176,11 @@ const WaitingToolHeader = React.memo(({ block }: WaitingToolHeaderProps) => {
 WaitingToolHeader.displayName = 'WaitingToolHeader'
 
 interface GroupHeaderContentProps {
-  blocks: ToolMessageBlock[]
+  items: ToolRenderItem[]
   allCompleted: boolean
 }
 
-const GroupHeaderContent = React.memo(({ blocks, allCompleted }: GroupHeaderContentProps) => {
+const GroupHeaderContent = React.memo(({ items, allCompleted }: GroupHeaderContentProps) => {
   const { t } = useTranslation()
   const agentPermissions = useAppSelector((state) => state.toolPermissions.requests)
 
@@ -180,49 +188,49 @@ const GroupHeaderContent = React.memo(({ blocks, allCompleted }: GroupHeaderCont
     return (
       <GroupHeader>
         <Wrench size={14} className="tool-icon" />
-        <span className="tool-count">{t('message.tools.groupHeader', { count: blocks.length })}</span>
+        <span className="tool-count">{t('message.tools.groupHeader', { count: items.length })}</span>
       </GroupHeader>
     )
   }
 
-  // Find blocks actually waiting for approval (using effective status)
-  const waitingBlocks = blocks.filter((block) => getBlockEffectiveStatus(block, agentPermissions) === 'waiting')
+  // Find items actually waiting for approval (using effective status)
+  const waitingItems = items.filter((item) => getItemEffectiveStatus(item, agentPermissions) === 'waiting')
 
-  // Prioritize showing waiting blocks that need approval
-  const lastWaitingBlock = waitingBlocks[waitingBlocks.length - 1]
-  if (lastWaitingBlock) {
+  // Prioritize showing waiting items that need approval
+  const lastWaitingItem = waitingItems[waitingItems.length - 1]
+  if (lastWaitingItem) {
     return (
       <AnimatePresence mode="wait">
         <AnimatedHeaderWrapper
-          key={lastWaitingBlock.id}
+          key={lastWaitingItem.id}
           variants={headerVariants}
           initial="enter"
           animate="center"
           exit="exit">
-          <WaitingToolHeader block={lastWaitingBlock} />
+          <WaitingToolHeader item={lastWaitingItem} />
         </AnimatedHeaderWrapper>
       </AnimatePresence>
     )
   }
 
-  // Find running blocks (invoking or streaming)
-  const runningBlocks = blocks.filter((block) => {
-    const status = getBlockEffectiveStatus(block, agentPermissions)
+  // Find running items (invoking or streaming)
+  const runningItems = items.filter((item) => {
+    const status = getItemEffectiveStatus(item, agentPermissions)
     return status === 'invoking' || status === 'streaming'
   })
 
-  // Get the last running block (most recent) and render with animation
-  const lastRunningBlock = runningBlocks[runningBlocks.length - 1]
-  if (lastRunningBlock) {
+  // Get the last running item (most recent) and render with animation
+  const lastRunningItem = runningItems[runningItems.length - 1]
+  if (lastRunningItem) {
     return (
       <AnimatePresence mode="wait">
         <AnimatedHeaderWrapper
-          key={lastRunningBlock.id}
+          key={lastRunningItem.id}
           variants={headerVariants}
           initial="enter"
           animate="center"
           exit="exit">
-          <ToolHeader block={lastRunningBlock} variant="collapse-label" />
+          <ToolHeader toolResponse={lastRunningItem.toolResponse} variant="collapse-label" />
         </AnimatedHeaderWrapper>
       </AnimatePresence>
     )
@@ -232,7 +240,7 @@ const GroupHeaderContent = React.memo(({ blocks, allCompleted }: GroupHeaderCont
   return (
     <GroupHeader>
       <Wrench size={14} className="tool-icon" />
-      <span className="tool-count">{t('message.tools.groupHeader', { count: blocks.length })}</span>
+      <span className="tool-count">{t('message.tools.groupHeader', { count: items.length })}</span>
     </GroupHeader>
   )
 })
@@ -240,19 +248,19 @@ GroupHeaderContent.displayName = 'GroupHeaderContent'
 
 // Component for tool list content with auto-scroll
 interface ToolListContentProps {
-  blocks: ToolMessageBlock[]
+  items: ToolRenderItem[]
   scrollRef: React.RefObject<HTMLDivElement | null>
 }
 
-const ToolListContent = React.memo(({ blocks, scrollRef }: ToolListContentProps) => (
+const ToolListContent = React.memo(({ items, scrollRef }: ToolListContentProps) => (
   <ScrollableToolList ref={scrollRef}>
-    {blocks.map((block) => {
-      const status = block.metadata?.rawMcpToolResponse?.status
+    {items.map((item) => {
+      const status = item.toolResponse.status
       const isCompleted = isCompletedStatus(status)
       return (
-        <ToolItem key={block.id} data-block-id={block.id} $isCompleted={isCompleted}>
+        <ToolItem key={item.id} data-block-id={item.id} $isCompleted={isCompleted}>
           <ErrorBoundary fallbackComponent={BlockErrorFallback}>
-            <MessageTools block={block} />
+            <MessageTools toolResponse={item.toolResponse} />
           </ErrorBoundary>
         </ToolItem>
       )
@@ -263,24 +271,19 @@ ToolListContent.displayName = 'ToolListContent'
 
 // ============ Main Component ============
 
-const ToolBlockGroup: React.FC<Props> = ({ blocks }) => {
+const ToolBlockGroup: React.FC<Props> = (props) => {
+  const toolItems = useMemo(() => normalizeItems(props), [props])
   const [activeKey, setActiveKey] = useState<string[]>([])
   const scrollRef = useRef<HTMLDivElement>(null)
   const userExpandedRef = useRef(false)
 
   const allCompleted = useMemo(() => {
-    return blocks.every((block) => {
-      const status = block.metadata?.rawMcpToolResponse?.status
-      return isCompletedStatus(status)
-    })
-  }, [blocks])
+    return toolItems.every((item) => isCompletedStatus(item.toolResponse.status))
+  }, [toolItems])
 
   const currentRunningBlock = useMemo(() => {
-    return blocks.find((block) => {
-      const status = block.metadata?.rawMcpToolResponse?.status
-      return !isCompletedStatus(status)
-    })
-  }, [blocks])
+    return toolItems.find((item) => !isCompletedStatus(item.toolResponse.status))
+  }, [toolItems])
 
   useEffect(() => {
     if (activeKey.includes('tool-group') && currentRunningBlock && scrollRef.current) {
@@ -296,15 +299,15 @@ const ToolBlockGroup: React.FC<Props> = ({ blocks }) => {
     setActiveKey(keyArray)
   }
 
-  const items: CollapseProps['items'] = useMemo(() => {
+  const collapseItems: CollapseProps['items'] = useMemo(() => {
     return [
       {
         key: 'tool-group',
-        label: <GroupHeaderContent blocks={blocks} allCompleted={allCompleted} />,
-        children: <ToolListContent blocks={blocks} scrollRef={scrollRef} />
+        label: <GroupHeaderContent items={toolItems} allCompleted={allCompleted} />,
+        children: <ToolListContent items={toolItems} scrollRef={scrollRef} />
       }
     ]
-  }, [blocks, allCompleted])
+  }, [toolItems, allCompleted])
 
   return (
     <Container>
@@ -314,7 +317,7 @@ const ToolBlockGroup: React.FC<Props> = ({ blocks }) => {
         expandIconPosition="end"
         activeKey={activeKey}
         onChange={handleChange}
-        items={items}
+        items={collapseItems}
       />
     </Container>
   )

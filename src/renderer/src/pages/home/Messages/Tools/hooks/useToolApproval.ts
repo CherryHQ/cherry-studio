@@ -1,5 +1,7 @@
+import type { MCPToolResponse, NormalToolResponse } from '@renderer/types'
 import type { ToolMessageBlock } from '@renderer/types/newMessage'
 
+import { getToolResponseFromBlock } from '../toolResponse'
 import { useAgentToolApproval } from './useAgentToolApproval'
 import { useMcpToolApproval } from './useMcpToolApproval'
 
@@ -34,6 +36,19 @@ export interface UseToolApprovalOptions {
   forceType?: 'mcp' | 'agent'
 }
 
+type ToolApprovalTarget = ToolMessageBlock | MCPToolResponse | NormalToolResponse
+
+function isToolMessageBlock(target: ToolApprovalTarget): target is ToolMessageBlock {
+  return 'messageId' in target && 'toolId' in target
+}
+
+function resolveToolResponse(target: ToolApprovalTarget): MCPToolResponse | NormalToolResponse | undefined {
+  if (isToolMessageBlock(target)) {
+    return getToolResponseFromBlock(target) ?? undefined
+  }
+  return target
+}
+
 /**
  * Unified hook for tool approval - automatically selects between MCP and Agent approval
  * based on the tool type in the block metadata.
@@ -43,19 +58,21 @@ export interface UseToolApprovalOptions {
  * @returns Unified approval state and actions
  */
 export function useToolApproval(
-  block: ToolMessageBlock,
+  target: ToolApprovalTarget,
   options: UseToolApprovalOptions = {}
 ): ToolApprovalState & ToolApprovalActions {
   const { forceType } = options
 
-  const toolResponse = block.metadata?.rawMcpToolResponse
+  const toolResponse = resolveToolResponse(target)
   const tool = toolResponse?.tool
 
   const isMcpTool =
     forceType === 'mcp' ||
     (forceType !== 'agent' && (tool?.type === 'mcp' || tool?.type === 'builtin' || tool?.type === 'provider'))
-  const mcpApproval = useMcpToolApproval(block)
-  const agentApproval = useAgentToolApproval(block)
+  const mcpApproval = useMcpToolApproval(isMcpTool ? (toolResponse as MCPToolResponse | undefined) : undefined)
+  const agentApproval = useAgentToolApproval(undefined, {
+    toolCallId: (toolResponse as NormalToolResponse)?.toolCallId
+  })
 
   return isMcpTool ? mcpApproval : agentApproval
 }
@@ -64,7 +81,7 @@ export function useToolApproval(
  * Determine if a block needs approval (either MCP or Agent)
  */
 export function isBlockWaitingApproval(block: ToolMessageBlock): boolean {
-  return block.metadata?.rawMcpToolResponse?.status === 'pending'
+  return getToolResponseFromBlock(block)?.status === 'pending'
 }
 
 export { useAgentToolApproval, type UseAgentToolApprovalOptions } from './useAgentToolApproval'

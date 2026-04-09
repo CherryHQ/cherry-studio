@@ -2,9 +2,10 @@
  * PartsRenderer — V2 replacement for MessageBlockRenderer.
  *
  * Routes CherryMessagePart[] directly to leaf components, bypassing
- * the legacy MessageBlock type system entirely.
+ * the legacy MessageBlock type system entirely. No intermediate
+ * MessageBlock conversion — each part type is rendered from its raw data.
  *
- * Grouping logic mirrors MessageBlockRenderer:
+ * Grouping logic:
  * - Consecutive file parts with image mediaType → ImageGroup
  * - Consecutive tool-* / dynamic-tool parts → ToolBlockGroup
  * - data-video parts with same filePath → VideoGroup
@@ -12,34 +13,28 @@
 
 import { loggerService } from '@logger'
 import { ErrorBoundary } from '@renderer/components/ErrorBoundary'
-import type {
-  CitationMessageBlock,
-  ErrorMessageBlock,
-  FileMessageBlock,
-  Message,
-  MessageBlock,
-  ToolMessageBlock,
-  VideoMessageBlock
-} from '@renderer/types/newMessage'
+import { FILE_TYPE } from '@renderer/types/file'
+import type { Message } from '@renderer/types/newMessage'
 import { MessageBlockStatus, MessageBlockType } from '@renderer/types/newMessage'
 import { isMessageProcessing } from '@renderer/utils/messageUtils/is'
-import {
-  convertReferencesToCitations,
-  convertReferencesToLegacyCitations,
-  mapMessageStatusToBlockStatus,
-  partToBlock
-} from '@renderer/utils/partsToBlocks'
+import { convertReferencesToCitations, convertReferencesToLegacyCitations } from '@renderer/utils/partsToBlocks'
 import type { CherryMessagePart, ContentReference } from '@shared/data/types/message'
-import type { CherryProviderMetadata } from '@shared/data/types/uiParts'
+import type { CherryProviderMetadata, ErrorPartData, VideoPartData } from '@shared/data/types/uiParts'
 import { AnimatePresence, motion, type Variants } from 'motion/react'
 import React, { use, useMemo } from 'react'
 
+import MessageAttachments from '../MessageAttachments'
+import MessageVideo from '../MessageVideo'
+import MessageTools from '../Tools/MessageTools'
+import { buildToolResponseFromPart, type ToolRenderItem } from '../Tools/toolResponse'
 import BlockErrorFallback from './BlockErrorFallback'
 import CompactBlock from './CompactBlock'
+import ErrorBlock from './ErrorBlock'
 import ImageBlock from './ImageBlock'
 import MainTextBlock from './MainTextBlock'
 import PlaceholderBlock from './PlaceholderBlock'
 import ThinkingBlock from './ThinkingBlock'
+import ToolBlockGroup from './ToolBlockGroup'
 import TranslationBlock from './TranslationBlock'
 import { PartsContext } from './V2Contexts'
 
@@ -185,10 +180,9 @@ function getCherryMeta(part: CherryMessagePart): CherryProviderMetadata | undefi
 }
 
 /**
- * Render a single part.
+ * Render a single part directly from CherryMessagePart — no MessageBlock conversion.
  *
  * Data extraction happens HERE — leaf components receive pure view props only.
- * For unmigrated part types, falls back to partToBlock() → legacy Block component.
  */
 function renderPart(part: CherryMessagePart, partId: string, message: Message, isStreaming: boolean): React.ReactNode {
   const partType = part.type as string
@@ -197,7 +191,6 @@ function renderPart(part: CherryMessagePart, partId: string, message: Message, i
     case 'reasoning': {
       const reasoningPart = part as { text?: string; providerMetadata?: Record<string, unknown> }
       const cherryMeta = getCherryMeta(part)
-      // thinkingMs: prefer cherry.thinkingMs (migration/persisted), fallback to metadata.thinking_millsec (live stream plugin)
       const metadataBlock =
         'providerMetadata' in part && part.providerMetadata
           ? ((part.providerMetadata as Record<string, unknown>).metadata as Record<string, unknown> | undefined)
@@ -256,8 +249,6 @@ function renderPart(part: CherryMessagePart, partId: string, message: Message, i
     }
 
     case 'data-code': {
-      // Independent code blocks (rare, mostly from legacy migration).
-      // Render as MainTextBlock — markdown will handle the code fence.
       const codeData = (part as { data: { content: string; language?: string } }).data
       const codeContent = `\`\`\`${codeData.language ?? ''}\n${codeData.content}\n\`\`\``
       return (
@@ -265,84 +256,101 @@ function renderPart(part: CherryMessagePart, partId: string, message: Message, i
       )
     }
 
+    case 'data-error': {
+      const rawData = 'data' in part ? (part.data as ErrorPartData) : undefined
+      if (!rawData) return null
+      const error = {
+        name: rawData.name ?? null,
+        message: rawData.message ?? null,
+        stack: null as string | null,
+        ...(rawData.code != null && { code: rawData.code })
+      }
+      const errorBlock = {
+        id: partId,
+        messageId: message.id,
+        type: MessageBlockType.ERROR as const,
+        createdAt: message.createdAt,
+        status: MessageBlockStatus.ERROR,
+        error
+      }
+      return <ErrorBlock key={partId} block={errorBlock} message={message} />
+    }
+
+    case 'data-video': {
+      const rawData = 'data' in part ? (part.data as VideoPartData) : undefined
+      if (!rawData) return null
+      const videoBlock = {
+        id: partId,
+        messageId: message.id,
+        type: MessageBlockType.VIDEO as const,
+        createdAt: message.createdAt,
+        status: MessageBlockStatus.SUCCESS,
+        url: rawData.url,
+        filePath: rawData.filePath
+      }
+      return <MessageVideo key={partId} block={videoBlock} />
+    }
+
+    case 'data-citation':
+      // Citation data is embedded in MainTextBlock.citationReferences — no standalone render needed in V2
+      return null
+
+    case 'file': {
+      const filePart = part as { url?: string; mediaType?: string; filename?: string }
+      if (filePart.mediaType?.startsWith('image/')) {
+        const url = filePart.url
+        if (!url) return null
+        return <ImageBlock key={partId} images={[url]} isSingle={true} />
+      }
+      if (!filePart.url) {
+        logger.warn('File part has no url, skipping', { filename: filePart.filename })
+        return null
+      }
+      const fileBlock = {
+        id: partId,
+        messageId: message.id,
+        type: MessageBlockType.FILE as const,
+        createdAt: message.createdAt,
+        status: MessageBlockStatus.SUCCESS,
+        file: {
+          id: partId,
+          name: filePart.filename || '',
+          origin_name: filePart.filename || '',
+          path: filePart.url.replace('file://', ''),
+          size: 0,
+          ext: '',
+          type: FILE_TYPE.OTHER,
+          created_at: message.createdAt,
+          count: 0
+        }
+      }
+      return <MessageAttachments key={partId} block={fileBlock} />
+    }
+
     case 'source-url':
     case 'step-start':
       return null
 
-    default:
-      // Unmigrated part types: fallback to partToBlock() → legacy Block rendering
-      // This will be progressively removed as Batch 3 migration completes.
-      return renderViaLegacyBlock(part, partId, message, isStreaming)
+    default: {
+      // Handle tool-* parts (from useChat streaming) and dynamic-tool
+      if (partType.startsWith('tool-') || partType === 'dynamic-tool') {
+        return renderToolPart(part, partId)
+      }
+
+      logger.warn('Unknown part type in PartsRenderer', { type: partType })
+      return null
+    }
   }
 }
 
 /**
- * Fallback: convert part to MessageBlock and render via legacy Block component.
- * Used for part types not yet migrated to direct part consumption.
+ * Render a single tool part by converting directly to ToolResponseLike.
+ * Bypasses the partToBlock → ToolMessageBlock → getToolResponseFromBlock roundtrip.
  */
-function renderViaLegacyBlock(
-  part: CherryMessagePart,
-  partId: string,
-  message: Message,
-  _isStreaming: boolean
-): React.ReactNode {
-  const blockStatus = mapMessageStatusToBlockStatus(message.status as string)
-  const block = partToBlock(part, partId, message.id, message.createdAt, blockStatus)
-  if (!block) return null
-
-  // Import and render legacy block components
-  // This uses the same switch pattern as MessageBlockRenderer
-  return <LegacyBlockSwitch key={partId} block={block} message={message} />
-}
-
-// ============================================================================
-// Legacy block fallback (temporary — will shrink as migration progresses)
-// ============================================================================
-
-// Lazy imports to avoid circular deps and keep bundle splitting
-const CitationBlock = React.lazy(() => import('./CitationBlock'))
-const ErrorBlock = React.lazy(() => import('./ErrorBlock'))
-const FileBlock = React.lazy(() => import('./FileBlock'))
-const ToolBlock = React.lazy(() => import('./ToolBlock'))
-const ToolBlockGroup = React.lazy(() => import('./ToolBlockGroup'))
-const VideoBlock = React.lazy(() => import('./VideoBlock'))
-
-const LegacyBlockSwitch: React.FC<{ block: MessageBlock; message: Message }> = ({ block, message }) => {
-  switch (block.type) {
-    case MessageBlockType.FILE:
-      return (
-        <React.Suspense fallback={null}>
-          <FileBlock block={block as FileMessageBlock} />
-        </React.Suspense>
-      )
-    case MessageBlockType.TOOL:
-      return (
-        <React.Suspense fallback={null}>
-          <ToolBlock block={block as ToolMessageBlock} />
-        </React.Suspense>
-      )
-    case MessageBlockType.CITATION:
-      return (
-        <React.Suspense fallback={null}>
-          <CitationBlock block={block as CitationMessageBlock} />
-        </React.Suspense>
-      )
-    case MessageBlockType.ERROR:
-      return (
-        <React.Suspense fallback={null}>
-          <ErrorBlock block={block as ErrorMessageBlock} message={message} />
-        </React.Suspense>
-      )
-    case MessageBlockType.VIDEO:
-      return (
-        <React.Suspense fallback={null}>
-          <VideoBlock block={block as VideoMessageBlock} />
-        </React.Suspense>
-      )
-    default:
-      logger.warn('Unsupported part type in PartsRenderer fallback', { type: block.type })
-      return null
-  }
+function renderToolPart(part: CherryMessagePart, partId: string): React.ReactNode {
+  const toolResponse = buildToolResponseFromPart(part, partId)
+  if (!toolResponse) return null
+  return <MessageTools key={partId} toolResponse={toolResponse} />
 }
 
 // ============================================================================
@@ -399,29 +407,28 @@ const PartsRenderer: React.FC<Props> = ({ message }) => {
           }
 
           if (isToolPart(firstPart)) {
-            // Tool group — fallback to legacy
-            const blockStatus = mapMessageStatusToBlockStatus(message.status as string)
-            const blocks = entry
-              .map((e) =>
-                partToBlock(e.part, `${message.id}-part-${e.index}`, message.id, message.createdAt, blockStatus)
-              )
-              .filter(Boolean) as ToolMessageBlock[]
+            // Build ToolRenderItems directly from parts — no MessageBlock intermediary
+            const toolItems = entry
+              .map((e): ToolRenderItem | null => {
+                const id = `${message.id}-part-${e.index}`
+                const toolResponse = buildToolResponseFromPart(e.part, id)
+                return toolResponse ? { id, toolResponse } : null
+              })
+              .filter((item): item is ToolRenderItem => item !== null)
 
-            if (blocks.length === 1) {
+            if (toolItems.length === 0) return null
+
+            if (toolItems.length === 1) {
               return (
                 <AnimatedBlockWrapper key={groupKey} enableAnimation={isStreaming}>
-                  <React.Suspense fallback={null}>
-                    <ToolBlock block={blocks[0]} />
-                  </React.Suspense>
+                  <MessageTools toolResponse={toolItems[0].toolResponse} />
                 </AnimatedBlockWrapper>
               )
             }
             const stableGroupKey = `tool-group-${message.id}-part-${entry[0].index}`
             return (
               <AnimatedBlockWrapper key={stableGroupKey} enableAnimation={isStreaming}>
-                <React.Suspense fallback={null}>
-                  <ToolBlockGroup blocks={blocks} />
-                </React.Suspense>
+                <ToolBlockGroup items={toolItems} />
               </AnimatedBlockWrapper>
             )
           }

@@ -14,7 +14,12 @@ import type { MCPServer } from '@shared/data/types/mcpServer'
 import { useCallback, useEffect, useReducer, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
+import { getToolResponseFromBlock } from '../toolResponse'
 import type { ToolApprovalActions, ToolApprovalState } from './useToolApproval'
+
+function isToolMessageBlock(target: MCPToolResponse | ToolMessageBlock): target is ToolMessageBlock {
+  return 'messageId' in target && 'toolId' in target
+}
 
 /**
  * Resolve a hub tool (invoke/exec) to the underlying server and tool name.
@@ -44,15 +49,22 @@ async function resolveHubToolServer(
 }
 
 /**
- * Hook for MCP tool approval logic
- * Extracts approval state management from MessageMcpTool
+ * Hook for MCP tool approval logic.
  */
-export function useMcpToolApproval(block: ToolMessageBlock): ToolApprovalState & ToolApprovalActions {
+export function useMcpToolApproval(
+  target?: MCPToolResponse | ToolMessageBlock
+): ToolApprovalState & ToolApprovalActions {
   const { t } = useTranslation()
   const { mcpServers } = useMCPServers()
   const { agent } = useActiveAgent()
 
-  const toolResponse = block.metadata?.rawMcpToolResponse as MCPToolResponse | undefined
+  const toolResponse: MCPToolResponse | undefined =
+    target == null
+      ? undefined
+      : isToolMessageBlock(target)
+        ? ((getToolResponseFromBlock(target) as MCPToolResponse | null) ?? undefined)
+        : target
+
   const tool = toolResponse?.tool
   const id = toolResponse?.id ?? ''
   const status = toolResponse?.status

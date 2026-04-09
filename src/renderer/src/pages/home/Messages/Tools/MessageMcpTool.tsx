@@ -7,7 +7,6 @@ import { CopyIcon } from '@renderer/components/Icons'
 import { useCodeStyle } from '@renderer/context/CodeStyleProvider'
 import { useTimer } from '@renderer/hooks/useTimer'
 import type { MCPToolResponse } from '@renderer/types'
-import type { ToolMessageBlock } from '@renderer/types/newMessage'
 import { isToolAutoApproved } from '@renderer/utils/mcp-tools'
 import type { MCPProgressEvent } from '@shared/config/types'
 import { IpcChannel } from '@shared/IpcChannel'
@@ -39,12 +38,12 @@ import { truncateOutput } from './shared/truncateOutput'
 import ToolApprovalActionsComponent from './ToolApprovalActions'
 
 interface Props {
-  block: ToolMessageBlock
+  toolResponse: MCPToolResponse
 }
 
 const logger = loggerService.withContext('MessageTools')
 
-const MessageMcpTool: FC<Props> = ({ block }) => {
+const MessageMcpTool: FC<Props> = ({ toolResponse }) => {
   const [activeKeys, setActiveKeys] = useState<string[]>([])
   const [copiedMap, setCopiedMap] = useState<Record<string, boolean>>({})
   const { t } = useTranslation()
@@ -54,9 +53,7 @@ const MessageMcpTool: FC<Props> = ({ block }) => {
   const { setTimeoutTimer } = useTimer()
 
   // Use the unified approval hook
-  const approval = useToolApproval(block)
-
-  const toolResponse = block.metadata?.rawMcpToolResponse as MCPToolResponse
+  const approval = useToolApproval(toolResponse)
 
   const { id, tool, status, response, partialArguments } = toolResponse
   const isPending = status === 'pending'
@@ -90,10 +87,6 @@ const MessageMcpTool: FC<Props> = ({ block }) => {
       setActiveKeys((prev) => prev.filter((key) => key !== id))
     }
   }, [isStreaming, isDone, isError, id])
-
-  if (!toolResponse) {
-    return null
-  }
 
   const copyContent = (content: string, toolId: string) => {
     void navigator.clipboard.writeText(content)

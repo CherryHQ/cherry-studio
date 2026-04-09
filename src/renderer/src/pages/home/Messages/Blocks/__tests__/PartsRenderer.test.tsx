@@ -6,37 +6,35 @@ import { describe, expect, it, vi } from 'vitest'
 
 import { PartsContext } from '../V2Contexts'
 
-// Mock dependencies
+// ============================================================================
+// Mocks — keep minimal, only mock what prevents module loading
+// ============================================================================
+
 vi.mock('@logger', () => ({
-  loggerService: { withContext: () => ({ warn: vi.fn(), info: vi.fn(), error: vi.fn() }) }
+  loggerService: { withContext: () => ({ warn: vi.fn(), info: vi.fn(), error: vi.fn(), debug: vi.fn() }) }
+}))
+vi.mock('@data/hooks/usePreference', () => ({ usePreference: vi.fn(() => [false, vi.fn()]) }))
+vi.mock('@renderer/utils/messageUtils/is', () => ({ isMessageProcessing: () => false }))
+vi.mock('@renderer/types/file', () => ({
+  FILE_TYPE: { IMAGE: 'image', VIDEO: 'video', AUDIO: 'audio', TEXT: 'text', DOCUMENT: 'document', OTHER: 'other' }
 }))
 
-vi.mock('@data/hooks/usePreference', () => ({
-  usePreference: vi.fn(() => [false, vi.fn()])
-}))
+// motion/react — provide motion.create so Spinner.tsx module loads
+vi.mock('motion/react', () => {
+  const Div = ({ ref, children, ...p }: any) => (
+    <div ref={ref} {...p}>
+      {children}
+    </div>
+  )
+  const proxy = new Proxy({ div: Div, create: (C: any) => C }, { get: (t, k) => (t as any)[k] ?? Div })
+  return { AnimatePresence: ({ children }: any) => <>{children}</>, motion: proxy }
+})
 
-vi.mock('@renderer/utils/messageUtils/is', () => ({
-  isMessageProcessing: vi.fn(() => false)
-}))
-
-// Mock motion/react to skip animations
-vi.mock('motion/react', () => ({
-  AnimatePresence: ({ children }: any) => <>{children}</>,
-  motion: {
-    div: ({ ref, children, ...props }) => (
-      <div ref={ref} {...props}>
-        {children}
-      </div>
-    )
-  }
-}))
-
-// Mock ErrorBoundary
 vi.mock('@renderer/components/ErrorBoundary', () => ({
   ErrorBoundary: ({ children }: any) => <>{children}</>
 }))
 
-// Mock Markdown to capture rendered content
+// Leaf component mocks — render data-testid with key props for assertions
 vi.mock('@renderer/pages/home/Markdown/Markdown', () => ({
   __esModule: true,
   default: ({ block, postProcess }: any) => (
@@ -45,223 +43,260 @@ vi.mock('@renderer/pages/home/Markdown/Markdown', () => ({
   MarkdownBlockContext: React.createContext(null)
 }))
 
-// Mock ImageBlock
 vi.mock('../ImageBlock', () => ({
   __esModule: true,
-  default: ({ images, isSingle, isPending }: any) => (
-    <div
-      data-testid="mock-image-block"
-      data-images={JSON.stringify(images)}
-      data-single={isSingle}
-      data-pending={isPending}>
-      ImageBlock
-    </div>
+  default: ({ images, isSingle }: any) => (
+    <div data-testid="mock-image-block" data-images={JSON.stringify(images)} data-single={String(isSingle)} />
   )
 }))
 
-// Mock lazy-loaded legacy components
-vi.mock('../CitationBlock', () => ({ __esModule: true, default: () => <div>CitationBlock</div> }))
-vi.mock('../ErrorBlock', () => ({ __esModule: true, default: () => <div>ErrorBlock</div> }))
-vi.mock('../FileBlock', () => ({ __esModule: true, default: () => <div>FileBlock</div> }))
-vi.mock('../ToolBlock', () => ({ __esModule: true, default: () => <div>ToolBlock</div> }))
-vi.mock('../ToolBlockGroup', () => ({ __esModule: true, default: () => <div>ToolBlockGroup</div> }))
-vi.mock('../VideoBlock', () => ({ __esModule: true, default: () => <div>VideoBlock</div> }))
-vi.mock('../BlockErrorFallback', () => ({ __esModule: true, default: () => <div>Error</div> }))
-vi.mock('../PlaceholderBlock', () => ({ __esModule: true, default: () => <div>Placeholder</div> }))
+vi.mock('../../Tools/MessageTools', () => ({
+  __esModule: true,
+  default: ({ toolResponse }: any) => (
+    <div
+      data-testid="mock-message-tools"
+      data-status={toolResponse?.status}
+      data-tool-type={toolResponse?.tool?.type}
+      data-tool-name={toolResponse?.tool?.name}
+      data-server-name={toolResponse?.tool?.serverName ?? ''}
+    />
+  )
+}))
 
-// Import after mocks
+vi.mock('../../Tools/toolResponse', () => ({
+  buildToolResponseFromPart: (part: any, fallbackId: string) => {
+    const t = part.type as string
+    if (!t.startsWith('tool-') && t !== 'dynamic-tool') return null
+    const id = part.toolCallId || fallbackId
+    const name = part.toolName || t.replace(/^tool-/, '') || 'unknown'
+    const out = part.output
+    const meta = out && typeof out === 'object' && out.metadata ? out.metadata : undefined
+    const isMcp = meta?.type === 'mcp' || t === 'dynamic-tool'
+    const status =
+      part.state === 'output-available'
+        ? 'done'
+        : part.state === 'output-error'
+          ? 'error'
+          : part.state === 'input-available'
+            ? 'invoking'
+            : 'pending'
+    return {
+      id,
+      toolCallId: id,
+      tool: {
+        id,
+        name,
+        type: isMcp ? 'mcp' : 'builtin',
+        ...(isMcp ? { serverId: meta?.serverId ?? 'unknown', serverName: meta?.serverName ?? 'MCP' } : {})
+      },
+      arguments: part.input,
+      status,
+      response: part.state === 'output-error' ? { isError: true } : (out?.content ?? out)
+    }
+  }
+}))
+
+vi.mock('../../MessageVideo', () => ({
+  __esModule: true,
+  default: ({ block }: any) => (
+    <div data-testid="mock-message-video" data-url={block?.url ?? ''} data-file-path={block?.filePath ?? ''} />
+  )
+}))
+
+vi.mock('../ErrorBlock', () => ({
+  __esModule: true,
+  default: ({ block }: any) => <div data-testid="mock-error-block" data-error-message={block?.error?.message ?? ''} />
+}))
+
+vi.mock('../../MessageAttachments', () => ({
+  __esModule: true,
+  default: ({ block }: any) => <div data-testid="mock-attachments" data-file-name={block?.file?.name ?? ''} />
+}))
+
+vi.mock('../ToolBlockGroup', () => ({
+  __esModule: true,
+  default: ({ items }: any) => <div data-testid="mock-tool-group" data-count={items?.length ?? 0} />
+}))
+
+vi.mock('../BlockErrorFallback', () => ({ __esModule: true, default: () => null }))
+vi.mock('../PlaceholderBlock', () => ({ __esModule: true, default: () => null }))
+
+// ============================================================================
+// Setup
+// ============================================================================
+
 import PartsRenderer from '../PartsRenderer'
 
-// Test helpers
-const createMessage = (overrides: Partial<Message> = {}): Message =>
+const msg = (overrides: Partial<Message> = {}): Message =>
   ({
     id: 'msg-1',
     role: 'assistant',
-    assistantId: 'asst-1',
-    topicId: 'topic-1',
-    createdAt: new Date().toISOString(),
+    assistantId: 'a',
+    topicId: 't',
+    createdAt: '2026-01-01T00:00:00Z',
     type: 'text',
     status: 'success',
     blocks: [],
     ...overrides
   }) as Message
 
-const renderWithParts = (parts: CherryMessagePart[], message?: Message) => {
-  const msg = message ?? createMessage()
-  const partsMap = { [msg.id]: parts }
+const renderParts = (parts: CherryMessagePart[], message?: Message) => {
+  const m = message ?? msg()
   return render(
-    <PartsContext value={partsMap}>
-      <PartsRenderer message={msg} />
+    <PartsContext value={{ [m.id]: parts }}>
+      <PartsRenderer message={m} />
     </PartsContext>
   )
 }
 
+// ============================================================================
+// Tests
+// ============================================================================
+
 describe('PartsRenderer', () => {
-  describe('data-code rendering', () => {
-    it('should render data-code part with language as markdown code fence', () => {
-      const codePart = {
-        type: 'data-code',
-        data: { content: 'console.log("hello")', language: 'javascript' }
-      } as unknown as CherryMessagePart
-
-      renderWithParts([codePart])
-
-      const markdown = screen.getByTestId('mock-markdown')
-      expect(markdown).toBeInTheDocument()
-      expect(markdown.textContent).toContain('```javascript')
-      expect(markdown.textContent).toContain('console.log("hello")')
-      expect(markdown.textContent).toContain('```')
-    })
-
-    it('should render data-code part without language', () => {
-      const codePart = {
-        type: 'data-code',
-        data: { content: 'some code' }
-      } as unknown as CherryMessagePart
-
-      renderWithParts([codePart])
-
-      const markdown = screen.getByTestId('mock-markdown')
-      expect(markdown).toBeInTheDocument()
-      expect(markdown.textContent).toContain('```')
-      expect(markdown.textContent).toContain('some code')
-    })
-
-    it('should render data-code part with empty content', () => {
-      const codePart = {
-        type: 'data-code',
-        data: { content: '', language: 'python' }
-      } as unknown as CherryMessagePart
-
-      renderWithParts([codePart])
-
-      const markdown = screen.getByTestId('mock-markdown')
-      expect(markdown).toBeInTheDocument()
-      expect(markdown.textContent).toContain('```python')
-    })
+  // -- empty --
+  it('renders nothing for empty parts', () => {
+    const { container } = renderParts([])
+    expect(container.innerHTML).toBe('')
   })
 
-  describe('image file part rendering', () => {
-    it('should render single image file part with isSingle=true', () => {
-      const imagePart = {
-        type: 'file',
-        url: 'https://example.com/image.png',
-        mediaType: 'image/png'
-      } as unknown as CherryMessagePart
-
-      renderWithParts([imagePart])
-
-      const imageBlock = screen.getByTestId('mock-image-block')
-      expect(imageBlock).toBeInTheDocument()
-      expect(imageBlock.getAttribute('data-images')).toBe('["https://example.com/image.png"]')
-      expect(imageBlock.getAttribute('data-single')).toBe('true')
-    })
-
-    it('should render multiple image file parts as a group', () => {
-      const images = [
-        { type: 'file', url: 'https://example.com/a.png', mediaType: 'image/png' },
-        { type: 'file', url: 'https://example.com/b.jpg', mediaType: 'image/jpeg' }
-      ] as unknown as CherryMessagePart[]
-
-      renderWithParts(images)
-
-      const imageBlocks = screen.getAllByTestId('mock-image-block')
-      expect(imageBlocks).toHaveLength(2)
-      imageBlocks.forEach((block) => {
-        expect(block.getAttribute('data-single')).toBe('false')
-      })
-    })
-
-    it('should skip image file parts with no url', () => {
-      const imagePart = {
-        type: 'file',
-        mediaType: 'image/png'
-        // no url
-      } as unknown as CherryMessagePart
-
-      renderWithParts([imagePart])
-
-      expect(screen.queryByTestId('mock-image-block')).not.toBeInTheDocument()
-    })
-
-    it('should skip image file parts with empty url', () => {
-      const imagePart = {
-        type: 'file',
-        url: '',
-        mediaType: 'image/png'
-      } as unknown as CherryMessagePart
-
-      renderWithParts([imagePart])
-
-      expect(screen.queryByTestId('mock-image-block')).not.toBeInTheDocument()
-    })
-
-    it('should not treat non-image file parts as images', () => {
-      const filePart = {
-        type: 'file',
-        url: 'https://example.com/doc.pdf',
-        mediaType: 'application/pdf'
-      } as unknown as CherryMessagePart
-
-      renderWithParts([filePart])
-
-      // Should NOT render as ImageBlock — should fall through to legacy FileBlock
-      expect(screen.queryByTestId('mock-image-block')).not.toBeInTheDocument()
-    })
-
-    it('should handle mixed valid and invalid image parts in a group', () => {
-      const images = [
-        { type: 'file', url: 'https://example.com/a.png', mediaType: 'image/png' },
-        { type: 'file', url: '', mediaType: 'image/jpeg' }, // invalid: empty url
-        { type: 'file', url: 'https://example.com/c.gif', mediaType: 'image/gif' }
-      ] as unknown as CherryMessagePart[]
-
-      renderWithParts(images)
-
-      // Only 2 valid images should render
-      const imageBlocks = screen.getAllByTestId('mock-image-block')
-      expect(imageBlocks).toHaveLength(2)
-    })
+  // -- text --
+  it('renders text part via Markdown', () => {
+    renderParts([{ type: 'text', text: 'hello world' } as unknown as CherryMessagePart])
+    expect(screen.getByTestId('mock-markdown').textContent).toContain('hello world')
   })
 
-  describe('returns null for empty parts', () => {
-    it('should return null when no parts exist', () => {
-      const msg = createMessage()
-      const { container } = render(
-        <PartsContext value={{ [msg.id]: [] }}>
-          <PartsRenderer message={msg} />
-        </PartsContext>
-      )
-      expect(container.innerHTML).toBe('')
-    })
+  // -- data-code --
+  it('renders data-code as markdown code fence', () => {
+    renderParts([
+      { type: 'data-code', data: { content: 'console.log(1)', language: 'js' } } as unknown as CherryMessagePart
+    ])
+    const md = screen.getByTestId('mock-markdown')
+    expect(md.textContent).toContain('```js')
+    expect(md.textContent).toContain('console.log(1)')
   })
 
-  describe('text citation rendering', () => {
-    it('should preserve citation tagging for text part with web references', () => {
-      const textPart = {
+  // -- images --
+  it('renders single image with isSingle=true', () => {
+    renderParts([
+      { type: 'file', url: 'https://img.test/a.png', mediaType: 'image/png' } as unknown as CherryMessagePart
+    ])
+    const el = screen.getByTestId('mock-image-block')
+    expect(el.getAttribute('data-single')).toBe('true')
+    expect(el.getAttribute('data-images')).toBe('["https://img.test/a.png"]')
+  })
+
+  it('renders multiple images as group with isSingle=false', () => {
+    renderParts([
+      { type: 'file', url: 'https://img.test/a.png', mediaType: 'image/png' },
+      { type: 'file', url: 'https://img.test/b.jpg', mediaType: 'image/jpeg' }
+    ] as unknown as CherryMessagePart[])
+    const blocks = screen.getAllByTestId('mock-image-block')
+    expect(blocks).toHaveLength(2)
+    blocks.forEach((b) => expect(b.getAttribute('data-single')).toBe('false'))
+  })
+
+  it('skips image parts without url', () => {
+    renderParts([{ type: 'file', mediaType: 'image/png' } as unknown as CherryMessagePart])
+    expect(screen.queryByTestId('mock-image-block')).toBeNull()
+  })
+
+  // -- non-image file --
+  it('renders non-image file as attachment', () => {
+    renderParts([
+      {
+        type: 'file',
+        url: 'file:///doc.pdf',
+        mediaType: 'application/pdf',
+        filename: 'doc.pdf'
+      } as unknown as CherryMessagePart
+    ])
+    expect(screen.queryByTestId('mock-image-block')).toBeNull()
+    expect(screen.getByTestId('mock-attachments').getAttribute('data-file-name')).toBe('doc.pdf')
+  })
+
+  // -- tool (single) --
+  it('renders single dynamic-tool via MessageTools', () => {
+    renderParts([
+      {
+        type: 'dynamic-tool',
+        toolCallId: 'tc-1',
+        toolName: 'search',
+        state: 'output-available',
+        input: { q: 'hi' },
+        output: { content: 'ok', metadata: { serverName: 'S', serverId: 's1', type: 'mcp' } }
+      } as unknown as CherryMessagePart
+    ])
+    const el = screen.getByTestId('mock-message-tools')
+    expect(el.getAttribute('data-status')).toBe('done')
+    expect(el.getAttribute('data-tool-name')).toBe('search')
+    expect(el.getAttribute('data-server-name')).toBe('S')
+  })
+
+  // -- tool group --
+  it('renders multiple tool parts as ToolBlockGroup', () => {
+    renderParts([
+      { type: 'dynamic-tool', toolCallId: 'a', toolName: 't1', state: 'output-available', output: {} },
+      { type: 'dynamic-tool', toolCallId: 'b', toolName: 't2', state: 'output-available', output: {} }
+    ] as unknown as CherryMessagePart[])
+    expect(screen.getByTestId('mock-tool-group').getAttribute('data-count')).toBe('2')
+  })
+
+  // -- data-video --
+  it('renders data-video with filePath', () => {
+    renderParts([{ type: 'data-video', data: { filePath: '/tmp/v.mp4' } } as unknown as CherryMessagePart])
+    const el = screen.getByTestId('mock-message-video')
+    expect(el.getAttribute('data-file-path')).toBe('/tmp/v.mp4')
+  })
+
+  it('renders data-video with url', () => {
+    renderParts([{ type: 'data-video', data: { url: 'https://v.test/v.mp4' } } as unknown as CherryMessagePart])
+    expect(screen.getByTestId('mock-message-video').getAttribute('data-url')).toBe('https://v.test/v.mp4')
+  })
+
+  // -- data-error --
+  it('renders data-error as ErrorBlock', () => {
+    renderParts([{ type: 'data-error', data: { name: 'Err', message: 'boom' } } as unknown as CherryMessagePart])
+    expect(screen.getByTestId('mock-error-block').getAttribute('data-error-message')).toBe('boom')
+  })
+
+  // -- data-citation --
+  it('returns nothing for data-citation (embedded in text)', () => {
+    const { container } = renderParts([{ type: 'data-citation', data: {} } as unknown as CherryMessagePart])
+    // Should render the AnimatePresence wrapper but no visible content
+    expect(container.querySelector('[data-testid]')).toBeNull()
+  })
+
+  // -- source-url / step-start --
+  it('skips source-url and step-start parts', () => {
+    const { container } = renderParts([
+      { type: 'source-url' } as unknown as CherryMessagePart,
+      { type: 'step-start' } as unknown as CherryMessagePart
+    ])
+    expect(container.querySelector('[data-testid]')).toBeNull()
+  })
+
+  // -- text with citations --
+  it('passes citation references through to MainTextBlock', () => {
+    renderParts([
+      {
         type: 'text',
-        text: '这是一段带引用的文本 [1]',
+        text: 'cited [1]',
         providerMetadata: {
           cherry: {
             references: [
               {
                 category: 'citation',
                 citationType: 'web',
-                content: {
-                  source: 'websearch',
-                  results: [{ url: 'https://example.com', title: 'Example' }]
-                }
+                content: { source: 'websearch', results: [{ url: 'https://ex.com', title: 'Ex' }] }
               }
             ]
           }
         }
       } as unknown as CherryMessagePart
-
-      renderWithParts([textPart])
-
-      const markdown = screen.getByTestId('mock-markdown')
-      expect(markdown.textContent).toContain('data-citation')
-      expect(markdown.textContent).toContain('https://example.com')
-    })
+    ])
+    const md = screen.getByTestId('mock-markdown')
+    expect(md.textContent).toContain('data-citation')
+    expect(md.textContent).toContain('https://ex.com')
   })
 })

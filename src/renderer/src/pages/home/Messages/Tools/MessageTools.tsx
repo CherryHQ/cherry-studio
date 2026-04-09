@@ -1,20 +1,17 @@
-import type { ToolMessageBlock } from '@renderer/types/newMessage'
+import type { MCPToolResponse, NormalToolResponse } from '@renderer/types'
 
 import MessageMcpTool from './MessageMcpTool'
 import MessageTool from './MessageTool'
 
 interface Props {
-  block: ToolMessageBlock
+  toolResponse: MCPToolResponse | NormalToolResponse
 }
 
-export default function MessageTools({ block }: Props) {
-  const toolResponse = block.metadata?.rawMcpToolResponse
-  if (!toolResponse) return null
-
+export default function MessageTools({ toolResponse }: Props) {
   const tool = toolResponse.tool
   if (tool.type === 'mcp') {
-    return <MessageMcpTool block={block} />
+    return <MessageMcpTool toolResponse={toolResponse as MCPToolResponse} />
   }
 
-  return <MessageTool block={block} />
+  return <MessageTool toolResponse={toolResponse as NormalToolResponse} />
 }

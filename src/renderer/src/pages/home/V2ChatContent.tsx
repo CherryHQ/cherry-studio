@@ -5,9 +5,11 @@ import type { CherryUIMessage } from '@renderer/hooks/useAiChat'
 import { useChatSession } from '@renderer/hooks/useChatSession'
 import { type V2ChatOverrides, V2ChatOverridesProvider } from '@renderer/hooks/useMessageOperations'
 import { useTopicMessagesV2 } from '@renderer/hooks/useTopicMessagesV2'
+import { fetchMcpTools } from '@renderer/services/ApiService'
 import type { Assistant, FileMetadata, Model, Topic } from '@renderer/types'
 import type { Message, MessageBlock } from '@renderer/types/newMessage'
 import { AssistantMessageStatus, UserMessageStatus } from '@renderer/types/newMessage'
+import { isPromptToolUse, isSupportedToolUse } from '@renderer/utils/assistant'
 import { blocksToParts } from '@renderer/utils/blocksToparts'
 import type { CherryMessagePart } from '@shared/data/types/message'
 import type { FC } from 'react'
@@ -181,59 +183,6 @@ const V2ChatContentInner: FC<InnerProps> = ({
     [refresh]
   )
 
-  const v2ChatOverrides = useMemo<V2ChatOverrides>(
-    () => ({
-      regenerate: async (messageId?: string) => {
-        if (messageId) {
-          try {
-            await dataApiService.delete(`/messages/${messageId}`, { query: { cascade: true } })
-            const refreshed = await refresh()
-            setMessages(refreshed)
-          } catch (err) {
-            logger.warn('Failed to clean up old message before regenerate', { messageId, err })
-          }
-        }
-        await regenerate(messageId)
-      },
-      resend: async (messageId?: string) => {
-        if (messageId) {
-          try {
-            const msgs = streamingUIMessages
-            const idx = msgs.findIndex((m) => m.id === messageId)
-            const nextAssistant = idx >= 0 ? msgs[idx + 1] : undefined
-            if (nextAssistant?.role === 'assistant') {
-              await dataApiService.delete(`/messages/${nextAssistant.id}`, { query: { cascade: true } })
-              const refreshed = await refresh()
-              setMessages(refreshed)
-            }
-          } catch (err) {
-            logger.warn('Failed to clean up old reply before resend', { messageId, err })
-          }
-        }
-        await regenerate(messageId)
-      },
-      deleteMessage: handleDeleteMessage,
-      deleteMessageGroup: handleDeleteMessageGroup,
-      pause: stop,
-      clearTopicMessages: handleClearTopicMessages,
-      editMessage: handleEditMessage,
-      refresh,
-      requestStatus: status
-    }),
-    [
-      regenerate,
-      streamingUIMessages,
-      setMessages,
-      handleDeleteMessage,
-      handleDeleteMessageGroup,
-      stop,
-      handleClearTopicMessages,
-      handleEditMessage,
-      refresh,
-      status
-    ]
-  )
-
   // Identify NEW messages from ChatSession that aren't yet in persisted history.
   const liveUIMessages = useMemo(
     () => streamingUIMessages.filter((m) => !historyIds.has(m.id)),
@@ -303,19 +252,114 @@ const V2ChatContentInner: FC<InnerProps> = ({
     return map
   }, [historyPartsMap, liveUIMessages])
 
+  /** Synchronous capability flags derived from assistant config. */
+  const capabilityBody = useMemo(
+    () => ({
+      knowledgeBaseIds: assistant.knowledge_bases?.map((kb) => kb.id),
+      enableWebSearch: assistant.enableWebSearch,
+      webSearchProviderId: assistant.webSearchProviderId,
+      enableUrlContext: assistant.enableUrlContext,
+      enableGenerateImage: assistant.enableGenerateImage
+    }),
+    [
+      assistant.knowledge_bases,
+      assistant.enableWebSearch,
+      assistant.webSearchProviderId,
+      assistant.enableUrlContext,
+      assistant.enableGenerateImage
+    ]
+  )
+
+  /** Resolve MCP tool IDs asynchronously (requires IPC to list server tools). */
+  const resolveMcpToolIds = useCallback(async (): Promise<string[] | undefined> => {
+    if (!isPromptToolUse(assistant) && !isSupportedToolUse(assistant)) return undefined
+    const tools = await fetchMcpTools(assistant)
+    return tools.length > 0 ? tools.map((t) => t.id) : undefined
+  }, [assistant.mcpServers, assistant.settings?.toolUseMode, assistant.model])
+
+  /** Regenerate with capability body injected. */
+  const regenerateWithCapabilities = useCallback(
+    async (messageId?: string) => {
+      const mcpToolIds = await resolveMcpToolIds()
+      await regenerate(messageId, { body: { mcpToolIds, ...capabilityBody } })
+    },
+    [regenerate, resolveMcpToolIds, capabilityBody]
+  )
+
+  const v2ChatOverrides = useMemo<V2ChatOverrides>(
+    () => ({
+      regenerate: async (messageId?: string) => {
+        if (messageId) {
+          try {
+            await dataApiService.delete(`/messages/${messageId}`, { query: { cascade: true } })
+            const refreshed = await refresh()
+            setMessages(refreshed)
+          } catch (err) {
+            logger.warn('Failed to clean up old message before regenerate', { messageId, err })
+          }
+        }
+        await regenerateWithCapabilities(messageId)
+      },
+      resend: async (messageId?: string) => {
+        if (messageId) {
+          try {
+            const msgs = streamingUIMessages
+            const idx = msgs.findIndex((m) => m.id === messageId)
+            const nextAssistant = idx >= 0 ? msgs[idx + 1] : undefined
+            if (nextAssistant?.role === 'assistant') {
+              await dataApiService.delete(`/messages/${nextAssistant.id}`, { query: { cascade: true } })
+              const refreshed = await refresh()
+              setMessages(refreshed)
+            }
+          } catch (err) {
+            logger.warn('Failed to clean up old reply before resend', { messageId, err })
+          }
+        }
+        await regenerateWithCapabilities(messageId)
+      },
+      deleteMessage: handleDeleteMessage,
+      deleteMessageGroup: handleDeleteMessageGroup,
+      pause: stop,
+      clearTopicMessages: handleClearTopicMessages,
+      editMessage: handleEditMessage,
+      refresh,
+      requestStatus: status
+    }),
+    [
+      regenerateWithCapabilities,
+      streamingUIMessages,
+      setMessages,
+      handleDeleteMessage,
+      handleDeleteMessageGroup,
+      stop,
+      handleClearTopicMessages,
+      handleEditMessage,
+      refresh,
+      status
+    ]
+  )
+
   const handleSendV2 = useCallback(
-    (text: string, options?: { files?: FileMetadata[]; mentionedModels?: Model[] }) => {
+    async (text: string, options?: { files?: FileMetadata[]; mentionedModels?: Model[] }) => {
+      let mcpToolIds: string[] | undefined
+      try {
+        mcpToolIds = await resolveMcpToolIds()
+      } catch (err) {
+        logger.warn('Failed to resolve MCP tool IDs, proceeding without tools', { err })
+      }
       void sendMessage(
         { text },
         {
           body: {
             files: options?.files,
-            mentionedModels: options?.mentionedModels
+            mentionedModels: options?.mentionedModels,
+            mcpToolIds,
+            ...capabilityBody
           }
         }
       )
     },
-    [sendMessage]
+    [sendMessage, resolveMcpToolIds, capabilityBody]
   )
 
   return (

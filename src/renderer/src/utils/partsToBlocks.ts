@@ -446,6 +446,9 @@ function normalizeWebResults(results: unknown): Citation[] {
         const web = chunk?.web && typeof chunk.web === 'object' ? (chunk.web as Record<string, unknown>) : undefined
         const url = typeof web?.uri === 'string' ? web.uri : ''
         if (!url) return null
+        // NOTE: metadata is actually an array (groundingSupports) despite Citation.metadata
+        // being Record<string, any>. Downstream citation.ts calls metadata.forEach() directly.
+        // TODO: fix Citation.metadata type to support this shape properly.
         return {
           number: index + 1,
           url,
@@ -453,9 +456,9 @@ function normalizeWebResults(results: unknown): Citation[] {
           showFavicon: true,
           type: 'websearch',
           ...(groundingSupports ? { metadata: groundingSupports } : {})
-        } satisfies Citation
+        } as Citation
       })
-      .filter((c): c is Citation => c !== null)
+      .filter(Boolean) as Citation[]
   }
 
   const list = Array.isArray(results)

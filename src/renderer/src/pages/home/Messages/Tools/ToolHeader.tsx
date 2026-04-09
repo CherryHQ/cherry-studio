@@ -1,5 +1,4 @@
 import type { MCPTool, MCPToolResponse, NormalToolResponse } from '@renderer/types'
-import type { ToolMessageBlock } from '@renderer/types/newMessage'
 import { isToolAutoApproved } from '@renderer/utils/mcp-tools'
 import { Flex, Tooltip } from 'antd'
 import {
@@ -27,7 +26,7 @@ import { type ToolStatus, ToolStatusIndicator } from './MessageAgentTools/Generi
 import { AgentToolsType } from './MessageAgentTools/types'
 
 export interface ToolHeaderProps {
-  block?: ToolMessageBlock
+  toolResponse?: MCPToolResponse | NormalToolResponse
 
   toolName?: string
   icon?: ReactNode
@@ -197,7 +196,7 @@ const StatusWrapper = styled.div`
 // ============ Main Component ============
 
 const ToolHeader: FC<ToolHeaderProps> = ({
-  block,
+  toolResponse,
   toolName: propToolName,
   icon: propIcon,
   params,
@@ -209,7 +208,6 @@ const ToolHeader: FC<ToolHeaderProps> = ({
 }) => {
   const { t } = useTranslation()
 
-  const toolResponse = block?.metadata?.rawMcpToolResponse
   const tool = toolResponse?.tool
 
   const toolName = propToolName || tool?.name || 'Tool'
@@ -221,7 +219,7 @@ const ToolHeader: FC<ToolHeaderProps> = ({
 
   const Container = variant === 'standalone' ? HeaderContainer : LabelContainer
 
-  if (block && tool?.type === 'mcp') {
+  if (tool?.type === 'mcp') {
     const mcpTool = tool as MCPTool
     return (
       <Container>
