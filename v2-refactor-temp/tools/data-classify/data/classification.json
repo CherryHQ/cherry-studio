@@ -39,8 +39,8 @@
           "type": "object",
           "defaultValue": {},
           "status": "classified",
-          "category": "cache",
-          "targetKey": null
+          "category": "persist_cache",
+          "targetKey": "ui.assistant.collapsed_tags"
         },
         {
           "originalKey": "presets",
