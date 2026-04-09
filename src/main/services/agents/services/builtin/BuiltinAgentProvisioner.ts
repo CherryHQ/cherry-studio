@@ -103,11 +103,11 @@ export async function provisionBuiltinAgent(
 
     // Copy SOUL.md, USER.md, and memory/ only if they don't already exist (first-time provision)
     // Never overwrite — user may have customized their persona or accumulated memories
+    fs.mkdirSync(workspacePath, { recursive: true })
     for (const soulFile of ['SOUL.md', 'USER.md']) {
       const srcFile = path.join(templateDir, soulFile)
       const destFile = path.join(workspacePath, soulFile)
       if (fs.existsSync(srcFile) && !fs.existsSync(destFile)) {
-        fs.mkdirSync(workspacePath, { recursive: true })
         fs.copyFileSync(srcFile, destFile)
       }
     }
