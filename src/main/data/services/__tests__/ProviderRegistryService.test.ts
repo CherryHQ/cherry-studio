@@ -48,17 +48,11 @@ vi.mock('../ModelService', () => ({
   modelService: { batchUpsert: vi.fn() }
 }))
 
-vi.mock('../ProviderService', () => ({
-  providerService: { batchUpsert: vi.fn() }
-}))
-
 import {
   readModelRegistry,
   readProviderModelRegistry,
   readProviderRegistry
 } from '@cherrystudio/provider-registry/node'
-
-import { providerService } from '../ProviderService'
 
 // Must import after mocks are set up
 const { providerRegistryService } = await import('../ProviderRegistryService')
@@ -125,21 +119,12 @@ describe('ProviderRegistryService', () => {
   })
 
   describe('initialize', () => {
-    it('should seed preset providers with correct structure', async () => {
+    it('should run enrichment without errors', async () => {
       setupRegistryData()
 
       await providerRegistryService.initialize()
 
-      expect(mockReadProviders).toHaveBeenCalled()
-      const batchUpsertMock = vi.mocked(providerService.batchUpsert)
-      expect(batchUpsertMock).toHaveBeenCalledTimes(1)
-
-      const upsertedProviders = batchUpsertMock.mock.calls[0][0]
-      const openaiProvider = upsertedProviders.find((p) => p.providerId === 'openai')
-      expect(openaiProvider).toBeDefined()
-      expect(openaiProvider!.name).toBe('OpenAI')
-      expect(openaiProvider!.presetProviderId).toBe('openai')
-      expect(openaiProvider!.defaultChatEndpoint).toBe('openai-chat-completions')
+      expect(mockReadModels).toHaveBeenCalled()
     })
   })
 
@@ -152,12 +137,18 @@ describe('ProviderRegistryService', () => {
       expect(() => providerRegistryService.getRegistryModelsByProvider('openai')).toThrow('ENOENT')
     })
 
-    it('should throw when providers.json cannot be read', async () => {
+    it('should throw when providers.json cannot be read', () => {
+      setupRegistryData()
       mockReadProviders.mockImplementation(() => {
         throw new Error('ENOENT: no such file')
       })
 
-      await expect(providerRegistryService.initialize()).rejects.toThrow('ENOENT')
+      // getRegistryReasoningConfig reads providers.json internally
+      // The error surfaces when enrichExistingModels calls it
+      expect(() => {
+        const svc = providerRegistryService as unknown as Record<string, (...args: unknown[]) => unknown>
+        svc['loadRegistryProviders']()
+      }).toThrow('ENOENT')
     })
   })
 

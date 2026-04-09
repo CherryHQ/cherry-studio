@@ -16,7 +16,6 @@ import type {
   RegistryEndpointConfig
 } from '@cherrystudio/provider-registry'
 import type { EndpointType } from '@cherrystudio/provider-registry'
-import { ENDPOINT_TYPE } from '@cherrystudio/provider-registry'
 import {
   readModelRegistry,
   readProviderModelRegistry,
@@ -24,7 +23,6 @@ import {
 } from '@cherrystudio/provider-registry/node'
 import type { NewUserModel } from '@data/db/schemas/userModel'
 import { userModelTable } from '@data/db/schemas/userModel'
-import type { NewUserProvider } from '@data/db/schemas/userProvider'
 import { userProviderTable } from '@data/db/schemas/userProvider'
 import { loggerService } from '@logger'
 import { application } from '@main/core/application'
@@ -34,7 +32,6 @@ import { extractReasoningFormatTypes, mergeModelConfig } from '@shared/data/util
 import { eq, isNotNull } from 'drizzle-orm'
 
 import { modelService } from './ModelService'
-import { providerService } from './ProviderService'
 
 const logger = loggerService.withContext('DataApi:ProviderRegistryService')
 
@@ -69,18 +66,12 @@ class ProviderRegistryService {
   private registryProviders: ProtoProviderConfig[] | null = null
 
   /**
-   * Seeds all preset providers and enriches existing models.
-   * Call once after DbService is ready.
+   * Enriches existing user models with latest registry data.
+   * Runs on every startup. Preset provider seeding is handled by PresetProviderSeed (db/seeding/).
    */
   async initialize(): Promise<void> {
-    // Isolate failures — provider init should not block model enrichment
-    try {
-      await this.initializePresetProviders()
-    } catch (error) {
-      logger.error('Failed to initialize preset providers, continuing with model enrichment', error as Error)
-    }
     await this.enrichExistingModels()
-    logger.info('Initialized all preset providers and enriched existing models')
+    logger.info('Enriched existing models from registry')
   }
 
   private loadRegistryModels(): ProtoModelConfig[] {
@@ -252,51 +243,6 @@ class ProviderRegistryService {
     }
 
     return mergedModels
-  }
-
-  async initializePresetProviders(): Promise<void> {
-    // Reuse the cached providers from loadRegistryProviders()
-    const rawProviders = this.loadRegistryProviders()
-    if (rawProviders.length === 0) return
-
-    const dbRows: NewUserProvider[] = rawProviders.map((p) => {
-      const apiFeatures = p.apiFeatures
-        ? {
-            arrayContent: p.apiFeatures.arrayContent,
-            streamOptions: p.apiFeatures.streamOptions,
-            developerRole: p.apiFeatures.developerRole,
-            serviceTier: p.apiFeatures.serviceTier,
-            verbosity: p.apiFeatures.verbosity,
-            enableThinking: p.apiFeatures.enableThinking
-          }
-        : null
-
-      const endpointConfigs = buildRuntimeEndpointConfigs(p.endpointConfigs)
-
-      return {
-        providerId: p.id,
-        presetProviderId: p.id,
-        name: p.name,
-        endpointConfigs,
-        defaultChatEndpoint: p.defaultChatEndpoint ?? null,
-        apiFeatures
-      }
-    })
-
-    dbRows.push({
-      providerId: 'cherryai',
-      name: 'CherryAI',
-      endpointConfigs: {
-        [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: {
-          baseUrl: 'https://api.cherry-ai.com'
-        }
-      },
-      defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS
-    })
-
-    await providerService.batchUpsert(dbRows)
-
-    logger.info('Initialized preset providers from registry', { count: dbRows.length })
   }
 
   async enrichExistingModels(): Promise<void> {
