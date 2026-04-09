@@ -3,6 +3,12 @@
  * Coordinates migrators, manages progress, and handles failures
  */
 
+import { agentsAgentsTable } from '@data/db/schemas/agentsAgents'
+import { agentsChannelsTable, agentsChannelTaskSubscriptionsTable } from '@data/db/schemas/agentsChannels'
+import { agentsSessionMessagesTable } from '@data/db/schemas/agentsSessionMessages'
+import { agentsSessionsTable } from '@data/db/schemas/agentsSessions'
+import { agentsSkillsTable } from '@data/db/schemas/agentsSkills'
+import { agentsTaskRunLogsTable, agentsTasksTable } from '@data/db/schemas/agentsTasks'
 import { appStateTable } from '@data/db/schemas/appState'
 import { knowledgeBaseTable, knowledgeItemTable } from '@data/db/schemas/knowledge'
 import { mcpServerTable } from '@data/db/schemas/mcpServer'
@@ -29,6 +35,7 @@ import fs from 'fs/promises'
 import path from 'path'
 
 import type { BaseMigrator, ProgressMessage } from '../migrators/BaseMigrator'
+import { LegacyAgentsDbReader } from '../utils/LegacyAgentsDbReader'
 import { createMigrationContext } from './MigrationContext'
 import { MigrationDbService } from './MigrationDbService'
 
@@ -39,6 +46,7 @@ import { MigrationDbService } from './MigrationDbService'
 const logger = loggerService.withContext('MigrationEngine')
 
 const MIGRATION_V2_STATUS = 'migration_v2_status'
+const MIGRATION_V2_TARGET_VERSION = '2.1.0'
 
 export class MigrationEngine {
   private migrators: BaseMigrator[] = []
@@ -95,7 +103,26 @@ export class MigrationEngine {
 
     if (status?.value) {
       const statusValue = status.value as MigrationStatusValue
-      return statusValue.status !== 'completed'
+
+      if (statusValue.status !== 'completed') {
+        return true
+      }
+
+      if (statusValue.version === MIGRATION_V2_TARGET_VERSION) {
+        return false
+      }
+
+      if (!this.hasLegacyData()) {
+        logger.info('No remaining legacy data found for the current migration target, marking completed')
+        await this.markCompleted()
+        return false
+      }
+
+      logger.info('Legacy data still exists for a newer v2 migration target', {
+        currentVersion: statusValue.version,
+        targetVersion: MIGRATION_V2_TARGET_VERSION
+      })
+      return true
     }
 
     // No migration status record — check if this is a fresh install or an upgrade.
@@ -117,9 +144,11 @@ export class MigrationEngine {
    */
   private hasLegacyData(): boolean {
     const legacyStore = new Store()
-    const hasData = legacyStore.size > 0
+    const hasElectronStore = legacyStore.size > 0
+    const hasLegacyAgentsDb = new LegacyAgentsDbReader().resolvePath() !== null
+    const hasData = hasElectronStore || hasLegacyAgentsDb
 
-    logger.info('Legacy data detection', { hasElectronStore: hasData })
+    logger.info('Legacy data detection', { hasElectronStore, hasLegacyAgentsDb })
     return hasData
   }
 
@@ -266,6 +295,14 @@ export class MigrationEngine {
     // Tables to clear - add more as they are created
     // Order matters: child tables must be cleared before parent tables
     const tables = [
+      { table: agentsSessionMessagesTable, name: 'agents_session_messages' },
+      { table: agentsChannelTaskSubscriptionsTable, name: 'agents_channel_task_subscriptions' },
+      { table: agentsTaskRunLogsTable, name: 'agents_task_run_logs' },
+      { table: agentsChannelsTable, name: 'agents_channels' },
+      { table: agentsTasksTable, name: 'agents_tasks' },
+      { table: agentsSessionsTable, name: 'agents_sessions' },
+      { table: agentsSkillsTable, name: 'agents_skills' },
+      { table: agentsAgentsTable, name: 'agents_agents' },
       { table: messageTable, name: 'message' }, // Must clear before topic (FK reference)
       { table: topicTable, name: 'topic' },
       { table: mcpServerTable, name: 'mcp_server' },
@@ -290,6 +327,14 @@ export class MigrationEngine {
     }
 
     // Clear tables in dependency order (children before parents)
+    await db.delete(agentsSessionMessagesTable)
+    await db.delete(agentsChannelTaskSubscriptionsTable)
+    await db.delete(agentsTaskRunLogsTable)
+    await db.delete(agentsChannelsTable)
+    await db.delete(agentsTasksTable)
+    await db.delete(agentsSessionsTable)
+    await db.delete(agentsSkillsTable)
+    await db.delete(agentsAgentsTable)
     // Messages reference topics, so delete messages first
     await db.delete(messageTable)
     await db.delete(topicTable)
@@ -428,7 +473,7 @@ export class MigrationEngine {
     const statusValue: MigrationStatusValue = {
       status: 'completed',
       completedAt: Date.now(),
-      version: '2.0.0',
+      version: MIGRATION_V2_TARGET_VERSION,
       error: null
     }
 
@@ -455,7 +500,7 @@ export class MigrationEngine {
     const statusValue: MigrationStatusValue = {
       status: 'failed',
       failedAt: Date.now(),
-      version: '2.0.0',
+      version: MIGRATION_V2_TARGET_VERSION,
       error: error
     }
 

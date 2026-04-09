@@ -105,6 +105,7 @@ export function buildPathRegistry() {
     'feature.agents.skills.builtin': path.join(appRootResources, 'skills'), // bundled skill templates (read-only)
     'feature.agents.skills': path.join(appUserDataData, 'Skills'), // installed skills storage
     'feature.agents.skills.install.temp': path.join(appTemp, 'skill-install'),
+    'feature.agents.db_file': path.join(appUserDataData, 'agents.db'), // legacy standalone agents SQLite used by v2 migration
     'feature.agents.claude.root': path.join(appUserData, '.claude'), // Claude Code config (relocated from ~/.claude for Windows compat)
     'feature.agents.claude.skills': path.join(appUserData, '.claude', 'skills'), // symlinks → feature.agents.skills
     'feature.agents.channels': path.join(appUserDataData, 'Channels'),
