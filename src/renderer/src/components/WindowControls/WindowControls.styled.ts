@@ -2,8 +2,9 @@ import styled from 'styled-components'
 
 export const WindowControlsContainer = styled.div`
   display: flex;
-  align-items: center;
+  align-items: stretch;
   height: 100%;
+  min-height: 0;
   -webkit-app-region: no-drag;
   user-select: none;
   z-index: 9999;
