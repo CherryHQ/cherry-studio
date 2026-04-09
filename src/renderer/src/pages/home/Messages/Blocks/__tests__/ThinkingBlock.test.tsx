@@ -194,9 +194,16 @@ describe('ThinkingBlock', () => {
     ...overrides
   })
 
-  // Helper functions
+  // Helper: convert legacy block to pure view props for ThinkingBlock
   const renderThinkingBlock = (block: ThinkingMessageBlock) => {
-    return render(<ThinkingBlock block={block} />)
+    return render(
+      <ThinkingBlock
+        id={block.id}
+        content={block.content}
+        isStreaming={block.status === MessageBlockStatus.STREAMING}
+        thinkingMs={block.thinking_millsec}
+      />
+    )
   }
 
   const getThinkingContent = () => screen.queryByText(/markdown:/i)
@@ -233,7 +240,14 @@ describe('ThinkingBlock', () => {
 
       // When thinking is complete
       const completedBlock = createThinkingBlock({ status: MessageBlockStatus.SUCCESS })
-      rerender(<ThinkingBlock block={completedBlock} />)
+      rerender(
+        <ThinkingBlock
+          id={completedBlock.id}
+          content={completedBlock.content}
+          isStreaming={completedBlock.status === MessageBlockStatus.STREAMING}
+          thinkingMs={completedBlock.thinking_millsec}
+        />
+      )
 
       expect(getCopyButton()).toBeInTheDocument()
     })
@@ -361,7 +375,14 @@ describe('ThinkingBlock', () => {
 
       // Stop thinking
       const completedBlock = createThinkingBlock({ status: MessageBlockStatus.SUCCESS })
-      rerender(<ThinkingBlock block={completedBlock} />)
+      rerender(
+        <ThinkingBlock
+          id={completedBlock.id}
+          content={completedBlock.content}
+          isStreaming={completedBlock.status === MessageBlockStatus.STREAMING}
+          thinkingMs={completedBlock.thinking_millsec}
+        />
+      )
 
       // Should remain collapsed after thinking completes
       expect(getThinkingContent()).not.toBeInTheDocument()
@@ -422,7 +443,14 @@ describe('ThinkingBlock', () => {
       expect(screen.getByText('Markdown: Original thought')).toBeInTheDocument()
 
       const block2 = createThinkingBlock({ content: 'Updated thought' })
-      rerender(<ThinkingBlock block={block2} />)
+      rerender(
+        <ThinkingBlock
+          id={block2.id}
+          content={block2.content}
+          isStreaming={block2.status === MessageBlockStatus.STREAMING}
+          thinkingMs={block2.thinking_millsec}
+        />
+      )
 
       expect(screen.getByText('Markdown: Updated thought')).toBeInTheDocument()
       expect(screen.queryByText('Markdown: Original thought')).not.toBeInTheDocument()
@@ -434,8 +462,24 @@ describe('ThinkingBlock', () => {
 
       // Rapidly toggle between states
       for (let i = 0; i < 3; i++) {
-        rerender(<ThinkingBlock block={createThinkingBlock({ status: MessageBlockStatus.STREAMING })} />)
-        rerender(<ThinkingBlock block={createThinkingBlock({ status: MessageBlockStatus.SUCCESS })} />)
+        const streamingBlock = createThinkingBlock({ status: MessageBlockStatus.STREAMING })
+        rerender(
+          <ThinkingBlock
+            id={streamingBlock.id}
+            content={streamingBlock.content}
+            isStreaming={true}
+            thinkingMs={streamingBlock.thinking_millsec}
+          />
+        )
+        const successBlock = createThinkingBlock({ status: MessageBlockStatus.SUCCESS })
+        rerender(
+          <ThinkingBlock
+            id={successBlock.id}
+            content={successBlock.content}
+            isStreaming={false}
+            thinkingMs={successBlock.thinking_millsec}
+          />
+        )
       }
 
       // Should still render correctly

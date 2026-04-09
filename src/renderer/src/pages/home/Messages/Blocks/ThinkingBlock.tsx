@@ -4,20 +4,37 @@ import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
 import ThinkingEffect from '@renderer/components/ThinkingEffect'
 import { useTemporaryValue } from '@renderer/hooks/useTemporaryValue'
-import { MessageBlockStatus, type ThinkingMessageBlock } from '@renderer/types/newMessage'
+import { MessageBlockStatus } from '@renderer/types/newMessage'
 import { Collapse } from 'antd'
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
+import type { MarkdownSource } from '../../Markdown/Markdown'
 import Markdown from '../../Markdown/Markdown'
 
 const logger = loggerService.withContext('ThinkingBlock')
+
 interface Props {
-  block: ThinkingMessageBlock
+  /** Stable ID for heading prefix and block identity tracking */
+  id: string
+  /** Markdown content to render */
+  content: string
+  /** Whether this block is currently streaming */
+  isStreaming: boolean
+  /** Thinking duration in milliseconds */
+  thinkingMs: number
 }
 
-const ThinkingBlock: React.FC<Props> = ({ block }) => {
+const ThinkingBlock: React.FC<Props> = ({ id, content, isStreaming, thinkingMs }) => {
+  const block = useMemo<MarkdownSource>(
+    () => ({
+      id,
+      content,
+      status: isStreaming ? MessageBlockStatus.STREAMING : MessageBlockStatus.SUCCESS
+    }),
+    [id, content, isStreaming]
+  )
   const [copied, setCopied] = useTemporaryValue(false, 2000)
   const { t } = useTranslation()
   const [messageFont] = usePreference('chat.message.font')
@@ -25,7 +42,7 @@ const ThinkingBlock: React.FC<Props> = ({ block }) => {
   const [thoughtAutoCollapse] = usePreference('chat.message.thought.auto_collapse')
   const [activeKey, setActiveKey] = useState<'thought' | ''>(thoughtAutoCollapse ? '' : 'thought')
 
-  const isThinking = useMemo(() => block.status === MessageBlockStatus.STREAMING, [block.status])
+  const isThinking = isStreaming
 
   useEffect(() => {
     if (thoughtAutoCollapse) {
@@ -36,9 +53,9 @@ const ThinkingBlock: React.FC<Props> = ({ block }) => {
   }, [isThinking, thoughtAutoCollapse])
 
   const copyThought = useCallback(() => {
-    if (block.content) {
+    if (content) {
       navigator.clipboard
-        .writeText(block.content)
+        .writeText(content)
         .then(() => {
           window.toast.success({ title: t('message.copied'), key: 'copy-message' })
           setCopied(true)
@@ -48,9 +65,9 @@ const ThinkingBlock: React.FC<Props> = ({ block }) => {
           window.toast.error({ title: t('message.copy.failed'), key: 'copy-message-error' })
         })
     }
-  }, [block.content, setCopied, t])
+  }, [content, setCopied, t])
 
-  if (!block.content) {
+  if (!content) {
     return null
   }
 
@@ -68,10 +85,8 @@ const ThinkingBlock: React.FC<Props> = ({ block }) => {
             <ThinkingEffect
               expanded={activeKey === 'thought'}
               isThinking={isThinking}
-              thinkingTimeText={
-                <ThinkingTimeSeconds blockThinkingTime={block.thinking_millsec} isThinking={isThinking} />
-              }
-              content={block.content}
+              thinkingTimeText={<ThinkingTimeSeconds blockThinkingTime={thinkingMs} isThinking={isThinking} />}
+              content={content}
             />
           ),
           children: (
@@ -129,7 +144,13 @@ const ThinkingTimeSeconds = memo(
           clearInterval(timer.current)
           timer.current = null
         }
-        setDisplayTime(normalizeThinkingTime(blockThinkingTime))
+        // Only reset to blockThinkingTime if it carries a real value.
+        // When blockThinkingTime is 0 (e.g. providerMetadata not yet populated),
+        // preserve the locally accumulated timer value instead of resetting to 0.
+        const normalized = normalizeThinkingTime(blockThinkingTime)
+        if (normalized > 0) {
+          setDisplayTime(normalized)
+        }
       }
 
       return () => {

@@ -2,7 +2,14 @@ import { loggerService } from '@logger'
 import { ErrorBoundary } from '@renderer/components/ErrorBoundary'
 import type { RootState } from '@renderer/store'
 import { messageBlocksSelectors } from '@renderer/store/messageBlock'
-import type { ImageMessageBlock, Message, MessageBlock } from '@renderer/types/newMessage'
+import type {
+  CompactMessageBlock,
+  ImageMessageBlock,
+  Message,
+  MessageBlock,
+  ThinkingMessageBlock,
+  TranslationMessageBlock
+} from '@renderer/types/newMessage'
 import { MessageBlockStatus, MessageBlockType } from '@renderer/types/newMessage'
 import { isMainTextBlock, isMessageProcessing, isToolBlock, isVideoBlock } from '@renderer/utils/messageUtils/is'
 import { mapMessageStatusToBlockStatus, partToBlock } from '@renderer/utils/partsToBlocks'
@@ -256,18 +263,46 @@ const MessageBlockRenderer: React.FC<Props> = ({ blocks, message }) => {
           case MessageBlockType.ERROR:
             blockComponent = <ErrorBlock key={block.id} block={block} message={message} />
             break
-          case MessageBlockType.THINKING:
-            blockComponent = <ThinkingBlock key={block.id} block={block} />
+          case MessageBlockType.THINKING: {
+            const thinkingBlock = block as ThinkingMessageBlock
+            blockComponent = (
+              <ThinkingBlock
+                key={block.id}
+                id={block.id}
+                content={thinkingBlock.content}
+                isStreaming={block.status === MessageBlockStatus.STREAMING}
+                thinkingMs={thinkingBlock.thinking_millsec}
+              />
+            )
             break
-          case MessageBlockType.TRANSLATION:
-            blockComponent = <TranslationBlock key={block.id} block={block} />
+          }
+          case MessageBlockType.TRANSLATION: {
+            const translationBlock = block as TranslationMessageBlock
+            blockComponent = (
+              <TranslationBlock
+                key={block.id}
+                id={block.id}
+                content={translationBlock.content}
+                isStreaming={block.status === MessageBlockStatus.STREAMING}
+              />
+            )
             break
+          }
           case MessageBlockType.VIDEO:
             blockComponent = <VideoBlock key={block.id} block={block} />
             break
-          case MessageBlockType.COMPACT:
-            blockComponent = <CompactBlock key={block.id} block={block} />
+          case MessageBlockType.COMPACT: {
+            const compactBlock = block as CompactMessageBlock
+            blockComponent = (
+              <CompactBlock
+                key={block.id}
+                id={block.id}
+                content={compactBlock.content}
+                compactedContent={compactBlock.compactedContent}
+              />
+            )
             break
+          }
           default:
             logger.warn('Unsupported block type in MessageBlockRenderer:', (block as any).type, block)
             break

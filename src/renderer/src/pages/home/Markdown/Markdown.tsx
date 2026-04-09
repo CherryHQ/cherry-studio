@@ -7,12 +7,7 @@ import { usePreference } from '@data/hooks/usePreference'
 import ImageViewer from '@renderer/components/ImageViewer'
 import MarkdownShadowDOMRenderer from '@renderer/components/MarkdownShadowDOMRenderer'
 import { useSmoothStream } from '@renderer/hooks/useSmoothStream'
-import type {
-  CompactMessageBlock,
-  MainTextMessageBlock,
-  ThinkingMessageBlock,
-  TranslationMessageBlock
-} from '@renderer/types/newMessage'
+import type { MessageBlockStatus } from '@renderer/types/newMessage'
 import { removeSvgEmptyLines } from '@renderer/utils/formats'
 import { processLatexBrackets } from '@renderer/utils/markdown'
 import { isEmpty } from 'lodash'
@@ -41,10 +36,18 @@ const ALLOWED_ELEMENTS =
   /<(style|p|div|span|b|i|strong|em|ul|ol|li|table|tr|td|th|thead|tbody|h[1-6]|blockquote|pre|code|br|hr|svg|path|circle|rect|line|polyline|polygon|text|g|defs|title|desc|tspan|sub|sup|details|summary)/i
 const DISALLOWED_ELEMENTS = ['iframe', 'script']
 
+/**
+ * Lightweight interface for Markdown rendering source.
+ * Only requires id, content, and status — no dependency on MessageBlock types.
+ */
+export interface MarkdownSource {
+  id: string
+  content: string
+  status: MessageBlockStatus | string
+}
+
 interface Props {
-  // message: Message & { content: string }
-  block: MainTextMessageBlock | TranslationMessageBlock | ThinkingMessageBlock | CompactMessageBlock
-  // 可选的后处理函数，用于在流式渲染过程中处理文本（如引用标签转换）
+  block: MarkdownSource
   postProcess?: (text: string) => string
 }
 

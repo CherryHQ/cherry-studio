@@ -1,15 +1,15 @@
 import { TranslationOutlined } from '@ant-design/icons'
 import { LoadingIcon } from '@renderer/components/Icons'
-import type { TranslationMessageBlock } from '@renderer/types/newMessage'
 import { Divider } from 'antd'
 import type { FC } from 'react'
 import { Fragment } from 'react'
 import { useTranslation } from 'react-i18next'
 
+import type { MarkdownSource } from '../Markdown/Markdown'
 import Markdown from '../Markdown/Markdown'
 
 interface Props {
-  block: TranslationMessageBlock
+  block: MarkdownSource & { content: string }
 }
 
 const MessageTranslate: FC<Props> = ({ block }) => {

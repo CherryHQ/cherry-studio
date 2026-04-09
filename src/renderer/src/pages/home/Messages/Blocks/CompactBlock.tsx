@@ -1,19 +1,30 @@
-import type { CompactMessageBlock } from '@renderer/types/newMessage'
+import { MessageBlockStatus } from '@renderer/types/newMessage'
 import type { CollapseProps } from 'antd'
 import { Collapse } from 'antd'
 import { ChevronDown } from 'lucide-react'
-import React from 'react'
+import React, { useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
+import type { MarkdownSource } from '../../Markdown/Markdown'
 import Markdown from '../../Markdown/Markdown'
 
 interface Props {
-  block: CompactMessageBlock
+  /** Stable ID for heading prefix */
+  id: string
+  /** Summary content (markdown) */
+  content: string
+  /** Original compacted content */
+  compactedContent: string
 }
 
-const CompactBlock: React.FC<Props> = ({ block }) => {
+const CompactBlock: React.FC<Props> = ({ id, content, compactedContent }) => {
   const { t } = useTranslation()
+
+  const markdownSource = useMemo<MarkdownSource>(
+    () => ({ id, content, status: MessageBlockStatus.SUCCESS }),
+    [id, content]
+  )
 
   const items: CollapseProps['items'] = [
     {
@@ -26,7 +37,7 @@ const CompactBlock: React.FC<Props> = ({ block }) => {
       ),
       children: (
         <SummaryContent>
-          <Markdown block={block} />
+          <Markdown block={markdownSource} />
         </SummaryContent>
       )
     }
@@ -36,9 +47,9 @@ const CompactBlock: React.FC<Props> = ({ block }) => {
     <Container>
       <StyledCollapse items={items} expandIcon={() => <ChevronDown size={16} />} />
 
-      {block.compactedContent && (
+      {compactedContent && (
         <CompactedContentWrapper>
-          <CompactedText>{block.compactedContent}</CompactedText>
+          <CompactedText>{compactedContent}</CompactedText>
         </CompactedContentWrapper>
       )}
     </Container>

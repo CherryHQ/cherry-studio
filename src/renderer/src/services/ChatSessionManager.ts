@@ -171,6 +171,26 @@ export class ChatSession {
       }
 
       // 2. Persist assistant message
+      // Normalize reasoning parts: promote thinking_millsec from stream plugin metadata
+      // to providerMetadata.cherry.thinkingMs for consistent reading after reload.
+      const normalizedParts = (assistantMessage.parts as CherryMessagePart[]).map((part) => {
+        if (part.type !== 'reasoning') return part
+        const pm = part.providerMetadata as Record<string, unknown> | undefined
+        const metaBlock = pm?.metadata as Record<string, unknown> | undefined
+        const thinkingMs = metaBlock?.thinking_millsec
+        if (typeof thinkingMs !== 'number' || thinkingMs <= 0) return part
+        // Already has cherry.thinkingMs — skip
+        const cherry = pm?.cherry as Record<string, unknown> | undefined
+        if (cherry?.thinkingMs) return part
+        return {
+          ...part,
+          providerMetadata: {
+            ...pm,
+            cherry: { ...cherry, thinkingMs }
+          }
+        }
+      })
+
       const assistantStatus = isAbort ? 'paused' : 'success'
       const totalTokens = assistantMessage.metadata?.totalTokens
       await dataApiService.post(`/topics/${this.topicId}/messages`, {
@@ -178,7 +198,7 @@ export class ChatSession {
           role: 'assistant',
           parentId: userParentId,
           assistantId: this.assistantId,
-          data: { parts: assistantMessage.parts as CherryMessagePart[] },
+          data: { parts: normalizedParts },
           status: assistantStatus,
           ...(totalTokens !== undefined && { stats: { totalTokens } })
         }

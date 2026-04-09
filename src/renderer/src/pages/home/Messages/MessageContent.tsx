@@ -6,11 +6,16 @@ import React from 'react'
 import styled from 'styled-components'
 
 import MessageBlockRenderer from './Blocks'
+import PartsRenderer from './Blocks/PartsRenderer'
+import { useIsV2Chat } from './Blocks/V2Contexts'
+
 interface Props {
   message: Message
 }
 
 const MessageContent: React.FC<Props> = ({ message }) => {
+  const isV2 = useIsV2Chat()
+
   return (
     <>
       {!isEmpty(message.mentions) && (
@@ -20,7 +25,7 @@ const MessageContent: React.FC<Props> = ({ message }) => {
           ))}
         </Flex>
       )}
-      <MessageBlockRenderer blocks={message.blocks} message={message} />
+      {isV2 ? <PartsRenderer message={message} /> : <MessageBlockRenderer blocks={message.blocks} message={message} />}
     </>
   )
 }
