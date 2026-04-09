@@ -3808,6 +3808,88 @@ return { slack: slackResults, github: githubResults }
 4. **与 agentLoop 集成**: Hub 目前是独立 MCP server。未来可考虑将 exec 能力
    集成到 agentLoop 的 `hooks.prepareStep`（LLM 生成代码 → prepareStep 执行 → 注入结果）。
 
+#### exec 的定位：通用代码执行 + tool 编排
+
+`exec` 不只是 tool 编排器——它本身就是**代码执行引擎**。LLM 可以写任意 JS 逻辑，不调用任何 tool：
+
+```javascript
+// 纯计算（不调 tool）
+const data = [3, 1, 4, 1, 5, 9, 2, 6]
+return { sorted: data.sort((a, b) => a - b), median: data[Math.floor(data.length / 2)] }
+
+// 数据转换（读 tool result → JS 处理）
+const csv = await mcp.callTool('read', { path: 'data.csv' })
+const rows = csv.split('\n').map(r => r.split(','))
+return rows.slice(1).filter(r => r[2] === 'active')
+```
+
+exec 覆盖的场景 vs 需要 Bash 的场景：
+
+| 场景 | exec (JS) | Bash |
+|------|-----------|------|
+| 数据处理/转换 | ✅ JS 原生 | 不需要 |
+| 数学计算 | ✅ | 不需要 |
+| JSON/CSV/XML 解析 | ✅ | 不需要 |
+| 正则匹配/替换 | ✅ | 不需要 |
+| 多 tool 并行编排 | ✅ `parallel()` | 不需要 |
+| 条件/循环逻辑 | ✅ if/for/try-catch | 不需要 |
+| 安装依赖 | ❌ 无 shell | **需要** |
+| 启动/停止服务 | ❌ 无 process | **需要** |
+| Git 操作 | ❌ 无 shell | **需要** |
+| 文件系统直接操作 | ❌ 无 fs | **需要**（或通过 `mcp.callTool('read/write')`） |
+
+**互补关系**：exec 负责逻辑编排和数据处理，Bash 负责系统级操作。
+exec 可以调 Bash tool（`mcp.callTool('bash', {command: '...'})`），反过来不行。
+
+### Agent 暴露给 LLM 的完整 Tool 集（原子化总结）
+
+三层工具体系，从底层到高层：
+
+#### Layer 1: 系统操作 tools（直接操作本地环境）
+
+| Tool | 能力 | 实现 | needsApproval |
+|------|------|------|--------------|
+| **Read** | 读文件（文本/PDF/图片/notebook），支持 offset/limit | Node.js fs + sharp + pdf-parse | `false` |
+| **Write** | 写文件，自动建目录，保持编码/行尾 | Node.js fs | `true` |
+| **Edit** | 精确字符串替换，引号规范化，replace_all | Node.js fs + diff | `true` |
+| **Glob** | 文件模式匹配，按修改时间排序 | ripgrep 或 fast-glob | `false` |
+| **Grep** | 内容搜索，3 种输出模式，上下文行 | ripgrep | `false` |
+| **Bash** | 命令执行，命令级权限分类 | child_process + AST 安全检查 | 命令级条件审批 |
+
+#### Layer 2: 服务 tools（Cherry Studio 内置服务包装）
+
+| Tool | 能力 | 底层服务 | needsApproval |
+|------|------|---------|--------------|
+| **WebSearch** | 多 provider 网络搜索 | `WebSearchService` | `false` |
+| **WebFetch** | 获取网页内容 | `@cherry/browser` MCP server | `false` |
+| **Knowledge** | RAG 知识库检索 | `KnowledgeService` (embedjs) | `false` |
+| **Memory** | 记忆搜索/存储 | `MemoryService` | `false` |
+
+#### Layer 3: 元能力 tools（编排 + 发现 + 扩展）
+
+| Tool | 能力 | 实现 | needsApproval |
+|------|------|------|--------------|
+| **Hub list** | 搜索/发现所有可用 MCP tools（含关键词评分） | Hub MCP Server | `false` |
+| **Hub inspect** | 获取单个 tool 的 JSDoc 签名 | Hub MCP Server | `false` |
+| **Hub invoke** | 调用单个 MCP tool | Hub MCP Server | 继承目标 tool 的审批策略 |
+| **Hub exec** | JS 代码执行 + 多 tool 并行编排 | Hub MCP Server (Worker Thread) | `true` |
+| **SubAgent** | spawn 子 agent 处理子任务 | 递归 `generateText()`/`runAgentLoop()` | `false`（子 agent 内部 tools 有自己的审批） |
+
+#### 用户自定义 tools（MCP servers）
+
+| 来源 | 注册方式 | needsApproval |
+|------|---------|--------------|
+| 用户配置的 MCP servers | `registerMcpTools()` → ToolRegistry | 根据 `server.disabledAutoApproveTools` |
+| Hub 聚合的所有 MCP tools | 通过 Hub list/invoke/exec 间接访问 | Hub invoke 继承目标 tool 策略 |
+
+**总计**：6 系统 + 4 服务 + 5 元能力 = **15 个内置 tools** + 用户 MCP tools（无上限）
+
+**设计原则**：
+- Layer 1/2 是原子操作（每个 tool 做一件事）
+- Layer 3 是组合能力（编排 Layer 1/2 + MCP tools）
+- 只有写操作和代码执行需要 `needsApproval`
+- MCP tools 通过 Hub 间接访问（不需要全部注册到 ToolLoopAgent 的 tool schema 中，保护 prompt cache）
+
 ### Phase 3 (useChat 接入)
 
 ```
