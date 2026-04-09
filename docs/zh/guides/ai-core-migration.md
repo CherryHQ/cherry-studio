@@ -3728,6 +3728,86 @@ Layer 4: 评分排序
 
 不需要实现 `defer_loading` / `tool_reference`（Anthropic 专有，其他 provider 不支持）。
 
+### Hub `exec` 代码执行能力分析
+
+Hub 的 `exec` tool 让 LLM 写 JS 代码编排多个 tool 调用——这是 Hub 相比 SDK ToolSearch 的独特优势。
+
+#### 架构
+
+```
+LLM 生成 JS 代码
+  ↓
+Hub.handleExec(code)
+  ↓
+Runtime.execute(code)
+  ↓
+Worker Thread（隔离执行）
+  ├── new Function(...contextKeys, wrappedCode)  ← 在 async context 中运行
+  ├── mcp.callTool(name, params)  ← 通过 postMessage 桥接到主线程
+  ├── parallel(...promises)       ← Promise.all 并行调用多个 tool
+  ├── settle(...promises)         ← Promise.allSettled 容错并行
+  └── console.log/warn/error      ← 日志捕获（最多 1000 条）
+         ↓
+主线程 handleToolCall()
+  ↓
+callMcpTool(name, params, callId)  ← 实际执行 MCP tool
+  ↓
+结果通过 postMessage 返回 Worker
+```
+
+#### 安全模型
+
+| 机制 | 实现 |
+|------|------|
+| **线程隔离** | `Worker Thread`（独立 V8 isolate，不共享主线程内存） |
+| **超时** | 60s 硬超时 → terminate worker + abort 所有活跃 tool calls |
+| **日志上限** | 最多 1000 条 log |
+| **上下文限制** | Worker 只能访问 `mcp`、`parallel`、`settle`、`console` — 无 fs/net/process |
+| **Tool 中止** | 超时时 `abortActiveTools()` 逐个 abort 所有进行中的 tool calls |
+
+#### 与 just-bash 的对比
+
+| | Hub `exec` | `just-bash` |
+|---|---|---|
+| 语言 | JavaScript（`new Function`） | Bash（纯 TS 解释器） |
+| 隔离 | Worker Thread（V8 isolate） | InMemoryFs（纯内存 FS） |
+| Tool 调用 | `mcp.callTool()` 桥接主线程 | 内置 ~80 命令（无 MCP） |
+| 并行 | `parallel()` / `settle()` | 管道 `|` |
+| 超时 | 60s 硬超时 | 迭代次数限制 |
+| 安全 | 无 fs/net/process 访问 | 纯 TS 解释，无真实 shell |
+
+#### exec 与 SDK AgentTool 的能力等价性
+
+SDK 的 `AgentTool` spawn 子 agent 做多步推理。Hub 的 `exec` 用代码编排做同样的事：
+
+```javascript
+// SDK: AgentTool（多步推理，多次 LLM 调用）
+// LLM 1: "I need to search slack and github"
+// LLM 2: tool_use: slack_search
+// LLM 3: tool_use: github_search
+// LLM 4: "Here are the combined results..."
+
+// Hub exec（一次代码编排，零额外 LLM 调用）
+const [slackResults, githubResults] = await parallel(
+  mcp.callTool('slack__search', { query: 'project update' }),
+  mcp.callTool('github__search_repos', { query: 'cherry-studio' })
+)
+return { slack: slackResults, github: githubResults }
+```
+
+**exec 更高效**：一次 tool call 完成多个并行调用，无额外 LLM 往返。
+但需要 LLM 有足够的编程能力来生成正确的编排代码。
+
+#### 改进方向
+
+1. **沙箱增强**: 当前 `new Function` 仍可访问部分全局对象（`Date`、`Math`、`JSON`）。
+   可参考 `just-bash` 的 monkey-patch 策略屏蔽更多全局。
+2. **结果类型化**: 当前 exec 返回 `JSON.stringify(result)` 纯文本。
+   可扩展为结构化返回（区分 text/image/error）。
+3. **流式日志**: 当前日志在执行完成后一次性返回。可改为实时推送。
+4. **与 agentLoop 集成**: Hub 目前是独立 MCP server。未来可考虑将 exec 能力
+   集成到 agentLoop 的 `hooks.prepareStep`（LLM 生成代码 → prepareStep 执行 → 注入结果）。
+
 ### Phase 3 (useChat 接入)
 
 ```
