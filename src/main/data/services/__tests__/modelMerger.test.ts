@@ -148,8 +148,7 @@ describe('mergeModelConfig', () => {
       capabilities: { add: [CAPABILITY.REASONING] }
     } as any
     const model = mergeModelConfig(null, override, presetModel, 'openai')
-    expect(model.capabilities).toContain(CAPABILITY.REASONING)
-    expect(model.capabilities).toContain(CAPABILITY.IMAGE_RECOGNITION)
+    expect(model.capabilities).toEqual([CAPABILITY.IMAGE_RECOGNITION, CAPABILITY.FUNCTION_CALL, CAPABILITY.REASONING])
   })
 
   it('user values take highest priority', () => {
@@ -230,6 +229,241 @@ describe('mergeModelConfig', () => {
     expect(model.name).toBe('GPT-4o') // from preset
     expect(model.contextWindow).toBe(128_000) // from preset
     expect(model.capabilities).toContain(CAPABILITY.IMAGE_RECOGNITION) // from preset
+  })
+})
+
+// ---------- mergeModelConfig: field completeness ----------
+
+describe('mergeModelConfig — field completeness', () => {
+  const fullPreset = {
+    id: 'gpt-4o',
+    name: 'GPT-4o',
+    description: 'A multimodal model',
+    capabilities: ['image-recognition', 'function-call'],
+    inputModalities: ['text', 'image'],
+    outputModalities: ['text'],
+    contextWindow: 128_000,
+    maxOutputTokens: 4096,
+    maxInputTokens: 120_000,
+    reasoning: {
+      type: 'builtin',
+      supportedEfforts: ['low', 'medium', 'high'],
+      thinkingTokenLimits: { min: 1024, max: 16384 }
+    },
+    pricing: {
+      input: { perMillionTokens: 2.5, currency: 'USD' },
+      output: { perMillionTokens: 10, currency: 'USD' },
+      cacheRead: { perMillionTokens: 1.25, currency: 'USD' },
+      cacheWrite: { perMillionTokens: 5, currency: 'USD' }
+    }
+  } as any
+
+  it('all preset fields carry through when no user or override', () => {
+    const model = mergeModelConfig(null, null, fullPreset, 'openai')
+
+    expect(model.name).toBe('GPT-4o')
+    expect(model.description).toBe('A multimodal model')
+    // group is a user-only field, not in preset schema
+    expect(model.group).toBeUndefined()
+    expect(model.capabilities).toEqual(['image-recognition', 'function-call'])
+    expect(model.inputModalities).toEqual(['text', 'image'])
+    expect(model.outputModalities).toEqual(['text'])
+    expect(model.contextWindow).toBe(128_000)
+    expect(model.maxOutputTokens).toBe(4096)
+    expect(model.isEnabled).toBe(true)
+    expect(model.supportsStreaming).toBe(true)
+
+    // Pricing
+    expect(model.pricing).toBeDefined()
+    expect(model.pricing!.input.perMillionTokens).toBe(2.5)
+    expect(model.pricing!.output.perMillionTokens).toBe(10)
+    expect(model.pricing!.cacheRead?.perMillionTokens).toBe(1.25)
+    expect(model.pricing!.cacheWrite?.perMillionTokens).toBe(5)
+
+    // Reasoning
+    expect(model.reasoning).toBeDefined()
+    expect(model.reasoning!.supportedEfforts).toEqual(['low', 'medium', 'high'])
+    expect(model.reasoning!.thinkingTokenLimits).toEqual({ min: 1024, max: 16384 })
+  })
+
+  it('null user fields do not clobber preset values', () => {
+    const userRow = {
+      providerId: 'openai',
+      modelId: 'gpt-4o',
+      presetModelId: 'gpt-4o',
+      name: null,
+      description: null,
+      group: null,
+      capabilities: null,
+      inputModalities: null,
+      outputModalities: null,
+      contextWindow: null,
+      maxOutputTokens: null,
+      supportsStreaming: null,
+      reasoning: null,
+      isEnabled: null,
+      isHidden: null
+    }
+    const model = mergeModelConfig(userRow, null, fullPreset, 'openai')
+
+    expect(model.name).toBe('GPT-4o')
+    expect(model.description).toBe('A multimodal model')
+    expect(model.capabilities).toEqual(['image-recognition', 'function-call'])
+    expect(model.inputModalities).toEqual(['text', 'image'])
+    expect(model.outputModalities).toEqual(['text'])
+    expect(model.contextWindow).toBe(128_000)
+    expect(model.maxOutputTokens).toBe(4096)
+  })
+
+  it('catalogOverride fields override preset', () => {
+    const override = {
+      providerId: 'openai',
+      modelId: 'gpt-4o',
+      capabilities: { add: ['reasoning'] },
+      limits: { contextWindow: 200_000, maxOutputTokens: 16_384 },
+      inputModalities: ['text', 'image', 'audio']
+    } as any
+    const model = mergeModelConfig(null, override, fullPreset, 'openai')
+
+    expect(model.contextWindow).toBe(200_000)
+    expect(model.maxOutputTokens).toBe(16_384)
+    expect(model.inputModalities).toEqual(['text', 'image', 'audio'])
+    expect(model.capabilities).toContain('reasoning')
+    expect(model.capabilities).toContain('image-recognition')
+    // Non-overridden fields still from preset
+    expect(model.description).toBe('A multimodal model')
+    expect(model.pricing!.input.perMillionTokens).toBe(2.5)
+  })
+
+  it('user fields override both preset and catalogOverride', () => {
+    const override = {
+      providerId: 'openai',
+      modelId: 'gpt-4o',
+      limits: { contextWindow: 200_000 }
+    } as any
+    const userRow = {
+      providerId: 'openai',
+      modelId: 'gpt-4o',
+      presetModelId: 'gpt-4o',
+      name: 'My Model',
+      contextWindow: 50_000,
+      capabilities: ['embedding']
+    }
+    const model = mergeModelConfig(userRow, override, fullPreset, 'openai')
+
+    expect(model.name).toBe('My Model')
+    expect(model.contextWindow).toBe(50_000) // user beats override's 200k
+    expect(model.capabilities).toEqual(['embedding']) // user replaces all
+    // Non-overridden preset fields still flow
+    expect(model.description).toBe('A multimodal model')
+    expect(model.inputModalities).toEqual(['text', 'image'])
+  })
+})
+
+// ---------- mergeModelConfig: pricing ----------
+
+describe('mergeModelConfig — pricing', () => {
+  it('full pricing structure passes through intact', () => {
+    const preset = {
+      id: 'claude-4',
+      name: 'Claude 4',
+      pricing: {
+        input: { perMillionTokens: 3, currency: 'USD' },
+        output: { perMillionTokens: 15, currency: 'USD' },
+        cacheRead: { perMillionTokens: 0.3, currency: 'USD' },
+        cacheWrite: { perMillionTokens: 3.75, currency: 'USD' }
+      }
+    } as any
+    const model = mergeModelConfig(null, null, preset, 'anthropic')
+
+    expect(model.pricing).toBeDefined()
+    expect(model.pricing!.input).toEqual({ perMillionTokens: 3, currency: 'USD' })
+    expect(model.pricing!.output).toEqual({ perMillionTokens: 15, currency: 'USD' })
+    expect(model.pricing!.cacheRead).toEqual({ perMillionTokens: 0.3, currency: 'USD' })
+    expect(model.pricing!.cacheWrite).toEqual({ perMillionTokens: 3.75, currency: 'USD' })
+  })
+
+  it('pricing is undefined when preset has no pricing', () => {
+    const preset = { id: 'test', name: 'Test' } as any
+    const model = mergeModelConfig(null, null, preset, 'test')
+    expect(model.pricing).toBeUndefined()
+  })
+})
+
+// ---------- mergeModelConfig: reasoning ----------
+
+describe('mergeModelConfig — reasoning', () => {
+  it('reasoning from preset flows through', () => {
+    const preset = {
+      id: 'o1',
+      name: 'o1',
+      capabilities: ['reasoning'],
+      reasoning: {
+        type: 'builtin',
+        supportedEfforts: ['low', 'medium', 'high'],
+        thinkingTokenLimits: { min: 1024, max: 32768 }
+      }
+    } as any
+    const model = mergeModelConfig(null, null, preset, 'openai')
+
+    expect(model.reasoning).toBeDefined()
+    // type is derived from provider's reasoningFormatType, not from preset — empty when no provider config
+    expect(model.reasoning!.type).toBe('')
+    expect(model.reasoning!.supportedEfforts).toEqual(['low', 'medium', 'high'])
+    expect(model.reasoning!.thinkingTokenLimits).toEqual({ min: 1024, max: 32768 })
+  })
+
+  it('reasoningFormatType applied from provider config', () => {
+    const preset = {
+      id: 'o1',
+      name: 'o1',
+      capabilities: ['reasoning'],
+      reasoning: {
+        type: 'builtin',
+        supportedEfforts: ['low', 'medium', 'high']
+      }
+    } as any
+    const override = {
+      providerId: 'openai',
+      modelId: 'o1',
+      endpointTypes: ['openai-chat-completions']
+    } as any
+    const reasoningFormatTypes = {
+      'openai-chat-completions': 'openai-chat'
+    } as any
+
+    const model = mergeModelConfig(null, override, preset, 'openai', reasoningFormatTypes)
+
+    expect(model.reasoning).toBeDefined()
+    expect(model.reasoning!.type).toBe('openai-chat')
+    expect(model.reasoning!.supportedEfforts).toEqual(['low', 'medium', 'high'])
+  })
+})
+
+// ---------- mergeModelConfig: edge cases ----------
+
+describe('mergeModelConfig — edge cases', () => {
+  it('empty capabilities [] from preset → empty array in output', () => {
+    const preset = { id: 'test', name: 'Test', capabilities: [] } as any
+    const model = mergeModelConfig(null, null, preset, 'test')
+    expect(model.capabilities).toEqual([])
+  })
+
+  it('empty inputModalities [] from preset → undefined in output', () => {
+    const preset = { id: 'test', name: 'Test', inputModalities: [] } as any
+    const model = mergeModelConfig(null, null, preset, 'test')
+    expect(model.inputModalities).toBeUndefined()
+  })
+
+  it('replaceWith from catalogOverride becomes a UniqueModelId', () => {
+    const preset = { id: 'gpt-4', name: 'GPT-4' } as any
+    const override = {
+      providerId: 'openai',
+      modelId: 'gpt-4',
+      replaceWith: 'gpt-4o'
+    } as any
+    const model = mergeModelConfig(null, override, preset, 'openai')
+    expect(model.replaceWith).toContain('gpt-4o')
   })
 })
 

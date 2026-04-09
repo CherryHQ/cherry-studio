@@ -7,6 +7,7 @@
  * - Registry import support
  */
 
+import type { ModelLookupResult } from '@cherrystudio/provider-registry'
 import type { NewUserModel, UserModel } from '@data/db/schemas/userModel'
 import { isRegistryEnrichableField, userModelTable } from '@data/db/schemas/userModel'
 import { loggerService } from '@logger'
@@ -22,10 +23,9 @@ import type {
   RuntimeReasoning
 } from '@shared/data/types/model'
 import { createUniqueModelId } from '@shared/data/types/model'
+import type { ReasoningFormatType } from '@shared/data/types/provider'
 import { mergeModelConfig } from '@shared/data/utils/modelMerger'
 import { and, eq, inArray, type SQL } from 'drizzle-orm'
-
-import { providerRegistryService } from './ProviderRegistryService'
 
 const logger = loggerService.withContext('DataApi:ModelService')
 
@@ -127,13 +127,22 @@ export class ModelService {
    *
    * Automatically enriches from registry preset data when a match is found.
    * DTO values take priority over registry (user > registryOverride > preset).
+   *
+   * @param registryData - Pre-looked-up registry data (caller provides to avoid circular dependency)
    */
-  async create(dto: CreateModelDto): Promise<Model> {
+  async create(
+    dto: CreateModelDto,
+    registryData?: ModelLookupResult & {
+      reasoningFormatTypes?: Partial<Record<EndpointType, ReasoningFormatType>>
+      defaultChatEndpoint?: EndpointType
+    }
+  ): Promise<Model> {
     const db = application.get('DbService').getDb()
 
-    // Look up registry data for auto-enrichment
-    const { presetModel, registryOverride, reasoningFormatTypes, defaultChatEndpoint } =
-      await providerRegistryService.lookupModel(dto.providerId, dto.modelId)
+    const presetModel = registryData?.presetModel ?? null
+    const registryOverride = registryData?.registryOverride ?? null
+    const reasoningFormatTypes = registryData?.reasoningFormatTypes
+    const defaultChatEndpoint = registryData?.defaultChatEndpoint
 
     let values: NewUserModel
 

@@ -43,10 +43,10 @@
       "default": "./dist/index.js"
     },
     "./node": {
-      "types": "./src/registry-reader.ts",
-      "import": "./dist/registry-reader.mjs",
-      "require": "./dist/registry-reader.js",
-      "default": "./dist/registry-reader.js"
+      "types": "./src/registry-loader.ts",
+      "import": "./dist/registry-loader.mjs",
+      "require": "./dist/registry-loader.js",
+      "default": "./dist/registry-loader.js"
     }
   },
   "devDependencies": {

@@ -36,12 +36,55 @@ vi.mock('@main/core/application', () => ({
   }
 }))
 
-// Mock provider-registry/node readers
-vi.mock('@cherrystudio/provider-registry/node', () => ({
-  readModelRegistry: vi.fn(),
-  readProviderModelRegistry: vi.fn(),
-  readProviderRegistry: vi.fn()
-}))
+// Mock provider-registry/node — include RegistryLoader that delegates to mocked readers
+vi.mock('@cherrystudio/provider-registry/node', () => {
+  const readModelRegistry = vi.fn()
+  const readProviderModelRegistry = vi.fn()
+  const readProviderRegistry = vi.fn()
+
+  class RegistryLoader {
+    private paths: { models: string; providers: string; providerModels: string }
+    private cachedModels: unknown[] | null = null
+    private cachedProviders: unknown[] | null = null
+    private cachedProviderModels: unknown[] | null = null
+    private ver: string | null = null
+
+    constructor(paths: { models: string; providers: string; providerModels: string }) {
+      this.paths = paths
+    }
+    loadModels() {
+      if (this.cachedModels) return this.cachedModels
+      const d = readModelRegistry(this.paths.models)
+      this.cachedModels = d.models ?? []
+      this.ver = d.version
+      return this.cachedModels
+    }
+    loadProviders() {
+      if (this.cachedProviders) return this.cachedProviders
+      const d = readProviderRegistry(this.paths.providers)
+      this.cachedProviders = d.providers ?? []
+      return this.cachedProviders
+    }
+    loadProviderModels() {
+      if (this.cachedProviderModels) return this.cachedProviderModels
+      const d = readProviderModelRegistry(this.paths.providerModels)
+      this.cachedProviderModels = d.overrides ?? []
+      return this.cachedProviderModels
+    }
+    getModelsVersion() {
+      this.loadModels()
+      return this.ver!
+    }
+    clearCache() {
+      this.cachedModels = null
+      this.cachedProviders = null
+      this.cachedProviderModels = null
+      this.ver = null
+    }
+  }
+
+  return { readModelRegistry, readProviderModelRegistry, readProviderRegistry, RegistryLoader }
+})
 
 // Mock downstream services
 vi.mock('../ModelService', () => ({
@@ -107,9 +150,8 @@ function setupRegistryData() {
 
 function clearServiceCache() {
   const svc = providerRegistryService as unknown as Record<string, unknown>
-  svc['registryModels'] = null
-  svc['registryProviderModels'] = null
-  svc['registryProviders'] = null
+  // RegistryLoader is lazily created; reset it so mocks take effect
+  svc['loader'] = null
 }
 
 describe('ProviderRegistryService', () => {
@@ -118,11 +160,11 @@ describe('ProviderRegistryService', () => {
     clearServiceCache()
   })
 
-  describe('initialize', () => {
+  describe('enrichExistingModels', () => {
     it('should run enrichment without errors', async () => {
       setupRegistryData()
 
-      await providerRegistryService.initialize()
+      await providerRegistryService.enrichExistingModels()
 
       expect(mockReadModels).toHaveBeenCalled()
     })
@@ -143,12 +185,8 @@ describe('ProviderRegistryService', () => {
         throw new Error('ENOENT: no such file')
       })
 
-      // getRegistryReasoningConfig reads providers.json internally
-      // The error surfaces when enrichExistingModels calls it
-      expect(() => {
-        const svc = providerRegistryService as unknown as Record<string, (...args: unknown[]) => unknown>
-        svc['loadRegistryProviders']()
-      }).toThrow('ENOENT')
+      // getRegistryModelsByProvider reads providers.json via getRegistryReasoningConfig
+      expect(() => providerRegistryService.getRegistryModelsByProvider('openai')).toThrow('ENOENT')
     })
   })
 

@@ -1,26 +1,20 @@
 /**
- * Registry Service - imports registry data into SQLite
+ * Registry Service — merge-dependent operations that bridge registry data with SQLite.
  *
- * Responsible for:
- * - Reading registry JSON files (models.json, provider-models.json, providers.json)
- * - Merging configurations using mergeModelConfig/mergeProviderConfig
- * - Writing resolved data to user_model / user_provider tables
+ * Responsibilities (after F3 split):
+ * - C: enrichExistingModels (per-startup reconciliation, version-gated)
+ * - D: getRegistryModelsByProvider, resolveModels (merge-dependent queries)
+ * - E: initializeProvider (on-demand bulk import)
+ * - lookupModel (DB-aware lookup with reasoning config)
  *
- * Direct-import singleton. Seeds preset data via initialize().
+ * Pure JSON loading, caching, and lookups live in @cherrystudio/provider-registry
+ * (RegistryLoader, lookupRegistryModel, buildRuntimeEndpointConfigs).
  */
 
-import type {
-  ProtoModelConfig,
-  ProtoProviderConfig,
-  ProtoProviderModelOverride,
-  RegistryEndpointConfig
-} from '@cherrystudio/provider-registry'
+import type { ProtoModelConfig, ProtoProviderModelOverride } from '@cherrystudio/provider-registry'
 import type { EndpointType } from '@cherrystudio/provider-registry'
-import {
-  readModelRegistry,
-  readProviderModelRegistry,
-  readProviderRegistry
-} from '@cherrystudio/provider-registry/node'
+import { buildRuntimeEndpointConfigs, lookupRegistryModel, normalizeModelId } from '@cherrystudio/provider-registry'
+import { RegistryLoader } from '@cherrystudio/provider-registry/node'
 import type { NewUserModel } from '@data/db/schemas/userModel'
 import { userModelTable } from '@data/db/schemas/userModel'
 import { userProviderTable } from '@data/db/schemas/userProvider'
@@ -35,99 +29,34 @@ import { modelService } from './ModelService'
 
 const logger = loggerService.withContext('DataApi:ProviderRegistryService')
 
-/**
- * Convert registry endpointConfigs (with reasoningFormat discriminated union)
- * to runtime endpointConfigs (with reasoningFormatType string).
- */
-function buildRuntimeEndpointConfigs(
-  registryConfigs: Record<string, RegistryEndpointConfig> | undefined
-): Partial<Record<EndpointType, EndpointConfig>> | null {
-  if (!registryConfigs || Object.keys(registryConfigs).length === 0) return null
-
-  const configs: Partial<Record<EndpointType, EndpointConfig>> = {}
-
-  for (const [k, regConfig] of Object.entries(registryConfigs)) {
-    const ep = k as EndpointType
-    const config: EndpointConfig = {}
-
-    if (regConfig.baseUrl) config.baseUrl = regConfig.baseUrl
-    if (regConfig.modelsApiUrls) config.modelsApiUrls = regConfig.modelsApiUrls
-    if (regConfig.reasoningFormat?.type) config.reasoningFormatType = regConfig.reasoningFormat.type
-
-    if (Object.keys(config).length > 0) configs[ep] = config
-  }
-
-  return Object.keys(configs).length > 0 ? configs : null
-}
-
 class ProviderRegistryService {
-  private registryModels: ProtoModelConfig[] | null = null
-  private registryProviderModels: ProtoProviderModelOverride[] | null = null
-  private registryProviders: ProtoProviderConfig[] | null = null
+  private loader: RegistryLoader | null = null
 
-  /**
-   * Enriches existing user models with latest registry data.
-   * Runs on every startup. Preset provider seeding is handled by PresetProviderSeed (db/seeding/).
-   */
-  async initialize(): Promise<void> {
-    await this.enrichExistingModels()
-    logger.info('Enriched existing models from registry')
-  }
-
-  private loadRegistryModels(): ProtoModelConfig[] {
-    if (this.registryModels) return this.registryModels
-
-    const filePath = application.getPath('feature.provider_registry.data', 'models.json')
-    try {
-      const data = readModelRegistry(filePath)
-      const models = data.models ?? []
-      this.registryModels = models
-      logger.info('Loaded registry models', { count: models.length })
-      return models
-    } catch (error) {
-      logger.error(`Failed to load registry file: ${filePath}`, error as Error)
-      throw error
+  private getLoader(): RegistryLoader {
+    if (!this.loader) {
+      this.loader = new RegistryLoader({
+        models: application.getPath('feature.provider_registry.data', 'models.json'),
+        providers: application.getPath('feature.provider_registry.data', 'providers.json'),
+        providerModels: application.getPath('feature.provider_registry.data', 'provider-models.json')
+      })
     }
+    return this.loader
   }
 
-  private loadProviderModels(): ProtoProviderModelOverride[] {
-    if (this.registryProviderModels) return this.registryProviderModels
-
-    const filePath = application.getPath('feature.provider_registry.data', 'provider-models.json')
-    try {
-      const data = readProviderModelRegistry(filePath)
-      const overrides = data.overrides ?? []
-      this.registryProviderModels = overrides
-      logger.info('Loaded registry provider-models', { count: overrides.length })
-      return overrides
-    } catch (error) {
-      logger.error(`Failed to load registry file: ${filePath}`, error as Error)
-      throw error
-    }
-  }
-
-  private loadRegistryProviders(): ProtoProviderConfig[] {
-    if (this.registryProviders) return this.registryProviders
-
-    const filePath = application.getPath('feature.provider_registry.data', 'providers.json')
-    try {
-      const data = readProviderRegistry(filePath)
-      const providers = data.providers ?? []
-      this.registryProviders = providers
-      return providers
-    } catch (error) {
-      logger.error(`Failed to load registry file: ${filePath}`, error as Error)
-      throw error
-    }
-  }
+  // ─────────────────────────────────────────────────────────────────────────
+  // Reasoning config helpers (needs DB for user overrides)
+  // ─────────────────────────────────────────────────────────────────────────
 
   private getRegistryReasoningConfig(providerId: string): {
     defaultChatEndpoint?: EndpointType
     reasoningFormatTypes?: Partial<Record<EndpointType, ReasoningFormatType>>
   } {
-    const providers = this.loadRegistryProviders()
+    const loader = this.getLoader()
+    const providers = loader.loadProviders()
     const provider = providers.find((p) => p.id === providerId)
-    const endpointConfigs = provider ? buildRuntimeEndpointConfigs(provider.endpointConfigs) : null
+    const endpointConfigs = provider
+      ? (buildRuntimeEndpointConfigs(provider.endpointConfigs) as Partial<Record<EndpointType, EndpointConfig>> | null)
+      : null
 
     return {
       defaultChatEndpoint: provider?.defaultChatEndpoint ?? undefined,
@@ -161,9 +90,14 @@ class ProviderRegistryService {
     return registryConfig
   }
 
+  // ─────────────────────────────────────────────────────────────────────────
+  // E: On-demand provider initialization
+  // ─────────────────────────────────────────────────────────────────────────
+
   async initializeProvider(providerId: string): Promise<Model[]> {
-    const registryModels = this.loadRegistryModels()
-    const providerModels = this.loadProviderModels()
+    const loader = this.getLoader()
+    const registryModels = loader.loadModels()
+    const providerModels = loader.loadProviderModels()
     const { defaultChatEndpoint, reasoningFormatTypes } = await this.getEffectiveReasoningConfig(providerId)
 
     const overrides = providerModels.filter((pm) => pm.providerId === providerId)
@@ -220,9 +154,14 @@ class ProviderRegistryService {
     return mergedModels
   }
 
+  // ─────────────────────────────────────────────────────────────────────────
+  // D: Merge-dependent runtime queries
+  // ─────────────────────────────────────────────────────────────────────────
+
   getRegistryModelsByProvider(providerId: string): Model[] {
-    const registryModels = this.loadRegistryModels()
-    const providerModels = this.loadProviderModels()
+    const loader = this.getLoader()
+    const registryModels = loader.loadModels()
+    const providerModels = loader.loadProviderModels()
     const { defaultChatEndpoint, reasoningFormatTypes } = this.getRegistryReasoningConfig(providerId)
 
     const overrides = providerModels.filter((pm) => pm.providerId === providerId)
@@ -245,21 +184,123 @@ class ProviderRegistryService {
     return mergedModels
   }
 
+  async lookupModel(
+    providerId: string,
+    modelId: string
+  ): Promise<{
+    presetModel: ProtoModelConfig | null
+    registryOverride: ProtoProviderModelOverride | null
+    defaultChatEndpoint?: EndpointType
+    reasoningFormatTypes?: Partial<Record<EndpointType, ReasoningFormatType>>
+  }> {
+    const loader = this.getLoader()
+    const { presetModel, registryOverride } = lookupRegistryModel(
+      loader.loadModels(),
+      loader.loadProviderModels(),
+      providerId,
+      modelId
+    )
+    const reasoningConfig = await this.getEffectiveReasoningConfig(providerId)
+
+    return { presetModel, registryOverride, ...reasoningConfig }
+  }
+
+  async resolveModels(
+    providerId: string,
+    rawModels: Array<{
+      modelId: string
+      name?: string
+      group?: string
+      description?: string
+      endpointTypes?: string[]
+    }>
+  ): Promise<Model[]> {
+    const loader = this.getLoader()
+    const registryModels = loader.loadModels()
+    const providerModels = loader.loadProviderModels()
+    const { defaultChatEndpoint, reasoningFormatTypes } = await this.getEffectiveReasoningConfig(providerId)
+
+    const modelMap = new Map<string, ProtoModelConfig>()
+    for (const m of registryModels) {
+      modelMap.set(m.id, m)
+    }
+    const overrideMap = new Map<string, ProtoProviderModelOverride>()
+    for (const pm of providerModels) {
+      if (pm.providerId === providerId) {
+        overrideMap.set(pm.modelId, pm)
+      }
+    }
+
+    const results: Model[] = []
+    const seen = new Set<string>()
+
+    for (const raw of rawModels) {
+      if (!raw.modelId || seen.has(raw.modelId)) continue
+      seen.add(raw.modelId)
+
+      const presetModel = modelMap.get(raw.modelId) ?? null
+      const registryOverride = overrideMap.get(raw.modelId) ?? null
+
+      const userRow = {
+        providerId,
+        modelId: raw.modelId,
+        presetModelId: presetModel ? presetModel.id : null,
+        name: raw.name ?? null,
+        group: raw.group ?? null,
+        description: raw.description ?? null,
+        endpointTypes: raw.endpointTypes ?? null
+      }
+
+      try {
+        if (presetModel) {
+          results.push(
+            mergeModelConfig(
+              userRow,
+              registryOverride,
+              presetModel,
+              providerId,
+              reasoningFormatTypes,
+              defaultChatEndpoint
+            )
+          )
+        } else {
+          results.push(mergeModelConfig({ ...userRow, presetModelId: null }, null, null, providerId))
+        }
+      } catch (error) {
+        logger.error('Failed to resolve model — model will be missing from results', {
+          providerId,
+          modelId: raw.modelId,
+          error
+        })
+      }
+    }
+
+    return results
+  }
+
   async enrichExistingModels(): Promise<void> {
-    const registryModels = this.loadRegistryModels()
-    const providerModels = this.loadProviderModels()
+    const loader = this.getLoader()
+    const registryModels = loader.loadModels()
+    const providerModels = loader.loadProviderModels()
 
     if (registryModels.length === 0) {
       logger.warn('No registry models loaded, skipping model enrichment')
       return
     }
 
+    // Build lookup maps keyed by exact ID + normalized ID for fallback matching
     const modelMap = new Map<string, ProtoModelConfig>()
+    const normalizedModelMap = new Map<string, ProtoModelConfig>()
     for (const m of registryModels) {
       modelMap.set(m.id, m)
+      const normalized = normalizeModelId(m.id)
+      if (!normalizedModelMap.has(normalized)) {
+        normalizedModelMap.set(normalized, m)
+      }
     }
 
     const overridesByProvider = new Map<string, Map<string, ProtoProviderModelOverride>>()
+    const normalizedOverridesByProvider = new Map<string, Map<string, ProtoProviderModelOverride>>()
     for (const pm of providerModels) {
       let providerMap = overridesByProvider.get(pm.providerId)
       if (!providerMap) {
@@ -267,6 +308,16 @@ class ProviderRegistryService {
         overridesByProvider.set(pm.providerId, providerMap)
       }
       providerMap.set(pm.modelId, pm)
+
+      let normalizedProviderMap = normalizedOverridesByProvider.get(pm.providerId)
+      if (!normalizedProviderMap) {
+        normalizedProviderMap = new Map()
+        normalizedOverridesByProvider.set(pm.providerId, normalizedProviderMap)
+      }
+      const normalizedPmId = normalizeModelId(pm.modelId)
+      if (!normalizedProviderMap.has(normalizedPmId)) {
+        normalizedProviderMap.set(normalizedPmId, pm)
+      }
     }
 
     const db = application.get('DbService').getDb()
@@ -290,7 +341,8 @@ class ProviderRegistryService {
 
     for (const row of userModels) {
       const presetModelId = row.presetModelId!
-      const presetModel = modelMap.get(presetModelId)
+      // Exact match first, normalized fallback
+      const presetModel = modelMap.get(presetModelId) ?? normalizedModelMap.get(normalizeModelId(presetModelId)) ?? null
 
       if (!presetModel) {
         skippedCount++
@@ -298,7 +350,11 @@ class ProviderRegistryService {
       }
 
       const providerOverrides = overridesByProvider.get(row.providerId)
-      const registryOverride = providerOverrides?.get(presetModelId) ?? null
+      const normalizedProviderOverrides = normalizedOverridesByProvider.get(row.providerId)
+      const registryOverride =
+        providerOverrides?.get(presetModelId) ??
+        normalizedProviderOverrides?.get(normalizeModelId(presetModelId)) ??
+        null
       const providerConfig = providerConfigMap.get(row.providerId)
       const registryReasoningConfig = this.getRegistryReasoningConfig(row.providerId)
       const defaultChatEndpoint = providerConfig?.defaultChatEndpoint ?? registryReasoningConfig.defaultChatEndpoint
@@ -364,95 +420,9 @@ class ProviderRegistryService {
     })
   }
 
-  async lookupModel(
-    providerId: string,
-    modelId: string
-  ): Promise<{
-    presetModel: ProtoModelConfig | null
-    registryOverride: ProtoProviderModelOverride | null
-    defaultChatEndpoint?: EndpointType
-    reasoningFormatTypes?: Partial<Record<EndpointType, ReasoningFormatType>>
-  }> {
-    const registryModels = this.loadRegistryModels()
-    const providerModels = this.loadProviderModels()
-
-    const presetModel = registryModels.find((m) => m.id === modelId) ?? null
-    const registryOverride = providerModels.find((pm) => pm.providerId === providerId && pm.modelId === modelId) ?? null
-    const reasoningConfig = await this.getEffectiveReasoningConfig(providerId)
-
-    return { presetModel, registryOverride, ...reasoningConfig }
-  }
-
-  async resolveModels(
-    providerId: string,
-    rawModels: Array<{
-      modelId: string
-      name?: string
-      group?: string
-      description?: string
-      endpointTypes?: string[]
-    }>
-  ): Promise<Model[]> {
-    const registryModels = this.loadRegistryModels()
-    const providerModels = this.loadProviderModels()
-    const { defaultChatEndpoint, reasoningFormatTypes } = await this.getEffectiveReasoningConfig(providerId)
-
-    const modelMap = new Map<string, ProtoModelConfig>()
-    for (const m of registryModels) {
-      modelMap.set(m.id, m)
-    }
-    const overrideMap = new Map<string, ProtoProviderModelOverride>()
-    for (const pm of providerModels) {
-      if (pm.providerId === providerId) {
-        overrideMap.set(pm.modelId, pm)
-      }
-    }
-
-    const results: Model[] = []
-    const seen = new Set<string>()
-
-    for (const raw of rawModels) {
-      if (!raw.modelId || seen.has(raw.modelId)) continue
-      seen.add(raw.modelId)
-
-      const presetModel = modelMap.get(raw.modelId) ?? null
-      const registryOverride = overrideMap.get(raw.modelId) ?? null
-
-      const userRow = {
-        providerId,
-        modelId: raw.modelId,
-        presetModelId: presetModel ? presetModel.id : null,
-        name: raw.name ?? null,
-        group: raw.group ?? null,
-        description: raw.description ?? null,
-        endpointTypes: raw.endpointTypes ?? null
-      }
-
-      try {
-        if (presetModel) {
-          results.push(
-            mergeModelConfig(
-              userRow,
-              registryOverride,
-              presetModel,
-              providerId,
-              reasoningFormatTypes,
-              defaultChatEndpoint
-            )
-          )
-        } else {
-          results.push(mergeModelConfig({ ...userRow, presetModelId: null }, null, null, providerId))
-        }
-      } catch (error) {
-        logger.error('Failed to resolve model — model will be missing from results', {
-          providerId,
-          modelId: raw.modelId,
-          error
-        })
-      }
-    }
-
-    return results
+  /** Get the current registry models version (for version-gated enrichment). */
+  getModelsVersion(): string {
+    return this.getLoader().getModelsVersion()
   }
 }
 

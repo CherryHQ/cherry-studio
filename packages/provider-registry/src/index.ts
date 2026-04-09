@@ -50,4 +50,8 @@ export type {
 } from './schemas/provider-models'
 
 // Model ID normalization utilities
-export { normalizeModelId } from './utils/importers/base/base-transformer'
+export { normalizeModelId } from './utils/normalize'
+
+// Pure lookup and transformation utilities (no fs dependency)
+export type { ModelLookupResult, RuntimeEndpointConfig } from './registry-utils'
+export { buildRuntimeEndpointConfigs, lookupRegistryModel, lookupRegistryProvider } from './registry-utils'
