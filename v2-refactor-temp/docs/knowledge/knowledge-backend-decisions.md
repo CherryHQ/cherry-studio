@@ -70,7 +70,7 @@
 
 对应实现：
 
-- `src/main/services/knowledge/KnowledgeRuntimeService.ts`
+- `src/main/services/knowledge/runtime/KnowledgeRuntimeService.ts`
 - `src/main/core/application/serviceRegistry.ts`
 
 它是一个 lifecycle service：
@@ -107,7 +107,7 @@
 4. 恢复未完成索引任务继续执行
 5. 暴露调度器内部概念给调用方
 
-## 4. 当前调用边界
+## 4. 当前调用边界与调用方契约
 
 ### 4.1 UI
 
@@ -119,7 +119,31 @@ UI
  \--> preload IPC -> KnowledgeRuntimeService
 ```
 
-当前 runtime 侧 IPC 通道已经固定为：
+当前实现要求调用方明确区分两条调用路径：
+
+1. Data API
+   - 负责 `knowledge_base` / `knowledge_item` 的持久化 CRUD
+   - 负责 owner item / child item 的主数据创建
+   - 负责 `knowledge_item.status` / `error` 的持久化读写
+2. runtime IPC
+   - 负责 `directory` / `sitemap` owner item 的展开
+   - 负责 leaf item 的索引入队、向量写入和删除
+   - 负责检索
+
+当前 Data API 侧稳定接口是：
+
+1. `GET /knowledge-bases`
+2. `POST /knowledge-bases`
+3. `GET /knowledge-bases/:id`
+4. `PATCH /knowledge-bases/:id`
+5. `DELETE /knowledge-bases/:id`
+6. `GET /knowledge-bases/:id/items`
+7. `POST /knowledge-bases/:id/items`
+8. `GET /knowledge-items/:id`
+9. `PATCH /knowledge-items/:id`
+10. `DELETE /knowledge-items/:id`
+
+preload 已暴露的 runtime IPC 通道是：
 
 1. `knowledge-runtime:create-base`
 2. `knowledge-runtime:delete-base`
@@ -129,14 +153,41 @@ UI
 6. `knowledge-runtime:expand-directory-item`
 7. `knowledge-runtime:expand-sitemap-item`
 
-### 4.1.1 Container item 的当前 UI 调用链
+### 4.1.1 Leaf item 的调用链
+
+`file` / `url` / `note` 这类可直接索引的 leaf item，调用方应走：
+
+```text
+caller
+ -> Data API create item(s)
+ -> get created item ids
+ -> preload IPC add-items(item ids)
+```
+
+也就是说：
+
+1. 先通过 Data API 创建持久化 `knowledge_item`
+2. 再把 Data API 返回的 item ids 传给 runtime `addItems`
+3. runtime 不负责替调用方补建 leaf item 主数据
+4. runtime `addItems` 的输入语义是“已经存在于 SQLite 中的 item ids”
+
+批量添加 files 时，当前契约就是：
+
+```text
+caller
+ -> Data API create file items
+ -> get created file item ids
+ -> preload IPC add-items(file item ids)
+```
+
+### 4.1.2 Container item 的调用链
 
 `directory` / `sitemap` 当前已经不是“先展开再一次性 createMany root + children”的旧调用方式。
 
-当前 UI 侧已经落地为 root-first 两阶段流程：
+当前调用方应使用 root-first 两阶段流程：
 
 ```text
-UI
+caller
  -> Data API create owner item
  -> preload IPC expand owner item
  -> Data API create child items
@@ -162,6 +213,40 @@ UI
 4. mixed batch 可用于持久化树结构，但不等于 mixed batch 可直接进入索引队列
 
 这个调用链仍然符合“Data API 负责主数据，runtime 负责展开/索引”的分层，不属于边界漂移。
+
+`directory` / `sitemap` 的当前推荐流程可以进一步写成：
+
+```text
+directory/sitemap
+ -> Data API create owner
+ -> IPC expand owner
+ -> Data API create expanded items
+ -> filter indexable leaf items
+ -> IPC add-items(indexable child ids)
+```
+
+### 4.1.3 删除链路的当前约束
+
+删除场景同样需要区分持久化删除与 runtime 删除。
+
+item 删除时，调用方应理解为两件独立的事：
+
+1. runtime IPC `delete-items`
+   - 中断 pending / running add task
+   - 删除 item 及其级联子项的向量
+2. Data API `DELETE /knowledge-items/:id`
+   - 删除 SQLite 中的 `knowledge_item`
+   - 依赖数据库 cascade 删除 grouped descendants
+
+base 删除时，调用方同样需要区分两步：
+
+1. runtime IPC `delete-base`
+   - 中断该 base 下相关 add task
+   - 删除对应 vector store
+2. Data API `DELETE /knowledge-bases/:id`
+   - 删除 SQLite 中的 base 和关联 items
+
+当前实现下，Data API 删除并不会替调用方清理向量库，也不会替调用方中断 runtime 任务。
 
 ### 4.2 Main 进程内部调用
 
@@ -189,11 +274,13 @@ UI
 
 ### 5.2 当前可观测状态
 
-service 内部 queue 维护三组内存态：
+当前 queue 内部维护的是一份 `entries` map，entry 上记录：
 
-1. `pendingAddIds`
-2. `pendingAdds`
-3. `runningAdds`
+1. `item.id`
+2. `status = pending | running`
+3. `controller`
+4. `promise`
+5. `interruptedBy`
 
 它们的作用仅是：
 
@@ -295,10 +382,11 @@ schema 和共享类型仍然保留完整状态集合：
 
 ### 8.1 `onInit`
 
-当前仅做两件事：
+当前做三件事：
 
 1. `isStopping = false`
-2. 注册 runtime IPC handlers
+2. `addQueue.reset()`
+3. 注册 runtime IPC handlers
 
 当前没有启动时“扫描中间状态并补偿失败”的逻辑。
 
