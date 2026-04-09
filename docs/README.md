@@ -15,6 +15,12 @@
 
 ## References
 
+### Architecture
+
+| Document | Description |
+|----------|-------------|
+| [Architecture Overview](./references/architecture-overview.md) | System-wide architecture, process model, data flow |
+
 ### AI Core
 
 | Document | Description |
