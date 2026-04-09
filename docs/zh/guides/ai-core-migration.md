@@ -2876,25 +2876,106 @@ AiCompletionService.streamText(request)
 
 #### 1. Agent 内置 Tools（替代 SDK 内置）
 
-SDK 提供 15+ 内置 tools，需要实现为 AI SDK `tool()` 注册到 ToolRegistry：
+每个 tool 都不是简单的 Node.js API 封装——SDK 源码（claude-code/manila-v1/src/tools/）显示大量 edge case 处理。
 
-| Tool | SDK 行为 | 替代实现 | needsApproval |
-|------|----------|---------|---------------|
-| **Read** | 读文件内容 | `fs.readFile()` + 行号格式化 | `false`（只读） |
-| **Write** | 写文件 | `fs.writeFile()` + 目录创建 | `true` |
-| **Edit** | 精确字符串替换 | `fs.readFile()` + replace + `fs.writeFile()` | `true` |
-| **MultiEdit** | 批量编辑 | 多次 Edit 组合 | `true` |
-| **Glob** | 文件模式匹配 | `fast-glob` | `false` |
-| **Grep** | 内容搜索 | `ripgrep` 或 `node-grep` | `false` |
-| **Bash** | 执行 shell 命令 | `child_process.exec()` + timeout + sandbox | `true` |
-| **NotebookRead** | 读 Jupyter notebook | 解析 .ipynb JSON | `false` |
-| **NotebookEdit** | 编辑 notebook cell | 修改 .ipynb JSON | `true` |
-| **Task** | 创建子任务 | 递归 `agent.generate()` 调用 | 由子 agent 的 tools 决定 |
-| **TodoWrite** | 任务列表管理 | 文件写入 `.todo` | `false` |
-| **WebFetch** | 获取网页内容 | 已有 `@cherry/browser` MCP server | MCP server 配置 |
-| **WebSearch** | 网络搜索 | 已有 `@cherry/browser` + `exa` MCP server | MCP server 配置 |
+**实现位置**: `src/main/ai/tools/agent/` 目录（每个 tool 独立文件）
 
-**实现位置**: `src/main/ai/tools/agentBuiltinTools.ts`
+##### Read (SDK: 1184 lines)
+
+| 特性 | 实现细节 |
+|------|---------|
+| 文本文件 | `readFileInRange()` 逐行流式读取（不加载整个文件），支持 offset/limit 部分读取 |
+| PDF | 小文件：直接 base64 传给 LLM（Anthropic document_type）。大文件：`extractPDFPages()` 逐页转 JPEG 图片。支持 `pages: "1-5"` 参数 |
+| 图片 | `sharp` resize（token-aware 压缩），超大图退化到 400×400 JPEG 20% quality |
+| Notebook | 解析 .ipynb JSON，返回结构化 cells（code/markdown/outputs） |
+| 二进制 | `hasBinaryExtension()` 阻止读取（PDF/图片除外） |
+| 编码 | BOM 检测（UTF-16LE `0xFF 0xFE`），默认 UTF-8 |
+| 大文件 | maxSizeBytes ~16MB 上限，超过提示用 offset/limit。maxTokens 检查防止 context 爆炸 |
+| 去重 | 按 `{path, offset, limit, mtime}` 缓存，文件未变时返回 stub |
+| 输出 | `   1→` 行号前缀（3 字符 + 箭头） |
+| **needsApproval** | `false` |
+
+**我们的实现**: 基础文本读取 + 行号 + offset/limit 必须有。PDF 可复用已有的 `extractPdfText()`（或 OCR 服务）。图片 resize 复用已有的 `sharp` 逻辑。
+
+##### Write (SDK: 435 lines)
+
+| 特性 | 实现细节 |
+|------|---------|
+| 目录创建 | 自动 `mkdir -p` 父目录 |
+| 编码保持 | 读取已有文件的编码（UTF-8/UTF-16LE），写入时保持 |
+| 行尾保持 | 检测原文件 LF/CRLF/CR，写入时保持一致 |
+| 过期检查 | 比对 mtime + 内容（防止覆盖并发修改的文件） |
+| 输出 | 返回 structuredPatch diff 和 git diff |
+| **needsApproval** | `true` |
+
+##### Edit (SDK: 626 + 776 lines utils)
+
+**最复杂的 tool。** 不是简单的 string.replace：
+
+| 特性 | 实现细节 |
+|------|---------|
+| 引号规范化 | 先精确匹配，失败后将弯引号 `'' ""` 规范为直引号再搜索 |
+| 引号风格保持 | `preserveQuoteStyle()` — 替换文本保持原文件的引号风格 |
+| 唯一性检查 | old_string 在文件中出现 >1 次 → 报错（需要 replace_all=true 或更多上下文） |
+| replace_all | `file.replaceAll(old, new)` 全部替换 |
+| 1GB 限制 | 文件 >1GB 拒绝编辑（防 OOM） |
+| XML 反转义 | `<fnr>`, `<n>`, `</n>` 反转义回 XML 标签（Claude 输出限制） |
+| 编码/行尾 | 同 Write — 检测并保持 |
+| Diff 输出 | `structuredPatch()` (npm `diff` 库) 生成 4 行上下文的 hunk |
+| **needsApproval** | `true` |
+
+##### Glob (SDK: 199 lines)
+
+| 特性 | 实现细节 |
+|------|---------|
+| 引擎 | **ripgrep** `--files --glob`（不是 fast-glob/minimatch） |
+| .gitignore | 默认 `--no-ignore`（忽略 .gitignore），可配置 |
+| 最大结果 | 100（截断时返回 `truncated: true`） |
+| 排序 | `--sort=modified`（按修改时间） |
+| 路径 | 返回相对路径（省 token） |
+| 排除 | 权限 deny rules 转为 `--glob !pattern` |
+| **needsApproval** | `false` |
+
+**我们的实现**: 可以用 `fast-glob`（Node.js 原生，不需要 ripgrep 二进制）或嵌入 `@vscode/ripgrep`。
+
+##### Grep (SDK: 577 lines)
+
+| 特性 | 实现细节 |
+|------|---------|
+| 引擎 | **ripgrep** 完整命令行 |
+| 上下文行 | `-B N`（前）/ `-A N`（后）/ `-C N`（前后） |
+| 输出模式 | `content`（匹配行）/ `files_with_matches`（文件名）/ `count`（计数） |
+| 最大结果 | 250 行/匹配（默认），offset 分页 |
+| 多行 | `-U --multiline-dotall`（`.` 匹配换行） |
+| 大小写 | `-i` 不区分大小写 |
+| 二进制 | ripgrep 自动跳过 |
+| 排序 | files_with_matches 模式按 mtime 最新在前 |
+| VCS 排除 | `.git .svn .hg .bzr .jj .sl` 硬编码排除 |
+| **needsApproval** | `false` |
+
+##### Bash (SDK: 1144 lines)
+
+| 特性 | 实现细节 |
+|------|---------|
+| 安全 | 危险命令黑名单 + sandbox（可选）+ 只读模式校验 |
+| 超时 | 默认 30s，最大可配，超时自动后台化 |
+| 输出 | stdout+stderr 合并，>30KB 持久化到磁盘 |
+| 后台 | `run_in_background: true` 立即返回 taskId。自动后台化（执行 >15s） |
+| sed | 检测 `sed -i` 编辑命令 → 预览修改 → 模拟执行（不实际调 sed） |
+| 工作目录 | 子 agent 禁止 `cd` 改变父工作目录 |
+| 命令解析 | AST 解析 `&&` `||` `|` `;` 运算符和子命令 |
+| **needsApproval** | `true`（或条件审批：只读命令如 `ls`, `cat` 可自动批准） |
+
+##### 内置搜索/知识/记忆 Tools（Cherry Studio 自有服务）
+
+| Tool | 服务 | 实现 |
+|------|------|------|
+| **WebSearch** | `WebSearchService`（多 provider） | 包装已有服务为 AI SDK `tool()` |
+| **WebFetch** | `@cherry/browser` MCP server | 通过 ToolRegistry MCP 注册 |
+| **Knowledge** | `KnowledgeService`（embedjs RAG） | 包装为 `tool()`，传 knowledgeBaseIds |
+| **Memory** | `MemoryService` | 包装为 `tool()`，搜索/存储记忆 |
+
+共 **10 个**核心内置 tools（6 个文件操作 + 4 个 Cherry Studio 服务）。
 
 **权限策略**:
 - 只读 tools（Read, Glob, Grep, NotebookRead, TodoWrite）: `needsApproval: false`
