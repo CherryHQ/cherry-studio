@@ -1,4 +1,4 @@
-import { BaseService, DependsOn, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
+import { BaseService, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 
 import { bootstrapBuiltinAgents } from './agents/services/builtin/BuiltinAgentBootstrap'
 import { channelManager } from './agents/services/channels'
@@ -11,26 +11,23 @@ const logger = loggerService.withContext('AgentBootstrapService')
 /**
  * Lifecycle-managed service that orchestrates agent subsystem initialization.
  *
- * Wraps the non-lifecycle agent singletons (schedulerService, channelManager,
- * bootstrapBuiltinAgents) so their startup/shutdown is managed by the
- * application lifecycle instead of manual calls in index.ts.
+ * Uses Phase.Background — fire-and-forget, never blocks other phases.
+ * All operations are idempotent and non-critical for UI startup.
  */
 @Injectable('AgentBootstrapService')
-@ServicePhase(Phase.WhenReady)
-@DependsOn(['ApiServerService'])
+@ServicePhase(Phase.Background)
 export class AgentBootstrapService extends BaseService {
-  protected async onReady(): Promise<void> {
-    await bootstrapBuiltinAgents()
-    logger.info('Built-in agents bootstrapped')
-
-    await schedulerService.restoreSchedulers()
-    logger.info('Schedulers restored')
-
+  protected onInit(): void {
     registerSessionStreamIpc()
     logger.info('Session stream IPC registered')
+  }
 
-    await channelManager.start()
-    logger.info('Channel manager started')
+  protected async onReady(): Promise<void> {
+    await Promise.all([
+      bootstrapBuiltinAgents().then(() => logger.info('Built-in agents bootstrapped')),
+      schedulerService.restoreSchedulers().then(() => logger.info('Schedulers restored')),
+      channelManager.start().then(() => logger.info('Channel manager started'))
+    ])
   }
 
   protected async onDestroy(): Promise<void> {
