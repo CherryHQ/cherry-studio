@@ -1,3 +1,4 @@
+import type { MigrationStatusValue } from '@shared/data/migration/v2/types'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { MigrationEngine } from '../MigrationEngine'
@@ -53,6 +54,21 @@ describe('MigrationEngine', () => {
     vi.spyOn(engine as any, 'cleanupTempFiles').mockResolvedValue(undefined)
   })
 
+  function mockStatus(statusValue?: MigrationStatusValue) {
+    const get = vi.fn().mockResolvedValue(statusValue ? { value: statusValue } : undefined)
+    ;(engine as any).migrationDb = {
+      getDb: vi.fn(() => ({
+        select: vi.fn(() => ({
+          from: vi.fn(() => ({
+            where: vi.fn(() => ({ get }))
+          }))
+        }))
+      })),
+      close: vi.fn()
+    }
+    return { get }
+  }
+
   it('resets every migrator before each run starts', async () => {
     const events: string[] = []
     const boot = createTestMigrator('boot', 1, events)
@@ -83,5 +99,26 @@ describe('MigrationEngine', () => {
       'chat:execute',
       'chat:validate'
     ])
+  })
+
+  it('requires migration again when the stored completed version is outdated and legacy data exists', async () => {
+    mockStatus({ status: 'completed', version: '2.0.0', completedAt: Date.now(), error: null })
+    vi.spyOn(engine as any, 'hasLegacyData').mockReturnValue(true)
+
+    await expect(engine.needsMigration()).resolves.toBe(true)
+  })
+
+  it('marks the new target version as completed when no legacy data exists anymore', async () => {
+    mockStatus({ status: 'completed', version: '2.0.0', completedAt: Date.now(), error: null })
+    vi.spyOn(engine as any, 'hasLegacyData').mockReturnValue(false)
+
+    await expect(engine.needsMigration()).resolves.toBe(false)
+    expect((engine as any).markCompleted).toHaveBeenCalledTimes(1)
+  })
+
+  it('skips migration when the stored completed version matches the current target', async () => {
+    mockStatus({ status: 'completed', version: '2.1.0', completedAt: Date.now(), error: null })
+
+    await expect(engine.needsMigration()).resolves.toBe(false)
   })
 })
