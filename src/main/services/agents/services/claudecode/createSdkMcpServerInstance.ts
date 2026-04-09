@@ -7,12 +7,13 @@ import { CallToolRequestSchema, ListToolsRequestSchema } from '@modelcontextprot
 const logger = loggerService.withContext('SdkMcpBridge')
 
 /**
- * Creates a `McpServer` instance that proxies tool calls to an existing
- * MCP server managed by `MCPService`.
+ * Creates an `McpServer` instance that acts as an in-process bridge,
+ * proxying tool list/call requests to an existing MCP server managed
+ * by `MCPService`.
  *
- * This avoids the HTTP round-trip of the StreamableHTTP proxy and instead
- * uses the Claude Agent SDK's in-memory (`type: 'sdk'`) transport, which
- * is more reliable for in-process communication.
+ * The returned instance is designed for use with the Claude Agent SDK's
+ * in-memory (`type: 'sdk'`) transport, keeping all communication
+ * within the Electron main process.
  */
 export async function createSdkMcpServerInstance(mcpId: string): Promise<McpServer> {
   const serverConfig = await mcpServerService.findByIdOrName(mcpId)
@@ -22,23 +23,34 @@ export async function createSdkMcpServerInstance(mcpId: string): Promise<McpServ
 
   const sdkServer = new McpServer({ name: serverConfig.name, version: '0.1.0' }, { capabilities: { tools: {} } })
 
-  // Use the low-level Server to set raw request handlers that proxy
-  // tool calls to the actual MCP server via MCPService, avoiding
-  // Zod schema re-declaration complexity.
+  // Use the low-level Server to set raw request handlers because this bridge
+  // proxies requests to the downstream MCP server whose tool schemas are not
+  // known at construction time. The high-level McpServer.tool() API requires
+  // Zod schemas to be declared upfront, which is not feasible for a proxy.
   const rawServer = sdkServer.server
 
   rawServer.setRequestHandler(ListToolsRequestSchema, async () => {
-    logger.debug('SDK bridge: listing tools', { mcpId })
-    const mcpService = application.get('MCPService')
-    const client = await mcpService.initClient(serverConfig)
-    return client.listTools()
+    try {
+      logger.debug('SDK bridge: listing tools', { mcpId })
+      const mcpService = application.get('MCPService')
+      const client = await mcpService.initClient(serverConfig)
+      return client.listTools()
+    } catch (error) {
+      logger.error('SDK bridge: failed to list tools', { mcpId, error })
+      throw error
+    }
   })
 
   rawServer.setRequestHandler(CallToolRequestSchema, async (request) => {
-    logger.debug('SDK bridge: calling tool', { mcpId, tool: request.params.name })
-    const mcpService = application.get('MCPService')
-    const client = await mcpService.initClient(serverConfig)
-    return client.callTool(request.params)
+    try {
+      logger.debug('SDK bridge: calling tool', { mcpId, tool: request.params.name })
+      const mcpService = application.get('MCPService')
+      const client = await mcpService.initClient(serverConfig)
+      return client.callTool(request.params)
+    } catch (error) {
+      logger.error('SDK bridge: failed to call tool', { mcpId, tool: request.params.name, error })
+      throw error
+    }
   })
 
   logger.info(`Created SDK MCP bridge for "${serverConfig.name}"`)

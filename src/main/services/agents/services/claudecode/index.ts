@@ -530,7 +530,7 @@ class ClaudeCodeService implements AgentServiceInterface {
           const sdkServer = await createSdkMcpServerInstance(mcpId)
           mcpList[mcpId] = { type: 'sdk', name: mcpId, instance: sdkServer }
         } catch (error) {
-          logger.warn(`Failed to create SDK MCP bridge for ${mcpId}, skipping`, { error })
+          logger.error(`Failed to create SDK MCP bridge for ${mcpId}, skipping`, { error })
         }
       }
       options.mcpServers = mcpList
@@ -541,6 +541,12 @@ class ClaudeCodeService implements AgentServiceInterface {
     if (!options.mcpServers) options.mcpServers = {}
     const browserServer = new BrowserServer()
     options.mcpServers.browser = { type: 'sdk', name: '@cherry/browser', instance: browserServer.mcpServer }
+
+    // Inject Exa MCP for structured web search (free tier, no API key required)
+    options.mcpServers.exa = {
+      type: 'http',
+      url: 'https://mcp.exa.ai/mcp'
+    }
 
     if (soulEnabled) {
       // Find the channel that owns this session (if any) for context-aware cron defaults
