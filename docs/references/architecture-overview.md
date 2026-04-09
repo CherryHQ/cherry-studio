@@ -1,5 +1,7 @@
 # Architecture Overview
 
+> **Note**: The v2 branch is undergoing a major architecture refactoring. This document will be continuously updated as the refactoring progresses. Some sections may describe the target architecture rather than the current state.
+
 This document provides a high-level overview of Cherry Studio's architecture, covering the Electron process model, key subsystems, data flow, and monorepo structure.
 
 ## Process Model
@@ -133,7 +135,7 @@ See [AI Core Architecture](./ai-core-architecture.md) for the complete data flow
 ## Monorepo Structure
 
 ```
-cherry-studio-v2/
+cherry-studio
 ├── src/
 │   ├── main/                    # Main process (Node.js)
 │   │   ├── core/                #   Lifecycle, Application, paths

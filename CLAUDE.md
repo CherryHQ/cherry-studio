@@ -145,6 +145,21 @@ Services without long-lived resources or persistent side effects: use **named ex
 
 ## v2 Refactoring (In Progress)
 
+The `main` branch is under code freeze. All development has moved to the `v2` branch.
+
+- **`main` branch**: Only accepts critical bug fixes via `hotfix/*` branches. Minimal changes, no refactoring.
+- **`v2` branch**: All new features, refactoring, and optimizations go here.
+
+Files marked with the following header are **blocked for feature changes** (bug fixes only):
+
+```typescript
+/**
+ * @deprecated Scheduled for removal in v2.0.0
+ * ⚠️ NOTICE: V2 DATA&UI REFACTORING
+ * STOP: Feature PRs affecting this file are currently BLOCKED.
+ */
+```
+
 The v2 branch is undergoing a major refactoring effort:
 
 ### Data Layer
@@ -278,25 +293,6 @@ Several dependencies have patches in `patches/` — be careful when upgrading:
 - **Test Mocking**: Use the unified mock system — do NOT create ad-hoc mocks for `application`, services, or data layers. See [tests/__mocks__/README.md](tests/__mocks__/README.md) for available mocks, usage patterns, and best practices.
 
 ## Important Notes
-
-### V2 Refactoring in Progress
-
-The `main` branch is under code freeze. All development has moved to the `v2` branch.
-
-- **`main` branch**: Only accepts critical bug fixes via `hotfix/*` branches. Minimal changes, no refactoring.
-- **`v2` branch**: All new features, refactoring, and optimizations go here.
-
-Files marked with the following header are **blocked for feature changes**:
-
-```typescript
-/**
- * @deprecated Scheduled for removal in v2.0.0
- * ⚠️ NOTICE: V2 DATA&UI REFACTORING
- * STOP: Feature PRs affecting this file are currently BLOCKED.
- */
-```
-
-Do not introduce new features to these files. Bug fixes only.
 
 ### Security
 
