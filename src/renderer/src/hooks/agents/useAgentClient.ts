@@ -1,4 +1,5 @@
 import { useMultiplePreferences } from '@data/hooks/usePreference'
+import { preferenceService } from '@data/PreferenceService'
 import { AgentApiClient } from '@renderer/api/agent'
 import { useMemo } from 'react'
 
@@ -22,7 +23,9 @@ export const useAgentClient = () => {
   const { host, port, apiKey } = useMultiplePreferences(API_SERVER_PREFERENCE_KEYS)[0]
 
   return useMemo(() => {
-    if (!apiKey) {
+    const isConfigLoaded = Object.values(API_SERVER_PREFERENCE_KEYS).every((key) => preferenceService.isCached(key))
+
+    if (!isConfigLoaded || !apiKey) {
       return null
     }
 
