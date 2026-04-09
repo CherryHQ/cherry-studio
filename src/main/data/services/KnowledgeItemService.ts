@@ -4,9 +4,9 @@
  * Handles CRUD operations for knowledge items stored in SQLite.
  */
 
-import { knowledgeItemTable } from '@data/db/schemas/knowledge'
+import type { knowledgeItemTable } from '@data/db/schemas/knowledge'
+import { knowledgeItemRepository } from '@data/repositories/KnowledgeItemRepository'
 import { loggerService } from '@logger'
-import { application } from '@main/core/application'
 import { DataApiErrorFactory } from '@shared/data/api'
 import type { OffsetPaginationResponse } from '@shared/data/api/apiTypes'
 import type {
@@ -23,7 +23,6 @@ import {
   SitemapItemDataSchema,
   UrlItemDataSchema
 } from '@shared/data/types/knowledge'
-import { and, desc, eq, inArray, sql } from 'drizzle-orm'
 
 import { knowledgeBaseService } from './KnowledgeBaseService'
 
@@ -124,41 +123,17 @@ function rowToKnowledgeItem(row: typeof knowledgeItemTable.$inferSelect): Knowle
 
 export class KnowledgeItemService {
   async list(baseId: string, query: KnowledgeItemsQuery): Promise<OffsetPaginationResponse<KnowledgeItem>> {
-    const db = application.get('DbService').getDb()
     await knowledgeBaseService.getById(baseId)
-    const { page, limit, type, groupId } = query
-    const offset = (page - 1) * limit
-    const conditions = [eq(knowledgeItemTable.baseId, baseId)]
-
-    if (type !== undefined) {
-      conditions.push(eq(knowledgeItemTable.type, type))
-    }
-    if (groupId !== undefined) {
-      conditions.push(eq(knowledgeItemTable.groupId, groupId))
-    }
-
-    const where = conditions.length === 1 ? conditions[0] : and(...conditions)
-
-    const [rows, [{ count }]] = await Promise.all([
-      db
-        .select()
-        .from(knowledgeItemTable)
-        .where(where)
-        .orderBy(desc(knowledgeItemTable.createdAt), desc(knowledgeItemTable.id))
-        .limit(limit)
-        .offset(offset),
-      db.select({ count: sql<number>`count(*)` }).from(knowledgeItemTable).where(where)
-    ])
+    const { rows, total } = await knowledgeItemRepository.list(baseId, query)
 
     return {
       items: rows.map((row) => rowToKnowledgeItem(row)),
-      total: count,
-      page
+      total,
+      page: query.page
     }
   }
 
   async createMany(baseId: string, dto: CreateKnowledgeItemsDto): Promise<{ items: KnowledgeItem[] }> {
-    const db = application.get('DbService').getDb()
     await knowledgeBaseService.getById(baseId)
 
     const referenceErrors = getCreateKnowledgeItemsReferenceErrors(dto.items)
@@ -186,80 +161,28 @@ export class KnowledgeItemService {
       }
     })
 
-    const requestedGroupIds = [
-      ...new Set(plannedItems.map((item) => item.groupId).filter((groupId) => groupId != null))
-    ]
-    const itemsByRef = new Map<string, KnowledgeItem>()
-    const createdItems = new Map<number, KnowledgeItem>()
+    const requestedGroupIds = [...new Set(plannedItems.flatMap((item) => (item.groupId != null ? [item.groupId] : [])))]
+    const existingGroupIds = await knowledgeItemRepository.getExistingGroupIdsInBase(baseId, requestedGroupIds)
+    const missingGroupIds = requestedGroupIds.filter((groupId) => !existingGroupIds.has(groupId))
 
-    await db.transaction(async (tx) => {
-      if (requestedGroupIds.length > 0) {
-        const existingGroupRows = await tx
-          .select({ id: knowledgeItemTable.id })
-          .from(knowledgeItemTable)
-          .where(and(eq(knowledgeItemTable.baseId, baseId), inArray(knowledgeItemTable.id, requestedGroupIds)))
-        const existingGroupIds = new Set(existingGroupRows.map((row) => row.id))
-        const missingGroupIds = requestedGroupIds.filter((groupId) => !existingGroupIds.has(groupId))
+    if (missingGroupIds.length > 0) {
+      throw DataApiErrorFactory.validation({
+        groupId: [`Knowledge item group owner not found in base '${baseId}': ${missingGroupIds.join(', ')}`]
+      })
+    }
 
-        if (missingGroupIds.length > 0) {
-          throw DataApiErrorFactory.validation({
-            groupId: [`Knowledge item group owner not found in base '${baseId}': ${missingGroupIds.join(', ')}`]
-          })
-        }
-      }
-
-      const pendingItems = [...plannedItems]
-
-      while (pendingItems.length > 0) {
-        const readyItems = pendingItems.filter((item) => item.groupRef == null || itemsByRef.has(item.groupRef))
-
-        if (readyItems.length === 0) {
-          throw DataApiErrorFactory.validation({
-            groupRef: ['Knowledge item grouping cannot contain unresolved references within one request batch']
-          })
-        }
-
-        for (const item of readyItems) {
-          const groupId = item.groupRef ? (itemsByRef.get(item.groupRef)?.id ?? null) : (item.groupId ?? null)
-          const [row] = await tx
-            .insert(knowledgeItemTable)
-            .values({
-              baseId,
-              groupId,
-              type: item.type,
-              data: item.parsedData,
-              status: 'idle',
-              error: null
-            })
-            .returning()
-
-          const createdItem = rowToKnowledgeItem(row)
-          createdItems.set(item.index, createdItem)
-
-          if (item.ref) {
-            itemsByRef.set(item.ref, createdItem)
-          }
-        }
-
-        const readyIndices = new Set(readyItems.map((item) => item.index))
-        for (let index = pendingItems.length - 1; index >= 0; index -= 1) {
-          if (readyIndices.has(pendingItems[index].index)) {
-            pendingItems.splice(index, 1)
-          }
-        }
-      }
-    })
+    const createdRows = await knowledgeItemRepository.createMany(baseId, plannedItems)
 
     const items = plannedItems.map((item) => {
-      const createdItem = createdItems.get(item.index)
-      if (!createdItem) {
+      const createdRow = createdRows[item.index]
+      if (!createdRow) {
         throw DataApiErrorFactory.dataInconsistent(
           'KnowledgeItem',
           `Knowledge item create result missing for index '${item.index}'`
         )
       }
 
-      return createdItem
+      return rowToKnowledgeItem(createdRow)
     })
 
     logger.info('Created knowledge items', { baseId, count: items.length })
@@ -267,8 +190,7 @@ export class KnowledgeItemService {
   }
 
   async getById(id: string): Promise<KnowledgeItem> {
-    const db = application.get('DbService').getDb()
-    const [row] = await db.select().from(knowledgeItemTable).where(eq(knowledgeItemTable.id, id)).limit(1)
+    const row = await knowledgeItemRepository.findById(id)
 
     if (!row) {
       throw DataApiErrorFactory.notFound('KnowledgeItem', id)
@@ -278,18 +200,13 @@ export class KnowledgeItemService {
   }
 
   async getByIdsInBase(baseId: string, itemIds: string[]): Promise<KnowledgeItem[]> {
-    const db = application.get('DbService').getDb()
     const uniqueItemIds = [...new Set(itemIds)]
 
     if (uniqueItemIds.length === 0) {
       return []
     }
 
-    const rows = await db
-      .select()
-      .from(knowledgeItemTable)
-      .where(and(eq(knowledgeItemTable.baseId, baseId), inArray(knowledgeItemTable.id, uniqueItemIds)))
-
+    const rows = await knowledgeItemRepository.getByIdsInBase(baseId, uniqueItemIds)
     const itemsById = new Map(rows.map((row) => [row.id, rowToKnowledgeItem(row)]))
 
     for (const itemId of uniqueItemIds) {
@@ -302,7 +219,6 @@ export class KnowledgeItemService {
   }
 
   async getCascadeIdsInBase(baseId: string, rootIds: string[]): Promise<string[]> {
-    const db = application.get('DbService').getDb()
     const uniqueRootIds = [...new Set(rootIds)]
 
     if (uniqueRootIds.length === 0) {
@@ -310,33 +226,13 @@ export class KnowledgeItemService {
     }
 
     await this.getByIdsInBase(baseId, uniqueRootIds)
-
-    const descendantRows = await db.all<{ id: string }>(sql`
-      WITH RECURSIVE descendants AS (
-        SELECT id
-        FROM knowledge_item
-        WHERE base_id = ${baseId}
-          AND group_id IN (${sql.join(
-            uniqueRootIds.map((id) => sql`${id}`),
-            sql`, `
-          )})
-
-        UNION ALL
-
-        SELECT child.id
-        FROM knowledge_item child
-        INNER JOIN descendants parent ON child.group_id = parent.id
-        WHERE child.base_id = ${baseId}
-      )
-      SELECT DISTINCT id FROM descendants
-    `)
+    const descendantIds = await knowledgeItemRepository.getCascadeDescendantIdsInBase(baseId, uniqueRootIds)
 
     const rootIdSet = new Set(uniqueRootIds)
-    return [...uniqueRootIds, ...descendantRows.map((row) => row.id).filter((id) => !rootIdSet.has(id))]
+    return [...uniqueRootIds, ...descendantIds.filter((id) => !rootIdSet.has(id))]
   }
 
   async update(id: string, dto: UpdateKnowledgeItemDto): Promise<KnowledgeItem> {
-    const db = application.get('DbService').getDb()
     const existing = await this.getById(id)
 
     const updates: Partial<typeof knowledgeItemTable.$inferInsert> = {}
@@ -356,15 +252,17 @@ export class KnowledgeItemService {
       return existing
     }
 
-    const [row] = await db.update(knowledgeItemTable).set(updates).where(eq(knowledgeItemTable.id, id)).returning()
+    const row = await knowledgeItemRepository.update(id, updates)
+    if (!row) {
+      throw DataApiErrorFactory.dataInconsistent('KnowledgeItem', `Knowledge item update result missing for id '${id}'`)
+    }
     logger.info('Updated knowledge item', { id, changes: Object.keys(dto) })
     return rowToKnowledgeItem(row)
   }
 
   async delete(id: string): Promise<void> {
-    const db = application.get('DbService').getDb()
     await this.getById(id)
-    await db.delete(knowledgeItemTable).where(eq(knowledgeItemTable.id, id))
+    await knowledgeItemRepository.delete(id)
     logger.info('Deleted knowledge item', { id })
   }
 }
