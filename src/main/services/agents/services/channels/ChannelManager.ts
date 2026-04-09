@@ -19,6 +19,28 @@ export function registerAdapterFactory(type: string, factory: AdapterFactory): v
   adapterFactories.set(type, factory)
 }
 
+/**
+ * Lazy-load map: adapter type → dynamic import of the adapter module.
+ * Each module registers itself via `registerAdapterFactory()` as a side effect.
+ * This avoids eagerly importing all 6 heavy adapter modules at startup.
+ */
+const adapterImportMap: Record<string, () => Promise<unknown>> = {
+  discord: () => import('./adapters/discord/DiscordAdapter'),
+  feishu: () => import('./adapters/feishu/FeishuAdapter'),
+  qq: () => import('./adapters/qq/QQAdapter'),
+  slack: () => import('./adapters/slack/SlackAdapter'),
+  telegram: () => import('./adapters/telegram/TelegramAdapter'),
+  wechat: () => import('./adapters/wechat/WeChatAdapter')
+}
+
+/** Ensure the adapter factory for the given type is loaded (idempotent). */
+async function ensureAdapterLoaded(type: string): Promise<void> {
+  if (adapterFactories.has(type)) return
+  const loader = adapterImportMap[type]
+  if (!loader) return
+  await loader()
+}
+
 class ChannelManager {
   private static instance: ChannelManager | null = null
   private readonly adapters = new Map<string, ChannelAdapter>() // key: `${agentId}:${channelId}`
@@ -41,9 +63,11 @@ class ChannelManager {
       const channels = await channelService.listChannels()
       const activeChannels = channels.filter((ch) => ch.isActive && ch.agentId)
 
-      for (const channel of activeChannels) {
-        await this.connectChannelFromRow(channel)
-      }
+      // Lazy-load only the adapter modules needed for active channels
+      const neededTypes = [...new Set(activeChannels.map((ch) => ch.type))]
+      await Promise.all(neededTypes.map((type) => ensureAdapterLoaded(type)))
+
+      await Promise.all(activeChannels.map((channel) => this.connectChannelFromRow(channel)))
 
       logger.info('Channel manager started', { adapterCount: this.adapters.size })
     } catch (error) {
@@ -139,15 +163,48 @@ class ChannelManager {
     }
   }
 
-  async syncAgent(agentId: string): Promise<void> {
-    // Disconnect existing adapters for this agent in parallel
+  /** Disconnect the adapter for a single channel without reconnecting. */
+  async disconnectChannel(channelId: string): Promise<void> {
+    for (const [key, adapter] of this.adapters) {
+      if (adapter.channelId === channelId) {
+        await adapter.disconnect().catch((err) => {
+          logger.warn('Error disconnecting adapter', {
+            key,
+            error: err instanceof Error ? err.message : String(err)
+          })
+        })
+        this.adapters.delete(key)
+      }
+    }
+  }
+
+  /**
+   * Sync a single channel: disconnect its adapter (if any) and reconnect if active.
+   * Use this instead of disconnectAgent() when only one channel changed.
+   */
+  async syncChannel(channelId: string): Promise<void> {
+    await this.disconnectChannel(channelId)
+
+    // Re-read from DB and reconnect if active
+    const channel = await channelService.getChannel(channelId)
+    if (channel && channel.isActive && channel.agentId) {
+      await ensureAdapterLoaded(channel.type)
+      await this.connectChannelFromRow(channel)
+    }
+  }
+
+  /**
+   * Disconnect all adapters for an agent without reconnecting.
+   * Use when the agent is deleted or its channels should all be torn down.
+   */
+  async disconnectAgent(agentId: string): Promise<void> {
     const toDisconnect = [...this.adapters.entries()].filter(([, a]) => a.agentId === agentId)
     await Promise.all(
       toDisconnect.map(([key, adapter]) =>
         adapter
           .disconnect()
           .catch((err) => {
-            logger.warn('Error disconnecting adapter during sync', {
+            logger.warn('Error disconnecting adapter', {
               key,
               error: err instanceof Error ? err.message : String(err)
             })
@@ -159,14 +216,6 @@ class ChannelManager {
     )
 
     channelMessageHandler.clearSessionTracker(agentId)
-
-    // Re-create from current DB rows
-    const channels = await channelService.listChannels({ agentId })
-    const activeChannels = channels.filter((ch) => ch.isActive)
-
-    for (const channel of activeChannels) {
-      await this.connectChannelFromRow(channel)
-    }
   }
 
   /**
@@ -187,7 +236,7 @@ class ChannelManager {
     })
 
     logger.info('Saved QR registration credentials, reconnecting', { agentId, channelId })
-    await this.syncAgent(agentId)
+    await this.syncChannel(channelId)
   }
 
   private async connectChannelFromRow(row: ChannelRow): Promise<void> {
@@ -280,11 +329,21 @@ class ChannelManager {
         this.sendToRenderer(IpcChannel.Channel_StatusChange, status)
       })
 
-      await adapter.connect()
+      // Register adapter immediately so it's discoverable, then connect in background.
+      // Network I/O (WebSocket handshake, HTTP auth) should not block startup.
       this.adapters.set(key, adapter)
-      logger.info('Channel adapter connected', { agentId, channelId: row.id, type: row.type })
+      adapter.connect().then(
+        () => logger.info('Channel adapter connected', { agentId, channelId: row.id, type: row.type }),
+        (error) =>
+          logger.error('Failed to connect channel adapter', {
+            agentId,
+            channelId: row.id,
+            type: row.type,
+            error: error instanceof Error ? error.message : String(error)
+          })
+      )
     } catch (error) {
-      logger.error('Failed to connect channel adapter', {
+      logger.error('Failed to create channel adapter', {
         agentId,
         channelId: row.id,
         type: row.type,
