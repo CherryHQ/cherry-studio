@@ -354,18 +354,44 @@ export const isSerializedAiSdkErrorUnion = (error: SerializedError): error is Se
   )
 }
 
-/** Serialize any Error to a plain object safe for IPC / JSON. */
+/** Serialize any Error to a plain object safe for IPC / JSON.
+ *  Detects AI SDK error types and extracts their specific fields
+ *  (statusCode, responseBody, etc.) so Renderer can use type guards. */
 export function serializeError(error: unknown): SerializedError {
   if (error instanceof Error) {
-    return {
+    const base: SerializedError = {
       name: error.name,
       message: error.message,
-      stack: error.stack ?? null
+      stack: error.stack ?? null,
     }
+
+    const e = error as unknown as Record<string, unknown>
+
+    // AI SDK APICallError: has statusCode, url, requestBodyValues, responseBody, isRetryable, data
+    if ('statusCode' in e && 'url' in e && 'requestBodyValues' in e) {
+      return {
+        ...base,
+        cause: String(e.cause ?? null),
+        url: String(e.url ?? ''),
+        requestBodyValues: e.requestBodyValues as Serializable,
+        statusCode: (e.statusCode as number) ?? null,
+        responseHeaders: (e.responseHeaders as Record<string, string>) ?? null,
+        responseBody: String(e.responseBody ?? null),
+        isRetryable: Boolean(e.isRetryable),
+        data: (e.data as Serializable) ?? null,
+      }
+    }
+
+    // AI SDK generic error: has cause
+    if ('cause' in e) {
+      return { ...base, cause: String(e.cause ?? null) }
+    }
+
+    return base
   }
   return {
     name: null,
     message: String(error),
-    stack: null
+    stack: null,
   }
 }

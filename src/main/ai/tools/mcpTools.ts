@@ -50,7 +50,17 @@ function createMcpTool(mcpTool: MCPTool, disabledAutoApproveTools?: string[]): R
       }
 
       const textParts = result.content.filter((c) => c.type === 'text').map((c) => c.text)
-      return textParts.length > 0 ? textParts.join('\n') : JSON.stringify(result.content)
+      const content = textParts.length > 0 ? textParts.join('\n') : JSON.stringify(result.content)
+
+      // Structured return — Renderer reads output.metadata from ToolUIPart
+      return {
+        content,
+        metadata: {
+          serverName: mcpTool.serverName,
+          serverId: mcpTool.serverId,
+          type: 'mcp' as const,
+        },
+      }
     },
   }
 
