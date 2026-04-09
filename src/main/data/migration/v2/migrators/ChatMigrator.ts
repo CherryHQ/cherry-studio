@@ -605,9 +605,6 @@ export class ChatMigrator extends BaseMigrator {
       this.orphanedAssistantTopics++
     }
 
-    // Lookup assistant by ID (used for topic transform context)
-    const assistant = this.assistantLookup.get(assistantId) || null
-
     // Get messages array (may be empty or undefined)
     const oldMessages = oldTopic.messages || []
 
@@ -748,7 +745,7 @@ export class ChatMigrator extends BaseMigrator {
     }
 
     // Transform topic with correct activeNodeId
-    const newTopic = transformTopic(oldTopic, assistant, activeNodeId)
+    const newTopic = transformTopic(oldTopic, activeNodeId)
 
     return {
       topic: newTopic,

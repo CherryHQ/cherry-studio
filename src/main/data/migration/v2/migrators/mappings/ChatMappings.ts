@@ -394,7 +394,6 @@ export interface NewMessage {
  * Transform old Topic to new Topic format
  *
  * @param oldTopic - Source topic from Redux/Dexie
-
  * @param activeNodeId - Last message ID to set as active node
  * @returns New topic ready for SQLite insertion
  *
@@ -417,11 +416,7 @@ export interface NewMessage {
  * - type ('chat' | 'session'): No longer needed in new schema
  * - prompt: Topic-level prompt removed from schema; assistant prompt is authoritative
  */
-export function transformTopic(
-  oldTopic: OldTopic,
-  _assistant: OldAssistant | null,
-  activeNodeId: string | null
-): NewTopic {
+export function transformTopic(oldTopic: OldTopic, activeNodeId: string | null): NewTopic {
   return {
     id: oldTopic.id,
     name: oldTopic.name || null,
