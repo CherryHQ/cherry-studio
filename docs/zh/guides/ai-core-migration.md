@@ -3169,9 +3169,10 @@ AI SDK 的 `needsApproval` 只覆盖第 4 层。前 3 层需要我们在 tool ex
 - Tool.checkPermissions: 在 tool execute 开头检查
 - Bash classifier: 暂时不实现（用 `needsApproval: true` 全部要审批），后续按需
 
-#### E. Agent 嵌套（AgentTool + TeamCreateTool）
+#### E. Agent 嵌套（SubAgent 实现方案）
 
-SDK 支持 **spawn 子 agent**，子 agent 有独立的 query loop、独立的 tool 集、独立的 abort：
+SDK 的 AgentTool **递归创建 QueryEngine** — 子 agent 有完整的 agent loop
+（独立 messages、tools、abort、transcript），但共享 prompt cache：
 
 ```typescript
 // SDK 的 AgentTool
@@ -3184,20 +3185,120 @@ execute: async ({ prompt, agentOptions }) => {
 }
 ```
 
-**替代方案**: 在 tool execute 中递归调用 `AiCompletionService.generateText()`：
+**三种替代路径**（渐进式）：
+
+**路径 A: 递归 `generateText()`（Phase 6a，简单可用）**
+
+子 agent 调 `generateText()` 拿最终结果，不流式输出中间过程：
 
 ```typescript
-// 我们的 AgentTool
-execute: async (args, { experimental_context }) => {
-  const completionService = application.get('AiCompletionService')  // 或从 context 传入
-  const { text } = await completionService.generateText({
-    assistantId: args.agentId,
-    system: args.prompt,
-    prompt: args.task,
-  })
-  return text
+const agentTool: Tool = {
+  description: 'Spawn a sub-agent to handle a complex sub-task autonomously',
+  inputSchema: jsonSchema({
+    type: 'object',
+    properties: {
+      instructions: { type: 'string', description: 'System instructions for the sub-agent' },
+      task: { type: 'string', description: 'The task to accomplish' },
+      allowedTools: { type: 'array', items: { type: 'string' } },
+    },
+    required: ['task'],
+  }),
+  execute: async (args, { experimental_context }) => {
+    const ctx = experimental_context as AgentContext
+    const completionService = ctx.completionService
+
+    const { text, usage } = await completionService.generateText({
+      system: args.instructions,
+      prompt: args.task,
+      mcpToolIds: args.allowedTools,
+    })
+
+    return {
+      content: text,
+      metadata: { type: 'sub-agent', usage },
+    }
+  },
 }
 ```
+
+- ✅ 简单，复用已有 `generateText()`（自带 tools、provider 解析）
+- ✅ 子 agent 可用 tools（`generateText` 走 `createAgent` → `agent.generate()`，多步 tool loop）
+- ❌ 执行过程对用户不可见（黑盒）
+- ❌ 子 agent 执行期间 tool 审批无法交互（`needsApproval` 在 generate 中不可用）
+
+**路径 B: 递归 `runAgentLoop()`（Phase 6c，完整流式）**
+
+子 agent 拿到独立的 `ReadableStream`，在 tool execute 内消费：
+
+```typescript
+execute: async (args, { experimental_context, toolCallId, abortSignal }) => {
+  const ctx = experimental_context as AgentContext
+
+  const subStream = runAgentLoop(
+    {
+      providerId: ctx.providerId,
+      providerSettings: ctx.providerSettings,
+      modelId: ctx.modelId,
+      tools: resolveSubAgentTools(args.allowedTools),
+      system: args.instructions,
+      hooks: {
+        onStepFinish: (step) => {
+          // 子 agent 进度可通过 IPC 推送给 renderer（但不在父 stream 中）
+          ctx.emitSubAgentProgress?.(toolCallId, step)
+        },
+      },
+    },
+    [{ role: 'user', content: [{ type: 'text', text: args.task }], id: crypto.randomUUID() }],
+    abortSignal ?? new AbortController().signal,
+  )
+
+  // 消费子 stream，收集最终文本
+  let result = ''
+  const reader = subStream.getReader()
+  while (true) {
+    const { done, value } = await reader.read()
+    if (done) break
+    // 提取文本 chunks（跳过 tool-call chunks）
+    if (value.type === 'text-delta') result += value.textDelta
+  }
+
+  return { content: result, metadata: { type: 'sub-agent-streamed' } }
+}
+```
+
+- ✅ 子 agent 有完整的双循环（steering、hooks）
+- ✅ 通过 `ctx.emitSubAgentProgress` 可推送进度到 renderer
+- ✅ abort 传播（abortSignal 来自 ToolExecutionOptions）
+- ❌ tool execute 签名是同步返回，父 stream 看不到子 agent 的 chunks
+- ❌ 子 agent 的 tool 审批（needsApproval）无法交互（在 execute 内无法 pause 等用户）
+
+**路径 C: DataUIPart 进度推送（Phase 6 后期，最佳体验）**
+
+结合路径 B + 自定义 DataUIPart，让 renderer 看到子 agent 实时执行过程：
+
+```typescript
+// tool 定义
+onInputAvailable: async ({ toolCallId }) => {
+  // AI SDK 回调: tool call 参数就绪，execute 即将开始
+  // → renderer 可渲染 "子 agent 启动中..."
+},
+execute: async (args, { toolCallId, experimental_context }) => {
+  // ... 路径 B 的 runAgentLoop ...
+  // 进度通过 DataUIPart 推送: data-subAgentProgress
+  return { content: result, metadata: { steps, toolCalls } }
+},
+```
+
+Renderer 侧通过 `data-subAgentProgress` DataUIPart 渲染子 agent 的 tool 调用过程。
+
+**建议**: Phase 6a 先做路径 A（generateText 递归），验证可用后 Phase 6c 升级路径 B。
+路径 C 等 DataUIPart 体系完善后再做。
+
+**abort 传播**: 父 agent 的 `abortSignal` 通过 `ToolExecutionOptions.abortSignal` 传入 tool execute，
+子 agent 的 `runAgentLoop` 接收同一个 signal → 父 abort 自动传播到子 agent。
+
+**共享 prompt cache**: 路径 B 中子 agent 使用相同的 `providerId + providerSettings`，
+如果 system prompt 也相同，provider 侧的 prompt cache 自然命中（取决于 provider 实现）。
 
 #### F. 错误恢复策略
 
