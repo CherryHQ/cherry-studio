@@ -1,6 +1,11 @@
 import type { WebSearchPluginConfig } from '@cherrystudio/ai-core/core/plugins/built-in/webSearchPlugin'
 import type { AppProviderId } from '@renderer/aiCore/types'
-import { isOpenAIDeepResearchModel, isOpenAIWebSearchChatCompletionOnlyModel } from '@renderer/config/models'
+import {
+  isAnthropicModel,
+  isOpenAIDeepResearchModel,
+  isOpenAILLMModel,
+  isOpenAIWebSearchChatCompletionOnlyModel
+} from '@renderer/config/models'
 import type { CherryWebSearchConfig } from '@renderer/store/websearch'
 import type { Model } from '@renderer/types'
 import { mapRegexToPatterns } from '@renderer/utils/blacklistMatchPattern'
@@ -19,8 +24,10 @@ export function getWebSearchParams(model: Model): Record<string, any> {
     }
   }
 
-  // https://creator.poe.com/docs/external-applications/openai-compatible-api#using-custom-parameters-with-extra_body
-  if (model.provider === 'poe') {
+  // TODO: Remove this after confirming all Poe models support web search via SDK.
+  // Poe chat-path models (Gemini, Grok, etc.) use extra_body.web_search for built-in search.
+  // Claude and GPT models on Poe use native SDK web search via buildProviderBuiltinWebSearchConfig.
+  if (model.provider === 'poe' && !isAnthropicModel(model) && !isOpenAILLMModel(model)) {
     return {
       extra_body: {
         web_search: true
@@ -117,6 +124,10 @@ export function buildProviderBuiltinWebSearchConfig(
       const _providerId =
         { 'openai-response': 'openai', openai: 'openai-chat' }[model?.endpoint_type ?? ''] ?? model?.endpoint_type
       return buildProviderBuiltinWebSearchConfig(_providerId, webSearchConfig, model)
+    }
+    case 'poe': {
+      const _providerId = isAnthropicModel(model) ? 'anthropic' : 'openai'
+      return buildProviderBuiltinWebSearchConfig(_providerId as AppProviderId, webSearchConfig, model)
     }
     default: {
       return {}

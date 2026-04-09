@@ -26,6 +26,7 @@ import { createVoyage, type VoyageProviderSettings } from 'voyage-ai-provider'
 
 import { type AihubmixProviderSettings, createAihubmix } from '../custom/aihubmix-provider'
 import { createNewApi, type NewApiProviderSettings } from '../custom/newapi-provider'
+import { createPoeProvider, type PoeProviderSettings } from '../custom/poe-provider'
 
 /**
  * Google Vertex AI Extension
@@ -181,6 +182,15 @@ export const NewApiExtension = ProviderExtension.create({
 } as const satisfies ProviderExtensionConfig<NewApiProviderSettings, ProviderV3, 'newapi'>)
 
 /**
+ * Poe Extension - Claude → Anthropic Messages, others → OpenAI Responses
+ */
+export const PoeExtension = ProviderExtension.create({
+  name: 'poe',
+  supportsImageGeneration: false,
+  create: createPoeProvider
+} as const satisfies ProviderExtensionConfig<PoeProviderSettings, ProviderV3, 'poe'>)
+
+/**
  * Together AI Extension - chat and image generation
  */
 export const TogetherAIExtension = ProviderExtension.create({
@@ -216,6 +226,7 @@ export const extensions = [
   OllamaExtension,
   AiHubMixExtension,
   NewApiExtension,
+  PoeExtension,
   VoyageExtension,
   TogetherAIExtension,
   GroqExtension
