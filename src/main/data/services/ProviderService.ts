@@ -333,13 +333,16 @@ export class ProviderService {
   }
 
   /**
-   * Delete a provider
+   * Delete a provider. Preset providers (those with presetProviderId) cannot be deleted.
    */
   async delete(providerId: string): Promise<void> {
     const db = application.get('DbService').getDb()
 
-    // Verify provider exists
-    await this.getByProviderId(providerId)
+    const provider = await this.getByProviderId(providerId)
+
+    if (provider.presetProviderId) {
+      throw DataApiErrorFactory.invalidOperation(`Cannot delete preset provider '${providerId}'`)
+    }
 
     await db.delete(userProviderTable).where(eq(userProviderTable.providerId, providerId))
 

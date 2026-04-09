@@ -16,6 +16,7 @@ import { DataApiErrorFactory } from '@shared/data/api'
 import type { ApiHandler, ApiMethods } from '@shared/data/api/apiTypes'
 import type { CreateProviderDto, UpdateProviderDto } from '@shared/data/api/schemas/providers'
 import type { ProviderSchemas } from '@shared/data/api/schemas/providers'
+import * as z from 'zod'
 
 /**
  * Handler type for a specific provider endpoint
@@ -77,11 +78,12 @@ export const providerHandlers: {
     },
 
     POST: async ({ params, body }) => {
-      const { key, label } = body as { key: string; label?: string }
-      if (!key || typeof key !== 'string') {
-        throw DataApiErrorFactory.validation({ key: ['API key value is required'] })
+      const AddApiKeySchema = z.object({ key: z.string().min(1), label: z.string().optional() })
+      const parsed = AddApiKeySchema.safeParse(body)
+      if (!parsed.success) {
+        throw DataApiErrorFactory.validation({ key: [parsed.error.issues[0]?.message ?? 'Invalid input'] })
       }
-      return await providerService.addApiKey(params.providerId, key, label)
+      return await providerService.addApiKey(params.providerId, parsed.data.key, parsed.data.label)
     }
   },
 

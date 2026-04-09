@@ -28,7 +28,7 @@ interface ProviderMutableFields {
   name?: string
   /** Per-endpoint-type configuration (baseUrl, reasoningFormatType, modelsApiUrls) */
   endpointConfigs?: Partial<Record<EndpointType, EndpointConfig>>
-  /** Default text generation endpoint (numeric EndpointType enum value) */
+  /** Default text generation endpoint (kebab-case EndpointType value, e.g. 'openai-chat-completions') */
   defaultChatEndpoint?: EndpointType
   /** API keys */
   apiKeys?: ApiKeyEntry[]
