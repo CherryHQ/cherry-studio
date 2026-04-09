@@ -2820,6 +2820,14 @@ describe('Gemma 4 Models', () => {
       expect(findTokenLimit('gemma4:31b')).toEqual({ min: 1024, max: 30720 })
     })
 
+    it('returns correct limits for Gemma 4 with -it suffix', () => {
+      expect(findTokenLimit('gemma-4-e2b-it')).toEqual({ min: 1024, max: 8192 })
+      expect(findTokenLimit('gemma-4-e4b-it')).toEqual({ min: 1024, max: 8192 })
+      expect(findTokenLimit('gemma4:e2b-it')).toEqual({ min: 1024, max: 8192 })
+      expect(findTokenLimit('gemma-4-26b-it')).toEqual({ min: 1024, max: 30720 })
+      expect(findTokenLimit('gemma-4-31b-it')).toEqual({ min: 1024, max: 30720 })
+    })
+
     it('returns undefined for bare gemma4 without variant tag', () => {
       expect(findTokenLimit('gemma4')).toBeUndefined()
       expect(findTokenLimit('gemma4:latest')).toBeUndefined()
