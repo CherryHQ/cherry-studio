@@ -3646,6 +3646,88 @@ Cherry Studio 的 Hub MCP Server 和 AI SDK #14170 提出的 client-side tool se
 不需要 agentLoop 层面的特殊处理。agentLoop 的 `options.activeTools` 预留给未来需要的场景
 （比如某些 provider 不支持 Hub 模式时的 fallback）。
 
+### SDK ToolSearch 深度分析 vs Hub list 改进方向
+
+SDK 的 ToolSearch（源码: claude-code/manila-v1/src/tools/ToolSearchTool/）是 **API 级别的延迟加载**，
+不只是应用层搜索。与 Hub 的 `list` 有本质区别：
+
+#### 三种实现对比
+
+| | SDK ToolSearch | Hub `list` | AI SDK activeTools (#14170) |
+|---|---|---|---|
+| **机制** | API `defer_loading: true` → LLM 看到工具名无 schema → ToolSearch 返回 `tool_reference` → API 自动展开完整 schema | 纯文本返回工具名+描述列表 | `prepareStep` 修改 `activeTools` 数组 |
+| **Schema 注入** | API 在 `tool_reference` 响应后自动注入 | 从不注入（通过 `invoke` 动态调用） | 改变 activeTools 后下一步注入 |
+| **搜索能力** | ✅ 4 层评分算法 | ❌ 只有分页浏览 | ❌ 手动指定 |
+| **Prompt cache** | ✅ `defer_loading` schema 不在 request 中 | ✅ 4 个 meta-tools 不变 | ❌ activeTools 变化 bust cache |
+| **Provider 兼容** | ❌ Anthropic API beta 专有 | ✅ 所有 provider | ✅ 所有 provider |
+
+#### SDK ToolSearch 搜索算法（4 层评分）
+
+```
+查询: "+slack send message"
+
+Layer 1: 精确匹配（fast path）
+  → "mcp__slack__send_message" 完全匹配 → 直接返回
+
+Layer 2: MCP 前缀匹配
+  → "mcp__slack" 前缀 → 过滤该 server 所有 tools
+
+Layer 3: 必选项过滤（+ 前缀）
+  → "+slack" 必须包含 → 预过滤候选集
+
+Layer 4: 评分排序
+  tool: mcp__slack__send_message
+  parts: ['slack', 'send', 'message']
+    - 'slack' exact part match (MCP): +12
+    - 'send' exact part match (MCP):  +12
+    - 'message' exact part match:     +12
+  Total: 36 → rank #1
+```
+
+评分权重：
+
+| 匹配类型 | MCP tool | 普通 tool |
+|---------|---------|----------|
+| 精确 part 匹配 | +12 | +10 |
+| 部分 part 匹配 | +6 | +5 |
+| searchHint 匹配 | +4 | +4 |
+| full name fallback | +3 | +3 |
+| description 匹配 | +2 | +2 |
+
+查询格式：
+- `"select:Read,Edit,Grep"` — 精确选择（逗号分隔）
+- `"notebook jupyter"` — 关键词搜索
+- `"+slack send"` — `+` 前缀 = 必选项，其余为可选
+
+每个 tool 可声明 `searchHint: string`（3-10 词能力描述）提高搜索精度。
+
+#### SDK `defer_loading` + `tool_reference` 机制
+
+```
+1. 请求: tools 数组中包含 { name: "Read", defer_loading: true, ... }
+   → LLM 看到 "Read" 这个名字，但没有参数 schema，不能直接调用
+
+2. LLM 调用 ToolSearch({ query: "select:Read" })
+   → ToolSearch 返回: [{ type: "tool_reference", tool_name: "Read" }]
+
+3. API 看到 tool_reference → 自动将 Read 的完整 schema 注入到下一轮 context
+   → LLM 现在可以调用 Read({ file_path: "...", offset: 1, limit: 100 })
+```
+
+**这是 Anthropic API 专有的 beta 功能**（需要 `advanced-tool-use` header），其他 provider 不支持。
+因此 Hub 的 `invoke` 模式（不需要 schema 注入，LLM 直接传参数给 invoke）更通用。
+
+#### Hub `list` 改进方向
+
+当前 Hub 的 `list` 只有分页浏览，没有搜索。建议从 SDK 借鉴：
+
+1. **给 `list` 加关键词搜索**：用 SDK 的 4 层评分算法，`list({ query: "slack send", limit: 10 })`
+2. **给每个 tool 加 `searchHint`**：3-10 词能力描述，提高搜索精度
+3. **MCP tool 名解析**：按 `__` 和 `_` 分词，MCP 权重更高（+12 vs +10）
+4. **保持 `invoke`/`exec` 不变**：不需要 `tool_reference` — Hub 的无 schema 调用模式更通用
+
+不需要实现 `defer_loading` / `tool_reference`（Anthropic 专有，其他 provider 不支持）。
+
 ### Phase 3 (useChat 接入)
 
 ```
