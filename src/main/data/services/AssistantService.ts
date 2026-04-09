@@ -269,16 +269,16 @@ export class AssistantDataService {
       const existingIds = new Set(existing.map((r) => r.mcpServerId))
       const desiredIds = new Set(dto.mcpServerIds)
 
-      const toRemove = existing.filter((r) => !desiredIds.has(r.mcpServerId))
+      const removeIds = existing.filter((r) => !desiredIds.has(r.mcpServerId)).map((r) => r.mcpServerId)
       const toAdd = dto.mcpServerIds.filter((id) => !existingIds.has(id))
 
-      for (const r of toRemove) {
+      if (removeIds.length > 0) {
         await tx
           .delete(assistantMcpServerTable)
           .where(
             and(
               eq(assistantMcpServerTable.assistantId, assistantId),
-              eq(assistantMcpServerTable.mcpServerId, r.mcpServerId)
+              inArray(assistantMcpServerTable.mcpServerId, removeIds)
             )
           )
       }
@@ -295,16 +295,16 @@ export class AssistantDataService {
       const existingIds = new Set(existing.map((r) => r.knowledgeBaseId))
       const desiredIds = new Set(dto.knowledgeBaseIds)
 
-      const toRemove = existing.filter((r) => !desiredIds.has(r.knowledgeBaseId))
+      const removeIds = existing.filter((r) => !desiredIds.has(r.knowledgeBaseId)).map((r) => r.knowledgeBaseId)
       const toAdd = dto.knowledgeBaseIds.filter((id) => !existingIds.has(id))
 
-      for (const r of toRemove) {
+      if (removeIds.length > 0) {
         await tx
           .delete(assistantKnowledgeBaseTable)
           .where(
             and(
               eq(assistantKnowledgeBaseTable.assistantId, assistantId),
-              eq(assistantKnowledgeBaseTable.knowledgeBaseId, r.knowledgeBaseId)
+              inArray(assistantKnowledgeBaseTable.knowledgeBaseId, removeIds)
             )
           )
       }
