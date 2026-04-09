@@ -1,14 +1,12 @@
 import { usePersistCache } from '@data/hooks/useCache'
 import { usePreference } from '@data/hooks/usePreference'
 import { AppLogo } from '@renderer/config/env'
-import { useTheme } from '@renderer/context/ThemeProvider'
 import useAvatar from '@renderer/hooks/useAvatar'
 import { useMinappPopup } from '@renderer/hooks/useMinappPopup'
 import { useMinapps } from '@renderer/hooks/useMinapps'
 import { modelGenerating } from '@renderer/hooks/useModel'
 import { useSettings } from '@renderer/hooks/useSettings'
-import { getSidebarIconLabel, getThemeModeLabel } from '@renderer/i18n/label'
-import { ThemeMode } from '@renderer/types'
+import { getSidebarIconLabel } from '@renderer/i18n/label'
 import { getDefaultRouteTitle } from '@renderer/utils/routeTitle'
 import type { SidebarIcon as SidebarIconType } from '@shared/data/preference/preferenceTypes'
 import {
@@ -18,14 +16,10 @@ import {
   Languages,
   LayoutGrid,
   MessageSquare,
-  Monitor,
-  Moon,
   MousePointerClick,
   NotepadText,
   Palette,
-  Settings,
-  Sparkle,
-  Sun
+  Sparkle
 } from 'lucide-react'
 import type { Ref } from 'react'
 import { useCallback, useEffect, useMemo, useState } from 'react'
@@ -36,7 +30,6 @@ import { OpenClawSidebarIcon } from '../Icons/SVGIcon'
 import UserPopup from '../Popups/UserPopup'
 import { Sidebar as UISidebar } from '../Sidebar'
 import { getSidebarLayout } from '../Sidebar/constants'
-import { SidebarTooltip } from '../Sidebar/Tooltip'
 import type { SidebarMenuItem, SidebarMiniApp, SidebarMiniAppTab, SidebarUser } from '../Sidebar/types'
 
 const routePrefixMap: Record<SidebarIconType, string> = {
@@ -87,7 +80,6 @@ export default function Sidebar({ ref }: { ref?: Ref<HTMLDivElement | null> }) {
   const [showOpenedInSidebar] = usePreference('feature.minapp.show_opened_in_sidebar')
   const { tabs, activeTab, activeTabId, updateTab, openTab } = useTabs()
   const { defaultPaintingProvider } = useSettings()
-  const { settedTheme, toggleTheme } = useTheme()
 
   // Sidebar width — persisted across restarts
   const [persistedWidth, setPersistedWidth] = usePersistCache('ui.sidebar.width')
@@ -191,71 +183,6 @@ export default function Sidebar({ ref }: { ref?: Ref<HTMLDivElement | null> }) {
     }
   }
 
-  const handleSettingsClick = async () => {
-    try {
-      await modelGenerating()
-    } catch {
-      return
-    }
-
-    const settingsPath = '/settings/provider'
-    const hasUserTabsInTabBar = tabs.some((tab) => tab.id !== 'home')
-    if (!hasUserTabsInTabBar) {
-      openTab(settingsPath, {
-        forceNew: true,
-        title: getDefaultRouteTitle(settingsPath)
-      })
-      return
-    }
-    if (activeTabId) {
-      updateTab(activeTabId, { url: settingsPath, title: getDefaultRouteTitle(settingsPath) })
-    }
-  }
-
-  // Theme icon
-  const ThemeIcon = settedTheme === ThemeMode.dark ? Moon : settedTheme === ThemeMode.light ? Sun : Monitor
-
-  // Bottom actions (theme toggle + settings) — will move to TabBar after PR #12474
-  const bottomActions = (
-    <>
-      {layout === 'full' ? (
-        <div className="flex items-center gap-1 px-2.5">
-          <button
-            type="button"
-            onClick={toggleTheme}
-            className="flex h-8 w-8 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-accent/60 hover:text-foreground">
-            <ThemeIcon size={16} strokeWidth={1.6} />
-          </button>
-          <button
-            type="button"
-            onClick={handleSettingsClick}
-            className="flex h-8 w-8 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-accent/60 hover:text-foreground">
-            <Settings size={16} strokeWidth={1.6} />
-          </button>
-        </div>
-      ) : (
-        <>
-          <SidebarTooltip content={getThemeModeLabel(settedTheme)}>
-            <button
-              type="button"
-              onClick={toggleTheme}
-              className="flex h-9 w-9 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-accent/60 hover:text-foreground">
-              <ThemeIcon size={18} strokeWidth={1.6} />
-            </button>
-          </SidebarTooltip>
-          <SidebarTooltip content={t('settings.title')}>
-            <button
-              type="button"
-              onClick={handleSettingsClick}
-              className="flex h-9 w-9 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-accent/60 hover:text-foreground">
-              <Settings size={18} strokeWidth={1.6} />
-            </button>
-          </SidebarTooltip>
-        </>
-      )}
-    </>
-  )
-
   // Common props shared between normal and floating sidebar
   const sidebarProps = {
     activeItem,
@@ -263,7 +190,6 @@ export default function Sidebar({ ref }: { ref?: Ref<HTMLDivElement | null> }) {
     title: 'Cherry Studio',
     logo: <img src={AppLogo} alt="Cherry Studio" className="h-9 w-9 rounded-lg" draggable={false} />,
     user: sidebarUser,
-    actions: bottomActions,
     activeTabId: minappShow ? currentMinappId : undefined,
     dockedTabs: [],
     isDockDropTarget: false,

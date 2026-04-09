@@ -3,7 +3,7 @@ import styled from 'styled-components'
 export const WindowControlsContainer = styled.div`
   display: flex;
   align-items: center;
-  height: var(--navbar-height);
+  height: 100%;
   -webkit-app-region: no-drag;
   user-select: none;
   z-index: 9999;
@@ -14,7 +14,7 @@ export const ControlButton = styled.button<{ $isClose?: boolean }>`
   align-items: center;
   justify-content: center;
   width: 46px;
-  height: var(--navbar-height);
+  height: 100%;
   border: none;
   background: transparent;
   color: var(--color-text);

@@ -1,5 +1,5 @@
 import { loggerService } from '@logger'
-import { isLinux, isMac, isWin } from '@renderer/config/constant'
+import { isMac } from '@renderer/config/constant'
 import { cn, uuid } from '@renderer/utils'
 import { getDefaultRouteTitle } from '@renderer/utils/routeTitle'
 import { IpcChannel } from '@shared/IpcChannel'
@@ -7,7 +7,7 @@ import { Home, Plus, X } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 
 import type { Tab } from '../../hooks/useTabs'
-import WindowControls from '../WindowControls'
+import { ShellTabBarActions, useShellTabBarLayout } from './ShellTabBarActions'
 
 const logger = loggerService.withContext('AppShellTabBar')
 
@@ -217,6 +217,7 @@ export const AppShellTabBar = ({
   reorderTabs,
   isDetached = false
 }: AppShellTabBarProps) => {
+  const { rightPaddingClass } = useShellTabBarLayout(isDetached)
   const { homeTab, pinnedTabs, normalTabs } = useMemo(() => {
     const pinned: Tab[] = []
     const normal: Tab[] = []
@@ -583,7 +584,7 @@ export const AppShellTabBar = ({
       ref={tabBarRef}
       className={cn(
         'relative flex h-10 w-full items-center gap-[4px] bg-neutral-100 [-webkit-app-region:drag] dark:bg-neutral-900',
-        isWin || isLinux ? 'pr-36' : 'pr-4',
+        rightPaddingClass,
         isMac ? 'pl-[env(titlebar-area-x)]' : 'pl-4'
       )}>
       {!isDetached && <HomeTab isActive={activeTabId === HOME_TAB_ID} onClick={handleHomeClick} />}
@@ -641,9 +642,7 @@ export const AppShellTabBar = ({
         )}
       </div>
 
-      <div className="absolute top-0 right-0 h-full">
-        <WindowControls />
-      </div>
+      <ShellTabBarActions isDetached={isDetached} />
     </header>
   )
 }
