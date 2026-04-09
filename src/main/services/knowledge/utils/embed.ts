@@ -5,7 +5,11 @@ import { embedMany } from 'ai'
 /**
  * Embeds chunked documents and converts them into vector-store text nodes.
  */
-export async function embedDocuments(model: EmbeddingModelV3, documents: VectorStoreDocument[]): Promise<TextNode[]> {
+export async function embedDocuments(
+  model: EmbeddingModelV3,
+  documents: VectorStoreDocument[],
+  signal?: AbortSignal
+): Promise<TextNode[]> {
   if (documents.length === 0) {
     return []
   }
@@ -13,7 +17,8 @@ export async function embedDocuments(model: EmbeddingModelV3, documents: VectorS
   const values = documents.map((document) => document.text)
   const result = await embedMany({
     model,
-    values
+    values,
+    abortSignal: signal
   })
 
   return documents.map(

@@ -1,6 +1,5 @@
 import { knowledgeBaseService } from '@data/services/KnowledgeBaseService'
 import { knowledgeItemService } from '@data/services/KnowledgeItemService'
-import { loggerService } from '@logger'
 import { application } from '@main/core/application'
 import { BaseService, DependsOn, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import type { KnowledgeBase, KnowledgeItem, KnowledgeSearchResult } from '@shared/data/types/knowledge'
@@ -16,8 +15,6 @@ import { KnowledgeAddQueue } from './addQueue'
 import { KnowledgeAddRuntime } from './addRuntime'
 import { deleteItemVectors, deleteVectorsForEntries, failItems } from './utils/cleanup'
 import { DELETE_INTERRUPTED_REASON, SHUTDOWN_INTERRUPTED_REASON } from './utils/taskRuntime'
-
-const logger = loggerService.withContext('KnowledgeRuntimeService')
 
 @Injectable('KnowledgeRuntimeService')
 @ServicePhase(Phase.WhenReady)
@@ -109,12 +106,6 @@ export class KnowledgeRuntimeService extends BaseService {
         typeof node.metadata?.itemId === 'string' && node.metadata.itemId.length > 0 ? node.metadata.itemId : undefined,
       chunkId: node.id_
     }))
-
-    logger.info('Knowledge search completed', {
-      baseId: base.id,
-      query,
-      resultCount: searchResults.length
-    })
 
     return await rerankKnowledgeSearchResults(base, query, searchResults)
   }

@@ -1,17 +1,11 @@
 import { knowledgeItemTable } from '@data/db/schemas/knowledge'
 import type { DbType } from '@data/db/types'
 import { application } from '@main/core/application'
-import type { CreateKnowledgeItemsDto, KnowledgeItemsQuery } from '@shared/data/api/schemas/knowledges'
+import type { KnowledgeItemsQuery } from '@shared/data/api/schemas/knowledges'
 import { and, desc, eq, inArray, sql } from 'drizzle-orm'
 
 export type KnowledgeItemRow = typeof knowledgeItemTable.$inferSelect
-
-export type PlannedKnowledgeItemInsert = CreateKnowledgeItemsDto['items'][number] & {
-  parsedData: CreateKnowledgeItemsDto['items'][number]['data']
-  index: number
-}
-
-type KnowledgeItemDbExecutor = Pick<DbType, 'all' | 'delete' | 'insert' | 'select' | 'update'>
+export type KnowledgeItemDbExecutor = Pick<DbType, 'all' | 'delete' | 'insert' | 'select' | 'update'>
 
 export class KnowledgeItemRepository {
   private get db() {
@@ -60,47 +54,12 @@ export class KnowledgeItemRepository {
     return new Set(rows.map((row) => row.id))
   }
 
-  async createMany(
-    baseId: string,
-    plannedItems: PlannedKnowledgeItemInsert[]
-  ): Promise<Array<KnowledgeItemRow | undefined>> {
-    const rowsByIndex = new Map<number, KnowledgeItemRow>()
-    const itemsByRef = new Map<string, KnowledgeItemRow>()
-
-    await this.db.transaction(async (tx) => {
-      const pendingItems = [...plannedItems]
-
-      while (pendingItems.length > 0) {
-        const readyItems = pendingItems.filter((item) => item.groupRef == null || itemsByRef.has(item.groupRef))
-
-        for (const item of readyItems) {
-          const groupId = item.groupRef ? (itemsByRef.get(item.groupRef)?.id ?? null) : (item.groupId ?? null)
-          const [row] = await this.insertOne(tx, {
-            baseId,
-            groupId,
-            type: item.type,
-            data: item.parsedData,
-            status: 'idle',
-            error: null
-          })
-
-          rowsByIndex.set(item.index, row)
-
-          if (item.ref) {
-            itemsByRef.set(item.ref, row)
-          }
-        }
-
-        const readyIndices = new Set(readyItems.map((item) => item.index))
-        for (let index = pendingItems.length - 1; index >= 0; index -= 1) {
-          if (readyIndices.has(pendingItems[index].index)) {
-            pendingItems.splice(index, 1)
-          }
-        }
-      }
-    })
-
-    return plannedItems.map((item) => rowsByIndex.get(item.index))
+  async create(
+    values: typeof knowledgeItemTable.$inferInsert,
+    db: KnowledgeItemDbExecutor = this.db
+  ): Promise<KnowledgeItemRow> {
+    const [row] = await db.insert(knowledgeItemTable).values(values).returning()
+    return row
   }
 
   async findById(id: string): Promise<KnowledgeItemRow | undefined> {
@@ -167,13 +126,6 @@ export class KnowledgeItemRepository {
 
   async delete(id: string): Promise<void> {
     await this.db.delete(knowledgeItemTable).where(eq(knowledgeItemTable.id, id))
-  }
-
-  private async insertOne(
-    db: KnowledgeItemDbExecutor,
-    values: typeof knowledgeItemTable.$inferInsert
-  ): Promise<KnowledgeItemRow[]> {
-    return await db.insert(knowledgeItemTable).values(values).returning()
   }
 }
 

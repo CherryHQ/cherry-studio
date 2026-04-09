@@ -451,7 +451,7 @@ describe('KnowledgeRuntimeService', () => {
     const addPromiseAssertion = expect(addPromise).rejects.toThrow('pending write failed')
 
     await vi.waitFor(() => {
-      expect(loadKnowledgeItemDocumentsMock).toHaveBeenCalledWith(startedItem)
+      expect(loadKnowledgeItemDocumentsMock).toHaveBeenCalledWith(startedItem, expect.any(AbortSignal))
     })
 
     await addPromiseAssertion
@@ -488,7 +488,7 @@ describe('KnowledgeRuntimeService', () => {
     const addPromise = service.addItems(base, [runningItem, pendingItem])
 
     await vi.waitFor(() => {
-      expect(loadKnowledgeItemDocumentsMock).toHaveBeenCalledWith(runningItem)
+      expect(loadKnowledgeItemDocumentsMock).toHaveBeenCalledWith(runningItem, expect.any(AbortSignal))
     })
 
     await expect(service.deleteItems(base, [pendingItem])).resolves.toBeUndefined()
@@ -517,7 +517,7 @@ describe('KnowledgeRuntimeService', () => {
     const addPromise = service.addItems(base, [item])
 
     await vi.waitFor(() => {
-      expect(loadKnowledgeItemDocumentsMock).toHaveBeenCalledWith(item)
+      expect(loadKnowledgeItemDocumentsMock).toHaveBeenCalledWith(item, expect.any(AbortSignal))
     })
 
     let deleteResolved = false
@@ -562,7 +562,7 @@ describe('KnowledgeRuntimeService', () => {
     const addPromise = service.addItems(base, [item])
 
     await vi.waitFor(() => {
-      expect(loadKnowledgeItemDocumentsMock).toHaveBeenCalledWith(item)
+      expect(loadKnowledgeItemDocumentsMock).toHaveBeenCalledWith(item, expect.any(AbortSignal))
     })
 
     let deleteResolved = false
@@ -674,7 +674,7 @@ describe('KnowledgeRuntimeService', () => {
     const addPromise = service.addItems(base, [runningItem, pendingItem])
 
     await vi.waitFor(() => {
-      expect(loadKnowledgeItemDocumentsMock).toHaveBeenCalledWith(runningItem)
+      expect(loadKnowledgeItemDocumentsMock).toHaveBeenCalledWith(runningItem, expect.any(AbortSignal))
     })
 
     let deleteResolved = false
@@ -731,6 +731,48 @@ describe('KnowledgeRuntimeService', () => {
     expect(store.add).toHaveBeenCalled()
   })
 
+  it('keeps the original add error and still cleans up vectors when failed status persistence also fails', async () => {
+    const service = new KnowledgeRuntimeService()
+    const base = createBase()
+    const item = createNoteItem('item-failed-status')
+
+    const store = {
+      add: vi.fn().mockResolvedValue(undefined),
+      delete: vectorStoreDeleteMock,
+      query: vi.fn()
+    }
+    createVectorStoreMock.mockResolvedValue(store)
+    knowledgeItemUpdateMock.mockImplementation(async (_id, dto) => {
+      if (dto.status === 'completed') {
+        throw new Error('completed write failed')
+      }
+
+      if (dto.status === 'failed') {
+        throw new Error('failed write failed')
+      }
+
+      return dto
+    })
+
+    await expect(service.addItems(base, [item])).rejects.toThrow('completed write failed')
+
+    expect(knowledgeItemUpdateMock).toHaveBeenCalledWith(item.id, {
+      status: 'failed',
+      error: 'completed write failed'
+    })
+    expect(vectorStoreDeleteMock).toHaveBeenCalledWith(item.id)
+    expect(loggerErrorMock).toHaveBeenCalledWith(
+      'Failed to persist knowledge item failure state',
+      expect.objectContaining({ message: 'failed write failed' }),
+      expect.objectContaining({
+        baseId: base.id,
+        itemId: item.id,
+        itemType: item.type,
+        originalError: 'completed write failed'
+      })
+    )
+  })
+
   it('continues stop cleanup when interrupted vector deletion fails', async () => {
     const service = new KnowledgeRuntimeService()
     ;(service as any).addQueue = createSingleConcurrencyQueue(service)
@@ -757,7 +799,7 @@ describe('KnowledgeRuntimeService', () => {
     const addPromise = service.addItems(base, [runningItem, pendingItem])
 
     await vi.waitFor(() => {
-      expect(loadKnowledgeItemDocumentsMock).toHaveBeenCalledWith(runningItem)
+      expect(loadKnowledgeItemDocumentsMock).toHaveBeenCalledWith(runningItem, expect.any(AbortSignal))
     })
 
     const stopPromise = (service as any).onStop()
@@ -857,7 +899,7 @@ describe('KnowledgeRuntimeService', () => {
     const addPromise = service.addItems(base, [runningItem, pendingItem])
 
     await vi.waitFor(() => {
-      expect(loadKnowledgeItemDocumentsMock).toHaveBeenCalledWith(runningItem)
+      expect(loadKnowledgeItemDocumentsMock).toHaveBeenCalledWith(runningItem, expect.any(AbortSignal))
     })
 
     let stopResolved = false

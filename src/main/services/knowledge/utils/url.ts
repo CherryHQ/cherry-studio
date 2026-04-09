@@ -20,7 +20,7 @@ const knowledgeWebFetchQueue = new PQueue({
  * Fetches a knowledge web page through the Jina reader endpoint and returns
  * the normalized markdown payload.
  */
-export async function fetchKnowledgeWebPage(url: string): Promise<string> {
+export async function fetchKnowledgeWebPage(url: string, signal?: AbortSignal): Promise<string> {
   try {
     if (!isValidUrl(url)) {
       throw new Error(`Invalid knowledge web url: ${url}`)
@@ -29,12 +29,13 @@ export async function fetchKnowledgeWebPage(url: string): Promise<string> {
     const response = await knowledgeWebFetchQueue.add(
       async () =>
         await net.fetch(`${JINA_READER_BASE_URL}${url}`, {
-          signal: AbortSignal.timeout(DEFAULT_FETCH_TIMEOUT_MS),
+          signal: signal ?? AbortSignal.timeout(DEFAULT_FETCH_TIMEOUT_MS),
           headers: {
             'X-Retain-Images': 'none',
             'X-Return-Format': 'markdown'
           }
-        })
+        }),
+      signal ? { signal } : undefined
     )
     if (!response) {
       throw new Error(`Knowledge web fetch queue returned no response for ${url}`)

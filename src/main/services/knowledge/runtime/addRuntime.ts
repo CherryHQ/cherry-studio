@@ -65,10 +65,10 @@ export class KnowledgeAddRuntime {
       throw new Error(CONTAINER_ITEM_INDEXING_UNSUPPORTED_REASON)
     }
 
-    const documents = await runAbortable(this.isStopping(), ctx, () => loadKnowledgeItemDocuments(item))
+    const documents = await runAbortable(this.isStopping(), ctx, () => loadKnowledgeItemDocuments(item, ctx.signal))
     const chunks = await runAbortable(this.isStopping(), ctx, () => chunkDocuments(base, item, documents))
     const embeddingModel = await runAbortable(this.isStopping(), ctx, () => getEmbedModel(base))
-    return await runAbortable(this.isStopping(), ctx, () => embedDocuments(embeddingModel, chunks))
+    return await runAbortable(this.isStopping(), ctx, () => embedDocuments(embeddingModel, chunks, ctx.signal))
   }
 
   private async handleAddItemFailure(
@@ -83,32 +83,36 @@ export class KnowledgeAddRuntime {
       itemType: item.type
     })
 
-    await knowledgeItemService.update(item.id, {
-      status: 'failed',
-      error: error.message
-    })
-    await this.cleanupFailedItemVectors(base.id, item.id, vectorStore)
+    try {
+      await knowledgeItemService.update(item.id, {
+        status: 'failed',
+        error: error.message
+      })
+    } catch (persistError) {
+      logger.error(
+        'Failed to persist knowledge item failure state',
+        persistError instanceof Error ? persistError : new Error(String(persistError)),
+        {
+          baseId: base.id,
+          itemId: item.id,
+          itemType: item.type,
+          originalError: error.message
+        }
+      )
+    }
+
+    if (vectorStore) {
+      try {
+        await vectorStore.delete(item.id)
+      } catch (cleanupError) {
+        logger.warn('Failed to cleanup knowledge item vectors after add failure', {
+          baseId: base.id,
+          itemId: item.id,
+          cleanupError: cleanupError instanceof Error ? cleanupError.message : String(cleanupError)
+        })
+      }
+    }
 
     return error
-  }
-
-  private async cleanupFailedItemVectors(
-    baseId: string,
-    itemId: string,
-    vectorStore: BaseVectorStore | null
-  ): Promise<void> {
-    if (!vectorStore) {
-      return
-    }
-
-    try {
-      await vectorStore.delete(itemId)
-    } catch (cleanupError) {
-      logger.warn('Failed to cleanup knowledge item vectors after add failure', {
-        baseId,
-        itemId,
-        cleanupError: cleanupError instanceof Error ? cleanupError.message : String(cleanupError)
-      })
-    }
   }
 }

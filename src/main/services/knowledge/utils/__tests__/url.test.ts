@@ -40,7 +40,11 @@ describe('fetchKnowledgeWebPage', () => {
   it('fetches a page and returns markdown content', async () => {
     fetchMock.mockResolvedValue(new Response('# Example Page\n\nHello knowledge', { status: 200 }))
 
-    await expect(fetchKnowledgeWebPage('https://example.com')).resolves.toBe('# Example Page\n\nHello knowledge')
+    const controller = new AbortController()
+
+    await expect(fetchKnowledgeWebPage('https://example.com', controller.signal)).resolves.toBe(
+      '# Example Page\n\nHello knowledge'
+    )
 
     expect(fetchMock).toHaveBeenCalledWith(
       'https://r.jina.ai/https://example.com',
@@ -52,6 +56,14 @@ describe('fetchKnowledgeWebPage', () => {
         }
       })
     )
+  })
+
+  it('rejects before execution when the caller signal is already aborted', async () => {
+    const controller = new AbortController()
+    controller.abort(new Error('fetch aborted'))
+
+    await expect(fetchKnowledgeWebPage('https://example.com', controller.signal)).rejects.toThrow('fetch aborted')
+    expect(fetchMock).not.toHaveBeenCalled()
   })
 
   it('throws on non-ok upstream responses', async () => {

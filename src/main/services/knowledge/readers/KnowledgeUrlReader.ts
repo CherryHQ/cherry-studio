@@ -6,8 +6,11 @@ import { fetchKnowledgeWebPage } from '../utils/url'
 
 const logger = loggerService.withContext('KnowledgeUrlReader')
 
-export async function loadUrlDocuments(item: KnowledgeItemOf<'url'>): Promise<VectorStoreDocument[]> {
-  const markdown = await fetchKnowledgeWebPage(item.data.url)
+export async function loadUrlDocuments(
+  item: KnowledgeItemOf<'url'>,
+  signal?: AbortSignal
+): Promise<VectorStoreDocument[]> {
+  const markdown = await fetchKnowledgeWebPage(item.data.url, signal)
   if (!markdown) {
     logger.warn('Knowledge URL reader received empty markdown', {
       itemId: item.id,

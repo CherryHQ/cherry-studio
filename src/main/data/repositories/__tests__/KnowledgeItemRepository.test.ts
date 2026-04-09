@@ -1,7 +1,7 @@
 import { knowledgeBaseTable, knowledgeItemTable } from '@data/db/schemas/knowledge'
 import type { DbType } from '@data/db/types'
 import { createClient } from '@libsql/client'
-import type { CreateKnowledgeItemsDto, KnowledgeItemsQuery } from '@shared/data/api/schemas/knowledges'
+import type { KnowledgeItemsQuery } from '@shared/data/api/schemas/knowledges'
 import { sql } from 'drizzle-orm'
 import { drizzle } from 'drizzle-orm/libsql'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -19,11 +19,6 @@ vi.mock('@main/core/application', () => ({
 }))
 
 const { KnowledgeItemRepository } = await import('../KnowledgeItemRepository')
-
-type PlannedItem = CreateKnowledgeItemsDto['items'][number] & {
-  parsedData: CreateKnowledgeItemsDto['items'][number]['data']
-  index: number
-}
 
 describe('KnowledgeItemRepository', () => {
   let db: DbType
@@ -182,33 +177,19 @@ describe('KnowledgeItemRepository', () => {
     expect(existingGroupIds).toEqual(new Set(['dir-a']))
   })
 
-  it('creates grouped items in transaction order and returns rows in input order', async () => {
-    const plannedItems: PlannedItem[] = [
-      {
-        ref: 'root',
-        type: 'directory',
-        data: { name: 'files', path: '/tmp/files' },
-        parsedData: { name: 'files', path: '/tmp/files' },
-        index: 0
-      },
-      {
-        groupRef: 'root',
-        type: 'note',
-        data: { content: 'child note' },
-        parsedData: { content: 'child note' },
-        index: 1
-      }
-    ]
+  it('creates one row with the resolved grouping data supplied by the service layer', async () => {
+    const row = await repository.create({
+      baseId: 'kb-1',
+      groupId: 'dir-a',
+      type: 'note',
+      data: { content: 'child note' },
+      status: 'idle',
+      error: null
+    })
 
-    const rows = await repository.createMany('kb-1', plannedItems)
-
-    expect(rows).toHaveLength(2)
-    expect(rows[0]).toBeDefined()
-    expect(rows[1]).toBeDefined()
-    expect(rows[0]?.type).toBe('directory')
-    expect(rows[0]?.groupId).toBeNull()
-    expect(rows[1]?.type).toBe('note')
-    expect(rows[1]?.groupId).toBe(rows[0]?.id)
+    expect(row.type).toBe('note')
+    expect(row.groupId).toBe('dir-a')
+    expect(row.data).toEqual({ content: 'child note' })
   })
 
   it('returns rows by ids in the original input order', async () => {

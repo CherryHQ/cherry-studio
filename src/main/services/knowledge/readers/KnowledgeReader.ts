@@ -7,12 +7,12 @@ import { loadNoteDocuments } from './KnowledgeNoteReader'
 import { loadSitemapDocuments } from './KnowledgeSitemapReader'
 import { loadUrlDocuments } from './KnowledgeUrlReader'
 
-export async function loadKnowledgeItemDocuments(item: KnowledgeItem): Promise<Document[]> {
+export async function loadKnowledgeItemDocuments(item: KnowledgeItem, signal?: AbortSignal): Promise<Document[]> {
   switch (item.type) {
     case 'file':
       return await loadFileDocuments(item)
     case 'url':
-      return await loadUrlDocuments(item)
+      return await loadUrlDocuments(item, signal)
     case 'note':
       return await loadNoteDocuments(item)
     case 'sitemap':
