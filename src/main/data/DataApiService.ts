@@ -60,10 +60,6 @@ export class DataApiService extends BaseService {
       // Setup IPC handlers
       this.ipcAdapter.setupHandlers()
 
-      // TODO: enrichExistingModels() removed from startup — needs team discussion
-      // on whether to run per-startup (with version check), on-demand, or remove entirely.
-      // See: ProviderRegistryService architectural split issue.
-
       logger.info('Data API system initialized successfully')
 
       // Log system info

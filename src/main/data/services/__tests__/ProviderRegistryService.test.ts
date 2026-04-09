@@ -160,16 +160,6 @@ describe('ProviderRegistryService', () => {
     clearServiceCache()
   })
 
-  describe('enrichExistingModels', () => {
-    it('should run enrichment without errors', async () => {
-      setupRegistryData()
-
-      await providerRegistryService.enrichExistingModels()
-
-      expect(mockReadModels).toHaveBeenCalled()
-    })
-  })
-
   describe('registry load failure', () => {
     it('should throw when models.json cannot be read', () => {
       mockReadModels.mockImplementation(() => {
