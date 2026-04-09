@@ -3211,6 +3211,103 @@ SDK 有完善的错误恢复：
 | 媒体过大 | strip images/PDFs → retry | `hooks.onError` → strip media → retry |
 | Model fallback | 高并发时自动切模型 | `ai-retry` provider fallback |
 
+#### G. 多模型使用（Opus/Sonnet/Haiku 分工）
+
+SDK 不只用一个模型——不同任务用不同模型：
+
+| 用途 | 模型 | 选择逻辑 |
+|------|------|---------|
+| **主 agent loop** | Opus 4.6 (Max/Team Premium) 或 Sonnet 4.6 (其他) | 5 级优先级：session override → --model flag → env → settings → default |
+| **Auto-compaction 摘要** | Haiku/Sonnet | 用小模型压缩旧 turns，节省成本 |
+| **Advisor（审查模型）** | Opus 4.6 | 在执行前审查计划，实验性 |
+| **Forked agent（子任务）** | 继承父 agent 模型 | 共享 prompt cache |
+| **Fallback（高并发）** | 自动切换到 fallback model | FallbackTriggeredError → 重试 |
+
+**Fast Mode**: 不是换模型——同一个模型更快输出（beta header `fast-mode-2026-02-01`）。
+
+**替代方案**: `AgentOptions` 已支持 `modelId`。多模型使用场景：
+- 主 loop：用户选择的 model
+- Compaction：`hooks.beforeIteration` 中用小模型调 `generateText()` 做摘要
+- Advisor：通过 aiCore plugin 在请求前调用审查模型
+- Fallback：`ai-retry` library 的 provider fallback
+
+#### H. Advisor / Coordinator 模式
+
+**Advisor**: 实验性"审查模型"——在主 agent 执行前，用 Opus 审查整个对话，给出建议。
+独立的 token 追踪。通过 `server_tool_use` (type='advisor') block 集成。
+
+**Coordinator**: 环境变量 `CLAUDE_CODE_COORDINATOR_MODE` 启用。允许通过 Agent tool spawn 异步 worker，
+worker 有受限的 toolset（只有 Bash + FileRead + FileEdit）。
+
+**替代方案**: Advisor 可通过 `hooks.onStart` 或 `hooks.beforeIteration` 调用审查模型。
+Coordinator 通过 AgentTool 递归调用 `generateText()` with restricted tool set。
+
+#### I. CLAUDE.md 分层记忆系统
+
+SDK 有 4 层记忆文件加载（后面的优先级更高）：
+
+```
+1. /etc/claude-code/CLAUDE.md     — 全局（所有用户）
+2. ~/.claude/CLAUDE.md            — 用户级（所有项目）
+3. CLAUDE.md / .claude/rules/*.md — 项目级（checked into repo）
+4. CLAUDE.local.md                — 本地（不进 repo）
+```
+
+支持 `@include` 指令（`@path`, `@./rel`, `@~/home`, `@/abs`），防循环引用，大文件截断。
+
+**替代方案**: Cherry Studio 已有自己的 memory 系统（`MemoryService`）。
+CLAUDE.md 加载可在 `hooks.onStart` 中读取对应路径并注入 system prompt。
+
+#### J. Tool Deferral（懒加载 tools）
+
+SDK 用 ToolSearch 实现按需加载——大部分 tools 不在初始 system prompt 中（节省 context）：
+
+- **立即加载**（`alwaysLoad: true`）: ToolSearch 本身、Brief、SendUserFile、Agent
+- **延迟加载**（通过 ToolSearch 发现后加载）: 所有 MCP tools + `shouldDefer: true` 的 tools
+- **ToolSearch 查询**: `"select:Read,Edit"` 精确选择 / `"notebook jupyter"` 关键词搜索
+
+**替代方案**: 这就是 Hub MCP Server 的 `list` + `inspect` + `invoke` 模式。我们已有。
+
+#### K. Forked Agent（会话分叉）
+
+SDK 支持从当前会话 fork 出子 agent，共享 prompt cache：
+
+- `CacheSafeParams`: system prompt + messages 前缀必须相同 → cache hit
+- 隔离: 独立的 `readFileState`（克隆 LRU）、独立的 `abortController`、独立的 transcript
+- 用途: session_memory 摘要、compact 生成、advisor 调用
+
+**替代方案**: `hooks.beforeIteration` + `generateText()` 做子任务。
+Prompt cache 通过三层 context 结构的 contextPrefix 稳定性自然保护。
+
+#### L. Stop Hooks（turn 结束后处理）
+
+SDK 在每轮结束后执行：
+- **Prompt suggestion**: 生成后续建议
+- **Memory extraction**: 从对话中提取事实存入记忆（gated by EXTRACT_MEMORIES）
+- **Auto-dream**: 后台实验（fire-and-forget）
+
+**替代方案**: `hooks.afterIteration` + `hooks.onFinish` 覆盖所有 post-turn 逻辑。
+
+#### M. Token Budget
+
+用户可在 prompt 中指定 token 预算（`+500k`, `+1m`）：
+- 软限制（到阈值时 nudge 继续，非硬切断）
+- 每轮追踪实际消耗
+
+**替代方案**: `AgentOptions.maxOutputTokens` + `hooks.afterIteration` 检查 `result.usage` 累计。
+
+#### N. 成本追踪
+
+SDK 追踪完整成本信息：
+- Per-model input/output/cache tokens
+- API 调用时长
+- Tool 执行时长
+- Web search 请求数
+- Session 持久化 + resume 恢复
+
+**替代方案**: 已有 `trackUsage()` + `AnalyticsService`。
+细粒度成本（per-model、cache tokens）从 `IterationResult.usage` 中提取。
+
 ### 修正后的迁移策略
 
 **不应该等 Phase 5 完成再做 Phase 6。** 基于以上分析，Phase 6 应拆为：
