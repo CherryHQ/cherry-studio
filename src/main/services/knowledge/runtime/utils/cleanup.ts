@@ -15,7 +15,11 @@ export async function deleteItemVectors(base: KnowledgeBase, itemIds: string[]):
   }
 
   const vectorStoreService = application.get('KnowledgeVectorStoreService')
-  const vectorStore = await vectorStoreService.createStore(base)
+  const vectorStore = await vectorStoreService.getStoreIfExists(base)
+  if (!vectorStore) {
+    return
+  }
+
   await Promise.all(uniqueItemIds.map((itemId) => vectorStore.delete(itemId)))
 }
 

@@ -181,6 +181,7 @@ describe('KnowledgeRuntimeService', () => {
       if (serviceName === 'KnowledgeVectorStoreService') {
         return {
           createStore: createVectorStoreMock,
+          getStoreIfExists: createVectorStoreMock,
           deleteStore: deleteVectorStoreMock,
           clear: vi.fn()
         }

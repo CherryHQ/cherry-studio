@@ -1,9 +1,10 @@
 import type * as LifecycleModule from '@main/core/lifecycle'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { providerCreateMock, providerDeleteMock } = vi.hoisted(() => ({
+const { providerCreateMock, providerDeleteMock, providerExistsMock } = vi.hoisted(() => ({
   providerCreateMock: vi.fn(),
-  providerDeleteMock: vi.fn()
+  providerDeleteMock: vi.fn(),
+  providerExistsMock: vi.fn()
 }))
 
 vi.mock('@main/core/lifecycle', async (importOriginal) => {
@@ -36,7 +37,8 @@ vi.mock('@vectorstores/libsql', () => {
 vi.mock('../providers/LibSqlVectorStoreProvider', () => ({
   libSqlVectorStoreProvider: {
     create: providerCreateMock,
-    delete: providerDeleteMock
+    delete: providerDeleteMock,
+    exists: providerExistsMock
   }
 }))
 
@@ -63,6 +65,7 @@ function createStore(closeMock = vi.fn()) {
 describe('KnowledgeVectorStoreService', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    providerExistsMock.mockResolvedValue(false)
   })
 
   it('evicts a cached store even when provider delete fails', async () => {
@@ -101,5 +104,45 @@ describe('KnowledgeVectorStoreService', () => {
 
     await expect(service.createStore(createBase('kb-2'))).resolves.toBe(replacementStore)
     expect(secondCloseMock).toHaveBeenCalledTimes(1)
+  })
+
+  it('returns undefined from getStoreIfExists when no cached store or backing file exists', async () => {
+    const service = new KnowledgeVectorStoreService()
+    const base = createBase()
+
+    providerExistsMock.mockResolvedValueOnce(false)
+
+    await expect(service.getStoreIfExists(base)).resolves.toBeUndefined()
+
+    expect(providerExistsMock).toHaveBeenCalledWith(base.id)
+    expect(providerCreateMock).not.toHaveBeenCalled()
+  })
+
+  it('opens an existing store from disk when getStoreIfExists detects a backing file', async () => {
+    const service = new KnowledgeVectorStoreService()
+    const base = createBase()
+    const store = createStore()
+
+    providerExistsMock.mockResolvedValueOnce(true)
+    providerCreateMock.mockResolvedValueOnce(store)
+
+    await expect(service.getStoreIfExists(base)).resolves.toBe(store)
+
+    expect(providerExistsMock).toHaveBeenCalledWith(base.id)
+    expect(providerCreateMock).toHaveBeenCalledWith(base)
+  })
+
+  it('returns the cached store from getStoreIfExists without probing the provider', async () => {
+    const service = new KnowledgeVectorStoreService()
+    const base = createBase()
+    const store = createStore()
+
+    providerCreateMock.mockResolvedValueOnce(store)
+    await expect(service.createStore(base)).resolves.toBe(store)
+
+    await expect(service.getStoreIfExists(base)).resolves.toBe(store)
+
+    expect(providerExistsMock).not.toHaveBeenCalled()
+    expect(providerCreateMock).toHaveBeenCalledTimes(1)
   })
 })

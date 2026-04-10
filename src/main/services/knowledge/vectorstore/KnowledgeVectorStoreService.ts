@@ -23,6 +23,20 @@ export class KnowledgeVectorStoreService extends BaseService {
     return store
   }
 
+  async getStoreIfExists(base: KnowledgeBase): Promise<BaseVectorStore | undefined> {
+    const cachedStore = this.instanceCache.get(base.id)
+    if (cachedStore) {
+      return cachedStore
+    }
+
+    const exists = await libSqlVectorStoreProvider.exists(base.id)
+    if (!exists) {
+      return undefined
+    }
+
+    return await this.createStore(base)
+  }
+
   async deleteStore(baseId: string): Promise<void> {
     const store = this.instanceCache.get(baseId)
 

@@ -39,6 +39,21 @@ export class LibSqlVectorStoreProvider implements BaseVectorStoreProvider {
     }
   }
 
+  async exists(baseId: string): Promise<boolean> {
+    const dbPath = await this.getKnowledgeBaseFilePath(baseId)
+
+    try {
+      const stat = await fs.promises.stat(dbPath)
+      return stat.isFile()
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code === 'ENOENT') {
+        return false
+      }
+
+      throw error
+    }
+  }
+
   private async getKnowledgeBaseFilePath(baseId: string): Promise<string> {
     return application.getPath('feature.knowledgebase.data', sanitizeFilename(baseId, '_'))
   }
