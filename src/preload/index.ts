@@ -17,7 +17,6 @@ import type {
   OperationResult,
   WebviewKeyEvent
 } from '@shared/config/types'
-import type { CreateKnowledgeItemsDto } from '@shared/data/api/schemas/knowledges'
 import type { CacheEntry, CacheSyncMessage } from '@shared/data/cache/cacheTypes'
 import type {
   SelectionActionItem,
@@ -357,10 +356,6 @@ const api = {
       ipcRenderer.invoke(IpcChannel.KnowledgeRuntime_CreateBase, { baseId }),
     deleteBase: (baseId: string): Promise<void> =>
       ipcRenderer.invoke(IpcChannel.KnowledgeRuntime_DeleteBase, { baseId }),
-    expandDirectoryItem: (baseId: string, itemId: string): Promise<{ items: CreateKnowledgeItemsDto['items'] }> =>
-      ipcRenderer.invoke(IpcChannel.KnowledgeRuntime_ExpandDirectoryItem, { baseId, itemId }),
-    expandSitemapItem: (baseId: string, itemId: string): Promise<{ items: CreateKnowledgeItemsDto['items'] }> =>
-      ipcRenderer.invoke(IpcChannel.KnowledgeRuntime_ExpandSitemapItem, { baseId, itemId }),
     addItems: (baseId: string, itemIds: string[]): Promise<void> =>
       ipcRenderer.invoke(IpcChannel.KnowledgeRuntime_AddItems, { baseId, itemIds }),
     deleteItems: (baseId: string, itemIds: string[]): Promise<void> =>

@@ -8,7 +8,7 @@ import { ApiServerService } from '@main/services/ApiServerService'
 import { AppMenuService } from '@main/services/AppMenuService'
 import { AppUpdaterService } from '@main/services/AppUpdaterService'
 import { CodeCliService } from '@main/services/CodeCliService'
-import { KnowledgeRuntimeService } from '@main/services/knowledge'
+import { KnowledgeOrchestrationService, KnowledgeRuntimeService } from '@main/services/knowledge'
 import { KnowledgeVectorStoreService } from '@main/services/knowledge/vectorstore/KnowledgeVectorStoreService'
 import { LanTransferService } from '@main/services/lanTransfer'
 import { MCPService } from '@main/services/MCPService'
@@ -80,6 +80,7 @@ export const services = {
   MCPService,
   OpenClawService,
   SearchService,
+  KnowledgeOrchestrationService,
   KnowledgeVectorStoreService,
   KnowledgeRuntimeService,
   AgentBootstrapService,
